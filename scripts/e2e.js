@@ -186,13 +186,29 @@ function check(cond, msg) {
     }
     return out;
   });
-  check(audio.length === 7, `음성 7개 디코딩: ${audio.join(', ')}`);
+  check(audio.length === 8, `음성 7개 + 배경음악 디코딩: ${audio.join(', ')}`);
   const imgs = await A.evaluate(async () => {
     const list = ['/img/icon-192.png', '/img/emblem.webp', '/img/bg-lobby.webp', '/img/felt.webp', ...Array.from({ length: 8 }, (_, i) => `/img/avatars/a${i + 1}.webp`)];
     const res = await Promise.all(list.map((u) => fetch(u).then((r) => r.ok)));
     return res.every(Boolean);
   });
   check(imgs, '이미지 에셋 12개 모두 로드');
+
+  // 11) 배경음악: 첫 터치 이후 반복 재생, 소리 설정에서 끄면 멈춤
+  await wait(1500);
+  const music = await A.evaluate(() => window.__chandem.sound.musicState());
+  check(music && music.playing, `배경음악 재생 중 (${music && music.src.split('/').pop()})`);
+  await A.evaluate(() => window.__chandem.sound.setMusic(false));
+  const off = await A.evaluate(() => window.__chandem.sound.musicState());
+  check(off && !off.playing, '배경음악 끄기');
+  await A.evaluate(() => window.__chandem.sound.setMusic(true));
+
+  // 12) 링크 미리보기: 초대 링크에 방장 이름이 들어간 제목 + 미리보기 이미지
+  const og = await (await fetch(`${base}/r/${code}`)).text();
+  const ogTitle = (og.match(/og:title" content="([^"]*)/) || [])[1];
+  const ogImg = (og.match(/og:image" content="([^"]*)/) || [])[1];
+  check(ogTitle && ogTitle.includes('찬님이') && /og\.jpg$/.test(ogImg), `미리보기 제목: ${ogTitle}`);
+  check((await fetch(`${base}/img/og.jpg`)).ok, '미리보기 이미지 로드');
 
   check(errors.length === 0, `브라우저 오류 없음${errors.length ? ': ' + errors.join(' | ') : ''}`);
   await browser.close();

@@ -130,7 +130,22 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     const svg = await QRCode.toString(text, { type: 'svg', margin: 1, color: { dark: '#111111', light: '#ffffff' } });
     res.type('image/svg+xml').send(svg);
   });
-  app.get('/r/:code', (req, res) => res.sendFile(path.join(pub, 'index.html')));
+  // 초대 링크: 링크 미리보기(오픈그래프) 제목에 방장 이름·방 정보를 넣는다
+  const indexHtml = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
+  const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  app.get('/r/:code', (req, res) => {
+    const r = rooms.get(String(req.params.code).toUpperCase());
+    let html = indexHtml;
+    if (r && r.host) {
+      const s = r.settings;
+      const title = `${r.host.name}님이 찬덤 홀덤에 초대했어요 ♠`;
+      const desc = `방 코드 ${r.code} · 블라인드 ${s.sb}/${s.bb} · 시작 칩 ${s.startChips.toLocaleString('ko-KR')} · 지금 ${r.seated.length}/${s.maxPlayers}명`;
+      html = html
+        .replace(/(<meta property="og:title" content=")[^"]*/, `$1${escHtml(title)}`)
+        .replace(/(<meta property="og:description" content=")[^"]*/, `$1${escHtml(desc)}`);
+    }
+    res.type('html').send(html);
+  });
 
   // ── 소켓 ──────────────────────────────────────────
   io.on('connection', (socket) => {

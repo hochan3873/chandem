@@ -222,7 +222,7 @@ function processEvents(st, first) {
   const turnId = st.hand && st.hand.toActId;
   if (turnId && turnId === meId && S.lastTurnId !== meId) {
     sound.play('turn');
-    if (navigator.vibrate) navigator.vibrate(60);
+    if (navigator.vibrate && sound.isUnlocked()) navigator.vibrate(60);
   }
   S.lastTurnId = turnId;
 }
@@ -320,10 +320,10 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <label class="field"><span>최대 인원</span><input class="input" type="number" inputmode="numeric" name="maxPlayers" min="2" max="9" value="${s.maxPlayers}"></label>
   </div>
   <fieldset class="fieldset">
-    <legend>리바이</legend>
-    <label class="switch"><input type="checkbox" name="rebuyEnabled" ${s.rebuyEnabled ? 'checked' : ''}><span>리바이 허용</span></label>
+    <legend>리바인</legend>
+    <label class="switch"><input type="checkbox" name="rebuyEnabled" ${s.rebuyEnabled ? 'checked' : ''}><span>리바인 허용</span></label>
     <div class="grid2">
-      <label class="field"><span>리바이 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyAmount" min="1" value="${s.rebuyAmount}"></label>
+      <label class="field"><span>리바인 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyAmount" min="1" value="${s.rebuyAmount}"></label>
       <label class="field"><span>1인당 최대 횟수</span><input class="input" type="number" inputmode="numeric" name="rebuyMax" min="1" max="99" value="${s.rebuyMax}"></label>
     </div>
     <p class="muted small">칩이 시작 칩의 절반보다 적거나 다 떨어졌을 때 신청할 수 있어요. 진행 중인 판에는 영향이 없고 다음 판부터 적용돼요.</p>
@@ -478,7 +478,7 @@ function settingsSummaryHTML(s) {
     <li><span>블라인드</span><b>${fmt(s.sb)} / ${fmt(s.bb)}</b></li>
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
-    <li><span>리바이</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
+    <li><span>리바인</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
     <li><span>입장</span><b>${[s.hasPassword ? '비밀번호' : '', s.approval ? '방장 승인' : ''].filter(Boolean).join(' + ') || '링크만 있으면 누구나'}</b></li>
   </ul>`;
 }
@@ -584,7 +584,7 @@ function playerRowHTML(p, st, isHost) {
   return `<div class="list-row ${me ? 'is-me' : ''}">
     ${avatarHTML(p, 'avatar-sm')}
     <div class="grow"><b>${esc(p.name)}</b>${me ? ' <span class="muted small">(나)</span>' : ''}
-      ${st.room.phase === 'playing' && p.role === 'player' ? `<div class="muted small">칩 ${fmt(p.stack)}${p.rebuys ? ` · 리바이 ${p.rebuys}회` : ''}</div>` : ''}</div>
+      ${st.room.phase === 'playing' && p.role === 'player' ? `<div class="muted small">칩 ${fmt(p.stack)}${p.rebuys ? ` · 리바인 ${p.rebuys}회` : ''}</div>` : ''}</div>
     <div class="badges">${statusBadges(p, st)}</div>
     ${isHost && !me ? `<button class="icon-btn" data-pmenu="${p.id}" aria-label="${esc(p.name)} 관리">⋯</button>` : ''}
   </div>`;
@@ -650,14 +650,19 @@ function openSoundModal() {
     <div class="form">
       <label class="switch"><input type="checkbox" id="snd-mute" ${p.muted ? 'checked' : ''}><span>음소거</span></label>
       <label class="switch"><input type="checkbox" id="snd-voice" ${p.voice ? 'checked' : ''}><span>콜·다이 음성 듣기</span></label>
-      <label class="field"><span>볼륨 <b id="vol-val">${Math.round(p.volume * 100)}%</b></span>
+      <label class="field"><span>효과음·음성 볼륨 <b id="vol-val">${Math.round(p.volume * 100)}%</b></span>
         <input type="range" id="snd-vol" min="0" max="100" value="${Math.round(p.volume * 100)}"></label>
+      <label class="switch"><input type="checkbox" id="snd-music" ${p.music ? 'checked' : ''}><span>배경음악 듣기</span></label>
+      <label class="field"><span>배경음악 볼륨 <b id="mvol-val">${Math.round(p.musicVolume * 100)}%</b></span>
+        <input type="range" id="snd-mvol" min="0" max="100" value="${Math.round(p.musicVolume * 100)}"></label>
       <button class="btn btn-outline" id="snd-test">소리 들어보기</button>
       <p class="muted small">휴대폰 무음 모드에서는 소리가 나지 않을 수 있어요.</p>
     </div>`, (body) => {
     body.querySelector('#snd-mute').onchange = (e) => { sound.setMuted(e.target.checked); updateSoundIcon(); };
     body.querySelector('#snd-voice').onchange = (e) => sound.setVoice(e.target.checked);
     body.querySelector('#snd-vol').oninput = (e) => { sound.setVolume(e.target.value / 100); body.querySelector('#vol-val').textContent = e.target.value + '%'; };
+    body.querySelector('#snd-music').onchange = (e) => { sound.unlock(); sound.setMusic(e.target.checked); };
+    body.querySelector('#snd-mvol').oninput = (e) => { sound.setMusicVolume(e.target.value / 100); body.querySelector('#mvol-val').textContent = e.target.value + '%'; };
     body.querySelector('#snd-test').onclick = () => { sound.unlock(); sound.play('chips'); setTimeout(() => sound.play('v_call'), 200); };
   });
 }
@@ -730,10 +735,10 @@ function renderBanner(st) {
   const msgs = [];
   if (!S.connected) msgs.push(['warn', '서버와 연결이 끊겼어요. 다시 연결하는 중…']);
   if (me && me.role === 'player') {
-    if (me.pendingRebuy > 0) msgs.push(['info', `리바이 대기 중 · 다음 판부터 +${fmt(me.pendingRebuy)}`]);
+    if (me.pendingRebuy > 0) msgs.push(['info', `리바인 대기 중 · 다음 판부터 +${fmt(me.pendingRebuy)}`]);
     else if (me.canRebuy) {
       const s = st.room.settings;
-      msgs.push(['gold', `칩이 ${me.stack === 0 ? '모두 떨어졌어요' : '부족해요'} · 리바이 +${fmt(s.rebuyAmount)} (남은 횟수 ${s.rebuyMax - me.rebuys}번)`, '<button class="btn btn-sm btn-gold" id="rebuy-btn">리바이</button>']);
+      msgs.push(['gold', `칩이 ${me.stack === 0 ? '모두 떨어졌어요' : '부족해요'} · 리바인 +${fmt(s.rebuyAmount)} (남은 횟수 ${s.rebuyMax - me.rebuys}번)`, '<button class="btn btn-sm btn-gold" id="rebuy-btn">리바인</button>']);
     } else if (me.stack === 0 && !(st.hand && !st.hand.finished && st.players.find((p) => p.id === me.id)?.status === 'allin')) {
       msgs.push(['info', '칩이 모두 떨어졌어요. 이제 관전하며 응원해 주세요']);
     }
@@ -742,7 +747,7 @@ function renderBanner(st) {
   if (st.room.waiting) msgs.push(['info', '카드를 받을 수 있는 참가자가 2명 이상이 되면 다음 판이 시작돼요']);
   el.innerHTML = msgs.map(([k, t, btn]) => `<div class="banner banner-${k}"><span>${esc(t)}</span>${btn || ''}</div>`).join('');
   const rb = el.querySelector('#rebuy-btn');
-  if (rb) rb.onclick = async () => { const r = await emit('game:rebuy'); if (r.ok) toast('리바이 신청 완료! 다음 판부터 적용돼요', 'ok'); };
+  if (rb) rb.onclick = async () => { const r = await emit('game:rebuy'); if (r.ok) toast('리바인 신청 완료! 다음 판부터 적용돼요', 'ok'); };
   const si = el.querySelector('#sitin-btn');
   if (si) si.onclick = () => emit('game:sitin');
 }
@@ -1094,4 +1099,4 @@ window.addEventListener('popstate', () => { S.state = null; boot(); });
 boot();
 
 // 디버그/검증용 (자동 테스트에서 상태 확인)
-window.__chandem = { S, cardName };
+window.__chandem = { S, cardName, sound };

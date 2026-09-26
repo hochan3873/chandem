@@ -159,7 +159,7 @@ test('방장이 나가면 가장 먼저 들어온 참가자가 방장이 된다'
   b.close(); c.close(); a.close();
 });
 
-test('리바이: 칩이 부족할 때만, 횟수 제한, 다음 판부터 적용', async () => {
+test('리바인: 칩이 부족할 때만, 횟수 제한, 다음 판부터 적용', async () => {
   const a = client(); const b = client();
   const ra = await a.call('room:create', { name: '가', settings: { startChips: 100, sb: 5, bb: 10, rebuyEnabled: true, rebuyAmount: 100, rebuyMax: 1 } });
   const rb = await b.call('room:join', { code: ra.code, name: '나' });
@@ -197,7 +197,7 @@ test('리바이: 칩이 부족할 때만, 횟수 제한, 다음 판부터 적용
   assert.equal(lp.rebuys, 1);
   assert.equal(lp.pendingRebuy, 0);
   const total = a.last.players.reduce((sum, p) => sum + p.stack + p.bet, 0);
-  assert.equal(total, 300); // 원래 200 + 리바이 100
+  assert.equal(total, 300); // 원래 200 + 리바인 100
   a.close(); b.close();
 });
 

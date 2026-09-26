@@ -291,13 +291,13 @@ class Room {
   startHand() {
     this.clearTimer('next');
     this.nextHandAt = null;
-    // 판과 판 사이: 나간 사람 정리, 리바이 적용
+    // 판과 판 사이: 나간 사람 정리, 리바인 적용
     this.players = this.players.filter((p) => !p.leaving);
     for (const p of this.seated) {
       if (p.pendingRebuy > 0) {
         p.stack += p.pendingRebuy;
         p.totalBuyIn += p.pendingRebuy;
-        this.pushFeed(`${p.name}님 리바이 적용: +${p.pendingRebuy.toLocaleString()}`);
+        this.pushFeed(`${p.name}님 리바인 적용: +${p.pendingRebuy.toLocaleString()}`);
         p.pendingRebuy = 0;
       }
     }
@@ -427,7 +427,7 @@ class Room {
     this.lastResult = { handNo: this.handNo, ...this.hand.result };
     for (const p of this.seated) {
       if (p.stack === 0 && p.pendingRebuy === 0) {
-        this.pushFeed(this.canRebuy(p) ? `${p.name}님 칩 소진 · 리바이할 수 있어요` : `${p.name}님 칩 소진`);
+        this.pushFeed(this.canRebuy(p) ? `${p.name}님 칩 소진 · 리바인할 수 있어요` : `${p.name}님 칩 소진`);
       }
     }
     const delay = RESULT_DELAY[this.hand.result.type] || 5000;
@@ -435,7 +435,7 @@ class Room {
     this.setTimer('next', delay, () => this.startHand());
   }
 
-  /** 누군가 돌아오거나 리바이해서 판을 시작할 수 있게 됐는지 확인 */
+  /** 누군가 돌아오거나 리바인해서 판을 시작할 수 있게 됐는지 확인 */
   maybeStartWaitingHand() {
     if (this.phase === 'playing' && this.waiting && this.eligibleForHand().length >= 2) {
       this.nextHandAt = this.now() + 2000;
@@ -443,7 +443,7 @@ class Room {
     }
   }
 
-  // ── 리바이 ──────────────────────────────────────────
+  // ── 리바인 ──────────────────────────────────────────
   canRebuy(p) {
     const s = this.settings;
     if (!s.rebuyEnabled || this.phase !== 'playing' || p.role !== 'player') return false;
@@ -460,14 +460,14 @@ class Room {
   rebuy(id) {
     const p = this.get(id);
     if (!p) throw new RoomError('참가자를 찾을 수 없어요');
-    if (!this.settings.rebuyEnabled) throw new RoomError('이 방은 리바이가 꺼져 있어요');
-    if (p.rebuys >= this.settings.rebuyMax) throw new RoomError(`리바이는 최대 ${this.settings.rebuyMax}번까지예요`);
+    if (!this.settings.rebuyEnabled) throw new RoomError('이 방은 리바인이 꺼져 있어요');
+    if (p.rebuys >= this.settings.rebuyMax) throw new RoomError(`리바인은 최대 ${this.settings.rebuyMax}번까지예요`);
     if (p.pendingRebuy > 0) throw new RoomError('이미 신청했어요. 다음 판부터 적용돼요');
-    if (!this.canRebuy(p)) throw new RoomError('칩이 시작 칩의 절반보다 적을 때만 리바이할 수 있어요');
+    if (!this.canRebuy(p)) throw new RoomError('칩이 시작 칩의 절반보다 적을 때만 리바인할 수 있어요');
     p.rebuys += 1;
     p.pendingRebuy = this.settings.rebuyAmount;
     p.sittingOut = false;
-    this.pushFeed(`${p.name}님 리바이 신청 (${p.rebuys}/${this.settings.rebuyMax}) · 다음 판부터 적용`);
+    this.pushFeed(`${p.name}님 리바인 신청 (${p.rebuys}/${this.settings.rebuyMax}) · 다음 판부터 적용`);
     this.maybeStartWaitingHand();
     this.touch();
   }

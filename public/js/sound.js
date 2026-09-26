@@ -7,8 +7,9 @@ const buffers = {};
 let manifest = null;
 
 const prefs = (() => {
-  try { return { muted: false, volume: 0.7, voice: true, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
-  catch { return { muted: false, volume: 0.7, voice: true }; }
+  const base = { muted: false, volume: 0.7, voice: true, music: true, musicVolume: 0.35 };
+  try { return { ...base, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
+  catch { return base; }
 })();
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch {} }
@@ -17,10 +18,33 @@ export function getPrefs() { return { ...prefs }; }
 export function setMuted(m) { prefs.muted = !!m; save(); applyVolume(); }
 export function setVolume(v) { prefs.volume = Math.max(0, Math.min(1, Number(v))); save(); applyVolume(); }
 export function setVoice(v) { prefs.voice = !!v; save(); }
+export function setMusic(on) { prefs.music = !!on; save(); applyMusic(); }
+export function setMusicVolume(v) { prefs.musicVolume = Math.max(0, Math.min(1, Number(v))); save(); applyMusic(); }
+
+// ── 배경음악: <audio> 로 스트리밍 + 반복 재생 ───────────────
+let bgm = null;
+function applyMusic() {
+  if (!unlocked) return;
+  const want = prefs.music && !prefs.muted && !document.hidden && prefs.musicVolume > 0;
+  if (!bgm) {
+    if (!want) return;
+    const file = manifest && manifest.bgm;
+    if (!file) return;
+    bgm = new Audio('/sounds/' + file);
+    bgm.loop = true;
+    bgm.preload = 'auto';
+  }
+  bgm.volume = prefs.musicVolume;
+  if (want) { if (bgm.paused) bgm.play().catch(() => {}); }
+  else if (!bgm.paused) bgm.pause();
+}
+document.addEventListener('visibilitychange', applyMusic);
+export function musicState() { return bgm ? { playing: !bgm.paused, src: bgm.src, volume: bgm.volume } : null; }
 export function isUnlocked() { return unlocked; }
 
 function applyVolume() {
   if (master) master.gain.value = prefs.muted ? 0 : prefs.volume;
+  applyMusic();
 }
 
 async function loadManifest() {
@@ -55,7 +79,8 @@ export function unlock() {
   if (ctx.state === 'suspended') ctx.resume();
   unlocked = true;
   loadManifest().then(() => {
-    for (const n of Object.keys(manifest)) loadBuffer(n);
+    for (const n of Object.keys(manifest)) if (n !== 'bgm') loadBuffer(n);
+    applyMusic();
   });
 }
 
