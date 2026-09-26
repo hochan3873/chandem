@@ -85,13 +85,36 @@ function readAvatar(form) {
   return v || undefined;
 }
 
-function inviteUrl(code) {
+function siteUrl() {
   const info = S.info || {};
   let base = location.origin;
   if (info.publicUrl) base = info.publicUrl.replace(/\/$/, '');
   else if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && info.lan && info.lan.length) base = info.lan[0];
-  return `${base}/r/${code}`;
+  return base;
 }
+
+function inviteUrl(code) {
+  return `${siteUrl()}/r/${code}`;
+}
+
+// 링크 공유: 휴대폰은 공유 시트, 안 되면 복사
+async function shareLink(url, title, text) {
+  if (navigator.share) {
+    try { await navigator.share({ title, text, url }); } catch {}
+    return;
+  }
+  try { await navigator.clipboard.writeText(url); toast('링크를 복사했어요', 'ok'); }
+  catch { prompt('이 링크를 복사해서 보내 주세요', url); }
+}
+
+// 화면 맨 위 공유 버튼: 방 안이면 초대 링크, 아니면 찬덤 주소
+function shareTop() {
+  const code = S.state && S.state.room && S.state.room.code;
+  if (code) shareLink(inviteUrl(code), '찬덤 홀덤 초대', `찬덤 홀덤 방 ${code}에 들어와!`);
+  else shareLink(siteUrl(), '찬덤 홀덤', '친구들이랑 휴대폰으로 홀덤 한 판 하자!');
+}
+
+const SHARE_BTN = '<button class="btn btn-sm btn-gold share-top" id="share-top" aria-label="공유하기">🔗 공유</button>';
 
 // ── 모달 ─────────────────────────────────────────────
 function openModal(title, html, onMount, { wide = false } = {}) {
@@ -278,6 +301,7 @@ function renderHome() {
   const last = LS.get('chandem:name', '');
   $app.innerHTML = `
   <main class="home">
+    <div class="top-bar">${SHARE_BTN}</div>
     <div class="home-hero">
       ${logoHTML()}
       <p class="tagline">친구들과 휴대폰으로 즐기는 노리밋 텍사스 홀덤</p>
@@ -294,6 +318,7 @@ function renderHome() {
     </section>
     <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
   </main>`;
+  bindCommon();
   $app.querySelector('#go-create').onclick = () => { S.view = 'create'; render(); };
   $app.querySelector('#code-form').onsubmit = (e) => {
     e.preventDefault();
@@ -509,11 +534,7 @@ function bindInvite(root, code) {
   };
   root.querySelectorAll('[data-copy]').forEach((b) => { b.onclick = copy; });
   root.querySelectorAll('[data-share]').forEach((b) => {
-    b.onclick = async () => {
-      if (navigator.share) {
-        try { await navigator.share({ title: '찬덤 홀덤 초대', text: `찬덤 홀덤 방 ${code}에 들어와!`, url }); } catch {}
-      } else copy();
-    };
+    b.onclick = () => shareLink(url, '찬덤 홀덤 초대', `찬덤 홀덤 방 ${code}에 들어와!`);
   });
 }
 
@@ -527,6 +548,7 @@ function renderLobby() {
   $app.innerHTML = `
   <main class="page lobby">
     <header class="page-head">${logoHTML(true)}<div class="spacer"></div>
+      ${SHARE_BTN}
       <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '🔇' : '🔊'}</button>
       <button class="btn btn-sm btn-ghost" id="chart-btn">족보표</button>
     </header>
@@ -641,6 +663,8 @@ function bindCommon() {
   if (chart) chart.onclick = () => openModal('족보표', handChartHTML(), null, { wide: true });
   const sb = document.getElementById('sound-btn');
   if (sb) sb.onclick = openSoundModal;
+  const sh = document.getElementById('share-top');
+  if (sh) sh.onclick = shareTop;
 }
 
 function openSoundModal() {
@@ -721,6 +745,7 @@ function renderTop(st) {
     ${logoHTML(true)}
     <div class="g-info"><span class="mono">${esc(st.room.code)}</span><span>${st.room.handNo ? `${st.room.handNo}번째 판` : ''}</span></div>
     <div class="spacer"></div>
+    <button class="icon-btn share-icon" id="share-top" aria-label="초대 링크 공유">🔗</button>
     <button class="btn btn-sm btn-ghost" id="chart-btn">족보표</button>
     <button class="icon-btn" id="log-btn" aria-label="베팅 내역">📜</button>
     <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '🔇' : '🔊'}</button>
