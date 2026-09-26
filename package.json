@@ -1,0 +1,25 @@
+{
+  "name": "chandem",
+  "version": "1.0.0",
+  "private": true,
+  "description": "찬덤 - 친구들과 즐기는 모바일 웹 텍사스 홀덤 (칩은 현금 가치 없는 친목용 점수)",
+  "type": "commonjs",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test \"test/*.test.js\"",
+    "bots": "node scripts/bots.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.22.3",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1",
+    "socket.io-client": "^4.8.4"
+  }
+}
