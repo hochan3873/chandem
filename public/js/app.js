@@ -279,6 +279,7 @@ function render() {
     case 'boot': $app.innerHTML = `<div class="center-screen">${logoHTML()}<p class="muted">불러오는 중…</p></div>`; break;
     case 'home': renderHome(); break;
     case 'create': renderCreate(); break;
+    case 'practice': renderPractice(); break;
     case 'join': renderJoin(); break;
     case 'pending': renderPending(); break;
     case 'message': renderMessage(); break;
@@ -308,6 +309,7 @@ function renderHome() {
     </div>
     <section class="panel">
       <button class="btn btn-gold btn-lg" id="go-create">방 만들기</button>
+      <button class="btn btn-outline btn-lg" id="go-practice">🤖 혼자 연습하기</button>
       <div class="divider"><span>또는 초대 코드로 참가</span></div>
       <form id="code-form" class="row">
         <label class="sr-only" for="code-in">방 코드</label>
@@ -320,6 +322,7 @@ function renderHome() {
   </main>`;
   bindCommon();
   $app.querySelector('#go-create').onclick = () => { S.view = 'create'; render(); };
+  $app.querySelector('#go-practice').onclick = () => { S.view = 'practice'; render(); };
   $app.querySelector('#code-form').onsubmit = (e) => {
     e.preventDefault();
     const code = $app.querySelector('#code-in').value.trim().toUpperCase();
@@ -412,6 +415,48 @@ function renderCreate() {
   };
 }
 
+// 혼자 연습: 봇들과 바로 한 판
+function renderPractice() {
+  const cnt = LS.get('chandem:bots', 3);
+  $app.innerHTML = `
+  <main class="page">
+    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>혼자 연습하기</h1></header>
+    <form id="practice-form" class="panel form">
+      <p class="muted small">친구가 없어도 봇들과 바로 칠 수 있어요. 봇은 칩이 떨어지면 알아서 다시 채워요.</p>
+      <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
+      ${avatarPickerHTML()}
+      <fieldset class="fieldset"><legend>상대 봇 수</legend>
+        <div class="seg">${[1, 2, 3, 4, 5].map((n) => `<label class="seg-opt"><input type="radio" name="bots" value="${n}" ${cnt === n ? 'checked' : ''}><span>${n}명</span></label>`).join('')}</div>
+      </fieldset>
+      <fieldset class="fieldset"><legend>시작 칩 · 블라인드</legend>
+        <div class="seg">${[[1000, 10, 20], [5000, 25, 50], [10000, 50, 100]].map(([c, sb, bb], i) => `<label class="seg-opt"><input type="radio" name="level" value="${i}" ${i === 0 ? 'checked' : ''}><span>${fmt(c)}<small>${sb}/${bb}</small></span></label>`).join('')}</div>
+      </fieldset>
+      <button class="btn btn-gold btn-lg" type="submit">연습 시작</button>
+    </form>
+  </main>`;
+  $app.querySelector('#back').onclick = () => { S.view = 'home'; render(); };
+  const form = $app.querySelector('#practice-form');
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const name = String(fd.get('name') || '').trim();
+    if (!name) { toast('닉네임을 입력해 주세요', 'error'); return; }
+    const bots = Number(fd.get('bots')) || 3;
+    const [startChips, sb, bb] = [[1000, 10, 20], [5000, 25, 50], [10000, 50, 100]][Number(fd.get('level')) || 0];
+    LS.set('chandem:name', name);
+    LS.set('chandem:bots', bots);
+    const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99 };
+    const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form) });
+    if (!res.ok) return;
+    S.code = res.code;
+    S.session = { token: res.token, playerId: res.playerId };
+    LS.set(sessKey(res.code), S.session);
+    history.replaceState(null, '', '/r/' + res.code);
+    S.view = 'room';
+    render();
+  };
+}
+
 function renderJoin() {
   const d = S.roomInfo;
   $app.innerHTML = `
@@ -489,8 +534,9 @@ function renderMessage() {
 function statusBadges(p, st) {
   const b = [];
   if (p.isHost) b.push('<span class="badge badge-gold">방장</span>');
+  if (p.isBot) b.push('<span class="badge">🤖 봇</span>');
   if (p.role === 'spectator') b.push('<span class="badge">관전</span>');
-  else if (st.room.phase === 'lobby') b.push(p.isHost ? '<span class="badge badge-ok">준비 완료</span>' : p.ready ? '<span class="badge badge-ok">준비 완료</span>' : '<span class="badge badge-wait">준비 전</span>');
+  else if (st.room.phase === 'lobby' && !p.isBot) b.push(p.isHost ? '<span class="badge badge-ok">준비 완료</span>' : p.ready ? '<span class="badge badge-ok">준비 완료</span>' : '<span class="badge badge-wait">준비 전</span>');
   if (!p.connected) b.push('<span class="badge badge-warn">연결 끊김</span>');
   if (p.sittingOut) b.push('<span class="badge badge-wait">자리 비움</span>');
   return b.join('');
@@ -568,6 +614,7 @@ function renderLobby() {
       <div class="plist">
         ${players.map((p) => playerRowHTML(p, st, isHost)).join('') || '<p class="muted">아직 참가자가 없어요</p>'}
       </div>
+      ${isHost && players.length < s.maxPlayers ? '<button class="btn btn-sm btn-outline add-bot" id="add-bot">🤖 봇 추가</button>' : ''}
       ${specs.length ? `<h3 class="sub-title">관전자 ${specs.length}명</h3><div class="plist">${specs.map((p) => playerRowHTML(p, st, isHost)).join('')}</div>` : ''}
     </section>
     <section class="panel">
@@ -589,6 +636,8 @@ function renderLobby() {
   $app.querySelectorAll('[data-approve]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.approve, ok: true }); });
   $app.querySelectorAll('[data-reject]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.reject, ok: false }); });
   bindPlayerMenus($app);
+  const addBot = $app.querySelector('#add-bot');
+  if (addBot) addBot.onclick = () => emit('host:bot');
   const ready = $app.querySelector('#ready');
   if (ready) ready.onclick = () => emit('lobby:ready', { ready: !me.ready });
   const start = $app.querySelector('#start');
@@ -618,10 +667,11 @@ function bindPlayerMenus(root) {
       if (!p) return;
       openModal(`${p.name}님 관리`, `
         <div class="stack">
-          <button class="btn btn-outline" data-act="transfer">방장 넘기기</button>
+          ${p.isBot ? '' : '<button class="btn btn-outline" data-act="transfer">방장 넘기기</button>'}
           <button class="btn btn-outline danger" data-act="kick">방에서 내보내기</button>
         </div>`, (body) => {
-        body.querySelector('[data-act="transfer"]').onclick = async () => { const r = await emit('host:transfer', { id: p.id }); if (r.ok) { toast('방장을 넘겼어요', 'ok'); closeModal(); } };
+        const tr = body.querySelector('[data-act="transfer"]');
+        if (tr) tr.onclick = async () => { const r = await emit('host:transfer', { id: p.id }); if (r.ok) { toast('방장을 넘겼어요', 'ok'); closeModal(); } };
         body.querySelector('[data-act="kick"]').onclick = async () => {
           if (!confirm(`${p.name}님을 내보낼까요?`)) return;
           const r = await emit('host:kick', { id: p.id }); if (r.ok) closeModal();

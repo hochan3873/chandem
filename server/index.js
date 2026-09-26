@@ -235,6 +235,26 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('lobby:settings', handler((d) => { const { room, pid } = ctx(); room.updateSettings(pid, d.settings); }));
     socket.on('lobby:start', handler(() => { const { room, pid } = ctx(); room.start(pid); }));
     socket.on('host:approve', handler((d) => { const { room, pid } = ctx(); room.approve(pid, d.id, !!d.ok); }));
+    socket.on('host:bot', handler(() => { const { room, pid } = ctx(); room.addBot(pid); }));
+    // 혼자 연습: 방 + 봇 N명 + 바로 시작
+    socket.on('room:practice', (payload, ack) => {
+      try {
+        const settings = sanitizeSettings({ ...(payload.settings || {}), approval: false, password: '' });
+        let code;
+        do { code = makeCode(); } while (rooms.has(code));
+        const room = new Room({ code, settings, pace });
+        room.practice = true;
+        wire(room);
+        rooms.set(code, room);
+        const { player } = room.join({ name: payload.name, avatar: payload.avatar });
+        bind(room, player.id);
+        const n = Math.max(1, Math.min(settings.maxPlayers - 1, Number(payload.bots) || 3));
+        for (let i = 0; i < n; i++) room.addBot(player.id);
+        room.start(player.id);
+        broadcast(room);
+        reply(ack, { ok: true, code, playerId: player.id, token: player.token });
+      } catch (e) { fail(ack, e); }
+    });
     socket.on('host:kick', handler((d) => { const { room, pid } = ctx(); room.kick(pid, d.id); }));
     socket.on('host:transfer', handler((d) => { const { room, pid } = ctx(); room.transferHost(pid, d.id); }));
     socket.on('host:end', handler(() => { const { room, pid } = ctx(); room.endGame(pid); }));

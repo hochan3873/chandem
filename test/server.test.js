@@ -271,3 +271,44 @@ test('쇼다운 연출: 결과·칩 이동은 연출이 끝난 뒤 공개, 올�
   assert.equal(a.last.players.map((p) => p.stack + p.bet).reduce((x, y) => x + y, 0), stacksBefore.split(',').map(Number).reduce((x, y) => x + y, 0));
   a.close(); b.close();
 });
+
+test('혼자 연습: 봇들이 알아서 치고 판이 계속 이어진다', async () => {
+  const a = client();
+  const r = await a.call('room:practice', { name: '찬', bots: 3, settings: { startChips: 1000, sb: 10, bb: 20 } });
+  assert.equal(r.ok, true, r.message);
+  await until(() => a.last && a.last.room.phase === 'playing');
+  assert.equal(a.last.players.filter((p) => p.isBot).length, 3);
+  assert.equal(a.last.room.practice, true);
+  assert.ok(a.last.players.find((p) => p.id === r.playerId).isHost, '사람이 방장');
+  // 내 차례에는 체크/콜만 한다
+  a.on('state', (v) => {
+    const la = v.hand && v.hand.legal;
+    if (la) a.emit('game:act', { type: la.canCheck ? 'check' : 'call' }, () => {});
+  });
+  await until(() => a.last.room.handNo >= 4, 20000);
+  const total = a.last.players.reduce((s, p) => s + p.stack, 0) + (a.last.hand && !a.last.hand.finished ? a.last.hand.totalPot : 0);
+  assert.ok(total % 1000 === 0 && total >= 4000, `칩 합계가 충전 단위와 맞음 (${total})`);
+  // 사람이 나가면 방이 사라진다
+  await a.call('room:leave');
+  assert.equal(srv.rooms.has(r.code), false);
+  a.close();
+});
+
+test('대기실에서 방장만 봇을 추가할 수 있고, 봇은 준비된 상태다', async () => {
+  const a = client(); const b = client();
+  const ra = await a.call('room:create', { name: '방장', settings: {} });
+  await b.call('room:join', { code: ra.code, name: '친구' });
+  const no = await b.call('host:bot');
+  assert.equal(no.ok, false);
+  const yes = await a.call('host:bot');
+  assert.equal(yes.ok, true, yes.message);
+  await until(() => a.last && a.last.players.some((p) => p.isBot));
+  const botP = a.last.players.find((p) => p.isBot);
+  assert.equal(botP.ready, true);
+  assert.match(a.last.room.startBlocker || '', /친구/); // 사람 친구만 준비 전
+  // 방장이 나가도 봇에게 방장이 가지 않는다
+  await a.call('room:leave');
+  await until(() => b.last && b.last.players.find((p) => p.isHost));
+  assert.equal(b.last.players.find((p) => p.isHost).name, '친구');
+  a.close(); b.close();
+});

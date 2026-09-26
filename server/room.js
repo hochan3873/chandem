@@ -1,6 +1,7 @@
 'use strict';
 const crypto = require('crypto');
 const { Hand, IllegalAction } = require('./engine/hand');
+const bot = require('./bot');
 
 class RoomError extends Error {}
 
@@ -25,6 +26,7 @@ const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // 결과를 보여준 �
 const REVEAL = { first: 700, perHand: 1100, allinHands: 1600, flop: 1800, turn: 2200, squeeze: 1900, river: 1300, result: 900 };
 const MAX_TIMEOUTS = 2;               // 연속 시간 초과 시 자리 비움 처리
 const AVATAR_COUNT = 8;               // public/img/avatars/a1~a8
+const BOT_THINK = [900, 2200];        // 봇이 생각하는 시간(ms) 범위
 
 function int(v, def) {
   const n = Math.floor(Number(v));
@@ -162,6 +164,35 @@ class Room {
     return true;
   }
 
+  /** 연습용 봇을 자리에 앉힌다 */
+  addBot(hostId) {
+    this.requireHost(hostId);
+    const used = new Set(this.players.map((p) => p.name));
+    const base = bot.BOT_NAMES.find((n) => !used.has(n)) || '봇';
+    const p = this.createPlayer(this.uniqueName(base), false);
+    if (p.role !== 'player') throw new RoomError('빈자리가 없어요');
+    p.isBot = true;
+    p.style = crypto.randomInt(bot.STYLES.length);
+    p.connected = true;
+    p.ready = true;
+    this.players.push(p);
+    this.pushFeed(`${p.name}이 자리에 앉았어요 🤖`);
+    this.maybeStartWaitingHand();
+    this.touch();
+    return p;
+  }
+
+  botTurn() {
+    const h = this.hand;
+    if (!h || h.finished) return;
+    const p = this.get(h.currentId);
+    if (!p || !p.isBot) return;
+    let action;
+    try { action = bot.decide(h, p.id, bot.STYLES[p.style || 0]); } catch (e) { console.error('[bot]', e); }
+    try { this.act(p.id, action || { type: 'fold' }); }
+    catch { this.act(p.id, { type: h.legalActions(p.id).canCheck ? 'check' : 'fold' }); }
+  }
+
   /** 참가 요청. 반환: { player, pending } */
   join({ name, password, spectator, avatar }) {
     if (this.settings.password && password !== this.settings.password) {
@@ -222,7 +253,7 @@ class Room {
       }
       p.role = 'spectator';
       p.seat = null;
-      p.ready = false;
+      if (!p.isBot) p.ready = false;
     } else {
       if (p.role === 'player') return;
       if (!this.takeSeat(p)) throw new RoomError('빈 자리가 없어요');
@@ -276,7 +307,7 @@ class Room {
     this.hand = null;
     this.handPlayers = [];
     this.nextHandAt = null;
-    for (const p of this.players) p.ready = false;
+    for (const p of this.players) p.ready = !!p.isBot;
     this.pushFeed('방장이 게임을 끝내고 대기실로 돌아왔어요');
     this.touch();
   }
@@ -307,8 +338,17 @@ class Room {
         p.pendingRebuy = 0;
       }
     }
+    for (const p of this.seated) {
+      if (p.isBot && p.stack === 0) {
+        p.stack = this.settings.startChips;
+        p.totalBuyIn += this.settings.startChips;
+        this.pushFeed(`${p.name} 칩 충전 +${p.stack.toLocaleString()}`);
+      }
+    }
     const eligible = this.eligibleForHand();
-    if (eligible.length < 2) {
+    // 사람이 아무도 없으면 봇끼리 계속 치지 않는다
+    const hasHuman = eligible.some((p) => !p.isBot);
+    if (eligible.length < 2 || !hasHuman) {
       this.hand = null;
       this.handPlayers = [];
       this.waiting = true;
@@ -364,6 +404,7 @@ class Room {
 
   afterHandChange() {
     this.clearTimer('turn');
+    this.clearTimer('bot');
     this.turnDeadline = null;
     if (!this.hand) { this.touch(); return; }
     if (this.hand.finished) {
@@ -374,6 +415,11 @@ class Room {
       const ms = this.settings.turnSeconds * 1000;
       this.turnDeadline = this.now() + ms;
       this.setTimer('turn', ms, () => this.onTurnTimeout());
+      const cur = this.get(this.hand.currentId);
+      if (cur && cur.isBot) {
+        const think = BOT_THINK[0] + crypto.randomInt(BOT_THINK[1] - BOT_THINK[0]);
+        this.setTimer('bot', think * this.pace, () => this.botTurn());
+      }
     }
     this.touch();
   }
@@ -485,7 +531,8 @@ class Room {
 
   /** 누군가 돌아오거나 리바인해서 판을 시작할 수 있게 됐는지 확인 */
   maybeStartWaitingHand() {
-    if (this.phase === 'playing' && this.waiting && this.eligibleForHand().length >= 2) {
+    const el = this.eligibleForHand();
+    if (this.phase === 'playing' && this.waiting && el.length >= 2 && el.some((p) => !p.isBot)) {
       this.nextHandAt = this.now() + 2000;
       this.setTimer('next', 2000, () => this.startHand());
     }
@@ -566,7 +613,7 @@ class Room {
 
   pickNextHost(excludeId) {
     const cands = this.players
-      .filter((p) => p.id !== excludeId && !p.leaving && p.connected)
+      .filter((p) => p.id !== excludeId && !p.leaving && p.connected && !p.isBot)
       .sort((a, b) => (a.role === 'player' ? 0 : 1) - (b.role === 'player' ? 0 : 1) || a.joinedAt - b.joinedAt);
     return cands[0] || null;
   }
@@ -606,7 +653,7 @@ class Room {
     }
     this.pushFeed(`${p.name}님이 ${reason}`);
     if (id === this.hostId) {
-      const next = this.pickNextHost(id) || this.players.find((x) => x.id !== id && !x.leaving);
+      const next = this.pickNextHost(id) || this.players.find((x) => x.id !== id && !x.leaving && !x.isBot);
       this.hostId = next ? next.id : null;
       if (next) this.pushFeed(`${next.name}님이 새 방장이 됐어요`);
     }
@@ -624,7 +671,7 @@ class Room {
   }
 
   get isEmpty() {
-    return this.players.filter((p) => !p.leaving).length === 0;
+    return this.players.filter((p) => !p.leaving && !p.isBot).length === 0;
   }
 
   // ── 타이머 ─────────────────────────────────────────
@@ -683,6 +730,7 @@ class Room {
         rebuys: p.rebuys,
         ready: p.ready,
         connected: p.connected,
+        isBot: !!p.isBot,
         isHost: p.id === this.hostId,
         sittingOut: p.sittingOut,
         leaving: p.leaving,
@@ -705,6 +753,7 @@ class Room {
         hostId: this.hostId,
         handNo: this.handNo,
         waiting: !!this.waiting,
+        practice: !!this.practice,
         nextHandAt: this.nextHandAt,
         settings: { ...this.settings, password: undefined, hasPassword: !!this.settings.password },
         startBlocker: this.phase === 'lobby' ? this.startCheck() : null,
@@ -784,7 +833,7 @@ class Room {
     r.timers = {};
     r.hand = hand ? Hand.fromJSON(hand) : null;
     if (r.reveal) { r.reveal.done = true; r.reveal.board = 5; r.reveal.squeeze = false; } // 재시작하면 연출은 건너뜀
-    for (const p of r.players) { p.connected = false; p.disconnectedAt = p.disconnectedAt || now(); }
+    for (const p of r.players) { if (p.isBot) continue; p.connected = false; p.disconnectedAt = p.disconnectedAt || now(); }
     r.setTimer('host', HOST_GRACE_MS, () => {
       const h = r.host;
       if (h && !h.connected) r.transferHostAuto(`방장 ${h.name}님의 연결이 끊겨`);
@@ -794,6 +843,8 @@ class Room {
       const left = Math.max(5000, (r.turnDeadline || 0) - now());
       r.turnDeadline = now() + left;
       r.setTimer('turn', left, () => r.onTurnTimeout());
+      const cur = r.get(r.hand.currentId);
+      if (cur && cur.isBot) r.setTimer('bot', 1500, () => r.botTurn());
     } else if (r.phase === 'playing') {
       const left = Math.max(3000, (r.nextHandAt || 0) - now());
       r.nextHandAt = now() + left;

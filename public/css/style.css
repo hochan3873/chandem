@@ -477,3 +477,14 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 }
 #app.tension .board { animation: boardPulse .62s ease-in-out infinite; }
 @keyframes boardPulse { 50% { transform: scale(1.04); } }
+
+/* 혼자 연습 */
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg-opt { flex: 1 1 0; min-width: 52px; }
+.seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.seg-opt span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 44px; padding: 6px 4px; border-radius: 12px; border: 1px solid rgba(201, 164, 92, .35); color: var(--muted); font-weight: 700; cursor: pointer; }
+.seg-opt span small { font-size: .7rem; font-weight: 500; opacity: .8; }
+.seg-opt input:checked + span { background: linear-gradient(180deg, var(--gold-hi), var(--gold)); color: #2a1e08; border-color: var(--gold); }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+.add-bot { margin-top: 10px; width: 100%; }
+#go-practice { margin-top: 10px; }
