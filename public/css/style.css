@@ -407,3 +407,70 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
   .seat-cards { height: 45px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* ── 연출 ───────────────────────────────────────── */
+#fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 55; overflow: hidden; perspective: 800px; }
+.fx-chip, .fx-coin { position: fixed; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; will-change: transform, opacity; }
+.fx-chip {
+  background: radial-gradient(circle, var(--gold-hi) 0 28%, #7c1d23 29% 44%, transparent 45%), repeating-conic-gradient(#b22631 0 30deg, #f3efe6 30deg 45deg);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(0, 0, 0, .3);
+}
+.fx-chip-lg { width: 30px; height: 30px; margin: -15px 0 0 -15px; }
+.fx-coin {
+  width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  background: radial-gradient(circle at 35% 30%, #fff8dc, #f2cf6b 40%, #c9a45c 65%, #8d6f35);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 2px rgba(141, 111, 53, .7);
+}
+.fx-coin::after { content: '★'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #8d6f35; }
+.fx-banner {
+  position: fixed; left: 50%; top: 34%; transform: translate(-50%, -50%) scale(.6); opacity: 0;
+  padding: 14px 26px; border-radius: 18px; text-align: center; min-width: 240px; max-width: 92vw;
+  background: radial-gradient(ellipse at center, rgba(40, 28, 8, .96), rgba(10, 8, 4, .94));
+  border: 2px solid var(--gold); box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 0 40px rgba(232, 207, 148, .55), 0 20px 50px rgba(0, 0, 0, .7);
+  animation: bannerIn .45s cubic-bezier(.2, 1.4, .4, 1) forwards;
+}
+.fx-banner.out { animation: bannerOut .45s ease forwards; }
+@keyframes bannerIn { to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+@keyframes bannerOut { from { transform: translate(-50%, -50%) scale(1); opacity: 1; } to { transform: translate(-50%, -60%) scale(.9); opacity: 0; } }
+.fx-title {
+  font-family: var(--serif); font-weight: 900; font-size: 1.8rem; line-height: 1.15;
+  background: linear-gradient(180deg, #fff6d8, var(--gold-hi) 40%, var(--gold) 70%, var(--gold-lo));
+  -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .8));
+}
+.fx-sub { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.fx-hand { font-size: .95rem; color: var(--text); }
+.fx-amt { font-size: 2rem; color: #9ff0c4; text-shadow: 0 0 16px rgba(72, 178, 122, .8); font-variant-numeric: tabular-nums; }
+.fx-allin { border-color: #ff5a64; box-shadow: 0 0 40px rgba(255, 70, 80, .6), 0 20px 50px rgba(0, 0, 0, .7); animation: bannerIn .45s cubic-bezier(.2, 1.4, .4, 1) forwards, shake .5s .45s ease; }
+.fx-allin .fx-title { background: linear-gradient(180deg, #fff1c4, #ffb347 45%, #ff4d4d); -webkit-background-clip: text; background-clip: text; }
+.fx-mywin { top: 38%; padding: 18px 30px; }
+.fx-mywin .fx-title { font-size: 2.1rem; }
+.fx-title { white-space: nowrap; font-size: clamp(1.25rem, 7.2vw, 2.1rem) !important; }
+.reveal-line { color: var(--gold-hi); font-weight: 700; animation: pulse 1.2s ease-in-out infinite; }
+.fx-mywin .fx-amt { font-size: 2.6rem; }
+@keyframes shake { 0%, 100% { margin-left: 0; } 20% { margin-left: -8px; } 40% { margin-left: 8px; } 60% { margin-left: -5px; } 80% { margin-left: 5px; } }
+.fx-flash { position: fixed; inset: 0; background: radial-gradient(circle at 50% 45%, rgba(255, 236, 170, .55), rgba(255, 220, 120, 0) 65%); animation: flash .9s ease-out forwards; }
+@keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+
+.stage-allin { color: #ffb3a0; font-weight: 900; letter-spacing: .12em; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .55; } }
+/* 패를 까는 순간: 뒤집기 */
+.card-flip { animation: flipIn .55s cubic-bezier(.3, .7, .3, 1) both; }
+@keyframes flipIn { from { transform: rotateY(90deg) scale(1.15); filter: brightness(2); } to { transform: none; filter: none; } }
+.card-flip-slow { animation: flipIn 1s cubic-bezier(.3, .7, .3, 1) both; }
+/* 리버 쪼기: 뒷면 카드가 흔들리며 빛나다가, 천천히 벌어지듯 뒤집힌다 */
+.card-squeeze-wait { animation: squeezeWait .6s ease-in-out infinite alternate; box-shadow: 0 0 0 2px var(--gold), 0 0 18px rgba(232, 207, 148, .8); }
+@keyframes squeezeWait { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-5px) rotate(2deg); } }
+.card-squeeze { animation: squeezeOpen 1.3s cubic-bezier(.6, 0, .2, 1) both; transform-origin: 50% 100%; }
+@keyframes squeezeOpen {
+  0% { transform: perspective(300px) rotateX(-85deg) scale(1.1); filter: brightness(.3); }
+  55% { transform: perspective(300px) rotateX(-55deg) scale(1.12); filter: brightness(.6); }
+  85% { transform: perspective(300px) rotateX(8deg) scale(1.2); filter: brightness(1.6); }
+  100% { transform: none; filter: none; }
+}
+/* 리버를 쪼는 동안 화면 가장자리가 어두워지며 조여든다 */
+#app.tension .table-wrap::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 4;
+  background: radial-gradient(ellipse at 50% 43%, transparent 22%, rgba(0, 0, 0, .7) 75%); animation: fade .4s ease both;
+}
+#app.tension .board { animation: boardPulse .62s ease-in-out infinite; }
+@keyframes boardPulse { 50% { transform: scale(1.04); } }

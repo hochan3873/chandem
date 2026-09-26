@@ -24,6 +24,7 @@ export function cardHTML(code, opts = {}) {
   if (opts.anim) cls.push('card-deal');
   if (opts.highlight) cls.push('card-hl');
   if (opts.dim) cls.push('card-dim');
+  if (opts.cls) cls.push(opts.cls);
   const style = opts.delay ? ` style="animation-delay:${opts.delay}ms"` : '';
   if (!code) return `<span class="${cls.join(' ')} card-empty" aria-hidden="true"></span>`;
   if (code === '??') {

@@ -140,6 +140,38 @@ const SYNTH = {
   win: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.35, { type: 'triangle', gain: 0.16, at: i * 0.09 })); },
   lose: () => { tone(330, 0.2, { gain: 0.1 }); tone(262, 0.3, { gain: 0.1, at: 0.15 }); },
   tick: () => tone(1500, 0.03, { type: 'square', gain: 0.05 }),
+  // 올인 승부 시작: 점점 커지는 스네어 롤 + 마지막 한 방
+  drumroll: () => {
+    for (let i = 0; i < 26; i++) setTimeout(() => noise(0.05, { freq: 2600, q: 0.7, gain: 0.05 + i * 0.012 }), i * 45);
+    setTimeout(() => { tone(70, 0.5, { type: 'sine', gain: 0.6 }); noise(0.4, { freq: 1500, q: 0.4, gain: 0.35 }); }, 26 * 45);
+  },
+  // 리버를 쪼는 동안 심장 박동
+  heartbeat: () => {
+    for (let b = 0; b < 3; b++) {
+      setTimeout(() => { tone(58, 0.16, { type: 'sine', gain: 0.8 }); tone(52, 0.2, { type: 'sine', gain: 0.6, at: 0.17 }); }, b * 620);
+    }
+  },
+  // 카드가 확 뒤집힐 때 한 방
+  impact: () => { tone(90, 0.45, { type: 'sine', gain: 0.55 }); noise(0.3, { freq: 900, q: 0.4, gain: 0.3, type: 'lowpass' }); },
+  // 칩이 와르르 쏟아지는 소리
+  coins: () => {
+    for (let i = 0; i < 34; i++) {
+      const t = i * (40 + Math.random() * 30);
+      setTimeout(() => { tone(2000 + Math.random() * 2400, 0.07, { type: 'triangle', gain: 0.1 }); if (i % 3 === 0) noise(0.04, { freq: 5000, gain: 0.06 }); }, t);
+    }
+  },
+  // 승리 팡파르 (브라스 느낌: 톱니파 + 저역 통과)
+  fanfare: () => {
+    const notes = [[523, 0], [659, 0.12], [784, 0.24], [1047, 0.38], [784, 0.62], [1047, 0.74]];
+    for (const [f, at] of notes) {
+      const o = ctx.createOscillator(); const g = ctx.createGain(); const lp = ctx.createBiquadFilter();
+      const t = ctx.currentTime + at; const d = at >= 0.74 ? 0.9 : 0.22;
+      o.type = 'sawtooth'; o.frequency.value = f; lp.type = 'lowpass'; lp.frequency.value = 2400;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(lp).connect(g).connect(master); o.start(t); o.stop(t + d + 0.05);
+    }
+    tone(262, 1.4, { type: 'triangle', gain: 0.12, at: 0.74 });
+  },
 };
 
 /** name: 효과음 이름 (deal, chip, check …) 또는 음성 이름 (v_call …) */
@@ -163,7 +195,7 @@ export function playForEvent(e, { isMe = false, iWon = false } = {}) {
     case 'raise': play('chips'); play('v_raise'); break;
     case 'allin': play('allin'); play('v_allin'); break;
     case 'street': play('flip'); break;
-    case 'end': play(iWon ? 'win' : 'chips'); if (iWon) play('v_win'); break;
+    case 'end': if (iWon) play('v_win'); break; // 칩·팡파르는 승리 연출(celebrate)에서
     default: break;
   }
   return isMe;

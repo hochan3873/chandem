@@ -22,7 +22,7 @@ function lanUrls(port) {
   return out.sort((a, b) => score(a) - score(b));
 }
 
-function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '' } = {}) {
+function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1 } = {}) {
   const app = express();
   const server = http.createServer(app);
   const io = new Server(server, { pingInterval: 10000, pingTimeout: 8000 });
@@ -181,7 +181,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         const settings = sanitizeSettings(payload.settings || {});
         let code;
         do { code = makeCode(); } while (rooms.has(code));
-        const room = new Room({ code, settings });
+        const room = new Room({ code, settings, pace });
         wire(room);
         rooms.set(code, room);
         const { player } = room.join({ name: payload.name, password: settings.password, avatar: payload.avatar });

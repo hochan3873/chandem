@@ -123,7 +123,7 @@ function check(cond, msg) {
     }
     if (!acted) await wait(200);
   }
-  await A.waitForSelector('.result', { timeout: 5000 });
+  await A.waitForSelector('.result', { timeout: 15000 });
   await wait(700);
   await shot(A, '08-showdown.png');
   const res = (await state(A)).hand.result;
@@ -138,7 +138,7 @@ function check(cond, msg) {
   await B.click('.modal [data-close]');
 
   // 6) 다음 판 시작 후 새로고침 → 같은 사람, 같은 카드
-  await A.waitForFunction(() => window.__chandem.S.state.room.handNo === 2 && !window.__chandem.S.state.hand.finished, { timeout: 12000 });
+  await A.waitForFunction(() => window.__chandem.S.state.room.handNo === 2 && !window.__chandem.S.state.hand.finished, { timeout: 30000 });
   await wait(500);
   const before = await state(B);
   const myCardsBefore = before.players.find((p) => p.id === before.me.id).cards;
@@ -161,7 +161,7 @@ function check(cond, msg) {
       if (ck) { await ck.click(); await wait(350); break; }
     }
   }
-  await A.waitForSelector('.result', { timeout: 8000 }).catch(() => {});
+  await A.waitForSelector('.result', { timeout: 15000 }).catch(() => {});
   await shot(A, '11-fold-win.png');
 
   // 8) 메뉴

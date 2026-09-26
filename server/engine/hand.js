@@ -231,7 +231,8 @@ class Hand {
     if (this.live.length === 1) { this.finishByFold(); return; }
     if (this.stage === 'river') { this.showdown(); return; }
     if (this.canActCount <= 1) {
-      // 더 이상 베팅할 사람이 없으면 남은 카드를 모두 깔고 쇼다운
+      // 더 이상 베팅할 사람이 없으면 남은 카드를 모두 깔고 쇼다운 (화면 연출용으로 시작 위치 기록)
+      this.runoutFrom = this.board.length;
       while (this.stage !== 'river') this.nextStage();
       this.showdown();
       return;

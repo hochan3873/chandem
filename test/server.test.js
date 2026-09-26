@@ -7,7 +7,7 @@ const { createServer } = require('../server/index');
 let srv;
 let base;
 test.before(async () => {
-  srv = createServer({ port: 0 });
+  srv = createServer({ port: 0, pace: 0.05 }); // 쇼다운 연출 시간을 20배 빠르게
   const port = await srv.listen();
   base = `http://127.0.0.1:${port}`;
 });
@@ -72,6 +72,7 @@ test('방 만들기 → 참가(중복 닉네임) → 준비 → 시작 → 한 �
     assert.equal(r.ok, true, r.message);
     await until(() => a.last.hand.toActId !== h.toActId || a.last.hand.finished || a.last.hand.stage !== h.stage);
   }
+  await until(() => a.last.hand.result); // 쇼다운 연출이 끝나야 결과가 공개된다
   const res = a.last.hand.result;
   assert.ok(res, '결과가 있어야 합니다');
   assert.equal(res.type, 'showdown');
@@ -173,14 +174,14 @@ test('리바인: 칩이 부족할 때만, 횟수 제한, 다음 판부터 적용
   const second = byId[await until(() => a.last.hand.toActId !== firstId && a.last.hand.toActId)];
   const la = await until(() => second.last.hand.legal);
   await second.call('game:act', { type: la.canCall ? 'call' : 'allin' });
-  await until(() => a.last.hand.finished);
+  await until(() => a.last.hand.result);
   const res = a.last.hand.result;
   const tie = Object.values(res.deltas).every((d) => d === 0);
   if (tie) { a.close(); b.close(); return; } // 드물게 무승부면 이 테스트는 생략
   const loserId = Object.entries(res.deltas).find(([, d]) => d < 0)[0];
   const loser = byId[loserId];
   // 올인한 순간이 아니라 판이 끝난 뒤의 상태로 확인 (판에 건 칩은 아직 잃은 게 아님)
-  await until(() => loser.last.hand.finished && loser.last.me.stack === 0);
+  await until(() => loser.last.hand.result && loser.last.me.stack === 0);
   assert.equal(loser.last.me.canRebuy, true);
   const potBefore = a.last.hand.totalPot;
   const r1 = await loser.call('game:rebuy');
@@ -206,7 +207,7 @@ test('서버를 다시 켜도 저장된 방과 진행 중인 판이 복구된다
   const path = require('path');
   const fs = require('fs');
   const file = path.join(os.tmpdir(), `chandem-test-${Date.now()}.json`);
-  const s1 = createServer({ port: 0, dataFile: file });
+  const s1 = createServer({ port: 0, dataFile: file, pace: 0.05 });
   const p1 = await s1.listen();
   const mk = (port) => { const s = connect(`http://127.0.0.1:${port}`, { transports: ['websocket'], forceNew: true }); s.last = null; s.on('state', (v) => { s.last = v; }); s.call = (e, d) => new Promise((r) => s.emit(e, d, r)); return s; };
   const a = mk(p1); const b = mk(p1);
@@ -231,4 +232,42 @@ test('서버를 다시 켜도 저장된 방과 진행 중인 판이 복구된다
   b2.close();
   await s2.close();
   fs.rmSync(file, { force: true });
+});
+
+test('쇼다운 연출: 결과·칩 이동은 연출이 끝난 뒤 공개, 올인이면 카드가 한 장씩 깔린다', async () => {
+  const a = client(); const b = client();
+  const ra = await a.call('room:create', { name: '가', settings: { startChips: 500, sb: 5, bb: 10 } });
+  const rb = await b.call('room:join', { code: ra.code, name: '나' });
+  await b.call('lobby:ready', { ready: true });
+  await a.call('lobby:start');
+  await until(() => a.last.hand && b.last.hand);
+  const byId = { [ra.playerId]: a, [rb.playerId]: b };
+  const firstId = a.last.hand.toActId;
+  const stacksBefore = a.last.players.map((p) => p.stack + p.bet).sort().join();
+  await byId[firstId].call('game:act', { type: 'allin' });
+  const second = byId[await until(() => a.last.hand.toActId !== firstId && a.last.hand.toActId)];
+  const la = await until(() => second.last.hand.legal);
+  // 연출 동안 받은 화면 상태를 모두 기록
+  const seen = [];
+  a.on('state', (v) => { if (v.hand && v.hand.finished) seen.push(v); });
+  await second.call('game:act', { type: la.canCall ? 'call' : 'allin' });
+  await until(() => a.last.hand.result, 5000);
+  const during = seen.filter((v) => !v.hand.result);
+  assert.ok(during.length >= 3, '결과 전에 연출 단계가 여러 번 보여야 합니다');
+  // 연출 중: 결과 없음, 올인 표시, 보드는 5장 미만에서 시작, 칩은 이동 전
+  assert.equal(during[0].hand.reveal.allin, true);
+  assert.ok(during[0].hand.board.length < 5);
+  assert.ok(during.some((v) => v.hand.reveal.squeeze), '리버 전에 뜸 들이는 단계가 있어야 합니다');
+  const boardLens = during.map((v) => v.hand.board.length);
+  assert.deepEqual(boardLens, [...boardLens].sort((x, y) => x - y), '보드는 한 장씩 늘어나야 합니다');
+  for (const v of during) {
+    assert.equal(v.feed.some((e) => e.type === 'end' && e.hand === v.room.handNo), false, '승리 기록이 미리 나오면 안 됩니다');
+  }
+  // 두 사람 모두 올인이라 연출 중에는 둘 다 칩이 0으로 보인다(아직 정산 전)
+  assert.equal(during[0].players.reduce((s, p) => s + p.stack, 0), 0);
+  // 연출이 끝나면 결과 + 칩 이동
+  assert.equal(a.last.hand.board.length, 5);
+  assert.ok(a.last.players.reduce((s, p) => s + p.stack, 0) > 0);
+  assert.equal(a.last.players.map((p) => p.stack + p.bet).reduce((x, y) => x + y, 0), stacksBefore.split(',').map(Number).reduce((x, y) => x + y, 0));
+  a.close(); b.close();
 });

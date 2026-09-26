@@ -20,7 +20,9 @@ const DEFAULT_SETTINGS = {
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
 const AWAY_SKIP_MS = 60 * 1000;       // 이만큼 끊긴 사람은 다음 판에서 제외(자리 비움)
-const RESULT_DELAY = { fold: 3500, showdown: 7000 };
+const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // 결과를 보여준 뒤 다음 판까지
+// 쇼다운 연출(ms). 올인 승부는 패 공개 → 남은 카드를 한 장씩 → 리버는 뜸을 들여 '쪼기'
+const REVEAL = { first: 700, perHand: 1100, allinHands: 1600, flop: 1800, turn: 2200, squeeze: 1900, river: 1300, result: 900 };
 const MAX_TIMEOUTS = 2;               // 연속 시간 초과 시 자리 비움 처리
 const AVATAR_COUNT = 8;               // public/img/avatars/a1~a8
 
@@ -64,8 +66,10 @@ const newId = () => crypto.randomBytes(6).toString('hex');
 const newToken = () => crypto.randomBytes(18).toString('base64url');
 
 class Room {
-  constructor({ code, settings, now = Date.now }) {
+  constructor({ code, settings, now = Date.now, pace = 1 }) {
     this.code = code;
+    this.pace = pace;           // 테스트에서 연출 시간을 줄이는 배율
+    this.reveal = null;         // 쇼다운 연출 진행 상태
     this.settings = settings;
     this.now = now;
     this.players = [];          // 참가자·관전자
@@ -290,6 +294,8 @@ class Room {
 
   startHand() {
     this.clearTimer('next');
+    this.clearTimer('reveal');
+    this.reveal = null;
     this.nextHandAt = null;
     // 판과 판 사이: 나간 사람 정리, 리바인 적용
     this.players = this.players.filter((p) => !p.leaving);
@@ -357,13 +363,14 @@ class Room {
   }
 
   afterHandChange() {
-    this.drainHandLog();
     this.clearTimer('turn');
     this.turnDeadline = null;
     if (!this.hand) { this.touch(); return; }
     if (this.hand.finished) {
-      this.onHandFinished();
+      this.onHandFinished(); // 연출 상태를 먼저 정해야 공개 전 기록(리버·승리)이 새지 않는다
+      this.drainHandLog();
     } else {
+      this.drainHandLog();
       const ms = this.settings.turnSeconds * 1000;
       this.turnDeadline = this.now() + ms;
       this.setTimer('turn', ms, () => this.onTurnTimeout());
@@ -376,7 +383,10 @@ class Room {
     if (!this.hand) return;
     const log = this.hand.log;
     while (this.lastSeenLog < log.length) {
-      const e = log[this.lastSeenLog++];
+      const e = log[this.lastSeenLog];
+      const rv = this.reveal;
+      if (rv && !rv.done && ((e.type === 'street' && e.board.length > rv.board) || e.type === 'end')) break;
+      this.lastSeenLog++;
       this.logSeq += 1;
       this.feed.push({ seq: this.logSeq, hand: this.handNo, ...e, name: e.id ? this.name(e.id) : undefined, text: this.describe(e) });
     }
@@ -424,16 +434,54 @@ class Room {
   }
 
   onHandFinished() {
+    const h = this.hand;
+    if (this.reveal && this.reveal.handNo === this.handNo) return; // 이미 연출 중
+    if (h.result.type !== 'showdown') { this.reveal = null; this.finishReveal(); return; }
+
+    // 쇼다운 연출 순서 만들기
+    const from = h.runoutFrom !== undefined ? h.runoutFrom : h.board.length;
+    const allin = from < 5;
+    const order = h.orderFromButton().filter((id) => h.result.hands[id]);
+    const rv = { handNo: this.handNo, allin, board: from, shown: [], squeeze: false, done: false, stage: allin ? 'allin' : 'showdown' };
+    this.reveal = rv;
+    const steps = [];
+    const P = this.pace;
+    if (allin) {
+      steps.push([REVEAL.first, () => { rv.shown = order.slice(); }]);
+      if (from < 3) steps.push([REVEAL.allinHands, () => { rv.board = 3; }]);
+      if (from < 4) steps.push([from < 3 ? REVEAL.flop : REVEAL.allinHands, () => { rv.board = 4; }]);
+      steps.push([from < 4 ? REVEAL.turn : REVEAL.allinHands, () => { rv.squeeze = true; }]);
+      steps.push([REVEAL.squeeze, () => { rv.squeeze = false; rv.board = 5; }]);
+      steps.push([REVEAL.river, () => {}]);
+    } else {
+      order.forEach((id, i) => steps.push([i === 0 ? REVEAL.first : REVEAL.perHand, () => { rv.shown.push(id); }]));
+      steps.push([REVEAL.perHand, () => {}]);
+    }
+    const run = (i) => {
+      if (this.reveal !== rv) return;
+      if (i >= steps.length) { this.finishReveal(); return; }
+      this.setTimer('reveal', steps[i][0] * P, () => { steps[i][1](); this.drainHandLog(); this.touch(); run(i + 1); });
+    };
+    run(0);
+  }
+
+  /** 연출이 끝나면 결과·칩 이동을 공개하고 다음 판 예약 */
+  finishReveal() {
+    if (this.reveal) { this.reveal.done = true; this.reveal.squeeze = false; this.reveal.board = 5; }
+    this.drainHandLog();
     this.lastResult = { handNo: this.handNo, ...this.hand.result };
     for (const p of this.seated) {
       if (p.stack === 0 && p.pendingRebuy === 0) {
         this.pushFeed(this.canRebuy(p) ? `${p.name}님 칩 소진 · 리바인할 수 있어요` : `${p.name}님 칩 소진`);
       }
     }
-    const delay = RESULT_DELAY[this.hand.result.type] || 5000;
+    const delay = (RESULT_DELAY[this.hand.result.type] || 5000) * this.pace;
     this.nextHandAt = this.now() + delay;
     this.setTimer('next', delay, () => this.startHand());
+    this.touch();
   }
+
+  get revealing() { return !!(this.reveal && !this.reveal.done && this.hand && this.hand.finished); }
 
   /** 누군가 돌아오거나 리바인해서 판을 시작할 수 있게 됐는지 확인 */
   maybeStartWaitingHand() {
@@ -448,6 +496,7 @@ class Room {
     const s = this.settings;
     if (!s.rebuyEnabled || this.phase !== 'playing' || p.role !== 'player') return false;
     if (p.rebuys >= s.rebuyMax || p.pendingRebuy > 0) return false;
+    if (this.revealing) return false; // 결과 공개 전에는 칩 상태를 드러내지 않는다
     return this.effectiveStack(p) < s.startChips / 2; // 시작 칩의 절반 미만(0 포함)일 때
   }
 
@@ -606,18 +655,21 @@ class Room {
     const dealerId = h ? h.seats[h.dealerIndex].id : null;
     const sbId = h ? h.seats[h.sbIndex].id : null;
     const bbId = h ? h.seats[h.bbIndex].id : null;
+    const rv = this.revealing ? this.reveal : null;           // 쇼다운 연출 중이면 아직 결과를 숨긴다
+    const payouts = rv && h.result ? h.result.payouts : {};
+    const shownStack = (p) => p.stack - (payouts[p.id] || 0);
 
     const players = this.players.filter((p) => !(p.leaving && !(h && h.seatOf(p.id)))).map((p) => {
       const hs = h ? h.seatOf(p.id) : null;
       let status = 'waiting';
       if (p.role === 'spectator') status = 'spectator';
       else if (hs) status = hs.folded ? 'folded' : hs.allIn ? 'allin' : 'inhand';
-      else if (this.phase === 'playing' && p.stack + p.pendingRebuy === 0) status = 'busted';
+      else if (this.phase === 'playing' && shownStack(p) + p.pendingRebuy === 0) status = 'busted';
       else if (p.sittingOut) status = 'away';
       let cards = null;
       if (hs) {
         if (p.id === viewerId) cards = hs.hole;
-        else if (showdown && h.result.hands[p.id]) cards = h.result.hands[p.id].hole;
+        else if (showdown && h.result.hands[p.id] && (!rv || rv.shown.includes(p.id))) cards = h.result.hands[p.id].hole;
         else if (!hs.folded) cards = ['??', '??'];
       }
       return {
@@ -626,7 +678,7 @@ class Room {
         avatar: p.avatar,
         role: p.role,
         seat: p.seat,
-        stack: p.stack,
+        stack: shownStack(p),
         pendingRebuy: p.pendingRebuy,
         rebuys: p.rebuys,
         ready: p.ready,
@@ -663,7 +715,7 @@ class Room {
         role: me.role,
         seat: me.seat,
         isHost: me.id === this.hostId,
-        stack: me.stack,
+        stack: shownStack(me),
         ready: me.ready,
         rebuys: me.rebuys,
         pendingRebuy: me.pendingRebuy,
@@ -684,8 +736,9 @@ class Room {
       const hasAllIn = h.seats.some((s) => s.allIn);
       view.hand = {
         no: this.handNo,
-        stage: h.stage,
-        board: h.board.slice(),
+        stage: rv ? (rv.allin ? 'allin' : 'showdown') : h.stage,
+        board: rv ? h.board.slice(0, rv.board) : h.board.slice(),
+        reveal: rv ? { allin: rv.allin, squeeze: rv.squeeze, shown: rv.shown.length } : null,
         pot: h.collectedPot,
         totalPot: h.totalPot,
         pots: hasAllIn ? h.potsView().map((pt) => ({ amount: pt.amount, count: pt.eligible.length })) : null,
@@ -696,7 +749,7 @@ class Room {
         turnSeconds: this.settings.turnSeconds,
         finished: h.finished,
         legal: me ? h.legalActions(me.id) : null,
-        result: h.finished ? this.publicResult(h.result) : null,
+        result: h.finished && !rv ? this.publicResult(h.result) : null,
       };
     }
     return view;
@@ -730,6 +783,7 @@ class Room {
     Object.assign(r, rest);
     r.timers = {};
     r.hand = hand ? Hand.fromJSON(hand) : null;
+    if (r.reveal) { r.reveal.done = true; r.reveal.board = 5; r.reveal.squeeze = false; } // 재시작하면 연출은 건너뜀
     for (const p of r.players) { p.connected = false; p.disconnectedAt = p.disconnectedAt || now(); }
     r.setTimer('host', HOST_GRACE_MS, () => {
       const h = r.host;
