@@ -53,34 +53,52 @@ function decide(hand, id, style = STYLES[0]) {
   const seat = hand.seatOf(id);
   const opponents = Math.max(1, hand.seats.filter((s) => !s.folded && s.id !== id).length);
   const eq = equity(seat.hole, hand.board, Math.min(opponents, 4));
+  const rel = eq * (Math.min(opponents, 4) + 1);          // 1 = 평균적인 패
   const pot = hand.totalPot;
-  const odds = la.toCall > 0 ? la.toCall / (pot + la.toCall) : 0;
+  const facing = la.toCall > 0;
+  const odds = facing ? la.toCall / (pot + la.toCall) : 0;
+  // 상대 베팅이 팟에 비해 얼마나 큰지, 내 칩의 몇 %를 걸어야 하는지
+  const pressure = facing ? Math.min(1.5, la.toCall / Math.max(hand.bb, pot - la.toCall)) : 0;
+  const commit = la.toCall / Math.max(1, seat.stack + seat.bet);
+  const preflop = hand.board.length === 0;
   const r = Math.random();
-  const strong = eq > 0.7 || (opponents === 1 && eq > 0.62);
-  const good = eq > 0.5 / Math.sqrt(opponents) + 0.12;
 
   const sizeTo = (frac) => {
     const base = la.currentBet === 0 ? 0 : la.currentBet;
     let to = Math.round((base + Math.max(pot, hand.bb * 2) * frac) / hand.bb) * hand.bb;
-    to = Math.max(la.minTo, Math.min(la.maxTo, to));
-    return to;
+    return Math.max(la.minTo, Math.min(la.maxTo, to));
   };
   const aggressive = (frac) => {
-    if (la.canBet) return la.maxTo <= sizeTo(frac) ? { type: 'allin' } : { type: 'bet', amount: sizeTo(frac) };
-    if (la.canRaise) return la.maxTo <= sizeTo(frac) ? { type: 'allin' } : { type: 'raise', amount: sizeTo(frac) };
-    return null;
+    if (!la.canBet && !la.canRaise) return null;
+    const to = sizeTo(frac);
+    // 칩 대부분을 거는 크기면 정말 좋은 패일 때만 올인, 아니면 그냥 콜/체크
+    if (to >= la.maxTo * 0.8) return eq > 0.8 || rel > 3 ? { type: 'allin' } : null;
+    return { type: la.canBet ? 'bet' : 'raise', amount: to };
   };
-  const passive = () => (la.canCheck ? { type: 'check' } : la.canCall ? { type: 'call' } : { type: 'allin' });
+  const passive = () => (la.canCheck ? { type: 'check' } : { type: 'call' });
+  const fold = () => (la.canCheck ? { type: 'check' } : { type: 'fold' });
 
-  if (strong && r < 0.35 + style.aggro * 0.6) return aggressive(eq > 0.85 ? 1 : 0.75) || passive();
-  if (good && r < style.aggro * 0.5) return aggressive(0.5) || passive();
-  if (la.canCheck) {
-    if (r < style.bluff) return aggressive(0.5) || { type: 'check' };
+  if (preflop) {
+    const raised = la.currentBet > hand.bb;
+    if (!raised && rel > 1.6 - style.aggro * 0.2 && r < 0.4 + style.aggro * 0.5) return aggressive(0.75) || passive();
+    if (raised && rel > 2.1 && pressure < 0.9 && r < style.aggro) return aggressive(0.9) || passive();
+    if (!facing) return { type: 'check' };
+    const need = raised ? 1.2 + 0.5 * pressure + commit * 1.5 - style.loose * 2 : 1.05 - style.loose * 2;
+    return rel > need ? { type: 'call' } : fold();
+  }
+
+  // 플랍 이후: 상대가 베팅했으면 상대 패가 더 좋을 가능성을 반영해 승률을 깎는다
+  const adj = eq - (facing ? 0.05 + 0.1 * Math.min(1, pressure) : 0);
+  const strong = eq > 0.25 + 0.47 / Math.sqrt(opponents);
+  const good = eq > 0.15 + 0.4 / Math.sqrt(opponents);
+  if (strong && (!facing || pressure < 0.7) && r < 0.3 + style.aggro * 0.6) return aggressive(eq > 0.85 ? 0.9 : 0.65) || passive();
+  if (!facing) {
+    if (good && r < style.aggro * 0.8) return aggressive(0.55) || passive();
+    if (opponents <= 2 && r < style.bluff * 1.5) return aggressive(0.45) || passive();
     return { type: 'check' };
   }
-  // 콜할지: 승률이 팟 오즈보다 높으면(성격만큼 여유)
-  if (eq + style.loose > odds) return { type: la.canCall ? 'call' : 'allin' };
-  if (r < style.bluff * 0.5 && la.canRaise) return aggressive(0.75);
+  const need = odds + 0.03 - style.loose * 0.5 + commit * 0.4;
+  if (adj > need) return { type: 'call' };
   return { type: 'fold' };
 }
 

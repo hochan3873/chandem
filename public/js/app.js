@@ -1075,19 +1075,19 @@ function renderActions(st) {
       ['올인', la.maxTo],
     ];
     const step = Math.max(1, st.room.settings.sb);
+    const mine = st.players.find((p) => st.me && p.id === st.me.id);
+    const myCards = mine && mine.cards && mine.cards[0] !== '??' ? mine.cards : null;
     el.innerHTML = `
-      <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
       <div class="raise-sheet">
-        <div class="raise-top"><span>${raiseWord} 금액 (이번 라운드 총액)</span><b class="raise-val" id="raise-val">${fmt(S.raise.to)}</b></div>
+        <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
+        <div class="raise-top">${myCards ? `<span class="raise-mine">${myCards.map((c) => cardHTML(c, { size: 'sm' })).join('')}</span>` : ''}<span class="grow">${raiseWord} 금액<br><small>이번 라운드 총액</small></span><b class="raise-val" id="raise-val">${fmt(S.raise.to)}</b></div>
         <input type="range" id="raise-range" min="${la.minTo}" max="${la.maxTo}" step="${step}" value="${S.raise.to}" aria-label="${raiseWord} 금액">
         <div class="raise-row"><span class="muted small">${fmt(la.minTo)}</span><span class="muted small">${fmt(la.maxTo)} (올인)</span></div>
         <div class="presets">${presets.map(([t, v]) => `<button class="btn btn-sm btn-outline" data-preset="${v}">${t}</button>`).join('')}</div>
-        <div class="raise-adjust">
-          <button class="btn btn-sm btn-ghost" data-step="-${st.room.settings.bb}">− ${fmt(st.room.settings.bb)}</button>
-          <button class="btn btn-sm btn-ghost" data-step="${st.room.settings.bb}">+ ${fmt(st.room.settings.bb)}</button>
-        </div>
-        <div class="act-row">
+        <div class="act-row raise-actions">
           <button class="btn btn-ghost" id="raise-cancel">취소</button>
+          <button class="btn btn-outline step-btn" data-step="-${st.room.settings.bb}" aria-label="${fmt(st.room.settings.bb)} 줄이기">−</button>
+          <button class="btn btn-outline step-btn" data-step="${st.room.settings.bb}" aria-label="${fmt(st.room.settings.bb)} 늘리기">+</button>
           <button class="btn btn-gold grow" id="raise-ok"></button>
         </div>
       </div>`;

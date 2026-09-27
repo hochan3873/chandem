@@ -346,8 +346,13 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 .timebar { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; }
 .timebar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, var(--gold-lo), var(--gold-hi)); transition: width .25s linear; }
 .timebar-fill.low { background: var(--red); }
-.raise-sheet { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
-.raise-top { display: flex; justify-content: space-between; align-items: baseline; font-size: .85rem; color: var(--muted); }
+.raise-sheet { display: flex; flex-direction: column; gap: 8px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; max-width: 720px; margin: 0 auto; padding: 10px 12px max(12px, env(safe-area-inset-bottom)); background: rgba(8, 18, 14, .98); border-top: 1px solid var(--gold); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0, 0, 0, .6); animation: sheetUp .18s ease; }
+@keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } }
+.raise-actions .step-btn { width: 48px; padding-left: 0; padding-right: 0; font-size: 1.3rem; flex: none; }
+.raise-actions #raise-ok { min-height: 50px; font-size: 1.05rem; }
+.raise-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: .85rem; color: var(--muted); line-height: 1.25; }
+.raise-top small { font-size: .72rem; opacity: .8; }
+.raise-mine { display: flex; gap: 4px; flex: none; }
 .raise-val { font-size: 1.6rem; color: var(--gold-hi); }
 .raise-row { display: flex; justify-content: space-between; margin-top: -6px; }
 .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
@@ -539,3 +544,7 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 .fx-big-ko { position: relative; font: 900 clamp(1.5rem, 8vw, 2.4rem) 'Noto Sans KR', sans-serif; color: #fff; text-shadow: 0 0 16px var(--c2), 0 3px 0 #000; animation: bigIn .6s cubic-bezier(.2, 1.5, .4, 1) .55s both; }
 .fx-big-who { position: relative; margin-top: 6px; padding: 4px 14px; border-radius: 99px; background: rgba(0, 0, 0, .55); color: var(--gold-hi); font-weight: 700; animation: fade .4s .75s both; }
 @keyframes bigIn { from { transform: scale(3.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* 좁은 폰: 상단 버튼이 잘리지 않게 */
+@media (max-width: 400px) { .g-top .g-info { display: none; } }
+@media (max-width: 350px) { .g-top .logo-text { display: none; } .g-top { gap: 4px; } }
