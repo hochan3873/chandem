@@ -56,6 +56,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
 
   function wire(room) {
     room.onChange = () => broadcast(room);
+    room.onEmote = (e) => io.to('room:' + room.code).emit('emote', e);
   }
 
   function broadcast(room) {
@@ -235,6 +236,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('lobby:settings', handler((d) => { const { room, pid } = ctx(); room.updateSettings(pid, d.settings); }));
     socket.on('lobby:start', handler(() => { const { room, pid } = ctx(); room.start(pid); }));
     socket.on('host:approve', handler((d) => { const { room, pid } = ctx(); room.approve(pid, d.id, !!d.ok); }));
+    socket.on('game:emote', handler((d) => { const { room, pid } = ctx(); room.emote(pid, String(d.kind || '')); }));
     socket.on('host:bot', handler(() => { const { room, pid } = ctx(); room.addBot(pid); }));
     // 혼자 연습: 방 + 봇 N명 + 바로 시작
     socket.on('room:practice', (payload, ack) => {

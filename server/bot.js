@@ -2,7 +2,18 @@
 // 연습용 봇의 판단. 몬테카를로로 승률을 어림하고 팟 오즈와 비교해 행동을 고른다.
 const { newDeck, bestHand, compareScore } = require('./engine/cards');
 
-const BOT_NAMES = ['철수봇', '영희봇', '민수봇', '지현봇', '태오봇', '하나봇', '도윤봇', '서아봇'];
+// 타짜 인물 · 캐릭터 그림(남 a1 a3 a5 a7, 여 a2 a4 a6 a8)과 성격을 맞춘다
+const BOTS = [
+  { name: '평경장', avatar: 5, style: 0 },
+  { name: '정마담', avatar: 8, style: 2 },
+  { name: '아귀', avatar: 1, style: 1 },
+  { name: '화란', avatar: 2, style: 2 },
+  { name: '고니', avatar: 7, style: 1 },
+  { name: '미나', avatar: 4, style: 0 },
+  { name: '짝귀', avatar: 3, style: 0 },
+  { name: '마돈나', avatar: 6, style: 1 },
+];
+const BOT_NAMES = BOTS.map((b) => b.name);
 // 성격: 느슨함(콜 폭) · 공격성(베팅 빈도) · 블러핑
 const STYLES = [
   { loose: 0.05, aggro: 0.5, bluff: 0.06 },   // 신중
@@ -73,4 +84,4 @@ function decide(hand, id, style = STYLES[0]) {
   return { type: 'fold' };
 }
 
-module.exports = { decide, equity, BOT_NAMES, STYLES };
+module.exports = { decide, equity, BOTS, BOT_NAMES, STYLES };

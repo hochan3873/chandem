@@ -140,6 +140,29 @@ const SYNTH = {
   win: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.35, { type: 'triangle', gain: 0.16, at: i * 0.09 })); },
   lose: () => { tone(330, 0.2, { gain: 0.1 }); tone(262, 0.3, { gain: 0.1, at: 0.15 }); },
   tick: () => tone(1500, 0.03, { type: 'square', gain: 0.05 }),
+  // 올인 도장: 쿵 + 금속성 충격
+  stamp: () => {
+    tone(55, 0.6, { type: 'sine', gain: 0.9 });
+    tone(110, 0.25, { type: 'square', gain: 0.12 });
+    noise(0.35, { freq: 1200, q: 0.5, gain: 0.45, type: 'lowpass' });
+    noise(0.5, { freq: 6000, q: 2, gain: 0.08, attack: 0.02 });
+  },
+  // 플러시 이상: 올라가는 휘파람 + 폭발 + 반짝임
+  boom: () => {
+    const o = ctx.createOscillator(); const g = ctx.createGain(); const t = ctx.currentTime;
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(200, t); o.frequency.exponentialRampToValueAtTime(1600, t + 0.45);
+    g.gain.setValueAtTime(0.001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.4); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 0.55);
+    setTimeout(() => {
+      tone(45, 0.9, { type: 'sine', gain: 1 });
+      tone(90, 0.5, { type: 'triangle', gain: 0.3 });
+      noise(0.8, { freq: 800, q: 0.3, gain: 0.5, type: 'lowpass' });
+      for (let i = 0; i < 16; i++) tone(2500 + Math.random() * 3000, 0.12, { type: 'sine', gain: 0.06, at: 0.1 + i * 0.05 });
+    }, 450);
+  },
+  // 박수 (짧은 잡음 여러 번)
+  clap: () => { for (let i = 0; i < 9; i++) setTimeout(() => noise(0.07, { freq: 1500 + Math.random() * 800, q: 1.2, gain: 0.35 }), i * 90 + Math.random() * 40); },
+  pop: () => { tone(900, 0.08, { type: 'sine', gain: 0.2 }); tone(1400, 0.1, { type: 'sine', gain: 0.15, at: 0.05 }); },
   // 올인 승부 시작: 점점 커지는 스네어 롤 + 마지막 한 방
   drumroll: () => {
     for (let i = 0; i < 26; i++) setTimeout(() => noise(0.05, { freq: 2600, q: 0.7, gain: 0.05 + i * 0.012 }), i * 45);
@@ -174,14 +197,30 @@ const SYNTH = {
   },
 };
 
-/** name: 효과음 이름 (deal, chip, check …) 또는 음성 이름 (v_call …) */
-export async function play(name) {
+// 음성 파일이 없을 때 쓰는 기기 음성(TTS) 문구
+const TTS = {
+  v_h0: '하이카드', v_h1: '원페어', v_h2: '투페어', v_h3: '트리플', v_h4: '스트레이트',
+  v_h5: '플러시!', v_h6: '풀하우스!', v_h7: '포카드!', v_h8: '스트레이트 플러시!', v_h9: '로열 스트레이트 플러시!',
+  e_angry: '아 진짜 열받네!', e_happy: '나이스!', e_mock: '쫄리냐?', e_laugh: '크하하하!', e_cry: '아이고 내 칩',
+};
+function speak(text) {
+  try {
+    if (!window.speechSynthesis) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ko-KR'; u.rate = 1.05; u.volume = Math.min(1, prefs.volume + 0.2);
+    speechSynthesis.speak(u);
+  } catch {}
+}
+
+/** name: 효과음 이름 (deal, chip, check …) 또는 음성 이름 (v_call …, e_angry …) */
+export async function play(name, gain = 1) {
   if (!unlocked || prefs.muted || !ctx) return;
-  if (name.startsWith('v_') && !prefs.voice) return;
+  if ((name.startsWith('v_') || name.startsWith('e_')) && !prefs.voice) return;
   if (!manifest) await loadManifest();
   const buf = await loadBuffer(name);
-  if (buf) { playBuffer(buf); return; }
+  if (buf) { playBuffer(buf, gain); return; }
   if (SYNTH[name]) SYNTH[name]();
+  else if (TTS[name]) speak(TTS[name]);
 }
 
 /** 게임 기록 한 줄 → 소리 */

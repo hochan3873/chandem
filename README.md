@@ -79,7 +79,8 @@ node scripts/e2e.js      # 실제 브라우저(에지/크롬) 3대로 한 판 �
 | 에셋 | 출처 |
 |---|---|
 | 앱 아이콘·로비 배경·펠트 질감·선수 아바타 8종 | Google Gemini로 이 프로젝트용으로 생성 (워터마크 영역 잘라냄) |
-| 콜·다이·체크·베팅·레이즈·올인·승리 음성 | Genspark AI 오디오(ElevenLabs V4 TTS, 목소리 James)로 생성 (`public/sounds/v_*.mp3`) |
+| 콜·다이·체크·베팅·레이즈·승리 음성 | Genspark AI 오디오(ElevenLabs V4 TTS, 목소리 James)로 생성 (`public/sounds/v_*.mp3`) |
+| 족보 10종·올~인·감정 표현 5종 음성 | 같은 방식으로 생성 후 ffmpeg로 앞뒤 무음 제거·속도 1.1~1.3배·플러시 이상은 에코 (`v_h0~9`, `v_allin`, `e_*.mp3`) |
 | 배경음악 "The Dealer's Turn" (약 3분, 반복 재생) | Google Gemini 음악 생성 → 영상에서 소리만 추출·음량 평준화 (`public/sounds/bgm.mp3`) |
 | 링크 미리보기 이미지 | 위 에셋을 조합해 직접 합성 (`public/img/og.jpg`, 1200×630). 초대 링크는 제목에 방장 이름이 들어감 |
 | 카드·칩 그림 | CSS로 직접 그림 (외부 이미지 없음) |

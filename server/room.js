@@ -27,6 +27,8 @@ const REVEAL = { first: 700, perHand: 1100, allinHands: 1600, flop: 1800, turn: 
 const MAX_TIMEOUTS = 2;               // 연속 시간 초과 시 자리 비움 처리
 const AVATAR_COUNT = 8;               // public/img/avatars/a1~a8
 const BOT_THINK = [900, 2200];        // 봇이 생각하는 시간(ms) 범위
+const EMOTES = ['angry', 'happy', 'mock', 'laugh', 'cry', 'clap'];
+const EMOTE_GAP_MS = 1500;
 
 function int(v, def) {
   const n = Math.floor(Number(v));
@@ -91,6 +93,8 @@ class Room {
     this.touchedAt = now();
     this.timers = {};
     this.onChange = () => {};
+    this.onEmote = () => {};
+    this.emoteAt = {};
   }
 
   // ── 조회 ────────────────────────────────────────────
@@ -168,15 +172,15 @@ class Room {
   addBot(hostId) {
     this.requireHost(hostId);
     const used = new Set(this.players.map((p) => p.name));
-    const base = bot.BOT_NAMES.find((n) => !used.has(n)) || '봇';
-    const p = this.createPlayer(this.uniqueName(base), false);
+    const def = bot.BOTS.find((b) => !used.has(b.name)) || bot.BOTS[crypto.randomInt(bot.BOTS.length)];
+    const p = this.createPlayer(this.uniqueName(def.name), false, def.avatar);
     if (p.role !== 'player') throw new RoomError('빈자리가 없어요');
     p.isBot = true;
-    p.style = crypto.randomInt(bot.STYLES.length);
+    p.style = def.style;
     p.connected = true;
     p.ready = true;
     this.players.push(p);
-    this.pushFeed(`${p.name}이 자리에 앉았어요 🤖`);
+    this.pushFeed(`${p.name}님이 자리에 앉았어요 🤖`);
     this.maybeStartWaitingHand();
     this.touch();
     return p;
@@ -191,6 +195,30 @@ class Room {
     try { action = bot.decide(h, p.id, bot.STYLES[p.style || 0]); } catch (e) { console.error('[bot]', e); }
     try { this.act(p.id, action || { type: 'fold' }); }
     catch { this.act(p.id, { type: h.legalActions(p.id).canCheck ? 'check' : 'fold' }); }
+  }
+
+  /** 감정 표현(이모티콘 + 소리). 너무 자주 못 보내게 막는다 */
+  emote(id, kind) {
+    const p = this.get(id);
+    if (!p || p.leaving) throw new RoomError('참가자를 찾을 수 없어요');
+    if (!EMOTES.includes(kind)) throw new RoomError('알 수 없는 표현이에요');
+    const t = this.now();
+    if (t - (this.emoteAt[id] || 0) < EMOTE_GAP_MS) throw new RoomError('조금 있다가 다시 보내 주세요');
+    this.emoteAt[id] = t;
+    this.onEmote({ id, kind, name: p.name });
+  }
+
+  /** 판이 끝나면 봇이 가끔 감정 표현을 한다 */
+  botEmotes(result) {
+    const bb = this.settings.bb;
+    for (const p of this.seated) {
+      if (!p.isBot) continue;
+      const d = (result.deltas || {})[p.id] || 0;
+      let kind = null;
+      if (d >= bb * 15 && Math.random() < 0.5) kind = ['happy', 'mock', 'laugh'][crypto.randomInt(3)];
+      else if (d <= -bb * 15 && Math.random() < 0.4) kind = ['angry', 'cry'][crypto.randomInt(2)];
+      if (kind) this.setTimer('emote:' + p.id, (1200 + crypto.randomInt(1500)) * this.pace, () => { try { this.emote(p.id, kind); } catch {} });
+    }
   }
 
   /** 참가 요청. 반환: { player, pending } */
@@ -516,6 +544,7 @@ class Room {
     if (this.reveal) { this.reveal.done = true; this.reveal.squeeze = false; this.reveal.board = 5; }
     this.drainHandLog();
     this.lastResult = { handNo: this.handNo, ...this.hand.result };
+    this.botEmotes(this.hand.result);
     for (const p of this.seated) {
       if (p.stack === 0 && p.pendingRebuy === 0) {
         this.pushFeed(this.canRebuy(p) ? `${p.name}님 칩 소진 · 리바인할 수 있어요` : `${p.name}님 칩 소진`);
@@ -822,7 +851,7 @@ class Room {
 
   // ── 저장/복구 ─────────────────────────────────────
   serialize() {
-    const { timers, onChange, now, hand, ...rest } = this;
+    const { timers, onChange, onEmote, emoteAt, now, hand, ...rest } = this;
     return { ...rest, hand: hand ? hand.toJSON() : null };
   }
 
@@ -854,4 +883,4 @@ class Room {
   }
 }
 
-module.exports = { Room, RoomError, sanitizeSettings, DEFAULT_SETTINGS, makeCode, cleanName };
+module.exports = { EMOTES, Room, RoomError, sanitizeSettings, DEFAULT_SETTINGS, makeCode, cleanName };

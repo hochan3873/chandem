@@ -274,17 +274,20 @@ test('쇼다운 연출: 결과·칩 이동은 연출이 끝난 뒤 공개, 올�
 
 test('혼자 연습: 봇들이 알아서 치고 판이 계속 이어진다', async () => {
   const a = client();
-  const r = await a.call('room:practice', { name: '찬', bots: 3, settings: { startChips: 1000, sb: 10, bb: 20 } });
+  const r = await a.call('room:practice', { name: '찬', bots: 3, settings: { startChips: 1000, sb: 10, bb: 20, rebuyMax: 99 } });
   assert.equal(r.ok, true, r.message);
   await until(() => a.last && a.last.room.phase === 'playing');
   assert.equal(a.last.players.filter((p) => p.isBot).length, 3);
   assert.equal(a.last.room.practice, true);
   assert.ok(a.last.players.find((p) => p.id === r.playerId).isHost, '사람이 방장');
-  // 내 차례에는 체크/콜만 한다
-  a.on('state', (v) => {
+  // 내 차례에는 체크/콜만 하고, 칩이 떨어지면 리바인한다
+  const play = (v) => {
     const la = v.hand && v.hand.legal;
     if (la) a.emit('game:act', { type: la.canCheck ? 'check' : 'call' }, () => {});
-  });
+    if (v.me && v.me.canRebuy && v.me.stack === 0) a.emit('game:rebuy', {}, () => {});
+  };
+  a.on('state', play);
+  play(a.last);
   await until(() => a.last.room.handNo >= 4, 20000);
   const total = a.last.players.reduce((s, p) => s + p.stack, 0) + (a.last.hand && !a.last.hand.finished ? a.last.hand.totalPot : 0);
   assert.ok(total % 1000 === 0 && total >= 4000, `칩 합계가 충전 단위와 맞음 (${total})`);
@@ -311,4 +314,32 @@ test('대기실에서 방장만 봇을 추가할 수 있고, 봇은 준비된 �
   await until(() => b.last && b.last.players.find((p) => p.isHost));
   assert.equal(b.last.players.find((p) => p.isHost).name, '친구');
   a.close(); b.close();
+});
+
+test('감정 표현: 방 전체에 전달되고, 너무 자주 보내면 막힌다', async () => {
+  const a = client(); const b = client();
+  const ra = await a.call('room:create', { name: '방장', settings: {} });
+  await b.call('room:join', { code: ra.code, name: '친구' });
+  const got = new Promise((res) => b.once('emote', res));
+  const r1 = await a.call('game:emote', { kind: 'mock' });
+  assert.equal(r1.ok, true, r1.message);
+  const e = await got;
+  assert.equal(e.kind, 'mock');
+  assert.equal(e.id, ra.playerId);
+  const r2 = await a.call('game:emote', { kind: 'angry' });
+  assert.equal(r2.ok, false);
+  const r3 = await b.call('game:emote', { kind: 'hack' });
+  assert.equal(r3.ok, false);
+  a.close(); b.close();
+});
+
+test('연습 봇은 타짜 인물 이름이고 캐릭터 성별이 맞다', async () => {
+  const a = client();
+  const r = await a.call('room:practice', { name: '찬', bots: 5 });
+  assert.equal(r.ok, true, r.message);
+  await until(() => a.last && a.last.players.length === 6);
+  const bots = Object.fromEntries(a.last.players.filter((p) => p.isBot).map((p) => [p.name, p.avatar]));
+  assert.deepEqual(bots, { 평경장: 5, 정마담: 8, 아귀: 1, 화란: 2, 고니: 7 });
+  await a.call('room:leave');
+  a.close();
 });

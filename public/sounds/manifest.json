@@ -6,5 +6,20 @@
   "v_raise": "v_raise.mp3",
   "v_allin": "v_allin.mp3",
   "v_win": "v_win.mp3",
-  "bgm": "bgm.mp3"
+  "bgm": "bgm.mp3",
+  "v_h0": "v_h0.mp3",
+  "v_h1": "v_h1.mp3",
+  "v_h2": "v_h2.mp3",
+  "v_h3": "v_h3.mp3",
+  "v_h4": "v_h4.mp3",
+  "v_h5": "v_h5.mp3",
+  "v_h6": "v_h6.mp3",
+  "v_h7": "v_h7.mp3",
+  "v_h8": "v_h8.mp3",
+  "v_h9": "v_h9.mp3",
+  "e_angry": "e_angry.mp3",
+  "e_happy": "e_happy.mp3",
+  "e_mock": "e_mock.mp3",
+  "e_laugh": "e_laugh.mp3",
+  "e_cry": "e_cry.mp3"
 }

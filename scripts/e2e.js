@@ -186,7 +186,7 @@ function check(cond, msg) {
     }
     return out;
   });
-  check(audio.length === 8, `음성 7개 + 배경음악 디코딩: ${audio.join(', ')}`);
+  check(audio.length === 23, `음성 22개 + 배경음악 디코딩: ${audio.join(', ')}`);
   const imgs = await A.evaluate(async () => {
     const list = ['/img/icon-192.png', '/img/emblem.webp', '/img/bg-lobby.webp', '/img/felt.webp', ...Array.from({ length: 8 }, (_, i) => `/img/avatars/a${i + 1}.webp`)];
     const res = await Promise.all(list.map((u) => fetch(u).then((r) => r.ok)));

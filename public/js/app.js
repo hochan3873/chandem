@@ -223,6 +223,27 @@ socket.on('kicked', (d) => {
   render();
 });
 
+// ── 감정 표현 ───────────────────────────────────────
+const EMOTES = [['angry', '😡', '화남'], ['happy', '🤩', '신남'], ['mock', '😜', '조롱'], ['laugh', '😂', '웃음'], ['cry', '😭', '울음'], ['clap', '👏', '박수']];
+document.addEventListener('click', (e) => {
+  const tray = document.getElementById('emote-tray');
+  if (tray && !e.target.closest('#emote-tray') && !e.target.closest('#emote-btn')) tray.hidden = true;
+});
+socket.on('emote', (e) => {
+  const def = EMOTES.find((x) => x[0] === e.kind);
+  if (!def || S.view !== 'room') return;
+  const seat = document.querySelector(`.seat[data-id="${e.id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === e.id ? document.querySelector('.me-name') : null);
+  const el = document.createElement('div');
+  el.className = `fx-emote fx-emote-${e.kind}`;
+  el.innerHTML = `<span>${def[1]}</span>`;
+  const at = seat ? centerOf(seat) : { x: innerWidth / 2, y: innerHeight / 2 };
+  el.style.left = at.x + 'px';
+  el.style.top = at.y + 'px';
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+  if (e.kind === 'clap') sound.play('clap'); else { sound.play('pop'); sound.play('e_' + e.kind); }
+});
+
 // ── 소리·애니메이션 트리거 ─────────────────────────────
 function processEvents(st, first) {
   const feed = st.feed || [];
@@ -237,6 +258,7 @@ function processEvents(st, first) {
       if (/번째 판 시작/.test(e.text)) setTimeout(() => sound.play('deal'), delay);
       continue;
     }
+    if (e.type === 'allin') setTimeout(() => allinStamp(e.id), delay);
     const iWon = e.type === 'end' && e.winners && e.winners.includes(meId);
     setTimeout(() => sound.playForEvent(e, { isMe: e.id === meId, iWon }), delay);
     delay += 160;
@@ -321,8 +343,8 @@ function renderHome() {
     <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
   </main>`;
   bindCommon();
-  $app.querySelector('#go-create').onclick = () => { S.view = 'create'; render(); };
-  $app.querySelector('#go-practice').onclick = () => { S.view = 'practice'; render(); };
+  $app.querySelector('#go-create').onclick = () => { history.pushState(null, '', '/'); S.view = 'create'; render(); };
+  $app.querySelector('#go-practice').onclick = () => { history.pushState(null, '', '/'); S.view = 'practice'; render(); };
   $app.querySelector('#code-form').onsubmit = (e) => {
     e.preventDefault();
     const code = $app.querySelector('#code-in').value.trim().toUpperCase();
@@ -409,7 +431,7 @@ function renderCreate() {
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
     LS.set(sessKey(res.code), S.session);
-    history.replaceState(null, '', '/r/' + res.code);
+    history.pushState(null, '', '/r/' + res.code);
     S.view = 'room';
     render();
   };
@@ -451,7 +473,7 @@ function renderPractice() {
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
     LS.set(sessKey(res.code), S.session);
-    history.replaceState(null, '', '/r/' + res.code);
+    history.pushState(null, '', '/r/' + res.code);
     S.view = 'room';
     render();
   };
@@ -767,13 +789,21 @@ function mountGame() {
   <div class="game">
     <header class="g-top" id="g-top"></header>
     <div class="g-banner" id="g-banner"></div>
-    <div class="table-wrap"><div class="table" id="g-table"></div></div>
+    <div class="table-wrap"><div class="table" id="g-table"></div>
+      <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>
+      <div class="emote-tray" id="emote-tray" hidden>${EMOTES.map(([k, e, t]) => `<button data-emote="${k}" aria-label="${t}"><span>${e}</span><small>${t}</small></button>`).join('')}</div>
+    </div>
     <div id="fx-layer" aria-hidden="true"></div>
     <section class="g-me" id="g-me"></section>
     <section class="g-actions" id="g-actions"></section>
   </div>`;
   S.gameMounted = true;
   S.actionSig = '';
+  const tray = document.getElementById('emote-tray');
+  document.getElementById('emote-btn').onclick = (e) => { e.stopPropagation(); tray.hidden = !tray.hidden; };
+  tray.querySelectorAll('[data-emote]').forEach((b) => {
+    b.onclick = () => { tray.hidden = true; emit('game:emote', { kind: b.dataset.emote }); };
+  });
 }
 
 function renderGame() {
@@ -1212,11 +1242,82 @@ function runEffects(st) {
       app.classList.remove('tension');
     }
   }
+  announceHands(st, once);
   if (h.result && once('win')) {
     app.classList.remove('tension');
     celebrate(st);
   }
   for (const key of Object.keys(S.fx)) if (Number(key.split(':')[0]) < k - 2) delete S.fx[key];
+}
+
+// 누가 올인하면 화면에 '올~인!' 도장이 쾅
+function allinStamp(id) {
+  const p = S.state && S.state.players.find((x) => x.id === id);
+  const el = document.createElement('div');
+  el.className = 'fx-stamp';
+  el.innerHTML = `<div class="fx-stamp-main">ALL-IN!</div><div class="fx-stamp-sub">${p ? esc(p.name) + ' 올~인!' : '올~인!'}</div>`;
+  fxLayer().appendChild(el);
+  sound.play('stamp');
+  quake();
+  const seat = document.querySelector(`.seat[data-id="${id}"]`);
+  if (seat) { seat.classList.add('seat-allin-fx'); setTimeout(() => seat.classList.remove('seat-allin-fx'), 2200); }
+  if (navigator.vibrate && sound.isUnlocked()) navigator.vibrate([100, 50, 100]);
+  setTimeout(() => el.remove(), 1900);
+}
+
+function quake() {
+  const g = document.querySelector('.game');
+  if (!g) return;
+  g.classList.remove('quake'); void g.offsetWidth; g.classList.add('quake');
+  setTimeout(() => g.classList.remove('quake'), 700);
+}
+
+// 쇼다운: 공개된 패마다 족보를 음성으로. 플러시 이상은 특별 연출
+const HAND_TIERS = ['하이카드', '원페어', '투페어', '트리플', '스트레이트', '플러시', '풀하우스', '포카드', '스트레이트 플러시', '로열 스트레이트 플러시'];
+const BIG_EN = { 5: 'FLUSH', 6: 'FULL HOUSE', 7: 'FOUR OF A KIND', 8: 'STRAIGHT FLUSH', 9: 'ROYAL FLUSH' };
+function handTier(cards, board) {
+  const sc = bestHand(cards.concat(board)).score;
+  return sc.category === 8 && sc.tiebreak[0] === 14 ? 9 : sc.category;
+}
+function announceHands(st, once) {
+  const h = st.hand;
+  if (!h || !h.reveal || h.board.length < 5) return;
+  const shown = st.players.filter((p) => p.cards && p.cards.length === 2 && p.cards[0] !== '??' && ['inhand', 'allin'].includes(p.status));
+  for (const p of shown) {
+    if (!once('ann:' + p.id)) continue;
+    const tier = handTier(p.cards, h.board);
+    const at = Math.max(Date.now() + 250, S.annAt || 0);
+    S.annAt = at + (tier >= 5 ? 2400 : 1000);
+    setTimeout(() => {
+      handTag(p.id, HAND_TIERS[tier], tier);
+      if (tier >= 5) bigHand(tier, p);
+      else sound.play('v_h' + tier);
+    }, at - Date.now());
+  }
+}
+function handTag(id, text, tier) {
+  const seat = document.querySelector(`.seat[data-id="${id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === id ? document.querySelector('.me-cards') : null);
+  if (!seat) return;
+  const at = centerOf(seat);
+  const el = document.createElement('div');
+  el.className = `fx-handtag ${tier >= 5 ? 'fx-handtag-big' : ''}`;
+  el.textContent = text;
+  el.style.left = at.x + 'px';
+  el.style.top = at.y + 'px';
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+function bigHand(tier, p) {
+  const el = document.createElement('div');
+  el.className = `fx-bighand fx-tier${tier}`;
+  el.innerHTML = `<div class="fx-big-rays"></div><div class="fx-big-en">${BIG_EN[tier]}</div><div class="fx-big-ko">${HAND_TIERS[tier]}!</div><div class="fx-big-who">${esc(p.name)}</div>`;
+  fxLayer().appendChild(el);
+  sound.play('boom');
+  setTimeout(() => sound.play('v_h' + tier, 1.3), 380);
+  setTimeout(() => { coinRain(tier >= 8 ? 70 : 36); quake(); }, 450);
+  if (navigator.vibrate && sound.isUnlocked()) navigator.vibrate([60, 40, 200]);
+  setTimeout(() => el.classList.add('out'), 2000);
+  setTimeout(() => el.remove(), 2500);
 }
 
 function fxLayer() { return document.getElementById('fx-layer') || document.body; }
@@ -1315,8 +1416,45 @@ function celebrate(st) {
   }
 }
 
-window.addEventListener('popstate', () => { S.state = null; boot(); });
+// 뒤로가기: 방 안에서는 바로 나가지 않고 물어본다
+window.addEventListener('popstate', () => {
+  if (S.view === 'room' && S.state) { history.pushState(null, '', '/r/' + S.code); goHome(); return; }
+  if (['create', 'practice'].includes(S.view)) { S.view = 'home'; render(); return; }
+  S.state = null; boot();
+});
+// 로고(찬덤)를 누르면 메인으로
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.logo') && S.view !== 'home') goHome();
+});
+
+function goHome() {
+  if (S.view !== 'room' || !S.state) {
+    S.code = null; S.view = 'home';
+    history.pushState(null, '', '/');
+    render();
+    return;
+  }
+  const st = S.state;
+  const inHand = st.hand && !st.hand.finished && st.players.some((p) => p.id === st.me?.id && ['inhand', 'allin'].includes(p.status));
+  openModal('메인으로 갈까요?', `
+    <p class="muted">${st.room.practice ? '연습 방은 나가면 사라져요.' : '방에서 나가게 돼요. 초대 링크로 다시 들어올 수 있어요.'}${inHand ? '<br>진행 중인 판은 폴드 처리돼요.' : ''}</p>
+    <div class="stack">
+      <button class="btn btn-gold" data-act="go">나가고 메인으로</button>
+      <button class="btn btn-outline" data-act="stay">계속 있을게요</button>
+    </div>`, (body) => {
+    body.querySelector('[data-act="stay"]').onclick = closeModal;
+    body.querySelector('[data-act="go"]').onclick = async () => {
+      await emit('room:leave');
+      LS.del(sessKey(S.code));
+      S.session = null; S.state = null; S.code = null;
+      history.pushState(null, '', '/');
+      S.view = 'home';
+      closeModal();
+      render();
+    };
+  });
+}
 boot();
 
 // 디버그/검증용 (자동 테스트에서 상태 확인)
-window.__chandem = { S, cardName, sound };
+window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, handTag, goHome } };

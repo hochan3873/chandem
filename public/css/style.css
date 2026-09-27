@@ -488,3 +488,54 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 .seg-opt input:focus-visible + span { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
 .add-bot { margin-top: 10px; width: 100%; }
 #go-practice { margin-top: 10px; }
+
+/* 로고 → 메인 */
+.logo { cursor: pointer; }
+
+/* 감정 표현 */
+.emote-fab { position: absolute; right: 10px; bottom: 10px; z-index: 30; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--gold); background: rgba(10, 20, 16, .85); font-size: 1.5rem; box-shadow: 0 4px 14px rgba(0, 0, 0, .5), 0 0 10px rgba(201, 164, 92, .3); cursor: pointer; }
+.emote-fab:active { transform: scale(.92); }
+.emote-tray { position: absolute; right: 10px; bottom: 64px; z-index: 31; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; border-radius: 16px; background: rgba(12, 22, 18, .96); border: 1px solid rgba(201, 164, 92, .45); box-shadow: 0 10px 30px rgba(0, 0, 0, .6); animation: trayIn .18s ease; }
+@keyframes trayIn { from { transform: translateY(8px) scale(.9); opacity: 0; } }
+.emote-tray[hidden] { display: none; }
+.emote-tray button { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 62px; padding: 6px 0; border: 0; border-radius: 12px; background: rgba(255, 255, 255, .05); color: var(--muted); cursor: pointer; }
+.emote-tray button span { font-size: 1.7rem; line-height: 1.1; }
+.emote-tray button small { font-size: .7rem; }
+.emote-tray button:active { background: rgba(201, 164, 92, .25); }
+.fx-emote { position: fixed; transform: translate(-50%, -50%); font-size: 3.4rem; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .6)); animation: emoteIn 2.6s cubic-bezier(.2, 1.4, .4, 1) forwards; z-index: 2; }
+.fx-emote span { display: inline-block; }
+.fx-emote-angry span { animation: shake .4s .3s 3; }
+.fx-emote-laugh span, .fx-emote-happy span { animation: bounce .45s .3s 3; }
+@keyframes emoteIn { 0% { transform: translate(-50%, -30%) scale(.2); opacity: 0; } 15% { transform: translate(-50%, -110%) scale(1.25); opacity: 1; } 25% { transform: translate(-50%, -100%) scale(1); } 80% { transform: translate(-50%, -115%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -150%) scale(.8); opacity: 0; } }
+@keyframes bounce { 50% { transform: translateY(-10px) rotate(-8deg); } }
+
+/* 올인 도장 */
+.fx-stamp { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%) rotate(-8deg) scale(3); opacity: 0; text-align: center; animation: stampIn 1.9s cubic-bezier(.2, 1.1, .3, 1) forwards; }
+.fx-stamp-main { white-space: nowrap; font: 900 clamp(2.4rem, 13vw, 4.6rem)/1 'Noto Sans KR', sans-serif; letter-spacing: -.02em; color: #fff; background: linear-gradient(180deg, #fff6d0, #ffb347 40%, #ff3b3b 75%, #a3001b); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; -webkit-text-stroke: 2px rgba(255, 255, 255, .5); filter: drop-shadow(0 0 18px rgba(255, 60, 60, .8)) drop-shadow(0 8px 0 rgba(0, 0, 0, .5)); padding: 6px 18px; border: 5px solid #ff4d4d; border-radius: 14px; box-shadow: 0 0 30px rgba(255, 60, 60, .6), inset 0 0 20px rgba(255, 60, 60, .4); }
+.fx-stamp-sub { margin-top: 10px; font: 800 1.35rem 'Noto Sans KR', sans-serif; color: #ffe2a8; text-shadow: 0 2px 8px #000; }
+@keyframes stampIn { 0% { transform: translate(-50%, -50%) rotate(-8deg) scale(3); opacity: 0; } 14% { transform: translate(-50%, -50%) rotate(-8deg) scale(.92); opacity: 1; } 20% { transform: translate(-50%, -50%) rotate(-8deg) scale(1.04); } 26% { transform: translate(-50%, -50%) rotate(-8deg) scale(1); } 82% { opacity: 1; } 100% { transform: translate(-50%, -50%) rotate(-8deg) scale(1.1); opacity: 0; } }
+.quake { animation: quake .6s ease; }
+@keyframes quake { 10%, 90% { transform: translate(-2px, 1px); } 20%, 80% { transform: translate(4px, -2px); } 30%, 50%, 70% { transform: translate(-6px, 3px); } 40%, 60% { transform: translate(6px, -3px); } }
+.seat-allin-fx .seat-body { animation: allinGlow .35s ease-in-out 6 alternate; }
+@keyframes allinGlow { to { box-shadow: 0 0 26px 6px rgba(255, 60, 60, .85); border-color: #ff5a64; } }
+
+/* 쇼다운 족보 이름표 */
+.fx-handtag { position: fixed; transform: translate(-50%, -50%); padding: 5px 12px; border-radius: 99px; background: rgba(10, 18, 14, .92); border: 1px solid var(--gold); color: var(--gold-hi); font: 800 .95rem 'Noto Sans KR', sans-serif; white-space: nowrap; box-shadow: 0 4px 14px rgba(0, 0, 0, .6); animation: tagIn 2.8s ease forwards; }
+.fx-handtag-big { background: linear-gradient(180deg, #fff2c2, #e2b04a); color: #2a1a00; border-color: #fff; box-shadow: 0 0 20px rgba(255, 210, 110, .9); font-size: 1.05rem; }
+@keyframes tagIn { 0% { transform: translate(-50%, 10%) scale(.5); opacity: 0; } 12% { transform: translate(-50%, -80%) scale(1.15); opacity: 1; } 20% { transform: translate(-50%, -70%) scale(1); } 85% { opacity: 1; } 100% { transform: translate(-50%, -90%); opacity: 0; } }
+
+/* 플러시 이상 특별 연출 */
+.fx-bighand { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: radial-gradient(circle at 50% 45%, rgba(0, 0, 0, .25), rgba(0, 0, 0, .78) 70%); animation: fade .25s ease; overflow: hidden; --c1: #7fd3ff; --c2: #2a6bff; }
+.fx-bighand.out { animation: bannerFade .5s ease forwards; }
+@keyframes bannerFade { to { opacity: 0; } }
+.fx-tier6 { --c1: #e7a6ff; --c2: #8a2be2; }
+.fx-tier7 { --c1: #ffb0a0; --c2: #ff2d2d; }
+.fx-tier8, .fx-tier9 { --c1: #fff3b0; --c2: #ff8a00; }
+.fx-big-rays { position: absolute; left: 50%; top: 45%; width: 180vmax; height: 180vmax; margin: -90vmax 0 0 -90vmax; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c2) 45%, transparent) 0 6deg, transparent 6deg 18deg); animation: rays 6s linear infinite, raysIn .6s ease; opacity: .55; }
+.fx-tier8 .fx-big-rays, .fx-tier9 .fx-big-rays { background: repeating-conic-gradient(from 0deg, rgba(255, 80, 80, .5) 0 6deg, transparent 6deg 12deg, rgba(255, 220, 60, .5) 12deg 18deg, transparent 18deg 24deg, rgba(80, 200, 255, .5) 24deg 30deg, transparent 30deg 36deg); }
+@keyframes rays { to { transform: rotate(360deg); } }
+@keyframes raysIn { from { transform: scale(.2); opacity: 0; } }
+.fx-big-en { position: relative; font: 900 clamp(2.4rem, 13vw, 4.4rem)/1 'Noto Sans KR', sans-serif; letter-spacing: .02em; text-align: center; padding: 0 12px; background: linear-gradient(180deg, #fff, var(--c1) 45%, var(--c2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 22px var(--c2)) drop-shadow(0 6px 0 rgba(0, 0, 0, .6)); animation: bigIn .7s cubic-bezier(.2, 1.5, .4, 1) .38s both; }
+.fx-big-ko { position: relative; font: 900 clamp(1.5rem, 8vw, 2.4rem) 'Noto Sans KR', sans-serif; color: #fff; text-shadow: 0 0 16px var(--c2), 0 3px 0 #000; animation: bigIn .6s cubic-bezier(.2, 1.5, .4, 1) .55s both; }
+.fx-big-who { position: relative; margin-top: 6px; padding: 4px 14px; border-radius: 99px; background: rgba(0, 0, 0, .55); color: var(--gold-hi); font-weight: 700; animation: fade .4s .75s both; }
+@keyframes bigIn { from { transform: scale(3.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
