@@ -7,7 +7,7 @@ const { createServer } = require('../server/index');
 let srv;
 let base;
 test.before(async () => {
-  srv = createServer({ port: 0, pace: 0.05 }); // 쇼다운 연출 시간을 20배 빠르게
+  srv = createServer({ port: 0, pace: 0.05, limits: { createGapMs: 0, roomsPerIp: 1000 } }); // 쇼다운 연출 시간을 20배 빠르게
   const port = await srv.listen();
   base = `http://127.0.0.1:${port}`;
 });
@@ -341,5 +341,31 @@ test('연습 봇은 타짜 인물 이름이고 캐릭터 성별이 맞다', asyn
   const bots = Object.fromEntries(a.last.players.filter((p) => p.isBot).map((p) => [p.name, p.avatar]));
   assert.deepEqual(bots, { 평경장: 5, 정마담: 8, 아귀: 1, 화란: 2, 고니: 7 });
   await a.call('room:leave');
+  a.close();
+});
+
+test('과부하 방지: 같은 사람이 방을 너무 빨리·너무 많이 만들 수 없다', async () => {
+  const strict = createServer({ port: 0, limits: { createGapMs: 3000, roomsPerIp: 2 } });
+  const port = await strict.listen();
+  const mk = () => { const s = connect(`http://127.0.0.1:${port}`, { transports: ['websocket'], forceNew: true }); s.call = (ev, d) => new Promise((r) => s.emit(ev, d, r)); return s; };
+  const a = mk();
+  assert.equal((await a.call('room:create', { name: 'A', settings: {} })).ok, true);
+  const fast = await a.call('room:create', { name: 'A', settings: {} });
+  assert.equal(fast.ok, false);
+  assert.match(fast.message, /조금 있다가/);
+  a.close();
+  await strict.close();
+});
+
+test('이상한 요청이 와도 서버가 죽지 않는다', async () => {
+  const a = client();
+  for (const ev of ['room:create', 'room:join', 'room:practice', 'game:act', 'game:emote', 'host:bot']) {
+    const r = await a.call(ev, null);
+    assert.equal(r.ok, false, ev);
+  }
+  const big = await a.call('room:create', { name: 'x'.repeat(5000), settings: { startChips: -5, sb: 'abc', maxPlayers: 999 } });
+  assert.equal(big.ok, true);
+  await until(() => a.last);
+  assert.ok(a.last.players[0].name.length <= 10);
   a.close();
 });

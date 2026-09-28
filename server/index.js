@@ -9,6 +9,9 @@ const QRCode = require('qrcode');
 const { Room, RoomError, sanitizeSettings, makeCode } = require('./room');
 
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12시간 아무 일 없으면 방 정리
+// 과부하 방지: 전체 방 수, 연습 방 수, 한 사람(IP)이 동시에 가진 방 수, 방 만들기 간격
+const LIMITS = { rooms: 300, practiceRooms: 60, roomsPerIp: 6, createGapMs: 3000 };
+const PRACTICE_IDLE_MS = 15 * 60 * 1000;
 
 function lanUrls(port) {
   const out = [];
@@ -22,10 +25,21 @@ function lanUrls(port) {
   return out.sort((a, b) => score(a) - score(b));
 }
 
-function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1 } = {}) {
+function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {} } = {}) {
+  const LIM = { ...LIMITS, ...limits };
   const app = express();
   const server = http.createServer(app);
-  const io = new Server(server, { pingInterval: 10000, pingTimeout: 8000 });
+  const io = new Server(server, { pingInterval: 10000, pingTimeout: 8000, maxHttpBufferSize: 16 * 1024 });
+  app.disable('x-powered-by');
+  app.use((req, res, next) => {
+    res.set({
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'X-Frame-Options': 'DENY',
+      'Content-Security-Policy': "frame-ancestors 'none'",
+    });
+    next();
+  });
   const rooms = new Map();
 
   // ── 저장/복구 ─────────────────────────────────────
@@ -99,9 +113,11 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const sweeper = setInterval(() => {
     const t = Date.now();
     for (const [code, r] of rooms) {
-      if (t - r.touchedAt > ROOM_TTL_MS) { r.clearAllTimers(); rooms.delete(code); }
+      // 연습 방은 사람이 떠나고 15분 지나면 정리
+      const idle = r.practice && !r.players.some((p) => !p.isBot && p.connected);
+      if (t - r.touchedAt > ROOM_TTL_MS || (idle && t - r.touchedAt > PRACTICE_IDLE_MS)) { r.clearAllTimers(); rooms.delete(code); }
     }
-  }, 10 * 60 * 1000);
+  }, 2 * 60 * 1000);
   sweeper.unref();
 
   // ── HTTP ──────────────────────────────────────────
@@ -149,6 +165,20 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   });
 
   // ── 소켓 ──────────────────────────────────────────
+  const clientIp = (socket) => String(socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || '').split(',')[0].trim();
+  const lastCreate = new Map();
+  function checkCreate(socket, practice) {
+    const ip = clientIp(socket);
+    const t = Date.now();
+    if (t - (lastCreate.get(ip) || 0) < LIM.createGapMs) throw new RoomError('조금 있다가 다시 만들어 주세요');
+    if (rooms.size >= LIM.rooms) throw new RoomError('지금 방이 너무 많아요. 잠시 후 다시 해 주세요');
+    if (practice && [...rooms.values()].filter((r) => r.practice).length >= LIM.practiceRooms) throw new RoomError('지금 연습 방이 너무 많아요. 잠시 후 다시 해 주세요');
+    if ([...rooms.values()].filter((r) => r.creatorIp === ip && t - r.touchedAt < 30 * 60 * 1000).length >= LIM.roomsPerIp) throw new RoomError('이미 만든 방이 많아요. 안 쓰는 방에서 나간 뒤 다시 해 주세요');
+    lastCreate.set(ip, t);
+    if (lastCreate.size > 5000) lastCreate.clear();
+    return ip;
+  }
+
   io.on('connection', (socket) => {
     const reply = (ack, data) => { if (typeof ack === 'function') ack(data); };
     const fail = (ack, e) => {
@@ -169,6 +199,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       room.connect(pid);
     };
     const handler = (fn) => (payload, ack) => {
+      payload = payload || {};
       try {
         const out = fn(payload || {});
         const { room } = ctx();
@@ -178,11 +209,14 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     };
 
     socket.on('room:create', (payload, ack) => {
+      payload = payload || {};
       try {
         const settings = sanitizeSettings(payload.settings || {});
+        const ip = checkCreate(socket, false);
         let code;
         do { code = makeCode(); } while (rooms.has(code));
         const room = new Room({ code, settings, pace });
+        room.creatorIp = ip;
         wire(room);
         rooms.set(code, room);
         const { player } = room.join({ name: payload.name, password: settings.password, avatar: payload.avatar });
@@ -193,6 +227,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     });
 
     socket.on('room:join', (payload, ack) => {
+      payload = payload || {};
       try {
         const room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방을 찾을 수 없어요. 코드를 확인해 주세요');
@@ -213,6 +248,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
 
     // 새로고침·재접속: 저장해 둔 토큰으로 같은 플레이어로 복귀
     socket.on('room:resume', (payload, ack) => {
+      payload = payload || {};
       try {
         const room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방이 없어졌어요');
@@ -240,12 +276,15 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('host:bot', handler(() => { const { room, pid } = ctx(); room.addBot(pid); }));
     // 혼자 연습: 방 + 봇 N명 + 바로 시작
     socket.on('room:practice', (payload, ack) => {
+      payload = payload || {};
       try {
         const settings = sanitizeSettings({ ...(payload.settings || {}), approval: false, password: '' });
+        const ip = checkCreate(socket, true);
         let code;
         do { code = makeCode(); } while (rooms.has(code));
         const room = new Room({ code, settings, pace });
         room.practice = true;
+        room.creatorIp = ip;
         wire(room);
         rooms.set(code, room);
         const { player } = room.join({ name: payload.name, avatar: payload.avatar });
@@ -266,6 +305,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('game:sitout', handler(() => { const { room, pid } = ctx(); room.sitOut(pid); }));
 
     socket.on('room:leave', (payload, ack) => {
+      payload = payload || {};
       try {
         const room = rooms.get(socket.data.code);
         const id = socket.data.playerId || socket.data.pendingId;
