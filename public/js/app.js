@@ -161,7 +161,56 @@ function shareTop() {
   else shareLink(siteUrl(), '찬덤 홀덤', '친구들이랑 휴대폰으로 홀덤 한 판 하자!');
 }
 
-const SHARE_BTN = '<button class="btn btn-sm btn-gold share-top" id="share-top" aria-label="공유하기">🔗 공유</button>';
+const SHARE_BTN_ONLY = '<button class="btn btn-sm btn-gold share-top" id="share-top" aria-label="공유하기">🔗 공유</button>';
+// 앱 설치 버튼(이미 앱으로 열었으면 숨김) + 공유 버튼
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const installBtnHTML = () => (isStandalone() ? '' : '<button class="btn btn-sm btn-outline install-btn" id="install-btn" aria-label="앱 설치">📲 앱 설치</button>');
+const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}${SHARE_BTN_ONLY}</span>` };
+
+// ── 앱 설치 (PWA) ──────────────────────────────────
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; });
+window.addEventListener('appinstalled', () => { S.installEvt = null; toast('찬덤 앱이 설치됐어요! 바탕화면에서 열 수 있어요', 'ok'); document.querySelectorAll('#install-btn').forEach((b) => b.remove()); });
+async function installApp() {
+  const ua = navigator.userAgent;
+  const url = location.origin + '/';
+  const ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const kakao = /KAKAOTALK/i.test(ua);
+  const inApp = kakao || /NAVER|Instagram|FBAN|FBAV|Line\//i.test(ua);
+  if (S.installEvt && !inApp && !ios) {
+    S.installEvt.prompt();
+    const r = await S.installEvt.userChoice.catch(() => null);
+    if (r && r.outcome === 'accepted') S.installEvt = null;
+    return;
+  }
+  if (inApp) {
+    const outer = kakao ? `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`
+      : ios ? null : `intent://${location.host}/#Intent;scheme=https;package=com.android.chrome;end`;
+    openModal('앱 설치', `
+      <p>지금은 <b>${kakao ? '카카오톡' : '앱'} 안의 브라우저</b>라서 설치할 수 없어요.</p>
+      <p class="muted small">${ios ? '사파리' : '크롬·삼성 인터넷 같은 브라우저'}로 연 다음 <b>📲 앱 설치</b>를 다시 눌러 주세요.</p>
+      ${outer ? `<a class="btn btn-gold btn-lg" href="${outer}">${kakao ? '바깥 브라우저로 열기' : ios ? '사파리로 열기' : '크롬으로 열기'}</a>` : `<p class="muted small">오른쪽 아래(또는 위) <b>⋯ → 다른 브라우저로 열기</b>를 눌러 주세요.</p>`}`);
+    return;
+  }
+  if (ios) {
+    openModal('아이폰에 앱 설치', `
+      <ol class="install-steps">
+        <li>화면 아래(또는 위)의 <b>공유 버튼</b> <span class="ios-share">⬆︎</span> 을 눌러요</li>
+        <li>목록을 내려서 <b>「홈 화면에 추가」</b>를 눌러요</li>
+        <li>오른쪽 위 <b>추가</b>를 누르면 바탕화면에 찬덤 앱이 생겨요</li>
+      </ol>
+      <p class="muted small">아이폰은 애플 정책상 버튼 하나로 바로 설치할 수 없어요. 사파리에서 해 주세요.</p>`);
+    return;
+  }
+  openModal('앱 설치', `
+    <ol class="install-steps">
+      <li>크롬 오른쪽 위 <b>⋮</b> 메뉴를 눌러요</li>
+      <li><b>「앱 설치」</b> 또는 <b>「홈 화면에 추가」</b>를 눌러요</li>
+      <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 찬덤이 생겨요</li>
+    </ol>
+    <p class="muted small">이미 설치했다면 바탕화면의 찬덤 아이콘으로 열어 주세요.</p>`);
+}
+document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); });
 
 // ── 모달 ─────────────────────────────────────────────
 function openModal(title, html, onMount, { wide = false } = {}) {
@@ -207,6 +256,7 @@ function setAuth(r) {
   LS.set('chandem:name', r.user.nickname);
 }
 function acctBtnHTML() {
+  if (S.info && S.info.accounts === false) return '<span></span>';
   if (!S.user) return '<button class="btn btn-sm btn-outline acct-btn" id="acct-btn">🔑 로그인</button>';
   const t = tierOf(S.user.stats.omok.rating);
   return `<button class="btn btn-sm btn-outline acct-btn is-user" id="acct-btn" title="내 전적"><span style="color:${t.color}">${t.icon}</span> ${esc(S.user.nickname)}</button>`;
@@ -312,7 +362,7 @@ socket.on('rating', (list) => {
 
 async function boot() {
   loadMe().then(() => { if (S.view === 'home') render(); });
-  fetch('/api/info').then((r) => r.json()).then((d) => { S.info = d; if (S.view === 'room') render(); }).catch(() => {});
+  fetch('/api/info').then((r) => r.json()).then((d) => { S.info = d; if (S.view === 'room' || S.view === 'home') render(); }).catch(() => {});
   const code = routeCode();
   if (!code) { S.view = 'home'; render(); return; }
   S.code = code;

@@ -667,3 +667,9 @@ form:not([data-game=omok]) .omok-only { display: none; }
 .rank-table .rk { width: 1.8em; text-align: center; font-weight: 900; color: var(--gold-hi); }
 .rank-table .rt { font-size: 1.2rem; }
 .rank-table .rr { font-weight: 800; }
+
+/* 앱 설치 */
+.top-btns { display: inline-flex; gap: 6px; align-items: center; flex: none; }
+.install-btn { white-space: nowrap; border-color: var(--gold); color: var(--gold-hi); }
+.install-steps { margin: 0 0 12px; padding-left: 1.3em; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
+.ios-share { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; border: 1px solid currentColor; border-radius: 6px; font-size: .85em; }
