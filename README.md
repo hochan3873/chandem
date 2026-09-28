@@ -48,6 +48,7 @@ npm start          # 서버 켜기
 | 새로고침 복구 | 게임 중 휴대폰에서 새로고침 → 같은 자리, 같은 카드로 돌아옴 |
 | 혼자 연습 | 첫 화면 **🤖 혼자 연습하기** → 봇 1~5명과 바로 시작. 대기실에서 방장이 **🤖 봇 추가**로 빈자리를 채울 수도 있음 (봇은 `server/bot.js`, 칩이 떨어지면 자동 충전, 사람이 없으면 멈춤) |
 | 섯다·오목 | 방 만들기/혼자 연습에서 게임을 고름. 섯다 엔진 `server/games/seotda.js`(홀덤 Hand 상속), 오목 `server/games/omok.js`(삼삼 금지·AI 3단계) |
+| 로그인·전적 | 아이디+비밀번호(scrypt 암호화). `DATABASE_URL`(PostgreSQL, 예: Neon) 이 있으면 DB, 없으면 `data/accounts.json`. 토큰 서명 키 `AUTH_SECRET`. 오목 Elo 점수 → 티어 8단계, 랭킹 `/api/auth/ranking/omok` |
 | 봇 스크립트 | `npm run bots` → 소켓 봇 3명이 있는 방. 기존 방에 봇 추가: `node scripts/bots.js 방코드 2` |
 
 ## 3. 자동 테스트

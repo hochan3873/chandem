@@ -133,6 +133,7 @@ class Room {
     this.timers = {};
     this.onChange = () => {};
     this.onEmote = () => {};
+    this.onRecord = () => {};   // 판이 끝나면 전적 기록 (index.js 에서 연결)
     this.emoteAt = {};
     this.stats = {};            // 봇이 읽는 상대 성향(레이즈·올인 빈도)
   }
@@ -283,13 +284,14 @@ class Room {
   }
 
   /** 참가 요청. 반환: { player, pending } */
-  join({ name, password, spectator, avatar, photo }) {
+  join({ name, password, spectator, avatar, photo, user }) {
     if (this.settings.password && password !== this.settings.password) {
       throw new RoomError('비밀번호가 맞지 않아요');
     }
     const uname = this.uniqueName(name);
     const p = this.createPlayer(uname, true, avatar);
     this.setPhoto(p, photo);
+    if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; }
     p.wantSpectator = !!spectator;
     // 방장 승인 설정이 켜져 있거나, 이미 게임이 진행 중이면 방장이 받아 줘야 들어온다
     if ((this.settings.approval || this.phase === 'playing') && this.players.some((x) => !x.isBot)) {
@@ -673,6 +675,7 @@ class Room {
     if (this.reveal) { this.reveal.done = true; this.reveal.squeeze = false; this.reveal.board = 5; }
     this.drainHandLog();
     this.lastResult = { handNo: this.handNo, ...this.hand.result };
+    try { this.recordResult(); } catch (e) { console.error('[record]', e); }
     if (this.hand.result.redeal) {
       this.seotdaCarry = this.hand.result.carry;
       this.pushFeed(`🎴 ${this.hand.result.redeal}! 판돈 ${this.seotdaCarry.amount.toLocaleString()}을 걸고 다시 쳐요`);
@@ -689,6 +692,26 @@ class Room {
     this.touch();
   }
 
+  /** 전적 기록용 요약을 만들어 onRecord 로 넘긴다 */
+  recordResult() {
+    const h = this.hand;
+    const r = h.result;
+    const game = h.kind || 'holdem';
+    if (game === 'omok') {
+      const [a, b] = h.seats.map((s) => this.get(s.id) || { id: s.id });
+      const side = (p) => ({ id: p.id, userId: p.userId || null, ai: p.isBot ? this.settings.aiLevel : null });
+      const res = r.type === 'draw' ? 'draw' : r.winners.includes(h.seats[0].id) ? 'a' : 'b';
+      this.onRecord({ game, a: side(a), b: side(b), result: res });
+      return;
+    }
+    const players = this.handPlayers.map((id) => {
+      const p = this.get(id) || {};
+      const hi = r.hands && r.hands[id];
+      return { id, userId: p.userId || null, delta: r.deltas[id] || 0, won: r.winners.includes(id), handName: hi ? hi.name : null, handRank: hi ? (typeof hi.rank === 'number' ? hi.rank : hi.category) : null };
+    });
+    this.onRecord({ game, players, pot: h.totalPot, redeal: !!r.redeal });
+  }
+
   get revealing() { return !!(this.reveal && !this.reveal.done && this.hand && this.hand.finished); }
 
   /** 토너먼트 끝: 순위 정리 후 대기실로 */
@@ -698,6 +721,7 @@ class Room {
     if (winner) order.push(winner.id);
     for (const id of [...t.busted].reverse()) if (!order.includes(id)) order.push(id);
     t.result = { at: this.now(), ranking: order.map((id, i) => ({ id, name: this.name(id), place: i + 1 })) };
+    try { this.onRecord({ game: 'tourney', userIds: this.players.filter((p) => p.userId && order.includes(p.id)).map((p) => p.userId), winnerUserId: winner && winner.userId }); } catch {}
     this.pushFeed(winner ? `🏆 ${winner.name}님 토너먼트 우승!` : '토너먼트가 끝났어요');
     this.phase = 'lobby';
     this.hand = null;
@@ -915,6 +939,8 @@ class Room {
         connected: p.connected,
         isBot: !!p.isBot,
         photo: p.photo ? p.photoV : 0,
+        member: !!p.userId,
+        rating: p.userId && this.settings.game === 'omok' ? p.omokRating : null,
         isHost: p.id === this.hostId,
         sittingOut: p.sittingOut,
         leaving: p.leaving,

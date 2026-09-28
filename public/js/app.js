@@ -111,6 +111,7 @@ async function fileToPhoto(file) {
   } finally { URL.revokeObjectURL(url); }
 }
 function bindAvatarPicker(root) {
+  applyMemberName(root);
   const opt = root.querySelector('.av-photo');
   if (!opt) return;
   const radio = opt.querySelector('input[type=radio]');
@@ -181,7 +182,136 @@ function routeCode() {
   return m ? m[1].toUpperCase() : null;
 }
 
+// ── 계정 ───────────────────────────────────────────
+const TIERS = [
+  [1800, '그랜드마스터', '👑', '#ff5d73'], [1650, '마스터', '🔮', '#c77dff'], [1500, '다이아몬드', '💎', '#6fd3ff'],
+  [1350, '플래티넘', '🛡️', '#4fe0c1'], [1200, '골드', '🥇', '#ffd35a'], [1050, '실버', '🥈', '#cfd8e3'],
+  [900, '브론즈', '🥉', '#d59a6a'], [-Infinity, '아이언', '⚙️', '#9aa1a8'],
+];
+function tierOf(r) { const t = TIERS.find((x) => r >= x[0]); return { name: t[1], icon: t[2], color: t[3] }; }
+S.auth = LS.get('chandem:auth', null);
+S.user = null;
+async function api(path, body) {
+  const opt = body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { headers: S.auth ? { authorization: 'Bearer ' + S.auth } : {} };
+  try { return await (await fetch('/api/auth' + path, opt)).json(); } catch { return { ok: false, message: '서버와 연결할 수 없어요' }; }
+}
+async function loadMe() {
+  if (!S.auth) { S.user = null; return; }
+  const r = await api('/me');
+  if (r.ok) S.user = r.user;
+  else if (r.message) { S.user = null; S.auth = null; LS.del('chandem:auth'); }
+}
+function setAuth(r) {
+  S.auth = r.token; S.user = r.user;
+  LS.set('chandem:auth', r.token);
+  LS.set('chandem:name', r.user.nickname);
+}
+function acctBtnHTML() {
+  if (!S.user) return '<button class="btn btn-sm btn-outline acct-btn" id="acct-btn">🔑 로그인</button>';
+  const t = tierOf(S.user.stats.omok.rating);
+  return `<button class="btn btn-sm btn-outline acct-btn is-user" id="acct-btn" title="내 전적"><span style="color:${t.color}">${t.icon}</span> ${esc(S.user.nickname)}</button>`;
+}
+function openLogin(tab = 'login') {
+  openModal(tab === 'login' ? '로그인' : '회원가입', `
+    <div class="seg auth-tabs">
+      <label class="seg-opt"><input type="radio" name="authtab" value="login" ${tab === 'login' ? 'checked' : ''}><span>로그인</span></label>
+      <label class="seg-opt"><input type="radio" name="authtab" value="signup" ${tab === 'signup' ? 'checked' : ''}><span>회원가입</span></label>
+    </div>
+    <form class="form" id="auth-form" autocomplete="on">
+      <label class="field"><span>아이디</span><input class="input" name="username" maxlength="16" required autocomplete="username" autocapitalize="off" placeholder="영어 소문자·숫자 3~16자"></label>
+      <label class="field"><span>비밀번호</span><input class="input" type="password" name="password" maxlength="64" required autocomplete="${tab === 'login' ? 'current-password' : 'new-password'}" placeholder="6자 이상"></label>
+      ${tab === 'signup' ? `
+      <label class="field"><span>비밀번호 확인</span><input class="input" type="password" name="password2" maxlength="64" required autocomplete="new-password"></label>
+      <label class="field"><span>닉네임</span><input class="input" name="nickname" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="게임에서 보일 이름"></label>` : ''}
+      <button class="btn btn-gold btn-lg" type="submit">${tab === 'login' ? '로그인' : '가입하고 시작'}</button>
+      <p class="muted small">로그인 없이도 그대로 게임할 수 있어요. 로그인하면 전적·승률과 <b>오목 티어</b>가 쌓여요.</p>
+    </form>`, (body) => {
+    body.querySelectorAll('input[name=authtab]').forEach((r) => { r.onchange = () => openLogin(r.value); });
+    const f = body.querySelector('#auth-form');
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(f);
+      if (tab === 'signup' && fd.get('password') !== fd.get('password2')) { toast('비밀번호가 서로 달라요', 'error'); return; }
+      const r = await api(tab === 'login' ? '/login' : '/signup', { username: fd.get('username'), password: fd.get('password'), nickname: fd.get('nickname') });
+      if (!r.ok) { toast(r.message || '다시 해 주세요', 'error'); return; }
+      setAuth(r);
+      closeModal();
+      toast(tab === 'login' ? `${r.user.nickname}님, 반가워요!` : '가입 완료! 이제 전적이 쌓여요', 'ok');
+      render();
+    };
+  });
+}
+function pct(a, b) { return b ? Math.round((a / b) * 100) + '%' : '-'; }
+async function openProfile() {
+  await loadMe();
+  if (!S.user) { openLogin(); return; }
+  const s = S.user.stats;
+  const o = s.omok;
+  const t = tierOf(o.rating);
+  const next = TIERS.slice().reverse().find((x) => x[0] > o.rating);
+  const game = (g, label) => `
+    <div class="stat-card"><h3>${label}</h3>
+      <div class="stat-grid"><span>판 수</span><b>${fmt(g.hands)}</b><span>이긴 판</span><b>${fmt(g.wins)} (${pct(g.wins, g.hands)})</b>
+      <span>누적 칩</span><b class="${g.net > 0 ? 'plus' : g.net < 0 ? 'minus' : ''}">${signed(g.net)}</b><span>가장 큰 팟</span><b>${fmt(g.bestPot)}</b>
+      <span>최고 족보</span><b>${esc(g.bestHand || '-')}</b></div></div>`;
+  openModal('내 전적', `
+    <div class="profile-head"><b>${esc(S.user.nickname)}</b><span class="muted small">@${esc(S.user.username)}</span></div>
+    <div class="tier-card" style="--tc:${t.color}">
+      <div class="tier-icon">${t.icon}</div>
+      <div class="tier-main"><div class="tier-name">오목 ${t.name}</div><div class="tier-rating">${fmt(o.rating)}점 <small>최고 ${fmt(o.peak)}</small></div>
+        ${next ? `<div class="tier-next">다음 티어 ${next[2]} ${next[1]}까지 ${fmt(next[0] - o.rating)}점</div>` : '<div class="tier-next">최고 티어!</div>'}</div>
+    </div>
+    <div class="stat-card"><h3>⚫ 오목</h3>
+      <div class="stat-grid"><span>대국</span><b>${fmt(o.games)}</b><span>승 / 패 / 무</span><b>${o.wins} / ${o.losses} / ${o.draws}</b>
+      <span>승률</span><b>${pct(o.wins, o.games)}</b><span>연속</span><b>${o.streak > 0 ? `${o.streak}연승 🔥` : o.streak < 0 ? `${-o.streak}연패` : '-'}</b></div></div>
+    ${game(s.holdem, '♠ 텍사스 홀덤')}
+    ${game(s.seotda, '🎴 섯다')}
+    <div class="stat-card"><h3>🏆 토너먼트</h3><div class="stat-grid"><span>참가</span><b>${fmt(s.tourney.played)}</b><span>우승</span><b>${fmt(s.tourney.wins)}</b></div></div>
+    <div class="row">
+      <button class="btn btn-outline grow" id="rank-btn">🏆 오목 랭킹</button>
+      <button class="btn btn-ghost danger" id="logout-btn">로그아웃</button>
+    </div>`, (body) => {
+    body.querySelector('#rank-btn').onclick = openRanking;
+    body.querySelector('#logout-btn').onclick = () => { S.auth = null; S.user = null; LS.del('chandem:auth'); closeModal(); toast('로그아웃했어요'); render(); };
+  }, { wide: true });
+}
+async function openRanking() {
+  const r = await api('/ranking/omok');
+  const list = r.ok ? r.ranking : [];
+  openModal('🏆 오목 랭킹', list.length ? `<ol class="rank-table">${list.map((x) => `
+    <li class="${S.user && x.username === S.user.username ? 'is-me' : ''}"><span class="rk">${x.rank}</span>
+      <span class="rt" style="color:${x.tier.color}" title="${x.tier.name}">${x.tier.icon}</span>
+      <b>${esc(x.nickname)}</b><span class="spacer"></span><span class="rr">${fmt(x.rating)}</span><small class="muted">${x.wins}승/${x.games}</small></li>`).join('')}</ol>`
+    : '<p class="muted">아직 랭킹이 없어요. 로그인하고 오목을 둬 보세요!</p>', null, { wide: true });
+}
+// 폼: 로그인했으면 계정 닉네임으로 고정
+function applyMemberName(root) {
+  const input = root.querySelector('input[name=name]');
+  if (!input || !S.user) return;
+  input.value = S.user.nickname;
+  input.readOnly = true;
+  input.classList.add('is-member');
+  if (!root.querySelector('.member-note')) input.insertAdjacentHTML('afterend', `<small class="muted member-note">✓ 로그인한 닉네임으로 참가해요 · 전적이 기록돼요</small>`);
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#acct-btn')) { if (S.user) openProfile(); else openLogin(); }
+});
+socket.on('rating', (list) => {
+  const meId = S.state && S.state.me && S.state.me.id;
+  const mine = list.find((x) => x.id === meId);
+  if (!mine) return;
+  const before = tierOf(mine.before), after = tierOf(mine.after);
+  if (S.user) S.user.stats.omok.rating = mine.after;
+  setTimeout(() => {
+    if (after.name !== before.name) {
+      banner(mine.delta > 0 ? '⬆ 티어 상승!' : '⬇ 티어 하락', `${after.icon} ${after.name} · ${fmt(mine.after)}점`, mine.delta > 0 ? 'mywin' : 'level', 2600);
+      if (mine.delta > 0) { sound.play('fanfare'); coinRain(30); }
+    } else toast(`오목 점수 ${mine.delta >= 0 ? '+' : ''}${mine.delta} → ${fmt(mine.after)}점 · ${after.icon} ${after.name}`, mine.delta >= 0 ? 'ok' : 'info');
+  }, 2600);
+});
+
 async function boot() {
+  loadMe().then(() => { if (S.view === 'home') render(); });
   fetch('/api/info').then((r) => r.json()).then((d) => { S.info = d; if (S.view === 'room') render(); }).catch(() => {});
   const code = routeCode();
   if (!code) { S.view = 'home'; render(); return; }
@@ -399,10 +529,10 @@ function renderHome() {
   const last = LS.get('chandem:name', '');
   $app.innerHTML = `
   <main class="home">
-    <div class="top-bar">${SHARE_BTN}</div>
+    <div class="top-bar">${acctBtnHTML()}${SHARE_BTN}</div>
     <div class="home-hero">
       ${logoHTML()}
-      <p class="tagline">친구들과 휴대폰으로 즐기는 노리밋 텍사스 홀덤</p>
+      <p class="tagline">친구들과 휴대폰으로 즐기는 홀덤 · 섯다 · 오목</p>
     </div>
     <section class="panel">
       <button class="btn btn-gold btn-lg" id="go-create">방 만들기</button>
@@ -536,7 +666,7 @@ function renderCreate() {
     const bad = validateSettings(settings);
     if (bad) { toast(bad, 'error'); return; }
     LS.set('chandem:name', name);
-    const res = await emit('room:create', { name, settings, avatar: readAvatar(form), photo: readPhoto(form) });
+    const res = await emit('room:create', { name, settings, avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
@@ -595,7 +725,7 @@ function renderPractice() {
     LS.set('chandem:pmode', tourney ? 'tournament' : 'cash');
     const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99, mode: tourney && game !== 'omok' ? 'tournament' : 'cash', levelMinutes: 3, game, ...(game === 'seotda' ? { sb: bb } : {}), aiLevel: fd.get('ailevel') || 'normal' };
     if (game === 'omok') LS.set('chandem:ailevel', settings.aiLevel);
-    const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form), photo: readPhoto(form) });
+    const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
@@ -642,7 +772,7 @@ function renderJoin() {
     const name = String(fd.get('name') || '').trim();
     if (!name) { toast('닉네임을 입력해 주세요', 'error'); return; }
     LS.set('chandem:name', name);
-    const res = await emit('room:join', { code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on', avatar: readAvatar(form), photo: readPhoto(form) });
+    const res = await emit('room:join', { code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on', avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
@@ -1052,7 +1182,7 @@ function omokPlayerHTML(p, color, st, label) {
   const turn = st.hand && !st.hand.finished && st.hand.toActId === p.id;
   return `<div class="omok-player ${turn ? 'is-turn' : ''}">
     ${avatarHTML(p, 'avatar-sm')}<span class="omok-stone-icon stone-${color}"></span>
-    <b>${esc(p.name)}</b>${label ? `<span class="muted small">${label}</span>` : ''}
+    <b>${esc(p.name)}</b>${p.member ? ' <span class="member-mark">✓</span>' : ''}${p.rating ? `<span class="tier-chip" style="color:${tierOf(p.rating).color}" title="${tierOf(p.rating).name} ${p.rating}점">${tierOf(p.rating).icon} ${fmt(p.rating)}</span>` : ''}${label ? `<span class="muted small">${label}</span>` : ''}
     ${turn ? '<span class="tag tag-turn" data-deadline>차례</span>' : ''}</div>`;
 }
 function renderOmok(st) {
@@ -1200,7 +1330,7 @@ function renderTable(st) {
         <div class="seat-body">
           <div class="seat-av">${avatarHTML(p)}<div class="seat-pos">${pos2.join('')}</div>
             ${p.isTurn ? '<svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20" data-ring></circle></svg>' : ''}</div>
-          <div class="seat-name">${esc(p.name)}${p.isHost ? ' <span class="crown" title="방장">★</span>' : ''}</div>
+          <div class="seat-name">${esc(p.name)}${p.member ? ' <span class="member-mark" title="회원">✓</span>' : ''}${p.isHost ? ' <span class="crown" title="방장">★</span>' : ''}</div>
           <div class="seat-stack"><span class="chip-icon sm"></span>${fmt(p.stack)}</div>
           <div class="seat-tags">${tags.join('')}</div>
         </div>

@@ -7,6 +7,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { Room, RoomError, sanitizeSettings, makeCode } = require('./room');
+const { createAccounts } = require('./accounts');
 
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12시간 아무 일 없으면 방 정리
 // 과부하 방지: 전체 방 수, 연습 방 수, 한 사람(IP)이 동시에 가진 방 수, 방 만들기 간격
@@ -25,8 +26,9 @@ function lanUrls(port) {
   return out.sort((a, b) => score(a) - score(b));
 }
 
-function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {} } = {}) {
+function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null } = {}) {
   const LIM = { ...LIMITS, ...limits };
+  const acct = accounts || createAccounts({ file: dataFile ? path.join(path.dirname(dataFile), 'accounts.json') : null });
   const app = express();
   const server = http.createServer(app);
   const io = new Server(server, { pingInterval: 10000, pingTimeout: 8000, maxHttpBufferSize: 96 * 1024 });
@@ -70,6 +72,20 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
 
   function wire(room) {
     room.onChange = () => broadcast(room);
+    room.onRecord = (rec) => {
+      if (rec.game === 'omok') {
+        acct.recordOmok(rec.a, rec.b, rec.result).then((out) => {
+          if (!out) return;
+          for (const [userId, v] of Object.entries(out)) {
+            const p = room.players.find((x) => x.userId === userId);
+            if (p) p.omokRating = v.after;
+          }
+          if (Object.keys(out).length) { io.to('room:' + room.code).emit('rating', Object.entries(out).map(([userId, v]) => ({ id: (room.players.find((x) => x.userId === userId) || {}).id, ...v }))); broadcast(room); }
+        });
+      } else if (rec.game === 'tourney') acct.recordTourney(rec.userIds, rec.winnerUserId);
+      else if (!rec.redeal) acct.recordHand(rec.game, rec.players, rec.pot);
+      else acct.recordHand(rec.game, rec.players.map((p) => ({ ...p, won: false, handName: null })), 0);
+    };
     room.onEmote = (e) => io.to('room:' + room.code).emit('emote', e);
   }
 
@@ -123,6 +139,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   // ── HTTP ──────────────────────────────────────────
   const pub = path.join(__dirname, '..', 'public');
   app.use(express.static(pub, { extensions: ['html'] }));
+  app.use('/api/auth', acct.router(express));
   app.get('/api/info', (req, res) => {
     res.json({ lan: lanUrls(server.address().port), publicUrl });
   });
@@ -187,6 +204,12 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     return ip;
   }
 
+  // 소켓 요청에 붙어 온 로그인 토큰 → 계정 (없거나 틀리면 손님)
+  async function userOf(payload) {
+    if (!payload || !payload.auth) return null;
+    try { return await acct.me(payload.auth); } catch { return null; }
+  }
+
   io.on('connection', (socket) => {
     const reply = (ack, data) => { if (typeof ack === 'function') ack(data); };
     const fail = (ack, e) => {
@@ -216,8 +239,10 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       } catch (e) { fail(ack, e); }
     };
 
-    socket.on('room:create', (payload, ack) => {
+    socket.on('room:create', async (payload, ack) => {
       payload = payload || {};
+      const user = await userOf(payload);
+      if (user) payload.name = user.nickname;
       try {
         const settings = sanitizeSettings(payload.settings || {});
         const ip = checkCreate(socket, false);
@@ -227,19 +252,21 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         room.creatorIp = ip;
         wire(room);
         rooms.set(code, room);
-        const { player } = room.join({ name: payload.name, password: settings.password, avatar: payload.avatar, photo: payload.photo });
+        const { player } = room.join({ name: payload.name, password: settings.password, avatar: payload.avatar, photo: payload.photo, user });
         bind(room, player.id);
         broadcast(room);
         reply(ack, { ok: true, code, playerId: player.id, token: player.token });
       } catch (e) { fail(ack, e); }
     });
 
-    socket.on('room:join', (payload, ack) => {
+    socket.on('room:join', async (payload, ack) => {
       payload = payload || {};
+      const user = await userOf(payload);
+      if (user) payload.name = user.nickname;
       try {
         const room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방을 찾을 수 없어요. 코드를 확인해 주세요');
-        const { player, pending } = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar, photo: payload.photo });
+        const { player, pending } = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar, photo: payload.photo, user });
         socket.data.code = room.code;
         socket.join('room:' + room.code);
         if (pending) {
@@ -283,8 +310,10 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('game:emote', handler((d) => { const { room, pid } = ctx(); room.emote(pid, String(d.kind || '')); }));
     socket.on('host:bot', handler(() => { const { room, pid } = ctx(); room.addBot(pid); }));
     // 혼자 연습: 방 + 봇 N명 + 바로 시작
-    socket.on('room:practice', (payload, ack) => {
+    socket.on('room:practice', async (payload, ack) => {
       payload = payload || {};
+      const user = await userOf(payload);
+      if (user) payload.name = user.nickname;
       try {
         const settings = sanitizeSettings({ ...(payload.settings || {}), approval: false, password: '' });
         const ip = checkCreate(socket, true);
@@ -295,7 +324,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         room.creatorIp = ip;
         wire(room);
         rooms.set(code, room);
-        const { player } = room.join({ name: payload.name, avatar: payload.avatar, photo: payload.photo });
+        const { player } = room.join({ name: payload.name, avatar: payload.avatar, photo: payload.photo, user });
         bind(room, player.id);
         const n = Math.max(1, Math.min(settings.maxPlayers - 1, Number(payload.bots) || 3));
         for (let i = 0; i < n; i++) room.addBot(player.id);
@@ -344,7 +373,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   });
 
   return {
-    app, server, io, rooms,
+    app, server, io, rooms, accounts: acct,
     listen: () => new Promise((resolve) => server.listen(port, '0.0.0.0', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => {
       for (const r of rooms.values()) r.clearAllTimers();

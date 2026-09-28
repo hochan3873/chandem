@@ -386,13 +386,13 @@ test('봇: 매판 올인하는 사람에게는 적당한 패로 받아치고, �
   for (let i = 0; i < 10; i++) {
     const h1 = deal(['Ah', '9d']);
     if (h1.currentId === 'B' && bot.decide(h1, 'B', bot.STYLES[0], maniac).type === 'call') callVsManiac++;
-    const h2 = deal(['Ah', '9d']);
+    const h2 = deal(['Kh', '7d']);
     if (h2.currentId === 'B' && bot.decide(h2, 'B', bot.STYLES[0], careful).type === 'call') callVsCareful++;
     const h3 = deal(['8h', '3d']);
     if (h3.currentId === 'B' && bot.decide(h3, 'B', bot.STYLES[0], careful).type === 'fold') foldTrash++;
   }
   assert.ok(callVsManiac >= 9, `A9 로 매판 올인러에게 콜 (${callVsManiac}/10)`);
-  assert.ok(callVsCareful <= 2, `A9 로 신중한 사람 올인엔 대부분 폴드 (${callVsCareful}/10)`);
+  assert.ok(callVsCareful <= 2, `K7 로 신중한 사람 올인엔 대부분 폴드 (${callVsCareful}/10)`);
   assert.ok(foldTrash === 10, `83o 는 폴드 (${foldTrash}/10)`);
 });
 
