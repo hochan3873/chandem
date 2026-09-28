@@ -1,4 +1,4 @@
-/* 찬덤 — 짙은 녹색 펠트 + 절제된 금색 */
+/* 찬이의 게임월드 — 짙은 녹색 펠트 + 절제된 금색 */
 :root {
   --bg: #07130f;
   --bg2: #0c1d17;
@@ -618,6 +618,7 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 /* ── 오목 ───────────────────────── */
 form[data-game=omok] .chips-only { display: none; }
 form:not([data-game=omok]) .omok-only { display: none; }
+form[data-game=holdem] .ai-only, form:not([data-game]) .ai-only { display: none; }
 .omok-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 0; }
 .omok-board-box { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; container-type: size; }
 .omok-board { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .6), 0 0 0 3px #6b4523; touch-action: manipulation; cursor: pointer; }
@@ -673,3 +674,65 @@ form:not([data-game=omok]) .omok-only { display: none; }
 .install-btn { white-space: nowrap; border-color: var(--gold); color: var(--gold-hi); }
 .install-steps { margin: 0 0 12px; padding-left: 1.3em; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
 .ios-share { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; border: 1px solid currentColor; border-radius: 6px; font-size: .85em; }
+
+.install-wait { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; }
+.install-ok { font-size: 3rem; }
+
+/* ── 게임 선택 허브 ─────────────────── */
+.hidden-pick { display: none; }
+.game-cards { display: flex; flex-direction: column; gap: 12px; }
+.game-card { position: relative; display: block; width: 100%; height: 132px; border-radius: 20px; overflow: hidden; border: 1px solid rgba(232, 207, 148, .45); padding: 0; cursor: pointer; text-align: left; color: #fff; box-shadow: 0 12px 30px rgba(0, 0, 0, .55); transition: transform .15s; }
+.game-card:active { transform: scale(.98); }
+.gc-art { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.game-card-holdem .gc-art { background-color: #0d4a35; }
+.game-card-seotda .gc-art { background-color: #5a0f18; }
+.game-card-omok .gc-art { background-color: #7a5427; }
+.gc-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .35) 55%, rgba(0, 0, 0, .05) 100%); }
+.gc-text { position: absolute; left: 18px; bottom: 16px; display: flex; flex-direction: column; gap: 3px; }
+.gc-text b { font-size: 1.45rem; font-weight: 900; text-shadow: 0 2px 8px #000; }
+.gc-text small { font-size: .8rem; color: #f3e3b5; text-shadow: 0 1px 4px #000; }
+.gc-go { position: absolute; right: 14px; bottom: 14px; padding: 6px 12px; border-radius: 99px; background: linear-gradient(180deg, var(--gold-hi), var(--gold)); color: #2a1e08; font-weight: 900; font-size: .8rem; }
+.game-home .gh-hero { position: relative; height: 210px; border-radius: 22px; overflow: hidden; background-size: cover; background-position: center; border: 1px solid rgba(232, 207, 148, .45); box-shadow: 0 16px 40px rgba(0, 0, 0, .6); }
+.gh-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .1), rgba(0, 0, 0, .8)); }
+.gh-title { position: absolute; left: 18px; right: 18px; bottom: 16px; }
+.gh-title h1 { margin: 0; font-size: 2rem; font-weight: 900; text-shadow: 0 3px 10px #000; }
+.gh-title p { margin: 4px 0 0; color: #f3e3b5; font-size: .85rem; text-shadow: 0 1px 4px #000; }
+.gh-icon { font-size: 1.6rem; }
+.rules p { line-height: 1.6; margin: 0 0 10px; }
+
+/* ── 게임별 테마 ─────────────────────── */
+body[data-theme="seotda"] { background: #1a0508 url('/img/bg-seotda.webp') center / cover fixed; }
+body[data-theme="seotda"] .game-home .gh-hero { background-color: #5a0f18; }
+body[data-theme="seotda"] .panel { background: rgba(40, 8, 12, .82); border-color: rgba(230, 170, 110, .35); }
+body[data-theme="seotda"] .felt { background: url('/img/felt-seotda.webp') center / cover, radial-gradient(ellipse at center, #7a1f24 0%, #3b0a0f 85%) !important; box-shadow: inset 0 0 60px rgba(0, 0, 0, .7), 0 0 0 10px #3a2414, 0 0 0 12px #8a5a2b, 0 18px 40px rgba(0, 0, 0, .6) !important; }
+body[data-theme="omok"] { background: #2a1a0c url('/img/bg-omok.webp') center / cover fixed; }
+body[data-theme="omok"] .game-home .gh-hero { background-color: #7a5427; }
+body[data-theme="omok"] .panel { background: rgba(38, 24, 12, .82); border-color: rgba(230, 190, 130, .35); }
+
+/* ── 섯다: 어두운 하우스, 전등 하나, 붓글씨 제목 (영화 같은 긴장감) ── */
+body[data-theme="seotda"] { --brush: 'Black Han Sans', 'Noto Sans KR', sans-serif; }
+body[data-theme="seotda"] .gh-title h1, body[data-theme="seotda"] .page-head h1 { font-family: var(--brush); letter-spacing: .04em; color: #f6e2b8; text-shadow: 0 0 18px rgba(255, 170, 80, .45), 0 3px 0 #2a0508; }
+body[data-theme="seotda"] .game-home .gh-hero { border-color: rgba(230, 150, 90, .6); box-shadow: 0 0 40px rgba(255, 140, 60, .18), 0 16px 40px rgba(0, 0, 0, .7); }
+body[data-theme="seotda"] .btn-gold { background: linear-gradient(180deg, #f3c27a, #b8742f); color: #2a0e02; }
+/* 테이블 위 전등 불빛 + 가장자리 어둠 */
+body[data-theme="seotda"] .table-wrap::before { content: ''; position: absolute; inset: -10% -20% 0; pointer-events: none; z-index: 1; background: radial-gradient(ellipse 55% 45% at 50% 42%, rgba(255, 190, 110, .18), rgba(255, 170, 80, .05) 45%, rgba(0, 0, 0, .55) 80%); mix-blend-mode: screen; animation: lampFlicker 6s ease-in-out infinite; }
+@keyframes lampFlicker { 0%, 100% { opacity: 1; } 47% { opacity: .92; } 50% { opacity: .78; } 53% { opacity: .95; } }
+body[data-theme="seotda"] .sd-center { font-family: var(--brush); font-size: 1.1rem; letter-spacing: .2em; color: #f3c27a; text-shadow: 0 0 12px rgba(255, 150, 60, .6); }
+body[data-theme="seotda"] .pot { border-color: #c98a45; background: linear-gradient(180deg, rgba(255, 180, 100, .2), rgba(120, 40, 20, .25)); }
+body[data-theme="seotda"] .fx-big-en, body[data-theme="seotda"] .fx-big-ko { font-family: var(--brush); }
+/* 오목: 한옥 · 먹 · 나무 */
+body[data-theme="omok"] { --ink: 'Gowun Batang', 'Noto Serif KR', serif; }
+body[data-theme="omok"] .gh-title h1, body[data-theme="omok"] .page-head h1 { font-family: var(--ink); letter-spacing: .1em; color: #fff6e6; text-shadow: 0 3px 12px rgba(0, 0, 0, .8); }
+body[data-theme="omok"] .btn-gold { background: linear-gradient(180deg, #f1dcb2, #b88a4e); color: #2a1a08; }
+
+/* 긴 이름: 한 줄 유지 */
+.logo:not(.logo-sm) .logo-ko { font-size: clamp(1.6rem, 8.2vw, 2.5rem); white-space: nowrap; letter-spacing: .02em; }
+.logo:not(.logo-sm) .logo-icon { width: clamp(52px, 15vw, 64px); height: clamp(52px, 15vw, 64px); }
+
+
+/* 화투 그림 패: 그림 위에 월 숫자·광/열 표시만 */
+.hwatu.hw-img { background-size: cover; background-position: center; padding: 0; justify-content: flex-start; align-items: flex-start; }
+.hwatu.hw-img .hw-art, .hwatu.hw-img .hw-name { display: none; }
+.hwatu.hw-img .hw-num { position: absolute; left: calc(var(--w) * .05); top: calc(var(--w) * .04); font-size: calc(var(--w) * .26); color: #fff; background: rgba(120, 10, 20, .85); border-radius: calc(var(--w) * .08); padding: 0 calc(var(--w) * .07); line-height: 1.25; box-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
+.card-xs.hwatu.hw-img .hw-num { font-size: calc(var(--w) * .42); left: 1px; top: 1px; }
+.card-xs.hwatu.hw-img .hw-mark { display: none; }

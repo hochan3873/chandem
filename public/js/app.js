@@ -157,8 +157,8 @@ async function shareLink(url, title, text) {
 // 화면 맨 위 공유 버튼: 방 안이면 초대 링크, 아니면 찬덤 주소
 function shareTop() {
   const code = S.state && S.state.room && S.state.room.code;
-  if (code) shareLink(inviteUrl(code), '찬덤 홀덤 초대', `찬덤 홀덤 방 ${code}에 들어와!`);
-  else shareLink(siteUrl(), '찬덤 홀덤', '친구들이랑 휴대폰으로 홀덤 한 판 하자!');
+  if (code) shareLink(inviteUrl(code), '찬이의 게임월드 초대', `찬이의 게임월드 ${GAME_NAMES[gameOf(S.state)]} 방 ${code}에 들어와!`);
+  else shareLink(siteUrl(), '찬이의 게임월드', '친구들이랑 휴대폰으로 홀덤 · 섯다 · 오목 한 판 하자!');
 }
 
 const SHARE_BTN_ONLY = '<button class="btn btn-sm btn-gold share-top" id="share-top" aria-label="공유하기">🔗 공유</button>';
@@ -170,7 +170,15 @@ const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}$
 // ── 앱 설치 (PWA) ──────────────────────────────────
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; });
-window.addEventListener('appinstalled', () => { S.installEvt = null; toast('찬덤 앱이 설치됐어요! 바탕화면에서 열 수 있어요', 'ok'); document.querySelectorAll('#install-btn').forEach((b) => b.remove()); });
+window.addEventListener('appinstalled', () => { S.installEvt = null; installDone(); document.querySelectorAll('#install-btn').forEach((b) => b.remove()); });
+function installDone() {
+  S.installing = null;
+  document.querySelectorAll('#install-btn').forEach((b) => b.remove());
+  openModal('설치 완료 🎉', `<div class="install-wait"><div class="install-ok">✅</div><p><b>찬이의 게임월드가 설치됐어요!</b></p>
+    <p class="muted small">바탕화면이나 앱 목록의 아이콘으로 열면 전체 화면으로 즐길 수 있어요.</p>
+    <button class="btn btn-gold btn-lg" data-close>확인</button></div>`);
+  sound.play('fanfare');
+}
 async function installApp() {
   const ua = navigator.userAgent;
   const url = location.origin + '/';
@@ -180,7 +188,20 @@ async function installApp() {
   if (S.installEvt && !inApp && !ios) {
     S.installEvt.prompt();
     const r = await S.installEvt.userChoice.catch(() => null);
-    if (r && r.outcome === 'accepted') S.installEvt = null;
+    if (r && r.outcome === 'accepted') {
+      S.installEvt = null;
+      // 크롬은 진행률을 알려 주지 않아서, 끝났다는 신호(appinstalled)가 올 때까지 '설치 중'을 보여 준다
+      S.installing = Date.now();
+      openModal('앱 설치 중', `<div class="install-wait"><div class="spinner" aria-hidden="true"></div>
+        <p><b>설치하고 있어요…</b></p><p class="muted small">보통 10~30초 걸려요. 끝나면 바탕화면과 앱 목록에 아이콘이 생겨요.</p>
+        <p class="muted small" data-install-sec>0초</p></div>`);
+      const t = setInterval(() => {
+        const el = document.querySelector('[data-install-sec]');
+        if (!el || !S.installing) { clearInterval(t); return; }
+        const sec = Math.round((Date.now() - S.installing) / 1000);
+        el.textContent = sec < 60 ? `${sec}초` : '오래 걸리면 알림창이나 바탕화면을 확인해 주세요';
+      }, 1000);
+    }
     return;
   }
   if (inApp) {
@@ -197,7 +218,7 @@ async function installApp() {
       <ol class="install-steps">
         <li>화면 아래(또는 위)의 <b>공유 버튼</b> <span class="ios-share">⬆︎</span> 을 눌러요</li>
         <li>목록을 내려서 <b>「홈 화면에 추가」</b>를 눌러요</li>
-        <li>오른쪽 위 <b>추가</b>를 누르면 바탕화면에 찬덤 앱이 생겨요</li>
+        <li>오른쪽 위 <b>추가</b>를 누르면 바탕화면에 찬이의 게임월드 앱이 생겨요</li>
       </ol>
       <p class="muted small">아이폰은 애플 정책상 버튼 하나로 바로 설치할 수 없어요. 사파리에서 해 주세요.</p>`);
     return;
@@ -206,9 +227,9 @@ async function installApp() {
     <ol class="install-steps">
       <li>크롬 오른쪽 위 <b>⋮</b> 메뉴를 눌러요</li>
       <li><b>「앱 설치」</b> 또는 <b>「홈 화면에 추가」</b>를 눌러요</li>
-      <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 찬덤이 생겨요</li>
+      <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 찬이의 게임월드가 생겨요</li>
     </ol>
-    <p class="muted small">이미 설치했다면 바탕화면의 찬덤 아이콘으로 열어 주세요.</p>`);
+    <p class="muted small">이미 설치했다면 바탕화면의 찬이의 게임월드 아이콘으로 열어 주세요.</p>`);
 }
 document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); });
 
@@ -552,9 +573,11 @@ function flyPotTo(winners) {
 // ── 화면 그리기 ───────────────────────────────────────
 function render() {
   if (S.view !== 'room') S.gameMounted = false;
+  document.body.dataset.theme = S.view === 'room' && S.state ? gameOf(S.state) : S.view === 'home' ? 'hub' : (S.game || 'holdem');
   switch (S.view) {
     case 'boot': $app.innerHTML = `<div class="center-screen">${logoHTML()}<p class="muted">불러오는 중…</p></div>`; break;
     case 'home': renderHome(); break;
+    case 'gamehome': renderGameHome(); break;
     case 'create': renderCreate(); break;
     case 'practice': renderPractice(); break;
     case 'join': renderJoin(); break;
@@ -571,8 +594,47 @@ function render() {
 function logoHTML(small = false) {
   return `<div class="logo ${small ? 'logo-sm' : ''}">
     <img class="logo-icon" src="/img/emblem.webp" alt="" onerror="this.remove()">
-    <div class="logo-text"><span class="logo-ko">찬덤</span><span class="logo-en">CHAN'DEM HOLD'EM</span></div>
+    <div class="logo-text"><span class="logo-ko">${small ? '게임월드' : '찬이의 게임월드'}</span><span class="logo-en">CHAN'S GAME WORLD</span></div>
   </div>`;
+}
+
+const GAME_INFO = {
+  holdem: { name: '텍사스 홀덤', icon: '♠', sub: '노리밋 홀덤 · 토너먼트', tag: '카드 2장 + 바닥 5장, 최고의 5장으로 승부' },
+  seotda: { name: '섯다', icon: '🎴', sub: '화투 두 장 · 광땡 · 땡잡이', tag: '두 장의 화투로 끗발 대결, 기세로 밀어붙여라' },
+  omok: { name: '오목', icon: '⚫', sub: '1:1 대국 · AI · 티어', tag: '다섯 알을 먼저 잇는 사람이 승리' },
+};
+const GAME_RULES = {
+  holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
+  seotda: '<p>모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
+  omok: '<p>흑이 먼저 두고, 가로·세로·대각선으로 <b>정확히 다섯 알</b>을 먼저 이으면 이겨요.</p><p>흑은 <b>삼삼</b>(열린 3이 두 개 생기는 자리)에 둘 수 없어요. 흑의 여섯 알(장목)은 승리가 아니에요.</p><p>로그인하면 대국마다 점수가 오르내리고 티어가 정해져요.</p>',
+};
+// 게임별 입장 화면
+function renderGameHome() {
+  const g = S.game || 'holdem';
+  const info = GAME_INFO[g];
+  $app.innerHTML = `
+  <main class="home game-home">
+    <div class="top-bar"><button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>${SHARE_BTN}</div>
+    <div class="gh-hero" style="background-image:url('/img/games/${g}.webp')"><div class="gh-shade"></div>
+      <div class="gh-title"><span class="gh-icon">${info.icon}</span><h1>${info.name}</h1><p>${info.tag}</p></div>
+    </div>
+    <section class="panel">
+      <button class="btn btn-gold btn-lg" id="go-create">친구와 방 만들기</button>
+      <button class="btn btn-outline btn-lg" id="go-practice">🤖 ${g === 'omok' ? 'AI와 대국하기' : 'AI와 연습하기'}</button>
+      <div class="row">
+        <button class="btn btn-ghost grow" id="go-rules">📖 게임 방법</button>
+        ${g === 'omok' ? '<button class="btn btn-ghost grow" id="go-rank">🏆 랭킹</button>' : ''}
+      </div>
+    </section>
+    <p class="fine">${g === 'omok' ? '로그인하면 대국 결과로 티어가 올라가요.' : '칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.'}</p>
+  </main>`;
+  bindCommon();
+  $app.querySelector('#to-hub').onclick = () => { S.view = 'home'; history.pushState(null, '', '/'); render(); };
+  $app.querySelector('#go-create').onclick = () => { history.pushState(null, '', '/'); S.view = 'create'; render(); };
+  $app.querySelector('#go-practice').onclick = () => { history.pushState(null, '', '/'); S.view = 'practice'; render(); };
+  $app.querySelector('#go-rules').onclick = () => openModal(`${info.name} 게임 방법`, `<div class="rules">${GAME_RULES[g]}</div>`);
+  const rk = $app.querySelector('#go-rank');
+  if (rk) rk.onclick = () => (S.info && S.info.accounts === false ? toast('랭킹은 로그인 기능이 켜지면 볼 수 있어요') : openRanking());
 }
 
 function renderHome() {
@@ -584,10 +646,17 @@ function renderHome() {
       ${logoHTML()}
       <p class="tagline">친구들과 휴대폰으로 즐기는 홀덤 · 섯다 · 오목</p>
     </div>
+    <section class="game-cards">
+      ${Object.entries(GAME_INFO).map(([k, g]) => `
+        <button class="game-card game-card-${k}" data-game="${k}">
+          <span class="gc-art" style="background-image:url('/img/games/${k}.webp')"></span>
+          <span class="gc-shade"></span>
+          <span class="gc-text"><b>${g.icon} ${g.name}</b><small>${g.sub}</small></span>
+          <span class="gc-go">입장 ›</span>
+        </button>`).join('')}
+    </section>
     <section class="panel">
-      <button class="btn btn-gold btn-lg" id="go-create">방 만들기</button>
-      <button class="btn btn-outline btn-lg" id="go-practice">🤖 혼자 연습하기</button>
-      <div class="divider"><span>또는 초대 코드로 참가</span></div>
+      <div class="divider"><span>초대 코드로 참가</span></div>
       <form id="code-form" class="row">
         <label class="sr-only" for="code-in">방 코드</label>
         <input id="code-in" class="input code-input" maxlength="6" placeholder="방 코드 6자리" autocomplete="off" autocapitalize="characters">
@@ -598,8 +667,9 @@ function renderHome() {
     <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
   </main>`;
   bindCommon();
-  $app.querySelector('#go-create').onclick = () => { history.pushState(null, '', '/'); S.view = 'create'; render(); };
-  $app.querySelector('#go-practice').onclick = () => { history.pushState(null, '', '/'); S.view = 'practice'; render(); };
+  $app.querySelectorAll('[data-game]').forEach((b) => {
+    b.onclick = () => { S.game = b.dataset.game; LS.set('chandem:game', S.game); history.pushState(null, '', '/'); S.view = 'gamehome'; render(); };
+  });
   $app.querySelector('#code-form').onsubmit = (e) => {
     e.preventDefault();
     const code = $app.querySelector('#code-in').value.trim().toUpperCase();
@@ -618,7 +688,7 @@ function gamePickHTML(cur, name = 'game') {
 function settingsFormHTML(s, { forCreate = false } = {}) {
   return `
   ${forCreate ? `
-  <fieldset class="fieldset"><legend>게임</legend>${gamePickHTML(s.game || 'holdem')}
+  <fieldset class="fieldset ${S.game ? 'hidden-pick' : ''}"><legend>게임</legend>${gamePickHTML(S.game || s.game || 'holdem')}
     <p class="muted small" data-game-note></p></fieldset>
   <label class="field"><span>내 닉네임</span>
     <input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
@@ -698,13 +768,13 @@ const DEFAULTS = { startChips: 1000, sb: 10, bb: 20, minPlayers: 2, maxPlayers: 
 function renderCreate() {
   $app.innerHTML = `
   <main class="page">
-    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>방 만들기</h1></header>
+    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>${S.game ? GAME_INFO[S.game].icon + ' ' + GAME_INFO[S.game].name + ' ' : ''}방 만들기</h1></header>
     <form id="create-form" class="panel form">
       ${settingsFormHTML(DEFAULTS, { forCreate: true })}
       <button class="btn btn-gold btn-lg" type="submit">방 만들고 초대하기</button>
     </form>
   </main>`;
-  $app.querySelector('#back').onclick = () => { S.view = 'home'; render(); };
+  $app.querySelector('#back').onclick = () => { S.view = S.game ? 'gamehome' : 'home'; render(); };
   const form = $app.querySelector('#create-form');
   bindAvatarPicker(form);
   bindGamePick(form);
@@ -732,13 +802,13 @@ function renderPractice() {
   const cnt = LS.get('chandem:bots', 3);
   $app.innerHTML = `
   <main class="page">
-    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>혼자 연습하기</h1></header>
+    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>${S.game ? GAME_INFO[S.game].icon + ' ' + GAME_INFO[S.game].name + ' · ' : ''}AI와 연습</h1></header>
     <form id="practice-form" class="panel form">
       <p class="muted small">친구가 없어도 봇들과 바로 칠 수 있어요. 일반 방식에선 봇 칩이 떨어지면 알아서 다시 채워요.</p>
       <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
       ${avatarPickerHTML()}
-      <fieldset class="fieldset"><legend>게임</legend>${gamePickHTML(LS.get('chandem:pgame', 'holdem'), 'pgame')}</fieldset>
-      <fieldset class="fieldset omok-only"><legend>AI 실력</legend>
+      <fieldset class="fieldset ${S.game ? 'hidden-pick' : ''}"><legend>게임</legend>${gamePickHTML(S.game || LS.get('chandem:pgame', 'holdem'), 'pgame')}</fieldset>
+      <fieldset class="fieldset ai-only"><legend>AI 실력</legend>
         <div class="seg">${[['easy', '쉬움'], ['normal', '보통'], ['hard', '어려움']].map(([k, t]) => `<label class="seg-opt"><input type="radio" name="ailevel" value="${k}" ${LS.get('chandem:ailevel', 'normal') === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
       </fieldset>
       <fieldset class="fieldset chips-only"><legend>상대 봇 수</legend>
@@ -756,7 +826,7 @@ function renderPractice() {
       <button class="btn btn-gold btn-lg" type="submit">연습 시작</button>
     </form>
   </main>`;
-  $app.querySelector('#back').onclick = () => { S.view = 'home'; render(); };
+  $app.querySelector('#back').onclick = () => { S.view = S.game ? 'gamehome' : 'home'; render(); };
   const form = $app.querySelector('#practice-form');
   bindAvatarPicker(form);
   bindGamePick(form, 'pgame');
@@ -774,7 +844,7 @@ function renderPractice() {
     LS.set('chandem:pgame', game);
     LS.set('chandem:pmode', tourney ? 'tournament' : 'cash');
     const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99, mode: tourney && game !== 'omok' ? 'tournament' : 'cash', levelMinutes: 3, game, ...(game === 'seotda' ? { sb: bb } : {}), aiLevel: fd.get('ailevel') || 'normal' };
-    if (game === 'omok') LS.set('chandem:ailevel', settings.aiLevel);
+    if (game !== 'holdem') LS.set('chandem:ailevel', settings.aiLevel);
     const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
@@ -912,7 +982,7 @@ function bindInvite(root, code) {
   };
   root.querySelectorAll('[data-copy]').forEach((b) => { b.onclick = copy; });
   root.querySelectorAll('[data-share]').forEach((b) => {
-    b.onclick = () => shareLink(url, '찬덤 홀덤 초대', `찬덤 홀덤 방 ${code}에 들어와!`);
+    b.onclick = () => shareLink(url, '찬이의 게임월드 초대', `찬이의 게임월드 ${GAME_NAMES[gameOf(S.state)]} 방 ${code}에 들어와!`);
   });
 }
 
@@ -1420,7 +1490,7 @@ function renderTable(st) {
         ${result ? resultHTML(st, result) : ''}
       </div>`;
   } else {
-    center = `<div class="table-center"><div class="table-brand">찬덤</div><p class="muted small">${st.room.waiting ? '참가자를 기다리는 중' : '곧 시작해요'}</p></div>`;
+    center = `<div class="table-center"><div class="table-brand">GAME WORLD</div><p class="muted small">${st.room.waiting ? '참가자를 기다리는 중' : '곧 시작해요'}</p></div>`;
   }
   el.innerHTML = `<div class="felt"><div class="felt-rail"></div>${center}${seatHTML}</div>`;
 }
@@ -1950,7 +2020,8 @@ function celebrate(st) {
 // 뒤로가기: 방 안에서는 바로 나가지 않고 물어본다
 window.addEventListener('popstate', () => {
   if (S.view === 'room' && S.state) { history.pushState(null, '', '/r/' + S.code); goHome(); return; }
-  if (['create', 'practice'].includes(S.view)) { S.view = 'home'; render(); return; }
+  if (['create', 'practice'].includes(S.view)) { S.view = S.game ? 'gamehome' : 'home'; render(); return; }
+  if (S.view === 'gamehome') { S.view = 'home'; render(); return; }
   S.state = null; boot();
 });
 // 로고(찬덤)를 누르면 메인으로

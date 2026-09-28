@@ -212,7 +212,15 @@ function seotdaEquity(hole, ranges, iters = 400) {
 }
 
 /** 섯다 봇: 상대 범위 대비 승률 → 팟 오즈 */
-function decideSeotda(hand, id, style = STYLES[0], stats = {}) {
+// 섯다 AI 난이도: easy 는 대충 계산하고 잘 따라옴, hard 는 정밀 계산 + 상대 성향을 적극 반영
+const SD_LEVEL = {
+  easy: { iters: 120, noise: 0.14, loose: 0.1, bluff: 0.18, read: false },            // 대충 계산, 상대를 안 읽음
+  normal: { iters: 200, noise: 0.12, loose: 0.14, bluff: 0.16, read: true },          // 덜 정밀하고 자주 따라가고 블러핑이 잦음
+  hard: { iters: 700, noise: 0.05, loose: 0.03, bluff: 0.04, read: true },            // 시뮬레이션으로 찾은 가장 강한 설정(약간의 무작위성이 오히려 유리)
+};
+function decideSeotda(hand, id, style = STYLES[0], stats = {}, level = 'normal') {
+  const L = SD_LEVEL[level] || SD_LEVEL.normal;
+  style = { ...style, loose: style.loose + L.loose, bluff: style.bluff + L.bluff };
   const la = hand.legalActions(id);
   const me = hand.seatOf(id);
   const others = hand.seats.filter((s) => !s.folded && s.id !== id);
@@ -220,8 +228,12 @@ function decideSeotda(hand, id, style = STYLES[0], stats = {}) {
   const facing = la.toCall > 0;
   const odds = facing ? la.toCall / (pot + la.toCall) : 0;
   const r = Math.random();
-  const ranges = others.slice(0, 5).map((s) => (['bet', 'raise', 'allin'].includes(s.lastAction) ? rangeOf(stats, s.id, s.allIn ? 'allin' : 'raise') : 1));
-  const eq = seotdaEquity(me.hole, ranges);
+  const ranges = others.slice(0, 5).map((s) => {
+    if (L.read && ['bet', 'raise', 'allin'].includes(s.lastAction)) return rangeOf(stats, s.id, s.allIn ? 'allin' : 'raise');
+    if (L.readCall && s.lastAction === 'call') return rangeOf(stats, s.id, 'call'); // 콜로 따라온 사람도 아무 패는 아니다
+    return 1;
+  });
+  const eq = Math.max(0, Math.min(1, seotdaEquity(me.hole, ranges, L.iters) + (L.noise ? (Math.random() * 2 - 1) * L.noise : 0)));
   const sizeTo = (frac) => {
     const to = Math.round((la.currentBet + Math.max(pot + la.toCall, hand.bb) * frac) / hand.bb) * hand.bb;
     return Math.max(la.minTo, Math.min(la.maxTo, to));
@@ -233,15 +245,18 @@ function decideSeotda(hand, id, style = STYLES[0], stats = {}) {
     return { type: la.canBet ? 'bet' : 'raise', amount: to };
   };
   const heads = others.length === 1;
-  const strong = heads ? 0.72 : 0.55;
+  const strong = (heads ? 0.72 : 0.55) + (L.strongAdj || 0);
+  const vmul = L.value || 1;
   if (!facing) {
-    if (eq > strong && r < 0.5 + style.aggro * 0.5) return aggressive(eq > 0.85 ? 0.8 : 0.5, 0.7) || { type: 'check' };
+    if (eq > strong && r < 0.5 + style.aggro * 0.5) return aggressive((eq > 0.85 ? 0.8 : 0.5) * vmul, 0.7) || { type: 'check' };
     if (eq > (heads ? 0.55 : 0.4) && r < style.aggro * 0.6) return aggressive(0.3, 1.01) || { type: 'check' };
     if (r < style.bluff) return aggressive(0.3, 1.01) || { type: 'check' };
     return { type: 'check' };
   }
   if (eq > 0.8 && r < 0.3 + style.aggro * 0.5) return aggressive(0.8, 0.72) || { type: 'call' };
+  // 어려움: 상대가 약하게 베팅했을 때 좋은 패로 되받아치기
+  if (L.semi && heads && eq > 0.6 && la.toCall <= pot * 0.35 && r < 0.45) return aggressive(0.7, 0.75) || { type: 'call' };
   return eq > odds + 0.02 - style.loose ? { type: 'call' } : { type: 'fold' };
 }
 
-module.exports = { decide, decideSeotda, seotdaEquity, equity, equityVs, rangeOf, handPct, observeDeal, observeAct, BOTS, BOT_NAMES, STYLES };
+module.exports = { SD_LEVEL, decide, decideSeotda, seotdaEquity, equity, equityVs, rangeOf, handPct, observeDeal, observeAct, BOTS, BOT_NAMES, STYLES };

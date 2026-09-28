@@ -183,7 +183,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     let html = indexHtml;
     if (r && r.host) {
       const s = r.settings;
-      const title = `${r.host.name}님이 찬덤 홀덤에 초대했어요 ♠`;
+      const title = `${r.host.name}님이 ${{ holdem: '홀덤', seotda: '섯다', omok: '오목' }[s.game] || '게임'} 방에 초대했어요 · 찬이의 게임월드`;
       const desc = `방 코드 ${r.code} · 블라인드 ${s.sb}/${s.bb} · 시작 칩 ${s.startChips.toLocaleString('ko-KR')} · 지금 ${r.seated.length}/${s.maxPlayers}명`;
       html = html
         .replace(/(<meta property="og:title" content=")[^"]*/, `$1${escHtml(title)}`)
@@ -395,7 +395,7 @@ if (require.main === module) {
   const srv = createServer({ port, dataFile: path.join(__dirname, '..', 'data', 'rooms.json') });
   srv.listen().then((p) => {
     console.log('');
-    console.log('  ♠ 찬덤 서버가 켜졌어요');
+    console.log('  ♠ 찬이의 게임월드 서버가 켜졌어요');
     console.log(`  이 컴퓨터에서:   http://localhost:${p}`);
     for (const u of lanUrls(p)) console.log(`  같은 와이파이 휴대폰에서: ${u}`);
     console.log('  (끄려면 Ctrl + C)');

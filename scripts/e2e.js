@@ -48,6 +48,8 @@ function check(cond, msg) {
   const A = await phone('방장');
   await A.goto(base, { waitUntil: 'networkidle0' });
   await shot(A, '01-home.png');
+  await A.click('[data-game="holdem"]'); // 게임 선택 → 홀덤 입장 화면
+  await A.waitForSelector('#go-create');
   await A.click('#go-create');
   await A.waitForSelector('#create-form');
   await A.type('input[name=name]', '찬');

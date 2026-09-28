@@ -28,7 +28,8 @@ function hwatuHTML(code, cls, style) {
   const yeol = special && [4, 7, 9].includes(m);
   cls.push('hwatu', `hw-m${m}`);
   if (gwang) cls.push('hw-gwang');
-  return `<span class="${cls.join(' ')}"${style} role="img" aria-label="${m}월 ${name}${gwang ? ' 광' : yeol ? ' 열끗' : ''}">`
+  // 그림: /img/hwatu/{월}{A|B}.webp (젠스파크로 그린 화투), 없으면 이모지로 대신
+  return `<span class="${cls.join(' ')} hw-img" style="background-image:url('/img/hwatu/${m}${code.slice(-1)}.webp');${style ? style.replace(/^ style="|"$/g, '') : ''}" role="img" aria-label="${m}월 ${name}${gwang ? ' 광' : yeol ? ' 열끗' : ''}">`
     + `<b class="hw-num">${m}</b><span class="hw-art">${special ? art : flower}</span><span class="hw-name">${name}</span>`
     + `${gwang ? '<i class="hw-mark hw-mark-g">光</i>' : yeol ? '<i class="hw-mark hw-mark-y">열</i>' : ''}</span>`;
 }

@@ -245,7 +245,8 @@ class Room {
       if (h.kind === 'omok') {
         const mv = omokAI.bestMove(h.cells, h.seatOf(p.id).color, this.settings.aiLevel);
         action = { type: 'place', x: mv.x, y: mv.y };
-      } else action = (h.kind === 'seotda' ? bot.decideSeotda : bot.decide)(h, p.id, bot.STYLES[p.style || 0], this.stats);
+      } else if (h.kind === 'seotda') action = bot.decideSeotda(h, p.id, bot.STYLES[p.style || 0], this.stats, this.settings.aiLevel);
+      else action = bot.decide(h, p.id, bot.STYLES[p.style || 0], this.stats);
     } catch (e) { console.error('[bot]', e); }
     try { this.act(p.id, action || { type: 'fold' }); }
     catch { this.act(p.id, { type: h.legalActions(p.id).canCheck ? 'check' : 'fold' }); }
