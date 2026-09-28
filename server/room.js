@@ -95,6 +95,7 @@ class Room {
     this.onChange = () => {};
     this.onEmote = () => {};
     this.emoteAt = {};
+    this.stats = {};            // 봇이 읽는 상대 성향(레이즈·올인 빈도)
   }
 
   // ── 조회 ────────────────────────────────────────────
@@ -192,7 +193,7 @@ class Room {
     const p = this.get(h.currentId);
     if (!p || !p.isBot) return;
     let action;
-    try { action = bot.decide(h, p.id, bot.STYLES[p.style || 0]); } catch (e) { console.error('[bot]', e); }
+    try { action = bot.decide(h, p.id, bot.STYLES[p.style || 0], this.stats); } catch (e) { console.error('[bot]', e); }
     try { this.act(p.id, action || { type: 'fold' }); }
     catch { this.act(p.id, { type: h.legalActions(p.id).canCheck ? 'check' : 'fold' }); }
   }
@@ -395,6 +396,7 @@ class Room {
     this.dealerSeat = seats[dealerIndex];
     this.handNo += 1;
     this.handPlayers = eligible.map((p) => p.id);
+    bot.observeDeal(this.stats, this.handPlayers);
     this.hand = new Hand({
       players: eligible.map((p) => ({ id: p.id, stack: p.stack })),
       dealerIndex,
@@ -426,6 +428,8 @@ class Room {
     }
     const p = this.get(id);
     if (p) p.timeouts = 0;
+    const seat = this.hand.seatOf(id);
+    if (seat && seat.lastAction) bot.observeAct(this.stats, id, seat.lastAction, this.handNo);
     this.syncStacks();
     this.afterHandChange();
   }

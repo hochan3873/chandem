@@ -369,3 +369,29 @@ test('이상한 요청이 와도 서버가 죽지 않는다', async () => {
   assert.ok(a.last.players[0].name.length <= 10);
   a.close();
 });
+
+test('봇: 매판 올인하는 사람에게는 적당한 패로 받아치고, 신중한 사람의 올인엔 약한 패를 접는다', () => {
+  const { Hand } = require('../server/engine/hand');
+  const bot = require('../server/bot');
+  // 헤드업, 사람(H)이 딜러(SB)로 먼저 올인 → 봇(B, BB) 차례
+  const deal = (hole) => {
+    const deck = ['7s', hole[0], '7c', hole[1], 'Kh', 'Qd', '2c', '5d', '9h', '3s', 'Jc', '4h', '8d', '6c']; // 한 장씩 번갈아 나눔
+    const h = new Hand({ players: [{ id: 'H', stack: 1000 }, { id: 'B', stack: 1000 }], dealerIndex: 0, sb: 10, bb: 20, deck });
+    h.act('H', { type: 'allin' });
+    return h;
+  };
+  const maniac = { H: { hands: 20, vpip: 20, raises: 0, allins: 20 } };
+  const careful = { H: { hands: 20, vpip: 3, raises: 1, allins: 1 } };
+  let callVsManiac = 0, callVsCareful = 0, foldTrash = 0;
+  for (let i = 0; i < 10; i++) {
+    const h1 = deal(['Ah', '9d']);
+    if (h1.currentId === 'B' && bot.decide(h1, 'B', bot.STYLES[0], maniac).type === 'call') callVsManiac++;
+    const h2 = deal(['Ah', '9d']);
+    if (h2.currentId === 'B' && bot.decide(h2, 'B', bot.STYLES[0], careful).type === 'call') callVsCareful++;
+    const h3 = deal(['8h', '3d']);
+    if (h3.currentId === 'B' && bot.decide(h3, 'B', bot.STYLES[0], careful).type === 'fold') foldTrash++;
+  }
+  assert.ok(callVsManiac >= 9, `A9 로 매판 올인러에게 콜 (${callVsManiac}/10)`);
+  assert.ok(callVsCareful <= 2, `A9 로 신중한 사람 올인엔 대부분 폴드 (${callVsCareful}/10)`);
+  assert.ok(foldTrash === 10, `83o 는 폴드 (${foldTrash}/10)`);
+});
