@@ -129,8 +129,12 @@ function tone(freq, dur, { type = 'sine', gain = 0.25, at = 0 } = {}) {
 }
 
 const SYNTH = {
-  deal: () => noise(0.12, { freq: 3500, q: 0.8, gain: 0.35 }),
-  flip: () => { noise(0.08, { freq: 2500, gain: 0.3 }); setTimeout(() => noise(0.06, { freq: 4000, gain: 0.2 }), 40); },
+  // 카드 한 장이 테이블 위로 휙 미끄러지는 소리
+  deal: () => {
+    noise(0.09, { freq: 2600 + Math.random() * 1400, q: 0.9, gain: 0.32, attack: 0.012 });
+    setTimeout(() => noise(0.03, { freq: 1200, q: 1.5, gain: 0.18 }), 70);
+  },
+  flip: () => { for (let i = 0; i < 3; i++) setTimeout(() => { noise(0.08, { freq: 2600 + Math.random() * 1200, gain: 0.3, attack: 0.01 }); setTimeout(() => noise(0.04, { freq: 4200, gain: 0.18 }), 40); }, i * 120); },
   chip: () => { tone(2400, 0.05, { type: 'triangle', gain: 0.18 }); tone(3100, 0.06, { type: 'triangle', gain: 0.12, at: 0.035 }); },
   chips: () => { for (let i = 0; i < 5; i++) tone(2200 + Math.random() * 1400, 0.05, { type: 'triangle', gain: 0.12, at: i * 0.035 }); },
   check: () => { tone(180, 0.09, { type: 'sine', gain: 0.5 }); tone(170, 0.08, { type: 'sine', gain: 0.4, at: 0.12 }); },

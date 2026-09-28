@@ -11,12 +11,14 @@ const DEFAULT_SETTINGS = {
   bb: 20,
   minPlayers: 2,
   maxPlayers: 9,
-  turnSeconds: 30,
+  turnSeconds: 20,
   rebuyEnabled: true,
   rebuyAmount: 1000,
   rebuyMax: 3,
   password: '',
   approval: false,
+  mode: 'cash',          // cash | tournament
+  levelMinutes: 5,       // 토너먼트 블라인드가 오르는 간격(분)
 };
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
@@ -51,6 +53,9 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.rebuyMax = Math.min(99, Math.max(1, int(src.rebuyMax, base.rebuyMax)));
   s.password = typeof src.password === 'string' ? src.password.trim().slice(0, 20) : base.password;
   s.approval = src.approval === undefined ? base.approval : !!src.approval;
+  s.mode = src.mode === undefined ? (base.mode || 'cash') : src.mode === 'tournament' ? 'tournament' : 'cash';
+  s.levelMinutes = Math.min(60, Math.max(1, int(src.levelMinutes, base.levelMinutes || 5)));
+  if (s.mode === 'tournament') s.rebuyEnabled = false;   // 토너먼트는 칩을 다 잃으면 탈락
   return s;
 }
 
@@ -58,6 +63,29 @@ function cleanName(name) {
   const n = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 10);
   if (!n) throw new RoomError('닉네임을 입력해 주세요');
   return n;
+}
+
+// 토너먼트 블라인드: 레벨마다 빅 블라인드 배수
+const LEVEL_MULT = [1, 1.5, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400];
+function niceRound(v) {
+  const step = v < 100 ? 5 : v < 1000 ? 10 : v < 10000 ? 100 : 1000;
+  return Math.max(1, Math.round(v / step) * step);
+}
+function levelBlinds(settings, level) {
+  const m = LEVEL_MULT[Math.min(level, LEVEL_MULT.length - 1)];
+  if (level === 0) return { sb: settings.sb, bb: settings.bb };
+  const bb = niceRound(settings.bb * m);
+  const half = bb * settings.sb / settings.bb;
+  const step = half < 100 ? 5 : half < 1000 ? 10 : half < 10000 ? 100 : 1000;
+  return { sb: Math.max(1, Math.floor(half / step) * step || Math.floor(half)), bb };
+}
+
+// 프로필 사진: 휴대폰에서 줄인 작은 이미지(data URL)만 받는다
+const PHOTO_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+const PHOTO_MAX = 60000;
+function cleanPhoto(photo) {
+  if (typeof photo !== 'string' || photo.length > PHOTO_MAX || !PHOTO_RE.test(photo)) return null;
+  return photo;
 }
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -157,6 +185,7 @@ class Room {
   }
 
   takeSeat(p) {
+    if (this.phase === 'playing' && this.isTournament) return false; // 토너먼트 도중엔 관전만
     const seat = this.freeSeat();
     if (seat === null) return false;
     p.role = 'player';
@@ -167,6 +196,13 @@ class Room {
       p.totalBuyIn = this.settings.startChips;
     }
     return true;
+  }
+
+  setPhoto(p, photo) {
+    const ok = cleanPhoto(photo);
+    if (!ok) return;
+    p.photo = ok;
+    p.photoV = (p.photoV || 0) + 1;
   }
 
   /** 연습용 봇을 자리에 앉힌다 */
@@ -223,14 +259,16 @@ class Room {
   }
 
   /** 참가 요청. 반환: { player, pending } */
-  join({ name, password, spectator, avatar }) {
+  join({ name, password, spectator, avatar, photo }) {
     if (this.settings.password && password !== this.settings.password) {
       throw new RoomError('비밀번호가 맞지 않아요');
     }
     const uname = this.uniqueName(name);
     const p = this.createPlayer(uname, true, avatar);
+    this.setPhoto(p, photo);
     p.wantSpectator = !!spectator;
-    if (this.settings.approval && this.players.length > 0) {
+    // 방장 승인 설정이 켜져 있거나, 이미 게임이 진행 중이면 방장이 받아 줘야 들어온다
+    if ((this.settings.approval || this.phase === 'playing') && this.players.some((x) => !x.isBot)) {
       this.pending.push(p);
       this.touch();
       return { player: p, pending: true };
@@ -324,7 +362,13 @@ class Room {
       p.sittingOut = false;
       p.timeouts = 0;
     }
-    this.pushFeed('게임을 시작합니다');
+    if (this.isTournament) {
+      this.tourney = { startedAt: this.now(), level: 0, busted: [], result: null, entrants: this.seated.length };
+      this.pushFeed(`🏆 토너먼트 시작 · ${this.settings.levelMinutes}분마다 블라인드가 올라가요`);
+    } else {
+      this.tourney = null;
+      this.pushFeed('게임을 시작합니다');
+    }
     this.startHand();
   }
 
@@ -342,12 +386,26 @@ class Room {
   }
 
   // ── 판 진행 ─────────────────────────────────────────
+  /** 자리 비움(스스로 비움, 시간 초과 반복, 오래 연결 끊김): 판에는 들어가되 자동으로 체크/다이 */
+  isAway(p) {
+    if (p.isBot) return false;
+    if (p.sittingOut) return true;
+    return !p.connected && !!p.disconnectedAt && this.now() - p.disconnectedAt > AWAY_SKIP_MS;
+  }
+
+  get isTournament() { return this.settings.mode === 'tournament'; }
+
+  /** 지금 적용할 블라인드 */
+  blinds() {
+    return this.isTournament && this.tourney ? levelBlinds(this.settings, this.tourney.level) : { sb: this.settings.sb, bb: this.settings.bb };
+  }
+
   eligibleForHand() {
     const t = this.now();
     return this.seated.filter((p) => {
-      if (p.leaving || p.sittingOut) return false;
+      if (p.leaving) return false;
       if (p.stack + p.pendingRebuy <= 0) return false;
-      if (!p.connected && p.disconnectedAt && t - p.disconnectedAt > AWAY_SKIP_MS) return false;
+      void t;
       return true;
     });
   }
@@ -368,15 +426,29 @@ class Room {
       }
     }
     for (const p of this.seated) {
-      if (p.isBot && p.stack === 0) {
+      if (!this.isTournament && p.isBot && p.stack === 0) {
         p.stack = this.settings.startChips;
         p.totalBuyIn += this.settings.startChips;
         this.pushFeed(`${p.name} 칩 충전 +${p.stack.toLocaleString()}`);
       }
     }
+    if (this.isTournament && this.tourney) {
+      // 탈락자 기록(칩이 0이 된 순서대로), 한 명만 남으면 끝
+      for (const p of this.seated) {
+        if (p.stack === 0 && !this.tourney.busted.includes(p.id)) this.tourney.busted.push(p.id);
+      }
+      const alive = this.seated.filter((p) => p.stack > 0 && !p.leaving);
+      if (alive.length <= 1) { this.finishTournament(alive[0]); return false; }
+      const lvl = Math.floor((this.now() - this.tourney.startedAt) / (this.settings.levelMinutes * 60000));
+      if (lvl > this.tourney.level) {
+        this.tourney.level = Math.min(lvl, LEVEL_MULT.length - 1);
+        const b = this.blinds();
+        this.pushFeed(`⬆ 블라인드 상승! 레벨 ${this.tourney.level + 1} · ${b.sb.toLocaleString()}/${b.bb.toLocaleString()}`);
+      }
+    }
     const eligible = this.eligibleForHand();
-    // 사람이 아무도 없으면 봇끼리 계속 치지 않는다
-    const hasHuman = eligible.some((p) => !p.isBot);
+    // 자리에 있는 사람이 아무도 없으면 봇끼리 계속 치지 않는다
+    const hasHuman = eligible.some((p) => !p.isBot && !this.isAway(p));
     if (eligible.length < 2 || !hasHuman) {
       this.hand = null;
       this.handPlayers = [];
@@ -400,8 +472,8 @@ class Room {
     this.hand = new Hand({
       players: eligible.map((p) => ({ id: p.id, stack: p.stack })),
       dealerIndex,
-      sb: this.settings.sb,
-      bb: this.settings.bb,
+      sb: this.blinds().sb,
+      bb: this.blinds().bb,
     });
     this.lastSeenLog = 0;
     this.pushFeed(`${this.handNo}번째 판 시작 · 딜러 ${this.name(eligible[dealerIndex].id)}`);
@@ -437,6 +509,7 @@ class Room {
   afterHandChange() {
     this.clearTimer('turn');
     this.clearTimer('bot');
+    this.clearTimer('auto');
     this.turnDeadline = null;
     if (!this.hand) { this.touch(); return; }
     if (this.hand.finished) {
@@ -448,7 +521,15 @@ class Room {
       this.turnDeadline = this.now() + ms;
       this.setTimer('turn', ms, () => this.onTurnTimeout());
       const cur = this.get(this.hand.currentId);
-      if (cur && cur.isBot) {
+      if (cur && this.isAway(cur)) {
+        const id = cur.id;
+        this.setTimer('auto', 700 * this.pace, () => {
+          if (!this.hand || this.hand.finished || this.hand.currentId !== id) return;
+          this.hand.autoAct(id);
+          this.syncStacks();
+          this.afterHandChange();
+        });
+      } else if (cur && cur.isBot) {
         const think = BOT_THINK[0] + crypto.randomInt(BOT_THINK[1] - BOT_THINK[0]);
         this.setTimer('bot', think * this.pace, () => this.botTurn());
       }
@@ -504,7 +585,7 @@ class Room {
       this.pushFeed(`${p.name}님 시간 초과 → 자동 ${did === 'check' ? '체크' : '폴드'}`);
       if (p.timeouts >= MAX_TIMEOUTS) {
         p.sittingOut = true;
-        this.pushFeed(`${p.name}님은 자리 비움으로 바뀌었어요 (다음 판부터 제외)`);
+        this.pushFeed(`${p.name}님은 자리 비움으로 바뀌었어요 (차례가 오면 자동 체크/다이)`);
       }
     }
     this.syncStacks();
@@ -562,10 +643,28 @@ class Room {
 
   get revealing() { return !!(this.reveal && !this.reveal.done && this.hand && this.hand.finished); }
 
+  /** 토너먼트 끝: 순위 정리 후 대기실로 */
+  finishTournament(winner) {
+    const t = this.tourney;
+    const order = [];
+    if (winner) order.push(winner.id);
+    for (const id of [...t.busted].reverse()) if (!order.includes(id)) order.push(id);
+    t.result = { at: this.now(), ranking: order.map((id, i) => ({ id, name: this.name(id), place: i + 1 })) };
+    this.pushFeed(winner ? `🏆 ${winner.name}님 토너먼트 우승!` : '토너먼트가 끝났어요');
+    this.phase = 'lobby';
+    this.hand = null;
+    this.handPlayers = [];
+    this.nextHandAt = null;
+    this.waiting = false;
+    this.clearTimer('next');
+    for (const p of this.players) p.ready = !!p.isBot;
+    this.touch();
+  }
+
   /** 누군가 돌아오거나 리바인해서 판을 시작할 수 있게 됐는지 확인 */
   maybeStartWaitingHand() {
     const el = this.eligibleForHand();
-    if (this.phase === 'playing' && this.waiting && el.length >= 2 && el.some((p) => !p.isBot)) {
+    if (this.phase === 'playing' && this.waiting && el.length >= 2 && el.some((p) => !p.isBot && !this.isAway(p))) {
       this.nextHandAt = this.now() + 2000;
       this.setTimer('next', 2000, () => this.startHand());
     }
@@ -615,7 +714,7 @@ class Room {
     const p = this.get(id);
     if (!p || p.role !== 'player') return;
     p.sittingOut = true;
-    this.pushFeed(`${p.name}님이 자리를 비웠어요 (다음 판부터 제외)`);
+    this.pushFeed(`${p.name}님이 자리를 비웠어요 (차례가 오면 자동 체크/다이)`);
     this.touch();
   }
 
@@ -764,6 +863,7 @@ class Room {
         ready: p.ready,
         connected: p.connected,
         isBot: !!p.isBot,
+        photo: p.photo ? p.photoV : 0,
         isHost: p.id === this.hostId,
         sittingOut: p.sittingOut,
         leaving: p.leaving,
@@ -786,6 +886,7 @@ class Room {
         hostId: this.hostId,
         handNo: this.handNo,
         waiting: !!this.waiting,
+        tournament: this.isTournament ? this.tourneyView() : null,
         practice: !!this.practice,
         nextHandAt: this.nextHandAt,
         settings: { ...this.settings, password: undefined, hasPassword: !!this.settings.password },
@@ -810,7 +911,7 @@ class Room {
     };
 
     if (me && me.id === this.hostId) {
-      view.pending = this.pending.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar }));
+      view.pending = this.pending.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, photo: p.photo ? p.photoV : 0 }));
       view.room.settings.password = this.settings.password;
     }
 
@@ -835,6 +936,24 @@ class Room {
       };
     }
     return view;
+  }
+
+  tourneyView() {
+    const t = this.tourney;
+    const lvl = t && this.phase === 'playing' ? t.level : 0;
+    const cur = levelBlinds(this.settings, lvl);
+    const next = levelBlinds(this.settings, Math.min(lvl + 1, LEVEL_MULT.length - 1));
+    return {
+      running: !!(t && this.phase === 'playing'),
+      level: lvl + 1,
+      sb: cur.sb, bb: cur.bb,
+      nextSb: next.sb, nextBb: next.bb,
+      nextAt: t && this.phase === 'playing' ? t.startedAt + (lvl + 1) * this.settings.levelMinutes * 60000 : null,
+      levelMinutes: this.settings.levelMinutes,
+      alive: this.seated.filter((p) => p.stack > 0).length,
+      entrants: t ? t.entrants : this.seated.length,
+      result: t && t.result ? t.result : null,
+    };
   }
 
   publicResult(r) {
@@ -887,4 +1006,4 @@ class Room {
   }
 }
 
-module.exports = { EMOTES, Room, RoomError, sanitizeSettings, DEFAULT_SETTINGS, makeCode, cleanName };
+module.exports = { levelBlinds, cleanPhoto, EMOTES, Room, RoomError, sanitizeSettings, DEFAULT_SETTINGS, makeCode, cleanName };

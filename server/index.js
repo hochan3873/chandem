@@ -29,7 +29,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const LIM = { ...LIMITS, ...limits };
   const app = express();
   const server = http.createServer(app);
-  const io = new Server(server, { pingInterval: 10000, pingTimeout: 8000, maxHttpBufferSize: 16 * 1024 });
+  const io = new Server(server, { pingInterval: 10000, pingTimeout: 8000, maxHttpBufferSize: 96 * 1024 });
   app.disable('x-powered-by');
   app.use((req, res, next) => {
     res.set({
@@ -141,6 +141,14 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       settings: { startChips: r.settings.startChips, sb: r.settings.sb, bb: r.settings.bb },
     });
   });
+  // 프로필 사진 (주소에 버전이 붙어 있어 오래 캐시해도 된다)
+  app.get('/api/photo/:code/:id', (req, res) => {
+    const r = rooms.get(String(req.params.code).toUpperCase());
+    const p = r && (r.get(req.params.id) || r.pending.find((x) => x.id === req.params.id));
+    if (!p || !p.photo) return res.status(404).end();
+    const m = /^data:(image\/[a-z]+);base64,(.*)$/.exec(p.photo);
+    res.set('Cache-Control', 'public, max-age=86400').type(m[1]).send(Buffer.from(m[2], 'base64'));
+  });
   app.get('/api/qr.svg', async (req, res) => {
     const text = String(req.query.text || '').slice(0, 300);
     if (!/^https?:\/\//.test(text)) return res.status(400).send('bad');
@@ -219,7 +227,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         room.creatorIp = ip;
         wire(room);
         rooms.set(code, room);
-        const { player } = room.join({ name: payload.name, password: settings.password, avatar: payload.avatar });
+        const { player } = room.join({ name: payload.name, password: settings.password, avatar: payload.avatar, photo: payload.photo });
         bind(room, player.id);
         broadcast(room);
         reply(ack, { ok: true, code, playerId: player.id, token: player.token });
@@ -231,7 +239,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       try {
         const room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방을 찾을 수 없어요. 코드를 확인해 주세요');
-        const { player, pending } = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar });
+        const { player, pending } = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar, photo: payload.photo });
         socket.data.code = room.code;
         socket.join('room:' + room.code);
         if (pending) {
@@ -287,7 +295,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         room.creatorIp = ip;
         wire(room);
         rooms.set(code, room);
-        const { player } = room.join({ name: payload.name, avatar: payload.avatar });
+        const { player } = room.join({ name: payload.name, avatar: payload.avatar, photo: payload.photo });
         bind(room, player.id);
         const n = Math.max(1, Math.min(settings.maxPlayers - 1, Number(payload.bots) || 3));
         for (let i = 0; i < n; i++) room.addBot(player.id);

@@ -116,7 +116,8 @@ input[type=range] { width: 100%; accent-color: var(--gold); height: 32px; }
 .logo-text { display: flex; flex-direction: column; line-height: 1; }
 .logo-ko {
   font-family: var(--serif); font-weight: 900; font-size: 2.6rem; letter-spacing: .06em;
-  background: linear-gradient(180deg, #fff3d0, var(--gold) 60%, var(--gold-lo));
+  background: linear-gradient(180deg, #fffaf0 0%, #ffe9a8 45%, #f0c565 100%);
+  filter: drop-shadow(0 0 6px rgba(255, 214, 120, .45)) drop-shadow(0 2px 0 rgba(0, 0, 0, .6));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .logo-en { font-size: .62rem; letter-spacing: .38em; color: var(--gold); margin-top: 6px; }
@@ -498,8 +499,8 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 .logo { cursor: pointer; }
 
 /* 감정 표현 */
-.emote-fab { position: absolute; right: 10px; bottom: 10px; z-index: 30; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--gold); background: rgba(10, 20, 16, .85); font-size: 1.5rem; box-shadow: 0 4px 14px rgba(0, 0, 0, .5), 0 0 10px rgba(201, 164, 92, .3); cursor: pointer; }
-.emote-fab:active { transform: scale(.92); }
+.emote-fab { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 30; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--gold); background: rgba(10, 20, 16, .85); font-size: 1.5rem; box-shadow: 0 4px 14px rgba(0, 0, 0, .5), 0 0 10px rgba(201, 164, 92, .3); cursor: pointer; }
+.emote-fab:active { transform: translateY(-50%) scale(.92); }
 .emote-tray { position: absolute; right: 10px; bottom: 64px; z-index: 31; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; border-radius: 16px; background: rgba(12, 22, 18, .96); border: 1px solid rgba(201, 164, 92, .45); box-shadow: 0 10px 30px rgba(0, 0, 0, .6); animation: trayIn .18s ease; }
 @keyframes trayIn { from { transform: translateY(8px) scale(.9); opacity: 0; } }
 .emote-tray[hidden] { display: none; }
@@ -548,3 +549,45 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 /* 좁은 폰: 상단 버튼이 잘리지 않게 */
 @media (max-width: 400px) { .g-top .g-info { display: none; } }
 @media (max-width: 350px) { .g-top .logo-text { display: none; } .g-top { gap: 4px; } }
+
+/* 프로필 사진 고르기 */
+.avatar-photo { font-size: 1.2rem; display: grid; place-items: center; line-height: 1; background: rgba(255, 255, 255, .06); }
+.avatar-photo small { font-size: .56rem; margin-top: -8px; color: var(--muted); }
+
+/* 게임 중 내 칸: 감정 표현 버튼 자리 */
+.g-me { position: relative; padding-right: 70px; }
+
+/* 팟과 각자 베팅 구분 */
+.pot { background: linear-gradient(180deg, rgba(255, 225, 150, .22), rgba(201, 164, 92, .12)); border: 1px solid var(--gold); padding: 5px 14px; box-shadow: 0 0 14px rgba(201, 164, 92, .25); flex-wrap: wrap; justify-content: center; }
+.pot b { font-size: 1rem; color: #fff3cf; display: inline-flex; align-items: baseline; gap: 5px; }
+.pot b small { font-size: .72rem; color: var(--gold-hi); font-weight: 700; }
+.pot-note { flex-basis: 100%; font-size: .62rem; color: var(--muted); margin-top: -1px; }
+.bet { background: rgba(0, 0, 0, .7); border: 1px dashed rgba(255, 255, 255, .35); padding: 1px 7px 1px 3px; gap: 3px; font-size: .7rem; }
+.bet small { font-size: .56rem; color: var(--muted); }
+.bet b { color: #fff; }
+
+/* 자리 카드: 조금 작게, 키 작은 폰에선 더 작게 */
+.seat { width: 76px; }
+.seat-cards { height: 32px; }
+.seat-cards .card-xs { --w: 23px; }
+@media (max-height: 760px) {
+  .seat { width: 66px; }
+  .seat-av .avatar { width: 30px; height: 30px; }
+  .seat-av { margin-top: -14px; }
+  .seat-name { font-size: .66rem; }
+  .seat-stack { font-size: .64rem; }
+  .seat-cards { height: 26px; }
+  .seat-cards .card-xs { --w: 19px; }
+  .tag { font-size: .56rem; padding: 0 5px; }
+}
+
+/* 토너먼트 */
+.banner-tourney { background: linear-gradient(90deg, rgba(120, 70, 200, .35), rgba(201, 164, 92, .2)); border: 1px solid rgba(201, 164, 92, .55); color: #fff3cf; font-weight: 700; flex-wrap: wrap; }
+.banner-tourney .lvl-next { font-size: .72rem; color: var(--muted); font-weight: 500; }
+.banner-tourney .lvl-next b { color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+.fx-level { border-color: #b98cff; box-shadow: 0 0 40px rgba(160, 110, 255, .55), 0 20px 50px rgba(0, 0, 0, .7); }
+.rank-list { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rank-list li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(255, 255, 255, .05); }
+.rank-list li:first-child { background: linear-gradient(90deg, rgba(255, 215, 120, .25), rgba(255, 215, 120, .05)); border: 1px solid var(--gold); }
+.rank-list li.is-me { outline: 2px solid var(--gold-hi); }
+.rank-medal { font-size: 1.3rem; min-width: 2.2em; text-align: center; }

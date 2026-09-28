@@ -395,3 +395,78 @@ test('봇: 매판 올인하는 사람에게는 적당한 패로 받아치고, �
   assert.ok(callVsCareful <= 2, `A9 로 신중한 사람 올인엔 대부분 폴드 (${callVsCareful}/10)`);
   assert.ok(foldTrash === 10, `83o 는 폴드 (${foldTrash}/10)`);
 });
+
+test('게임 진행 중에 들어오는 사람은 방장 승인이 필요하다', async () => {
+  const a = client(); const b = client(); const c = client();
+  const ra = await a.call('room:create', { name: '방장', settings: {} });
+  await b.call('room:join', { code: ra.code, name: '친구' });
+  await b.call('lobby:ready', { ready: true });
+  assert.equal((await a.call('lobby:start')).ok, true);
+  const rc = await c.call('room:join', { code: ra.code, name: '늦은친구' });
+  assert.equal(rc.ok, true);
+  assert.equal(rc.pending, true);
+  await until(() => a.last && a.last.pending && a.last.pending.length === 1);
+  assert.equal((await a.call('host:approve', { id: rc.playerId, ok: true })).ok, true);
+  await until(() => a.last.players.some((p) => p.name === '늦은친구'));
+  a.close(); b.close(); c.close();
+});
+
+test('프로필 사진: 작은 이미지만 받고 주소로 내려준다', async () => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const a = client();
+  const ra = await a.call('room:create', { name: '사진', settings: {}, photo: png });
+  await until(() => a.last);
+  const me = a.last.players.find((p) => p.id === ra.playerId);
+  assert.ok(me.photo > 0);
+  const res = await fetch(`${base}/api/photo/${ra.code}/${ra.playerId}?v=${me.photo}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  const b = client();
+  const rb = await b.call('room:join', { code: ra.code, name: '해커', photo: 'data:text/html;base64,PHNjcmlwdD4=' });
+  await until(() => b.last);
+  assert.equal(b.last.players.find((p) => p.id === rb.playerId).photo, 0);
+  a.close(); b.close();
+});
+
+test('자리 비움이면 판에는 들어가고 차례가 오면 자동으로 체크/다이한다', async () => {
+  const a = client(); const b = client();
+  const ra = await a.call('room:create', { name: '방장', settings: { turnSeconds: 60 } });
+  const rb = await b.call('room:join', { code: ra.code, name: '잠수' });
+  await b.call('lobby:ready', { ready: true });
+  await a.call('lobby:start');
+  await b.call('game:sitout');
+  await until(() => a.last && a.last.hand);
+  assert.ok(a.last.hand.no >= 1, '자리 비움이어도 판이 시작됨');
+  // 방장이 계속 체크/콜만 해도 판이 진행된다 (잠수는 자동 행동)
+  const play = (v) => { const la = v.hand && v.hand.legal; if (la) a.emit('game:act', { type: la.canCheck ? 'check' : 'call' }, () => {}); };
+  a.on('state', play); play(a.last);
+  await until(() => a.last.room.handNo >= 3, 8000);
+  const away = a.last.players.find((p) => p.id === rb.playerId);
+  assert.equal(away.sittingOut, true);
+  a.close(); b.close();
+});
+
+test('토너먼트: 시간이 지나면 블라인드가 오르고, 한 명 남으면 순위를 정한다', () => {
+  const { Room, sanitizeSettings } = require('../server/room');
+  let T = 1_000_000;
+  const room = new Room({ code: 'TTTTTT', settings: sanitizeSettings({ mode: 'tournament', levelMinutes: 1, sb: 10, bb: 20, startChips: 1000 }), now: () => T, pace: 0.001 });
+  const { player: A } = room.join({ name: 'A' }); room.connect(A.id);
+  room.hostId = A.id;
+  const { player: B } = room.join({ name: 'B' }); room.connect(B.id); B.ready = true;
+  const { player: C } = room.join({ name: 'C' }); room.connect(C.id); C.ready = true;
+  room.start(A.id);
+  assert.equal(room.hand.bb, 20);
+  assert.equal(room.settings.rebuyEnabled, false);
+  // 1분 뒤 새 판: 레벨 2
+  T += 61_000;
+  room.hand.finished = true; room.startHand();
+  assert.equal(room.hand.bb, 30);
+  assert.equal(room.viewFor(A.id).room.tournament.level, 2);
+  // C 탈락, 그다음 B 탈락 → A 우승
+  C.stack = 0; room.hand.finished = true; room.startHand();
+  B.stack = 0; room.hand.finished = true; room.startHand();
+  assert.equal(room.phase, 'lobby');
+  const rk = room.tourney.result.ranking.map((r) => r.name);
+  assert.deepEqual(rk, ['A', 'B', 'C']);
+  room.clearAllTimers();
+});

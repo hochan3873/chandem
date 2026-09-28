@@ -64,15 +64,22 @@ function avatarIndex(p) {
 }
 function avatarHTML(p, size = '') {
   const initial = esc((p.name || '?').trim().charAt(0));
+  const src = p.photo && S.code ? `/api/photo/${encodeURIComponent(S.code)}/${encodeURIComponent(p.id)}?v=${Number(p.photo)}` : `/img/avatars/a${avatarIndex(p)}.webp`;
   return `<span class="avatar ${size}"><span class="avatar-initial">${initial}</span>`
-    + `<img src="/img/avatars/a${avatarIndex(p)}.webp" alt="" loading="lazy" onerror="this.remove()"></span>`;
+    + `<img src="${src}" alt="" loading="lazy" onerror="this.remove()"></span>`;
 }
 
 // 선수 캐릭터 고르기 (0 = 자동)
 function avatarPickerHTML() {
   const cur = LS.get('chandem:avatar', 0);
+  const photo = LS.get('chandem:photo', '');
   return `<fieldset class="fieldset"><legend>내 캐릭터</legend>
     <div class="av-pick">
+      <label class="av-opt av-photo" title="내 사진으로">
+        <input type="radio" name="avatar" value="photo" ${cur === 'photo' && photo ? 'checked' : ''}>
+        <span class="avatar avatar-photo">${photo ? `<img src="${photo}" alt="내 사진">` : '📷<small>내 사진</small>'}</span>
+        <input type="file" accept="image/*" data-photo-file hidden>
+      </label>
       <label class="av-opt"><input type="radio" name="avatar" value="0" ${!cur ? 'checked' : ''}><span class="avatar avatar-auto">자동</span></label>
       ${Array.from({ length: AVATAR_COUNT }, (_, i) => i + 1).map((n) => `
         <label class="av-opt"><input type="radio" name="avatar" value="${n}" ${cur === n ? 'checked' : ''}>
@@ -80,9 +87,47 @@ function avatarPickerHTML() {
     </div></fieldset>`;
 }
 function readAvatar(form) {
-  const v = Number(new FormData(form).get('avatar')) || 0;
+  const raw = new FormData(form).get('avatar');
+  if (raw === 'photo') { LS.set('chandem:avatar', 'photo'); return undefined; }
+  const v = Number(raw) || 0;
   LS.set('chandem:avatar', v);
   return v || undefined;
+}
+function readPhoto(form) {
+  return new FormData(form).get('avatar') === 'photo' ? LS.get('chandem:photo', '') || undefined : undefined;
+}
+// 사진을 가운데 기준 정사각형 128px JPEG로 줄인다 (보통 5~10KB)
+async function fileToPhoto(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const s = Math.min(img.naturalWidth, img.naturalHeight);
+    c.getContext('2d').drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, 128, 128);
+    return c.toDataURL('image/jpeg', 0.82);
+  } finally { URL.revokeObjectURL(url); }
+}
+function bindAvatarPicker(root) {
+  const opt = root.querySelector('.av-photo');
+  if (!opt) return;
+  const radio = opt.querySelector('input[type=radio]');
+  const file = opt.querySelector('[data-photo-file]');
+  opt.querySelector('.avatar-photo').addEventListener('click', (e) => {
+    // 사진이 없거나 이미 사진을 고른 상태에서 누르면 사진 고르기
+    if (!LS.get('chandem:photo', '') || radio.checked) { e.preventDefault(); file.click(); }
+  });
+  file.onchange = async () => {
+    const f = file.files && file.files[0];
+    if (!f) return;
+    try {
+      const data = await fileToPhoto(f);
+      LS.set('chandem:photo', data);
+      opt.querySelector('.avatar-photo').innerHTML = `<img src="${data}" alt="내 사진">`;
+      radio.checked = true;
+    } catch { toast('사진을 읽지 못했어요. 다른 사진으로 해 주세요', 'error'); }
+  };
 }
 
 function siteUrl() {
@@ -245,7 +290,33 @@ socket.on('emote', (e) => {
 });
 
 // ── 소리·애니메이션 트리거 ─────────────────────────────
+function tourneyEffects(st) {
+  const tn = st.room.tournament;
+  if (!tn) return;
+  if (tn.running) {
+    if (S.lastLevel && tn.level > S.lastLevel) {
+      banner('⬆ 블라인드 상승!', `레벨 ${tn.level} · <b>${fmt(tn.sb)}/${fmt(tn.bb)}</b>`, 'level', 2200);
+      sound.play('stamp');
+    }
+    S.lastLevel = tn.level;
+  }
+  if (tn.result && tn.result.at !== S.tourneyShown) {
+    const fresh = S.tourneyShown !== undefined || Date.now() + (S.clockSkew || 0) - tn.result.at < 60000;
+    S.tourneyShown = tn.result.at;
+    S.lastLevel = 0;
+    if (!fresh) return;
+    const medal = ['🥇', '🥈', '🥉'];
+    const meId = st.me && st.me.id;
+    openModal('🏆 토너먼트 결과', `
+      <ol class="rank-list">${tn.result.ranking.map((r) => `<li class="${r.id === meId ? 'is-me' : ''}"><span class="rank-medal">${medal[r.place - 1] || r.place + '위'}</span><b>${esc(r.name)}</b>${r.id === meId ? ' <span class="muted small">(나)</span>' : ''}</li>`).join('')}</ol>
+      <button class="btn btn-gold btn-lg" data-close>확인</button>`);
+    sound.play('fanfare');
+    if (tn.result.ranking[0] && tn.result.ranking[0].id === meId) { coinRain(70); sound.play('coins'); }
+  }
+}
+
 function processEvents(st, first) {
+  tourneyEffects(st);
   const feed = st.feed || [];
   const maxSeq = feed.length ? feed[feed.length - 1].seq : 0;
   if (first || S.lastSeq === null) { S.lastSeq = maxSeq; return; }
@@ -255,7 +326,10 @@ function processEvents(st, first) {
   let delay = 0;
   for (const e of fresh) {
     if (e.type === 'info') {
-      if (/번째 판 시작/.test(e.text)) setTimeout(() => sound.play('deal'), delay);
+      if (/번째 판 시작/.test(e.text)) {
+        const n = Math.min(18, (st.hand ? st.players.filter((p) => ['inhand', 'allin'].includes(p.status)).length : 2) * 2);
+        for (let i = 0; i < n; i++) setTimeout(() => sound.play('deal'), delay + 150 + i * 85);
+      }
       continue;
     }
     if (e.type === 'allin') setTimeout(() => allinStamp(e.id), delay);
@@ -360,6 +434,16 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
   <label class="field"><span>내 닉네임</span>
     <input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
   ${avatarPickerHTML()}` : ''}
+  <fieldset class="fieldset">
+    <legend>게임 방식</legend>
+    <div class="seg">
+      <label class="seg-opt"><input type="radio" name="mode" value="cash" ${s.mode !== 'tournament' ? 'checked' : ''}><span>일반<small>리바인 가능</small></span></label>
+      <label class="seg-opt"><input type="radio" name="mode" value="tournament" ${s.mode === 'tournament' ? 'checked' : ''}><span>🏆 토너먼트<small>블라인드 상승·탈락</small></span></label>
+    </div>
+    <label class="field"><span>토너먼트 블라인드 오르는 간격</span>
+      <select class="input" name="levelMinutes">${[3, 5, 7, 10, 15].map((m) => `<option value="${m}" ${Number(s.levelMinutes || 5) === m ? 'selected' : ''}>${m}분마다</option>`).join('')}</select></label>
+    <p class="muted small">토너먼트는 정해진 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요. 마지막까지 남은 사람이 우승이에요.</p>
+  </fieldset>
   <div class="grid2">
     <label class="field"><span>시작 칩</span><input class="input" type="number" inputmode="numeric" name="startChips" min="100" value="${s.startChips}"></label>
     <label class="field"><span>턴 제한시간(초)</span><input class="input" type="number" inputmode="numeric" name="turnSeconds" min="10" max="120" value="${s.turnSeconds}"></label>
@@ -392,6 +476,7 @@ function readSettings(form) {
     minPlayers: num('minPlayers'), maxPlayers: num('maxPlayers'),
     rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyMax: num('rebuyMax'),
     password: String(fd.get('password') || ''), approval: fd.get('approval') === 'on',
+    mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 5,
   };
 }
 
@@ -405,7 +490,7 @@ function validateSettings(s) {
   return null;
 }
 
-const DEFAULTS = { startChips: 1000, sb: 10, bb: 20, minPlayers: 2, maxPlayers: 9, turnSeconds: 30, rebuyEnabled: true, rebuyAmount: 1000, rebuyMax: 3, password: '', approval: false };
+const DEFAULTS = { startChips: 1000, sb: 10, bb: 20, minPlayers: 2, maxPlayers: 9, turnSeconds: 20, rebuyEnabled: true, rebuyAmount: 1000, rebuyMax: 3, password: '', approval: false, mode: 'cash', levelMinutes: 5 };
 
 function renderCreate() {
   $app.innerHTML = `
@@ -418,6 +503,7 @@ function renderCreate() {
   </main>`;
   $app.querySelector('#back').onclick = () => { S.view = 'home'; render(); };
   const form = $app.querySelector('#create-form');
+  bindAvatarPicker(form);
   form.onsubmit = async (e) => {
     e.preventDefault();
     const name = String(new FormData(form).get('name') || '').trim();
@@ -426,7 +512,7 @@ function renderCreate() {
     const bad = validateSettings(settings);
     if (bad) { toast(bad, 'error'); return; }
     LS.set('chandem:name', name);
-    const res = await emit('room:create', { name, settings, avatar: readAvatar(form) });
+    const res = await emit('room:create', { name, settings, avatar: readAvatar(form), photo: readPhoto(form) });
     if (!res.ok) return;
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
@@ -444,7 +530,7 @@ function renderPractice() {
   <main class="page">
     <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>혼자 연습하기</h1></header>
     <form id="practice-form" class="panel form">
-      <p class="muted small">친구가 없어도 봇들과 바로 칠 수 있어요. 봇은 칩이 떨어지면 알아서 다시 채워요.</p>
+      <p class="muted small">친구가 없어도 봇들과 바로 칠 수 있어요. 일반 방식에선 봇 칩이 떨어지면 알아서 다시 채워요.</p>
       <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
       ${avatarPickerHTML()}
       <fieldset class="fieldset"><legend>상대 봇 수</legend>
@@ -453,11 +539,18 @@ function renderPractice() {
       <fieldset class="fieldset"><legend>시작 칩 · 블라인드</legend>
         <div class="seg">${[[1000, 10, 20], [5000, 25, 50], [10000, 50, 100]].map(([c, sb, bb], i) => `<label class="seg-opt"><input type="radio" name="level" value="${i}" ${i === 0 ? 'checked' : ''}><span>${fmt(c)}<small>${sb}/${bb}</small></span></label>`).join('')}</div>
       </fieldset>
+      <fieldset class="fieldset"><legend>방식</legend>
+        <div class="seg">
+          <label class="seg-opt"><input type="radio" name="pmode" value="cash" ${LS.get('chandem:pmode', 'cash') !== 'tournament' ? 'checked' : ''}><span>일반<small>봇 칩 자동 충전</small></span></label>
+          <label class="seg-opt"><input type="radio" name="pmode" value="tournament" ${LS.get('chandem:pmode', 'cash') === 'tournament' ? 'checked' : ''}><span>🏆 토너먼트<small>3분마다 블라인드↑</small></span></label>
+        </div>
+      </fieldset>
       <button class="btn btn-gold btn-lg" type="submit">연습 시작</button>
     </form>
   </main>`;
   $app.querySelector('#back').onclick = () => { S.view = 'home'; render(); };
   const form = $app.querySelector('#practice-form');
+  bindAvatarPicker(form);
   form.onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
@@ -467,8 +560,10 @@ function renderPractice() {
     const [startChips, sb, bb] = [[1000, 10, 20], [5000, 25, 50], [10000, 50, 100]][Number(fd.get('level')) || 0];
     LS.set('chandem:name', name);
     LS.set('chandem:bots', bots);
-    const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99 };
-    const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form) });
+    const tourney = fd.get('pmode') === 'tournament';
+    LS.set('chandem:pmode', tourney ? 'tournament' : 'cash');
+    const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99, mode: tourney ? 'tournament' : 'cash', levelMinutes: 3 };
+    const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form), photo: readPhoto(form) });
     if (!res.ok) return;
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
@@ -499,7 +594,7 @@ function renderJoin() {
         ${d.hasPassword ? '<label class="field"><span>비밀번호</span><input class="input" name="password" maxlength="20" required autocomplete="off"></label>' : ''}
         ${avatarPickerHTML()}
         <label class="switch"><input type="checkbox" name="spectator"><span>관전만 할래요</span></label>
-        ${d.approval ? '<p class="muted small">방장이 승인하면 들어갈 수 있어요.</p>' : ''}
+        ${d.approval || d.phase === 'playing' ? `<p class="muted small">${d.phase === 'playing' ? '게임이 진행 중이라 ' : ''}방장이 승인하면 들어갈 수 있어요.</p>` : ''}
         <button class="btn btn-gold btn-lg" type="submit">참가하기</button>
       </form>`}
       <button class="btn btn-ghost" id="home">처음 화면으로</button>
@@ -508,13 +603,14 @@ function renderJoin() {
   $app.querySelector('#home').onclick = () => { history.pushState(null, '', '/'); S.code = null; S.view = 'home'; render(); };
   const form = $app.querySelector('#join-form');
   if (!form) return;
+  bindAvatarPicker(form);
   form.onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
     const name = String(fd.get('name') || '').trim();
     if (!name) { toast('닉네임을 입력해 주세요', 'error'); return; }
     LS.set('chandem:name', name);
-    const res = await emit('room:join', { code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on', avatar: readAvatar(form) });
+    const res = await emit('room:join', { code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on', avatar: readAvatar(form), photo: readPhoto(form) });
     if (!res.ok) return;
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
@@ -571,6 +667,7 @@ function settingsSummaryHTML(s) {
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
     <li><span>리바인</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
+    <li><span>방식</span><b>${s.mode === 'tournament' ? `🏆 토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
     <li><span>입장</span><b>${[s.hasPassword ? '비밀번호' : '', s.approval ? '방장 승인' : ''].filter(Boolean).join(' + ') || '링크만 있으면 누구나'}</b></li>
   </ul>`;
 }
@@ -771,16 +868,27 @@ function updateSoundIcon() {
 // 바닥 카드·팟이 있는 가운데 띠(세로 38~58%)는 비워 둔다.
 const LAYOUTS = {
   1: [[50, 9]],
-  2: [[18, 13], [82, 13]],
-  3: [[9, 30], [50, 9], [91, 30]],
-  4: [[9, 34], [30, 9], [70, 9], [91, 34]],
-  5: [[9, 66], [9, 28], [50, 8], [91, 28], [91, 66]],
-  6: [[9, 68], [9, 30], [30, 8], [70, 8], [91, 30], [91, 68]],
-  7: [[15, 87], [9, 62], [9, 29], [50, 8], [91, 29], [91, 62], [85, 87]],
-  8: [[15, 87], [9, 63], [9, 32], [29, 8], [71, 8], [91, 32], [91, 63], [85, 87]],
+  2: [[20, 12], [80, 12]],
+  3: [[11, 24], [50, 8], [89, 24]],
+  4: [[11, 26], [31, 8], [69, 8], [89, 26]],
+  5: [[11, 70], [11, 24], [50, 8], [89, 24], [89, 70]],
+  6: [[11, 70], [11, 24], [31, 7], [69, 7], [89, 24], [89, 70]],
+  7: [[20, 89], [10, 67], [10, 24], [50, 7], [90, 24], [90, 67], [80, 89]],
+  8: [[20, 89], [10, 67], [10, 25], [30, 7], [70, 7], [90, 25], [90, 67], [80, 89]],
 };
-function seatPositions(n) {
-  const others = LAYOUTS[Math.max(1, Math.min(8, n - 1))];
+// 키 작은 폰(테이블 높이 470px 미만): 옆자리를 가운데 줄보다 더 위·아래로
+const LAYOUTS_COMPACT = {
+  1: [[50, 7]],
+  2: [[20, 10], [80, 10]],
+  3: [[10, 21], [50, 6], [90, 21]],
+  4: [[10, 22], [31, 6], [69, 6], [90, 22]],
+  5: [[10, 72], [10, 21], [50, 6], [90, 21], [90, 72]],
+  6: [[10, 72], [10, 21], [31, 6], [69, 6], [90, 21], [90, 72]],
+  7: [[25, 94], [9, 68], [9, 22], [50, 6], [91, 22], [91, 68], [75, 94]],
+  8: [[25, 94], [9, 68], [9, 23], [30, 6], [70, 6], [91, 23], [91, 68], [75, 94]],
+};
+function seatPositions(n, compact = false) {
+  const others = (compact ? LAYOUTS_COMPACT : LAYOUTS)[Math.max(1, Math.min(8, n - 1))];
   return [{ x: 50, y: 90 }, ...others.map(([x, y]) => ({ x, y }))];
 }
 
@@ -790,7 +898,6 @@ function mountGame() {
     <header class="g-top" id="g-top"></header>
     <div class="g-banner" id="g-banner"></div>
     <div class="table-wrap"><div class="table" id="g-table"></div>
-      <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>
       <div class="emote-tray" id="emote-tray" hidden>${EMOTES.map(([k, e, t]) => `<button data-emote="${k}" aria-label="${t}"><span>${e}</span><small>${t}</small></button>`).join('')}</div>
     </div>
     <div id="fx-layer" aria-hidden="true"></div>
@@ -800,7 +907,9 @@ function mountGame() {
   S.gameMounted = true;
   S.actionSig = '';
   const tray = document.getElementById('emote-tray');
-  document.getElementById('emote-btn').onclick = (e) => { e.stopPropagation(); tray.hidden = !tray.hidden; };
+  document.getElementById('g-me').addEventListener('click', (e) => {
+    if (e.target.closest('#emote-btn')) { e.stopPropagation(); tray.hidden = !tray.hidden; }
+  });
   tray.querySelectorAll('[data-emote]').forEach((b) => {
     b.onclick = () => { tray.hidden = true; emit('game:emote', { kind: b.dataset.emote }); };
   });
@@ -848,10 +957,21 @@ function renderBanner(st) {
     } else if (me.stack === 0 && !(st.hand && !st.hand.result && st.players.find((p) => p.id === me.id)?.status === 'allin')) {
       msgs.push(['info', '칩이 모두 떨어졌어요. 이제 관전하며 응원해 주세요']);
     }
-    if (me.sittingOut) msgs.push(['warn', '자리 비움 상태예요. 다음 판부터 빠져요', '<button class="btn btn-sm btn-gold" id="sitin-btn">자리로 돌아가기</button>']);
+    if (me.sittingOut) msgs.push(['warn', '자리 비움 중 · 내 차례엔 자동으로 체크, 안 되면 다이해요', '<button class="btn btn-sm btn-gold" id="sitin-btn">자리로 돌아가기</button>']);
   }
   if (st.room.waiting) msgs.push(['info', '카드를 받을 수 있는 참가자가 2명 이상이 되면 다음 판이 시작돼요']);
+  const tn = st.room.tournament;
+  if (tn && tn.running) msgs.push(['tourney', `🏆 레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · 남은 ${tn.alive}/${tn.entrants}명`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · <b data-level-at="${tn.nextAt}">-</b></span>`]);
+  // 방장: 게임 중 들어오고 싶은 사람
+  if (me && me.isHost && st.pending) {
+    for (const p of st.pending) msgs.push(['gold', `${p.name}님이 들어오고 싶어해요`, `<button class="btn btn-sm btn-gold" data-approve="${p.id}">수락</button><button class="btn btn-sm btn-outline" data-reject="${p.id}">거절</button>`]);
+    const ids = st.pending.map((p) => p.id).join(',');
+    if (ids && ids !== S.pendingSeen) { S.pendingSeen = ids; sound.play('turn'); }
+  }
   el.innerHTML = msgs.map(([k, t, btn]) => `<div class="banner banner-${k}"><span>${esc(t)}</span>${btn || ''}</div>`).join('');
+  tickLevel();
+  el.querySelectorAll('[data-approve]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.approve, ok: true }); });
+  el.querySelectorAll('[data-reject]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.reject, ok: false }); });
   const rb = el.querySelector('#rebuy-btn');
   if (rb) rb.onclick = async () => { const r = await emit('game:rebuy'); if (r.ok) toast('리바인 신청 완료! 다음 판부터 적용돼요', 'ok'); };
   const si = el.querySelector('#sitin-btn');
@@ -872,7 +992,8 @@ function renderTable(st) {
   const el = document.getElementById('g-table');
   const h = st.hand;
   const seats = orderedSeats(st);
-  const pos = seatPositions(Math.max(seats.length, 2));
+  const compact = el.clientHeight > 0 && el.clientHeight < 470;
+  const pos = seatPositions(Math.max(seats.length, 2), compact);
   const handNo = h ? h.no : 0;
   const result = h && h.result;
   const winners = new Set(result ? result.winners : []);
@@ -904,6 +1025,7 @@ function renderTable(st) {
     else if (p.lastAction && h && !h.finished) tags.push(`<span class="tag tag-act">${ACTION_TEXT[p.lastAction] || ''}</span>`);
     if (st.room.phase === 'playing' && p.status === 'waiting' && !p.sittingOut) tags.push('<span class="tag">다음 판 대기</span>');
     if (!p.connected) tags.push('<span class="tag tag-off">연결 끊김</span>');
+    else if (p.sittingOut && st.room.phase === 'playing') tags.push('<span class="tag tag-away">자리 비움</span>');
     if (result && result.deltas && result.deltas[p.id] !== undefined) {
       const d = result.deltas[p.id];
       tags.push(`<span class="tag ${d > 0 ? 'tag-plus' : d < 0 ? 'tag-minus' : ''}">${signed(d)}</span>`);
@@ -914,7 +1036,7 @@ function renderTable(st) {
     if (p.isBB) pos2.push('<span class="blind-lbl">BB</span>');
     const bet = p.bet > 0 ? (() => {
       const k = y < 30 ? 0.52 : 0.4; const bx = x + (50 - x) * k; const by = y + (47 - y) * k;
-      return `<div class="bet" style="left:${bx}%;top:${by}%"><span class="chip-icon"></span><b>${fmt(p.bet)}</b></div>`;
+      return `<div class="bet" style="left:${bx}%;top:${by}%" title="${esc(p.name)} 이번 라운드 베팅"><span class="chip-icon sm"></span><small>베팅</small><b>${fmt(p.bet)}</b></div>`;
     })() : '';
     return `
       <div class="${cls.join(' ')}" data-id="${p.id}" style="left:${x}%;top:${y}%">
@@ -942,22 +1064,22 @@ function renderTable(st) {
         // 올인 승부에서 새로 깔리는 카드는 천천히 뒤집고, 리버는 '쪼듯이' 더 천천히
         const slow = fresh && S.runoutHand === handNo && i >= S.runoutFrom;
         board.push(cardHTML(c, {
-          size: 'md', anim: fresh && !slow, delay: (i < 3 && !slow ? i : 0) * 120,
+          size: compact ? 'sm' : 'md', anim: fresh && !slow, delay: (i < 3 && !slow ? i : 0) * 120,
           cls: slow ? (i === 4 ? 'card-squeeze' : 'card-flip-slow') : '',
           highlight: winBest && winBest.has(c), dim: winBest && !winBest.has(c),
         }));
       } else if (rv && rv.squeeze && i === h.board.length) {
-        board.push(cardHTML('??', { size: 'md', cls: 'card-squeeze-wait' }));
-      } else board.push(cardHTML(null, { size: 'md' }));
+        board.push(cardHTML('??', { size: compact ? 'sm' : 'md', cls: 'card-squeeze-wait' }));
+      } else board.push(cardHTML(null, { size: compact ? 'sm' : 'md' }));
     }
-    const potText = `팟 ${fmt(h.totalPot)}`;
+    const potText = `<small>팟</small>${fmt(h.totalPot)}`;
     const sidePots = h.pots && h.pots.length > 1
       ? `<div class="side-pots">${h.pots.map((pt, i) => `<span>${i === 0 ? '메인' : `사이드${i}`} ${fmt(pt.amount)}</span>`).join('')}</div>` : '';
     center = `
       <div class="table-center">
         <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}">${{ preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '🔥 올인 승부' }[h.stage] || ''}</div>
         <div class="board">${board.join('')}</div>
-        <div class="pot"><span class="chip-icon pot-chip"></span><b>${potText}</b></div>
+        <div class="pot"><span class="chip-icon pot-chip"></span><b>${potText}</b>${h.totalPot > h.pot ? `<span class="pot-note">이번 라운드 ${fmt(h.totalPot - h.pot)} 포함</span>` : ''}</div>
         ${sidePots}
         ${result ? resultHTML(st, result) : ''}
       </div>`;
@@ -1025,7 +1147,8 @@ function renderMe(st) {
       ${mp.status === 'folded' ? '<div class="tag tag-folded">폴드함</div>' : ''}
       ${mp.status === 'allin' ? '<div class="tag tag-allin">올인</div>' : ''}
       ${delta !== undefined ? `<div class="me-delta ${delta > 0 ? 'plus' : delta < 0 ? 'minus' : ''}">이번 판 ${signed(delta)}</div>` : ''}
-    </div>`;
+    </div>
+    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>`;
 }
 
 function renderActions(st) {
@@ -1143,6 +1266,17 @@ async function doAct(action) {
 }
 
 // 남은 시간 표시: 글자 + 막대 + 자리 테두리
+// 토너먼트 다음 레벨까지 남은 시간
+function tickLevel() {
+  const now = Date.now() + (S.clockSkew || 0);
+  document.querySelectorAll('[data-level-at]').forEach((el) => {
+    const left = Math.max(0, Number(el.dataset.levelAt) - now);
+    const m = Math.floor(left / 60000); const sec = Math.floor(left / 1000) % 60;
+    el.textContent = left > 0 ? `${m}:${String(sec).padStart(2, '0')}` : '다음 판부터';
+  });
+}
+setInterval(tickLevel, 1000);
+
 function tickTimers() {
   const st = S.state;
   if (!st || S.view !== 'room') return;
