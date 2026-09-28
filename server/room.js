@@ -2,6 +2,8 @@
 const crypto = require('crypto');
 const { Hand, IllegalAction } = require('./engine/hand');
 const bot = require('./bot');
+const { SeotdaHand } = require('./games/seotda');
+const { OmokGame, omokAI } = require('./games/omok');
 
 class RoomError extends Error {}
 
@@ -17,6 +19,8 @@ const DEFAULT_SETTINGS = {
   rebuyMax: 3,
   password: '',
   approval: false,
+  game: 'holdem',        // holdem | seotda | omok
+  aiLevel: 'normal',     // 오목 AI: easy | normal | hard
   mode: 'cash',          // cash | tournament
   levelMinutes: 5,       // 토너먼트 블라인드가 오르는 간격(분)
 };
@@ -53,9 +57,16 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.rebuyMax = Math.min(99, Math.max(1, int(src.rebuyMax, base.rebuyMax)));
   s.password = typeof src.password === 'string' ? src.password.trim().slice(0, 20) : base.password;
   s.approval = src.approval === undefined ? base.approval : !!src.approval;
+  s.game = ['holdem', 'seotda', 'omok'].includes(src.game) ? src.game : (base.game || 'holdem');
   s.mode = src.mode === undefined ? (base.mode || 'cash') : src.mode === 'tournament' ? 'tournament' : 'cash';
   s.levelMinutes = Math.min(60, Math.max(1, int(src.levelMinutes, base.levelMinutes || 5)));
   if (s.mode === 'tournament') s.rebuyEnabled = false;   // 토너먼트는 칩을 다 잃으면 탈락
+  s.aiLevel = ['easy', 'normal', 'hard'].includes(src.aiLevel) ? src.aiLevel : (base.aiLevel || 'normal');
+  if (s.game === 'omok') {
+    // 오목: 두 사람만 두고 나머지는 관전, 칩·토너먼트 없음
+    s.maxPlayers = 2; s.minPlayers = 2; s.mode = 'cash'; s.rebuyEnabled = false;
+    s.turnSeconds = Math.max(30, s.turnSeconds); // 오목은 한 수에 최소 30초
+  }
   return s;
 }
 
@@ -229,7 +240,12 @@ class Room {
     const p = this.get(h.currentId);
     if (!p || !p.isBot) return;
     let action;
-    try { action = bot.decide(h, p.id, bot.STYLES[p.style || 0], this.stats); } catch (e) { console.error('[bot]', e); }
+    try {
+      if (h.kind === 'omok') {
+        const mv = omokAI.bestMove(h.cells, h.seatOf(p.id).color, this.settings.aiLevel);
+        action = { type: 'place', x: mv.x, y: mv.y };
+      } else action = (h.kind === 'seotda' ? bot.decideSeotda : bot.decide)(h, p.id, bot.STYLES[p.style || 0], this.stats);
+    } catch (e) { console.error('[bot]', e); }
     try { this.act(p.id, action || { type: 'fold' }); }
     catch { this.act(p.id, { type: h.legalActions(p.id).canCheck ? 'check' : 'fold' }); }
   }
@@ -247,6 +263,14 @@ class Room {
 
   /** 판이 끝나면 봇이 가끔 감정 표현을 한다 */
   botEmotes(result) {
+    if (result.type === 'omok') {
+      for (const p of this.seated) {
+        if (!p.isBot) continue;
+        const kind = result.winners.includes(p.id) ? (Math.random() < 0.6 ? ['happy', 'mock', 'laugh'][crypto.randomInt(3)] : null) : (Math.random() < 0.5 ? ['angry', 'cry'][crypto.randomInt(2)] : null);
+        if (kind) this.setTimer('emote:' + p.id, 1200 * this.pace, () => { try { this.emote(p.id, kind); } catch {} });
+      }
+      return;
+    }
     const bb = this.settings.bb;
     for (const p of this.seated) {
       if (!p.isBot) continue;
@@ -446,7 +470,19 @@ class Room {
         this.pushFeed(`⬆ 블라인드 상승! 레벨 ${this.tourney.level + 1} · ${b.sb.toLocaleString()}/${b.bb.toLocaleString()}`);
       }
     }
-    const eligible = this.eligibleForHand();
+    let eligible = this.eligibleForHand();
+    let carry = null;
+    if (this.seotdaCarry && this.settings.game === 'seotda') {
+      carry = this.seotdaCarry;
+      this.seotdaCarry = null;
+      const inCarry = this.seated.filter((p) => carry.ids.includes(p.id) && !p.leaving);
+      if (inCarry.length >= 2) eligible = inCarry;
+      else {
+        // 재경기할 사람이 한 명만 남았으면 이월된 판돈은 그 사람 것
+        if (inCarry[0]) { inCarry[0].stack += carry.amount; this.pushFeed(`${inCarry[0].name}님이 이월된 판돈 ${carry.amount.toLocaleString()}을 가져갔어요`); }
+        carry = null;
+      }
+    }
     // 자리에 있는 사람이 아무도 없으면 봇끼리 계속 치지 않는다
     const hasHuman = eligible.some((p) => !p.isBot && !this.isAway(p));
     if (eligible.length < 2 || !hasHuman) {
@@ -469,12 +505,18 @@ class Room {
     this.handNo += 1;
     this.handPlayers = eligible.map((p) => p.id);
     bot.observeDeal(this.stats, this.handPlayers);
-    this.hand = new Hand({
-      players: eligible.map((p) => ({ id: p.id, stack: p.stack })),
-      dealerIndex,
-      sb: this.blinds().sb,
-      bb: this.blinds().bb,
-    });
+    const players = eligible.map((p) => ({ id: p.id, stack: p.stack }));
+    if (this.settings.game === 'omok') {
+      // 판마다 흑백을 바꾼다 (첫 번째 = 흑)
+      const two = players.slice(0, 2);
+      if (this.handNo % 2 === 0) two.reverse();
+      this.hand = new OmokGame({ players: two, dealerIndex: 0 });
+    } else if (this.settings.game === 'seotda') {
+      this.hand = SeotdaHand.create({ players, dealerIndex, bb: this.blinds().bb, carry });
+      if (carry) this.pushFeed(`🎴 재경기 · 이월된 판돈 ${carry.amount.toLocaleString()}`);
+    } else {
+      this.hand = new Hand({ players, dealerIndex, sb: this.blinds().sb, bb: this.blinds().bb });
+    }
     this.lastSeenLog = 0;
     this.pushFeed(`${this.handNo}번째 판 시작 · 딜러 ${this.name(eligible[dealerIndex].id)}`);
     this.syncStacks();
@@ -564,7 +606,9 @@ class Room {
       case 'raise': return `${n} 레이즈 ${amt(e.to)}까지`;
       case 'allin': return `${n} 올인 (${amt(e.to)})`;
       case 'street': return { 3: '플랍', 4: '턴', 5: '리버' }[e.board.length] + ' 공개';
-      case 'end': return `${e.winners.map((w) => this.name(w)).join(', ')} 승리`;
+      case 'place': return `${n} ${e.color === 'b' ? '⚫' : '⚪'} ${String.fromCharCode(65 + e.x)}${e.y + 1}`;
+      case 'resign': return `${n} 기권`;
+      case 'end': return e.result === 'draw' ? '무승부' : e.result === 'redeal' ? `${e.redeal}! 재경기` : `${e.winners.map((w) => this.name(w)).join(', ')} 승리`;
       default: return '';
     }
   }
@@ -582,7 +626,7 @@ class Room {
     const did = this.hand.autoAct(id);
     if (p) {
       p.timeouts += 1;
-      this.pushFeed(`${p.name}님 시간 초과 → 자동 ${did === 'check' ? '체크' : '폴드'}`);
+      this.pushFeed(`${p.name}님 시간 초과 → ${did === 'place' ? '자동으로 한 수 둠' : `자동 ${did === 'check' ? '체크' : '폴드'}`}`);
       if (p.timeouts >= MAX_TIMEOUTS) {
         p.sittingOut = true;
         this.pushFeed(`${p.name}님은 자리 비움으로 바뀌었어요 (차례가 오면 자동 체크/다이)`);
@@ -599,7 +643,7 @@ class Room {
 
     // 쇼다운 연출 순서 만들기
     const from = h.runoutFrom !== undefined ? h.runoutFrom : h.board.length;
-    const allin = from < 5;
+    const allin = !this.hand.kind && from < 5; // 올인 런아웃 연출은 홀덤만
     const order = h.orderFromButton().filter((id) => h.result.hands[id]);
     const rv = { handNo: this.handNo, allin, board: from, shown: [], squeeze: false, done: false, stage: allin ? 'allin' : 'showdown' };
     this.reveal = rv;
@@ -629,6 +673,10 @@ class Room {
     if (this.reveal) { this.reveal.done = true; this.reveal.squeeze = false; this.reveal.board = 5; }
     this.drainHandLog();
     this.lastResult = { handNo: this.handNo, ...this.hand.result };
+    if (this.hand.result.redeal) {
+      this.seotdaCarry = this.hand.result.carry;
+      this.pushFeed(`🎴 ${this.hand.result.redeal}! 판돈 ${this.seotdaCarry.amount.toLocaleString()}을 걸고 다시 쳐요`);
+    }
     this.botEmotes(this.hand.result);
     for (const p of this.seated) {
       if (p.stack === 0 && p.pendingRebuy === 0) {
@@ -715,6 +763,8 @@ class Room {
     if (!p || p.role !== 'player') return;
     p.sittingOut = true;
     this.pushFeed(`${p.name}님이 자리를 비웠어요 (차례가 오면 자동 체크/다이)`);
+    // 지금 내 차례였다면 바로 자동 처리되도록 타이머를 다시 건다
+    if (this.hand && !this.hand.finished && this.hand.currentId === id) this.afterHandChange();
     this.touch();
   }
 
@@ -812,7 +862,7 @@ class Room {
     this.timers[key] = setTimeout(() => {
       delete this.timers[key];
       try { fn(); } catch (e) { console.error('[timer]', e); }
-      this.onChange(this);
+      try { this.onChange(this); } catch (e) { console.error('[broadcast]', e); } // 한 방의 오류로 서버가 꺼지지 않게
     }, Math.max(0, ms));
     if (this.timers[key].unref) this.timers[key].unref();
   }
@@ -831,9 +881,10 @@ class Room {
     const h = this.hand;
     const showdown = h && h.finished && h.result && h.result.type === 'showdown';
     const n = h ? h.seats.length : 0;
-    const dealerId = h ? h.seats[h.dealerIndex].id : null;
-    const sbId = h ? h.seats[h.sbIndex].id : null;
-    const bbId = h ? h.seats[h.bbIndex].id : null;
+    const seatId = (i) => (h && h.seats[i] ? h.seats[i].id : null); // 오목에는 딜러·블라인드가 없다
+    const dealerId = h && h.kind !== 'omok' ? seatId(h.dealerIndex) : null;
+    const sbId = h && !h.kind ? seatId(h.sbIndex) : null;
+    const bbId = h && !h.kind ? seatId(h.bbIndex) : null;
     const rv = this.revealing ? this.reveal : null;           // 쇼다운 연출 중이면 아직 결과를 숨긴다
     const payouts = rv && h.result ? h.result.payouts : {};
     const shownStack = (p) => p.stack - (payouts[p.id] || 0);
@@ -917,7 +968,14 @@ class Room {
 
     if (h) {
       const hasAllIn = h.seats.some((s) => s.allIn);
+      const omok = h.kind === 'omok' ? {
+        size: 15, cells: h.cells, lastMove: h.lastMove, moves: h.moves.length,
+        colors: Object.fromEntries(h.seats.map((s) => [s.id, s.color])),
+        winLine: h.result ? h.result.winLine || null : null,
+      } : null;
       view.hand = {
+        game: h.kind || 'holdem',
+        omok,
         no: this.handNo,
         stage: rv ? (rv.allin ? 'allin' : 'showdown') : h.stage,
         board: rv ? h.board.slice(0, rv.board) : h.board.slice(),
@@ -965,6 +1023,9 @@ class Room {
       type: r.type,
       winners: r.winners,
       winnerNames: r.winners.map((w) => this.name(w)),
+      reason: r.reason || null,
+      redeal: r.redeal || null,
+      carry: r.carry ? r.carry.amount : 0,
       board: r.board,
       hands,
       pots: r.potResults.map((p) => ({ amount: p.amount, winners: p.winners, returned: p.eligible.length === 1 })),
@@ -983,7 +1044,7 @@ class Room {
     const { hand, ...rest } = obj;
     Object.assign(r, rest);
     r.timers = {};
-    r.hand = hand ? Hand.fromJSON(hand) : null;
+    r.hand = hand ? (hand.kind === 'seotda' ? SeotdaHand.fromJSON(hand) : hand.kind === 'omok' ? OmokGame.fromJSON(hand) : Hand.fromJSON(hand)) : null;
     if (r.reveal) { r.reveal.done = true; r.reveal.board = 5; r.reveal.squeeze = false; } // 재시작하면 연출은 건너뜀
     for (const p of r.players) { if (p.isBot) continue; p.connected = false; p.disconnectedAt = p.disconnectedAt || now(); }
     r.setTimer('host', HOST_GRACE_MS, () => {

@@ -307,7 +307,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('host:kick', handler((d) => { const { room, pid } = ctx(); room.kick(pid, d.id); }));
     socket.on('host:transfer', handler((d) => { const { room, pid } = ctx(); room.transferHost(pid, d.id); }));
     socket.on('host:end', handler(() => { const { room, pid } = ctx(); room.endGame(pid); }));
-    socket.on('game:act', handler((d) => { const { room, pid } = ctx(); room.act(pid, { type: d.type, amount: d.amount }); }));
+    socket.on('game:act', handler((d) => { const { room, pid } = ctx(); room.act(pid, { type: d.type, amount: d.amount, x: d.x, y: d.y }); }));
     socket.on('game:rebuy', handler(() => { const { room, pid } = ctx(); room.rebuy(pid); }));
     socket.on('game:sitin', handler(() => { const { room, pid } = ctx(); room.sitIn(pid); }));
     socket.on('game:sitout', handler(() => { const { room, pid } = ctx(); room.sitOut(pid); }));
@@ -356,6 +356,9 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
 module.exports = { createServer, lanUrls };
 
 if (require.main === module) {
+  // 예상 못 한 오류가 나도 서버 전체가 꺼지지 않게 기록만 남긴다
+  process.on('uncaughtException', (e) => console.error('[uncaught]', e));
+  process.on('unhandledRejection', (e) => console.error('[unhandled]', e));
   const port = Number(process.env.PORT) || 3000;
   const srv = createServer({ port, dataFile: path.join(__dirname, '..', 'data', 'rooms.json') });
   srv.listen().then((p) => {

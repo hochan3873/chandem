@@ -591,3 +591,52 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 .rank-list li:first-child { background: linear-gradient(90deg, rgba(255, 215, 120, .25), rgba(255, 215, 120, .05)); border: 1px solid var(--gold); }
 .rank-list li.is-me { outline: 2px solid var(--gold-hi); }
 .rank-medal { font-size: 1.3rem; min-width: 2.2em; text-align: center; }
+
+/* ── 화투 ───────────────────────── */
+.hwatu { height: calc(var(--w) * 1.55); background: linear-gradient(170deg, #fffaf0, #f3e7cf); border-radius: calc(var(--w) * .1); box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 calc(var(--w) * .05) #c8102e; display: inline-flex; flex-direction: column; align-items: center; justify-content: space-between; padding: calc(var(--w) * .08) 0; color: #1d1d1d; overflow: hidden; position: relative; }
+.hw-num { font-size: calc(var(--w) * .34); line-height: 1; font-weight: 900; color: #8b1a1a; }
+.hw-art { font-size: calc(var(--w) * .52); line-height: 1; filter: saturate(1.2); }
+.hw-name { font-size: calc(var(--w) * .2); line-height: 1; font-weight: 700; color: #5a3b1a; white-space: nowrap; }
+.hw-mark { position: absolute; right: calc(var(--w) * .06); top: calc(var(--w) * .06); font-style: normal; font-weight: 900; font-size: calc(var(--w) * .2); line-height: 1; padding: calc(var(--w) * .03); border-radius: 50%; }
+.hw-mark-g { background: #c8102e; color: #fff; box-shadow: 0 0 0 1px #fff, 0 0 6px rgba(200, 16, 46, .7); }
+.hw-mark-y { background: #2f6b3a; color: #fff; border-radius: 4px; }
+.hw-gwang { box-shadow: 0 2px 8px rgba(0, 0, 0, .45), inset 0 0 0 calc(var(--w) * .05) #c8102e, 0 0 12px rgba(255, 200, 80, .55); }
+.hw-back { background: repeating-linear-gradient(45deg, #b3122b 0 4px, #9a0f24 4px 8px); box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 calc(var(--w) * .06) #6d0a19; justify-content: center; }
+.hw-back-mark { color: rgba(255, 230, 200, .85); font-family: var(--serif); font-weight: 900; font-size: calc(var(--w) * .38); }
+.card-xs.hwatu .hw-name, .card-xs.hwatu .hw-art { display: none; }
+.card-xs.hwatu { justify-content: center; }
+.card-xs.hwatu .hw-num { font-size: calc(var(--w) * .55); }
+.sd-center { font-size: .9rem; color: var(--gold-hi); letter-spacing: .1em; padding: 10px 0 4px; }
+.sd-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.sd-acts-6 { grid-template-columns: repeat(3, 1fr); }
+.sd-acts .act { min-height: 50px; }
+.sd-chart .chart-list li { display: grid; grid-template-columns: 7.5em 1fr; gap: 2px 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
+.sd-chart .chart-list li small { grid-column: 2; }
+.game-pick { flex-wrap: nowrap; }
+.game-pick .seg-opt span { font-size: .85rem; }
+
+/* ── 오목 ───────────────────────── */
+form[data-game=omok] .chips-only { display: none; }
+form:not([data-game=omok]) .omok-only { display: none; }
+.omok-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 0; }
+.omok-board-box { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; container-type: size; }
+.omok-board { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .6), 0 0 0 3px #6b4523; touch-action: manipulation; cursor: pointer; }
+.omok-wood { fill: #d9a55b; }
+.omok-grid line { stroke: #4a2f14; stroke-width: 0.035; }
+.star { fill: #4a2f14; }
+.stone { stroke-width: 0.03; }
+.stone-b { fill: #1a1a1a; stroke: #000; }
+.stone-w { fill: #f7f5ef; stroke: #b9b3a5; }
+.stone-last { stroke: #e0402f; stroke-width: 0.08; }
+.last-dot { fill: #e0402f; pointer-events: none; }
+.stone-win { stroke: #ffd35a; stroke-width: 0.12; filter: drop-shadow(0 0 0.2px #ffd35a); animation: winStone .6s ease-in-out infinite alternate; }
+@keyframes winStone { to { stroke-width: 0.2; } }
+.stone-preview { opacity: .45; }
+.omok-player { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 14px; background: rgba(4, 14, 10, .7); border: 1px solid rgba(201, 164, 92, .3); min-height: 44px; }
+.omok-player.is-turn { border-color: var(--gold); box-shadow: 0 0 14px rgba(201, 164, 92, .45); }
+.omok-stone-icon { width: 18px; height: 18px; border-radius: 50%; display: inline-block; box-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.omok-stone-icon.stone-b { background: radial-gradient(circle at 35% 30%, #666, #111 60%); }
+.omok-stone-icon.stone-w { background: radial-gradient(circle at 35% 30%, #fff, #d8d4ca 70%); }
+.omok-result { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(4, 14, 10, .92); border: 1px solid var(--gold); border-radius: 14px; padding: 12px 18px; text-align: center; font-weight: 900; color: var(--gold-hi); display: flex; flex-direction: column; gap: 4px; z-index: 5; }
+.omok-result small { font-weight: 500; color: var(--muted); font-size: .72rem; }
+.omok-wait { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }

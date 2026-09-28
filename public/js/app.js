@@ -1,4 +1,5 @@
-import { cardHTML, cardsHTML, cardName } from './cards.js';
+import { cardHTML, cardsHTML, cardName, setDeckStyle } from './cards.js';
+import { rankSeotda, seotdaChartHTML } from './seotda.js';
 import * as sound from './sound.js';
 import { handChartHTML } from './handchart.js';
 import { bestHand } from './evaluator.js';
@@ -428,13 +429,21 @@ function renderHome() {
   };
 }
 
+const GAME_NAMES = { holdem: '♠ 텍사스 홀덤', seotda: '🎴 섯다', omok: '⚫ 오목' };
+const gameOf = (st) => (st && st.room && st.room.settings && st.room.settings.game) || 'holdem';
+function gamePickHTML(cur, name = 'game') {
+  return `<div class="seg game-pick">${Object.entries(GAME_NAMES).map(([k, t]) => `<label class="seg-opt"><input type="radio" name="${name}" value="${k}" ${cur === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>`;
+}
+
 function settingsFormHTML(s, { forCreate = false } = {}) {
   return `
   ${forCreate ? `
+  <fieldset class="fieldset"><legend>게임</legend>${gamePickHTML(s.game || 'holdem')}
+    <p class="muted small" data-game-note></p></fieldset>
   <label class="field"><span>내 닉네임</span>
     <input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
   ${avatarPickerHTML()}` : ''}
-  <fieldset class="fieldset">
+  <fieldset class="fieldset chips-only">
     <legend>게임 방식</legend>
     <div class="seg">
       <label class="seg-opt"><input type="radio" name="mode" value="cash" ${s.mode !== 'tournament' ? 'checked' : ''}><span>일반<small>리바인 가능</small></span></label>
@@ -444,7 +453,7 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <select class="input" name="levelMinutes">${[3, 5, 7, 10, 15].map((m) => `<option value="${m}" ${Number(s.levelMinutes || 5) === m ? 'selected' : ''}>${m}분마다</option>`).join('')}</select></label>
     <p class="muted small">토너먼트는 정해진 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요. 마지막까지 남은 사람이 우승이에요.</p>
   </fieldset>
-  <div class="grid2">
+  <div class="grid2 chips-only">
     <label class="field"><span>시작 칩</span><input class="input" type="number" inputmode="numeric" name="startChips" min="100" value="${s.startChips}"></label>
     <label class="field"><span>턴 제한시간(초)</span><input class="input" type="number" inputmode="numeric" name="turnSeconds" min="10" max="120" value="${s.turnSeconds}"></label>
     <label class="field"><span>스몰 블라인드</span><input class="input" type="number" inputmode="numeric" name="sb" min="1" value="${s.sb}"></label>
@@ -452,7 +461,7 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <label class="field"><span>최소 인원</span><input class="input" type="number" inputmode="numeric" name="minPlayers" min="2" max="9" value="${s.minPlayers}"></label>
     <label class="field"><span>최대 인원</span><input class="input" type="number" inputmode="numeric" name="maxPlayers" min="2" max="9" value="${s.maxPlayers}"></label>
   </div>
-  <fieldset class="fieldset">
+  <fieldset class="fieldset chips-only">
     <legend>리바인</legend>
     <label class="switch"><input type="checkbox" name="rebuyEnabled" ${s.rebuyEnabled ? 'checked' : ''}><span>리바인 허용</span></label>
     <div class="grid2">
@@ -468,6 +477,19 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
   </fieldset>`;
 }
 
+// 게임 고르기에 따라 설정 칸 보이기/숨기기
+function bindGamePick(form, name = 'game') {
+  const notes = { holdem: '노리밋 텍사스 홀덤. 개인 카드 2장 + 바닥 5장.', seotda: '화투 두 장 섯다. 판돈(빅 블라인드 금액)을 걸고 한 바퀴 베팅해요.', omok: '두 사람이 오목을 둬요. 나머지는 관전해요. 흑은 삼삼 금지.' };
+  const upd = () => {
+    const g = (form.querySelector(`input[name=${name}]:checked`) || {}).value || 'holdem';
+    form.dataset.game = g;
+    const n = form.querySelector('[data-game-note]');
+    if (n) n.textContent = notes[g];
+  };
+  form.querySelectorAll(`input[name=${name}]`).forEach((r) => { r.onchange = upd; });
+  upd();
+}
+
 function readSettings(form) {
   const fd = new FormData(form);
   const num = (k) => Number(fd.get(k));
@@ -477,6 +499,7 @@ function readSettings(form) {
     rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyMax: num('rebuyMax'),
     password: String(fd.get('password') || ''), approval: fd.get('approval') === 'on',
     mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 5,
+    ...(fd.get('game') ? { game: fd.get('game') } : {}),
   };
 }
 
@@ -490,7 +513,7 @@ function validateSettings(s) {
   return null;
 }
 
-const DEFAULTS = { startChips: 1000, sb: 10, bb: 20, minPlayers: 2, maxPlayers: 9, turnSeconds: 20, rebuyEnabled: true, rebuyAmount: 1000, rebuyMax: 3, password: '', approval: false, mode: 'cash', levelMinutes: 5 };
+const DEFAULTS = { startChips: 1000, sb: 10, bb: 20, minPlayers: 2, maxPlayers: 9, turnSeconds: 20, rebuyEnabled: true, rebuyAmount: 1000, rebuyMax: 3, password: '', approval: false, mode: 'cash', levelMinutes: 5, game: 'holdem' };
 
 function renderCreate() {
   $app.innerHTML = `
@@ -504,6 +527,7 @@ function renderCreate() {
   $app.querySelector('#back').onclick = () => { S.view = 'home'; render(); };
   const form = $app.querySelector('#create-form');
   bindAvatarPicker(form);
+  bindGamePick(form);
   form.onsubmit = async (e) => {
     e.preventDefault();
     const name = String(new FormData(form).get('name') || '').trim();
@@ -533,13 +557,17 @@ function renderPractice() {
       <p class="muted small">친구가 없어도 봇들과 바로 칠 수 있어요. 일반 방식에선 봇 칩이 떨어지면 알아서 다시 채워요.</p>
       <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
       ${avatarPickerHTML()}
-      <fieldset class="fieldset"><legend>상대 봇 수</legend>
+      <fieldset class="fieldset"><legend>게임</legend>${gamePickHTML(LS.get('chandem:pgame', 'holdem'), 'pgame')}</fieldset>
+      <fieldset class="fieldset omok-only"><legend>AI 실력</legend>
+        <div class="seg">${[['easy', '쉬움'], ['normal', '보통'], ['hard', '어려움']].map(([k, t]) => `<label class="seg-opt"><input type="radio" name="ailevel" value="${k}" ${LS.get('chandem:ailevel', 'normal') === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
+      </fieldset>
+      <fieldset class="fieldset chips-only"><legend>상대 봇 수</legend>
         <div class="seg">${[1, 2, 3, 4, 5].map((n) => `<label class="seg-opt"><input type="radio" name="bots" value="${n}" ${cnt === n ? 'checked' : ''}><span>${n}명</span></label>`).join('')}</div>
       </fieldset>
-      <fieldset class="fieldset"><legend>시작 칩 · 블라인드</legend>
+      <fieldset class="fieldset chips-only"><legend>시작 칩 · 블라인드</legend>
         <div class="seg">${[[1000, 10, 20], [5000, 25, 50], [10000, 50, 100]].map(([c, sb, bb], i) => `<label class="seg-opt"><input type="radio" name="level" value="${i}" ${i === 0 ? 'checked' : ''}><span>${fmt(c)}<small>${sb}/${bb}</small></span></label>`).join('')}</div>
       </fieldset>
-      <fieldset class="fieldset"><legend>방식</legend>
+      <fieldset class="fieldset chips-only"><legend>방식</legend>
         <div class="seg">
           <label class="seg-opt"><input type="radio" name="pmode" value="cash" ${LS.get('chandem:pmode', 'cash') !== 'tournament' ? 'checked' : ''}><span>일반<small>봇 칩 자동 충전</small></span></label>
           <label class="seg-opt"><input type="radio" name="pmode" value="tournament" ${LS.get('chandem:pmode', 'cash') === 'tournament' ? 'checked' : ''}><span>🏆 토너먼트<small>3분마다 블라인드↑</small></span></label>
@@ -551,6 +579,7 @@ function renderPractice() {
   $app.querySelector('#back').onclick = () => { S.view = 'home'; render(); };
   const form = $app.querySelector('#practice-form');
   bindAvatarPicker(form);
+  bindGamePick(form, 'pgame');
   form.onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
@@ -561,8 +590,11 @@ function renderPractice() {
     LS.set('chandem:name', name);
     LS.set('chandem:bots', bots);
     const tourney = fd.get('pmode') === 'tournament';
+    const game = fd.get('pgame') || 'holdem';
+    LS.set('chandem:pgame', game);
     LS.set('chandem:pmode', tourney ? 'tournament' : 'cash');
-    const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99, mode: tourney ? 'tournament' : 'cash', levelMinutes: 3 };
+    const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99, mode: tourney && game !== 'omok' ? 'tournament' : 'cash', levelMinutes: 3, game, ...(game === 'seotda' ? { sb: bb } : {}), aiLevel: fd.get('ailevel') || 'normal' };
+    if (game === 'omok') LS.set('chandem:ailevel', settings.aiLevel);
     const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form), photo: readPhoto(form) });
     if (!res.ok) return;
     S.code = res.code;
@@ -667,6 +699,7 @@ function settingsSummaryHTML(s) {
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
     <li><span>리바인</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
+    <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}</b></li>
     <li><span>방식</span><b>${s.mode === 'tournament' ? `🏆 토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
     <li><span>입장</span><b>${[s.hasPassword ? '비밀번호' : '', s.approval ? '방장 승인' : ''].filter(Boolean).join(' + ') || '링크만 있으면 누구나'}</b></li>
   </ul>`;
@@ -829,7 +862,7 @@ async function leaveRoom() {
 
 function bindCommon() {
   const chart = document.getElementById('chart-btn');
-  if (chart) chart.onclick = () => openModal('족보표', handChartHTML(), null, { wide: true });
+  if (chart) chart.onclick = () => (gameOf(S.state) === 'seotda' ? openModal('섯다 족보', `<div class="sd-chart">${seotdaChartHTML()}</div>`, null, { wide: true }) : openModal('족보표', handChartHTML(), null, { wide: true }));
   const sb = document.getElementById('sound-btn');
   if (sb) sb.onclick = openSoundModal;
   const sh = document.getElementById('share-top');
@@ -916,6 +949,17 @@ function mountGame() {
 }
 
 function renderGame() {
+  setDeckStyle(gameOf(S.state) === 'seotda' ? 'hwatu' : 'poker');
+  if (gameOf(S.state) === 'omok') {
+    if (!S.gameMounted || !document.getElementById('g-table')) mountGame();
+    const st = S.state;
+    renderTop(st);
+    renderBanner(st);
+    renderOmok(st);
+    tickTimers();
+    omokEffects(st);
+    return;
+  }
   if (!S.gameMounted || !document.getElementById('g-table')) mountGame();
   const st = S.state;
   renderTop(st);
@@ -976,6 +1020,118 @@ function renderBanner(st) {
   if (rb) rb.onclick = async () => { const r = await emit('game:rebuy'); if (r.ok) toast('리바인 신청 완료! 다음 판부터 적용돼요', 'ok'); };
   const si = el.querySelector('#sitin-btn');
   if (si) si.onclick = () => emit('game:sitin');
+}
+
+// ── 오목 ────────────────────────────────────────────
+function omokStone(c, x, y, extra = '') {
+  return `<circle class="stone stone-${c} ${extra}" cx="${x + 0.5}" cy="${y + 0.5}" r="0.44"></circle>`;
+}
+function omokBoardSVG(o, preview, myColor) {
+  const lines = [];
+  for (let i = 0; i < 15; i++) {
+    lines.push(`<line x1="0.5" y1="${i + 0.5}" x2="14.5" y2="${i + 0.5}"></line><line x1="${i + 0.5}" y1="0.5" x2="${i + 0.5}" y2="14.5"></line>`);
+  }
+  const stars = [[3, 3], [11, 3], [7, 7], [3, 11], [11, 11]].map(([x, y]) => `<circle class="star" cx="${x + 0.5}" cy="${y + 0.5}" r="0.11"></circle>`).join('');
+  const win = new Set((o.winLine || []).map(([x, y]) => y * 15 + x));
+  const stones = [];
+  for (let i = 0; i < 225; i++) {
+    const c = o.cells[i];
+    if (c === '.') continue;
+    const x = i % 15, y = Math.floor(i / 15);
+    const last = o.lastMove && o.lastMove.x === x && o.lastMove.y === y;
+    stones.push(omokStone(c, x, y, `${win.has(i) ? 'stone-win' : ''} ${last ? 'stone-last' : ''}`));
+    if (last) stones.push(`<circle class="last-dot" cx="${x + 0.5}" cy="${y + 0.5}" r="0.12"></circle>`);
+  }
+  const pv = preview ? omokStone(myColor, preview.x, preview.y, 'stone-preview') : '';
+  return `<svg class="omok-board" id="omok-board" viewBox="0 0 15 15" role="img" aria-label="오목판">
+    <rect x="0" y="0" width="15" height="15" class="omok-wood"></rect>
+    <g class="omok-grid">${lines.join('')}</g>${stars}${stones.join('')}${pv}</svg>`;
+}
+function omokPlayerHTML(p, color, st, label) {
+  if (!p) return `<div class="omok-player"><span class="muted">상대를 기다리는 중</span></div>`;
+  const turn = st.hand && !st.hand.finished && st.hand.toActId === p.id;
+  return `<div class="omok-player ${turn ? 'is-turn' : ''}">
+    ${avatarHTML(p, 'avatar-sm')}<span class="omok-stone-icon stone-${color}"></span>
+    <b>${esc(p.name)}</b>${label ? `<span class="muted small">${label}</span>` : ''}
+    ${turn ? '<span class="tag tag-turn" data-deadline>차례</span>' : ''}</div>`;
+}
+function renderOmok(st) {
+  const h = st.hand;
+  const table = document.getElementById('g-table');
+  const meEl = document.getElementById('g-me');
+  const actEl = document.getElementById('g-actions');
+  const meId = st.me && st.me.id;
+  const o = h && h.omok;
+  if (!o) {
+    table.innerHTML = `<div class="omok-wait"><div class="table-brand">오목</div><p class="muted">${st.room.waiting ? '상대를 기다리는 중이에요' : '곧 시작해요'}</p></div>`;
+    meEl.innerHTML = '<button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>';
+    actEl.innerHTML = '';
+    return;
+  }
+  const ids = Object.keys(o.colors);
+  const myColor = o.colors[meId];
+  const oppId = myColor ? ids.find((id) => id !== meId) : ids.find((id) => o.colors[id] === 'w');
+  const bottomId = myColor ? meId : ids.find((id) => o.colors[id] === 'b');
+  const pOf = (id) => st.players.find((p) => p.id === id);
+  if (S.omokPreview && (h.no !== S.omokPreview.no || o.cells[S.omokPreview.y * 15 + S.omokPreview.x] !== '.' || !h.legal)) S.omokPreview = null;
+  const preview = S.omokPreview;
+  table.innerHTML = `
+    <div class="omok-wrap">
+      ${omokPlayerHTML(pOf(oppId), o.colors[oppId], st, myColor ? '' : '')}
+      <div class="omok-board-box">${omokBoardSVG(o, preview, myColor)}</div>
+      ${h.result ? `<div class="omok-result">${h.result.type === 'draw' ? '무승부예요' : `🏆 ${esc(h.result.winnerNames.join(', '))} 승리${h.result.reason === 'resign' ? ' (기권)' : ''}`}<small>곧 흑백을 바꿔 다음 판을 시작해요</small></div>` : ''}
+    </div>`;
+  meEl.innerHTML = `${omokPlayerHTML(pOf(bottomId), o.colors[bottomId], st, myColor ? '(나)' : '')}
+    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>`;
+  const la = h.legal;
+  if (la) {
+    actEl.innerHTML = `
+      <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
+      <div class="act-info"><span class="my-turn">내 차례 (${myColor === 'b' ? '⚫ 흑' : '⚪ 백'}) · <span data-deadline-text>남은 시간 -</span></span><span>${preview ? '한 번 더 누르면 둬요' : '둘 곳을 누르세요'}${myColor === 'b' ? ' · 흑은 삼삼 금지' : ''}</span></div>
+      <div class="act-row">
+        <button class="btn act act-fold" id="omok-resign">기권</button>
+        <button class="btn act act-raise grow" id="omok-place" ${preview ? '' : 'disabled'}>${preview ? `여기에 두기 (${String.fromCharCode(65 + preview.x)}${preview.y + 1})` : '자리를 고르세요'}</button>
+      </div>`;
+  } else if (h.finished) {
+    actEl.innerHTML = '<div class="wait-line"><span data-next>다음 판을 준비하고 있어요</span></div>';
+  } else {
+    actEl.innerHTML = `<div class="wait-line"><b>${esc(nameOf(h.toActId))}</b>님이 생각 중이에요 · <span data-deadline-text>남은 시간 -</span></div>
+      <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>`;
+  }
+  const place = (x, y) => { S.omokPreview = null; doAct({ type: 'place', x, y }); };
+  const board = document.getElementById('omok-board');
+  board.onclick = (e) => {
+    if (!h.legal) return;
+    const r = board.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / r.width * 15);
+    const y = Math.floor((e.clientY - r.top) / r.height * 15);
+    if (x < 0 || y < 0 || x > 14 || y > 14 || o.cells[y * 15 + x] !== '.') return;
+    if (S.omokPreview && S.omokPreview.x === x && S.omokPreview.y === y) { place(x, y); return; }
+    S.omokPreview = { x, y, no: h.no };
+    sound.play('tick');
+    renderOmok(S.state);
+    tickTimers();
+  };
+  const pb = document.getElementById('omok-place');
+  if (pb) pb.onclick = () => { if (S.omokPreview) place(S.omokPreview.x, S.omokPreview.y); };
+  const rb = document.getElementById('omok-resign');
+  if (rb) rb.onclick = () => { if (confirm('기권할까요?')) doAct({ type: 'resign' }); };
+}
+function omokEffects(st) {
+  const h = st.hand;
+  if (!h || !h.omok) return;
+  const key = `${h.no}:${h.omok.moves}`;
+  if (S.omokLast !== key) { if (S.omokLast && h.omok.moves) sound.play('stone'); S.omokLast = key; }
+  if (h.result && S.omokDone !== h.no) {
+    S.omokDone = h.no;
+    const iWon = h.result.winners.includes(st.me && st.me.id) && h.result.type !== 'draw';
+    if (h.result.type === 'draw') banner('무승부', '', 'win', 1800);
+    else {
+      banner(iWon ? '🏆 내가 이겼다!' : `🏆 ${h.result.winnerNames.join(', ')} 승리`, h.result.reason === 'resign' ? '상대 기권' : '오목 완성!', iWon ? 'mywin' : 'win', 2400);
+      sound.play('fanfare');
+      if (iWon) coinRain(40);
+    }
+  }
 }
 
 function orderedSeats(st) {
@@ -1077,8 +1233,8 @@ function renderTable(st) {
       ? `<div class="side-pots">${h.pots.map((pt, i) => `<span>${i === 0 ? '메인' : `사이드${i}`} ${fmt(pt.amount)}</span>`).join('')}</div>` : '';
     center = `
       <div class="table-center">
-        <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}">${{ preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '🔥 올인 승부' }[h.stage] || ''}</div>
-        <div class="board">${board.join('')}</div>
+        <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}">${(h.game === 'seotda' ? '' : { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '🔥 올인 승부' }[h.stage] || '')}</div>
+        ${h.game === 'seotda' ? `<div class="sd-center">🎴 섯다${h.stage === 'betting' ? ' · 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
         <div class="pot"><span class="chip-icon pot-chip"></span><b>${potText}</b>${h.totalPot > h.pot ? `<span class="pot-note">이번 라운드 ${fmt(h.totalPot - h.pot)} 포함</span>` : ''}</div>
         ${sidePots}
         ${result ? resultHTML(st, result) : ''}
@@ -1099,6 +1255,9 @@ function markCard(key) {
 function resultHTML(st, r) {
   const names = r.winnerNames.map(esc).join(', ');
   const nextIn = '';
+  if (r.redeal) {
+    return `<div class="result"><div class="result-title">🎴 ${esc(r.redeal)}! 재경기</div><p>판돈 ${fmt(r.carry)}을 걸고 살아 있는 사람끼리 다시 쳐요</p></div>`;
+  }
   if (r.type === 'fold') {
     return `<div class="result"><div class="result-title">🏆 ${names}</div><p>다른 사람이 모두 폴드해서 팟을 가져갔어요</p>${nextIn}</div>`;
   }
@@ -1128,7 +1287,9 @@ function renderMe(st) {
   const h = st.hand;
   const cards = mp.cards && mp.cards[0] !== '??' ? mp.cards : null;
   let handName = '';
-  if (cards && h) {
+  if (cards && h && h.game === 'seotda') {
+    handName = rankSeotda(cards[0], cards[1]).name;
+  } else if (cards && h) {
     const all = cards.concat(h.board);
     if (all.length >= 5) handName = bestHand(all).name;
     else handName = cards[0][0] === cards[1][0] ? '포켓 페어' : '';
@@ -1235,6 +1396,7 @@ function renderActions(st) {
     return;
   }
 
+  if (h.game === 'seotda') { renderSeotdaActions(el, st, la, info); return; }
   el.innerHTML = `
     <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
     <div class="act-info"><span class="my-turn">내 차례 · <span data-deadline-text>남은 시간 -</span></span><span>${info.join(' · ')}</span></div>
@@ -1255,6 +1417,41 @@ function renderActions(st) {
       }
       if (t === 'allin' && !confirm(`${fmt(la.stack)} 올인할까요?`)) return;
       doAct({ type: t });
+    };
+  });
+}
+
+// 섯다 베팅: 다이 · 체크 · 삥 · 콜 · 따당 · 하프 · 올인
+function renderSeotdaActions(el, st, la, info) {
+  const h = st.hand;
+  const bb = h.pot !== undefined ? st.room.tournament && st.room.tournament.running ? st.room.tournament.bb : st.room.settings.bb : st.room.settings.bb;
+  const canUp = la.canBet || la.canRaise;
+  const clampTo = (v) => Math.max(la.minTo, Math.min(la.maxTo, Math.round(v)));
+  const btns = [];
+  btns.push(['fold', '다이', '포기', la.canFold || la.canCheck ? { type: la.canFold ? 'fold' : 'check' } : null, 'act-fold']);
+  if (la.canCheck) btns.push(['check', '체크', '넘기기', { type: 'check' }, 'act-check']);
+  else btns.push(['call', la.callAmount < la.toCall ? '올인 콜' : '콜', fmt(la.callAmount), { type: 'call' }, 'act-call']);
+  if (canUp && la.canBet) btns.push(['bbing', '삥', fmt(la.minTo), { type: 'bet', amount: la.minTo }, 'act-raise']);
+  if (canUp && la.canRaise) {
+    const dd = clampTo(la.currentBet * 2);
+    btns.push(['ddadang', '따당', `${fmt(dd)}까지`, dd >= la.maxTo ? { type: 'allin' } : { type: 'raise', amount: dd }, 'act-raise']);
+  }
+  if (canUp) {
+    const half = clampTo(la.currentBet + (h.totalPot + la.toCall) / 2);
+    btns.push(['half', '하프', `${fmt(half)}까지`, half >= la.maxTo ? { type: 'allin' } : { type: la.canBet ? 'bet' : 'raise', amount: Math.max(half, la.minTo) }, 'act-raise']);
+  }
+  btns.push(['allin', '올인', fmt(la.stack), la.canAllIn ? { type: 'allin' } : null, 'act-allin']);
+  void bb;
+  el.innerHTML = `
+    <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
+    <div class="act-info"><span class="my-turn">내 차례 · <span data-deadline-text>남은 시간 -</span></span><span>${info.join(' · ')}</span></div>
+    <div class="act-row sd-acts ${btns.length > 4 ? 'sd-acts-6' : ''}">${btns.map(([k, t, sub, a, c]) => `<button class="btn act ${c}" data-sd="${k}" ${a ? '' : 'disabled'}>${t}<small>${sub}</small></button>`).join('')}</div>`;
+  el.querySelectorAll('[data-sd]').forEach((b) => {
+    const def = btns.find((x) => x[0] === b.dataset.sd);
+    b.onclick = () => {
+      if (!def[3]) return;
+      if (def[3].type === 'allin' && !confirm(`${fmt(la.stack)} 올인할까요?`)) return;
+      doAct(def[3]);
     };
   });
 }
@@ -1413,8 +1610,27 @@ function handTier(cards, board) {
   const sc = bestHand(cards.concat(board)).score;
   return sc.category === 8 && sc.tiebreak[0] === 14 ? 9 : sc.category;
 }
+const SD_BIG = { '38광땡': 9, '18광땡': 8, '13광땡': 8, '장땡': 7 };
+function announceSeotda(st, once) {
+  const h = st.hand;
+  if (!h || !h.reveal) return;
+  const shown = st.players.filter((p) => p.cards && p.cards.length === 2 && p.cards[0] !== '??' && ['inhand', 'allin'].includes(p.status));
+  for (const p of shown) {
+    if (!once('ann:' + p.id)) continue;
+    const r = rankSeotda(p.cards[0], p.cards[1]);
+    const big = r.tier === 'gwang' || r.tier === 'ddaeng';
+    const at = Math.max(Date.now() + 250, S.annAt || 0);
+    S.annAt = at + (big ? 2400 : 1000);
+    setTimeout(() => {
+      handTag(p.id, r.name, big ? 6 : 0);
+      if (big) bigHand(SD_BIG[r.name] || 6, p, { en: r.tier === 'gwang' ? 'GWANG-DDAENG' : 'DDAENG', ko: r.name });
+      sound.say(r.name);
+    }, at - Date.now());
+  }
+}
 function announceHands(st, once) {
   const h = st.hand;
+  if (h && h.game === 'seotda') { announceSeotda(st, once); return; }
   if (!h || !h.reveal || h.board.length < 5) return;
   const shown = st.players.filter((p) => p.cards && p.cards.length === 2 && p.cards[0] !== '??' && ['inhand', 'allin'].includes(p.status));
   for (const p of shown) {
@@ -1441,13 +1657,13 @@ function handTag(id, text, tier) {
   fxLayer().appendChild(el);
   setTimeout(() => el.remove(), 2800);
 }
-function bigHand(tier, p) {
+function bigHand(tier, p, custom = null) {
   const el = document.createElement('div');
   el.className = `fx-bighand fx-tier${tier}`;
-  el.innerHTML = `<div class="fx-big-rays"></div><div class="fx-big-en">${BIG_EN[tier]}</div><div class="fx-big-ko">${HAND_TIERS[tier]}!</div><div class="fx-big-who">${esc(p.name)}</div>`;
+  el.innerHTML = `<div class="fx-big-rays"></div><div class="fx-big-en">${custom ? custom.en : BIG_EN[tier]}</div><div class="fx-big-ko">${esc(custom ? custom.ko : HAND_TIERS[tier])}!</div><div class="fx-big-who">${esc(p.name)}</div>`;
   fxLayer().appendChild(el);
   sound.play('boom');
-  setTimeout(() => sound.play('v_h' + tier, 1.3), 380);
+  if (!custom) setTimeout(() => sound.play('v_h' + tier, 1.3), 380);
   setTimeout(() => { coinRain(tier >= 8 ? 70 : 36); quake(); }, 450);
   if (navigator.vibrate && sound.isUnlocked()) navigator.vibrate([60, 40, 200]);
   setTimeout(() => el.classList.add('out'), 2000);
@@ -1528,6 +1744,7 @@ function countUp(el, to, ms = 1200) {
 
 function celebrate(st) {
   const r = st.hand.result;
+  if (r.redeal) { banner(`🎴 ${r.redeal}!`, '판돈을 걸고 재경기', 'level', 2200); sound.play('stamp'); return; }
   const meId = st.me && st.me.id;
   const iWon = r.winners.includes(meId);
   const big = r.type === 'showdown';

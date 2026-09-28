@@ -178,4 +178,70 @@ function decide(hand, id, style = STYLES[0], stats = {}) {
   return callIfPriced(aggKind === 'allin' ? 0.01 : 0.03);
 }
 
-module.exports = { decide, equity, equityVs, rangeOf, handPct, observeDeal, observeAct, BOTS, BOT_NAMES, STYLES };
+// ── 섯다 ───────────────────────────────────────────
+const seotda = require('./games/seotda');
+const SD_PCT = new Map(); // 두 장 → 190 조합 중 상위 몇 %
+(() => {
+  const d = seotda.newSeotdaDeck();
+  const all = [];
+  for (let i = 0; i < d.length; i++) for (let j = i + 1; j < d.length; j++) all.push([d[i], d[j], seotda.rankSeotda(d[i], d[j]).rank]);
+  all.sort((a, b) => b[2] - a[2]);
+  all.forEach(([a, b], i) => { SD_PCT.set(a + b, (i + 0.5) / all.length); SD_PCT.set(b + a, (i + 0.5) / all.length); });
+})();
+
+function seotdaEquity(hole, ranges, iters = 400) {
+  const rest = seotda.newSeotdaDeck().filter((c) => !hole.includes(c));
+  let win = 0;
+  for (let it = 0; it < iters; it++) {
+    const d = rest.slice();
+    let top = 0;
+    const take = () => { const j = top + Math.floor(Math.random() * (d.length - top)); [d[top], d[j]] = [d[j], d[top]]; return d[top++]; };
+    const hands = { me: hole };
+    ranges.forEach((r, k) => {
+      const mark = top; let a, b, tries = 0;
+      do { top = mark; a = take(); b = take(); } while (r < 1 && SD_PCT.get(a + b) > r && ++tries < 30);
+      hands['o' + k] = [a, b];
+    });
+    const { eff, redeal } = seotda.resolveShowdown(hands);
+    if (redeal) { win += 0.5; continue; }
+    const best = Math.max(...Object.values(eff));
+    const ties = Object.values(eff).filter((v) => v === best).length;
+    if (eff.me === best) win += 1 / ties;
+  }
+  return win / iters;
+}
+
+/** 섯다 봇: 상대 범위 대비 승률 → 팟 오즈 */
+function decideSeotda(hand, id, style = STYLES[0], stats = {}) {
+  const la = hand.legalActions(id);
+  const me = hand.seatOf(id);
+  const others = hand.seats.filter((s) => !s.folded && s.id !== id);
+  const pot = hand.totalPot;
+  const facing = la.toCall > 0;
+  const odds = facing ? la.toCall / (pot + la.toCall) : 0;
+  const r = Math.random();
+  const ranges = others.slice(0, 5).map((s) => (['bet', 'raise', 'allin'].includes(s.lastAction) ? rangeOf(stats, s.id, s.allIn ? 'allin' : 'raise') : 1));
+  const eq = seotdaEquity(me.hole, ranges);
+  const sizeTo = (frac) => {
+    const to = Math.round((la.currentBet + Math.max(pot + la.toCall, hand.bb) * frac) / hand.bb) * hand.bb;
+    return Math.max(la.minTo, Math.min(la.maxTo, to));
+  };
+  const aggressive = (frac, shoveEq) => {
+    if (!la.canBet && !la.canRaise) return null;
+    const to = sizeTo(frac);
+    if (to >= la.maxTo * 0.75) return eq >= shoveEq ? { type: 'allin' } : null;
+    return { type: la.canBet ? 'bet' : 'raise', amount: to };
+  };
+  const heads = others.length === 1;
+  const strong = heads ? 0.72 : 0.55;
+  if (!facing) {
+    if (eq > strong && r < 0.5 + style.aggro * 0.5) return aggressive(eq > 0.85 ? 0.8 : 0.5, 0.7) || { type: 'check' };
+    if (eq > (heads ? 0.55 : 0.4) && r < style.aggro * 0.6) return aggressive(0.3, 1.01) || { type: 'check' };
+    if (r < style.bluff) return aggressive(0.3, 1.01) || { type: 'check' };
+    return { type: 'check' };
+  }
+  if (eq > 0.8 && r < 0.3 + style.aggro * 0.5) return aggressive(0.8, 0.72) || { type: 'call' };
+  return eq > odds + 0.02 - style.loose ? { type: 'call' } : { type: 'fold' };
+}
+
+module.exports = { decide, decideSeotda, seotdaEquity, equity, equityVs, rangeOf, handPct, observeDeal, observeAct, BOTS, BOT_NAMES, STYLES };

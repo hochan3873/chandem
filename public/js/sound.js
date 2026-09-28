@@ -166,6 +166,8 @@ const SYNTH = {
   },
   // 박수 (짧은 잡음 여러 번)
   clap: () => { for (let i = 0; i < 9; i++) setTimeout(() => noise(0.07, { freq: 1500 + Math.random() * 800, q: 1.2, gain: 0.35 }), i * 90 + Math.random() * 40); },
+  // 바둑돌 놓는 소리 (나무판에 딱)
+  stone: () => { tone(1100, 0.05, { type: 'triangle', gain: 0.35 }); noise(0.06, { freq: 3200, q: 2, gain: 0.3 }); tone(320, 0.08, { type: 'sine', gain: 0.25 }); },
   pop: () => { tone(900, 0.08, { type: 'sine', gain: 0.2 }); tone(1400, 0.1, { type: 'sine', gain: 0.15, at: 0.05 }); },
   // 올인 승부 시작: 점점 커지는 스네어 롤 + 마지막 한 방
   drumroll: () => {
@@ -214,6 +216,12 @@ function speak(text) {
     u.lang = 'ko-KR'; u.rate = 1.05; u.volume = Math.min(1, prefs.volume + 0.2);
     speechSynthesis.speak(u);
   } catch {}
+}
+
+/** 짧은 말을 기기 음성으로 (섯다 족보 등 파일이 없는 말) */
+export function say(text) {
+  if (!unlocked || prefs.muted || !prefs.voice) return;
+  speak(text);
 }
 
 /** name: 효과음 이름 (deal, chip, check …) 또는 음성 이름 (v_call …, e_angry …) */
