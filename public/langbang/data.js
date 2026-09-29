@@ -144,24 +144,28 @@ export function starsFor(hpFrac) { return hpFrac >= 0.7 ? 3 : hpFrac >= 0.35 ? 2
 
 // 난이도 숫자 (밸런스 스크립트 scripts/lb-balance.js 로 맞춘 값)
 export const STAGE = {
-  levelPerStage: 1.1, levelPow: 0.8,
-  chapterAdd: [0, 1.8, 1.2], // 2챕터부터 동료가 2명이라 그만큼 더 단단하게 (첫 웨이브 난이도 = 1 + 1.1 × (s-1)^0.8 + 챕터 보정)
-  bossStage: { 1: [1.2, 3.6], 2: [0.8, 1.2], 3: [0.6, 1.0] }, // x-5 · x-10 스테이지는 조금 더 어렵게 (1-10 은 강화가 필요, 2·3챕터 끝은 보스 2명)
-  levelPerWave: 1.15, // 스테이지 안에서 웨이브마다 +1.15 (첫 웨이브는 쉽게, 뒤로 갈수록 확)
+  levelPerStage: 0.55, levelPow: 0.8, wavePerStage: 0.08,
+  chapterAdd: [0, 0.8, 0], // 2챕터부터 동료가 2명이라 그만큼 더 단단하게 (첫 웨이브 난이도 = 1 + 1.1 × (s-1)^0.8 + 챕터 보정)
+  bossStage: { 1: [1.2, 3.8], 2: [0.4, -0.4], 3: [-0.9, -0.9] }, // x-5 · x-10 스테이지는 조금 더 어렵게 (1-10 은 강화가 필요, 2·3챕터 끝은 보스 2명)
+  levelPerWave: 1.75, // 스테이지 안에서 웨이브마다 +1.6 (+ 스테이지마다 0.08씩 더) (첫 웨이브는 쉽게, 뒤로 갈수록 확)
   baseCount: 12, // 1-1 첫 웨이브 적 수
   countPerStage: 0.02,
   countPerWave: 0.3,
   waveSec: 13, // 적이 나오는 시간(초)
   waveSecPerStage: 0.12,
-  themeMul: 5, // 스테이지 주인공 계열 비중 배율
+  themeMul: 7, // 스테이지 주인공 계열 비중 배율
   themeOther: 0.2, // 그때 꼬충(유혹형) 비중
-  themeRest: 0.55, // 나머지 계열 비중
+  themeRest: 0.4,
+  themeThug: 3,
+  stageAdd: { 19: 0.6, 29: 2.6 }, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
 export function stageLevel(s, w) {
   const n = stageNo(s);
   const bs = STAGE.bossStage[chapterOf(s)];
   const boss = n === 10 ? bs[1] : n === 5 ? bs[0] : 0;
-  return 1 + STAGE.levelPerStage * Math.pow(s - 1, STAGE.levelPow) + (w - 1) * STAGE.levelPerWave + boss + STAGE.chapterAdd[chapterOf(s) - 1];
+  // 첫 웨이브는 새로 시작한 멤버도 버티게 천천히, 스테이지 안에서 웨이브마다 가파르게 (뒤 스테이지일수록 더)
+  return 1 + STAGE.levelPerStage * Math.pow(s - 1, STAGE.levelPow) + (w - 1) * (STAGE.levelPerWave + STAGE.wavePerStage * (s - 1)) + boss + STAGE.chapterAdd[chapterOf(s) - 1] + (STAGE.themeLevel[stageTheme(s)] || 0) + (STAGE.stageAdd[s] || 0);
 }
 // 적은 스테이지마다 조금씩 늘어난다:
 //  1챕터 꼬충 → 먹튀(1-3) → 술진상(1-4) → 폭력배(1-8)
@@ -194,7 +198,7 @@ export function stageMix(s, raw) {
     for (const m of mix) {
       const c = ENEMIES[m[0]].cls;
       if (m[0] === 'gao') continue; // 가오충은 말빨이 약점이라 주인공으로 몰아넣지 않는다
-      if (c === th) m[1] *= STAGE.themeMul;
+      if (c === th) m[1] *= m[0] === 'thug' ? STAGE.themeThug : STAGE.themeMul; // 폭력배는 단단해서 조금만
       else if (c === 'seduce') m[1] *= STAGE.themeOther;
       else m[1] *= STAGE.themeRest;
     }
@@ -206,6 +210,7 @@ const FEW = ['thug', 'mukti', 'inpi_dictator', 'inpi_gossip', 'scammer', 'inpi_t
 const THEMES = [null, 'seduce', 'seduce', 'jerk', 'jerk', 'violent', 'violent', 'politic', 'jerk', 'violent', 'mix'];
 export function stageTheme(s) {
   const t = THEMES[stageNo(s)];
+  if (chapterOf(s) === 3 && stageNo(s) === 9) return 'politic'; // 3-9 최후의 방어선: 인피 총동원
   return t === 'politic' && chapterOf(s) === 1 ? 'seduce' : chapterOf(s) === 3 && t === 'seduce' ? 'politic' : t;
 }
 // 보스: x-5, x-10 마지막 웨이브
@@ -263,10 +268,10 @@ export const MAP_FX = {
   megaphone: { id: 'megaphone', icon: '📢', name: '인피 확성기', desc: '10초마다 진상들이 3초 동안 30% 빨라진다', every: 10, sec: 3, speed: 1.3 },
 };
 // 스테이지별 맵 효과 (1챕터는 순하게, 뒤로 갈수록 적 구성과 맞물리게)
-const STAGE_FX = [
-  'none', 'none', 'none', 'rain', 'none', 'icy', 'happy', 'rain', 'fog', 'none',
-  'happy', 'karaoke', 'rain', 'construction', 'icy', 'feast', 'karaoke', 'fog', 'blackout', 'happy',
-  'megaphone', 'karaoke', 'construction', 'blackout', 'icy', 'feast', 'megaphone', 'fog', 'blackout', 'megaphone',
+const STAGE_FX = [ // 속성 버프가 있는 효과(노래방·안개=말빨, 회식=술)는 그 속성이 추천인 스테이지에만
+  'none', 'none', 'none', 'rain', 'none', 'icy', 'happy', 'rain', 'icy', 'karaoke',
+  'happy', 'karaoke', 'rain', 'construction', 'icy', 'construction', 'karaoke', 'rain', 'blackout', 'feast',
+  'megaphone', 'karaoke', 'construction', 'blackout', 'icy', 'happy', 'fog', 'rain', 'blackout', 'feast',
 ];
 export function stageFx(s) { return MAP_FX[STAGE_FX[s - 1] || 'none']; }
 
@@ -316,7 +321,7 @@ export function typeMul(attr, cls) { return (TYPE_CHART[attr] && TYPE_CHART[attr
 export function stageClasses(s) {
   const w = {};
   for (const [id, wt] of stageMix(s)) { const c = ENEMIES[id].cls; w[c] = (w[c] || 0) + wt * (ENEMIES[id].hp > 60 ? 2 : 1); }
-  for (const id of stageBosses(s)) { const c = ENEMIES[id].cls; w[c] = (w[c] || 0) + 1.2; }
+  for (const id of stageBosses(s)) { const c = ENEMIES[id].cls; w[c] = (w[c] || 0) + 3; } // 보스는 체력이 커서 무겁게
   const sum = Object.values(w).reduce((x, y) => x + y, 0) || 1;
   for (const k in w) w[k] /= sum;
   return w;
@@ -328,6 +333,19 @@ export function attrScores(s) {
   for (const a of Object.keys(ATTRS)) { let m = 0; for (const c in w) m += w[c] * typeMul(a, c); out[a] = m; }
   return out;
 }
+// 추천 팀: 속성 상성 × 멤버 딜 비중(kit — 힐러·탱커는 조금 낮게)으로 제일 좋은 조합
+export function recommendTeam(s, avail, slots) {
+  const sc = attrScores(s);
+  const boss = stageBosses(s).length > 0; // 보스 스테이지는 한 명을 오래 때리는 멤버가 유리
+  const val = (c) => c.reduce((x, id) => x + sc[HEROES[id].attr] * (HEROES[id].kit || 1) * (boss ? HEROES[id].bossKit || 1 : 1), 0);
+  let best = null, bv = -1;
+  const pick = (start, cur) => {
+    if (cur.length === slots || cur.length === avail.length) { const v = val(cur); if (v > bv) { bv = v; best = cur.slice(); } return; }
+    for (let i = start; i < avail.length; i++) { cur.push(avail[i]); pick(i + 1, cur); cur.pop(); }
+  };
+  pick(0, []);
+  return best || [];
+}
 export function recommendAttrs(s) {
   const sc = attrScores(s);
   return Object.keys(sc).sort((a, b) => sc[b] - sc[a]).filter((a) => sc[a] > 1.05).slice(0, 2);
@@ -338,7 +356,7 @@ export function recommendAttrs(s) {
 // attr: 속성, attack: 기본 공격 한 줄 설명, skill: 액티브 스킬 (스킬 바에서 누른다)
 export const HEROES = {
   bangjang: {
-    id: 'bangjang', name: '방장', gender: 'm', emoji: '📢', color: '#f6b73c', attr: 'talk',
+    id: 'bangjang', bossKit: 1, kit: 1, name: '방장', gender: 'm', emoji: '📢', color: '#f6b73c', attr: 'talk',
     img: '/img/lb/h_bangjang.webp', role: '리더 · 아군 공속 오라',
     dmg: 17, interval: 0.8, range: 250, proj: 'cone', cone: [0.42, 0.42, 0.55, 0.55, 0.62], coneMax: 7, kb: 10,
     aura: [0.08, 0.1, 0.16, 0.19, 0.26], // 모든 아군 공격 속도 +%
@@ -348,7 +366,7 @@ export const HEROES = {
     skill: { id: 'rally', name: '집합!', cd: 22, desc: '5초 동안 모두 공격 속도 +50%', sec: [5, 5, 6, 6, 7], spd: [0.5, 0.5, 0.5, 0.6, 0.7] },
   },
   staff: {
-    id: 'staff', name: '운영진', gender: 'f', emoji: '📋', color: '#5ab0ff', attr: 'talk',
+    id: 'staff', bossKit: 0.9, kit: 1.0, name: '운영진', gender: 'f', emoji: '📋', color: '#5ab0ff', attr: 'talk',
     img: '/img/lb/h_staff.webp', role: '경고장 · 감속/강퇴',
     dmg: 49, interval: 0.6, range: 400, proj: 'warn', projSpeed: 480,
     slow: 0.42, slowSec: 1.6,
@@ -358,16 +376,16 @@ export const HEROES = {
     skill: { id: 'redcard', name: '레드카드', cd: 18, target: true, desc: '찍은 곳 진상들 60% 감속 + 피해', r: [90, 90, 110, 110, 125], slowSec: 4, dmgMul: 2.5 },
   },
   gunman: {
-    id: 'gunman', name: '건전남', gender: 'm', emoji: '🙋‍♂️', color: '#4fd18b', attr: 'power',
+    id: 'gunman', bossKit: 1.3, kit: 0.95, name: '건전남', gender: 'm', emoji: '🙋‍♂️', color: '#4fd18b', attr: 'power',
     img: '/img/lb/h_gunman.webp', role: '저격수 · 최장 사거리',
-    dmg: 21, interval: 0.44, range: 600, proj: 'bullet', projSpeed: 900, critBonus: 0.22,
+    dmg: 23, interval: 0.44, range: 600, proj: 'bullet', projSpeed: 900, critBonus: 0.22,
     attack: '새총 — 가장 먼 곳까지 빠른 단발, 치명타가 잘 터진다',
     desc: '건전하게, 그러나 정확하게. 멀리 있는 놈부터 저격하는 새총 명사수.',
     perks: { 3: '새총알이 1명 관통 · 치명타 +10%', 5: '4발마다 "헤드샷" (무조건 치명타 ×3)' },
     skill: { id: 'frenzy', name: '난사', cd: 20, desc: '3초 동안 가까운 진상들에게 폭풍 연사', sec: [3, 3, 3.5, 3.5, 4], every: 0.07 },
   },
   gunnyeo: {
-    id: 'gunnyeo', name: '건전녀', gender: 'f', emoji: '🙋‍♀️', color: '#ff8fc0', attr: 'charm',
+    id: 'gunnyeo', bossKit: 0.8, kit: 1.0, name: '건전녀', gender: 'f', emoji: '🙋‍♀️', color: '#ff8fc0', attr: 'charm',
     img: '/img/lb/h_gunnyeo.webp', role: '범위 딜 + 랑방 회복',
     dmg: 32, interval: 0.85, range: 430, proj: 'heart', projSpeed: 1, lobSec: 0.6, splash: 46,
     heal: [[6, 0.03], [6, 0.035], [5, 0.04], [5, 0.045], [4, 0.055]], // [주기(초), 최대 내구도 대비 회복량]
@@ -378,9 +396,9 @@ export const HEROES = {
   },
   // ── 해금 영웅 (스테이지를 깨면 합류) ──
   myunghoon: {
-    id: 'myunghoon', name: '서명훈', gender: 'm', emoji: '🦊', color: '#e8a25a', unlock: true, attr: 'talk',
+    id: 'myunghoon', bossKit: 0.8, kit: 1.05, name: '서명훈', gender: 'm', emoji: '🦊', color: '#e8a25a', unlock: true, attr: 'talk',
     img: '/img/lb/h_myunghoon.webp', role: '연쇄 욕설 · 기절',
-    dmg: 23, interval: 0.75, range: 330, proj: 'swear', projSpeed: 560,
+    dmg: 21, interval: 0.75, range: 330, proj: 'swear', projSpeed: 560,
     stun: [[0.22, 0.8], [0.24, 0.9], [0.27, 1.0], [0.3, 1.1], [0.34, 1.2]], // [기절 확률, 기절 시간(초)]
     bounces: [2, 2, 2, 3, 3], // 첫 적 다음에 튕기는 수 (총 3~5명)
     stunnedBonus: [1.5, 1.5, 1.5, 1.5, 2.0], // 기절한 적에게 피해 배율
@@ -391,7 +409,7 @@ export const HEROES = {
     skill: { id: 'curse', name: '쌍욕 폭격', cd: 20, target: true, desc: '찍은 곳 진상들 기절 (들킨 사기꾼은 2배)', r: [95, 95, 110, 110, 125], stun: [1.5, 1.5, 1.8, 1.8, 2.2], dmgMul: 1.5 },
   },
   dohoon: {
-    id: 'dohoon', name: '김도훈', gender: 'm', emoji: '🎤', color: '#b58cff', unlock: true, attr: 'booze',
+    id: 'dohoon', bossKit: 0.7, kit: 0.6, name: '김도훈', gender: 'm', emoji: '🎤', color: '#b58cff', unlock: true, attr: 'booze',
     img: '/img/lb/h_dohoon.webp', role: '힐러 · 떼창 오라 · 제어',
     dmg: 21, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, slow: 0.2, slowSec: 1,
     regen: [0.0025, 0.0028, 0.0035, 0.0038, 0.0046], // 떼창: 초당 입구 최대 내구도의 %
@@ -402,7 +420,7 @@ export const HEROES = {
     skill: { id: 'encore', name: '무한 앵콜', cd: 26, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 근처 진상 춤추느라 멈춤', heal: [0.12, 0.12, 0.15, 0.15, 0.18], r: 230, dance: [2.5, 2.5, 2.8, 2.8, 3.3] },
   },
   ingyu: {
-    id: 'ingyu', name: '백인규', gender: 'm', emoji: '🏋️', color: '#3f8cff', unlock: true, attr: 'power',
+    id: 'ingyu', bossKit: 1.15, kit: 0.95, name: '백인규', gender: 'm', emoji: '🏋️', color: '#3f8cff', unlock: true, attr: 'power',
     img: '/img/lb/h_ingyu.webp', role: '탱커 · 덤벨 · 오토바이 돌진',
     dmg: 48, interval: 1.75, range: 420, proj: 'dumbbell', projSpeed: 1, lobSec: 0.5, splash: 34,
     moto: { every: [8, 8, 7, 7, 6], mul: 2.0, speed: 560, kb: 60, w: 30 }, // 덤벨 8번 → 자기 줄로 오토바이 돌진
@@ -414,7 +432,7 @@ export const HEROES = {
     skill: { id: 'moto3', name: '3대 500', cd: 22, desc: '오토바이 3대를 부채꼴로 동시에 출발!', n: [3, 3, 3, 3, 4] },
   },
   donghan: {
-    id: 'donghan', name: '문동한', gender: 'm', emoji: '😪', color: '#8fb3a0', unlock: true, attr: 'charm',
+    id: 'donghan', bossKit: 0.9, kit: 1.0, name: '문동한', gender: 'm', emoji: '😪', color: '#8fb3a0', unlock: true, attr: 'charm',
     img: '/img/lb/h_donghan.webp', imgOn: '/img/lb/h_donghan_on.webp', role: '간보기 · 한 방 폭발',
     dmg: 7, interval: 1.1, range: 320, proj: 'snack', projSpeed: 420, slow: 0.2, slowSec: 1,
     meter: { base: [6.5, 7, 7.5, 8, 9], perNear: 1.1, nearY: 200, hpLow: 12 }, // 간보기 게이지 (초당)
@@ -425,7 +443,7 @@ export const HEROES = {
     skill: { id: 'serious', name: '진심 모드', cd: 24, desc: '간보기 게이지 바로 가득 + 다음 빔 1.5배' },
   },
   youngjun: {
-    id: 'youngjun', name: '김영준', gender: 'm', emoji: '🐆', color: '#7a4dff', unlock: true, attr: 'booze',
+    id: 'youngjun', bossKit: 1.2, kit: 0.95, name: '김영준', gender: 'm', emoji: '🐆', color: '#7a4dff', unlock: true, attr: 'booze',
     img: '/img/lb/h_youngjun.webp', imgOn: '/img/lb/h_youngjun_dash.webp', role: '근접 돌격 · 초고속 연속 베기',
     dmg: 17, interval: 0.14, range: 350, proj: 'dash', outSec: [3, 3, 3.3, 3.3, 3.6], restSec: [1.6, 1.6, 1.4, 1.4, 1.1], reach: 70,
     attack: '돌격 — 제일 몰린 곳으로 뛰어들어 초고속 연속 베기(가오 무시), 돌아와서 크로스핏',
@@ -435,20 +453,20 @@ export const HEROES = {
   },
   // ── HIDDEN ──
   eunok: {
-    id: 'eunok', name: '최은옥', gender: 'f', emoji: '🍶', color: '#ff5a4f', hidden: true, attr: 'booze',
+    id: 'eunok', bossKit: 1.0, kit: 1.1, name: '최은옥', gender: 'f', emoji: '🍶', color: '#ff5a4f', hidden: true, attr: 'booze',
     img: '/img/lb/h_eunok.webp', imgRage: '/img/lb/h_eunok_rage.webp', role: 'HIDDEN · 술 마시면 분노 모드',
     dmg: 21, interval: 0.9, range: 390, proj: 'bottle', projSpeed: 1, lobSec: 0.55, splash: 55,
     soberSec: [20, 20, 18, 18, 15], rageSec: [9, 10, 11, 12, 13],
-    rageDmg: 1.45, rageInterval: 0.45, fire: { sec: 2.2, r: 50, dps: 0.6 }, // 분노 중 불바다 (1발 피해 × 0.6 / 초)
+    rageDmg: 1.55, rageInterval: 0.45, fire: { sec: 2.2, r: 50, dps: 0.6 }, // 분노 중 불바다 (1발 피해 × 0.6 / 초)
     attack: '소주병 — 던지면 깨지며 범위 폭발, 분노 중엔 불바다',
     desc: '홀짝홀짝… 20초가 지나면 취해서 "분노 모드"가 된다.',
     perks: { 3: '분노 중 불바다가 더 넓고 오래', 5: '더 빨리 취하고 더 오래 분노' },
     skill: { id: 'oneshot', name: '원샷', cd: 25, desc: '바로 분노 모드! (분노 중이면 +5초)' },
   },
   hanna: {
-    id: 'hanna', name: '이한나', gender: 'f', emoji: '😉', color: '#ff6fd8', hidden: true, attr: 'charm',
+    id: 'hanna', bossKit: 1.15, kit: 1.05, name: '이한나', gender: 'f', emoji: '😉', color: '#ff6fd8', hidden: true, attr: 'charm',
     img: '/img/lb/h_hanna.webp', role: 'HIDDEN · 하트 레이저 · 윙크 넉백',
-    dmg: 30, interval: 0.7, range: 370, proj: 'beam', beamTick: 0.12, ramp: [0.5, 0.5, 0.7, 0.7, 0.9], rampMax: 2.5, kbEvery: 1.3,
+    dmg: 33, interval: 0.7, range: 370, proj: 'beam', beamTick: 0.12, ramp: [0.5, 0.5, 0.7, 0.7, 0.9], rampMax: 2.5, kbEvery: 1.3,
     knockback: [60, 70, 80, 90, 105],
     attack: '하트 레이저 — 한 명에게 계속 쏘면 점점 세진다, 남자는 가끔 뒤로 밀림',
     desc: '"윙크 ♥" 레이저에 맞은 남자는 정신 못 차리고 뒤로 날아간다. 여자는 그냥 아프다.',
@@ -456,9 +474,9 @@ export const HEROES = {
     skill: { id: 'winkbomb', name: '윙크 폭탄', cd: 20, target: true, desc: '찍은 곳: 남자는 날려 버리고 여자는 홀려서 멈춤', r: [105, 105, 120, 120, 135], kb: 110, stun: 1.2 },
   },
   sunggu: {
-    id: 'sunggu', name: '강성구', gender: 'm', emoji: '🦯', color: '#c9a36b', hidden: true, attr: 'power',
+    id: 'sunggu', bossKit: 1.1, kit: 1.0, name: '강성구', gender: 'm', emoji: '🦯', color: '#c9a36b', hidden: true, attr: 'power',
     img: '/img/lb/h_sunggu.webp', role: 'HIDDEN · 지팡이 무한 관통',
-    dmg: 44, interval: 2.1, range: 620, proj: 'cane', projSpeed: 430, lv5Interval: 0.85,
+    dmg: 48, interval: 2.1, range: 620, proj: 'cane', projSpeed: 430, lv5Interval: 0.85,
     attack: '지팡이 — 아주 길게 일직선, 그 줄의 진상 전부 관통',
     desc: '"요즘 것들은…" 지팡이를 던지면 한 줄에 있는 놈들이 전부 맞는다.',
     perks: { 3: '지팡이가 부메랑처럼 돌아온다', 5: '지팡이 2개 · 공격 속도 +15%' },

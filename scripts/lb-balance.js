@@ -337,16 +337,19 @@ function seeded(seed = 1) {
       else for (let i = 0; i < avail.length; i++) for (let j = i + 1; j < avail.length; j++) combos.push([avail[i], avail[j]]);
       const val = (c) => c.reduce((x, id) => x + sc[D.HEROES[id].attr], 0);
       combos.sort((a, b) => val(b) - val(a));
-      return best ? combos[0] : combos[combos.length - 1];
+      return best ? D.recommendTeam(s, avail, slots) : combos[combos.length - 1];
     };
     const kinds = [['좋은 팀+스킬', true, true], ['좋은 팀', true, false], ['나쁜 팀', false, false]];
     const per = {}; const curve = [];
+    const only = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
     for (let s = 1; s <= 30; s++) {
+      if (only.length && !only.includes(s)) continue;
       const m = metaAt(s);
       const meta = Object.fromEntries(Object.keys(D.HEROES).map((id) => [id, m]));
       const row = [];
       for (const [k, best, sk] of kinds) {
         const team = teamFor(s, best);
+        if (process.argv.includes('--teams')) console.log(D.stageLabel(s), k, team.join('+'));
         let w = 0, st = 0, t = 0;
         for (let i = 1; i <= N; i++) { const r = play({ stage: s, team, partner: team[0], meta, items: itemsAt(s), seed: i * 97 + s, unlocked: [], skills: sk }); if (r.win) { w++; st += r.stars; t += r.t; } }
         const c = D.chapterOf(s);
@@ -361,11 +364,11 @@ function seeded(seed = 1) {
     console.log(pad('팀', 16) + [1, 2, 3].map((c) => pad(`${c}장 클리어(별)`, 18)).join('') + '클리어 판 평균 시간');
     for (const [k] of kinds) {
       let tt = 0, tw = 0;
-      const cells = [1, 2, 3].map((c) => { const P = per[k + c]; tt += P.t; tw += P.tw; return pad(`${Math.round((P.w / P.n) * 100)}% (${(P.st / Math.max(1, P.w)).toFixed(1)}★)`, 18); });
+      const cells = [1, 2, 3].map((c) => { const P = per[k + c]; if (!P) return pad('-', 18); tt += P.t; tw += P.tw; return pad(`${Math.round((P.w / P.n) * 100)}% (${(P.st / Math.max(1, P.w)).toFixed(1)}★)`, 18); });
       console.log(pad(k, 16) + cells.join('') + `${Math.floor(tt / tw / 60)}분 ${Math.round((tt / tw) % 60)}초`);
     }
     console.log('스테이지별 클리어율 % (좋은+스킬/좋은/나쁜):');
-    for (let i = 0; i < 30; i += 10) console.log('  ' + curve.slice(i, i + 10).join('  '));
+    for (let i = 0; i < curve.length; i += 10) console.log('  ' + curve.slice(i, i + 10).join('  '));
   }
 
   const t0 = Date.now();

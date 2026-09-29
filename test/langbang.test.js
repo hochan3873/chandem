@@ -184,14 +184,15 @@ test('스테이지 30개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
       assert.ok(def.g.length > 0);
       for (const [type, n] of def.g) { assert.ok(D.ENEMIES[type], type); assert.ok(n > 0); }
       assert.ok(def.level > prev, `${D.stageLabel(s)} W${w} 난이도 증가`);
-      assert.ok(def.level <= 25, `${D.stageLabel(s)} 난이도 ${def.level} ≤ 25 (스테이지는 무한 모드 가산 없음)`);
-      assert.ok(D.hpMul(def.level, true) < 23, '체력 배율 23배 미만');
+      assert.ok(def.level <= 29, `${D.stageLabel(s)} 난이도 ${def.level} ≤ 29 (스테이지는 무한 모드 가산 없음)`);
+      assert.ok(D.hpMul(def.level, true) < 32, '체력 배율 32배 미만');
+      if (w === 1) assert.ok(def.level <= 12, `${D.stageLabel(s)} 첫 웨이브는 새로 시작한 멤버도 버티게 (${def.level.toFixed(1)})`);
       prev = def.level;
       const boss = w === 5 && [5, 10].includes(D.stageNo(s));
       assert.equal(!!def.boss, boss, `${D.stageLabel(s)} W${w} 보스`);
       if (def.boss) assert.ok(D.ENEMIES[def.boss].boss);
     }
-    if (D.stageNo(s) !== 1) assert.ok(prev >= prevLast - 2.6, `${D.stageLabel(s)} 앞 스테이지보다 너무 쉬워지지 않음`);
+    if (D.stageNo(s) !== 1 && !D.stageBosses(s).length) assert.ok(prev >= prevLast - 2.6, `${D.stageLabel(s)} 앞 스테이지보다 너무 쉬워지지 않음`);
     prevLast = prev;
   }
   // 챕터마다 적이 늘어난다
@@ -811,4 +812,27 @@ test('김영준: 제일 몰린 곳으로 뛰어들어 연속 베기(가오 무�
   g3.heroes[0].skillCd = 0;
   assert.ok(S.castSkill(g3, g3.heroes[0]));
   assert.equal(es.filter((e) => e.hp < e.maxHp).length, 6);
+});
+
+test('맵 효과는 스테이지 추천 속성과 어긋나지 않는다 (노래방·안개 = 말빨 추천, 회식 = 술 추천)', () => {
+  for (let s = 1; s <= 30; s++) {
+    const fx = D.stageFx(s), rec = D.recommendAttrs(s);
+    if (fx.attr) for (const [a, m] of Object.entries(fx.attr)) {
+      if (m > 1) assert.ok(rec.includes(a), `${D.stageLabel(s)} ${fx.name}: ${a} 추천이어야`);
+      else assert.ok(!rec.includes(a), `${D.stageLabel(s)} ${fx.name}: ${a} 가 추천인데 약해짐`);
+    }
+    if (fx.longRange) assert.ok(rec.includes('talk'), `${D.stageLabel(s)} 안개는 말빨 추천 스테이지에`);
+  }
+});
+
+test('추천 팀: 상성 × 멤버 역할 — 보스 스테이지는 한 명을 오래 때리는 멤버를 고른다', () => {
+  const pool = ['staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan'];
+  for (let s = 11; s <= 30; s++) {
+    const t = D.recommendTeam(s, pool, 2);
+    assert.equal(t.length, 2);
+    const rec = D.recommendAttrs(s);
+    if (!D.stageBosses(s).length) assert.ok(t.some((id) => rec.includes(D.HEROES[id].attr)), `${D.stageLabel(s)} 추천 속성 멤버 포함`);
+  }
+  assert.ok(D.recommendTeam(20, pool, 2).includes('gunman') || D.recommendTeam(20, pool, 2).includes('ingyu'), '2-10 보스엔 단일 딜러');
+  assert.ok(!D.recommendTeam(20, pool, 2).includes('dohoon'), '힐러만 둘은 아님');
 });

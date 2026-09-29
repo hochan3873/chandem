@@ -3,7 +3,7 @@ import {
   HEROES, ENEMIES, RULES, FIELD, BASE_HEROES, UNLOCK_HEROES, HIDDEN_HEROES, LOCKED_HEROES, RARITY, SCORE,
   CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
-  ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, stageFx, MAP_FX, partnerSlots,
+  ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
 } from './data.js';
 import * as S from './sim.js';
 import { Renderer } from './render.js';
@@ -1248,7 +1248,9 @@ function teamLine() {
   const ids = ['bangjang', ...app.partners];
   const rec = app.mode === 'stage' ? recommendAttrs(app.stage) : [];
   const hit = ids.filter((id) => rec.includes(HEROES[id].attr)).length;
-  return `팀: ${ids.map((id) => `${HEROES[id].name}${ATTRS[HEROES[id].attr].icon}`).join(' + ')}${rec.length ? ` · 추천 속성 ${rec.map((a) => ATTRS[a].icon).join('')} ${hit ? `<b class="ok">${hit}명 맞음</b>` : '<b class="no">0명</b>'}` : ''}`;
+  const avail = partnerList().filter(heroOk);
+  const best = app.mode === 'stage' ? recommendTeam(app.stage, avail, slotsNow()) : [];
+  return `팀: ${ids.map((id) => `${HEROES[id].name}${ATTRS[HEROES[id].attr].icon}`).join(' + ')}${rec.length ? ` · 추천 속성 ${rec.map((a) => ATTRS[a].icon).join('')} ${hit ? `<b class="ok">${hit}명 맞음</b>` : '<b class="no">0명</b>'}` : ''}${best.length ? `<br><small>💡 추천 팀: 방장 + ${best.map((id) => HEROES[id].name).join(' + ')}</small>` : ''}`;
 }
 function showPrep(mode, s) {
   if (mode === 'stage' && !stageUnlocked(s)) s = nextStage();
