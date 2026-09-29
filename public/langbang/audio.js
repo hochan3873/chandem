@@ -8,8 +8,6 @@ let noiseBuf = null;
 let muted = false;
 try { muted = localStorage.getItem(LS_KEY) === '1'; } catch { /* 저장소 막힘 */ }
 const last = new Map(); // 효과음별 마지막 재생 시각 (너무 잦은 재생 방지)
-let bgm = null;
-let bgmOk = true;
 
 export function unlock() {
   if (!ctx) {
@@ -36,22 +34,59 @@ export function setMuted(v) {
   muted = !!v;
   try { localStorage.setItem(LS_KEY, muted ? '1' : '0'); } catch { /* 무시 */ }
   if (master) master.gain.value = muted ? 0 : 0.55;
-  if (bgm) { if (muted) bgm.pause(); else playBgm(); }
+  if (muted) { for (const a of Object.values(players)) a.pause(); curKey = null; } else if (playing) { curKey = null; playBgm(); }
 }
 
-// 배경음악: 파일이 없으면 조용히 포기
-export function playBgm() {
-  if (muted || !bgmOk) return;
-  if (!bgm) {
-    bgm = new Audio('/sounds/bgm_langbang.mp3');
-    bgm.loop = true;
-    bgm.volume = 0.4;
-    bgm.addEventListener('error', () => { bgmOk = false; });
+// 배경음악: 챕터마다 다른 곡 + 보스 웨이브 곡 (필요할 때만 불러온다). 바꿀 때는 부드럽게 겹쳐서
+const TRACKS = {
+  1: '/sounds/bgm_langbang.mp3', 2: '/sounds/bgm_lb2.mp3', 3: '/sounds/bgm_lb3.mp3',
+  4: '/sounds/bgm_lb4.mp3', 5: '/sounds/bgm_lb5.mp3', 6: '/sounds/bgm_lb6.mp3', boss: '/sounds/bgm_lb_boss.mp3',
+};
+const VOL = 0.4;
+const players = {};
+const bad = {};
+let playing = false, want = 1, bossOn = false, curKey = null;
+function player(key) {
+  if (bad[key] || !TRACKS[key]) return null;
+  if (!players[key]) {
+    const a = new Audio(TRACKS[key]);
+    a.loop = true; a.volume = 0; a.preload = 'auto';
+    a.addEventListener('error', () => { bad[key] = true; if (curKey === key) { curKey = null; if (playing) switchTo(1); } });
+    players[key] = a;
   }
-  const p = bgm.play();
-  if (p && p.catch) p.catch(() => {});
+  return players[key];
 }
-export function pauseBgm() { if (bgm) bgm.pause(); }
+let fadeT = 0;
+function switchTo(key) {
+  if (bad[key]) key = bad[want] ? 1 : want;
+  if (bad[key]) return;
+  const next = player(key);
+  if (!next) return;
+  const prev = curKey && curKey !== key ? players[curKey] : null;
+  curKey = key;
+  const p = next.play();
+  if (p && p.catch) p.catch(() => {});
+  clearInterval(fadeT);
+  const t0 = performance.now(), from = next.volume, pfrom = prev ? prev.volume : 0;
+  fadeT = setInterval(() => {
+    const k = Math.min(1, (performance.now() - t0) / 800);
+    next.volume = from + (VOL - from) * k;
+    if (prev) { prev.volume = pfrom * (1 - k); if (k >= 1) prev.pause(); }
+    if (k >= 1) clearInterval(fadeT);
+  }, 50);
+  // 다른 곡은 멈춰 둔다
+  for (const [k2, a] of Object.entries(players)) if (a !== next && a !== prev && !a.paused) a.pause();
+}
+const target = () => (bossOn && !bad.boss ? 'boss' : want);
+export function setChapter(ch) { want = TRACKS[ch] ? ch : 1; if (playing && !muted) switchTo(target()); }
+export function setBoss(on) { if (bossOn === !!on) return; bossOn = !!on; if (playing && !muted) switchTo(target()); }
+export function playBgm() {
+  playing = true;
+  if (muted) return;
+  if (curKey === target() && players[curKey] && !players[curKey].paused) return;
+  switchTo(target());
+}
+export function pauseBgm() { playing = false; clearInterval(fadeT); for (const a of Object.values(players)) a.pause(); curKey = null; for (const a of Object.values(players)) a.volume = 0; }
 
 function ok(name, gap) {
   if (!ctx || muted) return false;
@@ -135,4 +170,14 @@ export const sfx = {
   lose() { if (ok('lose', 2)) [392, 370, 349, 262].forEach((f, i) => tone(f, 0.35, 'triangle', 0.09, 0, i * 0.22)); },
   tap() { if (ok('tap', 0.05)) tone(1000, 0.03, 'sine', 0.04, 1400); },
   join() { if (ok('join', 0.3)) [659, 880, 1175].forEach((f, i) => tone(f, 0.14, 'sine', 0.08, 0, i * 0.06)); },
+  // "와 떴다!" 등장 스팅어: 올라가는 휘릭 + 번쩍 + 팡파레 (LEGEND 는 더 길고 낮은 울림)
+  reveal(kind) {
+    if (!ok('reveal', 1)) return;
+    const lg = kind === 'legend';
+    tone(200, 0.6, 'sawtooth', 0.08, lg ? 1600 : 1200);
+    noise(0.5, 0.12, 2400, 0.7);
+    const notes = lg ? [523, 659, 784, 1046, 1318, 1568] : kind === 'hidden' ? [587, 740, 880, 1175, 1480] : [523, 659, 784, 1046];
+    notes.forEach((f, i) => { tone(f, 0.28, 'square', 0.07, 0, 0.55 + i * 0.09); tone(f * 1.5, 0.22, 'triangle', 0.04, 0, 0.58 + i * 0.09); });
+    if (lg) { tone(65, 1.4, 'sine', 0.3, 50, 0.5); noise(1.0, 0.18, 300, 0.5, 0.5, 'lowpass'); }
+  },
 };

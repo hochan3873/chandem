@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#0b0a16">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="description" content="랑방 대전 — 진상들로부터 우리들의 아지트 랑방을 지켜라! 30스테이지 디펜스 + 무한 도전">
+  <meta name="description" content="랑방 대전 — 진상들로부터 우리들의 아지트 랑방을 지켜라! 스테이지 디펜스 + 주간 도전 + 무한 도전">
   <title>랑방 대전</title>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="찬이의 게임월드">
@@ -20,7 +20,7 @@
   <link rel="apple-touch-icon" href="/img/gw-icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/langbang/style.css">
 </head>
 <body>
@@ -30,7 +30,7 @@
     <!-- 게임 중 HUD -->
     <div id="hud" hidden>
       <div class="hud-top">
-        <button id="btn-pause" class="icon-btn" aria-label="일시정지">❚❚</button>
+        <div class="hl"><button id="btn-pause" class="icon-btn" aria-label="일시정지">❚❚</button><span id="h-time" class="h-time">0:00</span></div>
         <div class="wave-box">
           <b id="h-wave">WAVE 1</b>
           <small><span id="h-left">남은 진상 0</span> <span id="h-fx" class="hfx" data-act="fxInfo"></span></small>
@@ -39,7 +39,7 @@
           <span class="kill" id="h-kills">0</span>
           <span class="score" id="h-score">0</span>
         </div>
-        <button id="btn-mute" class="icon-btn" aria-label="소리">🔊</button>
+        <div class="hr"><button id="btn-speed" class="speed-pill" hidden>×1</button><button id="btn-mute" class="icon-btn" aria-label="소리">🔊</button></div>
       </div>
       <div class="xp-bar"><div id="h-xp"></div><span id="h-lv">Lv.1</span></div>
       <div id="bossbar" hidden>

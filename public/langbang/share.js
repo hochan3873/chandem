@@ -193,7 +193,7 @@ export async function openResultShare(r, host) {
   const box = document.createElement('div');
   box.className = 'share-modal';
   box.innerHTML = `<div class="share-box">
-      <div class="share-img"><span class="spin">⏳</span> 결과 카드 만드는 중…</div>
+      <div class="share-img share-keep"><span class="spin">⏳</span> 결과 카드 만드는 중…</div>
       <p class="share-tip">이미지를 길게 눌러도 저장할 수 있어요</p>
       <button class="btn primary" data-s="share" disabled>📤 공유하기</button>
       <div class="share-row"><button class="btn" data-s="save" disabled>💾 이미지 저장</button><button class="btn" data-s="copy">🔗 링크 복사</button></div>

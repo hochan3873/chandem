@@ -1,7 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
-import { HEROES, ENEMIES } from './data.js';
+import { HEROES, ENEMIES, rowYFor } from './data.js';
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
 const TAU = Math.PI * 2;
@@ -22,6 +22,7 @@ const THEMES = {
   endless: { top: 'rgba(255,40,40,0.22)', bottom: 'rgba(120,0,40,0.3)', glow: 'rgba(255,60,60,0.24)', mode: 'multiply', wash: 'rgba(150,40,60,0.7)' },
 };
 
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 function mkCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.ceil(w));
@@ -93,11 +94,12 @@ export class FX {
       this.part(type, x, y, Math.cos(a) * s, Math.sin(a) * s, life * (0.6 + Math.random() * 0.6), size * (0.7 + Math.random() * 0.6), color, { grav, drag: 3 });
     }
   }
-  num(x, y, v, crit, color) {
+  num(x, y, v, crit, color, eff = 0) {
     const n = this.nums.get();
     if (!n) return;
-    n.x = x + (Math.random() - 0.5) * 14; n.y = y; n.vy = crit ? -70 : -48; n.life = crit ? 0.9 : 0.65; n.max = n.life;
-    n.text = crit ? v + '!' : '' + v; n.crit = crit; n.color = color || (crit ? '#ffd23f' : '#ffffff');
+    n.x = x + (Math.random() - 0.5) * 14; n.y = y; n.vy = crit ? -70 : eff > 0 ? -60 : -48; n.life = crit ? 0.9 : eff > 0 ? 0.8 : 0.6; n.max = n.life;
+    n.text = crit ? v + '!' : '' + v; n.crit = crit; n.eff = eff;
+    n.color = color || (crit ? '#ff7a1a' : eff > 0 ? '#ffb02e' : eff < 0 ? '#9aa0ad' : '#ffffff');
   }
   text(x, y, text, color = '#fff', size = 16, life = 1.1, vy = -36) {
     const t = this.texts.get();
@@ -187,6 +189,7 @@ export class Renderer {
       list['h_' + id] = HEROES[id].img;
       if (HEROES[id].imgRage) list['h_' + id + '_rage'] = HEROES[id].imgRage;
       if (HEROES[id].imgOn) list['h_' + id + '_rage'] = HEROES[id].imgOn; // 문동한: 일어난 모습 (분노 그림 자리에)
+      if (HEROES[id].imgAlt) list['h_' + id + '_alt'] = HEROES[id].imgAlt; // 배현경 날씬 · 고아라 늙음
     }
     this.formDefs = {};
     for (const id in ENEMIES) {
@@ -199,6 +202,7 @@ export class Renderer {
       }
     }
     list.moto = '/img/lb/p_motorcycle.webp';
+    list.gf = '/img/lb/p_girlfriend.webp';
     list.bg = '/img/lb/bg.webp';
     list.bg2 = '/img/lb/bg2.webp';
     list.bg3 = '/img/lb/bg3.webp';
@@ -208,7 +212,7 @@ export class Renderer {
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => {
-        if (key === 'moto') return;
+        if (key === 'moto' || key === 'gf') return;
         if (key === 'bg' || key === 'base' || key === 'bg2' || key === 'bg3') this.bakeBg();
         else this.bakeSprite(key);
       };
@@ -240,6 +244,7 @@ export class Renderer {
     for (const id in HEROES) {
       this.bakeSprite('h_' + id);
       if (HEROES[id].imgRage || HEROES[id].imgOn) this.bakeSprite('h_' + id + '_rage');
+      if (HEROES[id].imgAlt) this.bakeSprite('h_' + id + '_alt');
     }
     for (const id in ENEMIES) this.bakeSprite('e_' + id);
     for (const key in this.formDefs) this.bakeSprite(key);
@@ -251,7 +256,7 @@ export class Renderer {
   bakeSprite(key) {
     const isHero = key[0] === 'h';
     const rage = key.endsWith('_rage');
-    const id = key.slice(2).replace('_rage', '');
+    const id = key.slice(2).replace('_rage', '').replace(/_alt$/, '');
     const def = isHero ? HEROES[id] : ENEMIES[id] || (this.formDefs && this.formDefs[key]);
     if (!def) return;
     if (def.dot) { this.bakeDot(key, def); return; }
@@ -270,12 +275,12 @@ export class Renderer {
         sx.imageSmoothingQuality = 'high';
         sx.drawImage(img, 0, 0, px, px);
         sx.globalCompositeOperation = 'source-in';
-        sx.fillStyle = rage ? '#ffb199' : def.hidden ? '#ffc4f2' : '#fff4d6';
+        sx.fillStyle = rage ? '#ffb199' : def.legend ? '#fff0a8' : def.hidden ? '#ffc4f2' : '#fff4d6';
         sx.fillRect(0, 0, px, px);
-        const r = Math.max(1.5, px * (def.hidden ? 0.02 : 0.014));
-        if (def.hidden) {
+        const r = Math.max(1.5, px * (def.hidden || def.legend ? 0.02 : 0.014));
+        if (def.hidden || def.legend) {
           x.save();
-          x.shadowColor = rage ? 'rgba(255,70,40,0.95)' : 'rgba(255,90,220,0.95)';
+          x.shadowColor = rage ? 'rgba(255,70,40,0.95)' : def.legend ? 'rgba(255,200,40,1)' : 'rgba(255,90,220,0.95)';
           x.shadowBlur = px * 0.06;
           x.drawImage(sil, 0, 0);
           x.drawImage(sil, 0, 0);
@@ -480,6 +485,29 @@ export class Renderer {
       x.beginPath(); x.ellipse(w / 2, h / 2, 7, 5, 0.4, 0, TAU); x.fill(); x.stroke();
       x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillRect(w / 2 - 3, h / 2 - 2, 3, 2);
     });
+    make('gfFb', 32, 32, (x, w, h) => {
+      glow(x, w / 2, h / 2, 16, 'rgba(255,120,190,0.6)');
+      x.fillStyle = '#ffb3d6'; x.strokeStyle = '#8a2a5a'; x.lineWidth = 1.5;
+      x.beginPath(); x.arc(w / 2, h / 2, 11, 0, TAU); x.fill(); x.stroke();
+      x.fillStyle = '#5a2a1a'; x.beginPath(); x.arc(w / 2, h / 2 - 3, 8, Math.PI, 0); x.fill();
+      heart(x, w / 2 + 7, h / 2 - 8, 4, '#ff4f9a', null);
+    });
+    make('jab', 20, 16, (x, w, h) => {
+      glow(x, w / 2, h / 2, 10, 'rgba(255,120,90,0.6)');
+      x.fillStyle = '#ff5a4f'; x.strokeStyle = '#fff'; x.lineWidth = 1.4;
+      roundRect(x, 3, 3, w - 6, h - 6, 5); x.fill(); x.stroke();
+    });
+    make('hammer', 34, 34, (x, w, h) => {
+      glow(x, w / 2, h / 2, 17, 'rgba(255,170,230,0.55)');
+      x.fillStyle = '#ffd1ec'; x.strokeStyle = '#b0407a'; x.lineWidth = 1.6;
+      x.fillRect(w / 2 - 2, h / 2 - 2, 4, 15); x.strokeRect(w / 2 - 2, h / 2 - 2, 4, 15);
+      roundRect(x, 5, 5, w - 10, 13, 5); x.fill(); x.stroke();
+      star(x, w / 2, 11.5, 4, 2, '#ffe14d');
+    });
+    make('crownIco', 22, 16, (x, w, h) => {
+      x.fillStyle = '#ffd23f'; x.strokeStyle = '#7a5200'; x.lineWidth = 1.2;
+      x.beginPath(); x.moveTo(2, h - 2); x.lineTo(3, 4); x.lineTo(7, 9); x.lineTo(11, 2); x.lineTo(15, 9); x.lineTo(19, 4); x.lineTo(20, h - 2); x.closePath(); x.fill(); x.stroke();
+    });
     make('motoFb', 40, 56, (x, w, h) => {
       glow(x, w / 2, h - 8, 16, 'rgba(255,140,40,0.7)');
       x.fillStyle = '#d82a2a'; roundRect(x, 10, 10, w - 20, h - 22, 8); x.fill();
@@ -535,7 +563,7 @@ export class Renderer {
     const ch = this.themeKey === 2 || this.themeKey === 3 ? this.themeKey : 0;
     const own = ch && imgOk(this.images['bg' + ch]); // 챕터 전용 배경이 있으면 그걸로 (색은 살짝만)
     const img = own ? this.images['bg' + ch] : this.images.bg;
-    const rowY = Math.round(H * 0.715);
+    const rowY = rowYFor(H);
     if (imgOk(img)) {
       const sc = Math.max(W / img.naturalWidth, H / img.naturalHeight);
       const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
@@ -1071,6 +1099,95 @@ export class Renderer {
   }
 
   drawRope(g, t) {
+    this.drawBarricade(g, t);
+  }
+  // 방어선 "정회원 통과": 테이블·의자 더미 + 개찰구 + 간판. 입구 내구도에 따라 금 가고 기울고 불꽃이 튄다
+  drawBarricade(g, t) {
+    const cx = this.cx, W = this.W, fx = this.fx;
+    const f = g.base.max ? g.base.hp / g.base.max : 1;
+    const st = f < 0.15 ? 3 : f < 0.4 ? 2 : f < 0.7 ? 1 : 0;
+    const y = g.ropeY + 10;
+    const wob = fx.ropeWobble;
+    const shake = wob > 0 ? Math.sin(t * 60) * wob * 3 : 0;
+    this.world();
+    cx.save();
+    cx.translate(shake, 0);
+    // 테이블 · 의자 더미 (양쪽) + 개찰구 (가운데 줄마다)
+    const tilt = [0, 0.03, 0.08, 0.15][st];
+    const seg = [[4, 72], [288, 356]];
+    for (const [a, b] of seg) {
+      const mid = (a + b) / 2;
+      cx.save();
+      cx.translate(mid, y);
+      cx.rotate((a < 100 ? -1 : 1) * tilt);
+      // 뒤집힌 테이블
+      cx.fillStyle = st >= 2 ? '#4a3020' : '#6b4428'; cx.strokeStyle = '#1e120a'; cx.lineWidth = 2;
+      roundRect(cx, -(b - a) / 2, -18, b - a, 12, 3); cx.fill(); cx.stroke();
+      cx.fillStyle = '#3a2416';
+      for (const lx of [-(b - a) / 2 + 6, (b - a) / 2 - 10]) { cx.fillRect(lx, -30, 4, 14); cx.strokeRect(lx, -30, 4, 14); }
+      // 플라스틱 의자
+      cx.fillStyle = st >= 3 ? '#8a2430' : '#c8323f';
+      roundRect(cx, -12, -34, 24, 14, 3); cx.fill(); cx.stroke();
+      cx.fillRect(-10, -20, 3, 12); cx.fillRect(7, -20, 3, 12);
+      cx.restore();
+    }
+    // 개찰구 (정회원 전용 게이트) — 가운데
+    const gates = [96, 150, 210, 264];
+    for (let i = 0; i < gates.length; i++) {
+      const gx = gates[i];
+      const lean = st >= 2 ? Math.sin(i * 2.1 + 1) * tilt : 0;
+      cx.save();
+      cx.translate(gx, y);
+      cx.rotate(lean);
+      cx.fillStyle = '#2a2f3e'; cx.strokeStyle = '#0c0e16'; cx.lineWidth = 2;
+      roundRect(cx, -9, -26, 18, 28, 4); cx.fill(); cx.stroke();
+      cx.fillStyle = st >= 3 ? '#ff3b30' : st >= 2 ? '#ffb02e' : '#4fe08a'; // 불빛 (위험하면 빨강)
+      cx.beginPath(); cx.arc(0, -19, 3, 0, TAU); cx.fill();
+      // 차단 막대
+      cx.strokeStyle = '#e8e8f0'; cx.lineWidth = 3; cx.lineCap = 'round';
+      const drop = st >= 3 ? 0.9 : st >= 2 ? 0.35 : 0;
+      cx.beginPath(); cx.moveTo(8, -12); cx.lineTo(8 + Math.cos(drop) * 20, -12 + Math.sin(drop) * 20); cx.stroke();
+      cx.beginPath(); cx.moveTo(-8, -12); cx.lineTo(-8 - Math.cos(drop) * 20, -12 + Math.sin(drop) * 20); cx.stroke();
+      cx.restore();
+    }
+    // 금 (피해 단계)
+    if (st >= 1) {
+      cx.strokeStyle = 'rgba(20,10,5,0.85)'; cx.lineWidth = 1.3;
+      const cracks = st * 4;
+      for (let i = 0; i < cracks; i++) {
+        const x0 = 14 + ((i * 97) % (W - 28)), y0 = y - 16 + (i % 3) * 5;
+        cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x0 + 5, y0 + 4); cx.lineTo(x0 + 2, y0 + 9); cx.lineTo(x0 + 8, y0 + 12); cx.stroke();
+      }
+    }
+    // 간판 "정회원 통과" (흔들림)
+    const swing = Math.sin(t * (st >= 2 ? 4 : 1.4)) * (0.02 + st * 0.05) + wob * 0.12 * Math.sin(t * 30);
+    cx.save();
+    cx.translate(W / 2, y - 44);
+    cx.rotate(swing + (st >= 3 ? 0.12 : 0));
+    cx.strokeStyle = '#1a0b1f'; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(-36, -14); cx.lineTo(-30, 8); cx.moveTo(36, -14); cx.lineTo(30, 8); cx.stroke();
+    const sg = cx.createLinearGradient(0, -2, 0, 20);
+    sg.addColorStop(0, st >= 3 ? '#ff5a4f' : '#ffd23f'); sg.addColorStop(1, st >= 3 ? '#a3121e' : '#f08a1a');
+    cx.fillStyle = sg; cx.lineWidth = 3;
+    roundRect(cx, -44, 0, 88, 22, 6); cx.fill(); cx.stroke();
+    cx.fillStyle = '#1a0b1f';
+    cx.font = `900 12px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText('정회원 통과', 0, 11.5);
+    cx.restore();
+    cx.restore();
+    // 위험: 불꽃 · 먼지 · 빨간 경고
+    if (st >= 2 && Math.random() < (st >= 3 ? 0.5 : 0.18)) fx.part('spark', 20 + Math.random() * (W - 40), y - 14, (Math.random() - 0.5) * 120, -80 - Math.random() * 80, 0.4, 3, st >= 3 ? '#ff6a3a' : '#ffd23f', { grav: 400 });
+    if (st >= 1 && wob > 0.3 && Math.random() < 0.4) fx.part('puff', 20 + Math.random() * (W - 40), y - 6, 0, -20, 0.5, 8, 'rgba(200,180,160,0.6)');
+    if (fx.repairT > 0) {
+      // 수리 중: 초록 반짝 + 망치
+      fx.repairT -= 1 / 60;
+      if (Math.random() < 0.35) fx.part('star', 20 + Math.random() * (W - 40), y - 10 - Math.random() * 20, 0, -40, 0.6, 7, null);
+      cx.globalAlpha = Math.min(1, fx.repairT) * 0.35;
+      cx.fillStyle = '#7dff9a'; cx.fillRect(0, y - 30, W, 34);
+      cx.globalAlpha = 1;
+    }
+  }
+  drawRopeOld(g, t) {
     const cx = this.cx, W = this.W;
     const y = g.ropeY + 12;
     const wob = this.fx.ropeWobble;
@@ -1127,10 +1244,17 @@ export class Renderer {
       cx.globalAlpha = h.rage ? 0.95 : 0.55;
       cx.drawImage(gl.c, -pr, -pr, pr * 2, pr * 2);
       cx.globalAlpha = 1;
+      if (h.def.legend) {
+        this.tf(hx, feet - 4, 0, 1, 0.4);
+        cx.globalAlpha = 0.7 + Math.sin(t * 5) * 0.2;
+        const gg = this.projSprites.glowGold, rr = 50;
+        cx.drawImage(gg.c, -rr, -rr, rr * 2, rr * 2);
+        cx.globalAlpha = 1;
+      }
       this.tf(hx, feet, 0, 1, 1);
       cx.drawImage(sh.c, -26, -7, 52, 14);
       const up = h.rage || h.upT > 0;
-      const key = up && this.sprites['h_' + h.id + '_rage'] ? 'h_' + h.id + '_rage' : 'h_' + h.id;
+      const key = h.alt && this.sprites['h_' + h.id + '_alt'] ? 'h_' + h.id + '_alt' : up && this.sprites['h_' + h.id + '_rage'] ? 'h_' + h.id + '_rage' : 'h_' + h.id;
       const sp = this.sprites[key];
       if (!sp) continue;
       let bob = Math.sin(t * 3 + h.slot) * 1.2, rot = 0, sx = 1, sy = 1;
@@ -1139,7 +1263,8 @@ export class Renderer {
       if (h.charmT > 0) { rot = Math.sin(t * 4) * 0.14; }
       if (h.stunT > 0) { rot = Math.sin(t * 10) * 0.1; sy = 0.94; }
       if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; sx *= e * p; sy *= e * p; }
-      if (h.id === 'sunggu') rot += Math.sin(t * 1.5) * 0.03; // 할아버지 휘청
+      if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
+      if (h.id === 'hyungyeong' && h.alt) bob += Math.sin(t * 22) * 1.6; // 날씬 복서 스텝
       this.tf(hx, feet + bob, rot, sx, sy);
       cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
       cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
@@ -1198,15 +1323,24 @@ export class Renderer {
       cx.textBaseline = 'middle';
       const tw = cx.measureText(label).width + 23;
       const ly = feet + 9;
-      cx.fillStyle = h.def.hidden ? 'rgba(80,10,70,0.85)' : 'rgba(12,10,28,0.8)';
+      cx.fillStyle = h.def.legend ? 'rgba(90,60,0,0.9)' : h.def.hidden ? 'rgba(80,10,70,0.85)' : 'rgba(12,10,28,0.8)';
       roundRect(cx, hx - tw / 2, ly - 7, tw, 14, 7);
       cx.fill();
-      if (h.def.hidden) { cx.strokeStyle = '#ff7fe6'; cx.lineWidth = 1; cx.stroke(); }
+      if (h.def.hidden || h.def.legend) { cx.strokeStyle = h.def.legend ? '#ffd84a' : '#ff7fe6'; cx.lineWidth = 1; cx.stroke(); }
       cx.fillStyle = '#ffe08a';
       cx.fillText(label, hx - 7, ly + 0.5);
       cx.fillStyle = h.lv >= 5 ? '#ff9f1c' : '#9ee6ff';
       cx.font = `900 9px ${FONT}`;
       cx.fillText(h.lv >= 5 ? 'MAX' : 'Lv' + h.lv, hx + tw / 2 - 12, ly + 0.5);
+      // 배현경 다이어트 게이지 · 고아라 나이 게이지
+      if (h.def.diet || h.def.age) {
+        const f = h.def.diet ? (h.alt ? h.altT / h.def.diet.sec[h.lv - 1] : h.meter / 100)
+          : h.alt ? 1 - h.ageT / h.def.age.old[h.lv - 1] : h.ageT / h.def.age.princess[h.lv - 1];
+        const bw = 34;
+        cx.fillStyle = 'rgba(0,0,0,0.6)'; cx.fillRect(hx - bw / 2, ly + 8, bw, 4);
+        cx.fillStyle = h.def.diet ? (h.alt ? '#ff5fa2' : '#ffb347') : h.alt ? '#a8a8a8' : '#ffc4ec';
+        cx.fillRect(hx - bw / 2, ly + 8, bw * clamp01(f), 4);
+      }
       // 최은옥 술 게이지
       if (h.def.soberSec) {
         const max = h.rage ? h.def.rageSec[h.lv - 1] : h.def.soberSec[h.lv - 1];
@@ -1248,6 +1382,26 @@ export class Renderer {
         case 'wink': s = P.wink; this.tf(p.x, p.y, 0, 1, 1); break;
         case 'flower': s = P.flower; this.tf(p.x, p.y, p.rot * 0.2, 1, 1); break;
         case 'swear': s = p.big ? P.swearBig : P.swear; this.tf(p.x, p.y, Math.sin(p.dist * 0.05) * 0.15, 1, 1); break;
+        case 'gf': {
+          // 윤준서 여사친: 동그랗게 말려 데굴데굴
+          const img = this.images.gf;
+          this.tf(p.x, p.y, p.rot, 1, 1);
+          if (imgOk(img)) { cx.drawImage(img, -17, -17, 34, 34); s = null; } else s = P.gfFb;
+          break;
+        }
+        case 'crown': {
+          // 이호찬 황금 파동: 줄을 가득 채우는 금빛 띠
+          this.world();
+          const w = p.r, y = p.y;
+          const gr = cx.createLinearGradient(0, y - 26, 0, y + 30);
+          gr.addColorStop(0, 'rgba(255,240,150,0)'); gr.addColorStop(0.35, 'rgba(255,215,70,0.85)'); gr.addColorStop(0.6, 'rgba(255,170,20,0.55)'); gr.addColorStop(1, 'rgba(255,170,20,0)');
+          cx.fillStyle = gr;
+          cx.beginPath(); cx.ellipse(p.x, y, w, 24, 0, Math.PI, 0); cx.lineTo(p.x + w, y + 28); cx.lineTo(p.x - w, y + 28); cx.closePath(); cx.fill();
+          cx.strokeStyle = 'rgba(255,250,200,0.9)'; cx.lineWidth = 2.5;
+          cx.beginPath(); cx.ellipse(p.x, y, w, 22, 0, Math.PI * 1.05, -Math.PI * 0.05); cx.stroke();
+          s = P.crownIco; this.tf(p.x, y - 6, 0, 1, 1);
+          break;
+        }
         default: s = P[p.type]; this.tf(p.x, p.y, p.rot, 1, 1);
       }
       if (s) cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
@@ -1334,12 +1488,13 @@ export class Renderer {
     // 피해 숫자
     for (const n of this.fx.nums.items) {
       const age = n.max - n.life;
-      let s = n.crit ? 1.05 : 0.7;
-      if (age < 0.1) s *= 1 + (1 - age / 0.1) * (n.crit ? 1 : 0.5);
+      let s = n.crit ? 1.2 : n.eff > 0 ? 0.95 : n.eff < 0 ? 0.52 : 0.7;
+      if (n.crit && n.eff > 0) s = 1.45;
+      if (age < 0.1) s *= 1 + (1 - age / 0.1) * (n.crit || n.eff > 0 ? 1 : 0.4);
       this.tf(n.x, n.y, 0, s, s);
-      cx.globalAlpha = Math.min(1, n.life / (n.max * 0.35));
-      cx.lineWidth = 4;
-      cx.strokeStyle = n.crit ? '#7a1d00' : 'rgba(20,10,30,0.9)';
+      cx.globalAlpha = Math.min(1, n.life / (n.max * 0.35)) * (n.eff < 0 ? 0.8 : 1);
+      cx.lineWidth = n.crit || n.eff > 0 ? 5 : 4;
+      cx.strokeStyle = n.crit ? '#5a0f00' : n.eff > 0 ? '#5a2600' : 'rgba(10,6,18,0.95)';
       cx.strokeText(n.text, 0, 0);
       cx.fillStyle = n.color;
       cx.fillText(n.text, 0, 0);

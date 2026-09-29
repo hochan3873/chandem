@@ -3,9 +3,10 @@
 // 손님: 같은 공식(data.js)으로 이 기기 localStorage 에만 저장 (랭킹에는 안 올라감)
 import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
-  metaCost, itemCost, stageReward, endlessReward, deckSlots,
-  GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearSellValue, rollDrops, gearStats,
+  metaCost, itemCost, stageReward, endlessReward, deckSlots, migrateDeckItems,
+  GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearSellValue, rollDrops, gearStats, stageBosses,
 } from './data.js';
+import * as L from './live.js';
 
 const GUEST_KEY = 'langbang:guest';
 const OLD_GUEST_KEY = 'langbang:guestBest'; // 예전(20웨이브 시절) 손님 최고 기록
@@ -53,10 +54,7 @@ export function maxCleared(stages) {
   for (const k of Object.keys(stages || {})) if ((stages[k] | 0) > 0 && +k > m) m = +k;
   return m;
 }
-export function heroUnlocked(p, hero) {
-  if (!LOCKED_HEROES.includes(hero)) return true;
-  return ((p.stages || {})[HERO_UNLOCK[hero]] | 0) > 0 || ((p.heroes || {})[hero] | 0) > 0;
-}
+export function heroUnlocked(p, hero) { return L.heroUnlocked(p, hero); }
 export function endlessUnlocked(p) { return maxCleared(p.stages) >= ENDLESS_UNLOCK || (p.bestWave | 0) > 0; }
 
 // 서버/손님 프로필을 같은 모양으로
@@ -64,8 +62,9 @@ function normalize(p, guest) {
   const out = Object.assign({ level: 1, exp: 0, expToNext: 0, coins: 0, bestWave: 0, bestScore: 0 }, p || {});
   out.heroes = {};
   for (const id of Object.keys(HEROES)) out.heroes[id] = ((p && p.heroes) || {})[id] | 0;
+  const rawItems = migrateDeckItems(Object.assign({}, (p && p.items) || {}));
   out.items = {};
-  for (const id of ITEM_IDS) out.items[id] = ((p && p.items) || {})[id] | 0;
+  for (const id of ITEM_IDS) out.items[id] = rawItems[id] | 0;
   out.stages = {};
   for (const [k, v] of Object.entries((p && p.stages) || {})) if ((v | 0) > 0 && +k >= 1 && +k <= STAGE_COUNT) out.stages[+k] = Math.min(3, v | 0);
   out.maxStage = maxCleared(out.stages);
@@ -80,6 +79,10 @@ function normalize(p, guest) {
   out.perfects = (p && p.perfects) || {};
   out.deckSlots = deckSlots(out.items);
   out.guest = !!guest;
+  L.normLive(p || {}, out); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록
+  out.owned = out.owned || {};
+  out.unlocked = LOCKED_HEROES.filter((h) => heroUnlocked(out, h));
+  if (guest) L.ensureLive(out, 'guest', Date.now()); // 로그인은 서버가 이미 맞춰서 준다
   return out;
 }
 
@@ -101,9 +104,14 @@ function readGuest() {
 }
 function writeGuest(p) {
   const keep = { coins: p.coins, heroes: p.heroes, items: p.items, stages: p.stages, bestWave: p.bestWave, bestScore: p.bestScore, runs: p.runs | 0, seen: p.seen || [], gear: p.gear || [], gearSeq: p.gearSeq | 0, equip: p.equip || {}, perfects: p.perfects || {} };
+  for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
+const LIVE_KEYS = ['chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
 export function guestProfile() { return normalize(readGuest(), true); }
+const GUEST_UID = 'guest';
+// 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
+function guestTrack(q, r) { L.trackRun(q, r, GUEST_UID, Date.now()); }
 
 export async function loadProfile() {
   if (!token()) return { profile: guestProfile(), guest: true };
@@ -132,6 +140,9 @@ export async function postStage(sum, guest) {
       const it = { id: q.gearSeq, t: d.t, r: d.r, lv: 0 };
       q.gear.push(it); got.push(it);
     }
+    q.cnt = Object.assign({}, p.cnt);
+    for (const d of got) if (d.r === 'legend') q.cnt.legends = (q.cnt.legends | 0) + 1;
+    guestTrack(q, { mode: 'stage', clear: true, stars: sum.stars, perfect, kills: sum.kills, bosses: Math.min(sum.bossKills | 0, stageBosses(sum.stage).length), skills: L.skillCap(sum.skills, sum.durationSec) });
     writeGuest(q);
     const after = guestProfile();
     return {
@@ -149,6 +160,7 @@ export async function postEndless(sum, guest) {
     const p = guestProfile();
     const coins = endlessReward(sum.wave, p.items.coupon);
     const q = Object.assign({}, p, { coins: p.coins + coins, bestWave: Math.max(p.bestWave, sum.wave), bestScore: Math.max(p.bestScore, sum.score), runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
+    guestTrack(q, { mode: 'endless', kills: sum.kills, bosses: Math.min(sum.bossKills | 0, Math.floor(sum.wave / 5) + 1), skills: L.skillCap(sum.skills, sum.durationSec) });
     writeGuest(q);
     return { ok: true, profile: guestProfile(), reward: { total: coins }, newBestWave: sum.wave > p.bestWave, newBestScore: sum.score > p.bestScore };
   }
@@ -248,7 +260,7 @@ export async function enhanceGear(id, guest) {
       if (!it) return { error: '없는 장비예요' };
       const cost = gearEnhanceCost(it.r, it.lv);
       if (cost === null) return { error: '이미 최대 강화예요' };
-      return { cost, apply: (x) => { x.gear.find((g) => g.id === id).lv++; } };
+      return { cost, apply: (x) => { x.gear.find((g) => g.id === id).lv++; L.bump(x, 'enhances', 1, GUEST_UID, Date.now()); } };
     });
   }
   const r = await call('/api/langbang/gear/enhance', { id });
@@ -277,3 +289,79 @@ export function gearFor(profile, ids) {
   }
   return out;
 }
+
+// ─── 주간 도전 · 미션 · 모집 · 시즌 · 성급 · 치장 ─────────────
+// 손님은 같은 공식(live.js)으로 이 기기에만. 로그인은 서버가 계산하고 확인한다
+function guestLive(fn) {
+  const p = guestProfile();
+  const r = fn(p) || {};
+  if (r.error) return { ok: false, message: r.error };
+  writeGuest(p);
+  return Object.assign({ ok: true }, r, { profile: guestProfile() });
+}
+async function liveCall(path, body) {
+  const r = await call('/api/langbang/' + path, body);
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export function gacha(n, pay, guest) {
+  if (guest) return guestLive((p) => L.gachaPull(p, n, pay, GUEST_UID, Date.now(), (Math.random() * 4294967296) >>> 0));
+  return liveCall('gacha', { n, pay });
+}
+export function claimMission(kind, id, guest) {
+  if (guest) return guestLive((p) => L.claimMission(p, kind, id, GUEST_UID, Date.now()));
+  return liveCall('mission/claim', { kind, id });
+}
+export function claimSeason(tier, guest) {
+  if (guest) return guestLive((p) => L.claimSeason(p, tier, GUEST_UID, Date.now()));
+  return liveCall('season/claim', { tier });
+}
+export function starUp(hero, guest) {
+  if (guest) return guestLive((p) => L.starUp(p, hero));
+  return liveCall('hero/star', { hero });
+}
+export function setCosmetic(title, frame, guest) {
+  if (guest) return guestLive((p) => L.setCosmetic(p, title, frame));
+  return liveCall('cosmetic', { title, frame });
+}
+// 주간 도전 시작: 로그인은 서버가 판 번호를 준다 (손님은 이 기기에서)
+export async function weeklyStart(guest) {
+  if (guest) {
+    const p = guestProfile();
+    if ((p.maxStage | 0) < L.WEEKLY_UNLOCK) return { ok: false, message: '주간 도전은 1-5를 깨면 열려요' };
+    return { ok: true, runId: 'guest', wi: L.weekIndex() };
+  }
+  return liveCall('weekly/start', {});
+}
+export async function postWeekly(sum, runId, guest) {
+  if (guest) {
+    const p = guestProfile();
+    const wi = L.weekIndex();
+    const def = L.weeklyDef(wi);
+    const chk = L.weeklyCheck(def, { waves: sum.wave, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec, victory: sum.victory });
+    if (chk) return { ok: false, message: chk };
+    const score = L.weeklyScore({ waves: sum.wave, kills: sum.kills, bossKills: sum.bossKills, victory: sum.victory, hpPct: sum.hpPct });
+    const coins = L.weeklyCoins(sum.wave);
+    const q = Object.assign({}, p, { coins: p.coins + coins, runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
+    const newBest = L.weeklyRecord(q, wi, score, sum.wave, Date.now());
+    guestTrack(q, { mode: 'weekly', kills: sum.kills, bosses: Math.min(sum.bossKills | 0, 20), skills: L.skillCap(sum.skills, sum.durationSec) });
+    writeGuest(q);
+    return { ok: true, profile: guestProfile(), reward: { total: coins }, weekly: { score, best: q.weekly.best, newBest } };
+  }
+  return liveCall('result', { mode: 'weekly', runId, wave: sum.wave, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, victory: !!sum.victory, score: sum.score, seen: sum.seen });
+}
+export async function weeklyBoard() {
+  const r = await call('/api/langbang/weekly');
+  return r.ok ? r : null;
+}
+export function weeklyClaim() { return liveCall('weekly/claim', {}); }
+export function claimChest(ch, n, guest) {
+  if (guest) return guestLive((p) => L.claimChest(p, ch, n, GUEST_UID, Date.now()));
+  return liveCall('chest/claim', { ch, n });
+}
+export function checkin(guest) {
+  if (guest) return guestLive((p) => L.claimCheckin(p, GUEST_UID, Date.now()));
+  return liveCall('checkin', {});
+}
+// 미션 시드용 사용자 번호 (서버와 같은 값 — 토큰 앞부분)
+export function liveUid() { const t = token(); return t ? String(t).split('.')[0] : GUEST_UID; }

@@ -2,9 +2,10 @@
 // 랑방 대전 — 서버가 믿는 경제 규칙 (보상 · 강화 비용 · 해금).
 // 화면 표시/손님용 같은 공식이 public/langbang/data.js 에 있다. 둘이 어긋나면 test/langbang.test.js 가 잡는다.
 
-const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu'];
+const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'junseo', 'hyungyeong', 'ara', 'hochan'];
 const HIDDEN = ['eunok', 'hanna', 'sunggu'];
-const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN]; // 스테이지를 깨야 합류하는 영웅
+const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan']; // 모집(뽑기)으로만 합류
+const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN, ...GACHA]; // 해금이 필요한 영웅
 const META_MAX = 20;
 const STAGE_COUNT = 30;
 const STAGE_WAVES = 5;
@@ -21,8 +22,8 @@ const ITEMS = {
   battery: { max: 10, per: 0.08, base: 40 },
   charm: { max: 10, per: 0.015, base: 55 },
   drink: { max: 3, per: 1, costs: [600, 2400, 6000] },
-  slot6: { max: 1, per: 1, costs: [20000] },
-  slot7: { max: 1, per: 1, costs: [60000], needs: 'slot6' },
+  slot5: { max: 1, per: 1, costs: [25000] },
+  slot6: { max: 1, per: 1, costs: [80000], needs: 'slot5' },
 };
 const ITEM_IDS = Object.keys(ITEMS);
 
@@ -48,7 +49,16 @@ function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = false, fir
   const total = Math.round((clear + first + star + perf) * mul);
   return { clear, first, star, perfect: perf, newStars, bonus: total - clear - first - star - perf, total };
 }
-const deckSlots = (items) => 5 + ((items && items.slot6) | 0) + ((items && items.slot6 && items.slot7) | 0);
+const DECK_BASE = 4;
+const deckSlots = (items) => DECK_BASE + ((items && items.slot5) | 0) + ((items && items.slot5 && items.slot6) | 0);
+// 예전 덱 칸(기본 5 · slot6 = 6칸 · slot7 = 7칸) → 새 칸(기본 4 · slot5 · slot6). 산 칸은 한 칸씩 남긴다
+function migrateDeckItems(items) {
+  if (!items) return items;
+  if (items.slot7) { items.slot5 = 1; items.slot6 = 1; }
+  else if (items.slot6 && !items.slot5) { items.slot5 = 1; items.slot6 = 0; }
+  delete items.slot7;
+  return items;
+}
 function endlessReward(wave, couponLv = 0) {
   const w = Math.max(0, Math.floor(wave));
   return Math.round((12 * w + w * w) * (1 + itemValue('coupon', couponLv)));
@@ -62,7 +72,8 @@ function maxCleared(stages) {
   return m;
 }
 // 해금: 정해진 스테이지를 깼거나, 예전(스테이지 이전)에 이미 강화해 둔 영웅
-const heroUnlocked = (lb, hero) => !LOCKED.includes(hero) || (lb.stages && (lb.stages[HERO_UNLOCK[hero]] | 0) > 0) || ((lb.heroes && lb.heroes[hero]) | 0) > 0;
+const heroUnlocked = (lb, hero) => !LOCKED.includes(hero) || !!(lb.owned && lb.owned[hero])
+  || (!!HERO_UNLOCK[hero] && ((lb.stages && (lb.stages[HERO_UNLOCK[hero]] | 0) > 0) || ((lb.heroes && lb.heroes[hero]) | 0) > 0));
 // 무한 도전: 1-10 클리어, 또는 예전(20웨이브 시절) 기록이 있는 사람
 const endlessUnlocked = (lb) => maxCleared(lb.stages) >= ENDLESS_UNLOCK || (lb.bestWave | 0) > 0;
 
@@ -144,7 +155,7 @@ function gearStats(items) {
 }
 
 module.exports = {
-  GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots,
-  LB_HEROES, HIDDEN, LOCKED, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
+  GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
+  LB_HEROES, HIDDEN, GACHA, LOCKED, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   metaCost, itemCost, itemValue, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };

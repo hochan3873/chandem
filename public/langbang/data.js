@@ -12,6 +12,8 @@ export const FIELD = {
   ropeGap: 44, // 영웅 줄 바로 위의 벨벳 로프(입구 줄) — 적은 여기서 멈춰 문을 두드린다
   spawnY: -34,
 };
+// 방어선(영웅 줄) 높이: 화면 아래쪽 ~79% (스킬 바 · 입구 게이지와 안 겹치게 아래 166 은 비워 둔다)
+export const rowYFor = (H) => Math.round(Math.min(H * 0.79, H - 166));
 export const HERO_SLOTS = 6;
 // 슬롯 x 좌표 (가로 360 기준) 와 채우는 순서(가운데부터)
 export const SLOT_X = [34, 92, 150, 210, 268, 326];
@@ -97,10 +99,19 @@ export const ITEMS = {
   battery: { id: 'battery', icon: '🔋', name: '확성기 배터리', max: 10, per: 0.08, base: 40, desc: (v) => `총공지 충전 +${pct(v)}` },
   charm: { id: 'charm', icon: '🍀', name: '행운 부적', max: 10, per: 0.015, base: 55, desc: (v) => `치명타 확률 +${pct(v, 1)}` },
   drink: { id: 'drink', icon: '🍹', name: '웰컴 드링크', max: 3, per: 1, costs: [600, 2400, 6000], desc: (v) => (v ? `시작 전 카드 ${v}장 고르기` : '아직 없음') },
-  slot6: { id: 'slot6', icon: '🪑', name: '덱 6번째 칸', max: 1, per: 1, costs: [20000], desc: (v) => (v ? '덱 6칸!' : '덱에 멤버 한 명 더') },
-  slot7: { id: 'slot7', icon: '🛋️', name: '덱 7번째 칸', max: 1, per: 1, costs: [60000], needs: 'slot6', desc: (v) => (v ? '덱 7칸!' : '덱에 멤버 한 명 더 (6번째 칸 먼저)') },
+  slot5: { id: 'slot5', icon: '💺', name: '덱 5번째 칸', max: 1, per: 1, costs: [25000], desc: (v) => (v ? '덱 5칸!' : '덱에 멤버 한 명 더') },
+  slot6: { id: 'slot6', icon: '🛋️', name: '덱 6번째 칸', max: 1, per: 1, costs: [80000], needs: 'slot5', desc: (v) => (v ? '덱 6칸!' : '덱에 멤버 한 명 더 (5번째 칸 먼저)') },
 };
-export const deckSlots = (items) => 5 + ((items && items.slot6) | 0) + ((items && items.slot6 && items.slot7) | 0);
+export const DECK_BASE = 4; // 기본 덱 칸
+export const deckSlots = (items) => DECK_BASE + ((items && items.slot5) | 0) + ((items && items.slot5 && items.slot6) | 0);
+// 예전 덱 칸(기본 5 · slot6 = 6칸 · slot7 = 7칸) → 새 칸(기본 4 · slot5 · slot6). 이미 산 칸은 그대로 한 칸씩 남긴다
+export function migrateDeckItems(items) {
+  if (!items) return items;
+  if (items.slot7) { items.slot5 = 1; items.slot6 = 1; }
+  else if (items.slot6 && !items.slot5) { items.slot5 = 1; items.slot6 = 0; }
+  delete items.slot7;
+  return items;
+}
 export const ITEM_IDS = Object.keys(ITEMS);
 function pct(v, d = 0) { return `${(v * 100).toFixed(d)}%`; }
 export function itemCost(id, lv) {
@@ -272,7 +283,7 @@ export const MAP_FX = {
   blackout: { id: 'blackout', icon: '💡', name: '정전', desc: '가끔 불이 꺼지면 가까운 진상과 지목한 진상만 보인다', every: 10, dark: 2.6, seeR: 190 },
   happy: { id: 'happy', icon: '🎉', name: '불금 해피아워', desc: '진상 +25% · 경험치 +40%', spawn: 1.25, exp: 0.4 },
   karaoke: { id: 'karaoke', icon: '🎤', name: '노래방 소음', desc: '말빨 멤버 피해 +25% · 매력 멤버 -15%', attr: { talk: 1.25, charm: 0.85 } },
-  icy: { id: 'icy', icon: '🧊', name: '미끄러운 바닥', desc: '넉백 거리 +50%', kb: 1.5 },
+  icy: { id: 'icy', icon: '❄️', name: '미끄러운 바닥', desc: '넉백 거리 +50%', kb: 1.5 },
   feast: { id: 'feast', icon: '🔥', name: '회식 열기', desc: '술 멤버 피해 +30% · 분노가 더 오래', attr: { booze: 1.3 }, rage: 1.3 },
   construction: { id: 'construction', icon: '🚧', name: '공사 중', desc: '양옆이 막혀 진상이 가운데로 몰린다 · 범위 공격 범위 +30%', lane: [96, 264], splash: 1.3 },
   megaphone: { id: 'megaphone', icon: '📢', name: '인피 확성기', desc: '10초마다 진상들이 3초 동안 30% 빨라진다', every: 10, sec: 3, speed: 1.3 },
@@ -320,7 +331,7 @@ export const CLASSES = {
   politic: { id: 'politic', name: '정치형', icon: '📜', color: '#a58bff' },
   jerk: { id: 'jerk', name: '진상형', icon: '🤪', color: '#ffc84a' },
 };
-export const TYPE_STRONG = 1.7, TYPE_WEAK = 0.55;
+export const TYPE_STRONG = 2.0, TYPE_WEAK = 0.45;
 export const TYPE_CHART = {
   talk: { seduce: TYPE_STRONG, politic: TYPE_STRONG, violent: TYPE_WEAK },
   power: { violent: TYPE_STRONG, jerk: TYPE_STRONG, seduce: TYPE_WEAK },
@@ -390,8 +401,8 @@ export const HEROES = {
     id: 'gunman', bossKit: 1.3, kit: 0.95, name: '건전남', gender: 'm', emoji: '🙋‍♂️', color: '#4fd18b', attr: 'power',
     img: '/img/lb/h_gunman.webp', role: '저격수 · 최장 사거리',
     dmg: 23, interval: 0.44, range: 600, proj: 'bullet', projSpeed: 900, critBonus: 0.22, lane: 38,
-    attack: '새총 — 자기 줄(세로) 위로만 쭉, 가장 멀리 · 치명타 잘 터짐',
-    desc: '건전하게, 그러나 정확하게. 멀리 있는 놈부터 저격하는 새총 명사수.',
+    attack: '새총 — 옆길로 안 새고 자기 줄(세로) 위로만 똑바로, 가장 멀리 · 치명타 잘 터짐',
+    desc: '건전하게, 그러나 정확하게. 정도(正道)만 걷는 남자라 새총도 자기 줄로만 똑바로 쏜다.',
     perks: { 3: '새총알이 1명 관통 · 치명타 +10%', 5: '4발마다 "헤드샷" (무조건 치명타 ×3)' },
     skill: { id: 'frenzy', name: '난사', cd: 20, desc: '3초 동안 가까운 진상들에게 폭풍 연사', sec: [3, 3, 3.5, 3.5, 4], every: 0.07 },
   },
@@ -485,7 +496,7 @@ export const HEROES = {
     skill: { id: 'winkbomb', name: '윙크 폭탄', cd: 20, target: true, desc: '찍은 곳: 남자는 날려 버리고 여자는 홀려서 멈춤', r: [105, 105, 120, 120, 135], kb: 110, stun: 1.2 },
   },
   sunggu: {
-    id: 'sunggu', bossKit: 1.1, kit: 1.0, name: '강성구', gender: 'm', emoji: '🦯', color: '#c9a36b', hidden: true, attr: 'power',
+    id: 'sunggu', bossKit: 1.1, kit: 1.0, name: '강성구', gender: 'm', emoji: '👴', color: '#c9a36b', hidden: true, attr: 'power',
     img: '/img/lb/h_sunggu.webp', role: 'HIDDEN · 지팡이 무한 관통',
     dmg: 48, interval: 2.1, range: 620, proj: 'cane', projSpeed: 430, lv5Interval: 0.85, lane: 50,
     attack: '지팡이 — 자기 줄 위로 아주 길게, 그 줄 진상 전부 관통',
@@ -493,11 +504,58 @@ export const HEROES = {
     perks: { 3: '지팡이가 부메랑처럼 돌아온다', 5: '지팡이 2개 · 공격 속도 +15%' },
     skill: { id: 'whirl', name: '지팡이 회오리', cd: 22, desc: '지팡이 7개를 부채꼴로 던진다', n: [7, 7, 9, 9, 11] },
   },
+  // ── 모집(뽑기)으로만 만나는 멤버 ──
+  junseo: {
+    id: 'junseo', bossKit: 0.8, kit: 1.05, name: '윤준서', gender: 'm', emoji: '😍', color: '#ff7fb0', gacha: true, attr: 'charm',
+    img: '/img/lb/h_junseo.webp', role: '여사친 핀볼 · 밀어내기',
+    dmg: 26, interval: 1.25, range: 385, proj: 'gf', projSpeed: 560, ricochet: [3, 3, 4, 4, 4], ricoR: 150, ricoDecay: 0.88, kb: [22, 22, 26, 26, 30],
+    attack: '여사친 소환 — 동글동글 여사친을 진상에게 밀어 넣으면 3~4명 사이를 핀볼처럼 튕기며 밀어내고 돌아온다',
+    desc: '여자라면 사족을 못 쓰는 남자. "잠깐, 내 친구 소개해 줄게!" 여사친이 대신 진상들 사이를 굴러다닌다.',
+    perks: { 3: '여사친이 한 번 더 튕긴다', 5: '여사친 둘이 같이 출동' },
+    skill: { id: 'blinddate', name: '소개팅 주선', cd: 20, desc: '여사친 3명을 부채꼴로 한꺼번에! (더 세게 튕긴다)', n: [3, 3, 3, 4, 4], mul: 1.6 },
+    shouts: ['소개해 줄게~', '내 친구 착해!', '연락처 교환 ㄱ?'],
+  },
+  hyungyeong: {
+    id: 'hyungyeong', bossKit: 1.0, kit: 1.0, name: '배현경', gender: 'f', emoji: '🐻', color: '#ff9f5a', gacha: true, attr: 'power',
+    img: '/img/lb/h_hyungyeong.webp', imgAlt: '/img/lb/h_hyungyeong_slim.webp', role: '탱커 · 몸통 박치기 ↔ 다이어트 복서',
+    dmg: 50, interval: 1.95, range: 245, proj: 'slam', slamR: [78, 78, 90, 90, 100], kb: 26,
+    taunt: 0.6, guard: { r: 55, cut: 0.12 }, // 몸집으로 막는다: 멤버 노리는 기술 대신 맞기(60% 시간) · 자기 줄 입구 피해 -12%
+    diet: { perSlam: [15, 15, 17, 17, 19], perSec: 3, sec: [10, 10, 11, 11, 12], dmg: 0.4, interval: 0.2, range: 330, speed: 820 },
+    attack: '몸통 박치기 — 느리지만 묵직하게 쿵! 주변 진상을 밀어낸다. 게이지가 차면 다이어트 주사 → 날씬 모드 초고속 연타',
+    desc: '"오늘까지만 먹고 내일부터 다이어트!" 통통할 땐 벽처럼 버티고, 주사 한 방이면 복서로 변신. 10초 뒤엔… 요요!',
+    perks: { 3: '박치기 범위 + · 날씬 모드 +1초', 5: '날씬 모드 제일 길고 박치기 제일 넓게' },
+    skill: { id: 'dietshot', name: '다이어트 주사', cd: 22, desc: '바로 날씬 모드! (이미 날씬하면 +4초)' },
+    shouts: ['내일부터 다이어트!', '요요 왔다…', '한 입만!'],
+  },
+  ara: {
+    id: 'ara', bossKit: 1.45, kit: 0.9, name: '고아라', gender: 'f', emoji: '👸', color: '#ffc4ec', gacha: true, attr: 'booze',
+    img: '/img/lb/h_ara.webp', imgAlt: '/img/lb/h_ara_old.webp', role: '보스 킬러 · 공주 ↔ 폭삭 늙음',
+    dmg: 128, interval: 1.85, range: 470, proj: 'hammer', projSpeed: 640,
+    age: { princess: [13, 13, 14, 14, 16], old: [8, 8, 7, 7, 6], dmg: 0.5, slow: 1.4 },
+    attack: '공주 망치 — 아주 무거운 한 방. 보스·체력 많은 진상부터 노린다 (가끔 폭삭 늙으면 힘이 반토막)',
+    desc: '맑은 목소리의 공주님. 그런데 가끔 갑자기 폭삭 늙어 버린다… "아이고 허리야…" 조금 쉬면 다시 공주!',
+    perks: { 3: '공주로 더 오래 · 빨리 돌아온다', 5: '망치가 떨어진 곳 주변도 쿵' },
+    skill: { id: 'princess', name: '공주의 일격', cd: 22, desc: '가장 센 적에게 거대한 망치 (보스에게 특히 아픔) + 바로 공주로 돌아온다', mul: [6, 6, 7, 7, 8] },
+    shouts: ['공주님 나가신다~', '아이고 허리야…', '다시 공주!'],
+  },
+  hochan: {
+    id: 'hochan', bossKit: 1.15, kit: 1.25, name: '이호찬', gender: 'm', emoji: '👑', color: '#ffcf3f', legend: true, gacha: true, attr: 'talk',
+    img: '/img/lb/h_hochan.webp', role: 'LEGEND · 랑방 방장 · 황금 파동',
+    dmg: 64, interval: 2.2, range: 640, proj: 'crown', lane: 46, waveW: [40, 40, 46, 46, 52], projSpeed: 520,
+    buff: { per: 0.03, max: 0.24, sec: [3, 3, 4, 4, 4] }, // 맞힌 진상 1명마다 아군 공격력 +3% (최대 +24%)
+    attack: '랑방을 위하여! — 느린 박자로 자기 줄 전체를 휩쓰는 황금 파동. 맞힐 때마다 아군 공격력 ↑ · 줄 안 진상 버프 하나 벗김',
+    desc: '랑방의 진짜 방장. 금빛 확성기로 "랑방을 위하여!" 외치면 한 줄이 통째로 정리되고, 멤버들은 힘이 난다.',
+    perks: { 3: '파동이 더 넓고 버프가 오래', 5: '파동이 한 번 더 울린다 (메아리)' },
+    skill: { id: 'forlangbang', name: '랑방을 위하여!!', cd: 24, desc: '세 줄에 황금 파동 + 모든 멤버 공격력 +40% (5초)', sec: [5, 5, 6, 6, 7], atk: [0.4, 0.4, 0.45, 0.45, 0.5] },
+    shouts: ['랑방을 위하여!', '방장 왔다!', '다들 모여!', '여긴 내가 지킨다'],
+  },
 };
 export const BASE_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
 export const UNLOCK_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun']; // 스테이지를 깨면 합류하는 일반 영웅
 export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu'];
-export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES]; // 해금이 필요한 영웅 전부
+export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara']; // 모집(뽑기) 영웅 등급
+export const LEGEND_HEROES = ['hochan']; // 모집 전설 (마지막 스테이지를 깨야 모집에 나온다)
+export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; // 해금이 필요한 영웅 전부
 // 같이 출전하는 동료 수: 1챕터 1명, 1-10 을 깨면(2챕터부터) 2명
 export const partnerSlots = (maxStage) => (maxStage >= 10 ? 2 : 1);
 export const STARTER_PARTNERS = ['gunman', 'staff', 'gunnyeo']; // 방장 + 이 중 1명으로 시작
@@ -518,7 +576,7 @@ export const ENEMIES = {
     shouts: ['오빠~ 한 잔 사줘', '나 원래 이런 애 아닌데', '인스타 뭐야?', '어머 키 몇이에요?'],
   },
   drunk: {
-    id: 'drunk', cls: 'jerk', name: '술진상', gender: 'm', emoji: '🥴', color: '#e0a340',
+    id: 'drunk', cls: 'jerk', name: '술진상', gender: 'm', emoji: '😵', color: '#e0a340',
     img: '/img/lb/e_drunk.webp', hp: 52, speed: 34, atk: 7, atkInterval: 1.1,
     exp: 3, coin: 2, r: 18, size: 72, zigzag: 38,
     explode: { r: 62, dmg: 26 }, // 죽으면 술병이 깨지며 주변 적에게 피해 (웨이브마다 +8%)
@@ -588,7 +646,7 @@ export const ENEMIES = {
     shouts: ['찰칵!', '좋아요 눌러줘~', '각도 좋다', '라이브 켰어요'],
   },
   cutter: {
-    id: 'cutter', cls: 'jerk', name: '새치기꾼', gender: 'm', emoji: '🦘', color: '#6fd0ff',
+    id: 'cutter', cls: 'jerk', name: '새치기꾼', gender: 'm', emoji: '🐰', color: '#6fd0ff',
     img: '/img/lb/e_cutter.webp', hp: 40, speed: 70, atk: 5, atkInterval: 1.2, exp: 4, r: 15, size: 70,
     vault: { at: 250, dist: 120, sec: 0.5 }, // 앞줄 근처에서 한 번 훌쩍 뛰어넘는다
     shouts: ['잠깐 새치기~', '제가 먼저요!', '번호표 있어요', '급해서요'],
@@ -619,7 +677,7 @@ export const ENEMIES = {
     shouts: ['수군수군…', '걔 그렇대~', '너만 알고 있어', '단톡방 캡처 떴어'],
   },
   inpi_dictator: {
-    id: 'inpi_dictator', cls: 'politic', name: '인피 독재자', gender: 'm', emoji: '🫡', color: '#d0453a', inpi: true,
+    id: 'inpi_dictator', cls: 'politic', name: '인피 독재자', gender: 'm', emoji: '😤', color: '#d0453a', inpi: true,
     img: '/img/lb/e_inpi_dictator.webp', hp: 120, speed: 22, atk: 10, atkInterval: 1.5,
     armor: 3, exp: 7, r: 20, size: 80,
     aura: { r: 130, cut: 0.3, kb: 0.3, speed: 1.3 }, // 주변 진상: 받는 피해 -30%, 넉백 30%만, 이동 속도 +30%
@@ -764,8 +822,8 @@ export const CARDS = [
   { id: 'spd', icon: '⚡', title: '카페인 충전', desc: '모든 영웅 공격 속도 +12%', rarity: 'common', max: 5 },
   { id: 'gunExtra', icon: '🔫', title: '건전남 새총알 추가', desc: '건전남 한 번에 +1발', rarity: 'rare', max: 2, needs: 'gunman' },
   { id: 'crit', icon: '🎯', title: '정곡 찌르기', desc: '치명타 확률 +8% (피해 2배)', rarity: 'rare', max: 4 },
-  { id: 'hp', icon: '🧱', title: '입구 리모델링', desc: '랑방 최대 내구도 +20% · 30% 회복', rarity: 'common', max: 5 },
-  { id: 'exp', icon: '🧃', title: '인싸력 상승', desc: '경험치 획득 +20%', rarity: 'common', max: 3 },
+  { id: 'hp', icon: '🏗️', title: '입구 리모델링', desc: '랑방 최대 내구도 +20% · 30% 회복', rarity: 'common', max: 5 },
+  { id: 'exp', icon: '🍹', title: '인싸력 상승', desc: '경험치 획득 +20%', rarity: 'common', max: 3 },
   { id: 'slow', icon: '🚧', title: '새치기 금지', desc: '모든 진상 이동 속도 -8%', rarity: 'common', max: 3 },
   { id: 'pierce', icon: '🗡️', title: '관통 공지', desc: '모든 투사체 관통 +1', rarity: 'legend', max: 2 },
   { id: 'boss', icon: '🍻', title: '랑방 단골의 힘', desc: '공격력 +30% · 공격 속도 +15%', rarity: 'legend', max: 2 },
@@ -776,7 +834,7 @@ export const CARDS = [
 // 뽑을 게 모자랄 때 채워 넣는 카드 (제한 없음)
 export const FILLER_CARDS = [
   { id: 'fillUlt', icon: '📣', title: '확성기 예열', desc: '총공지 게이지 +40', rarity: 'common' },
-  { id: 'fillHeal', icon: '🩹', title: '응급 수리', desc: '랑방 내구도 35% 회복', rarity: 'common' },
+  { id: 'fillHeal', icon: '💊', title: '응급 수리', desc: '랑방 내구도 35% 회복', rarity: 'common' },
 ];
 
 // ─── 장비 (서버 langbang-rules.js 와 같은 공식 — 테스트가 검사) ─────────
@@ -801,7 +859,7 @@ export const GEAR = {
   stamp: { id: 'stamp', slot: 'w', icon: '🔨', name: '강퇴 망치', stat: 'strip', base: 0.06 },
   tumbler: { id: 'tumbler', slot: 'w', icon: '🥤', name: '아아 텀블러', stat: 'spd', base: 0.05 },
   belt: { id: 'belt', slot: 'a', icon: '🏋️', name: '헬스장 리프팅 벨트', stat: 'atk', base: 0.05 },
-  carrier: { id: 'carrier', slot: 'a', icon: '🧳', name: '여행 캐리어 방패', stat: 'hp', base: 0.04 },
+  carrier: { id: 'carrier', slot: 'a', icon: '💼', name: '여행 캐리어 방패', stat: 'hp', base: 0.04 },
   hourglass: { id: 'hourglass', slot: 'a', icon: '⏳', name: '모래시계 키링', stat: 'cd', base: 0.05 },
   nametag: { id: 'nametag', slot: 'a', icon: '📛', name: '랑방 명찰', stat: 'attr', base: 0.06 },
   sneaker: { id: 'sneaker', slot: 'a', icon: '👟', name: '한정판 운동화', stat: 'spd', base: 0.04 },

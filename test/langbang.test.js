@@ -72,7 +72,7 @@ test('히든 영웅은 한 런에 두 번 나오지 않는다', () => {
 test('이한나 윙크 넉백은 남자 적에게만', () => {
   const g = S.createGame({ rng: seeded(5), noWaves: true, heroes: ['hanna'] });
   const h = g.heroes[0];
-  const male = S.spawnEnemy(g, 'yeokko', h.x, 250, { hpMul: 100 });
+  const male = S.spawnEnemy(g, 'yeokko', h.x, g.rowY - 250, { hpMul: 100 });
   male.speed = 0;
   const mp = { hitIds: [], hero: h, dmg: 1, kb: 100, pierce: 0, critBonus: 0 };
   const y0 = male.y;
@@ -548,7 +548,7 @@ test('멤버마다 사거리 · 공격 간격 · 공격 방식 · 스킬이 전�
   for (const h of H) { assert.ok(D.ATTRS[h.attr], h.id); assert.ok(h.attack && h.skill.name && h.skill.cd >= 12 && h.skill.cd <= 30, h.id); }
   const cnt = {};
   for (const h of H) cnt[h.attr] = (cnt[h.attr] || 0) + 1;
-  assert.deepEqual(cnt, { talk: 3, power: 3, charm: 3, booze: 3 });
+  assert.deepEqual(cnt, { talk: 4, power: 4, charm: 4, booze: 4 });
 });
 
 test('상성: 속성마다 강한 계열 2개 · 약한 계열 1개, 피해에 강함/약함 배율이 붙는다', () => {
@@ -630,14 +630,13 @@ test('스킬: 모든 멤버 스킬이 쿨타임과 효과를 가진다', () => {
   assert.equal(g2.heroes.find((h) => h.id === 'donghan').meter, 100, '진심 모드');
 });
 
-test('자리 바꾸기: 끌어다 놓으면 두 멤버가 자리를 바꾸고, 잠깐 쿨타임', () => {
+test('자리 바꾸기: 끌어다 놓으면 두 멤버가 바로 자리를 바꾼다 (쿨타임 없음)', () => {
   const g = bare(['bangjang', 'gunman']);
   const [a, b] = g.heroes;
   const sa = a.slot, sb = b.slot;
   assert.ok(S.swapHeroes(g, a, sb));
   assert.equal(a.slot, sb); assert.equal(b.slot, sa);
-  assert.equal(S.swapHeroes(g, a, sa), false, '쿨타임');
-  run(g, 1.5);
+  assert.ok(S.swapHeroes(g, a, sa), '바로 또 바꿀 수 있다');
   assert.ok(S.swapHeroes(g, a, 0));
   assert.equal(a.x, D.SLOT_X[0]);
 });
@@ -847,10 +846,14 @@ test('덱: 정한 자리에 멤버가 서고, 7칸이면 자리 7개 · 스테�
   assert.equal(g7.heroes.find((h) => h.slot === 6).x, D.SLOT_X7[6]);
   g.wave = 3;
   for (let i = 0; i < 200; i++) assert.ok(!S.rollCards(g, 3, { hiddenChance: 1 }).some((c) => c.kind === 'addHero'), '스테이지에선 합류 카드 없음');
-  assert.equal(D.deckSlots({}), 5);
-  assert.equal(D.deckSlots({ slot6: 1 }), 6);
-  assert.equal(D.deckSlots({ slot7: 1 }), 5, '7번째 칸은 6번째 칸 먼저');
-  assert.equal(D.deckSlots({ slot6: 1, slot7: 1 }), 7);
+  assert.equal(D.deckSlots({}), 4, '기본 덱은 4칸');
+  assert.equal(D.deckSlots({ slot5: 1 }), 5);
+  assert.equal(D.deckSlots({ slot6: 1 }), 4, '6번째 칸은 5번째 칸 먼저');
+  assert.equal(D.deckSlots({ slot5: 1, slot6: 1 }), 6);
+  // 예전 칸(slot6 = 6칸 · slot7 = 7칸)은 한 칸씩 남긴다
+  assert.deepEqual(D.migrateDeckItems({ slot6: 1 }), { slot5: 1, slot6: 0 });
+  assert.deepEqual(D.migrateDeckItems({ slot6: 1, slot7: 1 }), { slot5: 1, slot6: 1 });
+  assert.deepEqual(D.migrateDeckItems({ slot5: 1, slot6: 1 }), { slot5: 1, slot6: 1 });
 });
 
 test('줄 공격: 건전남 새총은 자기 줄 위의 적만 쏜다 (자리가 중요)', () => {
@@ -898,5 +901,166 @@ test('장비 공식: 서버(langbang-rules.js)와 화면(data.js)이 같다', ()
   for (const r of D.GEAR_RARITIES) for (let lv = 0; lv <= 10; lv++) { assert.equal(R.gearEnhanceCost(r, lv), D.gearEnhanceCost(r, lv)); assert.equal(R.gearSellValue(r, lv), D.gearSellValue(r, lv)); }
   for (let sd = 0; sd < 30; sd++) assert.deepEqual(R.rollDrops(sd * 7919, 1 + (sd % 30), 1 + (sd % 3), sd % 2 === 0, sd % 5 === 0), D.rollDrops(sd * 7919, 1 + (sd % 30), 1 + (sd % 3), sd % 2 === 0, sd % 5 === 0));
   for (let s = 1; s <= 30; s++) assert.deepEqual(R.stageReward(s, 3, 0, 2, true, true), D.stageReward(s, 3, 0, 2, true, true));
-  assert.equal(R.deckSlots({ slot6: 1, slot7: 1 }), D.deckSlots({ slot6: 1, slot7: 1 }));
+  assert.equal(R.deckSlots({ slot5: 1, slot6: 1 }), D.deckSlots({ slot5: 1, slot6: 1 }));
+  assert.equal(R.DECK_BASE, D.DECK_BASE);
+  assert.deepEqual(R.ITEMS.slot6.costs, [80000]);
+});
+
+// ─── 주간 도전 · 미션 · 모집 · 시즌 · 성급 (live.js) ─────────────
+test('live: 주간 도전 판은 주 번호만으로 정해지고, 점수·상한 확인이 맞다', async () => {
+  const L = await load('live.js');
+  const a = L.weeklyDef(3), b = L.weeklyDef(3), c = L.weeklyDef(4);
+  assert.deepEqual(a, b, '같은 주 = 같은 판');
+  assert.notEqual(a.mod, c.mod, '주마다 규칙이 바뀐다');
+  assert.equal(a.waves.length, L.WEEKLY_WAVES);
+  for (const w of a.waves) for (const [t] of w.g) assert.ok(D.ENEMIES[t], t);
+  assert.equal(L.weeklyScore({ waves: 10, kills: 300, bossKills: 3, victory: true, hpPct: 80 }), 10000 + 3000 + 1500 + 5000 + 4000);
+  assert.ok(L.weeklyCheck(a, { waves: 3, kills: 99999, bossKills: 0, durationSec: 100 }) !== null, '처치 수 상한');
+  assert.ok(L.weeklyCheck(a, { waves: 3, kills: 50, bossKills: 0, durationSec: 10 }) !== null, '너무 짧음');
+  assert.ok(L.weeklyCheck(a, { waves: 9, kills: 50, bossKills: 0, durationSec: 200, victory: true }) !== null, '다 안 깼는데 클리어');
+  assert.equal(L.weeklyCheck(a, { waves: 4, kills: 80, bossKills: 1, durationSec: 200 }), null);
+  const mon = Date.UTC(2026, 9, 4, 15, 0, 0); // 10/5(월) 00:00 KST
+  assert.equal(L.weekIndex(mon) - L.weekIndex(mon - 1000), 1, '주 경계는 월요일 00:00 KST');
+  const lb = {};
+  L.weeklyRecord(lb, 5, 1000, 3, 1);
+  assert.equal(L.weeklyRecord(lb, 5, 900, 2, 2), false, '낮은 점수는 최고 기록을 안 바꿈');
+  L.weeklyRecord(lb, 6, 500, 2, 3);
+  assert.equal(lb.weeklyPrev.best, 1000, '새 주로 넘어가면 지난 기록은 weeklyPrev');
+  assert.equal(L.weeklyEntry(lb, 5).best, 1000);
+});
+
+test('live: 미션은 (사용자·날짜)로 정해지고 진행/보상/중복 수령이 맞다', async () => {
+  const L = await load('live.js');
+  const now = Date.UTC(2026, 9, 1, 3);
+  const lb = L.normLive({}, { coins: 0, gear: [], gearSeq: 0, maxStage: 12, stages: {}, heroes: {} });
+  L.ensureLive(lb, 'u1', now);
+  assert.deepEqual(lb.daily.ids, L.pickDaily('u1', L.dayIndex(now), 12));
+  assert.equal(lb.daily.ids.length, 4);
+  const m = L.DAILY_POOL.find((x) => x.id === lb.daily.ids[0]);
+  assert.match(L.claimMission(lb, 'daily', m.id, 'u1', now).error, /아직/);
+  L.bump(lb, m.key, m.n, 'u1', now);
+  const r = L.claimMission(lb, 'daily', m.id, 'u1', now);
+  assert.equal(r.got.coins, m.coins);
+  assert.equal(lb.coins, m.coins);
+  assert.equal(lb.season.sp, m.sp, '시즌 포인트');
+  assert.match(L.claimMission(lb, 'daily', m.id, 'u1', now).error, /이미/);
+  assert.equal(lb.wm.p.dailyDone, 1, '주간 미션: 일일 완료 수');
+  L.ensureLive(lb, 'u1', now + L.DAY);
+  assert.equal(lb.daily.done.length, 0, '다음 날이면 새 미션');
+  lb.maxStage = 10;
+  assert.ok(L.claimMission(lb, 'ach', 'ch1', 'u1', now).got.tickets >= 1);
+  assert.match(L.claimMission(lb, 'ach', 'ch2', 'u1', now).error, /아직/);
+});
+
+test('live: 모집 확률 · 10연속 영웅 등급 확정 · 천장(50/200) · 겹치면 조각 · 이호찬은 3-10 뒤에만', async () => {
+  const L = await load('live.js');
+  const mk = (maxStage) => L.normLive({}, { coins: 1e9, gear: [], gearSeq: 0, maxStage, stages: {}, heroes: {} });
+  const sum = L.GACHA_RATES.reduce((a, r) => a + r.w, 0);
+  assert.ok(Math.abs(sum - 100) < 1e-9, '확률 합 100%');
+  let lb = mk(12);
+  for (let i = 0; i < 300; i++) {
+    const r = L.gachaPull(lb, 10, 'coin', 'u', 0);
+    assert.ok(r.results.some((x) => ['legendHero', 'epicHero', 'legendGear', 'epicGear'].includes(x.k)), '10연속 확정');
+    assert.ok(!r.results.some((x) => x.k === 'legendHero'), '3-10 전엔 LEGEND 없음');
+  }
+  assert.ok(!lb.owned.hochan);
+  lb = mk(12); lb.pity.hero = 49;
+  assert.equal(L.gachaPull(lb, 1, 'coin', 'u2', 0).results[0].k, 'epicHero', '50회 천장');
+  lb = mk(30); lb.pity.legend = 199;
+  assert.equal(L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0].hero, 'hochan', '200회 천장');
+  assert.equal(lb.owned.hochan, true);
+  assert.ok(L.heroUnlocked(lb, 'hochan'));
+  lb.pity.legend = 199;
+  const dup = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
+  assert.ok(dup.dup && lb.shards.hochan === L.DUP_SHARDS.legendHero, '겹치면 조각');
+  lb = mk(12); lb.coins = 100; lb.tickets = 0;
+  assert.match(L.gachaPull(lb, 1, 'coin', 'u', 0).error, /코인/);
+  assert.match(L.gachaPull(lb, 10, 'ticket', 'u', 0).error, /모집권/);
+  lb = mk(30);
+  const cnt = {};
+  for (let i = 0; i < 5000; i++) { lb.pity.hero = 0; lb.pity.legend = 0; const x = L.gachaPull(lb, 1, 'coin', 'r', 0).results[0]; cnt[x.k] = (cnt[x.k] || 0) + 1; }
+  assert.ok(cnt.epicHero / 5000 > 0.015 && cnt.epicHero / 5000 < 0.05, `영웅 멤버 ${cnt.epicHero}`);
+  assert.ok((cnt.legendHero || 0) / 5000 < 0.012, `LEGEND ${cnt.legendHero}`);
+});
+
+test('live: 성급 · 시즌 30단계 · 칭호/프레임 · 챕터 별 상자 · 출석 · 이상한 값 정리', async () => {
+  const L = await load('live.js');
+  const lb = L.normLive({}, { coins: 1e6, gear: [], gearSeq: 0, maxStage: 10, stages: { 1: 3, 2: 3, 3: 3, 4: 1 }, heroes: {} });
+  assert.match(L.starUp(lb, 'staff').error, /조각/);
+  lb.shards.staff = 20;
+  assert.equal(L.starUp(lb, 'staff').star, 2);
+  assert.equal(L.heroStar(lb, 'staff'), 2);
+  assert.match(L.starUp(lb, 'junseo').error, /합류/, '없는 멤버는 승급 불가');
+  const now = Date.UTC(2026, 9, 1);
+  L.ensureLive(lb, 'u', now);
+  lb.season.sp = 1050;
+  assert.equal(L.seasonTier(lb), 10);
+  assert.equal(L.claimSeason(lb, 'all', 'u', now).got.length, 10);
+  assert.ok(lb.titles.includes(`s${lb.season.id}_t10`), '10단계 칭호');
+  assert.match(L.claimSeason(lb, 11, 'u', now).error, /아직/);
+  assert.equal(L.setCosmetic(lb, `s${lb.season.id}_t10`, undefined).error, undefined);
+  assert.match(L.setCosmetic(lb, 'wchamp', undefined).error, /없는/);
+  assert.match(L.claimChest(lb, 1, 20, 'u', now).error, /별/);
+  assert.ok(L.claimChest(lb, 1, 10, 'u', now).got.coins > 0);
+  assert.match(L.claimChest(lb, 1, 10, 'u', now).error, /이미/);
+  assert.ok(L.claimCheckin(lb, 'u', now).got.coins);
+  assert.match(L.claimCheckin(lb, 'u', now).error, /이미/);
+  assert.equal(L.claimCheckin(lb, 'u', now + L.DAY).day, 2);
+  assert.equal(L.claimCheckin(lb, 'u', now + 3 * L.DAY).day, 1, '하루 빠지면 처음부터');
+  const bad = L.normLive({ tickets: -5, shards: { nope: 9, staff: 1e12 }, hstars: { staff: 9 }, owned: { staff: true, junseo: 1 }, titles: ['hack', 's1_t10'], frame: 'gold', frames: ['neon'], season: { id: 1, sp: 5, claimed: [1, 99] } }, {});
+  assert.equal(bad.tickets, 0);
+  assert.equal(bad.shards.nope, undefined);
+  assert.equal(bad.hstars.staff, 5);
+  assert.deepEqual(Object.keys(bad.owned), ['junseo']);
+  assert.deepEqual(bad.titles, ['s1_t10']);
+  assert.equal(bad.frame, '', '없는 프레임은 못 낀다');
+  assert.deepEqual(bad.season.claimed, [1]);
+});
+
+test('새 멤버: 여사친 핀볼 · 다이어트 변신 · 공주↔늙음 · 황금 파동 버프 · 성급 공격력', () => {
+  const g = S.createGame({ rng: seeded(901), noWaves: true, heroes: ['junseo'] });
+  const h = g.heroes[0];
+  const es = [0, 1, 2, 3].map((i) => { const e = S.spawnEnemy(g, 'thug', h.x - 60 + i * 40, g.rowY - 200 - i * 10, { hpMul: 50 }); e.speed = 0; return e; });
+  run(g, 3);
+  assert.ok(es.filter((e) => e.hp < e.maxHp).length >= 3, '여사친이 3명 이상 맞힘');
+  const g2 = S.createGame({ rng: seeded(902), noWaves: true, heroes: ['hyungyeong'] });
+  const hy = g2.heroes[0];
+  hy.meter = 99.99; g2.phase = 'wave'; g2.spawnQ = []; g2.spawnI = 0;
+  const dummy = S.spawnEnemy(g2, 'thug', hy.x, g2.rowY - 120, { hpMul: 500 }); dummy.speed = 0;
+  S.step(g2, 1 / 60); S.step(g2, 1 / 60);
+  assert.equal(hy.alt, true, '날씬 모드');
+  for (let t = 0; t < 12; t += 1 / 60) S.step(g2, 1 / 60);
+  assert.equal(hy.alt, false, '요요');
+  const g3 = S.createGame({ rng: seeded(903), noWaves: true, heroes: ['ara'] });
+  const a = g3.heroes[0];
+  const d0 = S.heroDamage(g3, a);
+  a.alt = true;
+  assert.ok(Math.abs(S.heroDamage(g3, a) / d0 - D.HEROES.ara.age.dmg) < 1e-9, '늙으면 힘이 반');
+  const boss = S.spawnEnemy(g3, 'boss_thug', 180, 200, { hpMul: 100 }); boss.speed = 0;
+  a.skillCd = 0;
+  assert.ok(S.castSkill(g3, a, 0, 0));
+  assert.equal(a.alt, false, '공주의 일격 → 바로 공주');
+  assert.ok(boss.hp < boss.maxHp);
+  const g4 = S.createGame({ rng: seeded(904), noWaves: true, heroes: ['hochan', 'staff'] });
+  const hc = g4.heroes[0], st = g4.heroes[1];
+  const base = S.heroDamage(g4, st);
+  for (let i = 0; i < 6; i++) { const e = S.spawnEnemy(g4, 'thug', hc.x, g4.rowY - 150 - i * 25, { hpMul: 100 }); e.speed = 0; }
+  run(g4, 2.5);
+  assert.ok(g4.hcT > 0 && g4.hcBuff > 0 && g4.hcBuff <= D.HEROES.hochan.buff.max + 1e-9, `버프 ${g4.hcBuff}`);
+  assert.ok(S.heroDamage(g4, st) > base, '랑방을 위하여! 아군 공격력 ↑');
+  const s1 = S.createGame({ rng: seeded(905), noWaves: true, heroes: ['staff'] });
+  const s3 = S.createGame({ rng: seeded(905), noWaves: true, heroes: ['staff'], stars: { staff: 3 } });
+  assert.ok(Math.abs(S.heroDamage(s3, s3.heroes[0]) / S.heroDamage(s1, s1.heroes[0]) - 1.14) < 1e-9, '★3 = +14%');
+});
+
+test('주간 도전 판: 10웨이브 · 규칙이 시뮬레이션에 들어간다', async () => {
+  const L = await load('live.js');
+  let wi = 0;
+  while (L.weeklyDef(wi).mod !== 'glass') wi++;
+  const def = L.weeklyDef(wi);
+  const g = S.createGame({ rng: seeded(910), mode: 'stage', weekly: def, deck: ['staff', 'bangjang', 'gunman', null, null, null] });
+  assert.equal(g.totalWaves, 10);
+  assert.equal(g.base.max, Math.round(D.RULES.baseHp * 0.5), '유리 입구: 절반');
+  S.startWave(g, 1);
+  assert.equal(S.summary(g, 1).weekly, wi);
 });

@@ -5,7 +5,9 @@ import {
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearSellValue, SLOT_X, SLOT_X7,
+  attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES,
 } from './data.js';
+import * as L from './live.js';
 import * as S from './sim.js';
 import { Renderer } from './render.js';
 import * as A from './audio.js';
@@ -135,7 +137,7 @@ function closeConfirm(result) {
 // ─── 이어하기 저장본 (웨이브 시작 때마다 · 페이지를 떠날 때) ─────
 function saveSnap() {
   const g = app.g;
-  if (!g || app.debugRun || g.over || g.victory || app.ending || !g.lastSnap) return;
+  if (!g || app.debugRun || g.over || g.victory || app.ending || !g.lastSnap || g.weekly) return;
   try {
     localStorage.setItem(SNAP_KEY, JSON.stringify({ v: 1, acct: API.accountKey(), partner: app.partner, partners: app.partners, at: Date.now(), snap: g.lastSnap }));
   } catch { /* 저장소 가득 참 */ }
@@ -192,13 +194,6 @@ window.addEventListener('popstate', () => {
 });
 
 // ─── 데모(메뉴 뒤에서 돌아가는 구경용 판) ─────────────
-function makeDemo() {
-  const g = S.createGame({ H: app.logicalH, god: true, heroes: ['staff', 'bangjang', 'gunman', 'gunnyeo'], rng: Math.random });
-  for (const h of g.heroes) h.lv = 3;
-  g.phaseT = 0.5;
-  return g;
-}
-
 // ─── 진행 도우미 ─────────────────────────────────────
 const P = () => app.profile;
 const nextStage = () => Math.min(STAGE_COUNT, (P().maxStage || 0) + 1);
@@ -219,7 +214,7 @@ function unlockText(id) {
   const s = HERO_UNLOCK[id];
   return s ? `${stageLabel(s)} 클리어하면 합류` : '';
 }
-function partnerList() { return ['staff', 'gunman', 'gunnyeo', ...UNLOCK_HEROES, ...HIDDEN_HEROES]; }
+function partnerList() { return ['staff', 'gunman', 'gunnyeo', ...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; }
 
 // ─── 게임 시작/끝 ─────────────────────────────────────
 async function startRun(opt = {}) {
@@ -230,17 +225,27 @@ async function startRun(opt = {}) {
     const ok = await confirmBox({ title: '새로 시작할까요?', sub: `이어하던 판(${snapLabel(snap)})은 사라져요`, ok: '새로 시작', cancel: '취소', danger: true });
     if (!ok) return;
   }
+  let weekly = null;
+  app.weeklyRun = null;
+  if (mode === 'weekly') {
+    const r = await API.weeklyStart(app.guest);
+    if (!r.ok) { toast(r.message || '주간 도전을 시작할 수 없어요'); return; }
+    weekly = L.weeklyDef(r.wi);
+    app.weeklyRun = r.runId;
+  }
   clearSnap();
   app.mode = mode;
   app.stage = st;
   fixDeck();
   const p = P();
+  // 2배속: 이미 깬 스테이지만
+  app.runSpeed = mode === 'stage' && app.speed2 && (p.stages[st] | 0) > 0 ? 2 : 1;
   const unlocked = DEBUG.hidden ? LOCKED_HEROES.slice() : p.unlocked || [];
   layoutForNewRun();
   const deck = curDeck();
   const g = S.createGame({
-    H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), gear: API.gearFor(p, deck.filter(Boolean)),
-    god: DEBUG.god || DEBUG.stress > 0, mode, stage: st, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
+    H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), gear: API.gearFor(p, deck.filter(Boolean)), stars: p.hstars || {},
+    god: DEBUG.god || DEBUG.stress > 0, mode: weekly ? 'stage' : mode, stage: st, weekly, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
   });
   if (DEBUG.wave > 1) {
     // 디버그: 중간 웨이브부터 시작하면 그만큼 강하게
@@ -266,6 +271,7 @@ function resumeRun() {
   if (!d) { toast('이어할 판이 없어요'); showMenu(); return; }
   app.mode = d.snap.mode;
   app.stage = d.snap.stage || 0;
+  app.runSpeed = 1;
   if (Array.isArray(d.partners)) app.partners = d.partners;
   app.partner = app.partners[0];
   app.debugRun = false;
@@ -284,13 +290,16 @@ function beginPlay(g) {
   app.ultTipShown = false;
   fx.reset();
   R.setTheme(g.mode === 'stage' ? chapterOf(g.stage) : 'endless');
+  if (A.setChapter) A.setChapter(g.mode === 'stage' ? chapterOf(g.stage) : 3);
   app.screen = 'play';
   skillbar.dataset.key = '';
   cancelAim(); hideBubble(); app.drag = null;
   if (g.mapFx.id !== 'none') setTimeout(() => { if (app.g === g) fx.banner(`${g.mapFx.icon} ${g.mapFx.name}`, g.mapFx.desc, '#23336a', 2.2, 'big'); }, 300);
   ui.innerHTML = '';
   hud.hidden = false;
-  hud.classList.toggle('endless', g.mode !== 'stage');
+  hud.classList.toggle('endless', g.mode !== 'stage' || !!g.weekly);
+  hud.classList.toggle('fast', app.runSpeed > 1);
+  syncSpeedPill();
   A.playBgm();
   guardOn();
   last = performance.now();
@@ -350,7 +359,7 @@ function handleEvents(g, loud) {
     switch (e.type) {
       case 'shot': if (loud) A.sfx.shot(HEROES[e.hero].proj); break;
       case 'dmg':
-        if (!busy || e.crit) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : null);
+        if (!busy || e.crit || e.eff > 0) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : null, e.eff);
         break;
       case 'hit': {
         const col = e.crit ? '#ffe14d' : PROJ_COL[e.proj] || '#fff';
@@ -459,6 +468,7 @@ function handleEvents(g, loud) {
         break;
       }
       case 'bossSpawn': {
+        if (live) A.setBoss(true);
         fx.ring(e.x, 40, 10, 140, 0.8, '#ff4b4b', 6);
         const def = S.waveDefFor(g, g.wave);
         if (def.boss2 === e.enemy && def.boss !== e.enemy) fx.banner(`${ENEMIES[e.enemy].name} 난입!`, ENEMIES[e.enemy].subtitle, BOSS_COL[e.enemy] || '#9a1a1a', 2, 'boss', 'e_' + e.enemy);
@@ -486,7 +496,50 @@ function handleEvents(g, loud) {
       case 'weak': fx.text(e.x, e.y, '빈틈! 지금이야!', '#ffe14d', 18, 1.2, -20); fx.ring(e.x, e.y + 60, 10, 70, 0.5, '#ffe14d', 5); break;
       case 'strip': if (!busy) fx.text(e.x, e.y, '버프 벗김!', '#9feaff', 13, 0.8); break;
       case 'eff':
-        if (!busy) fx.text(e.x, e.y, e.strong ? '효과 굉장!' : '별로…', e.strong ? '#ffe14d' : '#9aa8c8', e.strong ? 14 : 12, 0.8, -30);
+        if (e.strong) {
+          fx.text(e.x, e.y, '효과 굉장!', '#ffb02e', 16, 0.9, -34);
+          fx.burst(e.x, e.y + 20, 8, '#ff9a1a', 190, 'spark', 4, 0.35);
+          fx.ring(e.x, e.y + 22, 6, 34, 0.25, '#ffb02e', 3);
+        } else if (!busy) {
+          fx.text(e.x, e.y, '별로…', '#8a90a0', 11, 0.7, -22);
+          fx.burst(e.x, e.y + 20, 3, 'rgba(160,165,180,0.7)', 40, 'puff', 6, 0.35);
+        }
+        break;
+      // ── 새 멤버 연출 ──
+      case 'ricochet': if (!busy) fx.burst(e.x, e.y, 5, '#ff9fd0', 140, 'spark', 3, 0.3); if (loud) A.sfx.hit(); break;
+      case 'slam':
+        fx.ring(e.x, e.y, 8, e.r, 0.35, '#ffb347', 6);
+        fx.burst(e.x, e.y, 10, 'rgba(210,180,140,0.8)', 120, 'puff', 10, 0.45);
+        if (Math.random() < 0.3) fx.text(e.x, e.y - 30, '쿵!', '#ffd08a', 16, 0.6);
+        fx.addShake(2.5);
+        if (loud) A.sfx.slam();
+        break;
+      case 'diet':
+        fx.text(e.x, e.y - 80, '다이어트 주사!', '#ff7fb8', 17, 1.1, -24);
+        fx.ring(e.x, e.y, 10, 70, 0.5, '#ff7fb8', 5);
+        fx.burst(e.x, e.y - 30, 14, '#ff9fd0', 200, 'star', 8, 0.6);
+        if (loud) A.sfx.levelUp();
+        break;
+      case 'yoyo': fx.text(e.x, e.y - 80, '요요…!', '#ffb347', 16, 1.0, -20); fx.burst(e.x, e.y - 20, 8, 'rgba(255,200,150,0.8)', 80, 'puff', 12, 0.5); break;
+      case 'aged': fx.text(e.x, e.y - 80, '폭삭… 아이고 허리야', '#c8c8c8', 14, 1.2, -18); fx.burst(e.x, e.y - 30, 10, 'rgba(200,200,200,0.8)', 60, 'puff', 12, 0.6); break;
+      case 'young':
+        fx.text(e.x, e.y - 80, '다시 공주!', '#ffc4ec', 17, 1.1, -24);
+        for (let k = 0; k < 10; k++) fx.part('star', e.x + (Math.random() - 0.5) * 50, e.y - 40, (Math.random() - 0.5) * 120, -80, 0.8, 9, null, { grav: 120 });
+        if (loud) A.sfx.levelUp();
+        break;
+      case 'bigHammer':
+        fx.ring(e.x, e.y, 10, 90, 0.4, '#ffc4ec', 8);
+        fx.text(e.x, e.y - 60, '공주의 일격!!', '#ff9fd8', 22, 1.2, -24);
+        fx.burst(e.x, e.y, 22, '#ffe14d', 260, 'star', 10, 0.6);
+        fx.addShake(10); fx.flash('#ffe6f6', 0.35);
+        if (loud) A.sfx.slam();
+        break;
+      case 'crown': if (Math.random() < 0.35) fx.text(e.x, e.y - 50, '랑방을 위하여!', '#ffd84a', 14, 0.9, -20); if (loud) A.sfx.wave(); break;
+      case 'langbang':
+        fx.banner('👑 랑방을 위하여!!', '모든 멤버 공격력 UP', '#8a6400', 1.6, 'wave');
+        fx.flash('#fff1a8', 0.4);
+        for (const h of g.heroes) fx.ring(h.x, h.y, 6, 44, 0.5, '#ffd84a', 4);
+        if (loud) A.sfx.levelUp();
         break;
       case 'cone':
         fx.arc(e.x, e.y, e.a, e.half, e.r, e.big ? 0.45 : 0.28, e.big ? 'rgba(255,160,40,0.9)' : 'rgba(255,220,90,0.8)');
@@ -561,6 +614,7 @@ function handleEvents(g, loud) {
         break;
       }
       case 'bossKill':
+        if (live && g.bossAlive <= 0) A.setBoss(false);
         fx.slowmo = 1.5;
         fx.zoomTarget = 1.28;
         fx.zx = e.x; fx.zy = e.y;
@@ -573,6 +627,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.bossKill();
         break;
       case 'waveClear':
+        if (live) A.setBoss(false);
         if (!e.last) fx.text(180, g.H * 0.36, `WAVE ${e.wave} 클리어!`, '#7dff9a', 24, 1.5, -12);
         if (loud) A.sfx.clear();
         break;
@@ -582,7 +637,8 @@ function handleEvents(g, loud) {
           fx.burst(60 + Math.random() * 240, g.H * 0.3, 40, null, 380, 'confetti', 8, 2, 240);
           for (const p of fx.parts.items) if (p.type === 'confetti' && !p.color) p.color = CONFETTI[(Math.random() * CONFETTI.length) | 0];
         }, k * 350);
-        if (g.mode === 'stage' && !g.baseHit) {
+        if (g.weekly) fx.banner('📅 주간 도전 완주!!', `${g.totalWaves}웨이브 전부 막아냈다`, '#c77a00', 2.6, 'big');
+        else if (g.mode === 'stage' && !g.baseHit) {
           fx.banner('💎 PERFECT!!', '입구가 한 번도 안 맞았다!', '#1a6aa0', 2.6, 'big');
           fx.flash('#bff4ff', 0.9);
           for (let k = 0; k < 20; k++) fx.part('star', 40 + Math.random() * 280, g.H * 0.2 + Math.random() * 200, (Math.random() - 0.5) * 80, -60, 1.4, 12, null, { grav: 60 });
@@ -592,6 +648,7 @@ function handleEvents(g, loud) {
         if (live) endRun(true);
         break;
       case 'gameover':
+        if (live) A.setBoss(false);
         fx.slowmo = 1.4;
         fx.zoomTarget = 1.12;
         fx.zx = 180; fx.zy = g.ropeY;
@@ -610,6 +667,7 @@ function handleEvents(g, loud) {
         break;
       case 'sober': fx.text(e.x, e.y - 60, '술 깼다… 한 잔 더?', '#ffd6a8', 12, 1.3); break;
       case 'heal':
+        fx.repairT = 1.2; // 방어선 수리 연출
         fx.text(e.x, e.y - 60, `+${e.v} 수리`, '#7dff9a', 14, 1);
         for (let k = 0; k < 6; k++) fx.part('star', 40 + Math.random() * 280, g.rowY + 60 + Math.random() * 40, 0, -40, 0.8, 7, null);
         if (loud) A.sfx.heal();
@@ -678,6 +736,7 @@ const H$ = {
   wave: $('#h-wave'), left: $('#h-left'), kills: $('#h-kills'), score: $('#h-score'), xp: $('#h-xp'), lv: $('#h-lv'),
   hp: $('#h-hp'), hpLag: $('#h-hp-lag'), hpText: $('#h-hptext'), stars: $('#h-stars'), ult: $('#btn-ult'), boss: $('#bossbar'), bossName: $('#boss-name'), bossFill: $('#boss-fill'),
   mute: $('#btn-mute'), baseBox: document.querySelector('.base-hp'), fx: $('#h-fx'),
+  time: $('#h-time'), speed: $('#btn-speed'),
 };
 function setText(el, key, v) {
   if (app.hudCache[key] === v) return false;
@@ -692,7 +751,13 @@ function updateHud() {
   const stageMode = g.mode === 'stage';
   const def = g.wave > 0 ? S.waveDefFor(g, w) : null;
   const bossWave = !!(def && def.boss);
-  setText(H$.wave, 'wave', stageMode ? `${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
+  setText(H$.wave, 'wave', g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
+  setText(H$.time, 'time', `${Math.floor(g.t / 60)}:${String(Math.floor(g.t % 60)).padStart(2, '0')}`);
+  // 방어선 위험 경고
+  const low = g.base.hp / g.base.max < 0.15 && !g.over;
+  if (low && !app.hudCache.lowWarn && g.base.hp > 0) { fx.banner('⚠️ 방어선 위험!', '입구가 곧 뚫려요 — 회복 스킬!', '#a3121e', 1.6, 'wave'); fx.flash('#ff2030', 0.35); }
+  app.hudCache.lowWarn = low;
+  hud.classList.toggle('danger', low);
   H$.wave.classList.toggle('boss', bossWave && g.phase !== 'break');
   setText(H$.left, 'left', g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : `남은 진상 ${S.enemiesLeft(g)}`);
   setText(H$.fx, 'fx', g.mapFx.id === 'none' ? '' : g.mapFx.icon);
@@ -759,7 +824,7 @@ function frame(now) {
   fx.noBanner = !live;
   if (g && !app.paused && !app.cardsOpen && !app.confirmOpen) {
     const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1);
-    const speed = live ? DEBUG.speed : 1;
+    const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
     acc += dt * ts * speed;
     const maxSteps = Math.ceil(10 * Math.max(1, speed));
     let n = 0;
@@ -858,7 +923,7 @@ function endPress(ev) {
   if (app.drag) {
     const d = app.drag;
     app.drag = null;
-    if (d.slot !== undefined && S.swapHeroes(g, d.h, d.slot)) { A.sfx.card(); vibrate(10); } else if (g.swapCd > 0) toast('자리 바꾸기는 잠깐 뒤에 다시!', 1000);
+    if (d.slot !== undefined && S.swapHeroes(g, d.h, d.slot)) { A.sfx.card(); vibrate(10); }
     return;
   }
   if (ev.type === 'pointerup') showHeroBubble(p0.h);
@@ -982,6 +1047,23 @@ function checkNewEnemies(g) {
 document.addEventListener('pointerdown', () => { app.touched = true; A.unlock(); if (app.screen !== 'result') A.playBgm(); }, { passive: true });
 
 $('#btn-pause').addEventListener('click', () => pauseGame());
+// 2배속 (이미 깬 스테이지만) — 선택은 기억한다
+function speedOk() { const g = app.g; return !!(g && g.mode === 'stage' && !g.weekly && (P().stages[g.stage] | 0) > 0); }
+function syncSpeedPill() {
+  const b = $('#btn-speed');
+  b.hidden = !speedOk();
+  b.textContent = (app.runSpeed || 1) > 1 ? '×2' : '×1';
+  b.classList.toggle('on', (app.runSpeed || 1) > 1);
+}
+$('#btn-speed').addEventListener('click', () => {
+  if (!speedOk()) return;
+  app.runSpeed = (app.runSpeed || 1) > 1 ? 1 : 2;
+  app.speed2 = app.runSpeed > 1;
+  try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ }
+  syncSpeedPill();
+  A.sfx.tap();
+});
+try { app.speed2 = localStorage.getItem('langbang:speed2') === '1'; } catch { app.speed2 = false; }
 $('#btn-mute').addEventListener('click', () => { A.setMuted(!A.isMuted()); syncMute(); });
 $('#btn-ult').addEventListener('click', () => {
   const g = app.g;
@@ -989,6 +1071,8 @@ $('#btn-ult').addEventListener('click', () => {
   if (!S.useUlt(g)) { toast(`총공지 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
   handleEvents(g, true);
 });
+// 길게 누르면 뜨는 사진 저장/공유 메뉴 막기 (결과 공유 카드 그림만 예외)
+stage.addEventListener('contextmenu', (e) => { if (!e.target.closest('.share-keep')) e.preventDefault(); });
 document.addEventListener('keydown', (e) => {
   if (app.confirmOpen) { if (e.key === 'Escape') closeConfirm(false); return; }
   if (e.key === 'Escape' || e.key === 'p') { if (app.screen === 'play' && !app.cardsOpen) { if (app.paused) resumeGame(); else pauseGame(); } }
@@ -1066,7 +1150,7 @@ const ACTS = {
     showPrep('endless', 0);
   },
   deckSlot: (b) => deckTapSlot(Number(b.dataset.i)),
-  rosterPick: (b) => deckPickHero(b.dataset.id),
+  rosterPick: (b) => showHeroModal(b.dataset.id, 'prep'),
   deckPreset: (b) => { app.deckI = Number(b.dataset.k); app.deckSel = -1; saveDecks(); showPrep(app.mode, app.stage); },
   autoDeck: () => { autoDeck(); A.sfx.levelUp(); toast('상성에 맞춰 덱을 짰어요!', 1400); showPrep(app.mode, app.stage); },
   gearItem: (b) => showGearCard(Number(b.dataset.id)),
@@ -1117,6 +1201,44 @@ function topbar(back = true, extra = '') {
 }
 const coinsPill = () => `<span class="coins-pill"><i class="ci"></i>${fmt(P().coins || 0)}</span>`;
 
+// ─── 로비 (메인 화면) ─────────────────────────────────
+// 뒤에는 데모 전투가 계속 돌고(어둡게), 가운데 챕터 디오라마, 아래 출격 버튼 · 왼쪽 이벤트 · 오른쪽 메뉴 · 맨 아래 탭
+const uid = () => API.liveUid();
+function uiIco(name, emoji, cls = '') {
+  return `<span class="uic ${cls}"><img src="/img/lb/ui/${name}.webp" alt="" draggable="false" onerror="this.parentNode.classList.add('noimg');this.remove()"><em>${emoji}</em></span>`;
+}
+const rdot = (on) => (on ? '<i class="rd"></i>' : '');
+function lobbyStage() {
+  if (!app.lobbyStage || !stageUnlocked(app.lobbyStage)) app.lobbyStage = nextStage();
+  return app.lobbyStage;
+}
+// 빨간 점: 받을 게 있는 곳
+function dots() {
+  const p = P();
+  const now = Date.now();
+  const mis = L.claimable(p, uid(), now);
+  const tier = L.seasonTier(p);
+  const season = p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t));
+  const wk = (p.maxStage | 0) >= L.WEEKLY_UNLOCK && !(p.weekly && p.weekly.wi === L.weekIndex(now) && p.weekly.runs > 0);
+  const members = Object.keys(HEROES).some((h) => API.heroUnlocked(p, h) && L.heroStar(p, h) < L.STAR_MAX && (p.shards[h] | 0) >= L.STAR_SHARDS[L.heroStar(p, h)]);
+  return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0 };
+}
+function navHtml(on) {
+  const d = dots();
+  const tabs = [['shop', '상점', '🛒'], ['bag', '가방', '🎒'], ['battle', '전투', '⚔️'], ['members', '멤버', '👥'], ['missions', '미션', '📜']];
+  return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'members' ? 'members' : k, e)}<b>${n}</b>${rdot(d[k])}</button>`).join('')}</nav>`;
+}
+function topPills() {
+  const p = P();
+  const expPct = p.expToNext ? Math.round((p.exp / p.expToNext) * 100) : 0;
+  const fr = p.frame && L.FRAMES[p.frame] ? L.FRAMES[p.frame].color : '';
+  const title = p.title ? L.titleName(p.title) : '';
+  return `<div class="lb-top">
+    <button class="pill me" data-act="settings" style="${fr ? `--fr:${fr}` : ''}"><span class="ava ${fr ? 'framed' : ''}">${av(HEROES.bangjang)}</span>
+      <span class="who"><b>${app.guest ? '손님' : `Lv.${p.level}`}</b><em>${esc(app.guest ? '로그인하면 랭킹 등록' : app.nickname || '랑방 멤버')}</em>${title ? `<u>${esc(title)}</u>` : ''}<i class="xp"><b style="width:${app.guest ? 0 : expPct}%"></b></i></span></button>
+    <div class="curs"><span class="pill cur"><i class="ci"></i><b>${fmt(p.coins || 0)}</b></span><button class="pill cur tk" data-act="nav" data-tab="shop">🎟️<b>${fmt(p.tickets || 0)}</b><em>+</em></button></div>
+  </div>`;
+}
 function showMenu() {
   app.screen = 'menu';
   app.g = null;
@@ -1125,49 +1247,528 @@ function showMenu() {
   hud.hidden = true;
   guardOn();
   layout();
-  R.setTheme(1);
+  const s = lobbyStage();
+  const ch = chapterOf(s);
+  R.setTheme(ch);
+  A.setBoss(false);
+  A.setChapter(ch);
   if (!app.demo) app.demo = makeDemo();
   fx.reset();
   const p = P();
-  const next = nextStage();
-  const allDone = (p.maxStage || 0) >= STAGE_COUNT;
-  const expPct = p.expToNext ? Math.round((p.exp / p.expToNext) * 100) : 0;
-  const progress = `<span>진행 <b>${p.maxStage ? stageLabel(p.maxStage) : '-'}</b></span><span class="st">★ <b>${p.totalStars || 0}</b>/${STAGE_COUNT * 3}</span>`;
-  const prof = app.guest
-    ? `<div class="profile"><div class="lv">🙂</div><div class="info"><div class="name">손님</div>
-        <div class="meta"><span><i class="ci"></i><b>${fmt(p.coins)}</b></span>${progress}</div></div></div>
-       <div class="guest-note">손님 기록은 이 기기에만 · <a href="/">로그인</a>하면 랭킹 등록!</div>`
-    : `<div class="profile"><div class="lv"><span><small>LV</small>${p.level}</span></div><div class="info">
-        <div class="name">${esc(app.nickname || '랑방 멤버')}</div>
-        <div class="meta"><span><i class="ci"></i><b>${fmt(p.coins)}</b></span>${progress}</div>
-        <div class="pexp"><div style="width:${expPct}%"></div></div></div></div>`;
   const snap = loadSnap();
-  const endlessOn = p.endlessUnlocked;
+  const c = CHAPTERS[ch - 1];
+  const fxd = stageFx(s);
+  const d = dots();
+  const cs = L.chapterStars(p, ch);
+  const opened = (p.chests || {})[ch] || [];
+  const chests = L.CHEST_STARS.map((n) => {
+    const st = opened.includes(n) ? 'open' : cs >= n ? 'ready' : 'lock';
+    return `<button class="chest ${st}" data-act="chest" data-ch="${ch}" data-n="${n}"><span>${st === 'open' ? '📭' : '🎁'}</span><small>★${n}</small></button>`;
+  }).join('');
+  const now = Date.now();
+  const wkOpen = (p.maxStage | 0) >= L.WEEKLY_UNLOCK;
+  const boss = stageBosses(s).length > 0;
+  const left = [
+    `<button class="tile ${wkOpen ? '' : 'locked'}" data-act="weekly">${uiIco('weekly', '📅')}<b>주간 도전</b><small>${wkOpen ? L.leftText(L.msToWeekEnd(now)) : `${stageLabel(L.WEEKLY_UNLOCK)}`}</small>${rdot(d.weekly)}</button>`,
+    `<button class="tile ${p.endlessUnlocked ? '' : 'locked'}" data-act="endless">${uiIco('battle', '♾️', 'inf')}<b>무한 도전</b><small>${p.endlessUnlocked ? `W${p.bestWave || 0}` : stageLabel(ENDLESS_UNLOCK)}</small></button>`,
+    `<button class="tile" data-act="season">${uiIco('season', '🏆')}<b>시즌</b><small>${L.seasonTier(p)}/${L.SEASON_TIERS}</small>${rdot(d.season)}</button>`,
+    `<button class="tile" data-act="recruit">${uiIco('recruit', '🎰')}<b>모집</b><small>🎟️${p.tickets | 0}</small>${rdot(d.recruit)}</button>`,
+    `<button class="tile" data-act="checkin">${uiIco('checkin', '📆')}<b>출석</b><small>${L.checkinState(p, now).done ? '완료' : '받기!'}</small>${rdot(d.checkin)}</button>`,
+  ].join('');
+  const right = [['ranking', '랭킹', '🏆', 'ranking'], ['dex', '도감', '📚', 'dex'], ['mail', '공지', '📮', 'notice'], ['settings', '설정', '⚙️', 'settings']]
+    .map(([ic, n, e, act]) => `<button class="rb" data-act="${act}">${uiIco(ic, e)}<small>${n}</small>${rdot(act === 'dex' && dexHasNew())}</button>`).join('');
+  const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
-    <div class="topbar"><a class="back" href="/">‹ 게임월드</a><div class="tb-right"><button class="share-btn" data-act="share">📤 공유하기</button><button class="icon-btn" data-act="mute">${A.isMuted() ? '🔇' : '🔊'}</button></div></div>
-    <div class="keyart"><img src="/img/lb/keyart.webp" alt="" onerror="this.parentNode.classList.add('noart');this.remove()"></div>
-    <div class="logo"><img class="emblem" src="/img/lb/emblem.webp" alt="" onerror="this.remove()"><h1>랑방 대전</h1><div class="tag">덱을 짜고 진상을 막아라! · 30스테이지 디펜스</div></div>
-    <div class="spacer"></div>
-    <div class="menu-panel">
-    <div class="panel">${app.profileLoaded ? prof : '<div class="empty-msg" style="padding:8px"><span class="spin">⏳</span> 불러오는 중…</div>'}</div>
-    <div class="gap"></div>
-    ${snap ? `<button class="btn pink resume-btn" data-act="resumeSnap">⏯ 이어하기 <small>${esc(snapLabel(snap))} 부터</small></button><div class="gap"></div>` : ''}
-    <button class="btn primary" data-act="next">${allDone ? '▶ 3-10 다시 도전' : `▶ 다음 스테이지 ${stageLabel(next)}`}<small>${esc(stageName(next))}${stageBosses(next).length ? ' · 👑 보스' : ''}</small></button>
-    <div class="gap"></div>
-    <div class="grid2">
-      <button class="btn" data-act="stages"><i>🗺️</i>스테이지</button>
-      <button class="btn ${endlessOn ? '' : 'locked'}" data-act="endless"><i>${endlessOn ? '♾️' : '🔒'}</i>무한 도전<small>${endlessOn ? `최고 W${p.bestWave || 0}` : `${stageLabel(ENDLESS_UNLOCK)} 클리어`}</small></button>
+    <div class="lb-dim"></div>
+    ${topPills()}
+    <div class="lb-logo"><img src="/img/lb/emblem.webp" alt="" onerror="this.remove()"><b>랑방 대전</b></div>
+    <button class="lb-stage" data-act="stages">
+      <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
+      <span class="lb-chip" style="--cc:${c.color}">${ch}장 ${esc(c.name)} · ${fxd.icon} ${esc(fxd.name)}${boss ? ' · 👑 보스' : ''}</span>
+      <span class="lb-st">${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ' 💎' : ''}</span>
+    </button>
+    <div class="lb-dio">
+      <button class="chev l" data-act="lbStep" data-d="-1" ${s <= 1 ? 'disabled' : ''}>‹</button>
+      <div class="dio-wrap ch${ch}" data-act="stages"><img class="dio" src="/img/lb/dio${ch}.webp" alt="" draggable="false" onerror="this.remove()"><span class="sparks">${sparks}</span></div>
+      <button class="chev r" data-act="lbStep" data-d="1" ${s >= nextStage() ? 'disabled' : ''}>›</button>
     </div>
-    <div class="gap"></div>
-    <div class="grid4">
-      <button class="btn" data-act="shop"><i>🛒</i>강화 상점</button>
-      <button class="btn dexbtn" data-act="dex"><i>📚</i>도감${dexHasNew() ? '<span class="newdot">N</span>' : ''}</button>
-      <button class="btn" data-act="ranking"><i>🏆</i>랭킹</button>
-      <button class="btn" data-act="howto"><i>📖</i>방법</button>
-    </div>
-    </div>
-  `, 'menu');
+    <div class="lb-chests"><div class="cbar"><b style="width:${Math.min(100, (cs / 30) * 100)}%"></b></div>${chests}<em>${ch}장 ★${cs}/30</em></div>
+    ${snap ? `<button class="lb-resume" data-act="resumeSnap">⏯ 이어하기 <small>${esc(snapLabel(snap))}</small></button>` : ''}
+    <button class="lb-start" data-act="lbGo"><b>출격!</b><small>${stageLabel(s)} ${esc(stageName(s))}</small></button>
+    <div class="lb-left">${left}</div>
+    <div class="lb-right">${right}</div>
+    ${navHtml('battle')}
+    ${app.profileLoaded ? '' : '<div class="lb-loading"><span class="spin">⏳</span></div>'}
+  `, 'lobby');
 }
+// 메뉴 뒤 데모 전투: 내 덱 멤버들이 싸운다
+function makeDemo() {
+  let ids = [];
+  try { ids = (app.decks && app.decks[app.deckI] ? app.decks[app.deckI] : []).filter(Boolean); } catch { ids = []; }
+  if (ids.length < 3) ids = ['staff', 'bangjang', 'gunman', 'gunnyeo'];
+  const g = S.createGame({ H: app.logicalH, god: true, heroes: ids.slice(0, 5), rng: Math.random });
+  for (const h of g.heroes) h.lv = 3;
+  g.phaseT = 0.5;
+  return g;
+}
+function lobbyStep(d) {
+  const s = clamp(lobbyStage() + d, 1, nextStage());
+  if (s === app.lobbyStage) return;
+  const ch0 = chapterOf(app.lobbyStage);
+  app.lobbyStage = s;
+  const el = ui.querySelector('.dio-wrap');
+  if (chapterOf(s) !== ch0 && el) { el.classList.add(d > 0 ? 'outL' : 'outR'); setTimeout(showMenu, 200); } else showMenu();
+}
+
+// ─── 탭 이동 ─────────────────────────────────────────
+function goNav(tab) {
+  if (tab === 'battle') return showMenu();
+  if (tab === 'shop') { app.shopTab = app.shopTab === 'items' ? 'items' : 'recruit'; return showShop(); }
+  if (tab === 'bag') return showBag();
+  if (tab === 'members') return showMembers();
+  if (tab === 'missions') return showMissions();
+}
+
+// ─── 공용: 보상 글자 · 팝업 ───────────────────────────
+function gotText(got) {
+  if (!got) return '';
+  const a = [];
+  if (got.coins) a.push(`${fmt(got.coins)} 코인`);
+  if (got.tickets) a.push(`🎟️ 모집권 ${got.tickets}`);
+  if (got.sp) a.push(`⭐ 시즌 +${got.sp}`);
+  if (got.gear) a.push(`${GEAR[got.gear.t].icon} ${GEAR_RARITY[got.gear.r].name} 장비${got.gear.sold ? ' (가방 꽉 참 → 코인)' : ''}`);
+  if (got.title) a.push(`🏷️ 칭호 "${L.titleName(got.title)}"`);
+  if (got.frame) a.push(`🖼️ ${L.FRAMES[got.frame].name}`);
+  return a.join(' · ');
+}
+function popup(html, cls = '') {
+  closeInfoCard();
+  const m = document.createElement('div');
+  m.className = 'info-modal pop ' + cls;
+  m.innerHTML = `<div class="pop-box">${html}<button class="pop-x" data-x>✕</button></div>`;
+  stage.appendChild(m);
+  m.addEventListener('click', (ev) => { if (ev.target === m || ev.target.closest('[data-x]')) m.remove(); });
+  return m;
+}
+async function liveAct(promise, okMsg) {
+  const r = await promise;
+  if (r.ok && r.profile) app.profile = r.profile;
+  if (!r.ok) { toast(r.message || '못 했어요'); return null; }
+  if (okMsg) toast(okMsg(r), 2600);
+  return r;
+}
+function refresh() {
+  const f = { menu: showMenu, shop: showShop, bag: showBag, members: showMembers, missions: showMissions, season: showSeason, weekly: showWeekly, prep: () => showPrep(app.mode, app.stage) }[app.screen];
+  if (f) f();
+}
+
+// ─── 상점: 모집 · 아이템 ─────────────────────────────
+function showShop() {
+  app.screen = 'shop';
+  hud.hidden = true;
+  const p = P();
+  const tab = app.shopTab === 'items' ? 'items' : 'recruit';
+  let body;
+  if (tab === 'recruit') {
+    const pity = L.PITY_HERO - (p.pity.hero | 0);
+    const lopen = L.legendOpen(p);
+    const cost1 = (p.tickets | 0) >= 1 ? '🎟️ 1' : `<i class="ci"></i>${fmt(L.GACHA_COST.one)}`;
+    const cost10 = (p.tickets | 0) >= 10 ? '🎟️ 10' : `<i class="ci"></i>${fmt(L.GACHA_COST.ten)}`;
+    const faces = ['junseo', 'hochan', 'hyungyeong', 'ara'].map((id) => `<span class="gf-hero ${HEROES[id].legend ? 'lg' : ''} ${API.heroUnlocked(p, id) ? 'own' : ''}">${av(HEROES[id], lopen || !HEROES[id].legend ? '' : 'sil')}</span>`).join('');
+    body = `<div class="gacha-banner">
+        <div class="gb-title"><b>랑방 멤버 모집</b><small>코인·모집권만 사용 (현금 결제 없음)</small></div>
+        <div class="gb-faces">${faces}</div>
+        <div class="gb-pity"><span>💜 영웅 멤버 확정까지 <b>${pity}</b>회</span><span>${lopen ? `👑 LEGEND 확정까지 <b>${L.PITY_LEGEND - (p.pity.legend | 0)}</b>회` : `👑 LEGEND 이호찬은 ${stageLabel(L.HOCHAN_GATE)} 클리어 후 등장`}</span></div>
+      </div>
+      <div class="grid2 gacha-btns">
+        <button class="btn" data-act="pull" data-n="1"><b>1회 모집</b><small>${cost1}</small></button>
+        <button class="btn primary" data-act="pull" data-n="10"><b>10회 모집</b><small>${cost10} · 영웅 등급 이상 1개 확정</small></button>
+      </div>
+      <button class="btn ghost rates-btn" data-act="rates">📊 확률 공개 · 보유 모집권 🎟️${p.tickets | 0}</button>
+      <p class="sub">겹치는 멤버는 <b>조각</b>이 돼요 · 조각을 모아 멤버 <b>★ 승급</b> (공격력 +${Math.round(L.STAR_ATK * 100)}% / ★)</p>`;
+  } else {
+    body = `<div class="up-list">${ITEM_IDS.map((id) => {
+      const it = ITEMS[id];
+      const lv = (p.items || {})[id] || 0;
+      const cost = API.itemCostOf(p, id);
+      const can = cost !== null && p.coins >= cost && !(it.needs && !(p.items[it.needs] | 0));
+      const cur = id === 'drink' ? it.desc(lv) : lv ? it.desc(itemValue(id, lv)) : '아직 없음';
+      const nxt = cost === null ? '' : id === 'drink' ? `${lv + 1}장` : /slot/.test(id) ? '' : '+' + it.desc(itemValue(id, lv + 1)).split('+').pop();
+      const pips = Array.from({ length: it.max }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('');
+      return `<div class="up item"><span class="it-ico">${it.icon}</span><div class="mid"><b>${it.name}<span class="lvtag">Lv.${lv}</span></b>
+        <small>${esc(/slot/.test(id) ? it.desc(lv) : cur)}${nxt ? ` → <span class="nx">${esc(nxt)}</span>` : ''}</small>
+        <div class="pips">${pips}</div></div>
+        <button class="btn ${can ? 'primary' : ''}" data-act="buyItem" data-id="${id}" ${can ? '' : 'disabled'}>${cost === null ? 'MAX' : `<i class="ci"></i>${fmt(cost)}`}</button></div>`;
+    }).join('')}</div>
+    <p class="sub" style="margin-top:10px">덱 칸이 많을수록 뒤 챕터가 쉬워져요 · 기본 ${DECK_BASE}칸</p>`;
+  }
+  show(`
+    ${subTop('상점')}
+    <div class="tabs"><button class="${tab === 'recruit' ? 'on' : ''}" data-act="shopTab" data-tab="recruit">🎰 모집</button><button class="${tab === 'items' ? 'on' : ''}" data-act="shopTab" data-tab="items">🎒 아이템</button></div>
+    ${app.guest ? '<div class="guest-note">손님 기록은 이 기기에만 · <a href="/">로그인</a>하면 어디서든!</div>' : ''}
+    ${body}
+    ${navHtml('shop')}
+  `, 'dim withnav');
+}
+function subTop(title) {
+  return `${topPills()}<h2 class="title sub-title">${esc(title)}</h2>`;
+}
+function showRates() {
+  const p = P();
+  const lopen = L.legendOpen(p);
+  const sum = L.GACHA_RATES.filter((r) => lopen || r.k !== 'legendHero').reduce((a, r) => a + r.w, 0);
+  popup(`<h3>📊 모집 확률</h3>
+    <div class="rates">${L.GACHA_RATES.map((r) => `<div class="${!lopen && r.k === 'legendHero' ? 'off' : ''}"><span style="color:${r.color}">${esc(r.name)}</span><b>${!lopen && r.k === 'legendHero' ? `${stageLabel(L.HOCHAN_GATE)} 클리어 후` : ((r.w / sum) * 100).toFixed(2) + '%'}</b></div>`).join('')}</div>
+    <p class="ip">· 10회 모집: 영웅 등급(영웅 장비·멤버) 이상 1개 확정<br>· 영웅 멤버: ${L.PITY_HERO}회 안에 확정 (천장)<br>· LEGEND 이호찬: ${L.PITY_LEGEND}회 안에 확정 (열린 뒤부터 셈)<br>· 이미 있는 멤버가 나오면 조각 (영웅 ${L.DUP_SHARDS.epicHero} · LEGEND ${L.DUP_SHARDS.legendHero})<br>· 모든 모집은 게임 코인·모집권으로만 해요</p>`);
+}
+async function doPull(n) {
+  const p = P();
+  const pay = (p.tickets | 0) >= n ? 'ticket' : 'coin';
+  const cost = n === 10 ? L.GACHA_COST.ten : L.GACHA_COST.one;
+  if (pay === 'coin' && p.coins < cost) { toast(`코인이 부족해요 (${fmt(cost)} 필요) · 모집권은 미션·시즌·출석에서!`); return; }
+  const r = await liveAct(API.gacha(n, pay, app.guest));
+  if (!r) return;
+  await gachaShow(r.results || []);
+  refresh();
+}
+// 모집 결과: 카드가 한 장씩 뒤집힌다. 영웅·LEGEND 멤버는 큰 연출
+function gachaShow(list) {
+  return new Promise((resolve) => {
+    const m = document.createElement('div');
+    m.className = 'gacha-res';
+    const rar = (x) => (x.k === 'legendHero' ? 'lg' : x.k === 'epicHero' ? 'ep' : x.k === 'legendGear' ? 'lgear' : x.k === 'epicGear' ? 'egear' : x.k === 'rareGear' ? 'rgear' : 'sh');
+    m.innerHTML = `<div class="gr-grid n${list.length}">${list.map((x, i) => `<div class="gcard ${rar(x)}" style="--i:${i}"><div class="gc-in"><div class="gc-back">?</div><div class="gc-front">${gachaFace(x)}</div></div></div>`).join('')}</div>
+      <button class="btn primary gr-ok" hidden>확인</button><p class="gr-skip">탭하면 빨리 넘어가요</p>`;
+    stage.appendChild(m);
+    const cards = [...m.querySelectorAll('.gcard')];
+    let i = 0, fast = false, done = false, busy = false;
+    const finish = () => { if (done) return; done = true; m.remove(); resolve(); };
+    const next = async () => {
+      if (busy) return;
+      busy = true;
+      while (i < cards.length) {
+        const x = list[i], c = cards[i];
+        c.classList.add('flip');
+        A.sfx.card();
+        if (x.k === 'legendHero' || x.k === 'epicHero') { await sleep(fast ? 120 : 350); if (!x.dup) await showReveal(x.hero, x.k === 'legendHero' ? 'legend' : 'epic'); else A.sfx.levelUp(); }
+        else if (x.k === 'legendGear') { fx.flash('#ffd23f', 0.3); A.sfx.levelUp(); }
+        i++;
+        await sleep(fast ? 40 : list.length > 1 ? 150 : 300);
+      }
+      m.querySelector('.gr-ok').hidden = false;
+      m.querySelector('.gr-skip').hidden = true;
+      busy = false;
+    };
+    m.addEventListener('click', (ev) => { if (ev.target.closest('.gr-ok')) { finish(); return; } fast = true; });
+    next();
+  });
+}
+function gachaFace(x) {
+  if (x.hero && (x.k === 'legendHero' || x.k === 'epicHero')) {
+    const d = HEROES[x.hero];
+    return `${av(d)}<b>${d.name}</b><small>${x.dup ? `조각 +${x.shards}` : x.k === 'legendHero' ? 'LEGEND!' : '영웅 멤버!'}</small>`;
+  }
+  if (x.gear) return `<span class="gi">${GEAR[x.gear.t].icon}</span><b>${esc(GEAR[x.gear.t].name)}</b><small style="color:${GEAR_RARITY[x.gear.r].color}">${GEAR_RARITY[x.gear.r].name}${x.gear.sold ? ' → 코인' : ''}</small>`;
+  const d = HEROES[x.hero];
+  return `${av(d)}<b>${d.name} 조각</b><small>+${x.shards}</small>`;
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ─── "와 떴다!" 등장 연출 (HIDDEN · LEGEND · 영웅) ─────────
+function showReveal(id, kind) {
+  return new Promise((resolve) => {
+    const d = HEROES[id];
+    if (!d) { resolve(); return; }
+    const rm = document.body.classList.contains('rm');
+    const m = document.createElement('div');
+    m.className = `reveal ${kind}`;
+    const word = kind === 'legend' ? 'LEGEND!!' : kind === 'hidden' ? 'HIDDEN 등장!' : kind === 'epic' ? '영웅 등장!' : '새 멤버!';
+    const conf = Array.from({ length: rm ? 0 : 26 }, (_, i) => `<i style="--i:${i};--x:${(i * 41) % 100}%;--r:${(i * 67) % 360}deg"></i>`).join('');
+    m.innerHTML = `<div class="rv-pillar"></div><div class="rv-burst"></div><div class="rv-conf">${conf}</div>
+      <div class="rv-card"><div class="rv-in"><div class="rv-back">${kind === 'legend' ? '👑' : '✨'}</div><div class="rv-front">${av(d)}${kind === 'legend' ? '<span class="rv-crown">👑</span>' : ''}</div></div></div>
+      <div class="rv-word">${word}</div><div class="rv-name">${d.name}<small>${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small></div><p class="rv-skip">탭해서 넘기기</p>`;
+    stage.appendChild(m);
+    A.sfx.reveal && A.sfx.reveal(kind);
+    try {
+      const gs = window.gwSettings || {};
+      if (navigator.vibrate && gs.vibrate !== false && !gs.noVibrate) navigator.vibrate(kind === 'legend' ? [60, 40, 60, 40, 200] : [50, 30, 120]);
+    } catch { /* 무시 */ }
+    fx.addShake(kind === 'legend' ? 14 : 8);
+    let closed = false;
+    const close = () => { if (closed) return; closed = true; m.classList.add('out'); setTimeout(() => { m.remove(); resolve(); }, 220); };
+    m.addEventListener('click', close);
+    setTimeout(close, kind === 'legend' ? 3000 : 2400);
+  });
+}
+
+// ─── 가방 (장비) ─────────────────────────────────────
+function showBag() {
+  app.screen = 'bag';
+  hud.hidden = true;
+  const p = P();
+  show(`
+    ${subTop('가방')}
+    <p class="sub">스테이지를 깨면 장비가 떨어져요 · 멤버마다 무기·액세서리 한 칸씩 (가방 ${(p.gear || []).length}/80)</p>
+    <div class="up-list">${gearTabHtml()}</div>
+    ${navHtml('bag')}
+  `, 'dim withnav');
+}
+
+// ─── 멤버 (강화 · 승급 · 설명) ───────────────────────
+function showMembers() {
+  app.screen = 'members';
+  hud.hidden = true;
+  const p = P();
+  const list = ['bangjang', ...partnerList()];
+  const cards = list.map((id) => {
+    const d = HEROES[id];
+    const ok = API.heroUnlocked(p, id);
+    const st = L.heroStar(p, id);
+    const can = ok && st < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[st];
+    const tag = d.legend ? 'LEGEND' : d.hidden ? 'HIDDEN' : d.gacha ? '모집' : '';
+    return `<button class="mcard ${ok ? '' : 'locked'} ${d.legend ? 'lg' : d.hidden ? 'hid' : d.gacha ? 'ep' : ''}" data-act="heroCard" data-id="${id}" style="--c:${d.color}">
+      ${av(d, ok ? '' : 'sil')}${tag ? `<em class="tg">${tag}</em>` : ''}<span class="pa">${ATTRS[d.attr].icon}</span>
+      <b>${ok ? d.name : '???'}</b><small>${ok ? `<span class="st">${'★'.repeat(st)}</span> +${p.heroes[id] | 0}` : esc(unlockText(id) || (d.gacha ? '모집에서 만나요' : ''))}</small>${rdot(can)}</button>`;
+  }).join('');
+  show(`
+    ${subTop('멤버')}
+    <p class="sub">멤버를 누르면 자세한 설명 · 강화 · ★승급 · 장비</p>
+    <div class="mgrid">${cards}</div>
+    ${navHtml('members')}
+  `, 'dim withnav');
+}
+// 멤버 카드 팝업 (덱 짜기 · 멤버 화면 공용)
+function showHeroModal(id, ctx = '') {
+  const d = HEROES[id];
+  if (!d) return;
+  const p = P();
+  const ok = API.heroUnlocked(p, id);
+  const st = L.heroStar(p, id);
+  const lv = p.heroes[id] | 0;
+  const cost = ok ? API.costOf(p, id) : null;
+  const needS = st < L.STAR_MAX ? L.STAR_SHARDS[st] : 0;
+  const s = app.mode === 'weekly' ? L.weeklyDef(L.weekIndex()).stage : app.screen === 'prep' && app.mode === 'stage' ? app.stage : lobbyStage();
+  const m = attrMatch(d.attr, s);
+  const sw = strongWeak(d.attr);
+  const eq = (p.equip || {})[id] || {};
+  const slot = (k) => { const it = (p.gear || []).find((g) => g.id === eq[k]); return `<button class="gslot ${it ? 'r-' + it.r : ''}" data-act="gearSlot" data-hero="${id}" data-slot="${k}" ${ok ? '' : 'disabled'} style="--rc:${it ? GEAR_RARITY[it.r].color : '#555'}">${it ? GEAR[it.t].icon : k === 'w' ? '🗡️' : '💍'}<small>${it ? esc(GEAR[it.t].name) + (it.lv ? ` +${it.lv}` : '') : k === 'w' ? '무기' : '액세서리'}</small></button>`; };
+  const inDeck = app.screen === 'prep' && curDeck().includes(id);
+  const perks = Object.entries(d.perks || {}).map(([k, v]) => `<li><b>Lv${k}</b> ${esc(v)}</li>`).join('');
+  popup(`<div class="hm ${d.legend ? 'lg' : d.hidden ? 'hid' : d.gacha ? 'ep' : ''}" style="--c:${d.color}">
+    <div class="hm-art">${av(d, ok ? '' : 'sil')}${d.legend ? '<span class="hm-crown">👑</span>' : ''}</div>
+    <div class="hm-head"><b>${ok ? d.name : '???'}</b>${d.legend ? '<em class="lgd">LEGEND</em>' : d.hidden ? '<em class="hdn">HIDDEN</em>' : ''}${attrTag(d.attr)}
+      <div class="hm-star">${'★'.repeat(st)}<i>${'★'.repeat(L.STAR_MAX - st)}</i> <span>강화 +${lv}</span></div><small>${esc(d.role)}</small></div>
+    <div class="hm-match ${m.cls}"><b>${m.arrow} 이번 적 상성 ${m.text}</b><small>${esc(sw)}</small></div>
+    <div class="hm-sec"><h4>⚔️ 기본 공격</h4><p>${esc(d.attack)}</p></div>
+    <div class="hm-sec"><h4>✨ 스킬 · ${esc(d.skill.name)} <small>쿨 ${d.skill.cd}초</small></h4><p>${esc(d.skill.desc)}</p></div>
+    ${perks ? `<div class="hm-sec"><h4>📈 레벨 효과</h4><ul>${perks}</ul></div>` : ''}
+    <div class="hm-sec"><h4>🎒 장비</h4><div class="grow">${slot('w')}${slot('a')}</div></div>
+    <p class="hm-desc">${esc(d.desc)}</p>
+    ${ok ? `<div class="grid2 hm-btns">
+      <button class="btn ${cost !== null && p.coins >= cost ? 'primary' : ''}" data-act="buy" data-id="${id}" ${cost !== null && p.coins >= cost ? '' : 'disabled'}>강화 +${lv + 1}<small>${cost === null ? 'MAX' : `${fmt(cost)}코인 · 공격력 +${Math.round(RULES.metaDmgPerLevel * 100)}%`}</small></button>
+      <button class="btn ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? 'pink' : ''}" data-act="starUp" data-id="${id}" ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? '' : 'disabled'}>★ 승급<small>${st >= L.STAR_MAX ? '최대 ★5' : `조각 ${p.shards[id] | 0}/${needS} · ${fmt(L.STAR_COINS[st])}코인`}</small></button>
+    </div>` : `<p class="ip">🔒 ${esc(unlockText(id) || (d.legend ? `${stageLabel(L.HOCHAN_GATE)}를 깨면 모집에 등장 (아주 낮은 확률)` : d.gacha ? '상점 → 모집에서 만날 수 있어요' : ''))}</p>`}
+    ${ctx === 'prep' && ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? '덱에서 빼기' : '덱에 넣기'}</button>` : ''}
+  </div>`, 'hero-pop');
+}
+// 속성 vs 스테이지 적 구성: ▲ 유리 · ▼ 불리
+function attrMatch(attr, s) {
+  const sc = s ? attrScores(s)[attr] : 1;
+  if (sc >= 1.25) return { cls: 'good', arrow: '▲', text: `유리 ×${sc.toFixed(2)}`, v: sc };
+  if (sc <= 0.9) return { cls: 'bad', arrow: '▼', text: `불리 ×${sc.toFixed(2)}`, v: sc };
+  return { cls: 'mid', arrow: '■', text: `보통 ×${sc.toFixed(2)}`, v: sc };
+}
+async function doStarUp(id) {
+  const r = await liveAct(API.starUp(id, app.guest));
+  if (!r) return;
+  A.sfx.levelUp(); fx.flash('#ff9ff0', 0.3);
+  toast(`${HEROES[id].name} ★${L.heroStar(P(), id)} 승급!`, 2000);
+  showHeroModal(id, app.screen === 'prep' ? 'prep' : '');
+  refreshBehind();
+}
+function refreshBehind() {
+  // 팝업 뒤 화면만 새로 (팝업은 그대로)
+  const pop = stage.querySelector('.info-modal.pop');
+  if (pop) pop.remove();
+  const keep = pop;
+  refresh();
+  if (keep) stage.appendChild(keep);
+}
+
+// ─── 미션 · 업적 ─────────────────────────────────────
+function showMissions() {
+  app.screen = 'missions';
+  hud.hidden = true;
+  const p = P();
+  const v = L.missionView(p, uid());
+  const tab = app.misTab || 'daily';
+  const row = (m) => {
+    const ready = !m.done && (m.ready !== undefined ? m.ready : m.have >= m.n);
+    const rw = [m.coins ? `${fmt(m.coins)}코인` : '', m.tickets ? `🎟️${m.tickets}` : '', m.sp ? `⭐${m.sp}` : '', m.title ? '🏷️칭호' : ''].filter(Boolean).join(' ');
+    return `<div class="mrow ${m.done ? 'done' : ready ? 'ready' : ''}"><span class="mi">${m.icon}</span><div class="mm"><b>${esc(m.name)}</b>
+      <div class="pbar"><div style="width:${Math.round((Math.min(m.have, m.n) / m.n) * 100)}%"></div><em>${fmt(Math.min(m.have, m.n))}/${fmt(m.n)}</em></div><small>${rw}</small></div>
+      <button class="btn ${ready ? 'primary' : ''}" data-act="claimMis" data-kind="${m.kind}" data-id="${m.id}" ${ready ? '' : 'disabled'}>${m.done ? '완료' : ready ? '받기' : '진행 중'}</button></div>`;
+  };
+  let body;
+  if (tab === 'daily') body = `<p class="sub">⏰ 초기화까지 ${L.leftText(v.dayLeft)}</p>${row(v.all)}${v.daily.map(row).join('')}`;
+  else if (tab === 'weekly') body = `<p class="sub">⏰ 초기화까지 ${L.leftText(v.weekLeft)}</p>${v.weekly.map(row).join('')}`;
+  else body = `<p class="sub">한 번만 받는 업적 보상</p>${v.ach.map(row).join('')}`;
+  const cnt = (list) => list.filter((m) => !m.done && m.have >= m.n).length;
+  show(`
+    ${subTop('미션')}
+    <div class="tabs">${[['daily', '일일', cnt(v.daily) + (v.all.ready && !v.all.done ? 1 : 0)], ['weekly', '주간', cnt(v.weekly)], ['ach', '업적', cnt(v.ach)]].map(([k, n, c]) => `<button class="${tab === k ? 'on' : ''}" data-act="misTab" data-tab="${k}">${n}${c ? `<i class="cnt">${c}</i>` : ''}</button>`).join('')}</div>
+    <div class="mlist">${body}</div>
+    ${navHtml('missions')}
+  `, 'dim withnav');
+}
+
+// ─── 시즌 ────────────────────────────────────────────
+function showSeason() {
+  app.screen = 'season';
+  hud.hidden = true;
+  const p = P();
+  const s = p.season || { id: L.seasonOf(L.weekIndex()), sp: 0, claimed: [] };
+  const tier = L.seasonTier(p);
+  const left = L.seasonEndMs(s.id) - Date.now();
+  const inTier = s.sp % L.SP_PER_TIER;
+  const rows = Array.from({ length: L.SEASON_TIERS }, (_, i) => {
+    const t = i + 1;
+    const rw = L.seasonReward(s.id, t);
+    const got = s.claimed.includes(t);
+    const ready = !got && t <= tier;
+    const big = t % 10 === 0 || t % 5 === 0;
+    return `<div class="srow ${got ? 'done' : ready ? 'ready' : t <= tier + 1 ? 'next' : ''} ${big ? 'big' : ''}"><span class="sn">${t}</span><span class="sr">${esc(rw.label)}</span>
+      <button class="btn ${ready ? 'primary' : ''}" data-act="claimSeason" data-t="${t}" ${ready ? '' : 'disabled'}>${got ? '✓' : ready ? '받기' : '🔒'}</button></div>`;
+  }).join('');
+  show(`
+    ${topPills()}
+    <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
+    <h2 class="title">🏆 시즌 ${s.id} 무료 보상</h2>
+    <p class="sub">남은 시간 ${L.leftText(left)} · 미션·주간 도전으로 시즌 포인트(⭐)를 모아요</p>
+    <div class="season-bar"><b>단계 ${tier}/${L.SEASON_TIERS}</b><div class="pbar"><div style="width:${tier >= L.SEASON_TIERS ? 100 : (inTier / L.SP_PER_TIER) * 100}%"></div><em>⭐ ${inTier}/${L.SP_PER_TIER}</em></div></div>
+    <button class="btn primary" data-act="claimSeason" data-t="all" ${Array.from({ length: tier }, (_, i) => i + 1).some((t) => !s.claimed.includes(t)) ? '' : 'disabled'}>받을 수 있는 보상 모두 받기</button>
+    <div class="gap"></div>
+    <div class="slist">${rows}</div>
+  `, 'dim');
+}
+
+// ─── 주간 도전 ───────────────────────────────────────
+async function showWeekly() {
+  const p = P();
+  if ((p.maxStage | 0) < L.WEEKLY_UNLOCK) { toast(`주간 도전은 ${stageLabel(L.WEEKLY_UNLOCK)}를 깨면 열려요`); return; }
+  app.screen = 'weekly';
+  hud.hidden = true;
+  const wi = L.weekIndex();
+  const def = L.weeklyDef(wi);
+  const mod = L.WEEKLY_MODS[def.mod];
+  const fxd = MAP_FX[def.fx] || MAP_FX.none;
+  const bosses = def.bosses.map((b) => `<span class="wb">${av(ENEMIES[b])}<small>${esc(ENEMIES[b].name)}</small></span>`).join('');
+  const my = p.weekly && p.weekly.wi === wi ? p.weekly : null;
+  const render = (bd) => {
+    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span class="nm">${esc(r.nickname)}${r.title ? `<u>${esc(r.title)}</u>` : ''}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin">⏳</span> 순위 불러오는 중…'}</div>`;
+    const prev = bd && bd.prev;
+    const prevBox = prev ? `<div class="panel wprev"><b>지난주 결과: ${prev.rank ? `${prev.rank}위` : '-'} · ${fmt(prev.best)}점</b><small>${prev.reward ? esc(prev.reward.label) + ' · ' + gotText(prev.reward) : ''}</small>
+      <button class="btn ${prev.claimed ? '' : 'primary'}" data-act="weeklyClaim" ${prev.claimed ? 'disabled' : ''}>${prev.claimed ? '받았어요' : '보상 받기'}</button></div>` : '';
+    show(`
+      ${topPills()}
+      <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
+      <h2 class="title">📅 주간 도전전</h2>
+      <p class="sub">${L.weekLabel(wi)} · 끝까지 ${L.leftText(L.msToWeekEnd())} · 몇 번이든 도전, 최고 점수가 남아요</p>
+      <div class="wmod"><span class="wi">${mod.icon}</span><div><b>${esc(mod.name)}</b><small>${esc(mod.desc)}</small><small>${fxd.icon} ${esc(fxd.name)} · ${L.WEEKLY_WAVES}웨이브 · 뒤로 갈수록 확 세져요</small></div></div>
+      <div class="wbosses">${bosses}</div>
+      <div class="wmy"><div><small>내 최고</small><b>${fmt(my ? my.best : 0)}</b></div><div><small>순위</small><b>${bd && bd.me && bd.me.rank ? `${bd.me.rank}위` : '-'}</b></div><div><small>도전</small><b>${my ? my.runs : 0}회</b></div></div>
+      ${prevBox}
+      <button class="btn primary" data-act="weeklyGo">도전! <small>점수 = 웨이브×1000 + 처치×10 + 보스×500 + 클리어 보너스</small></button>
+      <div class="gap"></div>
+      <div class="panel wboard"><h4>🏆 이번 주 순위 ${bd ? `<small>${bd.total}명 참가</small>` : ''}</h4>${board}</div>
+      <p class="sub" style="margin-top:8px">순위 보상 (다음 주에 받기): 1위 5,000코인·🎟️5·영웅 장비·칭호 / 2~3위 3,000코인·🎟️3 / 4~10위 1,500코인·🎟️2 / 참가 600코인·🎟️1</p>
+    `, 'dim');
+  };
+  render(null);
+  if (!app.guest) {
+    const bd = await API.weeklyBoard();
+    if (app.screen === 'weekly') render(bd);
+  }
+}
+
+// ─── 출석 · 공지 · 설정 · 상자 ────────────────────────
+function showCheckin() {
+  const p = P();
+  const st = L.checkinState(p);
+  const days = L.CHECKIN.map((rw, i) => {
+    const got = i < st.streak % 7 || (st.done && i === (st.streak - 1) % 7);
+    const today = !st.done && i === st.streak % 7;
+    return `<div class="cday ${got ? 'got' : ''} ${today ? 'today' : ''}"><small>${i + 1}일</small><b>${rw.tickets ? '🎟️' : '<i class="ci big"></i>'}</b><em>${rw.tickets ? `${fmt(rw.coins)}+🎟️${rw.tickets}` : fmt(rw.coins)}</em></div>`;
+  }).join('');
+  popup(`<h3>📆 출석 체크</h3><p class="ip">매일 들어오면 보상! 하루 빠지면 1일부터 다시 (연속 ${st.streak}일)</p><div class="cdays">${days}</div>
+    <button class="btn primary" data-act="doCheckin" ${st.done ? 'disabled' : ''}>${st.done ? '내일 또 만나요' : '출석하기'}</button>`);
+}
+const NOTICES = [
+  ['🆕', '새 멤버 4명!', '윤준서 · 배현경 · 고아라, 그리고 LEGEND 이호찬 — 상점 → 모집에서 만나요'],
+  ['📅', '주간 도전전', '매주 월요일 새 판! 모두 같은 판으로 점수 경쟁, 순위 보상은 다음 주에'],
+  ['📜', '미션 · 업적 · 시즌', '일일/주간 미션과 무료 시즌(30단계)으로 모집권·장비·칭호를 받아요'],
+  ['🃏', '덱 칸 변경', `기본 덱 ${DECK_BASE}칸 · 5·6번째 칸은 상점 아이템에서 (예전에 산 칸은 한 칸씩 남아요)`],
+  ['⚔️', '상성 강화', `유리한 속성 ×${TYPE_STRONG} · 불리한 속성 ×${TYPE_WEAK} — 덱 짤 때 ▲▼ 를 보세요`],
+];
+function showNotice() {
+  popup(`<h3>📮 공지</h3><div class="nlist">${NOTICES.map(([i, t, d]) => `<div class="nrow"><span>${i}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></div>`).join('')}</div>`);
+}
+function showSettings() {
+  const p = P();
+  const titles = (p.titles || []).map((t) => `<button class="chip ${p.title === t ? 'on' : ''}" data-act="setTitle" data-v="${t}">${esc(L.titleName(t))}</button>`).join('') || '<small class="dimtxt">시즌·주간 도전·업적에서 칭호를 얻어요</small>';
+  const frames = (p.frames || []).map((f) => `<button class="chip ${p.frame === f ? 'on' : ''}" data-act="setFrame" data-v="${f}" style="--fc:${L.FRAMES[f].color}">${esc(L.FRAMES[f].name)}</button>`).join('') || '<small class="dimtxt">시즌 20·30단계에서 프레임을 얻어요</small>';
+  popup(`<h3>⚙️ 설정</h3>
+    <div class="set-row"><span>🔊 소리</span><button class="btn ghost" data-act="mute">${A.isMuted() ? '🔇 꺼짐' : '🔊 켜짐'}</button></div>
+    <div class="set-row col"><span>🏷️ 칭호</span><div class="chips"><button class="chip ${!p.title ? 'on' : ''}" data-act="setTitle" data-v="">없음</button>${titles}</div></div>
+    <div class="set-row col"><span>🖼️ 프레임</span><div class="chips"><button class="chip ${!p.frame ? 'on' : ''}" data-act="setFrame" data-v="">없음</button>${frames}</div></div>
+    <div class="grid2"><button class="btn" data-act="howto">📖 게임 방법</button><a class="btn" href="/">‹ 게임월드</a></div>`);
+}
+async function claimChestAct(ch, n) {
+  const r = await liveAct(API.claimChest(ch, n, app.guest));
+  if (!r) return;
+  A.sfx.levelUp(); fx.flash('#ffd23f', 0.35);
+  toast(`🎁 ${ch}장 ★${n} 상자! ${gotText(r.got)}`, 3000);
+  showMenu();
+}
+
+Object.assign(ACTS, {
+  nav: (b) => goNav(b.dataset.tab),
+  lbStep: (b) => lobbyStep(Number(b.dataset.d)),
+  lbGo: () => showPrep('stage', lobbyStage()),
+  weekly: () => showWeekly(),
+  weeklyGo: () => showPrep('weekly', 0),
+  weeklyClaim: async () => { const r = await liveAct(API.weeklyClaim()); if (r) { A.sfx.levelUp(); toast(`지난주 ${r.label || ''} 보상! ${gotText(r.got)}`, 3200); showWeekly(); } },
+  season: () => showSeason(),
+  recruit: () => { app.shopTab = 'recruit'; showShop(); },
+  checkin: () => showCheckin(),
+  doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`📆 출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
+  notice: () => showNotice(),
+  settings: () => showSettings(),
+  setTitle: async (b) => { if (await liveAct(API.setCosmetic(b.dataset.v, undefined, app.guest))) { showSettings(); refreshBehind(); } },
+  setFrame: async (b) => { if (await liveAct(API.setCosmetic(undefined, b.dataset.v, app.guest))) { showSettings(); refreshBehind(); } },
+  chest: (b) => {
+    const ch = Number(b.dataset.ch), n = Number(b.dataset.n);
+    if (b.classList.contains('open')) { toast('이미 연 상자예요'); return; }
+    if (!b.classList.contains('ready')) { const rw = L.chestReward(ch, n); toast(`${ch}장 별 ${n}개 모으면: ${gotText({ coins: rw.coins, tickets: rw.tickets, gear: rw.gear ? { t: 'megaphone', r: rw.gear } : null }).replace(/📣 /, '')}`, 2600); return; }
+    claimChestAct(ch, n);
+  },
+  pull: (b) => doPull(Number(b.dataset.n)),
+  rates: () => showRates(),
+  heroCard: (b) => showHeroModal(b.dataset.id, app.screen === 'prep' ? 'prep' : ''),
+  starUp: (b) => doStarUp(b.dataset.id),
+  misTab: (b) => { app.misTab = b.dataset.tab; showMissions(); },
+  claimMis: async (b) => { const r = await liveAct(API.claimMission(b.dataset.kind, b.dataset.id, app.guest)); if (r) { A.sfx.levelUp(); toast(`보상! ${gotText(r.got)}`, 2400); showMissions(); } },
+  claimSeason: async (b) => {
+    const t = b.dataset.t === 'all' ? 'all' : Number(b.dataset.t);
+    const r = await liveAct(API.claimSeason(t, app.guest));
+    if (!r) return;
+    A.sfx.levelUp();
+    toast(`시즌 보상! ${(r.got || []).map((x) => gotText(x)).join(' · ')}`, 3200);
+    showSeason();
+  },
+  deckToggle: (b) => { closeInfoCard(); deckPickHero(b.dataset.id); },
+  speedOpt: (b) => { app.speed2 = !!b.checked; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } },
+});
 
 // ─── 스테이지 선택 ───────────────────────────────────
 function showStages() {
@@ -1320,14 +1921,14 @@ function fixDeck() {
   saveDecks();
 }
 function autoDeck() {
-  const s = app.mode === 'stage' ? app.stage : 20;
+  const s = prepStage() || 20;
   const ids = recommendTeam(s, owned(), deckSlotsNow());
   app.decks[app.deckI] = placeDeck(ids);
   saveDecks();
 }
 function deckLine() {
   const ids = curDeck().filter(Boolean);
-  const rec = app.mode === 'stage' ? recommendAttrs(app.stage) : [];
+  const rec = prepStage() ? recommendAttrs(prepStage()) : [];
   const hit = ids.filter((id) => rec.includes(HEROES[id].attr)).length;
   const cnt = {};
   for (const id of ids) cnt[HEROES[id].attr] = (cnt[HEROES[id].attr] || 0) + 1;
@@ -1343,13 +1944,20 @@ function renderDeckField() {
     const id = d[i];
     const h = id && HEROES[id];
     return `<button class="dslot ${i === sel ? 'sel' : ''} ${h ? '' : 'empty'} ${i === sel && lane ? 'lane' : ''}" data-act="deckSlot" data-i="${i}" style="--c:${h ? h.color : '#555'}">
-      ${h ? `${av(h)}<b>${h.name}</b><span class="pa">${ATTRS[h.attr].icon}</span>` : '<i>+</i>'}<em>${i + 1}</em></button>`;
+      ${h ? `${av(h)}<b>${h.name}</b><span class="pa">${ATTRS[h.attr].icon}</span>${matchTag(id)}` : '<i>+</i>'}<em>${i + 1}</em></button>`;
   }).join('')}</div>`;
+}
+function prepStage() { return app.mode === 'weekly' ? L.weeklyDef(L.weekIndex()).stage : app.mode === 'stage' ? app.stage : 0; }
+function matchTag(id) {
+  const s = prepStage();
+  if (!s) return '';
+  const m = attrMatch(HEROES[id].attr, s);
+  return `<span class="mt ${m.cls}">${m.arrow}</span>`;
 }
 function showPrep(mode, s) {
   if (mode === 'stage' && !stageUnlocked(s)) s = nextStage();
   app.mode = mode;
-  app.stage = s;
+  app.stage = mode === 'stage' ? s : 0;
   app.screen = 'prep';
   hud.hidden = true;
   fixDeck();
@@ -1357,20 +1965,25 @@ function showPrep(mode, s) {
   const max = deckSlotsNow();
   const d = curDeck();
   const inDeck = new Set(d.filter(Boolean));
-  R.setTheme(mode === 'stage' ? chapterOf(s) : 'endless');
+  const wk = mode === 'weekly' ? L.weeklyDef(L.weekIndex()) : null;
+  const st = prepStage();
+  R.setTheme(st ? chapterOf(st) : 'endless');
   const roster = ['bangjang', ...partnerList()].map((id) => {
     const h = HEROES[id];
-    if (!API.heroUnlocked(p, id)) return `<button class="pcard locked ${h.hidden ? 'hid' : ''}" data-act="rosterPick" data-id="${id}">${av(h, 'sil')}<b>???</b><small>${esc(stageLabel(HERO_UNLOCK[id]))} 클리어</small></button>`;
-    return `<button class="pcard ${h.hidden ? 'hid' : ''} ${inDeck.has(id) ? 'on' : ''}" data-act="rosterPick" data-id="${id}">${av(h)}<span class="pa">${ATTRS[h.attr].icon}</span><b>${h.name}</b><small>+${p.heroes[id] || 0}</small></button>`;
+    const tag = h.legend ? 'lg' : h.hidden ? 'hid' : h.gacha ? 'ep' : '';
+    if (!API.heroUnlocked(p, id)) return `<button class="pcard locked ${tag}" data-act="rosterPick" data-id="${id}">${av(h, 'sil')}<b>???</b><small>${esc(HERO_UNLOCK[id] ? stageLabel(HERO_UNLOCK[id]) + ' 클리어' : '모집')}</small></button>`;
+    return `<button class="pcard ${tag} ${inDeck.has(id) ? 'on' : ''}" data-act="rosterPick" data-id="${id}">${av(h)}<span class="pa">${ATTRS[h.attr].icon}</span>${matchTag(id)}<b>${h.name}</b><small>${'★'.repeat(L.heroStar(p, id))} +${p.heroes[id] || 0}</small></button>`;
   }).join('');
-  const fxd = mode === 'stage' ? stageFx(s) : MAP_FX.none;
-  const cw = mode === 'stage' ? stageClasses(s) : {};
+  const fxd = wk ? MAP_FX[wk.fx] || MAP_FX.none : mode === 'stage' ? stageFx(s) : MAP_FX.none;
+  const cw = st ? stageClasses(st) : {};
   const cls = Object.keys(cw).sort((a, b) => cw[b] - cw[a]).slice(0, 3).map((c) => `${clsTag(c)}<small>${Math.round(cw[c] * 100)}%</small>`).join('');
+  const cleared = mode === 'stage' && (p.stages[s] | 0) > 0;
   const head = mode === 'stage'
     ? `<h2 class="title">${stageLabel(s)} ${esc(stageName(s))}</h2><p class="sub">${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 👑 보스' : ''} · ${fxd.icon} ${esc(fxd.name)} · 최고 ${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ' · 💎' : ''}</p>`
-    : `<h2 class="title">♾️ 무한 도전</h2><p class="sub">어디까지 버틸까? 최고 W${p.bestWave || 0} · 점수 ${fmt(p.bestScore || 0)}</p>`;
+    : wk ? `<h2 class="title">📅 주간 도전 · ${esc(L.WEEKLY_MODS[wk.mod].name)}</h2><p class="sub">${L.WEEKLY_WAVES}웨이브 · ${fxd.icon} ${esc(fxd.name)} · ${esc(L.WEEKLY_MODS[wk.mod].desc)}</p>`
+      : `<h2 class="title">♾️ 무한 도전</h2><p class="sub">어디까지 버틸까? 최고 W${p.bestWave || 0} · 점수 ${fmt(p.bestScore || 0)}</p>`;
   show(`
-    <div class="topbar"><button class="back" data-act="${mode === 'stage' ? 'stages' : 'menu'}">‹ 뒤로</button>${coinsPill()}</div>
+    <div class="topbar"><button class="back" data-act="${mode === 'stage' ? 'menu' : mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button>${coinsPill()}</div>
     ${head}
     ${cls ? `<div class="si-cls prep-cls">적 ${cls}</div>` : ''}
     <div class="deck-top">
@@ -1379,10 +1992,10 @@ function showPrep(mode, s) {
     </div>
     <div class="deck-wrap"><div class="deck-rope"></div>${renderDeckField()}</div>
     <div class="teamline" id="deckline">${inDeck.size}/${max}명 · ${deckLine()}</div>
-    <p class="sub deck-help">자리를 누르고 멤버를 고르세요 · 두 자리를 차례로 누르면 바꿔요 · 새총·지팡이는 <b>자기 줄</b>만 쏴요</p>
+    <p class="sub deck-help">멤버를 누르면 설명 팝업 · 자리를 차례로 누르면 바꿔요 · ▲ 유리 ▼ 불리 · 새총·지팡이·황금 파동은 <b>자기 줄</b>만</p>
     <div class="pgrid roster">${roster}</div>
-    <div class="pdesc" id="pdesc">${app.deckFocus ? heroInfoHtml(HEROES[app.deckFocus], true) : '<p class="ip">멤버를 누르면 설명이 나와요</p>'}</div>
     <div class="spacer"></div>
+    ${cleared ? `<label class="speed-opt"><input type="checkbox" data-act="speedOpt" ${app.speed2 ? 'checked' : ''}> ⏩ 2배속으로 하기 <small>(깬 스테이지만)</small></label>` : ''}
     <button class="btn primary" data-act="go" ${inDeck.size ? '' : 'disabled'}>출동! 🚪</button>
   `, 'dim prep-screen');
 }
@@ -1492,6 +2105,7 @@ function pickCard(i) {
   if (!app.cardsOpen || !app.cards || !app.cards[i]) return;
   const c = app.cards[i];
   S.applyCard(g, c);
+  if (c.kind === 'addHero' && (c.rarity === 'hidden' || HEROES[c.hero].legend)) showReveal(c.hero, HEROES[c.hero].legend ? 'legend' : 'hidden');
   g.pendingLevels = Math.max(0, g.pendingLevels - 1);
   if (g.welcomePicks > 0) g.welcomePicks--;
   A.sfx.pick();
@@ -1553,7 +2167,8 @@ function showResult(victory, quit) {
   const heroes = g.heroes.slice().sort((a, b) => b.dmgDone - a.dmgDone);
   const mvp = heroes.map((h, i) => `<div class="row ${i === 0 ? 'top' : ''}">${av(h.def)}<span class="nm">${h.def.name}</span>
     <div class="bar"><div style="width:${Math.round((h.dmgDone / totalDmg) * 100)}%"></div></div><span class="pc">${Math.round((h.dmgDone / totalDmg) * 100)}%</span></div>`).join('');
-  const stageMode = g.mode === 'stage';
+  const wk = !!g.weekly;
+  const stageMode = g.mode === 'stage' && !wk;
   const win = victory && stageMode;
   let title, sub, top;
   if (stageMode) {
@@ -1563,6 +2178,10 @@ function showResult(victory, quit) {
       ? `<div class="big-stars">${[1, 2, 3].map((k) => `<span class="${k <= g.stars ? 'on' : ''}" style="animation-delay:${0.25 + k * 0.28}s">★</span>`).join('')}</div>
          <div class="star-rule">${sum.perfect ? '<b class="perfect">💎 PERFECT! 입구가 한 번도 안 맞았다</b>' : g.stars >= 3 ? '완벽 방어! ★★★ (입구 무피해면 PERFECT)' : g.stars === 2 ? '★★★ 까지 입구 70% 이상 남기기' : '★★ 는 입구 35% 이상 남기면!'}</div>`
       : `<div class="fail-tip">💡 ${FAIL_TIPS[(Math.random() * FAIL_TIPS.length) | 0]}</div>`;
+  } else if (wk) {
+    title = victory ? '주간 도전 완주!' : `주간 도전 W${sum.wave}`;
+    sub = victory ? `${g.totalWaves}웨이브 전부 막았다!` : quit ? '다음엔 더 멀리!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
+    top = `<div class="score-big"><small>주간 점수</small><b id="wkscore">${fmt(L.weeklyScore({ waves: sum.wave, kills: sum.kills, bossKills: sum.bossKills, victory, hpPct: sum.hpPct }))}</b></div>`;
   } else {
     title = `무한 도전 W${sum.wave}`;
     sub = quit ? '다음엔 더 멀리!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
@@ -1570,9 +2189,10 @@ function showResult(victory, quit) {
   }
   const buttons = [];
   if (win && g.stage < STAGE_COUNT) buttons.push(`<button class="btn primary" data-act="nextStage">다음 스테이지 ${stageLabel(g.stage + 1)} ▶</button>`);
-  if (stageMode && !win) buttons.push('<button class="btn primary" data-act="again">다시 도전</button>', '<div class="gap"></div><div class="grid2"><button class="btn" data-act="shop"><i>🛒</i>강화하러 가기</button><button class="btn" data-act="stages"><i>🗺️</i>스테이지 선택</button></div>');
+  if (wk) buttons.push('<button class="btn primary" data-act="weeklyGo">다시 도전</button>', '<div class="gap"></div><button class="btn ghost" data-act="weekly">📅 주간 순위 보기</button>');
+  else if (stageMode && !win) buttons.push('<button class="btn primary" data-act="again">다시 도전</button>', '<div class="gap"></div><div class="grid2"><button class="btn" data-act="shop"><i>🛒</i>강화하러 가기</button><button class="btn" data-act="stages"><i>🗺️</i>스테이지 선택</button></div>');
   else if (stageMode) buttons.push('<div class="gap"></div><div class="grid2"><button class="btn" data-act="again"><i>🔁</i>다시 하기</button><button class="btn" data-act="stages"><i>🗺️</i>스테이지 선택</button></div>');
-  else buttons.push('<button class="btn primary" data-act="again">다시 도전</button>', '<div class="gap"></div><button class="btn ghost" data-act="menu">메뉴로</button>');
+  else if (!wk) buttons.push('<button class="btn primary" data-act="again">다시 도전</button>', '<div class="gap"></div><button class="btn ghost" data-act="menu">메뉴로</button>');
   show(`
     <div class="big">${esc(title)}</div>
     <p class="sub" style="margin-top:6px">${esc(sub)}</p>
@@ -1598,7 +2218,7 @@ function showResult(victory, quit) {
     time, nickname: app.guest ? '' : app.nickname,
     heroes: heroes.slice(0, 6).map((h) => ({ img: h.def.img, name: h.def.name, color: h.def.color })),
   };
-  if (win || !stageMode) saveResult(sum, g);
+  if (win || !stageMode || wk) saveResult(sum, g);
 }
 const LOSE_LINES = ['진상들이 랑방을 점령했다… 다음엔 꼭!', '"한 잔만 더~" 술진상이 문을 열고 들어왔다', '먹튀 인간들이 경험치를 털어 갔다…', '인피: "랑방? 이제 우리 아지트야~"', '여왕벌: "여기 이제 내 가게야~"'];
 const FAIL_TIPS = [
@@ -1610,16 +2230,31 @@ const FAIL_TIPS = [
   '총공지는 적이 몰려올 때 아껴 뒀다가 쓰세요',
 ];
 
+async function saveWeekly(sum, g, box) {
+  const r = await API.postWeekly(sum, app.weeklyRun, app.guest);
+  app.weeklyRun = null;
+  if (r.ok && r.profile) app.profile = r.profile;
+  if (!box || !box.isConnected) return;
+  if (!r.ok) { box.innerHTML = `<div class="err">기록을 저장하지 못했어요: ${esc(r.message || '알 수 없는 오류')}</div>`; return; }
+  const w = r.weekly || {};
+  const sc = $('#wkscore');
+  if (sc && w.score !== undefined) sc.textContent = fmt(w.score);
+  box.innerHTML = `<div class="rewards"><div class="rw hl"><span>📅 이번 주 최고</span><b>${fmt(w.best || 0)}${w.newBest ? ' 🆕' : ''}</b></div>
+    <div class="rw total"><span><i class="ci"></i>받은 코인</span><b>+${fmt((r.reward || {}).total || 0)}</b></div></div>
+    <div class="own">${r.rank ? `<span class="badge">이번 주 ${r.rank}위</span>` : ''}<span>보유 <i class="ci"></i>${fmt(P().coins)}</span>${app.guest ? ' · <span class="dimtxt">손님은 순위에 안 올라가요</span>' : ''}</div>`;
+  if (w.newBest) { A.sfx.levelUp(); fx.flash('#ffd23f', 0.3); }
+}
 async function saveResult(sum, g) {
   const box = $('#srv');
   if (app.debugRun) {
     if (box) box.innerHTML = '<div class="guest-note">디버그 판(?wave · ?god · ?stress · ?nosave · 잠긴 스테이지)은 기록을 저장하지 않아요</div>';
     return;
   }
+  if (g.weekly) { saveWeekly(sum, g, box); return; }
   const stageMode = g.mode === 'stage';
   const body = stageMode
-    ? { stage: sum.stage, stars: sum.stars, perfect: sum.perfect, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec, hpPct: sum.hpPct, seen: sum.seen }
-    : { wave: sum.wave, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec, seen: sum.seen };
+    ? { stage: sum.stage, stars: sum.stars, perfect: sum.perfect, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, seen: sum.seen, speed: app.runSpeed || 1 }
+    : { wave: sum.wave, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen };
   const r = stageMode ? await API.postStage(body, app.guest) : await API.postEndless(body, app.guest);
   if (r.ok && r.profile) app.profile = r.profile;
   if (!box || !box.isConnected) return;
@@ -1649,59 +2284,9 @@ async function saveResult(sum, g) {
   box.innerHTML = `<div class="rewards">${lines.join('')}</div>${drops ? `<div class="drops"><small>🎁 장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
     <div class="own">${badges.join('')}<span>보유 <i class="ci"></i>${fmt(p.coins)}</span>${app.guest ? ' · <span class="dimtxt">손님 기록은 이 기기에만</span>' : ''}</div>`;
   if (unlocks) { fx.flash('#ff9ff0', 0.4); A.sfx.join(); }
+  for (const id of r.unlockedHeroes || []) await showReveal(id, HEROES[id].hidden ? 'hidden' : 'new');
 }
 
-// ─── 강화 상점 (영웅 강화 · 아이템) ─────────────────
-function showShop() {
-  app.screen = 'shop';
-  hud.hidden = true;
-  const p = P();
-  const tab = app.shopTab;
-  const max = p.maxMeta || 20;
-  let body;
-  if (tab === 'heroes') {
-    body = ['bangjang', ...partnerList()].map((id) => {
-      const d = HEROES[id];
-      const lv = (p.heroes || {})[id] || 0;
-      const ok = API.heroUnlocked(p, id);
-      if (!ok) {
-        return `<div class="up locked ${d.hidden ? 'hid' : ''}">${av(d, 'sil')}<div class="mid"><b>???${d.hidden ? '<em>HIDDEN</em>' : ''}</b>
-          <small>🔒 ${esc(unlockText(id))}</small></div><button class="btn" disabled>잠김</button></div>`;
-      }
-      const cost = API.costOf(p, id);
-      const can = cost !== null && p.coins >= cost;
-      return `<div class="up ${d.hidden ? 'hid' : ''}"><span class="upav" data-act="info" data-kind="hero" data-id="${id}">${av(d)}</span><div class="mid"><b>${d.name}${d.hidden ? '<em>HIDDEN</em>' : ''}${attrTag(d.attr)}<span class="lvtag">+${lv}</span></b>
-        <small>공격력 +${Math.round(lv * RULES.metaDmgPerLevel * 100)}%${cost !== null ? ` → +${Math.round((lv + 1) * RULES.metaDmgPerLevel * 100)}%` : ''} · ${lv}/${max}</small>
-        <div class="pbar"><div style="width:${(lv / max) * 100}%"></div></div></div>
-        <button class="btn ${can ? 'primary' : ''}" data-act="buy" data-id="${id}" ${can ? '' : 'disabled'}>${cost === null ? 'MAX' : `<i class="ci"></i>${fmt(cost)}`}</button></div>`;
-    }).join('');
-  } else if (tab === 'gear') {
-    body = gearTabHtml();
-  } else {
-    body = ITEM_IDS.map((id) => {
-      const it = ITEMS[id];
-      const lv = (p.items || {})[id] || 0;
-      const cost = API.itemCostOf(p, id);
-      const can = cost !== null && p.coins >= cost;
-      const cur = id === 'drink' ? it.desc(lv) : lv ? it.desc(itemValue(id, lv)) : '아직 없음';
-      const nxt = cost === null ? '' : id === 'drink' ? `${lv + 1}장` : '+' + it.desc(itemValue(id, lv + 1)).split('+').pop();
-      const pips = Array.from({ length: it.max }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('');
-      return `<div class="up item"><span class="it-ico">${it.icon}</span><div class="mid"><b>${it.name}<span class="lvtag">Lv.${lv}</span></b>
-        <small>${esc(cur)}${nxt ? ` → <span class="nx">${esc(nxt)}</span>` : ''}</small>
-        <div class="pips">${pips}</div></div>
-        <button class="btn ${can ? 'primary' : ''}" data-act="buyItem" data-id="${id}" ${can ? '' : 'disabled'}>${cost === null ? 'MAX' : `<i class="ci"></i>${fmt(cost)}`}</button></div>`;
-    }).join('');
-  }
-  show(`
-    ${topbar(true, coinsPill())}
-    <h2 class="title">강화 상점</h2>
-    <div class="tabs"><button class="${tab === 'heroes' ? 'on' : ''}" data-act="shopTab" data-tab="heroes">💪 영웅</button><button class="${tab === 'gear' ? 'on' : ''}" data-act="shopTab" data-tab="gear">🗡️ 장비</button><button class="${tab === 'items' ? 'on' : ''}" data-act="shopTab" data-tab="items">🎒 아이템</button></div>
-    <p class="sub">${tab === 'heroes' ? `코인으로 영구 강화 · 1단계마다 공격력 +${Math.round(RULES.metaDmgPerLevel * 100)}% (최대 ${max})` : tab === 'gear' ? `스테이지를 깨면 장비가 떨어져요 · 멤버마다 무기·액세서리 한 칸씩 (가방 ${(p.gear || []).length}/80)` : '한 번 사면 모든 스테이지에 계속 적용돼요 · 덱 칸도 여기서!'}</p>
-    ${app.guest ? '<div class="guest-note" style="margin:0 0 10px">손님 코인·강화는 이 기기에만 · <a href="/">로그인</a>하면 어디서든!</div>' : ''}
-    <div class="up-list">${body}</div>
-    <p class="sub" style="margin-top:12px">코인은 스테이지를 깨면 받아요 · 처음 깰 때와 별을 새로 받을 때 보너스!</p>
-  `, 'dim');
-}
 async function buyUpgrade(id, btn) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin">⏳</span>';
@@ -1711,7 +2296,7 @@ async function buyUpgrade(id, btn) {
     A.sfx.levelUp();
     toast(`${HEROES[id].name} 강화 완료! (+${app.profile.heroes[id]})`);
   } else toast(r.message || '강화하지 못했어요');
-  if (app.screen === 'shop') showShop();
+  if (stage.querySelector('.hero-pop')) { showHeroModal(id, app.screen === 'prep' ? 'prep' : ''); refreshBehind(); } else refresh();
 }
 async function buyItemAct(id, btn) {
   btn.disabled = true;
@@ -1722,7 +2307,7 @@ async function buyItemAct(id, btn) {
     A.sfx.levelUp();
     toast(`${ITEMS[id].icon} ${ITEMS[id].name} Lv.${app.profile.items[id]}!`);
   } else toast(r.message || '사지 못했어요');
-  if (app.screen === 'shop') showShop();
+  refresh();
 }
 
 // ─── 도감 (아군 · 악당) ──────────────────────────────
@@ -1842,7 +2427,7 @@ function gearModal(html) {
     if (r && r.ok && r.profile) { app.profile = r.profile; A.sfx.levelUp(); toast(act === 'sell' ? `+${r.sold} 코인` : act === 'enh' ? '강화 성공!' : '장착!', 1200); }
     else if (r) toast(r.message || '못 했어요');
     closeInfoCard();
-    if (app.screen === 'shop') showShop();
+    refresh();
     if (act === 'enh' && r && r.ok) showGearCard(Number(a1));
   });
   A.sfx.tap();
@@ -1912,7 +2497,7 @@ function showHowto() {
     <div class="howto">
       <div class="it"><i>🗺️</i><div><b>스테이지</b>를 하나씩 깨요. 3챕터 × 10스테이지, 한 스테이지는 ${STAGE_WAVES}웨이브. x-5 · x-10 은 <b>보스</b>!</div></div>
       <div class="it"><i>⭐</i><div>클리어할 때 입구 내구도가 70% 이상이면 <b>★★★</b>, 35% 이상이면 ★★, 그 밖엔 ★. 처음 깰 때와 별을 새로 받을 때 코인 보너스! 입구가 <b>한 번도 안 맞고</b> 깨면 <b>💎 PERFECT</b> — 코인 더 + 첫 퍼펙트는 희귀 이상 장비 확정!</div></div>
-      <div class="it"><i>🧩</i><div>출동 전에 <b>덱</b>을 짜요. 5명(상점에서 6·7번째 칸 구매)을 원하는 <b>자리</b>에 세우고, 덱은 3개까지 저장. 스테이지 정보에 나오는 진상 유형을 보고 속성을 맞추면 유리!</div></div>
+      <div class="it"><i>🃏</i><div>출동 전에 <b>덱</b>을 짜요. 5명(상점에서 6·7번째 칸 구매)을 원하는 <b>자리</b>에 세우고, 덱은 3개까지 저장. 스테이지 정보에 나오는 진상 유형을 보고 속성을 맞추면 유리!</div></div>
       <div class="it"><i>↕️</i><div><b>줄 공격</b> 멤버(건전남 새총 · 강성구 지팡이)는 <b>자기 앞 줄</b>만 쏴요. 진상이 많이 오는 가운데 줄에 세우면 좋아요. 끌어서 옮길 때 줄이 빛나요.</div></div>
       <div class="it"><i>🎒</i><div>스테이지를 깨면 <b>장비</b>가 떨어져요 (일반 · 희귀 · 영웅 · 전설). 멤버마다 무기 · 액세서리 한 칸씩 — 상점 <b>장비</b> 탭에서 끼우고, 강화하고, 남는 건 팔아요.</div></div>
       <div class="it"><i>✨</i><div>보스가 큰 기술을 쓴 뒤엔 잠깐 <b>빈틈</b>(금빛)! 그때 스킬을 몰아 쓰면 1.5배로 들어가요.</div></div>
@@ -2031,6 +2616,7 @@ window.__lb = {
   get g() { return app.g; },
   get app() { return app; },
   perf,
+  reveal: (id, kind) => showReveal(id, kind),
   S,
   fx,
   pickCard,
