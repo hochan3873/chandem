@@ -740,3 +740,21 @@ body[data-theme="omok"] .btn-gold { background: linear-gradient(180deg, #f1dcb2,
 form:not([data-game=seotda]) .seotda-only { display: none; }
 .me-cards.three .card-lg { --w: 52px; }
 .me-cards.three { gap: 4px; }
+
+/* 감정 표현: 고르는 창은 화면 맨 아래 한 줄(게임판을 가리지 않게), 이모티콘은 작게·짧게 */
+.emote-tray { position: fixed !important; left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important; z-index: 60 !important; max-width: 720px; margin: 0 auto; grid-template-columns: repeat(6, 1fr) !important; gap: 4px !important; padding: 8px 8px max(10px, env(safe-area-inset-bottom)) !important; border-radius: 18px 18px 0 0 !important; animation: sheetUp .16s ease !important; }
+.emote-tray button { width: auto !important; }
+.fx-emote { font-size: 2.4rem !important; animation-duration: 2.1s !important; }
+.fx-emote-side { font-size: 2rem !important; animation-name: emoteSide !important; }
+@keyframes emoteSide { 0% { transform: translate(-50%, -50%) scale(.3); opacity: 0; } 15% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 25% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { transform: translate(-50%, -80%) scale(.9); opacity: 0; } }
+
+/* 지금 열린 방 목록 */
+.live-rooms .sec-title { margin: 0 0 8px; font-size: 1rem; }
+.lr-list { display: flex; flex-direction: column; gap: 6px; }
+.lr-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(201, 164, 92, .18); }
+.lr-icon { font-size: 1.4rem; flex: none; }
+.lr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lr-main b { font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lr-main small { font-size: .72rem; color: var(--muted); }
+.lr-btns { display: flex; gap: 4px; flex: none; }
+.me-spec { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

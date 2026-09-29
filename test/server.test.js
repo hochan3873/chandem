@@ -470,3 +470,29 @@ test('토너먼트: 시간이 지나면 블라인드가 오르고, 한 명 남�
   assert.deepEqual(rk, ['A', 'B', 'C']);
   room.clearAllTimers();
 });
+
+test('관전: 게임 중에도 바로 관전 입장, 자리에 앉으려면 방장 승인, 방 목록에 표시', async () => {
+  const a = client(); const b = client(); const c = client();
+  const ra = await a.call('room:create', { name: '방장', settings: {} });
+  await b.call('room:join', { code: ra.code, name: '친구' });
+  await b.call('lobby:ready', { ready: true });
+  await a.call('lobby:start');
+  const rc = await c.call('room:join', { code: ra.code, name: '구경꾼', spectator: true });
+  assert.equal(rc.ok, true);
+  assert.notEqual(rc.pending, true, '관전은 승인 없이 바로');
+  await until(() => c.last && c.last.me && c.last.me.role === 'spectator');
+  // 관전자는 남의 카드를 볼 수 없다
+  assert.ok(c.last.players.filter((p) => p.cards).every((p) => p.cards.every((x) => x === '??')));
+  const sit = await c.call('lobby:role', { spectator: false });
+  assert.equal(sit.ok, true);
+  assert.equal(sit.requested, true);
+  await until(() => a.last.pending && a.last.pending.some((p) => p.id === rc.playerId && p.seat));
+  await a.call('host:approve', { id: rc.playerId, ok: true });
+  await until(() => c.last.me.role === 'player');
+  const list = await (await fetch(`${base}/api/rooms`)).json();
+  const mine = list.rooms.find((x) => x.code === ra.code);
+  assert.ok(mine, '방 목록에 나옴');
+  assert.equal(mine.phase, 'playing');
+  assert.equal(JSON.stringify(mine).includes('token'), false);
+  a.close(); b.close(); c.close();
+});

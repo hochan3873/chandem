@@ -479,15 +479,18 @@ document.addEventListener('click', (e) => {
 socket.on('emote', (e) => {
   const def = EMOTES.find((x) => x[0] === e.kind);
   if (!def || S.view !== 'room') return;
-  const seat = document.querySelector(`.seat[data-id="${e.id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === e.id ? document.querySelector('.me-name') : null);
+  // 오목: 판을 가리지 않게 그 사람 이름표 오른쪽에 작게 / 카드 게임: 자리 위에
+  const chip = document.querySelector(`.omok-player[data-id="${e.id}"]`);
+  const seat = chip || document.querySelector(`.seat[data-id="${e.id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === e.id ? document.querySelector('.me-name') : null);
+  if (!seat) return;
   const el = document.createElement('div');
-  el.className = `fx-emote fx-emote-${e.kind}`;
+  el.className = `fx-emote fx-emote-${e.kind} ${chip ? 'fx-emote-side' : ''}`;
   el.innerHTML = `<span>${def[1]}</span>`;
-  const at = seat ? centerOf(seat) : { x: innerWidth / 2, y: innerHeight / 2 };
-  el.style.left = at.x + 'px';
-  el.style.top = at.y + 'px';
+  const r = seat.getBoundingClientRect();
+  el.style.left = (chip ? Math.min(innerWidth - 30, r.right + 26) : r.left + r.width / 2) + 'px';
+  el.style.top = (r.top + r.height / 2) + 'px';
   fxLayer().appendChild(el);
-  setTimeout(() => el.remove(), 2600);
+  setTimeout(() => el.remove(), 2100);
   if (e.kind === 'clap') sound.play('clap'); else { sound.play('pop'); sound.play('e_' + e.kind); }
 });
 
@@ -612,6 +615,45 @@ const GAME_RULES = {
   omok: '<p>흑이 먼저 두고, 가로·세로·대각선으로 <b>정확히 다섯 알</b>을 먼저 이으면 이겨요.</p><p>흑은 <b>삼삼</b>(열린 3이 두 개 생기는 자리)에 둘 수 없어요. 흑의 여섯 알(장목)은 승리가 아니에요.</p><p>로그인하면 대국마다 점수가 오르내리고 티어가 정해져요.</p>',
 };
 // 게임별 입장 화면
+// ── 지금 열린 방 목록 (5초마다 새로고침) ──────────────
+function roomItemHTML(r) {
+  const info = GAME_INFO[r.game] || GAME_INFO.holdem;
+  const full = r.players >= r.maxPlayers;
+  const status = r.practice ? '🤖 AI와 연습 중' : r.phase === 'playing' ? (r.tournament ? '🏆 토너먼트 중' : `🎮 게임 중${r.handNo ? ` · ${r.handNo}판째` : ''}`) : '⏳ 대기 중';
+  const sub = r.game === 'seotda' ? ` · ${r.cards === 3 ? '세 장' : '두 장'}` : '';
+  const canJoin = !r.practice && !full && !(r.tournament && r.phase === 'playing');
+  return `<div class="lr-item">
+    <span class="lr-icon">${info.icon}</span>
+    <div class="lr-main"><b>${esc(r.hostName || '방장')}님의 ${info.name}${sub}</b>${r.hasPassword ? ' 🔒' : ''}
+      <small>${status} · ${r.players}/${r.maxPlayers}명${r.spectators ? ` · 관전 ${r.spectators}` : ''}${r.bots ? ` · 봇 ${r.bots}` : ''}</small></div>
+    <div class="lr-btns">
+      <button class="btn btn-sm btn-outline" data-watch="${esc(r.code)}">관전</button>
+      ${canJoin ? `<button class="btn btn-sm btn-gold" data-enter="${esc(r.code)}">${r.phase === 'playing' ? '참가 신청' : '참가'}</button>` : ''}
+    </div></div>`;
+}
+async function loadRoomList(game) {
+  const box = document.querySelector('#live-rooms .lr-list');
+  if (!box) return false;
+  try {
+    const r = await (await fetch('/api/rooms' + (game ? `?game=${encodeURIComponent(game)}` : ''), { cache: 'no-store' })).json();
+    const list = (r.rooms || []).filter((x) => !x.practice || x.phase === 'playing');
+    box.innerHTML = list.length ? list.map(roomItemHTML).join('') : `<p class="muted small">지금 열린 방이 없어요. 방을 만들어 친구를 불러 보세요!</p>`;
+  } catch { box.innerHTML = '<p class="muted small">목록을 불러오지 못했어요</p>'; }
+  box.querySelectorAll('[data-watch],[data-enter]').forEach((b) => {
+    b.onclick = () => {
+      S.wantSpectate = !!b.dataset.watch;
+      history.pushState(null, '', '/r/' + (b.dataset.watch || b.dataset.enter));
+      boot();
+    };
+  });
+  return true;
+}
+function startRoomList(game) {
+  clearInterval(S.roomListTimer);
+  loadRoomList(game);
+  S.roomListTimer = setInterval(async () => { if (!(await loadRoomList(game))) clearInterval(S.roomListTimer); }, 5000);
+}
+
 function renderGameHome() {
   const g = S.game || 'holdem';
   const info = GAME_INFO[g];
@@ -629,9 +671,11 @@ function renderGameHome() {
         ${g === 'omok' ? '<button class="btn btn-ghost grow" id="go-rank">🏆 랭킹</button>' : ''}
       </div>
     </section>
+    <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">🔴 지금 열린 ${info.name} 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
     <p class="fine">${g === 'omok' ? '로그인하면 대국 결과로 티어가 올라가요.' : '칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.'}</p>
   </main>`;
   bindCommon();
+  startRoomList(g);
   $app.querySelector('#to-hub').onclick = () => { S.view = 'home'; history.pushState(null, '', '/'); render(); };
   $app.querySelector('#go-create').onclick = () => { history.pushState(null, '', '/'); S.view = 'create'; render(); };
   $app.querySelector('#go-practice').onclick = () => { history.pushState(null, '', '/'); S.view = 'practice'; render(); };
@@ -658,6 +702,7 @@ function renderHome() {
           <span class="gc-go">입장 ›</span>
         </button>`).join('')}
     </section>
+    <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">🔴 지금 열린 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
     <section class="panel">
       <div class="divider"><span>초대 코드로 참가</span></div>
       <form id="code-form" class="row">
@@ -670,6 +715,7 @@ function renderHome() {
     <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
   </main>`;
   bindCommon();
+  startRoomList('');
   $app.querySelectorAll('[data-game]').forEach((b) => {
     b.onclick = () => { S.game = b.dataset.game; LS.set('chandem:game', S.game); history.pushState(null, '', '/'); S.view = 'gamehome'; render(); };
   });
@@ -893,7 +939,7 @@ function renderJoin() {
         <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
         ${d.hasPassword ? '<label class="field"><span>비밀번호</span><input class="input" name="password" maxlength="20" required autocomplete="off"></label>' : ''}
         ${avatarPickerHTML()}
-        <label class="switch"><input type="checkbox" name="spectator"><span>관전만 할래요</span></label>
+        <label class="switch"><input type="checkbox" name="spectator" ${S.wantSpectate || d.phase === 'playing' ? 'checked' : ''}><span>관전만 할래요${d.phase === 'playing' ? ' (게임 중에는 바로 관전, 참가는 방장 승인)' : ''}</span></label>
         ${d.approval || d.phase === 'playing' ? `<p class="muted small">${d.phase === 'playing' ? '게임이 진행 중이라 ' : ''}방장이 승인하면 들어갈 수 있어요.</p>` : ''}
         <button class="btn btn-gold btn-lg" type="submit">참가하기</button>
       </form>`}
@@ -1276,7 +1322,7 @@ function renderBanner(st) {
   if (tn && tn.running) msgs.push(['tourney', `🏆 레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · 남은 ${tn.alive}/${tn.entrants}명`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · <b data-level-at="${tn.nextAt}">-</b></span>`]);
   // 방장: 게임 중 들어오고 싶은 사람
   if (me && me.isHost && st.pending) {
-    for (const p of st.pending) msgs.push(['gold', `${p.name}님이 들어오고 싶어해요`, `<button class="btn btn-sm btn-gold" data-approve="${p.id}">수락</button><button class="btn btn-sm btn-outline" data-reject="${p.id}">거절</button>`]);
+    for (const p of st.pending) msgs.push(['gold', p.seat ? `${p.name}님이 관전하다 자리에 앉고 싶어해요` : `${p.name}님이 들어오고 싶어해요`, `<button class="btn btn-sm btn-gold" data-approve="${p.id}">수락</button><button class="btn btn-sm btn-outline" data-reject="${p.id}">거절</button>`]);
     const ids = st.pending.map((p) => p.id).join(',');
     if (ids && ids !== S.pendingSeen) { S.pendingSeen = ids; sound.play('turn'); }
   }
@@ -1318,7 +1364,7 @@ function omokBoardSVG(o, preview, myColor) {
 function omokPlayerHTML(p, color, st, label) {
   if (!p) return `<div class="omok-player"><span class="muted">상대를 기다리는 중</span></div>`;
   const turn = st.hand && !st.hand.finished && st.hand.toActId === p.id;
-  return `<div class="omok-player ${turn ? 'is-turn' : ''}">
+  return `<div class="omok-player ${turn ? 'is-turn' : ''}" data-id="${esc(p.id)}">
     ${avatarHTML(p, 'avatar-sm')}<span class="omok-stone-icon stone-${color}"></span>
     <b>${esc(p.name)}</b>${p.member ? ' <span class="member-mark">✓</span>' : ''}${p.rating ? `<span class="tier-chip" style="color:${tierOf(p.rating).color}" title="${tierOf(p.rating).name} ${p.rating}점">${tierOf(p.rating).icon} ${fmt(p.rating)}</span>` : ''}${label ? `<span class="muted small">${label}</span>` : ''}
     ${turn ? '<span class="tag tag-turn" data-deadline>차례</span>' : ''}</div>`;
@@ -1548,8 +1594,12 @@ function renderMe(st) {
   const mp = me && st.players.find((p) => p.id === me.id);
   if (!me || !mp) { el.innerHTML = ''; return; }
   if (me.role === 'spectator' && !mp.cards) {
-    el.innerHTML = `<div class="me-spec"><span>관전 중이에요</span><button class="btn btn-sm btn-outline" id="sit-btn">참가자로 앉기</button></div>`;
-    el.querySelector('#sit-btn').onclick = () => emit('lobby:role', { spectator: false });
+    const waitingSeat = mp.seatRequest;
+    el.innerHTML = `<div class="me-spec"><span>👀 관전 중이에요${waitingSeat ? ' · 방장이 자리 요청을 확인하고 있어요' : ''}</span>
+      ${waitingSeat ? '' : `<button class="btn btn-sm btn-outline" id="sit-btn">${st.room.phase === 'playing' ? '자리 요청하기' : '참가자로 앉기'}</button>`}</div>
+      <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>`;
+    const sit = el.querySelector('#sit-btn');
+    if (sit) sit.onclick = async () => { const r = await emit('lobby:role', { spectator: false }); if (r.ok && r.requested) toast('방장에게 자리 요청을 보냈어요. 수락되면 다음 판부터 참가해요', 'ok'); };
     return;
   }
   const h = st.hand;

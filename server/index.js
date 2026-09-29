@@ -146,6 +146,16 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     // 배포 서버(Render)에서는 DB가 연결됐을 때만 로그인을 켠다 (파일 저장은 배포마다 지워지므로)
     res.json({ lan: lanUrls(server.address().port), publicUrl, accounts: accountsOn });
   });
+  // 지금 열려 있는 방 목록: 접속한 사람이 있는 방만, 게임 중인 방 먼저 → 최근 활동 순
+  app.get('/api/rooms', (req, res) => {
+    const game = String(req.query.game || '');
+    const list = [...rooms.values()].map((r) => r.listing())
+      .filter((x) => x.online && (!game || x.game === game))
+      .sort((a, b) => (a.phase === b.phase ? b.touchedAt - a.touchedAt : a.phase === 'playing' ? -1 : 1))
+      .slice(0, 30)
+      .map(({ touchedAt, online, ...x }) => x);
+    res.set('Cache-Control', 'no-store').json({ ok: true, rooms: list });
+  });
   app.get('/api/room/:code', (req, res) => {
     const r = rooms.get(String(req.params.code).toUpperCase());
     if (!r) return res.status(404).json({ ok: false, message: '방을 찾을 수 없어요. 코드를 확인해 주세요' });
@@ -312,7 +322,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     });
 
     socket.on('lobby:ready', handler((d) => { const { room, pid } = ctx(); room.setReady(pid, d.ready); }));
-    socket.on('lobby:role', handler((d) => { const { room, pid } = ctx(); room.setRole(pid, !!d.spectator); }));
+    socket.on('lobby:role', handler((d) => { const { room, pid } = ctx(); return room.setRole(pid, !!d.spectator); }));
     socket.on('lobby:settings', handler((d) => { const { room, pid } = ctx(); room.updateSettings(pid, d.settings); }));
     socket.on('lobby:start', handler(() => { const { room, pid } = ctx(); room.start(pid); }));
     socket.on('host:approve', handler((d) => { const { room, pid } = ctx(); room.approve(pid, d.id, !!d.ok); }));

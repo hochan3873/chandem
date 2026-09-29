@@ -295,8 +295,8 @@ class Room {
     this.setPhoto(p, photo);
     if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; }
     p.wantSpectator = !!spectator;
-    // 방장 승인 설정이 켜져 있거나, 이미 게임이 진행 중이면 방장이 받아 줘야 들어온다
-    if ((this.settings.approval || this.phase === 'playing') && this.players.some((x) => !x.isBot)) {
+    // 방장 승인 설정이 켜져 있거나, 게임 중에 '참가'하려면 방장이 받아 줘야 한다 (관전은 바로 입장)
+    if ((this.settings.approval || (this.phase === 'playing' && !spectator)) && this.players.some((x) => !x.isBot)) {
       this.pending.push(p);
       this.touch();
       return { player: p, pending: true };
@@ -317,6 +317,18 @@ class Room {
 
   approve(hostId, targetId, ok) {
     this.requireHost(hostId);
+    // 관전하다가 자리에 앉겠다는 요청
+    const seatReq = this.players.find((p) => p.id === targetId && p.seatRequest);
+    if (seatReq) {
+      seatReq.seatRequest = false;
+      if (ok) {
+        if (!this.takeSeat(seatReq)) throw new RoomError('빈 자리가 없어요');
+        this.pushFeed(`${seatReq.name}님이 자리에 앉았어요 (다음 판부터 참가)`);
+        this.maybeStartWaitingHand();
+      }
+      this.touch();
+      return seatReq;
+    }
     const idx = this.pending.findIndex((p) => p.id === targetId);
     if (idx === -1) throw new RoomError('이미 처리된 요청이에요');
     const [p] = this.pending.splice(idx, 1);
@@ -351,6 +363,14 @@ class Room {
       if (!p.isBot) p.ready = false;
     } else {
       if (p.role === 'player') return;
+      if (this.phase === 'playing' && this.isTournament) throw new RoomError('토너먼트 중에는 관전만 할 수 있어요');
+      if (this.phase === 'playing' && p.id !== this.hostId && this.players.some((x) => !x.isBot && x.id !== p.id)) {
+        // 게임 중에 관전하다 앉으려면 방장이 받아 줘야 한다
+        if (this.freeSeat() === null) throw new RoomError('빈 자리가 없어요');
+        if (!p.seatRequest) { p.seatRequest = true; this.pushFeed(`${p.name}님이 자리에 앉고 싶어해요`); }
+        this.touch();
+        return { requested: true };
+      }
       if (!this.takeSeat(p)) throw new RoomError('빈 자리가 없어요');
       this.maybeStartWaitingHand();
     }
@@ -942,6 +962,7 @@ class Room {
         isBot: !!p.isBot,
         photo: p.photo ? p.photoV : 0,
         member: !!p.userId,
+        seatRequest: !!p.seatRequest,
         rating: p.userId && this.settings.game === 'omok' ? p.omokRating : null,
         isHost: p.id === this.hostId,
         sittingOut: p.sittingOut,
@@ -990,7 +1011,9 @@ class Room {
     };
 
     if (me && me.id === this.hostId) {
-      view.pending = this.pending.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, photo: p.photo ? p.photoV : 0 }));
+      view.pending = this.pending.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, photo: p.photo ? p.photoV : 0 }))
+        // 관전하다 자리에 앉고 싶은 사람도 같은 승인 목록에
+        .concat(this.players.filter((p) => p.seatRequest).map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, photo: p.photo ? p.photoV : 0, seat: true })));
       view.room.settings.password = this.settings.password;
     }
 
@@ -1022,6 +1045,29 @@ class Room {
       };
     }
     return view;
+  }
+
+  /** 첫 화면 '진행 중인 방' 목록에 보일 요약 (카드·칩 같은 비밀 정보 없음) */
+  listing() {
+    const humans = this.players.filter((p) => !p.isBot && !p.leaving);
+    return {
+      code: this.code,
+      game: this.settings.game || 'holdem',
+      hostName: this.host ? this.host.name : null,
+      phase: this.phase,
+      practice: !!this.practice,
+      tournament: this.isTournament,
+      cards: this.settings.cards,
+      players: this.seated.length,
+      maxPlayers: this.settings.maxPlayers,
+      spectators: this.players.filter((p) => p.role === 'spectator' && !p.leaving).length,
+      bots: this.players.filter((p) => p.isBot).length,
+      hasPassword: !!this.settings.password,
+      approval: !!this.settings.approval,
+      handNo: this.handNo,
+      online: humans.some((p) => p.connected),
+      touchedAt: this.touchedAt,
+    };
   }
 
   tourneyView() {
