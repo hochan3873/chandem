@@ -33,14 +33,14 @@ function createLbPvp(opts) {
   async function playerOf(socket) {
     const tok = String((socket.handshake.auth && socket.handshake.auth.token) || '');
     const uid = tok ? accounts.verifyToken(tok) : null;
-    let nickname = '손님', rating = START_RATING, games = 0, master = false;
+    let nickname = '손님', username = '', rating = START_RATING, games = 0, master = false;
     if (uid) {
       const u = await accounts.store.byId(uid);
-      if (u) { nickname = u.nickname; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; master = !!(opts.isMaster && opts.isMaster(u.username)); }
+      if (u) { nickname = u.nickname; username = u.username; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; master = !!(opts.isMaster && opts.isMaster(u.username)); }
     }
-    return { socket, uid, master, key: uid || 'g:' + socket.id, nickname, rating, games, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
+    return { socket, uid, master, key: uid || 'g:' + socket.id, nickname, username, rating, games, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
   }
-  const pub = (p) => ({ nickname: p.nickname, rating: p.rating, deck: p.deck, bot: !!p.bot });
+  const pub = (p) => ({ nickname: p.nickname, username: p.username || '', rating: p.rating, deck: p.deck, bot: !!p.bot });
 
   function makeMatch(a, b) {
     const id = crypto.randomBytes(6).toString('base64url');

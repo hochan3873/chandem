@@ -1303,6 +1303,7 @@ const ACTS = {
   shop: () => showShop(),
   shopTab: (b) => { app.shopTab = b.dataset.tab; showShop(); },
   ranking: () => showRanking(),
+  playerCard: (b) => showPlayerCard(b.dataset.u),
   rankTab: (b) => { app.rankTab = b.dataset.tab; showRanking(); },
   howto: () => showHowto(),
   mute: () => { A.setMuted(!A.isMuted()); syncMute(); },
@@ -2146,7 +2147,29 @@ async function showPvp() {
   `, 'dim');
   const rk = await API.pvpRanking();
   const box = $('#pvpRank');
-  if (box && rk) box.innerHTML = `<h4>🏆 대전 순위</h4>${rk.ranking.map((r) => `<div class="wrow"><span class="rk">${r.rank}</span><span class="nm">${esc(r.nickname)}</span><span class="wv">${r.wins}/${r.games}</span><b>${r.rating}</b></div>`).join('') || '<div class="empty-msg">아직 대전 기록이 없어요</div>'}`;
+  if (box && rk) box.innerHTML = `<h4>🏆 대전 순위</h4>${rk.ranking.map((r) => `<div class="wrow" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="rk">${r.rank}</span><span class="nm">${esc(r.nickname)}</span><span class="wv">${r.wins}/${r.games}</span><b>${r.rating}</b></div>`).join('') || '<div class="empty-msg">아직 대전 기록이 없어요</div>'}`;
+}
+// 선수 카드: 스테이지 진행 · 대전 등급 · 승률 · 덱
+const PVP_TIERS = [[1800, '그랜드마스터', '👑', '#ff5d73'], [1650, '마스터', '🔮', '#c77dff'], [1500, '다이아몬드', '💎', '#6fd3ff'], [1350, '플래티넘', '🛡️', '#4fe0c1'], [1200, '골드', '🥇', '#ffd35a'], [1050, '실버', '🥈', '#cfd8e3'], [900, '브론즈', '🥉', '#d59a6a'], [-Infinity, '아이언', '⚙️', '#9aa1a8']];
+async function showPlayerCard(u) {
+  if (!u) { toast('손님이라 기록이 없어요'); return; }
+  popup('<p class="ip"><span class="spin">⏳</span> 불러오는 중…</p>', 'pcard');
+  const pl = await API.playerCard(u);
+  const box = stage.querySelector('.pcard .pop-box');
+  if (!box) return;
+  if (!pl) { box.innerHTML = '<p class="ip">선수 정보를 불러오지 못했어요</p><button class="pop-x" data-x>✕</button>'; return; }
+  const t = PVP_TIERS.find((x) => pl.pvp.rating >= x[0]);
+  const fr = pl.frame && L.FRAMES[pl.frame] ? L.FRAMES[pl.frame].color : '#ffd23f';
+  const deck = pl.deck.map((h) => HEROES[h.id] ? `<span class="pc-h" style="--c:${ATTRS[HEROES[h.id].attr].color}">${dexImg(h.id, HEROES[h.id].img)}<i class="tier t${heroTier(h.id)}">${TIER_NAME[heroTier(h.id)]}</i><small>${'★'.repeat(h.star)} ${h.lv ? '+' + h.lv : ''}</small><b>${esc(HEROES[h.id].name)}</b></span>` : '').join('');
+  box.innerHTML = `<div class="pc-head" style="--fr:${fr}"><b>${esc(pl.nickname)}</b>${pl.master ? '<em class="lb-master">MASTER</em>' : ''}<small>Lv.${pl.level || 1}${pl.title ? ` · 🏷️ ${esc(L.titleName(pl.title))}` : ''}</small></div>
+    <div class="pc-stats">
+      <div><small>최고 스테이지</small><b>${esc(pl.stageLabel)}</b><i>★ ${pl.totalStars || 0}</i></div>
+      <div><small>대전 등급</small><b style="color:${t[3]}">${t[2]} ${t[1]}</b><i>${pl.pvp.rating}점</i></div>
+      <div><small>승률</small><b>${pl.pvp.games ? pl.pvp.winRate + '%' : '-'}</b><i>${pl.pvp.wins}승 ${pl.pvp.games - pl.pvp.wins}패</i></div>
+    </div>
+    <h4 class="pc-dt">🃏 대표 덱</h4><div class="pc-deck">${deck || '<p class="ip">아직 덱이 없어요</p>'}</div>
+    ${pl.bestWave ? `<p class="ip">♾️ 무한 도전 최고 W${pl.bestWave}</p>` : ''}
+    <button class="pop-x" data-x>✕</button>`;
 }
 function pvpWaiting(text, code) {
   popup(`<h3>⚔️ ${esc(text)}</h3>${code ? `<div class="pvp-code">${code}</div><p class="ip">친구에게 코드를 알려 주세요</p>` : '<p class="ip"><span class="spin">⏳</span> 상대를 찾는 중…</p>'}<button class="btn ghost" data-act="pvpCancel">취소</button>`, 'pvp-wait');
@@ -2173,11 +2196,13 @@ function pvpMatched(m) {
   fx.banner('⚔️ 대전 시작!', `vs ${m.opp.nickname}${m.opp.bot ? ' (연습 상대)' : ` · ${m.opp.rating}점`}`, '#1a3a8a', 2.4, 'big');
   setTimeout(() => startRun({ mode: 'pvp', force: true, pvpSeed: m.seed }), Math.max(0, (m.startIn || 3000) - 800));
 }
+document.getElementById('oppstrip').addEventListener('click', (ev) => { const u = ev.currentTarget.dataset.u; if (u) showPlayerCard(u); else toast(PVP.opp && PVP.opp.bot ? '연습 상대예요 🤖' : '손님이라 기록이 없어요'); });
 function renderOppStrip() {
   const el = $('#oppstrip');
   if (!el || !PVP.opp) return;
   const o = PVP.opp;
   el.hidden = false;
+  el.dataset.u = o.username || '';
   el.innerHTML = `<b>${esc(o.nickname || '상대')}${o.bot ? ' 🤖' : ''}</b><div class="ohp"><div style="width:${Math.round((o.hp / Math.max(1, o.max)) * 100)}%"></div></div><small>W${o.wave || 0} · 처치 ${o.kills || 0}</small>`;
 }
 function pvpTick() {
@@ -3273,7 +3298,7 @@ async function showRanking() {
     : `<span class="w"><b>W${r.bestWave}</b><small>${fmt(r.bestScore)}점</small></span>`);
   const medal = ['🥇', '🥈', '🥉'];
   box.innerHTML = res.ranking.length
-    ? res.ranking.map((r) => `<div class="rank r${r.rank} ${res.me && res.me.username === r.username ? 'me' : ''}"><span class="no">${medal[r.rank - 1] || r.rank}</span>
+    ? res.ranking.map((r) => `<div class="rank r${r.rank} ${res.me && res.me.username === r.username ? 'me' : ''}" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="no">${medal[r.rank - 1] || r.rank}</span>
       <span class="nm">${esc(r.nickname)}<small>Lv.${r.level || 1}</small></span>${cell(r)}</div>`).join('')
     : '<div class="empty-msg">아직 기록이 없어요<br>첫 번째 랑방 수호자가 되어 보세요!</div>';
   if (app.guest) my.innerHTML = '<div class="guest-note" style="margin:0">손님은 랭킹에 안 올라가요 · <a href="/">로그인</a>하고 이름을 올려 봐요!</div>';

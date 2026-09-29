@@ -770,11 +770,27 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   }
   async function lbPvpRanking(token) {
     await ready;
-    const list = (await store.pvpTop(50)).map((u, i) => { const p = pvpOf(u); return { rank: i + 1, nickname: u.nickname, rating: p.rating, games: p.games, wins: p.wins, tier: tierOf(p.rating) }; });
+    const list = (await store.pvpTop(50)).map((u, i) => { const p = pvpOf(u); return { rank: i + 1, nickname: u.nickname, username: u.username, rating: p.rating, games: p.games, wins: p.wins, tier: tierOf(p.rating) }; });
     let me = null;
     const id = token ? verifyToken(token) : null;
     if (id) { const u = await store.byId(id); if (u) { const p = pvpOf(u); me = { ...p, tier: tierOf(p.rating) }; } }
     return { ranking: list, me };
+  }
+  // 다른 사람 선수 카드 (랭킹 · 1:1 대전에서 이름을 누르면)
+  async function lbPlayer(username) {
+    await ready;
+    const u = username ? await store.byName(String(username).slice(0, 40)) : null;
+    if (!u) throw new AuthError('없는 선수예요');
+    const lb = lbOf(u), p = pvpOf(u), raw = (u.stats && u.stats.langbang) || {};
+    const dk = raw.decks && Array.isArray(raw.decks.decks) ? (raw.decks.decks[raw.decks.i | 0] || []).filter((x) => typeof x === 'string' && LBR.LB_HEROES.includes(x) && LBR.heroUnlocked(lb, x)) : [];
+    const heroes = Object.entries(lb.heroes || {}).filter(([h]) => LBR.LB_HEROES.includes(h));
+    const deck = dk.length ? dk : heroes.sort((x, y) => y[1] - x[1]).slice(0, 4).map(([h]) => h);
+    return { player: {
+      nickname: u.nickname, username: u.username, level: lb.level, maxStage: lb.maxStage, stageLabel: lb.maxStage ? LBR.stageLabel(lb.maxStage) : '-', totalStars: lb.totalStars, bestWave: lb.bestWave,
+      pvp: { rating: p.rating, games: p.games, wins: p.wins, winRate: p.games ? Math.round((p.wins / p.games) * 100) : 0, tier: tierOf(p.rating) },
+      deck: deck.slice(0, 6).map((h) => ({ id: h, lv: (lb.heroes || {})[h] | 0, star: Math.max(1, ((raw.hstars || {})[h]) | 0) })),
+      title: typeof raw.title === 'string' ? raw.title : '', frame: typeof raw.frame === 'string' ? raw.frame : '', master: isMasterName(u.username),
+    } };
   }
   // ── 마스터(운영자) 전용 테스트 도구: 서버가 아이디로 확인 ──
   function lbMaster(token, body) {
@@ -914,6 +930,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/raid/claim', wrap((req) => lbRaidClaim(tok(req))));
     r.get('/raid', wrap((req) => lbRaidBoard(tok(req) || null)));
     r.get('/pvp/ranking', wrap((req) => lbPvpRanking(tok(req) || null)));
+    r.get('/player', wrap((req) => lbPlayer(String(req.query.u || ''))));
     return r;
   }
 

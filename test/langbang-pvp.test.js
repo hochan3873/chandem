@@ -65,6 +65,18 @@ test('1:1 대전: 매칭 · 보내기 확인(게이지 · 간격) · 1초 늦게
   assert.ok(sa.stats.langbang.pvp.rating > 1000 && sa.stats.langbang.pvp.wins === 1);
   const rk = await get('/api/langbang/pvp/ranking');
   assert.equal(rk.ranking[0].nickname, 'pvpa');
+  assert.equal(rk.ranking[0].username, 'pvpa');
+  assert.equal(a.got.match[0].opp.username, 'pvpb', '상대 띠를 누르면 선수 카드');
+  // 선수 카드: 스테이지 진행 · 대전 등급 · 승률 · 덱
+  await post('/api/langbang/decks', ua.token, { i: 0, decks: [['staff', 'gunman', 'nope'], [], []] });
+  const pc = await get('/api/langbang/player?u=pvpa');
+  assert.equal(pc.ok, true, pc.message);
+  assert.equal(pc.player.pvp.wins, 1);
+  assert.equal(pc.player.pvp.winRate, 100);
+  assert.ok(pc.player.pvp.tier && pc.player.pvp.tier.name);
+  assert.deepEqual(pc.player.deck.map((h) => h.id), ['staff', 'gunman'], '없는 멤버는 빼고 현재 덱');
+  assert.equal(pc.player.stageLabel, '-');
+  assert.equal((await get('/api/langbang/player?u=nobody_here')).ok, false);
   a.close(); b.close();
 });
 
