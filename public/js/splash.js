@@ -86,8 +86,9 @@ async function start() {
     a.src = src;
     a.load();
   });
+  setTimeout(() => el.classList.add('art-in'), 1500);
   const jobs = [
-    ['그림', img('/img/splash2.webp', () => el.classList.add('no-art'))],
+    ['그림', img('/img/splash2.webp', () => el.classList.add('no-art', 'art-in')).then(() => el.classList.add('art-in'))],
     ['글꼴', font("400 1em 'Black Han Sans'")],
     ['글꼴', font("700 1em 'Noto Sans KR'")],
     ['그림', img('/img/gw2-icon-192.png')],

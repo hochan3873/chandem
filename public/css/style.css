@@ -1022,8 +1022,11 @@ html.gw-reduce-motion #app.view-out { transform: none; }
 #splash { display: none; }
 html.splashing #splash {
   display: block; position: fixed; inset: 0; z-index: 100; overflow: hidden; color: #fff; cursor: pointer; user-select: none; -webkit-user-select: none;
-  background: linear-gradient(180deg, #ffcf6b 0%, #ffb347 38%, #ff8a3d 72%, #ff6f61 100%);
+  background: radial-gradient(ellipse at 50% 30%, #2a1a5e 0%, #120c33 55%, #07051a 100%); /* 그림(밤 파티)과 같은 톤 — 그림이 늦게 떠도 화면이 두 번 바뀌어 보이지 않게 */
 }
+/* 그림이 뜨기 전엔 글자·막대도 숨겼다가 그림과 함께 부드럽게 등장 */
+#splash .sp-art, #splash .sp-logo, #splash .sp-bottom { opacity: 0; transition: opacity .35s ease; }
+#splash.art-in .sp-art, #splash.art-in .sp-logo, #splash.art-in .sp-bottom { opacity: 1; }
 html.splashing body { overflow: hidden; }
 html.splash-quiet #splash { visibility: hidden; }
 html.splash-quiet #splash * { animation: none; }
