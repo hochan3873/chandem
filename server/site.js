@@ -362,7 +362,9 @@ function createSite({ acct, file = null, now = Date.now } = {}) {
     next();
   }
 
-  /** 마스터 계정에 복구 코드가 없으면 서버가 켜질 때 한 번 만들어 서버 로그에만 찍는다 (비밀번호를 잊은 운영자용) */
+  /** 마스터 계정에 복구 코드가 없으면 서버가 켜질 때 한 번 만들어 서버 로그에만 찍는다 (비밀번호를 잊은 운영자용).
+   *  MASTER_RECOVERY_ROUND 를 올려 배포하면 코드를 한 번 새로 만든다(잠금도 풀림). */
+  const MASTER_RECOVERY_ROUND = 2;
   async function bootstrapMasterRecovery(names) {
     await ready;
     for (const name of names) {
@@ -371,9 +373,12 @@ function createSite({ acct, file = null, now = Date.now } = {}) {
       let code = null;
       await acct.exclusive(async () => {
         const u = await acct.store.byId(u0.id);
-        if (!u || metaOf(u).recovery) return;
+        const m = u && metaOf(u);
+        if (!u || (m.recovery && (m.masterRound | 0) >= MASTER_RECOVERY_ROUND)) return;
         code = newRecoveryCode();
-        await saveMeta(u, { ...metaOf(u), recovery: { hash: hashPassword(code), at: now() } });
+        const next = { ...m, recovery: { hash: hashPassword(code), at: now() }, masterRound: MASTER_RECOVERY_ROUND };
+        delete next.recoveryFails;
+        await saveMeta(u, next);
       });
       if (code) console.log(`[master] ${name} 복구 코드: ${prettyRecovery(code)} — 로그인 화면 '비밀번호 찾기'에서 아이디+이 코드로 새 비밀번호를 정하세요`);
     }
