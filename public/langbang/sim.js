@@ -1,7 +1,7 @@
 // 랑방 대전 — 순수 시뮬레이션 (DOM 없음, Node 에서도 import 가능)
 // 화면/소리는 g.events 로 흘려보내고, 렌더러가 매 프레임 꺼내서 연출한다.
 import {
-  FIELD, RULES, HEROES, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
+  FIELD, RULES, HEROES, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
   STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx,
 } from './data.js';
@@ -37,6 +37,8 @@ export function createGame(opt = {}) {
     waveT: 0, spawnQ: [], spawnI: 0, bossAlive: 0,
     heroes: [], enemies: [], projs: [], gems: [], events: [], eprojs: [], pools: [], puddles: [], flirt: false,
     rallyT: 0, rallySpd: 0, swapCd: 0, effT: -9,
+    slotX: (opt.positions || 6) >= 7 ? SLOT_X7.slice() : SLOT_X.slice(), nPos: (opt.positions || 6) >= 7 ? 7 : 6,
+    gear: opt.gear || {}, baseHit: false, // 장비 · 퍼펙트(입구 무피해) 판정
     mapFx: opt.mapFx ? MAP_FX[opt.mapFx] || MAP_FX.none : mode === 'stage' ? stageFx(opt.stage || 1) : MAP_FX.none, // 맵 효과
     fxT: 0, darkT: 0, megaT: 0,
     base: { hp: baseMax, max: baseMax },
@@ -54,8 +56,17 @@ export function createGame(opt = {}) {
     _grid: null,
   };
   if (g.mapFx.exp) g.mods.expMul += g.mapFx.exp;
-  const start = opt.heroes || ['bangjang', ...(opt.partners || [opt.partner || 'gunman'])];
-  for (const id of start) if (id) addHero(g, id);
+  // 장비: 입구 내구도 +%
+  let hpUp = 0;
+  for (const k in g.gear) hpUp += (g.gear[k] && g.gear[k].hp) || 0;
+  if (hpUp) { g.base.max = Math.round(g.base.max * (1 + hpUp)); g.base.hp = g.base.max; }
+  if (opt.deck) {
+    // 덱: 자리마다 영웅 (자리가 곧 공격 줄)
+    opt.deck.forEach((id, slot) => { if (id && HEROES[id] && slot < g.nPos) addHero(g, id, slot); });
+  } else {
+    const start = opt.heroes || ['bangjang', ...(opt.partners || [opt.partner || 'gunman'])];
+    for (const id of start) if (id) addHero(g, id);
+  }
   return g;
 }
 
@@ -72,20 +83,21 @@ export function hasHero(g, id) {
   return null;
 }
 
-export function addHero(g, id) {
-  if (hasHero(g, id) || g.heroes.length >= HERO_SLOTS) return null;
+export function addHero(g, id, want) {
+  if (hasHero(g, id) || g.heroes.length >= g.nPos) return null;
   const def = HEROES[id];
   const used = new Set(g.heroes.map((h) => h.slot));
-  const slot = SLOT_ORDER.find((s) => !used.has(s));
+  const order = g.nPos >= 7 ? [3, 2, 4, 1, 5, 0, 6] : SLOT_ORDER;
+  const slot = want !== undefined && !used.has(want) && want < g.nPos ? want : order.find((s) => !used.has(s));
   const h = {
-    id, def, slot, x: SLOT_X[slot], y: g.rowY, lv: 1, meta: g.meta[id] || 0,
+    id, def, slot, x: g.slotX[slot], y: g.rowY, lv: 1, meta: g.meta[id] || 0, gear: g.gear[id] || {},
     cd: 0.3 + g.rng() * 0.4, charmT: 0, stunT: 0, rumorT: 0, fearT: 0, paperT: 0, vomitT: 0, blindT: 0, drowsyT: 0, grabT: 0, grabBy: 0, recoil: 0, shots: 0, joinT: 0,
     rage: false, rageT: def.soberSec ? def.soberSec[0] : 0, healT: def.heal ? def.heal[0][0] : 0,
     kills: 0, dmgDone: 0,
-    skillCd: def.skill ? def.skill.cd * 0.5 : 0, frenzyT: 0, frenzyCd: 0, // 스킬은 판 시작하고 절반쯤 지나야 첫 사용
-    beamE: null, beamUid: 0, beamT: 0, beamTick: 0, beam2E: null, kbT: 0, rx: SLOT_X[slot],
+    skillCd: def.skill ? def.skill.cd * 0.5 * (1 - ((g.gear[id] && g.gear[id].cd) || 0)) : 0, frenzyT: 0, frenzyCd: 0, // 스킬은 판 시작하고 절반쯤 지나야 첫 사용
+    beamE: null, beamUid: 0, beamT: 0, beamTick: 0, beam2E: null, kbT: 0, rx: g.slotX[slot],
     motoN: 0, meter: 0, upT: 0, burstT: 0, serious: 1, // 백인규 오토바이 게이지 · 문동한 간보기
-    out: false, outT: 0, restT: 0, px: SLOT_X[slot], py: g.rowY, dashE: null, // 김영준 돌격
+    out: false, outT: 0, restT: 0, px: g.slotX[slot], py: g.rowY, dashE: null, // 김영준 돌격
   };
   g.heroes.push(h);
   g.heroesUsed[id] = true;
@@ -107,8 +119,10 @@ export function heroDamage(g, h) {
   const d = h.def;
   const fxm = (g.mapFx.attr && g.mapFx.attr[d.attr]) || 1;
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
-  return d.dmg * LEVEL_DMG[h.lv - 1] * (1 + RULES.metaDmgPerLevel * h.meta) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm;
+  return d.dmg * LEVEL_DMG[h.lv - 1] * (1 + RULES.metaDmgPerLevel * h.meta) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0));
 }
+// 이 멤버 치명타 확률 (장비 포함)
+function critOf(g, h) { return g.mods.crit + (h && h.gear ? h.gear.crit || 0 : 0); }
 // 뒷담화(수군수군)·공포(사기꾼 실물) 로 느려진 공격 속도 배율
 export function heroSpeedMul(h) {
   return (h.rumorT > 0 ? 1 - ENEMIES.inpi_gossip.rumor.cut : 1) * (h.fearT > 0 ? 1 - ENEMIES.scammer.scam.fear : 1)
@@ -176,7 +190,7 @@ function updateHeroes(g, dt) {
     if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
     let sing = 0;
     for (const d0 of singers) if (d0 !== h && Math.abs(d0.x - h.x) <= d0.def.sing.r) sing = Math.max(sing, d0.def.sing.spd[d0.lv - 1]);
-    const rate = (g.mods.spd + aura) * heroSpeedMul(h) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) / (h.rage ? d.rageInterval : 1);
+    const rate = (g.mods.spd + aura) * heroSpeedMul(h) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) / (h.rage ? d.rageInterval : 1);
     // 문동한: 간보기 게이지 → 일어나서 한 줄 빔
     if (d.meter) {
       if (h.upT > 0) h.upT -= dt;
@@ -243,7 +257,7 @@ function updateBeam(g, h, dt, rate) {
     h.beamTick += d.beamTick;
     const ramp = 1 + Math.min(d.rampMax, d.ramp[lv - 1] * h.beamT);
     const dmg = heroDamage(g, h) * (d.beamTick / d.interval) * ramp;
-    const crit = g.rng() < g.mods.crit;
+    const crit = g.rng() < critOf(g, h);
     damageEnemy(g, t, dmg * (crit ? g.mods.critMul : 1), crit, h);
     if (lv >= 5) {
       // 두 번째 갈래: 가까운 다른 진상
@@ -288,7 +302,7 @@ function updateDash(g, h, dt, rate) {
   h.cd -= dt * rate;
   if (t && h.cd <= 0 && Math.hypot(t.x - h.px, t.y - h.py) < d.reach + t.r) {
     h.cd += d.interval * LEVEL_INTERVAL[lv - 1];
-    const crit = g.rng() < g.mods.crit;
+    const crit = g.rng() < critOf(g, h);
     damageEnemy(g, t, heroDamage(g, h) * (crit ? g.mods.critMul : 1), crit, h, false, true);
     if ((h.shots++ % 5) === 0) ev(g, 'slash', { x: t.x, y: t.y - 20 });
   }
@@ -318,10 +332,12 @@ function inRange(h, e, range) {
 export function findTarget(g, h, skip) {
   const range = heroRange(g, h);
   const f = g.focus;
-  if (f && !f.dead && f.uid === g.focusUid && inRange(h, f, heroRange(g, h, true)) && !(skip && skip.includes(f))) return f;
+  if (f && !f.dead && f.uid === g.focusUid && inRange(h, f, heroRange(g, h, true)) && !(skip && skip.includes(f)) && !(h.def.lane && Math.abs(f.x - h.x) > h.def.lane + f.r)) return f;
   let best = null, by = -1e9;
+  const lane = h.def.lane;
   for (const e of g.enemies) {
     if (e.dead || (skip && skip.includes(e))) continue;
+    if (lane && Math.abs(e.x - h.x) > lane + e.r) continue; // 자기 줄만
     // 입구에 가까운(아래쪽) 적 우선, 도망가는 먹튀는 약간 가산
     const y = e.y + (e.fleeing ? 60 : 0);
     if (y > by && inRange(h, e, range)) { by = y; best = e; }
@@ -361,7 +377,7 @@ export function fire(g, h, t) {
       for (let i = 0; i < hits.length && i < max; i++) {
         const e = hits[i][1];
         if (e.dead) continue;
-        const crit = g.rng() < g.mods.crit;
+        const crit = g.rng() < critOf(g, h);
         damageEnemy(g, e, dmg * (big ? 1.6 : 1) * (crit ? g.mods.critMul : 1), crit, h, true);
         if (!e.dead && !e.boss) applyKnockback(e, d.kb * (big ? 3 : 1), g);
       }
@@ -404,7 +420,7 @@ export function fire(g, h, t) {
     case 'bullet': {
       // 건전남 새총: 먼 곳까지 빠른 단발, 치명타 잘 터짐
       const n = 1 + g.mods.gunExtra;
-      const ang = aimAngle(h, t, d.projSpeed);
+      const ang = d.lane ? -Math.PI / 2 : aimAngle(h, t, d.projSpeed); // 새총은 자기 줄 위로 똑바로
       const head = lv >= 5 && h.shots % 4 === 0;
       for (let i = 0; i < n; i++) {
         const a = ang + (i - (n - 1) / 2) * 0.08;
@@ -430,7 +446,7 @@ export function fire(g, h, t) {
     }
     case 'cane': {
       const n = lv >= 5 ? 2 : 1;
-      const ang = aimAngle(h, t, d.projSpeed);
+      const ang = d.lane ? -Math.PI / 2 : aimAngle(h, t, d.projSpeed);
       for (let i = 0; i < n; i++) {
         const a = ang + (i - (n - 1) / 2) * 0.16;
         spawnProj(g, 'cane', h, null, dmg, {
@@ -493,7 +509,7 @@ function landLob(g, p) {
   const h = p.hero;
   ev(g, 'splash', { x: p.tx, y: p.ty, r: p.splash, proj: p.type });
   forEnemiesNear(g, p.tx, p.ty, p.splash, (e) => {
-    const crit = g.rng() < g.mods.crit;
+    const crit = g.rng() < critOf(g, h);
     damageEnemy(g, e, p.dmg * (crit ? g.mods.critMul : 1), crit, h, true);
     return true;
   });
@@ -555,7 +571,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   const def = ENEMIES[type];
   if (g.seen) g.seen[type] = 1; // 도감: 이번 판에 만난 진상
   const e = g._enemyPool.pop() || {};
-  const m = o.hpMul || hpMul(Math.max(1, g.diff), g.mode === 'stage');
+  const m = (o.hpMul || hpMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hpScale || 1)) * (def.boss && g.mode === 'stage' ? RULES.stageBossHp : 1);
   e.uid = g.uid++; e.type = type; e.def = def; e.boss = !!def.boss; e.gender = def.gender;
   const lane = g.mapFx.lane;
   e.x = x !== undefined ? x : lane ? lane[0] + g.rng() * (lane[1] - lane[0]) : 24 + g.rng() * (g.W - 48);
@@ -570,6 +586,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.interestT = def.interest ? def.interest.every : 0; e.interestN = 0; e.loanTaken = 0; e.paperT = def.paper ? 2.5 : 0;
   e.phaseI = -1; e.phaseT = 0; e.auraOn = false;
   e.pukeT = def.puke ? 2 + g.rng() * 2 : 0; e.hurtT = 9; e.split = false; e.grabbing = null; e.grabCd = 0;
+  e.weakT = 0;
   e.gaoOn = !!def.gao; e.flashT = def.flash ? 2 + g.rng() * 2 : 0; e.vaulted = false; e.jumpT = 0; e.latteOffT = 0;
   e.spamT = def.spam ? 3 + g.rng() * 3 : 0; e.flexT = 0; e.puddleT = 0;
   e.kneelT = def.kneel ? def.kneel.every * 0.5 : 0; e.duckT = def.duck ? 2 : 0; e.feastT = def.feast ? def.feast.every * 0.6 : 0;
@@ -592,13 +609,19 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (src && src.def && src.def.attr && !g.noTypes) {
     const m = typeMul(src.def.attr, e.def.cls);
     if (m !== 1) {
-      dmg *= m;
+      dmg *= m * (m > 1 ? 1 + (src.gear && src.gear.attr ? src.gear.attr : 0) : 1);
       if (g.t - g.effT > 0.8) { g.effT = g.t; ev(g, 'eff', { x: e.x, y: e.y - e.def.size * 0.75, strong: m > 1 }); }
     }
   }
   if (e.dictT > 0) dmg *= 1 - e.dictCut;
   if (e.packN > 0 && !aoe) { const pk = e.def.pack; dmg *= 1 - Math.min(pk.maxCut, pk.cut * e.packN); }
   if (e.form === 'reveal') dmg *= e.def.scam.revealDmg;
+  if (e.weakT > 0) dmg *= 1.5; // 보스 빈틈!
+  // 장비 '버프 벗기기': 보호막 · 독재자 버프 · 가오를 벗긴다
+  if (src && src.gear && src.gear.strip && (e.shield > 0 || e.dictT > 0 || e.gaoOn) && g.rng() < src.gear.strip) {
+    e.shield = 0; e.dictT = 0; if (e.gaoOn) e.gaoOn = false;
+    ev(g, 'strip', { x: e.x, y: e.y - e.def.size * 0.7 });
+  }
   // 셀카 플래시에 눈부신 멤버는 절반쯤 빗나간다
   if (src && src.blindT > 0 && g.rng() < ENEMIES.selfie.flash.miss) {
     if (g.t - (g.missT || -9) > 0.5) { g.missT = g.t; ev(g, 'miss', { x: e.x, y: e.y - e.def.size * 0.6 }); }
@@ -683,6 +706,7 @@ function damageBase(g, dmg, e) {
   const tank = g.heroes.find((h) => h.def.guard);
   if (tank && e && Math.abs(e.x - tank.x) < tank.def.guard.r) dmg *= 1 - tank.def.guard.cut;
   g.base.hp -= dmg;
+  if (dmg > 0) g.baseHit = true;
   ev(g, 'baseHit', { x: e.x, y: g.ropeY, v: Math.round(dmg), boss: e.boss });
   if (g.base.hp <= 0) {
     g.base.hp = 0;
@@ -711,6 +735,7 @@ function updateEnemies(g, dt) {
     }
     if (e.dictT > 0) e.dictT -= dt;
     e.hurtT += dt;
+    if (e.weakT > 0) e.weakT -= dt;
     if (e.flexT > 0) e.flexT -= dt;
     if (e.puddleT > 0) e.puddleT -= dt;
     if (e.latteOffT > 0) e.latteOffT -= dt;
@@ -805,6 +830,7 @@ function updateEnemies(g, dt) {
           const h = victim(g, hs);
           h.stunT = Math.max(h.stunT, debuffSec(h, def.kneel.stun));
           ev(g, 'kneel', { hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y });
+          bossWeak(g, e);
         }
       }
     }
@@ -830,6 +856,7 @@ function updateEnemies(g, dt) {
           return true;
         });
         ev(g, 'feast', { x: e.x, y: e.y, r: def.feast.r, n });
+        bossWeak(g, e);
       }
     }
     // 보스 기술
@@ -839,6 +866,7 @@ function updateEnemies(g, dt) {
         if (e.windup <= 0) {
           for (const h of g.heroes) h.stunT = Math.max(h.stunT, def.slam.stun);
           ev(g, 'slam', { x: e.x, y: e.y });
+          bossWeak(g, e);
           e.abT = def.slam.every;
         }
         continue;
@@ -856,6 +884,7 @@ function updateEnemies(g, dt) {
           spawnEnemy(g, t, clamp(e.x + (i - (n - 1) / 2) * 34, 18, W - 18), e.y + 20 + g.rng() * 10, { hpMul: hpMul(g.diff) * 0.8 });
         }
         ev(g, 'summon', { x: e.x, y: e.y });
+        bossWeak(g, e);
       }
     }
     // 보호막: 여왕벌 · 인피 총무("회비 지원!") · 연합 회장
@@ -1093,6 +1122,13 @@ function victim(g, list, dflt) {
 }
 function debuffSec(h, sec) { return h.def.taunt ? sec * h.def.taunt : sec; }
 
+// 보스가 큰 기술을 쓴 직후 2.5초 "빈틈!" — 받는 피해 1.5배
+function bossWeak(g, e) {
+  if (!e.boss) return;
+  e.weakT = RULES.bossWeakSec;
+  ev(g, 'weak', { x: e.x, y: e.y - e.def.size * 0.8 });
+}
+
 function tryCharm(g, e) {
   const want = e.def.charm;
   const cands = g.heroes.filter((h) => h.def.gender === want && h.charmT <= 0);
@@ -1216,7 +1252,7 @@ export function hitEnemy(g, p, e) {
     if (p.homing) { p.homing = false; p.target = null; }
     return;
   }
-  const crit = p.headshot || g.rng() < g.mods.crit + p.critBonus;
+  const crit = p.headshot || g.rng() < critOf(g, h) + p.critBonus;
   let dmg = p.dmg * (p.headshot ? 3 : crit ? g.mods.critMul : 1);
   if (p.swear) {
     // 서명훈: 기절한 적 · 들킨 사기꾼에게 더 아프게
@@ -1361,6 +1397,7 @@ export function startWave(g, n) {
   g.wave = n;
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
+  g.hpScale = def.hpScale || 1;
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
   const more = g.mapFx.spawn || 1;
@@ -1462,7 +1499,7 @@ export function castSkill(g, h, x, y) {
   const sk = h.def.skill;
   if (!sk || h.skillCd > 0 || g.over || g.phase === 'victory') return false;
   const lv = h.lv - 1;
-  const base = heroDamage(g, h);
+  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0));
   buildGrid(g);
   let r = 0;
   switch (sk.id) {
@@ -1561,17 +1598,17 @@ export function castSkill(g, h, x, y) {
       });
       break;
   }
-  h.skillCd = sk.cd;
+  h.skillCd = sk.cd * (1 - (h.gear.cd || 0));
   ev(g, 'skill', { hero: h.id, skill: sk.id, name: sk.name, x: sk.target ? x : h.x, y: sk.target ? y : h.y, r, target: !!sk.target });
   return true;
 }
 
 // 영웅 자리 바꾸기 (끌어다 놓기). 잠깐 쿨타임
 export function swapHeroes(g, h, slot) {
-  if (!h || slot < 0 || slot >= HERO_SLOTS || slot === h.slot || g.swapCd > 0) return false;
+  if (!h || slot < 0 || slot >= g.nPos || slot === h.slot || g.swapCd > 0) return false;
   const other = g.heroes.find((o) => o.slot === slot);
-  if (other) { other.slot = h.slot; other.x = SLOT_X[other.slot]; }
-  h.slot = slot; h.x = SLOT_X[slot];
+  if (other) { other.slot = h.slot; other.x = g.slotX[other.slot]; }
+  h.slot = slot; h.x = g.slotX[slot];
   g.swapCd = 1.2;
   ev(g, 'swap', { hero: h.id, x: h.x, y: h.y });
   return true;
@@ -1586,9 +1623,10 @@ export function heroAt(g, x, y) {
   }
   return best;
 }
-export function nearestSlot(x) {
+export function nearestSlot(x, g) {
+  const X = g ? g.slotX : SLOT_X;
   let best = 0;
-  for (let i = 1; i < SLOT_X.length; i++) if (Math.abs(SLOT_X[i] - x) < Math.abs(SLOT_X[best] - x)) best = i;
+  for (let i = 1; i < X.length; i++) if (Math.abs(X[i] - x) < Math.abs(X[best] - x)) best = i;
   return best;
 }
 
@@ -1664,10 +1702,10 @@ function heroCardDesc(def, next) {
 }
 export function cardPool(g) {
   const pool = [];
-  const free = g.heroes.length < HERO_SLOTS;
-  for (const id of [...BASE_HEROES, ...UNLOCK_HEROES]) {
+  const free = g.heroes.length < g.nPos && g.mode !== 'stage';
+  for (const id of UNLOCK_HEROES) {
     if (hasHero(g, id) || !free) continue;
-    if (UNLOCK_HEROES.includes(id) && !g.unlocked.includes(id)) continue;
+    if (!g.unlocked.includes(id)) continue;
     const d = HEROES[id];
     const tr = g.trial && g.trial.includes(id);
     pool.push({ key: 'add:' + id, kind: 'addHero', hero: id, rarity: 'rare', icon: d.emoji, title: `${d.name} ${tr ? '체험 합류!' : '합류!'}`, desc: d.desc, sub: tr ? '체험 · 스테이지를 깨면 정식 합류' : d.role, w: 9 });
@@ -1716,7 +1754,7 @@ export function rollCards(g, n = 3, opt = {}) {
   const from = g.mode === 'stage' ? RULES.hiddenFromStageWave : RULES.hiddenFromWave;
   if (g.wave >= from || opt.hiddenChance !== undefined) {
     for (let i = 0; i < picks.length; i++) {
-      if (g.heroes.length >= HERO_SLOTS) break;
+      if (g.heroes.length >= g.nPos || g.mode === 'stage') break;
       const avail = HIDDEN_HEROES.filter((id) => g.hiddenUnlocked.includes(id) && !g.hiddenTaken[id] && !hasHero(g, id) && !picks.some((p) => p.hero === id));
       if (!avail.length) break;
       if (rng() < chance) picks[i] = hiddenCard(avail[(rng() * avail.length) | 0], g);
@@ -1769,6 +1807,7 @@ export function summary(g, durationSec) {
     mode: g.mode,
     stage: stage ? g.stage : 0,
     stars: stage && g.victory ? g.stars : 0,
+    perfect: !!(stage && g.victory && !g.baseHit), // 입구가 한 번도 안 맞음
     hpPct: Math.round((g.base.hp / g.base.max) * 100),
     wave: stage ? g.stats.wavesCleared : g.victory && !g.endless ? RULES.waves : Math.max(g.stats.wavesCleared, g.wave),
     waves: stage ? g.totalWaves : g.stats.wavesCleared,
@@ -1793,20 +1832,21 @@ export function snapshot(g) {
     level: g.level, exp: g.exp, need: g.need, pendingLevels: g.pendingLevels, welcomePicks: g.welcomePicks,
     base: { hp: g.base.hp, max: g.base.max }, ult: g.ult, stats: Object.assign({}, g.stats),
     meta: Object.assign({}, g.meta), items: Object.assign({}, g.items), unlocked: g.unlocked.slice(), trial: (g.trial || []).slice(),
+    gear: g.gear, nPos: g.nPos, baseHit: g.baseHit,
   };
 }
 // 저장한 웨이브를 처음부터 다시 시작 (짧은 카운트다운 뒤). 걸린 시간 t 는 이어서 센다
 export function restoreGame(snap, opt = {}) {
   const g = createGame({
     H: opt.H, rng: opt.rng, god: opt.god, mode: snap.mode, stage: snap.stage,
-    meta: snap.meta, items: snap.items, unlocked: snap.unlocked || snap.hiddenUnlocked || [], heroes: [],
+    meta: snap.meta, items: snap.items, unlocked: snap.unlocked || snap.hiddenUnlocked || [], heroes: [], gear: snap.gear, positions: snap.nPos,
   });
   for (const s of snap.heroes || []) {
     if (!HEROES[s.id]) continue;
     const h = addHero(g, s.id);
     if (!h) continue;
     h.lv = clamp(s.lv | 0, 1, 5);
-    if (s.slot >= 0 && s.slot < HERO_SLOTS) { h.slot = s.slot; h.x = SLOT_X[s.slot]; }
+    if (s.slot >= 0 && s.slot < g.nPos) { h.slot = s.slot; h.x = g.slotX[s.slot]; }
     h.kills = s.kills || 0; h.dmgDone = s.dmgDone || 0; h.joinT = 1;
   }
   Object.assign(g.mods, snap.mods || {});
@@ -1823,6 +1863,7 @@ export function restoreGame(snap, opt = {}) {
   g.phaseT = RULES.firstBreakSec + 0.5;
   g.resumed = true;
   g.trial = (snap.trial || []).slice();
+  g.baseHit = !!snap.baseHit;
   g.events.length = 0;
   return g;
 }

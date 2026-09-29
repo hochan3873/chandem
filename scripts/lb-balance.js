@@ -81,6 +81,7 @@ function seeded(seed = 1) {
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
+      deck: o.deck, gear: o.gear,
     });
     g.partner = o.partner;
     if (o.noTypes) g.noTypes = true;
@@ -325,19 +326,28 @@ function seeded(seed = 1) {
     }
   }
 
+  function placeDeck(ids) {
+    const out = new Array(6).fill(null), order = [2, 3, 1, 4, 0, 5];
+    const center = (id) => (['cone', 'wave', 'dash', 'bullet', 'cane'].includes(D.HEROES[id].proj) ? 0 : 1);
+    ids.slice().sort((a, b) => center(a) - center(b)).forEach((id, i) => { out[order[i]] = id; });
+    return out;
+  }
+  // 그 스테이지쯤 사람이 끼고 있을 장비 (멤버마다)
+  const gearAt = (s, ids) => { const c = D.chapterOf(s); const st = { atk: 0.03 * c, spd: 0.02 * c, crit: c >= 2 ? 0.02 : 0, hp: 0.01 * c }; return Object.fromEntries(ids.map((id) => [id, st])); };
   // ── 7) 최종 표: 챕터별 클리어율 (팀 구성 · 스킬), 평균 시간, 스테이지 곡선
   function final() {
     const N = opt('seeds', 3);
     const pool = ['staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun'];
+    // 덱 5칸: 가진 멤버(방장 포함) 중 추천 덱 / 상성 제일 나쁜 덱
     const teamFor = (s, best) => {
-      const sc = D.attrScores(s), slots = D.partnerSlots(s - 1);
-      const avail = pool.filter((id) => !D.HERO_UNLOCK[id] || D.HERO_UNLOCK[id] < s);
-      const combos = [];
-      if (slots === 1) for (const a of avail) combos.push([a]);
-      else for (let i = 0; i < avail.length; i++) for (let j = i + 1; j < avail.length; j++) combos.push([avail[i], avail[j]]);
+      const sc = D.attrScores(s);
+      const avail = ['bangjang', ...pool].filter((id) => !D.HERO_UNLOCK[id] || D.HERO_UNLOCK[id] < s);
+      if (best) return D.recommendTeam(s, avail, 5);
+      let worst = null, wv = 1e9;
       const val = (c) => c.reduce((x, id) => x + sc[D.HEROES[id].attr], 0);
-      combos.sort((a, b) => val(b) - val(a));
-      return best ? D.recommendTeam(s, avail, slots) : combos[combos.length - 1];
+      const pick = (st, cur) => { if (cur.length === Math.min(5, avail.length)) { const v = val(cur); if (v < wv) { wv = v; worst = cur.slice(); } return; } for (let i = st; i < avail.length; i++) { cur.push(avail[i]); pick(i + 1, cur); cur.pop(); } };
+      pick(0, []);
+      return worst;
     };
     const kinds = [['좋은 팀+스킬', true, true], ['좋은 팀', true, false], ['나쁜 팀', false, false]];
     const per = {}; const curve = [];
@@ -351,7 +361,8 @@ function seeded(seed = 1) {
         const team = teamFor(s, best);
         if (process.argv.includes('--teams')) console.log(D.stageLabel(s), k, team.join('+'));
         let w = 0, st = 0, t = 0;
-        for (let i = 1; i <= N; i++) { const r = play({ stage: s, team, partner: team[0], meta, items: itemsAt(s), seed: i * 97 + s, unlocked: [], skills: sk }); if (r.win) { w++; st += r.stars; t += r.t; } }
+        let pf = 0;
+        for (let i = 1; i <= N; i++) { const r = play({ stage: s, deck: placeDeck(team), partner: team[0], meta, gear: gearAt(s, team), items: itemsAt(s), seed: i * 97 + s, unlocked: [], skills: sk }); if (r.win) { w++; st += r.stars; t += r.t; if (!r.g.baseHit) pf++; } }
         const c = D.chapterOf(s);
         const P = (per[k + c] = per[k + c] || { w: 0, n: 0, st: 0, t: 0, tw: 0 });
         P.w += w; P.n += N; P.st += st; P.t += t; P.tw += w;

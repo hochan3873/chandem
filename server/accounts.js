@@ -50,6 +50,7 @@ function emptyLangbang() {
     items: Object.fromEntries(LBR.ITEM_IDS.map((i) => [i, 0])),
     stages: {}, maxStage: 0, totalStars: 0, stageAt: 0, clears: 0, // 스테이지: { 번호: 최고 별 }
     seen: [], // 도감: 만나 본 진상
+    gear: [], gearSeq: 0, equip: {}, perfects: {}, // 장비 가방 · 장착 { 영웅: { w, a } } · 퍼펙트한 스테이지
     lastResultAt: 0,
   };
 }
@@ -66,6 +67,23 @@ function normLb(raw) {
   }
   lb.maxStage = LBR.maxCleared(lb.stages);
   lb.seen = [...new Set(((raw && raw.seen) || []).filter((t) => LBR.ENEMY_IDS.includes(t)))];
+  // 장비: 이상한 값은 버린다 (종류 · 등급 · 레벨 · 번호)
+  const ids = new Set();
+  lb.gear = ((raw && raw.gear) || []).filter((it) => it && LBR.GEAR[it.t] && LBR.GEAR_RARITY[it.r] && Number.isInteger(it.id) && !ids.has(it.id) && ids.add(it.id))
+    .map((it) => ({ id: it.id, t: it.t, r: it.r, lv: Math.max(0, Math.min(LBR.GEAR_MAX_LV, it.lv | 0)) })).slice(0, LBR.GEAR_BAG);
+  lb.gearSeq = Math.max(lb.gearSeq | 0, ...lb.gear.map((x) => x.id), 0);
+  const eq = {};
+  const used = new Set();
+  for (const [h, sl] of Object.entries((raw && raw.equip) || {})) {
+    if (!LBR.LB_HEROES.includes(h) || !sl) continue;
+    for (const k of ['w', 'a']) {
+      const it = lb.gear.find((x) => x.id === sl[k]);
+      if (it && LBR.GEAR[it.t].slot === k && !used.has(it.id)) { used.add(it.id); (eq[h] = eq[h] || {})[k] = it.id; }
+    }
+  }
+  lb.equip = eq;
+  lb.perfects = {};
+  for (const k of Object.keys((raw && raw.perfects) || {})) if (+k >= 1 && +k <= LBR.STAGE_COUNT) lb.perfects[+k] = true;
   lb.totalStars = Object.values(lb.stages).reduce((a, b) => a + b, 0);
   return lb;
 }
@@ -332,6 +350,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     view.itemCosts = Object.fromEntries(LBR.ITEM_IDS.map((i) => [i, LBR.itemCost(i, lb.items[i] || 0)]));
     view.unlocked = LBR.LOCKED.filter((h) => LBR.heroUnlocked(lb, h));
     view.endlessUnlocked = LBR.endlessUnlocked(lb);
+    view.deckSlots = LBR.deckSlots(lb.items);
     delete view.lastResultAt;
     return view;
   };
@@ -380,7 +399,13 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (mode === 'stage' && stage > before.maxStage + 1) { out = { error: '아직 열리지 않은 스테이지예요' }; return; }
         if (mode === 'endless' && !LBR.endlessUnlocked(before)) { out = { error: '무한 도전은 1-10을 깨면 열려요' }; return; }
         const prevStars = mode === 'stage' ? before.stages[stage] || 0 : 0;
-        const reward = mode === 'stage' ? LBR.stageReward(stage, stars, prevStars, before.items.coupon) : { total: LBR.endlessReward(wave, before.items.coupon) };
+        // 퍼펙트(입구 무피해)는 ★★★ 일 때만 인정
+        const perfect = mode === 'stage' && stars === 3 && body.perfect === true;
+        const firstPerfect = perfect && !before.perfects[stage];
+        const reward = mode === 'stage' ? LBR.stageReward(stage, stars, prevStars, before.items.coupon, perfect, firstPerfect) : { total: LBR.endlessReward(wave, before.items.coupon) };
+        // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
+        const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}`), stage, stars, perfect, firstPerfect) : [];
+        const got = [];
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
           lb.runs++; lb.kills += kills; lb.coins += reward.total;
@@ -389,6 +414,12 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           if (mode === 'stage') {
             lb.clears++;
             lb.stages[stage] = Math.max(prevStars, stars);
+            if (perfect) lb.perfects[stage] = true;
+            for (const d of drops) {
+              if (lb.gear.length >= LBR.GEAR_BAG) { const v = LBR.gearSellValue(d.r, 0); lb.coins += v; got.push({ ...d, sold: v }); continue; }
+              const it = { id: ++lb.gearSeq, t: d.t, r: d.r, lv: 0 };
+              lb.gear.push(it); got.push(it);
+            }
             const max = LBR.maxCleared(lb.stages);
             if (max > before.maxStage) lb.stageAt = Date.now();
             lb.maxStage = max;
@@ -406,7 +437,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const lb = stats.langbang;
         const first = mode === 'stage' && !prevStars;
         out = {
-          profile: lbView(lb), reward: { ...reward, firstClear: first, stage, stars },
+          profile: lbView(lb), reward: { ...reward, firstClear: first, stage, stars, isPerfect: perfect, firstPerfect, drops: got },
           levelUp: lb.level > before.level, rank: await store.rankLangbang(mode, id),
           unlockedHeroes: first ? Object.keys(LBR.HERO_UNLOCK).filter((h) => LBR.HERO_UNLOCK[h] === stage && !LBR.heroUnlocked(before, h)) : [],
           endlessUnlocked: first && !LBR.endlessUnlocked(before) && LBR.endlessUnlocked(lb),
@@ -459,7 +490,65 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       const lvl = lb.items[item] || 0;
       const cost = LBR.itemCost(item, lvl);
       if (cost === null) return { error: '이미 최대 레벨이에요' };
+      const need = LBR.ITEMS[item].needs;
+      if (need && !(lb.items[need] | 0)) return { error: '앞 칸부터 사 주세요' };
       return { cost, apply: (x) => { x.items[item] = lvl + 1; } };
+    });
+  }
+  // ── 장비: 장착 · 강화 · 팔기 (전부 서버가 확인) ──
+  function lbGear(token, fn) {
+    return (async () => {
+      const id = await userFromToken(token);
+      let out = null;
+      await serial(async () => {
+        const u = await store.byId(id);
+        if (!u) return;
+        const lb0 = normLb(u.stats.langbang);
+        const r = fn(lb0);
+        if (r.error) { out = r; return; }
+        if (r.cost && lb0.coins < r.cost) { out = { error: `코인이 부족해요 (${r.cost.toLocaleString()} 필요)` }; return; }
+        const stats = await update(id, (st) => { const lb = st.langbang = normLb(st.langbang); if (r.cost) lb.coins -= r.cost; r.apply(lb); });
+        out = { profile: lbView(stats.langbang), ...(r.extra || {}) };
+      });
+      if (!out) throw new AuthError('다시 로그인해 주세요');
+      if (out.error) throw new AuthError(out.error);
+      return out;
+    })();
+  }
+  const findGear = (lb, gid) => lb.gear.find((x) => x.id === gid);
+  function lbEquip(token, hero, slot, gid) {
+    if (!LB_HEROES.includes(hero) || !['w', 'a'].includes(slot)) return Promise.reject(new AuthError('잘못된 요청이에요'));
+    return lbGear(token, (lb) => {
+      if (!LBR.heroUnlocked(lb, hero)) return { error: '아직 합류하지 않은 멤버예요' };
+      if (gid === null) return { apply: (x) => { if (x.equip[hero]) delete x.equip[hero][slot]; } };
+      const it = findGear(lb, gid);
+      if (!it) return { error: '없는 장비예요' };
+      if (LBR.GEAR[it.t].slot !== slot) return { error: '그 칸에는 못 껴요' };
+      return { apply: (x) => {
+        for (const h of Object.keys(x.equip)) for (const k of ['w', 'a']) if (x.equip[h][k] === gid) delete x.equip[h][k]; // 다른 멤버가 끼고 있던 건 빼고
+        (x.equip[hero] = x.equip[hero] || {})[slot] = gid;
+      } };
+    });
+  }
+  function lbEnhance(token, gid) {
+    return lbGear(token, (lb) => {
+      const it = findGear(lb, gid);
+      if (!it) return { error: '없는 장비예요' };
+      const cost = LBR.gearEnhanceCost(it.r, it.lv);
+      if (cost === null) return { error: '이미 최대 강화예요' };
+      return { cost, apply: (x) => { findGear(x, gid).lv++; } };
+    });
+  }
+  function lbSell(token, gid) {
+    return lbGear(token, (lb) => {
+      const it = findGear(lb, gid);
+      if (!it) return { error: '없는 장비예요' };
+      const v = LBR.gearSellValue(it.r, it.lv);
+      return { apply: (x) => {
+        x.gear = x.gear.filter((g) => g.id !== gid);
+        for (const h of Object.keys(x.equip)) for (const k of ['w', 'a']) if (x.equip[h][k] === gid) delete x.equip[h][k];
+        x.coins += v;
+      }, extra: { sold: v } };
     });
   }
   const lbRow = (u, i) => {
@@ -495,6 +584,10 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/result', wrap((req) => lbResult(tok(req), req.body || {})));
     r.post('/upgrade', wrap((req) => lbUpgrade(tok(req), String((req.body || {}).hero || ''))));
     r.post('/buy', wrap((req) => lbBuy(tok(req), String((req.body || {}).item || ''))));
+    const gidOf = (v) => (v === null ? null : Math.floor(Number(v)) || -1);
+    r.post('/gear/equip', wrap((req) => { const b = req.body || {}; return lbEquip(tok(req), String(b.hero || ''), String(b.slot || ''), gidOf(b.id === undefined ? null : b.id)); }));
+    r.post('/gear/enhance', wrap((req) => lbEnhance(tok(req), gidOf((req.body || {}).id))));
+    r.post('/gear/sell', wrap((req) => lbSell(tok(req), gidOf((req.body || {}).id))));
     r.get('/ranking', wrap(async (req) => lbRanking(50, String(req.query.mode || 'stage'), tok(req) || null)));
     return r;
   }

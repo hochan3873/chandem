@@ -15,6 +15,7 @@ export const FIELD = {
 export const HERO_SLOTS = 6;
 // 슬롯 x 좌표 (가로 360 기준) 와 채우는 순서(가운데부터)
 export const SLOT_X = [34, 92, 150, 210, 268, 326];
+export const SLOT_X7 = [28, 79, 129, 180, 231, 281, 332]; // 덱 7칸일 때
 export const SLOT_ORDER = [2, 3, 1, 4, 0, 5];
 
 // ─── 기본 규칙 ─────────────────────────────────────────
@@ -40,6 +41,8 @@ export const RULES = {
   hiddenFromStageWave: 2, // 스테이지: 웨이브 2부터
   kbMaxReach: 330, // 넉백으로 밀려도 영웅 줄에서 이 거리 위로는 안 올라간다 (모두의 사거리 안)
   kbRepeatSec: 2, // 이 시간 안에 또 밀리면 절반만 밀린다
+  stageBossHp: 0.85, // 스테이지 보스 체력 (튀지 않게)
+  bossWeakSec: 2.5, // 보스 큰 기술 직후 "빈틈!" 시간
   charmRange: 130, // 꼬충이 로프에서 이만큼 가까워지면 홀림 시전
   charmSec: 2.0,
   charmCooldown: 7,
@@ -94,7 +97,10 @@ export const ITEMS = {
   battery: { id: 'battery', icon: '🔋', name: '확성기 배터리', max: 10, per: 0.08, base: 40, desc: (v) => `총공지 충전 +${pct(v)}` },
   charm: { id: 'charm', icon: '🍀', name: '행운 부적', max: 10, per: 0.015, base: 55, desc: (v) => `치명타 확률 +${pct(v, 1)}` },
   drink: { id: 'drink', icon: '🍹', name: '웰컴 드링크', max: 3, per: 1, costs: [600, 2400, 6000], desc: (v) => (v ? `시작 전 카드 ${v}장 고르기` : '아직 없음') },
+  slot6: { id: 'slot6', icon: '🪑', name: '덱 6번째 칸', max: 1, per: 1, costs: [20000], desc: (v) => (v ? '덱 6칸!' : '덱에 멤버 한 명 더') },
+  slot7: { id: 'slot7', icon: '🛋️', name: '덱 7번째 칸', max: 1, per: 1, costs: [60000], needs: 'slot6', desc: (v) => (v ? '덱 7칸!' : '덱에 멤버 한 명 더 (6번째 칸 먼저)') },
 };
+export const deckSlots = (items) => 5 + ((items && items.slot6) | 0) + ((items && items.slot6 && items.slot7) | 0);
 export const ITEM_IDS = Object.keys(ITEMS);
 function pct(v, d = 0) { return `${(v * 100).toFixed(d)}%`; }
 export function itemCost(id, lv) {
@@ -146,7 +152,7 @@ export function starsFor(hpFrac) { return hpFrac >= 0.7 ? 3 : hpFrac >= 0.35 ? 2
 export const STAGE = {
   levelPerStage: 0.55, levelPow: 0.8, wavePerStage: 0.08,
   chapterAdd: [0, 0.8, 0], // 2챕터부터 동료가 2명이라 그만큼 더 단단하게 (첫 웨이브 난이도 = 1 + 1.1 × (s-1)^0.8 + 챕터 보정)
-  bossStage: { 1: [1.2, 3.8], 2: [0.4, -0.4], 3: [-0.9, -0.9] }, // x-5 · x-10 스테이지는 조금 더 어렵게 (1-10 은 강화가 필요, 2·3챕터 끝은 보스 2명)
+  bossStage: { 1: [0.2, 1.2], 2: [-0.8, -2.6], 3: [-1.8, -2.2] }, // x-5 · x-10 스테이지는 조금 더 어렵게 (1-10 은 강화가 필요, 2·3챕터 끝은 보스 2명)
   levelPerWave: 1.75, // 스테이지 안에서 웨이브마다 +1.6 (+ 스테이지마다 0.08씩 더) (첫 웨이브는 쉽게, 뒤로 갈수록 확)
   baseCount: 12, // 1-1 첫 웨이브 적 수
   countPerStage: 0.02,
@@ -157,9 +163,13 @@ export const STAGE = {
   themeOther: 0.2, // 그때 꼬충(유혹형) 비중
   themeRest: 0.4,
   themeThug: 3,
-  stageAdd: { 19: 0.6, 29: 2.6 }, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  deckHp: [2.9, 2.3, 1.9], // 덱(5명) 보정: 적 체력 배율 (챕터별 — 뒤로 갈수록 강화·장비가 쌓이니 조금씩 덜)
+  deckCount: 1.45, // 덱 보정: 적 수 배율
+  stageAdd: { 3: 2.2, 4: 4.0, 5: 0.4, 6: -0.5, 19: -0.4, 20: -0.3, 25: -0.4, 26: -0.3, 29: 0.2 }, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
+// 덱 5명으로 싸우니 적도 그만큼 단단하게 — 1-1 은 연습이라 그대로, 1-3 부터 본격
+export function stageHpScale(s) { return 1 + (STAGE.deckHp[chapterOf(s) - 1] - 1) * Math.min(1, (s - 1) / 2); }
 export function stageLevel(s, w) {
   const n = stageNo(s);
   const bs = STAGE.bossStage[chapterOf(s)];
@@ -222,7 +232,7 @@ export function stageBosses(s) {
 }
 export function stageWave(s, w) {
   const bosses = w === STAGE_WAVES ? stageBosses(s) : [];
-  let n = STAGE.baseCount * (1 + STAGE.countPerStage * (s - 1)) * (1 + STAGE.countPerWave * (w - 1));
+  let n = STAGE.baseCount * (1 + STAGE.countPerStage * (s - 1)) * (1 + STAGE.countPerWave * (w - 1)) * (s === 1 ? 1 : STAGE.deckCount);
   if (bosses.length) n *= 0.55;
   const dur = STAGE.waveSec + STAGE.waveSecPerStage * (s - 1);
   const mix = stageMix(s);
@@ -241,7 +251,7 @@ export function stageWave(s, w) {
     if (c <= 0) return;
     g.push([type, c, +(dur / c).toFixed(2), +(i * 0.7).toFixed(1)]);
   });
-  const def = { g, level: stageLevel(s, w) };
+  const def = { g, level: stageLevel(s, w), hpScale: stageHpScale(s) };
   if (bosses[0]) def.boss = bosses[0];
   if (bosses[1]) def.boss2 = bosses[1];
   return def;
@@ -279,15 +289,16 @@ export function stageFx(s) { return MAP_FX[STAGE_FX[s - 1] || 'none']; }
 export const REWARD = { base: 60, perStage: 18, firstMul: 2, starMul: 0.5 };
 export function clearCoins(s) { return REWARD.base + REWARD.perStage * (s - 1); }
 // prevStars: 이 스테이지에서 전에 받은 최고 별(0 = 처음), couponLv: 단골 쿠폰 레벨
-export function stageReward(s, stars, prevStars = 0, couponLv = 0) {
+export function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = false, firstPerfect = false) {
   const base = clearCoins(s);
   const clear = Math.round(base * (0.7 + 0.1 * stars));
   const first = prevStars ? 0 : base * REWARD.firstMul;
   const newStars = Math.max(0, stars - prevStars);
   const star = Math.round(base * REWARD.starMul) * newStars;
+  const perf = perfect ? Math.round(base * (firstPerfect ? 1.5 : 0.5)) : 0; // 퍼펙트 (입구 무피해)
   const mul = 1 + itemValue('coupon', couponLv);
-  const total = Math.round((clear + first + star) * mul);
-  return { clear, first, star, newStars, bonus: total - clear - first - star, total };
+  const total = Math.round((clear + first + star + perf) * mul);
+  return { clear, first, star, perfect: perf, newStars, bonus: total - clear - first - star - perf, total };
 }
 export function endlessReward(wave, couponLv = 0) {
   const w = Math.max(0, Math.floor(wave));
@@ -360,7 +371,7 @@ export const HEROES = {
     img: '/img/lb/h_bangjang.webp', role: '리더 · 아군 공속 오라',
     dmg: 17, interval: 0.8, range: 250, proj: 'cone', cone: [0.42, 0.42, 0.55, 0.55, 0.62], coneMax: 7, kb: 10,
     aura: [0.08, 0.1, 0.16, 0.19, 0.26], // 모든 아군 공격 속도 +%
-    attack: '확성기 음파 — 짧은 부채꼴 안의 진상을 한꺼번에 때리고 살짝 밀어낸다',
+    attack: '확성기 음파 — 로프 앞 짧은 부채꼴을 한꺼번에 (가운데 자리가 좋다)',
     desc: '확성기 "공지"를 외친다. 곁에 있는 것만으로 모두의 손이 빨라진다.',
     perks: { 3: '음파가 더 넓게 퍼진다 · 오라 강화', 5: '5번마다 "전체공지" 큰 음파' },
     skill: { id: 'rally', name: '집합!', cd: 22, desc: '5초 동안 모두 공격 속도 +50%', sec: [5, 5, 6, 6, 7], spd: [0.5, 0.5, 0.5, 0.6, 0.7] },
@@ -378,8 +389,8 @@ export const HEROES = {
   gunman: {
     id: 'gunman', bossKit: 1.3, kit: 0.95, name: '건전남', gender: 'm', emoji: '🙋‍♂️', color: '#4fd18b', attr: 'power',
     img: '/img/lb/h_gunman.webp', role: '저격수 · 최장 사거리',
-    dmg: 23, interval: 0.44, range: 600, proj: 'bullet', projSpeed: 900, critBonus: 0.22,
-    attack: '새총 — 가장 먼 곳까지 빠른 단발, 치명타가 잘 터진다',
+    dmg: 23, interval: 0.44, range: 600, proj: 'bullet', projSpeed: 900, critBonus: 0.22, lane: 38,
+    attack: '새총 — 자기 줄(세로) 위로만 쭉, 가장 멀리 · 치명타 잘 터짐',
     desc: '건전하게, 그러나 정확하게. 멀리 있는 놈부터 저격하는 새총 명사수.',
     perks: { 3: '새총알이 1명 관통 · 치명타 +10%', 5: '4발마다 "헤드샷" (무조건 치명타 ×3)' },
     skill: { id: 'frenzy', name: '난사', cd: 20, desc: '3초 동안 가까운 진상들에게 폭풍 연사', sec: [3, 3, 3.5, 3.5, 4], every: 0.07 },
@@ -387,7 +398,7 @@ export const HEROES = {
   gunnyeo: {
     id: 'gunnyeo', bossKit: 0.8, kit: 1.0, name: '건전녀', gender: 'f', emoji: '🙋‍♀️', color: '#ff8fc0', attr: 'charm',
     img: '/img/lb/h_gunnyeo.webp', role: '범위 딜 + 랑방 회복',
-    dmg: 32, interval: 0.85, range: 430, proj: 'heart', projSpeed: 1, lobSec: 0.6, splash: 46,
+    dmg: 35, interval: 0.85, range: 430, proj: 'heart', projSpeed: 1, lobSec: 0.6, splash: 46,
     heal: [[6, 0.03], [6, 0.035], [5, 0.04], [5, 0.045], [4, 0.055]], // [주기(초), 최대 내구도 대비 회복량]
     attack: '하트 폭탄 — 포물선으로 던져 떨어진 곳 주변을 터뜨린다',
     desc: '하트 폭탄을 던지며 틈틈이 랑방 입구를 수리한다.',
@@ -411,13 +422,13 @@ export const HEROES = {
   dohoon: {
     id: 'dohoon', bossKit: 0.7, kit: 0.6, name: '김도훈', gender: 'm', emoji: '🎤', color: '#b58cff', unlock: true, attr: 'booze',
     img: '/img/lb/h_dohoon.webp', role: '힐러 · 떼창 오라 · 제어',
-    dmg: 21, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, slow: 0.2, slowSec: 1,
-    regen: [0.0025, 0.0028, 0.0035, 0.0038, 0.0046], // 떼창: 초당 입구 최대 내구도의 %
-    sing: { r: 150, spd: [0.08, 0.08, 0.12, 0.12, 0.16] }, // 떼창: 곁 멤버 공격 속도 +%
+    dmg: 27, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, slow: 0.2, slowSec: 1,
+    regen: [0.005, 0.0056, 0.007, 0.0076, 0.0092], // 떼창: 초당 입구 최대 내구도의 %
+    sing: { r: 150, spd: [0.12, 0.12, 0.18, 0.18, 0.24] }, // 떼창: 곁 멤버 공격 속도 +%
     attack: '마이크 음파 — 둥글게 퍼지는 음파가 근처 진상 전부를 때리고 살짝 느리게',
     desc: '마이크를 절대 안 놓는 노래방 사나이. 떼창으로 랑방을 꾸준히 고친다.',
     perks: { 3: '음파 범위 · 떼창 강화', 5: '떼창 최대 · 앵콜이 더 길다' },
-    skill: { id: 'encore', name: '무한 앵콜', cd: 26, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 근처 진상 춤추느라 멈춤', heal: [0.12, 0.12, 0.15, 0.15, 0.18], r: 230, dance: [2.5, 2.5, 2.8, 2.8, 3.3] },
+    skill: { id: 'encore', name: '무한 앵콜', cd: 26, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 근처 진상 춤추느라 멈춤', heal: [0.18, 0.18, 0.22, 0.22, 0.26], r: 250, dance: [3, 3, 3.3, 3.3, 3.8] },
   },
   ingyu: {
     id: 'ingyu', bossKit: 1.15, kit: 0.95, name: '백인규', gender: 'm', emoji: '🏋️', color: '#3f8cff', unlock: true, attr: 'power',
@@ -436,7 +447,7 @@ export const HEROES = {
     img: '/img/lb/h_donghan.webp', imgOn: '/img/lb/h_donghan_on.webp', role: '간보기 · 한 방 폭발',
     dmg: 7, interval: 1.1, range: 320, proj: 'snack', projSpeed: 420, slow: 0.2, slowSec: 1,
     meter: { base: [6.5, 7, 7.5, 8, 9], perNear: 1.1, nearY: 200, hpLow: 12 }, // 간보기 게이지 (초당)
-    burst: { mul: 24, w: [36, 36, 44, 44, 54], windup: 0.8, rest: 1.2 }, // 가장 붐비는 줄에 두꺼운 빔
+    burst: { mul: 28, w: [36, 36, 44, 44, 54], windup: 0.8, rest: 1.2 }, // 가장 붐비는 줄에 두꺼운 빔
     attack: '과자 던지기 — 누워서 약한 과자를 휙 (살짝 느려짐). 간보기 게이지가 차면 일어나서 한 줄 전체에 빔!',
     desc: '늘 귀찮은 간보는 사람. 누워만 있다가 "이제 좀 해볼까?" 한 방이면 한 줄이 싹 비워진다.',
     perks: { 3: '게이지 빨라짐 · 빔 두꺼워짐', 5: '게이지 최대 · 빔 제일 두껍게' },
@@ -476,8 +487,8 @@ export const HEROES = {
   sunggu: {
     id: 'sunggu', bossKit: 1.1, kit: 1.0, name: '강성구', gender: 'm', emoji: '🦯', color: '#c9a36b', hidden: true, attr: 'power',
     img: '/img/lb/h_sunggu.webp', role: 'HIDDEN · 지팡이 무한 관통',
-    dmg: 48, interval: 2.1, range: 620, proj: 'cane', projSpeed: 430, lv5Interval: 0.85,
-    attack: '지팡이 — 아주 길게 일직선, 그 줄의 진상 전부 관통',
+    dmg: 48, interval: 2.1, range: 620, proj: 'cane', projSpeed: 430, lv5Interval: 0.85, lane: 50,
+    attack: '지팡이 — 자기 줄 위로 아주 길게, 그 줄 진상 전부 관통',
     desc: '"요즘 것들은…" 지팡이를 던지면 한 줄에 있는 놈들이 전부 맞는다.',
     perks: { 3: '지팡이가 부메랑처럼 돌아온다', 5: '지팡이 2개 · 공격 속도 +15%' },
     skill: { id: 'whirl', name: '지팡이 회오리', cd: 22, desc: '지팡이 7개를 부채꼴로 던진다', n: [7, 7, 9, 9, 11] },
@@ -767,3 +778,78 @@ export const FILLER_CARDS = [
   { id: 'fillUlt', icon: '📣', title: '확성기 예열', desc: '총공지 게이지 +40', rarity: 'common' },
   { id: 'fillHeal', icon: '🩹', title: '응급 수리', desc: '랑방 내구도 35% 회복', rarity: 'common' },
 ];
+
+// ─── 장비 (서버 langbang-rules.js 와 같은 공식 — 테스트가 검사) ─────────
+// 무기(w) · 액세서리(a) 한 칸씩. 드롭은 서버가 (스테이지 · 별 · 퍼펙트 · 시드)로 계산한다.
+export const GEAR_RARITY = {
+  common: { id: 'common', name: '일반', mul: 1, color: '#9fb3c8' },
+  rare: { id: 'rare', name: '희귀', mul: 1.7, color: '#4ea8ff' },
+  epic: { id: 'epic', name: '영웅', mul: 2.6, color: '#c77dff' },
+  legend: { id: 'legend', name: '전설', mul: 4, color: '#ffb400' },
+};
+export const GEAR_RARITIES = ['common', 'rare', 'epic', 'legend'];
+export const GEAR_STATS = {
+  atk: { name: '공격력', pct: true }, spd: { name: '기본 공격 속도', pct: true }, crit: { name: '치명타', pct: true },
+  skill: { name: '스킬 피해', pct: true }, cd: { name: '스킬 쿨타임 감소', pct: true }, attr: { name: '상성 피해', pct: true },
+  strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true },
+};
+export const GEAR = {
+  megaphone: { id: 'megaphone', slot: 'w', icon: '📣', name: '명품 확성기', stat: 'atk', base: 0.06 },
+  goldmic: { id: 'goldmic', slot: 'w', icon: '🎤', name: '노래방 황금 마이크', stat: 'skill', base: 0.1 },
+  scope: { id: 'scope', slot: 'w', icon: '🔭', name: '새총 스코프', stat: 'crit', base: 0.03 },
+  sojuset: { id: 'sojuset', slot: 'w', icon: '🍶', name: '소주잔 세트', stat: 'attr', base: 0.08 },
+  stamp: { id: 'stamp', slot: 'w', icon: '🔨', name: '강퇴 망치', stat: 'strip', base: 0.06 },
+  tumbler: { id: 'tumbler', slot: 'w', icon: '🥤', name: '아아 텀블러', stat: 'spd', base: 0.05 },
+  belt: { id: 'belt', slot: 'a', icon: '🏋️', name: '헬스장 리프팅 벨트', stat: 'atk', base: 0.05 },
+  carrier: { id: 'carrier', slot: 'a', icon: '🧳', name: '여행 캐리어 방패', stat: 'hp', base: 0.04 },
+  hourglass: { id: 'hourglass', slot: 'a', icon: '⏳', name: '모래시계 키링', stat: 'cd', base: 0.05 },
+  nametag: { id: 'nametag', slot: 'a', icon: '📛', name: '랑방 명찰', stat: 'attr', base: 0.06 },
+  sneaker: { id: 'sneaker', slot: 'a', icon: '👟', name: '한정판 운동화', stat: 'spd', base: 0.04 },
+  clover: { id: 'clover', slot: 'a', icon: '🍀', name: '네잎클로버 폰케이스', stat: 'crit', base: 0.025 },
+};
+export const GEAR_IDS = Object.keys(GEAR);
+export const GEAR_MAX_LV = 10;
+export const GEAR_BAG = 80; // 가방 칸
+export function gearValue(t, r, lv) {
+  const g = GEAR[t], R = GEAR_RARITY[r];
+  if (!g || !R) return 0;
+  return Math.round(g.base * R.mul * (1 + 0.12 * (lv || 0)) * 1000) / 1000;
+}
+export function gearEnhanceCost(r, lv) {
+  if (lv >= GEAR_MAX_LV) return null;
+  return Math.round((80 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 1.3)) / 10) * 10;
+}
+export function gearSellValue(r, lv) { return Math.round(40 * GEAR_RARITY[r].mul * (1 + (lv || 0) * 0.5)); }
+// 시드 난수 (mulberry32)
+export function seedRng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+export function hashSeed(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+// 드롭: 클리어 1개 (+★★★ 이면 35% 로 1개 더, 퍼펙트면 1개 더). 첫 퍼펙트는 첫 장비가 희귀 이상 확정
+export function rollDrops(seed, stage, stars, perfect, firstPerfect) {
+  const rng = seedRng(seed);
+  let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const w = { common: 70, rare: 24 + stage * 0.4, epic: 5 + stage * 0.35, legend: 0.6 + stage * 0.08 };
+    if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
+    if (firstPerfect && i === 0) w.common = 0;
+    const sum = w.common + w.rare + w.epic + w.legend;
+    let x = rng() * sum, r = 'common';
+    for (const k of GEAR_RARITIES) { x -= w[k]; if (x <= 0) { r = k; break; } }
+    const t = GEAR_IDS[(rng() * GEAR_IDS.length) | 0];
+    out.push({ t, r });
+  }
+  return out;
+}
+// 멤버 한 명의 장비 능력치 합 → sim createGame({ gear: { heroId: {...} } })
+export function gearStats(items) {
+  const st = {};
+  for (const it of items) { if (!it || !GEAR[it.t]) continue; const k = GEAR[it.t].stat; st[k] = (st[k] || 0) + gearValue(it.t, it.r, it.lv); }
+  return st;
+}

@@ -21,6 +21,8 @@ const ITEMS = {
   battery: { max: 10, per: 0.08, base: 40 },
   charm: { max: 10, per: 0.015, base: 55 },
   drink: { max: 3, per: 1, costs: [600, 2400, 6000] },
+  slot6: { max: 1, per: 1, costs: [20000] },
+  slot7: { max: 1, per: 1, costs: [60000], needs: 'slot6' },
 };
 const ITEM_IDS = Object.keys(ITEMS);
 
@@ -35,16 +37,18 @@ const itemValue = (id, lv) => (ITEMS[id] ? ITEMS[id].per : 0) * (lv || 0);
 
 const REWARD = { base: 60, perStage: 18, firstMul: 2, starMul: 0.5 };
 const clearCoins = (s) => REWARD.base + REWARD.perStage * (s - 1);
-function stageReward(s, stars, prevStars = 0, couponLv = 0) {
+function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = false, firstPerfect = false) {
   const base = clearCoins(s);
   const clear = Math.round(base * (0.7 + 0.1 * stars));
   const first = prevStars ? 0 : base * REWARD.firstMul;
   const newStars = Math.max(0, stars - prevStars);
   const star = Math.round(base * REWARD.starMul) * newStars;
+  const perf = perfect ? Math.round(base * (firstPerfect ? 1.5 : 0.5)) : 0; // 퍼펙트 (입구 무피해)
   const mul = 1 + itemValue('coupon', couponLv);
-  const total = Math.round((clear + first + star) * mul);
-  return { clear, first, star, newStars, bonus: total - clear - first - star, total };
+  const total = Math.round((clear + first + star + perf) * mul);
+  return { clear, first, star, perfect: perf, newStars, bonus: total - clear - first - star - perf, total };
 }
+const deckSlots = (items) => 5 + ((items && items.slot6) | 0) + ((items && items.slot6 && items.slot7) | 0);
 function endlessReward(wave, couponLv = 0) {
   const w = Math.max(0, Math.floor(wave));
   return Math.round((12 * w + w * w) * (1 + itemValue('coupon', couponLv)));
@@ -62,7 +66,85 @@ const heroUnlocked = (lb, hero) => !LOCKED.includes(hero) || (lb.stages && (lb.s
 // 무한 도전: 1-10 클리어, 또는 예전(20웨이브 시절) 기록이 있는 사람
 const endlessUnlocked = (lb) => maxCleared(lb.stages) >= ENDLESS_UNLOCK || (lb.bestWave | 0) > 0;
 
+// ─── 장비 (화면 data.js 와 같음) ───
+
+// ─── 장비 (서버 langbang-rules.js 와 같은 공식 — 테스트가 검사) ─────────
+// 무기(w) · 액세서리(a) 한 칸씩. 드롭은 서버가 (스테이지 · 별 · 퍼펙트 · 시드)로 계산한다.
+const GEAR_RARITY = {
+  common: { id: 'common', name: '일반', mul: 1, color: '#9fb3c8' },
+  rare: { id: 'rare', name: '희귀', mul: 1.7, color: '#4ea8ff' },
+  epic: { id: 'epic', name: '영웅', mul: 2.6, color: '#c77dff' },
+  legend: { id: 'legend', name: '전설', mul: 4, color: '#ffb400' },
+};
+const GEAR_RARITIES = ['common', 'rare', 'epic', 'legend'];
+const GEAR_STATS = {
+  atk: { name: '공격력', pct: true }, spd: { name: '기본 공격 속도', pct: true }, crit: { name: '치명타', pct: true },
+  skill: { name: '스킬 피해', pct: true }, cd: { name: '스킬 쿨타임 감소', pct: true }, attr: { name: '상성 피해', pct: true },
+  strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true },
+};
+const GEAR = {
+  megaphone: { id: 'megaphone', slot: 'w', icon: '📣', name: '명품 확성기', stat: 'atk', base: 0.06 },
+  goldmic: { id: 'goldmic', slot: 'w', icon: '🎤', name: '노래방 황금 마이크', stat: 'skill', base: 0.1 },
+  scope: { id: 'scope', slot: 'w', icon: '🔭', name: '새총 스코프', stat: 'crit', base: 0.03 },
+  sojuset: { id: 'sojuset', slot: 'w', icon: '🍶', name: '소주잔 세트', stat: 'attr', base: 0.08 },
+  stamp: { id: 'stamp', slot: 'w', icon: '🔨', name: '강퇴 망치', stat: 'strip', base: 0.06 },
+  tumbler: { id: 'tumbler', slot: 'w', icon: '🥤', name: '아아 텀블러', stat: 'spd', base: 0.05 },
+  belt: { id: 'belt', slot: 'a', icon: '🏋️', name: '헬스장 리프팅 벨트', stat: 'atk', base: 0.05 },
+  carrier: { id: 'carrier', slot: 'a', icon: '🧳', name: '여행 캐리어 방패', stat: 'hp', base: 0.04 },
+  hourglass: { id: 'hourglass', slot: 'a', icon: '⏳', name: '모래시계 키링', stat: 'cd', base: 0.05 },
+  nametag: { id: 'nametag', slot: 'a', icon: '📛', name: '랑방 명찰', stat: 'attr', base: 0.06 },
+  sneaker: { id: 'sneaker', slot: 'a', icon: '👟', name: '한정판 운동화', stat: 'spd', base: 0.04 },
+  clover: { id: 'clover', slot: 'a', icon: '🍀', name: '네잎클로버 폰케이스', stat: 'crit', base: 0.025 },
+};
+const GEAR_IDS = Object.keys(GEAR);
+const GEAR_MAX_LV = 10;
+const GEAR_BAG = 80; // 가방 칸
+function gearValue(t, r, lv) {
+  const g = GEAR[t], R = GEAR_RARITY[r];
+  if (!g || !R) return 0;
+  return Math.round(g.base * R.mul * (1 + 0.12 * (lv || 0)) * 1000) / 1000;
+}
+function gearEnhanceCost(r, lv) {
+  if (lv >= GEAR_MAX_LV) return null;
+  return Math.round((80 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 1.3)) / 10) * 10;
+}
+function gearSellValue(r, lv) { return Math.round(40 * GEAR_RARITY[r].mul * (1 + (lv || 0) * 0.5)); }
+// 시드 난수 (mulberry32)
+function seedRng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function hashSeed(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+// 드롭: 클리어 1개 (+★★★ 이면 35% 로 1개 더, 퍼펙트면 1개 더). 첫 퍼펙트는 첫 장비가 희귀 이상 확정
+function rollDrops(seed, stage, stars, perfect, firstPerfect) {
+  const rng = seedRng(seed);
+  let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const w = { common: 70, rare: 24 + stage * 0.4, epic: 5 + stage * 0.35, legend: 0.6 + stage * 0.08 };
+    if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
+    if (firstPerfect && i === 0) w.common = 0;
+    const sum = w.common + w.rare + w.epic + w.legend;
+    let x = rng() * sum, r = 'common';
+    for (const k of GEAR_RARITIES) { x -= w[k]; if (x <= 0) { r = k; break; } }
+    const t = GEAR_IDS[(rng() * GEAR_IDS.length) | 0];
+    out.push({ t, r });
+  }
+  return out;
+}
+// 멤버 한 명의 장비 능력치 합 → sim createGame({ gear: { heroId: {...} } })
+function gearStats(items) {
+  const st = {};
+  for (const it of items) { if (!it || !GEAR[it.t]) continue; const k = GEAR[it.t].stat; st[k] = (st[k] || 0) + gearValue(it.t, it.r, it.lv); }
+  return st;
+}
+
 module.exports = {
+  GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots,
   LB_HEROES, HIDDEN, LOCKED, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   metaCost, itemCost, itemValue, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };

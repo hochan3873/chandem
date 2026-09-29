@@ -3,7 +3,8 @@
 // 손님: 같은 공식(data.js)으로 이 기기 localStorage 에만 저장 (랭킹에는 안 올라감)
 import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
-  metaCost, itemCost, stageReward, endlessReward,
+  metaCost, itemCost, stageReward, endlessReward, deckSlots,
+  GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearSellValue, rollDrops, gearStats,
 } from './data.js';
 
 const GUEST_KEY = 'langbang:guest';
@@ -73,6 +74,11 @@ function normalize(p, guest) {
   out.unlocked = LOCKED_HEROES.filter((h) => heroUnlocked(out, h));
   out.endlessUnlocked = endlessUnlocked(out);
   out.seen = [...new Set(((p && p.seen) || []).filter((t) => typeof t === 'string'))];
+  out.gear = ((p && p.gear) || []).filter((it) => it && GEAR[it.t] && GEAR_RARITY[it.r]);
+  out.gearSeq = (p && p.gearSeq) | 0;
+  out.equip = (p && p.equip) || {};
+  out.perfects = (p && p.perfects) || {};
+  out.deckSlots = deckSlots(out.items);
   out.guest = !!guest;
   return out;
 }
@@ -94,7 +100,7 @@ function readGuest() {
   return raw;
 }
 function writeGuest(p) {
-  const keep = { coins: p.coins, heroes: p.heroes, items: p.items, stages: p.stages, bestWave: p.bestWave, bestScore: p.bestScore, runs: p.runs | 0, seen: p.seen || [] };
+  const keep = { coins: p.coins, heroes: p.heroes, items: p.items, stages: p.stages, bestWave: p.bestWave, bestScore: p.bestScore, runs: p.runs | 0, seen: p.seen || [], gear: p.gear || [], gearSeq: p.gearSeq | 0, equip: p.equip || {}, perfects: p.perfects || {} };
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
 export function guestProfile() { return normalize(readGuest(), true); }
@@ -112,12 +118,24 @@ export async function postStage(sum, guest) {
     const p = guestProfile();
     if (sum.stage > p.maxStage + 1) return { ok: false, message: '아직 열리지 않은 스테이지예요' };
     const prev = p.stages[sum.stage] || 0;
-    const reward = stageReward(sum.stage, sum.stars, prev, p.items.coupon);
+    const perfect = sum.stars === 3 && !!sum.perfect;
+    const firstPerfect = perfect && !p.perfects[sum.stage];
+    const reward = stageReward(sum.stage, sum.stars, prev, p.items.coupon, perfect, firstPerfect);
     const q = Object.assign({}, p, { coins: p.coins + reward.total, stages: Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) }), runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
+    if (perfect) q.perfects = Object.assign({}, p.perfects, { [sum.stage]: true });
+    // 손님 장비 드롭 (같은 공식, 시드는 이 기기에서)
+    const got = [];
+    q.gear = (p.gear || []).slice();
+    for (const d of rollDrops((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, perfect, firstPerfect)) {
+      if (q.gear.length >= GEAR_BAG) { const v = gearSellValue(d.r, 0); q.coins += v; got.push(Object.assign({ sold: v }, d)); continue; }
+      q.gearSeq = (q.gearSeq | 0) + 1;
+      const it = { id: q.gearSeq, t: d.t, r: d.r, lv: 0 };
+      q.gear.push(it); got.push(it);
+    }
     writeGuest(q);
     const after = guestProfile();
     return {
-      ok: true, profile: after, reward: Object.assign({}, reward, { firstClear: !prev, stage: sum.stage, stars: sum.stars }),
+      ok: true, profile: after, reward: Object.assign({}, reward, { firstClear: !prev, stage: sum.stage, stars: sum.stars, isPerfect: perfect, firstPerfect, drops: got }),
       unlockedHeroes: !prev ? LOCKED_HEROES.filter((h) => HERO_UNLOCK[h] === sum.stage && !heroUnlocked(p, h)) : [],
       endlessUnlocked: !endlessUnlocked(p) && endlessUnlocked(after),
     };
@@ -198,3 +216,64 @@ export function itemCostOf(profile, item) {
   return itemCost(item, lv);
 }
 export function hasToken() { return !!token(); }
+
+// ─── 장비: 장착 · 강화 · 팔기 ─────────────────────────
+function guestGear(fn) {
+  const p = guestProfile();
+  const r = fn(p);
+  if (r.error) return { ok: false, message: r.error };
+  if (r.cost && p.coins < r.cost) return { ok: false, message: `코인이 부족해요 (${r.cost.toLocaleString()} 필요)` };
+  if (r.cost) p.coins -= r.cost;
+  r.apply(p);
+  writeGuest(p);
+  return Object.assign({ ok: true, profile: guestProfile() }, r.extra || {});
+}
+export async function equipGear(hero, slot, id, guest) {
+  if (guest) {
+    return guestGear((p) => {
+      if (id === null) return { apply: (x) => { if (x.equip[hero]) delete x.equip[hero][slot]; } };
+      const it = p.gear.find((g) => g.id === id);
+      if (!it || GEAR[it.t].slot !== slot) return { error: '그 칸에는 못 껴요' };
+      return { apply: (x) => { for (const h of Object.keys(x.equip)) for (const k of ['w', 'a']) if (x.equip[h][k] === id) delete x.equip[h][k]; (x.equip[hero] = x.equip[hero] || {})[slot] = id; } };
+    });
+  }
+  const r = await call('/api/langbang/gear/equip', { hero, slot, id });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export async function enhanceGear(id, guest) {
+  if (guest) {
+    return guestGear((p) => {
+      const it = p.gear.find((g) => g.id === id);
+      if (!it) return { error: '없는 장비예요' };
+      const cost = gearEnhanceCost(it.r, it.lv);
+      if (cost === null) return { error: '이미 최대 강화예요' };
+      return { cost, apply: (x) => { x.gear.find((g) => g.id === id).lv++; } };
+    });
+  }
+  const r = await call('/api/langbang/gear/enhance', { id });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export async function sellGear(id, guest) {
+  if (guest) {
+    return guestGear((p) => {
+      const it = p.gear.find((g) => g.id === id);
+      if (!it) return { error: '없는 장비예요' };
+      const v = gearSellValue(it.r, it.lv);
+      return { apply: (x) => { x.gear = x.gear.filter((g) => g.id !== id); for (const h of Object.keys(x.equip)) for (const k of ['w', 'a']) if (x.equip[h][k] === id) delete x.equip[h][k]; x.coins += v; }, extra: { sold: v } };
+    });
+  }
+  const r = await call('/api/langbang/gear/sell', { id });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+// 덱 멤버들의 장비 능력치 → sim
+export function gearFor(profile, ids) {
+  const out = {};
+  for (const id of ids) {
+    const sl = (profile.equip || {})[id] || {};
+    out[id] = gearStats(['w', 'a'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter(Boolean));
+  }
+  return out;
+}

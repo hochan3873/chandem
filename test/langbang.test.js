@@ -216,7 +216,7 @@ test('별: 입구 70% 이상 ★★★, 35% 이상 ★★, 그 밖 ★', () => {
 
 test('1-1 은 새로 시작한 사람도 무난히 ★★★, 5웨이브를 막으면 클리어', () => {
   for (let seed = 1; seed <= 3; seed++) {
-    const g = playOut(S.createGame({ rng: seeded(seed), mode: 'stage', stage: 1, partner: 'gunman', unlocked: [] }));
+    const g = playOut(S.createGame({ rng: seeded(seed), mode: 'stage', stage: 1, deck: [null, 'staff', 'bangjang', 'gunman', 'gunnyeo', null], unlocked: [] }));
     assert.equal(g.victory, true, `시드 ${seed} 클리어`);
     assert.equal(g.wave, 5);
     assert.equal(g.stars, 3);
@@ -835,4 +835,68 @@ test('추천 팀: 상성 × 멤버 역할 — 보스 스테이지는 한 명을 
   }
   assert.ok(D.recommendTeam(20, pool, 2).includes('gunman') || D.recommendTeam(20, pool, 2).includes('ingyu'), '2-10 보스엔 단일 딜러');
   assert.ok(!D.recommendTeam(20, pool, 2).includes('dohoon'), '힐러만 둘은 아님');
+});
+
+// ─── 덱 · 줄 공격 · 장비 · 퍼펙트 · 보스 빈틈 ─────────────
+test('덱: 정한 자리에 멤버가 서고, 7칸이면 자리 7개 · 스테이지에선 합류 카드가 없다', () => {
+  const g = S.createGame({ rng: seeded(701), mode: 'stage', stage: 3, deck: [null, 'staff', 'bangjang', null, 'gunman', 'gunnyeo'] });
+  assert.deepEqual(g.heroes.map((h) => [h.id, h.slot]).sort(), [['bangjang', 2], ['gunman', 4], ['gunnyeo', 5], ['staff', 1]]);
+  assert.equal(g.heroes.find((h) => h.id === 'gunman').x, D.SLOT_X[4]);
+  const g7 = S.createGame({ rng: seeded(702), mode: 'stage', stage: 3, positions: 7, deck: ['staff', 'gunman', 'gunnyeo', 'bangjang', 'dohoon', 'ingyu', 'myunghoon'] });
+  assert.equal(g7.heroes.length, 7);
+  assert.equal(g7.heroes.find((h) => h.slot === 6).x, D.SLOT_X7[6]);
+  g.wave = 3;
+  for (let i = 0; i < 200; i++) assert.ok(!S.rollCards(g, 3, { hiddenChance: 1 }).some((c) => c.kind === 'addHero'), '스테이지에선 합류 카드 없음');
+  assert.equal(D.deckSlots({}), 5);
+  assert.equal(D.deckSlots({ slot6: 1 }), 6);
+  assert.equal(D.deckSlots({ slot7: 1 }), 5, '7번째 칸은 6번째 칸 먼저');
+  assert.equal(D.deckSlots({ slot6: 1, slot7: 1 }), 7);
+});
+
+test('줄 공격: 건전남 새총은 자기 줄 위의 적만 쏜다 (자리가 중요)', () => {
+  const g = S.createGame({ rng: seeded(711), noWaves: true, deck: ['gunman'] });
+  const h = g.heroes[0];
+  const far = S.spawnEnemy(g, 'thug', h.x + 150, g.rowY - 200, { hpMul: 100 }); far.speed = 0;
+  run(g, 2);
+  assert.equal(far.hp, far.maxHp, '옆 줄 적은 안 쏜다');
+  const inLane = S.spawnEnemy(g, 'thug', h.x + 10, g.rowY - 250, { hpMul: 100 }); inLane.speed = 0;
+  run(g, 2);
+  assert.ok(inLane.hp < inLane.maxHp, '자기 줄 적은 쏜다');
+});
+
+test('장비: 공격력 · 입구 내구도 · 쿨감이 판에 적용된다', () => {
+  const a = S.createGame({ rng: seeded(721), noWaves: true, deck: ['staff'] });
+  const b = S.createGame({ rng: seeded(721), noWaves: true, deck: ['staff'], gear: { staff: { atk: 0.2, hp: 0.1, cd: 0.2 } } });
+  assert.ok(Math.abs(S.heroDamage(b, b.heroes[0]) / S.heroDamage(a, a.heroes[0]) - 1.2) < 1e-9);
+  assert.equal(b.base.max, Math.round(a.base.max * 1.1));
+  assert.ok(b.heroes[0].skillCd < a.heroes[0].skillCd);
+  const st = D.gearStats([{ t: 'megaphone', r: 'epic', lv: 2 }, { t: 'belt', r: 'common', lv: 0 }]);
+  assert.ok(Math.abs(st.atk - (D.gearValue('megaphone', 'epic', 2) + D.gearValue('belt', 'common', 0))) < 1e-9);
+  assert.deepEqual(D.rollDrops(42, 10, 3, true, true), D.rollDrops(42, 10, 3, true, true));
+  for (let sd = 1; sd < 60; sd++) assert.notEqual(D.rollDrops(sd, 5, 3, true, true)[0].r, 'common', '첫 퍼펙트는 희귀 이상');
+});
+
+test('퍼펙트: 입구가 한 번도 안 맞고 깨면 perfect · 보스는 큰 기술 뒤 빈틈(피해 1.5배)', () => {
+  const g = S.createGame({ rng: seeded(731), mode: 'stage', stage: 1, deck: [null, 'staff', 'bangjang', 'gunman', 'gunnyeo', null] });
+  playOut(g);
+  assert.equal(S.summary(g, g.t).perfect, g.victory && !g.baseHit);
+  const g2 = S.createGame({ rng: seeded(732), noWaves: true, heroes: ['gunman'] });
+  g2.heroes[0].stunT = 99;
+  const b = S.spawnEnemy(g2, 'boss_thug', 180, 200, { hpMul: 100 }); b.speed = 0;
+  let weak = false;
+  for (let t = 0; t < 8 && !weak; t += 1 / 60) { S.step(g2, 1 / 60); if (g2.events.some((e) => e.type === 'weak')) weak = true; g2.events.length = 0; }
+  assert.ok(weak && b.weakT > 0, '빈틈!');
+  const h0 = b.hp; S.damageEnemy(g2, b, 100, false, null); const w = h0 - b.hp;
+  b.weakT = 0; const h1 = b.hp; S.damageEnemy(g2, b, 100, false, null); const n = h1 - b.hp;
+  assert.ok(w > n * 1.4);
+});
+
+test('장비 공식: 서버(langbang-rules.js)와 화면(data.js)이 같다', () => {
+  const R = require('../server/langbang-rules');
+  assert.deepEqual(R.GEAR_IDS, D.GEAR_IDS);
+  for (const t of D.GEAR_IDS) for (const r of D.GEAR_RARITIES) for (let lv = 0; lv <= 10; lv++) assert.equal(R.gearValue(t, r, lv), D.gearValue(t, r, lv));
+  for (const r of D.GEAR_RARITIES) for (let lv = 0; lv <= 10; lv++) { assert.equal(R.gearEnhanceCost(r, lv), D.gearEnhanceCost(r, lv)); assert.equal(R.gearSellValue(r, lv), D.gearSellValue(r, lv)); }
+  for (let sd = 0; sd < 30; sd++) assert.deepEqual(R.rollDrops(sd * 7919, 1 + (sd % 30), 1 + (sd % 3), sd % 2 === 0, sd % 5 === 0), D.rollDrops(sd * 7919, 1 + (sd % 30), 1 + (sd % 3), sd % 2 === 0, sd % 5 === 0));
+  for (let s = 1; s <= 30; s++) assert.deepEqual(R.stageReward(s, 3, 0, 2, true, true), D.stageReward(s, 3, 0, 2, true, true));
+  assert.equal(R.deckSlots({ slot6: 1, slot7: 1 }), D.deckSlots({ slot6: 1, slot7: 1 }));
 });

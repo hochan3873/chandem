@@ -853,6 +853,13 @@ export class Renderer {
     }
     if (ui.drag) {
       const d = ui.drag;
+      if (d.h.def.lane && d.slotX !== undefined) {
+        // 줄 공격 멤버: 놓을 자리의 줄을 보여 준다
+        const w = d.h.def.lane;
+        const gr = cx.createLinearGradient(0, 0, 0, g.rowY);
+        gr.addColorStop(0, 'rgba(111,240,255,0)'); gr.addColorStop(1, 'rgba(111,240,255,0.28)');
+        cx.fillStyle = gr; cx.fillRect(d.slotX - w, 0, w * 2, g.rowY);
+      }
       const slot = d.slot;
       if (slot !== undefined) {
         cx.strokeStyle = '#6ff0ff'; cx.lineWidth = 3;
@@ -959,6 +966,12 @@ export class Renderer {
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
       if (e.fleeing) { sx = -sx; bob = -Math.abs(Math.sin(e.age * 18)) * 5; }
       // 보스 발밑 오라
+      if (e.boss && e.weakT > 0) {
+        const gl = this.projSprites.glowGold;
+        const r = box * (0.75 + Math.sin(t * 16) * 0.08);
+        this.tf(e.x, e.y - box * 0.2, 0, 1, 1);
+        cx.drawImage(gl.c, -r, -r, r * 2, r * 2);
+      }
       if (e.boss) {
         const gl = this.projSprites.glowRed;
         const r = box * (0.6 + Math.sin(t * 4) * 0.05);
@@ -1098,7 +1111,7 @@ export class Renderer {
 
   drawHeroes(g, t, ui) {
     const cx = this.cx;
-    const box = HERO_BOX;
+    const box = g.nPos >= 7 ? HERO_BOX * 0.86 : HERO_BOX;
     const sh = this.projSprites.shadow;
     for (const h of g.heroes) {
       if (h.rx === undefined) h.rx = h.x;
