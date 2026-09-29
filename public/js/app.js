@@ -5,6 +5,7 @@ import { handChartHTML } from './handchart.js';
 import { bestHand } from './evaluator.js';
 import * as P from './platform.js';
 import * as gws from './settings.js';
+import * as RK from './ranks.js';
 
 /* global io */
 const $app = document.getElementById('app');
@@ -501,10 +502,10 @@ async function openRanking() {
   const r = await api('/ranking/omok');
   const list = r.ok ? r.ranking : [];
   openModal('🏆 오목 랭킹', list.length ? `<ol class="rank-table">${list.map((x) => `
-    <li class="${S.user && x.username === S.user.username ? 'is-me' : ''}"><span class="rk">${x.rank}</span>
+    <li class="${S.user && x.username === S.user.username ? 'is-me' : ''}" data-user="${esc(x.username)}"><span class="rk">${x.rank}</span>
       <span class="rt" style="color:${x.tier.color}" title="${x.tier.name}">${x.tier.icon}</span>
       <b>${esc(x.nickname)}</b>${P.masterBadge(x.isMaster, true)}<span class="spacer"></span><span class="rr">${fmt(x.rating)}</span><small class="muted">${x.wins}승/${x.games}</small></li>`).join('')}</ol>`
-    : '<p class="muted">아직 랭킹이 없어요. 로그인하고 오목을 둬 보세요!</p>', null, { wide: true });
+    : '<p class="muted">아직 랭킹이 없어요. 로그인하고 오목을 둬 보세요!</p>', (b) => { RK.fitNames(b); b.querySelectorAll('[data-user]').forEach((li) => { li.onclick = () => RK.openPlayerCard({ game: 'omok', username: li.dataset.user }); }); }, { wide: true });
 }
 // 폼: 로그인했으면 계정 닉네임으로 고정
 function applyMemberName(root) {
@@ -619,6 +620,17 @@ socket.on('kicked', (d) => {
   S.view = 'message';
   S.message = d.message || '방에서 나왔어요';
   render();
+});
+
+// 사람을 누르면 선수 카드 (버튼은 제외)
+document.addEventListener('click', (e) => {
+  if (S.view !== 'room' || !S.state) return;
+  if (e.target.closest('button, a, input, .emote-tray')) return;
+  const el = e.target.closest('.seat[data-id], .omok-player[data-id], .list-row[data-pid]');
+  if (!el) return;
+  const pid = el.dataset.id || el.dataset.pid;
+  const p = S.state.players.find((x) => x.id === pid);
+  RK.openPlayerCard({ game: gameOf(S.state), code: S.state.room.code, pid, name: p && p.name });
 });
 
 // ── 감정 표현 ───────────────────────────────────────
@@ -808,6 +820,12 @@ async function launchGame(g) {
   if (!info || S.launching) return;
   if (gws.reduceMotion()) { if (info.href) location.href = info.href; else enterGame(g); return; }
   S.launching = true;
+  if (info.href) {
+    // 랑방 대전은 자기 로딩 화면이 있어서: 메인 로딩 화면 없이 짧게 어두워졌다가 바로 이동 (하얀 번쩍임 없게)
+    document.documentElement.classList.add('gw-leave-dark');
+    setTimeout(() => { location.href = info.href; }, 220);
+    return;
+  }
   $app.classList.add('view-out');
   const ov = document.createElement('div');
   ov.className = 'gw-loader';
@@ -892,10 +910,12 @@ function renderGameHome() {
       </div>
     </section>
     <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">🔴 지금 열린 ${info.name} 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
+    ${S.info && S.info.accounts === false ? '' : RK.hallHTML(g)}
     <p class="fine">${g === 'omok' ? '로그인하면 대국 결과로 티어가 올라가요.' : '칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.'}</p>
   </main>`;
   bindCommon();
   startRoomList(g);
+  if (document.getElementById('hall')) RK.loadHall(g);
   $app.querySelector('#to-hub').onclick = () => { S.view = 'home'; nav('/'); render(); };
   $app.querySelector('#go-create').onclick = () => { nav('/'); S.view = 'create'; render(); };
   $app.querySelector('#go-practice').onclick = () => { nav('/'); S.view = 'practice'; render(); };
@@ -1322,6 +1342,8 @@ function renderLobby() {
   </main>`;
   bindInvite($app, st.room.code);
   bindCommon();
+  RK.fitNames($app);
+  RK.refreshRoom(st);
   $app.querySelectorAll('[data-approve]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.approve, ok: true }); });
   $app.querySelectorAll('[data-reject]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.reject, ok: false }); });
   bindPlayerMenus($app);
@@ -1341,9 +1363,9 @@ function renderLobby() {
 
 function playerRowHTML(p, st, isHost) {
   const me = st.me && st.me.id === p.id;
-  return `<div class="list-row ${me ? 'is-me' : ''}">
+  return `<div class="list-row ${me ? 'is-me' : ''}" data-pid="${esc(p.id)}">
     ${avatarHTML(p, 'avatar-sm')}
-    <div class="grow"><b>${esc(p.name)}</b>${P.masterBadge(p.master)}${me ? ' <span class="muted small">(나)</span>' : ''}
+    <div class="grow"><b>${esc(p.name)}</b>${RK.badgeHTML(p.id)}${P.masterBadge(p.master)}${me ? ' <span class="muted small">(나)</span>' : ''}
       ${st.room.phase === 'playing' && p.role === 'player' ? `<div class="muted small">칩 ${fmt(p.stack)}${p.rebuys ? ` · 리바인 ${p.rebuys}회` : ''}</div>` : ''}</div>
     <div class="badges">${statusBadges(p, st)}</div>
     ${isHost && !me ? `<button class="icon-btn" data-pmenu="${p.id}" aria-label="${esc(p.name)} 관리">⋯</button>` : ''}
@@ -1613,7 +1635,7 @@ function omokPlayerHTML(p, color, st, label) {
   const turn = st.hand && !st.hand.finished && st.hand.toActId === p.id;
   return `<div class="omok-player ${turn ? 'is-turn' : ''}" data-id="${esc(p.id)}">
     ${avatarHTML(p, 'avatar-sm')}<span class="omok-stone-icon stone-${color}"></span>
-    <b>${esc(p.name)}</b>${P.masterBadge(p.master, true)}${p.member && !p.master ? ' <span class="member-mark">✓</span>' : ''}${p.rating ? `<span class="tier-chip" style="color:${tierOf(p.rating).color}" title="${tierOf(p.rating).name} ${p.rating}점">${tierOf(p.rating).icon} ${fmt(p.rating)}</span>` : ''}${label ? `<span class="muted small">${label}</span>` : ''}
+    <b>${esc(p.name)}</b>${RK.badgeHTML(p.id)}${P.masterBadge(p.master, true)}${p.member && !p.master ? ' <span class="member-mark">✓</span>' : ''}${p.rating ? `<span class="tier-chip" style="color:${tierOf(p.rating).color}" title="${tierOf(p.rating).name} ${p.rating}점">${tierOf(p.rating).icon} ${fmt(p.rating)}</span>` : ''}${label ? `<span class="muted small">${label}</span>` : ''}
     ${turn ? '<span class="tag tag-turn" data-deadline>차례</span>' : ''}</div>`;
 }
 function renderOmok(st) {
@@ -1644,6 +1666,8 @@ function renderOmok(st) {
     </div>`;
   meEl.innerHTML = `${omokPlayerHTML(pOf(bottomId), o.colors[bottomId], st, myColor ? '(나)' : '')}
     <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>`;
+  RK.fitNames(table); RK.fitNames(meEl);
+  RK.refreshRoom(st);
   const la = h.legal;
   if (la) {
     actEl.innerHTML = `
@@ -1743,6 +1767,8 @@ function renderTable(st) {
     if (st.room.phase === 'playing' && p.status === 'waiting' && !p.sittingOut) tags.push('<span class="tag">다음 판 대기</span>');
     if (!p.connected) tags.push('<span class="tag tag-off">연결 끊김</span>');
     else if (p.sittingOut && st.room.phase === 'playing') tags.push('<span class="tag tag-away">자리 비움</span>');
+    const ht = S.seatHands && S.seatHands[handNo + ':' + p.id];
+    if (ht) tags.unshift(`<span class="tag tag-hand ${ht.big ? 'tag-hand-big' : ''}">${esc(ht.text)}</span>`);
     if (result && result.deltas && result.deltas[p.id] !== undefined) {
       const d = result.deltas[p.id];
       tags.push(`<span class="tag ${d > 0 ? 'tag-plus' : d < 0 ? 'tag-minus' : ''}">${signed(d)}</span>`);
@@ -1759,7 +1785,7 @@ function renderTable(st) {
       <div class="${cls.join(' ')}" data-id="${p.id}" style="left:${x}%;top:${y}%">
         ${cards}
         <div class="seat-body">
-          <div class="seat-av">${avatarHTML(p)}<div class="seat-pos">${pos2.join('')}</div>
+          <div class="seat-av">${avatarHTML(p)}${RK.badgeHTML(p.id)}<div class="seat-pos">${pos2.join('')}</div>
             ${p.isTurn ? '<svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20" data-ring></circle></svg>' : ''}</div>
           <div class="seat-name">${P.masterBadge(p.master, true)}${esc(p.name)}${p.member && !p.master ? ' <span class="member-mark" title="회원">✓</span>' : ''}${p.isHost ? ' <span class="crown" title="방장">★</span>' : ''}</div>
           <div class="seat-stack"><span class="chip-icon sm"></span>${fmt(p.stack)}</div>
@@ -1804,6 +1830,8 @@ function renderTable(st) {
     center = `<div class="table-center"><div class="table-brand">GAME WORLD</div><p class="muted small">${st.room.waiting ? '참가자를 기다리는 중' : '곧 시작해요'}</p></div>`;
   }
   el.innerHTML = `<div class="felt"><div class="felt-rail"></div>${center}${seatHTML}</div>`;
+  RK.fitNames(el);
+  RK.refreshRoom(st);
 }
 
 function markCard(key) {
@@ -1827,7 +1855,6 @@ function resultHTML(st, r) {
   return `<div class="result">
     <div class="result-title">🏆 ${names}${split ? ' <span class="small">(나눠 가짐)</span>' : ''}</div>
     <div class="result-hand">${esc(w ? w.name : '')}</div>
-    ${w ? `<div class="result-cards">${cardsHTML(w.best, { size: 'sm' })}</div>` : ''}
     ${r.pots.length > 1 ? `<div class="result-pots">${r.pots.map((p, i) => `<span>${p.returned ? '돌려받음' : i === 0 ? '메인 팟' : `사이드 팟${i}`} ${fmt(p.amount)} → ${p.winners.map((id) => esc(nameOf(id))).join(', ')}</span>`).join('')}</div>` : ''}
     ${nextIn}
   </div>`;
@@ -2215,7 +2242,17 @@ function announceHands(st, once) {
   }
 }
 function handTag(id, text, tier) {
-  const seat = document.querySelector(`.seat[data-id="${id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === id ? document.querySelector('.me-cards') : null);
+  const handNo = S.state && S.state.hand ? S.state.hand.no : 0;
+  const seatEl = document.querySelector(`.seat[data-id="${id}"]`);
+  if (seatEl) {
+    S.seatHands = S.seatHands || {};
+    for (const k of Object.keys(S.seatHands)) if (!k.startsWith(handNo + ':')) delete S.seatHands[k];
+    S.seatHands[handNo + ':' + id] = { text, big: tier >= 5 };
+    const tagsEl = seatEl.querySelector('.seat-tags');
+    if (tagsEl && !tagsEl.querySelector('.tag-hand')) tagsEl.insertAdjacentHTML('afterbegin', `<span class="tag tag-hand tag-hand-in ${tier >= 5 ? 'tag-hand-big' : ''}">${esc(text)}</span>`);
+    return;
+  }
+  const seat = S.state && S.state.me && S.state.me.id === id ? document.querySelector('.me-cards') : null;
   if (!seat) return;
   const at = centerOf(seat);
   const el = document.createElement('div');
@@ -2415,6 +2452,7 @@ window.addEventListener('pageshow', (e) => {
   H.armed = !!(history.state && history.state.gw === 'guard');
   S.launching = false;
   document.querySelectorAll('.gw-loader').forEach((x) => x.remove());
+  document.documentElement.classList.remove('gw-leave-dark');
   $app.classList.remove('view-out');
   if (S.view === 'home' && Number(LS.get('gw:lbArtShown', 0)) !== lbChapter()) render(); // 랑방 챕터가 바뀌었으면 카드 그림 갱신
 });
@@ -2427,6 +2465,7 @@ function goHome() {
   if (S.view !== 'room' || !S.state) { toHome(); return; }
   openExitMenu();
 }
+RK.init({ S, esc, fmt, signed, openModal, closeModal, render: () => render() });
 P.init({
   S, openModal, closeModal, toast, esc, fmt, signed, render, loadMe, openLogin, setAuth, logout, sound, LS, app: $app,
   watchRoom: (code) => { S.wantSpectate = true; nav('/r/' + code); boot(); },

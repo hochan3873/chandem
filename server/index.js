@@ -10,6 +10,7 @@ const { Room, RoomError, sanitizeSettings, makeCode } = require('./room');
 const { createAccounts, hashPassword } = require('./accounts');
 const { createSite } = require('./site');
 const { createAdmin } = require('./admin');
+const { createRankings } = require('./rankings');
 const { createLbPvp } = require('./langbang-pvp');
 
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12시간 아무 일 없으면 방 정리
@@ -205,6 +206,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     app.use('/api/langbang', acct.langbangRouter(express)); // 랑방 대전: 기록·강화·랭킹
     app.use('/api/site', site.router(express));
     app.use('/api/admin', createAdmin({ acct, site, rooms, api: { closeRoom, kickPlayer } }).router(express));
+    app.use('/api/rank', createRankings({ acct, rooms, now }).router(express)); // 게임별 등급·순위·선수 카드
   } else {
     app.use(['/api/auth', '/api/langbang', '/api/site', '/api/admin'], (req, res) => res.status(503).json({ ok: false, message: '로그인 준비 중이에요' }));
   }
