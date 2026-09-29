@@ -758,3 +758,6 @@ form:not([data-game=seotda]) .seotda-only { display: none; }
 .lr-main small { font-size: .72rem; color: var(--muted); }
 .lr-btns { display: flex; gap: 4px; flex: none; }
 .me-spec { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.game-card-langbang .gc-art { background-color: #3a1a4a; }
+

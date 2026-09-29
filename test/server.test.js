@@ -496,3 +496,24 @@ test('관전: 게임 중에도 바로 관전 입장, 자리에 앉으려면 방�
   assert.equal(JSON.stringify(mine).includes('token'), false);
   a.close(); b.close(); c.close();
 });
+
+test('나가기 대신 관전으로 남기: 판 도중이면 다이하고 다음 판부터 관전, 칩은 그대로', async () => {
+  const a = client(); const b = client(); const c = client();
+  const ra = await a.call('room:create', { name: '방장', settings: { turnSeconds: 60 } });
+  const rb = await b.call('room:join', { code: ra.code, name: '친구' });
+  await c.call('room:join', { code: ra.code, name: '셋째' });
+  await b.call('lobby:ready', { ready: true }); await c.call('lobby:ready', { ready: true });
+  await a.call('lobby:start');
+  await until(() => b.last && b.last.hand && b.last.hand.no >= 1);
+  const r = await b.call('lobby:role', { spectator: true });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.later, true);
+  const mine = () => b.last.players.find((p) => p.id === rb.playerId);
+  await until(() => mine().status === 'folded' || b.last.hand.finished);
+  const play = (v) => { const la = v.hand && v.hand.legal; if (la) a.emit('game:act', { type: la.canCheck ? 'check' : 'call' }, () => {}); };
+  const playC = (v) => { const la = v.hand && v.hand.legal; if (la) c.emit('game:act', { type: la.canCheck ? 'check' : 'call' }, () => {}); };
+  a.on('state', play); c.on('state', playC); play(a.last); playC(c.last);
+  await until(() => b.last.me.role === 'spectator', 15000);
+  assert.ok(mine().stack > 0, '칩은 그대로 보관');
+  a.close(); b.close(); c.close();
+});

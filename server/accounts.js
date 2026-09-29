@@ -32,8 +32,18 @@ function emptyStats() {
     seotda: { hands: 0, wins: 0, net: 0, bestPot: 0, bestHand: null },
     omok: { games: 0, wins: 0, losses: 0, draws: 0, rating: START_RATING, peak: START_RATING, streak: 0 },
     tourney: { played: 0, wins: 0 },
+    langbang: emptyLangbang(),
   };
 }
+
+// ── 랑방 대전 (디펜스) ─────────────────────────────────
+const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'eunok', 'hanna', 'sunggu'];
+const LB_MAX_META = 10;
+function emptyLangbang() {
+  return { level: 1, exp: 0, coins: 0, runs: 0, victories: 0, kills: 0, bestWave: 0, bestScore: 0, heroes: Object.fromEntries(LB_HEROES.map((h) => [h, 0])), lastResultAt: 0 };
+}
+const lbExpToNext = (level) => 100 + (level - 1) * 60;           // 다음 계정 레벨까지 필요한 경험치
+const lbUpgradeCost = (metaLevel) => 80 * (metaLevel + 1) ** 2; // 캐릭터 영구 강화 비용(코인)
 
 // ── 비밀번호 · 토큰 ─────────────────────────────────────
 function hashPassword(pw) {
@@ -74,6 +84,10 @@ class FileStore {
     return Object.values(this.data.users).filter((u) => u.stats.omok.games > 0)
       .sort((a, b) => b.stats.omok.rating - a.stats.omok.rating).slice(0, n);
   }
+  async topLangbang(n) {
+    return Object.values(this.data.users).filter((u) => u.stats.langbang && u.stats.langbang.runs > 0)
+      .sort((a, b) => b.stats.langbang.bestWave - a.stats.langbang.bestWave || b.stats.langbang.bestScore - a.stats.langbang.bestScore).slice(0, n);
+  }
 }
 
 class PgStore {
@@ -99,6 +113,11 @@ class PgStore {
   async topOmok(n) {
     const r = await this.pool.query(`SELECT * FROM users WHERE (stats->'omok'->>'games')::int > 0
       ORDER BY (stats->'omok'->>'rating')::int DESC LIMIT $1`, [n]);
+    return r.rows.map((x) => this.row(x));
+  }
+  async topLangbang(n) {
+    const r = await this.pool.query(`SELECT * FROM users WHERE COALESCE((stats->'langbang'->>'runs')::int, 0) > 0
+      ORDER BY (stats->'langbang'->>'bestWave')::int DESC, (stats->'langbang'->>'bestScore')::int DESC LIMIT $1`, [n]);
     return r.rows.map((x) => this.row(x));
   }
 }
@@ -220,6 +239,105 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     });
   }
 
+  // ── 랑방 대전 ───────────────────────────────────────
+  const lbView = (lb) => ({ ...lb, heroes: { ...emptyLangbang().heroes, ...(lb.heroes || {}) }, expToNext: lbExpToNext(lb.level), costs: Object.fromEntries(LB_HEROES.map((h) => [h, (lb.heroes || {})[h] >= LB_MAX_META ? null : lbUpgradeCost((lb.heroes || {})[h] || 0)])), maxMeta: LB_MAX_META });
+  async function userFromToken(token) {
+    const id = verifyToken(token);
+    if (!id) throw new AuthError('로그인해야 기록이 저장돼요');
+    await ready;
+    return id;
+  }
+  async function lbMe(token) {
+    const id = await userFromToken(token);
+    const u = await store.byId(id);
+    if (!u) throw new AuthError('다시 로그인해 주세요');
+    return { profile: lbView({ ...emptyLangbang(), ...(u.stats.langbang || {}) }), nickname: u.nickname };
+  }
+  /** 한 판 결과 저장. 말이 안 되는 기록은 거절한다(조작 방지) */
+  function lbResult(token, body) {
+    return (async () => {
+      const id = await userFromToken(token);
+      const int = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+      const wave = int(body.wave, 999);
+      const score = int(body.score, 1e9);
+      const kills = int(body.kills, 1e6);
+      const coins = int(body.coins, 1e7);
+      const dur = int(body.durationSec, 1e6);
+      if (score > (wave + 1) * 50000 || kills > (wave + 1) * 400 || coins > (wave + 1) * 400) throw new AuthError('기록을 확인할 수 없어요');
+      if (wave >= 3 && dur < wave * 8) throw new AuthError('기록을 확인할 수 없어요');
+      let out = null;
+      await serial(async () => {
+        const u = await store.byId(id);
+        if (!u) return;
+        const last = (u.stats.langbang || {}).lastResultAt || 0;
+        if (Date.now() - last < 10000) { out = { error: '너무 자주 저장하고 있어요' }; return; }
+        const before = { ...emptyLangbang(), ...(u.stats.langbang || {}) };
+        const stats = await update(id, (s) => {
+          const lb = s.langbang = { ...emptyLangbang(), ...s.langbang, heroes: { ...emptyLangbang().heroes, ...(s.langbang.heroes || {}) } };
+          lb.runs++; lb.kills += kills; lb.coins += coins;
+          if (body.victory && wave >= 20) lb.victories++;
+          lb.bestWave = Math.max(lb.bestWave, wave);
+          lb.bestScore = Math.max(lb.bestScore, score);
+          lb.exp += Math.floor(score / 60) + wave * 8;
+          while (lb.exp >= lbExpToNext(lb.level)) { lb.exp -= lbExpToNext(lb.level); lb.level++; }
+          lb.lastResultAt = Date.now();
+        });
+        const lb = stats.langbang;
+        const top = await store.topLangbang(500);
+        out = { profile: lbView(lb), levelUp: lb.level > before.level, newBestWave: wave > before.bestWave, newBestScore: score > before.bestScore, rank: top.findIndex((x) => x.id === id) + 1 || null };
+      });
+      if (!out) throw new AuthError('다시 로그인해 주세요');
+      if (out.error) throw new AuthError(out.error);
+      return out;
+    })();
+  }
+  /** 코인으로 캐릭터 영구 강화 */
+  function lbUpgrade(token, hero) {
+    return (async () => {
+      const id = await userFromToken(token);
+      if (!LB_HEROES.includes(hero)) throw new AuthError('없는 캐릭터예요');
+      let out = null;
+      await serial(async () => {
+        const u = await store.byId(id);
+        if (!u) return;
+        const lb0 = { ...emptyLangbang(), ...(u.stats.langbang || {}) };
+        const lvl = (lb0.heroes || {})[hero] || 0;
+        if (lvl >= LB_MAX_META) { out = { error: '이미 최대로 강화했어요' }; return; }
+        const cost = lbUpgradeCost(lvl);
+        if (lb0.coins < cost) { out = { error: `코인이 부족해요 (${cost.toLocaleString()} 필요)` }; return; }
+        const stats = await update(id, (s) => {
+          const lb = s.langbang = { ...emptyLangbang(), ...s.langbang, heroes: { ...emptyLangbang().heroes, ...(s.langbang.heroes || {}) } };
+          lb.coins -= cost; lb.heroes[hero] = lvl + 1;
+        });
+        out = { profile: lbView(stats.langbang) };
+      });
+      if (!out) throw new AuthError('다시 로그인해 주세요');
+      if (out.error) throw new AuthError(out.error);
+      return out;
+    })();
+  }
+  async function lbRanking(n = 50) {
+    await ready;
+    return (await store.topLangbang(n)).map((u, i) => ({ rank: i + 1, nickname: u.nickname, username: u.username, bestWave: u.stats.langbang.bestWave, bestScore: u.stats.langbang.bestScore, level: u.stats.langbang.level, runs: u.stats.langbang.runs }));
+  }
+  function langbangRouter(express) {
+    const r = express.Router();
+    r.use(express.json({ limit: '4kb' }));
+    const tok = (req) => String(req.headers.authorization || '').replace(/^Bearer /, '');
+    const wrap = (fn) => async (req, res) => {
+      try { res.json({ ok: true, ...(await fn(req)) }); }
+      catch (e) {
+        if (e instanceof AuthError) res.status(e.message.includes('로그인') ? 401 : 400).json({ ok: false, message: e.message });
+        else { console.error('[langbang]', e); res.status(500).json({ ok: false, message: '잠시 후 다시 해 주세요' }); }
+      }
+    };
+    r.get('/me', wrap((req) => lbMe(tok(req))));
+    r.post('/result', wrap((req) => lbResult(tok(req), req.body || {})));
+    r.post('/upgrade', wrap((req) => lbUpgrade(tok(req), String((req.body || {}).hero || ''))));
+    r.get('/ranking', wrap(async () => ({ ranking: await lbRanking(50) })));
+    return r;
+  }
+
   async function profile(username) { await ready; return publicUser(await store.byName(String(username || '').toLowerCase())); }
   async function ranking(n = 50) {
     await ready;
@@ -258,7 +376,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     return r;
   }
 
-  return { signup, login, me, verifyToken, recordHand, recordOmok, recordTourney, profile, ranking, router, ready, tierOf, store };
+  return { signup, login, me, verifyToken, recordHand, recordOmok, recordTourney, profile, ranking, router, langbangRouter, lbResult, lbUpgrade, lbMe, lbRanking, ready, tierOf, store };
 }
 
 module.exports = { createAccounts, tierOf, eloDelta, TIERS, AI_RATING, START_RATING, AuthError };

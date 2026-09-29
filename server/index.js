@@ -140,11 +140,15 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const pub = path.join(__dirname, '..', 'public');
   app.use(express.static(pub, { extensions: ['html'] }));
   const accountsOn = !!process.env.DATABASE_URL || !process.env.RENDER;
-  if (accountsOn) app.use('/api/auth', acct.router(express));
-  else app.use('/api/auth', (req, res) => res.status(503).json({ ok: false, message: '로그인 준비 중이에요' }));
+  if (accountsOn) {
+    app.use('/api/auth', acct.router(express));
+    app.use('/api/langbang', acct.langbangRouter(express)); // 랑방 대전: 기록·강화·랭킹
+  } else {
+    app.use(['/api/auth', '/api/langbang'], (req, res) => res.status(503).json({ ok: false, message: '로그인 준비 중이에요' }));
+  }
   app.get('/api/info', (req, res) => {
     // 배포 서버(Render)에서는 DB가 연결됐을 때만 로그인을 켠다 (파일 저장은 배포마다 지워지므로)
-    res.json({ lan: lanUrls(server.address().port), publicUrl, accounts: accountsOn });
+    res.json({ lan: lanUrls(server.address().port), publicUrl, accounts: accountsOn, langbang: fs.existsSync(path.join(pub, 'langbang', 'index.html')) });
   });
   // 지금 열려 있는 방 목록: 접속한 사람이 있는 방만, 게임 중인 방 먼저 → 최근 활동 순
   app.get('/api/rooms', (req, res) => {

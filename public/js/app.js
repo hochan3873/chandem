@@ -337,6 +337,9 @@ async function openProfile() {
       <span>승률</span><b>${pct(o.wins, o.games)}</b><span>연속</span><b>${o.streak > 0 ? `${o.streak}연승 🔥` : o.streak < 0 ? `${-o.streak}연패` : '-'}</b></div></div>
     ${game(s.holdem, '♠ 텍사스 홀덤')}
     ${game(s.seotda, '🎴 섯다')}
+    ${s.langbang ? `<div class="stat-card"><h3>🥊 랑방 대전 · Lv.${s.langbang.level}</h3>
+      <div class="stat-grid"><span>최고 웨이브</span><b>${fmt(s.langbang.bestWave)}</b><span>최고 점수</span><b>${fmt(s.langbang.bestScore)}</b>
+      <span>플레이</span><b>${fmt(s.langbang.runs)}판</b><span>코인</span><b>${fmt(s.langbang.coins)}</b></div></div>` : ''}
     <div class="stat-card"><h3>🏆 토너먼트</h3><div class="stat-grid"><span>참가</span><b>${fmt(s.tourney.played)}</b><span>우승</span><b>${fmt(s.tourney.wins)}</b></div></div>
     <div class="row">
       <button class="btn btn-outline grow" id="rank-btn">🏆 오목 랭킹</button>
@@ -608,6 +611,7 @@ const GAME_INFO = {
   holdem: { name: '텍사스 홀덤', icon: '♠', sub: '노리밋 홀덤 · 토너먼트', tag: '카드 2장 + 바닥 5장, 최고의 5장으로 승부' },
   seotda: { name: '섯다', icon: '🎴', sub: '화투 두 장 · 광땡 · 땡잡이', tag: '두 장의 화투로 끗발 대결, 기세로 밀어붙여라' },
   omok: { name: '오목', icon: '⚫', sub: '1:1 대국 · AI · 티어', tag: '다섯 알을 먼저 잇는 사람이 승리' },
+  langbang: { name: '랑방 대전', icon: '🥊', sub: '디펜스 · 진상들을 막아라 · 랭킹', tag: '우리 모임에 쳐들어오는 진상들을 때려잡자', href: '/langbang/' },
 };
 const GAME_RULES = {
   holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
@@ -694,7 +698,7 @@ function renderHome() {
       <p class="tagline">친구들과 휴대폰으로 즐기는 홀덤 · 섯다 · 오목</p>
     </div>
     <section class="game-cards">
-      ${Object.entries(GAME_INFO).map(([k, g]) => `
+      ${Object.entries(GAME_INFO).filter(([k]) => k !== 'langbang' || (S.info && S.info.langbang)).map(([k, g]) => `
         <button class="game-card game-card-${k}" data-game="${k}">
           <span class="gc-art" style="background-image:url('/img/games/${k}.webp')"></span>
           <span class="gc-shade"></span>
@@ -717,7 +721,10 @@ function renderHome() {
   bindCommon();
   startRoomList('');
   $app.querySelectorAll('[data-game]').forEach((b) => {
-    b.onclick = () => { S.game = b.dataset.game; LS.set('chandem:game', S.game); history.pushState(null, '', '/'); S.view = 'gamehome'; render(); };
+    b.onclick = () => {
+      if (GAME_INFO[b.dataset.game].href) { location.href = GAME_INFO[b.dataset.game].href; return; } // 랑방 대전은 따로 된 게임 화면
+      S.game = b.dataset.game; LS.set('chandem:game', S.game); history.pushState(null, '', '/'); S.view = 'gamehome'; render();
+    };
   });
   $app.querySelector('#code-form').onsubmit = (e) => {
     e.preventDefault();
@@ -1162,16 +1169,39 @@ function openSettingsModal() {
   });
 }
 
-async function leaveRoom() {
-  const inHand = S.state && S.state.hand && !S.state.hand.finished && S.state.players.some((p) => p.id === S.state.me?.id && ['inhand', 'allin'].includes(p.status));
-  if (!confirm(inHand ? '진행 중인 판은 폴드 처리돼요. 방을 나갈까요?' : '방을 나갈까요?')) return;
-  await emit('room:leave');
-  LS.del(sessKey(S.code));
-  S.session = null; S.state = null; S.code = null;
-  history.pushState(null, '', '/');
-  S.view = 'home';
-  closeModal();
-  render();
+// 나가기: 바로 밖으로 튕기지 않고 — 관전으로 남기 / 이 게임 대기 화면으로 / 메인으로
+function leaveRoom() { openExitMenu(); }
+function openExitMenu() {
+  const st = S.state;
+  if (!st) return;
+  const me = st.me;
+  const g = gameOf(st);
+  const inHand = st.hand && !st.hand.finished && st.players.some((p) => p.id === me?.id && ['inhand', 'allin'].includes(p.status));
+  const canWatch = me && me.role === 'player' && !st.room.practice;
+  openModal('어디로 갈까요?', `
+    <p class="muted small">${inHand ? '진행 중인 판은 다이(폴드) 처리돼요. ' : ''}${st.room.practice ? '연습 방은 나가면 사라져요.' : '방을 나가도 초대 링크로 다시 들어올 수 있어요.'}</p>
+    <div class="stack">
+      ${canWatch ? '<button class="btn btn-outline" data-act="watch">👀 관전으로 남기 <small class="muted">(자리만 비우고 구경)</small></button>' : ''}
+      <button class="btn btn-gold" data-act="lobby">🚪 방 나가기 → ${GAME_INFO[g].name} 대기 화면</button>
+      <button class="btn btn-ghost" data-act="home">🏠 메인으로</button>
+      <button class="btn btn-ghost" data-act="stay">계속 있을게요</button>
+    </div>`, (body) => {
+    body.querySelector('[data-act="stay"]').onclick = closeModal;
+    const w = body.querySelector('[data-act="watch"]');
+    if (w) w.onclick = async () => { const r = await emit('lobby:role', { spectator: true }); if (r.ok) { closeModal(); toast(r.later ? '이번 판은 다이, 다음 판부터 관전해요' : '관전으로 바꿨어요. 언제든 다시 앉을 수 있어요', 'ok'); } };
+    const out = async (toLobby) => {
+      await emit('room:leave');
+      LS.del(sessKey(S.code));
+      S.session = null; S.state = null; S.code = null;
+      S.game = toLobby ? g : S.game;
+      history.pushState(null, '', '/');
+      S.view = toLobby ? 'gamehome' : 'home';
+      closeModal();
+      render();
+    };
+    body.querySelector('[data-act="lobby"]').onclick = () => out(true);
+    body.querySelector('[data-act="home"]').onclick = () => out(false);
+  });
 }
 
 function bindCommon() {
@@ -2106,25 +2136,7 @@ function goHome() {
     render();
     return;
   }
-  const st = S.state;
-  const inHand = st.hand && !st.hand.finished && st.players.some((p) => p.id === st.me?.id && ['inhand', 'allin'].includes(p.status));
-  openModal('메인으로 갈까요?', `
-    <p class="muted">${st.room.practice ? '연습 방은 나가면 사라져요.' : '방에서 나가게 돼요. 초대 링크로 다시 들어올 수 있어요.'}${inHand ? '<br>진행 중인 판은 폴드 처리돼요.' : ''}</p>
-    <div class="stack">
-      <button class="btn btn-gold" data-act="go">나가고 메인으로</button>
-      <button class="btn btn-outline" data-act="stay">계속 있을게요</button>
-    </div>`, (body) => {
-    body.querySelector('[data-act="stay"]').onclick = closeModal;
-    body.querySelector('[data-act="go"]').onclick = async () => {
-      await emit('room:leave');
-      LS.del(sessKey(S.code));
-      S.session = null; S.state = null; S.code = null;
-      history.pushState(null, '', '/');
-      S.view = 'home';
-      closeModal();
-      render();
-    };
-  });
+  openExitMenu();
 }
 boot();
 

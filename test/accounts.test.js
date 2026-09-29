@@ -108,3 +108,22 @@ test('비로그인(손님)도 그대로 게임할 수 있다', async () => {
   assert.equal(a.last.players[0].member, false);
   a.close();
 });
+
+test('랑방 대전: 결과 저장 · 조작 방지 · 영구 강화 · 랭킹, 손님은 저장 안 됨', async () => {
+  const { token } = await post('/api/auth/signup', { username: 'lbking', password: 'secret12', nickname: '랑방왕' });
+  const guest = await get('/api/langbang/me');
+  assert.equal(guest.ok, false);
+  const r = await fetch(base + '/api/langbang/result', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ wave: 10, score: 30000, kills: 600, coins: 500, durationSec: 400 }) }).then((x) => x.json());
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.profile.bestWave, 10);
+  assert.equal(r.profile.coins, 500);
+  assert.equal(r.newBestWave, true);
+  const cheat = await fetch(base + '/api/langbang/result', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ wave: 2, score: 9999999, kills: 1, coins: 1, durationSec: 60 }) }).then((x) => x.json());
+  assert.equal(cheat.ok, false);
+  const up = await fetch(base + '/api/langbang/upgrade', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ hero: 'hanna' }) }).then((x) => x.json());
+  assert.equal(up.ok, true, up.message);
+  assert.equal(up.profile.heroes.hanna, 1);
+  assert.equal(up.profile.coins, 420);
+  const rk = await get('/api/langbang/ranking');
+  assert.ok(rk.ranking.some((x) => x.username === 'lbking' && x.bestWave === 10));
+});

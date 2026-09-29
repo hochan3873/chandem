@@ -356,7 +356,14 @@ class Room {
     if (spectator) {
       if (p.role === 'spectator') return;
       if (this.handPlayers.includes(p.id) && this.hand && !this.hand.finished) {
-        throw new RoomError('진행 중인 판이 끝난 뒤에 관전으로 바꿀 수 있어요');
+        // 판 도중: 이번 판은 다이하고, 판이 끝나면 관전석으로
+        p.pendingSpectate = true;
+        this.hand.forceFold(p.id);
+        this.syncStacks();
+        this.afterHandChange();
+        this.pushFeed(`${p.name}님이 다이하고 관전으로 바꿔요 (다음 판부터)`);
+        this.touch();
+        return { later: true };
       }
       p.role = 'spectator';
       p.seat = null;
@@ -465,6 +472,10 @@ class Room {
     this.nextHandAt = null;
     // 판과 판 사이: 나간 사람 정리, 리바인 적용
     this.players = this.players.filter((p) => !p.leaving);
+    // 판 도중 '관전으로 남기'를 고른 사람: 이제 관전석으로 (칩은 그대로 보관)
+    for (const p of this.players) {
+      if (p.pendingSpectate) { p.pendingSpectate = false; p.role = 'spectator'; p.seat = null; if (!p.isBot) p.ready = false; }
+    }
     for (const p of this.seated) {
       if (p.pendingRebuy > 0) {
         p.stack += p.pendingRebuy;
