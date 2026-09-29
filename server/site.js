@@ -13,6 +13,12 @@ const FEEDBACK_GAP_MS = 30 * 1000;       // 연속 제출 간격
 const FEEDBACK_PER_HOUR = 5;
 const FEEDBACK_CATS = { bug: '버그 신고', idea: '건의', game: '게임 밸런스', etc: '기타' };
 const GAMES = { holdem: '홀덤', seotda: '섯다', omok: '오목', langbang: '랑방 대전', site: '사이트 전체' };
+// 비밀번호 찾기 (이메일·전화번호를 안 받으니 복구 코드 + 운영자 요청)
+const PWRESET_CAT = 'pwreset';           // 건의함 분류: 비밀번호 초기화 요청 (일반 건의로는 못 고름)
+const RECOVERY_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 글자(0 O 1 I) 뺌
+const RECOVERY_LEN = 10;
+const RECOVERY_FAILS = 5;                // 1시간에 이만큼 틀리면 그 계정은 1시간 잠금
+const HOUR = 3600 * 1000;
 
 // KST(한국 시간) 기준 날짜 'YYYY-MM-DD'
 const kstDay = (t) => new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
@@ -32,6 +38,29 @@ function nicknameProblem(nick, { master = false } = {}) {
   if (BAD_WORDS.some((w) => sq.includes(w))) return '고운 말로 지어 주세요 🙏';
   if (!master && RESERVED.some((w) => sq === w || (w.length >= 3 && sq.includes(w)))) return '운영자처럼 보이는 닉네임은 쓸 수 없어요';
   return null;
+}
+
+/** 아이디 가리기: gunwoong01 → gu***01 (짧으면 앞 한 글자만) */
+function maskUsername(name) {
+  const s = String(name || '');
+  if (s.length <= 3) return s.slice(0, 1) + '**';
+  if (s.length <= 5) return s.slice(0, 1) + '***' + s.slice(-1);
+  return s.slice(0, 2) + '***' + s.slice(-2);
+}
+/** 복구 코드 10자 (보여 줄 때는 ABCDE-FGHJK) */
+function newRecoveryCode() {
+  let out = '';
+  for (let i = 0; i < RECOVERY_LEN; i++) out += RECOVERY_ABC[crypto.randomInt(RECOVERY_ABC.length)];
+  return out;
+}
+const normRecovery = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 32);
+const prettyRecovery = (c) => `${c.slice(0, 5)}-${c.slice(5)}`;
+/** 창(ms) 안에 max 번 넘으면 true (key 별 시각 목록) */
+function hitLimit(map, key, max, windowMs, t) {
+  const list = (map.get(key) || []).filter((x) => t - x < windowMs);
+  list.push(t); map.set(key, list);
+  if (map.size > 5000) map.clear();
+  return list.length > max;
 }
 
 const newId = () => Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
@@ -208,6 +237,86 @@ function createSite({ acct, file = null, now = Date.now } = {}) {
     return { sent: true };
   }
 
+  // ── 아이디 찾기 · 비밀번호 찾기 ──
+  const findHits = new Map(), resetHits = new Map(), reqHits = new Map();
+  /** 닉네임 → 가린 아이디 (IP당 10분에 5번) */
+  async function findUsername({ nickname, ip }) {
+    await ready;
+    if (hitLimit(findHits, ip || '?', 5, 10 * 60000, now())) throw new AuthError('너무 많이 찾았어요. 10분 뒤에 다시 해 주세요');
+    const nick = cleanNickname(nickname).slice(0, 20);
+    if (!nick) throw new AuthError('닉네임을 입력해 주세요');
+    const u = await store.byNickname(nick);
+    if (!u) throw new AuthError('그 닉네임으로 가입한 계정이 없어요');
+    return { masked: maskUsername(u.username), createdAt: u.createdAt };
+  }
+  /** 복구 코드 새로 만들기 (로그인 + 비밀번호 확인). 이전 코드는 바로 못 쓰게 된다. 코드는 이 응답에서만 보인다 */
+  async function issueRecovery(token, password) {
+    const u0 = await userOf(token);
+    return acct.exclusive(async () => {
+      const u = await acct.store.byId(u0.id);
+      if (!u) throw new AuthError('로그인하면 쓸 수 있어요');
+      if (!checkPassword(String(password || ''), u.pass)) throw new AuthError('비밀번호가 맞지 않아요');
+      const code = newRecoveryCode();
+      const t = now();
+      await saveMeta(u, { ...metaOf(u), recovery: { hash: hashPassword(code), at: t } });
+      return { code: prettyRecovery(code), issuedAt: t };
+    });
+  }
+  async function recoveryState(token) {
+    const u = await userOf(token);
+    const r = metaOf(u).recovery;
+    return { hasCode: !!(r && r.hash), issuedAt: r ? r.at : null };
+  }
+  /** 아이디 + 복구 코드로 새 비밀번호. 성공하면 다른 기기 로그아웃 · 코드는 한 번 쓰면 끝(새 코드를 같이 돌려줌) */
+  async function resetWithRecovery({ username, code, next, ip }) {
+    await ready;
+    const t = now();
+    if (hitLimit(resetHits, ip || '?', 10, 10 * 60000, t)) throw new AuthError('시도가 너무 많아요. 10분 뒤에 다시 해 주세요');
+    const nx = String(next || '');
+    if (nx.length < 6 || nx.length > 64) throw new AuthError('새 비밀번호는 6~64자로 정해 주세요');
+    const c = normRecovery(code);
+    const name = String(username || '').trim().toLowerCase();
+    return acct.exclusive(async () => {
+      const u = name ? await acct.store.byName(name) : null;
+      if (!u) throw new AuthError('아이디 또는 복구 코드가 맞지 않아요');
+      const meta = metaOf(u);
+      const fails = (meta.recoveryFails || []).filter((x) => t - x < HOUR);
+      if (fails.length >= RECOVERY_FAILS) {
+        const min = Math.max(1, Math.ceil((HOUR - (t - fails[0])) / 60000));
+        throw new AuthError(`복구 코드를 ${RECOVERY_FAILS}번 틀려서 잠겼어요. ${min}분 뒤에 다시 해 주세요`);
+      }
+      const rec = meta.recovery;
+      if (!rec || !rec.hash || c.length !== RECOVERY_LEN || !checkPassword(c, rec.hash)) {
+        await saveMeta(u, { ...meta, recoveryFails: [...fails, t] });
+        const left = RECOVERY_FAILS - fails.length - 1;
+        throw new AuthError(left > 0 ? `아이디 또는 복구 코드가 맞지 않아요 (${left}번 남음)` : `복구 코드를 ${RECOVERY_FAILS}번 틀려서 1시간 동안 잠겼어요`);
+      }
+      if (meta.banned) throw new AuthError('이용이 정지된 계정이에요');
+      const fresh = newRecoveryCode();
+      await store.setPass(u.id, hashPassword(nx));
+      const m2 = { ...meta, tv: (meta.tv | 0) + 1, recovery: { hash: hashPassword(fresh), at: t } };
+      delete m2.recoveryFails;
+      await saveMeta(u, m2); // 토큰 버전↑ → 예전 토큰은 모두 무효
+      return { token: acct.makeToken(u.id), user: acct.publicUser(u), code: prettyRecovery(fresh) };
+    });
+  }
+  /** 복구 코드가 없을 때: 운영자에게 초기화 요청 (건의함에 '비밀번호 초기화 요청'으로 들어감) */
+  async function requestReset({ username, note, ip }) {
+    await ready;
+    const t = now();
+    if (hitLimit(reqHits, ip || '?', 3, HOUR, t)) throw new AuthError('요청은 한 시간에 3번까지 보낼 수 있어요');
+    const name = String(username || '').trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,16}$/.test(name)) throw new AuthError('아이디를 확인해 주세요');
+    const memo = clip(note, 200);
+    if (memo.length < 2) throw new AuthError('운영자가 알아볼 수 있게 연락 방법이나 메모를 적어 주세요');
+    const u = await acct.store.byName(name);
+    // 없는 아이디여도 똑같이 '보냈어요' (아이디가 있는지 알려 주지 않음). 같은 아이디는 한 시간에 한 번만 쌓는다
+    if (u && !hitLimit(reqHits, 'u:' + u.id, 1, HOUR, t)) {
+      await store.addFeedback({ id: newId(), userId: u.id, username: u.username, nickname: u.nickname, category: PWRESET_CAT, game: 'site', text: memo, createdAt: t, done: false });
+    }
+    return { sent: true };
+  }
+
   // 운영 기록 (admin.js 에서 씀)
   async function log(actor, action, target, detail) {
     await ready;
@@ -234,6 +343,11 @@ function createSite({ acct, file = null, now = Date.now } = {}) {
     r.post('/account/password', wrap((req) => changePassword(tokOf(req), (req.body || {}).current, (req.body || {}).next)));
     r.post('/account/logout-all', wrap((req) => logoutAll(tokOf(req))));
     r.post('/account/delete', wrap((req) => deleteAccount(tokOf(req), (req.body || {}).password)));
+    r.get('/account/recovery', wrap((req) => recoveryState(tokOf(req))));
+    r.post('/account/recovery', wrap((req) => issueRecovery(tokOf(req), (req.body || {}).password)));
+    r.post('/find-id', wrap((req) => findUsername({ ip: ipOf(req), nickname: (req.body || {}).nickname })));
+    r.post('/reset-password', wrap((req) => resetWithRecovery({ ...(req.body || {}), ip: ipOf(req) })));
+    r.post('/reset-request', wrap((req) => requestReset({ ...(req.body || {}), ip: ipOf(req) })));
     return r;
   }
 
@@ -254,7 +368,8 @@ function createSite({ acct, file = null, now = Date.now } = {}) {
     listNotices, createNotice, updateNotice, deleteNotice,
     checkin, checkinState, checkinView,
     changeNickname, changePassword, logoutAll, deleteAccount, submitFeedback,
+    findUsername, issueRecovery, recoveryState, resetWithRecovery, requestReset,
   };
 }
 
-module.exports = { createSite, kstDay, nicknameProblem, CHECKIN_REWARDS, FEEDBACK_CATS, GAMES, NICK_COOLDOWN_MS };
+module.exports = { createSite, kstDay, nicknameProblem, CHECKIN_REWARDS, FEEDBACK_CATS, GAMES, NICK_COOLDOWN_MS, maskUsername, newRecoveryCode, normRecovery, PWRESET_CAT, RECOVERY_FAILS };

@@ -249,6 +249,12 @@ export function openAccount() {
       <button class="btn btn-outline">비밀번호 바꾸기</button>
       <p class="muted tiny">바꾸면 다른 기기에서는 로그아웃돼요</p>
     </form>
+    <form class="acct-sec" id="f-rc">
+      <h3>🔐 복구 코드 <small class="muted" id="rc-state"></small></h3>
+      <p class="muted tiny">비밀번호를 잊었을 때 아이디 + 복구 코드로 새 비밀번호를 정할 수 있어요. 새로 받으면 예전 코드는 못 써요.</p>
+      <input type="text" name="username" value="${esc(u.username)}" autocomplete="username" hidden>
+      <div class="row"><input class="input grow" type="password" name="password" required placeholder="확인용 지금 비밀번호" autocomplete="current-password" maxlength="64"><button class="btn btn-outline">새 코드 받기</button></div>
+    </form>
     <div class="acct-sec">
       <h3>로그아웃</h3>
       <div class="row"><button class="btn btn-outline grow" id="a-logout">이 기기에서 로그아웃</button><button class="btn btn-outline grow" id="a-logout-all">모든 기기에서 로그아웃</button></div>
@@ -278,6 +284,14 @@ export function openAccount() {
       C.S.auth = r.token; C.LS.set('chandem:auth', r.token);
       C.toast('비밀번호를 바꿨어요. 다른 기기는 로그아웃됐어요', 'ok');
       e.target.reset();
+    };
+    const rcState = body.querySelector('#rc-state');
+    site.get('/account/recovery').then((r) => { if (r.ok && rcState) rcState.textContent = r.hasCode ? `· ${fmtDay(r.issuedAt)} 받음` : '· 아직 없어요'; });
+    body.querySelector('#f-rc').onsubmit = async (e) => {
+      e.preventDefault();
+      const r = await site.post('/account/recovery', { password: new FormData(e.target).get('password') });
+      if (!r.ok) { C.toast(r.message, 'error'); return; }
+      C.showRecoveryCode(r.code);
     };
     body.querySelector('#a-logout').onclick = () => { C.logout(); C.toast('로그아웃했어요'); };
     body.querySelector('#a-logout-all').onclick = async () => {
@@ -339,8 +353,11 @@ export function openHelp() {
       <p>욕설·도배·다른 사람 사칭은 하지 말아 주세요. 운영자가 경고 없이 이용을 정지할 수 있어요.</p>
       <h3>📲 앱처럼 쓰기</h3>
       <p>메인 오른쪽 위 <b>📲</b>를 누르면 바탕화면에 설치할 수 있어요.</p>
+      <p class="muted small">💡 이미 설치한 앱 아이콘은 앱을 지우고 다시 설치해야 새 아이콘으로 바뀌어요.</p>
       <h3>💌 문제가 생기면</h3>
-      <p>⚙️ 설정 → <b>건의 · 버그 신고</b>로 알려 주세요. 비밀번호를 잊었다면 신고에 아이디를 적어 주면 운영자가 임시 비밀번호를 만들어 줄 수 있어요.</p>
+      <p>⚙️ 설정 → <b>건의 · 버그 신고</b>로 알려 주세요.</p>
+      <h3>🔑 아이디 · 비밀번호를 잊었어요</h3>
+      <p>로그인 창 아래 <b>아이디 찾기 · 비밀번호 찾기</b>를 눌러요. 아이디는 닉네임으로 찾고, 비밀번호는 가입할 때 받은 <b>복구 코드</b>로 바꿀 수 있어요. 코드가 없으면 거기서 <b>운영자에게 요청</b>하면 임시 비밀번호를 만들어 줘요.</p>
       <button class="btn btn-outline" id="h-priv">개인정보 안내 보기 ›</button>
     </div>`, (body) => { body.querySelector('#h-priv').onclick = openPrivacy; });
 }
@@ -351,7 +368,7 @@ export function openPrivacy() {
       <h3>저장하는 것 (로그인한 경우)</h3>
       <ul>
         <li><b>아이디 · 닉네임</b></li>
-        <li><b>비밀번호</b> — 원래 글자가 아니라 되돌릴 수 없게 암호화(해시)한 값만</li>
+        <li><b>비밀번호 · 복구 코드</b> — 원래 글자가 아니라 되돌릴 수 없게 암호화(해시)한 값만</li>
         <li><b>게임 기록</b> — 홀덤·섯다·오목 전적, 랑방 대전 진행도·코인, 출석 기록</li>
         <li>건의·신고에 직접 적은 내용</li>
       </ul>
@@ -381,7 +398,7 @@ const ACTIONS = {
   'user.password_reset': '비밀번호 초기화', 'user.ban': '이용 정지', 'user.unban': '정지 해제', 'user.nickname': '닉네임 변경', 'user.coins': '코인 조정',
   'user.reset_stats': '전적 초기화', 'room.close': '방 닫기', 'room.kick': '내보내기', 'feedback.done': '건의 처리', 'feedback.delete': '건의 삭제',
 };
-const CAT_NAME = { bug: '🐞 버그', idea: '💡 건의', game: '⚖️ 밸런스', etc: '💬 기타' };
+const CAT_NAME = { bug: '🐞 버그', idea: '💡 건의', game: '⚖️ 밸런스', etc: '💬 기타', pwreset: '🔑 비밀번호 초기화 요청' };
 const GAME_NAME = { holdem: '♠ 홀덤', seotda: '🎴 섯다', omok: '⚫ 오목', langbang: '🥊 랑방', site: '🏠 전체' };
 
 export function renderAdmin() {
@@ -532,23 +549,27 @@ async function adUserDetail(username) {
   };
   const unban = q('#ad-unban');
   if (unban) unban.onclick = async () => { if (failed(await admin.post(`/users/${encodeURIComponent(u.username)}/unban`))) return; C.toast('정지를 풀었어요', 'ok'); adUserDetail(u.username); };
-  q('#ad-pw').onclick = async () => {
-    if (!confirm(`${u.nickname}님의 비밀번호를 임시 비밀번호로 바꿀까요? (그 사람은 모든 기기에서 로그아웃돼요)`)) return;
-    const res = await admin.post(`/users/${encodeURIComponent(u.username)}/password`);
-    if (failed(res)) return;
-    C.openModal('🔑 임시 비밀번호', `<p>이 비밀번호는 <b>지금 한 번만</b> 보여요. ${esc(u.nickname)}님에게 전달해 주세요.</p>
-      <div class="temp-pw mono">${esc(res.tempPassword)}</div>
-      <div class="row"><button class="btn btn-gold grow" id="tp-copy">복사하기</button><button class="btn btn-ghost" data-close>닫기</button></div>
-      <p class="muted tiny">로그인한 뒤 ⚙️ 설정 → 계정 관리에서 새 비밀번호로 바꾸라고 알려 주세요.</p>`, (b) => {
-      b.querySelector('#tp-copy').onclick = async () => { try { await navigator.clipboard.writeText(res.tempPassword); C.toast('복사했어요', 'ok'); } catch { prompt('복사해 주세요', res.tempPassword); } };
-      b.querySelectorAll('[data-close]').forEach((x) => { x.onclick = C.closeModal; });
-    });
-  };
+  q('#ad-pw').onclick = () => issueTempPassword(u.username, u.nickname);
   q('#ad-reset').onclick = async () => {
     if (!confirm(`${u.nickname}님의 홀덤·섯다·오목·토너먼트 전적을 처음으로 되돌릴까요?`)) return;
     if (failed(await admin.post(`/users/${encodeURIComponent(u.username)}/reset-stats`))) return;
     C.toast('전적을 초기화했어요', 'ok'); adUserDetail(u.username);
   };
+}
+
+// 임시 비밀번호 발급 (유저 상세 · 건의함의 '비밀번호 초기화 요청'에서 같이 씀) → 성공하면 true
+async function issueTempPassword(username, nickname) {
+  if (!confirm(`${nickname || username}님의 비밀번호를 임시 비밀번호로 바꿀까요? (그 사람은 모든 기기에서 로그아웃돼요)`)) return false;
+  const res = await admin.post(`/users/${encodeURIComponent(username)}/password`);
+  if (failed(res)) return false;
+  C.openModal('🔑 임시 비밀번호', `<p>이 비밀번호는 <b>지금 한 번만</b> 보여요. ${esc(nickname || username)}님(@${esc(username)})에게 전달해 주세요.</p>
+    <div class="temp-pw mono">${esc(res.tempPassword)}</div>
+    <div class="row"><button class="btn btn-gold grow" id="tp-copy">복사하기</button><button class="btn btn-ghost" data-close>닫기</button></div>
+    <p class="muted tiny">로그인한 뒤 ⚙️ 설정 → 계정 관리에서 새 비밀번호로 바꾸고, 복구 코드도 새로 받으라고 알려 주세요.</p>`, (b) => {
+    b.querySelector('#tp-copy').onclick = async () => { try { await navigator.clipboard.writeText(res.tempPassword); C.toast('복사했어요', 'ok'); } catch { prompt('복사해 주세요', res.tempPassword); } };
+    b.querySelectorAll('[data-close]').forEach((x) => { x.onclick = C.closeModal; });
+  });
+  return true;
 }
 
 const PHASE = { lobby: '⏳ 대기', playing: '🎮 게임 중' };
@@ -616,16 +637,25 @@ async function adFeedback() {
   if (!body) return;
   const open = r.feedback.filter((f) => !f.done).length;
   body.innerHTML = `<h2 class="sec-title">건의함 · 새 글 ${open}개</h2>
-    <div class="ad-list">${r.feedback.map((f) => `<div class="ad-fb ${f.done ? 'is-done' : ''}">
+    <div class="ad-list">${r.feedback.map((f) => `<div class="ad-fb ${f.done ? 'is-done' : ''} ${f.category === 'pwreset' ? 'is-pwreset' : ''}">
       <div class="ad-fb-head"><span class="badge">${CAT_NAME[f.category] || f.category}</span>${f.game ? `<span class="badge">${GAME_NAME[f.game] || f.game}</span>` : ''}
         <small class="muted">${f.nickname ? `${esc(f.nickname)} @${esc(f.username)}` : '손님'} · ${fmtDate(f.createdAt)}</small></div>
       <p>${para(f.text)}</p>
-      <div class="row"><button class="btn btn-sm btn-outline" data-done="${esc(f.id)}" data-v="${f.done ? '0' : '1'}">${f.done ? '↩ 다시 열기' : '✅ 처리 완료'}</button>
+      <div class="row">${f.category === 'pwreset' && f.username && !f.done ? `<button class="btn btn-sm btn-gold" data-temppw="${esc(f.username)}" data-fid="${esc(f.id)}" data-nick="${esc(f.nickname || '')}">🔑 임시 비밀번호 발급</button>` : ''}
+        <button class="btn btn-sm btn-outline" data-done="${esc(f.id)}" data-v="${f.done ? '0' : '1'}">${f.done ? '↩ 다시 열기' : '✅ 처리 완료'}</button>
         ${f.username ? `<button class="btn btn-sm btn-ghost" data-user="${esc(f.username)}">유저 보기</button>` : ''}
         <button class="btn btn-sm btn-ghost danger" data-del="${esc(f.id)}">삭제</button></div></div>`).join('') || '<div class="empty-note">📭<p>아직 받은 건의가 없어요</p></div>'}</div>`;
   body.querySelectorAll('[data-done]').forEach((b) => { b.onclick = async () => { if (!failed(await admin.post(`/feedback/${encodeURIComponent(b.dataset.done)}/done`, { done: b.dataset.v === '1' }))) { adFeedback(); loadOverview(); } }; });
   body.querySelectorAll('[data-del]').forEach((b) => { b.onclick = async () => { if (!confirm('이 건의를 지울까요?')) return; if (!failed(await admin.del(`/feedback/${encodeURIComponent(b.dataset.del)}`))) { adFeedback(); loadOverview(); } }; });
   body.querySelectorAll('[data-user]').forEach((b) => { b.onclick = () => { C.S.adminTab = 'users'; C.S.adminUser = b.dataset.user; renderAdmin(); }; });
+  body.querySelectorAll('[data-temppw]').forEach((b) => {
+    b.onclick = async () => {
+      if (!(await issueTempPassword(b.dataset.temppw, b.dataset.nick))) return;
+      await admin.post(`/feedback/${encodeURIComponent(b.dataset.fid)}/done`, { done: true }); // 요청은 처리 완료로
+      loadOverview();
+      adFeedback().then(() => {}); // 목록 새로 고침 (임시 비밀번호 창은 그대로)
+    };
+  });
 }
 
 async function adMaint() {

@@ -163,6 +163,7 @@ function shareTop() {
   else shareLink(siteUrl(), '찬이의 게임월드', '친구들이랑 휴대폰으로 홀덤 · 섯다 · 오목 한 판 하자!');
 }
 
+const ICON_NOTE = '<p class="muted tiny install-note">💡 이미 설치한 앱 아이콘은 앱을 지우고 다시 설치해야 새 아이콘으로 바뀌어요</p>';
 const SHARE_BTN_ONLY = '<button class="btn btn-sm btn-gold share-top" id="share-top" aria-label="공유하기">🔗<span class="ib-text"> 공유</span></button>';
 // 앱 설치 버튼(이미 앱으로 열었으면 숨김) + 공유 버튼
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -178,7 +179,7 @@ function installDone() {
   document.querySelectorAll('#install-btn').forEach((b) => b.remove());
   openModal('설치 완료 🎉', `<div class="install-wait"><div class="install-ok">✅</div><p><b>찬이의 게임월드가 설치됐어요!</b></p>
     <p class="muted small">바탕화면이나 앱 목록의 아이콘으로 열면 전체 화면으로 즐길 수 있어요.</p>
-    <button class="btn btn-gold btn-lg" data-close>확인</button></div>`);
+    ${ICON_NOTE}<button class="btn btn-gold btn-lg" data-close>확인</button></div>`);
   sound.play('fanfare');
 }
 async function installApp() {
@@ -196,7 +197,7 @@ async function installApp() {
       S.installing = Date.now();
       openModal('앱 설치 중', `<div class="install-wait"><div class="spinner" aria-hidden="true"></div>
         <p><b>설치하고 있어요…</b></p><p class="muted small">보통 10~30초 걸려요. 끝나면 바탕화면과 앱 목록에 아이콘이 생겨요.</p>
-        <p class="muted small" data-install-sec>0초</p></div>`);
+        <p class="muted small" data-install-sec>0초</p>${ICON_NOTE}</div>`);
       const t = setInterval(() => {
         const el = document.querySelector('[data-install-sec]');
         if (!el || !S.installing) { clearInterval(t); return; }
@@ -222,7 +223,7 @@ async function installApp() {
         <li>목록을 내려서 <b>「홈 화면에 추가」</b>를 눌러요</li>
         <li>오른쪽 위 <b>추가</b>를 누르면 바탕화면에 찬이의 게임월드 앱이 생겨요</li>
       </ol>
-      <p class="muted small">아이폰은 애플 정책상 버튼 하나로 바로 설치할 수 없어요. 사파리에서 해 주세요.</p>`);
+      <p class="muted small">아이폰은 애플 정책상 버튼 하나로 바로 설치할 수 없어요. 사파리에서 해 주세요.</p>${ICON_NOTE}`);
     return;
   }
   openModal('앱 설치', `
@@ -231,12 +232,14 @@ async function installApp() {
       <li><b>「앱 설치」</b> 또는 <b>「홈 화면에 추가」</b>를 눌러요</li>
       <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 찬이의 게임월드가 생겨요</li>
     </ol>
-    <p class="muted small">이미 설치했다면 바탕화면의 찬이의 게임월드 아이콘으로 열어 주세요.</p>`);
+    <p class="muted small">이미 설치했다면 바탕화면의 찬이의 게임월드 아이콘으로 열어 주세요.</p>${ICON_NOTE}`);
 }
 document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); });
 
 // ── 모달 ─────────────────────────────────────────────
-function openModal(title, html, onMount, { wide = false } = {}) {
+let modalOnClose = null; // 이 모달이 닫힐 때 한 번 (다른 모달로 바뀌면 부르지 않음)
+function openModal(title, html, onMount, { wide = false, onClose = null } = {}) {
+  modalOnClose = onClose;
   $modal.innerHTML = `
     <div class="modal-backdrop" data-close></div>
     <div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
@@ -246,9 +249,27 @@ function openModal(title, html, onMount, { wide = false } = {}) {
   $modal.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeModal));
   if (onMount) onMount($modal.querySelector('.modal-body'));
 }
-function closeModal() { $modal.innerHTML = ''; }
+function closeModal() {
+  $modal.innerHTML = '';
+  const f = modalOnClose; modalOnClose = null;
+  if (f) f();
+}
 
-// ── 라우팅 ───────────────────────────────────────────
+// ── 라우팅 · 뒤로가기 보호 ─────────────────────────────
+// 앱 안에서 화면을 옮길 때는 방문 기록을 쌓지 않고 주소만 바꾼다(nav). 대신 맨 위에 '보호용' 기록 하나를 둬서
+// 휴대폰·브라우저 뒤로가기를 누르면 바로 떠나지 않고 → 방 안: 나가기 메뉴 · 하위 화면: 한 단계 위 · 메인: 종료 확인.
+// (보호 기록은 사용자가 화면을 한 번 누른 뒤에 만든다 — 브라우저 규칙상 그래야 뒤로가기에 걸린다)
+const H = { url: location.pathname + location.search, armed: !!(history.state && history.state.gw === 'guard'), exiting: false };
+function nav(url) {
+  H.url = url;
+  try { history.replaceState(history.state, '', url); } catch {}
+}
+function armGuard(e) {
+  if (H.armed || H.exiting) return;
+  if (e && e.target && e.target.closest && e.target.closest('[data-exit-go]')) return; // '종료'를 누른 터치로는 다시 걸지 않음
+  try { history.pushState({ gw: 'guard' }, '', H.url); H.armed = true; } catch {}
+}
+['click', 'pointerup', 'touchend', 'keydown'].forEach((ev) => window.addEventListener(ev, armGuard, { capture: true, passive: true }));
 function routeCode() {
   const m = location.pathname.match(/^\/r\/([A-Za-z0-9]{4,8})/);
   return m ? m[1].toUpperCase() : null;
@@ -303,9 +324,12 @@ function openLogin(tab = 'login') {
       <label class="field"><span>비밀번호 확인</span><input class="input" type="password" name="password2" maxlength="64" required autocomplete="new-password"></label>
       <label class="field"><span>닉네임</span><input class="input" name="nickname" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="게임에서 보일 이름"></label>` : ''}
       <button class="btn btn-gold btn-lg" type="submit">${tab === 'login' ? '로그인' : '가입하고 시작'}</button>
+      ${tab === 'login' ? '<div class="auth-links"><button type="button" id="find-id">아이디 찾기</button><span>·</span><button type="button" id="find-pw">비밀번호 찾기</button></div>' : ''}
       <p class="muted small">로그인 없이도 그대로 게임할 수 있어요. 로그인하면 전적·승률과 <b>오목 티어</b>가 쌓여요.</p>
     </form>`, (body) => {
     body.querySelectorAll('input[name=authtab]').forEach((r) => { r.onchange = () => openLogin(r.value); });
+    const fi = body.querySelector('#find-id'); if (fi) fi.onclick = openFindId;
+    const fp = body.querySelector('#find-pw'); if (fp) fp.onclick = () => openFindPw();
     const f = body.querySelector('#auth-form');
     f.onsubmit = async (e) => {
       e.preventDefault();
@@ -316,7 +340,104 @@ function openLogin(tab = 'login') {
       setAuth(r);
       closeModal();
       toast(tab === 'login' ? `${r.user.nickname}님, 반가워요!` : '가입 완료! 이제 전적이 쌓여요', 'ok');
+      if (tab === 'signup') {
+        // 비밀번호를 잊었을 때 쓸 복구 코드를 바로 한 번 보여 준다
+        const rc = await siteApi('/account/recovery', { password: fd.get('password') }, r.token);
+        if (rc.ok) showRecoveryCode(rc.code, { fresh: true });
+      }
       render();
+    };
+  });
+}
+
+async function siteApi(path, body, token) {
+  try {
+    const r = await fetch('/api/site' + path, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify(body || {}), cache: 'no-store' });
+    return await r.json();
+  } catch { return { ok: false, message: '서버와 연결할 수 없어요' }; }
+}
+/** 복구 코드 보여 주기 (지금 한 번만) */
+function showRecoveryCode(code, { fresh = false, renewed = false } = {}) {
+  openModal('🔐 복구 코드', `
+    <p>${fresh ? '<b>가입 완료!</b> ' : renewed ? '<b>비밀번호를 바꿨어요.</b> 쓴 코드는 끝났고, ' : ''}비밀번호를 잊었을 때 쓰는 ${renewed ? '새 ' : ''}<b>복구 코드</b>예요. <b>지금 한 번만</b> 보여요.</p>
+    <div class="rc-code mono" id="rc-code">${esc(code)}</div>
+    <p class="small"><b>📸 꼭 캡처해 두세요!</b> 이메일·전화번호를 받지 않아서, 이 코드가 있어야 혼자서 비밀번호를 바꿀 수 있어요.</p>
+    <div class="row"><button class="btn btn-outline grow" id="rc-copy">복사하기</button><button class="btn btn-gold grow" data-close>저장했어요</button></div>
+    <p class="muted tiny">잃어버렸다면 로그인한 뒤 ⚙️ 설정 → 계정 관리에서 새로 받을 수 있어요 (새로 받으면 예전 코드는 못 써요).</p>`, (b) => {
+    b.querySelector('#rc-copy').onclick = async () => { try { await navigator.clipboard.writeText(code); toast('복사했어요. 메모장 같은 곳에 붙여 두세요', 'ok'); } catch { prompt('복사해 두세요', code); } };
+    b.querySelectorAll('[data-close]').forEach((x) => { x.onclick = closeModal; });
+  });
+}
+function openFindId() {
+  openModal('🔎 아이디 찾기', `
+    <form class="form" id="fid-form">
+      <p class="muted small">가입할 때 정한(또는 지금 쓰는) <b>닉네임</b>을 적으면 아이디 일부를 알려 줘요.</p>
+      <label class="field"><span>닉네임</span><input class="input" name="nickname" maxlength="10" required autocomplete="off" placeholder="게임에서 보이는 이름"></label>
+      <button class="btn btn-gold btn-lg">아이디 찾기</button>
+      <div id="fid-out"></div>
+      <div class="auth-links"><button type="button" data-go="login">로그인하기</button><span>·</span><button type="button" data-go="pw">비밀번호 찾기</button></div>
+    </form>`, (body) => {
+    const f = body.querySelector('#fid-form');
+    body.querySelector('[data-go=login]').onclick = () => openLogin();
+    body.querySelector('[data-go=pw]').onclick = () => openFindPw();
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const r = await siteApi('/find-id', { nickname: new FormData(f).get('nickname') });
+      const out = body.querySelector('#fid-out');
+      if (!r.ok) { out.innerHTML = `<p class="find-result small">${esc(r.message || '찾지 못했어요')}</p>`; return; }
+      out.innerHTML = `<div class="find-result">내 아이디는 <b class="mono">${esc(r.masked)}</b><br><small class="muted">가려진(***) 부분은 직접 떠올려 주세요 · ${new Date(r.createdAt).toLocaleDateString('ko-KR')} 가입</small></div>`;
+    };
+  });
+}
+function openFindPw(username = '') {
+  openModal('🔑 비밀번호 찾기', `
+    <form class="form" id="fpw-form">
+      <p class="muted small">가입할 때 받은 <b>복구 코드</b>(ABCDE-FGHJK 모양)로 새 비밀번호를 정해요.</p>
+      <label class="field"><span>아이디</span><input class="input" name="username" maxlength="16" required autocomplete="username" autocapitalize="off" value="${esc(username)}"></label>
+      <label class="field"><span>복구 코드</span><input class="input mono" name="code" maxlength="14" required autocomplete="off" autocapitalize="characters" placeholder="ABCDE-FGHJK"></label>
+      <label class="field"><span>새 비밀번호</span><input class="input" type="password" name="next" maxlength="64" required autocomplete="new-password" placeholder="6자 이상"></label>
+      <label class="field"><span>새 비밀번호 확인</span><input class="input" type="password" name="next2" maxlength="64" required autocomplete="new-password"></label>
+      <button class="btn btn-gold btn-lg">비밀번호 바꾸기</button>
+      <p class="muted tiny">복구 코드를 5번 틀리면 1시간 동안 잠겨요.</p>
+    </form>
+    <div class="divider"><span>복구 코드가 없어요</span></div>
+    <button class="btn btn-outline" id="fpw-ask">🙋 운영자에게 초기화 요청하기</button>
+    <div class="auth-links"><button type="button" data-go="id">아이디 찾기</button><span>·</span><button type="button" data-go="login">로그인하기</button></div>`, (body) => {
+    const f = body.querySelector('#fpw-form');
+    body.querySelector('[data-go=id]').onclick = openFindId;
+    body.querySelector('[data-go=login]').onclick = () => openLogin();
+    body.querySelector('#fpw-ask').onclick = () => openResetRequest(new FormData(f).get('username') || '');
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(f);
+      if (fd.get('next') !== fd.get('next2')) { toast('새 비밀번호가 서로 달라요', 'error'); return; }
+      const btn = f.querySelector('button:not([type=button])'); btn.disabled = true;
+      const r = await siteApi('/reset-password', { username: fd.get('username'), code: fd.get('code'), next: fd.get('next') });
+      btn.disabled = false;
+      if (!r.ok) { toast(r.message || '다시 해 주세요', 'error'); return; }
+      setAuth(r);
+      toast(`${r.user.nickname}님, 비밀번호를 바꿨어요! 다른 기기는 로그아웃됐어요`, 'ok');
+      showRecoveryCode(r.code, { renewed: true });
+      render();
+    };
+  });
+}
+function openResetRequest(username = '') {
+  openModal('🙋 운영자에게 요청', `
+    <form class="form" id="rr-form">
+      <p class="muted small">운영자(찬)가 확인하고 <b>임시 비밀번호</b>를 만들어 줘요. 누구인지 알아볼 수 있게 적어 주세요.</p>
+      <label class="field"><span>아이디</span><input class="input" name="username" maxlength="16" required autocomplete="username" autocapitalize="off" value="${esc(username)}"></label>
+      <label class="field"><span>연락 방법 · 메모</span><textarea class="input" name="note" maxlength="200" rows="3" required placeholder="예: 카톡 아이디 chan123 / 찬이 친구 민수예요"></textarea></label>
+      <button class="btn btn-gold btn-lg">요청 보내기</button>
+      <p class="muted tiny">받은 임시 비밀번호로 로그인한 뒤 ⚙️ 설정 → 계정 관리에서 꼭 새 비밀번호로 바꿔 주세요.</p>
+    </form>`, (body) => {
+    const f = body.querySelector('#rr-form');
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(f);
+      const r = await siteApi('/reset-request', { username: fd.get('username'), note: fd.get('note') });
+      if (!r.ok) { toast(r.message || '다시 해 주세요', 'error'); return; }
+      openModal('🙋 보냈어요', '<div class="empty-note">📨<p><b>요청을 보냈어요!</b><br>운영자가 확인하면 적어 준 연락처로 임시 비밀번호를 알려 줄 거예요.</p><button class="btn btn-gold btn-lg" data-close>확인</button></div>', (b) => { b.querySelector('[data-close]').onclick = closeModal; });
     };
   });
 }
@@ -404,7 +525,7 @@ async function boot() {
   const qs = new URLSearchParams(location.search);
   if (qs.get('t') && qs.get('p')) {
     LS.set(sessKey(code), { token: qs.get('t'), playerId: qs.get('p') });
-    history.replaceState(null, '', '/r/' + code);
+    nav('/r/' + code);
   }
   S.session = LS.get(sessKey(code));
   if (S.session) {
@@ -587,7 +708,19 @@ function flyPotTo(winners) {
 }
 
 // ── 화면 그리기 ───────────────────────────────────────
+// 다른 화면으로 바뀔 때만 살짝 페이드 인 (같은 화면을 다시 그릴 때는 그대로)
+function animateIn(soft) {
+  if (gws.reduceMotion()) return;
+  const cls = soft ? 'view-in-soft' : 'view-in';
+  $app.classList.remove('view-in', 'view-in-soft');
+  void $app.offsetWidth;
+  $app.classList.add(cls);
+  clearTimeout(animateIn.t);
+  animateIn.t = setTimeout(() => $app.classList.remove(cls), 400);
+}
 function render() {
+  const vkey = S.view === 'room' ? 'room:' + (S.state ? S.state.room.phase : '-') : S.view;
+  if (vkey !== S.lastVKey) { const first = !S.lastVKey || S.lastVKey === 'boot'; S.lastVKey = vkey; if (!first || vkey !== 'home') animateIn(S.view === 'room'); }
   if (S.view !== 'room') S.gameMounted = false;
   document.body.dataset.theme = S.view === 'room' && S.state ? gameOf(S.state) : S.view === 'home' || S.view === 'admin' ? 'hub' : (S.game || 'holdem');
   // 배경음악: 메인은 메인 곡, 게임 화면·게임방은 그 게임 곡
@@ -614,7 +747,7 @@ function render() {
 function logoHTML(small = false) {
   return `<div class="logo ${small ? 'logo-sm' : ''}">
     <img class="logo-icon" src="/img/gw-icon-192.png" alt="" onerror="this.remove()">
-    <div class="logo-text"><span class="logo-ko">${small ? '게임월드' : '찬이의 게임월드'}</span><span class="logo-en">CHAN'S GAME WORLD</span></div>
+    <div class="logo-text">${small ? '<span class="logo-ko">게임월드</span>' : '<span class="logo-ko logo-pop" data-text="찬이의 게임월드">찬이의 게임월드</span>'}<span class="logo-en">CHAN'S GAME WORLD</span></div>
   </div>`;
 }
 
@@ -629,6 +762,42 @@ const GAME_RULES = {
   seotda: '<p><b>두 장 섯다</b>: 모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p><b>세 장 섯다</b>: 두 장을 받고 1차 베팅, 한 장을 더 받고 2차 베팅. 세 장 중 가장 좋은 두 장으로 승부해요(자동으로 골라 줘요).</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
   omok: '<p>흑이 먼저 두고, 가로·세로·대각선으로 <b>정확히 다섯 알</b>을 먼저 이으면 이겨요.</p><p>흑은 <b>삼삼</b>(열린 3이 두 개 생기는 자리)에 둘 수 없어요. 흑의 여섯 알(장목)은 승리가 아니에요.</p><p>로그인하면 대국마다 점수가 오르내리고 티어가 정해져요.</p>',
 };
+// ── 게임 들어가기: 메인이 살짝 작아지며 사라지고 → 게임 그림 로딩 화면 → 게임 화면 ──
+const GAME_ASSETS = { holdem: ['/img/felt.webp'], seotda: ['/img/bg-seotda.webp', '/img/felt-seotda.webp'], omok: ['/img/bg-omok.webp'], langbang: [] };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const preloadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = i.onerror = () => res(); i.src = src; });
+function enterGame(g) { S.game = g; LS.set('chandem:game', g); nav('/'); S.view = 'gamehome'; render(); }
+async function launchGame(g) {
+  const info = GAME_INFO[g];
+  if (!info || S.launching) return;
+  if (gws.reduceMotion()) { if (info.href) location.href = info.href; else enterGame(g); return; }
+  S.launching = true;
+  $app.classList.add('view-out');
+  const ov = document.createElement('div');
+  ov.className = 'gw-loader';
+  ov.setAttribute('role', 'status');
+  ov.innerHTML = `<div class="gl-art" style="background-image:url('/img/games/${g}.webp')"></div><div class="gl-shade"></div>
+    <div class="gl-box"><span class="gl-icon">${info.icon}</span><span class="logo-pop gl-name" data-text="${esc(info.name)}">${esc(info.name)}</span>
+      <div class="gl-bar"><i></i></div><small>${esc(info.tag)}</small></div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add('show'));
+  const bar = ov.querySelector('.gl-bar i');
+  const jobs = [`/img/games/${g}.webp`, ...(GAME_ASSETS[g] || [])].map(preloadImg);
+  if (info.href) jobs.push(fetch(info.href).then((r) => r.text()).catch(() => {})); // 랑방 대전 페이지를 미리 받아 둔다
+  let n = 0;
+  jobs.forEach((j) => j.then(() => { n++; bar.style.width = Math.round((n / jobs.length) * 85) + '%'; }));
+  requestAnimationFrame(() => { bar.style.width = '12%'; });
+  await Promise.all([Promise.race([Promise.all(jobs), wait(2500)]), wait(info.href ? 750 : 650)]);
+  bar.style.width = '100%';
+  if (info.href) { await wait(140); location.href = info.href; return; } // 로딩 화면은 그대로 두고 이동 (랑방 쪽이 페이드 인)
+  await wait(120);
+  ov.classList.add('hide'); // 먼저 터치를 통과시키고
+  $app.classList.remove('view-out');
+  enterGame(g);
+  setTimeout(() => ov.remove(), 320);
+  S.launching = false;
+}
+
 // 게임별 입장 화면
 // ── 지금 열린 방 목록 (5초마다 새로고침) ──────────────
 function roomItemHTML(r) {
@@ -657,7 +826,7 @@ async function loadRoomList(game) {
   box.querySelectorAll('[data-watch],[data-enter]').forEach((b) => {
     b.onclick = () => {
       S.wantSpectate = !!b.dataset.watch;
-      history.pushState(null, '', '/r/' + (b.dataset.watch || b.dataset.enter));
+      nav('/r/' + (b.dataset.watch || b.dataset.enter));
       boot();
     };
   });
@@ -691,9 +860,9 @@ function renderGameHome() {
   </main>`;
   bindCommon();
   startRoomList(g);
-  $app.querySelector('#to-hub').onclick = () => { S.view = 'home'; history.pushState(null, '', '/'); render(); };
-  $app.querySelector('#go-create').onclick = () => { history.pushState(null, '', '/'); S.view = 'create'; render(); };
-  $app.querySelector('#go-practice').onclick = () => { history.pushState(null, '', '/'); S.view = 'practice'; render(); };
+  $app.querySelector('#to-hub').onclick = () => { S.view = 'home'; nav('/'); render(); };
+  $app.querySelector('#go-create').onclick = () => { nav('/'); S.view = 'create'; render(); };
+  $app.querySelector('#go-practice').onclick = () => { nav('/'); S.view = 'practice'; render(); };
   $app.querySelector('#go-rules').onclick = () => openModal(`${info.name} 게임 방법`, `<div class="rules">${GAME_RULES[g]}</div>`);
   const rk = $app.querySelector('#go-rank');
   if (rk) rk.onclick = () => (S.info && S.info.accounts === false ? toast('랭킹은 로그인 기능이 켜지면 볼 수 있어요') : openRanking());
@@ -734,17 +903,12 @@ function renderHome() {
   P.bindHub($app);
   P.afterHome();
   startRoomList('');
-  $app.querySelectorAll('[data-game]').forEach((b) => {
-    b.onclick = () => {
-      if (GAME_INFO[b.dataset.game].href) { location.href = GAME_INFO[b.dataset.game].href; return; } // 랑방 대전은 따로 된 게임 화면
-      S.game = b.dataset.game; LS.set('chandem:game', S.game); history.pushState(null, '', '/'); S.view = 'gamehome'; render();
-    };
-  });
+  $app.querySelectorAll('[data-game]').forEach((b) => { b.onclick = () => launchGame(b.dataset.game); });
   $app.querySelector('#code-form').onsubmit = (e) => {
     e.preventDefault();
     const code = $app.querySelector('#code-in').value.trim().toUpperCase();
     if (code.length < 4) { toast('방 코드를 확인해 주세요', 'error'); return; }
-    history.pushState(null, '', '/r/' + code);
+    nav('/r/' + code);
     boot();
   };
 }
@@ -869,7 +1033,7 @@ function renderCreate() {
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
     LS.set(sessKey(res.code), S.session);
-    history.pushState(null, '', '/r/' + res.code);
+    nav('/r/' + res.code);
     S.view = 'room';
     render();
   };
@@ -935,7 +1099,7 @@ function renderPractice() {
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
     LS.set(sessKey(res.code), S.session);
-    history.pushState(null, '', '/r/' + res.code);
+    nav('/r/' + res.code);
     S.view = 'room';
     render();
   };
@@ -968,7 +1132,7 @@ function renderJoin() {
       <button class="btn btn-ghost" id="home">처음 화면으로</button>
     </section>
   </main>`;
-  $app.querySelector('#home').onclick = () => { history.pushState(null, '', '/'); S.code = null; S.view = 'home'; render(); };
+  $app.querySelector('#home').onclick = () => { nav('/'); S.code = null; S.view = 'home'; render(); };
   const form = $app.querySelector('#join-form');
   if (!form) return;
   bindAvatarPicker(form);
@@ -1000,7 +1164,7 @@ function renderPending() {
     await emit('room:leave');
     LS.del(sessKey(S.code));
     S.session = null;
-    history.pushState(null, '', '/');
+    nav('/');
     S.view = 'home';
     render();
   };
@@ -1013,7 +1177,7 @@ function renderMessage() {
     <p class="message">${esc(S.message)}</p>
     <button class="btn btn-gold" id="home">처음 화면으로</button>
   </main>`;
-  $app.querySelector('#home').onclick = () => { history.pushState(null, '', '/'); S.code = null; S.view = 'home'; render(); };
+  $app.querySelector('#home').onclick = () => { nav('/'); S.code = null; S.view = 'home'; render(); };
 }
 
 // ── 대기실 ───────────────────────────────────────────
@@ -1211,7 +1375,7 @@ function openExitMenu() {
       LS.del(sessKey(S.code));
       S.session = null; S.state = null; S.code = null;
       S.game = toLobby ? g : S.game;
-      history.pushState(null, '', '/');
+      nav('/');
       S.view = toLobby ? 'gamehome' : 'home';
       closeModal();
       render();
@@ -2136,12 +2300,73 @@ function celebrate(st) {
   }
 }
 
-// 뒤로가기: 방 안에서는 바로 나가지 않고 물어본다
-window.addEventListener('popstate', () => {
-  if (S.view === 'room' && S.state) { history.pushState(null, '', '/r/' + S.code); goHome(); return; }
-  if (['create', 'practice'].includes(S.view)) { S.view = S.game ? 'gamehome' : 'home'; render(); return; }
-  if (S.view === 'gamehome') { S.view = 'home'; render(); return; }
-  S.state = null; boot();
+// 뒤로가기: 보호 기록이 빠지면(= 뒤로가기를 눌렀으면) 화면에 맞게 처리하고 다시 보호를 건다
+window.addEventListener('popstate', (e) => {
+  if (H.exiting) return;
+  if (e.state && e.state.gw === 'guard') { H.armed = true; return; } // 앞으로 가기로 돌아옴
+  H.armed = false;
+  try { history.replaceState(null, '', H.url); } catch {}
+  handleBack();
+});
+function handleBack() {
+  const stay = () => armGuard();
+  if (document.querySelector('.gw-loader')) { stay(); return; }
+  if ($modal.querySelector('.modal')) {
+    if ($modal.querySelector('[data-exit-ask]')) { reallyExit(); return; } // 종료 확인 창에서 또 뒤로 → 진짜 나가기
+    closeModal(); stay(); return;
+  }
+  const raise = document.getElementById('raise-cancel');
+  if (raise) { raise.click(); stay(); return; }
+  switch (S.view) {
+    case 'room':
+      if (S.state) openExitMenu(); else toHome();
+      break;
+    case 'create': case 'practice':
+      S.view = S.game ? 'gamehome' : 'home'; nav('/'); render();
+      break;
+    case 'pending': {
+      const c = $app.querySelector('#cancel');
+      if (c) c.click(); else toHome();
+      break;
+    }
+    case 'home': askExit(); return;
+    case 'boot': break;
+    default: toHome(); // gamehome · admin · join · message
+  }
+  stay();
+}
+function toHome() { S.code = null; S.view = 'home'; nav('/'); render(); }
+function askExit() {
+  openModal('게임월드를 종료할까요?', `<div class="exit-ask" data-exit-ask>
+      <p class="center">🎮 조금 더 놀다 가요!<br><span class="muted small">다시 들어오면 로그인은 그대로예요</span></p>
+      <div class="row"><button class="btn btn-outline grow" data-close>취소</button><button class="btn btn-gold grow" data-exit-go>종료</button></div>
+    </div>`, (body) => { body.querySelector('[data-exit-go]').onclick = reallyExit; }, { onClose: () => armGuard() });
+}
+function reallyExit() {
+  H.exiting = true;
+  modalOnClose = null; closeModal();
+  let left = false;
+  window.addEventListener('pagehide', () => { left = true; }, { once: true });
+  try { history.back(); } catch {}
+  // 앞에 돌아갈 페이지가 없으면(앱으로 바로 열었을 때) 창 닫기를 시도하고, 그래도 남아 있으면 안내
+  setTimeout(() => {
+    if (left || document.visibilityState === 'hidden') return;
+    try { window.close(); } catch {}
+    setTimeout(() => {
+      if (left || document.visibilityState === 'hidden') return;
+      H.exiting = false;
+      toast('뒤로 가기를 한 번 더 누르면 종료돼요');
+    }, 250);
+  }, 400);
+}
+// 다른 페이지(랑방 대전 등)에서 뒤로 와서 저장된 화면이 그대로 복원될 때: 로딩 화면 · 전환 상태 정리
+window.addEventListener('pageshow', (e) => {
+  if (!e.persisted) return;
+  H.exiting = false;
+  H.armed = !!(history.state && history.state.gw === 'guard');
+  S.launching = false;
+  document.querySelectorAll('.gw-loader').forEach((x) => x.remove());
+  $app.classList.remove('view-out');
 });
 // 로고(찬덤)를 누르면 메인으로
 document.addEventListener('click', (e) => {
@@ -2149,17 +2374,13 @@ document.addEventListener('click', (e) => {
 });
 
 function goHome() {
-  if (S.view !== 'room' || !S.state) {
-    S.code = null; S.view = 'home';
-    history.pushState(null, '', '/');
-    render();
-    return;
-  }
+  if (S.view !== 'room' || !S.state) { toHome(); return; }
   openExitMenu();
 }
 P.init({
   S, openModal, closeModal, toast, esc, fmt, signed, render, loadMe, openLogin, setAuth, logout, sound, LS, app: $app,
-  watchRoom: (code) => { S.wantSpectate = true; history.pushState(null, '', '/r/' + code); boot(); },
+  watchRoom: (code) => { S.wantSpectate = true; nav('/r/' + code); boot(); },
+  showRecoveryCode, nav,
 });
 boot();
 

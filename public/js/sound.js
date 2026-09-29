@@ -51,7 +51,8 @@ function applyMusic() {
   if (!want) for (const a of fading) { a.pause(); fading.delete(a); }
   if (!bgm) {
     if (!want) return;
-    const file = manifest && (manifest[track] || manifest.bgm);
+    // 목록(manifest)을 아직 못 받았으면 이름 규칙(곡이름.mp3)으로 바로 시작
+    const file = manifest ? (manifest[track] || manifest.bgm) : track + '.mp3';
     if (!file) return;
     bgm = new Audio('/sounds/' + file);
     bgm.loop = true;
@@ -99,24 +100,30 @@ async function loadBuffer(name) {
   return buffers[name];
 }
 
+// 휴대폰 브라우저는 '손가락을 뗄 때(touchend/click)'만 소리 재생을 허락한다 (touchstart·pointerdown 은 안 됨).
+// 그래서 한 번 풀었어도, 소리가 아직 막혀 있으면(suspended · 음악 멈춤) 다음 터치 때 다시 시도한다.
 export function unlock() {
-  if (unlocked) return;
+  if (unlocked) {
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    if (!bgm || bgm.paused) applyMusic();
+    return;
+  }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
   master.connect(ctx.destination);
-  applyVolume();
-  if (ctx.state === 'suspended') ctx.resume();
   unlocked = true;
+  applyVolume(); // 목록을 받기 전이라도 지금(터치 안에서) 배경음악 재생을 시작한다
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   loadManifest().then(() => {
     for (const n of Object.keys(manifest)) if (!n.startsWith('bgm')) loadBuffer(n);
     applyMusic();
   });
 }
 
-['pointerdown', 'touchstart', 'keydown'].forEach((ev) => {
-  window.addEventListener(ev, unlock, { once: false, passive: true });
+['pointerdown', 'touchstart', 'pointerup', 'touchend', 'click', 'keydown'].forEach((ev) => {
+  window.addEventListener(ev, unlock, { once: false, passive: true, capture: true });
 });
 
 function playBuffer(buf, gain = 1) {

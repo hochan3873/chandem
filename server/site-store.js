@@ -83,6 +83,10 @@ class FileSiteStore {
       .sort((a, b) => b.createdAt - a.createdAt).slice(0, n);
   }
   async userCount() { return Object.keys(this.users.data.users).length; }
+  async byNickname(nickname) {
+    const n = String(nickname).toLowerCase();
+    return Object.values(this.users.data.users).find((u) => String(u.nickname).toLowerCase() === n) || null;
+  }
 }
 
 // ── PostgreSQL ──────────────────────────────────────
@@ -154,6 +158,9 @@ class PgSiteStore {
     return r.rows.map((x) => this.users.row(x));
   }
   async userCount() { return (await this.pool.query('SELECT COUNT(*)::int AS n FROM users')).rows[0].n; }
+  async byNickname(nickname) {
+    return this.users.row((await this.pool.query('SELECT * FROM users WHERE lower(nickname)=lower($1) LIMIT 1', [nickname])).rows[0]);
+  }
 }
 
 function createSiteStore(userStore, file) {

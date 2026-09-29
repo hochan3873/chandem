@@ -975,3 +975,92 @@ html.gw-reduce-motion *, html.gw-reduce-motion *::before, html.gw-reduce-motion 
 .page-head #chart-btn { flex: none; white-space: nowrap; }
 @media (max-width: 430px) { .page-head .install-btn { display: none; } .page-head .share-top .ib-text { display: none; } .page-head .share-top { padding: 6px 10px; } }
 .page > .btn-master { margin-top: 0; }
+
+/* ═══ 게임 로고처럼 또렷한 제목: 흰·노랑 글자 + 두꺼운 고동색 테두리 + 그림자 ═══ */
+.logo-pop, body[data-theme="hub"] .logo-ko.logo-pop {
+  position: relative; display: inline-block; white-space: nowrap;
+  font-family: 'Black Han Sans', var(--font); font-weight: 400; letter-spacing: .02em; line-height: 1.12;
+  background: none; -webkit-background-clip: border-box; background-clip: border-box; filter: none;
+  color: #4a1d05; -webkit-text-stroke: .14em #4a1d05; paint-order: stroke fill;
+  text-shadow: 0 .09em 0 #2c0f00, 0 .16em .22em rgba(0, 0, 0, .6);
+}
+.logo-pop::after {
+  content: attr(data-text); position: absolute; left: 0; top: 0; right: 0; bottom: 0; -webkit-text-stroke: 0; text-shadow: none;
+  background: linear-gradient(180deg, #ffffff 0%, #fffbe6 30%, #ffe45c 60%, #ffb62e 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.logo-ko.logo-pop { font-size: 2.35rem; }
+body[data-theme="hub"] .logo-en { color: #ffe3a6; font-weight: 700; text-shadow: 0 1px 0 #3a1500, 0 0 8px rgba(0, 0, 0, .6); margin-top: 9px; }
+body[data-theme="hub"] .tagline { color: #fff4de; font-weight: 700; text-shadow: 0 1px 2px rgba(0, 0, 0, .85), 0 0 12px rgba(0, 0, 0, .5); }
+@media (max-width: 370px) { .logo-ko.logo-pop, body[data-theme="hub"] .logo-ko.logo-pop { font-size: 2.05rem; } .home-hero .logo-icon { width: 56px; height: 56px; } }
+
+/* ═══ 화면 전환 ═══ */
+#app.view-in { animation: viewIn .28s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes viewIn { from { opacity: 0; transform: translateY(10px) scale(.992); } }
+#app.view-in-soft { animation: viewFade .25s ease both; }
+@keyframes viewFade { from { opacity: 0; } }
+#app.view-out { transition: opacity .22s ease, transform .22s ease; opacity: 0; transform: scale(.965); pointer-events: none; }
+html.gw-reduce-motion #app.view-in, html.gw-reduce-motion #app.view-in-soft { animation: none; }
+html.gw-reduce-motion #app.view-out { transform: none; }
+
+/* 게임 입장 로딩 화면 */
+.gw-loader { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; justify-content: center; background: #0b0816; opacity: 0; transition: opacity .25s ease; }
+.gw-loader.show { opacity: 1; }
+.gw-loader.hide { opacity: 0; pointer-events: none; }
+.gl-art { position: absolute; inset: 0; background: center / cover no-repeat; transform: scale(1.06); animation: glZoom 2.4s ease-out both; }
+@keyframes glZoom { to { transform: scale(1); } }
+.gl-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 6, 20, .15) 0%, rgba(8, 6, 20, .35) 45%, rgba(8, 6, 20, .92) 100%); }
+.gl-box { position: relative; width: min(420px, 100% - 32px); margin-bottom: max(56px, calc(env(safe-area-inset-bottom) + 40px)); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.gl-icon { font-size: 2.4rem; line-height: 1; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .6)); }
+.gl-name { font-size: 2.3rem; }
+.gl-bar { width: 100%; height: 10px; border-radius: 99px; background: rgba(255, 255, 255, .14); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5); overflow: hidden; }
+.gl-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #ff8a3d, #ffd35a); box-shadow: 0 0 12px rgba(255, 190, 80, .8); transition: width .25s ease; }
+.gl-box small { color: #ffe9c8; font-weight: 700; text-shadow: 0 1px 2px #000; }
+
+/* ═══ 첫 로딩 화면 (스플래시) ═══ */
+#splash { display: none; }
+html.splashing #splash {
+  display: block; position: fixed; inset: 0; z-index: 100; overflow: hidden; color: #fff; cursor: pointer; user-select: none; -webkit-user-select: none;
+  background: linear-gradient(180deg, #ffcf6b 0%, #ffb347 38%, #ff8a3d 72%, #ff6f61 100%);
+}
+html.splashing body { overflow: hidden; }
+#splash.done { opacity: 0; transform: scale(1.04); transition: opacity .45s ease, transform .45s ease; pointer-events: none; }
+.sp-art { position: absolute; inset: 0; background: url('/img/splash.webp') center top / cover no-repeat; animation: spArt 7s ease-out both; }
+@keyframes spArt { from { transform: scale(1.07); } to { transform: scale(1); } }
+.sp-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10, 8, 40, .35) 0%, rgba(10, 8, 40, 0) 26%, rgba(10, 8, 40, 0) 72%, rgba(12, 6, 24, .7) 100%); }
+#splash.no-art .sp-art { display: none; }
+.sp-icon { display: none; }
+#splash.no-art .sp-icon { display: block; position: absolute; left: 50%; top: 44%; width: min(46vw, 220px); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 22%; box-shadow: 0 18px 40px rgba(160, 60, 0, .45), 0 0 0 4px rgba(255, 255, 255, .6); animation: spBob 2.4s ease-in-out infinite; }
+@keyframes spBob { 50% { transform: translate(-50%, -54%); } }
+.sp-logo { position: absolute; left: 0; right: 0; top: max(7vh, calc(env(safe-area-inset-top) + 28px)); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 16px; animation: spDrop .7s cubic-bezier(.2, 1.3, .4, 1) both .1s; }
+@keyframes spDrop { from { opacity: 0; transform: translateY(-24px) scale(.9); } }
+.sp-title { font-size: clamp(2.3rem, 11.5vw, 3.4rem); }
+.sp-en { font-size: .72rem; font-weight: 900; letter-spacing: .42em; color: #fff2cf; text-shadow: 0 1px 0 #4a1d05, 0 0 10px rgba(0, 0, 0, .7); }
+.sp-bottom {
+  position: absolute; left: 12px; right: 12px; bottom: max(14px, env(safe-area-inset-bottom)); margin: 0 auto; max-width: 440px;
+  padding: 12px 16px 12px; border-radius: 18px; background: rgba(18, 10, 34, .62); border: 1px solid rgba(255, 220, 160, .28);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); text-align: center;
+}
+.sp-bar { position: relative; height: 12px; border-radius: 99px; background: rgba(255, 255, 255, .16); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .6); overflow: hidden; }
+.sp-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, #ff8a3d, #ffd35a 70%, #fff3b0); box-shadow: 0 0 12px rgba(255, 200, 90, .9); }
+.sp-bar i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent); background-size: 60px 100%; animation: spShine 1.1s linear infinite; }
+@keyframes spShine { from { background-position: -60px 0; } to { background-position: 400px 0; } }
+.sp-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 7px; font-size: .78rem; font-weight: 700; color: #ffe6bf; }
+.sp-tip { min-height: 2.6em; margin: 6px 0 0; font-size: .84rem; line-height: 1.35; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); transition: opacity .25s ease; }
+.sp-tip.swap { opacity: 0; }
+.sp-go { display: none; font-family: 'Black Han Sans', var(--font); font-size: 1.35rem; letter-spacing: .04em; color: #fff; padding: 6px 0 4px; text-shadow: 0 2px 0 #4a1d05, 0 0 14px rgba(255, 170, 60, .9); animation: spPulse 1.3s ease-in-out infinite; }
+@keyframes spPulse { 50% { opacity: .55; transform: scale(.97); } }
+#splash:not(.loading) .sp-bar, #splash:not(.loading) .sp-meta { visibility: hidden; }
+#splash.ready .sp-go { display: block; }
+#splash.ready .sp-bar, #splash.ready .sp-meta { display: none; }
+.sp-fine { margin: 4px 0 0; font-size: .66rem; color: rgba(255, 236, 210, .7); }
+html.gw-reduce-motion #splash *, html.gw-reduce-motion #splash { animation: none !important; }
+
+/* 복구 코드 · 찾기 */
+.auth-links { display: flex; justify-content: center; gap: 6px; align-items: center; font-size: .86rem; }
+.auth-links button { background: none; border: 0; padding: 6px 4px; color: var(--gold-hi); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.auth-links span { color: var(--muted); }
+.rc-code { margin: 12px 0; padding: 16px 10px; border-radius: 14px; text-align: center; font-size: 1.7rem; font-weight: 900; letter-spacing: .14em; background: rgba(255, 220, 120, .12); border: 2px dashed #ffc14d; color: #fff1c4; user-select: all; }
+.find-result { margin: 10px 0 0; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, .06); text-align: center; }
+.find-result b { font-size: 1.3rem; letter-spacing: .06em; color: #fff1c4; }
+.ad-fb.is-pwreset { border-left-color: #ff6f61; background: rgba(255, 111, 97, .08); }

@@ -23,12 +23,36 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Black+Han+Sans&family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="preload" as="image" href="/img/splash.webp">
+  <script>
+    // 첫 로딩 화면: 한 세션에 한 번만. ?nosplash · 자동 테스트(webdriver)면 건너뜀 (?splash 로 강제 표시)
+    (function () {
+      var h = document.documentElement, q = location.search;
+      try {
+        var skip = /[?&]nosplash\b/.test(q) || (navigator.webdriver && !/[?&]splash\b/.test(q)) || sessionStorage.getItem('gw:splashed');
+        h.classList.add(skip ? 'no-splash' : 'splashing');
+      } catch (e) { h.classList.add('no-splash'); }
+    })();
+  </script>
 </head>
 <body>
+  <div id="splash" role="button" tabindex="0" aria-label="찬이의 게임월드 · 화면을 터치해서 시작">
+    <div class="sp-art"></div>
+    <img class="sp-icon" src="/img/gw-icon-512.png" alt="">
+    <div class="sp-logo"><span class="logo-pop sp-title" data-text="찬이의 게임월드">찬이의 게임월드</span><span class="sp-en">CHAN'S GAME WORLD</span></div>
+    <div class="sp-bottom">
+      <div class="sp-bar"><i></i></div>
+      <div class="sp-meta"><span data-sp-what>준비하는 중…</span><span data-sp-pct>0%</span></div>
+      <div class="sp-go">화면을 터치해서 시작</div>
+      <p class="sp-tip" data-sp-tip>팁: 친구에게 초대 링크만 보내면 가입 없이 바로 같이 놀 수 있어요</p>
+      <p class="sp-fine">칩과 코인은 현금 가치가 없는 친목용 점수예요</p>
+    </div>
+  </div>
   <div id="app" aria-live="polite"></div>
   <div id="modal-root"></div>
   <div id="toast" role="status" aria-live="assertive"></div>
   <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/js/splash.js"></script>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>
