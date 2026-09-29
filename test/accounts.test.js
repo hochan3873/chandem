@@ -416,3 +416,37 @@ test('랑방 대전 모집 · 미션 · 시즌 · 성급 · 출석 · 상자 · 
   assert.ok(r.profile.titles.includes('wchamp'), '1위 칭호');
   assert.equal((await lbPost('/api/langbang/weekly/claim', u.token, {})).ok, false, '두 번은 안 됨');
 });
+
+test('랑방 대전 헬 모드: 일반 ★★★ 가 있어야 · 보상 ×3 · 헬 별은 따로 · 새 장비 세트는 그 챕터부터', async () => {
+  const R = require('../server/langbang-rules');
+  const u = await lbUser('lbhell', '헬러');
+  Object.assign((await u.raw()).langbang || ((await u.raw()).langbang = {}), { stages: { 1: 3, 2: 2 } });
+  let r = await lbPost('/api/langbang/result', u.token, clear(2, 3, { hell: true }));
+  assert.equal(r.ok, false, '2-2 는 ★★ 라 헬 안 열림');
+  assert.match(r.message, /헬/);
+  r = await lbPost('/api/langbang/result', u.token, clear(1, 2, { hell: true }));
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.reward.hell, true);
+  assert.equal(r.reward.total, R.hellReward(1, 2, 0, 0).total);
+  assert.equal(r.profile.hell[1], 2, '헬 별 따로');
+  assert.equal(r.profile.stages[1], 3, '일반 별은 그대로');
+  assert.ok(r.reward.drops.every((d) => d.r !== 'common'), '희귀 이상');
+  // 새 장비 세트: 1장에선 안 떨어진다
+  for (let sd = 0; sd < 200; sd++) for (const d of R.rollDrops(sd, 5, 3, true, false)) assert.ok(!R.GEAR[d.t].ch, '1장에서 4장 장비 없음');
+  let seen = false;
+  for (let sd = 0; sd < 400 && !seen; sd++) for (const d of R.rollDrops(sd, 45, 3, true, false)) if (R.GEAR[d.t].ch === 5) seen = true;
+  assert.ok(seen, '5장에선 5장 장비');
+  // 예전 덱 칸 → 새 칸
+  (await u.raw()).langbang.items = { slot6: 1, slot7: 1 };
+  const me = await get('/api/langbang/me', u.token);
+  assert.equal(me.profile.deckSlots, 6, '옛 7칸 → 새 6칸');
+});
+
+test('랑방 대전 덱 서버 저장: 이상한 값은 정리', async () => {
+  const u = await lbUser('lbdeck', '덱장');
+  const r = await lbPost('/api/langbang/decks', u.token, { i: 1, decks: [['staff', 'gunman', 'staff', 'hack'], [], []] });
+  assert.equal(r.ok, true, r.message);
+  assert.deepEqual(r.profile.decks.decks[0], ['staff', 'gunman', null, null, null, null]);
+  assert.equal(r.profile.decks.i, 1);
+  assert.equal((await lbPost('/api/langbang/decks', u.token, { decks: 'x' })).ok, false);
+});

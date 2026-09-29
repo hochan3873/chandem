@@ -40,8 +40,13 @@ function seeded(seed = 1) {
       else if (c.kind === 'heroLv') {
         const h = S.hasHero(g, c.hero);
         v = 6 + (h.lv + 1 === 3 || h.lv + 1 === 5 ? 2.5 : 0) + (h.def.hidden ? 1 : 0) + (h.id === g.partner ? 1 : 0);
-      } else if (c.kind === 'global') {
-        v = { dmg: 6.5, spd: 6, boss: 8, pierce: 7.5, crit: 5, gunExtra: 7, hp: g.base.hp / g.base.max < 0.6 ? 6 : 3.5, regen: 4.5, ult: 3.5, exp: 3.5, slow: 4, charmRes: 2.5 }[c.id] || 2;
+      } else if (c.kind === 'evo') v = 9.5;
+      else if (c.kind === 'global') {
+        const tagN = (t) => g.heroes.filter((h) => (D.HERO_TAGS[h.id] || []).includes(t)).length;
+        if (c.attr) v = 4.2 + 1.6 * (g.attrCount[c.attr] || 0);
+        else if (c.tag && c.tag !== 'boss') v = 2.6 + 1.7 * tagN(c.tag);
+        else v = { dmg: 6.5, spd: 6, boss: 8, pierce: 7.5, crit: 5, gunExtra: 7, hp: g.base.hp / g.base.max < 0.6 ? 6 : 3.5, regen: 4.5, ult: 3.5, exp: 3.5, slow: 4, charmRes: 2.5,
+          tag_boss: g.stage % 5 === 0 ? 6.5 : 3.5, swarm: 5, risk_allin: g.base.hp / g.base.max > 0.75 ? 6.5 : 2, risk_overtime: g.wave <= 2 ? 4.5 : 2, risk_glass: 4.5, econ_bonus: 6 }[c.id] || 2;
       } else if (c.kind === 'filler') v = c.id === 'fillHeal' && g.base.hp / g.base.max < 0.6 ? 5 : 1;
       v += rng() * 1.5;
       if (v > bv) { bv = v; best = i; }
@@ -51,6 +56,7 @@ function seeded(seed = 1) {
 
   // 스킬 자동 사용 (--skills=1): 준비되면 바로. 찍는 스킬은 진상이 가장 몰린 곳에
   const SKILLS = opt('skills', 0) > 0;
+  const SKILL_EVERY = opt('skillevery', 6); // 스킬 확인 간격(스텝): 90 이면 보통 사람처럼 1.5초쯤 늦게
   function densest(g, r) {
     let best = null, bn = 0;
     for (const e of g.enemies) {
@@ -99,7 +105,7 @@ function seeded(seed = 1) {
         if (g.welcomePicks > 0) g.welcomePicks--;
       }
       if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
-      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % 6) === 0) aiSkills(g);
+      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % SKILL_EVERY) === 0) aiSkills(g);
       if (o.stopWave && g.wave >= o.stopWave && g.phase === 'break') break;
     }
     const heroes = {};
@@ -337,22 +343,25 @@ function seeded(seed = 1) {
   // ── 7) 최종 표: 챕터별 클리어율 (팀 구성 · 스킬), 평균 시간, 스테이지 곡선
   function final() {
     const N = opt('seeds', 3);
-    const pool = ['staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun'];
-    // 덱 5칸: 가진 멤버(방장 포함) 중 추천 덱 / 상성 제일 나쁜 덱
+    const pool = (process.argv.find((x) => x.startsWith('--pool=')) || '').slice(7).split(',').filter(Boolean);
+    if (!pool.length) pool.push('staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu');
+    // 덱 칸: 1~4장 4칸 · 5장 5칸(5번째 칸 삼) · 6장 6칸
+    const slotsAt = (s) => Math.min(6, Math.max(4, D.chapterOf(s) - 1));
     const teamFor = (s, best) => {
       const sc = D.attrScores(s);
+      const n = slotsAt(s);
       const avail = ['bangjang', ...pool].filter((id) => !D.HERO_UNLOCK[id] || D.HERO_UNLOCK[id] < s);
-      if (best) return D.recommendTeam(s, avail, 5);
+      if (best) return D.recommendTeam(s, avail, n);
       let worst = null, wv = 1e9;
       const val = (c) => c.reduce((x, id) => x + sc[D.HEROES[id].attr], 0);
-      const pick = (st, cur) => { if (cur.length === Math.min(5, avail.length)) { const v = val(cur); if (v < wv) { wv = v; worst = cur.slice(); } return; } for (let i = st; i < avail.length; i++) { cur.push(avail[i]); pick(i + 1, cur); cur.pop(); } };
+      const pick = (st, cur) => { if (cur.length === Math.min(n, avail.length)) { const v = val(cur); if (v < wv) { wv = v; worst = cur.slice(); } return; } for (let i = st; i < avail.length; i++) { cur.push(avail[i]); pick(i + 1, cur); cur.pop(); } };
       pick(0, []);
       return worst;
     };
     const kinds = [['좋은 팀+스킬', true, true], ['좋은 팀', true, false], ['나쁜 팀', false, false]];
     const per = {}; const curve = [];
     const only = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
-    for (let s = 1; s <= 30; s++) {
+    for (let s = 1; s <= D.STAGE_COUNT; s++) {
       if (only.length && !only.includes(s)) continue;
       const m = metaAt(s);
       const meta = Object.fromEntries(Object.keys(D.HEROES).map((id) => [id, m]));
@@ -372,10 +381,11 @@ function seeded(seed = 1) {
     }
     console.log(`
 ■ 최종 — 강화 = 스테이지×${MF} (+아이템 조금), 스테이지마다 ${N}판, 카드는 ${POLICY}`);
-    console.log(pad('팀', 16) + [1, 2, 3].map((c) => pad(`${c}장 클리어(별)`, 18)).join('') + '클리어 판 평균 시간');
+    const CH = Array.from({ length: D.CHAPTERS.length }, (_, i) => i + 1);
+    console.log(pad('팀', 16) + CH.map((c) => pad(`${c}장(별)`, 14)).join('') + '평균 시간');
     for (const [k] of kinds) {
       let tt = 0, tw = 0;
-      const cells = [1, 2, 3].map((c) => { const P = per[k + c]; if (!P) return pad('-', 18); tt += P.t; tw += P.tw; return pad(`${Math.round((P.w / P.n) * 100)}% (${(P.st / Math.max(1, P.w)).toFixed(1)}★)`, 18); });
+      const cells = CH.map((c) => { const P = per[k + c]; if (!P) return pad('-', 14); tt += P.t; tw += P.tw; return pad(`${Math.round((P.w / P.n) * 100)}% (${(P.st / Math.max(1, P.w)).toFixed(1)}★)`, 14); });
       console.log(pad(k, 16) + cells.join('') + `${Math.floor(tt / tw / 60)}분 ${Math.round((tt / tw) % 60)}초`);
     }
     console.log('스테이지별 클리어율 % (좋은+스킬/좋은/나쁜):');

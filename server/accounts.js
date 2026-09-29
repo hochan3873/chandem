@@ -55,6 +55,7 @@ function emptyLangbang() {
     stages: {}, maxStage: 0, totalStars: 0, stageAt: 0, clears: 0, // 스테이지: { 번호: 최고 별 }
     seen: [], // 도감: 만나 본 진상
     gear: [], gearSeq: 0, equip: {}, perfects: {}, // 장비 가방 · 장착 { 영웅: { w, a } } · 퍼펙트한 스테이지
+    hell: {}, // 헬 모드 별 { 스테이지: 별 }
     lastResultAt: 0,
   };
 }
@@ -87,6 +88,8 @@ function normLb(raw) {
     }
   }
   lb.equip = eq;
+  lb.hell = {};
+  for (const [k, v] of Object.entries((raw && raw.hell) || {})) { const n = Math.floor(Number(k)), st = Math.max(0, Math.min(3, v | 0)); if (n >= 1 && n <= LBR.STAGE_COUNT && st > 0 && (lb.stages[n] | 0) >= 3) lb.hell[n] = st; }
   lb.perfects = {};
   for (const k of Object.keys((raw && raw.perfects) || {})) if (+k >= 1 && +k <= LBR.STAGE_COUNT) lb.perfects[+k] = true;
   lb.totalStars = Object.values(lb.stages).reduce((a, b) => a + b, 0);
@@ -455,15 +458,17 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         // 미션용 숫자도 서버가 상한을 건다
         const bosses = Math.min(int(body.bossKills, 99), mode === 'stage' ? LIVE.stageBossN(stage) : mode === 'weekly' ? 20 : Math.floor(wave / 5) + 1);
         const skills = LIVE.skillCap(body.skills, dur);
-        const prevStars = mode === 'stage' ? before.stages[stage] || 0 : 0;
-        // 퍼펙트(입구 무피해)는 ★★★ 일 때만 인정
-        const perfect = mode === 'stage' && stars === 3 && body.perfect === true;
+        const hell = mode === 'stage' && body.hell === true;
+        if (hell && !LBR.hellOpen(before.stages, stage)) { out = { error: '헬 모드는 일반 ★★★ 로 깬 스테이지만 열려요' }; return; }
+        const prevStars = mode === 'stage' ? (hell ? before.hell[stage] : before.stages[stage]) || 0 : 0;
+        // 퍼펙트(입구 무피해)는 ★★★ 일 때만 인정 (헬 모드는 따로 없음)
+        const perfect = mode === 'stage' && !hell && stars === 3 && body.perfect === true;
         const firstPerfect = perfect && !before.perfects[stage];
-        const reward = mode === 'stage' ? LBR.stageReward(stage, stars, prevStars, before.items.coupon, perfect, firstPerfect)
+        const reward = mode === 'stage' ? (hell ? LBR.hellReward(stage, stars, prevStars, before.items.coupon) : LBR.stageReward(stage, stars, prevStars, before.items.coupon, perfect, firstPerfect))
           : mode === 'weekly' ? { total: LIVE.weeklyCoins(wave) } : { total: LBR.endlessReward(wave, before.items.coupon) };
         let weeklyBest = false;
         // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
-        const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}`), stage, stars, perfect, firstPerfect) : [];
+        const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];
         const got = [];
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
@@ -472,7 +477,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           if (Array.isArray(body.seen)) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => LBR.ENEMY_IDS.includes(t))])];
           if (mode === 'stage') {
             lb.clears++;
-            lb.stages[stage] = Math.max(prevStars, stars);
+            if (hell) lb.hell[stage] = Math.max(prevStars, stars);
+            else lb.stages[stage] = Math.max(prevStars, stars);
             if (perfect) lb.perfects[stage] = true;
             for (const d of drops) {
               if (lb.gear.length >= LBR.GEAR_BAG) { const v = LBR.gearSellValue(d.r, 0); lb.coins += v; got.push({ ...d, sold: v }); continue; }
@@ -500,9 +506,9 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           for (const d of got) if (d.r === 'legend') lb.cnt.legends = (lb.cnt.legends | 0) + 1;
         });
         const lb = stats.langbang;
-        const first = mode === 'stage' && !prevStars;
+        const first = mode === 'stage' && !prevStars && !hell;
         out = {
-          profile: lbView(lb, id), reward: { ...reward, firstClear: first, stage, stars, isPerfect: perfect, firstPerfect, drops: got },
+          profile: lbView(lb, id), reward: { ...reward, firstClear: first, stage, stars, isPerfect: perfect, firstPerfect, drops: got, hell },
           levelUp: lb.level > before.level, rank: mode === 'weekly' ? await store.rankWeekly(wk.wi, id) : await store.rankLangbang(mode, id),
           weekly: wk ? { score: wk.score, best: lb.weekly.best, newBest: weeklyBest } : null,
           unlockedHeroes: first ? Object.keys(LBR.HERO_UNLOCK).filter((h) => LBR.HERO_UNLOCK[h] === stage && !LBR.heroUnlocked(before, h)) : [],
@@ -743,6 +749,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/season/claim', wrap((req) => lbSeason(tok(req), b(req).tier === 'all' ? 'all' : Math.floor(Number(b(req).tier) || 0))));
     r.post('/hero/star', wrap((req) => lbStar(tok(req), String(b(req).hero || ''))));
     r.post('/cosmetic', wrap((req) => lbCosmetic(tok(req), b(req).title === undefined ? undefined : String(b(req).title || ''), b(req).frame === undefined ? undefined : String(b(req).frame || ''))));
+    r.post('/decks', wrap((req) => lbLive(tok(req), (lb) => { const d = LIVE.cleanDecks(b(req)); if (!d) return { error: '잘못된 덱이에요' }; lb.decks = d; return {}; })));
     r.post('/chest/claim', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.claimChest(lb, b(req).ch, b(req).n, id, now))));
     r.post('/checkin', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.claimCheckin(lb, id, now))));
     r.post('/weekly/start', wrap((req) => lbWeeklyStart(tok(req))));

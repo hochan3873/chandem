@@ -173,10 +173,10 @@ function playOut(g, maxSec = 900) {
   return g;
 }
 
-test('스테이지 30개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽게 오르고 너무 튀지 않는다', () => {
-  assert.equal(D.STAGE_COUNT, 30);
+test('스테이지 60개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽게 오르고 너무 튀지 않는다', () => {
+  assert.equal(D.STAGE_COUNT, 60);
   let prevLast = 0;
-  for (let s = 1; s <= 30; s++) {
+  for (let s = 1; s <= 60; s++) {
     assert.equal(D.parseStage(D.stageLabel(s)), s);
     let prev = 0;
     for (let w = 1; w <= D.STAGE_WAVES; w++) {
@@ -184,9 +184,9 @@ test('스테이지 30개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
       assert.ok(def.g.length > 0);
       for (const [type, n] of def.g) { assert.ok(D.ENEMIES[type], type); assert.ok(n > 0); }
       assert.ok(def.level > prev, `${D.stageLabel(s)} W${w} 난이도 증가`);
-      assert.ok(def.level <= 29, `${D.stageLabel(s)} 난이도 ${def.level} ≤ 29 (스테이지는 무한 모드 가산 없음)`);
-      assert.ok(D.hpMul(def.level, true) < 32, '체력 배율 32배 미만');
-      if (w === 1) assert.ok(def.level <= 12, `${D.stageLabel(s)} 첫 웨이브는 새로 시작한 멤버도 버티게 (${def.level.toFixed(1)})`);
+      assert.ok(def.level <= (s <= 30 ? 29 : 40), `${D.stageLabel(s)} 난이도 ${def.level} (스테이지는 무한 모드 가산 없음)`);
+      assert.ok(D.hpMul(def.level, true) < (s <= 30 ? 32 : 60), '체력 배율');
+      if (w === 1) assert.ok(def.level <= (s <= 30 ? 12 : 22), `${D.stageLabel(s)} 첫 웨이브는 새로 시작한 멤버도 버티게 (${def.level.toFixed(1)})`);
       prev = def.level;
       const boss = w === 5 && [5, 10].includes(D.stageNo(s));
       assert.equal(!!def.boss, boss, `${D.stageLabel(s)} W${w} 보스`);
@@ -201,7 +201,10 @@ test('스테이지 30개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
   assert.ok(!has(7, 'thug') && has(8, 'thug'));
   assert.ok(!has(10, 'scammer') && has(11, 'scammer') && has(12, 'inpi_gossip') && has(14, 'inpi_clique') && has(17, 'inpi_dictator'));
   assert.deepEqual(D.stageBosses(30), ['boss_inpi', 'boss_gapjil']);
-  assert.equal(D.parseStage('4-1'), 0);
+  assert.deepEqual(D.stageBosses(60), ['boss_soloparty', 'boss_jusa']);
+  assert.ok(has(31, 'fakesingle') && has(41, 'sales') && has(51, 'drunk_run'), '4~6장 새 진상');
+  assert.equal(D.parseStage('6-10'), 60);
+  assert.equal(D.parseStage('7-1'), 0);
   assert.equal(D.parseStage('2-11'), 0);
 });
 
@@ -457,7 +460,7 @@ test('보상 계산: 첫 클리어 보너스가 크고, 새 별마다 보너스,
   assert.ok(first.first > 0 && first.newStars === 2);
   assert.equal(again.first, 0);
   assert.equal(again.newStars, 0);
-  assert.equal(again.total, again.clear);
+  assert.equal(again.total, again.clear + again.mid, "다시 깨면 기본 + 중간 보스 보너스만");
   assert.equal(more.newStars, 1);
   assert.ok(more.total > again.total && first.total > more.total);
   assert.ok(D.stageReward(30, 3, 3).total > D.stageReward(1, 3, 3).total * 5, '뒤 스테이지일수록 많이');
@@ -585,7 +588,7 @@ test('공격 방식: 방장 음파는 여러 명 · 건전녀 폭탄은 떨어�
   const pack = [0, 1, 2].map((i) => still(g, 'drunk', 170 + i * 12, g.rowY - 200));
   S.fire(g, g.heroes[0], pack[1]);
   assert.ok(pack.every((e) => e.hp === e.maxHp), '던진 직후엔 아직');
-  run(g, 0.8);
+  run(g, 1.0);
   assert.ok(pack.filter((e) => e.hp < e.maxHp).length >= 2, '떨어지며 범위 피해');
   g = bare(['myunghoon']);
   const line = [0, 1, 2, 3].map((i) => still(g, 'thug', 150 + i * 40, g.rowY - 180));
@@ -966,7 +969,7 @@ test('live: 모집 확률 · 10연속 영웅 등급 확정 · 천장(50/200) · 
   assert.ok(!lb.owned.hochan);
   lb = mk(12); lb.pity.hero = 49;
   assert.equal(L.gachaPull(lb, 1, 'coin', 'u2', 0).results[0].k, 'epicHero', '50회 천장');
-  lb = mk(30); lb.pity.legend = 199;
+  lb = mk(60); lb.pity.legend = 199;
   assert.equal(L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0].hero, 'hochan', '200회 천장');
   assert.equal(lb.owned.hochan, true);
   assert.ok(L.heroUnlocked(lb, 'hochan'));
@@ -976,7 +979,7 @@ test('live: 모집 확률 · 10연속 영웅 등급 확정 · 천장(50/200) · 
   lb = mk(12); lb.coins = 100; lb.tickets = 0;
   assert.match(L.gachaPull(lb, 1, 'coin', 'u', 0).error, /코인/);
   assert.match(L.gachaPull(lb, 10, 'ticket', 'u', 0).error, /모집권/);
-  lb = mk(30);
+  lb = mk(60);
   const cnt = {};
   for (let i = 0; i < 5000; i++) { lb.pity.hero = 0; lb.pity.legend = 0; const x = L.gachaPull(lb, 1, 'coin', 'r', 0).results[0]; cnt[x.k] = (cnt[x.k] || 0) + 1; }
   assert.ok(cnt.epicHero / 5000 > 0.015 && cnt.epicHero / 5000 < 0.05, `영웅 멤버 ${cnt.epicHero}`);
@@ -1063,4 +1066,135 @@ test('주간 도전 판: 10웨이브 · 규칙이 시뮬레이션에 들어간�
   assert.equal(g.base.max, Math.round(D.RULES.baseHp * 0.5), '유리 입구: 절반');
   S.startWave(g, 1);
   assert.equal(S.summary(g, 1).weekly, wi);
+});
+
+// ─── 레벨업 카드 · 시너지 · 진화 · 중간 보스 · 4~6장 · 헬 모드 ─────────────
+test('카드: 4장 · 속성 결속은 그 속성 멤버가 있어야 · 진화는 Lv5 + 짝 특성 카드 · 위험 카드', () => {
+  const g = S.createGame({ rng: seeded(1201), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', 'gunman', 'gunnyeo', null, null] });
+  g.wave = 2;
+  assert.equal(S.rollCards(g).length, 4, '카드 4장');
+  const pool = S.cardPool(g);
+  assert.ok(pool.some((c) => c.id === 'syn_talk'), '말빨 멤버 2명 → 말빨 결속');
+  assert.ok(!pool.some((c) => c.id === 'syn_booze'), '술 멤버 없음 → 술 결속 없음');
+  // 같은 속성 2명: 자동 시너지 +12%
+  const base = S.buildMul(g, g.heroes.find((h) => h.id === 'gunman'));
+  assert.ok(Math.abs(S.buildMul(g, g.heroes.find((h) => h.id === 'staff')) - (1 + D.ATTR_SET[2])) < 1e-9);
+  assert.equal(base, 1, '힘 1명은 시너지 없음');
+  // 관통 카드 → 건전남 공격력 ↑
+  S.applyCard(g, pool.find((c) => c.id === 'tag_pierce'));
+  assert.ok(S.buildMul(g, g.heroes.find((h) => h.id === 'gunman')) > base);
+  // 진화: 건전남 Lv5 + 관통 카드
+  const gm = g.heroes.find((h) => h.id === 'gunman');
+  gm.lv = 5;
+  const evo = S.cardPool(g).find((c) => c.kind === 'evo' && c.hero === 'gunman');
+  assert.ok(evo, '진화 카드');
+  const d0 = S.heroDamage(g, gm);
+  S.applyCard(g, evo);
+  assert.ok(gm.evo && Math.abs(S.heroDamage(g, gm) / d0 - D.EVO_MUL.dmg) < 1e-9);
+  assert.ok(!S.cardPool(g).some((c) => c.kind === 'evo' && c.hero === 'gunman'), '진화는 한 번');
+  // 올인: 입구 -20% · 공격력 +35%
+  const max0 = g.base.max, dmg0 = g.mods.dmg;
+  S.applyCard(g, { kind: 'global', id: 'risk_allin', key: 'risk_allin' });
+  assert.equal(g.base.max, Math.round(max0 * 0.8));
+  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.35) < 1e-9);
+});
+
+test('중간 보스: 3웨이브에 나오고(1-1·1-2 제외) · 합체는 두 진상 기술을 모두 · 넉백 안 됨 · 보너스 코인', () => {
+  assert.equal(D.stageMid(1), null);
+  assert.equal(D.stageMid(2), null);
+  for (let s = 3; s <= D.STAGE_COUNT; s++) {
+    const m = D.stageMid(s);
+    assert.ok(m && D.ENEMIES[m] && D.ENEMIES[m].mid, `${D.stageLabel(s)} 중간 보스`);
+    assert.equal(D.stageWave(s, 3).mid, m);
+    assert.equal(D.stageWave(s, 2).mid, undefined);
+  }
+  const kko = D.ENEMIES.fuse_kko;
+  assert.equal(kko.charm, 'both', '꼬충 커플은 남녀 모두 홀림');
+  const puke = D.ENEMIES.fuse_puke;
+  assert.ok(puke.puke && puke.explode && puke.zigzag === undefined, '토 + 술병 폭발');
+  assert.ok(D.ENEMIES.mid_drunk.explode.r > D.ENEMIES.drunk.explode.r, '각성 만취자는 더 큰 폭발');
+  const g = S.createGame({ rng: seeded(1210), noWaves: true, heroes: ['bangjang'] });
+  const e = S.spawnEnemy(g, 'mid_thug', 180, 200);
+  const y0 = e.y;
+  S.applyKnockback(e, 100, g);
+  assert.equal(e.kbv, 0, '중간 보스는 안 밀린다');
+  assert.equal(e.y, y0);
+  assert.ok(D.stageReward(12, 3, 3).mid > 0, '중간 보스 보너스');
+  // 스테이지 3웨이브 시작하면 대기열에 중간 보스
+  const g2 = S.createGame({ rng: seeded(1211), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null] });
+  S.startWave(g2, 3);
+  assert.ok(g2.spawnQ.some((q) => q.mid && q.type === D.stageMid(12)));
+});
+
+test('4~6장 진상: 돌싱 들킴 · 카푸어 퍼짐 · 싱글맘 방패 · 영업 보험 · 찌질남 집착 · 드러눕기 · 집 가기', () => {
+  const mk = () => { const g = S.createGame({ rng: seeded(1220), noWaves: true, heroes: ['bangjang', 'staff'] }); g.phase = 'wave'; g.spawnQ = [{ at: 9999, type: 'yeokko' }]; g.spawnI = 0; return g; };
+  let g = mk();
+  const f = S.spawnEnemy(g, 'fakesingle', 180, g.ropeY * 0.5);
+  run(g, 0.2);
+  assert.ok(f.revealed && f.spdMul > 1, '사실 돌싱!');
+  g = mk();
+  const c = S.spawnEnemy(g, 'carpoor', 180, g.ropeY * 0.6);
+  run(g, 0.1);
+  assert.ok(c.dashDone && c.stallT > 0, '퍼졌다!');
+  g = mk();
+  const m = S.spawnEnemy(g, 'secretmom', 180, 150);
+  assert.ok(m.shield > 0 && m.lieOn, '거짓말 방패');
+  const n0 = g.enemies.length;
+  S.damageEnemy(g, m, m.shield + 1, false, null);
+  assert.ok(!m.lieOn && m.stunT > 0 && g.enemies.length === n0 + 2, '들켰다! 기절 + 소환');
+  g = mk();
+  const sl = S.spawnEnemy(g, 'sales', 180, 150);
+  const buddy = S.spawnEnemy(g, 'yeokko', 190, 160); buddy.speed = 0;
+  sl.insT = 0;
+  run(g, 0.05);
+  assert.ok(buddy.shield > 0 && buddy.hasteT > 0, '보험 + 다단계');
+  g = mk();
+  const j = S.spawnEnemy(g, 'jjijil', g.heroes[0].x, g.ropeY - 2);
+  run(g, 0.3);
+  const victimH = g.heroes.find((h) => h.clingBy === j.uid);
+  assert.ok(victimH, '달라붙음');
+  const dClung = S.heroDamage(g, victimH);
+  S.damageEnemy(g, j, 1e6, false, null);
+  assert.equal(victimH.clingBy, 0, '잡으면 떨어짐');
+  assert.ok(S.heroDamage(g, victimH) > dClung);
+  g = mk();
+  const z = S.spawnEnemy(g, 'drunk_sleep', 180, g.ropeY * 0.5);
+  run(g, 0.1);
+  assert.ok(z.sleeping, '드러누움');
+  for (let i = 0; i < D.ENEMIES.drunk_sleep.sleep.hits; i++) S.damageEnemy(g, z, 1, false, null);
+  assert.ok(!z.sleeping, '4번 맞으면 벌떡');
+  g = mk();
+  g.exp = 50;
+  const hm = S.spawnEnemy(g, 'drunk_home', 180, g.ropeY * 0.6);
+  run(g, 0.1);
+  assert.ok(hm.fleeing && hm.stolen > 0 && g.exp < 50, '집에 갈래 (경험치 훔침)');
+});
+
+test('헬 모드: 진상 체력·속도·공격·수 ↑ · 보상 ×3 · 희귀 이상 확정 · 일반 ★★★ 에서만', () => {
+  const a = S.createGame({ rng: seeded(1230), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null] });
+  const b = S.createGame({ rng: seeded(1230), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null], hell: true });
+  S.startWave(a, 2); S.startWave(b, 2);
+  const ea = S.spawnEnemy(a, 'thug', 100, 100), eb = S.spawnEnemy(b, 'thug', 100, 100);
+  assert.ok(Math.abs(eb.maxHp / ea.maxHp - D.HELL.hp) < 1e-6);
+  assert.ok(eb.atk / ea.atk > D.HELL.atk - 1e-6);
+  assert.ok(b.spawnQ.length > a.spawnQ.length, '수도 많다');
+  assert.equal(S.summary(b, 1).hell, true);
+  const r = D.hellReward(12, 3, 0, 0);
+  assert.equal(r.total, Math.round(D.stageReward(12, 3, 0, 0).total * D.HELL.coin));
+  for (let sd = 1; sd < 40; sd++) for (const it of D.rollDrops(sd, 12, 3, false, false, true)) assert.notEqual(it.r, 'common', '헬은 희귀 이상');
+  assert.ok(!D.hellOpen({ 12: 2 }, 12) && D.hellOpen({ 12: 3 }, 12));
+});
+
+test('덱 넣기/빼기: 빈 자리에 넣고 · 이미 있으면 빼고 · 꽉 차면 full · 자리 골라 바꾸기', async () => {
+  const L = await load('live.js');
+  const order = [2, 3, 1, 4, 0, 5];
+  let r = L.deckToggle([null, null, 'staff', null, null, null], 'gunman', 4, order);
+  assert.equal(r.action, 'added'); assert.equal(r.deck[3], 'gunman');
+  r = L.deckToggle(r.deck, 'staff', 4, order);
+  assert.equal(r.action, 'removed'); assert.equal(r.deck[2], null);
+  const full = ['a1', null, 'staff', 'gunman', 'bangjang', 'gunnyeo'].map((x) => (x === 'a1' ? null : x));
+  assert.equal(L.deckToggle(full, 'dohoon', 4, order).action, 'full');
+  r = L.deckToggle(full, 'dohoon', 4, order, 2);
+  assert.equal(r.action, 'added'); assert.equal(r.deck[2], 'dohoon');
+  assert.deepEqual(L.cleanDecks({ i: 7, decks: [['staff', 'staff', 'nope', 'gunman'], 'x'] }).decks[0], ['staff', null, null, 'gunman', null, null]);
 });

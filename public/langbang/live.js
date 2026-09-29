@@ -187,11 +187,15 @@ export const ACHIEVEMENTS = [
   { id: 'ch1', icon: '🏁', name: '1장 클리어', n: 10, v: (lb) => lb.maxStage | 0, coins: 500, tickets: 1 },
   { id: 'ch2', icon: '🏁', name: '2장 클리어', n: 20, v: (lb) => lb.maxStage | 0, coins: 1200, tickets: 2 },
   { id: 'ch3', icon: '🏆', name: '3장 클리어', n: 30, v: (lb) => lb.maxStage | 0, coins: 3000, tickets: 3 },
+  { id: 'ch4', icon: '✈️', name: '4장 클리어', n: 40, v: (lb) => lb.maxStage | 0, coins: 4000, tickets: 3 },
+  { id: 'ch5', icon: '🏕️', name: '5장 클리어', n: 50, v: (lb) => lb.maxStage | 0, coins: 6000, tickets: 4 },
+  { id: 'ch6', icon: '👑', name: '6장 클리어 (마지막!)', n: 60, v: (lb) => lb.maxStage | 0, coins: 10000, tickets: 6 },
+  { id: 'stars180', icon: '🌟', name: '별 180개 전부', n: 180, v: (lb) => lb.totalStars | 0, coins: 8000, tickets: 5 },
   { id: 'perfect10', icon: '💎', name: 'PERFECT 스테이지 10개', n: 10, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 1500, tickets: 2 },
   { id: 'perfect30', icon: '💎', name: 'PERFECT 스테이지 30개', n: 30, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 4000, tickets: 4, title: 'perfect30' },
   { id: 'legend1', icon: '🌟', name: '전설 장비 얻기', n: 1, v: (lb) => (lb.cnt || {}).legends | 0, coins: 1000, tickets: 1 },
   { id: 'endless30', icon: '♾️', name: '무한 도전 W30', n: 30, v: (lb) => lb.bestWave | 0, coins: 2000, tickets: 2 },
-  { id: 'stars90', icon: '⭐', name: '별 90개 전부', n: 90, v: (lb) => lb.totalStars | 0, coins: 3000, tickets: 3 },
+  { id: 'stars90', icon: '⭐', name: '별 90개', n: 90, v: (lb) => lb.totalStars | 0, coins: 3000, tickets: 3 },
   { id: 'pull100', icon: '🎰', name: '모집 100번', n: 100, v: (lb) => lb.pulls | 0, coins: 2000, tickets: 3, title: 'gacha100' },
   { id: 'star5', icon: '🌠', name: '★5 멤버 만들기', n: 5, v: (lb) => Math.max(1, ...Object.values(lb.hstars || {})), coins: 3000, tickets: 3 },
 ];
@@ -457,6 +461,30 @@ export function claimCheckin(lb, uid, now = Date.now()) {
   return { got: grant(lb, rw, uid, now), day: (st.streak % 7) + 1 };
 }
 
+// ─── 덱 넣기/빼기 (순수 함수 — 화면 · 테스트가 같이 쓴다) ───
+// deck: 자리 배열(null = 빈 자리), max: 넣을 수 있는 인원, order: 채우는 자리 순서, replace: 이 자리의 멤버와 바꾸기
+export function deckToggle(deck, id, max, order, replace) {
+  const d = deck.slice();
+  const at = d.indexOf(id);
+  if (at >= 0) { d[at] = null; return { deck: d, action: 'removed', slot: at }; }
+  if (replace !== undefined && replace !== null && replace >= 0 && replace < d.length) { d[replace] = id; return { deck: d, action: 'added', slot: replace }; }
+  if (d.filter(Boolean).length >= max) return { deck: d, action: 'full' };
+  const slot = order.find((k) => k < d.length && !d[k]);
+  if (slot === undefined) return { deck: d, action: 'full' };
+  d[slot] = id;
+  return { deck: d, action: 'added', slot };
+}
+// 서버에 저장하는 덱 (프리셋 3개 × 자리 6개)
+export function cleanDecks(raw) {
+  if (!raw || !Array.isArray(raw.decks)) return null;
+  const decks = [0, 1, 2].map((k) => {
+    const d = Array.isArray(raw.decks[k]) ? raw.decks[k].slice(0, 6) : [];
+    const seen = new Set();
+    return Array.from({ length: 6 }, (_, i) => { const id = d[i]; return typeof id === 'string' && HEROES[id] && !seen.has(id) && seen.add(id) ? id : null; });
+  });
+  return { i: Math.max(0, Math.min(2, raw.i | 0)), decks };
+}
+
 // ─── 프로필 정리 (서버 normLb · 손님 normalize 가 같이 쓴다) ─────
 export function normLive(raw, out) {
   raw = raw || {};
@@ -494,6 +522,7 @@ export function normLive(raw, out) {
   out.weeklyClaimed = Number.isInteger(raw.weeklyClaimed) ? raw.weeklyClaimed : -1e6;
   out.chests = {};
   for (const [k, v] of Object.entries(raw.chests || {})) { const ch = int(k, 0, 99); if (ch >= 1 && Array.isArray(v)) { const l = [...new Set(v.map((x) => int(x, 0, 99)).filter((x) => CHEST_STARS.includes(x)))]; if (l.length) out.chests[ch] = l; } }
+  out.decks = cleanDecks(raw.decks);
   const ci = raw.checkin;
   out.checkin = ci && Number.isInteger(ci.last) ? { last: ci.last, streak: int(ci.streak, 0, 1e5) } : null;
   return out;

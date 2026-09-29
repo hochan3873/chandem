@@ -41,6 +41,7 @@ export const RULES = {
   hiddenChance: 0.07, // 카드 한 칸당 히든 영웅 등장 확률 (해금한 히든만)
   hiddenFromWave: 4, // 무한 도전: 웨이브 4부터 (= 웨이브 3 이후)
   hiddenFromStageWave: 2, // 스테이지: 웨이브 2부터
+  cardChoices: 4, // 레벨업 카드 수
   kbMaxReach: 330, // 넉백으로 밀려도 영웅 줄에서 이 거리 위로는 안 올라간다 (모두의 사거리 안)
   kbRepeatSec: 2, // 이 시간 안에 또 밀리면 절반만 밀린다
   stageBossHp: 0.85, // 스테이지 보스 체력 (튀지 않게)
@@ -126,7 +127,7 @@ export function itemValue(id, lv) { return (ITEMS[id] ? ITEMS[id].per : 0) * (lv
 // 3챕터 × 10스테이지. 스테이지 번호 s = 1..30 ('1-1' … '3-10')
 export const STAGE_WAVES = 5;
 export const STAGES_PER_CHAPTER = 10;
-export const STAGE_COUNT = 30;
+export const STAGE_COUNT = 60;
 export const CHAPTERS = [
   {
     id: 1, name: '랑방 골목', desc: '꼬충들이 기웃거리는 우리 동네 골목', color: '#ffd23f',
@@ -139,6 +140,18 @@ export const CHAPTERS = [
   {
     id: 3, name: '인피 아지트', desc: '라이벌 모임 인피의 본거지로 쳐들어간다', color: '#57d68d',
     names: ['아지트 입구', '뒷담화 복도', '끼리끼리 방', '사기꾼 소굴', '행동대장의 방', '독재자의 연설', '인피 총동원', '오리고기 냄새', '최후의 방어선', '인피 대장'],
+  },
+  {
+    id: 4, name: '랑방 여행 편', desc: '공항에서 제주도까지 — 여행지에도 진상은 따라온다', color: '#4fd1ff',
+    names: ['출국 수속', '면세점 대란', '기내 진상', '제주 도착', '꼰대돌싱찌질남', '돌담길', '유채꽃밭', '바닷가 횟집', '게스트하우스', '여왕된장싱글맘'],
+  },
+  {
+    id: 5, name: 'MT · 펜션 편', desc: '1박 2일 MT — 펜션에 진상들이 쳐들어왔다', color: '#ff9a3c',
+    names: ['펜션 도착', '장보기 대란', '바비큐 파티', '영업쟁이 출몰', '영업의 왕', '캠프파이어', '노래방 MT', '새벽 술판', '오타쿠의 밤', '오타쿠 왕'],
+  },
+  {
+    id: 6, name: '연말 파티 · 인피 본부', desc: '크리스마스 파티, 그리고 인피 본부 최종전', color: '#c77dff',
+    names: ['연말 거리', '송년회', '주사 대행진', '산타 대란', '주사왕', '눈 내리는 밤', '카운트다운', '인피 본부 입구', '최후의 파티', '솔로파티 중독자'],
   },
 ];
 // 이 스테이지를 처음 깨면 히든 영웅이 영구 합류 (출전 동료로 고를 수 있고, 카드로도 나온다)
@@ -162,8 +175,8 @@ export function starsFor(hpFrac) { return hpFrac >= 0.7 ? 3 : hpFrac >= 0.35 ? 2
 // 난이도 숫자 (밸런스 스크립트 scripts/lb-balance.js 로 맞춘 값)
 export const STAGE = {
   levelPerStage: 0.55, levelPow: 0.8, wavePerStage: 0.08,
-  chapterAdd: [0, 0.8, 0], // 2챕터부터 동료가 2명이라 그만큼 더 단단하게 (첫 웨이브 난이도 = 1 + 1.1 × (s-1)^0.8 + 챕터 보정)
-  bossStage: { 1: [0.2, 1.2], 2: [-0.8, -2.6], 3: [-1.8, -2.2] }, // x-5 · x-10 스테이지는 조금 더 어렵게 (1-10 은 강화가 필요, 2·3챕터 끝은 보스 2명)
+  chapterAdd: [0, 0.8, 0, 0.6, 1.2, 1.8], // 2챕터부터 동료가 2명이라 그만큼 더 단단하게 (첫 웨이브 난이도 = 1 + 1.1 × (s-1)^0.8 + 챕터 보정)
+  bossStage: { 1: [0.2, 1.2], 2: [-0.8, -2.6], 3: [-1.8, -2.2], 4: [-1.6, -2.4], 5: [-1.6, -2.4], 6: [-1.6, -2.6] }, // x-5 · x-10 스테이지는 조금 더 어렵게 (1-10 은 강화가 필요, 2·3챕터 끝은 보스 2명)
   levelPerWave: 1.75, // 스테이지 안에서 웨이브마다 +1.6 (+ 스테이지마다 0.08씩 더) (첫 웨이브는 쉽게, 뒤로 갈수록 확)
   baseCount: 12, // 1-1 첫 웨이브 적 수
   countPerStage: 0.02,
@@ -174,8 +187,9 @@ export const STAGE = {
   themeOther: 0.2, // 그때 꼬충(유혹형) 비중
   themeRest: 0.4,
   themeThug: 3,
-  deckHp: [2.9, 2.3, 1.9], // 덱(5명) 보정: 적 체력 배율 (챕터별 — 뒤로 갈수록 강화·장비가 쌓이니 조금씩 덜)
+  deckHp: [2.9, 2.3, 1.9, 1.8, 1.8, 1.8], // 덱(5명) 보정: 적 체력 배율 (챕터별 — 뒤로 갈수록 강화·장비가 쌓이니 조금씩 덜)
   deckCount: 1.45, // 덱 보정: 적 수 배율
+  swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
   stageAdd: { 3: 2.2, 4: 4.0, 5: 0.4, 6: -0.5, 19: -0.4, 20: -0.3, 25: -0.4, 26: -0.3, 29: 0.2 }, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
@@ -186,7 +200,7 @@ export function stageLevel(s, w) {
   const bs = STAGE.bossStage[chapterOf(s)];
   const boss = n === 10 ? bs[1] : n === 5 ? bs[0] : 0;
   // 첫 웨이브는 새로 시작한 멤버도 버티게 천천히, 스테이지 안에서 웨이브마다 가파르게 (뒤 스테이지일수록 더)
-  return 1 + STAGE.levelPerStage * Math.pow(s - 1, STAGE.levelPow) + (w - 1) * (STAGE.levelPerWave + STAGE.wavePerStage * (s - 1)) + boss + STAGE.chapterAdd[chapterOf(s) - 1] + (STAGE.themeLevel[stageTheme(s)] || 0) + (STAGE.stageAdd[s] || 0);
+  return 1 + STAGE.levelPerStage * Math.pow(s - 1, STAGE.levelPow) + (w - 1) * (STAGE.levelPerWave + STAGE.wavePerStage * Math.min(s - 1, 29)) + boss + STAGE.chapterAdd[chapterOf(s) - 1] + (STAGE.themeLevel[stageTheme(s)] || 0) + (STAGE.stageAdd[s] || 0);
 }
 // 적은 스테이지마다 조금씩 늘어난다:
 //  1챕터 꼬충 → 먹튀(1-3) → 술진상(1-4) → 폭력배(1-8)
@@ -212,6 +226,15 @@ export function stageMix(s, raw) {
   if (s >= 16) mix.push(['gao', 0.06]);
   if (s >= 21) mix.push(['kkondae', 0.035]);
   if (s >= 22) mix.push(['spam', 0.06]);
+  // 4~6장: 예전 진상은 줄고 새 진상이 하나씩
+  if (ch >= 4) {
+    for (const m of mix) m[1] *= 0.45;
+    const k = stageNo(s);
+    const add = (t, w, from = 1) => { if (k >= from || ch > 4) mix.push([t, w]); };
+    if (ch >= 4) { add('fakesingle', 0.5); add('carpoor', 0.35, 2); add('secretmom', 0.3, 4); add('kkondae2', 0.04, 6); add('sarcasm', 0.12, 8); }
+    if (ch >= 5) { mix.push(['sales', 0.25], ['jjijil', 0.3]); if (k >= 6 || ch > 5) mix.push(['otaku', 0.12]); if (k >= 8 || ch > 5) mix.push(['drunk_cry', 0.3]); }
+    if (ch >= 6) { mix.push(['drunk_run', 0.4], ['drunk_sleep', 0.14], ['drunk_home', 0.25]); }
+  }
   // 스테이지마다 주인공 계열이 있다 → 팀 속성을 바꿔 가며 도전하는 재미
   const th = raw ? 'mix' : stageTheme(s);
   if (th !== 'mix') {
@@ -226,7 +249,7 @@ export function stageMix(s, raw) {
   }
   return mix;
 }
-const FEW = ['thug', 'mukti', 'inpi_dictator', 'inpi_gossip', 'scammer', 'inpi_treasurer', 'vomit', 'cutter', 'couple', 'selfie', 'handsy', 'gao', 'kkondae', 'spam'];
+const FEW = ['thug', 'mukti', 'inpi_dictator', 'inpi_gossip', 'scammer', 'inpi_treasurer', 'vomit', 'cutter', 'couple', 'selfie', 'handsy', 'gao', 'kkondae', 'spam', 'kkondae2', 'otaku', 'drunk_sleep', 'sarcasm'];
 // 스테이지 번호별 주인공 계열 (1챕터엔 정치형이 없어서 유혹형)
 const THEMES = [null, 'seduce', 'seduce', 'jerk', 'jerk', 'violent', 'violent', 'politic', 'jerk', 'violent', 'mix'];
 export function stageTheme(s) {
@@ -237,13 +260,15 @@ export function stageTheme(s) {
 // 보스: x-5, x-10 마지막 웨이브
 export function stageBosses(s) {
   const n = stageNo(s), ch = chapterOf(s);
-  if (n === 5) return ch === 1 ? ['boss_loan'] : ch === 2 ? ['boss_gapjil'] : ['boss_gapjil', 'boss_thug'];
-  if (n === 10) return ch === 1 ? ['queen'] : ch === 2 ? ['queen', 'boss_gapjil'] : ['boss_inpi', 'boss_gapjil'];
+  const B5 = [null, ['boss_loan'], ['boss_gapjil'], ['boss_gapjil', 'boss_thug'], ['boss_kkondol'], ['boss_sales'], ['boss_jusa']];
+  const B10 = [null, ['queen'], ['queen', 'boss_gapjil'], ['boss_inpi', 'boss_gapjil'], ['boss_queenmom', 'boss_kkondol'], ['boss_otaku', 'boss_sales'], ['boss_soloparty', 'boss_jusa']];
+  if (n === 5) return B5[ch] || [];
+  if (n === 10) return B10[ch] || [];
   return [];
 }
 export function stageWave(s, w) {
   const bosses = w === STAGE_WAVES ? stageBosses(s) : [];
-  let n = STAGE.baseCount * (1 + STAGE.countPerStage * (s - 1)) * (1 + STAGE.countPerWave * (w - 1)) * (s === 1 ? 1 : STAGE.deckCount);
+  let n = STAGE.baseCount * (1 + STAGE.countPerStage * (s - 1)) * (1 + STAGE.countPerWave * (w - 1)) * (s === 1 ? 1 : STAGE.deckCount * (STAGE.swarm[chapterOf(s) - 1] || 1));
   if (bosses.length) n *= 0.55;
   const dur = STAGE.waveSec + STAGE.waveSecPerStage * (s - 1);
   const mix = stageMix(s);
@@ -263,6 +288,7 @@ export function stageWave(s, w) {
     g.push([type, c, +(dur / c).toFixed(2), +(i * 0.7).toFixed(1)]);
   });
   const def = { g, level: stageLevel(s, w), hpScale: stageHpScale(s) };
+  if (w === MID_WAVE && stageMid(s)) def.mid = stageMid(s);
   if (bosses[0]) def.boss = bosses[0];
   if (bosses[1]) def.boss2 = bosses[1];
   return def;
@@ -287,12 +313,20 @@ export const MAP_FX = {
   feast: { id: 'feast', icon: '🔥', name: '회식 열기', desc: '술 멤버 피해 +30% · 분노가 더 오래', attr: { booze: 1.3 }, rage: 1.3 },
   construction: { id: 'construction', icon: '🚧', name: '공사 중', desc: '양옆이 막혀 진상이 가운데로 몰린다 · 범위 공격 범위 +30%', lane: [96, 264], splash: 1.3 },
   megaphone: { id: 'megaphone', icon: '📢', name: '인피 확성기', desc: '10초마다 진상들이 3초 동안 30% 빨라진다', every: 10, sec: 3, speed: 1.3 },
+  conveyor: { id: 'conveyor', icon: '🛄', name: '수하물 벨트', desc: '가운데 벨트 위 진상 +25% 빨라짐 — 가운데 줄을 막아라', belt: [120, 240], beltMul: 1.25 },
+  wind: { id: 'wind', icon: '🌬️', name: '제주 바람', desc: '8초마다 바람 방향이 바뀌며 투사체가 옆으로 밀린다 · 진상 -5% 느림', every: 8, wind: 70, enemySpd: 0.95 },
+  campfire: { id: 'campfire', icon: '🔥', name: '캠프파이어', desc: '가운데 모닥불 곁을 지나는 진상이 불탄다 · 술 멤버 +20%', fire: { x: 180, r: 58, dps: 10 }, attr: { booze: 1.2 } },
+  snow: { id: 'snow', icon: '❄️', name: '연말 눈', desc: '진상 -12% 느림 · 멤버 공격 속도 -8% (손이 시려요)', enemySpd: 0.88, heroSpd: 0.92 },
+  lightshow: { id: 'lightshow', icon: '🪩', name: '조명 쇼', desc: '9초마다 2초 동안 번쩍! 멤버 공격 25% 빗나감', every: 9, strobe: 2, miss: 0.25 },
 };
 // 스테이지별 맵 효과 (1챕터는 순하게, 뒤로 갈수록 적 구성과 맞물리게)
 const STAGE_FX = [ // 속성 버프가 있는 효과(노래방·안개=말빨, 회식=술)는 그 속성이 추천인 스테이지에만
   'none', 'none', 'none', 'rain', 'none', 'icy', 'happy', 'rain', 'icy', 'karaoke',
   'happy', 'karaoke', 'rain', 'construction', 'icy', 'construction', 'karaoke', 'rain', 'blackout', 'feast',
   'megaphone', 'karaoke', 'construction', 'blackout', 'icy', 'happy', 'fog', 'rain', 'blackout', 'feast',
+  'none', 'conveyor', 'wind', 'conveyor', 'wind', 'happy', 'wind', 'rain', 'fog', 'conveyor',
+  'none', 'campfire', 'campfire', 'karaoke', 'happy', 'campfire', 'karaoke', 'blackout', 'fog', 'campfire',
+  'snow', 'lightshow', 'snow', 'happy', 'snow', 'lightshow', 'megaphone', 'snow', 'lightshow', 'snow',
 ];
 export function stageFx(s) { return MAP_FX[STAGE_FX[s - 1] || 'none']; }
 
@@ -307,9 +341,18 @@ export function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = fal
   const newStars = Math.max(0, stars - prevStars);
   const star = Math.round(base * REWARD.starMul) * newStars;
   const perf = perfect ? Math.round(base * (firstPerfect ? 1.5 : 0.5)) : 0; // 퍼펙트 (입구 무피해)
+  const mid = stageMid(s) ? Math.round(base * 0.2) : 0; // 중간 보스 처치 보너스
   const mul = 1 + itemValue('coupon', couponLv);
-  const total = Math.round((clear + first + star + perf) * mul);
-  return { clear, first, star, perfect: perf, newStars, bonus: total - clear - first - star - perf, total };
+  const total = Math.round((clear + first + star + perf + mid) * mul);
+  return { clear, first, star, perfect: perf, mid, newStars, bonus: total - clear - first - star - perf - mid, total };
+}
+// ─── 헬 모드: 일반 ★★★ 로 깬 스테이지의 강화판 (진상 체력·속도·공격·수 ↑, 보스 분노 한 번 더) ───
+export const HELL = { hp: 2.2, speed: 1.3, atk: 1.6, count: 1.3, coin: 3, bossEnrage: { at: 0.5, speed: 1.25, atk: 1.3, text: '헬 분노!!' } };
+export const hellOpen = (stages, s) => ((stages || {})[s] | 0) >= 3;
+export function hellReward(s, stars, prevStars = 0, couponLv = 0) {
+  const r = stageReward(s, stars, prevStars, couponLv, false, false);
+  const total = Math.round(r.total * HELL.coin);
+  return Object.assign({}, r, { hell: true, total, bonus: r.bonus + (total - r.total) });
 }
 export function endlessReward(wave, couponLv = 0) {
   const w = Math.max(0, Math.floor(wave));
@@ -389,18 +432,19 @@ export const HEROES = {
   },
   staff: {
     id: 'staff', bossKit: 0.9, kit: 1.0, name: '운영진', gender: 'f', emoji: '📋', color: '#5ab0ff', attr: 'talk',
-    img: '/img/lb/h_staff.webp', role: '경고장 · 감속/강퇴',
-    dmg: 49, interval: 0.6, range: 400, proj: 'warn', projSpeed: 480,
-    slow: 0.42, slowSec: 1.6,
-    attack: '경고장 — 중거리 유도탄, 맞으면 느려진다',
-    desc: '"경고장"을 날려 적을 느리게 만든다. 규칙 위반자는 강퇴!',
-    perks: { 3: '맞은 적 18% 확률로 "강퇴" (1초 기절)', 5: '경고장이 주변에도 퍼지고 강퇴 30%' },
+    img: '/img/lb/h_staff.webp', role: '규칙 집행 · 경고 3번이면 강퇴',
+    dmg: 34, interval: 1.05, range: 380, proj: 'warn', projSpeed: 430,
+    slow: 0.35, slowSec: 1.4,
+    warn: { n: 3, stun: [1.2, 1.2, 1.5, 1.5, 1.8], kb: 60, mul: 2.2 }, // 경고 3번 → 강퇴 (기절 + 밀어내기 + 큰 피해)
+    attack: '경고장 — 느린 유도탄, 맞으면 느려지고 "경고"가 쌓인다. 경고 3번이면 강퇴! (기절 + 밀어내기)',
+    desc: '규칙 위반자는 용서 없다. 한 방은 약하지만 경고가 쌓이면 진상을 강퇴시켜 버리는 제어 전문가.',
+    perks: { 3: '강퇴 기절이 더 길다', 5: '경고장이 주변에도 퍼지며 경고를 옮긴다' },
     skill: { id: 'redcard', name: '레드카드', cd: 18, target: true, desc: '찍은 곳 진상들 60% 감속 + 피해', r: [90, 90, 110, 110, 125], slowSec: 4, dmgMul: 2.5 },
   },
   gunman: {
-    id: 'gunman', bossKit: 1.3, kit: 0.95, name: '건전남', gender: 'm', emoji: '🙋‍♂️', color: '#4fd18b', attr: 'power',
+    id: 'gunman', bossKit: 1.45, kit: 1.0, name: '건전남', gender: 'm', emoji: '🙋‍♂️', color: '#4fd18b', attr: 'power',
     img: '/img/lb/h_gunman.webp', role: '저격수 · 최장 사거리',
-    dmg: 23, interval: 0.44, range: 600, proj: 'bullet', projSpeed: 900, critBonus: 0.22, lane: 38,
+    dmg: 27, interval: 0.36, range: 610, proj: 'bullet', projSpeed: 1100, critBonus: 0.25, lane: 38,
     attack: '새총 — 옆길로 안 새고 자기 줄(세로) 위로만 똑바로, 가장 멀리 · 치명타 잘 터짐',
     desc: '건전하게, 그러나 정확하게. 정도(正道)만 걷는 남자라 새총도 자기 줄로만 똑바로 쏜다.',
     perks: { 3: '새총알이 1명 관통 · 치명타 +10%', 5: '4발마다 "헤드샷" (무조건 치명타 ×3)' },
@@ -409,10 +453,10 @@ export const HEROES = {
   gunnyeo: {
     id: 'gunnyeo', bossKit: 0.8, kit: 1.0, name: '건전녀', gender: 'f', emoji: '🙋‍♀️', color: '#ff8fc0', attr: 'charm',
     img: '/img/lb/h_gunnyeo.webp', role: '범위 딜 + 랑방 회복',
-    dmg: 35, interval: 0.85, range: 430, proj: 'heart', projSpeed: 1, lobSec: 0.6, splash: 46,
+    dmg: 30, interval: 1.0, range: 300, proj: 'heart', projSpeed: 1, lobSec: 0.85, splash: 36,
     heal: [[6, 0.03], [6, 0.035], [5, 0.04], [5, 0.045], [4, 0.055]], // [주기(초), 최대 내구도 대비 회복량]
-    attack: '하트 폭탄 — 포물선으로 던져 떨어진 곳 주변을 터뜨린다',
-    desc: '하트 폭탄을 던지며 틈틈이 랑방 입구를 수리한다.',
+    attack: '하트 폭탄 — 가까이 온 진상에게 천천히 던지는 작은 폭탄. 진짜 가치는 입구 수리 + 멤버 상태이상 풀기',
+    desc: '다정한 간호사. 한 방은 약하지만 틈틈이 랑방 입구를 고치고, 고칠 때마다 멤버 한 명의 상태이상을 풀어 준다.',
     perks: { 3: '회복량·주기 강화 · 폭발 범위 +', 5: '모든 아군 홀림 면역 ("철벽!")' },
     skill: { id: 'firstaid', name: '응급처치', cd: 24, desc: '입구 내구도 회복 + 멤버 상태이상 해제', heal: [0.12, 0.12, 0.16, 0.16, 0.2] },
   },
@@ -745,6 +789,130 @@ export const ENEMIES = {
     shieldAura: { every: 6, r: 150, frac: 0.25, first: 2 }, // "회비 지원!" 주변 진상에게 최대 체력 30% 보호막
     shouts: ['회비 지원!', '영수증 챙겨~', '이번 달 회비 걷는다', '총무는 나야'],
   },
+  // ── 4~6장: 여행 · MT · 연말 파티 ──
+  fakesingle: {
+    id: 'fakesingle', cls: 'seduce', name: '미혼인 척 돌싱남', gender: 'm', emoji: '🕶️', color: '#8fb3ff',
+    img: '/img/lb/e_fakesingle.webp', hp: 60, speed: 46, atk: 6, atkInterval: 1.2, exp: 4, r: 17, size: 76, charm: 'f',
+    fake: { at: 0.45, evade: 0.3, speed: 1.6 }, // "저 싱글이에요~" 잘 피하다가, 중간쯤 "사실 돌싱!" 들키면 막 뛴다
+    shouts: ['저 싱글이에요~', '연락처 교환?', '반지 자국은… 그냥 점', '사실은…'],
+  },
+  secretmom: {
+    id: 'secretmom', cls: 'politic', name: '속이고 들어온 싱글맘', gender: 'f', emoji: '🕶️', color: '#ff9ecb',
+    img: '/img/lb/e_secretmom.webp', hp: 70, speed: 36, atk: 7, atkInterval: 1.3, exp: 5, r: 18, size: 78,
+    lie: { frac: 0.6, stun: 1.5, weak: 3, summon: 'namkko', n: 2 }, // 거짓말 방패(접힌 유모차) — 깨지면 "들켰다!" 기절 · 친구 소환
+    shouts: ['저 스무 살이에요~', '유모차? 짐이에요', '프로필 사진 제 거예요', '비밀이에요♡'],
+  },
+  carpoor: {
+    id: 'carpoor', cls: 'violent', name: '카푸어', gender: 'm', emoji: '🏎️', color: '#ff6a3a',
+    img: '/img/lb/e_carpoor.webp', hp: 80, speed: 40, atk: 9, atkInterval: 1.3, armor: 2, exp: 5, r: 19, size: 84,
+    dash: { until: 0.5, mul: 2.8, stall: 2.6, weak: 1.3, after: 0.55 }, // 외제차로 부아앙 → 퍼졌다! (멈춤·약점) → 터덜터덜
+    shouts: ['부아아앙~', '할부 60개월!', '기름값이…', '차 퍼졌다!'],
+  },
+  sales: {
+    id: 'sales', cls: 'politic', name: '영업쟁이', gender: 'm', emoji: '💼', color: '#ffd23f',
+    img: '/img/lb/e_sales.webp', hp: 65, speed: 34, atk: 5, atkInterval: 1.3, exp: 5, r: 17, size: 76,
+    insurance: { every: 7, n: 3, frac: 0.2, r: 160, haste: 3 }, // "보험 드세요!" 주변 3명 보호막 + 다단계 가속
+    shouts: ['보험 하나 드세요!', '이거 진짜 좋아요', '친구 소개하면 할인!', '다단계 아니에요~'],
+  },
+  sarcasm: {
+    id: 'sarcasm', cls: 'politic', name: '돌려까기 장인', gender: 'f', emoji: '🪃', color: '#b58cff',
+    img: '/img/lb/e_sarcasm.webp', hp: 45, speed: 40, atk: 4, atkInterval: 1.3, exp: 5, r: 16, size: 72, standoff: 175,
+    sarcasm: { every: 4.8, sec: 3, cut: 0.25, fly: 0.7, reflect: 0.3 }, // 돌려까기 부메랑: 맞은 멤버 피해 -25% · 말빨 멤버는 되받아친다!
+    shouts: ['어머 옷 예쁘다~ 어디서 샀어?', '너 참 부지런하다~', '역시 대단해~ (진심 아님)'],
+  },
+  jjijil: {
+    id: 'jjijil', cls: 'seduce', name: '찌질남', gender: 'm', emoji: '😢', color: '#9aa0b8',
+    img: '/img/lb/e_jjijil.webp', hp: 55, speed: 46, atk: 3, atkInterval: 1.2, exp: 5, r: 16, size: 72,
+    cling: { cut: 0.4 }, // 로프에 닿으면 멤버에게 착 달라붙는다 → 그 멤버 공격력 -40% (잡으면 떨어진다)
+    shouts: ['나랑 얘기 좀 해', '왜 답장 안 해?', '우리 다시 시작해', '진짜 마지막이야'],
+  },
+  otaku: {
+    id: 'otaku', cls: 'jerk', name: '오타쿠', gender: 'm', emoji: '🎮', color: '#6fbf73',
+    img: '/img/lb/e_otaku.webp', hp: 90, speed: 30, atk: 6, atkInterval: 1.4, exp: 6, r: 19, size: 82,
+    figures: { every: 8, n: 2, type: 'otaku_fig' }, goods: { cut: 0.5 }, // 피규어 소환 · 피규어가 있으면 굿즈 보호막(피해 -50%)
+    shouts: ['내 최애 건드리지 마!', '한정판이야!', '굿즈 사러 왔는데요', '오타쿠 아니고 덕후'],
+  },
+  otaku_fig: {
+    id: 'otaku_fig', cls: 'jerk', name: '피규어', gender: 'm', emoji: '🧸', color: '#ffb3d6', dot: true, figure: true,
+    img: '', hp: 14, speed: 60, atk: 2, atkInterval: 1, exp: 0.5, r: 11, size: 40,
+    shouts: ['삐빅!', '한정판!'],
+  },
+  drunk_cry: {
+    id: 'drunk_cry', cls: 'jerk', name: '주사: 우는 진상', gender: 'f', emoji: '😭', color: '#7fc8ff',
+    img: '/img/lb/e_drunk_cry.webp', hp: 55, speed: 30, atk: 6, atkInterval: 1.2, exp: 4, r: 17, size: 74, zigzag: 20, cry: true,
+    puke: { every: 5, reach: 230, r: 52, sec: 4, cut: 0.3 }, // 눈물 웅덩이: 그 위 멤버 공격 속도 -30%
+    shouts: ['엉엉엉…', '나 안 취했어… 엉엉', '다들 나 싫어하지', '흐어엉'],
+  },
+  drunk_run: {
+    id: 'drunk_run', cls: 'violent', name: '주사: 뛰는 진상', gender: 'f', emoji: '🏃‍♀️', color: '#ff7a4f',
+    img: '/img/lb/e_drunk_run.webp', hp: 45, speed: 86, atk: 6, atkInterval: 1.1, exp: 4, r: 16, size: 72, zigzag: 90, erratic: true,
+    shouts: ['꺄아아~!', '2차 가자!!', '나 잡아 봐라~', '신난다!'],
+  },
+  drunk_sleep: {
+    id: 'drunk_sleep', cls: 'jerk', name: '주사: 드러눕는 진상', gender: 'm', emoji: '😴', color: '#8a8fb8',
+    img: '/img/lb/e_drunk_sleep.webp', hp: 110, speed: 30, atk: 8, atkInterval: 1.4, exp: 6, r: 22, size: 90,
+    sleep: { at: 0.42, dmg: 0.35, hits: 4 }, // 길 한가운데 드러누워 총알을 막는다 (피해 -65%) — 4번 맞으면 깬다
+    shouts: ['zzz…', '5분만…', '여기가 우리 집이야', '쿨쿨'],
+  },
+  drunk_home: {
+    id: 'drunk_home', cls: 'jerk', name: '주사: 집 가는 진상', gender: 'm', emoji: '🏠', color: '#c9a36b',
+    img: '/img/lb/e_drunk_home.webp', hp: 60, speed: 40, atk: 3, atkInterval: 1.2, exp: 4, r: 17, size: 74,
+    homeward: { at: 0.55, base: 4, perLevel: 0.5 }, // 중간쯤 오면 "집에 갈래~" 경험치를 들고 뒤돌아 도망
+    shouts: ['집에 갈래…', '택시!', '엄마 보고 싶어', '여기 어디야'],
+  },
+  kkondae2: {
+    id: 'kkondae2', cls: 'politic', name: '골프채 꼰대', gender: 'm', emoji: '🏌️', color: '#7a6a5a',
+    img: '/img/lb/e_kkondae2.webp', hp: 360, speed: 12, atk: 16, atkInterval: 1.8, armor: 6, exp: 14, r: 23, size: 90,
+    latte: { r: 230, slow: 0.4, off: 3 }, golf: { every: 6, stun: 0.8, fly: 0.6 }, // 라떼 + "나이스 샷!" 골프공으로 멤버 기절
+    shouts: ['나이스 샷!', '라떼는 필드에서…', '요즘 애들은 골프도 몰라', '내가 싱글이야 (타수)'],
+  },
+  boss_kkondol: {
+    id: 'boss_kkondol', cls: 'politic', name: '꼰대돌싱찌질남', gender: 'm', emoji: '😭', color: '#6a5a8a', boss: true,
+    img: '/img/lb/e_boss_kkondol.webp', hp: 1900, speed: 11, atk: 34, atkInterval: 1.8, armor: 5, exp: 60, r: 44, size: 150,
+    latte: { r: 250, slow: 0.4, off: 3 }, golf: { every: 4.5, stun: 1, fly: 0.6 },
+    enrage: { at: 0.5, speed: 1.45, atk: 1.5, text: '사실 돌싱이었다!!' },
+    title: '꼰대돌싱찌질남 등장!', subtitle: '"라떼는 말이야… 나 아직 싱글이야…"',
+    shouts: ['나 때는 말이야!', '왜 나만 미워해!', '사실 싱글이야…'],
+  },
+  boss_queenmom: {
+    id: 'boss_queenmom', cls: 'seduce', name: '여왕된장싱글맘', gender: 'f', emoji: '👜', color: '#e0a0ff', boss: true,
+    img: '/img/lb/e_boss_queenmom.webp', hp: 2100, speed: 10, atk: 36, atkInterval: 1.8, armor: 4, exp: 60, r: 44, size: 152,
+    shieldAura: { every: 8, r: 210, frac: 0.3 }, summon: { every: 9, count: 2, types: ['secretmom'] },
+    toss: { every: 5.5, stun: 1.2, fly: 0.8, kind: 'bag', text: '명품 가방 투척!' },
+    title: '여왕된장싱글맘 등장!', subtitle: '"아이스 아메리카노 사 와~"',
+    shouts: ['이 가방 얼마게?', '유모차 탱크 출동!', '내 스타일 알지?'],
+  },
+  boss_sales: {
+    id: 'boss_sales', cls: 'politic', name: '영업의 왕', gender: 'm', emoji: '💰', color: '#ffcf3f', boss: true,
+    img: '/img/lb/e_boss_sales.webp', hp: 2200, speed: 11, atk: 32, atkInterval: 1.8, armor: 4, exp: 60, r: 44, size: 150,
+    insurance: { every: 7, n: 8, frac: 0.25, r: 280, haste: 3 }, summon: { every: 10, count: 3, types: ['sales'] },
+    toss: { every: 6, stun: 1.4, fly: 0.7, kind: 'stamp', text: '계약 도장 쾅!', n: 2 },
+    title: '영업의 왕 등장!', subtitle: '"사인만 하시면 됩니다~"',
+    shouts: ['계약서 여기요!', '다단계 아니라니까!', '보험 전부 가입!'],
+  },
+  boss_otaku: {
+    id: 'boss_otaku', cls: 'jerk', name: '오타쿠 왕', gender: 'm', emoji: '🎌', color: '#57d68d', boss: true,
+    img: '/img/lb/e_boss_otaku.webp', hp: 2300, speed: 10, atk: 34, atkInterval: 1.8, armor: 3, exp: 60, r: 44, size: 150,
+    figures: { every: 6, n: 3, type: 'otaku_fig' }, goods: { cut: 0.55 },
+    toss: { every: 4.5, fly: 0.6, kind: 'glow', slow: 3, text: '응원봉 빔!' },
+    title: '오타쿠 왕 등장!', subtitle: '"내 컬렉션을 무시하지 마라!"',
+    shouts: ['피규어 부대 출격!', '한정판은 내 것!', '최애를 위하여!'],
+  },
+  boss_jusa: {
+    id: 'boss_jusa', cls: 'violent', name: '주사왕', gender: 'm', emoji: '🍾', color: '#ff5a4f', boss: true,
+    img: '/img/lb/e_boss_jusa.webp', hp: 2500, speed: 12, atk: 38, atkInterval: 1.8, armor: 4, exp: 70, r: 44, size: 150,
+    jusa: { sec: 7, cry: { every: 2.2, r: 50, sec: 3 }, run: 2.2, regen: 0.03, steal: 5 }, // 울고 → 뛰고 → 자고 → 집에 가는 4단계
+    title: '주사왕 등장!', subtitle: '"한 잔만… 딱 한 잔만 더…"',
+    shouts: ['엉엉엉!', '2차 가자!!', 'zzz…', '집에 갈래~'],
+  },
+  boss_soloparty: {
+    id: 'boss_soloparty', cls: 'seduce', name: '솔로파티 중독자', gender: 'm', emoji: '🪩', color: '#ff6fd8', boss: true,
+    img: '/img/lb/e_boss_soloparty.webp', hp: 2800, speed: 10, atk: 40, atkInterval: 1.8, armor: 5, exp: 80, r: 46, size: 156,
+    disco: { every: 12, charm: 1.4 }, confetti: { every: 7, n: 2, sec: 2 }, summon: { every: 9, count: 3, types: ['couple', 'fakesingle'] },
+    enrage: { at: 0.3, speed: 1.3, atk: 1.3, text: '파티는 이제부터야!!' },
+    title: '솔로파티 중독자 등장!', subtitle: '"솔로들이여, 파티다!!"',
+    shouts: ['파티 타임!', '솔로 만세!', '디스코볼 받아라!'],
+  },
   // ── 무한 도전 전용 보스: 25웨이브부터 10웨이브마다 ──
   boss_union: {
     id: 'boss_union', cls: 'jerk', name: '진상 연합 회장', gender: 'm', emoji: '🎩', color: '#8a2be2', boss: true, inpi: true,
@@ -761,6 +929,60 @@ export const ENEMIES = {
     shouts: ['다 덤벼라!', '연합의 힘을 봐라', '회장님 오셨다'],
   },
 };
+
+// ─── 중간 보스 (스테이지 3웨이브): 흔한 진상의 "각성" · 두 진상 "합체" ─────────
+// 새 그림 없이 기존 그림으로 (각성 = 크게 + 오라, 합체 = 두 그림 나란히 + 이름표 하나)
+const MID_DEFS = {
+  mid_mukti: { base: 'mukti', name: '각성 먹튀왕', hpX: 14, emoji: '🏃' },
+  mid_drunk: { base: 'drunk', name: '각성 만취자', hpX: 8, boom: 2.4 },
+  mid_thug: { base: 'thug', name: '각성 폭력배', hpX: 5 },
+  mid_scammer: { base: 'scammer', name: '각성 사기꾼', hpX: 8 },
+  mid_selfie: { base: 'selfie', name: '각성 인플루언서', hpX: 10 },
+  mid_gao: { base: 'gao', name: '각성 가오충', hpX: 5 },
+  mid_kkondae: { base: 'kkondae', name: '각성 꼰대', hpX: 3.6 },
+  fuse_kko: { fuse: ['yeokko', 'namkko'], name: '꼬충 커플', hpX: 10, charm: 'both' },
+  fuse_puke: { fuse: ['vomit', 'drunk'], name: '주사 콤보', hpX: 5, boom: 1.8 },
+  fuse_gossip: { fuse: ['inpi_gossip', 'inpi_clique'], name: '뒷담 패거리 대장', hpX: 9 },
+  fuse_spam: { fuse: ['spam', 'selfie'], name: '관종 단톡방장', hpX: 6 },
+  fuse_inpi: { fuse: ['inpi_dictator', 'inpi_treasurer'], name: '인피 간부', hpX: 4.5 },
+  mid_fakesingle: { base: 'fakesingle', name: '각성 돌싱남', hpX: 9 },
+  mid_carpoor: { base: 'carpoor', name: '각성 카푸어', hpX: 7 },
+  fuse_lease: { fuse: ['sales', 'carpoor'], name: '리스 영업왕', hpX: 5 },
+  fuse_lie: { fuse: ['secretmom', 'fakesingle'], name: '거짓말 커플', hpX: 5, charm: 'both' },
+  mid_otaku: { base: 'otaku', name: '각성 오타쿠', hpX: 6 },
+  mid_sarcasm: { base: 'sarcasm', name: '돌려까기 명인', hpX: 9 },
+  fuse_jusa: { fuse: ['drunk_cry', 'drunk_run'], name: '울다 뛰는 만취자', hpX: 6 },
+  fuse_sleep: { fuse: ['drunk_sleep', 'drunk_home'], name: '자다 깬 귀가러', hpX: 4 },
+};
+const MECH_SKIP = new Set(['id', 'name', 'img', 'hp', 'speed', 'size', 'color', 'r', 'emoji', 'gender', 'cls', 'exp', 'coin', 'atk', 'atkInterval', 'shouts', 'armor', 'forms', 'pack', 'standoff', 'zigzag']);
+for (const [id, m] of Object.entries(MID_DEFS)) {
+  const a = ENEMIES[m.base || m.fuse[0]], b = m.fuse ? ENEMIES[m.fuse[1]] : null;
+  const d = Object.assign({}, a);
+  if (b) for (const [k, v] of Object.entries(b)) if (!MECH_SKIP.has(k) && d[k] === undefined) d[k] = v; // 두 진상의 기술을 모두
+  Object.assign(d, {
+    id, name: m.name, mid: true, fuse: m.fuse || null, base: m.base || null, img: a.img, emoji: m.emoji || a.emoji,
+    hp: Math.round((a.hp + (b ? b.hp : 0)) * m.hpX), atk: (a.atk + (b ? b.atk : 0)) * 2, speed: Math.min(a.speed, b ? b.speed : 99) * 0.8,
+    size: Math.round(Math.max(a.size, b ? b.size : 0) * (b ? 1.35 : 1.5)), r: Math.round(Math.max(a.r, b ? b.r : 0) * 1.45),
+    exp: (a.exp + (b ? b.exp : 0)) * 5, coin: 10, armor: Math.max(a.armor || 0, b ? b.armor || 0 : 0),
+    shouts: [...(a.shouts || []).slice(0, 2), ...(b ? b.shouts || [] : []).slice(0, 2), '각성했다!'],
+  });
+  if (m.charm) d.charm = m.charm;
+  if (m.boom && d.explode) d.explode = { r: Math.round(d.explode.r * 1.6), dmg: Math.round(d.explode.dmg * m.boom) };
+  delete d.pack; delete d.forms; delete d.scam; if (d.id === 'mid_scammer') { d.scam = a.scam; d.forms = a.forms; }
+  ENEMIES[id] = d;
+}
+// 스테이지별 중간 보스 (1-1 · 1-2 는 연습이라 없음)
+const MID_BY_STAGE = [
+  null, null, 'mid_mukti', 'mid_drunk', 'fuse_kko', 'fuse_kko', 'fuse_puke', 'mid_thug', 'mid_drunk', 'fuse_kko',
+  'mid_scammer', 'fuse_gossip', 'mid_selfie', 'fuse_gossip', 'mid_gao', 'fuse_puke', 'fuse_inpi', 'fuse_spam', 'mid_scammer', 'fuse_inpi',
+  'fuse_gossip', 'mid_kkondae', 'fuse_gossip', 'mid_scammer', 'mid_gao', 'fuse_inpi', 'fuse_spam', 'mid_kkondae', 'fuse_inpi', 'mid_thug',
+  'mid_fakesingle', 'mid_carpoor', 'fuse_lie', 'mid_fakesingle', 'mid_carpoor', 'fuse_lie', 'mid_sarcasm', 'mid_carpoor', 'fuse_lie', 'mid_sarcasm',
+  'fuse_lease', 'fuse_lease', 'mid_carpoor', 'fuse_lease', 'mid_sarcasm', 'mid_otaku', 'fuse_lease', 'mid_otaku', 'mid_otaku', 'fuse_lease',
+  'fuse_jusa', 'fuse_sleep', 'fuse_jusa', 'fuse_sleep', 'fuse_jusa', 'mid_otaku', 'fuse_sleep', 'fuse_lie', 'fuse_jusa', 'fuse_sleep',
+];
+export const MID_WAVE = 3;
+export function stageMid(s) { return MID_BY_STAGE[s - 1] || null; }
+export const MID_IDS = Object.keys(MID_DEFS);
 
 // ─── 웨이브 ───────────────────────────────────────────
 // g: [적 종류, 마리 수, 간격(초), 시작 지연(초)]
@@ -799,6 +1021,7 @@ export function endlessWave(wave) {
   };
   // 21웨이브부터 골목 빌런 · 인피도 섞인다
   const extra = [['vomit', 3], ['cutter', 3], ['couple', 2], ['selfie', 2], ['handsy', 2], ['gao', 2], ['kkondae', 1], ['spam', 2], ['scammer', 2], ['inpi_gossip', 2], ['inpi_dictator', 1], ['inpi_treasurer', 1]];
+  if (wave >= 30) extra.push(['fakesingle', 3], ['carpoor', 2], ['sales', 2], ['jjijil', 2], ['drunk_run', 3], ['drunk_home', 2]);
   extra.forEach(([t, c], i) => { w.g.push([t, n(c), 3.2, 1 + (i % 4)]); });
   if (k % 5 === 0) w.boss = k % 10 === 0 ? 'queen' : 'boss_thug';
   if (wave >= 25 && (wave - 25) % 10 === 0) w.boss = 'boss_union'; // 진상 연합 회장: 25 · 35 · 45 …
@@ -831,6 +1054,45 @@ export const CARDS = [
   { id: 'ult', icon: '📣', title: '총공지 확성기', desc: '궁극기 충전 +50% · 피해 +40%', rarity: 'rare', max: 2 },
   { id: 'charmRes', icon: '🛡️', title: '연애 금지 서약', desc: '홀림 시간 -50%', rarity: 'rare', max: 1 },
 ];
+// 빌드 카드: 속성 결속 · 특성(태그) · 보스/잡몹 · 위험한 거래 · 보너스
+CARDS.push(
+  { id: 'syn_talk', icon: '🗣️', title: '말빨 결속', desc: '말빨 멤버 공격력 +25%', rarity: 'rare', max: 3, attr: 'talk' },
+  { id: 'syn_power', icon: '👊', title: '힘 결속', desc: '힘 멤버 공격력 +25%', rarity: 'rare', max: 3, attr: 'power' },
+  { id: 'syn_charm', icon: '💖', title: '매력 결속', desc: '매력 멤버 공격력 +25%', rarity: 'rare', max: 3, attr: 'charm' },
+  { id: 'syn_booze', icon: '🍶', title: '술 결속', desc: '술 멤버 공격력 +25%', rarity: 'rare', max: 3, attr: 'booze' },
+  { id: 'tag_pierce', icon: '🗡️', title: '관통 탄두', desc: '관통 멤버 공격력 +25% · 투사체 관통 +1', rarity: 'rare', max: 2, tag: 'pierce' },
+  { id: 'tag_splash', icon: '💥', title: '폭발 증폭', desc: '폭발 범위 +30% · 폭발 멤버 공격력 +20%', rarity: 'rare', max: 2, tag: 'splash' },
+  { id: 'tag_chain', icon: '⚡', title: '연쇄 반응', desc: '연쇄 멤버 튕김 +1 · 공격력 +20%', rarity: 'rare', max: 2, tag: 'chain' },
+  { id: 'tag_kb', icon: '💨', title: '밀어내기 달인', desc: '넉백 +40% · 넉백 멤버 공격력 +20%', rarity: 'common', max: 2, tag: 'kb' },
+  { id: 'tag_heal', icon: '💚', title: '회복 강화', desc: '모든 회복 +50% · 회복 멤버 공격력 +15%', rarity: 'common', max: 2, tag: 'heal' },
+  { id: 'tag_ctrl', icon: '🌀', title: '제어 연장', desc: '감속·기절 시간 +35% · 제어 멤버 공격력 +15%', rarity: 'common', max: 2, tag: 'ctrl' },
+  { id: 'tag_boss', icon: '🎯', title: '보스 사냥꾼', desc: '보스·중간 보스에게 피해 +40%', rarity: 'rare', max: 2, tag: 'boss' },
+  { id: 'swarm', icon: '🌪️', title: '청소부', desc: '일반 진상에게 피해 +22%', rarity: 'common', max: 2 },
+  { id: 'risk_allin', icon: '🎲', title: '올인!', desc: '입구 최대 내구도 -20% · 모든 공격력 +35%', rarity: 'rare', max: 1, risk: true },
+  { id: 'risk_overtime', icon: '🌙', title: '야근 모드', desc: '진상 체력 +15% · 경험치 +50%', rarity: 'common', max: 1, risk: true },
+  { id: 'risk_glass', icon: '🍷', title: '유리 대포', desc: '치명타 피해 +80% · 입구 회복 -50%', rarity: 'rare', max: 1, risk: true },
+  { id: 'econ_bonus', icon: '🎁', title: '보너스 카드', desc: '지금 바로 카드 한 번 더 고르기', rarity: 'common', max: 2 },
+);
+// 멤버 특성 (시너지 카드가 이걸 보고 붙는다)
+export const TAGS = {
+  pierce: { id: 'pierce', name: '관통', icon: '🗡️' }, splash: { id: 'splash', name: '폭발', icon: '💥' }, chain: { id: 'chain', name: '연쇄', icon: '⚡' },
+  kb: { id: 'kb', name: '넉백', icon: '💨' }, heal: { id: 'heal', name: '회복', icon: '💚' }, ctrl: { id: 'ctrl', name: '제어', icon: '🌀' }, boss: { id: 'boss', name: '보스킬', icon: '🎯' },
+};
+export const HERO_TAGS = {
+  bangjang: ['kb', 'ctrl'], staff: ['ctrl'], gunman: ['pierce', 'boss'], gunnyeo: ['splash', 'heal'], myunghoon: ['chain', 'ctrl'], dohoon: ['heal', 'ctrl'],
+  ingyu: ['splash', 'kb'], donghan: ['pierce', 'splash'], youngjun: ['boss'], eunok: ['splash'], hanna: ['kb', 'boss'], sunggu: ['pierce'],
+  junseo: ['chain', 'kb'], hyungyeong: ['splash', 'kb'], ara: ['boss', 'splash'], hochan: ['pierce', 'ctrl'],
+};
+// 같은 속성 멤버 n명 → 그 멤버들 공격력 + (TFT 처럼)
+export const ATTR_SET = [0, 0, 0.12, 0.22, 0.34, 0.44, 0.52];
+// 진화: Lv5 + 짝 특성 카드를 가지고 있으면 "진화" 카드가 나온다 (공격력 ×1.45 · 공격 속도 +18% · 스킬 쿨 -30%)
+export const EVO = {
+  bangjang: { tag: 'kb', name: '황금 확성기' }, staff: { tag: 'ctrl', name: '운영 총괄' }, gunman: { tag: 'pierce', name: '레일 새총' }, gunnyeo: { tag: 'heal', name: '천사 간호사' },
+  myunghoon: { tag: 'chain', name: '구미호 욕신' }, dohoon: { tag: 'heal', name: '전국 투어' }, ingyu: { tag: 'kb', name: '3대 700' }, donghan: { tag: 'splash', name: '각성한 간보기' },
+  youngjun: { tag: 'boss', name: '검은 표범 왕' }, eunok: { tag: 'splash', name: '폭탄주 여왕' }, hanna: { tag: 'kb', name: '윙크 여신' }, sunggu: { tag: 'pierce', name: '지팡이 달인' },
+  junseo: { tag: 'chain', name: '인맥왕' }, hyungyeong: { tag: 'kb', name: '다이어트 챔피언' }, ara: { tag: 'boss', name: '여왕 폐하' }, hochan: { tag: 'ctrl', name: '랑방의 전설' },
+};
+export const EVO_MUL = { dmg: 1.45, spd: 0.18, cd: 0.7 };
 // 뽑을 게 모자랄 때 채워 넣는 카드 (제한 없음)
 export const FILLER_CARDS = [
   { id: 'fillUlt', icon: '📣', title: '확성기 예열', desc: '총공지 게이지 +40', rarity: 'common' },
@@ -864,8 +1126,16 @@ export const GEAR = {
   nametag: { id: 'nametag', slot: 'a', icon: '📛', name: '랑방 명찰', stat: 'attr', base: 0.06 },
   sneaker: { id: 'sneaker', slot: 'a', icon: '👟', name: '한정판 운동화', stat: 'spd', base: 0.04 },
   clover: { id: 'clover', slot: 'a', icon: '🍀', name: '네잎클로버 폰케이스', stat: 'crit', base: 0.025 },
+  passport: { id: 'passport', slot: 'w', icon: '🛂', name: '여권 지갑', stat: 'strip', base: 0.07, ch: 4 },
+  sunglass: { id: 'sunglass', slot: 'a', icon: '😎', name: '제주 선글라스', stat: 'crit', base: 0.03, ch: 4 },
+  lantern: { id: 'lantern', slot: 'a', icon: '🏮', name: '캠핑 랜턴', stat: 'hp', base: 0.05, ch: 5 },
+  guitar: { id: 'guitar', slot: 'w', icon: '🎸', name: 'MT 통기타', stat: 'skill', base: 0.11, ch: 5 },
+  santahat: { id: 'santahat', slot: 'a', icon: '🎅', name: '산타 모자', stat: 'cd', base: 0.055, ch: 6 },
+  champagne: { id: 'champagne', slot: 'w', icon: '🥂', name: '샴페인 잔', stat: 'atk', base: 0.065, ch: 6 },
 };
 export const GEAR_IDS = Object.keys(GEAR);
+// 이 스테이지에서 떨어지는 장비 (새 세트는 그 챕터부터)
+export const gearPoolFor = (stage) => GEAR_IDS.filter((t) => !GEAR[t].ch || GEAR[t].ch <= Math.ceil(stage / 10));
 export const GEAR_MAX_LV = 10;
 export const GEAR_BAG = 80; // 가방 칸
 export function gearValue(t, r, lv) {
@@ -889,18 +1159,20 @@ export function hashSeed(str) {
   return h >>> 0;
 }
 // 드롭: 클리어 1개 (+★★★ 이면 35% 로 1개 더, 퍼펙트면 1개 더). 첫 퍼펙트는 첫 장비가 희귀 이상 확정
-export function rollDrops(seed, stage, stars, perfect, firstPerfect) {
+export function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = false) {
   const rng = seedRng(seed);
-  let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0);
+  let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
   const out = [];
   for (let i = 0; i < n; i++) {
     const w = { common: 70, rare: 24 + stage * 0.4, epic: 5 + stage * 0.35, legend: 0.6 + stage * 0.08 };
     if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
     if (firstPerfect && i === 0) w.common = 0;
+    if (hell) { w.common = 0; w.epic *= 2; w.legend *= 2; }
     const sum = w.common + w.rare + w.epic + w.legend;
     let x = rng() * sum, r = 'common';
     for (const k of GEAR_RARITIES) { x -= w[k]; if (x <= 0) { r = k; break; } }
-    const t = GEAR_IDS[(rng() * GEAR_IDS.length) | 0];
+    const pool = gearPoolFor(stage);
+    const t = pool[(rng() * pool.length) | 0];
     out.push({ t, r });
   }
   return out;

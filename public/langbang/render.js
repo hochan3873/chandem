@@ -13,12 +13,16 @@ const PROJ_COLOR = {
   notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#ff9a3c',
 };
 // 챕터 전용 배경에서 랑방 지붕(영웅 줄 뒤) 위치 — 그림 높이 대비
-const BG_ROOF = { 2: 0.735, 3: 0.735 };
+const BG_ROOF = { 2: 0.735, 3: 0.735, 4: 0.735, 5: 0.66, 6: 0.73 };
+const BG_BRIGHT = { 4: 0.42, 6: 0.36 }; // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
 // 챕터별 분위기 (같은 배경 그림에 색만 덧씌운다)
 const THEMES = {
   1: null, // 랑방 골목: 원래 그대로
   2: { top: 'rgba(255,60,170,0.24)', bottom: 'rgba(255,140,40,0.18)', glow: 'rgba(255,80,200,0.26)', mode: 'soft-light', wash: 'rgba(160,30,120,0.35)' }, // 불금 번화가: 분홍·주황 네온
   3: { top: 'rgba(40,220,120,0.26)', bottom: 'rgba(110,30,190,0.32)', glow: 'rgba(80,255,160,0.28)', mode: 'multiply', wash: 'rgba(70,40,140,0.75)' }, // 인피 아지트: 어두운 보라 + 초록 불빛
+  4: { top: 'rgba(80,200,255,0.18)', bottom: 'rgba(255,200,80,0.12)', glow: 'rgba(120,220,255,0.2)', mode: 'soft-light', wash: 'rgba(20,60,120,0.35)' },
+  5: { top: 'rgba(255,150,60,0.18)', bottom: 'rgba(40,20,80,0.3)', glow: 'rgba(255,140,40,0.22)', mode: 'multiply', wash: 'rgba(30,40,70,0.6)' },
+  6: { top: 'rgba(200,120,255,0.2)', bottom: 'rgba(255,255,255,0.1)', glow: 'rgba(200,140,255,0.24)', mode: 'soft-light', wash: 'rgba(60,30,110,0.45)' },
   endless: { top: 'rgba(255,40,40,0.22)', bottom: 'rgba(120,0,40,0.3)', glow: 'rgba(255,60,60,0.24)', mode: 'multiply', wash: 'rgba(150,40,60,0.7)' },
 };
 
@@ -206,6 +210,9 @@ export class Renderer {
     list.bg = '/img/lb/bg.webp';
     list.bg2 = '/img/lb/bg2.webp';
     list.bg3 = '/img/lb/bg3.webp';
+    list.bg4 = '/img/lb/bg4.webp';
+    list.bg5 = '/img/lb/bg5.webp';
+    list.bg6 = '/img/lb/bg6.webp';
     list.base = '/img/lb/base.webp';
     const skip = new URLSearchParams(location.search).has('noimg');
     for (const key in list) {
@@ -213,7 +220,7 @@ export class Renderer {
       img.decoding = 'async';
       img.onload = () => {
         if (key === 'moto' || key === 'gf') return;
-        if (key === 'bg' || key === 'base' || key === 'bg2' || key === 'bg3') this.bakeBg();
+        if (key === 'bg' || key === 'base' || /^bg\d$/.test(key)) this.bakeBg();
         else this.bakeSprite(key);
       };
       if (!skip) img.src = list[key];
@@ -305,6 +312,17 @@ export class Renderer {
     this.sprites[key] = { c, f, box, real };
   }
 
+  // 헬 모드용: 붉은 기운을 미리 구운 그림 (진상마다 빛을 따로 그리지 않게)
+  hellSprite(sp) {
+    if (sp.h) return sp.h;
+    const c = mkCanvas(sp.c.width, sp.c.height);
+    const x = c.getContext('2d');
+    const gl = this.projSprites.glowRed;
+    x.globalAlpha = 0.7; x.drawImage(gl.c, -c.width * 0.1, c.height * 0.05, c.width * 1.2, c.height * 1.0); x.globalAlpha = 1;
+    x.drawImage(sp.c, 0, 0);
+    sp.h = c;
+    return c;
+  }
   // 단톡방 알림: 빨간 알림 점 (그림 없이 직접)
   bakeDot(key, def) {
     const box = def.size;
@@ -312,6 +330,13 @@ export class Renderer {
     const c = mkCanvas(px, px);
     const x = c.getContext('2d');
     const cxp = px / 2, cyp = px * 0.55, r = px * 0.26;
+    if (def.figure) {
+      glow(x, cxp, cyp, r * 1.6, 'rgba(255,180,220,0.6)');
+      x.font = `${Math.round(px * 0.62)}px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(def.emoji, cxp, cyp);
+      const f0 = mkCanvas(px, px); const fx0 = f0.getContext('2d'); fx0.drawImage(c, 0, 0); fx0.globalCompositeOperation = 'source-atop'; fx0.fillStyle = 'rgba(255,255,255,0.88)'; fx0.fillRect(0, 0, px, px);
+      this.sprites[key] = { c, f: f0, box, real: true };
+      return;
+    }
     glow(x, cxp, cyp, r * 1.9, 'rgba(255,40,70,0.55)');
     x.fillStyle = '#ff2d45'; x.strokeStyle = '#fff'; x.lineWidth = px * 0.05;
     x.beginPath(); x.arc(cxp, cyp, r, 0, TAU); x.fill(); x.stroke();
@@ -504,6 +529,18 @@ export class Renderer {
       roundRect(x, 5, 5, w - 10, 13, 5); x.fill(); x.stroke();
       star(x, w / 2, 11.5, 4, 2, '#ffe14d');
     });
+    make('note', 18, 22, (x, w, h) => {
+      glow(x, w / 2, h / 2, 10, 'rgba(255,255,255,0.45)');
+      x.font = `900 18px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.lineWidth = 3; x.strokeStyle = '#1a0b1f'; x.strokeText('♪', w / 2, h / 2 + 1);
+      x.fillStyle = '#fff'; x.fillText('♪', w / 2, h / 2 + 1);
+    });
+    for (const [k, em] of [['sarcasm', '🪃'], ['golf', '⚪'], ['bag', '👜'], ['stamp', '📛'], ['glow', '🌟']]) {
+      make('ep_' + k, 26, 26, (x, w, h) => {
+        glow(x, w / 2, h / 2, 13, 'rgba(255,255,255,0.35)');
+        x.font = `20px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(em, w / 2, h / 2 + 1);
+      });
+    }
     make('crownIco', 22, 16, (x, w, h) => {
       x.fillStyle = '#ffd23f'; x.strokeStyle = '#7a5200'; x.lineWidth = 1.2;
       x.beginPath(); x.moveTo(2, h - 2); x.lineTo(3, 4); x.lineTo(7, 9); x.lineTo(11, 2); x.lineTo(15, 9); x.lineTo(19, 4); x.lineTo(20, h - 2); x.closePath(); x.fill(); x.stroke();
@@ -560,7 +597,7 @@ export class Renderer {
     const c = mkCanvas(W * k, H * k);
     const x = c.getContext('2d');
     x.scale(k, k);
-    const ch = this.themeKey === 2 || this.themeKey === 3 ? this.themeKey : 0;
+    const ch = typeof this.themeKey === 'number' && this.themeKey >= 2 && this.themeKey <= 6 ? this.themeKey : 0;
     const own = ch && imgOk(this.images['bg' + ch]); // 챕터 전용 배경이 있으면 그걸로 (색은 살짝만)
     const img = own ? this.images['bg' + ch] : this.images.bg;
     const rowY = rowYFor(H);
@@ -571,6 +608,12 @@ export class Renderer {
       dy = Math.min(0, Math.max(H - dh, dy));
       x.imageSmoothingQuality = 'high';
       x.drawImage(img, (W - dw) / 2, dy, dw, dh);
+      if (own && BG_BRIGHT[ch]) {
+        // 밝은 길 어둡게 (가운데 길 + 가장자리)
+        const road = x.createLinearGradient(0, 0, W, 0);
+        road.addColorStop(0, 'rgba(8,10,28,0.25)'); road.addColorStop(0.3, `rgba(8,10,28,${BG_BRIGHT[ch]})`); road.addColorStop(0.7, `rgba(8,10,28,${BG_BRIGHT[ch]})`); road.addColorStop(1, 'rgba(8,10,28,0.25)');
+        x.fillStyle = road; x.fillRect(0, 0, W, rowY - 30);
+      }
     } else {
       this.proceduralBg(x, W, H, rowY);
     }
@@ -690,6 +733,15 @@ export class Renderer {
       for (let i = 0; i < 4; i++) { cx.beginPath(); cx.arc(Math.cos(i * 1.7 + q.x) * q.r * 0.5, Math.sin(i * 2.3) * q.r * 0.5, 4 + (i % 2) * 3, 0, TAU); cx.fill(); }
       cx.globalAlpha = 1;
     }
+    // 찌질남: 달라붙은 멤버와 하트 끈
+    for (const e of g.enemies) {
+      if (e.dead || !e.clingTo) continue;
+      const h = e.clingTo;
+      this.world();
+      cx.strokeStyle = 'rgba(160,170,200,0.8)'; cx.lineWidth = 2; cx.setLineDash([5, 4]);
+      cx.beginPath(); cx.moveTo(e.x, e.y - 20); cx.quadraticCurveTo((e.x + h.x) / 2, (e.y + h.y) / 2 - 40, h.x, h.y - 30); cx.stroke();
+      cx.setLineDash([]);
+    }
     // 손진상 팔
     for (const e of g.enemies) {
       if (e.dead || !e.grabbing) continue;
@@ -797,6 +849,19 @@ export class Renderer {
         for (const x0 of [-10, W + 10]) { cx.beginPath(); cx.arc(x0, g.H * 0.35, 30 + p * 140, 0, TAU); cx.stroke(); }
       }
       cx.globalAlpha = 1;
+    } else if (fx.id === 'conveyor') {
+      const [l, r] = fx.belt;
+      cx.fillStyle = 'rgba(30,34,48,0.45)'; cx.fillRect(l, 40, r - l, g.ropeY - 40);
+      cx.strokeStyle = 'rgba(255,210,63,0.35)'; cx.lineWidth = 3;
+      for (let y = 40 + ((t * 60) % 40); y < g.ropeY; y += 40) { cx.beginPath(); cx.moveTo(l + 6, y); cx.lineTo((l + r) / 2, y + 12); cx.lineTo(r - 6, y); cx.stroke(); }
+    } else if (fx.id === 'campfire') {
+      const gl = this.projSprites.glowRed;
+      const fy = g.ropeY - 90, fr = fx.fire.r;
+      cx.globalAlpha = 0.55 + Math.sin(t * 9) * 0.12;
+      cx.drawImage(gl.c, fx.fire.x - fr * 1.6, fy - fr * 1.6, fr * 3.2, fr * 3.2);
+      cx.globalAlpha = 1;
+      cx.font = `28px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('🔥', fx.fire.x, fy + Math.sin(t * 12) * 1.5);
+      if (Math.random() < 0.3) this.fx.part('spark', fx.fire.x + (Math.random() - 0.5) * 30, fy, (Math.random() - 0.5) * 40, -90, 0.6, 2.5, '#ffb347');
     } else if (fx.id === 'feast') {
       const gl = this.projSprites.glowRed;
       cx.globalAlpha = 0.25 + Math.sin(t * 3) * 0.08;
@@ -807,6 +872,15 @@ export class Renderer {
 
   drawMapFxOver(g) {
     const cx = this.cx, W = this.W, H = this.H, t = this.fx.time, id = g.mapFx.id;
+    if (g.hell) {
+      // 헬 모드: 붉은 테두리 (미리 만든 그라데이션)
+      if (!this.hellGrad || this.hellH !== H) {
+        const gr = cx.createRadialGradient(W / 2, H * 0.45, H * 0.3, W / 2, H * 0.5, H * 0.8);
+        gr.addColorStop(0, 'rgba(120,0,0,0)'); gr.addColorStop(1, 'rgba(140,0,10,0.55)');
+        this.hellGrad = gr; this.hellH = H;
+      }
+      cx.fillStyle = this.hellGrad; cx.globalAlpha = 0.85 + Math.sin(t * 2) * 0.1; cx.fillRect(0, 0, W, H); cx.globalAlpha = 1;
+    }
     if (id === 'rain') {
       cx.strokeStyle = 'rgba(170,200,255,0.35)'; cx.lineWidth = 1.2;
       cx.beginPath();
@@ -835,6 +909,31 @@ export class Renderer {
       gr.addColorStop(0, `rgba(2,2,8,${0.93 * f * flick})`); gr.addColorStop(Math.max(0, edge - 0.05), `rgba(2,2,8,${0.9 * f * flick})`);
       gr.addColorStop(Math.min(1, edge + 0.08), 'rgba(2,2,8,0.15)'); gr.addColorStop(1, 'rgba(2,2,8,0.1)');
       cx.fillStyle = gr; cx.fillRect(0, 0, W, H);
+    } else if (id === 'snow') {
+      cx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 40; i++) {
+        const x = (i * 83.7 + Math.sin(t * 0.8 + i) * 18) % W;
+        const y = (i * 131.3 + t * 40) % H;
+        cx.beginPath(); cx.arc(x, y, 1.2 + (i % 3) * 0.7, 0, TAU); cx.fill();
+      }
+    } else if (id === 'lightshow') {
+      const c = ['rgba(255,79,216,0.18)', 'rgba(111,240,255,0.16)', 'rgba(255,210,63,0.16)'];
+      for (let i = 0; i < 3; i++) {
+        const a = Math.sin(t * (0.7 + i * 0.3) + i * 2) * 0.6;
+        cx.save(); cx.translate(W * (0.2 + i * 0.3), 0); cx.rotate(a);
+        cx.fillStyle = c[i]; cx.beginPath(); cx.moveTo(-8, 0); cx.lineTo(8, 0); cx.lineTo(70, H * 0.75); cx.lineTo(-70, H * 0.75); cx.closePath(); cx.fill(); cx.restore();
+      }
+      if (g.strobeT > 0 && Math.sin(t * 40) > 0) { cx.fillStyle = 'rgba(255,255,255,0.22)'; cx.fillRect(0, 0, W, H); }
+    } else if (id === 'wind') {
+      cx.strokeStyle = 'rgba(220,240,255,0.35)'; cx.lineWidth = 1.5;
+      const dir = g.windX >= 0 ? 1 : -1;
+      cx.beginPath();
+      for (let i = 0; i < 18; i++) {
+        const y = (i * 53.3) % (g.ropeY);
+        const x = ((i * 97.1 + t * 160 * dir) % (W + 60) + W + 60) % (W + 60) - 30;
+        cx.moveTo(x, y); cx.lineTo(x + 26 * dir, y + 2);
+      }
+      cx.stroke();
     } else if (id === 'megaphone' && g.megaT > 0) {
       cx.globalAlpha = 0.25 + Math.sin(t * 20) * 0.1;
       cx.strokeStyle = '#ff3b5c'; cx.lineWidth = 8;
@@ -942,8 +1041,10 @@ export class Renderer {
     for (const e of g.enemies) if (!e.dead && (e.y > dark || e === g.focus)) list.push(e);
     list.sort((a, b) => a.y - b.y);
     const sh = this.projSprites.shadow;
+    const heavy = list.length > 110; // 많을 땐 가벼운 그리기 (작은 진상 그림자 생략 · 연기 줄임)
     // 그림자 먼저
     for (const e of list) {
+      if (heavy && !e.boss && !e.mid && e.def.size < 80) continue;
       const box = e.def.size;
       const w = box * 0.62;
       this.tf(e.x, e.y + box * FEET_OFF, 0, 1, 1);
@@ -969,7 +1070,10 @@ export class Renderer {
         if (f === 'ugly' || f === 'fat') { key += '_' + f; def = this.formDefs[key] || def; }
       }
       const box = def.size;
-      const sp = this.sprites[key] || this.sprites['e_' + e.type];
+      let sp = this.sprites[key] || this.sprites['e_' + e.type];
+      // 중간 보스: 각성 = 원래 그림을 크게 · 합체 = 두 그림 나란히
+      const fz = def.fuse;
+      if (def.mid && def.base) sp = this.sprites['e_' + def.base] || sp;
       if (!sp) continue;
       const feet = e.y + box * FEET_OFF;
       const moving = !e.atRope && e.stunT <= 0 && e.windup <= 0;
@@ -994,6 +1098,14 @@ export class Renderer {
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
       if (e.fleeing) { sx = -sx; bob = -Math.abs(Math.sin(e.age * 18)) * 5; }
       // 보스 발밑 오라
+      if (e.warnN > 0) {
+        this.world();
+        for (let i = 0; i < 3; i++) {
+          cx.fillStyle = i < e.warnN ? '#ffd23f' : 'rgba(0,0,0,0.45)';
+          cx.strokeStyle = '#1a0b1f'; cx.lineWidth = 1.2;
+          cx.beginPath(); cx.rect(e.x - 10 + i * 7, e.y - box * 0.78 - 8, 5, 7); cx.fill(); cx.stroke();
+        }
+      }
       if (e.boss && e.weakT > 0) {
         const gl = this.projSprites.glowGold;
         const r = box * (0.75 + Math.sin(t * 16) * 0.08);
@@ -1006,6 +1118,13 @@ export class Renderer {
         this.tf(e.x, feet - box * 0.1, 0, 1, 0.5);
         cx.drawImage(gl.c, -r, -r, r * 2, r * 2);
       }
+      if (e.goodsOn) {
+        const gl = this.projSprites.glowGold;
+        const r = box * 0.55;
+        this.tf(e.x, e.y - box * 0.12, 0, 1, 1);
+        cx.globalAlpha = 0.7; cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1;
+      }
+      if (e.stallT > 0 && Math.random() < 0.3) this.fx.part('puff', e.x + (Math.random() - 0.5) * 20, e.y - box * 0.4, 0, -40, 0.6, 9, 'rgba(90,90,100,0.7)');
       if (e.shield > 0 || e.packN >= 2) {
         const gl = this.projSprites.glowCyan;
         const r = box * (e.shield > 0 ? 0.55 : 0.42);
@@ -1029,9 +1148,35 @@ export class Renderer {
         cx.drawImage(gl.c, -r, -r, r * 2, r * 2);
         rot = Math.sin(t * 40) * 0.08;
       }
-      this.tf(e.x, feet + bob, rot, sx, sy);
-      const img = e.flash > 0 ? sp.f : sp.c;
-      cx.drawImage(img, -box / 2, -box * FEET, box, box);
+      if (g.hell && !def.mid && !heavy && Math.random() < 0.02) this.fx.part('puff', e.x + (Math.random() - 0.5) * box * 0.4, e.y, 0, -60, 0.7, 6, 'rgba(255,50,30,0.5)'); // 헬: 가끔 붉은 연기
+      if (def.mid) {
+        // 각성 오라: 보라·빨강 빛 + 올라가는 기운
+        const gl = this.projSprites.glowPink;
+        const r = box * (0.62 + Math.sin(t * 6 + e.phase) * 0.05);
+        this.tf(e.x, e.y - box * 0.15, 0, 1, 1);
+        cx.globalAlpha = 0.75; cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1;
+        if (Math.random() < 0.25) this.fx.part('puff', e.x + (Math.random() - 0.5) * box * 0.5, feet - 6, 0, -70, 0.6, 7, 'rgba(200,80,255,0.55)');
+      }
+      if (fz) {
+        const a = this.sprites['e_' + fz[0]], b = this.sprites['e_' + fz[1]];
+        const bw = box * 0.8;
+        if (b) { this.tf(e.x + box * 0.2, feet + bob, rot, sx, sy); cx.drawImage(e.flash > 0 ? b.f : b.c, -bw / 2, -bw * FEET, bw, bw); }
+        if (a) { this.tf(e.x - box * 0.2, feet + bob, -rot, sx, sy); cx.drawImage(e.flash > 0 ? a.f : a.c, -bw / 2, -bw * FEET, bw, bw); }
+      } else {
+        this.tf(e.x, feet + bob, rot, sx, sy);
+        const img = e.flash > 0 ? sp.f : g.hell ? this.hellSprite(sp) : sp.c; // 헬: 붉은 빛을 미리 구운 그림 (그리기 1번)
+        cx.drawImage(img, -box / 2, -box * FEET, box, box);
+      }
+      if (def.mid) {
+        // 이름표
+        this.world();
+        cx.font = `900 10px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+        const lbl = '⚡' + def.name;
+        const tw = cx.measureText(lbl).width + 12;
+        cx.fillStyle = 'rgba(60,10,80,0.9)'; roundRect(cx, e.x - tw / 2, feet + 2, tw, 14, 7); cx.fill();
+        cx.strokeStyle = '#d8a8ff'; cx.lineWidth = 1; cx.stroke();
+        cx.fillStyle = '#fff'; cx.fillText(lbl, e.x, feet + 9.5);
+      }
       // 상태 아이콘 / 체력바는 회전 없이
       const top = feet - box * 0.86;
       if (e.slowT > 0) {
@@ -1407,7 +1552,7 @@ export class Renderer {
       if (s) cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
     }
     for (const q of g.eprojs || []) {
-      const s = q.kind === 'duck' ? P.duck : q.kind === 'paper' ? P.paper : P.rumor;
+      const s = q.kind === 'duck' ? P.duck : q.kind === 'paper' ? P.paper : P['ep_' + q.kind] || P.rumor;
       this.tf(q.x, q.y, q.kind === 'rumor' ? Math.sin(q.t * 14) * 0.12 : q.t * 12, 1, 1);
       cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
     }
@@ -1441,6 +1586,14 @@ export class Renderer {
           const r = p.size * (1.6 - a * 0.6);
           cx.globalAlpha = a * 0.55; cx.fillStyle = p.color;
           cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.fill();
+          break;
+        }
+        case 'note': {
+          // 음표 (김도훈)
+          const s = P.note;
+          this.tf(p.x, p.y, Math.sin(p.life * 6) * 0.3, p.size / 12, p.size / 12);
+          cx.globalAlpha = Math.min(1, a * 2);
+          cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
           break;
         }
         case 'heart': case 'star': case 'coin': {

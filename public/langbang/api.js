@@ -3,7 +3,7 @@
 // 손님: 같은 공식(data.js)으로 이 기기 localStorage 에만 저장 (랭킹에는 안 올라감)
 import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
-  metaCost, itemCost, stageReward, endlessReward, deckSlots, migrateDeckItems,
+  metaCost, itemCost, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen,
   GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearSellValue, rollDrops, gearStats, stageBosses,
 } from './data.js';
 import * as L from './live.js';
@@ -77,6 +77,8 @@ function normalize(p, guest) {
   out.gearSeq = (p && p.gearSeq) | 0;
   out.equip = (p && p.equip) || {};
   out.perfects = (p && p.perfects) || {};
+  out.hell = {};
+  for (const [k, v] of Object.entries((p && p.hell) || {})) if ((v | 0) > 0 && (out.stages[+k] | 0) >= 3) out.hell[+k] = Math.min(3, v | 0);
   out.deckSlots = deckSlots(out.items);
   out.guest = !!guest;
   L.normLive(p || {}, out); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록
@@ -103,11 +105,11 @@ function readGuest() {
   return raw;
 }
 function writeGuest(p) {
-  const keep = { coins: p.coins, heroes: p.heroes, items: p.items, stages: p.stages, bestWave: p.bestWave, bestScore: p.bestScore, runs: p.runs | 0, seen: p.seen || [], gear: p.gear || [], gearSeq: p.gearSeq | 0, equip: p.equip || {}, perfects: p.perfects || {} };
+  const keep = { coins: p.coins, heroes: p.heroes, items: p.items, stages: p.stages, bestWave: p.bestWave, bestScore: p.bestScore, runs: p.runs | 0, seen: p.seen || [], gear: p.gear || [], gearSeq: p.gearSeq | 0, equip: p.equip || {}, perfects: p.perfects || {}, hell: p.hell || {} };
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
+const LIVE_KEYS = ['decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
@@ -125,16 +127,20 @@ export async function postStage(sum, guest) {
   if (guest) {
     const p = guestProfile();
     if (sum.stage > p.maxStage + 1) return { ok: false, message: '아직 열리지 않은 스테이지예요' };
-    const prev = p.stages[sum.stage] || 0;
-    const perfect = sum.stars === 3 && !!sum.perfect;
+    const hell = !!sum.hell;
+    if (hell && !hellOpen(p.stages, sum.stage)) return { ok: false, message: '헬 모드는 일반 ★★★ 로 깬 스테이지만 열려요' };
+    const prev = (hell ? p.hell[sum.stage] : p.stages[sum.stage]) || 0;
+    const perfect = !hell && sum.stars === 3 && !!sum.perfect;
     const firstPerfect = perfect && !p.perfects[sum.stage];
-    const reward = stageReward(sum.stage, sum.stars, prev, p.items.coupon, perfect, firstPerfect);
-    const q = Object.assign({}, p, { coins: p.coins + reward.total, stages: Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) }), runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
+    const reward = hell ? hellReward(sum.stage, sum.stars, prev, p.items.coupon) : stageReward(sum.stage, sum.stars, prev, p.items.coupon, perfect, firstPerfect);
+    const q = Object.assign({}, p, { coins: p.coins + reward.total, runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
+    if (hell) q.hell = Object.assign({}, p.hell, { [sum.stage]: Math.max(prev, sum.stars) });
+    else q.stages = Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) });
     if (perfect) q.perfects = Object.assign({}, p.perfects, { [sum.stage]: true });
     // 손님 장비 드롭 (같은 공식, 시드는 이 기기에서)
     const got = [];
     q.gear = (p.gear || []).slice();
-    for (const d of rollDrops((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, perfect, firstPerfect)) {
+    for (const d of rollDrops((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, perfect, firstPerfect, hell)) {
       if (q.gear.length >= GEAR_BAG) { const v = gearSellValue(d.r, 0); q.coins += v; got.push(Object.assign({ sold: v }, d)); continue; }
       q.gearSeq = (q.gearSeq | 0) + 1;
       const it = { id: q.gearSeq, t: d.t, r: d.r, lv: 0 };
@@ -146,8 +152,8 @@ export async function postStage(sum, guest) {
     writeGuest(q);
     const after = guestProfile();
     return {
-      ok: true, profile: after, reward: Object.assign({}, reward, { firstClear: !prev, stage: sum.stage, stars: sum.stars, isPerfect: perfect, firstPerfect, drops: got }),
-      unlockedHeroes: !prev ? LOCKED_HEROES.filter((h) => HERO_UNLOCK[h] === sum.stage && !heroUnlocked(p, h)) : [],
+      ok: true, profile: after, reward: Object.assign({}, reward, { firstClear: !prev && !hell, stage: sum.stage, stars: sum.stars, isPerfect: perfect, firstPerfect, drops: got, hell }),
+      unlockedHeroes: !prev && !hell ? LOCKED_HEROES.filter((h) => HERO_UNLOCK[h] === sum.stage && !heroUnlocked(p, h)) : [],
       endlessUnlocked: !endlessUnlocked(p) && endlessUnlocked(after),
     };
   }
@@ -363,5 +369,7 @@ export function checkin(guest) {
   if (guest) return guestLive((p) => L.claimCheckin(p, GUEST_UID, Date.now()));
   return liveCall('checkin', {});
 }
+// 덱 저장 (로그인하면 서버에도 — 다른 기기에서도 같은 덱)
+export function saveDecksRemote(decks, i) { return liveCall('decks', { decks, i }); }
 // 미션 시드용 사용자 번호 (서버와 같은 값 — 토큰 앞부분)
 export function liveUid() { const t = token(); return t ? String(t).split('.')[0] : GUEST_UID; }

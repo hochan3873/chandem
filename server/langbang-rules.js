@@ -7,14 +7,20 @@ const HIDDEN = ['eunok', 'hanna', 'sunggu'];
 const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan']; // 모집(뽑기)으로만 합류
 const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN, ...GACHA]; // 해금이 필요한 영웅
 const META_MAX = 20;
-const STAGE_COUNT = 30;
+const STAGE_COUNT = 60;
 const STAGE_WAVES = 5;
 const STAGES_PER_CHAPTER = 10;
 const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3
 const ENDLESS_UNLOCK = 10;
 // 도감에 올라가는 진상 (화면 data.js ENEMIES 와 같아야 한다 — 테스트가 검사)
 const ENEMY_IDS = ['yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'queen', 'boss_thug', 'vomit', 'couple', 'handsy', 'gao', 'selfie', 'cutter', 'kkondae', 'spam',
-  'inpi_gossip', 'inpi_dictator', 'inpi_clique', 'scammer', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'inpi_treasurer', 'boss_union'];
+  'inpi_gossip', 'inpi_dictator', 'inpi_clique', 'scammer', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'inpi_treasurer', 'boss_union',
+  'mid_mukti', 'mid_drunk', 'mid_thug', 'mid_scammer', 'mid_selfie', 'mid_gao', 'mid_kkondae', 'fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi',
+  'fakesingle', 'secretmom', 'carpoor', 'sales', 'sarcasm', 'jjijil', 'otaku', 'drunk_cry', 'drunk_run', 'drunk_sleep', 'drunk_home', 'kkondae2',
+  'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty',
+  'mid_fakesingle', 'mid_carpoor', 'fuse_lease', 'fuse_lie', 'mid_otaku', 'mid_sarcasm', 'fuse_jusa', 'fuse_sleep'];
+// 중간 보스가 나오는 스테이지 (1-1 · 1-2 제외) — 클리어 보상에 중간 보스 보너스
+const hasMid = (s) => s >= 3;
 
 const ITEMS = {
   door: { max: 10, per: 0.1, base: 50 },
@@ -45,11 +51,20 @@ function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = false, fir
   const newStars = Math.max(0, stars - prevStars);
   const star = Math.round(base * REWARD.starMul) * newStars;
   const perf = perfect ? Math.round(base * (firstPerfect ? 1.5 : 0.5)) : 0; // 퍼펙트 (입구 무피해)
+  const mid = hasMid(s) ? Math.round(base * 0.2) : 0; // 중간 보스 처치 보너스
   const mul = 1 + itemValue('coupon', couponLv);
-  const total = Math.round((clear + first + star + perf) * mul);
-  return { clear, first, star, perfect: perf, newStars, bonus: total - clear - first - star - perf, total };
+  const total = Math.round((clear + first + star + perf + mid) * mul);
+  return { clear, first, star, perfect: perf, mid, newStars, bonus: total - clear - first - star - perf - mid, total };
 }
 const DECK_BASE = 4;
+// 헬 모드 (화면 data.js 와 같은 규칙)
+const HELL_COIN = 3;
+const hellOpen = (stages, s) => ((stages || {})[s] | 0) >= 3;
+function hellReward(s, stars, prevStars = 0, couponLv = 0) {
+  const r = stageReward(s, stars, prevStars, couponLv, false, false);
+  const total = Math.round(r.total * HELL_COIN);
+  return Object.assign({}, r, { hell: true, total, bonus: r.bonus + (total - r.total) });
+}
 const deckSlots = (items) => DECK_BASE + ((items && items.slot5) | 0) + ((items && items.slot5 && items.slot6) | 0);
 // 예전 덱 칸(기본 5 · slot6 = 6칸 · slot7 = 7칸) → 새 칸(기본 4 · slot5 · slot6). 산 칸은 한 칸씩 남긴다
 function migrateDeckItems(items) {
@@ -106,8 +121,15 @@ const GEAR = {
   nametag: { id: 'nametag', slot: 'a', icon: '📛', name: '랑방 명찰', stat: 'attr', base: 0.06 },
   sneaker: { id: 'sneaker', slot: 'a', icon: '👟', name: '한정판 운동화', stat: 'spd', base: 0.04 },
   clover: { id: 'clover', slot: 'a', icon: '🍀', name: '네잎클로버 폰케이스', stat: 'crit', base: 0.025 },
+  passport: { id: 'passport', slot: 'w', icon: '🛂', name: '여권 지갑', stat: 'strip', base: 0.07, ch: 4 },
+  sunglass: { id: 'sunglass', slot: 'a', icon: '😎', name: '제주 선글라스', stat: 'crit', base: 0.03, ch: 4 },
+  lantern: { id: 'lantern', slot: 'a', icon: '🏮', name: '캠핑 랜턴', stat: 'hp', base: 0.05, ch: 5 },
+  guitar: { id: 'guitar', slot: 'w', icon: '🎸', name: 'MT 통기타', stat: 'skill', base: 0.11, ch: 5 },
+  santahat: { id: 'santahat', slot: 'a', icon: '🎅', name: '산타 모자', stat: 'cd', base: 0.055, ch: 6 },
+  champagne: { id: 'champagne', slot: 'w', icon: '🥂', name: '샴페인 잔', stat: 'atk', base: 0.065, ch: 6 },
 };
 const GEAR_IDS = Object.keys(GEAR);
+const gearPoolFor = (stage) => GEAR_IDS.filter((t) => !GEAR[t].ch || GEAR[t].ch <= Math.ceil(stage / 10));
 const GEAR_MAX_LV = 10;
 const GEAR_BAG = 80; // 가방 칸
 function gearValue(t, r, lv) {
@@ -131,18 +153,20 @@ function hashSeed(str) {
   return h >>> 0;
 }
 // 드롭: 클리어 1개 (+★★★ 이면 35% 로 1개 더, 퍼펙트면 1개 더). 첫 퍼펙트는 첫 장비가 희귀 이상 확정
-function rollDrops(seed, stage, stars, perfect, firstPerfect) {
+function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = false) {
   const rng = seedRng(seed);
-  let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0);
+  let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
   const out = [];
   for (let i = 0; i < n; i++) {
     const w = { common: 70, rare: 24 + stage * 0.4, epic: 5 + stage * 0.35, legend: 0.6 + stage * 0.08 };
     if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
     if (firstPerfect && i === 0) w.common = 0;
+    if (hell) { w.common = 0; w.epic *= 2; w.legend *= 2; }
     const sum = w.common + w.rare + w.epic + w.legend;
     let x = rng() * sum, r = 'common';
     for (const k of GEAR_RARITIES) { x -= w[k]; if (x <= 0) { r = k; break; } }
-    const t = GEAR_IDS[(rng() * GEAR_IDS.length) | 0];
+    const pool = gearPoolFor(stage);
+    const t = pool[(rng() * pool.length) | 0];
     out.push({ t, r });
   }
   return out;
@@ -155,6 +179,7 @@ function gearStats(items) {
 }
 
 module.exports = {
+  hellOpen, hellReward, HELL_COIN,
   GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
   LB_HEROES, HIDDEN, GACHA, LOCKED, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   metaCost, itemCost, itemValue, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
