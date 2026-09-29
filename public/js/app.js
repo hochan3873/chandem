@@ -764,7 +764,7 @@ function render() {
 
 function logoHTML(small = false) {
   return `<div class="logo ${small ? 'logo-sm' : ''}">
-    <img class="logo-icon" src="/img/gw-icon-192.png" alt="" onerror="this.remove()">
+    <img class="logo-icon" src="/img/gw2-icon-192.png" alt="" onerror="this.remove()">
     <div class="logo-text">${small ? '<span class="logo-ko">게임월드</span>' : '<span class="logo-ko logo-pop" data-text="찬이의 게임월드">찬이의 게임월드</span>'}<span class="logo-en">CHAN'S GAME WORLD</span></div>
   </div>`;
 }

@@ -1032,7 +1032,7 @@ html.splash-quiet #splash * { animation: none; }
 @keyframes pillPulse { 50% { box-shadow: 0 6px 18px rgba(0, 0, 0, .45), 0 0 0 6px rgba(255, 170, 70, .25); } }
 body.in-room #snd-pill, html.splashing #snd-pill { display: none; }
 #splash.done { opacity: 0; transform: scale(1.04); transition: opacity .45s ease, transform .45s ease; pointer-events: none; }
-.sp-art { position: absolute; inset: 0; background: url('/img/splash.webp') center top / cover no-repeat; animation: spArt 7s ease-out both; }
+.sp-art { position: absolute; inset: 0; background: url('/img/splash2.webp') center top / cover no-repeat; animation: spArt 7s ease-out both; }
 @keyframes spArt { from { transform: scale(1.07); } to { transform: scale(1); } }
 .sp-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10, 8, 40, .35) 0%, rgba(10, 8, 40, 0) 26%, rgba(10, 8, 40, 0) 72%, rgba(12, 6, 24, .7) 100%); }
 #splash.no-art .sp-art { display: none; }

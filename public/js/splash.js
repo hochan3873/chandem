@@ -87,10 +87,10 @@ async function start() {
     a.load();
   });
   const jobs = [
-    ['그림', img('/img/splash.webp', () => el.classList.add('no-art'))],
+    ['그림', img('/img/splash2.webp', () => el.classList.add('no-art'))],
     ['글꼴', font("400 1em 'Black Han Sans'")],
     ['글꼴', font("700 1em 'Noto Sans KR'")],
-    ['그림', img('/img/gw-icon-192.png')],
+    ['그림', img('/img/gw2-icon-192.png')],
     ['그림', img('/img/bg-lobby.webp')],
     ['그림', img(lbArt())],
     ['그림', img('/img/games/holdem.webp')],
