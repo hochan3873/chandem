@@ -259,7 +259,22 @@ function closeModal() {
 // 앱 안에서 화면을 옮길 때는 방문 기록을 쌓지 않고 주소만 바꾼다(nav). 대신 맨 위에 '보호용' 기록 하나를 둬서
 // 휴대폰·브라우저 뒤로가기를 누르면 바로 떠나지 않고 → 방 안: 나가기 메뉴 · 하위 화면: 한 단계 위 · 메인: 종료 확인.
 // (보호 기록은 사용자가 화면을 한 번 누른 뒤에 만든다 — 브라우저 규칙상 그래야 뒤로가기에 걸린다)
-const H = { url: location.pathname + location.search, armed: !!(history.state && history.state.gw === 'guard'), exiting: false };
+// 뒤로가기를 계속 눌러도 이전 페이지(랑방 대전·예전 메인 기록 등)로 가지 않고 메인까지만 올라온다.
+// '종료'를 골랐을 때만, 이 탭에서 사이트에 처음 들어온 기록(gw:startIdx) 바로 앞으로 한 번에 돌아가 사이트를 떠난다.
+const H = { url: location.pathname + location.search, armed: false, exiting: false, base: history.length - 1 };
+(() => {
+  const st = history.state;
+  if (st && (st.gw === 'guard' || st.gw === 'base') && Number.isFinite(st.i)) { H.base = st.i; H.armed = st.gw === 'guard'; }
+  else { try { history.replaceState({ gw: 'base', i: H.base }, '', H.url); } catch {} }
+  try {
+    const navType = ((performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}).type || 'navigate';
+    let outside = true;
+    try { outside = !document.referrer || new URL(document.referrer).origin !== location.origin; } catch {}
+    // 바깥(다른 사이트·앱 아이콘·새 탭)에서 들어왔으면 여기가 시작. 랑방 대전에서 location.replace('/') 로 오면 시작점은 그대로
+    if ((navType === 'navigate' && outside) || sessionStorage.getItem('gw:startIdx') === null) sessionStorage.setItem('gw:startIdx', String(H.base));
+    if (sessionStorage.getItem('gw:exitHint')) { sessionStorage.removeItem('gw:exitHint'); H.exitHint = true; }
+  } catch {}
+})();
 function nav(url) {
   H.url = url;
   try { history.replaceState(history.state, '', url); } catch {}
@@ -267,9 +282,11 @@ function nav(url) {
 function armGuard(e) {
   if (H.armed || H.exiting) return;
   if (e && e.target && e.target.closest && e.target.closest('[data-exit-go]')) return; // '종료'를 누른 터치로는 다시 걸지 않음
-  try { history.pushState({ gw: 'guard' }, '', H.url); H.armed = true; } catch {}
+  try { history.pushState({ gw: 'guard', i: H.base }, '', H.url); H.armed = true; } catch {}
 }
 ['click', 'pointerup', 'touchend', 'keydown'].forEach((ev) => window.addEventListener(ev, armGuard, { capture: true, passive: true }));
+// 처음부터 보호를 걸어 둔다 (한 번 누르기 전이면 브라우저가 건너뛸 수도 있어서, 누를 때 다시 확인). 종료 직후 돌아온 화면은 제외
+if (!H.exitHint) armGuard();
 function routeCode() {
   const m = location.pathname.match(/^\/r\/([A-Za-z0-9]{4,8})/);
   return m ? m[1].toUpperCase() : null;
@@ -2305,12 +2322,12 @@ window.addEventListener('popstate', (e) => {
   if (H.exiting) return;
   if (e.state && e.state.gw === 'guard') { H.armed = true; return; } // 앞으로 가기로 돌아옴
   H.armed = false;
-  try { history.replaceState(null, '', H.url); } catch {}
+  try { history.replaceState({ gw: 'base', i: H.base }, '', H.url); } catch {}
   handleBack();
 });
 function handleBack() {
   const stay = () => armGuard();
-  if (document.querySelector('.gw-loader')) { stay(); return; }
+  if (S.launching) { stay(); return; } // 게임 들어가는 중
   if ($modal.querySelector('.modal')) {
     if ($modal.querySelector('[data-exit-ask]')) { reallyExit(); return; } // 종료 확인 창에서 또 뒤로 → 진짜 나가기
     closeModal(); stay(); return;
@@ -2329,7 +2346,7 @@ function handleBack() {
       if (c) c.click(); else toHome();
       break;
     }
-    case 'home': askExit(); return;
+    case 'home': askExit(); break; // 확인 창이 떠 있는 동안에도 보호 (또 뒤로 → 종료)
     case 'boot': break;
     default: toHome(); // gamehome · admin · join · message
   }
@@ -2347,18 +2364,31 @@ function reallyExit() {
   modalOnClose = null; closeModal();
   let left = false;
   window.addEventListener('pagehide', () => { left = true; }, { once: true });
-  try { history.back(); } catch {}
-  // 앞에 돌아갈 페이지가 없으면(앱으로 바로 열었을 때) 창 닫기를 시도하고, 그래도 남아 있으면 안내
+  const gone = () => left || document.visibilityState === 'hidden';
+  let start = NaN;
+  try { start = Number(sessionStorage.getItem('gw:startIdx')); } catch {}
+  const cur = H.base + (H.armed ? 1 : 0); // 지금 있는 기록 위치
+  if (!Number.isFinite(start) || start > H.base) start = H.base;
+  // 사이트에 들어오기 전 페이지가 있으면 거기로 한 번에 (중간의 메인·랑방 대전 기록은 건너뜀)
+  if (start > 0) { try { history.go(-(cur - start + 1)); } catch {} }
   setTimeout(() => {
-    if (left || document.visibilityState === 'hidden') return;
-    try { window.close(); } catch {}
+    if (gone()) return;
+    try { window.close(); } catch {} // 앱으로 바로 연 경우: 창 닫기 시도
     setTimeout(() => {
-      if (left || document.visibilityState === 'hidden') return;
+      if (gone()) return;
+      // 이 탭의 첫 기록이 사이트라 더 뒤로 갈 곳이 없음 → 첫 기록으로 가서, 거기서 뒤로 한 번 더 누르면 종료
+      if (cur > 0) {
+        try { sessionStorage.setItem('gw:exitHint', '1'); } catch {}
+        try { history.go(-cur); } catch {}
+        setTimeout(() => { if (!gone()) { try { sessionStorage.removeItem('gw:exitHint'); } catch {} H.exiting = false; H.base = 0; H.armed = false; toast('뒤로 가기를 한 번 더 누르면 종료돼요'); } }, 400);
+        return;
+      }
       H.exiting = false;
       toast('뒤로 가기를 한 번 더 누르면 종료돼요');
     }, 250);
   }, 400);
 }
+if (H.exitHint) setTimeout(() => toast('뒤로 가기를 한 번 더 누르면 종료돼요'), 300);
 // 다른 페이지(랑방 대전 등)에서 뒤로 와서 저장된 화면이 그대로 복원될 때: 로딩 화면 · 전환 상태 정리
 window.addEventListener('pageshow', (e) => {
   if (!e.persisted) return;
