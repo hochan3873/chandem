@@ -35,19 +35,26 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const site = createSite({ acct, file: dataFile ? path.join(path.dirname(dataFile), 'site.json') : null, now });
   // 비상 비밀번호 재설정: 서버 환경 변수 RESET_USER(아이디) · RESET_PASSWORD(새 비밀번호, 6자 이상)를 넣고 배포하면
   // 켜질 때 한 번 바꾸고 그 계정의 모든 기기를 로그아웃한다. 로그인되면 두 변수를 지우고 다시 배포할 것.
+  // RESET_PASSWORD 없이 RESET_USER 만 넣으면 서버가 임시 비밀번호를 만들어 로그에 한 번만 찍는다.
+  // 같은 설정으로는 한 번만 실행된다(재시작해도 다시 안 바꿈). 다시 하려면 RESET_ID 값을 바꾼다.
   const resetUser = String(process.env.RESET_USER || '').trim().toLowerCase();
   const resetPass = String(process.env.RESET_PASSWORD || '');
-  if (resetUser && resetPass.length >= 6 && resetPass.length <= 64) {
+  if (resetUser && (!resetPass || (resetPass.length >= 6 && resetPass.length <= 64))) {
+    const key = `${resetUser}:${process.env.RESET_ID || '1'}:${resetPass ? 'set' : 'auto'}`;
     site.ready.then(async () => {
       const u = await acct.store.byName(resetUser);
       if (!u) { console.warn('[reset] 없는 아이디:', resetUser); return; }
+      let temp = null;
       await acct.exclusive(async () => {
         const cur = await acct.store.byId(u.id);
-        await site.store.setPass(u.id, hashPassword(resetPass));
         const meta = site.metaOf(cur);
-        await site.saveMeta(cur, { ...meta, tv: (meta.tv | 0) + 1 });
+        if (meta.envReset === key) return;
+        const pw = resetPass || (temp = require('crypto').randomBytes(6).toString('base64url'));
+        await site.store.setPass(u.id, hashPassword(pw));
+        await site.saveMeta(cur, { ...meta, tv: (meta.tv | 0) + 1, envReset: key });
       });
-      console.log('[reset] 비밀번호를 바꿨어요:', resetUser, '— 이제 RESET_USER/RESET_PASSWORD 를 지우세요');
+      if (temp) console.log(`[reset] ${resetUser} 임시 비밀번호: ${temp}  — 로그인 후 비밀번호를 바꾸고 RESET_USER 를 지우세요`);
+      else console.log('[reset] 처리 완료(또는 이미 처리됨):', resetUser);
     }).catch((e) => console.error('[reset] 실패:', e.message));
   }
   const app = express();
