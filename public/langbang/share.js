@@ -51,7 +51,7 @@ function rr(ctx, x, y, w, h, r) {
 }
 const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
 
-// r: { title, sub, win, score, wave, kills, bossKills, maxCombo, time, nickname, heroes:[{img,name,color,pct}] }
+// r: { title, win, mode('stage'|'endless'), stageLabel, stars, score, wave, waves, kills, bossKills, time, nickname, heroes:[{img,name,color}] }
 export async function drawCard(r) {
   const W = 1080, H = 1350;
   const cv = document.createElement('canvas');
@@ -103,22 +103,34 @@ export async function drawCard(r) {
   ctx.fillStyle = '#cfc3ea';
   ctx.fillText(r.nickname ? `${r.nickname} 님의 기록` : '나의 기록', W / 2, 650);
 
-  // 점수
+  // 가운데 큰 칸: 스테이지 = 별, 무한 도전 = 점수
   rr(ctx, 90, 700, W - 180, 170, 36);
   ctx.fillStyle = 'rgba(255,255,255,.07)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,214,110,.5)';
   ctx.lineWidth = 3;
   ctx.stroke();
-  ctx.font = `700 30px ${FONT}`;
-  ctx.fillStyle = '#ffd66e';
-  ctx.fillText('★ 점수', W / 2, 742);
-  ctx.font = `900 92px ${FONT}`;
-  ctx.fillStyle = '#fff';
-  ctx.fillText(fmt(r.score), W / 2, 815);
+  const stageMode = r.mode === 'stage';
+  if (stageMode) {
+    ctx.font = `700 30px ${FONT}`;
+    ctx.fillStyle = '#ffd66e';
+    ctx.fillText(`스테이지 ${r.stageLabel}${r.win ? ' 클리어' : ''}`, W / 2, 742);
+    ctx.font = `900 96px ${FONT}`;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = i < (r.stars || 0) ? '#ffd23f' : 'rgba(255,255,255,.16)';
+      ctx.fillText('★', W / 2 + (i - 1) * 120, 818);
+    }
+  } else {
+    ctx.font = `700 30px ${FONT}`;
+    ctx.fillStyle = '#ffd66e';
+    ctx.fillText('♾ 무한 도전 점수', W / 2, 742);
+    ctx.font = `900 92px ${FONT}`;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(fmt(r.score), W / 2, 815);
+  }
 
   // 통계 4칸
-  const stats = [['웨이브', r.wave], ['처치', fmt(r.kills)], ['보스', r.bossKills], ['시간', r.time]];
+  const stats = [[stageMode ? '웨이브' : '도달 웨이브', stageMode ? `${r.wave}/${r.waves || 5}` : r.wave], ['처치', fmt(r.kills)], [stageMode ? '점수' : '보스', stageMode ? fmt(r.score) : r.bossKills], ['시간', r.time]];
   const cw = (W - 180 - 3 * 20) / 4;
   stats.forEach(([k, v], i) => {
     const x = 90 + i * (cw + 20);
@@ -128,7 +140,7 @@ export async function drawCard(r) {
     ctx.font = `700 26px ${FONT}`;
     ctx.fillStyle = '#a99cc8';
     ctx.fillText(k, x + cw / 2, 940);
-    ctx.font = `900 50px ${FONT}`;
+    ctx.font = `900 ${String(v).length > 5 ? 40 : 50}px ${FONT}`;
     ctx.fillStyle = '#fff';
     ctx.fillText(String(v), x + cw / 2, 998);
   });
@@ -188,7 +200,7 @@ export async function openResultShare(r, host) {
       <button class="btn ghost" data-s="close">닫기</button>
     </div>`;
   host.appendChild(box);
-  const text = `⚔️ 랑방 대전 ${r.win ? '클리어!' : `웨이브 ${r.wave} 도달!`} 점수 ${fmt(r.score)}점 — 이 기록 깰 수 있어?`;
+  const text = shareLine(r);
   let file = null, url = '';
   box.addEventListener('click', async (ev) => {
     const b = ev.target.closest('[data-s]');
@@ -217,11 +229,20 @@ export async function openResultShare(r, host) {
   if (!box.isConnected) return;
   const holder = box.querySelector('.share-img');
   if (!blob) { holder.textContent = '이미지를 만들지 못했어요 — 링크로 공유해 주세요'; box.querySelector('[data-s=share]').disabled = false; return; }
-  file = new File([blob], `langbang-${r.score}.jpg`, { type: 'image/jpeg' });
+  file = new File([blob], `langbang-${r.mode === 'stage' ? r.stageLabel : 'endless-' + r.wave}.jpg`, { type: 'image/jpeg' });
   url = URL.createObjectURL(blob);
   box._url = url;
   holder.innerHTML = `<img src="${url}" alt="랑방 대전 결과 카드">`;
   for (const el of box.querySelectorAll('[data-s]')) el.disabled = false;
+}
+
+// 공유 문구: "스테이지 2-7 클리어 ★★★" / "무한 도전 웨이브 24 · 점수 123,456점"
+export function shareLine(r) {
+  if (r.mode === 'stage') {
+    const st = '★'.repeat(r.stars || 0) + '☆'.repeat(3 - (r.stars || 0));
+    return r.win ? `⚔️ 랑방 대전 스테이지 ${r.stageLabel} 클리어 ${st} — 이 기록 깰 수 있어?` : `⚔️ 랑방 대전 스테이지 ${r.stageLabel} 도전 중! 같이 막아 줄 사람?`;
+  }
+  return `⚔️ 랑방 대전 무한 도전 웨이브 ${r.wave} · 점수 ${fmt(r.score)}점 — 이 기록 깰 수 있어?`;
 }
 
 export function closeShare() {

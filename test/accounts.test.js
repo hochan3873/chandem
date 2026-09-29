@@ -109,21 +109,201 @@ test('비로그인(손님)도 그대로 게임할 수 있다', async () => {
   a.close();
 });
 
-test('랑방 대전: 결과 저장 · 조작 방지 · 영구 강화 · 랭킹, 손님은 저장 안 됨', async () => {
-  const { token } = await post('/api/auth/signup', { username: 'lbking', password: 'secret12', nickname: '랑방왕' });
+// ─── 랑방 대전 (스테이지) ───────────────────────────────
+const R = require('../server/langbang-rules');
+const lbPost = (url, token, body) => fetch(base + url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify(body) }).then((x) => x.json());
+async function lbUser(username, nickname) {
+  const { token, user } = await srv.accounts.signup({ username, password: 'secret12', nickname }); // (HTTP 가입은 IP당 1분 8번 제한)
+  const id = user.id;
+  const raw = async () => (await srv.accounts.store.byId(id)).stats; // FileStore(메모리) — 테스트에서 직접 고쳐 쓴다
+  const noLimit = async () => { const st = await raw(); if (st.langbang) st.langbang.lastResultAt = 0; }; // 10초 저장 제한 풀기
+  return { token, id, raw, noLimit };
+}
+const clear = (stage, stars, extra = {}) => ({ mode: 'stage', stage, stars, score: 12000, kills: 90, durationSec: 150, ...extra });
+
+test('랑방 대전: 스테이지 보상은 서버가 계산 (클라이언트 코인 무시), 잠긴 스테이지·말 안 되는 기록 거절', async () => {
+  const u = await lbUser('lbking', '랑방왕');
   const guest = await get('/api/langbang/me');
-  assert.equal(guest.ok, false);
-  const r = await fetch(base + '/api/langbang/result', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ wave: 10, score: 30000, kills: 600, coins: 500, durationSec: 400 }) }).then((x) => x.json());
+  assert.equal(guest.ok, false, '손님은 서버 저장 없음');
+  const me0 = await get('/api/langbang/me', u.token);
+  assert.equal(me0.profile.coins, 0);
+  assert.equal(me0.profile.maxStage, 0);
+  assert.equal(me0.profile.maxMeta, 20);
+  assert.deepEqual(me0.profile.unlocked, []);
+  assert.equal(me0.profile.endlessUnlocked, false);
+
+  // 잠긴 스테이지 (1-1 도 안 깼는데 1-3)
+  let r = await lbPost('/api/langbang/result', u.token, clear(3, 3));
+  assert.equal(r.ok, false);
+  assert.match(r.message, /열리지 않은/);
+  // 말 안 되는 값
+  for (const bad of [clear(1, 4), clear(1, 0), clear(31, 3), clear(1, 3, { durationSec: 20 }), clear(1, 3, { score: 9e8 })]) {
+    const x = await lbPost('/api/langbang/result', u.token, bad);
+    assert.equal(x.ok, false, JSON.stringify(bad));
+  }
+  // 1-1 ★★ 첫 클리어 — 클라이언트가 보낸 coins 는 무시
+  r = await lbPost('/api/langbang/result', u.token, clear(1, 2, { coins: 999999 }));
   assert.equal(r.ok, true, r.message);
-  assert.equal(r.profile.bestWave, 10);
-  assert.equal(r.profile.coins, 500);
+  const want = R.stageReward(1, 2, 0, 0);
+  assert.deepEqual({ total: r.reward.total, first: r.reward.first, star: r.reward.star }, { total: want.total, first: want.first, star: want.star });
+  assert.equal(r.reward.firstClear, true);
+  assert.equal(r.profile.coins, want.total);
+  assert.equal(r.profile.maxStage, 1);
+  assert.equal(r.profile.stages[1], 2);
+  assert.equal(r.rank, 1);
+  // 바로 또 저장 → 속도 제한
+  const fast = await lbPost('/api/langbang/result', u.token, clear(1, 3));
+  assert.equal(fast.ok, false);
+  assert.match(fast.message, /자주/);
+  // 같은 스테이지 ★★★ 로 다시: 첫 보너스 없음, 새 별 1개 보너스
+  await u.noLimit();
+  r = await lbPost('/api/langbang/result', u.token, clear(1, 3));
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.reward.first, 0);
+  assert.equal(r.reward.newStars, 1);
+  assert.equal(r.reward.total, R.stageReward(1, 3, 2, 0).total);
+  assert.equal(r.profile.coins, want.total + R.stageReward(1, 3, 2, 0).total);
+  assert.equal(r.profile.totalStars, 3);
+  // 이제 1-2 는 열림, 1-3 은 아직
+  await u.noLimit();
+  assert.equal((await lbPost('/api/langbang/result', u.token, clear(2, 1))).ok, true);
+  await u.noLimit();
+  assert.equal((await lbPost('/api/langbang/result', u.token, clear(4, 1))).ok, false);
+});
+
+test('랑방 대전: 영웅 강화(최대 20) · 아이템 구입은 서버가 비용 확인, 잠긴 멤버는 강화 불가', async () => {
+  const u = await lbUser('lbshop', '상점왕');
+  const st = await u.raw();
+  st.langbang = { ...(st.langbang || {}), coins: 5000 };
+  let r = await lbPost('/api/langbang/upgrade', u.token, { hero: 'gunman' });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.profile.heroes.gunman, 1);
+  assert.equal(r.profile.coins, 5000 - R.metaCost(0));
+  assert.equal(r.profile.costs.gunman, R.metaCost(1));
+  // 잠긴 히든 · 없는 영웅
+  assert.equal((await lbPost('/api/langbang/upgrade', u.token, { hero: 'sunggu' })).ok, false);
+  assert.equal((await lbPost('/api/langbang/upgrade', u.token, { hero: 'myunghoon' })).ok, false);
+  assert.equal((await lbPost('/api/langbang/upgrade', u.token, { hero: 'nobody' })).ok, false);
+  // 아이템
+  const c0 = r.profile.coins;
+  r = await lbPost('/api/langbang/buy', u.token, { item: 'door' });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.profile.items.door, 1);
+  assert.equal(r.profile.coins, c0 - R.itemCost('door', 0));
+  assert.equal(r.profile.itemCosts.door, R.itemCost('door', 1));
+  assert.equal((await lbPost('/api/langbang/buy', u.token, { item: 'gold' })).ok, false, '없는 아이템');
+  // 코인 부족
+  const poor = await lbPost('/api/langbang/buy', u.token, { item: 'drink' });
+  (await u.raw()).langbang.coins = 100;
+  r = await lbPost('/api/langbang/buy', u.token, { item: 'drink' });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /부족/);
+  assert.equal(poor.profile.items.drink, 1);
+  // 최대 레벨
+  (await u.raw()).langbang.items.charm = 10;
+  (await u.raw()).langbang.coins = 1e6;
+  assert.match((await lbPost('/api/langbang/buy', u.token, { item: 'charm' })).message, /최대/);
+  (await u.raw()).langbang.heroes.staff = 20;
+  assert.match((await lbPost('/api/langbang/upgrade', u.token, { hero: 'staff' })).message, /최대/);
+  // 1-10 을 깨면 최은옥 합류 → 강화 가능
+  const s = (await u.raw()).langbang;
+  s.stages = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 3]));
+  await u.noLimit();
+  r = await lbPost('/api/langbang/result', u.token, clear(10, 3));
+  assert.equal(r.ok, true, r.message);
+  assert.deepEqual(r.unlockedHeroes, ['eunok']);
+  assert.equal(r.endlessUnlocked, true);
+  assert.ok(r.profile.unlocked.includes('eunok'));
+  assert.equal((await lbPost('/api/langbang/upgrade', u.token, { hero: 'eunok' })).ok, true);
+});
+
+test('랑방 대전: 무한 도전은 1-10 뒤에 열리고, 코인은 도달 웨이브로 서버가 계산', async () => {
+  const u = await lbUser('lbinf', '무한왕');
+  const body = { mode: 'endless', wave: 12, score: 40000, kills: 500, durationSec: 600, coins: 99999 };
+  let r = await lbPost('/api/langbang/result', u.token, body);
+  assert.equal(r.ok, false);
+  assert.match(r.message, /1-10/);
+  (await u.raw()).langbang = { stages: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 1])) };
+  r = await lbPost('/api/langbang/result', u.token, body);
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.reward.total, R.endlessReward(12, 0));
+  assert.equal(r.profile.coins, R.endlessReward(12, 0));
+  assert.equal(r.profile.bestWave, 12);
   assert.equal(r.newBestWave, true);
-  const cheat = await fetch(base + '/api/langbang/result', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ wave: 2, score: 9999999, kills: 1, coins: 1, durationSec: 60 }) }).then((x) => x.json());
-  assert.equal(cheat.ok, false);
-  const up = await fetch(base + '/api/langbang/upgrade', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ hero: 'hanna' }) }).then((x) => x.json());
-  assert.equal(up.ok, true, up.message);
-  assert.equal(up.profile.heroes.hanna, 1);
-  assert.equal(up.profile.coins, 420);
-  const rk = await get('/api/langbang/ranking');
-  assert.ok(rk.ranking.some((x) => x.username === 'lbking' && x.bestWave === 10));
+  await u.noLimit();
+  assert.equal((await lbPost('/api/langbang/result', u.token, { ...body, wave: 30, durationSec: 100 })).ok, false, '너무 빠른 무한 도전');
+});
+
+test('랑방 대전 랭킹: 스테이지(최고 스테이지 → 별 → 먼저 도달) · 무한 도전(웨이브 → 점수), 내 순위', async () => {
+  const mk = async (name, lb) => { const u = await lbUser(name, name.toUpperCase()); (await u.raw()).langbang = lb; return u; };
+  const t = Date.now();
+  const st = (n, s) => Object.fromEntries(Array.from({ length: n }, (_, i) => [i + 1, s]));
+  const a = await mk('rka', { stages: st(20, 2), stageAt: t - 5000, bestWave: 5, bestScore: 100 });
+  const b = await mk('rkb', { stages: st(20, 3), stageAt: t, bestWave: 30, bestScore: 10 });
+  const c = await mk('rkc', { stages: st(20, 2), stageAt: t - 9000, bestWave: 30, bestScore: 900 });
+  const d = await mk('rkd', { stages: st(25, 1), stageAt: t + 1000 });
+  // maxStage / totalStars 는 저장할 때 계산된다 — 저장된 적 없는 옛 프로필도 정렬되게 한 번씩 저장
+  for (const u of [a, b, c, d]) {
+    const s = (await u.raw()).langbang;
+    s.maxStage = Object.keys(s.stages).length; s.totalStars = Object.values(s.stages).reduce((x, y) => x + y, 0);
+  }
+  const rk = await get('/api/langbang/ranking?mode=stage', b.token);
+  const order = rk.ranking.filter((x) => x.username.startsWith('rk')).map((x) => x.username);
+  assert.deepEqual(order, ['rkd', 'rkb', 'rkc', 'rka'], '스테이지 → 별 → 먼저 도달');
+  const top = rk.ranking.find((x) => x.username === 'rkd');
+  assert.equal(top.stageLabel, '3-5');
+  assert.ok(rk.me && rk.me.username === 'rkb');
+  assert.equal(rk.me.rank, rk.ranking.findIndex((x) => x.username === 'rkb') + 1);
+  const ek = await get('/api/langbang/ranking?mode=endless', a.token);
+  const eorder = ek.ranking.filter((x) => x.username.startsWith('rk')).map((x) => x.username);
+  assert.deepEqual(eorder, ['rkc', 'rkb', 'rka'], '웨이브 → 점수 (기록 없는 사람은 제외)');
+  assert.equal(ek.me.rank, ek.ranking.findIndex((x) => x.username === 'rka') + 1);
+  const anon = await get('/api/langbang/ranking');
+  assert.equal(anon.me, null);
+});
+
+test('랑방 대전: 예전 프로필(코인·강화·최고 웨이브)은 그대로 이어지고 무한 도전 기록이 된다', async () => {
+  const u = await lbUser('lbold', '고인물');
+  (await u.raw()).langbang = { level: 4, exp: 20, coins: 3210, runs: 9, victories: 1, kills: 800, bestWave: 22, bestScore: 88000, heroes: { bangjang: 6, gunman: 10, hanna: 3 }, lastResultAt: 0 };
+  const me = await get('/api/langbang/me', u.token);
+  assert.equal(me.ok, true);
+  const p = me.profile;
+  assert.equal(p.coins, 3210);
+  assert.equal(p.heroes.gunman, 10);
+  assert.equal(p.heroes.hanna, 3);
+  assert.equal(p.heroes.myunghoon, 0);
+  assert.equal(p.bestWave, 22);
+  assert.equal(p.bestScore, 88000);
+  assert.equal(p.maxStage, 0);
+  assert.equal(p.endlessUnlocked, true, '예전 기록이 있으면 무한 도전 바로 가능');
+  assert.ok(p.unlocked.includes('hanna'), '예전에 강화한 히든은 계속 쓸 수 있다');
+  assert.equal(p.costs.gunman, R.metaCost(10), '최대 20까지 계속 강화');
+  const ek = await get('/api/langbang/ranking?mode=endless');
+  assert.ok(ek.ranking.some((x) => x.username === 'lbold' && x.bestWave === 22));
+  const r = await lbPost('/api/langbang/result', u.token, clear(1, 3));
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.profile.coins, 3210 + R.stageReward(1, 3, 0, 0).total);
+  assert.equal(r.profile.bestWave, 22);
+});
+
+test('랑방 대전 PgStore: jsonb 안의 기록으로 정렬 · 내 순위는 COUNT 한 번 (가짜 DB 로 쿼리 확인)', async () => {
+  const { createAccounts } = require('../server/accounts');
+  const acc = createAccounts({ databaseUrl: 'postgres://u:p@127.0.0.1:1/none', secret: 'x' });
+  await acc.ready;
+  const st = acc.store;
+  await st.pool.end().catch(() => {});
+  const seen = [];
+  const row = { id: 'me', username: 'me', pass: 'x', nickname: '나', created_at: '1', stats: { langbang: { stages: { 1: 3, 2: 2, 3: 1 }, stageAt: 123, bestWave: 9, bestScore: 777 } } };
+  st.pool = { query: async (sql, params) => { seen.push({ sql, params }); if (/COUNT/.test(sql)) return { rows: [{ n: 2 }] }; return { rows: [row] }; } };
+  const top = await st.topLangbang(10, 'stage');
+  assert.equal(top[0].id, 'me');
+  assert.match(seen[0].sql, /ORDER BY COALESCE\(\(stats->'langbang'->>'maxStage'\)::int, 0\) DESC, COALESCE\(\(stats->'langbang'->>'totalStars'\)::int, 0\) DESC, COALESCE\(\(stats->'langbang'->>'stageAt'\)::bigint, 0\) ASC LIMIT \$1/);
+  assert.deepEqual(seen[0].params, [10]);
+  await st.topLangbang(5, 'endless');
+  assert.match(seen[1].sql, /bestWave'\)::int, 0\) > 0 ORDER BY .*bestWave.* DESC, .*bestScore.* DESC LIMIT \$1/);
+  const rank = await st.rankLangbang('stage', 'me');
+  assert.equal(rank, 3, '앞선 2명 + 1');
+  assert.deepEqual(seen[seen.length - 1].params, [3, 6, 123], '최고 스테이지·총 별·도달 시각 (옛 프로필도 stages 에서 계산)');
+  assert.equal(await st.rankLangbang('endless', 'me'), 3);
+  assert.deepEqual(seen[seen.length - 1].params, [9, 777]);
 });

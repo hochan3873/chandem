@@ -338,7 +338,7 @@ async function openProfile() {
     ${game(s.holdem, '♠ 텍사스 홀덤')}
     ${game(s.seotda, '🎴 섯다')}
     ${s.langbang ? `<div class="stat-card"><h3>🥊 랑방 대전 · Lv.${s.langbang.level}</h3>
-      <div class="stat-grid"><span>최고 웨이브</span><b>${fmt(s.langbang.bestWave)}</b><span>최고 점수</span><b>${fmt(s.langbang.bestScore)}</b>
+      <div class="stat-grid"><span>최고 스테이지</span><b>${s.langbang.maxStage ? `${Math.ceil(s.langbang.maxStage / 10)}-${((s.langbang.maxStage - 1) % 10) + 1} · ★${fmt(s.langbang.totalStars || 0)}` : '-'}</b><span>무한 도전</span><b>${s.langbang.bestWave ? `W${fmt(s.langbang.bestWave)} · ${fmt(s.langbang.bestScore)}점` : '-'}</b>
       <span>플레이</span><b>${fmt(s.langbang.runs)}판</b><span>코인</span><b>${fmt(s.langbang.coins)}</b></div></div>` : ''}
     <div class="stat-card"><h3>🏆 토너먼트</h3><div class="stat-grid"><span>참가</span><b>${fmt(s.tourney.played)}</b><span>우승</span><b>${fmt(s.tourney.wins)}</b></div></div>
     <div class="row">
@@ -611,7 +611,7 @@ const GAME_INFO = {
   holdem: { name: '텍사스 홀덤', icon: '♠', sub: '노리밋 홀덤 · 토너먼트', tag: '카드 2장 + 바닥 5장, 최고의 5장으로 승부' },
   seotda: { name: '섯다', icon: '🎴', sub: '화투 두 장 · 광땡 · 땡잡이', tag: '두 장의 화투로 끗발 대결, 기세로 밀어붙여라' },
   omok: { name: '오목', icon: '⚫', sub: '1:1 대국 · AI · 티어', tag: '다섯 알을 먼저 잇는 사람이 승리' },
-  langbang: { name: '랑방 대전', icon: '🥊', sub: '디펜스 · 진상들을 막아라 · 랭킹', tag: '우리 모임에 쳐들어오는 진상들을 때려잡자', href: '/langbang/' },
+  langbang: { name: '랑방 대전', icon: '🥊', sub: '스테이지 디펜스 · 30스테이지 · 랭킹', tag: '우리 모임에 쳐들어오는 진상들을 때려잡자', href: '/langbang/' },
 };
 const GAME_RULES = {
   holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
