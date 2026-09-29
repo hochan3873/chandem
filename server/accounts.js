@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { isMasterName } = require('./masters');
 
 // ── 오목 티어 (Elo 점수) ───────────────────────────────
 const TIERS = [
@@ -48,6 +49,7 @@ function emptyLangbang() {
     heroes: Object.fromEntries(LB_HEROES.map((h) => [h, 0])),
     items: Object.fromEntries(LBR.ITEM_IDS.map((i) => [i, 0])),
     stages: {}, maxStage: 0, totalStars: 0, stageAt: 0, clears: 0, // 스테이지: { 번호: 최고 별 }
+    seen: [], // 도감: 만나 본 진상
     lastResultAt: 0,
   };
 }
@@ -63,6 +65,7 @@ function normLb(raw) {
     if (n >= 1 && n <= LBR.STAGE_COUNT && st > 0) lb.stages[n] = st;
   }
   lb.maxStage = LBR.maxCleared(lb.stages);
+  lb.seen = [...new Set(((raw && raw.seen) || []).filter((t) => LBR.ENEMY_IDS.includes(t)))];
   lb.totalStars = Object.values(lb.stages).reduce((a, b) => a + b, 0);
   return lb;
 }
@@ -137,8 +140,10 @@ class PgStore {
     await this.pool.query(`CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, pass TEXT NOT NULL, nickname TEXT NOT NULL,
       created_at BIGINT NOT NULL, stats JSONB NOT NULL)`);
+    // 계정 관리용(정지·토큰 버전·출석·닉네임 변경 시각) — 예전 표에도 칸만 더한다
+    await this.pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS meta JSONB NOT NULL DEFAULT '{}'::jsonb`);
   }
-  row(r) { return r && { id: r.id, username: r.username, pass: r.pass, nickname: r.nickname, createdAt: Number(r.created_at), stats: r.stats }; }
+  row(r) { return r && { id: r.id, username: r.username, pass: r.pass, nickname: r.nickname, createdAt: Number(r.created_at), stats: r.stats, meta: r.meta || {} }; }
   async byName(username) { return this.row((await this.pool.query('SELECT * FROM users WHERE username=$1', [username])).rows[0]); }
   async byId(id) { return this.row((await this.pool.query('SELECT * FROM users WHERE id=$1', [id])).rows[0]); }
   async create(u) {
@@ -189,24 +194,42 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   // 토큰 서명 키: AUTH_SECRET → 없으면 DB 주소(비밀)에서 만든다 → 그것도 없으면 이번 실행용(로컬)
   const key = secret
     || (databaseUrl ? crypto.createHash('sha256').update('chandem-auth:' + databaseUrl).digest('hex') : crypto.randomBytes(32).toString('hex'));
-  const ready = store.init().catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
+  // 계정 상태 캐시 (정지 · 토큰 버전 · 탈퇴): 토큰 확인을 DB 없이 바로 하려고 시작할 때 한 번 읽어 둔다
+  const metaCache = new Map();
+  const noteMeta = (id, meta) => { metaCache.set(id, { tv: (meta && meta.tv) | 0, banned: !!(meta && meta.banned), deleted: !!(meta && meta.deleted) }); };
+  async function warmMeta() {
+    if (store.pool) {
+      const r = await store.pool.query(`SELECT id, meta FROM users WHERE meta <> '{}'::jsonb`);
+      for (const x of r.rows) noteMeta(x.id, x.meta);
+    } else for (const u of Object.values(store.data.users)) if (u.meta) noteMeta(u.id, u.meta);
+  }
+  const ready = store.init().then(warmMeta).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
 
-  const sign = (id, exp) => crypto.createHmac('sha256', key).update(`${id}.${exp}`).digest('base64url');
+  // 토큰: 아이디.만료.토큰버전.서명 (옛 토큰 아이디.만료.서명 은 버전 0 으로 본다)
+  const sign = (id, exp, tv) => crypto.createHmac('sha256', key).update(tv === undefined ? `${id}.${exp}` : `${id}.${exp}.${tv}`).digest('base64url');
   function makeToken(id) {
     const exp = Date.now() + 90 * 24 * 3600 * 1000; // 90일
-    return `${id}.${exp}.${sign(id, exp)}`;
+    const tv = (metaCache.get(id) || {}).tv | 0;
+    return `${id}.${exp}.${tv}.${sign(id, exp, tv)}`;
   }
   function verifyToken(token) {
-    const [id, exp, sig] = String(token || '').split('.');
-    if (!id || !exp || !sig || Number(exp) < Date.now()) return null;
-    const want = sign(id, exp);
+    const parts = String(token || '').split('.');
+    const [id, exp] = parts;
+    const tv = parts.length === 4 ? parts[2] : undefined;
+    const sig = parts.length === 4 ? parts[3] : parts[2];
+    if (parts.length < 3 || parts.length > 4 || !id || !exp || !sig || Number(exp) < Date.now()) return null;
+    if (tv !== undefined && !/^\d{1,9}$/.test(tv)) return null;
+    const want = sign(id, exp, tv);
     if (want.length !== sig.length || !crypto.timingSafeEqual(Buffer.from(want), Buffer.from(sig))) return null;
+    const c = metaCache.get(id);
+    if (c && (c.deleted || c.banned || c.tv !== (Number(tv) | 0))) return null; // 정지 · 탈퇴 · '모든 기기 로그아웃'
     return id;
   }
 
   const publicUser = (u) => u && {
     id: u.id, username: u.username, nickname: u.nickname, createdAt: u.createdAt, stats: u.stats,
     tier: tierOf(u.stats.omok.rating),
+    isMaster: isMasterName(u.username), // 서버가 아이디로 판단 (화면이 보낸 값은 안 믿음)
   };
 
   async function signup({ username, password, nickname }) {
@@ -224,6 +247,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     await ready;
     const u = await store.byName(String(username || '').trim().toLowerCase());
     if (!u || !checkPassword(String(password || ''), u.pass)) throw new AuthError('아이디 또는 비밀번호가 맞지 않아요');
+    const ban = u.meta && u.meta.banned;
+    if (ban) throw new AuthError(`이용이 정지된 계정이에요${ban.reason ? ` (사유: ${ban.reason})` : ''}`);
     return { token: makeToken(u.id), user: publicUser(u) };
   }
   async function me(token) {
@@ -359,6 +384,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
           lb.runs++; lb.kills += kills; lb.coins += reward.total;
+          // 도감: 이번 판에 만난 진상 (있는 이름만)
+          if (Array.isArray(body.seen)) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => LBR.ENEMY_IDS.includes(t))])];
           if (mode === 'stage') {
             lb.clears++;
             lb.stages[stage] = Math.max(prevStars, stars);
@@ -475,7 +502,29 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   async function profile(username) { await ready; return publicUser(await store.byName(String(username || '').toLowerCase())); }
   async function ranking(n = 50) {
     await ready;
-    return (await store.topOmok(n)).map((u, i) => ({ rank: i + 1, nickname: u.nickname, username: u.username, rating: u.stats.omok.rating, games: u.stats.omok.games, wins: u.stats.omok.wins, tier: tierOf(u.stats.omok.rating) }));
+    return (await store.topOmok(n)).map((u, i) => ({ rank: i + 1, nickname: u.nickname, username: u.username, rating: u.stats.omok.rating, games: u.stats.omok.games, wins: u.stats.omok.wins, tier: tierOf(u.stats.omok.rating), isMaster: isMasterName(u.username) }));
+  }
+
+  // ── 플랫폼(출석·마스터 관리)용 작은 도우미 — 실제 기능은 server/site.js · server/admin.js ──
+  // 전적 기록과 같은 줄에 세워서 차례로 처리하고, 결과/오류를 그대로 돌려준다
+  function exclusive(fn) {
+    let out, err;
+    return serial(async () => { try { out = await fn(); } catch (e) { err = e; } }).then(() => { if (err) throw err; return out; });
+  }
+  // (exclusive 안에서만 부르기) 랑방 코인 더하기/빼기. 0 ~ 10억 사이로 자른다
+  async function addLangbangCoins(id, delta) {
+    const d = Math.max(-1e6, Math.min(1e6, Math.trunc(Number(delta) || 0)));
+    const s = await update(id, (st) => { const lb = st.langbang = normLb(st.langbang); lb.coins = Math.max(0, Math.min(1e9, (lb.coins | 0) + d)); });
+    return s ? s.langbang.coins : null;
+  }
+  /** 마스터가 랑방 코인 지급/회수: 없는 아이디면 null, 아니면 { coins } */
+  function adminAdjustLangbangCoins(username, delta) {
+    return exclusive(async () => {
+      await ready;
+      const u = await store.byName(String(username || '').toLowerCase());
+      if (!u) return null;
+      return { coins: await addLangbangCoins(u.id, delta) };
+    });
   }
 
   // ── HTTP ───────────────────────────────────────────
@@ -510,7 +559,9 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     return r;
   }
 
-  return { signup, login, me, verifyToken, recordHand, recordOmok, recordTourney, profile, ranking, router, langbangRouter, lbResult, lbUpgrade, lbBuy, lbMe, lbRanking, ready, tierOf, store };
+  return { signup, login, me, verifyToken, recordHand, recordOmok, recordTourney, profile, ranking, router, langbangRouter, lbResult, lbUpgrade, lbBuy, lbMe, lbRanking, ready, tierOf, store,
+    // 플랫폼(site.js · admin.js)용
+    makeToken, publicUser, noteMeta, exclusive, updateStats: update, addLangbangCoins, adminAdjustLangbangCoins };
 }
 
-module.exports = { createAccounts, tierOf, eloDelta, TIERS, AI_RATING, START_RATING, AuthError, normLb, lbCompare };
+module.exports = { createAccounts, tierOf, eloDelta, TIERS, AI_RATING, START_RATING, AuthError, normLb, lbCompare, hashPassword, checkPassword, emptyStats };

@@ -3,6 +3,7 @@ import {
   HEROES, ENEMIES, RULES, FIELD, BASE_HEROES, UNLOCK_HEROES, HIDDEN_HEROES, LOCKED_HEROES, RARITY, SCORE,
   CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
+  ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, stageFx, MAP_FX, partnerSlots,
 } from './data.js';
 import * as S from './sim.js';
 import { Renderer } from './render.js';
@@ -66,7 +67,10 @@ const app = {
   firstRunTip: true,
   confirmOpen: null,
 };
-try { app.partner = localStorage.getItem('langbang:partner') || 'gunman'; } catch { /* 무시 */ }
+app.partners = ['gunman'];
+try { const v = JSON.parse(localStorage.getItem('langbang:partners') || 'null'); if (Array.isArray(v) && v.length) app.partners = v; else app.partners = [localStorage.getItem('langbang:partner') || 'gunman']; } catch { /* 무시 */ }
+app.partner = app.partners[0];
+app.infoHero = null; app.aim = null; app.drag = null;
 
 // ─── 화면 크기 맞추기 (세로 화면을 가운데에, 남는 곳은 레터박스) ─────
 function layout() {
@@ -132,7 +136,7 @@ function saveSnap() {
   const g = app.g;
   if (!g || app.debugRun || g.over || g.victory || app.ending || !g.lastSnap) return;
   try {
-    localStorage.setItem(SNAP_KEY, JSON.stringify({ v: 1, acct: API.accountKey(), partner: app.partner, at: Date.now(), snap: g.lastSnap }));
+    localStorage.setItem(SNAP_KEY, JSON.stringify({ v: 1, acct: API.accountKey(), partner: app.partner, partners: app.partners, at: Date.now(), snap: g.lastSnap }));
   } catch { /* 저장소 가득 참 */ }
 }
 function loadSnap() {
@@ -187,6 +191,17 @@ const P = () => app.profile;
 const nextStage = () => Math.min(STAGE_COUNT, (P().maxStage || 0) + 1);
 const stageUnlocked = (s) => s <= (P().maxStage || 0) + 1;
 const heroOk = (id) => HEROES[id] && id !== 'bangjang' && API.heroUnlocked(P(), id);
+// 같이 출전하는 동료 수: 1챕터 1명 · 1-10 깨면 2명 (무한 도전은 2명)
+const slotsNow = () => (app.mode === 'endless' ? 2 : partnerSlots(P().maxStage || 0));
+function fixPartners() {
+  const n = slotsNow();
+  let list = [...new Set((app.partners || []).filter(heroOk))];
+  for (const d of ['gunman', 'staff', 'gunnyeo']) if (list.length < n && !list.includes(d)) list.push(d);
+  list = list.slice(0, n);
+  app.partners = list;
+  app.partner = list[0];
+  try { localStorage.setItem('langbang:partners', JSON.stringify(list)); } catch { /* 무시 */ }
+}
 function unlockText(id) {
   const s = HERO_UNLOCK[id];
   return s ? `${stageLabel(s)} 클리어하면 합류` : '';
@@ -203,15 +218,15 @@ async function startRun(opt = {}) {
     if (!ok) return;
   }
   clearSnap();
-  if (!heroOk(app.partner)) app.partner = 'gunman';
   app.mode = mode;
   app.stage = st;
+  fixPartners();
   const p = P();
   const unlocked = DEBUG.hidden ? LOCKED_HEROES.slice() : p.unlocked || [];
   layoutForNewRun();
   const g = S.createGame({
-    H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, partner: app.partner, god: DEBUG.god || DEBUG.stress > 0,
-    mode, stage: st, unlocked, startWave: DEBUG.wave || 0,
+    H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, partners: app.partners, god: DEBUG.god || DEBUG.stress > 0,
+    mode, stage: st, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
   });
   if (DEBUG.wave > 1) {
     // 디버그: 중간 웨이브부터 시작하면 그만큼 강하게
@@ -237,7 +252,8 @@ function resumeRun() {
   if (!d) { toast('이어할 판이 없어요'); showMenu(); return; }
   app.mode = d.snap.mode;
   app.stage = d.snap.stage || 0;
-  app.partner = d.partner || app.partner;
+  if (Array.isArray(d.partners)) app.partners = d.partners;
+  app.partner = app.partners[0];
   app.debugRun = false;
   layoutForNewRun();
   const g = S.restoreGame(d.snap, { H: app.logicalH });
@@ -255,6 +271,9 @@ function beginPlay(g) {
   fx.reset();
   R.setTheme(g.mode === 'stage' ? chapterOf(g.stage) : 'endless');
   app.screen = 'play';
+  skillbar.dataset.key = '';
+  cancelAim(); hideBubble(); app.drag = null;
+  if (g.mapFx.id !== 'none') setTimeout(() => { if (app.g === g) fx.banner(`${g.mapFx.icon} ${g.mapFx.name}`, g.mapFx.desc, '#23336a', 2.2, 'big'); }, 300);
   ui.innerHTML = '';
   hud.hidden = false;
   hud.classList.toggle('endless', g.mode !== 'stage');
@@ -447,9 +466,84 @@ function handleEvents(g, loud) {
         if (Math.random() < 0.5) fx.bubble(e.x, e.y - 80, e.enemy === 'boss_gapjil' ? '애들아 모여!' : '얘들아~ 나와!');
         break;
       case 'shield':
-        fx.ring(e.x, e.y, 20, e.r, 0.7, '#7fe7ff', 5);
-        if (e.n) fx.text(e.x, e.y - 80, '여왕의 보호막!', '#9feaff', 15, 1);
+        fx.ring(e.x, e.y, 20, e.r, 0.7, e.enemy === 'inpi_treasurer' ? '#ffe07a' : '#7fe7ff', 5);
+        if (e.n) fx.text(e.x, e.y - (e.enemy === 'inpi_treasurer' ? 50 : 80), SHIELD_TXT[e.enemy] || '보호막!', e.enemy === 'inpi_treasurer' ? '#ffe9a0' : '#9feaff', 15, 1);
         break;
+      case 'eff':
+        if (!busy) fx.text(e.x, e.y, e.strong ? '효과 굉장!' : '별로…', e.strong ? '#ffe14d' : '#9aa8c8', e.strong ? 14 : 12, 0.8, -30);
+        break;
+      case 'cone':
+        fx.arc(e.x, e.y, e.a, e.half, e.r, e.big ? 0.45 : 0.28, e.big ? 'rgba(255,160,40,0.9)' : 'rgba(255,220,90,0.8)');
+        if (e.big) fx.text(e.x, e.y - 40, '전체공지!', '#ffb347', 16, 0.8);
+        break;
+      case 'skill':
+        if (e.target) { fx.ring(e.x, e.y, 10, e.r, 0.5, HEROES[e.hero].color, 6); fx.ring(e.x, e.y, 6, e.r * 0.6, 0.4, '#fff', 3); fx.addShake(5); }
+        if (e.skill === 'rally') { fx.flash('#ffe08a', 0.3); fx.banner('집합!!', '모두 공격 속도 UP', '#b86b00', 1.2, 'big'); }
+        if (e.skill === 'curse') fx.text(e.x, e.y - 30, '#@!%&!!', '#ff7a2e', 24, 1, -20);
+        if (e.skill === 'winkbomb') for (let k = 0; k < 10; k++) fx.part('heart', e.x, e.y, (Math.random() - 0.5) * 260, -60 - Math.random() * 160, 0.9, 10, null, { grav: 200 });
+        if (e.skill === 'redcard') fx.text(e.x, e.y - 30, '레드카드!', '#ff4b3a', 20, 1, -20);
+        break;
+      case 'cleanse': fx.text(e.x, e.y - 90, '응급처치! 상태이상 해제', '#9dffb0', 15, 1.1); break;
+      case 'wave': fx.ring(e.x, e.y, 10, e.r, 0.4, 'rgba(190,150,255,0.9)', 4); break;
+      case 'encore':
+        fx.ring(e.x, e.y - 60, 20, e.r, 0.8, '#c9a8ff', 8);
+        fx.banner('무한 앵콜!!', '다 같이 떼창~ 진상들 춤추느라 멈춤', '#5a2aa0', 1.6, 'big');
+        for (let k = 0; k < 14; k++) fx.part('star', e.x + (Math.random() - 0.5) * 300, e.y - 100 - Math.random() * 200, 0, -30, 1, 9, null);
+        if (loud) A.sfx.win();
+        break;
+      case 'moto': fx.text(e.x, e.y - 80, e.n > 1 ? '3대 500!!' : '부릉부릉!', '#ff8a4f', e.n > 1 ? 22 : 15, 1, -24); fx.addShake(e.n > 1 ? 8 : 4); if (loud) A.sfx.slam(); break;
+      case 'dash': fx.part('star', e.x, e.y - 30, 0, -60, 0.4, 10, null); break;
+      case 'slash': if (!busy) { fx.burst(e.x, e.y, 5, '#c8b0ff', 170, 'spark', 3, 0.25); if (Math.random() < 0.3) fx.text(e.x, e.y - 10, '샤샥!', '#e0d0ff', 12, 0.5); } break;
+      case 'crossfit': fx.text(e.x, e.y - 76, '크로스핏!', '#c8b0ff', 13, 1); break;
+      case 'rush': {
+        let px = e.x, py = e.y;
+        for (const [x, y] of e.pts) { for (let k = 1; k <= 4; k++) fx.part('spark', px + (x - px) * k / 5, py + (y - py) * k / 5, 0, 0, 0.35, 4, '#b08aff'); fx.ring(x, y, 4, 34, 0.3, '#b08aff', 3); px = x; py = y; }
+        fx.banner('블랙 러시!!', `${e.pts.length}명 연속 돌파`, '#3a1a8a', 1.3, 'big', 'h_youngjun_rage');
+        fx.addShake(8);
+        if (loud) A.sfx.crit();
+        break;
+      }
+      case 'lazyUp': fx.text(e.x, e.y - 80, '이제 좀 해볼까?', '#c8ffe0', 15, 1.1, -20); break;
+      case 'burst':
+        fx.pillar(e.x, e.w, g.rowY - 20, 0.7);
+        fx.flash('#e8fff4', 0.35); fx.addShake(12);
+        fx.text(e.hx, e.hy - 80, e.big ? '진심이다…!' : '귀찮아…', '#c8ffe0', 14, 1.2, -16);
+        if (loud) A.sfx.ult();
+        break;
+      case 'swap': fx.ring(e.x, e.y, 6, 50, 0.35, '#6ff0ff', 4); break;
+      case 'blackout': fx.text(180, g.H * 0.3, '💡 정전!', '#ffe9a0', 22, 1.2, -10); fx.flash('#000000', 0.6); break;
+      case 'lightsOn': fx.flash('#fff8d0', 0.25); break;
+      case 'megaphone': fx.text(180, g.H * 0.26, '📢 인피 확성기! 진상 가속', '#ff8a8a', 17, 1.2, -10); break;
+      case 'puke': fx.text(e.x, e.y, '우웩!', '#b8e04a', 16, 0.9); fx.burst(e.hx, g.rowY + 18, 10, '#9acd32', 120, 'dot', 5, 0.5, 200); break;
+      case 'cuddle': fx.text(e.x, e.y, '꽁냥꽁냥♡', '#ffb0d0', 12, 0.8); fx.part('heart', e.x, e.y, 0, -40, 0.8, 9, null); break;
+      case 'breakup': fx.text(e.x, e.y, '헤어져!!', '#ff7fa8', 18, 1.1, -20); fx.burst(e.x, e.y + 20, 12, '#ff9ecb', 160, 'shard', 5, 0.6, 300); break;
+      case 'grab': fx.text(e.hx, e.hy - 70, '붙잡힘!', '#ffc08a', 15, 1); if (loud) A.sfx.charm(); break;
+      case 'release': fx.text(e.x, e.y - 70, '풀려났다!', '#9dffb0', 13, 0.9); break;
+      case 'gaoBreak': fx.text(e.x, e.y, '가오 깨짐!', '#ffe14d', 18, 1.1, -24); fx.burst(e.x, e.y + 20, 14, '#ffd23f', 180, 'shard', 5, 0.6, 300); if (loud) A.sfx.crit(); break;
+      case 'flash': fx.flash('#ffffff', 0.2); fx.text(e.x, e.y, '찰칵!', '#fff', 15, 0.8); fx.text(e.hx, e.hy - 70, '눈부셔!', '#ffe9a0', 13, 0.9); break;
+      case 'vault': fx.text(e.x, e.y, '새치기!', '#8fe3ff', 15, 0.8); break;
+      case 'spam': if (e.n > 1) fx.text(e.x, e.y, '카톡카톡카톡!', '#ff6b7a', 15, 0.9); else if (Math.random() < 0.5) fx.text(e.x, e.y, '카톡!', '#ff6b7a', 13, 0.7); break;
+      case 'interest':
+        if (e.v > 0) {
+          fx.text(e.x, e.y - 90, `이자 붙었다! ${e.pct}%`, '#ffd23f', 18, 1.2, -20);
+          fx.text(180, g.ropeY + 8, `-${e.v} 이자`, '#ffcf3f', 15, 1.1, -24);
+          for (let k = 0; k < 6; k++) fx.part('coin', 60 + Math.random() * 240, g.ropeY + 20, (e.x - 180) * 0.6 + (Math.random() - 0.5) * 60, -220 - Math.random() * 80, 1, 11, null, { grav: 120 });
+          if (loud) A.sfx.steal();
+        }
+        break;
+      case 'debtFree':
+        fx.banner('빚 탕감!', e.v ? `떼어 간 이자 +${e.v} 돌려받음` : '이제 이자는 없다!', '#1a8a4a', 1.8, 'big');
+        if (e.v) fx.text(180, g.rowY - 40, `+${e.v} 수리`, '#7dff9a', 18, 1.3);
+        break;
+      case 'paperHit': fx.text(e.x, e.y - 62, '차용증… 공속↓', '#ffe9b0', 13, 1.0); break;
+      case 'unionPhase': {
+        const P = UNION_PHASE[e.phase] || ['연합의 힘!', ''];
+        fx.banner(P[0], P[1], '#6a1bb0', 1.6, 'boss', 'e_boss_union');
+        fx.ring(e.x, e.y, 10, 180, 0.6, '#c77dff', 6);
+        fx.addShake(5);
+        if (loud) A.sfx.boss();
+        break;
+      }
       case 'bossKill':
         fx.slowmo = 1.5;
         fx.zoomTarget = 1.28;
@@ -546,8 +640,16 @@ function handleEvents(g, loud) {
   }
   ev.length = 0;
 }
+const SHIELD_TXT = { queen: '여왕의 보호막!', inpi_treasurer: '회비 지원!', boss_union: '회장님 회비 지원!' };
+const UNION_PHASE = {
+  kneel: ['갑질 타임!', '"전원 무릎 꿇어!" 멤버가 기절해요'],
+  feast: ['오리고기 회식!', '진상들이 체력을 회복해요'],
+  aura: ['독재 정치!', '곁의 진상이 단단하고 빨라져요'],
+  interest: ['이자 폭탄!', '입구 내구도가 계속 떼여요'],
+  shieldAura: ['회비 지원!', '진상들에게 보호막'],
+};
 const PROJ_COL = { notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#ff9a3c' };
-const BOSS_COL = { queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a' };
+const BOSS_COL = { queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a', boss_loan: '#8a6a00', boss_union: '#5a0a9a' };
 const POOF = ['퍽!', '빡!', '뿅', '컷!', '퇴장~', '아웃!'];
 const CONFETTI = ['#ffd23f', '#ff4fd8', '#6ff0ff', '#7dff9a', '#ff8a00', '#ffffff'];
 
@@ -555,7 +657,7 @@ const CONFETTI = ['#ffd23f', '#ff4fd8', '#6ff0ff', '#7dff9a', '#ff8a00', '#fffff
 const H$ = {
   wave: $('#h-wave'), left: $('#h-left'), kills: $('#h-kills'), score: $('#h-score'), xp: $('#h-xp'), lv: $('#h-lv'),
   hp: $('#h-hp'), hpLag: $('#h-hp-lag'), hpText: $('#h-hptext'), stars: $('#h-stars'), ult: $('#btn-ult'), boss: $('#bossbar'), bossName: $('#boss-name'), bossFill: $('#boss-fill'),
-  mute: $('#btn-mute'), baseBox: document.querySelector('.base-hp'),
+  mute: $('#btn-mute'), baseBox: document.querySelector('.base-hp'), fx: $('#h-fx'),
 };
 function setText(el, key, v) {
   if (app.hudCache[key] === v) return false;
@@ -573,6 +675,7 @@ function updateHud() {
   setText(H$.wave, 'wave', stageMode ? `${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
   H$.wave.classList.toggle('boss', bossWave && g.phase !== 'break');
   setText(H$.left, 'left', g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : `남은 진상 ${S.enemiesLeft(g)}`);
+  setText(H$.fx, 'fx', g.mapFx.id === 'none' ? '' : g.mapFx.icon);
   setText(H$.kills, 'kills', fmt(g.stats.kills));
   setText(H$.score, 'score', fmt(g.stats.score));
   setText(H$.lv, 'lv', `Lv.${g.level}`);
@@ -635,7 +738,7 @@ function frame(now) {
   const g = live || app.demo;
   fx.noBanner = !live;
   if (g && !app.paused && !app.cardsOpen && !app.confirmOpen) {
-    const ts = fx.slowmo > 0 ? 0.22 : 1;
+    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1);
     const speed = live ? DEBUG.speed : 1;
     acc += dt * ts * speed;
     const maxSteps = Math.ceil(10 * Math.max(1, speed));
@@ -655,7 +758,7 @@ function frame(now) {
   fx.update(dt);
   R.draw(g, app);
   hudT -= dt;
-  if (live && hudT <= 0) { hudT = 1 / 15; updateHud(); }
+  if (live && hudT <= 0) { hudT = 1 / 15; updateHud(); renderSkillbar(); checkNewEnemies(live); }
   const work = performance.now() - t0;
   perf.frames++;
   perf.workSum += work;
@@ -674,7 +777,7 @@ function frame(now) {
 function stressFill(g) {
   let alive = 0;
   for (const e of g.enemies) if (!e.dead) alive++;
-  const types = ['yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'scammer', 'inpi_clique'];
+  const types = ['yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'scammer', 'inpi_clique', 'inpi_treasurer'];
   while (alive < DEBUG.stress) {
     const e = S.spawnEnemy(g, types[alive % types.length], undefined, -20 - Math.random() * 200, { hpMul: 40 });
     e.stopY -= Math.random() * 260;
@@ -684,18 +787,179 @@ function stressFill(g) {
 
 // ─── 입력 ────────────────────────────────────────────
 // 화면 탭 = 그 적 집중 공격 (경험치 보석은 저절로 모인다)
+function fieldPos(ev) {
+  const r = canvas.getBoundingClientRect();
+  return { x: ((ev.clientX - r.left) / r.width) * FIELD.W, y: ((ev.clientY - r.top) / r.height) * (app.g ? app.g.H : 720) };
+}
+let press = null;
 canvas.addEventListener('pointerdown', (ev) => {
   A.unlock();
   const g = app.g;
-  if (!g || app.paused || app.cardsOpen || g.over) return;
-  const r = canvas.getBoundingClientRect();
-  const x = ((ev.clientX - r.left) / r.width) * FIELD.W;
-  const y = ((ev.clientY - r.top) / r.height) * g.H;
+  if (!g || app.paused || app.cardsOpen || g.over || app.confirmOpen) return;
+  const { x, y } = fieldPos(ev);
+  // 1) 스킬 조준 중이면 그 자리에 시전
+  if (app.aim) {
+    const a = app.aim;
+    const h = a.h;
+    if (g.heroes.includes(h) && S.castSkill(g, h, x, y)) { skillFx(h); handleEvents(g, true); }
+    cancelAim();
+    return;
+  }
+  // 2) 영웅: 짧게 누르면 정보, 끌면 자리 바꾸기
+  const h = S.heroAt(g, x, y);
+  if (h) {
+    press = { h, x0: x, y0: y, t0: performance.now(), id: ev.pointerId };
+    try { canvas.setPointerCapture(ev.pointerId); } catch { /* 무시 */ }
+    return;
+  }
+  // 3) 적: 지목 (모두가 그 적부터)
   const f = S.setFocus(g, x, y);
   fx.ring(x, y, 4, 40, 0.3, f ? '#ff3b5c' : '#ffffff', 2);
-  if (f) { fx.text(f.x, f.y - f.def.size * 0.8, '집중!', '#ff6b80', 12, 0.6); A.sfx.tap(); }
+  if (f) { fx.text(f.x, f.y - f.def.size * 0.8, '지목!', '#ff6b80', 13, 0.7); A.sfx.tap(); vibrate(8); }
+  hideBubble();
 });
-document.addEventListener('pointerdown', () => { A.unlock(); if (app.screen !== 'result') A.playBgm(); }, { passive: true });
+canvas.addEventListener('pointermove', (ev) => {
+  const g = app.g;
+  if (!g) return;
+  const { x, y } = fieldPos(ev);
+  if (app.aim) { app.aim.x = x; app.aim.y = y; return; }
+  if (!press) return;
+  if (!app.drag && Math.hypot(x - press.x0, y - press.y0) > 14) { app.drag = { h: press.h }; hideBubble(); }
+  if (app.drag) {
+    const slot = S.nearestSlot(x);
+    app.drag.x = x; app.drag.y = Math.min(y, g.rowY + 30); app.drag.slot = slot; app.drag.slotX = SLOT_XS[slot];
+  }
+});
+function endPress(ev) {
+  const g = app.g;
+  if (!press || !g) { press = null; return; }
+  const p0 = press;
+  press = null;
+  if (app.drag) {
+    const d = app.drag;
+    app.drag = null;
+    if (d.slot !== undefined && S.swapHeroes(g, d.h, d.slot)) { A.sfx.card(); vibrate(10); } else if (g.swapCd > 0) toast('자리 바꾸기는 잠깐 뒤에 다시!', 1000);
+    return;
+  }
+  if (ev.type === 'pointerup') showHeroBubble(p0.h);
+}
+canvas.addEventListener('pointerup', endPress);
+canvas.addEventListener('pointercancel', endPress);
+const SLOT_XS = [34, 92, 150, 210, 268, 326];
+function vibrate(ms) { if (!app.touched) return; try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* 무시 */ } }
+
+// ─── 스킬 바 · 조준 ─────────────────────────────────
+const skillbar = $('#skillbar');
+$('#h-fx').addEventListener('click', () => ACTS.fxInfo());
+const aimbar = $('#aimbar');
+function useSkillBtn(slot) {
+  const g = app.g;
+  if (!g || app.paused || app.cardsOpen || g.over) return;
+  const h = g.heroes.find((o) => o.slot === slot);
+  if (!h || !h.def.skill) return;
+  if (!S.skillReady(h)) { toast(`${h.def.skill.name} 충전 중… ${Math.ceil(h.skillCd)}초`, 900); return; }
+  const sk = h.def.skill;
+  vibrate(15);
+  if (sk.target) {
+    if (app.aim && app.aim.h === h) { cancelAim(); return; }
+    app.aim = { h, r: sk.r[h.lv - 1], color: h.def.color, x: 180, y: g.ropeY - 150 };
+    aimbar.hidden = false;
+    aimbar.querySelector('b').textContent = `${sk.name} — 찍을 곳을 탭!`;
+    hideBubble();
+    return;
+  }
+  if (S.castSkill(g, h)) { skillFx(h); handleEvents(g, true); }
+}
+function cancelAim() { app.aim = null; aimbar.hidden = true; }
+aimbar.addEventListener('click', (ev) => { if (ev.target.closest('[data-aim]')) { A.sfx.tap(); cancelAim(); } });
+skillbar.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-slot]');
+  if (!b) return;
+  A.unlock();
+  useSkillBtn(Number(b.dataset.slot));
+});
+function skillFx(h) {
+  const sk = h.def.skill;
+  fx.text(h.x, h.y - 80, sk.name + '!', h.def.color, 20, 1.1, -26);
+  fx.ring(h.x, h.y, 10, 80, 0.5, h.def.color, 5);
+  A.sfx.join();
+  app.tutSkillDone = true;
+}
+function renderSkillbar() {
+  const g = app.g;
+  if (!g) return;
+  const list = g.heroes.filter((h) => h.def.skill).sort((a, b) => a.slot - b.slot);
+  const key = list.map((h) => h.id + h.lv).join(',');
+  if (skillbar.dataset.key !== key) {
+    skillbar.dataset.key = key;
+    skillbar.dataset.n = list.length;
+    skillbar.innerHTML = list.map((h) => `<button class="sk" data-slot="${h.slot}" style="--c:${h.def.color}"><span class="ring"></span>${av(h.def)}<em>${esc(h.def.skill.name)}</em><i class="cd"></i></button>`).join('');
+  }
+  let ready = false;
+  for (const b of skillbar.children) {
+    const h = g.heroes.find((o) => o.slot === Number(b.dataset.slot));
+    if (!h) continue;
+    const sk = h.def.skill;
+    const pct = Math.round((1 - Math.max(0, h.skillCd) / sk.cd) * 100);
+    b.style.setProperty('--p', pct);
+    const r = h.skillCd <= 0;
+    if (r && !b.classList.contains('ready')) vibrate(12);
+    b.classList.toggle('ready', r);
+    b.classList.toggle('aiming', !!(app.aim && app.aim.h === h));
+    b.querySelector('.cd').textContent = r ? 'READY' : Math.ceil(h.skillCd);
+    if (r) ready = true;
+  }
+  // 튜토리얼: 1-1 에서 처음 스킬이 준비되면 알려 준다 · 1-2 에서는 지목
+  if (ready && !tutDone('skill') && g.mode === 'stage' && g.stage <= 2) { setTut('skill'); showTip('⬇ 스킬 버튼이 반짝! 눌러서 필살기를 써 봐요', 5000); skillbar.classList.add('tut'); setTimeout(() => skillbar.classList.remove('tut'), 5000); }
+  if (!tutDone('focus') && g.mode === 'stage' && g.stage === 2 && g.wave >= 1 && g.enemies.length > 3) { setTut('focus'); showTip('👆 진상을 탭하면 "지목"! 모두가 그 진상부터 때려요', 5000); }
+}
+function tutDone(k) { try { return !!localStorage.getItem('langbang:tut:' + k); } catch { return true; } }
+function setTut(k) { try { localStorage.setItem('langbang:tut:' + k, '1'); } catch { /* 무시 */ } }
+
+// ─── 필드 말풍선: 영웅 정보 · 처음 보는 진상 ─────────
+const bubble = $('#bubble');
+function placeBubble(x, y) {
+  const g = app.g;
+  const sx = (x / FIELD.W) * 100, sy = (y / (g ? g.H : 720)) * 100;
+  bubble.style.left = clamp(sx, 29, 71) + '%';
+  bubble.style.top = sy + '%';
+}
+function showHeroBubble(h) {
+  const g = app.g;
+  if (!g) return;
+  app.infoHero = h;
+  app.infoRange = S.heroRange(g, h);
+  bubble.className = 'bubble hero';
+  bubble.innerHTML = heroInfoHtml(h.def, false) + `<p class="ip">Lv.${h.lv}${h.lv < 3 ? ` → Lv3 ${esc(h.def.perks[3])}` : h.lv < 5 ? ` → Lv5 ${esc(h.def.perks[5])}` : ' MAX'} · 끌어서 자리 바꾸기</p>`;
+  placeBubble(h.x, h.y - 110);
+  bubble.hidden = false;
+  clearTimeout(showHeroBubble.t);
+  showHeroBubble.t = setTimeout(hideBubble, 3200);
+  A.sfx.tap();
+}
+function showEnemyBubble(e) {
+  bubble.className = 'bubble enemy';
+  bubble.innerHTML = `<div class="ih"><em class="new">NEW</em><b>${e.def.name}</b>${clsTag(e.def.cls)}</div><p class="ia">${esc(ENEMY_TIPS[e.type] || '')}</p>`;
+  placeBubble(e.x, Math.max(80, e.y + 50));
+  bubble.hidden = false;
+  clearTimeout(showHeroBubble.t);
+  showHeroBubble.t = setTimeout(hideBubble, 2600);
+}
+function hideBubble() { bubble.hidden = true; app.infoHero = null; }
+let seen = {};
+try { seen = JSON.parse(localStorage.getItem('langbang:seen') || '{}') || {}; } catch { seen = {}; }
+function checkNewEnemies(g) {
+  if (!bubble.hidden && bubble.classList.contains('hero')) return;
+  for (const e of g.enemies) {
+    if (e.dead || e.y < 40 || seen[e.type] || e.def.dot) continue;
+    seen[e.type] = 1;
+    try { localStorage.setItem('langbang:seen', JSON.stringify(seen)); } catch { /* 무시 */ }
+    if (['yeokko', 'namkko'].includes(e.type)) continue; // 첫 진상은 설명 생략
+    showEnemyBubble(e);
+    return;
+  }
+}
+document.addEventListener('pointerdown', () => { app.touched = true; A.unlock(); if (app.screen !== 'result') A.playBgm(); }, { passive: true });
 
 $('#btn-pause').addEventListener('click', () => pauseGame());
 $('#btn-mute').addEventListener('click', () => { A.setMuted(!A.isMuted()); syncMute(); });
@@ -783,14 +1047,26 @@ const ACTS = {
   partner: (b) => {
     const id = b.dataset.id;
     if (!heroOk(id)) { toast(unlockText(id) || '아직 합류하지 않았어요'); return; }
-    app.partner = id;
-    try { localStorage.setItem('langbang:partner', id); } catch { /* 무시 */ }
+    const n = slotsNow();
+    const list = app.partners.slice();
+    const i = list.indexOf(id);
+    if (i >= 0) { if (list.length > 1) list.splice(i, 1); } else { list.push(id); while (list.length > n) list.shift(); }
+    app.partners = list;
+    fixPartners();
     A.sfx.card();
-    for (const el of ui.querySelectorAll('.pcard[data-id]')) el.classList.toggle('on', el.dataset.id === app.partner);
-    const d = HEROES[id];
+    for (const el of ui.querySelectorAll('.pcard[data-id]')) el.classList.toggle('on', app.partners.includes(el.dataset.id));
     const box = $('#pdesc');
-    if (box) box.innerHTML = partnerDesc(d);
+    if (box) box.innerHTML = heroInfoHtml(HEROES[id], true);
+    const tm = $('#teamline');
+    if (tm) tm.innerHTML = teamLine();
   },
+  info: (b) => showInfoCard(b.dataset.kind, b.dataset.id),
+  dex: () => showDex(),
+  dexTab: (b) => { app.dexTab = b.dataset.tab; showDex(); },
+  dexCard: (b) => showDexCard(b.dataset.kind, b.dataset.id),
+  skill: (b) => useSkillBtn(Number(b.dataset.slot)),
+  aimCancel: () => cancelAim(),
+  fxInfo: () => { const g = app.g; if (g) toast(`${g.mapFx.icon} ${g.mapFx.name} — ${g.mapFx.desc}`, 2600); },
   go: () => startRun({ mode: app.mode, stage: app.stage }),
   resumeSnap: () => resumeRun(),
   pick: (b) => tapCard(Number(b.dataset.i)),
@@ -842,7 +1118,8 @@ function showMenu() {
   const endlessOn = p.endlessUnlocked;
   show(`
     <div class="topbar"><a class="back" href="/">‹ 게임월드</a><div class="tb-right"><button class="share-btn" data-act="share">📤 공유하기</button><button class="icon-btn" data-act="mute">${A.isMuted() ? '🔇' : '🔊'}</button></div></div>
-    <div class="logo"><small>진상 컷! 스테이지 디펜스</small><h1>랑방 대전</h1><div class="tag">3개 챕터 30스테이지 — 우리 아지트 "랑방"을 지켜라!</div></div>
+    <div class="keyart"><img src="/img/lb/keyart.webp" alt="" onerror="this.parentNode.remove()"></div>
+    <div class="logo"><img class="emblem" src="/img/lb/emblem.webp" alt="" onerror="this.remove()"><small>진상 컷! 스테이지 디펜스</small><h1>랑방 대전</h1><div class="tag">3개 챕터 30스테이지 — 우리 아지트 "랑방"을 지켜라!</div></div>
     <div class="hero-parade">${heroParade()}</div>
     <div class="panel">${app.profileLoaded ? prof : '<div class="empty-msg" style="padding:8px"><span class="spin">⏳</span> 불러오는 중…</div>'}</div>
     <div class="spacer"></div>
@@ -854,10 +1131,11 @@ function showMenu() {
       <button class="btn ${endlessOn ? '' : 'locked'}" data-act="endless"><i>${endlessOn ? '♾️' : '🔒'}</i>무한 도전<small>${endlessOn ? `최고 W${p.bestWave || 0}` : `${stageLabel(ENDLESS_UNLOCK)} 클리어`}</small></button>
     </div>
     <div class="gap"></div>
-    <div class="grid3">
+    <div class="grid4">
       <button class="btn" data-act="shop"><i>🛒</i>강화 상점</button>
+      <button class="btn dexbtn" data-act="dex"><i>📚</i>도감${dexHasNew() ? '<span class="newdot">N</span>' : ''}</button>
       <button class="btn" data-act="ranking"><i>🏆</i>랭킹</button>
-      <button class="btn" data-act="howto"><i>📖</i>게임 방법</button>
+      <button class="btn" data-act="howto"><i>📖</i>방법</button>
     </div>
   `, 'menu dim-soft');
 }
@@ -895,7 +1173,11 @@ function showStages() {
   const st = p.stages[s] || 0;
   const en = stageEnemies(s);
   const prevEn = s > 1 ? new Set(stageEnemies(s - 1)) : new Set();
-  const enemies = en.map((id) => `<span class="en ${ENEMIES[id].boss ? 'b' : ''}">${av(ENEMIES[id])}${!prevEn.has(id) && s > 1 ? '<em>NEW</em>' : ''}</span>`).join('');
+  const enemies = en.filter((id) => !ENEMIES[id].dot).map((id) => `<button class="en ${ENEMIES[id].boss ? 'b' : ''}" data-act="info" data-kind="enemy" data-id="${id}">${av(ENEMIES[id])}${!prevEn.has(id) && s > 1 ? '<em>NEW</em>' : ''}</button>`).join('');
+  const cw = stageClasses(s);
+  const clsLine = Object.keys(cw).sort((a, b) => cw[b] - cw[a]).map((c) => `${clsTag(c)}<small>${Math.round(cw[c] * 100)}%</small>`).join('');
+  const rec = recommendAttrs(s);
+  const fxd = stageFx(s);
   const rw = stageReward(s, 3, st, p.items.coupon);
   const rewardTxt = st
     ? `<span>다시 깨면 <i class="ci"></i><b>${fmt(stageReward(s, st, st, p.items.coupon).total)}</b>~</span>${st < 3 ? `<span>★ 더 받으면 +${fmt(Math.round(clearCoins(s) * 0.5))}/개</span>` : '<span class="ok">★★★ 완벽!</span>'}`
@@ -911,6 +1193,9 @@ function showStages() {
       <div class="si-head"><b>${stageLabel(s)} ${esc(stageName(s))}</b><span class="si-stars">${starStr(st)}</span></div>
       <div class="si-meta"><span>🌊 ${STAGE_WAVES}웨이브</span>${stageBosses(s).length ? `<span class="boss">👑 ${stageBosses(s).map((b) => ENEMIES[b].name).join(' + ')}</span>` : ''}</div>
       <div class="si-enemies">${enemies}</div>
+      <div class="si-cls">${clsLine}</div>
+      <div class="si-rec">추천 속성 ${rec.length ? rec.map(attrTag).join('') : '<small>아무나 OK</small>'}</div>
+      <div class="si-fx">${fxd.icon} <b>${esc(fxd.name)}</b> <small>${esc(fxd.desc)}</small></div>
       <div class="si-reward">${rewardTxt}</div>
       ${unlockHero && !API.heroUnlocked(p, unlockHero) ? `<div class="si-unlock">${HEROES[unlockHero].hidden ? '✨ 처음 깨면 HIDDEN 멤버가 합류!' : '🦊 처음 깨면 새 멤버가 합류!'}</div>` : ''}
       <div class="si-tip">★★★ 입구 70% 이상 · ★★ 35% 이상 · ★ 클리어</div>
@@ -921,9 +1206,49 @@ function showStages() {
 }
 
 // ─── 출전 준비: 동료 고르기 ──────────────────────────
-function partnerDesc(d) {
+const attrTag = (a) => (ATTRS[a] ? `<span class="attr" style="--ac:${ATTRS[a].color}">${ATTRS[a].icon}${ATTRS[a].name}</span>` : '');
+const clsTag = (c) => (CLASSES[c] ? `<span class="attr cls" style="--ac:${CLASSES[c].color}">${CLASSES[c].icon}${CLASSES[c].name}</span>` : '');
+function strongWeak(attr) {
+  const t = TYPE_CHART[attr] || {};
+  const st = Object.keys(t).filter((c) => t[c] > 1).map((c) => CLASSES[c].name);
+  const wk = Object.keys(t).filter((c) => t[c] < 1).map((c) => CLASSES[c].name);
+  return `강함: ${st.join('·')} · 약함: ${wk.join('·')}`;
+}
+// 영웅 설명 (출전 준비 · 정보 카드 · 필드 말풍선에서 같이 씀)
+function heroInfoHtml(d, full) {
   const meta = (P().heroes || {})[d.id] || 0;
-  return `<b>${d.name}</b> <span class="role">${esc(d.role)}</span>${meta ? ` <em>강화 +${meta}</em>` : ''}<p>${esc(d.desc)}</p>`;
+  const sk = d.skill;
+  return `<div class="ih"><b>${d.name}</b>${attrTag(d.attr)}${meta ? `<em>강화 +${meta}</em>` : ''}</div>
+    <p class="ia">⚔️ ${esc(d.attack || d.desc)} <span class="rg">사거리 ${Array.isArray(d.range) ? d.range[0] : d.range}</span></p>
+    ${sk ? `<p class="is">✨ <b>${esc(sk.name)}</b> ${esc(sk.desc)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></p>` : ''}
+    ${full ? `<p class="ip">Lv3 ${esc(d.perks[3])} · Lv5 ${esc(d.perks[5])}</p><p class="ip">${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p>` : ''}`;
+}
+function enemyInfoHtml(e) {
+  const good = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) > 1).map((a) => ATTRS[a].icon + ATTRS[a].name);
+  const bad = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) < 1).map((a) => ATTRS[a].icon + ATTRS[a].name);
+  return `<div class="ih"><b>${e.name}</b>${clsTag(e.cls)}${e.boss ? '<em class="bs">보스</em>' : ''}</div>
+    <p class="ia">${esc(ENEMY_TIPS[e.id] || '')}</p>
+    <p class="ip">잘 먹힘 ${good.join(' ')} · 안 먹힘 ${bad.join(' ')}</p>`;
+}
+// 아이콘을 누르면 뜨는 설명 카드
+function showInfoCard(kind, id) {
+  const d = kind === 'enemy' ? ENEMIES[id] : HEROES[id];
+  if (!d) return;
+  if (kind === 'hero' && !API.heroUnlocked(P(), id)) { toast(unlockText(id) || '아직 합류하지 않았어요'); return; }
+  closeInfoCard();
+  const box = document.createElement('div');
+  box.className = 'info-modal';
+  box.innerHTML = `<div class="info-card">${av(d)}<div class="ic-body">${kind === 'enemy' ? enemyInfoHtml(d) : heroInfoHtml(d, true)}</div><button class="btn ghost" data-ic="x">닫기</button></div>`;
+  stage.appendChild(box);
+  box.addEventListener('click', (ev) => { if (ev.target === box || ev.target.closest('[data-ic]')) closeInfoCard(); });
+  A.sfx.tap();
+}
+function closeInfoCard() { for (const m of document.querySelectorAll('.info-modal')) m.remove(); }
+function teamLine() {
+  const ids = ['bangjang', ...app.partners];
+  const rec = app.mode === 'stage' ? recommendAttrs(app.stage) : [];
+  const hit = ids.filter((id) => rec.includes(HEROES[id].attr)).length;
+  return `팀: ${ids.map((id) => `${HEROES[id].name}${ATTRS[HEROES[id].attr].icon}`).join(' + ')}${rec.length ? ` · 추천 속성 ${rec.map((a) => ATTRS[a].icon).join('')} ${hit ? `<b class="ok">${hit}명 맞음</b>` : '<b class="no">0명</b>'}` : ''}`;
 }
 function showPrep(mode, s) {
   if (mode === 'stage' && !stageUnlocked(s)) s = nextStage();
@@ -931,7 +1256,8 @@ function showPrep(mode, s) {
   app.stage = s;
   app.screen = 'prep';
   hud.hidden = true;
-  if (!heroOk(app.partner)) app.partner = 'gunman';
+  fixPartners();
+  const n = slotsNow();
   const p = P();
   R.setTheme(mode === 'stage' ? chapterOf(s) : 'endless');
   const cards = partnerList().map((id) => {
@@ -941,12 +1267,13 @@ function showPrep(mode, s) {
     if (!ok) {
       return `<button class="pcard locked ${d.hidden ? 'hid' : ''}" data-act="partner" data-id="${id}">${av(d, 'sil')}<b>???</b><small>${esc(stageLabel(HERO_UNLOCK[id]))} 클리어</small></button>`;
     }
-    return `<button class="pcard ${d.hidden ? 'hid' : ''} ${app.partner === id ? 'on' : ''}" data-act="partner" data-id="${id}">${av(d)}<b>${d.name}</b><small>강화 +${meta}</small></button>`;
+    return `<button class="pcard ${d.hidden ? 'hid' : ''} ${app.partners.includes(id) ? 'on' : ''}" data-act="partner" data-id="${id}">${av(d)}<span class="pa">${ATTRS[d.attr].icon}</span><b>${d.name}</b><small>강화 +${meta}</small></button>`;
   }).join('');
   const bj = HEROES.bangjang;
   const drink = mode === 'stage' ? p.items.drink || 0 : 0;
+  const fxd = mode === 'stage' ? stageFx(s) : MAP_FX.none;
   const head = mode === 'stage'
-    ? `<h2 class="title">${stageLabel(s)} ${esc(stageName(s))}</h2><p class="sub">${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 👑 보스 등장' : ''} · 최고 기록 ${starStr(p.stages[s] || 0)}</p>`
+    ? `<h2 class="title">${stageLabel(s)} ${esc(stageName(s))}</h2><p class="sub">${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 👑 보스' : ''} · ${fxd.icon} ${esc(fxd.name)} · 최고 ${starStr(p.stages[s] || 0)}</p>`
     : `<h2 class="title">♾️ 무한 도전</h2><p class="sub">어디까지 버틸까? 최고 웨이브 W${p.bestWave || 0} · 점수 ${fmt(p.bestScore || 0)}</p>`;
   const buffs = [];
   if (p.items.door) buffs.push(`🚪 내구도 +${Math.round(itemValue('door', p.items.door) * 100)}%`);
@@ -956,10 +1283,11 @@ function showPrep(mode, s) {
   show(`
     <div class="topbar"><button class="back" data-act="${mode === 'stage' ? 'stages' : 'menu'}">‹ 뒤로</button>${coinsPill()}</div>
     ${head}
-    <div class="prep-leader">${av(bj)}<div><b>방장 <em>기본 출전</em>${p.heroes.bangjang ? ` <em class="c">강화 +${p.heroes.bangjang}</em>` : ''}</b><p>${esc(bj.role)} — 곁에 있으면 모두의 손이 빨라진다</p></div></div>
-    <h3 class="sec">같이 갈 동료 한 명</h3>
+    <div class="prep-leader" data-act="info" data-kind="hero" data-id="bangjang">${av(bj)}<div><b>방장 ${attrTag('talk')}<em>기본 출전</em>${p.heroes.bangjang ? ` <em class="c">강화 +${p.heroes.bangjang}</em>` : ''}</b><p>✨ ${esc(bj.skill.name)} — ${esc(bj.skill.desc)}</p></div></div>
+    <h3 class="sec">같이 갈 동료 ${n}명 <small>${n < 2 ? '(1-10 깨면 2명!)' : '(눌러서 넣고 빼기)'}</small></h3>
     <div class="pgrid">${cards}</div>
-    <div class="pdesc" id="pdesc">${partnerDesc(HEROES[app.partner])}</div>
+    <div class="teamline" id="teamline">${teamLine()}</div>
+    <div class="pdesc" id="pdesc">${heroInfoHtml(HEROES[app.partners[app.partners.length - 1]], true)}</div>
     ${buffs.length ? `<div class="buffs">${buffs.map((b) => `<span>${b}</span>`).join('')}</div>` : `<div class="buffs dim"><span>🛒 강화 상점에서 아이템을 사면 더 강해져요</span></div>`}
     <div class="spacer"></div>
     <button class="btn primary" data-act="go">출동! 🚪</button>
@@ -970,6 +1298,7 @@ function showPrep(mode, s) {
 function openCards() {
   const g = app.g;
   app.cardsOpen = true;
+  cancelAim(); hideBubble(); app.drag = null; press = null;
   app.rerolls = 1;
   app.cards = rollFor(g);
   renderCards(true);
@@ -981,7 +1310,7 @@ function rollFor(g) {
 function cardHtml(c, i) {
   const r = RARITY[c.rarity];
   let icon = `<span>${c.icon}</span>`;
-  if (c.hero) icon = av(HEROES[c.hero]);
+  if (c.hero) icon = av(HEROES[c.hero]) + `<span class="cattr">${ATTRS[HEROES[c.hero].attr].icon}</span>`;
   let stack = '';
   if (c.kind === 'global') stack = `<span class="stack">${c.stack}→${c.stack + 1}</span>`;
   return `<button class="card ${c.rarity} ${app.cardSel === i ? 'sel' : ''}" data-act="pick" data-i="${i}">
@@ -1065,6 +1394,7 @@ function pickCard(i) {
 function pauseGame() {
   if (!app.g || app.g.over || app.cardsOpen || app.ending) return;
   app.paused = true;
+  cancelAim(); hideBubble();
   const g = app.g;
   const w = Math.max(1, g.lastSnap ? g.lastSnap.wave : g.wave);
   show(`
@@ -1167,8 +1497,8 @@ async function saveResult(sum, g) {
   }
   const stageMode = g.mode === 'stage';
   const body = stageMode
-    ? { stage: sum.stage, stars: sum.stars, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec, hpPct: sum.hpPct }
-    : { wave: sum.wave, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec };
+    ? { stage: sum.stage, stars: sum.stars, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec, hpPct: sum.hpPct, seen: sum.seen }
+    : { wave: sum.wave, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec, seen: sum.seen };
   const r = stageMode ? await API.postStage(body, app.guest) : await API.postEndless(body, app.guest);
   if (r.ok && r.profile) app.profile = r.profile;
   if (!box || !box.isConnected) return;
@@ -1217,7 +1547,7 @@ function showShop() {
       }
       const cost = API.costOf(p, id);
       const can = cost !== null && p.coins >= cost;
-      return `<div class="up ${d.hidden ? 'hid' : ''}">${av(d)}<div class="mid"><b>${d.name}${d.hidden ? '<em>HIDDEN</em>' : ''}<span class="lvtag">+${lv}</span></b>
+      return `<div class="up ${d.hidden ? 'hid' : ''}"><span class="upav" data-act="info" data-kind="hero" data-id="${id}">${av(d)}</span><div class="mid"><b>${d.name}${d.hidden ? '<em>HIDDEN</em>' : ''}${attrTag(d.attr)}<span class="lvtag">+${lv}</span></b>
         <small>공격력 +${Math.round(lv * RULES.metaDmgPerLevel * 100)}%${cost !== null ? ` → +${Math.round((lv + 1) * RULES.metaDmgPerLevel * 100)}%` : ''} · ${lv}/${max}</small>
         <div class="pbar"><div style="width:${(lv / max) * 100}%"></div></div></div>
         <button class="btn ${can ? 'primary' : ''}" data-act="buy" data-id="${id}" ${can ? '' : 'disabled'}>${cost === null ? 'MAX' : `<i class="ci"></i>${fmt(cost)}`}</button></div>`;
@@ -1270,6 +1600,81 @@ async function buyItemAct(id, btn) {
   if (app.screen === 'shop') showShop();
 }
 
+// ─── 도감 (아군 · 악당) ──────────────────────────────
+const DEX_ENEMIES = () => Object.keys(ENEMIES).filter((id) => !ENEMIES[id].dot);
+const DEX_HEROES = () => Object.keys(HEROES);
+function seenEnemies() {
+  const set = new Set(P().seen || []);
+  for (const k of Object.keys(seen)) if (ENEMIES[k] && !ENEMIES[k].dot) set.add(k); // 이 기기에서 만난 것 (실패한 판 포함)
+  return set;
+}
+function dexKnown(kind, id) { return kind === 'hero' ? API.heroUnlocked(P(), id) : seenEnemies().has(id); }
+function dexViewed() { try { return new Set(JSON.parse(localStorage.getItem('langbang:dexViewed') || '[]')); } catch { return new Set(); } }
+function dexHasNew() {
+  const v = dexViewed();
+  return DEX_HEROES().some((id) => dexKnown('hero', id) && !v.has('h:' + id)) || DEX_ENEMIES().some((id) => dexKnown('enemy', id) && !v.has('e:' + id));
+}
+function markViewed(keys) {
+  const v = dexViewed();
+  for (const k of keys) v.add(k);
+  try { localStorage.setItem('langbang:dexViewed', JSON.stringify([...v])); } catch { /* 무시 */ }
+}
+function firstStageOf(id) { for (let s = 1; s <= STAGE_COUNT; s++) if (stageEnemies(s).includes(id)) return s; return 0; }
+function showDex() {
+  app.screen = 'dex';
+  hud.hidden = true;
+  const tab = app.dexTab || 'hero';
+  const ids = tab === 'hero' ? DEX_HEROES() : DEX_ENEMIES();
+  const kind = tab === 'hero' ? 'hero' : 'enemy';
+  const nH = DEX_HEROES().filter((id) => dexKnown('hero', id)).length, nE = DEX_ENEMIES().filter((id) => dexKnown('enemy', id)).length;
+  const v = dexViewed();
+  const cards = ids.map((id) => {
+    const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
+    const ok = dexKnown(kind, id);
+    const isNew = ok && !v.has((kind === 'hero' ? 'h:' : 'e:') + id);
+    const tag = kind === 'hero' ? ATTRS[d.attr].icon : CLASSES[d.cls].icon;
+    return `<button class="dexc ${ok ? '' : 'unknown'} ${d.boss ? 'boss' : ''} ${d.hidden ? 'hid' : ''}" data-act="dexCard" data-kind="${kind}" data-id="${id}">
+      ${av(d, ok ? '' : 'sil')}<b>${ok ? d.name : '???'}</b>${ok ? `<span class="dt">${tag}</span>` : ''}${isNew ? '<span class="newdot">N</span>' : ''}</button>`;
+  }).join('');
+  show(`
+    ${topbar(true)}
+    <h2 class="title">📚 랑방 도감</h2>
+    <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">🙋 아군 ${nH}/${DEX_HEROES().length}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">😈 악당 ${nE}/${DEX_ENEMIES().length}</button></div>
+    <p class="sub">${tab === 'hero' ? '스테이지를 깨면 새 멤버가 합류해요' : '만나 본 진상만 기록돼요 · 눌러서 약점 확인!'}</p>
+    <div class="dex-grid">${cards}</div>
+  `, 'dim');
+}
+function bar(label, v) { return `<div class="sbar"><span>${label}</span><i><b style="width:${Math.round(clamp(v, 0.05, 1) * 100)}%"></b></i></div>`; }
+function showDexCard(kind, id) {
+  const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
+  if (!d) return;
+  const ok = dexKnown(kind, id);
+  closeInfoCard();
+  const box = document.createElement('div');
+  box.className = 'info-modal';
+  let body;
+  if (!ok) {
+    body = `<div class="ih"><b>???</b></div><p class="ia">${kind === 'hero' ? `🔒 ${esc(unlockText(id))}` : '아직 만나지 못한 진상이에요'}</p>`;
+  } else if (kind === 'hero') {
+    const rg = Array.isArray(d.range) ? d.range[0] : d.range;
+    body = `${heroInfoHtml(d, true)}
+      <div class="sbars">${bar('사거리', rg / 620)}${bar('공격 속도', 0.42 / d.interval)}${bar('한 방', d.dmg / 62)}</div>
+      <p class="ip">${esc(d.desc)}</p>
+      <p class="ip">${HERO_UNLOCK[id] ? `합류: ${stageLabel(HERO_UNLOCK[id])} 클리어` : '처음부터 함께'}</p>`;
+    markViewed(['h:' + id]);
+  } else {
+    const fs = firstStageOf(id);
+    body = `${enemyInfoHtml(d)}
+      <div class="sbars">${bar('체력', d.hp / 320)}${bar('속도', d.speed / 95)}${bar('입구 피해', d.atk / 36)}</div>
+      <p class="ip">등장: ${fs ? `${stageLabel(fs)} 부터` : '무한 도전'}${d.boss ? ' · 보스' : ''}</p>`;
+    markViewed(['e:' + id]);
+  }
+  box.innerHTML = `<div class="info-card">${av(d, ok ? '' : 'sil')}<div class="ic-body">${body}</div><button class="btn ghost" data-ic="x">닫기</button></div>`;
+  stage.appendChild(box);
+  box.addEventListener('click', (ev) => { if (ev.target === box || ev.target.closest('[data-ic]')) { closeInfoCard(); if (app.screen === 'dex') showDex(); } });
+  A.sfx.tap();
+}
+
 // ─── 랭킹 ────────────────────────────────────────────
 async function showRanking() {
   app.screen = 'ranking';
@@ -1306,7 +1711,7 @@ function showHowto() {
   const fromPlay = app.screen === 'play';
   const back = fromPlay ? 'resume' : 'menu';
   if (!fromPlay) app.screen = 'howto';
-  const enemies = Object.values(ENEMIES).map((e) => `<div>${av(e)}<span><b>${e.name}</b>${e.boss ? ' 👑' : ''}<br>${ENEMY_TIPS[e.id] || ''}</span></div>`).join('');
+  const enemies = Object.values(ENEMIES).filter((e) => !e.dot).map((e) => `<div data-act="info" data-kind="enemy" data-id="${e.id}">${av(e)}<span><b>${e.name}</b> ${CLASSES[e.cls] ? CLASSES[e.cls].icon : ''}${e.boss ? ' 👑' : ''}<br>${ENEMY_TIPS[e.id] || ''}</span></div>`).join('');
   show(`
     <div class="topbar"><button class="back" data-act="${back}">‹ ${fromPlay ? '게임으로' : '뒤로'}</button></div>
     <h2 class="title">게임 방법</h2>
@@ -1317,10 +1722,23 @@ function showHowto() {
       <div class="it"><i>👆</i><div>진상을 <b>탭하면 집중 공격</b>. 경험치는 <b>저절로</b> 모여요. 게이지가 차면 <b>📣 총공지</b>로 화면 전체 공격!</div></div>
       <div class="it"><i>🃏</i><div>레벨이 오르면 카드 3장! 카드를 <b>눌러 고르고 → 선택</b>. 새 멤버 합류 · 멤버 레벨업(3·5레벨에 특수 능력) · 전체 강화. 카드는 스테이지마다 새로 시작해요.</div></div>
       <div class="it"><i>🛒</i><div>코인으로 <b>강화 상점</b>에서 멤버를 영구 강화(최대 20)하고 아이템(튼튼한 문 · 단골 쿠폰 · 확성기 배터리 · 행운 부적 · 웰컴 드링크)을 사요.</div></div>
-      <div class="it"><i>✨</i><div>1-10 · 2-3 · 2-5 · 2-10 을 처음 깨면 <b>새 멤버</b>가 합류해요 (<b>HIDDEN</b> 멤버도 있어요!). 출전 동료로 고를 수 있고, 가끔 카드로도 나와요.</div></div>
-      <div class="it"><i>♾️</i><div>1-10을 깨면 <b>무한 도전</b>이 열려요. 어디까지 버티나 랭킹 경쟁!</div></div>
+      <div class="it"><i>✨</i><div>1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 을 처음 깨면 <b>새 멤버</b>가 합류해요 (<b>HIDDEN</b> 멤버도 있어요!). 힐러·탱커·한 방 딜러까지 — 출전 동료로 고르고, 가끔 카드로도 나와요.</div></div>
+      <div class="it"><i>♾️</i><div>1-10을 깨면 <b>무한 도전</b>이 열려요. 어디까지 버티나 랭킹 경쟁! 무한 도전에선 아직 못 만난 멤버도 카드로 <b>체험 합류</b>해요. 25웨이브부터는 <b>진상 연합 회장</b>이 10웨이브마다 찾아와요.</div></div>
+      <div class="it"><i>💸</i><div>사채업자는 살아 있는 동안 <b>이자</b>로 입구를 떼어 가요. 빨리 잡으면 <b>빚 탕감</b>! 뒤에 숨은 <b>인피 총무</b>는 보호막을 뿌리니 탭해서 먼저 잡아요.</div></div>
       <div class="it"><i>⏯</i><div>게임 중에 뒤로 가기를 눌러도 괜찮아요 — 일시정지가 떠요. 앱을 닫아도 메뉴에서 <b>이어하기</b>로 그 웨이브부터 다시!</div></div>
     </div>
+    <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">조작법</h2>
+    <div class="howto">
+      <div class="it"><i>✨</i><div>아래 <b>스킬 바</b>의 멤버 얼굴이 반짝이면(READY) 눌러서 필살기! 찍는 스킬은 누른 다음 <b>필드를 탭</b>해서 위치를 정해요 (그동안 시간이 느려져요).</div></div>
+      <div class="it"><i>🎯</i><div>진상을 탭하면 <b>지목</b> — 모두가 그 진상부터 때려요. 총무·독재자·들킨 사기꾼에게 딱!</div></div>
+      <div class="it"><i>🔁</i><div>필드의 멤버를 <b>끌어다 놓으면</b> 자리를 바꿔요. 짧게 누르면 공격 방식·스킬·사거리를 보여 줘요.</div></div>
+    </div>
+    <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">속성 상성</h2>
+    <p class="sub">머리 쓰는 진상(유혹·정치)엔 🗣️말빨 · 🍶술, 몸 쓰는 진상(폭력·진상)엔 👊힘 · 💖매력! (×${TYPE_STRONG} / ×${TYPE_WEAK})</p>
+    <table class="tchart"><tr><th></th>${Object.values(CLASSES).map((c) => `<th>${c.icon}<br>${c.name}</th>`).join('')}</tr>
+      ${Object.values(ATTRS).map((a) => `<tr><th>${a.icon} ${a.name}</th>${Object.keys(CLASSES).map((c) => { const m = typeMul(a.id, c); return `<td class="${m > 1 ? 'st' : m < 1 ? 'wk' : ''}">${m > 1 ? '◎' : m < 1 ? '△' : '·'}</td>`; }).join('')}</tr>`).join('')}
+    </table>
+    <p class="sub" style="margin-top:6px">스테이지마다 <b>맵 효과</b>(🌧️비 · 🌫️안개 · 💡정전 · 🎤노래방 …)도 있어요. 스테이지 정보에서 추천 속성을 보고 팀을 짜요!</p>
     <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">진상 도감</h2>
     <div class="enemy-grid">${enemies}</div>
   `, 'dim');
@@ -1339,6 +1757,18 @@ const ENEMY_TIPS = {
   scammer: '예쁜 프사(회피·남자 멤버 공격력↓) → 실물(공포/뚱뚱). "들켰다!" 할 때 약점',
   boss_gapjil: '"무릎 꿇어!" 멤버 기절 · 패거리 소환',
   boss_inpi: '오리고기 투척으로 기절 · "오리고기 회식"으로 진상 회복',
+  boss_loan: '"이자 붙었다!" 입구 내구도를 점점 더 떼어 간다. 빨리 잡으면 "빚 탕감!"',
+  inpi_treasurer: '뒤에 숨어 "회비 지원!" 보호막을 뿌린다. 체력이 낮으니 먼저!',
+  boss_union: '무한 도전 25웨이브부터. 갑질·회식·독재·이자·회비를 번갈아 쓴다',
+  vomit: '"우웩!" 멤버 발밑에 토 → 공속↓. 죽으면 토 웅덩이가 진상을 빠르게 — 멀리서 잡자',
+  couple: '안 맞으면 "꽁냥꽁냥" 회복, 윙크 안 통함. 반쯤 때리면 "헤어져!" 둘로',
+  handsy: '로프에 닿으면 멤버를 붙잡아 못 쏘게 한다. 잡으면 풀려요 — 먼저 지목!',
+  gao: '가오 중엔 피해 -60%. 말빨 공격이나 치명타로 "가오 깨짐!" → 더 아프다',
+  selfie: '멀리서 "찰칵!" 멤버 눈부심 → 절반은 빗나감. 체력 낮음',
+  cutter: '엄청 빠르고, 앞줄 근처에서 한 번 훌쩍 새치기',
+  kkondae: '느리고 튼튼. "라떼는 말이야~" 근처 멤버 공속↓. 기절시키면 조용',
+  spam: '가끔 "카톡!" 알림을 풀고, 죽으면 알림 3개가 돌진',
+  spam_dot: '작은 알림. 빠르게 돌진',
 };
 
 // ─── 시작 ────────────────────────────────────────────
@@ -1348,7 +1778,7 @@ async function boot() {
   syncMute();
   showMenu();
   requestAnimationFrame((t) => { last = t; frame(t); });
-  // 한글 글꼴이 늦게 오면 자리표시자 스프라이트를 다시 굽는다
+  // 한글 글꼴이 늦게 오면 자리표시자 스프라이트를 다시 굽는다 (+ 속성 태그가 달린 카드 색)
   if (document.fonts && document.fonts.load) {
     document.fonts.load("900 16px 'Noto Sans KR'").then(() => R.bakeAll()).catch(() => {});
   }

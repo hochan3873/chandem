@@ -11,12 +11,13 @@
   <meta property="og:site_name" content="찬이의 게임월드">
   <meta property="og:title" content="⚔️ 랑방 대전 — 도전장이 도착했어요!">
   <meta property="og:description" content="술진상·여꼬충·먹튀… 진상들로부터 우리들의 아지트 랑방을 지켜라! 설치 없이 바로 플레이">
-  <meta property="og:image" content="https://chandem.onrender.com/img/og-lb-share.jpg">
+  <meta property="og:image" content="https://chandem.onrender.com/img/og-lb3.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:url" content="https://chandem.onrender.com/langbang/">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" href="/img/icon-192.png">
+  <link rel="icon" href="/img/gw-icon-192.png">
+  <link rel="apple-touch-icon" href="/img/gw-icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
@@ -32,7 +33,7 @@
         <button id="btn-pause" class="icon-btn" aria-label="일시정지">❚❚</button>
         <div class="wave-box">
           <b id="h-wave">WAVE 1</b>
-          <small id="h-left">남은 진상 0</small>
+          <small><span id="h-left">남은 진상 0</span> <span id="h-fx" class="hfx" data-act="fxInfo"></span></small>
         </div>
         <div class="stat-box">
           <span class="kill" id="h-kills">0</span>
@@ -45,6 +46,7 @@
         <span id="boss-name">보스</span>
         <div class="bb"><div id="boss-fill"></div></div>
       </div>
+      <div id="skillbar"></div>
       <div class="hud-bottom">
         <div class="base-hp">
           <span class="base-ico"><img src="/img/lb/base.webp" alt="" onerror="this.remove()"></span>
@@ -62,6 +64,8 @@
     </div>
 
     <!-- 메뉴·카드·결과 화면 -->
+    <div id="aimbar" hidden><b>찍을 곳을 탭!</b><button data-aim="x">취소</button></div>
+    <div id="bubble" hidden></div>
     <div id="ui"></div>
     <div id="toast" hidden></div>
   </div>

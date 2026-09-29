@@ -59,7 +59,7 @@ export async function drawCard(r) {
   const ctx = cv.getContext('2d');
   try { await Promise.all([document.fonts.load(`900 60px ${FONT}`), document.fonts.load(`700 30px ${FONT}`)]); } catch { /* 기본 글꼴 */ }
   const [bg, icon, ...heroImgs] = await Promise.all([
-    loadImg('/img/games/langbang.webp'), loadImg('/img/icon-192.png'), ...r.heroes.map((h) => loadImg(h.img)),
+    loadImg('/img/games/langbang.webp'), loadImg('/img/gw-icon-192.png'), ...r.heroes.map((h) => loadImg(h.img)),
   ]);
 
   ctx.fillStyle = '#0b0a16';

@@ -287,16 +287,19 @@ class Room {
 
   /** 참가 요청. 반환: { player, pending } */
   join({ name, password, spectator, avatar, photo, user }) {
-    if (this.settings.password && password !== this.settings.password) {
+    // 마스터(운영자)는 비밀번호·승인 없이 관전으로 들어올 수 있다 (관전만)
+    const masterPeek = !!(user && user.isMaster && spectator) && (!!this.settings.password || !!this.settings.approval);
+    if (this.settings.password && password !== this.settings.password && !masterPeek) {
       throw new RoomError('비밀번호가 맞지 않아요');
     }
     const uname = this.uniqueName(name);
     const p = this.createPlayer(uname, true, avatar);
     this.setPhoto(p, photo);
-    if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; }
+    if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; if (user.isMaster) p.isMaster = true; }
+    if (masterPeek) p.masterPeek = true;
     p.wantSpectator = !!spectator;
     // 방장 승인 설정이 켜져 있거나, 게임 중에 '참가'하려면 방장이 받아 줘야 한다 (관전은 바로 입장)
-    if ((this.settings.approval || (this.phase === 'playing' && !spectator)) && this.players.some((x) => !x.isBot)) {
+    if (!masterPeek && (this.settings.approval || (this.phase === 'playing' && !spectator)) && this.players.some((x) => !x.isBot)) {
       this.pending.push(p);
       this.touch();
       return { player: p, pending: true };
@@ -353,6 +356,7 @@ class Room {
   setRole(id, spectator) {
     const p = this.get(id);
     if (!p) throw new RoomError('참가자를 찾을 수 없어요');
+    if (!spectator && p.masterPeek) throw new RoomError('운영자 관전으로 들어와서 자리에 앉을 수 없어요');
     if (spectator) {
       if (p.role === 'spectator') return;
       if (this.handPlayers.includes(p.id) && this.hand && !this.hand.finished) {
@@ -973,6 +977,7 @@ class Room {
         isBot: !!p.isBot,
         photo: p.photo ? p.photoV : 0,
         member: !!p.userId,
+        master: !!p.isMaster,
         seatRequest: !!p.seatRequest,
         rating: p.userId && this.settings.game === 'omok' ? p.omokRating : null,
         isHost: p.id === this.hostId,
@@ -1015,6 +1020,7 @@ class Room {
         pendingRebuy: me.pendingRebuy,
         canRebuy: this.canRebuy(me),
         sittingOut: me.sittingOut,
+        masterPeek: !!me.masterPeek, // 운영자 관전(비밀번호·승인 건너뜀) — 자리에 앉을 수 없음
       },
       players,
       feed: this.feed.slice(-40),

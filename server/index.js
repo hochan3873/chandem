@@ -8,6 +8,8 @@ const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { Room, RoomError, sanitizeSettings, makeCode } = require('./room');
 const { createAccounts } = require('./accounts');
+const { createSite } = require('./site');
+const { createAdmin } = require('./admin');
 
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12시간 아무 일 없으면 방 정리
 // 과부하 방지: 전체 방 수, 연습 방 수, 한 사람(IP)이 동시에 가진 방 수, 방 만들기 간격
@@ -26,9 +28,11 @@ function lanUrls(port) {
   return out.sort((a, b) => score(a) - score(b));
 }
 
-function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null } = {}) {
+function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null, now = Date.now } = {}) {
   const LIM = { ...LIMITS, ...limits };
   const acct = accounts || createAccounts({ file: dataFile ? path.join(path.dirname(dataFile), 'accounts.json') : null });
+  // 공지 · 출석 · 계정 관리 · 건의함 · 점검 모드 (server/site.js)
+  const site = createSite({ acct, file: dataFile ? path.join(path.dirname(dataFile), 'site.json') : null, now });
   const app = express();
   const server = http.createServer(app);
   const io = new Server(server, { pingInterval: 10000, pingTimeout: 8000, maxHttpBufferSize: 96 * 1024 });
@@ -136,19 +140,51 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   }, 2 * 60 * 1000);
   sweeper.unref();
 
+  // 운영자: 방 닫기 / 한 사람 내보내기
+  function closeRoom(code, message) {
+    const room = rooms.get(code);
+    if (!room) return false;
+    const sockets = io.sockets.adapter.rooms.get('room:' + code);
+    for (const sid of sockets ? [...sockets] : []) {
+      const s = io.sockets.sockets.get(sid);
+      if (!s) continue;
+      s.emit('kicked', { message });
+      s.leave('room:' + code);
+      s.data.playerId = null; s.data.pendingId = null;
+    }
+    room.clearAllTimers();
+    rooms.delete(code);
+    scheduleSave();
+    return true;
+  }
+  function kickPlayer(code, id, reason) {
+    const room = rooms.get(code);
+    const p = room && room.get(id);
+    if (!p) return false;
+    p.kicked = true;
+    room.leave(id, reason);
+    p.token = null;
+    if (room.isEmpty) closeRoom(code, '방이 닫혔어요');
+    else broadcast(room);
+    return true;
+  }
+
   // ── HTTP ──────────────────────────────────────────
   const pub = path.join(__dirname, '..', 'public');
   app.use(express.static(pub, { extensions: ['html'] }));
   const accountsOn = !!process.env.DATABASE_URL || !process.env.RENDER;
   if (accountsOn) {
     app.use('/api/auth', acct.router(express));
+    app.use('/api/langbang/ranking', site.decorateRanking); // 랭킹에 마스터 표시만 덧붙임
     app.use('/api/langbang', acct.langbangRouter(express)); // 랑방 대전: 기록·강화·랭킹
+    app.use('/api/site', site.router(express));
+    app.use('/api/admin', createAdmin({ acct, site, rooms, api: { closeRoom, kickPlayer } }).router(express));
   } else {
-    app.use(['/api/auth', '/api/langbang'], (req, res) => res.status(503).json({ ok: false, message: '로그인 준비 중이에요' }));
+    app.use(['/api/auth', '/api/langbang', '/api/site', '/api/admin'], (req, res) => res.status(503).json({ ok: false, message: '로그인 준비 중이에요' }));
   }
   app.get('/api/info', (req, res) => {
     // 배포 서버(Render)에서는 DB가 연결됐을 때만 로그인을 켠다 (파일 저장은 배포마다 지워지므로)
-    res.json({ lan: lanUrls(server.address().port), publicUrl, accounts: accountsOn, langbang: fs.existsSync(path.join(pub, 'langbang', 'index.html')) });
+    res.json({ lan: lanUrls(server.address().port), publicUrl, accounts: accountsOn, maintenance: site.maintenance(), langbang: fs.existsSync(path.join(pub, 'langbang', 'index.html')) });
   });
   // 지금 열려 있는 방 목록: 접속한 사람이 있는 방만, 게임 중인 방 먼저 → 최근 활동 순
   app.get('/api/rooms', (req, res) => {
@@ -215,7 +251,8 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   // ── 소켓 ──────────────────────────────────────────
   const clientIp = (socket) => String(socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || '').split(',')[0].trim();
   const lastCreate = new Map();
-  function checkCreate(socket, practice) {
+  function checkCreate(socket, practice, user) {
+    if (site.maintenance().on && !(user && user.isMaster)) throw new RoomError('지금은 점검 중이라 새 방을 만들 수 없어요. 조금만 기다려 주세요!');
     const ip = clientIp(socket);
     const t = Date.now();
     if (t - (lastCreate.get(ip) || 0) < LIM.createGapMs) throw new RoomError('조금 있다가 다시 만들어 주세요');
@@ -268,7 +305,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       if (user) payload.name = user.nickname;
       try {
         const settings = sanitizeSettings(payload.settings || {});
-        const ip = checkCreate(socket, false);
+        const ip = checkCreate(socket, false, user);
         let code;
         do { code = makeCode(); } while (rooms.has(code));
         const room = new Room({ code, settings, pace });
@@ -339,7 +376,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       if (user) payload.name = user.nickname;
       try {
         const settings = sanitizeSettings({ ...(payload.settings || {}), approval: false, password: '' });
-        const ip = checkCreate(socket, true);
+        const ip = checkCreate(socket, true, user);
         let code;
         do { code = makeCode(); } while (rooms.has(code));
         const room = new Room({ code, settings, pace });
@@ -396,7 +433,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   });
 
   return {
-    app, server, io, rooms, accounts: acct,
+    app, server, io, rooms, accounts: acct, site,
     listen: () => new Promise((resolve) => server.listen(port, '0.0.0.0', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => {
       for (const r of rooms.values()) r.clearAllTimers();

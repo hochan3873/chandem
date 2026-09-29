@@ -14,8 +14,8 @@ const load = (f) => import(pathToFileURL(path.join(LIB, f)).href);
 const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? Number(a.split('=')[1]) : d; };
 const what = args.find((x) => !x.startsWith('--')) || 'all';
-const PARTNERS = ((process.argv.find((x) => x.startsWith('--partners=')) || '').slice(11) || 'staff,gunman,gunnyeo,myunghoon,eunok,hanna,sunggu').split(',');
-const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈' };
+const PARTNERS = ((process.argv.find((x) => x.startsWith('--partners=')) || '').slice(11) || 'staff,gunman,gunnyeo,dohoon,myunghoon,ingyu,donghan,youngjun,eunok,hanna,sunggu').split(',');
+const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준' };
 const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
 
 function seeded(seed = 1) {
@@ -49,14 +49,41 @@ function seeded(seed = 1) {
     return best;
   }
 
+  // 스킬 자동 사용 (--skills=1): 준비되면 바로. 찍는 스킬은 진상이 가장 몰린 곳에
+  const SKILLS = opt('skills', 0) > 0;
+  function densest(g, r) {
+    let best = null, bn = 0;
+    for (const e of g.enemies) {
+      if (e.dead || e.y < 0) continue;
+      let n = 0;
+      for (const o of g.enemies) if (!o.dead && Math.abs(o.x - e.x) < r && Math.abs(o.y - e.y) < r) n += o.boss ? 3 : 1;
+      if (n > bn) { bn = n; best = e; }
+    }
+    return best ? { x: best.x, y: best.y, n: bn } : null;
+  }
+  function aiSkills(g) {
+    for (const h of g.heroes) {
+      if (!S.skillReady(h)) continue;
+      const sk = h.def.skill;
+      let alive = 0;
+      for (const e of g.enemies) if (!e.dead && e.y > 0) alive++;
+      if (sk.target) {
+        const c = densest(g, sk.r[h.lv - 1] * 0.8);
+        if (c && (c.n >= 4 || g.bossAlive)) S.castSkill(g, h, c.x, c.y);
+      } else if (sk.id === 'firstaid') {
+        if (g.base.hp / g.base.max < 0.8 || g.heroes.some((o) => o.stunT > 0.6 || o.rumorT > 0.5 || o.paperT > 0.5)) S.castSkill(g, h);
+      } else if (alive >= 6 || g.bossAlive) S.castSkill(g, h);
+    }
+  }
   // 한 판 (사람처럼: 카드는 바로 고르고, 총공지는 적이 많거나 보스가 있을 때 쓴다)
   function play(o) {
     const rng = seeded(o.seed);
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
-      partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes,
+      partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
     });
     g.partner = o.partner;
+    if (o.noTypes) g.noTypes = true;
     const pr = seeded(o.seed * 7 + 3);
     const maxT = o.maxT || 900;
     let steps = 0;
@@ -71,6 +98,7 @@ function seeded(seed = 1) {
         if (g.welcomePicks > 0) g.welcomePicks--;
       }
       if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
+      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % 6) === 0) aiSkills(g);
       if (o.stopWave && g.wave >= o.stopWave && g.phase === 'break') break;
     }
     const heroes = {};
@@ -91,7 +119,7 @@ function seeded(seed = 1) {
         for (let s = 1; s <= N; s++) {
           const g = S.createGame({ H: 760, rng: seeded(s * 31 + lv), heroes: [id], god: true, noWaves: true });
           g.phase = 'test';
-          g.diff = 8; g.wave = 8; // (옛 버전은 g.wave 로 난이도)
+          g.diff = 8; g.wave = 8; g.noTypes = true; // (옛 버전은 g.wave 로 난이도) · 상성은 빼고 순수 비교
           g.heroes[0].lv = lv;
           const types = ['yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'yeokko', 'namkko', 'drunk'];
           let k = 0;
@@ -131,7 +159,8 @@ function seeded(seed = 1) {
         const m = metaAt(s);
         let win = 0, stars = 0, t = 0;
         for (let i = 1; i <= N; i++) {
-          const r = play({ stage: s, partner: p, meta: { bangjang: m, [p]: m, staff: m, gunman: m, gunnyeo: m }, items: itemsAt(s), seed: i * 101 + s, unlocked: [] });
+          const team = s > 10 ? [p, p === 'staff' ? 'gunman' : 'staff'] : [p]; // 2챕터부터 동료 2명 (둘째는 운영진/건전남)
+          const r = play({ stage: s, partner: p, team, meta: { bangjang: m, [p]: m, staff: m, gunman: m, gunnyeo: m }, items: itemsAt(s), seed: i * 101 + s, unlocked: [] });
           if (r.win) { win++; stars += r.stars; }
           t += r.t;
           const ph = r.heroes[p];
@@ -162,14 +191,15 @@ function seeded(seed = 1) {
     for (const p of PARTNERS) {
       const res = [];
       for (let k = 1; k <= seeds; k++) {
-        const prof = { coins: 0, heroes: { bangjang: 0, [p]: 0 }, items: { door: 0, coupon: 0, battery: 0, charm: 0, drink: 0 }, stages: {} };
+        const prof = { coins: 0, heroes: { bangjang: 0, [p]: 0, staff: 0, gunman: 0 }, items: { door: 0, coupon: 0, battery: 0, charm: 0, drink: 0 }, stages: {} };
         let cur = 1, plays = 0, at10 = 0, at20 = 0, done = 0, fails = 0, time = 0, firstStars = 0, firsts = 0;
         while (plays < maxPlays && cur <= 30) {
           plays++;
           // 막히면 사람처럼 전 스테이지를 한 번 돌아서 코인을 모은다
           const farm = fails > 0 && fails % 2 === 0 && cur > 1;
           const st = farm ? cur - 1 : cur;
-          const r = play({ stage: st, partner: p, meta: prof.heroes, items: prof.items, seed: plays * 13 + k * 1000, unlocked: [] });
+          const team = D.partnerSlots(Math.max(0, cur - 1)) > 1 ? [p, p === 'staff' ? 'gunman' : 'staff'] : [p];
+          const r = play({ stage: st, partner: p, team, meta: prof.heroes, items: prof.items, seed: plays * 13 + k * 1000, unlocked: [] });
           time += r.t;
           if (farm) {
             if (r.win) prof.coins += D.stageReward(st, r.stars, prof.stages[st] || 0, prof.items.coupon).total;
@@ -190,7 +220,7 @@ function seeded(seed = 1) {
           // 강화: 가장 싼 것부터
           for (;;) {
             const opts = [];
-            for (const h of ['bangjang', p]) { const c = prof.heroes[h] < D.META_MAX ? D.metaCost(prof.heroes[h]) : null; if (c !== null) opts.push([c, () => { prof.heroes[h]++; }]); }
+            for (const h of ['bangjang', p, ...(cur > 10 ? [p === 'staff' ? 'gunman' : 'staff'] : [])]) { const c = prof.heroes[h] < D.META_MAX ? D.metaCost(prof.heroes[h]) : null; if (c !== null) opts.push([c, () => { prof.heroes[h]++; }]); }
             for (const it of ['door', 'charm', 'battery', 'drink', 'coupon']) {
               const c = D.itemCost(it, prof.items[it]);
               if (c !== null) opts.push([it === 'drink' ? c * 0.8 : it === 'coupon' ? c * 1.6 : c * 1.15, () => { prof.items[it]++; }, c]);
@@ -233,7 +263,115 @@ function seeded(seed = 1) {
   }
 
   console.log(`(카드 고르기: ${POLICY})`);
+  // ── 5) 상성: 좋은 팀 vs 나쁜 팀, 스킬 씀 vs 안 씀 (어려운 스테이지)
+  function matchups() {
+    const N = opt('seeds', 10);
+    const pool = ['staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun'];
+    const list = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
+    if (!list.length) list.push(5, 6, 9, 10, 15, 16, 19, 20, 25, 26, 29, 30);
+    console.log(`\n■ 상성 — 일반 동료(운영진·건전남·건전녀·서명훈)로 상성 좋은 팀 vs 나쁜 팀, 강화 = 스테이지×${MF}, ${N}판`);
+    console.log(pad('스테이지', 9) + pad('추천', 11) + pad('좋은 팀', 24) + pad('나쁜 팀', 24) + pad('나쁜', 7) + pad('좋은', 7) + pad('좋은+스킬', 10));
+    const tot = { good: 0, bad: 0, goodS: 0, n: 0, gs: 0, bs: 0, gss: 0 };
+    for (const s of list) {
+      const sc = D.attrScores(s);
+      const slots = D.partnerSlots(s - 1);
+      const combos = [];
+      if (slots === 1) for (const a of pool) combos.push([a]);
+      else for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) combos.push([pool[i], pool[j]]);
+      const val = (c) => c.reduce((x, id) => x + sc[D.HEROES[id].attr], 0);
+      combos.sort((a, b) => val(b) - val(a));
+      const good = combos[0], bad = combos[combos.length - 1];
+      const m = metaAt(s);
+      const meta = { bangjang: m, staff: m, gunman: m, gunnyeo: m, myunghoon: m };
+      const res = {};
+      for (const [k, team, sk] of [['good', good, false], ['bad', bad, false], ['goodS', good, true]]) {
+        let w = 0, st = 0;
+        for (let i = 1; i <= N; i++) { const r = play({ stage: s, team, partner: team[0], meta, items: itemsAt(s), seed: i * 53 + s, unlocked: [], skills: sk }); if (r.win) { w++; st += r.stars; } }
+        res[k] = [w / N, st / N];
+      }
+      tot.good += res.good[0]; tot.bad += res.bad[0]; tot.goodS += res.goodS[0]; tot.gs += res.good[1]; tot.bs += res.bad[1]; tot.gss += res.goodS[1]; tot.n++;
+      const nm = (t) => t.map((id) => NAME[id] + D.ATTRS[D.HEROES[id].attr].name).join('+');
+      const pc = (r) => `${Math.round(r[0] * 100)}%`;
+      console.log(pad(D.stageLabel(s), 9) + pad(D.recommendAttrs(s).map((a) => D.ATTRS[a].name).join('·'), 11) + pad(nm(good), 24) + pad(nm(bad), 24)
+        + pad(pc(res.bad), 7) + pad(pc(res.good), 7) + pad(pc(res.goodS), 10));
+    }
+    const f = (v) => Math.round((v / tot.n) * 100) + '%';
+    const st = (v) => (v / tot.n).toFixed(2) + '★';
+    console.log(`평균 클리어율(판당 별): 나쁜 팀 ${f(tot.bad)} (${st(tot.bs)}) · 좋은 팀 ${f(tot.good)} (${st(tot.gs)}) · 좋은 팀+스킬 ${f(tot.goodS)} (${st(tot.gss)})`);
+  }
+
+  // ── 6) 타고난 힘: 상성 없이, 동료 1명 + 운영진 대신 아무도 없이 — 영웅끼리 공정한지
+  function innate() {
+    const N = opt('seeds', 8);
+    const list = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
+    if (!list.length) list.push(8, 12, 16, 19, 23, 27);
+    console.log(`
+■ 타고난 힘 — 상성 끄고, 방장 + 동료 1명, 강화 = 스테이지×${MF}, 스킬 ${SKILLS ? '씀' : '안 씀'}, ${N}판`);
+    console.log(pad('동료', 10) + list.map((s) => pad(D.stageLabel(s), 8)).join('') + pad('평균', 8) + pad('남은 입구', 10) + '피해 몫');
+    for (const p of PARTNERS) {
+      let tw = 0, thp = 0, tn = 0, sh = 0;
+      const cells = [];
+      for (const s of list) {
+        const m = metaAt(s);
+        let w = 0;
+        for (let i = 1; i <= N; i++) {
+          const r = play({ stage: s, team: [p], partner: p, meta: { bangjang: m, [p]: m, staff: m, gunman: m, gunnyeo: m }, items: itemsAt(s), seed: i * 41 + s, unlocked: [], noTypes: true });
+          if (r.win) w++; thp += r.win ? r.hp : 0; tn++;
+          sh += (r.heroes[p] ? r.heroes[p].dmg : 0) / Math.max(1, r.dmg);
+        }
+        tw += w; cells.push(Math.round((w / N) * 100) + '%');
+      }
+      console.log(pad(NAME[p], 10) + cells.map((c) => pad(c, 8)).join('') + pad(Math.round((tw / tn) * 100) + '%', 8) + pad(Math.round((thp / Math.max(1, tw)) * 100) + '%', 10) + Math.round((sh / tn) * 100) + '%');
+    }
+  }
+
+  // ── 7) 최종 표: 챕터별 클리어율 (팀 구성 · 스킬), 평균 시간, 스테이지 곡선
+  function final() {
+    const N = opt('seeds', 3);
+    const pool = ['staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun'];
+    const teamFor = (s, best) => {
+      const sc = D.attrScores(s), slots = D.partnerSlots(s - 1);
+      const avail = pool.filter((id) => !D.HERO_UNLOCK[id] || D.HERO_UNLOCK[id] < s);
+      const combos = [];
+      if (slots === 1) for (const a of avail) combos.push([a]);
+      else for (let i = 0; i < avail.length; i++) for (let j = i + 1; j < avail.length; j++) combos.push([avail[i], avail[j]]);
+      const val = (c) => c.reduce((x, id) => x + sc[D.HEROES[id].attr], 0);
+      combos.sort((a, b) => val(b) - val(a));
+      return best ? combos[0] : combos[combos.length - 1];
+    };
+    const kinds = [['좋은 팀+스킬', true, true], ['좋은 팀', true, false], ['나쁜 팀', false, false]];
+    const per = {}; const curve = [];
+    for (let s = 1; s <= 30; s++) {
+      const m = metaAt(s);
+      const meta = Object.fromEntries(Object.keys(D.HEROES).map((id) => [id, m]));
+      const row = [];
+      for (const [k, best, sk] of kinds) {
+        const team = teamFor(s, best);
+        let w = 0, st = 0, t = 0;
+        for (let i = 1; i <= N; i++) { const r = play({ stage: s, team, partner: team[0], meta, items: itemsAt(s), seed: i * 97 + s, unlocked: [], skills: sk }); if (r.win) { w++; st += r.stars; t += r.t; } }
+        const c = D.chapterOf(s);
+        const P = (per[k + c] = per[k + c] || { w: 0, n: 0, st: 0, t: 0, tw: 0 });
+        P.w += w; P.n += N; P.st += st; P.t += t; P.tw += w;
+        row.push(Math.round((w / N) * 100));
+      }
+      curve.push(`${D.stageLabel(s)}:${row.join('/')}`);
+    }
+    console.log(`
+■ 최종 — 강화 = 스테이지×${MF} (+아이템 조금), 스테이지마다 ${N}판, 카드는 ${POLICY}`);
+    console.log(pad('팀', 16) + [1, 2, 3].map((c) => pad(`${c}장 클리어(별)`, 18)).join('') + '클리어 판 평균 시간');
+    for (const [k] of kinds) {
+      let tt = 0, tw = 0;
+      const cells = [1, 2, 3].map((c) => { const P = per[k + c]; tt += P.t; tw += P.tw; return pad(`${Math.round((P.w / P.n) * 100)}% (${(P.st / Math.max(1, P.w)).toFixed(1)}★)`, 18); });
+      console.log(pad(k, 16) + cells.join('') + `${Math.floor(tt / tw / 60)}분 ${Math.round((tt / tw) % 60)}초`);
+    }
+    console.log('스테이지별 클리어율 % (좋은+스킬/좋은/나쁜):');
+    for (let i = 0; i < 30; i += 10) console.log('  ' + curve.slice(i, i + 10).join('  '));
+  }
+
   const t0 = Date.now();
+  if (what === 'final') final();
+  if (what === 'innate') innate();
+  if (what === 'matchups') matchups();
   if (what === 'run20') run20();
   if (what === 'speed') {
     const r = play({ stage: 15, partner: 'gunman', meta: { bangjang: 6, gunman: 6 }, seed: 1 });

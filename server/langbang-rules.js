@@ -2,15 +2,18 @@
 // 랑방 대전 — 서버가 믿는 경제 규칙 (보상 · 강화 비용 · 해금).
 // 화면 표시/손님용 같은 공식이 public/langbang/data.js 에 있다. 둘이 어긋나면 test/langbang.test.js 가 잡는다.
 
-const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'myunghoon', 'eunok', 'hanna', 'sunggu'];
+const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu'];
 const HIDDEN = ['eunok', 'hanna', 'sunggu'];
-const LOCKED = ['myunghoon', ...HIDDEN]; // 스테이지를 깨야 합류하는 영웅
+const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN]; // 스테이지를 깨야 합류하는 영웅
 const META_MAX = 20;
 const STAGE_COUNT = 30;
 const STAGE_WAVES = 5;
 const STAGES_PER_CHAPTER = 10;
-const HERO_UNLOCK = { eunok: 10, myunghoon: 13, hanna: 15, sunggu: 20 }; // 1-10 · 2-3 · 2-5 · 2-10
+const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3
 const ENDLESS_UNLOCK = 10;
+// 도감에 올라가는 진상 (화면 data.js ENEMIES 와 같아야 한다 — 테스트가 검사)
+const ENEMY_IDS = ['yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'queen', 'boss_thug', 'vomit', 'couple', 'handsy', 'gao', 'selfie', 'cutter', 'kkondae', 'spam',
+  'inpi_gossip', 'inpi_dictator', 'inpi_clique', 'scammer', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'inpi_treasurer', 'boss_union'];
 
 const ITEMS = {
   door: { max: 10, per: 0.1, base: 50 },
@@ -60,6 +63,6 @@ const heroUnlocked = (lb, hero) => !LOCKED.includes(hero) || (lb.stages && (lb.s
 const endlessUnlocked = (lb) => maxCleared(lb.stages) >= ENDLESS_UNLOCK || (lb.bestWave | 0) > 0;
 
 module.exports = {
-  LB_HEROES, HIDDEN, LOCKED, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
+  LB_HEROES, HIDDEN, LOCKED, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   metaCost, itemCost, itemValue, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };

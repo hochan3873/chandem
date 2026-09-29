@@ -280,10 +280,13 @@ test('랑방 대전: 예전 프로필(코인·강화·최고 웨이브)은 그�
   assert.equal(p.costs.gunman, R.metaCost(10), '최대 20까지 계속 강화');
   const ek = await get('/api/langbang/ranking?mode=endless');
   assert.ok(ek.ranking.some((x) => x.username === 'lbold' && x.bestWave === 22));
-  const r = await lbPost('/api/langbang/result', u.token, clear(1, 3));
+  const r = await lbPost('/api/langbang/result', u.token, clear(1, 3, { seen: ['yeokko', 'gao', 'hacker', 'yeokko'] }));
   assert.equal(r.ok, true, r.message);
   assert.equal(r.profile.coins, 3210 + R.stageReward(1, 3, 0, 0).total);
   assert.equal(r.profile.bestWave, 22);
+  assert.deepEqual(r.profile.seen.sort(), ['gao', 'yeokko'], '도감: 있는 진상 이름만 저장');
+  assert.ok(r.profile.unlocked.includes('hanna'));
+  assert.equal(r.profile.heroes.dohoon, 0);
 });
 
 test('랑방 대전 PgStore: jsonb 안의 기록으로 정렬 · 내 순위는 COUNT 한 번 (가짜 DB 로 쿼리 확인)', async () => {

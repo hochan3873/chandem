@@ -72,6 +72,7 @@ function normalize(p, guest) {
   out.maxMeta = out.maxMeta || META_MAX;
   out.unlocked = LOCKED_HEROES.filter((h) => heroUnlocked(out, h));
   out.endlessUnlocked = endlessUnlocked(out);
+  out.seen = [...new Set(((p && p.seen) || []).filter((t) => typeof t === 'string'))];
   out.guest = !!guest;
   return out;
 }
@@ -93,7 +94,7 @@ function readGuest() {
   return raw;
 }
 function writeGuest(p) {
-  const keep = { coins: p.coins, heroes: p.heroes, items: p.items, stages: p.stages, bestWave: p.bestWave, bestScore: p.bestScore, runs: p.runs | 0 };
+  const keep = { coins: p.coins, heroes: p.heroes, items: p.items, stages: p.stages, bestWave: p.bestWave, bestScore: p.bestScore, runs: p.runs | 0, seen: p.seen || [] };
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
 export function guestProfile() { return normalize(readGuest(), true); }
@@ -112,7 +113,7 @@ export async function postStage(sum, guest) {
     if (sum.stage > p.maxStage + 1) return { ok: false, message: '아직 열리지 않은 스테이지예요' };
     const prev = p.stages[sum.stage] || 0;
     const reward = stageReward(sum.stage, sum.stars, prev, p.items.coupon);
-    const q = Object.assign({}, p, { coins: p.coins + reward.total, stages: Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) }), runs: (p.runs | 0) + 1 });
+    const q = Object.assign({}, p, { coins: p.coins + reward.total, stages: Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) }), runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
     writeGuest(q);
     const after = guestProfile();
     return {
@@ -129,7 +130,7 @@ export async function postEndless(sum, guest) {
   if (guest) {
     const p = guestProfile();
     const coins = endlessReward(sum.wave, p.items.coupon);
-    const q = Object.assign({}, p, { coins: p.coins + coins, bestWave: Math.max(p.bestWave, sum.wave), bestScore: Math.max(p.bestScore, sum.score), runs: (p.runs | 0) + 1 });
+    const q = Object.assign({}, p, { coins: p.coins + coins, bestWave: Math.max(p.bestWave, sum.wave), bestScore: Math.max(p.bestScore, sum.score), runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
     writeGuest(q);
     return { ok: true, profile: guestProfile(), reward: { total: coins }, newBestWave: sum.wave > p.bestWave, newBestScore: sum.score > p.bestScore };
   }
