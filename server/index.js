@@ -37,6 +37,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   // 켜질 때 한 번 바꾸고 그 계정의 모든 기기를 로그아웃한다. 로그인되면 두 변수를 지우고 다시 배포할 것.
   // RESET_PASSWORD 없이 RESET_USER 만 넣으면 서버가 임시 비밀번호를 만들어 로그에 한 번만 찍는다.
   // 같은 설정으로는 한 번만 실행된다(재시작해도 다시 안 바꿈). 다시 하려면 RESET_ID 값을 바꾼다.
+  site.bootstrapMasterRecovery([...require('./masters').masterList()]).catch((e) => console.error('[master] 복구 코드 준비 실패:', e.message));
   const resetUser = String(process.env.RESET_USER || '').trim().toLowerCase();
   const resetPass = String(process.env.RESET_PASSWORD || '');
   if (resetUser && (!resetPass || (resetPass.length >= 6 && resetPass.length <= 64))) {
