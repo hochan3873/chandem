@@ -114,6 +114,10 @@ export function unlock() {
   master = ctx.createGain();
   master.connect(ctx.destination);
   unlocked = true;
+  // 소리가 실제로 풀리면 이 탭에 기억 (사이트 안에서 페이지를 옮겨도 다시 '터치해서 시작'을 안 띄우려고)
+  const noteOK = () => { if (ctx.state === 'running') { try { sessionStorage.setItem('gw:audioOK', '1'); } catch {} window.dispatchEvent(new Event('gw:audio')); } };
+  ctx.onstatechange = noteOK;
+  setTimeout(noteOK, 0);
   applyVolume(); // 목록을 받기 전이라도 지금(터치 안에서) 배경음악 재생을 시작한다
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   loadManifest().then(() => {
@@ -121,6 +125,23 @@ export function unlock() {
     applyMusic();
   });
 }
+
+/** 터치 없이 조용히 소리 풀기 시도 (같은 사이트에서 이미 터치한 탭이면 브라우저가 허락하기도 함) → 풀렸으면 true */
+export async function tryResume(ms = 350) {
+  unlock();
+  if (!ctx) return false;
+  if (ctx.state !== 'running') { try { await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, ms))]); } catch {} }
+  await new Promise((r) => setTimeout(r, 150)); // 배경음악 play() 결과를 잠깐 기다림
+  return !isLocked();
+}
+/** 아직 소리가 막혀 있나 (오디오가 멈춰 있거나, 음악을 켜 뒀는데 재생이 거절됨) */
+export function isLocked() {
+  if (!ctx || ctx.state !== 'running') return true;
+  const wantMusic = prefs.music && !prefs.muted && prefs.musicVolume > 0 && !document.hidden;
+  return wantMusic && (!bgm || bgm.paused);
+}
+/** 소리를 아예 꺼 둔 사람인가 (그러면 '소리 켜기' 안내가 필요 없음) */
+export const soundOff = () => prefs.muted && !prefs.music;
 
 ['pointerdown', 'touchstart', 'pointerup', 'touchend', 'click', 'keydown'].forEach((ev) => {
   window.addEventListener(ev, unlock, { once: false, passive: true, capture: true });

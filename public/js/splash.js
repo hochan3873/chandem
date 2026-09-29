@@ -1,6 +1,8 @@
 // 첫 로딩 화면(스플래시): 글꼴·메인 그림·소리를 미리 받으면서 진행 막대를 채우고,
 // 다 되면 "화면을 터치해서 시작" → 그 터치로 소리를 풀어서(자동 재생 막힘 해결) 메인 배경음악이 바로 나온다.
-// 한 세션에 한 번만 (sessionStorage 'gw:splashed'). 이미 받아 둔 게 많아 0.6초 안에 끝나면 막대 없이 바로 터치 화면.
+// 새로 열 때마다 뜬다 (브라우저가 터치 전엔 소리를 막아서). 단, 이 탭에서 이미 소리를 풀었으면 숨긴 채로
+// 조용히 풀기를 먼저 해 보고 안 될 때만 보여 준다. 전에 와 본 사람은 진행 막대 없이 바로 "터치해서 시작".
+// 로딩 화면을 건너뛰었는데도 소리가 막혀 있으면 오른쪽 아래에 "🔇 소리 켜기" 버튼을 띄운다.
 import * as sound from './sound.js';
 
 const html = document.documentElement;
@@ -21,8 +23,37 @@ const TIPS = [
   '팁: 📲 앱 설치를 하면 전체 화면으로 더 편하게 놀 수 있어요',
 ];
 
-function start() {
-  if (!el || !html.classList.contains('splashing')) { if (el) el.remove(); return; }
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const lbArt = () => { let n = 1; try { n = Math.trunc(Number(JSON.parse(localStorage.getItem('langbang:chapter') || '1'))); } catch {} return n >= 1 && n <= 6 ? `/img/lb/keyart${n}.webp` : '/img/lb/keyart1.webp'; };
+
+// ── 🔇 소리 켜기 (소리가 막혀 있을 때만) ──
+function soundPill() {
+  if (sound.soundOff() || (navigator.webdriver && !/[?&]splash\b/.test(location.search))) return;
+  let pill = null;
+  const check = () => {
+    if (!sound.isLocked()) { if (pill) { pill.remove(); pill = null; } return; }
+    if (pill) return;
+    pill = document.createElement('button');
+    pill.id = 'snd-pill';
+    pill.type = 'button';
+    pill.innerHTML = '🔇 소리 켜기';
+    pill.setAttribute('aria-label', '소리 켜기');
+    pill.onclick = () => { sound.unlock(); setTimeout(check, 400); };
+    document.body.appendChild(pill);
+  };
+  setTimeout(check, 900);
+  window.addEventListener('gw:audio', () => setTimeout(check, 200));
+  window.addEventListener('click', () => setTimeout(check, 500), true);
+}
+
+async function start() {
+  if (!el || !html.classList.contains('splashing')) { if (el) el.remove(); soundPill(); return; }
+  // 이 탭에서 이미 소리를 풀었으면: 숨긴 채 조용히 풀어 보고, 되면 로딩 화면 없이 바로
+  if (html.classList.contains('splash-quiet')) {
+    if (await sound.tryResume()) { el.remove(); html.classList.remove('splashing', 'splash-quiet'); window.__gwSplash = { ready: true, quiet: true }; soundPill(); return; }
+    html.classList.remove('splash-quiet');
+    html.classList.add('splash-fast');
+  }
   const t0 = performance.now();
   const bar = el.querySelector('.sp-bar i');
   const pctEl = el.querySelector('[data-sp-pct]');
@@ -61,7 +92,7 @@ function start() {
     ['글꼴', font("700 1em 'Noto Sans KR'")],
     ['그림', img('/img/gw-icon-192.png')],
     ['그림', img('/img/bg-lobby.webp')],
-    ['그림', img('/img/games/langbang.webp')],
+    ['그림', img(lbArt())],
     ['그림', img('/img/games/holdem.webp')],
     ['그림', img('/img/games/seotda.webp')],
     ['그림', img('/img/games/omok.webp')],
@@ -95,6 +126,7 @@ function start() {
   };
   raf = requestAnimationFrame(tick);
   const maxTimer = setTimeout(() => { target = 1; done = total; }, MAX_MS);
+  if (html.classList.contains('splash-fast')) setTimeout(() => finishLoading(), 0); // 받기는 뒤에서 계속
 
   let ready = false;
   function finishLoading() {
@@ -105,7 +137,8 @@ function start() {
     bar.style.width = '100%'; pctEl.textContent = '100%';
     el.classList.add('ready');
     el.setAttribute('aria-label', '화면을 터치해서 시작');
-    window.__gwSplash = { ready: true, ms: Math.round(performance.now() - t0), fast };
+    window.__gwSplash = { ready: true, ms: Math.round(performance.now() - t0), fast, returning: html.classList.contains('splash-fast') };
+    try { localStorage.setItem('gw:seenSplash', '1'); } catch {}
   }
 
   // ── 터치해서 시작 ──
@@ -118,7 +151,7 @@ function start() {
     try { sessionStorage.setItem('gw:splashed', '1'); } catch {}
     clearInterval(tipTimer);
     el.classList.add('done');
-    const end = () => { el.remove(); html.classList.remove('splashing'); window.dispatchEvent(new Event('gw:splash-done')); };
+    const end = () => { el.remove(); html.classList.remove('splashing', 'splash-fast'); window.dispatchEvent(new Event('gw:splash-done')); soundPill(); };
     if (window.gwSettings && window.gwSettings.reduceMotion()) end(); else setTimeout(end, 460);
   }
   el.addEventListener('click', go);

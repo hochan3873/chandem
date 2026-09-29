@@ -25,12 +25,17 @@
   <link rel="stylesheet" href="/css/style.css">
   <link rel="preload" as="image" href="/img/splash.webp">
   <script>
-    // 첫 로딩 화면: 한 세션에 한 번만. ?nosplash · 자동 테스트(webdriver)면 건너뜀 (?splash 로 강제 표시)
+    // 로딩 화면 + "화면을 터치해서 시작": 새로 열 때마다 (첫 터치로 배경음악을 틀려고).
+    //  · 이 탭에서 이미 소리를 풀었으면(gw:audioOK) 숨긴 채로 조용히 소리 풀기를 먼저 해 보고, 안 될 때만 보여 줌 (splash-quiet)
+    //  · 전에 와 본 사람은 진행 막대 없이 바로 터치 화면 (splash-fast)
+    //  · ?nosplash · 자동 테스트(webdriver)면 건너뜀 (?splash 로 강제 표시)
     (function () {
       var h = document.documentElement, q = location.search;
       try {
-        var skip = /[?&]nosplash\b/.test(q) || (navigator.webdriver && !/[?&]splash\b/.test(q)) || sessionStorage.getItem('gw:splashed');
+        var skip = /[?&]nosplash\b/.test(q) || (navigator.webdriver && !/[?&]splash\b/.test(q));
         h.classList.add(skip ? 'no-splash' : 'splashing');
+        if (!skip && sessionStorage.getItem('gw:audioOK')) h.classList.add('splash-quiet');
+        if (!skip && localStorage.getItem('gw:seenSplash')) h.classList.add('splash-fast');
       } catch (e) { h.classList.add('no-splash'); }
     })();
   </script>

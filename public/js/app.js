@@ -740,6 +740,7 @@ function render() {
   if (vkey !== S.lastVKey) { const first = !S.lastVKey || S.lastVKey === 'boot'; S.lastVKey = vkey; if (!first || vkey !== 'home') animateIn(S.view === 'room'); }
   if (S.view !== 'room') S.gameMounted = false;
   document.body.dataset.theme = S.view === 'room' && S.state ? gameOf(S.state) : S.view === 'home' || S.view === 'admin' ? 'hub' : (S.game || 'holdem');
+  document.body.classList.toggle('in-room', S.view === 'room');
   // 배경음악: 메인은 메인 곡, 게임 화면·게임방은 그 게임 곡
   const th = document.body.dataset.theme;
   sound.setTrack(th === 'hub' ? 'bgm_hub' : th === 'holdem' ? 'bgm' : 'bgm_' + th);
@@ -779,6 +780,24 @@ const GAME_RULES = {
   seotda: '<p><b>두 장 섯다</b>: 모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p><b>세 장 섯다</b>: 두 장을 받고 1차 베팅, 한 장을 더 받고 2차 베팅. 세 장 중 가장 좋은 두 장으로 승부해요(자동으로 골라 줘요).</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
   omok: '<p>흑이 먼저 두고, 가로·세로·대각선으로 <b>정확히 다섯 알</b>을 먼저 이으면 이겨요.</p><p>흑은 <b>삼삼</b>(열린 3이 두 개 생기는 자리)에 둘 수 없어요. 흑의 여섯 알(장목)은 승리가 아니에요.</p><p>로그인하면 대국마다 점수가 오르내리고 티어가 정해져요.</p>',
 };
+// ── 게임 그림: 랑방 대전은 내 진행 챕터(langbang:chapter, 랑방 화면이 저장)에 맞는 키 아트 ──
+const lbChapter = () => { const n = Math.trunc(Number(LS.get('langbang:chapter', 1))); return n >= 1 && n <= 6 ? n : 1; };
+const gameArt = (g) => (g === 'langbang' ? `/img/lb/keyart${lbChapter()}.webp` : `/img/games/${g}.webp`);
+// 키 아트가 없으면 뒤에 깔린 기본 그림이 보인다
+const gameArtCSS = (g) => (g === 'langbang' ? `url('${gameArt(g)}'), url('/img/games/langbang.webp')` : `url('${gameArt(g)}')`);
+function gameCardArtHTML(k) {
+  if (k !== 'langbang') return `<span class="gc-art" style="background-image:${gameArtCSS(k)}"></span>`;
+  // 챕터가 바뀌었으면 예전 그림에서 새 그림으로 부드럽게 바뀌게
+  const cur = lbChapter();
+  const prev = Number(LS.get('gw:lbArtShown', 0));
+  LS.set('gw:lbArtShown', cur);
+  if (!prev || prev === cur || prev < 1 || prev > 6) return `<span class="gc-art" style="background-image:${gameArtCSS(k)}"></span>`;
+  return `<span class="gc-art" style="background-image:url('/img/lb/keyart${prev}.webp'), url('/img/games/langbang.webp')"></span>`
+    + `<span class="gc-art gc-art-next" style="background-image:${gameArtCSS(k)}"></span>`;
+}
+// 다른 탭·뒤로 오기로 챕터가 바뀐 채 메인이 보이면 카드 그림만 다시
+window.addEventListener('storage', (e) => { if (e.key === 'langbang:chapter' && S.view === 'home') render(); });
+
 // ── 게임 들어가기: 메인이 살짝 작아지며 사라지고 → 게임 그림 로딩 화면 → 게임 화면 ──
 const GAME_ASSETS = { holdem: ['/img/felt.webp'], seotda: ['/img/bg-seotda.webp', '/img/felt-seotda.webp'], omok: ['/img/bg-omok.webp'], langbang: [] };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -793,13 +812,13 @@ async function launchGame(g) {
   const ov = document.createElement('div');
   ov.className = 'gw-loader';
   ov.setAttribute('role', 'status');
-  ov.innerHTML = `<div class="gl-art" style="background-image:url('/img/games/${g}.webp')"></div><div class="gl-shade"></div>
+  ov.innerHTML = `<div class="gl-art" style="background-image:${gameArtCSS(g)}"></div><div class="gl-shade"></div>
     <div class="gl-box"><span class="gl-icon">${info.icon}</span><span class="logo-pop gl-name" data-text="${esc(info.name)}">${esc(info.name)}</span>
       <div class="gl-bar"><i></i></div><small>${esc(info.tag)}</small></div>`;
   document.body.appendChild(ov);
   requestAnimationFrame(() => ov.classList.add('show'));
   const bar = ov.querySelector('.gl-bar i');
-  const jobs = [`/img/games/${g}.webp`, ...(GAME_ASSETS[g] || [])].map(preloadImg);
+  const jobs = [gameArt(g), ...(GAME_ASSETS[g] || [])].map(preloadImg);
   if (info.href) jobs.push(fetch(info.href).then((r) => r.text()).catch(() => {})); // 랑방 대전 페이지를 미리 받아 둔다
   let n = 0;
   jobs.forEach((j) => j.then(() => { n++; bar.style.width = Math.round((n / jobs.length) * 85) + '%'; }));
@@ -898,7 +917,7 @@ function renderHome() {
     <section class="game-cards">
       ${Object.entries(GAME_INFO).filter(([k]) => k !== 'langbang' || (S.info && S.info.langbang)).map(([k, g]) => `
         <button class="game-card game-card-${k} ${g.best ? 'is-best' : ''}" data-game="${k}">
-          <span class="gc-art" style="background-image:url('/img/games/${k}.webp')"></span>
+          ${gameCardArtHTML(k)}
           <span class="gc-shade"></span>${g.best ? '<span class="gc-best" aria-label="베스트 게임"><i>★</i>BEST</span>' : ''}
           <span class="gc-text"><b>${g.icon} ${g.name}</b><small>${g.sub}</small></span>
           <span class="gc-go">입장 ›</span>
@@ -2397,6 +2416,7 @@ window.addEventListener('pageshow', (e) => {
   S.launching = false;
   document.querySelectorAll('.gw-loader').forEach((x) => x.remove());
   $app.classList.remove('view-out');
+  if (S.view === 'home' && Number(LS.get('gw:lbArtShown', 0)) !== lbChapter()) render(); // 랑방 챕터가 바뀌었으면 카드 그림 갱신
 });
 // 로고(찬덤)를 누르면 메인으로
 document.addEventListener('click', (e) => {
