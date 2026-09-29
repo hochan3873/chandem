@@ -384,3 +384,27 @@ p.sub { margin: 0 0 calc(var(--u) * 12); text-align: center; color: var(--dim); 
 @media (prefers-reduced-motion: reduce) { .hero-parade .av, .card.hidden::after { animation: none; } }
 /* 코인 아이콘 (윈도우 10 등 🪙 이모지가 없는 기기 대비) */
 .ci { display: inline-block; width: 0.95em; height: 0.95em; margin-right: 0.25em; vertical-align: -0.12em; border-radius: 50%; font-style: normal; background: radial-gradient(circle at 35% 30%, #fff6b0, #ffcc33 45%, #c88a00); box-shadow: inset 0 0 0 0.09em #8a5a00; }
+
+/* ─── 공유하기 ─────────────────────────────────── */
+.tb-right { display: flex; align-items: center; gap: calc(var(--u) * 6); }
+.share-btn {
+  height: calc(var(--u) * 36); padding: 0 calc(var(--u) * 12); border-radius: 99px; font-weight: 900; font-size: calc(var(--u) * 12.5);
+  background: linear-gradient(180deg, #ff8fd8, #d9368f); border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 calc(var(--u) * 3) 0 #6b1646; white-space: nowrap;
+}
+.share-btn:active { transform: translateY(calc(var(--u) * 2)); box-shadow: none; }
+.btn.share-result { background: linear-gradient(180deg, #3fb6ff, #1a5fd0); box-shadow: 0 calc(var(--u) * 4) 0 #0b2a66, inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.share-modal {
+  position: absolute; inset: 0; z-index: 40; pointer-events: auto; display: flex; align-items: center; justify-content: center;
+  background: rgba(5, 3, 14, 0.82); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: fadeIn 0.2s;
+  padding: calc(var(--u) * 14);
+}
+.share-box { width: 100%; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: calc(var(--u) * 8); }
+.share-img {
+  display: grid; place-items: center; aspect-ratio: 4 / 5; height: min(56vh, calc(var(--u) * 380)); margin: 0 auto; width: auto;
+  border-radius: calc(var(--u) * 14); overflow: hidden; background: rgba(255, 255, 255, 0.05); font-weight: 700; color: var(--dim);
+}
+.share-img img { width: 100%; height: 100%; object-fit: contain; display: block; -webkit-touch-callout: default; user-select: auto; }
+.share-tip { margin: 0; text-align: center; font-size: calc(var(--u) * 10.5); color: var(--dim); font-weight: 700; }
+.share-row { display: flex; gap: calc(var(--u) * 8); }
+.share-row .btn { font-size: calc(var(--u) * 13); padding: calc(var(--u) * 11) calc(var(--u) * 6); }

@@ -4,6 +4,7 @@ import * as S from './sim.js';
 import { Renderer } from './render.js';
 import * as A from './audio.js';
 import * as API from './api.js';
+import * as SH from './share.js';
 
 const $ = (s) => document.querySelector(s);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -70,6 +71,7 @@ function av(def, extra = '') {
 }
 
 let toastT = 0;
+SH.setToast((m, ms) => toast(m, ms));
 function toast(msg, ms = 2200) {
   const t = $('#toast');
   t.textContent = msg;
@@ -513,6 +515,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ─── 화면들 ──────────────────────────────────────────
 function show(html, cls = '') {
+  SH.closeShare();
   ui.innerHTML = `<div class="screen ${cls}">${html}</div>`;
   return ui.firstElementChild;
 }
@@ -531,6 +534,8 @@ const ACTS = {
   ranking: () => showRanking(),
   howto: () => showHowto(),
   mute: () => { A.setMuted(!A.isMuted()); syncMute(); },
+  share: () => SH.shareInvite(),
+  shareResult: () => { if (app.shareData) SH.openResultShare(app.shareData, stage); },
   partner: (b) => {
     app.partner = b.dataset.id;
     A.sfx.card();
@@ -579,7 +584,7 @@ function showMenu() {
         <div class="meta"><span><i class="ci"></i><b>${fmt(p.coins)}</b></span><span>최고 <b>W${p.bestWave}</b></span><span>★ <b>${fmt(p.bestScore)}</b></span></div>
         <div class="pexp"><div style="width:${expPct}%"></div></div></div></div>`;
   show(`
-    <div class="topbar"><a class="back" href="/">‹ 게임월드</a><button class="icon-btn" data-act="mute">${A.isMuted() ? '🔇' : '🔊'}</button></div>
+    <div class="topbar"><a class="back" href="/">‹ 게임월드</a><div class="tb-right"><button class="share-btn" data-act="share">📤 공유하기</button><button class="icon-btn" data-act="mute">${A.isMuted() ? '🔇' : '🔊'}</button></div></div>
     <div class="logo"><small>진상 컷! 로그라이크 디펜스</small><h1>랑방 대전</h1><div class="tag">우리들의 아지트 "랑방"을 20웨이브 동안 지켜라!</div></div>
     <div class="hero-parade">${heroParade()}</div>
     <div class="panel">${app.profileLoaded ? prof : '<div class="empty-msg" style="padding:8px"><span class="spin">⏳</span> 불러오는 중…</div>'}</div>
@@ -691,7 +696,7 @@ function pauseGame() {
   if (!app.g || app.g.over || app.cardsOpen || app.ending) return;
   app.paused = true;
   show(`
-    <div class="topbar"><a class="back" href="/">‹ 게임월드</a><button class="icon-btn" data-act="mute">${A.isMuted() ? '🔇' : '🔊'}</button></div>
+    <div class="topbar"><a class="back" href="/">‹ 게임월드</a><div class="tb-right"><button class="share-btn" data-act="share">📤 공유하기</button><button class="icon-btn" data-act="mute">${A.isMuted() ? '🔇' : '🔊'}</button></div></div>
     <div class="pause-box">
       <h2>일시정지</h2>
       <button class="btn primary" data-act="resume">계속하기</button>
@@ -739,12 +744,19 @@ function showResult(victory, quit) {
     <div class="panel mvp">${mvp}</div>
     <div class="server" id="srv">${app.guest ? '' : '<span class="spin">⏳</span> 기록 저장 중…'}</div>
     <div class="spacer"></div>
+    <button class="btn share-result" data-act="shareResult">📤 결과 공유하기 <small>친구에게 기록 카드 보내고 도전장 날리기</small></button>
+    <div class="gap"></div>
     ${win ? `<button class="btn pink" data-act="endless">∞ 무한 모드 계속 <small>${app.guest || app.debugRun ? '어디까지 버틸 수 있을까?' : '기록은 이미 저장했어요 · 더 버티면 최고 웨이브 갱신'}</small></button><div class="gap"></div>` : ''}
     <button class="btn primary" data-act="again">다시 하기</button>
     <div class="gap"></div>
     <button class="btn ghost" data-act="menu">메뉴로</button>
   `, `result ${win ? 'win' : 'lose'}`);
   void el;
+  app.shareData = {
+    title, win, score: sum.score, wave: sum.wave, kills: sum.kills, bossKills: sum.bossKills,
+    time: `${mins}:${String(secs).padStart(2, '0')}`, nickname: app.guest ? '' : app.nickname,
+    heroes: heroes.slice(0, 6).map((h) => ({ img: h.def.img, name: h.def.name, color: h.def.color })),
+  };
   saveResult(sum);
 }
 const LOSE_LINES = ['진상들이 랑방을 점령했다… 다음엔 꼭!', '"한 잔만 더~" 술진상이 문을 열고 들어왔다', '먹튀 인간들이 계산대를 털어 갔다…', '여왕벌: "여기 이제 내 가게야~"'];
