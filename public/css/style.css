@@ -981,14 +981,15 @@ html.gw-reduce-motion *, html.gw-reduce-motion *::before, html.gw-reduce-motion 
   position: relative; display: inline-block; white-space: nowrap;
   font-family: 'Black Han Sans', var(--font); font-weight: 400; letter-spacing: .02em; line-height: 1.12;
   background: none; -webkit-background-clip: border-box; background-clip: border-box; filter: none;
-  color: #4a1d05; -webkit-text-stroke: .14em #4a1d05; paint-order: stroke fill;
-  text-shadow: 0 .09em 0 #2c0f00, 0 .16em .22em rgba(0, 0, 0, .6);
+  /* 안드로이드에서 text-stroke 가 글자 안쪽을 덮어 뭉개지므로, 그림자 8방향으로 테두리를 만든다 */
+  color: #fff3b0; -webkit-text-fill-color: #fff3b0; -webkit-text-stroke: 0;
+  text-shadow:
+    2px 0 0 #4a1d05, -2px 0 0 #4a1d05, 0 2px 0 #4a1d05, 0 -2px 0 #4a1d05,
+    2px 2px 0 #4a1d05, -2px 2px 0 #4a1d05, 2px -2px 0 #4a1d05, -2px -2px 0 #4a1d05,
+    3px 0 0 #4a1d05, -3px 0 0 #4a1d05, 0 3px 0 #4a1d05, 0 -3px 0 #4a1d05,
+    0 5px 0 #2c0f00, 0 7px 10px rgba(0, 0, 0, .6);
 }
-.logo-pop::after {
-  content: attr(data-text); position: absolute; left: 0; top: 0; right: 0; bottom: 0; -webkit-text-stroke: 0; text-shadow: none;
-  background: linear-gradient(180deg, #ffffff 0%, #fffbe6 30%, #ffe45c 60%, #ffb62e 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
+.logo-pop::after { content: none; }
 .logo-ko.logo-pop { font-size: 2.35rem; }
 body[data-theme="hub"] .logo-en { color: #ffe3a6; font-weight: 700; text-shadow: 0 1px 0 #3a1500, 0 0 8px rgba(0, 0, 0, .6); margin-top: 9px; }
 body[data-theme="hub"] .tagline { color: #fff4de; font-weight: 700; text-shadow: 0 1px 2px rgba(0, 0, 0, .85), 0 0 12px rgba(0, 0, 0, .5); }
