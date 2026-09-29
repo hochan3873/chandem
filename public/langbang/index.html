@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b0a16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="description" content="랑방 대전 — 진상들로부터 우리들의 아지트 랑방을 지켜라! 로그라이크 서바이벌 디펜스">
+  <title>랑방 대전</title>
+  <link rel="icon" href="/img/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/langbang/style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+
+    <!-- 게임 중 HUD -->
+    <div id="hud" hidden>
+      <div class="hud-top">
+        <button id="btn-pause" class="icon-btn" aria-label="일시정지">❚❚</button>
+        <div class="wave-box">
+          <b id="h-wave">WAVE 1</b>
+          <small id="h-left">남은 진상 0</small>
+        </div>
+        <div class="stat-box">
+          <span class="coin" id="h-coins">0</span>
+          <span class="score" id="h-score">0</span>
+        </div>
+        <button id="btn-mute" class="icon-btn" aria-label="소리">🔊</button>
+      </div>
+      <div class="xp-bar"><div id="h-xp"></div><span id="h-lv">Lv.1</span></div>
+      <div id="bossbar" hidden>
+        <span id="boss-name">보스</span>
+        <div class="bb"><div id="boss-fill"></div></div>
+      </div>
+      <div class="hud-bottom">
+        <div class="base-hp">
+          <span class="base-ico"><img src="/img/lb/base.webp" alt="" onerror="this.remove()"></span>
+          <div class="hp-wrap">
+            <div class="hp-label"><b>랑방 입구</b><span id="h-hptext">300 / 300</span></div>
+            <div class="hp-bar"><div id="h-hp-lag"></div><div id="h-hp"></div></div>
+          </div>
+        </div>
+        <button id="btn-ult" class="ult" aria-label="궁극기 총공지">
+          <span class="ult-ico">📣</span>
+          <span class="ult-txt">총공지</span>
+        </button>
+      </div>
+      <div id="tip" hidden></div>
+    </div>
+
+    <!-- 메뉴·카드·결과 화면 -->
+    <div id="ui"></div>
+    <div id="toast" hidden></div>
+  </div>
+  <noscript>자바스크립트를 켜야 게임을 할 수 있어요.</noscript>
+  <script type="module" src="/langbang/game.js"></script>
+</body>
+</html>
