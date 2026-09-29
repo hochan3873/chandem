@@ -300,15 +300,16 @@ test('랑방 대전 PgStore: jsonb 안의 기록으로 정렬 · 내 순위는 C
   st.pool = { query: async (sql, params) => { seen.push({ sql, params }); if (/COUNT/.test(sql)) return { rows: [{ n: 2 }] }; return { rows: [row] }; } };
   const top = await st.topLangbang(10, 'stage');
   assert.equal(top[0].id, 'me');
+  assert.match(seen[0].sql, /NOT \(username = ANY/);
   assert.match(seen[0].sql, /ORDER BY COALESCE\(\(stats->'langbang'->>'maxStage'\)::int, 0\) DESC, COALESCE\(\(stats->'langbang'->>'totalStars'\)::int, 0\) DESC, COALESCE\(\(stats->'langbang'->>'stageAt'\)::bigint, 0\) ASC LIMIT \$1/);
-  assert.deepEqual(seen[0].params, [10]);
+  assert.deepEqual(seen[0].params, [10, [...require('../server/masters').masterList()]], '마스터는 랭킹에서 뺀다');
   await st.topLangbang(5, 'endless');
-  assert.match(seen[1].sql, /bestWave'\)::int, 0\) > 0 ORDER BY .*bestWave.* DESC, .*bestScore.* DESC LIMIT \$1/);
+  assert.match(seen[1].sql, /bestWave'\)::int, 0\) > 0 AND NOT .* ORDER BY .*bestWave.* DESC, .*bestScore.* DESC LIMIT \$1/);
   const rank = await st.rankLangbang('stage', 'me');
   assert.equal(rank, 3, '앞선 2명 + 1');
-  assert.deepEqual(seen[seen.length - 1].params, [3, 6, 123], '최고 스테이지·총 별·도달 시각 (옛 프로필도 stages 에서 계산)');
+  assert.deepEqual(seen[seen.length - 1].params.slice(0, 3), [3, 6, 123], '최고 스테이지·총 별·도달 시각 (옛 프로필도 stages 에서 계산)');
   assert.equal(await st.rankLangbang('endless', 'me'), 3);
-  assert.deepEqual(seen[seen.length - 1].params, [9, 777]);
+  assert.deepEqual(seen[seen.length - 1].params.slice(0, 2), [9, 777]);
 });
 
 test('랑방 대전 장비: 드롭은 서버가 계산 · 장착/강화/팔기 확인 · 퍼펙트는 ★★★일 때만 · 덱 7번째 칸은 6번째 먼저', async () => {

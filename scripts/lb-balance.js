@@ -41,6 +41,9 @@ function seeded(seed = 1) {
         const h = S.hasHero(g, c.hero);
         v = 6 + (h.lv + 1 === 3 || h.lv + 1 === 5 ? 2.5 : 0) + (h.def.hidden ? 1 : 0) + (h.id === g.partner ? 1 : 0);
       } else if (c.kind === 'evo') v = 9.5;
+      else if (c.kind === 'secret') v = 9;
+      else if (c.kind === 'skillEvo') v = SKILLS ? 8 : 3;
+      else if (c.kind === 'heroMod') v = 6.5;
       else if (c.kind === 'global') {
         const tagN = (t) => g.heroes.filter((h) => (D.HERO_TAGS[h.id] || []).includes(t)).length;
         if (c.attr) v = 4.2 + 1.6 * (g.attrCount[c.attr] || 0);
@@ -56,7 +59,8 @@ function seeded(seed = 1) {
 
   // 스킬 자동 사용 (--skills=1): 준비되면 바로. 찍는 스킬은 진상이 가장 몰린 곳에
   const SKILLS = opt('skills', 0) > 0;
-  const SKILL_EVERY = opt('skillevery', 6); // 스킬 확인 간격(스텝): 90 이면 보통 사람처럼 1.5초쯤 늦게
+  const SKILL_EVERY = opt('skillevery', 6);
+  const PICK_DELAY = opt('pickdelay', 2); // 스킬 확인 간격(스텝): 90 이면 보통 사람처럼 1.5초쯤 늦게
   function densest(g, r) {
     let best = null, bn = 0;
     for (const e of g.enemies) {
@@ -98,11 +102,14 @@ function seeded(seed = 1) {
       S.step(g, 1 / 60);
       steps++;
       g.events.length = 0;
-      while (g.pendingLevels > 0) {
+      // 레벨업 카드는 게임이 안 멈춘다 → 사람처럼 1.5~3초 뒤에 고른다
+      if (g.pendingLevels > 0 && g.pickAt === undefined) g.pickAt = g.t + (g.welcomePicks > 0 ? 0 : PICK_DELAY * (0.75 + pr() * 0.5));
+      if (g.pendingLevels > 0 && g.t >= g.pickAt) {
         const cards = S.rollCards(g);
         S.applyCard(g, cards[pickCard(g, cards, pr)]);
         g.pendingLevels--;
         if (g.welcomePicks > 0) g.welcomePicks--;
+        g.pickAt = undefined;
       }
       if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
       if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % SKILL_EVERY) === 0) aiSkills(g);
@@ -358,7 +365,9 @@ function seeded(seed = 1) {
       pick(0, []);
       return worst;
     };
-    const kinds = [['좋은 팀+스킬', true, true], ['좋은 팀', true, false], ['나쁜 팀', false, false]];
+    const kinds = [['좋은 팀+스킬', true, true], ['좋은 팀', true, false], ['나쁜 팀', false, false]].slice(0, process.argv.includes('--onlygood') ? 1 : 3);
+    const ht = (process.argv.find((x) => x.startsWith('--hptune=')) || '').slice(9);
+    if (ht) D.STAGE.hpTune = ht.split(',').map(Number);
     const per = {}; const curve = [];
     const only = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
     for (let s = 1; s <= D.STAGE_COUNT; s++) {

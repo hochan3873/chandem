@@ -3,12 +3,12 @@
 import {
   FIELD, RULES, HEROES, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
-  STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL,
+  STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, HERO_TIER, openSlots, SECRET,
 } from './data.js';
-import { starBonus, WEEKLY_MODS } from './live.js';
+import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const ENEMY_CAP = 220;
+export const ENEMY_CAP = 170; // 폰 성능: 화면에 동시에 있는 진상 최대 (넘치면 조금 기다렸다 나온다)
 
 // ─── 게임 생성 ─────────────────────────────────────────
 // opt.mode: 'stage'(스테이지 opt.stage = 1..30, 5웨이브) | 'endless'(무한 도전, 기본)
@@ -31,11 +31,13 @@ export function createGame(opt = {}) {
     W: FIELD.W, H, rowY, ropeY: rowY - FIELD.ropeGap,
     weekly: wk, wmod, cdMul: wmod.cd || 1, hstars: opt.stars || {}, hell: !!opt.hell && mode === 'stage' && !wk,
     hcT: 0, hcBuff: 0, hcSkT: 0, hcSkAtk: 0, // 이호찬 "랑방을 위하여" 버프
+    raid: opt.raid ? { sec: opt.raid.sec || 150, dmg: 0, boss: null } : null, // 주말 레이드: 거대 보스에게 준 피해
+    pvp: opt.pvp ? { seed: opt.pvp.seed | 0, sudden: false } : null, // 1:1 대전
     rng: opt.rng || Math.random,
     meta: opt.meta || {}, // { heroId: 영구 강화 레벨 }
     items,
     mode, stage: mode === 'stage' ? (wk ? wk.stage : opt.stage || 1) : 0,
-    totalWaves: mode === 'stage' ? (wk ? wk.waves.length : STAGE_WAVES) : Infinity,
+    totalWaves: mode === 'stage' && !opt.pvp && !opt.raid ? (wk ? wk.waves.length : STAGE_WAVES) : Infinity,
     unlocked, trial, hiddenUnlocked: unlocked.filter((id) => HIDDEN_HEROES.includes(id)),
     god: !!opt.god,
     t: 0, wave: opt.startWave ? opt.startWave - 1 : 0, diff: 1,
@@ -48,13 +50,16 @@ export function createGame(opt = {}) {
     mapFx: opt.mapFx ? MAP_FX[opt.mapFx] || MAP_FX.none : wk ? MAP_FX[wk.fx] || MAP_FX.none : mode === 'stage' ? stageFx(opt.stage || 1) : MAP_FX.none, // 맵 효과
     fxT: 0, darkT: 0, megaT: 0, windX: 0, strobeT: 0, fireT: 0,
     base: { hp: baseMax, max: baseMax },
-    level: 1, exp: 0, need: expNeed(1), pendingLevels: welcome, welcomePicks: welcome,
+    level: 1, exp: 0, need: Math.round(expNeed(1) * EXP_NEED_MUL), pendingLevels: welcome, welcomePicks: welcome,
     mods: {
       dmg: 1, spd: 1, crit: RULES.crit + itemValue('charm', items.charm), critMul: RULES.critMul, expMul: 1, enemySpd: 1,
       pierce: 0, gunExtra: 0, regen: 0, ultCharge: 1 + itemValue('battery', items.battery), ultDmg: 1, charmMul: 1,
-      attrDmg: {}, tagDmg: {}, splashMul: 1, chainExtra: 0, kbMul: 1, healMul: 1, ctrlMul: 1, bossDmg: 0, swarmDmg: 0, enemyHp: 1,
+      attrDmg: {}, tagDmg: {}, splashMul: 1, chainExtra: 0, kbMul: 1, healMul: 1, ctrlMul: 1, bossDmg: 0, swarmDmg: 0, enemyHp: 1, debuffMul: 1, baseArmor: 1, attrUp: 0,
     },
     attrCount: {},
+    // 덱 칸: 산 칸 수만큼만 열린 자리 (나머지는 자물쇠). 임시 증원 카드로 한 자리 잠깐 열 수 있다
+    locked: opt.slots ? [0, 1, 2, 3, 4, 5].filter((i) => !openSlots(opt.slots).includes(i)) : [], tempSlot: -1, guestUsed: false,
+    guestPool: (opt.guestPool || []).slice(),
     stacks: {}, hiddenTaken: {}, heroesUsed: {}, seen: {},
     stats: { kills: 0, bossKills: 0, coins: 0, score: 0, maxCombo: 0, damage: 0, wavesCleared: 0, stolen: 0, skills: 0 },
     combo: 0, comboT: 0, ult: 0, focus: null,
@@ -64,6 +69,7 @@ export function createGame(opt = {}) {
     _grid: null,
   };
   if (g.mapFx.exp) g.mods.expMul += g.mapFx.exp;
+  if (mode === 'stage') g.mods.expMul *= wk ? 0.34 : stageExpMul(opt.stage || 1); // 뒤 스테이지는 진상이 많은 만큼 경험치를 줄여 레벨업 횟수를 비슷하게
   if (wmod.exp) g.mods.expMul += wmod.exp;
   if (wmod.enemySpd) g.mods.enemySpd *= wmod.enemySpd;
   if (wmod.baseHp) { g.base.max = Math.round(g.base.max * wmod.baseHp); g.base.hp = g.base.max; }
@@ -98,17 +104,18 @@ export function addHero(g, id, want) {
   if (hasHero(g, id) || g.heroes.length >= g.nPos) return null;
   const def = HEROES[id];
   const used = new Set(g.heroes.map((h) => h.slot));
+  for (const l of g.locked || []) if (l !== want) used.add(l); // 잠긴 자리는 비워 둔다
   const order = g.nPos >= 7 ? [3, 2, 4, 1, 5, 0, 6] : SLOT_ORDER;
   const slot = want !== undefined && !used.has(want) && want < g.nPos ? want : order.find((s) => !used.has(s));
   const h = {
-    id, def, slot, x: g.slotX[slot], y: g.rowY, lv: 1, meta: g.meta[id] || 0, gear: g.gear[id] || {},
+    id, def, slot, x: g.slotX[slot], y: g.rowY, lv: 1, meta: Math.min(g.meta[id] || 0, [20, 12, 16, 20, 20, 20][HERO_TIER[id] || 1]), gear: g.gear[id] || {},
     cd: 0.3 + g.rng() * 0.4, charmT: 0, stunT: 0, rumorT: 0, fearT: 0, paperT: 0, vomitT: 0, blindT: 0, drowsyT: 0, grabT: 0, grabBy: 0, recoil: 0, shots: 0, joinT: 0,
     rage: false, rageT: def.soberSec ? def.soberSec[0] : 0, healT: def.heal ? def.heal[0][0] : 0,
     kills: 0, dmgDone: 0,
     skillCd: def.skill ? def.skill.cd * 0.5 * (1 - ((g.gear[id] && g.gear[id].cd) || 0)) * g.cdMul : 0, frenzyT: 0, frenzyCd: 0, // 스킬은 판 시작하고 절반쯤 지나야 첫 사용
     star: Math.max(1, Math.min(5, (g.hstars[id] | 0) || 1)), // 성급 (★1 = 기본)
     alt: false, altT: 0, ageT: def.age ? def.age.princess[0] : 0, echoT: 0, // 배현경 날씬 · 고아라 늙음 · 이호찬 메아리
-    sarcT: 0, clingBy: 0,
+    sarcT: 0, clingBy: 0, cm: {}, // cm: 멤버 전용 카드 효과
     beamE: null, beamUid: 0, beamT: 0, beamTick: 0, beam2E: null, kbT: 0, rx: g.slotX[slot],
     motoN: 0, meter: 0, upT: 0, burstT: 0, serious: 1, // 백인규 오토바이 게이지 · 문동한 간보기
     out: false, outT: 0, restT: 0, px: g.slotX[slot], py: g.rowY, dashE: null, // 김영준 돌격
@@ -125,7 +132,7 @@ export function addHero(g, id, want) {
 export function heroRange(g, h, seeAll) {
   const d = h.def, fx = g.mapFx;
   const base = h.alt && d.diet ? d.diet.range : Array.isArray(d.range) ? d.range[h.lv - 1] : d.range;
-  let r = base * (fx.range || 1);
+  let r = base * (fx.range || 1) * (h.cm.range || 1) * (1 + Math.min(0.35, (h.gear && h.gear.range) || 0)); // 장비 사거리 (화면이 읽히게 +35% 까지)
   if (fx.longRange && base >= 400 && d.attr !== 'talk') r *= fx.longRange;
   if (g.darkT > 0 && !seeAll) r = Math.min(r, fx.seeR);
   return r;
@@ -136,7 +143,7 @@ export function heroDamage(g, h) {
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
   const hc = 1 + (g.hcT > 0 ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0); // "랑방을 위하여!"
-  return buildMul(g, h) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + RULES.metaDmgPerLevel * h.meta) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * old * hc;
+  return buildMul(g, h) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + 0.2 * (h.cmN || 0)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + RULES.metaDmgPerLevel * h.meta) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * old * hc;
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
 export function buildMul(g, h) {
@@ -164,14 +171,14 @@ export function heroInterval(g, h) {
 }
 export function auraBonus(g) {
   const b = hasHero(g, 'bangjang');
-  return b ? HEROES.bangjang.aura[b.lv - 1] : 0;
+  return b ? HEROES.bangjang.aura[b.lv - 1] + (b.cm.aura || 0) : 0;
 }
 
 function updateHeroes(g, dt) {
   const aura = auraBonus(g);
   // 김도훈 떼창: 입구 회복 + 곁 멤버 공속
   const singers = g.heroes.filter((o) => o.def.sing && o.stunT <= 0 && o.grabT <= 0);
-  if (g.phase !== 'test') for (const d0 of singers) if (g.base.hp < g.base.max) g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * d0.def.regen[d0.lv - 1] * dt * g.mods.healMul);
+  if (g.phase !== 'test') for (const d0 of singers) if (g.base.hp < g.base.max) g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * d0.def.regen[d0.lv - 1] * dt * g.mods.healMul * (d0.cm.heal || 1));
   for (const h of g.heroes) {
     const d = h.def;
     h.joinT += dt;
@@ -197,7 +204,7 @@ function updateHeroes(g, dt) {
           ev(g, 'sober', { hero: h.id, x: h.x, y: h.y });
         } else {
           h.rage = true;
-          h.rageT = d.rageSec[h.lv - 1] * (g.mapFx.rage || 1);
+          h.rageT = (d.rageSec[h.lv - 1] + (h.cm.rage || 0)) * (g.mapFx.rage || 1);
           ev(g, 'rage', { hero: h.id, x: h.x, y: h.y });
         }
       }
@@ -212,10 +219,12 @@ function updateHeroes(g, dt) {
       h.ageT -= dt;
       if (h.ageT <= 0) {
         h.alt = !h.alt;
-        h.ageT = h.alt ? d.age.old[h.lv - 1] : d.age.princess[h.lv - 1];
+        h.ageT = h.alt ? d.age.old[h.lv - 1] : d.age.princess[h.lv - 1] + (h.cm.young || 0);
         ev(g, h.alt ? 'aged' : 'young', { hero: h.id, x: h.x, y: h.y });
       }
     }
+    // 스킬 진화: 한 번 더
+    if (h.echoSk) { h.echoSk.t -= dt; if (h.echoSk.t <= 0) { const e0 = h.echoSk; h.echoSk = null; castSkill(g, h, e0.x, e0.y, true); } }
     // 이호찬 5레벨: 파동 메아리
     if (h.echoT > 0) { h.echoT -= dt; if (h.echoT <= 0) crownWave(g, h, heroDamage(g, h) * 0.7, 0); }
     // 건전녀: 주기적으로 입구 수리
@@ -225,7 +234,7 @@ function updateHeroes(g, dt) {
         const [per, amt] = d.heal[h.lv - 1];
         h.healT = per;
         if (g.base.hp < g.base.max) {
-          const v = Math.min(g.base.max - g.base.hp, g.base.max * amt * g.mods.healMul);
+          const v = Math.min(g.base.max - g.base.hp, g.base.max * amt * g.mods.healMul * (h.cm.heal || 1));
           g.base.hp += v;
           ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
         }
@@ -255,7 +264,7 @@ function updateHeroes(g, dt) {
         h.frenzyCd += d.skill.every;
         const t = nearestEnemy(g, h.x, h.y, heroRange(g, h));
         if (!t) { h.frenzyCd = 0.05; break; }
-        const a = aimAngle(h, t, d.projSpeed) + (g.rng() - 0.5) * 0.12;
+        const a = aimAngle(h, t, d.projSpeed) + (g.rng() - 0.5) * 0.2;
         spawnProj(g, 'bullet', h, null, heroDamage(g, h) * 0.75, { angle: a, pierce: g.mods.pierce, critBonus: d.critBonus || 0, r: 6 });
         if (g.rng() < 0.3) ev(g, 'shot', { hero: h.id, x: h.x, y: h.y });
       }
@@ -301,7 +310,7 @@ function updateBeam(g, h, dt, rate) {
   h.beamTick -= dt * rate;
   if (h.beamTick <= 0) {
     h.beamTick += d.beamTick;
-    const ramp = 1 + Math.min(d.rampMax, d.ramp[lv - 1] * h.beamT);
+    const ramp = 1 + Math.min(d.rampMax, d.ramp[lv - 1] * (h.cm.ramp || 1) * h.beamT);
     const dmg = heroDamage(g, h) * (d.beamTick / d.interval) * ramp;
     const crit = g.rng() < critOf(g, h);
     damageEnemy(g, t, dmg * (crit ? g.mods.critMul : 1), crit, h);
@@ -331,7 +340,7 @@ function updateDash(g, h, dt, rate) {
     h.px += (h.x - h.px) * Math.min(1, dt * 10); h.py += (h.y - h.py) * Math.min(1, dt * 10);
     const t = pickCluster(g, h, heroRange(g, h));
     if (!t) return;
-    h.out = true; h.outT = d.outSec[lv - 1]; h.dashE = t; h.upT = h.outT; h.cd = 0;
+    h.out = true; h.outT = d.outSec[lv - 1] + (h.cm.out || 0); h.dashE = t; h.upT = h.outT; h.cd = 0;
     ev(g, 'dash', { x: h.x, y: h.y, tx: t.x, ty: t.y });
     return;
   }
@@ -451,7 +460,7 @@ export function fire(g, h, t) {
     case 'dumbbell': {
       spawnLob(g, 'dumbbell', h, t, dmg, d.splash * (lv >= 5 ? 1.3 : 1) * (g.mapFx.splash || 1) * g.mods.splashMul, null);
       h.motoN++;
-      if (h.motoN >= d.moto.every[lv - 1]) { h.motoN = 0; launchMoto(g, h, [0], 1); }
+      if (h.motoN >= d.moto.every[lv - 1] - (h.cm.moto || 0)) { h.motoN = 0; launchMoto(g, h, [0], 1); }
       break;
     }
     case 'snack':
@@ -466,15 +475,15 @@ export function fire(g, h, t) {
       const ang = d.lane ? -Math.PI / 2 : aimAngle(h, t, d.projSpeed); // 새총은 자기 줄 위로 똑바로
       const head = lv >= 5 && h.shots % 4 === 0;
       for (let i = 0; i < n; i++) {
-        const a = ang + (i - (n - 1) / 2) * 0.08;
-        spawnProj(g, 'bullet', h, null, dmg, { angle: a, pierce: pierce + (lv >= 3 ? 1 : 0), critBonus: (d.critBonus || 0) + (lv >= 3 ? 0.1 : 0), r: 6, headshot: head && i === 0, big: head && i === 0 });
+        const a = ang + (i - (n - 1) / 2) * 0.14; // 새총알 추가 카드: 부채꼴로 넓게
+        spawnProj(g, 'bullet', h, null, dmg, { angle: a, pierce: pierce + (lv >= 3 ? 1 : 0) + (h.cm.pierce || 0), critBonus: (d.critBonus || 0) + (lv >= 3 ? 0.1 : 0), r: 6, headshot: head && i === 0, big: head && i === 0 });
       }
       break;
     }
     case 'heart':
     case 'bottle': {
       // 포물선으로 던지는 폭탄 (건전녀 하트 · 최은옥 소주병)
-      const r = d.splash * (d.proj === 'heart' && lv >= 3 ? 1.25 : 1) * (g.mapFx.splash || 1) * g.mods.splashMul;
+      const r = d.splash * (d.proj === 'heart' && lv >= 3 ? 1.25 : 1) * (g.mapFx.splash || 1) * g.mods.splashMul * (h.cm.splash || 1);
       spawnLob(g, d.proj, h, t, dmg, r, d.fire && h.rage ? d.fire : null);
       break;
     }
@@ -482,13 +491,13 @@ export function fire(g, h, t) {
       const [chance, sec] = d.stun[lv - 1];
       const bomb = lv >= 5 && h.shots % 4 === 0;
       spawnProj(g, 'swear', h, t, dmg * (bomb ? 1.3 : 1), {
-        homing: true, pierce, stunChance: chance, stunSec: sec, swear: true, bounces: d.bounces[lv - 1] + g.mods.chainExtra,
+        homing: true, pierce, stunChance: chance, stunSec: sec * (h.cm.ctrl || 1), swear: true, bounces: d.bounces[lv - 1] + g.mods.chainExtra + (h.cm.bounce || 0),
         splash: bomb ? 64 : 0, splashStun: bomb, big: bomb, r: bomb ? 14 : 10,
       });
       break;
     }
     case 'cane': {
-      const n = lv >= 5 ? 2 : 1;
+      const n = (lv >= 5 ? 2 : 1) + (h.cm.cane || 0);
       const ang = d.lane ? -Math.PI / 2 : aimAngle(h, t, d.projSpeed);
       for (let i = 0; i < n; i++) {
         const a = ang + (i - (n - 1) / 2) * 0.16;
@@ -501,7 +510,7 @@ export function fire(g, h, t) {
     case 'gf': {
       // 윤준서: 여사친을 밀어 넣는다 → 핀볼처럼 튕기며 밀어내고 돌아온다
       const n = lv >= 5 ? 2 : 1;
-      for (let i = 0; i < n; i++) spawnGf(g, h, i === 0 ? t : findTarget(g, h, [t]) || t, dmg, d.ricochet[lv - 1] + g.mods.chainExtra, (i - (n - 1) / 2) * 0.5);
+      for (let i = 0; i < n; i++) spawnGf(g, h, i === 0 ? t : findTarget(g, h, [t]) || t, dmg, d.ricochet[lv - 1] + g.mods.chainExtra + (h.cm.bounce || 0), (i - (n - 1) / 2) * 0.5);
       break;
     }
     case 'slam': {
@@ -548,7 +557,7 @@ function spawnGf(g, h, t, dmg, rico, spread) {
 // 배현경 다이어트 주사 → 날씬 모드
 function dietOn(g, h, extra) {
   const d = h.def;
-  h.alt = true; h.altT = d.diet.sec[h.lv - 1] + (extra || 0); h.meter = 100; h.cd = 0;
+  h.alt = true; h.altT = d.diet.sec[h.lv - 1] + (extra || 0) + (h.cm.diet || 0); h.meter = 100; h.cd = 0;
   ev(g, 'diet', { hero: h.id, x: h.x, y: h.y });
 }
 // 이호찬: 자기 줄을 휩쓰는 황금 파동
@@ -582,7 +591,7 @@ function launchMoto(g, h, angles, mulExtra) {
 // 문동한: 가장 붐비는 세로줄에 두꺼운 빔
 function lazyBurst(g, h) {
   const d = h.def, b = d.burst;
-  const w = b.w[h.lv - 1];
+  const w = b.w[h.lv - 1] * (h.cm.beam || 1);
   let bestX = h.x, bn = -1;
   for (let x = 30; x <= g.W - 30; x += 15) {
     let n = 0;
@@ -725,7 +734,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     const m = typeMul(src.def.attr, e.def.cls);
     tm = m;
     if (m !== 1) {
-      dmg *= m * (m > 1 ? 1 + (src.gear && src.gear.attr ? src.gear.attr : 0) : 1);
+      dmg *= m * (m > 1 ? 1 + (src.gear && src.gear.attr ? src.gear.attr : 0) + g.mods.attrUp : 1);
       if (g.t - g.effT > 0.8) { g.effT = g.t; ev(g, 'eff', { x: e.x, y: e.y - e.def.size * 0.75, strong: m > 1 }); }
     }
   }
@@ -769,6 +778,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     }
   }
   e.hp -= dmg;
+  if (e.raidBoss) g.raid.dmg += dmg;
   e.flash = 0.09;
   g.stats.damage += dmg;
   if (src) src.dmgDone += dmg;
@@ -835,6 +845,7 @@ function damageBase(g, dmg, e) {
   if (g.over || g.god) return;
   const tank = g.heroes.find((h) => h.def.guard);
   if (tank && e && Math.abs(e.x - tank.x) < tank.def.guard.r) dmg *= 1 - tank.def.guard.cut;
+  dmg *= g.mods.baseArmor;
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
   ev(g, 'baseHit', { x: e.x, y: g.ropeY, v: Math.round(dmg), boss: e.boss });
@@ -1405,7 +1416,7 @@ function victim(g, list, dflt) {
   const pool = inRow.length ? inRow : list;
   return dflt && !dflt.out ? dflt : pool[(g.rng() * pool.length) | 0];
 }
-function debuffSec(h, sec) { return h.def.taunt ? sec * h.def.taunt : sec; }
+function debuffSec(h, sec) { return (h.def.taunt ? sec * h.def.taunt : sec) * (h.debuffMul || 1); }
 
 // 보스가 큰 기술을 쓴 직후 2.5초 "빈틈!" — 받는 피해 1.5배
 function bossWeak(g, e) {
@@ -1550,7 +1561,7 @@ export function hitEnemy(g, p, e) {
   let kick = false;
   if (p.type === 'warn' && h && h.def.warn) {
     e.warnN = (e.warnN | 0) + 1;
-    if (e.warnN >= h.def.warn.n) { e.warnN = 0; kick = true; dmg *= h.def.warn.mul; }
+    if (e.warnN >= Math.max(2, h.def.warn.n - (h.cm.warnN || 0))) { e.warnN = 0; kick = true; dmg *= h.def.warn.mul; }
   }
   ev(g, 'hit', { x: p.x, y: p.y, proj: p.type, crit });
   damageEnemy(g, e, dmg, crit, h, p.pierce > 0 || p.type === 'cane' || p.type === 'gf');
@@ -1576,7 +1587,7 @@ export function hitEnemy(g, p, e) {
   if (p.type === 'crown') {
     // 랑방을 위하여! 맞힐 때마다 아군 공격력 ↑ · 줄 안 진상 버프 하나 벗김
     const b = h.def.buff;
-    g.hcBuff = g.hcT > 0 ? Math.min(b.max, g.hcBuff + b.per) : b.per;
+    g.hcBuff = g.hcT > 0 ? Math.min(b.max + (h.cm.buff || 0), g.hcBuff + b.per) : b.per;
     g.hcT = b.sec[h.lv - 1];
     if (p.stripN > 0 && !e.dead && (e.shield > 0 || e.dictT > 0 || e.gaoOn)) { e.shield = 0; e.dictT = 0; e.gaoOn = false; p.stripN--; ev(g, 'strip', { x: e.x, y: e.y - e.def.size * 0.7 }); }
     if (!e.dead && !e.boss) applyKnockback(e, 12, g);
@@ -1706,7 +1717,7 @@ export function gainExp(g, v) {
   while (g.exp >= g.need) {
     g.exp -= g.need;
     g.level++;
-    g.need = expNeed(g.level);
+    g.need = Math.round(expNeed(g.level) * EXP_NEED_MUL);
     g.pendingLevels++;
     ev(g, 'levelup', { level: g.level });
   }
@@ -1714,7 +1725,8 @@ export function gainExp(g, v) {
 
 // ─── 웨이브 진행 ──────────────────────────────────────
 export function waveDefFor(g, n) {
-  if (g.weekly) return g.weekly.waves[n - 1] || g.weekly.waves[g.weekly.waves.length - 1];
+  if (g.pvp) return pvpWave(g.pvp.seed, n);
+  if (g.weekly) { const d = g.weekly.waves[n - 1] || g.weekly.waves[g.weekly.waves.length - 1]; return g.raid && n > 1 && d.boss ? Object.assign({}, d, { boss: undefined }) : d; }
   return g.mode === 'stage' ? stageWave(g.stage, n) : waveDef(n);
 }
 export function startWave(g, n) {
@@ -1835,11 +1847,12 @@ function updateMapFx(g, dt) {
 // ─── 액티브 스킬 (스킬 바) ─────────────────────────────
 export function skillReady(h) { return !!h.def.skill && h.skillCd <= 0; }
 // x, y: 찍은 곳 (target 스킬만). 성공하면 true
-export function castSkill(g, h, x, y) {
+export function castSkill(g, h, x, y, echo) {
   const sk = h.def.skill;
-  if (!sk || h.skillCd > 0 || g.over || g.phase === 'victory') return false;
+  if (!sk || (!echo && h.skillCd > 0) || g.over || g.phase === 'victory') return false;
   const lv = h.lv - 1;
-  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0));
+  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo ? 0.75 : 1);
+  if (h.skEvo && !echo) h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
   let r = 0;
   switch (sk.id) {
@@ -1882,7 +1895,7 @@ export function castSkill(g, h, x, y) {
     case 'whirl': {
       const n = sk.n[lv];
       for (let i = 0; i < n; i++) {
-        const a = -Math.PI / 2 + (i - (n - 1) / 2) * (1.9 / (n - 1));
+        const a = -Math.PI / 2 + (i - (n - 1) / 2) * (2.6 / (n - 1)); // 지팡이 회오리: 더 넓은 부채꼴
         spawnProj(g, 'cane', h, null, base * 1.2, { angle: a, pierce: Infinity, spin: 16, maxDist: h.def.range + 60, r: 16 });
       }
       break;
@@ -1902,7 +1915,7 @@ export function castSkill(g, h, x, y) {
     }
     case 'moto3': {
       const n = sk.n[lv];
-      const spread = 0.34;
+      const spread = 0.48; // 3대 500: 더 넓게
       launchMoto(g, h, Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * spread), 1.3);
       break;
     }
@@ -1910,7 +1923,7 @@ export function castSkill(g, h, x, y) {
       h.meter = 100; h.serious = 1.5;
       break;
     case 'rush': {
-      const n = sk.n[lv];
+      const n = sk.n[lv] + (h.cm.rush || 0);
       const list = [];
       const f = g.focus && !g.focus.dead && g.focus.uid === g.focusUid ? g.focus : null;
       if (f) list.push(f);
@@ -1935,7 +1948,7 @@ export function castSkill(g, h, x, y) {
       for (let i = 0; i < n; i++) {
         const t = list[i % Math.max(1, list.length)];
         if (!t) break;
-        spawnGf(g, h, t, base * sk.mul, h.def.ricochet[lv] + 1, (i - (n - 1) / 2) * 0.45);
+        spawnGf(g, h, t, base * sk.mul, h.def.ricochet[lv] + 1, (i - (n - 1) / 2) * 0.65);
       }
       break;
     }
@@ -1971,15 +1984,28 @@ export function castSkill(g, h, x, y) {
       });
       break;
   }
+  if (echo) { ev(g, 'skill', { hero: h.id, skill: sk.id, name: sk.name + ' 한 번 더!', x: sk.target ? x : h.x, y: sk.target ? y : h.y, r, target: !!sk.target, echo: true }); return true; }
   h.skillCd = sk.cd * (1 - (h.gear.cd || 0)) * g.cdMul * (h.evo ? EVO_MUL.cd : 1);
   g.stats.skills++;
   ev(g, 'skill', { hero: h.id, skill: sk.id, name: sk.name, x: sk.target ? x : h.x, y: sk.target ? y : h.y, r, target: !!sk.target });
   return true;
 }
 
+// 1:1 대전: 상대가 보낸 진상 (small = 빠른 진상 5명 · big = 중간 보스)
+export function pvpIncoming(g, kind) {
+  if (kind === 'big') {
+    const ids = ['mid_drunk', 'mid_thug', 'fuse_kko', 'mid_gao'];
+    const e = spawnEnemy(g, ids[(g.rng() * ids.length) | 0], g.W / 2, -50);
+    e.sent = true;
+  } else {
+    for (let i = 0; i < 5; i++) { const e = spawnEnemy(g, i % 2 ? 'drunk_run' : 'mukti', 40 + i * 70, -30 - i * 12); e.sent = true; }
+  }
+  ev(g, 'incoming', { kind });
+}
 // 영웅 자리 바꾸기 (끌어다 놓기). 잠깐 쿨타임
 export function swapHeroes(g, h, slot) {
   if (!h || slot < 0 || slot >= g.nPos || slot === h.slot) return false; // 자리 바꾸기는 바로 · 공짜
+  if (g.locked.includes(slot)) { ev(g, 'lockedSlot', { x: g.slotX[slot], y: g.rowY }); return false; }
   const other = g.heroes.find((o) => o.slot === slot);
   if (other) { other.slot = h.slot; other.x = g.slotX[other.slot]; }
   h.slot = slot; h.x = g.slotX[slot];
@@ -2038,6 +2064,7 @@ export function step(g, dt) {
       const s = q[g.spawnI++];
       const e = spawnEnemy(g, s.type, s.boss ? g.W / 2 : s.x, s.boss ? -60 : undefined);
       alive++;
+      if (g.raid && s.boss && !s.mid && !g.raid.boss) { g.raid.boss = e; e.raidBoss = true; e.maxHp = e.hp = 1e12; }
       if (s.mid) ev(g, 'midSpawn', { enemy: s.type, x: e.x, y: e.y });
       else if (s.boss) ev(g, 'bossSpawn', { enemy: s.type, x: e.x, y: e.y });
     }
@@ -2072,12 +2099,15 @@ export function step(g, dt) {
   }
   list.length = j;
   if (g.phase === 'wave' && !g.over && g.spawnI >= g.spawnQ.length && list.length === 0) waveClear(g);
+  if (g.raid && !g.over && g.phase !== 'victory' && g.t >= g.raid.sec) { g.victory = true; g.phase = 'victory'; g.stars = 0; ev(g, 'raidEnd', { dmg: g.raid.dmg }); }
+  if (g.pvp && !g.pvp.sudden && g.t >= PVP.sudden) { g.pvp.sudden = true; g.mods.enemySpd *= 1.3; for (const e of g.enemies) e.speed *= 1.3; ev(g, 'sudden', {}); }
+  if ((g.pvp || g.raid) && g.phase === 'wave' && g.spawnI >= g.spawnQ.length && g.waveT > 18) startWave(g, g.wave + 1); // 대전 · 레이드는 18초마다 다음 웨이브 (다 안 잡아도)
 }
 
 // ─── 카드 ─────────────────────────────────────────────
 function heroCardDesc(def, next) {
   const perk = def.perks[next];
-  const up = Math.round((LEVEL_DMG[next - 1] / LEVEL_DMG[next - 2] - 1) * 100);
+  const up = Math.round((LEVEL_DMG[next - 1] / LEVEL_DMG[Math.max(0, next - 3)] - 1) * 100);
   return perk ? `★ ${perk}` : `공격력 +${up}% · 공격 속도 증가`;
 }
 export function cardPool(g) {
@@ -2091,13 +2121,17 @@ export function cardPool(g) {
     pool.push({ key: 'add:' + id, kind: 'addHero', hero: id, rarity: 'rare', icon: d.emoji, title: `${d.name} ${tr ? '체험 합류!' : '합류!'}`, desc: d.desc, sub: tr ? '체험 · 스테이지를 깨면 정식 합류' : d.role, w: 9 });
   }
   for (const h of g.heroes) {
-    if (h.lv >= 5) continue;
-    const next = h.lv + 1;
     const d = h.def;
-    pool.push({
-      key: 'lv:' + h.id, kind: 'heroLv', hero: h.id, rarity: d.perks[next] ? 'rare' : 'common',
-      icon: d.emoji, title: `${d.name} Lv.${next}`, desc: heroCardDesc(d, next), sub: d.role, w: d.perks[next] ? 9 : 11,
-    });
+    if (h.lv < 5) {
+      const next = Math.min(5, h.lv + 2); // 레벨업 카드 한 장 = 2레벨
+      pool.push({
+        key: 'lv:' + h.id, kind: 'heroLv', hero: h.id, rarity: d.perks[next] || d.perks[h.lv + 1] ? 'rare' : 'common',
+        icon: d.emoji, title: `${d.name} Lv.${h.lv}→${next}`, desc: heroCardDesc(d, next) + (d.perks[h.lv + 1] && h.lv + 1 !== next ? ` · ★ ${d.perks[h.lv + 1]}` : ''), sub: d.role, w: d.perks[next] ? 9 : 11,
+      });
+    }
+    if (SKILL_EVO[h.id] && !h.skEvo && h.lv >= 3) pool.push({ key: 'se:' + h.id, kind: 'skillEvo', hero: h.id, rarity: 'legend', icon: '✨', title: SKILL_EVO[h.id], desc: `${d.skill.name}이(가) 0.5초 뒤 한 번 더 터진다 (75% 위력)`, sub: '스킬 진화 · 한 번', w: 6 });
+    const hc = HERO_CARDS[h.id];
+    if (hc && (h.cmN || 0) < 2) pool.push({ key: 'hm:' + h.id, kind: 'heroMod', hero: h.id, rarity: 'rare', icon: d.emoji, title: hc.title.split(':')[0] + ' 전용', desc: hc.title.split(':').slice(1).join(':').trim() + ' · 공격력 +20%', sub: '멤버 전용 카드', w: 7, stack: h.cmN || 0 });
   }
   const tagN = {};
   for (const h of g.heroes) for (const t of HERO_TAGS[h.id] || []) tagN[t] = (tagN[t] || 0) + 1;
@@ -2141,6 +2175,13 @@ export function rollCards(g, n = RULES.cardChoices, opt = {}) {
     const f = FILLER_CARDS[i % FILLER_CARDS.length];
     picks.push({ key: f.id + i, kind: 'filler', id: f.id, rarity: f.rarity, icon: f.icon, title: f.title, desc: f.desc });
   }
+  // 숨은 카드: 임시 증원(잠긴 자리 하나 열기) · 게스트 합류(아직 없는 멤버를 이번 판만)
+  if (g.locked.length && g.tempSlot < 0 && picks.length && rng() < (opt.secretChance !== undefined ? opt.secretChance : SECRET.tempSlot)) {
+    const guest = !g.guestUsed && g.guestPool.filter((id) => !hasHero(g, id)).length && rng() < 0.45;
+    picks[picks.length - 1] = guest
+      ? { key: 'guestCombo', kind: 'secret', id: 'guestCombo', rarity: 'hidden', icon: '🎫', title: '게스트 합류!', desc: '잠긴 자리가 이번 판만 열리고, 아직 없는 멤버가 게스트로 들어와요', sub: '숨은 카드 · 한 판에 한 번' }
+      : { key: 'tempSlot', kind: 'secret', id: 'tempSlot', rarity: 'hidden', icon: '🔓', title: '임시 증원!', desc: '잠긴 자리 하나가 이번 판만 열려요 — 멤버를 끌어다 놓거나 카드로 채워요', sub: '숨은 카드 · 한 판에 한 번' };
+  }
   // 히든 영웅: 칸마다 낮은 확률로 교체 (런당 1번씩만)
   const chance = opt.hiddenChance !== undefined ? opt.hiddenChance : RULES.hiddenChance;
   const from = g.mode === 'stage' ? RULES.hiddenFromStageWave : RULES.hiddenFromWave;
@@ -2159,10 +2200,26 @@ export function applyCard(g, c) {
   const m = g.mods;
   switch (c.kind) {
     case 'addHero': addHero(g, c.hero); break;
+    case 'skillEvo': {
+      const h = hasHero(g, c.hero);
+      if (h) { h.skEvo = true; ev(g, 'evolve', { hero: h.id, x: h.x, y: h.y, name: SKILL_EVO[h.id] }); }
+      break;
+    }
+    case 'heroMod': {
+      const h = hasHero(g, c.hero);
+      const hc = HERO_CARDS[c.hero];
+      if (h && hc) {
+        h.cmN = (h.cmN || 0) + 1;
+        for (const [k, v] of Object.entries(hc.mul || {})) h.cm[k] = (h.cm[k] || 1) * v;
+        for (const [k, v] of Object.entries(hc.add || {})) h.cm[k] = (h.cm[k] || 0) + v;
+        ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y });
+      }
+      break;
+    }
     case 'heroLv': {
       const h = hasHero(g, c.hero);
       if (h && h.lv < 5) {
-        h.lv++;
+        h.lv = Math.min(5, h.lv + 2);
         ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y });
       }
       break;
@@ -2170,33 +2227,51 @@ export function applyCard(g, c) {
     case 'global':
       g.stacks[c.id] = (g.stacks[c.id] || 0) + 1;
       switch (c.id) {
-        case 'dmg': m.dmg += 0.15; break;
-        case 'spd': m.spd += 0.12; break;
+        case 'dmg': m.dmg += 0.27; break;
+        case 'spd': m.spd += 0.2; break;
         case 'gunExtra': m.gunExtra++; break;
-        case 'crit': m.crit += 0.08; break;
-        case 'hp': g.base.max = Math.round(g.base.max * 1.2); g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * 0.3); break;
-        case 'exp': m.expMul += 0.2; break;
-        case 'slow': m.enemySpd *= 0.92; for (const e of g.enemies) e.speed *= 0.92; break;
+        case 'crit': m.crit += 0.13; break;
+        case 'hp': g.base.max = Math.round(g.base.max * 1.35); g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * 0.5); break;
+        case 'exp': m.expMul += 0.35; break;
+        case 'slow': m.enemySpd *= 0.87; for (const e of g.enemies) e.speed *= 0.87; break;
         case 'pierce': m.pierce++; break;
-        case 'boss': m.dmg += 0.3; m.spd += 0.15; break;
-        case 'regen': m.regen += 1.5; break;
-        case 'ult': m.ultCharge += 0.5; m.ultDmg += 0.4; break;
-        case 'charmRes': m.charmMul *= 0.5; break;
-        case 'syn_talk': case 'syn_power': case 'syn_charm': case 'syn_booze': { const a = c.id.slice(4); m.attrDmg[a] = (m.attrDmg[a] || 0) + 0.25; break; }
-        case 'tag_pierce': m.tagDmg.pierce = (m.tagDmg.pierce || 0) + 0.25; m.pierce++; break;
-        case 'tag_splash': m.tagDmg.splash = (m.tagDmg.splash || 0) + 0.2; m.splashMul *= 1.3; break;
-        case 'tag_chain': m.tagDmg.chain = (m.tagDmg.chain || 0) + 0.2; m.chainExtra++; break;
-        case 'tag_kb': m.tagDmg.kb = (m.tagDmg.kb || 0) + 0.2; m.kbMul *= 1.4; break;
-        case 'tag_heal': m.tagDmg.heal = (m.tagDmg.heal || 0) + 0.15; m.healMul *= 1.5; break;
-        case 'tag_ctrl': m.tagDmg.ctrl = (m.tagDmg.ctrl || 0) + 0.15; m.ctrlMul *= 1.35; break;
-        case 'tag_boss': m.bossDmg += 0.4; break;
-        case 'swarm': m.swarmDmg += 0.22; break;
-        case 'risk_allin': g.base.max = Math.round(g.base.max * 0.8); g.base.hp = Math.min(g.base.hp, g.base.max); m.dmg += 0.35; break;
-        case 'risk_overtime': m.enemyHp *= 1.15; m.expMul += 0.5; break;
-        case 'risk_glass': m.critMul += 0.8; m.healMul *= 0.5; break;
+        case 'boss': m.dmg += 0.5; m.spd += 0.25; break;
+        case 'regen': m.regen += 2.5; break;
+        case 'ult': m.ultCharge += 0.8; m.ultDmg += 0.6; break;
+        case 'charmRes': m.charmMul *= 0.4; break;
+        case 'debuffRes': m.debuffMul *= 0.7; m.charmMul *= 0.7; for (const h of g.heroes) h.debuffMul = m.debuffMul; break;
+        case 'cdCut': g.cdMul *= 0.85; for (const h of g.heroes) h.skillCd *= 0.85; break;
+        case 'armor': m.baseArmor *= 0.8; break;
+        case 'attrUp': m.attrUp += 0.25; break;
+        case 'syn_talk': case 'syn_power': case 'syn_charm': case 'syn_booze': { const a = c.id.slice(4); m.attrDmg[a] = (m.attrDmg[a] || 0) + 0.42; break; }
+        case 'tag_pierce': m.tagDmg.pierce = (m.tagDmg.pierce || 0) + 0.4; m.pierce++; break;
+        case 'tag_splash': m.tagDmg.splash = (m.tagDmg.splash || 0) + 0.34; m.splashMul *= 1.45; break;
+        case 'tag_chain': m.tagDmg.chain = (m.tagDmg.chain || 0) + 0.34; m.chainExtra++; break;
+        case 'tag_kb': m.tagDmg.kb = (m.tagDmg.kb || 0) + 0.34; m.kbMul *= 1.6; break;
+        case 'tag_heal': m.tagDmg.heal = (m.tagDmg.heal || 0) + 0.25; m.healMul *= 1.8; break;
+        case 'tag_ctrl': m.tagDmg.ctrl = (m.tagDmg.ctrl || 0) + 0.25; m.ctrlMul *= 1.5; break;
+        case 'tag_boss': m.bossDmg += 0.65; break;
+        case 'swarm': m.swarmDmg += 0.38; break;
+        case 'risk_allin': g.base.max = Math.round(g.base.max * 0.8); g.base.hp = Math.min(g.base.hp, g.base.max); m.dmg += 0.55; break;
+        case 'risk_overtime': m.enemyHp *= 1.15; m.expMul += 0.8; break;
+        case 'risk_glass': m.critMul += 1.2; m.healMul *= 0.5; break;
         case 'econ_bonus': g.pendingLevels++; break;
       }
       break;
+    case 'secret': {
+      // 잠긴 자리 하나 열기 (가운데에 가까운 것부터)
+      const slot = g.locked.sort((a, b) => Math.abs(a - 2.5) - Math.abs(b - 2.5))[0];
+      if (slot === undefined) break;
+      g.locked = g.locked.filter((x) => x !== slot);
+      g.tempSlot = slot;
+      ev(g, 'slotOpen', { x: g.slotX[slot], y: g.rowY, slot });
+      if (c.id === 'guestCombo') {
+        const pool = g.guestPool.filter((id) => !hasHero(g, id));
+        const id = pool[(g.rng() * pool.length) | 0];
+        if (id) { const h = addHero(g, id, slot); if (h) { h.guest = true; h.lv = 2; g.guestUsed = true; ev(g, 'guestJoin', { hero: id, x: h.x, y: h.y }); } }
+      }
+      break;
+    }
     case 'evo': {
       const h = hasHero(g, c.hero);
       if (h) { h.evo = true; ev(g, 'evolve', { hero: h.id, x: h.x, y: h.y, name: EVO[h.id].name }); }
@@ -2204,7 +2279,7 @@ export function applyCard(g, c) {
     }
     case 'filler':
       if (c.id === 'fillUlt') g.ult = Math.min(RULES.ultMax, g.ult + 40);
-      else g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * 0.35);
+      else g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * 0.5);
       break;
   }
   ev(g, 'card', { card: c.key });
@@ -2226,6 +2301,7 @@ export function summary(g, durationSec) {
     kills: g.stats.kills,
     bossKills: g.stats.bossKills,
     skills: g.stats.skills | 0,
+    raidDmg: g.raid ? Math.floor(g.raid.dmg) : 0,
     weekly: g.weekly ? g.weekly.wi : null,
     durationSec: Math.round(durationSec),
     victory: g.victory,
@@ -2239,7 +2315,7 @@ export function summary(g, durationSec) {
 export function snapshot(g) {
   return {
     v: 1, mode: g.mode, stage: g.stage, wave: g.wave, t: g.t,
-    heroes: g.heroes.map((h) => ({ id: h.id, lv: h.lv, slot: h.slot, kills: h.kills, dmgDone: h.dmgDone, evo: !!h.evo })),
+    heroes: g.heroes.map((h) => ({ id: h.id, lv: h.lv, slot: h.slot, kills: h.kills, dmgDone: h.dmgDone, evo: !!h.evo, cm: h.cm, cmN: h.cmN || 0, guest: !!h.guest, skEvo: !!h.skEvo })),
     mods: Object.assign({}, g.mods, { attrDmg: Object.assign({}, g.mods.attrDmg), tagDmg: Object.assign({}, g.mods.tagDmg) }), stacks: Object.assign({}, g.stacks),
     hiddenTaken: Object.assign({}, g.hiddenTaken), heroesUsed: Object.assign({}, g.heroesUsed),
     level: g.level, exp: g.exp, need: g.need, pendingLevels: g.pendingLevels, welcomePicks: g.welcomePicks,
@@ -2260,13 +2336,13 @@ export function restoreGame(snap, opt = {}) {
     if (!h) continue;
     h.lv = clamp(s.lv | 0, 1, 5);
     if (s.slot >= 0 && s.slot < g.nPos) { h.slot = s.slot; h.x = g.slotX[s.slot]; }
-    h.kills = s.kills || 0; h.dmgDone = s.dmgDone || 0; h.joinT = 1; h.evo = !!s.evo;
+    h.kills = s.kills || 0; h.dmgDone = s.dmgDone || 0; h.joinT = 1; h.evo = !!s.evo; h.cm = Object.assign({}, s.cm); h.cmN = s.cmN || 0; h.guest = !!s.guest; h.skEvo = !!s.skEvo;
   }
   Object.assign(g.mods, snap.mods || {});
   g.mods.attrDmg = Object.assign({}, (snap.mods || {}).attrDmg); g.mods.tagDmg = Object.assign({}, (snap.mods || {}).tagDmg);
   g.stacks = Object.assign({}, snap.stacks); g.hiddenTaken = Object.assign({}, snap.hiddenTaken);
   g.heroesUsed = Object.assign({}, g.heroesUsed, snap.heroesUsed);
-  g.level = snap.level || 1; g.exp = snap.exp || 0; g.need = snap.need || expNeed(g.level);
+  g.level = snap.level || 1; g.exp = snap.exp || 0; g.need = snap.need || Math.round(expNeed(g.level) * EXP_NEED_MUL);
   g.pendingLevels = snap.pendingLevels || 0; g.welcomePicks = snap.welcomePicks || 0;
   g.base.max = snap.base.max; g.base.hp = clamp(snap.base.hp, 1, snap.base.max);
   g.ult = snap.ult || 0;

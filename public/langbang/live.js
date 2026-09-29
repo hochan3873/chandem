@@ -34,6 +34,7 @@ export function leftText(ms) {
 // ─── 멤버 소유 · 성급 ─────────────────────────────────
 export function heroUnlocked(lb, id) {
   if (!HEROES[id]) return false;
+  if (lb.master) return true; // 마스터(운영자) 테스트 계정: 전부 (서버가 정한다)
   if (!LOCKED_HEROES.includes(id)) return true;
   if (lb.owned && lb.owned[id]) return true;
   if (!HERO_UNLOCK[id]) return false; // 모집 멤버는 모집으로만
@@ -65,7 +66,7 @@ export function titleName(id) {
   if (m) return `시즌${m[1]} 단골`;
   m = /^s(\d{1,3})_t30$/.exec(id);
   if (m) return `시즌${m[1]} 랑방 레전드`;
-  return { wchamp: '주간 챔피언', wtop3: '주간 TOP 3', gacha100: '모집왕', perfect30: '무결점 문지기' }[id] || '';
+  return { wchamp: '주간 챔피언', wtop3: '주간 TOP 3', gacha100: '모집왕', perfect30: '무결점 문지기', raid1: '레이드 MVP' }[id] || '';
 }
 const titleOk = (id) => typeof id === 'string' && id.length < 16 && !!titleName(id);
 
@@ -461,6 +462,70 @@ export function claimCheckin(lb, uid, now = Date.now()) {
   return { got: grant(lb, rw, uid, now), day: (st.streak % 7) + 1 };
 }
 
+// ─── 주말 모임 레이드: 금 18:00 ~ 일 24:00 (KST) · 모두의 피해를 합쳐 거대 보스 하나 ───
+export const RAID = { hp: 2500000, tries: 3, sec: 150, bosses: ['boss_soloparty', 'boss_union', 'boss_jusa', 'boss_otaku', 'boss_queenmom', 'boss_kkondol'] };
+export const raidOpenMs = (wi) => weekStartMs(wi) + 4 * DAY + 18 * 3600e3;
+export const raidEndMs = (wi) => weekStartMs(wi + 1);
+export function raidState(now = Date.now()) {
+  const wi = weekIndex(now);
+  const open = now >= raidOpenMs(wi) && now < raidEndMs(wi);
+  return { wi, open, opensAt: raidOpenMs(wi), endsAt: raidEndMs(wi), boss: RAID.bosses[((wi % RAID.bosses.length) + RAID.bosses.length) % RAID.bosses.length], hp: RAID.hp };
+}
+// 레이드 판: 거대 보스 (체력은 사실상 무한) + 20초마다 졸개. 150초 버티며 보스에게 준 피해가 기록
+export function raidDef(wi) {
+  const st = raidState(weekStartMs(wi) + 5 * DAY);
+  const waves = [];
+  for (let w = 1; w <= 8; w++) {
+    const b = stageWave(35, 1 + ((w - 1) % 4));
+    waves.push({ g: b.g.map(([t, c, e, d]) => [t, Math.max(1, Math.round(c * 0.5)), e, d]), level: 8 + 2 * (w - 1), hpScale: 1.6 });
+  }
+  waves[0].boss = st.boss;
+  return { wi, boss: st.boss, waves, sec: RAID.sec };
+}
+// 한 판 피해 상한 (시간 × 성장 정도) — 친구끼리 적당히 믿을 만큼
+export function raidCap(lb, dur) {
+  const meta = Object.values(lb.heroes || {}).reduce((a, b) => a + (b | 0), 0);
+  const perSec = (600 + 260 * (lb.maxStage | 0)) * (1 + meta / 80) * (1 + Object.values(lb.hstars || {}).reduce((a, b) => a + Math.max(0, b - 1), 0) * 0.05);
+  return Math.round(Math.min(RAID.sec + 15, int(dur, 0, 1e6)) * perSec);
+}
+export function raidTriesLeft(lb, now = Date.now()) {
+  const r = lb.raid;
+  const wi = weekIndex(now), day = dayIndex(now);
+  if (!r || r.wi !== wi || r.day !== day) return RAID.tries;
+  return Math.max(0, RAID.tries - (r.today | 0));
+}
+export function raidRecord(lb, dmg, now = Date.now()) {
+  const wi = weekIndex(now), day = dayIndex(now);
+  if (!lb.raid || lb.raid.wi !== wi) lb.raid = { wi, dmg: 0, runs: 0, day, today: 0, best: 0, claimed: false };
+  const r = lb.raid;
+  if (r.day !== day) { r.day = day; r.today = 0; }
+  r.today++; r.runs++; r.dmg += dmg; r.best = Math.max(r.best, dmg);
+  return r;
+}
+// 보상: 잡으면 모두 (기여도 순위 보너스) · 못 잡으면 준 피해 비율만큼
+export function raidReward(myDmg, total, rank, killed) {
+  if (!myDmg) return null;
+  const share = total ? myDmg / total : 0;
+  if (killed) {
+    const top = rank === 1 ? { tickets: 5, gear: 'legend', title: 'raid1' } : rank <= 3 ? { tickets: 3, gear: 'epic' } : rank <= 10 ? { tickets: 2 } : { tickets: 1 };
+    return Object.assign({ coins: 2000 + Math.round(4000 * share), label: `처치 성공! ${rank}위 (기여 ${(share * 100).toFixed(1)}%)` }, top);
+  }
+  const pct = Math.min(1, total / RAID.hp);
+  return { coins: Math.round(600 + 2400 * pct * Math.min(1, share * 5)), tickets: pct >= 0.5 ? 1 : 0, label: `보스 체력 ${(pct * 100).toFixed(0)}% 깎음 (기여 ${(share * 100).toFixed(1)}%)` };
+}
+
+// ─── 1:1 대전 웨이브: 두 사람이 같은 시드로 같은 진상을 받는다 (끝없이 · 150초부터 서든데스) ───
+export const PVP = { sudden: 150, sendSmall: 10, sendBig: 30 };
+export function pvpWave(seed, n) {
+  const rng = seedRng(hashSeed('lbpvp:' + seed + ':' + n));
+  const stage = 12 + (seed % 17);
+  const b = stageWave(stage, 1 + ((n - 1) % 4));
+  const k = 1 + 0.12 * (n - 1);
+  const def = { g: b.g.map(([t, c, e, d]) => [t, Math.max(1, Math.round(c * k)), e, d + rng() * 0.3]), level: 4 + 1.9 * (n - 1), hpScale: 1.6 };
+  if (n % 5 === 0) def.boss = ['boss_loan', 'boss_thug', 'boss_gapjil', 'queen'][((n / 5) | 0) % 4];
+  return def;
+}
+
 // ─── 덱 넣기/빼기 (순수 함수 — 화면 · 테스트가 같이 쓴다) ───
 // deck: 자리 배열(null = 빈 자리), max: 넣을 수 있는 인원, order: 채우는 자리 순서, replace: 이 자리의 멤버와 바꾸기
 export function deckToggle(deck, id, max, order, replace) {
@@ -523,6 +588,11 @@ export function normLive(raw, out) {
   out.chests = {};
   for (const [k, v] of Object.entries(raw.chests || {})) { const ch = int(k, 0, 99); if (ch >= 1 && Array.isArray(v)) { const l = [...new Set(v.map((x) => int(x, 0, 99)).filter((x) => CHEST_STARS.includes(x)))]; if (l.length) out.chests[ch] = l; } }
   out.decks = cleanDecks(raw.decks);
+  const rd = raw.raid;
+  out.raid = rd && Number.isInteger(rd.wi) ? { wi: rd.wi, dmg: int(rd.dmg, 0, 1e12), runs: int(rd.runs, 0, 1e4), day: int(rd.day, -1e6, 1e6), today: int(rd.today, 0, 99), best: int(rd.best, 0, 1e12), claimed: !!rd.claimed } : null;
+  out.raidRun = raw.raidRun && typeof raw.raidRun.id === 'string' && raw.raidRun.id.length <= 32 ? { id: raw.raidRun.id, wi: int(raw.raidRun.wi, -1e6, 1e6), at: int(raw.raidRun.at, 0, 9e15) } : null;
+  const pv = raw.pvp;
+  out.pvp = pv ? { rating: int(pv.rating, 0, 5000) || 1000, games: int(pv.games, 0, 1e6), wins: int(pv.wins, 0, 1e6), last: int(pv.last, 0, 9e15) } : { rating: 1000, games: 0, wins: 0, last: 0 };
   const ci = raw.checkin;
   out.checkin = ci && Number.isInteger(ci.last) ? { last: ci.last, streak: int(ci.streak, 0, 1e5) } : null;
   return out;

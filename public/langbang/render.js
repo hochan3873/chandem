@@ -65,6 +65,7 @@ export class FX {
     this.rings = new Pool(50);
     this.arcs = new Pool(16);
     this.pillars = new Pool(6);
+    this.blasts = new Pool(60);
     this.banners = [];
     this.shake = 0;
     this.flashColor = '#fff';
@@ -81,7 +82,7 @@ export class FX {
     this.time = 0;
   }
   reset() {
-    this.parts.clear(); this.nums.clear(); this.texts.clear(); this.bubbles.clear(); this.rings.clear(); this.arcs.clear(); this.pillars.clear();
+    this.blasts.clear(); this.parts.clear(); this.nums.clear(); this.texts.clear(); this.bubbles.clear(); this.rings.clear(); this.arcs.clear(); this.pillars.clear();
     this.banners.length = 0;
     this.shake = 0; this.flashA = 0; this.slowmo = 0; this.zoom = 1; this.zoomTarget = 1; this.combo = 0; this.baseHitA = 0;
   }
@@ -119,6 +120,12 @@ export class FX {
     const r = this.rings.get();
     if (!r) return;
     r.x = x; r.y = y; r.r0 = r0; r.r1 = r1; r.life = life; r.max = life; r.color = color; r.width = width;
+  }
+  // 폭발: 실제 피해 반경 r 에 딱 맞춘 그림 (kind: heart · fire · electric · gold)
+  blast(x, y, r, kind = 'gold', life = 0.42) {
+    const o = this.blasts.get();
+    if (!o) return;
+    o.x = x; o.y = y; o.r = r; o.kind = kind; o.life = life; o.max = life;
   }
   pillar(x, w, bottom, life) {
     const o = this.pillars.get();
@@ -162,6 +169,7 @@ export class FX {
     this.rings.update((r) => { r.life -= dt; return r.life > 0; });
     this.arcs.update((r) => { r.life -= dt; return r.life > 0; });
     this.pillars.update((r) => { r.life -= dt; return r.life > 0; });
+    this.blasts.update((r) => { r.life -= dt; return r.life > 0; });
     const b = this.banners[0];
     // 배너가 밀려 있으면 앞의 것을 빨리 넘긴다
     if (b) { b.t += dt * (this.banners.length > 1 ? 2.2 : 1); if (b.t >= b.life) this.banners.shift(); }
@@ -207,6 +215,8 @@ export class Renderer {
     }
     list.moto = '/img/lb/p_motorcycle.webp';
     list.gf = '/img/lb/p_girlfriend.webp';
+    for (let i = 0; i < 4; i++) list['bar' + i] = `/img/lb/ui/barricade_${i}.webp`;
+    for (const k of ['heart', 'fire', 'electric', 'gold', 'shock', 'spark']) list['fx_' + k] = `/img/lb/fx/${k === 'shock' ? 'shock_ring' : k === 'spark' ? 'hit_spark' : 'explo_' + k}.webp`;
     list.bg = '/img/lb/bg.webp';
     list.bg2 = '/img/lb/bg2.webp';
     list.bg3 = '/img/lb/bg3.webp';
@@ -220,6 +230,8 @@ export class Renderer {
       img.decoding = 'async';
       img.onload = () => {
         if (key === 'moto' || key === 'gf') return;
+        if (key.startsWith('bar')) { this.bakeBar(key); return; }
+        if (key.startsWith('fx_')) return;
         if (key === 'bg' || key === 'base' || /^bg\d$/.test(key)) this.bakeBg();
         else this.bakeSprite(key);
       };
@@ -236,7 +248,7 @@ export class Renderer {
   }
 
   resize(cssW, cssH, H) {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2, this.maxDpr || 2); // 느린 폰이면 해상도를 조금 낮춘다 (game.js 가 조절)
     this.H = H;
     this.k = (cssW / this.W) * dpr;
     this.dpr = dpr;
@@ -712,6 +724,7 @@ export class Renderer {
     this.drawBeams(g, t);
     this.drawProjs(g);
     this.drawArcs();
+    this.drawBlasts();
     this.drawParts();
     this.drawRings();
     this.drawTexts();
@@ -968,7 +981,15 @@ export class Renderer {
       const a = ui.aim;
       if (a.x !== undefined) {
         const r = a.r;
-        cx.strokeStyle = a.color || '#ff6b5a'; cx.lineWidth = 3;
+        const ok = a.y > 24 && a.y < g.ropeY + 6;
+        // 쓸 수 있는 곳: 방어선 위 필드 (점선 테두리)
+        cx.setLineDash([4, 6]); cx.strokeStyle = 'rgba(255,255,255,0.35)'; cx.lineWidth = 1.5;
+        cx.strokeRect(4, 24, this.W - 8, g.ropeY - 18);
+        cx.setLineDash([]);
+        let n = 0;
+        for (const e of g.enemies) if (!e.dead) { const dx = e.x - a.x, dy = e.y - a.y; if (dx * dx + dy * dy <= (r + e.r) * (r + e.r)) n++; }
+        a.color0 = a.color0 || a.color;
+        cx.strokeStyle = ok ? a.color0 || '#ff6b5a' : '#888'; cx.lineWidth = 3;
         cx.setLineDash([10, 6]); cx.lineDashOffset = -t * 30;
         cx.beginPath(); cx.arc(a.x, a.y, r, 0, TAU); cx.stroke();
         cx.setLineDash([]);
@@ -976,6 +997,10 @@ export class Renderer {
         cx.beginPath(); cx.arc(a.x, a.y, r, 0, TAU); cx.fill();
         cx.globalAlpha = 1;
         cx.beginPath(); cx.moveTo(a.x - 12, a.y); cx.lineTo(a.x + 12, a.y); cx.moveTo(a.x, a.y - 12); cx.lineTo(a.x, a.y + 12); cx.stroke();
+        cx.font = `900 13px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+        const lbl = ok ? `진상 ${n}명` : '여기선 못 써요';
+        cx.lineWidth = 4; cx.strokeStyle = '#1a0b1f'; cx.strokeText(lbl, a.x, a.y - r - 12);
+        cx.fillStyle = ok ? '#fff' : '#ff8a8a'; cx.fillText(lbl, a.x, a.y - r - 12);
       }
     }
     if (ui.drag) {
@@ -1247,7 +1272,71 @@ export class Renderer {
     this.drawBarricade(g, t);
   }
   // 방어선 "정회원 통과": 테이블·의자 더미 + 개찰구 + 간판. 입구 내구도에 따라 금 가고 기울고 불꽃이 튄다
+  // 방어선 그림: 한 번 구워 둔다 (반투명 연기의 초록빛은 회색으로 — 탁한 색 방지)
+  bakeBar(key) {
+    const img = this.images[key];
+    if (!imgOk(img)) return;
+    const c = mkCanvas(img.naturalWidth, img.naturalHeight);
+    const x = c.getContext('2d');
+    x.drawImage(img, 0, 0);
+    if (key === 'bar3' || key === 'bar2') {
+      try {
+        const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+        for (let i = 0; i < p.length; i += 4) {
+          const a = p[i + 3];
+          if (a > 0 && a < 235 && p[i + 1] > p[i] && p[i + 1] > p[i + 2]) { const l = p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11; p[i] = p[i + 1] = p[i + 2] = l * 0.8; }
+        }
+        x.putImageData(d, 0, 0);
+      } catch { /* 보안 제한이면 그대로 */ }
+    }
+    this.misc[key] = c;
+  }
   drawBarricade(g, t) {
+    const bars = this.misc;
+    if (bars.bar0) { this.drawBarricadeImg(g, t); return; }
+    this.drawBarricadeProc(g, t);
+  }
+  // 그림 방어선: 입구 내구도에 따라 4단계 (부드럽게 바뀜) + 흔들림 · 간판 글자 · 불꽃
+  drawBarricadeImg(g, t) {
+    const cx = this.cx, W = this.W, fx = this.fx;
+    const f = g.base.max ? g.base.hp / g.base.max : 1;
+    const st = f < 0.15 ? 3 : f < 0.4 ? 2 : f < 0.7 ? 1 : 0;
+    if (this.barSt === undefined) { this.barSt = st; this.barPrev = st; this.barFade = 1; }
+    if (st !== this.barSt) { this.barPrev = this.barSt; this.barSt = st; this.barFade = 0; }
+    this.barFade = Math.min(1, this.barFade + 1 / 30);
+    const wob = fx.ropeWobble;
+    const shake = wob > 0 ? Math.sin(t * 60) * wob * 3 : 0;
+    const bw = W, bh = W * (618 / 1200);
+    const y0 = g.ropeY + 12 - bh * 0.82; // 차단봉 발이 방어선에 오게
+    this.world();
+    const draw = (s, a) => { const c = this.misc['bar' + s] || this.misc.bar0; cx.globalAlpha = a; cx.drawImage(c, shake, y0, bw, bh); };
+    if (this.barFade < 1) draw(this.barPrev, 1);
+    draw(this.barSt, this.barFade);
+    cx.globalAlpha = 1;
+    // 간판 "정회원 통과" (네온 · 위험하면 깜빡이고 기울어짐)
+    const sx = W * 0.5 + shake, sy = y0 + bh * 0.307;
+    const flick = st >= 2 && Math.sin(t * (st >= 3 ? 23 : 9)) > 0.6 ? 0.35 : 1;
+    cx.save();
+    cx.translate(sx, sy);
+    cx.rotate(st >= 3 ? 0.08 + Math.sin(t * 4) * 0.03 : st >= 2 ? Math.sin(t * 3) * 0.03 : 0);
+    cx.font = `900 13px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.globalAlpha = flick;
+    cx.lineJoin = 'round'; cx.lineWidth = 4; cx.strokeStyle = '#1a0b1f'; cx.strokeText('정회원 통과', 0, 0);
+    cx.fillStyle = st >= 3 ? '#ff6a4a' : '#ff4fd8';
+    cx.shadowColor = st >= 3 ? 'rgba(255,80,40,0.9)' : 'rgba(255,79,216,0.9)'; cx.shadowBlur = 10;
+    cx.fillText('정회원 통과', 0, 0);
+    cx.shadowBlur = 0;
+    cx.restore();
+    cx.globalAlpha = 1;
+    const y = g.ropeY + 10;
+    if (st >= 2 && Math.random() < (st >= 3 ? 0.5 : 0.18)) fx.part('spark', 20 + Math.random() * (W - 40), y - 14, (Math.random() - 0.5) * 120, -80 - Math.random() * 80, 0.4, 3, st >= 3 ? '#ff6a3a' : '#ffd23f', { grav: 400 });
+    if (st >= 1 && wob > 0.3 && Math.random() < 0.4) fx.part('puff', 20 + Math.random() * (W - 40), y - 6, 0, -20, 0.5, 8, 'rgba(200,180,160,0.6)');
+    if (fx.repairT > 0) {
+      fx.repairT -= 1 / 60;
+      if (Math.random() < 0.35) fx.part('star', 20 + Math.random() * (W - 40), y - 10 - Math.random() * 20, 0, -40, 0.6, 7, null);
+    }
+  }
+  drawBarricadeProc(g, t) {
     const cx = this.cx, W = this.W, fx = this.fx;
     const f = g.base.max ? g.base.hp / g.base.max : 1;
     const st = f < 0.15 ? 3 : f < 0.4 ? 2 : f < 0.7 ? 1 : 0;
@@ -1373,6 +1462,20 @@ export class Renderer {
 
   drawHeroes(g, t, ui) {
     const cx = this.cx;
+    for (const sl of g.locked || []) {
+      const x = g.slotX[sl], y = g.rowY + 6;
+      this.world();
+      cx.globalAlpha = 0.75;
+      cx.strokeStyle = '#8a8fa8'; cx.lineWidth = 3; cx.setLineDash([6, 4]);
+      cx.beginPath(); cx.moveTo(x - 24, y - 30); cx.lineTo(x + 24, y + 10); cx.moveTo(x + 24, y - 30); cx.lineTo(x - 24, y + 10); cx.stroke();
+      cx.setLineDash([]);
+      cx.fillStyle = '#2a2f3e'; cx.strokeStyle = '#000'; cx.lineWidth = 2;
+      roundRect(cx, x - 11, y - 14, 22, 18, 4); cx.fill(); cx.stroke();
+      cx.strokeStyle = '#c8ccd8'; cx.lineWidth = 3;
+      cx.beginPath(); cx.arc(x, y - 14, 7, Math.PI, 0); cx.stroke();
+      cx.fillStyle = '#ffd23f'; cx.beginPath(); cx.arc(x, y - 6, 2.5, 0, TAU); cx.fill();
+      cx.globalAlpha = 1;
+    }
     const box = g.nPos >= 7 ? HERO_BOX * 0.86 : HERO_BOX;
     const sh = this.projSprites.shadow;
     for (const h of g.heroes) {
@@ -1462,13 +1565,13 @@ export class Renderer {
       }
       // 이름 + 레벨
       this.world();
-      const label = h.def.name;
+      const label = h.guest ? '게스트 ' + h.def.name : h.def.name;
       cx.font = `900 10px ${FONT}`;
       cx.textAlign = 'center';
       cx.textBaseline = 'middle';
       const tw = cx.measureText(label).width + 23;
       const ly = feet + 9;
-      cx.fillStyle = h.def.legend ? 'rgba(90,60,0,0.9)' : h.def.hidden ? 'rgba(80,10,70,0.85)' : 'rgba(12,10,28,0.8)';
+      cx.fillStyle = h.guest ? 'rgba(10,90,110,0.9)' : h.def.legend ? 'rgba(90,60,0,0.9)' : h.def.hidden ? 'rgba(80,10,70,0.85)' : 'rgba(12,10,28,0.8)';
       roundRect(cx, hx - tw / 2, ly - 7, tw, 14, 7);
       cx.fill();
       if (h.def.hidden || h.def.legend) { cx.strokeStyle = h.def.legend ? '#ffd84a' : '#ff7fe6'; cx.lineWidth = 1; cx.stroke(); }
@@ -1616,6 +1719,40 @@ export class Renderer {
     cx.globalAlpha = 1;
   }
 
+  drawBlasts() {
+    const cx = this.cx, list = this.fx.blasts.items;
+    if (!list.length) return;
+    this.world();
+    // 그을음 (잠깐) → 빛 그림 (더하기) → 정확한 범위의 충격파 고리
+    for (const b of list) {
+      const p = 1 - b.life / b.max;
+      if (p < 0.5) { cx.globalAlpha = 0.22 * (1 - p * 2); cx.fillStyle = '#1a0a08'; cx.beginPath(); cx.ellipse(b.x, b.y + 4, b.r * 0.9, b.r * 0.4, 0, 0, TAU); cx.fill(); }
+    }
+    cx.globalCompositeOperation = 'lighter';
+    for (const b of list) {
+      const p = 1 - b.life / b.max;
+      const img = this.images['fx_' + b.kind];
+      if (imgOk(img)) {
+        const s = b.r * 2.3 * (0.75 + p * 0.35);
+        cx.globalAlpha = Math.min(1, (1 - p) * 1.6);
+        cx.drawImage(img, b.x - s / 2, b.y - s / 2, s, s);
+      }
+      const sh = this.images.fx_shock;
+      if (imgOk(sh)) { const s = b.r * 2 * (0.4 + p * 0.65); cx.globalAlpha = (1 - p) * 0.9; cx.drawImage(sh, b.x - s / 2, b.y - s / 2, s, s); }
+    }
+    cx.globalCompositeOperation = 'source-over';
+    for (const b of list) {
+      const p = 1 - b.life / b.max, e = 1 - (1 - p) * (1 - p);
+      cx.globalAlpha = (1 - p) * 0.95;
+      cx.strokeStyle = b.kind === 'heart' ? '#ffb3e0' : b.kind === 'fire' ? '#ffb347' : b.kind === 'electric' ? '#9ff4ff' : '#ffe98a';
+      cx.lineWidth = 4 * (1 - p) + 1;
+      cx.beginPath(); cx.arc(b.x, b.y, b.r * (0.35 + 0.65 * e), 0, TAU); cx.stroke();
+      if (p > 0.55) continue;
+      cx.globalAlpha = 0.14 * (1 - p * 1.8); cx.fillStyle = cx.strokeStyle;
+      cx.beginPath(); cx.arc(b.x, b.y, b.r, 0, TAU); cx.fill();
+    }
+    cx.globalAlpha = 1;
+  }
   drawRings() {
     const cx = this.cx;
     this.world();

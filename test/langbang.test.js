@@ -1096,7 +1096,7 @@ test('카드: 4장 · 속성 결속은 그 속성 멤버가 있어야 · 진화�
   const max0 = g.base.max, dmg0 = g.mods.dmg;
   S.applyCard(g, { kind: 'global', id: 'risk_allin', key: 'risk_allin' });
   assert.equal(g.base.max, Math.round(max0 * 0.8));
-  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.35) < 1e-9);
+  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.55) < 1e-9);
 });
 
 test('중간 보스: 3웨이브에 나오고(1-1·1-2 제외) · 합체는 두 진상 기술을 모두 · 넉백 안 됨 · 보너스 코인', () => {
@@ -1197,4 +1197,43 @@ test('덱 넣기/빼기: 빈 자리에 넣고 · 이미 있으면 빼고 · 꽉 
   r = L.deckToggle(full, 'dohoon', 4, order, 2);
   assert.equal(r.action, 'added'); assert.equal(r.deck[2], 'dohoon');
   assert.deepEqual(L.cleanDecks({ i: 7, decks: [['staff', 'staff', 'nope', 'gunman'], 'x'] }).decks[0], ['staff', null, null, 'gunman', null, null]);
+});
+
+test('레벨업: 드물게(필요 경험치 ×2.2) · 레벨 카드 한 장 = 2레벨 · 멤버 전용 카드 · 잠긴 자리 · 임시 증원 + 게스트', () => {
+  const g = S.createGame({ rng: seeded(1301), mode: 'stage', stage: 5, slots: 4, deck: [null, 'staff', 'gunnyeo', 'gunman', 'bangjang', null], guestPool: ['dohoon'] });
+  assert.equal(g.need, Math.round(D.expNeed(1) * D.EXP_NEED_MUL));
+  assert.deepEqual(g.locked.sort(), [0, 5], '4칸이면 양 끝 자리 잠김');
+  const gn = g.heroes.find((h) => h.id === 'gunnyeo');
+  const lv = S.cardPool(g).find((c) => c.kind === 'heroLv' && c.hero === 'gunnyeo');
+  S.applyCard(g, lv);
+  assert.equal(gn.lv, 3, '한 장에 2레벨');
+  const hm = S.cardPool(g).find((c) => c.kind === 'heroMod' && c.hero === 'gunnyeo');
+  assert.ok(hm, '건전녀 전용 카드');
+  const d0 = S.heroDamage(g, gn);
+  S.applyCard(g, hm);
+  assert.ok(gn.cm.splash > 1 && Math.abs(S.heroDamage(g, gn) / d0 - 1.2) < 1e-9);
+  assert.ok(!S.cardPool(g).some((c) => c.kind === 'heroMod' && c.hero === 'dohoon'), '덱에 없는 멤버 카드는 없음');
+  assert.equal(S.swapHeroes(g, gn, 0), false, '잠긴 자리로는 못 옮김');
+  // 숨은 카드 (확률 1로)
+  g.wave = 2;
+  const cards = S.rollCards(g, 4, { secretChance: 1, rng: () => 0.1 });
+  const sc = cards.find((c) => c.kind === 'secret');
+  assert.ok(sc && sc.id === 'guestCombo');
+  S.applyCard(g, sc);
+  assert.equal(g.locked.length, 1, '자리 하나 열림');
+  const guest = g.heroes.find((h) => h.guest);
+  assert.ok(guest && guest.id === 'dohoon' && guest.slot === g.tempSlot, '게스트 합류');
+  assert.equal(S.rollCards(g, 4, { secretChance: 1 }).some((c) => c.kind === 'secret'), false, '한 판에 한 번');
+});
+
+test('멤버 티어: 늦게 만나는 멤버일수록 기본이 세고, 초반 멤버는 강화 한도가 낮다 (최대 T1 < 중간 T3)', () => {
+  assert.equal(D.metaMaxOf('staff'), 12);
+  assert.equal(D.metaMaxOf('hanna'), 20);
+  const t1 = S.createGame({ rng: seeded(1310), noWaves: true, heroes: ['sunggu'], meta: { sunggu: 10 } });
+  const t1max = S.createGame({ rng: seeded(1310), noWaves: true, heroes: ['staff'], meta: { staff: 20 } });
+  assert.equal(t1max.heroes[0].meta, 12, '예전 기록이 한도보다 높아도 효과는 한도까지');
+  const k = (g) => (1 + D.RULES.metaDmgPerLevel * g.heroes[0].meta) * D.TIER_MUL[D.heroTier(g.heroes[0].id)];
+  assert.ok(k(t1max) < k(t1), 'T1 최대 < T3 +10');
+  const R = require('../server/langbang-rules');
+  for (const h of Object.keys(D.HEROES)) assert.equal(R.metaMaxOf(h), D.metaMaxOf(h), h);
 });

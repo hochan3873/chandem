@@ -10,6 +10,7 @@ const { Room, RoomError, sanitizeSettings, makeCode } = require('./room');
 const { createAccounts, hashPassword } = require('./accounts');
 const { createSite } = require('./site');
 const { createAdmin } = require('./admin');
+const { createLbPvp } = require('./langbang-pvp');
 
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12시간 아무 일 없으면 방 정리
 // 과부하 방지: 전체 방 수, 연습 방 수, 한 사람(IP)이 동시에 가진 방 수, 방 만들기 간격
@@ -28,7 +29,7 @@ function lanUrls(port) {
   return out.sort((a, b) => score(a) - score(b));
 }
 
-function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null, now = Date.now } = {}) {
+function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null, now = Date.now, lbpvp = {} } = {}) {
   const LIM = { ...LIMITS, ...limits };
   const acct = accounts || createAccounts({ file: dataFile ? path.join(path.dirname(dataFile), 'accounts.json') : null });
   // 공지 · 출석 · 계정 관리 · 건의함 · 점검 모드 (server/site.js)
@@ -295,6 +296,10 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     try { return await acct.me(payload.auth); } catch { return null; }
   }
 
+  // 랑방 대전 1:1 대전 (/lbpvp 네임스페이스 — 방 게임 소켓과 따로)
+  const lbPvp = createLbPvp({ accounts: acct, normLb: require('./accounts').normLb, eloDelta: require('./accounts').eloDelta, isMaster: require('./masters').isMasterName, ...lbpvp });
+  lbPvp.attach(io.of('/lbpvp'));
+
   io.on('connection', (socket) => {
     const reply = (ack, data) => { if (typeof ack === 'function') ack(data); };
     const fail = (ack, e) => {
@@ -458,10 +463,11 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   });
 
   return {
-    app, server, io, rooms, accounts: acct, site,
+    app, server, io, rooms, accounts: acct, site, lbPvp,
     listen: () => new Promise((resolve) => server.listen(port, '0.0.0.0', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => {
       for (const r of rooms.values()) r.clearAllTimers();
+      lbPvp.close();
       io.close(() => resolve());
     }),
   };

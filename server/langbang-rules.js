@@ -7,6 +7,10 @@ const HIDDEN = ['eunok', 'hanna', 'sunggu'];
 const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan']; // 모집(뽑기)으로만 합류
 const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN, ...GACHA]; // 해금이 필요한 영웅
 const META_MAX = 20;
+// 멤버 등급별 강화 한도 (화면 data.js HERO_TIER · TIER_MAX 와 같음)
+const HERO_TIER = { bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1, dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2, hanna: 3, donghan: 3, sunggu: 3, youngjun: 3, junseo: 4, hyungyeong: 4, ara: 4, hochan: 5 };
+const TIER_MAX = [20, 12, 16, 20, 20, 20];
+const metaMaxOf = (id) => TIER_MAX[HERO_TIER[id] || 1];
 const STAGE_COUNT = 60;
 const STAGE_WAVES = 5;
 const STAGES_PER_CHAPTER = 10;
@@ -59,7 +63,7 @@ function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = false, fir
 const DECK_BASE = 4;
 // 헬 모드 (화면 data.js 와 같은 규칙)
 const HELL_COIN = 3;
-const hellOpen = (stages, s) => ((stages || {})[s] | 0) >= 3;
+const hellOpen = (stages, s, master) => !!master || ((stages || {})[s] | 0) >= 3;
 function hellReward(s, stars, prevStars = 0, couponLv = 0) {
   const r = stageReward(s, stars, prevStars, couponLv, false, false);
   const total = Math.round(r.total * HELL_COIN);
@@ -87,7 +91,7 @@ function maxCleared(stages) {
   return m;
 }
 // 해금: 정해진 스테이지를 깼거나, 예전(스테이지 이전)에 이미 강화해 둔 영웅
-const heroUnlocked = (lb, hero) => !LOCKED.includes(hero) || !!(lb.owned && lb.owned[hero])
+const heroUnlocked = (lb, hero) => !!lb.master || !LOCKED.includes(hero) || !!(lb.owned && lb.owned[hero])
   || (!!HERO_UNLOCK[hero] && ((lb.stages && (lb.stages[HERO_UNLOCK[hero]] | 0) > 0) || ((lb.heroes && lb.heroes[hero]) | 0) > 0));
 // 무한 도전: 1-10 클리어, 또는 예전(20웨이브 시절) 기록이 있는 사람
 const endlessUnlocked = (lb) => maxCleared(lb.stages) >= ENDLESS_UNLOCK || (lb.bestWave | 0) > 0;
@@ -106,7 +110,7 @@ const GEAR_RARITIES = ['common', 'rare', 'epic', 'legend'];
 const GEAR_STATS = {
   atk: { name: '공격력', pct: true }, spd: { name: '기본 공격 속도', pct: true }, crit: { name: '치명타', pct: true },
   skill: { name: '스킬 피해', pct: true }, cd: { name: '스킬 쿨타임 감소', pct: true }, attr: { name: '상성 피해', pct: true },
-  strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true },
+  strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true }, range: { name: '사거리 (최대 +35%)', pct: true },
 };
 const GEAR = {
   megaphone: { id: 'megaphone', slot: 'w', icon: '📣', name: '명품 확성기', stat: 'atk', base: 0.06 },
@@ -121,6 +125,9 @@ const GEAR = {
   nametag: { id: 'nametag', slot: 'a', icon: '📛', name: '랑방 명찰', stat: 'attr', base: 0.06 },
   sneaker: { id: 'sneaker', slot: 'a', icon: '👟', name: '한정판 운동화', stat: 'spd', base: 0.04 },
   clover: { id: 'clover', slot: 'a', icon: '🍀', name: '네잎클로버 폰케이스', stat: 'crit', base: 0.025 },
+  telescope: { id: 'telescope', slot: 'w', icon: '📡', name: '망원 확성기', stat: 'range', base: 0.06 },
+  slingcord: { id: 'slingcord', slot: 'a', icon: '🎯', name: '장거리 새총 끈', stat: 'range', base: 0.05 },
+  laser: { id: 'laser', slot: 'a', icon: '🔦', name: '레이저 포인터', stat: 'range', base: 0.045, ch: 3 },
   passport: { id: 'passport', slot: 'w', icon: '🛂', name: '여권 지갑', stat: 'strip', base: 0.07, ch: 4 },
   sunglass: { id: 'sunglass', slot: 'a', icon: '😎', name: '제주 선글라스', stat: 'crit', base: 0.03, ch: 4 },
   lantern: { id: 'lantern', slot: 'a', icon: '🏮', name: '캠핑 랜턴', stat: 'hp', base: 0.05, ch: 5 },
@@ -181,6 +188,6 @@ function gearStats(items) {
 module.exports = {
   hellOpen, hellReward, HELL_COIN,
   GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
-  LB_HEROES, HIDDEN, GACHA, LOCKED, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
+  LB_HEROES, HIDDEN, GACHA, LOCKED, HERO_TIER, TIER_MAX, metaMaxOf, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   metaCost, itemCost, itemValue, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };

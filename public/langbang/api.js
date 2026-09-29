@@ -3,7 +3,7 @@
 // 손님: 같은 공식(data.js)으로 이 기기 localStorage 에만 저장 (랭킹에는 안 올라감)
 import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
-  metaCost, itemCost, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen,
+  metaCost, itemCost, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen, metaMaxOf,
   GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearSellValue, rollDrops, gearStats, stageBosses,
 } from './data.js';
 import * as L from './live.js';
@@ -82,6 +82,7 @@ function normalize(p, guest) {
   out.deckSlots = deckSlots(out.items);
   out.guest = !!guest;
   L.normLive(p || {}, out); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록
+  out.master = !guest && !!(p && p.master); // 서버가 정한 값 (손님은 절대 아님)
   out.owned = out.owned || {};
   out.unlocked = LOCKED_HEROES.filter((h) => heroUnlocked(out, h));
   if (guest) L.ensureLive(out, 'guest', Date.now()); // 로그인은 서버가 이미 맞춰서 준다
@@ -192,7 +193,7 @@ export async function upgradeHero(hero, guest) {
       const lv = p.heroes[hero] | 0;
       if (!HEROES[hero]) return { error: '없는 캐릭터예요' };
       if (!heroUnlocked(p, hero)) return { error: '아직 합류하지 않은 멤버예요' };
-      if (lv >= META_MAX) return { error: '이미 최대로 강화했어요' };
+      if (lv >= metaMaxOf(hero)) return { error: '이미 최대로 강화했어요' };
       return { cost: metaCost(lv), apply: (x) => { x.heroes[hero] = lv + 1; } };
     });
   }
@@ -223,7 +224,7 @@ export async function loadRanking(mode = 'stage') {
 // 강화 비용: 서버가 알려 준 값 우선, 없으면 같은 공식
 export function costOf(profile, hero) {
   const lv = (profile.heroes && profile.heroes[hero]) || 0;
-  const max = profile.maxMeta || META_MAX;
+  const max = metaMaxOf(hero);
   if (lv >= max) return null;
   if (profile.costs && hero in profile.costs) return profile.costs[hero];
   return metaCost(lv);
@@ -371,5 +372,14 @@ export function checkin(guest) {
 }
 // 덱 저장 (로그인하면 서버에도 — 다른 기기에서도 같은 덱)
 export function saveDecksRemote(decks, i) { return liveCall('decks', { decks, i }); }
+// 마스터(운영자) 테스트 도구 — 서버가 아이디로 확인한다
+export function masterAct(action, extra = {}) { return liveCall('master', Object.assign({ action }, extra)); }
+// 레이드 · 1:1 대전
+export async function raidBoard() { const r = await call('/api/langbang/raid'); return r.ok ? r : null; }
+export function raidStart() { return liveCall('raid/start', {}); }
+export function raidClaim() { return liveCall('raid/claim', {}); }
+export function postRaid(sum, runId, dmg) { return liveCall('result', { mode: 'raid', runId, raidDmg: Math.floor(dmg), wave: sum.wave, kills: sum.kills, bossKills: 0, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen }); }
+export async function pvpRanking() { const r = await call('/api/langbang/pvp/ranking'); return r.ok ? r : null; }
+export function authToken() { return token(); }
 // 미션 시드용 사용자 번호 (서버와 같은 값 — 토큰 앞부분)
 export function liveUid() { const t = token(); return t ? String(t).split('.')[0] : GUEST_UID; }

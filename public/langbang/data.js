@@ -19,6 +19,8 @@ export const HERO_SLOTS = 6;
 export const SLOT_X = [34, 92, 150, 210, 268, 326];
 export const SLOT_X7 = [28, 79, 129, 180, 231, 281, 332]; // 덱 7칸일 때
 export const SLOT_ORDER = [2, 3, 1, 4, 0, 5];
+// 덱 칸 수 → 열린 자리 (가운데부터). 나머지 자리는 자물쇠 (상점에서 5·6번째 칸을 사면 열림)
+export const openSlots = (n) => SLOT_ORDER.slice(0, Math.max(1, Math.min(6, n || 6)));
 
 // ─── 기본 규칙 ─────────────────────────────────────────
 export const RULES = {
@@ -59,6 +61,9 @@ export const LEVEL_INTERVAL = [1, 0.95, 0.9, 0.85, 0.78];
 export function expNeed(lv) {
   return Math.round(4 + lv * 3 + lv * lv * 0.32);
 }
+// 레벨업은 드물게, 대신 한 번 한 번이 크게: 필요 경험치 ×2.2 (스테이지는 뒤로 갈수록 경험치를 줄여 스테이지당 4~6번)
+export const EXP_NEED_MUL = 2.2;
+export const stageExpMul = (s) => 1 / (1 + 0.1 * Math.max(0, (s || 1) - 1));
 
 // 웨이브별 적 체력 배율
 export function hpMul(wave, stage) {
@@ -189,12 +194,13 @@ export const STAGE = {
   themeThug: 3,
   deckHp: [2.9, 2.3, 1.9, 1.8, 1.8, 1.8], // 덱(5명) 보정: 적 체력 배율 (챕터별 — 뒤로 갈수록 강화·장비가 쌓이니 조금씩 덜)
   deckCount: 1.45, // 덱 보정: 적 수 배율
+  hpTune: [0.97, 1.02, 1.17, 0.95, 1.03, 1.5], // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
-  stageAdd: { 3: 2.2, 4: 4.0, 5: 0.4, 6: -0.5, 19: -0.4, 20: -0.3, 25: -0.4, 26: -0.3, 29: 0.2 }, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  stageAdd: { 3: 2.2, 4: 4.0, 5: 0.4, 6: -0.5, 19: -0.9, 20: -0.3, 25: -0.4, 26: -0.3, 29: 0.2, 33: -0.6, 34: -0.6, 39: -0.6, 40: -0.4, 51: -1.2, 52: -1.0, 56: -0.6 }, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
 // 덱 5명으로 싸우니 적도 그만큼 단단하게 — 1-1 은 연습이라 그대로, 1-3 부터 본격
-export function stageHpScale(s) { return 1 + (STAGE.deckHp[chapterOf(s) - 1] - 1) * Math.min(1, (s - 1) / 2); }
+export function stageHpScale(s) { return (1 + (STAGE.deckHp[chapterOf(s) - 1] - 1) * Math.min(1, (s - 1) / 2)) * (s <= 2 ? 1 : STAGE.hpTune[chapterOf(s) - 1] || 1); }
 export function stageLevel(s, w) {
   const n = stageNo(s);
   const bs = STAGE.bossStage[chapterOf(s)];
@@ -439,7 +445,7 @@ export const HEROES = {
     attack: '경고장 — 느린 유도탄, 맞으면 느려지고 "경고"가 쌓인다. 경고 3번이면 강퇴! (기절 + 밀어내기)',
     desc: '규칙 위반자는 용서 없다. 한 방은 약하지만 경고가 쌓이면 진상을 강퇴시켜 버리는 제어 전문가.',
     perks: { 3: '강퇴 기절이 더 길다', 5: '경고장이 주변에도 퍼지며 경고를 옮긴다' },
-    skill: { id: 'redcard', name: '레드카드', cd: 18, target: true, desc: '찍은 곳 진상들 60% 감속 + 피해', r: [90, 90, 110, 110, 125], slowSec: 4, dmgMul: 2.5 },
+    skill: { id: 'redcard', name: '레드카드', cd: 18, target: true, desc: '찍은 곳 진상들 60% 감속 + 피해', r: [115, 115, 135, 135, 150], slowSec: 4, dmgMul: 2.5 },
   },
   gunman: {
     id: 'gunman', bossKit: 1.45, kit: 1.0, name: '건전남', gender: 'm', emoji: '🙋‍♂️', color: '#4fd18b', attr: 'power',
@@ -472,7 +478,7 @@ export const HEROES = {
     attack: '욕 — 짧은 사거리, 진상 3~5명에게 번개처럼 튕기며 가끔 기절',
     desc: '실눈 뜬 티벳여우. "#@!%" 욕 한 방이면 진상이 얼어붙는다.',
     perks: { 3: '욕이 한 명 더 튕긴다', 5: '4발마다 "욕 폭탄" 범위 기절 · 기절한 적 피해 2배' },
-    skill: { id: 'curse', name: '쌍욕 폭격', cd: 20, target: true, desc: '찍은 곳 진상들 기절 (들킨 사기꾼은 2배)', r: [95, 95, 110, 110, 125], stun: [1.5, 1.5, 1.8, 1.8, 2.2], dmgMul: 1.5 },
+    skill: { id: 'curse', name: '쌍욕 폭격', cd: 20, target: true, desc: '찍은 곳 진상들 기절 (들킨 사기꾼은 2배)', r: [125, 125, 140, 140, 160], stun: [1.5, 1.5, 1.8, 1.8, 2.2], dmgMul: 1.5 },
   },
   dohoon: {
     id: 'dohoon', bossKit: 0.7, kit: 0.6, name: '김도훈', gender: 'm', emoji: '🎤', color: '#b58cff', unlock: true, attr: 'booze',
@@ -537,7 +543,7 @@ export const HEROES = {
     attack: '하트 레이저 — 한 명에게 계속 쏘면 점점 세진다, 남자는 가끔 뒤로 밀림',
     desc: '"윙크 ♥" 레이저에 맞은 남자는 정신 못 차리고 뒤로 날아간다. 여자는 그냥 아프다.',
     perks: { 3: '레이저가 더 빨리 세진다', 5: '레이저 2갈래 · 남자는 잠깐 기절' },
-    skill: { id: 'winkbomb', name: '윙크 폭탄', cd: 20, target: true, desc: '찍은 곳: 남자는 날려 버리고 여자는 홀려서 멈춤', r: [105, 105, 120, 120, 135], kb: 110, stun: 1.2 },
+    skill: { id: 'winkbomb', name: '윙크 폭탄', cd: 20, target: true, desc: '찍은 곳: 남자는 날려 버리고 여자는 홀려서 멈춤', r: [130, 130, 145, 145, 165], kb: 110, stun: 1.2 },
   },
   sunggu: {
     id: 'sunggu', bossKit: 1.1, kit: 1.0, name: '강성구', gender: 'm', emoji: '👴', color: '#c9a36b', hidden: true, attr: 'power',
@@ -594,6 +600,20 @@ export const HEROES = {
     shouts: ['랑방을 위하여!', '방장 왔다!', '다들 모여!', '여긴 내가 지킨다'],
   },
 };
+// ─── 멤버 등급(티어): 늦게 만나는 멤버일수록 기본이 세다 · 초반 멤버는 강화 한도가 낮다 ───
+// (최대 강화 T1 < 중간 강화 T3 — 초반 멤버는 초반과 시너지로 쓰고, 뒤로 갈수록 새 멤버로 바꿔 가게)
+export const HERO_TIER = {
+  bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1,
+  dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2,
+  hanna: 3, donghan: 3, sunggu: 3, youngjun: 3,
+  junseo: 4, hyungyeong: 4, ara: 4,
+  hochan: 5,
+};
+export const TIER_MUL = [1, 1, 1.12, 1.25, 1.38, 1.55]; // 기본 공격력 배율
+export const TIER_MAX = [20, 12, 16, 20, 20, 20]; // 영구 강화 한도
+export const TIER_NAME = ['', 'T1', 'T2', 'T3', 'T4', 'LEGEND'];
+export const heroTier = (id) => HERO_TIER[id] || 1;
+export const metaMaxOf = (id) => TIER_MAX[heroTier(id)];
 export const BASE_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
 export const UNLOCK_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun']; // 스테이지를 깨면 합류하는 일반 영웅
 export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu'];
@@ -1041,38 +1061,69 @@ export const RARITY = {
 };
 // 전역 강화 카드 (영웅 합류/레벨업 카드는 sim.js 가 자동으로 만든다)
 export const CARDS = [
-  { id: 'dmg', icon: '💪', title: '회식 버프', desc: '모든 영웅 공격력 +15%', rarity: 'common', max: 6 },
-  { id: 'spd', icon: '⚡', title: '카페인 충전', desc: '모든 영웅 공격 속도 +12%', rarity: 'common', max: 5 },
+  { id: 'dmg', icon: '💪', title: '회식 버프', desc: '모든 멤버 공격력 +27%', rarity: 'common', max: 6 },
+  { id: 'spd', icon: '⚡', title: '카페인 충전', desc: '모든 멤버 공격 속도 +20%', rarity: 'common', max: 5 },
   { id: 'gunExtra', icon: '🔫', title: '건전남 새총알 추가', desc: '건전남 한 번에 +1발', rarity: 'rare', max: 2, needs: 'gunman' },
-  { id: 'crit', icon: '🎯', title: '정곡 찌르기', desc: '치명타 확률 +8% (피해 2배)', rarity: 'rare', max: 4 },
-  { id: 'hp', icon: '🏗️', title: '입구 리모델링', desc: '랑방 최대 내구도 +20% · 30% 회복', rarity: 'common', max: 5 },
-  { id: 'exp', icon: '🍹', title: '인싸력 상승', desc: '경험치 획득 +20%', rarity: 'common', max: 3 },
-  { id: 'slow', icon: '🚧', title: '새치기 금지', desc: '모든 진상 이동 속도 -8%', rarity: 'common', max: 3 },
+  { id: 'crit', icon: '🎯', title: '정곡 찌르기', desc: '치명타 확률 +13% (피해 2배)', rarity: 'rare', max: 4 },
+  { id: 'hp', icon: '🏗️', title: '방어선 보강', desc: '랑방 최대 내구도 +35% · 50% 회복', rarity: 'common', max: 5 },
+  { id: 'exp', icon: '🍹', title: '인싸력 상승', desc: '경험치 획득 +35%', rarity: 'common', max: 3 },
+  { id: 'slow', icon: '🚧', title: '새치기 금지', desc: '모든 진상 이동 속도 -13%', rarity: 'common', max: 3 },
   { id: 'pierce', icon: '🗡️', title: '관통 공지', desc: '모든 투사체 관통 +1', rarity: 'legend', max: 2 },
-  { id: 'boss', icon: '🍻', title: '랑방 단골의 힘', desc: '공격력 +30% · 공격 속도 +15%', rarity: 'legend', max: 2 },
-  { id: 'regen', icon: '🛠️', title: '건물주 인맥', desc: '랑방이 초당 내구도 1.5 자동 회복', rarity: 'legend', max: 2 },
-  { id: 'ult', icon: '📣', title: '총공지 확성기', desc: '궁극기 충전 +50% · 피해 +40%', rarity: 'rare', max: 2 },
-  { id: 'charmRes', icon: '🛡️', title: '연애 금지 서약', desc: '홀림 시간 -50%', rarity: 'rare', max: 1 },
+  { id: 'boss', icon: '🍻', title: '랑방 단골의 힘', desc: '공격력 +50% · 공격 속도 +25%', rarity: 'legend', max: 2 },
+  { id: 'regen', icon: '🛠️', title: '건물주 인맥', desc: '랑방이 초당 내구도 2.5 자동 회복', rarity: 'legend', max: 2 },
+  { id: 'ult', icon: '📣', title: '총공지 확성기', desc: '궁극기 충전 +80% · 피해 +60%', rarity: 'rare', max: 2 },
+  { id: 'charmRes', icon: '🛡️', title: '연애 금지 서약', desc: '홀림 시간 -60%', rarity: 'rare', max: 1 },
+  { id: 'debuffRes', icon: '🧘', title: '멘탈 관리', desc: '기절·홀림·눈부심 등 멤버 상태이상 시간 -30%', rarity: 'rare', max: 2 },
+  { id: 'cdCut', icon: '⏱️', title: '스킬 연습', desc: '모든 스킬 쿨타임 -15%', rarity: 'rare', max: 2 },
+  { id: 'armor', icon: '🛡️', title: '모래주머니 추가', desc: '방어선이 받는 피해 -20%', rarity: 'common', max: 2 },
+  { id: 'attrUp', icon: '🔥', title: '상성 공략', desc: '유리한 상성 피해 +25%', rarity: 'rare', max: 2 },
 ];
 // 빌드 카드: 속성 결속 · 특성(태그) · 보스/잡몹 · 위험한 거래 · 보너스
 CARDS.push(
-  { id: 'syn_talk', icon: '🗣️', title: '말빨 결속', desc: '말빨 멤버 공격력 +25%', rarity: 'rare', max: 3, attr: 'talk' },
-  { id: 'syn_power', icon: '👊', title: '힘 결속', desc: '힘 멤버 공격력 +25%', rarity: 'rare', max: 3, attr: 'power' },
-  { id: 'syn_charm', icon: '💖', title: '매력 결속', desc: '매력 멤버 공격력 +25%', rarity: 'rare', max: 3, attr: 'charm' },
-  { id: 'syn_booze', icon: '🍶', title: '술 결속', desc: '술 멤버 공격력 +25%', rarity: 'rare', max: 3, attr: 'booze' },
-  { id: 'tag_pierce', icon: '🗡️', title: '관통 탄두', desc: '관통 멤버 공격력 +25% · 투사체 관통 +1', rarity: 'rare', max: 2, tag: 'pierce' },
-  { id: 'tag_splash', icon: '💥', title: '폭발 증폭', desc: '폭발 범위 +30% · 폭발 멤버 공격력 +20%', rarity: 'rare', max: 2, tag: 'splash' },
-  { id: 'tag_chain', icon: '⚡', title: '연쇄 반응', desc: '연쇄 멤버 튕김 +1 · 공격력 +20%', rarity: 'rare', max: 2, tag: 'chain' },
-  { id: 'tag_kb', icon: '💨', title: '밀어내기 달인', desc: '넉백 +40% · 넉백 멤버 공격력 +20%', rarity: 'common', max: 2, tag: 'kb' },
-  { id: 'tag_heal', icon: '💚', title: '회복 강화', desc: '모든 회복 +50% · 회복 멤버 공격력 +15%', rarity: 'common', max: 2, tag: 'heal' },
-  { id: 'tag_ctrl', icon: '🌀', title: '제어 연장', desc: '감속·기절 시간 +35% · 제어 멤버 공격력 +15%', rarity: 'common', max: 2, tag: 'ctrl' },
-  { id: 'tag_boss', icon: '🎯', title: '보스 사냥꾼', desc: '보스·중간 보스에게 피해 +40%', rarity: 'rare', max: 2, tag: 'boss' },
-  { id: 'swarm', icon: '🌪️', title: '청소부', desc: '일반 진상에게 피해 +22%', rarity: 'common', max: 2 },
-  { id: 'risk_allin', icon: '🎲', title: '올인!', desc: '입구 최대 내구도 -20% · 모든 공격력 +35%', rarity: 'rare', max: 1, risk: true },
-  { id: 'risk_overtime', icon: '🌙', title: '야근 모드', desc: '진상 체력 +15% · 경험치 +50%', rarity: 'common', max: 1, risk: true },
-  { id: 'risk_glass', icon: '🍷', title: '유리 대포', desc: '치명타 피해 +80% · 입구 회복 -50%', rarity: 'rare', max: 1, risk: true },
+  { id: 'syn_talk', icon: '🗣️', title: '말빨 결속', desc: '말빨 멤버 공격력 +42%', rarity: 'rare', max: 3, attr: 'talk' },
+  { id: 'syn_power', icon: '👊', title: '힘 결속', desc: '힘 멤버 공격력 +42%', rarity: 'rare', max: 3, attr: 'power' },
+  { id: 'syn_charm', icon: '💖', title: '매력 결속', desc: '매력 멤버 공격력 +42%', rarity: 'rare', max: 3, attr: 'charm' },
+  { id: 'syn_booze', icon: '🍶', title: '술 결속', desc: '술 멤버 공격력 +42%', rarity: 'rare', max: 3, attr: 'booze' },
+  { id: 'tag_pierce', icon: '🗡️', title: '관통 탄두', desc: '관통 멤버 공격력 +40% · 투사체 관통 +1', rarity: 'rare', max: 2, tag: 'pierce' },
+  { id: 'tag_splash', icon: '💥', title: '폭발 증폭', desc: '폭발 범위 +45% · 폭발 멤버 공격력 +34%', rarity: 'rare', max: 2, tag: 'splash' },
+  { id: 'tag_chain', icon: '⚡', title: '연쇄 반응', desc: '연쇄 멤버 튕김 +1 · 공격력 +34%', rarity: 'rare', max: 2, tag: 'chain' },
+  { id: 'tag_kb', icon: '💨', title: '밀어내기 달인', desc: '넉백 +60% · 넉백 멤버 공격력 +34%', rarity: 'common', max: 2, tag: 'kb' },
+  { id: 'tag_heal', icon: '💚', title: '회복 강화', desc: '모든 회복 +80% · 회복 멤버 공격력 +25%', rarity: 'common', max: 2, tag: 'heal' },
+  { id: 'tag_ctrl', icon: '🌀', title: '제어 연장', desc: '감속·기절 시간 +50% · 제어 멤버 공격력 +25%', rarity: 'common', max: 2, tag: 'ctrl' },
+  { id: 'tag_boss', icon: '🎯', title: '보스 사냥꾼', desc: '보스·중간 보스에게 피해 +65%', rarity: 'rare', max: 2, tag: 'boss' },
+  { id: 'swarm', icon: '🌪️', title: '청소부', desc: '일반 진상에게 피해 +38%', rarity: 'common', max: 2 },
+  { id: 'risk_allin', icon: '🎲', title: '올인!', desc: '입구 최대 내구도 -20% · 모든 공격력 +55%', rarity: 'rare', max: 1, risk: true },
+  { id: 'risk_overtime', icon: '🌙', title: '야근 모드', desc: '진상 체력 +15% · 경험치 +80%', rarity: 'common', max: 1, risk: true },
+  { id: 'risk_glass', icon: '🍷', title: '유리 대포', desc: '치명타 피해 +120% · 입구 회복 -50%', rarity: 'rare', max: 1, risk: true },
   { id: 'econ_bonus', icon: '🎁', title: '보너스 카드', desc: '지금 바로 카드 한 번 더 고르기', rarity: 'common', max: 2 },
 );
+// 멤버 전용 카드 (덱에 있는 멤버만): 그 멤버 기술에 맞춘 강화 + 공격력 +20%. 멤버마다 2번까지
+export const HERO_CARDS = {
+  bangjang: { title: '방장: 공지 오라 +8% · 음파 더 넓게', mul: { cone: 1.3 }, add: { aura: 0.08 } },
+  staff: { title: '운영진: 경고 2번이면 강퇴', add: { warnN: 1 } },
+  gunman: { title: '건전남: 관통 +1 · 사거리 +15%', add: { pierce: 1 }, mul: { range: 1.15 } },
+  gunnyeo: { title: '건전녀: 하트 폭탄 범위 +35% · 수리 +40%', mul: { splash: 1.35, heal: 1.4 } },
+  myunghoon: { title: '서명훈: 욕 튕김 +1 · 기절 +20%', add: { bounce: 1 }, mul: { ctrl: 1.2 } },
+  dohoon: { title: '김도훈: 음파 반경 +25% · 떼창 회복 +40%', mul: { range: 1.25, heal: 1.4 } },
+  ingyu: { title: '백인규: 오토바이 게이지 2칸 빨리', add: { moto: 2 } },
+  donghan: { title: '문동한: 빔 두께 +40%', mul: { beam: 1.4 } },
+  youngjun: { title: '김영준: 돌격 +1초 · 블랙 러시 +2명', add: { out: 1, rush: 2 } },
+  eunok: { title: '최은옥: 분노 +4초', add: { rage: 4 } },
+  hanna: { title: '이한나: 레이저 세지는 속도 +50%', mul: { ramp: 1.5 } },
+  sunggu: { title: '강성구: 지팡이 +1개', add: { cane: 1 } },
+  junseo: { title: '윤준서: 여사친 튕김 +1', add: { bounce: 1 } },
+  hyungyeong: { title: '배현경: 날씬 모드 +3초', add: { diet: 3 } },
+  ara: { title: '고아라: 공주로 +5초 더', add: { young: 5 } },
+  hochan: { title: '이호찬: 랑방 버프 최대 +12%', add: { buff: 0.12 } },
+};
+// 스킬 진화 카드 (Lv3 이상 멤버 · 한 번): 스킬이 한 번 더 터진다 (0.5초 뒤, 옆자리에)
+export const SKILL_EVO = {
+  bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '난사 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
+  dohoon: '무한 앵콜 앵콜', ingyu: '오토바이 부대 한 번 더', donghan: '진심 빔 두 줄', youngjun: '블랙 러시 왕복', eunok: '원샷 두 잔',
+  hanna: '윙크 폭탄 연쇄', sunggu: '지팡이 회오리 두 바퀴', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
+};
+// 숨은 카드 (드물게): 임시 증원 · 게스트 합류 — 한 판에 한 번
+export const SECRET = { tempSlot: 0.045, guest: 0.035 };
 // 멤버 특성 (시너지 카드가 이걸 보고 붙는다)
 export const TAGS = {
   pierce: { id: 'pierce', name: '관통', icon: '🗡️' }, splash: { id: 'splash', name: '폭발', icon: '💥' }, chain: { id: 'chain', name: '연쇄', icon: '⚡' },
@@ -1096,7 +1147,7 @@ export const EVO_MUL = { dmg: 1.45, spd: 0.18, cd: 0.7 };
 // 뽑을 게 모자랄 때 채워 넣는 카드 (제한 없음)
 export const FILLER_CARDS = [
   { id: 'fillUlt', icon: '📣', title: '확성기 예열', desc: '총공지 게이지 +40', rarity: 'common' },
-  { id: 'fillHeal', icon: '💊', title: '응급 수리', desc: '랑방 내구도 35% 회복', rarity: 'common' },
+  { id: 'fillHeal', icon: '💊', title: '방어선 수리', desc: '랑방 내구도 50% 회복', rarity: 'common' },
 ];
 
 // ─── 장비 (서버 langbang-rules.js 와 같은 공식 — 테스트가 검사) ─────────
@@ -1112,6 +1163,7 @@ export const GEAR_STATS = {
   atk: { name: '공격력', pct: true }, spd: { name: '기본 공격 속도', pct: true }, crit: { name: '치명타', pct: true },
   skill: { name: '스킬 피해', pct: true }, cd: { name: '스킬 쿨타임 감소', pct: true }, attr: { name: '상성 피해', pct: true },
   strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true },
+  range: { name: '사거리 (최대 +35%)', pct: true },
 };
 export const GEAR = {
   megaphone: { id: 'megaphone', slot: 'w', icon: '📣', name: '명품 확성기', stat: 'atk', base: 0.06 },
@@ -1126,6 +1178,9 @@ export const GEAR = {
   nametag: { id: 'nametag', slot: 'a', icon: '📛', name: '랑방 명찰', stat: 'attr', base: 0.06 },
   sneaker: { id: 'sneaker', slot: 'a', icon: '👟', name: '한정판 운동화', stat: 'spd', base: 0.04 },
   clover: { id: 'clover', slot: 'a', icon: '🍀', name: '네잎클로버 폰케이스', stat: 'crit', base: 0.025 },
+  telescope: { id: 'telescope', slot: 'w', icon: '📡', name: '망원 확성기', stat: 'range', base: 0.06 },
+  slingcord: { id: 'slingcord', slot: 'a', icon: '🎯', name: '장거리 새총 끈', stat: 'range', base: 0.05 },
+  laser: { id: 'laser', slot: 'a', icon: '🔦', name: '레이저 포인터', stat: 'range', base: 0.045, ch: 3 },
   passport: { id: 'passport', slot: 'w', icon: '🛂', name: '여권 지갑', stat: 'strip', base: 0.07, ch: 4 },
   sunglass: { id: 'sunglass', slot: 'a', icon: '😎', name: '제주 선글라스', stat: 'crit', base: 0.03, ch: 4 },
   lantern: { id: 'lantern', slot: 'a', icon: '🏮', name: '캠핑 랜턴', stat: 'hp', base: 0.05, ch: 5 },
