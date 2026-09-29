@@ -107,8 +107,9 @@ class AuthError extends Error {}
 
 function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, secret = process.env.AUTH_SECRET } = {}) {
   const store = databaseUrl ? new PgStore(databaseUrl) : new FileStore(file);
-  // 토큰 서명 키: 환경변수가 없으면 파일/프로세스용으로 하나 만든다(로컬 전용)
-  const key = secret || crypto.randomBytes(32).toString('hex');
+  // 토큰 서명 키: AUTH_SECRET → 없으면 DB 주소(비밀)에서 만든다 → 그것도 없으면 이번 실행용(로컬)
+  const key = secret
+    || (databaseUrl ? crypto.createHash('sha256').update('chandem-auth:' + databaseUrl).digest('hex') : crypto.randomBytes(32).toString('hex'));
   const ready = store.init().catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
 
   const sign = (id, exp) => crypto.createHmac('sha256', key).update(`${id}.${exp}`).digest('base64url');

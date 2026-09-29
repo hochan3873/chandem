@@ -30,15 +30,25 @@ export function setTrack(name) {
   if (name === track) return;
   track = name;
   if (bgm && bgmTrack !== name) {
+    // 이전 곡: 볼륨을 줄이다가 '정해진 횟수 뒤에는 무조건' 멈춘다.
+    // (아이폰은 웹에서 볼륨을 못 바꿔서, 볼륨이 0 이 되기를 기다리면 영원히 안 멈춘다)
     const old = bgm; bgm = null;
-    const step = () => { old.volume = Math.max(0, old.volume - 0.05); if (old.volume > 0.01) setTimeout(step, 40); else old.pause(); };
+    fading.add(old);
+    let n = 0;
+    const step = () => {
+      try { old.volume = Math.max(0, old.volume - 0.06); } catch {}
+      if (++n < 16 && old.volume > 0.01) setTimeout(step, 40);
+      else { old.pause(); fading.delete(old); }
+    };
     step();
   }
   applyMusic();
 }
+const fading = new Set(); // 바뀌는 중인 이전 곡들 (음악을 끄면 이것도 함께 멈춤)
 function applyMusic() {
   if (!unlocked) return;
   const want = prefs.music && !prefs.muted && !document.hidden && prefs.musicVolume > 0;
+  if (!want) for (const a of fading) { a.pause(); fading.delete(a); }
   if (!bgm) {
     if (!want) return;
     const file = manifest && (manifest[track] || manifest.bgm);
@@ -48,10 +58,17 @@ function applyMusic() {
     bgm.preload = 'auto';
     bgmTrack = track;
   }
-  bgm.volume = prefs.musicVolume;
-  if (want) { if (bgm.paused) bgm.play().catch(() => {}); }
-  else if (!bgm.paused) bgm.pause();
+  try { bgm.volume = prefs.musicVolume; } catch {}
+  if (want) {
+    if (bgm.paused) {
+      const a = bgm;
+      // 재생 요청이 늦게 끝나는 사이에 음악을 껐다면 곧바로 다시 멈춘다
+      a.play().then(() => { if (a !== bgm || !(prefs.music && !prefs.muted && !document.hidden)) a.pause(); }).catch(() => {});
+    }
+  } else if (!bgm.paused) bgm.pause();
 }
+/** 지금 재생 중인 배경음악 개수 (검증용) */
+export function playingCount() { return [bgm, ...fading].filter((a) => a && !a.paused).length; }
 document.addEventListener('visibilitychange', applyMusic);
 export function musicState() { return bgm ? { playing: !bgm.paused, src: bgm.src, volume: bgm.volume } : null; }
 export function isUnlocked() { return unlocked; }
