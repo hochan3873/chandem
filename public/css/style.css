@@ -736,3 +736,7 @@ body[data-theme="omok"] .btn-gold { background: linear-gradient(180deg, #f1dcb2,
 .hwatu.hw-img .hw-num { position: absolute; left: calc(var(--w) * .05); top: calc(var(--w) * .04); font-size: calc(var(--w) * .26); color: #fff; background: rgba(120, 10, 20, .85); border-radius: calc(var(--w) * .08); padding: 0 calc(var(--w) * .07); line-height: 1.25; box-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
 .card-xs.hwatu.hw-img .hw-num { font-size: calc(var(--w) * .42); left: 1px; top: 1px; }
 .card-xs.hwatu.hw-img .hw-mark { display: none; }
+
+form:not([data-game=seotda]) .seotda-only { display: none; }
+.me-cards.three .card-lg { --w: 52px; }
+.me-cards.three { gap: 4px; }

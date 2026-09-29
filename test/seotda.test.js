@@ -90,3 +90,39 @@ test('무작위 1000판: 칩 총량 보존', () => {
     assert.equal(end, start, `판 ${i}`);
   }
 });
+
+test('세 장 섯다: 두 장 → 베팅 → 한 장 더 → 베팅 → 가장 좋은 두 장으로 승부', () => {
+  const { SeotdaHand } = require('../server/games/seotda');
+  // 딜러 A → B부터: B 3A, A 9A, B 8A, A 9B, 세 번째: B 2B, A 1B
+  const deck = ['3A', '9A', '8A', '9B', '2B', '1B'];
+  const h = SeotdaHand.create({ players: [{ id: 'A', stack: 500 }, { id: 'B', stack: 500 }], dealerIndex: 0, bb: 10, deck, cards: 3 });
+  assert.equal(h.seatOf('B').hole.length, 2);
+  h.act('B', { type: 'check' }); h.act('A', { type: 'check' });
+  assert.equal(h.stage, 'betting2');
+  assert.equal(h.seatOf('B').hole.length, 3);
+  h.act('B', { type: 'bet', amount: 20 }); h.act('A', { type: 'call' });
+  assert.equal(h.finished, true);
+  assert.equal(h.result.hands.B.name, '38광땡');
+  assert.deepEqual(h.result.hands.B.best.sort(), ['3A', '8A']);
+  assert.deepEqual(h.result.winners, ['B']);
+});
+
+test('세 장 섯다 무작위 1000판: 칩 총량 보존', () => {
+  const { SeotdaHand } = require('../server/games/seotda');
+  for (let i = 0; i < 1000; i++) {
+    const n = 2 + (i % 5);
+    const h = SeotdaHand.create({ players: Array.from({ length: n }, (_, k) => ({ id: 'p' + k, stack: 50 + ((i * 37 + k * 11) % 300) })), dealerIndex: i % n, bb: 10, cards: 3 });
+    let guard = 0;
+    while (!h.finished && guard++ < 200) {
+      const la = h.legalActions(h.currentId);
+      const x = Math.random();
+      if (x < 0.15 && la.canFold) h.act(h.currentId, { type: 'fold' });
+      else if (x < 0.35 && (la.canBet || la.canRaise)) h.act(h.currentId, { type: la.canBet ? 'bet' : 'raise', amount: la.minTo });
+      else if (x < 0.4 && la.canAllIn) h.act(h.currentId, { type: 'allin' });
+      else h.act(h.currentId, { type: la.canCheck ? 'check' : 'call' });
+    }
+    const start = h.seats.reduce((a, s) => a + s.startStack, 0);
+    const end = h.seats.reduce((a, s) => a + s.stack, 0) + (h.result.carry ? h.result.carry.amount : 0);
+    assert.equal(end, start, `판 ${i}`);
+  }
+});

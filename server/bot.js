@@ -189,20 +189,22 @@ const SD_PCT = new Map(); // 두 장 → 190 조합 중 상위 몇 %
   all.forEach(([a, b], i) => { SD_PCT.set(a + b, (i + 0.5) / all.length); SD_PCT.set(b + a, (i + 0.5) / all.length); });
 })();
 
-function seotdaEquity(hole, ranges, iters = 400) {
+function seotdaEquity(hole, ranges, iters = 400, per = 2) {
   const rest = seotda.newSeotdaDeck().filter((c) => !hole.includes(c));
   let win = 0;
   for (let it = 0; it < iters; it++) {
     const d = rest.slice();
     let top = 0;
     const take = () => { const j = top + Math.floor(Math.random() * (d.length - top)); [d[top], d[j]] = [d[j], d[top]]; return d[top++]; };
-    const hands = { me: hole };
+    const mine = hole.slice();
+    while (mine.length < per) mine.push(take()); // 세 장 섯다: 아직 안 받은 패도 뽑아 본다
+    const hands = { me: mine };
     ranges.forEach((r, k) => {
       const mark = top; let a, b, tries = 0;
       do { top = mark; a = take(); b = take(); } while (r < 1 && SD_PCT.get(a + b) > r && ++tries < 30);
-      hands['o' + k] = [a, b];
+      hands['o' + k] = per === 3 ? [a, b, take()] : [a, b];
     });
-    const { eff, redeal } = seotda.resolveShowdown(hands);
+    const { eff, redeal } = seotda.resolveShowdown(per === 3 ? seotda.choosePairs(hands) : hands);
     if (redeal) { win += 0.5; continue; }
     const best = Math.max(...Object.values(eff));
     const ties = Object.values(eff).filter((v) => v === best).length;
@@ -233,7 +235,7 @@ function decideSeotda(hand, id, style = STYLES[0], stats = {}, level = 'normal')
     if (L.readCall && s.lastAction === 'call') return rangeOf(stats, s.id, 'call'); // 콜로 따라온 사람도 아무 패는 아니다
     return 1;
   });
-  const eq = Math.max(0, Math.min(1, seotdaEquity(me.hole, ranges, L.iters) + (L.noise ? (Math.random() * 2 - 1) * L.noise : 0)));
+  const eq = Math.max(0, Math.min(1, seotdaEquity(me.hole, ranges, L.iters, hand.cardsPer || 2) + (L.noise ? (Math.random() * 2 - 1) * L.noise : 0)));
   const sizeTo = (frac) => {
     const to = Math.round((la.currentBet + Math.max(pot + la.toCall, hand.bb) * frac) / hand.bb) * hand.bb;
     return Math.max(la.minTo, Math.min(la.maxTo, to));

@@ -21,5 +21,8 @@
   "e_happy": "e_happy.mp3",
   "e_mock": "e_mock.mp3",
   "e_laugh": "e_laugh.mp3",
-  "e_cry": "e_cry.mp3"
+  "e_cry": "e_cry.mp3",
+  "bgm_hub": "bgm_hub.mp3",
+  "bgm_seotda": "bgm_seotda.mp3",
+  "bgm_omok": "bgm_omok.mp3"
 }

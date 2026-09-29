@@ -1,5 +1,5 @@
 import { cardHTML, cardsHTML, cardName, setDeckStyle } from './cards.js';
-import { rankSeotda, seotdaChartHTML } from './seotda.js';
+import { rankSeotda, seotdaChartHTML, bestPairSeotda } from './seotda.js';
 import * as sound from './sound.js';
 import { handChartHTML } from './handchart.js';
 import { bestHand } from './evaluator.js';
@@ -574,6 +574,9 @@ function flyPotTo(winners) {
 function render() {
   if (S.view !== 'room') S.gameMounted = false;
   document.body.dataset.theme = S.view === 'room' && S.state ? gameOf(S.state) : S.view === 'home' ? 'hub' : (S.game || 'holdem');
+  // 배경음악: 메인은 메인 곡, 게임 화면·게임방은 그 게임 곡
+  const th = document.body.dataset.theme;
+  sound.setTrack(th === 'hub' ? 'bgm_hub' : th === 'holdem' ? 'bgm' : 'bgm_' + th);
   switch (S.view) {
     case 'boot': $app.innerHTML = `<div class="center-screen">${logoHTML()}<p class="muted">불러오는 중…</p></div>`; break;
     case 'home': renderHome(); break;
@@ -605,7 +608,7 @@ const GAME_INFO = {
 };
 const GAME_RULES = {
   holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
-  seotda: '<p>모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
+  seotda: '<p><b>두 장 섯다</b>: 모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p><b>세 장 섯다</b>: 두 장을 받고 1차 베팅, 한 장을 더 받고 2차 베팅. 세 장 중 가장 좋은 두 장으로 승부해요(자동으로 골라 줘요).</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
   omok: '<p>흑이 먼저 두고, 가로·세로·대각선으로 <b>정확히 다섯 알</b>을 먼저 이으면 이겨요.</p><p>흑은 <b>삼삼</b>(열린 3이 두 개 생기는 자리)에 둘 수 없어요. 흑의 여섯 알(장목)은 승리가 아니에요.</p><p>로그인하면 대국마다 점수가 오르내리고 티어가 정해져요.</p>',
 };
 // 게임별 입장 화면
@@ -693,6 +696,13 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
   <label class="field"><span>내 닉네임</span>
     <input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
   ${avatarPickerHTML()}` : ''}
+  <fieldset class="fieldset seotda-only">
+    <legend>섯다 방식</legend>
+    <div class="seg">
+      <label class="seg-opt"><input type="radio" name="cards" value="2" ${Number(s.cards || 2) !== 3 ? 'checked' : ''}><span>두 장 섯다<small>두 장 받고 한 번 베팅</small></span></label>
+      <label class="seg-opt"><input type="radio" name="cards" value="3" ${Number(s.cards) === 3 ? 'checked' : ''}><span>세 장 섯다<small>한 장 더 받고 좋은 두 장</small></span></label>
+    </div>
+  </fieldset>
   <fieldset class="fieldset chips-only">
     <legend>게임 방식</legend>
     <div class="seg">
@@ -750,6 +760,7 @@ function readSettings(form) {
     password: String(fd.get('password') || ''), approval: fd.get('approval') === 'on',
     mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 5,
     ...(fd.get('game') ? { game: fd.get('game') } : {}),
+    cards: Number(fd.get('cards')) === 3 ? 3 : 2,
   };
 }
 
@@ -808,6 +819,12 @@ function renderPractice() {
       <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
       ${avatarPickerHTML()}
       <fieldset class="fieldset ${S.game ? 'hidden-pick' : ''}"><legend>게임</legend>${gamePickHTML(S.game || LS.get('chandem:pgame', 'holdem'), 'pgame')}</fieldset>
+      <fieldset class="fieldset seotda-only"><legend>섯다 방식</legend>
+        <div class="seg">
+          <label class="seg-opt"><input type="radio" name="pcards" value="2" ${LS.get('chandem:pcards', 2) !== 3 ? 'checked' : ''}><span>두 장 섯다</span></label>
+          <label class="seg-opt"><input type="radio" name="pcards" value="3" ${LS.get('chandem:pcards', 2) === 3 ? 'checked' : ''}><span>세 장 섯다</span></label>
+        </div>
+      </fieldset>
       <fieldset class="fieldset ai-only"><legend>AI 실력</legend>
         <div class="seg">${[['easy', '쉬움'], ['normal', '보통'], ['hard', '어려움']].map(([k, t]) => `<label class="seg-opt"><input type="radio" name="ailevel" value="${k}" ${LS.get('chandem:ailevel', 'normal') === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
       </fieldset>
@@ -845,6 +862,7 @@ function renderPractice() {
     LS.set('chandem:pmode', tourney ? 'tournament' : 'cash');
     const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99, mode: tourney && game !== 'omok' ? 'tournament' : 'cash', levelMinutes: 3, game, ...(game === 'seotda' ? { sb: bb } : {}), aiLevel: fd.get('ailevel') || 'normal' };
     if (game !== 'holdem') LS.set('chandem:ailevel', settings.aiLevel);
+    if (game === 'seotda') { settings.cards = Number(fd.get('pcards')) === 3 ? 3 : 2; LS.set('chandem:pcards', settings.cards); }
     const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
@@ -949,7 +967,7 @@ function settingsSummaryHTML(s) {
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
     <li><span>리바인</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
-    <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}</b></li>
+    <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? '세 장' : '두 장'})` : ''}</b></li>
     <li><span>방식</span><b>${s.mode === 'tournament' ? `🏆 토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
     <li><span>입장</span><b>${[s.hasPassword ? '비밀번호' : '', s.approval ? '방장 승인' : ''].filter(Boolean).join(' + ') || '링크만 있으면 누구나'}</b></li>
   </ul>`;
@@ -1484,7 +1502,7 @@ function renderTable(st) {
     center = `
       <div class="table-center">
         <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}">${(h.game === 'seotda' ? '' : { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '🔥 올인 승부' }[h.stage] || '')}</div>
-        ${h.game === 'seotda' ? `<div class="sd-center">🎴 섯다${h.stage === 'betting' ? ' · 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
+        ${h.game === 'seotda' ? `<div class="sd-center">🎴 ${st.room.settings.cards === 3 ? '세 장' : '두 장'} 섯다${h.stage === 'betting' ? (st.room.settings.cards === 3 ? ' · 1차 베팅' : ' · 베팅') : h.stage === 'betting2' ? ' · 2차 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
         <div class="pot"><span class="chip-icon pot-chip"></span><b>${potText}</b>${h.totalPot > h.pot ? `<span class="pot-note">이번 라운드 ${fmt(h.totalPot - h.pot)} 포함</span>` : ''}</div>
         ${sidePots}
         ${result ? resultHTML(st, result) : ''}
@@ -1538,7 +1556,8 @@ function renderMe(st) {
   const cards = mp.cards && mp.cards[0] !== '??' ? mp.cards : null;
   let handName = '';
   if (cards && h && h.game === 'seotda') {
-    handName = rankSeotda(cards[0], cards[1]).name;
+    const bp = bestPairSeotda(cards);
+    handName = rankSeotda(bp[0], bp[1]).name + (cards.length === 3 ? ' (가장 좋은 두 장)' : '');
   } else if (cards && h) {
     const all = cards.concat(h.board);
     if (all.length >= 5) handName = bestHand(all).name;
@@ -1547,7 +1566,7 @@ function renderMe(st) {
   const result = h && h.result;
   const delta = result && result.deltas ? result.deltas[me.id] : undefined;
   el.innerHTML = `
-    <div class="me-cards ${mp.status === 'folded' ? 'folded' : ''}">
+    <div class="me-cards ${mp.status === 'folded' ? 'folded' : ''} ${cards && cards.length === 3 ? 'three' : ''}">
       ${cards ? cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${h.no}:me:${k}`), delay: k * 120, highlight: result && result.hands && result.hands[me.id] && result.hands[me.id].best.includes(c) })).join('') : `<span class="muted">${st.room.phase === 'playing' ? '이번 판은 쉬는 중이에요' : ''}</span>`}
     </div>
     <div class="me-info">
@@ -1864,10 +1883,11 @@ const SD_BIG = { '38광땡': 9, '18광땡': 8, '13광땡': 8, '장땡': 7 };
 function announceSeotda(st, once) {
   const h = st.hand;
   if (!h || !h.reveal) return;
-  const shown = st.players.filter((p) => p.cards && p.cards.length === 2 && p.cards[0] !== '??' && ['inhand', 'allin'].includes(p.status));
+  const shown = st.players.filter((p) => p.cards && p.cards.length >= 2 && p.cards[0] !== '??' && ['inhand', 'allin'].includes(p.status));
   for (const p of shown) {
     if (!once('ann:' + p.id)) continue;
-    const r = rankSeotda(p.cards[0], p.cards[1]);
+    const bp = bestPairSeotda(p.cards);
+    const r = rankSeotda(bp[0], bp[1]);
     const big = r.tier === 'gwang' || r.tier === 'ddaeng';
     const at = Math.max(Date.now() + 250, S.annAt || 0);
     S.annAt = at + (big ? 2400 : 1000);

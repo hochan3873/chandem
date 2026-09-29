@@ -37,3 +37,14 @@ export function seotdaChartHTML() {
   const t = (list) => `<ul class="chart-list">${list.map(([n, how, note]) => `<li><b>${n}</b><span>${how}</span>${note ? `<small class="muted">${note}</small>` : ''}</li>`).join('')}</ul>`;
   return `<p class="muted small">위에서부터 강한 순서예요. 같은 족보면 판돈을 나눠 가져요.</p>${t(rows)}<h3 class="sub-title">특수 패</h3>${t(special)}`;
 }
+
+/** 세 장 중 가장 좋은 두 장 */
+export function bestPairSeotda(cards) {
+  if (cards.length <= 2) return cards.slice(0, 2);
+  let best = null;
+  for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) {
+    const r = rankSeotda(cards[i], cards[j]);
+    if (!best || r.rank > best.r.rank) best = { r, pair: [cards[i], cards[j]] };
+  }
+  return best.pair;
+}

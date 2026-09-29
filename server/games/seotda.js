@@ -55,6 +55,37 @@ function rankSeotda(a, b) {
   return { rank: 700 + k, name: k === 9 ? '갑오' : k === 0 ? '망통' : `${k}끗`, tier: 'kkeut' };
 }
 
+/** 세 장 중 가장 좋은 두 장 (기본 족보 기준) */
+function bestPair(cards) {
+  if (cards.length <= 2) return cards.slice();
+  let best = null;
+  for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) {
+    const r = rankSeotda(cards[i], cards[j]).rank;
+    if (!best || r > best.r) best = { r, pair: [cards[i], cards[j]] };
+  }
+  return best.pair;
+}
+
+/**
+ * 세 장 섯다: 각자 가장 좋은 두 장을 고른다. 땡잡이·암행어사처럼 상대 패에 따라
+ * 더 좋은 조합이 있으면 그것으로 바꾼다 (한 번 더 살펴봄).
+ */
+function choosePairs(hands) {
+  const chosen = {};
+  for (const id of Object.keys(hands)) chosen[id] = bestPair(hands[id]);
+  for (const id of Object.keys(hands)) {
+    const cards = hands[id];
+    if (cards.length <= 2) continue;
+    let bestEff = resolveShowdown(chosen).eff[id];
+    for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) {
+      const trial = { ...chosen, [id]: [cards[i], cards[j]] };
+      const x = resolveShowdown(trial);
+      if (!x.redeal && x.eff[id] > bestEff) { bestEff = x.eff[id]; chosen[id] = [cards[i], cards[j]]; }
+    }
+  }
+  return chosen;
+}
+
 /**
  * 쇼다운에서 실제 힘(땡잡이·암행어사가 잡는지)과 재경기 여부를 계산한다.
  * hands: { id: [c1, c2] } → { eff: {id: rank}, info: {id: rankSeotda}, redeal: null|'구사'|'멍텅구리구사' }
@@ -86,15 +117,17 @@ function resolveShowdown(hands) {
 
 class SeotdaHand extends Hand {
   /** players, dealerIndex, bb(= 판돈), carry: { amount, ids } 재경기로 넘어온 판돈 */
-  static create({ players, dealerIndex, bb, deck, carry }) {
+  static create({ players, dealerIndex, bb, deck, carry, cards = 2 }) {
     const h = Object.create(SeotdaHand.prototype);
-    h.init({ players, dealerIndex, bb, deck, carry });
+    h.init({ players, dealerIndex, bb, deck, carry, cards });
     return h;
   }
 
-  init({ players, dealerIndex, bb, deck, carry }) {
+  init({ players, dealerIndex, bb, deck, carry, cards = 2 }) {
     if (players.length < 2) throw new Error('최소 2명이 필요합니다');
     this.kind = 'seotda';
+    this.cardsPer = cards === 3 ? 3 : 2; // 두 장 섯다 / 세 장 섯다
+    this.thirdDealt = false;
     this.sb = bb;
     this.bb = bb;
     this.dealerIndex = dealerIndex;
@@ -127,10 +160,26 @@ class SeotdaHand extends Hand {
     this.moveToNext(dealerIndex);
   }
 
-  // 베팅은 한 바퀴뿐: 끝나면 바로 쇼다운
+  // 두 장 섯다는 베팅 한 바퀴 뒤 쇼다운, 세 장 섯다는 한 장 더 받고 한 바퀴 더
   endStreet() {
     if (this.finished) return;
     if (this.live.length === 1) { this.finishByFold(); return; }
+    if (this.cardsPer === 3 && !this.thirdDealt) {
+      this.thirdDealt = true;
+      for (const s of this.seats) {
+        s.bet = 0; s.acted = false; s.lastActedLevel = 0;
+        if (!s.folded && !s.allIn) s.lastAction = null;
+      }
+      this.currentBet = 0;
+      this.minRaise = this.bb;
+      const n = this.seats.length;
+      for (let k = 1; k <= n; k++) { const s = this.seats[(this.dealerIndex + k) % n]; if (!s.folded) s.hole.push(this.draw()); }
+      this.stage = 'betting2';
+      this.pushLog({ type: 'street', third: true, board: [] });
+      if (this.canActCount <= 1) { this.showdown(); return; }
+      this.moveToNext(this.dealerIndex);
+      return;
+    }
     this.showdown();
   }
 
@@ -152,12 +201,13 @@ class SeotdaHand extends Hand {
 
   showdown() {
     this.stage = 'showdown';
-    const cards = {};
-    for (const s of this.live) cards[s.id] = s.hole;
+    const all = {};
+    for (const s of this.live) all[s.id] = s.hole;
+    const cards = choosePairs(all);
     const { eff, info, redeal } = resolveShowdown(cards);
     const hands = {};
     for (const s of this.live) {
-      hands[s.id] = { hole: s.hole.slice(), best: s.hole.slice(), name: info[s.id].name, category: info[s.id].tier, rank: eff[s.id] };
+      hands[s.id] = { hole: s.hole.slice(), best: cards[s.id].slice(), name: info[s.id].name, category: info[s.id].tier, rank: eff[s.id] };
     }
     if (redeal) {
       // 재경기: 팟은 그대로 다음 판으로 넘기고, 살아 있는 사람끼리 다시 친다
@@ -188,4 +238,4 @@ class SeotdaHand extends Hand {
   }
 }
 
-module.exports = { SeotdaHand, rankSeotda, resolveShowdown, newSeotdaDeck, isGwang, isYeol, IllegalAction };
+module.exports = { SeotdaHand, rankSeotda, resolveShowdown, bestPair, choosePairs, newSeotdaDeck, isGwang, isYeol, IllegalAction };

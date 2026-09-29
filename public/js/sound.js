@@ -23,16 +23,30 @@ export function setMusicVolume(v) { prefs.musicVolume = Math.max(0, Math.min(1, 
 
 // ── 배경음악: <audio> 로 스트리밍 + 반복 재생 ───────────────
 let bgm = null;
+let track = 'bgm';           // 화면마다 다른 곡: bgm_hub(메인) · bgm(홀덤) · bgm_seotda · bgm_omok
+let bgmTrack = null;
+/** 곡 바꾸기: 이전 곡은 천천히 줄이고 새 곡으로 */
+export function setTrack(name) {
+  if (name === track) return;
+  track = name;
+  if (bgm && bgmTrack !== name) {
+    const old = bgm; bgm = null;
+    const step = () => { old.volume = Math.max(0, old.volume - 0.05); if (old.volume > 0.01) setTimeout(step, 40); else old.pause(); };
+    step();
+  }
+  applyMusic();
+}
 function applyMusic() {
   if (!unlocked) return;
   const want = prefs.music && !prefs.muted && !document.hidden && prefs.musicVolume > 0;
   if (!bgm) {
     if (!want) return;
-    const file = manifest && manifest.bgm;
+    const file = manifest && (manifest[track] || manifest.bgm);
     if (!file) return;
     bgm = new Audio('/sounds/' + file);
     bgm.loop = true;
     bgm.preload = 'auto';
+    bgmTrack = track;
   }
   bgm.volume = prefs.musicVolume;
   if (want) { if (bgm.paused) bgm.play().catch(() => {}); }
@@ -79,7 +93,7 @@ export function unlock() {
   if (ctx.state === 'suspended') ctx.resume();
   unlocked = true;
   loadManifest().then(() => {
-    for (const n of Object.keys(manifest)) if (n !== 'bgm') loadBuffer(n);
+    for (const n of Object.keys(manifest)) if (!n.startsWith('bgm')) loadBuffer(n);
     applyMusic();
   });
 }

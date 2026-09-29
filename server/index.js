@@ -184,10 +184,16 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     if (r && r.host) {
       const s = r.settings;
       const title = `${r.host.name}님이 ${{ holdem: '홀덤', seotda: '섯다', omok: '오목' }[s.game] || '게임'} 방에 초대했어요 · 찬이의 게임월드`;
-      const desc = `방 코드 ${r.code} · 블라인드 ${s.sb}/${s.bb} · 시작 칩 ${s.startChips.toLocaleString('ko-KR')} · 지금 ${r.seated.length}/${s.maxPlayers}명`;
+      const desc = s.game === 'omok'
+        ? `방 코드 ${r.code} · 1:1 오목 대국 · 지금 ${r.seated.length}/2명`
+        : `방 코드 ${r.code} · ${s.game === 'seotda' ? `${s.cards === 3 ? '세 장' : '두 장'} 섯다 · 판돈 ${s.bb}` : `블라인드 ${s.sb}/${s.bb}`} · 시작 칩 ${s.startChips.toLocaleString('ko-KR')} · 지금 ${r.seated.length}/${s.maxPlayers}명`;
+      const base = (publicUrl || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
       html = html
         .replace(/(<meta property="og:title" content=")[^"]*/, `$1${escHtml(title)}`)
-        .replace(/(<meta property="og:description" content=")[^"]*/, `$1${escHtml(desc)}`);
+        .replace(/(<meta property="og:description" content=")[^"]*/, `$1${escHtml(desc)}`)
+        // 카카오톡은 og:url 을 기준으로 미리보기를 저장하므로 방마다 자기 주소를, 사진은 그 게임 그림을
+        .replace(/(<meta property="og:url" content=")[^"]*/, `$1${escHtml(`${base}/r/${r.code}`)}`)
+        .replace(/(<meta property="og:image" content=")[^"]*/, `$1${escHtml(`${base}/img/og-${s.game || 'holdem'}.jpg`)}`);
     }
     res.type('html').send(html);
   });

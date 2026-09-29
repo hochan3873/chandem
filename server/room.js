@@ -61,6 +61,7 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.mode = src.mode === undefined ? (base.mode || 'cash') : src.mode === 'tournament' ? 'tournament' : 'cash';
   s.levelMinutes = Math.min(60, Math.max(1, int(src.levelMinutes, base.levelMinutes || 5)));
   if (s.mode === 'tournament') s.rebuyEnabled = false;   // 토너먼트는 칩을 다 잃으면 탈락
+  s.cards = src.cards === undefined ? (base.cards || 2) : Number(src.cards) === 3 ? 3 : 2; // 섯다: 두 장 / 세 장
   s.aiLevel = ['easy', 'normal', 'hard'].includes(src.aiLevel) ? src.aiLevel : (base.aiLevel || 'normal');
   if (s.game === 'omok') {
     // 오목: 두 사람만 두고 나머지는 관전, 칩·토너먼트 없음
@@ -515,7 +516,7 @@ class Room {
       if (this.handNo % 2 === 0) two.reverse();
       this.hand = new OmokGame({ players: two, dealerIndex: 0 });
     } else if (this.settings.game === 'seotda') {
-      this.hand = SeotdaHand.create({ players, dealerIndex, bb: this.blinds().bb, carry });
+      this.hand = SeotdaHand.create({ players, dealerIndex, bb: this.blinds().bb, carry, cards: this.settings.cards });
       if (carry) this.pushFeed(`🎴 재경기 · 이월된 판돈 ${carry.amount.toLocaleString()}`);
     } else {
       this.hand = new Hand({ players, dealerIndex, sb: this.blinds().sb, bb: this.blinds().bb });
@@ -608,7 +609,7 @@ class Room {
       case 'bet': return `${n} 베팅 ${amt(e.to)}`;
       case 'raise': return `${n} 레이즈 ${amt(e.to)}까지`;
       case 'allin': return `${n} 올인 (${amt(e.to)})`;
-      case 'street': return { 3: '플랍', 4: '턴', 5: '리버' }[e.board.length] + ' 공개';
+      case 'street': return e.third ? '세 번째 패를 받았어요' : { 3: '플랍', 4: '턴', 5: '리버' }[e.board.length] + ' 공개';
       case 'place': return `${n} ${e.color === 'b' ? '⚫' : '⚪'} ${String.fromCharCode(65 + e.x)}${e.y + 1}`;
       case 'resign': return `${n} 기권`;
       case 'end': return e.result === 'draw' ? '무승부' : e.result === 'redeal' ? `${e.redeal}! 재경기` : `${e.winners.map((w) => this.name(w)).join(', ')} 승리`;

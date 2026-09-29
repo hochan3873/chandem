@@ -1,5 +1,5 @@
-﻿// 찬덤 서비스 워커: 앱 설치(홈 화면)용. 항상 새 버전을 먼저 받고, 인터넷이 끊겼을 때만 저장본을 쓴다.
-const CACHE = 'gameworld-v2';
+// 찬덤 서비스 워커: 앱 설치(홈 화면)용. 항상 새 버전을 먼저 받고, 인터넷이 끊겼을 때만 저장본을 쓴다.
+const CACHE = 'gameworld-v3';
 const SHELL = ['/', '/css/style.css', '/js/app.js', '/js/cards.js', '/js/sound.js', '/js/seotda.js', '/js/evaluator.js', '/js/handchart.js', '/img/emblem.webp', '/img/icon-192.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

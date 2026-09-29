@@ -188,7 +188,7 @@ function check(cond, msg) {
     }
     return out;
   });
-  check(audio.length === 23, `음성 22개 + 배경음악 디코딩: ${audio.join(', ')}`);
+  check(audio.length === 26, `음성 22개 + 배경음악 4곡 디코딩: ${audio.join(', ')}`);
   const imgs = await A.evaluate(async () => {
     const list = ['/img/icon-192.png', '/img/emblem.webp', '/img/bg-lobby.webp', '/img/felt.webp', ...Array.from({ length: 8 }, (_, i) => `/img/avatars/a${i + 1}.webp`)];
     const res = await Promise.all(list.map((u) => fetch(u).then((r) => r.ok)));
@@ -209,8 +209,10 @@ function check(cond, msg) {
   const og = await (await fetch(`${base}/r/${code}`)).text();
   const ogTitle = (og.match(/og:title" content="([^"]*)/) || [])[1];
   const ogImg = (og.match(/og:image" content="([^"]*)/) || [])[1];
-  check(ogTitle && ogTitle.includes('찬님이') && /og\.jpg$/.test(ogImg), `미리보기 제목: ${ogTitle}`);
-  check((await fetch(`${base}/img/og.jpg`)).ok, '미리보기 이미지 로드');
+  const ogUrl = (og.match(/og:url" content="([^"]*)/) || [])[1];
+  check(ogTitle && ogTitle.includes('찬님이') && /og-holdem\.jpg$/.test(ogImg), `미리보기 제목: ${ogTitle} · 사진 ${ogImg && ogImg.split('/').pop()}`);
+  check(ogUrl && ogUrl.endsWith(`/r/${code}`), `미리보기 주소가 방 주소 (카카오 캐시 분리): ${ogUrl}`);
+  check((await fetch(new URL(ogImg).pathname.replace(/^/, base))).ok, '미리보기 이미지 로드');
 
   check(errors.length === 0, `브라우저 오류 없음${errors.length ? ': ' + errors.join(' | ') : ''}`);
   await browser.close();
