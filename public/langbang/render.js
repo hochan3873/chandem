@@ -217,6 +217,29 @@ export class Renderer {
     let real = false;
     if (imgOk(img)) {
       x.imageSmoothingQuality = 'high';
+      if (isHero) {
+        // 어두운 옷(최은옥 가죽자켓·이한나 교복)이 골목 배경에 묻히지 않게 테두리를 두른다. 히든은 분홍 빛
+        const sil = mkCanvas(px, px);
+        const sx = sil.getContext('2d');
+        sx.imageSmoothingQuality = 'high';
+        sx.drawImage(img, 0, 0, px, px);
+        sx.globalCompositeOperation = 'source-in';
+        sx.fillStyle = rage ? '#ffb199' : def.hidden ? '#ffc4f2' : '#fff4d6';
+        sx.fillRect(0, 0, px, px);
+        const r = Math.max(1.5, px * (def.hidden ? 0.02 : 0.014));
+        if (def.hidden) {
+          x.save();
+          x.shadowColor = rage ? 'rgba(255,70,40,0.95)' : 'rgba(255,90,220,0.95)';
+          x.shadowBlur = px * 0.06;
+          x.drawImage(sil, 0, 0);
+          x.drawImage(sil, 0, 0);
+          x.restore();
+        }
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * TAU;
+          x.drawImage(sil, Math.cos(a) * r, Math.sin(a) * r);
+        }
+      }
       x.drawImage(img, 0, 0, px, px);
       real = true;
     } else {
