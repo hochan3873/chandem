@@ -7,7 +7,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { Room, RoomError, sanitizeSettings, makeCode } = require('./room');
-const { createAccounts } = require('./accounts');
+const { createAccounts, hashPassword } = require('./accounts');
 const { createSite } = require('./site');
 const { createAdmin } = require('./admin');
 
@@ -33,6 +33,23 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const acct = accounts || createAccounts({ file: dataFile ? path.join(path.dirname(dataFile), 'accounts.json') : null });
   // 공지 · 출석 · 계정 관리 · 건의함 · 점검 모드 (server/site.js)
   const site = createSite({ acct, file: dataFile ? path.join(path.dirname(dataFile), 'site.json') : null, now });
+  // 비상 비밀번호 재설정: 서버 환경 변수 RESET_USER(아이디) · RESET_PASSWORD(새 비밀번호, 6자 이상)를 넣고 배포하면
+  // 켜질 때 한 번 바꾸고 그 계정의 모든 기기를 로그아웃한다. 로그인되면 두 변수를 지우고 다시 배포할 것.
+  const resetUser = String(process.env.RESET_USER || '').trim().toLowerCase();
+  const resetPass = String(process.env.RESET_PASSWORD || '');
+  if (resetUser && resetPass.length >= 6 && resetPass.length <= 64) {
+    site.ready.then(async () => {
+      const u = await acct.store.byName(resetUser);
+      if (!u) { console.warn('[reset] 없는 아이디:', resetUser); return; }
+      await acct.exclusive(async () => {
+        const cur = await acct.store.byId(u.id);
+        await site.store.setPass(u.id, hashPassword(resetPass));
+        const meta = site.metaOf(cur);
+        await site.saveMeta(cur, { ...meta, tv: (meta.tv | 0) + 1 });
+      });
+      console.log('[reset] 비밀번호를 바꿨어요:', resetUser, '— 이제 RESET_USER/RESET_PASSWORD 를 지우세요');
+    }).catch((e) => console.error('[reset] 실패:', e.message));
+  }
   const app = express();
   const server = http.createServer(app);
   const io = new Server(server, { pingInterval: 10000, pingTimeout: 8000, maxHttpBufferSize: 96 * 1024 });
