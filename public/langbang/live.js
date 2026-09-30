@@ -4,7 +4,7 @@
 // 모든 코인은 게임 안 점수일 뿐 (현금 결제 없음).
 import {
   HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK,
-  GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT,
+  GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT, heroTier, GEAR,
 } from './data.js';
 export const stageBossN = (s) => stageBosses(s).length;
 
@@ -74,7 +74,7 @@ export const FRAMES = {
 };
 // 칭호 카탈로그 (얻는 법 · 등급) — 시즌 칭호는 titleName 으로 따로
 export const TITLE_INFO = {
-  ewchamp: { rarity: 'legend', how: '무한 도전 주간 1위' }, wchamp: { rarity: 'legend', how: '주간 도전 1위' }, wtop3: { rarity: 'epic', how: '주간 도전 TOP 3' }, gacha100: { rarity: 'rare', how: '업적: 모집 100번' },
+  ewchamp: { rarity: 'legend', how: '무한 도전 주간 1위' }, collector: { rarity: 'legend', how: '장비 도감 전부 모으기' }, wchamp: { rarity: 'legend', how: '주간 도전 1위' }, wtop3: { rarity: 'epic', how: '주간 도전 TOP 3' }, gacha100: { rarity: 'rare', how: '업적: 모집 100번' },
   perfect30: { rarity: 'epic', how: '업적: PERFECT 30개' }, raid1: { rarity: 'legend', how: '레이드 데미지 1위' },
   ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어 (전부)' },
   allstar1: { rarity: 'rare', how: '1장 ★30' }, pvpsilver: { rarity: 'common', how: '1:1 대전 실버 (1050점)' }, pvpgold: { rarity: 'rare', how: '1:1 대전 골드 (1200점)' },
@@ -119,7 +119,7 @@ export function titleName(id) {
   if (m) return `시즌${m[1]} 단골`;
   m = /^s(\d{1,3})_t30$/.exec(id);
   if (m) return `시즌${m[1]} 랑방 레전드`;
-  return { ewchamp: '무한의 지배자', wchamp: '주간 챔피언', wtop3: '주간 TOP 3', gacha100: '모집왕', perfect30: '무결점 문지기', raid1: '레이드 MVP', ...TITLE_NAMES }[id] || '';
+  return { ewchamp: '무한의 지배자', wchamp: '주간 챔피언', wtop3: '주간 TOP 3', gacha100: '모집왕', collector: '장비 수집가', perfect30: '무결점 문지기', raid1: '레이드 MVP', ...TITLE_NAMES }[id] || '';
 }
 const titleOk = (id) => typeof id === 'string' && id.length < 16 && !!titleName(id);
 
@@ -250,6 +250,13 @@ export const ACHIEVEMENTS = [
   { id: 'legend1', icon: '🌟', name: '전설 장비 얻기', n: 1, v: (lb) => (lb.cnt || {}).legends | 0, coins: 1000, tickets: 1 },
   { id: 'endless30', icon: '♾️', name: '무한 도전 W30', n: 30, v: (lb) => lb.bestWave | 0, coins: 2000, tickets: 2 },
   { id: 'stars90', icon: '⭐', name: '별 90개', n: 90, v: (lb) => lb.totalStars | 0, coins: 3000, tickets: 3 },
+  { id: 'stars30', icon: '⭐', name: '별 30개', n: 30, v: (lb) => lb.totalStars | 0, coins: 800, tickets: 1 },
+  { id: 'stars60', icon: '⭐', name: '별 60개', n: 60, v: (lb) => lb.totalStars | 0, coins: 1500, tickets: 2 },
+  { id: 'stars120', icon: '🌟', name: '별 120개', n: 120, v: (lb) => lb.totalStars | 0, coins: 4000, tickets: 3, wild: 4 },
+  { id: 'stars150', icon: '🌟', name: '별 150개', n: 150, v: (lb) => lb.totalStars | 0, coins: 6000, tickets: 4, wild: 5 },
+  { id: 'gdex10', icon: '📚', name: '장비 도감 10종', n: 10, v: (lb) => (lb.gearDex || []).length, coins: 1000, tickets: 2 },
+  { id: 'gdex20', icon: '📚', name: '장비 도감 20종', n: 20, v: (lb) => (lb.gearDex || []).length, coins: 3000, tickets: 4 },
+  { id: 'gdexAll', icon: '👑', name: '장비 도감 전부 (신화 포함)', n: GEAR_IDS.length + MYTH_IDS.length, v: (lb) => (lb.gearDex || []).length, coins: 10000, tickets: 8, title: 'collector' },
   { id: 'pull100', icon: '🎰', name: '모집 100번', n: 100, v: (lb) => lb.pulls | 0, coins: 2000, tickets: 3, title: 'gacha100' },
   { id: 'star5', icon: '🌠', name: '★5 멤버 만들기', n: 5, v: (lb) => Math.max(1, ...Object.values(lb.hstars || {})), coins: 3000, tickets: 3 },
 ];
@@ -314,6 +321,7 @@ function addGear(lb, t, r) {
   if (lb.gear.length >= GEAR_BAG) { const v = gearSellValue(r, 0); lb.coins += v; return { t, r, sold: v }; }
   const it = { id: ++lb.gearSeq, t, r, lv: 0 };
   lb.gear.push(it);
+  if (!(lb.gearDex || (lb.gearDex = [])).includes(t)) lb.gearDex.push(t); // 장비 도감
   return it;
 }
 // 미션 목록 (화면용)
@@ -424,32 +432,39 @@ export function setCosmetic(lb, title, frame) {
 
 // ─── 모집 (뽑기) — 코인/모집권만, 현금 결제 없음 ───────────
 export const GACHA_COST = { one: 300, ten: 2700 };
-export const HOCHAN_GATE = STAGE_COUNT; // TODO(6장 추가 시): 6-10 (60) 으로 옮기기
-export const PITY_HERO = 50, PITY_LEGEND = 200;
+export const HOCHAN_GATE = 40; // 4-10 클리어 후 LEGEND 이호찬이 모집에 나온다 (6-10 → 4-10 로 당김)
+// 천장: T4 멤버 40번 안에 확정 · LEGEND 는 70번부터 확률이 가파르게 올라 90번째에 확정 (소프트 천장)
+export const PITY_HERO = 40, PITY_LEGEND = 90, PITY_SOFT = 70;
 // 모집 멤버는 "카드"를 모아서 합류: 영웅 10장 · LEGEND(이호찬) 30장. 합류한 뒤 카드는 ★승급 조각으로
 export const UNLOCK_CARDS = { epic: 10, legend: 30 };
-export const CARD_BUNDLE = { epicHero: 4, legendHero: 15, epicCard: 1, legendCard: 1 };
+export const CARD_BUNDLE = { epicHero: 10, legendHero: 30, t3Card: 3, t2Card: 3 }; // LEGEND · T4 는 한 번에 합류 (겹치면 그만큼 멤버 카드) · T3·T2 는 카드 3장
 export const cardsNeed = (h) => (LEGEND_HEROES.includes(h) ? UNLOCK_CARDS.legend : UNLOCK_CARDS.epic);
-export const GACHA_RATES = [ // 확률 공개 (%)
+export const GACHA_RATES = [ // 확률 공개 (%) — 등급별 (다른 모집 게임처럼): LEGEND 0.6 · T4 5.4 · T3 20 · 나머지
   { k: 'mythGear', w: 0.3, name: '신화 장비 (만능 6종)', color: '#ff7ad9' },
-  { k: 'legendHero', w: 0.3, name: '전설 카드 묶음 ×15 (이호찬)', color: '#ffcf3f' },
-  { k: 'legendCard', w: 1, name: '전설 카드 ×1 (이호찬)', color: '#ffdf80' },
-  { k: 'epicHero', w: 3, name: '영웅 카드 묶음 ×4 (모집 멤버 7명 중)', color: '#c77dff' },
-  { k: 'epicCard', w: 8, name: '영웅 카드 ×1', color: '#d9a8ff' },
-  { k: 'legendGear', w: 1.5, name: '전설 장비', color: '#ffb400' },
-  { k: 'epicGear', w: 7.2, name: '영웅 장비', color: '#c77dff' },
-  { k: 'rareGear', w: 22, name: '희귀 장비', color: '#4ea8ff' },
-  { k: 'shard10', w: 12, name: '멤버 조각 ×10', color: '#ff9f5a' },
-  { k: 'shard4', w: 44.7, name: '멤버 조각 ×4', color: '#9fb3c8' },
+  { k: 'legendHero', w: 0.6, name: 'LEGEND 이호찬 합류 (70번부터 확률 ↑ · 90번 확정)', color: '#ffcf3f' },
+  { k: 'epicHero', w: 5.4, name: 'T4 멤버 합류 (윤준서 · 배현경 · 고아라) · 픽업 50%', color: '#c77dff' },
+  { k: 't3Card', w: 20, name: 'T3 멤버 카드 ×3 (정소영 · 오지은 · 여지원 · 정원식)', color: '#4ea8ff' },
+  { k: 'legendGear', w: 1.2, name: '전설 장비', color: '#ffb400' },
+  { k: 'epicGear', w: 6, name: '영웅 장비', color: '#d9a8ff' },
+  { k: 'rareGear', w: 16.5, name: '희귀 장비', color: '#7ec4ff' },
+  { k: 't2Card', w: 15, name: 'T2 멤버 카드 ×3 (박상화 · 홍정민)', color: '#5de07a' },
+  { k: 'shard10', w: 10, name: '멤버 조각 ×10', color: '#ff9f5a' },
+  { k: 'shard4', w: 25, name: '멤버 조각 ×4', color: '#9fb3c8' },
 ];
-const EPIC_PLUS = ['legendHero', 'epicHero', 'legendGear', 'epicGear', 'mythGear'];
+const T3_PLUS = ['legendHero', 'epicHero', 't3Card', 'mythGear'];
+const tierPool = (t) => GACHA_HEROES.filter((h) => heroTier(h) === t);
+// 이번 주 픽업 T4 (주마다 돌아가며) — T4 가 나오면 50% 로 이 멤버
+export const pickupHero = (now = Date.now()) => { const l = tierPool(4); return l[weekIndex(now) % l.length]; };
+// LEGEND 확률 (%): 70번째까지 0.6 → 그 뒤 번마다 +6.2 → 90번째 100
+export function legendRate(pity) { return pity < PITY_SOFT - 1 ? 0.6 : Math.min(100, 0.6 + 6.2 * (pity - (PITY_SOFT - 2))); }
+
 // 합류 전 카드 진행: { 윤준서: [7, 10] … }
 export function cardProgress(lb, h) { return lb.owned && lb.owned[h] ? null : [Math.min(cardsNeed(h), (lb.shards || {})[h] | 0), cardsNeed(h)]; }
 export const DUP_SHARDS = { epicHero: 30, legendHero: 80 };
 export const legendOpen = (lb) => (lb.maxStage | 0) >= HOCHAN_GATE;
 function rollKind(rng, lb, only) {
   const open = legendOpen(lb);
-  const list = GACHA_RATES.filter((r) => (!only || only.includes(r.k)) && (open || (r.k !== 'legendHero' && r.k !== 'legendCard')));
+  const list = GACHA_RATES.filter((r) => (!only || only.includes(r.k)) && (open || r.k !== 'legendHero')).map((r) => (r.k === 'legendHero' ? { k: r.k, w: legendRate((lb.pity && lb.pity.legend) | 0) } : r));
   const sum = list.reduce((a, r) => a + r.w, 0);
   let x = rng() * sum;
   for (const r of list) { x -= r.w; if (x <= 0) return r.k; }
@@ -465,32 +480,34 @@ export function gachaPull(lb, n, pay, uid, now = Date.now(), seed) {
   const rng = seedRng(seed !== undefined ? seed : hashSeed(`lbgacha:${uid}:${lb.pulls}`));
   const out = [];
   let epicPlus = false;
+  let t3 = false;
+  const first10 = n === 10 && (lb.pulls | 0) === 0; // 처음 10회 모집: T4 멤버 확정
   for (let i = 0; i < n; i++) {
     lb.pity.hero++;
     if (legendOpen(lb)) lb.pity.legend++;
     let k;
-    if (legendOpen(lb) && lb.pity.legend >= PITY_LEGEND) k = 'legendHero';
-    else if (lb.pity.hero >= PITY_HERO) k = 'epicHero';
+    if (legendOpen(lb) && lb.pity.legend >= PITY_LEGEND) k = 'legendHero'; // 90번째: 확정
+    else if (lb.pity.hero >= PITY_HERO) k = 'epicHero'; // T4 40번 안에 확정
     else k = rollKind(rng, lb);
-    if (n === 10 && i === 9 && !epicPlus && !EPIC_PLUS.includes(k)) k = rollKind(rng, lb, EPIC_PLUS); // 10연속: 영웅 등급 이상 1개 확정
-    if (EPIC_PLUS.includes(k)) epicPlus = true;
-    out.push(resolvePull(lb, k, rng));
+    if (first10 && i === 9 && !out.some((x) => x.k === 'epicHero' || x.k === 'legendHero') && k !== 'legendHero') k = 'epicHero';
+    else if (n === 10 && i === 9 && !t3 && !T3_PLUS.includes(k)) k = rollKind(rng, lb, T3_PLUS); // 10회: T3 이상 1개 확정
+    if (T3_PLUS.includes(k)) t3 = true;
+    out.push(resolvePull(lb, k, rng, now));
     lb.pulls++;
   }
   bump(lb, 'pulls', n, uid, now);
   return { results: out };
 }
-function resolvePull(lb, k, rng) {
-  if (k === 'legendHero' || k === 'epicHero' || k === 'legendCard' || k === 'epicCard') {
-    if (k === 'legendHero' || k === 'epicHero') lb.pity.hero = 0; // 천장: 영웅 묶음 50번 · 전설 묶음 200번
+function resolvePull(lb, k, rng, now) {
+  if (k === 'legendHero' || k === 'epicHero' || k === 't3Card' || k === 't2Card') {
+    if (k === 'legendHero' || k === 'epicHero') lb.pity.hero = 0;
     if (k === 'legendHero') lb.pity.legend = 0;
-    const pool = k === 'legendHero' || k === 'legendCard' ? LEGEND_HEROES : GACHA_HEROES;
-    const fresh = pool.filter((h) => !lb.owned[h]);
-    const src = fresh.length && rng() < 0.6 ? fresh : pool; // 아직 없는 멤버가 조금 더 잘 나온다
-    const h = src[(rng() * src.length) | 0];
+    const pool = k === 'legendHero' ? LEGEND_HEROES : tierPool(k === 'epicHero' ? 4 : k === 't3Card' ? 3 : 2);
+    let h;
+    if (k === 'epicHero' && rng() < 0.5) h = pickupHero(now); // 픽업 50%
+    else { const fresh = pool.filter((x) => !lb.owned[x]); const src = fresh.length && rng() < 0.6 ? fresh : pool; h = src[(rng() * src.length) | 0]; }
     const v = CARD_BUNDLE[k];
-    if (lb.owned[h]) { lb.shards[h] = (lb.shards[h] | 0) + v; return { k, hero: h, dup: true, shards: v, card: true }; }
-    // 아직 합류 전: 카드를 모아서 다 모이면 합류 (남는 카드는 ★조각으로)
+    if (lb.owned[h]) { lb.shards[h] = (lb.shards[h] | 0) + (k === 'legendHero' ? DUP_SHARDS.legendHero : k === 'epicHero' ? DUP_SHARDS.epicHero : v); return { k, hero: h, dup: true, shards: k === 'legendHero' ? DUP_SHARDS.legendHero : k === 'epicHero' ? DUP_SHARDS.epicHero : v, card: true }; }
     lb.shards[h] = (lb.shards[h] | 0) + v;
     const need = cardsNeed(h);
     if (lb.shards[h] >= need) { lb.shards[h] -= need; lb.owned[h] = true; return { k, hero: h, card: true, shards: v, new: true, have: need, need }; }
@@ -669,7 +686,7 @@ export function cleanDecks(raw) {
 
 // ─── 체력 (스태미나): 스테이지는 체력을 쓴다 · 무한 · 레이드 · 1:1 대전은 따로 입장 횟수 ───
 //  최대 60 · 6분에 1 · 보상으로 180 까지 넘칠 수 있다 · 마스터는 안 씀 (서버가 정한다)
-export const STAMINA = { max: 60, regenMs: 6 * 60e3, cap: 180, stage: 5, hell: 10, repeat: 3, lvUp: 5, checkin: 20, buy: { n: 30, perDay: 3, cost: [300, 700, 1500] } };
+export const STAMINA = { max: 50, regenMs: 8 * 60e3, cap: 150, stage: 6, hell: 12, repeat: 4, lvUp: 5, checkin: 10, buy: { n: 30, perDay: 2, cost: [300, 700] } }; // (60·6분·5·10·3·출석20·하루3번 → 조임)
 export function staminaNow(lb, now = Date.now()) {
   const s = lb.sta || { v: STAMINA.max, t: now };
   let v = s.v | 0, t = s.t || now;
@@ -797,7 +814,9 @@ export function normLive(raw, out) {
     const st = int((raw.hstars || {})[h], 1, STAR_MAX); if (st > 1) out.hstars[h] = st;
   }
   for (const h of [...GACHA_HEROES, ...LEGEND_HEROES]) if ((raw.owned || {})[h]) out.owned[h] = true;
-  out.pity = { hero: int((raw.pity || {}).hero, 0, PITY_HERO), legend: int((raw.pity || {}).legend, 0, PITY_LEGEND) };
+  { const rp0 = raw.pity || {}; const v2 = rp0.v === 2; // 예전 천장(50/200)에서 넘어오면 진행 비율대로 옮긴다
+    out.gearDex = [...new Set([...(Array.isArray(raw.gearDex) ? raw.gearDex : []), ...(Array.isArray(raw.gear) ? raw.gear.map((g) => g && g.t) : [])])].filter((t) => typeof t === 'string' && GEAR[t]); // 장비 도감: 한 번이라도 얻은 종류
+  out.pity = { v: 2, hero: int(v2 ? rp0.hero : Math.floor((rp0.hero | 0) * 40 / 50), 0, PITY_HERO - 1), legend: int(v2 ? rp0.legend : Math.floor((rp0.legend | 0) * 90 / 200), 0, PITY_LEGEND - 1) }; }
   out.pulls = int(raw.pulls, 0, 1e7);
   out.cnt = {};
   for (const k of CNT_KEYS) { const v = int((raw.cnt || {})[k], 0, 1e9); if (v) out.cnt[k] = v; }

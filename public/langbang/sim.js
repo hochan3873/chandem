@@ -7,7 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
-  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -139,6 +139,8 @@ export function addHero(g, id, want) {
     out: false, outT: 0, restT: 0, px: g.slotX[slot], py: g.rowY, dashE: null, // 김영준 돌격
   };
   g.heroes.push(h);
+  if (id === 'bangjang') g.mods.ultCharge += NICHE.bangjang.ult * h.meta; // 방장: 강화할수록 총공지가 빨리 찬다
+  if (id === 'gunnyeo') g.mods.baseArmor *= 1 - Math.min(0.3, NICHE.gunnyeo.guard * h.meta); // 건전녀: 입구 보호
   g.attrCount[def.attr] = (g.attrCount[def.attr] || 0) + 1;
   g.heroesUsed[id] = true;
   if (def.hidden) g.hiddenTaken[id] = true;
@@ -189,7 +191,7 @@ export function heroInterval(g, h) {
 }
 export function auraBonus(g) {
   const b = hasHero(g, 'bangjang');
-  return b ? HEROES.bangjang.aura[b.lv - 1] + (b.cm.aura || 0) : 0;
+  return b ? HEROES.bangjang.aura[b.lv - 1] + (b.cm.aura || 0) + NICHE.bangjang.aura * (b.meta || 0) : 0; // 강화할수록 오라가 커진다
 }
 
 function updateHeroes(g, dt) {
@@ -270,7 +272,7 @@ function updateHeroes(g, dt) {
         const [per, amt] = d.heal[h.lv - 1];
         h.healT = per;
         if (g.base.hp < g.base.max) {
-          const v = Math.min(g.base.max - g.base.hp, g.base.max * amt * g.mods.healMul * (h.cm.heal || 1));
+          const v = Math.min(g.base.max - g.base.hp, g.base.max * amt * g.mods.healMul * (h.cm.heal || 1) * (h.id === 'gunnyeo' ? 1 + NICHE.gunnyeo.heal * (h.meta || 0) : 1));
           g.base.hp += v;
           ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
         }
@@ -993,10 +995,11 @@ export function spawnEnemy(g, type, x, y, o = {}) {
 export const BOSS_GUARD = { hit: 0.05, perSec: 0.07, over: 0.2, from: 30 }; // 4장부터 (3-10 은 원래대로)
 export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.dead) return 0;
+  if (src && src.id === 'gunman' && (e.armor > 0 || (e.def.traits && (e.def.traits.aoeImmune || e.def.traits.projShield || e.def.traits.singleResist || e.def.traits.kbImmune)))) dmg *= NICHE.gunman.hard + NICHE.gunman.hardLv * (src.meta || 0); // 건전남: 단단한 진상 전문
   const tr = e.def.traits;
   if (tr && src) {
     if (tr.aoeImmune && aoe) { if (g.t - (e.immT || -9) > 0.6) { e.immT = g.t; ev(g, 'immune', { x: e.x, y: e.y - e.def.size * 0.7 }); } return 0; } // 노캔: 범위 공격 안 들림
-    if (tr.singleResist && !aoe) dmg *= 0.5;
+    if (tr.singleResist && !aoe) dmg *= src.id === 'gunman' ? 0.85 : 0.5; // 건전남은 단일 저항도 거의 뚫는다
     if (tr.projShield && !aoe && e.pShield > 0) { e.pShield--; ev(g, 'blocked', { x: e.x, y: e.y - e.def.size * 0.7, n: e.pShield }); return 0; }
     if (tr.stealth && !e.unveiled) e.unveiled = true; // 맞으면 들킨다
   }
@@ -1038,7 +1041,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     dmg *= e.gaoOn ? (flank ? 1 : 1 - e.def.gao.cut) : e.def.gao.broken; // 옆에서 베면(김영준) 가오 무시
   }
   e.hurtT = 0;
-  if (e.armor) dmg = Math.max(dmg * 0.35, dmg - e.armor);
+  if (e.armor && !(src && src.id === 'gunman')) dmg = Math.max(dmg * 0.35, dmg - e.armor); // 건전남은 방어 무시
   // 보스 · 중간 보스: 한 방에 최대 체력 5% 넘게는 잘 안 들어간다 (넘는 만큼은 ⅕) + 1초에 7% 넘게 몰아치면 넘친 만큼 ⅕
   //  → 아주 센 덱도 보스는 몇 초 만에 녹지 않는다 (공주의 일격 · 황금 파동 같은 큰 한 방도 여전히 크게 깎이긴 함)
   if ((e.boss || e.mid) && src && e.maxHp > 0 && (g.mode !== 'stage' || g.stage > BOSS_GUARD.from)) { // 1~3장은 보스가 원래대로
@@ -1937,13 +1940,13 @@ export function hitEnemy(g, p, e) {
   let kick = false;
   if (p.type === 'warn' && h && h.def.warn) {
     e.warnN = (e.warnN | 0) + 1;
-    if (e.warnN >= Math.max(2, h.def.warn.n - (h.cm.warnN || 0))) { e.warnN = 0; kick = true; dmg *= h.def.warn.mul; }
+    if (e.warnN >= Math.max(2, h.def.warn.n - (h.cm.warnN || 0))) { e.warnN = 0; kick = true; dmg *= h.def.warn.mul * (1 + NICHE.staff.kick * (h.meta || 0)); }
   }
   ev(g, 'hit', { x: p.x, y: p.y, proj: p.type, crit });
   damageEnemy(g, e, dmg, crit, h, p.pierce > 0 || p.type === 'cane' || p.type === 'gf');
   if (kick && !e.dead) {
     const w = h.def.warn;
-    if (!e.boss) { e.stunT = Math.max(e.stunT, w.stun[h.lv - 1] * stunMul(e) * g.mods.ctrlMul); applyKnockback(e, w.kb, g); }
+    if (!e.boss) { e.stunT = Math.max(e.stunT, w.stun[h.lv - 1] * stunMul(e) * g.mods.ctrlMul * (1 + NICHE.staff.stun * (h.meta || 0))); applyKnockback(e, w.kb, g); }
     else { e.slowT = Math.max(e.slowT, 2); e.slowMul = Math.min(e.slowMul || 1, 0.6); }
     ev(g, 'kick', { x: e.x, y: e.y - 20, big: true });
   }

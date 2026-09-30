@@ -228,7 +228,7 @@ function heroCardNeed(lv) { const L = lv + 1; return L <= 5 ? 1 : L <= 10 ? 2 : 
 function rollHeroCard(seed, stars, hell, used) {
   if (!stars || !used.length) return null;
   const rng = seedRng(seed ^ 0x3c1d);
-  const p = (0.12 + 0.03 * stars) * (hell ? 2 : 1);
+  const p = (0.07 + 0.02 * stars) * (hell ? 2 : 1); // (0.12+0.03별 → 조임: 진행 3~4주)
   if (rng() >= p) return null;
   return used[(rng() * used.length) | 0];
 }

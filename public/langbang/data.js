@@ -63,12 +63,12 @@ export function expNeed(lv) {
 }
 // 레벨업은 드물게, 대신 한 번 한 번이 크게: 필요 경험치 ×2.2 (스테이지는 뒤로 갈수록 경험치를 줄여 스테이지당 4~6번)
 // 합류 모드 (대장 1명 시작 → 레벨업 카드로 합류): 앞 레벨업은 빠르게 · 합류 카드 가중치 · 보장 · 몰아 키우기
-export const JOIN = { solo: 1.6, freePick: true, hp: [0.9, 0.87, 1.2, 1.25, 1.12, 1.05], hellStart: 2, exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
+export const JOIN = { solo: 1.6, freePick: true, hp: [0.9, 0.87, 1.2, 1.25, 1.7, 2.3], hellStart: 2, exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
 // ─── 전투 템포 (느리고 묵직하게) · 무기 정체성 ─── opt.tempo 로 켠다 (합류 모드와 같이)
 // 진상 수 ×0.6 · 한 명 체력 ×1.6 / 멤버 공속 ÷1.54 · 한 방 ×1.6 / 스킬 쿨 ×1.5
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, endHp: 1.1, fix: { donghan: 0.77, wonsik: 0.6, staff: 0.9, eunok: 0.9, myunghoon: 1.28, bangjang: 0.92, soyoung: 0.93, ingyu: 0.87 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, endHp: 1.1, fix: { donghan: 0.77, wonsik: 1.8, staff: 1.1, eunok: 0.9, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.1, ingyu: 0.87, jiwon: 2.0, jungmin: 1.5, gunman: 0.75, junseo: 1.3, ara: 1.15 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
-export const BUS = { sec: [7, 6.6, 6.2, 5.8, 5.4], w: 110, w2: 200, speed: 560, kb: 90, dmg: 3.1, stun: 0.9 };
+export const BUS = { sec: [7, 6.6, 6.2, 5.8, 5.4], w: 110, w2: 200, speed: 560, kb: 90, dmg: 3.6, stun: 0.9 };
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
 export const PROJ_ART = { staff: 'card_y', eunok: 'cup', jungmin: 'bottle', sanghwa: 'coin', wonsik: 'dumbbell', ingyu: 'dumbbell', soyoung: 'bubble', gunman: 'bb', donghan: 'coffee', sunggu: 'cane', jiwon: 'mosaic', gunnyeo: 'heart', junyoung: 'chip', ara: 'hammer', jieun: 'clock', myunghoon: 'swear' };
 export const PROJ_ART_NAMES = ['bottle', 'cup', 'coin', 'dumbbell', 'bubble', 'card_y', 'card_r', 'bb', 'coffee', 'cane', 'mosaic', 'heart', 'chip', 'hammer', 'claw', 'clock', 'swear'];
@@ -853,6 +853,13 @@ export const TIER_MUL = [1, 1, 1.154, 1.308, 1.455, 1.652]; // 기본 공격력 
 export const TIER_SPD = [1, 1, 1.04, 1.07, 1.1, 1.12]; // 기본 공격 속도 배율
 export const TIER_GROWTH = [0.08, 0.086, 0.07, 0.059, 0.05, 0.045]; // 강화 1레벨당 공격력
 export const TIER_MAX = [20, 20, 20, 20, 20, 20]; // 영구 강화 한도
+// 기본 멤버(T1)는 역할이 뚜렷하고, 강화할수록 그 역할이 커진다 (강화 1레벨마다) — +20 이면 그 역할에서 T3 급
+export const NICHE = {
+  bangjang: { aura: 0.005, ult: 0.015, text: '팀 공속 오라 +0.5% · 총공지 충전 +1.5%' }, // +20: 오라 +10% · 충전 +30%
+  gunman: { hard: 1.3, hardLv: 0.02, text: '단단한 진상(방어·범위 면역·방패·단일 저항)에게 ×1.3 + 레벨당 +2% · 방어 무시' }, // +20: ×1.7
+  gunnyeo: { guard: 0.012, heal: 0.03, text: '입구 받는 피해 −1.2% · 회복 +3%' }, // +20: 피해 −24% · 회복 +60%
+  staff: { kick: 0.03, stun: 0.02, text: '강퇴 피해 +3% · 강퇴 기절 +2%' }, // +20: 강퇴 피해 +60% · 기절 +40%
+};
 export const RES_PER_META = 0.015, RES_MAX = 0.35; // 영구 강화 1레벨 = 상태이상(기절 · 홀림 · 감속 등) 시간 -1.5% (장비와 합쳐 최대 -35%)
 export const resOf = (meta, gearRes) => Math.min(RES_MAX, (meta || 0) * RES_PER_META + (gearRes || 0));
 export const tierPower = (t, meta) => TIER_MUL[t] * TIER_SPD[t] * (1 + TIER_GROWTH[t] * meta);
@@ -1562,7 +1569,18 @@ export const MYTH = {
 };
 export const MYTH_IDS = Object.keys(MYTH);
 for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true }; }
-export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth); // 일반 드롭 · 모집 장비 (신화 제외)
+export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
+// 드롭 표 (모든 콘텐츠) — 숫자는 실제 규칙(rollDrops · rollHeroCard · live.js 보상)과 같다
+export const DROPS = [
+  ['스테이지 클리어', '장비 1개 (일반 70 · 희귀 24+0.4×스테이지 · 영웅 5+0.35× · 전설 0.6+0.08×) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%)', '강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
+  ['헬', '장비 +1개 · 일반 없음 · 영웅·전설 ×2', '멤버 카드 ×2 확률', '강화석 ×2 · 코인 ×3'],
+  ['무한 도전', '달성 우편 10/20/30/40/50웨이브 (주마다): 모집권 1~5 · 50웨이브 신화 장비', '주간 순위: 1위 전설 장비 · TOP3 영웅 장비 · TOP10 모집권 10', ''],
+  ['레이드', '참가 코인 · 강화석 2 · 1위 신화 장비 · 2~3위 영웅 장비', 'TOP10 모집권', ''],
+  ['주간 도전', '순위 보상: 1위 모집권 5 + 영웅 장비 · TOP3 모집권 3 · TOP10 2 · 참가 1', '', ''],
+  ['1:1 대전', '하루 10판 코인 (승 300 · 패 80 · 첫 승 2배)', '등급 올리기 보상: 코인 · 모집권', ''],
+  ['시즌 (30단계)', '5단계 희귀 · 15단계 영웅 · 25단계 전설 장비 · 30단계 신화 장비', '4단계마다 범용 카드 · 3단계마다 모집권', ''],
+  ['모집', 'LEGEND 0.6% (70번부터 ↑ · 90번 확정) · T4 5.4% (40번 확정 · 픽업 50%) · T3 카드 20%', '신화 0.3% · 전설 1.2% · 영웅 6% · 희귀 16.5%', '10회: T3 이상 1개 · 처음 10회 T4'],
+]; // 일반 드롭 · 모집 장비 (신화 제외)
 // 이 스테이지에서 떨어지는 장비 (새 세트는 그 챕터부터)
 export const gearPoolFor = (stage) => GEAR_IDS.filter((t) => !GEAR[t].ch || GEAR[t].ch <= Math.ceil(stage / 10));
 export const GEAR_MAX_LV = 10;
@@ -1643,7 +1661,7 @@ export function heroCardNeed(lv) { const L = lv + 1; return L <= 5 ? 1 : L <= 10
 export function rollHeroCard(seed, stars, hell, used) {
   if (!stars || !used.length) return null;
   const rng = seedRng(seed ^ 0x3c1d);
-  const p = (0.12 + 0.03 * stars) * (hell ? 2 : 1);
+  const p = (0.07 + 0.02 * stars) * (hell ? 2 : 1); // (0.12+0.03별 → 조임: 진행 3~4주)
   if (rng() >= p) return null;
   return used[(rng() * used.length) | 0];
 }

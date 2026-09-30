@@ -2613,3 +2613,17 @@ body.rm .ig-chip img { animation: none; }
 .card.v5 .c5-art img { top: calc(var(--u) * -30); bottom: auto; height: calc(var(--u) * 270); max-width: none; -webkit-mask: none; mask: none; }
 .card-list.v4.v5.n4 .card.v5 .c5-art img { top: calc(var(--u) * -26); height: calc(var(--u) * 220); }
 .card.v5 .c5-art::after { content: ''; position: absolute; left: -30%; right: -30%; bottom: 0; height: 40%; background: linear-gradient(180deg, transparent, #1c1433); }
+
+/* 아이템 도감 */
+.idx-grid .dexc2.idx .dx-pic { display: grid; place-items: center; }
+.idx-grid .idx-ic { width: 72%; height: auto; aspect-ratio: 1; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.6)); }
+.idx-grid .dexc2.lock .idx-ic { filter: brightness(0) drop-shadow(0 0 4px rgba(170, 140, 255, 0.6)); opacity: 0.8; }
+.idx-grid .idx-k { font-size: calc(var(--u) * 9.5); color: var(--dim); font-weight: 800; }
+.idx-head { display: flex; align-items: center; gap: calc(var(--u) * 12); margin-bottom: calc(var(--u) * 8); }
+.idx-head img { width: calc(var(--u) * 64); height: calc(var(--u) * 64); object-fit: contain; }
+.idx-head img.sil { filter: brightness(0); opacity: 0.7; }
+.idx-head h3 { margin: 0; text-align: left; }
+.idx-tab { display: grid; gap: calc(var(--u) * 3); margin: calc(var(--u) * 6) 0; font-variant-numeric: tabular-nums; }
+.idx-tab > div { display: grid; grid-template-columns: calc(var(--u) * 34) repeat(4, minmax(0, 1fr)); gap: calc(var(--u) * 4); font-size: calc(var(--u) * 11); text-align: center; }
+.idx-tab span { color: var(--dim); font-weight: 900; text-align: left; } .idx-tab i { font-style: normal; font-weight: 800; color: #e8e0ff; } .idx-tab b { font-size: calc(var(--u) * 10); }
+.idx-grid .idx-k { display: none; }

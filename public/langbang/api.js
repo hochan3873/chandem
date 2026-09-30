@@ -116,7 +116,7 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
+const LIVE_KEYS = ['gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)

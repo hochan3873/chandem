@@ -966,49 +966,53 @@ test('live: 미션은 (사용자·날짜)로 정해지고 진행/보상/중복 �
   assert.match(L.claimMission(lb, 'ach', 'ch2', 'u1', now).error, /아직/);
 });
 
-test('live: 모집 확률 · 10연속 영웅 등급 확정 · 천장(50/200) · 겹치면 조각 · 이호찬은 3-10 뒤에만', async () => {
+test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T4 · T4 40회 천장 · LEGEND 소프트 70 / 확정 90 · 겹치면 멤버 카드 · 이호찬은 4-10 뒤 · 예전 천장 옮기기', async () => {
   const L = await load('live.js');
   const mk = (maxStage) => L.normLive({}, { coins: 1e9, gear: [], gearSeq: 0, maxStage, stages: {}, heroes: {} });
   const sum = L.GACHA_RATES.reduce((a, r) => a + r.w, 0);
   assert.ok(Math.abs(sum - 100) < 1e-9, '확률 합 100%');
+  assert.equal(L.HOCHAN_GATE, 40);
   let lb = mk(12);
+  let first = L.gachaPull(lb, 10, 'coin', 'u0', 0).results;
+  assert.ok(first.some((x) => x.k === 'epicHero'), '처음 10회 T4 확정');
   for (let i = 0; i < 300; i++) {
+    lb.coins = 1e9; lb.gear.length = 0;
     const r = L.gachaPull(lb, 10, 'coin', 'u', 0);
-    assert.ok(r.results.some((x) => ['legendHero', 'epicHero', 'legendGear', 'epicGear', 'mythGear'].includes(x.k)), '10연속 확정');
-    assert.ok(!r.results.some((x) => x.k === 'legendHero' || x.k === 'legendCard'), '6-10 전엔 LEGEND 없음');
+    assert.ok(r.results.some((x) => ['legendHero', 'epicHero', 't3Card', 'mythGear'].includes(x.k)), '10회 T3 이상');
+    assert.ok(!r.results.some((x) => x.k === 'legendHero'), '4-10 전엔 LEGEND 없음');
   }
-  assert.ok(!lb.owned.hochan);
-  lb = mk(12); lb.pity.hero = 49;
-  assert.equal(L.gachaPull(lb, 1, 'coin', 'u2', 0).results[0].k, 'epicHero', '50회 천장');
-  // 카드 모아 합류: 이호찬 30장 — 천장 묶음(15장)이 두 번이면 합류, 그 뒤엔 ★조각
-  lb = mk(60); lb.pity.legend = 199;
+  lb = mk(12); lb.pulls = 5; lb.pity.hero = L.PITY_HERO - 1;
+  const t4 = L.gachaPull(lb, 1, 'coin', 'u2', 0).results[0];
+  assert.equal(t4.k, 'epicHero', 'T4 40회 천장');
+  assert.ok(t4.new && D.heroTier(t4.hero) === 4, 'T4 는 한 번에 합류');
+  // LEGEND 확정 90 · 합류 · 겹치면 카드
+  lb = mk(60); lb.pulls = 5; lb.pity.legend = L.PITY_LEGEND - 1;
   let x = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
-  assert.equal(x.hero, 'hochan', '200회 천장');
-  assert.ok(x.card && !x.new && x.have === 15 && x.need === 30, '15/30');
-  assert.ok(!L.heroUnlocked(lb, 'hochan'), '아직 합류 전');
-  assert.deepEqual(L.cardProgress(lb, 'hochan'), [15, 30]);
-  lb.pity.legend = 199;
+  assert.equal(x.hero, 'hochan'); assert.ok(x.new && L.heroUnlocked(lb, 'hochan'), '90회 확정 → 합류');
+  lb.pity.legend = L.PITY_LEGEND - 1;
   x = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
-  assert.ok(x.new, '30장 모이면 합류');
-  assert.equal(lb.owned.hochan, true);
-  assert.ok(L.heroUnlocked(lb, 'hochan'));
-  assert.equal(lb.shards.hochan | 0, 0);
-  lb.pity.legend = 199;
-  const dup = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
-  assert.ok(dup.dup && lb.shards.hochan === L.CARD_BUNDLE.legendHero, '합류 뒤 카드는 ★조각');
-  // 영웅 멤버는 10장
-  lb = mk(12); lb.pity.hero = 49;
-  const e1 = L.gachaPull(lb, 1, 'coin', 'u4', 0).results[0];
-  assert.ok(e1.card && e1.need === 10 && e1.have === 4);
+  assert.ok(x.dup && lb.shards.hochan === L.DUP_SHARDS.legendHero, '겹치면 멤버 카드(강화·★)');
+  // 소프트 천장: 70번째까지 0.6% → 가파르게 → 90번째 100%
+  assert.equal(L.legendRate(0), 0.6); assert.equal(L.legendRate(68), 0.6); assert.ok(L.legendRate(75) > 30); assert.equal(L.legendRate(89), 100);
+  // 100만 번 (천장 없이) 확률이 표와 맞는다
+  lb = mk(60); lb.pulls = 5;
+  const cnt = {}, N = 1e6;
+  for (let i = 0; i < N; i++) { lb.pity.hero = 0; lb.pity.legend = 0; lb.gear.length = 0; const k = L.gachaPull(lb, 1, 'coin', 'r', 0, i * 2654435761 >>> 0).results[0].k; cnt[k] = (cnt[k] || 0) + 1; lb.coins = 1e9; }
+  for (const r of L.GACHA_RATES) { const got = (cnt[r.k] || 0) / N * 100; assert.ok(Math.abs(got - r.w) < Math.max(0.06, r.w * 0.03), `${r.k} ${got.toFixed(3)}% vs ${r.w}%`); }
+  // 실제 천장까지: 평균 LEGEND 까지 횟수 (소프트 천장 효과) · 90 넘지 않음
+  lb = mk(60); lb.pulls = 5; let n = 0, got = [], max = 0;
+  for (let i = 0; i < 40000; i++) { n++; const k = L.gachaPull(lb, 1, 'coin', 'q', 0, i * 40503 + 7).results[0].k; lb.coins = 1e9; lb.gear.length = 0; if (k === 'legendHero') { got.push(n); max = Math.max(max, n); n = 0; } }
+  assert.ok(max <= L.PITY_LEGEND, `최대 ${max}`);
+  const avg = got.reduce((a, b) => a + b, 0) / got.length;
+  assert.ok(avg > 50 && avg < 75, `평균 ${avg.toFixed(1)}회`);
+  // 천장은 저장·불러오기에 그대로 (서버 프로필)
+  const saved = L.normLive(JSON.parse(JSON.stringify({ pity: { v: 2, hero: 12, legend: 55 } })), {});
+  assert.deepEqual([saved.pity.hero, saved.pity.legend], [12, 55]);
+  const old = L.normLive({ pity: { hero: 25, legend: 150 } }, {});
+  assert.deepEqual([old.pity.hero, old.pity.legend], [20, 67], '예전 천장(50/200)은 비율대로');
   lb = mk(12); lb.coins = 100; lb.tickets = 0;
   assert.match(L.gachaPull(lb, 1, 'coin', 'u', 0).error, /코인/);
   assert.match(L.gachaPull(lb, 10, 'ticket', 'u', 0).error, /모집권/);
-  lb = mk(60);
-  const cnt = {};
-  for (let i = 0; i < 5000; i++) { lb.pity.hero = 0; lb.pity.legend = 0; const x = L.gachaPull(lb, 1, 'coin', 'r', 0).results[0]; cnt[x.k] = (cnt[x.k] || 0) + 1; }
-  assert.ok(cnt.epicHero / 5000 > 0.015 && cnt.epicHero / 5000 < 0.05, `영웅 묶음 ${cnt.epicHero}`);
-  assert.ok(cnt.epicCard / 5000 > 0.05 && cnt.epicCard / 5000 < 0.11, `영웅 카드 ${cnt.epicCard}`);
-  assert.ok((cnt.legendHero || 0) / 5000 < 0.012, `LEGEND ${cnt.legendHero}`);
 });
 
 test('live: 성급 · 시즌 30단계 · 칭호/프레임 · 챕터 별 상자 · 출석 · 이상한 값 정리', async () => {
@@ -1707,7 +1711,7 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
   for (const id of ['staff', 'gunman', 'sanghwa']) {
     const a = run(false, id), b = run(true, id);
     const r = b.dmg / a.dmg;
-    assert.ok(r > 0.85 && r < 1.25, `${id} DPS 비율 ${r.toFixed(2)}`);
+    assert.ok(r > 0.7 && r < 1.5, `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
     const gaps = b.shots.slice(1).map((t, i) => t - b.shots[i]);
     const mn = Math.min(...gaps), mx = Math.max(...gaps);
     assert.ok(mx > mn * 2.5, `${id} 장전 리듬 (간격 ${mn.toFixed(2)} ~ ${mx.toFixed(2)})`);
@@ -1745,4 +1749,18 @@ test('덱 대장 서버 저장: cleanDecks 가 덱마다 대장을 남기고, �
   const d = L.cleanDecks({ decks: [['staff', 'gunman'], ['bangjang'], []], i: 1, leaders: ['gunman', 'staff', 'nope'] });
   assert.deepEqual(d.leaders, ['gunman', null, null]);
   assert.deepEqual(L.cleanDecks({ decks: [['staff']], i: 0 }).leaders, [null, null, null], '예전 저장 (대장 없음)');
+});
+
+test('아이템 도감: 한 번이라도 얻은 장비 종류가 남는다 (팔아도) · 수집 업적 · 드롭 표', async () => {
+  const L = await load('live.js');
+  const lb = L.normLive({ gear: [{ id: 1, t: 'megaphone', r: 'rare', lv: 0 }] }, {});
+  assert.deepEqual(lb.gearDex, ['megaphone']);
+  lb.gear = []; lb.gearSeq = 1; lb.coins = 0;
+  L.grant(lb, { gear: 'myth' }, 'u');
+  assert.equal(lb.gearDex.length, 2);
+  lb.gear = [];
+  const again = L.normLive(JSON.parse(JSON.stringify(lb)), {});
+  assert.equal(again.gearDex.length, 2, '팔아도 도감은 그대로');
+  assert.ok(L.ACHIEVEMENTS.some((a) => a.id === 'gdexAll' && a.n === D.GEAR_IDS.length + D.MYTH_IDS.length));
+  assert.ok(D.DROPS.length >= 8);
 });
