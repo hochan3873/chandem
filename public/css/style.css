@@ -1139,3 +1139,25 @@ html.gw-reduce-motion .gc-art-next { opacity: 1; }
 html.gw-leave-dark, html.gw-leave-dark body { background: #0b0a16 !important; }
 html.gw-leave-dark body::before { background: #0b0a16; transition: background .2s ease; }
 html.gw-leave-dark #app { opacity: 0; transition: opacity .2s ease; }
+/* 명예의 전당: 시상대 */
+.game-home > .hall { order: 0; }
+.hall { padding-top: 12px; }
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 6px; margin-bottom: 8px; }
+.pod { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 8px 4px 8px; border-radius: 14px; border: 1px solid var(--tc); background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 20%, transparent), rgba(0, 0, 0, .25)); color: var(--text); font: inherit; cursor: pointer; }
+.pod-1 { padding-top: 12px; padding-bottom: 12px; box-shadow: 0 0 18px rgba(255, 210, 90, .35); border-color: #ffd35a; }
+.pod-medal { font-size: 1.2rem; line-height: 1; }
+.pod-1 .pod-medal { font-size: 1.5rem; }
+.pod-av img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--tc); display: block; }
+.pod-1 .pod-av img { width: 52px; height: 52px; }
+.pod-name { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .82rem; }
+.pod-tier { font-size: .68rem; font-weight: 800; color: var(--tc); white-space: nowrap; }
+.pod-sub { font-size: .6rem; color: var(--muted); white-space: nowrap; }
+.pod.is-me { outline: 2px solid var(--gold-hi); }
+.hall-me-lbl { margin: 8px 0 4px; font-size: .72rem; font-weight: 800; color: var(--gold-hi); }
+p.hall-me-lbl { font-weight: 400; }
+/* 메인 게임 카드: 1위 한 줄 */
+.gc-champ { position: absolute; right: 10px; top: 10px; z-index: 2; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 9px; border-radius: 99px; background: rgba(0, 0, 0, .66); border: 1px solid var(--tc); color: #fff3cf; font-size: .68rem; font-weight: 800; }
+.gc-champ b { color: var(--tc); }
+.hall .hall-list li { padding: 4px 10px; font-size: .84rem; gap: 6px; }
+.hall .hall-list li small { font-size: .68rem; }
+.hall .sec-head { margin-bottom: 6px; }

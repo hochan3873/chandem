@@ -898,6 +898,7 @@ function renderGameHome() {
   $app.innerHTML = `
   <main class="home game-home">
     <div class="top-bar"><button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>${SHARE_BTN}</div>
+    ${S.info && S.info.accounts === false ? '' : RK.hallHTML(g)}
     <div class="gh-hero" style="background-image:url('/img/games/${g}.webp')"><div class="gh-shade"></div>
       <div class="gh-title"><span class="gh-icon">${info.icon}</span><h1>${info.name}</h1><p>${info.tag}</p></div>
     </div>
@@ -910,7 +911,6 @@ function renderGameHome() {
       </div>
     </section>
     <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">🔴 지금 열린 ${info.name} 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
-    ${S.info && S.info.accounts === false ? '' : RK.hallHTML(g)}
     <p class="fine">${g === 'omok' ? '로그인하면 대국 결과로 티어가 올라가요.' : '칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.'}</p>
   </main>`;
   bindCommon();
@@ -958,6 +958,7 @@ function renderHome() {
   bindCommon();
   P.bindHub($app);
   P.afterHome();
+  if (!(S.info && S.info.accounts === false)) RK.loadHubChamps();
   startRoomList('');
   $app.querySelectorAll('[data-game]').forEach((b) => { b.onclick = () => launchGame(b.dataset.game); });
   $app.querySelector('#code-form').onsubmit = (e) => {
