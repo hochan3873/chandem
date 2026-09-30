@@ -91,9 +91,11 @@ export const CADENCE = {
 };
 // 멤버 공격 프레임 띠 (선택): 8칸 · release 칸에서 투사체가 나간다 — 있으면 코드 모션 대신
 // 던지는 칸: 기본 4 · PixVerse 띠는 칸마다 달라서 따로 (2~6칸 중 모습이 제일 크게 바뀌는 칸을 재서 정함)
-export const ATTACK_RELEASE = { soyoung: 3, eunok: 3, jieun: 3, gunnyeo: 4, hyungyeong: 4 };
+export const ATTACK_RELEASE = { soyoung: 3, eunok: 3, jieun: 3, gunnyeo: 4, hyungyeong: 4, hanna: 5, donghan_on: 5, ingyu_bike: 3 };
+// 변신 모습 공격 띠: h_<id>_<form>_attack.webp — donghan 진심 모드(alt) · ingyu 할리 타는 동안
+export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', 'bike'], ['hyungyeong', 'slim'], ['ara', 'old'], ['jieun', 'demon'], ['eunok', 'rage'], ['youngjun', 'dash']].map(([id, f]) => [id, { form: f, src: `/img/lb/h_${id}_${f}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id + '_' + f] || 4 }]));
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
-  'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 이한나 · 여지원은 아직 없음 → 코드 모션
+  'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'hanna', 'jiwon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
 export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.5, 0.42, 0.3, 0.24], endHp: 1.1, fix: { donghan: 0.77, wonsik: 1.8, staff: 1.1, eunok: 0.9, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.1, ingyu: 0.87, jiwon: 2.0, jungmin: 1.5, gunman: 0.75, junseo: 1.3, ara: 1.15 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7.6, stun: 0.9 };

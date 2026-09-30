@@ -2,6 +2,11 @@
 // 첫 터치 때 AudioContext 를 연다(모바일 자동재생 정책). 음소거는 localStorage 에 기억.
 
 const LS_KEY = 'langbang:mute';
+// 음량 (0~1): 배경음 · 효과음 따로 — 설정 화면 막대
+let VOLS = { bgm: 1, sfx: 1 };
+try { VOLS = Object.assign(VOLS, JSON.parse(localStorage.getItem('langbang:vol') || '{}')); } catch { /* 무시 */ }
+export function getVol(k) { return VOLS[k]; }
+export function setVol(k, v) { VOLS[k] = Math.max(0, Math.min(1, +v || 0)); try { localStorage.setItem('langbang:vol', JSON.stringify(VOLS)); } catch { /* 무시 */ } if (master) master.gain.value = muted ? 0 : 0.55 * VOLS.sfx; if (curKey && players[curKey]) players[curKey].volume = VOL * VOLS.bgm; }
 let ctx = null;
 let master = null;
 let noiseBuf = null;
@@ -15,7 +20,7 @@ export function unlock() {
     if (!AC) return;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = muted ? 0 : 0.55;
+    master.gain.value = muted ? 0 : 0.55 * VOLS.sfx;
     // 살짝 눌러 주는 컴프레서 — 여러 소리가 겹쳐도 찢어지지 않게
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
@@ -33,7 +38,7 @@ export function isMuted() { return muted; }
 export function setMuted(v) {
   muted = !!v;
   try { localStorage.setItem(LS_KEY, muted ? '1' : '0'); } catch { /* 무시 */ }
-  if (master) master.gain.value = muted ? 0 : 0.55;
+  if (master) master.gain.value = muted ? 0 : 0.55 * VOLS.sfx;
   if (muted) { for (const a of Object.values(players)) a.pause(); curKey = null; } else if (playing) { curKey = null; playBgm(); }
 }
 
@@ -70,7 +75,7 @@ function switchTo(key) {
   const t0 = performance.now(), from = next.volume, pfrom = prev ? prev.volume : 0;
   fadeT = setInterval(() => {
     const k = Math.min(1, (performance.now() - t0) / 800);
-    next.volume = from + (VOL - from) * k;
+    next.volume = from + (VOL * VOLS.bgm - from) * k;
     if (prev) { prev.volume = pfrom * (1 - k); if (k >= 1) prev.pause(); }
     if (k >= 1) clearInterval(fadeT);
   }, 50);
