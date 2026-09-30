@@ -1746,7 +1746,7 @@ function showStamina(msg) {
   const n = p.staBuy && p.staBuy.day === day ? p.staBuy.n : 0, left = L.STAMINA.buy.perDay - n, cost = L.STAMINA.buy.cost[n];
   popup(`<h3>⚡ 체력 ${msg ? '부족!' : ''}</h3>${msg ? `<p class="ip">${esc(msg)}</p>` : ''}
     <p class="ip big-got">${s.v} / ${L.STAMINA.max}${s.v > L.STAMINA.max ? ' (넘침)' : ''}</p>
-    <p class="ip">6분마다 1씩 차요${s.next ? ` · 다음까지 ${Math.ceil(s.next / 60000)}분` : ' · 가득!'}</p>
+    <p class="ip">${Math.round(L.STAMINA.regenMs / 60000)}분마다 1씩 차요${s.next ? ` · 다음까지 ${Math.ceil(s.next / 60000)}분` : ' · 가득!'}</p>
     <div class="ilist"><p class="ip">🗺️ 스테이지 ${L.STAMINA.stage} · 이미 ★★★ 스테이지 ${L.STAMINA.repeat} · 🔥 헬 ${L.STAMINA.hell} · 실패하면 절반 돌려받기</p>
     <p class="ip">📆 출석 +${L.STAMINA.checkin} · 계정 레벨 업 +${L.STAMINA.lvUp} · 무한 · 레이드 · 1:1 대전은 체력을 안 써요</p></div>
     <button class="btn ${left > 0 && p.coins >= cost ? 'primary' : ''}" data-act="staBuy" ${left > 0 ? '' : 'disabled'}>⚡ +${L.STAMINA.buy.n} 사기 · ${left > 0 ? `<i class="ci"></i>${fmt(cost)}` : '오늘 끝'} <small>(오늘 ${left}/${L.STAMINA.buy.perDay})</small></button>`, 'sta-pop');
@@ -1755,7 +1755,8 @@ function showStamina(msg) {
 function showMail() {
   const p = P(), now = Date.now();
   const list = (p.mail || []).filter((m) => m.exp > now).slice().reverse();
-  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b><small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${esc(gotText(m.rw) || '')}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
+  const safe = (rw) => { try { return gotText(rw) || ''; } catch { return ''; } }; // 보상 글자가 깨져도 우편함은 열린다
+  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b><small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${esc(safe(m.rw))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
   popup(`<h3>📮 우편함</h3>${list.length > 1 ? `<button class="btn primary" data-act="mailGet" data-id="all">🎁 모두 받기 (${list.length})</button>` : ''}
     <div class="mail-list">${rows || '<div class="empty-msg">받을 우편이 없어요</div>'}</div><p class="ip">보상 우편은 ${L.MAIL_DAYS}일 뒤 사라져요</p>`, 'mail-pop');
 }
@@ -1987,7 +1988,7 @@ function gotText(got) {
   if (got.coins) a.push(`${fmt(got.coins)} 코인`);
   if (got.tickets) a.push(`🎟️ 모집권 ${got.tickets}`);
   if (got.sp) a.push(`⭐ 시즌 +${got.sp}`);
-  if (got.gear) a.push(`${GEAR[got.gear.t].icon} ${GEAR_RARITY[got.gear.r].name} 장비${got.gear.sold ? ' (가방 꽉 참 → 코인)' : ''}`);
+  if (got.gear) { const gr = typeof got.gear === 'string' ? { r: got.gear } : got.gear; const R0 = GEAR_RARITY[gr.r] || GEAR_RARITY.common; a.push(`${gr.t && GEAR[gr.t] ? GEAR[gr.t].name + ' · ' : ''}${R0.name} 장비${gr.sold ? ' (가방 꽉 참 → 코인)' : ''}`); } // 우편 보상은 등급 글자("myth")만 · 받은 뒤엔 {t, r}
   if (got.title) a.push(`🏷️ 칭호 "${L.titleName(got.title)}"`);
   if (got.frame) a.push(`🖼️ ${L.FRAMES[got.frame].name}`);
   if (got.gears) a.push(`🎁 장비 ${got.gears.length}개`);

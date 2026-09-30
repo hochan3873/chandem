@@ -79,6 +79,17 @@ const topAt = (page, sel) => page.evaluate((sel) => {
   let auto = false;
   for (let i = 0; i < 40 && !auto; i++) { await wait(100); auto = await page.evaluate(() => !window.__lb.app.cardsOpen || window.__lb.app.cardAutoT > 5); }
   check(auto, '다시 흐르면 자동 선택된다');
+  // 우편함: 보상(장비 등급 글자 · 신화 포함)이 쌓여 있어도 눌러서 열리고 · 모두 받기
+  await page.evaluate(() => { const now = Date.now(); const g = JSON.parse(localStorage.getItem('langbang:guest') || '{}'); g.mailSeq = 3; g.mail = [{ id: 1, title: '무한 주간', text: '1위', rw: { coins: 500, gear: 'myth' }, at: now, exp: now + 6e8 }, { id: 2, title: '레이드', text: '참가', rw: { gear: 'legend', stones: 2 }, at: now, exp: now + 6e8 }, { id: 3, title: '시즌', text: '단계', rw: { tickets: 1 }, at: now, exp: now + 6e8 }]; localStorage.setItem('langbang:guest', JSON.stringify(g)); localStorage.removeItem('langbang:snap'); });
+  await page.goto(base + '?nogate', { waitUntil: 'networkidle0' });
+  await wait(900);
+  check(await topAt(page, '[data-act="mail"]'), '로비 우편 버튼을 누를 수 있다');
+  await page.tap('[data-act="mail"]');
+  await wait(900);
+  check(await page.evaluate(() => document.querySelectorAll('.mail-pop .mail-row').length === 3), '우편함이 열리고 우편 3개');
+  await page.evaluate(() => document.querySelector('.mail-pop [data-act="mailGet"][data-id="all"]').click());
+  await wait(1000);
+  check(await page.evaluate(() => { const g = JSON.parse(localStorage.getItem('langbang:guest')); return (g.mail || []).length === 0 && (g.gear || []).some((x) => x.r === 'myth'); }), '모두 받기 → 우편 0 · 신화 장비 받음');
   check(!errors.length, '페이지 에러 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   await srv.close();
