@@ -415,3 +415,23 @@ test('멤버 강화 = 코인 + 그 멤버 카드 (+1~5 1장 · +6~10 2장 · +11
   assert.equal(m2.ok, false, '테스트 모드: 카드 없으면 안 됨');
   await post('/api/langbang/master', m.token, { action: 'testNormal', on: false });
 });
+
+test('무한 기록: 40웨이브(처치 2.3만 · 점수 160만)도 저장 · 최고 기록 · 랭킹 · 중간에 그만둔 짧은 판도 저장', async () => {
+  const u = await user('endlessrec');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { maxStage: 10, stages: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 3])) });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  const r = await post('/api/langbang/result', u.token, { mode: 'endless', wave: 40, score: 1579543, kills: 23456, bossKills: 8, skills: 200, durationSec: 1919, seen: [] });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.profile.bestWave, 40); assert.equal(r.newBestWave, true);
+  const rk = await get('/api/langbang/ranking?mode=endless');
+  assert.ok((rk.ranking || []).some((x) => x.username === 'endlessrec' && x.bestWave === 40), '무한 랭킹에 올라감');
+  const s2 = await srv.accounts.store.byId(u.user.id); s2.stats.langbang.lastResultAt = 0; await srv.accounts.store.saveStats(u.user.id, s2.stats);
+  const q = await post('/api/langbang/result', u.token, { mode: 'endless', wave: 4, score: 9000, kills: 80, bossKills: 0, skills: 3, durationSec: 70, seen: [] });
+  assert.equal(q.ok, true, '짧게 그만둔 판도 저장: ' + q.message);
+  assert.equal(q.profile.bestWave, 40, '최고 기록은 그대로');
+  // 헬 모드 긴 판 (처치 2,600+) 도 저장
+  const s3 = await srv.accounts.store.byId(u.user.id); s3.stats.langbang.lastResultAt = 0; await srv.accounts.store.saveStats(u.user.id, s3.stats);
+  const h = await post('/api/langbang/result', u.token, { mode: 'stage', stage: 5, stars: 3, kills: 2653, score: 100258, bossKills: 1, skills: 20, durationSec: 900, seen: [] });
+  assert.equal(h.ok, true, '긴 스테이지 판: ' + h.message);
+});

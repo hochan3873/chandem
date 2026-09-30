@@ -477,12 +477,13 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (stage < 1 || stage > LBR.STAGE_COUNT) throw new AuthError('없는 스테이지예요');
         if (stars < 1 || stars > 3) throw bad();
         if (dur < LBR.STAGE_WAVES * 8) throw bad();
-        if (score > (LBR.STAGE_WAVES + 1) * 50000 || kills > (LBR.STAGE_WAVES + 1) * 400) throw bad();
+        if (score > (LBR.STAGE_WAVES + 1) * 120000 || kills > (LBR.STAGE_WAVES + 1) * 1200) throw bad(); // (헬 모드 긴 판은 처치 2,600+ 가 나온다)
       } else if (mode === 'weekly' || mode === 'raid') {
         wave = int(body.wave, 99);
       } else {
         wave = int(body.wave, 999);
-        if (score > (wave + 1) * 50000 || kills > (wave + 1) * 400) throw bad();
+        // 무한: 웨이브마다 진상이 늘어서 처치·점수가 웨이브²으로 는다 (40웨이브 ≈ 처치 2.3만 · 점수 160만) — 예전 상한(웨이브×400)은 30웨이브 넘으면 기록을 버렸다
+        if (score > 1000 * Math.pow(wave + 1, 2.3) + 50000 * (wave + 1) || kills > 40 * (wave + 1) * (wave + 1) + 400 * (wave + 1)) throw bad();
         if (wave >= 3 && dur < wave * 8) throw bad();
       }
       let out = null;
