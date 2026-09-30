@@ -5396,14 +5396,28 @@ function gateLoop(box) { // 한 개 · loop 속성 (끝에서 검은 화면 없�
   if (v.readyState >= 2) on(); else v.addEventListener('playing', on, { once: true });
   const pr = v.play(); if (pr && pr.catch) pr.catch(() => box.classList.add('novid'));
 }
+function soundChip() {
+  if (stage.querySelector('.snd-chip')) return;
+  const c = document.createElement('button');
+  c.className = 'snd-chip';
+  c.innerHTML = `${ic('sound', '', 'sm')}<span>눌러서 소리 켜기</span>`;
+  const go = () => { A.unlock(); A.playBgm(); app.touched = true; c.remove(); window.removeEventListener('pointerdown', go, true); };
+  window.addEventListener('pointerdown', go, true);
+  stage.appendChild(c);
+  setTimeout(() => { if (c.isConnected) c.classList.add('fade'); }, 6000);
+}
 function startGate(quick = false) {
   let ok = false;
   try { ok = sessionStorage.getItem('langbang:gate') === '1'; } catch { ok = false; }
   if (Q.has('autostart') || DEBUG.stage || Q.has('nogate')) return;
-  // 이번 세션에 이미 봤으면 건너뛰되, 음악이 정말 나오는지 확인 — 막혔으면 짧은 "터치해서 시작"
-  if (ok && !quick) {
+  // 뒤로/앞으로 가기로 다시 열린 페이지 · 이번 세션에 이미 본 경우 → 타이틀은 다시 안 보인다 (뒤로 가기로 타이틀에 가지 않게)
+  let bf = false;
+  try { const nv = performance.getEntriesByType && performance.getEntriesByType('navigation')[0]; bf = !!nv && (nv.type === 'back_forward' || nv.type === 'reload'); } catch { bf = false; }
+  if (ok || bf) {
+    try { sessionStorage.setItem('langbang:gate', '1'); } catch { /* 무시 */ }
     A.unlock(); A.playBgm();
-    setTimeout(() => { if (!A.bgmActive() && !A.isMuted() && !app.touched) startGate(true); }, 450);
+    // 음악이 막혔으면 (터치 전) 작은 "소리 켜기" 칩만 — 첫 터치에 음악 시작
+    setTimeout(() => { if (!A.bgmActive() && !A.isMuted() && !app.touched) soundChip(); }, 450);
     return;
   }
   const MIN_MS = quick ? 700 : 3000;

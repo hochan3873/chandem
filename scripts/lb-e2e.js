@@ -113,6 +113,27 @@ const topAt = (page, sel) => page.evaluate((sel) => {
   await page.tap('[data-act="nav"][data-tab="bag"]'); await wait(400);
   await back();
   check(await page.evaluate(() => window.__lb.app.screen === 'shop'), '장비 → 뒤로: 바로 전 화면(상점)');
+  // 뒤로 가기로 타이틀(게이트)에 가지 않기: 게이트 → 로비 → 도감 → 뒤로×3 · 로비 → 장비 → 멤버 상세 → 뒤로×3 · 새로고침
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(base, { waitUntil: 'networkidle0' }); await wait(3600);
+  check(await page.evaluate(() => !!document.querySelector('.gate')), '처음엔 타이틀이 보인다');
+  await page.evaluate(() => document.querySelector('.gate').click()); await wait(700);
+  const noGate = () => page.evaluate(() => !document.querySelector('.gate') && location.pathname.startsWith('/langbang'));
+  const closeConfirm = () => page.evaluate(() => { const b = document.querySelector('.confirm-modal [data-c="no"]'); if (b) b.click(); });
+  await page.evaluate(() => document.querySelector('[data-act="dex"]').click()); await wait(600);
+  let ok1 = true;
+  for (let k = 0; k < 3; k++) { await page.evaluate(() => history.back()); await wait(600); ok1 = ok1 && (await noGate()); await closeConfirm(); await wait(200); }
+  check(ok1, '도감에서 뒤로×3: 타이틀로 안 감 · 랑방에 남음');
+  await page.tap('[data-act="nav"][data-tab="bag"]'); await wait(600);
+  await page.evaluate(() => { const c = document.querySelector('[data-act="heroInfo"], .eqh, [data-act="bagHeroPick"]'); if (c) c.click(); }); await wait(600);
+  let ok2 = true;
+  for (let k = 0; k < 3; k++) { await page.evaluate(() => history.back()); await wait(600); ok2 = ok2 && (await noGate()); await closeConfirm(); await wait(200); }
+  check(ok2, '장비 → 멤버 → 뒤로×3: 타이틀로 안 감 · 랑방에 남음');
+  await page.reload({ waitUntil: 'networkidle0' }); await wait(1200);
+  check(await noGate(), '새로고침해도 (같은 세션) 타이틀 없이 바로 로비');
+  let ok3 = true;
+  for (let k = 0; k < 10; k++) { await page.evaluate(() => history.back()); await wait(350); ok3 = ok3 && (await noGate()); await closeConfirm(); await wait(150); }
+  check(ok3, '뒤로 10번 연타: 확인 없이 랑방을 떠나지 않음');
   check(!errors.length, '페이지 에러 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   await srv.close();

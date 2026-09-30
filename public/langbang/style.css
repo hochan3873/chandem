@@ -3075,3 +3075,6 @@ body.rm .tap-rip, body.rm .tap-spark { display: none; }
 .card-list.v4.v5.n4 .card.v5 .c5-art img.c5-face { top: calc(var(--u) * 12); height: calc(var(--u) * 41 * var(--k)); }
 .card.v5 .c5-art img.c5-gen { position: absolute; left: 50%; top: calc(var(--u) * -34); bottom: auto; height: calc(var(--u) * 92); width: auto; max-width: none; transform: translateX(-50%); object-fit: contain; filter: drop-shadow(0 calc(var(--u) * 4) calc(var(--u) * 8) rgba(0, 0, 0, 0.6)); -webkit-mask: none; mask: none; }
 .card-list.v4.v5.n4 .card.v5 .c5-art img.c5-gen { top: calc(var(--u) * -34); height: calc(var(--u) * 76); }
+
+.snd-chip { position: absolute; left: 50%; bottom: calc(var(--u) * 92 + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: var(--z-toast, 90); display: inline-flex; align-items: center; gap: calc(var(--u) * 6); padding: calc(var(--u) * 7) calc(var(--u) * 14); border-radius: 99px; border: 2px solid #000; background: rgba(20, 12, 40, 0.92); color: #fff; font-size: calc(var(--u) * 12); font-weight: 800; box-shadow: 0 0 0 1px rgba(255, 210, 63, 0.5) inset; transition: opacity 0.4s; }
+.snd-chip.fade { opacity: 0.55; }
