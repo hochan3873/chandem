@@ -517,3 +517,18 @@ test('무한 자리 비움: 절반을 자리 비움이면 코인 · 주간 점�
   assert.ok(Math.abs(b.reward.total - a.reward.total / 2) <= 2, `절반 ${a.reward.total} → ${b.reward.total}`);
   assert.equal(b.profile.ew.best, 10000, '주간 점수도 절반');
 });
+
+test('미션 · 시즌 보상에 범용 멤버 카드 (누구 강화에나)', async () => {
+  const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  assert.ok(L.DAILY_ALL.wild >= 1);
+  assert.ok(L.WEEKLY_MISSIONS.some((m) => m.wild));
+  assert.ok(L.ACHIEVEMENTS.some((m) => m.wild));
+  assert.equal(L.seasonReward(1, 4).wild, 2);
+  const u = await user('wilduser');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { maxStage: 10, stages: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 3])), wild: 0 });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  const r = await post('/api/langbang/mission/claim', u.token, { kind: 'ach', id: 'ch1' });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.profile.wild, L.ACHIEVEMENTS.find((m) => m.id === 'ch1').wild, '1장 클리어 업적 → 범용 카드');
+});

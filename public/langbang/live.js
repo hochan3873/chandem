@@ -223,26 +223,26 @@ export const DAILY_POOL = [
   { id: 'enhance1', icon: '🔧', name: '장비 강화 1번', key: 'enhances', n: 1, coins: 100, sp: 20 },
 ];
 export const DAILY_N = 4;
-export const DAILY_ALL = { id: 'all', icon: '🎁', name: '오늘 미션 전부 완료', tickets: 1, sp: 30 };
+export const DAILY_ALL = { id: 'all', icon: '🎁', name: '오늘 미션 전부 완료', tickets: 1, sp: 30, wild: 1 };
 export const WEEKLY_MISSIONS = [
-  { id: 'w_clear20', icon: '🗺️', name: '스테이지 20판 클리어', key: 'clears', n: 20, coins: 800, tickets: 2, sp: 80 },
+  { id: 'w_clear20', icon: '🗺️', name: '스테이지 20판 클리어', key: 'clears', n: 20, coins: 800, tickets: 2, sp: 80, wild: 2 },
   { id: 'w_weekly3', icon: '📅', name: '주간 도전 3판', key: 'weeklies', n: 3, coins: 600, tickets: 1, sp: 60 },
-  { id: 'w_boss10', icon: '👑', name: '보스 10명 잡기', key: 'bosses', n: 10, coins: 700, tickets: 1, sp: 60 },
-  { id: 'w_daily12', icon: '✅', name: '일일 미션 12개 완료', key: 'dailyDone', n: 12, coins: 800, tickets: 2, sp: 80 },
+  { id: 'w_boss10', icon: '👑', name: '보스 10명 잡기', key: 'bosses', n: 10, coins: 700, tickets: 1, sp: 60, wild: 2 },
+  { id: 'w_daily12', icon: '✅', name: '일일 미션 12개 완료', key: 'dailyDone', n: 12, coins: 800, tickets: 2, sp: 80, wild: 3 },
   { id: 'w_perfect5', icon: '💎', name: 'PERFECT 5번', key: 'perfects', n: 5, coins: 700, tickets: 1, sp: 60 },
 ];
 const ownedCount = (lb) => Object.keys(HEROES).filter((h) => heroUnlocked(lb, h)).length;
 export const ACHIEVEMENTS = [
   { id: 'dex10', icon: '📚', name: '도감 진상 10종', n: 10, v: (lb) => (lb.seen || []).length, coins: 500, tickets: 1 },
   { id: 'dex20', icon: '📚', name: '도감 진상 20종', n: 20, v: (lb) => (lb.seen || []).length, coins: 1200, tickets: 2 },
-  { id: 'hero8', icon: '👥', name: '멤버 8명 모으기', n: 8, v: ownedCount, coins: 800, tickets: 1 },
-  { id: 'hero12', icon: '👥', name: '멤버 12명 모으기', n: 12, v: ownedCount, coins: 1500, tickets: 3 },
-  { id: 'hero16', icon: '👑', name: '멤버 16명 전부', n: 16, v: ownedCount, coins: 5000, tickets: 5 },
-  { id: 'ch1', icon: '🏁', name: '1장 클리어', n: 10, v: (lb) => lb.maxStage | 0, coins: 500, tickets: 1 },
-  { id: 'ch2', icon: '🏁', name: '2장 클리어', n: 20, v: (lb) => lb.maxStage | 0, coins: 1200, tickets: 2 },
-  { id: 'ch3', icon: '🏆', name: '3장 클리어', n: 30, v: (lb) => lb.maxStage | 0, coins: 3000, tickets: 3 },
-  { id: 'ch4', icon: '✈️', name: '4장 클리어', n: 40, v: (lb) => lb.maxStage | 0, coins: 4000, tickets: 3 },
-  { id: 'ch5', icon: '🏕️', name: '5장 클리어', n: 50, v: (lb) => lb.maxStage | 0, coins: 6000, tickets: 4 },
+  { id: 'hero8', icon: '👥', name: '멤버 8명 모으기', n: 8, v: ownedCount, coins: 800, tickets: 1, wild: 2 },
+  { id: 'hero12', icon: '👥', name: '멤버 12명 모으기', n: 12, v: ownedCount, coins: 1500, tickets: 3, wild: 3 },
+  { id: 'hero16', icon: '👑', name: '멤버 16명 전부', n: 16, v: ownedCount, coins: 5000, tickets: 5, wild: 5 },
+  { id: 'ch1', icon: '🏁', name: '1장 클리어', n: 10, v: (lb) => lb.maxStage | 0, coins: 500, tickets: 1, wild: 2 },
+  { id: 'ch2', icon: '🏁', name: '2장 클리어', n: 20, v: (lb) => lb.maxStage | 0, coins: 1200, tickets: 2, wild: 3 },
+  { id: 'ch3', icon: '🏆', name: '3장 클리어', n: 30, v: (lb) => lb.maxStage | 0, coins: 3000, tickets: 3, wild: 4 },
+  { id: 'ch4', icon: '✈️', name: '4장 클리어', n: 40, v: (lb) => lb.maxStage | 0, coins: 4000, tickets: 3, wild: 5 },
+  { id: 'ch5', icon: '🏕️', name: '5장 클리어', n: 50, v: (lb) => lb.maxStage | 0, coins: 6000, tickets: 4, wild: 6 },
   { id: 'ch6', icon: '👑', name: '6장 클리어 (마지막!)', n: 60, v: (lb) => lb.maxStage | 0, coins: 10000, tickets: 6 },
   { id: 'stars180', icon: '🌟', name: '별 180개 전부', n: 180, v: (lb) => lb.totalStars | 0, coins: 8000, tickets: 5 },
   { id: 'perfect10', icon: '💎', name: 'PERFECT 스테이지 10개', n: 10, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 1500, tickets: 2 },
@@ -301,6 +301,7 @@ export function grant(lb, rw, uid, now) {
   if (rw.coins) { lb.coins = (lb.coins | 0) + rw.coins; got.coins = rw.coins; }
   if (rw.tickets) { lb.tickets = (lb.tickets | 0) + rw.tickets; got.tickets = rw.tickets; }
   if (rw.stones) { lb.stones = (lb.stones | 0) + rw.stones; got.stones = rw.stones; }
+  if (rw.wild) { lb.wild = (lb.wild | 0) + rw.wild; got.wild = rw.wild; }
   if (rw.sta) { staminaAdd(lb, rw.sta, now); got.sta = rw.sta; }
   if (rw.sp) { ensureLive(lb, uid, now); lb.season.sp += rw.sp; got.sp = rw.sp; }
   if (rw.gear) got.gear = addGear(lb, GEAR_IDS[hashSeed(`rw:${lb.gearSeq}:${rw.gear}:${uid}`) % GEAR_IDS.length], rw.gear);
@@ -395,6 +396,7 @@ export function seasonReward(sid, t) {
   if (t === 25) return { gear: 'legend', label: '🌟 전설 장비' };
   if (t === 15) return { gear: 'epic', label: '💜 영웅 장비' };
   if (t === 5) return { gear: 'rare', label: '💙 희귀 장비' };
+  if (t % 4 === 0) return { wild: t >= 20 ? 4 : 2, coins: 200 + 20 * t, label: `🃏 범용 멤버 카드 ${t >= 20 ? 4 : 2} + ${(200 + 20 * t).toLocaleString()} 코인` };
   if (t % 3 === 0) return { tickets: t >= 21 ? 2 : 1, label: `🎟️ 모집권 ${t >= 21 ? 2 : 1}` };
   const c = 300 + 30 * t;
   return { coins: c, label: `${c.toLocaleString()} 코인` };

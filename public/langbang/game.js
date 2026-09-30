@@ -1919,6 +1919,7 @@ function gotText(got) {
   if (got.gears) a.push(`🎁 장비 ${got.gears.length}개`);
   if (got.stones) a.push(`💎 강화석 ${got.stones}`);
   if (got.sta) a.push(`⚡ 체력 ${got.sta}`);
+  if (got.wild) a.push(`🃏 범용 멤버 카드 ${got.wild}`);
   if (got.titles) a.push(`🏷️ 칭호 ${got.titles.length}개`);
   if (got.frames) a.push(`🖼️ 프레임 ${got.frames.length}개`);
   return a.join(' · ');
@@ -2383,7 +2384,7 @@ function showMissions() {
   const tab = app.misTab || 'daily';
   const row = (m) => {
     const ready = !m.done && (m.ready !== undefined ? m.ready : m.have >= m.n);
-    const rw = [m.coins ? `${fmt(m.coins)}코인` : '', m.tickets ? `🎟️${m.tickets}` : '', m.sp ? `⭐${m.sp}` : '', m.title ? '🏷️칭호' : ''].filter(Boolean).join(' ');
+    const rw = [m.coins ? `${fmt(m.coins)}코인` : '', m.tickets ? `🎟️${m.tickets}` : '', m.wild ? `🃏${m.wild}` : '', m.sp ? `⭐${m.sp}` : '', m.title ? '🏷️칭호' : ''].filter(Boolean).join(' ');
     return `<div class="mrow ${m.done ? 'done' : ready ? 'ready' : ''}"><span class="mi">${m.icon}</span><div class="mm"><b>${esc(m.name)}</b>
       <div class="pbar"><div style="width:${Math.round((Math.min(m.have, m.n) / m.n) * 100)}%"></div><em>${fmt(Math.min(m.have, m.n))}/${fmt(m.n)}</em></div><small>${rw}</small></div>
       <button class="btn ${ready ? 'primary' : ''}" data-act="claimMis" data-kind="${m.kind}" data-id="${m.id}" ${ready ? '' : 'disabled'}>${m.done ? '완료' : ready ? '받기' : '진행 중'}</button></div>`;
