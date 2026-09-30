@@ -39,6 +39,8 @@
       var h = document.documentElement, q = location.search;
       try {
         var skip = /[?&]nosplash\b/.test(q) || (navigator.webdriver && !/[?&]splash\b/.test(q));
+        var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+        if (!/[?&]splash/.test(q) && ((nav && nav.type === 'back_forward') || sessionStorage.getItem('gw:splashed'))) skip = true; // 뒤로 가기 · 이 탭에서 이미 봄: 바로 로비
         h.classList.add(skip ? 'no-splash' : 'splashing');
         if (!skip && sessionStorage.getItem('gw:audioOK')) h.classList.add('splash-quiet');
         if (!skip && localStorage.getItem('gw:seenSplash')) h.classList.add('splash-fast');

@@ -46,7 +46,23 @@ function soundPill() {
   window.addEventListener('click', () => setTimeout(check, 500), true);
 }
 
+// 랑방 대전에서 뒤로 가기로 막 나왔으면(2.5초 안) 작은 "랑방 대전으로 돌아가기" 알림 (자동 이동 없음)
+function lbReturnToast() {
+  let t = 0; try { t = Number(sessionStorage.getItem('lb_active') || 0); } catch {}
+  const nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+  if (!t || Date.now() - t > 2500 || !(nav && nav.type === 'back_forward')) return;
+  try { sessionStorage.removeItem('lb_active'); } catch {}
+  const b = document.createElement('button');
+  b.type = 'button'; b.id = 'lb-back-toast';
+  b.textContent = '랑방 대전으로 돌아가기';
+  b.style.cssText = 'position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9999;padding:12px 18px;border-radius:99px;border:2px solid #000;background:#221638;color:#ffd23f;font-weight:900;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.45)';
+  b.onclick = () => { location.href = '/langbang/'; };
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 6000);
+}
+window.addEventListener('pageshow', (e) => { if (e.persisted) { const sp = document.getElementById('splash'); if (sp) sp.remove(); html.classList.remove('splashing', 'splash-quiet', 'splash-fast'); try { lbReturnToast(); } catch {} } });
 async function start() {
+  try { lbReturnToast(); } catch {}
   if (!el || !html.classList.contains('splashing')) { if (el) el.remove(); soundPill(); return; }
   // 이 탭에서 이미 소리를 풀었으면: 숨긴 채 조용히 풀어 보고, 되면 로딩 화면 없이 바로
   if (html.classList.contains('splash-quiet')) {

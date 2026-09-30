@@ -214,16 +214,27 @@ let ignorePop = 0;
 for (const t of ['gesturestart', 'gesturechange', 'gestureend', 'dblclick']) document.addEventListener(t, (e) => e.preventDefault(), { passive: false });
 document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || (e.scale !== undefined && e.scale !== 1)) e.preventDefault(); }, { passive: false });
 // (두 번 탭 확대는 CSS touch-action: manipulation 으로 막는다 — touchend 를 막으면 빠른 연속 탭이 씹혀서 안 쓴다)
+// 크롬 규칙: 사용자 활성(탭·클릭·키) 없이 쌓은 기록은 뒤로 가기에서 건너뛴다. 한 번의 탭에서 여러 번 쌓으면 첫 칸만 "진짜"
+//  → 탭 하나에 기록은 딱 한 칸 (pointerup/touchend/click/keydown 중 먼저 온 것 · 0.5초 안 중복 막기)
+//  → "진짜" 칸을 최대 3개까지 쌓아 두고, 뒤로 가기마다 하나씩 쓴다 · 뒤로 가기 처리 중에는 절대 쌓지 않는다 (건너뛰어짐)
 let guardGesture = false;
 let hDepth = (history.state && history.state.lb === 'guard' && history.state.d) | 0; // 지금 서 있는 칸
-let armed = 0; // 지금 칸 뒤에 남아 있는 "눌러서 쌓은" 칸 수
+let armed = 0; // 지금 칸 위에 쌓아 둔 "진짜" 칸 수
+let lastArm = -1e9;
 function guardOn(fromGesture = false) {
-  const act = fromGesture || !!(navigator.userActivation && navigator.userActivation.isActive);
-  if (!act) { if (guarded) return; } // 누르지 않았으면 한 칸만 (건너뛰어질 수 있어서 세지 않는다)
-  else if (armed >= 3) return;
-  try { history.pushState({ lb: 'guard', d: ++hDepth }, ''); guarded = true; if (act) armed++; guardGesture = act; } catch { /* 무시 */ }
+  if (!fromGesture) { // 활성 없이: 처음 한 번만 (사파리·파이어폭스용 · 크롬은 건너뜀) — 세지 않는다
+    if (guarded) return;
+    try { history.pushState({ lb: 'guard', d: ++hDepth, soft: 1 }, ''); guarded = true; } catch { /* 무시 */ }
+    return;
+  }
+  const now = performance.now();
+  if (now - lastArm < 500 || armed >= 3) return; // 같은 탭에서 두 번째 칸은 건너뛰어지므로 안 쌓는다
+  try { history.pushState({ lb: 'guard', d: ++hDepth }, ''); guarded = true; armed++; lastArm = now; guardGesture = true; } catch { /* 무시 */ }
 }
-for (const t of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(t, () => guardOn(t !== 'pointerdown' || !('ontouchstart' in window)), { capture: true, passive: true }); // 폰: 손을 뗄 때가 진짜 '사용자 활성'
+for (const t of ['pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(t, (ev) => { if (ev.isTrusted !== false && (t !== 'keydown' || !ev.repeat)) guardOn(true); }, { capture: true, passive: true });
+window.addEventListener('pointerdown', (ev) => { if (ev.pointerType === 'mouse') guardOn(true); }, { capture: true, passive: true }); // 마우스는 누르는 순간이 활성
+try { sessionStorage.setItem('lb_active', String(Date.now())); } catch { /* 무시 */ }
+setInterval(() => { try { sessionStorage.setItem('lb_active', String(Date.now())); } catch { /* 무시 */ } }, 1000);
 for (const t of ['pointerdown', 'keydown']) window.addEventListener(t, () => { app.lastInput = performance.now(); }, { capture: true, passive: true });
 function leaveToHub() {
   saveSnap();
@@ -253,8 +264,8 @@ window.addEventListener('popstate', (ev) => {
   if (d > hDepth) { hDepth = d; return; } // 앞으로 가기 — 무시
   hDepth = d;
   armed = Math.max(0, armed - 1);
-  guarded = false; guardGesture = false;
-  guardOn(); // 다시 걸어 둔다 — 스택이 비지 않게 (다음 터치 때 "눌러서 쌓은" 칸도 다시 채운다)
+  guardGesture = false; guarded = false;
+  guardOn(); // 부드러운 칸 하나 (사파리·카톡·파이어폭스는 이것으로 버틴다 · 크롬은 건너뛰니 진짜 칸은 다음 탭에서)
   if (closeTopLayer()) return;
   if (app.screen === 'play' && app.g && !app.g.over) {
     if (app.g.pvp) { askForfeit(); return; } // 실시간 대전은 멈출 수 없다 → 기권 확인
