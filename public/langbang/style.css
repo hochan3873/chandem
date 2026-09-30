@@ -2865,3 +2865,26 @@ body.rm .chm-art, body.rm .mn.cur .mn-dot, body.rm .mn-here { animation: none !i
 .lb-todo { bottom: auto !important; top: calc(var(--u) * 232); }
 .lb-rank { top: calc(var(--u) * 196); }
 .lb-todo { top: calc(var(--u) * 226); }
+
+/* ─── 핫픽스: 카드 그림 늘어남 · 장비 아이콘 넘침 · 아래 바 가림 ─── */
+.acard .ac-art img.ac-img { position: absolute; inset: 0; width: 100% !important; height: 100% !important; max-width: 100%; object-fit: cover; top: 0 !important; left: 0 !important; }
+.pp-slots .acard, .pp-slots .pp-slot, .pp-sg .acard { aspect-ratio: 3 / 4 !important; }
+@media (max-height: 700px) { .pp-slots.g6 .acard, .pp-slots.g6 .pp-slot, .pp-slots.g6 .pp-slot.lock { aspect-ratio: 3 / 4 !important; } }
+/* 출격 버튼: 끈적이 대신 맨 아래 제자리 (삼성·카톡 브라우저에서 둘째 줄이 가려지던 문제) */
+.screen.pp .pp-go { position: relative !important; bottom: auto !important; margin-top: calc(var(--u) * 10); padding-bottom: calc(var(--u) * 12 + env(safe-area-inset-bottom)); }
+.screen.pp { padding-bottom: calc(var(--u) * 8 + env(safe-area-inset-bottom)) !important; }
+/* 멤버 상세 · 장비 칸: 아이콘 60px 고정 · 아이콘 / 이름 +N / 효과 가로 배치 */
+.hf-gear .gslot { display: flex !important; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 8) calc(var(--u) * 10); height: auto; text-align: left; overflow: hidden; font-size: calc(var(--u) * 20); }
+.hf-gear .gslot > .gico, .hf-gear .gslot > .ic { flex: none; width: calc(var(--u) * 56) !important; height: calc(var(--u) * 56) !important; max-width: 56px; max-height: 56px; }
+.hf-gear .gslot > .gico img { width: 100%; height: 100%; object-fit: contain; }
+.hf-gear .gslot small { position: static !important; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 2); background: none !important; padding: 0 !important; font-size: calc(var(--u) * 12) !important; line-height: 1.25; word-break: keep-all; color: #fff; }
+.hf-gear .gslot em { font-size: calc(var(--u) * 11) !important; }
+.hf-sug .gico, .gitem .gico, .cmp-s .gico, .eq-row .gico { width: calc(var(--u) * 40) !important; height: calc(var(--u) * 40) !important; flex: none; }
+.gico img { max-width: 100%; max-height: 100%; }
+/* 아래 버튼 줄: 한 줄로 · 내용은 그만큼 띄운다 */
+.hero-full .hf-foot { display: flex !important; flex-wrap: nowrap; gap: calc(var(--u) * 6); }
+.hero-full .hf-foot .btn { flex: 1 1 0; min-width: 0; margin: 0 !important; padding-left: calc(var(--u) * 6); padding-right: calc(var(--u) * 6); font-size: calc(var(--u) * 13); white-space: nowrap; }
+.hero-full .hf-foot .hf-auto { flex: 1.3 1 0; }
+.hero-full .hf-body { bottom: calc(var(--u) * 72 + env(safe-area-inset-bottom)) !important; padding-bottom: calc(var(--u) * 16) !important; }
+.hf-gear .gslot .gs-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 3); }
+.hf-gear .gslot .gs-txt small, .hf-gear .gslot .gs-txt em { display: block; }

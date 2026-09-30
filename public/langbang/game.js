@@ -2466,13 +2466,12 @@ function artCard(id, o = {}) {
   const z = Math.max(1.35, Math.min(2.2, 0.32 / fb[2]));
   // 카드(3:4) 안에서 얼굴 가운데가 (50%, 22%) 에 오게 · 그림이 카드 밖으로 비지 않게
   const hRel = 1.5 * z * 0.75; // 그림 높이 ÷ 카드 높이
-  const left = Math.min(0, Math.max((1 - z) * 100, (0.5 - fb[0] * z) * 100));
-  const top = Math.min(0, Math.max((1 - hRel) * 100, (0.22 - fb[1] * hRel) * 100));
+  void hRel;
   const src = thumbSrc(id), fall = hqSrc(id) || d.img;
-  const duo = hasDuo(id) && ok;
+  const duo = false; // 작은 카드엔 두 모습 그림을 안 쓴다 (한 모습 · 얼굴 맞춤)
   const art = !src && !fall ? `<span class="dx-emo">${d.emoji}</span>`
     : duo ? `<span class="ac-duo" style="background-image:url('${thumbSrc(id, true)}')"></span><span class="ac-duo b" style="background-image:url('${thumbSrc(id, true)}')"></span>`
-      : `<img src="${src || fall}" alt="" decoding="async" draggable="false" style="width:${(z * 100).toFixed(0)}%;left:${left.toFixed(1)}%;top:${top.toFixed(1)}%" onerror="this.onerror=null;this.src='${fall}'">`;
+      : `<img class="ac-img" src="${src || fall}" alt="" decoding="async" draggable="false" style="object-position:${(fb[0] * 100).toFixed(1)}% ${(fb[1] * 100).toFixed(1)}%;transform-origin:${(fb[0] * 100).toFixed(1)}% ${Math.max(0, fb[1] * 100 - 4).toFixed(1)}%;transform:scale(${Math.max(1, z * 0.72).toFixed(3)})" onerror="this.onerror=null;this.src='${fall}'">`; // 비율 그대로 (cover) · 얼굴 기준 확대 — 늘어나지 않게
   const pr = !ok && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? L.cardProgress(p, id) : null;
   const sub = ok ? `${'★'.repeat(st)}${lv ? ` · +${lv}` : ''}` : pr ? `카드 ${pr[0]}/${pr[1]}` : HERO_UNLOCK[id] ? `${stageLabel(HERO_UNLOCK[id])} 클리어` : '모집';
   return `<button class="acard t${t} ${ok ? '' : 'locked'} ${o.on ? 'on' : ''} ${o.cls || ''}" data-act="${o.act || 'heroCard'}" data-id="${id}" style="--c:${ATTRS[d.attr].color}">
@@ -2554,7 +2553,7 @@ function showHeroModal(id, ctx = '') {
   const rg = Array.isArray(d.range) ? d.range[0] : d.range;
   const legendNum = (v) => (d.legend ? `<b class="lgn">${v}</b>` : `<b>${v}</b>`);
   const perks = Object.entries(d.perks || {}).map(([k, v]) => `<li><b>Lv${k}</b> ${esc(v)}</li>`).join('');
-  const slot = (k) => { const it = (p.gear || []).find((g) => g.id === eq[k]); return `<button class="gslot ${it ? 'r-' + it.r : ''}" data-act="gearSlot" data-hero="${id}" data-slot="${k}" ${ok ? '' : 'disabled'} style="--rc:${it ? GEAR_RARITY[it.r].color : '#555'}">${it ? gearIco(it) : k === 'w' ? '🗡️' : '💍'}<small>${it ? esc(GEAR[it.t].name) + (it.lv ? ` +${it.lv}` : '') : k === 'w' ? '무기 비었음' : '장신구 비었음'}</small>${it ? `<em>${esc(gearStatText(it))}</em>` : ''}</button>`; };
+  const slot = (k) => { const it = (p.gear || []).find((g) => g.id === eq[k]); return `<button class="gslot ${it ? 'r-' + it.r : ''}" data-act="gearSlot" data-hero="${id}" data-slot="${k}" ${ok ? '' : 'disabled'} style="--rc:${it ? GEAR_RARITY[it.r].color : '#555'}">${it ? gearIco(it) : ic(k === 'w' ? 'dagger' : 'ring', '', '')}<span class="gs-txt"><small>${it ? esc(GEAR[it.t].name) + (it.lv ? ` +${it.lv}` : '') : k === 'w' ? '무기 비었음' : '장신구 비었음'}</small>${it ? `<em>${esc(gearStatText(it))}</em>` : ''}</span></button>`; };
   // 이 멤버에게 더 좋은 장비 (칸마다 두 개까지) — 누르면 바로 끼기
   const sugg = ['w', 'a'].map((k) => {
     const cur = (p.gear || []).find((g) => g.id === eq[k]);
@@ -2596,7 +2595,7 @@ function showHeroModal(id, ctx = '') {
     <div class="hf-head"><i class="tier t${t}">${TIER_NAME[t]}</i>${attrTag(d.attr)}<b>${ok ? esc(d.name) : '???'}</b><small>${esc(d.role)}</small></div>
     <div class="hf-tabs">${[['info', '정보'], ['up', '강화'], ['gear', '장비']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-hf="tab" data-k="${k}">${n}</button>`).join('')}</div>
     <div class="hf-body">${ok ? body : `<p class="ip">🔒 ${esc(heroHow(id))}</p>${body}`}</div>
-    <div class="hf-foot">${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비 착용' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">📚 도감</button></div>`;
+    <div class="hf-foot">${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">📚 도감</button></div>`;
   stage.appendChild(box);
   // 최적 장비: 길게 누르면 "다른 멤버 것 포함"
   const ab = box.querySelector('[data-hf="auto"]');
