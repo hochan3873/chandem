@@ -126,11 +126,13 @@ export async function loadHall(game) {
   if (r.meMaster) mine = `<p class="hall-me-lbl muted small">👑 마스터 계정은 순위 제외</p>`;
   else if (r.me) mine = `<div class="hall-me-lbl">내 순위</div><ol class="hall-list hall-me">${row(r.me, 'is-me')}</ol>`;
   else if (C.S.user) mine = `<p class="hall-me-lbl muted small">내 순위: 아직 기록이 없어요 · 한 판 하면 올라가요!</p>`;
-  else mine = `<p class="hall-me-lbl muted small">로그인하면 내 순위가 여기에 떠요</p>`;
+  else mine = `<div class="hall-join"><span>🔑 로그인하고 한 판만 하면 순위에 올라가요 — 지금 <b>${r.total}명</b> 참여 중</span><button class="btn btn-sm btn-gold" data-hall-login>⚡ 바로 시작</button></div>`;
   const note = ranked.length ? '' : `<p class="hall-note muted small center">🏁 아직 공식 순위가 없어요 — 10판을 먼저 채우면 첫 1위!</p>`;
   box.innerHTML = `${ranked.length ? `<div class="podium">${podium}</div>` : note}${rest ? `<ol class="hall-list">${rest}</ol>` : ''}${mine}`;
   fitNames(box);
   box.querySelectorAll('[data-user]').forEach((el) => { el.onclick = () => openPlayerCard({ game, username: el.dataset.user }); });
+  const hl = box.querySelector('[data-hall-login]');
+  if (hl) hl.onclick = () => C.openLogin();
 }
 /** 메인 게임 카드에 1위 한 줄: "👑 1위 여져니 · 하이롤러" (공식 순위가 없으면 "🔰 배치 중 N명") */
 export async function loadHubChamps(games = ['holdem', 'seotda', 'omok']) {

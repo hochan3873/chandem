@@ -394,8 +394,15 @@ async function api(path, body) {
 async function loadMe() {
   if (!S.auth) { S.user = null; return; }
   const r = await api('/me');
-  if (r.ok) S.user = r.user;
-  else if (r.message) { S.user = null; S.auth = null; LS.del('chandem:auth'); }
+  if (r.ok) { S.user = r.user; return; }
+  if (!r.message) return;
+  S.user = null; S.auth = null; LS.del('chandem:auth');
+  // 이 기기 계정(자동으로 만든 계정)이면 저장된 아이디·비밀번호로 다시 로그인
+  const dev = LS.get('gw:device', null);
+  if (dev && dev.username && dev.password) {
+    const l = await api('/login', { username: dev.username, password: dev.password });
+    if (l.ok) setAuth(l, { quiet: true });
+  }
 }
 function logout() {
   S.auth = null; S.user = null; S.checkin = null;
@@ -403,10 +410,45 @@ function logout() {
   closeModal();
   render();
 }
-function setAuth(r) {
+function setAuth(r, { quiet = false } = {}) {
   S.auth = r.token; S.user = r.user;
   LS.set('chandem:auth', r.token);
   LS.set('chandem:name', r.user.nickname);
+  bindSeatToAccount(quiet);
+}
+// 방 안에서 로그인하면: 손님으로 앉은 이 자리를 계정에 묶는다 (지난 판은 소급 안 함, 다음 판부터 기록)
+async function bindSeatToAccount(quiet = false) {
+  if (!S.auth || !S.session || !S.state || S.view !== 'room') return;
+  const meRow = S.state.players.find((p) => S.state.me && p.id === S.state.me.id);
+  if (!meRow || meRow.member) return;
+  const r = await new Promise((res) => socket.emit('room:bindAccount', { auth: S.auth }, res));
+  if (r && r.ok && !quiet) toast(r.from === 'next' ? '✅ 로그인됐어요! 다음 판부터 전적·순위가 쌓여요' : '✅ 로그인됐어요! 이제부터 전적·순위가 쌓여요', 'ok');
+  else if (r && !r.ok && r.message && !quiet) toast(r.message, 'error');
+}
+// ── 이 기기로 계속하기: 닉네임만 적으면 바로 계정 (아이디·비밀번호는 서버가 만들어 이 기기에 저장) ──
+function openQuickAccount() {
+  const name = (S.state && S.state.me && S.state.players.find((p) => p.id === S.state.me.id) || {}).name || LS.get('chandem:name', '');
+  openModal('⚡ 이 기기로 바로 시작', `
+    <form class="form" id="quick-form">
+      <p class="small">가입 없이 <b>닉네임만</b> 정하면 끝! 이 휴대폰에 계정이 저장되고, 오늘부터 <b>전적·순위</b>가 쌓여요.</p>
+      <label class="field"><span>닉네임</span><input class="input" name="nickname" maxlength="10" required value="${esc(String(name).replace(/ \(\d+\)$/, ''))}" placeholder="게임에서 보일 이름" autocomplete="nickname"></label>
+      <button class="btn btn-gold btn-lg">이 기기로 계속하기</button>
+      <p class="muted tiny">다른 휴대폰에서도 쓰려면 나중에 ⚙️ 설정 → 계정 관리에서 비밀번호만 정하면 돼요. 휴대폰을 바꾸거나 기록을 지우면 복구 코드가 필요해요 (처음 한 번 보여 줘요).</p>
+    </form>`, (b) => {
+    const f = b.querySelector('#quick-form');
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = f.querySelector('button'); btn.disabled = true;
+      const r = await siteApi('/device-account', { nickname: new FormData(f).get('nickname') });
+      btn.disabled = false;
+      if (!r.ok) { toast(r.message || '다시 해 주세요', 'error'); return; }
+      LS.set('gw:device', { username: r.username, password: r.password });
+      setAuth(r);
+      toast(`${r.user.nickname}님, 반가워요! 이제 전적이 쌓여요`, 'ok');
+      showRecoveryCode(r.code, { fresh: true });
+      render();
+    };
+  });
 }
 function acctBtnHTML() {
   if (S.info && S.info.accounts === false) return '<span></span>';
@@ -420,6 +462,9 @@ function openLogin(tab = 'login') {
       <label class="seg-opt"><input type="radio" name="authtab" value="login" ${tab === 'login' ? 'checked' : ''}><span>로그인</span></label>
       <label class="seg-opt"><input type="radio" name="authtab" value="signup" ${tab === 'signup' ? 'checked' : ''}><span>회원가입</span></label>
     </div>
+    <button type="button" class="btn btn-gold btn-lg quick-start" id="quick-start">⚡ 가입 없이 이 기기로 바로 시작</button>
+    ${LS.get('gw:device', null) ? '<button type="button" class="btn btn-outline" id="device-login">📱 이 기기 계정으로 다시 로그인</button>' : ''}
+    <div class="divider"><span>아이디로 ${tab === 'login' ? '로그인' : '가입'}</span></div>
     <form class="form" id="auth-form" autocomplete="on">
       <label class="field"><span>아이디</span><input class="input" name="username" maxlength="16" required autocomplete="username" autocapitalize="off" placeholder="영어 소문자·숫자 3~16자"></label>
       <label class="field"><span>비밀번호</span><input class="input" type="password" name="password" maxlength="64" required autocomplete="${tab === 'login' ? 'current-password' : 'new-password'}" placeholder="6자 이상"></label>
@@ -432,6 +477,14 @@ function openLogin(tab = 'login') {
     </form>`, (body) => {
     body.querySelectorAll('input[name=authtab]').forEach((r) => { r.onchange = () => openLogin(r.value); });
     const fi = body.querySelector('#find-id'); if (fi) fi.onclick = openFindId;
+    body.querySelector('#quick-start').onclick = openQuickAccount;
+    const dl = body.querySelector('#device-login');
+    if (dl) dl.onclick = async () => {
+      const dev = LS.get('gw:device', null);
+      const l = dev ? await api('/login', { username: dev.username, password: dev.password }) : { ok: false };
+      if (!l.ok) { toast('이 기기 계정으로 로그인하지 못했어요. 비밀번호를 바꿨다면 아이디로 로그인해 주세요', 'error'); return; }
+      setAuth(l); closeModal(); toast(`${l.user.nickname}님, 반가워요!`, 'ok'); render();
+    };
     const fp = body.querySelector('#find-pw'); if (fp) fp.onclick = () => openFindPw();
     const f = body.querySelector('#auth-form');
     f.onsubmit = async (e) => {
@@ -684,6 +737,7 @@ socket.on('state', (st) => {
   S.clockSkew = st.serverTime - Date.now();
   if (S.view !== 'room') S.view = 'room';
   processEvents(st, first);
+  if (!first) guestHandNudge(st);
   render();
 });
 socket.on('joined', (d) => {
@@ -706,6 +760,41 @@ socket.on('kicked', (d) => {
   S.message = d.message || '방에서 나왔어요';
   render();
 });
+
+// ── 손님에게 로그인 권하기 (막지 않음 · 닫으면 이 방에서는 안 뜸) ──
+function guestNudgeHTML(st, compact = false) {
+  if (!st || (S.info && S.info.accounts === false)) return '';
+  const meRow = st.me && st.players.find((p) => p.id === st.me.id);
+  if (!meRow) return '';
+  if (meRow.memberNext) return `<div class="banner banner-info guest-nudge"><span>✅ 다음 판부터 전적·순위가 쌓여요</span></div>`;
+  if (S.user || meRow.member) return '';
+  let off = false;
+  try { off = sessionStorage.getItem('gw:nudgeOff:' + st.room.code) === '1'; } catch {}
+  if (off) return '';
+  return `<div class="banner banner-gold guest-nudge ${compact ? 'is-compact' : ''}"><span>🔑 ${compact ? '로그인하면 전적·순위가 쌓여요' : '로그인하면 이 판부터 전적·순위가 쌓여요'}</span>
+    <button class="btn btn-sm btn-gold" data-nudge="quick">⚡ 바로 시작</button><button class="btn btn-sm btn-outline" data-nudge="login">로그인</button><button class="icon-btn nudge-x" data-nudge="off" aria-label="닫기">✕</button></div>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-nudge]');
+  if (!b) return;
+  const k = b.dataset.nudge;
+  if (k === 'quick') openQuickAccount();
+  else if (k === 'login') openLogin();
+  else if (k === 'off') {
+    try { sessionStorage.setItem('gw:nudgeOff:' + (S.state && S.state.room.code), '1'); } catch {}
+    b.closest('.guest-nudge').remove();
+  }
+});
+// 손님이 판을 5번 끝낼 때마다 한 번 살짝 권하기
+function guestHandNudge(st) {
+  const h = st.hand;
+  if (!h || !h.result || S.user || (S.info && S.info.accounts === false)) return;
+  const key = st.room.code + ':' + h.no;
+  if (S.nudgeHand === key) return;
+  S.nudgeHand = key;
+  S.guestHands = (S.guestHands || 0) + 1;
+  if (S.guestHands % 5 === 0) setTimeout(() => toast('🔑 지금 로그인하면 순위에 올라가요 · ⚡ 가입 없이 바로 시작도 돼요', 'info'), 3200);
+}
 
 // 사람을 누르면 선수 카드 (버튼은 제외)
 document.addEventListener('click', (e) => {
@@ -1393,6 +1482,7 @@ function renderLobby() {
       <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '🔇' : '🔊'}</button>
       <button class="btn btn-sm btn-ghost" id="chart-btn">족보표</button>
     </header>
+    ${guestNudgeHTML(st)}
     <section class="panel">
       <h2 class="sec-title">친구 초대</h2>
       ${inviteHTML(st.room.code)}
@@ -1674,6 +1764,7 @@ function renderBanner(st) {
     if (me.sittingOut) msgs.push(['warn', '자리 비움 중 · 내 차례엔 자동으로 체크, 안 되면 다이해요', '<button class="btn btn-sm btn-gold" id="sitin-btn">자리로 돌아가기</button>']);
   }
   if (st.room.waiting) msgs.push(['info', '카드를 받을 수 있는 참가자가 2명 이상이 되면 다음 판이 시작돼요']);
+  const nudge = guestNudgeHTML(st, true);
   const tn = st.room.tournament;
   if (tn && tn.running) msgs.push(['tourney', `🏆 레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · 남은 ${tn.alive}/${tn.entrants}명`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · <b data-level-at="${tn.nextAt}">-</b></span>`]);
   // 방장: 게임 중 들어오고 싶은 사람
@@ -1682,7 +1773,7 @@ function renderBanner(st) {
     const ids = st.pending.map((p) => p.id).join(',');
     if (ids && ids !== S.pendingSeen) { S.pendingSeen = ids; sound.play('turn'); }
   }
-  el.innerHTML = msgs.map(([k, t, btn]) => `<div class="banner banner-${k}"><span>${esc(t)}</span>${btn || ''}</div>`).join('');
+  el.innerHTML = msgs.map(([k, t, btn]) => `<div class="banner banner-${k}"><span>${esc(t)}</span>${btn || ''}</div>`).join('') + nudge;
   tickLevel();
   el.querySelectorAll('[data-approve]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.approve, ok: true }); });
   el.querySelectorAll('[data-reject]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.reject, ok: false }); });

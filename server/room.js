@@ -469,7 +469,43 @@ class Room {
     });
   }
 
+  /**
+   * 방 안에서 로그인했을 때 이 자리를 계정에 묶는다 (손님으로 논 판은 소급하지 않음).
+   * 판이 진행 중이면 '다음 판부터', 판 사이면 바로. 반환 { from: 'now' | 'next' }
+   */
+  bindAccount(pid, user) {
+    const p = this.get(pid);
+    if (!p || p.isBot) throw new RoomError('이 방의 참가자가 아니에요');
+    if (!user) throw new RoomError('다시 로그인해 주세요');
+    if (p.userId === user.id || p.pendingUserId === user.id) return { from: p.userId ? 'now' : 'next', already: true };
+    if (p.userId) throw new RoomError('이미 다른 계정으로 참가 중이에요');
+    if (this.players.some((x) => x.id !== pid && (x.userId === user.id || x.pendingUserId === user.id))) throw new RoomError('이 계정은 이미 이 방에 들어와 있어요');
+    const apply = () => {
+      p.userId = user.id; p.omokRating = user.stats && user.stats.omok ? user.stats.omok.rating : p.omokRating;
+      if (user.isMaster) p.isMaster = true;
+      delete p.pendingUserId; delete p.pendingUser;
+    };
+    if (this.hand && !this.hand.finished && (this.handPlayers || []).includes(pid)) {
+      p.pendingUserId = user.id;
+      p.pendingUser = { rating: user.stats && user.stats.omok ? user.stats.omok.rating : null, isMaster: !!user.isMaster };
+      this.touch();
+      return { from: 'next' };
+    }
+    apply();
+    this.touch();
+    return { from: 'now' };
+  }
+  applyPendingAccounts() {
+    for (const p of this.players) {
+      if (!p.pendingUserId) continue;
+      p.userId = p.pendingUserId;
+      if (p.pendingUser) { if (p.pendingUser.rating != null) p.omokRating = p.pendingUser.rating; if (p.pendingUser.isMaster) p.isMaster = true; }
+      delete p.pendingUserId; delete p.pendingUser;
+    }
+  }
+
   startHand() {
+    this.applyPendingAccounts(); // 방 안에서 로그인한 사람: 이 판부터 기록
     this.clearTimer('next');
     this.clearTimer('reveal');
     this.reveal = null;
@@ -977,6 +1013,7 @@ class Room {
         isBot: !!p.isBot,
         photo: p.photo ? p.photoV : 0,
         member: !!p.userId,
+        memberNext: !!p.pendingUserId, // 방 안에서 로그인 → 다음 판부터 기록
         master: !!p.isMaster,
         seatRequest: !!p.seatRequest,
         rating: p.userId && this.settings.game === 'omok' ? p.omokRating : null,

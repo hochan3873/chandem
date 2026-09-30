@@ -233,6 +233,8 @@ export function openSettings() {
 export function openAccount() {
   if (!loggedIn()) { C.openModal('👤 계정 관리', needLoginHTML(), bindNeedLogin); return; }
   const u = C.S.user;
+  const dev = C.LS.get('gw:device', null);
+  const isDev = !!(dev && dev.username === u.username && dev.password); // '이 기기로 계속하기'로 만든 계정
   C.openModal('👤 계정 관리', `
     <div class="acct-head"><b>${esc(u.nickname)}</b>${masterBadge(u.isMaster)}<span class="muted small">@${esc(u.username)} · ${fmtDay(u.createdAt)} 가입</span></div>
     <form class="acct-sec" id="f-nick">
@@ -241,9 +243,10 @@ export function openAccount() {
       <p class="muted tiny">최대 10자 · 다른 사람과 겹치면 안 돼요 · 하루에 한 번 바꿀 수 있어요</p>
     </form>
     <form class="acct-sec" id="f-pw">
-      <h3>비밀번호 바꾸기</h3>
+      <h3>${isDev ? '📱 비밀번호 정하기' : '비밀번호 바꾸기'}</h3>
+      ${isDev ? `<p class="small">지금은 <b>이 기기 계정</b>이에요 (아이디 <b class="mono">${esc(u.username)}</b>). 비밀번호를 정하면 <b>다른 휴대폰에서도</b> 이 아이디로 로그인할 수 있어요.</p>` : ''}
       <input type="text" name="username" value="${esc(u.username)}" autocomplete="username" hidden>
-      <input class="input" type="password" name="current" required placeholder="지금 비밀번호" autocomplete="current-password" maxlength="64">
+      <input class="input" type="password" name="current" ${isDev ? `value="${esc(dev.password)}" hidden` : 'required'} placeholder="지금 비밀번호" autocomplete="current-password" maxlength="64">
       <input class="input" type="password" name="next" required placeholder="새 비밀번호 (6자 이상)" autocomplete="new-password" maxlength="64">
       <input class="input" type="password" name="next2" required placeholder="새 비밀번호 한 번 더" autocomplete="new-password" maxlength="64">
       <button class="btn btn-outline">비밀번호 바꾸기</button>
@@ -282,6 +285,7 @@ export function openAccount() {
       const r = await site.post('/account/password', { current: fd.get('current'), next: fd.get('next') });
       if (!r.ok) { C.toast(r.message, 'error'); return; }
       C.S.auth = r.token; C.LS.set('chandem:auth', r.token);
+      if (isDev) C.LS.del('gw:device'); // 이제 직접 정한 비밀번호로 로그인
       C.toast('비밀번호를 바꿨어요. 다른 기기는 로그아웃됐어요', 'ok');
       e.target.reset();
     };

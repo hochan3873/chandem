@@ -317,6 +317,36 @@ function createSite({ acct, file = null, now = Date.now } = {}) {
     return { sent: true };
   }
 
+  // ── 이 기기로 계속하기: 닉네임만으로 바로 계정 (아이디·비밀번호는 서버가 만들어 이 기기에 저장) ──
+  const deviceHits = new Map();
+  async function createDeviceAccount({ nickname, ip }) {
+    await ready;
+    if (hitLimit(deviceHits, ip || '?', 3, HOUR, now())) throw new AuthError('이 기기 계정은 한 시간에 3개까지 만들 수 있어요');
+    let nick = cleanNickname(nickname).slice(0, 10);
+    if (!nick) throw new AuthError('닉네임을 입력해 주세요');
+    const bad = nicknameProblem(nick);
+    if (bad) throw new AuthError(bad);
+    // 닉네임이 겹치면 뒤에 숫자를 붙인다 (닉네임2, 닉네임3 …)
+    if (await store.nicknameTaken(nick, '')) {
+      let ok = null;
+      for (let i = 2; i < 100 && !ok; i++) { const c = nick.slice(0, 10 - String(i).length) + i; if (!(await store.nicknameTaken(c, ''))) ok = c; }
+      if (!ok) throw new AuthError('비슷한 닉네임이 너무 많아요. 다른 닉네임으로 해 주세요');
+      nick = ok;
+    }
+    const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+    const password = crypto.randomBytes(18).toString('base64url'); // 24자 (이 기기에만 저장)
+    let out = null;
+    for (let k = 0; k < 5 && !out; k++) {
+      const username = 'dv' + Array.from(crypto.randomBytes(8), (b) => abc[b % abc.length]).join('');
+      try { out = await acct.signup({ username, password, nickname: nick }); } catch (e) { if (!(e instanceof AuthError) || !/이미 있는/.test(e.message)) throw e; }
+    }
+    if (!out) throw new AuthError('잠시 후 다시 해 주세요');
+    const u = await acct.store.byId(out.user.id);
+    const code = newRecoveryCode();
+    await saveMeta(u, { ...metaOf(u), device: true, recovery: { hash: hashPassword(code), at: now() } });
+    return { token: out.token, user: out.user, username: out.user.username, password, code: prettyRecovery(code) };
+  }
+
   // 운영 기록 (admin.js 에서 씀)
   async function log(actor, action, target, detail) {
     await ready;
@@ -348,6 +378,7 @@ function createSite({ acct, file = null, now = Date.now } = {}) {
     r.post('/find-id', wrap((req) => findUsername({ ip: ipOf(req), nickname: (req.body || {}).nickname })));
     r.post('/reset-password', wrap((req) => resetWithRecovery({ ...(req.body || {}), ip: ipOf(req) })));
     r.post('/reset-request', wrap((req) => requestReset({ ...(req.body || {}), ip: ipOf(req) })));
+    r.post('/device-account', wrap((req) => createDeviceAccount({ nickname: (req.body || {}).nickname, ip: ipOf(req) })));
     return r;
   }
 
@@ -391,7 +422,7 @@ function createSite({ acct, file = null, now = Date.now } = {}) {
     listNotices, createNotice, updateNotice, deleteNotice,
     checkin, checkinState, checkinView,
     changeNickname, changePassword, logoutAll, deleteAccount, submitFeedback,
-    findUsername, issueRecovery, recoveryState, resetWithRecovery, requestReset,
+    findUsername, issueRecovery, recoveryState, resetWithRecovery, requestReset, createDeviceAccount,
   };
 }
 

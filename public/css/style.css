@@ -1226,3 +1226,16 @@ html.gw-standalone body::after { content: ''; position: fixed; left: 0; right: 0
 .hall-empty p { margin: 0; }
 .hall-login { margin-top: 4px; }
 .hall-empty p, .hall-note { word-break: keep-all; }
+
+/* 손님에게 로그인 권하기 */
+.guest-nudge { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.guest-nudge > span { flex: 1 1 60%; min-width: 0; font-weight: 700; }
+.guest-nudge .nudge-x { width: 30px; height: 30px; min-height: 0; padding: 0; font-size: .8rem; }
+.guest-nudge.is-compact { padding: 5px 8px; font-size: .78rem; flex-wrap: nowrap; }
+.guest-nudge.is-compact > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.guest-nudge.is-compact .btn { padding: 4px 8px; font-size: .74rem; white-space: nowrap; }
+.guest-nudge.is-compact [data-nudge="login"] { display: none; }
+.quick-start { width: 100%; margin-bottom: 6px; }
+.hall-join { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 211, 90, .1); border: 1px dashed rgba(255, 211, 90, .5); font-size: .78rem; }
+.hall-join span { flex: 1; min-width: 0; word-break: keep-all; }
+.hall-join .btn { white-space: nowrap; }

@@ -398,6 +398,17 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
 
     socket.on('lobby:ready', handler((d) => { const { room, pid } = ctx(); room.setReady(pid, d.ready); }));
     socket.on('lobby:role', handler((d) => { const { room, pid } = ctx(); return room.setRole(pid, !!d.spectator); }));
+    // 방 안에서 로그인 → 이 자리를 계정에 묶기 (다음 판부터 전적·순위)
+    socket.on('room:bindAccount', async (payload, ack) => {
+      try {
+        const user = await userOf(payload || {});
+        if (!user) throw new RoomError('다시 로그인해 주세요');
+        const { room, pid } = ctx();
+        const out = room.bindAccount(pid, user);
+        broadcast(room);
+        reply(ack, { ok: true, ...out });
+      } catch (e) { fail(ack, e); }
+    });
     socket.on('lobby:settings', handler((d) => { const { room, pid } = ctx(); room.updateSettings(pid, d.settings); }));
     socket.on('lobby:start', handler(() => { const { room, pid } = ctx(); room.start(pid); }));
     socket.on('host:approve', handler((d) => { const { room, pid } = ctx(); room.approve(pid, d.id, !!d.ok); }));
