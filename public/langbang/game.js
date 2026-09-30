@@ -136,7 +136,7 @@ function layout() {
 // 동그란 얼굴: 멤버는 그림(HQ) 얼굴 맞춤 · 진상은 원래 그림 (꼬마 그림은 전투 화면에서만)
 function av(def, extra = ' ') {
   const hq = def && def.id && (HEROES[def.id] || SUMMONS[def.id]) && typeof thumbSrc === 'function' ? thumbSrc(def.id) : ' ';
-  if (hq && !/\/h_/.test(hq)) return `<span class="av hq ${extra}" style="--c:${def.color}"><img class="fz" data-face="${def.id}" style="${faceImgStyle(def.id, 0.62, 0.5)}" src="${hq}" alt="" draggable="false" onerror="this.onerror=null;this.className=' ';this.removeAttribute('style');this.src='${def.img}'"></span>`;
+  if (hq && !/\/h_/.test(hq)) return `<span class="av hq ${extra}" style="--c:${def.color}"><img class="fz" data-face="${def.id}" data-fc="1" style="${faceCircStyle(def.id)}" src="${hq}" alt="" draggable="false" onerror="this.onerror=null;this.className=' ';this.removeAttribute('style');this.src='${def.img}'"></span>`;
   return `<span class="av ${extra}" style="--c:${def.color}"><img src="${def.img}" alt="" draggable="false" onerror="this.parentNode.classList.add('noimg');this.remove()"><i>${def.emoji}</i></span>`;
 }
 
@@ -1209,6 +1209,9 @@ function frame(now) {
   const live = app.g;
   const g = live || app.demo;
   fx.noBanner = !live;
+  R.quiet = !live;
+  if (!live && !frame.quietCleared) { frame.quietCleared = true; try { fx.texts && fx.texts.items && (fx.texts.items.length = 0); } catch { /* 무시 */ } }
+  if (live) frame.quietCleared = false;
   if (app.hitStop > 0) { app.hitStop -= dt; dt = 0; }
   if (live) tickCards((now - (frame.prev || now)) / 1000 > 0.1 ? 0.1 : (now - (frame.prev || now)) / 1000);
   frame.prev = now;
@@ -1230,7 +1233,7 @@ function frame(now) {
       acc -= STEP;
       n++;
       if (!live) { g.pendingLevels = 0; if (g.base.hp < g.base.max) g.base.hp = g.base.max; }
-      handleEvents(g, !!live);
+      if (live) handleEvents(g, true); else g.events.length = 0; // 로비 배경 전투: 숫자·글자·이펙트 안 띄움
       if (live && g.pendingLevels > 0 && !g.over && !app.cardsOpen) {
         if (app.autoCards && !g.pvp && !DEBUG.autopick) { autoPickAll(g); continue; }
         if (g.welcomePicks > 0 || g.phase !== 'wave' || g.pvp || app.cardQ || DEBUG.autopick) { app.cardQ = false; openCards(); break; }
@@ -2066,14 +2069,20 @@ async function loadRankTicker() {
   rankTicker.lines = lines;
 }
 function tickRank() {
-  const el = document.getElementById('lbRank');
-  if (!el || app.screen !== 'menu') return;
-  if (!rankTicker.lines.length) { el.hidden = true; return; }
-  el.hidden = false;
-  const line = rankTicker.lines[rankTicker.i++ % rankTicker.lines.length];
-  el.innerHTML = `<span class="rk-in">${line}</span>`;
+  let next = 4000;
+  try {
+    const el = document.getElementById('lbRank');
+    if (!el || app.screen !== 'menu') return;
+    if (!rankTicker.lines.length) { el.hidden = true; return; }
+    el.hidden = false;
+    const line = rankTicker.lines[rankTicker.i++ % rankTicker.lines.length];
+    el.innerHTML = `<span class="rk-in">${line}</span>`;
+    // 한 줄에 다 안 들어가면: 잠깐 멈췄다가 끝까지 부드럽게 흘러간다 (잘리지 않게)
+    const sp = el.firstElementChild, over = sp.scrollWidth - el.clientWidth + 12;
+    if (over > 8) { const sec = Math.max(3, over / 38); sp.classList.add('mq'); sp.style.setProperty('--mq', `-${over}px`); sp.style.setProperty('--mqs', `${sec + 1.6}s`); next = (sec + 2.8) * 1000; }
+  } finally { clearTimeout(tickRank.t); tickRank.t = setTimeout(tickRank, next); }
 }
-setInterval(tickRank, 4000);
+tickRank.t = setTimeout(tickRank, 4000);
 // 줄 칸용 짧은 시간: "점심 6시간 36분 뒤" → "6시간" · "36분 뒤" → "36분"
 function shortTime(s) { const h = /(\d+)\s*시간/.exec(s), m = /(\d+)\s*분/.exec(s), d = /(\d+)\s*일/.exec(s); return d ? `${d[1]}일` : h ? `${h[1]}시간` : m ? `${m[1]}분` : s.length > 6 ? s.slice(0, 6) : s; }
 function showMenu() {
@@ -2220,13 +2229,14 @@ function lobbySwipe() {
   if (!track) return;
   const head = ui.querySelector('.lb-stage'), chests = ui.querySelector('.lb-chests');
   const s = lobbyStage(), max = P().master ? STAGE_COUNT : nextStage();
+  for (const el of [head, chests, track]) if (el) { el.style.transition = 'none'; el.style.transform = ''; el.style.opacity = ''; } // 다시 그려도 끌던 자리(translate)가 남지 않게
   let x0 = 0, y0 = 0, t0 = 0, dx = 0, axis = '', id = null, lastX = 0, lastT = 0, vel = 0;
   const W = () => box.clientWidth * 0.62; // 판 사이 거리 (옆 판이 가장자리에 보임)
   const set = (v, anim) => {
     track.style.transition = anim ? 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.15)' : 'none';
     track.style.transform = `translate3d(${v}px,0,0)`;
     const k = Math.min(1, Math.abs(v) / W());
-    for (const el of [head, chests]) if (el) { el.style.transition = anim ? 'transform 0.28s, opacity 0.28s' : 'none'; el.style.transform = `translate3d(${v * 0.35}px,0,0)`; el.style.opacity = String(1 - k * 0.7); }
+    for (const el of [head, chests]) if (el) { el.style.transition = anim ? 'transform 0.28s, opacity 0.28s' : 'none'; el.style.transform = el === chests ? `translateX(-50%) translate3d(${v * 0.35}px,0,0)` : `translate3d(${v * 0.35}px,0,0)`; el.style.opacity = String(1 - k * 0.7); }
   };
   box.addEventListener('pointerdown', (ev) => { if (ev.target.closest('.chev')) return; id = ev.pointerId; x0 = lastX = ev.clientX; y0 = ev.clientY; t0 = lastT = performance.now(); dx = 0; axis = ''; vel = 0; });
   box.addEventListener('pointermove', (ev) => {
@@ -2675,7 +2685,7 @@ function artCard(id, o = {}) {
   const duo = false; // 작은 카드엔 두 모습 그림을 안 쓴다 (한 모습 · 얼굴 맞춤)
   const art = !src && !fall ? `<span class="dx-emo">${d.emoji}</span>`
     : duo ? `<span class="ac-duo" style="background-image:url('${thumbSrc(id, true)}')"></span><span class="ac-duo b" style="background-image:url('${thumbSrc(id, true)}')"></span>`
-      : `<img class="ac-img fz" data-face="${id}" src="${src || fall}" alt="" decoding="async" draggable="false" style="${faceImgStyle(id)}" onerror="this.onerror=null;this.src='${fall}'">`; // 얼굴 맞춤 (가운데 · 위쪽 36%)
+      : `<img class="ac-img fz" data-face="${id}" src="${src || fall}" alt="" decoding="async" draggable="false" style="${o.face ? faceCircStyle(id, o.face[0], o.face[1]) : faceImgStyle(id)}"${o.face ? ' data-fc="1"' : ''} onerror="this.onerror=null;this.src='${fall}'">`; // 얼굴 맞춤 (가운데 · 위쪽 36%)
   const pr = !ok && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? L.cardProgress(p, id) : null;
   const sub = ok ? `${'★'.repeat(st)}${lv ? ` · +${lv}` : ''}` : pr ? `카드 ${pr[0]}/${pr[1]}` : HERO_UNLOCK[id] ? `${stageLabel(HERO_UNLOCK[id])} 클리어` : '모집';
   return `<button class="acard t${t} ${ok ? '' : 'locked'} ${o.on ? 'on' : ''} ${o.cls || ''}" data-act="${o.act || 'heroCard'}" data-id="${id}" style="--c:${ATTRS[d.attr].color}">
@@ -4319,7 +4329,7 @@ function iconName(emoji, text) {
 function cardIcon(c) {
   const tg = (c.tags || [])[0] || c.tag;
   if (c.kind === 'cc' && CC_IC[c.cc]) return pimg(ui2(CC_IC[c.cc]));
-  if (c.hero && HEROES[c.hero]) return `<span class="face fzw"><img class="fz" data-face="${c.hero}" style="${faceImgStyle(c.hero, 0.5, 0.46)}" src="${thumbSrc(c.hero) || HEROES[c.hero].img}" alt="" draggable="false"></span>` + (c.kind === 'skillEvo' || c.kind === 'evo' ? pimg(ui2('star_gold'), 'sub') : '');
+  if (c.hero && HEROES[c.hero]) return `<span class="face fzw"><img class="fz" data-face="${c.hero}" data-fc="1" style="${faceCircStyle(c.hero)}" src="${thumbSrc(c.hero) || HEROES[c.hero].img}" alt="" draggable="false"></span>` + (c.kind === 'skillEvo' || c.kind === 'evo' ? pimg(ui2('star_gold'), 'sub') : '');
   if (cardAttr(c)) return pimg(`/img/lb/attr/${cardAttr(c)}.webp`);
   if (tg && PATH_IC[tg]) return pimg(ui2(PATH_IC[tg]));
   return pimg(ui2(iconName(c.icon, c.desc)));
@@ -4821,6 +4831,14 @@ const DEX_FLAVOR = {
 const DEX_EN = { jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
 const DEX_FACE = { hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
 // 얼굴 맞춤 자르기: 얼굴 높이 = 칸 높이의 f · 얼굴 가운데 = (50%, cy) — 그림 비율과 상관없이 (자기 크기 기준 translate)
+// 동그란 얼굴용 얼굴 상자 (썸네일 기준 · 이마~턱 · 가운데 x, 가운데 y, 높이) — 그림을 재서 맞춘 값
+const FACE_BOX = { hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.47, 0.15, 0.12], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
+// 동그라미 안에 얼굴: 얼굴(이마~턱)이 지름의 70% · 가운데
+function faceCircStyle(id, f = 0.7, cy = 0.5) {
+  const fb = FACE_BOX[id] || DEX_FACE[id] || [0.48, 0.12, 0.1];
+  const h = (f / fb[2]) * 100;
+  return `--fzh:${h.toFixed(1)}%;--fzy:${(cy * 100).toFixed(1)}%;--fzx:-${(fb[0] * 100).toFixed(1)}%;--fzt:-${(fb[1] * 100).toFixed(1)}%`;
+}
 function faceImgStyle(id, f = 0.24, cy = 0.36) {
   const fb = DEX_FACE[id] || [0.48, 0.09, 0.14];
   const h = Math.max(100, (f / fb[2]) * 100);
@@ -4880,7 +4898,9 @@ function showItemDex() {
   app.screen = 'dex';
   const have = gearDexSet();
   const all = [...GEAR_IDS, ...MYTH_IDS];
-  const cell = (t) => { const ok = have.has(t), g = GEAR[t], r = g.myth ? 'myth' : 'legend'; return `<button class="dexc2 idx ${ok ? '' : 'lock'} ${g.myth ? 'r-myth' : ''}" data-act="itemCard" data-id="${t}" style="--c:${GEAR_RARITY[r].color}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/gear/${t}.webp" alt="" draggable="false"></span><b>${ok ? esc(g.name) : '???'}</b><small class="idx-k">${g.myth ? '신화' : g.slot === 'w' ? '무기' : '장신구'}</small></button>`; };
+  const RK = ['common', 'rare', 'epic', 'legend', 'myth'];
+  const best = (t) => { let b = -1; for (const it of P().gear || []) if (it.t === t) b = Math.max(b, RK.indexOf(it.r)); return b >= 0 ? RK[b] : 'rare'; };
+  const cell = (t) => { const ok = have.has(t), g = GEAR[t], r = g.myth ? 'myth' : best(t); return `<button class="dexc2 idx ${ok ? 'r-' + r : 'lock'} ${g.myth ? 'r-myth' : ''}" data-act="itemCard" data-id="${t}" style="--c:${GEAR_RARITY[r].color}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/gear/${t}.webp" alt="" draggable="false"></span><b>${ok ? esc(g.name) : '???'}</b><small class="idx-k">${g.myth ? '신화' : g.slot === 'w' ? '무기' : '장신구'}</small></button>`; };
   const n = have.size, next = [10, 20, all.length].find((x) => n < x);
   show(`
     ${topbar(true)}
@@ -5310,15 +5330,15 @@ function equipTabHtml(p) {
   return `<div class="eqv3">
     <div class="eqh-row">${chips}</div>
     <div class="eq-hero" style="--c:${ATTRS[HEROES[sel].attr].color}">
-      ${artCard(sel, { act: 'heroCard', cls: 'eq-port' })}
+      ${artCard(sel, { act: 'heroCard', cls: 'eq-port', face: [0.3, 0.3] })}
       <div class="eq-info"><b class="eq-nm">${esc(HEROES[sel].name)}</b>
         <div class="eq-pw">${ic('swords', '', 'sm')}<span>전투력</span><b class="roll" data-from="${prev}" data-to="${pw}">${fmt(prev)}</b></div>
         <div class="eq-st">${statLines(st)}</div>
         <button class="chip mini" data-act="eqUnall" data-hero="${sel}" ${sl.w || sl.a || sl.m ? '' : 'disabled'}>전체 해제</button></div>
     </div>
+    <p class="sub eq-tip">칸을 누르면 비교하며 골라요 · 다른 멤버 장비도 한 번에 "빼서 끼기"</p>
     <div class="eq-slots2">${slot('w')}${slot('a')}</div>
     <div class="eq-slots2 myth">${slot('m')}</div>
-    <p class="sub eq-tip">칸을 누르면 비교하며 골라요 · 다른 멤버 장비도 한 번에 "빼서 끼기"</p>
   </div>`;
 }
 // 칸 → 아래에서 올라오는 장비 고르기 (전투력 변화순 · 착용자 · 비교 · 장착/해제/강화/잠금)
@@ -5879,6 +5899,7 @@ async function boot() {
 // 테스트/디버그용 핸들
 window.__lb = {
   face: () => DEX_FACE,
+  faceC: () => FACE_BOX,
   pvpUi: { waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: () => startRun({ mode: 'pvp', force: true, pvpSeed: 7 }), end: (r) => pvpEnded(r) },
   get g() { return app.g; },
   get app() { return app; },

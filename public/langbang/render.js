@@ -1575,7 +1575,7 @@ export class Renderer {
         const gl = this.glyph(txt, e.form === 'reveal' ? 20 : 11, e.form === 'reveal' ? '#ffe14d' : e.packN >= 2 ? '#9feaff' : '#ff6b5a');
         cx.drawImage(gl.c, -gl.w / 2, -gl.h / 2, gl.w, gl.h);
       }
-      if (!e.boss && (e.hp < e.maxHp || e.shield > 0)) {
+      if (!this.quiet && !e.boss && (e.hp < e.maxHp || e.shield > 0)) { // 로비 배경 전투(quiet): 체력 막대 없음
         const bw = Math.min(40, box * 0.55), bh = 4.5;
         this.tf(e.x - bw / 2, top, 0, 1, 1);
         cx.fillStyle = 'rgba(10,8,20,0.8)';

@@ -3430,3 +3430,22 @@ body.rm .screen.enter, body.rm .screen.enter > * { animation: none !important; }
 #skillbar .sk.sk-v2 .sk-fb { position: absolute; inset: 0; border-radius: calc(var(--u) * 12); background: linear-gradient(180deg, #3a2a66, #1c1236); border: 2px solid #c9962a; }
 .hs-skill .hs-skic { width: calc(var(--u) * 44) !important; height: calc(var(--u) * 44) !important; flex: none; }
 .hs-roles .role-chip { display: inline-flex; align-items: center; gap: 2px; padding: 0 calc(var(--u) * 8); border-radius: 99px; border: 1.5px solid rgba(255, 214, 110, 0.55) !important; background: rgba(255, 214, 110, 0.1) !important; color: #ffe9b0; font-size: calc(var(--u) * 12); font-weight: 900; line-height: 1.8; }
+
+/* 도감 아이템 · 장비 그림: 네모에 가까운 칸 · 그림은 가운데 같은 크기 · 등급 = 테두리 색 + 뒤 빛 */
+.idx-grid .dexc2.idx { aspect-ratio: 1 / 1.15; border-color: var(--c); background: #140c26; }
+.idx-grid .dexc2.idx .dx-pic { inset: 6% 6% calc(var(--u) * 30); display: flex; align-items: center; justify-content: center; background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 42%, transparent), transparent); }
+.idx-grid .dexc2.idx .idx-ic { width: 78%; height: 78%; aspect-ratio: auto; object-fit: contain; }
+.idx-grid .dexc2.idx.r-myth .idx-ic { width: 72%; height: 72%; } /* 신화 그림은 여백이 적어서 조금 작게 → 같은 크기로 보이게 */
+.idx-grid .dexc2.idx b { font-family: 'Black Han Sans', 'Noto Sans KR', sans-serif; font-weight: 400; font-size: calc(var(--u) * 12); white-space: normal; word-break: keep-all; text-overflow: clip; line-height: 1.15; min-height: calc(var(--u) * 30); display: flex; align-items: center; justify-content: center; background: rgba(8, 4, 18, 0.92); color: #fff; text-shadow: 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
+.idx-grid .dexc2.idx.r-common { --c: #9fb3c8; } .idx-grid .dexc2.idx.r-rare { --c: #4ea8ff; } .idx-grid .dexc2.idx.r-epic { --c: #c77dff; } .idx-grid .dexc2.idx.r-legend { --c: #ffd23f; box-shadow: 0 0 calc(var(--u) * 10) rgba(255, 200, 60, 0.5); }
+.idx-grid .dexc2.idx.r-myth { border-color: transparent; background: linear-gradient(#140c26, #140c26) padding-box, conic-gradient(#ff5f6d, #ffc371, #7bff9a, #5fd4ff, #b77bff, #ff5f6d) border-box; --c: #d8b4ff; }
+.idx-grid .dexc2.idx.lock { background: #0e0a1a; border-color: #4a3f60; }
+.idx-grid .dexc2.idx.lock .dx-pic { background: none; }
+.idx-grid .dexc2.idx.lock b { color: var(--dim); }
+.gico.r-myth img { transform: scale(0.93); } /* 신화 그림 여백 맞추기 */
+
+/* 로비 랭킹 띠: 길면 흘러가게 */
+#lbRank .rk-in.mq { display: inline-block; max-width: none; overflow: visible; text-overflow: clip; white-space: nowrap; animation: rkMq var(--mqs, 6s) linear 0.8s 1 both; }
+@keyframes rkMq { 0% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--mq, 0)); } }
+body.rm #lbRank .rk-in.mq { animation: none; white-space: normal; word-break: keep-all; }
+#lbRank { overflow: hidden; } body.rm #lbRank { height: auto; min-height: calc(var(--u) * 22); }
