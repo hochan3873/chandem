@@ -61,6 +61,7 @@ export class FX {
     this.parts = new Pool(900);
     this.nums = new Pool(110);
     this.texts = new Pool(40);
+    this.mks = new Pool(4); // 멀티킬 큰 글자
     this.bubbles = new Pool(6);
     this.rings = new Pool(50);
     this.arcs = new Pool(16);
@@ -82,7 +83,7 @@ export class FX {
     this.time = 0;
   }
   reset() {
-    this.blasts.clear(); this.parts.clear(); this.nums.clear(); this.texts.clear(); this.bubbles.clear(); this.rings.clear(); this.arcs.clear(); this.pillars.clear();
+    this.blasts.clear(); this.parts.clear(); this.nums.clear(); this.texts.clear(); this.mks.clear(); this.bubbles.clear(); this.rings.clear(); this.arcs.clear(); this.pillars.clear();
     this.banners.length = 0;
     this.shake = 0; this.flashA = 0; this.slowmo = 0; this.zoom = 1; this.zoomTarget = 1; this.combo = 0; this.baseHitA = 0;
   }
@@ -105,6 +106,12 @@ export class FX {
     n.x = x + (Math.random() - 0.5) * 14; n.y = y; n.vy = crit ? -70 : eff > 0 ? -60 : -48; n.life = crit ? 0.9 : eff > 0 ? 0.8 : 0.6; n.max = n.life;
     n.text = crit ? v + '!' : '' + v; n.crit = crit; n.eff = eff;
     n.color = color || (crit ? '#ff7a1a' : eff > 0 ? '#ffb02e' : eff < 0 ? '#9aa0ad' : '#ffffff');
+  }
+  // 멀티킬: tier 0 트리플(흰) · 1 5킬(노랑) · 2 싹쓸이(주황) · 3 대학살(무지개)
+  multi(x, y, text, tier) {
+    const t = this.mks.get();
+    if (!t) return;
+    t.x = Math.max(70, Math.min(290, x)); t.y = Math.max(150, Math.min(y, 520)); t.text = text; t.tier = tier; t.life = 1 + tier * 0.15; t.max = t.life;
   }
   text(x, y, text, color = '#fff', size = 16, life = 1.1, vy = -36) {
     const t = this.texts.get();
@@ -165,6 +172,7 @@ export class FX {
     });
     this.nums.update((n) => { n.life -= dt; n.y += n.vy * dt; n.vy *= Math.exp(-3 * dt); return n.life > 0; });
     this.texts.update((t) => { t.life -= dt; t.y += t.vy * dt; t.vy *= Math.exp(-2.2 * dt); return t.life > 0; });
+    this.mks.update((t) => { t.life -= dt; t.y -= 22 * dt; return t.life > 0; });
     this.bubbles.update((b) => { b.life -= dt; b.y -= 12 * dt; return b.life > 0; });
     this.rings.update((r) => { r.life -= dt; return r.life > 0; });
     this.arcs.update((r) => { r.life -= dt; return r.life > 0; });
@@ -1075,6 +1083,19 @@ export class Renderer {
       this.tf(e.x, e.y + box * FEET_OFF, 0, 1, 1);
       cx.drawImage(sh.c, -w / 2, -w * 0.13, w, w * 0.26);
     }
+    // 정예: 발밑에 붉은 금빛 고리 (범위 공격이 덜 먹힘)
+    cx.lineWidth = 2.5;
+    for (const e of list) {
+      if (!e.elite) continue;
+      const w = e.def.size * 0.46, p = 0.6 + Math.sin(t * 6 + e.uid) * 0.25;
+      this.tf(e.x, e.y + e.def.size * FEET_OFF, 0, 1, 1);
+      cx.globalAlpha = p;
+      cx.strokeStyle = '#ff5a3c';
+      cx.beginPath(); cx.ellipse(0, 0, w, w * 0.3, 0, 0, TAU); cx.stroke();
+      cx.strokeStyle = '#ffd23f';
+      cx.beginPath(); cx.ellipse(0, 0, w * 0.78, w * 0.22, 0, 0, TAU); cx.stroke();
+    }
+    cx.globalAlpha = 1;
     const focus = g.focus && !g.focus.dead ? g.focus : null;
     // 독재자 오라 (바닥에 붉은 원)
     for (const e of list) {
@@ -1462,7 +1483,7 @@ export class Renderer {
 
   drawHeroes(g, t, ui) {
     const cx = this.cx;
-    for (const sl of g.locked || []) {
+    for (const sl of []) { // (예전: 잠긴 자리 자물쇠 — 이제 자리는 모두 열려 있다)
       const x = g.slotX[sl], y = g.rowY + 6;
       this.world();
       cx.globalAlpha = 0.75;
@@ -1632,9 +1653,23 @@ export class Renderer {
         case 'swear': s = p.big ? P.swearBig : P.swear; this.tf(p.x, p.y, Math.sin(p.dist * 0.05) * 0.15, 1, 1); break;
         case 'gf': {
           // 윤준서 여사친: 동그랗게 말려 데굴데굴
+          // 잘 보이게: 1.6배 · 흰/분홍 테두리 빛 · 잔상 꼬리
           const img = this.images.gf;
-          this.tf(p.x, p.y, p.rot, 1, 1);
-          if (imgOk(img)) { cx.drawImage(img, -17, -17, 34, 34); s = null; } else s = P.gfFb;
+          if (imgOk(img) && !this._gfGlow) {
+            const c = document.createElement('canvas'); c.width = c.height = 80;
+            const x = c.getContext('2d');
+            x.shadowColor = '#ff7fc8'; x.shadowBlur = 10; x.drawImage(img, 13, 13, 54, 54);
+            x.shadowColor = '#ffffff'; x.shadowBlur = 4; x.drawImage(img, 13, 13, 54, 54);
+            this._gfGlow = c;
+          }
+          const tr = p._tr || (p._tr = []);
+          tr.push(p.x, p.y); if (tr.length > 10) tr.splice(0, 2);
+          if (this._gfGlow) {
+            for (let k = 0; k < tr.length - 2; k += 2) { this.tf(tr[k], tr[k + 1], p.rot, 0.7 + k * 0.03, 0.7 + k * 0.03); cx.globalAlpha = 0.12 + k * 0.03; cx.drawImage(this._gfGlow, -40, -40, 80, 80); }
+            cx.globalAlpha = 1;
+            this.tf(p.x, p.y, p.rot, 1, 1);
+            cx.drawImage(this._gfGlow, -40, -40, 80, 80); s = null;
+          } else { this.tf(p.x, p.y, p.rot, 1.6, 1.6); s = P.gfFb; }
           break;
         }
         case 'crown': {
@@ -1789,6 +1824,26 @@ export class Renderer {
       cx.fillStyle = n.color;
       cx.fillText(n.text, 0, 0);
     }
+    // 멀티킬 큰 글자 (톡 튀어나왔다가 사라짐)
+    for (const t of this.fx.mks.items) {
+      const age = t.max - t.life;
+      let sc = [1.35, 1.7, 2.1, 2.6][t.tier] || 1.35;
+      if (age < 0.12) sc *= 0.4 + (age / 0.12) * 0.9; else if (age < 0.26) sc *= 1.3 - ((age - 0.12) / 0.14) * 0.3;
+      this.tf(t.x, t.y, Math.sin(age * 20) * 0.04 * t.tier, sc, sc);
+      cx.globalAlpha = Math.min(1, t.life / (t.max * 0.3));
+      cx.font = `900 italic 22px ${FONT}`;
+      cx.lineWidth = 7;
+      cx.strokeStyle = 'rgba(25,5,20,0.95)';
+      cx.strokeText(t.text, 0, 0);
+      if (t.tier >= 3) {
+        const gr = cx.createLinearGradient(-60, 0, 60, 0);
+        const h0 = (this.fx.time * 360) % 360;
+        for (let i = 0; i <= 4; i++) gr.addColorStop(i / 4, `hsl(${(h0 + i * 72) % 360},100%,62%)`);
+        cx.fillStyle = gr;
+      } else cx.fillStyle = ['#ffffff', '#ffe14a', '#ff8a1f'][t.tier];
+      cx.fillText(t.text, 0, 0);
+    }
+    cx.font = `900 16px ${FONT}`;
     // 연출 글자
     for (const t of this.fx.texts.items) {
       const age = t.max - t.life;
@@ -1867,7 +1922,7 @@ export class Renderer {
     cx.lineJoin = 'round';
     // 콤보
     if (fx.combo >= 5) {
-      const s = 1 + fx.comboPop * 0.35;
+      const s = (1 + fx.comboPop * 0.35) * (1 + Math.min(0.5, fx.combo / 200));
       const col = fx.combo >= 100 ? '#ff4fd8' : fx.combo >= 50 ? '#ff7b2e' : fx.combo >= 20 ? '#ffd23f' : '#ffffff';
       cx.setTransform(k * s, 0, 0, k * s, k * (W - 50), k * 118);
       cx.font = `900 italic 26px ${FONT}`;
@@ -1876,7 +1931,8 @@ export class Renderer {
       cx.fillStyle = col; cx.fillText(fx.combo, 0, 0);
       cx.font = `900 italic 11px ${FONT}`;
       cx.lineWidth = 4;
-      cx.strokeText('COMBO', 0, 19); cx.fillText('COMBO', 0, 19);
+      const cl = fx.combo >= 10 ? `콤보 · EXP +${Math.round(Math.min(0.15, fx.combo * 0.003) * 100)}%` : '콤보';
+      cx.strokeText(cl, 0, 19); cx.fillText(cl, 0, 19);
       cx.setTransform(k, 0, 0, k, 0, 0);
     }
     // 웨이브 사이 카운트다운

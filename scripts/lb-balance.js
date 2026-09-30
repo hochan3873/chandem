@@ -401,7 +401,51 @@ function seeded(seed = 1) {
     for (let i = 0; i < curve.length; i += 10) console.log('  ' + curve.slice(i, i + 10).join('  '));
   }
 
+  // ── 8) 스테이지별 맞춤 (--calib): 스테이지마다 난이도 가산(stageAdd)을 이분 탐색해서 목표 클리어율에 맞춘다
+  //  목표: 챕터 목표 + 챕터 앞쪽은 조금 쉽게 · 보스 스테이지는 조금 어렵게 → 들쭉날쭉하지 않은 곡선
+  function calib() {
+    const N = opt('seeds', 8), IT = opt('iters', 4);
+    const TG = [80, 65, 55, 45, 30, 20];
+    const ht = (process.argv.find((x) => x.startsWith('--hptune=')) || '').slice(9);
+    if (ht) D.STAGE.hpTune = ht.split(',').map(Number);
+    const pool = ['staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu'];
+    const slotsAt = (s) => Math.min(6, Math.max(4, D.chapterOf(s) - 1));
+    const out = {};
+    const only = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
+    for (let s = 3; s <= D.STAGE_COUNT; s++) {
+      if (only.length && !only.includes(s)) continue;
+      const n = D.stageNo(s), c = D.chapterOf(s);
+      const target = TG[c - 1] + (5 - n) * 1.5 - ([5, 10].includes(n) ? 5 : 0);
+      const m = metaAt(s);
+      const meta = Object.fromEntries(Object.keys(D.HEROES).map((id) => [id, m]));
+      const avail = ['bangjang', ...pool].filter((id) => !D.HERO_UNLOCK[id] || D.HERO_UNLOCK[id] < s);
+      const team = D.recommendTeam(s, avail, slotsAt(s));
+      const base = D.STAGE.stageAdd[s] || 0;
+      const rate = (add) => {
+        D.STAGE.stageAdd[s] = base + add;
+        let w = 0;
+        for (let i = 1; i <= N; i++) if (play({ stage: s, deck: placeDeck(team), partner: team[0], meta, gear: gearAt(s, team), items: itemsAt(s), seed: i * 131 + s * 7, unlocked: [], skills: true }).win) w++;
+        return (w / N) * 100;
+      };
+      const RG = opt('range', 4);
+      let lo = -RG, hi = RG, best = 0, bestErr = 1e9, r0 = rate(0);
+      if (Math.abs(r0 - target) < 100 / N) { best = 0; bestErr = Math.abs(r0 - target); }
+      else {
+        for (let k = 0; k < IT; k++) {
+          const mid = (lo + hi) / 2;
+          const r = rate(mid);
+          if (Math.abs(r - target) < bestErr) { bestErr = Math.abs(r - target); best = mid; }
+          if (r > target) lo = mid; else hi = mid;
+        }
+      }
+      D.STAGE.stageAdd[s] = base + best;
+      out[s] = +(base + best).toFixed(2);
+      console.log(`${D.stageLabel(s)} 목표 ${target.toFixed(0)}% · 처음 ${r0.toFixed(0)}% → 가산 ${out[s]} (오차 ${bestErr.toFixed(0)})`);
+    }
+    console.log('stageAdd: ' + JSON.stringify(Object.fromEntries(Object.entries(out).filter(([, v]) => v !== 0))));
+  }
   const t0 = Date.now();
+  if (what === 'calib') calib();
   if (what === 'final') final();
   if (what === 'innate') innate();
   if (what === 'matchups') matchups();

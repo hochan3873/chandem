@@ -3,7 +3,7 @@
 import {
   FIELD, RULES, HEROES, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
-  STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, HERO_TIER, openSlots, SECRET,
+  STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, openSlots, SECRET,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -58,7 +58,7 @@ export function createGame(opt = {}) {
     },
     attrCount: {},
     // 덱 칸: 산 칸 수만큼만 열린 자리 (나머지는 자물쇠). 임시 증원 카드로 한 자리 잠깐 열 수 있다
-    locked: opt.slots ? [0, 1, 2, 3, 4, 5].filter((i) => !openSlots(opt.slots).includes(i)) : [], tempSlot: -1, guestUsed: false,
+    locked: [], maxHeroes: opt.slots ? Math.max(1, Math.min(6, opt.slots)) : 99, tempSlot: -1, guestUsed: false, // 자리는 6칸 모두 쓸 수 있고, 데려갈 수 있는 멤버 수만 제한
     guestPool: (opt.guestPool || []).slice(),
     stacks: {}, hiddenTaken: {}, heroesUsed: {}, seen: {},
     stats: { kills: 0, bossKills: 0, coins: 0, score: 0, maxCombo: 0, damage: 0, wavesCleared: 0, stolen: 0, skills: 0 },
@@ -101,14 +101,13 @@ export function hasHero(g, id) {
 }
 
 export function addHero(g, id, want) {
-  if (hasHero(g, id) || g.heroes.length >= g.nPos) return null;
+  if (hasHero(g, id) || g.heroes.length >= Math.min(g.nPos, g.maxHeroes || 99)) return null;
   const def = HEROES[id];
   const used = new Set(g.heroes.map((h) => h.slot));
-  for (const l of g.locked || []) if (l !== want) used.add(l); // 잠긴 자리는 비워 둔다
   const order = g.nPos >= 7 ? [3, 2, 4, 1, 5, 0, 6] : SLOT_ORDER;
   const slot = want !== undefined && !used.has(want) && want < g.nPos ? want : order.find((s) => !used.has(s));
   const h = {
-    id, def, slot, x: g.slotX[slot], y: g.rowY, lv: 1, meta: Math.min(g.meta[id] || 0, [20, 12, 16, 20, 20, 20][HERO_TIER[id] || 1]), gear: g.gear[id] || {},
+    id, def, slot, x: g.slotX[slot], y: g.rowY, lv: 1, meta: Math.min(g.meta[id] || 0, TIER_MAX[HERO_TIER[id] || 1]), gear: g.gear[id] || {},
     cd: 0.3 + g.rng() * 0.4, charmT: 0, stunT: 0, rumorT: 0, fearT: 0, paperT: 0, vomitT: 0, blindT: 0, drowsyT: 0, grabT: 0, grabBy: 0, recoil: 0, shots: 0, joinT: 0,
     rage: false, rageT: def.soberSec ? def.soberSec[0] : 0, healT: def.heal ? def.heal[0][0] : 0,
     kills: 0, dmgDone: 0,
@@ -143,7 +142,7 @@ export function heroDamage(g, h) {
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
   const hc = 1 + (g.hcT > 0 ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0); // "랑방을 위하여!"
-  return buildMul(g, h) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + 0.2 * (h.cmN || 0)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + RULES.metaDmgPerLevel * h.meta) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * old * hc;
+  return buildMul(g, h) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + 0.2 * (h.cmN || 0)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * h.meta) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * old * hc;
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
 export function buildMul(g, h) {
@@ -245,7 +244,7 @@ function updateHeroes(g, dt) {
     if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
     let sing = 0;
     for (const d0 of singers) if (d0 !== h && Math.abs(d0.x - h.x) <= d0.def.sing.r) sing = Math.max(sing, d0.def.sing.spd[d0.lv - 1]);
-    const rate = (g.mods.spd + aura) * heroSpeedMul(h) * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
+    const rate = (g.mods.spd + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
     // 문동한: 간보기 게이지 → 일어나서 한 줄 빔
     if (d.meter) {
       if (h.upT > 0) h.upT -= dt;
@@ -530,6 +529,7 @@ export function fire(g, h, t) {
         return true;
       });
       h.meter = Math.min(100, h.meter + d.diet.perSlam[lv - 1]);
+      h.slamAt = g.t;
       ev(g, 'slam', { x: cx0, y: cy0, r: R, hx: h.x, hy: h.y });
       break;
     }
@@ -689,8 +689,8 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   const def = ENEMIES[type];
   if (g.seen) g.seen[type] = 1; // 도감: 이번 판에 만난 진상
   const e = g._enemyPool.pop() || {};
-  const m = (o.hpMul || hpMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hpScale || 1)) * (def.boss && g.mode === 'stage' ? RULES.stageBossHp : 1);
-  e.uid = g.uid++; e.type = type; e.def = def; e.boss = !!def.boss; e.mid = !!def.mid; e.gender = def.gender;
+  const m = (o.hpMul || hpMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hpScale || 1)) * (def.boss && g.mode === 'stage' ? RULES.stageBossHp : 1) * (def.boss ? 1 : o.hpX || 1);
+  e.uid = g.uid++; e.type = type; e.def = def; e.boss = !!def.boss; e.mid = !!def.mid; e.gender = def.gender; e.elite = !!o.elite;
   const lane = g.mapFx.lane;
   e.x = x !== undefined ? x : lane ? lane[0] + g.rng() * (lane[1] - lane[0]) : 24 + g.rng() * (g.W - 48);
   if (lane && !def.boss) e.x = clamp(e.x, lane[0], lane[1]);
@@ -739,6 +739,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     }
   }
   if (e.dictT > 0) dmg *= 1 - e.dictCut;
+  if (e.elite && aoe) dmg *= 0.65; // 정예: 범위 공격이 덜 먹힌다 (한 방 멤버가 빛나게)
   if (e.packN > 0 && !aoe) { const pk = e.def.pack; dmg *= 1 - Math.min(pk.maxCut, pk.cut * e.packN); }
   if (e.form === 'reveal') dmg *= e.def.scam.revealDmg;
   if (e.weakT > 0) dmg *= 1.5; // 보스 빈틈!
@@ -788,6 +789,12 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   return shown;
 }
 
+const MK_WIN = 0.35;
+function flushMultiKill(g) {
+  const mk = g.mk;
+  if (mk.n >= 3) ev(g, 'multikill', { n: mk.n, x: mk.x / mk.n, y: mk.y / mk.n, combo: g.combo });
+  mk.n = 0; mk.x = 0; mk.y = 0;
+}
 function killEnemy(g, e, src) {
   e.dead = true;
   const def = e.def;
@@ -799,7 +806,12 @@ function killEnemy(g, e, src) {
   if (g.combo > s.maxCombo) s.maxCombo = g.combo;
   s.score += SCORE.kill + Math.min(g.combo, SCORE.comboCap);
   // 경험치 보석 (떨어진 뒤 잠깐 튀었다가 저절로 경험치 바로 날아간다)
-  const xp = def.exp * g.mods.expMul;
+  const xp = def.exp * g.mods.expMul * (1 + Math.min(0.15, g.combo * 0.003)); // 연속 처치 보너스 (최대 +15%)
+  // 멀티킬: 0.35초 안에 쓰러진 진상을 한 묶음으로
+  const mk = g.mk || (g.mk = { n: 0, t0: 0, x: 0, y: 0 });
+  if (mk.n && g.t - mk.t0 > MK_WIN) flushMultiKill(g);
+  if (!mk.n) mk.t0 = g.t;
+  mk.n++; mk.x += e.x; mk.y += e.y;
   if (e.boss) {
     for (let i = 0; i < 10; i++) dropGem(g, e.x + (g.rng() - 0.5) * 80, e.y + (g.rng() - 0.5) * 60, xp / 10);
   } else dropGem(g, e.x, e.y, xp);
@@ -1427,12 +1439,13 @@ function bossWeak(g, e) {
 
 function tryCharm(g, e) {
   const want = e.def.charm;
-  const cands = g.heroes.filter((h) => (want === 'both' || h.def.gender === want) && h.charmT <= 0);
+  if (g.mode === 'stage' && g.stage <= 2) return; // 튜토리얼: 홀림 없음
+  const cands = g.heroes.filter((h) => (want === 'both' || h.def.gender === want) && h.charmT <= 0 && !(h.def.diet && !h.alt && g.t - (h.slamAt || -9) < 0.7));
   if (!cands.length) return;
   const h = cands[(g.rng() * cands.length) | 0];
   const g5 = g.heroes.find((x) => x.id === 'gunnyeo' && x.lv >= 5);
   if (g5) { ev(g, 'charmBlock', { x: h.x, y: h.y, ex: e.x, ey: e.y }); return; }
-  h.charmT = RULES.charmSec * g.mods.charmMul;
+  h.charmT = RULES.charmSec * g.mods.charmMul * (h.def.diet && !h.alt ? h.def.diet.charmRes : 1);
   ev(g, 'charm', { hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y });
 }
 
@@ -1580,7 +1593,7 @@ export function hitEnemy(g, p, e) {
       const dx = o.x - e.x, dy = o.y - e.y, d2 = dx * dx + dy * dy;
       if (d2 < bd) { bd = d2; best = o; }
     }
-    if (best) { p.rico--; p.target = best; p.tuid = best.uid; p.homing = true; p.dmg *= h.def.ricoDecay; ev(g, 'ricochet', { x: e.x, y: e.y - 20 }); }
+    if (best) { p.rico--; p.target = best; p.tuid = best.uid; p.homing = true; p.dmg *= h.def.ricoDecay; ev(g, 'ricochet', { x: e.x, y: e.y - 20, x2: best.x, y2: best.y - 20 }); }
     else { p.returning = true; p.homing = false; p.target = null; }
     return;
   }
@@ -1739,18 +1752,30 @@ export function startWave(g, n) {
   const more = g.mapFx.spawn || 1;
   // 무한 도전: 웨이브가 갈수록 떼로 (×1.3 → 30웨이브 ×3.0) · 주간 도전 ×2
   const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1);
-  for (const [type, count0, every0, delay] of def.g) {
+  for (const [type, count0, every0, delay, tag] of def.g) {
     const count = Math.round(count0 * more * swarm), every = every0 / (more * swarm);
     const pack = ENEMIES[type].pack;
+    const elite = tag === 'E';
+    const hpX = elite ? def.eliteHp || 1 : def.fodderHp || 1;
     let laneX = 0;
+    // 떼거리: 5명씩 한 줄로 바짝 붙어서 (범위 공격 한 방에 여럿)
+    if (def.clump && !elite && !pack) {
+      let cx = 0, at0 = 0;
+      for (let i = 0; i < count; i++) {
+        if (i % 5 === 0) { cx = 36 + g.rng() * (g.W - 72); at0 = delay + (i / 5) * every * 5 + g.rng() * every; }
+        q.push({ type, at: at0 + (i % 5) * 0.16, x: clamp(cx + (g.rng() - 0.5) * 20, 20, g.W - 20), hpX });
+      }
+      continue;
+    }
     for (let i = 0; i < count; i++) {
       const at = delay + i * every + g.rng() * every * 0.5;
+      if (elite) { q.push({ type, at, hpX, elite: true }); continue; }
       // 셋 중 하나는 같은 줄로 줄줄이 (관통 · 줄 공격 · 범위가 빛나게)
-      if (!pack) { if (i % 3 === 0) laneX = g.rng() < 0.5 ? g.slotX[(g.rng() * g.slotX.length) | 0] + (g.rng() - 0.5) * 16 : 0; q.push({ type, at, x: laneX && i % 3 !== 0 ? clamp(laneX + (g.rng() - 0.5) * 18, 20, g.W - 20) : undefined }); continue; }
+      if (!pack) { if (i % 3 === 0) laneX = g.rng() < 0.5 ? g.slotX[(g.rng() * g.slotX.length) | 0] + (g.rng() - 0.5) * 16 : 0; q.push({ type, at, hpX, x: laneX && i % 3 !== 0 ? clamp(laneX + (g.rng() - 0.5) * 18, 20, g.W - 20) : undefined }); continue; }
       // 인피 패거리: 3~5명이 한 덩어리로
       const n = pack.min + ((g.rng() * (pack.max - pack.min + 1)) | 0);
       const x0 = 50 + g.rng() * (g.W - 100);
-      for (let j = 0; j < n; j++) q.push({ type, at: at + j * 0.06, x: clamp(x0 + (j - (n - 1) / 2) * 20 + g.rng() * 6, 20, g.W - 20) });
+      for (let j = 0; j < n; j++) q.push({ type, at: at + j * 0.06, hpX, x: clamp(x0 + (j - (n - 1) / 2) * 20 + g.rng() * 6, 20, g.W - 20) });
     }
   }
   if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true });
@@ -1765,7 +1790,8 @@ export function startWave(g, n) {
     g.phaseT = RULES.bossIntroSec;
     ev(g, 'bossIntro', { wave: n, enemy: def.boss, enemy2: def.boss2 || null });
   } else g.phase = 'wave';
-  ev(g, 'waveStart', { wave: n, boss: !!def.boss, count: q.length });
+  g.waveKind = def.kind || 'N';
+  ev(g, 'waveStart', { wave: n, boss: !!def.boss, count: q.length, kind: g.waveKind });
 }
 
 function waveClear(g) {
@@ -2005,7 +2031,6 @@ export function pvpIncoming(g, kind) {
 // 영웅 자리 바꾸기 (끌어다 놓기). 잠깐 쿨타임
 export function swapHeroes(g, h, slot) {
   if (!h || slot < 0 || slot >= g.nPos || slot === h.slot) return false; // 자리 바꾸기는 바로 · 공짜
-  if (g.locked.includes(slot)) { ev(g, 'lockedSlot', { x: g.slotX[slot], y: g.rowY }); return false; }
   const other = g.heroes.find((o) => o.slot === slot);
   if (other) { other.slot = h.slot; other.x = g.slotX[other.slot]; }
   h.slot = slot; h.x = g.slotX[slot];
@@ -2062,7 +2087,7 @@ export function step(g, dt) {
     if (g.spawnI < q.length && q[g.spawnI].at <= g.waveT) for (const e of g.enemies) if (!e.dead) alive++;
     while (g.spawnI < q.length && q[g.spawnI].at <= g.waveT && alive < ENEMY_CAP) {
       const s = q[g.spawnI++];
-      const e = spawnEnemy(g, s.type, s.boss ? g.W / 2 : s.x, s.boss ? -60 : undefined);
+      const e = spawnEnemy(g, s.type, s.boss ? g.W / 2 : s.x, s.boss ? -60 : undefined, s.hpX || s.elite ? { hpX: s.hpX, elite: s.elite } : undefined);
       alive++;
       if (g.raid && s.boss && !s.mid && !g.raid.boss) { g.raid.boss = e; e.raidBoss = true; e.maxHp = e.hp = 1e12; }
       if (s.mid) ev(g, 'midSpawn', { enemy: s.type, x: e.x, y: e.y });
@@ -2090,6 +2115,7 @@ export function step(g, dt) {
   }
   updateGems(g, dt);
   if (g.comboT > 0) { g.comboT -= dt; if (g.comboT <= 0) g.combo = 0; }
+  if (g.mk && g.mk.n && g.t - g.mk.t0 > MK_WIN) flushMultiKill(g);
   // 죽은 적 정리 → 풀로 반납
   const list = g.enemies;
   let j = 0;
@@ -2112,7 +2138,7 @@ function heroCardDesc(def, next) {
 }
 export function cardPool(g) {
   const pool = [];
-  const free = g.heroes.length < g.nPos && g.mode !== 'stage';
+  const free = g.heroes.length < Math.min(g.nPos, g.maxHeroes || 99) && g.mode !== 'stage';
   for (const id of UNLOCK_HEROES) {
     if (hasHero(g, id) || !free) continue;
     if (!g.unlocked.includes(id)) continue;
@@ -2176,18 +2202,18 @@ export function rollCards(g, n = RULES.cardChoices, opt = {}) {
     picks.push({ key: f.id + i, kind: 'filler', id: f.id, rarity: f.rarity, icon: f.icon, title: f.title, desc: f.desc });
   }
   // 숨은 카드: 임시 증원(잠긴 자리 하나 열기) · 게스트 합류(아직 없는 멤버를 이번 판만)
-  if (g.locked.length && g.tempSlot < 0 && picks.length && rng() < (opt.secretChance !== undefined ? opt.secretChance : SECRET.tempSlot)) {
+  if (g.maxHeroes < g.nPos && g.heroes.length >= g.maxHeroes && g.tempSlot < 0 && picks.length && rng() < (opt.secretChance !== undefined ? opt.secretChance : SECRET.tempSlot)) {
     const guest = !g.guestUsed && g.guestPool.filter((id) => !hasHero(g, id)).length && rng() < 0.45;
     picks[picks.length - 1] = guest
-      ? { key: 'guestCombo', kind: 'secret', id: 'guestCombo', rarity: 'hidden', icon: '🎫', title: '게스트 합류!', desc: '잠긴 자리가 이번 판만 열리고, 아직 없는 멤버가 게스트로 들어와요', sub: '숨은 카드 · 한 판에 한 번' }
-      : { key: 'tempSlot', kind: 'secret', id: 'tempSlot', rarity: 'hidden', icon: '🔓', title: '임시 증원!', desc: '잠긴 자리 하나가 이번 판만 열려요 — 멤버를 끌어다 놓거나 카드로 채워요', sub: '숨은 카드 · 한 판에 한 번' };
+      ? { key: 'guestCombo', kind: 'secret', id: 'guestCombo', rarity: 'hidden', icon: '🎫', title: '게스트 합류!', desc: '이번 판만 한 명 더! 아직 없는 멤버가 게스트로 들어와요', sub: '숨은 카드 · 한 판에 한 번' }
+      : { key: 'tempSlot', kind: 'secret', id: 'tempSlot', rarity: 'hidden', icon: '🔓', title: '임시 증원!', desc: '이번 판만 멤버 한 명 더! 가진 멤버 중 한 명이 빈자리로 달려와요', sub: '숨은 카드 · 한 판에 한 번' };
   }
   // 히든 영웅: 칸마다 낮은 확률로 교체 (런당 1번씩만)
   const chance = opt.hiddenChance !== undefined ? opt.hiddenChance : RULES.hiddenChance;
   const from = g.mode === 'stage' ? RULES.hiddenFromStageWave : RULES.hiddenFromWave;
   if (g.wave >= from || opt.hiddenChance !== undefined) {
     for (let i = 0; i < picks.length; i++) {
-      if (g.heroes.length >= g.nPos || g.mode === 'stage') break;
+      if (g.heroes.length >= Math.min(g.nPos, g.maxHeroes || 99) || g.mode === 'stage') break;
       const avail = HIDDEN_HEROES.filter((id) => g.hiddenUnlocked.includes(id) && !g.hiddenTaken[id] && !hasHero(g, id) && !picks.some((p) => p.hero === id));
       if (!avail.length) break;
       if (rng() < chance) picks[i] = hiddenCard(avail[(rng() * avail.length) | 0], g);
@@ -2259,12 +2285,20 @@ export function applyCard(g, c) {
       }
       break;
     case 'secret': {
-      // 잠긴 자리 하나 열기 (가운데에 가까운 것부터)
-      const slot = g.locked.sort((a, b) => Math.abs(a - 2.5) - Math.abs(b - 2.5))[0];
+      // 이번 판만 데려갈 수 있는 멤버 +1 (빈자리 중 가운데에 가까운 곳을 표시)
+      const used = new Set(g.heroes.map((h) => h.slot));
+      const slot = SLOT_ORDER.filter((x) => x < g.nPos && !used.has(x))[0];
       if (slot === undefined) break;
-      g.locked = g.locked.filter((x) => x !== slot);
+      g.maxHeroes++;
       g.tempSlot = slot;
       ev(g, 'slotOpen', { x: g.slotX[slot], y: g.rowY, slot });
+      if (c.id === 'tempSlot') {
+        // 가진 멤버 중 덱에 없는 (제일 높은 티어) 한 명이 증원
+        const mine = [...BASE_HEROES, ...g.unlocked].filter((id, i, a) => HEROES[id] && a.indexOf(id) === i && !hasHero(g, id));
+        mine.sort((a, b) => (HERO_TIER[b] || 1) - (HERO_TIER[a] || 1) || (g.meta[b] || 0) - (g.meta[a] || 0));
+        const h = mine[0] ? addHero(g, mine[0], slot) : null;
+        if (h) { h.lv = 2; h.temp = true; ev(g, 'guestJoin', { hero: h.id, x: h.x, y: h.y }); }
+      }
       if (c.id === 'guestCombo') {
         const pool = g.guestPool.filter((id) => !hasHero(g, id));
         const id = pool[(g.rng() * pool.length) | 0];
@@ -2321,7 +2355,7 @@ export function snapshot(g) {
     level: g.level, exp: g.exp, need: g.need, pendingLevels: g.pendingLevels, welcomePicks: g.welcomePicks,
     base: { hp: g.base.hp, max: g.base.max }, ult: g.ult, stats: Object.assign({}, g.stats),
     meta: Object.assign({}, g.meta), items: Object.assign({}, g.items), unlocked: g.unlocked.slice(), trial: (g.trial || []).slice(),
-    gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, hell: g.hell,
+    gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, hell: g.hell, maxHeroes: g.maxHeroes,
   };
 }
 // 저장한 웨이브를 처음부터 다시 시작 (짧은 카운트다운 뒤). 걸린 시간 t 는 이어서 센다
@@ -2330,6 +2364,7 @@ export function restoreGame(snap, opt = {}) {
     H: opt.H, rng: opt.rng, god: opt.god, mode: snap.mode, stage: snap.stage,
     meta: snap.meta, items: snap.items, unlocked: snap.unlocked || snap.hiddenUnlocked || [], heroes: [], gear: snap.gear, positions: snap.nPos, stars: snap.hstars, weekly: snap.weekly || undefined, hell: !!snap.hell,
   });
+  if (snap.maxHeroes) g.maxHeroes = snap.maxHeroes;
   for (const s of snap.heroes || []) {
     if (!HEROES[s.id]) continue;
     const h = addHero(g, s.id);

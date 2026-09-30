@@ -354,21 +354,29 @@ export function setCosmetic(lb, title, frame) {
 export const GACHA_COST = { one: 300, ten: 2700 };
 export const HOCHAN_GATE = STAGE_COUNT; // TODO(6장 추가 시): 6-10 (60) 으로 옮기기
 export const PITY_HERO = 50, PITY_LEGEND = 200;
+// 모집 멤버는 "카드"를 모아서 합류: 영웅 10장 · LEGEND(이호찬) 30장. 합류한 뒤 카드는 ★승급 조각으로
+export const UNLOCK_CARDS = { epic: 10, legend: 30 };
+export const CARD_BUNDLE = { epicHero: 4, legendHero: 15, epicCard: 1, legendCard: 1 };
+export const cardsNeed = (h) => (LEGEND_HEROES.includes(h) ? UNLOCK_CARDS.legend : UNLOCK_CARDS.epic);
 export const GACHA_RATES = [ // 확률 공개 (%)
-  { k: 'legendHero', w: 0.3, name: '전설 멤버 (이호찬)', color: '#ffcf3f' },
-  { k: 'epicHero', w: 3, name: '영웅 멤버 (윤준서 · 배현경 · 고아라)', color: '#c77dff' },
+  { k: 'legendHero', w: 0.3, name: '전설 카드 묶음 ×15 (이호찬)', color: '#ffcf3f' },
+  { k: 'legendCard', w: 1, name: '전설 카드 ×1 (이호찬)', color: '#ffdf80' },
+  { k: 'epicHero', w: 3, name: '영웅 카드 묶음 ×4 (윤준서 · 배현경 · 고아라)', color: '#c77dff' },
+  { k: 'epicCard', w: 8, name: '영웅 카드 ×1', color: '#d9a8ff' },
   { k: 'legendGear', w: 1.5, name: '전설 장비', color: '#ffb400' },
   { k: 'epicGear', w: 7.2, name: '영웅 장비', color: '#c77dff' },
-  { k: 'rareGear', w: 25, name: '희귀 장비', color: '#4ea8ff' },
-  { k: 'shard10', w: 13, name: '멤버 조각 ×10', color: '#ff9f5a' },
-  { k: 'shard4', w: 50, name: '멤버 조각 ×4', color: '#9fb3c8' },
+  { k: 'rareGear', w: 22, name: '희귀 장비', color: '#4ea8ff' },
+  { k: 'shard10', w: 12, name: '멤버 조각 ×10', color: '#ff9f5a' },
+  { k: 'shard4', w: 45, name: '멤버 조각 ×4', color: '#9fb3c8' },
 ];
 const EPIC_PLUS = ['legendHero', 'epicHero', 'legendGear', 'epicGear'];
+// 합류 전 카드 진행: { 윤준서: [7, 10] … }
+export function cardProgress(lb, h) { return lb.owned && lb.owned[h] ? null : [Math.min(cardsNeed(h), (lb.shards || {})[h] | 0), cardsNeed(h)]; }
 export const DUP_SHARDS = { epicHero: 30, legendHero: 80 };
 export const legendOpen = (lb) => (lb.maxStage | 0) >= HOCHAN_GATE;
 function rollKind(rng, lb, only) {
   const open = legendOpen(lb);
-  const list = GACHA_RATES.filter((r) => (!only || only.includes(r.k)) && (open || r.k !== 'legendHero'));
+  const list = GACHA_RATES.filter((r) => (!only || only.includes(r.k)) && (open || (r.k !== 'legendHero' && r.k !== 'legendCard')));
   const sum = list.reduce((a, r) => a + r.w, 0);
   let x = rng() * sum;
   for (const r of list) { x -= r.w; if (x <= 0) return r.k; }
@@ -400,16 +408,20 @@ export function gachaPull(lb, n, pay, uid, now = Date.now(), seed) {
   return { results: out };
 }
 function resolvePull(lb, k, rng) {
-  if (k === 'legendHero' || k === 'epicHero') {
-    lb.pity.hero = 0;
+  if (k === 'legendHero' || k === 'epicHero' || k === 'legendCard' || k === 'epicCard') {
+    if (k === 'legendHero' || k === 'epicHero') lb.pity.hero = 0; // 천장: 영웅 묶음 50번 · 전설 묶음 200번
     if (k === 'legendHero') lb.pity.legend = 0;
-    const pool = k === 'legendHero' ? LEGEND_HEROES : GACHA_HEROES;
+    const pool = k === 'legendHero' || k === 'legendCard' ? LEGEND_HEROES : GACHA_HEROES;
     const fresh = pool.filter((h) => !lb.owned[h]);
     const src = fresh.length && rng() < 0.6 ? fresh : pool; // 아직 없는 멤버가 조금 더 잘 나온다
     const h = src[(rng() * src.length) | 0];
-    if (lb.owned[h]) { const v = DUP_SHARDS[k]; lb.shards[h] = (lb.shards[h] | 0) + v; return { k, hero: h, dup: true, shards: v }; }
-    lb.owned[h] = true;
-    return { k, hero: h, new: true };
+    const v = CARD_BUNDLE[k];
+    if (lb.owned[h]) { lb.shards[h] = (lb.shards[h] | 0) + v; return { k, hero: h, dup: true, shards: v, card: true }; }
+    // 아직 합류 전: 카드를 모아서 다 모이면 합류 (남는 카드는 ★조각으로)
+    lb.shards[h] = (lb.shards[h] | 0) + v;
+    const need = cardsNeed(h);
+    if (lb.shards[h] >= need) { lb.shards[h] -= need; lb.owned[h] = true; return { k, hero: h, card: true, shards: v, new: true, have: need, need }; }
+    return { k, hero: h, card: true, shards: v, have: lb.shards[h], need };
   }
   if (k === 'legendGear' || k === 'epicGear' || k === 'rareGear') {
     const r = k === 'legendGear' ? 'legend' : k === 'epicGear' ? 'epic' : 'rare';

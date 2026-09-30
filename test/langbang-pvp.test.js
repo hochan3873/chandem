@@ -114,6 +114,7 @@ test('마스터 테스트 도구: 서버가 아이디로 확인 · 올클리어 
   assert.equal(r.ok, true, r.message);
   assert.equal(r.profile.maxStage, 60);
   assert.equal(r.profile.master, true);
+  assert.equal(r.profile.deckSlots, 6, '마스터는 덱 6칸');
   assert.equal(r.profile.hstars.hochan, 5);
   assert.equal(r.profile.heroes.staff, 12, '티어 한도까지');
   assert.ok(r.profile.gear.length >= 8 && r.profile.coins >= 1e6);
@@ -125,6 +126,7 @@ test('마스터 테스트 도구: 서버가 아이디로 확인 · 올클리어 
   r = await post('/api/langbang/master', m.token, { action: 'reset' });
   assert.equal(r.profile.maxStage, 0);
   assert.equal(r.profile.coins, 0);
+  assert.equal(r.profile.deckSlots, 4, '초기화하면 4칸');
 });
 
 test('레이드 공식: 금 18:00 ~ 일 24:00 · 하루 3번 · 피해 상한 · 보상', async () => {

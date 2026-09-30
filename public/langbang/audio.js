@@ -86,6 +86,8 @@ export function playBgm() {
   if (curKey === target() && players[curKey] && !players[curKey].paused) return;
   switchTo(target());
 }
+// 배경음악이 실제로 나오고 있나 (자동 재생이 막히면 false)
+export function bgmActive() { const a = curKey && players[curKey]; return !!(a && !a.paused && a.currentTime > 0); }
 export function pauseBgm() { playing = false; clearInterval(fadeT); for (const a of Object.values(players)) a.pause(); curKey = null; for (const a of Object.values(players)) a.volume = 0; }
 
 function ok(name, gap) {
@@ -170,6 +172,18 @@ export const sfx = {
   lose() { if (ok('lose', 2)) [392, 370, 349, 262].forEach((f, i) => tone(f, 0.35, 'triangle', 0.09, 0, i * 0.22)); },
   tap() { if (ok('tap', 0.05)) tone(1000, 0.03, 'sine', 0.04, 1400); },
   join() { if (ok('join', 0.3)) [659, 880, 1175].forEach((f, i) => tone(f, 0.14, 'sine', 0.08, 0, i * 0.06)); },
+  // 멀티킬 스팅어: 단계가 오를수록 더 높고 길게 (펑 + 올라가는 음 + 반짝)
+  multi(tier) {
+    if (!ok('multi', 0.3)) return;
+    const base = [660, 784, 880, 1046][tier] || 660;
+    noise(0.12 + tier * 0.05, 0.12 + tier * 0.03, 900, 0.7, 0, 'lowpass');
+    tone(110 + tier * 20, 0.18 + tier * 0.05, 'sine', 0.18, 50);
+    const steps = 3 + tier;
+    for (let i = 0; i < steps; i++) tone(base * Math.pow(1.122, i * 2), 0.09, 'square', 0.05, 0, 0.03 + i * 0.045);
+    tone(base * 2, 0.25 + tier * 0.08, 'triangle', 0.05, base * 3, 0.05 + steps * 0.045);
+  },
+  // 떼거리 웨이브: 낮은 우르르
+  rumble() { if (ok('rumble', 1)) { noise(1.1, 0.22, 220, 0.4, 0, 'lowpass'); tone(48, 1.0, 'sine', 0.28, 36); tone(62, 0.8, 'sawtooth', 0.04, 44, 0.1); } },
   // "와 떴다!" 등장 스팅어: 올라가는 휘릭 + 번쩍 + 팡파레 (LEGEND 는 더 길고 낮은 울림)
   reveal(kind) {
     if (!ok('reveal', 1)) return;

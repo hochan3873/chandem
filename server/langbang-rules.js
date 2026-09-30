@@ -9,7 +9,7 @@ const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN
 const META_MAX = 20;
 // 멤버 등급별 강화 한도 (화면 data.js HERO_TIER · TIER_MAX 와 같음)
 const HERO_TIER = { bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1, dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2, hanna: 3, donghan: 3, sunggu: 3, youngjun: 3, junseo: 4, hyungyeong: 4, ara: 4, hochan: 5 };
-const TIER_MAX = [20, 12, 16, 20, 20, 20];
+const TIER_MAX = [20, 20, 20, 20, 20, 20];
 const metaMaxOf = (id) => TIER_MAX[HERO_TIER[id] || 1];
 const STAGE_COUNT = 60;
 const STAGE_WAVES = 5;
@@ -22,7 +22,8 @@ const ENEMY_IDS = ['yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'queen', 'boss_
   'mid_mukti', 'mid_drunk', 'mid_thug', 'mid_scammer', 'mid_selfie', 'mid_gao', 'mid_kkondae', 'fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi',
   'fakesingle', 'secretmom', 'carpoor', 'sales', 'sarcasm', 'jjijil', 'otaku', 'drunk_cry', 'drunk_run', 'drunk_sleep', 'drunk_home', 'kkondae2',
   'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty',
-  'mid_fakesingle', 'mid_carpoor', 'fuse_lease', 'fuse_lie', 'mid_otaku', 'mid_sarcasm', 'fuse_jusa', 'fuse_sleep'];
+  'mid_fakesingle', 'mid_carpoor', 'fuse_lease', 'fuse_lie', 'mid_otaku', 'mid_sarcasm', 'fuse_jusa', 'fuse_sleep',
+  'fuse_karaoke', 'fuse_taxi', 'fuse_mt', 'fuse_latte', 'fuse_adspam'];
 // 중간 보스가 나오는 스테이지 (1-1 · 1-2 제외) — 클리어 보상에 중간 보스 보너스
 const hasMid = (s) => s >= 3;
 

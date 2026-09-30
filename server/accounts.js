@@ -422,6 +422,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     if (master) {
       view.master = true;
       view.unlocked = LBR.LOCKED.slice();
+      // 마스터는 덱 칸도 전부 열림 (자물쇠 없음) — 막 초기화한 상태(기록 0)만 새 계정처럼 4칸
+      if ((lb.maxStage | 0) > 0 || (lb.runs | 0) > 0) view.deckSlots = 6;
       view.seen = LBR.ENEMY_IDS.slice();
       view.owned = Object.fromEntries(LBR.GACHA.map((h) => [h, true]));
       view.endlessUnlocked = true;
