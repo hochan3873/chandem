@@ -83,6 +83,7 @@ function normalize(p, guest) {
   out.guest = !!guest;
   L.normLive(p || {}, out); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록
   out.master = !guest && !!(p && p.master); // 서버가 정한 값 (손님은 절대 아님)
+  out.autoSell = !!(p && p.autoSell);
   out.owned = out.owned || {};
   out.unlocked = LOCKED_HEROES.filter((h) => heroUnlocked(out, h));
   if (guest) L.ensureLive(out, 'guest', Date.now()); // 로그인은 서버가 이미 맞춰서 준다
@@ -143,7 +144,7 @@ export async function postStage(sum, guest) {
     const got = [];
     q.gear = (p.gear || []).slice();
     for (const d of rollDrops((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, perfect, firstPerfect, hell)) {
-      if (q.gear.length >= GEAR_BAG) { const v = gearSellValue(d.r, 0); q.coins += v; got.push(Object.assign({ sold: v }, d)); continue; }
+      if (q.gear.length >= GEAR_BAG || (q.autoSell && d.r === 'common')) { const v = gearSellValue(d.r, 0); q.coins += v; got.push(Object.assign({ sold: v, auto: !!q.autoSell && d.r === 'common' }, d)); continue; }
       q.gearSeq = (q.gearSeq | 0) + 1;
       const it = { id: q.gearSeq, t: d.t, r: d.r, lv: 0 };
       q.gear.push(it); got.push(it);
@@ -286,6 +287,26 @@ export async function sellGear(id, guest) {
     });
   }
   const r = await call('/api/langbang/gear/sell', { id });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export async function sellGearMany(ids, guest) {
+  if (guest) {
+    return guestGear((p) => {
+      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const set = new Set(ids.filter((id) => p.gear.some((g) => g.id === id) && !eq.has(id)));
+      if (!set.size) return { error: '팔 수 있는 장비가 없어요' };
+      const v = p.gear.filter((g) => set.has(g.id)).reduce((a, it) => a + gearSellValue(it.r, it.lv), 0);
+      return { apply: (x) => { x.gear = x.gear.filter((g) => !set.has(g.id)); x.coins += v; }, extra: { sold: v, n: set.size } };
+    });
+  }
+  const r = await call('/api/langbang/gear/sellMany', { ids });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export async function setAutoSell(on, guest) {
+  if (guest) return guestGear(() => ({ apply: (x) => { x.autoSell = !!on; }, extra: { autoSell: !!on } }));
+  const r = await call('/api/langbang/gear/autoSell', { on: !!on });
   if (r.ok && r.profile) r.profile = normalize(r.profile, false);
   return r;
 }

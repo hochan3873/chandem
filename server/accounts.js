@@ -54,7 +54,7 @@ function emptyLangbang() {
     items: Object.fromEntries(LBR.ITEM_IDS.map((i) => [i, 0])),
     stages: {}, maxStage: 0, totalStars: 0, stageAt: 0, clears: 0, // 스테이지: { 번호: 최고 별 }
     seen: [], // 도감: 만나 본 진상
-    gear: [], gearSeq: 0, equip: {}, perfects: {}, // 장비 가방 · 장착 { 영웅: { w, a } } · 퍼펙트한 스테이지
+    gear: [], gearSeq: 0, equip: {}, perfects: {}, autoSell: false, // 장비 가방 · 장착 { 영웅: { w, a } } · 퍼펙트한 스테이지
     hell: {}, // 헬 모드 별 { 스테이지: 별 }
     lastResultAt: 0,
   };
@@ -79,6 +79,7 @@ function normLb(raw, master = false) {
   lb.gear = ((raw && raw.gear) || []).filter((it) => it && LBR.GEAR[it.t] && LBR.GEAR_RARITY[it.r] && Number.isInteger(it.id) && !ids.has(it.id) && ids.add(it.id))
     .map((it) => ({ id: it.id, t: it.t, r: it.r, lv: Math.max(0, Math.min(LBR.GEAR_MAX_LV, it.lv | 0)) })).slice(0, LBR.GEAR_BAG);
   lb.gearSeq = Math.max(lb.gearSeq | 0, ...lb.gear.map((x) => x.id), 0);
+  lb.autoSell = !!(raw && raw.autoSell); // 자동 판매: 일반 등급 드롭은 바로 코인으로
   const eq = {};
   const used = new Set();
   for (const [h, sl] of Object.entries((raw && raw.equip) || {})) {
@@ -353,7 +354,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   }
 
   /** 홀덤·섯다 한 판: players [{userId, delta, won, handName, handRank}] */
-  function recordHand(game, players, pot) {
+  function recordHand(game, players, pot, { practice = false } = {}) {
     return serial(async () => {
       for (const p of players) {
         if (!p.userId) continue;
@@ -361,6 +362,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           const g = s[game];
           g.hands++; if (p.won) g.wins++;
           g.net += p.delta;
+          // AI 연습 판: 내 전적에는 그대로 쌓되, 순위(rankings.js)에서는 빼려고 따로 센다
+          if (practice) { const pr = g.practice = { hands: 0, wins: 0, net: 0, ...(g.practice || {}) }; pr.hands++; if (p.won) pr.wins++; pr.net += p.delta; }
           if (p.won && pot > g.bestPot) g.bestPot = pot;
           if (p.won && p.handName && (g.bestHandRank || -1) < (p.handRank || 0)) { g.bestHand = p.handName; g.bestHandRank = p.handRank || 0; }
           g.recent = (String(g.recent || '') + (p.won ? 'W' : 'L')).slice(-10); // 최근 10판 (선수 카드용)
@@ -535,7 +538,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
             else lb.stages[stage] = Math.max(prevStars, stars);
             if (perfect) lb.perfects[stage] = true;
             for (const d of drops) {
-              if (lb.gear.length >= LBR.GEAR_BAG) { const v = LBR.gearSellValue(d.r, 0); lb.coins += v; got.push({ ...d, sold: v }); continue; }
+              if (lb.gear.length >= LBR.GEAR_BAG || (lb.autoSell && d.r === 'common')) { const v = LBR.gearSellValue(d.r, 0); lb.coins += v; got.push({ ...d, sold: v, auto: lb.autoSell && d.r === 'common' }); continue; }
               const it = { id: ++lb.gearSeq, t: d.t, r: d.r, lv: 0 };
               lb.gear.push(it); got.push(it);
             }
@@ -892,6 +895,19 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       }, extra: { sold: v } };
     });
   }
+  // 일괄 판매: 한 번에 · 하나씩 팔 때와 같은 확인 · 장착 중인 건 안 판다 · 없는 번호는 건너뜀(두 번 눌러도 두 번 안 팔림)
+  function lbSellMany(token, ids) {
+    const want = [...new Set((Array.isArray(ids) ? ids : []).map((x) => Math.floor(Number(x)) || 0).filter((x) => x > 0))].slice(0, LBR.GEAR_BAG);
+    return lbGear(token, (lb) => {
+      const eq = new Set(Object.values(lb.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const list = want.map((g) => findGear(lb, g)).filter((it) => it && !eq.has(it.id));
+      if (!list.length) return { error: '팔 수 있는 장비가 없어요' };
+      const v = list.reduce((a, it) => a + LBR.gearSellValue(it.r, it.lv), 0);
+      const set = new Set(list.map((it) => it.id));
+      return { apply: (x) => { x.gear = x.gear.filter((g) => !set.has(g.id)); x.coins += v; }, extra: { sold: v, n: list.length } };
+    });
+  }
+  function lbAutoSell(token, on) { return lbGear(token, () => ({ apply: (x) => { x.autoSell = !!on; }, extra: { autoSell: !!on } })); }
   const lbRow = (u, i) => {
     const lb = lbOf(u);
     return { rank: i + 1, nickname: u.nickname, username: u.username, level: lb.level, maxStage: lb.maxStage, stageLabel: lb.maxStage ? LBR.stageLabel(lb.maxStage) : '-', totalStars: lb.totalStars, bestWave: lb.bestWave, bestScore: lb.bestScore, runs: lb.runs };
@@ -929,6 +945,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/gear/equip', wrap((req) => { const b = req.body || {}; return lbEquip(tok(req), String(b.hero || ''), String(b.slot || ''), gidOf(b.id === undefined ? null : b.id)); }));
     r.post('/gear/enhance', wrap((req) => lbEnhance(tok(req), gidOf((req.body || {}).id))));
     r.post('/gear/sell', wrap((req) => lbSell(tok(req), gidOf((req.body || {}).id))));
+    r.post('/gear/sellMany', wrap((req) => lbSellMany(tok(req), (req.body || {}).ids)));
+    r.post('/gear/autoSell', wrap((req) => lbAutoSell(tok(req), !!(req.body || {}).on)));
     r.get('/ranking', wrap(async (req) => lbRanking(50, String(req.query.mode || 'stage'), tok(req) || null)));
     const b = (req) => req.body || {};
     r.post('/gacha', wrap((req) => lbGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1, String(b(req).pay || ''))));

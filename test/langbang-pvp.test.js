@@ -275,3 +275,20 @@ test('마스터는 20명 전부 · 스테이지를 깨면 HERO_UNLOCK 멤버가 
   assert.equal(lb.master, true);
   for (const h of LBR.LB_HEROES) assert.ok(lb.owned[h], '마스터 화면 ' + h);
 });
+
+test('장비 일괄 판매: 한 번에 · 장착 중은 안 팔림 · 두 번 보내도 두 번 안 팔림 · 자동 판매 설정', async () => {
+  const LBR = require('../server/langbang-rules');
+  const u = await user('bulksell');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { coins: 0, gear: [1, 2, 3, 4].map((id) => ({ id, t: 'megaphone', r: id === 4 ? 'epic' : 'common', lv: 0 })), gearSeq: 4, equip: { bangjang: { w: 4 } } });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  const r1 = await post('/api/langbang/gear/sellMany', u.token, { ids: [1, 2, 4, 99] });
+  assert.equal(r1.ok, true, r1.message);
+  assert.equal(r1.n, 2, '장착 중(4)·없는 번호(99)는 빼고 2개');
+  assert.equal(r1.sold, LBR.gearSellValue('common', 0) * 2);
+  assert.deepEqual(r1.profile.gear.map((g) => g.id).sort(), [3, 4]);
+  const r2 = await post('/api/langbang/gear/sellMany', u.token, { ids: [1, 2] });
+  assert.equal(r2.ok, false, '이미 판 건 다시 안 팔림');
+  const r3 = await post('/api/langbang/gear/autoSell', u.token, { on: true });
+  assert.equal(r3.ok, true); assert.equal(r3.profile.autoSell, true);
+});

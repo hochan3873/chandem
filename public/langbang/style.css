@@ -1896,3 +1896,27 @@ input, select, textarea { font-size: 16px !important; }
 /* 뿌리 높이: 보이는 화면 (100vh 대신) · 가로 넘침 없음 */
 html, body { height: 100%; height: -webkit-fill-available; height: 100svh; height: 100dvh; overflow: hidden; width: 100%; max-width: 100vw; }
 #stage { position: fixed; max-width: 100vw; }
+
+/* 일괄 판매 */
+.bitem.bulk { position: relative; }
+.bitem.bulk::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 4px; border: 2px solid rgba(255, 255, 255, 0.7); background: rgba(0, 0, 0, 0.5); }
+.bitem.bulk.chk::after { content: '✓'; background: #ff5fa2; border-color: #fff; color: #fff; font-size: 12px; font-weight: 900; line-height: 13px; text-align: center; }
+.bitem.bulk.nosel { opacity: 0.35; filter: grayscale(0.7); }
+.bitem.bulk.nosel::after { content: '🔒'; border: 0; background: none; font-size: 11px; }
+.bulk-bar { position: sticky; top: 0; z-index: 3; margin: calc(var(--u) * 6) 0; padding: calc(var(--u) * 8); border-radius: calc(var(--u) * 12); background: rgba(20, 10, 40, 0.94); border: 2px solid #ff5fa2; }
+.bulk-go { display: flex; gap: calc(var(--u) * 6); margin-top: calc(var(--u) * 6); } .bulk-go .btn:last-child { flex: 1; }
+.bulk-note { display: block; margin-top: calc(var(--u) * 4); color: var(--dim); font-size: calc(var(--u) * 10); }
+
+/* 레벨업 카드 v3: 한 줄 효과 크게 · 숫자 강조 · 추천 빛 · 대기 배지 */
+.card-list.v2 .card.v3 .c-main { margin: calc(var(--u) * 4) 0 0; font-size: calc(var(--u) * 12.5); font-weight: 900; line-height: 1.3; color: #2a1830; }
+.card-list.v2 .card.v3 .c-main em { font-style: normal; color: #d0205a; font-size: 1.15em; }
+.card-list.v2 .card.v3 .band b { font-size: calc(var(--u) * 11); }
+.card-list.v2 .card.v3 .medal { position: relative; }
+.card-list.v2 .card.v3 .c-ico { position: absolute; right: -2px; bottom: -2px; font-size: calc(var(--u) * 18); filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
+.card-list.v2 .card.v3.rec { box-shadow: 0 0 0 3px #5de07a, 0 0 calc(var(--u) * 16) rgba(93, 224, 122, 0.8); animation: recGlow 1.6s ease-in-out infinite; }
+.card-list.v2 .card.v3 .rec-b { position: absolute; left: 50%; top: calc(var(--u) * -9); transform: translateX(-50%); z-index: 3; font-style: normal; font-size: calc(var(--u) * 10); font-weight: 900; color: #0b2a12; background: #5de07a; padding: 0 calc(var(--u) * 8); border-radius: 99px; border: 2px solid #0b2a12; }
+@keyframes recGlow { 50% { box-shadow: 0 0 0 3px #5de07a, 0 0 calc(var(--u) * 26) rgba(93, 224, 122, 1); } }
+#cardq { position: absolute; left: 50%; bottom: calc(var(--u) * 140); transform: translateX(-50%); z-index: 24; padding: calc(var(--u) * 7) calc(var(--u) * 14); border-radius: 99px; background: linear-gradient(180deg, #ffe066, #ffb400); color: #2a1600; font-weight: 900; font-size: calc(var(--u) * 13); border: 3px solid #2a1600; box-shadow: 0 calc(var(--u) * 4) 0 #2a1600; animation: cardqBob 0.9s ease-in-out infinite alternate; pointer-events: auto; }
+#cardq small { display: block; font-size: calc(var(--u) * 9); opacity: 0.8; }
+#cardq[hidden] { display: none; }
+@keyframes cardqBob { to { transform: translateX(-50%) translateY(calc(var(--u) * -4)); } }

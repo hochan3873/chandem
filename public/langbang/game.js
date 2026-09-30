@@ -75,22 +75,33 @@ app.partners = ['gunman'];
 try { const v = JSON.parse(localStorage.getItem('langbang:partners') || 'null'); if (Array.isArray(v) && v.length) app.partners = v; else app.partners = [localStorage.getItem('langbang:partner') || 'gunman']; } catch { /* 무시 */ }
 app.partner = app.partners[0];
 app.infoHero = null; app.aim = null; app.drag = null;
+try { app.autoCards = localStorage.getItem('langbang:autoCards') === '1'; } catch { app.autoCards = false; }
 
 // ─── 화면 크기 맞추기 (세로 화면을 가운데에, 남는 곳은 레터박스) ─────
 // 실제로 보이는 크기: visualViewport (아이폰 사파리는 innerHeight 가 떠 있는 주소창 밑까지 포함) · 가로는 절대 화면 폭을 넘지 않게
 const IOS_SAFARI = /iP(hone|od|ad)/.test(navigator.userAgent) && !navigator.standalone && !(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
-let safeProbe = null;
-function safeBottom() {
+// 아이폰 홈 화면 앱(standalone, 상태 표시줄 black-translucent): innerHeight 가 위쪽 여백만큼 짧게 나오는 버그 + 노치 밑으로 글자가 들어감
+const IOS_STANDALONE = /iP(hone|od|ad)/.test(navigator.userAgent) && (!!navigator.standalone || !!(window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+const safeProbes = {};
+function safeInset(side) {
   try {
-    if (!safeProbe) { safeProbe = document.createElement('div'); safeProbe.style.cssText = 'position:fixed;left:0;bottom:0;width:0;height:env(safe-area-inset-bottom,0px);visibility:hidden;pointer-events:none'; document.body.appendChild(safeProbe); }
-    return safeProbe.getBoundingClientRect().height || 0;
+    if (!safeProbes[side]) { const d = document.createElement('div'); d.style.cssText = `position:fixed;left:0;${side}:0;width:0;height:env(safe-area-inset-${side},0px);visibility:hidden;pointer-events:none`; document.body.appendChild(d); safeProbes[side] = d; }
+    return safeProbes[side].getBoundingClientRect().height || 0;
   } catch { return 0; }
 }
+const safeBottom = () => safeInset('bottom');
 function viewSize() {
   const v = window.visualViewport;
   let w = v ? v.width : window.innerWidth, h = v ? v.height : window.innerHeight;
   const cw0 = document.documentElement.clientWidth; if (cw0) w = Math.min(w, cw0);
   w = Math.min(w, window.innerWidth || w); h = Math.min(h, window.innerHeight || h);
+  if (IOS_STANDALONE) {
+    // 홈 화면 앱: 화면 끝까지 쓴다 (짧게 나오는 innerHeight 대신 화면 높이) · 위는 상태 표시줄/다이내믹 아일랜드만큼 비운다
+    const portrait = (window.innerHeight || 0) >= (window.innerWidth || 0);
+    const full = Math.max(h, window.innerHeight || 0, portrait ? screen.height : screen.width);
+    const t = safeInset('top');
+    return { w, h: full - t, top: t, left: 0 };
+  }
   // 사파리 떠 있는 아래 도구 막대가 영웅 줄을 가리지 않게 아래를 조금 비운다
   const pad = IOS_SAFARI ? Math.max(safeBottom(), 12) + 8 : 0;
   return { w, h: h - pad, top: v ? v.offsetTop : 0, left: v ? v.offsetLeft : 0 };
@@ -1016,7 +1027,7 @@ function frame(now) {
   fx.noBanner = !live;
   if (app.hitStop > 0) { app.hitStop -= dt; dt = 0; }
   if (g && !app.paused && !app.confirmOpen) {
-    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && app.cardsOpen && performance.now() - app.cardsAt < 2000 ? 0.7 : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
+    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && app.cardsOpen ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
     const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
     acc += dt * ts * speed;
     const maxSteps = Math.ceil(10 * Math.max(1, speed));
@@ -1028,7 +1039,10 @@ function frame(now) {
       n++;
       if (!live) { g.pendingLevels = 0; if (g.base.hp < g.base.max) g.base.hp = g.base.max; }
       handleEvents(g, !!live);
-      if (live && g.pendingLevels > 0 && !g.over && !app.cardsOpen) { openCards(); break; }
+      if (live && g.pendingLevels > 0 && !g.over && !app.cardsOpen) {
+        if (app.autoCards && !g.pvp && !DEBUG.autopick) { autoPickAll(g); continue; }
+        if (g.welcomePicks > 0 || g.phase !== 'wave' || g.pvp || app.cardQ || DEBUG.autopick) { app.cardQ = false; openCards(); break; }
+      }
     }
     if (n >= maxSteps) acc = 0;
     perf.steps += n;
@@ -2312,6 +2326,8 @@ function showSettings() {
   const frames = (p.frames || []).map((f) => `<button class="chip ${p.frame === f ? 'on' : ''}" data-act="setFrame" data-v="${f}" style="--fc:${L.FRAMES[f].color}">${esc(L.FRAMES[f].name)}</button>`).join('') || '<small class="dimtxt">시즌 20·30단계에서 프레임을 얻어요</small>';
   popup(`<h3>⚙️ 설정</h3>
     <div class="set-row"><span>🔊 소리</span><button class="btn ghost" data-act="mute">${A.isMuted() ? '🔇 꺼짐' : '🔊 켜짐'}</button></div>
+    <div class="set-row"><span>🃏 카드 자동 선택 <small>추천 카드를 바로 골라요 (1:1 대전 제외)</small></span><button class="btn ghost" data-act="autoCardsT">${app.autoCards ? '✅ 켜짐' : '꺼짐'}</button></div>
+    <div class="set-row"><span>🧹 자동 판매 <small>일반 등급 드롭은 바로 코인으로</small></span><button class="btn ghost" data-act="autoSellT">${p.autoSell ? '✅ 켜짐' : '꺼짐'}</button></div>
     <div class="set-row col"><span>🏷️ 칭호</span><div class="chips"><button class="chip ${!p.title ? 'on' : ''}" data-act="setTitle" data-v="">없음</button>${titles}</div></div>
     <div class="set-row col"><span>🖼️ 프레임</span><div class="chips"><button class="chip ${!p.frame ? 'on' : ''}" data-act="setFrame" data-v="">없음</button>${frames}</div></div>
     <div class="grid2"><button class="btn" data-act="howto">📖 게임 방법</button><button class="btn" data-act="toHub">‹ 게임월드</button></div>
@@ -2398,6 +2414,38 @@ Object.assign(ACTS, {
   heroCard: (b) => showHeroModal(b.dataset.id, app.screen === 'prep' ? 'prep' : ''),
   starUp: (b) => doStarUp(b.dataset.id),
   misTab: (b) => { app.misTab = b.dataset.tab; showMissions(); },
+  bulkOn: () => { app.bulk = new Set(); app.bagSel = null; showBag(); },
+  bulkOff: () => { app.bulk = null; showBag(); },
+  bulkPick: (b) => {
+    const id = Number(b.dataset.id), p = P();
+    if (equippedBy(p, id) || gearLocked().has(id)) { toast('장착 중이거나 잠근 장비예요'); return; }
+    if (app.bulk.has(id)) app.bulk.delete(id); else app.bulk.add(id);
+    A.sfx.tap(); showBag();
+  },
+  bulkQuick: (b) => {
+    const p = P(), ok = bulkSellable(p, gearLocked()), v = b.dataset.v;
+    if (v === 'none') app.bulk = new Set();
+    else if (v === 'common') app.bulk = new Set(ok.filter((it) => it.r === 'common').map((it) => it.id));
+    else if (v === 'rare') app.bulk = new Set(ok.filter((it) => it.r === 'common' || it.r === 'rare').map((it) => it.id));
+    else if (v === 'free') app.bulk = new Set(ok.map((it) => it.id));
+    else if (v === 'dup') { // 종류마다 제일 좋은 것 하나(장착 중이면 그것)만 남기고 나머지
+      const best = {};
+      for (const it of p.gear || []) { const sc = GEAR_RARITY[it.r].mul * (1 + 0.12 * it.lv) + (equippedBy(p, it.id) ? 100 : 0); if (!best[it.t] || sc > best[it.t].sc) best[it.t] = { id: it.id, sc }; }
+      app.bulk = new Set(ok.filter((it) => best[it.t].id !== it.id).map((it) => it.id));
+    }
+    showBag();
+  },
+  bulkSell: async () => {
+    const p = P(), ids = [...app.bulk].filter((id) => !equippedBy(p, id) && !gearLocked().has(id));
+    if (!ids.length) return;
+    const v = (p.gear || []).filter((g) => ids.includes(g.id)).reduce((a, it) => a + gearSellValue(it.r, it.lv), 0);
+    if (!(await confirmBox({ title: `장비 ${ids.length}개를 팔까요?`, sub: `+${fmt(v)} 코인 · 되돌릴 수 없어요`, ok: '팔기', cancel: '취소', danger: true }))) return;
+    const r = await liveAct(API.sellGearMany(ids, app.guest));
+    if (r) { A.sfx.coin && A.sfx.coin(); toast(`🧹 ${r.n}개 팔았어요 · +${fmt(r.sold)} 코인`); }
+    app.bulk = null; showBag();
+  },
+  autoCardsT: () => { app.autoCards = !app.autoCards; try { localStorage.setItem('langbang:autoCards', app.autoCards ? '1' : '0'); } catch { /* 무시 */ } showSettings(); },
+  autoSellT: async () => { const r = await liveAct(API.setAutoSell(!P().autoSell, app.guest)); if (r) toast(P().autoSell ? '자동 판매 켬: 일반 등급 드롭은 바로 코인으로' : '자동 판매 끔'); showSettings(); },
   statHelp: () => popup(`<h3>📖 능력치 용어 풀이</h3><div class="ilist">${Object.values(STAT_HELP).map(([n, d]) => `<p class="ip"><b>${esc(n)}</b> — ${esc(d)}</p>`).join('')}</div><button class="btn primary" data-x>알겠어요</button>`, 'stat-help'),
   claimAllMis: async (b) => {
     b.disabled = true;
@@ -2983,9 +3031,46 @@ function deckPickHero(id) {
 }
 
 // ─── 레벨업 카드 (고르고 → 선택 버튼, 뜬 직후 0.7초는 눌러도 무시) ─────
+// 카드 대기 배지 (웨이브 중 레벨업: 원할 때 누르면 열림 · 웨이브가 끝나면 저절로)
+const cardQBtn = document.createElement('button');
+cardQBtn.id = 'cardq'; cardQBtn.hidden = true;
+stage.appendChild(cardQBtn);
+cardQBtn.addEventListener('click', () => { A.unlock(); if (app.g && app.g.pendingLevels > 0 && !app.cardsOpen) { app.cardQ = false; openCards(); } });
+function updateCardQ() {
+  const g = app.g;
+  const n = g && app.screen === 'play' && !g.over && !app.cardsOpen ? g.pendingLevels | 0 : 0;
+  if (!n) { if (!cardQBtn.hidden) cardQBtn.hidden = true; return; }
+  const t = `🃏 카드 ${n}장 대기 <small>눌러서 고르기</small>`;
+  if (cardQBtn.innerHTML !== t) cardQBtn.innerHTML = t;
+  cardQBtn.hidden = false;
+}
+setInterval(updateCardQ, 200);
+// 자동 선택(설정): 추천 카드를 바로 (1:1 대전은 꺼짐)
+function autoPickAll(g) {
+  let n = 0;
+  while (g.pendingLevels > 0 && n < 6) { const cs = rollFor(g); const c = cs[recIndex(g, cs)]; S.applyCard(g, c); g.pendingLevels--; if (g.welcomePicks > 0) g.welcomePicks--; n++; toast(`🃏 자동 선택: ${c.title}`, 1400); }
+  handleEvents(g, true);
+}
+// 추천: 지금 덱에 맞는 카드 (히든 · 진화 · 새 멤버 · 레벨업 · 덱 속성/특성 순)
+function recIndex(g, cards) {
+  let best = 0, bv = -1;
+  cards.forEach((c, i) => {
+    let v = 1;
+    if (c.rarity === 'hidden' || c.kind === 'evo') v = 10;
+    else if (c.kind === 'skillEvo') v = 8;
+    else if (c.kind === 'addHero') v = g.heroes.length < 4 ? 8 : 5;
+    else if (c.kind === 'heroLv') v = 6;
+    else if (cardAttr(c) && g.heroes.filter((h) => h.def.attr === cardAttr(c)).length >= 2) v = 7;
+    else if (c.tag && g.heroes.some((h) => (HERO_TAGS[h.id] || []).includes(c.tag))) v = 6;
+    if (c.risk) v -= 3;
+    if (v > bv) { bv = v; best = i; }
+  });
+  return best;
+}
 function openCards() {
   const g = app.g;
   app.cardsOpen = true;
+  cardQBtn.hidden = true;
   app.cardsAt = performance.now();
   if (app.rerollsRun === undefined || app.rerollsG !== g) { app.rerollsRun = 5; app.rerollsG = g; }
   app.cards = rollFor(g);
@@ -3025,11 +3110,15 @@ function cardHtml(c, i) {
   if (c.hero) { syn.push(ATTRS[HEROES[c.hero].attr].icon); for (const t of HERO_TAGS[c.hero] || []) syn.push(TAGS[t].icon); }
   if (c.risk) syn.push('⚠️');
   const stack = c.kind === 'global' && c.stack ? `<span class="stk">${c.stack}→${c.stack + 1}</span>` : '';
-  return `<button class="card ${c.rarity} k-${c.kind} ${c.risk ? 'risk' : ''} ${app.cardSel === i ? 'sel' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
-    ${isNew ? '<em class="new">NEW</em>' : ''}${stack}
-    <div class="medal">${icon}</div>
+  const rec = app.cards && app.g && i === recIndex(app.g, app.cards);
+  const main = (c.desc || '').split(/ · |\. |, /)[0];
+  const hl = esc(main).replace(/([+\-−×]?\d+(?:\.\d+)?\s?(?:%|%p|초|배|명|칸|번)?)/g, '<em>$1</em>');
+  const badge = c.hero && c.kind !== 'addHero' ? `<span class="c-ico">${c.icon}</span>` : '';
+  return `<button class="card v3 ${c.rarity} k-${c.kind} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''} ${app.cardSel === i ? 'sel' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
+    ${isNew ? '<em class="new">NEW</em>' : ''}${stack}${rec ? '<em class="rec-b">추천</em>' : ''}
+    <div class="medal">${icon}${badge}</div>
     <div class="band"><b>${esc(c.title)}</b></div>
-    <p>${esc(c.desc)}</p>${cardAttr(c) ? `<p class="c-who" style="--ac:${ATTRS[cardAttr(c)].color}">${attrChip(cardAttr(c))} → ${esc(attrWho(app.g, cardAttr(c)) || '지금 덱엔 없음')}</p>` : ''}
+    <p class="c-main">${hl}</p>${cardAttr(c) ? `<p class="c-who" style="--ac:${ATTRS[cardAttr(c)].color}">${attrChip(cardAttr(c))} → ${esc(attrWho(app.g, cardAttr(c)) || '지금 덱엔 없음')}</p>` : ''}
     <div class="cfoot"><span class="rar">${r.name}</span>${syn.length ? `<span class="syn">${[...new Set(syn)].join('')}</span>` : ''}</div>
   </button>`;
 }
@@ -3038,22 +3127,31 @@ function cardHtml(c, i) {
 const cardStrip = document.createElement('div');
 cardStrip.id = 'cardstrip'; cardStrip.hidden = true;
 stage.appendChild(cardStrip);
+let cardPress = null;
+cardStrip.addEventListener('pointerdown', (ev) => {
+  const b = ev.target.closest('[data-act="pick"]');
+  if (!b) return;
+  clearTimeout(cardPress && cardPress.t);
+  cardPress = { i: Number(b.dataset.i), long: false, t: setTimeout(() => { cardPress.long = true; const c = app.cards && app.cards[cardPress.i]; if (c) toast(`${c.title} — ${c.desc}`, 3600); }, 450) };
+});
+for (const t of ['pointerup', 'pointercancel', 'pointerleave']) cardStrip.addEventListener(t, () => { if (cardPress) clearTimeout(cardPress.t); });
 cardStrip.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-act]');
   if (!b || b.disabled) return;
+  if (cardPress && cardPress.long) { cardPress = null; return; } // 길게 누른 건 고르기 아님
   A.unlock();
   if (b.dataset.act === 'pick') tapCard(Number(b.dataset.i));
   else if (b.dataset.act === 'reroll') rerollCards();
 });
 function renderCards(fresh) {
   const g = app.g;
-  if (fresh) { app.cardSel = -1; app.cardLockUntil = performance.now() + 400; app.cardsAt = performance.now(); clearTimeout(renderCards.auto); renderCards.auto = setTimeout(() => { if (app.cardsOpen && app.g === g && !app.paused) pickCard(0); }, 12000); }
+  if (fresh) { app.cardSel = -1; app.cardLockUntil = performance.now() + 400; app.cardsAt = performance.now(); clearTimeout(renderCards.auto); renderCards.auto = setTimeout(() => { if (app.cardsOpen && app.g === g && !app.paused) pickCard(recIndex(g, app.cards)); }, g.pvp ? 12000 : 15000); }
   const welcome = g.welcomePicks > 0;
   cardStrip.hidden = false;
   cardStrip.className = 'fresh';
   cardStrip.innerHTML = `<div class="cs-head"><b>${welcome ? '🍹 웰컴 드링크' : `LEVEL UP! Lv.${g.level}`}</b>${g.pendingLevels > 1 ? `<small>남은 선택 ${g.pendingLevels}</small>` : ''}<button class="cs-re" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>🎲 ${app.rerollsRun}</button></div>
     <div class="card-list v2 strip n${app.cards.length}">${app.cards.map(cardHtml).join('')}</div>`;
-  clearTimeout(renderCards.nag); renderCards.nag = setTimeout(() => cardStrip.classList.add('nag'), 8000);
+  clearTimeout(renderCards.nag); renderCards.nag = setTimeout(() => cardStrip.classList.add('nag'), 11000);
   if (fresh) A.sfx.card();
   if (fresh && app.cards.some((c) => c.rarity === 'hidden')) { fx.flash('#ff9ff0', 0.3); A.sfx.join(); }
   return;
@@ -3715,7 +3813,8 @@ function showBag() {
     .sort((a, b) => (app.bagSort === 'lv' ? b.lv - a.lv : 0) || GEAR_RARITY[b.r].mul - GEAR_RARITY[a.r].mul || b.lv - a.lv || b.id - a.id);
   const cells = list.map((it) => {
     const eq = equippedBy(p, it.id);
-    return `<button class="bitem r-${it.r} ${app.bagSel === it.id ? 'sel' : ''}" data-act="bagPick" data-id="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}${it.lv ? `<small class="lv">+${it.lv}</small>` : ''}${eq ? `<small class="eq">${HEROES[eq].name}</small>` : ''}${it.id > seenMax ? '<i class="nb">N</i>' : ''}${locks.has(it.id) ? '<i class="lk">⭐</i>' : ''}</button>`;
+    const bulkOn = app.bulk && app.bulk.has(it.id), bulkNo = app.bulk && (eq || locks.has(it.id));
+    return `<button class="bitem r-${it.r} ${app.bagSel === it.id ? 'sel' : ''} ${app.bulk ? 'bulk' : ''} ${bulkOn ? 'chk' : ''} ${bulkNo ? 'nosel' : ''}" data-act="${app.bulk ? 'bulkPick' : 'bagPick'}" data-id="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}${it.lv ? `<small class="lv">+${it.lv}</small>` : ''}${eq ? `<small class="eq">${HEROES[eq].name}</small>` : ''}${it.id > seenMax ? '<i class="nb">N</i>' : ''}${locks.has(it.id) ? '<i class="lk">⭐</i>' : ''}</button>`;
   }).join('');
   const maxId = Math.max(0, ...(p.gear || []).map((x) => x.id));
   const deckIds = [...new Set([...(curDeck() || []).filter(Boolean)])];
@@ -3733,7 +3832,7 @@ function showBag() {
       <div class="chips">${[['all', '전체'], ['w', '무기'], ['a', '액세서리']].map(([k, n]) => `<button class="chip ${filt === k ? 'on' : ''}" data-act="bagFilter" data-v="${k}">${n}</button>`).join('')}
         <button class="chip" data-act="bagSort">${app.bagSort === 'lv' ? '강화순' : '등급순'} ⇅</button></div>
     </div>
-    <p class="sub">가방 ${(p.gear || []).length}/80 · 한 번 누르면 고르기 · 두 번 누르면 강화·팔기·잠금</p>
+    ${app.bulk ? bulkBarHtml(p, locks) : `<p class="sub">가방 ${(p.gear || []).length}/80 · 한 번 누르면 고르기 · 두 번 누르면 강화·팔기·잠금 <button class="chip" data-act="bulkOn">🧹 일괄 판매</button></p>`}
     <div class="bag-grid">${cells || `<div class="empty-state"><span>🎒</span><b>${filt === 'all' ? '아직 장비가 없어요' : '이 칸에 맞는 장비가 없어요'}</b><small>스테이지를 깨면 장비가 떨어져요</small></div>`}</div>
     ${navHtml('bag')}
   `, 'dim withnav bag-screen');
@@ -3741,6 +3840,16 @@ function showBag() {
 }
 // 장비 상세: 지금 고른 멤버 기준으로 끼면 어떻게 바뀌는지 미리 보기
 // 장비 한눈에 한 줄: 그림 카드(작게) · 이름 · 전투력 · 무기/장신구 칸 (+N) · 더 좋은 장비가 있으면 빨간 점
+// 일괄 판매: 체크 · 빠른 선택 · 합계 → 확인 → 한 번에 (장착 중 · 🔒잠금은 못 고름)
+function bulkSellable(p, locks) { return (p.gear || []).filter((it) => !equippedBy(p, it.id) && !locks.has(it.id)); }
+function bulkBarHtml(p, locks) {
+  const ids = [...app.bulk];
+  const v = (p.gear || []).filter((g) => app.bulk.has(g.id)).reduce((a, it) => a + gearSellValue(it.r, it.lv), 0);
+  return `<div class="bulk-bar">
+    <div class="chips">${[['common', '일반 전부'], ['rare', '희귀 이하'], ['free', '장착 안 한 것만'], ['dup', '중복만'], ['none', '선택 해제']].map(([k, n]) => `<button class="chip" data-act="bulkQuick" data-v="${k}">${n}</button>`).join('')}</div>
+    <div class="bulk-go"><button class="btn ghost" data-act="bulkOff">취소</button><button class="btn ${ids.length ? 'pink' : ''}" data-act="bulkSell" ${ids.length ? '' : 'disabled'}>🧹 ${ids.length}개 팔기 · <i class="ci"></i>${fmt(v)}</button></div>
+    <small class="bulk-note">장착 중 · 🔒잠금 장비는 고를 수 없어요</small></div>`;
+}
 function eqRowHtml(p, h) {
   const d = HEROES[h];
   const sl = (p.equip || {})[h] || {};

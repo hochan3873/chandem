@@ -104,9 +104,23 @@ export class FX {
     }
   }
   num(x, y, v, crit, color, eff = 0) {
+    const items = this.nums.items;
+    // 같은 진상에게 0.15초 안에 들어간 피해는 숫자 하나로 합친다 (숫자끼리 겹쳐 "30))1300" 처럼 안 보이게)
+    for (let i = items.length - 1; i >= 0; i--) {
+      const o = items[i];
+      if (o.max - o.life < 0.15 && !!o.crit === !!crit && Math.abs(o.x0 - x) < 18 && Math.abs(o.y0 - y) < 26) {
+        o.val += v; o.text = crit ? o.val + '!' : '' + o.val; o.life = o.max; o.pop = 0.08; return;
+      }
+    }
+    // 화면에 12개까지: 넘으면 가장 오래된 것부터 빨리 사라지게
+    if (items.length >= 12) { let old = null; for (const o of items) if (!o.crit && (!old || o.life < old.life)) old = o; if (old) old.life = Math.min(old.life, 0.1); else if (!crit) return; }
     const n = this.nums.get();
     if (!n) return;
-    n.x = x + (Math.random() - 0.5) * 14; n.y = y; n.vy = crit ? -70 : eff > 0 ? -60 : -48; n.life = crit ? 0.9 : eff > 0 ? 0.8 : 0.6; n.max = n.life;
+    // 가까운 숫자가 있으면 위로 한 칸씩 쌓고 옆으로 살짝 비켜서
+    let stack = 0;
+    for (const o of items) if (o !== n && Math.abs(o.x0 - x) < 34 && Math.abs(o.y0 - y) < 40 && o.max - o.life < 0.45) stack++;
+    n.x0 = x; n.y0 = y; n.val = v; n.pop = 0;
+    n.x = x + (Math.random() - 0.5) * 20 + (stack % 2 ? 9 : -9) * Math.min(stack, 1); n.y = y - Math.min(stack, 4) * 12; n.vy = crit ? -70 : eff > 0 ? -60 : -48; n.life = crit ? 0.9 : eff > 0 ? 0.8 : 0.6; n.max = n.life;
     n.text = crit ? v + '!' : '' + v; n.crit = crit; n.eff = eff;
     n.color = color || (crit ? '#ff7a1a' : eff > 0 ? '#ffb02e' : eff < 0 ? '#9aa0ad' : '#ffffff');
   }
@@ -134,6 +148,8 @@ export class FX {
   text(x, y, text, color = '#fff', size = 16, life = 1.1, vy = -36) {
     const t = this.texts.get();
     if (!t) return;
+    life = Math.min(life, 0.9); // 외침 글자는 짧게 · 피해 숫자보다 조금 위에 (겹치지 않게)
+    y -= 16;
     t.x = x; t.y = y; t.text = text; t.color = color; t.size = size; t.life = life; t.max = life; t.vy = vy;
   }
   bubble(x, y, text) {
@@ -1709,25 +1725,37 @@ export class Renderer {
         cx.drawImage(hs.c, -8, -8, 16, 16);
         cx.globalAlpha = 1;
       }
-      // 이름 + 레벨
+      // 이름표: [속성 동그라미] 이름 한 알약 + 오른쪽 위에 작은 레벨 칩 · 옆 멤버와 안 겹치게 폭 제한(넘치면 …)
       this.world();
-      const label = h.guest ? '게스트 ' + h.def.name : h.def.name;
-      cx.font = `900 10px ${FONT}`;
-      cx.textAlign = 'center';
-      cx.textBaseline = 'middle';
-      const tw = cx.measureText(label).width + 23;
+      {
+        const label = h.guest ? '게스트 ' + h.def.name : h.def.name;
+        const gap = g.slotX && g.slotX.length > 1 ? Math.abs(g.slotX[1] - g.slotX[0]) : 58;
+        const maxW = Math.max(40, Math.min(64, gap - 4));
+        cx.textBaseline = 'middle';
+        if ('letterSpacing' in cx) cx.letterSpacing = '0.2px';
+        cx.font = `800 9.5px ${FONT}`;
+        let name = label, nw = cx.measureText(name).width;
+        while (nw > maxW - 19 && name.length > 1) { name = name.slice(0, -1); nw = cx.measureText(name + '…').width; }
+        if (name !== label) name += '…';
+        const pw = Math.min(maxW, nw + 19), ph = 14, px = hx - pw / 2, ly = feet + 9;
+        cx.fillStyle = h.guest ? 'rgba(10,90,110,0.92)' : h.def.legend ? 'rgba(90,60,0,0.92)' : h.def.hidden ? 'rgba(80,10,70,0.88)' : 'rgba(12,10,28,0.85)';
+        roundRect(cx, px, ly - ph / 2, pw, ph, ph / 2); cx.fill();
+        cx.strokeStyle = h.def.legend ? '#ffd84a' : h.def.hidden ? '#ff7fe6' : 'rgba(255,255,255,0.18)'; cx.lineWidth = 1; cx.stroke();
+        const at = ATTRS[h.def.attr];
+        if (at) { cx.fillStyle = at.color; cx.beginPath(); cx.arc(px + 7, ly, 4.6, 0, Math.PI * 2); cx.fill(); cx.font = `6.5px ${FONT}`; cx.textAlign = 'center'; cx.fillText(at.icon, px + 7, ly + 0.5); }
+        cx.font = `800 9.5px ${FONT}`; cx.textAlign = 'left'; cx.fillStyle = '#ffe9a8';
+        cx.fillText(name, px + 13.5, ly + 0.5);
+        // 레벨 칩 (알약 오른쪽 위에 살짝 걸치게)
+        const lvT = h.lv >= 5 ? 'MAX' : 'Lv' + h.lv;
+        cx.font = `800 7.5px ${FONT}`;
+        const cw = cx.measureText(lvT).width + 6, chh = 10, cxp = px + pw - cw + 3, cyp = ly - ph / 2 - chh + 3;
+        cx.fillStyle = h.lv >= 5 ? '#ff9f1c' : '#2b6f9e'; roundRect(cx, cxp, cyp, cw, chh, 5); cx.fill();
+        cx.strokeStyle = 'rgba(0,0,0,0.55)'; cx.stroke();
+        cx.fillStyle = '#fff'; cx.textAlign = 'center'; cx.fillText(lvT, cxp + cw / 2, cyp + chh / 2 + 0.5);
+        if ('letterSpacing' in cx) cx.letterSpacing = '0px';
+        cx.textAlign = 'center';
+      }
       const ly = feet + 9;
-      cx.fillStyle = h.guest ? 'rgba(10,90,110,0.9)' : h.def.legend ? 'rgba(90,60,0,0.9)' : h.def.hidden ? 'rgba(80,10,70,0.85)' : 'rgba(12,10,28,0.8)';
-      roundRect(cx, hx - tw / 2, ly - 7, tw, 14, 7);
-      cx.fill();
-      if (h.def.hidden || h.def.legend) { cx.strokeStyle = h.def.legend ? '#ffd84a' : '#ff7fe6'; cx.lineWidth = 1; cx.stroke(); }
-      cx.fillStyle = '#ffe08a';
-      cx.fillText(label, hx - 7, ly + 0.5);
-      cx.fillStyle = h.lv >= 5 ? '#ff9f1c' : '#9ee6ff';
-      cx.font = `900 9px ${FONT}`;
-      cx.fillText(h.lv >= 5 ? 'MAX' : 'Lv' + h.lv, hx + tw / 2 - 12, ly + 0.5);
-      // 속성 아이콘 (이름표 왼쪽 끝 작은 동그라미)
-      { const at = ATTRS[h.def.attr]; if (at) { const ax = hx - tw / 2 - 2; cx.fillStyle = at.color; cx.beginPath(); cx.arc(ax, ly, 6.5, 0, Math.PI * 2); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,0.6)'; cx.lineWidth = 1; cx.stroke(); cx.font = `8px ${FONT}`; cx.fillText(at.icon, ax, ly + 0.5); } }
       // 배현경 다이어트 게이지 · 고아라 나이 게이지
       if (h.def.diet || h.def.age) {
         const f = h.def.diet ? (h.alt ? h.altT / h.def.diet.sec[h.lv - 1] : h.meter / 100)
@@ -1954,13 +1982,14 @@ export class Renderer {
     // 피해 숫자
     for (const n of this.fx.nums.items) {
       const age = n.max - n.life;
-      let s = n.crit ? 1.2 : n.eff > 0 ? 0.95 : n.eff < 0 ? 0.52 : 0.7;
+      let s = n.crit ? 1.25 : n.eff > 0 ? 0.95 : n.eff < 0 ? 0.52 : 0.62;
+      if (n.pop > 0) { s *= 1 + n.pop * 2.5; n.pop = Math.max(0, n.pop - 1 / 60); }
       if (n.crit && n.eff > 0) s = 1.45;
       if (age < 0.1) s *= 1 + (1 - age / 0.1) * (n.crit || n.eff > 0 ? 1 : 0.4);
       this.tf(n.x, n.y, 0, s, s);
-      cx.globalAlpha = Math.min(1, n.life / (n.max * 0.35)) * (n.eff < 0 ? 0.8 : 1);
-      if (!this.fx.lite || n.crit) {
-        cx.lineWidth = n.crit || n.eff > 0 ? 5 : 4;
+      cx.globalAlpha = Math.min(1, n.life / (n.max * 0.35)) * (n.eff < 0 ? 0.75 : n.crit || n.eff > 0 ? 1 : 0.85);
+      {
+        cx.lineWidth = n.crit || n.eff > 0 ? 5 : this.fx.lite ? 3 : 4;
         cx.strokeStyle = n.crit ? '#5a0f00' : n.eff > 0 ? '#5a2600' : 'rgba(10,6,18,0.95)';
         cx.strokeText(n.text, 0, 0);
       }
