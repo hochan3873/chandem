@@ -67,7 +67,7 @@ test('순위 API: 게임별 top 10 · 내 순위 · 마스터 제외 · 방 안 
   await setStats('rank_b', (s) => { Object.assign(s.holdem, { hands: 80, wins: 8, net: -6000 }); Object.assign(s.omok, { games: 12, wins: 3, rating: 900 }); });
   await setStats('rank_c', (s) => { Object.assign(s.holdem, { hands: 3, wins: 2, net: 500 }); });
   await setStats('boss', (s) => { Object.assign(s.holdem, { hands: 999, wins: 900, net: 999999 }); });
-  srv.rankings && srv.rankings.clear && srv.rankings.clear();
+  srv.rankings.clear();
   const h = await req('GET', '/api/rank/holdem', null, bb.token);
   assert.equal(h.ok, true);
   assert.deepEqual(h.top.map((x) => x.username), ['rank_a', 'rank_b', 'rank_c'], '마스터 제외 · 배치 중은 뒤로');
@@ -149,4 +149,73 @@ test('마스터 계정은 모든 순위에서 빠진다 (명예의 전당 · 1�
   assert.ok(om.ranking.length > 0);
   assert.ok(!om.ranking.some((x) => x.username === 'boss'), '오목 랭킹(예전 목록)');
   assert.equal(om.ranking[0].rank, 1);
+});
+
+// ── 실제 방에서 기록이 쌓이는지 (로그인한 사람) · AI 연습 판은 순위에서 빠짐 ──
+const until = async (fn, ms = 20000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 50)); } throw new Error('시간 초과'); };
+function sock(token) {
+  const s = connect(base, { transports: ['websocket'], forceNew: true });
+  s.last = null;
+  s.on('state', (v) => { s.last = v; const la = v.hand && v.hand.legal; if (la) s.emit('game:act', v.room.settings.game === 'omok' ? { type: 'resign' } : { type: la.canCheck ? 'check' : 'fold' }, () => {}); });
+  s.call = (ev, d) => new Promise((r) => s.emit(ev, { auth: token, ...(d || {}) }, r));
+  return s;
+}
+test('실제 방(친구 방)에서 홀덤·섯다·오목 기록이 쌓이고, 10판 미만은 순위 "-" · 배치 중으로 나온다', async () => {
+  const u = await signup('realplay', '진짜판');
+  for (const game of ['holdem', 'seotda']) {
+    const s = sock(u.token);
+    const r = await s.call('room:create', { name: 'x', settings: { game, turnSeconds: 10 } });
+    assert.equal(r.ok, true, r.message);
+    await s.call('host:bot'); await s.call('host:bot');
+    assert.equal((await s.call('lobby:start')).ok, true);
+    await until(() => s.last && s.last.room.handNo >= 3);
+    await new Promise((res) => setTimeout(res, 300));
+    s.close();
+  }
+  { // 오목 친구 방 (봇 상대) → 기권 한 판
+    const s = sock(u.token);
+    const r = await s.call('room:create', { name: 'x', settings: { game: 'omok' } });
+    assert.equal(r.ok, true, r.message);
+    await s.call('host:bot');
+    assert.equal((await s.call('lobby:start')).ok, true);
+    await until(async () => ((await srv.accounts.store.byName('realplay')).stats.omok.games | 0) >= 1);
+    s.close();
+  }
+  const x = await srv.accounts.store.byName('realplay');
+  assert.ok(x.stats.holdem.hands >= 2, '홀덤 ' + x.stats.holdem.hands);
+  assert.ok(x.stats.seotda.hands >= 2, '섯다 ' + x.stats.seotda.hands);
+  assert.equal(x.stats.holdem.practice, undefined, '친구 방은 연습이 아님');
+  assert.ok(x.stats.omok.games >= 1, '오목 ' + x.stats.omok.games);
+  srv.rankings.clear(); // 순위는 60초마다 새로 계산 → 테스트에선 바로
+  const h = await req('GET', '/api/rank/holdem?n=50', null, u.token);
+  assert.equal(h.me.username, 'realplay');
+  assert.equal(h.me.rank, null, '10판 미만: 순위 -');
+  assert.ok(h.me.need > 0);
+  assert.ok(h.total >= 1 && h.ranked >= 1);
+  assert.ok(h.top.findIndex((y) => !y.rank) > h.top.findIndex((y) => y.rank), '배치 중은 공식 순위 아래');
+});
+test('AI 연습 판(홀덤)은 내 전적엔 쌓이지만 순위에는 안 들어간다', async () => {
+  const u = await signup('practiceonly', '연습만');
+  const s = sock(u.token);
+  const r = await s.call('room:practice', { name: 'x', bots: 2, settings: { game: 'holdem' } });
+  assert.equal(r.ok, true, r.message);
+  await until(() => s.last && s.last.room.handNo >= 3);
+  await new Promise((res) => setTimeout(res, 300));
+  s.close();
+  const x = await srv.accounts.store.byName('practiceonly');
+  assert.ok(x.stats.holdem.hands >= 2);
+  assert.equal(x.stats.holdem.practice.hands, x.stats.holdem.hands, '전부 연습 판');
+  srv.rankings.clear();
+  const h = await req('GET', '/api/rank/holdem?n=50', null, u.token);
+  assert.equal(h.me, null, '연습만 한 사람은 순위 목록에 없음');
+  assert.ok(!h.top.some((y) => y.username === 'practiceonly'));
+});
+test('기록 현황 숫자 (/api/rank/counts): 이름 없이 게임별 인원만', async () => {
+  srv.rankings.clear();
+  const r = await req('GET', '/api/rank/counts');
+  assert.equal(r.ok, true);
+  for (const g of ['holdem', 'seotda', 'omok']) assert.ok(Number.isInteger(r.counts[g].players) && Number.isInteger(r.counts[g].ranked) && Number.isInteger(r.counts[g].masters));
+  assert.ok(r.counts.holdem.practiceOnly >= 1, '연습만 한 사람');
+  assert.ok(r.counts.omok.masters >= 1);
+  assert.ok(!JSON.stringify(r).includes('realplay'), '아이디 없음');
 });

@@ -1,6 +1,6 @@
 // 게임별 등급 · 순위 배지 · 선수 카드 · 명예의 전당 · 긴 닉네임 맞추기
 //  서버: /api/rank/:game (top 10 + 내 순위) · /api/rank/room/:code (방 안 사람들) · /api/rank/card/:game?code&pid | ?user
-let C = null; // { S, esc, fmt, signed, openModal, closeModal, render }
+let C = null; // { S, esc, fmt, signed, openModal, closeModal, render, openLogin }
 export function init(ctx) { C = ctx; }
 
 const GAME_NAME = { holdem: '♠ 텍사스 홀덤', seotda: '🎴 섯다', omok: '⚫ 오목' };
@@ -95,8 +95,20 @@ export async function loadHall(game) {
   const box = document.querySelector('#hall .hall-body');
   if (!box) return;
   if (!r.ok) { box.innerHTML = '<p class="muted small">순위를 불러오지 못했어요</p>'; return; }
-  if (!r.top.length) { box.innerHTML = `<p class="muted small center">아직 기록이 없어요. ${C.S.user ? '한 판 해서 1위에 이름을 올려 봐요!' : '로그인하고 하면 순위에 올라가요!'}</p>`; return; }
-  const podium = [r.top[1], r.top[0], r.top[2]].filter(Boolean).map((x) => `
+  if (!r.top.length) {
+    // 아무도 기록이 없을 때: 빈 시상대 + 로그인 유도
+    box.innerHTML = `<div class="hall-empty">
+      <div class="podium podium-ghost">${[2, 1, 3].map((n) => `<div class="pod pod-${n} pod-ghost"><span class="pod-medal">${['🥇', '🥈', '🥉'][n - 1]}</span><span class="pod-av"><i></i></span><b>?</b></div>`).join('')}</div>
+      <p class="center"><b>아직 기록이 없어요 — ${C.S.user ? '한 판 하면 1위!' : '로그인하고 한 판 하면 1위!'}</b></p>
+      ${C.S.user ? '<p class="muted tiny center">친구와 방을 만들어 10판을 채우면 공식 순위에 올라가요 (AI 연습 판은 순위에서 빠져요' + (game === 'omok' ? ' · 오목 AI 대국은 점수에 들어가요' : '') + ')</p>'
+        : '<button class="btn btn-gold btn-sm hall-login" data-login>🔑 로그인 / 회원가입</button>'}
+    </div>`;
+    const lb = box.querySelector('[data-login]');
+    if (lb) lb.onclick = () => C.openLogin();
+    return;
+  }
+  const ranked = r.top.filter((x) => x.rank);
+  const podium = [ranked[1], ranked[0], ranked[2]].filter(Boolean).map((x) => `
     <button class="pod pod-${x.rank} ${x.me ? 'is-me' : ''}" data-user="${C.esc(x.username)}" style="--tc:${x.tier ? x.tier.color : '#9aa1a8'}">
       <span class="pod-medal">${['🥇', '🥈', '🥉'][x.rank - 1]}</span>
       <span class="pod-av"><img src="${avatarOf(x.username)}" alt=""></span>
@@ -104,29 +116,31 @@ export async function loadHall(game) {
       <span class="pod-tier">${tierTxt(x)}</span>
       <small class="pod-sub">${subTxt(game, x)}</small>
     </button>`).join('');
-  const row = (x, cls = '') => `<li class="${x.me ? 'is-me' : ''} ${cls}" data-user="${C.esc(x.username)}">
-    <span class="hl-rank">${x.rank}</span>
-    <span class="hl-tier" style="--tc:${x.tier ? x.tier.color : '#9aa1a8'}">${tierTxt(x)}</span>
+  const row = (x, cls = '') => `<li class="${x.me ? 'is-me' : ''} ${x.rank ? '' : 'is-placing'} ${cls}" data-user="${C.esc(x.username)}">
+    <span class="hl-rank">${x.rank || '-'}</span>
+    ${x.rank ? `<span class="hl-tier" style="--tc:${x.tier ? x.tier.color : '#9aa1a8'}">${tierTxt(x)}</span>` : `<span class="hl-tier hl-placing">🔰 배치 중 ${x.played}/${x.played + x.need}</span>`}
     <b class="hl-name">${C.esc(x.nickname)}</b>
     <small class="muted">${subTxt(game, x)}</small></li>`;
-  const rest = r.top.slice(3).map((x) => row(x)).join('');
+  const rest = r.top.filter((x) => !x.rank || x.rank > 3).map((x) => row(x)).join('');
   let mine = '';
   if (r.meMaster) mine = `<p class="hall-me-lbl muted small">👑 마스터 계정은 순위 제외</p>`;
   else if (r.me) mine = `<div class="hall-me-lbl">내 순위</div><ol class="hall-list hall-me">${row(r.me, 'is-me')}</ol>`;
   else if (C.S.user) mine = `<p class="hall-me-lbl muted small">내 순위: 아직 기록이 없어요 · 한 판 하면 올라가요!</p>`;
   else mine = `<p class="hall-me-lbl muted small">로그인하면 내 순위가 여기에 떠요</p>`;
-  box.innerHTML = `<div class="podium">${podium}</div>${rest ? `<ol class="hall-list">${rest}</ol>` : ''}${mine}`;
+  const note = ranked.length ? '' : `<p class="hall-note muted small center">🏁 아직 공식 순위가 없어요 — 10판을 먼저 채우면 첫 1위!</p>`;
+  box.innerHTML = `${ranked.length ? `<div class="podium">${podium}</div>` : note}${rest ? `<ol class="hall-list">${rest}</ol>` : ''}${mine}`;
   fitNames(box);
   box.querySelectorAll('[data-user]').forEach((el) => { el.onclick = () => openPlayerCard({ game, username: el.dataset.user }); });
 }
-/** 메인 게임 카드에 1위 한 줄: "👑 1위 여져니 · 하이롤러" */
+/** 메인 게임 카드에 1위 한 줄: "👑 1위 여져니 · 하이롤러" (공식 순위가 없으면 "🔰 배치 중 N명") */
 export async function loadHubChamps(games = ['holdem', 'seotda', 'omok']) {
   await Promise.all(games.map(async (g) => {
     const r = await get(`/api/rank/${g}?n=1`);
     const card = document.querySelector(`.game-card-${g}`);
-    const x = r.ok && r.top && r.top[0];
-    if (!card || !x || card.querySelector('.gc-champ')) return;
-    card.insertAdjacentHTML('beforeend', `<span class="gc-champ" style="--tc:${x.tier ? x.tier.color : '#ffd35a'}">👑 1위 <b>${C.esc(x.nickname)}</b>${x.tier ? ` · ${C.esc(x.tier.name)}` : ''}</span>`);
+    if (!card || !r.ok || card.querySelector('.gc-champ')) return;
+    const x = r.top && r.top[0];
+    if (x && x.rank) card.insertAdjacentHTML('beforeend', `<span class="gc-champ" style="--tc:${x.tier ? x.tier.color : '#ffd35a'}">👑 1위 <b>${C.esc(x.nickname)}</b>${x.tier ? ` · ${C.esc(x.tier.name)}` : ''}</span>`);
+    else if (r.total) card.insertAdjacentHTML('beforeend', `<span class="gc-champ gc-placing" style="--tc:#9fd8ff">🔰 배치 중 <b>${r.total}명</b> · 1위 비어 있음</span>`);
   }));
 }
 

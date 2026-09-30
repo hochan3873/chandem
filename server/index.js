@@ -114,8 +114,8 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
           if (Object.keys(out).length) { io.to('room:' + room.code).emit('rating', Object.entries(out).map(([userId, v]) => ({ id: (room.players.find((x) => x.userId === userId) || {}).id, ...v }))); broadcast(room); }
         });
       } else if (rec.game === 'tourney') acct.recordTourney(rec.userIds, rec.winnerUserId);
-      else if (!rec.redeal) acct.recordHand(rec.game, rec.players, rec.pot);
-      else acct.recordHand(rec.game, rec.players.map((p) => ({ ...p, won: false, handName: null })), 0);
+      else if (!rec.redeal) acct.recordHand(rec.game, rec.players, rec.pot, { practice: !!rec.practice }); // AI 연습 판은 순위에서 빠짐
+      else acct.recordHand(rec.game, rec.players.map((p) => ({ ...p, won: false, handName: null })), 0, { practice: !!rec.practice });
     };
     room.onEmote = (e) => io.to('room:' + room.code).emit('emote', e);
   }
@@ -199,6 +199,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   // ── HTTP ──────────────────────────────────────────
   const pub = path.join(__dirname, '..', 'public');
   app.use(express.static(pub, { extensions: ['html'] }));
+  let rankings = null;
   const accountsOn = !!process.env.DATABASE_URL || !process.env.RENDER;
   if (accountsOn) {
     app.use('/api/auth', acct.router(express));
@@ -206,7 +207,8 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     app.use('/api/langbang', acct.langbangRouter(express)); // 랑방 대전: 기록·강화·랭킹
     app.use('/api/site', site.router(express));
     app.use('/api/admin', createAdmin({ acct, site, rooms, api: { closeRoom, kickPlayer } }).router(express));
-    app.use('/api/rank', createRankings({ acct, rooms, now }).router(express)); // 게임별 등급·순위·선수 카드
+    rankings = createRankings({ acct, rooms, now });
+    app.use('/api/rank', rankings.router(express)); // 게임별 등급·순위·선수 카드
   } else {
     app.use(['/api/auth', '/api/langbang', '/api/site', '/api/admin'], (req, res) => res.status(503).json({ ok: false, message: '로그인 준비 중이에요' }));
   }
@@ -465,7 +467,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   });
 
   return {
-    app, server, io, rooms, accounts: acct, site, lbPvp,
+    app, server, io, rooms, accounts: acct, site, lbPvp, get rankings() { return rankings; },
     listen: () => new Promise((resolve) => server.listen(port, '0.0.0.0', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => {
       for (const r of rooms.values()) r.clearAllTimers();

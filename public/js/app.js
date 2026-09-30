@@ -240,6 +240,24 @@ function iosInAppBannerHTML() {
 }
 document.addEventListener('click', (e) => { if (e.target.closest('#ios-banner-copy')) copySiteLink(); });
 
+// ── 설치한 앱(홈 화면)으로 열었을 때: 화면 높이 맞추기 ──
+// 아이폰 설치 앱 + 상태 막대 비침(black-translucent)에서는 innerHeight 가 위쪽 상태 막대만큼 짧게 나와
+// 아래에 빈 띠가 생긴다 → 실제 화면 높이(screen)를 쓰고, 위·아래는 CSS 의 safe-area 여백으로 비킨다
+function fitAppHeight() {
+  if (!isStandalone()) { document.documentElement.classList.remove('gw-standalone'); return; }
+  let h = window.innerHeight;
+  if (window.visualViewport) h = Math.max(h, window.visualViewport.height);
+  if (IS_IOS && window.screen) {
+    const land = window.matchMedia && matchMedia('(orientation: landscape)').matches;
+    const sh = land ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+    if (sh > 0) h = Math.max(h, sh);
+  }
+  document.documentElement.classList.add('gw-standalone');
+  document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+}
+fitAppHeight();
+['resize', 'orientationchange', 'pageshow'].forEach((ev) => window.addEventListener(ev, () => setTimeout(fitAppHeight, 60)));
+
 async function installApp() {
   const ua = UA;
   const url = location.origin + '/';
@@ -2544,7 +2562,7 @@ function goHome() {
   if (S.view !== 'room' || !S.state) { toHome(); return; }
   openExitMenu();
 }
-RK.init({ S, esc, fmt, signed, openModal, closeModal, render: () => render() });
+RK.init({ S, esc, fmt, signed, openModal, closeModal, render: () => render(), openLogin: () => openLogin() });
 P.init({
   S, openModal, closeModal, toast, esc, fmt, signed, render, loadMe, openLogin, setAuth, logout, sound, LS, app: $app,
   watchRoom: (code) => { S.wantSpectate = true; nav('/r/' + code); boot(); },

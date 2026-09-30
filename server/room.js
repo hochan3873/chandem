@@ -746,7 +746,7 @@ class Room {
       const hi = r.hands && r.hands[id];
       return { id, userId: p.userId || null, delta: r.deltas[id] || 0, won: r.winners.includes(id), handName: hi ? hi.name : null, handRank: hi ? (typeof hi.rank === 'number' ? hi.rank : hi.category) : null };
     });
-    this.onRecord({ game, players, pot: h.totalPot, redeal: !!r.redeal });
+    this.onRecord({ game, players, pot: h.totalPot, redeal: !!r.redeal, practice: !!this.practice });
   }
 
   get revealing() { return !!(this.reveal && !this.reveal.done && this.hand && this.hand.finished); }
