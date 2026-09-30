@@ -560,10 +560,11 @@ function handleEvents(g, loud) {
         if (e.v) fx.text(e.x + 18, e.y - 22, `+${e.v}`, '#7be38f', 12, 0.8);
         if (loud) A.sfx.heal();
         break;
-      case 'jyDown': fx.text(e.x, e.y - 60, '준영 퇴장… 올인!', '#9fd4ff', 13, 1.0); break;
+      case 'jyLeave': fx.burst(e.x, e.y - 30, 14, '#ffffff', 120, 'puff', 10, 0.6); fx.text(e.x, e.y - 70, '들어갈게~', '#9fd4ff', 13, 1.0); break;
+      case 'allinCall': fx.banner('🃏 올인 콜! 준영 등판', `${e.sec}초 동안 진상을 한곳으로 모은다`, '#1a4a8a', 1.3, 'wave'); break;
       case 'jyRage': fx.text(e.x, e.y - 70, '🔥 준영 폭주!', '#ff7a4f', 15, 1.0); fx.ring(e.x, e.y - 30, 10, 60, 0.6, '#ff7a4f', 4); break;
       case 'chipRain': if (!busy) fx.burst(e.x, e.y - 20, 5, '#ffd23f', 110, 'spark', 3, 0.35); break;
-      case 'summon': fx.banner(e.again ? '📣 준영아 다시 나와!' : '📣 준영아 나와!', '정소영 잔소리 게이지 가득 → 성준영이 걸어 나간다', '#b0306a', 1.2, 'wave'); fx.text(e.x, e.y - 70, '준영아 나와!', '#ffb8d0', 15, 1.1); fx.burst(e.x, e.y - 30, 16, '#9fd4ff', 160, 'spark', 4, 0.6); fx.ring(e.x, e.y - 30, 10, 60, 0.7, '#ff9fc0', 5); if (loud) A.sfx.join(); break;
+      case 'summon': fx.text(e.x, e.y - 80, '준영아 나와!', '#ff9fc0', 15, 1.1); fx.text(e.x, e.y - 70, '준영아 나와!', '#ffb8d0', 15, 1.1); fx.burst(e.x, e.y - 30, 16, '#9fd4ff', 160, 'spark', 4, 0.6); fx.ring(e.x, e.y - 30, 10, 60, 0.7, '#ff9fc0', 5); if (loud) A.sfx.join(); break;
       case 'allin': fx.text(e.x, e.y - 20, '올인!', '#ffd23f', 20, 1.0); fx.blast(e.x, e.y, e.r, 'gold'); fx.addShake(5); if (loud) A.sfx.explode(); break;
       case 'nagbomb': fx.text(e.x, e.y - 20, '잔소리 폭격!', '#ff9fc0', 16, 0.9); fx.blast(e.x, e.y, e.r, 'heart'); if (loud) A.sfx.explode(); break;
       case 'timestop': fx.text(e.x, e.y - 30, '…시간아 멈춰라', '#c9a8ff', 16, 1.2); fx.ring(e.x, e.y, 10, e.r, 0.7, '#b48cff', 4); fx.flash('#6a3cff', 0.18); if (loud) A.sfx.charm(); break;
@@ -1606,7 +1607,7 @@ const coinsPill = () => `<span class="coins-pill"><i class="ci"></i>${P().unlimi
 const uid = () => API.liveUid();
 // ─── 그린 UI 아이콘 (ui2/<이름>.webp) · 없으면 이모지 그대로 ─────
 // ic(): 직접 넣을 때 · iconize(): 화면에 붙는 글자 속 이모지를 자동으로 그림으로 (속성·장비 아이콘 · 채팅 · 입력칸은 제외)
-const IC_MAP = { '👑': 'crown', '⚔️': 'swords', '⚔': 'swords', '🎟️': 'ticket', '🎟': 'ticket', '⏳': 'hourglass', '⌛': 'hourglass', '🔒': 'lock', '🔓': 'unlock', '🔥': 'fire', '🏆': 'trophy', '💎': 'gem', '🪨': 'gem', '📅': 'calendar', '📆': 'calendar', '🐉': 'dragon', '🎁': 'gift', '💡': 'bulb', '🎒': 'bag', '♾️': 'infinity', '♾': 'infinity', '🥇': 'medal1', '🥈': 'medal2', '🥉': 'medal3', '📣': 'megaphone', '📢': 'megaphone', '⚡': 'bolt', '🗡️': 'dagger', '🗡': 'dagger', '🗺️': 'map', '🗺': 'map', '📤': 'share', '🛠️': 'tools', '🛠': 'tools', '🏷️': 'tag', '🏷': 'tag', '🏠': 'home', '💥': 'boom', '🎯': 'target', '✨': 'sparkle', '🧹': 'broom', '⚗️': 'flask', '⚗': 'flask', '📖': 'book', '📚': 'book', '🚪': 'door', '🛒': 'cart', '💍': 'ring', '🖼️': 'frame', '🖼': 'frame', '🛡️': 'shield', '🛡': 'shield', '🔮': 'orb' };
+const IC_MAP = { '👑': 'crown', '⚔️': 'swords', '⚔': 'swords', '🎟️': 'ticket', '🎟': 'ticket', '⏳': 'hourglass', '⌛': 'hourglass', '🔒': 'lock', '🔓': 'unlock', '🔥': 'fire', '🏆': 'trophy', '💎': 'gem', '🪨': 'gem', '📅': 'calendar', '📆': 'calendar', '🐉': 'dragon', '🎁': 'gift', '💡': 'bulb', '🎒': 'bag', '♾️': 'infinity', '♾': 'infinity', '🥇': 'medal1', '🥈': 'medal2', '🥉': 'medal3', '📣': 'megaphone', '📢': 'megaphone', '⚡': 'bolt', '🗡️': 'dagger', '🗡': 'dagger', '🗺️': 'map', '🗺': 'map', '📤': 'share', '🛠️': 'tools', '🛠': 'tools', '🏷️': 'tag', '🏷': 'tag', '🏠': 'home', '💥': 'boom', '🎯': 'target', '✨': 'sparkle', '🧹': 'broom', '⚗️': 'flask', '⚗': 'flask', '📖': 'book', '📚': 'book', '🚪': 'door', '🛒': 'cart', '💍': 'ring', '🖼️': 'frame', '🖼': 'frame', '🛡️': 'shield', '🛡': 'shield', '🔮': 'orb', '🔁': 'retry', '🔊': 'sound', '🔇': 'mute', '👆': 'tap', '✅': 'check', '⚙️': 'gear_set', '⚙': 'gear_set', '🩹': 'heal', '🌊': 'wave', '🎰': 'gacha', '📍': 'pin', '🔨': 'hammer', '👥': 'duo', '📜': 'scroll', '📮': 'mail', '📊': 'chart', '⏰': 'clock', '🧪': 'flask2', '🎉': 'party', '🔑': 'key', '🤖': 'bot', '⚖️': 'scale', '⚖': 'scale', '🎫': 'coupon', '⏱️': 'speed', '⏱': 'speed', '🛍️': 'shop', '🛍': 'shop' };
 const IC_RE = new RegExp(Object.keys(IC_MAP).sort((a, b) => b.length - a.length).join('|'), 'gu'); // (이모지엔 정규식 특수문자가 없다)
 const icBad = new Set();
 const ic = (name, emoji = '', size = '') => `<img class="ic${size ? ' ' + size : ''}" src="/img/lb/ui2/${name}.webp" alt="${emoji}" draggable="false" onerror="this.replaceWith(document.createTextNode(this.alt))">`;
@@ -2213,7 +2214,7 @@ function artCard(id, o = {}) {
   const duo = hasDuo(id) && ok;
   const art = !src && !fall ? `<span class="dx-emo">${d.emoji}</span>`
     : duo ? `<span class="ac-duo" style="background-image:url('${thumbSrc(id, true)}')"></span><span class="ac-duo b" style="background-image:url('${thumbSrc(id, true)}')"></span>`
-      : `<img src="${src || fall}" alt="" loading="lazy" decoding="async" draggable="false" style="width:${(z * 100).toFixed(0)}%;left:${left.toFixed(1)}%;top:${top.toFixed(1)}%" onerror="this.onerror=null;this.src='${fall}'">`;
+      : `<img src="${src || fall}" alt="" decoding="async" draggable="false" style="width:${(z * 100).toFixed(0)}%;left:${left.toFixed(1)}%;top:${top.toFixed(1)}%" onerror="this.onerror=null;this.src='${fall}'">`;
   const pr = !ok && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? L.cardProgress(p, id) : null;
   const sub = ok ? `${'★'.repeat(st)}${lv ? ` · +${lv}` : ''}` : pr ? `카드 ${pr[0]}/${pr[1]}` : HERO_UNLOCK[id] ? `${stageLabel(HERO_UNLOCK[id])} 클리어` : '모집';
   return `<button class="acard t${t} ${ok ? '' : 'locked'} ${o.on ? 'on' : ''} ${o.cls || ''}" data-act="${o.act || 'heroCard'}" data-id="${id}" style="--c:${ATTRS[d.attr].color}">

@@ -543,7 +543,7 @@ export function recommendAttrs(s) {
 const ART_READY = new Set(['h_jungmin', 'h_junyoung', 'h_soyoung', 'h_jieun', 'h_jieun_demon', 'h_sanghwa']);
 const ART = (n) => (ART_READY.has(n) ? `/img/lb/${n}.webp` : '');
 export const NO_DEX_ART = new Set([]); // dex/<id>.webp 없음
-export const NO_HQ_ART = new Set(['junyoung', 'jiwon', 'wonsik']); // dexhq/<id>.webp 없음
+export const NO_HQ_ART = new Set(['junyoung', 'wonsik']); // 원식 고화질 그림이 오면 빼기 // dexhq/<id>.webp 없음
 export const NO_DUO_ART = new Set([]); // dexhq/<id>_duo.webp 없음
 export const HEROES = {
   bangjang: {
@@ -728,7 +728,7 @@ export const HEROES = {
     attack: '잔소리 말풍선 — 맞힐 때마다 "잔소리 게이지"가 차고, 가득 차면 성준영을 불러낸다',
     desc: '"그러니까 내가 뭐랬어!" 잔소리가 쌓이면 어디선가 성준영이 끌려 나온다. 둘이 같이 있으면 진상들이 더 괴롭다.',
     perks: { 3: '게이지가 더 빨리 · 성준영이 더 오래', 5: '성준영 올인! 폭발이 더 커진다' },
-    skill: { id: 'nagbomb', name: '잔소리 폭격', cd: 21, desc: '찍은 곳에 잔소리 폭탄 (느려짐) + 잔소리 게이지 가득', target: true, r: [95, 95, 110, 110, 125], mul: 3.2 },
+    skill: { id: 'allincall', name: '올인 콜! 준영 등판', cd: 21, desc: '성준영이 나와서 정해진 시간 동안 칩·카드를 던진다 — 맞은 진상은 한곳으로 끌려와 뭉친다 (범위 공격 멤버와 찰떡)', sec: [8, 8, 9, 9, 10] },
     shouts: ['그러니까 내가 뭐랬어!', '준영아 나와!', '한 번만 더 말한다?'],
   },
   jieun: {
@@ -771,7 +771,7 @@ export const HEROES = {
     dmg: 31, interval: 0.83, range: 365, proj: 'mosaic', projSpeed: 560,
     shred: { per: 0.06, max: 5, sec: 5 }, // 맞은 진상 방어 -6% × 최대 5겹 (5초) → 다른 멤버 피해도 같이 오른다 · 회복도 막는다
     attack: '모자이크 뻑큐 — 날아가는 모자이크 손, 맞은 진상 방어가 겹겹이 깎인다',
-    desc: '새빨간 입술, 긴 흑발. 말보다 손이 먼저 나간다 (모자이크 처리됨).',
+    desc: '착해 보이는 얼굴, 하지만 속엔 당찬 욕망이 가득. 오늘도 웃으며 모자이크 뻑큐를 날린다. "어머, 실수~"',
     perks: { 3: '방깎 +1겹 (최대 6)', 5: '방깎 한 겹 -8%' },
     skill: { id: 'fuckall', name: '단체 뻑큐', cd: 20, desc: '앞쪽 부채꼴에 모자이크 손 폭격 — 맞은 진상 전부 방깎 최대 · 회복 막기 6초', r: [230, 230, 250, 250, 280], half: 0.6, mul: [1.4, 1.4, 1.6, 1.6, 1.9], sec: 6 },
   },
@@ -782,7 +782,7 @@ export const HEROES = {
     taunt: 0.4, // 도발: 멤버를 노리는 진상 기술을 대신 받는다 (40% 시간)
     guard: { r: 110, cut: 0.3 }, // 곁의 진상이 입구를 칠 때 -30%
     attack: '헬스 잽 — 가까운 진상을 묵직하게 · 곁의 진상 공격을 대신 받아 준다',
-    desc: '결혼을 꿈꾸는 마흔 살 헬스 총각. 작은 눈, 단정한 머리, 따뜻한 얼굴. "올해는 꼭…"',
+    desc: '결혼을 꿈꾸는 마흔셋. 유일한 취미는 헬스. 따뜻한 마음으로 모두를 지켜 준다. "올해는 꼭…"',
     perks: { 3: '피해 감소 반경 +20%', 5: '결혼정보회사 등록이 1초 더' },
     skill: { id: 'marry', name: '결혼정보회사 등록', cd: 22, desc: '넓은 반경 진상 4초 동안 원식만 바라본다 (입구 피해 -80% · 느려짐) + 입구 보호막', r: [260, 260, 280, 280, 300], sec: [4, 4, 4, 4, 5], shield: 0.1 },
   },
@@ -792,7 +792,7 @@ export const SUMMONS = {
   junyoung: {
     id: 'junyoung', summon: true, bossKit: 1, kit: 1, name: '성준영', gender: 'm', emoji: '🃏', color: '#9fd4ff', attr: 'talk',
     img: ART('h_junyoung'), role: '소환 · 홀덤 칩과 카드 던지기',
-    dmg: 20, interval: 0.5, range: 360, proj: 'chip', projSpeed: 600,
+    dmg: 20, chipDmg: 34, interval: 0.55, range: 380, proj: 'chip', projSpeed: 600, // 칩 한 번 = 고정 피해 (강화·레벨 조금) · 끌어당기기가 본업
     allin: { r: 90, mul: 5 }, // 쓰러질 때 "올인!" 작은 폭발 (피해 = 한 발 × 5)
     attack: '홀덤 칩 · 카드 — 빠르게 휙휙 던진다. 사라질 때 "올인!"',
     desc: '비실비실해 보이지만 칩 던지는 손목은 프로. 소영이 부르면 어쩔 수 없이 나온다.',
@@ -1376,7 +1376,7 @@ export const HERO_CARDS = {
   hyungyeong: { title: '배현경: 날씬 모드 +3초', add: { diet: 3 } },
   ara: { title: '고아라: 공주로 +5초 더', add: { young: 5 } },
   hochan: { title: '이호찬: 랑방 버프 최대 +12%', add: { buff: 0.12 } },
-  soyoung: { title: '정소영: 잔소리 게이지 +30% · 성준영 +3초', add: { nag: 3 }, mul: { nagFill: 1.3 } },
+  soyoung: { title: '정소영: 성준영 +3초', add: { nag: 3 } },
   jieun: { title: '오지은: 감속 +15%p · 1초 더', add: { slowX: 0.15, slowSec: 1 } },
   sanghwa: { title: '박상화: 성장 한도 +15%', add: { growMax: 0.15 } },
   jungmin: { title: '홍정민: 수리 +40%', mul: { heal: 1.4 } },
@@ -1388,7 +1388,7 @@ export const SKILL_EVO = {
   bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '난사 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
   dohoon: '무한 앵콜 앵콜', ingyu: '할리 한 바퀴 더', donghan: '진심 빔 두 줄', youngjun: '블랙 러시 왕복', eunok: '원샷 두 잔',
   hanna: '하트 레이저 풀파워 (화면 끝까지 꿰뚫는 굵은 빔)', sunggu: '지팡이 블랙홀 두 개', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
-  soyoung: '잔소리 폭격 2연발', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '단체 뻑큐 앵콜', wonsik: '결혼정보회사 VIP 등록',
+  soyoung: '올인 콜 앵콜 (준영 더 오래)', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '단체 뻑큐 앵콜', wonsik: '결혼정보회사 VIP 등록',
 };
 // 숨은 카드 (드물게): 임시 증원 · 게스트 합류 — 한 판에 한 번
 export const SECRET = { tempSlot: 0.045, guest: 0.035 };
