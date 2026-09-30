@@ -171,6 +171,9 @@ const isStandalone = () => window.matchMedia('(display-mode: standalone)').match
 const installBtnHTML = () => (isStandalone() ? '' : '<button class="btn btn-sm btn-outline install-btn" id="install-btn" aria-label="앱 설치">📲 앱 설치</button>');
 const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}${SHARE_BTN_ONLY}</span>` };
 
+// ── 아이폰 사파리 확대 막기 (두 손가락 확대 · 두 번 톡 확대는 CSS touch-action 으로) ──
+['gesturestart', 'gesturechange'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+
 // ── 앱 설치 (PWA) ──────────────────────────────────
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; });
@@ -183,12 +186,67 @@ function installDone() {
     ${ICON_NOTE}<button class="btn btn-gold btn-lg" data-close>확인</button></div>`);
   sound.play('fanfare');
 }
-async function installApp() {
-  const ua = navigator.userAgent;
+// ── 기기 판별 (아이패드는 요즘 'Mac + 터치'로 보여서 따로 본다) ──
+const UA = navigator.userAgent;
+const IS_IOS = /iPhone|iPad|iPod/i.test(UA) || (/Macintosh|MacIntel/.test(UA + navigator.platform) && navigator.maxTouchPoints > 1);
+const IS_KAKAO = /KAKAOTALK/i.test(UA);
+const IN_APP = IS_KAKAO || /NAVER|Instagram|FBAN|FBAV|FB_IAB|Line\/|DaumApps|everytimeApp/i.test(UA);
+const IOS_VER = (() => { const m = UA.match(/OS (\d+)[_.](\d+)/); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; })(); // 16.4 → 1604
+const IOS_OTHER = IS_IOS && /CriOS|FxiOS|EdgiOS|OPiOS|Whale/i.test(UA); // 아이폰 크롬·파이어폭스 등 (16.4부터 홈 화면 추가 가능)
+async function copySiteLink() {
   const url = location.origin + '/';
-  const ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const kakao = /KAKAOTALK/i.test(ua);
-  const inApp = kakao || /NAVER|Instagram|FBAN|FBAV|Line\//i.test(ua);
+  try { await navigator.clipboard.writeText(url); toast('링크를 복사했어요. 사파리 주소창에 붙여 넣어 주세요', 'ok'); }
+  catch { prompt('이 주소를 복사해서 사파리에서 열어 주세요', url); }
+}
+// 아이폰 설치 안내 그림 (SVG)
+const SVG_SHARE = '<svg class="ios-ico" viewBox="0 0 40 40" aria-hidden="true"><rect x="9" y="14" width="22" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M20 4v19M13 10l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><rect x="15" y="12" width="10" height="4" fill="var(--ios-bg, #1b1f2a)"/></svg>';
+const SVG_ADD = '<svg class="ios-ico" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="6" width="28" height="28" rx="7" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M20 13v14M13 20h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
+function iosStepsHTML() {
+  const bar = IOS_OTHER ? '주소창 오른쪽의' : '화면 아래 막대의';
+  return `
+    <ol class="ios-steps">
+      <li><div class="ios-shot ios-shot-bar"><span class="ios-bar"><i></i><i></i><b class="ios-hl">${SVG_SHARE}</b><i></i><i></i></span></div>
+        <p><b>①</b> ${bar} <b>공유</b> 버튼(네모에 위쪽 화살표)을 눌러요</p></li>
+      <li><div class="ios-shot ios-shot-sheet"><span class="ios-row">복사</span><span class="ios-row">즐겨찾기에 추가</span><span class="ios-row ios-hl">${SVG_ADD}<b>홈 화면에 추가</b></span></div>
+        <p><b>②</b> 목록을 아래로 내려서 <b>「홈 화면에 추가」</b>를 눌러요</p>
+        <p class="muted tiny">iOS 17 이상에서는 맨 아래 <b>「더 보기」</b>(또는 <b>「작업 편집」</b>) 안에 있을 수 있어요</p></li>
+      <li><div class="ios-shot ios-shot-top"><span class="ios-cancel">취소</span><span class="ios-title">홈 화면에 추가</span><b class="ios-hl ios-add">추가</b></div>
+        <p><b>③</b> 오른쪽 위 <b>「추가」</b>를 누르면 끝! 바탕화면 아이콘으로 열면 전체 화면이에요</p></li>
+    </ol>`;
+}
+function openIosInstall() {
+  if (IN_APP) {
+    openModal('아이폰에 앱 설치', `
+      <p><b>${IS_KAKAO ? '카카오톡' : '앱'} 안의 브라우저</b>에서는 설치할 수 없어요. <b>사파리로 열어야 설치할 수 있어요.</b></p>
+      <p class="muted small">${IS_KAKAO ? '오른쪽 아래 <b>⋯</b> → <b>「다른 브라우저로 열기」</b>를 누르거나, ' : '메뉴(⋯)에서 <b>「Safari로 열기」</b>를 누르거나, '}아래 링크를 복사해서 사파리 주소창에 붙여 넣어 주세요.</p>
+      <div class="row"><button class="btn btn-gold grow" id="ios-copy">🔗 링크 복사</button>${IS_KAKAO ? `<a class="btn btn-outline grow" href="kakaotalk://web/openExternal?url=${encodeURIComponent(location.origin + '/')}">바깥 브라우저로</a>` : ''}</div>`,
+    (b) => { b.querySelector('#ios-copy').onclick = copySiteLink; });
+    return;
+  }
+  if (IOS_OTHER && IOS_VER && IOS_VER < 1604) {
+    openModal('아이폰에 앱 설치', `<p>이 브라우저(iOS ${Math.floor(IOS_VER / 100)})에서는 홈 화면에 추가가 안 돼요. <b>사파리로 열어서</b> 다시 📲 앱 설치를 눌러 주세요.</p>
+      <button class="btn btn-gold btn-lg" id="ios-copy">🔗 링크 복사</button>`, (b) => { b.querySelector('#ios-copy').onclick = copySiteLink; });
+    return;
+  }
+  openModal('아이폰에 앱 설치', `${iosStepsHTML()}
+    <p class="muted small">아이폰은 애플 정책상 버튼 하나로 바로 설치할 수 없어서, 위 3단계로 홈 화면에 추가해요.</p>${ICON_NOTE}`, null, { wide: true });
+}
+/** 아이폰 + 카톡·네이버 등 앱 안 브라우저: 메인 위에 "사파리로 열어야 설치할 수 있어요" 띠 */
+function iosInAppBannerHTML() {
+  if (!IS_IOS || !IN_APP || isStandalone()) return '';
+  return `<div class="ios-banner" role="note"><b>🧭 사파리로 열어야 설치할 수 있어요</b>
+    <small>${IS_KAKAO ? '카카오톡은 오른쪽 아래 <b>⋯</b> → <b>「다른 브라우저로 열기」</b>' : '메뉴(⋯) → <b>「Safari로 열기」</b>'} · 또는 링크를 복사해서 사파리에 붙여 넣기</small>
+    <button class="btn btn-sm btn-gold" id="ios-banner-copy">🔗 링크 복사</button></div>`;
+}
+document.addEventListener('click', (e) => { if (e.target.closest('#ios-banner-copy')) copySiteLink(); });
+
+async function installApp() {
+  const ua = UA;
+  const url = location.origin + '/';
+  const ios = IS_IOS;
+  const kakao = IS_KAKAO;
+  const inApp = IN_APP;
+  if (ios) { openIosInstall(); return; }
   if (S.installEvt && !inApp && !ios) {
     S.installEvt.prompt();
     const r = await S.installEvt.userChoice.catch(() => null);
@@ -942,6 +1000,7 @@ function renderHome() {
       ${logoHTML()}
       <p class="tagline">친구들과 휴대폰으로 즐기는 우리들의 게임월드</p>
     </div>
+    ${iosInAppBannerHTML()}
     <div id="hub-extras">${P.hubExtrasHTML()}</div>
     <section class="game-cards">
       ${Object.entries(GAME_INFO).filter(([k]) => k !== 'langbang' || (S.info && S.info.langbang)).map(([k, g]) => `
