@@ -3951,7 +3951,9 @@ function startGate(quick = false) {
   box.className = 'gate crowd-gate';
   const owned = crowdOwned();
   const ch = Math.max(1, Math.min(6, Number(localStorage.getItem('langbang:chapter')) || 1));
-  box.innerHTML = `<div class="gate-bg"><img src="/img/lb/loading_bg.webp" alt="" onerror="this.onerror=null;this.src='/img/lb/keyart${ch}.webp';this.parentNode.classList.add('fb')"></div>
+  // 배경: 멤버 단체 그림(loading_group) → 없으면 레드카펫 배경(loading_bg) + 멤버 줄 세우기 → 없으면 키아트
+  box.classList.add('grp');
+  box.innerHTML = `<div class="gate-bg"><img src="/img/lb/loading_group.webp" alt="" fetchpriority="high" onerror="var g=this.closest('.gate');if(!this.dataset.f){this.dataset.f=1;g&&g.classList.remove('grp');this.src='/img/lb/loading_bg.webp'}else{this.onerror=null;this.src='/img/lb/keyart${ch}.webp';this.parentNode.classList.add('fb')}"></div>
     <span class="gate-fw">${[[22, 22, 0], [76, 16, 1.1], [55, 30, 2.2], [12, 36, 3]].map(([x, y, d]) => `<i style="left:${x}%;top:${y}%;--d:${d}s"></i>`).join('')}</span>
     <span class="gate-spot l"></span><span class="gate-spot r"></span>
     <span class="gate-carpet"></span>

@@ -1831,3 +1831,12 @@ body.rm .hero-full .hf-art img { animation: none; }
 .hf-gear .grow { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 8); }
 .hf-gear .gslot { width: 100%; min-height: calc(var(--u) * 70); font-size: calc(var(--u) * 24); border-radius: calc(var(--u) * 12); }
 .hf-gear .gslot small { font-size: calc(var(--u) * 11); }
+/* 로딩: 멤버 단체 그림 (loading_group) — 스프라이트 행진 · 코드 카펫은 숨긴다 */
+.crowd-gate.grp .gate-crowd, .crowd-gate.grp .gate-carpet, .crowd-gate.grp .gate-fw, .crowd-gate.grp .gate-spot { display: none; }
+.crowd-gate.grp .gate-bg img { object-fit: cover; object-position: 50% 55%; animation: grpZoom 18s ease-in-out infinite alternate; transform-origin: 50% 60%; }
+@keyframes grpZoom { from { transform: scale(1.02); } to { transform: scale(1.09) translateY(calc(var(--u) * -6)); } }
+.crowd-gate.grp::after { background: linear-gradient(180deg, rgba(6, 3, 16, 0.7), rgba(6, 3, 16, 0.15) 26%, rgba(6, 3, 16, 0) 45%, rgba(6, 3, 16, 0) 64%, rgba(6, 3, 16, 0.85) 82%, rgba(6, 3, 16, 0.95)); }
+body.rm .crowd-gate.grp .gate-bg img { animation: none; }
+.crowd-gate.grp .gate-in { top: calc(var(--u) * 20); }
+.crowd-gate.grp .gate-in .emblem { width: calc(var(--u) * 52); height: calc(var(--u) * 52); }
+.crowd-gate.grp .gate-in h1 { font-size: calc(var(--u) * 30); margin-top: 0; }
