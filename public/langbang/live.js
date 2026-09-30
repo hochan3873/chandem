@@ -14,6 +14,47 @@ const int = (v, lo = 0, hi = 1e9) => { const n = Math.floor(Number(v)); return N
 // 주: 월요일 00:00 (KST) 시작. 0주 = 2026-09-28(월) 주
 export const KST = 9 * 3600e3;
 export const DAY = 86400e3;
+// ─── 전투 소모품 (한 번 쓰면 끝) ───
+// 출전 칸에 넣어 가면 전투 중 버튼으로 쓴다 · 판마다 칸당 1번 · 소모품끼리 3초 간격 · 1:1 랭크 대전은 못 씀
+export const CONS = {
+  battery: { id: 'battery', name: '보조배터리', rarity: 'epic', icon: 'it_battery', desc: '방어진(입구) 내구도를 100% 로 가득 채워요', tip: '위급할 때 한 번! 판마다 1개만' },
+  aldicom: { id: 'aldicom', name: '알디콤', rarity: 'rare', icon: 'it_aldicom', desc: '숙취 해소! 모든 멤버 상태이상 해제 + 5초 상태이상 면역 · 입구 근처 진상 버프 깨기', tip: '기절·침묵·홀림이 한꺼번에 걸렸을 때' },
+  tambourine: { id: 'tambourine', name: '노래방 탬버린', rarity: 'rare', icon: 'it_tambourine', desc: '8초 동안 모든 멤버 공격 속도 +40%', tip: '보스가 나왔을 때 · 떼거리가 몰려올 때' },
+};
+export const CONS_IDS = Object.keys(CONS);
+export const CONS_CAP = 99;
+export const consSlots = (lv) => ((lv | 0) >= 20 ? 3 : 2); // 계정 Lv 20 부터 칸 3개
+// 전투 시작: 가져가는 소모품을 1개씩 먼저 뺀다 (서버가 개수를 믿음) · 전에 끝내지 않은 판에 가져간 건 그 판에서 쓴 걸로 친다
+export function consStart(lb, ids, now = Date.now()) {
+  lb.cons = lb.cons || {};
+  const want = [...new Set((Array.isArray(ids) ? ids : []).map(String))].filter((id) => CONS[id]).slice(0, consSlots(lb.level));
+  const take = want.filter((id) => (lb.cons[id] | 0) > 0);
+  for (const id of take) { lb.cons[id] = (lb.cons[id] | 0) - 1; if (!lb.cons[id]) delete lb.cons[id]; }
+  lb.consRun = take.length ? { ids: take, at: now } : null;
+  return { cons: take };
+}
+// 전투 끝: 안 쓴 것만 돌려준다 · 가져가지 않은 걸 썼다고 하면 무시 (한 판 1번)
+export function consEnd(lb, used) {
+  const run = lb.consRun; lb.consRun = null;
+  if (!run) return { refund: [] };
+  const u = new Set((Array.isArray(used) ? used : Object.keys(used || {}).filter((k) => (used[k] | 0) > 0)).map(String));
+  const refund = run.ids.filter((id) => !u.has(id));
+  lb.cons = lb.cons || {};
+  for (const id of refund) lb.cons[id] = Math.min(CONS_CAP, (lb.cons[id] | 0) + 1);
+  return { refund, used: run.ids.filter((id) => u.has(id)) };
+}
+// 선물(우편) 캠페인: 마스터가 보낸 선물 · 계정마다 한 번만 (id 로 막음)
+export const WELCOME_GIFT = { id: 'welcome_cons_v1', from: '랑방', title: '새 소모품 도착!', text: '전투에서 쓰는 소모품이에요. 출전 화면 소모품 칸에 넣어 가요', rw: { cons: { aldicom: 2, tambourine: 1, battery: 1 } } };
+export function giftTake(lb, gift, now = Date.now()) {
+  lb.gifts = Array.isArray(lb.gifts) ? lb.gifts : [];
+  if (!gift || !gift.id || lb.gifts.includes(gift.id)) return false;
+  lb.gifts.push(gift.id); if (lb.gifts.length > 100) lb.gifts = lb.gifts.slice(-100);
+  mailAdd(lb, { title: gift.title, text: gift.text, from: gift.from, rw: gift.rw, days: gift.days }, now);
+  return true;
+}
+// 이 계정이 받을 수 있나: 캠페인을 만들기 전 24시간 안에 놀았거나, 캠페인이 열려 있는 동안 들어왔다
+export const lastActive = (lb) => Math.max(Number(lb.lastSeenAt) || 0, Number(lb.lastResultAt) || 0, Number(lb.sta && lb.sta.t) || 0); // (밀리초라서 |0 쓰면 안 됨)
+export const giftEligible = (lb, c, now = Date.now()) => !!c && now < (c.at + (c.days || MAIL_DAYS) * DAY) && (now <= c.openUntil || lastActive(lb) >= c.activeSince);
 export const WEEK = 7 * DAY;
 export const EPOCH = Date.UTC(2026, 8, 28); // KST 로 옮긴 시각 기준 2026-09-28 00:00
 export const weekIndex = (now = Date.now()) => Math.floor((now + KST - EPOCH) / WEEK);
@@ -90,6 +131,7 @@ function cleanRw(rw) {
   if (GEAR_RARITIES.includes(rw.gear) || rw.gear === 'myth') o.gear = rw.gear;
   if (typeof rw.title === 'string' && rw.title.length < 16) o.title = rw.title;
   if (typeof rw.frame === 'string' && FRAMES[rw.frame]) o.frame = rw.frame;
+  if (rw.cons && typeof rw.cons === 'object') { const c = {}; for (const [k, v] of Object.entries(rw.cons)) { const n = int(v, 0, CONS_CAP); if (CONS[k] && n) c[k] = n; } if (Object.keys(c).length) o.cons = c; }
   return o;
 }
 function autoCosmetics(raw) {
@@ -309,6 +351,7 @@ export function grant(lb, rw, uid, now) {
   if (rw.tickets) { lb.tickets = (lb.tickets | 0) + rw.tickets; got.tickets = rw.tickets; }
   if (rw.stones) { lb.stones = (lb.stones | 0) + rw.stones; got.stones = rw.stones; }
   if (rw.wild) { lb.wild = (lb.wild | 0) + rw.wild; got.wild = rw.wild; }
+  if (rw.cons) { lb.cons = lb.cons || {}; for (const [k, v] of Object.entries(rw.cons)) if (CONS[k] && v > 0) { lb.cons[k] = Math.min(CONS_CAP, (lb.cons[k] | 0) + v); (got.cons = got.cons || {})[k] = v; } }
   if (rw.sta) { staminaAdd(lb, rw.sta, now); got.sta = rw.sta; }
   if (rw.sp) { ensureLive(lb, uid, now); lb.season.sp += rw.sp; got.sp = rw.sp; }
   if (rw.gear) { const ids = rw.gear === 'myth' ? MYTH_IDS : GEAR_IDS; got.gear = addGear(lb, ids[hashSeed(`rw:${lb.gearSeq}:${rw.gear}:${uid}`) % ids.length], rw.gear); }
@@ -826,7 +869,7 @@ export const MAIL_DAYS = 14;
 export function mailAdd(lb, m, now = Date.now()) {
   lb.mail = lb.mail || [];
   lb.mailSeq = (lb.mailSeq | 0) + 1;
-  lb.mail.push({ id: lb.mailSeq, title: String(m.title || '').slice(0, 40), text: String(m.text || '').slice(0, 80), rw: m.rw || {}, at: now, exp: now + MAIL_DAYS * DAY });
+  lb.mail.push({ id: lb.mailSeq, title: String(m.title || '').slice(0, 40), text: String(m.text || '').slice(0, 80), from: m.from ? String(m.from).slice(0, 12) : undefined, rw: m.rw || {}, at: now, exp: now + (m.days || MAIL_DAYS) * DAY });
   if (lb.mail.length > 50) lb.mail = lb.mail.slice(-50);
 }
 export function mailClaim(lb, id, uid, now = Date.now()) {
@@ -834,7 +877,7 @@ export function mailClaim(lb, id, uid, now = Date.now()) {
   const list = id === 'all' ? lb.mail.slice() : lb.mail.filter((m) => m.id === id);
   if (!list.length) return { error: id === 'all' ? '받을 우편이 없어요' : '없는 우편이에요' };
   const got = {};
-  for (const m of list) { const g = grant(lb, m.rw || {}, uid, now); for (const [k, v] of Object.entries(g)) { if (typeof v === 'number') got[k] = (got[k] || 0) + v; else (got[k + 's'] = got[k + 's'] || []).push(v); } }
+  for (const m of list) { const g = grant(lb, m.rw || {}, uid, now); for (const [k, v] of Object.entries(g)) { if (typeof v === 'number') got[k] = (got[k] || 0) + v; else if (k === 'cons') { got.cons = got.cons || {}; for (const [c, n] of Object.entries(v)) got.cons[c] = (got.cons[c] || 0) + n; } else (got[k + 's'] = got[k + 's'] || []).push(v); } }
   const ids = new Set(list.map((m) => m.id));
   lb.mail = lb.mail.filter((m) => !ids.has(m.id));
   return { n: list.length, got };
@@ -899,7 +942,12 @@ export function normLive(raw, out) {
   const ew = (x) => (x && Number.isInteger(x.wi) ? { wi: x.wi, best: int(x.best, 0, 1e10), miles: (x.miles || []).map((m) => int(m, 0, 999)).filter((m) => ENDLESS.miles.includes(m)) } : null);
   out.ew = ew(raw.ew); out.ewPrev = ew(raw.ewPrev); out.ewPaid = Number.isInteger(raw.ewPaid) ? raw.ewPaid : -1e6;
   out.mailSeq = int(raw.mailSeq, 0, 1e9);
-  out.mail = (Array.isArray(raw.mail) ? raw.mail : []).filter((m) => m && Number.isInteger(m.id) && Number.isFinite(m.exp)).slice(-50).map((m) => ({ id: m.id, title: String(m.title || '').slice(0, 40), text: String(m.text || '').slice(0, 80), rw: cleanRw(m.rw), at: int(m.at, 0, 9e15), exp: int(m.exp, 0, 9e15) }));
+  out.mail = (Array.isArray(raw.mail) ? raw.mail : []).filter((m) => m && Number.isInteger(m.id) && Number.isFinite(m.exp)).slice(-50).map((m) => ({ id: m.id, title: String(m.title || '').slice(0, 40), text: String(m.text || '').slice(0, 80), rw: cleanRw(m.rw), from: m.from ? String(m.from).slice(0, 12) : undefined, at: int(m.at, 0, 9e15), exp: int(m.exp, 0, 9e15) }));
+  out.cons = {}; for (const k of CONS_IDS) { const v = int((raw.cons || {})[k], 0, CONS_CAP); if (v) out.cons[k] = v; }
+  out.consRun = raw.consRun && Array.isArray(raw.consRun.ids) ? { ids: [...new Set(raw.consRun.ids.map(String))].filter((k) => CONS[k]).slice(0, 3), at: int(raw.consRun.at, 0, 9e15) } : null;
+  out.gifts = (Array.isArray(raw.gifts) ? raw.gifts : []).filter((x) => typeof x === 'string' && x.length <= 40).slice(-100);
+  out.lastSeenAt = int(raw.lastSeenAt, 0, 9e15);
+  out.giftsSent = (Array.isArray(raw.giftsSent) ? raw.giftsSent : []).filter((c) => c && typeof c.id === 'string').slice(-20).map((c) => ({ id: String(c.id).slice(0, 40), from: String(c.from || '').slice(0, 12), title: String(c.title || '').slice(0, 40), text: String(c.text || '').slice(0, 80), rw: cleanRw(c.rw), at: int(c.at, 0, 9e15), activeSince: int(c.activeSince, 0, 9e15), openUntil: int(c.openUntil, 0, 9e15), days: int(c.days, 1, 60) || MAIL_DAYS, n: int(c.n, 0, 1e7) }));
   out.pvpDay = raw.pvpDay && Number.isInteger(raw.pvpDay.day) ? { day: raw.pvpDay.day, n: int(raw.pvpDay.n, 0, 999), won: !!raw.pvpDay.won, opp: Object.fromEntries(Object.entries(raw.pvpDay.opp || {}).slice(0, 50).map(([k, v]) => [String(k).slice(0, 40), int(v, 0, 999)])) } : null;
   out.pvpTiers = (Array.isArray(raw.pvpTiers) ? raw.pvpTiers : []).map((x) => int(x, 0, 5000)).filter((x) => PVP_TIER_LADDER.some((t) => t[0] === x));
   return out;

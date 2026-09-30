@@ -453,3 +453,53 @@ test('랑방 대전 덱 서버 저장: 이상한 값은 정리', async () => {
   assert.equal(r.profile.decks.i, 1);
   assert.equal((await lbPost('/api/langbang/decks', u.token, { decks: 'x' })).ok, false);
 });
+
+// ─── 랑방 소모품 · 선물 우편 ─────────────────────────────
+test('랑방 소모품: 첫 선물 우편 · 마스터 선물(한 번만) · 전투에 가져가면 먼저 빠지고 안 쓴 것만 돌려받기', async () => {
+  const m = await lbUser('gun8401', '찬');
+  const u = await lbUser('consuser', '소모품');
+  const v = await lbUser('consold', '옛날사람');
+  // v: 3일 전에 마지막으로 놀았다 → 선물 대상 아님 (캠페인이 열린 동안 안 들어오면)
+  let s0 = await lbPost('/api/langbang/mail/sync', u.token, {});
+  assert.equal(s0.ok, true, s0.message);
+  assert.ok(s0.profile.mail.some((x) => x.rw && x.rw.cons && x.rw.cons.aldicom === 2), '처음 소모품 선물 우편');
+  // 마스터가 선물 보내기
+  const g1 = await lbPost('/api/langbang/master', m.token, { action: 'gift', item: 'battery', qty: 10, title: '이호찬님의 선물', text: '보조배터리 10개 드려요. 위급할 때 방어진을 가득 채워요!', from: '이호찬', giftId: 'gift_battery_test' });
+  assert.equal(g1.ok, true, g1.message);
+  const g2 = await lbPost('/api/langbang/master', m.token, { action: 'gift', item: 'battery', qty: 10, giftId: 'gift_battery_test' });
+  assert.equal(g2.ok, false, '같은 선물 번호는 다시 못 보냄');
+  assert.equal((await lbPost('/api/langbang/master', u.token, { action: 'gift', item: 'battery', qty: 10 })).ok, false, '마스터만');
+  srv.accounts.store.byId(m.id); // (캐시 30초: 새 캠페인은 캐시를 비운다)
+  const s1 = await lbPost('/api/langbang/mail/sync', u.token, {});
+  const gm = s1.profile.mail.find((x) => x.title === '이호찬님의 선물');
+  assert.ok(gm, '선물 우편 도착');
+  assert.equal(gm.from, '이호찬');
+  assert.equal(gm.rw.cons.battery, 10);
+  assert.ok(gm.exp - gm.at >= 13.9 * 86400e3, '14일');
+  const s2 = await lbPost('/api/langbang/mail/sync', u.token, {});
+  assert.equal(s2.profile.mail.filter((x) => x.title === '이호찬님의 선물').length, 1, '다시 동기화해도 한 번만');
+  const c = await lbPost('/api/langbang/mail/claim', u.token, { id: 'all' });
+  assert.equal(c.ok, true, c.message);
+  assert.equal(c.profile.cons.battery, 11, '선물 10 + 첫 선물 1');
+  assert.equal(c.got.cons.battery, 11);
+  // 전투: 가져간 만큼 먼저 빠진다 · 한 판에 칸마다 1개
+  const st = await lbPost('/api/langbang/cons/start', u.token, { ids: ['battery', 'aldicom', 'battery', 'uiriju'] });
+  assert.equal(st.ok, true, st.message);
+  assert.deepEqual(st.cons, ['battery', 'aldicom']);
+  assert.equal(st.profile.cons.battery, 10); assert.equal(st.profile.cons.aldicom, 1);
+  // 가져가지 않은 걸 썼다고 해도 무시 · 안 쓴 알디콤은 돌려받음
+  const en = await lbPost('/api/langbang/cons/end', u.token, { used: ['battery', 'tambourine'] });
+  assert.equal(en.ok, true, en.message);
+  assert.equal(en.profile.cons.battery, 10, '배터리는 씀');
+  assert.equal(en.profile.cons.aldicom, 2, '알디콤 돌려받음');
+  assert.equal(en.profile.cons.tambourine, 1, '가져가지 않은 탬버린은 그대로');
+  // 끝을 안 알리고 새 판을 시작하면 전 판에 가져간 건 쓴 걸로
+  await lbPost('/api/langbang/cons/start', u.token, { ids: ['tambourine'] });
+  const st2 = await lbPost('/api/langbang/cons/start', u.token, { ids: ['aldicom'] });
+  assert.equal(st2.profile.cons.tambourine | 0, 0);
+  const en2 = await lbPost('/api/langbang/cons/end', u.token, { used: [] });
+  assert.equal(en2.profile.cons.aldicom, 2);
+  // 오래 안 온 사람 (캠페인 전 24시간 밖): 캠페인이 열린 동안 들어오면 받는다 (지금 = 열린 동안)
+  const sv = await lbPost('/api/langbang/mail/sync', v.token, {});
+  assert.ok(sv.profile.mail.some((x) => x.title === '이호찬님의 선물'), '열린 동안 들어오면 받음');
+});

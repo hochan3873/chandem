@@ -341,6 +341,11 @@ async function startRun(opt = {}) {
     weekly = L.weeklyDef(r.wi);
     app.weeklyRun = r.runId;
   }
+  let consIds = [];
+  if (['stage', 'endless', 'weekly', 'raid'].includes(mode) && !dbg && !opt.resume) {
+    const lo = consLoadout().filter((id) => id && consHave(id) > 0);
+    if (lo.length) { const r = await API.consStart(lo, app.guest); if (r && r.ok) { consIds = r.cons || []; if (r.profile) app.profile = r.profile; } }
+  }
   clearSnap();
   app.mode = mode;
   app.stage = st;
@@ -366,6 +371,7 @@ async function startRun(opt = {}) {
     g.welcomePicks = 0;
     g.events.length = 0;
   }
+  g.cons = consIds; g.consUsed = {};
   g.lastSnap = S.snapshot(g); // 첫 웨이브 전에 나가도 이어할 수 있게
   const locked = mode === 'stage' && !stageUnlocked(st);
   app.debugRun = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || locked;
@@ -1035,6 +1041,13 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.rage();
         break;
       case 'sober': fx.text(e.x, e.y - 60, '술 깼다… 한 잔 더?', '#ffd6a8', 12, 1.3); break;
+      case 'consUse': {
+        const c = L.CONS[e.id];
+        if (e.id === 'battery') { fx.banner('보조배터리!', `방어진 ${e.v ? '+' + fmt(e.v) : ''} 가득 충전`, '#7b3fe0', 1.3, 'wave'); fx.repairT = 1.6; for (let k = 0; k < 14; k++) fx.part('star', 30 + Math.random() * 300, g.rowY + 40 + Math.random() * 60, 0, -70, 0.9, 8, null); fx.flash('#b890ff', 0.18); if (loud) A.sfx.heal(); }
+        else if (e.id === 'aldicom') { fx.banner('알디콤!', `상태이상 싹 · 5초 면역${e.n ? ` · 버프 ${e.n}개 깨짐` : ''}`, '#2f7fd8', 1.2, 'wave'); for (let k = 0; k < 26; k++) fx.part('dot', 20 + Math.random() * 320, g.ropeY + Math.random() * 40, (Math.random() - 0.5) * 40, -60 - Math.random() * 80, 1.1, 4 + Math.random() * 4, Math.random() < 0.5 ? '#bfe8ff' : '#e8fbff'); fx.ring(g.W / 2, g.ropeY, 20, 260, 0.6, '#9fd8ff', 4); if (loud) A.sfx.heal(); }
+        else if (e.id === 'tambourine') { fx.banner('노래방 탬버린!', '8초 동안 공격 속도 +40%', '#c08a10', 1.1, 'wave'); for (const h of g.heroes) fx.ring(h.x, h.y - 30, 8, 60, 0.5, '#ffd23f', 3); if (loud) A.sfx.levelUp(); }
+        void c; break;
+      }
       case 'heal':
         fx.repairT = 1.2; // 방어선 수리 연출
         if (e.v > 0) fx.text(e.x, e.y - 60, `+${e.v} 수리`, '#7dff9a', 14, 1);
@@ -1443,6 +1456,7 @@ function renderSkillbar() {
   const g = app.g;
   if (!g) return;
   renderMom(g);
+  renderConsBar();
   const list = g.heroes.filter((h) => h.def.skill).sort((a, b) => a.slot - b.slot);
   const key = list.map((h) => h.id + h.lv).join(',');
   if (skillbar.dataset.key !== key) {
@@ -1997,7 +2011,7 @@ function showMail() {
   const p = P(), now = Date.now();
   const list = (p.mail || []).filter((m) => m.exp > now).slice().reverse();
   const safe = (rw) => { try { return gotText(rw) || ''; } catch { return ''; } }; // 보상 글자가 깨져도 우편함은 열린다
-  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b><small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${esc(safe(m.rw))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
+  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b>${m.from ? `<i class="mail-from">보낸 사람 ${esc(m.from)}</i>` : ''}<small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${esc(safe(m.rw))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
   popup(`<h3>${ic('mail', '', 'sm')}우편함</h3>${list.length > 1 ? `<button class="btn primary" data-act="mailGet" data-id="all">${ic('gift', '', 'sm')}모두 받기 (${list.length})</button>` : ''}
     <div class="mail-list">${rows || '<div class="empty-msg">받을 우편이 없어요</div>'}</div><p class="ip">보상 우편은 ${L.MAIL_DAYS}일 뒤 사라져요</p>`, 'mail-pop');
 }
@@ -2083,6 +2097,7 @@ function tickRank() {
   } finally { clearTimeout(tickRank.t); tickRank.t = setTimeout(tickRank, next); }
 }
 tickRank.t = setTimeout(tickRank, 4000);
+setInterval(() => { if (app.screen === 'menu' && app.profileLoaded && document.visibilityState === 'visible') Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { const before = (P().mail || []).length; app.profile = r.profile; if ((r.profile.mail || []).length > before) { toast('우편이 도착했어요!', 2200); if (app.screen === 'menu') showMenu(); } } }).catch(() => {}); }, 180e3);
 // 줄 칸용 짧은 시간: "점심 6시간 36분 뒤" → "6시간" · "36분 뒤" → "36분"
 function shortTime(s) { const h = /(\d+)\s*시간/.exec(s), m = /(\d+)\s*분/.exec(s), d = /(\d+)\s*일/.exec(s); return d ? `${d[1]}일` : h ? `${h[1]}시간` : m ? `${m[1]}분` : s.length > 6 ? s.slice(0, 6) : s; }
 function showMenu() {
@@ -2305,6 +2320,7 @@ function gotText(got) {
   if (got.frame) a.push(`${L.FRAMES[got.frame].name}`);
   if (got.gears) a.push(`장비 ${got.gears.length}개`);
   if (got.stones) a.push(`강화석 ${got.stones}`);
+  if (got.cons) for (const [k, n] of Object.entries(got.cons)) if (L.CONS[k]) a.push(`${L.CONS[k].name} ${n}개`);
   if (got.sta) a.push(`체력 ${got.sta}`);
   if (got.wild) a.push(`범용 멤버 카드 ${got.wild}`);
   if (got.titles) a.push(`칭호 ${got.titles.length}개`);
@@ -3128,6 +3144,13 @@ function showSettings() {
  <button class="btn primary mini" data-act="mst" data-a="allclear">${ic('bolt', '', 'sm')} 올클리어 (전 스테이지 ★★★ · 전 멤버 · 장비 · 코인)</button>
  <div class="set-row"><span>진행</span><input id="mstStage"type="number"min="0"max="${STAGE_COUNT}" value="10"><button class="btn mini" data-act="mst" data-a="stage">여기까지 클리어</button></div>
       <div class="set-row"><span>테스트 판</span><select id="mstEnemy">${Object.keys(ENEMIES).filter((k) => !ENEMIES[k].dot).map((k) => `<option value="${k}">${esc(ENEMIES[k].name)}</option>`).join('')}</select><button class="btn mini" data-act="mstWave">소환</button></div>
+      <div class="mst-gift"><h4>${ic('gift', '', 'sm')} 선물 보내기 <small>최근 24시간 접속자 + 앞으로 24시간 안에 들어오는 사람 · 계정마다 한 번 · 우편 14일</small></h4>
+        <div class="set-row"><span>소모품</span><select id="mstGiftItem">${L.CONS_IDS.map((k) => `<option value="${k}">${esc(L.CONS[k].name)}</option>`).join('')}</select><input id="mstGiftQty" type="number" min="1" max="99" value="10"></div>
+        <div class="set-row"><span>제목</span><input id="mstGiftTitle" maxlength="40" value="이호찬님의 선물"></div>
+        <div class="set-row"><span>내용</span><input id="mstGiftText" maxlength="80" value="보조배터리 10개 드려요. 위급할 때 방어진을 가득 채워요!"></div>
+        <div class="set-row"><span>선물 번호</span><input id="mstGiftId" maxlength="40" placeholder="비우면 gift_아이템_날짜"></div>
+        <button class="btn primary mini" data-act="mst" data-a="gift">${ic('mail', '', 'sm')} 선물 보내기</button>
+        ${(p.giftsSent || []).length ? `<p class="ip">보낸 선물: ${(p.giftsSent || []).slice(-5).reverse().map((c) => esc(c.id)).join(' · ')}</p>` : ''}</div>
       <button class="btn danger mini" data-act="mst" data-a="reset">초기화 (신규 유저 상태로)</button></div>` : ''}
     <p class="st-ver">랑방 대전 · ${esc(ver)}</p>`, 'pp-set st-v2');
   const box = stage.querySelector('.st-v2');
@@ -3177,12 +3200,13 @@ Object.assign(ACTS, {
   mst: async (b) => {
     const a = b.dataset.a;
     if (a === 'reset' && !(await confirmBox({ title: '정말 초기화할까요?', sub: '랑방 대전 기록이 전부 신규 유저 상태로 돌아가요', ok: '초기화', cancel: '취소', danger: true }))) return;
-    const extra = a === 'testNormal' ? { on: !P().testNormal } : a === 'allclear' ? { level: Number(($('#mstLv') || {}).value || 20), star5: !!($('#mstStar') || {}).checked } : a === 'stage' ? { value: Number(($('#mstStage') || {}).value || 0) } : {};
+    const extra = a === 'testNormal' ? { on: !P().testNormal } : a === 'allclear' ? { level: Number(($('#mstLv') || {}).value || 20), star5: !!($('#mstStar') || {}).checked } : a === 'stage' ? { value: Number(($('#mstStage') || {}).value || 0) } : a === 'gift' ? { item: ($('#mstGiftItem') || {}).value, qty: Number(($('#mstGiftQty') || {}).value || 10), title: ($('#mstGiftTitle') || {}).value, text: ($('#mstGiftText') || {}).value, giftId: ($('#mstGiftId') || {}).value || undefined, from: '이호찬' } : {};
     const r = await liveAct(API.masterAct(a, extra));
     if (!r) return;
     if (a === 'reset') { try { localStorage.removeItem(DECK_KEY); localStorage.removeItem('langbang:gearSeen'); } catch { /* 무시 */ } app.decks = [[], [], []]; }
     app.lobbyStage = 0;
     if (a === 'testNormal') { toast(P().testNormal ? '일반 유저처럼: 비용·확률이 보통으로' : '마스터 모드로 돌아왔어요'); showSettings(); return; }
+    if (a === 'gift') { toast('선물을 보냈어요! 들어오는 사람 우편함에 도착해요', 2600); closeInfoCard(); return; }
     toast(`${{ coins: '코인 지급', tickets: '모집권 지급', stones: '강화석 지급', allclear: '올클리어!', stage: '진행 설정', reset: '초기화했어요' }[a] || '완료'}`, 1800);
     closeInfoCard();
     showMenu();
@@ -3204,6 +3228,9 @@ Object.assign(ACTS, {
   cosmetics: () => showCosmetics(),
   cosmTab: (b) => { app.cosmTab = b.dataset.v; showCosmetics(); },
   setFrame: async (b) => { if (await liveAct(API.setCosmetic(undefined, b.dataset.v, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
+  bagTabGo: (b) => { app.bagTab = b.dataset.v; showBag(); },
+  consSlot: (b) => showConsPick(Number(b.dataset.k) || 0),
+  consPick: (b) => { const k = Number(b.dataset.k) || 0, id = b.dataset.id || null; const lo = consLoadout(); if (id) { const j = lo.indexOf(id); if (j >= 0 && j !== k) lo[j] = lo[k]; } lo[k] = id; consSave(lo); setTut('cons'); closeInfoCard(); A.sfx.pick(); showPrep(app.mode, app.stage); },
   chest: (b) => {
     const ch = Number(b.dataset.ch), n = Number(b.dataset.n);
     if (b.classList.contains('open')) { toast('이미 연 상자예요'); return; }
@@ -4066,10 +4093,67 @@ function showPrep(mode, s) {
     </div>`;
   show(`
     <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="stamina">${ic('energy', '', 'sm')}<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
-    ${headHtml}${diffHtml}${powHtml}${foeHtml}${deckHtml}${rw}
+    ${headHtml}${diffHtml}${powHtml}${foeHtml}${deckHtml}${consPrepHtml()}${rw}
     <div class="spacer"></div>
     ${goHtml}
   `, 'dim prep-screen pp');
+}
+// ─── 전투 소모품: 출전 칸 (덱마다 저장) · 전투 버튼 · 끝나면 안 쓴 것 돌려받기 ───
+const CONS_KEY = 'langbang:cons';
+function consAll() { if (!app.consSel) { try { app.consSel = JSON.parse(localStorage.getItem(CONS_KEY) || '{}') || {}; } catch { app.consSel = {}; } } return app.consSel; }
+function consLoadout() { const n = L.consSlots(P().level); const a = (consAll()[app.deckI] || []).slice(0, n); while (a.length < n) a.push(null); return a; }
+function consSave(a) { consAll()[app.deckI] = a; try { localStorage.setItem(CONS_KEY, JSON.stringify(app.consSel)); } catch { /* 무시 */ } }
+const consHave = (id) => (P().cons || {})[id] | 0;
+const consIc = (id, cls = '') => `<img class="cs-ic ${cls}" src="/img/lb/ui2/${L.CONS[id].icon}.webp" alt="" draggable="false">`;
+const CONS_RC = { rare: '#4ea8ff', epic: '#c77dff', legend: '#ffd23f' };
+function consPrepHtml() {
+  const lo = consLoadout(), any = L.CONS_IDS.some((id) => consHave(id) > 0);
+  if (!any && !lo.some(Boolean)) return '';
+  const tip = any && !tutDone('cons');
+  const cells = lo.map((id, k) => {
+    if (!id) return `<button class="cq-slot empty" data-act="consSlot" data-k="${k}"><span class="cq-plus">+</span><small>비어 있음</small></button>`;
+    const n = consHave(id);
+    return `<button class="cq-slot ${n ? '' : 'none'}" data-act="consSlot" data-k="${k}" style="--rc:${CONS_RC[L.CONS[id].rarity]}">${consIc(id)}<b>${esc(L.CONS[id].name)}</b><i class="cq-n">${n}</i></button>`;
+  }).join('');
+  return `<div class="pp-cons ${tip ? 'tut' : ''}"><div class="cq-h"><span class="pp-lab">소모품</span><small>칸마다 판에 한 번 · 안 쓰면 돌려받아요</small></div><div class="cq-slots">${cells}</div>${tip ? '<p class="cq-tip">보조배터리를 칸에 넣고 전투에서 눌러 쓰세요</p>' : ''}</div>`;
+}
+function showConsPick(k) {
+  const lo = consLoadout();
+  const rows = L.CONS_IDS.map((id) => { const c = L.CONS[id], n = consHave(id), on = lo.includes(id); return `<button class="cs-row ${n ? '' : 'none'} ${on ? 'on' : ''}" data-act="consPick" data-k="${k}" data-id="${id}" ${n ? '' : 'disabled'} style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small></span></button>`; }).join('');
+  popup(`<h3>소모품 고르기</h3><div class="cs-list">${rows}</div>${lo[k] ? `<button class="btn" data-act="consPick" data-k="${k}" data-id="">칸 비우기</button>` : ''}<p class="ip">전투에 가져간 소모품은 끝나면 안 쓴 것만 돌려받아요 · 1:1 대전에서는 못 써요</p>`, 'pp-mini cons-pop');
+}
+// 전투 버튼 (스킬 버튼 위)
+const consBar = document.createElement('div');
+consBar.id = 'consbar'; consBar.hidden = true;
+stage.appendChild(consBar);
+consBar.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-cons]'); const g = app.g;
+  if (!b || !g || app.paused) return;
+  A.unlock();
+  const id = b.dataset.cons;
+  if ((g.consUsed || {})[id]) { toast('이번 판에 이미 썼어요', 900); return; }
+  if (g.consCdT > 0) { toast(`소모품은 ${Math.ceil(g.consCdT)}초 뒤에`, 900); return; }
+  if (S.useCons(g, id)) { vibrate(20); handleEvents(g, true); renderConsBar(true); }
+});
+function renderConsBar(force) {
+  const g = app.g;
+  const on = !!(g && g.cons && g.cons.length && app.screen === 'play');
+  consBar.hidden = !on;
+  if (!on) return;
+  const key = g.cons.join(',') + '|' + Object.keys(g.consUsed || {}).join(',');
+  if (force || consBar.dataset.key !== key) {
+    consBar.dataset.key = key;
+    consBar.innerHTML = g.cons.map((id) => `<button class="cb ${(g.consUsed || {})[id] ? 'used' : ''}" data-cons="${id}" aria-label="${esc(L.CONS[id].name)}" style="--rc:${CONS_RC[L.CONS[id].rarity]}">${consIc(id)}<i class="cb-n">${(g.consUsed || {})[id] ? 0 : 1}</i><i class="cb-cd"></i></button>`).join('');
+  }
+  const cd = Math.max(0, g.consCdT || 0) / S.CONS_CD;
+  for (const b of consBar.children) b.style.setProperty('--cd', cd.toFixed(3));
+}
+// 전투가 끝나면 (이기든 지든 그만두든) 한 번: 안 쓴 것 돌려받기
+function consFinish(g) {
+  if (!g || g.consDone || !g.cons || !g.cons.length) return;
+  g.consDone = true;
+  const used = Object.keys(g.consUsed || {});
+  Promise.resolve(API.consEnd(used, app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {});
 }
 // 대장: 덱마다 한 명 (덱 1번 칸 · 왕관) — 없으면 덱 첫 멤버
 const LEAD_KEY = 'langbang:leaders';
@@ -4554,6 +4638,8 @@ function resumeGame() {
 function showResult(victory, quit) {
   const g = app.g;
   if (!g) return;
+  consFinish(g);
+  consBar.hidden = true;
   guardOff();
   app.screen = 'result';
   hud.hidden = true;
@@ -4908,6 +4994,8 @@ function showItemDex() {
     <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${all.length}</button></div>
     <p class="sub">한 번이라도 얻은 장비가 기록돼요${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'} <button class="chip mini" data-act="dropTable">드롭 표</button></p>
     <div class="dex-grid v2 idx-grid">${all.map(cell).join('')}</div>
+    <h3 class="sec-t">소모품</h3>
+    <div class="dex-grid v2 idx-grid">${L.CONS_IDS.map((id) => { const c = L.CONS[id]; return `<button class="dexc2 idx r-${c.rarity}" data-act="bagTabGo" data-v="cons" style="--c:${CONS_RC[c.rarity]}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>${esc(c.name)}</b></button>`; }).join('')}</div>
   `, 'dim');
 }
 function showItemCard(t) {
@@ -5222,7 +5310,7 @@ function showBag() {
   const maxId = Math.max(0, ...(p.gear || []).map((x) => x.id));
   const deckIds = [...new Set([...(curDeck() || []).filter(Boolean)])];
   const rows = (app.bagAll ? owned() : deckIds.length ? deckIds : owned().slice(0, 4)).map((h) => eqRowHtml(p, h)).join('');
-  const tabs = `<div class="seg bag-seg">${[['over', '장비'], ['bag', `가방 ${(p.gear || []).length}/80`], ['fuse', '합성']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-act="bagTab" data-v="${k}">${n}</button>`).join('')}</div>`;
+  const tabs = `<div class="seg bag-seg">${[['over', '장비'], ['bag', `가방 ${(p.gear || []).length}/80`], ['cons', '소모품'], ['fuse', '합성']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-act="bagTab" data-v="${k}">${n}</button>`).join('')}</div>`;
   const tools = `<div class="bag-tools"><div class="chips">${[['all', '전체'], ['w', '무기'], ['a', '장신구'], ['worn', '착용 중'], ['free', '미착용'], ['deckworn', '출전 멤버 착용']].map(([k, n]) => `<button class="chip ${filt === k ? 'on' : ''}" data-act="bagFilter" data-v="${k}">${n}</button>`).join('')}</div>
     <div class="chips sort">${[['r', '등급'], ['lv', '강화'], ['t', '종류'], ['new', '최근']].map(([k, n]) => `<button class="chip mini ${sort === k ? 'on' : ''}" data-act="bagSortV" data-v="${k}">${n}</button>`).join('')}</div></div>`;
   const grid = `<div class="bag-grid v2">${cells || `<div class="empty-state"><span>${ic('bag', '', 'sm')}</span><b>${filt === 'all' ? '아직 장비가 없어요' : '이 조건에 맞는 장비가 없어요'}</b><small>스테이지를 깨면 장비가 떨어져요</small></div>`}</div>`;
@@ -5233,12 +5321,14 @@ function showBag() {
     body = `<div class="eq-over v2"><div class="eq-head"><span class="eq-scope">${app.bagAll ? '가진 멤버 전부' : '지금 덱'}</span><button class="chip" data-act="bagAll">${app.bagAll ? '덱만 보기' : '전부 보기'}</button></div>
       <div class="eq-rows">${rows}</div>
  <p class="sub">칸을 누르면 끼울 장비를 골라요 · ${ic('gem', '', 'sm')} 강화석 <b>${p.stones | 0}</b></p></div>`;
+  } else if (tab === 'cons') {
+    body = `<div class="cons-inv">${L.CONS_IDS.map((id) => { const c = L.CONS[id], n = (p.cons || {})[id] | 0; return `<div class="ci-row ${n ? '' : 'none'}" style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small><small class="ci-tip">${esc(c.tip)}</small></span></div>`; }).join('')}</div><p class="sub">출전 화면 소모품 칸에 넣어 가면 전투 중에 눌러 써요 · 칸마다 판에 한 번</p>`;
   } else if (tab === 'bag') {
     body = `${tools}${app.bulk ? bulkBarHtml(p, locks) : ''}${grid}`;
   } else {
     body = `${fuseBarHtml(p)}${tools}${grid}`;
   }
-  const actions = tab === 'fuse' ? '' : `<div class="bag-actions">${tab === 'bag' && !app.bulk ? '<button class="btn" data-act="bulkOn">일괄 판매·분해</button>' : ''}<button class="btn primary" data-act="autoEquipAll">${ic('sparkle', '', 'sm')} ${tab === 'over' ? '출전 멤버 우선 자동 장착' : '자동 장착'}</button></div>`;
+  const actions = tab === 'fuse' || tab === 'cons' ? '' : `<div class="bag-actions">${tab === 'bag' && !app.bulk ? '<button class="btn" data-act="bulkOn">일괄 판매·분해</button>' : ''}<button class="btn primary" data-act="autoEquipAll">${ic('sparkle', '', 'sm')} ${tab === 'over' ? '출전 멤버 우선 자동 장착' : '자동 장착'}</button></div>`;
   show(`
     ${subTop('강화·장비')}
     ${tabs}

@@ -116,7 +116,7 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
+const LIVE_KEYS = ['cons', 'consRun', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
@@ -493,7 +493,10 @@ export function stageStart(stage, hell, guest) { return guest ? guestLive((p) =>
 export function stageFail(stage, guest) { return guest ? guestLive((p) => L.stageFail(p, stage, Date.now())) : liveCall('stage/fail', { stage }); }
 export function staminaBuy(guest) { return guest ? guestLive((p) => L.staminaBuy(p, Date.now())) : liveCall('stamina/buy', {}); }
 export function endlessStart(guest) { return guest ? guestLive((p) => L.endlessStart(p, false, Date.now())) : liveCall('endless/start', {}); }
-export function mailSync(guest) { return guest ? guestLive((p) => ({ mail: L.mailCount(p, Date.now()) })) : liveCall('mail/sync', {}); }
+export function mailSync(guest) { return guest ? guestLive((p) => { L.giftTake(p, L.WELCOME_GIFT, Date.now()); return { mail: L.mailCount(p, Date.now()) }; }) : liveCall('mail/sync', {}); }
+// 전투 소모품: 시작할 때 가져가는 것 빼기 · 끝나면 안 쓴 것 돌려받기 (서버가 개수를 믿음)
+export function consStart(ids, guest) { return guest ? guestLive((p) => L.consStart(p, ids, Date.now())) : liveCall('cons/start', { ids }); }
+export function consEnd(used, guest) { return guest ? guestLive((p) => L.consEnd(p, used)) : liveCall('cons/end', { used }); }
 export function mailClaim(id, guest) { return guest ? guestLive((p) => L.mailClaim(p, id, GUEST_UID, Date.now())) : liveCall('mail/claim', { id }); }
 export async function pvpRanking() { const r = await call('/api/langbang/pvp/ranking'); return r.ok ? r : null; }
 export function authToken() { return token(); }

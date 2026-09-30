@@ -789,8 +789,20 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   // 지난주 순위 보상 받기 (순위는 서버가 센다)
   const freeCtx = async (u) => ({ free: freeMaster(u) });
   // 우편함 채우기: 지난주 무한 주간 순위 보상 (한 번)
+  // 마스터가 보낸 선물 캠페인 (마스터 계정 기록에 저장 · 30초 캐시)
+  let giftCache = { at: 0, list: [] };
+  async function giftCampaigns(now) {
+    if (now - giftCache.at < 30e3) return giftCache.list;
+    const list = [];
+    for (const name of masterList()) { try { const m = await store.byName(String(name).toLowerCase()); const gs = m && m.stats && m.stats.langbang && m.stats.langbang.giftsSent; if (Array.isArray(gs)) list.push(...gs); } catch { /* 무시 */ } }
+    giftCache = { at: now, list };
+    return list;
+  }
   function lbMailSync(token) {
     return lbLive(token, (lb, id, now, ctx) => {
+      LIVE.giftTake(lb, LIVE.WELCOME_GIFT, now); // 소모품 첫 선물 (계정마다 한 번)
+      for (const c of ctx.gifts || []) if (LIVE.giftEligible(lb, c, now)) LIVE.giftTake(lb, c, now);
+      lb.lastSeenAt = now;
       const prev = LIVE.weekIndex(now) - 1;
       const e = lb.ew && lb.ew.wi === prev ? lb.ew : lb.ewPrev && lb.ewPrev.wi === prev ? lb.ewPrev : null;
       if (e && e.best > 0 && lb.ewPaid !== prev && ctx.rank) {
@@ -799,7 +811,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         lb.ewPaid = prev;
       }
       return { mail: LIVE.mailCount(lb, now) };
-    }, async (u, id, now) => ({ rank: await store.rankEndlessWeek(LIVE.weekIndex(now) - 1, id) }));
+    }, async (u, id, now) => ({ rank: await store.rankEndlessWeek(LIVE.weekIndex(now) - 1, id), gifts: await giftCampaigns(now) }));
   }
   function lbWeeklyClaim(token) {
     return lbLive(token, (lb, id, now, ctx) => {
@@ -900,6 +912,17 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           if (act === 'reset') { st.langbang = emptyLangbang(); return; }
           const lb = st.langbang = normLb(st.langbang);
           if (act === 'coins') lb.coins = Math.min(1e9, lb.coins + (v || 100000));
+          else if (act === 'gift') { // 선물 보내기: 최근 24시간 접속자 + 앞으로 24시간 안에 들어오는 사람 (계정마다 한 번)
+            const item = String(body.item || ''), qty = Math.max(1, Math.min(99, Math.floor(Number(body.qty) || 0)));
+            if (!LIVE.CONS[item]) throw new AuthError('없는 소모품이에요');
+            const now = Date.now(), day = new Date(now + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '');
+            const gid = String(body.giftId || `gift_${item}_${day}`).replace(/[^a-z0-9_]/gi, '').slice(0, 40);
+            lb.giftsSent = Array.isArray(lb.giftsSent) ? lb.giftsSent : [];
+            if (lb.giftsSent.some((c) => c.id === gid)) throw new AuthError('이미 보낸 선물이에요 (같은 선물 번호)');
+            lb.giftsSent.push({ id: gid, from: String(body.from || '이호찬').slice(0, 12), title: String(body.title || `${String(body.from || '이호찬').slice(0, 12)}님의 선물`).slice(0, 40), text: String(body.text || `${LIVE.CONS[item].name} ${qty}개 드려요`).slice(0, 80), rw: { cons: { [item]: qty } }, at: now, activeSince: now - 24 * 3600e3, openUntil: now + 24 * 3600e3, days: 14 });
+            if (lb.giftsSent.length > 20) lb.giftsSent = lb.giftsSent.slice(-20);
+            giftCache.at = 0;
+          }
           else if (act === 'testNormal') lb.testNormal = !!body.on; // 🧪 일반 유저처럼 테스트 켜기/끄기
           else if (act === 'stones') lb.stones = Math.min(99999, (lb.stones | 0) + (v || 50));
           else if (act === 'tickets') lb.tickets = Math.min(1e6, (lb.tickets | 0) + (v || 100));
@@ -1107,6 +1130,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/stamina/buy', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.staminaBuy(lb, now))));
     r.post('/endless/start', wrap((req) => lbLive(tok(req), (lb, id, now, ctx) => (LBR.endlessUnlocked(lb) || ctx.free ? LIVE.endlessStart(lb, ctx.free, now) : { error: '무한 도전은 1-10을 깨면 열려요' }), freeCtx)));
     r.post('/mail/sync', wrap((req) => lbMailSync(tok(req))));
+    r.post('/cons/start', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.consStart(lb, b(req).ids, now))));
+    r.post('/cons/end', wrap((req) => lbLive(tok(req), (lb) => LIVE.consEnd(lb, b(req).used))));
     r.post('/mail/claim', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.mailClaim(lb, b(req).id === 'all' ? 'all' : Math.floor(Number(b(req).id) || 0), id, now))));
     r.post('/weekly/start', wrap((req) => lbWeeklyStart(tok(req))));
     r.post('/weekly/claim', wrap((req) => lbWeeklyClaim(tok(req))));

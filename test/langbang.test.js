@@ -1869,3 +1869,28 @@ test('장비 뽑기: 강화석 · 80번째 신화 확정 · 10회는 영웅 이�
   assert.ok(myth >= 2, '200회에 신화 2개 이상');
   assert.equal(lb.stones, 100000 - 20 * L.GEAR_GACHA_COST.ten);
 });
+
+test('전투 소모품: 보조배터리 100% · 알디콤 상태이상 해제 + 면역 · 탬버린 공속 · 판마다 한 번 · 3초 간격', () => {
+  const g = S.createGame({ rng: seeded(77), noWaves: true, heroes: ['gunman', 'staff'] });
+  g.phase = 'wave';
+  g.cons = ['battery', 'aldicom', 'tambourine']; g.consUsed = {};
+  g.base.hp = g.base.max * 0.1;
+  assert.equal(S.useCons(g, 'battery'), true);
+  assert.equal(g.base.hp, g.base.max, '입구 가득');
+  assert.equal(S.useCons(g, 'aldicom'), false, '3초 간격');
+  for (let i = 0; i < 200; i++) S.step(g, 1 / 60);
+  g.heroes[0].stunT = 5; g.heroes[1].charmT = 5;
+  assert.equal(S.useCons(g, 'aldicom'), true);
+  assert.equal(g.heroes[0].stunT, 0); assert.equal(g.heroes[1].charmT, 0);
+  const e = S.spawnEnemy(g, 'thug', 150, g.ropeY - 40, { hpMul: 100 });
+  void e;
+  assert.ok(g.heroes[0].ccImmT > 4, '5초 면역');
+  const r0 = S.heroRate(g, g.heroes[0]);
+  for (let i = 0; i < 200; i++) S.step(g, 1 / 60);
+  assert.equal(S.useCons(g, 'tambourine'), true);
+  assert.ok(S.heroRate(g, g.heroes[0]) > r0 * 1.3, '탬버린 공속 +40%');
+  for (let i = 0; i < 200; i++) S.step(g, 1 / 60);
+  assert.equal(S.useCons(g, 'battery'), false, '판마다 한 번');
+  assert.equal(S.useCons(g, 'uiriju'), false, '가져가지 않은 건 못 씀');
+  const snap = S.snapshot(g); assert.deepEqual(Object.keys(snap.consUsed).sort(), ['aldicom', 'battery', 'tambourine']);
+});

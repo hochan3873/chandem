@@ -3449,3 +3449,38 @@ body.rm .screen.enter, body.rm .screen.enter > * { animation: none !important; }
 @keyframes rkMq { 0% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--mq, 0)); } }
 body.rm #lbRank .rk-in.mq { animation: none; white-space: normal; word-break: keep-all; }
 #lbRank { overflow: hidden; } body.rm #lbRank { height: auto; min-height: calc(var(--u) * 22); }
+
+/* 소모품: 출전 칸 · 고르기 · 전투 버튼 · 가방 */
+.pp-cons { margin: calc(var(--u) * 6) 0; padding: calc(var(--u) * 8); border-radius: calc(var(--u) * 14); background: rgba(10, 6, 22, 0.7); border: 1.5px solid rgba(255, 255, 255, 0.12); }
+.pp-cons.tut { border-color: #ffd23f; box-shadow: 0 0 0 2px rgba(255, 210, 63, 0.35), 0 0 calc(var(--u) * 14) rgba(255, 210, 63, 0.45); animation: cqTut 1.4s ease-in-out infinite; }
+@keyframes cqTut { 50% { box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.6), 0 0 calc(var(--u) * 20) rgba(255, 210, 63, 0.7); } }
+body.rm .pp-cons.tut { animation: none; }
+.pp-cons .cq-h { display: flex; align-items: baseline; gap: calc(var(--u) * 6); margin-bottom: calc(var(--u) * 6); }
+.pp-cons .cq-h small { color: var(--dim); font-size: calc(var(--u) * 10); word-break: keep-all; }
+.cq-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 6); }
+.cq-slot { position: relative; min-height: 44px; display: flex; align-items: center; gap: calc(var(--u) * 4); padding: calc(var(--u) * 5); border-radius: calc(var(--u) * 10); background: rgba(0, 0, 0, 0.45); border: 2px solid var(--rc, #4a3f60); color: #fff; font-size: calc(var(--u) * 10.5); text-align: left; }
+.cq-slot.empty { border-style: dashed; color: var(--dim); justify-content: center; }
+.cq-slot.none { opacity: 0.55; }
+.cq-slot .cs-ic { width: calc(var(--u) * 30); height: calc(var(--u) * 30); object-fit: contain; flex-shrink: 0; }
+.cq-slot b { font-weight: 900; line-height: 1.15; word-break: keep-all; }
+.cq-slot .cq-n { position: absolute; right: calc(var(--u) * 3); top: calc(var(--u) * 2); font-style: normal; font-weight: 900; font-size: calc(var(--u) * 10); color: #fff; text-shadow: 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
+.cq-plus { font-size: calc(var(--u) * 18); font-weight: 900; }
+.cq-tip { margin: calc(var(--u) * 6) 0 0; text-align: center; font-weight: 900; color: #ffe07a; font-size: calc(var(--u) * 11.5); word-break: keep-all; text-shadow: 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
+.cs-list { display: grid; gap: calc(var(--u) * 6); margin: calc(var(--u) * 6) 0; }
+.cs-row, .ci-row { display: flex; align-items: center; gap: calc(var(--u) * 8); min-height: 52px; padding: calc(var(--u) * 6) calc(var(--u) * 8); border-radius: calc(var(--u) * 12); background: rgba(0, 0, 0, 0.4); border: 2px solid var(--rc); color: #fff; text-align: left; }
+.cs-row.on { box-shadow: 0 0 0 2px #ffd23f inset; }
+.cs-row.none, .ci-row.none { opacity: 0.5; }
+.cs-row .cs-ic, .ci-row .cs-ic { width: calc(var(--u) * 42); height: calc(var(--u) * 42); object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 calc(var(--u) * 6) color-mix(in srgb, var(--rc) 60%, transparent)); }
+.cs-row span, .ci-row span { display: flex; flex-direction: column; gap: 2px; }
+.cs-row b em, .ci-row b em { font-style: normal; color: #ffe07a; }
+.cs-row small, .ci-row small { color: #d8d0ee; font-size: calc(var(--u) * 10.5); word-break: keep-all; line-height: 1.35; }
+.ci-row .ci-tip { color: var(--dim); }
+.cons-inv { display: grid; gap: calc(var(--u) * 8); margin: calc(var(--u) * 8) 0; }
+#consbar { position: absolute; right: calc(var(--u) * 8); top: calc(var(--u) * 96 + env(safe-area-inset-top)); z-index: 30; display: flex; flex-direction: row; gap: calc(var(--u) * 8); } /* 위쪽 오른편: 멤버 줄 · 스킬 버튼을 가리지 않게 */
+#consbar .cb { position: relative; width: 48px; height: 48px; border-radius: 50%; padding: 0; background: radial-gradient(circle, color-mix(in srgb, var(--rc) 45%, #140c26) 0, #140c26 70%); border: 2.5px solid var(--rc); box-shadow: 0 calc(var(--u) * 3) 0 rgba(0, 0, 0, 0.5); overflow: visible; }
+#consbar .cb .cs-ic { width: 78%; height: 78%; object-fit: contain; }
+#consbar .cb.used { filter: grayscale(1) brightness(0.55); }
+#consbar .cb .cb-n { position: absolute; right: -4px; bottom: -4px; min-width: 18px; height: 18px; border-radius: 99px; background: #1a0b1f; border: 1.5px solid var(--rc); color: #fff; font-style: normal; font-weight: 900; font-size: 11px; line-height: 15px; text-align: center; }
+#consbar .cb .cb-cd { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgba(8, 5, 18, 0.7) calc(var(--cd, 0) * 360deg), transparent 0); pointer-events: none; }
+.mail-row .mail-from { display: block; font-style: normal; font-size: calc(var(--u) * 10); color: #ffe07a; font-weight: 800; }
+.sec-t { margin: calc(var(--u) * 14) 0 calc(var(--u) * 6); font-size: calc(var(--u) * 14); }

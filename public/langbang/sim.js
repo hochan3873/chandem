@@ -139,6 +139,7 @@ export function addHero(g, id, want) {
     motoN: 0, meter: 0, upT: 0, burstT: 0, serious: 1, // 백인규 오토바이 게이지 · 문동한 간보기
     out: false, outT: 0, restT: 0, px: g.slotX[slot], py: g.rowY, dashE: null, // 김영준 돌격
   };
+  Object.defineProperty(h, '_g', { value: g, enumerable: false, writable: true }); // 소모품 효과 확인용 (저장에는 안 들어감)
   g.heroes.push(h);
   if (id === 'bangjang') g.mods.ultCharge += NICHE.bangjang.ult * h.meta; // 방장: 강화할수록 총공지가 빨리 찬다
   if (id === 'gunnyeo') g.mods.baseArmor *= 1 - Math.min(0.3, NICHE.gunnyeo.guard * h.meta); // 건전녀: 입구 보호
@@ -182,7 +183,7 @@ function critOf(g, h) { return g.mods.crit + (h && h.gear ? h.gear.crit || 0 : 0
 export function heroSpeedMul(h) {
   return (h.rumorT > 0 ? 1 - ENEMIES.inpi_gossip.rumor.cut : 1) * (h.fearT > 0 ? 1 - ENEMIES.scammer.scam.fear : 1)
     * (h.paperT > 0 ? 1 - ENEMIES.boss_loan.paper.cut : 1)
-    * (h.vomitT > 0 ? 1 - ENEMIES.vomit.puke.cut : 1) * (h.drowsyT > 0 ? 1 / (1 + ENEMIES.kkondae.latte.slow) : 1);
+    * (h.vomitT > 0 ? 1 - ENEMIES.vomit.puke.cut : 1) * (h.drowsyT > 0 ? 1 / (1 + ENEMIES.kkondae.latte.slow) : 1) * (h._g && h._g.tambT > 0 ? 1.4 : 1); // 노래방 탬버린 +40%
 }
 // 공격 속도 배율: 전투 계산과 화면 표시가 같은 식을 쓴다 (강화·장비·카드·증강·오라·기진맥진·템포 모두)
 export function heroRate(g, h, aura = auraBonus(g), sing = 0) {
@@ -222,6 +223,7 @@ function updateHeroes(g, dt) {
     if (h.fearT > 0) h.fearT -= dt;
     if (h.sarcT > 0) h.sarcT -= dt;
     if (h.silenceT > 0) h.silenceT -= dt;
+    if (h.ccImmT > 0) h.ccImmT -= dt;
     if (h.skillCd > 0 && !(h.silenceT > 0)) h.skillCd -= dt;
     // 최은옥: 술 → 분노 → 술 깸 반복
     if (d.soberSec) {
@@ -1803,7 +1805,7 @@ function victim(g, list, dflt) {
   const pool = inRow.length ? inRow : list;
   return dflt && !dflt.out ? dflt : pool[(g.rng() * pool.length) | 0];
 }
-function debuffSec(h, sec) { return (h.def.taunt ? sec * h.def.taunt : sec) * (h.debuffMul || 1) * (1 - resOf(h.meta, h.gear && h.gear.res)); } // 강화 · 장비 저항
+function debuffSec(h, sec) { if (h.ccImmT > 0) return 0; /* 알디콤: 잠깐 상태이상 면역 */ return (h.def.taunt ? sec * h.def.taunt : sec) * (h.debuffMul || 1) * (1 - resOf(h.meta, h.gear && h.gear.res)); } // 강화 · 장비 저항
 
 // 보스가 큰 기술을 쓴 직후 2.5초 "빈틈!" — 받는 피해 1.5배
 function bossWeak(g, e) {
@@ -2701,6 +2703,8 @@ export function step(g, dt) {
   updateProjs(g, dt);
   if (g.pools.length) updatePools(g, dt);
   if (g.rallyT > 0) g.rallyT -= dt;
+  if (g.tambT > 0) g.tambT -= dt;
+  if (g.consCdT > 0) g.consCdT -= dt;
   if (g.encoreT > 0) g.encoreT -= dt;
   if (g.hcT > 0) g.hcT -= dt;
   if (g.hcSkT > 0) g.hcSkT -= dt;
@@ -3061,7 +3065,7 @@ export function snapshot(g) {
     heroes: g.heroes.map((h) => ({ id: h.id, lv: h.lv, slot: h.slot, kills: h.kills, dmgDone: h.dmgDone, evo: !!h.evo, cm: h.cm, cmN: h.cmN || 0, guest: !!h.guest, skEvo: !!h.skEvo })),
     mods: Object.assign({}, g.mods, { attrDmg: Object.assign({}, g.mods.attrDmg), tagDmg: Object.assign({}, g.mods.tagDmg) }), stacks: Object.assign({}, g.stacks),
     hiddenTaken: Object.assign({}, g.hiddenTaken), heroesUsed: Object.assign({}, g.heroesUsed),
-    level: g.level, exp: g.exp, need: g.need, pendingLevels: g.pendingLevels, welcomePicks: g.welcomePicks,
+    level: g.level, exp: g.exp, need: g.need, pendingLevels: g.pendingLevels, welcomePicks: g.welcomePicks, cons: (g.cons || []).slice(), consUsed: Object.assign({}, g.consUsed || {}),
     base: { hp: g.base.hp, max: g.base.max }, ult: g.ult, stats: Object.assign({}, g.stats),
     meta: Object.assign({}, g.meta), items: Object.assign({}, g.items), unlocked: g.unlocked.slice(), trial: (g.trial || []).slice(),
     curses: g.curses || [], scoreMul: g.scoreMul || 1, coinMul: g.coinMul || 1, streak: g.streak || 1, twinBoss: !!g.twinBoss,
@@ -3093,6 +3097,7 @@ export function restoreGame(snap, opt = {}) {
   g.base.max = snap.base.max; g.base.hp = clamp(snap.base.hp, 1, snap.base.max);
   g.ult = snap.ult || 0;
   Object.assign(g.stats, snap.stats || {});
+  g.cons = (snap.cons || []).slice(); g.consUsed = Object.assign({}, snap.consUsed || {});
   g.t = snap.t || 0;
   g.wave = Math.max(0, (snap.wave || 1) - 1);
   g.phase = 'break';
@@ -3106,4 +3111,27 @@ export function restoreGame(snap, opt = {}) {
   for (const h of g.heroes) h.picks = (snap.picks || {})[h.id] || 0;
   g.events.length = 0;
   return g;
+}
+
+// ─── 전투 소모품 (live.js CONS) — 칸마다 판에 한 번 · 소모품끼리 3초 간격 ───
+export const CONS_CD = 3;
+export function consReady(g, id) { return !!(g.cons && g.cons.includes(id) && !(g.consUsed || {})[id] && !(g.consCdT > 0) && !g.over && !(g.pvp && g.pvp.ranked)); }
+export function useCons(g, id) {
+  if (!consReady(g, id)) return false;
+  (g.consUsed = g.consUsed || {})[id] = true;
+  g.consCdT = CONS_CD;
+  if (id === 'battery') { // 보조배터리: 입구 100%
+    const v = Math.max(0, g.base.max - g.base.hp);
+    g.base.hp = g.base.max;
+    ev(g, 'consUse', { id, v: Math.round(v), x: g.W / 2, y: g.ropeY });
+  } else if (id === 'aldicom') { // 알디콤: 상태이상 전부 풀기 + 5초 면역 · 입구 근처 진상 버프 깨기
+    for (const h of g.heroes) { h.stunT = 0; h.charmT = 0; h.rumorT = 0; h.fearT = 0; h.paperT = 0; h.grabT = 0; h.silenceT = 0; h.aspdDebT = 0; h.vomitT = 0; h.blindT = 0; h.drowsyT = 0; h.ccImmT = Math.max(h.ccImmT || 0, 5); }
+    let n = 0;
+    for (const e of g.enemies) if (!e.dead && e.y > g.ropeY - 220) { if (e.shield > 0 || e.dictT > 0 || e.gaoOn) n++; e.shield = 0; e.dictT = 0; e.gaoOn = false; e.noShieldT = Math.max(e.noShieldT || 0, 3); e.auraOffT = Math.max(e.auraOffT || 0, 3); }
+    ev(g, 'consUse', { id, n, x: g.W / 2, y: g.ropeY });
+  } else if (id === 'tambourine') { // 노래방 탬버린: 8초 공속 +40%
+    g.tambT = 8;
+    ev(g, 'consUse', { id, sec: 8, x: g.W / 2, y: g.rowY });
+  } else return false;
+  return true;
 }
