@@ -6,7 +6,7 @@ import {
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
-  TRAITS, stageMix, CURSES,
+  TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
 } from './data.js';
 import * as L from './live.js';
 import * as S from './sim.js';
@@ -574,6 +574,12 @@ function handleEvents(g, loud) {
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
       case 'heroStun': if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); break;
       case 'curseOffer': showCurseOffer(e.opts); break;
+      case 'augOffer': showAugOffer(e.opts, e.tier); break;
+      case 'aug': fx.banner(`✨ ${e.title}`, `${TIER_NAMES[e.tier] || ''} 증강`, e.tier === 'prism' ? '#2a6aa0' : e.tier === 'gold' ? '#a07010' : '#4a5a70', 1.3, 'wave'); fx.flash(e.tier === 'prism' ? '#7df9ff' : '#ffd23f', 0.2); break;
+      case 'tech': fx.banner(`${TAGS[e.tag].icon} ${e.title}`, `${TIER_NAMES[e.tier]} 테크`, e.tier === 'prism' ? '#2a6aa0' : '#a07010', 1.1, 'wave'); break;
+      case 'setBonus': fx.text(180, 170, `${TAGS[e.tag].icon} ${TAGS[e.tag].name} ${e.n}세트! +${Math.round(SET_BONUS[e.n] * 100)}%`, '#7dff9a', 17, 1.3); break;
+      case 'ccGet': fx.text(e.x, e.y - 80, `${CC_KINDS[e.kind].icon} ${CC_KINDS[e.kind].name}!`, CC_KINDS[e.kind].color, 14, 1.0); break;
+      case 'cc': if (!busy) fx.text(e.x, e.y, CC_KINDS[e.kind].icon, CC_KINDS[e.kind].color, 14, 0.5, -30); break;
       case 'curse': fx.banner(`${CURSES[e.id].icon} 계약: ${e.name}`, CURSES[e.id].up, '#5a1a7a', 1.3, 'wave'); closeCurseOffer(); break;
       case 'idleEv': fx.banner(e.kind === 'rush' ? '⚡ 진상 러시! 스킬 2번!' : '💰 주머니 3개 누르기!', e.kind === 'rush' ? '10초 안에 · 못 하면 벌칙 진상' : '8초 안에 · 성공하면 점수 배율 ↑', '#8a5a00', 1.6, 'wave'); A.sfx.charm && A.sfx.charm(); break;
       case 'idleEnd': if (e.ok) { fx.text(180, 200, `성공! 배율 ×${e.streak.toFixed(2)}`, '#ffe066', 18, 1.2); A.sfx.levelUp(); } else { fx.text(180, 200, '실패… 벌칙 진상!', '#ff5a5a', 18, 1.2); fx.addShake(5); } break;
@@ -1073,7 +1079,7 @@ function frame(now) {
   fx.noBanner = !live;
   if (app.hitStop > 0) { app.hitStop -= dt; dt = 0; }
   if (g && !app.paused && !app.confirmOpen) {
-    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && app.cardsOpen ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
+    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
     const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
     if (live && live.mode === 'endless' && !live.over && !app.paused) {
       const idle = performance.now() - (app.lastInput || performance.now());
@@ -1690,6 +1696,17 @@ const REWARD_INFO = {
   pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>⚔️ 1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 🎉 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">🏆 ${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? ' ✅' : ''}</p>`).join('')}</div>`; },
   raid: () => `<h3>🐉 레이드 보상</h3><div class="ilist"><p class="ip">참가: 코인 · 보스 체력을 깎은 만큼 (50% 넘으면 모집권)</p><p class="ip">처치 성공: 모두 코인 2,000 + 기여도 · 1위 전설 장비 + 칭호 "레이드 MVP" · 2~3위 영웅 장비 · TOP10 모집권</p><p class="ip">한 판마다 💎 강화석 2</p></div>`,
 };
+// 증강: 셋 중 하나 (15초면 첫 번째) · 등급 빛 · 뒤집히며 등장
+const augBox = document.createElement('div');
+augBox.className = 'aug-box';
+augBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-aug]'); if (b && app.g && S.applyAug(app.g, b.dataset.aug)) { handleEvents(app.g, true); A.sfx.pick(); } });
+function showAugOffer(opts, tier) {
+  augBox.className = 'aug-box t-' + tier;
+  augBox.innerHTML = `<div class="ab-head"><b>✨ 증강 선택 · ${TIER_NAMES[tier]}</b><small><em id="abT">15</em>초 뒤 자동</small></div><div class="ab-list">${opts.map((id, i) => { const a = S.augDef(id); return `<button class="ab-card t-${a.tier}" data-aug="${id}" style="--i:${i}"><span class="ab-ico">${a.hero ? av(HEROES[a.hero]) : a.icon}</span><b>${esc(a.title)}</b><small>${esc(a.desc)}</small></button>`; }).join('')}</div>`;
+  if (!augBox.isConnected) stage.appendChild(augBox);
+  A.sfx.card && A.sfx.card();
+}
+setInterval(() => { const g = app.g, t = document.getElementById('abT'); if (g && g.augOffer && t) t.textContent = Math.ceil(g.augOffer.t); if ((!g || !g.augOffer) && augBox.isConnected) augBox.remove(); }, 250);
 // 무한 저주 계약: 셋 중 하나 (10초 안에 안 고르면 아무거나)
 const curseBox = document.createElement('div');
 curseBox.className = 'curse-box';
@@ -3390,7 +3407,7 @@ function synTrayHtml(g, big) {
     const on = n >= 2;
     out.push(`<span class="sy ${on ? 'on' : ''}" title="${ATTRS[a].name}">${attrIco(a)}${n}${on ? `<small>+${Math.round(ATTR_SET[Math.min(ATTR_SET.length - 1, n)] * 100)}%</small>` : ''}</span>`);
   }
-  for (const t of Object.keys(TAGS)) { const k = g.stacks['tag_' + t] || 0; if (k) out.push(`<span class="sy tag on">${TAGS[t].icon}${k > 1 ? '×' + k : ''}</span>`); }
+  for (const t of Object.keys(TAGS)) { const k = (g.tagCnt || {})[t] || 0; if (k) out.push(`<span class="sy tag ${k >= 3 ? 'on' : ''}" title="${TAGS[t].name}">${TAGS[t].icon}${k}<small>/${k >= 5 ? '★' : k >= 3 ? 5 : 3}</small></span>`); }
   const evo = g.heroes.filter((h) => h.evo).length;
   if (evo) out.push(`<span class="sy evo on">✨${evo}</span>`);
   if (!big && out.length > 8 && !app.synOpen) { const more = out.length - 7; out.length = 7; out.push(`<span class="sy more" data-act="synMore">+${more}</span>`); }
@@ -3416,12 +3433,15 @@ function cardHtml(c, i) {
   const main = (c.desc || '').split(/ · |\. |, /)[0];
   const hl = esc(main).replace(/([+\-−×]?\d+(?:\.\d+)?\s?(?:%|%p|초|배|명|칸|번)?)/g, '<em>$1</em>');
   const badge = c.hero && c.kind !== 'addHero' ? `<span class="c-ico">${c.icon}</span>` : '';
-  return `<button class="card v3 fr-${c.rarity === 'hidden' ? 'legend' : c.rarity === 'rare' && (c.kind === 'heroLv' || c.kind === 'addHero') ? 'epic' : c.rarity} ${c.rarity} k-${c.kind} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''} ${app.cardSel === i ? 'sel' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
+  const g0 = app.g, tg = (c.tags || [])[0], cnt = tg && g0 ? ((g0.tagCnt || {})[tg] || 0) : 0;
+  const pathLine = tg && TAGS[tg] ? `<span class="c-path">${TAGS[tg].icon} ${TAGS[tg].name} ${cnt}→${cnt + 1}${cnt + 1 >= 5 ? ' ★' : cnt + 1 >= 3 ? ' 세트!' : ''}${c.tier ? ` · ${TIER_NAMES[c.tier]}` : c.id === 'tag_' + tg && TECH[tg] ? ' · 다음: 골드' : ''}</span>` : '';
+  return `<button class="card v3 ${c.onPath ? 'onpath' : ''} fr-${c.tier === 'prism' ? 'legend' : c.tier === 'gold' ? 'epic' : c.kind === 'cc' ? 'rare' : c.rarity === 'hidden' ? 'legend' : c.rarity === 'rare' && (c.kind === 'heroLv' || c.kind === 'addHero') ? 'epic' : c.rarity} ${c.rarity} k-${c.kind} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''} ${app.cardSel === i ? 'sel' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
     ${isNew ? '<em class="new">NEW</em>' : ''}${stack}${rec ? '<em class="rec-b">추천</em>' : ''}
     <div class="medal">${icon}${badge}</div>
     <div class="band"><b>${esc(c.title)}</b></div>
     <p class="c-main ${main.length > 16 ? 'long' : ''} ${main.length > 24 ? 'xlong' : ''}">${hl}</p>${cardAttr(c) ? `<p class="c-who" style="--ac:${ATTRS[cardAttr(c)].color}">${attrChip(cardAttr(c))} → ${esc(attrWho(app.g, cardAttr(c)) || '지금 덱엔 없음')}</p>` : ''}
-    <div class="cfoot"><span class="rar">${r.name}</span>${syn.length ? `<span class="syn">${[...new Set(syn)].join('')}</span>` : ''}</div>
+    ${pathLine}${c.kind === 'cc' ? `<span class="c-cc" style="--cc:${CC_KINDS[c.cc].color}">${CC_KINDS[c.cc].icon} ${CC_KINDS[c.cc].name}</span>` : ''}
+    <div class="cfoot"><span class="rar">${c.tier ? TIER_NAMES[c.tier] : r.name}</span>${syn.length ? `<span class="syn">${[...new Set(syn)].join('')}</span>` : ''}</div>
   </button>`;
 }
 // 레벨업 카드 띠: 게임은 계속 흘러간다 — 한 번 누르면 바로 선택 (뜬 뒤 0.4초는 무시)

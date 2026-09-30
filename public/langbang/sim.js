@@ -7,6 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI,
   CURSES, ENDLESS_TUNE,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -1891,6 +1892,14 @@ export function hitEnemy(g, p, e) {
     else { e.slowT = Math.max(e.slowT, 2); e.slowMul = Math.min(e.slowMul || 1, 0.6); }
     ev(g, 'kick', { x: e.x, y: e.y - 20, big: true });
   }
+  if (h && h.cc && !e.dead && g.rng() < CC_ON_HIT.chance[Math.min(2, (h.ccN || 1) - 1)]) {
+    const k = h.cc;
+    if (k === 'stun' || k === 'freeze') { if (!e.boss) e.stunT = Math.max(e.stunT, CC_ON_HIT[k] * stunMul(e) * g.mods.ctrlMul); else { e.slowT = Math.max(e.slowT, 1); e.slowMul = Math.min(e.slowMul || 1, 0.7); } }
+    else if (k === 'slow') { e.slowT = Math.max(e.slowT, CC_ON_HIT.slow * g.mods.ctrlMul); e.slowMul = Math.min(e.slowMul || 1, 0.55); }
+    else if (k === 'kb') applyKnockback(e, CC_ON_HIT.kb * g.mods.kbMul, g);
+    else if (k === 'pull' && !e.boss) { const others = g.enemies.filter((o) => !o.dead && o !== e && Math.hypot(o.x - e.x, o.y - e.y) < 120); for (const o of others.slice(0, 4)) { o.x += (e.x - o.x) * 0.35; o.y += (e.y - o.y) * 0.2; } }
+    if (g.t - (e.ccT || -9) > 0.5) { e.ccT = g.t; ev(g, 'cc', { kind: k, x: e.x, y: e.y - e.def.size * 0.7 }); }
+  }
   if (p.type === 'mosaic' && h && h.def.shred) { const sd = h.def.shred; e.shredPer = sd.per + (h.lv >= 5 ? 0.02 : 0); e.shredN = Math.min(sd.max + (h.lv >= 3 ? 1 : 0) + (h.cm.shredMax || 0), e.shredN + 1); e.shredT = sd.sec + (h.cm.shredSec || 0); e.healBlockT = Math.max(e.healBlockT, 2); }
   if (p.type === 'nag' && h && h.def.nag) { const jy = g.heroes.find((o) => o.id === 'junyoung' && !o.gone); if (jy) jy.nagStack = Math.min(10, (jy.nagStack || 0) + 1); }
   if (p.type === 'nag' && h && h.def.nag && !hasHero(g, 'junyoung')) h.meter = Math.min(100, (h.meter || 0) + h.def.nag.perHit[h.lv - 1] * (h.cm.nagFill || 1) * (h.lv >= 3 ? 1.15 : 1));
@@ -2053,6 +2062,56 @@ export function waveDefFor(g, n) {
   if (g.weekly) { const d = g.weekly.waves[n - 1] || g.weekly.waves[g.weekly.waves.length - 1]; return g.raid && n > 1 && d.boss ? Object.assign({}, d, { boss: undefined }) : d; }
   return g.mode === 'stage' ? stageWave(g.stage, n) : waveDef(n);
 }
+// ─── 증강: 셋 중 하나 (15초면 추천 · 1:1 대전은 두 사람이 같은 셋) ───
+export function augOptions(g, tier) {
+  const have = new Set(g.augs || []);
+  const pool = AUGMENTS.filter((a) => a.tier === tier && !have.has(a.id));
+  const heroes = g.heroes.filter((h) => HERO_AUG[h.id] && !have.has('ha_' + h.id) && !h.def.summon);
+  const opts = [];
+  const rng = g.pvp ? seedRngLocal((g.pvp.seed | 0) * 31 + g.wave) : g.rng; // 대전: 같은 시드 → 같은 셋
+  if (heroes.length && tier !== 'silver') { const h = heroes[(rng() * heroes.length) | 0]; opts.push('ha_' + h.id); }
+  while (opts.length < 3 && pool.length) opts.push(pool.splice((rng() * pool.length) | 0, 1)[0].id);
+  return opts;
+}
+function seedRngLocal(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function offerAug(g, tier) {
+  const opts = augOptions(g, tier);
+  if (!opts.length) return;
+  g.augOffer = { opts, tier, t: 15 };
+  ev(g, 'augOffer', { opts, tier });
+}
+export const AUG_STAGE = 0.35; // 스테이지 · 대전 · 주간: 증강 효과를 줄여서 (판이 짧아서 너무 쉬워지지 않게)
+export function augDef(id) {
+  if (id.startsWith('ha_')) { const h = id.slice(3); return { id, tier: 'gold', icon: '✨', title: HERO_AUG[h], desc: `${(HEROES[h] || SUMMONS[h] || {}).name || h} 전용 — 전용 카드 효과 두 번 + 공격력 +40%`, hero: h }; }
+  return AUGMENTS.find((a) => a.id === id);
+}
+export function applyAug(g, id) {
+  if (!g.augOffer || !g.augOffer.opts.includes(id)) return false;
+  const a = augDef(id);
+  g.augOffer = null;
+  (g.augs = g.augs || []).push(id);
+  const m = g.mods;
+  if (a.hero) {
+    const h = hasHero(g, a.hero), hc = HERO_CARDS[a.hero];
+    if (h) { for (let k = 0; k < (g.mode === 'endless' ? 2 : 1); k++) { if (hc) { for (const [kk, v] of Object.entries(hc.mul || {})) h.cm[kk] = (h.cm[kk] || 1) * v; for (const [kk, v] of Object.entries(hc.add || {})) h.cm[kk] = (h.cm[kk] || 0) + v; } } h.cmN = (h.cmN || 0) + 2; }
+  } else {
+    // 강화가 높은 덱일수록 증강이 더 세다 (평균 강화 0 → ×0.7 · 20 → ×1.7) — 무한에서 강한 덱이 더 멀리 가게
+    const hs = g.heroes.filter((h) => !h.def.summon), k = (0.7 + (hs.reduce((x, h) => x + (h.meta || 0), 0) / Math.max(1, hs.length)) / 20) * (g.mode === 'endless' ? 1 : AUG_STAGE);
+    const f = {}; for (const [kk, v] of Object.entries(a.fx)) f[kk] = ['dmg', 'spd', 'boss', 'swarm', 'path', 'crit', 'critMul', 'exp'].includes(kk) ? v * k : v;
+    if (f.dmg) m.dmg += f.dmg; if (f.spd) m.spd += f.spd; if (f.exp) m.expMul += f.exp;
+    const soft = g.mode === 'endless' ? 1 : 0.5;
+    if (f.hp) { g.base.max = Math.round(g.base.max * (1 + f.hp * soft)); g.base.hp = g.base.max; }
+    if (f.crit) m.crit += f.crit; if (f.critMul) m.critMul += f.critMul;
+    if (f.cd) { const c = 1 - (1 - f.cd) * soft; g.cdMul *= c; for (const h of g.heroes) h.skillCd *= c; }
+    if (f.swarm) m.swarmDmg += f.swarm; if (f.splash) m.splashMul *= f.splash;
+    if (f.boss) m.bossDmg += f.boss; if (f.slow) { m.enemySpd *= f.slow; for (const e of g.enemies) e.speed *= f.slow; } if (f.ctrl) m.ctrlMul *= f.ctrl;
+    if (f.ult) m.ultCharge += f.ult; if (f.ultDmg) m.ultDmg += f.ultDmg;
+    if (f.echo) for (const h of g.heroes) h.skEvo = true;
+    if (f.path) { const top = Object.entries(g.tagW || {}).sort((x, y) => y[1] - x[1])[0]; if (top) { m.tagDmg[top[0]] = (m.tagDmg[top[0]] || 0) + f.path + 0.35; } }
+  }
+  ev(g, 'aug', { id, title: a.title, tier: a.tier });
+  return true;
+}
 // ─── 무한 도전: 저주 계약 · 자리 비움 방지 이벤트 ───
 function offerCurse(g) {
   const have = new Set((g.curses || []).map((c) => c.id));
@@ -2114,6 +2173,7 @@ export function tapBag(g, x, y) {
 export function startWave(g, n) {
   g.wave = n;
   if (g.mode === 'endless' && n > 1 && (n - 1) % 5 === 0 && !g.pvp) offerCurse(g);
+  if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 5].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism');
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
   g.hpScale = def.hpScale || 1;
@@ -2562,6 +2622,7 @@ export function step(g, dt) {
   if (g.harleys && g.harleys.length) updateHarleys(g, dt); // 백인규 할리
   if (g.tauntZone && (g.tauntZone.t -= dt) <= 0) g.tauntZone = null;
   updateIdleEv(g, dt);
+  if (g.augOffer && g.phase !== 'intro' && (g.augOffer.t -= dt) <= 0) applyAug(g, g.augOffer.opts[0]);
   if (g.bossSlowT > 0) g.bossSlowT -= dt;
   if (g.hbeams && g.hbeams.length) { for (const q of g.hbeams) q.t -= dt; g.hbeams = g.hbeams.filter((q) => q.t > 0); }
   updateMapFx(g, dt);
@@ -2628,7 +2689,25 @@ export function cardPool(g) {
     if (c.attr) { const k = g.attrCount[c.attr] || 0; if (!k) continue; w = 2.5 + 2.5 * k; } // 그 속성 멤버가 많을수록 잘 나온다
     if (c.tag && c.tag !== 'boss') { const k = tagN[c.tag] || 0; if (!k) continue; w = 2 + 2 * k; }
     if (c.risk) w = 2.2;
-    pool.push({ key: c.id, kind: 'global', id: c.id, rarity: c.rarity, icon: c.icon, title: c.title, desc: c.desc, stack: n, w, attr: c.attr || null, tag: c.tag || null, risk: !!c.risk });
+    const tags = c.tag ? [c.tag] : CARD_TAGS[c.id] || [];
+    pool.push({ key: c.id, kind: 'global', id: c.id, rarity: c.rarity, icon: c.icon, title: c.title, desc: c.desc, stack: n, w: w * pathW(g, tags), attr: c.attr || null, tag: c.tag || null, tags, risk: !!c.risk });
+  }
+  // 테크: 실버(tag_ 카드)를 가지면 골드 · 골드를 가지면 프리즘
+  for (const [t, tiers] of Object.entries(TECH)) {
+    const have1 = (g.stacks['tag_' + t] || 0) > 0 || (t === 'boss' && (g.stacks.boss || 0) + (g.stacks.crit || 0) > 0) || (t === 'heal' && (g.stacks.hp || 0) + (g.stacks.regen || 0) > 0);
+    for (let k = 0; k < 2; k++) {
+      const id = `tech_${t}_${k + 2}`;
+      if (g.stacks[id]) continue;
+      if (k === 0 ? !have1 : !g.stacks[`tech_${t}_2`]) continue;
+      pool.push({ key: id, kind: 'global', id, rarity: k === 0 ? 'rare' : 'legend', tier: k === 0 ? 'gold' : 'prism', icon: TAGS[t].icon, title: tiers[k].title, desc: tiers[k].desc, stack: 0, w: (k === 0 ? 5 : 3.5) * pathW(g, [t]), tag: t, tags: [t] });
+    }
+  }
+  // 제어 분기: Lv2 이상 멤버마다 한 번 (맞히면 가끔 기절·감속·빙결·밀치기·끌어당기기)
+  for (const h of g.heroes) {
+    const kind = HERO_CC[h.id];
+    if (!kind || h.lv < 2 || (h.ccN || 0) >= 3) continue;
+    const K = CC_KINDS[kind];
+    pool.push({ key: 'cc:' + h.id, kind: 'cc', hero: h.id, cc: kind, rarity: 'rare', icon: K.icon, title: `${h.def.name}: ${K.name} ${['I', 'II', 'III'][h.ccN || 0]}`, desc: `맞히면 ${Math.round(CC_ON_HIT.chance[h.ccN || 0] * 100)}% 확률로 ${K.name}`, w: 3.2 * pathW(g, ['ctrl']), tags: ['ctrl'] });
   }
   // 진화: Lv5 + 짝 특성 카드
   for (const h of g.heroes) {
@@ -2656,6 +2735,11 @@ export function rollCards(g, n = RULES.cardChoices, opt = {}) {
     for (; i < pool.length - 1; i++) { r -= pool[i].w; if (r <= 0) break; }
     picks.push(pool.splice(i, 1)[0]);
   }
+  const top = Object.entries(g.tagW || {}).sort((a, b) => b[1] - a[1])[0];
+  if (top && top[1] >= 2 && picks.length >= 2 && !picks.some((c) => (c.tags || []).includes(top[0]))) {
+    const on = pool.filter((c) => (c.tags || []).includes(top[0])).sort((a, b) => b.w - a.w)[0];
+    if (on) { on.onPath = true; picks[0] = on; }
+  }
   for (let i = 0; picks.length < n; i++) {
     const f = FILLER_CARDS[i % FILLER_CARDS.length];
     picks.push({ key: f.id + i, kind: 'filler', id: f.id, rarity: f.rarity, icon: f.icon, title: f.title, desc: f.desc });
@@ -2681,8 +2765,33 @@ export function rollCards(g, n = RULES.cardChoices, opt = {}) {
   return picks;
 }
 
+function pathW(g, tags) { let w = 1; for (const t of tags || []) w *= 1 + 0.6 * ((g.tagW || {})[t] || 0); return w; }
+function notePath(g, tags) {
+  for (const t of tags || []) {
+    g.tagW = g.tagW || {}; g.tagCnt = g.tagCnt || {};
+    g.tagW[t] = (g.tagW[t] || 0) + 1;
+    const n = (g.tagCnt[t] = (g.tagCnt[t] || 0) + 1);
+    if (SET_BONUS[n]) { g.mods.tagDmg[t] = (g.mods.tagDmg[t] || 0) + SET_BONUS[n]; ev(g, 'setBonus', { tag: t, n }); }
+  }
+}
 export function applyCard(g, c) {
   const m = g.mods;
+  notePath(g, c.tags || (c.hero ? HERO_TAGS[c.hero] : null));
+  if (c.kind === 'cc') { const h = hasHero(g, c.hero); if (h) { h.cc = c.cc; h.ccN = (h.ccN || 0) + 1; ev(g, 'ccGet', { hero: h.id, kind: c.cc, x: h.x, y: h.y }); } return; }
+  if (c.kind === 'global' && c.id && c.id.startsWith('tech_')) {
+    g.stacks[c.id] = 1;
+    const [, t, lv] = c.id.split('_'); const big = lv === '3';
+    m.tagDmg[t] = (m.tagDmg[t] || 0) + (big ? 0.7 : 0.35);
+    if (t === 'pierce') m.pierce += big ? 2 : 1;
+    else if (t === 'splash') m.splashMul *= big ? 1.35 : 1.25;
+    else if (t === 'chain') m.chainExtra += big ? 2 : 1;
+    else if (t === 'kb') m.kbMul *= big ? 1.7 : 1.4;
+    else if (t === 'heal') { m.healMul *= big ? 1.8 : 1.5; m.regen += big ? 4 : 2; if (big) m.baseArmor *= 0.85; }
+    else if (t === 'ctrl') m.ctrlMul *= big ? 1.6 : 1.35;
+    else if (t === 'boss') { m.bossDmg += big ? 0.7 : 0.35; if (big) m.critMul += 0.6; else m.crit += 0.08; }
+    ev(g, 'tech', { tag: t, tier: big ? 'prism' : 'gold', title: c.title });
+    return;
+  }
   switch (c.kind) {
     case 'addHero': addHero(g, c.hero); break;
     case 'skillEvo': {

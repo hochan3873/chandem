@@ -184,9 +184,9 @@ test('스테이지 60개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
       assert.ok(def.g.length > 0);
       for (const [type, n] of def.g) { assert.ok(D.ENEMIES[type], type); assert.ok(n > 0); }
       assert.ok(def.level > prev, `${D.stageLabel(s)} W${w} 난이도 증가`);
-      assert.ok(def.level <= (s <= 30 ? 29 : 40), `${D.stageLabel(s)} 난이도 ${def.level} (스테이지는 무한 모드 가산 없음)`);
-      assert.ok(D.hpMul(def.level, true) < (s <= 30 ? 32 : 60), '체력 배율');
-      if (w === 1) assert.ok(def.level <= (s <= 30 ? 16 : 24), `${D.stageLabel(s)} 첫 웨이브는 새로 시작한 멤버도 버티게 (${def.level.toFixed(1)})`);
+      assert.ok(def.level <= (s <= 30 ? 31.5 : 43) /* 증강 보정(augAdd) 포함 */, `${D.stageLabel(s)} 난이도 ${def.level} (스테이지는 무한 모드 가산 없음)`);
+      assert.ok(D.hpMul(def.level, true) < (s <= 30 ? 36 : 68), '체력 배율 (증강 보정 포함)');
+      if (w === 1) assert.ok(def.level <= (s <= 30 ? 18.5 : 27.5) /* 증강 보정(augAdd) 포함 */, `${D.stageLabel(s)} 첫 웨이브는 새로 시작한 멤버도 버티게 (${def.level.toFixed(1)})`);
       prev = def.level;
       const boss = w === 5 && [5, 10].includes(D.stageNo(s));
       assert.equal(!!def.boss, boss, `${D.stageLabel(s)} W${w} 보스`);
@@ -1585,4 +1585,35 @@ test('무한 개편: 5웨이브마다 저주 계약(10초면 자동) · 배율 �
   assert.ok(sm.mult > 1 && sm.score >= g.stats.score);
   // 압박: 40웨이브 체력 배율이 20웨이브의 수십 배
   assert.ok(D.hpMul(40, false) / D.hpMul(20, false) > 8);
+});
+
+test('증강 · 테크 트리 · 제어 분기: 1·3·5웨이브 증강(실버→골드→프리즘) · 테크는 앞 단계를 가져야 · 세트 보너스 · 맞히면 제어', () => {
+  const g = S.createGame({ H: 760, rng: seeded(44), mode: 'stage', stage: 8, deck: [null, 'staff', 'bangjang', 'donghan', null, null], meta: {}, god: true });
+  S.startWave(g, 1);
+  assert.ok(g.augOffer && g.augOffer.tier === 'silver' && g.augOffer.opts.length === 3, '1웨이브 실버 증강');
+  assert.equal(S.applyAug(g, g.augOffer.opts[0]), true);
+  S.startWave(g, 3);
+  assert.equal(g.augOffer.tier, 'gold');
+  assert.ok(g.augOffer.opts.some((id) => id.startsWith('ha_')), '골드부터 멤버 전용 증강 (덱에 있는 멤버)');
+  g.augOffer = null;
+  // 테크: tag_splash 없으면 골드 안 나옴 → 가지면 나옴
+  const has = () => S.cardPool(g).some((c) => c.id === 'tech_splash_2');
+  assert.equal(has(), false);
+  S.applyCard(g, { kind: 'global', id: 'tag_splash', tags: ['splash'] });
+  assert.equal(has(), true, '실버 뒤 골드');
+  // 세트 보너스: 같은 길 3장
+  const d0 = g.mods.tagDmg.splash || 0;
+  S.applyCard(g, { kind: 'global', id: 'tech_splash_2', tags: ['splash'], title: 'x' });
+  S.applyCard(g, { kind: 'global', id: 'swarm', tags: ['splash'] });
+  assert.equal(g.tagCnt.splash, 3);
+  assert.ok(g.mods.tagDmg.splash > d0 + 0.35 + 0.2 - 1e-9, '골드 + 3세트');
+  // 길 확정 칸: 한 길 2번 뒤 뽑기에 그 길 카드가 들어온다
+  const cs = S.rollCards(g);
+  assert.ok(cs.some((c) => (c.tags || []).includes('splash')), '길 카드 확정');
+  // 제어 분기
+  const h = g.heroes.find((x) => x.id === 'staff'); h.lv = 3;
+  const cc = S.cardPool(g).find((c) => c.kind === 'cc' && c.hero === 'staff');
+  assert.ok(cc && cc.cc === 'slow');
+  S.applyCard(g, cc);
+  assert.equal(h.cc, 'slow');
 });

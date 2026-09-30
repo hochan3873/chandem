@@ -66,7 +66,7 @@ export const EXP_NEED_MUL = 2.4; // (2.2 → 2.4: 카드가 너무 자주 떠서
 export const stageExpMul = (s) => 1 / (1 + 0.1 * Math.max(0, (s || 1) - 1));
 
 // 웨이브별 적 체력 배율
-export const ENDLESS_TUNE = { hp: 1.12, atk: 0.12, from: 20, xp: 0.88 }; // xp: 뒤 웨이브일수록 카드가 덜 나온다 (진상이 늘어도 힘이 같이 폭주하지 않게) // 무한 압박 (밸런스 스크립트로 맞춤)
+export const ENDLESS_TUNE = { hp: 1.15, atk: 0.14, from: 20, xp: 0.84 }; // xp: 뒤 웨이브일수록 카드가 덜 나온다 (진상이 늘어도 힘이 같이 폭주하지 않게) // 무한 압박 (밸런스 스크립트로 맞춤)
 export function hpMul(wave, stage) {
   const w = wave - 1;
   let m = 1 + 0.2 * w + 0.03 * w * w;
@@ -197,7 +197,8 @@ export const STAGE = {
   deckCount: 1.45, // 덱 보정: 적 수 배율
   hpTune: [1.0, 1.4, 1.9, 1.15, 1.25, 1.5], // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
-  stageAdd: {3: 2.5, 4: 3.5, 5: -2, 6: -4, 7: 1.5, 8: 5.8, 9: -1, 10: 3.3, 11: -0.5, 12: 1.2, 13: 2, 14: 9.5, 15: -6, 16: 3.5, 17: 3.25, 18: 3, 19: -0.9, 20: -0.3, 22: 6, 25: 6, 26: 1.7, 27: 2, 28: -6, 29: -9.5, 30: 3.5, 31: -15.5, 32: -5.5, 33: -4, 34: -10, 35: -2, 36: -8, 37: -1.5, 38: 3, 39: -11, 40: -3.5, 41: -1.5, 42: -1, 43: -6, 45: 2, 46: 3.5, 48: -2, 50: -2, 51: -3.2, 52: -1, 53: 3.5, 55: 9, 56: -2.6, 59: 3}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  stageAdd: {3: 2.5, 4: 3.5, 5: -2, 6: -4, 7: 1.5, 8: 4.6, 9: -0.8, 10: 3.6, 11: -0.5, 12: 1.2, 13: 2, 14: 9.5, 15: -6, 16: 3.5, 17: 3.25, 18: 3, 19: -0.9, 20: -0.3, 22: 6, 25: 6, 26: 1.7, 27: 2, 28: -6, 29: -9.5, 30: 3.5, 31: -15.5, 32: -5.5, 33: -4, 34: -10, 35: -2, 36: -8, 37: -1.5, 38: 3, 39: -11, 40: -4.6, 41: -1.5, 42: -1, 43: -6, 45: 2, 46: 3.5, 48: -2, 50: -2, 51: -3.2, 52: -1, 53: 3.5, 55: 9, 56: -2.6, 59: 3}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  augAdd: 2, // 증강(1·3·5웨이브)이 생겨서 진상도 그만큼 조금 세게
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
 // 덱 5명으로 싸우니 적도 그만큼 단단하게 — 1-1 은 연습이라 그대로, 1-3 부터 본격
@@ -207,7 +208,7 @@ export function stageLevel(s, w) {
   const bs = STAGE.bossStage[chapterOf(s)];
   const boss = n === 10 ? bs[1] : n === 5 ? bs[0] : 0;
   // 첫 웨이브는 새로 시작한 멤버도 버티게 천천히, 스테이지 안에서 웨이브마다 가파르게 (뒤 스테이지일수록 더)
-  return 1 + STAGE.levelPerStage * Math.pow(s - 1, STAGE.levelPow) + (w - 1) * (STAGE.levelPerWave + STAGE.wavePerStage * Math.min(s - 1, 29)) + boss + STAGE.chapterAdd[chapterOf(s) - 1] + (STAGE.themeLevel[stageTheme(s)] || 0) + (STAGE.stageAdd[s] || 0);
+  return 1 + STAGE.levelPerStage * Math.pow(s - 1, STAGE.levelPow) + (w - 1) * (STAGE.levelPerWave + STAGE.wavePerStage * Math.min(s - 1, 29)) + boss + STAGE.chapterAdd[chapterOf(s) - 1] + (STAGE.themeLevel[stageTheme(s)] || 0) + (STAGE.stageAdd[s] || 0) + (s >= 3 ? STAGE.augAdd * Math.min(1, (s - 2) / 3) * (s > 20 ? 1.3 : 1) : 0);
 }
 // 적은 스테이지마다 조금씩 늘어난다:
 //  1챕터 꼬충 → 먹튀(1-3) → 술진상(1-4) → 폭력배(1-8)
@@ -1612,3 +1613,48 @@ export const BOSS_KITS = {
   boss_union: { name: '인피 연합 총수', skills: [['silence', '연합 공지', { sec: 3 }], ['stun', '총수 호령', { n: 2, sec: 1.5 }]], p2: ['summon', '연합 총동원', { types: ['inpi_clique', 'inpi_dictator'], n: 3 }] },
 };
 export const BOSS_AI = { every: [8, 12], everyP2: [6, 9], windup: 1.0, recover: 1.5, roar: 20 };
+
+// ─── 빌드 길 (TFT 증강 · 칼바람 느낌) ─────────────────────────
+//  카드마다 길(태그) 1~2개 · 고른 길 카드가 더 잘 나온다 · 한 길을 2번 고르면 3장 중 1장은 그 길 확정 (마지막 칸은 늘 무작위)
+//  길마다 3단계: 실버(기본 tag_ 카드) → 골드 → 프리즘 · 3장/5장 모으면 세트 보너스
+export const CARD_TAGS = { dmg: ['boss'], crit: ['boss'], slow: ['ctrl'], hp: ['heal'], regen: ['heal'], armor: ['heal'], pierce: ['pierce'], boss: ['boss'], cdCut: ['ctrl'], swarm: ['splash'], risk_glass: ['boss'], ult: ['splash'] };
+export const TECH = {
+  pierce: [{ title: '관통 II · 철갑탄', desc: '관통 +1 · 관통 멤버 공격력 +35%' }, { title: '관통 III · 레일건', desc: '관통 +2 · 관통 멤버 공격력 +70%' }],
+  splash: [{ title: '폭발 II · 연쇄 폭발', desc: '폭발 범위 +25% · 폭발 멤버 공격력 +35%' }, { title: '폭발 III · 대폭발', desc: '폭발 범위 +35% · 폭발 멤버 공격력 +70%' }],
+  chain: [{ title: '연쇄 II · 번개 사슬', desc: '튕김 +1 · 연쇄 멤버 공격력 +35%' }, { title: '연쇄 III · 뇌신', desc: '튕김 +2 · 연쇄 멤버 공격력 +70%' }],
+  kb: [{ title: '넉백 II · 강풍', desc: '넉백 +40% · 넉백 멤버 공격력 +35%' }, { title: '넉백 III · 태풍', desc: '넉백 +70% · 넉백 멤버 공격력 +70%' }],
+  heal: [{ title: '회복 II · 응급실', desc: '회복 +50% · 초당 수리 +2' }, { title: '회복 III · 불사의 문', desc: '회복 +80% · 초당 수리 +4 · 받는 피해 -15%' }],
+  ctrl: [{ title: '제어 II · 얼음 감옥', desc: '감속·기절 +35% · 제어 멤버 공격력 +35%' }, { title: '제어 III · 시간 정지', desc: '감속·기절 +60% · 제어 멤버 공격력 +70%' }],
+  boss: [{ title: '한방 II · 급소 찌르기', desc: '보스 피해 +35% · 치명타 +8%' }, { title: '한방 III · 처형', desc: '보스 피해 +70% · 치명타 피해 +60%' }],
+};
+export const SET_BONUS = { 3: 0.2, 5: 0.35 }; // 한 길 카드 3장 / 5장 → 그 길 멤버 공격력 +
+export const TIER_NAMES = { silver: '실버', gold: '골드', prism: '프리즘' };
+// 증강: 판을 결정하는 큰 카드 (스테이지 1 · 3 · 5웨이브 / 무한 3 · 8 · 13 …) — 멤버 전용 증강은 그 멤버가 덱에 있을 때만
+export const AUGMENTS = [
+  { id: 'a_power', tier: 'silver', icon: '💪', title: '근성', desc: '모든 멤버 공격력 +20%', fx: { dmg: 0.2 } },
+  { id: 'a_haste', tier: 'silver', icon: '⚡', title: '초과 근무', desc: '공격 속도 +15%', fx: { spd: 0.15 } },
+  { id: 'a_wall', tier: 'silver', icon: '🧱', title: '철벽', desc: '입구 최대 내구도 +40% · 가득 회복', fx: { hp: 0.4 } },
+  { id: 'a_xp', tier: 'silver', icon: '📚', title: '벼락치기', desc: '경험치 +50%', fx: { exp: 0.5 } },
+  { id: 'a_crit', tier: 'gold', icon: '🎯', title: '정밀 사격', desc: '치명타 +18% · 치명타 피해 +50%', fx: { crit: 0.18, critMul: 0.5 } },
+  { id: 'a_cd', tier: 'gold', icon: '⏱️', title: '쿨타임 도둑', desc: '스킬 쿨타임 -30%', fx: { cd: 0.7 } },
+  { id: 'a_swarm', tier: 'gold', icon: '🌪️', title: '대청소', desc: '일반 진상 피해 +60% · 폭발 범위 +20%', fx: { swarm: 0.6, splash: 1.2 } },
+  { id: 'a_boss', tier: 'gold', icon: '👑', title: '보스 사냥', desc: '보스·중간 보스 피해 +60%', fx: { boss: 0.6 } },
+  { id: 'a_frost', tier: 'gold', icon: '🧊', title: '냉기 오라', desc: '모든 진상 이동 -18% · 제어 +30%', fx: { slow: 0.82, ctrl: 1.3 } },
+  { id: 'a_prism_all', tier: 'prism', icon: '🌈', title: '프리즘: 전원 각성', desc: '공격력 +45% · 공격 속도 +20%', fx: { dmg: 0.45, spd: 0.2 } },
+  { id: 'a_prism_path', tier: 'prism', icon: '🔷', title: '프리즘: 외길 인생', desc: '가장 많이 고른 길 세트 보너스 한 단계 더 + 그 길 멤버 공격력 +50%', fx: { path: 0.5 } },
+  { id: 'a_prism_ult', tier: 'prism', icon: '📣', title: '프리즘: 무한 총공지', desc: '총공지 충전 +120% · 피해 +100%', fx: { ult: 1.2, ultDmg: 1 } },
+  { id: 'a_prism_mirror', tier: 'prism', icon: '🪞', title: '프리즘: 쌍둥이 스킬', desc: '모든 스킬이 0.5초 뒤 한 번 더', fx: { echo: 1 } },
+];
+// 멤버 전용 증강 (그 멤버 전용 카드 효과 두 번 + 공격력 +40%)
+export const HERO_AUG = {
+  donghan: '진심 폭주', jieun: '시간 가속 역전', sanghwa: '끝내주는 이자', bangjang: '전 직원 집합', staff: '레드카드 폭풍', gunman: '저격 명인',
+  gunnyeo: '천사 모드', myunghoon: '욕의 신', dohoon: '콘서트 앵콜', ingyu: '할리 군단', youngjun: '표범 질주', eunok: '폭탄주 파티', hanna: '윙크 여왕',
+  sunggu: '지팡이 폭풍', junseo: '인맥 총동원', hyungyeong: '다이어트 성공', ara: '여왕 즉위', hochan: '랑방의 이름으로', soyoung: '잔소리 폭주', jungmin: '붕대 장인', jiwon: '모자이크 폭풍', wonsik: '올해는 결혼',
+};
+// 제어 분기: 멤버마다 하나 (맞히면 가끔 제어) — 눈에 잘 띄는 색 · 아이콘
+export const CC_KINDS = { stun: { icon: '⭐', name: '기절', color: '#ffe066' }, slow: { icon: '🐢', name: '감속', color: '#6fb3ff' }, freeze: { icon: '🧊', name: '빙결', color: '#9ff0ff' }, kb: { icon: '💨', name: '밀치기', color: '#ffffff' }, pull: { icon: '🧲', name: '끌어당기기', color: '#c77dff' } };
+export const HERO_CC = {
+  bangjang: 'kb', staff: 'slow', gunman: 'stun', gunnyeo: 'slow', myunghoon: 'stun', dohoon: 'slow', ingyu: 'kb', donghan: 'freeze', youngjun: 'stun', eunok: 'kb',
+  hanna: 'pull', sunggu: 'pull', junseo: 'kb', hyungyeong: 'kb', ara: 'stun', hochan: 'freeze', soyoung: 'slow', jieun: 'freeze', sanghwa: 'pull', jungmin: 'slow', jiwon: 'stun', wonsik: 'pull',
+};
+export const CC_ON_HIT = { chance: [0.12, 0.18, 0.25], stun: 0.8, slow: 1.8, freeze: 1.0, kb: 60, pull: 50 };
