@@ -572,13 +572,41 @@ function handleEvents(g, loud) {
       case 'allin': fx.text(e.x, e.y - 20, '올인!', '#ffd23f', 20, 1.0); fx.blast(e.x, e.y, e.r, 'gold'); fx.addShake(5); if (loud) A.sfx.explode(); break;
       case 'nagbomb': fx.text(e.x, e.y - 20, '잔소리 폭격!', '#ff9fc0', 16, 0.9); fx.blast(e.x, e.y, e.r, 'heart'); if (loud) A.sfx.explode(); break;
       case 'timestop': fx.text(e.x, e.y - 30, '…시간아 멈춰라', '#c9a8ff', 16, 1.2); fx.ring(e.x, e.y, 10, e.r, 0.7, '#b48cff', 4); fx.flash('#6a3cff', 0.18); if (loud) A.sfx.charm(); break;
-      case 'bossWind': fx.text(e.x, e.y - 20, `⚠️ ${e.name}!`, '#ff5a5a', 15, 1.0, -10); fx.addShake(2); if (loud) A.sfx.charm && A.sfx.charm(); break;
-      case 'bossSkill': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('🤐 스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('🐢 멤버 공격 속도 ↓ (4초)', 1500); break;
+      case 'bossWind': {
+        fx.text(e.x, e.y - 20, `${e.name}!`, '#ff5a5a', 15, 1.0, -10); if (loud) A.sfx.charm && A.sfx.charm();
+        // 예고 (1초): 기절은 노리는 멤버 발밑 빨간 원 · 충격파는 땅 갈라짐 · 소환은 소환진 · 침묵은 낙서 구름 · 감속은 푸른 기운
+        const W = 1000;
+        if (e.kind === 'stun') for (const q of e.targets || []) R.vfx('warn', q.x, q.y + 10, { anim: 'grow', dur: W, sz: 90, flat: true });
+        else if (e.kind === 'shock') { R.vfx('crack', e.x, e.y + 30, { anim: 'grow', dur: W, sz: 160, flat: true }); R.vfx('warn', e.x, e.y + 20, { anim: 'grow', dur: W, sz: 200, flat: true }); }
+        else if (e.kind === 'summon') R.vfx('summon', e.x, e.y + 20, { anim: 'grow', dur: W, sz: 150, flat: true });
+        else if (e.kind === 'silence') R.vfx('silence', e.x, e.y - 60, { anim: 'pulse', dur: W, sz: 90 });
+        else if (e.kind === 'slow') R.vfx('aura_blue', e.x, e.y, { anim: 'grow', dur: W, sz: 150, flat: true });
+        else if (e.kind === 'drain') R.vfx('aura_red', e.x, e.y, { anim: 'grow', dur: W, sz: 150, flat: true });
+        break;
+      }
+      case 'bossSkill': {
+        const bossE = g.enemies.find((q) => !q.dead && Math.abs(q.x - e.x) < 2 && Math.abs(q.y - e.y) < 2);
+        // 날아가는 물건: 술병 · 계약서/명함 · 폰
+        const thrown = /술병|병/.test(e.name) ? 'w_bottle' : /계약서|명함|광고|딱지/.test(e.name) ? 'barrage_card' : /폰|셀카|섬광/.test(e.name) ? 'phone' : null;
+        if (e.kind === 'stun') {
+          const ts = g.heroes.filter((h) => h.stunT > 0);
+          if (/돌진|호통|박치기/.test(e.name)) for (const h of ts) R.vfx('dash', (e.x + h.x) / 2, (e.y + h.y) / 2, { anim: 'streak', dur: 350, sz: Math.hypot(h.x - e.x, h.y - e.y), rot: Math.atan2(h.y - e.y, h.x - e.x) });
+          if (thrown) for (const h of ts) R.vfx(thrown, e.x, e.y - 20, { anim: 'fly', dur: 420, sz: 44, tx: h.x, ty: h.y - 30 });
+          for (const h of ts) R.vfx('stun', 0, 0, { follow: h, dy: -78, anim: 'pulse', dur: 1300, sz: 56 });
+        } else if (e.kind === 'shock') { R.vfx('shock2', e.x, e.y, { anim: 'pop', dur: 650, sz: 260 }); R.vfx('smoke', e.x, e.y + 20, { anim: 'pop', dur: 700, sz: 150 }); }
+        else if (e.kind === 'silence') { for (const h of g.heroes) R.vfx('silence', 0, 0, { follow: h, dy: -86, anim: 'pulse', dur: 2800, sz: 46 }); if (thrown) for (const h of g.heroes.slice(0, 3)) R.vfx(thrown, e.x, e.y - 20, { anim: 'fly', dur: 450, sz: 40, tx: h.x, ty: h.y - 30 }); }
+        else if (e.kind === 'slow') R.vfx('aura_blue', 180, g.rowY - 10, { anim: 'pulse', dur: 3500, sz: 340, flat: true });
+        else if (e.kind === 'summon') { R.vfx('summon', e.x, e.y + 20, { anim: 'pop', dur: 600, sz: 180, flat: true }); R.vfx('smoke', e.x, e.y, { anim: 'pop', dur: 600, sz: 140 }); }
+        else if (e.kind === 'drain') R.vfx('aura_red', e.x, e.y, { anim: 'pop', dur: 700, sz: 180 });
+        if (bossE) R.vfx(e.kind === 'drain' || e.kind === 'stun' ? 'aura_red' : 'aura_blue', 0, 0, { follow: bossE, dy: 0, anim: 'pulse', dur: 900, sz: bossE.def.size * 1.3, flat: true });
+      }
+      // falls through
+      case 'bossSkillFx': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('🤐 스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('🐢 멤버 공격 속도 ↓ (4초)', 1500); break;
       case 'bossGap': fx.text(e.x, e.y, '틈! 지금 때려!', '#ffe066', 15, 1.1); break;
       case 'bossRage': fx.banner(`😡 ${e.name} 분노!`, '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
       case 'midRage': fx.text(e.x, e.y, `😤 ${e.name} 흥분!`, '#ff7a4f', 14, 1.0); break;
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
-      case 'heroStun': if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); break;
+      case 'heroStun': if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 300, sz: 70 }); break;
       case 'curseOffer': showCurseOffer(e.opts); break;
       case 'augOffer': showAugOffer(e.opts, e.tier); break;
       case 'aug': fx.banner(`✨ ${e.title}`, `${TIER_NAMES[e.tier] || ''} 증강`, e.tier === 'prism' ? '#2a6aa0' : e.tier === 'gold' ? '#a07010' : '#4a5a70', 1.3, 'wave'); fx.flash(e.tier === 'prism' ? '#7df9ff' : '#ffd23f', 0.2); break;
@@ -836,7 +864,7 @@ function handleEvents(g, loud) {
         if (e.cry) { fx.text(e.x, e.y, '엉엉…', '#9fd8ff', 13, 0.9, -20); break; } fx.text(e.x, e.y, '우웩!', '#b8e04a', 16, 0.9); fx.burst(e.hx, g.rowY + 18, 10, '#9acd32', 120, 'dot', 5, 0.5, 200); break;
       case 'cuddle': fx.text(e.x, e.y, '꽁냥꽁냥♡', '#ffb0d0', 12, 0.8); fx.part('heart', e.x, e.y, 0, -40, 0.8, 9, null); break;
       case 'breakup': fx.text(e.x, e.y, '헤어져!!', '#ff7fa8', 18, 1.1, -20); fx.burst(e.x, e.y + 20, 12, '#ff9ecb', 160, 'shard', 5, 0.6, 300); break;
-      case 'grab': fx.text(e.hx, e.hy - 70, '붙잡힘!', '#ffc08a', 15, 1); if (loud) A.sfx.charm(); break;
+      case 'grab': fx.text(e.hx, e.hy - 70, '붙잡힘!', '#ffc08a', 15, 1); R.vfx('slap', e.hx, e.hy - 30, { anim: 'pop', dur: 380, sz: 70 }); if (loud) A.sfx.charm(); break;
       case 'release': fx.text(e.x, e.y - 70, '풀려났다!', '#9dffb0', 13, 0.9); break;
       case 'gaoBreak': fx.text(e.x, e.y, '가오 깨짐!', '#ffe14d', 18, 1.1, -24); fx.burst(e.x, e.y + 20, 14, '#ffd23f', 180, 'shard', 5, 0.6, 300); if (loud) A.sfx.crit(); break;
       case 'flash': fx.flash('#ffffff', 0.2); fx.text(e.x, e.y, '찰칵!', '#fff', 15, 0.8); fx.text(e.hx, e.hy - 70, '눈부셔!', '#ffe9a0', 13, 0.9); break;

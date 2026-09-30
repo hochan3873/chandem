@@ -68,7 +68,7 @@ export const JOIN = { solo: 1.6, freePick: true, hp: [0.9, 0.87, 1.2, 1.25, 1.7,
 // 진상 수 ×0.6 · 한 명 체력 ×1.6 / 멤버 공속 ÷1.54 · 한 방 ×1.6 / 스킬 쿨 ×1.5
 export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, endHp: 1.1, fix: { donghan: 0.77, wonsik: 1.8, staff: 1.1, eunok: 0.9, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.1, ingyu: 0.87, jiwon: 2.0, jungmin: 1.5, gunman: 0.75, junseo: 1.3, ara: 1.15 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
-export const BUS = { sec: [7, 6.6, 6.2, 5.8, 5.4], w: 110, w2: 200, speed: 560, kb: 90, dmg: 3.6, stun: 0.9 };
+export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7.6, stun: 0.9 };
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
 export const PROJ_ART = { staff: 'card_y', eunok: 'cup', jungmin: 'bottle', sanghwa: 'coin', wonsik: 'dumbbell', ingyu: 'dumbbell', soyoung: 'bubble', gunman: 'bb', donghan: 'coffee', sunggu: 'cane', jiwon: 'mosaic', gunnyeo: 'heart', junyoung: 'chip', ara: 'hammer', jieun: 'clock', myunghoon: 'swear' };
 export const PROJ_ART_NAMES = ['bottle', 'cup', 'coin', 'dumbbell', 'bubble', 'card_y', 'card_r', 'bb', 'coffee', 'cane', 'mosaic', 'heart', 'chip', 'hammer', 'claw', 'clock', 'swear'];
@@ -1279,6 +1279,27 @@ export const ENEMY_ANIM = {
   boss_inpi: { walk: { src: '/img/lb/e_boss_inpi_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_inpi_die.webp', frames: 8, fps: 12, hold: 0.3 } },
   boss_queenmom: { walk: { src: '/img/lb/e_boss_queenmom_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_queenmom_die.webp', frames: 8, fps: 12, hold: 0.3 } },
   boss_sales: { walk: { src: '/img/lb/e_boss_sales_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_sales_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+};
+// 입구 공격 동작 (진상마다 컨셉대로): 준비(뒤로 젖힘) → 때림(입구 쪽으로 · 불꽃) → 반동
+//   punch 주먹 · kick 발차기 · headbutt 박치기 · shove 밀치기 · phone 폰 내리치기 · bottle 병 내리치기 · bag 가방 휘두르기 · slap 따귀
+export const ENEMY_ATK = {
+  yeokko: 'slap', namkko: 'shove', drunk: 'bottle', thug: 'punch', mukti: 'shove', queen: 'bag', boss_thug: 'punch', vomit: 'headbutt', couple: 'shove',
+  earphone: 'phone', noshow: 'phone', clubguy: 'kick', clubgirl: 'bag', praise1: 'slap', praise2: 'slap', handsy: 'slap', gao: 'kick', selfie: 'phone',
+  cutter: 'shove', kkondae: 'punch', spam: 'phone', inpi_gossip: 'slap', inpi_dictator: 'punch', inpi_clique: 'kick', scammer: 'phone', boss_gapjil: 'kick',
+  boss_inpi: 'punch', boss_loan: 'punch', inpi_treasurer: 'bag', fakesingle: 'shove', secretmom: 'bag', carpoor: 'kick', sales: 'bag', sarcasm: 'slap',
+  jjijil: 'headbutt', otaku: 'bag', drunk_cry: 'headbutt', drunk_run: 'kick', drunk_sleep: 'shove', drunk_home: 'bottle', kkondae2: 'bag',
+  boss_kkondol: 'punch', boss_queenmom: 'bag', boss_sales: 'bag', boss_otaku: 'headbutt', boss_jusa: 'bottle', boss_soloparty: 'kick', boss_union: 'punch',
+};
+// 동작 모양: back = 준비 때 뒤로 (px) · rot = 준비 기울기 → hit 때 반대로 · lunge = 입구 쪽으로 (px) · sq = 찌그러짐
+export const ATK_MOVES = {
+  punch: { back: 6, rot: -0.08, hitRot: 0.1, lunge: 11, sq: 0.08 },
+  kick: { back: 4, rot: -0.22, hitRot: 0.3, lunge: 8, sq: 0.04 },
+  headbutt: { back: 9, rot: -0.28, hitRot: 0.38, lunge: 15, sq: 0.1 },
+  shove: { back: 5, rot: -0.04, hitRot: 0.04, lunge: 10, sq: -0.1 },
+  phone: { back: 10, rot: -0.1, hitRot: 0.14, lunge: 6, sq: 0.12 },
+  bottle: { back: 10, rot: -0.14, hitRot: 0.2, lunge: 7, sq: 0.12 },
+  bag: { back: 4, rot: -0.34, hitRot: 0.34, lunge: 6, sq: 0.03 },
+  slap: { back: 3, rot: -0.18, hitRot: 0.24, lunge: 7, sq: 0.03 },
 };
 export const FUSE_ART = new Set(['fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi', 'fuse_lease', 'fuse_lie', 'fuse_jusa', 'fuse_sleep', 'fuse_karaoke', 'fuse_mt', 'fuse_adspam', 'fuse_taxi', 'fuse_latte']);
 const MECH_SKIP = new Set(['id', 'name', 'img', 'hp', 'speed', 'size', 'color', 'r', 'emoji', 'gender', 'cls', 'exp', 'coin', 'atk', 'atkInterval', 'shouts', 'armor', 'forms', 'pack', 'standoff', 'zigzag']);
