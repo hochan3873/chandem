@@ -5,7 +5,7 @@ import {
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
-  attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
+  attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
 } from './data.js';
 import * as L from './live.js';
 import * as S from './sim.js';
@@ -1424,6 +1424,7 @@ const ACTS = {
   bagAll: () => { app.bagAll = !app.bagAll; showBag(); },
   autoEquipAll: () => autoEquipAll(),
   bagHeroPick: (b) => { app.bagHero = b.dataset.id; showBag(); },
+  hfEquip: async (b) => { const r = await API.equipGear(b.dataset.hero, b.dataset.slot, Number(b.dataset.gid), app.guest); if (r.ok && r.profile) { app.profile = r.profile; A.sfx.pick(); toast('장착!', 900); } else toast(r.message || '못 끼웠어요'); showHeroModal(b.dataset.hero); refreshBehind(); },
   eqSlot: (b) => { if (app.bagSel) equipTo(b.dataset.hero, b.dataset.slot, app.bagSel); else { app.bagHero = b.dataset.hero; showGearPicker(b.dataset.hero, b.dataset.slot); } },
   gearSlot: (b) => showGearPicker(b.dataset.hero, b.dataset.slot),
   partner: (b) => {
@@ -2032,25 +2033,72 @@ function showHeroModal(id, ctx = '') {
   const m = attrMatch(d.attr, s);
   const sw = strongWeak(d.attr);
   const eq = (p.equip || {})[id] || {};
-  const slot = (k) => { const it = (p.gear || []).find((g) => g.id === eq[k]); return `<button class="gslot ${it ? 'r-' + it.r : ''}" data-act="gearSlot" data-hero="${id}" data-slot="${k}" ${ok ? '' : 'disabled'} style="--rc:${it ? GEAR_RARITY[it.r].color : '#555'}">${it ? GEAR[it.t].icon : k === 'w' ? '🗡️' : '💍'}<small>${it ? esc(GEAR[it.t].name) + (it.lv ? ` +${it.lv}` : '') : k === 'w' ? '무기' : '액세서리'}</small></button>`; };
+  const t = heroTier(id);
+  const tab = app.hmTab || 'info';
   const inDeck = curDeck().includes(id);
+  const pw = heroPower(p, id);
+  // 강화하면 전투력이 얼마나 오르나 (미리 보기)
+  const pwNext = ok && cost !== null ? heroPower(Object.assign({}, p, { heroes: Object.assign({}, p.heroes, { [id]: lv + 1 }) }), id) : pw;
+  const res = resOf(lv, heroGearStats(p, id).res);
+  const duo = hasDuo(id) && ok;
+  const artSrc = duo ? `/img/lb/dexhq/${id}_duo.webp` : hqSrc(id);
+  const rg = Array.isArray(d.range) ? d.range[0] : d.range;
+  const legendNum = (v) => (d.legend ? `<b class="lgn">${v}</b>` : `<b>${v}</b>`);
   const perks = Object.entries(d.perks || {}).map(([k, v]) => `<li><b>Lv${k}</b> ${esc(v)}</li>`).join('');
-  popup(`<div class="hm ${d.legend ? 'lg' : d.hidden ? 'hid' : d.gacha ? 'ep' : ''}" style="--c:${d.color}">
-    <div class="hm-art hq ${ok ? '' : 'sil'}" data-act="heroInfo" data-id="${id}">${hqSrc(id) ? `<img src="${hqSrc(id)}" alt="" draggable="false" onerror="this.onerror=null;this.src='${dexSrc(id, d.img)}'">` : `<span class="dx-emo big">${d.emoji}</span>`}<small class="hm-more">🔍 크게 보기</small></div>
-    <div class="hm-head"><b>${ok ? d.name : '???'}</b>${d.legend ? '<em class="lgd">LEGEND</em>' : d.hidden ? '<em class="hdn">HIDDEN</em>' : ''}${attrTag(d.attr)}
-      <div class="hm-star">${'★'.repeat(st)}<i>${'★'.repeat(L.STAR_MAX - st)}</i> <span>강화 +${lv}/${metaMaxOf(id)}</span> <em class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]} · 기본 ×${tierPower(heroTier(id), 0).toFixed(2)}</em></div><small>${esc(d.role)}</small></div>
-    <div class="hm-match ${m.cls}"><b>${m.arrow} 이번 적 상성 ${m.text}</b><small>${esc(sw)}</small></div>
-    <div class="hm-sec"><h4>⚔️ 기본 공격</h4><p>${esc(d.attack)}</p></div>
-    <div class="hm-sec"><h4>✨ 스킬 · ${esc(d.skill.name)} <small>쿨 ${d.skill.cd}초</small></h4><p>${esc(d.skill.desc)}</p></div>
-    ${perks ? `<div class="hm-sec"><h4>📈 레벨 효과</h4><ul>${perks}</ul></div>` : ''}
-    <div class="hm-sec"><h4>🎒 장비</h4><div class="grow">${slot('w')}${slot('a')}</div></div>
-    <p class="hm-desc">${esc(d.desc)}</p>
-    ${ok ? `<div class="grid2 hm-btns">
-      <button class="btn ${cost !== null && p.coins >= cost ? 'primary' : ''}" data-act="buy" data-id="${id}" data-pw="${heroPower(p, id)}" ${cost !== null && p.coins >= cost ? '' : 'disabled'}>강화 +${lv + 1}<small>${cost === null ? 'MAX' : `${fmt(cost)}코인 · 공격력 +${Math.round(RULES.metaDmgPerLevel * 100)}%`}</small></button>
-      <button class="btn ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? 'pink' : ''}" data-act="starUp" data-id="${id}" ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? '' : 'disabled'}>★ 승급<small>${st >= L.STAR_MAX ? '최대 ★5' : `조각 ${p.shards[id] | 0}/${needS} · ${fmt(L.STAR_COINS[st])}코인`}</small></button>
-    </div>` : `<p class="ip">🔒 ${esc(unlockText(id) || (d.legend ? `${stageLabel(L.HOCHAN_GATE)}를 깨면 모집에 등장 (아주 낮은 확률)` : d.gacha ? '상점 → 모집에서 만날 수 있어요' : ''))}</p>`}
-    ${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}
-  </div>`, 'hero-pop');
+  const slot = (k) => { const it = (p.gear || []).find((g) => g.id === eq[k]); return `<button class="gslot ${it ? 'r-' + it.r : ''}" data-act="gearSlot" data-hero="${id}" data-slot="${k}" ${ok ? '' : 'disabled'} style="--rc:${it ? GEAR_RARITY[it.r].color : '#555'}">${it ? GEAR[it.t].icon : k === 'w' ? '🗡️' : '💍'}<small>${it ? esc(GEAR[it.t].name) + (it.lv ? ` +${it.lv}` : '') : k === 'w' ? '무기 비었음' : '장신구 비었음'}</small>${it ? `<em>${esc(gearStatText(it))}</em>` : ''}</button>`; };
+  // 이 멤버에게 더 좋은 장비 (칸마다 두 개까지) — 누르면 바로 끼기
+  const sugg = ['w', 'a'].map((k) => {
+    const cur = (p.gear || []).find((g) => g.id === eq[k]);
+    const list = (p.gear || []).filter((it) => GEAR[it.t].slot === k && it.id !== eq[k] && (!cur || gearScore(it) > gearScore(cur) + 1e-9)).sort((a, b) => gearScore(b) - gearScore(a)).slice(0, 2);
+    return list.map((it) => `<button class="hf-sug" data-act="hfEquip" data-hero="${id}" data-slot="${k}" data-gid="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${GEAR[it.t].icon}<span>${esc(GEAR[it.t].name)}${it.lv ? ` +${it.lv}` : ''}<small>${esc(gearStatText(it))}${equippedBy(p, it.id) ? ` · ${HEROES[equippedBy(p, it.id)].name} 것` : ''}</small></span><em>끼기</em></button>`).join('');
+  }).join('');
+  const body = tab === 'up' ? `
+      <div class="hf-up">
+        <div class="hf-row"><span>⚔ 전투력</span>${legendNum(fmt(pw))}${pwNext > pw ? `<i class="gu">→ ${fmt(pwNext)} (+${fmt(pwNext - pw)})</i>` : ''}</div>
+        <div class="hf-row"><span>강화</span><b>+${lv} / ${metaMaxOf(id)}</b><small>레벨마다 공격력 +${(TIER_GROWTH[t] * 100).toFixed(1)}% · 상태이상 -1.5%</small></div>
+        <div class="hf-row"><span>★ 승급</span><b>${'★'.repeat(st)}<i class="dim">${'★'.repeat(L.STAR_MAX - st)}</i></b><small>조각 ${p.shards[id] | 0}${st < L.STAR_MAX ? ` / ${needS}` : ''} · ★마다 공격력 +${Math.round(L.STAR_ATK * 100)}%</small></div>
+        ${ok ? `<div class="grid2 hm-btns">
+          <button class="btn ${cost !== null && p.coins >= cost ? 'primary' : ''}" data-act="buy" data-id="${id}" data-pw="${pw}" ${cost !== null && p.coins >= cost ? '' : 'disabled'}>강화 +${lv + 1}<small>${cost === null ? 'MAX' : `${p.unlimited ? '공짜' : fmt(cost) + '코인'}`}</small></button>
+          <button class="btn ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? 'pink' : ''}" data-act="starUp" data-id="${id}" ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? '' : 'disabled'}>★ 승급<small>${st >= L.STAR_MAX ? 'MAX' : `조각 ${p.shards[id] | 0}/${needS}`}</small></button>
+        </div>` : ''}
+      </div>`
+    : tab === 'gear' ? `
+      <div class="hf-gear"><div class="grow">${slot('w')}${slot('a')}</div>
+        ${sugg ? `<h4>✨ 더 좋은 장비</h4>${sugg}` : '<p class="ip">지금 제일 좋은 장비를 끼고 있어요</p>'}
+        <button class="btn ghost" data-act="nav" data-tab="bag">🎒 강화·장비 화면으로</button></div>`
+    : `
+      <div class="hf-stats">
+        <div><small>전투력</small>${legendNum(fmt(pw))}</div><div><small>사거리</small>${legendNum(rg)}</div><div><small>공격 간격</small>${legendNum(d.interval + '초')}</div><div><small>상태이상</small>${legendNum(res ? `-${Math.round(res * 100)}%` : '-')}</div>
+      </div>
+      <div class="hm-match ${m.cls}"><b>${m.arrow} 이번 적 상성 ${m.text}</b><small>${esc(sw)}</small></div>
+      <div class="hm-sec"><h4>⚔️ 기본 공격</h4><p>${esc(d.attack)}</p></div>
+      <div class="hm-sec"><h4>✨ 스킬 · ${esc(d.skill.name)} <small>쿨 ${d.skill.cd}초</small></h4><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">🌟 진화: ${esc(SKILL_EVO[id])}</p>` : ''}</div>
+      ${perks ? `<div class="hm-sec"><h4>📈 레벨 효과</h4><ul>${perks}</ul></div>` : ''}
+      <p class="hm-desc">${esc(d.desc)}</p>`;
+  closeInfoCard();
+  const box = document.createElement('div');
+  box.className = `info-modal pop hero-pop hero-full ${d.legend ? 'lg' : ''}`;
+  box.style.setProperty('--c', ATTRS[d.attr].color);
+  box.innerHTML = `<div class="hf-art ${duo ? 'duo' : ''} ${ok ? '' : 'sil'}">${artSrc ? `<img src="${artSrc}" alt="" draggable="false" onerror="this.onerror=null;this.src='${hqSrc(id) || d.img}'">` : `<span class="dx-emo big">${d.emoji}</span>`}</div>
+    <div class="hf-grad"></div>
+    <button class="dp-x hf-x" data-hf="x">✕</button>
+    <div class="hf-head"><i class="tier t${t}">${TIER_NAME[t]}</i>${attrTag(d.attr)}<b>${ok ? esc(d.name) : '???'}</b><small>${esc(d.role)}</small></div>
+    <div class="hf-tabs">${[['info', '정보'], ['up', '강화'], ['gear', '장비']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-hf="tab" data-k="${k}">${n}</button>`).join('')}</div>
+    <div class="hf-body">${ok ? body : `<p class="ip">🔒 ${esc(heroHow(id))}</p>${body}`}</div>
+    <div class="hf-foot">${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">📚 도감</button></div>`;
+  stage.appendChild(box);
+  box.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-hf]');
+    if (b) {
+      if (b.dataset.hf === 'x') { closeInfoCard(); if (app.screen === 'deck') showDeckTab(); return; }
+      if (b.dataset.hf === 'tab') { app.hmTab = b.dataset.k; A.sfx.tap(); showHeroModal(id, ctx); }
+      return;
+    }
+    const a0 = ev.target.closest('[data-act]');
+    if (!a0 || a0.disabled) return;
+    A.unlock(); A.sfx.tap();
+    if (ACTS[a0.dataset.act]) ACTS[a0.dataset.act](a0);
+  });
 }
 // 속성 vs 스테이지 적 구성: ▲ 유리 · ▼ 불리
 function attrMatch(attr, s) {
