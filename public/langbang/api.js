@@ -116,7 +116,7 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
+const LIVE_KEYS = ['sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
@@ -145,6 +145,7 @@ export async function postStage(sum, guest) {
     if (hell) q.hell = Object.assign({}, p.hell, { [sum.stage]: Math.max(prev, sum.stars) });
     else q.stages = Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) });
     if (perfect) q.perfects = Object.assign({}, p.perfects, { [sum.stage]: true });
+    if (p.staRun && p.staRun.stage === sum.stage) q.staRun = null; else L.staminaAdd(q, -L.stageStaminaCost(p, sum.stage, hell), Date.now()); // 체력 (시작 때 안 냈으면 지금)
     // 손님 장비 드롭 (같은 공식, 시드는 이 기기에서)
     const got = [];
     q.gear = (p.gear || []).slice();
@@ -176,11 +177,12 @@ export async function postStage(sum, guest) {
 export async function postEndless(sum, guest) {
   if (guest) {
     const p = guestProfile();
-    const coins = endlessReward(sum.wave, p.items.coupon);
+    const ef = L.endlessFinish(p, sum.wave, sum.score, endlessReward(sum.wave, p.items.coupon), GUEST_UID, Date.now());
+    const coins = ef.coins;
     const q = Object.assign({}, p, { coins: p.coins + coins, bestWave: Math.max(p.bestWave, sum.wave), bestScore: Math.max(p.bestScore, sum.score), runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
     guestTrack(q, { mode: 'endless', kills: sum.kills, bosses: Math.min(sum.bossKills | 0, Math.floor(sum.wave / 5) + 1), skills: L.skillCap(sum.skills, sum.durationSec) });
     writeGuest(q);
-    return { ok: true, profile: guestProfile(), reward: { total: coins }, newBestWave: sum.wave > p.bestWave, newBestScore: sum.score > p.bestScore };
+    return { ok: true, profile: guestProfile(), reward: { total: coins }, newBestWave: sum.wave > p.bestWave, newBestScore: sum.score > p.bestScore, endless: ef };
   }
   const r = await call('/api/langbang/result', Object.assign({ mode: 'endless' }, sum));
   if (r.ok && r.profile) r.profile = normalize(r.profile, false);
@@ -482,6 +484,13 @@ export function claimAllMissions(tab, guest) {
   if (guest) return guestLive((p) => { const r = L.claimAllMissions(p, tab, GUEST_UID, Date.now()); return r.n ? r : { error: '받을 보상이 없어요' }; });
   return liveCall('mission/claimAll', { tab });
 }
+// 체력 · 무한 입장 · 우편함 (손님은 같은 함수로 이 기기에)
+export function stageStart(stage, hell, guest) { return guest ? guestLive((p) => L.stageStart(p, stage, hell, false, Date.now())) : liveCall('stage/start', { stage, hell }); }
+export function stageFail(stage, guest) { return guest ? guestLive((p) => L.stageFail(p, stage, Date.now())) : liveCall('stage/fail', { stage }); }
+export function staminaBuy(guest) { return guest ? guestLive((p) => L.staminaBuy(p, Date.now())) : liveCall('stamina/buy', {}); }
+export function endlessStart(guest) { return guest ? guestLive((p) => L.endlessStart(p, false, Date.now())) : liveCall('endless/start', {}); }
+export function mailSync(guest) { return guest ? guestLive((p) => ({ mail: L.mailCount(p, Date.now()) })) : liveCall('mail/sync', {}); }
+export function mailClaim(id, guest) { return guest ? guestLive((p) => L.mailClaim(p, id, GUEST_UID, Date.now())) : liveCall('mail/claim', { id }); }
 export async function pvpRanking() { const r = await call('/api/langbang/pvp/ranking'); return r.ok ? r : null; }
 export function authToken() { return token(); }
 // 미션 시드용 사용자 번호 (서버와 같은 값 — 토큰 앞부분)

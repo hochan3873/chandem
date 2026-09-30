@@ -1540,3 +1540,20 @@ test('보스 패턴: 예고(1초) → 기술 → 틈(약점) → 반복 · 체�
   for (let t = 0; t < 0.3; t += 1 / 60) S.step(g2, 1 / 60);
   assert.ok(b2.bai.targets.some((h) => h.id === 'wonsik'), '원식이 대신 맞는다');
 });
+
+test('1:1 대전 보상: 하루 10판 · 첫 승 2배 · 30초 안 판 · 같은 상대 3판 · 등급 첫 달성 우편', async () => {
+  const L = await import('../public/langbang/live.js');
+  const lb = {}; L.normLive({}, lb);
+  const t = 1e12;
+  assert.equal(L.pvpRewardCoins(lb, true, 'a', 60, t).coins, L.PVP_REWARD.win * 2, '첫 승 2배');
+  assert.equal(L.pvpRewardCoins(lb, true, 'a', 60, t).coins, L.PVP_REWARD.win);
+  assert.equal(L.pvpRewardCoins(lb, false, 'b', 10, t).coins, 0, '30초 안');
+  assert.equal(L.pvpRewardCoins(lb, false, 'a', 60, t).coins, L.PVP_REWARD.lose);
+  assert.equal(L.pvpRewardCoins(lb, true, 'a', 60, t).coins, 0, '같은 상대 3판 넘게');
+  for (let i = 0; i < 20; i++) L.pvpRewardCoins(lb, false, 'x' + i, 60, t);
+  assert.equal(L.pvpRewardCoins(lb, true, 'z', 60, t).coins, 0, '하루 10판');
+  L.pvpTierUp(lb, 1250, t);
+  assert.equal(lb.mail.length, 2, '실버 · 골드 첫 달성');
+  L.pvpTierUp(lb, 1260, t);
+  assert.equal(lb.mail.length, 2, '한 번씩만');
+});

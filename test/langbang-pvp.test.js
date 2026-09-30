@@ -458,3 +458,47 @@ test('칭호 · 프레임: 조건을 채우면 저절로 들어오고, 랭킹 ·
   assert.equal(row.title, 'ch1'); assert.equal(row.frame, 'rookie');
   assert.equal((await post('/api/langbang/cosmetic', u.token, { title: 'ch6' })).ok, false, '없는 칭호는 못 낌');
 });
+
+test('체력 · 무한 입장 · 우편함: 스테이지는 체력(실패 절반 환불) · 무한 하루 3번 · 달성 보상 우편 · 모두 받기 · 마스터는 제외', async () => {
+  const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  // 순수 함수
+  const lb = {}; L.normLive({}, lb);
+  const t0 = 1e12;
+  assert.equal(L.staminaNow(lb, t0).v, 60);
+  assert.equal(L.stageStart(lb, 3, false, false, t0).cost, 5);
+  assert.equal(L.staminaNow(lb, t0).v, 55);
+  assert.equal(L.stageFail(lb, 3, t0).refund, 2);
+  assert.equal(L.staminaNow(lb, t0).v, 57);
+  assert.equal(L.staminaNow(lb, t0 + 6 * 60e3 * 3).v, 60, '6분에 1씩 · 60에서 멈춤');
+  L.staminaAdd(lb, 150, t0); assert.equal(L.staminaNow(lb, t0).v, 180, '넘침은 180까지');
+  // 서버
+  const u = await user('stauser');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { coins: 5000, maxStage: 12, stages: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, 3])), sta: { v: 4, t: Date.now() } });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  const s1 = await post('/api/langbang/stage/start', u.token, { stage: 13 });
+  assert.equal(s1.ok, false, '체력 4 < 5'); assert.match(s1.message, /체력/);
+  const b1 = await post('/api/langbang/stamina/buy', u.token, {});
+  assert.equal(b1.ok, true, b1.message); assert.equal(L.staminaNow(b1.profile).v, 34);
+  const s2 = await post('/api/langbang/stage/start', u.token, { stage: 13 });
+  assert.equal(s2.ok, true, s2.message); assert.equal(s2.cost, 5);
+  const f = await post('/api/langbang/stage/fail', u.token, { stage: 13 });
+  assert.equal(f.refund, 2);
+  // 무한: 하루 3번
+  for (let i = 0; i < 3; i++) assert.equal((await post('/api/langbang/endless/start', u.token, {})).ok, true, '무한 ' + (i + 1));
+  assert.equal((await post('/api/langbang/endless/start', u.token, {})).ok, false, '4번째는 안 됨');
+  // 달성 보상 → 우편함 → 모두 받기
+  const s3 = await srv.accounts.store.byId(u.user.id); s3.stats.langbang.lastResultAt = 0; s3.stats.langbang.endRun = { at: Date.now() }; await srv.accounts.store.saveStats(u.user.id, s3.stats);
+  const r = await post('/api/langbang/result', u.token, { mode: 'endless', wave: 21, score: 200000, kills: 2400, bossKills: 4, skills: 30, durationSec: 700, seen: [] });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.profile.mail.length, 2, '10 · 20웨이브 달성 우편');
+  const c0 = r.profile.coins, tk0 = r.profile.tickets;
+  const mc = await post('/api/langbang/mail/claim', u.token, { id: 'all' });
+  assert.equal(mc.ok, true, mc.message); assert.equal(mc.n, 2);
+  assert.equal(mc.profile.tickets, tk0 + 3); assert.ok(mc.profile.coins >= c0 + 2400);
+  assert.equal((await post('/api/langbang/mail/claim', u.token, { id: 'all' })).ok, false, '다시 받을 건 없음');
+  // 마스터: 체력 안 씀
+  const m = await srv.accounts.login({ username: 'gun8401', password: 'secret12' });
+  const ms = await post('/api/langbang/stage/start', m.token, { stage: 1 });
+  assert.equal(ms.ok, true); assert.equal(ms.cost, 0);
+});

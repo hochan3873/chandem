@@ -12,6 +12,8 @@ const START_RATING = 1000;
 
 function createLbPvp(opts) {
   const { accounts, normLb } = opts;
+  // 보상 규칙은 화면과 같은 live.js 에서 (하루 판 수 · 첫 승 · 등급 달성 우편)
+  if (!opts.live) import(require('url').pathToFileURL(require('path').join(__dirname, '..', 'public', 'langbang', 'live.js')).href).then((m) => { opts.live = m; }).catch(() => {});
   const now = opts.now || Date.now;
   const T = {
     botAfter: opts.botAfterMs !== undefined ? opts.botAfterMs : 20000,
@@ -128,7 +130,7 @@ function createLbPvp(opts) {
       if (p.bot) continue;
       const win = p === winner;
       const delta = ranked ? (win ? d : -d) : 0;
-      const coins = m.bot ? (win ? REWARD.bot : 0) : win ? REWARD.win : REWARD.lose;
+      let coins = m.bot ? (win ? REWARD.bot : 0) : win ? REWARD.win : REWARD.lose, note = '', left = null;
       let rating = p.rating;
       if (p.uid) {
         try {
@@ -137,13 +139,14 @@ function createLbPvp(opts) {
             const pv = lb.pvp = lb.pvp || { rating: START_RATING, games: 0, wins: 0 };
             if (ranked) { pv.rating = Math.max(0, (pv.rating | 0 || START_RATING) + delta); pv.games++; if (win) pv.wins++; }
             pv.last = now();
+            if (opts.live) { const o = other(m, p); const rr = opts.live.pvpRewardCoins(lb, win, o.bot ? 'bot' : String(o.uid || o.key || ''), (now() - m.startAt) / 1000, now()); coins = p.master ? coins : rr.coins; note = rr.note; left = rr.left; if (ranked) opts.live.pvpTierUp(lb, pv.rating, now()); }
             lb.coins += coins;
             rating = pv.rating;
           }));
         } catch (e) { console.error('[lbpvp] 결과 저장 실패', e.message); }
       }
       p.rating = rating;
-      res.set(p, { win, delta, coins, rating, reason, ranked, bot: m.bot });
+      res.set(p, { win, delta, coins, rating, reason, ranked, bot: m.bot, note, left });
     }
     for (const [p, r] of res) if (p.socket) p.socket.emit('end', r);
     return res;

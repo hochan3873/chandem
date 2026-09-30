@@ -74,7 +74,7 @@ export const FRAMES = {
 };
 // 칭호 카탈로그 (얻는 법 · 등급) — 시즌 칭호는 titleName 으로 따로
 export const TITLE_INFO = {
-  wchamp: { rarity: 'legend', how: '주간 도전 1위' }, wtop3: { rarity: 'epic', how: '주간 도전 TOP 3' }, gacha100: { rarity: 'rare', how: '업적: 모집 100번' },
+  ewchamp: { rarity: 'legend', how: '무한 도전 주간 1위' }, wchamp: { rarity: 'legend', how: '주간 도전 1위' }, wtop3: { rarity: 'epic', how: '주간 도전 TOP 3' }, gacha100: { rarity: 'rare', how: '업적: 모집 100번' },
   perfect30: { rarity: 'epic', how: '업적: PERFECT 30개' }, raid1: { rarity: 'legend', how: '레이드 데미지 1위' },
   ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어 (전부)' },
   allstar1: { rarity: 'rare', how: '1장 ★30' }, pvpsilver: { rarity: 'common', how: '1:1 대전 실버 (1050점)' }, pvpgold: { rarity: 'rare', how: '1:1 대전 골드 (1200점)' },
@@ -82,6 +82,16 @@ export const TITLE_INFO = {
 };
 const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족' };
 // 조건을 채우면 저절로 들어오는 칭호 · 프레임 (서버 normLb · 손님 둘 다 같은 함수)
+// 우편 보상은 정해진 칸만 (숫자 · 등급 · 칭호/프레임 이름)
+function cleanRw(rw) {
+  rw = rw || {};
+  const o = {};
+  for (const k of ['coins', 'tickets', 'sp', 'stones']) { const v = int(rw[k], 0, 1e7); if (v) o[k] = v; }
+  if (GEAR_RARITIES.includes(rw.gear)) o.gear = rw.gear;
+  if (typeof rw.title === 'string' && rw.title.length < 16) o.title = rw.title;
+  if (typeof rw.frame === 'string' && FRAMES[rw.frame]) o.frame = rw.frame;
+  return o;
+}
 function autoCosmetics(raw) {
   const st = raw.stages || {};
   let max = raw.maxStage | 0; for (const k of Object.keys(st)) if ((st[k] | 0) > 0 && +k > max) max = +k;
@@ -109,7 +119,7 @@ export function titleName(id) {
   if (m) return `시즌${m[1]} 단골`;
   m = /^s(\d{1,3})_t30$/.exec(id);
   if (m) return `시즌${m[1]} 랑방 레전드`;
-  return { wchamp: '주간 챔피언', wtop3: '주간 TOP 3', gacha100: '모집왕', perfect30: '무결점 문지기', raid1: '레이드 MVP', ...TITLE_NAMES }[id] || '';
+  return { ewchamp: '무한의 지배자', wchamp: '주간 챔피언', wtop3: '주간 TOP 3', gacha100: '모집왕', perfect30: '무결점 문지기', raid1: '레이드 MVP', ...TITLE_NAMES }[id] || '';
 }
 const titleOk = (id) => typeof id === 'string' && id.length < 16 && !!titleName(id);
 
@@ -290,6 +300,8 @@ export function grant(lb, rw, uid, now) {
   const got = {};
   if (rw.coins) { lb.coins = (lb.coins | 0) + rw.coins; got.coins = rw.coins; }
   if (rw.tickets) { lb.tickets = (lb.tickets | 0) + rw.tickets; got.tickets = rw.tickets; }
+  if (rw.stones) { lb.stones = (lb.stones | 0) + rw.stones; got.stones = rw.stones; }
+  if (rw.sta) { staminaAdd(lb, rw.sta, now); got.sta = rw.sta; }
   if (rw.sp) { ensureLive(lb, uid, now); lb.season.sp += rw.sp; got.sp = rw.sp; }
   if (rw.gear) got.gear = addGear(lb, GEAR_IDS[hashSeed(`rw:${lb.gearSeq}:${rw.gear}:${uid}`) % GEAR_IDS.length], rw.gear);
   if (rw.title && !lb.titles.includes(rw.title)) { lb.titles.push(rw.title); got.title = rw.title; }
@@ -529,7 +541,7 @@ export function claimCheckin(lb, uid, now = Date.now()) {
   if (st.done) return { error: '오늘은 이미 출석했어요' };
   const rw = CHECKIN[st.streak % 7];
   lb.checkin = { last: dayIndex(now), streak: st.streak + 1 };
-  return { got: grant(lb, rw, uid, now), day: (st.streak % 7) + 1 };
+  return { got: grant(lb, Object.assign({ sta: STAMINA.checkin }, rw), uid, now), day: (st.streak % 7) + 1 };
 }
 
 // ─── 모임 레이드: 하루 3번 (KST) · 모두의 피해를 합쳐 거대 보스 하나 ───
@@ -648,6 +660,127 @@ export function cleanDecks(raw) {
 }
 
 // ─── 프로필 정리 (서버 normLb · 손님 normalize 가 같이 쓴다) ─────
+
+// ─── 체력 (스태미나): 스테이지는 체력을 쓴다 · 무한 · 레이드 · 1:1 대전은 따로 입장 횟수 ───
+//  최대 60 · 6분에 1 · 보상으로 180 까지 넘칠 수 있다 · 마스터는 안 씀 (서버가 정한다)
+export const STAMINA = { max: 60, regenMs: 6 * 60e3, cap: 180, stage: 5, hell: 10, repeat: 3, lvUp: 5, checkin: 20, buy: { n: 30, perDay: 3, cost: [300, 700, 1500] } };
+export function staminaNow(lb, now = Date.now()) {
+  const s = lb.sta || { v: STAMINA.max, t: now };
+  let v = s.v | 0, t = s.t || now;
+  if (v >= STAMINA.max) return { v, t: now, next: 0 };
+  const k = Math.floor(Math.max(0, now - t) / STAMINA.regenMs);
+  if (k > 0) { v = Math.min(STAMINA.max, v + k); t += k * STAMINA.regenMs; }
+  return { v, t: v >= STAMINA.max ? now : t, next: v >= STAMINA.max ? 0 : STAMINA.regenMs - (now - t) };
+}
+export function staminaAdd(lb, d, now = Date.now()) {
+  const cur = staminaNow(lb, now);
+  const v = Math.max(0, Math.min(STAMINA.cap, cur.v + d));
+  lb.sta = { v, t: cur.v >= STAMINA.max ? now : cur.t };
+  return v;
+}
+export const stageStaminaCost = (lb, stage, hell) => (hell ? STAMINA.hell : ((lb.stages || {})[stage] | 0) >= 3 ? STAMINA.repeat : STAMINA.stage);
+// 스테이지 시작: 체력을 쓰고 표를 남긴다 (실패하면 절반 돌려준다 · 깨면 표를 지운다)
+export function stageStart(lb, stage, hell, free, now = Date.now()) {
+  const cost = free ? 0 : stageStaminaCost(lb, stage, hell);
+  if (cost && staminaNow(lb, now).v < cost) return { error: `체력이 부족해요 (${cost} 필요)`, stamina: true };
+  if (cost) staminaAdd(lb, -cost, now);
+  lb.staRun = { stage, hell: !!hell, cost, at: now };
+  return { cost, sta: staminaNow(lb, now).v };
+}
+export function stageFail(lb, stage, now = Date.now()) {
+  const r = lb.staRun;
+  if (!r || r.stage !== stage) return { refund: 0 };
+  lb.staRun = null;
+  const back = Math.floor(r.cost / 2);
+  if (back) staminaAdd(lb, back, now);
+  return { refund: back };
+}
+export function staminaBuy(lb, now = Date.now()) {
+  const day = dayIndex(now), b = lb.staBuy && lb.staBuy.day === day ? lb.staBuy : { day, n: 0 };
+  if (b.n >= STAMINA.buy.perDay) return { error: `오늘은 다 샀어요 (하루 ${STAMINA.buy.perDay}번)` };
+  const cost = STAMINA.buy.cost[b.n];
+  if ((lb.coins | 0) < cost) return { error: `코인이 부족해요 (${cost.toLocaleString()} 필요)` };
+  lb.coins -= cost; lb.staBuy = { day, n: b.n + 1 };
+  staminaAdd(lb, STAMINA.buy.n, now);
+  return { cost, sta: staminaNow(lb, now).v, left: STAMINA.buy.perDay - b.n - 1 };
+}
+// ─── 무한 도전: 하루 3번 (05:00 KST 초기화) · 웨이브 달성 보상(주마다 처음 한 번) · 웨이브 코인 하루 상한 ───
+export const ENDLESS = { perDay: 3, coinCap: 6000, miles: [10, 20, 30, 40, 50], resetH: 5 };
+export const endlessDay = (now = Date.now()) => Math.floor((now + KST - ENDLESS.resetH * 3600e3 - EPOCH) / DAY);
+export const endlessLeft = (lb, now = Date.now()) => ENDLESS.perDay - (lb.endDay && lb.endDay.day === endlessDay(now) ? lb.endDay.n : 0);
+export function endlessStart(lb, free, now = Date.now()) {
+  if (!free && endlessLeft(lb, now) <= 0) return { error: `오늘 무한 도전은 다 했어요 (하루 ${ENDLESS.perDay}번 · 아침 5시 초기화)` };
+  const day = endlessDay(now);
+  lb.endDay = { day, n: (lb.endDay && lb.endDay.day === day ? lb.endDay.n : 0) + (free ? 0 : 1) };
+  lb.endRun = { at: now };
+  return { left: endlessLeft(lb, now) };
+}
+export function milestoneReward(w) {
+  const i = ENDLESS.miles.indexOf(w);
+  return [{ coins: 800, tickets: 1 }, { coins: 1600, tickets: 2, gear: 'rare' }, { coins: 3000, tickets: 3, gear: 'epic' }, { coins: 5000, tickets: 4, gear: 'epic' }, { coins: 8000, tickets: 5, gear: 'legend' }][i] || null;
+}
+// 끝난 무한 판 정리: 주간 최고 · 달성 보상(우편함) · 코인 상한
+export function endlessFinish(lb, wave, score, coins, uid, now = Date.now()) {
+  const wi = weekIndex(now), day = endlessDay(now);
+  if (!lb.ew || lb.ew.wi !== wi) { if (lb.ew && lb.ew.wi === wi - 1) lb.ewPrev = lb.ew; lb.ew = { wi, best: 0, miles: [] }; }
+  const newBest = score > lb.ew.best;
+  if (newBest) lb.ew.best = score;
+  for (const m of ENDLESS.miles) if (wave >= m && !lb.ew.miles.includes(m)) { lb.ew.miles.push(m); mailAdd(lb, { title: `🏁 무한 ${m}웨이브 달성`, text: '이번 주 처음 달성 보상', rw: milestoneReward(m) }, now); }
+  const ec = lb.endCoins && lb.endCoins.day === day ? lb.endCoins : { day, v: 0 };
+  const give = Math.max(0, Math.min(coins, ENDLESS.coinCap - ec.v));
+  lb.endCoins = { day, v: ec.v + give };
+  lb.endRun = null;
+  return { coins: give, capped: give < coins, weekBest: newBest };
+}
+export function endlessWeekReward(rank) {
+  if (!rank) return null;
+  if (rank === 1) return { coins: 6000, tickets: 5, gear: 'legend', title: 'ewchamp', label: '🥇 무한 주간 1위' };
+  if (rank <= 3) return { coins: 3500, tickets: 3, gear: 'epic', label: `🏅 무한 주간 ${rank}위` };
+  if (rank <= 10) return { coins: 1500, tickets: 10, label: `무한 주간 ${rank}위 (TOP 10)` };
+  return { coins: 500, tickets: 1, label: `무한 주간 ${rank}위 (참가)` };
+}
+// ─── 1:1 대전 보상: 하루 10판까지 코인 · 첫 승 2배 · 30초 안 끝난 판 · 같은 상대 하루 3판 넘게는 코인 없음 ───
+export const PVP_REWARD = { perDay: 10, win: 300, lose: 80, firstWinMul: 2, minSec: 30, sameOpp: 3 };
+export function pvpRewardCoins(lb, win, oppKey, sec, now = Date.now()) {
+  const day = dayIndex(now);
+  const d = lb.pvpDay && lb.pvpDay.day === day ? lb.pvpDay : { day, n: 0, won: false, opp: {} };
+  let coins = 0, note = '';
+  const same = (d.opp[oppKey] | 0);
+  if (sec < PVP_REWARD.minSec) note = '30초 안에 끝난 판은 보상이 없어요';
+  else if (same >= PVP_REWARD.sameOpp) note = '같은 상대와는 하루 3판까지만 보상';
+  else if (d.n >= PVP_REWARD.perDay) note = `오늘 보상 판(${PVP_REWARD.perDay}판)을 다 했어요 · 점수만 올라요`;
+  else { coins = win ? PVP_REWARD.win * (d.won ? 1 : PVP_REWARD.firstWinMul) : PVP_REWARD.lose; d.n++; if (win && !d.won) { d.won = true; note = '오늘 첫 승 보상 2배!'; } }
+  if (oppKey) d.opp[oppKey] = same + 1;
+  lb.pvpDay = d;
+  return { coins, note, left: Math.max(0, PVP_REWARD.perDay - d.n) };
+}
+export const PVP_TIER_LADDER = [[1050, '실버', { coins: 1000, tickets: 2 }], [1200, '골드', { coins: 2000, tickets: 3 }], [1350, '플래티넘', { coins: 3000, tickets: 4 }], [1500, '다이아', { coins: 5000, tickets: 5, gear: 'epic' }], [1800, '랑방킹', { coins: 10000, tickets: 10, gear: 'legend' }]];
+// 처음 오른 등급 보상 → 우편함 (한 번씩)
+export function pvpTierUp(lb, rating, now = Date.now()) {
+  const got = lb.pvpTiers || [];
+  for (const [min, name, rw] of PVP_TIER_LADDER) if (rating >= min && !got.includes(min)) { got.push(min); mailAdd(lb, { title: `🏆 1:1 대전 ${name} 달성!`, text: '처음 오른 등급 보상', rw }, now); }
+  lb.pvpTiers = got;
+}
+// ─── 우편함: 보상이 여기로 온다 (14일 뒤 사라짐) · 하나씩 · 모두 받기 ───
+export const MAIL_DAYS = 14;
+export function mailAdd(lb, m, now = Date.now()) {
+  lb.mail = lb.mail || [];
+  lb.mailSeq = (lb.mailSeq | 0) + 1;
+  lb.mail.push({ id: lb.mailSeq, title: String(m.title || '').slice(0, 40), text: String(m.text || '').slice(0, 80), rw: m.rw || {}, at: now, exp: now + MAIL_DAYS * DAY });
+  if (lb.mail.length > 50) lb.mail = lb.mail.slice(-50);
+}
+export function mailClaim(lb, id, uid, now = Date.now()) {
+  lb.mail = (lb.mail || []).filter((m) => m.exp > now);
+  const list = id === 'all' ? lb.mail.slice() : lb.mail.filter((m) => m.id === id);
+  if (!list.length) return { error: id === 'all' ? '받을 우편이 없어요' : '없는 우편이에요' };
+  const got = {};
+  for (const m of list) { const g = grant(lb, m.rw || {}, uid, now); for (const [k, v] of Object.entries(g)) { if (typeof v === 'number') got[k] = (got[k] || 0) + v; else (got[k + 's'] = got[k + 's'] || []).push(v); } }
+  const ids = new Set(list.map((m) => m.id));
+  lb.mail = lb.mail.filter((m) => !ids.has(m.id));
+  return { n: list.length, got };
+}
+export const mailCount = (lb, now = Date.now()) => (lb.mail || []).filter((m) => m.exp > now).length;
+
 export function normLive(raw, out) {
   raw = raw || {};
   const heroIds = Object.keys(HEROES);
@@ -693,6 +826,19 @@ export function normLive(raw, out) {
   out.pvp = pv ? { rating: int(pv.rating, 0, 5000) || 1000, games: int(pv.games, 0, 1e6), wins: int(pv.wins, 0, 1e6), last: int(pv.last, 0, 9e15) } : { rating: 1000, games: 0, wins: 0, last: 0 };
   const ci = raw.checkin;
   out.checkin = ci && Number.isInteger(ci.last) ? { last: ci.last, streak: int(ci.streak, 0, 1e5) } : null;
+  // 체력 · 무한 · 우편함 · 1:1 보상 기록
+  out.sta = raw.sta && Number.isFinite(raw.sta.t) ? { v: int(raw.sta.v, 0, STAMINA.cap), t: int(raw.sta.t, 0, 9e15) } : { v: STAMINA.max, t: 0 };
+  out.staBuy = raw.staBuy && Number.isInteger(raw.staBuy.day) ? { day: raw.staBuy.day, n: int(raw.staBuy.n, 0, 9) } : null;
+  out.staRun = raw.staRun && Number.isFinite(raw.staRun.at) ? { stage: int(raw.staRun.stage, 0, 999), hell: !!raw.staRun.hell, cost: int(raw.staRun.cost, 0, 99), at: int(raw.staRun.at, 0, 9e15) } : null;
+  out.endDay = raw.endDay && Number.isInteger(raw.endDay.day) ? { day: raw.endDay.day, n: int(raw.endDay.n, 0, 99) } : null;
+  out.endRun = raw.endRun && Number.isFinite(raw.endRun.at) ? { at: int(raw.endRun.at, 0, 9e15) } : null;
+  out.endCoins = raw.endCoins && Number.isInteger(raw.endCoins.day) ? { day: raw.endCoins.day, v: int(raw.endCoins.v, 0, 1e7) } : null;
+  const ew = (x) => (x && Number.isInteger(x.wi) ? { wi: x.wi, best: int(x.best, 0, 1e10), miles: (x.miles || []).map((m) => int(m, 0, 999)).filter((m) => ENDLESS.miles.includes(m)) } : null);
+  out.ew = ew(raw.ew); out.ewPrev = ew(raw.ewPrev); out.ewPaid = Number.isInteger(raw.ewPaid) ? raw.ewPaid : -1e6;
+  out.mailSeq = int(raw.mailSeq, 0, 1e9);
+  out.mail = (Array.isArray(raw.mail) ? raw.mail : []).filter((m) => m && Number.isInteger(m.id) && Number.isFinite(m.exp)).slice(-50).map((m) => ({ id: m.id, title: String(m.title || '').slice(0, 40), text: String(m.text || '').slice(0, 80), rw: cleanRw(m.rw), at: int(m.at, 0, 9e15), exp: int(m.exp, 0, 9e15) }));
+  out.pvpDay = raw.pvpDay && Number.isInteger(raw.pvpDay.day) ? { day: raw.pvpDay.day, n: int(raw.pvpDay.n, 0, 999), won: !!raw.pvpDay.won, opp: Object.fromEntries(Object.entries(raw.pvpDay.opp || {}).slice(0, 50).map(([k, v]) => [String(k).slice(0, 40), int(v, 0, 999)])) } : null;
+  out.pvpTiers = (Array.isArray(raw.pvpTiers) ? raw.pvpTiers : []).map((x) => int(x, 0, 5000)).filter((x) => PVP_TIER_LADDER.some((t) => t[0] === x));
   return out;
 }
 export const MAPFX = MAP_FX; // (화면 표시용)

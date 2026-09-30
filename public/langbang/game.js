@@ -290,6 +290,17 @@ async function startRun(opt = {}) {
   const raid = mode === 'raid' ? { sec: L.RAID.sec } : null;
   if (raid) weekly = L.raidDef(opt.raidWi !== undefined ? opt.raidWi : L.raidState().wi);
   const pvp = mode === 'pvp' ? { seed: opt.pvpSeed | 0 } : null;
+  const dbg = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || (mode === 'stage' && !stageUnlocked(st));
+  if (mode === 'stage' && !dbg && !opt.resume) {
+    const r = await API.stageStart(st, !!hell, app.guest);
+    if (!r.ok) { if (/체력/.test(r.message || '')) showStamina(r.message); else toast(r.message || '시작할 수 없어요'); return; }
+    if (r.profile) app.profile = r.profile;
+  }
+  if (mode === 'endless' && !dbg && !opt.resume) {
+    const r = await API.endlessStart(app.guest);
+    if (!r.ok) { toast(r.message || '시작할 수 없어요', 2600); return; }
+    if (r.profile) app.profile = r.profile;
+  }
   if (mode === 'weekly') {
     const r = await API.weeklyStart(app.guest);
     if (!r.ok) { toast(r.message || '주간 도전을 시작할 수 없어요'); return; }
@@ -1639,6 +1650,33 @@ const frameCls = (id) => (id && L.FRAMES[id] ? `fr r-${L.FRAMES[id].rarity} ` : 
 const frameStyle = (id) => (id && L.FRAMES[id] ? `--fr:${L.FRAMES[id].color}` : '');
 // 이름 + 칭호 (랭킹 · 방 목록 · 대전 · 선수 카드에서 같이 쓴다)
 const whoHtml = (nick, title, extra = '') => `<span class="who2"><b>${esc(nick || '')}</b>${titleChip(title)}${extra}</span>`;
+// 체력 표시 (다음 1칸까지 남은 시간)
+function staText(p) { const s = L.staminaNow(p, Date.now()); return `${s.v}/${L.STAMINA.max}${s.next ? `<small>${Math.floor(s.next / 60000)}:${String(Math.floor((s.next % 60000) / 1000)).padStart(2, '0')}</small>` : ''}`; }
+setInterval(() => { const el = document.getElementById('staV'); if (el && el.isConnected) el.innerHTML = staText(P()); }, 1000);
+function showStamina(msg) {
+  const p = P(), s = L.staminaNow(p, Date.now()), day = L.dayIndex();
+  const n = p.staBuy && p.staBuy.day === day ? p.staBuy.n : 0, left = L.STAMINA.buy.perDay - n, cost = L.STAMINA.buy.cost[n];
+  popup(`<h3>⚡ 체력 ${msg ? '부족!' : ''}</h3>${msg ? `<p class="ip">${esc(msg)}</p>` : ''}
+    <p class="ip big-got">${s.v} / ${L.STAMINA.max}${s.v > L.STAMINA.max ? ' (넘침)' : ''}</p>
+    <p class="ip">6분마다 1씩 차요${s.next ? ` · 다음까지 ${Math.ceil(s.next / 60000)}분` : ' · 가득!'}</p>
+    <div class="ilist"><p class="ip">🗺️ 스테이지 ${L.STAMINA.stage} · 이미 ★★★ 스테이지 ${L.STAMINA.repeat} · 🔥 헬 ${L.STAMINA.hell} · 실패하면 절반 돌려받기</p>
+    <p class="ip">📆 출석 +${L.STAMINA.checkin} · 계정 레벨 업 +${L.STAMINA.lvUp} · 무한 · 레이드 · 1:1 대전은 체력을 안 써요</p></div>
+    <button class="btn ${left > 0 && p.coins >= cost ? 'primary' : ''}" data-act="staBuy" ${left > 0 ? '' : 'disabled'}>⚡ +${L.STAMINA.buy.n} 사기 · ${left > 0 ? `<i class="ci"></i>${fmt(cost)}` : '오늘 끝'} <small>(오늘 ${left}/${L.STAMINA.buy.perDay})</small></button>`, 'sta-pop');
+}
+// 우편함
+function showMail() {
+  const p = P(), now = Date.now();
+  const list = (p.mail || []).filter((m) => m.exp > now).slice().reverse();
+  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b><small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${esc(gotText(m.rw) || '')}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
+  popup(`<h3>📮 우편함</h3>${list.length > 1 ? `<button class="btn primary" data-act="mailGet" data-id="all">🎁 모두 받기 (${list.length})</button>` : ''}
+    <div class="mail-list">${rows || '<div class="empty-msg">받을 우편이 없어요</div>'}</div><p class="ip">보상 우편은 ${L.MAIL_DAYS}일 뒤 사라져요</p>`, 'mail-pop');
+}
+// 모드별 보상 안내
+const REWARD_INFO = {
+  endless: () => { const p = P(), left = L.endlessLeft(p); return `<h3>♾️ 무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><div class="ilist">${L.ENDLESS.miles.map((w) => `<p class="ip">🏁 ${w}웨이브 첫 달성(주마다) — ${esc(gotText(L.milestoneReward(w)))}${p.ew && p.ew.wi === L.weekIndex() && p.ew.miles.includes(w) ? ' ✅' : ''}</p>`).join('')}</div><p class="ip">웨이브 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 10 · 참가 보상 (우편함)</p>`; },
+  pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>⚔️ 1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 🎉 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">🏆 ${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? ' ✅' : ''}</p>`).join('')}</div>`; },
+  raid: () => `<h3>🐉 레이드 보상</h3><div class="ilist"><p class="ip">참가: 코인 · 보스 체력을 깎은 만큼 (50% 넘으면 모집권)</p><p class="ip">처치 성공: 모두 코인 2,000 + 기여도 · 1위 전설 장비 + 칭호 "레이드 MVP" · 2~3위 영웅 장비 · TOP10 모집권</p><p class="ip">한 판마다 💎 강화석 2</p></div>`,
+};
 function topPills() {
   const p = P();
   const expPct = p.expToNext ? Math.round((p.exp / p.expToNext) * 100) : 0;
@@ -1647,7 +1685,7 @@ function topPills() {
   return `<div class="lb-top">
     <button class="pill me" data-act="cosmetics" style="${fr ? `--fr:${fr}` : ''}"><span class="ava ${fr ? 'framed ' + frameCls(p.frame) : ''}">${av(HEROES.bangjang)}</span>
       <span class="who"><b>${app.guest ? '손님' : `Lv.${p.level}`}</b><em>${esc(app.guest ? '로그인하면 랭킹 등록' : app.nickname || '랑방 멤버')}</em>${titleChip(p.title)}<i class="xp"><b style="width:${app.guest ? 0 : expPct}%"></b></i></span></button>
-    <div class="curs"><span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pill cur tk" data-act="nav" data-tab="shop">🎟️<b>${p.unlimited ? '∞' : fmt(p.tickets || 0)}</b><em>+</em></button></div>
+    <div class="curs">${p.master && !p.testNormal ? '' : `<button class="pill cur sta" data-act="stamina">⚡<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pill cur tk" data-act="nav" data-tab="shop">🎟️<b>${p.unlimited ? '∞' : fmt(p.tickets || 0)}</b><em>+</em></button></div>
   </div>`;
 }
 // 로비 랭킹 띠: 스테이지 · 1:1 대전 · 주간 도전 순위를 4초마다 돌아가며 (누르면 전체 랭킹)
@@ -1711,8 +1749,8 @@ function showMenu() {
     `<button class="tile ${L.raidState(now).open ? 'hot' : ''}" data-act="raid">${uiIco('raid', '🐉')}<b>레이드</b><small class="${L.raidState(now).open ? 'raid-open' : ''}">${esc(L.raidLabel(now).text)}</small>${rdot(L.raidState(now).open && !(p.raid && p.raid.wi === L.raidState(now).wi && p.raid.runs))}</button>`,
     `<button class="tile" data-act="pvp">${uiIco('pvp', '⚔️')}<b>1:1 대전</b><small>${(p.pvp && p.pvp.rating) || 1000}점</small></button>`,
   ].join('');
-  const right = [['missions', '미션', '📜', 'missionsNav'], ['share', '공유', '📤', 'share'], ['checkin', '출석', '📆', 'checkin'], ['ranking', '랭킹', '🏆', 'ranking'], ['dex', '도감', '📚', 'dex'], ['mail', '공지', '📮', 'notice'], ['settings', '설정', '⚙️', 'settings']]
-    .map(([ic, n, e, act]) => `<button class="rb" data-act="${act}">${uiIco(ic, e)}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions))}</button>`).join('');
+  const right = [['missions', '미션', '📜', 'missionsNav'], ['share', '공유', '📤', 'share'], ['checkin', '출석', '📆', 'checkin'], ['ranking', '랭킹', '🏆', 'ranking'], ['dex', '도감', '📚', 'dex'], ['mail', '우편', '📮', 'mail'], ['notice', '공지', '📢', 'notice'], ['settings', '설정', '⚙️', 'settings']]
+    .map(([ic, n, e, act]) => `<button class="rb" data-act="${act}">${uiIco(ic, e)}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions) || (act === 'mail' && L.mailCount(p) > 0))}</button>`).join('');
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~6)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
@@ -1838,6 +1876,8 @@ function gotText(got) {
   if (got.title) a.push(`🏷️ 칭호 "${L.titleName(got.title)}"`);
   if (got.frame) a.push(`🖼️ ${L.FRAMES[got.frame].name}`);
   if (got.gears) a.push(`🎁 장비 ${got.gears.length}개`);
+  if (got.stones) a.push(`💎 강화석 ${got.stones}`);
+  if (got.sta) a.push(`⚡ 체력 ${got.sta}`);
   if (got.titles) a.push(`🏷️ 칭호 ${got.titles.length}개`);
   if (got.frames) a.push(`🖼️ 프레임 ${got.frames.length}개`);
   return a.join(' · ');
@@ -2492,6 +2532,11 @@ Object.assign(ACTS, {
   checkin: () => showCheckin(),
   doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`📆 출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
   notice: () => showNotice(),
+  mail: async () => { await Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {}); showMail(); },
+  mailGet: async (b) => { const r = await liveAct(API.mailClaim(b.dataset.id === 'all' ? 'all' : Number(b.dataset.id), app.guest)); if (r) { A.sfx.levelUp(); toast(`📮 ${r.n}개 받았어요 · ${gotText(r.got)}`, 2400); showMail(); refreshBehind(); } },
+  stamina: () => showStamina(),
+  staBuy: async () => { const r = await liveAct(API.staminaBuy(app.guest)); if (r) { toast(`⚡ 체력 +${L.STAMINA.buy.n}!`, 1400); showStamina(); refreshBehind(); } },
+  rwInfo: (b) => { const f = REWARD_INFO[b.dataset.v]; if (f) popup(f() + '<button class="btn primary" data-x>알겠어요</button>', 'rw-info'); },
   toHub: () => { closeInfoCard(); leaveToHub(); },
   toLobby: async () => {
     const g = app.g;
@@ -2673,6 +2718,7 @@ async function showRaid() {
       ${topPills()}
       <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
       <h2 class="title">🐉 모임 레이드 · ${esc(st.slot)}</h2>
+      <button class="chip rw-i" data-act="rwInfo" data-v="raid">ℹ️ 보상 안내</button>
       <p class="sub">${open ? `끝까지 ${L.leftText(st.endsAt - Date.now())} · 모두의 피해를 합쳐 잡아요` : `다음 레이드: ${esc(st.slot)} (${L.leftText(st.opensAt - Date.now())} 뒤) · 매일 12:00~13:30 · 15:00~16:30 · 21:00~23:00`}</p>
       <div class="raid-boss"><div class="rb-art">${av(boss)}</div><b>${esc(boss.name)}</b>
         <div class="rb-hp"><div style="width:${100 - pct}%"></div><em>${bd && bd.killed ? '🎉 처치 성공!' : `${fmt(Math.max(0, L.RAID.hp - total))} / ${fmt(L.RAID.hp)}`}</em></div>
@@ -2741,6 +2787,7 @@ async function showPvp() {
     <div class="pvp-card"><b>${app.guest ? '손님 (연습만)' : tierOf(pv.rating)}</b><span>${app.guest ? '로그인하면 점수 경쟁' : `${pv.rating}점 · ${pv.games}판 ${pv.wins}승`}</span>
       <small>${!app.guest && next ? `다음 등급 ${next[1]}까지 +${next[0] - pv.rating}점 · ` : ''}이기면 <i class="ci"></i>200 · 져도 <i class="ci"></i>60 · 내 덱 전투력 ⚔ ${fmt(pw)}</small></div>
     <div class="grid2 pvp-main"><button class="btn primary" data-act="pvpQuick">🔍 빠른 매칭<small>열린 방에 바로 · 없으면 방을 열어요</small></button><button class="btn pink" data-act="pvpRoom">🏠 방 만들기<small>친구 초대 링크</small></button></div>
+    <button class="chip rw-i" data-act="rwInfo" data-v="pvp">ℹ️ 보상 안내</button>
     <div class="panel pvp-rooms"><h4>🚪 열린 방 <small id="roomN"></small></h4><div id="roomList"><div class="empty-msg"><span class="spin">⏳</span> 방 목록 불러오는 중…</div></div></div>
     <button class="btn ghost mini" data-act="pvpJoin">🔑 코드로 참가</button>
     <div class="gap"></div>
@@ -3212,7 +3259,7 @@ function showPrep(mode, s) {
     ? `<h2 class="title">${hellOn ? '<em class="hellb">HELL</em> ' : ''}${stageLabel(s)} ${esc(stageName(s))}</h2><p class="sub">${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 👑 보스' : ''} · ${fxd.icon} ${esc(fxd.name)} · 최고 ${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ' · 💎' : ''}${hellOk ? ` · 🔥 ${starStr((p.hell || {})[s] || 0)}` : ''}</p>
        ${hellOk ? `<div class="mode-tog"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0">일반</button><button class="${hellOn ? 'on hell' : ''}" data-act="hellMode" data-v="1">🔥 헬 모드</button></div>${hellOn ? `<p class="sub hellsub">진상 체력 ×${HELL.hp} · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 보스 분노 — 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>` : ''}` : ''}`
     : wk ? `<h2 class="title">📅 주간 도전 · ${esc(L.WEEKLY_MODS[wk.mod].name)}</h2><p class="sub">${L.WEEKLY_WAVES}웨이브 · ${fxd.icon} ${esc(fxd.name)} · ${esc(L.WEEKLY_MODS[wk.mod].desc)}</p>`
-      : `<h2 class="title">♾️ 무한 도전</h2><p class="sub">어디까지 버틸까? 최고 W${p.bestWave || 0} · 점수 ${fmt(p.bestScore || 0)}</p>`;
+      : `<h2 class="title">♾️ 무한 도전</h2><p class="sub">어디까지 버틸까? 최고 W${p.bestWave || 0} · 점수 ${fmt(p.bestScore || 0)} · 오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}</b> <button class="chip mini" data-act="rwInfo" data-v="endless">ℹ️ 보상</button></p>`;
   show(`
     <div class="topbar"><button class="back" data-act="${mode === 'stage' ? 'menu' : mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button>${coinsPill()}</div>
     ${head}
@@ -3538,6 +3585,7 @@ function showResult(victory, quit) {
     heroes: heroes.slice(0, 6).map((h) => ({ img: h.def.img, name: h.def.name, color: h.def.color })),
   };
   if (win || !stageMode || wk || g.raid || g.pvp) saveResult(sum, g);
+  else if (stageMode && !app.debugRun) Promise.resolve(API.stageFail(g.stage, app.guest)).then((r) => { if (r && r.ok) { if (r.profile) app.profile = r.profile; if (r.refund) toast(`⚡ 체력 ${r.refund} 돌려받았어요 (실패하면 절반)`, 1800); } });
 }
 const LOSE_LINES = ['진상들이 랑방을 점령했다… 다음엔 꼭!', '"한 잔만 더~" 술진상이 문을 열고 들어왔다', '먹튀 인간들이 경험치를 털어 갔다…', '인피: "랑방? 이제 우리 아지트야~"', '여왕벌: "여기 이제 내 가게야~"'];
 const FAIL_TIPS = [
@@ -3594,6 +3642,7 @@ async function saveResult(sum, g) {
     if (rw.bonus) lines.push(`<div class="rw"><span>🎟️ 단골 쿠폰</span><b>+${fmt(rw.bonus)}</b></div>`);
   }
   lines.push(`<div class="rw total"><span><i class="ci"></i>${stageMode ? '받은 코인' : `웨이브 ${sum.wave} 보상`}</span><b>+${fmt(rw.total || 0)}</b></div>`);
+  if (!stageMode && r.endless) { if (r.endless.capped) lines.push('<div class="rw"><span>♾️ 오늘 무한 코인 상한 도달</span><b>' + fmt(L.ENDLESS.coinCap) + '</b></div>'); if (r.endless.weekBest) lines.push('<div class="rw hl"><span>♾️ 이번 주 최고 점수!</span><b>주간 순위 ↑</b></div>'); if (L.mailCount(P()) > 0) lines.push('<div class="rw"><span>📮 달성 보상이 우편함에 왔어요</span><b>' + L.mailCount(P()) + '</b></div>'); }
   const badges = [];
   if (r.levelUp) badges.push(`<span class="badge pink">계정 레벨 업! Lv.${p.level}</span>`);
   if (r.newBestWave) badges.push('<span class="badge">최고 웨이브 갱신!</span>');
@@ -4264,8 +4313,8 @@ async function showRanking() {
   show(`
     ${topbar(true)}
     <h2 class="title">🏆 랑방 명예의 전당</h2>
-    <div class="tabs"><button class="${tab === 'stage' ? 'on' : ''}" data-act="rankTab" data-tab="stage">🗺️ 스테이지</button><button class="${tab === 'endless' ? 'on' : ''}" data-act="rankTab" data-tab="endless">♾️ 무한 도전</button></div>
-    <p class="sub">${tab === 'stage' ? '최고 스테이지 → 총 별 → 먼저 도달한 순' : '최고 웨이브 → 최고 점수 순'}</p>
+    <div class="tabs"><button class="${tab === 'stage' ? 'on' : ''}" data-act="rankTab" data-tab="stage">🗺️ 스테이지</button><button class="${tab === 'endless' ? 'on' : ''}" data-act="rankTab" data-tab="endless">♾️ 무한 도전</button><button class="${tab === 'endlessWeek' ? 'on' : ''}" data-act="rankTab" data-tab="endlessWeek">📅 무한 주간</button></div>
+    <p class="sub">${tab === 'stage' ? '최고 스테이지 → 총 별 → 먼저 도달한 순' : tab === 'endlessWeek' ? '이번 주 무한 도전 최고 점수 · 주가 끝나면 순위 보상이 우편함으로' : '최고 웨이브 → 최고 점수 순'}</p>
     <div class="rank-list" id="rk"><div class="empty-msg"><span class="spin">⏳</span> 불러오는 중…</div></div>
     <div class="spacer"></div>
     <div class="my-rank" id="myrk"></div>
@@ -4277,7 +4326,7 @@ async function showRanking() {
   if (!res) { box.innerHTML = '<div class="empty-msg">랭킹을 불러오지 못했어요<br>잠시 후 다시 해 주세요</div>'; return; }
   const cell = (r) => (tab === 'stage'
     ? `<span class="w"><b>${r.stageLabel}</b><small>★ ${r.totalStars}</small></span>`
-    : `<span class="w"><b>W${r.bestWave}</b><small>${fmt(r.bestScore)}점</small></span>`);
+    : tab === 'endlessWeek' ? `<span class="w"><b>${fmt(r.weekBest || 0)}</b><small>이번 주</small></span>` : `<span class="w"><b>W${r.bestWave}</b><small>${fmt(r.bestScore)}점</small></span>`);
   const medal = ['🥇', '🥈', '🥉'];
   box.innerHTML = res.ranking.length
     ? res.ranking.map((r) => `<div class="rank r${r.rank} ${res.me && res.me.username === r.username ? 'me' : ''}" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="no">${medal[r.rank - 1] || r.rank}</span>
@@ -4515,6 +4564,7 @@ async function boot() {
   app.profile = r.profile;
   app.guest = r.guest;
   app.profileLoaded = true;
+  Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {});
   saveCrowd();
   if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크
   // 로그인: 서버에 저장된 덱이 있고 이 기기에 덱이 없으면 서버 덱으로

@@ -2134,3 +2134,13 @@ body.rm .ig-chip img { animation: none; }
 .cosm-row.lock { opacity: 0.55; filter: grayscale(0.6); }
 .cosm-row small { margin-left: auto; color: var(--dim); font-size: calc(var(--u) * 10); text-align: right; }
 .cosm-row .btn { flex: none; width: auto; padding: 0 calc(var(--u) * 10); }
+
+/* 체력 · 우편함 */
+.pill.sta { display: inline-flex; align-items: center; gap: 2px; color: #ffe066; }
+.pill.sta b { display: inline-flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+.pill.sta small { font-size: calc(var(--u) * 7.5); color: var(--dim); font-weight: 800; }
+.mail-list { display: flex; flex-direction: column; gap: calc(var(--u) * 6); max-height: 50vh; overflow-y: auto; margin: calc(var(--u) * 8) 0; }
+.mail-row { display: flex; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 8); border-radius: calc(var(--u) * 10); background: rgba(255, 255, 255, 0.06); }
+.mail-row div { flex: 1; min-width: 0; } .mail-row b { display: block; font-size: calc(var(--u) * 12); } .mail-row small { display: block; color: var(--dim); font-size: calc(var(--u) * 10); } .mail-row em { font-style: normal; color: #ffe27a; font-size: calc(var(--u) * 10.5); font-weight: 800; }
+.mail-row .btn { flex: none; width: auto; padding: 0 calc(var(--u) * 12); }
+.rw-i { margin: calc(var(--u) * 4) 0; }

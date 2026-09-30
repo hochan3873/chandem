@@ -170,6 +170,9 @@ class FileStore {
     return this.weeklyList(wi).filter((x) => x.b > b).length + 1;
   }
   async countWeekly(wi) { return this.weeklyList(wi).length; }
+  endlessWeekList(wi) { return Object.values(this.data.users).filter((u) => !isMasterName(u.username)).map((u) => ({ u, b: ewBestOf(u, wi) })).filter((x) => x.b > 0).sort((a, b) => b.b - a.b); }
+  async topEndlessWeek(wi, n) { return this.endlessWeekList(wi).slice(0, n).map((x) => x.u); }
+  async rankEndlessWeek(wi, id) { const u = this.data.users[id]; const b = u ? ewBestOf(u, wi) : 0; return b ? this.endlessWeekList(wi).filter((x) => x.b > b).length + 1 : null; }
   // 레이드: 그 주 모두의 피해 합 · 기여도 순위
   raidList(wi) { return Object.values(this.data.users).filter((u) => !isMasterName(u.username)).map((u) => ({ u, d: raidDmgOf(u, wi) })).filter((x) => x.d > 0).sort((a, b) => b.d - a.d); }
   async raidTotal(wi) { return this.raidList(wi).reduce((a, x) => a + x.d, 0); }
@@ -250,6 +253,12 @@ class PgStore {
     if (!d) return null;
     return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_RD} > $2 AND NOT (username = ANY($3::text[]))`, [wi, d, [...masterList()]])).rows[0].n + 1;
   }
+  async topEndlessWeek(wi, n) { return (await this.pool.query(`SELECT * FROM users WHERE ${PG_EW} > 0 AND NOT (username = ANY($3::text[])) ORDER BY ${PG_EW} DESC LIMIT $2`, [wi, n, [...masterList()]])).rows.map((x) => this.row(x)); }
+  async rankEndlessWeek(wi, id) {
+    const u = await this.byId(id); const b = u ? ewBestOf(u, wi) : 0;
+    if (!b) return null;
+    return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_EW} > $2 AND NOT (username = ANY($3::text[]))`, [wi, b, [...masterList()]])).rows[0].n + 1;
+  }
   async raidCount(wi) { return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_RD} > 0 AND NOT (username = ANY($2::text[]))`, [wi, [...masterList()]])).rows[0].n; }
   async pvpTop(n) {
     const r = await this.pool.query(`SELECT * FROM users WHERE COALESCE((stats->'langbang'->'pvp'->>'games')::int, 0) > 0 AND NOT (username = ANY($2::text[])) ORDER BY COALESCE((stats->'langbang'->'pvp'->>'rating')::int, 1000) DESC LIMIT $1`, [n, [...masterList()]]);
@@ -260,6 +269,9 @@ class PgStore {
 const PG_WB = `(CASE WHEN (stats->'langbang'->'weekly'->>'wi')::int = $1 THEN COALESCE((stats->'langbang'->'weekly'->>'best')::bigint, 0)
   WHEN (stats->'langbang'->'weeklyPrev'->>'wi')::int = $1 THEN COALESCE((stats->'langbang'->'weeklyPrev'->>'best')::bigint, 0) ELSE 0 END)`;
 const PG_RD = `(CASE WHEN (stats->'langbang'->'raid'->>'wi')::int = $1 THEN COALESCE((stats->'langbang'->'raid'->>'dmg')::bigint, 0) ELSE 0 END)`;
+const PG_EW = `(CASE WHEN (stats->'langbang'->'ew'->>'wi')::int = $1 THEN COALESCE((stats->'langbang'->'ew'->>'best')::bigint, 0)
+  WHEN (stats->'langbang'->'ewPrev'->>'wi')::int = $1 THEN COALESCE((stats->'langbang'->'ewPrev'->>'best')::bigint, 0) ELSE 0 END)`;
+function ewBestOf(u, wi) { const lb = (u.stats && u.stats.langbang) || {}; const e = lb.ew && lb.ew.wi === wi ? lb.ew : lb.ewPrev && lb.ewPrev.wi === wi ? lb.ewPrev : null; return e ? Math.max(0, Math.floor(Number(e.best) || 0)) : 0; }
 function raidDmgOf(u, wi) { const r = ((u.stats && u.stats.langbang) || {}).raid; return r && r.wi === wi ? Math.max(0, Math.floor(Number(r.dmg) || 0)) : 0; }
 function pvpOf(u) { const p = ((u.stats && u.stats.langbang) || {}).pvp || {}; return { rating: p.rating | 0 || 1000, games: p.games | 0, wins: p.wins | 0 }; }
 function weeklyBestOf(u, wi) {
@@ -537,11 +549,14 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
         const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];
         const got = [];
+        let endInfo = null;
         const usedOk = Array.isArray(body.heroesUsed) ? [...new Set(body.heroesUsed.map(String))].filter((h) => LB_HEROES.includes(h) && LBR.heroUnlocked(before, h)).slice(0, 7) : [];
         const cardDrop = mode === 'stage' ? LBR.rollHeroCard(LBR.hashSeed(`hc:${id}:${before.clears}:${stage}`), stars, hell, usedOk) : null;
         const stones = mode === 'stage' ? LBR.rollStones(LBR.hashSeed(`st:${id}:${before.clears}:${stage}`), stage, stars, !prevStars, hell) : mode === 'raid' ? 2 : 0; // 레이드 한 판마다 강화석 2개
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
+          if (mode === 'stage') { if (lb.staRun && lb.staRun.stage === stage) lb.staRun = null; else if (!freeMaster(u)) LIVE.staminaAdd(lb, -LIVE.stageStaminaCost(lb, stage, hell), now); }
+          if (mode === 'endless') { const ef = LIVE.endlessFinish(lb, wave, master ? 0 : score, (lb.endRun || master || LIVE.endlessLeft(lb, now) > 0) ? reward.total : 0, id, now); if (!lb.endRun && !master && LIVE.endlessLeft(lb, now) > 0) LIVE.endlessStart(lb, false, now); lb.endRun = null; endInfo = ef; reward.total = ef.coins; }
           lb.runs++; lb.kills += kills; lb.coins += reward.total; lb.stones = (lb.stones | 0) + stones; if (cardDrop) { lb.shards = lb.shards || {}; lb.shards[cardDrop] = (lb.shards[cardDrop] | 0) + 1; }
           // 도감: 이번 판에 만난 진상 (있는 이름만)
           if (Array.isArray(body.seen)) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => LBR.ENEMY_IDS.includes(t))])];
@@ -574,7 +589,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
             lb.bestScore = Math.max(lb.bestScore, score);
             lb.exp += Math.floor(score / 60) + wave * 8;
           }
-          while (lb.exp >= lbExpToNext(lb.level)) { lb.exp -= lbExpToNext(lb.level); lb.level++; }
+          while (lb.exp >= lbExpToNext(lb.level)) { lb.exp -= lbExpToNext(lb.level); lb.level++; LIVE.staminaAdd(lb, LIVE.STAMINA.lvUp, now); }
           lb.lastResultAt = Date.now();
           LIVE.trackRun(lb, { mode, clear: mode === 'stage', stars, perfect, kills, bosses, skills }, id, now);
           for (const d of got) if (d.r === 'legend') lb.cnt.legends = (lb.cnt.legends | 0) + 1;
@@ -588,7 +603,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           weekly: wk ? { score: wk.score, best: lb.weekly ? lb.weekly.best : 0, newBest: weeklyBest, master } : null,
           unlockedHeroes: first ? Object.keys(LBR.HERO_UNLOCK).filter((h) => LBR.HERO_UNLOCK[h] === stage && !LBR.heroUnlocked(before, h)) : [],
           endlessUnlocked: first && !LBR.endlessUnlocked(before) && LBR.endlessUnlocked(lb),
-          newBestWave: mode === 'endless' && wave > before.bestWave, newBestScore: mode === 'endless' && score > before.bestScore,
+          newBestWave: mode === 'endless' && wave > before.bestWave, newBestScore: mode === 'endless' && score > before.bestScore, endless: endInfo,
         };
       });
       if (!out) throw new AuthError('다시 로그인해 주세요');
@@ -767,6 +782,20 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     }, async () => ({ rid: crypto.randomBytes(9).toString('base64url') }));
   }
   // 지난주 순위 보상 받기 (순위는 서버가 센다)
+  const freeCtx = async (u) => ({ free: freeMaster(u) });
+  // 우편함 채우기: 지난주 무한 주간 순위 보상 (한 번)
+  function lbMailSync(token) {
+    return lbLive(token, (lb, id, now, ctx) => {
+      const prev = LIVE.weekIndex(now) - 1;
+      const e = lb.ew && lb.ew.wi === prev ? lb.ew : lb.ewPrev && lb.ewPrev.wi === prev ? lb.ewPrev : null;
+      if (e && e.best > 0 && lb.ewPaid !== prev && ctx.rank) {
+        const rw = LIVE.endlessWeekReward(ctx.rank);
+        if (rw) LIVE.mailAdd(lb, { title: `♾️ 무한 주간 순위 보상 — ${rw.label}`, text: '지난주 무한 도전 점수 순위', rw }, now);
+        lb.ewPaid = prev;
+      }
+      return { mail: LIVE.mailCount(lb, now) };
+    }, async (u, id, now) => ({ rank: await store.rankEndlessWeek(LIVE.weekIndex(now) - 1, id) }));
+  }
   function lbWeeklyClaim(token) {
     return lbLive(token, (lb, id, now, ctx) => {
       const prev = LIVE.weekIndex(now) - 1;
@@ -1011,6 +1040,14 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   /** mode: 'stage' | 'endless'. token 이 있으면 내 순위도 */
   async function lbRanking(n = 50, mode = 'stage', token = null) {
     await ready;
+    if (mode === 'endlessWeek') {
+      const wi = LIVE ? LIVE.weekIndex(Date.now()) : 0;
+      const ranking = (await store.topEndlessWeek(wi, n)).map((u, i) => ({ ...lbRow(u, i), weekBest: ewBestOf(u, wi) }));
+      const id0 = token ? verifyToken(token) : null;
+      let me0 = null;
+      if (id0) { const u = await store.byId(id0); const rank = u ? await store.rankEndlessWeek(wi, id0) : null; if (u && rank) me0 = { ...lbRow(u, rank - 1), weekBest: ewBestOf(u, wi), rank }; }
+      return { ranking, me: me0, mode };
+    }
     mode = mode === 'endless' ? 'endless' : 'stage';
     const ranking = (await store.topLangbang(n, mode)).map(lbRow);
     let me = null;
@@ -1058,6 +1095,13 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/decks', wrap((req) => lbLive(tok(req), (lb) => { const d = LIVE.cleanDecks(b(req)); if (!d) return { error: '잘못된 덱이에요' }; lb.decks = d; return {}; })));
     r.post('/chest/claim', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.claimChest(lb, b(req).ch, b(req).n, id, now))));
     r.post('/checkin', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.claimCheckin(lb, id, now))));
+    // 체력 · 무한 입장 · 우편함
+    r.post('/stage/start', wrap((req) => lbLive(tok(req), (lb, id, now, ctx) => { const st = Math.floor(Number(b(req).stage) || 0); if (st < 1 || st > LBR.STAGE_COUNT) return { error: '없는 스테이지예요' }; return LIVE.stageStart(lb, st, !!b(req).hell, ctx.free, now); }, freeCtx)));
+    r.post('/stage/fail', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.stageFail(lb, Math.floor(Number(b(req).stage) || 0), now))));
+    r.post('/stamina/buy', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.staminaBuy(lb, now))));
+    r.post('/endless/start', wrap((req) => lbLive(tok(req), (lb, id, now, ctx) => (LBR.endlessUnlocked(lb) || ctx.free ? LIVE.endlessStart(lb, ctx.free, now) : { error: '무한 도전은 1-10을 깨면 열려요' }), freeCtx)));
+    r.post('/mail/sync', wrap((req) => lbMailSync(tok(req))));
+    r.post('/mail/claim', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.mailClaim(lb, b(req).id === 'all' ? 'all' : Math.floor(Number(b(req).id) || 0), id, now))));
     r.post('/weekly/start', wrap((req) => lbWeeklyStart(tok(req))));
     r.post('/weekly/claim', wrap((req) => lbWeeklyClaim(tok(req))));
     r.get('/weekly', wrap((req) => lbWeeklyBoard(tok(req) || null)));
