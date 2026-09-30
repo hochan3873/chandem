@@ -101,7 +101,7 @@ export function hasHero(g, id) {
 }
 
 export function addHero(g, id, want) {
-  if (hasHero(g, id) || g.heroes.length >= Math.min(g.nPos, g.maxHeroes || 99)) return null;
+  if (hasHero(g, id) || (!g._summoning && g.heroes.length >= Math.min(g.nPos, g.maxHeroes || 99))) return null; // 소환(성준영)은 자리가 꽉 차도 옆에 겹쳐서
   const def = HEROES[id] || SUMMONS[id];
   const used = new Set(g.heroes.map((h) => h.slot));
   const order = g.nPos >= 7 ? [3, 2, 4, 1, 5, 0, 6] : SLOT_ORDER;
@@ -293,7 +293,18 @@ function updateHeroes(g, dt) {
     h.cd -= dt * rate;
     if (h.cd <= 0) {
       const t = d.proj === 'hammer' ? bossTarget(g, h, heroRange(g, h)) : findTarget(g, h);
-      if (!t) { h.cd = 0; continue; }
+      if (!t) {
+        h.cd = 0;
+        // 감시: 사거리 안에 진상이 있는데 공격 간격 2배 넘게 못 쏘면 → 다시 찾기 (자기 줄 제한 · 지목 무시)
+        h.idleT = (h.idleT || 0) + dt;
+        if (!d.lane && h.idleT > base * 2) {
+          const r0 = heroRange(g, h);
+          const t2 = g.enemies.filter((e) => !e.dead && inRange(h, e, r0)).sort((a, b) => b.y - a.y)[0];
+          if (t2) { g.idleFix = (g.idleFix || 0) + 1; h.idleT = 0; fire(g, h, t2); h.cd += base; }
+        }
+        continue;
+      }
+      h.idleT = 0;
       fire(g, h, t);
       h.cd += base;
       if (h.cd < 0) h.cd = 0;
@@ -332,6 +343,40 @@ export function densestPoint(g, x, y, range, r) {
     if (n > bn) { bn = n; best = e; }
   }
   return best ? { x: best.x, y: best.y, n: bn } : null;
+}
+// 이한나 스킬 진화: 하트 레이저 풀파워 — 진상이 가장 많이 늘어선 방향으로 화면 끝까지 꿰뚫는 굵은 빔 (한 번에 전부)
+export function heartBeam(g, h, dmg, b) {
+  const bw = bestLineAngle(g, h.x, h.y, b.len, b.hw);
+  const a = bw ? bw.a : -Math.PI / 2;
+  const q = { x0: h.x, y0: h.y - 30, a, d: b.len, hw: b.hw };
+  let n = 0;
+  for (const e of g.enemies) if (!e.dead && e.y > -20 && harleyBand(q, e)) { damageEnemy(g, e, dmg, false, h, true); n++; }
+  (g.hbeams = g.hbeams || []).push({ x: q.x0, y: q.y0, a, len: b.len, hw: b.hw, t: 0.6 });
+  ev(g, 'heartBeam', { x: h.x, y: h.y, n });
+  return n;
+}
+// 백인규 할리: 지나온 3칸 폭 띠 안 진상은 전부 계속 따끔 · 달리는 쪽으로 밀고 느리게 (보스는 안 밀림)
+export function harleyBand(q, e) {
+  const cx = Math.cos(q.a), cy = Math.sin(q.a);
+  const dx = e.x - q.x0, dy = e.y - q.y0, along = dx * cx + dy * cy;
+  return along >= -20 && along <= q.d + 50 && Math.abs(dx * cy - dy * cx) <= q.hw + (e.r || 16);
+}
+function updateHarleys(g, dt) {
+  for (const q of g.harleys) {
+    q.t -= dt; q.d = Math.min(q.len, q.d + q.v * dt); q.tick -= dt;
+    q.x = q.x0 + Math.cos(q.a) * q.d; q.y = q.y0 + Math.sin(q.a) * q.d;
+    if (q.tick <= 0) {
+      q.tick = 0.25;
+      for (const e of g.enemies) {
+        if (e.dead || !harleyBand(q, e)) continue;
+        damageEnemy(g, e, q.dmg, false, q.hero, true);
+        if (e.dead) continue;
+        if (!e.boss && !e.mid) { e.x += Math.cos(q.a) * q.kb; e.y += Math.sin(q.a) * q.kb; }
+        e.slowT = Math.max(e.slowT, 0.6); e.slowMul = Math.min(e.slowMul || 1, 1 - q.slow * (e.boss ? 0.5 : 1));
+      }
+    }
+  }
+  g.harleys = g.harleys.filter((q) => q.t > 0);
 }
 // 블랙홀: 빨아들이기 (보스는 약하게) · 따끔 · 끝나면 쾅 (모인 만큼 더 세게, 최대 ×3)
 function updateHoles(g, dt) {
@@ -544,10 +589,11 @@ export function fire(g, h, t) {
       // 건전남 새총: 먼 곳까지 빠른 단발, 치명타 잘 터짐
       const n = 1 + g.mods.gunExtra;
       const ang = d.lane ? -Math.PI / 2 : aimAngle(h, t, d.projSpeed); // 새총은 자기 줄 위로 똑바로
+      const farCut = d.far && Math.hypot(t.x - h.x, t.y - h.y) > d.far.r ? d.far.mul : 1; // 건전남: 먼 곳은 살짝 약하게
       const head = lv >= 5 && h.shots % 4 === 0;
       for (let i = 0; i < n; i++) {
         const a = ang + (i - (n - 1) / 2) * 0.14; // 새총알 추가 카드: 부채꼴로 넓게
-        spawnProj(g, 'bullet', h, null, dmg, { angle: a, pierce: pierce + (lv >= 3 ? 1 : 0) + (h.cm.pierce || 0), critBonus: (d.critBonus || 0) + (lv >= 3 ? 0.1 : 0), r: 6, headshot: head && i === 0, big: head && i === 0 });
+        spawnProj(g, 'bullet', h, null, dmg * farCut, { angle: a, pierce: pierce + (lv >= 3 ? 1 : 0) + (h.cm.pierce || 0), critBonus: (d.critBonus || 0) + (lv >= 3 ? 0.1 : 0), r: 6, headshot: head && i === 0, big: head && i === 0 });
       }
       break;
     }
@@ -579,7 +625,7 @@ export function fire(g, h, t) {
       break;
     }
     case 'gf': {
-      // 육준서: 여사친을 밀어 넣는다 → 핀볼처럼 튕기며 밀어내고 돌아온다
+      // 윤준서: 여사친을 밀어 넣는다 → 핀볼처럼 튕기며 밀어내고 돌아온다
       const n = lv >= 5 ? 2 : 1;
       for (let i = 0; i < n; i++) spawnGf(g, h, i === 0 ? t : findTarget(g, h, [t]) || t, dmg, d.ricochet[lv - 1] + g.mods.chainExtra + (h.cm.bounce || 0), (i - (n - 1) / 2) * 0.5);
       break;
@@ -644,11 +690,11 @@ function summonJunyoung(g, h) {
   h.meter = 0;
   const used = new Set(g.heroes.map((o) => o.slot));
   const slot = SLOT_ORDER.filter((x) => x < g.nPos && !used.has(x))[0];
-  const cap = g.maxHeroes; g.maxHeroes = 99;
+  g._summoning = true;
   const j = addHero(g, 'junyoung', slot);
-  g.maxHeroes = cap;
+  g._summoning = false;
   if (!j) return;
-  if (slot === undefined) { j.slot = h.slot; j.x = h.x + 26; }
+  if (slot === undefined) { j.slot = h.slot; j.x = h.x + 26; j.overlap = true; }
   j.lv = Math.min(5, h.lv); j.meta = h.meta; j.summon = true;
   j.summonT = d.nag.sec[h.lv - 1] + (h.cm.nag || 0);
   ev(g, 'summon', { hero: 'junyoung', x: j.x, y: j.y, by: h.id });
@@ -661,7 +707,7 @@ function allinBurst(g, h) {
   forEnemiesNear(g, x, y, r, (e) => { damageEnemy(g, e, heroDamage(g, h) * a.mul, false, h, true); return true; });
   ev(g, 'allin', { x, y, r, hx: h.x, hy: h.y });
 }
-// 육준서 여사친: 유도탄처럼 날아가 맞으면 다음 진상으로 튕긴다 (hitEnemy 참고)
+// 윤준서 여사친: 유도탄처럼 날아가 맞으면 다음 진상으로 튕긴다 (hitEnemy 참고)
 function spawnGf(g, h, t, dmg, rico, spread) {
   const p = spawnProj(g, 'gf', h, t, dmg, { homing: true, r: 14, spin: 9, spread: spread || 0 });
   p.rico = rico; p.boomerang = true; p.maxDist = 99999; p.life = 6; p.gfKb = h.def.kb[h.lv - 1];
@@ -839,8 +885,10 @@ export function spawnEnemy(g, type, x, y, o = {}) {
 
 // 적에게 피해. (독재자 오라 · 패거리 뭉치기 · 들켰다 배율) → 방어력 → 보호막 → 체력 순
 // aoe: 범위/관통 공격 — 패거리 뭉치기를 무시한다
+export const BOSS_GUARD = { hit: 0.05, perSec: 0.07, over: 0.2 };
 export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.dead) return 0;
+  if (g.encoreT > 0 && src && src.def) dmg *= 1 + (g.encoreDmg || 0); // 김도훈 앵콜 버프
   // 속성 상성: 효과 굉장! ×1.5 / 별로… ×0.7
   let tm = 1;
   if (src && src.def && src.def.attr && !g.noTypes) {
@@ -878,6 +926,15 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   }
   e.hurtT = 0;
   if (e.armor) dmg = Math.max(dmg * 0.35, dmg - e.armor);
+  // 보스 · 중간 보스: 한 방에 최대 체력 5% 넘게는 잘 안 들어간다 (넘는 만큼은 ⅕) + 1초에 7% 넘게 몰아치면 넘친 만큼 ⅕
+  //  → 아주 센 덱도 보스는 몇 초 만에 녹지 않는다 (공주의 일격 · 황금 파동 같은 큰 한 방도 여전히 크게 깎이긴 함)
+  if ((e.boss || e.mid) && src && e.maxHp > 0) {
+    const cap = e.maxHp * BOSS_GUARD.hit;
+    if (dmg > cap) dmg = cap + (dmg - cap) * BOSS_GUARD.over;
+    const room = Math.max(0, e.maxHp * BOSS_GUARD.perSec - (e.burst || 0));
+    if (dmg > room) dmg = room + (dmg - room) * BOSS_GUARD.over;
+    e.burst = (e.burst || 0) + dmg;
+  }
   const shown = dmg;
   if (e.shield > 0) {
     const a = Math.min(e.shield, dmg);
@@ -1299,6 +1356,7 @@ function updateNewEnemy(g, e, dt) {
   const d = e.def;
   const prog = e.y / g.ropeY;
   if (e.hasteT > 0) e.hasteT -= dt;
+  if (e.burst > 0) e.burst = Math.max(0, e.burst - e.maxHp * BOSS_GUARD.perSec * dt);
   if (e.lieWeakT > 0) e.lieWeakT -= dt;
   // 미혼인 척 돌싱남: 중간쯤 "사실 돌싱!" → 막 뛴다
   if (d.fake && !e.revealed && prog > d.fake.at) { e.revealed = true; e.spdMul *= d.fake.speed; ev(g, 'reveal', { x: e.x, y: e.y - d.size * 0.6, text: '사실 돌싱!' }); }
@@ -1995,7 +2053,7 @@ export function castSkill(g, h, x, y, echo) {
   if (!sk || (!echo && h.skillCd > 0) || g.over || g.phase === 'victory') return false;
   const lv = h.lv - 1;
   const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo ? 0.75 : 1);
-  if (h.skEvo && !echo) h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
+  if (h.skEvo && !echo && h.id !== 'hanna') h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
   // 줄 스킬은 사거리 안에 진상이 없으면 아껴 둔다 (쿨타임 안 씀)
   if ((sk.id === 'frenzy' && !bestLineAngle(g, h.x, h.y, heroRange(g, h), 12)) || (sk.id === 'blackhole' && !densestPoint(g, h.x, h.y, h.def.range + 80, sk.r[h.lv - 1]))) { ev(g, 'skillHold', { hero: h.id, x: h.x, y: h.y }); return false; }
@@ -2032,6 +2090,7 @@ export function castSkill(g, h, x, y, echo) {
       else { h.rage = true; h.rageT = h.def.rageSec[lv] * (g.mapFx.rage || 1); ev(g, 'rage', { hero: h.id, x: h.x, y: h.y }); }
       break;
     case 'winkbomb':
+      if (h.skEvo && sk.beam) heartBeam(g, h, base * sk.beam.mul, sk.beam);
       r = sk.r[lv];
       forEnemiesNear(g, x, y, r, (e) => {
         damageEnemy(g, e, base, false, h, true);
@@ -2069,14 +2128,20 @@ export function castSkill(g, h, x, y, echo) {
         if (e.boss) { e.slowT = Math.max(e.slowT, sk.dance[lv]); e.slowMul = 0.5; } else e.stunT = Math.max(e.stunT, sk.dance[lv] * stunMul(e));
         return true;
       });
+      // 앵콜 떼창: 잠깐 멤버 전원 공속 · 피해 업 (방장 '집합!'과 겹치면 센 쪽)
+      g.rallyT = Math.max(g.rallyT, sk.buffSec); g.rallySpd = Math.max(g.rallyT > sk.buffSec ? g.rallySpd : 0, sk.buffSpd);
+      g.encoreT = sk.buffSec; g.encoreDmg = sk.buffDmg;
       ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
       ev(g, 'encore', { x: h.x, y: h.y, r });
       break;
     }
-    case 'moto3': {
-      const n = sk.n[lv];
-      const spread = 0.48; // 3대 500: 더 넓게
-      launchMoto(g, h, Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * spread), 1.3);
+    case 'harley': { // 백인규: 커다란 할리로 진상이 제일 많은 쪽을 천천히 가로지른다
+      const len = Math.max(560, g.rowY + 40);
+      const bw = bestLineAngle(g, h.x, h.y, len, sk.w / 2);
+      const a = bw ? bw.a : -Math.PI / 2;
+      g.harleys = g.harleys || [];
+      g.harleys.push({ x0: h.x, y0: h.y, a, len, v: len / sk.sec, d: 0, t: sk.sec, tick: 0, hw: sk.w / 2, dmg: base * sk.mul[lv], kb: sk.kb, slow: sk.slow, hero: h, trail: [] });
+      ev(g, 'harley', { x: h.x, y: h.y, a });
       break;
     }
     case 'serious':
@@ -2265,10 +2330,13 @@ export function step(g, dt) {
   updateProjs(g, dt);
   if (g.pools.length) updatePools(g, dt);
   if (g.rallyT > 0) g.rallyT -= dt;
+  if (g.encoreT > 0) g.encoreT -= dt;
   if (g.hcT > 0) g.hcT -= dt;
   if (g.hcSkT > 0) g.hcSkT -= dt;
   if (g.bandT > 0) g.bandT -= dt;
   if (g.holes && g.holes.length) updateHoles(g, dt); // 강성구 블랙홀
+  if (g.harleys && g.harleys.length) updateHarleys(g, dt); // 백인규 할리
+  if (g.hbeams && g.hbeams.length) { for (const q of g.hbeams) q.t -= dt; g.hbeams = g.hbeams.filter((q) => q.t > 0); }
   updateMapFx(g, dt);
   if (g.swapCd > 0) g.swapCd -= dt;
   // 술병 폭발은 연쇄 가능 — 한 번에 처리

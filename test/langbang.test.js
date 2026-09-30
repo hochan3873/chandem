@@ -638,7 +638,7 @@ test('스킬: 모든 멤버 스킬이 쿨타임과 효과를 가진다', () => {
   assert.ok(g.heroes.find((h) => h.id === 'gunman').frenzyT > 0, '난사');
   assert.ok(g2.heroes.find((h) => h.id === 'eunok').rage, '원샷');
   assert.ok((g2.holes || []).length >= 1, '지팡이 블랙홀');
-  assert.ok(g2.projs.filter((p) => p.type === 'moto').length >= 3, '3대 500');
+  assert.ok((g2.harleys || []).length >= 1, '부릉부릉 할리');
   assert.equal(g2.heroes.find((h) => h.id === 'donghan').meter, 100, '진심 모드');
 });
 
@@ -868,15 +868,16 @@ test('덱: 정한 자리에 멤버가 서고, 7칸이면 자리 7개 · 스테�
   assert.deepEqual(D.migrateDeckItems({ slot5: 1, slot6: 1 }), { slot5: 1, slot6: 1 });
 });
 
-test('줄 공격: 건전남 새총은 자기 줄 위의 적만 쏜다 (자리가 중요)', () => {
-  const g = S.createGame({ rng: seeded(711), noWaves: true, deck: ['gunman'] });
+test('줄 공격: 강성구 지팡이는 자기 줄 위의 적만 (건전남은 필드 전체)', () => {
+  const g = S.createGame({ rng: seeded(711), noWaves: true, deck: ['sunggu'] });
   const h = g.heroes[0];
   const far = S.spawnEnemy(g, 'thug', h.x + 150, g.rowY - 200, { hpMul: 100 }); far.speed = 0;
-  run(g, 2);
-  assert.equal(far.hp, far.maxHp, '옆 줄 적은 안 쏜다');
-  const inLane = S.spawnEnemy(g, 'thug', h.x + 10, g.rowY - 250, { hpMul: 100 }); inLane.speed = 0;
-  run(g, 2);
-  assert.ok(inLane.hp < inLane.maxHp, '자기 줄 적은 쏜다');
+  run(g, 3);
+  assert.equal(far.hp, far.maxHp, '옆 줄 적은 안 친다');
+  const g2 = S.createGame({ rng: seeded(711), noWaves: true, deck: ['gunman'] });
+  const f2 = S.spawnEnemy(g2, 'thug', g2.heroes[0].x + 150, g2.rowY - 200, { hpMul: 100 }); f2.speed = 0;
+  run(g2, 2);
+  assert.ok(f2.hp < f2.maxHp, '건전남은 옆 줄도 쏜다');
 });
 
 test('장비: 공격력 · 입구 내구도 · 쿨감이 판에 적용된다', () => {
@@ -1399,4 +1400,58 @@ test('강성구 지팡이 블랙홀: 가장 몰린 곳에 → 2초 빨아들임(
   assert.ok(Math.abs(list[5].x - list[0].x) < d0, '빨려 들어 모였다');
   assert.ok(list.every((e) => e.hp < e.maxHp), '모두 피해');
   assert.equal(far.hp, far.maxHp, '멀리 있는 진상은 안 맞음');
+});
+
+test('백인규 할리: 진상이 제일 많은 쪽으로 · 3칸 폭 띠 안은 전부 계속 따끔 · 밖은 안 맞음 · 보스는 안 밀림', () => {
+  const g = S.createGame({ rng: seeded(901), noWaves: true, heroes: ['ingyu'] });
+  const h = g.heroes[0];
+  const sk = D.HEROES.ingyu.skill;
+  assert.ok(sk.w >= 150 && sk.w <= 190, '폭 약 3칸 (한 칸 ≈ 58)');
+  const inBand = [0, 60, -60, 80].map((dx, i) => S.spawnEnemy(g, 'thug', h.x + dx, h.y - 120 - i * 60, { hpMul: 40 }));
+  const out = S.spawnEnemy(g, 'thug', h.x + 150, h.y - 200, { hpMul: 40 });
+  const boss = S.spawnEnemy(g, 'boss_thug', h.x + 10, h.y - 300, { hpMul: 2 });
+  const bx = boss.x;
+  h.skillCd = 0;
+  assert.equal(S.castSkill(g, h, 0, 0), true);
+  for (let i = 0; i < 60 * 4; i++) { h.stunT = 1; h.cd = 9; S.step(g, 1 / 60); } // 기본 공격은 막고 할리만
+  assert.ok(inBand.every((e) => e.dead || e.hp < e.maxHp), '띠 안 전부 피해');
+  assert.equal(out.hp, out.maxHp, '띠 밖은 안 맞음');
+  assert.ok(boss.hp < boss.maxHp && Math.abs(boss.x - bx) < 1, '보스는 맞지만 안 밀림');
+});
+
+test('정소영: 보통 판에서 30초 안에 성준영 소환 (덱 6칸 꽉 차도)', () => {
+  for (const deck of [[null, 'staff', 'bangjang', 'soyoung', 'gunman', null], ['gunnyeo', 'staff', 'bangjang', 'soyoung', 'gunman', 'ingyu']]) {
+    const g = S.createGame({ H: 760, rng: seeded(3), mode: 'stage', stage: 8, deck, meta: {}, god: true });
+    let at = null;
+    for (let t = 0; t < 30 && at === null; t += 1 / 60) {
+      S.step(g, 1 / 60);
+      for (const e of g.events) if (e.type === 'summon') at = g.t;
+      g.events.length = 0;
+      if (g.pendingLevels) { S.applyCard(g, S.rollCards(g)[0]); g.pendingLevels--; }
+    }
+    assert.ok(at !== null, `소환 (${deck.filter(Boolean).length}명 덱)`);
+    assert.ok(g.heroes.some((h) => h.id === 'junyoung'));
+  }
+});
+
+test('이한나 스킬 진화: 하트 빔이 한 줄로 늘어선 진상을 전부 꿰뚫는다 · 줄 밖은 안 맞음', () => {
+  const g = S.createGame({ rng: seeded(77), noWaves: true, heroes: ['hanna'] });
+  const h = g.heroes[0];
+  h.skEvo = true; h.lv = 3;
+  const line = [1, 2, 3, 4, 5].map((i) => S.spawnEnemy(g, 'thug', h.x, h.y - 60 - i * 80, { hpMul: 30 }));
+  const off = S.spawnEnemy(g, 'thug', h.x + 160, h.y - 200, { hpMul: 30 });
+  const n = S.heartBeam(g, h, 100, D.HEROES.hanna.skill.beam);
+  assert.equal(n, 5, '줄에 선 5명 전부');
+  assert.ok(line.every((e) => e.hp < e.maxHp));
+  assert.equal(off.hp, off.maxHp);
+});
+
+test('건전남: 필드 구석 진상도 쏜다 (자기 줄 제한 없음) · 멀면 피해 -15%', () => {
+  const g = S.createGame({ rng: seeded(5), noWaves: true, heroes: ['gunman'] });
+  const h = g.heroes[0];
+  const e = S.spawnEnemy(g, 'thug', 16, 90, { hpMul: 50 });
+  let shots = 0;
+  for (let i = 0; i < 120; i++) { S.step(g, 1 / 60); shots += g.events.filter((x) => x.type === 'shot' && x.hero === 'gunman').length; g.events.length = 0; }
+  assert.ok(shots >= 3, '구석 진상에게 쏜다');
+  assert.ok(e.hp < e.maxHp || g.projs.length > 0, '맞거나 날아가는 중');
 });

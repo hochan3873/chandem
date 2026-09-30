@@ -274,6 +274,21 @@ export function claimable(lb, uid, now) {
   const v = missionView(lb, uid, now);
   return [...v.daily, ...v.weekly, ...v.ach].filter((m) => !m.done && m.have >= m.n).length + (v.all.ready && !v.all.done ? 1 : 0);
 }
+// 모두 받기: 받을 수 있는 미션을 한 번에 (tab: 'daily' | 'weekly' | 'ach' | 'all'). 하나씩 받는 것과 똑같이 확인 · 두 번 눌러도 두 번 안 받는다
+export function claimAllMissions(lb, tab, uid, now = Date.now()) {
+  const v = missionView(lb, uid, now);
+  const list = [];
+  if (tab === 'daily' || tab === 'all') { for (const m of v.daily) if (!m.done && m.have >= m.n) list.push(['daily', m.id]); }
+  if (tab === 'weekly' || tab === 'all') { for (const m of v.weekly) if (!m.done && m.have >= m.n) list.push(['weekly', m.id]); }
+  if (tab === 'ach' || tab === 'all') { for (const m of v.ach) if (!m.done && m.have >= m.n) list.push(['ach', m.id]); }
+  const got = {};
+  let n = 0;
+  const add = (g) => { for (const [k, x] of Object.entries(g || {})) { if (typeof x === 'number') got[k] = (got[k] || 0) + x; else (got[k + 's'] = got[k + 's'] || []).push(x); } };
+  for (const [k, id] of list) { const r = claimMission(lb, k, id, uid, now); if (!r.error) { n++; add(r.got); } }
+  // 오늘 미션을 다 받았으면 "모두 완료" 보너스도
+  if (tab === 'daily' || tab === 'all') { const r = claimMission(lb, 'daily', 'all', uid, now); if (!r.error) { n++; add(r.got); } }
+  return { n, got };
+}
 export function claimMission(lb, kind, id, uid, now = Date.now()) {
   ensureLive(lb, uid, now);
   if (kind === 'daily') {
@@ -370,7 +385,7 @@ export const GACHA_RATES = [ // 확률 공개 (%)
   { k: 'shard4', w: 45, name: '멤버 조각 ×4', color: '#9fb3c8' },
 ];
 const EPIC_PLUS = ['legendHero', 'epicHero', 'legendGear', 'epicGear'];
-// 합류 전 카드 진행: { 육준서: [7, 10] … }
+// 합류 전 카드 진행: { 윤준서: [7, 10] … }
 export function cardProgress(lb, h) { return lb.owned && lb.owned[h] ? null : [Math.min(cardsNeed(h), (lb.shards || {})[h] | 0), cardsNeed(h)]; }
 export const DUP_SHARDS = { epicHero: 30, legendHero: 80 };
 export const legendOpen = (lb) => (lb.maxStage | 0) >= HOCHAN_GATE;

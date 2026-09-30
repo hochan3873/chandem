@@ -230,3 +230,48 @@ test('1:1 대전 방 목록: 방 만들기 → 목록에 보임(제목 · 방장
   await until(() => !lists[lists.length - 1].some((x) => x.code === r2.code));
   a.close(); b.close(); c.close();
 });
+
+test('모두 받기: 하나씩 받은 합과 같다 · 한 번 더 누르면 0 (두 번 안 받는다)', async () => {
+  const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  const mk = () => { const lb = L.normLive({}, { coins: 0, gear: [], gearSeq: 0, maxStage: 20, stages: {}, heroes: {} }); L.ensureLive(lb, 'u', 1e12); for (const k of L.CNT_KEYS) L.bump(lb, k, 999, 'u', 1e12); return lb; };
+  const a = mk(), b2 = mk();
+  const v = L.missionView(a, 'u', 1e12);
+  const ready = [...v.daily, ...v.weekly, ...v.ach].filter((m) => !m.done && m.have >= m.n);
+  assert.ok(ready.length >= 3, '받을 게 여러 개');
+  let coins = 0;
+  for (const m of ready) { const r = L.claimMission(b2, m.kind, m.id, 'u', 1e12); if (!r.error) coins += r.got.coins | 0; }
+  const all = L.claimMission(b2, 'daily', 'all', 'u', 1e12); if (!all.error) coins += all.got.coins | 0;
+  const r1 = L.claimAllMissions(a, 'all', 'u', 1e12);
+  assert.equal(r1.got.coins | 0, coins, '합이 같다');
+  assert.equal(a.coins, b2.coins);
+  const r2 = L.claimAllMissions(a, 'all', 'u', 1e12);
+  assert.equal(r2.n, 0, '다시 누르면 0');
+  // 서버: 한 번에 받기 · 두 번째는 받을 게 없음
+  const u = await user('claimall');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { maxStage: 20, stages: { 1: 3, 2: 3 }, cnt: Object.fromEntries(L.CNT_KEYS.map((k) => [k, 999])) });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  const s1 = await post('/api/langbang/mission/claimAll', u.token, { tab: 'ach' });
+  assert.equal(s1.ok, true, s1.message);
+  assert.ok(s1.n >= 1 && s1.got.coins > 0);
+  const s2 = await post('/api/langbang/mission/claimAll', u.token, { tab: 'ach' });
+  assert.equal(s2.ok, false, '두 번째는 받을 게 없음');
+});
+
+test('마스터는 20명 전부 · 스테이지를 깨면 HERO_UNLOCK 멤버가 전부 열린다', async () => {
+  const LBR = require('../server/langbang-rules');
+  const m = { master: true, stages: {}, heroes: {}, owned: {} };
+  for (const h of LBR.LB_HEROES) assert.equal(LBR.heroUnlocked(m, h), true, '마스터 ' + h);
+  for (const [h, st] of Object.entries(LBR.HERO_UNLOCK)) {
+    const before = { stages: Object.fromEntries(Array.from({ length: st - 1 }, (_, i) => [i + 1, 3])), heroes: {}, owned: {} };
+    assert.equal(LBR.heroUnlocked(before, h), false, h + ' 는 아직');
+    before.stages[st] = 1;
+    assert.equal(LBR.heroUnlocked(before, h), true, h + ' 는 ' + st + ' 클리어로 열림');
+  }
+  for (const h of ['eunok', 'hanna', 'sunggu']) assert.ok(LBR.HERO_UNLOCK[h], h + ' 해금 스테이지');
+  const r = await srv.accounts.login({ username: 'gun8401', password: 'secret12' });
+  const v = await get('/api/langbang/me', r.token);
+  const lb = v.profile;
+  assert.equal(lb.master, true);
+  for (const h of LBR.LB_HEROES) assert.ok(lb.owned[h], '마스터 화면 ' + h);
+});

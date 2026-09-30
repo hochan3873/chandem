@@ -1840,3 +1840,56 @@ body.rm .crowd-gate.grp .gate-bg img { animation: none; }
 .crowd-gate.grp .gate-in { top: calc(var(--u) * 20); }
 .crowd-gate.grp .gate-in .emblem { width: calc(var(--u) * 52); height: calc(var(--u) * 52); }
 .crowd-gate.grp .gate-in h1 { font-size: calc(var(--u) * 30); margin-top: 0; }
+/* 아래 탭: 스크롤 화면 밖, 화면 틀(#ui) 맨 아래에 고정 */
+#ui > .lb-nav { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: auto; z-index: 20; }
+html, body { height: 100vh; height: 100dvh; }
+/* 카드 밖으로 그림이 삐져나오지 않게 (안드로이드: 둥근 모서리 + 겹친 그림 잘림 보장) */
+.acard, .acard .ac-art, .dexc2, .dexc2 .dx-pic, .dexpage .gc, .gc-faces span, .pc-h { overflow: hidden; isolation: isolate; -webkit-mask-image: -webkit-radial-gradient(white, black); }
+.dexc2 .dx-pic .dx-art.hq { width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; }
+.rv-front .rv-hq { width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; }
+.jr-art.duo { aspect-ratio: 3 / 2; height: auto; width: 96%; top: 14%; }
+.gacha-res .gc-thumb { display: block; width: 78%; aspect-ratio: 3 / 4; margin: 0 auto calc(var(--u) * 3); border-radius: calc(var(--u) * 8); overflow: hidden; }
+.gacha-res .gc-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; }
+.claim-tab { margin: calc(var(--u) * 6) 0; }
+.topbar .claim-all { margin-left: auto; width: auto; padding: calc(var(--u) * 6) calc(var(--u) * 12); font-size: calc(var(--u) * 11.5); }
+.claim-pop .big-got { font-size: calc(var(--u) * 14); font-weight: 900; color: #ffe27a; text-align: center; line-height: 1.6; }
+/* 모집 배너: 그림 칸에 진짜 높이 · 픽업 멤버 크게 + 뒤에 셋 · 글자는 아래 그라데이션 위 */
+.gacha-banner.v2 { flex-shrink: 0; padding: 0; aspect-ratio: 4 / 5; max-height: 50vh; min-height: calc(var(--u) * 260); background: radial-gradient(90% 70% at 50% 35%, color-mix(in srgb, var(--c) 55%, #1a1030), #0e0820 85%); }
+.gacha-banner.v2 .gb-art { position: absolute; inset: 0; }
+.gacha-banner.v2 .gb-art img { position: absolute; bottom: 18%; object-fit: cover; }
+.gacha-banner.v2 .gb-main { left: 18%; width: 64%; height: 82%; bottom: 14%; z-index: 3; filter: drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 10) rgba(0, 0, 0, 0.6)); }
+.gacha-banner.v2 .gb-back { width: 38%; height: 56%; opacity: 0.6; filter: brightness(0.75) saturate(0.9); }
+.gacha-banner.v2 .gb-back.b0 { left: -4%; bottom: 30%; } .gacha-banner.v2 .gb-back.b1 { right: -4%; bottom: 30%; } .gacha-banner.v2 .gb-back.b2 { left: 31%; bottom: 44%; width: 38%; height: 44%; opacity: 0.4; z-index: 1; }
+.gacha-banner.v2 .gb-text { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: calc(var(--u) * 40) calc(var(--u) * 12) calc(var(--u) * 12); background: linear-gradient(180deg, transparent, rgba(8, 4, 18, 0.88) 38%, rgba(8, 4, 18, 0.96)); }
+.gacha-banner.v2 .gb-pick { display: inline-block; font-size: calc(var(--u) * 10.5); font-weight: 900; color: #140a22; background: #ffd23f; padding: 0 calc(var(--u) * 8); border-radius: 99px; margin-bottom: calc(var(--u) * 3); }
+/* 얼굴 확대 칸 삭제 → 큰 그림이 카드 왼쪽까지 · 조금 더 크게 */
+.gc-faces { display: none !important; }
+.dexpage .gc .dp-stage { left: 0; right: 0; top: 2%; }
+.dexpage .gc .dp-pic .dx-art.hq { height: 104%; }
+/* 장비 아이콘: 그림 + 등급 색 테두리 · 뒤에 빛 */
+.gico { position: relative; display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; font-style: normal; line-height: 1; vertical-align: middle; }
+.gico::before { content: ''; position: absolute; inset: -8%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--rc) 55%, transparent), transparent 70%); z-index: 0; }
+.gico img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6)); }
+.gico.r-legend::before { animation: gicoGlow 2.4s ease-in-out infinite; }
+@keyframes gicoGlow { 50% { transform: scale(1.15); opacity: 0.75; } }
+.bitem .gico, .gitem .gico, .eq-slot .gico, .bslot .gico, .gslot .gico { width: 70%; height: 70%; font-size: inherit; }
+.gc-ico .gico { width: 100%; height: 100%; }
+.drop .gico, .hf-sug .gico { width: 1.9em; height: 1.9em; }
+.g-fl { margin: calc(var(--u) * 6) 0 calc(var(--u) * 4); font-size: calc(var(--u) * 11.5); color: #e9dcff; font-style: italic; line-height: 1.45; }
+.g-eff { font-size: calc(var(--u) * 13); color: #fff; margin-bottom: calc(var(--u) * 4); }
+.g-eff small { color: var(--dim); font-weight: 700; } .g-eff em { font-style: normal; font-weight: 900; color: #5de07a; }
+.g-meta { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4) calc(var(--u) * 10); font-size: calc(var(--u) * 10.5); font-weight: 800; color: #d8ccef; margin-bottom: calc(var(--u) * 4); }
+.g-help { font-size: calc(var(--u) * 10); color: var(--dim); line-height: 1.45; margin: 0 0 calc(var(--u) * 6); }
+.g-help .lnk { background: none; border: 0; color: #7df9ff; font: inherit; font-weight: 900; text-decoration: underline; padding: 0 0 0 calc(var(--u) * 4); cursor: pointer; }
+/* 속성 표시: 카드 모서리 아이콘 + 이름 + 색 */
+.acard .ac-attr { display: inline-flex; align-items: center; gap: 1px; padding: 0 calc(var(--u) * 4); border-radius: 99px; background: color-mix(in srgb, var(--ac) 30%, rgba(10, 5, 25, 0.8)); border: 1px solid var(--ac); }
+.acard .ac-attr small { font-size: calc(var(--u) * 8.5); font-weight: 900; color: #fff; }
+.attr.mini { font-size: calc(var(--u) * 9.5); padding: 0 calc(var(--u) * 5); }
+.card .c-who { margin: calc(var(--u) * 2) 0 0; font-size: calc(var(--u) * 9.5); font-weight: 900; color: var(--ac); line-height: 1.3; }
+.attr-legend p { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 6); margin: calc(var(--u) * 4) 0; font-size: calc(var(--u) * 11); }
+.attr-legend small { width: 100%; color: var(--dim); font-weight: 700; }
+/* iOS 사파리: 저절로 확대되는 것 막기 — 글자 크기 자동 조절 끔 · 두 번 탭 확대 끔 · 입력칸 16px 이상 · 가로 넘침 없음 */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { touch-action: manipulation; max-width: 100vw; overflow-x: hidden; }
+input, select, textarea { font-size: 16px !important; }
+#stage, #cv { max-width: 100vw; max-height: 100vh; max-height: 100dvh; }

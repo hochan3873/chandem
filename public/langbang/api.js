@@ -382,6 +382,10 @@ export function raidStart() { return liveCall('raid/start', {}); }
 export function raidClaim() { return liveCall('raid/claim', {}); }
 export function postRaid(sum, runId, dmg) { return liveCall('result', { mode: 'raid', runId, raidDmg: Math.floor(dmg), wave: sum.wave, kills: sum.kills, bossKills: 0, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen }); }
 export async function playerCard(u) { const r = await call('/api/langbang/player?u=' + encodeURIComponent(u)); return r.ok ? r.player : null; }
+export function claimAllMissions(tab, guest) {
+  if (guest) return guestLive((p) => { const r = L.claimAllMissions(p, tab, GUEST_UID, Date.now()); return r.n ? r : { error: '받을 보상이 없어요' }; });
+  return liveCall('mission/claimAll', { tab });
+}
 export async function pvpRanking() { const r = await call('/api/langbang/pvp/ranking'); return r.ok ? r : null; }
 export function authToken() { return token(); }
 // 미션 시드용 사용자 번호 (서버와 같은 값 — 토큰 앞부분)

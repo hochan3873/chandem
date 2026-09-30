@@ -427,7 +427,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       // 마스터는 덱 칸도 전부 열림 (자물쇠 없음) — 막 초기화한 상태(기록 0)만 새 계정처럼 4칸
       if ((lb.maxStage | 0) > 0 || (lb.runs | 0) > 0) view.deckSlots = 6;
       view.seen = LBR.ENEMY_IDS.slice();
-      view.owned = Object.fromEntries(LBR.GACHA.map((h) => [h, true]));
+      view.owned = Object.fromEntries(LBR.LB_HEROES.map((h) => [h, true])); // 마스터: 20명 전부
       view.endlessUnlocked = true;
     }
     delete view.lastResultAt;
@@ -829,7 +829,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
             for (let s = 1; s <= LBR.STAGE_COUNT; s++) lb.stages[s] = 3;
             const lv = Math.max(0, Math.min(LBR.META_MAX, body.level === undefined ? LBR.META_MAX : Math.floor(Number(body.level) || 0)));
             for (const h of LBR.LB_HEROES) lb.heroes[h] = Math.min(lv, LBR.metaMaxOf(h));
-            lb.owned = Object.fromEntries(LBR.GACHA.map((h) => [h, true]));
+            lb.owned = Object.fromEntries(LBR.GACHA.map((h) => [h, true])); // (스테이지 해금 멤버는 기록으로 열림 · 마스터는 전부)
             lb.hstars = body.star5 ? Object.fromEntries(LBR.LB_HEROES.map((h) => [h, 5])) : {};
             for (const it of Object.keys(LBR.ITEMS)) lb.items[it] = LBR.ITEMS[it].max;
             // 견본 장비: 무기·액세서리 × 등급마다 하나
@@ -933,6 +933,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     const b = (req) => req.body || {};
     r.post('/gacha', wrap((req) => lbGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1, String(b(req).pay || ''))));
     r.post('/mission/claim', wrap((req) => lbMission(tok(req), String(b(req).kind || ''), String(b(req).id || ''))));
+    r.post('/mission/claimAll', wrap((req) => lbLive(tok(req), (lb, id, now) => { const t = ['daily', 'weekly', 'ach'].includes(b(req).tab) ? b(req).tab : 'all'; const r = LIVE.claimAllMissions(lb, t, id, now); return r.n ? r : { error: '받을 보상이 없어요' }; })));
     r.post('/season/claim', wrap((req) => lbSeason(tok(req), b(req).tier === 'all' ? 'all' : Math.floor(Number(b(req).tier) || 0))));
     r.post('/hero/star', wrap((req) => lbStar(tok(req), String(b(req).hero || ''))));
     r.post('/cosmetic', wrap((req) => lbCosmetic(tok(req), b(req).title === undefined ? undefined : String(b(req).title || ''), b(req).frame === undefined ? undefined : String(b(req).frame || ''))));

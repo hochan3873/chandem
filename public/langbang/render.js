@@ -1,7 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS } from './data.js';
 const HEROES = { ...HEROES0, ...SUMMONS }; // 소환 멤버(성준영)도 그린다
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
@@ -203,6 +203,7 @@ export class FX {
 }
 
 // ─── 렌더러 ───────────────────────────────────────────
+const PAINTED = { crownIco: 'pCrown', bottle: 'pBottle', bottleRage: 'pBottleRage' };
 export class Renderer {
   constructor(canvas) {
     this.cv = canvas;
@@ -244,12 +245,14 @@ export class Renderer {
     list.gf = '/img/lb/p_girlfriend.webp';
     for (let i = 0; i < 4; i++) list['bar' + i] = `/img/lb/ui/barricade_${i}.webp`;
     for (const k of ['heart', 'fire', 'electric', 'gold', 'shock', 'spark']) list['fx_' + k] = `/img/lb/fx/${k === 'shock' ? 'shock_ring' : k === 'spark' ? 'hit_spark' : 'explo_' + k}.webp`;
+    list.pCrown = '/img/lb/fx/p_crown.webp'; list.pBottle = '/img/lb/fx/p_bottle.webp'; list.pBottleRage = '/img/lb/fx/p_bottle_rage.webp'; // 그린 투사체 (없으면 코드로 그린 것)
     list.bg = '/img/lb/bg.webp';
     list.bg2 = '/img/lb/bg2.webp';
     list.bg3 = '/img/lb/bg3.webp';
     list.bg4 = '/img/lb/bg4.webp';
     list.bg5 = '/img/lb/bg5.webp';
     list.bg6 = '/img/lb/bg6.webp';
+    for (let i = 1; i <= 6; i++) list['arena' + i] = `/img/lb/arena${i}.webp`; // 보스 무대 (없으면 챕터 배경 + 붉은 조명)
     list.base = '/img/lb/base.webp';
     const skip = new URLSearchParams(location.search).has('noimg');
     for (const key in list) {
@@ -435,7 +438,7 @@ export class Renderer {
       const x = c.getContext('2d');
       x.scale(k, k);
       fn(x, w, h);
-      this.projSprites[name] = { c, w, h };
+      this.projSprites[name] = { c, w, h, paint: PAINTED[name] };
     };
     make('notice', 34, 24, (x, w, h) => {
       glow(x, w / 2, h / 2, 16, 'rgba(255,210,63,0.45)');
@@ -670,8 +673,9 @@ export class Renderer {
     const x = c.getContext('2d');
     x.scale(k, k);
     const ch = typeof this.themeKey === 'number' && this.themeKey >= 2 && this.themeKey <= 6 ? this.themeKey : 0;
-    const own = ch && imgOk(this.images['bg' + ch]); // 챕터 전용 배경이 있으면 그걸로 (색은 살짝만)
-    const img = own ? this.images['bg' + ch] : this.images.bg;
+    const arena = this.arenaOn && imgOk(this.images['arena' + (ch || 1)]) ? this.images['arena' + (ch || 1)] : null;
+    const own = !arena && ch && imgOk(this.images['bg' + ch]); // 챕터 전용 배경이 있으면 그걸로 (색은 살짝만)
+    const img = arena || (own ? this.images['bg' + ch] : this.images.bg);
     const rowY = rowYFor(H);
     if (imgOk(img)) {
       const sc = Math.max(W / img.naturalWidth, H / img.naturalHeight);
@@ -714,6 +718,16 @@ export class Renderer {
     g.addColorStop(0, 'rgba(255,170,80,0.18)'); g.addColorStop(1, 'rgba(255,170,80,0)');
     x.fillStyle = g; x.fillRect(0, 0, W, H);
     // 헬 모드: 붉은 테두리를 배경에 구워 둔다 (매 프레임 화면 전체를 칠하지 않게)
+    // 보스 무대: 어둡게 + 가운데 조명 + 붉은 경고 테두리
+    if (this.arenaOn) {
+      x.fillStyle = 'rgba(6,2,14,0.38)'; x.fillRect(0, 0, W, H);
+      g = x.createRadialGradient(W / 2, H * 0.3, 10, W / 2, H * 0.3, W * 0.7);
+      g.addColorStop(0, 'rgba(255,240,210,0.22)'); g.addColorStop(1, 'rgba(255,240,210,0)');
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      g = x.createRadialGradient(W / 2, H * 0.45, H * 0.28, W / 2, H * 0.5, H * 0.78);
+      g.addColorStop(0, 'rgba(160,0,20,0)'); g.addColorStop(1, 'rgba(170,0,20,0.42)');
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+    }
     if (this.hellOn) {
       g = x.createRadialGradient(W / 2, H * 0.45, H * 0.3, W / 2, H * 0.5, H * 0.8);
       g.addColorStop(0, 'rgba(120,0,0,0)'); g.addColorStop(1, 'rgba(140,0,10,0.5)');
@@ -802,6 +816,32 @@ export class Renderer {
   // 불바다 (최은옥 분노 소주병) · 토 웅덩이
   drawPools(g, t) {
     const cx = this.cx;
+    // 이한나 하트 레이저 풀파워: 굵은 분홍 빔
+    for (const q of g.hbeams || []) {
+      this.world();
+      const f = q.t / 0.6, ex = q.x + Math.cos(q.a) * q.len, ey = q.y + Math.sin(q.a) * q.len;
+      cx.lineCap = 'round';
+      cx.globalAlpha = 0.35 * f; cx.strokeStyle = '#ff5fb8'; cx.lineWidth = q.hw * 2.2; cx.beginPath(); cx.moveTo(q.x, q.y); cx.lineTo(ex, ey); cx.stroke();
+      cx.globalAlpha = 0.9 * f; cx.strokeStyle = '#ffd6ef'; cx.lineWidth = q.hw * 0.8; cx.beginPath(); cx.moveTo(q.x, q.y); cx.lineTo(ex, ey); cx.stroke();
+      cx.globalAlpha = 1;
+    }
+    // 백인규 할리: 타이어 자국(희미해짐) · 배기 불꽃 · 연기 · 커다란 할리
+    for (const q of g.harleys || []) {
+      const cx0 = Math.cos(q.a), cy0 = Math.sin(q.a);
+      this.world();
+      cx.globalAlpha = 0.28; cx.strokeStyle = '#1a1208'; cx.lineWidth = 7; cx.lineCap = 'round';
+      for (const off of [-14, 14]) { cx.beginPath(); cx.moveTo(q.x0 - cy0 * off, q.y0 + cx0 * off); cx.lineTo(q.x - cy0 * off, q.y + cx0 * off); cx.stroke(); }
+      cx.globalAlpha = 0.12; cx.fillStyle = '#ff9a3c';
+      cx.beginPath(); cx.moveTo(q.x0 - cy0 * q.hw, q.y0 + cx0 * q.hw); cx.lineTo(q.x - cy0 * q.hw, q.y + cx0 * q.hw); cx.lineTo(q.x + cy0 * q.hw, q.y - cx0 * q.hw); cx.lineTo(q.x0 + cy0 * q.hw, q.y0 - cx0 * q.hw); cx.closePath(); cx.fill();
+      cx.globalAlpha = 1;
+      if (Math.random() < 0.6) this.fx.part('flame', q.x - cx0 * 40 + (Math.random() - 0.5) * 10, q.y - cy0 * 40, -cx0 * 60, -cy0 * 60, 0.35, 10, null);
+      if (Math.random() < 0.5) this.fx.part('puff', q.x - cx0 * 50, q.y - cy0 * 50, (Math.random() - 0.5) * 30, 20, 0.8, 12, 'rgba(90,90,100,0.5)');
+      const bike = this.images.ingyuBike;
+      const sz = 150;
+      this.tf(q.x, q.y, 0, cx0 < 0 ? -1 : 1, 1);
+      if (imgOk(bike)) cx.drawImage(bike, -sz / 2, -sz * 0.75, sz, sz);
+      else { cx.font = `${sz * 0.6}px ${FONT}`; cx.textAlign = 'center'; cx.fillText('🏍️', 0, -sz * 0.2); }
+    }
     // 강성구 블랙홀: 빙글빙글 도는 보라 소용돌이 + 안으로 빨려 드는 점
     for (const q of g.holes || []) {
       this.tf(q.x, q.y, 0, 1, 0.55);
@@ -969,6 +1009,9 @@ export class Renderer {
       // 헬 모드: 붉은 테두리 (미리 만든 그라데이션)
       if (!this.hellOn) { this.hellOn = true; this.bakeBg(); }
     } else if (this.hellOn) { this.hellOn = false; this.bakeBg(); }
+    // 보스 스테이지(x-10): 보스 무대로
+    const ar = g.mode === 'stage' && !g.weekly && !g.pvp && !g.raid && g.stage && ((g.stage - 1) % 10) === 9;
+    if (ar !== !!this.arenaOn) { this.arenaOn = ar; this.bakeBg(); }
     if (id === 'rain') {
       cx.strokeStyle = 'rgba(170,200,255,0.35)'; cx.lineWidth = 1.2;
       cx.beginPath();
@@ -1683,6 +1726,8 @@ export class Renderer {
       cx.fillStyle = h.lv >= 5 ? '#ff9f1c' : '#9ee6ff';
       cx.font = `900 9px ${FONT}`;
       cx.fillText(h.lv >= 5 ? 'MAX' : 'Lv' + h.lv, hx + tw / 2 - 12, ly + 0.5);
+      // 속성 아이콘 (이름표 왼쪽 끝 작은 동그라미)
+      { const at = ATTRS[h.def.attr]; if (at) { const ax = hx - tw / 2 - 2; cx.fillStyle = at.color; cx.beginPath(); cx.arc(ax, ly, 6.5, 0, Math.PI * 2); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,0.6)'; cx.lineWidth = 1; cx.stroke(); cx.font = `8px ${FONT}`; cx.fillText(at.icon, ax, ly + 0.5); } }
       // 배현경 다이어트 게이지 · 고아라 나이 게이지
       if (h.def.diet || h.def.age) {
         const f = h.def.diet ? (h.alt ? h.altT / h.def.diet.sec[h.lv - 1] : h.meter / 100)
@@ -1691,6 +1736,16 @@ export class Renderer {
         cx.fillStyle = 'rgba(0,0,0,0.6)'; cx.fillRect(hx - bw / 2, ly + 8, bw, 4);
         cx.fillStyle = h.def.diet ? (h.alt ? '#ff5fa2' : '#ffb347') : h.alt ? '#a8a8a8' : '#ffc4ec';
         cx.fillRect(hx - bw / 2, ly + 8, bw * clamp01(f), 4);
+      }
+      // 정소영 잔소리 게이지 (가득 차면 성준영 소환) — "잔소리 70%"
+      if (h.def.nag) {
+        const on = g.heroes.some((o) => o.id === 'junyoung');
+        const f = on ? 1 : clamp01((h.meter || 0) / 100);
+        const bw = 40;
+        cx.fillStyle = 'rgba(0,0,0,0.65)'; roundRect(cx, hx - bw / 2, ly + 8, bw, 6, 3); cx.fill();
+        cx.fillStyle = on ? '#9fd4ff' : f >= 0.99 ? '#ff5fa2' : '#ffb8d0'; roundRect(cx, hx - bw / 2, ly + 8, Math.max(3, bw * f), 6, 3); cx.fill();
+        cx.font = `900 8px ${FONT}`; cx.fillStyle = '#fff'; cx.textAlign = 'center';
+        cx.fillText(on ? '준영 출동 중' : `잔소리 ${Math.round(f * 100)}%`, hx, ly + 20);
       }
       // 최은옥 술 게이지
       if (h.def.soberSec) {
@@ -1734,7 +1789,7 @@ export class Renderer {
         case 'flower': s = P.flower; this.tf(p.x, p.y, p.rot * 0.2, 1, 1); break;
         case 'swear': s = p.big ? P.swearBig : P.swear; this.tf(p.x, p.y, Math.sin(p.dist * 0.05) * 0.15, 1, 1); break;
         case 'gf': {
-          // 육준서 여사친: 동그랗게 말려 데굴데굴
+          // 윤준서 여사친: 동그랗게 말려 데굴데굴
           // 잘 보이게: 1.6배 · 흰/분홍 테두리 빛 · 잔상 꼬리
           const img = this.images.gf;
           if (imgOk(img) && !this._gfGlow) {
@@ -1769,7 +1824,11 @@ export class Renderer {
         }
         default: s = P[p.type]; this.tf(p.x, p.y, p.rot, 1, 1);
       }
-      if (s) cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
+      if (s) {
+        const pi = s.paint && this.images[s.paint];
+        if (imgOk(pi)) { const hh = Math.max(s.h, s.w) * 1.3, ww = hh * pi.naturalWidth / pi.naturalHeight; cx.drawImage(pi, -ww / 2, -hh / 2, ww, hh); } // 그린 그림: 같은 자리 · 1.3배 · 회전 그대로
+        else cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
+      }
     }
     for (const q of g.eprojs || []) {
       const s = q.kind === 'duck' ? P.duck : q.kind === 'paper' ? P.paper : P['ep_' + q.kind] || P.rumor;

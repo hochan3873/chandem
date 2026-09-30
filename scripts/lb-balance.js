@@ -257,6 +257,37 @@ function seeded(seed = 1) {
     }
   }
 
+  // ── 초반 곡선 (node scripts/lb-balance.js early): 그 스테이지에 보통 사람이 가진 덱으로 1-1 ~ 2-3 클리어율
+  //  강화는 스테이지 따라 조금씩 (s/3) · 동료는 그때 열린 멤버 중 하나씩 번갈아 (김도훈은 1-6 깬 뒤부터)
+  function early() {
+    // --add=5:-2,6:-3 : 스테이지 난이도(stageAdd)를 바꿔 보고 싶을 때 (파일은 안 바뀜)
+    const ov = (process.argv.find((x) => x.startsWith('--add=')) || '').slice(6);
+    for (const kv of ov.split(',').filter(Boolean)) { const [k, v] = kv.split(':').map(Number); D.STAGE.stageAdd[k] = v; }
+    const only = (process.argv.find((x) => x.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean).map(Number);
+    const seeds = opt('seeds', 24);
+    console.log(`■ 초반 곡선 — 스테이지별 클리어율 (${seeds}판 · 카드 ${POLICY})`);
+    const rows = [];
+    for (let s = 1; s <= 13; s++) {
+      if (only.length && !only.includes(s)) continue;
+      const lv = Math.min(D.META_MAX, Math.floor(s / 3));
+      const pool = ['staff', 'gunman', 'gunnyeo', ...Object.entries(D.HERO_UNLOCK).filter(([, n]) => n < s).map(([id]) => id)];
+      let win = 0, hp = 0;
+      for (let k = 0; k < seeds; k++) {
+        const p = pool[k % pool.length];
+        // 덱 4칸: 방장 + 가진 멤버 셋 (새로 연 멤버가 있으면 사람들은 바로 넣어 본다)
+        const fresh = pool.slice(3);
+        const mates = [...fresh.slice(-1), ...['staff', 'gunman', 'gunnyeo'].filter((x, i) => i !== k % 3)].slice(0, 3);
+        const meta = Object.fromEntries(['bangjang', ...pool].map((h) => [h, lv]));
+        const r = play({ stage: s, partner: p, deck: [null, mates[0], 'bangjang', mates[1], mates[2], null], meta, seed: s * 1000 + k, unlocked: [] });
+        if (r.win) win++;
+        hp += r.win ? r.hp : 0;
+      }
+      rows.push(`${D.stageLabel(s)}	${Math.round((win / seeds) * 100)}%	남은 입구 ${win ? Math.round((hp / win) * 100) : 0}%	(강화 ${lv} · 동료 ${pool.length}명)`);
+    }
+    console.log(rows.join(String.fromCharCode(10)));
+  }
+  if (what === 'early') { early(); return; }
+
   // ── 4) 옛 방식 비교용: 20웨이브 한 판 (모두 강화 5), 동료별 도달 웨이브
   function run20() {
     const N = opt('seeds', 12);
