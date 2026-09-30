@@ -149,7 +149,23 @@ function gearValue(t, r, lv) {
 }
 function gearEnhanceCost(r, lv) {
   if (lv >= GEAR_MAX_LV) return null;
-  return Math.round((80 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 1.45)) / 10) * 10;
+  return Math.round((100 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 2.3)) / 10) * 10; // 영웅 +10 까지 합 약 18만 (보통 8~10일치)
+}
+// 강화석: +6 부터 필요 (+6 1개 · +7 2개 · +8 3개 · +9 4개 · +10 5개)
+function gearStoneNeed(lv) { return lv >= 5 && lv < GEAR_MAX_LV ? lv - 4 : 0; }
+// 분해: 장비 → 강화석 (팔기 대신)
+function gearDismantle(r, lv) { return ({ common: 1, rare: 2, epic: 4, legend: 8 })[r] + Math.floor((lv || 0) / 3); }
+// 합성: 같은 등급 3개 → 다음 등급 1개 (전설은 합성 불가) · 수수료
+const GEAR_NEXT = { common: 'rare', rare: 'epic', epic: 'legend' };
+const GEAR_FUSE_FEE = { rare: 500, epic: 2000, legend: 6000 }; // 만들어지는 등급 기준
+// 스테이지 강화석: 1-6 부터 · 별 많을수록 잘 나옴 · 보스 +2 · 처음 깰 때 +1 · 헬 ×2
+function rollStones(seed, stage, stars, first, hell) {
+  if (stage < 6 || !stars) return 0;
+  const rng = seedRng(seed ^ 0x5a17);
+  let n = rng() < 0.25 + 0.12 * stars ? 1 : 0;
+  if (((stage - 1) % 10) === 9) n += 2;
+  if (first) n += 1;
+  return hell ? n * 2 : n;
 }
 // 강화 성공 확률 (+1~+3 는 무조건 · 그 뒤로 90% → +10 은 40%). 실패해도 장비는 안 깨지고 레벨도 안 내려간다 — 비용만
 const GEAR_SUCCESS = [1, 1, 1, 0.9, 0.82, 0.74, 0.66, 0.57, 0.48, 0.4];
@@ -191,9 +207,23 @@ function gearStats(items) {
   return st;
 }
 
+
+// 멤버 강화에 드는 그 멤버 카드 (+1~5 1장 · +6~10 2장 · +11~15 3장 · +16~20 5장) — ★승급과 같은 카드(조각)를 같이 쓴다
+function heroCardNeed(lv) { const L = lv + 1; return L <= 5 ? 1 : L <= 10 ? 2 : L <= 15 ? 3 : 5; }
+// 스테이지 카드 드롭: 이번 판에 데려간(가진) 멤버 중 하나 · 별 많을수록 · 헬 ×2
+function rollHeroCard(seed, stars, hell, used) {
+  if (!stars || !used.length) return null;
+  const rng = seedRng(seed ^ 0x3c1d);
+  const p = (0.12 + 0.03 * stars) * (hell ? 2 : 1);
+  if (rng() >= p) return null;
+  return used[(rng() * used.length) | 0];
+}
+const CARD_PICK = { cost: 2500, n: 3, perWeek: 3 }; // 상점 "멤버 카드 선택권": 고른 멤버 카드 3장 · 주 3번
+
 module.exports = {
   hellOpen, hellReward, HELL_COIN,
-  GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
+  heroCardNeed, rollHeroCard, CARD_PICK,
+  GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
   LB_HEROES, HIDDEN, GACHA, LOCKED, HERO_TIER, TIER_MAX, metaMaxOf, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   metaCost, itemCost, itemValue, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };

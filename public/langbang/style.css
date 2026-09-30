@@ -1940,3 +1940,19 @@ html, body { height: 100%; height: -webkit-fill-available; height: 100svh; heigh
 .h-syn .syn-tray.grid { display: grid; grid-template-columns: repeat(2, auto); gap: calc(var(--u) * 3); }
 .h-syn .syn-tray .sy { padding: 0 calc(var(--u) * 4); font-size: calc(var(--u) * 10); }
 .h-syn .syn-tray .sy.more { pointer-events: auto; cursor: pointer; border-color: #7df9ff; color: #7df9ff; font-weight: 900; }
+
+/* 합성 */
+.fuse-bar small { color: var(--dim); font-size: calc(var(--u) * 10); }
+.fuse-slots { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 4); margin: calc(var(--u) * 8) 0; }
+.fuse-slots i { font-style: normal; font-weight: 900; color: var(--dim); }
+.fuse-slots .fz { position: relative; display: grid; place-items: center; width: calc(var(--u) * 44); height: calc(var(--u) * 44); border-radius: calc(var(--u) * 10); border: 2px solid var(--rc); background: rgba(0, 0, 0, 0.4); font-size: calc(var(--u) * 18); color: var(--dim); }
+.fuse-slots .fz small { position: absolute; right: 2px; bottom: 0; font-size: calc(var(--u) * 9); color: #fff; }
+.fuse-slots .fz.out { width: calc(var(--u) * 64); box-shadow: 0 0 calc(var(--u) * 10) var(--rc); }
+.fuse-slots .fz.out b { font-size: calc(var(--u) * 11); color: var(--rc); } .fuse-slots .fz.out small { position: static; font-size: calc(var(--u) * 8.5); }
+.fuse-reveal { text-align: center; }
+.fuse-reveal .fr-ico { display: inline-grid; place-items: center; width: calc(var(--u) * 96); height: calc(var(--u) * 96); font-size: calc(var(--u) * 50); border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--rc) 55%, transparent), transparent 70%); animation: fuseSpin 1.2s ease-out; }
+.fuse-reveal .fr-ico .gico { width: 100%; height: 100%; }
+@keyframes fuseSpin { 0% { transform: scale(0.2) rotate(-200deg); opacity: 0; } 70% { transform: scale(1.15) rotate(10deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+.rw-stones { margin-top: calc(var(--u) * 4); font-weight: 900; color: #cfe3ff; }
+.bulk-go { flex-wrap: wrap; } .bulk-go .btn { width: auto; flex: 0 0 auto; padding-left: calc(var(--u) * 12); padding-right: calc(var(--u) * 12); } .bulk-go .btn:last-child { flex: 1 1 auto; }
+.bulk-go .btn[data-act="bulkSell"] { flex: 1 1 auto; }

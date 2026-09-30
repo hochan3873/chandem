@@ -4,7 +4,7 @@ import {
   CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS, itemCost,
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
-  GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
+  GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
 } from './data.js';
 import * as L from './live.js';
@@ -1787,10 +1787,26 @@ function popup(html, cls = '') {
   });
   return m;
 }
+// 서버 프로필로 다시 맞추기 — 실패하면(끊김 등) 지금 값을 그대로 둔다 (예전엔 실패 때 손님 프로필로 바뀌어서
+//  화면엔 손님 모집권이 보이는데 서버는 "모집권이 부족해요" 가 되는 일이 있었다)
+async function resyncProfile() {
+  if (app.guest) return false;
+  const x = await API.loadProfile().catch(() => null);
+  if (!x || x.guest || !x.profile) return false;
+  app.profile = x.profile;
+  return true;
+}
+// 다른 기기·탭에서 쓴 뒤 돌아오면 서버 값으로 (전투 중엔 안 건드림)
+document.addEventListener('visibilitychange', () => { if (!document.hidden && app.profileLoaded && !app.guest && app.screen !== 'play') resyncProfile().then((ok) => { if (ok && app.screen !== 'play') refresh(); }); });
 async function liveAct(promise, okMsg) {
   const r = await promise;
   if (r.ok && r.profile) app.profile = r.profile;
-  if (!r.ok) { toast(r.message || '못 했어요'); return null; }
+  if (!r.ok) {
+    toast(r.message || '못 했어요');
+    // 부족하다고 하면 서버 값으로 다시 맞추고 화면도 새로 (진짜 개수를 보여 준다)
+    if (!app.guest && /부족/.test(r.message || '')) resyncProfile().then((ok) => { if (ok) { refresh(); toast(`${r.message} · 지금 모집권 🎟️${P().tickets | 0} · 코인 ${fmt(P().coins | 0)}`, 2600); } });
+    return null;
+  }
   if (okMsg) toast(okMsg(r), 2600);
   return r;
 }
@@ -2334,7 +2350,8 @@ function showSettings() {
     <div class="set-row col"><span>🖼️ 프레임</span><div class="chips"><button class="chip ${!p.frame ? 'on' : ''}" data-act="setFrame" data-v="">없음</button>${frames}</div></div>
     <div class="grid2"><button class="btn" data-act="howto">📖 게임 방법</button><button class="btn" data-act="toHub">‹ 게임월드</button></div>
     ${p.master ? `<div class="master-panel"><h4>🛠️ 마스터 테스트 도구 <small>(서버 확인 · 랭킹 제외)</small></h4>
-      <div class="grid2"><button class="btn mini" data-act="mst" data-a="coins">코인 +10만</button><button class="btn mini" data-act="mst" data-a="tickets">모집권 +100</button></div>
+      <div class="set-row"><span>🧪 일반 유저처럼 테스트 <small>켜면 코인·강화·합성 비용과 확률이 보통 유저와 같아요</small></span><button class="btn ghost" data-act="mst" data-a="testNormal">${p.testNormal ? '✅ 켜짐' : '꺼짐'}</button></div>
+      <div class="grid2"><button class="btn mini" data-act="mst" data-a="coins">코인 +10만</button><button class="btn mini" data-act="mst" data-a="tickets">모집권 +100</button><button class="btn mini" data-act="mst" data-a="stones">💎 강화석 +50</button></div>
       <div class="set-row"><span>강화 Lv</span><input id="mstLv" type="number" min="0" max="20" value="20"><label><input id="mstStar" type="checkbox" checked> ★5</label></div>
       <button class="btn primary mini" data-act="mst" data-a="allclear">⚡ 올클리어 (전 스테이지 ★★★ · 전 멤버 · 장비 · 코인)</button>
       <div class="set-row"><span>진행</span><input id="mstStage" type="number" min="0" max="${STAGE_COUNT}" value="10"><button class="btn mini" data-act="mst" data-a="stage">여기까지 클리어</button></div>
@@ -2380,12 +2397,13 @@ Object.assign(ACTS, {
   mst: async (b) => {
     const a = b.dataset.a;
     if (a === 'reset' && !(await confirmBox({ title: '정말 초기화할까요?', sub: '랑방 대전 기록이 전부 신규 유저 상태로 돌아가요', ok: '초기화', cancel: '취소', danger: true }))) return;
-    const extra = a === 'allclear' ? { level: Number(($('#mstLv') || {}).value || 20), star5: !!($('#mstStar') || {}).checked } : a === 'stage' ? { value: Number(($('#mstStage') || {}).value || 0) } : {};
+    const extra = a === 'testNormal' ? { on: !P().testNormal } : a === 'allclear' ? { level: Number(($('#mstLv') || {}).value || 20), star5: !!($('#mstStar') || {}).checked } : a === 'stage' ? { value: Number(($('#mstStage') || {}).value || 0) } : {};
     const r = await liveAct(API.masterAct(a, extra));
     if (!r) return;
     if (a === 'reset') { try { localStorage.removeItem(DECK_KEY); localStorage.removeItem('langbang:gearSeen'); } catch { /* 무시 */ } app.decks = [[], [], []]; }
     app.lobbyStage = 0;
-    toast(`🛠️ ${{ coins: '코인 지급', tickets: '모집권 지급', allclear: '올클리어!', stage: '진행 설정', reset: '초기화했어요' }[a] || '완료'}`, 1800);
+    if (a === 'testNormal') { toast(P().testNormal ? '🧪 일반 유저처럼: 비용·확률이 보통으로' : '🛠️ 마스터 모드로 돌아왔어요'); showSettings(); return; }
+    toast(`🛠️ ${{ coins: '코인 지급', tickets: '모집권 지급', stones: '강화석 지급', allclear: '올클리어!', stage: '진행 설정', reset: '초기화했어요' }[a] || '완료'}`, 1800);
     closeInfoCard();
     showMenu();
   },
@@ -2417,7 +2435,45 @@ Object.assign(ACTS, {
   starUp: (b) => doStarUp(b.dataset.id),
   misTab: (b) => { app.misTab = b.dataset.tab; showMissions(); },
   synMore: () => { app.synOpen = !app.synOpen; app.hudCache.syn = null; },
-  bulkOn: () => { app.bulk = new Set(); app.bagSel = null; showBag(); },
+  bulkOn: () => { app.bulk = new Set(); app.fuse = null; app.bagSel = null; showBag(); },
+  fuseOn: () => { app.fuse = []; app.bulk = null; app.bagSel = null; showBag(); },
+  fuseOff: () => { app.fuse = null; showBag(); },
+  fusePick: (b) => {
+    const id = Number(b.dataset.id), p = P(), it = (p.gear || []).find((g) => g.id === id);
+    if (!it) return;
+    if (app.fuse.includes(id)) { app.fuse = app.fuse.filter((x) => x !== id); showBag(); return; }
+    if (equippedBy(p, id) || gearLocked().has(id)) { toast('장착 중이거나 잠근 장비예요'); return; }
+    if (it.r === 'legend') { toast('전설은 더 합성할 수 없어요'); return; }
+    if (app.fuse.length && fuseRarity(p) !== it.r) { toast('같은 등급끼리만 합성돼요'); return; }
+    if (app.fuse.length >= 3) { toast('3개까지 골라요'); return; }
+    app.fuse.push(id); A.sfx.tap(); showBag();
+  },
+  fuseAuto: (b) => { // 그 등급에서 가장 약한(강화 낮은) 3개 · 같은 종류가 3개 이상이면 그걸로
+    const p = P(), r = b.dataset.v, locks = gearLocked();
+    const ok = (p.gear || []).filter((it) => it.r === r && !equippedBy(p, it.id) && !locks.has(it.id)).sort((a, c) => a.lv - c.lv || a.id - c.id);
+    if (ok.length < 3) { toast(`${GEAR_RARITY[r].name} 장비가 3개 안 돼요`); return; }
+    const byT = {}; for (const it of ok) (byT[it.t] = byT[it.t] || []).push(it);
+    const trio = Object.values(byT).find((a) => a.length >= 3);
+    app.fuse = (trio || ok).slice(0, 3).map((it) => it.id); showBag();
+  },
+  fuseGo: async () => {
+    const ids = app.fuse.slice();
+    const r = await liveAct(API.fuseGear(ids, app.guest));
+    if (!r) return;
+    app.fuse = null; showBag();
+    const it = r.made, R0 = GEAR_RARITY[it.r];
+    A.sfx.levelUp(); fx.flash(R0.color, 0.35);
+    popup(`<div class="fuse-reveal" style="--rc:${R0.color}"><span class="fr-ico">${gearIco(it)}</span><h3>⚗️ 합성 성공!</h3><p class="ip big-got" style="color:${R0.color}">${R0.name} · ${esc(GEAR[it.t].name)}${it.lv ? ` +${it.lv}` : ''}</p>${gearInfoHtml(it)}<button class="btn primary" data-x>좋아요</button></div>`, 'fuse-pop');
+  },
+  bulkDis: async () => {
+    const p = P(), ids = [...app.bulk].filter((id) => !equippedBy(p, id) && !gearLocked().has(id));
+    if (!ids.length) return;
+    const n = (p.gear || []).filter((g) => ids.includes(g.id)).reduce((a, it) => a + gearDismantle(it.r, it.lv), 0);
+    if (!(await confirmBox({ title: `장비 ${ids.length}개를 분해할까요?`, sub: `강화석 +${n} · 되돌릴 수 없어요`, ok: '분해', cancel: '취소', danger: true }))) return;
+    const r = await liveAct(API.dismantleGear(ids, app.guest));
+    if (r) toast(`💎 ${r.n}개 분해 · 강화석 +${r.stones}`);
+    app.bulk = null; showBag();
+  },
   bulkOff: () => { app.bulk = null; showBag(); },
   bulkPick: (b) => {
     const id = Number(b.dataset.id), p = P();
@@ -2707,7 +2763,7 @@ function pvpEnded(r) {
   if (g && g.pvp && !g.over) { g.over = true; g.phase = 'over'; }
   app.pvpResult = r;
   if (g && g.pvp) { app.ending = false; endRun(r.win); }
-  API.loadProfile().then((x) => { if (x && x.profile) app.profile = x.profile; });
+  resyncProfile();
 }
 setInterval(pvpTick, 1000);
 Object.assign(ACTS, {
@@ -3381,7 +3437,7 @@ async function saveResult(sum, g) {
   }).join('');
   const endless = r.endlessUnlocked ? '<div class="unlock"><span class="big-ico">♾️</span><div><small>새 모드 열림!</small><b>무한 도전</b><span>어디까지 버티나 랭킹 경쟁!</span></div></div>' : '';
   const drops = (rw.drops || []).map((it) => `<span class="drop r-${it.r}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}<b>${esc(GEAR[it.t].name)}</b><small>${GEAR_RARITY[it.r].name}${it.sold ? ` · 가방 꽉 참 → +${it.sold}` : ''}</small></span>`).join('');
-  box.innerHTML = `<div class="rewards">${lines.join('')}</div>${drops ? `<div class="drops"><small>🎁 장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
+  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">💎 강화석 <b>+${rw.stones}</b></div>` : ''}</div>${drops ? `<div class="drops"><small>🎁 장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
     <div class="own">${badges.join('')}<span>보유 <i class="ci"></i>${fmt(p.coins)}</span>${app.guest ? ' · <span class="dimtxt">손님 기록은 이 기기에만</span>' : ''}</div>`;
   if (unlocks) { fx.flash('#ff9ff0', 0.4); A.sfx.join(); }
   for (const id of r.unlockedHeroes || []) await showJoinReveal(id, HEROES[id].legend ? 'legend' : HEROES[id].hidden ? 'hidden' : 'new');
@@ -3746,6 +3802,7 @@ function gearModal(html) {
     let r;
     if (act === 'equip') r = await API.equipGear(a1, a2, a3 === 'x' ? null : Number(a3), app.guest);
     else if (act === 'enh') r = await API.enhanceGear(Number(a1), app.guest);
+    else if (act === 'dis') { if (!(await confirmBox({ title: '이 장비를 분해할까요?', sub: '강화석으로 바뀌어요 · 되돌릴 수 없어요', ok: '분해', cancel: '취소', danger: true }))) { b.disabled = false; return; } r = await API.dismantleGear([Number(a1)], app.guest); if (r && r.ok) { closeInfoCard(); toast(`💎 강화석 +${r.stones}`); refreshBehind(); return; } }
     else if (act === 'sell') { if (!(await confirmBox({ title: '이 장비를 팔까요?', ok: '팔기', cancel: '취소', danger: true }))) { b.disabled = false; return; } r = await API.sellGear(Number(a1), app.guest); }
     else if (act === 'lock') { const set = gearLocked(); const id = Number(a1); if (set.has(id)) set.delete(id); else set.add(id); lsSave('langbang:gearLock', set); closeInfoCard(); showGearCard(id); refreshBehind(); return; }
     if (r && r.ok && r.profile && act === 'enh') {
@@ -3822,8 +3879,8 @@ function showBag() {
     .sort((a, b) => (app.bagSort === 'lv' ? b.lv - a.lv : 0) || GEAR_RARITY[b.r].mul - GEAR_RARITY[a.r].mul || b.lv - a.lv || b.id - a.id);
   const cells = list.map((it) => {
     const eq = equippedBy(p, it.id);
-    const bulkOn = app.bulk && app.bulk.has(it.id), bulkNo = app.bulk && (eq || locks.has(it.id));
-    return `<button class="bitem r-${it.r} ${app.bagSel === it.id ? 'sel' : ''} ${app.bulk ? 'bulk' : ''} ${bulkOn ? 'chk' : ''} ${bulkNo ? 'nosel' : ''}" data-act="${app.bulk ? 'bulkPick' : 'bagPick'}" data-id="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}${it.lv ? `<small class="lv">+${it.lv}</small>` : ''}${eq ? `<small class="eq">${HEROES[eq].name}</small>` : ''}${it.id > seenMax ? '<i class="nb">N</i>' : ''}${locks.has(it.id) ? '<i class="lk">⭐</i>' : ''}</button>`;
+    const bulkOn = (app.bulk && app.bulk.has(it.id)) || (app.fuse && app.fuse.includes(it.id)), bulkNo = (app.bulk || app.fuse) && (eq || locks.has(it.id) || (app.fuse && (it.r === 'legend' || (app.fuse.length && fuseRarity(p) !== it.r))));
+    return `<button class="bitem r-${it.r} ${app.bagSel === it.id ? 'sel' : ''} ${app.bulk || app.fuse ? 'bulk' : ''} ${bulkOn ? 'chk' : ''} ${bulkNo ? 'nosel' : ''}" data-act="${app.bulk ? 'bulkPick' : app.fuse ? 'fusePick' : 'bagPick'}" data-id="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}${it.lv ? `<small class="lv">+${it.lv}</small>` : ''}${eq ? `<small class="eq">${HEROES[eq].name}</small>` : ''}${it.id > seenMax ? '<i class="nb">N</i>' : ''}${locks.has(it.id) ? '<i class="lk">⭐</i>' : ''}</button>`;
   }).join('');
   const maxId = Math.max(0, ...(p.gear || []).map((x) => x.id));
   const deckIds = [...new Set([...(curDeck() || []).filter(Boolean)])];
@@ -3841,7 +3898,7 @@ function showBag() {
       <div class="chips">${[['all', '전체'], ['w', '무기'], ['a', '액세서리']].map(([k, n]) => `<button class="chip ${filt === k ? 'on' : ''}" data-act="bagFilter" data-v="${k}">${n}</button>`).join('')}
         <button class="chip" data-act="bagSort">${app.bagSort === 'lv' ? '강화순' : '등급순'} ⇅</button></div>
     </div>
-    ${app.bulk ? bulkBarHtml(p, locks) : `<p class="sub">가방 ${(p.gear || []).length}/80 · 한 번 누르면 고르기 · 두 번 누르면 강화·팔기·잠금 <button class="chip" data-act="bulkOn">🧹 일괄 판매</button></p>`}
+    ${app.bulk ? bulkBarHtml(p, locks) : app.fuse ? fuseBarHtml(p) : `<p class="sub">가방 ${(p.gear || []).length}/80 · 💎 강화석 <b>${p.stones | 0}</b> · 한 번 누르면 고르기 · 두 번 누르면 강화·팔기·분해 <button class="chip" data-act="bulkOn">🧹 일괄 판매·분해</button><button class="chip" data-act="fuseOn">⚗️ 합성</button></p>`}
     <div class="bag-grid">${cells || `<div class="empty-state"><span>🎒</span><b>${filt === 'all' ? '아직 장비가 없어요' : '이 칸에 맞는 장비가 없어요'}</b><small>스테이지를 깨면 장비가 떨어져요</small></div>`}</div>
     ${navHtml('bag')}
   `, 'dim withnav bag-screen');
@@ -3856,8 +3913,23 @@ function bulkBarHtml(p, locks) {
   const v = (p.gear || []).filter((g) => app.bulk.has(g.id)).reduce((a, it) => a + gearSellValue(it.r, it.lv), 0);
   return `<div class="bulk-bar">
     <div class="chips">${[['common', '일반 전부'], ['rare', '희귀 이하'], ['free', '장착 안 한 것만'], ['dup', '중복만'], ['none', '선택 해제']].map(([k, n]) => `<button class="chip" data-act="bulkQuick" data-v="${k}">${n}</button>`).join('')}</div>
-    <div class="bulk-go"><button class="btn ghost" data-act="bulkOff">취소</button><button class="btn ${ids.length ? 'pink' : ''}" data-act="bulkSell" ${ids.length ? '' : 'disabled'}>🧹 ${ids.length}개 팔기 · <i class="ci"></i>${fmt(v)}</button></div>
+    <div class="bulk-go"><button class="btn ghost" data-act="bulkOff">취소</button><button class="btn ${ids.length ? 'pink' : ''}" data-act="bulkSell" ${ids.length ? '' : 'disabled'}>🧹 ${ids.length}개 팔기 · <i class="ci"></i>${fmt(v)}</button><button class="btn ${ids.length ? '' : ''}" data-act="bulkDis" ${ids.length ? '' : 'disabled'}>💎 분해 +${(p.gear || []).filter((g) => app.bulk.has(g.id)).reduce((a, it) => a + gearDismantle(it.r, it.lv), 0)}</button></div>
     <small class="bulk-note">장착 중 · 🔒잠금 장비는 고를 수 없어요</small></div>`;
+}
+// 합성: 같은 등급 3개 → 다음 등급 1개 (셋 다 같은 종류면 그 종류) · 가장 높은 강화 -2 이어 받기 · 수수료
+function fuseRarity(p) { const it = (p.gear || []).find((g) => app.fuse && app.fuse[0] === g.id); return it ? it.r : null; }
+function fuseBarHtml(p) {
+  const list = app.fuse.map((id) => (p.gear || []).find((g) => g.id === id)).filter(Boolean);
+  const r0 = list[0] && list[0].r, r1 = r0 && GEAR_NEXT[r0];
+  const fee = r1 ? GEAR_FUSE_FEE[r1] : 0, free = p.master && !p.testNormal;
+  const same = list.length === 3 && list.every((it) => it.t === list[0].t);
+  const lv = list.length ? Math.max(0, Math.max(...list.map((it) => it.lv)) - 2) : 0;
+  return `<div class="bulk-bar fuse-bar">
+    <b>⚗️ 합성</b> <small>같은 등급 3개 → 다음 등급 1개 · 셋 다 같은 종류면 그 종류 · 가장 높은 강화 -2 를 이어 받아요</small>
+    <div class="fuse-slots">${[0, 1, 2].map((i) => { const it = list[i]; return `<span class="fz ${it ? 'r-' + it.r : ''}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#444'}">${it ? gearIco(it) + (it.lv ? `<small>+${it.lv}</small>` : '') : '+'}</span>`; }).join('<i>+</i>')}<i>→</i><span class="fz out" style="--rc:${r1 ? GEAR_RARITY[r1].color : '#444'}">${r1 ? `<b>${GEAR_RARITY[r1].name}</b><small>${same ? esc(GEAR[list[0].t].name) : '무작위'}${lv ? ` +${lv}` : ''}</small>` : '?'}</span></div>
+    <div class="chips">${['common', 'rare', 'epic'].map((r) => `<button class="chip" data-act="fuseAuto" data-v="${r}">${GEAR_RARITY[r].name} 자동 채우기</button>`).join('')}</div>
+    <div class="bulk-go"><button class="btn ghost" data-act="fuseOff">취소</button><button class="btn ${list.length === 3 ? 'pink' : ''}" data-act="fuseGo" ${list.length === 3 && (free || p.coins >= fee) ? '' : 'disabled'}>⚗️ 합성${fee && !free ? ` · <i class="ci"></i>${fmt(fee)}` : ''}</button></div>
+    <small class="bulk-note">장착 중 · 🔒잠금 · 전설 장비는 합성에 못 넣어요</small></div>`;
 }
 function eqRowHtml(p, h) {
   const d = HEROES[h];
@@ -3953,8 +4025,9 @@ function showGearCard(gid) {
     ${gearInfoHtml(it)}
     <div class="gdiff"><small>${HEROES[hero].name}에게 끼면</small>${diff}</div>
     <div class="gc-row">${eq === hero ? `<button class="btn" data-g="equip:${hero}:${k}:x">빼기</button>` : `<button class="btn primary" data-g="equip:${hero}:${k}:${gid}">${HEROES[hero].name}에게 끼기</button>`}
-      <button class="btn ${cost !== null && p.coins >= cost ? 'pink' : ''}" data-g="enh:${gid}" ${cost === null || p.coins < cost ? 'disabled' : ''}>🔨 강화 ${cost === null ? 'MAX' : `+${it.lv + 1} · ${p.master ? '100' : Math.round(gearEnhanceChance(it.lv) * 100)}% · ${p.unlimited ? '공짜' : `<i class="ci"></i>${fmt(cost)}`}`}</button></div>
-    <div class="gc-row"><button class="btn ghost" data-g="lock:${gid}">${locked ? '⭐ 잠금 풀기' : '☆ 잠그기 (팔기 방지)'}</button><button class="btn ghost" data-g="sell:${gid}" ${locked ? 'disabled' : ''}>팔기 +${fmt(gearSellValue(it.r, it.lv))}</button></div>`);
+      ${(() => { const free = p.master && !p.testNormal; const stn = free ? 0 : gearStoneNeed(it.lv); const can = cost !== null && (free || (p.coins >= cost && (p.stones | 0) >= stn)); return `<button class="btn ${can ? 'pink' : ''}" data-g="enh:${gid}" ${can ? '' : 'disabled'}>🔨 강화 ${cost === null ? 'MAX' : `+${it.lv + 1} · ${free ? '100' : Math.round(gearEnhanceChance(it.lv) * 100)}% · ${free ? '공짜' : `<i class="ci"></i>${fmt(cost)}${stn ? ` · 💎${p.stones | 0}/${stn}` : ''}`}`}</button>`; })()}</div>
+    ${cost !== null && gearStoneNeed(it.lv) && !(p.master && !p.testNormal) ? `<p class="g-help">💎 강화석: +6 부터 필요 (+6 1개 · +7 2개 · +8 3개 · +9 4개 · +10 5개) · 1-6 이후 스테이지·보스·레이드·<b>분해</b>로 모아요</p>` : ''}
+    <div class="gc-row"><button class="btn ghost" data-g="lock:${gid}">${locked ? '⭐ 잠금 풀기' : '☆ 잠그기 (팔기 방지)'}</button><button class="btn ghost" data-g="sell:${gid}" ${locked || eq ? 'disabled' : ''}>팔기 +${fmt(gearSellValue(it.r, it.lv))}</button><button class="btn ghost" data-g="dis:${gid}" ${locked || eq ? 'disabled' : ''}>분해 💎+${gearDismantle(it.r, it.lv)}</button></div>`);
 }
 function gearInfoHtml(it) {
   const g = GEAR[it.t], R0 = GEAR_RARITY[it.r], st = GEAR_STATS[g.stat];

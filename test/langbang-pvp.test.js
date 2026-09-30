@@ -188,7 +188,7 @@ test('장비 강화 +1~+10: +3까지는 무조건 · 그 뒤로 확률 (실패�
   assert.ok(R.gearEnhanceChance(3) >= 0.85 && Math.abs(R.gearEnhanceChance(9) - 0.4) < 1e-9 && R.gearEnhanceChance(10) === 0);
   const u = await user('enhuser');
   const st = await srv.accounts.store.byId(u.user.id);
-  st.stats.langbang = Object.assign(st.stats.langbang || {}, { coins: 1e6, gear: [{ id: 1, t: 'megaphone', r: 'epic', lv: 6 }], gearSeq: 1, maxStage: 5, stages: { 1: 3 } });
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { coins: 1e6, stones: 999, gear: [{ id: 1, t: 'megaphone', r: 'epic', lv: 6 }], gearSeq: 1, maxStage: 5, stages: { 1: 3 } });
   await srv.accounts.store.saveStats(u.user.id, st.stats);
   let ok = 0, fail = 0, coins = 1e6;
   for (let i = 0; i < 40 && !(ok && fail); i++) {
@@ -320,4 +320,65 @@ test('마스터 출격 준비: 강성구를 덱에 넣으면 cleanDeck 을 거�
   const card = await get('/api/langbang/player?u=gun8401');
   const deck = (card.player || card).deck || [];
   assert.ok(deck.some((x) => (x.id || x) === 'sunggu'), '선수 카드 덱에 강성구');
+});
+
+test('장비 경제: +6 부터 강화석 · 분해 → 강화석 · 합성 3→1 · 마스터 "일반 유저처럼 테스트"', async () => {
+  const LBR = require('../server/langbang-rules');
+  const D = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'data.js')).href);
+  for (let lv = 0; lv <= 10; lv++) { assert.equal(LBR.gearStoneNeed(lv), D.gearStoneNeed(lv)); for (const r of LBR.GEAR_RARITIES) assert.equal(LBR.gearDismantle(r, lv), D.gearDismantle(r, lv)); }
+  for (let s = 1; s <= 60; s++) assert.equal(LBR.rollStones(s * 77, s, 3, s % 2 === 0, s % 3 === 0), D.rollStones(s * 77, s, 3, s % 2 === 0, s % 3 === 0));
+  assert.deepEqual([5, 6, 7, 8, 9].map((lv) => LBR.gearStoneNeed(lv)), [1, 2, 3, 4, 5]);
+  const u = await user('econ');
+  const setLb = async (o) => { const st = await srv.accounts.store.byId(u.user.id); st.stats.langbang = Object.assign(st.stats.langbang || {}, o); await srv.accounts.store.saveStats(u.user.id, st.stats); };
+  await setLb({ coins: 1e6, stones: 0, gear: [{ id: 1, t: 'megaphone', r: 'epic', lv: 5 }, ...[2, 3, 4].map((id) => ({ id, t: 'belt', r: 'common', lv: id })), { id: 5, t: 'clover', r: 'rare', lv: 0 }], gearSeq: 5, equip: {} });
+  const e1 = await post('/api/langbang/gear/enhance', u.token, { id: 1 });
+  assert.equal(e1.ok, false, '+6 은 강화석 필요'); assert.match(e1.message, /강화석/);
+  const d1 = await post('/api/langbang/gear/dismantle', u.token, { ids: [5] });
+  assert.equal(d1.ok, true, d1.message); assert.equal(d1.stones, LBR.gearDismantle('rare', 0));
+  const e2 = await post('/api/langbang/gear/enhance', u.token, { id: 1 });
+  assert.equal(e2.ok, true, e2.message); assert.equal(e2.stones, 1); assert.equal(e2.profile.stones, LBR.gearDismantle('rare', 0) - 1);
+  assert.equal((await post('/api/langbang/gear/fuse', u.token, { ids: [2, 3] })).ok, false, '3개 필요');
+  assert.equal((await post('/api/langbang/gear/fuse', u.token, { ids: [1, 2, 3] })).ok, false, '같은 등급만');
+  const f = await post('/api/langbang/gear/fuse', u.token, { ids: [2, 3, 4] });
+  assert.equal(f.ok, true, f.message);
+  assert.equal(f.made.r, 'rare'); assert.equal(f.made.t, 'belt', '셋 다 같은 종류면 그 종류'); assert.equal(f.made.lv, 2, '가장 높은 +4 - 2');
+  assert.equal(f.profile.gear.length, 2);
+  assert.equal(f.profile.coins, 1e6 - LBR.gearEnhanceCost('epic', 5) - LBR.GEAR_FUSE_FEE.rare);
+  // 마스터: 기본은 공짜 · 테스트 모드면 비용을 낸다
+  const m = await srv.accounts.login({ username: 'gun8401', password: 'secret12' });
+  await post('/api/langbang/master', m.token, { action: 'allclear' });
+  const mv = await get('/api/langbang/me', m.token);
+  const gid = mv.profile.gear[0].id;
+  const a = await post('/api/langbang/gear/enhance', m.token, { id: gid });
+  assert.equal(a.cost, 0, '마스터 공짜');
+  const tn = await post('/api/langbang/master', m.token, { action: 'testNormal', on: true });
+  assert.equal(tn.ok, true, tn.message); assert.equal(tn.profile.testNormal, true); assert.ok(!tn.profile.unlimited, '무한 아님');
+  const gid2 = tn.profile.gear.find((g) => g.lv < 5).id;
+  const b = await post('/api/langbang/gear/enhance', m.token, { id: gid2 });
+  assert.ok(b.ok === false || b.cost > 0, '테스트 모드는 비용');
+  await post('/api/langbang/master', m.token, { action: 'testNormal', on: false });
+});
+
+test('모집권: 보상(업적 · 모두 받기 · 별 상자 · 출석)으로 받은 모집권이 서버 lb.tickets 에 쌓이고 바로 모집된다', async () => {
+  const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  const u = await user('tixuser');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { coins: 0, tickets: 0, maxStage: 10, stages: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 3])) });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  const me0 = await get('/api/langbang/me', u.token);
+  let tix = me0.profile.tickets | 0;
+  const step = async (name, r, add) => {
+    assert.equal(r.ok, true, name + ': ' + r.message);
+    assert.equal(r.profile.tickets, tix + add, name + ' → 모집권 +' + add);
+    tix = r.profile.tickets;
+    const srvLb = (await srv.accounts.store.byId(u.user.id)).stats.langbang;
+    assert.equal(srvLb.tickets | 0, tix, name + ': 저장된 값도 같다');
+  };
+  await step('업적 1장 클리어', await post('/api/langbang/mission/claim', u.token, { kind: 'ach', id: 'ch1' }), 1);
+  await step('별 상자 1장 ★10', await post('/api/langbang/chest/claim', u.token, { ch: 1, n: 10 }), L.chestReward(1, 10).tickets);
+  const ci = await post('/api/langbang/checkin', u.token, {});
+  await step('출석', ci, (L.CHECKIN[0].tickets | 0));
+  const pull = await post('/api/langbang/gacha', u.token, { n: 1, pay: 'ticket' });
+  assert.equal(pull.ok, true, '받자마자 모집: ' + pull.message);
+  assert.equal(pull.profile.tickets, tix - 1);
 });

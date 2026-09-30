@@ -80,6 +80,10 @@ function normLb(raw, master = false) {
     .map((it) => ({ id: it.id, t: it.t, r: it.r, lv: Math.max(0, Math.min(LBR.GEAR_MAX_LV, it.lv | 0)) })).slice(0, LBR.GEAR_BAG);
   lb.gearSeq = Math.max(lb.gearSeq | 0, ...lb.gear.map((x) => x.id), 0);
   lb.autoSell = !!(raw && raw.autoSell); // 자동 판매: 일반 등급 드롭은 바로 코인으로
+  lb.stones = Math.max(0, Math.min(99999, (raw && raw.stones) | 0)); // 강화석
+  lb.wild = Math.max(0, Math.min(99999, (raw && raw.wild) | 0)); // 범용 멤버 카드 (다 키운 멤버의 남는 카드)
+  lb.cardPick = raw && raw.cardPick && typeof raw.cardPick === 'object' ? { wi: raw.cardPick.wi | 0, n: raw.cardPick.n | 0 } : { wi: 0, n: 0 };
+  lb.testNormal = !!(raw && raw.testNormal); // 마스터: 일반 유저처럼 테스트
   const eq = {};
   const used = new Set();
   for (const [h, sl] of Object.entries((raw && raw.equip) || {})) {
@@ -102,6 +106,8 @@ const lbExpToNext = (level) => 100 + (level - 1) * 60; // 다음 계정 레벨�
 const lbUpgradeCost = LBR.metaCost; // 캐릭터 영구 강화 비용(코인)
 // 랭킹 정렬: 스테이지 = 최고 스테이지 → 총 별 → 먼저 도달한 사람 / 무한 도전 = 최고 웨이브 → 최고 점수
 const lbOf = (u) => normLb(u.stats && u.stats.langbang);
+// 마스터가 공짜/무한으로 노는지 (설정 "🧪 일반 유저처럼 테스트"를 켜면 보통 유저처럼 비용을 낸다)
+const freeMaster = (u) => isMasterName(u.username) && !((u.stats && u.stats.langbang) || {}).testNormal;
 function lbCompare(mode) {
   if (mode === 'endless') return (a, b) => b.bestWave - a.bestWave || b.bestScore - a.bestScore;
   return (a, b) => b.maxStage - a.maxStage || b.totalStars - a.totalStars || (a.stageAt || 0) - (b.stageAt || 0);
@@ -424,11 +430,14 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     view.deckSlots = LBR.deckSlots(lb.items);
     if (master) {
       view.master = true;
-      view.unlimited = true; view.coins = 1e9; view.tickets = 1e6; // 마스터: 코인 · 모집권 무한 (화면엔 ∞)
-      view.items = Object.fromEntries(LBR.ITEM_IDS.map((i) => [i, LBR.ITEMS[i].max])); // 아이템 전부 최대
+      view.testNormal = !!lb.testNormal; // 🧪 일반 유저처럼 테스트: 코인·아이템·강화 비용은 보통 유저처럼
+      if (!lb.testNormal) {
+        view.unlimited = true; view.coins = 1e9; view.tickets = 1e6; // 마스터: 코인 · 모집권 무한 (화면엔 ∞)
+        view.items = Object.fromEntries(LBR.ITEM_IDS.map((i) => [i, LBR.ITEMS[i].max])); // 아이템 전부 최대
+      }
       view.unlocked = LBR.LOCKED.slice();
       // 마스터는 덱 칸도 전부 열림 (자물쇠 없음) — 막 초기화한 상태(기록 0)만 새 계정처럼 4칸
-      if ((lb.maxStage | 0) > 0 || (lb.runs | 0) > 0) view.deckSlots = 6;
+      if (!lb.testNormal && ((lb.maxStage | 0) > 0 || (lb.runs | 0) > 0)) view.deckSlots = 6;
       view.seen = LBR.ENEMY_IDS.slice();
       view.owned = Object.fromEntries(LBR.LB_HEROES.map((h) => [h, true])); // 마스터: 20명 전부
       view.endlessUnlocked = true;
@@ -527,9 +536,12 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
         const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];
         const got = [];
+        const usedOk = Array.isArray(body.heroesUsed) ? [...new Set(body.heroesUsed.map(String))].filter((h) => LB_HEROES.includes(h) && LBR.heroUnlocked(before, h)).slice(0, 7) : [];
+        const cardDrop = mode === 'stage' ? LBR.rollHeroCard(LBR.hashSeed(`hc:${id}:${before.clears}:${stage}`), stars, hell, usedOk) : null;
+        const stones = mode === 'stage' ? LBR.rollStones(LBR.hashSeed(`st:${id}:${before.clears}:${stage}`), stage, stars, !prevStars, hell) : mode === 'raid' ? 2 : 0; // 레이드 한 판마다 강화석 2개
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
-          lb.runs++; lb.kills += kills; lb.coins += reward.total;
+          lb.runs++; lb.kills += kills; lb.coins += reward.total; lb.stones = (lb.stones | 0) + stones; if (cardDrop) { lb.shards = lb.shards || {}; lb.shards[cardDrop] = (lb.shards[cardDrop] | 0) + 1; }
           // 도감: 이번 판에 만난 진상 (있는 이름만)
           if (Array.isArray(body.seen)) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => LBR.ENEMY_IDS.includes(t))])];
           if (mode === 'stage') {
@@ -569,7 +581,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const lb = stats.langbang;
         const first = mode === 'stage' && !prevStars && !hell;
         out = {
-          profile: lbView(lb, id, master), reward: { ...reward, firstClear: first, stage, stars, isPerfect: perfect, firstPerfect, drops: got, hell },
+          profile: lbView(lb, id, master), reward: { ...reward, firstClear: first, stage, stars, isPerfect: perfect, firstPerfect, drops: got, hell, stones, cardDrop },
           levelUp: lb.level > before.level, rank: mode === 'weekly' ? await store.rankWeekly(wk.wi, id) : mode === 'raid' ? await store.raidRank(rd.wi, id) : await store.rankLangbang(mode, id),
           raid: rd ? { dmg: rd.dmg, mine: lb.raid ? lb.raid.dmg : 0, total: await store.raidTotal(rd.wi), hp: LIVE.RAID.hp, master } : null,
           weekly: wk ? { score: wk.score, best: lb.weekly ? lb.weekly.best : 0, newBest: weeklyBest, master } : null,
@@ -593,9 +605,10 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (!u) return;
         const ms = isMasterName(u.username);
         const lb0 = normLb(u.stats.langbang, ms);
+        lb0.freeMaster = freeMaster(u);
         const r = check(lb0);
         if (r.error) { out = r; return; }
-        if (ms) r.cost = 0; // 마스터: 코인 무한 (안 줄어든다)
+        if (freeMaster(u)) r.cost = 0; // 마스터: 코인 무한 ("일반 유저처럼 테스트" 켜면 보통)
         if (lb0.coins < r.cost) { out = { error: `코인이 부족해요 (${r.cost.toLocaleString()} 필요)` }; return; }
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
@@ -616,7 +629,31 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       const lvl = lb.heroes[hero] || 0;
       if (!LBR.heroUnlocked(lb, hero)) return { error: '아직 합류하지 않은 멤버예요' };
       if (lvl >= LBR.metaMaxOf(hero)) return { error: `이미 최대로 강화했어요 (${['', 'T1', 'T2', 'T3', 'T4', 'LEGEND'][LBR.HERO_TIER[hero] || 1]} 한도 +${LBR.metaMaxOf(hero)})` };
-      return { cost: lbUpgradeCost(lvl), apply: (x) => { x.heroes[hero] = lvl + 1; } };
+      const need = lb.freeMaster ? 0 : LBR.heroCardNeed(lvl);
+      const have = ((lb.shards || {})[hero] | 0), wild = lb.wild | 0;
+      if (have + wild < need) return { error: `${hero === 'bangjang' ? '방장' : '이 멤버'} 카드가 부족해요 (${have}/${need}장 · 모집·스테이지·상점 선택권에서 모아요)` };
+      const fromOwn = Math.min(have, need), fromWild = need - fromOwn;
+      return { cost: lbUpgradeCost(lvl), cards: need, apply: (x) => { x.heroes[hero] = lvl + 1; if (need) { x.shards = x.shards || {}; x.shards[hero] = (x.shards[hero] | 0) - fromOwn; x.wild = (x.wild | 0) - fromWild; } } };
+    });
+  }
+  // 상점 "멤버 카드 선택권": 고른 멤버 카드 N장 (주 N번)
+  function lbCardPick(token, hero) {
+    if (!LB_HEROES.includes(hero)) return Promise.reject(new AuthError('없는 캐릭터예요'));
+    return lbSpend(token, (lb) => {
+      if (!LBR.heroUnlocked(lb, hero)) return { error: '합류한 멤버만 고를 수 있어요' };
+      const wi = LIVE.weekIndex(Date.now());
+      const n = lb.cardPick && lb.cardPick.wi === wi ? lb.cardPick.n : 0;
+      if (n >= LBR.CARD_PICK.perWeek) return { error: `이번 주 선택권은 다 샀어요 (주 ${LBR.CARD_PICK.perWeek}번)` };
+      return { cost: LBR.CARD_PICK.cost, apply: (x) => { x.shards = x.shards || {}; x.shards[hero] = (x.shards[hero] | 0) + LBR.CARD_PICK.n; x.cardPick = { wi, n: n + 1 }; } };
+    });
+  }
+  // 다 키운(강화 최대 + ★5) 멤버의 남는 카드 → 범용 카드
+  function lbCardConvert(token) {
+    return lbSpend(token, (lb) => {
+      const list = LB_HEROES.filter((h) => (lb.heroes[h] | 0) >= LBR.metaMaxOf(h) && ((lb.hstars || {})[h] | 0) >= 5 && ((lb.shards || {})[h] | 0) > 0);
+      if (!list.length) return { error: '바꿀 남는 카드가 없어요 (강화 최대 + ★5 멤버의 카드만)' };
+      const n = list.reduce((a, h) => a + (lb.shards[h] | 0), 0);
+      return { cost: 0, apply: (x) => { for (const h of list) x.shards[h] = 0; x.wild = (x.wild | 0) + n; } };
     });
   }
   /** 코인으로 아이템 사기 (레벨제) */
@@ -642,7 +679,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const lb0 = normLb(u.stats.langbang, isMasterName(u.username));
         const r = fn(lb0);
         if (r.error) { out = r; return; }
-        if (isMasterName(u.username)) r.cost = 0; // 마스터: 공짜
+        if (freeMaster(u)) r.cost = 0; // 마스터: 공짜 ("일반 유저처럼 테스트" 켜면 보통)
         if (r.cost && lb0.coins < r.cost) { out = { error: `코인이 부족해요 (${r.cost.toLocaleString()} 필요)` }; return; }
         const stats = await update(id, (st) => { const lb = st.langbang = normLb(st.langbang); if (r.cost) lb.coins -= r.cost; r.apply(lb); });
         out = { profile: lbView(stats.langbang, id, isMasterName(u.username)), ...(r.extra || {}) };
@@ -674,16 +711,18 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       const cost0 = LBR.gearEnhanceCost(it.r, it.lv);
       if (cost0 === null) return { error: '이미 최대 강화예요' };
       const cost = ctx.master ? 0 : cost0; // 마스터는 공짜
+      const st = ctx.master ? 0 : LBR.gearStoneNeed(it.lv);
       if (lb.coins < cost) return { error: `코인이 부족해요 (${cost.toLocaleString()} 필요)` };
-      lb.coins -= cost;
+      if ((lb.stones | 0) < st) return { error: `강화석이 부족해요 (${st}개 필요 · 스테이지·레이드·분해로 모아요)` };
+      lb.coins -= cost; lb.stones = (lb.stones | 0) - st;
       // 성공 판정은 서버 시드로 (계정 · 장비 · 몇 번째 시도) — 같은 요청을 두 번 계산해도 같은 결과
       const n = (lb.cnt.enhTry | 0) + 1;
       lb.cnt.enhTry = n;
       const chance = ctx.master ? 1 : LBR.gearEnhanceChance(it.lv); // 마스터: 항상 성공
       const ok = LBR.seedRng(LBR.hashSeed(`enh:${id}:${it.id}:${n}`))() < chance;
       if (ok) { it.lv++; LIVE.bump(lb, 'enhances', 1, id, now); }
-      return { success: ok, lv: it.lv, chance, cost };
-    }, async (u) => ({ master: isMasterName(u.username) }));
+      return { success: ok, lv: it.lv, chance, cost, stones: st };
+    }, async (u) => ({ master: freeMaster(u) }));
   }
   // ── 모집 · 미션 · 시즌 · 성급 · 주간 도전 (공식은 live.js) ──
   // fn(lb, id, now, ctx) 는 lb 를 바꾸고 {error} 나 {추가 응답} 을 돌려준다.
@@ -700,7 +739,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const ms = isMasterName(u.username);
         const test = normLb(JSON.parse(JSON.stringify(u.stats.langbang || {})), ms);
         LIVE.ensureLive(test, id, now);
-        const inf = (x) => { if (ms) { x.coins = 1e9; x.tickets = 1e6; } }; // 마스터: 코인 · 모집권이 줄지 않는다
+        const inf = (x) => { if (ms && freeMaster(u)) { x.coins = 1e9; x.tickets = 1e6; } }; // 마스터: 코인 · 모집권이 줄지 않는다 (테스트 모드면 보통)
         inf(test);
         const r0 = fn(test, id, now, ctx) || {};
         if (r0.error) { out = r0; return; }
@@ -826,6 +865,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           if (act === 'reset') { st.langbang = emptyLangbang(); return; }
           const lb = st.langbang = normLb(st.langbang);
           if (act === 'coins') lb.coins = Math.min(1e9, lb.coins + (v || 100000));
+          else if (act === 'testNormal') lb.testNormal = !!body.on; // 🧪 일반 유저처럼 테스트 켜기/끄기
+          else if (act === 'stones') lb.stones = Math.min(99999, (lb.stones | 0) + (v || 50));
           else if (act === 'tickets') lb.tickets = Math.min(1e6, (lb.tickets | 0) + (v || 100));
           else if (act === 'stage') { const n = Math.min(LBR.STAGE_COUNT, v); lb.stages = {}; for (let s = 1; s <= n; s++) lb.stages[s] = 3; }
           else if (act === 'allclear') {
@@ -907,6 +948,60 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       return { apply: (x) => { x.gear = x.gear.filter((g) => !set.has(g.id)); x.coins += v; }, extra: { sold: v, n: list.length } };
     });
   }
+  // 분해: 장비 → 강화석 (장착 중은 안 됨 · 없는 번호는 건너뜀)
+  function lbDismantle(token, ids) {
+    const want = [...new Set((Array.isArray(ids) ? ids : []).map((x) => Math.floor(Number(x)) || 0).filter((x) => x > 0))].slice(0, LBR.GEAR_BAG);
+    return lbGear(token, (lb) => {
+      const eq = new Set(Object.values(lb.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const list = want.map((g) => findGear(lb, g)).filter((it) => it && !eq.has(it.id));
+      if (!list.length) return { error: '분해할 수 있는 장비가 없어요' };
+      const n = list.reduce((a, it) => a + LBR.gearDismantle(it.r, it.lv), 0);
+      const set = new Set(list.map((it) => it.id));
+      return { apply: (x) => { x.gear = x.gear.filter((g) => !set.has(g.id)); x.stones = (x.stones | 0) + n; }, extra: { stones: n, n: list.length } };
+    });
+  }
+  // 합성: 같은 등급 3개 → 다음 등급 1개 (셋 다 같은 종류면 그 종류) · 가장 높은 강화 -2 를 이어 받음 · 수수료
+  function lbFuse(token, ids) {
+    const want = [...new Set((Array.isArray(ids) ? ids : []).map((x) => Math.floor(Number(x)) || 0).filter((x) => x > 0))];
+    return (async () => {
+      const uid = await userFromToken(token);
+      let out = null;
+      await serial(async () => {
+        const u = await store.byId(uid);
+        if (!u) return;
+        const lb0 = normLb(u.stats.langbang, isMasterName(u.username));
+        if (want.length !== 3) { out = { error: '같은 등급 장비 3개를 골라요' }; return; }
+        const eq = new Set(Object.values(lb0.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+        const list = want.map((g) => findGear(lb0, g));
+        if (list.some((it) => !it)) { out = { error: '없는 장비가 있어요' }; return; }
+        if (list.some((it) => eq.has(it.id))) { out = { error: '장착 중인 장비는 합성할 수 없어요' }; return; }
+        const r0 = list[0].r;
+        if (list.some((it) => it.r !== r0)) { out = { error: '같은 등급끼리만 합성돼요' }; return; }
+        const r1 = LBR.GEAR_NEXT[r0];
+        if (!r1) { out = { error: '전설은 더 합성할 수 없어요' }; return; }
+        const fee = freeMaster(u) ? 0 : LBR.GEAR_FUSE_FEE[r1];
+        if (lb0.coins < fee) { out = { error: `코인이 부족해요 (${fee.toLocaleString()} 필요)` }; return; }
+        const same = list.every((it) => it.t === list[0].t);
+        const rng = LBR.seedRng(LBR.hashSeed(`fuse:${uid}:${lb0.gearSeq}:${want.join(',')}`));
+        const t = same ? list[0].t : LBR.GEAR_IDS[(rng() * LBR.GEAR_IDS.length) | 0];
+        const lv = Math.max(0, Math.max(...list.map((it) => it.lv)) - 2);
+        let made = null;
+        const stats = await update(uid, (st) => {
+          const lb = st.langbang = normLb(st.langbang);
+          const set = new Set(want);
+          lb.gear = lb.gear.filter((g) => !set.has(g.id));
+          lb.coins -= fee;
+          made = { id: ++lb.gearSeq, t, r: r1, lv };
+          lb.gear.push(made);
+          if (r1 === 'legend') lb.cnt.legends = (lb.cnt.legends | 0) + 1;
+        });
+        out = { profile: lbView(stats.langbang, uid, isMasterName(u.username)), made, fee, same };
+      });
+      if (!out) throw new AuthError('다시 로그인해 주세요');
+      if (out.error) throw new AuthError(out.error);
+      return out;
+    })();
+  }
   function lbAutoSell(token, on) { return lbGear(token, () => ({ apply: (x) => { x.autoSell = !!on; }, extra: { autoSell: !!on } })); }
   const lbRow = (u, i) => {
     const lb = lbOf(u);
@@ -947,6 +1042,10 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/gear/sell', wrap((req) => lbSell(tok(req), gidOf((req.body || {}).id))));
     r.post('/gear/sellMany', wrap((req) => lbSellMany(tok(req), (req.body || {}).ids)));
     r.post('/gear/autoSell', wrap((req) => lbAutoSell(tok(req), !!(req.body || {}).on)));
+    r.post('/cards/pick', wrap((req) => lbCardPick(tok(req), String((req.body || {}).hero || ''))));
+    r.post('/cards/convert', wrap((req) => lbCardConvert(tok(req))));
+    r.post('/gear/dismantle', wrap((req) => lbDismantle(tok(req), (req.body || {}).ids)));
+    r.post('/gear/fuse', wrap((req) => lbFuse(tok(req), (req.body || {}).ids)));
     r.get('/ranking', wrap(async (req) => lbRanking(50, String(req.query.mode || 'stage'), tok(req) || null)));
     const b = (req) => req.body || {};
     r.post('/gacha', wrap((req) => lbGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1, String(b(req).pay || ''))));

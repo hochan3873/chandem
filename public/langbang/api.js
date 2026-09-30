@@ -5,6 +5,7 @@ import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
   metaCost, itemCost, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen, metaMaxOf,
   GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearEnhanceChance, gearSellValue, rollDrops, gearStats, stageBosses,
+  GEAR_IDS, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, heroCardNeed, rollHeroCard, CARD_PICK,
 } from './data.js';
 import * as L from './live.js';
 
@@ -84,6 +85,10 @@ function normalize(p, guest) {
   L.normLive(p || {}, out); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록
   out.master = !guest && !!(p && p.master); // 서버가 정한 값 (손님은 절대 아님)
   out.autoSell = !!(p && p.autoSell);
+  out.stones = Math.max(0, (p && p.stones) | 0);
+  out.wild = Math.max(0, (p && p.wild) | 0);
+  out.cardPick = (p && p.cardPick) || { wi: 0, n: 0 };
+  out.testNormal = !!(p && p.testNormal);
   out.owned = out.owned || {};
   out.unlocked = LOCKED_HEROES.filter((h) => heroUnlocked(out, h));
   if (guest) L.ensureLive(out, 'guest', Date.now()); // 로그인은 서버가 이미 맞춰서 준다
@@ -143,6 +148,10 @@ export async function postStage(sum, guest) {
     // 손님 장비 드롭 (같은 공식, 시드는 이 기기에서)
     const got = [];
     q.gear = (p.gear || []).slice();
+    const cardDrop = rollHeroCard((Math.random() * 4294967296) >>> 0, sum.stars, hell, [...new Set(sum.heroesUsed || [])].filter((h) => HEROES[h] && heroUnlocked(p, h)));
+    if (cardDrop) q.shards = Object.assign({}, p.shards, { [cardDrop]: ((p.shards || {})[cardDrop] | 0) + 1 });
+    const stonesGot = rollStones((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, !prev, hell);
+    q.stones = (p.stones | 0) + stonesGot;
     for (const d of rollDrops((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, perfect, firstPerfect, hell)) {
       if (q.gear.length >= GEAR_BAG || (q.autoSell && d.r === 'common')) { const v = gearSellValue(d.r, 0); q.coins += v; got.push(Object.assign({ sold: v, auto: !!q.autoSell && d.r === 'common' }, d)); continue; }
       q.gearSeq = (q.gearSeq | 0) + 1;
@@ -155,7 +164,7 @@ export async function postStage(sum, guest) {
     writeGuest(q);
     const after = guestProfile();
     return {
-      ok: true, profile: after, reward: Object.assign({}, reward, { firstClear: !prev && !hell, stage: sum.stage, stars: sum.stars, isPerfect: perfect, firstPerfect, drops: got, hell }),
+      ok: true, profile: after, reward: Object.assign({}, reward, { firstClear: !prev && !hell, stage: sum.stage, stars: sum.stars, isPerfect: perfect, firstPerfect, drops: got, hell, stones: stonesGot, cardDrop }),
       unlockedHeroes: !prev && !hell ? LOCKED_HEROES.filter((h) => HERO_UNLOCK[h] === sum.stage && !heroUnlocked(p, h)) : [],
       endlessUnlocked: !endlessUnlocked(p) && endlessUnlocked(after),
     };
@@ -196,7 +205,10 @@ export async function upgradeHero(hero, guest) {
       if (!HEROES[hero]) return { error: '없는 캐릭터예요' };
       if (!heroUnlocked(p, hero)) return { error: '아직 합류하지 않은 멤버예요' };
       if (lv >= metaMaxOf(hero)) return { error: '이미 최대로 강화했어요' };
-      return { cost: metaCost(lv), apply: (x) => { x.heroes[hero] = lv + 1; } };
+      const need = heroCardNeed(lv), have = (p.shards || {})[hero] | 0, wild = p.wild | 0;
+      if (have + wild < need) return { error: `멤버 카드가 부족해요 (${have}/${need}장 · 모집·스테이지·상점 선택권에서 모아요)` };
+      const own = Math.min(have, need);
+      return { cost: metaCost(lv), apply: (x) => { x.heroes[hero] = lv + 1; x.shards = Object.assign({}, x.shards, { [hero]: have - own }); x.wild = wild - (need - own); } };
     });
   }
   const r = await call('/api/langbang/upgrade', { hero });
@@ -269,8 +281,10 @@ export async function enhanceGear(id, guest) {
       if (!it) return { error: '없는 장비예요' };
       const cost = gearEnhanceCost(it.r, it.lv);
       if (cost === null) return { error: '이미 최대 강화예요' };
+      const st = gearStoneNeed(it.lv);
+      if ((p.stones | 0) < st) return { error: `강화석이 부족해요 (${st}개 필요 · 스테이지·레이드·분해로 모아요)` };
       const chance = gearEnhanceChance(it.lv), ok = Math.random() < chance;
-      return { cost, extra: { success: ok, chance }, apply: (x) => { if (ok) { x.gear.find((g) => g.id === id).lv++; L.bump(x, 'enhances', 1, GUEST_UID, Date.now()); } } };
+      return { cost, extra: { success: ok, chance, stones: st }, apply: (x) => { x.stones = (x.stones | 0) - st; if (ok) { x.gear.find((g) => g.id === id).lv++; L.bump(x, 'enhances', 1, GUEST_UID, Date.now()); } } };
     });
   }
   const r = await call('/api/langbang/gear/enhance', { id });
@@ -287,6 +301,54 @@ export async function sellGear(id, guest) {
     });
   }
   const r = await call('/api/langbang/gear/sell', { id });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export async function cardPick(hero, guest) {
+  if (guest) {
+    return guestSpend((p) => {
+      if (!heroUnlocked(p, hero)) return { error: '합류한 멤버만 고를 수 있어요' };
+      const wi = L.weekIndex(Date.now()), n = p.cardPick && p.cardPick.wi === wi ? p.cardPick.n : 0;
+      if (n >= CARD_PICK.perWeek) return { error: `이번 주 선택권은 다 샀어요 (주 ${CARD_PICK.perWeek}번)` };
+      return { cost: CARD_PICK.cost, apply: (x) => { x.shards = Object.assign({}, x.shards, { [hero]: ((x.shards || {})[hero] | 0) + CARD_PICK.n }); x.cardPick = { wi, n: n + 1 }; } };
+    });
+  }
+  const r = await call('/api/langbang/cards/pick', { hero });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export async function dismantleGear(ids, guest) {
+  if (guest) {
+    return guestGear((p) => {
+      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const list = p.gear.filter((g) => ids.includes(g.id) && !eq.has(g.id));
+      if (!list.length) return { error: '분해할 수 있는 장비가 없어요' };
+      const n = list.reduce((a, it) => a + gearDismantle(it.r, it.lv), 0), set = new Set(list.map((g) => g.id));
+      return { apply: (x) => { x.gear = x.gear.filter((g) => !set.has(g.id)); x.stones = (x.stones | 0) + n; }, extra: { stones: n, n: list.length } };
+    });
+  }
+  const r = await call('/api/langbang/gear/dismantle', { ids });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export async function fuseGear(ids, guest) {
+  if (guest) {
+    return guestGear((p) => {
+      if (ids.length !== 3) return { error: '같은 등급 장비 3개를 골라요' };
+      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const list = ids.map((id) => p.gear.find((g) => g.id === id));
+      if (list.some((it) => !it) || list.some((it) => eq.has(it.id))) return { error: '장착 중이거나 없는 장비가 있어요' };
+      if (list.some((it) => it.r !== list[0].r)) return { error: '같은 등급끼리만 합성돼요' };
+      const r1 = GEAR_NEXT[list[0].r];
+      if (!r1) return { error: '전설은 더 합성할 수 없어요' };
+      const same = list.every((it) => it.t === list[0].t);
+      const t = same ? list[0].t : GEAR_IDS[(Math.random() * GEAR_IDS.length) | 0];
+      const lv = Math.max(0, Math.max(...list.map((it) => it.lv)) - 2);
+      const made = { id: (p.gearSeq | 0) + 1, t, r: r1, lv };
+      return { cost: GEAR_FUSE_FEE[r1], apply: (x) => { const set = new Set(ids); x.gear = x.gear.filter((g) => !set.has(g.id)); x.gearSeq = made.id; x.gear.push(made); }, extra: { made, fee: GEAR_FUSE_FEE[r1], same } };
+    });
+  }
+  const r = await call('/api/langbang/gear/fuse', { ids });
   if (r.ok && r.profile) r.profile = normalize(r.profile, false);
   return r;
 }
