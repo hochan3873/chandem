@@ -3365,3 +3365,68 @@ button.hm-match { width: 100%; border: 0; display: flex; flex-direction: column;
 button.hm-match small { font-size: calc(var(--u) * 10); opacity: 0.75; font-weight: 700; }
 .gl-tip .gl-faces { display: flex; gap: 4px; margin-top: 4px; }
 .gl-tip .gl-faces img { width: calc(var(--u) * 28); height: calc(var(--u) * 28); object-fit: contain; border-radius: 50%; background: #f0eaff; }
+.hs-up .hs-cost small { font-size: 0.85em; opacity: 0.8; margin-left: 2px; }
+
+/* 끌어다 놓기 */
+.drag-ghost { position: absolute !important; left: 0; top: 0; z-index: var(--z-toast, 90); pointer-events: none; opacity: 0.95; box-shadow: 0 calc(var(--u) * 12) calc(var(--u) * 24) rgba(0, 0, 0, 0.55) !important; transition: none !important; scale: 1 !important; }
+.drag-src { opacity: 0.35; }
+.drop-hi, .drop-hi .acard { outline: 3px solid #ffd23f; outline-offset: 2px; border-radius: calc(var(--u) * 14); box-shadow: 0 0 calc(var(--u) * 14) rgba(255, 210, 63, 0.6); }
+body.dragging { touch-action: none; }
+.dk-slots .dk-s { display: block; position: relative; }
+.dk-slots .dk-s .acard { width: 100%; }
+.dk-slots .acard.lead { box-shadow: 0 0 0 2px #ffd23f, 0 0 calc(var(--u) * 12) rgba(255, 210, 63, 0.45); }
+.dk-slots .acard .pp-crown { position: absolute; top: calc(var(--u) * -8); left: calc(var(--u) * -6); width: calc(var(--u) * 26); height: calc(var(--u) * 26); z-index: 5; }
+
+/* 화면 넘김 (60fps: 움직임·투명도만) */
+.screen.enter.go-fwd { animation: goFwd 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both !important; }
+.screen.enter.go-back { animation: goBack 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) both !important; }
+.screen.enter.go-tab { animation: goTab 0.2s ease-out both !important; }
+@keyframes goFwd { from { opacity: 0; transform: translateX(8%) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes goBack { from { opacity: 0; transform: translateX(-8%) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes goTab { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
+.screen.enter > :nth-child(-n+8) { animation: stagIn 0.26s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.screen.enter > :nth-child(2) { animation-delay: 0.03s; } .screen.enter > :nth-child(3) { animation-delay: 0.06s; } .screen.enter > :nth-child(4) { animation-delay: 0.09s; } .screen.enter > :nth-child(5) { animation-delay: 0.12s; } .screen.enter > :nth-child(6) { animation-delay: 0.15s; } .screen.enter > :nth-child(7), .screen.enter > :nth-child(8) { animation-delay: 0.18s; }
+@keyframes stagIn { from { opacity: 0; transform: translateY(calc(var(--u) * 8)); } to { opacity: 1; transform: none; } }
+.screen.lobby.enter > * { animation: none; }
+.lb-nav .nv.on .uic, .lb-nav .nv.on img { animation: navBounce 0.35s cubic-bezier(0.3, 1.8, 0.5, 1); }
+@keyframes navBounce { 0% { transform: scale(0.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+body.rm .screen.enter, body.rm .screen.enter > * { animation: none !important; }
+
+/* 뽑기 영상 */
+.gv-wrap { position: absolute; inset: 0; z-index: var(--z-modal, 70); background: #000; }
+.gv-wrap .gv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.4s; }
+.gv-wrap .gv.on { opacity: 1; }
+.gv-wrap .gv-skip { position: absolute; right: calc(var(--u) * 14); top: calc(var(--u) * 14 + env(safe-area-inset-top)); z-index: 2; padding: calc(var(--u) * 7) calc(var(--u) * 14); border-radius: 99px; border: 1.5px solid rgba(255, 255, 255, 0.5); background: rgba(0, 0, 0, 0.45); color: #fff; font-weight: 900; font-size: calc(var(--u) * 12); }
+.gv-wrap.flash::after, .gv-wrap .gv-flash { content: ''; position: absolute; inset: 0; background: #fff; animation: gvFlash 0.3s ease-out forwards; }
+.gv-wrap.gold .gv-flash { background: radial-gradient(circle, #fff6c8, #ffc933); } .gv-wrap.purple .gv-flash { background: radial-gradient(circle, #f6e8ff, #b76bff); } .gv-wrap.blue .gv-flash { background: radial-gradient(circle, #eaf6ff, #5ab4ff); }
+@keyframes gvFlash { from { opacity: 0; } 30% { opacity: 1; } to { opacity: 0.9; } }
+.gacha-res .gcard .gc-new { position: absolute; top: calc(var(--u) * 4); right: calc(var(--u) * 4); font-style: normal; font-size: calc(var(--u) * 9); font-weight: 900; color: #fff; background: #ff3b5c; border-radius: 99px; padding: 0 calc(var(--u) * 5); border: 1.5px solid #000; z-index: 3; }
+.gacha-res .gcard.best { z-index: 3; }
+.gacha-res .gcard.best.flip { animation: gcBest 0.9s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.gacha-res .gcard.best::before { content: ''; position: absolute; left: 50%; top: 50%; width: 260%; height: 260%; transform: translate(-50%, -50%); background: repeating-conic-gradient(rgba(255, 210, 63, 0.35) 0 8deg, transparent 8deg 22deg); -webkit-mask: radial-gradient(closest-side, #000 25%, transparent); mask: radial-gradient(closest-side, #000 25%, transparent); opacity: 0; transition: opacity 0.4s; z-index: -1; animation: gcSpin 8s linear infinite; pointer-events: none; }
+.gacha-res .gcard.best.flip::before { opacity: 1; }
+@keyframes gcBest { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1.08); } }
+.gacha-banner.gg .gg-art { overflow: hidden; }
+.gacha-banner.gg .gg-chest { width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; }
+
+/* 공유 창 v2 */
+.share-modal.v2 .share-box { gap: calc(var(--u) * 8); }
+.share-modal.v2 .sh-main { width: 100%; min-height: calc(var(--u) * 54); border-radius: calc(var(--u) * 16); border: 3px solid #1a0b1f; background: linear-gradient(180deg, #fff0a0, #ffc02a 45%, #e07a06); box-shadow: 0 calc(var(--u) * 4) 0 #7a3c00; display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 8); }
+.share-modal.v2 .sh-main b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 20); color: #fff; text-shadow: 1.5px 0 #5a2600, -1.5px 0 #5a2600, 0 1.5px #5a2600, 0 -1.5px #5a2600, 1px 1px #5a2600, -1px -1px #5a2600, 1px -1px #5a2600, -1px 1px #5a2600; }
+.share-modal.v2 .sh-main .ic { width: calc(var(--u) * 24); height: calc(var(--u) * 24); }
+.share-modal.v2 .share-row { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 8); width: 100%; }
+.share-modal.v2 .sh-sub { min-height: calc(var(--u) * 46); border-radius: 99px; border: 1.5px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: #fff; font-weight: 800; font-size: calc(var(--u) * 13); display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--u) * 6); }
+.share-modal.v2 .sh-close { min-height: calc(var(--u) * 40); border: 0; background: none; color: var(--dim); font-weight: 800; font-size: calc(var(--u) * 13); }
+.share-modal.v2 .share-tip { margin: 0; font-size: calc(var(--u) * 11); color: var(--dim); }
+
+/* 스킬 버튼 v2: 스킬 그림(자체 틀) · 둥근 색 고리 없음 · 쿨타임은 어둡게 덮기 */
+#skillbar .sk.sk-v2 { border-radius: calc(var(--u) * 12); background: none !important; box-shadow: 0 calc(var(--u) * 3) 0 rgba(0, 0, 0, 0.45); overflow: visible; }
+#skillbar .sk.sk-v2::before { display: none; }
+#skillbar .sk.sk-v2 .ring { display: none; }
+#skillbar .sk.sk-v2 .sk-ic { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: grayscale(0.75) brightness(0.6); border-radius: calc(var(--u) * 12); }
+#skillbar .sk.sk-v2.ready .sk-ic { filter: none; }
+#skillbar .sk.sk-v2::after { content: ''; position: absolute; inset: 2px; border-radius: calc(var(--u) * 11); background: conic-gradient(transparent calc(var(--p, 100) * 1%), rgba(8, 5, 18, 0.62) 0); pointer-events: none; }
+#skillbar .sk.sk-v2.ready::after { display: none; }
+#skillbar .sk.sk-v2 .sk-fb { position: absolute; inset: 0; border-radius: calc(var(--u) * 12); background: linear-gradient(180deg, #3a2a66, #1c1236); border: 2px solid #c9962a; }
+.hs-skill .hs-skic { width: calc(var(--u) * 44) !important; height: calc(var(--u) * 44) !important; flex: none; }
+.hs-roles .role-chip { display: inline-flex; align-items: center; gap: 2px; padding: 0 calc(var(--u) * 8); border-radius: 99px; border: 1.5px solid rgba(255, 214, 110, 0.55) !important; background: rgba(255, 214, 110, 0.1) !important; color: #ffe9b0; font-size: calc(var(--u) * 12); font-weight: 900; line-height: 1.8; }

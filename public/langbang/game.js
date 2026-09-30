@@ -69,7 +69,7 @@ const app = {
   rankTab: 'stage',
   profile: API.guestProfile(),
   guest: true,
-  nickname: '',
+  nickname: ' ',
   profileLoaded: false,
   ending: false,
   logicalH: 720,
@@ -134,9 +134,9 @@ function layout() {
 
 // ─── 이미지(없으면 이모지) 태그 ──────────────────────
 // 동그란 얼굴: 멤버는 그림(HQ) 얼굴 맞춤 · 진상은 원래 그림 (꼬마 그림은 전투 화면에서만)
-function av(def, extra = '') {
-  const hq = def && def.id && (HEROES[def.id] || SUMMONS[def.id]) && typeof thumbSrc === 'function' ? thumbSrc(def.id) : '';
-  if (hq && !/\/h_/.test(hq)) return `<span class="av hq ${extra}" style="--c:${def.color}"><img class="fz" data-face="${def.id}" style="${faceImgStyle(def.id, 0.62, 0.5)}" src="${hq}" alt="" draggable="false" onerror="this.onerror=null;this.className='';this.removeAttribute('style');this.src='${def.img}'"></span>`;
+function av(def, extra = ' ') {
+  const hq = def && def.id && (HEROES[def.id] || SUMMONS[def.id]) && typeof thumbSrc === 'function' ? thumbSrc(def.id) : ' ';
+  if (hq && !/\/h_/.test(hq)) return `<span class="av hq ${extra}" style="--c:${def.color}"><img class="fz" data-face="${def.id}" style="${faceImgStyle(def.id, 0.62, 0.5)}" src="${hq}" alt="" draggable="false" onerror="this.onerror=null;this.className=' ';this.removeAttribute('style');this.src='${def.img}'"></span>`;
   return `<span class="av ${extra}" style="--c:${def.color}"><img src="${def.img}" alt="" draggable="false" onerror="this.parentNode.classList.add('noimg');this.remove()"><i>${def.emoji}</i></span>`;
 }
 
@@ -151,7 +151,7 @@ function toast(msg, ms = 2200) {
 }
 
 // ─── 확인 창 (그만두기 · 나가기) ─────────────────────
-function confirmBox({ title, sub = '', ok = '확인', cancel = '취소', danger = false }) {
+function confirmBox({ title, sub = ' ', ok = '확인', cancel = '취소', danger = false }) {
   closeConfirm(false);
   return new Promise((resolve) => {
     const box = document.createElement('div');
@@ -203,6 +203,7 @@ function snapLabel(d) {
 }
 
 // ─── 뒤로 가기 막기: 게임 중 뒤로 = 일시정지 ────────────
+const REROLLS = 2; // 전투마다 카드 다시 뽑기 (증강 새로고침 쿠폰으로 +1)
 let guarded = false;
 let ignorePop = 0;
 // 뒤로 가기: 브라우저 기록은 한 칸만 걸어 두고(화면마다 쌓지 않는다), 뒤로 = 한 단계 위로
@@ -437,7 +438,7 @@ function resumeRun() {
 }
 function beginPlay(g) {
   if (app.cardsOpen) closeCards();
-  app.rerollsRun = 5; app.rerollsG = g;
+  app.rerollsRun = REROLLS; app.rerollsG = g;
   app.g = g;
   app.demo = null;
   app.paused = false;
@@ -568,7 +569,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.kick();
         break;
       case 'evolve':
-        fx.banner(`✨ ${HD(e.hero).name} 진화!`, e.name, '#8a4a00', 2, 'big', 'h_' + e.hero);
+        fx.banner(`${HD(e.hero).name} 진화!`, e.name, '#8a4a00', 2, 'big', 'h_' + e.hero);
         fx.flash('#fff1a8', 0.45);
         fx.pillar(e.x, 70, g.rowY + 30, 1.4);
         for (let k = 0; k < 16; k++) fx.part('star', e.x + (Math.random() - 0.5) * 60, e.y - 40, (Math.random() - 0.5) * 200, -140 - Math.random() * 100, 1, 10, null, { grav: 260 });
@@ -635,14 +636,14 @@ function handleEvents(g, loud) {
         break;
       case 'grow': if (!busy) fx.text(e.x, e.y - 70, `성장 +${e.v}%`, '#ffd23f', 12, 0.9); break;
       case 'bandage': // 홍정민: 거꾸로 든 소주병으로 탁탁 → 입구에 붕대
-        fx.text(e.x, e.y - 6, e.big ? '🩹🩹 붕대 대공사!' : '🩹 탁탁', e.big ? '#9dffb0' : '#c8ffd4', e.big ? 16 : 12, 0.9, -24);
+        fx.text(e.x, e.y - 6, e.big ? '붕대 대공사!' : '탁탁', e.big ? '#9dffb0' : '#c8ffd4', e.big ? 16 : 12, 0.9, -24);
         fx.burst(e.x, e.y, e.big ? 12 : 5, '#ffffff', 80, 'spark', 3, 0.35);
         if (e.v) fx.text(e.x + 18, e.y - 22, `+${e.v}`, '#7be38f', 12, 0.8);
         if (loud) A.sfx.heal();
         break;
       case 'jyLeave': fx.burst(e.x, e.y - 30, 14, '#ffffff', 120, 'puff', 10, 0.6); fx.text(e.x, e.y - 70, '들어갈게~', '#9fd4ff', 13, 1.0); break;
-      case 'allinCall': fx.banner('🃏 올인 콜! 준영 등판', `${e.sec}초 동안 진상을 한곳으로 모은다`, '#1a4a8a', 1.3, 'wave'); break;
-      case 'jyRage': fx.text(e.x, e.y - 70, '🔥 준영 폭주!', '#ff7a4f', 15, 1.0); fx.ring(e.x, e.y - 30, 10, 60, 0.6, '#ff7a4f', 4); break;
+      case 'allinCall': fx.banner('올인 콜! 준영 등판', `${e.sec}초 동안 진상을 한곳으로 모은다`, '#1a4a8a', 1.3, 'wave'); break;
+      case 'jyRage': fx.text(e.x, e.y - 70, '준영 폭주!', '#ff7a4f', 15, 1.0); fx.ring(e.x, e.y - 30, 10, 60, 0.6, '#ff7a4f', 4); break;
       case 'chipRain': if (!busy) fx.burst(e.x, e.y - 20, 5, '#ffd23f', 110, 'spark', 3, 0.35); break;
       case 'summon': fx.text(e.x, e.y - 80, '준영아 나와!', '#ff9fc0', 15, 1.1); fx.text(e.x, e.y - 70, '준영아 나와!', '#ffb8d0', 15, 1.1); fx.burst(e.x, e.y - 30, 16, '#9fd4ff', 160, 'spark', 4, 0.6); fx.ring(e.x, e.y - 30, 10, 60, 0.7, '#ff9fc0', 5); if (loud) A.sfx.join(); break;
       case 'allin': fx.text(e.x, e.y - 20, '올인!', '#ffd23f', 20, 1.0); fx.blast(e.x, e.y, e.r, 'gold'); fx.addShake(5); if (loud) A.sfx.explode(); break;
@@ -677,15 +678,15 @@ function handleEvents(g, loud) {
         if (bossE) R.vfx(e.kind === 'drain' || e.kind === 'stun' ? 'aura_red' : 'aura_blue', 0, 0, { follow: bossE, dy: 0, anim: 'pulse', dur: 900, sz: bossE.def.size * 1.3, flat: true });
       }
       // falls through
-      case 'bossSkillFx': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('🤐 스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('🐢 멤버 공격 속도 ↓ (4초)', 1500); break;
+      case 'bossSkillFx': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('멤버 공격 속도 ↓ (4초)', 1500); break;
       case 'bossGap': fx.text(e.x, e.y, '틈! 지금 때려!', '#ffe066', 15, 1.1); break;
-      case 'bossRage': fx.banner(`😡 ${e.name} 분노!`, '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
-      case 'midRage': fx.text(e.x, e.y, `😤 ${e.name} 흥분!`, '#ff7a4f', 14, 1.0); break;
+      case 'bossRage': fx.banner(`${e.name} 분노!`, '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
+      case 'midRage': fx.text(e.x, e.y, `${e.name} 흥분!`, '#ff7a4f', 14, 1.0); break;
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
       case 'heroStun': { if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 300, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.x) < 2 && Math.abs(x.y - e.y) < 2) || g.heroes.find((x) => x.id === e.hero); if (hh) hh._hitAt = performance.now(); fx.addShake(4); app.hitStop = Math.max(app.hitStop || 0, 0.04); break; }
       case 'curseOffer': showCurseOffer(e.opts); break;
       case 'augOffer': showAugOffer(e.opts, e.tier); break;
-      case 'aug': fx.banner(`✨ ${e.title}`, `${TIER_NAMES[e.tier] || ''} 증강`, e.tier === 'prism' ? '#2a6aa0' : e.tier === 'gold' ? '#a07010' : '#4a5a70', 1.3, 'wave'); fx.flash(e.tier === 'prism' ? '#7df9ff' : '#ffd23f', 0.2); break;
+      case 'aug': fx.banner(`${e.title}`, `${TIER_NAMES[e.tier] || ''} 증강`, e.tier === 'prism' ? '#2a6aa0' : e.tier === 'gold' ? '#a07010' : '#4a5a70', 1.3, 'wave'); fx.flash(e.tier === 'prism' ? '#7df9ff' : '#ffd23f', 0.2); break;
       case 'tech': fx.banner(`${TAGS[e.tag].icon} ${e.title}`, `${TIER_NAMES[e.tier]} 테크`, e.tier === 'prism' ? '#2a6aa0' : '#a07010', 1.1, 'wave'); break;
       case 'setBonus': fx.text(180, 170, `${TAGS[e.tag].icon} ${TAGS[e.tag].name} ${e.n}세트! +${Math.round(SET_BONUS[e.n] * 100)}%`, '#7dff9a', 17, 1.3); break;
       case 'ccGet': fx.text(e.x, e.y - 80, `${CC_KINDS[e.kind].icon} ${CC_KINDS[e.kind].name}!`, CC_KINDS[e.kind].color, 14, 1.0); break;
@@ -696,7 +697,7 @@ function handleEvents(g, loud) {
           if (!jy.saidGather) { jy.saidGather = true; fx.text(jy.px || jy.x, (jy.py || jy.y) - 80, '모여라~!', '#e0b4ff', 16, 1.2); }
         } } break;
       case 'curse': fx.banner(`${CURSES[e.id].icon} 계약: ${e.name}`, CURSES[e.id].up, '#5a1a7a', 1.3, 'wave'); closeCurseOffer(); break;
-      case 'idleEv': fx.banner(e.kind === 'rush' ? '⚡ 진상 러시! 스킬 2번!' : '💰 주머니 3개 누르기!', e.kind === 'rush' ? '10초 안에 · 못 하면 벌칙 진상' : '8초 안에 · 성공하면 점수 배율 ↑', '#8a5a00', 1.6, 'wave'); A.sfx.charm && A.sfx.charm(); break;
+      case 'idleEv': fx.banner(e.kind === 'rush' ? '진상 러시! 스킬 2번!' : '주머니 3개 누르기!', e.kind === 'rush' ? '10초 안에 · 못 하면 벌칙 진상' : '8초 안에 · 성공하면 점수 배율 ↑', '#8a5a00', 1.6, 'wave'); A.sfx.charm && A.sfx.charm(); break;
       case 'idleEnd': if (e.ok) { fx.text(180, 200, `성공! 배율 ×${e.streak.toFixed(2)}`, '#ffe066', 18, 1.2); A.sfx.levelUp(); } else { fx.text(180, 200, '실패… 벌칙 진상!', '#ff5a5a', 18, 1.2); fx.addShake(5); } break;
       case 'bagTap': fx.burst(e.x, e.y, 10, '#ffd23f', 140, 'spark', 4, 0.4); fx.text(e.x, e.y - 20, e.left ? `${3 - e.left}/3` : '3/3!', '#ffe066', 14, 0.7); A.sfx.coin && A.sfx.coin(); break;
       case 'traitSeen': { // 처음 보는 특성 진상: 한 번 안내 (기기마다)
@@ -709,16 +710,16 @@ function handleEvents(g, loud) {
         break;
       }
       case 'immune': if (!busy) fx.text(e.x, e.y, '안 들림!', '#9fd4ff', 12, 0.6); break;
-      case 'blocked': if (!busy) fx.text(e.x, e.y, `막음! 🛡${e.n}`, '#9feaff', 12, 0.6); break;
+      case 'blocked': if (!busy) fx.text(e.x, e.y, `막음! ${e.n}`, '#9feaff', 12, 0.6); break;
       case 'split': fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
       case 'praise': if (!busy) { fx.text(e.x, e.y, e.text || '언니 너무 이뻐요~', '#ffb3d9', 11, 0.9); fx.ring(e.x, e.y + 20, 10, 90, 0.5, '#ffb3d9', 3); } break;
       case 'praiseRage': fx.text(e.x, e.y, '(표정 싹 바뀜)', '#ff4f6a', 13, 1.0); break;
-      case 'haste': if (!busy) fx.text(e.x, e.y, '💨 빨라짐!', '#ffd23f', 12, 0.7); break;
-      case 'unveil': if (!busy) fx.text(e.x, e.y, '👻 들켰다!', '#c9a8ff', 12, 0.8); break;
-      case 'fuckall': fx.banner('🖕 단체 뻑큐!', `${e.n}명 방깎 최대 · 회복 막기`, '#b0203a', 1.1, 'wave'); fx.arc(e.x, e.y - 40, e.a, e.half, e.r, 0.5, '#ff5a7a'); fx.addShake(3); if (loud) A.sfx.slam(); break;
-      case 'marry': fx.banner('💍 결혼정보회사 등록!', '"올해는 꼭…" 진상들이 원식만 바라본다', '#c0307a', 1.3, 'wave'); for (let k = 0; k < 14; k++) fx.part('heart', e.x + (Math.random() - 0.5) * e.r, e.y - 120 - Math.random() * 160, 0, -40, 1.4, 12, '#ff7ac8'); fx.ring(e.x, e.y - 80, 20, e.r, 0.8, '#ff7ac8', 5); if (loud) A.sfx.join(); break;
-      case 'heartBeam': fx.banner('💗 하트 레이저 풀파워!', `${e.n}명 꿰뚫기`, '#c0307a', 1.1, 'wave'); fx.flash('#ff7ac8', 0.2); fx.addShake(3); if (loud) A.sfx.slam(); break;
-      case 'harley': fx.banner('🏍️ 부릉부릉~!', '백인규의 할리', '#1a3a8a', 1.3, 'wave'); fx.addShake(4); if (loud) A.sfx.slam(); break;
+      case 'haste': if (!busy) fx.text(e.x, e.y, '빨라짐!', '#ffd23f', 12, 0.7); break;
+      case 'unveil': if (!busy) fx.text(e.x, e.y, '들켰다!', '#c9a8ff', 12, 0.8); break;
+      case 'fuckall': fx.banner('단체 뻑큐!', `${e.n}명 방깎 최대 · 회복 막기`, '#b0203a', 1.1, 'wave'); fx.arc(e.x, e.y - 40, e.a, e.half, e.r, 0.5, '#ff5a7a'); fx.addShake(3); if (loud) A.sfx.slam(); break;
+      case 'marry': fx.banner('결혼정보회사 등록!', '"올해는 꼭…" 진상들이 원식만 바라본다', '#c0307a', 1.3, 'wave'); for (let k = 0; k < 14; k++) fx.part('heart', e.x + (Math.random() - 0.5) * e.r, e.y - 120 - Math.random() * 160, 0, -40, 1.4, 12, '#ff7ac8'); fx.ring(e.x, e.y - 80, 20, e.r, 0.8, '#ff7ac8', 5); if (loud) A.sfx.join(); break;
+      case 'heartBeam': fx.banner('하트 레이저 풀파워!', `${e.n}명 꿰뚫기`, '#c0307a', 1.1, 'wave'); fx.flash('#ff7ac8', 0.2); fx.addShake(3); if (loud) A.sfx.slam(); break;
+      case 'harley': fx.banner('부릉부릉~!', '백인규의 할리', '#1a3a8a', 1.3, 'wave'); fx.addShake(4); if (loud) A.sfx.slam(); break;
       case 'bhStart': fx.text(e.x, e.y - e.r * 0.7, '지팡이 블랙홀!', '#c9a8ff', 18, 1.2); fx.pillar(e.x, 90, e.y + 10, 0.8); fx.ring(e.x, e.y, e.r, 12, 2, '#9b6bff', 4); if (loud) A.sfx.charm(); break;
       case 'bhBoom': fx.blast(e.x, e.y, e.r * 1.2, 'electric'); fx.ring(e.x, e.y, 10, e.r * 1.6, 0.5, '#e0c8ff', 6); fx.addShake(6 + Math.min(8, e.n)); fx.text(e.x, e.y - 30, e.n >= 6 ? `쾅!! ×${e.mul}` : '쾅!', '#fff', 20, 1); if (loud) A.sfx.explode(); break;
       case 'aimLine': {
@@ -752,7 +753,7 @@ function handleEvents(g, loud) {
         fx.text(e.x, e.y, '들켰다!', '#ffe14d', 16, 1.0, -30);
         fx.ring(e.x, e.y + 30, 6, 46, 0.4, '#ffe14d', 3);
         break;
-      case 'stall': fx.text(e.x, e.y, '퍼졌다! 💨', '#c8c8d8', 14, 1.0, -24); fx.burst(e.x, e.y + 20, 8, 'rgba(90,90,100,0.8)', 80, 'puff', 10, 0.6); if (loud) A.sfx.explode(); break;
+      case 'stall': fx.text(e.x, e.y, '퍼졌다! ', '#c8c8d8', 14, 1.0, -24); fx.burst(e.x, e.y + 20, 8, 'rgba(90,90,100,0.8)', 80, 'puff', 10, 0.6); if (loud) A.sfx.explode(); break;
       case 'insurance':
         fx.text(e.x, e.y, e.boss ? '보험 전부 가입!!' : '보험 드세요!', '#ffe14d', e.boss ? 18 : 13, 1.0, -26);
         fx.ring(e.x, e.y + 30, 10, e.r, 0.6, 'rgba(111,240,255,0.8)', 3);
@@ -774,12 +775,12 @@ function handleEvents(g, loud) {
       case 'toss': fx.text(e.x, e.y, e.text, '#ffcf8a', 16, 1.1, -24); break;
       case 'tossHit': fx.text(e.x, e.y - 62, e.kind === 'glow' ? '눈부셔… 공속↓' : '쾅! 기절', '#ffb46b', 13, 1.0); fx.burst(e.x, e.y - 30, 6, '#ffd23f', 140, 'star', 7, 0.5); if (loud) A.sfx.hit(); break;
       case 'enrage':
-        fx.banner('😡 ' + e.text, '보스가 분노했다 — 더 빠르고 아프다!', '#8a1010', 1.8, 'wave');
+        fx.banner('' + e.text, '보스가 분노했다 — 더 빠르고 아프다!', '#8a1010', 1.8, 'wave');
         fx.flash('#ff4040', 0.35); fx.addShake(8);
         if (loud) A.sfx.rage();
         break;
       case 'disco':
-        fx.banner('🪩 파티 타임!', e.block ? '건전녀의 철벽! 홀림 막음' : '멤버 전원 잠깐 홀림!', '#8a2a8a', 1.4, 'wave');
+        fx.banner('파티 타임!', e.block ? '건전녀의 철벽! 홀림 막음' : '멤버 전원 잠깐 홀림!', '#8a2a8a', 1.4, 'wave');
         for (let k = 0; k < 20; k++) fx.part('confetti', 40 + Math.random() * 280, 60 + Math.random() * 120, (Math.random() - 0.5) * 120, 120, 1.6, 6, ['#ff4fd8', '#6ff0ff', '#ffd23f', '#7dff9a'][k % 4], { grav: 80 });
         if (loud) A.sfx.charm();
         break;
@@ -788,20 +789,20 @@ function handleEvents(g, loud) {
       case 'wind': fx.text(180, g.H * 0.25, e.dir > 0 ? '바람 → ' : '← 바람', '#dff4ff', 14, 1.0, -10); break;
       case 'strobe': if (loud) A.sfx.card(); break;
       case 'slotOpen':
-        fx.banner('🔓 임시 칸 개방!', '이번 판만 자리 하나가 열렸어요', '#1a6a8a', 1.8, 'big');
+        fx.banner('임시 칸 개방!', '이번 판만 자리 하나가 열렸어요', '#1a6a8a', 1.8, 'big');
         fx.burst(e.x, e.y - 10, 26, '#c8ccd8', 260, 'shard', 6, 0.7, 300);
         fx.ring(e.x, e.y, 8, 80, 0.5, '#6ff0ff', 6);
         fx.flash('#bff4ff', 0.4); fx.addShake(6);
         if (loud) A.sfx.reveal('epic');
         break;
       case 'guestJoin':
-        fx.banner(`🎫 게스트 ${HD(e.hero).name} 합류!`, '이번 판만 함께해요 — 스테이지를 깨면 정식 합류하는 멤버', '#0a5a6e', 2, 'hidden', 'h_' + e.hero);
+        fx.banner(`게스트 ${HD(e.hero).name} 합류!`, '이번 판만 함께해요 — 스테이지를 깨면 정식 합류하는 멤버', '#0a5a6e', 2, 'hidden', 'h_' + e.hero);
         if (live) showReveal(e.hero, 'new');
         break;
       case 'lockedSlot': break;
       case 'midSpawn': {
         const d = ENEMIES[e.enemy];
-        fx.banner('⚡ 중간 보스 등장!', d.name, '#6a1a8a', 1.8, 'wave');
+        fx.banner('중간 보스 등장!', d.name, '#6a1a8a', 1.8, 'wave');
         fx.flash('#d8a8ff', 0.35);
         fx.addShake(5);
         if (loud) { A.sfx.rage(); }
@@ -917,7 +918,7 @@ function handleEvents(g, loud) {
         fx.ring(e.x, e.y + 30, 4, 26, 0.25, 'rgba(111,240,255,0.9)', 3); // 마이크 번쩍
         break;
       case 'encore':
-        fx.banner('🎤 무한 앵콜~!', '입구 회복 · 5초 동안 전원 공속 +25% · 피해 +15%', '#7a3cc8', 1.4, 'wave'); fx.flash('#c77dff', 0.25);
+        fx.banner('무한 앵콜~!', '입구 회복 · 5초 동안 전원 공속 +25% · 피해 +15%', '#7a3cc8', 1.4, 'wave'); fx.flash('#c77dff', 0.25);
         fx.pillar(e.x, 120, g.rowY + 30, 1.2); // 무대 조명
         for (const [c, k] of [['#ff4f7a', 0], ['#ffd23f', 0.12], ['#5de07a', 0.24], ['#6ff0ff', 0.36], ['#c77dff', 0.48]]) setTimeout(() => fx.ring(e.x, e.y - 60, 20, e.r * (0.7 + k), 0.9, c, 7), k * 400);
         for (let k = 0; k < 18; k++) fx.part('note', e.x + (Math.random() - 0.5) * 300, e.y - 260 - Math.random() * 120, (Math.random() - 0.5) * 40, 90 + Math.random() * 60, 2.2, 13, k % 3 ? '#ffe14d' : '#ff9fe6');
@@ -946,9 +947,9 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.ult();
         break;
       case 'swap': fx.ring(e.x, e.y, 6, 50, 0.35, '#6ff0ff', 4); break;
-      case 'blackout': fx.text(180, g.H * 0.3, '💡 정전!', '#ffe9a0', 22, 1.2, -10); fx.flash('#000000', 0.6); break;
+      case 'blackout': fx.text(180, g.H * 0.3, '정전!', '#ffe9a0', 22, 1.2, -10); fx.flash('#000000', 0.6); break;
       case 'lightsOn': fx.flash('#fff8d0', 0.25); break;
-      case 'megaphone': fx.text(180, g.H * 0.26, '📢 인피 확성기! 진상 가속', '#ff8a8a', 17, 1.2, -10); break;
+      case 'megaphone': fx.text(180, g.H * 0.26, '인피 확성기! 진상 가속', '#ff8a8a', 17, 1.2, -10); break;
       case 'puke':
         if (e.cry) { fx.text(e.x, e.y, '엉엉…', '#9fd8ff', 13, 0.9, -20); break; } fx.text(e.x, e.y, '우웩!', '#b8e04a', 16, 0.9); fx.burst(e.hx, g.rowY + 18, 10, '#9acd32', 120, 'dot', 5, 0.5, 200); break;
       case 'cuddle': fx.text(e.x, e.y, '꽁냥꽁냥♡', '#ffb0d0', 12, 0.8); fx.part('heart', e.x, e.y, 0, -40, 0.8, 9, null); break;
@@ -1004,9 +1005,9 @@ function handleEvents(g, loud) {
           fx.burst(60 + Math.random() * 240, g.H * 0.3, 40, null, 380, 'confetti', 8, 2, 240);
           for (const p of fx.parts.items) if (p.type === 'confetti' && !p.color) p.color = CONFETTI[(Math.random() * CONFETTI.length) | 0];
         }, k * 350);
-        if (g.weekly) fx.banner('📅 주간 도전 완주!!', `${g.totalWaves}웨이브 전부 막아냈다`, '#c77a00', 2.6, 'big');
+        if (g.weekly) fx.banner('주간 도전 완주!!', `${g.totalWaves}웨이브 전부 막아냈다`, '#c77a00', 2.6, 'big');
         else if (g.mode === 'stage' && !g.baseHit) {
-          fx.banner('💎 PERFECT!!', '입구가 한 번도 안 맞았다!', '#1a6aa0', 2.6, 'big');
+          fx.banner('PERFECT!!', '입구가 한 번도 안 맞았다!', '#1a6aa0', 2.6, 'big');
           fx.flash('#bff4ff', 0.9);
           for (let k = 0; k < 20; k++) fx.part('star', 40 + Math.random() * 280, g.H * 0.2 + Math.random() * 200, (Math.random() - 0.5) * 80, -60, 1.4, 12, null, { grav: 60 });
         } else if (g.mode === 'stage') fx.banner(`${stageLabel(g.stage)} 클리어!!`, starStr(e.stars), '#c77a00', 2.4, 'big');
@@ -1027,7 +1028,7 @@ function handleEvents(g, loud) {
         if (live) endRun(false);
         break;
       case 'rage':
-        fx.banner('최은옥 분노 모드!!', '"다 덤벼!!!" 🔥', '#c01010', 1.8, 'rage', 'h_eunok_rage');
+        fx.banner('최은옥 분노 모드!!', '"다 덤벼!!!"', '#c01010', 1.8, 'rage', 'h_eunok_rage');
         fx.addShake(8);
         fx.ring(e.x, e.y, 10, 160, 0.6, '#ff3b30', 8);
         for (let k = 0; k < 16; k++) fx.part('flame', e.x + (Math.random() - 0.5) * 40, e.y + 10, (Math.random() - 0.5) * 60, -80 - Math.random() * 80, 0.8, 14, null);
@@ -1086,7 +1087,7 @@ function handleEvents(g, loud) {
       case 'charmBlock': fx.text(e.x, e.y - 58, '철벽!', '#9feaff', 15, 0.9); break;
       case 'wink':
         if (e.male) {
-          if (Math.random() < 0.4) fx.text(e.x, e.y, '♥ 두근!', '#ff7fd8', 14, 0.7);
+          if (Math.random() < 0.4) fx.text(e.x, e.y, '두근!', '#ff7fd8', 14, 0.7);
           for (let k = 0; k < 3; k++) fx.part('heart', e.x, e.y, (Math.random() - 0.5) * 90, -60 - Math.random() * 60, 0.8, 9, null, { drag: 1 });
         } else if (Math.random() < 0.3) fx.text(e.x, e.y, '흥!', '#ffd0f0', 12, 0.6);
         break;
@@ -1128,11 +1129,11 @@ function updateHud() {
   const stageMode = g.mode === 'stage';
   const def = g.wave > 0 ? S.waveDefFor(g, w) : null;
   const bossWave = !!(def && def.boss);
-  setText(H$.wave, 'wave', g.pvp ? `⚔️ 대전 · WAVE ${w}${g.pvp.sudden ? ' 🔥서든데스' : ''}` : g.raid ? `🐉 레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? '🔥HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
+  setText(H$.wave, 'wave', g.pvp ? `대전 · WAVE ${w}${g.pvp.sudden ? ' 서든데스' : ''}` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
   setText(H$.time, 'time', `${Math.floor(g.t / 60)}:${String(Math.floor(g.t % 60)).padStart(2, '0')}`);
   // 방어선 위험 경고
   const low = g.base.hp / g.base.max < 0.15 && !g.over;
-  if (low && !app.hudCache.lowWarn && g.base.hp > 0) { fx.banner('⚠️ 방어선 위험!', '입구가 곧 뚫려요 — 회복 스킬!', '#a3121e', 1.6, 'wave'); fx.flash('#ff2030', 0.35); }
+  if (low && !app.hudCache.lowWarn && g.base.hp > 0) { fx.banner('방어선 위험!', '입구가 곧 뚫려요 — 회복 스킬!', '#a3121e', 1.6, 'wave'); fx.flash('#ff2030', 0.35); }
   app.hudCache.lowWarn = low;
   hud.classList.toggle('danger', low);
   H$.wave.classList.toggle('boss', bossWave && g.phase !== 'break');
@@ -1168,7 +1169,7 @@ function updateHud() {
     app.hudCache.ult = up;
     H$.ult.style.setProperty('--p', up);
     H$.ult.classList.toggle('ready', up >= RULES.ultMax);
-    if (up >= RULES.ultMax && !app.ultTipShown) { app.ultTipShown = true; showTip('📣 총공지 준비 완료! 오른쪽 아래 버튼을 눌러요', 3500); }
+    if (up >= RULES.ultMax && !app.ultTipShown) { app.ultTipShown = true; showTip('총공지 준비 완료! 오른쪽 아래 버튼을 눌러요', 3500); }
   }
   // 보스 체력바
   let hp = 0, max = 0, name = '';
@@ -1176,7 +1177,7 @@ function updateHud() {
   for (const e of g.enemies) if ((e.boss || e.mid) && !e.dead) { hp += Math.max(0, e.hp); max += e.maxHp; name = name ? name + ' · ' + shortName(e.type) : shortName(e.type); if (e.boss) midOnly = false; }
   if (max > 0) {
     if (H$.boss.hidden) H$.boss.hidden = false;
-    setText(H$.bossName, 'bn', `${midOnly ? '⚡ 중간 보스' : '👑'} ${name}`);
+    setText(H$.bossName, 'bn', `${midOnly ? '중간 보스' : ''} ${name}`);
     H$.boss.classList.toggle('mid', midOnly);
     const p = Math.round((hp / max) * 1000) / 10;
     if (app.hudCache.bp !== p) { app.hudCache.bp = p; H$.bossFill.style.width = p + '%'; }
@@ -1190,8 +1191,8 @@ function hitBaseHud() {
 }
 function syncMute() {
   const m = A.isMuted();
-  H$.mute.textContent = m ? '🔇' : '🔊';
-  for (const b of document.querySelectorAll('[data-act="mute"]')) b.textContent = m ? '🔇' : '🔊';
+  H$.mute.textContent = m ? '' : '';
+  for (const b of document.querySelectorAll('[data-act="mute"]')) b.textContent = m ? '' : '';
 }
 
 // ─── 메인 루프 ───────────────────────────────────────
@@ -1217,7 +1218,7 @@ function frame(now) {
     if (live && live.augOffer && !app.paused) { live.augOffer.t -= dt * 0.8; if (DEBUG.autopick) { S.applyAug(live, live.augOffer.opts[0]); handleEvents(live, true); } } // 증강 제한 시간은 실제 시간으로 (고르는 동안 느려져도)
     if (live && live.mode === 'endless' && !live.over && !app.paused) {
       const idle = performance.now() - (app.lastInput || performance.now());
-      if (idle > 60000) { live.afkSec = (live.afkSec || 0) + dt; if (!app.afkShown) { app.afkShown = true; fx.banner('💤 자리 비움 — 보상 멈춤', '화면을 누르면 다시 보상이 쌓여요', '#333a55', 2.2, 'big'); } }
+      if (idle > 60000) { live.afkSec = (live.afkSec || 0) + dt; if (!app.afkShown) { app.afkShown = true; fx.banner('자리 비움 — 보상 멈춤', '화면을 누르면 다시 보상이 쌓여요', '#333a55', 2.2, 'big'); } }
       else app.afkShown = false;
     }
     acc += dt * ts * speed;
@@ -1445,7 +1446,7 @@ function renderSkillbar() {
     skillbar.dataset.key = key;
     skillbar.dataset.n = list.length;
     skillbar.classList.add('v2');
-    skillbar.innerHTML = list.map((h) => { const nm = skShort(h); return `<button class="sk" data-slot="${h.slot}" style="--c:${h.def.color}"><span class="ring"></span>${av(h.def)}<em>${esc(nm)}</em><i class="cd"></i><b class="cdn"></b><i class="sk-lv">${h.lv}</i><i class="sk-sweat"></i></button>`; }).join('');
+    skillbar.innerHTML = list.map((h) => { const nm = skShort(h); return `<button class="sk sk-v2" data-slot="${h.slot}"><span class="ring"></span><img class="sk-ic" src="/img/lb/ui2/sk_${h.id}.webp" alt="" draggable="false" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sk-fb'}))"><em>${esc(nm)}</em><i class="cd"></i><b class="cdn"></b><i class="sk-lv">${h.lv}</i><i class="sk-sweat"></i></button>`; }).join('');
   }
   let ready = false;
   for (const b of skillbar.children) {
@@ -1465,8 +1466,8 @@ function renderSkillbar() {
     if (r) ready = true;
   }
   // 튜토리얼: 1-1 에서 처음 스킬이 준비되면 알려 준다 · 1-2 에서는 지목
-  if (ready && !tutDone('skill') && g.mode === 'stage' && g.stage <= 2) { setTut('skill'); showTip('⬇ 스킬 버튼이 반짝! 눌러서 필살기를 써 봐요', 5000); skillbar.classList.add('tut'); setTimeout(() => skillbar.classList.remove('tut'), 5000); }
-  if (!tutDone('focus') && g.mode === 'stage' && g.stage === 2 && g.wave >= 1 && g.enemies.length > 3) { setTut('focus'); showTip('👆 진상을 탭하면 "지목"! 모두가 그 진상부터 때려요', 5000); }
+  if (ready && !tutDone('skill') && g.mode === 'stage' && g.stage <= 2) { setTut('skill'); showTip('스킬 버튼이 반짝! 눌러서 필살기를 써 봐요', 5000); skillbar.classList.add('tut'); setTimeout(() => skillbar.classList.remove('tut'), 5000); }
+  if (!tutDone('focus') && g.mode === 'stage' && g.stage === 2 && g.wave >= 1 && g.enemies.length > 3) { setTut('focus'); showTip('진상을 탭하면 "지목"! 모두가 그 진상부터 때려요', 5000); }
 }
 function tutDone(k) { try { return !!localStorage.getItem('langbang:tut:' + k); } catch { return true; } }
 function setTut(k) { try { localStorage.setItem('langbang:tut:' + k, '1'); } catch { /* 무시 */ } }
@@ -1490,24 +1491,24 @@ function heroStatsHtml(g, h) {
   const iv = S.heroInterval(g, h); // 장비·카드·기진맥진까지 모두 들어간 실제 값
   const crit = (g.mods.crit + (h.gear.crit || 0) + (d.critBonus || 0)) * 100;
   const gearTxt = Object.entries(h.gear || {}).filter(([, v]) => v).map(([k, v]) => `${GEAR_STATS[k] ? GEAR_STATS[k].name : k} +${(v * 100).toFixed(0)}%`).join(' · ');
-  const flags = [d.lane ? '↕ 자기 줄만' : '', d.splash || d.slamR ? '💥 범위' : '', d.proj === 'cane' || d.proj === 'crown' || (h.lv >= 3 && d.proj === 'bullet') ? '🗡️ 관통' : '', d.bounces || d.ricochet ? '⚡ 튕김' : '', d.slow ? '🐢 감속' : ''].filter(Boolean).join(' ');
+  const flags = [d.lane ? '자기 줄만' : '', d.splash || d.slamR ? '범위' : '', d.proj === 'cane' || d.proj === 'crown' || (h.lv >= 3 && d.proj === 'bullet') ? '관통' : '', d.bounces || d.ricochet ? '튕김' : '', d.slow ? '감속' : ''].filter(Boolean).join(' ');
   const st = [];
   const res = resOf(h.meta, h.gear && h.gear.res);
-  if (res > 0) st.push(`🧘 상태이상 시간 −${Math.round(res * 100)}%`);
-  if (g.rallyT > 0) st.push('📢 집합! 공속↑');
-  if (g.hcT > 0) st.push(`👑 랑방을 위하여 +${Math.round(g.hcBuff * 100)}%`);
-  if (g.hcSkT > 0) st.push(`👑 공격력 +${Math.round(g.hcSkAtk * 100)}%`);
-  if (h.evo) st.push(`✨ 진화: ${EVO[h.id].name}`);
-  if (h.rage) st.push('🔥 분노');
-  if (h.alt && d.diet) st.push('💉 날씬 모드');
-  if (h.alt && d.age) st.push('👵 폭삭 늙음 (힘 반토막)');
-  for (const [k, t] of [['stunT', '😵 기절'], ['charmT', '💘 홀림'], ['rumorT', '🗣️ 뒷담 공속↓'], ['paperT', '📄 차용증 공속↓'], ['fearT', '😱 공포'], ['vomitT', '🤢 토 공속↓'], ['blindT', '📸 눈부심'], ['drowsyT', '💤 라떼 공속↓'], ['grabT', '🙌 붙잡힘']]) if (h[k] > 0) st.push(t);
+  if (res > 0) st.push(`상태이상 시간 −${Math.round(res * 100)}%`);
+  if (g.rallyT > 0) st.push('집합! 공속↑');
+  if (g.hcT > 0) st.push(`랑방을 위하여 +${Math.round(g.hcBuff * 100)}%`);
+  if (g.hcSkT > 0) st.push(`공격력 +${Math.round(g.hcSkAtk * 100)}%`);
+  if (h.evo) st.push(`진화: ${EVO[h.id].name}`);
+  if (h.rage) st.push('분노');
+  if (h.alt && d.diet) st.push('날씬 모드');
+  if (h.alt && d.age) st.push('폭삭 늙음 (힘 반토막)');
+  for (const [k, t] of [['stunT', '기절'], ['charmT', '홀림'], ['rumorT', '뒷담 공속↓'], ['paperT', '차용증 공속↓'], ['fearT', '공포'], ['vomitT', '토 공속↓'], ['blindT', '눈부심'], ['drowsyT', '라떼 공속↓'], ['grabT', '붙잡힘']]) if (h[k] > 0) st.push(t);
   const perks = Object.entries(d.perks || {}).map(([k, v]) => `<li class="${h.lv >= +k ? 'on' : ''}"><b>Lv${k}</b> ${esc(v)}</li>`).join('');
-  return `<div class="hi-head">${av(d)}<div><b>${d.name} <small>Lv.${h.lv}${h.evo ? ' ✨' : ''} · ${'★'.repeat(h.star || 1)}</small></b>${attrTag(d.attr)}${(HERO_TAGS[h.id] || []).map((t) => `<span class="tg">${TAGS[t].icon}${TAGS[t].name}</span>`).join('')}</div><button class="hi-x" data-hix>✕</button></div>
-    <div class="hi-stats"><span>⚔️ 공격력 <b>${fmt(S.heroDamage(g, h))}</b></span><span>⏱️ 공속 <b>${(1 / iv).toFixed(2)}/초</b></span><span>📏 사거리 <b>${Math.round(S.heroRange(g, h))}</b></span><span>🎯 치명타 <b>${crit.toFixed(0)}%</b></span></div>
-    <p class="hi-row">🔫 ${esc(PROJ_TXT[d.proj] || d.attack)} ${flags ? `<em>${flags}</em>` : ''}</p>
-    ${gearTxt ? `<p class="hi-row">🎒 ${esc(gearTxt)}</p>` : ''}
-    <p class="hi-row">✨ ${esc(d.skill.name)}: ${esc(d.skill.desc)}</p>
+  return `<div class="hi-head">${av(d)}<div><b>${d.name} <small>Lv.${h.lv}${h.evo ? '' : ''} · ${'★'.repeat(h.star || 1)}</small></b>${attrTag(d.attr)}${(HERO_TAGS[h.id] || []).map((t) => `<span class="tg">${TAGS[t].icon}${TAGS[t].name}</span>`).join('')}</div><button class="hi-x"data-hix>✕</button></div>
+ <div class="hi-stats"><span>${ic('swords', '', 'sm')} 공격력 <b>${fmt(S.heroDamage(g, h))}</b></span><span>${ic('speed', '', 'sm')}공속 <b>${(1 / iv).toFixed(2)}/초</b></span><span>사거리 <b>${Math.round(S.heroRange(g, h))}</b></span><span>${ic('target', '', 'sm')}치명타 <b>${crit.toFixed(0)}%</b></span></div>
+ <p class="hi-row"> ${esc(PROJ_TXT[d.proj] || d.attack)} ${flags ? `<em>${flags}</em>` : ''}</p>
+    ${gearTxt ? `<p class="hi-row">${ic('bag', '', 'sm')}${esc(gearTxt)}</p>` : ''}
+ <p class="hi-row">${ic('sparkle', '', 'sm')} ${esc(d.skill.name)}: ${esc(d.skill.desc)}</p>
     <ul class="hi-perks">${perks}</ul>
     ${st.length ? `<p class="hi-row st">${st.join(' · ')}</p>` : ''}
     <p class="hi-tip">끌어서 자리 바꾸기 · 게임은 느리게 흘러가요</p>`;
@@ -1530,8 +1531,8 @@ function skillInfoHtml(h) {
   const sk = h.def.skill, lv = h.lv - 1;
   const scal = [];
   for (const k of ['sec', 'spd', 'r', 'n', 'heal', 'stun', 'dance', 'mul', 'atk']) if (Array.isArray(sk[k])) scal.push(`${{ sec: '시간', spd: '공속', r: '범위', n: '개수', heal: '회복', stun: '기절', dance: '멈춤', mul: '배율', atk: '공격력' }[k]} ${sk[k].map((v, i) => (i === lv ? `<b>${v < 2 && k !== 'n' && k !== 'mul' ? Math.round(v * 100) + '%' : v}</b>` : v < 2 && k !== 'n' && k !== 'mul' ? Math.round(v * 100) + '%' : v)).join('→')}`);
-  return `<div class="ih"><b>✨ ${esc(sk.name)}</b><small>${h.def.name} · 쿨타임 ${Math.round(sk.cd * (1 - (h.gear.cd || 0)) * (h.evo ? 0.7 : 1))}초 · ${sk.target ? '👆 찍는 스킬 (누른 뒤 필드 탭)' : '바로 발동'}</small></div>
-    <p class="ia">${esc(sk.desc)}</p>${scal.length ? `<p class="ip">레벨별: ${scal.join(' · ')}</p>` : ''}<p class="ip">${S.skillReady(h) ? '✅ 준비됨 — 짧게 누르면 사용' : `⏳ ${Math.ceil(h.skillCd)}초 남음`}</p>`;
+  return `<div class="ih"><b>${ic('sparkle', '', 'sm')}${esc(sk.name)}</b><small>${h.def.name} · 쿨타임 ${Math.round(sk.cd * (1 - (h.gear.cd || 0)) * (h.evo ? 0.7 : 1))}초 · ${sk.target ? '찍는 스킬 (누른 뒤 필드 탭)' : '바로 발동'}</small></div>
+    <p class="ia">${esc(sk.desc)}</p>${scal.length ? `<p class="ip">레벨별: ${scal.join(' · ')}</p>` : ''}<p class="ip">${S.skillReady(h) ? '준비됨 — 짧게 누르면 사용' : `${Math.ceil(h.skillCd)}초 남음`}</p>`;
 }
 let skPress = null;
 skillbar.addEventListener('pointerdown', (ev) => {
@@ -1641,7 +1642,12 @@ function show(html, cls = '') {
   if (app.screen !== 'bag') { try { dropGhost(); } catch { /* 아직 준비 전 */ } }
   const same = ui.firstElementChild && ui.firstElementChild.dataset.scr === app.screen;
   const keep = same ? ui.firstElementChild.scrollTop : 0;
-  ui.innerHTML = `<div class="screen ${cls} ${same ? 'same' : 'enter'}" data-scr="${app.screen}">${html}</div>`;
+  // 화면 넘김: 앞으로 = 오른쪽에서 · 뒤로 = 왼쪽에서 · 아래 탭 = 서서히 · 소리
+  const prevScr = ui.firstElementChild && ui.firstElementChild.dataset.scr;
+  const kind = same ? '' : app.navBack || app._goBack ? 'go-back' : app._goTab ? 'go-tab' : 'go-fwd';
+  app._goBack = false; app._goTab = false;
+  ui.innerHTML = `<div class="screen ${cls} ${same ? 'same' : 'enter ' + kind}" data-scr="${app.screen}">${html}</div>`;
+  if (!same && prevScr && !document.body.classList.contains('rm') && app.screen !== 'play') { if (kind === 'go-back') A.sfx.whooshBack(); else if (kind === 'go-fwd') A.sfx.whoosh(); }
   noteScreen();
   // 아래 탭은 스크롤 화면 밖(화면 틀 맨 아래)에 둔다 — 스크롤 안에 있으면 폰에서 화면 가운데에 떠 버린다
   const nav = ui.firstElementChild.querySelector('.lb-nav');
@@ -1711,7 +1717,7 @@ const ACTS = {
   edPick: (b) => edPick(b.dataset.id),
   edSlot: (b) => edSlot(b.dataset.id),
   edHole: () => { app.edHole = true; showDeckEditor(); },
-  edLead: (b) => { setLeader(b.dataset.id); A.sfx.card(); toast(`${HEROES[b.dataset.id].name} 대장!`, 900); showDeckEditor(); },
+  edLead: (b) => { const id = b.dataset.id; setDeckOrder([id, ...deckList().filter((x) => x !== id)]); A.sfx.card(); toast(`${HEROES[id].name} 대장!`, 900); if (stage.querySelector('.pp-editor')) showDeckEditor(); else if (app.screen === 'deck') showDeckTab(); },
   edF: (b) => { app.edF = b.dataset.f; showDeckEditor(); },
   edSort: (b) => { app.edSort = b.dataset.v; showDeckEditor(); },
   edPreset: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckEditor(); },
@@ -1728,19 +1734,19 @@ const ACTS = {
       <p class="pp-tip">${T ? `${esc(T.tip)}${cnt ? ` → <b>${cnt}</b>` : ''}` : `${good.map((a) => `${attrIco(a)}${ATTRS[a].name}`).join(' · ')} 멤버에게 약해요`}</p>
       <button class="chip mini" data-act="info" data-kind="enemy" data-id="${id}">자세히</button>`, 'pp-mini');
   },
-  prepRw: () => { const p = P(), s = app.stage, hell = app.hellMode && hellOpen(p.stages, s), r = stageReward(s, 3, hell ? 3 : p.stages[s] | 0); popup(`<h3>${ic('gift', '🎁')} 보상</h3><div class="ilist"><p class="ip">클리어 코인 최대 <b>${fmt(Math.round(r.clear * (hell ? HELL.coin : 1)))}</b>${hell ? ` (헬 ×${HELL.coin})` : ''} · ★ 많을수록 ↑</p>${r.first ? `<p class="ip">첫 클리어 <b>+${fmt(r.first)}</b></p>` : ''}${r.star ? `<p class="ip">새 ★마다 코인 · ★★★까지 <b>+${fmt(r.star)}</b></p>` : ''}${r.mid ? `<p class="ip">중간 보스 처치 <b>+${fmt(r.mid)}</b></p>` : ''}<p class="ip">장비 1개 (★★★면 35%로 1개 더 · 퍼펙트 +1${hell ? ' · 헬 +1 · 희귀 이상' : ''})</p><p class="ip">데려간 멤버 카드 가끔${hell ? ' (헬 ×2)' : ''}</p><p class="ip">기력 ⚡${L.stageStaminaCost(p, s, hell)} — 실패하면 일부 돌려받아요</p></div>`, 'pp-mini'); },
+  prepRw: () => { const p = P(), s = app.stage, hell = app.hellMode && hellOpen(p.stages, s), r = stageReward(s, 3, hell ? 3 : p.stages[s] | 0); popup(`<h3>${ic('gift', '')} 보상</h3><div class="ilist"><p class="ip">클리어 코인 최대 <b>${fmt(Math.round(r.clear * (hell ? HELL.coin : 1)))}</b>${hell ? ` (헬 ×${HELL.coin})` : ''} · ★ 많을수록 ↑</p>${r.first ? `<p class="ip">첫 클리어 <b>+${fmt(r.first)}</b></p>` : ''}${r.star ? `<p class="ip">새 ★마다 코인 · ★★★까지 <b>+${fmt(r.star)}</b></p>` : ''}${r.mid ? `<p class="ip">중간 보스 처치 <b>+${fmt(r.mid)}</b></p>` : ''}<p class="ip">장비 1개 (★★★면 35%로 1개 더 · 퍼펙트 +1${hell ? ' · 헬 +1 · 희귀 이상' : ''})</p><p class="ip">데려간 멤버 카드 가끔${hell ? ' (헬 ×2)' : ''}</p><p class="ip">기력 ${ic('bolt', '', 'sm')}${L.stageStaminaCost(p, s, hell)} — 실패하면 일부 돌려받아요</p></div>`, 'pp-mini'); },
   prepMore: () => {
     const st = prepStage();
     const cw = st ? stageClasses(st) : {};
     const cls = Object.keys(cw).sort((a, b) => cw[b] - cw[a]).slice(0, 3).map((c) => `${clsTag(c)}<small>${Math.round(cw[c] * 100)}%</small>`).join('');
     popup(`<h3>스테이지 정보</h3>
-      ${st && app.mode === 'stage' ? `<p class="story">📖 ${esc(stageStory(st))}</p>` : ''}
+      ${st && app.mode === 'stage' ? `<p class="story">${ic('book', '', 'sm')}${esc(stageStory(st))}</p>` : ''}
       ${st ? waveRowHtml(st) : ''}
       ${cls ? `<div class="si-cls prep-cls">적 ${cls}</div>` : ''}${st ? traitHintHtml(st) : ''}
-      <div class="pp-mbtn"><button class="chip" data-act="nav" data-tab="deck">${ic('duo', '👥', 'sm')} 덱 화면</button><button class="chip" data-act="nav" data-tab="bag">${ic('hammer', '🔨', 'sm')} 강화·장비</button><button class="chip" data-act="dex">${ic('book', '📖', 'sm')} 도감</button></div>`, 'pp-more-pop');
+      <div class="pp-mbtn"><button class="chip" data-act="nav" data-tab="deck">${ic('duo', '', 'sm')} 덱 화면</button><button class="chip" data-act="nav" data-tab="bag">${ic('hammer', '', 'sm')} 강화·장비</button><button class="chip" data-act="dex">${ic('book', '', 'sm')} 도감</button></div>`, 'pp-more-pop');
   },
   speedTog: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } showPrep(app.mode, app.stage); },
-  waveHelp: () => popup(`<h3>🌊 웨이브 성격</h3>${['S', 'E', 'M', 'B'].map((k) => `<p class="ip"><b>${WAVE_KINDS[k].icon} ${WAVE_KINDS[k].name}</b> — ${esc(WAVE_KINDS[k].desc)}</p>`).join('')}<p class="ip">한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> · 계속 잡으면 콤보 경험치 보너스</p>`),
+  waveHelp: () => popup(`<h3>${ic('wave', '', 'sm')}웨이브 성격</h3>${['S', 'E', 'M', 'B'].map((k) => `<p class="ip"><b>${WAVE_KINDS[k].icon} ${WAVE_KINDS[k].name}</b> — ${esc(WAVE_KINDS[k].desc)}</p>`).join('')}<p class="ip">한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> · 계속 잡으면 콤보 경험치 보너스</p>`),
   deckPreset: (b) => { app.deckI = Number(b.dataset.k); app.deckSel = -1; saveDecks(); showPrep(app.mode, app.stage); },
   autoDeck: () => { autoDeck(); A.sfx.levelUp(); toast('상성에 맞춰 덱을 짰어요!', 1400); showPrep(app.mode, app.stage); },
   gearItem: (b) => showGearCard(Number(b.dataset.id)),
@@ -1909,6 +1915,8 @@ function tapSpark(el, n = 8) {
 }
 function tapDeny(el) { if (!el || !el.classList) return; el.classList.remove('tap-no'); void el.offsetWidth; el.classList.add('tap-no'); setTimeout(() => el.classList.remove('tap-no'), 420); }
 function uiSound(act, el) {
+  if (/^(menu|back|toLobby)$/.test(act) || (el && el.classList && el.classList.contains('back'))) app._goBack = true;
+  if (act === 'nav') app._goTab = true;
   if (el && /^(go|lbGo|pull|buy|staBuy|eqDo|doCheckin|confirm|pvpQuick|mapNode)/.test(act)) tapSpark(el, 8);
   if (el && /^(claim|mailGet|claimAll|claimSeason|chest)/.test(act)) { tapSpark(el, 10); if (!el.classList.contains('lock') && !el.classList.contains('open')) setTimeout(() => coinFly(el, 5), 150); }
   if (!act) return;
@@ -1959,7 +1967,7 @@ function dots() {
 }
 function navHtml(on) {
   const d = dots();
-  const tabs = [['shop', '상점', '🛒'], ['deck', '강화', '👥'], ['battle', '전투', '⚔️'], ['bag', '장비', '🎒'], ['pvp', '대전', '🥊']];
+  const tabs = [['shop', '상점', ''], ['deck', '강화', ''], ['battle', '전투', ''], ['bag', '장비', ''], ['pvp', '대전', '']];
   return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'deck' ? 'members' : k, e)}<b>${n}</b>${rdot(d[k])}</button>`).join('')}</nav>`;
 }
 // ─── 칭호 · 프레임 (보이기만 · 능력치 없음) ─────
@@ -1974,12 +1982,12 @@ setInterval(() => { const el = document.getElementById('staV'); if (el && el.isC
 function showStamina(msg) {
   const p = P(), s = L.staminaNow(p, Date.now()), day = L.dayIndex();
   const n = p.staBuy && p.staBuy.day === day ? p.staBuy.n : 0, left = L.STAMINA.buy.perDay - n, cost = L.STAMINA.buy.cost[n];
-  popup(`<h3>⚡ 체력 ${msg ? '부족!' : ''}</h3>${msg ? `<p class="ip">${esc(msg)}</p>` : ''}
+  popup(`<h3>${ic('bolt', '', 'sm')}체력 ${msg ? '부족!' : ''}</h3>${msg ? `<p class="ip">${esc(msg)}</p>` : ''}
     <p class="ip big-got">${s.v} / ${L.STAMINA.max}${s.v > L.STAMINA.max ? ' (넘침)' : ''}</p>
     <p class="ip">${Math.round(L.STAMINA.regenMs / 60000)}분마다 1씩 차요${s.next ? ` · 다음까지 ${Math.ceil(s.next / 60000)}분` : ' · 가득!'}</p>
-    <div class="ilist"><p class="ip">🗺️ 스테이지 ${L.STAMINA.stage} · 이미 ★★★ 스테이지 ${L.STAMINA.repeat} · 🔥 헬 ${L.STAMINA.hell} · 실패하면 절반 돌려받기</p>
-    <p class="ip">📆 출석 +${L.STAMINA.checkin} · 계정 레벨 업 +${L.STAMINA.lvUp} · 무한 · 레이드 · 1:1 대전은 체력을 안 써요</p></div>
-    <button class="btn ${left > 0 && p.coins >= cost ? 'primary' : ''}" data-act="staBuy" ${left > 0 ? '' : 'disabled'}>⚡ +${L.STAMINA.buy.n} 사기 · ${left > 0 ? `<i class="ci"></i>${fmt(cost)}` : '오늘 끝'} <small>(오늘 ${left}/${L.STAMINA.buy.perDay})</small></button>`, 'sta-pop');
+ <div class="ilist"><p class="ip">${ic('map', '', 'sm')} 스테이지 ${L.STAMINA.stage} · 이미 ★★★ 스테이지 ${L.STAMINA.repeat} · ${ic('fire', '', 'sm')}헬 ${L.STAMINA.hell} · 실패하면 절반 돌려받기</p>
+ <p class="ip">${ic('calendar', '', 'sm')} 출석 +${L.STAMINA.checkin} · 계정 레벨 업 +${L.STAMINA.lvUp} · 무한 · 레이드 · 1:1 대전은 체력을 안 써요</p></div>
+    <button class="btn ${left > 0 && p.coins >= cost ? 'primary' : ''}" data-act="staBuy" ${left > 0 ? '' : 'disabled'}>${ic('bolt', '', 'sm')}+${L.STAMINA.buy.n} 사기 · ${left > 0 ? `<i class="ci"></i>${fmt(cost)}` : '오늘 끝'} <small>(오늘 ${left}/${L.STAMINA.buy.perDay})</small></button>`, 'sta-pop');
 }
 // 우편함
 function showMail() {
@@ -1987,15 +1995,15 @@ function showMail() {
   const list = (p.mail || []).filter((m) => m.exp > now).slice().reverse();
   const safe = (rw) => { try { return gotText(rw) || ''; } catch { return ''; } }; // 보상 글자가 깨져도 우편함은 열린다
   const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b><small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${esc(safe(m.rw))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
-  popup(`<h3>📮 우편함</h3>${list.length > 1 ? `<button class="btn primary" data-act="mailGet" data-id="all">🎁 모두 받기 (${list.length})</button>` : ''}
+  popup(`<h3>${ic('mail', '', 'sm')}우편함</h3>${list.length > 1 ? `<button class="btn primary" data-act="mailGet" data-id="all">${ic('gift', '', 'sm')}모두 받기 (${list.length})</button>` : ''}
     <div class="mail-list">${rows || '<div class="empty-msg">받을 우편이 없어요</div>'}</div><p class="ip">보상 우편은 ${L.MAIL_DAYS}일 뒤 사라져요</p>`, 'mail-pop');
 }
 // 모드별 보상 안내
 const REWARD_INFO = {
   pvpTiers: () => `<h3>1:1 대전 등급 보상</h3><p class="ip">처음 오른 등급마다 한 번씩 우편으로 와요</p><div class="tier-rw">${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<div class="trw">${tierEmb(min, 'sm')}<span><b>${esc(name)}</b><small>${min}점</small></span><em>${gotText({ coins: rw.coins, tickets: rw.tickets })}${rw.gear ? ' · 장비' : ''}</em></div>`).join('')}</div>`,
-  endless: () => { const p = P(), left = L.endlessLeft(p); return `<h3>♾️ 무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><div class="ilist">${L.ENDLESS.miles.map((w) => `<p class="ip">🏁 ${w}웨이브 첫 달성(주마다) — ${esc(gotText(L.milestoneReward(w)))}${p.ew && p.ew.wi === L.weekIndex() && p.ew.miles.includes(w) ? ' ✅' : ''}</p>`).join('')}</div><p class="ip">웨이브 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 10 · 참가 보상 (우편함)</p>`; },
-  pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>⚔️ 1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 🎉 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">🏆 ${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? ' ✅' : ''}</p>`).join('')}</div>`; },
-  raid: () => `<h3>🐉 레이드 보상</h3><div class="ilist"><p class="ip">참가: 코인 · 보스 체력을 깎은 만큼 (50% 넘으면 모집권)</p><p class="ip">처치 성공: 모두 코인 2,000 + 기여도 · 1위 전설 장비 + 칭호 "레이드 MVP" · 2~3위 영웅 장비 · TOP10 모집권</p><p class="ip">한 판마다 💎 강화석 2</p></div>`,
+  endless: () => { const p = P(), left = L.endlessLeft(p); return `<h3>${ic('infinity', '', 'sm')}무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><div class="ilist">${L.ENDLESS.miles.map((w) => `<p class="ip">${ic('check', '', 'sm')}${w}웨이브 첫 달성(주마다) — ${esc(gotText(L.milestoneReward(w)))}${p.ew && p.ew.wi === L.weekIndex() && p.ew.miles.includes(w) ? '' : ''}</p>`).join('')}</div><p class="ip">웨이브 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 10 · 참가 보상 (우편함)</p>`; },
+  pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>${ic('swords', '', 'sm')}1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">${ic('trophy', '', 'sm')}${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? '' : ''}</p>`).join('')}</div>`; },
+  raid: () => `<h3>${ic('dragon', '', 'sm')}레이드 보상</h3><div class="ilist"><p class="ip">참가: 코인 · 보스 체력을 깎은 만큼 (50% 넘으면 모집권)</p><p class="ip">처치 성공: 모두 코인 2,000 + 기여도 · 1위 전설 장비 + 칭호 "레이드 MVP"· 2~3위 영웅 장비 · TOP10 모집권</p><p class="ip">한 판마다 ${ic('gem', '', 'sm')}강화석 2</p></div>`,
 };
 // 증강: 셋 중 하나 (15초면 첫 번째) · 등급 빛 · 뒤집히며 등장
 const augBox = document.createElement('div');
@@ -2027,7 +2035,7 @@ const curseBox = document.createElement('div');
 curseBox.className = 'curse-box';
 curseBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-curse]'); if (b && app.g && S.applyCurse(app.g, b.dataset.curse)) { handleEvents(app.g, true); A.sfx.pick(); } });
 function showCurseOffer(opts) {
-  curseBox.innerHTML = `<div class="cb-head"><b>📜 저주 계약</b><small>하나는 꼭 골라요 · <em id="cbT">10</em>초 뒤 아무거나</small></div><div class="cb-list">${opts.map((id) => { const c = CURSES[id]; return `<button class="cb-card" data-curse="${id}"><span class="cb-ico">${c.icon}</span><b>${esc(c.name)}</b><small class="bad">😈 ${esc(c.desc)}</small><small class="good">🎁 ${esc(c.up)}</small></button>`; }).join('')}</div>`;
+  curseBox.innerHTML = `<div class="cb-head"><b>${ic('scroll', '', 'sm')}저주 계약</b><small>하나는 꼭 골라요 · <em id="cbT">10</em>초 뒤 아무거나</small></div><div class="cb-list">${opts.map((id) => { const c = CURSES[id]; return `<button class="cb-card" data-curse="${id}"><span class="cb-ico">${c.icon}</span><b>${esc(c.name)}</b><small class="bad">${esc(c.desc)}</small><small class="good">${ic('gift', '', 'sm')}${esc(c.up)}</small></button>`; }).join('')}</div>`;
   if (!curseBox.isConnected) stage.appendChild(curseBox);
 }
 function closeCurseOffer() { if (curseBox.isConnected) curseBox.remove(); }
@@ -2051,10 +2059,10 @@ async function loadRankTicker() {
   const [st, pv, wk] = await Promise.all([API.loadRanking('stage').catch(() => null), API.pvpRanking().catch(() => null), API.weeklyBoard().catch(() => null)]);
   const top = (list, f) => (list || []).slice(0, 3).map((r, i) => `${i + 1}위 ${esc(r.nickname)} ${f(r)}`).join(' · ');
   const lines = [];
-  if (st && st.ranking.length) lines.push(`🗺️ 스테이지 — ${top(st.ranking, (r) => `${r.stageLabel} ★${r.totalStars}`)}${st.me && st.me.rank ? ` · 내 순위 ${st.me.rank}위` : ''}`);
-  if (pv && pv.ranking.length) lines.push(`⚔️ 1:1 대전 — ${top(pv.ranking, (r) => `${r.rating}점`)}`);
-  if (wk && wk.board && wk.board.length) lines.push(`📅 주간 도전 — ${top(wk.board, (r) => fmt(r.best))}${wk.me && wk.me.rank ? ` · 내 순위 ${wk.me.rank}위` : ''}`);
-  if (!lines.length) lines.push('🏆 아직 랭킹이 비었어요 — 1등 할 기회!');
+  if (st && st.ranking.length) lines.push(`스테이지 — ${top(st.ranking, (r) => `${r.stageLabel} ★${r.totalStars}`)}${st.me && st.me.rank ? ` · 내 순위 ${st.me.rank}위` : ''}`);
+  if (pv && pv.ranking.length) lines.push(`1:1 대전 — ${top(pv.ranking, (r) => `${r.rating}점`)}`);
+  if (wk && wk.board && wk.board.length) lines.push(`주간 도전 — ${top(wk.board, (r) => fmt(r.best))}${wk.me && wk.me.rank ? ` · 내 순위 ${wk.me.rank}위` : ''}`);
+  if (!lines.length) lines.push('아직 랭킹이 비었어요 — 1등 할 기회!');
   rankTicker.lines = lines;
 }
 function tickRank() {
@@ -2108,7 +2116,7 @@ function showMenu() {
     `<button class="tile ${L.raidState(now).open ? 'hot' : ''}" data-act="raid">${uiIco('raid', '')}<b>레이드</b><small class="tl-t ${L.raidState(now).open ? 'raid-open' : ''}">${esc(shortTime(L.raidLabel(now).text))}</small>${rdot(L.raidState(now).open && !(p.raid && p.raid.wi === L.raidState(now).wi && p.raid.runs))}</button>`,
     `<button class="tile" data-act="pvp">${uiIco('pvp', '')}<b>1:1 대전</b><small class="tl-t">${(p.pvp && p.pvp.rating) || 1000}점</small></button>`,
   ].join('');
-  const right = [['missions', '미션', '📜', 'missionsNav'], ['share', '공유', '📤', 'share'], ['checkin', '출석', '📆', 'checkin'], ['ranking', '랭킹', '🏆', 'ranking'], ['dex', '도감', '📚', 'dex'], ['mail', '우편', '📮', 'mail'], ['notice', '공지', '📢', 'notice'], ['settings', '설정', '⚙️', 'settings']]
+  const right = [['missions', '미션', '', 'missionsNav'], ['share', '공유', '', 'share'], ['checkin', '출석', '', 'checkin'], ['ranking', '랭킹', '', 'ranking'], ['dex', '도감', '', 'dex'], ['mail', '우편', '', 'mail'], ['notice', '공지', '', 'notice'], ['settings', '설정', '', 'settings']]
     .map(([ic0, n, e, act]) => `<button class="rb" data-act="${act}">${ic0 === 'notice' ? '<span class="uic"><img src="/img/lb/ui2/megaphone.webp" alt="" draggable="false"></span>' : uiIco(ic0, '')}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions) || (act === 'mail' && L.mailCount(p) > 0))}</button>`).join('');
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~6)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
@@ -2116,7 +2124,7 @@ function showMenu() {
     <div class="lb-key" style="background-image:url('/img/lb/keyart${ch}.webp')"></div>
     <div class="lb-dim"></div>
     ${topPills()}
-    ${p.master ? '<button class="lb-master" data-act="settings">🛠️ MASTER</button>' : ''}
+    ${p.master ? '<button class="lb-master" data-act="settings">MASTER</button>' : ''}
     <button class="lb-rank" data-act="ranking" id="lbRank" aria-label="랭킹 보기" hidden></button>
     <button class="lb-stage" data-act="stages">
       <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
@@ -2126,7 +2134,7 @@ function showMenu() {
     <div class="lb-dio">
       <button class="chev l" data-act="lbStep" data-d="-1" ${s <= 1 ? 'disabled' : ''} aria-label="이전 스테이지"><i></i>${s > 1 ? `<small>◂ ${stageLabel(s - 1)}</small>` : ''}</button>
       <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio${c2}.webp" alt="" draggable="false" onerror="this.remove()">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>`}</div></div>`; }).join('')}</div>
-      ${(() => { const lock = s >= (p.master ? STAGE_COUNT : nextStage()); const nx = Math.min(STAGE_COUNT, s + 1); return `<button class="chev r ${lock && s < STAGE_COUNT ? 'lockd' : ''}" data-act="lbStep" data-d="1" ${lock ? 'disabled' : ''} aria-label="다음 스테이지"><i></i>${s < STAGE_COUNT ? `<small>${lock ? '🔒' : ''}${stageLabel(nx)} ▸</small>` : ''}</button>`; })()}
+      ${(() => { const lock = s >= (p.master ? STAGE_COUNT : nextStage()); const nx = Math.min(STAGE_COUNT, s + 1); return `<button class="chev r ${lock && s < STAGE_COUNT ? 'lockd' : ''}" data-act="lbStep" data-d="1" ${lock ? 'disabled' : ''} aria-label="다음 스테이지"><i></i>${s < STAGE_COUNT ? `<small>${lock ? '' : ''}${stageLabel(nx)} ▸</small>` : ''}</button>`; })()}
     </div>
     <div class="lb-chests"><div class="cbar"><b style="width:${Math.min(100, (cs / 30) * 100)}%"></b></div>${chests}<em>${ch}장 ★${cs}/30</em></div>
     ${snap ? `<button class="lb-resume" data-act="resumeSnap">${ic('retry', '', 'sm')}이어하기 <small>${esc(snapLabel(snap))}</small></button>` : ''}
@@ -2135,7 +2143,7 @@ function showMenu() {
     <div class="lb-left">${left}</div>
     <div class="lb-right">${right}</div>
     ${navHtml('battle')}
-    ${app.profileLoaded ? '' : '<div class="lb-loading"><span class="spin">⏳</span></div>'}
+    ${app.profileLoaded ? '' : '<div class="lb-loading"><span class="spin"></span></div>'}
   `, 'lobby');
   lobbySwipe();
 }
@@ -2280,17 +2288,17 @@ function gotText(got) {
   if (!got) return '';
   const a = [];
   if (got.coins) a.push(`${fmt(got.coins)} 코인`);
-  if (got.tickets) a.push(`🎟️ 모집권 ${got.tickets}`);
-  if (got.sp) a.push(`⭐ 시즌 +${got.sp}`);
+  if (got.tickets) a.push(`모집권 ${got.tickets}`);
+  if (got.sp) a.push(`시즌 +${got.sp}`);
   if (got.gear) { const gr = typeof got.gear === 'string' ? { r: got.gear } : got.gear; const R0 = GEAR_RARITY[gr.r] || GEAR_RARITY.common; a.push(`${gr.t && GEAR[gr.t] ? GEAR[gr.t].name + ' · ' : ''}${R0.name} 장비${gr.sold ? ' (가방 꽉 참 → 코인)' : ''}`); } // 우편 보상은 등급 글자("myth")만 · 받은 뒤엔 {t, r}
-  if (got.title) a.push(`🏷️ 칭호 "${L.titleName(got.title)}"`);
-  if (got.frame) a.push(`🖼️ ${L.FRAMES[got.frame].name}`);
-  if (got.gears) a.push(`🎁 장비 ${got.gears.length}개`);
-  if (got.stones) a.push(`💎 강화석 ${got.stones}`);
-  if (got.sta) a.push(`⚡ 체력 ${got.sta}`);
-  if (got.wild) a.push(`🃏 범용 멤버 카드 ${got.wild}`);
-  if (got.titles) a.push(`🏷️ 칭호 ${got.titles.length}개`);
-  if (got.frames) a.push(`🖼️ 프레임 ${got.frames.length}개`);
+  if (got.title) a.push(`칭호 "${L.titleName(got.title)}"`);
+  if (got.frame) a.push(`${L.FRAMES[got.frame].name}`);
+  if (got.gears) a.push(`장비 ${got.gears.length}개`);
+  if (got.stones) a.push(`강화석 ${got.stones}`);
+  if (got.sta) a.push(`체력 ${got.sta}`);
+  if (got.wild) a.push(`범용 멤버 카드 ${got.wild}`);
+  if (got.titles) a.push(`칭호 ${got.titles.length}개`);
+  if (got.frames) a.push(`프레임 ${got.frames.length}개`);
   return a.join(' · ');
 }
 function popup(html, cls = '') {
@@ -2328,7 +2336,7 @@ async function liveAct(promise, okMsg) {
   if (!r.ok) {
     toast(r.message || '못 했어요');
     // 부족하다고 하면 서버 값으로 다시 맞추고 화면도 새로 (진짜 개수를 보여 준다)
-    if (!app.guest && /부족/.test(r.message || '')) resyncProfile().then((ok) => { if (ok) { refresh(); toast(`${r.message} · 지금 모집권 🎟️${P().tickets | 0} · 코인 ${fmt(P().coins | 0)}`, 2600); } });
+    if (!app.guest && /부족/.test(r.message || '')) resyncProfile().then((ok) => { if (ok) { refresh(); toast(`${r.message} · 지금 모집권 ${P().tickets | 0} · 코인 ${fmt(P().coins | 0)}`, 2600); } });
     return null;
   }
   if (okMsg) toast(okMsg(r), 2600);
@@ -2344,13 +2352,25 @@ function showShop() {
   app.screen = 'shop';
   hud.hidden = true;
   const p = P();
-  const tab = app.shopTab === 'items' ? 'items' : 'recruit';
+  const tab = app.shopTab === 'items' ? 'items' : app.shopTab === 'gear' ? 'gear' : 'recruit';
   let body;
-  if (tab === 'recruit') {
+  if (tab === 'gear') {
+    const gp = L.GEAR_PITY - ((p.pity || {}).gear | 0);
+    body = `<div class="gacha-banner v2 gg" style="--c:#ffb400">
+        <div class="gb-art gg-art"><img class="gg-chest" src="/img/lb/fx/gacha_gear_poster.jpg" alt="" draggable="false"></div>
+        <div class="gb-text"><div class="gb-title"><small class="gb-pick">장비 뽑기 · 강화석</small><b>보물 상자</b><small>무기 · 장신구 · 신화 장비</small></div>
+        <div class="gb-pity"><span>신화 장비 확정까지 <b>${gp}</b>회</span><span>10회 뽑기: 영웅 이상 1개 보장</span></div></div></div>
+      <div class="grid2 gacha-btns">
+        <button class="btn" data-act="gpull" data-n="1"><b>1회 뽑기</b><small>${ic('gem', '', 'sm')}${L.GEAR_GACHA_COST.one}</small></button>
+        <button class="btn primary" data-act="gpull" data-n="10"><b>10회 뽑기</b><small>${ic('gem', '', 'sm')}${L.GEAR_GACHA_COST.ten} · 영웅 이상 1개</small></button>
+      </div>
+      <button class="btn ghost rates-btn" data-act="grates">${ic('chart', '', 'sm')} 확률 공개 · 보유 강화석 ${ic('gem', '', 'sm')}${p.stones | 0}</button>
+      <p class="sub">강화석은 스테이지 보상 · 장비 분해로 모여요</p>`;
+  } else if (tab === 'recruit') {
     const pity = L.PITY_HERO - (p.pity.hero | 0);
     const lopen = L.legendOpen(p);
-    const cost1 = (p.tickets | 0) >= 1 ? '🎟️ 1' : `<i class="ci"></i>${fmt(L.GACHA_COST.one)}`;
-    const cost10 = (p.tickets | 0) >= 10 ? '🎟️ 10' : `<i class="ci"></i>${fmt(L.GACHA_COST.ten)}`;
+    const cost1 = (p.tickets | 0) >= 1 ? '1' : `<i class="ci"></i>${fmt(L.GACHA_COST.one)}`;
+    const cost10 = (p.tickets | 0) >= 10 ? '10' : `<i class="ci"></i>${fmt(L.GACHA_COST.ten)}`;
     // 픽업: 아직 없는 모집 멤버 중 하루마다 돌아가며 (다 있으면 전부 중 하나) · 뒤에 셋
     const pick = L.pickupHero(); // 이번 주 픽업 T4 (T4 가 나오면 50% 로 이 멤버)
     const others = [...(lopen ? ['hochan'] : []), ...GACHA_HEROES.filter((id) => id !== pick)].slice(0, 3);
@@ -2359,14 +2379,14 @@ function showShop() {
     body = `<div class="gacha-banner v2" style="--c:${ATTRS[HEROES[pick].attr].color}">
         <div class="gb-art">${others.map((id, i) => art(id, `gb-back b${i}`)).join('')}${art(pick, 'gb-main')}</div>
         <div class="gb-text"><div class="gb-title"><small class="gb-pick">이번 주 픽업 · T4</small><b>${esc(HEROES[pick].name)}</b><small>${esc(HEROES[pick].role)} · 코인·모집권만 (현금 결제 없음)</small></div>
-        <div class="gb-pity"><span>T4 멤버 확정까지 <b>${pity}</b>회</span><span>${lopen ? `LEGEND 확정까지 <b>${L.PITY_LEGEND - (p.pity.legend | 0)}</b>회${(p.pity.legend | 0) >= L.PITY_SOFT - 1 ? ` · 지금 확률 ${L.legendRate(p.pity.legend | 0).toFixed(1)}%` : ''}` : `👑 LEGEND 이호찬은 ${stageLabel(L.HOCHAN_GATE)} 클리어 후 등장`}</span></div>
+        <div class="gb-pity"><span>T4 멤버 확정까지 <b>${pity}</b>회</span><span>${lopen ? `LEGEND 확정까지 <b>${L.PITY_LEGEND - (p.pity.legend | 0)}</b>회${(p.pity.legend | 0) >= L.PITY_SOFT - 1 ? ` · 지금 확률 ${L.legendRate(p.pity.legend | 0).toFixed(1)}%` : ''}` : `LEGEND 이호찬은 ${stageLabel(L.HOCHAN_GATE)} 클리어 후 등장`}</span></div>
       </div></div>
       <div class="grid2 gacha-btns">
         <button class="btn" data-act="pull" data-n="1"><b>1회 모집</b><small>${cost1}</small></button>
         <button class="btn primary" data-act="pull" data-n="10"><b>10회 모집</b><small>${cost10} · ${(p.pulls | 0) === 0 ? '처음 10회는 T4 확정' : 'T3 이상 1개 확정'}</small></button>
-      </div>
-      <button class="btn ghost rates-btn" data-act="rates">📊 확률 공개 · 보유 모집권 🎟️${p.unlimited ? '∞' : p.tickets | 0}</button>
-      <div class="card-prog">${[...GACHA_HEROES, ...LEGEND_HEROES].map((h) => { const pr = L.cardProgress(p, h); const d = HEROES[h]; const lock = LEGEND_HEROES.includes(h) && !L.legendOpen(p); return `<div class="cp ${pr ? '' : 'done'} ${lock ? 'lock' : ''}" style="--c:${d.color}">${av(d, pr ? 'sil' : '')}<b>${esc(d.name)}</b>${pr ? `<i><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i><small>${lock ? `${stageLabel(L.HOCHAN_GATE)} 뒤` : `${pr[0]}/${pr[1]}장`}</small>` : '<small>합류 ✔</small>'}</div>`; }).join('')}</div>
+ </div>
+ <button class="btn ghost rates-btn" data-act="rates">${ic('chart', '', 'sm')} 확률 공개 · 보유 모집권 ${ic('ticket', '', 'sm')}${p.unlimited ? '∞' : p.tickets | 0}</button>
+      <div class="card-prog">${[...GACHA_HEROES, ...LEGEND_HEROES].map((h) => { const pr = L.cardProgress(p, h); const d = HEROES[h]; const lock = LEGEND_HEROES.includes(h) && !L.legendOpen(p); return `<div class="cp ${pr ? '' : 'done'} ${lock ? 'lock' : ''}" style="--c:${d.color}">${av(d, pr ? 'sil' : '')}<b>${esc(d.name)}</b>${pr ? `<i><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i><small>${lock ? `${stageLabel(L.HOCHAN_GATE)} 뒤` : `${pr[0]}/${pr[1]}장`}</small>` : '<small>합류 </small>'}</div>`; }).join('')}</div>
       <p class="sub">모집 멤버는 <b>카드</b>를 모아 합류 (영웅 ${L.UNLOCK_CARDS.epic}장 · LEGEND ${L.UNLOCK_CARDS.legend}장) · 합류한 뒤 카드와 조각으로 <b>★ 승급</b> (공격력 +${Math.round(L.STAR_ATK * 100)}% / ★)</p>`;
   } else {
     body = `<div class="up-list">${ITEM_IDS.map((id) => {
@@ -2384,20 +2404,20 @@ function showShop() {
         <button class="btn ${can ? 'primary' : ''}" data-act="buyItem" data-id="${id}" ${can ? '' : 'disabled'}>${cost === null ? 'MAX' : `<i class="ci"></i>${fmt(cost)}`}</button></div>`;
     }).join('')}</div>
     <p class="sub" style="margin-top:10px">덱 칸이 많을수록 뒤 챕터가 쉬워져요 · 기본 ${DECK_BASE}칸</p>
-    ${(() => { const wi = L.weekIndex(Date.now()); const n = p.cardPick && p.cardPick.wi === wi ? p.cardPick.n : 0; const left = CARD_PICK.perWeek - n; return `<div class="up item"><span class="it-ico">🃏</span><div class="mid"><b>멤버 카드 선택권<span class="lvtag">이번 주 ${left}/${CARD_PICK.perWeek}</span></b><small class="eff">고른 멤버 카드 ${CARD_PICK.n}장 (강화·★승급에 써요)</small></div><button class="btn ${left > 0 && p.coins >= CARD_PICK.cost ? 'primary' : ''}" data-act="cardPickOpen" ${left > 0 ? '' : 'disabled'}><i class="ci"></i>${fmt(CARD_PICK.cost)}</button></div>`; })()}
-    <button class="btn ghost" data-act="cardConvert" style="margin-top:8px">🔁 다 키운 멤버의 남는 카드 → 범용 카드 (보유 ${p.wild | 0})</button>`;
+    ${(() => { const wi = L.weekIndex(Date.now()); const n = p.cardPick && p.cardPick.wi === wi ? p.cardPick.n : 0; const left = CARD_PICK.perWeek - n; return `<div class="up item"><span class="it-ico">${ic('card_common', '', 'sm')}</span><div class="mid"><b>멤버 카드 선택권<span class="lvtag">이번 주 ${left}/${CARD_PICK.perWeek}</span></b><small class="eff">고른 멤버 카드 ${CARD_PICK.n}장 (강화·★승급에 써요)</small></div><button class="btn ${left > 0 && p.coins >= CARD_PICK.cost ? 'primary' : ''}" data-act="cardPickOpen" ${left > 0 ? '' : 'disabled'}><i class="ci"></i>${fmt(CARD_PICK.cost)}</button></div>`; })()}
+ <button class="btn ghost" data-act="cardConvert" style="margin-top:8px">${ic('retry', '', 'sm')} 다 키운 멤버의 남는 카드 → 범용 카드 (보유 ${p.wild | 0})</button>`;
   }
   show(`
     ${subTop('상점')}
-    <div class="tabs"><button class="${tab === 'recruit' ? 'on' : ''}" data-act="shopTab" data-tab="recruit">🎰 모집</button><button class="${tab === 'items' ? 'on' : ''}" data-act="shopTab" data-tab="items">🎒 아이템</button></div>
-    ${app.guest ? '<div class="guest-note">손님 기록은 이 기기에만 · <a href="/">로그인</a>하면 어디서든!</div>' : ''}
+    <div class="tabs"><button class="${tab === 'recruit' ? 'on' : ''}" data-act="shopTab" data-tab="recruit">${ic('gacha', '', 'sm')}모집</button><button class="${tab === 'gear' ? 'on' : ''}" data-act="shopTab" data-tab="gear">${ic('gift', '', 'sm')} 장비 뽑기</button><button class="${tab === 'items' ? 'on' : ''}" data-act="shopTab" data-tab="items">${ic('bag', '', 'sm')} 아이템</button></div>
+ ${app.guest ? '<div class="guest-note">손님 기록은 이 기기에만 · <a href="/">로그인</a>하면 어디서든!</div>' : ''}
     ${body}
     ${navHtml('shop')}
   `, 'dim withnav');
 }
 // 상점 아이템: 한 줄 효과 설명 + 자세히
 const ITEM_EFFECT = {
-  door: '랑방 입구 최대 내구도가 늘어요 (별 받기가 쉬워짐)', coupon: '스테이지를 깰 때 받는 코인이 늘어요', battery: '📣 총공지 게이지가 더 빨리 차요',
+  door: '랑방 입구 최대 내구도가 늘어요 (별 받기가 쉬워짐)', coupon: '스테이지를 깰 때 받는 코인이 늘어요', battery: '총공지 게이지가 더 빨리 차요',
   charm: '모든 멤버 치명타(2배 피해) 확률이 올라가요', drink: '스테이지 시작 전에 레벨업 카드를 먼저 골라요', slot5: '덱에 멤버를 5명까지 넣을 수 있어요', slot6: '덱에 멤버를 6명까지 넣을 수 있어요 (5번째 칸 먼저)',
 };
 function showItemInfo(id) {
@@ -2435,6 +2455,59 @@ function showRates() {
     ${lopen ? '' : `<p class="ip">LEGEND 는 ${stageLabel(L.HOCHAN_GATE)} 클리어 후 나와요</p>`}
     <p class="rt-foot">표시 확률은 1회 기준 · 천장 횟수는 서버에 저장 · 같은 등급 안에서는 모두 같은 확률 · 이미 있는 멤버는 그 멤버 카드로 바뀌어요</p>`, 'rates-pop rt-v2');
 }
+// 장비 뽑기
+async function doGearPull(n) {
+  const p = P(), cost = n === 10 ? L.GEAR_GACHA_COST.ten : L.GEAR_GACHA_COST.one;
+  if ((p.stones | 0) < cost) { toast(`강화석이 부족해요 (${cost} 필요)`); return; }
+  const r = await liveAct(API.gearGacha(n, app.guest));
+  if (!r) return;
+  const list = r.results || [];
+  const best = list.some((x) => x.k === 'mythGear') ? 'gold' : list.some((x) => x.k === 'legendGear') ? 'purple' : 'blue';
+  await gachaVideo('gear', best);
+  await gachaShow(list);
+  refresh();
+}
+function showGearRates() {
+  const p = P(), rs = L.GEAR_GACHA_RATES, sum = rs.reduce((a, r) => a + r.w, 0), maxW = Math.max(...rs.map((r) => r.w));
+  const nOf = (k) => (k === 'myth' ? MYTH_IDS.length : GEAR_IDS.length);
+  const row = (r) => { const pct = (r.w / sum) * 100, n = nOf(r.k); return `<div class="rt-row" style="--rc:${r.color}"><i class="rt-crest g-${r.k}">${ic('gem', '', 'sm')}</i><span class="rt-n"><b>${r.name}</b><small>${n}종 · 각 ${(pct / n).toFixed(pct / n < 0.1 ? 3 : 2)}%</small></span><b class="rt-p">${pct.toFixed(2)}<small>%</small></b><i class="rt-bar"><b style="width:${Math.max(2, (r.w / maxW) * 100)}%"></b></i></div>`; };
+  const cur = (p.pity || {}).gear | 0;
+  popup(`<h3 class="rt-h">${ic('gift', '', '')}장비 뽑기 확률</h3>
+    <div class="rt-pitys"><div class="rt-pity">${ic('crown', '', '')}<span><b>${L.GEAR_PITY}회 안에 신화 장비 확정</b><i class="rt-pb"><b style="width:${Math.round((cur / L.GEAR_PITY) * 100)}%"></b></i><small>${cur}/${L.GEAR_PITY}회</small></span></div>
+    <div class="rt-pity">${ic('sparkle', '', '')}<span><b>10회 뽑기: 영웅 이상 1개 보장</b></span></div></div>
+    <details class="rt-sec" open><summary>등급</summary>${rs.map(row).join('')}</details>
+    <p class="rt-foot">표시 확률은 1회 기준 · 같은 등급 안에서는 모두 같은 확률 · 천장 횟수는 서버에 저장돼요</p>`, 'rates-pop rt-v2');
+}
+// 뽑기 연출 영상: 가장 좋은 등급 색 (금 · 보라 · 파랑) · 금은 보라로 시작해서 3초에 금으로 · 보라는 파랑으로 시작 · 1초 뒤 건너뛰기
+const GV_BLOB = {};
+async function gvUrl(src) { if (GV_BLOB[src]) return GV_BLOB[src]; try { const r = await fetch(src); if (!r.ok) throw 0; GV_BLOB[src] = URL.createObjectURL(await r.blob()); } catch { GV_BLOB[src] = src; } return GV_BLOB[src]; }
+function gachaVideo(kind, best) {
+  return new Promise(async (resolve) => {
+    const still = document.body.classList.contains('rm') || (navigator.connection && navigator.connection.saveData);
+    const d = document.createElement('div');
+    d.className = 'gv-wrap ' + best;
+    if (still) { d.innerHTML = '<i class="gv-flash"></i>'; stage.appendChild(d); A.sfx.levelUp(); setTimeout(() => { d.remove(); resolve(); }, 1000); return; }
+    const tease = best === 'gold' ? 'purple' : best === 'purple' ? 'blue' : null;
+    const src = (c) => `/img/lb/fx/gacha_${kind}_${c}.mp4`;
+    d.innerHTML = `<video class="gv v0" muted playsinline preload="auto" poster="/img/lb/fx/gacha_${kind}_poster.jpg"></video><video class="gv v1" muted playsinline preload="auto"></video><button class="gv-skip" hidden>건너뛰기</button>`;
+    stage.appendChild(d);
+    const [v0, v1] = d.querySelectorAll('video');
+    let done = false;
+    const end = () => { if (done) return; done = true; d.classList.add('flash'); A.sfx.reward(); setTimeout(() => { d.remove(); resolve(); }, 260); };
+    d.querySelector('.gv-skip').addEventListener('click', (ev) => { ev.stopPropagation(); end(); });
+    setTimeout(() => { const s = d.querySelector('.gv-skip'); if (s) s.hidden = false; }, 1000);
+    const [u0, u1] = await Promise.all([gvUrl(src(tease || best)), tease ? gvUrl(src(best)) : Promise.resolve(null)]);
+    if (done) return;
+    v0.src = u0; if (u1) v1.src = u1;
+    A.sfx.heartbeat && A.sfx.heartbeat();
+    v0.classList.add('on');
+    v0.play().catch(() => end());
+    if (u1) { const t = setInterval(() => { if (done) { clearInterval(t); return; } if (v0.currentTime >= 3) { clearInterval(t); v1.currentTime = 3; v1.play().then(() => { v1.classList.add('on'); v0.classList.remove('on'); A.sfx.rise && A.sfx.rise(); fx.flash('#fff', 0.2); }).catch(() => {}); } }, 60); }
+    const main = () => (u1 && v1.classList.contains('on') ? v1 : v0);
+    const chk = setInterval(() => { if (done) { clearInterval(chk); return; } const v = main(); if (v.duration && v.currentTime >= v.duration - 0.35) { clearInterval(chk); end(); } }, 80);
+    setTimeout(() => end(), 10000);
+  });
+}
 async function doPull(n) {
   const p = P();
   const pay = (p.tickets | 0) >= n ? 'ticket' : 'coin';
@@ -2442,7 +2515,10 @@ async function doPull(n) {
   if (pay === 'coin' && p.coins < cost) { toast(`코인이 부족해요 (${fmt(cost)} 필요) · 모집권은 미션·시즌·출석에서!`); return; }
   const r = await liveAct(API.gacha(n, pay, app.guest));
   if (!r) return;
-  await gachaShow(r.results || []);
+  const list = r.results || [];
+  const best = list.some((x) => x.k === 'legendHero' || x.k === 'epicHero' || x.k === 'mythGear') ? 'gold' : list.some((x) => x.k === 't3Card' || x.k === 'legendGear' || x.k === 'epicGear') ? 'purple' : 'blue';
+  await gachaVideo('hero', best);
+  await gachaShow(list);
   refresh();
 }
 // 모집 결과: 카드가 한 장씩 뒤집힌다. 영웅·LEGEND 멤버는 큰 연출
@@ -2450,8 +2526,10 @@ function gachaShow(list) {
   return new Promise((resolve) => {
     const m = document.createElement('div');
     m.className = 'gacha-res';
+    const RANK = { legendHero: 9, mythGear: 8, epicHero: 7, legendGear: 6, t3Card: 5, epicGear: 4, rareGear: 3, t2Card: 2, shard10: 1, shard4: 0 };
+    if (list.length > 1) { const bi = list.reduce((b, x, i) => ((RANK[x.k] | 0) > (RANK[list[b].k] | 0) ? i : b), 0); const [bx] = list.splice(bi, 1); list.push(bx); list.bestLast = true; }
     const rar = (x) => (x.k === 'legendHero' ? 'lg' : x.k === 'epicHero' ? 'ep' : x.k === 't3Card' ? 'rgear' : x.k === 'mythGear' ? 'lg' : x.k === 'legendGear' ? 'lgear' : x.k === 'epicGear' ? 'egear' : x.k === 'rareGear' ? 'rgear' : 'sh');
-    m.innerHTML = `<div class="gr-grid n${list.length}">${list.map((x, i) => `<div class="gcard ${rar(x)}" style="--i:${i}"><div class="gc-in"><div class="gc-back">?</div><div class="gc-front">${gachaFace(x)}</div></div></div>`).join('')}</div>
+    m.innerHTML = `<div class="gr-grid n${list.length}">${list.map((x, i) => `<div class="gcard ${rar(x)} ${list.bestLast && i === list.length - 1 && (RANK[x.k] | 0) >= 5 ? 'best' : ''}" style="--i:${i}"><div class="gc-in"><div class="gc-back">?</div><div class="gc-front">${gachaFace(x)}${x.new ? '<i class="gc-new">NEW</i>' : ''}</div></div></div>`).join('')}</div>
       <button class="btn primary gr-ok" hidden>확인</button><p class="gr-skip">탭하면 빨리 넘어가요</p>`;
     stage.appendChild(m);
     const cards = [...m.querySelectorAll('.gcard')];
@@ -2462,6 +2540,7 @@ function gachaShow(list) {
       busy = true;
       while (i < cards.length) {
         const x = list[i], c = cards[i];
+        if (c.classList.contains('best') && !fast) { m.classList.add('slowmo'); await sleep(450); }
         c.classList.add('flip');
         A.sfx.card();
         if (x.card) { await sleep(fast ? 80 : 260); if (x.new) await showJoinReveal(x.hero, LEGEND_HEROES.includes(x.hero) ? 'legend' : 'epic'); else if (x.k === 'legendHero' || x.k === 'epicHero') A.sfx.levelUp(); }
@@ -2494,7 +2573,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const DEX_CATCH = {
   bangjang: '"공지! 오늘도 랑방은 내가 지킨다!"', staff: '"경고 한 번, 두 번… 세 번이면 아웃이에요."', gunman: '"건전하게, 정확하게."', gunnyeo: '"다친 사람 먼저! 입구는 제가 고칠게요."',
   myunghoon: '"#@!% … 아, 미안. 조용히 해 줄래?"', dohoon: '"앵콜! 앵콜! 마이크는 안 놔!"', ingyu: '"오 그거 근육 자극 좋다."', donghan: '"…이제 좀 해볼까?"', youngjun: '"들어간다. 따라오지 마."',
-  eunok: '"한 잔만… 딱 한 잔만 할게."', hanna: '"윙크 ♥ 받을 준비 됐어?"', sunggu: '"요즘 것들은… 내가 보여 주마."', junseo: '"잠깐, 내 친구 소개해 줄게!"', hyungyeong: '"다이어트는 내일부터! 오늘은 박치기!"',
+  eunok: '"한 잔만… 딱 한 잔만 할게."', hanna: '"윙크 받을 준비 됐어?"', sunggu: '"요즘 것들은… 내가 보여 주마."', junseo: '"잠깐, 내 친구 소개해 줄게!"', hyungyeong: '"다이어트는 내일부터! 오늘은 박치기!"',
   ara: '"공주님 등장~ 아이고 허리야…"', hochan: '"랑방을 위하여!!"',
   soyoung: '"그러니까 내가 뭐랬어!"', jieun: '"…시간아 멈춰라."', sanghwa: '"좋은남자 박상화!"', jungmin: '"가만있어 봐, 붙여 줄게."',
 };
@@ -2534,7 +2613,7 @@ function showReveal(id, kind) {
     const word = kind === 'legend' ? 'LEGEND!!' : kind === 'hidden' ? 'HIDDEN 등장!' : kind === 'epic' ? '영웅 등장!' : '새 멤버!';
     const conf = Array.from({ length: rm ? 0 : 26 }, (_, i) => `<i style="--i:${i};--x:${(i * 41) % 100}%;--r:${(i * 67) % 360}deg"></i>`).join('');
     m.innerHTML = `<div class="rv-pillar"></div><div class="rv-burst"></div><div class="rv-conf">${conf}</div>
-      <div class="rv-card"><div class="rv-in"><div class="rv-back">${kind === 'legend' ? '👑' : '✨'}</div><div class="rv-front">${hqSrc(id) ? `<img class="rv-hq" src="${hqSrc(id)}" alt="" draggable="false">` : av(d)}${kind === 'legend' ? '<span class="rv-crown">👑</span>' : ''}</div></div></div>
+      <div class="rv-card"><div class="rv-in"><div class="rv-back">${kind === 'legend' ? '' : ''}</div><div class="rv-front">${hqSrc(id) ? `<img class="rv-hq" src="${hqSrc(id)}" alt="" draggable="false">` : av(d)}${kind === 'legend' ? '<span class="rv-crown"></span>' : ''}</div></div></div>
       <div class="rv-word">${word}</div><div class="rv-name">${d.name}<small>${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small></div><p class="rv-skip">탭해서 넘기기</p>`;
     stage.appendChild(m);
     A.sfx.reveal && A.sfx.reveal(kind);
@@ -2650,7 +2729,7 @@ function showGlossary() {
   popup(`<h3>한눈에 보기</h3><h4 class="gl-h">속성</h4>${attrRows}<h4 class="gl-h">역할</h4>${roleRows}<h4 class="gl-h">등급</h4>${tierRows}<p class="ip">배지나 칩을 꾹 누르면 설명이 떠요</p>`, 'pp-gloss');
   void wheel;
 }
-const ROLE_CHIPS = [['all', '전체'], ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LEGEND'], ['a:talk', '🗣️ 말빨'], ['a:power', '👊 힘'], ['a:charm', '💖 매력'], ['a:booze', '🍶 술'], ['splash', '💥 범위'], ['boss', '🎯 한 방'], ['ctrl', '🌀 제어'], ['heal', '💚 회복']];
+const ROLE_CHIPS = [['all', '전체'], ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LEGEND'], ['a:talk', '말빨'], ['a:power', '힘'], ['a:charm', '매력'], ['a:booze', '술'], ['splash', '범위'], ['boss', '한 방'], ['ctrl', '제어'], ['heal', '회복']];
 function refPower(p) { // 비교 기준: 다음 스테이지 추천 전투력 (기본 멤버 4명 · 그 스테이지쯤 강화)
   const s = nextStage(), m = Math.round(s * 0.25);
   const q = Object.assign({}, p, { heroes: Object.fromEntries(['bangjang', 'staff', 'gunman', 'gunnyeo'].map((h) => [h, m])), equip: {}, hstars: {} });
@@ -2662,14 +2741,14 @@ function showDeckTab() {
   fixDeck();
   const p = P();
   const max = deckSlotsNow();
-  const ids = curDeck().filter(Boolean);
+  const ids = deckList();
   const pw = deckPower(p, ids), ref = refPower(p);
   const diff = ref ? Math.round((pw / ref - 1) * 100) : 0;
   const slots = [];
   for (let i = 0; i < 6; i++) {
     const id = ids[i];
-    if (i >= max) { slots.push(`<button class="dk-lock" data-act="shop"><span>🔒</span><small>${i === max ? `${fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0])}` : ''}</small></button>`); continue; }
-    slots.push(id ? artCard(id, { act: 'deckRemove', cls: 'dk ' + (app.deckPop === id ? 'pop' : ''), extra: `<em class="dk-pw">${ic('swords', '', 'sm')}${fmt(heroPower(p, id))}</em>` }) : '<div class="dk-empty"><i>+</i><small>아래에서 골라요</small></div>');
+    if (i >= max) { slots.push(`<button class="dk-lock" data-act="shop"><span>${ic('lock', '', 'sm')}</span><small>${i === max ? `${fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0])}` : ''}</small></button>`); continue; }
+    slots.push(id ? `<span class="dk-s" data-dslot="${i}">${artCard(id, { act: 'deckRemove', cls: 'dk ' + (i === 0 ? 'lead ' : '') + (app.deckPop === id ? 'pop' : ''), extra: `<em class="dk-pw">${ic('swords', '', 'sm')}${fmt(heroPower(p, id))}</em>${i === 0 ? `<i class="pp-crown">${pimg(ui2('crown'))}</i>` : ''}` })}</span>` : `<div class="dk-empty" data-dslot="${i}"><i>+</i><small>아래에서 골라요</small></div>`);
   }
   app.deckPop = null;
   const f = app.deckFilter || 'all';
@@ -2682,13 +2761,13 @@ function showDeckTab() {
     ${subTop('멤버 강화')}
     <div class="dk-top">
       <div class="deck-tabs">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPresetT" data-k="${k}">덱 ${k + 1}</button>`).join('')}</div>
-      <button class="btn ghost auto" data-act="autoDeckT">✨ 추천 덱</button>
-    </div>
-    <div class="dk-power"><small>덱 전투력</small><b id="dkPow" data-from="${app.lastDeckPow || pw}" data-to="${pw}">${fmt(pw)}</b><em class="${diff >= 0 ? 'up' : 'down'}">다음 스테이지 추천보다 ${diff >= 0 ? '+' : ''}${diff}%</em></div>
+ <button class="btn ghost auto" data-act="autoDeckT">${ic('sparkle', '', 'sm')} 추천 덱</button>
+ </div>
+ <div class="dk-power"><small>덱 전투력</small><b id="dkPow" data-from="${app.lastDeckPow || pw}" data-to="${pw}">${fmt(pw)}</b><em class="${diff >= 0 ? 'up' : 'down'}">다음 스테이지 추천보다 ${diff >= 0 ? '+' : ''}${diff}%</em></div>
     <div class="dk-slots n${max}">${slots.join('')}</div>
-    <p class="sub">${ids.length}/${max}명 · 카드를 누르면 넣기/빼기 · 길게 누르면 자세히</p>
+    <p class="sub">${ids.length}/${max}명 · 누르면 넣기/빼기 · 끌어서 순서 · 1번 칸 = 대장</p>
     <div class="chips dk-chips">${ROLE_CHIPS.map(([k, n]) => `<button class="chip ${f === k ? 'on' : ''}" data-act="deckFilter" data-v="${k}" data-gl="${k.startsWith('a:') ? 'attr:' + k.slice(2) : ROLE_IC[k] ? 'role:' + k : /^t\d$/.test(k) ? 'tier:' + k.slice(1) : ''}">${k.startsWith('a:') ? attrIco(k.slice(2)) + ATTRS[k.slice(2)].name : ROLE_IC[k] ? `<img class="role-ic" src="/img/lb/ui2/${ROLE_IC[k]}.webp" alt="" draggable="false">${n.replace(/^\S+\s/, '')}` : n}</button>`).join('')}<button class="chip gl-open" data-act="glossary" aria-label="한눈에 보기">${ic('book', '', 'sm')}한눈에</button></div>
-    <div class="agrid three">${coll || '<div class="empty-state"><span>🙋</span><b>이 조건의 멤버가 없어요</b></div>'}</div>
+    <div class="agrid three">${coll || '<div class="empty-state"><span></span><b>이 조건의 멤버가 없어요</b></div>'}</div>
     ${navHtml('deck')}
   `, 'dim withnav deck-screen');
   // 전투력 숫자가 바뀌면 또르르
@@ -2745,7 +2824,7 @@ function showHeroModal(id, ctx = '') {
         ${statCard('swords', '공격력', fmt(Math.round(a.dmg)), cost !== null ? fmt(Math.round(b.dmg)) : null)}
         ${statCard('speed', '공격 속도', a.aps.toFixed(2), cost !== null ? b.aps.toFixed(2) : null, '/초')}
         ${statCard('target', '사거리', String(rg), null)}
-        ${statCard('shield', '상태이상 저항', res ? `-${Math.round(res * 100)}%` : '-', null)}
+        ${statCard('shield', '상태이상', res ? `${Math.round(res * 100)}% 덜 걸림` : '-', null)}
       </div>
       <div class="hs-cards">${ic('aug_card', '', 'sm')}<span>카드 <b>${p.shards[id] | 0}</b>장${p.wild ? ` + 범용 <b>${p.wild}</b>` : ''}</span><button class="hs-pill" data-act="cardWhere">${ic('map', '', 'sm')}얻는 곳</button></div>
       <div class="hs-btns solo">
@@ -2764,8 +2843,9 @@ function showHeroModal(id, ctx = '') {
   const strong = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) > 1), weak = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) < 1);
   const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>
       <div class="hs-skill">${ic('swords', '', '')}<span><small>기본 공격</small><b>${esc((w && w.item) || '기본 공격')}</b><p>${esc(d.attack)}</p></span></div>
-      <div class="hs-skill sk-ult">${ic('bolt', '', '')}<span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
+      <div class="hs-skill sk-ult"><img class="ic hs-skic" src="/img/lb/ui2/sk_${id}.webp" alt="" draggable="false"><span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
       ${w || ev ? `<div class="hs-tree"><span class="t0">${esc((w && w.item) || '기본')}</span><i></i><span class="t1">${ev ? esc(ev.name) : '진화'}</span></div>` : ''}
+      ${(HERO_TAGS[id] || []).filter((t) => ROLE_IC[t]).length ? `<div class="hs-match hs-roles"><span>${ic('target', '', 'sm')}역할</span>${(HERO_TAGS[id] || []).filter((t) => ROLE_IC[t]).map((t) => `<button class="gl-chip role-chip" data-gl="role:${t}"><img class="role-ic" src="/img/lb/ui2/${ROLE_IC[t]}.webp" alt="">${ROLE_TXT[t][0]}</button>`).join('')}</div>` : ''}
       <div class="hs-match"><span class="ok">${ic('check', '', 'sm')}강한 상대</span>${strong.map((c0) => `<button class="gl-chip" data-gl="cls:${c0}:${d.attr}">${clsTag(c0)}</button>`).join('') || '<small>없음</small>'}</div>
       <div class="hs-match"><span class="no">${ic('scale', '', 'sm')}약한 상대</span>${weak.map((c0) => `<button class="gl-chip" data-gl="cls:${c0}:${d.attr}">${clsTag(c0)}</button>`).join('') || '<small>없음</small>'}</div>
       <button class="hm-match ${m.cls}" data-gl="mul:${(m.v || 1).toFixed(2)}"><b>${m.arrow} 이번 스테이지 상성 ${m.text}</b><small>눌러서 설명</small></button>
@@ -2784,7 +2864,7 @@ function showHeroModal(id, ctx = '') {
     <div class="hf-head v2"><i class="tier t${t}">${TIER_NAME[t]}</i><span class="hn-attr" data-gl="attr:${d.attr}" style="--ac:${ATTRS[d.attr].color}">${attrIco(d.attr)}</span><b>${ok ? esc(d.name) : '???'}</b><small class="hn-role">${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small><span class="hn-stars">${Array.from({ length: L.STAR_MAX }, (_, k) => `<i class="${k < st ? 'on' : ''}">★</i>`).join('')}</span></div>
     <div class="hf-tabs v2">${[['info', '정보'], ['up', '강화'], ['gear', '장비']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-hf="tab" data-k="${k}">${n}</button>`).join('')}</div>
     <div class="hf-body">${ok ? body : `<p class="ip">${ic('lock', '', 'sm')} ${esc(heroHow(id))}</p>${body}`}</div>
-    <div class="hf-foot ${tab === 'up' && ok ? 'up' : ''}">${tab === 'up' && ok && app._hsUp && app._hsUp.id === id ? (() => { const u = app._hsUp; return `<button class="btn ghost hf-deck" data-act="deckToggle" data-id="${id}">${inDeck ? '덱에서 빼기' : '덱에 넣기'}</button><button class="hs-up ${u.can ? '' : 'dim'}" data-act="buy" data-id="${id}" data-pw="${u.pw}" ${u.can ? '' : 'disabled'}><i class="gb-shine"></i><b>${u.cost === null ? 'MAX' : `강화 +${u.lv + 1}`}</b>${u.cost === null ? '' : `<span class="hs-cost">${u.free ? '공짜' : `<i class="ci"></i>${fmt(u.cost)} · ${ic('aug_card', '', 'sm')}${Math.min(u.have, 99)}/${u.cn}`}</span>`}</button>`; })() : `${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">${ic('ic_dex', '', 'sm')}도감</button>`}</div>`;
+    <div class="hf-foot ${tab === 'up' && ok ? 'up' : ''}">${tab === 'up' && ok && app._hsUp && app._hsUp.id === id ? (() => { const u = app._hsUp; return `<button class="btn ghost hf-deck" data-act="${inDeck && deckList()[0] !== id ? 'edLead' : 'deckToggle'}" data-id="${id}">${inDeck ? (deckList()[0] === id ? '덱에서 빼기' : '대장으로') : '덱에 넣기'}</button><button class="hs-up ${u.can ? '' : 'dim'}" data-act="buy" data-id="${id}" data-pw="${u.pw}" ${u.can ? '' : 'disabled'}><i class="gb-shine"></i><b>${u.cost === null ? 'MAX' : `강화 +${u.lv + 1}`}</b>${u.cost === null ? '' : `<span class="hs-cost">${u.free ? '공짜' : `<i class="ci"></i>${fmt(u.cost)} · ${ic('aug_card', '', 'sm')}카드 ${u.cn}장 <small>(보유 ${u.have})</small>`}</span>`}</button>`; })() : `${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">${ic('ic_dex', '', 'sm')}도감</button>`}</div>`;
   stage.appendChild(box);
   // 최적 장비: 길게 누르면 "다른 멤버 것 포함"
   const ab = box.querySelector('[data-hf="auto"]');
@@ -2850,14 +2930,14 @@ function showMissions() {
   const tab = app.misTab || 'daily';
   const row = (m) => {
     const ready = !m.done && (m.ready !== undefined ? m.ready : m.have >= m.n);
-    const rw = [m.coins ? `${fmt(m.coins)}코인` : '', m.tickets ? `🎟️${m.tickets}` : '', m.wild ? `🃏${m.wild}` : '', m.sp ? `⭐${m.sp}` : '', m.title ? '🏷️칭호' : ''].filter(Boolean).join(' ');
+    const rw = [m.coins ? `${fmt(m.coins)}코인` : '', m.tickets ? `${m.tickets}` : '', m.wild ? `${m.wild}` : '', m.sp ? `${m.sp}` : '', m.title ? '칭호' : ''].filter(Boolean).join(' ');
     return `<div class="mrow ${m.done ? 'done' : ready ? 'ready' : ''}"><span class="mi">${m.icon}</span><div class="mm"><b>${esc(m.name)}</b>
       <div class="pbar"><div style="width:${Math.round((Math.min(m.have, m.n) / m.n) * 100)}%"></div><em>${fmt(Math.min(m.have, m.n))}/${fmt(m.n)}</em></div><small>${rw}</small></div>
       <button class="btn ${ready ? 'primary' : ''}" data-act="claimMis" data-kind="${m.kind}" data-id="${m.id}" ${ready ? '' : 'disabled'}>${m.done ? '완료' : ready ? '받기' : '진행 중'}</button></div>`;
   };
   let body;
-  if (tab === 'daily') body = `<p class="sub">⏰ 초기화까지 ${L.leftText(v.dayLeft)}</p>${row(v.all)}${v.daily.map(row).join('')}`;
-  else if (tab === 'weekly') body = `<p class="sub">⏰ 초기화까지 ${L.leftText(v.weekLeft)}</p>${v.weekly.map(row).join('')}`;
+  if (tab === 'daily') body = `<p class="sub">${ic('clock', '', 'sm')}초기화까지 ${L.leftText(v.dayLeft)}</p>${row(v.all)}${v.daily.map(row).join('')}`;
+  else if (tab === 'weekly') body = `<p class="sub">${ic('clock', '', 'sm')}초기화까지 ${L.leftText(v.weekLeft)}</p>${v.weekly.map(row).join('')}`;
   else body = `<p class="sub">한 번만 받는 업적 보상</p>${v.ach.map(row).join('')}`;
   const cnt = (list) => list.filter((m) => !m.done && m.have >= m.n).length;
   const nTab = { daily: cnt(v.daily) + (v.all.ready && !v.all.done ? 1 : 0), weekly: cnt(v.weekly), ach: cnt(v.ach) };
@@ -2866,7 +2946,7 @@ function showMissions() {
     <div class="topbar"><button class="back" data-act="menu">‹ 로비</button>${nAll > 1 && nAll > nTab[tab] ? `<button class="btn mini pink claim-all" data-act="claimAllMis" data-tab="all">전체 모두 받기 (${nAll})</button>` : ''}</div>
     <h2 class="title sub-title">미션</h2>
     <div class="tabs">${[['daily', '일일', cnt(v.daily) + (v.all.ready && !v.all.done ? 1 : 0)], ['weekly', '주간', cnt(v.weekly)], ['ach', '업적', cnt(v.ach)]].map(([k, n, c]) => `<button class="${tab === k ? 'on' : ''}" data-act="misTab" data-tab="${k}">${n}${c ? `<i class="cnt">${c}</i>` : ''}</button>`).join('')}</div>
-    <button class="btn ${nTab[tab] ? 'primary' : ''} claim-tab" data-act="claimAllMis" data-tab="${tab}" ${nTab[tab] ? '' : 'disabled'}>🎁 모두 받기${nTab[tab] ? ` (${nTab[tab]})` : ''}</button>
+    <button class="btn ${nTab[tab] ? 'primary' : ''} claim-tab" data-act="claimAllMis" data-tab="${tab}" ${nTab[tab] ? '' : 'disabled'}>${ic('gift', '', 'sm')}모두 받기${nTab[tab] ? ` (${nTab[tab]})` : ''}</button>
     <div class="mlist">${body}</div>
   `, 'dim');
 }
@@ -2887,15 +2967,15 @@ function showSeason() {
     const ready = !got && t <= tier;
     const big = t % 10 === 0 || t % 5 === 0;
     return `<div class="srow ${got ? 'done' : ready ? 'ready' : t <= tier + 1 ? 'next' : ''} ${big ? 'big' : ''}"><span class="sn">${t}</span><span class="sr">${esc(rw.label)}</span>
-      <button class="btn ${ready ? 'primary' : ''}" data-act="claimSeason" data-t="${t}" ${ready ? '' : 'disabled'}>${got ? '✓' : ready ? '받기' : '🔒'}</button></div>`;
+      <button class="btn ${ready ? 'primary' : ''}" data-act="claimSeason" data-t="${t}" ${ready ? '' : 'disabled'}>${got ? '✓' : ready ? '받기' : ''}</button></div>`;
   }).join('');
   show(`
     ${topPills()}
-    <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
-    <h2 class="title">🏆 시즌 ${s.id} 무료 보상</h2>
-    <p class="sub">남은 시간 ${L.leftText(left)} · 미션·주간 도전으로 시즌 포인트(⭐)를 모아요</p>
-    <div class="season-bar"><b>단계 ${tier}/${L.SEASON_TIERS}</b><div class="pbar"><div style="width:${tier >= L.SEASON_TIERS ? 100 : (inTier / L.SP_PER_TIER) * 100}%"></div><em>⭐ ${inTier}/${L.SP_PER_TIER}</em></div></div>
-    ${(() => { const n = Array.from({ length: tier }, (_, i) => i + 1).filter((t) => !s.claimed.includes(t)).length; return `<button class="btn primary" data-act="claimSeason" data-t="all" ${n ? '' : 'disabled'}>🎁 모두 받기${n ? ` (${n})` : ''}</button>`; })()}
+ <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
+ <h2 class="title">${ic('trophy', '', 'sm')} 시즌 ${s.id} 무료 보상</h2>
+    <p class="sub">남은 시간 ${L.leftText(left)} · 미션·주간 도전으로 시즌 포인트(${ic('star_gold', '', 'sm')})를 모아요</p>
+ <div class="season-bar"><b>단계 ${tier}/${L.SEASON_TIERS}</b><div class="pbar"><div style="width:${tier >= L.SEASON_TIERS ? 100 : (inTier / L.SP_PER_TIER) * 100}%"></div><em>${ic('star_gold', '', 'sm')}${inTier}/${L.SP_PER_TIER}</em></div></div>
+    ${(() => { const n = Array.from({ length: tier }, (_, i) => i + 1).filter((t) => !s.claimed.includes(t)).length; return `<button class="btn primary" data-act="claimSeason" data-t="all" ${n ? '' : 'disabled'}>${ic('gift', '', 'sm')}모두 받기${n ? ` (${n})` : ''}</button>`; })()}
     <div class="gap"></div>
     <div class="slist">${rows}</div>
   `, 'dim');
@@ -2914,24 +2994,24 @@ async function showWeekly() {
   const bosses = def.bosses.map((b) => `<span class="wb" title="${esc(ENEMIES[b].name)}">${av(ENEMIES[b])}<small>${esc(shortName(b))}</small></span>`).join('');
   const my = p.weekly && p.weekly.wi === wi ? p.weekly : null;
   const render = (bd) => {
-    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin">⏳</span> 순위 불러오는 중…'}</div>`;
+    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['', '', ''][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin"></span> 순위 불러오는 중…'}</div>`;
     const prev = bd && bd.prev;
     const prevBox = prev ? `<div class="panel wprev"><b>지난주 결과: ${prev.rank ? `${prev.rank}위` : '-'} · ${fmt(prev.best)}점</b><small>${prev.reward ? esc(prev.reward.label) + ' · ' + gotText(prev.reward) : ''}</small>
       <button class="btn ${prev.claimed ? '' : 'primary'}" data-act="weeklyClaim" ${prev.claimed ? 'disabled' : ''}>${prev.claimed ? '받았어요' : '보상 받기'}</button></div>` : '';
     show(`
       ${topPills()}
-      <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
-      <h2 class="title">📅 주간 도전전</h2>
-      <p class="sub">${L.weekLabel(wi)} · 끝까지 ${L.leftText(L.msToWeekEnd())} · 몇 번이든 도전, 최고 점수가 남아요</p>
+ <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
+ <h2 class="title">${ic('calendar', '', 'sm')} 주간 도전전</h2>
+ <p class="sub">${L.weekLabel(wi)} · 끝까지 ${L.leftText(L.msToWeekEnd())} · 몇 번이든 도전, 최고 점수가 남아요</p>
       <div class="wmod"><span class="wi">${mod.icon}</span><div><b>${esc(mod.name)}</b><small>${esc(mod.desc)}</small><small>${fxd.icon} ${esc(fxd.name)} · ${L.WEEKLY_WAVES}웨이브 · 뒤로 갈수록 확 세져요</small></div></div>
       <div class="wbosses">${bosses}</div>
       <div class="wmy"><div><small>내 최고</small><b>${fmt(my ? my.best : 0)}</b></div><div><small>순위</small><b>${bd && bd.me && bd.me.rank ? `${bd.me.rank}위` : '-'}</b></div><div><small>도전</small><b>${my ? my.runs : 0}회</b></div></div>
       ${prevBox}
-      <button class="btn primary" data-act="weeklyGo">도전! <small>점수 = 웨이브×1000 + 처치×10 + 보스×500 + 클리어 보너스</small></button>
-      <div class="gap"></div>
-      <div class="panel wboard"><h4>🏆 이번 주 순위 ${bd ? `<small>${bd.total}명 참가</small>` : ''}</h4>${board}</div>
-      <p class="sub" style="margin-top:8px">순위 보상 (다음 주에 받기): 1위 5,000코인·🎟️5·영웅 장비·칭호 / 2~3위 3,000코인·🎟️3 / 4~10위 1,500코인·🎟️2 / 참가 600코인·🎟️1</p>
-    `, 'dim');
+ <button class="btn primary" data-act="weeklyGo">도전! <small>점수 = 웨이브×1000 + 처치×10 + 보스×500 + 클리어 보너스</small></button>
+ <div class="gap"></div>
+ <div class="panel wboard"><h4>${ic('trophy', '', 'sm')} 이번 주 순위 ${bd ? `<small>${bd.total}명 참가</small>` : ''}</h4>${board}</div>
+ <p class="sub" style="margin-top:8px">순위 보상 (다음 주에 받기): 1위 5,000코인·${ic('ticket', '', 'sm')}5·영웅 장비·칭호 / 2~3위 3,000코인·${ic('ticket', '', 'sm')}3 / 4~10위 1,500코인·${ic('ticket', '', 'sm')}2 / 참가 600코인·${ic('ticket', '', 'sm')}1</p>
+ `, 'dim');
   };
   render(null);
   if (!app.guest) {
@@ -2947,20 +3027,20 @@ function showCheckin() {
   const days = L.CHECKIN.map((rw, i) => {
     const got = i < st.streak % 7 || (st.done && i === (st.streak - 1) % 7);
     const today = !st.done && i === st.streak % 7;
-    return `<div class="cday ${got ? 'got' : ''} ${today ? 'today' : ''}"><small>${i + 1}일</small><b>${rw.tickets ? '🎟️' : '<i class="ci big"></i>'}</b><em>${rw.tickets ? `${fmt(rw.coins)}+🎟️${rw.tickets}` : fmt(rw.coins)}</em></div>`;
+    return `<div class="cday ${got ? 'got' : ''} ${today ? 'today' : ''}"><small>${i + 1}일</small><b>${rw.tickets ? '' : '<i class="ci big"></i>'}</b><em>${rw.tickets ? `${fmt(rw.coins)}+${rw.tickets}` : fmt(rw.coins)}</em></div>`;
   }).join('');
-  popup(`<h3>📆 출석 체크</h3><p class="ip">매일 들어오면 보상! 하루 빠지면 1일부터 다시 (연속 ${st.streak}일)</p><div class="cdays">${days}</div>
+  popup(`<h3>${ic('calendar', '', 'sm')}출석 체크</h3><p class="ip">매일 들어오면 보상! 하루 빠지면 1일부터 다시 (연속 ${st.streak}일)</p><div class="cdays">${days}</div>
     <button class="btn primary" data-act="doCheckin" ${st.done ? 'disabled' : ''}>${st.done ? '내일 또 만나요' : '출석하기'}</button>`);
 }
 const NOTICES = [
-  ['🆕', '새 멤버 4명!', '윤준서 · 배현경 · 고아라, 그리고 LEGEND 이호찬 — 상점 → 모집에서 만나요'],
-  ['📅', '주간 도전전', '매주 월요일 새 판! 모두 같은 판으로 점수 경쟁, 순위 보상은 다음 주에'],
-  ['📜', '미션 · 업적 · 시즌', '일일/주간 미션과 무료 시즌(30단계)으로 모집권·장비·칭호를 받아요'],
-  ['🃏', '덱 칸 변경', `기본 덱 ${DECK_BASE}칸 · 5·6번째 칸은 상점 아이템에서 (예전에 산 칸은 한 칸씩 남아요)`],
-  ['⚔️', '상성 강화', `유리한 속성 ×${TYPE_STRONG} · 불리한 속성 ×${TYPE_WEAK} — 덱 짤 때 ▲▼ 를 보세요`],
+  ['', '새 멤버 4명!', '윤준서 · 배현경 · 고아라, 그리고 LEGEND 이호찬 — 상점 → 모집에서 만나요'],
+  ['', '주간 도전전', '매주 월요일 새 판! 모두 같은 판으로 점수 경쟁, 순위 보상은 다음 주에'],
+  ['', '미션 · 업적 · 시즌', '일일/주간 미션과 무료 시즌(30단계)으로 모집권·장비·칭호를 받아요'],
+  ['', '덱 칸 변경', `기본 덱 ${DECK_BASE}칸 · 5·6번째 칸은 상점 아이템에서 (예전에 산 칸은 한 칸씩 남아요)`],
+  ['', '상성 강화', `유리한 속성 ×${TYPE_STRONG} · 불리한 속성 ×${TYPE_WEAK} — 덱 짤 때 ▲▼ 를 보세요`],
 ];
 function showNotice() {
-  popup(`<h3>📮 공지</h3><div class="nlist">${NOTICES.map(([i, t, d]) => `<div class="nrow"><span>${i}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></div>`).join('')}</div>`);
+  popup(`<h3>${ic('mail', '', 'sm')}공지</h3><div class="nlist">${NOTICES.map(([i, t, d]) => `<div class="nrow"><span>${i}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></div>`).join('')}</div>`);
 }
 // 꾸미기: 칭호 · 프레임 전부 (가진 것 · 잠긴 것 · 얻는 법) + 내 카드 미리 보기
 function cosmList() {
@@ -2977,14 +3057,14 @@ function showCosmetics() {
     const on = tab === 'title' ? p.title === id : p.frame === id, have = own.has(id);
     const r = L.cosmeticRarity(tab, id);
     const face = tab === 'title' ? `<u class="tchip r-${r}">${esc(L.titleName(id))}</u>` : `<span class="ava framed ${frameCls(id)}" style="${frameStyle(id)}">${av(HEROES.bangjang)}</span><b>${esc(L.FRAMES[id].name)}</b>`;
-    return `<div class="cosm-row ${have ? '' : 'lock'} ${on ? 'on' : ''}">${face}<small>${have ? (on ? '장착 중' : '보유') : '🔒 ' + esc(how(id))}</small>${have ? `<button class="btn mini ${on ? '' : 'primary'}" data-act="${tab === 'title' ? 'setTitle' : 'setFrame'}" data-v="${on ? '' : id}">${on ? '빼기' : '장착'}</button>` : ''}</div>`;
+    return `<div class="cosm-row ${have ? '' : 'lock'} ${on ? 'on' : ''}">${face}<small>${have ? (on ? '장착 중' : '보유') : '' + esc(how(id))}</small>${have ? `<button class="btn mini ${on ? '' : 'primary'}" data-act="${tab === 'title' ? 'setTitle' : 'setFrame'}" data-v="${on ? '' : id}">${on ? '빼기' : '장착'}</button>` : ''}</div>`;
   }).join('');
   const nT = (p.titles || []).length, nF = (p.frames || []).length;
-  popup(`<h3>🎨 꾸미기</h3>
-    <div class="cosm-preview"><span class="ava framed ${frameCls(p.frame)}" style="${frameStyle(p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', p.title)}<small>랭킹 · 대전 · 방 목록에서 이렇게 보여요</small></div></div>
+  popup(`<h3>${ic('frame', '', 'sm')} 꾸미기</h3>
+ <div class="cosm-preview"><span class="ava framed ${frameCls(p.frame)}" style="${frameStyle(p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', p.title)}<small>랭킹 · 대전 · 방 목록에서 이렇게 보여요</small></div></div>
     <p class="ip">모은 칭호 <b>${nT}</b> · 프레임 <b>${nF}</b> — 치장은 능력치가 없어요 (대전은 공정하게)</p>
-    <div class="tabs"><button class="${tab === 'title' ? 'on' : ''}" data-act="cosmTab" data-v="title">🏷️ 칭호</button><button class="${tab === 'frame' ? 'on' : ''}" data-act="cosmTab" data-v="frame">🖼️ 프레임</button></div>
-    <div class="cosm-list">${rows}</div>`, 'cosm');
+    <div class="tabs"><button class="${tab === 'title' ? 'on' : ''}" data-act="cosmTab" data-v="title">${ic('tag', '', 'sm')}칭호</button><button class="${tab === 'frame' ? 'on' : ''}" data-act="cosmTab" data-v="frame">${ic('frame', '', 'sm')} 프레임</button></div>
+ <div class="cosm-list">${rows}</div>`, 'cosm');
 }
 // 새로 얻은 칭호 · 프레임 알림 (한 번) → 바로 장착
 function cosmNewCheck() {
@@ -2997,7 +3077,7 @@ function cosmNewCheck() {
   try { localStorage.setItem('langbang:cosmSeen', JSON.stringify(now)); } catch { /* 무시 */ }
   const [k, id] = fresh[0].split(/:(.*)/);
   const name = k === 't' ? L.titleName(id) : L.FRAMES[id].name;
-  popup(`<h3>✨ 새 ${k === 't' ? '칭호' : '프레임'} 획득!</h3><p class="ip big-got">${k === 't' ? titleChip(id) : `<span class="ava framed ${frameCls(id)}" style="${frameStyle(id)}">${av(HEROES.bangjang)}</span> ${esc(name)}`}</p>${fresh.length > 1 ? `<p class="ip">외 ${fresh.length - 1}개 더</p>` : ''}<div class="grid2"><button class="btn" data-x>나중에</button><button class="btn primary" data-act="${k === 't' ? 'setTitle' : 'setFrame'}" data-v="${id}">바로 장착</button></div>`, 'cosm-new');
+  popup(`<h3>${ic('sparkle', '', 'sm')}새 ${k === 't' ? '칭호' : '프레임'} 획득!</h3><p class="ip big-got">${k === 't' ? titleChip(id) : `<span class="ava framed ${frameCls(id)}" style="${frameStyle(id)}">${av(HEROES.bangjang)}</span> ${esc(name)}`}</p>${fresh.length > 1 ? `<p class="ip">외 ${fresh.length - 1}개 더</p>` : ''}<div class="grid2"><button class="btn" data-x>나중에</button><button class="btn primary" data-act="${k === 't' ? 'setTitle' : 'setFrame'}" data-v="${id}">바로 장착</button></div>`, 'cosm-new');
 }
 // 설정: 계정 카드 · 소리 · 화면·연출 · 게임 · 꾸미기 · 지원 (한 줄 = 그림 · 이름 · 짧은 설명 한 줄 · 오른쪽 조작)
 function setGwPref(k, v) { try { const o = JSON.parse(localStorage.getItem('gw:settings') || '{}'); o[k] = !!v; localStorage.setItem('gw:settings', JSON.stringify(o)); } catch { /* 무시 */ } }
@@ -3031,12 +3111,12 @@ function showSettings() {
       ${row('book', '게임 방법', '', '<button class="st-go" data-act="howto" aria-label="게임 방법"></button>')}
       ${row('home', '게임월드로', '', '<button class="st-go" data-act="toHub" aria-label="게임월드로"></button>')}
     </section>
-        ${p.master ? `<div class="master-panel"><h4>🛠️ 마스터 테스트 도구 <small>(서버 확인 · 랭킹 제외)</small></h4>
-      <div class="set-row"><span>🧪 일반 유저처럼 테스트 <small>켜면 코인·강화·합성 비용과 확률이 보통 유저와 같아요</small></span><button class="btn ghost" data-act="mst" data-a="testNormal">${p.testNormal ? '✅ 켜짐' : '꺼짐'}</button></div>
-      <div class="grid2"><button class="btn mini" data-act="mst" data-a="coins">코인 +10만</button><button class="btn mini" data-act="mst" data-a="tickets">모집권 +100</button><button class="btn mini" data-act="mst" data-a="stones">💎 강화석 +50</button></div>
-      <div class="set-row"><span>강화 Lv</span><input id="mstLv" type="number" min="0" max="20" value="20"><label><input id="mstStar" type="checkbox" checked> ★5</label></div>
-      <button class="btn primary mini" data-act="mst" data-a="allclear">⚡ 올클리어 (전 스테이지 ★★★ · 전 멤버 · 장비 · 코인)</button>
-      <div class="set-row"><span>진행</span><input id="mstStage" type="number" min="0" max="${STAGE_COUNT}" value="10"><button class="btn mini" data-act="mst" data-a="stage">여기까지 클리어</button></div>
+        ${p.master ? `<div class="master-panel"><h4>${ic('tools', '', 'sm')} 마스터 테스트 도구 <small>(서버 확인 · 랭킹 제외)</small></h4>
+ <div class="set-row"><span>${ic('flask2', '', 'sm')} 일반 유저처럼 테스트 <small>켜면 코인·강화·합성 비용과 확률이 보통 유저와 같아요</small></span><button class="btn ghost" data-act="mst" data-a="testNormal">${p.testNormal ? '켜짐' : '꺼짐'}</button></div>
+ <div class="grid2"><button class="btn mini" data-act="mst" data-a="coins">코인 +10만</button><button class="btn mini" data-act="mst" data-a="tickets">모집권 +100</button><button class="btn mini" data-act="mst" data-a="stones">${ic('gem', '', 'sm')} 강화석 +50</button></div>
+ <div class="set-row"><span>강화 Lv</span><input id="mstLv"type="number"min="0"max="20"value="20"><label><input id="mstStar"type="checkbox"checked> ★5</label></div>
+ <button class="btn primary mini" data-act="mst" data-a="allclear">${ic('bolt', '', 'sm')} 올클리어 (전 스테이지 ★★★ · 전 멤버 · 장비 · 코인)</button>
+ <div class="set-row"><span>진행</span><input id="mstStage"type="number"min="0"max="${STAGE_COUNT}" value="10"><button class="btn mini" data-act="mst" data-a="stage">여기까지 클리어</button></div>
       <div class="set-row"><span>테스트 판</span><select id="mstEnemy">${Object.keys(ENEMIES).filter((k) => !ENEMIES[k].dot).map((k) => `<option value="${k}">${esc(ENEMIES[k].name)}</option>`).join('')}</select><button class="btn mini" data-act="mstWave">소환</button></div>
       <button class="btn danger mini" data-act="mst" data-a="reset">초기화 (신규 유저 상태로)</button></div>` : ''}
     <p class="st-ver">랑방 대전 · ${esc(ver)}</p>`, 'pp-set st-v2');
@@ -3047,7 +3127,7 @@ async function claimChestAct(ch, n) {
   const r = await liveAct(API.claimChest(ch, n, app.guest));
   if (!r) return;
   A.sfx.levelUp(); fx.flash('#ffd23f', 0.35);
-  toast(`🎁 ${ch}장 ★${n} 상자! ${gotText(r.got)}`, 3000);
+  toast(`${ch}장 ★${n} 상자! ${gotText(r.got)}`, 3000);
   if (app.screen === 'stages') showStages(); else showMenu();
 }
 
@@ -3061,12 +3141,12 @@ Object.assign(ACTS, {
   season: () => showSeason(),
   recruit: () => { app.shopTab = 'recruit'; showShop(); },
   checkin: () => showCheckin(),
-  doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`📆 출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
+  doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
   notice: () => showNotice(),
   mail: async () => { await Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {}); showMail(); },
-  mailGet: async (b) => { const r = await liveAct(API.mailClaim(b.dataset.id === 'all' ? 'all' : Number(b.dataset.id), app.guest)); if (r) { A.sfx.levelUp(); toast(`📮 ${r.n}개 받았어요 · ${gotText(r.got)}`, 2400); showMail(); refreshBehind(); } },
+  mailGet: async (b) => { const r = await liveAct(API.mailClaim(b.dataset.id === 'all' ? 'all' : Number(b.dataset.id), app.guest)); if (r) { A.sfx.levelUp(); toast(`${r.n}개 받았어요 · ${gotText(r.got)}`, 2400); showMail(); refreshBehind(); } },
   stamina: () => showStamina(),
-  staBuy: async () => { const r = await liveAct(API.staminaBuy(app.guest)); if (r) { toast(`⚡ 체력 +${L.STAMINA.buy.n}!`, 1400); showStamina(); refreshBehind(); } },
+  staBuy: async () => { const r = await liveAct(API.staminaBuy(app.guest)); if (r) { toast(`체력 +${L.STAMINA.buy.n}!`, 1400); showStamina(); refreshBehind(); } },
   rwInfo: (b) => { const f = REWARD_INFO[b.dataset.v]; if (f) popup(f() + '<button class="btn primary" data-x>알겠어요</button>', 'rw-info'); },
   toHub: () => { closeInfoCard(); leaveToHub(); },
   toLobby: async () => {
@@ -3092,8 +3172,8 @@ Object.assign(ACTS, {
     if (!r) return;
     if (a === 'reset') { try { localStorage.removeItem(DECK_KEY); localStorage.removeItem('langbang:gearSeen'); } catch { /* 무시 */ } app.decks = [[], [], []]; }
     app.lobbyStage = 0;
-    if (a === 'testNormal') { toast(P().testNormal ? '🧪 일반 유저처럼: 비용·확률이 보통으로' : '🛠️ 마스터 모드로 돌아왔어요'); showSettings(); return; }
-    toast(`🛠️ ${{ coins: '코인 지급', tickets: '모집권 지급', stones: '강화석 지급', allclear: '올클리어!', stage: '진행 설정', reset: '초기화했어요' }[a] || '완료'}`, 1800);
+    if (a === 'testNormal') { toast(P().testNormal ? '일반 유저처럼: 비용·확률이 보통으로' : '마스터 모드로 돌아왔어요'); showSettings(); return; }
+    toast(`${{ coins: '코인 지급', tickets: '모집권 지급', stones: '강화석 지급', allclear: '올클리어!', stage: '진행 설정', reset: '초기화했어요' }[a] || '완료'}`, 1800);
     closeInfoCard();
     showMenu();
   },
@@ -3106,7 +3186,7 @@ Object.assign(ACTS, {
       app.debugRun = true;
       g.god = true;
       for (let i = 0; i < (ENEMIES[type].boss || ENEMIES[type].mid ? 1 : 8); i++) S.spawnEnemy(g, type, 40 + i * 38, 60 + (i % 3) * 30);
-      toast(`🛠️ 테스트: ${ENEMIES[type].name} 소환 (무적 · 기록 저장 안 함)`, 2200);
+      toast(`테스트: ${ENEMIES[type].name} 소환 (무적 · 기록 저장 안 함)`, 2200);
     });
   },
   settings: () => showSettings(),
@@ -3121,15 +3201,17 @@ Object.assign(ACTS, {
     claimChestAct(ch, n);
   },
   pull: (b) => doPull(Number(b.dataset.n)),
+  gpull: (b) => doGearPull(Number(b.dataset.n)),
+  grates: () => showGearRates(),
   rates: () => showRates(),
   itemInfo: (b) => showItemInfo(b.dataset.id),
   heroCard: (b) => showHeroModal(b.dataset.id, app.screen === 'prep' ? 'prep' : ''),
   starUp: (b) => doStarUp(b.dataset.id),
   misTab: (b) => { app.misTab = b.dataset.tab; showMissions(); },
-  cardWhere: () => popup(`<h3>🃏 멤버 카드 얻는 곳</h3><div class="ilist"><p class="ip">🎰 <b>모집</b> — 멤버 조각 ×4 · ×10 (가진 멤버에게)</p><p class="ip">🗺️ <b>스테이지</b> — 데려간 멤버 카드가 가끔 (별 많을수록 · 헬은 2배)</p><p class="ip">🛍️ <b>상점 선택권</b> — 고른 멤버 ${CARD_PICK.n}장 · 주 ${CARD_PICK.perWeek}번</p><p class="ip">🔁 <b>범용 카드</b> — 다 키운 멤버의 남는 카드를 바꾸면 누구 강화에나 써요</p></div><button class="btn primary" data-x>알겠어요</button>`, 'card-where'),
-  cardPickOpen: () => popup(`<h3>🃏 누구 카드를 받을까요?</h3><div class="cp-grid">${owned().map((h) => `<button class="cp-h" data-act="cardPickGo" data-id="${h}">${av(HEROES[h])}<b>${esc(HEROES[h].name)}</b><small>🃏${P().shards[h] | 0}</small></button>`).join('')}</div>`, 'card-pick'),
-  cardPickGo: async (b) => { const r = await liveAct(API.cardPick(b.dataset.id, app.guest)); if (r) { closeInfoCard(); toast(`🃏 ${HEROES[b.dataset.id].name} 카드 +${CARD_PICK.n}`); refresh(); } },
-  cardConvert: async () => { const r = await liveAct(API.cardConvert(app.guest)); if (r) { toast(`🔁 범용 카드 ${P().wild | 0}장`); refresh(); } },
+  cardWhere: () => popup(`<h3>${ic('card_common', '', 'sm')}멤버 카드 얻는 곳</h3><div class="ilist"><p class="ip">${ic('gacha', '', 'sm')}<b>모집</b> — 멤버 조각 ×4 · ×10 (가진 멤버에게)</p><p class="ip">${ic('map', '', 'sm')}<b>스테이지</b> — 데려간 멤버 카드가 가끔 (별 많을수록 · 헬은 2배)</p><p class="ip">${ic('shop', '', 'sm')}<b>상점 선택권</b> — 고른 멤버 ${CARD_PICK.n}장 · 주 ${CARD_PICK.perWeek}번</p><p class="ip">${ic('retry', '', 'sm')}<b>범용 카드</b> — 다 키운 멤버의 남는 카드를 바꾸면 누구 강화에나 써요</p></div><button class="btn primary"data-x>알겠어요</button>`, 'card-where'),
+  cardPickOpen: () => popup(`<h3>${ic('card_common', '', 'sm')}누구 카드를 받을까요?</h3><div class="cp-grid">${owned().map((h) => `<button class="cp-h" data-act="cardPickGo" data-id="${h}">${av(HEROES[h])}<b>${esc(HEROES[h].name)}</b><small>${ic('card_common', '', 'sm')}${P().shards[h] | 0}</small></button>`).join('')}</div>`, 'card-pick'),
+  cardPickGo: async (b) => { const r = await liveAct(API.cardPick(b.dataset.id, app.guest)); if (r) { closeInfoCard(); toast(`${HEROES[b.dataset.id].name} 카드 +${CARD_PICK.n}`); refresh(); } },
+  cardConvert: async () => { const r = await liveAct(API.cardConvert(app.guest)); if (r) { toast(`범용 카드 ${P().wild | 0}장`); refresh(); } },
   synMore: () => { app.synOpen = !app.synOpen; app.hudCache.syn = null; },
   bulkOn: () => { app.bulk = new Set(); app.fuse = null; app.bagSel = null; showBag(); },
   fuseOn: () => { app.bagTab = 'fuse'; app.fuse = []; app.bulk = null; app.bagSel = null; showBag(); },
@@ -3159,7 +3241,7 @@ Object.assign(ACTS, {
     app.fuse = null; showBag();
     const it = r.made, R0 = GEAR_RARITY[it.r];
     A.sfx.levelUp(); fx.flash(R0.color, 0.35);
-    popup(`<div class="fuse-reveal" style="--rc:${R0.color}"><span class="fr-ico">${gearIco(it)}</span><h3>⚗️ 합성 성공!</h3><p class="ip big-got" style="color:${R0.color}">${R0.name} · ${esc(GEAR[it.t].name)}${it.lv ? ` +${it.lv}` : ''}</p>${gearInfoHtml(it)}<button class="btn primary" data-x>좋아요</button></div>`, 'fuse-pop');
+    popup(`<div class="fuse-reveal" style="--rc:${R0.color}"><span class="fr-ico">${gearIco(it)}</span><h3>${ic('flask', '', 'sm')}합성 성공!</h3><p class="ip big-got" style="color:${R0.color}">${R0.name} · ${esc(GEAR[it.t].name)}${it.lv ? ` +${it.lv}` : ''}</p>${gearInfoHtml(it)}<button class="btn primary" data-x>좋아요</button></div>`, 'fuse-pop');
   },
   bulkDis: async () => {
     const p = P(), ids = [...app.bulk].filter((id) => !equippedBy(p, id) && !gearLocked().has(id));
@@ -3167,7 +3249,7 @@ Object.assign(ACTS, {
     const n = (p.gear || []).filter((g) => ids.includes(g.id)).reduce((a, it) => a + gearDismantle(it.r, it.lv), 0);
     if (!(await confirmBox({ title: `장비 ${ids.length}개를 분해할까요?`, sub: `강화석 +${n} · 되돌릴 수 없어요`, ok: '분해', cancel: '취소', danger: true }))) return;
     const r = await liveAct(API.dismantleGear(ids, app.guest));
-    if (r) toast(`💎 ${r.n}개 분해 · 강화석 +${r.stones}`);
+    if (r) toast(`${r.n}개 분해 · 강화석 +${r.stones}`);
     app.bulk = null; showBag();
   },
   bulkOff: () => { app.bulk = null; showBag(); },
@@ -3196,7 +3278,7 @@ Object.assign(ACTS, {
     const v = (p.gear || []).filter((g) => ids.includes(g.id)).reduce((a, it) => a + gearSellValue(it.r, it.lv), 0);
     if (!(await confirmBox({ title: `장비 ${ids.length}개를 팔까요?`, sub: `+${fmt(v)} 코인 · 되돌릴 수 없어요`, ok: '팔기', cancel: '취소', danger: true }))) return;
     const r = await liveAct(API.sellGearMany(ids, app.guest));
-    if (r) { A.sfx.coin && A.sfx.coin(); toast(`🧹 ${r.n}개 팔았어요 · +${fmt(r.sold)} 코인`); }
+    if (r) { A.sfx.coin && A.sfx.coin(); toast(`${r.n}개 팔았어요 · +${fmt(r.sold)} 코인`); }
     app.bulk = null; showBag();
   },
   rmT: () => { const v = !gwPref('reduceMotion'); setGwPref('reduceMotion', v); document.body.classList.toggle('rm', v); showSettings(); },
@@ -3206,11 +3288,11 @@ Object.assign(ACTS, {
   glossary: () => showGlossary(),
   autoCardsT: () => { app.autoCards = !app.autoCards; try { localStorage.setItem('langbang:autoCards', app.autoCards ? '1' : '0'); } catch { /* 무시 */ } showSettings(); },
   autoSellT: async () => { const r = await liveAct(API.setAutoSell(!P().autoSell, app.guest)); if (r) toast(P().autoSell ? '자동 판매 켬: 일반 등급 드롭은 바로 코인으로' : '자동 판매 끔'); showSettings(); },
-  statHelp: () => popup(`<h3>📖 능력치 용어 풀이</h3><div class="ilist">${Object.values(STAT_HELP).map(([n, d]) => `<p class="ip"><b>${esc(n)}</b> — ${esc(d)}</p>`).join('')}</div><button class="btn primary" data-x>알겠어요</button>`, 'stat-help'),
+  statHelp: () => popup(`<h3>${ic('book', '', 'sm')}능력치 용어 풀이</h3><div class="ilist">${Object.values(STAT_HELP).map(([n, d]) => `<p class="ip"><b>${esc(n)}</b> — ${esc(d)}</p>`).join('')}</div><button class="btn primary" data-x>알겠어요</button>`, 'stat-help'),
   claimAllMis: async (b) => {
     b.disabled = true;
     const r = await liveAct(API.claimAllMissions(b.dataset.tab, app.guest));
-    if (r) { A.sfx.levelUp(); fx.flash('#ffd23f', 0.2); popup(`<h3>🎁 모두 받았어요! (${r.n}개)</h3><p class="ip big-got">${esc(gotText(r.got))}</p><button class="btn primary" data-x>확인</button>`, 'claim-pop'); }
+    if (r) { A.sfx.levelUp(); fx.flash('#ffd23f', 0.2); popup(`<h3>${ic('gift', '', 'sm')}모두 받았어요! (${r.n}개)</h3><p class="ip big-got">${esc(gotText(r.got))}</p><button class="btn primary" data-x>확인</button>`, 'claim-pop'); }
     showMissions();
   },
   claimMis: async (b) => { const r = await liveAct(API.claimMission(b.dataset.kind, b.dataset.id, app.guest)); if (r) { A.sfx.levelUp(); toast(`보상! ${gotText(r.got)}`, 2400); showMissions(); } },
@@ -3227,7 +3309,7 @@ Object.assign(ACTS, {
   deckColl: (b) => { app.hmTab = API.heroUnlocked(P(), b.dataset.id) ? 'up' : 'info'; showHeroModal(b.dataset.id); }, // 강화 허브: 누르면 그 멤버 강화 화면 (덱은 출격 화면에서)
   deckFilter: (b) => { app.deckFilter = b.dataset.v; showDeckTab(); },
   deckPresetT: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckTab(); },
-  autoDeckT: () => { const ids = recommendTeam(nextStage(), owned(), deckSlotsNow()); app.decks[app.deckI] = placeDeck(ids); saveDecks(); A.sfx.card(); toast('✨ 다음 스테이지 추천 덱으로 바꿨어요', 1400); showDeckTab(); },
+  autoDeckT: () => { const ids = recommendTeam(nextStage(), owned(), deckSlotsNow()); app.decks[app.deckI] = placeDeck(ids); saveDecks(); A.sfx.card(); toast('다음 스테이지 추천 덱으로 바꿨어요', 1400); showDeckTab(); },
   missionsNav: () => showMissions(),
   todo: () => showTodo(),
   todoGo: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) todoGo(t); },
@@ -3250,22 +3332,22 @@ async function showRaid() {
     const total = bd ? bd.total : 0;
     const pct = Math.min(100, (total / L.RAID.hp) * 100);
     const me = bd && bd.me;
-    const top = bd ? bd.top.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><b>${fmt(r.dmg)}</b></div>`).join('') || '<div class="empty-msg">아직 아무도 안 때렸어요 — 첫 타!</div>' : `<div class="empty-msg">${app.guest ? '레이드는 로그인하면 참가해요' : '<span class="spin">⏳</span> 불러오는 중…'}</div>`;
+    const top = bd ? bd.top.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['', '', ''][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><b>${fmt(r.dmg)}</b></div>`).join('') || '<div class="empty-msg">아직 아무도 안 때렸어요 — 첫 타!</div>' : `<div class="empty-msg">${app.guest ? '레이드는 로그인하면 참가해요' : '<span class="spin"></span> 불러오는 중…'}</div>`;
     const open = bd ? bd.open : st.open;
     show(`
       ${topPills()}
-      <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
-      <h2 class="title">🐉 모임 레이드 · ${esc(st.slot)}</h2>
-      <button class="chip rw-i" data-act="rwInfo" data-v="raid">ℹ️ 보상 안내</button>
-      <p class="sub">${open ? `끝까지 ${L.leftText(st.endsAt - Date.now())} · 모두의 피해를 합쳐 잡아요` : `다음 레이드: ${esc(st.slot)} (${L.leftText(st.opensAt - Date.now())} 뒤) · 매일 12:00~13:30 · 15:00~16:30 · 21:00~23:00`}</p>
+ <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
+ <h2 class="title">${ic('dragon', '', 'sm')} 모임 레이드 · ${esc(st.slot)}</h2>
+ <button class="chip rw-i" data-act="rwInfo" data-v="raid">${ic('book', '', 'sm')} 보상 안내</button>
+ <p class="sub">${open ? `끝까지 ${L.leftText(st.endsAt - Date.now())} · 모두의 피해를 합쳐 잡아요` : `다음 레이드: ${esc(st.slot)} (${L.leftText(st.opensAt - Date.now())} 뒤) · 매일 12:00~13:30 · 15:00~16:30 · 21:00~23:00`}</p>
       <div class="raid-boss"><div class="rb-art">${av(boss)}</div><b>${esc(boss.name)}</b>
-        <div class="rb-hp"><div style="width:${100 - pct}%"></div><em>${bd && bd.killed ? '🎉 처치 성공!' : `${fmt(Math.max(0, L.RAID.hp - total))} / ${fmt(L.RAID.hp)}`}</em></div>
+        <div class="rb-hp"><div style="width:${100 - pct}%"></div><em>${bd && bd.killed ? '처치 성공!' : `${fmt(Math.max(0, L.RAID.hp - total))} / ${fmt(L.RAID.hp)}`}</em></div>
         <small>${bd ? `${bd.players}명 참가 · 레이드마다 ${L.RAID.tries}번 · 한 판 ${L.RAID.sec}초 · 매일 12:00 · 15:00 · 21:00` : ''}</small></div>
       <div class="wmy"><div><small>내 피해</small><b>${fmt(me ? me.dmg : 0)}</b></div><div><small>기여 순위</small><b>${me && me.rank ? me.rank + '위' : '-'}</b></div><div><small>남은 도전</small><b>${me ? me.tries : L.RAID.tries}</b></div></div>
       ${me && me.reward ? `<div class="panel wprev"><b>${esc(me.reward.label)}</b><small>${gotText(me.reward)}</small><button class="btn ${me.canClaim && !me.claimed ? 'primary' : ''}" data-act="raidClaim" ${me.canClaim && !me.claimed ? '' : 'disabled'}>${me.claimed ? '받았어요' : me.canClaim ? '보상 받기' : '잡거나 끝나면 받기'}</button></div>` : ''}
       <button class="btn primary" data-act="raidGo" ${open && !app.guest && (!me || me.tries > 0) ? '' : 'disabled'}>도전! <small>150초 동안 보스에게 최대한 피해를</small></button>
-      <div class="gap"></div>
-      <div class="panel wboard"><h4>🏆 기여도 순위</h4>${top}</div>
+ <div class="gap"></div>
+ <div class="panel wboard"><h4>${ic('trophy', '', 'sm')} 기여도 순위</h4>${top}</div>
     `, 'dim');
   };
   render(null);
@@ -3284,7 +3366,7 @@ async function saveRaid(sum, g, box) {
   if (!box || !box.isConnected) return;
   if (!r.ok) { box.innerHTML = `<div class="err">기록을 저장하지 못했어요: ${esc(r.message || '')}</div>`; return; }
   const rd = r.raid || {};
-  box.innerHTML = `<div class="rewards"><div class="rw hl"><span>🐉 이번 판 피해</span><b>${fmt(rd.dmg || 0)}</b></div><div class="rw"><span>이번 주 내 피해</span><b>${fmt(rd.mine || 0)}</b></div>
+  box.innerHTML = `<div class="rewards"><div class="rw hl"><span>${ic('dragon', '', 'sm')}이번 판 피해</span><b>${fmt(rd.dmg || 0)}</b></div><div class="rw"><span>이번 주 내 피해</span><b>${fmt(rd.mine || 0)}</b></div>
     <div class="rw"><span>모두 합계</span><b>${fmt(rd.total || 0)} / ${fmt(rd.hp || L.RAID.hp)}</b></div></div>${r.rank ? `<div class="own"><span class="badge">기여 ${r.rank}위</span></div>` : ''}${rd.master ? '<div class="guest-note">마스터 테스트 판은 순위에 안 들어가요</div>' : ''}`;
 }
 
@@ -3360,7 +3442,7 @@ const PVP_TIERS = [[1800, '랑방킹', 'king', '#ff6a8a'], [1500, '다이아', '
 const tierEmb = (r, cls = '') => { const t = PVP_TIERS.find((x) => (r | 0) >= x[0]) || PVP_TIERS[PVP_TIERS.length - 1]; return `<img class="temb ${cls}" src="/img/lb/ui2/tier_${t[2]}.webp" alt="${t[1]}" draggable="false" style="--tc:${t[3]}">`; };
 async function showPlayerCard(u) {
   if (!u) { toast('손님이라 기록이 없어요'); return; }
-  popup('<p class="ip"><span class="spin">⏳</span> 불러오는 중…</p>', 'pcard');
+  popup('<p class="ip"><span class="spin"></span> 불러오는 중…</p>', 'pcard');
   const pl = await API.playerCard(u);
   const box = stage.querySelector('.pcard .pop-box');
   if (!box) return;
@@ -3373,9 +3455,9 @@ async function showPlayerCard(u) {
       <div><small>최고 스테이지</small><b>${esc(pl.stageLabel)}</b><i>★ ${pl.totalStars || 0}</i></div>
       <div><small>대전 등급</small><b style="color:${t[3]}">${tierEmb(pl.pvp.rating, 'xs')} ${t[1]}</b><i>${pl.pvp.rating}점</i></div>
       <div><small>승률</small><b>${pl.pvp.games ? pl.pvp.winRate + '%' : '-'}</b><i>${pl.pvp.wins}승 ${pl.pvp.games - pl.pvp.wins}패</i></div>
-    </div>
-    <h4 class="pc-dt">🃏 대표 덱</h4><div class="pc-deck">${deck || '<p class="ip">아직 덱이 없어요</p>'}</div>
-    ${pl.bestWave ? `<p class="ip">♾️ 무한 도전 최고 W${pl.bestWave}</p>` : ''}
+ </div>
+ <h4 class="pc-dt">${ic('card_common', '', 'sm')} 대표 덱</h4><div class="pc-deck">${deck || '<p class="ip">아직 덱이 없어요</p>'}</div>
+    ${pl.bestWave ? `<p class="ip">${ic('infinity', '', 'sm')}무한 도전 최고 W${pl.bestWave}</p>` : ''}
     <button class="pop-x" data-x>✕</button>`;
 }
 const PVP_TIPS = ['처치 10명마다 상대에게 진상 5명을 보내요', '30명 모으면 중간 보스를 보낼 수 있어요', '150초부터 서든데스! 진상이 확 빨라져요', '상대 입구 줄을 누르면 상대 화면을 볼 수 있어요', '오늘 첫 승은 코인 2배', '같은 상대와는 하루 3판까지만 보상'];
@@ -3416,7 +3498,7 @@ function renderRooms() {
 // 초대 링크 보내기: /langbang/?room=코드 → 열면 바로 그 방으로
 async function sharePvpRoom(code) {
   const url = `${location.origin}/langbang/?room=${code}`;
-  const text = `⚔️ 랑방 대전 1:1 한판! 방 코드 ${code}`;
+  const text = `랑방 대전 1:1 한판! 방 코드 ${code}`;
   try { if (navigator.share) { await navigator.share({ title: '랑방 대전 1:1', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(`${text} ${url}`); toast('초대 링크를 복사했어요! 카톡방에 붙여 넣어 주세요', 2200); } catch { toast(`이 주소를 보내 주세요: ${url}`, 3000); }
 }
@@ -3455,11 +3537,11 @@ async function pvpRoom(join) {
   if (!sock) { toast('서버에 연결할 수 없어요'); return; }
   fixDeck();
   if (join) {
-    const code = await inputBox({ title: '🔑 방 코드로 참가', placeholder: '4자리 숫자', max: 4, numeric: true, ok: '참가' });
+    const code = await inputBox({ title: '방 코드로 참가', placeholder: '4자리 숫자', max: 4, numeric: true, ok: '참가' });
     if (!code) return;
     sock.emit('room:join', { code: code.trim(), deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '참가할 수 없어요'); });
   } else {
-    const title = await inputBox({ title: '🏠 방 만들기', placeholder: ROOM_TITLES[(Math.random() * ROOM_TITLES.length) | 0], max: 20, ok: '만들기', sub: '방 제목 (안 써도 돼요)', useHint: true });
+    const title = await inputBox({ title: '방 만들기', placeholder: ROOM_TITLES[(Math.random() * ROOM_TITLES.length) | 0], max: 20, ok: '만들기', sub: '방 제목 (안 써도 돼요)', useHint: true });
     if (title === null) return;
     sock.emit('room:create', { deck: curDeck().filter(Boolean), title, power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (r && r.ok) pvpWaiting('방을 만들었어요', r.code); });
   }
@@ -3509,8 +3591,8 @@ function renderOppView(peek) {
   const heroes = (o.heroes && o.heroes.length ? o.heroes : (o.deck || []).map((id) => ({ id, r: false, lv: 1 }))).filter((h) => HEROES[h.id]);
   oppView.classList.toggle('peek', !!peek);
   oppView.innerHTML = `<div class="ov-box"><div class="ov-head"><b>${esc(oppName())}</b>${titleChip(o.title)}<span class="vs-tier" style="--tc:${pvpTier(o.rating)[3]}">${tierEmb(o.rating, 'xs')} ${o.rating | 0}</span>${o.username ? '<button class="chip mini" data-pc="1">선수 카드</button>' : ''}</div>
-    <div class="ov-hp"><span>🚪 입구</span><div class="ohp"><div style="width:${hp}%"></div></div><b>${hp}%</b></div>
-    <div class="ov-stats"><span>🌊 웨이브 <b>${o.wave | 0}</b></span><span>👹 진상 <b>${o.enemies | 0}</b></span><span>💀 처치 <b>${o.kills | 0}</b></span><span>📣 총공지 <b>${o.ults | 0}</b></span></div>
+ <div class="ov-hp"><span>${ic('door', '', 'sm')} 입구</span><div class="ohp"><div style="width:${hp}%"></div></div><b>${hp}%</b></div>
+ <div class="ov-stats"><span>${ic('wave', '', 'sm')} 웨이브 <b>${o.wave | 0}</b></span><span>진상 <b>${o.enemies | 0}</b></span><span>처치 <b>${o.kills | 0}</b></span><span>${ic('megaphone', '', 'sm')}총공지 <b>${o.ults | 0}</b></span></div>
     <div class="ov-heroes">${heroes.map((h) => `<span class="ov-h ${h.r ? 'ready' : ''}">${av(HEROES[h.id])}<small>Lv${h.lv || 1}</small></span>`).join('')}</div>
     ${o.cards && o.cards.length ? `<div class="ov-cards"><small>최근 카드</small>${o.cards.map((c) => `<span>${esc(c)}</span>`).join('')}</div>` : ''}
     ${peek ? '' : '<p class="ov-close">아무 데나 누르면 닫혀요</p>'}</div>`;
@@ -3611,7 +3693,7 @@ setInterval(pvpTick, 500);
 Object.assign(ACTS, {
   raid: () => showRaid(),
   raidGo: () => startRaid(),
-  raidClaim: async () => { const r = await liveAct(API.raidClaim()); if (r) { A.sfx.levelUp(); toast(`🐉 ${r.label || '레이드 보상'} ${gotText(r.got)}`, 3200); showRaid(); } },
+  raidClaim: async () => { const r = await liveAct(API.raidClaim()); if (r) { A.sfx.levelUp(); toast(`${r.label || '레이드 보상'} ${gotText(r.got)}`, 3200); showRaid(); } },
   pvp: () => showPvp(),
   pvpQueue: () => pvpQuick(),
   pvpQuick: () => pvpQuick(),
@@ -3734,8 +3816,8 @@ function heroInfoHtml(d, full) {
   const meta = (P().heroes || {})[d.id] || 0;
   const sk = d.skill;
   return `<div class="ih"><b>${d.name}</b>${attrTag(d.attr)}${meta ? `<em>강화 +${meta}</em>` : ''}</div>
-    <p class="ia">⚔️ ${esc(d.attack || d.desc)} <span class="rg">사거리 ${Array.isArray(d.range) ? d.range[0] : d.range}</span></p>
-    ${sk ? `<p class="is">✨ <b>${esc(sk.name)}</b> ${esc(sk.desc)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></p>` : ''}
+ <p class="ia">${ic('swords', '', 'sm')} ${esc(d.attack || d.desc)} <span class="rg">사거리 ${Array.isArray(d.range) ? d.range[0] : d.range}</span></p>
+    ${sk ? `<p class="is">${ic('sparkle', '', 'sm')}<b>${esc(sk.name)}</b> ${esc(sk.desc)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></p>` : ''}
     ${full ? `<p class="ip">Lv3 ${esc(d.perks[3])} · Lv5 ${esc(d.perks[5])}</p><p class="ip">${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p>` : ''}`;
 }
 function enemyInfoHtml(e) {
@@ -3765,7 +3847,7 @@ function teamLine() {
   const hit = ids.filter((id) => rec.includes(HEROES[id].attr)).length;
   const avail = partnerList().filter(heroOk);
   const best = app.mode === 'stage' ? recommendTeam(app.stage, avail, slotsNow()) : [];
-  return `팀: ${ids.map((id) => `${HEROES[id].name}${ATTRS[HEROES[id].attr].icon}`).join(' + ')}${rec.length ? ` · 추천 속성 ${rec.map((a) => ATTRS[a].icon).join('')} ${hit ? `<b class="ok">${hit}명 맞음</b>` : '<b class="no">0명</b>'}` : ''}${best.length ? `<br><small>💡 추천 팀: 방장 + ${best.map((id) => HEROES[id].name).join(' + ')}</small>` : ''}`;
+  return `팀: ${ids.map((id) => `${HEROES[id].name}${ATTRS[HEROES[id].attr].icon}`).join(' + ')}${rec.length ? ` · 추천 속성 ${rec.map((a) => ATTRS[a].icon).join('')} ${hit ? `<b class="ok">${hit}명 맞음</b>` : '<b class="no">0명</b>'}` : ''}${best.length ? `<br><small>${ic('bulb', '', 'sm')}추천 팀: 방장 + ${best.map((id) => HEROES[id].name).join(' + ')}</small>` : ''}`;
 }
 // ─── 덱: 자리(줄)마다 멤버. 프리셋 3개 (이 기기에 저장) ───
 const DECK_KEY = 'langbang:decks';
@@ -3859,7 +3941,7 @@ function renderDeckField() {
   const cells = [];
   for (let i = 0; i < 6; i++) {
     const id = ids[i], h = id && HEROES[id];
-    if (i >= max) { cells.push(`<button class="dslot lockd" data-act="shop" aria-label="덱 칸 늘리기"><span class="lk">🔒</span><small>${i === max ? `${fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0])}` : ''}</small></button>`); continue; }
+    if (i >= max) { cells.push(`<button class="dslot lockd" data-act="shop" aria-label="덱 칸 늘리기"><span class="lk">${ic('lock', '', 'sm')}</span><small>${i === max ? `${fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0])}` : ''}</small></button>`); continue; }
     cells.push(h
       ? `<button class="dslot ${app.deckPop === id ? 'pop' : ''}" data-act="deckRemove" data-id="${id}" style="--c:${h.color}">${av(h)}<b>${h.name}</b><span class="pa">${ATTRS[h.attr].icon}</span>${matchTag(id)}<i class="rm">✕</i></button>`
       : '<div class="dslot empty"><i>+</i></div>');
@@ -3923,9 +4005,9 @@ function showPrep(mode, s) {
   const stars = mode === 'stage' ? (hellOn ? (p.hell || {})[s] || 0 : p.stages[s] || 0) : 0;
   const bg = `/img/lb/bg${ch >= 2 && ch <= 6 ? ch : ''}.webp`;
   const head = mode === 'stage'
-    ? `<em class="pp-no">${stageLabel(s)}</em><b class="pp-name">${esc(stageName(s))}</b><span class="pp-meta"><i class="pp-stars">${'★'.repeat(stars)}<u>${'★'.repeat(3 - stars)}</u></i>${p.perfects && p.perfects[s] ? ic('gem', '💎', 'sm') : ''}<button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
-    : wk ? `<em class="pp-no sm">${ic('calendar', '📅')} 주간 도전</em><b class="pp-name">${esc(L.WEEKLY_MODS[wk.mod].name)}</b><span class="pp-meta"><button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
-      : `<em class="pp-no sm">${ic('infinity', '♾️')} 무한 도전</em><b class="pp-name">최고 W${p.bestWave || 0} · ${fmt(p.bestScore || 0)}점</b><span class="pp-meta"><button class="pp-fx" data-act="rwInfo" data-v="endless">${ic('gift', '🎁')} 오늘 ${free ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}</button></span>`;
+    ? `<em class="pp-no">${stageLabel(s)}</em><b class="pp-name">${esc(stageName(s))}</b><span class="pp-meta"><i class="pp-stars">${'★'.repeat(stars)}<u>${'★'.repeat(3 - stars)}</u></i>${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}<button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
+    : wk ? `<em class="pp-no sm">${ic('calendar', '')} 주간 도전</em><b class="pp-name">${esc(L.WEEKLY_MODS[wk.mod].name)}</b><span class="pp-meta"><button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
+      : `<em class="pp-no sm">${ic('infinity', '')} 무한 도전</em><b class="pp-name">최고 W${p.bestWave || 0} · ${fmt(p.bestScore || 0)}점</b><span class="pp-meta"><button class="pp-fx" data-act="rwInfo" data-v="endless">${ic('gift', '')} 오늘 ${free ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}</button></span>`;
   const headHtml = `<div class="pp-head ${hellOn ? 'hell' : ''} ${wk ? 'wk' : ''} ${!st ? 'end' : ''}" style="--bg:url('${bg}')">
       <div class="pp-hl">${head}</div>
       ${bossId ? `<button class="pp-boss" data-act="prepFoe" data-id="${bossId}">${foeFace(bossId, 'big')}<i>${bossTag}</i></button>` : ''}
@@ -3933,12 +4015,12 @@ function showPrep(mode, s) {
   // 2) 난이도
   const diffLine = hellOn ? `헬 · 체력 ×${HELL.hp} · 공격 ×${HELL.atk} · 보상 ×${HELL.coin}` : mode === 'stage' ? `보통 · ${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 보스' : stageMid(s) ? ' · 중간 보스' : ''}` : wk ? L.WEEKLY_MODS[wk.mod].desc : '';
   const diffHtml = mode === 'stage'
-    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0">보통</button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1">${hellOk ? '' : ic('lock', '🔒', 'sm')}헬</button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
+    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0">보통</button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1">${hellOk ? '' : ic('lock', '', 'sm')}헬</button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
     : diffLine ? `<p class="pp-line solo">${esc(diffLine)}</p>` : '';
   // 3) 전투력
   const pw = deckPower(p, ids), need = st ? stagePower(p, st, hellOn) : 0;
   const ok = !need || pw >= need;
-  const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '⚔️', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
+  const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
   // 4) 등장 진상
   const foes = prepFoes(st);
   const foeHtml = foes.length ? `<div class="pp-foes"><span class="pp-lab">등장 진상</span><div class="pp-chips">${foes.map((t) => { const T = foeTrait(t); return `<button class="pp-foe" data-act="prepFoe" data-id="${t}">${foeFace(t)}${T ? `<i class="pp-tb">${T.icon}</i>` : ''}</button>`; }).join('')}</div></div>` : '';
@@ -3947,12 +4029,12 @@ function showPrep(mode, s) {
   const cells = [];
   for (let i = 0; i < 6; i++) {
     const id = dl[i];
-    if (i >= max) { cells.push(`<button class="pp-slot lock" data-act="shop">${ic('lock', '🔒')}<small>${i === max ? fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0]) : ''}</small></button>`); continue; }
+    if (i >= max) { cells.push(`<button class="pp-slot lock" data-act="shop">${ic('lock', '')}<small>${i === max ? fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0]) : ''}</small></button>`); continue; }
     cells.push(id ? deckCard(id, i === 0, 'prepEdit', app.deckPop === id ? 'pop' : '') : '<button class="pp-slot empty" data-act="prepEdit"><i>+</i></button>');
   }
   app.deckPop = null;
   const deckHtml = `<div class="pp-deck">
-      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="prepEdit">${ic('duo', '👥', 'sm')}덱 편집</button></div>
+      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="prepEdit">${ic('duo', '', 'sm')}덱 편집</button></div>
       <div class="pp-slots g6">${cells.join('')}</div>
     </div>`;
   // 6) 보상
@@ -3961,11 +4043,11 @@ function showPrep(mode, s) {
     const prev = hellOn ? 3 : p.stages[s] | 0;
     const r = stageReward(s, 3, prev);
     const items = [`<span><i class="ci"></i>${fmt(Math.round(r.clear * (hellOn ? HELL.coin : 1)))}</span>`];
-    if (r.first) items.push(`<span>${ic('gift', '🎁', 'sm')}첫 클리어 +${fmt(r.first)}</span>`);
+    if (r.first) items.push(`<span>${ic('gift', '', 'sm')}첫 클리어 +${fmt(r.first)}</span>`);
     if (r.star) items.push(`<span class="st">★3 +${fmt(r.star)}</span>`);
-    items.push(`<span>${ic('dagger', '🗡️', 'sm')}장비 ×${hellOn ? '2~' : '1~'}</span>`, `<span>${ic('card_rare', '🃏', 'sm')}카드</span>`);
+    items.push(`<span>${ic('dagger', '', 'sm')}장비 ×${hellOn ? '2~' : '1~'}</span>`, `<span>${ic('card_rare', '', 'sm')}카드</span>`);
     rw = `<button class="pp-rw" data-act="prepRw">${items.join('')}</button>`;
-  } else rw = `<button class="pp-rw" data-act="rwInfo" data-v="${wk ? 'weekly' : 'endless'}"><span>${ic('gift', '🎁', 'sm')}보상 보기</span></button>`;
+  } else rw = `<button class="pp-rw" data-act="rwInfo" data-v="${wk ? 'weekly' : 'endless'}"><span>${ic('gift', '', 'sm')}보상 보기</span></button>`;
   // 7) 출격
   const cost = mode === 'stage' && !free ? L.stageStaminaCost(p, s, hellOn) : 0;
   const goHtml = `<div class="pp-go">
@@ -3984,7 +4066,22 @@ const LEAD_KEY = 'langbang:leaders';
 function leaders() { if (!app.leaders) { try { app.leaders = JSON.parse(localStorage.getItem(LEAD_KEY) || '{}') || {}; } catch { app.leaders = {}; } } return app.leaders; }
 function deckLeader() { const ids = curDeck().filter(Boolean), l = leaders()[app.deckI]; return ids.includes(l) ? l : ids[0] || null; }
 function setLeader(id) { leaders()[app.deckI] = id; try { localStorage.setItem(LEAD_KEY, JSON.stringify(app.leaders)); } catch { /* 무시 */ } saveDecks(); } // 서버에도 (덱과 같이)
-function deckList() { const ids = curDeck().filter(Boolean), l = deckLeader(); return l ? [l, ...ids.filter((x) => x !== l)] : ids; }
+const ORDER_KEY = 'langbang:deckOrder';
+function deckOrders() { if (!app.deckOrders) { try { app.deckOrders = JSON.parse(localStorage.getItem(ORDER_KEY) || '{}') || {}; } catch { app.deckOrders = {}; } } return app.deckOrders; }
+function deckList() {
+  const ids = curDeck().filter(Boolean), l = deckLeader();
+  const ord = (deckOrders()[app.deckI] || []).filter((x) => ids.includes(x));
+  const rest = [...ord, ...ids.filter((x) => !ord.includes(x))];
+  return l ? [l, ...rest.filter((x) => x !== l)] : rest;
+}
+// 덱을 순서대로 통째로 바꾸기 (1번 = 대장)
+function setDeckOrder(list) {
+  const ids = list.filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).slice(0, deckSlotsNow());
+  app.decks[app.deckI] = placeDeck(ids);
+  deckOrders()[app.deckI] = ids;
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(app.deckOrders)); } catch { /* 무시 */ }
+  if (ids[0]) setLeader(ids[0]); else saveDecks();
+}
 // 덱 카드: 얼굴이 잘 보이게 (도감 썸네일 같은 자르기) · 이름 띠 · 구석에 속성 하나 · 대장 왕관
 function deckCard(id, lead, act, cls = '') {
   return artCard(id, { act, cls: `pp-card ${lead ? 'lead' : ''} ${cls}`, extra: lead ? `<i class="pp-crown">${pimg(ui2('crown'))}</i>` : '' });
@@ -4002,21 +4099,93 @@ function showDeckEditor() {
   const slots = [];
   for (let i = 0; i < 6; i++) {
     const id = dl[i];
-    if (i >= max) { slots.push(`<span class="pp-slot lock">${ic('lock', '🔒')}</span>`); continue; }
-    slots.push(id ? `<span class="ed-s">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}</span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
+    if (i >= max) { slots.push(`<span class="pp-slot lock">${ic('lock', '')}</span>`); continue; }
+    slots.push(id ? `<span class="ed-s" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}</span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
   }
   const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
-  popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '✨', 'sm')}자동 편성</button></div>
+  popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '', 'sm')}자동 편성</button></div>
     <div class="pp-slots g6 ed">${slots.join('')}</div>
-    <p class="ed-hint">${lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 카드를 누르면 빠져요 · 왕관을 누르면 대장` : '아래에서 멤버를 골라요'}</p>
+    <p class="ed-hint">${lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 끌어서 순서 바꾸기 · 1번 칸에 놓으면 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
     <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="edF" data-f="${k}">${t}</button>`).join('')}<span class="ed-sort">${[['pw', '전투력'], ['tier', '등급'], ['lv', '레벨']].map(([k, t]) => `<button class="${k === so ? 'on' : ''}" data-act="edSort" data-v="${k}">${t}</button>`).join('')}</span></div></div>
     <div class="pp-sg">${list.map((id) => artCard(id, { act: 'edPick', on: dl.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
     <div class="ed-done"><button class="btn primary" data-x>완료</button></div>`, 'pp-sheet pp-editor');
 }
+// 끌기: 0.15초 누르고 있거나 가로로 8px 움직이면 시작 · 유령 카드가 손가락을 따라감 · 칸 위에 놓으면 넣기/바꾸기 · 밖에 놓으면 빼기
+const DRAG = { on: false };
+function dragSetup() {
+  const sel = '.dk-slots [data-dslot] .acard, .pp-slots.ed [data-dslot] .acard, .agrid .acard[data-id], .pp-sg .acard[data-id]';
+  stage.addEventListener('pointerdown', (ev) => {
+    const card = ev.target.closest(sel); if (!card || !(app.screen === 'deck' || stage.querySelector('.pp-editor'))) return;
+    const id = card.dataset.id; if (!id || !API.heroUnlocked(P(), id)) return;
+    const slotEl = card.closest('[data-dslot]');
+    const st = { x0: ev.clientX, y0: ev.clientY, t0: performance.now(), id, from: slotEl ? Number(slotEl.dataset.dslot) : -1, card, pid: ev.pointerId, started: false };
+    DRAG.cand = st;
+    DRAG.holdT = setTimeout(() => { if (DRAG.cand === st) st.armed = true; }, 150); // 0.15초 누르면 준비 → 움직이면 시작 (가만히 오래 누르면 자세히 보기)
+  }, { passive: true });
+  window.addEventListener('pointermove', (ev) => {
+    const st = DRAG.cand; if (!st || ev.pointerId !== st.pid) return;
+    if (!st.started) { const dx = ev.clientX - st.x0, dy = ev.clientY - st.y0; if (st.armed && Math.hypot(dx, dy) > 6) dragStart(st, ev.clientX, ev.clientY); else if (!st.armed && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { clearTimeout(DRAG.holdT); DRAG.cand = null; return; } else if (Math.abs(dx) > 8) dragStart(st, ev.clientX, ev.clientY); else return; }
+    dragMove(st, ev.clientX, ev.clientY);
+    if (ev.cancelable) ev.preventDefault();
+  }, { passive: false });
+  const end = (ev) => { const st = DRAG.cand; if (!st || ev.pointerId !== st.pid) return; clearTimeout(DRAG.holdT); DRAG.cand = null; if (st.started) dragEnd(st, ev.clientX, ev.clientY); };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+}
+function dragStart(st, x, y) {
+  st.started = true; DRAG.on = true; clearTimeout(lpT);
+  ui.dataset.noclick = '1';
+  const r = st.card.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+  const gh = st.card.cloneNode(true); gh.classList.add('drag-ghost'); gh.style.width = r.width + 'px'; gh.style.height = r.height + 'px';
+  st.ox = x - r.left; st.oy = y - r.top; st.sr = sr; st.ghost = gh;
+  stage.appendChild(gh);
+  st.card.classList.add('drag-src');
+  document.body.classList.add('dragging');
+  vibrate(10); A.sfx.tap();
+  dragMove(st, x, y);
+}
+function dragSlotAt(x, y) {
+  const els = [...stage.querySelectorAll('.dk-slots [data-dslot], .pp-slots.ed [data-dslot]')];
+  return els.find((e) => { const r = e.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }) || null;
+}
+function dragMove(st, x, y) {
+  if (!st.ghost) return;
+  st.ghost.style.transform = `translate(${x - st.sr.left - st.ox}px, ${y - st.sr.top - st.oy}px) scale(1.06) rotate(${Math.max(-6, Math.min(6, (x - st.x0) * 0.04))}deg)`;
+  const hit = dragSlotAt(x, y);
+  for (const e of stage.querySelectorAll('.drop-hi')) if (e !== hit) e.classList.remove('drop-hi');
+  if (hit) hit.classList.add('drop-hi');
+  // 목록 가장자리에서 저절로 내리기
+  const sc = st.card.closest('.pop-box, #ui > .screen');
+  if (sc) { const r = sc.getBoundingClientRect(); if (y > r.bottom - 50) sc.scrollTop += 12; else if (y < r.top + 50) sc.scrollTop -= 12; }
+}
+function dragEnd(st, x, y) {
+  DRAG.on = false;
+  document.body.classList.remove('dragging');
+  setTimeout(() => { delete ui.dataset.noclick; }, 60);
+  if (st.ghost) st.ghost.remove();
+  st.card.classList.remove('drag-src');
+  for (const e of stage.querySelectorAll('.drop-hi')) e.classList.remove('drop-hi');
+  const hit = dragSlotAt(x, y);
+  const list = deckList(), max = deckSlotsNow();
+  const arr = Array.from({ length: max }, (_, i) => list[i] || null);
+  if (hit) {
+    const k = Number(hit.dataset.dslot);
+    if (k >= max) return;
+    if (st.from >= 0) { [arr[st.from], arr[k]] = [arr[k], arr[st.from]]; } // 칸끼리 바꾸기
+    else { const at = arr.indexOf(st.id); if (at >= 0) { [arr[at], arr[k]] = [arr[k], arr[at]]; } else arr[k] = st.id; } // 목록 → 칸 (있던 멤버는 빠짐 · 이미 있으면 자리 바꾸기)
+    const ord = arr.filter(Boolean);
+    const lead = arr[0] || ord[0];
+    setDeckOrder(lead ? [lead, ...ord.filter((x2) => x2 !== lead)] : ord);
+    A.sfx.card(); if (k === 0 && lead) toast(`${HEROES[lead].name} 대장!`, 900);
+  } else if (st.from >= 0) { // 칸 밖으로: 빼기
+    setDeckOrder(arr.filter((x2) => x2 && x2 !== st.id));
+    A.sfx.back();
+  } else return;
+  if (stage.querySelector('.pp-editor')) showDeckEditor(); else if (app.screen === 'deck') showDeckTab();
+}
+dragSetup();
 function edApply(ids, lead) {
-  app.decks[app.deckI] = placeDeck(ids);
-  if (lead) setLeader(lead);
-  saveDecks();
+  const l = lead || ids[0];
+  setDeckOrder(l ? [l, ...ids.filter((x) => x !== l)] : ids);
   showDeckEditor();
 }
 function edPick(id) {
@@ -4037,7 +4206,7 @@ function edSlot(id) {
   edApply(ids.filter((x) => x !== id), wasLead ? null : null);
 }
 function deckTapSlot(i) {
-  if (lockedPos().includes(i)) { const it = ITEMS[deckSlotsNow() < 5 ? 'slot5' : 'slot6']; toast(`🔒 상점에서 열 수 있어요 — ${it.name} ${fmt(it.costs[0])}코인`, 2000); return; }
+  if (lockedPos().includes(i)) { const it = ITEMS[deckSlotsNow() < 5 ? 'slot5' : 'slot6']; toast(`상점에서 열 수 있어요 — ${it.name} ${fmt(it.costs[0])}코인`, 2000); return; }
   const d = curDeck();
   if (app.deckSel === -1) { app.deckSel = i; if (d[i]) app.deckFocus = d[i]; }
   else if (app.deckSel === i) { if (d[i]) { d[i] = null; toast('덱에서 뺐어요', 900); } app.deckSel = -1; }
@@ -4076,7 +4245,7 @@ function updateCardQ() {
   const g = app.g;
   const n = g && app.screen === 'play' && !g.over && !app.cardsOpen ? g.pendingLevels | 0 : 0;
   if (!n) { if (!cardQBtn.hidden) cardQBtn.hidden = true; return; }
-  const t = `🃏 카드 ${n}장 대기 <small>눌러서 고르기</small>`;
+  const t = `${ic('card_common', '', 'sm')}카드 ${n}장 대기 <small>눌러서 고르기</small>`;
   if (cardQBtn.innerHTML !== t) cardQBtn.innerHTML = t;
   cardQBtn.hidden = false;
 }
@@ -4084,7 +4253,7 @@ setInterval(updateCardQ, 200);
 // 자동 선택(설정): 추천 카드를 바로 (1:1 대전은 꺼짐)
 function autoPickAll(g) {
   let n = 0;
-  while (g.pendingLevels > 0 && n < 6) { const cs = rollFor(g); const c = cs[recIndex(g, cs)]; S.applyCard(g, c); g.pendingLevels--; if (g.welcomePicks > 0) g.welcomePicks--; n++; toast(`🃏 자동 선택: ${c.title}`, 1400); }
+  while (g.pendingLevels > 0 && n < 6) { const cs = rollFor(g); const c = cs[recIndex(g, cs)]; S.applyCard(g, c); g.pendingLevels--; if (g.welcomePicks > 0) g.welcomePicks--; n++; toast(`자동 선택: ${c.title}`, 1400); }
   handleEvents(g, true);
 }
 // 추천: 지금 덱에 맞는 카드 (히든 · 진화 · 새 멤버 · 레벨업 · 덱 속성/특성 순)
@@ -4108,7 +4277,7 @@ function openCards() {
   app.cardsOpen = true;
   cardQBtn.hidden = true;
   app.cardsAt = performance.now();
-  if (app.rerollsRun === undefined || app.rerollsG !== g) { app.rerollsRun = 5; app.rerollsG = g; }
+  if (app.rerollsRun === undefined || app.rerollsG !== g) { app.rerollsRun = REROLLS; app.rerollsG = g; }
   app.cards = rollFor(g);
   renderCards(true);
   if (DEBUG.autopick) setTimeout(() => { if (app.cardsOpen) pickCard(0); }, 120);
@@ -4127,7 +4296,7 @@ function synTrayHtml(g, big) {
   }
   for (const t of Object.keys(TAGS)) { const k = (g.tagCnt || {})[t] || 0; if (k) out.push(`<span class="sy tag ${k >= 3 ? 'on' : ''}" title="${TAGS[t].name}">${TAGS[t].icon}${k}<small>/${k >= 5 ? '★' : k >= 3 ? 5 : 3}</small></span>`); }
   const evo = g.heroes.filter((h) => h.evo).length;
-  if (evo) out.push(`<span class="sy evo on">✨${evo}</span>`);
+  if (evo) out.push(`<span class="sy evo on">${ic('sparkle', '', 'sm')}${evo}</span>`);
   if (!big && out.length > 8 && !app.synOpen) { const more = out.length - 7; out.length = 7; out.push(`<span class="sy more" data-act="synMore">+${more}</span>`); }
   return out.length ? `<div class="syn-tray ${big ? 'big' : ''} ${out.length > 4 ? 'grid' : ''}">${out.join('')}</div>` : '';
 }
@@ -4283,7 +4452,7 @@ function renderCards(fresh) {
       <button class="cs-re" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'} aria-label="다시 뽑기">${pimg(ui2('dice'))}<b>${app.rerollsRun}</b></button></div>
     <i class="cs-timer"><b></b></i>
     <div class="card-list v4 n${n} ${g.tempo || app.cards.some((c) => c.kind === 'join') ? 'v5' : ''}">${app.cards.map(cardHtml).join('')}</div>
-    <div class="cs-foot"><small>이번 전투 다시 뽑기 <b>${app.rerollsRun}/5</b></small><button class="cs-re2" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>${pimg(ui2('dice'))}다시 뽑기</button></div>
+    <div class="cs-foot"><small>이번 전투 다시 뽑기 <b>${app.rerollsRun}/${REROLLS}</b></small><button class="cs-re2" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>${pimg(ui2('dice'))}다시 뽑기</button></div>
   </div>`;
   if (fresh) A.sfx.card();
   if (fresh && app.cards.some((c) => c.rarity === 'hidden')) { fx.flash('#ff9ff0', 0.3); A.sfx.join(); }
@@ -4350,13 +4519,13 @@ function pauseGame() {
   const g = app.g;
   const w = Math.max(1, g.lastSnap ? g.lastSnap.wave : g.wave);
   show(`
-    <div class="topbar"><button class="back" data-act="toLobby">‹ 메인 메뉴</button><div class="tb-right"><button class="share-btn" data-act="share">📤 공유하기</button><button class="icon-btn" data-act="mute">${A.isMuted() ? '🔇' : '🔊'}</button></div></div>
+ <div class="topbar"><button class="back" data-act="toLobby">‹ 메인 메뉴</button><div class="tb-right"><button class="share-btn" data-act="share">${ic('share', '', 'sm')} 공유하기</button><button class="icon-btn" data-act="mute">${A.isMuted() ? '' : ''}</button></div></div>
     <div class="pause-box">
       <h2>일시정지</h2>
       <p class="sub">${g.mode === 'stage' ? `스테이지 ${stageLabel(g.stage)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}` : `무한 도전 · 웨이브 ${Math.max(1, g.wave)}`}</p>
-      <button class="btn primary" data-act="resume">계속하기</button>
-      <button class="btn" data-act="toLobby">🏠 메인 메뉴로 <small>이어하기 저장 · 웨이브 ${w} 처음부터 이어서</small></button>
-      ${g.pvp || g.weekly || g.raid ? '' : '<button class="btn" data-act="restart">🔁 다시 하기 <small>이 스테이지 처음부터</small></button>'}
+ <button class="btn primary" data-act="resume">계속하기</button>
+ <button class="btn" data-act="toLobby">${ic('home', '', 'sm')} 메인 메뉴로 <small>이어하기 저장 · 웨이브 ${w} 처음부터 이어서</small></button>
+      ${g.pvp || g.weekly || g.raid ? '' : '<button class="btn" data-act="restart">다시 하기 <small>이 스테이지 처음부터</small></button>'}
       <button class="btn" data-act="howto">게임 방법</button>
       <button class="btn ghost" data-act="quit">그만두기 <small>지금까지 기록으로 끝내요</small></button>
     </div>
@@ -4390,14 +4559,14 @@ function showResult(victory, quit) {
   const win = victory && stageMode;
   let title, sub, top;
   if (stageMode) {
-    title = win ? `${g.hell ? '🔥 HELL ' : ''}${stageLabel(g.stage)} 클리어!` : quit ? '오늘은 여기까지' : `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} 실패…`;
+    title = win ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} 클리어!` : quit ? '오늘은 여기까지' : `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} 실패…`;
     sub = win ? `입구 내구도 ${sum.hpPct}% 로 지켜냈다!` : `웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}에서 막혔어요 · ${quit ? '다음엔 끝까지!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]}`;
     top = win
       ? `<div class="big-stars">${[1, 2, 3].map((k) => `<span class="${k <= g.stars ? 'on' : ''}" style="animation-delay:${0.25 + k * 0.28}s">★</span>`).join('')}</div>
-         <div class="star-rule">${sum.perfect ? '<b class="perfect">💎 PERFECT! 입구가 한 번도 안 맞았다</b>' : g.stars >= 3 ? '완벽 방어! ★★★ (입구 무피해면 PERFECT)' : g.stars === 2 ? '★★★ 까지 입구 70% 이상 남기기' : '★★ 는 입구 35% 이상 남기면!'}</div>`
-      : `<div class="fail-tip">💡 ${FAIL_TIPS[(Math.random() * FAIL_TIPS.length) | 0]}</div>`;
+         <div class="star-rule">${sum.perfect ? '<b class="perfect">PERFECT! 입구가 한 번도 안 맞았다</b>' : g.stars >= 3 ? '완벽 방어! ★★★ (입구 무피해면 PERFECT)' : g.stars === 2 ? '★★★ 까지 입구 70% 이상 남기기' : '★★ 는 입구 35% 이상 남기면!'}</div>`
+      : `<div class="fail-tip">${ic('bulb', '', 'sm')}${FAIL_TIPS[(Math.random() * FAIL_TIPS.length) | 0]}</div>`;
   } else if (g.raid) {
-    title = '🐉 레이드 끝!';
+    title = '레이드 끝!';
     sub = `${Math.round(Math.min(g.t, g.raid.sec))}초 동안 보스에게 준 피해`;
     top = `<div class="score-big"><small>보스 피해</small><b>${fmt(g.raid.dmg)}</b></div>`;
   } else if (g.pvp) {
@@ -4420,15 +4589,15 @@ function showResult(victory, quit) {
     top = `<div class="score-big"><small>점수</small><b>${fmt(sum.score)}</b></div>`;
   }
   const buttons = [];
-  if (win && g.hell) buttons.push('<button class="btn primary" data-act="again">🔥 헬 다시 하기</button>');
-  else if (win && g.stage < STAGE_COUNT) buttons.push(`<button class="btn primary" data-act="nextStage">다음 스테이지 ${stageLabel(g.stage + 1)} ▶</button>`);
-  if (g.raid) buttons.push('<button class="btn primary" data-act="raid">🐉 레이드 현황</button>', '<div class="gap"></div><button class="btn ghost" data-act="menu">로비로</button>');
+  if (win && g.hell) buttons.push('<button class="btn primary" data-act="again">헬 다시 하기</button>');
+  else if (win && g.stage < STAGE_COUNT) buttons.push(`<button class="btn primary" data-act="nextStage">다음 스테이지 ${stageLabel(g.stage + 1)} </button>`);
+  if (g.raid) buttons.push('<button class="btn primary" data-act="raid">레이드 현황</button>', '<div class="gap"></div><button class="btn ghost" data-act="menu">로비로</button>');
   else if (g.pvp) buttons.push('<button class="btn primary pv-again" data-act="pvpQueue">한 판 더</button>', '<div class="gap"></div><button class="btn ghost" data-act="pvp">대전 화면</button>');
-  else if (wk) buttons.push('<button class="btn primary" data-act="weeklyGo">다시 도전</button>', '<div class="gap"></div><button class="btn ghost" data-act="weekly">📅 주간 순위 보기</button>');
-  else if (stageMode && !win) buttons.push('<button class="btn primary" data-act="again">다시 도전</button>', '<div class="gap"></div><div class="grid2"><button class="btn" data-act="shop"><i>🛒</i>강화하러 가기</button><button class="btn" data-act="stages"><i>🗺️</i>스테이지 선택</button></div>');
-  else if (stageMode) buttons.push('<div class="gap"></div><div class="grid2"><button class="btn" data-act="again"><i>🔁</i>다시 하기</button><button class="btn" data-act="stages"><i>🗺️</i>스테이지 선택</button></div>');
+  else if (wk) buttons.push('<button class="btn primary" data-act="weeklyGo">다시 도전</button>', '<div class="gap"></div><button class="btn ghost" data-act="weekly">주간 순위 보기</button>');
+  else if (stageMode && !win) buttons.push('<button class="btn primary" data-act="again">다시 도전</button>', '<div class="gap"></div><div class="grid2"><button class="btn" data-act="shop"><i></i>강화하러 가기</button><button class="btn" data-act="stages"><i></i>스테이지 선택</button></div>');
+  else if (stageMode) buttons.push('<div class="gap"></div><div class="grid2"><button class="btn" data-act="again"><i></i>다시 하기</button><button class="btn" data-act="stages"><i></i>스테이지 선택</button></div>');
   else if (!wk) buttons.push('<button class="btn primary" data-act="again">다시 도전</button>', '<div class="gap"></div><button class="btn ghost" data-act="menu">메뉴로</button>');
-  if (!buttons.some((b) => /data-act="menu"/.test(b))) buttons.push('<div class="gap"></div><button class="btn ghost" data-act="menu">🏠 메인 메뉴로</button>');
+  if (!buttons.some((b) => /data-act="menu"/.test(b))) buttons.push('<div class="gap"></div><button class="btn ghost" data-act="menu">메인 메뉴로</button>');
   show(`
     <div class="big">${esc(title)}</div>
     <p class="sub" style="margin-top:6px">${esc(sub)}</p>
@@ -4442,25 +4611,25 @@ function showResult(victory, quit) {
       <div><small>점수</small><b>${fmt(sum.score)}</b></div>
     </div>
     <div class="panel mvp">${mvp}</div>
-    <div class="server" id="srv">${win || !stageMode ? '<span class="spin">⏳</span> 보상 받는 중…' : ''}</div>
-    <div class="spacer"></div>
-    <button class="btn share-result" data-act="shareResult">📤 결과 공유하기 <small>친구에게 기록 카드 보내고 도전장 날리기</small></button>
-    <div class="gap"></div>
-    ${buttons.join('')}
+    <div class="server" id="srv">${win || !stageMode ? '<span class="spin"></span> 보상 받는 중…' : ''}</div>
+ <div class="spacer"></div>
+ <button class="btn share-result" data-act="shareResult">${ic('share', '', 'sm')} 결과 공유하기 <small>친구에게 기록 카드 보내고 도전장 날리기</small></button>
+ <div class="gap"></div>
+ ${buttons.join('')}
   `, `result ${stageMode ? 'compact' : ''} ${win || (!stageMode && sum.wave >= 10) ? 'win' : 'lose'}`);
   app.shareData = {
     title, win, mode: g.mode, stageLabel: stageMode ? stageLabel(g.stage) : '', stars: win ? g.stars : 0,
     score: sum.score, wave: sum.wave, waves: g.totalWaves, kills: sum.kills, bossKills: sum.bossKills,
     time, nickname: app.guest ? '' : app.nickname, chapter: g.mode === 'stage' ? chapterOf(g.stage) : 3,
-    heroes: heroes.slice(0, 6).map((h) => ({ img: h.def.img, name: h.def.name, color: h.def.color })),
+    heroes: heroes.slice(0, 6).map((h) => ({ id: h.id, img: h.def.img, thumb: HEROES[h.id] ? thumbSrc(h.id) : '', face: DEX_FACE[h.id], name: h.def.name, color: h.def.color, tier: HEROES[h.id] ? heroTier(h.id) : 1 })),
   };
   if (win || !stageMode || wk || g.raid || g.pvp) saveResult(sum, g);
-  else if (stageMode && !app.debugRun) Promise.resolve(API.stageFail(g.stage, app.guest)).then((r) => { if (r && r.ok) { if (r.profile) app.profile = r.profile; if (r.refund) toast(`⚡ 체력 ${r.refund} 돌려받았어요 (실패하면 절반)`, 1800); } });
+  else if (stageMode && !app.debugRun) Promise.resolve(API.stageFail(g.stage, app.guest)).then((r) => { if (r && r.ok) { if (r.profile) app.profile = r.profile; if (r.refund) toast(`체력 ${r.refund} 돌려받았어요 (실패하면 절반)`, 1800); } });
 }
 const LOSE_LINES = ['진상들이 랑방을 점령했다… 다음엔 꼭!', '"한 잔만 더~" 술진상이 문을 열고 들어왔다', '먹튀 인간들이 경험치를 털어 갔다…', '인피: "랑방? 이제 우리 아지트야~"', '여왕벌: "여기 이제 내 가게야~"'];
 const FAIL_TIPS = [
   '강화 상점에서 동료와 방장을 강화하면 훨씬 쉬워져요',
-  '🚪 튼튼한 문을 사면 입구 내구도가 늘어요',
+  '튼튼한 문을 사면 입구 내구도가 늘어요',
   '독재자를 먼저 잡으세요 — 곁의 진상들이 덜 아파해요',
   '사기꾼이 "들켰다!" 할 때가 기회! 서명훈의 욕이 특히 잘 먹혀요',
   '뭉쳐 다니는 패거리는 범위 공격·관통 공격에 약해요',
@@ -4476,7 +4645,7 @@ async function saveWeekly(sum, g, box) {
   const w = r.weekly || {};
   const sc = $('#wkscore');
   if (sc && w.score !== undefined) sc.textContent = fmt(w.score);
-  box.innerHTML = `<div class="rewards"><div class="rw hl"><span>📅 이번 주 최고</span><b>${fmt(w.best || 0)}${w.newBest ? ' 🆕' : ''}</b></div>
+  box.innerHTML = `<div class="rewards"><div class="rw hl"><span>${ic('calendar', '', 'sm')}이번 주 최고</span><b>${fmt(w.best || 0)}${w.newBest ? '' : ''}</b></div>
     <div class="rw total"><span><i class="ci"></i>받은 코인</span><b>+${fmt((r.reward || {}).total || 0)}</b></div></div>
     <div class="own">${r.rank ? `<span class="badge">이번 주 ${r.rank}위</span>` : ''}<span>보유 <i class="ci"></i>${fmt(P().coins)}</span>${app.guest ? ' · <span class="dimtxt">손님은 순위에 안 올라가요</span>' : ''}</div>`;
   if (w.newBest) { A.sfx.levelUp(); fx.flash('#ffd23f', 0.3); }
@@ -4503,16 +4672,16 @@ async function saveResult(sum, g) {
   const lines = [];
   if (stageMode) {
     lines.push(`<div class="rw"><span>클리어 보상</span><b>+${fmt(rw.clear || 0)}</b></div>`);
-    if (rw.first) lines.push(`<div class="rw hl"><span>🎉 첫 클리어 보너스</span><b>+${fmt(rw.first)}</b></div>`);
-    if (rw.star) lines.push(`<div class="rw hl"><span>⭐ 새 별 ${rw.newStars}개 보너스</span><b>+${fmt(rw.star)}</b></div>`);
-    if (rw.perfect) lines.push(`<div class="rw hl perf"><span>💎 PERFECT${rw.firstPerfect ? ' (첫 퍼펙트!)' : ''}</span><b>+${fmt(rw.perfect)}</b></div>`);
-    if (rw.mid) lines.push(`<div class="rw"><span>⚡ 중간 보스 처치</span><b>+${fmt(rw.mid)}</b></div>`);
-    if (rw.sanghwa) lines.push(`<div class="rw"><span>😊 능력남 박상화 보너스</span><b>+${fmt(rw.sanghwa)}</b></div>`);
-    if (rw.hell) lines.push(`<div class="rw hl hellrw"><span>🔥 헬 모드 보상 ×${HELL.coin}</span><b>포함</b></div>`);
-    if (rw.bonus) lines.push(`<div class="rw"><span>🎟️ 단골 쿠폰</span><b>+${fmt(rw.bonus)}</b></div>`);
+    if (rw.first) lines.push(`<div class="rw hl"><span>${ic('party', '', 'sm')}첫 클리어 보너스</span><b>+${fmt(rw.first)}</b></div>`);
+    if (rw.star) lines.push(`<div class="rw hl"><span>${ic('star_gold', '', 'sm')}새 별 ${rw.newStars}개 보너스</span><b>+${fmt(rw.star)}</b></div>`);
+    if (rw.perfect) lines.push(`<div class="rw hl perf"><span>${ic('gem', '', 'sm')}PERFECT${rw.firstPerfect ? ' (첫 퍼펙트!)' : ''}</span><b>+${fmt(rw.perfect)}</b></div>`);
+    if (rw.mid) lines.push(`<div class="rw"><span>${ic('bolt', '', 'sm')}중간 보스 처치</span><b>+${fmt(rw.mid)}</b></div>`);
+    if (rw.sanghwa) lines.push(`<div class="rw"><span>능력남 박상화 보너스</span><b>+${fmt(rw.sanghwa)}</b></div>`);
+    if (rw.hell) lines.push(`<div class="rw hl hellrw"><span>${ic('fire', '', 'sm')}헬 모드 보상 ×${HELL.coin}</span><b>포함</b></div>`);
+    if (rw.bonus) lines.push(`<div class="rw"><span>${ic('ticket', '', 'sm')}단골 쿠폰</span><b>+${fmt(rw.bonus)}</b></div>`);
   }
   lines.push(`<div class="rw total"><span><i class="ci"></i>${stageMode ? '받은 코인' : `웨이브 ${sum.wave} 보상`}</span><b>+${fmt(rw.total || 0)}</b></div>`);
-  if (!stageMode && r.endless) { if (r.endless.capped) lines.push('<div class="rw"><span>♾️ 오늘 무한 코인 상한 도달</span><b>' + fmt(L.ENDLESS.coinCap) + '</b></div>'); if (r.endless.weekBest) lines.push('<div class="rw hl"><span>♾️ 이번 주 최고 점수!</span><b>주간 순위 ↑</b></div>'); if (L.mailCount(P()) > 0) lines.push('<div class="rw"><span>📮 달성 보상이 우편함에 왔어요</span><b>' + L.mailCount(P()) + '</b></div>'); }
+  if (!stageMode && r.endless) { if (r.endless.capped) lines.push('<div class="rw"><span>오늘 무한 코인 상한 도달</span><b>' + fmt(L.ENDLESS.coinCap) + '</b></div>'); if (r.endless.weekBest) lines.push('<div class="rw hl"><span>이번 주 최고 점수!</span><b>주간 순위 ↑</b></div>'); if (L.mailCount(P()) > 0) lines.push('<div class="rw"><span>달성 보상이 우편함에 왔어요</span><b>' + L.mailCount(P()) + '</b></div>'); }
   const badges = [];
   if (r.levelUp) badges.push(`<span class="badge pink">계정 레벨 업! Lv.${p.level}</span>`);
   if (r.newBestWave) badges.push('<span class="badge">최고 웨이브 갱신!</span>');
@@ -4522,9 +4691,9 @@ async function saveResult(sum, g) {
     const d = HEROES[id];
     return `<div class="unlock ${d.hidden ? 'hid' : ''}">${av(d)}<div><small>${d.hidden ? 'HIDDEN 멤버 합류!' : '새 멤버 합류!'}</small><b>${d.name}</b><span>${esc(d.role.replace('HIDDEN · ', ''))} — 이제 출전 동료로 고를 수 있어요</span></div></div>`;
   }).join('');
-  const endless = r.endlessUnlocked ? '<div class="unlock"><span class="big-ico">♾️</span><div><small>새 모드 열림!</small><b>무한 도전</b><span>어디까지 버티나 랭킹 경쟁!</span></div></div>' : '';
+  const endless = r.endlessUnlocked ? '<div class="unlock"><span class="big-ico"></span><div><small>새 모드 열림!</small><b>무한 도전</b><span>어디까지 버티나 랭킹 경쟁!</span></div></div>' : '';
   const drops = (rw.drops || []).map((it) => `<span class="drop r-${it.r}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}<b>${esc(GEAR[it.t].name)}</b><small>${GEAR_RARITY[it.r].name}${it.sold ? ` · 가방 꽉 참 → +${it.sold}` : ''}</small></span>`).join('');
-  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">💎 강화석 <b>+${rw.stones}</b></div>` : ''}${rw.cardDrop && HEROES[rw.cardDrop] ? `<div class="rw-stones">🃏 ${esc(HEROES[rw.cardDrop].name)} 카드 <b>+1</b></div>` : ''}</div>${drops ? `<div class="drops"><small>🎁 장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
+  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">${ic('gem', '', 'sm')}강화석 <b>+${rw.stones}</b></div>` : ''}${rw.cardDrop && HEROES[rw.cardDrop] ? `<div class="rw-stones">${ic('card_common', '', 'sm')}${esc(HEROES[rw.cardDrop].name)} 카드 <b>+1</b></div>` : ''}</div>${drops ? `<div class="drops"><small>${ic('gift', '', 'sm')}장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
     <div class="own">${badges.join('')}<span>보유 <i class="ci"></i>${fmt(p.coins)}</span>${app.guest ? ' · <span class="dimtxt">손님 기록은 이 기기에만</span>' : ''}</div>`;
   if (unlocks) { fx.flash('#ff9ff0', 0.4); A.sfx.join(); }
   for (const id of r.unlockedHeroes || []) await showJoinReveal(id, HEROES[id].legend ? 'legend' : HEROES[id].hidden ? 'hidden' : 'new');
@@ -4532,7 +4701,7 @@ async function saveResult(sum, g) {
 
 async function buyUpgrade(id, btn) {
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin">⏳</span>';
+  btn.innerHTML = '<span class="spin"></span>';
   const r = await API.upgradeHero(id, app.guest);
   if (r.ok && r.profile) {
     app.profile = r.profile;
@@ -4544,7 +4713,7 @@ async function buyUpgrade(id, btn) {
 }
 async function buyItemAct(id, btn) {
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin">⏳</span>';
+  btn.innerHTML = '<span class="spin"></span>';
   const r = await API.buyItem(id, app.guest);
   if (r.ok && r.profile) {
     app.profile = r.profile;
@@ -4671,7 +4840,7 @@ function dexAnim(kind, d, id) {
 }
 const DEX_FX = {
   notes: () => Array.from({ length: 6 }, (_, i) => `<i class="nt" style="--x:${12 + i * 15}%;--d:${i * 0.55}s">${i % 2 ? '♫' : '♪'}</i>`).join(''),
-  hearts: () => Array.from({ length: 5 }, (_, i) => `<i class="nt ht" style="--x:${14 + i * 17}%;--d:${i * 0.7}s">♥</i>`).join(''),
+  hearts: () => Array.from({ length: 5 }, (_, i) => `<i class="nt ht" style="--x:${14 + i * 17}%;--d:${i * 0.7}s"></i>`).join(''),
   sleepy: () => '<i class="zz">Z</i><i class="zz" style="--d:.8s">z</i><i class="zz" style="--d:1.6s">z</i>',
   flame: () => Array.from({ length: 7 }, (_, i) => `<i class="fl" style="--x:${8 + i * 13}%;--d:${(i * 0.23) % 1}s"></i>`).join(''),
   gold: () => '<i class="sh"></i>' + Array.from({ length: 8 }, (_, i) => `<i class="sp" style="--x:${(i * 37) % 90 + 5}%;--y:${(i * 53) % 70 + 10}%;--d:${i * 0.35}s">✦</i>`).join(''),
@@ -4684,7 +4853,7 @@ const hqSrc = (id) => (NO_HQ_ART.has(id) ? (NO_DEX_ART.has(id) ? (HEROES[id] || 
 const dexSrc = (id, fb) => (NO_DEX_ART.has(id) ? fb || '' : `/img/lb/dex/${id}.webp`);
 function dexImg(id, fb, cls = '') {
   const src = dexSrc(id, fb);
-  if (!src) return `<span class="dx-art dx-emo ${cls}">${esc((HEROES[id] || ENEMIES[id] || {}).emoji || '❔')}</span>`;
+  if (!src) return `<span class="dx-art dx-emo ${cls}">${esc((HEROES[id] || ENEMIES[id] || {}).emoji || '')}</span>`;
   return `<img class="dx-art ${cls}" src="${src}" alt="" draggable="false" onerror="this.onerror=null;this.src='${fb}'">`;
 }
 function dexArt(d, id, form) {
@@ -4773,9 +4942,9 @@ function dexPageHtml(kind, id, form, duo) {
   const rage = cur === 'eunok_rage' ? ' rage' : '';
   let plate, body;
   if (!ok) {
-    plate = `<div class="dp-plate"><small>🔒 ${kind === 'hero' ? '아직 합류하지 않은 멤버' : '아직 만나지 못한 진상'}</small></div>`;
+    plate = `<div class="dp-plate"><small>${ic('lock', '', 'sm')}${kind === 'hero' ? '아직 합류하지 않은 멤버' : '아직 만나지 못한 진상'}</small></div>`;
     body = `<p class="dp-flavor">${kind === 'hero' ? '아직 합류하지 않은 멤버예요' : '아직 만나지 못한 진상이에요'}</p>
-      <section><h4>🔓 만나는 법</h4><p>${esc(kind === 'hero' ? heroHow(id) : (firstStageOf(id) ? `${stageLabel(firstStageOf(id))} 부터 나와요` : '무한 도전에서 나와요'))}</p></section>`;
+ <section><h4>${ic('unlock', '', 'sm')} 만나는 법</h4><p>${esc(kind === 'hero' ? heroHow(id) : (firstStageOf(id) ? `${stageLabel(firstStageOf(id))} 부터 나와요` : '무한 도전에서 나와요'))}</p></section>`;
   } else if (kind === 'hero') {
     const t = heroTier(id), sk = d.skill, rg = Array.isArray(d.range) ? d.range[0] : d.range;
     const meta = (P().heroes || {})[id] || 0, st = L.heroStar(P(), id);
@@ -4783,11 +4952,11 @@ function dexPageHtml(kind, id, form, duo) {
       <div class="dp-star">${'★'.repeat(st)}<i>${'★'.repeat(L.STAR_MAX - st)}</i>${meta ? ` · 강화 +${meta}` : ''} · 기본 ×${tierPower(t, 0).toFixed(2)}</div></div>`;
     body = `<p class="dp-flavor">“${esc(FLAVOR[id] || DEX_FLAVOR[id] || d.desc.replace(/^"|"$/g, ""))}”</p>
       <div class="sbars">${bar('사거리', rg / 620)}${bar('공격 속도', 0.42 / d.interval)}${bar('한 방', d.dmg / 62)}</div>
-      <section><h4>⚔️ 기본 공격</h4><p>${esc(d.attack || d.desc)}</p></section>
-      ${sk ? `<section><h4>✨ 스킬 · ${esc(sk.name)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></h4><p>${esc(sk.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">🌟 진화 카드: <b>${esc(SKILL_EVO[id])}</b></p>` : ''}</section>` : ''}
-      ${d.perks ? `<section><h4>📈 성장</h4><p>Lv3 ${esc(d.perks[3])}</p><p>Lv5 ${esc(d.perks[5])}</p></section>` : ''}
-      <section><h4>⚖️ 상성</h4><p>${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p></section>
-      <section><h4>📍 합류</h4><p>${esc(heroHow(id))}</p></section>`;
+ <section><h4>${ic('swords', '', 'sm')} 기본 공격</h4><p>${esc(d.attack || d.desc)}</p></section>
+      ${sk ? `<section><h4>${ic('sparkle', '', 'sm')}스킬 · ${esc(sk.name)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></h4><p>${esc(sk.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화 카드: <b>${esc(SKILL_EVO[id])}</b></p>` : ''}</section>` : ''}
+      ${d.perks ? `<section><h4>${ic('chart', '', 'sm')}성장</h4><p>Lv3 ${esc(d.perks[3])}</p><p>Lv5 ${esc(d.perks[5])}</p></section>` : ''}
+ <section><h4>${ic('scale', '', 'sm')} 상성</h4><p>${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p></section>
+ <section><h4>${ic('pin', '', 'sm')} 합류</h4><p>${esc(heroHow(id))}</p></section>`;
   } else {
     const fs = firstStageOf(id);
     const tipId = ENEMY_TIPS[id] ? id : d.base || (d.fuse && d.fuse[0]) || id;
@@ -4798,10 +4967,10 @@ function dexPageHtml(kind, id, form, duo) {
     plate = `<div class="dp-plate"><small>${d.mid ? `중간 보스 · ${d.fuse ? '합체' : '각성'} · ` : d.boss ? '보스 · ' : ''}${shout || esc(CLASSES[d.cls].name)}</small></div>`;
     body = `<p class="dp-flavor">“${esc(flav)}”</p>
       <div class="sbars">${bar('체력', Math.log10(d.hp) / Math.log10(4000))}${bar('속도', d.speed / 95)}${bar('입구 피해', d.atk / 36)}</div>
-      ${d.traits ? `<div class="dp-sec"><b>🔎 특성</b>${Object.keys(d.traits).filter((k) => TRAITS[k]).map((k) => `<p>${TRAITS[k].icon} <b>${esc(TRAITS[k].name)}</b> — ${esc(TRAITS[k].tip)} <small>추천: ${TRAITS[k].counter.filter((h) => HEROES[h]).map((h) => esc(HEROES[h].name)).join('·')}</small></p>`).join('')}</div>` : ''}
-      <section><h4>🧨 특징</h4>${(d.fuse ? d.fuse : [tipId]).map((t) => `<p>${d.fuse ? `<b>${esc(ENEMIES[t].name)}</b> · ` : ''}${esc(ENEMY_TIPS[t] || '')}</p>`).join('')}</section>
-      <section><h4>⚖️ 상성</h4><p>잘 먹힘 ${good.join(' ')} <span class="rg">×${TYPE_STRONG}</span></p><p>안 먹힘 ${bad.join(' ')} <span class="rg">×${TYPE_WEAK}</span></p></section>
-      <section><h4>📍 등장</h4><p>${fs ? `${stageLabel(fs)} 부터` : '무한 도전'}${d.boss ? ' · 보스' : d.mid ? ' · 3웨이브 중간 보스' : ''}</p></section>`;
+      ${d.traits ? `<div class="dp-sec"><b>${ic('target', '', 'sm')}특성</b>${Object.keys(d.traits).filter((k) => TRAITS[k]).map((k) => `<p>${TRAITS[k].icon} <b>${esc(TRAITS[k].name)}</b> — ${esc(TRAITS[k].tip)} <small>추천: ${TRAITS[k].counter.filter((h) => HEROES[h]).map((h) => esc(HEROES[h].name)).join('·')}</small></p>`).join('')}</div>` : ''}
+ <section><h4> 특징</h4>${(d.fuse ? d.fuse : [tipId]).map((t) => `<p>${d.fuse ? `<b>${esc(ENEMIES[t].name)}</b> · ` : ''}${esc(ENEMY_TIPS[t] || '')}</p>`).join('')}</section>
+ <section><h4>${ic('scale', '', 'sm')} 상성</h4><p>잘 먹힘 ${good.join(' ')} <span class="rg">×${TYPE_STRONG}</span></p><p>안 먹힘 ${bad.join(' ')} <span class="rg">×${TYPE_WEAK}</span></p></section>
+ <section><h4>${ic('pin', '', 'sm')} 등장</h4><p>${fs ? `${stageLabel(fs)} 부터` : '무한 도전'}${d.boss ? ' · 보스' : d.mid ? ' · 3웨이브 중간 보스' : ''}</p></section>`;
   }
   // 뽑기 캐릭터 카드 느낌: NO. 번호 · 대각선 두 색 배경 · 큰 전신 그림 · 세로 영문 이름 · 오른쪽 아래 큰 이름
   const hero = kind === 'hero';
@@ -4829,10 +4998,10 @@ function dexPageHtml(kind, id, form, duo) {
         <span class="dp-glow"></span><span class="dp-shadow"></span>
         <span class="dp-pic">${art}</span>
         ${ok && DEX_FX[fxKey] ? `<span class="dp-fx">${DEX_FX[fxKey]()}</span>` : ''}
-        ${alts ? `<span class="dp-form">👆 ${esc(DEX_FORM[cur] || '')} <small>눌러서 변신</small></span>` : ''}
+        ${alts ? `<span class="dp-form">${ic('tap', '', 'sm')}${esc(DEX_FORM[cur] || '')} <small>눌러서 변신</small></span>` : ''}
       </div>
       ${ok ? igChip(inGameSprites(hero ? 'hero' : 'enemy', id, d)) : ''}
-      ${hero && ok && hasDuo(id) ? `<button class="gc-duo" data-dp="duo" hidden>${duo ? '👤 한 명만' : '👥 두 모습 보기'}</button><img class="gc-probe" src="/img/lb/dexhq/${id}_duo.webp" alt="" hidden onload="var b=this.parentNode.querySelector('.gc-duo');if(b)b.hidden=false">` : ''}
+      ${hero && ok && hasDuo(id) ? `<button class="gc-duo" data-dp="duo" hidden>${duo ? '한 명만' : '두 모습 보기'}</button><img class="gc-probe" src="/img/lb/dexhq/${id}_duo.webp" alt="" hidden onload="var b=this.parentNode.querySelector('.gc-duo');if(b)b.hidden=false">` : ''}
       <div class="gc-en">${esc(en)}</div>
       <div class="gc-name"><b>${ok ? esc(d.name) : '???'}</b></div>
     </div>
@@ -4915,7 +5084,7 @@ function gearTabHtml() {
   const rows = heroes.map((id) => {
     const d = HEROES[id];
     const sl = (p.equip || {})[id] || {};
-    const cell = (k) => { const it = find(sl[k]); return `<button class="gslot ${it ? 'r-' + it.r : 'empty'}" data-act="gearSlot" data-hero="${id}" data-slot="${k}" ${it ? `style="--rc:${GEAR_RARITY[it.r].color}"` : ''}>${it ? `${gearIco(it)}<small>${it.lv ? '+' + it.lv : ''}</small>` : `<i>${k === 'w' ? '🗡️' : '💍'}</i>`}</button>`; };
+    const cell = (k) => { const it = find(sl[k]); return `<button class="gslot ${it ? 'r-' + it.r : 'empty'}" data-act="gearSlot" data-hero="${id}" data-slot="${k}" ${it ? `style="--rc:${GEAR_RARITY[it.r].color}"` : ''}>${it ? `${gearIco(it)}<small>${it.lv ? '+' + it.lv : ''}</small>` : `<i>${k === 'w' ? '' : ''}</i>`}</button>`; };
     return `<div class="grow">${av(d)}<b>${d.name}</b>${cell('w')}${cell('a')}</div>`;
   }).join('');
   const bag = (p.gear || []).slice().sort((a, b) => GEAR_RARITY[b.r].mul - GEAR_RARITY[a.r].mul || b.lv - a.lv).map((it) => {
@@ -4940,7 +5109,7 @@ function gearModal(html) {
     let r;
     if (act === 'equip') r = await API.equipGear(a1, a2, a3 === 'x' ? null : Number(a3), app.guest);
     else if (act === 'enh') r = await API.enhanceGear(Number(a1), app.guest);
-    else if (act === 'dis') { if (!(await confirmBox({ title: '이 장비를 분해할까요?', sub: '강화석으로 바뀌어요 · 되돌릴 수 없어요', ok: '분해', cancel: '취소', danger: true }))) { b.disabled = false; return; } r = await API.dismantleGear([Number(a1)], app.guest); if (r && r.ok) { closeInfoCard(); toast(`💎 강화석 +${r.stones}`); refreshBehind(); return; } }
+    else if (act === 'dis') { if (!(await confirmBox({ title: '이 장비를 분해할까요?', sub: '강화석으로 바뀌어요 · 되돌릴 수 없어요', ok: '분해', cancel: '취소', danger: true }))) { b.disabled = false; return; } r = await API.dismantleGear([Number(a1)], app.guest); if (r && r.ok) { closeInfoCard(); toast(`강화석 +${r.stones}`); refreshBehind(); return; } }
     else if (act === 'sell') { if (!(await confirmBox({ title: '이 장비를 팔까요?', ok: '팔기', cancel: '취소', danger: true }))) { b.disabled = false; return; } r = await API.sellGear(Number(a1), app.guest); }
     else if (act === 'lock') { const set = gearLocked(); const id = Number(a1); if (set.has(id)) set.delete(id); else set.add(id); lsSave('langbang:gearLock', set); closeInfoCard(); showGearCard(id); refreshBehind(); return; }
     if (r && r.ok && r.profile && act === 'enh') {
@@ -4948,8 +5117,8 @@ function gearModal(html) {
       app.profile = r.profile;
       const card = box.querySelector('.info-card');
       if (card) { card.classList.remove('enh-ok', 'enh-no'); void card.offsetWidth; card.classList.add(r.success === false ? 'enh-no' : 'enh-ok'); }
-      if (r.success === false) { A.sfx.tap(); toast(`🔨 강화 실패… 비용만 들었어요 (장비는 그대로 · 성공 확률 ${Math.round((r.chance || 0) * 100)}%)`, 1800); }
-      else { A.sfx.levelUp(); fx.flash('#ffd23f', 0.2); toast(`🔨 +${r.lv || ''} 강화 성공!`, 1400); }
+      if (r.success === false) { A.sfx.tap(); toast(`강화 실패… 비용만 들었어요 (장비는 그대로 · 성공 확률 ${Math.round((r.chance || 0) * 100)}%)`, 1800); }
+      else { A.sfx.levelUp(); fx.flash('#ffd23f', 0.2); toast(`+${r.lv || ''} 강화 성공!`, 1400); }
       await sleep(550);
     } else if (r && r.ok && r.profile) { app.profile = r.profile; A.sfx.levelUp(); toast(act === 'sell' ? `+${r.sold} 코인` : '장착!', 1200); }
     else if (r) toast(r.message || '못 했어요');
@@ -5027,29 +5196,29 @@ function showBag() {
     const eq = equippedBy(p, it.id);
     const bulkOn = (app.bulk && app.bulk.has(it.id)) || (app.fuse && app.fuse.includes(it.id)), bulkNo = (app.bulk || app.fuse) && (eq || locks.has(it.id) || (app.fuse && (it.r === 'legend' || it.r === 'myth' || (app.fuse.length && fuseRarity(p) !== it.r))));
     return `<button class="bitem v2 r-${it.r} ${app.bulk || app.fuse ? 'bulk' : ''} ${bulkOn ? 'chk' : ''} ${bulkNo ? 'nosel' : ''}" data-act="${app.bulk ? 'bulkPick' : app.fuse ? 'fusePick' : 'bagPick'}" data-id="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">
-      <span class="bi-ico">${gIco(it)}</span>${it.lv ? `<em class="bi-lv">+${it.lv}</em>` : ''}${it.id > seenMax ? '<i class="bi-new">N</i>' : ''}${locks.has(it.id) ? '<i class="bi-lock">🔒</i>' : ''}
+      <span class="bi-ico">${gIco(it)}</span>${it.lv ? `<em class="bi-lv">+${it.lv}</em>` : ''}${it.id > seenMax ? '<i class="bi-new">N</i>' : ''}${locks.has(it.id) ? '<i class="bi-lock"></i>' : ''}
       <b class="bi-name">${esc(GEAR[it.t].name)}</b>${eq ? `<span class="bi-eq" title="${esc(HEROES[eq].name)}">${av(HEROES[eq])}</span>` : ''}</button>`;
   }).join('');
   const maxId = Math.max(0, ...(p.gear || []).map((x) => x.id));
   const deckIds = [...new Set([...(curDeck() || []).filter(Boolean)])];
   const rows = (app.bagAll ? owned() : deckIds.length ? deckIds : owned().slice(0, 4)).map((h) => eqRowHtml(p, h)).join('');
-  const tabs = `<div class="seg bag-seg">${[['over', '장비'], ['bag', `가방 ${(p.gear || []).length}/80`], ['fuse', '⚗️ 합성']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-act="bagTab" data-v="${k}">${n}</button>`).join('')}</div>`;
+  const tabs = `<div class="seg bag-seg">${[['over', '장비'], ['bag', `가방 ${(p.gear || []).length}/80`], ['fuse', '합성']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-act="bagTab" data-v="${k}">${n}</button>`).join('')}</div>`;
   const tools = `<div class="bag-tools"><div class="chips">${[['all', '전체'], ['w', '무기'], ['a', '장신구'], ['worn', '착용 중'], ['free', '미착용'], ['deckworn', '출전 멤버 착용']].map(([k, n]) => `<button class="chip ${filt === k ? 'on' : ''}" data-act="bagFilter" data-v="${k}">${n}</button>`).join('')}</div>
     <div class="chips sort">${[['r', '등급'], ['lv', '강화'], ['t', '종류'], ['new', '최근']].map(([k, n]) => `<button class="chip mini ${sort === k ? 'on' : ''}" data-act="bagSortV" data-v="${k}">${n}</button>`).join('')}</div></div>`;
-  const grid = `<div class="bag-grid v2">${cells || `<div class="empty-state"><span>🎒</span><b>${filt === 'all' ? '아직 장비가 없어요' : '이 조건에 맞는 장비가 없어요'}</b><small>스테이지를 깨면 장비가 떨어져요</small></div>`}</div>`;
+  const grid = `<div class="bag-grid v2">${cells || `<div class="empty-state"><span>${ic('bag', '', 'sm')}</span><b>${filt === 'all' ? '아직 장비가 없어요' : '이 조건에 맞는 장비가 없어요'}</b><small>스테이지를 깨면 장비가 떨어져요</small></div>`}</div>`;
   let body;
   if (tab === 'over') {
     body = equipTabHtml(p);
   } else if (tab === 'overOld') {
     body = `<div class="eq-over v2"><div class="eq-head"><span class="eq-scope">${app.bagAll ? '가진 멤버 전부' : '지금 덱'}</span><button class="chip" data-act="bagAll">${app.bagAll ? '덱만 보기' : '전부 보기'}</button></div>
       <div class="eq-rows">${rows}</div>
-      <p class="sub">칸을 누르면 끼울 장비를 골라요 · 💎 강화석 <b>${p.stones | 0}</b></p></div>`;
+ <p class="sub">칸을 누르면 끼울 장비를 골라요 · ${ic('gem', '', 'sm')} 강화석 <b>${p.stones | 0}</b></p></div>`;
   } else if (tab === 'bag') {
     body = `${tools}${app.bulk ? bulkBarHtml(p, locks) : ''}${grid}`;
   } else {
     body = `${fuseBarHtml(p)}${tools}${grid}`;
   }
-  const actions = tab === 'fuse' ? '' : `<div class="bag-actions">${tab === 'bag' && !app.bulk ? '<button class="btn" data-act="bulkOn">🧹 일괄 판매·분해</button>' : ''}<button class="btn primary" data-act="autoEquipAll">${ic('sparkle', '✨', 'sm')} ${tab === 'over' ? '출전 멤버 우선 자동 장착' : '자동 장착'}</button></div>`;
+  const actions = tab === 'fuse' ? '' : `<div class="bag-actions">${tab === 'bag' && !app.bulk ? '<button class="btn" data-act="bulkOn">일괄 판매·분해</button>' : ''}<button class="btn primary" data-act="autoEquipAll">${ic('sparkle', '', 'sm')} ${tab === 'over' ? '출전 멤버 우선 자동 장착' : '자동 장착'}</button></div>`;
   show(`
     ${subTop('강화·장비')}
     ${tabs}
@@ -5070,8 +5239,8 @@ function bulkBarHtml(p, locks) {
   const v = (p.gear || []).filter((g) => app.bulk.has(g.id)).reduce((a, it) => a + gearSellValue(it.r, it.lv), 0);
   return `<div class="bulk-bar">
     <div class="chips">${[['common', '일반 전부'], ['rare', '희귀 이하'], ['free', '장착 안 한 것만'], ['dup', '중복만'], ['none', '선택 해제']].map(([k, n]) => `<button class="chip" data-act="bulkQuick" data-v="${k}">${n}</button>`).join('')}</div>
-    <div class="bulk-go"><button class="btn ghost" data-act="bulkOff">취소</button><button class="btn ${ids.length ? 'pink' : ''}" data-act="bulkSell" ${ids.length ? '' : 'disabled'}>🧹 ${ids.length}개 팔기 · <i class="ci"></i>${fmt(v)}</button><button class="btn ${ids.length ? '' : ''}" data-act="bulkDis" ${ids.length ? '' : 'disabled'}>💎 분해 +${(p.gear || []).filter((g) => app.bulk.has(g.id)).reduce((a, it) => a + gearDismantle(it.r, it.lv), 0)}</button></div>
-    <small class="bulk-note">장착 중 · 🔒잠금 장비는 고를 수 없어요</small></div>`;
+    <div class="bulk-go"><button class="btn ghost" data-act="bulkOff">취소</button><button class="btn ${ids.length ? 'pink' : ''}" data-act="bulkSell" ${ids.length ? '' : 'disabled'}>${ic('broom', '', 'sm')}${ids.length}개 팔기 · <i class="ci"></i>${fmt(v)}</button><button class="btn ${ids.length ? '' : ''}" data-act="bulkDis" ${ids.length ? '' : 'disabled'}>${ic('gem', '', 'sm')}분해 +${(p.gear || []).filter((g) => app.bulk.has(g.id)).reduce((a, it) => a + gearDismantle(it.r, it.lv), 0)}</button></div>
+ <small class="bulk-note">장착 중 · ${ic('lock', '', 'sm')}잠금 장비는 고를 수 없어요</small></div>`;
 }
 // 합성: 같은 등급 3개 → 다음 등급 1개 (셋 다 같은 종류면 그 종류) · 가장 높은 강화 -2 이어 받기 · 수수료
 function fuseRarity(p) { const it = (p.gear || []).find((g) => app.fuse && app.fuse[0] === g.id); return it ? it.r : null; }
@@ -5082,21 +5251,21 @@ function fuseBarHtml(p) {
   const same = list.length === 3 && list.every((it) => it.t === list[0].t);
   const lv = list.length ? Math.max(0, Math.max(...list.map((it) => it.lv)) - 2) : 0;
   return `<div class="bulk-bar fuse-bar">
-    <b>⚗️ 합성</b> <small>같은 등급 3개 → 다음 등급 1개 · 셋 다 같은 종류면 그 종류 · 가장 높은 강화 -2 를 이어 받아요</small>
-    <div class="fuse-slots">${[0, 1, 2].map((i) => { const it = list[i]; return `<span class="fz ${it ? 'r-' + it.r : ''}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#444'}">${it ? gearIco(it) + (it.lv ? `<small>+${it.lv}</small>` : '') : '+'}</span>`; }).join('<i>+</i>')}<i>→</i><span class="fz out" style="--rc:${r1 ? GEAR_RARITY[r1].color : '#444'}">${r1 ? `<b>${GEAR_RARITY[r1].name}</b><small>${same ? esc(GEAR[list[0].t].name) : '무작위'}${lv ? ` +${lv}` : ''}</small>` : '?'}</span></div>
+ <b>${ic('flask', '', 'sm')} 합성</b> <small>같은 등급 3개 → 다음 등급 1개 · 셋 다 같은 종류면 그 종류 · 가장 높은 강화 -2 를 이어 받아요</small>
+ <div class="fuse-slots">${[0, 1, 2].map((i) => { const it = list[i]; return `<span class="fz ${it ? 'r-' + it.r : ''}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#444'}">${it ? gearIco(it) + (it.lv ? `<small>+${it.lv}</small>` : '') : '+'}</span>`; }).join('<i>+</i>')}<i>→</i><span class="fz out" style="--rc:${r1 ? GEAR_RARITY[r1].color : '#444'}">${r1 ? `<b>${GEAR_RARITY[r1].name}</b><small>${same ? esc(GEAR[list[0].t].name) : '무작위'}${lv ? ` +${lv}` : ''}</small>` : '?'}</span></div>
     <div class="chips">${['common', 'rare', 'epic'].map((r) => `<button class="chip" data-act="fuseAuto" data-v="${r}">${GEAR_RARITY[r].name} 자동 채우기</button>`).join('')}</div>
-    <div class="bulk-go"><button class="btn ghost" data-act="fuseOff">취소</button><button class="btn ${list.length === 3 ? 'pink' : ''}" data-act="fuseGo" ${list.length === 3 && (free || p.coins >= fee) ? '' : 'disabled'}>⚗️ 합성${fee && !free ? ` · <i class="ci"></i>${fmt(fee)}` : ''}</button></div>
-    <small class="bulk-note">장착 중 · 🔒잠금 · 전설 장비는 합성에 못 넣어요</small></div>`;
+    <div class="bulk-go"><button class="btn ghost" data-act="fuseOff">취소</button><button class="btn ${list.length === 3 ? 'pink' : ''}" data-act="fuseGo" ${list.length === 3 && (free || p.coins >= fee) ? '' : 'disabled'}>${ic('flask', '', 'sm')}합성${fee && !free ? ` · <i class="ci"></i>${fmt(fee)}` : ''}</button></div>
+ <small class="bulk-note">장착 중 · ${ic('lock', '', 'sm')}잠금 · 전설 장비는 합성에 못 넣어요</small></div>`;
 }
 function eqRowHtml(p, h) {
   const d = HEROES[h];
   const sl = (p.equip || {})[h] || {};
   const find = (gid) => (p.gear || []).find((x) => x.id === gid);
   const better = (k) => { const cur = find(sl[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)); };
-  const slotB = (k) => { const it = find(sl[k]); return `<button class="eq-slot v2 ${it ? 'r-' + it.r : 'empty'}" data-act="eqSlot" data-hero="${h}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">${it ? `<span class="es-ico">${gearIco(it)}</span><span class="es-t"><b>${esc(GEAR[it.t].name)}</b><small>${it.lv ? `+${it.lv} · ` : ''}${GEAR_RARITY[it.r].name}</small></span>` : `<span class="es-ico ph">${k === 'w' ? '🗡️' : '💍'}</span><span class="es-t"><b>${k === 'w' ? '무기' : '장신구'}</b><small>비어 있음</small></span>`}${better(k) ? '<i class="rd"></i>' : ''}</button>`; };
+  const slotB = (k) => { const it = find(sl[k]); return `<button class="eq-slot v2 ${it ? 'r-' + it.r : 'empty'}" data-act="eqSlot" data-hero="${h}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">${it ? `<span class="es-ico">${gearIco(it)}</span><span class="es-t"><b>${esc(GEAR[it.t].name)}</b><small>${it.lv ? `+${it.lv} · ` : ''}${GEAR_RARITY[it.r].name}</small></span>` : `<span class="es-ico ph">${k === 'w' ? '' : ''}</span><span class="es-t"><b>${k === 'w' ? '무기' : '장신구'}</b><small>비어 있음</small></span>`}${better(k) ? '<i class="rd"></i>' : ''}</button>`; };
   return `<div class="eq-row" data-hero="${h}" style="--c:${ATTRS[d.attr].color}">
     ${artCard(h, { act: 'bagHeroPick', cls: 'mini' })}
-    <div class="eq-mid"><b>${esc(d.name)}</b><small>⚔ 전투력 ${fmt(heroPower(p, h))}</small></div>
+    <div class="eq-mid"><b>${esc(d.name)}</b><small>${ic('swords', '', 'sm')}전투력 ${fmt(heroPower(p, h))}</small></div>
     ${slotB('w')}${slotB('a')}</div>`;
 }
 async function equipTo(hero, slot, gid) {
@@ -5143,7 +5312,7 @@ function equipTabHtml(p) {
     <div class="eq-hero" style="--c:${ATTRS[HEROES[sel].attr].color}">
       ${artCard(sel, { act: 'heroCard', cls: 'eq-port' })}
       <div class="eq-info"><b class="eq-nm">${esc(HEROES[sel].name)}</b>
-        <div class="eq-pw">${ic('swords', '⚔️', 'sm')}<span>전투력</span><b class="roll" data-from="${prev}" data-to="${pw}">${fmt(prev)}</b></div>
+        <div class="eq-pw">${ic('swords', '', 'sm')}<span>전투력</span><b class="roll" data-from="${prev}" data-to="${pw}">${fmt(prev)}</b></div>
         <div class="eq-st">${statLines(st)}</div>
         <button class="chip mini" data-act="eqUnall" data-hero="${sel}" ${sl.w || sl.a || sl.m ? '' : 'disabled'}>전체 해제</button></div>
     </div>
@@ -5175,7 +5344,7 @@ function showEquipSheet(hero, slot, selId) {
   popup(`<h3>${esc(HEROES[hero].name)} · ${slot === 'w' ? '무기' : slot === 'a' ? '장신구' : '신화'}</h3>
     <div class="cmp">${side(cur, '지금')}<div class="cmp-mid"><i>→</i><b>${fmt(base)}</b><b class="${after > base ? 'up' : after < base ? 'dn' : ''}">${fmt(after)}</b><small>전투력</small></div>${side(s2 || cur, s2 ? '고른 것' : '지금')}</div>
     <div class="cmp-btn">${s2 ? `<button class="btn primary" data-act="eqDo" data-id="${s2.id}">${owner ? '빼서 끼기' : '장착'}</button>` : ''}${cur ? '<button class="btn" data-act="eqOff">해제</button>' : ''}
-      ${tgt ? `<button class="btn ${canEnh ? 'pink' : ''}" data-act="eqEnh" data-id="${tgt.id}" ${canEnh ? '' : 'disabled'}>${ic('hammer', '🔨', 'sm')} ${cost === null ? 'MAX' : `+${tgt.lv + 1}`}${cost !== null && !free ? ` <small>${fmt(cost)}</small>` : ''}</button><button class="btn ghost" data-act="eqLock" data-id="${tgt.id}">${locks.has(tgt.id) ? '잠금 풀기' : '잠금'}</button>` : ''}</div>
+      ${tgt ? `<button class="btn ${canEnh ? 'pink' : ''}" data-act="eqEnh" data-id="${tgt.id}" ${canEnh ? '' : 'disabled'}>${ic('hammer', '', 'sm')} ${cost === null ? 'MAX' : `+${tgt.lv + 1}`}${cost !== null && !free ? ` <small>${fmt(cost)}</small>` : ''}</button><button class="btn ghost" data-act="eqLock" data-id="${tgt.id}">${locks.has(tgt.id) ? '잠금 풀기' : '잠금'}</button>` : ''}</div>
     <div class="eqs-list">${rows.map((r) => `<button class="eqs ${pick && r.it.id === pick.it.id ? 'sel' : ''} ${r.it.id === curId ? 'cur' : ''}" data-act="eqSel" data-id="${r.it.id}" style="--rc:${GEAR_RARITY[r.it.r].color}">
       ${gIco(r.it)}<span class="eqs-t"><b>${esc(GEAR[r.it.t].name)}${r.it.lv ? ` <em>+${r.it.lv}</em>` : ''}${locks.has(r.it.id) ? ` ${ic('lock', '', 'sm')}` : ''}</b><small>${esc(gearStatText(r.it))}</small></span>
       ${r.it.id === curId ? '<i class="eqs-now">착용 중</i>' : r.own ? `<span class="eqs-own">${av(HEROES[r.own])}<small>${esc(HEROES[r.own].name)} 착용 중</small></span>` : ''}${r.it.id === curId ? '' : diff(r.d)}</button>`).join('') || '<p class="ip">이 칸에 낄 장비가 없어요 — 스테이지를 깨면 떨어져요</p>'}</div>`, 'pp-sheet eq-sheet');
@@ -5320,7 +5489,7 @@ async function autoEquipAll() {
     const r = await API.equipGear(h, k, best.id, app.guest);
     if (r.ok && r.profile) { app.profile = r.profile; n++; }
   }
-  toast(n ? `✨ 덱 멤버에게 좋은 장비 ${n}개를 끼웠어요` : '이미 제일 좋은 장비예요', 1600);
+  toast(n ? `덱 멤버에게 좋은 장비 ${n}개를 끼웠어요` : '이미 제일 좋은 장비예요', 1600);
   if (n) A.sfx.levelUp();
   showBag();
 }
@@ -5374,13 +5543,13 @@ function showGearCard(gid) {
   const keys = [...new Set([...Object.keys(cur), ...Object.keys(after)])].filter((x) => (cur[x] || 0) || (after[x] || 0));
   const diff = keys.map((x) => { const a = cur[x] || 0, b = after[x] || 0; return `<div class="df"><span>${GEAR_STATS[x].name}</span><b>+${(a * 100).toFixed(1)}%</b><i class="${b > a ? 'gu' : b < a ? 'gd' : ''}">→</i><b class="${b > a ? 'gu' : b < a ? 'gd' : ''}">+${(b * 100).toFixed(1)}%</b></div>`; }).join('');
   const locked = gearLocked().has(gid);
-  gearModal(`<div class="gc-head" style="--rc:${GEAR_RARITY[it.r].color}"><span class="gc-ico">${gearIco(it)}</span><div><b>${esc(GEAR[it.t].name)}${it.lv ? ` +${it.lv}` : ''} ${locked ? '⭐' : ''}</b><small>${GEAR_RARITY[it.r].name} · ${k === 'w' ? '무기' : '액세서리'}${eq ? ` · ${HEROES[eq].name} 장착 중` : ''}</small></div></div>
+  gearModal(`<div class="gc-head" style="--rc:${GEAR_RARITY[it.r].color}"><span class="gc-ico">${gearIco(it)}</span><div><b>${esc(GEAR[it.t].name)}${it.lv ? ` +${it.lv}` : ''} ${locked ? '' : ''}</b><small>${GEAR_RARITY[it.r].name} · ${k === 'w' ? '무기' : '액세서리'}${eq ? ` · ${HEROES[eq].name} 장착 중` : ''}</small></div></div>
     ${gearInfoHtml(it)}
     <div class="gdiff"><small>${HEROES[hero].name}에게 끼면</small>${diff}</div>
     <div class="gc-row">${eq === hero ? `<button class="btn" data-g="equip:${hero}:${k}:x">빼기</button>` : `<button class="btn primary" data-g="equip:${hero}:${k}:${gid}">${HEROES[hero].name}에게 끼기</button>`}
-      ${(() => { const free = p.master && !p.testNormal; const stn = free ? 0 : gearStoneNeed(it.lv); const can = cost !== null && (free || (p.coins >= cost && (p.stones | 0) >= stn)); return `<button class="btn ${can ? 'pink' : ''}" data-g="enh:${gid}" ${can ? '' : 'disabled'}>🔨 강화 ${cost === null ? 'MAX' : `+${it.lv + 1} · ${free ? '100' : Math.round(gearEnhanceChance(it.lv) * 100)}% · ${free ? '공짜' : `<i class="ci"></i>${fmt(cost)}${stn ? ` · 💎${p.stones | 0}/${stn}` : ''}`}`}</button>`; })()}</div>
-    ${cost !== null && gearStoneNeed(it.lv) && !(p.master && !p.testNormal) ? `<p class="g-help">💎 강화석: +6 부터 필요 (+6 1개 · +7 2개 · +8 3개 · +9 4개 · +10 5개) · 1-6 이후 스테이지·보스·레이드·<b>분해</b>로 모아요</p>` : ''}
-    <div class="gc-row"><button class="btn ghost" data-g="lock:${gid}">${locked ? '⭐ 잠금 풀기' : '☆ 잠그기 (팔기 방지)'}</button><button class="btn ghost" data-g="sell:${gid}" ${locked || eq ? 'disabled' : ''}>팔기 +${fmt(gearSellValue(it.r, it.lv))}</button><button class="btn ghost" data-g="dis:${gid}" ${locked || eq ? 'disabled' : ''}>분해 💎+${gearDismantle(it.r, it.lv)}</button></div>`);
+      ${(() => { const free = p.master && !p.testNormal; const stn = free ? 0 : gearStoneNeed(it.lv); const can = cost !== null && (free || (p.coins >= cost && (p.stones | 0) >= stn)); return `<button class="btn ${can ? 'pink' : ''}" data-g="enh:${gid}" ${can ? '' : 'disabled'}>${ic('hammer', '', 'sm')}강화 ${cost === null ? 'MAX' : `+${it.lv + 1} · ${free ? '100' : Math.round(gearEnhanceChance(it.lv) * 100)}% · ${free ? '공짜' : `<i class="ci"></i>${fmt(cost)}${stn ? ` · ${p.stones | 0}/${stn}` : ''}`}`}</button>`; })()}</div>
+    ${cost !== null && gearStoneNeed(it.lv) && !(p.master && !p.testNormal) ? `<p class="g-help">${ic('gem', '', 'sm')}강화석: +6 부터 필요 (+6 1개 · +7 2개 · +8 3개 · +9 4개 · +10 5개) · 1-6 이후 스테이지·보스·레이드·<b>분해</b>로 모아요</p>` : ''}
+    <div class="gc-row"><button class="btn ghost" data-g="lock:${gid}">${locked ? '잠금 풀기' : '☆ 잠그기 (팔기 방지)'}</button><button class="btn ghost" data-g="sell:${gid}" ${locked || eq ? 'disabled' : ''}>팔기 +${fmt(gearSellValue(it.r, it.lv))}</button><button class="btn ghost" data-g="dis:${gid}" ${locked || eq ? 'disabled' : ''}>분해 ${ic('gem', '', 'sm')}+${gearDismantle(it.r, it.lv)}</button></div>`);
 }
 function gearInfoHtml(it) {
   const g = GEAR[it.t], R0 = GEAR_RARITY[it.r], st = GEAR_STATS[g.stat];
@@ -5390,7 +5559,7 @@ function gearInfoHtml(it) {
   const fit = info[1].filter((h) => HEROES[h]).map((h) => HEROES[h].name).join('·');
   return `<p class="g-fl">"${esc(info[0])}"</p>
     <div class="g-eff"><b>${esc(STAT_HELP[g.stat] ? STAT_HELP[g.stat][0] : st.name)} +${pct(v)}</b>${it.lv ? ` <small>(기본 +${pct(v0)} · +${it.lv} 강화)</small>` : ''}${nx !== null ? ` <em class="gu">→ +${it.lv + 1}: +${pct(nx)}</em>` : ' <small>(MAX)</small>'}</div>
-    <div class="g-meta"><span style="color:${R0.color}">● ${R0.name} 등급 ×${R0.mul}</span>${fit ? `<span>👍 추천: ${esc(fit)}</span>` : ''}<span>📍 ${g.ch ? `${g.ch}챕터부터` : '1챕터부터'} 스테이지 보상</span></div>
+    <div class="g-meta"><span style="color:${R0.color}">● ${R0.name} 등급 ×${R0.mul}</span>${fit ? `<span>추천: ${esc(fit)}</span>` : ''}<span>${ic('pin', '', 'sm')}${g.ch ? `${g.ch}챕터부터` : '1챕터부터'} 스테이지 보상</span></div>
     <p class="g-help">강화: 레벨당 +12% · +4부터 성공 확률이 조금씩 줄어요 (실패해도 안 깨짐) <button class="lnk" data-g="help">용어 풀이</button></p>`;
 }
 async function autoEquip() {
@@ -5408,7 +5577,7 @@ async function autoEquip() {
       if (r.ok && r.profile) { app.profile = r.profile; n++; }
     }
   }
-  toast(n ? `✨ ${HEROES[id].name}에게 좋은 장비를 끼웠어요` : '이미 제일 좋은 장비예요', 1600);
+  toast(n ? `${HEROES[id].name}에게 좋은 장비를 끼웠어요` : '이미 제일 좋은 장비예요', 1600);
   if (n) A.sfx.levelUp();
   showBag();
 }
@@ -5425,13 +5594,13 @@ async function showRanking() {
   const tab = app.rankTab;
   show(`
     ${topbar(true)}
-    <h2 class="title">🏆 랑방 명예의 전당</h2>
-    <div class="tabs"><button class="${tab === 'stage' ? 'on' : ''}" data-act="rankTab" data-tab="stage">🗺️ 스테이지</button><button class="${tab === 'endless' ? 'on' : ''}" data-act="rankTab" data-tab="endless">♾️ 무한 도전</button><button class="${tab === 'endlessWeek' ? 'on' : ''}" data-act="rankTab" data-tab="endlessWeek">📅 무한 주간</button></div>
-    <p class="sub">${tab === 'stage' ? '최고 스테이지 → 총 별 → 먼저 도달한 순' : tab === 'endlessWeek' ? '이번 주 무한 도전 최고 점수 · 주가 끝나면 순위 보상이 우편함으로' : '최고 웨이브 → 최고 점수 순'}</p>
-    <div class="rank-list" id="rk"><div class="empty-msg"><span class="spin">⏳</span> 불러오는 중…</div></div>
-    <div class="spacer"></div>
-    <div class="my-rank" id="myrk"></div>
-  `, 'dim');
+ <h2 class="title">${ic('trophy', '', 'sm')} 랑방 명예의 전당</h2>
+ <div class="tabs"><button class="${tab === 'stage' ? 'on' : ''}" data-act="rankTab" data-tab="stage">${ic('map', '', 'sm')}스테이지</button><button class="${tab === 'endless' ? 'on' : ''}" data-act="rankTab" data-tab="endless">${ic('infinity', '', 'sm')}무한 도전</button><button class="${tab === 'endlessWeek' ? 'on' : ''}" data-act="rankTab" data-tab="endlessWeek">${ic('calendar', '', 'sm')} 무한 주간</button></div>
+ <p class="sub">${tab === 'stage' ? '최고 스테이지 → 총 별 → 먼저 도달한 순' : tab === 'endlessWeek' ? '이번 주 무한 도전 최고 점수 · 주가 끝나면 순위 보상이 우편함으로' : '최고 웨이브 → 최고 점수 순'}</p>
+ <div class="rank-list" id="rk"><div class="empty-msg"><span class="spin">${ic('hourglass', '', 'sm')}</span> 불러오는 중…</div></div>
+ <div class="spacer"></div>
+ <div class="my-rank" id="myrk"></div>
+ `, 'dim');
   const res = await API.loadRanking(tab);
   const box = $('#rk');
   if (!box || app.screen !== 'ranking' || app.rankTab !== tab) return;
@@ -5440,7 +5609,7 @@ async function showRanking() {
   const cell = (r) => (tab === 'stage'
     ? `<span class="w"><b>${r.stageLabel}</b><small>★ ${r.totalStars}</small></span>`
     : tab === 'endlessWeek' ? `<span class="w"><b>${fmt(r.weekBest || 0)}</b><small>이번 주</small></span>` : `<span class="w"><b>W${r.bestWave}</b><small>${fmt(r.bestScore)}점</small></span>`);
-  const medal = ['🥇', '🥈', '🥉'];
+  const medal = ['', '', ''];
   box.innerHTML = res.ranking.length
     ? res.ranking.map((r) => `<div class="rank r${r.rank} ${res.me && res.me.username === r.username ? 'me' : ''}" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="no">${medal[r.rank - 1] || r.rank}</span>
       <span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}<small>Lv.${r.level || 1}</small></span>${cell(r)}</div>`).join('')
@@ -5455,43 +5624,43 @@ function showHowto() {
   const fromPlay = app.screen === 'play';
   const back = fromPlay ? 'resume' : 'menu';
   if (!fromPlay) app.screen = 'howto';
-  const enemies = Object.values(ENEMIES).filter((e) => !e.dot).map((e) => `<div data-act="info" data-kind="enemy" data-id="${e.id}">${av(e)}<span><b>${e.name}</b> ${CLASSES[e.cls] ? CLASSES[e.cls].icon : ''}${e.boss ? ' 👑' : ''}<br>${ENEMY_TIPS[e.id] || ''}</span></div>`).join('');
+  const enemies = Object.values(ENEMIES).filter((e) => !e.dot).map((e) => `<div data-act="info" data-kind="enemy" data-id="${e.id}">${av(e)}<span><b>${e.name}</b> ${CLASSES[e.cls] ? CLASSES[e.cls].icon : ''}${e.boss ? '' : ''}<br>${ENEMY_TIPS[e.id] || ''}</span></div>`).join('');
   show(`
     <div class="topbar"><button class="back" data-act="${back}">‹ ${fromPlay ? '게임으로' : '뒤로'}</button></div>
-    <h2 class="title">게임 방법</h2>
-    <div class="howto">
-      <div class="it"><i>🌊</i><div><b>웨이브 성격</b>: 🐜 떼거리(약한 진상이 떼로 → 범위 공격) · 💀 정예(적지만 단단, 범위 피해 -35% → 한 방 공격) · ⚔️ 혼합(떼거리 + 정예 호위) · 👑 보스. 출전 준비 화면에서 미리 보고 덱을 짜요!</div></div>
-      <div class="it"><i>💥</i><div>한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> 계속 잡으면 <b>콤보</b> — 경험치 최대 +15% (2초 못 잡으면 끊겨요)</div></div>
-      <div class="it"><i>🗺️</i><div><b>스테이지</b>를 하나씩 깨요. 3챕터 × 10스테이지, 한 스테이지는 ${STAGE_WAVES}웨이브. x-5 · x-10 은 <b>보스</b>!</div></div>
-      <div class="it"><i>⭐</i><div>클리어할 때 입구 내구도가 70% 이상이면 <b>★★★</b>, 35% 이상이면 ★★, 그 밖엔 ★. 처음 깰 때와 별을 새로 받을 때 코인 보너스! 입구가 <b>한 번도 안 맞고</b> 깨면 <b>💎 PERFECT</b> — 코인 더 + 첫 퍼펙트는 희귀 이상 장비 확정!</div></div>
-      <div class="it"><i>🃏</i><div>출동 전에 <b>덱</b>을 짜요. 5명(상점에서 6·7번째 칸 구매)을 원하는 <b>자리</b>에 세우고, 덱은 3개까지 저장. 스테이지 정보에 나오는 진상 유형을 보고 속성을 맞추면 유리!</div></div>
-      <div class="it"><i>↕️</i><div><b>줄 공격</b> 멤버(건전남 새총 · 강성구 지팡이)는 <b>자기 앞 줄</b>만 쏴요. 진상이 많이 오는 가운데 줄에 세우면 좋아요. 끌어서 옮길 때 줄이 빛나요.</div></div>
-      <div class="it"><i>🎒</i><div>스테이지를 깨면 <b>장비</b>가 떨어져요 (일반 · 희귀 · 영웅 · 전설). 멤버마다 무기 · 액세서리 한 칸씩 — 상점 <b>장비</b> 탭에서 끼우고, 강화하고, 남는 건 팔아요.</div></div>
-      <div class="it"><i>✨</i><div>보스가 큰 기술을 쓴 뒤엔 잠깐 <b>빈틈</b>(금빛)! 그때 스킬을 몰아 쓰면 1.5배로 들어가요.</div></div>
-      <div class="it"><i>🚪</i><div>진상들이 골목 위에서 몰려와요. 우리 멤버들이 <b>자동으로 공격</b>해요. 벨벳 로프까지 온 진상은 <b>랑방 입구</b>를 두드려요.</div></div>
-      <div class="it"><i>👆</i><div>진상을 <b>탭하면 집중 공격</b>. 경험치는 <b>저절로</b> 모여요. 게이지가 차면 <b>📣 총공지</b>로 화면 전체 공격!</div></div>
-      <div class="it"><i>🃏</i><div>레벨이 오르면 카드 3장! 카드를 <b>눌러 고르고 → 선택</b>. 덱 멤버 레벨업(3·5레벨에 특수 능력) · 전체 강화. 카드는 스테이지마다 새로 시작해요.</div></div>
-      <div class="it"><i>🛒</i><div>코인으로 <b>강화 상점</b>에서 멤버를 영구 강화(최대 20)하고 아이템(튼튼한 문 · 단골 쿠폰 · 확성기 배터리 · 행운 부적 · 웰컴 드링크)을 사요.</div></div>
-      <div class="it"><i>✨</i><div>1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 을 처음 깨면 <b>새 멤버</b>가 합류해요 (<b>HIDDEN</b> 멤버도 있어요!). 힐러·탱커·한 방 딜러까지 — 덱에 넣어 써요.</div></div>
-      <div class="it"><i>♾️</i><div>1-10을 깨면 <b>무한 도전</b>이 열려요. 어디까지 버티나 랭킹 경쟁! 무한 도전에선 아직 못 만난 멤버도 카드로 <b>체험 합류</b>해요. 25웨이브부터는 <b>진상 연합 회장</b>이 10웨이브마다 찾아와요.</div></div>
-      <div class="it"><i>💸</i><div>사채업자는 살아 있는 동안 <b>이자</b>로 입구를 떼어 가요. 빨리 잡으면 <b>빚 탕감</b>! 뒤에 숨은 <b>인피 총무</b>는 보호막을 뿌리니 탭해서 먼저 잡아요.</div></div>
-      <div class="it"><i>⏯</i><div>게임 중에 뒤로 가기를 눌러도 괜찮아요 — 일시정지가 떠요. 앱을 닫아도 메뉴에서 <b>이어하기</b>로 그 웨이브부터 다시!</div></div>
-    </div>
-    <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">조작법</h2>
-    <div class="howto">
-      <div class="it"><i>✨</i><div>아래 <b>스킬 바</b>의 멤버 얼굴이 반짝이면(READY) 눌러서 필살기! 찍는 스킬은 누른 다음 <b>필드를 탭</b>해서 위치를 정해요 (그동안 시간이 느려져요).</div></div>
-      <div class="it"><i>🎯</i><div>진상을 탭하면 <b>지목</b> — 모두가 그 진상부터 때려요. 총무·독재자·들킨 사기꾼에게 딱!</div></div>
-      <div class="it"><i>🔁</i><div>필드의 멤버를 <b>끌어다 놓으면</b> 자리를 바꿔요. 짧게 누르면 공격 방식·스킬·사거리를 보여 줘요.</div></div>
-    </div>
-    <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">속성 상성</h2>
-    <p class="sub">머리 쓰는 진상(유혹·정치)엔 🗣️말빨 · 🍶술, 몸 쓰는 진상(폭력·진상)엔 👊힘 · 💖매력! (×${TYPE_STRONG} / ×${TYPE_WEAK})</p>
+ <h2 class="title">게임 방법</h2>
+ <div class="howto">
+ <div class="it"><i>${ic('wave', '', 'sm')}</i><div><b>웨이브 성격</b>: 떼거리(약한 진상이 떼로 → 범위 공격) · 정예(적지만 단단, 범위 피해 -35% → 한 방 공격) · ${ic('swords', '', 'sm')} 혼합(떼거리 + 정예 호위) · ${ic('crown', '', 'sm')} 보스. 출전 준비 화면에서 미리 보고 덱을 짜요!</div></div>
+ <div class="it"><i>${ic('boom', '', 'sm')}</i><div>한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> 계속 잡으면 <b>콤보</b> — 경험치 최대 +15% (2초 못 잡으면 끊겨요)</div></div>
+ <div class="it"><i>${ic('map', '', 'sm')}</i><div><b>스테이지</b>를 하나씩 깨요. 3챕터 × 10스테이지, 한 스테이지는 ${STAGE_WAVES}웨이브. x-5 · x-10 은 <b>보스</b>!</div></div>
+ <div class="it"><i>${ic('star_gold', '', 'sm')}</i><div>클리어할 때 입구 내구도가 70% 이상이면 <b>★★★</b>, 35% 이상이면 ★★, 그 밖엔 ★. 처음 깰 때와 별을 새로 받을 때 코인 보너스! 입구가 <b>한 번도 안 맞고</b> 깨면 <b>${ic('gem', '', 'sm')} PERFECT</b> — 코인 더 + 첫 퍼펙트는 희귀 이상 장비 확정!</div></div>
+ <div class="it"><i>${ic('card_common', '', 'sm')}</i><div>출동 전에 <b>덱</b>을 짜요. 5명(상점에서 6·7번째 칸 구매)을 원하는 <b>자리</b>에 세우고, 덱은 3개까지 저장. 스테이지 정보에 나오는 진상 유형을 보고 속성을 맞추면 유리!</div></div>
+ <div class="it"><i></i><div><b>줄 공격</b> 멤버(건전남 새총 · 강성구 지팡이)는 <b>자기 앞 줄</b>만 쏴요. 진상이 많이 오는 가운데 줄에 세우면 좋아요. 끌어서 옮길 때 줄이 빛나요.</div></div>
+ <div class="it"><i>${ic('bag', '', 'sm')}</i><div>스테이지를 깨면 <b>장비</b>가 떨어져요 (일반 · 희귀 · 영웅 · 전설). 멤버마다 무기 · 액세서리 한 칸씩 — 상점 <b>장비</b> 탭에서 끼우고, 강화하고, 남는 건 팔아요.</div></div>
+ <div class="it"><i>${ic('sparkle', '', 'sm')}</i><div>보스가 큰 기술을 쓴 뒤엔 잠깐 <b>빈틈</b>(금빛)! 그때 스킬을 몰아 쓰면 1.5배로 들어가요.</div></div>
+ <div class="it"><i>${ic('door', '', 'sm')}</i><div>진상들이 골목 위에서 몰려와요. 우리 멤버들이 <b>자동으로 공격</b>해요. 벨벳 로프까지 온 진상은 <b>랑방 입구</b>를 두드려요.</div></div>
+ <div class="it"><i>${ic('tap', '', 'sm')}</i><div>진상을 <b>탭하면 집중 공격</b>. 경험치는 <b>저절로</b> 모여요. 게이지가 차면 <b>${ic('megaphone', '', 'sm')} 총공지</b>로 화면 전체 공격!</div></div>
+ <div class="it"><i>${ic('card_common', '', 'sm')}</i><div>레벨이 오르면 카드 3장! 카드를 <b>눌러 고르고 → 선택</b>. 덱 멤버 레벨업(3·5레벨에 특수 능력) · 전체 강화. 카드는 스테이지마다 새로 시작해요.</div></div>
+ <div class="it"><i>${ic('cart', '', 'sm')}</i><div>코인으로 <b>강화 상점</b>에서 멤버를 영구 강화(최대 20)하고 아이템(튼튼한 문 · 단골 쿠폰 · 확성기 배터리 · 행운 부적 · 웰컴 드링크)을 사요.</div></div>
+ <div class="it"><i>${ic('sparkle', '', 'sm')}</i><div>1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 을 처음 깨면 <b>새 멤버</b>가 합류해요 (<b>HIDDEN</b> 멤버도 있어요!). 힐러·탱커·한 방 딜러까지 — 덱에 넣어 써요.</div></div>
+ <div class="it"><i>${ic('infinity', '', 'sm')}</i><div>1-10을 깨면 <b>무한 도전</b>이 열려요. 어디까지 버티나 랭킹 경쟁! 무한 도전에선 아직 못 만난 멤버도 카드로 <b>체험 합류</b>해요. 25웨이브부터는 <b>진상 연합 회장</b>이 10웨이브마다 찾아와요.</div></div>
+ <div class="it"><i></i><div>사채업자는 살아 있는 동안 <b>이자</b>로 입구를 떼어 가요. 빨리 잡으면 <b>빚 탕감</b>! 뒤에 숨은 <b>인피 총무</b>는 보호막을 뿌리니 탭해서 먼저 잡아요.</div></div>
+ <div class="it"><i></i><div>게임 중에 뒤로 가기를 눌러도 괜찮아요 — 일시정지가 떠요. 앱을 닫아도 메뉴에서 <b>이어하기</b>로 그 웨이브부터 다시!</div></div>
+ </div>
+ <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">조작법</h2>
+ <div class="howto">
+ <div class="it"><i>${ic('sparkle', '', 'sm')}</i><div>아래 <b>스킬 바</b>의 멤버 얼굴이 반짝이면(READY) 눌러서 필살기! 찍는 스킬은 누른 다음 <b>필드를 탭</b>해서 위치를 정해요 (그동안 시간이 느려져요).</div></div>
+ <div class="it"><i>${ic('target', '', 'sm')}</i><div>진상을 탭하면 <b>지목</b> — 모두가 그 진상부터 때려요. 총무·독재자·들킨 사기꾼에게 딱!</div></div>
+ <div class="it"><i>${ic('retry', '', 'sm')}</i><div>필드의 멤버를 <b>끌어다 놓으면</b> 자리를 바꿔요. 짧게 누르면 공격 방식·스킬·사거리를 보여 줘요.</div></div>
+ </div>
+ <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">속성 상성</h2>
+ <p class="sub">머리 쓰는 진상(유혹·정치)엔 말빨 · 술, 몸 쓰는 진상(폭력·진상)엔 힘 · 매력! (×${TYPE_STRONG} / ×${TYPE_WEAK})</p>
     <table class="tchart"><tr><th></th>${Object.values(CLASSES).map((c) => `<th>${clsIco(c.id)}<br>${c.name}</th>`).join('')}</tr>
       ${Object.values(ATTRS).map((a) => `<tr><th>${attrIco(a.id)} ${a.name}</th>${Object.keys(CLASSES).map((c) => { const m = typeMul(a.id, c); return `<td class="${m > 1 ? 'st' : m < 1 ? 'wk' : ''}">${m > 1 ? '◎' : m < 1 ? '△' : '·'}</td>`; }).join('')}</tr>`).join('')}
     </table>
     <div class="attr-legend">${Object.values(ATTRS).map((a) => { const st = Object.keys(CLASSES).filter((c) => typeMul(a.id, c) > 1).map((c) => clsIco(c) + CLASSES[c].name).join('·'); const who = Object.values(HEROES).filter((d) => d.attr === a.id && !d.summon).map((d) => d.name).join('·'); return `<p>${attrChip(a.id)} <b>${st} 에게 강함</b><small>${esc(who)}</small></p>`; }).join('')}</div>
-    <p class="sub" style="margin-top:6px">스테이지마다 <b>맵 효과</b>(🌧️비 · 🌫️안개 · 💡정전 · 🎤노래방 …)도 있어요. 스테이지 정보에서 추천 속성을 보고 팀을 짜요!</p>
-    <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">진상 도감</h2>
-    <div class="enemy-grid">${enemies}</div>
+ <p class="sub" style="margin-top:6px">스테이지마다 <b>맵 효과</b>(비 · 안개 · ${ic('bulb', '', 'sm')}정전 · 노래방 …)도 있어요. 스테이지 정보에서 추천 속성을 보고 팀을 짜요!</p>
+ <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">진상 도감</h2>
+ <div class="enemy-grid">${enemies}</div>
   `, 'dim');
 }
 // 이 스테이지에 나오는 특성 진상 → 잘 맞는 멤버 (출격 준비 · 스테이지 정보)

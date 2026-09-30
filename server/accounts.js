@@ -773,6 +773,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     })();
   }
   const lbGacha = (token, n, pay) => lbLive(token, (lb, id, now) => LIVE.gachaPull(lb, n, pay, id, now));
+  const lbGearGacha = (token, n) => lbLive(token, (lb, id, now) => LIVE.gearGachaPull(lb, n, id, now));
   const lbMission = (token, kind, mid) => lbLive(token, (lb, id, now) => LIVE.claimMission(lb, kind, mid, id, now));
   const lbSeason = (token, tier) => lbLive(token, (lb, id, now) => LIVE.claimSeason(lb, tier, id, now));
   const lbStar = (token, hero) => lbLive(token, (lb) => LIVE.starUp(lb, hero));
@@ -1091,6 +1092,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.get('/ranking', wrap(async (req) => lbRanking(50, String(req.query.mode || 'stage'), tok(req) || null)));
     const b = (req) => req.body || {};
     r.post('/gacha', wrap((req) => lbGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1, String(b(req).pay || ''))));
+    r.post('/gear-gacha', wrap((req) => lbGearGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1)));
     r.post('/mission/claim', wrap((req) => lbMission(tok(req), String(b(req).kind || ''), String(b(req).id || ''))));
     r.post('/mission/claimAll', wrap((req) => lbLive(tok(req), (lb, id, now) => { const t = ['daily', 'weekly', 'ach'].includes(b(req).tab) ? b(req).tab : 'all'; const r = LIVE.claimAllMissions(lb, t, id, now); return r.n ? r : { error: '받을 보상이 없어요' }; })));
     r.post('/season/claim', wrap((req) => lbSeason(tok(req), b(req).tier === 'all' ? 'all' : Math.floor(Number(b(req).tier) || 0))));

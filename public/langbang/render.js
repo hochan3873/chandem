@@ -463,7 +463,7 @@ export class Renderer {
     x.textAlign = 'center';
     x.textBaseline = 'middle';
     x.font = `${Math.round(s * 0.34)}px ${FONT}`;
-    x.fillText(rage ? '😡' : def.emoji, cx, cy - r * 0.08);
+    x.fillText(rage ? '' : def.emoji, cx, cy - r * 0.08);
     // 이름표
     const label = def.name;
     x.font = `900 ${Math.round(s * 0.13)}px ${FONT}`;
@@ -562,7 +562,7 @@ export class Renderer {
     });
     make('card', 14, 19, (x, w, h) => {
       x.fillStyle = '#fff'; x.strokeStyle = '#333'; x.lineWidth = 1; roundRect(x, 1, 1, w - 2, h - 2, 2); x.fill(); x.stroke();
-      x.fillStyle = '#d81b60'; x.font = `900 9px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('A♥', w / 2, h / 2 + 1);
+      x.fillStyle = '#d81b60'; x.font = `900 9px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('A', w / 2, h / 2 + 1);
     });
     make('tick', 22, 22, (x, w, h) => {
       glow(x, w / 2, h / 2, 11, 'rgba(180,140,255,0.6)');
@@ -661,7 +661,7 @@ export class Renderer {
       x.lineWidth = 3; x.strokeStyle = '#1a0b1f'; x.strokeText('♪', w / 2, h / 2 + 1);
       x.fillStyle = '#fff'; x.fillText('♪', w / 2, h / 2 + 1);
     });
-    for (const [k, em] of [['sarcasm', '🪃'], ['golf', '⚪'], ['bag', '👜'], ['stamp', '📛'], ['glow', '🌟']]) {
+    for (const [k, em] of [['sarcasm', ''], ['golf', ''], ['bag', ''], ['stamp', ''], ['glow', '']]) {
       make('ep_' + k, 26, 26, (x, w, h) => {
         glow(x, w / 2, h / 2, 13, 'rgba(255,255,255,0.35)');
         x.font = `20px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(em, w / 2, h / 2 + 1);
@@ -882,7 +882,7 @@ export class Renderer {
       if (e.bai.p2) { const gl = this.projSprites.glowRed; const r = e.def.size * 0.7; this.tf(e.x, e.y - e.def.size * 0.3, 0, 1, 1); cx.globalAlpha = 0.55 + Math.sin(this.fx.time * 8) * 0.15; cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1; }
     }
     // 무한: 떨어지는 코인 주머니 (누르기)
-    for (const b of g.bags || []) { this.world(); const t0 = this.fx.time; cx.globalAlpha = 0.9; const gl = this.projSprites.glowGold; cx.drawImage(gl.c, b.x - 34, b.y - 34, 68, 68); cx.globalAlpha = 1; cx.font = `30px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('💰', b.x, b.y + Math.sin(t0 * 6 + b.id) * 3); }
+    for (const b of g.bags || []) { this.world(); const t0 = this.fx.time; cx.globalAlpha = 0.9; const gl = this.projSprites.glowGold; cx.drawImage(gl.c, b.x - 34, b.y - 34, 68, 68); cx.globalAlpha = 1; cx.font = `30px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('', b.x, b.y + Math.sin(t0 * 6 + b.id) * 3); }
     // 정원식 결혼정보회사: 분홍 점선 원
     if (g.tauntZone) { const z = g.tauntZone; this.world(); cx.globalAlpha = 0.35 + Math.sin(this.fx.time * 6) * 0.1; cx.strokeStyle = '#ff7ac8'; cx.lineWidth = 3; cx.setLineDash([10, 8]); cx.beginPath(); cx.arc(z.x, z.y, z.r, 0, TAU); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1; }
     // 이한나 하트 레이저 풀파워: 굵은 분홍 빔
@@ -909,7 +909,7 @@ export class Renderer {
       const sz = 150;
       this.tf(q.x, q.y, 0, cx0 < 0 ? -1 : 1, 1);
       if (imgOk(bike)) cx.drawImage(bike, -sz / 2, -sz * 0.75, sz, sz);
-      else { cx.font = `${sz * 0.6}px ${FONT}`; cx.textAlign = 'center'; cx.fillText('🏍️', 0, -sz * 0.2); }
+      else { cx.font = `${sz * 0.6}px ${FONT}`; cx.textAlign = 'center'; cx.fillText('', 0, -sz * 0.2); }
     }
     // 강성구 블랙홀: 빙글빙글 도는 보라 소용돌이 + 안으로 빨려 드는 점
     for (const q of g.holes || []) {
@@ -953,9 +953,24 @@ export class Renderer {
       if (arm && imgOk(arm)) {
         const x0 = e.x, y0 = e.y - 20, x1 = h.x, y1 = h.y - 30, len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(y1 - y0, x1 - x0);
         const grow = Math.min(1, (h.grabAge = (h.grabAge || 0) + 1 / 60) / 0.25); // 쭉 뻗어 나간다
-        this.tf(x0, y0, ang, 1, 1);
-        cx.drawImage(arm, 0, -14, len * grow, 28);
+        // 처진 곡선 위로 팔 그림을 조각조각 이어 붙인다 (곧은 막대 대신) · 끝은 뻗어 나가는 만큼만
+        void ang;
+        const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, sag = len * 0.14 + Math.sin(t * 6) * 3;
+        const nx = -(y1 - y0) / (len || 1), ny = (x1 - x0) / (len || 1), s0 = ny >= 0 ? 1 : -1;
+        const qx = mx + nx * sag * s0, qy = my + Math.abs(ny) * sag + 6;
+        const P = (u) => [(1 - u) * (1 - u) * x0 + 2 * (1 - u) * u * qx + u * u * x1, (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * qy + u * u * y1];
+        const N = 14, aw = arm.naturalWidth, ah = arm.naturalHeight;
+        let ex = x0, ey = y0;
+        for (let k = 0; k < N; k++) {
+          const u0 = (k / N) * grow, u1 = ((k + 1) / N) * grow;
+          const [ax, ay] = P(u0), [bx, by] = P(u1);
+          const sl = Math.hypot(bx - ax, by - ay) + 1.2;
+          this.tf(ax, ay, Math.atan2(by - ay, bx - ax), 1, 1);
+          cx.drawImage(arm, (k / N) * aw, 0, aw / N + 1, ah, 0, -14, sl, 28);
+          ex = bx; ey = by;
+        }
         if (fist && imgOk(fist) && grow >= 1) { this.tf(x1, y1, Math.sin(t * 10) * 0.1, 1, 1); cx.drawImage(fist, -18, -18, 36, 36); }
+        else if (fist && imgOk(fist)) { this.tf(ex, ey, 0, 0.8, 0.8); cx.drawImage(fist, -18, -18, 36, 36); }
         this.world();
         continue;
       }
@@ -1072,7 +1087,7 @@ export class Renderer {
       cx.globalAlpha = 0.55 + Math.sin(t * 9) * 0.12;
       cx.drawImage(gl.c, fx.fire.x - fr * 1.6, fy - fr * 1.6, fr * 3.2, fr * 3.2);
       cx.globalAlpha = 1;
-      cx.font = `28px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('🔥', fx.fire.x, fy + Math.sin(t * 12) * 1.5);
+      cx.font = `28px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('', fx.fire.x, fy + Math.sin(t * 12) * 1.5);
       if (Math.random() < 0.3) this.fx.part('spark', fx.fire.x + (Math.random() - 0.5) * 30, fy, (Math.random() - 0.5) * 40, -90, 0.6, 2.5, '#ffb347');
     } else if (fx.id === 'feast') {
       const gl = this.projSprites.glowRed;
@@ -1506,7 +1521,7 @@ export class Renderer {
         // 이름표
         this.world();
         cx.font = `900 10px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-        const lbl = '⚡' + def.name;
+        const lbl = '' + def.name;
         const tw = cx.measureText(lbl).width + 12;
         cx.fillStyle = 'rgba(60,10,80,0.9)'; roundRect(cx, e.x - tw / 2, feet + 2, tw, 14, 7); cx.fill();
         cx.strokeStyle = '#d8a8ff'; cx.lineWidth = 1; cx.stroke();
@@ -1518,10 +1533,10 @@ export class Renderer {
         this.world();
         const keys = Object.keys(e.def.traits).filter((k) => TRAITS[k]);
         keys.forEach((k, i) => { const x0 = e.x + box * 0.3 + i * 13, y0 = top - 4; cx.fillStyle = 'rgba(10,6,24,0.8)'; cx.beginPath(); cx.arc(x0, y0, 6.5, 0, TAU); cx.fill(); cx.font = `8px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(TRAITS[k].icon, x0, y0 + 0.5); });
-        if (e.pShield > 0) { cx.font = `900 8px ${FONT}`; cx.fillStyle = '#9feaff'; cx.fillText('🛡' + e.pShield, e.x - box * 0.3, top - 4); }
+        if (e.pShield > 0) { cx.font = `900 8px ${FONT}`; cx.fillStyle = '#9feaff'; cx.fillText('' + e.pShield, e.x - box * 0.3, top - 4); }
       }
       if (e.shredN > 0 && e.shredT > 0) { this.world(); cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.fillStyle = '#ff5a7a'; cx.strokeStyle = '#000'; cx.lineWidth = 2.5; const tx = `방깎×${e.shredN}`; cx.strokeText(tx, e.x, feet + 8); cx.fillText(tx, e.x, feet + 8); }
-      if (e.tauntT > 0) { this.world(); cx.font = `11px ${FONT}`; cx.textAlign = 'center'; cx.fillText('💘', e.x - box * 0.32, top + 2); }
+      if (e.tauntT > 0) { this.world(); cx.font = `11px ${FONT}`; cx.textAlign = 'center'; cx.fillText('', e.x - box * 0.32, top + 2); }
       const vip = e.boss || e.mid || e.elite;
       if (e.slowT > 0 && (!heavy || vip)) { // 진상이 많을 땐 표시를 줄인다
         this.tf(e.x, feet, 0, 1, 0.35);
@@ -1555,7 +1570,7 @@ export class Renderer {
       }
       if (e.form === 'reveal' || e.packN >= 2 || (e.dictT > 0 && !e.auraOn)) {
         // 상태 글자: 약점 "!" · 뭉침 방패 · 독재자 버프
-        const txt = e.form === 'reveal' ? '!' : e.packN >= 2 ? '🛡' : '▲';
+        const txt = e.form === 'reveal' ? '!' : e.packN >= 2 ? '' : '▲';
         this.tf(e.x + box * 0.28, top - 2, 0, 1, 1);
         const gl = this.glyph(txt, e.form === 'reveal' ? 20 : 11, e.form === 'reveal' ? '#ffe14d' : e.packN >= 2 ? '#9feaff' : '#ff6b5a');
         cx.drawImage(gl.c, -gl.w / 2, -gl.h / 2, gl.w, gl.h);
@@ -1923,7 +1938,7 @@ export class Renderer {
       if (h.grabT > 0 || h.blindT > 0 || h.drowsyT > 0 || h.vomitT > 0) {
         this.tf(hx + 20, top + 2, 0, 1, 1);
         cx.font = `12px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-        cx.fillText(h.grabT > 0 ? '🙌' : h.blindT > 0 ? '😵' : h.drowsyT > 0 ? '💤' : '🤢', 0, Math.sin(t * 8) * 1.5);
+        cx.fillText(h.grabT > 0 ? '' : h.blindT > 0 ? '' : h.drowsyT > 0 ? '' : '', 0, Math.sin(t * 8) * 1.5);
       }
       if (h.paperT > 0) {
         const ps = this.projSprites.paper;
@@ -1933,7 +1948,7 @@ export class Renderer {
       if (h.fearT > 0) {
         this.tf(hx - 20, top + 2, 0, 1, 1);
         cx.font = `12px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-        cx.fillText('😱', 0, Math.sin(t * 10) * 1.5);
+        cx.fillText('', 0, Math.sin(t * 10) * 1.5);
       }
       if (g.flirt && h.def.gender === 'm') {
         const hs = this.projSprites.heart;
@@ -1950,9 +1965,9 @@ export class Renderer {
         cx.textBaseline = 'middle'; cx.textAlign = 'center';
         cx.font = `800 8px ${FONT}`;
         const tw = cx.measureText(lvT).width, pw = tw + 20, ph = 13, px = hx - pw / 2;
-        cx.fillStyle = h.def.legend ? 'rgba(90,60,0,0.92)' : h.def.hidden ? 'rgba(80,10,70,0.9)' : 'rgba(12,10,28,0.85)';
+        cx.fillStyle = 'rgba(12,10,28,0.88)';
         roundRect(cx, px, ly - ph / 2, pw, ph, ph / 2); cx.fill();
-        cx.strokeStyle = h.lv >= 5 ? '#ff9f1c' : h.def.legend ? '#ffd84a' : h.def.hidden ? '#ff7fe6' : 'rgba(255,255,255,0.25)'; cx.lineWidth = 1; cx.stroke();
+        cx.strokeStyle = h.lv >= 5 ? '#ffb347' : 'rgba(255,214,110,0.45)'; cx.lineWidth = 1; cx.stroke(); // 색깔 테두리 없이 (사용자 요청) · 금빛 한 가지
         const ai = at && this.images['attr_' + h.def.attr];
         if (at && imgOk(ai)) cx.drawImage(ai, px + 1.5, ly - 5, 10, 10);
         else if (at) { cx.fillStyle = at.color; cx.beginPath(); cx.arc(px + 6.5, ly, 4.2, 0, Math.PI * 2); cx.fill(); cx.font = `6px ${FONT}`; cx.fillStyle = '#000'; cx.fillText(at.icon, px + 6.5, ly + 0.5); cx.font = `800 8px ${FONT}`; }

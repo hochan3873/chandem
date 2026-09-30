@@ -127,12 +127,12 @@ const titleOk = (id) => typeof id === 'string' && id.length < 16 && !!titleName(
 export const WEEKLY_UNLOCK = 5; // 1-5 를 깨면 열림
 export const WEEKLY_WAVES = 10;
 export const WEEKLY_MODS = {
-  bossrush: { id: 'bossrush', icon: '👑', name: '보스 러시', desc: '웨이브마다 보스가 나온다! 졸개는 조금', count: 0.6 },
-  double: { id: 'double', icon: '👥', name: '진상 2배', desc: '진상이 두 배로 몰려온다 (한 명 한 명은 조금 약함)', count: 2, hp: 0.6 },
-  speed: { id: 'speed', icon: '💨', name: '광속 진상', desc: '진상 이동 속도 +35%', enemySpd: 1.35 },
-  glass: { id: 'glass', icon: '🥚', name: '유리 입구', desc: '입구 내구도 절반 · 대신 경험치 +50%', baseHp: 0.5, exp: 0.5 },
-  giant: { id: 'giant', icon: '🦍', name: '거인의 밤', desc: '진상 수 절반 · 체력 2.2배', count: 0.5, hp: 2.2 },
-  skill: { id: 'skill', icon: '✨', name: '스킬 축제', desc: '스킬 쿨타임 절반 · 진상 체력 +30%', cd: 0.5, hp: 1.3 },
+  bossrush: { id: 'bossrush', icon: '', name: '보스 러시', desc: '웨이브마다 보스가 나온다! 졸개는 조금', count: 0.6 },
+  double: { id: 'double', icon: '', name: '진상 2배', desc: '진상이 두 배로 몰려온다 (한 명 한 명은 조금 약함)', count: 2, hp: 0.6 },
+  speed: { id: 'speed', icon: '', name: '광속 진상', desc: '진상 이동 속도 +35%', enemySpd: 1.35 },
+  glass: { id: 'glass', icon: '', name: '유리 입구', desc: '입구 내구도 절반 · 대신 경험치 +50%', baseHp: 0.5, exp: 0.5 },
+  giant: { id: 'giant', icon: '', name: '거인의 밤', desc: '진상 수 절반 · 체력 2.2배', count: 0.5, hp: 2.2 },
+  skill: { id: 'skill', icon: '', name: '스킬 축제', desc: '스킬 쿨타임 절반 · 진상 체력 +30%', cd: 0.5, hp: 1.3 },
 };
 const WEEKLY_FX = ['none', 'rain', 'fog', 'blackout', 'happy', 'karaoke', 'icy', 'feast', 'construction', 'megaphone'];
 const WEEKLY_BOSSES = ['boss_loan', 'boss_thug', 'queen', 'boss_gapjil', 'boss_inpi'];
@@ -182,8 +182,8 @@ export function weeklyCheck(def, r) {
 // 지난주 순위 보상
 export function weeklyRankReward(rank) {
   if (!rank) return null;
-  if (rank === 1) return { coins: 5000, tickets: 5, gear: 'epic', title: 'wchamp', frame: 'crown', label: '🥇 1위' };
-  if (rank <= 3) return { coins: 3000, tickets: 3, title: 'wtop3', label: `🏅 ${rank}위` };
+  if (rank === 1) return { coins: 5000, tickets: 5, gear: 'epic', title: 'wchamp', frame: 'crown', label: '1위' };
+  if (rank <= 3) return { coins: 3000, tickets: 3, title: 'wtop3', label: `${rank}위` };
   if (rank <= 10) return { coins: 1500, tickets: 2, label: `${rank}위 (TOP 10)` };
   return { coins: 600, tickets: 1, label: `${rank}위 (참가 보상)` };
 }
@@ -211,54 +211,54 @@ export function weeklyEntry(lb, wi) {
 // 진행 키: clears(스테이지 클리어) skills bosses kills perfects star3 weeklies endless pulls enhances dailyDone
 export const CNT_KEYS = ['clears', 'skills', 'bosses', 'kills', 'perfects', 'star3', 'weeklies', 'endless', 'pulls', 'enhances', 'dailyDone', 'legends', 'enhTry'];
 export const DAILY_POOL = [
-  { id: 'clear3', icon: '🗺️', name: '스테이지 3판 클리어', key: 'clears', n: 3, coins: 150, sp: 25 },
-  { id: 'skill15', icon: '✨', name: '스킬 15번 쓰기', key: 'skills', n: 15, coins: 120, sp: 20 },
-  { id: 'boss1', icon: '👑', name: '보스 1명 잡기', key: 'bosses', n: 1, coins: 150, sp: 25 },
-  { id: 'weekly1', icon: '📅', name: '주간 도전 1판', key: 'weeklies', n: 1, coins: 150, sp: 25, need: WEEKLY_UNLOCK },
-  { id: 'perfect1', icon: '💎', name: 'PERFECT 클리어 1번', key: 'perfects', n: 1, coins: 200, sp: 30 },
-  { id: 'kills300', icon: '🥊', name: '진상 300명 처치', key: 'kills', n: 300, coins: 120, sp: 20 },
-  { id: 'star3x2', icon: '⭐', name: '★★★ 클리어 2번', key: 'star3', n: 2, coins: 150, sp: 25 },
-  { id: 'endless1', icon: '♾️', name: '무한 도전 1판', key: 'endless', n: 1, coins: 120, sp: 20, need: 10 },
-  { id: 'gacha1', icon: '🎰', name: '모집 1번', key: 'pulls', n: 1, coins: 100, sp: 20 },
-  { id: 'enhance1', icon: '🔧', name: '장비 강화 1번', key: 'enhances', n: 1, coins: 100, sp: 20 },
+  { id: 'clear3', icon: '', name: '스테이지 3판 클리어', key: 'clears', n: 3, coins: 150, sp: 25 },
+  { id: 'skill15', icon: '', name: '스킬 15번 쓰기', key: 'skills', n: 15, coins: 120, sp: 20 },
+  { id: 'boss1', icon: '', name: '보스 1명 잡기', key: 'bosses', n: 1, coins: 150, sp: 25 },
+  { id: 'weekly1', icon: '', name: '주간 도전 1판', key: 'weeklies', n: 1, coins: 150, sp: 25, need: WEEKLY_UNLOCK },
+  { id: 'perfect1', icon: '', name: 'PERFECT 클리어 1번', key: 'perfects', n: 1, coins: 200, sp: 30 },
+  { id: 'kills300', icon: '', name: '진상 300명 처치', key: 'kills', n: 300, coins: 120, sp: 20 },
+  { id: 'star3x2', icon: '', name: '★★★ 클리어 2번', key: 'star3', n: 2, coins: 150, sp: 25 },
+  { id: 'endless1', icon: '', name: '무한 도전 1판', key: 'endless', n: 1, coins: 120, sp: 20, need: 10 },
+  { id: 'gacha1', icon: '', name: '모집 1번', key: 'pulls', n: 1, coins: 100, sp: 20 },
+  { id: 'enhance1', icon: '', name: '장비 강화 1번', key: 'enhances', n: 1, coins: 100, sp: 20 },
 ];
 export const DAILY_N = 4;
-export const DAILY_ALL = { id: 'all', icon: '🎁', name: '오늘 미션 전부 완료', tickets: 1, sp: 30, wild: 1 };
+export const DAILY_ALL = { id: 'all', icon: '', name: '오늘 미션 전부 완료', tickets: 1, sp: 30, wild: 1 };
 export const WEEKLY_MISSIONS = [
-  { id: 'w_clear20', icon: '🗺️', name: '스테이지 20판 클리어', key: 'clears', n: 20, coins: 800, tickets: 2, sp: 80, wild: 2 },
-  { id: 'w_weekly3', icon: '📅', name: '주간 도전 3판', key: 'weeklies', n: 3, coins: 600, tickets: 1, sp: 60 },
-  { id: 'w_boss10', icon: '👑', name: '보스 10명 잡기', key: 'bosses', n: 10, coins: 700, tickets: 1, sp: 60, wild: 2 },
-  { id: 'w_daily12', icon: '✅', name: '일일 미션 12개 완료', key: 'dailyDone', n: 12, coins: 800, tickets: 2, sp: 80, wild: 3 },
-  { id: 'w_perfect5', icon: '💎', name: 'PERFECT 5번', key: 'perfects', n: 5, coins: 700, tickets: 1, sp: 60 },
+  { id: 'w_clear20', icon: '', name: '스테이지 20판 클리어', key: 'clears', n: 20, coins: 800, tickets: 2, sp: 80, wild: 2 },
+  { id: 'w_weekly3', icon: '', name: '주간 도전 3판', key: 'weeklies', n: 3, coins: 600, tickets: 1, sp: 60 },
+  { id: 'w_boss10', icon: '', name: '보스 10명 잡기', key: 'bosses', n: 10, coins: 700, tickets: 1, sp: 60, wild: 2 },
+  { id: 'w_daily12', icon: '', name: '일일 미션 12개 완료', key: 'dailyDone', n: 12, coins: 800, tickets: 2, sp: 80, wild: 3 },
+  { id: 'w_perfect5', icon: '', name: 'PERFECT 5번', key: 'perfects', n: 5, coins: 700, tickets: 1, sp: 60 },
 ];
 const ownedCount = (lb) => Object.keys(HEROES).filter((h) => heroUnlocked(lb, h)).length;
 export const ACHIEVEMENTS = [
-  { id: 'dex10', icon: '📚', name: '도감 진상 10종', n: 10, v: (lb) => (lb.seen || []).length, coins: 500, tickets: 1 },
-  { id: 'dex20', icon: '📚', name: '도감 진상 20종', n: 20, v: (lb) => (lb.seen || []).length, coins: 1200, tickets: 2 },
-  { id: 'hero8', icon: '👥', name: '멤버 8명 모으기', n: 8, v: ownedCount, coins: 800, tickets: 1, wild: 2 },
-  { id: 'hero12', icon: '👥', name: '멤버 12명 모으기', n: 12, v: ownedCount, coins: 1500, tickets: 3, wild: 3 },
-  { id: 'hero16', icon: '👑', name: '멤버 16명 전부', n: 16, v: ownedCount, coins: 5000, tickets: 5, wild: 5 },
-  { id: 'ch1', icon: '🏁', name: '1장 클리어', n: 10, v: (lb) => lb.maxStage | 0, coins: 500, tickets: 1, wild: 2 },
-  { id: 'ch2', icon: '🏁', name: '2장 클리어', n: 20, v: (lb) => lb.maxStage | 0, coins: 1200, tickets: 2, wild: 3 },
-  { id: 'ch3', icon: '🏆', name: '3장 클리어', n: 30, v: (lb) => lb.maxStage | 0, coins: 3000, tickets: 3, wild: 4 },
-  { id: 'ch4', icon: '✈️', name: '4장 클리어', n: 40, v: (lb) => lb.maxStage | 0, coins: 4000, tickets: 3, wild: 5 },
-  { id: 'ch5', icon: '🏕️', name: '5장 클리어', n: 50, v: (lb) => lb.maxStage | 0, coins: 6000, tickets: 4, wild: 6 },
-  { id: 'ch6', icon: '👑', name: '6장 클리어 (마지막!)', n: 60, v: (lb) => lb.maxStage | 0, coins: 10000, tickets: 6 },
-  { id: 'stars180', icon: '🌟', name: '별 180개 전부', n: 180, v: (lb) => lb.totalStars | 0, coins: 8000, tickets: 5 },
-  { id: 'perfect10', icon: '💎', name: 'PERFECT 스테이지 10개', n: 10, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 1500, tickets: 2 },
-  { id: 'perfect30', icon: '💎', name: 'PERFECT 스테이지 30개', n: 30, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 4000, tickets: 4, title: 'perfect30' },
-  { id: 'legend1', icon: '🌟', name: '전설 장비 얻기', n: 1, v: (lb) => (lb.cnt || {}).legends | 0, coins: 1000, tickets: 1 },
-  { id: 'endless30', icon: '♾️', name: '무한 도전 W30', n: 30, v: (lb) => lb.bestWave | 0, coins: 2000, tickets: 2 },
-  { id: 'stars90', icon: '⭐', name: '별 90개', n: 90, v: (lb) => lb.totalStars | 0, coins: 3000, tickets: 3 },
-  { id: 'stars30', icon: '⭐', name: '별 30개', n: 30, v: (lb) => lb.totalStars | 0, coins: 800, tickets: 1 },
-  { id: 'stars60', icon: '⭐', name: '별 60개', n: 60, v: (lb) => lb.totalStars | 0, coins: 1500, tickets: 2 },
-  { id: 'stars120', icon: '🌟', name: '별 120개', n: 120, v: (lb) => lb.totalStars | 0, coins: 4000, tickets: 3, wild: 4 },
-  { id: 'stars150', icon: '🌟', name: '별 150개', n: 150, v: (lb) => lb.totalStars | 0, coins: 6000, tickets: 4, wild: 5 },
-  { id: 'gdex10', icon: '📚', name: '장비 도감 10종', n: 10, v: (lb) => (lb.gearDex || []).length, coins: 1000, tickets: 2 },
-  { id: 'gdex20', icon: '📚', name: '장비 도감 20종', n: 20, v: (lb) => (lb.gearDex || []).length, coins: 3000, tickets: 4 },
-  { id: 'gdexAll', icon: '👑', name: '장비 도감 전부 (신화 포함)', n: GEAR_IDS.length + MYTH_IDS.length, v: (lb) => (lb.gearDex || []).length, coins: 10000, tickets: 8, title: 'collector' },
-  { id: 'pull100', icon: '🎰', name: '모집 100번', n: 100, v: (lb) => lb.pulls | 0, coins: 2000, tickets: 3, title: 'gacha100' },
-  { id: 'star5', icon: '🌠', name: '★5 멤버 만들기', n: 5, v: (lb) => Math.max(1, ...Object.values(lb.hstars || {})), coins: 3000, tickets: 3 },
+  { id: 'dex10', icon: '', name: '도감 진상 10종', n: 10, v: (lb) => (lb.seen || []).length, coins: 500, tickets: 1 },
+  { id: 'dex20', icon: '', name: '도감 진상 20종', n: 20, v: (lb) => (lb.seen || []).length, coins: 1200, tickets: 2 },
+  { id: 'hero8', icon: '', name: '멤버 8명 모으기', n: 8, v: ownedCount, coins: 800, tickets: 1, wild: 2 },
+  { id: 'hero12', icon: '', name: '멤버 12명 모으기', n: 12, v: ownedCount, coins: 1500, tickets: 3, wild: 3 },
+  { id: 'hero16', icon: '', name: '멤버 16명 전부', n: 16, v: ownedCount, coins: 5000, tickets: 5, wild: 5 },
+  { id: 'ch1', icon: '', name: '1장 클리어', n: 10, v: (lb) => lb.maxStage | 0, coins: 500, tickets: 1, wild: 2 },
+  { id: 'ch2', icon: '', name: '2장 클리어', n: 20, v: (lb) => lb.maxStage | 0, coins: 1200, tickets: 2, wild: 3 },
+  { id: 'ch3', icon: '', name: '3장 클리어', n: 30, v: (lb) => lb.maxStage | 0, coins: 3000, tickets: 3, wild: 4 },
+  { id: 'ch4', icon: '', name: '4장 클리어', n: 40, v: (lb) => lb.maxStage | 0, coins: 4000, tickets: 3, wild: 5 },
+  { id: 'ch5', icon: '', name: '5장 클리어', n: 50, v: (lb) => lb.maxStage | 0, coins: 6000, tickets: 4, wild: 6 },
+  { id: 'ch6', icon: '', name: '6장 클리어 (마지막!)', n: 60, v: (lb) => lb.maxStage | 0, coins: 10000, tickets: 6 },
+  { id: 'stars180', icon: '', name: '별 180개 전부', n: 180, v: (lb) => lb.totalStars | 0, coins: 8000, tickets: 5 },
+  { id: 'perfect10', icon: '', name: 'PERFECT 스테이지 10개', n: 10, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 1500, tickets: 2 },
+  { id: 'perfect30', icon: '', name: 'PERFECT 스테이지 30개', n: 30, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 4000, tickets: 4, title: 'perfect30' },
+  { id: 'legend1', icon: '', name: '전설 장비 얻기', n: 1, v: (lb) => (lb.cnt || {}).legends | 0, coins: 1000, tickets: 1 },
+  { id: 'endless30', icon: '', name: '무한 도전 W30', n: 30, v: (lb) => lb.bestWave | 0, coins: 2000, tickets: 2 },
+  { id: 'stars90', icon: '', name: '별 90개', n: 90, v: (lb) => lb.totalStars | 0, coins: 3000, tickets: 3 },
+  { id: 'stars30', icon: '', name: '별 30개', n: 30, v: (lb) => lb.totalStars | 0, coins: 800, tickets: 1 },
+  { id: 'stars60', icon: '', name: '별 60개', n: 60, v: (lb) => lb.totalStars | 0, coins: 1500, tickets: 2 },
+  { id: 'stars120', icon: '', name: '별 120개', n: 120, v: (lb) => lb.totalStars | 0, coins: 4000, tickets: 3, wild: 4 },
+  { id: 'stars150', icon: '', name: '별 150개', n: 150, v: (lb) => lb.totalStars | 0, coins: 6000, tickets: 4, wild: 5 },
+  { id: 'gdex10', icon: '', name: '장비 도감 10종', n: 10, v: (lb) => (lb.gearDex || []).length, coins: 1000, tickets: 2 },
+  { id: 'gdex20', icon: '', name: '장비 도감 20종', n: 20, v: (lb) => (lb.gearDex || []).length, coins: 3000, tickets: 4 },
+  { id: 'gdexAll', icon: '', name: '장비 도감 전부 (신화 포함)', n: GEAR_IDS.length + MYTH_IDS.length, v: (lb) => (lb.gearDex || []).length, coins: 10000, tickets: 8, title: 'collector' },
+  { id: 'pull100', icon: '', name: '모집 100번', n: 100, v: (lb) => lb.pulls | 0, coins: 2000, tickets: 3, title: 'gacha100' },
+  { id: 'star5', icon: '', name: '★5 멤버 만들기', n: 5, v: (lb) => Math.max(1, ...Object.values(lb.hstars || {})), coins: 3000, tickets: 3 },
 ];
 // 하루 미션 고르기: (사용자 · 날짜) 로 정해진다
 export function pickDaily(uid, day, maxStage) {
@@ -398,14 +398,14 @@ export const SP_PER_TIER = 100;
 export const seasonOf = (wi) => Math.floor(wi / SEASON_WEEKS) + 1;
 export const seasonEndMs = (sid) => weekStartMs(sid * SEASON_WEEKS);
 export function seasonReward(sid, t) {
-  if (t === 30) return { title: `s${sid}_t30`, frame: 'gold', tickets: 5, gear: 'myth', label: '🏆 칭호 "레전드" + 황금 프레임 + 신화 장비 + 모집권 5' };
-  if (t === 20) return { frame: 'neon', tickets: 3, label: '🖼️ 네온 프레임 + 모집권 3' };
-  if (t === 10) return { title: `s${sid}_t10`, tickets: 2, label: '🏷️ 칭호 "단골" + 모집권 2' };
-  if (t === 25) return { gear: 'legend', label: '🌟 전설 장비' };
-  if (t === 15) return { gear: 'epic', label: '💜 영웅 장비' };
-  if (t === 5) return { gear: 'rare', label: '💙 희귀 장비' };
-  if (t % 4 === 0) return { wild: t >= 20 ? 4 : 2, coins: 200 + 20 * t, label: `🃏 범용 멤버 카드 ${t >= 20 ? 4 : 2} + ${(200 + 20 * t).toLocaleString()} 코인` };
-  if (t % 3 === 0) return { tickets: t >= 21 ? 2 : 1, label: `🎟️ 모집권 ${t >= 21 ? 2 : 1}` };
+  if (t === 30) return { title: `s${sid}_t30`, frame: 'gold', tickets: 5, gear: 'myth', label: '칭호 "레전드"+ 황금 프레임 + 신화 장비 + 모집권 5' };
+  if (t === 20) return { frame: 'neon', tickets: 3, label: '네온 프레임 + 모집권 3' };
+  if (t === 10) return { title: `s${sid}_t10`, tickets: 2, label: '칭호 "단골"+ 모집권 2' };
+  if (t === 25) return { gear: 'legend', label: '전설 장비' };
+  if (t === 15) return { gear: 'epic', label: '영웅 장비' };
+  if (t === 5) return { gear: 'rare', label: '희귀 장비' };
+  if (t % 4 === 0) return { wild: t >= 20 ? 4 : 2, coins: 200 + 20 * t, label: `범용 멤버 카드 ${t >= 20 ? 4 : 2} + ${(200 + 20 * t).toLocaleString()} 코인` };
+  if (t % 3 === 0) return { tickets: t >= 21 ? 2 : 1, label: `모집권 ${t >= 21 ? 2 : 1}` };
   const c = 300 + 30 * t;
   return { coins: c, label: `${c.toLocaleString()} 코인` };
 }
@@ -526,6 +526,43 @@ function resolvePull(lb, k, rng, now) {
   const v = k === 'shard10' ? 10 : 4;
   lb.shards[h] = (lb.shards[h] | 0) + v;
   return { k, hero: h, shards: v };
+}
+
+// ─── 장비 뽑기 (강화석) — 신화 1% · 전설 5% · 영웅 24% · 희귀 70% · 80번째 신화 확정 · 10회는 영웅 이상 1개 ───
+export const GEAR_GACHA_COST = { one: 40, ten: 360 };
+export const GEAR_PITY = 80;
+export const GEAR_GACHA_RATES = [
+  { k: 'myth', w: 1, name: '신화 장비', color: '#ff7ad9' },
+  { k: 'legend', w: 5, name: '전설 장비', color: '#ffb400' },
+  { k: 'epic', w: 24, name: '영웅 장비', color: '#c77dff' },
+  { k: 'rare', w: 70, name: '희귀 장비', color: '#4ea8ff' },
+];
+function rollGearTier(rng, only) {
+  const list = GEAR_GACHA_RATES.filter((r) => !only || only.includes(r.k));
+  const sum = list.reduce((a, r) => a + r.w, 0); let x = rng() * sum;
+  for (const r of list) { x -= r.w; if (x <= 0) return r.k; }
+  return list[list.length - 1].k;
+}
+export function gearGachaPull(lb, n, uid, now = Date.now(), seed) {
+  if (n !== 1 && n !== 10) return { error: '잘못된 요청이에요' };
+  const cost = n === 10 ? GEAR_GACHA_COST.ten : GEAR_GACHA_COST.one;
+  if ((lb.stones | 0) < cost) return { error: `강화석이 부족해요 (${cost} 필요)` };
+  lb.stones -= cost;
+  lb.pity = lb.pity || {};
+  lb.gpulls = lb.gpulls | 0;
+  const rng = seedRng(seed !== undefined ? seed : hashSeed(`lbggacha:${uid}:${lb.gpulls}`));
+  const out = []; let epicPlus = false;
+  for (let i = 0; i < n; i++) {
+    lb.pity.gear = (lb.pity.gear | 0) + 1;
+    let t = lb.pity.gear >= GEAR_PITY ? 'myth' : rollGearTier(rng);
+    if (n === 10 && i === 9 && !epicPlus && (t === 'rare')) t = rollGearTier(rng, ['myth', 'legend', 'epic']);
+    if (t !== 'rare') epicPlus = true;
+    if (t === 'myth') lb.pity.gear = 0;
+    const id = t === 'myth' ? MYTH_IDS[(rng() * MYTH_IDS.length) | 0] : GEAR_IDS[(rng() * GEAR_IDS.length) | 0];
+    out.push({ k: t + 'Gear', gear: addGear(lb, id, t) });
+    lb.gpulls++;
+  }
+  return { results: out };
 }
 
 // ─── 챕터 별 상자 (★10 · ★20 · ★30) ─────────────────
@@ -748,7 +785,7 @@ export function endlessFinish(lb, wave, score, coins, uid, now = Date.now()) {
   if (!lb.ew || lb.ew.wi !== wi) { if (lb.ew && lb.ew.wi === wi - 1) lb.ewPrev = lb.ew; lb.ew = { wi, best: 0, miles: [] }; }
   const newBest = score > lb.ew.best;
   if (newBest) lb.ew.best = score;
-  for (const m of ENDLESS.miles) if (wave >= m && !lb.ew.miles.includes(m)) { lb.ew.miles.push(m); mailAdd(lb, { title: `🏁 무한 ${m}웨이브 달성`, text: '이번 주 처음 달성 보상', rw: milestoneReward(m) }, now); }
+  for (const m of ENDLESS.miles) if (wave >= m && !lb.ew.miles.includes(m)) { lb.ew.miles.push(m); mailAdd(lb, { title: `무한 ${m}웨이브 달성`, text: '이번 주 처음 달성 보상', rw: milestoneReward(m) }, now); }
   const ec = lb.endCoins && lb.endCoins.day === day ? lb.endCoins : { day, v: 0 };
   const give = Math.max(0, Math.min(coins, ENDLESS.coinCap - ec.v));
   lb.endCoins = { day, v: ec.v + give };
@@ -757,8 +794,8 @@ export function endlessFinish(lb, wave, score, coins, uid, now = Date.now()) {
 }
 export function endlessWeekReward(rank) {
   if (!rank) return null;
-  if (rank === 1) return { coins: 6000, tickets: 5, gear: 'legend', title: 'ewchamp', label: '🥇 무한 주간 1위' };
-  if (rank <= 3) return { coins: 3500, tickets: 3, gear: 'epic', label: `🏅 무한 주간 ${rank}위` };
+  if (rank === 1) return { coins: 6000, tickets: 5, gear: 'legend', title: 'ewchamp', label: '무한 주간 1위' };
+  if (rank <= 3) return { coins: 3500, tickets: 3, gear: 'epic', label: `무한 주간 ${rank}위` };
   if (rank <= 10) return { coins: 1500, tickets: 10, label: `무한 주간 ${rank}위 (TOP 10)` };
   return { coins: 500, tickets: 1, label: `무한 주간 ${rank}위 (참가)` };
 }
@@ -781,7 +818,7 @@ export const PVP_TIER_LADDER = [[1050, '실버', { coins: 1000, tickets: 2 }], [
 // 처음 오른 등급 보상 → 우편함 (한 번씩)
 export function pvpTierUp(lb, rating, now = Date.now()) {
   const got = lb.pvpTiers || [];
-  for (const [min, name, rw] of PVP_TIER_LADDER) if (rating >= min && !got.includes(min)) { got.push(min); mailAdd(lb, { title: `🏆 1:1 대전 ${name} 달성!`, text: '처음 오른 등급 보상', rw }, now); }
+  for (const [min, name, rw] of PVP_TIER_LADDER) if (rating >= min && !got.includes(min)) { got.push(min); mailAdd(lb, { title: `1:1 대전 ${name} 달성!`, text: '처음 오른 등급 보상', rw }, now); }
   lb.pvpTiers = got;
 }
 // ─── 우편함: 보상이 여기로 온다 (14일 뒤 사라짐) · 하나씩 · 모두 받기 ───
@@ -816,8 +853,9 @@ export function normLive(raw, out) {
   for (const h of [...GACHA_HEROES, ...LEGEND_HEROES]) if ((raw.owned || {})[h]) out.owned[h] = true;
   { const rp0 = raw.pity || {}; const v2 = rp0.v === 2; // 예전 천장(50/200)에서 넘어오면 진행 비율대로 옮긴다
     out.gearDex = [...new Set([...(Array.isArray(raw.gearDex) ? raw.gearDex : []), ...(Array.isArray(raw.gear) ? raw.gear.map((g) => g && g.t) : [])])].filter((t) => typeof t === 'string' && GEAR[t]); // 장비 도감: 한 번이라도 얻은 종류
-  out.pity = { v: 2, hero: int(v2 ? rp0.hero : Math.floor((rp0.hero | 0) * 40 / 50), 0, PITY_HERO - 1), legend: int(v2 ? rp0.legend : Math.floor((rp0.legend | 0) * 90 / 200), 0, PITY_LEGEND - 1) }; }
+  out.pity = { v: 2, hero: int(v2 ? rp0.hero : Math.floor((rp0.hero | 0) * 40 / 50), 0, PITY_HERO - 1), legend: int(v2 ? rp0.legend : Math.floor((rp0.legend | 0) * 90 / 200), 0, PITY_LEGEND - 1), gear: int(rp0.gear, 0, GEAR_PITY - 1) }; }
   out.pulls = int(raw.pulls, 0, 1e7);
+  out.gpulls = int(raw.gpulls, 0, 1e7);
   out.cnt = {};
   for (const k of CNT_KEYS) { const v = int((raw.cnt || {})[k], 0, 1e9); if (v) out.cnt[k] = v; }
   const cleanP = (p) => { const o = {}; for (const k of CNT_KEYS) { const v = int((p || {})[k], 0, 1e7); if (v) o[k] = v; } return o; };

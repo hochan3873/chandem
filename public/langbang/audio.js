@@ -178,6 +178,10 @@ export const sfx = {
   tap() { if (ok('tap', 0.05)) tone(1000, 0.03, 'sine', 0.04, 1400); },
   // UI 소리: 확인(출격·구매) · 뒤로 · 탭 바꾸기 · 안 됨 · 보상 받기
   confirm() { if (ok('ui', 0.06)) { tone(660, 0.05, 'triangle', 0.06, 990); tone(990, 0.07, 'triangle', 0.05, 1320, 0.04); } },
+  whoosh() { if (ok('whoosh', 0.2)) noise(0.18, 0.05, 1800, 0.8, 0, 'bandpass'); },
+  whooshBack() { if (ok('whoosh', 0.2)) noise(0.14, 0.03, 900, 0.8, 0, 'bandpass'); },
+  heartbeat() { if (ok('hb', 1)) [0, 0.28, 1.1, 1.38].forEach((d) => tone(60, 0.14, 'sine', 0.22, 40, d)); },
+  rise() { if (ok('rise', 1)) { noise(1.2, 0.08, 800, 0.6); tone(220, 1.2, 'sawtooth', 0.05, 880); } },
   horn() { if (ok('horn', 1)) { tone(233, 0.55, 'sawtooth', 0.1, 220); tone(294, 0.55, 'sawtooth', 0.08, 277); tone(233, 0.4, 'sawtooth', 0.09, 220, 0.62); tone(294, 0.4, 'sawtooth', 0.07, 277, 0.62); } }, // 빠앙- 빵!
   back() { if (ok('ui', 0.06)) tone(700, 0.05, 'sine', 0.04, 420); },
   tabSw() { if (ok('ui', 0.06)) { tone(880, 0.025, 'square', 0.025); tone(1320, 0.03, 'sine', 0.03, 0, 0.02); } },

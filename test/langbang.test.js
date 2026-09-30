@@ -1851,3 +1851,21 @@ test('카드 정리 · 무한 카드: 뺀 카드는 안 나오고 속성 결속�
   S.applyCard(e, S.cardPool(e).find((c) => c.id === 'inf_dmg')); const b = e.mods.dmg - d0 - a;
   assert.ok(a > 0.079 && b < a && b > 0.07, `갈수록 덜: ${a.toFixed(3)} → ${b.toFixed(3)}`);
 });
+
+test('장비 뽑기: 강화석 · 80번째 신화 확정 · 10회는 영웅 이상 1개 · 부족하면 거절', async () => {
+  const L = await load('live.js');
+  const mk = (st) => { const o = {}; L.normLive({ stones: st }, o); o.stones = st; o.gear = o.gear || []; o.pity = o.pity || {}; o.cnt = o.cnt || {}; return o; };
+  const lb = mk(100000);
+  const r0 = L.gearGachaPull(mk(5), 1, 'u');
+  assert.ok(r0.error, '강화석 부족 거절');
+  let myth = 0, sinceMyth = 0, maxGap = 0;
+  for (let i = 0; i < 20; i++) {
+    const r = L.gearGachaPull(lb, 10, 'u', Date.now(), 1000 + i);
+    assert.equal(r.results.length, 10);
+    assert.ok(r.results.some((x) => x.k !== 'rareGear'), '10회: 영웅 이상 1개');
+    for (const x of r.results) { sinceMyth++; if (x.k === 'mythGear') { myth++; maxGap = Math.max(maxGap, sinceMyth); sinceMyth = 0; } }
+  }
+  assert.ok(maxGap <= L.GEAR_PITY, `신화 사이 최대 ${maxGap}회 (천장 ${L.GEAR_PITY})`);
+  assert.ok(myth >= 2, '200회에 신화 2개 이상');
+  assert.equal(lb.stones, 100000 - 20 * L.GEAR_GACHA_COST.ten);
+});

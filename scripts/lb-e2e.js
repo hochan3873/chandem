@@ -134,6 +134,20 @@ const topAt = (page, sel) => page.evaluate((sel) => {
   let ok3 = true;
   for (let k = 0; k < 10; k++) { await page.evaluate(() => history.back()); await wait(350); ok3 = ok3 && (await noGate()); await closeConfirm(); await wait(150); }
   check(ok3, '뒤로 10번 연타: 확인 없이 랑방을 떠나지 않음');
+  // 덱 끌어다 놓기: 목록 → 1번 칸 = 대장 · 칸 → 밖 = 빼기
+  await page.evaluate(() => { const g = JSON.parse(localStorage.getItem('langbang:guest') || '{}'); g.stages = Object.assign(g.stages || {}, { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 3, 7: 3, 8: 3, 9: 3, 10: 3, 11: 3 }); g.maxStage = 11; localStorage.setItem('langbang:guest', JSON.stringify(g)); localStorage.setItem('langbang:decks', JSON.stringify({ i: 0, decks: [['staff', 'gunman', null, null, null, null], [], []] })); localStorage.removeItem('langbang:deckOrder'); localStorage.removeItem('langbang:leaders'); });
+  await page.goto(base + '?nogate', { waitUntil: 'networkidle0' }); await wait(800);
+  await page.tap('[data-act="nav"][data-tab="deck"]'); await wait(700);
+  const drag = async (fromSel, toSel) => { const a = await page.$eval(fromSel, (e) => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); const b = toSel ? await page.$eval(toSel, (e) => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }) : [a[0], 30]; await page.mouse.move(a[0], a[1]); await page.mouse.down(); await wait(200); for (let k = 1; k <= 10; k++) { await page.mouse.move(a[0] + ((b[0] - a[0]) * k) / 10, a[1] + ((b[1] - a[1]) * k) / 10); await wait(20); } await page.mouse.up(); await wait(600); };
+  const lead0 = await page.evaluate(() => document.querySelector('.dk-slots [data-dslot="0"] .acard').dataset.id);
+  const pick = await page.evaluate(() => { const inDeck = new Set([...document.querySelectorAll('.dk-slots .acard')].map((e) => e.dataset.id)); const c = [...document.querySelectorAll('.agrid .acard[data-id]:not(.locked)')].find((e) => !inDeck.has(e.dataset.id) && e.getBoundingClientRect().top < innerHeight - 90 && e.getBoundingClientRect().top > 0); if (!c) { const c2 = [...document.querySelectorAll('.agrid .acard[data-id]:not(.locked)')].find((e) => !inDeck.has(e.dataset.id)); const sc = document.querySelector('#ui > .screen'); sc.scrollTop += c2.getBoundingClientRect().top - (innerHeight - 170); return c2.dataset.id; } return c.dataset.id; });
+  await wait(300);
+  await drag(`.agrid .acard[data-id="${pick}"]`, '.dk-slots [data-dslot="0"]');
+  check(await page.evaluate((id) => { const c = document.querySelector('.dk-slots [data-dslot="0"] .acard'); return c && c.dataset.id === id; }, pick), `목록에서 1번 칸에 놓으면 대장 (전: ${lead0})`);
+  await page.evaluate(() => { document.querySelector('#ui > .screen').scrollTop = 0; }); await wait(300);
+  const nBefore = await page.evaluate(() => document.querySelectorAll('.dk-slots [data-dslot] .acard').length);
+  await drag('.dk-slots [data-dslot="1"] .acard', null);
+  check(await page.evaluate((n) => document.querySelectorAll('.dk-slots [data-dslot] .acard').length === n - 1, nBefore), '칸 밖으로 끌면 빠진다');
   check(!errors.length, '페이지 에러 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   await srv.close();

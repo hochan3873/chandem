@@ -1,7 +1,7 @@
 // 랑방 대전 — 공유하기: 초대 링크(미리보기 이미지는 index.html의 og:image) · 결과 카드 이미지
 const URL_ = location.origin + '/langbang/';
 const TITLE = '랑방 대전';
-const INVITE = '⚔️ 랑방 대전 도전장! 진상들로부터 우리 아지트 랑방을 같이 지키자 👉';
+const INVITE = '랑방 대전 도전장! 진상들로부터 우리 아지트 랑방을 같이 지키자 ';
 const FONT = "'Noto Sans KR', sans-serif";
 
 let toastFn = () => {};
@@ -51,153 +51,103 @@ function rr(ctx, x, y, w, h, r) {
 }
 const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
 
-// r: { title, win, mode('stage'|'endless'), stageLabel, stars, score, wave, waves, kills, bossKills, time, nickname, heroes:[{img,name,color}] }
+// 작은 QR (주소는 고정 → 미리 만든 칸 무늬 · 29×29)
+const QR = ['8tja7z', '4is30h', '6hf599', '6h94kd', '6h1gm5', '4jg475', '8tz2pr', '1720w', '6lllrw', '5uxsdt', 'djn5s', '2s1xuy', '7h1dl8', '5abqb5', '4ojek', '7crg2a', '2bse18', '5lt3hx', '5ms9ck', '5vexaa', '59h43b', 'norj', '8t993w', '4jfmkw', '6hgph0', '6hevf3', '6gxqf2', '4ihai2', '8u2j10'];
+function drawQR(ctx, x, y, size) {
+  const n = QR.length, c = size / (n + 2);
+  ctx.fillStyle = '#fff'; rr(ctx, x, y, size, size, 10); ctx.fill();
+  ctx.fillStyle = '#1a0b1f';
+  QR.forEach((row, yy) => { const bits = parseInt(row, 36).toString(2).padStart(n, '0'); for (let xx = 0; xx < n; xx++) if (bits[xx] === '1') ctx.fillRect(x + c * (xx + 1), y + c * (yy + 1), Math.ceil(c), Math.ceil(c)); });
+}
+const HEAVY = "'Black Han Sans', 'Pretendard Variable', sans-serif", BODY = "'Pretendard Variable', Pretendard, 'Noto Sans KR', sans-serif";
+// 외곽선 글씨 (캔버스): 굵은 테두리 → 채우기
+function olText(ctx, t, x, y, fill, ol = '#1a0b1f', w = 10) { ctx.lineJoin = 'round'; ctx.lineWidth = w; ctx.strokeStyle = ol; ctx.strokeText(t, x, y); ctx.fillStyle = fill; ctx.fillText(t, x, y); }
+// r: { title, win, mode, stageLabel, stars, score, wave, waves, kills, bossKills, time, nickname, chapter, heroes:[{id,img,thumb,face,name,color,tier}] }
 export async function drawCard(r) {
   const W = 1080, H = 1350;
-  const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
-  try { await Promise.all([document.fonts.load(`900 60px ${FONT}`), document.fonts.load(`700 30px ${FONT}`)]); } catch { /* 기본 글꼴 */ }
-  const [bg, icon, ...heroImgs] = await Promise.all([
-    loadImg(r.chapter ? `/img/lb/keyart${r.chapter}.webp` : '/img/games/langbang.webp').then((im) => im || loadImg('/img/games/langbang.webp')), loadImg('/img/gw2-icon-192.png'), ...r.heroes.map((h) => loadImg(h.img)),
+  try { await Promise.all([document.fonts.load(`400 80px 'Black Han Sans'`), document.fonts.load(`700 30px 'Pretendard Variable'`)]); await document.fonts.ready; } catch { /* 기본 글꼴 */ }
+  const [bg, logo, world, star, starDim, crown, ...faces] = await Promise.all([
+    loadImg(r.chapter ? `/img/lb/keyart${r.chapter}.webp` : '/img/lb/title_poster.jpg').then((im) => im || loadImg('/img/lb/title_poster.jpg')),
+    loadImg('/img/lb/logo_langbang.webp'), loadImg('/img/hub/logo_world.webp'), loadImg('/img/lb/ui2/star_gold.webp'), loadImg('/img/lb/ui2/star_gold.webp'), loadImg('/img/lb/ui2/crown.webp'),
+    ...r.heroes.map((h) => loadImg(h.thumb || h.img).then((im) => im || loadImg(h.img))),
   ]);
-
-  ctx.fillStyle = '#0b0a16';
-  ctx.fillRect(0, 0, W, H);
-  if (bg) {
-    const s = Math.max(W / bg.width, 620 / bg.height);
-    const bw = bg.width * s, bh = bg.height * s;
-    ctx.drawImage(bg, (W - bw) * 0.62, 0, bw, bh);
-  }
+  ctx.fillStyle = '#0b0a16'; ctx.fillRect(0, 0, W, H);
+  if (bg) { const sc = Math.max(W / bg.width, 860 / bg.height); const bw = bg.width * sc, bh = bg.height * sc; ctx.drawImage(bg, (W - bw) / 2, 20, bw, bh); }
   let gr = ctx.createLinearGradient(0, 0, 0, H);
-  gr.addColorStop(0, 'rgba(11,10,22,.55)');
-  gr.addColorStop(0.3, 'rgba(11,10,22,.25)');
-  gr.addColorStop(0.46, 'rgba(11,10,22,.95)');
-  gr.addColorStop(1, '#0b0a16');
-  ctx.fillStyle = gr;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.textBaseline = 'middle';
-  // 머리: 게임월드 + 랑방 대전
-  if (icon) { ctx.save(); rr(ctx, 56, 52, 72, 72, 16); ctx.clip(); ctx.drawImage(icon, 56, 52, 72, 72); ctx.restore(); }
-  ctx.font = `900 34px ${FONT}`;
-  ctx.fillStyle = '#ffd6f3';
-  ctx.textAlign = 'left';
-  ctx.fillText('찬이의 게임월드', 146, 90);
-  ctx.textAlign = 'center';
-  ctx.font = `900 124px ${FONT}`;
-  ctx.lineWidth = 16;
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#2a0b38';
-  ctx.strokeText(TITLE, W / 2, 470);
-  gr = ctx.createLinearGradient(0, 410, 0, 530);
-  gr.addColorStop(0, '#fff6a8'); gr.addColorStop(0.6, '#ffb03a'); gr.addColorStop(1, '#ff6a3a');
-  ctx.fillStyle = gr;
-  ctx.fillText(TITLE, W / 2, 470);
-
-  // 결과 제목
-  ctx.font = `900 64px ${FONT}`;
-  ctx.fillStyle = r.win ? '#7dffb0' : '#ffb3c8';
-  ctx.fillText(r.title, W / 2, 590);
-  ctx.font = `700 30px ${FONT}`;
-  ctx.fillStyle = '#cfc3ea';
-  ctx.fillText(r.nickname ? `${r.nickname} 님의 기록` : '나의 기록', W / 2, 650);
-
-  // 가운데 큰 칸: 스테이지 = 별, 무한 도전 = 점수
-  rr(ctx, 90, 700, W - 180, 170, 36);
-  ctx.fillStyle = 'rgba(255,255,255,.07)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,214,110,.5)';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  const stageMode = r.mode === 'stage';
+  gr.addColorStop(0, 'rgba(11,10,22,.35)'); gr.addColorStop(0.32, 'rgba(11,10,22,.15)'); gr.addColorStop(0.52, 'rgba(11,10,22,.94)'); gr.addColorStop(1, '#0b0a16');
+  ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+  // 로고 · 게임월드 표시
+  if (logo) { const lw = 620, lh = lw * (logo.height / logo.width); ctx.drawImage(logo, (W - lw) / 2, 30, lw, lh); }
+  if (world) { const ww = 150, wh = ww * (world.height / world.width); ctx.globalAlpha = 0.9; ctx.drawImage(world, W - ww - 36, 36, ww, wh); ctx.globalAlpha = 1; }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // 제목: 별에 따라 금 · 은 · 동
+  const stageMode = r.mode === 'stage', st = r.stars | 0;
+  const head = stageMode ? (r.win ? `${r.stageLabel} 클리어!` : `${r.stageLabel} 도전 중`) : r.title;
+  const col = stageMode && r.win ? (st >= 3 ? '#ffd23f' : st === 2 ? '#e6ecf5' : '#e0a070') : '#ffffff';
+  ctx.font = `400 ${head.length > 9 ? 88 : 112}px ${HEAVY}`;
+  olText(ctx, head, W / 2, 560, col, '#1a0b1f', 16);
+  // 이름표 띠
+  const nm = r.nickname ? `${r.nickname} 님의 기록` : '나의 기록';
+  ctx.font = `700 32px ${BODY}`;
+  const tw = Math.min(W - 200, ctx.measureText(nm).width + 90);
+  gr = ctx.createLinearGradient(0, 612, 0, 668); gr.addColorStop(0, '#7a4ad8'); gr.addColorStop(1, '#4a1fa0');
+  ctx.fillStyle = gr; rr(ctx, (W - tw) / 2, 612, tw, 56, 28); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,214,110,.8)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.fillText(nm, W / 2, 641);
+  // 별 (스테이지) / 큰 점수 (그 밖)
   if (stageMode) {
-    ctx.font = `700 30px ${FONT}`;
-    ctx.fillStyle = '#ffd66e';
-    ctx.fillText(`스테이지 ${r.stageLabel}${r.win ? ' 클리어' : ''}`, W / 2, 742);
-    ctx.font = `900 96px ${FONT}`;
-    for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = i < (r.stars || 0) ? '#ffd23f' : 'rgba(255,255,255,.16)';
-      ctx.fillText('★', W / 2 + (i - 1) * 120, 818);
-    }
+    for (let i = 0; i < 3; i++) { const sx = W / 2 + (i - 1) * 150 - 64, sy = 690; if (star) { ctx.globalAlpha = i < st ? 1 : 0.22; if (i >= st) ctx.filter = 'grayscale(1)'; ctx.drawImage(i < st ? star : starDim, sx, sy, 128, 128); ctx.filter = 'none'; ctx.globalAlpha = 1; } }
   } else {
-    ctx.font = `700 30px ${FONT}`;
-    ctx.fillStyle = '#ffd66e';
-    ctx.fillText('♾ 무한 도전 점수', W / 2, 742);
-    ctx.font = `900 92px ${FONT}`;
-    ctx.fillStyle = '#fff';
-    ctx.fillText(fmt(r.score), W / 2, 815);
+    ctx.font = `700 30px ${BODY}`; ctx.fillStyle = '#ffd66e'; ctx.fillText(r.mode === 'endless' ? '무한 도전 점수' : '기록', W / 2, 712);
+    ctx.font = `400 104px ${HEAVY}`; olText(ctx, fmt(r.score || 0), W / 2, 780, '#fff', '#1a0b1f', 12);
   }
-
-  // 통계 4칸
-  const stats = [[stageMode ? '웨이브' : '도달 웨이브', stageMode ? `${r.wave}/${r.waves || 5}` : r.wave], ['처치', fmt(r.kills)], [stageMode ? '점수' : '보스', stageMode ? fmt(r.score) : r.bossKills], ['시간', r.time]];
-  const cw = (W - 180 - 3 * 20) / 4;
+  // 유리 칸 4개: 웨이브 · 처치 · 점수 · 시간
+  const stats = [['웨이브', stageMode ? `${r.wave}/${r.waves || 5}` : String(r.wave)], ['처치', fmt(r.kills || 0)], [stageMode ? '점수' : '보스', stageMode ? fmt(r.score || 0) : String(r.bossKills || 0)], ['시간', String(r.time || '-')]];
+  const cw = (W - 180 - 3 * 18) / 4;
   stats.forEach(([k, v], i) => {
-    const x = 90 + i * (cw + 20);
-    rr(ctx, x, 900, cw, 140, 26);
-    ctx.fillStyle = 'rgba(255,255,255,.06)';
-    ctx.fill();
-    ctx.font = `700 26px ${FONT}`;
-    ctx.fillStyle = '#a99cc8';
-    ctx.fillText(k, x + cw / 2, 940);
-    ctx.font = `900 ${String(v).length > 5 ? 40 : 50}px ${FONT}`;
-    ctx.fillStyle = '#fff';
-    ctx.fillText(String(v), x + cw / 2, 998);
+    const x = 90 + i * (cw + 18), y = 850;
+    ctx.fillStyle = 'rgba(255,255,255,.08)'; rr(ctx, x, y, cw, 140, 26); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = `700 26px ${BODY}`; ctx.fillStyle = '#b9addb'; ctx.fillText(k, x + cw / 2, y + 40);
+    ctx.font = `400 ${String(v).length > 6 ? 40 : 52}px ${HEAVY}`; olText(ctx, String(v), x + cw / 2, y + 96, '#fff', '#1a0b1f', 7);
   });
-
-  // 출전 멤버
-  const n = r.heroes.length;
-  const size = n > 4 ? 104 : 124, gap = 22;
-  const total = n * size + (n - 1) * gap;
+  // 멤버: 그림 얼굴 · 등급 테두리 · MVP 왕관 · 금 테두리
+  const n = r.heroes.length, size = n > 5 ? 118 : 136, gap = 20, total = n * size + (n - 1) * gap;
+  const TC = ['#9aa1a8', '#9aa1a8', '#5de07a', '#4ea8ff', '#c77dff', '#ffcf3f'];
   r.heroes.forEach((h, i) => {
-    const x = (W - total) / 2 + i * (size + gap), y = 1080;
-    ctx.save();
-    rr(ctx, x, y, size, size, 26);
-    ctx.fillStyle = h.color || '#3a2a5a';
-    ctx.globalAlpha = 0.35;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.clip();
-    if (heroImgs[i]) {
-      const im = heroImgs[i];
-      const s = Math.max(size / im.width, size / im.height) * 1.05;
-      ctx.drawImage(im, x + (size - im.width * s) / 2, y + size - im.height * s + 4, im.width * s, im.height * s);
-    }
+    const x = (W - total) / 2 + i * (size + gap), y = 1045, im = faces[i];
+    ctx.save(); rr(ctx, x, y, size, size, 26); ctx.fillStyle = '#2a1c4a'; ctx.fill(); ctx.clip();
+    if (im) { const f = h.face || [0.48, 0.09, 0.14]; const hh = (size * 0.55) / f[2], ww = hh * (im.width / im.height); ctx.drawImage(im, x + size / 2 - f[0] * ww, y + size * 0.48 - f[1] * hh, ww, hh); }
     ctx.restore();
-    if (i === 0) {
-      ctx.font = `900 22px ${FONT}`;
-      ctx.fillStyle = '#ffd66e';
-      ctx.fillText('MVP', x + size / 2, y - 16);
-    }
-    ctx.font = `700 22px ${FONT}`;
-    ctx.fillStyle = '#e8ddff';
-    ctx.fillText(h.name, x + size / 2, y + size + 22);
+    ctx.lineWidth = i === 0 ? 7 : 5; ctx.strokeStyle = i === 0 ? '#ffd23f' : TC[h.tier | 0] || '#9aa1a8'; rr(ctx, x, y, size, size, 26); ctx.stroke();
+    if (i === 0) { if (crown) ctx.drawImage(crown, x + size / 2 - 32, y - 50, 64, 64); ctx.font = `400 22px ${HEAVY}`; olText(ctx, 'MVP', x + size / 2, y + size - 16, '#ffd23f', '#1a0b1f', 6); }
+    ctx.font = `700 24px ${BODY}`; ctx.fillStyle = '#e8ddff'; ctx.fillText(h.name, x + size / 2, y + size + 26);
   });
-
-  // 발문
-  gr = ctx.createLinearGradient(0, 1262, 0, 1330);
-  gr.addColorStop(0, '#ff8fd8'); gr.addColorStop(1, '#d9368f');
-  rr(ctx, 150, 1262, W - 300, 68, 34);
-  ctx.fillStyle = gr;
-  ctx.fill();
-  ctx.font = `900 30px ${FONT}`;
-  ctx.fillStyle = '#fff';
-  ctx.fillText('이 기록 깰 수 있어? chandem.onrender.com/langbang', W / 2, 1297);
-
+  // 도전장 띠 + QR
+  gr = ctx.createLinearGradient(0, 1238, 0, 1318); gr.addColorStop(0, '#3a2a66'); gr.addColorStop(1, '#1e1438');
+  ctx.fillStyle = gr; rr(ctx, 70, 1234, W - 250, 86, 43); ctx.fill();
+  ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.textAlign = 'left';
+  ctx.font = `900 34px ${BODY}`; olText(ctx, '이 기록 깰 수 있어?', 110, 1263, '#ffd23f', '#1a0b1f', 6);
+  ctx.font = `700 24px ${BODY}`; ctx.fillStyle = '#d8ccff'; ctx.fillText(URL_.replace(/^https?:\/\//, ''), 110, 1298);
+  drawQR(ctx, W - 160, 1216, 122);
   return new Promise((res) => cv.toBlob((b) => res(b), 'image/jpeg', 0.9));
 }
+const ic = (name) => `<img class="ic sm" src="/img/lb/ui2/${name}.webp" alt="" draggable="false">`;
 
 // 결과 공유 창: 카드를 미리 만들어 두고, 버튼을 누른 순간 바로 공유 시트를 연다 (iOS는 사용자 동작 직후만 허용)
 export async function openResultShare(r, host) {
   closeShare();
   const box = document.createElement('div');
-  box.className = 'share-modal';
+  box.className = 'share-modal v2';
   box.innerHTML = `<div class="share-box">
-      <div class="share-img share-keep"><span class="spin">⏳</span> 결과 카드 만드는 중…</div>
-      <p class="share-tip">이미지를 길게 눌러도 저장할 수 있어요</p>
-      <button class="btn primary" data-s="share" disabled>📤 공유하기</button>
-      <div class="share-row"><button class="btn" data-s="save" disabled>💾 이미지 저장</button><button class="btn" data-s="copy">🔗 링크 복사</button></div>
-      <button class="btn ghost" data-s="close">닫기</button>
+      <div class="share-img share-keep"><span class="spin">${ic('hourglass')}</span> 결과 카드 만드는 중</div>
+      <button class="sh-main" data-s="share" disabled>${ic('share')}<b>공유하기</b></button>
+      <div class="share-row"><button class="sh-sub" data-s="save" disabled>${ic('gift')}이미지 저장</button><button class="sh-sub" data-s="copy">${ic('tag')}링크 복사</button></div>
+      <button class="sh-close" data-s="close">닫기</button>
+      <p class="share-tip">이미지를 길게 눌러도 저장돼요</p>
     </div>`;
   host.appendChild(box);
   const text = shareLine(r);
@@ -212,12 +162,7 @@ export async function openResultShare(r, host) {
       const ok = await copy(`${text} ${URL_}`);
       toastFn(ok ? '기록과 링크를 복사했어요!' : `주소: ${URL_}`, 2600);
     } else if (s === 'save') {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const a = document.createElement('a'); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
     } else if (s === 'share') {
       if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
         try { await navigator.share({ files: [file], title: TITLE, text: `${text}\n${URL_}` }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
@@ -228,8 +173,8 @@ export async function openResultShare(r, host) {
   const blob = await drawCard(r).catch(() => null);
   if (!box.isConnected) return;
   const holder = box.querySelector('.share-img');
-  if (!blob) { holder.textContent = '이미지를 만들지 못했어요 — 링크로 공유해 주세요'; box.querySelector('[data-s=share]').disabled = false; return; }
-  file = new File([blob], `langbang-${r.mode === 'stage' ? r.stageLabel : 'endless-' + r.wave}.jpg`, { type: 'image/jpeg' });
+  if (!blob) { holder.textContent = '이미지를 만들지 못했어요 · 링크로 공유해 주세요'; box.querySelector('[data-s=share]').disabled = false; return; }
+  file = new File([blob], `langbang-${r.mode === 'stage' ? r.stageLabel : (r.mode || 'result') + '-' + (r.wave || 0)}.jpg`, { type: 'image/jpeg' });
   url = URL.createObjectURL(blob);
   box._url = url;
   holder.innerHTML = `<img src="${url}" alt="랑방 대전 결과 카드">`;
@@ -240,9 +185,9 @@ export async function openResultShare(r, host) {
 export function shareLine(r) {
   if (r.mode === 'stage') {
     const st = '★'.repeat(r.stars || 0) + '☆'.repeat(3 - (r.stars || 0));
-    return r.win ? `⚔️ 랑방 대전 스테이지 ${r.stageLabel} 클리어 ${st} — 이 기록 깰 수 있어?` : `⚔️ 랑방 대전 스테이지 ${r.stageLabel} 도전 중! 같이 막아 줄 사람?`;
+    return r.win ? `랑방 대전 스테이지 ${r.stageLabel} 클리어 ${st} — 이 기록 깰 수 있어?` : `랑방 대전 스테이지 ${r.stageLabel} 도전 중! 같이 막아 줄 사람?`;
   }
-  return `⚔️ 랑방 대전 무한 도전 웨이브 ${r.wave} · 점수 ${fmt(r.score)}점 — 이 기록 깰 수 있어?`;
+  return `랑방 대전 무한 도전 웨이브 ${r.wave} · 점수 ${fmt(r.score)}점 — 이 기록 깰 수 있어?`;
 }
 
 export function closeShare() {
