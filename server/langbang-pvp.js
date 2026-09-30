@@ -35,14 +35,21 @@ function createLbPvp(opts) {
   async function playerOf(socket) {
     const tok = String((socket.handshake.auth && socket.handshake.auth.token) || '');
     const uid = tok ? accounts.verifyToken(tok) : null;
-    let wins = 0, nickname = '손님', username = '', rating = START_RATING, games = 0, master = false;
+    let wins = 0, nickname = '손님', username = '', rating = START_RATING, games = 0, master = false, title = '', frame = '';
     if (uid) {
       const u = await accounts.store.byId(uid);
-      if (u) { nickname = u.nickname; username = u.username; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; wins = pv.wins | 0; master = !!(opts.isMaster && opts.isMaster(u.username)); }
+      if (u) { nickname = u.nickname; username = u.username; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; wins = pv.wins | 0; title = typeof u.stats.langbang.title === 'string' ? u.stats.langbang.title.slice(0, 24) : ''; frame = typeof u.stats.langbang.frame === 'string' ? u.stats.langbang.frame.slice(0, 24) : ''; master = !!(opts.isMaster && opts.isMaster(u.username)); }
     }
-    return { socket, uid, master, key: uid || 'g:' + socket.id, nickname, username, rating, games, wins, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
+    return { socket, uid, master, key: uid || 'g:' + socket.id, nickname, username, rating, games, wins, title, frame, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
   }
-  const pub = (p) => ({ nickname: p.nickname, username: p.username || '', rating: p.rating, deck: p.deck, bot: !!p.bot });
+  const pub = (p) => ({ nickname: p.nickname, username: p.username || '', rating: p.rating, deck: p.deck, bot: !!p.bot, power: p.power | 0, games: p.games | 0, wins: p.wins | 0, title: p.title || '', frame: p.frame || '' });
+  // 상대 미니 화면용 (영웅 · 스킬 준비 · 최근 카드 · 진상 수 · 총공지) — 짧은 문자열만
+  const cleanView = (b) => ({
+    enemies: Math.max(0, Math.min(999, Math.floor(Number(b.enemies) || 0))),
+    heroes: (Array.isArray(b.heroes) ? b.heroes : []).slice(0, 8).map((h) => ({ id: String((h && h.id) || '').slice(0, 16), r: !!(h && h.r), lv: Math.max(1, Math.min(5, Math.floor(Number(h && h.lv) || 1))) })),
+    cards: (Array.isArray(b.cards) ? b.cards : []).slice(-3).map((c) => String(c || '').slice(0, 24)),
+    ults: Math.max(0, Math.min(999, Math.floor(Number(b.ults) || 0))),
+  });
 
   function makeMatch(a, b) {
     const id = crypto.randomBytes(6).toString('base64url');
@@ -78,7 +85,7 @@ function createLbPvp(opts) {
 
   // ─── 봇 (연습 상대): 서버에서 간단히 흉내 — 시간이 갈수록 입구가 닳고, 가끔 보내기 ───
   function makeBot(pl) {
-    return { bot: true, nickname: '연습 상대 🤖', rating: pl.rating, deck: ['bangjang', 'staff', 'gunman', 'gunnyeo'], hp: 300, max: 300, kills: 0, spent: 0, wave: 0, dead: false, socket: null, hurt: 0 };
+    return { bot: true, nickname: '연습 상대 🤖', rating: pl.rating, deck: ['bangjang', 'staff', 'gunman', 'gunnyeo'], power: pl.power | 0, games: 0, wins: 0, hp: 300, max: 300, kills: 0, spent: 0, wave: 0, dead: false, socket: null, hurt: 0 };
   }
   function startBot(m, bot) {
     const t0 = m.startAt;
@@ -90,7 +97,7 @@ function createLbPvp(opts) {
       bot.hp = Math.max(0, bot.hp - (el > 60 ? 0.6 + (el - 60) * 0.03 : 0.2) - bot.hurt);
       bot.hurt *= 0.6;
       const human = other(m, bot);
-      if (human.socket) human.socket.emit('opp', { hp: Math.round(bot.hp), max: bot.max, kills: bot.kills, wave: bot.wave });
+      if (human.socket) human.socket.emit('opp', { hp: Math.round(bot.hp), max: bot.max, kills: bot.kills, wave: bot.wave, enemies: 8 + Math.floor(el / 10), heroes: bot.deck.map((id, i) => ({ id, r: (Math.floor(el) + i * 5) % 20 < 3, lv: Math.min(5, 1 + Math.floor(el / 40)) })), cards: [], ults: Math.floor(el / 60) });
       if (el > 20 && bot.kills - bot.spent >= SEND.small.cost && Math.random() < 0.25) { bot.spent += SEND.small.cost; deliver(m, bot, 'small'); }
       if (el > 110 && bot.kills - bot.spent >= SEND.big.cost && Math.random() < 0.15) { bot.spent += SEND.big.cost; deliver(m, bot, 'big'); }
       if (bot.hp <= 0) { finish(m, bot, 'dead'); return; }
@@ -159,7 +166,7 @@ function createLbPvp(opts) {
       socket.on('queue', (b, fn) => {
         const pl = me();
         if (pl.match) return ack(fn, { ok: false, message: '이미 대전 중이에요' });
-        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : [];
+        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : []; pl.power = Math.max(0, Math.min(1e7, Math.floor(Number(b && b.power) || 0)));
         unqueue(pl);
         const opp = queue.find((q) => q !== pl && q.key !== pl.key);
         if (opp) { unqueue(opp); makeMatch(opp, pl); return ack(fn, { ok: true, matched: true }); }
@@ -172,7 +179,7 @@ function createLbPvp(opts) {
         const pl = me();
         if (pl.match) return ack(fn, { ok: false, message: '이미 대전 중이에요' });
         unqueue(pl);
-        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : [];
+        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : []; pl.power = Math.max(0, Math.min(1e7, Math.floor(Number(b && b.power) || 0)));
         const code = openRoom(pl, b);
         ack(fn, { ok: true, code });
       });
@@ -182,7 +189,7 @@ function createLbPvp(opts) {
       socket.on('quick', (b, fn) => {
         const pl = me();
         if (pl.match) return ack(fn, { ok: false, message: '이미 대전 중이에요' });
-        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : [];
+        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : []; pl.power = Math.max(0, Math.min(1e7, Math.floor(Number(b && b.power) || 0)));
         unqueue(pl);
         const oldest = [...codes.values()].filter((h) => h !== pl && !h.match && h.key !== pl.key && h.room).sort((x, y) => x.room.at - y.room.at)[0];
         if (oldest) { unqueue(oldest); makeMatch(oldest, pl); return ack(fn, { ok: true, matched: true }); }
@@ -196,7 +203,7 @@ function createLbPvp(opts) {
         const host = codes.get(String((b && b.code) || ''));
         if (!host || host === pl || host.match) return ack(fn, { ok: false, message: '없어진 방이에요' });
         if (host.key === pl.key) return ack(fn, { ok: false, message: '내가 만든 방이에요' });
-        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : [];
+        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : []; pl.power = Math.max(0, Math.min(1e7, Math.floor(Number(b && b.power) || 0)));
         unqueue(host); unqueue(pl);
         makeMatch(host, pl);
         ack(fn, { ok: true });
@@ -213,7 +220,7 @@ function createLbPvp(opts) {
         pl.hp = Math.max(0, Math.min(pl.max, Number(b.hp) || 0));
         pl.wave = Math.max(0, Math.floor(Number(b.wave) || 0));
         const op = other(m, pl);
-        if (op.socket) op.socket.emit('opp', { hp: Math.round(pl.hp), max: Math.round(pl.max), kills: pl.kills, wave: pl.wave });
+        if (op.socket) op.socket.emit('opp', Object.assign({ hp: Math.round(pl.hp), max: Math.round(pl.max), kills: pl.kills, wave: pl.wave }, cleanView(b)));
         if (pl.hp <= 0) finish(m, pl, 'dead');
       });
       socket.on('send', (b, fn) => {

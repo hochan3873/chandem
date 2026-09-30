@@ -2073,3 +2073,40 @@ body.rm .ig-chip img { animation: none; }
 .dp-body .dp-sec { margin: calc(var(--u) * 8) 0; padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 10); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
 .dp-body .dp-sec p { margin: calc(var(--u) * 4) 0 0; font-size: calc(var(--u) * 11.5); line-height: 1.45; }
 .dp-body .dp-sec small { display: block; color: #9fe8ff; font-weight: 800; }
+
+/* ── 1:1 대전: 맞대결 화면 · VS 줄 · 상대 미니 화면 ── */
+.vs-splash { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 10); background: radial-gradient(90% 60% at 50% 50%, rgba(60, 30, 120, 0.92), rgba(8, 4, 18, 0.97)); animation: vsIn 0.35s ease-out; pointer-events: none; }
+.vs-splash.out { opacity: 0; transition: opacity 0.35s; }
+@keyframes vsIn { from { opacity: 0; transform: scale(1.08); } }
+.vs-side { width: 88%; padding: calc(var(--u) * 10); border-radius: calc(var(--u) * 14); text-align: center; }
+.vs-side.me { background: linear-gradient(90deg, rgba(60, 140, 255, 0.35), transparent); border: 2px solid #5aa8ff; animation: vsL 0.4s ease-out; }
+.vs-side.op { background: linear-gradient(270deg, rgba(255, 70, 90, 0.35), transparent); border: 2px solid #ff5a6a; animation: vsR 0.4s ease-out; }
+@keyframes vsL { from { transform: translateX(-60%); opacity: 0; } } @keyframes vsR { from { transform: translateX(60%); opacity: 0; } }
+.vs-name { display: block; font-size: calc(var(--u) * 20); font-weight: 900; color: #fff; }
+.vs-tier { display: inline-block; font-size: calc(var(--u) * 11); font-weight: 900; color: var(--tc); background: rgba(0, 0, 0, 0.4); border: 1px solid var(--tc); border-radius: 99px; padding: 0 calc(var(--u) * 8); margin: calc(var(--u) * 3) 0; }
+.vs-side small { display: block; color: #e6ddff; font-weight: 800; font-size: calc(var(--u) * 11); }
+.vs-deck { display: flex; justify-content: center; gap: calc(var(--u) * 3); margin-top: calc(var(--u) * 6); }
+.vs-deck .vs-h { width: calc(var(--u) * 40); height: calc(var(--u) * 40); border-radius: 50%; overflow: hidden; background: rgba(255, 255, 255, 0.12); border: 1.5px solid rgba(255, 255, 255, 0.4); }
+.vs-deck .vs-h .av { width: 130%; height: 130%; margin: -5% 0 0 -15%; }
+.vs-mid { font-family: var(--heavy); font-size: calc(var(--u) * 44); color: #ffd23f; text-shadow: 0 0 calc(var(--u) * 18) #ff8a00, 0 3px 0 #000; animation: vsPulse 0.6s ease-in-out infinite alternate; }
+@keyframes vsPulse { to { transform: scale(1.12); } }
+.vs-go { color: #fff; font-weight: 900; }
+.oppstrip { gap: calc(var(--u) * 4); }
+.oppstrip .os-me { display: flex; align-items: center; gap: 2px; flex: 0 0 22%; }
+.oppstrip .os-me small { color: #9fd4ff; }
+.oppstrip .ohp.me div { background: linear-gradient(90deg, #3fa0ff, #7df9ff); }
+.oppstrip em { font-style: normal; font-weight: 900; font-size: calc(var(--u) * 10); color: #ffd23f; }
+.opp-view { position: absolute; inset: 0; z-index: 55; display: flex; align-items: flex-start; justify-content: center; padding-top: calc(var(--u) * 90); background: rgba(0, 0, 0, 0.35); }
+.opp-view.peek { background: none; pointer-events: none; }
+.opp-view .ov-box { width: 88%; max-height: 42%; overflow: hidden; padding: calc(var(--u) * 10) calc(var(--u) * 12); border-radius: calc(var(--u) * 14); background: rgba(16, 8, 34, 0.95); border: 2px solid #ff5a6a; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6); animation: vsIn 0.2s ease-out; }
+.opp-view.peek .ov-box { width: 64%; transform: scale(0.85); transform-origin: top center; opacity: 0.95; }
+.ov-head { display: flex; align-items: center; gap: calc(var(--u) * 6); } .ov-head b { font-size: calc(var(--u) * 15); color: #fff; } .ov-head .chip { margin-left: auto; pointer-events: auto; }
+.ov-hp { display: flex; align-items: center; gap: calc(var(--u) * 6); margin: calc(var(--u) * 6) 0; font-size: calc(var(--u) * 11); font-weight: 900; }
+.ov-hp .ohp { flex: 1; height: calc(var(--u) * 10); border-radius: 99px; background: rgba(255, 255, 255, 0.15); overflow: hidden; } .ov-hp .ohp div { height: 100%; background: linear-gradient(90deg, #ff4b5c, #ffb02e); }
+.ov-stats { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4) calc(var(--u) * 10); font-size: calc(var(--u) * 11); color: #d8ccef; }
+.ov-heroes { display: flex; gap: calc(var(--u) * 4); margin: calc(var(--u) * 8) 0 calc(var(--u) * 4); }
+.ov-h { position: relative; width: calc(var(--u) * 38); height: calc(var(--u) * 38); border-radius: 50%; overflow: hidden; background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.3); }
+.ov-h.ready { border-color: #ffe066; box-shadow: 0 0 calc(var(--u) * 8) #ffd23f; }
+.ov-h .av { width: 130%; height: 130%; margin: -5% 0 0 -15%; } .ov-h small { position: absolute; bottom: 0; left: 0; right: 0; font-size: calc(var(--u) * 7.5); text-align: center; background: rgba(0, 0, 0, 0.6); color: #fff; }
+.ov-cards { display: flex; flex-wrap: wrap; gap: 4px; font-size: calc(var(--u) * 10); } .ov-cards small { color: var(--dim); width: 100%; } .ov-cards span { background: rgba(255, 255, 255, 0.1); border-radius: 99px; padding: 0 8px; }
+.ov-close { margin: calc(var(--u) * 6) 0 0; font-size: calc(var(--u) * 9.5); color: var(--dim); text-align: center; }

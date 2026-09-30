@@ -41,8 +41,10 @@ test('1:1 대전: 매칭 · 보내기 확인(게이지 · 간격) · 1초 늦게
   await wait(60);
   clock += 5000; // 시작 5초 뒤
   assert.equal((await a.call('send', { kind: 'small' })).ok, false, '게이지 없음');
-  a.emit('hp', { hp: 300, max: 300, kills: 12, wave: 1 });
+  a.emit('hp', { hp: 300, max: 300, kills: 12, wave: 1, enemies: 7, heroes: [{ id: 'staff', r: true, lv: 3 }, { id: '<script>x'.repeat(5), r: 1 }], cards: ['a', 'b', 'c', 'd'], ults: 2 });
   await until(() => b.got.opp && b.got.opp.some((o) => o.kills === 12));
+  { const o = b.got.opp.find((x) => x.kills === 12); assert.equal(o.enemies, 7); assert.equal(o.heroes[0].id, 'staff'); assert.equal(o.heroes[0].r, true); assert.ok(o.heroes[1].id.length <= 16, '긴 문자열 자름'); assert.deepEqual(o.cards, ['b', 'c', 'd'], '최근 카드 3장'); assert.equal(o.ults, 2); }
+  assert.ok('power' in a.got.match[0].opp && 'wins' in a.got.match[0].opp, '상대 배너: 전투력 · 전적');
   a.emit('hp', { hp: 300, max: 300, kills: 9999, wave: 1 }); // 말이 안 되는 처치 수는 무시
   await wait(40);
   assert.ok(!b.got.opp.some((o) => o.kills === 9999), '처치 수가 너무 빠르면 무시');

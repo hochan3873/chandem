@@ -1413,6 +1413,7 @@ $('#btn-ult').addEventListener('click', () => {
   const g = app.g;
   if (!g || app.paused || app.cardsOpen) return;
   if (!S.useUlt(g)) { toast(`총공지 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
+  if (g.pvp) PVP.myUlts = (PVP.myUlts | 0) + 1;
   handleEvents(g, true);
 });
 // 길게 누르면 뜨는 사진 저장/공유 메뉴 막기 (결과 공유 카드 그림만 예외)
@@ -2669,9 +2670,9 @@ async function pvpSocket() {
   PVP.sock = sock;
   sock.on('match', (m) => pvpMatched(m));
   sock.on('rejoin', (m) => { toast('대전으로 다시 들어왔어요', 1400); });
-  sock.on('opp', (o) => { PVP.opp = Object.assign(PVP.opp || {}, o); renderOppStrip(); });
-  sock.on('incoming', (x) => { if (app.g && app.g.pvp) { S.pvpIncoming(app.g, x.kind); handleEvents(app.g, true); } });
-  sock.on('sent', (x) => { fx.text(180, 120, x.kind === 'big' ? '💥 중간 보스 보냈다!' : '📤 진상 보냈다!', '#9ff4ff', 15, 1, -20); });
+  sock.on('opp', (o) => { const prev = PVP.opp || {}; PVP.opp = Object.assign({}, prev, o); renderOppStrip(); oppPeekCheck(prev, PVP.opp); if (oppView.isConnected) renderOppView(); });
+  sock.on('incoming', (x) => { if (app.g && app.g.pvp) { S.pvpIncoming(app.g, x.kind); handleEvents(app.g, true); toast(`⚠️ ${oppName()}이(가) ${x.kind === 'big' ? '중간 보스를' : '진상 5명을'} 보냈어요!`, 1800); } });
+  sock.on('sent', (x) => { fx.text(180, 120, x.kind === 'big' ? '💥 중간 보스 보냈다!' : '📤 진상 보냈다!', '#9ff4ff', 15, 1, -20); toast(`💥 ${oppName()}에게 ${x.kind === 'big' ? '중간 보스' : '진상 5명'} 보냄!`, 1500); });
   sock.on('end', (r) => pvpEnded(r));
   sock.on('rooms', (list) => { PVP.rooms = list; if (app.screen === 'pvp') renderRooms(); });
   sock.on('roomClosed', () => { closeInfoCard(); toast('방이 10분 동안 비어서 닫혔어요', 1800); });
@@ -2734,7 +2735,7 @@ async function pvpQueue() {
   const sock = await pvpSocket().catch(() => null);
   if (!sock) { toast('서버에 연결할 수 없어요'); return; }
   fixDeck();
-  sock.emit('queue', { deck: curDeck().filter(Boolean) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중'); });
+  sock.emit('queue', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중'); });
 }
 function renderRooms() {
   const el = $('#roomList');
@@ -2753,7 +2754,7 @@ async function sharePvpRoom(code) {
   try { await navigator.clipboard.writeText(`${text} ${url}`); toast('초대 링크를 복사했어요! 카톡방에 붙여 넣어 주세요', 2200); } catch { toast(`이 주소를 보내 주세요: ${url}`, 3000); }
 }
 function pvpEnter(code) {
-  pvpSocket().then((sock) => { fixDeck(); sock.emit('room:join', { code, deck: curDeck().filter(Boolean) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '들어갈 수 없어요'); }); }).catch(() => toast('서버에 연결할 수 없어요'));
+  pvpSocket().then((sock) => { fixDeck(); sock.emit('room:join', { code, deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '들어갈 수 없어요'); }); }).catch(() => toast('서버에 연결할 수 없어요'));
 }
 async function pvpQuick() {
   const sock = await pvpSocket().catch(() => null);
@@ -2789,7 +2790,7 @@ async function pvpRoom(join) {
   if (join) {
     const code = await inputBox({ title: '🔑 방 코드로 참가', placeholder: '4자리 숫자', max: 4, numeric: true, ok: '참가' });
     if (!code) return;
-    sock.emit('room:join', { code: code.trim(), deck: curDeck().filter(Boolean) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '참가할 수 없어요'); });
+    sock.emit('room:join', { code: code.trim(), deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '참가할 수 없어요'); });
   } else {
     const title = await inputBox({ title: '🏠 방 만들기', placeholder: ROOM_TITLES[(Math.random() * ROOM_TITLES.length) | 0], max: 20, ok: '만들기', sub: '방 제목 (안 써도 돼요)', useHint: true });
     if (title === null) return;
@@ -2798,23 +2799,70 @@ async function pvpRoom(join) {
 }
 function pvpMatched(m) {
   closeInfoCard();
-  PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.kills = 0; PVP.spent = 0;
-  fx.banner('⚔️ 대전 시작!', `vs ${m.opp.nickname}${m.opp.bot ? ' (연습 상대)' : ` · ${m.opp.rating}점`}`, '#1a3a8a', 2.4, 'big');
+  PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.kills = 0; PVP.spent = 0; PVP.myCards = []; PVP.myUlts = 0;
+  showVsSplash(m);
   setTimeout(() => startRun({ mode: 'pvp', force: true, pvpSeed: m.seed }), Math.max(0, (m.startIn || 3000) - 800));
 }
-document.getElementById('oppstrip').addEventListener('click', (ev) => { const u = ev.currentTarget.dataset.u; if (u) showPlayerCard(u); else toast(PVP.opp && PVP.opp.bot ? '연습 상대예요 🤖' : '손님이라 기록이 없어요'); });
+document.getElementById('oppstrip').addEventListener('click', () => openOppView());
+// ─── 1:1 상대 보기: 맞대결 화면 · 위쪽 VS 줄 · 미니 화면 · 자동 엿보기 ─────
+const pvpTier = (r) => PVP_TIERS.find((t) => (r | 0) >= t[0]) || PVP_TIERS[PVP_TIERS.length - 1];
+const oppName = () => (PVP.opp && PVP.opp.nickname) || '상대';
+function vsSide(o, me) {
+  const t = pvpTier(o.rating);
+  const deck = (o.deck || []).filter((id) => HEROES[id]).slice(0, 7).map((id) => `<span class="vs-h">${av(HEROES[id])}</span>`).join('');
+  return `<div class="vs-side ${me ? 'me' : 'op'}"><b class="vs-name">${esc(o.nickname || '손님')}${o.bot ? ' 🤖' : ''}</b>
+    <span class="vs-tier" style="--tc:${t[3]}">${t[2]} ${t[1]} · ${o.rating | 0}점</span>
+    <small>${o.bot ? '연습 상대' : o.games ? `${o.wins | 0}승 ${Math.max(0, (o.games | 0) - (o.wins | 0))}패` : '첫 대전'} · ⚔ ${fmt(o.power | 0)}</small>
+    <div class="vs-deck">${deck}</div></div>`;
+}
+function showVsSplash(m) {
+  const el = document.createElement('div');
+  el.className = 'vs-splash';
+  el.innerHTML = `${vsSide(Object.assign({}, m.you || {}, { nickname: (m.you && m.you.nickname) || app.nickname || '나' }), true)}<div class="vs-mid">VS</div>${vsSide(m.opp, false)}<p class="vs-go">${Math.round((m.startIn || 3000) / 1000)}초 뒤 시작!</p>`;
+  stage.appendChild(el);
+  A.sfx.card && A.sfx.card();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, Math.max(1500, (m.startIn || 3000) - 700));
+}
+const oppView = document.createElement('div');
+oppView.className = 'opp-view';
+oppView.addEventListener('click', (ev) => { if (ev.target.closest('[data-pc]')) { const u = PVP.opp && PVP.opp.username; if (u) showPlayerCard(u); return; } oppView.remove(); });
+function openOppView() { if (!PVP.opp) return; renderOppView(); if (!oppView.isConnected) stage.appendChild(oppView); }
+function renderOppView(peek) {
+  const o = PVP.opp || {};
+  const hp = Math.round(((o.hp || 0) / Math.max(1, o.max || 1)) * 100);
+  const heroes = (o.heroes && o.heroes.length ? o.heroes : (o.deck || []).map((id) => ({ id, r: false, lv: 1 }))).filter((h) => HEROES[h.id]);
+  oppView.classList.toggle('peek', !!peek);
+  oppView.innerHTML = `<div class="ov-box"><div class="ov-head"><b>${esc(oppName())}</b><span class="vs-tier" style="--tc:${pvpTier(o.rating)[3]}">${pvpTier(o.rating)[2]} ${o.rating | 0}</span>${o.username ? '<button class="chip mini" data-pc="1">선수 카드</button>' : ''}</div>
+    <div class="ov-hp"><span>🚪 입구</span><div class="ohp"><div style="width:${hp}%"></div></div><b>${hp}%</b></div>
+    <div class="ov-stats"><span>🌊 웨이브 <b>${o.wave | 0}</b></span><span>👹 진상 <b>${o.enemies | 0}</b></span><span>💀 처치 <b>${o.kills | 0}</b></span><span>📣 총공지 <b>${o.ults | 0}</b></span></div>
+    <div class="ov-heroes">${heroes.map((h) => `<span class="ov-h ${h.r ? 'ready' : ''}">${av(HEROES[h.id])}<small>Lv${h.lv || 1}</small></span>`).join('')}</div>
+    ${o.cards && o.cards.length ? `<div class="ov-cards"><small>최근 카드</small>${o.cards.map((c) => `<span>${esc(c)}</span>`).join('')}</div>` : ''}
+    ${peek ? '' : '<p class="ov-close">아무 데나 누르면 닫혀요</p>'}</div>`;
+}
+// 자동 엿보기: 상대 입구 30% 아래로 떨어질 때 · 총공지를 쓸 때 (1.5초)
+function oppPeekCheck(prev, o) {
+  if (!app.g || !app.g.pvp || oppView.isConnected) return;
+  const low = (o.hp || 0) / Math.max(1, o.max || 1) < 0.3 && (prev.hp || 1) / Math.max(1, prev.max || 1) >= 0.3;
+  const ult = (o.ults | 0) > (prev.ults | 0);
+  if (!low && !ult) return;
+  renderOppView(true); stage.appendChild(oppView);
+  toast(low ? `🔥 ${oppName()} 입구 30% 아래!` : `📣 ${oppName()}이(가) 총공지!`, 1400);
+  clearTimeout(oppPeekCheck.t); oppPeekCheck.t = setTimeout(() => { if (oppView.classList.contains('peek')) oppView.remove(); }, 1500);
+}
 function renderOppStrip() {
   const el = $('#oppstrip');
   if (!el || !PVP.opp) return;
   const o = PVP.opp;
   el.hidden = false;
   el.dataset.u = o.username || '';
-  el.innerHTML = `<b>${esc(o.nickname || '상대')}${o.bot ? ' 🤖' : ''}</b><div class="ohp"><div style="width:${Math.round((o.hp / Math.max(1, o.max)) * 100)}%"></div></div><small>W${o.wave || 0} · 처치 ${o.kills || 0}</small>`;
+  const g = app.g, my = g ? Math.round((g.base.hp / Math.max(1, g.base.max)) * 100) : 100;
+  el.innerHTML = `<span class="os-me"><small>나</small><div class="ohp me"><div style="width:${my}%"></div></div></span><em>VS</em><b>${pvpTier(o.rating)[2]} ${esc(o.nickname || '상대')}${o.bot ? ' 🤖' : ''}</b><div class="ohp"><div style="width:${Math.round((o.hp / Math.max(1, o.max)) * 100)}%"></div></div><small>W${o.wave || 0} · 👁️</small>`;
 }
 function pvpTick() {
   const g = app.g;
   if (!g || !g.pvp || !PVP.sock) return;
-  PVP.sock.emit('hp', { hp: Math.round(g.base.hp), max: g.base.max, kills: g.stats.kills, wave: g.wave });
+  PVP.sock.emit('hp', { hp: Math.round(g.base.hp), max: g.base.max, kills: g.stats.kills, wave: g.wave, enemies: g.enemies.filter((e) => !e.dead).length, heroes: g.heroes.filter((h) => !h.def.summon).map((h) => ({ id: h.id, r: S.skillReady(h), lv: h.lv })), cards: (PVP.myCards || []).slice(-3), ults: PVP.myUlts | 0 });
+  renderOppStrip();
   const gauge = g.stats.kills - PVP.spent;
   const b = $('#btn-send');
   if (b) { b.hidden = false; b.innerHTML = `📤 보내기 <small>${Math.min(gauge, L.PVP.sendBig)}/${gauge >= L.PVP.sendBig ? L.PVP.sendBig : L.PVP.sendSmall}</small>`; b.classList.toggle('ready', gauge >= L.PVP.sendSmall); b.classList.toggle('big', gauge >= L.PVP.sendBig); }
@@ -2830,14 +2878,14 @@ function pvpSend() {
 function pvpEnded(r) {
   const g = app.g;
   PVP.match = null;
-  const el = $('#oppstrip'); if (el) el.hidden = true;
+  const el = $('#oppstrip'); if (el) el.hidden = true; if (oppView.isConnected) oppView.remove();
   const sb = $('#btn-send'); if (sb) sb.hidden = true;
   if (g && g.pvp && !g.over) { g.over = true; g.phase = 'over'; }
   app.pvpResult = r;
   if (g && g.pvp) { app.ending = false; endRun(r.win); }
   resyncProfile();
 }
-setInterval(pvpTick, 1000);
+setInterval(pvpTick, 500);
 Object.assign(ACTS, {
   raid: () => showRaid(),
   raidGo: () => startRaid(),
@@ -3312,6 +3360,7 @@ function pickCard(i) {
   if (!app.cardsOpen || !app.cards || !app.cards[i]) return;
   const c = app.cards[i];
   S.applyCard(g, c);
+  if (g.pvp) (PVP.myCards = PVP.myCards || []).push(c.title);
   if (c.kind === 'addHero' && (c.rarity === 'hidden' || HEROES[c.hero].legend)) showReveal(c.hero, HEROES[c.hero].legend ? 'legend' : 'hidden');
   g.pendingLevels = Math.max(0, g.pendingLevels - 1);
   if (g.welcomePicks > 0) g.welcomePicks--;
