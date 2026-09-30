@@ -226,6 +226,7 @@ function updateHeroes(g, dt) {
     // 오지은: 공격 · 스킬 때만 악마 모습
     if (d.demon && h.alt) { h.altT -= dt; if (h.altT <= 0) h.alt = false; }
     // 정소영: 잔소리 게이지 → 성준영 소환
+    if (d.nag && !hasHero(g, 'junyoung') && g.phase === 'wave' && h.stunT <= 0) h.meter = Math.min(100, (h.meter || 0) + (d.nag.perSec || 0) * dt); // 잔소리는 가만있어도 조금씩 찬다
     if (d.nag && h.meter >= 100 && !hasHero(g, 'junyoung') && (g.phase === 'wave' || g.phase === 'intro')) summonJunyoung(g, h);
     // 성준영: 시간이 다 되면 "올인!" 하고 사라진다
     if (d.summon) { h.summonT -= dt; if (h.summonT <= 0) { allinBurst(g, h); h.gone = true; } }
@@ -885,7 +886,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
 
 // 적에게 피해. (독재자 오라 · 패거리 뭉치기 · 들켰다 배율) → 방어력 → 보호막 → 체력 순
 // aoe: 범위/관통 공격 — 패거리 뭉치기를 무시한다
-export const BOSS_GUARD = { hit: 0.05, perSec: 0.07, over: 0.2 };
+export const BOSS_GUARD = { hit: 0.05, perSec: 0.07, over: 0.2, from: 20 }; // 3장부터
 export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.dead) return 0;
   if (g.encoreT > 0 && src && src.def) dmg *= 1 + (g.encoreDmg || 0); // 김도훈 앵콜 버프
@@ -928,7 +929,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.armor) dmg = Math.max(dmg * 0.35, dmg - e.armor);
   // 보스 · 중간 보스: 한 방에 최대 체력 5% 넘게는 잘 안 들어간다 (넘는 만큼은 ⅕) + 1초에 7% 넘게 몰아치면 넘친 만큼 ⅕
   //  → 아주 센 덱도 보스는 몇 초 만에 녹지 않는다 (공주의 일격 · 황금 파동 같은 큰 한 방도 여전히 크게 깎이긴 함)
-  if ((e.boss || e.mid) && src && e.maxHp > 0) {
+  if ((e.boss || e.mid) && src && e.maxHp > 0 && (g.mode !== 'stage' || g.stage > BOSS_GUARD.from)) { // 1~2장은 보스가 원래 금방 잡히게 둔다
     const cap = e.maxHp * BOSS_GUARD.hit;
     if (dmg > cap) dmg = cap + (dmg - cap) * BOSS_GUARD.over;
     const room = Math.max(0, e.maxHp * BOSS_GUARD.perSec - (e.burst || 0));
@@ -1757,7 +1758,7 @@ export function hitEnemy(g, p, e) {
     else { e.slowT = Math.max(e.slowT, 2); e.slowMul = Math.min(e.slowMul || 1, 0.6); }
     ev(g, 'kick', { x: e.x, y: e.y - 20, big: true });
   }
-  if (p.type === 'nag' && h && h.def.nag) h.meter = Math.min(100, (h.meter || 0) + h.def.nag.perHit[h.lv - 1] * (h.cm.nagFill || 1) * (h.lv >= 3 ? 1.15 : 1));
+  if (p.type === 'nag' && h && h.def.nag && !hasHero(g, 'junyoung')) h.meter = Math.min(100, (h.meter || 0) + h.def.nag.perHit[h.lv - 1] * (h.cm.nagFill || 1) * (h.lv >= 3 ? 1.15 : 1));
   if (p.type === 'gf') {
     // 여사친 핀볼: 밀어내고 → 다음 진상에게 튕긴다 → 다 튕기면 돌아온다
     if (!e.dead && !e.boss) applyKnockback(e, p.gfKb, g);
