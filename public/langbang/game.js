@@ -77,19 +77,44 @@ app.partner = app.partners[0];
 app.infoHero = null; app.aim = null; app.drag = null;
 
 // ─── 화면 크기 맞추기 (세로 화면을 가운데에, 남는 곳은 레터박스) ─────
+// 실제로 보이는 크기: visualViewport (아이폰 사파리는 innerHeight 가 떠 있는 주소창 밑까지 포함) · 가로는 절대 화면 폭을 넘지 않게
+const IOS_SAFARI = /iP(hone|od|ad)/.test(navigator.userAgent) && !navigator.standalone && !(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+let safeProbe = null;
+function safeBottom() {
+  try {
+    if (!safeProbe) { safeProbe = document.createElement('div'); safeProbe.style.cssText = 'position:fixed;left:0;bottom:0;width:0;height:env(safe-area-inset-bottom,0px);visibility:hidden;pointer-events:none'; document.body.appendChild(safeProbe); }
+    return safeProbe.getBoundingClientRect().height || 0;
+  } catch { return 0; }
+}
+function viewSize() {
+  const v = window.visualViewport;
+  let w = v ? v.width : window.innerWidth, h = v ? v.height : window.innerHeight;
+  const cw0 = document.documentElement.clientWidth; if (cw0) w = Math.min(w, cw0);
+  w = Math.min(w, window.innerWidth || w); h = Math.min(h, window.innerHeight || h);
+  // 사파리 떠 있는 아래 도구 막대가 영웅 줄을 가리지 않게 아래를 조금 비운다
+  const pad = IOS_SAFARI ? Math.max(safeBottom(), 12) + 8 : 0;
+  return { w, h: h - pad, top: v ? v.offsetTop : 0, left: v ? v.offsetLeft : 0 };
+}
 function layout() {
-  const vw = window.innerWidth, vh = window.innerHeight;
+  const vs = viewSize();
+  const vw = vs.w, vh = vs.h;
   const H = app.g ? app.g.H : clamp(Math.round(FIELD.W * vh / vw), FIELD.minH, FIELD.maxH);
   let cw = vw, ch = cw * H / FIELD.W;
   if (ch > vh) { ch = vh; cw = ch * FIELD.W / H; }
   cw = Math.floor(cw); ch = Math.floor(ch);
   stage.style.width = cw + 'px';
   stage.style.height = ch + 'px';
+  stage.style.left = Math.round(vs.left + vw / 2) + 'px'; stage.style.top = Math.round(vs.top + vh / 2) + 'px'; // 보이는 곳 가운데 (남는 곳은 레터박스)
   stage.style.setProperty('--u', (cw / FIELD.W) + 'px');
   app.logicalH = H;
   R.resize(cw, ch, H);
 }
-window.addEventListener('resize', () => { clearTimeout(layout.t); layout.t = setTimeout(layout, 80); });
+{
+  const relayout = () => { clearTimeout(layout.t); layout.t = setTimeout(layout, 80); };
+  window.addEventListener('resize', relayout);
+  window.addEventListener('orientationchange', relayout);
+  if (window.visualViewport) { visualViewport.addEventListener('resize', relayout); visualViewport.addEventListener('scroll', relayout); }
+}
 
 // ─── 이미지(없으면 이모지) 태그 ──────────────────────
 function av(def, extra = '') {

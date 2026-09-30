@@ -1893,3 +1893,6 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { touch-action: manipulation; max-width: 100vw; overflow-x: hidden; }
 input, select, textarea { font-size: 16px !important; }
 #stage, #cv { max-width: 100vw; max-height: 100vh; max-height: 100dvh; }
+/* 뿌리 높이: 보이는 화면 (100vh 대신) · 가로 넘침 없음 */
+html, body { height: 100%; height: -webkit-fill-available; height: 100svh; height: 100dvh; overflow: hidden; width: 100%; max-width: 100vw; }
+#stage { position: fixed; max-width: 100vw; }
