@@ -481,6 +481,13 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.levelUp();
         break;
       case 'multikill': if (loud) multiKillFx(g, e); break;
+      case 'aimLine': {
+        // 줄 스킬 조준선 (0.15초 흐릿하게)
+        const cx0 = Math.cos(e.a), cy0 = Math.sin(e.a);
+        for (let k = 1; k <= 10; k++) fx.part('spark', e.x + cx0 * e.len * k / 10, e.y + cy0 * e.len * k / 10, 0, 0, 0.18, 3, 'rgba(255,240,180,0.8)');
+        break;
+      }
+      case 'skillHold': if (loud && performance.now() - (app.holdAt || 0) > 1500) { app.holdAt = performance.now(); fx.text(e.x, e.y - 60, '사거리에 진상이 없어요 — 아껴 둘게요', '#cfe3ff', 11, 0.9); } break;
       case 'waveStart': {
         const n = S.enemiesLeft(g);
         const stageMode = g.mode === 'stage';
@@ -1067,6 +1074,7 @@ function gwPref(k) { try { const v = JSON.parse(localStorage.getItem('gw:setting
 // 멀티킬 쾌감 연출: 큰 글자 · 잠깐 멈춤 · 흔들림 · 빛 · 코인 분수 · 소리 · 진동 (0.4초에 한 번만 크게)
 const MK_TIERS = [[15, '대학살!!!'], [8, '싹쓸이!!'], [5, '5킬!'], [3, '트리플!']];
 function multiKillFx(g, e) {
+  if (Q.has('nomk')) return;
   const k = MK_TIERS.findIndex(([n]) => e.n >= n);
   if (k < 0) return;
   const tier = 3 - k;
@@ -1076,12 +1084,14 @@ function multiKillFx(g, e) {
   const label = tier === 1 && e.n > 5 ? `${e.n}킬!` : MK_TIERS[k][1];
   const rm = document.body.classList.contains('rm');
   fx.multi(e.x, e.y - 40, label, tier);
+  const heavy = g.enemies.length > 85; // 진상이 많을 땐 가벼운 연출만 (느린 폰)
   if (!rm) {
     app.hitStop = [40, 55, 70, 80][tier] / 1000;
+    if (heavy && tier < 2) { fx.addShake(3 + tier * 2); A.sfx.multi(tier); vibrate(10 + tier * 8); return; }
     fx.addShake(3 + tier * 3);
     fx.blast(e.x, e.y, 40 + tier * 22, 'gold', 0.4 + tier * 0.06);
     fx.ring(e.x, e.y, 12, 70 + tier * 30, 0.45, tier >= 3 ? '#ff6fd8' : '#ffd23f', 3 + tier);
-    fx.burst(e.x, e.y, 6 + tier * 5, '#ffd23f', 150 + tier * 40, 'coin', 7, 0.8, 260);
+    fx.burst(e.x, e.y, (heavy ? 3 : 6) + tier * (heavy ? 2 : 5), '#ffd23f', 150 + tier * 40, 'coin', 7, 0.8, 260);
     if (tier >= 2) fx.flash('#fff2b0', 0.12 + tier * 0.04);
   }
   A.sfx.multi(tier);
@@ -1408,7 +1418,7 @@ const ACTS = {
   skill: (b) => useSkillBtn(Number(b.dataset.slot)),
   aimCancel: () => cancelAim(),
   fxInfo: () => { const g = app.g; if (g) toast(`${g.mapFx.icon} ${g.mapFx.name} — ${g.mapFx.desc}`, 2600); },
-  go: () => startRun({ mode: app.mode, stage: app.stage }),
+  go: () => { if (app.screen === 'prep' && !curDeck().some(Boolean)) { toast('최소 1명은 데려가야 해요', 1600); A.sfx.tap(); return; } startRun({ mode: app.mode, stage: app.stage }); },
   resumeSnap: () => resumeRun(),
   pick: (b) => tapCard(Number(b.dataset.i)),
   confirmPick: () => { if (app.cardSel >= 0 && performance.now() >= app.cardLockUntil) pickCard(app.cardSel); },
@@ -1469,6 +1479,27 @@ function topPills() {
     <div class="curs"><span class="pill cur"><i class="ci"></i><b>${fmt(p.coins || 0)}</b></span><button class="pill cur tk" data-act="nav" data-tab="shop">🎟️<b>${fmt(p.tickets || 0)}</b><em>+</em></button></div>
   </div>`;
 }
+// 로비 랭킹 띠: 스테이지 · 1:1 대전 · 주간 도전 순위를 4초마다 돌아가며 (누르면 전체 랭킹)
+const rankTicker = { at: 0, lines: [], i: 0, t: 0 };
+async function loadRankTicker() {
+  if (Date.now() - rankTicker.at < 60000 && rankTicker.lines.length) return;
+  rankTicker.at = Date.now();
+  const [st, pv, wk] = await Promise.all([API.loadRanking('stage').catch(() => null), API.pvpRanking().catch(() => null), API.weeklyBoard().catch(() => null)]);
+  const top = (list, f) => (list || []).slice(0, 3).map((r, i) => `${i + 1}위 ${esc(r.nickname)} ${f(r)}`).join(' · ');
+  const lines = [];
+  if (st && st.ranking.length) lines.push(`🗺️ 스테이지 — ${top(st.ranking, (r) => `${r.stageLabel} ★${r.totalStars}`)}${st.me && st.me.rank ? ` · 내 순위 ${st.me.rank}위` : ''}`);
+  if (pv && pv.ranking.length) lines.push(`⚔️ 1:1 대전 — ${top(pv.ranking, (r) => `${r.rating}점`)}`);
+  if (wk && wk.board && wk.board.length) lines.push(`📅 주간 도전 — ${top(wk.board, (r) => fmt(r.best))}${wk.me && wk.me.rank ? ` · 내 순위 ${wk.me.rank}위` : ''}`);
+  if (!lines.length) lines.push('🏆 아직 랭킹이 비었어요 — 1등 할 기회!');
+  rankTicker.lines = lines;
+}
+function tickRank() {
+  const el = document.getElementById('lbRank');
+  if (!el || app.screen !== 'menu' || !rankTicker.lines.length) return;
+  const line = rankTicker.lines[rankTicker.i++ % rankTicker.lines.length];
+  el.innerHTML = `<span class="rk-in">${line}</span>`;
+}
+setInterval(tickRank, 4000);
 function showMenu() {
   app.screen = 'menu';
   app.g = null;
@@ -1483,6 +1514,7 @@ function showMenu() {
   A.setBoss(false);
   A.setChapter(ch);
   if (app.touched) A.playBgm(); // 전투 · 대전 · 레이드에서 돌아오면 로비 음악 다시 (같은 곡이면 그대로)
+  setTimeout(() => { loadRankTicker().then(tickRank).catch(() => {}); }, 0);
   if (!app.demo) app.demo = makeDemo();
   fx.reset();
   const p = P();
@@ -1517,6 +1549,7 @@ function showMenu() {
     ${topPills()}
     ${p.master ? '<button class="lb-master" data-act="settings">🛠️ MASTER 테스트 모드</button>' : ''}
     <div class="lb-logo"><img src="/img/lb/emblem.webp" alt="" onerror="this.remove()"><b>랑방 대전</b></div>
+    <button class="lb-rank" data-act="ranking" id="lbRank" aria-label="랭킹 보기"><span>🏆 랭킹 불러오는 중…</span></button>
     <button class="lb-stage" data-act="stages">
       <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
       <span class="lb-chip" style="--cc:${c.color}">${ch}장 ${esc(c.name)} · ${fxd.icon} ${esc(fxd.name)}${boss ? ' · 👑 보스' : ''}</span>
@@ -2521,14 +2554,8 @@ function fixDeck() {
   const n = nPosNow(), max = deckSlotsNow();
   const mine = new Set(owned());
   for (let k = 0; k < 3; k++) {
-    let d = (app.decks[k] || []).slice(0, n).map((id) => (id && mine.has(id) ? id : null));
-    while (d.length < n) d.push(null);
-    const seenIds = new Set();
-    d = d.map((id) => (id && !seenIds.has(id) && seenIds.add(id) ? id : null));
-    let cnt = d.filter(Boolean).length;
-    for (let i = n - 1; i >= 0 && cnt > max; i--) if (d[i]) { d[i] = null; cnt--; }
-    if (!cnt) d = placeDeck(owned().filter((id) => ['bangjang', 'staff', 'gunman', 'gunnyeo'].includes(id) || true).slice(0, max));
-    app.decks[k] = d;
+    // 비운 덱은 비운 그대로 (자동으로 채우지 않는다) — 처음 만드는 덱만 기본 멤버로
+    app.decks[k] = L.cleanDeck(app.decks[k], mine, n, max, () => placeDeck(owned().slice(0, max)));
   }
   saveDecks();
 }
@@ -2620,7 +2647,7 @@ function showPrep(mode, s) {
     <div class="pgrid roster">${roster}</div>
     <div class="spacer"></div>
     ${cleared ? `<label class="speed-opt"><input type="checkbox" data-act="speedOpt" ${app.speed2 ? 'checked' : ''}> ⏩ 2배속으로 하기 <small>(깬 스테이지만)</small></label>` : ''}
-    <button class="btn primary" data-act="go" ${inDeck.size ? '' : 'disabled'}>출동! 🚪</button>
+    <button class="btn primary ${inDeck.size ? '' : 'dim'}" data-act="go">출동! 🚪</button>
   `, 'dim prep-screen');
 }
 function deckTapSlot(i) {
@@ -3052,7 +3079,7 @@ const DEX_FLAVOR = {
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
 const DEX_EN = { bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN' };
-const DEX_FACE = { hochan: [0.49, 0.125, 0.19], bangjang: [0.45, 0.1, 0.17], staff: [0.47, 0.085, 0.14], gunnyeo: [0.47, 0.09, 0.14], eunok: [0.44, 0.078, 0.13] }; // 없으면 [0.48, 0.09, 0.15]
+const DEX_FACE = { hochan: [0.49, 0.125, 0.19], bangjang: [0.45, 0.1, 0.17], staff: [0.47, 0.085, 0.14], gunnyeo: [0.47, 0.09, 0.14], eunok: [0.44, 0.078, 0.13], hyungyeong: [0.52, 0.135, 0.2], ara: [0.34, 0.29, 0.15], donghan: [0.56, 0.09, 0.17], junseo: [0.55, 0.075, 0.14], hanna: [0.47, 0.083, 0.14], sunggu: [0.49, 0.09, 0.15], gunman: [0.59, 0.085, 0.14], dohoon: [0.56, 0.09, 0.14], myunghoon: [0.56, 0.1, 0.17], youngjun: [0.5, 0.085, 0.14], ingyu: [0.47, 0.085, 0.14] }; // 없으면 [0.48, 0.09, 0.15]
 // 변신 그림 (그림을 누르면 바뀜)
 const DEX_ALT = { eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
 const DEX_FORM = { eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 모드', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
@@ -3117,7 +3144,7 @@ function showDex() {
     <div class="dex-grid v2">${cards}</div>
   `, 'dim');
 }
-function dexPageHtml(kind, id, form) {
+function dexPageHtml(kind, id, form, duo) {
   const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
   const ok = dexKnown(kind, id);
   const list = dexList(kind), i = list.indexOf(id);
@@ -3137,7 +3164,7 @@ function dexPageHtml(kind, id, form) {
     const meta = (P().heroes || {})[id] || 0, st = L.heroStar(P(), id);
     plate = `<div class="dp-plate"><small>${esc(d.role)}</small>
       <div class="dp-star">${'★'.repeat(st)}<i>${'★'.repeat(L.STAR_MAX - st)}</i>${meta ? ` · 강화 +${meta}` : ''} · 기본 ×${tierPower(t, 0).toFixed(2)}</div></div>`;
-    body = `<p class="dp-flavor">“${esc(DEX_FLAVOR[id] || d.desc)}”</p>
+    body = `<p class="dp-flavor">“${esc(DEX_FLAVOR[id] || d.desc.replace(/^"|"$/g, ""))}”</p>
       <div class="sbars">${bar('사거리', rg / 620)}${bar('공격 속도', 0.42 / d.interval)}${bar('한 방', d.dmg / 62)}</div>
       <section><h4>⚔️ 기본 공격</h4><p>${esc(d.attack || d.desc)}</p></section>
       ${sk ? `<section><h4>✨ 스킬 · ${esc(sk.name)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></h4><p>${esc(sk.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">🌟 진화 카드: <b>${esc(SKILL_EVO[id])}</b></p>` : ''}</section>` : ''}
@@ -3162,7 +3189,10 @@ function dexPageHtml(kind, id, form) {
   const hero = kind === 'hero';
   const hqForm = hero && (!cur || cur === id);
   const art = hero && hqForm
-    ? `<img class="dx-art hq" src="/img/lb/dexhq/${id}.webp" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/dex/${id}.webp';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`
+    ? (duo
+      // 두 모습 그림(가로, dexhq/<id>_duo) — 없으면 한 장으로
+      ? `<img class="dx-art hq duo" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false" onerror="this.onerror=null;this.classList.remove('duo');this.src='/img/lb/dexhq/${id}.webp'">`
+      : `<img class="dx-art hq" src="/img/lb/dexhq/${id}.webp" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/dex/${id}.webp';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`)
     : dexArt(d, id, cur);
   const fb = DEX_FACE[id] || [0.48, 0.09, 0.15];
   const faces = hero && hqForm && ok ? `<div class="gc-faces">${[1, 1.5, 2.2].map((z) => { const w = (100 / fb[2]) * z; return `<span><img src="/img/lb/dexhq/${id}.webp" alt="" draggable="false" style="width:${w.toFixed(1)}%;left:${(50 - fb[0] * w).toFixed(1)}%;top:${(50 - fb[1] * 1.5 * w).toFixed(1)}%" onerror="this.closest('.gc-faces').remove()"></span>`; }).join('')}</div>` : '';
@@ -3170,7 +3200,7 @@ function dexPageHtml(kind, id, form) {
   const en = ok ? (hero ? DEX_EN[id] || id.toUpperCase() : id.replace(/^(boss|mid|fuse)_/, '').replace(/_/g, ' ').toUpperCase()) : '? ? ?';
   return `<div class="dp-bg" style="background-image:url('/img/lb/${ch === 1 ? 'bg' : 'bg' + ch}.webp')"></div><div class="dp-grad"></div>
     <div class="dp-top"><button class="dp-x" data-dp="x">✕</button><span>${i + 1} / ${list.length}</span></div>
-    <div class="gc ${hero ? 'hero' : 'foe'} ${hqForm ? '' : 'nohq'}">
+    <div class="gc ${hero ? 'hero' : 'foe'} ${hqForm ? '' : 'nohq'} ${duo ? 'isduo' : ''}">
       <span class="gc-bg"></span><span class="gc-dots"></span>
       <div class="gc-no"><small>NO.</small><b>${String(i + 1).padStart(2, '0')}</b></div>
       <div class="gc-badges">${ok ? badges : ''}</div>
@@ -3181,6 +3211,7 @@ function dexPageHtml(kind, id, form) {
         ${ok && DEX_FX[fxKey] ? `<span class="dp-fx">${DEX_FX[fxKey]()}</span>` : ''}
         ${alts ? `<span class="dp-form">👆 ${esc(DEX_FORM[cur] || '')} <small>눌러서 변신</small></span>` : ''}
       </div>
+      ${hero && ok && DEX_ALT[id] ? `<button class="gc-duo" data-dp="duo" hidden>${duo ? '👤 한 명만' : '👥 두 모습 보기'}</button><img class="gc-probe" src="/img/lb/dexhq/${id}_duo.webp" alt="" hidden onload="var b=this.parentNode.querySelector('.gc-duo');if(b)b.hidden=false">` : ''}
       <div class="gc-en">${esc(en)}</div>
       <div class="gc-name"><b>${ok ? esc(d.name) : '???'}</b></div>
     </div>
@@ -3193,18 +3224,18 @@ function showDexCard(kind, id) {
   closeInfoCard();
   const box = document.createElement('div');
   box.className = 'info-modal dexpage';
-  const st = { kind, id, form: null };
+  const st = { kind, id, form: null, duo: false };
   const draw = (dir = 0) => {
     const dd = st.kind === 'hero' ? HEROES[st.id] : ENEMIES[st.id];
     box.style.setProperty('--c', dexColor(st.kind, dd));
-    box.innerHTML = dexPageHtml(st.kind, st.id, st.form);
+    box.innerHTML = dexPageHtml(st.kind, st.id, st.form, st.duo);
     if (dir) { box.classList.remove('in-l', 'in-r'); void box.offsetWidth; box.classList.add(dir > 0 ? 'in-r' : 'in-l'); }
     if (dexKnown(st.kind, st.id)) markViewed([(st.kind === 'hero' ? 'h:' : 'e:') + st.id]);
   };
   const go = (dir) => {
     const list = dexList(st.kind), j = list.indexOf(st.id) + dir;
     if (j < 0 || j >= list.length) return;
-    st.id = list[j]; st.form = null;
+    st.id = list[j]; st.form = null; st.duo = false;
     A.sfx.card();
     draw(dir);
   };
@@ -3219,6 +3250,7 @@ function showDexCard(kind, id) {
     if (a === 'x') close();
     else if (a === 'prev') go(-1);
     else if (a === 'next') go(1);
+    else if (a === 'duo') { st.duo = !st.duo; st.form = null; A.sfx.tap(); draw(); }
     else if (a === 'form') {
       const dd = st.kind === 'hero' ? HEROES[st.id] : ENEMIES[st.id];
       const base = dd.base || st.id, forms = [base, ...DEX_ALT[base]];

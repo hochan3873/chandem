@@ -118,7 +118,7 @@ test('최은옥은 타이머가 지나면 분노 모드에 들어간다', () => 
   run(g, 1.5);
   assert.equal(h.rage, true, '분노 모드 진입');
   assert.ok(g.events.some((e) => e.type === 'rage'));
-  assert.ok(S.heroDamage(g, h) > normal * 1.4);
+  assert.ok(S.heroDamage(g, h) > normal * (D.HEROES.eunok.rageDmg - 0.05));
   run(g, D.HEROES.eunok.rageSec[0] + 0.5);
   assert.equal(h.rage, false, '술 깸');
 });
@@ -1266,6 +1266,16 @@ test('멤버 티어: 늦게 만나는 멤버는 기본이 세고(강화 0: T4 �
   for (const h of Object.keys(D.HEROES)) assert.equal(R.metaMaxOf(h), D.metaMaxOf(h), h);
 });
 
+test('덱 정리: 다 빼면 빈 덱 그대로 (자동으로 안 채움) · 처음 만드는 덱만 기본 멤버 · 없는 멤버·중복·칸 넘침 정리', async () => {
+  const L = await load('live.js');
+  const mine = new Set(['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon']);
+  const fill = () => ['staff', 'bangjang', 'gunman', 'gunnyeo', null, null];
+  assert.deepEqual(L.cleanDeck([null, null, null, null, null, null], mine, 6, 4, fill), [null, null, null, null, null, null], '비운 덱은 그대로');
+  assert.deepEqual(L.cleanDeck([], mine, 6, 4, fill), fill(), '처음 덱만 채움');
+  assert.deepEqual(L.cleanDeck([null, 'staff', null, null, null, null], mine, 6, 4, fill), [null, 'staff', null, null, null, null], '1명 덱도 그대로');
+  assert.deepEqual(L.cleanDeck(['hochan', 'staff', 'staff', 'gunman', 'gunnyeo', 'dohoon'], mine, 6, 4, fill), [null, 'staff', null, 'gunman', 'gunnyeo', 'dohoon'], '없는 멤버 · 중복 빼고 4명까지');
+});
+
 test('웨이브 성격: 떼거리는 많고 약하게 · 정예는 적고 단단 (범위 피해 -35%) · 혼합은 정예 호위 · 스테이지마다 섞인다', () => {
   let S1 = 0, E1 = 0;
   for (let s = 3; s <= 60; s++) {
@@ -1301,4 +1311,23 @@ test('멀티킬: 0.35초 안에 3명 이상 쓰러지면 한 번 (트리플 → 
   for (let i = 0; i < 130; i++) S.step(g, 1 / 60);
   assert.equal(g.combo, 0, '2초 지나면 콤보 끊김');
   assert.equal(D.RULES.comboWindow, 2);
+});
+
+test('줄 스킬 자동 조준: 가장 많이 걸리는 방향 · 아무도 없으면 스킬 아껴 둠 · 난사는 그 방향으로 전부 관통', () => {
+  const g = S.createGame({ rng: seeded(91), noWaves: true, heroes: ['gunman'] });
+  const h = g.heroes[0];
+  assert.equal(S.bestLineAngle(g, h.x, h.y, 500, 12), null, '진상 없음');
+  h.skillCd = 0;
+  assert.equal(S.castSkill(g, h, 0, 0), false, '진상이 없으면 안 쓴다');
+  assert.ok(S.skillReady(h), '쿨타임 그대로');
+  // 왼쪽 위 대각선에 3명, 바로 위에 1명
+  const a = -Math.PI * 0.75;
+  for (const d of [120, 200, 280]) S.spawnEnemy(g, 'thug', h.x + Math.cos(a) * d, h.y + Math.sin(a) * d, { hpMul: 50 });
+  S.spawnEnemy(g, 'thug', h.x, h.y - 200, { hpMul: 50 });
+  const b = S.bestLineAngle(g, h.x, h.y, 500, 12);
+  assert.ok(b && b.n === 3 && Math.abs(b.a - a) < 0.2, `가장 많이 걸리는 쪽 (${b && b.a})`);
+  assert.equal(S.castSkill(g, h, 0, 0), true);
+  for (let i = 0; i < 60; i++) S.step(g, 1 / 60);
+  const hurt = g.enemies.filter((e) => !e.dead && e.hp < e.maxHp).length;
+  assert.ok(hurt >= 3, `대각선 3명 모두 맞음 (${hurt})`);
 });

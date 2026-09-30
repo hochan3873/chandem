@@ -112,6 +112,21 @@ export class FX {
     const t = this.mks.get();
     if (!t) return;
     t.x = Math.max(70, Math.min(290, x)); t.y = Math.max(150, Math.min(y, 520)); t.text = text; t.tier = tier; t.life = 1 + tier * 0.15; t.max = t.life;
+    // 글자는 한 번만 그려 두고(구워 두기) 매 프레임엔 그림만 — 느린 폰에서도 가볍게
+    const key = text + tier;
+    this._mkc = this._mkc || {};
+    if (!this._mkc[key]) {
+      const k = 2, c = document.createElement('canvas'), x2 = c.getContext('2d');
+      x2.font = `900 italic 22px ${FONT}`;
+      const w = Math.ceil(x2.measureText(text).width + 24);
+      c.width = w * k; c.height = 40 * k;
+      x2.scale(k, k); x2.font = `900 italic 22px ${FONT}`; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.lineJoin = 'round';
+      x2.lineWidth = 7; x2.strokeStyle = 'rgba(25,5,20,0.95)'; x2.strokeText(text, w / 2, 20);
+      if (tier >= 3) { const gr = x2.createLinearGradient(0, 0, w, 0); for (let i = 0; i <= 5; i++) gr.addColorStop(i / 5, `hsl(${i * 60},100%,62%)`); x2.fillStyle = gr; } else x2.fillStyle = ['#ffffff', '#ffe14a', '#ff8a1f'][tier];
+      x2.fillText(text, w / 2, 20);
+      this._mkc[key] = { c, w };
+    }
+    t.img = this._mkc[key];
   }
   text(x, y, text, color = '#fff', size = 16, life = 1.1, vy = -36) {
     const t = this.texts.get();
@@ -1074,7 +1089,7 @@ export class Renderer {
     for (const e of g.enemies) if (!e.dead && (e.y > dark || e === g.focus)) list.push(e);
     list.sort((a, b) => a.y - b.y);
     const sh = this.projSprites.shadow;
-    const heavy = list.length > 110; // 많을 땐 가벼운 그리기 (작은 진상 그림자 생략 · 연기 줄임)
+    const heavy = list.length > 85; // 많을 땐 가벼운 그리기 (작은 진상 그림자 생략 · 연기 줄임)
     // 그림자 먼저
     for (const e of list) {
       if (heavy && !e.boss && !e.mid && e.def.size < 80) continue;
@@ -1831,17 +1846,7 @@ export class Renderer {
       if (age < 0.12) sc *= 0.4 + (age / 0.12) * 0.9; else if (age < 0.26) sc *= 1.3 - ((age - 0.12) / 0.14) * 0.3;
       this.tf(t.x, t.y, Math.sin(age * 20) * 0.04 * t.tier, sc, sc);
       cx.globalAlpha = Math.min(1, t.life / (t.max * 0.3));
-      cx.font = `900 italic 22px ${FONT}`;
-      cx.lineWidth = 7;
-      cx.strokeStyle = 'rgba(25,5,20,0.95)';
-      cx.strokeText(t.text, 0, 0);
-      if (t.tier >= 3) {
-        const gr = cx.createLinearGradient(-60, 0, 60, 0);
-        const h0 = (this.fx.time * 360) % 360;
-        for (let i = 0; i <= 4; i++) gr.addColorStop(i / 4, `hsl(${(h0 + i * 72) % 360},100%,62%)`);
-        cx.fillStyle = gr;
-      } else cx.fillStyle = ['#ffffff', '#ffe14a', '#ff8a1f'][t.tier];
-      cx.fillText(t.text, 0, 0);
+      if (t.img) cx.drawImage(t.img.c, -t.img.w / 2, -20, t.img.w, 40);
     }
     cx.font = `900 16px ${FONT}`;
     // 연출 글자

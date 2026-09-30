@@ -551,6 +551,19 @@ export function deckToggle(deck, id, max, order, replace) {
   d[slot] = id;
   return { deck: d, action: 'added', slot };
 }
+// 덱 정리: 없는 멤버·중복·칸 넘침만 정리. 비어 있어도 그대로 둔다 (한 번도 만든 적 없는 새 덱만 기본 멤버로)
+//  raw: 저장된 덱 (자리 배열, 처음이면 []) · mine: 가진 멤버 · fill(ids) → 자리 배열
+export function cleanDeck(raw, mine, n, max, fill) {
+  const fresh = !Array.isArray(raw) || raw.length === 0;
+  let d = (Array.isArray(raw) ? raw : []).slice(0, n).map((id) => (id && mine.has(id) ? id : null));
+  while (d.length < n) d.push(null);
+  const seen = new Set();
+  d = d.map((id) => (id && !seen.has(id) && seen.add(id) ? id : null));
+  let cnt = d.filter(Boolean).length;
+  for (let i = n - 1; i >= 0 && cnt > max; i--) if (d[i]) { d[i] = null; cnt--; }
+  if (fresh && !cnt && fill) d = fill();
+  return d;
+}
 // 서버에 저장하는 덱 (프리셋 3개 × 자리 6개)
 export function cleanDecks(raw) {
   if (!raw || !Array.isArray(raw.decks)) return null;

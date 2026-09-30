@@ -194,7 +194,7 @@ export const STAGE = {
   themeThug: 3,
   deckHp: [2.9, 2.3, 1.9, 1.8, 1.8, 1.8], // 덱(5명) 보정: 적 체력 배율 (챕터별 — 뒤로 갈수록 강화·장비가 쌓이니 조금씩 덜)
   deckCount: 1.45, // 덱 보정: 적 수 배율
-  hpTune: [0.9, 1.35, 1.7, 1.0, 1.05, 1.6], // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
+  hpTune: [1.0, 1.4, 1.9, 1.0, 1.25, 1.5], // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
   stageAdd: {3: 2, 4: 3, 5: 0.4, 6: -0.5, 8: 5, 9: -6, 10: 3.75, 11: 5, 12: 4, 13: 9, 14: 9.5, 15: -6, 16: 3.5, 17: 3.25, 18: 3, 19: -0.9, 20: -0.3, 22: 6, 25: 6, 26: 1.7, 27: 2, 28: -6, 29: -9.5, 30: 3.5, 31: -7, 33: -1.6, 34: -3.6, 35: 6, 36: -3, 37: 3.5, 39: -0.6, 40: 3.1, 41: -1.5, 42: -1, 43: -6, 45: 2, 46: 3.5, 48: -2, 50: -2, 51: -3.2, 52: -1, 53: 3.5, 55: 9, 56: -2.6, 59: 3}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
@@ -362,7 +362,7 @@ export function stageBosses(s) {
 // count = 진상 수 배율, hp = 한 명 체력 배율 (떼거리·혼합 졸개), eliteHp = 정예 체력 배율
 export const WAVE_KINDS = {
   N: { id: 'N', icon: '👥', name: '보통', count: 1, hp: 1, desc: '평범한 진상 행렬' },
-  S: { id: 'S', icon: '🐜', name: '떼거리', count: 1.8, hp: 0.45, clump: true, desc: '약한 진상이 떼로 몰려온다 — 범위 공격이 최고' },
+  S: { id: 'S', icon: '🐜', name: '떼거리', count: 1.65, hp: 0.49, clump: true, desc: '약한 진상이 떼로 몰려온다 — 범위 공격이 최고' },
   E: { id: 'E', icon: '💀', name: '정예', count: 0.38, hp: 1, eliteHp: 2.4, elite: true, desc: '수는 적지만 단단한 정예 (범위 피해 -35%) — 한 방 공격이 최고' },
   M: { id: 'M', icon: '⚔️', name: '혼합', count: 1.2, hp: 0.5, clump: true, eliteHp: 2.4, escort: [2, 4], desc: '떼거리 졸개가 정예 2~4명을 호위' },
   B: { id: 'B', icon: '👑', name: '보스', count: 1.35, hp: 0.5, clump: true, desc: '보스 + 호위 떼' },
@@ -595,19 +595,19 @@ export const HEROES = {
   dohoon: {
     id: 'dohoon', bossKit: 0.7, kit: 0.6, name: '김도훈', gender: 'm', emoji: '🎤', color: '#b58cff', unlock: true, attr: 'booze',
     img: '/img/lb/h_dohoon.webp', role: '힐러 · 떼창 오라 · 제어',
-    dmg: 27, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, slow: 0.2, slowSec: 1,
-    regen: [0.005, 0.0056, 0.007, 0.0076, 0.0092], // 떼창: 초당 입구 최대 내구도의 %
-    sing: { r: 150, spd: [0.12, 0.12, 0.18, 0.18, 0.24] }, // 떼창: 곁 멤버 공격 속도 +%
+    dmg: 40, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, slow: 0.2, slowSec: 1,
+    regen: [0.0065, 0.0073, 0.0091, 0.0099, 0.012], // 떼창: 초당 입구 최대 내구도의 %
+    sing: { r: 150, spd: [0.16, 0.16, 0.22, 0.22, 0.28] }, // 떼창: 곁 멤버 공격 속도 +%
     attack: '마이크 음파 — 둥글게 퍼지는 음파가 근처 진상 전부를 때리고 살짝 느리게',
     desc: '마이크를 절대 안 놓는 노래방 사나이. 떼창으로 랑방을 꾸준히 고친다.',
     perks: { 3: '음파 범위 · 떼창 강화', 5: '떼창 최대 · 앵콜이 더 길다' },
-    skill: { id: 'encore', name: '무한 앵콜', cd: 26, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 근처 진상 춤추느라 멈춤', heal: [0.18, 0.18, 0.22, 0.22, 0.26], r: 250, dance: [3, 3, 3.3, 3.3, 3.8] },
+    skill: { id: 'encore', name: '무한 앵콜', cd: 22, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 근처 진상 춤추느라 멈춤', heal: [0.18, 0.18, 0.22, 0.22, 0.26], r: 250, dance: [3, 3, 3.3, 3.3, 3.8] },
   },
   ingyu: {
     id: 'ingyu', bossKit: 1.15, kit: 0.95, name: '백인규', gender: 'm', emoji: '🏋️', color: '#3f8cff', unlock: true, attr: 'power',
     img: '/img/lb/h_ingyu.webp', role: '탱커 · 덤벨 · 오토바이 돌진',
-    dmg: 48, interval: 1.75, range: 420, proj: 'dumbbell', projSpeed: 1, lobSec: 0.5, splash: 34,
-    moto: { every: [8, 8, 7, 7, 6], mul: 2.0, speed: 560, kb: 60, w: 30 }, // 덤벨 8번 → 자기 줄로 오토바이 돌진
+    dmg: 32, interval: 1.75, range: 420, proj: 'dumbbell', projSpeed: 1, lobSec: 0.5, splash: 34,
+    moto: { every: [8, 8, 7, 7, 6], mul: 1.7, speed: 560, kb: 60, w: 30 }, // 덤벨 8번 → 자기 줄로 오토바이 돌진
     taunt: 0.35, // 근육 자랑: 멤버 노리는 기술(붙잡기·플래시·뒷담·무릎·오리고기)은 백인규가 대신 맞고 35% 시간만
     guard: { r: 50, cut: 0.15 }, // 자기 줄 진상이 입구를 칠 때 -15%
     attack: '덤벨 — 느리지만 묵직하게 던져 떨어진 곳을 쾅, 게이지가 차면 오토바이 돌진',
@@ -618,18 +618,18 @@ export const HEROES = {
   donghan: {
     id: 'donghan', bossKit: 0.9, kit: 1.0, name: '문동한', gender: 'm', emoji: '😪', color: '#8fb3a0', unlock: true, attr: 'charm',
     img: '/img/lb/h_donghan.webp', imgOn: '/img/lb/h_donghan_on.webp', role: '간보기 · 한 방 폭발',
-    dmg: 7, interval: 1.1, range: 320, proj: 'snack', projSpeed: 420, slow: 0.2, slowSec: 1,
-    meter: { base: [6.5, 7, 7.5, 8, 9], perNear: 1.1, nearY: 200, hpLow: 12 }, // 간보기 게이지 (초당)
-    burst: { mul: 28, w: [36, 36, 44, 44, 54], windup: 0.8, rest: 1.2 }, // 가장 붐비는 줄에 두꺼운 빔
+    dmg: 11, interval: 1.1, range: 320, proj: 'snack', projSpeed: 420, slow: 0.2, slowSec: 1,
+    meter: { base: [7.8, 8.4, 9, 9.6, 10.8], perNear: 1.4, nearY: 200, hpLow: 12 }, // 간보기 게이지 (초당)
+    burst: { mul: 12, w: [36, 36, 44, 44, 54], windup: 0.8, rest: 1.2 }, // 가장 붐비는 줄에 두꺼운 빔
     attack: '과자 던지기 — 누워서 약한 과자를 휙 (살짝 느려짐). 간보기 게이지가 차면 일어나서 한 줄 전체에 빔!',
     desc: '늘 귀찮은 간보는 사람. 누워만 있다가 "이제 좀 해볼까?" 한 방이면 한 줄이 싹 비워진다.',
     perks: { 3: '게이지 빨라짐 · 빔 두꺼워짐', 5: '게이지 최대 · 빔 제일 두껍게' },
-    skill: { id: 'serious', name: '진심 모드', cd: 24, desc: '간보기 게이지 바로 가득 + 다음 빔 1.5배' },
+    skill: { id: 'serious', name: '진심 모드', cd: 20, desc: '간보기 게이지 바로 가득 + 다음 빔 1.5배' },
   },
   youngjun: {
     id: 'youngjun', bossKit: 1.2, kit: 0.95, name: '김영준', gender: 'm', emoji: '🐆', color: '#7a4dff', unlock: true, attr: 'booze',
     img: '/img/lb/h_youngjun.webp', imgOn: '/img/lb/h_youngjun_dash.webp', role: '근접 돌격 · 초고속 연속 베기',
-    dmg: 17, interval: 0.14, range: 350, proj: 'dash', outSec: [3, 3, 3.3, 3.3, 3.6], restSec: [1.6, 1.6, 1.4, 1.4, 1.1], reach: 70,
+    dmg: 34, interval: 0.14, range: 350, proj: 'dash', outSec: [3, 3, 3.3, 3.3, 3.6], restSec: [1.6, 1.6, 1.4, 1.4, 1.1], reach: 70,
     attack: '돌격 — 제일 몰린 곳으로 뛰어들어 초고속 연속 베기(가오 무시), 돌아와서 크로스핏',
     desc: '흑표범 같은 파티 전사. 뛰어든 동안엔 아무것도 안 통한다. 한 명씩 확실하게 끝내는 타입.',
     perks: { 3: '더 오래 싸우고 빨리 회복', 5: '제일 오래 싸우고 크로스핏 최단' },
@@ -640,8 +640,8 @@ export const HEROES = {
     id: 'eunok', bossKit: 1.0, kit: 1.1, name: '최은옥', gender: 'f', emoji: '🍶', color: '#ff5a4f', hidden: true, attr: 'booze',
     img: '/img/lb/h_eunok.webp', imgRage: '/img/lb/h_eunok_rage.webp', role: 'HIDDEN · 술 마시면 분노 모드',
     dmg: 21, interval: 0.9, range: 390, proj: 'bottle', projSpeed: 1, lobSec: 0.55, splash: 55,
-    soberSec: [20, 20, 18, 18, 15], rageSec: [9, 10, 11, 12, 13],
-    rageDmg: 1.55, rageInterval: 0.45, fire: { sec: 2.2, r: 50, dps: 0.6 }, // 분노 중 불바다 (1발 피해 × 0.6 / 초)
+    soberSec: [22, 22, 20, 20, 17], rageSec: [8, 9, 10, 11, 12],
+    rageDmg: 1.4, rageInterval: 0.45, fire: { sec: 2.2, r: 50, dps: 0.6 }, // 분노 중 불바다 (1발 피해 × 0.6 / 초)
     attack: '소주병 — 던지면 깨지며 범위 폭발, 분노 중엔 불바다',
     desc: '홀짝홀짝… 20초가 지나면 취해서 "분노 모드"가 된다.',
     perks: { 3: '분노 중 불바다가 더 넓고 오래', 5: '더 빨리 취하고 더 오래 분노' },
@@ -650,8 +650,8 @@ export const HEROES = {
   hanna: {
     id: 'hanna', bossKit: 1.15, kit: 1.05, name: '이한나', gender: 'f', emoji: '😉', color: '#ff6fd8', hidden: true, attr: 'charm',
     img: '/img/lb/h_hanna.webp', role: 'HIDDEN · 하트 레이저 · 윙크 넉백',
-    dmg: 33, interval: 0.7, range: 370, proj: 'beam', beamTick: 0.12, ramp: [0.5, 0.5, 0.7, 0.7, 0.9], rampMax: 2.5, kbEvery: 1.3,
-    knockback: [60, 70, 80, 90, 105],
+    dmg: 33, interval: 0.7, range: 370, proj: 'beam', beamTick: 0.12, ramp: [0.5, 0.5, 0.7, 0.7, 0.9], rampMax: 2.1, kbEvery: 2.0,
+    knockback: [52, 60, 68, 76, 90],
     attack: '하트 레이저 — 한 명에게 계속 쏘면 점점 세진다, 남자는 가끔 뒤로 밀림',
     desc: '"윙크 ♥" 레이저에 맞은 남자는 정신 못 차리고 뒤로 날아간다. 여자는 그냥 아프다.',
     perks: { 3: '레이저가 더 빨리 세진다', 5: '레이저 2갈래 · 남자는 잠깐 기절' },
@@ -670,7 +670,7 @@ export const HEROES = {
   junseo: {
     id: 'junseo', bossKit: 0.8, kit: 1.05, name: '윤준서', gender: 'm', emoji: '😍', color: '#ff7fb0', gacha: true, attr: 'charm',
     img: '/img/lb/h_junseo.webp', role: '여사친 핀볼 · 밀어내기',
-    dmg: 26, interval: 1.25, range: 385, proj: 'gf', projSpeed: 560, ricochet: [3, 3, 4, 4, 4], ricoR: 150, ricoDecay: 0.88, kb: [22, 22, 26, 26, 30],
+    dmg: 32, interval: 1.25, range: 385, proj: 'gf', projSpeed: 560, ricochet: [3, 3, 4, 4, 4], ricoR: 150, ricoDecay: 0.88, kb: [22, 22, 26, 26, 30],
     attack: '여사친 소환 — 동글동글 여사친을 진상에게 밀어 넣으면 3~4명 사이를 핀볼처럼 튕기며 밀어내고 돌아온다',
     desc: '여자라면 사족을 못 쓰는 남자. "잠깐, 내 친구 소개해 줄게!" 여사친이 대신 진상들 사이를 굴러다닌다.',
     perks: { 3: '여사친이 한 번 더 튕긴다', 5: '여사친 둘이 같이 출동' },
@@ -680,7 +680,7 @@ export const HEROES = {
   hyungyeong: {
     id: 'hyungyeong', bossKit: 1.0, kit: 1.0, name: '배현경', gender: 'f', emoji: '🐻', color: '#ff9f5a', gacha: true, attr: 'power',
     img: '/img/lb/h_hyungyeong.webp', imgAlt: '/img/lb/h_hyungyeong_slim.webp', role: '탱커 · 몸통 박치기 ↔ 다이어트 복서',
-    dmg: 68, interval: 1.95, range: 245, proj: 'slam', slamR: [80, 80, 92, 92, 104], kb: 36, // 통통: 묵직한 박치기 (피해 +35% · 넉백 ↑)
+    dmg: 60, interval: 1.95, range: 245, proj: 'slam', slamR: [80, 80, 92, 92, 104], kb: 36, // 통통: 묵직한 박치기 (피해 +35% · 넉백 ↑)
     taunt: 0.6, guard: { r: 55, cut: 0.12 }, // 몸집으로 막는다: 멤버 노리는 기술 대신 맞기(60% 시간) · 자기 줄 입구 피해 -12%
     diet: { perSlam: [21, 21, 23, 23, 26], perSec: 4, sec: [10, 10, 11, 11, 12], dmg: 0.4, interval: 0.2, range: 330, speed: 820, charmRes: 0.3 }, // 통통할 땐 홀림 70% 짧게 · 박치기 직후엔 면역
     attack: '몸통 박치기 — 느리지만 묵직하게 쿵! 주변 진상을 밀어낸다. 게이지가 차면 다이어트 주사 → 날씬 모드 초고속 연타',
@@ -692,8 +692,8 @@ export const HEROES = {
   ara: {
     id: 'ara', bossKit: 1.45, kit: 0.9, name: '고아라', gender: 'f', emoji: '👸', color: '#ffc4ec', gacha: true, attr: 'booze',
     img: '/img/lb/h_ara.webp', imgAlt: '/img/lb/h_ara_old.webp', role: '보스 킬러 · 공주 ↔ 폭삭 늙음',
-    dmg: 128, interval: 1.85, range: 470, proj: 'hammer', projSpeed: 640,
-    age: { princess: [13, 13, 14, 14, 16], old: [8, 8, 7, 7, 6], dmg: 0.5, slow: 1.4 },
+    dmg: 175, interval: 1.85, range: 470, proj: 'hammer', projSpeed: 640,
+    age: { princess: [13, 13, 14, 14, 16], old: [8, 8, 7, 7, 6], dmg: 0.65, slow: 1.4 },
     attack: '공주 망치 — 아주 무거운 한 방. 보스·체력 많은 진상부터 노린다 (가끔 폭삭 늙으면 힘이 반토막)',
     desc: '맑은 목소리의 공주님. 그런데 가끔 갑자기 폭삭 늙어 버린다… "아이고 허리야…" 조금 쉬면 다시 공주!',
     perks: { 3: '공주로 더 오래 · 빨리 돌아온다', 5: '망치가 떨어진 곳 주변도 쿵' },

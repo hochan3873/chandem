@@ -116,7 +116,7 @@ test('마스터 테스트 도구: 서버가 아이디로 확인 · 올클리어 
   assert.equal(r.profile.master, true);
   assert.equal(r.profile.deckSlots, 6, '마스터는 덱 6칸');
   assert.equal(r.profile.hstars.hochan, 5);
-  assert.equal(r.profile.heroes.staff, 12, '티어 한도까지');
+  assert.equal(r.profile.heroes.staff, 20, '강화 한도까지 (모든 티어 20)');
   assert.ok(r.profile.gear.length >= 8 && r.profile.coins >= 1e6);
   assert.ok(r.profile.seen.includes('boss_soloparty'), '도감 전부');
   const me = await get('/api/langbang/me', m.token);

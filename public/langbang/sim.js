@@ -8,7 +8,7 @@ import {
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const ENEMY_CAP = 170; // 폰 성능: 화면에 동시에 있는 진상 최대 (넘치면 조금 기다렸다 나온다)
+export const ENEMY_CAP = 140; // 폰 성능: 화면에 동시에 있는 진상 최대 (넘치면 조금 기다렸다 나온다)
 
 // ─── 게임 생성 ─────────────────────────────────────────
 // opt.mode: 'stage'(스테이지 opt.stage = 1..30, 5웨이브) | 'endless'(무한 도전, 기본)
@@ -261,10 +261,10 @@ function updateHeroes(g, dt) {
       h.frenzyCd -= dt;
       while (h.frenzyCd <= 0) {
         h.frenzyCd += d.skill.every;
-        const t = nearestEnemy(g, h.x, h.y, heroRange(g, h));
-        if (!t) { h.frenzyCd = 0.05; break; }
-        const a = aimAngle(h, t, d.projSpeed) + (g.rng() - 0.5) * 0.2;
-        spawnProj(g, 'bullet', h, null, heroDamage(g, h) * 0.75, { angle: a, pierce: g.mods.pierce, critBonus: d.critBonus || 0, r: 6 });
+        if (!h.aimT || g.t - h.aimT > 0.3) { const b = bestLineAngle(g, h.x, h.y, heroRange(g, h), 12); h.aimA = b ? b.a : null; h.aimT = g.t; }
+        if (h.aimA === null || h.aimA === undefined) { h.frenzyCd = 0.05; break; }
+        const a = h.aimA + (g.rng() - 0.5) * 0.12;
+        spawnProj(g, 'bullet', h, null, heroDamage(g, h) * 0.55, { angle: a, pierce: Infinity, critBonus: d.critBonus || 0, r: 8.5 });
         if (g.rng() < 0.3) ev(g, 'shot', { hero: h.id, x: h.x, y: h.y });
       }
     }
@@ -284,6 +284,24 @@ function updateHeroes(g, dt) {
   }
 }
 
+// 줄(직선) 스킬 자동 조준: 사거리 안에서 가장 많은 진상이 걸리는 방향 (위쪽 반원 24방향)
+//  halfW: 직선 반쪽 폭. 아무도 없으면 null
+export function bestLineAngle(g, x, y, range, halfW) {
+  let best = null, bn = 0;
+  for (let k = 0; k <= 24; k++) {
+    const a = -Math.PI + (k / 24) * Math.PI; // -π(왼쪽) … -π/2(위) … 0(오른쪽)
+    const cx = Math.cos(a), cy = Math.sin(a);
+    let n = 0;
+    for (const e of g.enemies) {
+      if (e.dead || e.y < -30) continue;
+      const dx = e.x - x, dy = e.y - y, along = dx * cx + dy * cy;
+      if (along < 0 || along > range) continue;
+      if (Math.abs(dx * cy - dy * cx) <= halfW + (e.r || 16)) n++;
+    }
+    if (n > bn || (n === bn && n > 0 && Math.abs(a + Math.PI / 2) < Math.abs(best + Math.PI / 2))) { bn = n; best = a; }
+  }
+  return bn > 0 ? { a: best, n: bn } : null;
+}
 function nearestEnemy(g, x, y, range) {
   let best = null, bd = range * range;
   for (const e of g.enemies) {
@@ -1880,6 +1898,8 @@ export function castSkill(g, h, x, y, echo) {
   const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo ? 0.75 : 1);
   if (h.skEvo && !echo) h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
+  // 줄 스킬은 사거리 안에 진상이 없으면 아껴 둔다 (쿨타임 안 씀)
+  if ((sk.id === 'frenzy' && !bestLineAngle(g, h.x, h.y, heroRange(g, h), 12)) || (sk.id === 'whirl' && !bestLineAngle(g, h.x, h.y, h.def.range + 60, 16))) { ev(g, 'skillHold', { hero: h.id, x: h.x, y: h.y }); return false; }
   let r = 0;
   switch (sk.id) {
     case 'rally':
@@ -1894,9 +1914,12 @@ export function castSkill(g, h, x, y, echo) {
         return true;
       });
       break;
-    case 'frenzy':
-      h.frenzyT = sk.sec[lv]; h.frenzyCd = 0;
+    case 'frenzy': {
+      const b = bestLineAngle(g, h.x, h.y, heroRange(g, h), 12);
+      h.frenzyT = sk.sec[lv]; h.frenzyCd = 0.15; h.aimA = b.a; h.aimT = g.t; // 0.15초 조준선 뒤 발사
+      ev(g, 'aimLine', { x: h.x, y: h.y, a: b.a, len: heroRange(g, h) });
       break;
+    }
     case 'firstaid': {
       const v = Math.min(g.base.max - g.base.hp, g.base.max * sk.heal[lv] * g.mods.healMul);
       g.base.hp += v;
@@ -1920,8 +1943,11 @@ export function castSkill(g, h, x, y, echo) {
       break;
     case 'whirl': {
       const n = sk.n[lv];
+      const bw = bestLineAngle(g, h.x, h.y, h.def.range + 60, 16);
+      const mid = bw ? Math.max(-Math.PI + 1.3, Math.min(-1.3, bw.a)) : -Math.PI / 2;
+      ev(g, 'aimLine', { x: h.x, y: h.y, a: mid, len: h.def.range + 60 });
       for (let i = 0; i < n; i++) {
-        const a = -Math.PI / 2 + (i - (n - 1) / 2) * (2.6 / (n - 1)); // 지팡이 회오리: 더 넓은 부채꼴
+        const a = mid + (i - (n - 1) / 2) * (2.6 / (n - 1)); // 지팡이 회오리: 가장 몰린 쪽을 가운데로 한 넓은 부채꼴
         spawnProj(g, 'cane', h, null, base * 1.2, { angle: a, pierce: Infinity, spin: 16, maxDist: h.def.range + 60, r: 16 });
       }
       break;
