@@ -14,6 +14,7 @@ const load = (f) => import(pathToFileURL(path.join(LIB, f)).href);
 const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? Number(a.split('=')[1]) : d; };
 const what = args.find((x) => !x.startsWith('--')) || 'all';
+const JOIN_MODE = args.includes('--join'); // --join: 대장 1명 시작 · 레벨업 카드로 합류
 const PARTNERS = ((process.argv.find((x) => x.startsWith('--partners=')) || '').slice(11) || 'staff,gunman,gunnyeo,dohoon,myunghoon,ingyu,donghan,youngjun,eunok,hanna,sunggu').split(',');
 const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준' };
 const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
@@ -35,7 +36,8 @@ function seeded(seed = 1) {
     let best = 0, bv = -1;
     cards.forEach((c, i) => {
       let v = 1;
-      if (c.rarity === 'hidden') v = 10;
+      if (c.kind === 'join') v = 9; // 합류 카드: 사람들은 거의 고른다
+      else if (c.rarity === 'hidden') v = 10;
       else if (c.kind === 'addHero') v = g.heroes.length < 4 ? 8 : 5;
       else if (c.kind === 'heroLv') {
         const h = S.hasHero(g, c.hero);
@@ -91,7 +93,7 @@ function seeded(seed = 1) {
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
-      deck: o.deck, gear: o.gear,
+      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE,
     });
     g.partner = o.partner;
     if (o.noTypes) g.noTypes = true;

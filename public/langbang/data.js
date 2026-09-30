@@ -62,6 +62,8 @@ export function expNeed(lv) {
   return Math.round(4 + lv * 3 + lv * lv * 0.32);
 }
 // 레벨업은 드물게, 대신 한 번 한 번이 크게: 필요 경험치 ×2.2 (스테이지는 뒤로 갈수록 경험치를 줄여 스테이지당 4~6번)
+// 합류 모드 (대장 1명 시작 → 레벨업 카드로 합류): 앞 레벨업은 빠르게 · 합류 카드 가중치 · 보장 · 몰아 키우기
+export const JOIN = { exp: [0.25, 0.32, 0.4, 0.5, 0.8], expLate: 1.06, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
 export const EXP_NEED_MUL = 2.4; // (2.2 → 2.4: 카드가 너무 자주 떠서 조금 천천히)
 export const stageExpMul = (s) => 1 / (1 + 0.1 * Math.max(0, (s || 1) - 1));
 
@@ -1225,6 +1227,17 @@ const MID_DEFS = {
   fuse_adspam: { fuse: ['sales', 'spam'], name: '광고 단톡방장', hpX: 5 },
 };
 // 합체 중간 보스 한 장 그림 (둘이 한 몸) — e_<id>.webp (전투) · dex/<id>.webp (도감). 그림이 오면 여기에 추가
+// 진상 프레임 애니메이션 (선택): 가로 띠 그림 · 칸은 정사각형 (frames 를 안 적으면 너비 ÷ 높이) — 그림이 없으면 코드 움직임 그대로
+//   walk: 걸을 때 반복 · die: 쓰러질 때 한 번 (쓰러짐 연출이 들어가면 사용)
+export const ENEMY_ANIM = {
+  drunk: { walk: { src: '/img/lb/e_drunk_walk.webp', frames: 12, fps: 10 }, die: { src: '/img/lb/e_drunk_die.webp', frames: 8, fps: 14, hold: 0.15 } },
+  boss_gapjil: { walk: { src: '/img/lb/e_boss_gapjil_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_gapjil_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+  boss_thug: { walk: { src: '/img/lb/e_boss_thug_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_thug_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+  boss_loan: { walk: { src: '/img/lb/e_boss_loan_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_loan_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+  boss_inpi: { walk: { src: '/img/lb/e_boss_inpi_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_inpi_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+  boss_queenmom: { walk: { src: '/img/lb/e_boss_queenmom_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_queenmom_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+  boss_sales: { walk: { src: '/img/lb/e_boss_sales_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_sales_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+};
 export const FUSE_ART = new Set(['fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi', 'fuse_lease', 'fuse_lie', 'fuse_jusa', 'fuse_sleep', 'fuse_karaoke', 'fuse_mt', 'fuse_adspam', 'fuse_taxi', 'fuse_latte']);
 const MECH_SKIP = new Set(['id', 'name', 'img', 'hp', 'speed', 'size', 'color', 'r', 'emoji', 'gender', 'cls', 'exp', 'coin', 'atk', 'atkInterval', 'shouts', 'armor', 'forms', 'pack', 'standoff', 'zigzag']);
 for (const [id, m] of Object.entries(MID_DEFS)) {

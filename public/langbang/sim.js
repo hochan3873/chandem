@@ -7,7 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
-  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -54,7 +54,8 @@ export function createGame(opt = {}) {
     mapFx: opt.mapFx ? MAP_FX[opt.mapFx] || MAP_FX.none : wk ? MAP_FX[wk.fx] || MAP_FX.none : mode === 'stage' ? stageFx(opt.stage || 1) : MAP_FX.none, // 맵 효과
     fxT: 0, darkT: 0, megaT: 0, windX: 0, strobeT: 0, fireT: 0,
     base: { hp: baseMax, max: baseMax },
-    level: 1, exp: 0, need: Math.round(expNeed(1) * EXP_NEED_MUL), pendingLevels: welcome, welcomePicks: welcome,
+    level: 1, exp: 0, need: Math.round(expNeed(1) * EXP_NEED_MUL * (opt.join && opt.deck && !opt.raid ? JOIN.exp[0] : 1)), pendingLevels: welcome, welcomePicks: welcome,
+    joinPool: [], joinTotal: 0, joinMode: false, leader: null, pickN: 0, rollN: 0,
     mods: {
       dmg: 1, spd: 1, crit: RULES.crit + itemValue('charm', items.charm), critMul: RULES.critMul, expMul: 1, enemySpd: 1,
       pierce: 0, gunExtra: 0, regen: 0, ultCharge: 1 + itemValue('battery', items.battery), ultDmg: 1, charmMul: 1,
@@ -81,7 +82,17 @@ export function createGame(opt = {}) {
   let hpUp = 0;
   for (const k in g.gear) hpUp += (g.gear[k] && g.gear[k].hp) || 0;
   if (hpUp) { g.base.max = Math.round(g.base.max * (1 + hpUp)); g.base.hp = g.base.max; }
-  if (opt.deck) {
+  if (opt.deck && opt.join && !opt.raid) {
+    // 합류 모드: 대장(덱 1번) 한 명으로 시작 → 나머지는 레벨업 "합류" 카드로 (자리는 덱에서 정한 자리)
+    const list = [];
+    opt.deck.forEach((id, slot) => { if (id && HEROES[id] && slot < g.nPos) list.push({ id, slot }); });
+    const lead = list.find((x) => x.id === opt.leader) || list[0];
+    if (lead) addHero(g, lead.id, lead.slot);
+    g.leader = lead ? lead.id : null;
+    g.joinPool = list.filter((x) => x !== lead);
+    g.joinTotal = g.joinPool.length;
+    g.joinMode = true;
+  } else if (opt.deck) {
     // 덱: 자리마다 영웅 (자리가 곧 공격 줄)
     opt.deck.forEach((id, slot) => { if (id && HEROES[id] && slot < g.nPos) addHero(g, id, slot); });
   } else {
@@ -2044,7 +2055,7 @@ export function gainExp(g, v) {
   while (g.exp >= g.need) {
     g.exp -= g.need;
     g.level++;
-    g.need = Math.round(expNeed(g.level) * EXP_NEED_MUL);
+    g.need = Math.round(expNeed(g.level) * EXP_NEED_MUL * (g.joinMode ? JOIN.exp[g.level - 1] || JOIN.expLate : 1));
     g.pendingLevels++;
     ev(g, 'levelup', { level: g.level });
   }
@@ -2650,7 +2661,11 @@ function heroCardDesc(def, next) {
 }
 export function cardPool(g) {
   const pool = [];
-  const free = g.heroes.length < Math.min(g.nPos, g.maxHeroes || 99) && g.mode !== 'stage';
+  const free = g.heroes.length < Math.min(g.nPos, g.maxHeroes || 99) && g.mode !== 'stage' && !(g.joinMode && g.joinPool.length);
+  if (g.joinMode) for (const j of g.joinPool) {
+    const d = HEROES[j.id];
+    pool.push({ key: 'join:' + j.id, kind: 'join', hero: j.id, slot: j.slot, rarity: d.legend ? 'legend' : d.hidden ? 'hidden' : 'rare', icon: d.emoji, title: d.name, desc: d.desc, sub: d.role, w: JOIN.w });
+  }
   for (const id of UNLOCK_HEROES) {
     if (hasHero(g, id) || !free) continue;
     if (!g.unlocked.includes(id)) continue;
@@ -2716,8 +2731,12 @@ export function hiddenCard(id, g) {
 }
 // 3장 뽑기 (서로 다른 카드). opt.hiddenChance 로 히든 확률 덮어쓰기 가능(테스트용)
 export function rollCards(g, n = RULES.cardChoices, opt = {}) {
-  const rng = opt.rng || g.rng;
+  // 1:1 대전: (매치 시드, 몇 번째 뽑기) 전용 난수 → 같은 상태면 두 사람이 같은 카드
+  const rng = opt.rng || (g.pvp ? seedRngLocal(((g.pvp.seed | 0) * 7919 + (g.rollN | 0) * 104729 + 17) >>> 0) : g.rng);
+  g.rollN = (g.rollN | 0) + 1;
   const pool = cardPool(g);
+  // 많이 키운 멤버의 카드가 더 잘 나온다 (한 명 몰아 키우기)
+  for (const c of pool) if (c.hero && c.kind !== 'join' && c.kind !== 'addHero') { const h = hasHero(g, c.hero); if (h && h.picks) c.w *= Math.min(JOIN.investMax, 1 + JOIN.invest * h.picks); }
   const picks = [];
   while (picks.length < n && pool.length) {
     let sum = 0;
@@ -2731,6 +2750,14 @@ export function rollCards(g, n = RULES.cardChoices, opt = {}) {
   if (top && top[1] >= 2 && picks.length >= 2 && !picks.some((c) => (c.tags || []).includes(top[0]))) {
     const on = pool.filter((c) => (c.tags || []).includes(top[0])).sort((a, b) => b.w - a.w)[0];
     if (on) { on.onPath = true; picks[0] = on; }
+  }
+  if (g.joinMode && g.joinPool.length) {
+    const isJ = (c) => c.kind === 'join';
+    const cap = g.joinPool.length <= g.joinTotal / 2 ? 1 : 2; // 후보를 절반 넘게 쓰면 한 번에 1장까지
+    let nj = picks.filter(isJ).length;
+    // 처음 3번의 레벨업은 합류 카드를 꼭 1장 이상
+    if (!nj && g.pickN < JOIN.guarantee && picks.length) { const j = pool.filter(isJ)[(rng() * pool.filter(isJ).length) | 0]; if (j) { pool.splice(pool.indexOf(j), 1); picks[picks.length - 1] = j; nj = 1; } }
+    while (nj > cap) { const k = picks.map(isJ).lastIndexOf(true); const alt = pool.filter((c) => !isJ(c)).sort((a, b) => b.w - a.w)[0]; if (!alt) break; pool.splice(pool.indexOf(alt), 1); picks[k] = alt; nj--; }
   }
   for (let i = 0; picks.length < n; i++) {
     const f = FILLER_CARDS[i % FILLER_CARDS.length];
@@ -2768,6 +2795,16 @@ function notePath(g, tags) {
 }
 export function applyCard(g, c) {
   const m = g.mods;
+  g.pickN = (g.pickN | 0) + 1;
+  if (c.hero && c.kind !== 'join') { const h0 = hasHero(g, c.hero); if (h0) h0.picks = (h0.picks || 0) + 1; }
+  if (c.kind === 'join') {
+    const at = g.joinPool.findIndex((x) => x.id === c.hero);
+    if (at < 0 || hasHero(g, c.hero)) return;
+    const j = g.joinPool.splice(at, 1)[0];
+    const h = addHero(g, j.id, j.slot);
+    if (h) { h.joinT = 0; ev(g, 'join', { hero: h.id, x: h.x, y: h.y, left: g.joinPool.length }); }
+    return;
+  }
   notePath(g, c.tags || (c.hero ? HERO_TAGS[c.hero] : null));
   if (c.kind === 'cc') { const h = hasHero(g, c.hero); if (h) { h.cc = c.cc; h.ccN = (h.ccN || 0) + 1; ev(g, 'ccGet', { hero: h.id, kind: c.cc, x: h.x, y: h.y }); } return; }
   if (c.kind === 'global' && c.id && c.id.startsWith('tech_')) {
@@ -2921,6 +2958,7 @@ export function snapshot(g) {
     meta: Object.assign({}, g.meta), items: Object.assign({}, g.items), unlocked: g.unlocked.slice(), trial: (g.trial || []).slice(),
     curses: g.curses || [], scoreMul: g.scoreMul || 1, coinMul: g.coinMul || 1, streak: g.streak || 1, twinBoss: !!g.twinBoss,
     gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, hell: g.hell, maxHeroes: g.maxHeroes,
+    joinMode: !!g.joinMode, joinPool: (g.joinPool || []).map((x) => ({ id: x.id, slot: x.slot })), joinTotal: g.joinTotal | 0, leader: g.leader, pickN: g.pickN | 0, rollN: g.rollN | 0, picks: Object.fromEntries(g.heroes.map((h) => [h.id, h.picks || 0])),
   };
 }
 // 저장한 웨이브를 처음부터 다시 시작 (짧은 카운트다운 뒤). 걸린 시간 t 는 이어서 센다
@@ -2955,6 +2993,9 @@ export function restoreGame(snap, opt = {}) {
   g.trial = (snap.trial || []).slice();
   g.baseHit = !!snap.baseHit;
   g.curses = snap.curses || []; g.scoreMul = snap.scoreMul || 1; g.coinMul = snap.coinMul || 1; g.streak = snap.streak || 1; g.twinBoss = !!snap.twinBoss;
+  if (snap.joinMode) { g.joinMode = true; g.joinPool = (snap.joinPool || []).filter((x) => HEROES[x.id] && !hasHero(g, x.id)); g.joinTotal = snap.joinTotal | 0; g.leader = snap.leader || null; }
+  g.pickN = snap.pickN | 0; g.rollN = snap.rollN | 0;
+  for (const h of g.heroes) h.picks = (snap.picks || {})[h.id] || 0;
   g.events.length = 0;
   return g;
 }

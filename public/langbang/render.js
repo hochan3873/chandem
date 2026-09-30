@@ -1,7 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM } from './data.js';
 const HEROES = { ...HEROES0, ...SUMMONS }; // 소환 멤버(성준영)도 그린다
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
@@ -258,6 +258,7 @@ export class Renderer {
         this.formDefs[key] = Object.assign({}, ENEMIES[id], forms[f], { id: id + '_' + f, size: forms[f].size || ENEMIES[id].size });
       }
     }
+    for (const id in ENEMY_ANIM) for (const k in ENEMY_ANIM[id]) list[`anim_${id}_${k}`] = ENEMY_ANIM[id][k].src; // 프레임 띠 (없으면 요청 실패 → 코드 움직임)
     for (const id of FUSE_ART) if (ENEMIES[id]) { const key = `e_${id}_one`; list[key] = `/img/lb/e_${id}.webp`; this.formDefs[key] = ENEMIES[id]; } // 합체 한 장 그림
     for (const id in ENEMIES) if (ENEMIES[id].boss) for (const f of ['skill', 'rage']) { const key = `e_${id}_${f}`; list[key] = `/img/lb/e_${id}_${f}.webp`; this.formDefs[key] = Object.assign({}, ENEMIES[id], { id: `${id}_${f}` }); } // 보스 기술 · 분노 모습 (없으면 기본 그림)
     list.moto = '/img/lb/p_motorcycle.webp';
@@ -281,7 +282,7 @@ export class Renderer {
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => {
-        if (key === 'moto' || key === 'gf' || key === 'ingyuBike') return;
+        if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_')) return;
         if (key.startsWith('bar')) { this.bakeBar(key); return; }
         if (key.startsWith('fx_')) return;
         if (key === 'bg' || key === 'base' || /^bg\d$/.test(key)) this.bakeBg();
@@ -1229,8 +1230,56 @@ export class Renderer {
     }
     return o;
   }
+  // 쓰러진 진상: 프레임 띠(die)가 있으면 한 번 재생 → 잠깐 누워 있다가 사라짐 · 없으면 코드로 밀려나며 넘어짐
+  addCorpse(g, type, x, y, boss) {
+    const def = ENEMIES[type];
+    if (!def || !this.sprites['e_' + type]) return;
+    const cs = this.corpses || (this.corpses = []);
+    if (cs.length && cs[0].g !== g) cs.length = 0;
+    if (cs.length >= 40) cs.shift();
+    cs.push({ g, type, x, y, t0: g.t, boss: !!boss, dir: Math.random() < 0.5 ? -1 : 1 });
+  }
+  drawCorpses(g) {
+    const cs = this.corpses;
+    if (!cs || !cs.length) return;
+    const cx = this.cx;
+    let j = 0;
+    for (const c of cs) {
+      if (c.g !== g) continue;
+      const def = ENEMIES[c.type], box = def.size, a = g.t - c.t0, k = c.boss ? 1.6 : 1;
+      const an = ENEMY_ANIM[c.type] && ENEMY_ANIM[c.type].die, strip = an && this.images[`anim_${c.type}_die`];
+      const useStrip = strip && imgOk(strip);
+      const n = useStrip ? an.frames || Math.max(1, Math.round(strip.naturalWidth / strip.naturalHeight)) : 0;
+      const play = useStrip ? n / (an.fps || 14) : 0.37 * k;
+      const hold = useStrip ? an.hold || 0.15 : 0.15 * k;
+      const fade = 0.5 * k;
+      if (a > play + hold + fade) continue;
+      cs[j++] = c;
+      const alpha = a < play + hold ? 1 : 1 - (a - play - hold) / fade;
+      const feet = c.y + box * FEET_OFF;
+      cx.globalAlpha = Math.max(0, alpha);
+      if (useStrip) {
+        const fw = strip.naturalWidth / n, fi = Math.min(n - 1, Math.floor(a * (an.fps || 14)));
+        this.tf(c.x, feet, 0, c.dir, 1);
+        cx.drawImage(strip, fi * fw, 0, fw, strip.naturalHeight, -box / 2, -box * FEET, box, box);
+      } else {
+        const sp = this.sprites['e_' + c.type];
+        const slide = Math.min(1, a / 0.12) * 8 * k; // 뒤로 살짝 밀려나고
+        const f = Math.min(1, Math.max(0, (a - 0.12) / (0.25 * k))); // 0.25초 동안 넘어진다
+        const ease = 1 - (1 - f) * (1 - f);
+        const rot = c.dir * ease * 1.4, sq = 1 - ease * 0.12;
+        this.tf(c.x + c.dir * ease * box * 0.12, feet - slide, rot, 1 + ease * 0.05, sq);
+        cx.drawImage(c.boss && a < 0.2 ? sp.f : sp.c, -box / 2, -box * FEET, box, box);
+      }
+      if (alpha < 1 && Math.random() < 0.15) this.fx.part('puff', c.x + (Math.random() - 0.5) * box * 0.5, feet - 8, 0, -30, 0.5, 6, 'rgba(230,220,255,0.5)');
+    }
+    cs.length = j;
+    cx.globalAlpha = 1;
+    this.world();
+  }
   drawEnemies(g, t) {
     const cx = this.cx;
+    this.drawCorpses(g);
     const list = this.sorted;
     list.length = 0;
     const dark = g.darkT > 0 ? g.rowY - (g.mapFx.seeR || 190) : -1e9;
@@ -1379,7 +1428,14 @@ export class Renderer {
         const img = e.flash > 0 ? sp.f : g.hell ? this.hellSprite(sp) : sp.c; // 헬: 붉은 빛을 미리 구운 그림 (그리기 1번)
         const hid = e.def.traits && e.def.traits.stealth && !e.unveiled;
         if (hid) cx.globalAlpha = 0.22 + Math.sin(t * 5 + e.phase) * 0.06; // 은신: 흐릿하게
-        cx.drawImage(img, -box / 2, -box * FEET, box, box);
+        const an = moving && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].walk; // 보스 기술·분노 그림이 뜨는 동안은 그 그림
+        const strip = an && this.images[`anim_${e.type}_walk`];
+        if (strip && imgOk(strip)) { // 프레임 띠 걷기: 코드 들썩임 대신 그림 칸을 넘긴다
+          const fh = strip.naturalHeight, n = an.frames || Math.max(1, Math.round(strip.naturalWidth / fh)), fw = strip.naturalWidth / n;
+          const fi = Math.floor(e.age * (an.fps || 10) * Math.max(0.6, e.speed / 50) + e.phase * 3) % n;
+          this.tf(e.x, feet, 0, 1, 1);
+          cx.drawImage(strip, fi * fw, 0, fw, fh, -box / 2, -box * FEET, box, box);
+        } else cx.drawImage(img, -box / 2, -box * FEET, box, box);
         if (hid) cx.globalAlpha = 1;
       }
       if (def.mid) {

@@ -70,14 +70,15 @@ const topAt = (page, sel) => page.evaluate((sel) => {
   await wait(500);
   check(await page.evaluate(() => window.__lb.app.cardsOpen), '다시 하면 카드가 그대로 있다');
   check(await topAt(page, '#cardstrip .card[data-i="0"]'), '카드를 다시 누를 수 있다');
-  const before = await page.evaluate(() => window.__lb.g.pendingLevels);
+  const before = await page.evaluate(() => window.__lb.g.pickN | 0); // 고른 카드 수 (그 사이 레벨업이 또 와도 안 흔들림)
   await page.evaluate(() => { window.__lb.app.cardLockUntil = 0; document.querySelector('#cardstrip .card[data-i="0"]').click(); });
-  await wait(400);
-  check(await page.evaluate((b) => window.__lb.g.pendingLevels === b - 1, before), '카드를 고르면 선택이 하나 준다');
+  await wait(600);
+  check(await page.evaluate((b) => (window.__lb.g.pickN | 0) === b + 1, before), '카드를 고르면 한 장이 적용된다');
   // 다시 켜진 뒤엔 자동 선택 시계가 흐른다
   await page.evaluate(() => { window.__lb.app.cardAutoT = 0.3; });
-  await wait(1500);
-  check(await page.evaluate(() => !window.__lb.app.cardsOpen), '다시 흐르면 자동 선택된다');
+  let auto = false;
+  for (let i = 0; i < 40 && !auto; i++) { await wait(100); auto = await page.evaluate(() => !window.__lb.app.cardsOpen || window.__lb.app.cardAutoT > 5); }
+  check(auto, '다시 흐르면 자동 선택된다');
   check(!errors.length, '페이지 에러 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   await srv.close();

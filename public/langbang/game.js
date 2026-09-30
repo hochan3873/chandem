@@ -464,6 +464,7 @@ function handleEvents(g, loud) {
         const d = ENEMIES[e.enemy];
         fx.burst(e.x, e.y - 10, e.boss ? 40 : 9, d.color, e.boss ? 260 : 150, 'dot', 4, 0.5);
         fx.burst(e.x, e.y - 6, e.boss ? 16 : 4, 'rgba(230,220,255,0.9)', 50, 'puff', e.boss ? 18 : 9, 0.5);
+        R.addCorpse(g, e.enemy, e.x, e.y, e.boss);
         if (d.fuse) { fx.text(e.x, e.y - 60, '합체 해제!', '#ffb0ff', 15, 0.9, -30); for (const k of [-1, 1]) for (let i = 0; i < 4; i++) fx.part('puff', e.x, e.y - 20 - i * 8, k * (160 + i * 30), -30, 0.4, 12, k < 0 ? 'rgba(255,150,220,0.8)' : 'rgba(170,150,255,0.8)'); }
         else if (Math.random() < 0.25) fx.text(e.x, e.y - 20, POOF[(Math.random() * POOF.length) | 0], '#fff', 13, 0.6, -40);
         if (loud) A.sfx.kill();
@@ -1550,9 +1551,15 @@ const ACTS = {
   },
   deckSlot: (b) => deckTapSlot(Number(b.dataset.i)),
   rosterPick: (b) => deckQuick(b.dataset.id),
-  prepSlot: (b) => { const ids = curDeck().filter(Boolean); showPrepSheet(b.dataset.i !== undefined ? Number(b.dataset.i) : Math.max(0, ids.indexOf(b.dataset.id))); },
-  prepSheetF: (b) => { app.ppF = b.dataset.f; showPrepSheet(); },
-  prepPick: (b) => prepPick(b.dataset.id),
+  prepEdit: () => showDeckEditor(),
+  edPick: (b) => edPick(b.dataset.id),
+  edSlot: (b) => edSlot(b.dataset.id),
+  edHole: () => { app.edHole = true; showDeckEditor(); },
+  edLead: (b) => { setLeader(b.dataset.id); A.sfx.card(); toast(`${HEROES[b.dataset.id].name} 대장!`, 900); showDeckEditor(); },
+  edF: (b) => { app.edF = b.dataset.f; showDeckEditor(); },
+  edSort: (b) => { app.edSort = b.dataset.v; showDeckEditor(); },
+  edPreset: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckEditor(); },
+  edAuto: () => { autoDeck(); A.sfx.levelUp(); showDeckEditor(); },
   prepHellLock: () => toast('헬은 이 스테이지를 ★★★로 깨면 열려요', 1600),
   prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[L.weeklyDef(L.weekIndex()).fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${g.icon} ${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★)</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${HELL.hp} · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 보스 분노. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
@@ -1874,13 +1881,13 @@ function makeDemo() {
 }
 // 출전 준비: 멤버 카드를 길게 누르면 큰 멤버 카드 (도감 카드)
 let lpT = 0;
-ui.addEventListener('pointerdown', (ev) => {
+stage.addEventListener('pointerdown', (ev) => {
   const c = ev.target.closest('.pcard[data-id], .dslot[data-id], .acard[data-id]');
   if (!c || (app.screen !== 'prep' && app.screen !== 'deck')) return;
   clearTimeout(lpT);
-  lpT = setTimeout(() => { ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 400); vibrate(12); if (app.screen === 'deck') showHeroModal(c.dataset.id); else if (c.classList.contains('pp-card')) showHeroModal(c.dataset.id, 'prep'); else showDexCard('hero', c.dataset.id); }, 480);
+  lpT = setTimeout(() => { ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 400); vibrate(12); if (app.screen === 'deck') showHeroModal(c.dataset.id); else if (c.closest('.pp-editor') || c.classList.contains('pp-card')) showHeroModal(c.dataset.id, 'prep'); else showDexCard('hero', c.dataset.id); }, 480);
 });
-for (const t of ['pointerup', 'pointercancel', 'pointermove']) ui.addEventListener(t, (ev) => { if (t !== 'pointermove' || (ev.movementX * ev.movementX + ev.movementY * ev.movementY) > 16) clearTimeout(lpT); });
+for (const t of ['pointerup', 'pointercancel', 'pointermove']) stage.addEventListener(t, (ev) => { if (t !== 'pointermove' || (ev.movementX * ev.movementX + ev.movementY * ev.movementY) > 16) clearTimeout(lpT); });
 let lbSwipe = null;
 ui.addEventListener('pointerdown', (ev) => {
   const dio = ev.target.closest('.lb-dio');
@@ -1976,9 +1983,9 @@ function popup(html, cls = '') {
   stage.appendChild(m);
   if (keepY) m.querySelector('.pop-box').scrollTop = keepY;
   m.addEventListener('click', (ev) => {
-    if (ev.target === m || ev.target.closest('[data-x]')) { m.remove(); return; }
+    if (ev.target === m || ev.target.closest('[data-x]')) { m.remove(); if (m.classList.contains('pp-editor') && app.screen === 'prep') showPrep(app.mode, app.stage); return; }
     const b = ev.target.closest('[data-act]');
-    if (!b || b.disabled) return;
+    if (!b || b.disabled || ui.dataset.noclick) return; // 길게 누른 건 누르기 아님
     A.unlock(); A.sfx.tap();
     if (ACTS[b.dataset.act]) ACTS[b.dataset.act](b);
   });
@@ -3355,8 +3362,8 @@ function showPrep(mode, s) {
   const stars = mode === 'stage' ? (hellOn ? (p.hell || {})[s] || 0 : p.stages[s] || 0) : 0;
   const bg = `/img/lb/bg${ch >= 2 && ch <= 6 ? ch : ''}.webp`;
   const head = mode === 'stage'
-    ? `<em class="pp-no">${stageLabel(s)}</em><b class="pp-name">${esc(stageName(s))}</b><span class="pp-meta"><i class="pp-stars">${'★'.repeat(stars)}<u>${'★'.repeat(3 - stars)}</u></i>${p.perfects && p.perfects[s] ? ic('gem', '💎', 'sm') : ''}<button class="pp-fx" data-act="prepFx">${fxd.icon} ${esc(fxd.name)}</button></span>`
-    : wk ? `<em class="pp-no sm">${ic('calendar', '📅')} 주간 도전</em><b class="pp-name">${esc(L.WEEKLY_MODS[wk.mod].name)}</b><span class="pp-meta"><button class="pp-fx" data-act="prepFx">${fxd.icon} ${esc(fxd.name)}</button></span>`
+    ? `<em class="pp-no">${stageLabel(s)}</em><b class="pp-name">${esc(stageName(s))}</b><span class="pp-meta"><i class="pp-stars">${'★'.repeat(stars)}<u>${'★'.repeat(3 - stars)}</u></i>${p.perfects && p.perfects[s] ? ic('gem', '💎', 'sm') : ''}<button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
+    : wk ? `<em class="pp-no sm">${ic('calendar', '📅')} 주간 도전</em><b class="pp-name">${esc(L.WEEKLY_MODS[wk.mod].name)}</b><span class="pp-meta"><button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
       : `<em class="pp-no sm">${ic('infinity', '♾️')} 무한 도전</em><b class="pp-name">최고 W${p.bestWave || 0} · ${fmt(p.bestScore || 0)}점</b><span class="pp-meta"><button class="pp-fx" data-act="rwInfo" data-v="endless">${ic('gift', '🎁')} 오늘 ${free ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}</button></span>`;
   const headHtml = `<div class="pp-head ${hellOn ? 'hell' : ''} ${wk ? 'wk' : ''} ${!st ? 'end' : ''}" style="--bg:url('${bg}')">
       <div class="pp-hl">${head}</div>
@@ -3374,18 +3381,18 @@ function showPrep(mode, s) {
   // 4) 등장 진상
   const foes = prepFoes(st);
   const foeHtml = foes.length ? `<div class="pp-foes"><span class="pp-lab">등장 진상</span><div class="pp-chips">${foes.map((t) => { const T = foeTrait(t); return `<button class="pp-foe" data-act="prepFoe" data-id="${t}">${foeFace(t)}${T ? `<i class="pp-tb">${T.icon}</i>` : ''}</button>`; }).join('')}</div></div>` : '';
-  // 5) 덱
-  const nCell = Math.min(6, max + (max < 6 ? 1 : 0));
+  // 5) 덱: 2줄 × 3 큰 그림 카드 (대장 왕관) — 누르면 덱 편집 창
+  const dl = deckList();
   const cells = [];
-  for (let i = 0; i < nCell; i++) {
-    const id = ids[i];
-    if (i >= max) { cells.push(`<button class="pp-slot lock" data-act="shop">${ic('lock', '🔒')}<small>${fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0])}</small></button>`); continue; }
-    cells.push(id ? artCard(id, { act: 'prepSlot', cls: 'pp-card ' + (app.deckPop === id ? 'pop' : ''), extra: matchTag(id) }) : `<button class="pp-slot empty" data-act="prepSlot" data-i="${i}"><i>+</i></button>`);
+  for (let i = 0; i < 6; i++) {
+    const id = dl[i];
+    if (i >= max) { cells.push(`<button class="pp-slot lock" data-act="shop">${ic('lock', '🔒')}<small>${i === max ? fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0]) : ''}</small></button>`); continue; }
+    cells.push(id ? deckCard(id, i === 0, 'prepEdit', app.deckPop === id ? 'pop' : '') : '<button class="pp-slot empty" data-act="prepEdit"><i>+</i></button>');
   }
   app.deckPop = null;
   const deckHtml = `<div class="pp-deck">
-      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="autoDeck">${ic('sparkle', '✨', 'sm')}자동 편성</button></div>
-      <div class="pp-slots n${nCell}">${cells.join('')}</div>
+      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="prepEdit">${ic('duo', '👥', 'sm')}덱 편집</button></div>
+      <div class="pp-slots g6">${cells.join('')}</div>
     </div>`;
   // 6) 보상
   let rw = '';
@@ -3411,39 +3418,62 @@ function showPrep(mode, s) {
     ${goHtml}
   `, 'dim prep-screen pp');
 }
-// 덱 자리 → 아래에서 올라오는 멤버 고르기
-function showPrepSheet(i) {
-  if (i !== undefined) app.ppSlot = i;
+// 대장: 덱마다 한 명 (덱 1번 칸 · 왕관) — 없으면 덱 첫 멤버
+const LEAD_KEY = 'langbang:leaders';
+function leaders() { if (!app.leaders) { try { app.leaders = JSON.parse(localStorage.getItem(LEAD_KEY) || '{}') || {}; } catch { app.leaders = {}; } } return app.leaders; }
+function deckLeader() { const ids = curDeck().filter(Boolean), l = leaders()[app.deckI]; return ids.includes(l) ? l : ids[0] || null; }
+function setLeader(id) { leaders()[app.deckI] = id; try { localStorage.setItem(LEAD_KEY, JSON.stringify(app.leaders)); } catch { /* 무시 */ } }
+function deckList() { const ids = curDeck().filter(Boolean), l = deckLeader(); return l ? [l, ...ids.filter((x) => x !== l)] : ids; }
+// 덱 카드: 얼굴이 잘 보이게 (도감 썸네일 같은 자르기) · 이름 띠 · 구석에 속성 하나 · 대장 왕관
+function deckCard(id, lead, act, cls = '') {
+  return artCard(id, { act, cls: `pp-card ${lead ? 'lead' : ''} ${cls}`, extra: lead ? `<i class="pp-crown">${pimg(ui2('crown'))}</i>` : '' });
+}
+function showDeckEditor() {
   const p = P();
-  const ids = curDeck().filter(Boolean);
-  const cur = ids[app.ppSlot];
+  const max = deckSlotsNow();
+  const dl = deckList(), lead = dl[0];
   const st = prepStage();
   const rec = prepRecSet(st);
-  const f = app.ppF || 'all';
+  const f = app.edF || 'all', so = app.edSort || 'pw';
   const pass = (id) => f === 'all' || (f === 'rec' ? rec.has(id) : f.startsWith('a:') ? HEROES[id].attr === f.slice(2) : heroTier(id) === Number(f.slice(1)));
-  const list = owned().filter(pass).sort((a, b) => (rec.has(b) - rec.has(a)) || heroPower(p, b) - heroPower(p, a));
-  const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
-  popup(`<h3>${cur ? `${esc(HEROES[cur].name)} 바꾸기` : `${app.ppSlot + 1}번 자리`}</h3>
-    <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="prepSheetF" data-f="${k}">${t}</button>`).join('')}</div>
-    <div class="pp-sg">${list.map((id) => artCard(id, { act: 'prepPick', on: ids.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}${id === cur ? '<i class="pp-now">지금</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
-    ${cur ? `<button class="btn ghost pp-out" data-act="prepPick" data-id="">덱에서 빼기</button>` : ''}`, 'pp-sheet');
-}
-function prepPick(id) {
-  const ids = curDeck().filter(Boolean), k = app.ppSlot, cur = ids[k];
-  if (!id) { app.decks[app.deckI] = placeDeck(ids.filter((x) => x !== cur)); A.sfx.tap(); }
-  else {
-    if (!API.heroUnlocked(P(), id)) return;
-    const at = ids.indexOf(id);
-    if (at >= 0 && k < ids.length) [ids[at], ids[k]] = [ids[k], ids[at]];
-    else if (at >= 0) { /* 이미 덱에 있음 · 빈칸 → 그대로 */ }
-    else if (k < ids.length) ids[k] = id;
-    else if (ids.length < deckSlotsNow()) ids.push(id);
-    app.decks[app.deckI] = placeDeck(ids);
-    app.deckPop = id; A.sfx.card();
+  const key = { pw: (id) => heroPower(p, id), tier: (id) => heroTier(id) * 1e7 + heroPower(p, id), lv: (id) => ((p.heroes || {})[id] | 0) * 1e7 + heroPower(p, id) }[so];
+  const list = owned().filter(pass).sort((a, b) => key(b) - key(a));
+  const slots = [];
+  for (let i = 0; i < 6; i++) {
+    const id = dl[i];
+    if (i >= max) { slots.push(`<span class="pp-slot lock">${ic('lock', '🔒')}</span>`); continue; }
+    slots.push(id ? `<span class="ed-s">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}</span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
   }
+  const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
+  popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '✨', 'sm')}자동 편성</button></div>
+    <div class="pp-slots g6 ed">${slots.join('')}</div>
+    <p class="ed-hint">${lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 카드를 누르면 빠져요 · 왕관을 누르면 대장` : '아래에서 멤버를 골라요'}</p>
+    <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="edF" data-f="${k}">${t}</button>`).join('')}<span class="ed-sort">${[['pw', '전투력'], ['tier', '등급'], ['lv', '레벨']].map(([k, t]) => `<button class="${k === so ? 'on' : ''}" data-act="edSort" data-v="${k}">${t}</button>`).join('')}</span></div></div>
+    <div class="pp-sg">${list.map((id) => artCard(id, { act: 'edPick', on: dl.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
+    <div class="ed-done"><button class="btn primary" data-x>완료</button></div>`, 'pp-sheet pp-editor');
+}
+function edApply(ids, lead) {
+  app.decks[app.deckI] = placeDeck(ids);
+  if (lead) setLeader(lead);
   saveDecks();
-  closeInfoCard();
-  showPrep(app.mode, app.stage);
+  showDeckEditor();
+}
+function edPick(id) {
+  if (!API.heroUnlocked(P(), id)) return;
+  const ids = deckList();
+  if (ids.includes(id)) { edApply(ids.filter((x) => x !== id), id === ids[0] ? ids.find((x) => x !== id) : null); A.sfx.tap(); return; }
+  if (ids.length >= deckSlotsNow()) { toast('덱이 꽉 찼어요 — 위에서 뺄 멤버를 눌러요', 1400); A.sfx.tap(); return; }
+  const lead = !ids.length || app.edLeadNext ? id : null;
+  app.edLeadNext = false; app.edHole = false;
+  app.deckPop = id; A.sfx.card();
+  edApply([...ids, id], lead);
+}
+function edSlot(id) {
+  const ids = deckList();
+  const wasLead = id === ids[0];
+  app.edLeadNext = wasLead; app.edHole = true; // 빈 자리를 채우는 멤버가 대장을 이어받는다
+  A.sfx.tap();
+  edApply(ids.filter((x) => x !== id), wasLead ? null : null);
 }
 function deckTapSlot(i) {
   if (lockedPos().includes(i)) { const it = ITEMS[deckSlotsNow() < 5 ? 'slot5' : 'slot6']; toast(`🔒 상점에서 열 수 있어요 — ${it.name} ${fmt(it.costs[0])}코인`, 2000); return; }
