@@ -848,7 +848,7 @@ export function normLive(raw, out) {
   out.raid = rd && Number.isInteger(rd.wi) ? { wi: rd.wi, dmg: int(rd.dmg, 0, 1e12), runs: int(rd.runs, 0, 1e4), day: int(rd.day, -1e6, 1e6), today: int(rd.today, 0, 99), best: int(rd.best, 0, 1e12), claimed: !!rd.claimed } : null;
   out.raidRun = raw.raidRun && typeof raw.raidRun.id === 'string' && raw.raidRun.id.length <= 32 ? { id: raw.raidRun.id, wi: int(raw.raidRun.wi, -1e6, 1e6), at: int(raw.raidRun.at, 0, 9e15) } : null;
   const pv = raw.pvp;
-  out.pvp = pv ? { rating: int(pv.rating, 0, 5000) || 1000, games: int(pv.games, 0, 1e6), wins: int(pv.wins, 0, 1e6), last: int(pv.last, 0, 9e15) } : { rating: 1000, games: 0, wins: 0, last: 0 };
+  out.pvp = pv ? { rating: int(pv.rating, 0, 5000) || 1000, games: int(pv.games, 0, 1e6), wins: int(pv.wins, 0, 1e6), last: int(pv.last, 0, 9e15), streak: int(pv.streak, 0, 1e6), best: int(pv.best, 0, 1e6) } : { rating: 1000, games: 0, wins: 0, last: 0, streak: 0, best: 0 };
   const ci = raw.checkin;
   out.checkin = ci && Number.isInteger(ci.last) ? { last: ci.last, streak: int(ci.streak, 0, 1e5) } : null;
   // 체력 · 무한 · 우편함 · 1:1 보상 기록

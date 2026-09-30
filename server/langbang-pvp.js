@@ -64,7 +64,7 @@ function createLbPvp(opts) {
     return m;
   }
   const other = (m, p) => (m.a === p ? m.b : m.a);
-  const tierName = (r) => (r >= 1800 ? '👑 그랜드마스터' : r >= 1650 ? '🔮 마스터' : r >= 1500 ? '💎 다이아' : r >= 1350 ? '🛡️ 플래티넘' : r >= 1200 ? '🥇 골드' : r >= 1050 ? '🥈 실버' : r >= 900 ? '🥉 브론즈' : '⚙️ 아이언');
+  const tierName = (r) => (r >= 1800 ? '랑방킹' : r >= 1500 ? '다이아' : r >= 1350 ? '플래티넘' : r >= 1200 ? '골드' : r >= 1050 ? '실버' : '브론즈'); // 엠블럼 6종과 같게
   function roomList() {
     const t = now();
     return [...codes.entries()].filter(([, h]) => !h.match && h.room).sort((a, b) => a[1].room.at - b[1].room.at).map(([code, h]) => ({
@@ -87,7 +87,7 @@ function createLbPvp(opts) {
 
   // ─── 봇 (연습 상대): 서버에서 간단히 흉내 — 시간이 갈수록 입구가 닳고, 가끔 보내기 ───
   function makeBot(pl) {
-    return { bot: true, nickname: '연습 상대 🤖', rating: pl.rating, deck: ['bangjang', 'staff', 'gunman', 'gunnyeo'], power: pl.power | 0, games: 0, wins: 0, hp: 300, max: 300, kills: 0, spent: 0, wave: 0, dead: false, socket: null, hurt: 0 };
+    return { bot: true, nickname: '연습 상대', rating: pl.rating, deck: ['bangjang', 'staff', 'gunman', 'gunnyeo'], power: pl.power | 0, games: 0, wins: 0, hp: 300, max: 300, kills: 0, spent: 0, wave: 0, dead: false, socket: null, hurt: 0 };
   }
   function startBot(m, bot) {
     const t0 = m.startAt;
@@ -131,22 +131,23 @@ function createLbPvp(opts) {
       const win = p === winner;
       const delta = ranked ? (win ? d : -d) : 0;
       let coins = m.bot ? (win ? REWARD.bot : 0) : win ? REWARD.win : REWARD.lose, note = '', left = null;
-      let rating = p.rating;
+      let rating = p.rating, streak = 0;
+      const before = p.rating;
       if (p.uid) {
         try {
           await accounts.exclusive(async () => accounts.updateStats(p.uid, (st) => {
             const lb = st.langbang = normLb(st.langbang);
             const pv = lb.pvp = lb.pvp || { rating: START_RATING, games: 0, wins: 0 };
-            if (ranked) { pv.rating = Math.max(0, (pv.rating | 0 || START_RATING) + delta); pv.games++; if (win) pv.wins++; }
+            if (ranked) { pv.rating = Math.max(0, (pv.rating | 0 || START_RATING) + delta); pv.games++; if (win) pv.wins++; pv.streak = win ? (pv.streak | 0) + 1 : 0; pv.best = Math.max(pv.best | 0, pv.streak); }
             pv.last = now();
             if (opts.live) { const o = other(m, p); const rr = opts.live.pvpRewardCoins(lb, win, o.bot ? 'bot' : String(o.uid || o.key || ''), (now() - m.startAt) / 1000, now()); coins = p.master ? coins : rr.coins; note = rr.note; left = rr.left; if (ranked) opts.live.pvpTierUp(lb, pv.rating, now()); }
             lb.coins += coins;
-            rating = pv.rating;
+            rating = pv.rating; streak = pv.streak | 0;
           }));
         } catch (e) { console.error('[lbpvp] 결과 저장 실패', e.message); }
       }
       p.rating = rating;
-      res.set(p, { win, delta, coins, rating, reason, ranked, bot: m.bot, note, left });
+      res.set(p, { win, delta, coins, rating, before, streak, reason, ranked, bot: m.bot, note, left });
     }
     for (const [p, r] of res) if (p.socket) p.socket.emit('end', r);
     return res;

@@ -2,6 +2,9 @@
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
 import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, WEAPON } from './data.js';
+// 이모지 금지: 캔버스 글자에서도 지운다
+const EMO = /\p{Extended_Pictographic}️?(?:‍\p{Extended_Pictographic}️?)*/gu;
+const noEmo = (s) => (typeof s === 'string' ? s.replace(EMO, '').replace(/\s{2,}/g, ' ').trim() : s);
 const HEROES = { ...HEROES0, ...SUMMONS }; // 소환 멤버(성준영)도 그린다
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
@@ -146,6 +149,7 @@ export class FX {
     t.img = this._mkc[key];
   }
   text(x, y, text, color = '#fff', size = 16, life = 1.1, vy = -36) {
+    text = noEmo(text);
     const t = this.texts.get();
     if (!t) return;
     life = Math.min(life, 0.9); // 외침 글자는 짧게 · 피해 숫자보다 조금 위에 (겹치지 않게)
@@ -179,6 +183,7 @@ export class FX {
     o.x = x; o.y = y; o.a = a; o.half = half; o.r = r; o.life = life; o.max = life; o.color = color;
   }
   banner(text, sub, color, life = 1.8, kind = 'wave', sprite = null) {
+    text = noEmo(text); sub = noEmo(sub);
     if (this.noBanner) return; // 메뉴 뒤 데모 판에서는 배너 생략
     // 같은 종류가 이미 대기 중이면 교체
     if (this.banners.length > 2) this.banners.splice(1, 1);
