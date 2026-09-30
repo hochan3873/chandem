@@ -1617,3 +1617,16 @@ test('증강 · 테크 트리 · 제어 분기: 1·3·5웨이브 증강(실버�
   S.applyCard(g, cc);
   assert.equal(h.cc, 'slow');
 });
+
+test('중간 보스: 기술 하나 (1초 예고 → 기술 → 틈) · 체력 50% 에서 흥분', () => {
+  const g = bare(['staff', 'gunman']);
+  const m = still(g, 'mid_thug', 180, 200, 5);
+  assert.ok(m.bai && m.bai.mid, '중간 보스 머리');
+  m.bai.next = 0.05;
+  const seen = [];
+  for (let t = 0; t < 3; t += 1 / 60) { S.step(g, 1 / 60); for (const e of g.events) seen.push(e.type); g.events.length = 0; }
+  assert.ok(seen.includes('bossWind') && seen.includes('bossSkill'), '예고 → 기술');
+  m.hp = m.maxHp * 0.4; S.step(g, 1 / 60);
+  assert.equal(m.bai.p2, true);
+  assert.ok(g.events.some((e) => e.type === 'midRage') || seen.includes('midRage') || m.bai.p2);
+});

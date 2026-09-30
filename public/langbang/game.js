@@ -571,6 +571,7 @@ function handleEvents(g, loud) {
       case 'bossSkill': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('🤐 스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('🐢 멤버 공격 속도 ↓ (4초)', 1500); break;
       case 'bossGap': fx.text(e.x, e.y, '틈! 지금 때려!', '#ffe066', 15, 1.1); break;
       case 'bossRage': fx.banner(`😡 ${e.name} 분노!`, '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
+      case 'midRage': fx.text(e.x, e.y, `😤 ${e.name} 흥분!`, '#ff7a4f', 14, 1.0); break;
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
       case 'heroStun': if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); break;
       case 'curseOffer': showCurseOffer(e.opts); break;

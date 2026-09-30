@@ -5,7 +5,7 @@ import {
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
   STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
   TRAITS, REVEAL_HEROES,
-  BOSS_KITS, BOSS_AI,
+  BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS,
 } from './data.js';
@@ -918,6 +918,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   // 진상 특성
   const tr = def.traits || {};
   e.bai = def.boss && BOSS_KITS[type] ? { st: 'walk', t: 0, next: BOSS_AI.every[0] + g.rng() * (BOSS_AI.every[1] - BOSS_AI.every[0]), roar: BOSS_AI.roar, i: 0, p2: false, targets: [] } : null;
+  if (!e.bai && def.mid && MID_KIT[def.cls] && g.mode !== 'pvp') e.bai = { st: 'walk', t: 0, next: MID_AI.every[0] + g.rng() * 4, roar: 1e9, i: 0, p2: false, targets: [], mid: true };
   e.pShield = tr.projShield ? (def.projShield || 3) : 0; e.unveiled = !tr.stealth; e.shredN = 0; e.shredT = 0; e.healBlockT = 0; e.hasted = false; e.praiseT = def.praise ? 1.5 : 0; e.praiseRage = false; e.tauntT = 0;
   if (def.traits && g.seenTrait && !g.seenTrait[type]) { g.seenTrait[type] = 1; ev(g, 'traitSeen', { type, x: e.x, y: 120 }); }
   // 4~6장 진상 상태
@@ -1040,11 +1041,16 @@ function traitTick(g, e, dt, tr) {
     if (n) ev(g, 'praise', { x: e.x, y: e.y - 40, text: def.shouts[(g.rng() * 2) | 0] });
   }
 }
+function midKit(e) {
+  const [kind, name, o] = MID_KIT[e.def.cls];
+  const types = kind === 'summon' ? [e.def.base || (e.def.fuse && e.def.fuse[0]) || 'drunk'] : undefined;
+  return { name: e.def.name, skills: [[kind, name, types ? Object.assign({}, o, { types }) : o]], p2: null };
+}
 // 보스 패턴 (예고 → 기술 → 틈) · 2페이즈 · 포효
 function bossBrain(g, e, dt) {
-  const b = e.bai, kit = BOSS_KITS[e.type];
+  const b = e.bai, kit = b.mid ? midKit(e) : BOSS_KITS[e.type];
   if (e.y < 60 || e.stunT > 0) return;
-  if (!b.p2 && e.hp < e.maxHp * 0.5) { b.p2 = true; e.spdMul *= 1.25; e.atk *= 1.2; ev(g, 'bossRage', { x: e.x, y: e.y - e.def.size * 0.7, name: kit.name }); }
+  if (!b.p2 && e.hp < e.maxHp * 0.5) { b.p2 = true; e.spdMul *= 1.25; e.atk *= 1.2; ev(g, b.mid ? 'midRage' : 'bossRage', { x: e.x, y: e.y - e.def.size * 0.7, name: kit.name }); }
   if ((b.roar -= dt) <= 0) { // 포효: 날아가던 공격을 지우고 곁의 부하에게 보호막
     b.roar = BOSS_AI.roar;
     g.projs = g.projs.filter((p) => Math.hypot(p.x - e.x, p.y - e.y) > 220);
@@ -1053,7 +1059,7 @@ function bossBrain(g, e, dt) {
   }
   if (b.st === 'walk') {
     if ((b.next -= dt) > 0) return;
-    const list = b.p2 ? [...kit.skills, kit.p2] : kit.skills;
+    const list = b.p2 && kit.p2 ? [...kit.skills, kit.p2] : kit.skills;
     b.cur = list[b.i++ % list.length];
     if (b.cur[0] === 'stun' && e.def.slam) b.cur = ['shock', b.cur[1], {}]; // 원래 땅 내려치기가 있는 보스는 기절을 겹치지 않게
     b.st = 'windup'; b.t = BOSS_AI.windup; e.bwind = BOSS_AI.windup;
@@ -1070,7 +1076,7 @@ function bossBrain(g, e, dt) {
     ev(g, 'bossGap', { x: e.x, y: e.y - e.def.size * 0.8 });
   } else if ((b.t -= dt) <= 0) {
     b.st = 'walk';
-    const r = b.p2 ? BOSS_AI.everyP2 : BOSS_AI.every;
+    const r = b.mid ? MID_AI.every : b.p2 ? BOSS_AI.everyP2 : BOSS_AI.every;
     b.next = r[0] + g.rng() * (r[1] - r[0]);
   }
 }
