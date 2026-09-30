@@ -117,17 +117,19 @@ function resolveShowdown(hands) {
 
 class SeotdaHand extends Hand {
   /** players, dealerIndex, bb(= 판돈), carry: { amount, ids } 재경기로 넘어온 판돈 */
-  static create({ players, dealerIndex, bb, deck, carry, cards = 2 }) {
+  static create({ players, dealerIndex, bb, deck, carry, cards = 2, open = false }) {
     const h = Object.create(SeotdaHand.prototype);
-    h.init({ players, dealerIndex, bb, deck, carry, cards });
+    h.init({ players, dealerIndex, bb, deck, carry, cards, open });
     return h;
   }
 
-  init({ players, dealerIndex, bb, deck, carry, cards = 2 }) {
+  init({ players, dealerIndex, bb, deck, carry, cards = 2, open = false }) {
     if (players.length < 2) throw new Error('최소 2명이 필요합니다');
     this.kind = 'seotda';
     this.cardsPer = cards === 3 ? 3 : 2; // 두 장 섯다 / 세 장 섯다
     this.thirdDealt = false;
+    // 세 장 섯다 '한 장 공개': 두 장 받고 → 한 장씩 골라 공개 → 1차 베팅 → 한 장 더 → 2차 베팅 → 세 장 중 두 장 고르기 → 승부
+    this.openMode = this.cardsPer === 3 && !!open;
     this.sb = bb;
     this.bb = bb;
     this.dealerIndex = dealerIndex;
@@ -141,6 +143,7 @@ class SeotdaHand extends Hand {
     this.seats = players.map((p) => ({
       id: p.id, startStack: p.stack, stack: p.stack, hole: [], bet: 0, contributed: 0,
       folded: false, allIn: p.stack === 0, acted: false, lastActedLevel: 0, lastAction: null,
+      open: null, pick: null, // 공개한 카드 번호(0/1) · 고른 두 장
     }));
     const n = this.seats.length;
     this.sbIndex = dealerIndex;
@@ -157,7 +160,64 @@ class SeotdaHand extends Hand {
     this.currentBet = 0;
     this.minRaise = bb;
     this.toAct = -1;
+    if (this.openMode) { this.stage = 'open'; return; } // 모두 한 장씩 공개한 뒤 베팅 시작
     this.moveToNext(dealerIndex);
+  }
+
+  /** 모두가 동시에 고르는 단계 (공개할 카드 · 두 장 고르기) */
+  get phase() { return this.stage === 'open' || this.stage === 'pick' ? this.stage : null; }
+  phasePending() {
+    if (this.stage === 'open') return this.seats.filter((s) => !s.folded && s.open === null).map((s) => s.id);
+    if (this.stage === 'pick') return this.seats.filter((s) => !s.folded && !s.pick).map((s) => s.id);
+    return [];
+  }
+  /** 공개할 카드를 안 고르면: 월(숫자)이 낮은 카드를 연다 (내 패 세기를 덜 드러내게) */
+  static lowerIndex(hole) { return month(hole[0]) <= month(hole[1]) ? 0 : 1; }
+  phaseAct(id, action) {
+    const s = this.seatOf(id);
+    if (!s || s.folded || this.finished) throw new IllegalAction('지금은 할 수 없어요');
+    if (this.stage === 'open') {
+      if (action.type !== 'open') throw new IllegalAction('먼저 공개할 카드를 한 장 골라 주세요');
+      if (s.open !== null) throw new IllegalAction('이미 공개했어요');
+      const i = Number(action.index);
+      if (i !== 0 && i !== 1) throw new IllegalAction('두 장 중 하나를 골라 주세요');
+      s.open = i;
+      this.pushLog({ type: 'open', id: s.id, card: s.hole[i] });
+    } else if (this.stage === 'pick') {
+      if (action.type !== 'pick') throw new IllegalAction('두 장을 골라 주세요');
+      if (s.pick) throw new IllegalAction('이미 골랐어요');
+      const cs = Array.isArray(action.cards) ? action.cards : [];
+      if (cs.length !== 2 || cs[0] === cs[1] || !cs.every((c) => s.hole.includes(c))) throw new IllegalAction('내 카드 세 장 중 두 장을 골라 주세요');
+      s.pick = cs.slice();
+      this.pushLog({ type: 'pick', id: s.id });
+    } else throw new IllegalAction('지금은 고르는 시간이 아니에요');
+    this.afterPhase();
+  }
+  /** 고르는 단계에서 나간 사람: 폴드 처리 후 계속 */
+  forceFold(id) {
+    if (!this.phase) { super.forceFold(id); return; }
+    const s = this.seatOf(id);
+    if (!s || s.folded || this.finished) return;
+    s.folded = true; s.lastAction = 'fold';
+    this.pushLog({ type: 'fold', id: s.id, amount: 0, forced: true });
+    if (this.live.length === 1) this.finishByFold(); else this.afterPhase();
+  }
+  /** 시간이 다 되면 안 고른 사람은 자동으로 (공개: 낮은 카드 · 두 장: 가장 좋은 두 장) */
+  autoPhase() {
+    for (const id of this.phasePending()) {
+      const s = this.seatOf(id);
+      if (this.stage === 'open') { s.open = SeotdaHand.lowerIndex(s.hole); this.pushLog({ type: 'open', id, card: s.hole[s.open], auto: true }); }
+      else if (this.stage === 'pick') { s.pick = bestPair(s.hole); this.pushLog({ type: 'pick', id, auto: true }); }
+    }
+    this.afterPhase();
+  }
+  afterPhase() {
+    if (this.phasePending().length) return;
+    if (this.stage === 'open') {
+      this.stage = 'betting';
+      if (this.canActCount <= 1) { this.endStreet(); return; }
+      this.moveToNext(this.dealerIndex);
+    } else if (this.stage === 'pick') this.showdown();
   }
 
   // 두 장 섯다는 베팅 한 바퀴 뒤 쇼다운, 세 장 섯다는 한 장 더 받고 한 바퀴 더
@@ -176,10 +236,11 @@ class SeotdaHand extends Hand {
       for (let k = 1; k <= n; k++) { const s = this.seats[(this.dealerIndex + k) % n]; if (!s.folded) s.hole.push(this.draw()); }
       this.stage = 'betting2';
       this.pushLog({ type: 'street', third: true, board: [] });
-      if (this.canActCount <= 1) { this.showdown(); return; }
+      if (this.canActCount <= 1) { if (this.openMode && this.live.length > 1) { this.stage = 'pick'; this.toAct = -1; return; } this.showdown(); return; }
       this.moveToNext(this.dealerIndex);
       return;
     }
+    if (this.openMode && this.stage !== 'pick' && this.live.length > 1) { this.stage = 'pick'; this.toAct = -1; return; }
     this.showdown();
   }
 
@@ -203,7 +264,8 @@ class SeotdaHand extends Hand {
     this.stage = 'showdown';
     const all = {};
     for (const s of this.live) all[s.id] = s.hole;
-    const cards = choosePairs(all);
+    // 공개 모드: 각자 고른 두 장으로 (안 고른 사람은 가장 좋은 두 장) · 아니면 자동으로 가장 좋은 조합
+    const cards = this.openMode ? Object.fromEntries(this.live.map((s) => [s.id, s.pick || bestPair(s.hole)])) : choosePairs(all);
     const { eff, info, redeal } = resolveShowdown(cards);
     const hands = {};
     for (const s of this.live) {

@@ -1261,3 +1261,19 @@ form[data-game=seotda] .holdem-only-f { display: none; }
 .sd-center { white-space: nowrap; font-size: .8rem; }
 body[data-theme="seotda"] .sd-center { font-size: .95rem; letter-spacing: .12em; }
 html.gw-vv .game { height: var(--vv-h, 100dvh); }
+
+/* 세 장 섯다: 공개할 카드 · 두 장 고르기 */
+.sd3-only { margin-top: 8px; }
+form:not([data-sd3]) .sd3-only { display: none; }
+.field-lbl { font-size: .82rem; color: var(--gold-hi); font-weight: 700; margin: 4px 0; }
+.sd-pick-row { display: flex; justify-content: center; gap: 10px; margin: 6px 0 4px; }
+.sd-pick-card { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; border-radius: 12px; border: 2px solid rgba(255, 220, 150, .35); background: rgba(0, 0, 0, .35); color: var(--text); cursor: pointer; font: inherit; }
+.sd-pick-card small { font-size: .72rem; font-weight: 800; color: #ffe9b0; }
+.sd-pick-card:active { transform: scale(.96); }
+.sd-pick-row:not(.three) .sd-pick-card { border-color: #ffd35a; box-shadow: 0 0 12px rgba(255, 211, 90, .45); }
+.sd-pick-row.three .sd-pick-card { opacity: .55; }
+.sd-pick-row.three .sd-pick-card.on { opacity: 1; border-color: #ffd35a; box-shadow: 0 0 12px rgba(255, 211, 90, .6); transform: translateY(-4px); }
+.sd-pick-ok { width: 100%; margin-top: 4px; }
+@media (max-width: 370px) { .sd-pick-row { gap: 6px; } .sd-pick-card .card-md, .sd-pick-card .hwatu { --w: 46px; } }
+.card-opened { position: relative; outline: 2px solid #7fd3ff; outline-offset: 1px; }
+.card-opened::after { content: '공개'; position: absolute; left: 50%; top: -9px; transform: translateX(-50%); padding: 0 6px; border-radius: 99px; background: #2a6bff; color: #fff; font: 800 10px/16px 'Noto Sans KR', sans-serif; white-space: nowrap; z-index: 2; }

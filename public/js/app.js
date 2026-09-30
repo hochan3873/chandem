@@ -1075,7 +1075,7 @@ const GAME_INFO = {
 };
 const GAME_RULES = {
   holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
-  seotda: '<p><b>두 장 섯다</b>: 모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p><b>세 장 섯다</b>: 두 장을 받고 1차 베팅, 한 장을 더 받고 2차 베팅. 세 장 중 가장 좋은 두 장으로 승부해요(자동으로 골라 줘요). <b>카드는 쇼다운 전까지 아무에게도 공개되지 않아요</b> — 내 화면에 세 장이 앞면으로 보이는 건 나만 보는 거예요.</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
+  seotda: '<p><b>두 장 섯다</b>: 모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p><b>세 장 섯다</b>: 두 장을 받고 1차 베팅, 한 장을 더 받고 2차 베팅. 세 장 중 가장 좋은 두 장으로 승부해요(자동으로 골라 줘요). 방 설정 <b>세장섯다 공개</b>가 <b>한 장 공개</b>(기본)면: 두 장을 받자마자 한 장을 골라 모두에게 공개(10초, 안 고르면 낮은 카드), 1차 베팅 → 세 번째 카드(뒷면) → 2차 베팅 → 세 장 중 두 장을 직접 골라 승부(10초, 안 고르면 가장 좋은 두 장). <b>공개 없음</b>이면 쇼다운 전까지 아무 카드도 공개되지 않고 두 장은 자동으로 골라요. 내 화면에 앞면으로 보이는 카드는 나만 봐요.</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
   omok: '<p>흑이 먼저 두고, 가로·세로·대각선으로 <b>정확히 다섯 알</b>을 먼저 이으면 이겨요.</p><p>흑은 <b>삼삼</b>(열린 3이 두 개 생기는 자리)에 둘 수 없어요. 흑의 여섯 알(장목)은 승리가 아니에요.</p><p>로그인하면 대국마다 점수가 오르내리고 티어가 정해져요.</p>',
 };
 // ── 게임 그림: 랑방 대전은 내 진행 챕터(langbang:chapter, 랑방 화면이 저장)에 맞는 키 아트 ──
@@ -1277,6 +1277,14 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <label class="seg-opt"><input type="radio" name="cards" value="2" ${Number(s.cards || 2) !== 3 ? 'checked' : ''}><span>두 장 섯다<small>두 장 받고 한 번 베팅</small></span></label>
       <label class="seg-opt"><input type="radio" name="cards" value="3" ${Number(s.cards) === 3 ? 'checked' : ''}><span>세 장 섯다<small>한 장 더 받고 좋은 두 장</small></span></label>
     </div>
+    <div class="sd3-only">
+      <div class="field-lbl">세장섯다 공개</div>
+      <div class="seg">
+        <label class="seg-opt"><input type="radio" name="sdOpen" value="one" ${s.sdOpen !== 'none' ? 'checked' : ''}><span>한 장 공개<small>기본 · 한게임·피망 방식</small></span></label>
+        <label class="seg-opt"><input type="radio" name="sdOpen" value="none" ${s.sdOpen === 'none' ? 'checked' : ''}><span>공개 없음<small>두 장 자동 선택</small></span></label>
+      </div>
+      <p class="muted tiny">한 장 공개: 두 장 중 한 장을 골라 모두에게 보여 준 뒤 베팅, 세 번째 카드를 받고 다시 베팅, 마지막에 세 장 중 두 장을 골라 승부 (한게임·피망 방식). 공개 없음: 공개·고르기 없이 가장 좋은 두 장이 자동</p>
+    </div>
   </fieldset>
   <fieldset class="fieldset chips-only">
     <legend>게임 방식</legend>
@@ -1323,6 +1331,13 @@ function bindGamePick(form, name = 'game') {
   };
   form.querySelectorAll(`input[name=${name}]`).forEach((r) => { r.onchange = upd; });
   upd();
+  bindSd3(form);
+}
+// 세 장 섯다를 고르면 '세장섯다 공개' 칸을 보인다
+function bindSd3(form) {
+  const upd = () => { const c = form.querySelector('input[name=cards]:checked, input[name=pcards]:checked'); if (c && c.value === '3') form.dataset.sd3 = '1'; else delete form.dataset.sd3; };
+  form.querySelectorAll('input[name=cards], input[name=pcards]').forEach((r) => r.addEventListener('change', upd));
+  upd();
 }
 
 function readSettings(form) {
@@ -1338,6 +1353,7 @@ function readSettings(form) {
     mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 5,
     ...(fd.get('game') ? { game: fd.get('game') } : {}),
     cards: Number(fd.get('cards')) === 3 ? 3 : 2,
+    sdOpen: fd.get('sdOpen') === 'none' ? 'none' : 'one',
   };
 }
 
@@ -1401,6 +1417,13 @@ function renderPractice() {
           <label class="seg-opt"><input type="radio" name="pcards" value="2" ${LS.get('chandem:pcards', 2) !== 3 ? 'checked' : ''}><span>두 장 섯다</span></label>
           <label class="seg-opt"><input type="radio" name="pcards" value="3" ${LS.get('chandem:pcards', 2) === 3 ? 'checked' : ''}><span>세 장 섯다</span></label>
         </div>
+        <div class="sd3-only">
+          <div class="field-lbl">세장섯다 공개</div>
+          <div class="seg">
+            <label class="seg-opt"><input type="radio" name="psdOpen" value="one" ${LS.get('chandem:psdOpen', 'one') !== 'none' ? 'checked' : ''}><span>한 장 공개<small>기본</small></span></label>
+            <label class="seg-opt"><input type="radio" name="psdOpen" value="none" ${LS.get('chandem:psdOpen', 'one') === 'none' ? 'checked' : ''}><span>공개 없음</span></label>
+          </div>
+        </div>
       </fieldset>
       <fieldset class="fieldset ai-only"><legend>AI 실력</legend>
         <div class="seg">${[['easy', '쉬움'], ['normal', '보통'], ['hard', '어려움']].map(([k, t]) => `<label class="seg-opt"><input type="radio" name="ailevel" value="${k}" ${LS.get('chandem:ailevel', 'normal') === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
@@ -1439,7 +1462,7 @@ function renderPractice() {
     LS.set('chandem:pmode', tourney ? 'tournament' : 'cash');
     const settings = { ...DEFAULTS, startChips, sb, bb, rebuyAmount: startChips, rebuyMax: 99, mode: tourney && game !== 'omok' ? 'tournament' : 'cash', levelMinutes: 3, game, ...(game === 'seotda' ? { sb: bb } : {}), aiLevel: fd.get('ailevel') || 'normal' };
     if (game !== 'holdem') LS.set('chandem:ailevel', settings.aiLevel);
-    if (game === 'seotda') { settings.cards = Number(fd.get('pcards')) === 3 ? 3 : 2; LS.set('chandem:pcards', settings.cards); }
+    if (game === 'seotda') { settings.cards = Number(fd.get('pcards')) === 3 ? 3 : 2; LS.set('chandem:pcards', settings.cards); settings.sdOpen = fd.get('psdOpen') === 'none' ? 'none' : 'one'; LS.set('chandem:psdOpen', settings.sdOpen); }
     const res = await emit('room:practice', { name, bots, settings, avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
@@ -1545,7 +1568,7 @@ function settingsSummaryHTML(s) {
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
     <li><span>리바인</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
-    <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? '세 장' : '두 장'})` : ''}</b></li>
+    <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? `세 장 · ${s.sdOpen === 'one' ? '한 장 공개' : '공개 없음'}` : '두 장'})` : ''}</b></li>
     <li><span>방식</span><b>${s.mode === 'tournament' ? `🏆 토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
     <li><span>입장</span><b>${[s.hasPassword ? '비밀번호' : '', s.approval ? '방장 승인' : ''].filter(Boolean).join(' + ') || '링크만 있으면 누구나'}</b></li>
   </ul>`;
@@ -1689,6 +1712,7 @@ function openSettingsModal() {
   openModal('방 설정 바꾸기', `<form class="form" id="set-form">${settingsFormHTML(s)}<button class="btn btn-gold btn-lg">저장</button></form>`, (body) => {
     const form = body.querySelector('#set-form');
     form.dataset.game = s.game || 'holdem'; // 게임에 맞는 칸만 (섯다: 기본 판돈)
+    bindSd3(form);
     form.onsubmit = async (e) => {
       e.preventDefault();
       const next = readSettings(form);
@@ -2116,7 +2140,7 @@ function renderTable(st) {
     center = `
       <div class="table-center">
         <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}">${(h.game === 'seotda' ? '' : { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '🔥 올인 승부' }[h.stage] || '')}</div>
-        ${h.game === 'seotda' ? `<div class="sd-center">🎴 ${st.room.settings.cards === 3 ? '세 장' : '두 장'} 섯다${h.stage === 'betting' ? (st.room.settings.cards === 3 ? ' · 1차 베팅' : ' · 베팅') : h.stage === 'betting2' ? ' · 2차 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
+        ${h.game === 'seotda' ? `<div class="sd-center">🎴 ${st.room.settings.cards === 3 ? '세 장' : '두 장'} 섯다${h.stage === 'open' ? ' · 한 장 공개' : h.stage === 'pick' ? ' · 두 장 고르기' : h.stage === 'betting' ? (st.room.settings.cards === 3 ? ' · 1차 베팅' : ' · 베팅') : h.stage === 'betting2' ? ' · 2차 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
         <div class="pot"><span class="chip-icon pot-chip"></span><b>${potText}</b>${h.totalPot > h.pot ? `<span class="pot-note">이번 라운드 ${fmt(h.totalPot - h.pot)} 포함</span>` : ''}</div>
         ${sidePots}
         ${result ? resultHTML(st, result) : ''}
@@ -2186,7 +2210,7 @@ function renderMe(st) {
   const delta = result && result.deltas ? result.deltas[me.id] : undefined;
   el.innerHTML = `
     <div class="me-cards ${mp.status === 'folded' ? 'folded' : ''} ${cards && cards.length === 3 ? 'three' : ''}">
-      ${cards ? cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${h.no}:me:${k}`), delay: k * 120, highlight: result && result.hands && result.hands[me.id] && result.hands[me.id].best.includes(c) })).join('') : `<span class="muted">${st.room.phase === 'playing' ? '이번 판은 쉬는 중이에요' : ''}</span>`}
+      ${cards ? cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${h.no}:me:${k}`), delay: k * 120, cls: h && h.myOpen === k ? 'card-opened' : '', highlight: result && result.hands && result.hands[me.id] && result.hands[me.id].best.includes(c) })).join('') : `<span class="muted">${st.room.phase === 'playing' ? '이번 판은 쉬는 중이에요' : ''}</span>`}
     </div>
     <div class="me-info">
       <div class="me-name">${avatarHTML(mp, 'avatar-sm')}<b>${esc(me.name)}</b>${P.masterBadge(mp.master, true)}${mp.isDealer ? '<span class="dealer-btn">D</span>' : ''}</div>
@@ -2204,7 +2228,7 @@ function renderActions(st) {
   const el = document.getElementById('g-actions');
   const h = st.hand;
   const la = h && h.legal;
-  const sig = JSON.stringify([la, h && h.toActId, h && h.finished, !!(h && h.result), S.raise.open, h && h.no, st.room.nextHandAt]);
+  const sig = JSON.stringify([la, h && h.toActId, h && h.finished, !!(h && h.result), S.raise.open, h && h.no, st.room.nextHandAt, h && h.phase && [h.phase.kind, h.phase.done, h.phase.done || h.phase.watching ? h.phase.waiting : 0], S.pickSel && S.pickSel.cards.join()]); // 고르는 중엔 남은 인원 변화로 다시 그리지 않음 (누른 게 사라지지 않게)
   if (sig === S.actionSig) return;
   S.actionSig = sig;
 
@@ -2217,6 +2241,7 @@ function renderActions(st) {
       : `<div class="wait-line">${st.room.waiting ? '참가자를 기다리는 중이에요' : '곧 카드를 나눠 드려요'}</div>`;
     return;
   }
+  if (h.phase) { S.raise.open = false; renderSeotdaPhase(el, st); return; }
   if (!la) {
     S.raise.open = false;
     const turnName = nameOf(h.toActId);
@@ -2308,6 +2333,44 @@ function renderActions(st) {
       doAct({ type: t });
     };
   });
+}
+
+// 세 장 섯다(한 장 공개): 공개할 카드 고르기 · 마지막에 두 장 고르기
+function renderSeotdaPhase(el, st) {
+  const h = st.hand;
+  const ph = h.phase;
+  const mine = st.players.find((p) => st.me && p.id === st.me.id);
+  const cards = mine && mine.cards && mine.cards[0] !== '??' ? mine.cards : null;
+  const bar = '<div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>';
+  if (ph.watching || !cards || ph.done) {
+    el.innerHTML = `${bar}<div class="wait-line">${ph.kind === 'open' ? '🎴 모두 공개할 카드를 고르는 중' : '🎴 모두 두 장을 고르는 중'}${ph.done ? ' · 나는 골랐어요' : ''} (${ph.waiting}명 남음) · <span data-deadline-text>남은 시간 -</span></div>`;
+    return;
+  }
+  if (ph.kind === 'open') {
+    el.innerHTML = `${bar}
+      <div class="act-info"><span class="my-turn">🎴 공개할 카드를 한 장 고르세요 · <span data-deadline-text>남은 시간 -</span></span><span>안 고르면 낮은 카드가 자동으로 공개돼요</span></div>
+      <div class="sd-pick-row">${cards.slice(0, 2).map((c, i) => `<button class="sd-pick-card" data-open="${i}">${cardHTML(c, { size: 'md' })}<small>이 카드 공개</small></button>`).join('')}</div>`;
+    el.querySelectorAll('[data-open]').forEach((b) => { b.onclick = () => { S.pickSel = null; doAct({ type: 'open', index: Number(b.dataset.open) }); }; });
+    return;
+  }
+  // 두 장 고르기: 가장 좋은 두 장이 미리 골라져 있음
+  const key = h.no + ':pick';
+  if (!S.pickSel || S.pickSel.key !== key) S.pickSel = { key, cards: (ph.best || cards.slice(0, 2)).slice() };
+  const sel = S.pickSel.cards;
+  const bp = sel.length === 2 ? rankSeotda(sel[0], sel[1]).name : '';
+  el.innerHTML = `${bar}
+    <div class="act-info"><span class="my-turn">🎴 승부할 두 장을 고르세요 · <span data-deadline-text>남은 시간 -</span></span><span>가장 좋은 두 장이 미리 골라져 있어요</span></div>
+    <div class="sd-pick-row three">${cards.map((c) => `<button class="sd-pick-card ${sel.includes(c) ? 'on' : ''}" data-pick="${esc(c)}">${cardHTML(c, { size: 'md' })}<small>${sel.includes(c) ? '✔ 선택' : '빼기'}</small></button>`).join('')}</div>
+    <button class="btn btn-gold btn-lg sd-pick-ok" id="pick-ok" ${sel.length === 2 ? '' : 'disabled'}>${sel.length === 2 ? `이 두 장으로 승부 · ${esc(bp)}` : '두 장을 골라 주세요'}</button>`;
+  el.querySelectorAll('[data-pick]').forEach((b) => {
+    b.onclick = () => {
+      const c = b.dataset.pick;
+      const i = sel.indexOf(c);
+      if (i >= 0) sel.splice(i, 1); else { if (sel.length >= 2) sel.shift(); sel.push(c); }
+      S.actionSig = ''; renderActions(S.state); tickTimers();
+    };
+  });
+  el.querySelector('#pick-ok').onclick = () => { if (sel.length === 2) doAct({ type: 'pick', cards: sel.slice() }); };
 }
 
 // 섯다 베팅: 다이 · 체크 · 삥 · 콜 · 따당 · 하프 · 올인

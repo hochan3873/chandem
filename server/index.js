@@ -494,7 +494,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('host:kick', handler((d) => { const { room, pid } = ctx(); room.kick(pid, d.id); }));
     socket.on('host:transfer', handler((d) => { const { room, pid } = ctx(); room.transferHost(pid, d.id); }));
     socket.on('host:end', handler(() => { const { room, pid } = ctx(); room.endGame(pid); }));
-    socket.on('game:act', handler((d) => { const { room, pid } = ctx(); room.act(pid, { type: d.type, amount: d.amount, x: d.x, y: d.y }); }));
+    socket.on('game:act', handler((d) => { const { room, pid } = ctx(); room.act(pid, { type: d.type, amount: d.amount, x: d.x, y: d.y, index: d.index, cards: Array.isArray(d.cards) ? d.cards.slice(0, 3).map(String) : undefined }); }));
     socket.on('game:rebuy', handler(() => { const { room, pid } = ctx(); room.rebuy(pid); }));
     socket.on('game:sitin', handler(() => { const { room, pid } = ctx(); room.sitIn(pid); }));
     socket.on('game:sitout', handler(() => { const { room, pid } = ctx(); room.sitOut(pid); }));

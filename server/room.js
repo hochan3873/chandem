@@ -2,7 +2,7 @@
 const crypto = require('crypto');
 const { Hand, IllegalAction } = require('./engine/hand');
 const bot = require('./bot');
-const { SeotdaHand } = require('./games/seotda');
+const { SeotdaHand, bestPair } = require('./games/seotda');
 const { OmokGame, omokAI } = require('./games/omok');
 
 class RoomError extends Error {}
@@ -27,7 +27,8 @@ const DEFAULT_SETTINGS = {
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
 const AWAY_SKIP_MS = 60 * 1000;       // 이만큼 끊긴 사람은 다음 판에서 제외(자리 비움)
-const AWAY_ACT_MS = 8 * 1000;         // 자리 비움인데 화면은 켜져 있으면: 차례에 8초 동안 직접 할 수 있게 기다린다
+const AWAY_ACT_MS = 8 * 1000;
+const PHASE_MS = 10 * 1000;           // 세 장 섯다: 공개할 카드 · 두 장 고르기 시간         // 자리 비움인데 화면은 켜져 있으면: 차례에 8초 동안 직접 할 수 있게 기다린다
 const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // 결과를 보여준 뒤 다음 판까지
 // 쇼다운 연출(ms). 올인 승부는 패 공개 → 남은 카드를 한 장씩 → 리버는 뜸을 들여 '쪼기'
 const REVEAL = { first: 700, perHand: 1100, allinHands: 1600, flop: 1800, turn: 2200, squeeze: 1900, river: 1300, result: 900 };
@@ -63,6 +64,8 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.levelMinutes = Math.min(60, Math.max(1, int(src.levelMinutes, base.levelMinutes || 5)));
   if (s.mode === 'tournament') s.rebuyEnabled = false;   // 토너먼트는 칩을 다 잃으면 탈락
   s.cards = src.cards === undefined ? (base.cards || 2) : Number(src.cards) === 3 ? 3 : 2; // 섯다: 두 장 / 세 장
+  // 세 장 섯다 공개 방식: 'one' 한 장 공개(새 방 기본) · 'none' 공개 없음 (예전 방은 값이 없어서 공개 없음 그대로)
+  s.sdOpen = src.sdOpen === 'none' ? 'none' : src.sdOpen === 'one' ? 'one' : (base.sdOpen || 'one');
   s.aiLevel = ['easy', 'normal', 'hard'].includes(src.aiLevel) ? src.aiLevel : (base.aiLevel || 'normal');
   if (s.game === 'omok') {
     // 오목: 두 사람만 두고 나머지는 관전, 칩·토너먼트 없음
@@ -595,7 +598,7 @@ class Room {
       if (this.handNo % 2 === 0) two.reverse();
       this.hand = new OmokGame({ players: two, dealerIndex: 0 });
     } else if (this.settings.game === 'seotda') {
-      this.hand = SeotdaHand.create({ players, dealerIndex, bb: this.blinds().bb, carry, cards: this.settings.cards });
+      this.hand = SeotdaHand.create({ players, dealerIndex, bb: this.blinds().bb, carry, cards: this.settings.cards, open: this.settings.cards === 3 && this.settings.sdOpen === 'one' });
       if (carry) this.pushFeed(`🎴 재경기 · 이월된 판돈 ${carry.amount.toLocaleString()}`);
     } else {
       this.hand = new Hand({ players, dealerIndex, sb: this.blinds().sb, bb: this.blinds().bb });
@@ -617,8 +620,10 @@ class Room {
 
   act(id, action) {
     if (!this.hand || this.hand.finished) throw new RoomError('진행 중인 판이 없어요');
+    const phaseAct = !!this.hand.phase;
     try {
-      this.hand.act(id, action);
+      if (phaseAct) this.hand.phaseAct(id, action || {}); // 세 장 섯다: 카드 공개 · 두 장 고르기 (모두 동시에)
+      else this.hand.act(id, action);
     } catch (e) {
       if (e instanceof IllegalAction) throw new RoomError(e.message);
       throw e;
@@ -630,7 +635,7 @@ class Room {
       if (p.sittingOut) { p.sittingOut = false; p.awayReason = null; this.pushFeed(`${p.name}님이 자리로 돌아왔어요`); }
     }
     const seat = this.hand.seatOf(id);
-    if (seat && seat.lastAction) bot.observeAct(this.stats, id, seat.lastAction, this.handNo);
+    if (seat && seat.lastAction && !phaseAct) bot.observeAct(this.stats, id, seat.lastAction, this.handNo);
     this.syncStacks();
     this.afterHandChange();
   }
@@ -644,6 +649,16 @@ class Room {
     if (this.hand.finished) {
       this.onHandFinished(); // 연출 상태를 먼저 정해야 공개 전 기록(리버·승리)이 새지 않는다
       this.drainHandLog();
+    } else if (this.hand.phase) {
+      // 모두 동시에 고르는 단계: 10초 (단계가 바뀔 때만 새로 잰다) · 봇은 잠깐 뒤 스스로 고름
+      this.drainHandLog();
+      const key = this.handNo + ':' + this.hand.phase;
+      if (this.phaseKey !== key || !this.phaseDeadline) { this.phaseKey = key; this.phaseDeadline = this.now() + PHASE_MS; }
+      this.turnDeadline = this.phaseDeadline;
+      this.setTimer('turn', Math.max(0, this.phaseDeadline - this.now()), () => this.onPhaseTimeout());
+      if (this.hand.phasePending().some((id) => { const p = this.get(id); return p && (p.isBot || this.isAway(p)); })) {
+        this.setTimer('bot', (600 + crypto.randomInt(700)) * this.pace, () => this.botPhase());
+      }
     } else {
       this.drainHandLog();
       const ms = this.settings.turnSeconds * 1000;
@@ -667,6 +682,33 @@ class Room {
       }
     }
     this.touch();
+  }
+
+  onPhaseTimeout() {
+    const h = this.hand;
+    if (!h || h.finished || !h.phase) return;
+    h.autoPhase();
+    this.phaseDeadline = null;
+    this.syncStacks();
+    this.afterHandChange();
+  }
+  /** 봇(과 자리 비운 사람): 공개는 낮은 카드, 두 장은 가장 좋은 조합 */
+  botPhase() {
+    const h = this.hand;
+    if (!h || h.finished || !h.phase) return;
+    for (const id of h.phasePending()) {
+      const p = this.get(id);
+      if (!p || !(p.isBot || this.isAway(p))) continue;
+      const seat = h.seatOf(id);
+      try {
+        if (h.phase === 'open') h.phaseAct(id, { type: 'open', index: SeotdaHand.lowerIndex(seat.hole) });
+        else if (h.phase === 'pick') h.phaseAct(id, { type: 'pick', cards: bestPair(seat.hole) });
+      } catch (e) { console.error('[bot phase]', e.message); }
+      if (!h.phase) break;
+    }
+    if (!h.phase) this.phaseDeadline = null;
+    this.syncStacks();
+    this.afterHandChange();
   }
 
   /** 엔진 로그를 화면용 기록(번호 붙임)으로 옮긴다 */
@@ -698,6 +740,8 @@ class Room {
       case 'street': return e.third ? '세 번째 패를 받았어요' : { 3: '플랍', 4: '턴', 5: '리버' }[e.board.length] + ' 공개';
       case 'place': return `${n} ${e.color === 'b' ? '⚫' : '⚪'} ${String.fromCharCode(65 + e.x)}${e.y + 1}`;
       case 'resign': return `${n} 기권`;
+      case 'open': return `${n} 한 장 공개${e.auto ? ' (시간 초과 · 자동)' : ''}`;
+      case 'pick': return `${n} 두 장 고름${e.auto ? ' (자동)' : ''}`;
       case 'end': return e.result === 'draw' ? '무승부' : e.result === 'redeal' ? `${e.redeal}! 재경기` : `${e.winners.map((w) => this.name(w)).join(', ')} 승리`;
       default: return '';
     }
@@ -1016,7 +1060,7 @@ class Room {
       if (hs) {
         if (p.id === viewerId) cards = hs.hole;
         else if (showdown && h.result.hands[p.id] && (!rv || rv.shown.includes(p.id))) cards = h.result.hands[p.id].hole;
-        else if (!hs.folded) cards = hs.hole.map(() => '??'); // 남의 카드는 장 수만큼 뒷면 (세 장 섯다면 세 장)
+        else if (!hs.folded) cards = hs.hole.map((c, i) => (hs.open === i ? c : '??')); // 남의 카드는 뒷면 (세 장 섯다 공개 모드: 공개한 한 장만 앞면)
       }
       return {
         id: p.id,
@@ -1115,6 +1159,15 @@ class Room {
         turnSeconds: this.settings.turnSeconds,
         finished: h.finished,
         legal: me ? h.legalActions(me.id) : null,
+        phase: h.phase && me && h.seatOf(me.id) && !h.seatOf(me.id).folded ? {
+          kind: h.phase,
+          done: h.phase === 'open' ? h.seatOf(me.id).open !== null : !!h.seatOf(me.id).pick,
+          open: h.seatOf(me.id).open,
+          best: h.phase === 'pick' ? bestPair(h.seatOf(me.id).hole) : null,
+          waiting: h.phasePending().length,
+        } : (h.phase ? { kind: h.phase, watching: true, waiting: h.phasePending().length } : null),
+        openMode: !!h.openMode,
+        myOpen: me && h.seatOf && h.seatOf(me.id) && h.seatOf(me.id).open != null ? h.seatOf(me.id).open : null, // 내가 공개한 카드 번호
         result: h.finished && !rv ? this.publicResult(h.result) : null,
       };
     }
@@ -1223,7 +1276,11 @@ class Room {
       if (h && !h.connected) r.transferHostAuto(`방장 ${h.name}님의 연결이 끊겨`);
     });
     // 타이머 다시 걸기
-    if (r.hand && !r.hand.finished) {
+    if (r.hand && !r.hand.finished && r.hand.phase) {
+      r.phaseDeadline = now() + PHASE_MS; // 고르는 단계 중에 다시 켜졌으면 10초 다시
+      r.phaseKey = r.handNo + ':' + r.hand.phase;
+      r.afterHandChange();
+    } else if (r.hand && !r.hand.finished) {
       const left = Math.max(5000, (r.turnDeadline || 0) - now());
       r.turnDeadline = now() + left;
       r.setTimer('turn', left, () => r.onTurnTimeout());
