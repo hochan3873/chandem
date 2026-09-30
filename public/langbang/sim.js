@@ -7,7 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
-  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -56,6 +56,7 @@ export function createGame(opt = {}) {
     base: { hp: baseMax, max: baseMax },
     level: 1, exp: 0, need: Math.round(expNeed(1) * EXP_NEED_MUL * (opt.join && opt.deck && !opt.raid ? JOIN.exp[0] : 1)), pendingLevels: welcome, welcomePicks: welcome,
     joinPool: [], joinTotal: 0, joinMode: false, leader: null, pickN: 0, rollN: 0, tempo: !!opt.tempo,
+    mom: opt.tempo && !opt.raid ? MOMENTUM.max : null, lastSkillT: -9, skillQ: null, // 기세 (템포에서만)
     mods: {
       dmg: 1, spd: 1, crit: RULES.crit + itemValue('charm', items.charm), critMul: RULES.critMul, expMul: 1, enemySpd: 1,
       pierce: 0, gunExtra: 0, regen: 0, ultCharge: 1 + itemValue('battery', items.battery), ultDmg: 1, charmMul: 1,
@@ -283,7 +284,7 @@ function updateHeroes(g, dt) {
     if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
     let sing = 0;
     for (const d0 of singers) if (d0 !== h && Math.abs(d0.x - h.x) <= d0.def.sing.r) sing = Math.max(sing, d0.def.sing.spd[d0.lv - 1]);
-    const rate = (g.tempo ? TEMPO.rate : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * (g.mods.spd + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
+    const rate = (h.tiredT > 0 ? MOMENTUM.tiredSpd : 1) * (g.tempo ? TEMPO.rate : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * (g.mods.spd + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
     // 문동한: 간보기 게이지 → 일어나서 한 줄 빔
     if (d.meter) {
       if (h.upT > 0) h.upT -= dt;
@@ -393,7 +394,7 @@ export function harleyBand(q, e) {
 export function launchBus(g, h) {
   h.meter = 0;
   const big = !!h.evo;
-  (g.buses || (g.buses = [])).push({ hero: h, x: h.x, y: g.rowY + 30, w: big ? BUS.w2 : BUS.w, big, dmg: heroDamage(g, h) * BUS.dmg, stun: h.lv >= 5 ? BUS.stun : 0, hit: new Set() });
+  (g.buses || (g.buses = [])).push({ hero: h, x: h.x, y: g.rowY + 30, w: big ? BUS.w2 : BUS.w, big, dmg: heroDamage(g, h) * BUS.dmg, stun: (h.lv >= 5 ? BUS.stun : g.pvp ? BUS.stun * 0.5 : 0) * (g.pvp ? 1.5 : 1), hit: new Set() }); // 대전: 기절 ×1.5 (Lv5 전에도 조금)
   ev(g, 'bus', { hero: h.id, x: h.x, y: g.rowY, big });
 }
 function updateBuses(g, dt) {
@@ -1158,6 +1159,7 @@ function killEnemy(g, e, src) {
   if (src) src.kills++;
   g.combo++;
   g.comboT = RULES.comboWindow;
+  if (g.mom !== null && g.mom !== undefined) g.mom = Math.min(MOMENTUM.max, g.mom + MOMENTUM.kill + (g.combo % 10 === 0 ? MOMENTUM.combo10 : 0));
   if (g.combo > s.maxCombo) s.maxCombo = g.combo;
   s.score += SCORE.kill + Math.min(g.combo, SCORE.comboCap);
   // 경험치 보석 (떨어진 뒤 잠깐 튀었다가 저절로 경험치 바로 날아간다)
@@ -2321,6 +2323,7 @@ export function enemiesLeft(g) {
 // ─── 궁극기 ───────────────────────────────────────────
 export function useUlt(g) {
   if (g.ult < RULES.ultMax || g.over) return false;
+  if (g.mom !== null && g.mom !== undefined) { if (g.mom < MOMENTUM.ult) { ev(g, 'noMomentum', { ult: true }); return false; } g.mom -= MOMENTUM.ult; }
   g.ult = 0;
   const dmg = RULES.ultDamage * (1 + 0.22 * g.diff) * g.mods.ultDmg;
   buildGrid(g);
@@ -2362,11 +2365,16 @@ function updateMapFx(g, dt) {
 // ─── 액티브 스킬 (스킬 바) ─────────────────────────────
 export function skillReady(h) { return !!h.def.skill && h.skillCd <= 0; }
 // x, y: 찍은 곳 (target 스킬만). 성공하면 true
-export function castSkill(g, h, x, y, echo) {
+export const momCharges = (g) => (g.mom === null || g.mom === undefined ? 9 : Math.floor(g.mom / MOMENTUM.per));
+export function castSkill(g, h, x, y, echo, fromQ) {
   const sk = h.def.skill;
   if (!sk || (!echo && h.skillCd > 0) || g.over || g.phase === 'victory') return false;
+  if (!echo && g.mom !== null && g.mom !== undefined) {
+    if (g.mom < MOMENTUM.per) { ev(g, 'noMomentum', { hero: h.id, x: h.x, y: h.y }); return false; }
+    if (g.t - g.lastSkillT < MOMENTUM.gap && !fromQ) { g.skillQ = { h, x, y, at: g.lastSkillT + MOMENTUM.gap }; ev(g, 'skillQueued', { hero: h.id }); return false; } // 0.6초 뒤에 나간다
+  }
   const lv = h.lv - 1;
-  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo ? 0.75 : 1);
+  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo ? 0.75 : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1);
   if (h.skEvo && !echo && h.id !== 'hanna') h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
   // 줄 스킬은 사거리 안에 진상이 없으면 아껴 둔다 (쿨타임 안 씀)
@@ -2575,10 +2583,12 @@ export function castSkill(g, h, x, y, echo) {
       break;
   }
   if (echo) { ev(g, 'skill', { hero: h.id, skill: sk.id, name: sk.name + ' 한 번 더!', x: sk.target ? x : h.x, y: sk.target ? y : h.y, r, target: !!sk.target, echo: true }); return true; }
-  h.skillCd = sk.cd * (1 - (h.gear.cd || 0)) * g.cdMul * (h.evo ? EVO_MUL.cd : 1);
+  h.skillCd = sk.cd * (1 - (h.gear.cd || 0)) * g.cdMul * (h.evo ? EVO_MUL.cd : 1) * (g.tempo && MOMENTUM.strong.includes(h.id) ? MOMENTUM.strongCd / TEMPO.cd : 1);
+  if (g.mom !== null && g.mom !== undefined) { g.mom -= MOMENTUM.per; g.lastSkillT = g.t; h.tiredT = h.skillCd * MOMENTUM.tired; h.tiredMax = h.tiredT; }
   g.stats.skills++;
   if (g.mode === 'endless') { g.streak = Math.min(2, (g.streak || 1) + 0.03); if (g.idleEv && g.idleEv.kind === 'rush') g.idleEv.got++; }
   ev(g, 'skill', { hero: h.id, skill: sk.id, name: sk.name, x: sk.target ? x : h.x, y: sk.target ? y : h.y, r, target: !!sk.target });
+  ev(g, 'skillCast', { hero: h.id });
   return true;
 }
 
@@ -2660,6 +2670,11 @@ export function step(g, dt) {
       else if (s.boss) ev(g, 'bossSpawn', { enemy: s.type, x: e.x, y: e.y });
     }
   }
+  if (g.mom !== null && g.mom !== undefined) {
+    if ((g.phase === 'wave' || g.phase === 'intro' || g.phase === 'test') && g.mom < MOMENTUM.max) g.mom = Math.min(MOMENTUM.max, g.mom + (MOMENTUM.per / MOMENTUM.refill) * dt);
+    if (g.skillQ && g.t >= g.skillQ.at) { const q = g.skillQ; g.skillQ = null; if (g.heroes.includes(q.h)) castSkill(g, q.h, q.x, q.y, false, true); }
+  }
+  for (const h of g.heroes) if (h.tiredT > 0) h.tiredT -= dt;
   if (g.mods.regen && g.base.hp < g.base.max && g.phase !== 'test') g.base.hp = Math.min(g.base.max, g.base.hp + g.mods.regen * dt);
   buildGrid(g);
   updateAuras(g);

@@ -1764,3 +1764,34 @@ test('아이템 도감: 한 번이라도 얻은 장비 종류가 남는다 (팔�
   assert.ok(L.ACHIEVEMENTS.some((a) => a.id === 'gdexAll' && a.n === D.GEAR_IDS.length + D.MYTH_IDS.length));
   assert.ok(D.DROPS.length >= 8);
 });
+
+test('기세: 3칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(공속 −30%) · 총공지 2칸 · 강한 스킬 쿨 ×2', async () => {
+  const S = await load('sim.js');
+  const g = S.createGame({ H: 760, rng: seeded(8), noWaves: true, deck: ['staff', 'gunman', 'eunok', 'sanghwa', null, null], tempo: true, meta: {} });
+  g.phase = 'wave';
+  for (let i = 0; i < 3; i++) S.spawnEnemy(g, 'thug', 100 + i * 80, g.rowY - 200, { hpMul: 500 }).speed = 0;
+  assert.equal(S.momCharges(g), 3);
+  const hs = g.heroes.filter((h) => h.def.skill && !h.def.skill.target);
+  for (const h of hs) h.skillCd = 0;
+  assert.equal(S.castSkill(g, hs[0]), true);
+  assert.equal(S.castSkill(g, hs[1]), false, '0.6초 안에는 줄을 선다');
+  assert.ok(g.skillQ && g.skillQ.h === hs[1]);
+  for (let i = 0; i < 40; i++) S.step(g, 1 / 60);
+  assert.ok(hs[1].skillCd > 0, '줄 선 스킬이 0.6초 뒤 나감');
+  assert.ok(hs[0].tiredT > 0, '기진맥진');
+  const before = S.momCharges(g);
+  assert.ok(before <= 1, `기세 ${before}칸 남음`);
+  g.mom = 50; hs[2].skillCd = 0;
+  for (let i = 0; i < 40; i++) S.step(g, 1 / 60);
+  assert.equal(S.castSkill(g, hs[2]), false, '기세가 없으면 못 씀');
+  for (let i = 0; i < 60 * 4; i++) S.step(g, 1 / 60);
+  assert.ok(g.mom >= 100, '7초에 1칸');
+  g.ult = D.RULES.ultMax; g.mom = 150;
+  assert.equal(S.useUlt(g), false, '총공지는 2칸');
+  g.mom = 220; assert.equal(S.useUlt(g), true);
+  // 강한 범위 스킬 쿨 ×2 (템포 ×1.5 대신)
+  const q = S.createGame({ H: 760, rng: seeded(9), noWaves: true, heroes: ['gunman'], tempo: true, meta: {} });
+  q.phase = 'wave'; S.spawnEnemy(q, 'thug', q.heroes[0].x, q.rowY - 200, { hpMul: 500 }).speed = 0;
+  const gm = q.heroes[0]; gm.skillCd = 0; S.castSkill(q, gm);
+  assert.ok(Math.abs(gm.skillCd - D.HEROES.gunman.skill.cd * 2) < 0.5, `건전남 쿨 ${gm.skillCd}`);
+});

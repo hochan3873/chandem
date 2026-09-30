@@ -831,6 +831,7 @@ export class Renderer {
     this.drawEnemies(g, t);
     this.drawJoinWait(g);
     this.drawRope(g, t);
+    this.drawEnemies(g, t, true); // 때리는 진상은 바리케이드 앞
     this.drawPools(g, t);
     this.drawHeroes(g, t, ui);
     this.drawBeams(g, t);
@@ -1295,13 +1296,14 @@ export class Renderer {
     cx.globalAlpha = 1;
     this.world();
   }
-  drawEnemies(g, t) {
+  drawEnemies(g, t, front) {
     const cx = this.cx;
-    this.drawCorpses(g);
+    if (!front) this.drawCorpses(g);
     const list = this.sorted;
     list.length = 0;
+    const striking = (e) => e.atRope && e.stunT <= 0 && (e.hitT > 0 || (e.atkCd > 0 && e.atkCd < 0.3)); // 입구를 때리는 중: 바리케이드 앞에 그린다
     const dark = g.darkT > 0 ? g.rowY - (g.mapFx.seeR || 190) : -1e9;
-    for (const e of g.enemies) if (!e.dead && (e.y > dark || e === g.focus)) list.push(e);
+    for (const e of g.enemies) if (!e.dead && (e.y > dark || e === g.focus) && (front ? striking(e) : !striking(e))) list.push(e);
     list.sort((a, b) => a.y - b.y);
     const sh = this.projSprites.shadow;
     const heavy = list.length > 85 || (g.hell && list.length > 50); // 많을 땐 가벼운 그리기 (작은 진상 그림자 생략 · 연기 줄임)

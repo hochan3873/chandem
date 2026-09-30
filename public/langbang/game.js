@@ -966,6 +966,9 @@ function handleEvents(g, loud) {
       }
       case 'bus': fx.banner(e.big ? '2층 막차 버스!' : '막차 버스!', '이호찬: "다들 타! 집에 가자!"', '#8a6a00', 0.9, 'wave'); fx.addShake(e.big ? 8 : 5); break;
       case 'slash': R.addSlash(e.x, e.y); break;
+      case 'skillCast': { const h = g.heroes.find((x) => x.id === e.hero); if (h) skillFx(h); break; }
+      case 'noMomentum': if (live) toast(e.ult ? '총공지는 기세 2칸이 필요해요' : '기세가 모자라요 — 조금 기다려요', 900); break;
+      case 'skillQueued': break;
       case 'weaponEvo': fx.text(e.x, e.y - 96, '무기 진화!', '#ffd23f', 16, 1.3, -30); fx.ring(e.x, e.y - 30, 12, 60, 0.6, '#ffd23f', 4); break;
       case 'reload': if (Math.random() < 0.12 && WEAPON[e.hero]) fx.text(e.x, e.y - 70, WEAPON[e.hero].reload, '#e8e0ff', 10, 0.8, -16); break;
       case 'heroLv':
@@ -1231,7 +1234,7 @@ function endPress(ev) {
     a.hold = false;
     if (ev.type !== 'pointerup') return;
     if (!aimValid(g, a)) { toast('방어선 위 필드에만 쓸 수 있어요', 1100); return; }
-    if (g.heroes.includes(a.h) && S.castSkill(g, a.h, a.x, a.y)) { skillFx(a.h); handleEvents(g, true); }
+    if (g.heroes.includes(a.h)) { S.castSkill(g, a.h, a.x, a.y); handleEvents(g, true); }
     cancelAim();
     return;
   }
@@ -1299,7 +1302,7 @@ function useSkillBtn(slot) {
     hideBubble();
     return;
   }
-  if (S.castSkill(g, h)) { skillFx(h); handleEvents(g, true); }
+  S.castSkill(g, h); handleEvents(g, true);
 }
 function cancelAim() { app.aim = null; aimbar.hidden = true; }
 aimbar.addEventListener('click', (ev) => { if (ev.target.closest('[data-aim]')) { A.sfx.tap(); cancelAim(); } });
