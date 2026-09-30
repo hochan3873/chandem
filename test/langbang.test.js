@@ -1739,3 +1739,10 @@ test('템포: 이호찬 = 기본 공격 없이 게이지 → 막차 버스가 �
   h.evo = true; h.meter = 100; S.launchBus(g, h);
   assert.ok(g.buses[g.buses.length - 1].big && g.buses[g.buses.length - 1].w > 150);
 });
+
+test('덱 대장 서버 저장: cleanDecks 가 덱마다 대장을 남기고, 덱에 없는 멤버는 버린다', async () => {
+  const L = await load('live.js');
+  const d = L.cleanDecks({ decks: [['staff', 'gunman'], ['bangjang'], []], i: 1, leaders: ['gunman', 'staff', 'nope'] });
+  assert.deepEqual(d.leaders, ['gunman', null, null]);
+  assert.deepEqual(L.cleanDecks({ decks: [['staff']], i: 0 }).leaders, [null, null, null], '예전 저장 (대장 없음)');
+});

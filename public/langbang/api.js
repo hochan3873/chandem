@@ -471,7 +471,7 @@ export function checkin(guest) {
   return liveCall('checkin', {});
 }
 // 덱 저장 (로그인하면 서버에도 — 다른 기기에서도 같은 덱)
-export function saveDecksRemote(decks, i) { return liveCall('decks', { decks, i }); }
+export function saveDecksRemote(decks, i, leaders) { return liveCall('decks', { decks, i, leaders }); }
 // 마스터(운영자) 테스트 도구 — 서버가 아이디로 확인한다
 export function masterAct(action, extra = {}) { return liveCall('master', Object.assign({ action }, extra)); }
 // 레이드 · 1:1 대전

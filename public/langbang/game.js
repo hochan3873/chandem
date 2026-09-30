@@ -3244,7 +3244,7 @@ const owned = () => ['bangjang', ...partnerList()].filter((id) => API.heroUnlock
 function curDeck() { return app.decks[app.deckI]; }
 function saveDecks() {
   try { localStorage.setItem(DECK_KEY, JSON.stringify({ decks: app.decks, i: app.deckI })); } catch { /* 무시 */ }
-  if (!app.guest && app.profileLoaded) { clearTimeout(saveDecks.t); saveDecks.t = setTimeout(() => API.saveDecksRemote(app.decks, app.deckI).catch(() => {}), 1500); }
+  if (!app.guest && app.profileLoaded) { clearTimeout(saveDecks.t); saveDecks.t = setTimeout(() => API.saveDecksRemote(app.decks, app.deckI, [0, 1, 2].map((k) => leaders()[k] || null)).catch(() => {}), 1500); }
 }
 // 멤버 팝업의 "덱에 넣기 / 덱에서 빼기" — 지금 고른 덱 프리셋에 바로 (꽉 차면 바꿀 자리 고르기)
 function deckQuick(id) {
@@ -3447,7 +3447,7 @@ function showPrep(mode, s) {
 const LEAD_KEY = 'langbang:leaders';
 function leaders() { if (!app.leaders) { try { app.leaders = JSON.parse(localStorage.getItem(LEAD_KEY) || '{}') || {}; } catch { app.leaders = {}; } } return app.leaders; }
 function deckLeader() { const ids = curDeck().filter(Boolean), l = leaders()[app.deckI]; return ids.includes(l) ? l : ids[0] || null; }
-function setLeader(id) { leaders()[app.deckI] = id; try { localStorage.setItem(LEAD_KEY, JSON.stringify(app.leaders)); } catch { /* 무시 */ } }
+function setLeader(id) { leaders()[app.deckI] = id; try { localStorage.setItem(LEAD_KEY, JSON.stringify(app.leaders)); } catch { /* 무시 */ } saveDecks(); } // 서버에도 (덱과 같이)
 function deckList() { const ids = curDeck().filter(Boolean), l = deckLeader(); return l ? [l, ...ids.filter((x) => x !== l)] : ids; }
 // 덱 카드: 얼굴이 잘 보이게 (도감 썸네일 같은 자르기) · 이름 띠 · 구석에 속성 하나 · 대장 왕관
 function deckCard(id, lead, act, cls = '') {
@@ -5049,6 +5049,7 @@ async function boot() {
   if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크
   // 로그인: 서버에 저장된 덱이 있고 이 기기에 덱이 없으면 서버 덱으로
   try { if (app.profile.decks && !localStorage.getItem(DECK_KEY)) { app.decks = app.profile.decks.decks.map((d) => d.slice()); app.deckI = app.profile.decks.i; } } catch { /* 무시 */ }
+  try { const sl = app.profile.decks && app.profile.decks.leaders; if (sl) { const loc = leaders(); for (let k = 0; k < 3; k++) if (!loc[k] && sl[k]) loc[k] = sl[k]; localStorage.setItem(LEAD_KEY, JSON.stringify(loc)); } } catch { /* 무시 */ } // 서버 대장 → 이 기기에 없으면 채우기
   app.nickname = r.nickname || '';
   app.selStage = nextStage();
   app.chapterTab = chapterOf(app.selStage);

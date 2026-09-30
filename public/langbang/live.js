@@ -660,7 +660,9 @@ export function cleanDecks(raw) {
     const seen = new Set();
     return Array.from({ length: 6 }, (_, i) => { const id = d[i]; return typeof id === 'string' && HEROES[id] && !seen.has(id) && seen.add(id) ? id : null; });
   });
-  return { i: Math.max(0, Math.min(2, raw.i | 0)), decks };
+  // 덱마다 대장 (그 덱에 있는 멤버만 · 없으면 null → 화면이 덱 첫 멤버로)
+  const leaders = [0, 1, 2].map((k) => { const l = Array.isArray(raw.leaders) ? raw.leaders[k] : null; return typeof l === 'string' && decks[k].includes(l) ? l : null; });
+  return { i: Math.max(0, Math.min(2, raw.i | 0)), decks, leaders };
 }
 
 // ─── 프로필 정리 (서버 normLb · 손님 normalize 가 같이 쓴다) ─────
