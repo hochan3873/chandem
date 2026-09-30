@@ -218,7 +218,7 @@ function guardOn(fromGesture = false) {
   else if (armed >= 3) return;
   try { history.pushState({ lb: 'guard', d: ++hDepth }, ''); guarded = true; if (act) armed++; guardGesture = act; } catch { /* 무시 */ }
 }
-for (const t of ['pointerdown', 'keydown']) window.addEventListener(t, () => guardOn(true), { capture: true, passive: true });
+for (const t of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(t, () => guardOn(t !== 'pointerdown' || !('ontouchstart' in window)), { capture: true, passive: true }); // 폰: 손을 뗄 때가 진짜 '사용자 활성'
 for (const t of ['pointerdown', 'keydown']) window.addEventListener(t, () => { app.lastInput = performance.now(); }, { capture: true, passive: true });
 function leaveToHub() {
   saveSnap();
@@ -226,6 +226,14 @@ function leaveToHub() {
   setTimeout(() => { location.replace('/'); }, 180);
 }
 function guardOff() { /* 기록은 계속 한 칸만 유지 (예전 history.back 은 다른 페이지로 새는 일이 있어서 안 쓴다) */ }
+const SCREEN_OPEN = () => ({ shop: showShop, bag: showBag, members: showMembers, deck: showDeckTab, pvp: showPvp, missions: showMissions, season: showSeason, weekly: showWeekly, dex: showDex, stages: showStages, ranking: showRanking, prep: () => showPrep(app.mode, app.stage) });
+function noteScreen() { // show() 가 부른다
+  const h = app.screenHist || (app.screenHist = []);
+  if (app.navBack) { app.navBack = false; return; }
+  if (app.screen === 'play' || app.screen === 'result') { h.length = 0; return; }
+  if (h[h.length - 1] !== app.screen) h.push(app.screen);
+  if (h.length > 12) h.shift();
+}
 function closeTopLayer() {
   if (app.confirmOpen) { closeConfirm(false); return true; }
   const top = [...stage.querySelectorAll('.reveal, .gacha-res, .info-modal')].pop();
@@ -250,8 +258,14 @@ window.addEventListener('popstate', (ev) => {
     return;
   }
   if (app.screen === 'play' || app.screen === 'result') { app.g = null; showMenu(); return; }
-  if (app.screen !== 'menu') { showMenu(); return; }
-  confirmBox({ title: '랑방 대전을 종료하시겠습니까?', sub: '게임월드로 돌아가요', ok: '종료', cancel: '취소' }).then((ok) => { if (ok) leaveToHub(); });
+  if (app.screen !== 'menu') {
+    const h = app.screenHist || [];
+    if (h[h.length - 1] === app.screen) h.pop();
+    const prev = h[h.length - 1], open = SCREEN_OPEN()[prev];
+    if (prev && prev !== 'menu' && open) { app.navBack = true; open(); } else { h.length = 0; showMenu(); }
+    return;
+  }
+  confirmBox({ title: '찬이의 게임월드로 나갈까요?', sub: '랑방 대전을 닫고 게임월드로 돌아가요', ok: '나가기', cancel: '취소' }).then((ok) => { if (ok) leaveToHub(); });
 });
 
 // ─── 데모(메뉴 뒤에서 돌아가는 구경용 판) ─────────────
@@ -1539,6 +1553,7 @@ function show(html, cls = '') {
   const same = ui.firstElementChild && ui.firstElementChild.dataset.scr === app.screen;
   const keep = same ? ui.firstElementChild.scrollTop : 0;
   ui.innerHTML = `<div class="screen ${cls} ${same ? 'same' : 'enter'}" data-scr="${app.screen}">${html}</div>`;
+  noteScreen();
   // 아래 탭은 스크롤 화면 밖(화면 틀 맨 아래)에 둔다 — 스크롤 안에 있으면 폰에서 화면 가운데에 떠 버린다
   const nav = ui.firstElementChild.querySelector('.lb-nav');
   if (nav) ui.appendChild(nav);
