@@ -1788,23 +1788,11 @@ export class Renderer {
         cx.fillStyle = h.def.diet ? (h.alt ? '#ff5fa2' : '#ffb347') : h.alt ? '#a8a8a8' : '#ffc4ec';
         cx.fillRect(hx - bw / 2, ly + 8, bw * clamp01(f), 4);
       }
-      // 성준영: 체력바 · 잔소리 스택 · 화남
-      if (h.id === 'junyoung' && h.jhpMax) {
-        const f = clamp01(h.jhp / h.jhpMax), bw = 38;
-        cx.fillStyle = 'rgba(0,0,0,0.65)'; roundRect(cx, hx - bw / 2, hy - box * 0.95, bw, 5, 2.5); cx.fill();
-        cx.fillStyle = f < 0.35 ? '#ff5a5a' : '#9fd4ff'; roundRect(cx, hx - bw / 2, hy - box * 0.95, Math.max(2, bw * f), 5, 2.5); cx.fill();
-        cx.font = `900 8px ${FONT}`; cx.textAlign = 'center'; cx.fillStyle = h.rageT > 0 ? '#ff7a4f' : '#fff';
-        cx.fillText(`준영${h.nagStack ? ` ×${h.nagStack}` : ''}${h.rageT > 0 ? ' 🔥' : ''}`, hx, hy - box * 0.95 - 6);
-      }
-      // 정소영 잔소리 게이지 (가득 차면 성준영 소환) — "잔소리 70%"
-      if (h.def.nag) {
-        const on = g.heroes.some((o) => o.id === 'junyoung');
-        const f = on ? 1 : clamp01((h.meter || 0) / 100);
-        const bw = 40;
-        cx.fillStyle = 'rgba(0,0,0,0.65)'; roundRect(cx, hx - bw / 2, ly + 8, bw, 6, 3); cx.fill();
-        cx.fillStyle = on ? '#9fd4ff' : f >= 0.99 ? '#ff5fa2' : '#ffb8d0'; roundRect(cx, hx - bw / 2, ly + 8, Math.max(3, bw * f), 6, 3); cx.fill();
-        cx.font = `900 8px ${FONT}`; cx.fillStyle = '#fff'; cx.textAlign = 'center';
-        cx.fillText(on ? '준영 출동 중' : `잔소리 ${Math.round(f * 100)}%`, hx, ly + 20);
+      // 성준영: 남은 시간 막대
+      if (h.id === 'junyoung' && h.leaveT > 0) {
+        const bw = 38, f = clamp01(h.leaveT / 10);
+        cx.fillStyle = 'rgba(0,0,0,0.6)'; roundRect(cx, hx - bw / 2, hy - box * 0.95, bw, 5, 2.5); cx.fill();
+        cx.fillStyle = '#9fd4ff'; roundRect(cx, hx - bw / 2, hy - box * 0.95, Math.max(2, bw * f), 5, 2.5); cx.fill();
       }
       // 최은옥 술 게이지
       if (h.def.soberSec) {

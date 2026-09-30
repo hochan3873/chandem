@@ -1335,21 +1335,16 @@ test('줄 스킬 자동 조준: 가장 많이 걸리는 방향 · 아무도 없�
 });
 
 test('새 멤버 4명: 정소영 잔소리 → 성준영 소환(올인!) · 오지은 감속+악마 모습 · 박상화 성장+경험치 · 홍정민 입구 수리', () => {
-  // 정소영: 게이지가 차면 성준영이 나오고, 시간이 지나면 올인! 하고 사라진다
+  // 정소영: 스킬(올인 콜)을 쓰면 성준영이 나오고, 시간이 지나면 "들어갈게~" 하고 사라진다
   let g = S.createGame({ rng: seeded(501), noWaves: true, heroes: ['soyoung'] });
   const so = g.heroes[0];
-  so.meter = 100; g.phase = 'wave';
+  g.phase = 'wave';
   S.spawnEnemy(g, 'thug', so.x, so.y - 200, { hpMul: 100 });
-  S.step(g, 1 / 60);
+  so.skillCd = 0; assert.equal(S.castSkill(g, so), true);
   const jy = g.heroes.find((h) => h.id === 'junyoung');
   assert.ok(jy && jy.summon, '성준영 소환');
-  assert.ok(g.events.some((e) => e.type === 'summon'));
-  g.events.length = 0;
-  jy.jhp = 0; // 이제는 시간이 아니라 쓰러질 때 "올인!"
-  for (let i = 0; i < 30; i++) { S.step(g, 1 / 60); if (g.events.some((e) => e.type === 'allin')) break; }
-  assert.ok(g.events.some((e) => e.type === 'allin'), '올인!');
-  S.step(g, 1 / 60);
-  assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '사라짐');
+  for (let i = 0; i < 60 * 12; i++) S.step(g, 1 / 60);
+  assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '시간이 지나면 사라짐');
   // 오지은: 공격하면 악마 모습 + 맞은 진상 느려짐
   g = S.createGame({ rng: seeded(502), noWaves: true, heroes: ['jieun'] });
   const ji = g.heroes[0];
@@ -1421,21 +1416,6 @@ test('백인규 할리: 진상이 제일 많은 쪽으로 · 3칸 폭 띠 안은
   assert.ok(boss.hp < boss.maxHp && Math.abs(boss.x - bx) < 1, '보스는 맞지만 안 밀림');
 });
 
-test('정소영: 보통 판에서 30초 안에 성준영 소환 (덱 6칸 꽉 차도)', () => {
-  for (const deck of [[null, 'staff', 'bangjang', 'soyoung', 'gunman', null], ['gunnyeo', 'staff', 'bangjang', 'soyoung', 'gunman', 'ingyu']]) {
-    const g = S.createGame({ H: 760, rng: seeded(3), mode: 'stage', stage: 8, deck, meta: {}, god: true });
-    let at = null;
-    for (let t = 0; t < 30 && at === null; t += 1 / 60) {
-      S.step(g, 1 / 60);
-      for (const e of g.events) if (e.type === 'summon') at = g.t;
-      g.events.length = 0;
-      if (g.pendingLevels) { S.applyCard(g, S.rollCards(g)[0]); g.pendingLevels--; }
-    }
-    assert.ok(at !== null, `소환 (${deck.filter(Boolean).length}명 덱)`);
-    assert.ok(g.heroes.some((h) => h.id === 'junyoung'));
-  }
-});
-
 test('이한나 스킬 진화: 하트 빔이 한 줄로 늘어선 진상을 전부 꿰뚫는다 · 줄 밖은 안 맞음', () => {
   const g = S.createGame({ rng: seeded(77), noWaves: true, heroes: ['hanna'] });
   const h = g.heroes[0];
@@ -1501,23 +1481,6 @@ test('진상 특성: 범위 면역 · 분열 · 은신 · 회복 · 방깎 · �
   const gao = still(g, 'gao', 180, g.rowY - 250);
   const y0 = gao.y; S.applyKnockback(gao, 80, g);
   assert.equal(gao.y, y0, '가오충은 안 밀린다');
-});
-
-test('정소영 → 성준영: 10초 안에 나와서 걸어 나가고, 여러 진상을 맞힌다 · 잔소리가 맞을수록 세진다', () => {
-  const g = S.createGame({ H: 760, rng: seeded(31), mode: 'stage', stage: 8, deck: [null, 'staff', 'bangjang', 'soyoung', 'gunman', null], meta: {}, god: true });
-  let at = null;
-  for (let t = 0; t < 12 && at === null; t += 1 / 60) { S.step(g, 1 / 60); for (const e of g.events) if (e.type === 'summon') at = g.t; g.events.length = 0; if (g.pendingLevels) { S.applyCard(g, S.rollCards(g)[0]); g.pendingLevels--; } }
-  assert.ok(at !== null && at <= 12, '12초 안에 소환 ' + at);
-  const jy = g.heroes.find((h) => h.id === 'junyoung');
-  const y0 = jy.homeY;
-  const hitIds = new Set();
-  for (let t = 0; t < 8; t += 1 / 60) {
-    S.step(g, 1 / 60); g.events.length = 0;
-    if (g.pendingLevels) { S.applyCard(g, S.rollCards(g)[0]); g.pendingLevels--; }
-    for (const p of g.projs) if (p.hero === jy && p.target) hitIds.add(p.target.uid);
-  }
-  assert.ok(jy.py < y0 - 20 || jy.gone, '앞으로 걸어 나감');
-  assert.ok(hitIds.size >= 2, '여러 진상을 노린다 ' + hitIds.size);
 });
 
 test('보스 패턴: 예고(1초) → 기술 → 틈(약점) → 반복 · 체력 50% 에서 분노 2페이즈 · 도발 탱커가 먼저 맞는다', () => {
@@ -1629,4 +1592,27 @@ test('중간 보스: 기술 하나 (1초 예고 → 기술 → 틈) · 체력 50
   m.hp = m.maxHp * 0.4; S.step(g, 1 / 60);
   assert.equal(m.bai.p2, true);
   assert.ok(g.events.some((e) => e.type === 'midRage') || seen.includes('midRage') || m.bai.p2);
+});
+
+test('정소영 올인 콜 → 성준영: 진상을 한곳으로 모은다(평균 거리 ↓) · 정해진 시간 뒤 사라짐 · 가만히 서 있기(후퇴) 없음 · 덱 6칸 꽉 차도', () => {
+  for (const deck of [[null, 'staff', 'bangjang', 'soyoung', null, null], ['gunnyeo', 'staff', 'bangjang', 'soyoung', 'gunman', 'ingyu']]) {
+    const g = S.createGame({ H: 760, rng: seeded(7), noWaves: true, deck, meta: {}, god: true });
+    g.phase = 'wave';
+    const foes = [];
+    for (let i = 0; i < 8; i++) { const e = S.spawnEnemy(g, 'thug', 40 + i * 40, g.rowY - 230 - (i % 3) * 40, { hpMul: 400 }); e.speed = 0; foes.push(e); }
+    const spread = () => { let s = 0, n = 0; for (let a = 0; a < foes.length; a++) for (let b = a + 1; b < foes.length; b++) { s += Math.hypot(foes[a].x - foes[b].x, foes[a].y - foes[b].y); n++; } return s / n; };
+    const d0 = spread();
+    const so = g.heroes.find((h) => h.id === 'soyoung');
+    so.skillCd = 0; assert.equal(S.castSkill(g, so), true);
+    const jy = g.heroes.find((h) => h.id === 'junyoung');
+    assert.ok(jy, '소환 (' + deck.filter(Boolean).length + '명 덱)');
+    const ax = jy.ax;
+    let still = 0;
+    for (let i = 0; i < 60 * 6; i++) { const px = jy.px, py = jy.py; S.step(g, 1 / 60); if (Math.abs(jy.px - px) + Math.abs(jy.py - py) < 1e-6 && Math.hypot(jy.px - jy.ax, jy.py - (jy.ay + 70)) > 10) still++; }
+    assert.ok(spread() < d0 * 0.8, `뭉침 ${d0.toFixed(0)} → ${spread().toFixed(0)}`);
+    assert.ok(Math.abs(jy.ax - ax) < 120, '기준점이 크게 안 흔들림');
+    assert.equal(still, 0, '기준점에서 떨어진 채 멈춰 있지 않음');
+    for (let i = 0; i < 60 * 6; i++) S.step(g, 1 / 60);
+    assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '8초 뒤 사라짐');
+  }
 });

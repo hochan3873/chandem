@@ -231,8 +231,7 @@ function updateHeroes(g, dt) {
     // 오지은: 공격 · 스킬 때만 악마 모습
     if (d.demon && h.alt) { h.altT -= dt; if (h.altT <= 0) h.alt = false; }
     // 정소영: 잔소리 게이지 → 성준영 소환
-    if (d.nag && !hasHero(g, 'junyoung') && g.phase === 'wave' && h.stunT <= 0) h.meter = Math.min(100, (h.meter || 0) + (h.jyOnce ? d.nag.perSec || 0 : 100 / (d.nag.firstSec || 10)) * dt); // 첫 소환은 10초 안에 (보여 주려고) · 그 뒤로는 천천히 // 잔소리는 가만있어도 조금씩 찬다
-    if (d.nag && h.meter >= 100 && !hasHero(g, 'junyoung') && (g.phase === 'wave' || g.phase === 'intro')) summonJunyoung(g, h);
+    // 정소영: 성준영은 스킬(올인 콜)로만 부른다
     // 성준영: 시간이 다 되면 "올인!" 하고 사라진다
     if (d.summon) updateJunyoung(g, h, dt);
     // 홍정민: 틈틈이 붕대로 입구 수리 (탁탁)
@@ -676,11 +675,9 @@ export function fire(g, h, t) {
     case 'nag': // 정소영 잔소리 말풍선
       spawnProj(g, 'nag', h, t, dmg, { homing: true, pierce, r: 10 });
       break;
-    case 'chip': { // 성준영 홀덤 칩 · 카드 부채꼴 (가까운 진상 3명에게 한 장씩) · 소영 잔소리 스택만큼 세게
-      const boost = 1 + 0.05 * (h.nagStack || 0);
-      const near = g.enemies.filter((e) => !e.dead && !isHidden(e) && Math.hypot(e.x - h.x, e.y - h.y) < heroRange(g, h)).sort((a, b) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y)).slice(0, 3);
-      for (const e of near.length ? near : [t]) spawnProj(g, g.rng() < 0.4 ? 'card' : 'chip', h, e, dmg * boost * 0.6, { homing: true, pierce, spin: 14, r: 7 });
-      if (h.rageT > 0) h.cd -= (d.interval * 0.6);
+    case 'chip': { // 성준영: 칩 · 카드 부채꼴 (가까운 3명) — 맞으면 기준점으로 끌려와 뭉친다
+      const near = g.enemies.filter((e) => !e.dead && !isHidden(e) && Math.hypot(e.x - h.x, e.y - h.y) < heroRange(g, h)).sort((a, b) => Math.hypot(a.x - h.ax, a.y - h.ay) - Math.hypot(b.x - h.ax, b.y - h.ay)).reverse().slice(0, 3);
+      for (const e of near.length ? near : [t]) spawnProj(g, g.rng() < 0.4 ? 'card' : 'chip', h, e, d.chipDmg * (1 + 0.15 * (h.lv - 1)) * (1 + 0.2 * (h.cmN || 0)), { homing: true, pierce, spin: 14, r: 7, pull: true });
       break;
     }
     case 'tick': { // 오지은 시계침 (감속) — 쏘는 순간 악마 모습
@@ -702,52 +699,44 @@ export function fire(g, h, t) {
 }
 
 // 정소영 → 성준영 소환 (빈자리에, 없으면 정소영 옆에 겹쳐서) · 멤버 수 제한과 상관없이
-function summonJunyoung(g, h) {
-  const d = h.def;
-  h.meter = 0;
+function summonJunyoung(g, h, sec) {
+  if (hasHero(g, 'junyoung')) { const j0 = hasHero(g, 'junyoung'); j0.leaveT = Math.max(j0.leaveT, sec); return j0; }
   const used = new Set(g.heroes.map((o) => o.slot));
   const slot = SLOT_ORDER.filter((x) => x < g.nPos && !used.has(x))[0];
   g._summoning = true;
   const j = addHero(g, 'junyoung', slot);
   g._summoning = false;
-  if (!j) return;
+  if (!j) return null;
   if (slot === undefined) { j.slot = h.slot; j.x = h.x + 26; j.overlap = true; }
   j.lv = Math.min(5, h.lv); j.meta = h.meta; j.summon = true;
-  j.summonT = Infinity; // 이제 시간제한 없음 — 쓰러질 때까지 필드를 걸어 다닌다
-  j.jhpMax = 100 + 25 * (h.lv - 1) + (h.cm.nag || 0) * 10; j.jhp = j.jhpMax;
-  j.homeX = j.x; j.homeY = j.y; j.px = j.x; j.py = j.y; j.out = true; j.nagStack = 0; j.rageT = 0;
-  ev(g, 'summon', { hero: 'junyoung', x: j.x, y: j.y, by: h.id, again: !!h.jyOnce });
-  h.jyOnce = true;
+  j.summonT = Infinity; j.leaveT = sec; j.by = h.id;
+  const a = jyAnchor(g, h.x);
+  j.homeX = j.x; j.homeY = j.y; j.px = j.x; j.py = j.y; j.out = true;
+  j.ax = a.x; j.ay = a.y; j.anchorT = 2;
+  ev(g, 'summon', { hero: 'junyoung', x: j.x, y: j.y, by: h.id });
+  return j;
 }
-// 성준영: 진상이 몰린 쪽으로 걸어 나가 멈춰 서서 칩·카드를 뿌린다 · 진상에게 붙으면 체력이 깎이고 · 낮으면 입구로 물러난다
+// 기준점: 앞쪽(입구에 가까운)에서 진상이 가장 몰린 곳 — 난수 없음
+function jyAnchor(g, fx) {
+  let best = null, bs = -1;
+  for (const e of g.enemies) {
+    if (e.dead || e.y < 40) continue;
+    let n = 0;
+    for (const o of g.enemies) if (!o.dead && Math.abs(o.x - e.x) < 90 && Math.abs(o.y - e.y) < 90) n++;
+    const sc = n * 10 + e.y * 0.05;
+    if (sc > bs) { bs = sc; best = e; }
+  }
+  return best ? { x: clamp(best.x, 30, g.W - 30), y: clamp(best.y, 140, g.ropeY - 60) } : { x: clamp(fx, 30, g.W - 30), y: g.ropeY - 160 };
+}
+// 성준영: 기준점 근처에 서서 칩·카드를 던진다 — 맞은 진상은 기준점으로 끌려와 뭉친다 · 시간이 되면 "들어갈게~"
 function updateJunyoung(g, j, dt) {
-  if (j.rageT > 0) j.rageT -= dt;
-  const low = j.jhp < j.jhpMax * 0.35;
-  let tx = j.homeX, ty = j.homeY;
-  if (!low) {
-    const c = densestPoint(g, j.px, j.py, 520, 80);
-    if (c && c.n >= 1) { tx = clamp(c.x, 24, g.W - 24); ty = clamp(c.y + 90, 150, j.homeY); }
-  }
+  j.leaveT -= dt;
+  if ((j.anchorT -= dt) <= 0) { const a = jyAnchor(g, j.ax); j.ax += (a.x - j.ax) * 0.35; j.ay += (a.y - j.ay) * 0.35; j.anchorT = 2; } // 기준점은 천천히만 옮긴다
+  const tx = j.ax, ty = j.ay + 70; // 무리 바로 앞에 선다
   const dx = tx - j.px, dy = ty - j.py, dist = Math.hypot(dx, dy);
-  const sp = (low ? 110 : 75) * dt;
-  if (dist > 4) { j.px += (dx / dist) * Math.min(sp, dist); j.py += (dy / dist) * Math.min(sp, dist); }
+  if (dist > 3) { const sp = Math.min(dist, 120 * dt); j.px += (dx / dist) * sp; j.py += (dy / dist) * sp; }
   j.x = j.px; j.y = j.py;
-  // 붙어 있는 진상에게 맞는다
-  let hurt = 0;
-  for (const e of g.enemies) if (!e.dead && Math.abs(e.x - j.px) < 30 + e.r && Math.abs(e.y - j.py) < 36) hurt += e.atk * (e.boss ? 2 : 1);
-  if (hurt) j.jhp -= hurt * dt * 1.1;
-  // 화난 준영(잔소리 폭격): 칩 비
-  if (j.rageT > 0 && (j.rainT = (j.rainT || 0) - dt) <= 0) {
-    j.rainT = 0.18;
-    const t = nearestEnemy(g, j.px, j.py, 300);
-    if (t) forEnemiesNear(g, t.x, t.y, 50, (e) => { damageEnemy(g, e, heroDamage(g, j) * 0.45, false, j, true); return true; });
-    if (t) ev(g, 'chipRain', { x: t.x, y: t.y });
-  }
-  if (j.jhp <= 0) {
-    allinBurst(g, j); j.gone = true;
-    const so = g.heroes.find((o) => o.id === 'soyoung'); if (so) so.meter = 0;
-    ev(g, 'jyDown', { x: j.px, y: j.py });
-  }
+  if (j.leaveT <= 0) { j.gone = true; ev(g, 'jyLeave', { x: j.px, y: j.py }); }
 }
 function allinBurst(g, h) {
   const a = h.def.allin, boss = g.heroes.find((o) => o.id === 'soyoung');
@@ -884,7 +873,7 @@ function spawnProj(g, type, h, target, dmg, o) {
   p.slow = o.slow || 0; p.slowSec = (o.slowSec || 0) * g.mods.ctrlMul;
   p.stunChance = o.stunChance || 0; p.stunSec = (o.stunSec || 0) * g.mods.ctrlMul;
   p.kb = o.kb || 0; p.kbStun = o.kbStun || 0; p.critBonus = o.critBonus || 0;
-  p.swear = !!o.swear; p.chain = !!o.chain; p.splashStun = !!o.splashStun; p.bounces = o.bounces || 0; p.headshot = !!o.headshot;
+  p.swear = !!o.swear; p.chain = !!o.chain; p.splashStun = !!o.splashStun; p.bounces = o.bounces || 0; p.headshot = !!o.headshot; p.pull = !!o.pull;
   p.lob = false; p.fire = null; p.motoKb = o.motoKb || 0;
   p.spin = o.spin || 0; p.rot = a; p.boomerang = !!o.boomerang; p.returning = false;
   p.maxDist = o.maxDist || 9999; p.dist = 0; p.life = 3.2; p.rage = !!o.rage;
@@ -1907,8 +1896,7 @@ export function hitEnemy(g, p, e) {
     if (g.t - (e.ccT || -9) > 0.5) { e.ccT = g.t; ev(g, 'cc', { kind: k, x: e.x, y: e.y - e.def.size * 0.7 }); }
   }
   if (p.type === 'mosaic' && h && h.def.shred) { const sd = h.def.shred; e.shredPer = sd.per + (h.lv >= 5 ? 0.02 : 0); e.shredN = Math.min(sd.max + (h.lv >= 3 ? 1 : 0) + (h.cm.shredMax || 0), e.shredN + 1); e.shredT = sd.sec + (h.cm.shredSec || 0); e.healBlockT = Math.max(e.healBlockT, 2); }
-  if (p.type === 'nag' && h && h.def.nag) { const jy = g.heroes.find((o) => o.id === 'junyoung' && !o.gone); if (jy) jy.nagStack = Math.min(10, (jy.nagStack || 0) + 1); }
-  if (p.type === 'nag' && h && h.def.nag && !hasHero(g, 'junyoung')) h.meter = Math.min(100, (h.meter || 0) + h.def.nag.perHit[h.lv - 1] * (h.cm.nagFill || 1) * (h.lv >= 3 ? 1.15 : 1));
+  if (p.pull && h && h.ax !== undefined && !e.dead) { const k = e.boss || e.mid ? 0.08 : (e.def.traits && e.def.traits.kbImmune ? 0.12 : 0.4); e.x += (h.ax - e.x) * k; e.y += (h.ay - e.y) * k * 0.6; e.baseX = e.x; if (g.t - (e.ccT || -9) > 0.6) { e.ccT = g.t; ev(g, 'cc', { kind: 'pull', x: e.x, y: e.y - e.def.size * 0.7 }); } }
   if (p.type === 'gf') {
     // 여사친 핀볼: 밀어내고 → 다음 진상에게 튕긴다 → 다 튕기면 돌아온다
     if (!e.dead && !e.boss) applyKnockback(e, p.gfKb, g);
@@ -2487,12 +2475,10 @@ export function castSkill(g, h, x, y, echo) {
       ev(g, 'langbang', { x: h.x, y: h.y });
       break;
     }
-    case 'nagbomb': { // 정소영: 잔소리 폭격 + 게이지 가득
-      r = sk.r[lv];
-      forEnemiesNear(g, x, y, r, (e) => { damageEnemy(g, e, base * sk.mul, false, h, true); if (!e.dead && !e.boss) { e.slowT = Math.max(e.slowT, 2); e.slowMul = 0.6; } return true; });
-      h.meter = 100;
-      { const jy = g.heroes.find((o) => o.id === 'junyoung' && !o.gone); if (jy) { jy.rageT = 5; ev(g, 'jyRage', { x: jy.px, y: jy.py }); } }
-      ev(g, 'nagbomb', { x, y, r });
+    case 'allincall': { // 정소영: 올인 콜! 준영 등판 — 정해진 시간 동안 진상을 한곳으로 모은다
+      const sec = sk.sec[lv] + (h.cm.nag || 0);
+      const j = summonJunyoung(g, h, sec);
+      if (j) ev(g, 'allinCall', { x: j.x, y: j.y, sec });
       break;
     }
     case 'timestop': { // 오지은: 넓게 시간 정지 (크게 느려짐)

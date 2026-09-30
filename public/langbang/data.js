@@ -543,7 +543,7 @@ export function recommendAttrs(s) {
 const ART_READY = new Set(['h_jungmin', 'h_junyoung', 'h_soyoung', 'h_jieun', 'h_jieun_demon', 'h_sanghwa']);
 const ART = (n) => (ART_READY.has(n) ? `/img/lb/${n}.webp` : '');
 export const NO_DEX_ART = new Set([]); // dex/<id>.webp 없음
-export const NO_HQ_ART = new Set(['junyoung', 'wonsik']); // 원식 고화질 그림이 오면 빼기 // dexhq/<id>.webp 없음
+export const NO_HQ_ART = new Set(['junyoung']); // dexhq/<id>.webp 없음
 export const NO_DUO_ART = new Set([]); // dexhq/<id>_duo.webp 없음
 export const HEROES = {
   bangjang: {
@@ -792,7 +792,7 @@ export const SUMMONS = {
   junyoung: {
     id: 'junyoung', summon: true, bossKit: 1, kit: 1, name: '성준영', gender: 'm', emoji: '🃏', color: '#9fd4ff', attr: 'talk',
     img: ART('h_junyoung'), role: '소환 · 홀덤 칩과 카드 던지기',
-    dmg: 20, chipDmg: 34, interval: 0.55, range: 380, proj: 'chip', projSpeed: 600, // 칩 한 번 = 고정 피해 (강화·레벨 조금) · 끌어당기기가 본업
+    dmg: 20, chipDmg: 28, interval: 0.55, range: 380, proj: 'chip', projSpeed: 600, // 칩 한 번 = 고정 피해 (강화·레벨 조금) · 끌어당기기가 본업
     allin: { r: 90, mul: 5 }, // 쓰러질 때 "올인!" 작은 폭발 (피해 = 한 발 × 5)
     attack: '홀덤 칩 · 카드 — 빠르게 휙휙 던진다. 사라질 때 "올인!"',
     desc: '비실비실해 보이지만 칩 던지는 손목은 프로. 소영이 부르면 어쩔 수 없이 나온다.',

@@ -1083,6 +1083,7 @@ function frame(now) {
   if (g && !app.paused && !app.confirmOpen) {
     const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
     const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
+    if (live && live.augOffer && !app.paused) { live.augOffer.t -= dt * 0.8; if (DEBUG.autopick) { S.applyAug(live, live.augOffer.opts[0]); handleEvents(live, true); } } // 증강 제한 시간은 실제 시간으로 (고르는 동안 느려져도)
     if (live && live.mode === 'endless' && !live.over && !app.paused) {
       const idle = performance.now() - (app.lastInput || performance.now());
       if (idle > 60000) { live.afkSec = (live.afkSec || 0) + dt; if (!app.afkShown) { app.afkShown = true; fx.banner('💤 자리 비움 — 보상 멈춤', '화면을 누르면 다시 보상이 쌓여요', '#333a55', 2.2, 'big'); } }
