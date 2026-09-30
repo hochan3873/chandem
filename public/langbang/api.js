@@ -116,7 +116,7 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
+const LIVE_KEYS = ['stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
@@ -301,6 +301,19 @@ export async function sellGear(id, guest) {
     });
   }
   const r = await call('/api/langbang/gear/sell', { id });
+  if (r.ok && r.profile) r.profile = normalize(r.profile, false);
+  return r;
+}
+export async function cardConvert(guest) {
+  if (guest) {
+    return guestSpend((p) => {
+      const list = Object.keys(HEROES).filter((h) => (p.heroes[h] | 0) >= metaMaxOf(h) && ((p.hstars || {})[h] | 0) >= 5 && ((p.shards || {})[h] | 0) > 0);
+      if (!list.length) return { error: '바꿀 남는 카드가 없어요 (강화 최대 + ★5 멤버의 카드만)' };
+      const n = list.reduce((s0, h) => s0 + (p.shards[h] | 0), 0);
+      return { cost: 0, apply: (x) => { x.shards = Object.assign({}, x.shards); for (const h of list) x.shards[h] = 0; x.wild = (x.wild | 0) + n; } };
+    });
+  }
+  const r = await call('/api/langbang/cards/convert', {});
   if (r.ok && r.profile) r.profile = normalize(r.profile, false);
   return r;
 }

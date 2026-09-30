@@ -174,7 +174,7 @@ test('랑방 대전: 스테이지 보상은 서버가 계산 (클라이언트 �
 test('랑방 대전: 영웅 강화(최대 20) · 아이템 구입은 서버가 비용 확인, 잠긴 멤버는 강화 불가', async () => {
   const u = await lbUser('lbshop', '상점왕');
   const st = await u.raw();
-  st.langbang = { ...(st.langbang || {}), coins: 5000 };
+  st.langbang = { ...(st.langbang || {}), coins: 5000, shards: { gunman: 1 } }; // 강화엔 그 멤버 카드도 (+1: 1장)
   let r = await lbPost('/api/langbang/upgrade', u.token, { hero: 'gunman' });
   assert.equal(r.ok, true, r.message);
   assert.equal(r.profile.heroes.gunman, 1);
@@ -214,7 +214,9 @@ test('랑방 대전: 영웅 강화(최대 20) · 아이템 구입은 서버가 �
   assert.deepEqual(r.unlockedHeroes, ['eunok']);
   assert.equal(r.endlessUnlocked, true);
   assert.ok(r.profile.unlocked.includes('eunok'));
-  assert.equal((await lbPost('/api/langbang/upgrade', u.token, { hero: 'eunok' })).ok, true);
+  assert.equal((await lbPost('/api/langbang/upgrade', u.token, { hero: 'eunok' })).ok, false, '카드가 없으면 강화 불가');
+  (await u.raw()).langbang.shards = { eunok: 1 };
+  assert.equal((await lbPost('/api/langbang/upgrade', u.token, { hero: 'eunok' })).ok, true, '카드 1장이면 강화');
 });
 
 test('랑방 대전: 무한 도전은 1-10 뒤에 열리고, 코인은 도달 웨이브로 서버가 계산', async () => {

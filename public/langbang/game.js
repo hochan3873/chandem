@@ -4,7 +4,7 @@ import {
   CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS, itemCost,
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
-  GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
+  GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
 } from './data.js';
 import * as L from './live.js';
@@ -1541,6 +1541,40 @@ const coinsPill = () => `<span class="coins-pill"><i class="ci"></i>${P().unlimi
 // ─── 로비 (메인 화면) ─────────────────────────────────
 // 뒤에는 데모 전투가 계속 돌고(어둡게), 가운데 챕터 디오라마, 아래 출격 버튼 · 왼쪽 이벤트 · 오른쪽 메뉴 · 맨 아래 탭
 const uid = () => API.liveUid();
+// ─── 그린 UI 아이콘 (ui2/<이름>.webp) · 없으면 이모지 그대로 ─────
+// ic(): 직접 넣을 때 · iconize(): 화면에 붙는 글자 속 이모지를 자동으로 그림으로 (속성·장비 아이콘 · 채팅 · 입력칸은 제외)
+const IC_MAP = { '👑': 'crown', '⚔️': 'swords', '⚔': 'swords', '🎟️': 'ticket', '🎟': 'ticket', '⏳': 'hourglass', '⌛': 'hourglass', '🔒': 'lock', '🔓': 'unlock', '🔥': 'fire', '🏆': 'trophy', '💎': 'gem', '🪨': 'gem', '📅': 'calendar', '📆': 'calendar', '🐉': 'dragon', '🎁': 'gift', '💡': 'bulb', '🎒': 'bag', '♾️': 'infinity', '♾': 'infinity', '🥇': 'medal1', '🥈': 'medal2', '🥉': 'medal3', '📣': 'megaphone', '📢': 'megaphone', '⚡': 'bolt', '🗡️': 'dagger', '🗡': 'dagger', '🗺️': 'map', '🗺': 'map', '📤': 'share', '🛠️': 'tools', '🛠': 'tools', '🏷️': 'tag', '🏷': 'tag', '🏠': 'home', '💥': 'boom', '🎯': 'target', '✨': 'sparkle', '🧹': 'broom', '⚗️': 'flask', '⚗': 'flask', '📖': 'book', '📚': 'book', '🚪': 'door', '🛒': 'cart', '💍': 'ring', '🖼️': 'frame', '🖼': 'frame', '🛡️': 'shield', '🛡': 'shield', '🔮': 'orb' };
+const IC_RE = new RegExp(Object.keys(IC_MAP).sort((a, b) => b.length - a.length).join('|'), 'gu'); // (이모지엔 정규식 특수문자가 없다)
+const icBad = new Set();
+const ic = (name, emoji = '', size = '') => `<img class="ic${size ? ' ' + size : ''}" src="/img/lb/ui2/${name}.webp" alt="${emoji}" draggable="false" onerror="this.replaceWith(document.createTextNode(this.alt))">`;
+const IC_SKIP = '.uic, .gico, .aico, .no-ic, .chat, .room-chat, input, textarea, select, canvas, script, style, #toast';
+function iconize(root) {
+  if (!root || root.nodeType !== 1 || (root.closest && root.closest(IC_SKIP))) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => { IC_RE.lastIndex = 0; if (!IC_RE.test(n.nodeValue)) return NodeFilter.FILTER_REJECT; return n.parentElement && n.parentElement.closest(IC_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+  const list = [];
+  for (let n = w.nextNode(); n; n = w.nextNode()) list.push(n);
+  for (const n of list) {
+    const frag = document.createDocumentFragment();
+    let last = 0; const t = n.nodeValue;
+    IC_RE.lastIndex = 0;
+    for (let m = IC_RE.exec(t); m; m = IC_RE.exec(t)) {
+      const name = IC_MAP[m[0]];
+      if (icBad.has(name)) continue;
+      if (m.index > last) frag.appendChild(document.createTextNode(t.slice(last, m.index)));
+      const img = document.createElement('img');
+      img.className = 'ic'; img.src = `/img/lb/ui2/${name}.webp`; img.alt = m[0]; img.draggable = false;
+      img.onerror = () => { icBad.add(name); img.replaceWith(document.createTextNode(m[0])); };
+      frag.appendChild(img);
+      last = m.index + m[0].length;
+    }
+    if (last === 0) continue;
+    if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+    n.replaceWith(frag);
+  }
+}
+// 무대에 붙는 모든 화면·팝업·배너를 자동으로 (글자만 바뀐 곳도)
+new MutationObserver((ms) => { for (const m of ms) for (const nd of m.addedNodes) { if (nd.nodeType === 1) iconize(nd); else if (nd.nodeType === 3 && nd.parentElement) iconize(nd.parentElement); } })
+  .observe(stage, { childList: true, subtree: true });
 function uiIco(name, emoji, cls = '') {
   return `<span class="uic ${cls}"><img src="/img/lb/ui/${name}.webp" alt="" draggable="false" onerror="this.parentNode.classList.add('noimg');this.remove()"><em>${emoji}</em></span>`;
 }
@@ -1558,7 +1592,7 @@ function dots() {
   const season = p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t));
   const wk = (p.maxStage | 0) >= L.WEEKLY_UNLOCK && !(p.weekly && p.weekly.wi === L.weekIndex(now) && p.weekly.runs > 0);
   const members = Object.keys(HEROES).some((h) => API.heroUnlocked(p, h) && L.heroStar(p, h) < L.STAR_MAX && (p.shards[h] | 0) >= L.STAR_SHARDS[L.heroStar(p, h)]);
-  const upg = owned().some((h) => { const c = API.costOf(p, h); return c !== null && c !== undefined && (p.coins | 0) >= c && (p.heroes[h] | 0) < 5; });
+  const upg = owned().some((h) => { const c = API.costOf(p, h); const lv = p.heroes[h] | 0; return c !== null && c !== undefined && (p.coins | 0) >= c && lv < 5 && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv); });
   const gearBetter = (() => { const ids = [...new Set((curDeck() || []).filter(Boolean))]; return ids.some((h) => ['w', 'a'].some((k) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)); })); })();
   return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: members || upg, bag: gearBetter };
 }
@@ -1861,7 +1895,9 @@ function showShop() {
         <div class="pips">${pips}</div></div>
         <button class="btn ${can ? 'primary' : ''}" data-act="buyItem" data-id="${id}" ${can ? '' : 'disabled'}>${cost === null ? 'MAX' : `<i class="ci"></i>${fmt(cost)}`}</button></div>`;
     }).join('')}</div>
-    <p class="sub" style="margin-top:10px">덱 칸이 많을수록 뒤 챕터가 쉬워져요 · 기본 ${DECK_BASE}칸</p>`;
+    <p class="sub" style="margin-top:10px">덱 칸이 많을수록 뒤 챕터가 쉬워져요 · 기본 ${DECK_BASE}칸</p>
+    ${(() => { const wi = L.weekIndex(Date.now()); const n = p.cardPick && p.cardPick.wi === wi ? p.cardPick.n : 0; const left = CARD_PICK.perWeek - n; return `<div class="up item"><span class="it-ico">🃏</span><div class="mid"><b>멤버 카드 선택권<span class="lvtag">이번 주 ${left}/${CARD_PICK.perWeek}</span></b><small class="eff">고른 멤버 카드 ${CARD_PICK.n}장 (강화·★승급에 써요)</small></div><button class="btn ${left > 0 && p.coins >= CARD_PICK.cost ? 'primary' : ''}" data-act="cardPickOpen" ${left > 0 ? '' : 'disabled'}><i class="ci"></i>${fmt(CARD_PICK.cost)}</button></div>`; })()}
+    <button class="btn ghost" data-act="cardConvert" style="margin-top:8px">🔁 다 키운 멤버의 남는 카드 → 범용 카드 (보유 ${p.wild | 0})</button>`;
   }
   show(`
     ${subTop('상점')}
@@ -2149,9 +2185,10 @@ function showHeroModal(id, ctx = '') {
       <div class="hf-up">
         <div class="hf-row"><span>⚔ 전투력</span>${legendNum(fmt(pw))}${pwNext > pw ? `<i class="gu">→ ${fmt(pwNext)} (+${fmt(pwNext - pw)})</i>` : ''}</div>
         <div class="hf-row"><span>강화</span><b>+${lv} / ${metaMaxOf(id)}</b><small>레벨마다 공격력 +${(TIER_GROWTH[t] * 100).toFixed(1)}% · 상태이상 -1.5%</small></div>
+        <div class="hf-row"><span>🃏 카드</span><b>${p.shards[id] | 0}장${p.wild ? ` <small>+ 범용 ${p.wild}</small>` : ''}</b><small>강화(+1~5 1장 · +6~10 2장 · +11~15 3장 · +16~20 5장)와 ★승급에 같이 써요 <button class="lnk" data-act="cardWhere">얻는 곳</button></small></div>
         <div class="hf-row"><span>★ 승급</span><b>${'★'.repeat(st)}<i class="dim">${'★'.repeat(L.STAR_MAX - st)}</i></b><small>조각 ${p.shards[id] | 0}${st < L.STAR_MAX ? ` / ${needS}` : ''} · ★마다 공격력 +${Math.round(L.STAR_ATK * 100)}%</small></div>
         ${ok ? `<div class="grid2 hm-btns">
-          <button class="btn ${cost !== null && p.coins >= cost ? 'primary' : ''}" data-act="buy" data-id="${id}" data-pw="${pw}" ${cost !== null && p.coins >= cost ? '' : 'disabled'}>강화 +${lv + 1}<small>${cost === null ? 'MAX' : `${p.unlimited ? '공짜' : fmt(cost) + '코인'}`}</small></button>
+          ${(() => { const free = p.master && !p.testNormal; const cn = free || cost === null ? 0 : heroCardNeed(lv); const have = (p.shards[id] | 0) + (p.wild | 0); const can = cost !== null && (free || (p.coins >= cost && have >= cn)); return `<button class="btn ${can ? 'primary' : ''}" data-act="buy" data-id="${id}" data-pw="${pw}" ${can ? '' : 'disabled'}>강화 +${lv + 1}<small>${cost === null ? 'MAX' : free ? '공짜' : `${fmt(cost)}코인 · 🃏${Math.min(have, 99)}/${cn}`}</small></button>`; })()}
           <button class="btn ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? 'pink' : ''}" data-act="starUp" data-id="${id}" ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? '' : 'disabled'}>★ 승급<small>${st >= L.STAR_MAX ? 'MAX' : `조각 ${p.shards[id] | 0}/${needS}`}</small></button>
         </div>` : ''}
       </div>`
@@ -2434,6 +2471,10 @@ Object.assign(ACTS, {
   heroCard: (b) => showHeroModal(b.dataset.id, app.screen === 'prep' ? 'prep' : ''),
   starUp: (b) => doStarUp(b.dataset.id),
   misTab: (b) => { app.misTab = b.dataset.tab; showMissions(); },
+  cardWhere: () => popup(`<h3>🃏 멤버 카드 얻는 곳</h3><div class="ilist"><p class="ip">🎰 <b>모집</b> — 멤버 조각 ×4 · ×10 (가진 멤버에게)</p><p class="ip">🗺️ <b>스테이지</b> — 데려간 멤버 카드가 가끔 (별 많을수록 · 헬은 2배)</p><p class="ip">🛍️ <b>상점 선택권</b> — 고른 멤버 ${CARD_PICK.n}장 · 주 ${CARD_PICK.perWeek}번</p><p class="ip">🔁 <b>범용 카드</b> — 다 키운 멤버의 남는 카드를 바꾸면 누구 강화에나 써요</p></div><button class="btn primary" data-x>알겠어요</button>`, 'card-where'),
+  cardPickOpen: () => popup(`<h3>🃏 누구 카드를 받을까요?</h3><div class="cp-grid">${owned().map((h) => `<button class="cp-h" data-act="cardPickGo" data-id="${h}">${av(HEROES[h])}<b>${esc(HEROES[h].name)}</b><small>🃏${P().shards[h] | 0}</small></button>`).join('')}</div>`, 'card-pick'),
+  cardPickGo: async (b) => { const r = await liveAct(API.cardPick(b.dataset.id, app.guest)); if (r) { closeInfoCard(); toast(`🃏 ${HEROES[b.dataset.id].name} 카드 +${CARD_PICK.n}`); refresh(); } },
+  cardConvert: async () => { const r = await liveAct(API.cardConvert(app.guest)); if (r) { toast(`🔁 범용 카드 ${P().wild | 0}장`); refresh(); } },
   synMore: () => { app.synOpen = !app.synOpen; app.hudCache.syn = null; },
   bulkOn: () => { app.bulk = new Set(); app.fuse = null; app.bagSel = null; showBag(); },
   fuseOn: () => { app.fuse = []; app.bulk = null; app.bagSel = null; showBag(); },
@@ -3437,7 +3478,7 @@ async function saveResult(sum, g) {
   }).join('');
   const endless = r.endlessUnlocked ? '<div class="unlock"><span class="big-ico">♾️</span><div><small>새 모드 열림!</small><b>무한 도전</b><span>어디까지 버티나 랭킹 경쟁!</span></div></div>' : '';
   const drops = (rw.drops || []).map((it) => `<span class="drop r-${it.r}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}<b>${esc(GEAR[it.t].name)}</b><small>${GEAR_RARITY[it.r].name}${it.sold ? ` · 가방 꽉 참 → +${it.sold}` : ''}</small></span>`).join('');
-  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">💎 강화석 <b>+${rw.stones}</b></div>` : ''}</div>${drops ? `<div class="drops"><small>🎁 장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
+  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">💎 강화석 <b>+${rw.stones}</b></div>` : ''}${rw.cardDrop && HEROES[rw.cardDrop] ? `<div class="rw-stones">🃏 ${esc(HEROES[rw.cardDrop].name)} 카드 <b>+1</b></div>` : ''}</div>${drops ? `<div class="drops"><small>🎁 장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
     <div class="own">${badges.join('')}<span>보유 <i class="ci"></i>${fmt(p.coins)}</span>${app.guest ? ' · <span class="dimtxt">손님 기록은 이 기기에만</span>' : ''}</div>`;
   if (unlocks) { fx.flash('#ff9ff0', 0.4); A.sfx.join(); }
   for (const id of r.unlockedHeroes || []) await showJoinReveal(id, HEROES[id].legend ? 'legend' : HEROES[id].hidden ? 'hidden' : 'new');

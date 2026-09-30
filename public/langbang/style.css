@@ -1956,3 +1956,9 @@ html, body { height: 100%; height: -webkit-fill-available; height: 100svh; heigh
 .rw-stones { margin-top: calc(var(--u) * 4); font-weight: 900; color: #cfe3ff; }
 .bulk-go { flex-wrap: wrap; } .bulk-go .btn { width: auto; flex: 0 0 auto; padding-left: calc(var(--u) * 12); padding-right: calc(var(--u) * 12); } .bulk-go .btn:last-child { flex: 1 1 auto; }
 .bulk-go .btn[data-act="bulkSell"] { flex: 1 1 auto; }
+
+.cp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 6); max-height: 55vh; overflow-y: auto; }
+.cp-h { display: flex; flex-direction: column; align-items: center; padding: calc(var(--u) * 4); border-radius: calc(var(--u) * 10); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); }
+.cp-h .av { width: calc(var(--u) * 44); height: calc(var(--u) * 44); }
+.cp-h b { font-size: calc(var(--u) * 10); } .cp-h small { font-size: calc(var(--u) * 9); color: var(--dim); }
+.hf-row .lnk { background: none; border: 0; color: #7df9ff; font: inherit; font-weight: 900; text-decoration: underline; padding: 0 0 0 calc(var(--u) * 4); }

@@ -382,3 +382,36 @@ test('모집권: 보상(업적 · 모두 받기 · 별 상자 · 출석)으로 �
   assert.equal(pull.ok, true, '받자마자 모집: ' + pull.message);
   assert.equal(pull.profile.tickets, tix - 1);
 });
+
+test('멤버 강화 = 코인 + 그 멤버 카드 (+1~5 1장 · +6~10 2장 · +11~15 3장 · +16~20 5장) · 범용 카드 · 카드 선택권 주 3번 · 전환', async () => {
+  const LBR = require('../server/langbang-rules');
+  const D = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'data.js')).href);
+  assert.deepEqual([0, 4, 5, 9, 10, 14, 15, 19].map(LBR.heroCardNeed), [1, 1, 2, 2, 3, 3, 5, 5]);
+  for (let lv = 0; lv < 20; lv++) assert.equal(LBR.heroCardNeed(lv), D.heroCardNeed(lv));
+  for (let s = 0; s < 50; s++) assert.equal(LBR.rollHeroCard(s * 31, 3, s % 2 === 0, ['staff', 'gunman']), D.rollHeroCard(s * 31, 3, s % 2 === 0, ['staff', 'gunman']));
+  const u = await user('cardup');
+  const setLb = async (o) => { const st = await srv.accounts.store.byId(u.user.id); st.stats.langbang = Object.assign(st.stats.langbang || {}, o); await srv.accounts.store.saveStats(u.user.id, st.stats); };
+  await setLb({ coins: 1e6, heroes: { staff: 5 }, shards: { staff: 1 }, wild: 0 });
+  const a = await post('/api/langbang/upgrade', u.token, { hero: 'staff' });
+  assert.equal(a.ok, false, '+6 은 2장'); assert.match(a.message, /카드/);
+  await setLb({ wild: 1 });
+  const b = await post('/api/langbang/upgrade', u.token, { hero: 'staff' });
+  assert.equal(b.ok, true, b.message); assert.equal(b.profile.heroes.staff, 6); assert.equal(b.profile.shards.staff | 0, 0); assert.equal(b.profile.wild, 0, '범용 카드로 채움');
+  for (let i = 0; i < 3; i++) { const r = await post('/api/langbang/cards/pick', u.token, { hero: 'staff' }); assert.equal(r.ok, true, r.message); }
+  const c = await post('/api/langbang/cards/pick', u.token, { hero: 'staff' });
+  assert.equal(c.ok, false, '주 3번까지');
+  const me = await get('/api/langbang/me', u.token);
+  assert.equal(me.profile.shards.staff, LBR.CARD_PICK.n * 3);
+  await setLb({ heroes: { staff: LBR.metaMaxOf('staff') }, hstars: { staff: 5 }, shards: { staff: 7 }, wild: 0 });
+  const cv = await post('/api/langbang/cards/convert', u.token, {});
+  assert.equal(cv.ok, true, cv.message); assert.equal(cv.profile.wild, 7); assert.equal(cv.profile.shards.staff | 0, 0);
+  // 마스터: 기본은 카드 없이도 · 테스트 모드면 카드 필요
+  const m = await srv.accounts.login({ username: 'gun8401', password: 'secret12' });
+  await post('/api/langbang/master', m.token, { action: 'reset' });
+  const m1 = await post('/api/langbang/upgrade', m.token, { hero: 'staff' });
+  assert.equal(m1.ok, true, m1.message);
+  await post('/api/langbang/master', m.token, { action: 'testNormal', on: true });
+  const m2 = await post('/api/langbang/upgrade', m.token, { hero: 'gunman' });
+  assert.equal(m2.ok, false, '테스트 모드: 카드 없으면 안 됨');
+  await post('/api/langbang/master', m.token, { action: 'testNormal', on: false });
+});
