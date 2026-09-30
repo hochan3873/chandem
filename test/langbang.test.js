@@ -1616,3 +1616,13 @@ test('정소영 올인 콜 → 성준영: 진상을 한곳으로 모은다(평�
     assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '8초 뒤 사라짐');
   }
 });
+
+test('글자 CSS 규칙: -webkit-text-stroke · paint-order · background-clip:text 금지 (안드로이드에서 글자가 뭉개진다)', () => {
+  const fs = require('fs');
+  const css = fs.readFileSync(require('path').join(__dirname, '..', 'public', 'langbang', 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const bad = [];
+  css.split('\n').forEach((l, i) => {
+    if (/-webkit-text-stroke\s*:\s*(?!0\s*[;!}])/.test(l) || /paint-order\s*:\s*stroke/.test(l) || /background-clip\s*:\s*text/.test(l) || /text-fill-color\s*:\s*transparent/.test(l)) bad.push(`${i + 1}: ${l.trim().slice(0, 80)}`);
+  });
+  assert.deepEqual(bad, []);
+});
