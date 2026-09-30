@@ -2,7 +2,7 @@
 // 다 되면 "화면을 터치해서 시작" → 그 터치로 소리를 풀어서(자동 재생 막힘 해결) 메인 배경음악이 바로 나온다.
 // 새로 열 때마다 뜬다 (브라우저가 터치 전엔 소리를 막아서). 단, 이 탭에서 이미 소리를 풀었으면 숨긴 채로
 // 조용히 풀기를 먼저 해 보고 안 될 때만 보여 준다. 전에 와 본 사람은 진행 막대 없이 바로 "터치해서 시작".
-// 로딩 화면을 건너뛰었는데도 소리가 막혀 있으면 오른쪽 아래에 "🔇 소리 켜기" 버튼을 띄운다.
+// 로딩 화면을 건너뛰었는데도 소리가 막혀 있으면 오른쪽 아래에 "소리 켜기" 버튼을 띄운다.
 import * as sound from './sound.js';
 
 const html = document.documentElement;
@@ -13,20 +13,20 @@ const ITEM_MAX_MS = 5000;  // 파일 하나 최대 대기
 
 const TIPS = [
   '팁: 랑방 대전은 상성 맞는 팀이 유리해요',
-  '팁: 매일 📅 출석 체크하면 랑방 코인을 받아요. 7일째엔 300개!',
+  '팁: 매일 출석 체크하면 랑방 코인을 받아요. 7일째엔 300개!',
   '팁: 친구에게 초대 링크만 보내면 가입 없이 바로 같이 놀 수 있어요',
-  '팁: 혼자일 땐 🤖 AI와 연습하기로 봇과 한 판!',
+  '팁: 혼자일 땐 AI와 연습하기로 봇과 한 판!',
   '팁: 섯다는 세 장 섯다도 있어요. 좋은 두 장을 자동으로 골라 줘요',
   '팁: 오목에서 흑은 삼삼 금지! 로그인하면 티어가 올라가요',
   '팁: 로그인하면 전적과 랭킹이 쌓여요',
-  '팁: ⚙️ 설정에서 배경음악·진동을 끄고 켤 수 있어요',
-  '팁: 📲 앱 설치를 하면 전체 화면으로 더 편하게 놀 수 있어요',
+  '팁: 설정에서 배경음악·진동을 끄고 켤 수 있어요',
+  '팁: 앱 설치를 하면 전체 화면으로 더 편하게 놀 수 있어요',
 ];
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const lbArt = () => { let n = 1; try { n = Math.trunc(Number(JSON.parse(localStorage.getItem('langbang:chapter') || '1'))); } catch {} return n >= 1 && n <= 6 ? `/img/lb/keyart${n}.webp` : '/img/lb/keyart1.webp'; };
 
-// ── 🔇 소리 켜기 (소리가 막혀 있을 때만) ──
+// ── 소리 켜기 (소리가 막혀 있을 때만) ──
 function soundPill() {
   if (sound.soundOff() || (navigator.webdriver && !/[?&]splash\b/.test(location.search))) return;
   let pill = null;
@@ -36,7 +36,7 @@ function soundPill() {
     pill = document.createElement('button');
     pill.id = 'snd-pill';
     pill.type = 'button';
-    pill.innerHTML = '🔇 소리 켜기';
+    pill.innerHTML = '소리 켜기';
     pill.setAttribute('aria-label', '소리 켜기');
     pill.onclick = () => { sound.unlock(); setTimeout(check, 400); };
     document.body.appendChild(pill);

@@ -35,7 +35,7 @@ function nicknameProblem(nick, { master = false } = {}) {
   if (/[<>]/.test(nick) || /[\u0000-\u001f]/.test(nick)) return '쓸 수 없는 글자가 들어 있어요';
   const sq = squash(nick);
   if (!sq) return '글자나 숫자를 넣어 주세요';
-  if (BAD_WORDS.some((w) => sq.includes(w))) return '고운 말로 지어 주세요 🙏';
+  if (BAD_WORDS.some((w) => sq.includes(w))) return '고운 말로 지어 주세요 ';
   if (!master && RESERVED.some((w) => sq === w || (w.length >= 3 && sq.includes(w)))) return '운영자처럼 보이는 닉네임은 쓸 수 없어요';
   return null;
 }

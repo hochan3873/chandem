@@ -13,22 +13,22 @@ const CACHE_MS = 60 * 1000;
 
 // ── 등급 ─────────────────────────────────────────────
 const HOLDEM_TIERS = [
-  [82, '레전드', '👑', '#ff5d73'], [74, '하이롤러', '💰', '#ffb347'], [66, '다이아', '💎', '#6fd3ff'],
-  [58, '플래티넘', '🛡️', '#4fe0c1'], [50, '골드', '🥇', '#ffd35a'], [40, '실버', '🥈', '#cfd8e3'], [-Infinity, '브론즈 칩', '🥉', '#d59a6a'],
+  [82, '레전드', 'crown', '#ff5d73'], [74, '하이롤러', 'coin', '#ffb347'], [66, '다이아', 'trophy', '#6fd3ff'],
+  [58, '플래티넘', 'trophy', '#4fe0c1'], [50, '골드', 'trophy', '#ffd35a'], [40, '실버', 'spade', '#cfd8e3'], [-Infinity, '브론즈 칩', 'coin', '#d59a6a'],
 ];
 const SEOTDA_TIERS = [
-  [82, '신의 손', '🖐️', '#ff5d73'], [72, '명인', '🎖️', '#c77dff'], [62, '고수', '🐉', '#ffb347'],
-  [52, '꾼', '🎴', '#ffd35a'], [42, '선수', '🃏', '#9fd8ff'], [-Infinity, '초짜', '🌱', '#b5e8a3'],
+  [82, '신의 손', 'crown', '#ff5d73'], [72, '명인', 'trophy', '#c77dff'], [62, '고수', 'trophy', '#ffb347'],
+  [52, '꾼', 'hwatu', '#ffd35a'], [42, '선수', 'cards', '#9fd8ff'], [-Infinity, '초짜', 'coin', '#b5e8a3'],
 ];
 /** 오목 급·단: 600점 아래 18급, 40점마다 한 급씩 → 1280점 1급, 1320점 초단, 60점마다 한 단 → 1800점 9단 */
 function omokGrade(rating) {
   const r = Number(rating) || 0;
   if (r >= 1320) {
     const dan = Math.min(9, 1 + Math.floor((r - 1320) / 60));
-    return { name: dan === 1 ? '초단' : `${dan}단`, icon: '⚫', color: dan >= 7 ? '#ff5d73' : dan >= 4 ? '#c77dff' : '#ffd35a', level: 18 + dan };
+    return { name: dan === 1 ? '초단' : `${dan}단`, icon: 'omok', color: dan >= 7 ? '#ff5d73' : dan >= 4 ? '#c77dff' : '#ffd35a', level: 18 + dan };
   }
   const kyu = Math.max(1, Math.min(18, 18 - Math.floor((r - 600) / 40)));
-  return { name: `${kyu}급`, icon: '⚪', color: kyu <= 5 ? '#6fd3ff' : kyu <= 10 ? '#4fe0c1' : '#cfd8e3', level: 19 - kyu };
+  return { name: `${kyu}급`, icon: 'omok', color: kyu <= 5 ? '#6fd3ff' : kyu <= 10 ? '#4fe0c1' : '#cfd8e3', level: 19 - kyu };
 }
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 /** 홀덤·섯다 실력 점수 (대략 20~95) */

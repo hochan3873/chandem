@@ -234,7 +234,7 @@ class Room {
     p.connected = true;
     p.ready = true;
     this.players.push(p);
-    this.pushFeed(`${p.name}님이 자리에 앉았어요 🤖`);
+    this.pushFeed(`${p.name}님이 자리에 앉았어요 `);
     this.maybeStartWaitingHand();
     this.touch();
     return p;
@@ -434,7 +434,7 @@ class Room {
     }
     if (this.isTournament) {
       this.tourney = { startedAt: this.now(), level: 0, busted: [], result: null, entrants: this.seated.length };
-      this.pushFeed(`🏆 토너먼트 시작 · ${this.settings.levelMinutes}분마다 블라인드가 올라가요`);
+      this.pushFeed(`토너먼트 시작 · ${this.settings.levelMinutes}분마다 블라인드가 올라가요`);
     } else {
       this.tourney = null;
       this.pushFeed('게임을 시작합니다');
@@ -599,7 +599,7 @@ class Room {
       this.hand = new OmokGame({ players: two, dealerIndex: 0 });
     } else if (this.settings.game === 'seotda') {
       this.hand = SeotdaHand.create({ players, dealerIndex, bb: this.blinds().bb, carry, cards: this.settings.cards, open: this.settings.cards === 3 && this.settings.sdOpen === 'one' });
-      if (carry) this.pushFeed(`🎴 재경기 · 이월된 판돈 ${carry.amount.toLocaleString()}`);
+      if (carry) this.pushFeed(`재경기 · 이월된 판돈 ${carry.amount.toLocaleString()}`);
     } else {
       this.hand = new Hand({ players, dealerIndex, sb: this.blinds().sb, bb: this.blinds().bb });
     }
@@ -738,7 +738,7 @@ class Room {
       case 'raise': return `${n} 레이즈 ${amt(e.to)}까지`;
       case 'allin': return `${n} 올인 (${amt(e.to)})`;
       case 'street': return e.third ? '세 번째 패를 받았어요' : { 3: '플랍', 4: '턴', 5: '리버' }[e.board.length] + ' 공개';
-      case 'place': return `${n} ${e.color === 'b' ? '⚫' : '⚪'} ${String.fromCharCode(65 + e.x)}${e.y + 1}`;
+      case 'place': return `${n} ${e.color === 'b' ? '' : ''} ${String.fromCharCode(65 + e.x)}${e.y + 1}`;
       case 'resign': return `${n} 기권`;
       case 'open': return `${n} 한 장 공개${e.auto ? ' (시간 초과 · 자동)' : ''}`;
       case 'pick': return `${n} 두 장 고름${e.auto ? ' (자동)' : ''}`;
@@ -811,7 +811,7 @@ class Room {
     try { this.recordResult(); } catch (e) { console.error('[record]', e); }
     if (this.hand.result.redeal) {
       this.seotdaCarry = this.hand.result.carry;
-      this.pushFeed(`🎴 ${this.hand.result.redeal}! 판돈 ${this.seotdaCarry.amount.toLocaleString()}을 걸고 다시 쳐요`);
+      this.pushFeed(`${this.hand.result.redeal}! 판돈 ${this.seotdaCarry.amount.toLocaleString()}을 걸고 다시 쳐요`);
     }
     this.botEmotes(this.hand.result);
     for (const p of this.seated) {
@@ -855,7 +855,7 @@ class Room {
     for (const id of [...t.busted].reverse()) if (!order.includes(id)) order.push(id);
     t.result = { at: this.now(), ranking: order.map((id, i) => ({ id, name: this.name(id), place: i + 1 })) };
     try { this.onRecord({ game: 'tourney', userIds: this.players.filter((p) => p.userId && order.includes(p.id)).map((p) => p.userId), winnerUserId: winner && winner.userId }); } catch {}
-    this.pushFeed(winner ? `🏆 ${winner.name}님 토너먼트 우승!` : '토너먼트가 끝났어요');
+    this.pushFeed(winner ? `${winner.name}님 토너먼트 우승!` : '토너먼트가 끝났어요');
     this.phase = 'lobby';
     this.hand = null;
     this.handPlayers = [];

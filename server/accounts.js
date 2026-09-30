@@ -9,14 +9,14 @@ const { isMasterName, masterList } = require('./masters');
 
 // ── 오목 티어 (Elo 점수) ───────────────────────────────
 const TIERS = [
-  { min: 1800, name: '그랜드마스터', icon: '👑', color: '#ff5d73' },
-  { min: 1650, name: '마스터', icon: '🔮', color: '#c77dff' },
-  { min: 1500, name: '다이아몬드', icon: '💎', color: '#6fd3ff' },
-  { min: 1350, name: '플래티넘', icon: '🛡️', color: '#4fe0c1' },
-  { min: 1200, name: '골드', icon: '🥇', color: '#ffd35a' },
-  { min: 1050, name: '실버', icon: '🥈', color: '#cfd8e3' },
-  { min: 900, name: '브론즈', icon: '🥉', color: '#d59a6a' },
-  { min: -Infinity, name: '아이언', icon: '⚙️', color: '#9aa1a8' },
+  { min: 1800, name: '그랜드마스터', icon: 'crown', color: '#ff5d73' },
+  { min: 1650, name: '마스터', icon: 'crown', color: '#c77dff' },
+  { min: 1500, name: '다이아몬드', icon: 'trophy', color: '#6fd3ff' },
+  { min: 1350, name: '플래티넘', icon: 'trophy', color: '#4fe0c1' },
+  { min: 1200, name: '골드', icon: 'trophy', color: '#ffd35a' },
+  { min: 1050, name: '실버', icon: 'coin', color: '#cfd8e3' },
+  { min: 900, name: '브론즈', icon: 'coin', color: '#d59a6a' },
+  { min: -Infinity, name: '아이언', icon: 'omok', color: '#9aa1a8' },
 ];
 const START_RATING = 1000;
 const AI_RATING = { easy: 800, normal: 1100, hard: 1400 };

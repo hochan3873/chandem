@@ -228,6 +228,7 @@ const SYNTH = {
   // 바둑돌 놓는 소리 (나무판에 딱)
   stone: () => { tone(1100, 0.05, { type: 'triangle', gain: 0.35 }); noise(0.06, { freq: 3200, q: 2, gain: 0.3 }); tone(320, 0.08, { type: 'sine', gain: 0.25 }); },
   pop: () => { tone(900, 0.08, { type: 'sine', gain: 0.2 }); tone(1400, 0.1, { type: 'sine', gain: 0.15, at: 0.05 }); },
+  tap: () => { tone(1250, 0.035, { type: 'triangle', gain: 0.1 }); tone(1850, 0.03, { type: 'sine', gain: 0.05, at: 0.012 }); },
   // 올인 승부 시작: 점점 커지는 스네어 롤 + 마지막 한 방
   drumroll: () => {
     for (let i = 0; i < 26; i++) setTimeout(() => noise(0.05, { freq: 2600, q: 0.7, gain: 0.05 + i * 0.012 }), i * 45);

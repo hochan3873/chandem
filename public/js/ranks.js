@@ -2,8 +2,10 @@
 //  서버: /api/rank/:game (top 10 + 내 순위) · /api/rank/room/:code (방 안 사람들) · /api/rank/card/:game?code&pid | ?user
 let C = null; // { S, esc, fmt, signed, openModal, closeModal, render, openLogin }
 export function init(ctx) { C = ctx; }
+// 등급 아이콘: 이름(crown·trophy…) → 그린 아이콘 (이모지는 쓰지 않음)
+const ico = (name, cls = 'hic-sm') => (/^[a-z_]+$/.test(String(name || '')) ? `<i class="hic hic-${name} ${cls}" aria-hidden="true"></i>` : '');
 
-const GAME_NAME = { holdem: '♠ 텍사스 홀덤', seotda: '🎴 섯다', omok: '⚫ 오목' };
+const GAME_NAME = { holdem: '♠ 텍사스 홀덤', seotda: '섯다', omok: '오목' };
 const LADDER = {
   holdem: '브론즈 칩 → 실버 → 골드 → 플래티넘 → 다이아 → 하이롤러 → 레전드',
   seotda: '초짜 → 선수 → 꾼 → 고수 → 명인 → 신의 손',
@@ -41,9 +43,9 @@ export function badgeHTML(pid, { big = false } = {}) {
   const cls = `rk-badge ${big ? 'rk-big' : ''}`;
   if (x.guest) return `<span class="${cls} rk-guest">손님</span>`;
   if (x.master) return '';
-  if (!x.tier) return `<span class="${cls} rk-new" title="10판을 채우면 등급이 정해져요">🔰배치</span>`;
+  if (!x.tier) return `<span class="${cls} rk-new" title="10판을 채우면 등급이 정해져요">배치</span>`;
   const top = x.rank && x.rank <= 3 ? ` rk-top rk-${x.rank}` : '';
-  return `<span class="${cls}${top}" style="--tc:${x.tier.color}" title="${C.esc(x.tier.name)}${x.rank ? ` · ${x.rank}위` : ''}">${x.tier.icon}${x.rank ? `<b>${x.rank}위</b>` : `<b>${C.esc(x.tier.name)}</b>`}</span>`;
+  return `<span class="${cls}${top}" style="--tc:${x.tier.color}" title="${C.esc(x.tier.name)}${x.rank ? ` · ${x.rank}위` : ''}">${ico(x.tier.icon)}${x.rank ? `<b>${x.rank}위</b>` : `<b>${C.esc(x.tier.name)}</b>`}</span>`;
 }
 
 // ── 선수 카드 ──
@@ -54,7 +56,7 @@ function recentHTML(s) {
 }
 export async function openPlayerCard({ game, code, pid, username, name }) {
   const g = game || 'holdem';
-  C.openModal('👤 선수 카드', `<p class="muted">불러오는 중…</p>`);
+  C.openModal('선수 카드', `<p class="muted">불러오는 중…</p>`);
   const q = username ? `user=${encodeURIComponent(username)}` : `code=${encodeURIComponent(code || '')}&pid=${encodeURIComponent(pid || '')}`;
   const r = await get(`/api/rank/card/${g}?${q}`);
   const body = document.querySelector('#modal-root .modal-body');
@@ -62,7 +64,7 @@ export async function openPlayerCard({ game, code, pid, username, name }) {
   const c = r.ok && r.card;
   if (!c) { body.innerHTML = `<div class="pc"><div class="pc-head"><b class="pc-name">${C.esc(name || '?')}</b></div><p class="muted">기록을 불러오지 못했어요</p></div>`; return; }
   if (c.guest) {
-    body.innerHTML = `<div class="pc"><div class="pc-head"><b class="pc-name">${C.esc(c.nickname)}</b><span class="muted small">${c.bot ? '🤖 AI 봇' : '손님'}</span></div>
+    body.innerHTML = `<div class="pc"><div class="pc-head"><b class="pc-name">${C.esc(c.nickname)}</b><span class="muted small">${c.bot ? 'AI 봇' : '손님'}</span></div>
       <p class="muted small">${c.bot ? '연습 상대 봇이라 기록이 없어요.' : '로그인하지 않은 손님이라 기록이 남지 않아요.'}</p></div>`;
     return;
   }
@@ -71,9 +73,9 @@ export async function openPlayerCard({ game, code, pid, username, name }) {
   if (g === 'omok') rows.push(['점수', `${C.fmt(c.rating)} <small class="muted">최고 ${C.fmt(c.peak)}</small>`], ['승 / 패 / 무', `${c.wins} / ${c.losses} / ${c.draws}`], ['최다 연승', c.bestStreak ? `${c.bestStreak}연승` : '-']);
   else rows.push(['누적 칩', `<span class="${c.net > 0 ? 'plus' : c.net < 0 ? 'minus' : ''}">${C.signed(c.net)}</span>`], ['가장 큰 팟', c.bestPot ? C.fmt(c.bestPot) : '-'], ['최고 족보', c.bestHand ? C.esc(c.bestHand) : '-']);
   body.innerHTML = `<div class="pc">
-    <div class="pc-head"><b class="pc-name">${C.esc(c.nickname)}</b>${c.master ? '<span class="mbadge mbadge-sm">👑</span>' : ''}<span class="muted small">${GAME_NAME[g]}</span></div>
+    <div class="pc-head"><b class="pc-name">${C.esc(c.nickname)}</b>${c.master ? '<span class="mbadge mbadge-sm"></span>' : ''}<span class="muted small">${GAME_NAME[g]}</span></div>
     <div class="pc-tier" style="--tc:${t ? t.color : '#9aa1a8'}">
-      <span class="pc-ticon">${t ? t.icon : '🔰'}</span>
+      <span class="pc-ticon">${t ? ico(t.icon, 'hic-lg') : ico('trophy', 'hic-lg')}</span>
       <div><b>${t ? C.esc(t.name) : '배치 중'}</b><small>${c.master ? '운영자는 순위에서 빠져요' : t ? (c.rank ? `전체 ${c.rank}위` : '') : `데이터 부족 · ${c.need}판 더 하면 등급이 정해져요`}</small></div>
     </div>
     <div class="stat-grid pc-grid">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>
@@ -84,10 +86,10 @@ export async function openPlayerCard({ game, code, pid, username, name }) {
 
 // ── 명예의 전당 (게임 화면 맨 위): 1~3위 시상대 · 4~10위 목록 · 내 순위 ──
 const avatarOf = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return `/img/avatars/a${(h % 8) + 1}.webp`; };
-const tierTxt = (x) => (x.tier ? `${x.tier.icon} ${C.esc(x.tier.name)}` : '🔰 배치 중');
+const tierTxt = (x) => (x.tier ? `${ico(x.tier.icon)}${C.esc(x.tier.name)}` : `${ico('trophy')}배치 중`);
 const subTxt = (game, x) => (game === 'omok' ? `${C.fmt(x.rating)}점 · ${C.fmt(x.played)}판` : `승률 ${x.winRate == null ? '-' : x.winRate + '%'} · ${C.fmt(x.played)}판`);
 export function hallHTML(game) {
-  return `<section class="panel hall" id="hall"><div class="sec-head"><h2 class="sec-title">🏆 명예의 전당</h2><small class="muted">${LADDER[game]}</small></div>
+  return `<section class="panel hall" id="hall"><div class="sec-head"><h2 class="sec-title">명예의 전당</h2><small class="muted">${LADDER[game]}</small></div>
     <div class="hall-body"><p class="muted small">불러오는 중…</p></div></section>`;
 }
 export async function loadHall(game) {
@@ -98,10 +100,10 @@ export async function loadHall(game) {
   if (!r.top.length) {
     // 아무도 기록이 없을 때: 빈 시상대 + 로그인 유도
     box.innerHTML = `<div class="hall-empty">
-      <div class="podium podium-ghost">${[2, 1, 3].map((n) => `<div class="pod pod-${n} pod-ghost"><span class="pod-medal">${['🥇', '🥈', '🥉'][n - 1]}</span><span class="pod-av"><i></i></span><b>?</b></div>`).join('')}</div>
+      <div class="podium podium-ghost">${[2, 1, 3].map((n) => `<div class="pod pod-${n} pod-ghost"><span class="pod-medal">${['', '', ''][n - 1]}</span><span class="pod-av"><i></i></span><b>?</b></div>`).join('')}</div>
       <p class="center"><b>아직 기록이 없어요 — ${C.S.user ? '한 판 하면 1위!' : '로그인하고 한 판 하면 1위!'}</b></p>
       ${C.S.user ? '<p class="muted tiny center">친구와 방을 만들어 10판을 채우면 공식 순위에 올라가요 (AI 연습 판은 순위에서 빠져요' + (game === 'omok' ? ' · 오목 AI 대국은 점수에 들어가요' : '') + ')</p>'
-        : '<button class="btn btn-gold btn-sm hall-login" data-login>🔑 로그인 / 회원가입</button>'}
+        : '<button class="btn btn-gold btn-sm hall-login" data-login>로그인 / 회원가입</button>'}
     </div>`;
     const lb = box.querySelector('[data-login]');
     if (lb) lb.onclick = () => C.openLogin();
@@ -110,7 +112,7 @@ export async function loadHall(game) {
   const ranked = r.top.filter((x) => x.rank);
   const podium = [ranked[1], ranked[0], ranked[2]].filter(Boolean).map((x) => `
     <button class="pod pod-${x.rank} ${x.me ? 'is-me' : ''}" data-user="${C.esc(x.username)}" style="--tc:${x.tier ? x.tier.color : '#9aa1a8'}">
-      <span class="pod-medal">${['🥇', '🥈', '🥉'][x.rank - 1]}</span>
+      <span class="pod-medal">${['', '', ''][x.rank - 1]}</span>
       <span class="pod-av"><img src="${avatarOf(x.username)}" alt=""></span>
       <b class="pod-name fit-name">${C.esc(x.nickname)}</b>
       <span class="pod-tier">${tierTxt(x)}</span>
@@ -118,31 +120,31 @@ export async function loadHall(game) {
     </button>`).join('');
   const row = (x, cls = '') => `<li class="${x.me ? 'is-me' : ''} ${x.rank ? '' : 'is-placing'} ${cls}" data-user="${C.esc(x.username)}">
     <span class="hl-rank">${x.rank || '-'}</span>
-    ${x.rank ? `<span class="hl-tier" style="--tc:${x.tier ? x.tier.color : '#9aa1a8'}">${tierTxt(x)}</span>` : `<span class="hl-tier hl-placing">🔰 배치 중 ${x.played}/${x.played + x.need}</span>`}
+    ${x.rank ? `<span class="hl-tier" style="--tc:${x.tier ? x.tier.color : '#9aa1a8'}">${tierTxt(x)}</span>` : `<span class="hl-tier hl-placing">배치 중 ${x.played}/${x.played + x.need}</span>`}
     <b class="hl-name">${C.esc(x.nickname)}</b>
     <small class="muted">${subTxt(game, x)}</small></li>`;
   const rest = r.top.filter((x) => !x.rank || x.rank > 3).map((x) => row(x)).join('');
   let mine = '';
-  if (r.meMaster) mine = `<p class="hall-me-lbl muted small">👑 마스터 계정은 순위 제외</p>`;
+  if (r.meMaster) mine = `<p class="hall-me-lbl muted small">마스터 계정은 순위 제외</p>`;
   else if (r.me) mine = `<div class="hall-me-lbl">내 순위</div><ol class="hall-list hall-me">${row(r.me, 'is-me')}</ol>`;
   else if (C.S.user) mine = `<p class="hall-me-lbl muted small">내 순위: 아직 기록이 없어요 · 한 판 하면 올라가요!</p>`;
-  else mine = `<div class="hall-join"><span>🔑 로그인하고 한 판만 하면 순위에 올라가요 — 지금 <b>${r.total}명</b> 참여 중</span><button class="btn btn-sm btn-gold" data-hall-login>⚡ 바로 시작</button></div>`;
-  const note = ranked.length ? '' : `<p class="hall-note muted small center">🏁 아직 공식 순위가 없어요 — 10판을 먼저 채우면 첫 1위!</p>`;
+  else mine = `<div class="hall-join"><span>로그인하고 한 판만 하면 순위에 올라가요 — 지금 <b>${r.total}명</b> 참여 중</span><button class="btn btn-sm btn-gold" data-hall-login>바로 시작</button></div>`;
+  const note = ranked.length ? '' : `<p class="hall-note muted small center">아직 공식 순위가 없어요 — 10판을 먼저 채우면 첫 1위!</p>`;
   box.innerHTML = `${ranked.length ? `<div class="podium">${podium}</div>` : note}${rest ? `<ol class="hall-list">${rest}</ol>` : ''}${mine}`;
   fitNames(box);
   box.querySelectorAll('[data-user]').forEach((el) => { el.onclick = () => openPlayerCard({ game, username: el.dataset.user }); });
   const hl = box.querySelector('[data-hall-login]');
   if (hl) hl.onclick = () => C.openLogin();
 }
-/** 메인 게임 카드에 1위 한 줄: "👑 1위 여져니 · 하이롤러" (공식 순위가 없으면 "🔰 배치 중 N명") */
+/** 메인 게임 카드에 1위 한 줄: "1위 여져니 · 하이롤러" (공식 순위가 없으면 "배치 중 N명") */
 export async function loadHubChamps(games = ['holdem', 'seotda', 'omok']) {
   await Promise.all(games.map(async (g) => {
     const r = await get(`/api/rank/${g}?n=1`);
     const card = document.querySelector(`.game-card-${g}`);
     if (!card || !r.ok || card.querySelector('.gc-champ')) return;
     const x = r.top && r.top[0];
-    if (x && x.rank) card.insertAdjacentHTML('beforeend', `<span class="gc-champ" style="--tc:${x.tier ? x.tier.color : '#ffd35a'}">👑 1위 <b>${C.esc(x.nickname)}</b>${x.tier ? ` · ${C.esc(x.tier.name)}` : ''}</span>`);
-    else if (r.total) card.insertAdjacentHTML('beforeend', `<span class="gc-champ gc-placing" style="--tc:#9fd8ff">🔰 배치 중 <b>${r.total}명</b> · 1위 비어 있음</span>`);
+    if (x && x.rank) card.insertAdjacentHTML('beforeend', `<span class="gc-champ" style="--tc:${x.tier ? x.tier.color : '#ffd35a'}"><i class="hic hic-crown" aria-hidden="true"></i>1위 <b>${C.esc(x.nickname)}</b>${x.tier ? ` · ${C.esc(x.tier.name)}` : ''}</span>`);
+    else if (r.total) card.insertAdjacentHTML('beforeend', `<span class="gc-champ gc-placing" style="--tc:#9fd8ff"><i class="hic hic-trophy" aria-hidden="true"></i>배치 중 <b>${r.total}명</b> · 1위 비어 있음</span>`);
   }));
 }
 

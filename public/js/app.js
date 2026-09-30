@@ -81,7 +81,7 @@ function avatarPickerHTML() {
     <div class="av-pick">
       <label class="av-opt av-photo" title="내 사진으로">
         <input type="radio" name="avatar" value="photo" ${cur === 'photo' && photo ? 'checked' : ''}>
-        <span class="avatar avatar-photo">${photo ? `<img src="${photo}" alt="내 사진">` : '📷<small>내 사진</small>'}</span>
+        <span class="avatar avatar-photo">${photo ? `<img src="${photo}" alt="내 사진">` : '<small>내 사진</small>'}</span>
         <input type="file" accept="image/*" data-photo-file hidden>
       </label>
       <label class="av-opt"><input type="radio" name="avatar" value="0" ${!cur ? 'checked' : ''}><span class="avatar avatar-auto">자동</span></label>
@@ -164,11 +164,11 @@ function shareTop() {
   else shareLink(siteUrl(), '찬이의 게임월드', '친구들이랑 휴대폰으로 홀덤 · 섯다 · 오목 한 판 하자!');
 }
 
-const ICON_NOTE = '<p class="muted tiny install-note">💡 이미 설치한 앱 아이콘은 앱을 지우고 다시 설치해야 새 아이콘으로 바뀌어요</p>';
-const SHARE_BTN_ONLY = '<button class="btn btn-sm btn-gold share-top" id="share-top" aria-label="공유하기">🔗<span class="ib-text"> 공유</span></button>';
+const ICON_NOTE = '<p class="muted tiny install-note">이미 설치한 앱 아이콘은 앱을 지우고 다시 설치해야 새 아이콘으로 바뀌어요</p>';
+const SHARE_BTN_ONLY = `<button class="btn btn-sm btn-gold share-top" id="share-top" aria-label="공유하기">${P.hubIcon('link', 'hic-sm')}<span class="ib-text"> 공유</span></button>`;
 // 앱 설치 버튼(이미 앱으로 열었으면 숨김) + 공유 버튼
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-const installBtnHTML = () => (isStandalone() ? '' : '<button class="btn btn-sm btn-outline install-btn" id="install-btn" aria-label="앱 설치">📲 앱 설치</button>');
+const installBtnHTML = () => (isStandalone() ? '' : '<button class="btn btn-sm btn-outline install-btn" id="install-btn" aria-label="앱 설치">앱 설치</button>');
 const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}${SHARE_BTN_ONLY}</span>` };
 
 // ── 아이폰 사파리 확대 막기 (두 손가락 확대 · 두 번 톡 확대는 CSS touch-action 으로) ──
@@ -181,7 +181,7 @@ window.addEventListener('appinstalled', () => { S.installEvt = null; installDone
 function installDone() {
   S.installing = null;
   document.querySelectorAll('#install-btn').forEach((b) => b.remove());
-  openModal('설치 완료 🎉', `<div class="install-wait"><div class="install-ok">✅</div><p><b>찬이의 게임월드가 설치됐어요!</b></p>
+  openModal('설치 완료 ', `<div class="install-wait"><div class="install-ok"></div><p><b>찬이의 게임월드가 설치됐어요!</b></p>
     <p class="muted small">바탕화면이나 앱 목록의 아이콘으로 열면 전체 화면으로 즐길 수 있어요.</p>
     ${ICON_NOTE}<button class="btn btn-gold btn-lg" data-close>확인</button></div>`);
   sound.play('fanfare');
@@ -219,13 +219,13 @@ function openIosInstall() {
     openModal('아이폰에 앱 설치', `
       <p><b>${IS_KAKAO ? '카카오톡' : '앱'} 안의 브라우저</b>에서는 설치할 수 없어요. <b>사파리로 열어야 설치할 수 있어요.</b></p>
       <p class="muted small">${IS_KAKAO ? '오른쪽 아래 <b>⋯</b> → <b>「다른 브라우저로 열기」</b>를 누르거나, ' : '메뉴(⋯)에서 <b>「Safari로 열기」</b>를 누르거나, '}아래 링크를 복사해서 사파리 주소창에 붙여 넣어 주세요.</p>
-      <div class="row"><button class="btn btn-gold grow" id="ios-copy">🔗 링크 복사</button>${IS_KAKAO ? `<a class="btn btn-outline grow" href="kakaotalk://web/openExternal?url=${encodeURIComponent(location.origin + '/')}">바깥 브라우저로</a>` : ''}</div>`,
+      <div class="row"><button class="btn btn-gold grow" id="ios-copy">링크 복사</button>${IS_KAKAO ? `<a class="btn btn-outline grow" href="kakaotalk://web/openExternal?url=${encodeURIComponent(location.origin + '/')}">바깥 브라우저로</a>` : ''}</div>`,
     (b) => { b.querySelector('#ios-copy').onclick = copySiteLink; });
     return;
   }
   if (IOS_OTHER && IOS_VER && IOS_VER < 1604) {
-    openModal('아이폰에 앱 설치', `<p>이 브라우저(iOS ${Math.floor(IOS_VER / 100)})에서는 홈 화면에 추가가 안 돼요. <b>사파리로 열어서</b> 다시 📲 앱 설치를 눌러 주세요.</p>
-      <button class="btn btn-gold btn-lg" id="ios-copy">🔗 링크 복사</button>`, (b) => { b.querySelector('#ios-copy').onclick = copySiteLink; });
+    openModal('아이폰에 앱 설치', `<p>이 브라우저(iOS ${Math.floor(IOS_VER / 100)})에서는 홈 화면에 추가가 안 돼요. <b>사파리로 열어서</b> 다시 앱 설치를 눌러 주세요.</p>
+      <button class="btn btn-gold btn-lg" id="ios-copy">링크 복사</button>`, (b) => { b.querySelector('#ios-copy').onclick = copySiteLink; });
     return;
   }
   openModal('아이폰에 앱 설치', `${iosStepsHTML()}
@@ -234,9 +234,9 @@ function openIosInstall() {
 /** 아이폰 + 카톡·네이버 등 앱 안 브라우저: 메인 위에 "사파리로 열어야 설치할 수 있어요" 띠 */
 function iosInAppBannerHTML() {
   if (!IS_IOS || !IN_APP || isStandalone()) return '';
-  return `<div class="ios-banner" role="note"><b>🧭 사파리로 열어야 설치할 수 있어요</b>
+  return `<div class="ios-banner" role="note"><b>사파리로 열어야 설치할 수 있어요</b>
     <small>${IS_KAKAO ? '카카오톡은 오른쪽 아래 <b>⋯</b> → <b>「다른 브라우저로 열기」</b>' : '메뉴(⋯) → <b>「Safari로 열기」</b>'} · 또는 링크를 복사해서 사파리에 붙여 넣기</small>
-    <button class="btn btn-sm btn-gold" id="ios-banner-copy">🔗 링크 복사</button></div>`;
+    <button class="btn btn-sm btn-gold" id="ios-banner-copy">링크 복사</button></div>`;
 }
 document.addEventListener('click', (e) => { if (e.target.closest('#ios-banner-copy')) copySiteLink(); });
 
@@ -297,7 +297,7 @@ async function installApp() {
       : ios ? null : `intent://${location.host}/#Intent;scheme=https;package=com.android.chrome;end`;
     openModal('앱 설치', `
       <p>지금은 <b>${kakao ? '카카오톡' : '앱'} 안의 브라우저</b>라서 설치할 수 없어요.</p>
-      <p class="muted small">${ios ? '사파리' : '크롬·삼성 인터넷 같은 브라우저'}로 연 다음 <b>📲 앱 설치</b>를 다시 눌러 주세요.</p>
+      <p class="muted small">${ios ? '사파리' : '크롬·삼성 인터넷 같은 브라우저'}로 연 다음 <b>앱 설치</b>를 다시 눌러 주세요.</p>
       ${outer ? `<a class="btn btn-gold btn-lg" href="${outer}">${kakao ? '바깥 브라우저로 열기' : ios ? '사파리로 열기' : '크롬으로 열기'}</a>` : `<p class="muted small">오른쪽 아래(또는 위) <b>⋯ → 다른 브라우저로 열기</b>를 눌러 주세요.</p>`}`);
     return;
   }
@@ -388,11 +388,13 @@ function routeCode() {
 
 // ── 계정 ───────────────────────────────────────────
 const TIERS = [
-  [1800, '그랜드마스터', '👑', '#ff5d73'], [1650, '마스터', '🔮', '#c77dff'], [1500, '다이아몬드', '💎', '#6fd3ff'],
-  [1350, '플래티넘', '🛡️', '#4fe0c1'], [1200, '골드', '🥇', '#ffd35a'], [1050, '실버', '🥈', '#cfd8e3'],
-  [900, '브론즈', '🥉', '#d59a6a'], [-Infinity, '아이언', '⚙️', '#9aa1a8'],
+  [1800, '그랜드마스터', 'crown', '#ff5d73'], [1650, '마스터', 'crown', '#c77dff'], [1500, '다이아몬드', 'trophy', '#6fd3ff'],
+  [1350, '플래티넘', 'trophy', '#4fe0c1'], [1200, '골드', 'trophy', '#ffd35a'], [1050, '실버', 'coin', '#cfd8e3'],
+  [900, '브론즈', 'coin', '#d59a6a'], [-Infinity, '아이언', 'omok', '#9aa1a8'],
 ];
 function tierOf(r) { const t = TIERS.find((x) => r >= x[0]); return { name: t[1], icon: t[2], color: t[3] }; }
+// 계급·등급 아이콘: 서버가 주는 아이콘 이름(crown·trophy…)을 그린 아이콘으로 (예전 이모지 값이면 안 보임)
+const tierIco = (icon, cls = 'hic-sm') => (/^[a-z_]+$/.test(String(icon || '')) ? P.hubIcon(icon, cls) : '');
 S.auth = LS.get('chandem:auth', null);
 S.user = null;
 async function api(path, body) {
@@ -430,18 +432,18 @@ async function bindSeatToAccount(quiet = false) {
   const meRow = S.state.players.find((p) => S.state.me && p.id === S.state.me.id);
   if (!meRow || meRow.member) return;
   const r = await new Promise((res) => socket.emit('room:bindAccount', { auth: S.auth }, res));
-  if (r && r.ok && !quiet) toast(r.from === 'next' ? '✅ 로그인됐어요! 다음 판부터 전적·순위가 쌓여요' : '✅ 로그인됐어요! 이제부터 전적·순위가 쌓여요', 'ok');
+  if (r && r.ok && !quiet) toast(r.from === 'next' ? '로그인됐어요! 다음 판부터 전적·순위가 쌓여요' : '로그인됐어요! 이제부터 전적·순위가 쌓여요', 'ok');
   else if (r && !r.ok && r.message && !quiet) toast(r.message, 'error');
 }
 // ── 이 기기로 계속하기: 닉네임만 적으면 바로 계정 (아이디·비밀번호는 서버가 만들어 이 기기에 저장) ──
 function openQuickAccount() {
   const name = (S.state && S.state.me && S.state.players.find((p) => p.id === S.state.me.id) || {}).name || LS.get('chandem:name', '');
-  openModal('⚡ 이 기기로 바로 시작', `
+  openModal('이 기기로 바로 시작', `
     <form class="form" id="quick-form">
       <p class="small">가입 없이 <b>닉네임만</b> 정하면 끝! 이 휴대폰에 계정이 저장되고, 오늘부터 <b>전적·순위</b>가 쌓여요.</p>
       <label class="field"><span>닉네임</span><input class="input" name="nickname" maxlength="10" required value="${esc(String(name).replace(/ \(\d+\)$/, ''))}" placeholder="게임에서 보일 이름" autocomplete="nickname"></label>
       <button class="btn btn-gold btn-lg">이 기기로 계속하기</button>
-      <p class="muted tiny">다른 휴대폰에서도 쓰려면 나중에 ⚙️ 설정 → 계정 관리에서 비밀번호만 정하면 돼요. 휴대폰을 바꾸거나 기록을 지우면 복구 코드가 필요해요 (처음 한 번 보여 줘요).</p>
+      <p class="muted tiny">다른 휴대폰에서도 쓰려면 나중에 설정 → 계정 관리에서 비밀번호만 정하면 돼요. 휴대폰을 바꾸거나 기록을 지우면 복구 코드가 필요해요 (처음 한 번 보여 줘요).</p>
     </form>`, (b) => {
     const f = b.querySelector('#quick-form');
     f.onsubmit = async (e) => {
@@ -460,9 +462,9 @@ function openQuickAccount() {
 }
 function acctBtnHTML() {
   if (S.info && S.info.accounts === false) return '<span></span>';
-  if (!S.user) return '<button class="btn btn-sm btn-outline acct-btn" id="acct-btn">🔑 로그인</button>';
+  if (!S.user) return '<button class="btn btn-sm btn-outline acct-btn" id="acct-btn">로그인</button>';
   const t = tierOf(S.user.stats.omok.rating);
-  return `<button class="btn btn-sm btn-outline acct-btn is-user ${S.user.isMaster ? 'is-master' : ''}" id="acct-btn" title="내 전적">${S.user.isMaster ? '👑' : `<span style="color:${t.color}">${t.icon}</span>`} <span class="acct-name">${esc(S.user.nickname)}</span></button>`;
+  return `<button class="btn btn-sm btn-outline acct-btn is-user ${S.user.isMaster ? 'is-master' : ''}" id="acct-btn" title="내 전적">${S.user.isMaster ? P.hubIcon('crown', 'hic-sm') : tierIco(t.icon)} <span class="acct-name">${esc(S.user.nickname)}</span></button>`;
 }
 function openLogin(tab = 'login') {
   openModal(tab === 'login' ? '로그인' : '회원가입', `
@@ -470,8 +472,8 @@ function openLogin(tab = 'login') {
       <label class="seg-opt"><input type="radio" name="authtab" value="login" ${tab === 'login' ? 'checked' : ''}><span>로그인</span></label>
       <label class="seg-opt"><input type="radio" name="authtab" value="signup" ${tab === 'signup' ? 'checked' : ''}><span>회원가입</span></label>
     </div>
-    <button type="button" class="btn btn-gold btn-lg quick-start" id="quick-start">⚡ 가입 없이 이 기기로 바로 시작</button>
-    ${LS.get('gw:device', null) ? '<button type="button" class="btn btn-outline" id="device-login">📱 이 기기 계정으로 다시 로그인</button>' : ''}
+    <button type="button" class="btn btn-gold btn-lg quick-start" id="quick-start">가입 없이 이 기기로 바로 시작</button>
+    ${LS.get('gw:device', null) ? '<button type="button" class="btn btn-outline" id="device-login">이 기기 계정으로 다시 로그인</button>' : ''}
     <div class="divider"><span>아이디로 ${tab === 'login' ? '로그인' : '가입'}</span></div>
     <form class="form" id="auth-form" autocomplete="on">
       <label class="field"><span>아이디</span><input class="input" name="username" maxlength="16" required autocomplete="username" autocapitalize="off" placeholder="영어 소문자·숫자 3~16자"></label>
@@ -522,18 +524,18 @@ async function siteApi(path, body, token) {
 }
 /** 복구 코드 보여 주기 (지금 한 번만) */
 function showRecoveryCode(code, { fresh = false, renewed = false } = {}) {
-  openModal('🔐 복구 코드', `
+  openModal('복구 코드', `
     <p>${fresh ? '<b>가입 완료!</b> ' : renewed ? '<b>비밀번호를 바꿨어요.</b> 쓴 코드는 끝났고, ' : ''}비밀번호를 잊었을 때 쓰는 ${renewed ? '새 ' : ''}<b>복구 코드</b>예요. <b>지금 한 번만</b> 보여요.</p>
     <div class="rc-code mono" id="rc-code">${esc(code)}</div>
-    <p class="small"><b>📸 꼭 캡처해 두세요!</b> 이메일·전화번호를 받지 않아서, 이 코드가 있어야 혼자서 비밀번호를 바꿀 수 있어요.</p>
+    <p class="small"><b>꼭 캡처해 두세요!</b> 이메일·전화번호를 받지 않아서, 이 코드가 있어야 혼자서 비밀번호를 바꿀 수 있어요.</p>
     <div class="row"><button class="btn btn-outline grow" id="rc-copy">복사하기</button><button class="btn btn-gold grow" data-close>저장했어요</button></div>
-    <p class="muted tiny">잃어버렸다면 로그인한 뒤 ⚙️ 설정 → 계정 관리에서 새로 받을 수 있어요 (새로 받으면 예전 코드는 못 써요).</p>`, (b) => {
+    <p class="muted tiny">잃어버렸다면 로그인한 뒤 설정 → 계정 관리에서 새로 받을 수 있어요 (새로 받으면 예전 코드는 못 써요).</p>`, (b) => {
     b.querySelector('#rc-copy').onclick = async () => { try { await navigator.clipboard.writeText(code); toast('복사했어요. 메모장 같은 곳에 붙여 두세요', 'ok'); } catch { prompt('복사해 두세요', code); } };
     b.querySelectorAll('[data-close]').forEach((x) => { x.onclick = closeModal; });
   });
 }
 function openFindId() {
-  openModal('🔎 아이디 찾기', `
+  openModal('아이디 찾기', `
     <form class="form" id="fid-form">
       <p class="muted small">가입할 때 정한(또는 지금 쓰는) <b>닉네임</b>을 적으면 아이디 일부를 알려 줘요.</p>
       <label class="field"><span>닉네임</span><input class="input" name="nickname" maxlength="10" required autocomplete="off" placeholder="게임에서 보이는 이름"></label>
@@ -554,7 +556,7 @@ function openFindId() {
   });
 }
 function openFindPw(username = '') {
-  openModal('🔑 비밀번호 찾기', `
+  openModal('비밀번호 찾기', `
     <form class="form" id="fpw-form">
       <p class="muted small">가입할 때 받은 <b>복구 코드</b>(ABCDE-FGHJK 모양)로 새 비밀번호를 정해요.</p>
       <label class="field"><span>아이디</span><input class="input" name="username" maxlength="16" required autocomplete="username" autocapitalize="off" value="${esc(username)}"></label>
@@ -565,7 +567,7 @@ function openFindPw(username = '') {
       <p class="muted tiny">복구 코드를 5번 틀리면 1시간 동안 잠겨요.</p>
     </form>
     <div class="divider"><span>복구 코드가 없어요</span></div>
-    <button class="btn btn-outline" id="fpw-ask">🙋 운영자에게 초기화 요청하기</button>
+    <button class="btn btn-outline" id="fpw-ask">운영자에게 초기화 요청하기</button>
     <div class="auth-links"><button type="button" data-go="id">아이디 찾기</button><span>·</span><button type="button" data-go="login">로그인하기</button></div>`, (body) => {
     const f = body.querySelector('#fpw-form');
     body.querySelector('[data-go=id]').onclick = openFindId;
@@ -587,13 +589,13 @@ function openFindPw(username = '') {
   });
 }
 function openResetRequest(username = '') {
-  openModal('🙋 운영자에게 요청', `
+  openModal('운영자에게 요청', `
     <form class="form" id="rr-form">
       <p class="muted small">운영자(찬)가 확인하고 <b>임시 비밀번호</b>를 만들어 줘요. 누구인지 알아볼 수 있게 적어 주세요.</p>
       <label class="field"><span>아이디</span><input class="input" name="username" maxlength="16" required autocomplete="username" autocapitalize="off" value="${esc(username)}"></label>
       <label class="field"><span>연락 방법 · 메모</span><textarea class="input" name="note" maxlength="200" rows="3" required placeholder="예: 카톡 아이디 chan123 / 찬이 친구 민수예요"></textarea></label>
       <button class="btn btn-gold btn-lg">요청 보내기</button>
-      <p class="muted tiny">받은 임시 비밀번호로 로그인한 뒤 ⚙️ 설정 → 계정 관리에서 꼭 새 비밀번호로 바꿔 주세요.</p>
+      <p class="muted tiny">받은 임시 비밀번호로 로그인한 뒤 설정 → 계정 관리에서 꼭 새 비밀번호로 바꿔 주세요.</p>
     </form>`, (body) => {
     const f = body.querySelector('#rr-form');
     f.onsubmit = async (e) => {
@@ -601,7 +603,7 @@ function openResetRequest(username = '') {
       const fd = new FormData(f);
       const r = await siteApi('/reset-request', { username: fd.get('username'), note: fd.get('note') });
       if (!r.ok) { toast(r.message || '다시 해 주세요', 'error'); return; }
-      openModal('🙋 보냈어요', '<div class="empty-note">📨<p><b>요청을 보냈어요!</b><br>운영자가 확인하면 적어 준 연락처로 임시 비밀번호를 알려 줄 거예요.</p><button class="btn btn-gold btn-lg" data-close>확인</button></div>', (b) => { b.querySelector('[data-close]').onclick = closeModal; });
+      openModal('보냈어요', '<div class="empty-note"><p><b>요청을 보냈어요!</b><br>운영자가 확인하면 적어 준 연락처로 임시 비밀번호를 알려 줄 거예요.</p><button class="btn btn-gold btn-lg" data-close>확인</button></div>', (b) => { b.querySelector('[data-close]').onclick = closeModal; });
     };
   });
 }
@@ -621,22 +623,22 @@ async function openProfile() {
   openModal('내 전적', `
     <div class="profile-head"><b>${esc(S.user.nickname)}</b>${P.masterBadge(S.user.isMaster)}<span class="muted small">@${esc(S.user.username)}</span></div>
     <div class="tier-card" style="--tc:${t.color}">
-      <div class="tier-icon">${t.icon}</div>
+      <div class="tier-icon">${tierIco(t.icon, '')}</div>
       <div class="tier-main"><div class="tier-name">오목 ${t.name}</div><div class="tier-rating">${fmt(o.rating)}점 <small>최고 ${fmt(o.peak)}</small></div>
         ${next ? `<div class="tier-next">다음 티어 ${next[2]} ${next[1]}까지 ${fmt(next[0] - o.rating)}점</div>` : '<div class="tier-next">최고 티어!</div>'}</div>
     </div>
-    <div class="stat-card"><h3>⚫ 오목</h3>
+    <div class="stat-card"><h3>오목</h3>
       <div class="stat-grid"><span>대국</span><b>${fmt(o.games)}</b><span>승 / 패 / 무</span><b>${o.wins} / ${o.losses} / ${o.draws}</b>
-      <span>승률</span><b>${pct(o.wins, o.games)}</b><span>연속</span><b>${o.streak > 0 ? `${o.streak}연승 🔥` : o.streak < 0 ? `${-o.streak}연패` : '-'}</b></div></div>
+      <span>승률</span><b>${pct(o.wins, o.games)}</b><span>연속</span><b>${o.streak > 0 ? `${o.streak}연승 ` : o.streak < 0 ? `${-o.streak}연패` : '-'}</b></div></div>
     ${game(s.holdem, '♠ 텍사스 홀덤')}
-    ${game(s.seotda, '🎴 섯다')}
-    ${s.langbang ? `<div class="stat-card"><h3>🥊 랑방 대전 · Lv.${s.langbang.level}</h3>
+    ${game(s.seotda, '섯다')}
+    ${s.langbang ? `<div class="stat-card"><h3>랑방 대전 · Lv.${s.langbang.level}</h3>
       <div class="stat-grid"><span>최고 스테이지</span><b>${s.langbang.maxStage ? `${Math.ceil(s.langbang.maxStage / 10)}-${((s.langbang.maxStage - 1) % 10) + 1} · ★${fmt(s.langbang.totalStars || 0)}` : '-'}</b><span>무한 도전</span><b>${s.langbang.bestWave ? `W${fmt(s.langbang.bestWave)} · ${fmt(s.langbang.bestScore)}점` : '-'}</b>
       <span>플레이</span><b>${fmt(s.langbang.runs)}판</b><span>코인</span><b>${fmt(s.langbang.coins)}</b></div></div>` : ''}
-    <div class="stat-card"><h3>🏆 토너먼트</h3><div class="stat-grid"><span>참가</span><b>${fmt(s.tourney.played)}</b><span>우승</span><b>${fmt(s.tourney.wins)}</b></div></div>
+    <div class="stat-card"><h3>토너먼트</h3><div class="stat-grid"><span>참가</span><b>${fmt(s.tourney.played)}</b><span>우승</span><b>${fmt(s.tourney.wins)}</b></div></div>
     <div class="row">
-      <button class="btn btn-outline grow" id="rank-btn">🏆 오목 랭킹</button>
-      <button class="btn btn-outline grow" id="acct-mng">⚙️ 계정 관리</button>
+      <button class="btn btn-outline grow" id="rank-btn">오목 랭킹</button>
+      <button class="btn btn-outline grow" id="acct-mng">계정 관리</button>
       <button class="btn btn-ghost danger" id="logout-btn">로그아웃</button>
     </div>`, (body) => {
     body.querySelector('#rank-btn').onclick = openRanking;
@@ -647,9 +649,9 @@ async function openProfile() {
 async function openRanking() {
   const r = await api('/ranking/omok');
   const list = r.ok ? r.ranking : [];
-  openModal('🏆 오목 랭킹', list.length ? `<ol class="rank-table">${list.map((x) => `
+  openModal('오목 랭킹', list.length ? `<ol class="rank-table">${list.map((x) => `
     <li class="${S.user && x.username === S.user.username ? 'is-me' : ''}" data-user="${esc(x.username)}"><span class="rk">${x.rank}</span>
-      <span class="rt" style="color:${x.tier.color}" title="${x.tier.name}">${x.tier.icon}</span>
+      <span class="rt" style="color:${x.tier.color}" title="${x.tier.name}">${tierIco(x.tier.icon)}</span>
       <b>${esc(x.nickname)}</b>${P.masterBadge(x.isMaster, true)}<span class="spacer"></span><span class="rr">${fmt(x.rating)}</span><small class="muted">${x.wins}승/${x.games}</small></li>`).join('')}</ol>`
     : '<p class="muted">아직 랭킹이 없어요. 로그인하고 오목을 둬 보세요!</p>', (b) => { RK.fitNames(b); b.querySelectorAll('[data-user]').forEach((li) => { li.onclick = () => RK.openPlayerCard({ game: 'omok', username: li.dataset.user }); }); }, { wide: true });
 }
@@ -673,9 +675,9 @@ socket.on('rating', (list) => {
   if (S.user) S.user.stats.omok.rating = mine.after;
   setTimeout(() => {
     if (after.name !== before.name) {
-      banner(mine.delta > 0 ? '⬆ 티어 상승!' : '⬇ 티어 하락', `${after.icon} ${after.name} · ${fmt(mine.after)}점`, mine.delta > 0 ? 'mywin' : 'level', 2600);
+      banner(mine.delta > 0 ? '⬆ 티어 상승!' : '⬇ 티어 하락', `${after.name} · ${fmt(mine.after)}점`, mine.delta > 0 ? 'mywin' : 'level', 2600);
       if (mine.delta > 0) { sound.play('fanfare'); coinRain(30); }
-    } else toast(`오목 점수 ${mine.delta >= 0 ? '+' : ''}${mine.delta} → ${fmt(mine.after)}점 · ${after.icon} ${after.name}`, mine.delta >= 0 ? 'ok' : 'info');
+    } else toast(`오목 점수 ${mine.delta >= 0 ? '+' : ''}${mine.delta} → ${fmt(mine.after)}점 · ${after.name}`, mine.delta >= 0 ? 'ok' : 'info');
   }, 2600);
 });
 
@@ -731,7 +733,7 @@ function reconnectOverlay(on, text) {
   el.innerHTML = text || `<div class="spinner" aria-hidden="true"></div><b>${S.restartMsg ? esc(S.restartMsg) : '재연결 중…'}</b><small>자리와 칩은 그대로 지켜 두고 있어요</small>`;
 }
 function reconnectGiveUp() {
-  reconnectOverlay(true, `<div class="rc-icon">📡</div><b>방에 다시 들어가지 못했어요</b><small>인터넷 연결을 확인해 주세요. 방이 정리됐을 수도 있어요.</small>
+  reconnectOverlay(true, `<div class="rc-icon"></div><b>방에 다시 들어가지 못했어요</b><small>인터넷 연결을 확인해 주세요. 방이 정리됐을 수도 있어요.</small>
     <div class="row"><button class="btn btn-gold" id="rc-retry">다시 시도</button><button class="btn btn-outline" id="rc-lobby">로비로</button></div>`);
   document.getElementById('rc-retry').onclick = () => { S.rcStart = Date.now(); reconnectOverlay(true); if (socket.connected) resume(); else socket.connect(); };
   document.getElementById('rc-lobby').onclick = () => {
@@ -773,7 +775,7 @@ async function resume() {
   await showJoin(S.code);
 }
 socket.on('server:restarting', (m) => {
-  S.restartMsg = (m && m.message) || '🔧 서버 업데이트 중 — 잠시 후 자동으로 돌아와요';
+  S.restartMsg = (m && m.message) || '서버 업데이트 중 — 잠시 후 자동으로 돌아와요';
   if (S.view === 'room') { S.rcStart = Date.now(); reconnectOverlay(true); }
 });
 
@@ -795,7 +797,7 @@ socket.on('state', (st) => {
   const first = !S.state || S.state.room.code !== st.room.code;
   if (!first && S.state.room.hostId && st.room.hostId && S.state.room.hostId !== st.room.hostId) {
     const nh = st.players.find((p) => p.id === st.room.hostId);
-    if (nh) toast(nh.id === (st.me && st.me.id) ? '👑 내가 새 방장이에요' : `👑 ${nh.name}님이 새 방장이에요`, 'ok');
+    if (nh) toast(nh.id === (st.me && st.me.id) ? '내가 새 방장이에요' : `${nh.name}님이 새 방장이에요`, 'ok');
   }
   if (!first && S.state.me && S.state.me.sittingOut && st.me && !st.me.sittingOut) toast('자리로 돌아왔어요', 'ok');
   S.state = st;
@@ -876,13 +878,13 @@ function guestNudgeHTML(st, compact = false) {
   if (!st || (S.info && S.info.accounts === false)) return '';
   const meRow = st.me && st.players.find((p) => p.id === st.me.id);
   if (!meRow) return '';
-  if (meRow.memberNext) return `<div class="banner banner-info guest-nudge"><span>✅ 다음 판부터 전적·순위가 쌓여요</span></div>`;
+  if (meRow.memberNext) return `<div class="banner banner-info guest-nudge"><span>다음 판부터 전적·순위가 쌓여요</span></div>`;
   if (S.user || meRow.member) return '';
   let off = false;
   try { off = sessionStorage.getItem('gw:nudgeOff:' + st.room.code) === '1'; } catch {}
   if (off) return '';
-  return `<div class="banner banner-gold guest-nudge ${compact ? 'is-compact' : ''}"><span>🔑 ${compact ? '로그인하면 전적·순위가 쌓여요' : '로그인하면 이 판부터 전적·순위가 쌓여요'}</span>
-    <button class="btn btn-sm btn-gold" data-nudge="quick">⚡ 바로 시작</button><button class="btn btn-sm btn-outline" data-nudge="login">로그인</button><button class="icon-btn nudge-x" data-nudge="off" aria-label="닫기">✕</button></div>`;
+  return `<div class="banner banner-gold guest-nudge ${compact ? 'is-compact' : ''}"><span>${compact ? '로그인하면 전적·순위가 쌓여요' : '로그인하면 이 판부터 전적·순위가 쌓여요'}</span>
+    <button class="btn btn-sm btn-gold" data-nudge="quick">바로 시작</button><button class="btn btn-sm btn-outline" data-nudge="login">로그인</button><button class="icon-btn nudge-x" data-nudge="off" aria-label="닫기">✕</button></div>`;
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-nudge]');
@@ -903,7 +905,7 @@ function guestHandNudge(st) {
   if (S.nudgeHand === key) return;
   S.nudgeHand = key;
   S.guestHands = (S.guestHands || 0) + 1;
-  if (S.guestHands % 5 === 0) setTimeout(() => toast('🔑 지금 로그인하면 순위에 올라가요 · ⚡ 가입 없이 바로 시작도 돼요', 'info'), 3200);
+  if (S.guestHands % 5 === 0) setTimeout(() => toast('지금 로그인하면 순위에 올라가요 · 가입 없이 바로 시작도 돼요', 'info'), 3200);
 }
 
 // 사람을 누르면 선수 카드 (버튼은 제외)
@@ -918,7 +920,8 @@ document.addEventListener('click', (e) => {
 });
 
 // ── 감정 표현 ───────────────────────────────────────
-const EMOTES = [['angry', '😡', '화남'], ['happy', '🤩', '신남'], ['mock', '😜', '조롱'], ['laugh', '😂', '웃음'], ['cry', '😭', '울음'], ['clap', '👏', '박수']];
+// 감정 표현: 이모지 대신 짧은 말 (말풍선 색으로 구분)
+const EMOTES = [['angry', '화났어!', '화남'], ['happy', '신난다!', '신남'], ['mock', '메롱~', '조롱'], ['laugh', 'ㅋㅋㅋ', '웃음'], ['cry', '엉엉', '울음'], ['clap', '짝짝짝', '박수']];
 document.addEventListener('click', (e) => {
   const tray = document.getElementById('emote-tray');
   if (tray && !e.target.closest('#emote-tray') && !e.target.closest('#emote-btn')) tray.hidden = true;
@@ -932,7 +935,7 @@ socket.on('emote', (e) => {
   if (!seat) return;
   const el = document.createElement('div');
   el.className = `fx-emote fx-emote-${e.kind} ${chip ? 'fx-emote-side' : ''}`;
-  el.innerHTML = `<span>${def[1]}</span>`;
+  el.innerHTML = `<span class="emote-say">${def[1]}</span>`;
   const r = seat.getBoundingClientRect();
   el.style.left = (chip ? Math.min(innerWidth - 30, r.right + 26) : r.left + r.width / 2) + 'px';
   el.style.top = (r.top + r.height / 2) + 'px';
@@ -957,9 +960,9 @@ function tourneyEffects(st) {
     S.tourneyShown = tn.result.at;
     S.lastLevel = 0;
     if (!fresh) return;
-    const medal = ['🥇', '🥈', '🥉'];
+    const medal = ['', '', ''];
     const meId = st.me && st.me.id;
-    openModal('🏆 토너먼트 결과', `
+    openModal('토너먼트 결과', `
       <ol class="rank-list">${tn.result.ranking.map((r) => `<li class="${r.id === meId ? 'is-me' : ''}"><span class="rank-medal">${medal[r.place - 1] || r.place + '위'}</span><b>${esc(r.name)}</b>${r.id === meId ? ' <span class="muted small">(나)</span>' : ''}</li>`).join('')}</ol>
       <button class="btn btn-gold btn-lg" data-close>확인</button>`);
     sound.play('fanfare');
@@ -1068,10 +1071,10 @@ function logoHTML(small = false) {
 }
 
 const GAME_INFO = {
-  langbang: { name: '랑방 대전', icon: '🥊', sub: '스테이지 디펜스 · 30스테이지 · 랭킹', tag: '우리 모임에 쳐들어오는 진상들을 때려잡자', href: '/langbang/', best: true },
+  langbang: { name: '랑방 대전', icon: '', sub: '스테이지 디펜스 · 30스테이지 · 랭킹', tag: '우리 모임에 쳐들어오는 진상들을 때려잡자', href: '/langbang/', best: true },
   holdem: { name: '텍사스 홀덤', icon: '♠', sub: '노리밋 홀덤 · 토너먼트', tag: '카드 2장 + 바닥 5장, 최고의 5장으로 승부' },
-  seotda: { name: '섯다', icon: '🎴', sub: '화투 두 장 · 광땡 · 땡잡이', tag: '두 장의 화투로 끗발 대결, 기세로 밀어붙여라' },
-  omok: { name: '오목', icon: '⚫', sub: '1:1 대국 · AI · 티어', tag: '다섯 알을 먼저 잇는 사람이 승리' },
+  seotda: { name: '섯다', icon: '', sub: '화투 두 장 · 광땡 · 땡잡이', tag: '두 장의 화투로 끗발 대결, 기세로 밀어붙여라' },
+  omok: { name: '오목', icon: '', sub: '1:1 대국 · AI · 티어', tag: '다섯 알을 먼저 잇는 사람이 승리' },
 };
 const GAME_RULES = {
   holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
@@ -1117,7 +1120,7 @@ async function launchGame(g) {
   ov.className = 'gw-loader';
   ov.setAttribute('role', 'status');
   ov.innerHTML = `<div class="gl-art" style="background-image:${gameArtCSS(g)}"></div><div class="gl-shade"></div>
-    <div class="gl-box"><span class="gl-icon">${info.icon}</span><span class="logo-pop gl-name" data-text="${esc(info.name)}">${esc(info.name)}</span>
+    <div class="gl-box"><span class="gl-icon">${P.hubIcon(HUB_GAME_ICON[g] || 'cards', 'hic-lg')}</span><span class="logo-pop gl-name" data-text="${esc(info.name)}">${esc(info.name)}</span>
       <div class="gl-bar"><i></i></div><small>${esc(info.tag)}</small></div>`;
   document.body.appendChild(ov);
   requestAnimationFrame(() => ov.classList.add('show'));
@@ -1143,12 +1146,12 @@ async function launchGame(g) {
 function roomItemHTML(r) {
   const info = GAME_INFO[r.game] || GAME_INFO.holdem;
   const full = r.players >= r.maxPlayers;
-  const status = r.practice ? '🤖 AI와 연습 중' : r.phase === 'playing' ? (r.tournament ? '🏆 토너먼트 중' : `🎮 게임 중${r.handNo ? ` · ${r.handNo}판째` : ''}`) : '⏳ 대기 중';
+  const status = r.practice ? 'AI와 연습 중' : r.phase === 'playing' ? (r.tournament ? '토너먼트 중' : `게임 중${r.handNo ? ` · ${r.handNo}판째` : ''}`) : '대기 중';
   const sub = r.game === 'seotda' ? ` · ${r.cards === 3 ? '세 장' : '두 장'}` : '';
   const canJoin = !r.practice && !full && !(r.tournament && r.phase === 'playing');
   return `<div class="lr-item">
-    <span class="lr-icon">${info.icon}</span>
-    <div class="lr-main"><b>${esc(r.hostName || '방장')}님의 ${info.name}${sub}</b>${r.hasPassword ? ' 🔒' : ''}
+    <span class="lr-icon">${P.hubIcon(HUB_GAME_ICON[r.game] || 'spade')}</span>
+    <div class="lr-main"><b>${esc(r.hostName || '방장')}님의 ${info.name}${sub}</b>${r.hasPassword ? P.hubIcon('lock', 'hic-xs') : ''}
       <small>${status} · ${r.players}/${r.maxPlayers}명${r.spectators ? ` · 관전 ${r.spectators}` : ''}${r.bots ? ` · 봇 ${r.bots}` : ''}</small></div>
     <div class="lr-btns">
       <button class="btn btn-sm btn-outline" data-watch="${esc(r.code)}">관전</button>
@@ -1186,17 +1189,17 @@ function renderGameHome() {
     <div class="top-bar"><button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>${SHARE_BTN}</div>
     ${S.info && S.info.accounts === false ? '' : RK.hallHTML(g)}
     <div class="gh-hero" style="background-image:url('/img/games/${g}.webp')"><div class="gh-shade"></div>
-      <div class="gh-title"><span class="gh-icon">${info.icon}</span><h1>${info.name}</h1><p>${info.tag}</p></div>
+      <div class="gh-title"><span class="gh-icon">${P.hubIcon(HUB_GAME_ICON[g] || 'cards', 'hic-lg')}</span><h1>${info.name}</h1><p>${info.tag}</p></div>
     </div>
     <section class="panel">
       <button class="btn btn-gold btn-lg" id="go-create">친구와 방 만들기</button>
-      <button class="btn btn-outline btn-lg" id="go-practice">🤖 ${g === 'omok' ? 'AI와 대국하기' : 'AI와 연습하기'}</button>
+      <button class="btn btn-outline btn-lg" id="go-practice">${g === 'omok' ? 'AI와 대국하기' : 'AI와 연습하기'}</button>
       <div class="row">
-        <button class="btn btn-ghost grow" id="go-rules">📖 게임 방법</button>
-        ${g === 'omok' ? '<button class="btn btn-ghost grow" id="go-rank">🏆 랭킹</button>' : ''}
+        <button class="btn btn-ghost grow" id="go-rules">게임 방법</button>
+        ${g === 'omok' ? '<button class="btn btn-ghost grow" id="go-rank">랭킹</button>' : ''}
       </div>
     </section>
-    <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">🔴 지금 열린 ${info.name} 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
+    <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">지금 열린 ${info.name} 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
     <p class="fine">${g === 'omok' ? '로그인하면 대국 결과로 티어가 올라가요.' : '칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.'}</p>
   </main>`;
   bindCommon();
@@ -1210,27 +1213,86 @@ function renderGameHome() {
   if (rk) rk.onclick = () => (S.info && S.info.accounts === false ? toast('랭킹은 로그인 기능이 켜지면 볼 수 있어요') : openRanking());
 }
 
+// ── 메인(허브): 모바일 게임 런처처럼 ──
+const HUB_GAME_ICON = { holdem: 'spade', seotda: 'hwatu', omok: 'omok', langbang: 'cards' };
+function hubAcctHTML() {
+  if (S.info && S.info.accounts === false) return '<span></span>';
+  if (!S.user) return `<button class="hub-acct tap" id="acct-btn">${P.hubIcon('lock')}<b>로그인</b></button>`;
+  const t = tierOf(S.user.stats.omok.rating);
+  return `<button class="hub-acct tap is-user ${S.user.isMaster ? 'is-master' : ''}" id="acct-btn" title="내 전적">${S.user.isMaster ? P.hubIcon('crown') : `<span class="acct-dot" style="--tc:${t.color}"></span>`}<b class="acct-name">${esc(S.user.nickname)}</b></button>`;
+}
+function hubCardHTML(k, g) {
+  const hero = k === 'langbang';
+  const rm = gws.reduceMotion();
+  const media = hero
+    ? `${gameCardArtHTML(k)}${rm ? '' : '<video class="gc-video" muted loop playsinline preload="metadata" poster="/img/lb/title_poster.jpg?v=3" aria-hidden="true" disablepictureinpicture><source src="/img/lb/title_loop.mp4?v=3" type="video/mp4"></video>'}`
+    : gameCardArtHTML(k);
+  const title = hero
+    ? '<img class="gc-logo" src="/img/lb/logo_langbang.webp" alt="랑방 대전" onerror="this.replaceWith(Object.assign(document.createElement(\'b\'),{className:\'gc-title\',textContent:\'랑방 대전\'}))">'
+    : `<b class="gc-title">${esc(g.name)}</b>`;
+  return `
+    <button class="game-card hub-card game-card-${k} ${hero ? 'is-hero' : ''} ${g.best ? 'is-best' : ''} tap" data-game="${k}">
+      ${media}
+      <span class="gc-shade"></span>
+      ${g.best ? '<span class="gc-ribbon" aria-label="베스트 게임"><span>BEST</span></span>' : ''}
+      <span class="gc-body">
+        <span class="gc-head">${hero ? '' : `<span class="gc-badge">${P.hubIcon(HUB_GAME_ICON[k])}</span>`}${title}</span>
+        <small class="gc-sub">${esc(g.sub)}</small>
+        <span class="gc-chips" data-live="${k}">${hero ? '<span class="gc-chip">혼자 즐기는 스테이지 디펜스</span>' : '<span class="gc-chip">지금 바로 시작</span>'}</span>
+      </span>
+      <span class="gc-enter">입장${P.hubIcon('arrow', 'hic-sm')}</span>
+    </button>`;
+}
+// 게임 카드에 '지금 열린 방 · 몇 명' 표시
+async function loadHubLive() {
+  try {
+    const r = await (await fetch('/api/rooms', { cache: 'no-store' })).json();
+    const by = {};
+    for (const x of r.rooms || []) {
+      if (x.practice) continue;
+      const g = (by[x.game] = by[x.game] || { rooms: 0, players: 0 });
+      g.rooms++; g.players += x.players - (x.bots || 0);
+    }
+    for (const k of ['holdem', 'seotda', 'omok']) {
+      const el = document.querySelector(`[data-live="${k}"]`);
+      if (!el) continue;
+      const v = by[k];
+      el.innerHTML = v ? `<span class="gc-chip is-live"><i class="live-dot"></i>방 ${v.rooms}개</span><span class="gc-chip">${v.players}명 플레이 중</span>` : '<span class="gc-chip">지금 바로 시작</span>';
+    }
+  } catch {}
+}
+// 누를 때: 살짝 눌리고 물결 + 딸깍 소리 (메인 화면)
+document.addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.hub2 .tap');
+  if (!el) return;
+  if (!gws.reduceMotion()) {
+    const r = el.getBoundingClientRect();
+    const d = Math.max(r.width, r.height) * 1.2;
+    const rip = document.createElement('span');
+    rip.className = 'ripple';
+    rip.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+    el.appendChild(rip);
+    setTimeout(() => rip.remove(), 520);
+  }
+  sound.play('tap');
+}, { passive: true });
+
 function renderHome() {
   const last = LS.get('chandem:name', '');
   $app.innerHTML = `
-  <main class="home">
-    <div class="top-bar hub-top">${acctBtnHTML()}<span class="top-btns">${isStandalone() ? '' : '<button class="icon-btn hub-ico install-btn" id="install-btn" aria-label="앱 설치">📲</button>'}<button class="icon-btn hub-ico" id="share-top" aria-label="공유하기">🔗</button>${P.topIconsHTML()}</span></div>
-    <div class="home-hero">
-      ${logoHTML()}
-      <p class="tagline">친구들과 휴대폰으로 즐기는 우리들의 게임월드</p>
-    </div>
+  <main class="home hub2">
+    <div class="top-bar hub-top">${hubAcctHTML()}<span class="top-btns">${isStandalone() ? '' : '<button class="hub-pill-btn tap install-btn" id="install-btn" aria-label="앱 설치">앱 설치</button>'}<button class="hub-ico tap" id="share-top" aria-label="공유하기">${P.hubIcon('link')}</button>${P.topIconsHTML()}</span></div>
+    <header class="hub-hero">
+      <img class="hub-logo" src="/img/hub/logo_world.webp" width="1100" height="594" alt="찬이의 게임월드 CHAN'S GAME WORLD" onerror="this.hidden=true;this.nextElementSibling.hidden=false">
+      <div class="hub-logo-text" hidden><span class="logo-pop hub-logo-ko" data-text="찬이의 게임월드">찬이의 게임월드</span><span class="hub-logo-en">CHAN'S GAME WORLD</span></div>
+      <p class="hub-tagline">친구들과 휴대폰으로 즐기는 우리들의 게임월드</p>
+    </header>
     ${iosInAppBannerHTML()}
     <div id="hub-extras">${P.hubExtrasHTML()}</div>
-    <section class="game-cards">
-      ${Object.entries(GAME_INFO).filter(([k]) => k !== 'langbang' || (S.info && S.info.langbang)).map(([k, g]) => `
-        <button class="game-card game-card-${k} ${g.best ? 'is-best' : ''}" data-game="${k}">
-          ${gameCardArtHTML(k)}
-          <span class="gc-shade"></span>${g.best ? '<span class="gc-best" aria-label="베스트 게임"><i>★</i>BEST</span>' : ''}
-          <span class="gc-text"><b>${g.icon} ${g.name}</b><small>${g.sub}</small></span>
-          <span class="gc-go">입장 ›</span>
-        </button>`).join('')}
+    <section class="game-cards hub-cards">
+      ${Object.entries(GAME_INFO).filter(([k]) => k !== 'langbang' || (S.info && S.info.langbang)).map(([k, g]) => hubCardHTML(k, g)).join('')}
     </section>
-    <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">🔴 지금 열린 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
+    <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title hub-sec"><i class="live-dot"></i>지금 열린 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
     <section class="panel">
       <div class="divider"><span>초대 코드로 참가</span></div>
       <form id="code-form" class="row">
@@ -1247,6 +1309,20 @@ function renderHome() {
   P.afterHome();
   if (!(S.info && S.info.accounts === false)) RK.loadHubChamps();
   startRoomList('');
+  loadHubLive();
+  // 영상이 재생되지 않는 기기(절전 모드 등): 멈춘 첫 장면(포스터)만 보이게
+  // 랑방 대전 타이틀 영상: 카드가 화면에 보일 때만 재생 (안 보이면 멈춤 · 데이터 아끼기)
+  const v = $app.querySelector('.gc-video');
+  if (v) {
+    v.muted = true;
+    v.addEventListener('playing', () => v.classList.add('on'), { once: true });
+    const go = (on) => { if (on) { const pl = v.play(); if (pl && pl.catch) pl.catch(() => {}); } else v.pause(); };
+    if ('IntersectionObserver' in window) {
+      const io2 = new IntersectionObserver((es) => { for (const e of es) go(e.isIntersecting && !document.hidden); }, { threshold: 0.35 });
+      io2.observe(v.closest('.hub-card'));
+      document.addEventListener('visibilitychange', () => { if (document.hidden) v.pause(); }, { once: false });
+    } else go(true);
+  }
   $app.querySelectorAll('[data-game]').forEach((b) => { b.onclick = () => launchGame(b.dataset.game); });
   $app.querySelector('#code-form').onsubmit = (e) => {
     e.preventDefault();
@@ -1257,7 +1333,7 @@ function renderHome() {
   };
 }
 
-const GAME_NAMES = { holdem: '♠ 텍사스 홀덤', seotda: '🎴 섯다', omok: '⚫ 오목' };
+const GAME_NAMES = { holdem: '♠ 텍사스 홀덤', seotda: '섯다', omok: '오목' };
 const gameOf = (st) => (st && st.room && st.room.settings && st.room.settings.game) || 'holdem';
 function gamePickHTML(cur, name = 'game') {
   return `<div class="seg game-pick">${Object.entries(GAME_NAMES).map(([k, t]) => `<label class="seg-opt"><input type="radio" name="${name}" value="${k}" ${cur === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>`;
@@ -1290,7 +1366,7 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <legend>게임 방식</legend>
     <div class="seg">
       <label class="seg-opt"><input type="radio" name="mode" value="cash" ${s.mode !== 'tournament' ? 'checked' : ''}><span>일반<small>리바인 가능</small></span></label>
-      <label class="seg-opt"><input type="radio" name="mode" value="tournament" ${s.mode === 'tournament' ? 'checked' : ''}><span>🏆 토너먼트<small>블라인드 상승·탈락</small></span></label>
+      <label class="seg-opt"><input type="radio" name="mode" value="tournament" ${s.mode === 'tournament' ? 'checked' : ''}><span>토너먼트<small>블라인드 상승·탈락</small></span></label>
     </div>
     <label class="field"><span>토너먼트 블라인드 오르는 간격</span>
       <select class="input" name="levelMinutes">${[3, 5, 7, 10, 15].map((m) => `<option value="${m}" ${Number(s.levelMinutes || 5) === m ? 'selected' : ''}>${m}분마다</option>`).join('')}</select></label>
@@ -1372,7 +1448,7 @@ const DEFAULTS = { startChips: 1000, sb: 10, bb: 20, minPlayers: 2, maxPlayers: 
 function renderCreate() {
   $app.innerHTML = `
   <main class="page">
-    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>${S.game ? GAME_INFO[S.game].icon + ' ' + GAME_INFO[S.game].name + ' ' : ''}방 만들기</h1></header>
+    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>${S.game ? GAME_INFO[S.game].name + ' ' : ''}방 만들기</h1></header>
     <form id="create-form" class="panel form">
       ${settingsFormHTML(DEFAULTS, { forCreate: true })}
       <button class="btn btn-gold btn-lg" type="submit">방 만들고 초대하기</button>
@@ -1406,7 +1482,7 @@ function renderPractice() {
   const cnt = LS.get('chandem:bots', 3);
   $app.innerHTML = `
   <main class="page">
-    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>${S.game ? GAME_INFO[S.game].icon + ' ' + GAME_INFO[S.game].name + ' · ' : ''}AI와 연습</h1></header>
+    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>${S.game ? GAME_INFO[S.game].name + ' · ' : ''}AI와 연습</h1></header>
     <form id="practice-form" class="panel form">
       <p class="muted small">친구가 없어도 봇들과 바로 칠 수 있어요. 일반 방식에선 봇 칩이 떨어지면 알아서 다시 채워요.</p>
       <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
@@ -1437,7 +1513,7 @@ function renderPractice() {
       <fieldset class="fieldset chips-only"><legend>방식</legend>
         <div class="seg">
           <label class="seg-opt"><input type="radio" name="pmode" value="cash" ${LS.get('chandem:pmode', 'cash') !== 'tournament' ? 'checked' : ''}><span>일반<small>봇 칩 자동 충전</small></span></label>
-          <label class="seg-opt"><input type="radio" name="pmode" value="tournament" ${LS.get('chandem:pmode', 'cash') === 'tournament' ? 'checked' : ''}><span>🏆 토너먼트<small>3분마다 블라인드↑</small></span></label>
+          <label class="seg-opt"><input type="radio" name="pmode" value="tournament" ${LS.get('chandem:pmode', 'cash') === 'tournament' ? 'checked' : ''}><span>토너먼트<small>3분마다 블라인드↑</small></span></label>
         </div>
       </fieldset>
       <button class="btn btn-gold btn-lg" type="submit">연습 시작</button>
@@ -1491,8 +1567,8 @@ function renderJoin() {
       </ul>
       <form id="join-form">
         <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
-        ${d.hasPassword ? `<label class="field"><span>비밀번호</span><input class="input" name="password" maxlength="20" ${S.user && S.user.isMaster ? 'placeholder="👑 마스터는 비워 두고 관전 가능"' : 'required'} autocomplete="off"></label>` : ''}
-        ${S.user && S.user.isMaster && (d.hasPassword || d.approval) ? '<p class="muted small">👑 마스터는 비밀번호·승인 없이 <b>관전</b>으로 바로 들어갈 수 있어요</p>' : ''}
+        ${d.hasPassword ? `<label class="field"><span>비밀번호</span><input class="input" name="password" maxlength="20" ${S.user && S.user.isMaster ? 'placeholder="마스터는 비워 두고 관전 가능"' : 'required'} autocomplete="off"></label>` : ''}
+        ${S.user && S.user.isMaster && (d.hasPassword || d.approval) ? '<p class="muted small">마스터는 비밀번호·승인 없이 <b>관전</b>으로 바로 들어갈 수 있어요</p>' : ''}
         ${avatarPickerHTML()}
         <label class="switch"><input type="checkbox" name="spectator" ${S.wantSpectate || d.phase === 'playing' || (S.user && S.user.isMaster && (d.hasPassword || d.approval)) ? 'checked' : ''}><span>관전만 할래요${d.phase === 'playing' ? ' (게임 중에는 바로 관전, 참가는 방장 승인)' : ''}</span></label>
         ${d.approval || d.phase === 'playing' ? `<p class="muted small">${d.phase === 'playing' ? '게임이 진행 중이라 ' : ''}방장이 승인하면 들어갈 수 있어요.</p>` : ''}
@@ -1553,7 +1629,7 @@ function renderMessage() {
 function statusBadges(p, st) {
   const b = [];
   if (p.isHost) b.push('<span class="badge badge-gold">방장</span>');
-  if (p.isBot) b.push('<span class="badge">🤖 봇</span>');
+  if (p.isBot) b.push('<span class="badge">봇</span>');
   if (p.role === 'spectator') b.push('<span class="badge">관전</span>');
   else if (st.room.phase === 'lobby' && !p.isBot) b.push(p.isHost ? '<span class="badge badge-ok">준비 완료</span>' : p.ready ? '<span class="badge badge-ok">준비 완료</span>' : '<span class="badge badge-wait">준비 전</span>');
   if (!p.connected) b.push('<span class="badge badge-warn">연결 끊김</span>');
@@ -1569,7 +1645,7 @@ function settingsSummaryHTML(s) {
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
     <li><span>리바인</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
     <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? `세 장 · ${s.sdOpen === 'one' ? '한 장 공개' : '공개 없음'}` : '두 장'})` : ''}</b></li>
-    <li><span>방식</span><b>${s.mode === 'tournament' ? `🏆 토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
+    <li><span>방식</span><b>${s.mode === 'tournament' ? `토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
     <li><span>입장</span><b>${[s.hasPassword ? '비밀번호' : '', s.approval ? '방장 승인' : ''].filter(Boolean).join(' + ') || '링크만 있으면 누구나'}</b></li>
   </ul>`;
 }
@@ -1616,7 +1692,7 @@ function renderLobby() {
   <main class="page lobby">
     <header class="page-head">${logoHTML(true)}<div class="spacer"></div>
       ${SHARE_BTN}
-      <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '🔇' : '🔊'}</button>
+      <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '음소거' : '소리'}</button>
       <button class="btn btn-sm btn-ghost" id="chart-btn">족보표</button>
     </header>
     ${guestNudgeHTML(st)}
@@ -1636,7 +1712,7 @@ function renderLobby() {
       <div class="plist">
         ${players.map((p) => playerRowHTML(p, st, isHost)).join('') || '<p class="muted">아직 참가자가 없어요</p>'}
       </div>
-      ${isHost && players.length < s.maxPlayers ? '<button class="btn btn-sm btn-outline add-bot" id="add-bot">🤖 봇 추가</button>' : ''}
+      ${isHost && players.length < s.maxPlayers ? '<button class="btn btn-sm btn-outline add-bot" id="add-bot">봇 추가</button>' : ''}
       ${specs.length ? `<h3 class="sub-title">관전자 ${specs.length}명</h3><div class="plist">${specs.map((p) => playerRowHTML(p, st, isHost)).join('')}</div>` : ''}
     </section>
     <section class="panel">
@@ -1736,9 +1812,9 @@ function openExitMenu() {
   openModal('게임을 나가시겠습니까?', `
     <p class="muted small">${inHand ? '진행 중인 판은 다이(폴드) 처리돼요. ' : ''}${st.room.practice ? '연습 방은 나가면 사라져요.' : '방을 나가도 초대 링크로 다시 들어올 수 있어요.'}</p>
     <div class="stack">
-      ${canWatch ? '<button class="btn btn-outline" data-act="watch">👀 관전으로 남기 <small class="muted">(자리만 비우고 구경)</small></button>' : ''}
-      <button class="btn btn-gold" data-act="lobby">🚪 방 나가기 → ${GAME_INFO[g].name} 대기 화면</button>
-      <button class="btn btn-ghost" data-act="home">🏠 메인으로</button>
+      ${canWatch ? '<button class="btn btn-outline" data-act="watch">관전으로 남기 <small class="muted">(자리만 비우고 구경)</small></button>' : ''}
+      <button class="btn btn-gold" data-act="lobby">방 나가기 → ${GAME_INFO[g].name} 대기 화면</button>
+      <button class="btn btn-ghost" data-act="home">메인으로</button>
       <button class="btn btn-ghost" data-act="stay">계속 있을게요</button>
     </div>`, (body) => {
     body.querySelector('[data-act="stay"]').onclick = closeModal;
@@ -1792,7 +1868,7 @@ function openSoundModal() {
 }
 function updateSoundIcon() {
   const b = document.getElementById('sound-btn');
-  if (b) b.textContent = sound.getPrefs().muted ? '🔇' : '🔊';
+  if (b) b.textContent = sound.getPrefs().muted ? '음소거' : '소리';
 }
 
 // ── 게임 테이블 ───────────────────────────────────────
@@ -1830,7 +1906,7 @@ function mountGame() {
     <header class="g-top" id="g-top"></header>
     <div class="g-banner" id="g-banner"></div>
     <div class="table-wrap"><div class="table" id="g-table"></div>
-      <div class="emote-tray" id="emote-tray" hidden>${EMOTES.map(([k, e, t]) => `<button data-emote="${k}" aria-label="${t}"><span>${e}</span><small>${t}</small></button>`).join('')}</div>
+      <div class="emote-tray" id="emote-tray" hidden>${EMOTES.map(([k, e, t]) => `<button data-emote="${k}" class="emote-${k}" aria-label="${t}"><span class="emote-txt">${e}</span><small>${t}</small></button>`).join('')}</div>
     </div>
     <div id="fx-layer" aria-hidden="true"></div>
     <section class="g-me" id="g-me"></section>
@@ -1877,11 +1953,11 @@ function renderTop(st) {
     ${logoHTML(true)}
     <div class="g-info"><span class="mono">${esc(st.room.code)}</span><span>${st.room.handNo ? `${st.room.handNo}번째 판` : ''}</span></div>
     <div class="spacer"></div>
-    <button class="icon-btn share-icon" id="share-top" aria-label="초대 링크 공유">🔗</button>
+    <button class="icon-btn share-icon" id="share-top" aria-label="초대 링크 공유">${P.hubIcon('link')}</button>
     <button class="btn btn-sm btn-ghost" id="chart-btn">족보표</button>
-    <button class="icon-btn" id="log-btn" aria-label="베팅 내역">📜</button>
-    <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '🔇' : '🔊'}</button>
-    <button class="icon-btn" id="menu-btn" aria-label="메뉴">☰${pendingCount ? `<span class="dot">${pendingCount}</span>` : ''}</button>`;
+    <button class="icon-btn txt-btn" id="log-btn" aria-label="베팅 내역">기록</button>
+    <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '음소거' : '소리'}</button>
+    <button class="icon-btn" id="menu-btn" aria-label="메뉴"><i class="burger" aria-hidden="true"><i></i></i>${pendingCount ? `<span class="dot">${pendingCount}</span>` : ''}</button>`;
   bindCommon();
   el.querySelector('#log-btn').onclick = openLogModal;
   el.querySelector('#menu-btn').onclick = openMenuModal;
@@ -1900,14 +1976,14 @@ function renderBanner(st) {
     } else if (me.stack === 0 && !(st.hand && !st.hand.result && st.players.find((p) => p.id === me.id)?.status === 'allin')) {
       msgs.push(['info', '칩이 모두 떨어졌어요. 이제 관전하며 응원해 주세요']);
     }
-    if (me.sittingOut) msgs.push(['away', '⏸️ 자리 비움 중 · 내 차례엔 자동으로 체크/다이해요 (화면을 누르면 돌아와요)', '<button class="btn btn-sm btn-gold" id="sitin-btn">자리로 돌아가기</button>']);
+    if (me.sittingOut) msgs.push(['away', '자리 비움 중 · 내 차례엔 자동으로 체크/다이해요 (화면을 누르면 돌아와요)', '<button class="btn btn-sm btn-gold" id="sitin-btn">자리로 돌아가기</button>']);
     const myRow = st.players.find((p) => p.id === me.id);
-    if (st.room.phase === 'playing' && myRow && myRow.status === 'waiting' && !me.sittingOut) msgs.push(['info', '🪑 다음 판부터 참여해요 · 이번 판은 구경 중']);
+    if (st.room.phase === 'playing' && myRow && myRow.status === 'waiting' && !me.sittingOut) msgs.push(['info', '다음 판부터 참여해요 · 이번 판은 구경 중']);
   }
   if (st.room.waiting) msgs.push(['info', '카드를 받을 수 있는 참가자가 2명 이상이 되면 다음 판이 시작돼요']);
   const nudge = guestNudgeHTML(st, true);
   const tn = st.room.tournament;
-  if (tn && tn.running) msgs.push(['tourney', `🏆 레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · 남은 ${tn.alive}/${tn.entrants}명`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · <b data-level-at="${tn.nextAt}">-</b></span>`]);
+  if (tn && tn.running) msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · 남은 ${tn.alive}/${tn.entrants}명`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · <b data-level-at="${tn.nextAt}">-</b></span>`]);
   // 방장: 게임 중 들어오고 싶은 사람
   if (me && me.isHost && st.pending) {
     for (const p of st.pending) msgs.push(['gold', p.seat ? `${p.name}님이 관전하다 자리에 앉고 싶어해요` : `${p.name}님이 들어오고 싶어해요`, `<button class="btn btn-sm btn-gold" data-approve="${p.id}">수락</button><button class="btn btn-sm btn-outline" data-reject="${p.id}">거절</button>`]);
@@ -1954,7 +2030,7 @@ function omokPlayerHTML(p, color, st, label) {
   const turn = st.hand && !st.hand.finished && st.hand.toActId === p.id;
   return `<div class="omok-player ${turn ? 'is-turn' : ''}" data-id="${esc(p.id)}">
     ${avatarHTML(p, 'avatar-sm')}<span class="omok-stone-icon stone-${color}"></span>
-    <b>${esc(p.name)}</b>${RK.badgeHTML(p.id)}${P.masterBadge(p.master, true)}${p.member && !p.master ? ' <span class="member-mark">✓</span>' : ''}${p.rating ? `<span class="tier-chip" style="color:${tierOf(p.rating).color}" title="${tierOf(p.rating).name} ${p.rating}점">${tierOf(p.rating).icon} ${fmt(p.rating)}</span>` : ''}${label ? `<span class="muted small">${label}</span>` : ''}
+    <b>${esc(p.name)}</b>${RK.badgeHTML(p.id)}${P.masterBadge(p.master, true)}${p.member && !p.master ? ' <span class="member-mark">✓</span>' : ''}${p.rating ? `<span class="tier-chip" style="color:${tierOf(p.rating).color}" title="${tierOf(p.rating).name} ${p.rating}점">${tierIco(tierOf(p.rating).icon)}${fmt(p.rating)}</span>` : ''}${label ? `<span class="muted small">${label}</span>` : ''}
     ${turn ? '<span class="tag tag-turn" data-deadline>차례</span>' : ''}</div>`;
 }
 function renderOmok(st) {
@@ -1966,7 +2042,7 @@ function renderOmok(st) {
   const o = h && h.omok;
   if (!o) {
     table.innerHTML = `<div class="omok-wait"><div class="table-brand">오목</div><p class="muted">${st.room.waiting ? '상대를 기다리는 중이에요' : '곧 시작해요'}</p></div>`;
-    meEl.innerHTML = '<button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>';
+    meEl.innerHTML = '<button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>';
     actEl.innerHTML = '';
     return;
   }
@@ -1981,17 +2057,17 @@ function renderOmok(st) {
     <div class="omok-wrap">
       ${omokPlayerHTML(pOf(oppId), o.colors[oppId], st, myColor ? '' : '')}
       <div class="omok-board-box">${omokBoardSVG(o, preview, myColor)}</div>
-      ${h.result ? `<div class="omok-result">${h.result.type === 'draw' ? '무승부예요' : `🏆 ${esc(h.result.winnerNames.join(', '))} 승리${h.result.reason === 'resign' ? ' (기권)' : ''}`}<small>곧 흑백을 바꿔 다음 판을 시작해요</small></div>` : ''}
+      ${h.result ? `<div class="omok-result">${h.result.type === 'draw' ? '무승부예요' : `${esc(h.result.winnerNames.join(', '))} 승리${h.result.reason === 'resign' ? ' (기권)' : ''}`}<small>곧 흑백을 바꿔 다음 판을 시작해요</small></div>` : ''}
     </div>`;
   meEl.innerHTML = `${omokPlayerHTML(pOf(bottomId), o.colors[bottomId], st, myColor ? '(나)' : '')}
-    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>`;
+    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>`;
   RK.fitNames(table); RK.fitNames(meEl);
   RK.refreshRoom(st);
   const la = h.legal;
   if (la) {
     actEl.innerHTML = `
       <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
-      <div class="act-info"><span class="my-turn">내 차례 (${myColor === 'b' ? '⚫ 흑' : '⚪ 백'}) · <span data-deadline-text>남은 시간 -</span></span><span>${preview ? '한 번 더 누르면 둬요' : '둘 곳을 누르세요'}${myColor === 'b' ? ' · 흑은 삼삼 금지' : ''}</span></div>
+      <div class="act-info"><span class="my-turn">내 차례 (${myColor === 'b' ? '흑' : '백'}) · <span data-deadline-text>남은 시간 -</span></span><span>${preview ? '한 번 더 누르면 둬요' : '둘 곳을 누르세요'}${myColor === 'b' ? ' · 흑은 삼삼 금지' : ''}</span></div>
       <div class="act-row">
         <button class="btn act act-fold" id="omok-resign">기권</button>
         <button class="btn act act-raise grow" id="omok-place" ${preview ? '' : 'disabled'}>${preview ? `여기에 두기 (${String.fromCharCode(65 + preview.x)}${preview.y + 1})` : '자리를 고르세요'}</button>
@@ -2031,7 +2107,7 @@ function omokEffects(st) {
     const iWon = h.result.winners.includes(st.me && st.me.id) && h.result.type !== 'draw';
     if (h.result.type === 'draw') banner('무승부', '', 'win', 1800);
     else {
-      banner(iWon ? '🏆 내가 이겼다!' : `🏆 ${h.result.winnerNames.join(', ')} 승리`, h.result.reason === 'resign' ? '상대 기권' : '오목 완성!', iWon ? 'mywin' : 'win', 2400);
+      banner(iWon ? '내가 이겼다!' : `${h.result.winnerNames.join(', ')} 승리`, h.result.reason === 'resign' ? '상대 기권' : '오목 완성!', iWon ? 'mywin' : 'win', 2400);
       sound.play('fanfare');
       if (iWon) coinRain(40);
     }
@@ -2139,8 +2215,8 @@ function renderTable(st) {
       ? `<div class="side-pots">${h.pots.map((pt, i) => `<span>${i === 0 ? '메인' : `사이드${i}`} ${fmt(pt.amount)}</span>`).join('')}</div>` : '';
     center = `
       <div class="table-center">
-        <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}">${(h.game === 'seotda' ? '' : { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '🔥 올인 승부' }[h.stage] || '')}</div>
-        ${h.game === 'seotda' ? `<div class="sd-center">🎴 ${st.room.settings.cards === 3 ? '세 장' : '두 장'} 섯다${h.stage === 'open' ? ' · 한 장 공개' : h.stage === 'pick' ? ' · 두 장 고르기' : h.stage === 'betting' ? (st.room.settings.cards === 3 ? ' · 1차 베팅' : ' · 베팅') : h.stage === 'betting2' ? ' · 2차 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
+        <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}">${(h.game === 'seotda' ? '' : { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '올인 승부' }[h.stage] || '')}</div>
+        ${h.game === 'seotda' ? `<div class="sd-center">${st.room.settings.cards === 3 ? '세 장' : '두 장'} 섯다${h.stage === 'open' ? ' · 한 장 공개' : h.stage === 'pick' ? ' · 두 장 고르기' : h.stage === 'betting' ? (st.room.settings.cards === 3 ? ' · 1차 베팅' : ' · 베팅') : h.stage === 'betting2' ? ' · 2차 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
         <div class="pot"><span class="chip-icon pot-chip"></span><b>${potText}</b>${h.totalPot > h.pot ? `<span class="pot-note">이번 라운드 ${fmt(h.totalPot - h.pot)} 포함</span>` : ''}</div>
         ${sidePots}
         ${result ? resultHTML(st, result) : ''}
@@ -2164,15 +2240,15 @@ function resultHTML(st, r) {
   const names = r.winnerNames.map(esc).join(', ');
   const nextIn = '';
   if (r.redeal) {
-    return `<div class="result"><div class="result-title">🎴 ${esc(r.redeal)}! 재경기</div><p>판돈 ${fmt(r.carry)}을 걸고 살아 있는 사람끼리 다시 쳐요</p></div>`;
+    return `<div class="result"><div class="result-title">${esc(r.redeal)}! 재경기</div><p>판돈 ${fmt(r.carry)}을 걸고 살아 있는 사람끼리 다시 쳐요</p></div>`;
   }
   if (r.type === 'fold') {
-    return `<div class="result"><div class="result-title">🏆 ${names}</div><p>다른 사람이 모두 폴드해서 팟을 가져갔어요</p>${nextIn}</div>`;
+    return `<div class="result"><div class="result-title">${names}</div><p>다른 사람이 모두 폴드해서 팟을 가져갔어요</p>${nextIn}</div>`;
   }
   const w = r.hands[r.winners[0]];
   const split = r.winners.length > 1;
   return `<div class="result">
-    <div class="result-title">🏆 ${names}${split ? ' <span class="small">(나눠 가짐)</span>' : ''}</div>
+    <div class="result-title">${names}${split ? ' <span class="small">(나눠 가짐)</span>' : ''}</div>
     <div class="result-hand">${esc(w ? w.name : '')}</div>
     ${r.pots.length > 1 ? `<div class="result-pots">${r.pots.map((p, i) => `<span>${p.returned ? '돌려받음' : i === 0 ? '메인 팟' : `사이드 팟${i}`} ${fmt(p.amount)} → ${p.winners.map((id) => esc(nameOf(id))).join(', ')}</span>`).join('')}</div>` : ''}
     ${nextIn}
@@ -2188,9 +2264,9 @@ function renderMe(st) {
   if (!me || !mp) { el.innerHTML = ''; return; }
   if (me.role === 'spectator' && !mp.cards) {
     const waitingSeat = mp.seatRequest;
-    el.innerHTML = `<div class="me-spec"><span>👀 관전 중이에요${waitingSeat ? ' · 방장이 자리 요청을 확인하고 있어요' : ''}</span>
+    el.innerHTML = `<div class="me-spec"><span>관전 중이에요${waitingSeat ? ' · 방장이 자리 요청을 확인하고 있어요' : ''}</span>
       ${waitingSeat ? '' : `<button class="btn btn-sm btn-outline" id="sit-btn">${st.room.phase === 'playing' ? '자리 요청하기' : '참가자로 앉기'}</button>`}</div>
-      <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>`;
+      <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>`;
     const sit = el.querySelector('#sit-btn');
     if (sit) sit.onclick = async () => { const r = await emit('lobby:role', { spectator: false }); if (r.ok && r.requested) toast('방장에게 자리 요청을 보냈어요. 수락되면 다음 판부터 참가해요', 'ok'); };
     return;
@@ -2221,7 +2297,7 @@ function renderMe(st) {
       ${mp.status === 'allin' ? '<div class="tag tag-allin">올인</div>' : ''}
       ${delta !== undefined ? `<div class="me-delta ${delta > 0 ? 'plus' : delta < 0 ? 'minus' : ''}">이번 판 ${signed(delta)}</div>` : ''}
     </div>
-    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">😀</button>`;
+    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>`;
 }
 
 function renderActions(st) {
@@ -2235,7 +2311,7 @@ function renderActions(st) {
   if (!h || h.finished) {
     S.raise.open = false;
     el.innerHTML = h && h.finished && !h.result
-      ? `<div class="wait-line reveal-line">${h.reveal && h.reveal.allin ? '🔥 올인 승부! 카드를 한 장씩 공개하고 있어요' : '🃏 패를 공개하고 있어요'}</div>`
+      ? `<div class="wait-line reveal-line">${h.reveal && h.reveal.allin ? '올인 승부! 카드를 한 장씩 공개하고 있어요' : '패를 공개하고 있어요'}</div>`
       : h && h.finished
       ? `<div class="wait-line"><span data-next>다음 판을 준비하고 있어요</span></div>`
       : `<div class="wait-line">${st.room.waiting ? '참가자를 기다리는 중이에요' : '곧 카드를 나눠 드려요'}</div>`;
@@ -2309,7 +2385,7 @@ function renderActions(st) {
     return;
   }
 
-  const awayNote = st.me && st.me.sittingOut ? '<div class="away-turn">⏸️ 자리 비움 중이에요 — 아래 버튼을 누르면 <b>자리로 돌아가며 바로 행동</b>해요</div>' : '';
+  const awayNote = st.me && st.me.sittingOut ? '<div class="away-turn">자리 비움 중이에요 — 아래 버튼을 누르면 <b>자리로 돌아가며 바로 행동</b>해요</div>' : '';
   if (h.game === 'seotda') { renderSeotdaActions(el, st, la, info, awayNote); return; }
   el.innerHTML = `${awayNote}
     <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
@@ -2343,12 +2419,12 @@ function renderSeotdaPhase(el, st) {
   const cards = mine && mine.cards && mine.cards[0] !== '??' ? mine.cards : null;
   const bar = '<div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>';
   if (ph.watching || !cards || ph.done) {
-    el.innerHTML = `${bar}<div class="wait-line">${ph.kind === 'open' ? '🎴 모두 공개할 카드를 고르는 중' : '🎴 모두 두 장을 고르는 중'}${ph.done ? ' · 나는 골랐어요' : ''} (${ph.waiting}명 남음) · <span data-deadline-text>남은 시간 -</span></div>`;
+    el.innerHTML = `${bar}<div class="wait-line">${ph.kind === 'open' ? '모두 공개할 카드를 고르는 중' : '모두 두 장을 고르는 중'}${ph.done ? ' · 나는 골랐어요' : ''} (${ph.waiting}명 남음) · <span data-deadline-text>남은 시간 -</span></div>`;
     return;
   }
   if (ph.kind === 'open') {
     el.innerHTML = `${bar}
-      <div class="act-info"><span class="my-turn">🎴 공개할 카드를 한 장 고르세요 · <span data-deadline-text>남은 시간 -</span></span><span>안 고르면 낮은 카드가 자동으로 공개돼요</span></div>
+      <div class="act-info"><span class="my-turn">공개할 카드를 한 장 고르세요 · <span data-deadline-text>남은 시간 -</span></span><span>안 고르면 낮은 카드가 자동으로 공개돼요</span></div>
       <div class="sd-pick-row">${cards.slice(0, 2).map((c, i) => `<button class="sd-pick-card" data-open="${i}">${cardHTML(c, { size: 'md' })}<small>이 카드 공개</small></button>`).join('')}</div>`;
     el.querySelectorAll('[data-open]').forEach((b) => { b.onclick = () => { S.pickSel = null; doAct({ type: 'open', index: Number(b.dataset.open) }); }; });
     return;
@@ -2359,7 +2435,7 @@ function renderSeotdaPhase(el, st) {
   const sel = S.pickSel.cards;
   const bp = sel.length === 2 ? rankSeotda(sel[0], sel[1]).name : '';
   el.innerHTML = `${bar}
-    <div class="act-info"><span class="my-turn">🎴 승부할 두 장을 고르세요 · <span data-deadline-text>남은 시간 -</span></span><span>가장 좋은 두 장이 미리 골라져 있어요</span></div>
+    <div class="act-info"><span class="my-turn">승부할 두 장을 고르세요 · <span data-deadline-text>남은 시간 -</span></span><span>가장 좋은 두 장이 미리 골라져 있어요</span></div>
     <div class="sd-pick-row three">${cards.map((c) => `<button class="sd-pick-card ${sel.includes(c) ? 'on' : ''}" data-pick="${esc(c)}">${cardHTML(c, { size: 'md' })}<small>${sel.includes(c) ? '✔ 선택' : '빼기'}</small></button>`).join('')}</div>
     <button class="btn btn-gold btn-lg sd-pick-ok" id="pick-ok" ${sel.length === 2 ? '' : 'disabled'}>${sel.length === 2 ? `이 두 장으로 승부 · ${esc(bp)}` : '두 장을 골라 주세요'}</button>`;
   el.querySelectorAll('[data-pick]').forEach((b) => {
@@ -2394,7 +2470,7 @@ function renderSeotdaActions(el, st, la, info, awayNote = '') {
   }
   btns.push(['allin', '올인', fmt(la.stack), la.canAllIn ? { type: 'allin' } : null, 'act-allin']);
   // 금액을 직접: 슬라이더·½팟·팟·올인 (레이즈 창)
-  if (canUp && la.minTo < la.maxTo) btns.push(['custom', '금액 ✏️', '직접 정하기', { custom: true }, 'act-custom']);
+  if (canUp && la.minTo < la.maxTo) btns.push(['custom', '금액 ', '직접 정하기', { custom: true }, 'act-custom']);
   void bb;
   el.innerHTML = `${awayNote}
     <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
@@ -2519,7 +2595,7 @@ function runEffects(st) {
   const once = (name) => { const key = `${k}:${name}`; if (S.fx[key]) return false; S.fx[key] = 1; return true; };
   if (h.reveal) {
     if (h.reveal.allin && once('allin')) {
-      banner('🔥 올인 승부!', '', 'allin');
+      banner('올인 승부!', '', 'allin');
       sound.play('drumroll');
       if (sound.isUnlocked()) gws.vibrate([40, 40, 40]);
     }
@@ -2715,7 +2791,7 @@ function countUp(el, to, ms = 1200) {
 
 function celebrate(st) {
   const r = st.hand.result;
-  if (r.redeal) { banner(`🎴 ${r.redeal}!`, '판돈을 걸고 재경기', 'level', 2200); sound.play('stamp'); return; }
+  if (r.redeal) { banner(`${r.redeal}!`, '판돈을 걸고 재경기', 'level', 2200); sound.play('stamp'); return; }
   const meId = st.me && st.me.id;
   const iWon = r.winners.includes(meId);
   const big = r.type === 'showdown';
@@ -2726,7 +2802,7 @@ function celebrate(st) {
   if (big || iWon) setTimeout(() => sound.play('fanfare'), 250);
   const names = r.winnerNames.join(', ');
   const handName = big && r.hands[r.winners[0]] ? esc(r.hands[r.winners[0]].name) : '모두 폴드';
-  const el = banner(iWon ? '🏆 내가 이겼다!' : `🏆 ${names} 승리`, `<span class="fx-hand">${handName}</span><b class="fx-amt">+0</b>`, iWon ? 'mywin' : 'win', big ? 2600 : 1800);
+  const el = banner(iWon ? '내가 이겼다!' : `${names} 승리`, `<span class="fx-hand">${handName}</span><b class="fx-amt">+0</b>`, iWon ? 'mywin' : 'win', big ? 2600 : 1800);
   countUp(el.querySelector('.fx-amt'), gain);
   if (iWon) {
     coinRain(huge ? 70 : 44);
@@ -2785,7 +2861,7 @@ function askExit() {
   H.askAt = Date.now();
   toast('한 번 더 누르면 종료돼요');
   openModal('종료하시겠습니까?', `<div class="exit-ask" data-exit-ask>
-      <p class="center">🎮 조금 더 놀다 가요!<br><span class="muted small">뒤로 가기를 한 번 더 누르면 종료돼요 · 다시 들어오면 로그인은 그대로예요</span></p>
+      <p class="center">조금 더 놀다 가요!<br><span class="muted small">뒤로 가기를 한 번 더 누르면 종료돼요 · 다시 들어오면 로그인은 그대로예요</span></p>
       <div class="row"><button class="btn btn-outline grow" data-close>취소</button><button class="btn btn-gold grow" data-exit-go>종료</button></div>
     </div>`, (body) => { body.querySelector('[data-exit-go]').onclick = reallyExit; }, { onClose: () => armGuard() });
 }
