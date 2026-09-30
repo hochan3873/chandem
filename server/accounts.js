@@ -495,7 +495,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       } else {
         wave = int(body.wave, 999);
         // 무한: 웨이브마다 진상이 늘어서 처치·점수가 웨이브²으로 는다 (40웨이브 ≈ 처치 2.3만 · 점수 160만) — 예전 상한(웨이브×400)은 30웨이브 넘으면 기록을 버렸다
-        if (score > 1000 * Math.pow(wave + 1, 2.3) + 50000 * (wave + 1) || kills > 40 * (wave + 1) * (wave + 1) + 400 * (wave + 1)) throw bad();
+        if (score > 10 * (1000 * Math.pow(wave + 1, 2.3) + 50000 * (wave + 1)) || kills > 40 * (wave + 1) * (wave + 1) + 400 * (wave + 1)) throw bad(); // (계약 ×5 · 스킬 연속 ×2 배율까지)
         if (wave >= 3 && dur < wave * 8) throw bad();
       }
       let out = null;
@@ -550,13 +550,15 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];
         const got = [];
         let endInfo = null;
+        const afkF = mode === 'endless' ? Math.max(0, Math.min(1, (Number(body.afkSec) || 0) / Math.max(1, dur))) : 0;
+        if (mode === 'endless') reward.total = Math.round(reward.total * (1 - afkF) * Math.min(2, Math.max(1, Number(body.coinMul) || 1)));
         const usedOk = Array.isArray(body.heroesUsed) ? [...new Set(body.heroesUsed.map(String))].filter((h) => LB_HEROES.includes(h) && LBR.heroUnlocked(before, h)).slice(0, 7) : [];
         const cardDrop = mode === 'stage' ? LBR.rollHeroCard(LBR.hashSeed(`hc:${id}:${before.clears}:${stage}`), stars, hell, usedOk) : null;
         const stones = mode === 'stage' ? LBR.rollStones(LBR.hashSeed(`st:${id}:${before.clears}:${stage}`), stage, stars, !prevStars, hell) : mode === 'raid' ? 2 : 0; // 레이드 한 판마다 강화석 2개
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
           if (mode === 'stage') { if (lb.staRun && lb.staRun.stage === stage) lb.staRun = null; else if (!freeMaster(u)) LIVE.staminaAdd(lb, -LIVE.stageStaminaCost(lb, stage, hell), now); }
-          if (mode === 'endless') { const ef = LIVE.endlessFinish(lb, wave, master ? 0 : score, (lb.endRun || master || LIVE.endlessLeft(lb, now) > 0) ? reward.total : 0, id, now); if (!lb.endRun && !master && LIVE.endlessLeft(lb, now) > 0) LIVE.endlessStart(lb, false, now); lb.endRun = null; endInfo = ef; reward.total = ef.coins; }
+          if (mode === 'endless') { const ef = LIVE.endlessFinish(lb, wave, master ? 0 : Math.round(score * (1 - afkF)), (lb.endRun || master || LIVE.endlessLeft(lb, now) > 0) ? reward.total : 0, id, now); if (!lb.endRun && !master && LIVE.endlessLeft(lb, now) > 0) LIVE.endlessStart(lb, false, now); lb.endRun = null; endInfo = ef; reward.total = ef.coins; }
           lb.runs++; lb.kills += kills; lb.coins += reward.total; lb.stones = (lb.stones | 0) + stones; if (cardDrop) { lb.shards = lb.shards || {}; lb.shards[cardDrop] = (lb.shards[cardDrop] | 0) + 1; }
           // 도감: 이번 판에 만난 진상 (있는 이름만)
           if (Array.isArray(body.seen)) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => LBR.ENEMY_IDS.includes(t))])];

@@ -6,6 +6,7 @@ import {
   STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI,
+  CURSES, ENDLESS_TUNE,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -62,7 +63,7 @@ export function createGame(opt = {}) {
     // 덱 칸: 산 칸 수만큼만 열린 자리 (나머지는 자물쇠). 임시 증원 카드로 한 자리 잠깐 열 수 있다
     locked: [], maxHeroes: opt.slots ? Math.max(1, Math.min(6, opt.slots)) : 99, tempSlot: -1, guestUsed: false, // 자리는 6칸 모두 쓸 수 있고, 데려갈 수 있는 멤버 수만 제한
     guestPool: (opt.guestPool || []).slice(),
-    stacks: {}, hiddenTaken: {}, heroesUsed: {}, seen: {}, seenTrait: {}, tauntZone: null,
+    stacks: {}, hiddenTaken: {}, heroesUsed: {}, seen: {}, seenTrait: {}, tauntZone: null, bags: [], curses: [], scoreMul: 1, coinMul: 1, streak: 1,
     stats: { kills: 0, bossKills: 0, coins: 0, score: 0, maxCombo: 0, damage: 0, wavesCleared: 0, stolen: 0, skills: 0 },
     combo: 0, comboT: 0, ult: 0, focus: null,
     uid: 1, victory: false, endless: mode === 'endless', over: false, stars: 0, lastSnap: null,
@@ -1103,7 +1104,7 @@ function killEnemy(g, e, src) {
   // 경험치 보석 (떨어진 뒤 잠깐 튀었다가 저절로 경험치 바로 날아간다)
   const gm = src && src.def && src.def.grow;
   if (gm) src.grow = Math.min(gm.max + (src.lv >= 3 ? 0.1 : 0) + (src.cm.growMax || 0), (src.grow || 0) + gm.perKill);
-  const xp = def.exp * g.mods.expMul * (1 + Math.min(0.15, g.combo * 0.003)) * (gm ? 1 + gm.exp + (src.lv >= 5 ? 0.25 : 0) : 1); // 연속 처치 보너스 (최대 +15%) · 박상화가 잡으면 경험치 더
+  const xp = (g.mode === 'endless' && g.wave > ENDLESS_TUNE.from ? Math.pow(ENDLESS_TUNE.xp, g.wave - ENDLESS_TUNE.from) : 1) * def.exp * g.mods.expMul * (1 + Math.min(0.15, g.combo * 0.003)) * (gm ? 1 + gm.exp + (src.lv >= 5 ? 0.25 : 0) : 1); // 연속 처치 보너스 (최대 +15%) · 박상화가 잡으면 경험치 더
   // 멀티킬: 0.35초 안에 쓰러진 진상을 한 묶음으로
   const mk = g.mk || (g.mk = { n: 0, t0: 0, x: 0, y: 0 });
   if (mk.n && g.t - mk.t0 > MK_WIN) flushMultiKill(g);
@@ -2052,8 +2053,67 @@ export function waveDefFor(g, n) {
   if (g.weekly) { const d = g.weekly.waves[n - 1] || g.weekly.waves[g.weekly.waves.length - 1]; return g.raid && n > 1 && d.boss ? Object.assign({}, d, { boss: undefined }) : d; }
   return g.mode === 'stage' ? stageWave(g.stage, n) : waveDef(n);
 }
+// ─── 무한 도전: 저주 계약 · 자리 비움 방지 이벤트 ───
+function offerCurse(g) {
+  const have = new Set((g.curses || []).map((c) => c.id));
+  const pool = Object.keys(CURSES).filter((k) => !have.has(k));
+  if (pool.length === 0) return; // 계약은 종류마다 한 번 (6개 다 받으면 끝)
+  const opts = [];
+  while (opts.length < 3 && pool.length) opts.push(pool.splice((g.rng() * pool.length) | 0, 1)[0]);
+  g.curseOffer = { opts, t: 10 };
+  ev(g, 'curseOffer', { opts });
+}
+export function applyCurse(g, id) {
+  const c = CURSES[id];
+  if (!c || !g.curseOffer || !g.curseOffer.opts.includes(id)) return false;
+  g.curseOffer = null;
+  (g.curses = g.curses || []).push({ id });
+  g.scoreMul = Math.min(5, (g.scoreMul || 1) * (c.score || 1)); // 계약 배율은 최대 ×5
+  g.coinMul = (g.coinMul || 1) * (c.coin || 1);
+  if (id === 'fast') g.mods.enemySpd *= 1.2;
+  else if (id === 'slowhand') g.mods.spd *= 0.9;
+  else if (id === 'twin') g.twinBoss = true;
+  else if (id === 'norepair') g.mods.healMul = 0;
+  else if (id === 'thick') g.mods.enemyHp *= 1.25;
+  else if (id === 'lockone') { const hs = g.heroes.filter((h) => !h.def.summon && !h.locked); const h = hs[(g.rng() * hs.length) | 0]; if (h) { h.locked = true; h.stunT = 1e9; } }
+  ev(g, 'curse', { id, name: c.name });
+  return true;
+}
+// 40초마다: "진상 러시! 10초 안에 스킬 2번" 또는 "떨어지는 코인 주머니 3개 누르기" — 못 하면 벌칙 진상 · 배율 초기화
+function updateIdleEv(g, dt) {
+  if (g.mode !== 'endless' || g.pvp || g.phase !== 'wave') return;
+  if (g.curseOffer && (g.curseOffer.t -= dt) <= 0) applyCurse(g, g.curseOffer.opts[(g.rng() * g.curseOffer.opts.length) | 0]);
+  const e = g.idleEv;
+  if (!e) { g.idleT = (g.idleT == null ? 40 : g.idleT) - dt; if (g.idleT <= 0 && g.wave >= 3) startIdleEv(g); return; }
+  e.t -= dt;
+  if (e.kind === 'bags') for (const b of g.bags) b.y += 70 * dt;
+  const ok = e.kind === 'rush' ? e.got >= e.need : g.bags.length === 0;
+  if (ok || e.t <= 0) endIdleEv(g, ok);
+}
+function startIdleEv(g) {
+  const kind = g.rng() < 0.5 ? 'rush' : 'bags';
+  g.idleEv = { kind, t: kind === 'rush' ? 10 : 8, need: 2, got: 0 };
+  if (kind === 'bags') g.bags = Array.from({ length: 3 }, () => ({ x: 40 + g.rng() * (g.W - 80), y: 60 + g.rng() * 80, id: g.uid++ }));
+  ev(g, 'idleEv', { kind });
+}
+function endIdleEv(g, ok) {
+  const e = g.idleEv; g.idleEv = null; g.bags = []; g.idleT = 36 + g.rng() * 8;
+  if (ok) { g.streak = Math.min(2, (g.streak || 1) + 0.2); g.stats.score += 500 * g.wave; }
+  else { g.streak = 1; pvpIncoming(g, 'small'); }
+  ev(g, 'idleEnd', { ok, kind: e.kind, streak: g.streak });
+}
+// 코인 주머니 누르기 (화면 좌표 = 게임 좌표)
+export function tapBag(g, x, y) {
+  if (!g.bags || !g.bags.length) return false;
+  const i = g.bags.findIndex((b) => Math.hypot(b.x - x, b.y - y) < 34);
+  if (i < 0) return false;
+  const b = g.bags.splice(i, 1)[0];
+  ev(g, 'bagTap', { x: b.x, y: b.y, left: g.bags.length });
+  return true;
+}
 export function startWave(g, n) {
   g.wave = n;
+  if (g.mode === 'endless' && n > 1 && (n - 1) % 5 === 0 && !g.pvp) offerCurse(g);
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
   g.hpScale = def.hpScale || 1;
@@ -2089,6 +2149,7 @@ export function startWave(g, n) {
     }
   }
   if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true });
+  if (def.boss && g.twinBoss) q.push({ type: def.boss, at: 3.5, boss: true }); // 저주 계약 '보스 둘'
   if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true });
   if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? 14 : 26, boss: true });
   q.sort((a, b) => a.at - b.at);
@@ -2401,6 +2462,7 @@ export function castSkill(g, h, x, y, echo) {
   if (echo) { ev(g, 'skill', { hero: h.id, skill: sk.id, name: sk.name + ' 한 번 더!', x: sk.target ? x : h.x, y: sk.target ? y : h.y, r, target: !!sk.target, echo: true }); return true; }
   h.skillCd = sk.cd * (1 - (h.gear.cd || 0)) * g.cdMul * (h.evo ? EVO_MUL.cd : 1);
   g.stats.skills++;
+  if (g.mode === 'endless') { g.streak = Math.min(2, (g.streak || 1) + 0.03); if (g.idleEv && g.idleEv.kind === 'rush') g.idleEv.got++; }
   ev(g, 'skill', { hero: h.id, skill: sk.id, name: sk.name, x: sk.target ? x : h.x, y: sk.target ? y : h.y, r, target: !!sk.target });
   return true;
 }
@@ -2499,6 +2561,7 @@ export function step(g, dt) {
   if (g.holes && g.holes.length) updateHoles(g, dt); // 강성구 블랙홀
   if (g.harleys && g.harleys.length) updateHarleys(g, dt); // 백인규 할리
   if (g.tauntZone && (g.tauntZone.t -= dt) <= 0) g.tauntZone = null;
+  updateIdleEv(g, dt);
   if (g.bossSlowT > 0) g.bossSlowT -= dt;
   if (g.hbeams && g.hbeams.length) { for (const q of g.hbeams) q.t -= dt; g.hbeams = g.hbeams.filter((q) => q.t > 0); }
   updateMapFx(g, dt);
@@ -2727,7 +2790,11 @@ export function summary(g, durationSec) {
     hpPct: Math.round((g.base.hp / g.base.max) * 100),
     wave: stage ? g.stats.wavesCleared : g.victory && !g.endless ? RULES.waves : Math.max(g.stats.wavesCleared, g.wave),
     waves: stage ? g.totalWaves : g.stats.wavesCleared,
-    score: g.stats.score,
+    score: g.mode === 'endless' ? Math.round(g.stats.score * (g.scoreMul || 1) * (g.streak || 1)) : g.stats.score,
+    afkSec: Math.round(g.afkSec || 0),
+    mult: g.mode === 'endless' ? Math.round((g.scoreMul || 1) * (g.streak || 1) * 100) / 100 : 1,
+    coinMul: g.coinMul || 1,
+    curses: (g.curses || []).map((c) => c.id),
     kills: g.stats.kills,
     bossKills: g.stats.bossKills,
     skills: g.stats.skills | 0,
@@ -2751,6 +2818,7 @@ export function snapshot(g) {
     level: g.level, exp: g.exp, need: g.need, pendingLevels: g.pendingLevels, welcomePicks: g.welcomePicks,
     base: { hp: g.base.hp, max: g.base.max }, ult: g.ult, stats: Object.assign({}, g.stats),
     meta: Object.assign({}, g.meta), items: Object.assign({}, g.items), unlocked: g.unlocked.slice(), trial: (g.trial || []).slice(),
+    curses: g.curses || [], scoreMul: g.scoreMul || 1, coinMul: g.coinMul || 1, streak: g.streak || 1, twinBoss: !!g.twinBoss,
     gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, hell: g.hell, maxHeroes: g.maxHeroes,
   };
 }
@@ -2785,6 +2853,7 @@ export function restoreGame(snap, opt = {}) {
   g.resumed = true;
   g.trial = (snap.trial || []).slice();
   g.baseHit = !!snap.baseHit;
+  g.curses = snap.curses || []; g.scoreMul = snap.scoreMul || 1; g.coinMul = snap.coinMul || 1; g.streak = snap.streak || 1; g.twinBoss = !!snap.twinBoss;
   g.events.length = 0;
   return g;
 }

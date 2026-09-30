@@ -1557,3 +1557,32 @@ test('1:1 대전 보상: 하루 10판 · 첫 승 2배 · 30초 안 판 · 같은
   L.pvpTierUp(lb, 1260, t);
   assert.equal(lb.mail.length, 2, '한 번씩만');
 });
+
+test('무한 개편: 5웨이브마다 저주 계약(10초면 자동) · 배율 · 코인 주머니 · 스킬 러시 · 체력 압박', () => {
+  const g = S.createGame({ H: 760, rng: seeded(12), mode: 'endless', deck: ['bangjang', 'staff', 'gunman'], meta: {}, god: true });
+  S.startWave(g, 6);
+  assert.ok(g.curseOffer && g.curseOffer.opts.length === 3, '6웨이브: 계약 셋');
+  const id = g.curseOffer.opts[0];
+  assert.equal(S.applyCurse(g, id), true);
+  assert.ok(g.curses.length === 1 && !g.curseOffer);
+  assert.equal(S.applyCurse(g, id), false, '두 번은 안 됨');
+  S.startWave(g, 11);
+  g.phase = 'wave';
+  for (let t = 0; t < 11; t += 1 / 60) S.step(g, 1 / 60);
+  assert.equal(g.curses.length, 2, '10초 지나면 아무거나');
+  assert.ok(g.scoreMul > 1, '점수 배율');
+  // 코인 주머니
+  g.idleT = 0; g.wave = 12; g.phase = 'wave';
+  let tries = 0;
+  while ((!g.idleEv || g.idleEv.kind !== 'bags') && tries++ < 40) { g.idleEv = null; g.idleT = 0; S.step(g, 1 / 60); }
+  assert.equal(g.idleEv.kind, 'bags');
+  const s0 = g.streak;
+  for (const b of g.bags.slice()) assert.equal(S.tapBag(g, b.x, b.y + 1), true);
+  S.step(g, 1 / 60);
+  assert.ok(g.streak > s0 && !g.idleEv, '성공 → 배율 ↑');
+  // 요약 점수에 배율이 들어간다
+  const sm = S.summary(g, 100);
+  assert.ok(sm.mult > 1 && sm.score >= g.stats.score);
+  // 압박: 40웨이브 체력 배율이 20웨이브의 수십 배
+  assert.ok(D.hpMul(40, false) / D.hpMul(20, false) > 8);
+});

@@ -6,7 +6,7 @@ import {
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
-  TRAITS, stageMix,
+  TRAITS, stageMix, CURSES,
 } from './data.js';
 import * as L from './live.js';
 import * as S from './sim.js';
@@ -217,6 +217,7 @@ function guardOn(fromGesture = false) {
   try { history.pushState({ lb: 'guard', d: ++hDepth }, ''); guarded = true; if (act) armed++; guardGesture = act; } catch { /* 무시 */ }
 }
 for (const t of ['pointerdown', 'keydown']) window.addEventListener(t, () => guardOn(true), { capture: true, passive: true });
+for (const t of ['pointerdown', 'keydown']) window.addEventListener(t, () => { app.lastInput = performance.now(); }, { capture: true, passive: true });
 function leaveToHub() {
   saveSnap();
   document.body.classList.add('leaving');
@@ -572,6 +573,11 @@ function handleEvents(g, loud) {
       case 'bossRage': fx.banner(`😡 ${e.name} 분노!`, '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
       case 'heroStun': if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); break;
+      case 'curseOffer': showCurseOffer(e.opts); break;
+      case 'curse': fx.banner(`${CURSES[e.id].icon} 계약: ${e.name}`, CURSES[e.id].up, '#5a1a7a', 1.3, 'wave'); closeCurseOffer(); break;
+      case 'idleEv': fx.banner(e.kind === 'rush' ? '⚡ 진상 러시! 스킬 2번!' : '💰 주머니 3개 누르기!', e.kind === 'rush' ? '10초 안에 · 못 하면 벌칙 진상' : '8초 안에 · 성공하면 점수 배율 ↑', '#8a5a00', 1.6, 'wave'); A.sfx.charm && A.sfx.charm(); break;
+      case 'idleEnd': if (e.ok) { fx.text(180, 200, `성공! 배율 ×${e.streak.toFixed(2)}`, '#ffe066', 18, 1.2); A.sfx.levelUp(); } else { fx.text(180, 200, '실패… 벌칙 진상!', '#ff5a5a', 18, 1.2); fx.addShake(5); } break;
+      case 'bagTap': fx.burst(e.x, e.y, 10, '#ffd23f', 140, 'spark', 4, 0.4); fx.text(e.x, e.y - 20, e.left ? `${3 - e.left}/3` : '3/3!', '#ffe066', 14, 0.7); A.sfx.coin && A.sfx.coin(); break;
       case 'traitSeen': { // 처음 보는 특성 진상: 한 번 안내 (기기마다)
         const d = ENEMIES[e.type]; if (!d || !d.traits) break;
         let seenT = {}; try { seenT = JSON.parse(localStorage.getItem('langbang:traitSeen') || '{}'); } catch { /* 무시 */ }
@@ -996,7 +1002,7 @@ function updateHud() {
   setText(H$.left, 'left', g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : `남은 진상 ${S.enemiesLeft(g)}`);
   setText(H$.fx, 'fx', g.mapFx.id === 'none' ? '' : g.mapFx.icon);
   setText(H$.kills, 'kills', fmt(g.stats.kills));
-  setText(H$.score, 'score', fmt(g.stats.score));
+  setText(H$.score, 'score', g.mode === 'endless' && ((g.scoreMul || 1) * (g.streak || 1)) > 1.001 ? `${fmt(g.stats.score)} ×${((g.scoreMul || 1) * (g.streak || 1)).toFixed(2)}` : fmt(g.stats.score));
   setText(H$.lv, 'lv', `Lv.${g.level}`);
   const synKey = JSON.stringify([g.attrCount, g.stacks, g.heroes.map((h) => h.evo ? 1 : 0)]);
   if (app.hudCache.syn !== synKey) { app.hudCache.syn = synKey; H$.syn.innerHTML = synTrayHtml(g, false); }
@@ -1069,6 +1075,11 @@ function frame(now) {
   if (g && !app.paused && !app.confirmOpen) {
     const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && app.cardsOpen ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
     const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
+    if (live && live.mode === 'endless' && !live.over && !app.paused) {
+      const idle = performance.now() - (app.lastInput || performance.now());
+      if (idle > 60000) { live.afkSec = (live.afkSec || 0) + dt; if (!app.afkShown) { app.afkShown = true; fx.banner('💤 자리 비움 — 보상 멈춤', '화면을 누르면 다시 보상이 쌓여요', '#333a55', 2.2, 'big'); } }
+      else app.afkShown = false;
+    }
     acc += dt * ts * speed;
     const maxSteps = Math.ceil(10 * Math.max(1, speed));
     let n = 0;
@@ -1131,6 +1142,8 @@ canvas.addEventListener('pointerdown', (ev) => {
   const g = app.g;
   if (!g || app.paused || g.over || app.confirmOpen) return;
   const { x, y } = fieldPos(ev);
+  app.lastInput = performance.now();
+  if (g.bags && g.bags.length && S.tapBag(g, x, y)) { handleEvents(g, true); return; } // 무한: 떨어지는 코인 주머니
   // 1) 스킬 조준: 누른 채로 끌면 원이 따라오고, 손을 떼면 그 자리에 시전
   if (app.aim) {
     app.aim.x = x; app.aim.y = y; app.aim.hold = true;
@@ -1677,6 +1690,16 @@ const REWARD_INFO = {
   pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>⚔️ 1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 🎉 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">🏆 ${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? ' ✅' : ''}</p>`).join('')}</div>`; },
   raid: () => `<h3>🐉 레이드 보상</h3><div class="ilist"><p class="ip">참가: 코인 · 보스 체력을 깎은 만큼 (50% 넘으면 모집권)</p><p class="ip">처치 성공: 모두 코인 2,000 + 기여도 · 1위 전설 장비 + 칭호 "레이드 MVP" · 2~3위 영웅 장비 · TOP10 모집권</p><p class="ip">한 판마다 💎 강화석 2</p></div>`,
 };
+// 무한 저주 계약: 셋 중 하나 (10초 안에 안 고르면 아무거나)
+const curseBox = document.createElement('div');
+curseBox.className = 'curse-box';
+curseBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-curse]'); if (b && app.g && S.applyCurse(app.g, b.dataset.curse)) { handleEvents(app.g, true); A.sfx.pick(); } });
+function showCurseOffer(opts) {
+  curseBox.innerHTML = `<div class="cb-head"><b>📜 저주 계약</b><small>하나는 꼭 골라요 · <em id="cbT">10</em>초 뒤 아무거나</small></div><div class="cb-list">${opts.map((id) => { const c = CURSES[id]; return `<button class="cb-card" data-curse="${id}"><span class="cb-ico">${c.icon}</span><b>${esc(c.name)}</b><small class="bad">😈 ${esc(c.desc)}</small><small class="good">🎁 ${esc(c.up)}</small></button>`; }).join('')}</div>`;
+  if (!curseBox.isConnected) stage.appendChild(curseBox);
+}
+function closeCurseOffer() { if (curseBox.isConnected) curseBox.remove(); }
+setInterval(() => { const g = app.g, t = document.getElementById('cbT'); if (g && g.curseOffer && t) t.textContent = Math.ceil(g.curseOffer.t); if ((!g || !g.curseOffer) && curseBox.isConnected) closeCurseOffer(); }, 250);
 function topPills() {
   const p = P();
   const expPct = p.expToNext ? Math.round((p.exp / p.expToNext) * 100) : 0;
@@ -3623,7 +3646,7 @@ async function saveResult(sum, g) {
   const stageMode = g.mode === 'stage';
   const body = stageMode
     ? { stage: sum.stage, stars: sum.stars, perfect: sum.perfect, hell: sum.hell, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, seen: sum.seen, speed: app.runSpeed || 1 }
-    : { wave: sum.wave, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen };
+    : { wave: sum.wave, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen, afkSec: sum.afkSec, coinMul: sum.coinMul, curses: sum.curses };
   const r = stageMode ? await API.postStage(body, app.guest) : await API.postEndless(body, app.guest);
   if (r.ok && r.profile) app.profile = r.profile;
   if (!box || !box.isConnected) return;

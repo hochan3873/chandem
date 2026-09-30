@@ -848,6 +848,8 @@ export class Renderer {
       if (e.bai.st === 'windup' && e.bai.targets.length) { this.world(); const k = 1 - e.bai.t / 1.0; cx.strokeStyle = '#ff2a2a'; cx.lineWidth = 3; cx.globalAlpha = 0.5 + k * 0.5; for (const h of e.bai.targets) { cx.beginPath(); cx.arc(h.x, h.y + 6, 26 - k * 8, 0, TAU); cx.stroke(); } cx.globalAlpha = 1; }
       if (e.bai.p2) { const gl = this.projSprites.glowRed; const r = e.def.size * 0.7; this.tf(e.x, e.y - e.def.size * 0.3, 0, 1, 1); cx.globalAlpha = 0.55 + Math.sin(this.fx.time * 8) * 0.15; cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1; }
     }
+    // 무한: 떨어지는 코인 주머니 (누르기)
+    for (const b of g.bags || []) { this.world(); const t0 = this.fx.time; cx.globalAlpha = 0.9; const gl = this.projSprites.glowGold; cx.drawImage(gl.c, b.x - 34, b.y - 34, 68, 68); cx.globalAlpha = 1; cx.font = `30px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('💰', b.x, b.y + Math.sin(t0 * 6 + b.id) * 3); }
     // 정원식 결혼정보회사: 분홍 점선 원
     if (g.tauntZone) { const z = g.tauntZone; this.world(); cx.globalAlpha = 0.35 + Math.sin(this.fx.time * 6) * 0.1; cx.strokeStyle = '#ff7ac8'; cx.lineWidth = 3; cx.setLineDash([10, 8]); cx.beginPath(); cx.arc(z.x, z.y, z.r, 0, TAU); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1; }
     // 이한나 하트 레이저 풀파워: 굵은 분홍 빔

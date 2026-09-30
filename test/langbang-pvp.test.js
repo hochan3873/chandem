@@ -502,3 +502,18 @@ test('체력 · 무한 입장 · 우편함: 스테이지는 체력(실패 절반
   const ms = await post('/api/langbang/stage/start', m.token, { stage: 1 });
   assert.equal(ms.ok, true); assert.equal(ms.cost, 0);
 });
+
+test('무한 자리 비움: 절반을 자리 비움이면 코인 · 주간 점수도 절반', async () => {
+  const u = await user('afkuser');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { maxStage: 10, stages: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 3])) });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  const base = { mode: 'endless', wave: 8, score: 20000, kills: 300, bossKills: 1, skills: 10, durationSec: 400, seen: [] };
+  const a = await post('/api/langbang/result', u.token, Object.assign({}, base, { afkSec: 0 }));
+  assert.equal(a.ok, true, a.message);
+  const s2 = await srv.accounts.store.byId(u.user.id); s2.stats.langbang.lastResultAt = 0; s2.stats.langbang.ew = null; await srv.accounts.store.saveStats(u.user.id, s2.stats);
+  const b = await post('/api/langbang/result', u.token, Object.assign({}, base, { afkSec: 200 }));
+  assert.equal(b.ok, true, b.message);
+  assert.ok(Math.abs(b.reward.total - a.reward.total / 2) <= 2, `절반 ${a.reward.total} → ${b.reward.total}`);
+  assert.equal(b.profile.ew.best, 10000, '주간 점수도 절반');
+});

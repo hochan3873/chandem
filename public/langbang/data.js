@@ -66,15 +66,16 @@ export const EXP_NEED_MUL = 2.4; // (2.2 → 2.4: 카드가 너무 자주 떠서
 export const stageExpMul = (s) => 1 / (1 + 0.1 * Math.max(0, (s || 1) - 1));
 
 // 웨이브별 적 체력 배율
+export const ENDLESS_TUNE = { hp: 1.12, atk: 0.12, from: 20, xp: 0.88 }; // xp: 뒤 웨이브일수록 카드가 덜 나온다 (진상이 늘어도 힘이 같이 폭주하지 않게) // 무한 압박 (밸런스 스크립트로 맞춤)
 export function hpMul(wave, stage) {
   const w = wave - 1;
   let m = 1 + 0.2 * w + 0.03 * w * w;
-  if (wave > 20 && !stage) m *= Math.pow(1.09, wave - 20); // 무한 모드
+  if (wave > ENDLESS_TUNE.from && !stage) m *= Math.pow(ENDLESS_TUNE.hp, wave - ENDLESS_TUNE.from); // 무한 모드: 웨이브마다 체력 ×1.12 — 어떤 덱도 결국 무너진다
   return m;
 }
 // 웨이브별 적 공격력 배율
 export function atkMul(wave, stage) {
-  return 1 + 0.05 * (wave - 1) + (wave > 20 && !stage ? 0.08 * (wave - 20) : 0);
+  return 1 + 0.05 * (wave - 1) + (wave > ENDLESS_TUNE.from && !stage ? ENDLESS_TUNE.atk * (wave - ENDLESS_TUNE.from) : 0);
 }
 
 // ─── 점수 공식 ─────────────────────────────────────────
@@ -1279,6 +1280,16 @@ export const WAVES = [
 ];
 
 // 무한 모드(21웨이브~) 구성 자동 생성
+const ENDLESS_BOSSES = ['boss_gapjil', 'boss_inpi', 'boss_loan', 'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty', 'queen'];
+// 무한 저주 계약: 5웨이브마다 셋 중 하나 (꼭 골라야 · 10초면 아무거나) — 위험 ↔ 점수/보상
+export const CURSES = {
+  fast: { id: 'fast', icon: '💨', name: '광속 진상', desc: '진상 속도 +20%', up: '코인 +30%', coin: 1.3 },
+  slowhand: { id: 'slowhand', icon: '🐢', name: '굳은 손', desc: '우리 공격 속도 -10%', up: '점수 ×1.5', score: 1.5 },
+  twin: { id: 'twin', icon: '👑', name: '보스 둘', desc: '보스가 2마리씩', up: '점수 ×1.4 · 전설 장비 확률 ↑', score: 1.4 },
+  norepair: { id: 'norepair', icon: '🚫', name: '수리 금지', desc: '입구 회복 불가', up: '점수 ×2', score: 2 },
+  lockone: { id: 'lockone', icon: '🔒', name: '멤버 잠김', desc: '무작위 멤버 1명이 쉰다', up: '점수 ×1.3', score: 1.3 },
+  thick: { id: 'thick', icon: '🧱', name: '두꺼운 진상', desc: '진상 체력 +25%', up: '점수 ×1.35 · 코인 +15%', score: 1.35, coin: 1.15 },
+};
 export function endlessWave(wave) {
   const k = wave - 20;
   const n = (base) => Math.round(base * (1 + 0.12 * k));
@@ -1292,7 +1303,7 @@ export function endlessWave(wave) {
   const extra = [['vomit', 3], ['cutter', 3], ['couple', 2], ['selfie', 2], ['handsy', 2], ['gao', 2], ['kkondae', 1], ['spam', 2], ['scammer', 2], ['inpi_gossip', 2], ['inpi_dictator', 1], ['inpi_treasurer', 1]];
   if (wave >= 30) extra.push(['fakesingle', 3], ['carpoor', 2], ['sales', 2], ['jjijil', 2], ['drunk_run', 3], ['drunk_home', 2]);
   extra.forEach(([t, c], i) => { w.g.push([t, n(c), 3.2, 1 + (i % 4)]); });
-  if (k % 5 === 0) w.boss = k % 10 === 0 ? 'queen' : 'boss_thug';
+  if (k % 5 === 0) w.boss = k % 10 === 0 ? ENDLESS_BOSSES[Math.floor(wave / 10) % ENDLESS_BOSSES.length] : 'boss_thug'; // 10웨이브마다 보스 러시 (챕터 보스 돌아가며 · 패턴 그대로)
   if (wave >= 25 && (wave - 25) % 10 === 0) w.boss = 'boss_union'; // 진상 연합 회장: 25 · 35 · 45 …
   return w;
 }
