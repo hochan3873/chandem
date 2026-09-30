@@ -111,7 +111,8 @@ export async function loadHall(game) {
     <small class="muted">${subTxt(game, x)}</small></li>`;
   const rest = r.top.slice(3).map((x) => row(x)).join('');
   let mine = '';
-  if (r.me) mine = `<div class="hall-me-lbl">내 순위</div><ol class="hall-list hall-me">${row(r.me, 'is-me')}</ol>`;
+  if (r.meMaster) mine = `<p class="hall-me-lbl muted small">👑 마스터 계정은 순위 제외</p>`;
+  else if (r.me) mine = `<div class="hall-me-lbl">내 순위</div><ol class="hall-list hall-me">${row(r.me, 'is-me')}</ol>`;
   else if (C.S.user) mine = `<p class="hall-me-lbl muted small">내 순위: 아직 기록이 없어요 · 한 판 하면 올라가요!</p>`;
   else mine = `<p class="hall-me-lbl muted small">로그인하면 내 순위가 여기에 떠요</p>`;
   box.innerHTML = `<div class="podium">${podium}</div>${rest ? `<ol class="hall-list">${rest}</ol>` : ''}${mine}`;

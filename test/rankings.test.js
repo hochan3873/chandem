@@ -133,3 +133,20 @@ test('PgStore: 게임별 순위 쿼리 모양 (가짜 DB)', async () => {
   await rk.top('omok');
   assert.deepEqual(seen[1].params, ['omok', 'games']);
 });
+
+test('마스터 계정은 모든 순위에서 빠진다 (명예의 전당 · 1위 · 오목 랭킹), 내 순위는 "순위 제외"', async () => {
+  const boss = await req('POST', '/api/auth/login', { username: 'boss', password: 'secret12' });
+  await setStats('boss', (s) => { Object.assign(s.omok, { games: 99, wins: 99, rating: 2500 }); Object.assign(s.seotda, { hands: 500, wins: 400, net: 99999 }); });
+  for (const g of ['holdem', 'seotda', 'omok']) {
+    const r = await req('GET', `/api/rank/${g}?n=10`, null, boss.token);
+    assert.ok(!r.top.some((x) => x.username === 'boss'), g + ' top10');
+    assert.equal(r.me, null);
+    assert.equal(r.meMaster, true);
+    const one = await req('GET', `/api/rank/${g}?n=1`);
+    assert.ok(!one.top.some((x) => x.username === 'boss'), g + ' 1위');
+  }
+  const om = await req('GET', '/api/auth/ranking/omok');
+  assert.ok(om.ranking.length > 0);
+  assert.ok(!om.ranking.some((x) => x.username === 'boss'), '오목 랭킹(예전 목록)');
+  assert.equal(om.ranking[0].rank, 1);
+});

@@ -106,9 +106,11 @@ function createRankings({ acct, rooms, now = Date.now }) {
     const b = await board(game);
     const row = (u, i) => ({ ...cardOf(game, u, i + 1), me: u.id === meId });
     const topList = b.list.slice(0, n).map(row);
-    let me = null;
+    let me = null, meMaster = false;
     if (meId && b.pos.has(meId)) { const i = b.pos.get(meId) - 1; me = row(b.list[i], i); }
-    return { top: topList, me, total: b.list.length };
+    else if (meId) { const u = await store.byId(meId); meMaster = !!(u && isMasterName(u.username)); }
+    // 혹시 목록에 마스터가 섞여 있어도(예전 기록·설정 변경) 내보내기 직전에 한 번 더 거른다
+    return { top: topList.filter((x) => !x.master), me: me && !me.master ? me : null, meMaster, total: b.list.length };
   }
   /** 방 안 사람들의 등급·순위 (로그인 안 한 사람은 guest) */
   async function roomRanks(code, game) {
