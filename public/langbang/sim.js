@@ -7,7 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
-  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -33,7 +33,7 @@ export function createGame(opt = {}) {
   const wmod = wk ? WEEKLY_MODS[wk.mod] || {} : {};
   const g = {
     W: FIELD.W, H, rowY, ropeY: rowY - FIELD.ropeGap,
-    weekly: wk, wmod, cdMul: wmod.cd || 1, hstars: opt.stars || {}, hell: !!opt.hell && mode === 'stage' && !wk,
+    weekly: wk, wmod, cdMul: (wmod.cd || 1) * (opt.tempo ? TEMPO.cd : 1), hstars: opt.stars || {}, hell: !!opt.hell && mode === 'stage' && !wk,
     hcT: 0, hcBuff: 0, hcSkT: 0, hcSkAtk: 0, // 이호찬 "랑방을 위하여" 버프
     raid: opt.raid ? { sec: opt.raid.sec || 150, dmg: 0, boss: null } : null, // 주말 레이드: 거대 보스에게 준 피해
     pvp: opt.pvp ? { seed: opt.pvp.seed | 0, sudden: false } : null, // 1:1 대전
@@ -55,7 +55,7 @@ export function createGame(opt = {}) {
     fxT: 0, darkT: 0, megaT: 0, windX: 0, strobeT: 0, fireT: 0,
     base: { hp: baseMax, max: baseMax },
     level: 1, exp: 0, need: Math.round(expNeed(1) * EXP_NEED_MUL * (opt.join && opt.deck && !opt.raid ? JOIN.exp[0] : 1)), pendingLevels: welcome, welcomePicks: welcome,
-    joinPool: [], joinTotal: 0, joinMode: false, leader: null, pickN: 0, rollN: 0,
+    joinPool: [], joinTotal: 0, joinMode: false, leader: null, pickN: 0, rollN: 0, tempo: !!opt.tempo,
     mods: {
       dmg: 1, spd: 1, crit: RULES.crit + itemValue('charm', items.charm), critMul: RULES.critMul, expMul: 1, enemySpd: 1,
       pierce: 0, gunExtra: 0, regen: 0, ultCharge: 1 + itemValue('battery', items.battery), ultDmg: 1, charmMul: 1,
@@ -76,6 +76,7 @@ export function createGame(opt = {}) {
   if (g.mapFx.exp) g.mods.expMul += g.mapFx.exp;
   if (mode === 'stage') g.mods.expMul *= wk ? 0.34 : stageExpMul(opt.stage || 1); // 뒤 스테이지는 진상이 많은 만큼 경험치를 줄여 레벨업 횟수를 비슷하게
   if (wmod.exp) g.mods.expMul += wmod.exp;
+  if (opt.tempo && !opt.raid) { g.mods.expMul /= TEMPO.count; g.mods.ultCharge /= TEMPO.count; } // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
   if (wmod.enemySpd) g.mods.enemySpd *= wmod.enemySpd;
   if (wmod.baseHp) { g.base.max = Math.round(g.base.max * wmod.baseHp); g.base.hp = g.base.max; }
   // 장비: 입구 내구도 +%
@@ -92,6 +93,7 @@ export function createGame(opt = {}) {
     if (lead) addHero(g, lead.id, lead.slot);
     g.leader = lead ? lead.id : null;
     g.joinPool = list.filter((x) => x !== lead);
+    if (opt.hell && JOIN.hellStart > 1) for (const x of g.joinPool.splice(0, JOIN.hellStart - 1)) addHero(g, x.id, x.slot); // 헬: 대장 + 한 명으로 시작
     g.joinTotal = g.joinPool.length;
     g.joinMode = true;
   } else if (opt.deck) {
@@ -159,7 +161,7 @@ export function heroDamage(g, h) {
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
   const hc = 1 + (g.hcT > 0 ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0); // "랑방을 위하여!"
-  return buildMul(g, h) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.7 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + 0.2 * (h.cmN || 0)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * h.meta) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * old * hc;
+  return buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.7 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + 0.2 * (h.cmN || 0)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * h.meta) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * old * hc;
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
 export function buildMul(g, h) {
@@ -279,7 +281,7 @@ function updateHeroes(g, dt) {
     if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
     let sing = 0;
     for (const d0 of singers) if (d0 !== h && Math.abs(d0.x - h.x) <= d0.def.sing.r) sing = Math.max(sing, d0.def.sing.spd[d0.lv - 1]);
-    const rate = (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * (g.mods.spd + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
+    const rate = (g.tempo ? TEMPO.rate : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * (g.mods.spd + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
     // 문동한: 간보기 게이지 → 일어나서 한 줄 빔
     if (d.meter) {
       if (h.upT > 0) h.upT -= dt;
@@ -309,6 +311,7 @@ function updateHeroes(g, dt) {
     if (d.proj === 'dash') { updateDash(g, h, dt, rate); continue; }
     const base = (h.alt && d.diet ? d.diet.interval : d.interval) * LEVEL_INTERVAL[h.lv - 1] * (d.lv5Interval && h.lv >= 5 ? d.lv5Interval : 1);
     h.cd -= dt * rate;
+    if (h.reloadT > 0) h.reloadT -= dt * rate;
     if (h.cd <= 0) {
       const t = d.proj === 'hammer' ? bossTarget(g, h, heroRange(g, h)) : findTarget(g, h);
       if (!t) {
@@ -318,13 +321,13 @@ function updateHeroes(g, dt) {
         if (!d.lane && h.idleT > base * 2) {
           const r0 = heroRange(g, h);
           const t2 = g.enemies.filter((e) => !e.dead && inRange(h, e, r0)).sort((a, b) => b.y - a.y)[0];
-          if (t2) { g.idleFix = (g.idleFix || 0) + 1; h.idleT = 0; fire(g, h, t2); h.cd += base; }
+          if (t2) { g.idleFix = (g.idleFix || 0) + 1; h.idleT = 0; fire(g, h, t2); h.cd += weaponGap(g, h, base); }
         }
         continue;
       }
       h.idleT = 0;
       fire(g, h, t);
-      h.cd += base;
+      h.cd += weaponGap(g, h, base);
       if (h.cd < 0) h.cd = 0;
     }
   }
@@ -536,6 +539,23 @@ export function findTarget(g, h, skip) {
 }
 
 // ─── 발사 ─────────────────────────────────────────────
+// 무기 탄창: 몇 발은 짧은 간격으로 → 마지막 발 뒤에 장전 (평균 DPS 그대로 · 리듬만 바뀜)
+export function weaponMag(h) { const W = WEAPON[h.id]; return W && W.mag ? W.mag + (h.lv >= 3 ? 1 : 0) + (h.evo ? 1 : 0) : 0; }
+function weaponGap(g, h, base) {
+  const mag = g.tempo ? weaponMag(h) : 0;
+  if (!mag) return base;
+  const W = WEAPON[h.id], short = base * W.gap;
+  if (h.ammo === undefined || h.ammo > mag) h.ammo = mag;
+  h.ammo--;
+  if (h.ammo > 0) return short;
+  h.ammo = mag;
+  const rl = Math.max(short, mag * base - (mag - 1) * short);
+  h.reloadT = rl; h.reloadMax = rl;
+  ev(g, 'reload', { hero: h.id, x: h.x, y: h.y, sec: rl });
+  return rl;
+}
+// 무기 진화 단계 (Lv3 · Lv5 · 진화 카드) → 관통 +1 (연발·속사·관통) · 범위 +25% (포물선·대포)
+export function weaponStep(h) { return (h.lv >= 3 ? 1 : 0) + (h.lv >= 5 ? 1 : 0) + (h.evo ? 1 : 0); }
 export function fire(g, h, t) {
   const d = h.def;
   const lv = h.lv;
@@ -543,7 +563,8 @@ export function fire(g, h, t) {
   h.shots++;
   const dmg = heroDamage(g, h);
   ev(g, 'shot', { hero: h.id, x: h.x, y: h.y });
-  const pierce = g.mods.pierce;
+  const wk = g.tempo && WEAPON[h.id] ? WEAPON[h.id].kind : '';
+  const pierce = g.mods.pierce + (h.lv >= 5 && (wk === 'burst' || wk === 'rapid' || wk === 'pierce') ? 1 : 0);
   switch (d.proj) {
     case 'cone': {
       // 방장 확성기 음파: 짧은 부채꼴 안을 한꺼번에
@@ -2183,12 +2204,12 @@ export function startWave(g, n) {
   if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 5].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism');
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
-  g.hpScale = (def.hpScale || 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
+  g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
   const more = g.mapFx.spawn || 1;
   // 무한 도전: 웨이브가 갈수록 떼로 (×1.3 → 30웨이브 ×3.0) · 주간 도전 ×2
-  const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1);
+  const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1) * (g.tempo && !g.raid ? TEMPO.count : 1);
   for (const [type, count0, every0, delay, tag] of def.g) {
     const count = Math.round(count0 * more * swarm), every = every0 / (more * swarm);
     const pack = ENEMIES[type].pack;
@@ -2844,8 +2865,10 @@ export function applyCard(g, c) {
     case 'heroLv': {
       const h = hasHero(g, c.hero);
       if (h && h.lv < 5) {
+        const st0 = weaponStep(h);
         h.lv = Math.min(5, h.lv + 2);
         ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y });
+        if (g.tempo && WEAPON[h.id] && weaponStep(h) > st0) ev(g, 'weaponEvo', { hero: h.id, x: h.x, y: h.y, item: WEAPON[h.id].item, step: weaponStep(h), mag: weaponMag(h) });
       }
       break;
     }

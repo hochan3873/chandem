@@ -1847,6 +1847,12 @@ export class Renderer {
         cx.fillStyle = h.def.diet ? (h.alt ? '#ff5fa2' : '#ffb347') : h.alt ? '#a8a8a8' : '#ffc4ec';
         cx.fillRect(hx - bw / 2, ly + 8, bw * clamp01(f), 4);
       }
+      // 장전: 발밑 작은 막대 (연발·속사 무기)
+      if (h.reloadT > 0 && h.reloadMax > 0.25) {
+        const bw = 30, f = 1 - clamp01(h.reloadT / h.reloadMax);
+        cx.fillStyle = 'rgba(0,0,0,0.55)'; roundRect(cx, hx - bw / 2, hy + 6, bw, 4, 2); cx.fill();
+        cx.fillStyle = '#ffd23f'; roundRect(cx, hx - bw / 2, hy + 6, Math.max(2, bw * f), 4, 2); cx.fill();
+      }
       // 성준영: 남은 시간 막대
       if (h.id === 'junyoung' && h.leaveT > 0) {
         const bw = 38, f = clamp01(h.leaveT / 10);

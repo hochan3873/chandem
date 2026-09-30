@@ -63,7 +63,37 @@ export function expNeed(lv) {
 }
 // 레벨업은 드물게, 대신 한 번 한 번이 크게: 필요 경험치 ×2.2 (스테이지는 뒤로 갈수록 경험치를 줄여 스테이지당 4~6번)
 // 합류 모드 (대장 1명 시작 → 레벨업 카드로 합류): 앞 레벨업은 빠르게 · 합류 카드 가중치 · 보장 · 몰아 키우기
-export const JOIN = { solo: 1.6, freePick: true, hp: [1, 0.78, 1.2, 1.05, 1, 1.05], exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
+export const JOIN = { solo: 1.6, freePick: true, hp: [0.9, 0.8, 1.2, 1.25, 1.12, 1.05], hellStart: 2, exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
+// ─── 전투 템포 (느리고 묵직하게) · 무기 정체성 ─── opt.tempo 로 켠다 (합류 모드와 같이)
+// 진상 수 ×0.6 · 한 명 체력 ×1.6 / 멤버 공속 ÷1.54 · 한 방 ×1.6 / 스킬 쿨 ×1.5
+export const TEMPO = { count: 0.6, hp: 1.5, hellHp: 1.0, endHp: 1.3, fix: { donghan: 0.68, wonsik: 0.64, staff: 0.8, eunok: 0.85, myunghoon: 1.28, bangjang: 0.92, soyoung: 0.9, ingyu: 0.92 }, rate: 1 / 1.54, dmg: 1.6, cd: 1.5 };
+// 무기: 멤버마다 컨셉 물건 하나 (총 없음) · kind = 방식 · mag = 한 번에 몇 발 (연발·속사) · gap = 탄창 안 간격 (공격 간격 비율)
+//   장전 시간 = 탄창 × 간격 − (탄창−1) × gap 간격 → 평균 DPS 는 그대로, 리듬만 "몇 발 → 장전"
+//   진화: Lv3 탄창 +1 · Lv5 관통 +1 (연발·속사) 또는 범위 +25% · 진화 카드 = 큰 투사체
+export const WEAPON = {
+  bangjang: { item: '확성기 공지', kind: 'melee', reload: '목 가다듬기' },
+  staff: { item: '옐로·레드카드', kind: 'burst', mag: 2, gap: 0.3, reload: '수첩 넘기기' },
+  gunman: { item: '장난감 새총 BB알', kind: 'rapid', mag: 6, gap: 0.45, reload: '고무줄 다시 감기' },
+  gunnyeo: { item: '하트 폭탄', kind: 'lob', reload: '구급상자 열기' },
+  myunghoon: { item: '욕 "#@!%"', kind: 'chain', reload: '숨 고르기' },
+  dohoon: { item: '마이크 떼창', kind: 'aura', reload: '물 한 모금' },
+  ingyu: { item: '할리', kind: 'pierce', reload: '시동 걸기' },
+  donghan: { item: '뜨거운 커피', kind: 'lob', reload: '커피 리필' },
+  youngjun: { item: '흑표범 발톱', kind: 'melee', reload: '숨 고르기' },
+  eunok: { item: '소주잔', kind: 'burst', mag: 2, gap: 0.3, reload: '소주 한 잔 원샷' },
+  hanna: { item: '윙크 하트', kind: 'beam', reload: '거울 보기' },
+  sunggu: { item: '지팡이', kind: 'pierce', reload: '허리 펴기' },
+  junseo: { item: '여사친 소개', kind: 'homing', reload: '연락처 뒤지기' },
+  hyungyeong: { item: '몸통 박치기', kind: 'melee', reload: '간식 한 입' },
+  ara: { item: '공주 망치', kind: 'heavy', reload: '"아이고 허리야"' },
+  hochan: { item: '금빛 확성기', kind: 'gauge', reload: '막차 버스 호출' },
+  soyoung: { item: '잔소리 말풍선', kind: 'rapid', mag: 5, gap: 0.45, reload: '숨 고르기' },
+  jieun: { item: '시계 초침', kind: 'chain', reload: '태엽 감기' },
+  sanghwa: { item: '동전', kind: 'burst', mag: 3, gap: 0.3, reload: '지갑 꺼내기' },
+  jungmin: { item: '소주병', kind: 'lob', reload: '새 병 따기' },
+  jiwon: { item: '모자이크 손', kind: 'pierce', reload: '손 풀기' },
+  wonsik: { item: '덤벨', kind: 'heavy', reload: '덤벨 다시 들기' },
+};
 export const EXP_NEED_MUL = 2.4; // (2.2 → 2.4: 카드가 너무 자주 떠서 조금 천천히)
 export const stageExpMul = (s) => 1 / (1 + 0.1 * Math.max(0, (s || 1) - 1));
 

@@ -1693,3 +1693,32 @@ test('합류 모드: 대장 1명 시작 · 합류 카드로 1명씩 · 중복 �
     S.applyCard(a, ca[0]); S.applyCard(b, cb[0]);
   }
 });
+
+test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS 는 거의 그대로 · 진상 수 줄고 체력 늘어남 · Lv3 탄창 +1', async () => {
+  const S = await load('sim.js');
+  const run = (tempo, id) => {
+    const g = S.createGame({ H: 760, rng: seeded(5), noWaves: true, heroes: [id], tempo, meta: {} });
+    g.phase = 'wave';
+    const e = S.spawnEnemy(g, 'thug', g.heroes[0].x, g.rowY - 220, { hpMul: 5000 }); e.speed = 0;
+    const shots = [];
+    for (let i = 0; i < 60 * 30; i++) { S.step(g, 1 / 60); for (const v of g.events) if (v.type === 'shot' && v.hero === id) shots.push(g.t); g.events.length = 0; }
+    return { dmg: g.heroes[0].dmgDone, shots, g };
+  };
+  for (const id of ['staff', 'gunman', 'sanghwa']) {
+    const a = run(false, id), b = run(true, id);
+    const r = b.dmg / a.dmg;
+    assert.ok(r > 0.85 && r < 1.25, `${id} DPS 비율 ${r.toFixed(2)}`);
+    const gaps = b.shots.slice(1).map((t, i) => t - b.shots[i]);
+    const mn = Math.min(...gaps), mx = Math.max(...gaps);
+    assert.ok(mx > mn * 2.5, `${id} 장전 리듬 (간격 ${mn.toFixed(2)} ~ ${mx.toFixed(2)})`);
+    assert.ok(b.shots.length < a.shots.length, `${id} 템포: 공격 수가 줄어듦 (${a.shots.length} → ${b.shots.length})`);
+  }
+  const g = S.createGame({ H: 760, rng: seeded(2), noWaves: true, heroes: ['staff'], tempo: true, meta: {} });
+  const h = g.heroes[0];
+  assert.equal(S.weaponMag(h), 2); h.lv = 3; assert.equal(S.weaponMag(h), 3);
+  // 진상 수 ×0.6 · 체력 ×1.6
+  const cnt = (tempo) => { const q = S.createGame({ H: 760, rng: seeded(3), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null], tempo, meta: {} }); S.startWave(q, 2); return [q.spawnQ.length, q.hpScale]; };
+  const [n0, h0] = cnt(false), [n1, h1] = cnt(true);
+  assert.ok(n1 < n0 * 0.7 && n1 > n0 * 0.5, `진상 수 ${n0} → ${n1}`);
+  assert.ok(Math.abs(h1 / h0 - D.TEMPO.hp) < 1e-6);
+});

@@ -7,7 +7,7 @@ import {
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
-  FUSE_ART, MYTH, gearStats,
+  FUSE_ART, MYTH, gearStats, WEAPON,
 } from './data.js';
 import * as L from './live.js';
 import * as S from './sim.js';
@@ -934,6 +934,8 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.join();
         break;
       }
+      case 'weaponEvo': fx.text(e.x, e.y - 96, '무기 진화!', '#ffd23f', 16, 1.3, -30); fx.ring(e.x, e.y - 30, 12, 60, 0.6, '#ffd23f', 4); break;
+      case 'reload': if (Math.random() < 0.12 && WEAPON[e.hero]) fx.text(e.x, e.y - 70, WEAPON[e.hero].reload, '#e8e0ff', 10, 0.8, -16); break;
       case 'heroLv':
         fx.ring(e.x, e.y, 8, 60, 0.5, '#ffd23f', 4);
         for (let k = 0; k < 5; k++) fx.part('star', e.x, e.y - 20, (Math.random() - 0.5) * 160, -120 - Math.random() * 80, 0.8, 8, null, { grav: 300 });
