@@ -1,0 +1,86 @@
+'use strict';
+// 랑방 대전 브라우저 검증: 레벨업 카드가 떠 있을 때 뒤로/일시정지 → 확인창이 맨 위 · 취소하면 카드 그대로 · 멈춘 동안 자동 선택 안 됨
+//   node scripts/lb-e2e.js
+const fs = require('fs');
+const puppeteer = require('puppeteer-core');
+const { createServer } = require('../server/index');
+
+const BROWSERS = [
+  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+];
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+let failures = 0;
+function check(cond, msg) {
+  if (cond) console.log('• 통과:', msg);
+  else { failures++; console.log('✖ 실패:', msg); }
+}
+// 요소 가운데 점에서 맨 위에 있는 요소가 그 요소(안쪽)인가
+const topAt = (page, sel) => page.evaluate((sel) => {
+  const el = document.querySelector(sel);
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  return !!hit && (hit === el || el.contains(hit));
+}, sel);
+
+(async () => {
+  const srv = createServer({ port: 0 });
+  const port = await srv.listen();
+  const exe = BROWSERS.find((p) => fs.existsSync(p));
+  const browser = await puppeteer.launch({ executablePath: exe, headless: 'new', args: ['--mute-audio'] });
+  const errors = [];
+  const page = await browser.newPage();
+  await page.setViewport({ width: 360, height: 740, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  page.on('pageerror', (e) => errors.push(e.message));
+  const base = `http://localhost:${port}/langbang/`;
+  await page.goto(base + '?nogate', { waitUntil: 'networkidle0' });
+  await page.evaluate(() => { localStorage.setItem('langbang:guest', JSON.stringify({ stages: { 1: 3, 2: 3, 3: 3, 4: 3 }, heroes: {} })); });
+  await page.goto(base + '?stage=1-5&god', { waitUntil: 'networkidle0' });
+  await wait(2500);
+  // 카드 열기
+  await page.evaluate(() => { const L = window.__lb; L.g.augOffer = null; L.g.pendingLevels = 2; L.openCards(); });
+  await wait(700);
+  check(await topAt(page, '#cardstrip .card[data-i="0"]'), '카드가 떠 있고 누를 수 있다');
+  // 일시정지 (뒤로 가기와 같은 길)
+  await page.evaluate(() => document.getElementById('btn-pause').click());
+  await wait(400);
+  check(await topAt(page, '.pause-box [data-act="resume"]'), '일시정지 화면이 카드 위에 있다');
+  // 멈춘 동안 자동 선택 시계가 멈춘다
+  await page.evaluate(() => { window.__lb.app.cardAutoT = 0.4; });
+  await wait(1200);
+  check(await page.evaluate(() => window.__lb.app.cardsOpen && window.__lb.app.cardAutoT > 0.3), '멈춘 동안 카드 자동 선택 안 됨');
+  // 그만두기 → 확인창이 맨 위
+  await page.evaluate(() => document.querySelector('.pause-box [data-act="quit"]').click());
+  await wait(400);
+  check(await topAt(page, '.confirm-modal .confirm-box'), '그만두기 확인창이 맨 위');
+  check(await topAt(page, '.confirm-modal [data-c="no"]'), '취소 버튼을 누를 수 있다');
+  await page.evaluate(() => document.querySelector('.confirm-modal [data-c="no"]').click());
+  await wait(300);
+  // 뒤로 가기 → 확인창
+  await page.evaluate(() => history.back());
+  await wait(600);
+  check(await topAt(page, '.confirm-modal .confirm-box'), '뒤로 가기 확인창도 맨 위');
+  await page.evaluate(() => { const b = document.querySelector('.confirm-modal [data-c="no"]'); if (b) b.click(); });
+  await wait(300);
+  // 계속하기 → 카드 그대로 · 고를 수 있다
+  await page.evaluate(() => { const b = document.querySelector('.pause-box [data-act="resume"]'); if (b) b.click(); });
+  await wait(500);
+  check(await page.evaluate(() => window.__lb.app.cardsOpen), '다시 하면 카드가 그대로 있다');
+  check(await topAt(page, '#cardstrip .card[data-i="0"]'), '카드를 다시 누를 수 있다');
+  const before = await page.evaluate(() => window.__lb.g.pendingLevels);
+  await page.evaluate(() => { window.__lb.app.cardLockUntil = 0; document.querySelector('#cardstrip .card[data-i="0"]').click(); });
+  await wait(400);
+  check(await page.evaluate((b) => window.__lb.g.pendingLevels === b - 1, before), '카드를 고르면 선택이 하나 준다');
+  // 다시 켜진 뒤엔 자동 선택 시계가 흐른다
+  await page.evaluate(() => { window.__lb.app.cardAutoT = 0.3; });
+  await wait(1500);
+  check(await page.evaluate(() => !window.__lb.app.cardsOpen), '다시 흐르면 자동 선택된다');
+  check(!errors.length, '페이지 에러 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
+  await browser.close();
+  await srv.close();
+  console.log(failures ? `✖ ${failures}개 실패` : '랑방 브라우저 검증 통과');
+  process.exit(failures ? 1 : 0);
+})();

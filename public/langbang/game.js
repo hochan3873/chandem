@@ -7,6 +7,7 @@ import {
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
+  FUSE_ART,
 } from './data.js';
 import * as L from './live.js';
 import * as S from './sim.js';
@@ -463,7 +464,8 @@ function handleEvents(g, loud) {
         const d = ENEMIES[e.enemy];
         fx.burst(e.x, e.y - 10, e.boss ? 40 : 9, d.color, e.boss ? 260 : 150, 'dot', 4, 0.5);
         fx.burst(e.x, e.y - 6, e.boss ? 16 : 4, 'rgba(230,220,255,0.9)', 50, 'puff', e.boss ? 18 : 9, 0.5);
-        if (Math.random() < 0.25) fx.text(e.x, e.y - 20, POOF[(Math.random() * POOF.length) | 0], '#fff', 13, 0.6, -40);
+        if (d.fuse) { fx.text(e.x, e.y - 60, '합체 해제!', '#ffb0ff', 15, 0.9, -30); for (const k of [-1, 1]) for (let i = 0; i < 4; i++) fx.part('puff', e.x, e.y - 20 - i * 8, k * (160 + i * 30), -30, 0.4, 12, k < 0 ? 'rgba(255,150,220,0.8)' : 'rgba(170,150,255,0.8)'); }
+        else if (Math.random() < 0.25) fx.text(e.x, e.y - 20, POOF[(Math.random() * POOF.length) | 0], '#fff', 13, 0.6, -40);
         if (loud) A.sfx.kill();
         fx.combo = g.combo;
         fx.comboPop = 1;
@@ -1080,6 +1082,8 @@ function frame(now) {
   const g = live || app.demo;
   fx.noBanner = !live;
   if (app.hitStop > 0) { app.hitStop -= dt; dt = 0; }
+  if (live) tickCards((now - (frame.prev || now)) / 1000 > 0.1 ? 0.1 : (now - (frame.prev || now)) / 1000);
+  frame.prev = now;
   if (g && !app.paused && !app.confirmOpen) {
     const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
     const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
@@ -1279,6 +1283,8 @@ function skillFx(h) {
   A.sfx.join();
   app.tutSkillDone = true;
 }
+const SKILL_SHORT = { bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '응급처치', myunghoon: '쌍욕', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '뻑큐', wonsik: '결정사' };
+const skShort = (h) => SKILL_SHORT[h.id] || h.def.skill.name.replace(/[!\s]/g, '').slice(0, 5);
 function renderSkillbar() {
   const g = app.g;
   if (!g) return;
@@ -1287,7 +1293,8 @@ function renderSkillbar() {
   if (skillbar.dataset.key !== key) {
     skillbar.dataset.key = key;
     skillbar.dataset.n = list.length;
-    skillbar.innerHTML = list.map((h) => { const nm = h.def.skill.name; return `<button class="sk" data-slot="${h.slot}" style="--c:${h.def.color}"><span class="ring"></span>${av(h.def)}<em class="${nm.replace(/\s/g, '').length > 4 ? 'long' : ''}">${esc(nm)}</em><i class="cd"></i><b class="cdn"></b></button>`; }).join('');
+    skillbar.classList.add('v2');
+    skillbar.innerHTML = list.map((h) => { const nm = skShort(h); return `<button class="sk" data-slot="${h.slot}" style="--c:${h.def.color}"><span class="ring"></span>${av(h.def)}<em>${esc(nm)}</em><i class="cd"></i><b class="cdn"></b><i class="sk-lv">${h.lv}</i></button>`; }).join('');
   }
   let ready = false;
   for (const b of skillbar.children) {
@@ -1300,7 +1307,7 @@ function renderSkillbar() {
     if (r && !b.classList.contains('ready')) vibrate(12);
     b.classList.toggle('ready', r);
     b.classList.toggle('aiming', !!(app.aim && app.aim.h === h));
-    b.querySelector('.cd').textContent = r ? 'READY' : '';
+    { const lv = b.querySelector('.sk-lv'); if (lv && lv.textContent !== String(h.lv)) lv.textContent = h.lv; }
     { const cn = b.querySelector('.cdn'); const v = r ? '' : String(Math.ceil(h.skillCd)); if (cn.textContent !== v) cn.textContent = v; }
     if (r) ready = true;
   }
@@ -1730,9 +1737,15 @@ const REWARD_INFO = {
 const augBox = document.createElement('div');
 augBox.className = 'aug-box';
 augBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-aug]'); if (b && app.g && S.applyAug(app.g, b.dataset.aug)) { handleEvents(app.g, true); A.sfx.pick(); } });
+const AUG_FX_IC = { dmg: 'swords', spd: 'bolt', hp: 'shield', exp: 'book', crit: 'path_crit', cd: 'speed', swarm: 'path_boom', splash: 'path_boom', boss: 'target', slow: 'path_cc', ctrl: 'path_cc', path: 'path_chain', ult: 'megaphone', echo: 'retry' };
+function augIcon(a) {
+  if (a.hero && HEROES[a.hero]) return pimg(HEROES[a.hero].img, 'face');
+  const k = Object.keys(a.fx || {}).find((x) => AUG_FX_IC[x]);
+  return pimg(ui2(k ? AUG_FX_IC[k] : iconName(a.icon, a.desc)));
+}
 function showAugOffer(opts, tier) {
-  augBox.className = 'aug-box t-' + tier;
-  augBox.innerHTML = `<div class="ab-head"><b>✨ 증강 선택 · ${TIER_NAMES[tier]}</b><small><em id="abT">15</em>초 뒤 자동</small></div><div class="ab-list">${opts.map((id, i) => { const a = S.augDef(id); return `<button class="ab-card t-${a.tier}" data-aug="${id}" style="--i:${i}"><span class="ab-ico">${a.hero ? av(HEROES[a.hero]) : a.icon}</span><b>${esc(a.title)}</b><small>${esc(a.desc)}</small></button>`; }).join('')}</div>`;
+  augBox.className = 'aug-box v4 t-' + tier;
+  augBox.innerHTML = `<div class="ab-head">${pimg(ui2(tier === 'prism' ? 'prism' : 'aug_card'), 'crest')}<b>증강 선택</b><span class="ab-tier">${TIER_NAMES[tier]}</span><small><em id="abT">15</em>초</small></div><div class="ab-list">${opts.map((id, i) => { const a = S.augDef(id); return `<button class="ab-card t-${a.tier}" data-aug="${id}" style="--i:${i}"><span class="ab-ico">${augIcon(a)}</span><b>${esc(a.title)}</b><small>${esc(a.desc)}</small></button>`; }).join('')}</div>`;
   if (!augBox.isConnected) stage.appendChild(augBox);
   A.sfx.card && A.sfx.card();
 }
@@ -3531,31 +3544,71 @@ function synTrayHtml(g, big) {
 const cardAttr = (c) => (c && (c.attr || (/^syn_(talk|power|charm|booze)$/.test(c.id || '') ? c.id.slice(4) : ''))) || '';
 const attrChip = (a) => (ATTRS[a] ? `<span class="attr mini" style="--ac:${ATTRS[a].color}">${attrIco(a)}${ATTRS[a].name}</span>` : '');
 function attrWho(g, a) { const hs = g ? g.heroes.map((h) => h.def) : (curDeck() || []).filter(Boolean).map((id) => HEROES[id]); return hs.filter((d) => d && d.attr === a).map((d) => d.name).join('·'); }
-// 레벨업 카드: 세로로 긴 종이 카드 + 둥근 메달 아이콘 + NEW 리본 + 시너지 아이콘
+// 레벨업 카드 (프리미엄): 그린 아이콘/멤버 얼굴 · 리본 제목 · 효과 한 줄 + 큰 숫자 · 길 칩 — 이모지 없음
+const PATH_IC = { pierce: 'path_pierce', splash: 'path_boom', chain: 'path_chain', kb: 'path_knock', heal: 'path_heal', ctrl: 'path_cc', boss: 'path_crit' };
+const CC_IC = { stun: 'cc_stun', slow: 'cc_slow', freeze: 'cc_freeze', kb: 'cc_push', pull: 'cc_pull' };
+const ui2 = (n) => `/img/lb/ui2/${n}.webp`;
+const pimg = (src, cls = '') => `<img class="${cls}" src="${src}" alt="" draggable="false" onerror="this.style.visibility='hidden'">`;
+// 글로벌 카드 아이콘: 이모지 → ui2 그림 (없으면 설명 낱말로 · 그래도 없으면 카드 그림)
+const KW_IC = [[/쿨타임/, 'speed'], [/공격 속도/, 'bolt'], [/치명/, 'path_crit'], [/경험치/, 'book'], [/보스/, 'target'], [/카드/, 'aug_card'], [/내구도|방어선|피해 -/, 'shield'], [/회복|수리/, 'heal'], [/상태이상|홀림/, 'shield'], [/궁극기|스킬/, 'megaphone'], [/공격력|피해/, 'swords'], [/속도/, 'bolt']];
+function iconName(emoji, text) {
+  if (emoji && IC_MAP[emoji]) return IC_MAP[emoji];
+  for (const [re, n] of KW_IC) if (re.test(text || '')) return n;
+  return 'aug_card';
+}
+function cardIcon(c) {
+  const tg = (c.tags || [])[0] || c.tag;
+  if (c.kind === 'cc' && CC_IC[c.cc]) return pimg(ui2(CC_IC[c.cc]));
+  if (c.hero && HEROES[c.hero]) return pimg(HEROES[c.hero].img, 'face') + (c.kind === 'skillEvo' || c.kind === 'evo' ? pimg(ui2('star_gold'), 'sub') : '');
+  if (cardAttr(c)) return pimg(`/img/lb/attr/${cardAttr(c)}.webp`);
+  if (tg && PATH_IC[tg]) return pimg(ui2(PATH_IC[tg]));
+  return pimg(ui2(iconName(c.icon, c.desc)));
+}
+const NUM_END = /^(.*?)\s*([+\-−×]\s?\d+(?:\.\d+)?\s?(?:%p|%|초|배|명|칸|번|발)?)\s*$/;
+function cardEffect(c) {
+  const main = (c.desc || '').replace(/^★\s*/, '').split(/ · /)[0].trim();
+  if (c.kind === 'addHero') return { label: '새 멤버 합류', big: '' };
+  if (c.kind === 'heroLv') { const m = /Lv\.\d+→(\d+)/.exec(c.title); return { label: main, big: m ? `Lv.${m[1]}` : '' }; }
+  if (c.kind === 'cc') { const m = /(\d+%)/.exec(main); return { label: `맞히면 ${CC_KINDS[c.cc] ? CC_KINDS[c.cc].name : ''}`, big: m ? m[1] : '' }; }
+  const m = NUM_END.exec(main);
+  if (m && m[1]) return { label: m[1], big: m[2].replace(/\s/g, '') };
+  return { label: main, big: '', hl: true };
+}
+function cardTitle(c) {
+  let t = c.title || '';
+  if (c.kind === 'heroLv') t = t.replace(/\s*Lv\.\d+→\d+/, '');
+  if (t.includes(' · ')) t = t.split(' · ').pop();
+  if (c.kind === 'cc' && t.includes(': ')) t = t.split(': ').pop();
+  return t;
+}
+function cardChip(c) {
+  const g0 = app.g, tg = (c.tags || [])[0];
+  if (tg && TAGS[tg]) { const cnt = g0 ? ((g0.tagCnt || {})[tg] || 0) : 0; return `<span class="c4-chip ${cnt + 1 >= 3 ? 'set' : ''}">${pimg(ui2(PATH_IC[tg]))}${TAGS[tg].name} <b>${cnt}→${cnt + 1}</b></span>`; }
+  if (c.kind === 'cc' && CC_KINDS[c.cc]) return `<span class="c4-chip" style="--cc:${CC_KINDS[c.cc].color}">${pimg(ui2(CC_IC[c.cc]))}${c.hero ? esc(HEROES[c.hero].name) : CC_KINDS[c.cc].name}</span>`;
+  if (cardAttr(c)) { const a = cardAttr(c), n = g0 ? g0.heroes.filter((h) => h.def.attr === a).length : 0; return `<span class="c4-chip">${pimg(`/img/lb/attr/${a}.webp`)}${ATTRS[a].name} <b>${n}명</b></span>`; }
+  if (c.hero && HEROES[c.hero]) { const a = HEROES[c.hero].attr; return `<span class="c4-chip">${pimg(`/img/lb/attr/${a}.webp`)}${esc(HEROES[c.hero].name)}</span>`; }
+  if (c.risk) return '<span class="c4-chip risk">위험 부담</span>';
+  if (c.kind === 'global' && c.stack) return `<span class="c4-chip">단계 <b>${c.stack}→${c.stack + 1}</b></span>`;
+  return '';
+}
+function cardRar(c) {
+  if (c.tier === 'prism') return 'prism';
+  if (c.tier === 'gold' || c.rarity === 'hidden' || c.rarity === 'legend') return c.tier === 'gold' ? 'epic' : 'legend';
+  if (c.kind === 'cc') return 'rare';
+  if (c.rarity === 'rare' && (c.kind === 'heroLv' || c.kind === 'addHero')) return 'epic';
+  return c.rarity === 'epic' ? 'epic' : c.rarity === 'rare' ? 'rare' : 'common';
+}
 function cardHtml(c, i) {
-  const r = RARITY[c.rarity];
-  let icon = `<span class="em">${c.icon}</span>`;
-  if (c.hero) icon = av(HEROES[c.hero]);
   const isNew = (c.kind === 'global' && !c.stack) || c.kind === 'addHero' || c.kind === 'evo';
-  const syn = [];
-  if (c.attr) syn.push(attrIco(c.attr));
-  if (c.tag) syn.push(TAGS[c.tag].icon);
-  if (c.hero) { syn.push(attrIco(HEROES[c.hero].attr)); for (const t of HERO_TAGS[c.hero] || []) syn.push(TAGS[t].icon); }
-  if (c.risk) syn.push('⚠️');
-  const stack = c.kind === 'global' && c.stack ? `<span class="stk">${c.stack}→${c.stack + 1}</span>` : '';
   const rec = app.cards && app.g && i === recIndex(app.g, app.cards);
-  const main = (c.desc || '').split(/ · |\. |, /)[0];
-  const hl = esc(main).replace(/([+\-−×]?\d+(?:\.\d+)?\s?(?:%|%p|초|배|명|칸|번)?)/g, '<em>$1</em>');
-  const badge = c.hero && c.kind !== 'addHero' ? `<span class="c-ico">${c.icon}</span>` : '';
-  const g0 = app.g, tg = (c.tags || [])[0], cnt = tg && g0 ? ((g0.tagCnt || {})[tg] || 0) : 0;
-  const pathLine = tg && TAGS[tg] ? `<span class="c-path">${TAGS[tg].icon} ${TAGS[tg].name} ${cnt}→${cnt + 1}${cnt + 1 >= 5 ? ' ★' : cnt + 1 >= 3 ? ' 세트!' : ''}${c.tier ? ` · ${TIER_NAMES[c.tier]}` : c.id === 'tag_' + tg && TECH[tg] ? ' · 다음: 골드' : ''}</span>` : '';
-  return `<button class="card v3 ${c.onPath ? 'onpath' : ''} fr-${c.tier === 'prism' ? 'legend' : c.tier === 'gold' ? 'epic' : c.kind === 'cc' ? 'rare' : c.rarity === 'hidden' ? 'legend' : c.rarity === 'rare' && (c.kind === 'heroLv' || c.kind === 'addHero') ? 'epic' : c.rarity} ${c.rarity} k-${c.kind} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''} ${app.cardSel === i ? 'sel' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
-    ${isNew ? '<em class="new">NEW</em>' : ''}${stack}${rec ? '<em class="rec-b">추천</em>' : ''}
-    <div class="medal">${icon}${badge}</div>
-    <div class="band"><b>${esc(c.title)}</b></div>
-    <p class="c-main ${main.length > 16 ? 'long' : ''} ${main.length > 24 ? 'xlong' : ''}">${hl}</p>${cardAttr(c) ? `<p class="c-who" style="--ac:${ATTRS[cardAttr(c)].color}">${attrChip(cardAttr(c))} → ${esc(attrWho(app.g, cardAttr(c)) || '지금 덱엔 없음')}</p>` : ''}
-    ${pathLine}${c.kind === 'cc' ? `<span class="c-cc" style="--cc:${CC_KINDS[c.cc].color}">${CC_KINDS[c.cc].icon} ${CC_KINDS[c.cc].name}</span>` : ''}
-    <div class="cfoot"><span class="rar">${c.tier ? TIER_NAMES[c.tier] : r.name}</span>${syn.length ? `<span class="syn">${[...new Set(syn)].join('')}</span>` : ''}</div>
+  const ef = cardEffect(c), t = cardTitle(c);
+  const lab = ef.hl ? esc(ef.label).replace(/([+\-−×]?\d+(?:\.\d+)?\s?(?:%p|%|초|배|명|칸|번|발)?)/g, '<em>$1</em>') : esc(ef.label);
+  return `<button class="card v4 r-${cardRar(c)} k-${c.kind} ${c.onPath ? 'onpath' : ''} ${c.risk ? 'risk' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
+    ${isNew ? `<i class="c4-bdg new">${pimg(ui2('badge_new'))}<b>NEW</b></i>` : ''}${rec ? `<i class="c4-bdg rec">${pimg(ui2('badge_rec'))}</i>` : ''}
+    <span class="c4-ico">${cardIcon(c)}</span>
+    <span class="c4-rib"><b class="${t.length > 7 ? 'long' : ''}">${esc(t)}</b></span>
+    <span class="c4-eff"><small class="${ef.big ? '' : 'solo'}">${lab}</small>${ef.big ? `<strong>${esc(ef.big)}</strong>` : ''}</span>
+    ${cardChip(c)}
   </button>`;
 }
 // 레벨업 카드 띠: 게임은 계속 흘러간다 — 한 번 누르면 바로 선택 (뜬 뒤 0.4초는 무시)
@@ -3581,16 +3634,32 @@ cardStrip.addEventListener('click', (ev) => {
 });
 function renderCards(fresh) {
   const g = app.g;
-  if (fresh) { app.cardSel = -1; app.cardLockUntil = performance.now() + 400; app.cardsAt = performance.now(); clearTimeout(renderCards.auto); renderCards.auto = setTimeout(() => { if (app.cardsOpen && app.g === g && !app.paused) pickCard(recIndex(g, app.cards)); }, g.pvp ? 12000 : 15000); }
+  if (fresh) { app.cardSel = -1; app.cardLockUntil = performance.now() + 400; app.cardsAt = performance.now(); app.cardAutoT = app.cardAutoMax = g.pvp ? 12 : 15; }
   const welcome = g.welcomePicks > 0;
+  const n = app.cards.length;
   cardStrip.hidden = false;
-  cardStrip.className = 'fresh';
-  cardStrip.innerHTML = `<div class="cs-head"><b>${welcome ? '🍹 웰컴 드링크' : `LEVEL UP! Lv.${g.level}`}${g.pendingLevels > 1 ? `<small> · 남은 선택 ${g.pendingLevels}</small>` : ''}</b><button class="cs-re" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>🎲 ${app.rerollsRun}</button></div>
-    <div class="card-list v2 strip n${app.cards.length}">${app.cards.map(cardHtml).join('')}</div>`;
-  clearTimeout(renderCards.nag); renderCards.nag = setTimeout(() => cardStrip.classList.add('nag'), 11000);
+  cardStrip.className = 'v4' + (fresh ? ' fresh' : '');
+  cardStrip.innerHTML = `<div class="cs-panel">
+    <div class="cs-head">${pimg(ui2(welcome ? 'welcome' : 'crest'), 'crest')}<b>${welcome ? '웰컴 드링크' : 'LEVEL UP'}</b>${welcome ? '' : `<span class="cs-lv">Lv.${g.level}</span>`}${g.pendingLevels > 1 ? `<small>남은 선택 <b>${g.pendingLevels}</b></small>` : ''}
+      <button class="cs-re" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'} aria-label="다시 뽑기">${pimg(ui2('dice'))}<b>${app.rerollsRun}</b></button></div>
+    <i class="cs-timer"><b></b></i>
+    <div class="card-list v4 n${n}">${app.cards.map(cardHtml).join('')}</div>
+  </div>`;
   if (fresh) A.sfx.card();
   if (fresh && app.cards.some((c) => c.rarity === 'hidden')) { fx.flash('#ff9ff0', 0.3); A.sfx.join(); }
-  return;
+}
+// 카드 자동 선택 시계: 실제 시간으로 · 일시정지/확인창/증강 선택 중엔 멈춘다
+function tickCards(dt) {
+  const g = app.g;
+  if (!g || !app.cardsOpen || !app.cards) return;
+  const behind = !!g.augOffer;
+  if (cardStrip.classList.contains('behind') !== behind) cardStrip.classList.toggle('behind', behind);
+  if (app.paused || app.confirmOpen || behind) return;
+  app.cardAutoT -= dt;
+  const bar = cardStrip.querySelector('.cs-timer b');
+  if (bar) bar.style.transform = `scaleX(${Math.max(0, app.cardAutoT / (app.cardAutoMax || 15)).toFixed(3)})`;
+  cardStrip.classList.toggle('nag', app.cardAutoT < 4);
+  if (app.cardAutoT <= 0) pickCard(recIndex(g, app.cards));
 }
 function tapCard(i) {
   if (!app.cardsOpen || !app.cards || !app.cards[i]) return;
@@ -3630,8 +3699,7 @@ function closeCards() {
   app.cardsOpen = false;
   app.cards = null;
   app.cardSel = -1;
-  clearTimeout(renderCards.auto); clearTimeout(renderCards.nag);
-  cardStrip.hidden = true; cardStrip.innerHTML = '';
+  cardStrip.hidden = true; cardStrip.innerHTML = ''; cardStrip.className = '';
 }
 
 // ─── 일시정지 ────────────────────────────────────────
@@ -3969,6 +4037,7 @@ function dexImg(id, fb, cls = '') {
   return `<img class="dx-art ${cls}" src="${src}" alt="" draggable="false" onerror="this.onerror=null;this.src='${fb}'">`;
 }
 function dexArt(d, id, form) {
+  if (d.fuse && FUSE_ART.has(id)) return dexImg(id, `/img/lb/e_${id}.webp`);
   if (d.fuse) return `<span class="dx-fuse">${d.fuse.map((f) => dexImg(f, ENEMIES[f].img)).join('')}</span>`;
   const base = d.base || id;
   return dexImg(form || base, d.img);

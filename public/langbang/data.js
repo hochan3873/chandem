@@ -727,7 +727,7 @@ export const HEROES = {
     nag: { perHit: [12, 12, 13, 13, 15], perSec: 2.5, firstSec: 10, sec: [10, 10, 12, 12, 14] }, // 잔소리 한 번에 게이지 +% · 성준영이 버티는 시간
     attack: '잔소리 말풍선 — 맞힐 때마다 "잔소리 게이지"가 차고, 가득 차면 성준영을 불러낸다',
     desc: '"그러니까 내가 뭐랬어!" 잔소리가 쌓이면 어디선가 성준영이 끌려 나온다. 둘이 같이 있으면 진상들이 더 괴롭다.',
-    perks: { 3: '게이지가 더 빨리 · 성준영이 더 오래', 5: '성준영 올인! 폭발이 더 커진다' },
+    perks: { 3: '성준영이 더 오래 머문다', 5: '칩·카드 피해 ↑ · 더 오래' },
     skill: { id: 'allincall', name: '올인 콜! 준영 등판', cd: 21, desc: '성준영이 나와서 정해진 시간 동안 칩·카드를 던진다 — 맞은 진상은 한곳으로 끌려와 뭉친다 (범위 공격 멤버와 찰떡)', sec: [8, 8, 9, 9, 10] },
     shouts: ['그러니까 내가 뭐랬어!', '준영아 나와!', '한 번만 더 말한다?'],
   },
@@ -1224,6 +1224,8 @@ const MID_DEFS = {
   fuse_latte: { fuse: ['kkondae', 'kkondae2'], name: '라떼 골프 연합', hpX: 3.5 },
   fuse_adspam: { fuse: ['sales', 'spam'], name: '광고 단톡방장', hpX: 5 },
 };
+// 합체 중간 보스 한 장 그림 (둘이 한 몸) — e_<id>.webp (전투) · dex/<id>.webp (도감). 그림이 오면 여기에 추가
+export const FUSE_ART = new Set(['fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi', 'fuse_lease', 'fuse_lie', 'fuse_jusa', 'fuse_sleep', 'fuse_karaoke', 'fuse_mt', 'fuse_adspam']);
 const MECH_SKIP = new Set(['id', 'name', 'img', 'hp', 'speed', 'size', 'color', 'r', 'emoji', 'gender', 'cls', 'exp', 'coin', 'atk', 'atkInterval', 'shouts', 'armor', 'forms', 'pack', 'standoff', 'zigzag']);
 for (const [id, m] of Object.entries(MID_DEFS)) {
   const a = ENEMIES[m.base || m.fuse[0]], b = m.fuse ? ENEMIES[m.fuse[1]] : null;
@@ -1649,7 +1651,7 @@ export const AUGMENTS = [
 export const HERO_AUG = {
   donghan: '진심 폭주', jieun: '시간 가속 역전', sanghwa: '끝내주는 이자', bangjang: '전 직원 집합', staff: '레드카드 폭풍', gunman: '저격 명인',
   gunnyeo: '천사 모드', myunghoon: '욕의 신', dohoon: '콘서트 앵콜', ingyu: '할리 군단', youngjun: '표범 질주', eunok: '폭탄주 파티', hanna: '윙크 여왕',
-  sunggu: '지팡이 폭풍', junseo: '인맥 총동원', hyungyeong: '다이어트 성공', ara: '여왕 즉위', hochan: '랑방의 이름으로', soyoung: '잔소리 폭주', jungmin: '붕대 장인', jiwon: '모자이크 폭풍', wonsik: '올해는 결혼',
+  sunggu: '지팡이 폭풍', junseo: '인맥 총동원', hyungyeong: '다이어트 성공', ara: '여왕 즉위', hochan: '랑방의 이름으로', soyoung: '올인 앵콜', jungmin: '붕대 장인', jiwon: '모자이크 폭풍', wonsik: '올해는 결혼',
 };
 // 제어 분기: 멤버마다 하나 (맞히면 가끔 제어) — 눈에 잘 띄는 색 · 아이콘
 export const CC_KINDS = { stun: { icon: '⭐', name: '기절', color: '#ffe066' }, slow: { icon: '🐢', name: '감속', color: '#6fb3ff' }, freeze: { icon: '🧊', name: '빙결', color: '#9ff0ff' }, kb: { icon: '💨', name: '밀치기', color: '#ffffff' }, pull: { icon: '🧲', name: '끌어당기기', color: '#c77dff' } };
