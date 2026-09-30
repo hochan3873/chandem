@@ -304,3 +304,20 @@ test('멤버 모음 목록(방장 + 동료 목록)에 LB_HEROES 20명이 빠짐�
   assert.equal(L.heroUnlocked(fresh, 'sunggu'), false);
   assert.equal(L.heroUnlocked({ ...fresh, stages: { 20: 1 } }, 'sunggu'), true, '2-10 깨면 강성구');
 });
+
+test('마스터 출격 준비: 강성구를 덱에 넣으면 cleanDeck 을 거쳐도 남는다 · 마스터 선수 카드 덱에도', async () => {
+  const LBR = require('../server/langbang-rules');
+  const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  const mine = new Set(LBR.LB_HEROES.filter((h) => L.heroUnlocked({ master: true }, h)));
+  assert.equal(mine.size, LBR.LB_HEROES.length, '마스터 출격 목록 20명');
+  const d = L.cleanDeck(['sunggu', 'hochan', 'bangjang', 'ara', 'hanna', 'eunok'], mine, 6, 6, null);
+  assert.ok(d.includes('sunggu'), '덱 정리 뒤에도 강성구');
+  const r = await srv.accounts.login({ username: 'gun8401', password: 'secret12' });
+  await post('/api/langbang/master', r.token, { action: 'reset' });
+  const mu = await srv.accounts.store.byName('gun8401');
+  mu.stats.langbang = Object.assign(mu.stats.langbang || {}, { decks: { i: 0, decks: [['sunggu', 'bangjang', null, null, null, null], [], []] } });
+  await srv.accounts.store.saveStats(mu.id, mu.stats);
+  const card = await get('/api/langbang/player?u=gun8401');
+  const deck = (card.player || card).deck || [];
+  assert.ok(deck.some((x) => (x.id || x) === 'sunggu'), '선수 카드 덱에 강성구');
+});

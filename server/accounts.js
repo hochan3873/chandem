@@ -801,7 +801,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     await ready;
     const u = username ? await store.byName(String(username).slice(0, 40)) : null;
     if (!u) throw new AuthError('없는 선수예요');
-    const lb = lbOf(u), p = pvpOf(u), raw = (u.stats && u.stats.langbang) || {};
+    const lb = normLb(u.stats && u.stats.langbang, isMasterName(u.username)), p = pvpOf(u), raw = (u.stats && u.stats.langbang) || {}; // 마스터는 전부 (선수 카드 덱에서 강성구 등이 빠지지 않게)
     const dk = raw.decks && Array.isArray(raw.decks.decks) ? (raw.decks.decks[raw.decks.i | 0] || []).filter((x) => typeof x === 'string' && LBR.LB_HEROES.includes(x) && LBR.heroUnlocked(lb, x)) : [];
     const heroes = Object.entries(lb.heroes || {}).filter(([h]) => LBR.LB_HEROES.includes(h));
     const deck = dk.length ? dk : heroes.sort((x, y) => y[1] - x[1]).slice(0, 4).map(([h]) => h);

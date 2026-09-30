@@ -2907,6 +2907,8 @@ function placeDeck(ids) {
   return out;
 }
 function fixDeck() {
+  // 프로필(서버)이 오기 전엔 손대지 않는다 — 전엔 로그인 전 손님 프로필 기준으로 덱을 정리해서, 손님이 안 가진 멤버(강성구 등)가 덱에서 지워졌다
+  if (!app.profileLoaded) return;
   const n = nPosNow(), max = deckSlotsNow();
   const mine = new Set(owned());
   for (let k = 0; k < 3; k++) {
