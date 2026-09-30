@@ -1543,6 +1543,33 @@ const ACTS = {
   },
   deckSlot: (b) => deckTapSlot(Number(b.dataset.i)),
   rosterPick: (b) => deckQuick(b.dataset.id),
+  prepSlot: (b) => { const ids = curDeck().filter(Boolean); showPrepSheet(b.dataset.i !== undefined ? Number(b.dataset.i) : Math.max(0, ids.indexOf(b.dataset.id))); },
+  prepSheetF: (b) => { app.ppF = b.dataset.f; showPrepSheet(); },
+  prepPick: (b) => prepPick(b.dataset.id),
+  prepHellLock: () => toast('헬은 이 스테이지를 ★★★로 깨면 열려요', 1600),
+  prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[L.weeklyDef(L.weekIndex()).fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${g.icon} ${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
+  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★)</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${HELL.hp} · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 보스 분노. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
+  prepFoe: (b) => {
+    const id = b.dataset.id, d = ENEMIES[id]; if (!d) return;
+    const T = foeTrait(id), c = CLASSES[d.cls];
+    const good = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) > 1);
+    const cnt = T ? T.counter.filter((h) => HEROES[h]).map((h) => esc(HEROES[h].name)).join(' · ') : '';
+    popup(`<div class="pp-fp">${foeFace(id, 'big')}<div><b>${esc(d.name)}</b><small>${c ? `${c.icon} ${c.name}` : ''}${T ? ` · ${T.icon} ${esc(T.name)}` : ''}</small></div></div>
+      <p class="pp-tip">${T ? `${esc(T.tip)}${cnt ? ` → <b>${cnt}</b>` : ''}` : `${good.map((a) => `${attrIco(a)}${ATTRS[a].name}`).join(' · ')} 멤버에게 약해요`}</p>
+      <button class="chip mini" data-act="info" data-kind="enemy" data-id="${id}">자세히</button>`, 'pp-mini');
+  },
+  prepRw: () => { const p = P(), s = app.stage, hell = app.hellMode && hellOpen(p.stages, s), r = stageReward(s, 3, hell ? 3 : p.stages[s] | 0); popup(`<h3>${ic('gift', '🎁')} 보상</h3><div class="ilist"><p class="ip">클리어 코인 최대 <b>${fmt(Math.round(r.clear * (hell ? HELL.coin : 1)))}</b>${hell ? ` (헬 ×${HELL.coin})` : ''} · ★ 많을수록 ↑</p>${r.first ? `<p class="ip">첫 클리어 <b>+${fmt(r.first)}</b></p>` : ''}${r.star ? `<p class="ip">새 ★마다 코인 · ★★★까지 <b>+${fmt(r.star)}</b></p>` : ''}${r.mid ? `<p class="ip">중간 보스 처치 <b>+${fmt(r.mid)}</b></p>` : ''}<p class="ip">장비 1개 (★★★면 35%로 1개 더 · 퍼펙트 +1${hell ? ' · 헬 +1 · 희귀 이상' : ''})</p><p class="ip">데려간 멤버 카드 가끔${hell ? ' (헬 ×2)' : ''}</p><p class="ip">기력 ⚡${L.stageStaminaCost(p, s, hell)} — 실패하면 일부 돌려받아요</p></div>`, 'pp-mini'); },
+  prepMore: () => {
+    const st = prepStage();
+    const cw = st ? stageClasses(st) : {};
+    const cls = Object.keys(cw).sort((a, b) => cw[b] - cw[a]).slice(0, 3).map((c) => `${clsTag(c)}<small>${Math.round(cw[c] * 100)}%</small>`).join('');
+    popup(`<h3>스테이지 정보</h3>
+      ${st && app.mode === 'stage' ? `<p class="story">📖 ${esc(stageStory(st))}</p>` : ''}
+      ${st ? waveRowHtml(st) : ''}
+      ${cls ? `<div class="si-cls prep-cls">적 ${cls}</div>` : ''}${st ? traitHintHtml(st) : ''}
+      <div class="pp-mbtn"><button class="chip" data-act="nav" data-tab="deck">${ic('duo', '👥', 'sm')} 덱 화면</button><button class="chip" data-act="nav" data-tab="bag">${ic('hammer', '🔨', 'sm')} 강화·장비</button><button class="chip" data-act="dex">${ic('book', '📖', 'sm')} 도감</button></div>`, 'pp-more-pop');
+  },
+  speedTog: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } toast(app.speed2 ? '⏩ 2배속으로 해요' : '보통 속도로 해요', 900); showPrep(app.mode, app.stage); },
   waveHelp: () => popup(`<h3>🌊 웨이브 성격</h3>${['S', 'E', 'M', 'B'].map((k) => `<p class="ip"><b>${WAVE_KINDS[k].icon} ${WAVE_KINDS[k].name}</b> — ${esc(WAVE_KINDS[k].desc)}</p>`).join('')}<p class="ip">한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> · 계속 잡으면 콤보 경험치 보너스</p>`),
   deckPreset: (b) => { app.deckI = Number(b.dataset.k); app.deckSel = -1; saveDecks(); showPrep(app.mode, app.stage); },
   autoDeck: () => { autoDeck(); A.sfx.levelUp(); toast('상성에 맞춰 덱을 짰어요!', 1400); showPrep(app.mode, app.stage); },
@@ -1838,7 +1865,7 @@ ui.addEventListener('pointerdown', (ev) => {
   const c = ev.target.closest('.pcard[data-id], .dslot[data-id], .acard[data-id]');
   if (!c || (app.screen !== 'prep' && app.screen !== 'deck')) return;
   clearTimeout(lpT);
-  lpT = setTimeout(() => { ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 400); vibrate(12); if (app.screen === 'deck') showHeroModal(c.dataset.id); else showDexCard('hero', c.dataset.id); }, 480);
+  lpT = setTimeout(() => { ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 400); vibrate(12); if (app.screen === 'deck') showHeroModal(c.dataset.id); else if (c.classList.contains('pp-card')) showHeroModal(c.dataset.id, 'prep'); else showDexCard('hero', c.dataset.id); }, 480);
 });
 for (const t of ['pointerup', 'pointercancel', 'pointermove']) ui.addEventListener(t, (ev) => { if (t !== 'pointermove' || (ev.movementX * ev.movementX + ev.movementY * ev.movementY) > 16) clearTimeout(lpT); });
 let lbSwipe = null;
@@ -3273,6 +3300,23 @@ function matchTag(id) {
   const m = attrMatch(HEROES[id].attr, s);
   return `<span class="mt ${m.cls}">${m.arrow}</span>`;
 }
+// ─── 출격 준비: 한 화면에 (스테이지 카드 · 난이도 · 전투력 · 등장 진상 · 덱 · 보상 · 출격) — 긴 설명은 ⋯ / ℹ️ 뒤로 ───
+function stagePower(p, s, hell) { // 권장 전투력: 기본 멤버 4명이 그 스테이지쯤 강화했을 때
+  const m = Math.round(s * 0.25), base = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
+  const q = Object.assign({}, p, { heroes: Object.fromEntries(base.map((h) => [h, m])), equip: {}, hstars: {} });
+  return Math.round(deckPower(q, base) * (1 + 0.05 * (chapterOf(s) - 1)) * (hell ? 1.9 : 1));
+}
+const foeFace = (id, cls = '') => { const d = ENEMIES[id]; return `<span class="pp-face ${cls}" style="--fc:${d.color || '#8a7ab0'}"><img src="${d.img}" alt="" draggable="false" onerror="this.remove()"></span>`; };
+const foeTrait = (id) => { const t = ENEMIES[id].traits || {}; const k = Object.keys(t).find((x) => TRAITS[x]); return k ? TRAITS[k] : null; };
+function prepFoes(st) { return st ? stageMix(st).filter(([t]) => ENEMIES[t] && !ENEMIES[t].dot).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t) : []; }
+function prepRecSet(st) {
+  const r = new Set();
+  if (!st) return r;
+  const mine = owned();
+  for (const id of recommendTeam(st, mine, deckSlotsNow())) r.add(id);
+  for (const t of prepFoes(st)) { const T = foeTrait(t); if (T) for (const h of T.counter) if (mine.includes(h)) r.add(h); }
+  return r;
+}
 function showPrep(mode, s) {
   if (mode === 'stage' && !stageUnlocked(s)) s = nextStage();
   app.mode = mode;
@@ -3282,45 +3326,111 @@ function showPrep(mode, s) {
   fixDeck();
   const p = P();
   const max = deckSlotsNow();
-  const d = curDeck();
-  const inDeck = new Set(d.filter(Boolean));
+  const ids = curDeck().filter(Boolean);
   const wk = mode === 'weekly' ? L.weeklyDef(L.weekIndex()) : null;
   const st = prepStage();
-  R.setTheme(st ? chapterOf(st) : 'endless');
-  const roster = ['bangjang', ...partnerList()].map((id) => {
-    const h = HEROES[id];
-    const tag = h.legend ? 'lg' : h.hidden ? 'hid' : h.gacha ? 'ep' : '';
-    if (!API.heroUnlocked(p, id)) return `<button class="pcard locked ${tag}" data-act="rosterPick" data-id="${id}"><span class="ii" data-act="heroInfo" data-id="${id}">i</span>${av(h, 'sil')}<b>???</b><small>${esc(HERO_UNLOCK[id] ? stageLabel(HERO_UNLOCK[id]) + ' 클리어' : '모집')}</small></button>`;
-    return `<button class="pcard ${tag} ${inDeck.has(id) ? 'on' : ''}" data-act="rosterPick" data-id="${id}"><span class="ii" data-act="heroInfo" data-id="${id}">i</span>${av(h)}<span class="pa">${ATTRS[h.attr].icon}</span>${matchTag(id)}<b>${h.name}</b><small>${'★'.repeat(L.heroStar(p, id))} +${p.heroes[id] || 0}</small></button>`;
-  }).join('');
+  const ch = st ? chapterOf(st) : 0;
+  R.setTheme(st ? ch : 'endless');
   const fxd = wk ? MAP_FX[wk.fx] || MAP_FX.none : mode === 'stage' ? stageFx(s) : MAP_FX.none;
-  const cw = st ? stageClasses(st) : {};
-  const cls = Object.keys(cw).sort((a, b) => cw[b] - cw[a]).slice(0, 3).map((c) => `${clsTag(c)}<small>${Math.round(cw[c] * 100)}%</small>`).join('');
   const cleared = mode === 'stage' && (p.stages[s] | 0) > 0;
   const hellOk = mode === 'stage' && hellOpen(p.stages, s);
   const hellOn = hellOk && app.hellMode;
+  const free = p.master && !p.testNormal;
+  // 1) 스테이지 카드
+  const bossId = st ? stageBosses(st)[0] || stageMid(st) : null;
+  const bossTag = st && stageBosses(st).length ? 'BOSS' : '중간 보스';
+  const stars = mode === 'stage' ? (hellOn ? (p.hell || {})[s] || 0 : p.stages[s] || 0) : 0;
+  const bg = `/img/lb/bg${ch >= 2 && ch <= 6 ? ch : ''}.webp`;
   const head = mode === 'stage'
-    ? `<h2 class="title">${hellOn ? '<em class="hellb">HELL</em> ' : ''}${stageLabel(s)} ${esc(stageName(s))}</h2><p class="sub">${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 👑 보스' : ''} · ${fxd.icon} ${esc(fxd.name)} · 최고 ${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ' · 💎' : ''}${hellOk ? ` · 🔥 ${starStr((p.hell || {})[s] || 0)}` : ''}</p>
-       ${hellOk ? `<div class="mode-tog"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0">일반</button><button class="${hellOn ? 'on hell' : ''}" data-act="hellMode" data-v="1">🔥 헬 모드</button></div>${hellOn ? `<p class="sub hellsub">진상 체력 ×${HELL.hp} · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 보스 분노 — 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>` : ''}` : ''}`
-    : wk ? `<h2 class="title">📅 주간 도전 · ${esc(L.WEEKLY_MODS[wk.mod].name)}</h2><p class="sub">${L.WEEKLY_WAVES}웨이브 · ${fxd.icon} ${esc(fxd.name)} · ${esc(L.WEEKLY_MODS[wk.mod].desc)}</p>`
-      : `<h2 class="title">♾️ 무한 도전</h2><p class="sub">어디까지 버틸까? 최고 W${p.bestWave || 0} · 점수 ${fmt(p.bestScore || 0)} · 오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}</b> <button class="chip mini" data-act="rwInfo" data-v="endless">ℹ️ 보상</button></p>`;
+    ? `<em class="pp-no">${stageLabel(s)}</em><b class="pp-name">${esc(stageName(s))}</b><span class="pp-meta"><i class="pp-stars">${'★'.repeat(stars)}<u>${'★'.repeat(3 - stars)}</u></i>${p.perfects && p.perfects[s] ? ic('gem', '💎', 'sm') : ''}<button class="pp-fx" data-act="prepFx">${fxd.icon} ${esc(fxd.name)}</button></span>`
+    : wk ? `<em class="pp-no sm">${ic('calendar', '📅')} 주간 도전</em><b class="pp-name">${esc(L.WEEKLY_MODS[wk.mod].name)}</b><span class="pp-meta"><button class="pp-fx" data-act="prepFx">${fxd.icon} ${esc(fxd.name)}</button></span>`
+      : `<em class="pp-no sm">${ic('infinity', '♾️')} 무한 도전</em><b class="pp-name">최고 W${p.bestWave || 0} · ${fmt(p.bestScore || 0)}점</b><span class="pp-meta"><button class="pp-fx" data-act="rwInfo" data-v="endless">${ic('gift', '🎁')} 오늘 ${free ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}</button></span>`;
+  const headHtml = `<div class="pp-head ${hellOn ? 'hell' : ''} ${wk ? 'wk' : ''} ${!st ? 'end' : ''}" style="--bg:url('${bg}')">
+      <div class="pp-hl">${head}</div>
+      ${bossId ? `<button class="pp-boss" data-act="prepFoe" data-id="${bossId}">${foeFace(bossId, 'big')}<i>${bossTag}</i></button>` : ''}
+    </div>`;
+  // 2) 난이도
+  const diffLine = hellOn ? `헬 · 체력 ×${HELL.hp} · 공격 ×${HELL.atk} · 보상 ×${HELL.coin}` : mode === 'stage' ? `보통 · ${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 보스' : stageMid(s) ? ' · 중간 보스' : ''}` : wk ? L.WEEKLY_MODS[wk.mod].desc : '';
+  const diffHtml = mode === 'stage'
+    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0">보통</button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1">${hellOk ? '' : ic('lock', '🔒', 'sm')}헬</button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
+    : diffLine ? `<p class="pp-line solo">${esc(diffLine)}</p>` : '';
+  // 3) 전투력
+  const pw = deckPower(p, ids), need = st ? stagePower(p, st, hellOn) : 0;
+  const ok = !need || pw >= need;
+  const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '⚔️', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
+  // 4) 등장 진상
+  const foes = prepFoes(st);
+  const foeHtml = foes.length ? `<div class="pp-foes"><span class="pp-lab">등장 진상</span><div class="pp-chips">${foes.map((t) => { const T = foeTrait(t); return `<button class="pp-foe" data-act="prepFoe" data-id="${t}">${foeFace(t)}${T ? `<i class="pp-tb">${T.icon}</i>` : ''}</button>`; }).join('')}</div></div>` : '';
+  // 5) 덱
+  const nCell = Math.min(6, max + (max < 6 ? 1 : 0));
+  const cells = [];
+  for (let i = 0; i < nCell; i++) {
+    const id = ids[i];
+    if (i >= max) { cells.push(`<button class="pp-slot lock" data-act="shop">${ic('lock', '🔒')}<small>${fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0])}</small></button>`); continue; }
+    cells.push(id ? artCard(id, { act: 'prepSlot', cls: 'pp-card ' + (app.deckPop === id ? 'pop' : ''), extra: matchTag(id) }) : `<button class="pp-slot empty" data-act="prepSlot" data-i="${i}"><i>+</i></button>`);
+  }
+  app.deckPop = null;
+  const deckHtml = `<div class="pp-deck">
+      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="autoDeck">${ic('sparkle', '✨', 'sm')}자동 편성</button></div>
+      <div class="pp-slots n${nCell}">${cells.join('')}</div>
+    </div>`;
+  // 6) 보상
+  let rw = '';
+  if (mode === 'stage') {
+    const prev = hellOn ? 3 : p.stages[s] | 0;
+    const r = stageReward(s, 3, prev);
+    const items = [`<span><i class="ci"></i>${fmt(Math.round(r.clear * (hellOn ? HELL.coin : 1)))}</span>`];
+    if (r.first) items.push(`<span>${ic('gift', '🎁', 'sm')}첫 클리어 +${fmt(r.first)}</span>`);
+    if (r.star) items.push(`<span class="st">★3 +${fmt(r.star)}</span>`);
+    items.push(`<span>${ic('dagger', '🗡️', 'sm')}장비 ×${hellOn ? '2~' : '1~'}</span>`, `<span>${ic('card_rare', '🃏', 'sm')}카드</span>`);
+    rw = `<button class="pp-rw" data-act="prepRw">${items.join('')}</button>`;
+  } else rw = `<button class="pp-rw" data-act="rwInfo" data-v="${wk ? 'weekly' : 'endless'}"><span>${ic('gift', '🎁', 'sm')}보상 보기</span></button>`;
+  // 7) 출격
+  const cost = mode === 'stage' && !free ? L.stageStaminaCost(p, s, hellOn) : 0;
+  const goHtml = `<div class="pp-go">
+      ${cleared ? `<button class="pp-ib ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-label="2배속">${ic('speed', '⏱️')}<small>×2</small></button>` : ''}
+      <button class="btn primary pp-gobtn ${ids.length ? '' : 'dim'} ${hellOn ? 'hell' : ''}" data-act="go"><b>출격!</b>${cost ? `<small>${ic('energy', '⚡', 'sm')}${cost}</small>` : ''}</button>
+    </div>`;
   show(`
-    <div class="topbar"><button class="back" data-act="${mode === 'stage' ? 'menu' : mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button>${coinsPill()}</div>
-    ${head}
-    ${cls ? `<div class="si-cls prep-cls">적 ${cls}</div>` : ''}${st ? traitHintHtml(st) : ''}
-    ${st && app.mode === 'stage' ? `<p class="story">📖 ${esc(stageStory(st))}</p>${waveRowHtml(st)}` : ''}
-    <div class="deck-top">
-      <div class="deck-tabs">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">덱 ${k + 1}</button>`).join('')}</div>
-      <button class="btn ghost auto" data-act="autoDeck">✨ 추천 덱</button>
-    </div>
-    <div class="deck-wrap"><div class="deck-rope"></div>${renderDeckField()}</div>
-    <div class="teamline" id="deckline">${inDeck.size}/${max}명${max < 6 ? ` <span class="lkcnt" data-act="shop">${'🔒'.repeat(6 - max)}</span>` : ''} · ${deckLine()}</div>
-    <p class="sub deck-help">멤버를 누르면 덱에 쏙 · 덱에서 누르면 빠져요 · ⓘ 길게 누르면 멤버 카드 · ▲ 유리 ▼ 불리 · 자리는 전투에서 끌어서 바꿔요</p>
-    <div class="pgrid roster">${roster}</div>
+    <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta" data-act="stamina">⚡<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
+    ${headHtml}${diffHtml}${powHtml}${foeHtml}${deckHtml}${rw}
     <div class="spacer"></div>
-    ${cleared ? `<label class="speed-opt"><input type="checkbox" data-act="speedOpt" ${app.speed2 ? 'checked' : ''}> ⏩ 2배속으로 하기 <small>(깬 스테이지만)</small></label>` : ''}
-    <button class="btn primary ${inDeck.size ? '' : 'dim'}" data-act="go">출동! 🚪</button>
-  `, 'dim prep-screen');
+    ${goHtml}
+  `, 'dim prep-screen pp');
+}
+// 덱 자리 → 아래에서 올라오는 멤버 고르기
+function showPrepSheet(i) {
+  if (i !== undefined) app.ppSlot = i;
+  const p = P();
+  const ids = curDeck().filter(Boolean);
+  const cur = ids[app.ppSlot];
+  const st = prepStage();
+  const rec = prepRecSet(st);
+  const f = app.ppF || 'all';
+  const pass = (id) => f === 'all' || (f === 'rec' ? rec.has(id) : f.startsWith('a:') ? HEROES[id].attr === f.slice(2) : heroTier(id) === Number(f.slice(1)));
+  const list = owned().filter(pass).sort((a, b) => (rec.has(b) - rec.has(a)) || heroPower(p, b) - heroPower(p, a));
+  const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
+  popup(`<h3>${cur ? `${esc(HEROES[cur].name)} 바꾸기` : `${app.ppSlot + 1}번 자리`}</h3>
+    <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="prepSheetF" data-f="${k}">${t}</button>`).join('')}</div>
+    <div class="pp-sg">${list.map((id) => artCard(id, { act: 'prepPick', on: ids.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}${id === cur ? '<i class="pp-now">지금</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
+    ${cur ? `<button class="btn ghost pp-out" data-act="prepPick" data-id="">덱에서 빼기</button>` : ''}`, 'pp-sheet');
+}
+function prepPick(id) {
+  const ids = curDeck().filter(Boolean), k = app.ppSlot, cur = ids[k];
+  if (!id) { app.decks[app.deckI] = placeDeck(ids.filter((x) => x !== cur)); A.sfx.tap(); }
+  else {
+    if (!API.heroUnlocked(P(), id)) return;
+    const at = ids.indexOf(id);
+    if (at >= 0 && k < ids.length) [ids[at], ids[k]] = [ids[k], ids[at]];
+    else if (at >= 0) { /* 이미 덱에 있음 · 빈칸 → 그대로 */ }
+    else if (k < ids.length) ids[k] = id;
+    else if (ids.length < deckSlotsNow()) ids.push(id);
+    app.decks[app.deckI] = placeDeck(ids);
+    app.deckPop = id; A.sfx.card();
+  }
+  saveDecks();
+  closeInfoCard();
+  showPrep(app.mode, app.stage);
 }
 function deckTapSlot(i) {
   if (lockedPos().includes(i)) { const it = ITEMS[deckSlotsNow() < 5 ? 'slot5' : 'slot6']; toast(`🔒 상점에서 열 수 있어요 — ${it.name} ${fmt(it.costs[0])}코인`, 2000); return; }
@@ -4642,6 +4752,7 @@ window.__lb = {
   tapCard,
   resumeRun,
   loadSnap,
+  prep: (mode, s) => showPrep(mode, s),
   showScreen: (name) => ({ menu: showMenu, stages: showStages, shop: showShop, ranking: showRanking, howto: showHowto }[name] || showMenu)(),
   startRun: (partner, stageNum, mode) => { if (partner) app.partner = partner; return startRun({ mode: mode || (stageNum === 0 ? 'endless' : 'stage'), stage: stageNum || nextStage(), force: true }); },
 };
