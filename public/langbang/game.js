@@ -4023,7 +4023,10 @@ function cardHtml5(c, i) {
   const ef = cardEffect(c), t = c.kind === 'join' ? HEROES[c.hero].name : cardTitle(c);
   const W = c.kind === 'join' && WEAPON[c.hero];
   const lab = c.kind === 'join' ? `${esc(W ? W.item : '')} — ${esc(W ? KIND_TXT[W.kind] || '' : HEROES[c.hero].role || '')}` : ef.hl || !ef.big ? esc(ef.label).replace(/([+\-−×]?\d+(?:\.\d+)?\s?(?:%p|%|초|배|명|칸|번|발)?)/g, '<em>$1</em>') : `${esc(ef.label)} <em>${esc(ef.big)}</em>`;
-  const art = own ? `<img src="${thumbSrc(own) || (HEROES[own] || SUMMONS[own]).img}" alt="" draggable="false" onerror="this.onerror=null;this.src='${(HEROES[own] || SUMMONS[own]).img}'">` : '';
+  // 멤버 카드만 그 멤버 그림 (얼굴 맞춤) · 일반 증강은 그 카드 그림을 크게
+  const heroCard = !!(c.hero && (HEROES[c.hero] || SUMMONS[c.hero]));
+  const fb = heroCard ? (DEX_FACE[c.hero] || [0.48, 0.09, 0.14]) : null;
+  const art = heroCard ? `<img class="c5-face" data-face="${c.hero}" src="${thumbSrc(c.hero) || (HEROES[c.hero] || SUMMONS[c.hero]).img}" alt="" draggable="false" style="--k:${(1 / fb[2]).toFixed(3)};--fx:-${(fb[0] * 100).toFixed(1)}%;--fy:-${(fb[1] * 100).toFixed(1)}%">` : `<img class="c5-gen" src="${cardRound(c)}" alt="" draggable="false">`; void own;
   return `<button class="card v4 v5 r-${cardRar(c)} k-${c.kind} ${c.onPath ? 'onpath' : ''} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
     <span class="c5-art">${art}</span>
     ${isNew ? `<i class="c5-new">${c.kind === 'join' ? 'NEW · 합류' : 'NEW'}</i>` : ''}${rec ? `<i class="c5-rec">${pimg(ui2('badge_rec'))}</i>` : ''}

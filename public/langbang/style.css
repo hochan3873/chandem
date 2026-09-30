@@ -3069,3 +3069,9 @@ body.rm .tap-rip, body.rm .tap-spark { display: none; }
 .info-card.enh-ok::after, .info-card.enh-no::after { content: '' !important; width: calc(var(--u) * 64); height: calc(var(--u) * 64); background: url(/img/lb/ui2/hammer.webp) center / contain no-repeat; }
 .bitem.bulk.nosel::after { content: '' !important; width: 12px; height: 12px; background: url(/img/lb/ui2/lock.webp) center / contain no-repeat; }
 .dex-title { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 6); } .dex-title .ic { width: calc(var(--u) * 30); height: calc(var(--u) * 30); }
+
+/* 레벨업 카드 튀어나온 그림: 얼굴이 카드 위 띠 안에 (가운데 55% · 얼굴 = 띠의 40%) · 일반 증강은 카드 그림 */
+.card.v5 .c5-art img.c5-face { position: absolute; left: 50%; top: calc(var(--u) * 22); bottom: auto; height: calc(var(--u) * 48 * var(--k)); width: auto; max-width: none; object-fit: initial; transform: translate(var(--fx), var(--fy)); -webkit-mask: none; mask: none; }
+.card-list.v4.v5.n4 .card.v5 .c5-art img.c5-face { top: calc(var(--u) * 12); height: calc(var(--u) * 41 * var(--k)); }
+.card.v5 .c5-art img.c5-gen { position: absolute; left: 50%; top: calc(var(--u) * -34); bottom: auto; height: calc(var(--u) * 92); width: auto; max-width: none; transform: translateX(-50%); object-fit: contain; filter: drop-shadow(0 calc(var(--u) * 4) calc(var(--u) * 8) rgba(0, 0, 0, 0.6)); -webkit-mask: none; mask: none; }
+.card-list.v4.v5.n4 .card.v5 .c5-art img.c5-gen { top: calc(var(--u) * -34); height: calc(var(--u) * 76); }
