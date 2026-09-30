@@ -1418,6 +1418,12 @@ const ACTS = {
   deckPreset: (b) => { app.deckI = Number(b.dataset.k); app.deckSel = -1; saveDecks(); showPrep(app.mode, app.stage); },
   autoDeck: () => { autoDeck(); A.sfx.levelUp(); toast('상성에 맞춰 덱을 짰어요!', 1400); showPrep(app.mode, app.stage); },
   gearItem: (b) => showGearCard(Number(b.dataset.id)),
+  bagPick: (b) => { const id = Number(b.dataset.id); if (app.bagSel === id) { app.bagSel = null; showGearCard(id); } else { app.bagSel = id; A.sfx.tap(); showBag(); } }, // 한 번 = 고르기 · 두 번 = 자세히
+  bagUnsel: () => { app.bagSel = null; showBag(); },
+  bagAll: () => { app.bagAll = !app.bagAll; showBag(); },
+  autoEquipAll: () => autoEquipAll(),
+  bagHeroPick: (b) => { app.bagHero = b.dataset.id; showBag(); },
+  eqSlot: (b) => { if (app.bagSel) equipTo(b.dataset.hero, b.dataset.slot, app.bagSel); else { app.bagHero = b.dataset.hero; showGearPicker(b.dataset.hero, b.dataset.slot); } },
   gearSlot: (b) => showGearPicker(b.dataset.hero, b.dataset.slot),
   partner: (b) => {
     const id = b.dataset.id;
@@ -1485,12 +1491,14 @@ function dots() {
   const season = p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t));
   const wk = (p.maxStage | 0) >= L.WEEKLY_UNLOCK && !(p.weekly && p.weekly.wi === L.weekIndex(now) && p.weekly.runs > 0);
   const members = Object.keys(HEROES).some((h) => API.heroUnlocked(p, h) && L.heroStar(p, h) < L.STAR_MAX && (p.shards[h] | 0) >= L.STAR_SHARDS[L.heroStar(p, h)]);
-  return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0 };
+  const upg = owned().some((h) => { const c = API.costOf(p, h); return c !== null && c !== undefined && (p.coins | 0) >= c && (p.heroes[h] | 0) < 5; });
+  const gearBetter = (() => { const ids = [...new Set((curDeck() || []).filter(Boolean))]; return ids.some((h) => ['w', 'a'].some((k) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)); })); })();
+  return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: members || upg, bag: gearBetter };
 }
 function navHtml(on) {
   const d = dots();
-  const tabs = [['shop', '상점', '🛒'], ['bag', '가방', '🎒'], ['battle', '전투', '⚔️'], ['members', '멤버', '👥'], ['missions', '미션', '📜']];
-  return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'members' ? 'members' : k, e)}<b>${n}</b>${rdot(d[k])}</button>`).join('')}</nav>`;
+  const tabs = [['shop', '상점', '🛒'], ['deck', '덱', '👥'], ['battle', '전투', '⚔️'], ['bag', '강화·장비', '🎒'], ['pvp', '대전', '🥊']];
+  return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'deck' ? 'members' : k, e)}<b>${n}</b>${rdot(d[k])}</button>`).join('')}</nav>`;
 }
 function topPills() {
   const p = P();
@@ -1563,8 +1571,8 @@ function showMenu() {
     `<button class="tile ${L.raidState(now).open ? 'hot' : ''}" data-act="raid">${uiIco('raid', '🐉')}<b>레이드</b><small class="${L.raidState(now).open ? 'raid-open' : ''}">${esc(L.raidLabel(now).text)}</small>${rdot(L.raidState(now).open && !(p.raid && p.raid.wi === L.raidState(now).wi && p.raid.runs))}</button>`,
     `<button class="tile" data-act="pvp">${uiIco('pvp', '⚔️')}<b>1:1 대전</b><small>${(p.pvp && p.pvp.rating) || 1000}점</small></button>`,
   ].join('');
-  const right = [['share', '공유', '📤', 'share'], ['checkin', '출석', '📆', 'checkin'], ['ranking', '랭킹', '🏆', 'ranking'], ['dex', '도감', '📚', 'dex'], ['mail', '공지', '📮', 'notice'], ['settings', '설정', '⚙️', 'settings']]
-    .map(([ic, n, e, act]) => `<button class="rb" data-act="${act}">${uiIco(ic, e)}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin))}</button>`).join('');
+  const right = [['missions', '미션', '📜', 'missionsNav'], ['share', '공유', '📤', 'share'], ['checkin', '출석', '📆', 'checkin'], ['ranking', '랭킹', '🏆', 'ranking'], ['dex', '도감', '📚', 'dex'], ['mail', '공지', '📮', 'notice'], ['settings', '설정', '⚙️', 'settings']]
+    .map(([ic, n, e, act]) => `<button class="rb" data-act="${act}">${uiIco(ic, e)}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions))}</button>`).join('');
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~6)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
@@ -1606,10 +1614,10 @@ function makeDemo() {
 // 출전 준비: 멤버 카드를 길게 누르면 큰 멤버 카드 (도감 카드)
 let lpT = 0;
 ui.addEventListener('pointerdown', (ev) => {
-  const c = ev.target.closest('.pcard[data-id], .dslot[data-id]');
-  if (!c || app.screen !== 'prep') return;
+  const c = ev.target.closest('.pcard[data-id], .dslot[data-id], .acard[data-id]');
+  if (!c || (app.screen !== 'prep' && app.screen !== 'deck')) return;
   clearTimeout(lpT);
-  lpT = setTimeout(() => { ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 400); vibrate(12); showDexCard('hero', c.dataset.id); }, 480);
+  lpT = setTimeout(() => { ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 400); vibrate(12); if (app.screen === 'deck') showHeroModal(c.dataset.id); else showDexCard('hero', c.dataset.id); }, 480);
 });
 for (const t of ['pointerup', 'pointercancel', 'pointermove']) ui.addEventListener(t, (ev) => { if (t !== 'pointermove' || (ev.movementX * ev.movementX + ev.movementY * ev.movementY) > 16) clearTimeout(lpT); });
 let lbSwipe = null;
@@ -1674,8 +1682,9 @@ function goNav(tab) {
   if (tab === 'battle') return showMenu();
   if (tab === 'shop') { app.shopTab = app.shopTab === 'items' ? 'items' : 'recruit'; return showShop(); }
   if (tab === 'bag') return showBag();
-  if (tab === 'members') return showMembers();
+  if (tab === 'members' || tab === 'deck') return showDeckTab();
   if (tab === 'missions') return showMissions();
+  if (tab === 'pvp') return showPvp();
 }
 
 // ─── 공용: 보상 글자 · 팝업 ───────────────────────────
@@ -1713,7 +1722,7 @@ async function liveAct(promise, okMsg) {
   return r;
 }
 function refresh() {
-  const f = { menu: showMenu, shop: showShop, bag: showBag, members: showMembers, missions: showMissions, season: showSeason, weekly: showWeekly, prep: () => showPrep(app.mode, app.stage) }[app.screen];
+  const f = { menu: showMenu, shop: showShop, bag: showBag, members: showMembers, deck: showDeckTab, pvp: showPvp, missions: showMissions, season: showSeason, weekly: showWeekly, prep: () => showPrep(app.mode, app.stage) }[app.screen];
   if (f) f();
 }
 
@@ -1960,6 +1969,54 @@ function artCard(id, o = {}) {
     <i class="ac-tier">${TIER_NAME[t]}</i><span class="ac-attr">${ATTRS[d.attr].icon}</span>
     <span class="ac-foot"><b>${ok ? esc(d.name) : '???'}</b><small>${sub}</small>${pr ? `<i class="ac-prog"><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i>` : ''}</span>${o.extra || ''}${o.dot ? '<i class="rd"></i>' : ''}</button>`;
 }
+// ─── 덱 탭: 큰 그림 카드 덱 + 전투력 + 모음 (필터 · 전투력 순) ───
+const ROLE_CHIPS = [['all', '전체'], ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LEGEND'], ['splash', '💥 범위'], ['boss', '🎯 한 방'], ['ctrl', '🌀 제어'], ['heal', '💚 회복']];
+function refPower(p) { // 비교 기준: 다음 스테이지 추천 전투력 (기본 멤버 4명 · 그 스테이지쯤 강화)
+  const s = nextStage(), m = Math.round(s * 0.25);
+  const q = Object.assign({}, p, { heroes: Object.fromEntries(['bangjang', 'staff', 'gunman', 'gunnyeo'].map((h) => [h, m])), equip: {}, hstars: {} });
+  return deckPower(q, ['bangjang', 'staff', 'gunman', 'gunnyeo']) * (1 + 0.05 * (chapterOf(s) - 1));
+}
+function showDeckTab() {
+  app.screen = 'deck';
+  hud.hidden = true;
+  fixDeck();
+  const p = P();
+  const max = deckSlotsNow();
+  const ids = curDeck().filter(Boolean);
+  const pw = deckPower(p, ids), ref = refPower(p);
+  const diff = ref ? Math.round((pw / ref - 1) * 100) : 0;
+  const slots = [];
+  for (let i = 0; i < 6; i++) {
+    const id = ids[i];
+    if (i >= max) { slots.push(`<button class="dk-lock" data-act="shop"><span>🔒</span><small>${i === max ? `${fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0])}` : ''}</small></button>`); continue; }
+    slots.push(id ? artCard(id, { act: 'deckRemove', cls: 'dk ' + (app.deckPop === id ? 'pop' : ''), extra: `<em class="dk-pw">⚔ ${fmt(heroPower(p, id))}</em>` }) : '<div class="dk-empty"><i>+</i><small>아래에서 골라요</small></div>');
+  }
+  app.deckPop = null;
+  const f = app.deckFilter || 'all';
+  const pass = (id) => f === 'all' || (f[0] === 't' ? heroTier(id) === Number(f.slice(1)) : (HERO_TAGS[id] || []).includes(f));
+  const all = ['bangjang', ...partnerList()].filter(pass);
+  const mine = all.filter((id) => API.heroUnlocked(p, id)).sort((a, b) => heroPower(p, b) - heroPower(p, a));
+  const locked = all.filter((id) => !API.heroUnlocked(p, id));
+  const coll = [...mine, ...locked].map((id) => artCard(id, { act: 'deckColl', on: ids.includes(id), dot: API.heroUnlocked(p, id) && L.heroStar(p, id) < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[L.heroStar(p, id)] })).join('');
+  show(`
+    ${subTop('덱')}
+    <div class="dk-top">
+      <div class="deck-tabs">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPresetT" data-k="${k}">덱 ${k + 1}</button>`).join('')}</div>
+      <button class="btn ghost auto" data-act="autoDeckT">✨ 추천 덱</button>
+    </div>
+    <div class="dk-power"><small>덱 전투력</small><b id="dkPow" data-from="${app.lastDeckPow || pw}" data-to="${pw}">${fmt(pw)}</b><em class="${diff >= 0 ? 'up' : 'down'}">다음 스테이지 추천보다 ${diff >= 0 ? '+' : ''}${diff}%</em></div>
+    <div class="dk-slots n${max}">${slots.join('')}</div>
+    <p class="sub">${ids.length}/${max}명 · 카드를 누르면 넣기/빼기 · 길게 누르면 자세히</p>
+    <div class="chips dk-chips">${ROLE_CHIPS.map(([k, n]) => `<button class="chip ${f === k ? 'on' : ''}" data-act="deckFilter" data-v="${k}">${n}</button>`).join('')}</div>
+    <div class="agrid three">${coll || '<div class="empty-state"><span>🙋</span><b>이 조건의 멤버가 없어요</b></div>'}</div>
+    ${navHtml('deck')}
+  `, 'dim withnav deck-screen');
+  // 전투력 숫자가 바뀌면 또르르
+  const el = document.getElementById('dkPow');
+  const a0 = Number(el.dataset.from), a1 = Number(el.dataset.to);
+  if (a0 !== a1 && !document.body.classList.contains('rm')) { const t0 = performance.now(); const tick = () => { const k = Math.min(1, (performance.now() - t0) / 600); el.textContent = fmt(Math.round(a0 + (a1 - a0) * k)); if (k < 1) requestAnimationFrame(tick); else el.classList.add('bump'); }; tick(); }
+  app.lastDeckPow = pw;
+}
 // 멤버 카드 팝업 (덱 짜기 · 멤버 화면 공용)
 function showHeroModal(id, ctx = '') {
   const d = HEROES[id];
@@ -1988,7 +2045,7 @@ function showHeroModal(id, ctx = '') {
     <div class="hm-sec"><h4>🎒 장비</h4><div class="grow">${slot('w')}${slot('a')}</div></div>
     <p class="hm-desc">${esc(d.desc)}</p>
     ${ok ? `<div class="grid2 hm-btns">
-      <button class="btn ${cost !== null && p.coins >= cost ? 'primary' : ''}" data-act="buy" data-id="${id}" ${cost !== null && p.coins >= cost ? '' : 'disabled'}>강화 +${lv + 1}<small>${cost === null ? 'MAX' : `${fmt(cost)}코인 · 공격력 +${Math.round(RULES.metaDmgPerLevel * 100)}%`}</small></button>
+      <button class="btn ${cost !== null && p.coins >= cost ? 'primary' : ''}" data-act="buy" data-id="${id}" data-pw="${heroPower(p, id)}" ${cost !== null && p.coins >= cost ? '' : 'disabled'}>강화 +${lv + 1}<small>${cost === null ? 'MAX' : `${fmt(cost)}코인 · 공격력 +${Math.round(RULES.metaDmgPerLevel * 100)}%`}</small></button>
       <button class="btn ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? 'pink' : ''}" data-act="starUp" data-id="${id}" ${st < L.STAR_MAX && (p.shards[id] | 0) >= needS ? '' : 'disabled'}>★ 승급<small>${st >= L.STAR_MAX ? '최대 ★5' : `조각 ${p.shards[id] | 0}/${needS} · ${fmt(L.STAR_COINS[st])}코인`}</small></button>
     </div>` : `<p class="ip">🔒 ${esc(unlockText(id) || (d.legend ? `${stageLabel(L.HOCHAN_GATE)}를 깨면 모집에 등장 (아주 낮은 확률)` : d.gacha ? '상점 → 모집에서 만날 수 있어요' : ''))}</p>`}
     ${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}
@@ -2239,6 +2296,11 @@ Object.assign(ACTS, {
   },
   deckToggle: (b) => deckToggleAct(b.dataset.id),
   deckRemove: (b) => deckQuick(b.dataset.id),
+  deckColl: (b) => { if (!API.heroUnlocked(P(), b.dataset.id)) { showHeroModal(b.dataset.id); return; } deckQuick(b.dataset.id); },
+  deckFilter: (b) => { app.deckFilter = b.dataset.v; showDeckTab(); },
+  deckPresetT: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckTab(); },
+  autoDeckT: () => { const ids = recommendTeam(nextStage(), owned(), deckSlotsNow()); app.decks[app.deckI] = placeDeck(ids); saveDecks(); A.sfx.card(); toast('✨ 다음 스테이지 추천 덱으로 바꿨어요', 1400); showDeckTab(); },
+  missionsNav: () => showMissions(),
   heroInfo: (b) => showDexCard('hero', b.dataset.id),
   deckReplace: (b) => deckToggleAct(b.dataset.id, Number(b.dataset.slot)),
   hellModeS: (b) => { app.hellMode = b.dataset.v === '1'; try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showStages(); },
@@ -2575,7 +2637,7 @@ function deckQuick(id) {
     return;
   } else { app.decks[app.deckI] = placeDeck([...ids, id]); app.deckPop = id; A.sfx.card(); }
   saveDecks();
-  showPrep(app.mode, app.stage);
+  if (app.screen === 'deck') showDeckTab(); else showPrep(app.mode, app.stage);
 }
 function deckToggleAct(id, replace) {
   if (!API.heroUnlocked(P(), id)) { toast(unlockText(id) || '아직 합류하지 않았어요'); return; }
@@ -3038,7 +3100,8 @@ async function buyUpgrade(id, btn) {
   if (r.ok && r.profile) {
     app.profile = r.profile;
     A.sfx.levelUp();
-    toast(`${HEROES[id].name} 강화 완료! (+${app.profile.heroes[id]})`);
+    const dp = heroPower(app.profile, id) - (btn.dataset.pw ? Number(btn.dataset.pw) : 0);
+    toast(`${HEROES[id].name} 강화 완료! (+${app.profile.heroes[id]})${dp > 0 && btn.dataset.pw ? ` · 전투력 +${fmt(dp)}` : ''}`);
   } else toast(r.message || '강화하지 못했어요');
   if (stage.querySelector('.hero-pop')) { showHeroModal(id, app.screen === 'prep' ? 'prep' : ''); refreshBehind(); } else refresh();
 }
@@ -3416,6 +3479,15 @@ function showGearPicker(hero, slot) {
 
 // ─── 가방 (장비 화면): 위 = 멤버 + 무기/액세서리 칸 + 능력치, 아래 = 가방 격자 ─────
 const GEAR_W = { atk: 1, spd: 1, crit: 1.3, skill: 0.6, cd: 0.7, attr: 0.8, strip: 0.4, hp: 0.6, range: 0.7 };
+// 멤버 전투력: 기본 초당 피해 × 티어·강화 × ★ × 장비 — 화면에 보여 주는 숫자 (대략적인 세기)
+function heroPower(p, id) {
+  const d = HEROES[id];
+  if (!d) return 0;
+  const st = heroGearStats(p, id);
+  const base = (d.dmg / d.interval) * tierPower(heroTier(id), (p.heroes || {})[id] | 0) * (1 + L.STAR_ATK * (L.heroStar(p, id) - 1));
+  return Math.round(base * (1 + (st.atk || 0)) * (1 + (st.spd || 0)) * (1 + (st.skill || 0) * 0.3) * 10);
+}
+const deckPower = (p, ids) => ids.reduce((a, id) => a + heroPower(p, id), 0);
 const gearScore = (it) => gearValue(it.t, it.r, it.lv) * (GEAR_W[GEAR[it.t].stat] || 0.5);
 function lsSet(key) { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); } }
 function lsSave(key, set) { try { localStorage.setItem(key, JSON.stringify([...set].slice(-400))); } catch { /* 무시 */ } }
@@ -3453,30 +3525,100 @@ function showBag() {
     .sort((a, b) => (app.bagSort === 'lv' ? b.lv - a.lv : 0) || GEAR_RARITY[b.r].mul - GEAR_RARITY[a.r].mul || b.lv - a.lv || b.id - a.id);
   const cells = list.map((it) => {
     const eq = equippedBy(p, it.id);
-    return `<button class="bitem r-${it.r}" data-act="gearItem" data-id="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${GEAR[it.t].icon}${it.lv ? `<small class="lv">+${it.lv}</small>` : ''}${eq ? `<small class="eq">${HEROES[eq].name}</small>` : ''}${it.id > seenMax ? '<i class="nb">N</i>' : ''}${locks.has(it.id) ? '<i class="lk">⭐</i>' : ''}</button>`;
+    return `<button class="bitem r-${it.r} ${app.bagSel === it.id ? 'sel' : ''}" data-act="bagPick" data-id="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${GEAR[it.t].icon}${it.lv ? `<small class="lv">+${it.lv}</small>` : ''}${eq ? `<small class="eq">${HEROES[eq].name}</small>` : ''}${it.id > seenMax ? '<i class="nb">N</i>' : ''}${locks.has(it.id) ? '<i class="lk">⭐</i>' : ''}</button>`;
   }).join('');
   const maxId = Math.max(0, ...(p.gear || []).map((x) => x.id));
+  const deckIds = [...new Set([...(curDeck() || []).filter(Boolean)])];
+  const rows = (app.bagAll ? owned() : deckIds.length ? deckIds : owned().slice(0, 4)).map((h) => eqRowHtml(p, h)).join('');
+  const sel = app.bagSel ? (p.gear || []).find((x) => x.id === app.bagSel) : null;
   show(`
     ${subTop('가방')}
-    <div class="bag-top" style="--c:${d.color}">
-      <button class="bnav l" data-act="bagHero" data-d="-1">‹</button>
-      <div class="bag-art">${av(d)}<b>${d.name}</b><span>${attrTag(d.attr)} ${'★'.repeat(L.heroStar(p, id))} +${p.heroes[id] | 0}</span></div>
-      <button class="bnav r" data-act="bagHero" data-d="1">›</button>
-      ${slot('w')}${slot('a')}
+    <div class="eq-over">
+      <div class="eq-head"><b>🧰 장비 한눈에</b><small>${app.bagAll ? '가진 멤버 전부' : '지금 덱'}</small>
+        <button class="chip" data-act="bagAll">${app.bagAll ? '덱만' : '전부'}</button><button class="btn mini auto-eq" data-act="autoEquipAll">✨ 자동 장착</button></div>
+      ${sel ? `<p class="eq-hint">🎯 <b>${esc(GEAR[sel.t].name)}${sel.lv ? ` +${sel.lv}` : ''}</b> — 끼울 멤버의 ${GEAR[sel.t].slot === 'w' ? '무기' : '장신구'} 칸을 눌러요 <button class="chip" data-act="bagUnsel">취소</button></p>` : '<p class="eq-hint dim">장비를 누르고 → 멤버 칸을 누르면 바로 끼워요 (끌어다 놓아도 돼요)</p>'}
+      <div class="eq-rows">${rows}</div>
     </div>
-    <div class="bag-stats">${statLines(heroGearStats(p, id))}</div>
     <div class="bag-bar">
       <div class="chips">${[['all', '전체'], ['w', '무기'], ['a', '액세서리']].map(([k, n]) => `<button class="chip ${filt === k ? 'on' : ''}" data-act="bagFilter" data-v="${k}">${n}</button>`).join('')}
         <button class="chip" data-act="bagSort">${app.bagSort === 'lv' ? '강화순' : '등급순'} ⇅</button></div>
-      <button class="btn mini auto-eq" data-act="autoEquip">✨ 추천 장착</button>
     </div>
-    <p class="sub">가방 ${(p.gear || []).length}/80 · 장비를 누르면 끼기·강화·팔기·잠금</p>
+    <p class="sub">가방 ${(p.gear || []).length}/80 · 한 번 누르면 고르기 · 두 번 누르면 강화·팔기·잠금</p>
     <div class="bag-grid">${cells || `<div class="empty-state"><span>🎒</span><b>${filt === 'all' ? '아직 장비가 없어요' : '이 칸에 맞는 장비가 없어요'}</b><small>스테이지를 깨면 장비가 떨어져요</small></div>`}</div>
     ${navHtml('bag')}
   `, 'dim withnav bag-screen');
   if (maxId > seenMax) setTimeout(() => { try { localStorage.setItem('langbang:gearSeen', String(maxId)); } catch { /* 무시 */ } }, 1500);
 }
 // 장비 상세: 지금 고른 멤버 기준으로 끼면 어떻게 바뀌는지 미리 보기
+// 장비 한눈에 한 줄: 그림 카드(작게) · 이름 · 전투력 · 무기/장신구 칸 (+N) · 더 좋은 장비가 있으면 빨간 점
+function eqRowHtml(p, h) {
+  const d = HEROES[h];
+  const sl = (p.equip || {})[h] || {};
+  const find = (gid) => (p.gear || []).find((x) => x.id === gid);
+  const better = (k) => { const cur = find(sl[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)); };
+  const slotB = (k) => { const it = find(sl[k]); return `<button class="eq-slot ${it ? 'r-' + it.r : 'empty'} ${app.bagSel && find(app.bagSel) && GEAR[find(app.bagSel).t].slot === k ? 'target' : ''}" data-act="eqSlot" data-hero="${h}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">${it ? `<span>${GEAR[it.t].icon}</span>${it.lv ? `<small>+${it.lv}</small>` : ''}` : `<span class="ph">${k === 'w' ? '🗡️' : '💍'}</span>`}${better(k) ? '<i class="rd"></i>' : ''}</button>`; };
+  return `<div class="eq-row" data-hero="${h}" style="--c:${ATTRS[d.attr].color}">
+    ${artCard(h, { act: 'bagHeroPick', cls: 'mini' })}
+    <div class="eq-mid"><b>${esc(d.name)}</b><small>⚔ 전투력 ${fmt(heroPower(p, h))}</small></div>
+    ${slotB('w')}${slotB('a')}</div>`;
+}
+async function equipTo(hero, slot, gid) {
+  const it = (P().gear || []).find((x) => x.id === gid);
+  if (!it) return;
+  if (GEAR[it.t].slot !== slot) { toast(`${GEAR[it.t].slot === 'w' ? '무기' : '장신구'} 칸에만 낄 수 있어요`, 1400); return; }
+  const r = await API.equipGear(hero, slot, gid, app.guest);
+  if (r.ok && r.profile) { app.profile = r.profile; A.sfx.pick(); toast(`${HEROES[hero].name}에게 ${GEAR[it.t].name}!`, 1100); app.bagSel = null; }
+  else toast(r.message || '못 끼웠어요');
+  showBag();
+}
+// 덱 전체 자동 장착: 전투력 높은 멤버부터 제일 좋은 장비를 (다른 멤버 장비도 옮겨 준다)
+async function autoEquipAll() {
+  const p = P();
+  const ids = [...new Set((curDeck() || []).filter(Boolean))];
+  if (!ids.length) { toast('덱에 멤버가 없어요'); return; }
+  ids.sort((a, b) => heroPower(p, b) - heroPower(p, a));
+  const used = new Set();
+  let n = 0;
+  for (const h of ids) for (const k of ['w', 'a']) {
+    const best = (P().gear || []).filter((it) => GEAR[it.t].slot === k && !used.has(it.id)).sort((a, b) => gearScore(b) - gearScore(a))[0];
+    if (!best) continue;
+    used.add(best.id);
+    if (((P().equip || {})[h] || {})[k] === best.id) continue;
+    const r = await API.equipGear(h, k, best.id, app.guest);
+    if (r.ok && r.profile) { app.profile = r.profile; n++; }
+  }
+  toast(n ? `✨ 덱 멤버에게 좋은 장비 ${n}개를 끼웠어요` : '이미 제일 좋은 장비예요', 1600);
+  if (n) A.sfx.levelUp();
+  showBag();
+}
+// 끌어다 놓기: 가방 장비를 멤버 줄에 떨어뜨리면 끼운다
+let bagDrag = null;
+ui.addEventListener('pointerdown', (ev) => {
+  const it = ev.target.closest('.bitem[data-id]');
+  if (!it || app.screen !== 'bag') return;
+  bagDrag = { id: Number(it.dataset.id), x: ev.clientX, y: ev.clientY, ghost: null };
+});
+ui.addEventListener('pointermove', (ev) => {
+  if (!bagDrag) return;
+  if (!bagDrag.ghost && Math.hypot(ev.clientX - bagDrag.x, ev.clientY - bagDrag.y) > 14) {
+    const it = (P().gear || []).find((x) => x.id === bagDrag.id);
+    if (!it) return;
+    const g0 = document.createElement('div'); g0.className = 'bag-ghost'; g0.textContent = GEAR[it.t].icon; document.body.appendChild(g0); bagDrag.ghost = g0;
+  }
+  if (bagDrag.ghost) { bagDrag.ghost.style.left = ev.clientX + 'px'; bagDrag.ghost.style.top = ev.clientY + 'px'; }
+});
+ui.addEventListener('pointerup', (ev) => {
+  const d0 = bagDrag; bagDrag = null;
+  if (!d0 || !d0.ghost) return;
+  d0.ghost.remove();
+  ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 60);
+  const el = document.elementFromPoint(ev.clientX, ev.clientY);
+  const slotEl = el && el.closest('.eq-slot');
+  const row = el && el.closest('.eq-row');
+  if (!row) return;
+  const it = (P().gear || []).find((x) => x.id === d0.id);
+  if (it) equipTo(row.dataset.hero, slotEl ? slotEl.dataset.slot : GEAR[it.t].slot, d0.id);
+});
 function showGearCard(gid) {
   const p = P();
   const it = (p.gear || []).find((x) => x.id === gid);
