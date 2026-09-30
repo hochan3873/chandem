@@ -19,10 +19,12 @@ function createLbPvp(opts) {
     delay: opts.sendDelayMs !== undefined ? opts.sendDelayMs : 1000,
     countdown: opts.countdownMs !== undefined ? opts.countdownMs : 3000,
     botTick: opts.botTickMs !== undefined ? opts.botTickMs : 1000,
+    roomTtl: opts.roomTtlMs !== undefined ? opts.roomTtlMs : 10 * 60e3, // 빈 방은 10분 뒤 없어진다
   };
   const eloDelta = opts.eloDelta;
   const queue = []; // 대기 중인 선수
-  const codes = new Map(); // 방 코드 → 선수
+  const codes = new Map(); // 방 코드 → 선수 (방장)
+  let nspRef = null;
   const matches = new Map();
   const byUser = new Map(); // 끊겼다 다시 들어오기용: userId|guestId → 선수
   const timers = new Set();
@@ -33,12 +35,12 @@ function createLbPvp(opts) {
   async function playerOf(socket) {
     const tok = String((socket.handshake.auth && socket.handshake.auth.token) || '');
     const uid = tok ? accounts.verifyToken(tok) : null;
-    let nickname = '손님', username = '', rating = START_RATING, games = 0, master = false;
+    let wins = 0, nickname = '손님', username = '', rating = START_RATING, games = 0, master = false;
     if (uid) {
       const u = await accounts.store.byId(uid);
-      if (u) { nickname = u.nickname; username = u.username; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; master = !!(opts.isMaster && opts.isMaster(u.username)); }
+      if (u) { nickname = u.nickname; username = u.username; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; wins = pv.wins | 0; master = !!(opts.isMaster && opts.isMaster(u.username)); }
     }
-    return { socket, uid, master, key: uid || 'g:' + socket.id, nickname, username, rating, games, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
+    return { socket, uid, master, key: uid || 'g:' + socket.id, nickname, username, rating, games, wins, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
   }
   const pub = (p) => ({ nickname: p.nickname, username: p.username || '', rating: p.rating, deck: p.deck, bot: !!p.bot });
 
@@ -53,7 +55,26 @@ function createLbPvp(opts) {
     return m;
   }
   const other = (m, p) => (m.a === p ? m.b : m.a);
-  function unqueue(p) { const i = queue.indexOf(p); if (i >= 0) queue.splice(i, 1); cancelT(p.botT); p.botT = null; for (const [c, q] of codes) if (q === p) codes.delete(c); }
+  const tierName = (r) => (r >= 1800 ? '👑 그랜드마스터' : r >= 1650 ? '🔮 마스터' : r >= 1500 ? '💎 다이아' : r >= 1350 ? '🛡️ 플래티넘' : r >= 1200 ? '🥇 골드' : r >= 1050 ? '🥈 실버' : r >= 900 ? '🥉 브론즈' : '⚙️ 아이언');
+  function roomList() {
+    const t = now();
+    return [...codes.entries()].filter(([, h]) => !h.match && h.room).sort((a, b) => a[1].room.at - b[1].room.at).map(([code, h]) => ({
+      code, title: h.room.title, host: h.nickname, rating: h.rating, tier: tierName(h.rating), games: h.games | 0, wins: h.wins | 0,
+      power: h.room.power, waitSec: Math.floor((t - h.room.at) / 1000), guest: !h.uid,
+    }));
+  }
+  function broadcastRooms() { if (nspRef) nspRef.emit('rooms', roomList()); }
+  function openRoom(pl, b) {
+    let code;
+    do code = String(Math.floor(1000 + Math.random() * 9000)); while (codes.has(code));
+    codes.set(code, pl);
+    pl.room = { at: now(), title: String((b && b.title) || '').replace(/[<>]/g, '').slice(0, 20) || `${pl.nickname}의 방`, power: Math.max(0, Math.min(1e7, Math.floor(Number(b && b.power) || 0))) };
+    cancelT(pl.roomT);
+    pl.roomT = later(T.roomTtl, () => { if (!pl.match && codes.get(code) === pl) { codes.delete(code); pl.room = null; if (pl.socket) pl.socket.emit('roomClosed', { reason: 'ttl' }); broadcastRooms(); } });
+    broadcastRooms();
+    return code;
+  }
+  function unqueue(p) { const i = queue.indexOf(p); if (i >= 0) queue.splice(i, 1); cancelT(p.botT); p.botT = null; cancelT(p.roomT); p.roomT = null; let gone = false; for (const [c, q] of codes) if (q === p) { codes.delete(c); gone = true; } p.room = null; if (gone) broadcastRooms(); }
 
   // ─── 봇 (연습 상대): 서버에서 간단히 흉내 — 시간이 갈수록 입구가 닳고, 가끔 보내기 ───
   function makeBot(pl) {
@@ -122,6 +143,7 @@ function createLbPvp(opts) {
   }
 
   function attach(nsp) {
+    nspRef = nsp;
     nsp.on('connection', async (socket) => {
       const p = await playerOf(socket);
       // 끊겼다가 다시 들어온 사람: 판 이어서
@@ -151,15 +173,29 @@ function createLbPvp(opts) {
         if (pl.match) return ack(fn, { ok: false, message: '이미 대전 중이에요' });
         unqueue(pl);
         pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : [];
-        let code;
-        do code = String(Math.floor(1000 + Math.random() * 9000)); while (codes.has(code));
-        codes.set(code, pl);
+        const code = openRoom(pl, b);
         ack(fn, { ok: true, code });
       });
+      // 방 목록 (들어오면 한 번, 바뀔 때마다 'rooms' 로 다시 온다)
+      socket.on('rooms:list', (b, fn) => ack(fn, { ok: true, rooms: roomList() }));
+      // 빠른 매칭: 제일 오래 기다린 방에 들어가고, 없으면 방을 연다 (20초 안에 아무도 없으면 연습 상대)
+      socket.on('quick', (b, fn) => {
+        const pl = me();
+        if (pl.match) return ack(fn, { ok: false, message: '이미 대전 중이에요' });
+        pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : [];
+        unqueue(pl);
+        const oldest = [...codes.values()].filter((h) => h !== pl && !h.match && h.key !== pl.key && h.room).sort((x, y) => x.room.at - y.room.at)[0];
+        if (oldest) { unqueue(oldest); makeMatch(oldest, pl); return ack(fn, { ok: true, matched: true }); }
+        const code = openRoom(pl, Object.assign({}, b, { title: '빠른 매칭' }));
+        pl.botT = later(T.botAfter, () => { if (!pl.match && codes.get(code) === pl) { unqueue(pl); makeMatch(pl, makeBot(pl)); } });
+        ack(fn, { ok: true, waiting: true, code, botIn: T.botAfter });
+      });
+      socket.on('room:leave', (b, fn) => { unqueue(me()); ack(fn, { ok: true }); });
       socket.on('room:join', (b, fn) => {
         const pl = me();
         const host = codes.get(String((b && b.code) || ''));
-        if (!host || host === pl) return ack(fn, { ok: false, message: '없는 방 코드예요' });
+        if (!host || host === pl || host.match) return ack(fn, { ok: false, message: '없어진 방이에요' });
+        if (host.key === pl.key) return ack(fn, { ok: false, message: '내가 만든 방이에요' });
         pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : [];
         unqueue(host); unqueue(pl);
         makeMatch(host, pl);
@@ -208,7 +244,7 @@ function createLbPvp(opts) {
     });
   }
   function close() { for (const t of timers) clearTimeout(t); timers.clear(); }
-  return { attach, close, queue, matches, finish, SEND, REWARD };
+  return { attach, close, queue, matches, finish, roomList, SEND, REWARD };
 }
 
 module.exports = { createLbPvp, SEND, REWARD };

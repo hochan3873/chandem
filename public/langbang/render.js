@@ -1308,12 +1308,13 @@ export class Renderer {
       }
       // 상태 아이콘 / 체력바는 회전 없이
       const top = feet - box * 0.86;
-      if (e.slowT > 0) {
+      const vip = e.boss || e.mid || e.elite;
+      if (e.slowT > 0 && (!heavy || vip)) { // 진상이 많을 땐 표시를 줄인다
         this.tf(e.x, feet, 0, 1, 0.35);
         cx.strokeStyle = 'rgba(120,200,255,0.85)'; cx.lineWidth = 3;
         cx.beginPath(); cx.arc(0, 0, box * 0.3, 0, TAU); cx.stroke();
       }
-      if (e.stunT > 0 || e.windup > 0) {
+      if ((e.stunT > 0 || e.windup > 0) && (!heavy || vip || e.windup > 0)) {
         const st = this.projSprites.star;
         for (let i = 0; i < 3; i++) {
           const a = t * 5 + i * TAU / 3;
@@ -1332,7 +1333,7 @@ export class Renderer {
         this.tf(e.x, e.y - box * 0.15, 0, 1, 1);
         cx.globalAlpha = 0.6; cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1;
       }
-      if (def.latte && e.latteOffT <= 0) {
+      if (def.latte && e.latteOffT <= 0 && !heavy) {
         this.tf(e.x, feet, 0, 1, 0.4);
         cx.globalAlpha = 0.18; cx.strokeStyle = '#c8b8a0'; cx.lineWidth = 3;
         cx.setLineDash([4, 8]); cx.beginPath(); cx.arc(0, 0, def.latte.r * 0.5, 0, TAU); cx.stroke(); cx.setLineDash([]);

@@ -1774,3 +1774,19 @@ body.rm .acard .ac-duo.b { animation: none; opacity: 0; }
 .deck-screen .dk-top .btn.auto { flex: none; width: auto; padding: calc(var(--u) * 8) calc(var(--u) * 12); margin: 0; font-size: calc(var(--u) * 12); }
 .deck-screen .dk-top .deck-tabs { display: flex; gap: calc(var(--u) * 4); }
 .deck-screen .dk-top .deck-tabs button { flex: 1; white-space: nowrap; }
+/* 1:1 대전: 방 목록 */
+.pvp-card small { display: block; margin-top: calc(var(--u) * 4); font-size: calc(var(--u) * 10.5); color: #ffe9b0; font-weight: 800; }
+.pvp-main .btn { min-height: calc(var(--u) * 64); }
+.pvp-main .btn small { display: block; font-size: calc(var(--u) * 9.5); opacity: 0.9; }
+.pvp-rooms { margin-top: calc(var(--u) * 10); padding: calc(var(--u) * 8); }
+.pvp-rooms h4 { margin: 0 0 calc(var(--u) * 6); } .pvp-rooms h4 small { color: var(--dim); font-weight: 700; }
+.room-row { display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: auto auto; align-items: center; gap: 0 calc(var(--u) * 8); width: 100%; padding: calc(var(--u) * 8) calc(var(--u) * 10); margin-bottom: calc(var(--u) * 6); border-radius: calc(var(--u) * 12); border: calc(var(--u) * 1.5) solid rgba(255, 210, 63, 0.4); background: linear-gradient(90deg, rgba(255, 210, 63, 0.12), rgba(255, 255, 255, 0.03)); color: #fff; text-align: left; }
+.room-row .rr-host { grid-row: 1 / 3; min-width: 0; }
+.room-row .rr-host b { display: block; font-size: calc(var(--u) * 13); font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.room-row .rr-host small { font-size: calc(var(--u) * 10); color: var(--dim); font-weight: 700; }
+.room-row .rr-pw { font-size: calc(var(--u) * 11); font-weight: 900; color: #ffd23f; } .room-row .rr-wait { font-size: calc(var(--u) * 10); color: var(--dim); font-weight: 800; }
+.room-row em { grid-column: 2 / 4; font-style: normal; font-size: calc(var(--u) * 10.5); font-weight: 900; color: #7dff9a; text-align: right; }
+.big-share { margin: calc(var(--u) * 8) 0; font-size: calc(var(--u) * 15); }
+.input-pop .ib-in { width: 100%; box-sizing: border-box; margin: calc(var(--u) * 8) 0 calc(var(--u) * 12); padding: calc(var(--u) * 12) calc(var(--u) * 14); border-radius: calc(var(--u) * 12); border: calc(var(--u) * 2) solid rgba(255, 210, 63, 0.6); background: rgba(0, 0, 0, 0.4); color: #fff; font-size: 16px; font-weight: 800; font-family: inherit; outline: none; }
+.input-pop .ib-in:focus { border-color: #ffd23f; box-shadow: 0 0 calc(var(--u) * 10) rgba(255, 210, 63, 0.4); }
+.input-pop .ib-in.bad { border-color: #ff5a5a; animation: deckShake 0.35s; }

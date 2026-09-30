@@ -201,3 +201,32 @@ test('장비 강화 +1~+10: +3까지는 무조건 · 그 뒤로 확률 (실패�
   }
   assert.ok(ok > 0 && fail > 0, `성공 ${ok} · 실패 ${fail}`);
 });
+
+test('1:1 대전 방 목록: 방 만들기 → 목록에 보임(제목 · 방장 · 등급 · 전투력 · 기다린 시간) · 누르면 들어감 · 빠른 매칭은 제일 오래된 방으로 · 나가면 사라짐', async () => {
+  const ua = await user('roomA'), ub = await user('roomB'), uc = await user('roomC');
+  const a = player(ua.token), b = player(ub.token), c = player(uc.token);
+  const lists = [];
+  c.on('rooms', (r) => lists.push(r));
+  await until(() => a.connected && b.connected && c.connected);
+  const r1 = await a.call('room:create', { title: '한판 하실 분', power: 1234, deck: ['staff'] });
+  assert.match(r1.code, /^\d{4}$/);
+  await until(() => lists.some((l) => l.some((x) => x.code === r1.code)));
+  const row = lists[lists.length - 1].find((x) => x.code === r1.code);
+  assert.equal(row.title, '한판 하실 분');
+  assert.equal(row.host, 'roomA');
+  assert.equal(row.power, 1234);
+  assert.ok(row.tier && row.waitSec >= 0);
+  const ls = await b.call('rooms:list', {});
+  assert.ok(ls.rooms.some((x) => x.code === r1.code));
+  // 빠른 매칭: 제일 오래된 방(a)으로
+  const q = await b.call('quick', { deck: ['gunman'] });
+  assert.equal(q.matched, true);
+  await until(() => a.got.match && b.got.match);
+  await until(() => lists.length && !lists[lists.length - 1].some((x) => x.code === r1.code));
+  // 방 나가기 → 목록에서 사라짐
+  const r2 = await c.call('room:create', { title: '나갈 방' });
+  await until(() => lists[lists.length - 1].some((x) => x.code === r2.code));
+  await c.call('room:leave', {});
+  await until(() => !lists[lists.length - 1].some((x) => x.code === r2.code));
+  a.close(); b.close(); c.close();
+});

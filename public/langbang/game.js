@@ -179,7 +179,8 @@ function guardOff() { /* 기록은 계속 한 칸만 유지 (예전 history.back
 function closeTopLayer() {
   if (app.confirmOpen) { closeConfirm(false); return true; }
   const top = [...stage.querySelectorAll('.reveal, .gacha-res, .info-modal')].pop();
-  if (top && top.classList.contains('pvp-wait')) { if (PVP.sock) PVP.sock.emit('cancel'); top.remove(); return true; }
+  if (top && top.classList.contains('input-pop') && top._cancel) { top._cancel(); return true; }
+  if (top && top.classList.contains('pvp-wait')) { confirmBox({ title: '방에서 나갈까요?', sub: '기다리던 방이 닫혀요', ok: '나가기', cancel: '더 기다리기' }).then((ok) => { if (ok) { if (PVP.sock) PVP.sock.emit('cancel'); top.remove(); } }); return true; }
   if (top) { if (top.classList.contains('reveal')) top.click(); else if (top.classList.contains('gacha-res')) { const ok = top.querySelector('.gr-ok'); if (ok && !ok.hidden) ok.click(); } else { top.remove(); if (top.classList.contains('dexpage') && app.screen === 'dex') showDex(); } return true; }
   return false;
 }
@@ -2374,27 +2375,34 @@ async function pvpSocket() {
   sock.on('incoming', (x) => { if (app.g && app.g.pvp) { S.pvpIncoming(app.g, x.kind); handleEvents(app.g, true); } });
   sock.on('sent', (x) => { fx.text(180, 120, x.kind === 'big' ? '💥 중간 보스 보냈다!' : '📤 진상 보냈다!', '#9ff4ff', 15, 1, -20); });
   sock.on('end', (r) => pvpEnded(r));
+  sock.on('rooms', (list) => { PVP.rooms = list; if (app.screen === 'pvp') renderRooms(); });
+  sock.on('roomClosed', () => { closeInfoCard(); toast('방이 10분 동안 비어서 닫혔어요', 1800); });
   return sock;
 }
+const PVP_STEPS = [[900, '🥉 브론즈'], [1050, '🥈 실버'], [1200, '🥇 골드'], [1350, '🛡️ 플래티넘'], [1500, '💎 다이아'], [1650, '🔮 마스터'], [1800, '👑 그랜드마스터']];
 async function showPvp() {
   app.screen = 'pvp';
   hud.hidden = true;
   const p = P();
   const tierOf = (r) => (r >= 1800 ? '👑 그랜드마스터' : r >= 1650 ? '🔮 마스터' : r >= 1500 ? '💎 다이아' : r >= 1350 ? '🛡️ 플래티넘' : r >= 1200 ? '🥇 골드' : r >= 1050 ? '🥈 실버' : r >= 900 ? '🥉 브론즈' : '⚙️ 아이언');
   const pv = p.pvp || { rating: 1000, games: 0, wins: 0 };
+  const next = PVP_STEPS.find(([r]) => r > pv.rating);
+  fixDeck();
+  const pw = deckPower(p, curDeck().filter(Boolean));
   show(`
-    ${topPills()}
-    <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
-    <h2 class="title">⚔️ 실시간 1:1 대전</h2>
-    <p class="sub">같은 진상이 동시에 몰려온다 — 처치로 게이지를 모아 상대에게 진상을 보내요! 먼저 방어선이 뚫리면 패배</p>
-    <div class="pvp-card"><b>${app.guest ? '손님 (연습만)' : tierOf(pv.rating)}</b><span>${app.guest ? '로그인하면 점수 경쟁' : `${pv.rating}점 · ${pv.games}판 ${pv.wins}승`}</span></div>
-    <button class="btn primary" data-act="pvpQueue">🔍 빠른 매칭 <small>20초 안에 상대가 없으면 연습 상대 🤖</small></button>
-    <div class="gap"></div>
-    <div class="grid2"><button class="btn" data-act="pvpRoom">🏠 방 만들기</button><button class="btn" data-act="pvpJoin">🔑 코드로 참가</button></div>
+    ${subTop('1:1 대전')}
+    <p class="sub">같은 진상이 동시에 몰려온다 — 처치로 게이지를 모아 상대에게 진상을 보내요!</p>
+    <div class="pvp-card"><b>${app.guest ? '손님 (연습만)' : tierOf(pv.rating)}</b><span>${app.guest ? '로그인하면 점수 경쟁' : `${pv.rating}점 · ${pv.games}판 ${pv.wins}승`}</span>
+      <small>${!app.guest && next ? `다음 등급 ${next[1]}까지 +${next[0] - pv.rating}점 · ` : ''}이기면 <i class="ci"></i>200 · 져도 <i class="ci"></i>60 · 내 덱 전투력 ⚔ ${fmt(pw)}</small></div>
+    <div class="grid2 pvp-main"><button class="btn primary" data-act="pvpQuick">🔍 빠른 매칭<small>열린 방에 바로 · 없으면 방을 열어요</small></button><button class="btn pink" data-act="pvpRoom">🏠 방 만들기<small>친구 초대 링크</small></button></div>
+    <div class="panel pvp-rooms"><h4>🚪 열린 방 <small id="roomN"></small></h4><div id="roomList"><div class="empty-msg"><span class="spin">⏳</span> 방 목록 불러오는 중…</div></div></div>
+    <button class="btn ghost mini" data-act="pvpJoin">🔑 코드로 참가</button>
     <div class="gap"></div>
     <div class="panel wboard" id="pvpRank"><h4>🏆 대전 순위</h4><div class="empty-msg"><span class="spin">⏳</span></div></div>
-    <p class="sub" style="margin-top:8px">보내기: 처치 ${L.PVP.sendSmall}명마다 빠른 진상 5명 · ${L.PVP.sendBig}명이면 중간 보스 · ${L.PVP.sudden}초부터 서든데스 (진상 빨라짐)</p>
-  `, 'dim');
+    <p class="sub" style="margin-top:8px">보내기: 처치 ${L.PVP.sendSmall}명마다 빠른 진상 5명 · ${L.PVP.sendBig}명이면 중간 보스 · ${L.PVP.sudden}초부터 서든데스</p>
+    ${navHtml('pvp')}
+  `, 'dim withnav');
+  pvpSocket().then((sock) => sock.emit('rooms:list', {}, (r) => { if (r && r.ok) { PVP.rooms = r.rooms; renderRooms(); } })).catch(() => { const el = $('#roomList'); if (el) el.innerHTML = '<div class="empty-msg">서버에 연결할 수 없어요</div>'; });
   const rk = await API.pvpRanking();
   const box = $('#pvpRank');
   if (box && rk) box.innerHTML = `<h4>🏆 대전 순위</h4>${rk.ranking.map((r) => `<div class="wrow" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="rk">${r.rank}</span><span class="nm">${esc(r.nickname)}</span><span class="wv">${r.wins}/${r.games}</span><b>${r.rating}</b></div>`).join('') || '<div class="empty-msg">아직 대전 기록이 없어요</div>'}`;
@@ -2422,7 +2430,7 @@ async function showPlayerCard(u) {
     <button class="pop-x" data-x>✕</button>`;
 }
 function pvpWaiting(text, code) {
-  popup(`<h3>⚔️ ${esc(text)}</h3>${code ? `<div class="pvp-code">${code}</div><p class="ip">친구에게 코드를 알려 주세요</p>` : '<p class="ip"><span class="spin">⏳</span> 상대를 찾는 중…</p>'}<button class="btn ghost" data-act="pvpCancel">취소</button>`, 'pvp-wait');
+  popup(`<h3>⚔️ ${esc(text)}</h3>${code ? `<div class="pvp-code">${code}</div><p class="ip"><span class="spin">⏳</span> 상대를 기다리는 중… (20초 안에 없으면 빠른 매칭은 연습 상대)</p><button class="btn primary big-share" data-act="pvpShare" data-code="${code}">📨 초대 링크 보내기</button>` : '<p class="ip"><span class="spin">⏳</span> 상대를 찾는 중…</p>'}<button class="btn ghost" data-act="pvpCancel">방 나가기</button>`, 'pvp-wait');
 }
 async function pvpQueue() {
   const sock = await pvpSocket().catch(() => null);
@@ -2430,15 +2438,65 @@ async function pvpQueue() {
   fixDeck();
   sock.emit('queue', { deck: curDeck().filter(Boolean) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중'); });
 }
+function renderRooms() {
+  const el = $('#roomList');
+  if (!el) return;
+  const list = PVP.rooms || [];
+  const n = $('#roomN'); if (n) n.textContent = list.length ? `${list.length}개` : '';
+  const wait = (sec) => (sec < 60 ? `${sec}초` : `${Math.floor(sec / 60)}분`);
+  el.innerHTML = list.length ? list.map((r) => `<button class="room-row" data-act="pvpEnter" data-code="${r.code}"><span class="rr-host"><b>${esc(r.title)}</b><small>${esc(r.host)} · ${esc(r.tier)} · ${r.games}판 ${r.wins}승</small></span><span class="rr-pw">⚔ ${fmt(r.power)}</span><span class="rr-wait">⏱ ${wait(r.waitSec)}</span><em>들어가기 ›</em></button>`).join('')
+    : '<div class="empty-msg">열린 방이 없어요 — 🏠 방 만들기로 친구를 불러요!</div>';
+}
+// 초대 링크 보내기: /langbang/?room=코드 → 열면 바로 그 방으로
+async function sharePvpRoom(code) {
+  const url = `${location.origin}/langbang/?room=${code}`;
+  const text = `⚔️ 랑방 대전 1:1 한판! 방 코드 ${code}`;
+  try { if (navigator.share) { await navigator.share({ title: '랑방 대전 1:1', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(`${text} ${url}`); toast('초대 링크를 복사했어요! 카톡방에 붙여 넣어 주세요', 2200); } catch { toast(`이 주소를 보내 주세요: ${url}`, 3000); }
+}
+function pvpEnter(code) {
+  pvpSocket().then((sock) => { fixDeck(); sock.emit('room:join', { code, deck: curDeck().filter(Boolean) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '들어갈 수 없어요'); }); }).catch(() => toast('서버에 연결할 수 없어요'));
+}
+async function pvpQuick() {
+  const sock = await pvpSocket().catch(() => null);
+  if (!sock) { toast('서버에 연결할 수 없어요'); return; }
+  fixDeck();
+  sock.emit('quick', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 기다리는 중', r.code); });
+}
+// 게임 안 입력창 (카톡 인앱 브라우저 · 일부 웹뷰는 prompt() 를 막는다)
+const ROOM_TITLES = ['한 판 붙자!', '랑방 최강 가린다', '진상 막기 대결', '초보 환영~', '지는 사람 커피', '딱 한 판만!'];
+function inputBox({ title, sub = '', placeholder = '', max = 20, ok = '확인', numeric = false, useHint = false }) {
+  return new Promise((resolve) => {
+    closeInfoCard();
+    const m = document.createElement('div');
+    m.className = 'info-modal pop input-pop';
+    m.innerHTML = `<div class="pop-box"><h3>${esc(title)}</h3>${sub ? `<p class="ip">${esc(sub)}</p>` : ''}
+      <input class="ib-in" type="text" maxlength="${max}" placeholder="${esc(placeholder)}" ${numeric ? 'inputmode="numeric" pattern="[0-9]*"' : ''} autocomplete="off">
+      <div class="grid2"><button class="btn ghost" data-ib="no">취소</button><button class="btn primary" data-ib="ok">${esc(ok)}</button></div></div>`;
+    stage.appendChild(m);
+    const inp = m.querySelector('.ib-in');
+    let done = false;
+    const end = (v) => { if (done) return; done = true; m.remove(); resolve(v); };
+    const submit = () => { const v = inp.value.trim().slice(0, max); if (numeric && !/^\d+$/.test(v)) { inp.classList.add('bad'); A.sfx.tap(); return; } end(v || (useHint ? placeholder : '')); };
+    m._cancel = () => end(null); // 뒤로 가기 = 취소
+    m.addEventListener('click', (ev) => { const b = ev.target.closest('[data-ib]'); if (ev.target === m || (b && b.dataset.ib === 'no')) end(null); else if (b) submit(); });
+    inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); submit(); } });
+    setTimeout(() => inp.focus(), 60);
+  });
+}
 async function pvpRoom(join) {
   const sock = await pvpSocket().catch(() => null);
   if (!sock) { toast('서버에 연결할 수 없어요'); return; }
   fixDeck();
   if (join) {
-    const code = prompt('방 코드 4자리'); // 간단히 (모바일 키보드)
+    const code = await inputBox({ title: '🔑 방 코드로 참가', placeholder: '4자리 숫자', max: 4, numeric: true, ok: '참가' });
     if (!code) return;
     sock.emit('room:join', { code: code.trim(), deck: curDeck().filter(Boolean) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '참가할 수 없어요'); });
-  } else sock.emit('room:create', { deck: curDeck().filter(Boolean) }, (r) => { if (r && r.ok) pvpWaiting('방을 만들었어요', r.code); });
+  } else {
+    const title = await inputBox({ title: '🏠 방 만들기', placeholder: ROOM_TITLES[(Math.random() * ROOM_TITLES.length) | 0], max: 20, ok: '만들기', sub: '방 제목 (안 써도 돼요)', useHint: true });
+    if (title === null) return;
+    sock.emit('room:create', { deck: curDeck().filter(Boolean), title, power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (r && r.ok) pvpWaiting('방을 만들었어요', r.code); });
+  }
 }
 function pvpMatched(m) {
   closeInfoCard();
@@ -2487,7 +2545,10 @@ Object.assign(ACTS, {
   raidGo: () => startRaid(),
   raidClaim: async () => { const r = await liveAct(API.raidClaim()); if (r) { A.sfx.levelUp(); toast(`🐉 ${r.label || '레이드 보상'} ${gotText(r.got)}`, 3200); showRaid(); } },
   pvp: () => showPvp(),
-  pvpQueue: () => pvpQueue(),
+  pvpQueue: () => pvpQuick(),
+  pvpQuick: () => pvpQuick(),
+  pvpEnter: (b) => pvpEnter(b.dataset.code),
+  pvpShare: (b) => sharePvpRoom(b.dataset.code),
   pvpRoom: () => pvpRoom(false),
   pvpJoin: () => pvpRoom(true),
   pvpCancel: () => { if (PVP.sock) PVP.sock.emit('cancel'); closeInfoCard(); },
@@ -3909,6 +3970,7 @@ async function boot() {
   app.guest = r.guest;
   app.profileLoaded = true;
   saveCrowd();
+  if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크
   // 로그인: 서버에 저장된 덱이 있고 이 기기에 덱이 없으면 서버 덱으로
   try { if (app.profile.decks && !localStorage.getItem(DECK_KEY)) { app.decks = app.profile.decks.decks.map((d) => d.slice()); app.deckI = app.profile.decks.i; } } catch { /* 무시 */ }
   app.nickname = r.nickname || '';
