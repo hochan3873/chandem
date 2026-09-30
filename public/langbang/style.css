@@ -1962,3 +1962,6 @@ html, body { height: 100%; height: -webkit-fill-available; height: 100svh; heigh
 .cp-h .av { width: calc(var(--u) * 44); height: calc(var(--u) * 44); }
 .cp-h b { font-size: calc(var(--u) * 10); } .cp-h small { font-size: calc(var(--u) * 9); color: var(--dim); }
 .hf-row .lnk { background: none; border: 0; color: #7df9ff; font: inherit; font-weight: 900; text-decoration: underline; padding: 0 0 0 calc(var(--u) * 4); }
+/* 그린 UI 아이콘: 글줄 높이에 맞게 · 살짝 그림자 (글줄 높이는 안 바꾼다) */
+img.ic { display: inline-block; width: 1.2em; height: 1.2em; margin: -0.2em 0.04em -0.15em; vertical-align: -0.2em; object-fit: contain; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.55)); pointer-events: none; }
+img.ic.lg { width: 1.6em; height: 1.6em; vertical-align: -0.4em; }
