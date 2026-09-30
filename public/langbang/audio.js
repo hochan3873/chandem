@@ -171,6 +171,13 @@ export const sfx = {
   win() { if (ok('win', 2)) [523, 659, 784, 1046, 784, 1046, 1318].forEach((f, i) => tone(f, 0.25, 'square', 0.07, 0, i * 0.12)); },
   lose() { if (ok('lose', 2)) [392, 370, 349, 262].forEach((f, i) => tone(f, 0.35, 'triangle', 0.09, 0, i * 0.22)); },
   tap() { if (ok('tap', 0.05)) tone(1000, 0.03, 'sine', 0.04, 1400); },
+  // UI 소리: 확인(출격·구매) · 뒤로 · 탭 바꾸기 · 안 됨 · 보상 받기
+  confirm() { if (ok('ui', 0.06)) { tone(660, 0.05, 'triangle', 0.06, 990); tone(990, 0.07, 'triangle', 0.05, 1320, 0.04); } },
+  horn() { if (ok('horn', 1)) { tone(233, 0.55, 'sawtooth', 0.1, 220); tone(294, 0.55, 'sawtooth', 0.08, 277); tone(233, 0.4, 'sawtooth', 0.09, 220, 0.62); tone(294, 0.4, 'sawtooth', 0.07, 277, 0.62); } }, // 빠앙- 빵!
+  back() { if (ok('ui', 0.06)) tone(700, 0.05, 'sine', 0.04, 420); },
+  tabSw() { if (ok('ui', 0.06)) { tone(880, 0.025, 'square', 0.025); tone(1320, 0.03, 'sine', 0.03, 0, 0.02); } },
+  deny() { if (ok('ui', 0.1)) { tone(220, 0.07, 'square', 0.05); tone(180, 0.08, 'square', 0.04, 0, 0.06); } },
+  reward() { if (ok('ui', 0.1)) [1175, 1568, 2093].forEach((f, i) => tone(f, 0.07, 'square', 0.04, 0, i * 0.05)); },
   join() { if (ok('join', 0.3)) [659, 880, 1175].forEach((f, i) => tone(f, 0.14, 'sine', 0.08, 0, i * 0.06)); },
   // 멀티킬 스팅어: 단계가 오를수록 더 높고 길게 (펑 + 올라가는 음 + 반짝)
   multi(tier) {

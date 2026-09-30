@@ -7,7 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
-  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -184,11 +184,17 @@ export function heroSpeedMul(h) {
     * (h.paperT > 0 ? 1 - ENEMIES.boss_loan.paper.cut : 1)
     * (h.vomitT > 0 ? 1 - ENEMIES.vomit.puke.cut : 1) * (h.drowsyT > 0 ? 1 / (1 + ENEMIES.kkondae.latte.slow) : 1);
 }
+// 공격 속도 배율: 전투 계산과 화면 표시가 같은 식을 쓴다 (강화·장비·카드·증강·오라·기진맥진·템포 모두)
+export function heroRate(g, h, aura = auraBonus(g), sing = 0) {
+  const d = h.def;
+  return (h.tiredT > 0 ? MOMENTUM.tiredSpd : 1) * (g.tempo ? TEMPO.rate : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * (g.mods.spd + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
+}
+// 실제 공격 간격 (초): 기본 간격 ÷ 공격 속도 배율 (탄창 무기는 평균)
 export function heroInterval(g, h) {
   const d = h.def;
-  let iv = d.interval * LEVEL_INTERVAL[h.lv - 1];
+  let iv = (h.alt && d.diet ? d.diet.interval : d.interval) * LEVEL_INTERVAL[h.lv - 1];
   if (d.lv5Interval && h.lv >= 5) iv *= d.lv5Interval;
-  return iv / ((g.mods.spd + auraBonus(g)) * heroSpeedMul(h) * (1 + (g.rallyT > 0 ? g.rallySpd : 0))) * (h.rage ? d.rageInterval : 1);
+  return iv / heroRate(g, h);
 }
 export function auraBonus(g) {
   const b = hasHero(g, 'bangjang');
@@ -284,7 +290,7 @@ function updateHeroes(g, dt) {
     if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
     let sing = 0;
     for (const d0 of singers) if (d0 !== h && Math.abs(d0.x - h.x) <= d0.def.sing.r) sing = Math.max(sing, d0.def.sing.spd[d0.lv - 1]);
-    const rate = (h.tiredT > 0 ? MOMENTUM.tiredSpd : 1) * (g.tempo ? TEMPO.rate : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * (g.mods.spd + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
+    const rate = heroRate(g, h, aura, sing);
     // 문동한: 간보기 게이지 → 일어나서 한 줄 빔
     if (d.meter) {
       if (h.upT > 0) h.upT -= dt;
@@ -589,6 +595,7 @@ export function fire(g, h, t) {
   const d = h.def;
   const lv = h.lv;
   h.recoil = 0.14;
+  h.lastShotT = g.t; // 프레임 띠: 던진 순간
   h.shots++;
   const dmg = heroDamage(g, h);
   ev(g, 'shot', { hero: h.id, x: h.x, y: h.y });
@@ -2124,7 +2131,7 @@ export function waveDefFor(g, n) {
 // ─── 증강: 셋 중 하나 (15초면 추천 · 1:1 대전은 두 사람이 같은 셋) ───
 export function augOptions(g, tier) {
   const have = new Set(g.augs || []);
-  const pool = AUGMENTS.filter((a) => a.tier === tier && !have.has(a.id));
+  const pool = AUGMENTS.filter((a) => a.tier === tier && !have.has(a.id) && !AUG_CUT.includes(a.id));
   const heroes = g.heroes.filter((h) => HERO_AUG[h.id] && !have.has('ha_' + h.id) && !h.def.summon);
   const opts = [];
   const rng = g.pvp ? seedRngLocal((g.pvp.seed | 0) * 31 + g.wave) : g.rng; // 대전: 같은 시드 → 같은 셋
@@ -2144,6 +2151,8 @@ export function augDef(id) {
   if (id.startsWith('ha_')) { const h = id.slice(3); return { id, tier: 'gold', icon: '✨', title: HERO_AUG[h], desc: `${(HEROES[h] || SUMMONS[h] || {}).name || h} 전용 — 전용 카드 효과 두 번 + 공격력 +40%`, hero: h }; }
   return AUGMENTS.find((a) => a.id === id);
 }
+// 증강이 실제로 얼마나 먹히나 (강화 평균 · 무한/스테이지) — 화면도 이 값으로 보여 준다
+export function augScale(g) { const hs = g.heroes.filter((h) => !h.def.summon); return (0.7 + (hs.reduce((x, h) => x + (h.meta || 0), 0) / Math.max(1, hs.length)) / 20) * (g.mode === 'endless' ? 1 : AUG_STAGE); }
 export function applyAug(g, id) {
   if (!g.augOffer || !g.augOffer.opts.includes(id)) return false;
   const a = augDef(id);
@@ -2155,7 +2164,7 @@ export function applyAug(g, id) {
     if (h) { for (let k = 0; k < (g.mode === 'endless' ? 2 : 1); k++) { if (hc) { for (const [kk, v] of Object.entries(hc.mul || {})) h.cm[kk] = (h.cm[kk] || 1) * v; for (const [kk, v] of Object.entries(hc.add || {})) h.cm[kk] = (h.cm[kk] || 0) + v; } } h.cmN = (h.cmN || 0) + 2; }
   } else {
     // 강화가 높은 덱일수록 증강이 더 세다 (평균 강화 0 → ×0.7 · 20 → ×1.7) — 무한에서 강한 덱이 더 멀리 가게
-    const hs = g.heroes.filter((h) => !h.def.summon), k = (0.7 + (hs.reduce((x, h) => x + (h.meta || 0), 0) / Math.max(1, hs.length)) / 20) * (g.mode === 'endless' ? 1 : AUG_STAGE);
+    const k = augScale(g);
     const f = {}; for (const [kk, v] of Object.entries(a.fx)) f[kk] = ['dmg', 'spd', 'boss', 'swarm', 'path', 'crit', 'critMul', 'exp'].includes(kk) ? v * k : v;
     if (f.dmg) m.dmg += f.dmg; if (f.spd) m.spd += f.spd; if (f.exp) m.expMul += f.exp;
     const soft = g.mode === 'endless' ? 1 : 0.5;
@@ -2235,7 +2244,7 @@ export function startWave(g, n) {
   if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 5].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism');
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
-  g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
+  g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
   const more = g.mapFx.spawn || 1;
@@ -2370,7 +2379,7 @@ export function castSkill(g, h, x, y, echo, fromQ) {
   const sk = h.def.skill;
   if (!sk || (!echo && h.skillCd > 0) || g.over || g.phase === 'victory') return false;
   if (!echo && g.mom !== null && g.mom !== undefined) {
-    if (g.mom < MOMENTUM.per) { ev(g, 'noMomentum', { hero: h.id, x: h.x, y: h.y }); return false; }
+    if (g.mom < MOMENTUM.per * (sk.id === 'forlangbang' ? 2 : 1)) { ev(g, 'noMomentum', { hero: h.id, two: sk.id === 'forlangbang', x: h.x, y: h.y }); return false; }
     if (g.t - g.lastSkillT < MOMENTUM.gap && !fromQ) { g.skillQ = { h, x, y, at: g.lastSkillT + MOMENTUM.gap }; ev(g, 'skillQueued', { hero: h.id }); return false; } // 0.6초 뒤에 나간다
   }
   const lv = h.lv - 1;
@@ -2541,9 +2550,16 @@ export function castSkill(g, h, x, y, echo, fromQ) {
     }
     case 'forlangbang': {
       // 랑방을 위하여!! 세 줄 황금 파동 + 모두 공격력 ↑
-      for (const dx of [0, -62, 62]) crownWave(g, h, base * 1.2, dx);
+      // 막차 대행진: 황금 버스 행렬이 모든 줄을 쓸고 간다 — 전부 밀어내고 1.5초 기절 + 모두 공격력 ↑ (기세 2칸)
+      if (g.mom !== null && g.mom !== undefined && !echo) g.mom = Math.max(0, g.mom - MOMENTUM.per); // (1칸은 아래에서 · 1칸 더)
+      const n = h.evo ? 5 : 4, W = g.W || 360;
+      for (let i = 0; i < n; i++) {
+        const bx = (W / n) * (i + 0.5);
+        (g.buses || (g.buses = [])).push({ hero: h, x: bx, y: g.rowY + 30 + i * 26 * (i % 2 ? 1 : -0.3), w: W / n + 8, big: i === ((n / 2) | 0), gold: true, dmg: base * BUS.dmg * 0.2, stun: 1.5, hit: new Set() });
+      }
       g.hcSkT = sk.sec[lv]; g.hcSkAtk = sk.atk[lv];
-      ev(g, 'langbang', { x: h.x, y: h.y });
+      ev(g, 'grandBus', { x: h.x, y: h.y, n });
+      ev(g, 'langbang', { x: h.x, y: h.y, grand: true });
       break;
     }
     case 'allincall': { // 정소영: 올인 콜! 준영 등판 — 정해진 시간 동안 진상을 한곳으로 모은다
@@ -2656,6 +2672,7 @@ export function step(g, dt) {
   }
   if (g.phase === 'wave') {
     g.waveT += dt;
+    if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.stage | 0) <= (JOIN.freeUntil || 99)) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
     const q = g.spawnQ;
     // 동시에 화면에 있는 진상은 최대 ENEMY_CAP (폰 성능) — 넘치면 조금 기다렸다 나온다
     let alive = 0;
@@ -2671,7 +2688,7 @@ export function step(g, dt) {
     }
   }
   if (g.mom !== null && g.mom !== undefined) {
-    if ((g.phase === 'wave' || g.phase === 'intro' || g.phase === 'test') && g.mom < MOMENTUM.max) g.mom = Math.min(MOMENTUM.max, g.mom + (MOMENTUM.per / MOMENTUM.refill) * dt);
+    if ((g.phase === 'wave' || g.phase === 'intro' || g.phase === 'test') && g.mom < MOMENTUM.max) g.mom = Math.min(MOMENTUM.max, g.mom + (MOMENTUM.per / MOMENTUM.refill) * (g.momRate || 1) * dt);
     if (g.skillQ && g.t >= g.skillQ.at) { const q = g.skillQ; g.skillQ = null; if (g.heroes.includes(q.h)) castSkill(g, q.h, q.x, q.y, false, true); }
   }
   for (const h of g.heroes) if (h.tiredT > 0) h.tiredT -= dt;
@@ -2756,9 +2773,12 @@ export function cardPool(g) {
   }
   const tagN = {};
   for (const h of g.heroes) for (const t of HERO_TAGS[h.id] || []) tagN[t] = (tagN[t] || 0) + 1;
+  const topAttr = Object.entries(g.attrCount).sort((a, b) => b[1] - a[1])[0];
   for (const c of CARDS) {
     const n = g.stacks[c.id] || 0;
     if (n >= c.max) continue;
+    if (CARD_CUT.includes(c.id)) continue; // 정리한 카드 (다른 카드에 합침)
+    if (c.attr && (!topAttr || c.attr !== topAttr[0])) continue; // 속성 결속: 가장 많은 속성 한 장만
     if (c.needs && !hasHero(g, c.needs)) continue;
     let w = RARITY[c.rarity].weight;
     if (c.attr) { const k = g.attrCount[c.attr] || 0; if (!k) continue; w = 2.5 + 2.5 * k; } // 그 속성 멤버가 많을수록 잘 나온다
@@ -2766,6 +2786,11 @@ export function cardPool(g) {
     if (c.risk) w = 2.2;
     const tags = c.tag ? [c.tag] : CARD_TAGS[c.id] || [];
     pool.push({ key: c.id, kind: 'global', id: c.id, rarity: c.rarity, icon: c.icon, title: c.title, desc: c.desc, stack: n, w: w * pathW(g, tags), attr: c.attr || null, tag: c.tag || null, tags, risk: !!c.risk });
+  }
+  // 무한: 카드가 다 차도 계속 자라게 — 조금씩 · 갈수록 덜 (모두 같은 규칙이라 순위는 공정)
+  if (g.mode === 'endless') {
+    const few = pool.filter((c) => c.kind === 'global').length < 6;
+    for (const [id, title, desc] of INF_CARDS) { const n = g.stacks[id] || 0; pool.push({ key: id, kind: 'global', id, rarity: 'rare', icon: '♾️', title: `${title} (무한 ${n + 1})`, desc: desc(Math.pow(0.93, n)), stack: n, w: few ? 10 : 2.5, tags: [] }); }
   }
   // 테크: 실버(tag_ 카드)를 가지면 골드 · 골드를 가지면 프리즘
   for (const [t, tiers] of Object.entries(TECH)) {
@@ -2792,6 +2817,12 @@ export function cardPool(g) {
   }
   return pool;
 }
+const INF_CARDS = [
+  ['inf_dmg', '끝없는 근성', (k) => `모든 멤버 공격력 +${(8 * k).toFixed(1)}%`],
+  ['inf_spd', '끝없는 카페인', (k) => `공격 속도 +${(5 * k).toFixed(1)}%`],
+  ['inf_crit', '끝없는 급소', (k) => `치명타 피해 +${(10 * k).toFixed(1)}%`],
+  ['inf_mom', '끝없는 기세', (k) => `기세 충전 +${(10 * k).toFixed(1)}%`],
+];
 export function hiddenCard(id, g) {
   const d = HEROES[id];
   const tr = g && g.trial && g.trial.includes(id);
@@ -2875,6 +2906,12 @@ export function applyCard(g, c) {
   }
   notePath(g, c.tags || (c.hero ? HERO_TAGS[c.hero] : null));
   if (c.kind === 'cc') { const h = hasHero(g, c.hero); if (h) { h.cc = c.cc; h.ccN = (h.ccN || 0) + 1; ev(g, 'ccGet', { hero: h.id, kind: c.cc, x: h.x, y: h.y }); } return; }
+  if (c.kind === 'global' && c.id && c.id.startsWith('inf_')) {
+    const n = g.stacks[c.id] || 0, k = Math.pow(0.93, n);
+    g.stacks[c.id] = n + 1;
+    if (c.id === 'inf_dmg') m.dmg += 0.08 * k; else if (c.id === 'inf_spd') m.spd += 0.05 * k; else if (c.id === 'inf_crit') m.critMul += 0.1 * k; else if (c.id === 'inf_mom') g.momRate = (g.momRate || 1) * (1 + 0.1 * k);
+    return;
+  }
   if (c.kind === 'global' && c.id && c.id.startsWith('tech_')) {
     g.stacks[c.id] = 1;
     const [, t, lv] = c.id.split('_'); const big = lv === '3';
@@ -2924,7 +2961,7 @@ export function applyCard(g, c) {
         case 'spd': m.spd += 0.2; break;
         case 'gunExtra': m.gunExtra++; break;
         case 'crit': m.crit += 0.13; break;
-        case 'hp': g.base.max = Math.round(g.base.max * 1.35); g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * 0.5); break;
+        case 'hp': g.base.max = Math.round(g.base.max * 1.35); g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * 0.5); m.baseArmor *= 0.85; break; // (모래주머니 합침)
         case 'exp': m.expMul += 0.35; break;
         case 'slow': m.enemySpd *= 0.87; for (const e of g.enemies) e.speed *= 0.87; break;
         case 'pierce': m.pierce++; break;
@@ -2932,17 +2969,18 @@ export function applyCard(g, c) {
         case 'regen': m.regen += 2.5; break;
         case 'ult': m.ultCharge += 0.8; m.ultDmg += 0.6; break;
         case 'charmRes': m.charmMul *= 0.4; break;
-        case 'debuffRes': m.debuffMul *= 0.7; m.charmMul *= 0.7; for (const h of g.heroes) h.debuffMul = m.debuffMul; break;
-        case 'cdCut': g.cdMul *= 0.85; for (const h of g.heroes) h.skillCd *= 0.85; break;
+        case 'debuffRes': m.debuffMul *= 0.6; m.charmMul *= 0.5; // (연애 금지 서약 합침)
+ for (const h of g.heroes) h.debuffMul = m.debuffMul; break;
+        case 'cdCut': g.cdMul *= 0.75; for (const h of g.heroes) h.skillCd *= 0.75; break; // 두 장이면 쿨 −44%
         case 'armor': m.baseArmor *= 0.8; break;
         case 'attrUp': m.attrUp += 0.25; break;
         case 'syn_talk': case 'syn_power': case 'syn_charm': case 'syn_booze': { const a = c.id.slice(4); m.attrDmg[a] = (m.attrDmg[a] || 0) + 0.42; break; }
         case 'tag_pierce': m.tagDmg.pierce = (m.tagDmg.pierce || 0) + 0.4; m.pierce++; break;
-        case 'tag_splash': m.tagDmg.splash = (m.tagDmg.splash || 0) + 0.34; m.splashMul *= 1.45; break;
+        case 'tag_splash': m.tagDmg.splash = (m.tagDmg.splash || 0) + 0.34; m.splashMul *= 1.45; m.swarmDmg += 0.2; break; // (청소부 합침)
         case 'tag_chain': m.tagDmg.chain = (m.tagDmg.chain || 0) + 0.34; m.chainExtra++; break;
         case 'tag_kb': m.tagDmg.kb = (m.tagDmg.kb || 0) + 0.34; m.kbMul *= 1.6; break;
         case 'tag_heal': m.tagDmg.heal = (m.tagDmg.heal || 0) + 0.25; m.healMul *= 1.8; break;
-        case 'tag_ctrl': m.tagDmg.ctrl = (m.tagDmg.ctrl || 0) + 0.25; m.ctrlMul *= 1.5; break;
+        case 'tag_ctrl': m.tagDmg.ctrl = (m.tagDmg.ctrl || 0) + 0.25; m.ctrlMul *= 1.5; m.enemySpd *= 0.9; for (const e of g.enemies) e.speed *= 0.9; break; // (새치기 금지 합침)
         case 'tag_boss': m.bossDmg += 0.65; break;
         case 'swarm': m.swarmDmg += 0.38; break;
         case 'risk_allin': g.base.max = Math.round(g.base.max * 0.8); g.base.hp = Math.min(g.base.hp, g.base.max); m.dmg += 0.55; break;

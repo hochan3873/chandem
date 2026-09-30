@@ -1,7 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, WEAPON } from './data.js';
 const HEROES = { ...HEROES0, ...SUMMONS }; // 소환 멤버(성준영)도 그린다
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
@@ -258,8 +258,10 @@ export class Renderer {
         this.formDefs[key] = Object.assign({}, ENEMIES[id], forms[f], { id: id + '_' + f, size: forms[f].size || ENEMIES[id].size });
       }
     }
+    for (const id in HERO_ANIM) list['hanim_' + id] = HERO_ANIM[id].src; // 멤버 공격 프레임 띠
     for (const n of PROJ_ART_NAMES) list['w_' + n] = `/img/lb/fx/w_${n}.webp`; // 투사체 그림 (없으면 코드 모양)
     list.bus = '/img/lb/fx/bus.webp'; list.bus2 = '/img/lb/fx/bus2.webp';
+    for (const n of ['cc_pull', 'cc_stun', 'cc_slow', 'cc_freeze', 'cc_push']) list[n] = `/img/lb/ui2/${n}.webp`;
     for (const n of ['hitspark', 'smoke', 'slap', 'grab', 'phone', 'shock', 'shock2', 'crack', 'summon', 'silence', 'stun', 'dash', 'aura_red', 'aura_blue', 'warn', 'barrage_card', 'arm']) list['vfx_' + n] = `/img/lb/fx/vfx_${n}.webp`; // 이펙트 그림
     for (const id in ENEMY_ANIM) for (const k in ENEMY_ANIM[id]) list[`anim_${id}_${k}`] = ENEMY_ANIM[id][k].src; // 프레임 띠 (없으면 요청 실패 → 코드 움직임)
     for (const id of FUSE_ART) if (ENEMIES[id]) { const key = `e_${id}_one`; list[key] = `/img/lb/e_${id}.webp`; this.formDefs[key] = ENEMIES[id]; } // 합체 한 장 그림
@@ -285,7 +287,7 @@ export class Renderer {
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => {
-        if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_') || key.startsWith('w_') || key.startsWith('vfx_') || key === 'bus' || key === 'bus2') return;
+        if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_') || key.startsWith('w_') || key.startsWith('vfx_') || key.startsWith('hanim_') || key.startsWith('cc_') || key === 'bus' || key === 'bus2') return;
         if (key.startsWith('bar')) { this.bakeBar(key); return; }
         if (key.startsWith('fx_')) return;
         if (key === 'bg' || key === 'base' || /^bg\d$/.test(key)) this.bakeBg();
@@ -1796,10 +1798,55 @@ export class Renderer {
       sy *= 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 숨쉬기
       if (h.reloadT > 0 && h.reloadMax > 0.25) { const q = 1 - h.reloadT / h.reloadMax; rot += Math.sin(q * Math.PI) * -0.13; bob += Math.sin(q * Math.PI) * 1.5; } // 장전: 살짝 기울여 챙기기
       if (h.id === 'hyungyeong' && h.alt) bob += Math.sin(t * 22) * 1.6; // 날씬 복서 스텝
-      this.tf(hx, feet + bob, rot, sx, sy);
-      cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
-      cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
-      cx.globalAlpha = 1;
+      // 공격 리듬: 준비(다음 공격 직전 뒤로 젖힘·들어 올리기) → 던짐(반동) — 멤버마다 다르게
+      const wk = WEAPON[h.id] ? WEAPON[h.id].kind : '';
+      const C = CADENCE[h.id] || CADENCE['_' + wk] || CADENCE._default;
+      const busy = h.stunT > 0 || h.charmT > 0 || h.grabT > 0;
+      if (!busy && h.cd > 0 && h.cd < C.wind && !(h.reloadT > 0)) { const q = 1 - h.cd / C.wind; rot -= q * C.back * (hx < 180 ? 1 : -1) * 0.8; sy *= 1 - q * C.sq; sx *= 1 + q * C.sq * 0.6; bob -= q * (C.lift || 0); if (C.nod) rot += Math.sin(q * Math.PI) * 0.08; }
+      const since = g.t - (h.lastShotT || -9);
+      if (since < 0.22) { const q = 1 - since / 0.22; rot += q * C.snap * (hx < 180 ? 1 : -1) * 0.5; bob += q * 2; }
+      let dx = 0;
+      if (C.move && !busy) { // 코드 모션 (프레임 띠가 없는 멤버)
+        const side = hx < 180 ? 1 : -1;
+        const q = h.cd > 0 && h.cd < C.wind && !(h.reloadT > 0) ? 1 - h.cd / C.wind : 0; // 준비
+        const s = since < 0.3 ? 1 - since / 0.3 : 0, e = s * s; // 던진 뒤 (빨리 → 천천히 제자리)
+        switch (C.move) {
+          case 'wag': rot += Math.sin(q * Math.PI * 4) * 0.09 * q; bob -= e * 5; sy *= 1 + e * 0.05; break;
+          case 'toss': sy *= 1 - q * 0.06; bob += q * 2 - e * 9; sx *= 1 - e * 0.04; sy *= 1 + e * 0.06; break;
+          case 'swig': rot -= q * 0.12 * side; bob -= q * 3; rot += e * 0.22 * side; dx += e * 4 * side; break;
+          case 'wink': rot += q * 0.1 * side; dx -= q * 4 * side; { const pp = 1 + e * 0.08; sx *= pp; sy *= pp; } break;
+          case 'jab': sy *= 1 - q * 0.05; bob += q * 3 - e * 12; dx += Math.sin(since * 40) * e * 3; break;
+          case 'cast': bob -= q * 9 + e * 4; { const pp = 1 + e * 0.1 * Math.sin(Math.min(1, since / 0.12) * Math.PI); sx *= pp; sy *= pp; } break;
+          case 'pop': sy *= 1 - q * 0.12; sx *= 1 + q * 0.06; bob += q * 3 - e * 11; sy *= 1 + e * 0.1; sx *= 1 - e * 0.05; break;
+        }
+      }
+      // 기진맥진: 주저앉기 · 느린 숨 · 땀 · 어지러운 소용돌이
+      if (h.tiredT > 0) { const k = Math.min(1, h.tiredT / 1.2); sy *= 1 - 0.08 * k; sx *= 1 + 0.04 * k; bob += 3 * k; rot += Math.sin(t * 1.4 + h.slot) * 0.05 * k; }
+      // 프레임 띠 (있으면): 준비 = 0~release-1 칸 · 던진 뒤 0.3초 = release~끝 칸
+      const HA = HERO_ANIM[h.id], hstrip = HA && this.images['hanim_' + h.id];
+      let usedStrip = false;
+      if (hstrip && imgOk(hstrip) && !busy && !up && !h.alt) {
+        const n = HA.frames, fw = hstrip.naturalWidth / n, fh = hstrip.naturalHeight, rel = HA.release;
+        let fi = -1;
+        if (since < 0.3) fi = Math.min(n - 1, rel + Math.floor((since / 0.3) * (n - rel)));
+        else if (h.cd > 0 && h.cd < Math.max(0.25, C.wind)) fi = Math.floor((1 - h.cd / Math.max(0.25, C.wind)) * rel);
+        if (fi >= 0) { this.tf(hx, feet + (h.tiredT > 0 ? 3 : 0), 0, 1, 1); cx.drawImage(hstrip, fi * fw, 0, fw, fh, -box / 2, -box * FEET, box, box); usedStrip = true; }
+      }
+      if (!usedStrip) {
+        this.tf(hx + dx, feet + bob, rot, sx, sy);
+        cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
+        cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
+        cx.globalAlpha = 1;
+      }
+      if (h.tiredT > 0) { // 땀방울 · 소용돌이
+        const top2 = feet - box * 0.95;
+        this.world();
+        cx.fillStyle = 'rgba(140,210,255,0.95)';
+        for (let i = 0; i < 2; i++) { const ph = (t * 1.6 + i * 0.5) % 1; cx.beginPath(); cx.ellipse(hx + (i ? 16 : -14), top2 + 14 + ph * 16, 2.6, 3.8, 0, 0, TAU); cx.fill(); }
+        cx.strokeStyle = 'rgba(255,255,255,0.8)'; cx.lineWidth = 1.6; cx.beginPath();
+        for (let a = 0; a < TAU * 1.6; a += 0.3) { const r = 2 + a * 1.6; const x = hx + Math.cos(a + t * 5) * r, y = top2 - 4 + Math.sin(a + t * 5) * r * 0.45; if (a === 0) cx.moveTo(x, y); else cx.lineTo(x, y); }
+        cx.stroke();
+      }
       const top = feet - box * 0.9;
       // 홀림 하트
       if (h.charmT > 0) {
@@ -1953,13 +2000,15 @@ export class Renderer {
     this.vfxs = v.filter((q) => now - q.t < q.dur && (!q.follow || !q.follow.gone));
     for (const q of this.vfxs) {
       const k = (now - q.t) / q.dur;
-      const img = this.images['vfx_' + q.name] || this.images[q.name];
+      const img = this.images['vfx_' + q.name] || this.images[q.name] || (q.name.startsWith('cc_') ? this.ccIcons && this.ccIcons[q.name] : null);
       let x = q.follow ? q.follow.x : q.x, y = q.follow ? q.follow.y + (q.dy || 0) : q.y, s = 1, a = 1, rot = q.rot;
       if (q.anim === 'pop') { s = 0.5 + k * 0.8; a = 1 - k * k; }
       else if (q.anim === 'pulse') { s = 1 + Math.sin(now / 90) * 0.06; a = k > 0.85 ? (1 - k) / 0.15 : 1; rot += Math.sin(now / 300) * 0.1; }
       else if (q.anim === 'grow') { s = 0.4 + k * 0.7; a = 0.55 + Math.sin(now / 60) * 0.25; }
       else if (q.anim === 'fly') { x = q.x + (q.tx - q.x) * k; y = q.y + (q.ty - q.y) * k - Math.sin(k * Math.PI) * 60; rot = q.rot + k * 9; a = 1; }
       else if (q.anim === 'streak') { s = 1; a = 1 - k; }
+      if (q.name === 'pullLine') { this.world(); cx.globalAlpha = 1 - k; cx.strokeStyle = q.col; cx.lineWidth = 2.5; cx.setLineDash([6, 5]); cx.lineDashOffset = -now / 20; cx.beginPath(); cx.moveTo(q.x, q.y); cx.quadraticCurveTo((q.x + q.tx) / 2 + 30, (q.y + q.ty) / 2 - 30, q.tx, q.ty); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1; continue; }
+      if (q.spin) rot += now / 250;
       this.tf(x, y, rot, s, q.flat ? s * 0.45 : s);
       cx.globalAlpha = Math.max(0, Math.min(1, a));
       if (img && imgOk(img)) { const w = q.sz * (q.wMul || 1), h = q.sz * (img.naturalHeight / img.naturalWidth) * (q.wMul ? 1 : 1); cx.drawImage(img, -w / 2, -h / 2, w, h); }
@@ -1986,6 +2035,7 @@ export class Renderer {
       const w = b.w * (b.big ? 1.05 : 1.25), h = img && imgOk(img) ? w * (img.naturalHeight / img.naturalWidth) : w * (b.big ? 1.25 : 1.9); // 그림: 뒷모습 · 위로 달림 (비율 그대로)
       this.tf(b.x, b.y, 0, 1, 1);
       { const gr = cx.createLinearGradient(0, 20, 0, 140); gr.addColorStop(0, 'rgba(255,210,63,0.28)'); gr.addColorStop(1, 'rgba(255,210,63,0)'); cx.fillStyle = gr; cx.fillRect(-b.w / 2, 20, b.w, 120); } // 지나간 자리 빛
+      if (b.gold) { cx.shadowColor = 'rgba(255,200,40,0.95)'; cx.shadowBlur = 22; }
       if (img && imgOk(img)) cx.drawImage(img, -w / 2, -h / 2, w, h);
       else {
         cx.fillStyle = '#f5b800'; roundRect(cx, -w / 2, -h / 2, w, h, 12); cx.fill();
@@ -1993,6 +2043,7 @@ export class Renderer {
         cx.fillStyle = '#9fdcff'; for (let i = 0; i < 4; i++) { roundRect(cx, -w / 2 + 8, -h / 2 + 14 + i * (h / 4.6), w - 16, h / 7, 4); cx.fill(); }
         cx.fillStyle = '#fff6b0'; cx.fillRect(-w / 2 + 6, -h / 2 + 2, 10, 6); cx.fillRect(w / 2 - 16, -h / 2 + 2, 10, 6);
       }
+      if (b.gold) { cx.shadowBlur = 0; cx.shadowColor = 'transparent'; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.18; cx.fillStyle = '#ffd23f'; cx.fillRect(-w / 2, -h / 2, w, h); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; }
     }
     this.world();
   }
@@ -2071,7 +2122,10 @@ export class Renderer {
           cx.beginPath(); cx.ellipse(p.x, y, w, 24, 0, Math.PI, 0); cx.lineTo(p.x + w, y + 28); cx.lineTo(p.x - w, y + 28); cx.closePath(); cx.fill();
           cx.strokeStyle = 'rgba(255,250,200,0.9)'; cx.lineWidth = 2.5;
           cx.beginPath(); cx.ellipse(p.x, y, w, 22, 0, Math.PI * 1.05, -Math.PI * 0.05); cx.stroke();
-          s = P.crownIco; this.tf(p.x, y - 6, 0, 1, 1);
+          // 금빛 확성기 충격파: 왕관 그림 없이 겹 고리 두 개 (앞쪽 고리가 살짝 떨림)
+          cx.strokeStyle = 'rgba(255,225,110,0.55)'; cx.lineWidth = 1.6;
+          for (const k of [0.72, 0.46]) { cx.beginPath(); cx.ellipse(p.x, y + 10 * (1 - k), w * k, 16 * k + Math.sin(g.t * 30) * 1.2, 0, Math.PI * 1.08, -Math.PI * 0.08); cx.stroke(); }
+          s = null;
           break;
         }
         default: s = P[p.type]; this.tf(p.x, p.y, p.rot, 1, 1);

@@ -1795,3 +1795,59 @@ test('기세: 3칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(
   const gm = q.heroes[0]; gm.skillCd = 0; S.castSkill(q, gm);
   assert.ok(Math.abs(gm.skillCd - D.HEROES.gunman.skill.cd * 2) < 0.5, `건전남 쿨 ${gm.skillCd}`);
 });
+
+test('강화가 진짜로 먹힌다: 강화 · ★ · 장비 +N · 등급 · 신화 · 기본 멤버 역할 · 공속 카드 · 증강 → 전투 공격력/공격 속도가 정해진 만큼 바뀐다', async () => {
+  const S = await load('sim.js');
+  const L = await load('live.js');
+  const mk = (o = {}) => { const g = S.createGame(Object.assign({ H: 760, rng: seeded(1), noWaves: true, heroes: ['gunman'], tempo: true, meta: {} }, o)); return [g, g.heroes[0]]; };
+  const [g0, h0] = mk();
+  const d0 = S.heroDamage(g0, h0), r0 = 1 / S.heroInterval(g0, h0);
+  // 영구 강화 +10: 공격력 × (1 + 성장 × 10)
+  let [g, h] = mk({ meta: { gunman: 10 } });
+  assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + D.TIER_GROWTH[1] * 10)) < 1e-6, '강화 +10');
+  // ★3: +2 × 7%
+  [g, h] = mk({ stars: { gunman: 3 } });
+  assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + 2 * L.STAR_ATK)) < 0.02, `★3 ${(S.heroDamage(g, h) / d0).toFixed(3)}`);
+  // 장비: 공격력 장비 · 공속 장비 · 등급 · +N
+  const gearOf = (items) => ({ gunman: D.gearStats(items) });
+  [g, h] = mk({ gear: gearOf([{ t: 'megaphone', r: 'legend', lv: 10 }]) });
+  assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + D.gearValue('megaphone', 'legend', 10))) < 1e-6, '전설 +10 확성기');
+  const [ga, ha] = mk({ gear: gearOf([{ t: 'megaphone', r: 'rare', lv: 0 }]) });
+  assert.ok(S.heroDamage(g, h) > S.heroDamage(ga, ha), '등급·강화가 높을수록 셈');
+  [g, h] = mk({ gear: gearOf([{ t: 'tumbler', r: 'epic', lv: 5 }]) });
+  assert.ok(Math.abs((1 / S.heroInterval(g, h)) / r0 - (1 + D.gearValue('tumbler', 'epic', 5))) < 1e-6, '공속 장비가 실제 공격 간격에 반영');
+  // 신화: 무지개 응원봉 공속 +15%
+  [g, h] = mk({ gear: gearOf([{ t: 'myth_stick', r: 'myth' }]) });
+  assert.ok(Math.abs((1 / S.heroInterval(g, h)) / r0 - 1.15) < 1e-6, '신화 공속');
+  // 공속 카드 · 증강
+  [g, h] = mk();
+  S.applyCard(g, { kind: 'global', id: 'spd', key: 'spd' });
+  assert.ok((1 / S.heroInterval(g, h)) / r0 > 1.1, '공속 카드');
+  [g, h] = mk();
+  g.augOffer = { opts: ['a_haste'], t: 15 };
+  const want = 1 + 0.15 * S.augScale(g);
+  S.applyAug(g, 'a_haste');
+  assert.ok(Math.abs((1 / S.heroInterval(g, h)) / r0 - want) < 1e-6, `공속 증강 = 화면에 보이는 실제 값 ×${want.toFixed(3)}`);
+  // 기본 멤버 역할: 방장 오라가 강화로 커진다
+  const [gb0] = mk({ heroes: ['bangjang', 'gunman'] }), [gb1] = mk({ heroes: ['bangjang', 'gunman'], meta: { bangjang: 20 } });
+  assert.ok(Math.abs(S.auraBonus(gb1) - S.auraBonus(gb0) - D.NICHE.bangjang.aura * 20) < 1e-9, '방장 오라 +10%');
+  // 기진맥진: 공속 ×0.7
+  [g, h] = mk(); h.tiredT = 3;
+  assert.ok(Math.abs((1 / S.heroInterval(g, h)) / r0 - D.MOMENTUM.tiredSpd) < 1e-6, '기진맥진 −30%');
+});
+
+test('카드 정리 · 무한 카드: 뺀 카드는 안 나오고 속성 결속은 한 장 · 무한은 카드가 다 차도 계속 자란다 (갈수록 덜)', async () => {
+  const S = await load('sim.js');
+  const g = S.createGame({ H: 760, rng: seeded(3), noWaves: true, deck: ['staff', 'bangjang', 'gunman', 'gunnyeo', 'myunghoon', null], tempo: true, meta: {} });
+  const pool = S.cardPool(g);
+  assert.ok(!pool.some((c) => D.CARD_CUT.includes(c.id)), '정리한 카드 없음');
+  assert.ok(pool.filter((c) => c.attr).length <= 1, '속성 결속은 한 장');
+  const e = S.createGame({ H: 760, rng: seeded(3), mode: 'endless', noWaves: true, deck: ['staff', 'bangjang', 'gunman', null, null, null], tempo: true, meta: {} });
+  for (const c of D.CARDS) e.stacks[c.id] = c.max; // 전부 꽉 참
+  const inf = S.cardPool(e).filter((c) => c.id && c.id.startsWith('inf_'));
+  assert.equal(inf.length, 4, '무한 카드 4종');
+  const d0 = e.mods.dmg;
+  S.applyCard(e, inf.find((c) => c.id === 'inf_dmg')); const a = e.mods.dmg - d0;
+  S.applyCard(e, S.cardPool(e).find((c) => c.id === 'inf_dmg')); const b = e.mods.dmg - d0 - a;
+  assert.ok(a > 0.079 && b < a && b > 0.07, `갈수록 덜: ${a.toFixed(3)} → ${b.toFixed(3)}`);
+});

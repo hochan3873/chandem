@@ -1,5 +1,6 @@
 // 랑방 대전 — 메인: 게임 루프(고정 60Hz) · 입력 · HUD · 메뉴/스테이지/상점/카드/결과 화면
 import {
+  shortName,
   HEROES, ENEMIES, RULES, FIELD, BASE_HEROES, UNLOCK_HEROES, HIDDEN_HEROES, LOCKED_HEROES, RARITY, SCORE,
   CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS, itemCost,
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
@@ -10,6 +11,7 @@ import {
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS,
 } from './data.js';
 import * as L from './live.js';
+import { FLAVOR, TIPS } from './flavor.js';
 import * as S from './sim.js';
 import { Renderer } from './render.js';
 import * as A from './audio.js';
@@ -354,10 +356,43 @@ async function startRun(opt = {}) {
   app.debugRun = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || locked;
   beginPlay(g);
   saveSnap();
+  if ((mode === 'stage' || mode === 'endless' || weekly) && !DEBUG.stage && !Q.has('autostart')) showBattleLoading(g);
   if (app.firstRunTip) {
     showTip('적을 탭하면 집중 공격! 경험치는 저절로 모여요', 4500);
     app.firstRunTip = false;
   } else if (g.joinMode && !tutDone('join')) { setTut('join'); showTip('대장 혼자 시작! 레벨업 카드로 멤버를 합류시켜요', 5000); }
+}
+// 출격 전 로딩 (1.2~2초): 진짜로 이번 판 그림을 미리 불러오고 · 이번 판 공략 · 덱 상성 · 꿀팁 — 0.8초 뒤부터 누르면 넘김
+function showBattleLoading(g) {
+  const old = stage.querySelector('.bload'); if (old) old.remove();
+  const st = g.stage || 0, ch = st ? chapterOf(st) : 0;
+  const foes = st ? prepFoes(st).slice(0, 4) : [];
+  const ids = g.heroes.map((h) => h.id).concat((g.joinPool || []).map((x) => x.id)).filter((id) => HEROES[id]);
+  const good = st ? ids.filter((id) => attrMatch(HEROES[id].attr, st).cls === 'good').length : 0, bad = st ? ids.filter((id) => attrMatch(HEROES[id].attr, st).cls === 'bad').length : 0;
+  const tip = TIPS[(Math.random() * TIPS.length) | 0];
+  const d = document.createElement('div');
+  d.className = 'bload';
+  d.innerHTML = `<div class="bl-art" style="background-image:url('/img/lb/dio${Math.max(1, ch || 1)}.webp')"></div>
+    <div class="bl-box">
+      <em class="bl-no">${st ? stageLabel(st) : g.mode === 'endless' ? '무한 도전' : '주간 도전'}</em><b class="bl-name">${st ? esc(stageName(st)) : ''}</b>
+      ${foes.length ? `<div class="bl-sec"><small>이번 판 공략</small>${foes.map((t) => { const T = foeTrait(t); const good2 = Object.keys(ATTRS).filter((a) => typeMul(a, ENEMIES[t].cls) > 1); return `<div class="bl-foe">${foeFace(t)}<span><b>${esc(ENEMIES[t].name)}</b><small>${T ? esc(T.tip) : `${good2.map((a) => ATTRS[a].name).join(' · ')} 멤버에게 약해요`}</small></span></div>`; }).join('')}</div>` : ''}
+      ${st ? `<div class="bl-match"><span class="ok">${ic('check', '', 'sm')} 유리 ${good}명</span><span class="no">${ic('scale', '', 'sm')} 불리 ${bad}명</span></div>` : ''}
+      <p class="bl-tip">${ic('bulb', '', 'sm')}<span>${esc(tip)}</span></p>
+      <div class="bl-bar"><b></b></div><small class="bl-skip">눌러서 시작</small>
+    </div>`;
+  stage.appendChild(d);
+  app.paused = true;
+  const t0 = performance.now();
+  // 미리 불러오기: 이번 판 진상 그림 · 멤버 공격 띠
+  const srcs = [...foes.map((t) => ENEMIES[t].img), ...ids.map((id) => HEROES[id].img)];
+  let done = 0; const need = srcs.length;
+  const bar = d.querySelector('.bl-bar b');
+  const tick = () => { const k = Math.min(1, Math.max(done / Math.max(1, need), (performance.now() - t0) / 1600)); bar.style.transform = `scaleX(${k.toFixed(3)})`; };
+  for (const s0 of srcs) { const im = new Image(); im.onload = im.onerror = () => { done++; tick(); }; im.src = s0; }
+  let closed = false;
+  const close = () => { if (closed) return; closed = true; d.classList.add('out'); setTimeout(() => d.remove(), 250); if (app.g === g && !stage.querySelector('.pause-box')) app.paused = false; last = performance.now(); };
+  const iv = setInterval(() => { tick(); const el = performance.now() - t0; if ((done >= need && el > 1200) || el > 2200) { clearInterval(iv); close(); } }, 60);
+  d.addEventListener('pointerdown', () => { if (performance.now() - t0 > 800) { clearInterval(iv); close(); } });
 }
 function resumeRun() {
   const d = loadSnap();
@@ -627,7 +662,12 @@ function handleEvents(g, loud) {
       case 'tech': fx.banner(`${TAGS[e.tag].icon} ${e.title}`, `${TIER_NAMES[e.tier]} 테크`, e.tier === 'prism' ? '#2a6aa0' : '#a07010', 1.1, 'wave'); break;
       case 'setBonus': fx.text(180, 170, `${TAGS[e.tag].icon} ${TAGS[e.tag].name} ${e.n}세트! +${Math.round(SET_BONUS[e.n] * 100)}%`, '#7dff9a', 17, 1.3); break;
       case 'ccGet': fx.text(e.x, e.y - 80, `${CC_KINDS[e.kind].icon} ${CC_KINDS[e.kind].name}!`, CC_KINDS[e.kind].color, 14, 1.0); break;
-      case 'cc': if (!busy) fx.text(e.x, e.y, CC_KINDS[e.kind].icon, CC_KINDS[e.kind].color, 14, 0.5, -30); break;
+      case 'cc': if (!busy) R.vfx(({ stun: 'cc_stun', pull: 'cc_pull', kb: 'cc_push', slow: 'cc_slow', freeze: 'cc_freeze' })[e.kind] || 'cc_stun', e.x, e.y, { anim: 'pop', dur: 450, sz: 26 });
+        if (e.kind === 'pull') { const jy = g.heroes.find((h) => h.id === 'junyoung'); if (jy && jy.ax !== undefined) { // 성준영 자석: 끌려오는 선 · 기준점 소용돌이 · 첫 번엔 "모여라~!"
+          R.vfx('pullLine', e.x, e.y, { anim: 'streak', dur: 420, tx: jy.ax, ty: jy.ay, col: '#c07bff' });
+          if (!jy.vortexT || g.t - jy.vortexT > 0.55) { jy.vortexT = g.t; R.vfx('summon', jy.ax, jy.ay, { anim: 'pulse', dur: 600, sz: 120, flat: true, spin: 1 }); R.vfx('cc_pull', jy.ax, jy.ay - 30, { anim: 'pop', dur: 450, sz: 34 }); }
+          if (!jy.saidGather) { jy.saidGather = true; fx.text(jy.px || jy.x, (jy.py || jy.y) - 80, '모여라~!', '#e0b4ff', 16, 1.2); }
+        } } break;
       case 'curse': fx.banner(`${CURSES[e.id].icon} 계약: ${e.name}`, CURSES[e.id].up, '#5a1a7a', 1.3, 'wave'); closeCurseOffer(); break;
       case 'idleEv': fx.banner(e.kind === 'rush' ? '⚡ 진상 러시! 스킬 2번!' : '💰 주머니 3개 누르기!', e.kind === 'rush' ? '10초 안에 · 못 하면 벌칙 진상' : '8초 안에 · 성공하면 점수 배율 ↑', '#8a5a00', 1.6, 'wave'); A.sfx.charm && A.sfx.charm(); break;
       case 'idleEnd': if (e.ok) { fx.text(180, 200, `성공! 배율 ×${e.streak.toFixed(2)}`, '#ffe066', 18, 1.2); A.sfx.levelUp(); } else { fx.text(180, 200, '실패… 벌칙 진상!', '#ff5a5a', 18, 1.2); fx.addShake(5); } break;
@@ -814,8 +854,16 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.slam();
         break;
       case 'crown': if (Math.random() < 0.35) fx.text(e.x, e.y - 50, '랑방을 위하여!', '#ffd84a', 14, 0.9, -20); if (loud) A.sfx.wave(); break;
+      case 'grandBus': { // 이호찬 막차 대행진: 컷인 → 화면 어둡게 → 황금 버스 행렬 → 쾅 (0.3초 느리게) · 금빛 꽃가루 · 경적
+        grandCutIn();
+        fx.flash('#000', 0.55);
+        if (loud) A.sfx.horn();
+        setTimeout(() => { fx.addShake(18); fx.slowmo = Math.max(fx.slowmo || 0, 0.3); fx.flash('#fff1a8', 0.5); for (let i = 0; i < 5; i++) fx.burst(40 + i * 70, g.H * (0.3 + Math.random() * 0.3), 16, ['#ffd23f', '#fff1a8', '#ff9f1a'][i % 3], 260, 'dot', 4, 1.1, 260); if (loud) A.sfx.slam(); }, 380);
+        fx.banner('LEGEND · 막차 대행진!!', '이호찬: "오늘 막차는 내가 쏜다!"', '#8a6400', 2, 'big');
+        break;
+      }
       case 'langbang':
-        fx.banner('👑 LEGEND · 랑방을 위하여!!', '모든 멤버 공격력 UP', '#8a6400', 1.8, 'big');
+        if (!e.grand) fx.banner('LEGEND · 랑방을 위하여!!', '모든 멤버 공격력 UP', '#8a6400', 1.8, 'big');
         fx.addShake(8);
         fx.flash('#fff1a8', 0.4);
         for (const h of g.heroes) fx.ring(h.x, h.y, 6, 44, 0.5, '#ffd84a', 4);
@@ -978,7 +1026,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.join();
         break;
       }
-      case 'bus': fx.banner(e.big ? '2층 막차 버스!' : '막차 버스!', '이호찬: "다들 타! 집에 가자!"', '#8a6a00', 0.9, 'wave'); fx.addShake(e.big ? 8 : 5); break;
+      case 'bus': for (const k of [0, 1]) fx.ring(e.x, e.y - 10, 10 + k * 16, 90 + k * 40, 0.45 + k * 0.15, '#ffd84a', 4 - k); fx.banner(e.big ? '2층 막차 버스!' : '막차 버스!', '이호찬: "다들 타! 집에 가자!"', '#8a6a00', 0.9, 'wave'); fx.addShake(e.big ? 8 : 5); break;
       case 'slash': R.addSlash(e.x, e.y); break;
       case 'skillCast': { const h = g.heroes.find((x) => x.id === e.hero); if (h) skillFx(h); break; }
       case 'noMomentum': if (live) toast(e.ult ? '총공지는 기세 2칸이 필요해요' : '기세가 모자라요 — 조금 기다려요', 900); break;
@@ -1098,7 +1146,7 @@ function updateHud() {
   // 보스 체력바
   let hp = 0, max = 0, name = '';
   let midOnly = true;
-  for (const e of g.enemies) if ((e.boss || e.mid) && !e.dead) { hp += Math.max(0, e.hp); max += e.maxHp; name = name ? name + ' · ' + e.def.name : e.def.name; if (e.boss) midOnly = false; }
+  for (const e of g.enemies) if ((e.boss || e.mid) && !e.dead) { hp += Math.max(0, e.hp); max += e.maxHp; name = name ? name + ' · ' + shortName(e.type) : shortName(e.type); if (e.boss) midOnly = false; }
   if (max > 0) {
     if (H$.boss.hidden) H$.boss.hidden = false;
     setText(H$.bossName, 'bn', `${midOnly ? '⚡ 중간 보스' : '👑'} ${name}`);
@@ -1349,16 +1397,28 @@ function skillFx(h) {
 }
 const SKILL_SHORT = { bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '응급처치', myunghoon: '쌍욕', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '뻑큐', wonsik: '결정사' };
 const skShort = (h) => SKILL_SHORT[h.id] || h.def.skill.name.replace(/[!\s]/g, '').slice(0, 5);
+const momBar = document.createElement('div');
+momBar.id = 'mombar'; momBar.hidden = true;
+momBar.innerHTML = '<small>기세</small><i><b></b></i><i><b></b></i><i><b></b></i>';
+stage.appendChild(momBar);
+function renderMom(g) {
+  const on = g && g.mom !== null && g.mom !== undefined && app.screen === 'play';
+  momBar.hidden = !on;
+  if (!on) return;
+  const bs = momBar.querySelectorAll('b');
+  for (let i = 0; i < 3; i++) { const f = Math.max(0, Math.min(1, (g.mom - i * 100) / 100)); bs[i].style.transform = `scaleY(${f.toFixed(3)})`; bs[i].parentElement.classList.toggle('full', f >= 1); }
+}
 function renderSkillbar() {
   const g = app.g;
   if (!g) return;
+  renderMom(g);
   const list = g.heroes.filter((h) => h.def.skill).sort((a, b) => a.slot - b.slot);
   const key = list.map((h) => h.id + h.lv).join(',');
   if (skillbar.dataset.key !== key) {
     skillbar.dataset.key = key;
     skillbar.dataset.n = list.length;
     skillbar.classList.add('v2');
-    skillbar.innerHTML = list.map((h) => { const nm = skShort(h); return `<button class="sk" data-slot="${h.slot}" style="--c:${h.def.color}"><span class="ring"></span>${av(h.def)}<em>${esc(nm)}</em><i class="cd"></i><b class="cdn"></b><i class="sk-lv">${h.lv}</i></button>`; }).join('');
+    skillbar.innerHTML = list.map((h) => { const nm = skShort(h); return `<button class="sk" data-slot="${h.slot}" style="--c:${h.def.color}"><span class="ring"></span>${av(h.def)}<em>${esc(nm)}</em><i class="cd"></i><b class="cdn"></b><i class="sk-lv">${h.lv}</i><i class="sk-sweat"></i></button>`; }).join('');
   }
   let ready = false;
   for (const b of skillbar.children) {
@@ -1372,6 +1432,8 @@ function renderSkillbar() {
     b.classList.toggle('ready', r);
     b.classList.toggle('aiming', !!(app.aim && app.aim.h === h));
     { const lv = b.querySelector('.sk-lv'); if (lv && lv.textContent !== String(h.lv)) lv.textContent = h.lv; }
+    b.classList.toggle('nomom', g.mom !== null && g.mom !== undefined && g.mom < 100);
+    b.classList.toggle('tired', h.tiredT > 0);
     { const cn = b.querySelector('.cdn'); const v = r ? '' : String(Math.ceil(h.skillCd)); if (cn.textContent !== v) cn.textContent = v; }
     if (r) ready = true;
   }
@@ -1398,7 +1460,7 @@ const PROJ_TXT = {
 };
 function heroStatsHtml(g, h) {
   const d = h.def;
-  const iv = S.heroInterval(g, h) / (1 + (h.gear.spd || 0));
+  const iv = S.heroInterval(g, h); // 장비·카드·기진맥진까지 모두 들어간 실제 값
   const crit = (g.mods.crit + (h.gear.crit || 0) + (d.critBonus || 0)) * 100;
   const gearTxt = Object.entries(h.gear || {}).filter(([, v]) => v).map(([k, v]) => `${GEAR_STATS[k] ? GEAR_STATS[k].name : k} +${(v * 100).toFixed(0)}%`).join(' · ');
   const flags = [d.lane ? '↕ 자기 줄만' : '', d.splash || d.slamR ? '💥 범위' : '', d.proj === 'cane' || d.proj === 'crown' || (h.lv >= 3 && d.proj === 'bullet') ? '🗡️ 관통' : '', d.bounces || d.ricochet ? '⚡ 튕김' : '', d.slow ? '🐢 감속' : ''].filter(Boolean).join(' ');
@@ -1470,7 +1532,7 @@ skillbar.addEventListener('pointerleave', skEnd);
 skillbar.addEventListener('contextmenu', (e) => e.preventDefault());
 function showEnemyBubble(e) {
   bubble.className = 'bubble enemy';
-  bubble.innerHTML = `<div class="ih"><em class="new">NEW</em><b>${e.def.name}</b>${clsTag(e.def.cls)}</div><p class="ia">${esc(ENEMY_TIPS[e.type] || '')}</p>`;
+  bubble.innerHTML = `<div class="ih"><em class="new">NEW</em><b>${e.def.name}</b>${clsTag(e.def.cls)}</div><p class="ia">${esc(FLAVOR[e.type] || '')}</p>${ENEMY_TIPS[e.type] ? `<p class="ia tip">${esc(ENEMY_TIPS[e.type])}</p>` : ''}`;
   placeBubble(e.x, Math.max(80, e.y + 50));
   bubble.hidden = false;
   clearTimeout(showHeroBubble.t);
@@ -1516,7 +1578,7 @@ $('#btn-mute').addEventListener('click', () => { A.setMuted(!A.isMuted()); syncM
 $('#btn-ult').addEventListener('click', () => {
   const g = app.g;
   if (!g || app.paused || app.cardsOpen) return;
-  if (!S.useUlt(g)) { toast(`총공지 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
+  if (!S.useUlt(g)) { if (g.ult >= RULES.ultMax) handleEvents(g, true); else toast(`총공지 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
   if (g.pvp) PVP.myUlts = (PVP.myUlts | 0) + 1;
   handleEvents(g, true);
 });
@@ -1548,7 +1610,7 @@ window.addEventListener('pagehide', onHide);
 // ─── 화면들 ──────────────────────────────────────────
 function show(html, cls = '') {
   SH.closeShare();
-  if (app.screen !== 'play') { if (app.cardsOpen) closeCards(); app.cardQ = false; const cq = document.getElementById('cardq'); if (cq) cq.hidden = true; const cs = document.getElementById('cardstrip'); if (cs && !app.cardsOpen) { cs.hidden = true; cs.innerHTML = ''; } }
+  if (app.screen !== 'play') { try { momBar.hidden = true; } catch { /* 아직 */ } if (app.cardsOpen) closeCards(); app.cardQ = false; const cq = document.getElementById('cardq'); if (cq) cq.hidden = true; const cs = document.getElementById('cardstrip'); if (cs && !app.cardsOpen) { cs.hidden = true; cs.innerHTML = ''; } }
   if (app.screen !== 'bag') { try { dropGhost(); } catch { /* 아직 준비 전 */ } }
   const same = ui.firstElementChild && ui.firstElementChild.dataset.scr === app.screen;
   const keep = same ? ui.firstElementChild.scrollTop : 0;
@@ -1577,7 +1639,7 @@ ui.addEventListener('click', (ev) => {
   if (ui.dataset.noclick) return;
   A.unlock();
   const act = b.dataset.act;
-  if (act !== 'pick' && act !== 'partner' && act !== 'confirmPick') A.sfx.tap();
+  if (act !== 'pick' && act !== 'partner' && act !== 'confirmPick') uiSound(act);
   ACTS[act] && ACTS[act](b);
 });
 const ACTS = {
@@ -1596,9 +1658,11 @@ const ACTS = {
   chapter: (b) => {
     const c = Number(b.dataset.ch);
     const first = (c - 1) * STAGES_PER_CHAPTER + 1;
-    if (!stageUnlocked(first)) { toast(`${stageLabel(first - 1)}을 깨면 열려요`); return; }
+    if (!stageUnlocked(first)) { lockTip(b, `${c}장`, `${stageLabel(first - 1)}을 깨면 열려요`); return; }
     app.chapterTab = c;
     app.selStage = chapterOf(nextStage()) === c ? nextStage() : first;
+    const sc = ui.querySelector('.chmaps');
+    if (sc && app.screen === 'stages') { sc.scrollTo({ left: (c - 1) * sc.clientWidth, behavior: 'smooth' }); R.setTheme(c); for (const d of ui.querySelectorAll('.chd')) d.classList.toggle('on', Number(d.dataset.ch) === c); return; }
     showStages();
   },
   selStage: (b) => {
@@ -1609,6 +1673,7 @@ const ACTS = {
     showStages();
   },
   prep: () => showPrep('stage', app.selStage),
+  mapNode: (b) => mapNodeGo(b),
   endless: () => {
     if (!P().endlessUnlocked) { toast(`무한 도전은 ${stageLabel(ENDLESS_UNLOCK)}을 깨면 열려요`); return; }
     showPrep('endless', 0);
@@ -1624,7 +1689,7 @@ const ACTS = {
   edSort: (b) => { app.edSort = b.dataset.v; showDeckEditor(); },
   edPreset: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckEditor(); },
   edAuto: () => { autoDeck(); A.sfx.levelUp(); showDeckEditor(); },
-  prepHellLock: () => toast('헬은 이 스테이지를 ★★★로 깨면 열려요', 1600),
+  prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
   prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[L.weeklyDef(L.weekIndex()).fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${g.icon} ${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★)</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${HELL.hp} · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 보스 분노. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
   prepFoe: (b) => {
@@ -1647,7 +1712,7 @@ const ACTS = {
       ${cls ? `<div class="si-cls prep-cls">적 ${cls}</div>` : ''}${st ? traitHintHtml(st) : ''}
       <div class="pp-mbtn"><button class="chip" data-act="nav" data-tab="deck">${ic('duo', '👥', 'sm')} 덱 화면</button><button class="chip" data-act="nav" data-tab="bag">${ic('hammer', '🔨', 'sm')} 강화·장비</button><button class="chip" data-act="dex">${ic('book', '📖', 'sm')} 도감</button></div>`, 'pp-more-pop');
   },
-  speedTog: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } toast(app.speed2 ? '⏩ 2배속으로 해요' : '보통 속도로 해요', 900); showPrep(app.mode, app.stage); },
+  speedTog: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } showPrep(app.mode, app.stage); },
   waveHelp: () => popup(`<h3>🌊 웨이브 성격</h3>${['S', 'E', 'M', 'B'].map((k) => `<p class="ip"><b>${WAVE_KINDS[k].icon} ${WAVE_KINDS[k].name}</b> — ${esc(WAVE_KINDS[k].desc)}</p>`).join('')}<p class="ip">한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> · 계속 잡으면 콤보 경험치 보너스</p>`),
   deckPreset: (b) => { app.deckI = Number(b.dataset.k); app.deckSel = -1; saveDecks(); showPrep(app.mode, app.stage); },
   autoDeck: () => { autoDeck(); A.sfx.levelUp(); toast('상성에 맞춰 덱을 짰어요!', 1400); showPrep(app.mode, app.stage); },
@@ -1722,14 +1787,17 @@ const coinsPill = () => `<span class="coins-pill"><i class="ci"></i>${P().unlimi
 const uid = () => API.liveUid();
 // ─── 그린 UI 아이콘 (ui2/<이름>.webp) · 없으면 이모지 그대로 ─────
 // ic(): 직접 넣을 때 · iconize(): 화면에 붙는 글자 속 이모지를 자동으로 그림으로 (속성·장비 아이콘 · 채팅 · 입력칸은 제외)
-const IC_MAP = { '👑': 'crown', '⚔️': 'swords', '⚔': 'swords', '🎟️': 'ticket', '🎟': 'ticket', '⏳': 'hourglass', '⌛': 'hourglass', '🔒': 'lock', '🔓': 'unlock', '🔥': 'fire', '🏆': 'trophy', '💎': 'gem', '🪨': 'gem', '📅': 'calendar', '📆': 'calendar', '🐉': 'dragon', '🎁': 'gift', '💡': 'bulb', '🎒': 'bag', '♾️': 'infinity', '♾': 'infinity', '🥇': 'medal1', '🥈': 'medal2', '🥉': 'medal3', '📣': 'megaphone', '📢': 'megaphone', '⚡': 'bolt', '🗡️': 'dagger', '🗡': 'dagger', '🗺️': 'map', '🗺': 'map', '📤': 'share', '🛠️': 'tools', '🛠': 'tools', '🏷️': 'tag', '🏷': 'tag', '🏠': 'home', '💥': 'boom', '🎯': 'target', '✨': 'sparkle', '🧹': 'broom', '⚗️': 'flask', '⚗': 'flask', '📖': 'book', '📚': 'book', '🚪': 'door', '🛒': 'cart', '💍': 'ring', '🖼️': 'frame', '🖼': 'frame', '🛡️': 'shield', '🛡': 'shield', '🔮': 'orb', '🔁': 'retry', '🔊': 'sound', '🔇': 'mute', '👆': 'tap', '✅': 'check', '⚙️': 'gear_set', '⚙': 'gear_set', '🩹': 'heal', '🌊': 'wave', '🎰': 'gacha', '📍': 'pin', '🔨': 'hammer', '👥': 'duo', '📜': 'scroll', '📮': 'mail', '📊': 'chart', '⏰': 'clock', '🧪': 'flask2', '🎉': 'party', '🔑': 'key', '🤖': 'bot', '⚖️': 'scale', '⚖': 'scale', '🎫': 'coupon', '⏱️': 'speed', '⏱': 'speed', '🛍️': 'shop', '🛍': 'shop' };
+const IC_MAP = { '📢': 'megaphone', '📣': 'megaphone', '🃏': 'card_common', '⭐': 'star_gold', '🌟': 'star_gold', '✔': 'check', '✔️': 'check', '📈': 'chart', '🆕': 'badge_new', '📨': 'mail', '📭': 'mail', '🔍': 'target', '🔎': 'target', '🥊': 'swords', '🏁': 'check', '⚠️': 'bolt', 'ℹ️': 'book', '🎨': 'frame', '🍀': 'sparkle', '💡': 'bulb', '👑': 'crown', '⚔️': 'swords', '⚔': 'swords', '🎟️': 'ticket', '🎟': 'ticket', '⏳': 'hourglass', '⌛': 'hourglass', '🔒': 'lock', '🔓': 'unlock', '🔥': 'fire', '🏆': 'trophy', '💎': 'gem', '🪨': 'gem', '📅': 'calendar', '📆': 'calendar', '🐉': 'dragon', '🎁': 'gift', '💡': 'bulb', '🎒': 'bag', '♾️': 'infinity', '♾': 'infinity', '🥇': 'medal1', '🥈': 'medal2', '🥉': 'medal3', '📣': 'megaphone', '📢': 'megaphone', '⚡': 'bolt', '🗡️': 'dagger', '🗡': 'dagger', '🗺️': 'map', '🗺': 'map', '📤': 'share', '🛠️': 'tools', '🛠': 'tools', '🏷️': 'tag', '🏷': 'tag', '🏠': 'home', '💥': 'boom', '🎯': 'target', '✨': 'sparkle', '🧹': 'broom', '⚗️': 'flask', '⚗': 'flask', '📖': 'book', '📚': 'book', '🚪': 'door', '🛒': 'cart', '💍': 'ring', '🖼️': 'frame', '🖼': 'frame', '🛡️': 'shield', '🛡': 'shield', '🔮': 'orb', '🔁': 'retry', '🔊': 'sound', '🔇': 'mute', '👆': 'tap', '✅': 'check', '⚙️': 'gear_set', '⚙': 'gear_set', '🩹': 'heal', '🌊': 'wave', '🎰': 'gacha', '📍': 'pin', '🔨': 'hammer', '👥': 'duo', '📜': 'scroll', '📮': 'mail', '📊': 'chart', '⏰': 'clock', '🧪': 'flask2', '🎉': 'party', '🔑': 'key', '🤖': 'bot', '⚖️': 'scale', '⚖': 'scale', '🎫': 'coupon', '⏱️': 'speed', '⏱': 'speed', '🛍️': 'shop', '🛍': 'shop' };
 const IC_RE = new RegExp(Object.keys(IC_MAP).sort((a, b) => b.length - a.length).join('|'), 'gu'); // (이모지엔 정규식 특수문자가 없다)
 const icBad = new Set();
+// 그림으로 못 바꾼 이모지는 화면 글자에서 지운다 (토스트 · 채팅 · 입력칸 제외) — '이모지 없음' 규칙의 안전망
+const EMO_RE = /\p{Extended_Pictographic}️?(?:‍\p{Extended_Pictographic}️?)*/gu;
+const stripEmo = (t) => t.replace(EMO_RE, '').replace(/  +/g, ' ');
 const ic = (name, emoji = '', size = '') => `<img class="ic${size ? ' ' + size : ''}" src="/img/lb/ui2/${name}.webp" alt="${emoji}" draggable="false" onerror="this.replaceWith(document.createTextNode(this.alt))">`;
 const IC_SKIP = '.uic, .gico, .aico, .no-ic, .chat, .room-chat, input, textarea, select, canvas, script, style, #toast';
 function iconize(root) {
   if (!root || root.nodeType !== 1 || (root.closest && root.closest(IC_SKIP))) return;
-  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => { IC_RE.lastIndex = 0; if (!IC_RE.test(n.nodeValue)) return NodeFilter.FILTER_REJECT; return n.parentElement && n.parentElement.closest(IC_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => { IC_RE.lastIndex = 0; EMO_RE.lastIndex = 0; if (!IC_RE.test(n.nodeValue) && !EMO_RE.test(n.nodeValue)) return NodeFilter.FILTER_REJECT; return n.parentElement && n.parentElement.closest(IC_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
   const list = [];
   for (let n = w.nextNode(); n; n = w.nextNode()) list.push(n);
   for (const n of list) {
@@ -1739,15 +1807,15 @@ function iconize(root) {
     for (let m = IC_RE.exec(t); m; m = IC_RE.exec(t)) {
       const name = IC_MAP[m[0]];
       if (icBad.has(name)) continue;
-      if (m.index > last) frag.appendChild(document.createTextNode(t.slice(last, m.index)));
+      if (m.index > last) frag.appendChild(document.createTextNode(stripEmo(t.slice(last, m.index))));
       const img = document.createElement('img');
       img.className = 'ic'; img.src = `/img/lb/ui2/${name}.webp`; img.alt = m[0]; img.draggable = false;
       img.onerror = () => { icBad.add(name); img.replaceWith(document.createTextNode(m[0])); };
       frag.appendChild(img);
       last = m.index + m[0].length;
     }
-    if (last === 0) continue;
-    if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+    if (last === 0) { const s2 = stripEmo(t); if (s2 !== t) n.nodeValue = s2; continue; }
+    if (last < t.length) frag.appendChild(document.createTextNode(stripEmo(t.slice(last))));
     n.replaceWith(frag);
   }
 }
@@ -1755,12 +1823,73 @@ function iconize(root) {
 new MutationObserver((ms) => { for (const m of ms) for (const nd of m.addedNodes) { if (nd.nodeType === 1) iconize(nd); else if (nd.nodeType === 3 && nd.parentElement) iconize(nd.parentElement); } })
   .observe(stage, { childList: true, subtree: true });
 function uiIco(name, emoji, cls = '') {
-  return `<span class="uic ${cls}"><img src="/img/lb/ui/${name}.webp" alt="" draggable="false" onerror="this.parentNode.classList.add('noimg');this.remove()"><em>${emoji}</em></span>`;
+  // 그림이 없으면 이모지 대신 ui2 아이콘 (그것도 없으면 빈칸)
+  const alt = IC_MAP[emoji] || IC_MAP[emoji + '️'] || IC_MAP[emoji.replace('️', '')];
+  return `<span class="uic ${cls}"><img src="/img/lb/ui/${name}.webp" alt="" draggable="false" onerror="${alt ? `this.onerror=function(){this.parentNode.classList.add('noimg');this.remove()};this.src='/img/lb/ui2/${alt}.webp'` : `this.parentNode.classList.add('noimg');this.remove()`}"><em></em></span>`;
 }
 const rdot = (on) => (on ? '<i class="rd"></i>' : '');
 function lobbyStage() {
   if (!app.lobbyStage || !stageUnlocked(app.lobbyStage)) app.lobbyStage = nextStage();
   return app.lobbyStage;
+}
+// 할 일: 지금 할 수 있는 것 (위에서 세 개) — 누르면 바로 그 자리로
+function todoList() {
+  const p = P(), now = Date.now(), out = [];
+  const mail = L.mailCount(p); if (mail) out.push({ txt: `우편 ${mail}통 받기`, ic: 'mail', go: 'mail' });
+  const mis = L.claimable(p, uid(), now); if (mis) out.push({ txt: `미션 보상 ${mis}개 받기`, ic: 'scroll', go: 'missions' });
+  if (!L.checkinState(p, now).done) out.push({ txt: '오늘 출석 체크', ic: 'calendar', go: 'checkin' });
+  const tier = L.seasonTier(p); if (p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t))) out.push({ txt: '시즌 보상 받기', ic: 'trophy', go: 'season' });
+  const up = owned().find((h) => { const c = API.costOf(p, h); const lv = p.heroes[h] | 0; return c !== null && c !== undefined && (p.coins | 0) >= c && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv); });
+  if (up) out.push({ txt: `${HEROES[up].name} 강화할 수 있어요`, ic: 'hammer', go: 'hero', id: up });
+  const deck = [...new Set((curDeck() || []).filter(Boolean))];
+  for (const h of deck) { const k = ['w', 'a'].find((s) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[s]); return (p.gear || []).some((it) => GEAR[it.t].slot === s && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)); }); if (k) { out.push({ txt: `${HEROES[h].name}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', go: 'gear', id: h, slot: k }); break; } }
+  if ((p.tickets | 0) > 0) out.push({ txt: `모집권 ${p.tickets | 0}장 쓰기`, ic: 'ticket', go: 'recruit' });
+  return out;
+}
+function todoGo(t) {
+  closeInfoCard();
+  if (t.go === 'mail') ACTS.mail();
+  else if (t.go === 'missions') { const p = P(), now = Date.now(); const v = L.missionView(p, uid(), now); app.misTab = ['daily', 'weekly', 'ach'].find((k) => v[k].some((m) => !m.done && m.have >= m.n)) || app.misTab; showMissions(); setTimeout(() => { const b = document.querySelector('[data-act="claimMis"]:not([disabled])'); if (b) { b.scrollIntoView({ block: 'center', behavior: 'smooth' }); b.closest('.ms-row, div').classList.add('todo-hl'); } }, 60); }
+  else if (t.go === 'checkin') showCheckin();
+  else if (t.go === 'season') { showSeason(); setTimeout(() => { const b = document.querySelector('[data-act="claimSeason"]:not([disabled]):not([data-t="all"])'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); }
+  else if (t.go === 'hero') { app.hmTab = 'up'; showHeroModal(t.id); }
+  else if (t.go === 'gear') { app.bagTab = 'over'; app.bagHero = t.id; showBag(); setTimeout(() => showEquipSheet(t.id, t.slot), 80); }
+  else if (t.go === 'recruit') { app.shopTab = 'recruit'; showShop(); }
+}
+// 누르는 것마다 짧은 소리 (종류별로 다르게 · 소리 끄기 따름 · 너무 자주면 한 번만)
+function uiSound(act) {
+  if (!act) return;
+  if (/^(go|lbGo|pull|buy|staBuy|eqDo|doCheckin|prepEdit|edPick|confirm)/.test(act)) A.sfx.confirm();
+  else if (/^(claim|mailGet|claimAll|claimSeason)/.test(act)) A.sfx.reward();
+  else if (/^(menu|back|toLobby|weekly$)/.test(act)) A.sfx.back();
+  else if (/Tab$|^nav$|^tab|^dexTab|^bagTab|^shopTab|^misTab|^edF|^edSort|^prepSheetF/.test(act)) A.sfx.tabSw();
+  else A.sfx.tap();
+}
+// 잠김 안내: 누른 자리 위에 작은 자물쇠 말풍선 (토스트 대신)
+function lockTip(b, title, sub) {
+  A.sfx.deny();
+  for (const o of stage.querySelectorAll('.lock-tip')) o.remove();
+  const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+  const t = document.createElement('div');
+  t.className = 'lock-tip';
+  t.innerHTML = `${ic('lock', '', 'sm')}<span><b>${esc(title)}</b><small>${esc(sub)}</small></span>`;
+  stage.appendChild(t);
+  const w = t.offsetWidth;
+  t.style.left = Math.max(8, Math.min(sr.width - w - 8, r.left - sr.left + r.width / 2 - w / 2)) + 'px';
+  t.style.top = Math.max(8, r.top - sr.top - t.offsetHeight - 8) + 'px';
+  setTimeout(() => t.classList.add('out'), 1800); setTimeout(() => t.remove(), 2100);
+}
+// 이호찬 컷인: 얼굴 카드 + 금빛 빛줄기 (0.9초)
+function grandCutIn() {
+  const d = document.createElement('div');
+  d.className = 'grand-cut';
+  d.innerHTML = `<i class="gc-rays"></i><div class="gc-card"><img src="${hqSrc('hochan') || HEROES.hochan.img}" alt="" draggable="false"><b>막차 대행진</b><small>LEGEND · 이호찬</small></div>`;
+  stage.appendChild(d);
+  setTimeout(() => d.classList.add('out'), 850); setTimeout(() => d.remove(), 1150);
+}
+function showTodo() {
+  const list = todoList();
+  popup(`<h3>할 일</h3><div class="todo-list">${list.map((t, i) => `<button class="todo-row" data-act="todoGo" data-i="${i}">${ic(t.ic, '', '')}<span>${esc(t.txt)}</span><i class="todo-go">›</i></button>`).join('') || '<p class="ip">지금은 할 일이 없어요. 출격해 볼까요?</p>'}</div>`, 'pp-mini todo-pop');
 }
 // 빨간 점: 받을 게 있는 곳
 function dots() {
@@ -1777,7 +1906,7 @@ function dots() {
 }
 function navHtml(on) {
   const d = dots();
-  const tabs = [['shop', '상점', '🛒'], ['deck', '덱', '👥'], ['battle', '전투', '⚔️'], ['bag', '강화·장비', '🎒'], ['pvp', '대전', '🥊']];
+  const tabs = [['shop', '상점', '🛒'], ['deck', '강화', '👥'], ['battle', '전투', '⚔️'], ['bag', '장비', '🎒'], ['pvp', '대전', '🥊']];
   return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'deck' ? 'members' : k, e)}<b>${n}</b>${rdot(d[k])}</button>`).join('')}</nav>`;
 }
 // ─── 칭호 · 프레임 (보이기만 · 능력치 없음) ─────
@@ -1824,9 +1953,17 @@ function augIcon(a) {
   const k = Object.keys(a.fx || {}).find((x) => AUG_FX_IC[x]);
   return pimg(ui2(k ? AUG_FX_IC[k] : iconName(a.icon, a.desc)));
 }
+const AUG_TXT = { dmg: '공격력', spd: '공격 속도', crit: '치명타', critMul: '치명타 피해', boss: '보스 피해', swarm: '일반 진상 피해', exp: '경험치' };
+function augRealDesc(a) { // 스테이지는 강화 수준에 따라 효과가 줄어든다 → 실제 값을 보여 준다
+  const g = app.g; if (!g || a.hero) return a.desc;
+  const k = S.augScale(g), parts = [];
+  for (const [kk, v] of Object.entries(a.fx || {})) { if (AUG_TXT[kk]) parts.push(`${AUG_TXT[kk]} +${(v * k * 100).toFixed(1)}%`); }
+  const rest = a.desc.split(' · ').filter((x) => !Object.values(AUG_TXT).some((n) => x.startsWith(n) || x.startsWith('모든 멤버 ' + n)));
+  return [...parts, ...rest].join(' · ') || a.desc;
+}
 function showAugOffer(opts, tier) {
   augBox.className = 'aug-box v4 t-' + tier;
-  augBox.innerHTML = `<div class="ab-head">${pimg(ui2(tier === 'prism' ? 'prism' : 'aug_card'), 'crest')}<b>증강 선택</b><span class="ab-tier">${TIER_NAMES[tier]}</span><small><em id="abT">15</em>초</small></div><div class="ab-list">${opts.map((id, i) => { const a = S.augDef(id); return `<button class="ab-card t-${a.tier}" data-aug="${id}" style="--i:${i}"><span class="ab-ico">${augIcon(a)}</span><b>${esc(a.title)}</b><small>${esc(a.desc)}</small></button>`; }).join('')}</div>`;
+  augBox.innerHTML = `<div class="ab-head">${pimg(ui2(tier === 'prism' ? 'prism' : 'aug_card'), 'crest')}<b>증강 선택</b><span class="ab-tier">${TIER_NAMES[tier]}</span><small><em id="abT">15</em>초</small></div><div class="ab-list">${opts.map((id, i) => { const a = S.augDef(id); return `<button class="ab-card t-${a.tier}" data-aug="${id}" style="--i:${i}"><span class="ab-ico">${augIcon(a)}</span><b>${esc(a.title)}</b><small>${esc(augRealDesc(a))}</small></button>`; }).join('')}</div>`;
   if (!augBox.isConnected) stage.appendChild(augBox);
   A.sfx.card && A.sfx.card();
 }
@@ -1849,7 +1986,7 @@ function topPills() {
   return `<div class="lb-top">
     <button class="pill me" data-act="cosmetics" style="${fr ? `--fr:${fr}` : ''}"><span class="ava ${fr ? 'framed ' + frameCls(p.frame) : ''}">${av(HEROES.bangjang)}</span>
       <span class="who"><b>${app.guest ? '손님' : `Lv.${p.level}`}</b><em>${esc(app.guest ? '로그인하면 랭킹 등록' : app.nickname || '랑방 멤버')}</em>${titleChip(p.title)}<i class="xp"><b style="width:${app.guest ? 0 : expPct}%"></b></i></span></button>
-    <div class="curs">${p.master && !p.testNormal ? '' : `<button class="pill cur sta" data-act="stamina">⚡<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pill cur tk" data-act="nav" data-tab="shop">🎟️<b>${p.unlimited ? '∞' : fmt(p.tickets || 0)}</b><em>+</em></button></div>
+    <div class="curs">${p.master && !p.testNormal ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="stamina">${ic('energy', '', 'sm')}<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pill cur tk" data-act="nav" data-tab="shop">🎟️<b>${p.unlimited ? '∞' : fmt(p.tickets || 0)}</b><em>+</em></button></div>
   </div>`;
 }
 // 로비 랭킹 띠: 스테이지 · 1:1 대전 · 주간 도전 순위를 4초마다 돌아가며 (누르면 전체 랭킹)
@@ -1922,7 +2059,7 @@ function showMenu() {
     <div class="lb-dim"></div>
     ${topPills()}
     ${p.master ? '<button class="lb-master" data-act="settings">🛠️ MASTER</button>' : ''}
-    <div class="lb-logo"><img src="/img/lb/emblem.webp" alt="" onerror="this.remove()"><b>랑방 대전</b></div>
+    <div class="lb-logo v2"><img src="/img/lb/logo_langbang.webp" alt="랑방대전" draggable="false" onerror="this.parentNode.classList.remove('v2');this.remove()"><b>랑방 대전</b></div>
     <button class="lb-rank" data-act="ranking" id="lbRank" aria-label="랭킹 보기"><span>🏆 랭킹 불러오는 중…</span></button>
     <button class="lb-stage" data-act="stages">
       <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
@@ -1937,6 +2074,7 @@ function showMenu() {
     <div class="lb-chests"><div class="cbar"><b style="width:${Math.min(100, (cs / 30) * 100)}%"></b></div>${chests}<em>${ch}장 ★${cs}/30</em></div>
     ${snap ? `<button class="lb-resume" data-act="resumeSnap">⏯ 이어하기 <small>${esc(snapLabel(snap))}</small></button>` : ''}
     <button class="lb-start" data-act="lbGo"><b>출격!</b><small>${stageLabel(s)} ${esc(stageName(s))}</small></button>
+    ${(() => { const td = todoList(); return td.length ? `<button class="lb-todo" data-act="todo">${ic(td[0].ic, '', 'sm')}<span>${esc(td[0].txt)}</span>${td.length > 1 ? `<b>+${td.length - 1}</b>` : ''}</button>` : ''; })()}
     <div class="lb-left">${left}</div>
     <div class="lb-right">${right}</div>
     ${navHtml('battle')}
@@ -2060,7 +2198,7 @@ function popup(html, cls = '') {
     if (ev.target === m || ev.target.closest('[data-x]')) { m.remove(); if (m.classList.contains('pp-editor') && app.screen === 'prep') showPrep(app.mode, app.stage); return; }
     const b = ev.target.closest('[data-act]');
     if (!b || b.disabled || ui.dataset.noclick) return; // 길게 누른 건 누르기 아님
-    A.unlock(); A.sfx.tap();
+    A.unlock(); uiSound(b.dataset.act);
     if (ACTS[b.dataset.act]) ACTS[b.dataset.act](b);
   });
   return m;
@@ -2250,7 +2388,7 @@ function showJoinReveal(id, kind = 'new') {
     m.innerHTML = `<div class="jr-shards">${shards}</div><img class="jr-flash" src="/img/lb/fx/explo_gold.webp" alt="" onerror="this.remove()"><img class="jr-ring" src="/img/lb/fx/shock_ring.webp" alt="" onerror="this.remove()">
       <div class="jr-pillar"></div>${storm ? `<div class="jr-storm">${storm}</div>` : ''}
       <div class="jr-art ${hasDuo(id) ? 'duo' : ''}">${hqSrc(id) ? `<img src="${hasDuo(id) ? `/img/lb/dexhq/${id}_duo.webp` : hqSrc(id)}" alt="" draggable="false" onerror="this.onerror=null;this.src='${dexSrc(id, d.img)}'">` : `<span class="dx-emo big">${d.emoji}</span>`}${lg ? '<span class="jr-crown"></span>' : ''}</div>
-      <div class="jr-text"><div class="jr-tag">NEW MEMBER 합류!</div><div class="jr-name">${esc(d.name)}</div><div class="jr-title">${lg ? 'LEGEND · ' : kind === 'hidden' ? 'HIDDEN · ' : ''}${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</div><p class="jr-catch">${esc(DEX_CATCH[id] || '')}</p></div>
+      <div class="jr-text"><div class="jr-tag">NEW MEMBER 합류!</div><div class="jr-name">${esc(d.name)}</div><div class="jr-title">${lg ? 'LEGEND · ' : kind === 'hidden' ? 'HIDDEN · ' : ''}${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</div><p class="jr-catch">${esc(FLAVOR[id] || DEX_CATCH[id] || '')}</p></div>
       <p class="rv-skip">탭해서 계속</p>`;
     stage.appendChild(m);
     A.sfx.reveal && A.sfx.reveal(lg ? 'legend' : kind === 'hidden' ? 'hidden' : 'epic');
@@ -2372,7 +2510,7 @@ function showDeckTab() {
   const locked = all.filter((id) => !API.heroUnlocked(p, id));
   const coll = [...mine, ...locked].map((id) => artCard(id, { act: 'deckColl', on: ids.includes(id), dot: API.heroUnlocked(p, id) && L.heroStar(p, id) < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[L.heroStar(p, id)] })).join('');
   show(`
-    ${subTop('덱')}
+    ${subTop('멤버 강화')}
     <div class="dk-top">
       <div class="deck-tabs">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPresetT" data-k="${k}">덱 ${k + 1}</button>`).join('')}</div>
       <button class="btn ghost auto" data-act="autoDeckT">✨ 추천 덱</button>
@@ -2426,6 +2564,7 @@ function showHeroModal(id, ctx = '') {
   const body = tab === 'up' ? `
       <div class="hf-up">
         <div class="hf-row"><span>⚔ 전투력</span>${legendNum(fmt(pw))}${pwNext > pw ? `<i class="gu">→ ${fmt(pwNext)} (+${fmt(pwNext - pw)})</i>` : ''}</div>
+        ${(() => { if (!ok) return ''; const a = heroLive(p, id, lv), b = cost !== null ? heroLive(p, id, lv + 1) : a; const up = (x, y) => (y > x + 1e-9 ? `<i class="gu">→ ${fmt(Math.round(y))} (+${(((y / x) - 1) * 100).toFixed(1)}%)</i>` : ''); return `<div class="hf-row"><span>공격력 (한 방)</span><b>${fmt(Math.round(a.dmg))}</b>${up(a.dmg, b.dmg)}</div><div class="hf-row"><span>공격 속도</span><b>${a.aps.toFixed(2)}/초</b>${b.aps > a.aps + 1e-6 ? `<i class="gu">→ ${b.aps.toFixed(2)}/초</i>` : ''}</div>`; })()}
         <div class="hf-row"><span>강화</span><b>+${lv} / ${metaMaxOf(id)}</b><small>레벨마다 공격력 +${(TIER_GROWTH[t] * 100).toFixed(1)}% · 상태이상 -1.5%</small></div>
         <div class="hf-row"><span>🃏 카드</span><b>${p.shards[id] | 0}장${p.wild ? ` <small>+ 범용 ${p.wild}</small>` : ''}</b><small>강화(+1~5 1장 · +6~10 2장 · +11~15 3장 · +16~20 5장)와 ★승급에 같이 써요 <button class="lnk" data-act="cardWhere">얻는 곳</button></small></div>
         <div class="hf-row"><span>★ 승급</span><b>${'★'.repeat(st)}<i class="dim">${'★'.repeat(L.STAR_MAX - st)}</i></b><small>조각 ${p.shards[id] | 0}${st < L.STAR_MAX ? ` / ${needS}` : ''} · ★마다 공격력 +${Math.round(L.STAR_ATK * 100)}%</small></div>
@@ -2446,7 +2585,7 @@ function showHeroModal(id, ctx = '') {
       <div class="hm-sec"><h4>⚔️ 기본 공격</h4><p>${esc(d.attack)}</p></div>
       <div class="hm-sec"><h4>✨ 스킬 · ${esc(d.skill.name)} <small>쿨 ${d.skill.cd}초</small></h4><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">🌟 진화: ${esc(SKILL_EVO[id])}</p>` : ''}</div>
       ${perks ? `<div class="hm-sec"><h4>📈 레벨 효과</h4><ul>${perks}</ul></div>` : ''}
-      <p class="hm-desc">${esc(d.desc)}</p>`;
+      <p class="hm-desc">${esc(FLAVOR[id] || d.desc)}</p>`;
   closeInfoCard();
   const box = document.createElement('div');
   box.className = `info-modal pop hero-pop hero-full ${d.legend ? 'lg' : ''}`;
@@ -2457,13 +2596,21 @@ function showHeroModal(id, ctx = '') {
     <div class="hf-head"><i class="tier t${t}">${TIER_NAME[t]}</i>${attrTag(d.attr)}<b>${ok ? esc(d.name) : '???'}</b><small>${esc(d.role)}</small></div>
     <div class="hf-tabs">${[['info', '정보'], ['up', '강화'], ['gear', '장비']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-hf="tab" data-k="${k}">${n}</button>`).join('')}</div>
     <div class="hf-body">${ok ? body : `<p class="ip">🔒 ${esc(heroHow(id))}</p>${body}`}</div>
-    <div class="hf-foot">${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">📚 도감</button></div>`;
+    <div class="hf-foot">${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비 착용' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">📚 도감</button></div>`;
   stage.appendChild(box);
+  // 최적 장비: 길게 누르면 "다른 멤버 것 포함"
+  const ab = box.querySelector('[data-hf="auto"]');
+  if (ab) {
+    let lt = 0;
+    ab.addEventListener('pointerdown', () => { lt = setTimeout(() => { box._lp = true; heroAutoEquip(id, true).then((ch) => { if (ch) showHeroModal(id, ctx); }); }, 550); });
+    for (const t of ['pointerup', 'pointerleave', 'pointercancel']) ab.addEventListener(t, () => clearTimeout(lt));
+  }
   box.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-hf]');
     if (b) {
       if (b.dataset.hf === 'x') { closeInfoCard(); if (app.screen === 'deck') showDeckTab(); return; }
-      if (b.dataset.hf === 'tab') { app.hmTab = b.dataset.k; A.sfx.tap(); showHeroModal(id, ctx); }
+      if (b.dataset.hf === 'tab') { app.hmTab = b.dataset.k; A.sfx.tabSw(); showHeroModal(id, ctx); }
+      if (b.dataset.hf === 'auto') { if (box._lp) { box._lp = false; return; } heroAutoEquip(id, false).then(() => showHeroModal(id, ctx)); }
       return;
     }
     const a0 = ev.target.closest('[data-act]');
@@ -2566,7 +2713,7 @@ async function showWeekly() {
   const def = L.weeklyDef(wi);
   const mod = L.WEEKLY_MODS[def.mod];
   const fxd = MAP_FX[def.fx] || MAP_FX.none;
-  const bosses = def.bosses.map((b) => `<span class="wb">${av(ENEMIES[b])}<small>${esc(ENEMIES[b].name)}</small></span>`).join('');
+  const bosses = def.bosses.map((b) => `<span class="wb" title="${esc(ENEMIES[b].name)}">${av(ENEMIES[b])}<small>${esc(shortName(b))}</small></span>`).join('');
   const my = p.weekly && p.weekly.wi === wi ? p.weekly : null;
   const render = (bd) => {
     const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin">⏳</span> 순위 불러오는 중…'}</div>`;
@@ -2680,7 +2827,7 @@ async function claimChestAct(ch, n) {
   if (!r) return;
   A.sfx.levelUp(); fx.flash('#ffd23f', 0.35);
   toast(`🎁 ${ch}장 ★${n} 상자! ${gotText(r.got)}`, 3000);
-  showMenu();
+  if (app.screen === 'stages') showStages(); else showMenu();
 }
 
 Object.assign(ACTS, {
@@ -2851,11 +2998,13 @@ Object.assign(ACTS, {
   },
   deckToggle: (b) => deckToggleAct(b.dataset.id),
   deckRemove: (b) => deckQuick(b.dataset.id),
-  deckColl: (b) => { if (!API.heroUnlocked(P(), b.dataset.id)) { showHeroModal(b.dataset.id); return; } deckQuick(b.dataset.id); },
+  deckColl: (b) => { app.hmTab = API.heroUnlocked(P(), b.dataset.id) ? 'up' : 'info'; showHeroModal(b.dataset.id); }, // 강화 허브: 누르면 그 멤버 강화 화면 (덱은 출격 화면에서)
   deckFilter: (b) => { app.deckFilter = b.dataset.v; showDeckTab(); },
   deckPresetT: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckTab(); },
   autoDeckT: () => { const ids = recommendTeam(nextStage(), owned(), deckSlotsNow()); app.decks[app.deckI] = placeDeck(ids); saveDecks(); A.sfx.card(); toast('✨ 다음 스테이지 추천 덱으로 바꿨어요', 1400); showDeckTab(); },
   missionsNav: () => showMissions(),
+  todo: () => showTodo(),
+  todoGo: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) todoGo(t); },
   heroInfo: (b) => showDexCard('hero', b.dataset.id),
   deckReplace: (b) => deckToggleAct(b.dataset.id, Number(b.dataset.slot)),
   hellModeS: (b) => { app.hellMode = b.dataset.v === '1'; try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showStages(); },
@@ -3158,72 +3307,96 @@ Object.assign(ACTS, {
 });
 
 // ─── 스테이지 선택 ───────────────────────────────────
+// 스테이지 지도: 챕터마다 한 장 (옆으로 넘기면 딱 붙음) · 큰 배너 + 구불구불 길 위의 빛나는 칸 · 별 상자
+const MAP_XY = [[50, 95], [22, 86.5], [50, 78], [78, 69.5], [50, 60], [22, 50], [50, 41], [78, 32], [50, 23], [50, 9]]; // 아래(1)에서 위(10)로
+const MAP_CHEST = { 10: 3.5, 20: 6.5, 30: [80, 10] }; // 숫자 = 길 위 (칸 사이) · 배열 = 옆 자리 // 별 상자: 길 위 자리 (칸 번호 사이)
+function mapPt(k) { const i = Math.floor(k), f = k - i; const a = MAP_XY[Math.max(0, i - 1)], b = MAP_XY[Math.min(9, i)]; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; }
+function chapterMapHtml(p, c) {
+  const first = (c.id - 1) * STAGES_PER_CHAPTER + 1;
+  const open = stageUnlocked(first);
+  const stars = L.chapterStars(p, c.id);
+  const nx = nextStage();
+  const path = MAP_XY.map(([x, y], i) => (i ? 'L' : 'M') + x + ' ' + y).join(' ');
+  const doneN = Array.from({ length: STAGES_PER_CHAPTER }, (_, i) => (p.stages[first + i] | 0) > 0).lastIndexOf(true) + 1;
+  const donePath = MAP_XY.slice(0, Math.max(1, doneN + (doneN < 10 && stageUnlocked(first + doneN) ? 1 : 0))).map(([x, y], i) => (i ? 'L' : 'M') + x + ' ' + y).join(' ');
+  const nodes = MAP_XY.map(([x, y], i) => {
+    const s = first + i;
+    const op = stageUnlocked(s), st = p.stages[s] | 0;
+    const bosses = stageBosses(s), boss = bosses.length > 0;
+    const mid = !boss && stageEnemies(s).some((id) => ENEMIES[id] && ENEMIES[id].mid);
+    const cur = s === nx && !st && op;
+    const hOk = hellOpen(p.stages, s), hs = (p.hell || {})[s] | 0;
+    return `<button class="mn ${op ? '' : 'lk'} ${boss ? 'boss' : ''} ${mid ? 'mid' : ''} ${cur ? 'cur' : ''} ${st ? 'done' : ''}" style="left:${x}%;top:${y}%" data-act="mapNode" data-s="${s}">
+      ${boss ? `<span class="mn-face">${av(ENEMIES[bosses[0]])}</span>` : `<span class="mn-dot"><b>${i + 1}</b></span>`}
+      ${op ? '' : `<i class="mn-lock">${ic('lock', '', 'sm')}</i>`}
+      ${mid ? '<em class="mn-mid">중간 보스</em>' : ''}${boss ? `<em class="mn-boss">${esc(shortName(bosses[0]))}</em>` : ''}
+      ${cur ? '<i class="mn-here">여기!</i>' : ''}
+      ${op && st ? `<span class="mn-st">${'<i class="on">★</i>'.repeat(st)}${'<i>★</i>'.repeat(3 - st)}</span>` : ''}
+      ${hOk ? `<i class="mn-hell">${ic('fire', '', 'sm')}${hs ? hs : ''}</i>` : ''}
+      <small class="mn-no">${stageLabel(s)}</small></button>`;
+  }).join('');
+  const opened = (p.chests || {})[c.id] || [];
+  const chests = L.CHEST_STARS.map((n) => {
+    const [x, y] = Array.isArray(MAP_CHEST[n]) ? MAP_CHEST[n] : mapPt(MAP_CHEST[n]);
+    const st = opened.includes(n) ? 'open' : stars >= n ? 'ready' : 'lock';
+    return `<button class="mchest chest ${st}" style="left:${x}%;top:${y}%" data-act="chest" data-ch="${c.id}" data-n="${n}">${ic(st === 'open' ? 'check' : 'gift', '', '')}<small>★${n}</small></button>`;
+  }).join('');
+  return `<section class="chmap ${open ? '' : 'lk'}" data-ch="${c.id}" style="--cc:${c.color}">
+    <div class="chm-banner"><div class="chm-art" style="background-image:url('/img/lb/keyart${c.id}.webp')"></div>
+      <div class="chm-txt"><em>CHAPTER ${c.id}</em><b>${esc(c.name)}</b><span>${esc(c.desc)}</span></div>
+      <div class="chm-prog"><div><i style="width:${Math.round((stars / 30) * 100)}%"></i></div><b>★ ${stars}<small>/30</small></b></div>
+      ${open ? '' : `<div class="chm-lock">${ic('lock', '', '')}<b>${stageLabel(first - 1)} 깨면 열려요</b></div>`}
+    </div>
+    <div class="chm-map" style="background-image:url('/img/lb/dio${c.id}.webp')">
+      <svg class="chm-path" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${path}" class="p0"/><path d="${donePath}" class="p1"/></svg>
+      ${chests}${nodes}
+    </div>
+  </section>`;
+}
 function showStages() {
   app.screen = 'stages';
   hud.hidden = true;
   if (!app.demo) { layout(); app.demo = makeDemo(); }
   const p = P();
   if (!app.selStage || !stageUnlocked(app.selStage)) app.selStage = nextStage();
-  if (chapterOf(app.selStage) !== app.chapterTab) app.chapterTab = chapterOf(app.selStage);
-  const ch = CHAPTERS[app.chapterTab - 1];
+  if (!app.chapterTab) app.chapterTab = chapterOf(app.selStage);
   R.setTheme(app.chapterTab);
-  const tabs = CHAPTERS.map((c) => {
-    const first = (c.id - 1) * STAGES_PER_CHAPTER + 1;
-    const open = stageUnlocked(first);
-    let stars = 0;
-    for (let i = 0; i < STAGES_PER_CHAPTER; i++) stars += p.stages[first + i] || 0;
-    return `<button class="ch-tab ${c.id === app.chapterTab ? 'on' : ''} ${open ? '' : 'locked'}" data-act="chapter" data-ch="${c.id}" style="--cc:${c.color}">
-      <b>${open ? '' : '🔒 '}${c.id}장</b><small>${esc(c.name)}</small><em>★${stars}/30</em></button>`;
-  }).join('');
-  const nodes = [];
-  for (let i = 0; i < STAGES_PER_CHAPTER; i++) {
-    const s = (app.chapterTab - 1) * STAGES_PER_CHAPTER + i + 1;
-    const open = stageUnlocked(s);
-    const st = p.stages[s] || 0;
-    const boss = stageBosses(s).length > 0;
-    const cur = s === nextStage() && !st;
-    const hs = (p.hell || {})[s] || 0;
-    const hOpen = hellOpen(p.stages, s);
-    nodes.push(`<button class="node ${open ? '' : 'locked'} ${boss ? 'boss' : ''} ${cur ? 'cur' : ''} ${s === app.selStage ? 'sel' : ''} ${st ? 'done' : ''} ${app.hellMode && hOpen ? 'hellnode' : ''}" data-act="selStage" data-s="${s}">
-      <span class="nb">${open ? (boss ? '👑' : '') : '🔒'}<b>${stageLabel(s)}</b></span>
-      <span class="ns">${open ? (app.hellMode ? (hOpen ? '🔥' + starStr(hs) : '<small>★3 필요</small>') : starStr(st)) : ''}</span></button>`);
-  }
-  const s = app.selStage;
-  const st = p.stages[s] || 0;
-  const en = stageEnemies(s);
-  const prevEn = s > 1 ? new Set(stageEnemies(s - 1)) : new Set();
-  const enemies = en.filter((id) => !ENEMIES[id].dot).map((id) => `<button class="en ${ENEMIES[id].boss ? 'b' : ''}" data-act="info" data-kind="enemy" data-id="${id}">${av(ENEMIES[id])}${!prevEn.has(id) && s > 1 ? '<em>NEW</em>' : ''}</button>`).join('');
-  const cw = stageClasses(s);
-  const clsLine = Object.keys(cw).sort((a, b) => cw[b] - cw[a]).map((c) => `${clsTag(c)}<small>${Math.round(cw[c] * 100)}%</small>`).join('');
-  const rec = recommendAttrs(s);
-  const fxd = stageFx(s);
-  const rw = stageReward(s, 3, st, p.items.coupon);
-  const rewardTxt = st
-    ? `<span>다시 깨면 <i class="ci"></i><b>${fmt(stageReward(s, st, st, p.items.coupon).total)}</b>~</span>${st < 3 ? `<span>★ 더 받으면 +${fmt(Math.round(clearCoins(s) * 0.5))}/개</span>` : '<span class="ok">★★★ 완벽!</span>'}`
-    : `<span>첫 클리어 최대 <i class="ci"></i><b>${fmt(rw.total)}</b></span><span>(첫 보너스 +${fmt(rw.first)} · 별 보너스 포함)</span>`;
-  const unlockHero = Object.keys(HERO_UNLOCK).find((h) => HERO_UNLOCK[h] === s);
+  const dots = CHAPTERS.map((c) => `<button class="chd ${c.id === app.chapterTab ? 'on' : ''} ${stageUnlocked((c.id - 1) * STAGES_PER_CHAPTER + 1) ? '' : 'lk'}" data-act="chapter" data-ch="${c.id}" style="--cc:${c.color}"><b>${c.id}</b></button>`).join('');
+  const hasHell = Object.values(p.stages).some((v) => v >= 3);
   show(`
     ${topbar(true, coinsPill())}
-    <h2 class="title">스테이지</h2>
-    <div class="ch-tabs">${tabs}</div>
-    <div class="ch-banner" style="--cc:${ch.color}"><b>${ch.id}장 · ${esc(ch.name)}</b><span>${esc(ch.desc)}</span></div>
-    ${Object.values(p.stages).some((v) => v >= 3) ? `<div class="mode-tog"><button class="${app.hellMode ? '' : 'on'}" data-act="hellModeS" data-v="0">일반</button><button class="${app.hellMode ? 'on hell' : ''}" data-act="hellModeS" data-v="1">🔥 헬 모드</button></div>` : ''}
-    <div class="nodes">${nodes.join('')}</div>
-    <div class="panel stage-info">
-      <div class="si-head"><b>${stageLabel(s)} ${esc(stageName(s))}</b><span class="si-stars">${starStr(st)}</span></div>
-      <p class="story">📖 ${esc(stageStory(s))}</p>
-      <div class="si-meta"><span>🌊 ${STAGE_WAVES}웨이브</span>${stageBosses(s).length ? `<span class="boss">👑 ${stageBosses(s).map((b) => ENEMIES[b].name).join(' + ')}</span>` : ''}</div>
-      <div class="si-enemies">${enemies}</div>
-      <div class="si-cls">${clsLine}</div>
-      <div class="si-rec">추천 속성 ${rec.length ? rec.map(attrTag).join('') : '<small>아무나 OK</small>'}</div>
-      <div class="si-fx">${fxd.icon} <b>${esc(fxd.name)}</b> <small>${esc(fxd.desc)}</small></div>
-      <div class="si-reward">${rewardTxt}</div>
-      ${unlockHero && !API.heroUnlocked(p, unlockHero) ? `<div class="si-unlock">${HEROES[unlockHero].hidden ? '✨ 처음 깨면 HIDDEN 멤버가 합류!' : '🦊 처음 깨면 새 멤버가 합류!'}</div>` : ''}
-      <div class="si-tip">★★★ 입구 70% 이상 · ★★ 35% 이상 · ★ 클리어</div>
-    </div>
-    <div class="spacer"></div>
-    <button class="btn primary" data-act="prep">출전 준비 ▶</button>
-  `, 'dim stages-screen');
+    <div class="chd-row">${dots}</div>
+    <div class="chmaps">${CHAPTERS.map((c) => chapterMapHtml(p, c)).join('')}</div>
+    ${hasHell ? `<div class="mode-tog map-tog"><button class="${app.hellMode ? '' : 'on'}" data-act="hellModeS" data-v="0">보통</button><button class="${app.hellMode ? 'on hell' : ''}" data-act="hellModeS" data-v="1">${ic('fire', '', 'sm')}헬 모드</button></div>` : ''}
+  `, 'dim stages-screen map-v2');
+  // 옆으로 넘기기: 지금 챕터로 바로 · 멈추면 그 챕터로 (점 · 배경 테마)
+  const sc = ui.querySelector('.chmaps');
+  if (sc) {
+    sc.scrollLeft = (app.chapterTab - 1) * sc.clientWidth;
+    let tm = 0;
+    sc.addEventListener('scroll', () => {
+      clearTimeout(tm);
+      tm = setTimeout(() => {
+        const c = Math.max(1, Math.min(CHAPTERS.length, Math.round(sc.scrollLeft / Math.max(1, sc.clientWidth)) + 1));
+        if (c === app.chapterTab) return;
+        app.chapterTab = c; R.setTheme(c); A.sfx.tabSw();
+        for (const d of ui.querySelectorAll('.chd')) d.classList.toggle('on', Number(d.dataset.ch) === c);
+      }, 90);
+    }, { passive: true });
+    // 지금 칸이 보이게
+    const cur = sc.querySelector(`.chmap[data-ch="${app.chapterTab}"] .mn.cur`) || sc.querySelector(`.chmap[data-ch="${app.chapterTab}"] .mn[data-s="${app.selStage}"]`);
+    const scr = ui.querySelector('#ui > .screen') || ui.firstElementChild;
+    if (cur && scr) requestAnimationFrame(() => { const r = cur.getBoundingClientRect(), r0 = scr.getBoundingClientRect(); scr.scrollTop += r.top - r0.top - r0.height * 0.5; });
+  }
+}
+function mapNodeGo(b) {
+  const s = Number(b.dataset.s);
+  if (!stageUnlocked(s)) { lockTip(b, stageLabel(s), '앞 스테이지를 먼저 깨 주세요'); return; }
+  app.selStage = s;
+  A.sfx.confirm();
+  b.classList.add('zoom');
+  const scr = b.closest('.screen'); if (scr) { const r = b.getBoundingClientRect(), r0 = scr.getBoundingClientRect(); scr.style.setProperty('--zx', `${r.left - r0.left + r.width / 2}px`); scr.style.setProperty('--zy', `${r.top - r0.top + r.height / 2}px`); scr.classList.add('zoomout'); }
+  setTimeout(() => showPrep('stage', s), 230);
 }
 
 // ─── 출전 준비: 동료 고르기 ──────────────────────────
@@ -3480,11 +3653,11 @@ function showPrep(mode, s) {
   // 7) 출격
   const cost = mode === 'stage' && !free ? L.stageStaminaCost(p, s, hellOn) : 0;
   const goHtml = `<div class="pp-go">
-      ${cleared ? `<button class="pp-ib ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-label="2배속">${ic('speed', '⏱️')}<small>×2</small></button>` : ''}
-      <button class="btn primary pp-gobtn ${ids.length ? '' : 'dim'} ${hellOn ? 'hell' : ''}" data-act="go"><b>출격!</b>${cost ? `<small>${ic('energy', '⚡', 'sm')}${cost}</small>` : ''}</button>
+      ${cleared ? `<button class="pp-spd ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-pressed="${app.speed2 ? 'true' : 'false'}" aria-label="2배속">${ic('speed', '')}<b>×2</b><small>${app.speed2 ? 'ON' : 'OFF'}</small></button>` : ''}
+      <button class="pp-gobtn2 ${ids.length ? '' : 'dim'} ${hellOn ? 'hell' : ''}" data-act="go"><i class="gb-shine"></i><b>출격!</b>${cost ? `<span class="gb-cost">${ic('energy', '', 'sm')}<em>${cost}</em></span>` : ''}</button>
     </div>`;
   show(`
-    <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta" data-act="stamina">⚡<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
+    <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="stamina">${ic('energy', '', 'sm')}<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
     ${headHtml}${diffHtml}${powHtml}${foeHtml}${deckHtml}${rw}
     <div class="spacer"></div>
     ${goHtml}
@@ -4278,7 +4451,7 @@ function dexPageHtml(kind, id, form, duo) {
     const meta = (P().heroes || {})[id] || 0, st = L.heroStar(P(), id);
     plate = `<div class="dp-plate"><small>${esc(d.role)}</small>
       <div class="dp-star">${'★'.repeat(st)}<i>${'★'.repeat(L.STAR_MAX - st)}</i>${meta ? ` · 강화 +${meta}` : ''} · 기본 ×${tierPower(t, 0).toFixed(2)}</div></div>`;
-    body = `<p class="dp-flavor">“${esc(DEX_FLAVOR[id] || d.desc.replace(/^"|"$/g, ""))}”</p>
+    body = `<p class="dp-flavor">“${esc(FLAVOR[id] || DEX_FLAVOR[id] || d.desc.replace(/^"|"$/g, ""))}”</p>
       <div class="sbars">${bar('사거리', rg / 620)}${bar('공격 속도', 0.42 / d.interval)}${bar('한 방', d.dmg / 62)}</div>
       <section><h4>⚔️ 기본 공격</h4><p>${esc(d.attack || d.desc)}</p></section>
       ${sk ? `<section><h4>✨ 스킬 · ${esc(sk.name)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></h4><p>${esc(sk.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">🌟 진화 카드: <b>${esc(SKILL_EVO[id])}</b></p>` : ''}</section>` : ''}
@@ -4290,7 +4463,7 @@ function dexPageHtml(kind, id, form, duo) {
     const tipId = ENEMY_TIPS[id] ? id : d.base || (d.fuse && d.fuse[0]) || id;
     const good = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) > 1).map((a) => attrIco(a) + ATTRS[a].name);
     const bad = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) < 1).map((a) => attrIco(a) + ATTRS[a].name);
-    const flav = DEX_FLAVOR[id] || (d.fuse ? `${ENEMIES[d.fuse[0]].name} + ${ENEMIES[d.fuse[1]].name} 이 합체했다! 두 진상의 기술을 모두 쓴다.` : d.base ? `평범한 ${ENEMIES[d.base].name} 이 각성했다! 훨씬 크고 단단하다.` : '');
+    const flav = FLAVOR[id] || DEX_FLAVOR[id] || (d.fuse ? `${ENEMIES[d.fuse[0]].name} + ${ENEMIES[d.fuse[1]].name} 이 합체했다! 두 진상의 기술을 모두 쓴다.` : d.base ? `평범한 ${ENEMIES[d.base].name} 이 각성했다! 훨씬 크고 단단하다.` : '');
     const shout = (d.shouts || []).slice(0, 2).map((s) => `“${esc(s)}”`).join(' ');
     plate = `<div class="dp-plate"><small>${d.mid ? `중간 보스 · ${d.fuse ? '합체' : '각성'} · ` : d.boss ? '보스 · ' : ''}${shout || esc(CLASSES[d.cls].name)}</small></div>`;
     body = `<p class="dp-flavor">“${esc(flav)}”</p>
@@ -4469,6 +4642,12 @@ function showGearPicker(hero, slot) {
 // ─── 가방 (장비 화면): 위 = 멤버 + 무기/액세서리 칸 + 능력치, 아래 = 가방 격자 ─────
 const GEAR_W = { atk: 1, spd: 1, crit: 1.3, skill: 0.6, cd: 0.7, attr: 0.8, strip: 0.4, hp: 0.6, range: 0.7 };
 // 멤버 전투력: 기본 초당 피해 × 티어·강화 × ★ × 장비 — 화면에 보여 주는 숫자 (대략적인 세기)
+// 전투에서 실제로 쓰는 값 (sim 그대로): 한 방 피해 · 초당 공격 — 강화 화면 "지금 → 다음" 표시용
+function heroLive(p, id, metaLv) {
+  const g = S.createGame({ H: 760, noWaves: true, heroes: [id], tempo: true, meta: { [id]: metaLv }, stars: p.hstars || {}, gear: API.gearFor(p, [id]), rng: () => 0.5 });
+  const h = g.heroes[0];
+  return { dmg: S.heroDamage(g, h), aps: 1 / S.heroInterval(g, h) };
+}
 function heroPower(p, id) {
   const d = HEROES[id];
   if (!d) return 0;
@@ -4749,6 +4928,52 @@ function flyIcon(f) {
   setTimeout(() => { g.remove(); to.classList.add('eq-land'); setTimeout(() => to.classList.remove('eq-land'), 400); }, 320);
 }
 // 덱 전체 자동 장착: 전투력 높은 멤버부터 제일 좋은 장비를 (다른 멤버 장비도 옮겨 준다)
+// 한 멤버 최적 장비: 무기 · 장신구 · 신화 칸마다 제일 좋은 것 (기본: 아무도 안 낀 것만 · steal: 다른 멤버 것도)
+function bestGearPlan(p, id, steal) {
+  const plan = [], taken = new Set();
+  for (const k of ['w', 'a', 'm']) {
+    const cur = ((p.equip || {})[id] || {})[k];
+    const curIt = (p.gear || []).find((x) => x.id === cur);
+    const cands = (p.gear || []).filter((it) => GEAR[it.t] && GEAR[it.t].slot === k && !taken.has(it.id) && it.id !== cur && (steal || !equippedBy(p, it.id)));
+    cands.sort((a, b) => gearScore(b) - gearScore(a));
+    const best = cands[0];
+    if (best && (!curIt || gearScore(best) > gearScore(curIt) + 1e-9)) { taken.add(best.id); plan.push({ k, it: best, from: equippedBy(p, best.id), prev: curIt || null }); }
+  }
+  return plan;
+}
+async function heroAutoEquip(id, steal) {
+  const p = P();
+  const plan = bestGearPlan(p, id, steal);
+  if (!plan.length) { A.sfx.deny(); toast(steal ? '다른 멤버 것까지 봐도 이미 최적이에요' : '이미 최적이에요 · 길게 누르면 다른 멤버 것도 봐요', 1600); return false; }
+  const moves = plan.filter((x) => x.from && x.from !== id);
+  if (steal && moves.length) {
+    const ok = await confirmBox({ title: '다른 멤버 장비를 가져올까요?', sub: moves.map((x) => `${HEROES[x.from] ? HEROES[x.from].name : x.from}의 ${GEAR[x.it.t].name}`).join(' · '), ok: '가져오기', cancel: '취소' });
+    if (!ok) return false;
+  }
+  const before = heroPower(P(), id);
+  const done = [];
+  for (const x of plan) {
+    const r = await API.equipGear(id, x.k, x.it.id, app.guest);
+    if (r && r.ok && r.profile) { app.profile = r.profile; done.push(GEAR[x.it.t].name); }
+  }
+  if (!done.length) return false;
+  const after = heroPower(P(), id);
+  A.sfx.levelUp();
+  powRollToast(before, after);
+  toast(`${HEROES[id].name}: ${done.join(' · ')} 착용`, 1800);
+  return true;
+}
+// 전투력 오르는 숫자 (▲+N)
+function powRollToast(a, b) {
+  const d = document.createElement('div');
+  d.className = 'pow-roll';
+  d.innerHTML = `<small>전투력</small><b>${fmt(a)}</b><em>${b >= a ? '▲' : '▼'}${fmt(Math.abs(b - a))}</em>`;
+  stage.appendChild(d);
+  const t0 = performance.now(), el = d.querySelector('b');
+  const step = () => { const k = Math.min(1, (performance.now() - t0) / 700); el.textContent = fmt(Math.round(a + (b - a) * (1 - (1 - k) ** 3))); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+  setTimeout(() => d.classList.add('out'), 1500); setTimeout(() => d.remove(), 1900);
+}
 async function autoEquipAll() {
   snapPow();
   const p = P();
@@ -5039,6 +5264,24 @@ function crowdHtml(owned) {
       ${id === 'hochan' && !sil ? '<i class="cw-halo"></i>' : ''}${dexSrc(id, d.img) ? `<img src="${dexSrc(id, d.img)}" alt="" draggable="false" decoding="async" onerror="this.onerror=null;this.src='${d.img}'">` : `<span class="dx-emo">${d.emoji}</span>`}${sil ? '<b>???</b>' : ''}</span>`;
   }).join('');
 }
+// 타이틀 영상 이어 붙이기: 하나가 끝나기 0.4초 전에 다른 하나를 처음부터 틀고 서로 흐리게
+function gateLoop(box) {
+  const [a, b] = box.querySelectorAll('.gate-vid');
+  if (!a || !b) return;
+  let cur = a, nxt = b, fading = false;
+  const fail = () => box.classList.add('novid');
+  cur.play().then(() => box.classList.add('vidon')).catch(fail);
+  const step = () => {
+    if (!box.isConnected) return;
+    if (cur.duration && !fading && cur.currentTime > cur.duration - 0.4) {
+      fading = true; nxt.currentTime = 0;
+      nxt.play().then(() => { nxt.classList.add('on'); cur.classList.remove('on'); setTimeout(() => { cur.pause(); [cur, nxt] = [nxt, cur]; fading = false; }, 420); }).catch(() => { cur.currentTime = 0; fading = false; });
+    }
+    requestAnimationFrame(step);
+  };
+  a.classList.add('on');
+  requestAnimationFrame(step);
+}
 function startGate(quick = false) {
   let ok = false;
   try { ok = sessionStorage.getItem('langbang:gate') === '1'; } catch { ok = false; }
@@ -5054,21 +5297,17 @@ function startGate(quick = false) {
   box.className = 'gate crowd-gate';
   const owned = crowdOwned();
   const ch = Math.max(1, Math.min(6, Number(localStorage.getItem('langbang:chapter')) || 1));
-  // 배경: 멤버 단체 그림(loading_group) → 없으면 레드카펫 배경(loading_bg) + 멤버 줄 세우기 → 없으면 키아트
-  box.classList.add('grp');
-  box.innerHTML = `<div class="gate-bg"><img src="/img/lb/loading_group.webp" alt="" fetchpriority="high" onerror="var g=this.closest('.gate');if(!this.dataset.f){this.dataset.f=1;g&&g.classList.remove('grp');this.src='/img/lb/loading_bg.webp'}else{this.onerror=null;this.src='/img/lb/keyart${ch}.webp';this.parentNode.classList.add('fb')}"></div>
-    <span class="gate-fw">${[[22, 22, 0], [76, 16, 1.1], [55, 30, 2.2], [12, 36, 3]].map(([x, y, d]) => `<i style="left:${x}%;top:${y}%;--d:${d}s"></i>`).join('')}</span>
-    <span class="gate-spot l"></span><span class="gate-spot r"></span>
-    <span class="gate-carpet"></span>
-    <div class="gate-crowd">${crowdHtml(owned)}</div>
-    <span class="gate-conf">${Array.from({ length: 18 }, (_, i) => `<i style="--x:${(i * 37) % 100}%;--d:${((i * 0.29) % 3).toFixed(2)}s;--t:${(2.6 + (i % 5) * 0.35).toFixed(2)}s;background:${['#ffd23f', '#ff4fd8', '#6fe3ff', '#8dff7a', '#ff7a4f'][i % 5]}"></i>`).join('')}</span>
-    <div class="gate-in"><img class="emblem" src="/img/lb/emblem.webp" alt="" onerror="this.remove()"><h1>랑방 대전</h1></div>
-    <div class="gate-foot"><div class="gate-bar"><i></i></div><p class="gate-txt">멤버들 모으는 중… 0%</p><p class="gate-tip">💡 ${esc(GATE_TIPS[(Math.random() * GATE_TIPS.length) | 0])}</p><button class="btn primary gate-btn" disabled>👆 터치해서 시작</button></div>`;
+  // 배경: 움직이는 키아트 영상 두 개를 겹쳐 끝 0.4초를 서로 흐리게 이어 붙인다 (끝과 처음이 딱 안 맞아서)
+  //   움직임 줄이기 · 데이터 절약 · 자동 재생 막힘(iOS 저전력) → 포스터 그림
+  const still = document.body.classList.contains('rm') || (navigator.connection && navigator.connection.saveData);
+  const vid = (k) => `<video class="gate-vid v${k}" muted playsinline preload="auto" poster="/img/lb/title_poster.jpg" disablepictureinpicture ${k ? '' : 'autoplay'}><source src="/img/lb/title_loop.mp4" type="video/mp4"></video>`;
+  box.innerHTML = `<div class="gate-bg"><img class="gate-poster" src="/img/lb/title_poster.jpg" alt="" fetchpriority="high" onerror="this.onerror=null;this.src='/img/lb/loading_group.webp'">${still ? '' : vid(0) + vid(1)}</div>
+    <div class="gate-in"><div class="gate-logo"><img src="/img/lb/logo_langbang.webp" alt="랑방대전" draggable="false" onerror="this.parentNode.classList.add('noimg')"><i class="gl-shine"></i><b class="gl-sub">찬이의 게임월드</b><h1 class="gl-txt">랑방 대전</h1></div></div>
+    <div class="gate-foot"><div class="gate-load"><div class="gate-bar"><i></i></div><b class="gate-pct">0%</b></div><p class="gate-txt">멤버들 모으는 중</p><p class="gate-tip">${ic('bulb', '', 'sm')}<span>${esc(GATE_TIPS[(Math.random() * GATE_TIPS.length) | 0])}</span></p><button class="gate-btn" disabled><span class="gb-spark"></span><b>터치해서 시작</b><small>TAP TO START</small></button></div>`;
   stage.appendChild(box);
-  // 그림을 다 풀어 놓은 뒤(최대 0.9초) 입장 연출 시작 — 버벅임 없이
-  const imgs = [...box.querySelectorAll('.gate-crowd img')];
+  if (!still) gateLoop(box);
   const go = () => box.classList.add('enter');
-  Promise.race([Promise.all(imgs.map((im) => (im.decode ? im.decode().catch(() => {}) : Promise.resolve()))), new Promise((r) => setTimeout(r, 900))]).then(go);
+  setTimeout(go, 60);
   const bar = box.querySelector('.gate-bar i'), txt = box.querySelector('.gate-txt'), btn = box.querySelector('.gate-btn');
   const t0 = performance.now();
   let synced = false, tipAt = 0;
@@ -5079,21 +5318,17 @@ function startGate(quick = false) {
     const pct = Math.round((done / Math.max(1, all.length)) * 100);
     const el = performance.now() - t0;
     const shown = Math.min(pct, Math.round((el / MIN_MS) * 100)); // 최소 3초는 보여 준다 (다시 볼 땐 짧게)
-    bar.style.width = shown + '%';
+    bar.style.width = shown + '%'; box.querySelector('.gate-pct').textContent = shown + '%';
     // 프로필이 오면 가진 멤버를 컬러로 (없던 멤버는 실루엣 그대로)
     if (!synced && app.profileLoaded) {
       synced = true;
       saveCrowd();
       const now = crowdOwned();
-      if ([...now].sort().join() !== [...owned].sort().join()) {
-        // 처음 온 기기: 실제로 가진 멤버로 다시 세운다 (이호찬은 가운데 앞)
-        box.querySelector('.gate-crowd').innerHTML = crowdHtml(now);
-        box.classList.remove('enter'); void box.offsetWidth; box.classList.add('enter');
-      }
+      void now; void owned;
     }
-    if (el - tipAt > 2200) { tipAt = el; const tp = box.querySelector('.gate-tip'); if (tp && el > 100) tp.textContent = '💡 ' + GATE_TIPS[(Math.random() * GATE_TIPS.length) | 0]; }
-    if (shown >= 100 || el > 8000) { txt.textContent = '준비 완료! 소리를 켜고 시작해요'; btn.disabled = false; box.classList.add('ready'); if (synced || el > 8000) return; }
-    else txt.textContent = `멤버들 모으는 중… ${shown}%`;
+    if (el - tipAt > 2200) { tipAt = el; const tp = box.querySelector('.gate-tip span'); if (tp && el > 100) tp.textContent = GATE_TIPS[(Math.random() * GATE_TIPS.length) | 0]; }
+    if (shown >= 100 || el > 8000) { txt.textContent = '준비 완료! 소리 켜고 시작해요'; btn.disabled = false; box.classList.add('ready'); if (synced || el > 8000) return; }
+    else txt.textContent = '멤버들 모으는 중';
     requestAnimationFrame(tick);
   };
   tick();
