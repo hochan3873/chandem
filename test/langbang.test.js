@@ -1649,3 +1649,47 @@ test('신화 장비: 6종 · 신화 칸(m) 하나 · 강화 없음 · 드롭/모
   const g = S.createGame({ noWaves: true, heroes: ['staff'], gear: { staff: D.gearStats([{ t: 'myth_soup', r: 'myth' }, { t: 'myth_crown', r: 'myth' }]) } });
   assert.ok(g.mods.regen >= 6 - 1e-9 && g.mods.ultCharge >= 1.25 - 1e-9);
 });
+
+test('신화 장비: 1:1 대전은 효과 절반 (gearStats mythMul)', () => {
+  const full = D.gearStats([{ t: 'myth_stick', r: 'myth' }]), half = D.gearStats([{ t: 'myth_stick', r: 'myth' }], 0.5);
+  assert.ok(Math.abs(half.spd - full.spd / 2) < 1e-9);
+  const n = D.gearStats([{ t: 'megaphone', r: 'epic', lv: 3 }], 0.5), n1 = D.gearStats([{ t: 'megaphone', r: 'epic', lv: 3 }]);
+  assert.equal(n.atk, n1.atk, '일반 장비는 그대로');
+});
+
+test('합류 모드: 대장 1명 시작 · 합류 카드로 1명씩 · 중복 없음 · 처음 3번은 합류 카드 보장 · 대전은 같은 상태면 같은 카드', async () => {
+  const S = await load('sim.js');
+  const deck = ['staff', 'bangjang', 'gunman', 'gunnyeo', 'hanna', null];
+  const g = S.createGame({ H: 760, rng: seeded(11), mode: 'stage', stage: 3, deck, join: true, leader: 'gunman', meta: {} });
+  assert.deepEqual(g.heroes.map((h) => h.id), ['gunman'], '대장만');
+  assert.equal(g.joinPool.length, 4);
+  const seen = new Set(['gunman']);
+  for (let k = 0; k < 8 && g.joinPool.length; k++) {
+    const cs = S.rollCards(g);
+    const js = cs.filter((c) => c.kind === 'join');
+    if (k < 3) assert.ok(js.length >= 1, '처음 3번은 합류 카드');
+    assert.ok(js.length <= (g.joinPool.length <= g.joinTotal / 2 ? 1 : 2), '합류 카드 상한');
+    assert.equal(new Set(js.map((c) => c.hero)).size, js.length, '한 번에 같은 멤버 두 장 없음');
+    const j = js[0];
+    if (!j) { S.applyCard(g, cs[0]); continue; }
+    assert.ok(!seen.has(j.hero), '이미 있는 멤버는 합류 카드로 안 나옴');
+    const n = g.heroes.length;
+    S.applyCard(g, j); seen.add(j.hero);
+    assert.equal(g.heroes.length, n + 1, '합류하면 1명 늘어남');
+    assert.equal(S.hasHero(g, j.hero).slot, deck.indexOf(j.hero), '덱에서 정한 자리');
+  }
+  // 합류 안 켜면 예전처럼 전부
+  const g0 = S.createGame({ H: 760, rng: seeded(11), mode: 'stage', stage: 3, deck, meta: {} });
+  assert.equal(g0.heroes.length, 5);
+  // 레이드는 풀 팀
+  const gr = S.createGame({ H: 760, rng: seeded(11), mode: 'stage', stage: 3, deck, join: true, raid: { sec: 60 }, meta: {} });
+  assert.equal(gr.heroes.length, 5);
+  // 1:1 대전: 같은 시드 · 같은 덱 → 같은 카드 (각자 다른 rng 라도)
+  const mk = (r) => S.createGame({ H: 760, rng: seeded(r), mode: 'stage', stage: 12, deck, join: true, pvp: { seed: 77 }, meta: {} });
+  const a = mk(1), b = mk(999);
+  for (let k = 0; k < 4; k++) {
+    const ca = S.rollCards(a), cb = S.rollCards(b);
+    assert.deepEqual(ca.map((c) => c.key), cb.map((c) => c.key), `대전 카드 ${k + 1}번째 같음`);
+    S.applyCard(a, ca[0]); S.applyCard(b, cb[0]);
+  }
+});

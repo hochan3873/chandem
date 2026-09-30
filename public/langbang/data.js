@@ -63,7 +63,7 @@ export function expNeed(lv) {
 }
 // 레벨업은 드물게, 대신 한 번 한 번이 크게: 필요 경험치 ×2.2 (스테이지는 뒤로 갈수록 경험치를 줄여 스테이지당 4~6번)
 // 합류 모드 (대장 1명 시작 → 레벨업 카드로 합류): 앞 레벨업은 빠르게 · 합류 카드 가중치 · 보장 · 몰아 키우기
-export const JOIN = { solo: 1.6, exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
+export const JOIN = { solo: 1.6, freePick: true, hp: [1, 0.78, 1.2, 1.05, 1, 1.05], exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
 export const EXP_NEED_MUL = 2.4; // (2.2 → 2.4: 카드가 너무 자주 떠서 조금 천천히)
 export const stageExpMul = (s) => 1 / (1 + 0.1 * Math.max(0, (s || 1) - 1));
 
@@ -1592,11 +1592,11 @@ export function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = fals
   return out;
 }
 // 멤버 한 명의 장비 능력치 합 → sim createGame({ gear: { heroId: {...} } })
-export function gearStats(items) {
+export function gearStats(items, mythMul = 1) { // mythMul: 1:1 대전은 신화 효과 절반
   const st = {};
   for (const it of items) {
     if (!it || !GEAR[it.t]) continue;
-    if (GEAR[it.t].myth) { for (const [k, v] of Object.entries(GEAR[it.t].stats)) st[k] = (st[k] || 0) + v; continue; }
+    if (GEAR[it.t].myth) { for (const [k, v] of Object.entries(GEAR[it.t].stats)) st[k] = (st[k] || 0) + v * mythMul; continue; }
     const k = GEAR[it.t].stat; st[k] = (st[k] || 0) + gearValue(it.t, it.r, it.lv);
   }
   return st;

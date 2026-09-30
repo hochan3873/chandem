@@ -388,11 +388,11 @@ export async function setAutoSell(on, guest) {
   return r;
 }
 // 덱 멤버들의 장비 능력치 → sim
-export function gearFor(profile, ids) {
+export function gearFor(profile, ids, mythMul = 1) {
   const out = {};
   for (const id of ids) {
     const sl = (profile.equip || {})[id] || {};
-    out[id] = gearStats(['w', 'a', 'm'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter(Boolean));
+    out[id] = gearStats(['w', 'a', 'm'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter(Boolean), mythMul);
   }
   return out;
 }

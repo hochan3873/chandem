@@ -7,7 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
-  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -2183,7 +2183,7 @@ export function startWave(g, n) {
   if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 5].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism');
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
-  g.hpScale = def.hpScale || 1;
+  g.hpScale = (def.hpScale || 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
   const more = g.mapFx.spawn || 1;
@@ -2804,7 +2804,7 @@ export function applyCard(g, c) {
     if (at < 0 || hasHero(g, c.hero)) return;
     const j = g.joinPool.splice(at, 1)[0];
     const h = addHero(g, j.id, j.slot);
-    if (h) { h.joinT = 0; ev(g, 'join', { hero: h.id, x: h.x, y: h.y, left: g.joinPool.length }); }
+    if (h) { h.joinT = 0; ev(g, 'join', { hero: h.id, x: h.x, y: h.y, left: g.joinPool.length }); if (JOIN.freePick) g.pendingLevels++; } // 합류는 공짜: 곧바로 카드 한 장 더 (강화 몫을 안 뺏는다)
     return;
   }
   notePath(g, c.tags || (c.hero ? HERO_TAGS[c.hero] : null));

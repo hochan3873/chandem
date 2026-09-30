@@ -321,7 +321,7 @@ async function startRun(opt = {}) {
   layoutForNewRun();
   const deck = curDeck();
   const g = S.createGame({
-    H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), slots: deckSlotsNow(), gear: API.gearFor(p, deck.filter(Boolean)), stars: p.hstars || {},
+    H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), slots: deckSlotsNow(), gear: API.gearFor(p, deck.filter(Boolean), pvp ? 0.5 : 1), stars: p.hstars || {},
     guestPool: [...UNLOCK_HEROES, ...HIDDEN_HEROES].filter((id) => !API.heroUnlocked(p, id)),
     god: DEBUG.god || DEBUG.stress > 0, mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
   });
