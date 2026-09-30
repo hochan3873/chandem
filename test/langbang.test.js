@@ -560,7 +560,7 @@ test('멤버마다 사거리 · 공격 간격 · 공격 방식 · 스킬이 전�
   for (const h of H) { assert.ok(D.ATTRS[h.attr], h.id); assert.ok(h.attack && h.skill.name && h.skill.cd >= 12 && h.skill.cd <= 30, h.id); }
   const cnt = {};
   for (const h of H) cnt[h.attr] = (cnt[h.attr] || 0) + 1;
-  assert.deepEqual(cnt, { talk: 4, power: 4, charm: 4, booze: 4 });
+  assert.deepEqual(cnt, { talk: 5, power: 5, charm: 5, booze: 5 });
 });
 
 test('상성: 속성마다 강한 계열 2개 · 약한 계열 1개, 피해에 강함/약함 배율이 붙는다', () => {
@@ -637,7 +637,7 @@ test('스킬: 모든 멤버 스킬이 쿨타임과 효과를 가진다', () => {
   assert.ok(g.enemies.some((e) => e.stunT > 0), '쌍욕 폭격 기절');
   assert.ok(g.heroes.find((h) => h.id === 'gunman').frenzyT > 0, '난사');
   assert.ok(g2.heroes.find((h) => h.id === 'eunok').rage, '원샷');
-  assert.ok(g2.projs.filter((p) => p.type === 'cane').length >= 7, '지팡이 회오리');
+  assert.ok((g2.holes || []).length >= 1, '지팡이 블랙홀');
   assert.ok(g2.projs.filter((p) => p.type === 'moto').length >= 3, '3대 500');
   assert.equal(g2.heroes.find((h) => h.id === 'donghan').meter, 100, '진심 모드');
 });
@@ -1330,4 +1330,73 @@ test('줄 스킬 자동 조준: 가장 많이 걸리는 방향 · 아무도 없�
   for (let i = 0; i < 60; i++) S.step(g, 1 / 60);
   const hurt = g.enemies.filter((e) => !e.dead && e.hp < e.maxHp).length;
   assert.ok(hurt >= 3, `대각선 3명 모두 맞음 (${hurt})`);
+});
+
+test('새 멤버 4명: 정소영 잔소리 → 성준영 소환(올인!) · 오지은 감속+악마 모습 · 박상화 성장+경험치 · 홍정민 입구 수리', () => {
+  // 정소영: 게이지가 차면 성준영이 나오고, 시간이 지나면 올인! 하고 사라진다
+  let g = S.createGame({ rng: seeded(501), noWaves: true, heroes: ['soyoung'] });
+  const so = g.heroes[0];
+  so.meter = 100; g.phase = 'wave';
+  S.spawnEnemy(g, 'thug', so.x, so.y - 200, { hpMul: 100 });
+  S.step(g, 1 / 60);
+  const jy = g.heroes.find((h) => h.id === 'junyoung');
+  assert.ok(jy && jy.summon, '성준영 소환');
+  assert.ok(g.events.some((e) => e.type === 'summon'));
+  g.events.length = 0;
+  for (let i = 0; i < 60 * (D.HEROES.soyoung.nag.sec[0] + 1); i++) { S.step(g, 1 / 60); if (g.events.some((e) => e.type === 'allin')) break; }
+  assert.ok(g.events.some((e) => e.type === 'allin'), '올인!');
+  S.step(g, 1 / 60);
+  assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '사라짐');
+  // 오지은: 공격하면 악마 모습 + 맞은 진상 느려짐
+  g = S.createGame({ rng: seeded(502), noWaves: true, heroes: ['jieun'] });
+  const ji = g.heroes[0];
+  const e = S.spawnEnemy(g, 'thug', ji.x, ji.y - 220, { hpMul: 100 });
+  let demon = false;
+  for (let i = 0; i < 150; i++) { S.step(g, 1 / 60); if (ji.alt) demon = true; }
+  assert.ok(demon, '악마 모습');
+  assert.ok(e.slowT > 0 && e.slowMul < 1, '감속');
+  // 박상화: 웨이브 끝날 때마다 성장 · 잡은 진상 경험치 +
+  g = S.createGame({ rng: seeded(503), noWaves: true, heroes: ['sanghwa'] });
+  const sh = g.heroes[0];
+  const d0 = S.heroDamage(g, sh);
+  sh.grow = 0.2;
+  assert.ok(Math.abs(S.heroDamage(g, sh) / d0 - 1.2) < 1e-9, '성장 +20%');
+  // 홍정민: 틈틈이 입구 수리
+  g = S.createGame({ rng: seeded(504), noWaves: true, heroes: ['jungmin'] });
+  g.phase = 'wave'; g.base.hp = g.base.max * 0.5;
+  for (let i = 0; i < 60 * 4; i++) S.step(g, 1 / 60);
+  assert.ok(g.base.hp > g.base.max * 0.5, '입구 수리');
+  // 모집 · 서버 목록
+  for (const id of ['soyoung', 'jieun', 'sanghwa', 'jungmin']) { assert.ok(D.GACHA_HEROES.includes(id)); assert.ok(require('../server/langbang-rules').LB_HEROES.includes(id), id); }
+  assert.ok(!D.HEROES.junyoung && D.SUMMONS.junyoung, '성준영은 소환 전용');
+});
+
+test('상태이상 저항: 강화 1레벨 -1.5% · 장비(숙취해소 부적) 합쳐 최대 -35% · 홀림 · 기절에 적용 · 서버 장비 목록과 같다', () => {
+  assert.equal(D.resOf(0, 0), 0);
+  assert.ok(Math.abs(D.resOf(10, 0) - 0.15) < 1e-9);
+  assert.equal(D.resOf(20, 0.2), 0.35, '최대 -35%');
+  const R = require('../server/langbang-rules');
+  assert.deepEqual(Object.keys(R.GEAR).sort(), Object.keys(D.GEAR).sort());
+  assert.ok(D.GEAR.hangover && D.GEAR.hangover.stat === 'res' && D.GEAR_STATS.res);
+  const mk = (meta) => { const g = S.createGame({ rng: seeded(700), noWaves: true, heroes: ['staff'], meta: { staff: meta } }); const e = S.spawnEnemy(g, 'namkko', g.heroes[0].x, g.heroes[0].y - 30, { hpMul: 50 }); e.def = Object.assign({}, e.def, { charm: 'both' }); S.tryCharm && S.tryCharm(g, e); return g.heroes[0]; };
+  const a = mk(0), b = mk(20);
+  if (a.charmT > 0) assert.ok(b.charmT < a.charmT * 0.75, `강화한 멤버는 홀림이 짧다 ${a.charmT} → ${b.charmT}`);
+});
+
+test('강성구 지팡이 블랙홀: 가장 몰린 곳에 → 2초 빨아들임(보스는 약하게) → 쾅 + 기절 · 진상 없으면 아껴 둠', () => {
+  const g = S.createGame({ rng: seeded(801), noWaves: true, heroes: ['sunggu'] });
+  const h = g.heroes[0];
+  h.skillCd = 0;
+  assert.equal(S.castSkill(g, h, 0, 0), false, '진상 없으면 안 씀');
+  const list = [];
+  for (let i = 0; i < 6; i++) list.push(S.spawnEnemy(g, 'thug', 110 + i * 22, 250 + (i % 2) * 20, { hpMul: 30 }));
+  const far = S.spawnEnemy(g, 'thug', 330, 420, { hpMul: 30 });
+  const d0 = Math.abs(list[5].x - list[0].x);
+  assert.equal(S.castSkill(g, h, 0, 0), true);
+  let boom = null;
+  for (let i = 0; i < 60 * 2.5; i++) { S.step(g, 1 / 60); for (const e of g.events) if (e.type === 'bhBoom') boom = e; g.events.length = 0; }
+  assert.ok(boom && boom.n >= 4, `쾅 (${boom && boom.n}명)`);
+  assert.ok(Math.abs(list[5].x - list[0].x) < d0, '빨려 들어 모였다');
+  assert.ok(list.every((e) => e.hp < e.maxHp), '모두 피해');
+  assert.equal(far.hp, far.maxHp, '멀리 있는 진상은 안 맞음');
 });

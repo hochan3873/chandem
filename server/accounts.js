@@ -154,7 +154,7 @@ class FileStore {
   }
   async topLangbang(n, mode = 'stage') { return this.sortedLangbang(mode).slice(0, n); }
   // 주간 도전: 그 주(wi) 최고 점수 (이번 주 기록 또는 지난주로 밀린 기록)
-  weeklyList(wi) { return Object.values(this.data.users).map((u) => ({ u, b: weeklyBestOf(u, wi) })).filter((x) => x.b > 0).sort((a, b) => b.b - a.b); }
+  weeklyList(wi) { return Object.values(this.data.users).filter((u) => !isMasterName(u.username)).map((u) => ({ u, b: weeklyBestOf(u, wi) })).filter((x) => x.b > 0).sort((a, b) => b.b - a.b); }
   async topWeekly(wi, n) { return this.weeklyList(wi).slice(0, n).map((x) => x.u); }
   async rankWeekly(wi, id) {
     const u = this.data.users[id];
@@ -164,7 +164,7 @@ class FileStore {
   }
   async countWeekly(wi) { return this.weeklyList(wi).length; }
   // 레이드: 그 주 모두의 피해 합 · 기여도 순위
-  raidList(wi) { return Object.values(this.data.users).map((u) => ({ u, d: raidDmgOf(u, wi) })).filter((x) => x.d > 0).sort((a, b) => b.d - a.d); }
+  raidList(wi) { return Object.values(this.data.users).filter((u) => !isMasterName(u.username)).map((u) => ({ u, d: raidDmgOf(u, wi) })).filter((x) => x.d > 0).sort((a, b) => b.d - a.d); }
   async raidTotal(wi) { return this.raidList(wi).reduce((a, x) => a + x.d, 0); }
   async raidTop(wi, n) { return this.raidList(wi).slice(0, n).map((x) => x.u); }
   async raidRank(wi, id) { const u = this.data.users[id]; const d = u ? raidDmgOf(u, wi) : 0; return d ? this.raidList(wi).filter((x) => x.d > d).length + 1 : null; }
@@ -225,25 +225,25 @@ class PgStore {
     return r.rows[0].n + 1;
   }
   async topWeekly(wi, n) {
-    const r = await this.pool.query(`SELECT * FROM users WHERE ${PG_WB} > 0 ORDER BY ${PG_WB} DESC LIMIT $2`, [wi, n]);
+    const r = await this.pool.query(`SELECT * FROM users WHERE ${PG_WB} > 0 AND NOT (username = ANY($3::text[])) ORDER BY ${PG_WB} DESC LIMIT $2`, [wi, n, [...masterList()]]);
     return r.rows.map((x) => this.row(x));
   }
   async rankWeekly(wi, id) {
     const u = await this.byId(id);
     const b = u ? weeklyBestOf(u, wi) : 0;
     if (!b) return null;
-    const r = await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_WB} > $2`, [wi, b]);
+    const r = await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_WB} > $2 AND NOT (username = ANY($3::text[]))`, [wi, b, [...masterList()]]);
     return r.rows[0].n + 1;
   }
-  async countWeekly(wi) { return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_WB} > 0`, [wi])).rows[0].n; }
-  async raidTotal(wi) { return Number((await this.pool.query(`SELECT COALESCE(SUM(${PG_RD}), 0)::bigint AS n FROM users WHERE ${PG_RD} > 0`, [wi])).rows[0].n); }
-  async raidTop(wi, n) { return (await this.pool.query(`SELECT * FROM users WHERE ${PG_RD} > 0 ORDER BY ${PG_RD} DESC LIMIT $2`, [wi, n])).rows.map((x) => this.row(x)); }
+  async countWeekly(wi) { return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_WB} > 0 AND NOT (username = ANY($2::text[]))`, [wi, [...masterList()]])).rows[0].n; }
+  async raidTotal(wi) { return Number((await this.pool.query(`SELECT COALESCE(SUM(${PG_RD}), 0)::bigint AS n FROM users WHERE ${PG_RD} > 0 AND NOT (username = ANY($2::text[]))`, [wi, [...masterList()]])).rows[0].n); }
+  async raidTop(wi, n) { return (await this.pool.query(`SELECT * FROM users WHERE ${PG_RD} > 0 AND NOT (username = ANY($3::text[])) ORDER BY ${PG_RD} DESC LIMIT $2`, [wi, n, [...masterList()]])).rows.map((x) => this.row(x)); }
   async raidRank(wi, id) {
     const u = await this.byId(id); const d = u ? raidDmgOf(u, wi) : 0;
     if (!d) return null;
-    return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_RD} > $2`, [wi, d])).rows[0].n + 1;
+    return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_RD} > $2 AND NOT (username = ANY($3::text[]))`, [wi, d, [...masterList()]])).rows[0].n + 1;
   }
-  async raidCount(wi) { return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_RD} > 0`, [wi])).rows[0].n; }
+  async raidCount(wi) { return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_RD} > 0 AND NOT (username = ANY($2::text[]))`, [wi, [...masterList()]])).rows[0].n; }
   async pvpTop(n) {
     const r = await this.pool.query(`SELECT * FROM users WHERE COALESCE((stats->'langbang'->'pvp'->>'games')::int, 0) > 0 AND NOT (username = ANY($2::text[])) ORDER BY COALESCE((stats->'langbang'->'pvp'->>'rating')::int, 1000) DESC LIMIT $1`, [n, [...masterList()]]);
     return r.rows.map((x) => this.row(x));
@@ -421,6 +421,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     view.deckSlots = LBR.deckSlots(lb.items);
     if (master) {
       view.master = true;
+      view.unlimited = true; view.coins = 1e9; view.tickets = 1e6; // 마스터: 코인 · 모집권 무한 (화면엔 ∞)
+      view.items = Object.fromEntries(LBR.ITEM_IDS.map((i) => [i, LBR.ITEMS[i].max])); // 아이템 전부 최대
       view.unlocked = LBR.LOCKED.slice();
       // 마스터는 덱 칸도 전부 열림 (자물쇠 없음) — 막 초기화한 상태(기록 0)만 새 계정처럼 4칸
       if ((lb.maxStage | 0) > 0 || (lb.runs | 0) > 0) view.deckSlots = 6;
@@ -499,11 +501,11 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (mode === 'raid') {
           const run = before.raidRun;
           const st = LIVE.raidState(now);
-          if (!run || run.id !== String(body.runId || '') || run.wi !== st.wi) { out = { error: '레이드를 다시 시작해 주세요' }; return; }
+          if (!run || run.id !== String(body.runId || '') || (run.wi !== st.wi && now - run.at > 10 * 60e3)) { out = { error: '레이드를 다시 시작해 주세요' }; return; } // 시간이 끝나도 진행 중이던 판은 인정
           if (dur > (now - run.at) / 1000 * 1.15 + 20) { out = { error: '기록을 확인할 수 없어요' }; return; }
           const dmg = Math.floor(Number(body.raidDmg) || 0);
           if (dmg < 0 || dmg > LIVE.raidCap(before, dur)) { out = { error: '기록을 확인할 수 없어요' }; return; }
-          rd = { wi: st.wi, dmg };
+          rd = { wi: run.wi, dmg };
         }
         // 미션용 숫자도 서버가 상한을 건다
         const bosses = Math.min(int(body.bossKills, 99), mode === 'stage' ? LIVE.stageBossN(stage) : mode === 'weekly' ? 20 : mode === 'raid' ? 0 : Math.floor(wave / 5) + 1);
@@ -516,6 +518,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const firstPerfect = perfect && !before.perfects[stage];
         const reward = mode === 'stage' ? (hell ? LBR.hellReward(stage, stars, prevStars, before.items.coupon) : LBR.stageReward(stage, stars, prevStars, before.items.coupon, perfect, firstPerfect))
           : mode === 'weekly' ? { total: LIVE.weeklyCoins(wave) } : mode === 'raid' ? { total: 100 } : { total: LBR.endlessReward(wave, before.items.coupon) };
+        // 박상화(경제 멤버)를 데려가 깨면 코인 +12% — 가진 멤버일 때만
+        if (mode === 'stage' && Array.isArray(body.heroesUsed) && body.heroesUsed.includes('sanghwa') && LBR.heroUnlocked(before, 'sanghwa')) { const x = Math.round(reward.total * 0.12); reward.total += x; reward.sanghwa = x; }
         let weeklyBest = false;
         // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
         const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];
@@ -541,7 +545,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
             lb.totalStars = Object.values(lb.stages).reduce((a, b) => a + b, 0);
             lb.exp += Math.floor(score / 60) + 40;
           } else if (mode === 'raid') {
-            if (!master) LIVE.raidRecord(lb, rd.dmg, now);
+            if (!master) LIVE.raidRecord(lb, rd.dmg, now, rd.wi);
             lb.raidRun = null;
             lb.exp += 40;
           } else if (mode === 'weekly') {
@@ -584,9 +588,11 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       await serial(async () => {
         const u = await store.byId(id);
         if (!u) return;
-        const lb0 = normLb(u.stats.langbang, isMasterName(u.username));
+        const ms = isMasterName(u.username);
+        const lb0 = normLb(u.stats.langbang, ms);
         const r = check(lb0);
         if (r.error) { out = r; return; }
+        if (ms) r.cost = 0; // 마스터: 코인 무한 (안 줄어든다)
         if (lb0.coins < r.cost) { out = { error: `코인이 부족해요 (${r.cost.toLocaleString()} 필요)` }; return; }
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
@@ -633,6 +639,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const lb0 = normLb(u.stats.langbang, isMasterName(u.username));
         const r = fn(lb0);
         if (r.error) { out = r; return; }
+        if (isMasterName(u.username)) r.cost = 0; // 마스터: 공짜
         if (r.cost && lb0.coins < r.cost) { out = { error: `코인이 부족해요 (${r.cost.toLocaleString()} 필요)` }; return; }
         const stats = await update(id, (st) => { const lb = st.langbang = normLb(st.langbang); if (r.cost) lb.coins -= r.cost; r.apply(lb); });
         out = { profile: lbView(stats.langbang, id, isMasterName(u.username)), ...(r.extra || {}) };
@@ -658,16 +665,22 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     });
   }
   function lbEnhance(token, gid) {
-    return lbLive(token, (lb, id, now) => {
+    return lbLive(token, (lb, id, now, ctx) => {
       const it = findGear(lb, gid);
       if (!it) return { error: '없는 장비예요' };
-      const cost = LBR.gearEnhanceCost(it.r, it.lv);
-      if (cost === null) return { error: '이미 최대 강화예요' };
+      const cost0 = LBR.gearEnhanceCost(it.r, it.lv);
+      if (cost0 === null) return { error: '이미 최대 강화예요' };
+      const cost = ctx.master ? 0 : cost0; // 마스터는 공짜
       if (lb.coins < cost) return { error: `코인이 부족해요 (${cost.toLocaleString()} 필요)` };
-      lb.coins -= cost; it.lv++;
-      LIVE.bump(lb, 'enhances', 1, id, now);
-      return {};
-    });
+      lb.coins -= cost;
+      // 성공 판정은 서버 시드로 (계정 · 장비 · 몇 번째 시도) — 같은 요청을 두 번 계산해도 같은 결과
+      const n = (lb.cnt.enhTry | 0) + 1;
+      lb.cnt.enhTry = n;
+      const chance = ctx.master ? 1 : LBR.gearEnhanceChance(it.lv); // 마스터: 항상 성공
+      const ok = LBR.seedRng(LBR.hashSeed(`enh:${id}:${it.id}:${n}`))() < chance;
+      if (ok) { it.lv++; LIVE.bump(lb, 'enhances', 1, id, now); }
+      return { success: ok, lv: it.lv, chance, cost };
+    }, async (u) => ({ master: isMasterName(u.username) }));
   }
   // ── 모집 · 미션 · 시즌 · 성급 · 주간 도전 (공식은 live.js) ──
   // fn(lb, id, now, ctx) 는 lb 를 바꾸고 {error} 나 {추가 응답} 을 돌려준다.
@@ -684,10 +697,12 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const ms = isMasterName(u.username);
         const test = normLb(JSON.parse(JSON.stringify(u.stats.langbang || {})), ms);
         LIVE.ensureLive(test, id, now);
+        const inf = (x) => { if (ms) { x.coins = 1e9; x.tickets = 1e6; } }; // 마스터: 코인 · 모집권이 줄지 않는다
+        inf(test);
         const r0 = fn(test, id, now, ctx) || {};
         if (r0.error) { out = r0; return; }
         let r1 = {};
-        const stats = await update(id, (st) => { const lb = st.langbang = normLb(st.langbang, ms); LIVE.ensureLive(lb, id, now); r1 = fn(lb, id, now, ctx) || {}; delete lb.master; });
+        const stats = await update(id, (st) => { const lb = st.langbang = normLb(st.langbang, ms); LIVE.ensureLive(lb, id, now); inf(lb); r1 = fn(lb, id, now, ctx) || {}; inf(lb); delete lb.master; });
         out = { profile: lbView(stats.langbang, id, ms), ...r1 };
       });
       if (!out) throw new AuthError('다시 로그인해 주세요');
@@ -724,9 +739,9 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   function lbRaidStart(token) {
     return lbLive(token, (lb, id, now, ctx) => {
       const st = LIVE.raidState(now);
-      if (!st.open) return { error: '레이드는 금요일 18:00 ~ 일요일 24:00 에 열려요' };
+      if (!st.open) return { error: '레이드는 매일 12:00~13:30 · 15:00~16:30 · 21:00~23:00 에 열려요' };
       if ((lb.maxStage | 0) < 5) return { error: '레이드는 1-5를 깨면 참가할 수 있어요' };
-      if (LIVE.raidTriesLeft(lb, now) <= 0) return { error: '오늘 도전은 다 했어요 (하루 3번)' };
+      if (LIVE.raidTriesLeft(lb, now) <= 0) return { error: `이번 레이드 도전은 다 했어요 (레이드마다 ${LIVE.RAID.tries}번)` };
       lb.raidRun = { id: ctx.rid, wi: st.wi, at: now };
       return { runId: ctx.rid, wi: st.wi, boss: st.boss };
     }, async () => ({ rid: crypto.randomBytes(9).toString('base64url') }));
@@ -735,7 +750,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     await ready;
     const now = Date.now();
     const st = LIVE.raidState(now);
-    // 지금 열려 있지 않으면 지난 레이드(이번 주 금요일 전 = 지난주) 결과
+    // 지금 열려 있지 않으면 방금 끝난 레이드 결과
     const wi = st.open || now >= st.endsAt ? st.wi : st.wi - 1;
     const total = await store.raidTotal(wi);
     const top = (await store.raidTop(wi, 20)).map((u, i) => ({ rank: i + 1, nickname: u.nickname, dmg: raidDmgOf(u, wi) }));
@@ -939,7 +954,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   async function profile(username) { await ready; return publicUser(await store.byName(String(username || '').toLowerCase())); }
   async function ranking(n = 50) {
     await ready;
-    return (await store.topOmok(n)).map((u, i) => ({ rank: i + 1, nickname: u.nickname, username: u.username, rating: u.stats.omok.rating, games: u.stats.omok.games, wins: u.stats.omok.wins, tier: tierOf(u.stats.omok.rating), isMaster: isMasterName(u.username) }));
+    // 마스터(운영자) 계정은 순위에서 뺀다
+    return (await store.topOmok(n + 20)).filter((u) => !isMasterName(u.username)).slice(0, n).map((u, i) => ({ rank: i + 1, nickname: u.nickname, username: u.username, rating: u.stats.omok.rating, games: u.stats.omok.games, wins: u.stats.omok.wins, tier: tierOf(u.stats.omok.rating), isMaster: isMasterName(u.username) }));
   }
 
   // ── 플랫폼(출석·마스터 관리)용 작은 도우미 — 실제 기능은 server/site.js · server/admin.js ──

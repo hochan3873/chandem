@@ -156,7 +156,7 @@ export function weeklyEntry(lb, wi) {
 
 // ─── 미션 · 업적 ──────────────────────────────────────
 // 진행 키: clears(스테이지 클리어) skills bosses kills perfects star3 weeklies endless pulls enhances dailyDone
-export const CNT_KEYS = ['clears', 'skills', 'bosses', 'kills', 'perfects', 'star3', 'weeklies', 'endless', 'pulls', 'enhances', 'dailyDone', 'legends'];
+export const CNT_KEYS = ['clears', 'skills', 'bosses', 'kills', 'perfects', 'star3', 'weeklies', 'endless', 'pulls', 'enhances', 'dailyDone', 'legends', 'enhTry'];
 export const DAILY_POOL = [
   { id: 'clear3', icon: '🗺️', name: '스테이지 3판 클리어', key: 'clears', n: 3, coins: 150, sp: 25 },
   { id: 'skill15', icon: '✨', name: '스킬 15번 쓰기', key: 'skills', n: 15, coins: 120, sp: 20 },
@@ -361,7 +361,7 @@ export const cardsNeed = (h) => (LEGEND_HEROES.includes(h) ? UNLOCK_CARDS.legend
 export const GACHA_RATES = [ // 확률 공개 (%)
   { k: 'legendHero', w: 0.3, name: '전설 카드 묶음 ×15 (이호찬)', color: '#ffcf3f' },
   { k: 'legendCard', w: 1, name: '전설 카드 ×1 (이호찬)', color: '#ffdf80' },
-  { k: 'epicHero', w: 3, name: '영웅 카드 묶음 ×4 (윤준서 · 배현경 · 고아라)', color: '#c77dff' },
+  { k: 'epicHero', w: 3, name: '영웅 카드 묶음 ×4 (모집 멤버 7명 중)', color: '#c77dff' },
   { k: 'epicCard', w: 8, name: '영웅 카드 ×1', color: '#d9a8ff' },
   { k: 'legendGear', w: 1.5, name: '전설 장비', color: '#ffb400' },
   { k: 'epicGear', w: 7.2, name: '영웅 장비', color: '#c77dff' },
@@ -370,7 +370,7 @@ export const GACHA_RATES = [ // 확률 공개 (%)
   { k: 'shard4', w: 45, name: '멤버 조각 ×4', color: '#9fb3c8' },
 ];
 const EPIC_PLUS = ['legendHero', 'epicHero', 'legendGear', 'epicGear'];
-// 합류 전 카드 진행: { 윤준서: [7, 10] … }
+// 합류 전 카드 진행: { 육준서: [7, 10] … }
 export function cardProgress(lb, h) { return lb.owned && lb.owned[h] ? null : [Math.min(cardsNeed(h), (lb.shards || {})[h] | 0), cardsNeed(h)]; }
 export const DUP_SHARDS = { epicHero: 30, legendHero: 80 };
 export const legendOpen = (lb) => (lb.maxStage | 0) >= HOCHAN_GATE;
@@ -474,18 +474,26 @@ export function claimCheckin(lb, uid, now = Date.now()) {
   return { got: grant(lb, rw, uid, now), day: (st.streak % 7) + 1 };
 }
 
-// ─── 주말 모임 레이드: 금 18:00 ~ 일 24:00 (KST) · 모두의 피해를 합쳐 거대 보스 하나 ───
-export const RAID = { hp: 2500000, tries: 3, sec: 150, bosses: ['boss_soloparty', 'boss_union', 'boss_jusa', 'boss_otaku', 'boss_queenmom', 'boss_kkondol'] };
-export const raidOpenMs = (wi) => weekStartMs(wi) + 4 * DAY + 18 * 3600e3;
-export const raidEndMs = (wi) => weekStartMs(wi + 1);
+// ─── 모임 레이드: 하루 3번 (KST) · 모두의 피해를 합쳐 거대 보스 하나 ───
+// 하루 3번 (KST): 점심 12:00~13:30 · 오후 15:00~16:30 · 저녁 21:00~23:00 — 친구들이 실제로 노는 시간
+//  레이드 번호(wi) = 날짜 × 3 + 몇 번째 시간. 시간마다 보스 체력 · 보상 · 도전 횟수가 따로
+export const RAID_WINDOWS = [[12 * 60, 13 * 60 + 30, '점심'], [15 * 60, 16 * 60 + 30, '오후'], [21 * 60, 23 * 60, '저녁']];
+export const RAID = { hp: 900000, tries: 2, sec: 150, bosses: ['boss_soloparty', 'boss_union', 'boss_jusa', 'boss_otaku', 'boss_queenmom', 'boss_kkondol'] };
+const dayStartMs = (d) => EPOCH + d * DAY - KST;
+export const raidOpenMs = (ri) => dayStartMs(Math.floor(ri / 3)) + RAID_WINDOWS[((ri % 3) + 3) % 3][0] * 60e3;
+export const raidEndMs = (ri) => dayStartMs(Math.floor(ri / 3)) + RAID_WINDOWS[((ri % 3) + 3) % 3][1] * 60e3;
+// 열려 있으면 그 레이드, 아니면 다음 레이드 (wi - 1 = 방금 끝난 레이드)
 export function raidState(now = Date.now()) {
-  const wi = weekIndex(now);
-  const open = now >= raidOpenMs(wi) && now < raidEndMs(wi);
-  return { wi, open, opensAt: raidOpenMs(wi), endsAt: raidEndMs(wi), boss: RAID.bosses[((wi % RAID.bosses.length) + RAID.bosses.length) % RAID.bosses.length], hp: RAID.hp };
+  const d0 = dayIndex(now);
+  let ri = d0 * 3;
+  for (let k = 0; k < 6; k++) { const r = d0 * 3 + k; if (now < raidEndMs(r)) { ri = r; break; } }
+  const open = now >= raidOpenMs(ri) && now < raidEndMs(ri);
+  const n = RAID.bosses.length;
+  return { wi: ri, open, opensAt: raidOpenMs(ri), endsAt: raidEndMs(ri), slot: RAID_WINDOWS[((ri % 3) + 3) % 3][2], boss: RAID.bosses[((ri % n) + n) % n], hp: RAID.hp };
 }
 // 레이드 판: 거대 보스 (체력은 사실상 무한) + 20초마다 졸개. 150초 버티며 보스에게 준 피해가 기록
 export function raidDef(wi) {
-  const st = raidState(weekStartMs(wi) + 5 * DAY);
+  const st = raidState(raidOpenMs(wi) + 1000);
   const waves = [];
   for (let w = 1; w <= 8; w++) {
     const b = stageWave(35, 1 + ((w - 1) % 4));
@@ -502,17 +510,23 @@ export function raidCap(lb, dur) {
 }
 export function raidTriesLeft(lb, now = Date.now()) {
   const r = lb.raid;
-  const wi = weekIndex(now), day = dayIndex(now);
-  if (!r || r.wi !== wi || r.day !== day) return RAID.tries;
+  const wi = raidState(now).wi;
+  if (!r || r.wi !== wi) return RAID.tries;
   return Math.max(0, RAID.tries - (r.today | 0));
 }
-export function raidRecord(lb, dmg, now = Date.now()) {
-  const wi = weekIndex(now), day = dayIndex(now);
-  if (!lb.raid || lb.raid.wi !== wi) lb.raid = { wi, dmg: 0, runs: 0, day, today: 0, best: 0, claimed: false };
+// wi: 판을 시작한 레이드 (시간이 끝난 뒤 들어온 기록도 그 레이드로)
+export function raidRecord(lb, dmg, now = Date.now(), wi = raidState(now).wi) {
+  if (!lb.raid || lb.raid.wi !== wi) lb.raid = { wi, dmg: 0, runs: 0, day: dayIndex(now), today: 0, best: 0, claimed: false };
   const r = lb.raid;
-  if (r.day !== day) { r.day = day; r.today = 0; }
   r.today++; r.runs++; r.dmg += dmg; r.best = Math.max(r.best, dmg);
   return r;
+}
+// 로비 표시: "지금 열림!" 또는 다음 레이드까지 남은 시간
+export function raidLabel(now = Date.now()) {
+  const st = raidState(now);
+  if (st.open) return { open: true, text: `지금 열림! ${Math.ceil((st.endsAt - now) / 60000)}분 남음` };
+  const m = Math.ceil((st.opensAt - now) / 60000);
+  return { open: false, text: m >= 60 ? `${st.slot} ${Math.floor(m / 60)}시간 ${m % 60}분 뒤` : `${st.slot} ${m}분 뒤` };
 }
 // 보상: 잡으면 모두 (기여도 순위 보너스) · 못 잡으면 준 피해 비율만큼
 export function raidReward(myDmg, total, rank, killed) {

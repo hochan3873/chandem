@@ -123,31 +123,81 @@ test('마스터 테스트 도구: 서버가 아이디로 확인 · 올클리어 
   assert.equal(me.profile.master, true);
   const rk = await get('/api/langbang/ranking?mode=stage');
   assert.ok(!rk.ranking.some((x) => x.username === 'gun8401'), '마스터는 스테이지 랭킹에 안 나옴');
+  // 주간 · 레이드 · 대전 순위에도 마스터는 없다 (저장된 기록이 있어도 숨김)
+  const mu = await srv.accounts.store.byName('gun8401');
+  const L2 = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  const wi = L2.weekIndex(), ri = L2.raidState().wi;
+  mu.stats.langbang.weekly = { wi, best: 99999, runs: 1 };
+  mu.stats.langbang.raid = { wi: ri, dmg: 123456, runs: 1, today: 1, best: 123456 };
+  mu.stats.langbang.pvp = { rating: 3000, games: 5, wins: 5 };
+  await srv.accounts.store.saveStats(mu.id, mu.stats);
+  assert.equal(await srv.accounts.store.countWeekly(wi), 0, '주간 순위에 마스터 없음');
+  assert.equal(await srv.accounts.store.raidTotal(ri), 0, '레이드 합계에 마스터 없음');
+  const pr = await get('/api/langbang/pvp/ranking');
+  assert.ok(!pr.ranking.some((x) => x.username === 'gun8401'), '대전 순위에 마스터 없음');
   r = await post('/api/langbang/master', m.token, { action: 'reset' });
   assert.equal(r.profile.maxStage, 0);
-  assert.equal(r.profile.coins, 0);
+  assert.equal(r.profile.unlimited, true, '마스터는 코인 ∞');
+  assert.equal(r.profile.coins, 1e9);
+  r = await post('/api/langbang/master', m.token, { action: 'allclear' });
+  const g0 = r.profile.gear[0];
+  const e1 = await post('/api/langbang/gear/enhance', m.token, { id: g0.id });
+  assert.equal(e1.ok, true, e1.message);
+  assert.equal(e1.success, true, '마스터 강화는 항상 성공');
+  assert.equal(e1.profile.coins, 1e9, '코인 안 줄어듦');
+  const pull = await post('/api/langbang/gacha', m.token, { n: 10, pay: 'coin' });
+  assert.equal(pull.ok, true, pull.message);
+  assert.equal(pull.profile.coins, 1e9);
+  r = await post('/api/langbang/master', m.token, { action: 'reset' });
   assert.equal(r.profile.deckSlots, 4, '초기화하면 4칸');
 });
 
-test('레이드 공식: 금 18:00 ~ 일 24:00 · 하루 3번 · 피해 상한 · 보상', async () => {
+test('레이드 공식: 매일 3번 (12:00~13:30 · 15:00~16:30 · 21:00~23:00 KST) · 레이드마다 도전 · 피해 상한 · 보상', async () => {
   const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
-  const wi = 3;
-  const fri17 = L.weekStartMs(wi) + 4 * L.DAY + 17 * 3600e3, fri18 = fri17 + 3600e3;
-  assert.equal(L.raidState(fri17).open, false);
-  assert.equal(L.raidState(fri18).open, true);
-  assert.equal(L.raidState(L.weekStartMs(wi + 1) - 1000).open, true, '일요일 밤까지');
+  const day = L.EPOCH - L.KST + 10 * L.DAY; // 어느 날 00:00 (KST)
+  const at = (h, m = 0) => day + (h * 60 + m) * 60e3;
+  assert.equal(L.raidState(at(11, 59)).open, false);
+  const a = L.raidState(at(12, 0)), b = L.raidState(at(15, 30)), c = L.raidState(at(22, 59));
+  assert.ok(a.open && b.open && c.open, '세 시간 모두 열림');
+  assert.ok(a.wi !== b.wi && b.wi !== c.wi, '시간마다 다른 레이드');
+  assert.equal(L.raidState(at(13, 31)).open, false, '점심 끝');
+  assert.equal(L.raidState(at(13, 31)).wi, b.wi, '닫혀 있으면 다음 레이드');
+  assert.equal(L.raidState(at(23, 30)).wi, a.wi + 3, '밤 끝나면 다음 날 점심');
+  assert.equal(L.raidLabel(at(12, 10)).open, true);
+  assert.match(L.raidLabel(at(14, 0)).text, /오후 1시간 0분 뒤|오후 60분 뒤/);
   const lb = {};
-  for (let i = 0; i < 3; i++) L.raidRecord(lb, 1000, fri18 + i);
-  assert.equal(L.raidTriesLeft(lb, fri18 + 10), 0, '하루 3번');
-  assert.equal(L.raidTriesLeft(lb, fri18 + L.DAY), 3, '다음 날 다시');
-  assert.equal(lb.raid.dmg, 3000);
+  for (let i = 0; i < L.RAID.tries; i++) L.raidRecord(lb, 1000, at(12, 5) + i);
+  assert.equal(L.raidTriesLeft(lb, at(12, 30)), 0, '레이드마다 도전 횟수');
+  assert.equal(L.raidTriesLeft(lb, at(15, 5)), L.RAID.tries, '다음 레이드는 다시');
+  L.raidRecord(lb, 500, at(13, 35), a.wi);
+  assert.equal(lb.raid.dmg, 1000 * L.RAID.tries + 500, '끝난 뒤 들어온 기록도 그 레이드로');
   const weak = L.raidCap({ maxStage: 5, heroes: {} }, 150), strong = L.raidCap({ maxStage: 60, heroes: { staff: 20, gunman: 20 } }, 150);
   assert.ok(strong > weak * 5, '성장할수록 상한이 크다');
   assert.ok(L.raidCap({ maxStage: 60, heroes: {} }, 9999) === L.raidCap({ maxStage: 60, heroes: {} }, 165), '시간은 165초까지만');
-  const k = L.raidReward(500000, 2500000, 1, true), p = L.raidReward(100000, 1000000, 3, false);
+  const k = L.raidReward(500000, 900000, 1, true), p = L.raidReward(100000, 400000, 3, false);
   assert.ok(k.tickets >= 5 && k.title === 'raid1');
   assert.ok(p.coins > 0 && p.coins < k.coins);
   const bd = await get('/api/langbang/raid');
   assert.equal(bd.ok, true);
   assert.equal(bd.hp, L.RAID.hp);
+});
+
+test('장비 강화 +1~+10: +3까지는 무조건 · 그 뒤로 확률 (실패해도 장비·레벨 그대로, 비용만) · 서버 판정 · 마스터는 공짜 · 무한 코인', async () => {
+  const R = require('../server/langbang-rules');
+  assert.deepEqual([0, 1, 2].map(R.gearEnhanceChance), [1, 1, 1]);
+  assert.ok(R.gearEnhanceChance(3) >= 0.85 && Math.abs(R.gearEnhanceChance(9) - 0.4) < 1e-9 && R.gearEnhanceChance(10) === 0);
+  const u = await user('enhuser');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { coins: 1e6, gear: [{ id: 1, t: 'megaphone', r: 'epic', lv: 6 }], gearSeq: 1, maxStage: 5, stages: { 1: 3 } });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  let ok = 0, fail = 0, coins = 1e6;
+  for (let i = 0; i < 40 && !(ok && fail); i++) {
+    const r = await post('/api/langbang/gear/enhance', u.token, { id: 1 });
+    assert.equal(r.ok, true, r.message);
+    const it = r.profile.gear.find((g) => g.id === 1);
+    if (r.success) ok++; else { fail++; assert.equal(it.lv, r.lv, '실패해도 레벨 그대로'); }
+    assert.ok(r.profile.coins < coins, '비용은 든다'); coins = r.profile.coins;
+    if (it.lv >= 10) { const s2 = await srv.accounts.store.byId(u.user.id); s2.stats.langbang.gear[0].lv = 6; await srv.accounts.store.saveStats(u.user.id, s2.stats); } // +10 이면 다시 +6 으로 (실패도 보려고)
+  }
+  assert.ok(ok > 0 && fail > 0, `성공 ${ok} · 실패 ${fail}`);
 });

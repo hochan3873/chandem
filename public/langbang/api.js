@@ -4,7 +4,7 @@
 import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
   metaCost, itemCost, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen, metaMaxOf,
-  GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearSellValue, rollDrops, gearStats, stageBosses,
+  GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearEnhanceChance, gearSellValue, rollDrops, gearStats, stageBosses,
 } from './data.js';
 import * as L from './live.js';
 
@@ -134,6 +134,7 @@ export async function postStage(sum, guest) {
     const perfect = !hell && sum.stars === 3 && !!sum.perfect;
     const firstPerfect = perfect && !p.perfects[sum.stage];
     const reward = hell ? hellReward(sum.stage, sum.stars, prev, p.items.coupon) : stageReward(sum.stage, sum.stars, prev, p.items.coupon, perfect, firstPerfect);
+    if ((sum.heroesUsed || []).includes('sanghwa') && heroUnlocked(p, 'sanghwa')) { const x = Math.round(reward.total * 0.12); reward.total += x; reward.sanghwa = x; } // 박상화: 코인 +12%
     const q = Object.assign({}, p, { coins: p.coins + reward.total, runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
     if (hell) q.hell = Object.assign({}, p.hell, { [sum.stage]: Math.max(prev, sum.stars) });
     else q.stages = Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) });
@@ -267,7 +268,8 @@ export async function enhanceGear(id, guest) {
       if (!it) return { error: '없는 장비예요' };
       const cost = gearEnhanceCost(it.r, it.lv);
       if (cost === null) return { error: '이미 최대 강화예요' };
-      return { cost, apply: (x) => { x.gear.find((g) => g.id === id).lv++; L.bump(x, 'enhances', 1, GUEST_UID, Date.now()); } };
+      const chance = gearEnhanceChance(it.lv), ok = Math.random() < chance;
+      return { cost, extra: { success: ok, chance }, apply: (x) => { if (ok) { x.gear.find((g) => g.id === id).lv++; L.bump(x, 'enhances', 1, GUEST_UID, Date.now()); } } };
     });
   }
   const r = await call('/api/langbang/gear/enhance', { id });

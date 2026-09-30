@@ -194,7 +194,7 @@ export const STAGE = {
   themeThug: 3,
   deckHp: [2.9, 2.3, 1.9, 1.8, 1.8, 1.8], // 덱(5명) 보정: 적 체력 배율 (챕터별 — 뒤로 갈수록 강화·장비가 쌓이니 조금씩 덜)
   deckCount: 1.45, // 덱 보정: 적 수 배율
-  hpTune: [1.0, 1.4, 1.9, 1.0, 1.25, 1.5], // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
+  hpTune: [1.0, 1.4, 1.9, 1.15, 1.25, 1.5], // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
   stageAdd: {3: 2, 4: 3, 5: 0.4, 6: -0.5, 8: 5, 9: -6, 10: 3.75, 11: 5, 12: 4, 13: 9, 14: 9.5, 15: -6, 16: 3.5, 17: 3.25, 18: 3, 19: -0.9, 20: -0.3, 22: 6, 25: 6, 26: 1.7, 27: 2, 28: -6, 29: -9.5, 30: 3.5, 31: -7, 33: -1.6, 34: -3.6, 35: 6, 36: -3, 37: 3.5, 39: -0.6, 40: 3.1, 41: -1.5, 42: -1, 43: -6, 45: 2, 46: 3.5, 48: -2, 50: -2, 51: -3.2, 52: -1, 53: 3.5, 55: 9, 56: -2.6, 59: 3}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
@@ -537,6 +537,12 @@ export function recommendAttrs(s) {
 // ─── 영웅 ──────────────────────────────────────────────
 // dmg: 1발 피해, interval: 공격 간격(초), range: 사거리(영웅마다 다름), proj: 공격 방식
 // attr: 속성, attack: 기본 공격 한 줄 설명, skill: 액티브 스킬 (스킬 바에서 누른다)
+// 그림 준비 상태: 아직 없는 그림은 요청하지 않는다 (404 없게) — 그림이 들어오면 여기 이름만 추가
+const ART_READY = new Set(['h_jungmin', 'h_junyoung', 'h_soyoung', 'h_jieun', 'h_jieun_demon', 'h_sanghwa']);
+const ART = (n) => (ART_READY.has(n) ? `/img/lb/${n}.webp` : '');
+export const NO_DEX_ART = new Set(['soyoung', 'jieun', 'jieun_demon', 'sanghwa', 'jungmin', 'junyoung']); // dex/<id>.webp 없음
+export const NO_HQ_ART = new Set(['junyoung']); // dexhq/<id>.webp 없음
+export const NO_DUO_ART = new Set([]); // dexhq/<id>_duo.webp 없음
 export const HEROES = {
   bangjang: {
     id: 'bangjang', bossKit: 1, kit: 1, name: '방장', gender: 'm', emoji: '📢', color: '#f6b73c', attr: 'talk',
@@ -664,11 +670,11 @@ export const HEROES = {
     attack: '지팡이 — 자기 줄 위로 아주 길게, 그 줄 진상 전부 관통',
     desc: '"요즘 것들은…" 지팡이를 던지면 한 줄에 있는 놈들이 전부 맞는다.',
     perks: { 3: '지팡이가 부메랑처럼 돌아온다', 5: '지팡이 2개 · 공격 속도 +15%' },
-    skill: { id: 'whirl', name: '지팡이 회오리', cd: 22, desc: '지팡이 7개를 부채꼴로 던진다', n: [7, 7, 9, 9, 11] },
+    skill: { id: 'blackhole', name: '지팡이 블랙홀', cd: 22, desc: '가장 몰린 곳에 거대한 지팡이를 꽂아 소용돌이 — 2초 동안 빨아들이며 따끔따끔, 마지막에 쾅! (모아서 한 방 · 1초 기절)', r: [95, 95, 105, 105, 120], sec: 2, tick: 0.3, boom: [3.2, 3.2, 3.6, 3.6, 4.2] },
   },
   // ── 모집(뽑기)으로만 만나는 멤버 ──
   junseo: {
-    id: 'junseo', bossKit: 0.8, kit: 1.05, name: '윤준서', gender: 'm', emoji: '😍', color: '#ff7fb0', gacha: true, attr: 'charm',
+    id: 'junseo', bossKit: 0.8, kit: 1.05, name: '육준서', gender: 'm', emoji: '😍', color: '#ff7fb0', gacha: true, attr: 'charm',
     img: '/img/lb/h_junseo.webp', role: '여사친 핀볼 · 밀어내기',
     dmg: 32, interval: 1.25, range: 385, proj: 'gf', projSpeed: 560, ricochet: [3, 3, 4, 4, 4], ricoR: 150, ricoDecay: 0.88, kb: [22, 22, 26, 26, 30],
     attack: '여사친 소환 — 동글동글 여사친을 진상에게 밀어 넣으면 3~4명 사이를 핀볼처럼 튕기며 밀어내고 돌아온다',
@@ -703,13 +709,72 @@ export const HEROES = {
   hochan: {
     id: 'hochan', bossKit: 1.15, kit: 1.25, name: '이호찬', gender: 'm', emoji: '👑', color: '#ffcf3f', legend: true, gacha: true, attr: 'talk',
     img: '/img/lb/h_hochan.webp', role: 'LEGEND · 랑방 방장 · 황금 파동',
-    dmg: 64, interval: 2.2, range: 640, proj: 'crown', lane: 46, waveW: [40, 40, 46, 46, 52], projSpeed: 520,
+    dmg: 50, interval: 2.2, range: 640, proj: 'crown', lane: 46, waveW: [40, 40, 46, 46, 52], projSpeed: 520,
     buff: { per: 0.03, max: 0.24, sec: [3, 3, 4, 4, 4] }, // 맞힌 진상 1명마다 아군 공격력 +3% (최대 +24%)
     attack: '랑방을 위하여! — 느린 박자로 자기 줄 전체를 휩쓰는 황금 파동. 맞힐 때마다 아군 공격력 ↑ · 줄 안 진상 버프 하나 벗김',
-    desc: '랑방의 진짜 방장. 금빛 확성기로 "랑방을 위하여!" 외치면 한 줄이 통째로 정리되고, 멤버들은 힘이 난다.',
+    desc: '랑방의 진짜 방장. 금빛 확성기로 "랑방을 위하여!" 외치면 한 줄이 통째로 정리되고, 멤버들은 힘이 난다. (누가 봐도 사기캐 — 1:1 대전에선 힘 ×0.7)',
     perks: { 3: '파동이 더 넓고 버프가 오래', 5: '파동이 한 번 더 울린다 (메아리)' },
     skill: { id: 'forlangbang', name: '랑방을 위하여!!', cd: 24, desc: '세 줄에 황금 파동 + 모든 멤버 공격력 +40% (5초)', sec: [5, 5, 6, 6, 7], atk: [0.4, 0.4, 0.45, 0.45, 0.5] },
     shouts: ['랑방을 위하여!', '방장 왔다!', '다들 모여!', '여긴 내가 지킨다'],
+  },
+  // ─── 새 멤버 4명 (모집 · 카드 10장) ───
+  soyoung: {
+    id: 'soyoung', bossKit: 0.95, kit: 1.05, name: '정소영', gender: 'f', emoji: '🗯️', color: '#ff8fb1', gacha: true, attr: 'talk',
+    img: ART('h_soyoung'), role: '소환사 · 잔소리 게이지 → 성준영 소환',
+    dmg: 30, interval: 0.95, range: 375, proj: 'nag', projSpeed: 520,
+    nag: { perHit: [9, 9, 10, 10, 12], sec: [10, 10, 12, 12, 14] }, // 잔소리 한 번에 게이지 +% · 성준영이 버티는 시간
+    attack: '잔소리 말풍선 — 맞힐 때마다 "잔소리 게이지"가 차고, 가득 차면 성준영을 불러낸다',
+    desc: '"그러니까 내가 뭐랬어!" 잔소리가 쌓이면 어디선가 성준영이 끌려 나온다. 둘이 같이 있으면 진상들이 더 괴롭다.',
+    perks: { 3: '게이지가 더 빨리 · 성준영이 더 오래', 5: '성준영 올인! 폭발이 더 커진다' },
+    skill: { id: 'nagbomb', name: '잔소리 폭격', cd: 21, desc: '찍은 곳에 잔소리 폭탄 (느려짐) + 잔소리 게이지 가득', target: true, r: [95, 95, 110, 110, 125], mul: 3.2 },
+    shouts: ['그러니까 내가 뭐랬어!', '준영아 나와!', '한 번만 더 말한다?'],
+  },
+  jieun: {
+    id: 'jieun', bossKit: 1.0, kit: 1.05, name: '오지은', gender: 'f', emoji: '🕰️', color: '#b48cff', gacha: true, attr: 'charm',
+    img: ART('h_jieun'), imgAlt: ART('h_jieun_demon'), role: '시간 · 감속 전문 · 공격할 땐 악마 모드',
+    dmg: 55, interval: 1.02, range: 405, proj: 'tick', projSpeed: 560, slow: 0.35, slowSec: 1.6,
+    demon: { sec: 0.55 }, // 공격하는 순간 무서운 모습으로
+    attack: '째깍 시계침 — 맞은 진상은 느려진다. 공격하는 순간 순한 얼굴이 악마로…',
+    desc: '보브컷의 순한 막내. 그런데 공격만 하면 눈빛이 변한다. "…시간아 멈춰라."',
+    perks: { 3: '감속이 더 길게', 5: '시간 정지가 더 넓고 길게' },
+    skill: { id: 'timestop', name: '시간 정지', cd: 23, desc: '넓은 범위 진상을 크게 느리게 (보스는 조금만) · 그동안 악마 모드', target: true, r: [200, 200, 220, 220, 250], sec: [4, 4, 4.5, 4.5, 5.5], slow: 0.35 },
+    shouts: ['시간아 멈춰라…', '헤헤♡', '…도망 못 가.'],
+  },
+  sanghwa: {
+    id: 'sanghwa', bossKit: 1.05, kit: 1.0, name: '박상화', gender: 'm', emoji: '😊', color: '#ffc36b', gacha: true, attr: 'power',
+    img: ART('h_sanghwa'), role: '성장 · 경제 · 판이 길수록 강해진다',
+    dmg: 38, interval: 1.08, range: 415, proj: 'rose', projSpeed: 620,
+    grow: { perWave: 0.05, perKill: 0.002, max: 0.45, exp: 0.5, coin: 0.12 }, // 웨이브마다 +5% · 처치마다 +0.2% (최대 +45%) · 잡은 진상 경험치 +50% · 클리어 코인 +12%
+    attack: '매너 장미 — 똑바로 날아가 콕. 판이 길어질수록 점점 세지고, 잡은 진상은 경험치를 더 준다',
+    desc: '앞머리 살짝 가르마 펌, 작은 눈에 예쁜 미소. 오래 있을수록 점점 더 멋있어지는 남자. 클리어 코인 +12%.',
+    perks: { 3: '성장 한도 +10%', 5: '경험치 보너스 +25%' },
+    skill: { id: 'goodman', name: '좋은남자 박상화!', cd: 20, desc: '모든 멤버 공격력 +25% (5초) + 성장 게이지 한 번에 +10%', sec: [5, 5, 6, 6, 7], atk: [0.25, 0.25, 0.3, 0.3, 0.35] },
+    lines: ['좋은남자 박상화!', '끝내주는남자 박상화!', '매너남 박상화!', '다정한남자 박상화!', '능력남 박상화!', '센스쟁이 박상화!', '완벽한남자 박상화!'],
+    shouts: ['좋은남자 박상화!', '끝내주는남자 박상화!'],
+  },
+  jungmin: {
+    id: 'jungmin', bossKit: 0.8, kit: 0.9, name: '홍정민', gender: 'm', emoji: '🩹', color: '#7fd88f', gacha: true, attr: 'booze',
+    img: ART('h_jungmin'), role: '수리공 · 붕대로 입구 고치기',
+    dmg: 24, interval: 1.2, range: 265, proj: 'tap', projSpeed: 480,
+    repair: { every: 3.0, pct: [0.028, 0.028, 0.032, 0.032, 0.04] }, // 3.2초마다 입구 최대 내구도의 % 수리
+    attack: '거꾸로 든 소주병 — 약하게 툭. 대신 틈틈이 붕대를 떼어 입구에 탁탁 붙인다',
+    desc: '짧은 머리, 험한 눈매, 눈가에 소주병 흉터와 붕대. 무섭게 생겼는데 제일 먼저 입구를 고친다.',
+    perks: { 3: '수리량 +20%', 5: '수리할 때 멤버 상태이상도 하나 풀기' },
+    skill: { id: 'bandage', name: '붕대 대공사', cd: 24, desc: '입구 크게 수리 + 잠깐 입구가 받는 피해 -35%', heal: [0.16, 0.16, 0.19, 0.19, 0.23], sec: [6, 6, 7, 7, 8], armor: 0.35 },
+    shouts: ['가만있어 봐, 붙여 줄게.', '이 정도는 금방이지.', '어디 또 깨졌냐?'],
+  },
+};
+// 소환 멤버 (덱 · 모집 · 도감 목록에는 없다): 정소영이 부르는 성준영
+export const SUMMONS = {
+  junyoung: {
+    id: 'junyoung', summon: true, bossKit: 1, kit: 1, name: '성준영', gender: 'm', emoji: '🃏', color: '#9fd4ff', attr: 'talk',
+    img: ART('h_junyoung'), role: '소환 · 홀덤 칩과 카드 던지기',
+    dmg: 20, interval: 0.5, range: 360, proj: 'chip', projSpeed: 600,
+    allin: { r: 90, mul: 5 }, // 사라질 때 "올인!" 작은 폭발 (피해 = 한 발 × 5)
+    attack: '홀덤 칩 · 카드 — 빠르게 휙휙 던진다. 사라질 때 "올인!"',
+    desc: '비실비실해 보이지만 칩 던지는 손목은 프로. 소영이 부르면 어쩔 수 없이 나온다.',
+    perks: { 3: '-', 5: '-' },
+    shouts: ['올인!', '콜!', '레이즈!', '아 왜 또 불러…'],
   },
 };
 // ─── 멤버 등급(티어): 늦게 만나는 멤버일수록 기본이 세다 · 초반 멤버는 강화 한도가 낮다 ───
@@ -720,6 +785,7 @@ export const HERO_TIER = {
   hanna: 3, donghan: 3, sunggu: 3, youngjun: 3,
   junseo: 4, hyungyeong: 4, ara: 4,
   hochan: 5,
+  soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, junyoung: 3,
 };
 // 티어: 늦게 만나는 멤버일수록 기본이 세고(공격력 · 공격 속도) 성장은 완만 — 초반 멤버는 성장형
 //  강화 0: T4 ≈ T1 × 1.6 · 강화 최대(20): T1 ≈ T4 × 0.85
@@ -727,6 +793,8 @@ export const TIER_MUL = [1, 1, 1.154, 1.308, 1.455, 1.652]; // 기본 공격력 
 export const TIER_SPD = [1, 1, 1.04, 1.07, 1.1, 1.12]; // 기본 공격 속도 배율
 export const TIER_GROWTH = [0.08, 0.086, 0.07, 0.059, 0.05, 0.045]; // 강화 1레벨당 공격력
 export const TIER_MAX = [20, 20, 20, 20, 20, 20]; // 영구 강화 한도
+export const RES_PER_META = 0.015, RES_MAX = 0.35; // 영구 강화 1레벨 = 상태이상(기절 · 홀림 · 감속 등) 시간 -1.5% (장비와 합쳐 최대 -35%)
+export const resOf = (meta, gearRes) => Math.min(RES_MAX, (meta || 0) * RES_PER_META + (gearRes || 0));
 export const tierPower = (t, meta) => TIER_MUL[t] * TIER_SPD[t] * (1 + TIER_GROWTH[t] * meta);
 export const TIER_NAME = ['', 'T1', 'T2', 'T3', 'T4', 'LEGEND'];
 export const heroTier = (id) => HERO_TIER[id] || 1;
@@ -734,7 +802,7 @@ export const metaMaxOf = (id) => TIER_MAX[heroTier(id)];
 export const BASE_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
 export const UNLOCK_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun']; // 스테이지를 깨면 합류하는 일반 영웅
 export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu'];
-export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara']; // 모집(뽑기) 영웅 등급
+export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin']; // 모집(뽑기) 영웅 등급
 export const LEGEND_HEROES = ['hochan']; // 모집 전설 (마지막 스테이지를 깨야 모집에 나온다)
 export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; // 해금이 필요한 영웅 전부
 // 같이 출전하는 동료 수: 1챕터 1명, 1-10 을 깨면(2챕터부터) 2명
@@ -1234,16 +1302,21 @@ export const HERO_CARDS = {
   eunok: { title: '최은옥: 분노 +4초', add: { rage: 4 } },
   hanna: { title: '이한나: 레이저 세지는 속도 +50%', mul: { ramp: 1.5 } },
   sunggu: { title: '강성구: 지팡이 +1개', add: { cane: 1 } },
-  junseo: { title: '윤준서: 여사친 튕김 +1', add: { bounce: 1 } },
+  junseo: { title: '육준서: 여사친 튕김 +1', add: { bounce: 1 } },
   hyungyeong: { title: '배현경: 날씬 모드 +3초', add: { diet: 3 } },
   ara: { title: '고아라: 공주로 +5초 더', add: { young: 5 } },
   hochan: { title: '이호찬: 랑방 버프 최대 +12%', add: { buff: 0.12 } },
+  soyoung: { title: '정소영: 잔소리 게이지 +30% · 성준영 +3초', add: { nag: 3 }, mul: { nagFill: 1.3 } },
+  jieun: { title: '오지은: 감속 +15%p · 1초 더', add: { slowX: 0.15, slowSec: 1 } },
+  sanghwa: { title: '박상화: 성장 한도 +15%', add: { growMax: 0.15 } },
+  jungmin: { title: '홍정민: 수리 +40%', mul: { heal: 1.4 } },
 };
 // 스킬 진화 카드 (Lv3 이상 멤버 · 한 번): 스킬이 한 번 더 터진다 (0.5초 뒤, 옆자리에)
 export const SKILL_EVO = {
   bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '난사 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
   dohoon: '무한 앵콜 앵콜', ingyu: '오토바이 부대 한 번 더', donghan: '진심 빔 두 줄', youngjun: '블랙 러시 왕복', eunok: '원샷 두 잔',
-  hanna: '윙크 폭탄 연쇄', sunggu: '지팡이 회오리 두 바퀴', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
+  hanna: '윙크 폭탄 연쇄', sunggu: '지팡이 블랙홀 두 개', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
+  soyoung: '잔소리 폭격 2연발', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더',
 };
 // 숨은 카드 (드물게): 임시 증원 · 게스트 합류 — 한 판에 한 번
 export const SECRET = { tempSlot: 0.045, guest: 0.035 };
@@ -1256,6 +1329,7 @@ export const HERO_TAGS = {
   bangjang: ['kb', 'ctrl'], staff: ['ctrl'], gunman: ['pierce', 'boss'], gunnyeo: ['splash', 'heal'], myunghoon: ['chain', 'ctrl'], dohoon: ['heal', 'ctrl'],
   ingyu: ['splash', 'kb'], donghan: ['pierce', 'splash'], youngjun: ['boss'], eunok: ['splash'], hanna: ['kb', 'boss'], sunggu: ['pierce'],
   junseo: ['chain', 'kb'], hyungyeong: ['splash', 'kb'], ara: ['boss', 'splash'], hochan: ['pierce', 'ctrl'],
+  soyoung: ['splash', 'ctrl'], jieun: ['ctrl'], sanghwa: ['boss'], jungmin: ['heal'],
 };
 // 같은 속성 멤버 n명 → 그 멤버들 공격력 + (TFT 처럼)
 export const ATTR_SET = [0, 0, 0.12, 0.22, 0.34, 0.44, 0.52];
@@ -1265,6 +1339,7 @@ export const EVO = {
   myunghoon: { tag: 'chain', name: '구미호 욕신' }, dohoon: { tag: 'heal', name: '전국 투어' }, ingyu: { tag: 'kb', name: '3대 700' }, donghan: { tag: 'splash', name: '각성한 간보기' },
   youngjun: { tag: 'boss', name: '검은 표범 왕' }, eunok: { tag: 'splash', name: '폭탄주 여왕' }, hanna: { tag: 'kb', name: '윙크 여신' }, sunggu: { tag: 'pierce', name: '지팡이 달인' },
   junseo: { tag: 'chain', name: '인맥왕' }, hyungyeong: { tag: 'kb', name: '다이어트 챔피언' }, ara: { tag: 'boss', name: '여왕 폐하' }, hochan: { tag: 'ctrl', name: '랑방의 전설' },
+  soyoung: { tag: 'ctrl', name: '잔소리 대마왕' }, jieun: { tag: 'ctrl', name: '시간의 마녀' }, sanghwa: { tag: 'boss', name: '완벽한남자' }, jungmin: { tag: 'heal', name: '붕대 장인' },
 };
 export const EVO_MUL = { dmg: 1.45, spd: 0.18, cd: 0.7 };
 // 뽑을 게 모자랄 때 채워 넣는 카드 (제한 없음)
@@ -1287,6 +1362,7 @@ export const GEAR_STATS = {
   skill: { name: '스킬 피해', pct: true }, cd: { name: '스킬 쿨타임 감소', pct: true }, attr: { name: '상성 피해', pct: true },
   strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true },
   range: { name: '사거리 (최대 +35%)', pct: true },
+  res: { name: '상태이상 시간 감소', pct: true },
 };
 export const GEAR = {
   megaphone: { id: 'megaphone', slot: 'w', icon: '📣', name: '명품 확성기', stat: 'atk', base: 0.06 },
@@ -1310,6 +1386,7 @@ export const GEAR = {
   guitar: { id: 'guitar', slot: 'w', icon: '🎸', name: 'MT 통기타', stat: 'skill', base: 0.11, ch: 5 },
   santahat: { id: 'santahat', slot: 'a', icon: '🎅', name: '산타 모자', stat: 'cd', base: 0.055, ch: 6 },
   champagne: { id: 'champagne', slot: 'w', icon: '🥂', name: '샴페인 잔', stat: 'atk', base: 0.065, ch: 6 },
+  hangover: { id: 'hangover', slot: 'a', icon: '💊', name: '숙취해소 부적', stat: 'res', base: 0.06 },
 };
 export const GEAR_IDS = Object.keys(GEAR);
 // 이 스테이지에서 떨어지는 장비 (새 세트는 그 챕터부터)
@@ -1323,8 +1400,11 @@ export function gearValue(t, r, lv) {
 }
 export function gearEnhanceCost(r, lv) {
   if (lv >= GEAR_MAX_LV) return null;
-  return Math.round((80 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 1.3)) / 10) * 10;
+  return Math.round((80 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 1.45)) / 10) * 10;
 }
+// 강화 성공 확률 (+1~+3 는 무조건 · 그 뒤로 90% → +10 은 40%). 실패해도 장비는 안 깨지고 레벨도 안 내려간다 — 비용만
+export const GEAR_SUCCESS = [1, 1, 1, 0.9, 0.82, 0.74, 0.66, 0.57, 0.48, 0.4];
+export function gearEnhanceChance(lv) { return lv >= GEAR_MAX_LV ? 0 : GEAR_SUCCESS[lv]; }
 export function gearSellValue(r, lv) { return Math.round(40 * GEAR_RARITY[r].mul * (1 + (lv || 0) * 0.5)); }
 // 시드 난수 (mulberry32)
 export function seedRng(seed) {

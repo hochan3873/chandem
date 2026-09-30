@@ -368,7 +368,7 @@ function seeded(seed = 1) {
     const kinds = [['좋은 팀+스킬', true, true], ['좋은 팀', true, false], ['나쁜 팀', false, false]].slice(0, process.argv.includes('--onlygood') ? 1 : 3);
     const ht = (process.argv.find((x) => x.startsWith('--hptune=')) || '').slice(9);
     if (ht) D.STAGE.hpTune = ht.split(',').map(Number);
-    const per = {}; const curve = [];
+    const per = {}; const curve = []; const picks = {}; let teams = 0;
     const only = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
     for (let s = 1; s <= D.STAGE_COUNT; s++) {
       if (only.length && !only.includes(s)) continue;
@@ -377,13 +377,14 @@ function seeded(seed = 1) {
       const row = [];
       for (const [k, best, sk] of kinds) {
         const team = teamFor(s, best);
+        if (best && sk) { teams++; for (const id of team) picks[id] = (picks[id] || 0) + 1; }
         if (process.argv.includes('--teams')) console.log(D.stageLabel(s), k, team.join('+'));
-        let w = 0, st = 0, t = 0;
+        let w = 0, st = 0, t = 0, hpSum = 0;
         let pf = 0;
-        for (let i = 1; i <= N; i++) { const r = play({ stage: s, deck: placeDeck(team), partner: team[0], meta, gear: gearAt(s, team), items: itemsAt(s), seed: i * 97 + s, unlocked: [], skills: sk }); if (r.win) { w++; st += r.stars; t += r.t; if (!r.g.baseHit) pf++; } }
+        for (let i = 1; i <= N; i++) { const r = play({ stage: s, deck: placeDeck(team), partner: team[0], meta, gear: gearAt(s, team), items: itemsAt(s), seed: i * 97 + s, unlocked: [], skills: sk }); if (r.win) { w++; st += r.stars; t += r.t; hpSum += r.hp; if (!r.g.baseHit) pf++; } }
         const c = D.chapterOf(s);
-        const P = (per[k + c] = per[k + c] || { w: 0, n: 0, st: 0, t: 0, tw: 0 });
-        P.w += w; P.n += N; P.st += st; P.t += t; P.tw += w;
+        const P = (per[k + c] = per[k + c] || { w: 0, n: 0, st: 0, t: 0, tw: 0, hp: 0 });
+        P.w += w; P.n += N; P.st += st; P.t += t; P.tw += w; P.hp += hpSum;
         row.push(Math.round((w / N) * 100));
       }
       curve.push(`${D.stageLabel(s)}:${row.join('/')}`);
@@ -396,6 +397,14 @@ function seeded(seed = 1) {
       let tt = 0, tw = 0;
       const cells = CH.map((c) => { const P = per[k + c]; if (!P) return pad('-', 14); tt += P.t; tw += P.tw; return pad(`${Math.round((P.w / P.n) * 100)}% (${(P.st / Math.max(1, P.w)).toFixed(1)}★)`, 14); });
       console.log(pad(k, 16) + cells.join('') + `${Math.floor(tt / tw / 60)}분 ${Math.round((tt / tw) % 60)}초`);
+    }
+    const jp = (process.argv.find((x) => x.startsWith('--json=')) || '').slice(7);
+    if (jp) {
+      const TG = [80, 65, 55, 45, 30, 20];
+      const out = { chapters: CH.map((c) => ({ chapter: c, target: TG[c - 1], hpTune: D.STAGE.hpTune[c - 1],
+        ...Object.fromEntries(kinds.map(([k]) => { const P = per[k + c] || { w: 0, n: 1, st: 0, hp: 0 }; return [k, { clear: Math.round((P.w / P.n) * 100), stars: +(P.st / Math.max(1, P.w)).toFixed(2), hpLeft: Math.round((P.hp / Math.max(1, P.w)) * 100) }]; })) })),
+        pickRate: Object.fromEntries(Object.entries(picks).map(([id, n]) => [id, Math.round((n / Math.max(1, teams)) * 100)])), curve };
+      require('fs').writeFileSync(jp, JSON.stringify(out, null, 1));
     }
     console.log('스테이지별 클리어율 % (좋은+스킬/좋은/나쁜):');
     for (let i = 0; i < curve.length; i += 10) console.log('  ' + curve.slice(i, i + 10).join('  '));
