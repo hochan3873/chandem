@@ -63,7 +63,7 @@ export function expNeed(lv) {
 }
 // 레벨업은 드물게, 대신 한 번 한 번이 크게: 필요 경험치 ×2.2 (스테이지는 뒤로 갈수록 경험치를 줄여 스테이지당 4~6번)
 // 합류 모드 (대장 1명 시작 → 레벨업 카드로 합류): 앞 레벨업은 빠르게 · 합류 카드 가중치 · 보장 · 몰아 키우기
-export const JOIN = { exp: [0.25, 0.32, 0.4, 0.5, 0.8], expLate: 1.06, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
+export const JOIN = { solo: 1.6, exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
 export const EXP_NEED_MUL = 2.4; // (2.2 → 2.4: 카드가 너무 자주 떠서 조금 천천히)
 export const stageExpMul = (s) => 1 / (1 + 0.1 * Math.max(0, (s || 1) - 1));
 
@@ -1442,6 +1442,7 @@ export const GEAR_RARITY = {
   rare: { id: 'rare', name: '희귀', mul: 1.7, color: '#4ea8ff' },
   epic: { id: 'epic', name: '영웅', mul: 2.6, color: '#c77dff' },
   legend: { id: 'legend', name: '전설', mul: 4, color: '#ffb400' },
+  myth: { id: 'myth', name: '신화', mul: 6, color: '#ff7ad9' }, // 드롭·합성 등급 목록(GEAR_RARITIES)에는 없음
 };
 export const GEAR_RARITIES = ['common', 'rare', 'epic', 'legend'];
 export const GEAR_STATS = {
@@ -1450,6 +1451,7 @@ export const GEAR_STATS = {
   strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true },
   range: { name: '사거리 (최대 +35%)', pct: true },
   res: { name: '상태이상 시간 감소', pct: true },
+  regen: { name: '입구 초당 회복', pct: true }, coin: { name: '코인 획득', pct: true }, ult: { name: '총공지 충전', pct: true },
 };
 export const GEAR = {
   megaphone: { id: 'megaphone', slot: 'w', icon: '📣', name: '명품 확성기', stat: 'atk', base: 0.06 },
@@ -1513,7 +1515,19 @@ export const STAT_HELP = {
   skill: ['스킬 피해', '스킬로 주는 피해만 세진다'],
   res: ['상태이상 저항', '기절·매혹·공포 같은 상태이상이 짧게 끝난다'],
 };
-export const GEAR_IDS = Object.keys(GEAR);
+// 신화 (전설 위): 어느 멤버에게나 좋은 만능 장비 6종 · 멤버마다 신화 칸(m) 하나 · 강화·합성 없음 (처음부터 완성)
+//   드롭: 레이드 1위 · 무한 50웨이브(주마다) · 시즌 마지막 단계 · 모집 0.3%
+export const MYTH = {
+  myth_card: { name: '황금 멤버십 카드', stats: { atk: 0.1, spd: 0.1, skill: 0.1, hp: 0.1 }, desc: '모든 능력치 +10%' },
+  myth_seal: { name: '방장의 인장', stats: { cd: 0.15 }, desc: '스킬 쿨타임 −15%' },
+  myth_soup: { name: '전설의 해장국', stats: { res: 0.4, regen: 0.02 }, desc: '상태이상 시간 −40% · 입구 초당 2% 회복' },
+  myth_stick: { name: '무지개 응원봉', stats: { spd: 0.15 }, desc: '공격 속도 +15%' },
+  myth_lotto: { name: '1등 복권', stats: { crit: 0.12, coin: 0.2 }, desc: '치명타 +12% · 코인 +20%' },
+  myth_crown: { name: '랑방 VIP 왕관', stats: { ult: 0.25 }, desc: '총공지(궁극기) 충전 +25%' },
+};
+export const MYTH_IDS = Object.keys(MYTH);
+for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true }; }
+export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth); // 일반 드롭 · 모집 장비 (신화 제외)
 // 이 스테이지에서 떨어지는 장비 (새 세트는 그 챕터부터)
 export const gearPoolFor = (stage) => GEAR_IDS.filter((t) => !GEAR[t].ch || GEAR[t].ch <= Math.ceil(stage / 10));
 export const GEAR_MAX_LV = 10;
@@ -1521,16 +1535,17 @@ export const GEAR_BAG = 80; // 가방 칸
 export function gearValue(t, r, lv) {
   const g = GEAR[t], R = GEAR_RARITY[r];
   if (!g || !R) return 0;
+  if (g.myth) return g.base; // 신화: 고정
   return Math.round(g.base * R.mul * (1 + 0.12 * (lv || 0)) * 1000) / 1000;
 }
 export function gearEnhanceCost(r, lv) {
-  if (lv >= GEAR_MAX_LV) return null;
+  if (lv >= GEAR_MAX_LV || r === 'myth') return null; // 신화는 강화 없음
   return Math.round((100 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 2.3)) / 10) * 10; // 영웅 +10 까지 합 약 18만 (보통 8~10일치)
 }
 // 강화석: +6 부터 필요 (+6 1개 · +7 2개 · +8 3개 · +9 4개 · +10 5개)
 export function gearStoneNeed(lv) { return lv >= 5 && lv < GEAR_MAX_LV ? lv - 4 : 0; }
 // 분해: 장비 → 강화석 (팔기 대신)
-export function gearDismantle(r, lv) { return ({ common: 1, rare: 2, epic: 4, legend: 8 })[r] + Math.floor((lv || 0) / 3); }
+export function gearDismantle(r, lv) { return ({ common: 1, rare: 2, epic: 4, legend: 8, myth: 30 })[r] + Math.floor((lv || 0) / 3); }
 // 합성: 같은 등급 3개 → 다음 등급 1개 (전설은 합성 불가) · 수수료
 export const GEAR_NEXT = { common: 'rare', rare: 'epic', epic: 'legend' };
 export const GEAR_FUSE_FEE = { rare: 500, epic: 2000, legend: 6000 }; // 만들어지는 등급 기준
@@ -1579,7 +1594,11 @@ export function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = fals
 // 멤버 한 명의 장비 능력치 합 → sim createGame({ gear: { heroId: {...} } })
 export function gearStats(items) {
   const st = {};
-  for (const it of items) { if (!it || !GEAR[it.t]) continue; const k = GEAR[it.t].stat; st[k] = (st[k] || 0) + gearValue(it.t, it.r, it.lv); }
+  for (const it of items) {
+    if (!it || !GEAR[it.t]) continue;
+    if (GEAR[it.t].myth) { for (const [k, v] of Object.entries(GEAR[it.t].stats)) st[k] = (st[k] || 0) + v; continue; }
+    const k = GEAR[it.t].stat; st[k] = (st[k] || 0) + gearValue(it.t, it.r, it.lv);
+  }
   return st;
 }
 

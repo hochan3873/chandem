@@ -269,7 +269,7 @@ export async function equipGear(hero, slot, id, guest) {
       if (id === null) return { apply: (x) => { if (x.equip[hero]) delete x.equip[hero][slot]; } };
       const it = p.gear.find((g) => g.id === id);
       if (!it || GEAR[it.t].slot !== slot) return { error: '그 칸에는 못 껴요' };
-      return { apply: (x) => { for (const h of Object.keys(x.equip)) for (const k of ['w', 'a']) if (x.equip[h][k] === id) delete x.equip[h][k]; (x.equip[hero] = x.equip[hero] || {})[slot] = id; } };
+      return { apply: (x) => { for (const h of Object.keys(x.equip)) for (const k of ['w', 'a', 'm']) if (x.equip[h][k] === id) delete x.equip[h][k]; (x.equip[hero] = x.equip[hero] || {})[slot] = id; } };
     });
   }
   const r = await call('/api/langbang/gear/equip', { hero, slot, id });
@@ -299,7 +299,7 @@ export async function sellGear(id, guest) {
       const it = p.gear.find((g) => g.id === id);
       if (!it) return { error: '없는 장비예요' };
       const v = gearSellValue(it.r, it.lv);
-      return { apply: (x) => { x.gear = x.gear.filter((g) => g.id !== id); for (const h of Object.keys(x.equip)) for (const k of ['w', 'a']) if (x.equip[h][k] === id) delete x.equip[h][k]; x.coins += v; }, extra: { sold: v } };
+      return { apply: (x) => { x.gear = x.gear.filter((g) => g.id !== id); for (const h of Object.keys(x.equip)) for (const k of ['w', 'a', 'm']) if (x.equip[h][k] === id) delete x.equip[h][k]; x.coins += v; }, extra: { sold: v } };
     });
   }
   const r = await call('/api/langbang/gear/sell', { id });
@@ -392,7 +392,7 @@ export function gearFor(profile, ids) {
   const out = {};
   for (const id of ids) {
     const sl = (profile.equip || {})[id] || {};
-    out[id] = gearStats(['w', 'a'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter(Boolean));
+    out[id] = gearStats(['w', 'a', 'm'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter(Boolean));
   }
   return out;
 }

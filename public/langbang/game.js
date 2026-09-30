@@ -7,7 +7,7 @@ import {
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
-  FUSE_ART,
+  FUSE_ART, MYTH, gearStats,
 } from './data.js';
 import * as L from './live.js';
 import * as S from './sim.js';
@@ -1598,6 +1598,13 @@ const ACTS = {
   hfEquip: async (b) => { const r = await API.equipGear(b.dataset.hero, b.dataset.slot, Number(b.dataset.gid), app.guest); if (r.ok && r.profile) { app.profile = r.profile; A.sfx.pick(); toast('장착!', 900); } else toast(r.message || '못 끼웠어요'); showHeroModal(b.dataset.hero); refreshBehind(); },
   eqSlot: (b) => { if (app.bagSel) equipTo(b.dataset.hero, b.dataset.slot, app.bagSel); else { app.bagHero = b.dataset.hero; showGearPicker(b.dataset.hero, b.dataset.slot); } },
   gearSlot: (b) => showGearPicker(b.dataset.hero, b.dataset.slot),
+  eqOpen: (b) => showEquipSheet(b.dataset.hero, b.dataset.slot),
+  eqSel: (b) => { const sh = app.eqSheet; if (sh) showEquipSheet(sh.hero, sh.slot, Number(b.dataset.id)); },
+  eqDo: (b) => { const sh = app.eqSheet; if (sh) equipMove(sh.hero, sh.slot, Number(b.dataset.id)); },
+  eqOff: () => { const sh = app.eqSheet; if (sh) unequip(sh.hero, [sh.slot]); },
+  eqUnall: (b) => unequip(b.dataset.hero, ['w', 'a', 'm']),
+  eqEnh: (b) => enhanceFx(Number(b.dataset.id)),
+  eqLock: (b) => { const set = gearLocked(), id = Number(b.dataset.id); if (set.has(id)) set.delete(id); else set.add(id); lsSave('langbang:gearLock', set); const sh = app.eqSheet; if (sh) showEquipSheet(sh.hero, sh.slot, sh.sel); },
   partner: (b) => {
     const id = b.dataset.id;
     if (!heroOk(id)) { toast(unlockText(id) || '아직 합류하지 않았어요'); return; }
@@ -1978,7 +1985,7 @@ function popup(html, cls = '') {
   const keepY = prev ? prev.scrollTop : 0;
   closeInfoCard();
   const m = document.createElement('div');
-  m.className = 'info-modal pop ' + cls;
+  m.className = 'info-modal pop ' + cls + (prev ? ' same' : ''); // 같은 창을 새로 그릴 땐 다시 올라오는 움직임 없이
   m.innerHTML = `<div class="pop-box">${html}<button class="pop-x" data-x>✕</button></div>`;
   stage.appendChild(m);
   if (keepY) m.querySelector('.pop-box').scrollTop = keepY;
@@ -4252,9 +4259,10 @@ const gearIco = (it) => `<i class="gico r-${it.r || 'common'}" style="--rc:${(GE
 const gearName = (it) => `${GEAR[it.t].icon} ${GEAR[it.t].name}${it.lv ? ` +${it.lv}` : ''}`;
 function gearStatText(it) {
   const g = GEAR[it.t];
+  if (g.myth) return MYTH[it.t].desc;
   return `${GEAR_STATS[g.stat].name} +${(gearValue(it.t, it.r, it.lv) * 100).toFixed(1)}%`;
 }
-function equippedBy(p, gid) { for (const [h, sl] of Object.entries(p.equip || {})) for (const k of ['w', 'a']) if (sl[k] === gid) return h; return null; }
+function equippedBy(p, gid) { for (const [h, sl] of Object.entries(p.equip || {})) for (const k of ['w', 'a', 'm']) if (sl[k] === gid) return h; return null; }
 function gearTabHtml() {
   const p = P();
   const heroes = owned();
@@ -4339,10 +4347,7 @@ function bagHero() {
 }
 function heroGearStats(p, id) {
   const sl = (p.equip || {})[id] || {};
-  const items = ['w', 'a'].map((k) => (p.gear || []).find((g) => g.id === sl[k])).filter(Boolean);
-  const st = {};
-  for (const it of items) { const k = GEAR[it.t].stat; st[k] = (st[k] || 0) + gearValue(it.t, it.r, it.lv); }
-  return st;
+  return gearStats(['w', 'a', 'm'].map((k) => (p.gear || []).find((g) => g.id === sl[k])).filter(Boolean));
 }
 function statLines(st) {
   const ks = Object.keys(st);
@@ -4365,23 +4370,26 @@ function showBag() {
     t: (a, b) => (GEAR[a.t].slot === GEAR[b.t].slot ? 0 : GEAR[a.t].slot === 'w' ? -1 : 1) || a.t.localeCompare(b.t) || GEAR_RARITY[b.r].mul - GEAR_RARITY[a.r].mul || b.lv - a.lv,
     new: (a, b) => b.id - a.id,
   };
-  const list = (p.gear || []).filter((it) => filt === 'all' || (filt === 'free' ? !equippedBy(p, it.id) : GEAR[it.t].slot === filt)).slice().sort(SORT[sort] || SORT.r);
+  const deckSet = new Set((curDeck() || []).filter(Boolean));
+  const list = (p.gear || []).filter((it) => filt === 'all' || (filt === 'free' ? !equippedBy(p, it.id) : filt === 'worn' ? !!equippedBy(p, it.id) : filt === 'deckworn' ? deckSet.has(equippedBy(p, it.id)) : GEAR[it.t].slot === filt)).slice().sort(SORT[sort] || SORT.r);
   const cells = list.map((it) => {
     const eq = equippedBy(p, it.id);
-    const bulkOn = (app.bulk && app.bulk.has(it.id)) || (app.fuse && app.fuse.includes(it.id)), bulkNo = (app.bulk || app.fuse) && (eq || locks.has(it.id) || (app.fuse && (it.r === 'legend' || (app.fuse.length && fuseRarity(p) !== it.r))));
+    const bulkOn = (app.bulk && app.bulk.has(it.id)) || (app.fuse && app.fuse.includes(it.id)), bulkNo = (app.bulk || app.fuse) && (eq || locks.has(it.id) || (app.fuse && (it.r === 'legend' || it.r === 'myth' || (app.fuse.length && fuseRarity(p) !== it.r))));
     return `<button class="bitem v2 r-${it.r} ${app.bulk || app.fuse ? 'bulk' : ''} ${bulkOn ? 'chk' : ''} ${bulkNo ? 'nosel' : ''}" data-act="${app.bulk ? 'bulkPick' : app.fuse ? 'fusePick' : 'bagPick'}" data-id="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">
-      <span class="bi-ico">${gearIco(it)}</span>${it.lv ? `<em class="bi-lv">+${it.lv}</em>` : ''}${it.id > seenMax ? '<i class="bi-new">N</i>' : ''}${locks.has(it.id) ? '<i class="bi-lock">🔒</i>' : ''}
+      <span class="bi-ico">${gIco(it)}</span>${it.lv ? `<em class="bi-lv">+${it.lv}</em>` : ''}${it.id > seenMax ? '<i class="bi-new">N</i>' : ''}${locks.has(it.id) ? '<i class="bi-lock">🔒</i>' : ''}
       <b class="bi-name">${esc(GEAR[it.t].name)}</b>${eq ? `<span class="bi-eq" title="${esc(HEROES[eq].name)}">${av(HEROES[eq])}</span>` : ''}</button>`;
   }).join('');
   const maxId = Math.max(0, ...(p.gear || []).map((x) => x.id));
   const deckIds = [...new Set([...(curDeck() || []).filter(Boolean)])];
   const rows = (app.bagAll ? owned() : deckIds.length ? deckIds : owned().slice(0, 4)).map((h) => eqRowHtml(p, h)).join('');
-  const tabs = `<div class="seg bag-seg">${[['over', '장비 한눈에'], ['bag', `가방 ${(p.gear || []).length}/80`], ['fuse', '⚗️ 합성']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-act="bagTab" data-v="${k}">${n}</button>`).join('')}</div>`;
-  const tools = `<div class="bag-tools"><div class="chips">${[['all', '전체'], ['w', '무기'], ['a', '장신구'], ['free', '미장착']].map(([k, n]) => `<button class="chip ${filt === k ? 'on' : ''}" data-act="bagFilter" data-v="${k}">${n}</button>`).join('')}</div>
+  const tabs = `<div class="seg bag-seg">${[['over', '장비'], ['bag', `가방 ${(p.gear || []).length}/80`], ['fuse', '⚗️ 합성']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-act="bagTab" data-v="${k}">${n}</button>`).join('')}</div>`;
+  const tools = `<div class="bag-tools"><div class="chips">${[['all', '전체'], ['w', '무기'], ['a', '장신구'], ['worn', '착용 중'], ['free', '미착용'], ['deckworn', '출전 멤버 착용']].map(([k, n]) => `<button class="chip ${filt === k ? 'on' : ''}" data-act="bagFilter" data-v="${k}">${n}</button>`).join('')}</div>
     <div class="chips sort">${[['r', '등급'], ['lv', '강화'], ['t', '종류'], ['new', '최근']].map(([k, n]) => `<button class="chip mini ${sort === k ? 'on' : ''}" data-act="bagSortV" data-v="${k}">${n}</button>`).join('')}</div></div>`;
   const grid = `<div class="bag-grid v2">${cells || `<div class="empty-state"><span>🎒</span><b>${filt === 'all' ? '아직 장비가 없어요' : '이 조건에 맞는 장비가 없어요'}</b><small>스테이지를 깨면 장비가 떨어져요</small></div>`}</div>`;
   let body;
   if (tab === 'over') {
+    body = equipTabHtml(p);
+  } else if (tab === 'overOld') {
     body = `<div class="eq-over v2"><div class="eq-head"><span class="eq-scope">${app.bagAll ? '가진 멤버 전부' : '지금 덱'}</span><button class="chip" data-act="bagAll">${app.bagAll ? '덱만 보기' : '전부 보기'}</button></div>
       <div class="eq-rows">${rows}</div>
       <p class="sub">칸을 누르면 끼울 장비를 골라요 · 💎 강화석 <b>${p.stones | 0}</b></p></div>`;
@@ -4390,7 +4398,7 @@ function showBag() {
   } else {
     body = `${fuseBarHtml(p)}${tools}${grid}`;
   }
-  const actions = tab === 'fuse' ? '' : `<div class="bag-actions">${tab === 'bag' && !app.bulk ? '<button class="btn" data-act="bulkOn">🧹 일괄 판매·분해</button>' : ''}<button class="btn primary" data-act="autoEquipAll">✨ 자동 장착</button></div>`;
+  const actions = tab === 'fuse' ? '' : `<div class="bag-actions">${tab === 'bag' && !app.bulk ? '<button class="btn" data-act="bulkOn">🧹 일괄 판매·분해</button>' : ''}<button class="btn primary" data-act="autoEquipAll">${ic('sparkle', '✨', 'sm')} ${tab === 'over' ? '출전 멤버 우선 자동 장착' : '자동 장착'}</button></div>`;
   show(`
     ${subTop('강화·장비')}
     ${tabs}
@@ -4398,6 +4406,8 @@ function showBag() {
     ${actions}
     ${navHtml('bag')}
   `, 'dim withnav bag-screen v2');
+  runRolls();
+  if (app.flyTo) { const f = app.flyTo; app.flyTo = null; flyIcon(f); }
   if (maxId > seenMax) setTimeout(() => { try { localStorage.setItem('langbang:gearSeen', String(maxId)); } catch { /* 무시 */ } }, 1500);
 }
 // 장비 상세: 지금 고른 멤버 기준으로 끼면 어떻게 바뀌는지 미리 보기
@@ -4447,15 +4457,165 @@ async function equipTo(hero, slot, gid) {
   else toast(r.message || '못 끼웠어요');
   showBag();
 }
+// ─── 멤버 중심 장비 화면 ───
+const gMaxed = (it) => it.r === 'myth' || (it.lv | 0) >= GEAR_MAX_LV;
+const gIco = (it) => `<span class="gwrap ${gMaxed(it) ? 'gmax' : ''} ${it.r === 'myth' ? 'myth' : ''}">${gearIco(it)}${gMaxed(it) ? `<i class="gmax-b">${it.r === 'myth' ? '신화' : 'MAX'}</i>` : ''}</span>`;
+// 이 장비를 끼면 그 멤버 전투력이 얼마가 되나 (다른 멤버가 끼고 있던 것도 옮겨 온다고 치고)
+function powerWith(p, hero, slot, gid) {
+  const eq = {};
+  for (const [h, sl] of Object.entries(p.equip || {})) eq[h] = Object.assign({}, sl);
+  for (const h of Object.keys(eq)) for (const k of ['w', 'a', 'm']) if (eq[h][k] === gid) delete eq[h][k];
+  (eq[hero] = eq[hero] || {})[slot] = gid;
+  if (gid === null) delete eq[hero][slot];
+  return heroPower(Object.assign({}, p, { equip: eq }), hero);
+}
+function snapPow() { const p = P(), h = bagHero(); app.powPrev = { hero: h, v: heroPower(p, h) }; }
+function equipTabHtml(p) {
+  const deck = [...new Set((curDeck() || []).filter(Boolean))];
+  const list = [...deck, ...owned().filter((x) => !deck.includes(x))];
+  const sel = bagHero();
+  const chips = list.map((id) => `<button class="eqh ${id === sel ? 'on' : ''}" data-act="bagHeroPick" data-id="${id}"><span class="eqh-face">${av(HEROES[id])}</span>${deck.includes(id) ? '<i class="eqh-go">출전</i>' : ''}<b>${esc(HEROES[id].name)}</b></button>`).join('');
+  const pw = heroPower(p, sel);
+  const prev = app.powPrev && app.powPrev.hero === sel ? app.powPrev.v : pw;
+  const st = heroGearStats(p, sel);
+  const sl = (p.equip || {})[sel] || {};
+  const find = (gid) => (p.gear || []).find((x) => x.id === gid);
+  const slot = (k) => {
+    const it = find(sl[k]);
+    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && g.id !== sl[k] && powerWith(p, sel, k, g.id) > pw);
+    return `<button class="eq-big ${it ? 'r-' + it.r : 'empty'}" data-act="eqOpen" data-hero="${sel}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">
+      <small class="eqb-k">${k === 'w' ? '무기' : k === 'a' ? '장신구' : '신화'}</small>${better ? '<i class="rd"></i>' : ''}
+      ${it ? `${gIco(it)}<b>${esc(GEAR[it.t].name)}${it.lv ? ` <em>+${it.lv}</em>` : ''}</b><small>${esc(gearStatText(it))}</small>` : `<span class="eqb-plus">+</span><b>비어 있음</b><small>${k === 'm' ? '신화 장비 전용' : '눌러서 끼기'}</small>`}</button>`;
+  };
+  return `<div class="eqv3">
+    <div class="eqh-row">${chips}</div>
+    <div class="eq-hero" style="--c:${ATTRS[HEROES[sel].attr].color}">
+      ${artCard(sel, { act: 'heroCard', cls: 'eq-port' })}
+      <div class="eq-info"><b class="eq-nm">${esc(HEROES[sel].name)}</b>
+        <div class="eq-pw">${ic('swords', '⚔️', 'sm')}<span>전투력</span><b class="roll" data-from="${prev}" data-to="${pw}">${fmt(prev)}</b></div>
+        <div class="eq-st">${statLines(st)}</div>
+        <button class="chip mini" data-act="eqUnall" data-hero="${sel}" ${sl.w || sl.a || sl.m ? '' : 'disabled'}>전체 해제</button></div>
+    </div>
+    <div class="eq-slots2">${slot('w')}${slot('a')}</div>
+    <div class="eq-slots2 myth">${slot('m')}</div>
+    <p class="sub eq-tip">칸을 누르면 비교하며 골라요 · 다른 멤버 장비도 한 번에 "빼서 끼기"</p>
+  </div>`;
+}
+// 칸 → 아래에서 올라오는 장비 고르기 (전투력 변화순 · 착용자 · 비교 · 장착/해제/강화/잠금)
+function showEquipSheet(hero, slot, selId) {
+  const p = P();
+  const curId = ((p.equip || {})[hero] || {})[slot];
+  const cur = (p.gear || []).find((x) => x.id === curId);
+  const base = heroPower(p, hero);
+  const rows = (p.gear || []).filter((it) => GEAR[it.t].slot === slot).map((it) => ({ it, d: it.id === curId ? 0 : powerWith(p, hero, slot, it.id) - base, own: equippedBy(p, it.id) }))
+    .sort((a, b) => (a.it.id === curId) - (b.it.id === curId) || b.d - a.d);
+  const pick = rows.find((r) => r.it.id === selId) || rows.find((r) => r.it.id !== curId) || rows[0];
+  app.eqSheet = { hero, slot, sel: pick ? pick.it.id : null };
+  const locks = gearLocked();
+  const diff = (d) => (d > 0 ? `<em class="up">▲ +${fmt(d)}</em>` : d < 0 ? `<em class="dn">▼ ${fmt(d)}</em>` : '<em class="eq0">—</em>');
+  const side = (it, lab) => it ? `<div class="cmp-s" style="--rc:${GEAR_RARITY[it.r].color}"><small>${lab}</small>${gIco(it)}<b>${esc(GEAR[it.t].name)}${it.lv ? ` +${it.lv}` : ''}</b><span>${esc(gearStatText(it))}</span></div>` : `<div class="cmp-s empty"><small>${lab}</small><span class="eqb-plus">+</span><b>비어 있음</b></div>`;
+  const s2 = pick && pick.it.id !== curId ? pick.it : null;
+  const after = s2 ? powerWith(p, hero, slot, s2.id) : base;
+  const owner = s2 && pick.own && pick.own !== hero ? pick.own : null;
+  const tgt = s2 || cur;
+  const free = p.master && !p.testNormal;
+  const cost = tgt ? gearEnhanceCost(tgt.r, tgt.lv) : null;
+  const canEnh = tgt && cost !== null && (free || (p.coins >= cost && (p.stones | 0) >= gearStoneNeed(tgt.lv)));
+  popup(`<h3>${esc(HEROES[hero].name)} · ${slot === 'w' ? '무기' : slot === 'a' ? '장신구' : '신화'}</h3>
+    <div class="cmp">${side(cur, '지금')}<div class="cmp-mid"><i>→</i><b>${fmt(base)}</b><b class="${after > base ? 'up' : after < base ? 'dn' : ''}">${fmt(after)}</b><small>전투력</small></div>${side(s2 || cur, s2 ? '고른 것' : '지금')}</div>
+    <div class="cmp-btn">${s2 ? `<button class="btn primary" data-act="eqDo" data-id="${s2.id}">${owner ? '빼서 끼기' : '장착'}</button>` : ''}${cur ? '<button class="btn" data-act="eqOff">해제</button>' : ''}
+      ${tgt ? `<button class="btn ${canEnh ? 'pink' : ''}" data-act="eqEnh" data-id="${tgt.id}" ${canEnh ? '' : 'disabled'}>${ic('hammer', '🔨', 'sm')} ${cost === null ? 'MAX' : `+${tgt.lv + 1}`}${cost !== null && !free ? ` <small>${fmt(cost)}</small>` : ''}</button><button class="btn ghost" data-act="eqLock" data-id="${tgt.id}">${locks.has(tgt.id) ? '잠금 풀기' : '잠금'}</button>` : ''}</div>
+    <div class="eqs-list">${rows.map((r) => `<button class="eqs ${pick && r.it.id === pick.it.id ? 'sel' : ''} ${r.it.id === curId ? 'cur' : ''}" data-act="eqSel" data-id="${r.it.id}" style="--rc:${GEAR_RARITY[r.it.r].color}">
+      ${gIco(r.it)}<span class="eqs-t"><b>${esc(GEAR[r.it.t].name)}${r.it.lv ? ` <em>+${r.it.lv}</em>` : ''}${locks.has(r.it.id) ? ` ${ic('lock', '', 'sm')}` : ''}</b><small>${esc(gearStatText(r.it))}</small></span>
+      ${r.it.id === curId ? '<i class="eqs-now">착용 중</i>' : r.own ? `<span class="eqs-own">${av(HEROES[r.own])}<small>${esc(HEROES[r.own].name)} 착용 중</small></span>` : ''}${r.it.id === curId ? '' : diff(r.d)}</button>`).join('') || '<p class="ip">이 칸에 낄 장비가 없어요 — 스테이지를 깨면 떨어져요</p>'}</div>`, 'pp-sheet eq-sheet');
+}
+async function equipMove(hero, slot, gid) {
+  const p = P();
+  const it = (p.gear || []).find((x) => x.id === gid);
+  if (!it) return;
+  const owner = equippedBy(p, gid);
+  const prev = ((p.equip || {})[hero] || {})[slot];
+  const from = document.querySelector('.eq-sheet .eqs.sel .gwrap');
+  const rect = from ? from.getBoundingClientRect() : null;
+  snapPow();
+  const r = await API.equipGear(hero, slot, gid, app.guest);
+  if (!(r && r.ok && r.profile)) { toast((r && r.message) || '못 끼웠어요'); return; }
+  app.profile = r.profile;
+  if (owner && owner !== hero && prev) { const r2 = await API.equipGear(owner, slot, prev, app.guest); if (r2 && r2.ok && r2.profile) app.profile = r2.profile; }
+  A.sfx.pick();
+  if (owner && owner !== hero) toast(`${HEROES[owner].name} → ${HEROES[hero].name}으로 이동${prev ? ' (서로 바꿈)' : ''}`, 1500);
+  closeInfoCard();
+  if (rect) app.flyTo = { rect, sel: `.eq-big[data-slot="${slot}"] .gwrap, .eq-big[data-slot="${slot}"]`, html: gearIco(it) };
+  showBag();
+}
+async function unequip(hero, slots) {
+  snapPow();
+  let ok = false;
+  for (const k of slots) { if (!((P().equip || {})[hero] || {})[k]) continue; const r = await API.equipGear(hero, k, null, app.guest); if (r && r.ok && r.profile) { app.profile = r.profile; ok = true; } }
+  if (ok) { A.sfx.tap(); toast('장비를 뺐어요', 900); }
+  closeInfoCard();
+  showBag();
+}
+// 강화: 망치가 내리치고 → 불꽃 + "+N" (성공) / 흔들림 + 회색 연기 (실패) · +5 · +10 은 크게
+async function enhanceFx(gid) {
+  const el = document.querySelector('.eq-sheet .cmp-s:last-child .gwrap') || document.querySelector('.eq-sheet .gwrap');
+  const box = el && el.closest('.cmp-s');
+  if (box) { box.classList.remove('enh-hit', 'enh-ok', 'enh-no', 'enh-big'); void box.offsetWidth; box.classList.add('enh-hit'); }
+  const hm = box && Object.assign(document.createElement('img'), { className: 'enh-hammer', src: ui2('hammer') });
+  if (hm) box.appendChild(hm);
+  snapPow();
+  const [r] = await Promise.all([API.enhanceGear(gid, app.guest), sleep(420)]);
+  if (!(r && r.ok && r.profile)) { if (hm) hm.remove(); toast((r && r.message) || '강화 못 했어요'); return; }
+  app.profile = r.profile;
+  const it = (P().gear || []).find((x) => x.id === gid);
+  if (r.success === false) { if (box) box.classList.add('enh-no'); A.sfx.tap(); toast(`강화 실패… 장비는 그대로 (성공 확률 ${Math.round((r.chance || 0) * 100)}%)`, 1600); }
+  else {
+    const lv = it ? it.lv : r.lv;
+    if (box) { box.classList.add('enh-ok'); const pop = document.createElement('b'); pop.className = 'enh-pop'; pop.textContent = `+${lv}`; box.appendChild(pop); if (lv === 5 || lv === 10) box.classList.add('enh-big'); }
+    A.sfx.levelUp(); fx.flash(it ? GEAR_RARITY[it.r].color : '#ffd23f', lv === 5 || lv === 10 ? 0.45 : 0.18);
+  }
+  await sleep(700);
+  const sh = app.eqSheet;
+  if (sh && document.querySelector('.eq-sheet')) showEquipSheet(sh.hero, sh.slot, sh.sel);
+  refreshBehind();
+}
+// 숫자 굴리기 (0.6초) + 떠오르는 ▲+N / ▼−N + 잠깐 빛
+function runRolls() {
+  for (const el of document.querySelectorAll('.roll[data-from][data-to]')) {
+    const a = Number(el.dataset.from), b = Number(el.dataset.to);
+    if (a === b) continue;
+    const t0 = performance.now();
+    const step = (now) => { const k = Math.min(1, (now - t0) / 600), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(Math.round(a + (b - a) * e)); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+    el.classList.add(b > a ? 'glow-up' : 'glow-dn');
+    const f = document.createElement('i'); f.className = 'dfloat ' + (b > a ? 'up' : 'dn'); f.textContent = `${b > a ? '▲ +' : '▼ '}${fmt(b - a)}`;
+    el.parentElement.appendChild(f);
+    setTimeout(() => { f.remove(); el.classList.remove('glow-up', 'glow-dn'); }, 1300);
+  }
+  app.powPrev = null;
+}
+// 장비가 목록에서 칸으로 날아간다 (0.3초)
+function flyIcon(f) {
+  const to = document.querySelector(f.sel);
+  if (!to || !f.rect) return;
+  const r2 = to.getBoundingClientRect();
+  const g = document.createElement('div');
+  g.className = 'gfly'; g.innerHTML = f.html;
+  Object.assign(g.style, { left: f.rect.left + 'px', top: f.rect.top + 'px', width: f.rect.width + 'px', height: f.rect.height + 'px' });
+  document.body.appendChild(g);
+  requestAnimationFrame(() => { g.style.transform = `translate(${r2.left + r2.width / 2 - (f.rect.left + f.rect.width / 2)}px, ${r2.top + r2.height / 2 - (f.rect.top + f.rect.height / 2)}px) scale(1.3)`; g.style.opacity = '0.2'; });
+  setTimeout(() => { g.remove(); to.classList.add('eq-land'); setTimeout(() => to.classList.remove('eq-land'), 400); }, 320);
+}
 // 덱 전체 자동 장착: 전투력 높은 멤버부터 제일 좋은 장비를 (다른 멤버 장비도 옮겨 준다)
 async function autoEquipAll() {
+  snapPow();
   const p = P();
   const ids = [...new Set((curDeck() || []).filter(Boolean))];
   if (!ids.length) { toast('덱에 멤버가 없어요'); return; }
   ids.sort((a, b) => heroPower(p, b) - heroPower(p, a));
   const used = new Set();
   let n = 0;
-  for (const h of ids) for (const k of ['w', 'a']) {
+  for (const h of ids) for (const k of ['w', 'a', 'm']) {
     const best = (P().gear || []).filter((it) => GEAR[it.t].slot === k && !used.has(it.id)).sort((a, b) => gearScore(b) - gearScore(a))[0];
     if (!best) continue;
     used.add(best.id);

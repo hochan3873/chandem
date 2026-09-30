@@ -974,7 +974,7 @@ test('live: 모집 확률 · 10연속 영웅 등급 확정 · 천장(50/200) · 
   let lb = mk(12);
   for (let i = 0; i < 300; i++) {
     const r = L.gachaPull(lb, 10, 'coin', 'u', 0);
-    assert.ok(r.results.some((x) => ['legendHero', 'epicHero', 'legendGear', 'epicGear'].includes(x.k)), '10연속 확정');
+    assert.ok(r.results.some((x) => ['legendHero', 'epicHero', 'legendGear', 'epicGear', 'mythGear'].includes(x.k)), '10연속 확정');
     assert.ok(!r.results.some((x) => x.k === 'legendHero' || x.k === 'legendCard'), '6-10 전엔 LEGEND 없음');
   }
   assert.ok(!lb.owned.hochan);
@@ -1625,4 +1625,27 @@ test('글자 CSS 규칙: -webkit-text-stroke · paint-order · background-clip:t
     if (/-webkit-text-stroke\s*:\s*(?!0\s*[;!}])/.test(l) || /paint-order\s*:\s*stroke/.test(l) || /background-clip\s*:\s*text/.test(l) || /text-fill-color\s*:\s*transparent/.test(l)) bad.push(`${i + 1}: ${l.trim().slice(0, 80)}`);
   });
   assert.deepEqual(bad, []);
+});
+
+test('신화 장비: 6종 · 신화 칸(m) 하나 · 강화 없음 · 드롭/모집 장비 목록엔 없음 · 서버와 같다 · 능력치 여러 개', async () => {
+  const R = require('../server/langbang-rules');
+  const L = await load('live.js');
+  assert.equal(D.MYTH_IDS.length, 6);
+  assert.deepEqual(R.MYTH_IDS, D.MYTH_IDS);
+  for (const t of D.MYTH_IDS) {
+    assert.equal(D.GEAR[t].slot, 'm'); assert.ok(!D.GEAR_IDS.includes(t), '일반 드롭 제외');
+    assert.equal(D.gearEnhanceCost('myth', 0), null); assert.equal(R.gearValue(t, 'myth', 0), D.gearValue(t, 'myth', 0));
+  }
+  assert.ok(!D.GEAR_RARITIES.includes('myth') && !D.GEAR_NEXT.legend, '합성·드롭 등급 목록엔 없음');
+  const st = D.gearStats([{ t: 'myth_card', r: 'myth', lv: 0 }, { t: 'megaphone', r: 'rare', lv: 0 }]);
+  assert.ok(Math.abs(st.atk - (0.1 + D.gearValue('megaphone', 'rare', 0))) < 1e-9 && st.spd === 0.1 && st.hp === 0.1);
+  // 보상으로 받으면 신화 6종 중 하나 · 등급 myth
+  const lb = { gear: [], gearSeq: 0, coins: 0 };
+  const got = L.grant(lb, { gear: 'myth' }, 'u1');
+  assert.ok(D.MYTH_IDS.includes(got.gear.t) && got.gear.r === 'myth');
+  assert.equal(L.GACHA_RATES.find((r) => r.k === 'mythGear').w, 0.3);
+  // 전투: 신화 해장국 = 입구 회복 · 왕관 = 총공지 충전
+  const S = await load('sim.js');
+  const g = S.createGame({ noWaves: true, heroes: ['staff'], gear: { staff: D.gearStats([{ t: 'myth_soup', r: 'myth' }, { t: 'myth_crown', r: 'myth' }]) } });
+  assert.ok(g.mods.regen >= 6 - 1e-9 && g.mods.ultCharge >= 1.25 - 1e-9);
 });

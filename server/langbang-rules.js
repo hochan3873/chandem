@@ -106,6 +106,7 @@ const GEAR_RARITY = {
   rare: { id: 'rare', name: '희귀', mul: 1.7, color: '#4ea8ff' },
   epic: { id: 'epic', name: '영웅', mul: 2.6, color: '#c77dff' },
   legend: { id: 'legend', name: '전설', mul: 4, color: '#ffb400' },
+  myth: { id: 'myth', name: '신화', mul: 6, color: '#ff7ad9' }, // 드롭·합성 등급 목록(GEAR_RARITIES)에는 없음
 };
 const GEAR_RARITIES = ['common', 'rare', 'epic', 'legend'];
 const GEAR_STATS = {
@@ -138,23 +139,36 @@ const GEAR = {
   champagne: { id: 'champagne', slot: 'w', icon: '🥂', name: '샴페인 잔', stat: 'atk', base: 0.065, ch: 6 },
   hangover: { id: 'hangover', slot: 'a', icon: '💊', name: '숙취해소 부적', stat: 'res', base: 0.06 },
 };
-const GEAR_IDS = Object.keys(GEAR);
+// 신화 (전설 위): 어느 멤버에게나 좋은 만능 장비 6종 · 멤버마다 신화 칸(m) 하나 · 강화·합성 없음 (처음부터 완성)
+//   드롭: 레이드 1위 · 무한 50웨이브(주마다) · 시즌 마지막 단계 · 모집 0.3%
+const MYTH = {
+  myth_card: { name: '황금 멤버십 카드', stats: { atk: 0.1, spd: 0.1, skill: 0.1, hp: 0.1 }, desc: '모든 능력치 +10%' },
+  myth_seal: { name: '방장의 인장', stats: { cd: 0.15 }, desc: '스킬 쿨타임 −15%' },
+  myth_soup: { name: '전설의 해장국', stats: { res: 0.4, regen: 0.02 }, desc: '상태이상 시간 −40% · 입구 초당 2% 회복' },
+  myth_stick: { name: '무지개 응원봉', stats: { spd: 0.15 }, desc: '공격 속도 +15%' },
+  myth_lotto: { name: '1등 복권', stats: { crit: 0.12, coin: 0.2 }, desc: '치명타 +12% · 코인 +20%' },
+  myth_crown: { name: '랑방 VIP 왕관', stats: { ult: 0.25 }, desc: '총공지(궁극기) 충전 +25%' },
+};
+const MYTH_IDS = Object.keys(MYTH);
+for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true }; }
+const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth); // 일반 드롭 · 모집 장비 (신화 제외)
 const gearPoolFor = (stage) => GEAR_IDS.filter((t) => !GEAR[t].ch || GEAR[t].ch <= Math.ceil(stage / 10));
 const GEAR_MAX_LV = 10;
 const GEAR_BAG = 80; // 가방 칸
 function gearValue(t, r, lv) {
   const g = GEAR[t], R = GEAR_RARITY[r];
   if (!g || !R) return 0;
+  if (g.myth) return g.base; // 신화: 고정
   return Math.round(g.base * R.mul * (1 + 0.12 * (lv || 0)) * 1000) / 1000;
 }
 function gearEnhanceCost(r, lv) {
-  if (lv >= GEAR_MAX_LV) return null;
+  if (lv >= GEAR_MAX_LV || r === 'myth') return null; // 신화는 강화 없음
   return Math.round((100 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 2.3)) / 10) * 10; // 영웅 +10 까지 합 약 18만 (보통 8~10일치)
 }
 // 강화석: +6 부터 필요 (+6 1개 · +7 2개 · +8 3개 · +9 4개 · +10 5개)
 function gearStoneNeed(lv) { return lv >= 5 && lv < GEAR_MAX_LV ? lv - 4 : 0; }
 // 분해: 장비 → 강화석 (팔기 대신)
-function gearDismantle(r, lv) { return ({ common: 1, rare: 2, epic: 4, legend: 8 })[r] + Math.floor((lv || 0) / 3); }
+function gearDismantle(r, lv) { return ({ common: 1, rare: 2, epic: 4, legend: 8, myth: 30 })[r] + Math.floor((lv || 0) / 3); }
 // 합성: 같은 등급 3개 → 다음 등급 1개 (전설은 합성 불가) · 수수료
 const GEAR_NEXT = { common: 'rare', rare: 'epic', epic: 'legend' };
 const GEAR_FUSE_FEE = { rare: 500, epic: 2000, legend: 6000 }; // 만들어지는 등급 기준
@@ -221,6 +235,7 @@ function rollHeroCard(seed, stars, hell, used) {
 const CARD_PICK = { cost: 2500, n: 3, perWeek: 3 }; // 상점 "멤버 카드 선택권": 고른 멤버 카드 3장 · 주 3번
 
 module.exports = {
+  MYTH, MYTH_IDS,
   hellOpen, hellReward, HELL_COIN,
   heroCardNeed, rollHeroCard, CARD_PICK,
   GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,

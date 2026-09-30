@@ -76,7 +76,7 @@ function normLb(raw, master = false) {
   lb.seen = [...new Set(((raw && raw.seen) || []).filter((t) => LBR.ENEMY_IDS.includes(t)))];
   // 장비: 이상한 값은 버린다 (종류 · 등급 · 레벨 · 번호)
   const ids = new Set();
-  lb.gear = ((raw && raw.gear) || []).filter((it) => it && LBR.GEAR[it.t] && LBR.GEAR_RARITY[it.r] && Number.isInteger(it.id) && !ids.has(it.id) && ids.add(it.id))
+  lb.gear = ((raw && raw.gear) || []).filter((it) => it && LBR.GEAR[it.t] && LBR.GEAR_RARITY[it.r] && !LBR.GEAR[it.t].myth === (it.r !== 'myth') && Number.isInteger(it.id) && !ids.has(it.id) && ids.add(it.id))
     .map((it) => ({ id: it.id, t: it.t, r: it.r, lv: Math.max(0, Math.min(LBR.GEAR_MAX_LV, it.lv | 0)) })).slice(0, LBR.GEAR_BAG);
   lb.gearSeq = Math.max(lb.gearSeq | 0, ...lb.gear.map((x) => x.id), 0);
   lb.autoSell = !!(raw && raw.autoSell); // 자동 판매: 일반 등급 드롭은 바로 코인으로
@@ -88,7 +88,7 @@ function normLb(raw, master = false) {
   const used = new Set();
   for (const [h, sl] of Object.entries((raw && raw.equip) || {})) {
     if (!LBR.LB_HEROES.includes(h) || !sl) continue;
-    for (const k of ['w', 'a']) {
+    for (const k of ['w', 'a', 'm']) {
       const it = lb.gear.find((x) => x.id === sl[k]);
       if (it && LBR.GEAR[it.t].slot === k && !used.has(it.id)) { used.add(it.id); (eq[h] = eq[h] || {})[k] = it.id; }
     }
@@ -545,6 +545,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           : mode === 'weekly' ? { total: LIVE.weeklyCoins(wave) } : mode === 'raid' ? { total: 100 } : { total: LBR.endlessReward(wave, before.items.coupon) };
         // 박상화(경제 멤버)를 데려가 깨면 코인 +12% — 가진 멤버일 때만
         if (mode === 'stage' && Array.isArray(body.heroesUsed) && body.heroesUsed.includes('sanghwa') && LBR.heroUnlocked(before, 'sanghwa')) { const x = Math.round(reward.total * 0.12); reward.total += x; reward.sanghwa = x; }
+        // 신화 1등 복권: 데려간 멤버가 끼고 있으면 코인 +20%
+        if (Array.isArray(body.heroesUsed) && body.heroesUsed.some((h) => { const gid = ((before.equip || {})[h] || {}).m; const it = gid && (before.gear || []).find((g) => g.id === gid); return it && it.t === 'myth_lotto'; })) { const x = Math.round(reward.total * LBR.MYTH.myth_lotto.stats.coin); reward.total += x; reward.lotto = x; }
         let weeklyBest = false;
         // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
         const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];
@@ -709,7 +711,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   }
   const findGear = (lb, gid) => lb.gear.find((x) => x.id === gid);
   function lbEquip(token, hero, slot, gid) {
-    if (!LB_HEROES.includes(hero) || !['w', 'a'].includes(slot)) return Promise.reject(new AuthError('잘못된 요청이에요'));
+    if (!LB_HEROES.includes(hero) || !['w', 'a', 'm'].includes(slot)) return Promise.reject(new AuthError('잘못된 요청이에요'));
     return lbGear(token, (lb) => {
       if (!LBR.heroUnlocked(lb, hero)) return { error: '아직 합류하지 않은 멤버예요' };
       if (gid === null) return { apply: (x) => { if (x.equip[hero]) delete x.equip[hero][slot]; } };
@@ -717,7 +719,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       if (!it) return { error: '없는 장비예요' };
       if (LBR.GEAR[it.t].slot !== slot) return { error: '그 칸에는 못 껴요' };
       return { apply: (x) => {
-        for (const h of Object.keys(x.equip)) for (const k of ['w', 'a']) if (x.equip[h][k] === gid) delete x.equip[h][k]; // 다른 멤버가 끼고 있던 건 빼고
+        for (const h of Object.keys(x.equip)) for (const k of ['w', 'a', 'm']) if (x.equip[h][k] === gid) delete x.equip[h][k]; // 다른 멤버가 끼고 있던 건 빼고
         (x.equip[hero] = x.equip[hero] || {})[slot] = gid;
       } };
     });
@@ -963,7 +965,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       const v = LBR.gearSellValue(it.r, it.lv);
       return { apply: (x) => {
         x.gear = x.gear.filter((g) => g.id !== gid);
-        for (const h of Object.keys(x.equip)) for (const k of ['w', 'a']) if (x.equip[h][k] === gid) delete x.equip[h][k];
+        for (const h of Object.keys(x.equip)) for (const k of ['w', 'a', 'm']) if (x.equip[h][k] === gid) delete x.equip[h][k];
         x.coins += v;
       }, extra: { sold: v } };
     });

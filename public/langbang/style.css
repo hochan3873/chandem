@@ -2526,7 +2526,7 @@ body.rm .ig-chip img { animation: none; }
 .cmp-mid b.up { color: #7dff9a; } .cmp-mid b.dn { color: #ff8a7a; }
 .cmp-mid small { font-size: calc(var(--u) * 9.5); color: var(--dim); font-weight: 800; }
 .cmp-btn { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 6); margin-bottom: calc(var(--u) * 10); }
-.cmp-btn .btn { flex: 1 1 auto; min-width: calc(var(--u) * 70); margin: 0; min-height: calc(var(--u) * 42); font-size: calc(var(--u) * 13); display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--u) * 4); }
+.cmp-btn .btn { flex: 1 1 0; width: auto !important; min-width: calc(var(--u) * 64); margin: 0 !important; padding: 0 calc(var(--u) * 8); min-height: calc(var(--u) * 42); font-size: calc(var(--u) * 13); display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--u) * 4); }
 .cmp-btn .btn small { font-size: calc(var(--u) * 10); opacity: 0.85; }
 .eqs-list { display: flex; flex-direction: column; gap: calc(var(--u) * 6); }
 .eqs { display: grid; grid-template-columns: calc(var(--u) * 40) minmax(0, 1fr) auto auto; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); border: 2px solid color-mix(in srgb, var(--rc) 60%, transparent); background: rgba(0, 0, 0, 0.3); color: #fff; text-align: left; }
@@ -2561,3 +2561,10 @@ body.rm .ig-chip img { animation: none; }
 @keyframes enhRing { from { transform: scale(0.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
 .gfly { position: fixed; z-index: 999; pointer-events: none; display: grid; place-items: center; font-size: calc(var(--u) * 28); transition: transform 0.3s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.3s; }
 .gfly .gico { width: 100%; height: 100%; }
+.info-modal.pop.same, .info-modal.pop.same .pop-box { animation: none !important; }
+/* 신화: 무지개 테두리가 천천히 돈다 */
+.bitem.r-myth, .eq-big.r-myth, .cmp-s[style*="#ff7ad9"], .eqs[style*="#ff7ad9"] { border-color: transparent !important; background-image: linear-gradient(#1e1438, #1e1438), conic-gradient(from var(--ma, 0deg), #ffd23f, #ff6fd8, #6ff0ff, #9dff7a, #ffd23f) !important; background-origin: border-box !important; background-clip: padding-box, border-box !important; box-shadow: 0 0 calc(var(--u) * 12) rgba(255, 122, 217, 0.45) !important; }
+.gwrap.myth .gmax-b { background: linear-gradient(90deg, #ff6fd8, #6ff0ff, #ffd23f); }
+.eq-slots2.myth { grid-template-columns: minmax(0, 1fr); }
+.eq-slots2.myth .eq-big { flex-direction: row; justify-content: center; padding: calc(var(--u) * 10) calc(var(--u) * 12); gap: calc(var(--u) * 10); }
+.eq-slots2.myth .eq-big .eqb-k { position: static; }

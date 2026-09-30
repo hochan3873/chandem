@@ -4,7 +4,7 @@
 // 모든 코인은 게임 안 점수일 뿐 (현금 결제 없음).
 import {
   HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK,
-  GEAR_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT,
+  GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT,
 } from './data.js';
 export const stageBossN = (s) => stageBosses(s).length;
 
@@ -87,7 +87,7 @@ function cleanRw(rw) {
   rw = rw || {};
   const o = {};
   for (const k of ['coins', 'tickets', 'sp', 'stones']) { const v = int(rw[k], 0, 1e7); if (v) o[k] = v; }
-  if (GEAR_RARITIES.includes(rw.gear)) o.gear = rw.gear;
+  if (GEAR_RARITIES.includes(rw.gear) || rw.gear === 'myth') o.gear = rw.gear;
   if (typeof rw.title === 'string' && rw.title.length < 16) o.title = rw.title;
   if (typeof rw.frame === 'string' && FRAMES[rw.frame]) o.frame = rw.frame;
   return o;
@@ -304,7 +304,7 @@ export function grant(lb, rw, uid, now) {
   if (rw.wild) { lb.wild = (lb.wild | 0) + rw.wild; got.wild = rw.wild; }
   if (rw.sta) { staminaAdd(lb, rw.sta, now); got.sta = rw.sta; }
   if (rw.sp) { ensureLive(lb, uid, now); lb.season.sp += rw.sp; got.sp = rw.sp; }
-  if (rw.gear) got.gear = addGear(lb, GEAR_IDS[hashSeed(`rw:${lb.gearSeq}:${rw.gear}:${uid}`) % GEAR_IDS.length], rw.gear);
+  if (rw.gear) { const ids = rw.gear === 'myth' ? MYTH_IDS : GEAR_IDS; got.gear = addGear(lb, ids[hashSeed(`rw:${lb.gearSeq}:${rw.gear}:${uid}`) % ids.length], rw.gear); }
   if (rw.title && !lb.titles.includes(rw.title)) { lb.titles.push(rw.title); got.title = rw.title; }
   if (rw.frame && !lb.frames.includes(rw.frame)) { lb.frames.push(rw.frame); got.frame = rw.frame; }
   return got;
@@ -390,7 +390,7 @@ export const SP_PER_TIER = 100;
 export const seasonOf = (wi) => Math.floor(wi / SEASON_WEEKS) + 1;
 export const seasonEndMs = (sid) => weekStartMs(sid * SEASON_WEEKS);
 export function seasonReward(sid, t) {
-  if (t === 30) return { title: `s${sid}_t30`, frame: 'gold', tickets: 5, label: '🏆 칭호 "레전드" + 황금 프레임 + 모집권 5' };
+  if (t === 30) return { title: `s${sid}_t30`, frame: 'gold', tickets: 5, gear: 'myth', label: '🏆 칭호 "레전드" + 황금 프레임 + 신화 장비 + 모집권 5' };
   if (t === 20) return { frame: 'neon', tickets: 3, label: '🖼️ 네온 프레임 + 모집권 3' };
   if (t === 10) return { title: `s${sid}_t10`, tickets: 2, label: '🏷️ 칭호 "단골" + 모집권 2' };
   if (t === 25) return { gear: 'legend', label: '🌟 전설 장비' };
@@ -431,6 +431,7 @@ export const UNLOCK_CARDS = { epic: 10, legend: 30 };
 export const CARD_BUNDLE = { epicHero: 4, legendHero: 15, epicCard: 1, legendCard: 1 };
 export const cardsNeed = (h) => (LEGEND_HEROES.includes(h) ? UNLOCK_CARDS.legend : UNLOCK_CARDS.epic);
 export const GACHA_RATES = [ // 확률 공개 (%)
+  { k: 'mythGear', w: 0.3, name: '신화 장비 (만능 6종)', color: '#ff7ad9' },
   { k: 'legendHero', w: 0.3, name: '전설 카드 묶음 ×15 (이호찬)', color: '#ffcf3f' },
   { k: 'legendCard', w: 1, name: '전설 카드 ×1 (이호찬)', color: '#ffdf80' },
   { k: 'epicHero', w: 3, name: '영웅 카드 묶음 ×4 (모집 멤버 7명 중)', color: '#c77dff' },
@@ -439,9 +440,9 @@ export const GACHA_RATES = [ // 확률 공개 (%)
   { k: 'epicGear', w: 7.2, name: '영웅 장비', color: '#c77dff' },
   { k: 'rareGear', w: 22, name: '희귀 장비', color: '#4ea8ff' },
   { k: 'shard10', w: 12, name: '멤버 조각 ×10', color: '#ff9f5a' },
-  { k: 'shard4', w: 45, name: '멤버 조각 ×4', color: '#9fb3c8' },
+  { k: 'shard4', w: 44.7, name: '멤버 조각 ×4', color: '#9fb3c8' },
 ];
-const EPIC_PLUS = ['legendHero', 'epicHero', 'legendGear', 'epicGear'];
+const EPIC_PLUS = ['legendHero', 'epicHero', 'legendGear', 'epicGear', 'mythGear'];
 // 합류 전 카드 진행: { 윤준서: [7, 10] … }
 export function cardProgress(lb, h) { return lb.owned && lb.owned[h] ? null : [Math.min(cardsNeed(h), (lb.shards || {})[h] | 0), cardsNeed(h)]; }
 export const DUP_SHARDS = { epicHero: 30, legendHero: 80 };
@@ -495,6 +496,7 @@ function resolvePull(lb, k, rng) {
     if (lb.shards[h] >= need) { lb.shards[h] -= need; lb.owned[h] = true; return { k, hero: h, card: true, shards: v, new: true, have: need, need }; }
     return { k, hero: h, card: true, shards: v, have: lb.shards[h], need };
   }
+  if (k === 'mythGear') return { k, gear: addGear(lb, MYTH_IDS[(rng() * MYTH_IDS.length) | 0], 'myth') };
   if (k === 'legendGear' || k === 'epicGear' || k === 'rareGear') {
     const r = k === 'legendGear' ? 'legend' : k === 'epicGear' ? 'epic' : 'rare';
     return { k, gear: addGear(lb, GEAR_IDS[(rng() * GEAR_IDS.length) | 0], r) };
@@ -605,7 +607,7 @@ export function raidReward(myDmg, total, rank, killed) {
   if (!myDmg) return null;
   const share = total ? myDmg / total : 0;
   if (killed) {
-    const top = rank === 1 ? { tickets: 5, gear: 'legend', title: 'raid1' } : rank <= 3 ? { tickets: 3, gear: 'epic' } : rank <= 10 ? { tickets: 2 } : { tickets: 1 };
+    const top = rank === 1 ? { tickets: 5, gear: 'myth', title: 'raid1' } : rank <= 3 ? { tickets: 3, gear: 'epic' } : rank <= 10 ? { tickets: 2 } : { tickets: 1 };
     return Object.assign({ coins: 2000 + Math.round(4000 * share), label: `처치 성공! ${rank}위 (기여 ${(share * 100).toFixed(1)}%)` }, top);
   }
   const pct = Math.min(1, total / RAID.hp);
@@ -719,7 +721,7 @@ export function endlessStart(lb, free, now = Date.now()) {
 }
 export function milestoneReward(w) {
   const i = ENDLESS.miles.indexOf(w);
-  return [{ coins: 800, tickets: 1 }, { coins: 1600, tickets: 2, gear: 'rare' }, { coins: 3000, tickets: 3, gear: 'epic' }, { coins: 5000, tickets: 4, gear: 'epic' }, { coins: 8000, tickets: 5, gear: 'legend' }][i] || null;
+  return [{ coins: 800, tickets: 1 }, { coins: 1600, tickets: 2, gear: 'rare' }, { coins: 3000, tickets: 3, gear: 'epic' }, { coins: 5000, tickets: 4, gear: 'epic' }, { coins: 8000, tickets: 5, gear: 'myth' }][i] || null;
 }
 // 끝난 무한 판 정리: 주간 최고 · 달성 보상(우편함) · 코인 상한
 export function endlessFinish(lb, wave, score, coins, uid, now = Date.now()) {
