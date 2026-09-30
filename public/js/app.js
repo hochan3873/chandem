@@ -256,6 +256,14 @@ function fitAppHeight() {
   document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
 }
 fitAppHeight();
+// 아이폰 사파리·카카오톡 안 브라우저: 아래 도구 막대가 화면을 덮을 수 있어서 '실제로 보이는 높이'로 게임 화면을 맞춘다
+function fitVisibleHeight() {
+  if (!IS_IOS || isStandalone() || !window.visualViewport) return;
+  document.documentElement.style.setProperty('--vv-h', Math.round(window.visualViewport.height) + 'px');
+  document.documentElement.classList.add('gw-vv');
+}
+fitVisibleHeight();
+if (window.visualViewport) { visualViewport.addEventListener('resize', fitVisibleHeight); visualViewport.addEventListener('scroll', fitVisibleHeight); }
 ['resize', 'orientationchange', 'pageshow'].forEach((ev) => window.addEventListener(ev, () => setTimeout(fitAppHeight, 60)));
 
 async function installApp() {
@@ -708,12 +716,55 @@ async function showJoin(code) {
   render();
 }
 
+// ── 재연결: 서버가 잠깐 꺼지거나(배포) 연결이 끊겨도 방으로 자동 복귀 (최대 약 90초) ──
+const RECONNECT_MS = 90 * 1000;
+function reconnectOverlay(on, text) {
+  let el = document.getElementById('reconnect');
+  if (!on) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'reconnect';
+    el.className = 'reconnect';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = text || `<div class="spinner" aria-hidden="true"></div><b>${S.restartMsg ? esc(S.restartMsg) : '재연결 중…'}</b><small>자리와 칩은 그대로 지켜 두고 있어요</small>`;
+}
+function reconnectGiveUp() {
+  reconnectOverlay(true, `<div class="rc-icon">📡</div><b>방에 다시 들어가지 못했어요</b><small>인터넷 연결을 확인해 주세요. 방이 정리됐을 수도 있어요.</small>
+    <div class="row"><button class="btn btn-gold" id="rc-retry">다시 시도</button><button class="btn btn-outline" id="rc-lobby">로비로</button></div>`);
+  document.getElementById('rc-retry').onclick = () => { S.rcStart = Date.now(); reconnectOverlay(true); if (socket.connected) resume(); else socket.connect(); };
+  document.getElementById('rc-lobby').onclick = () => {
+    reconnectOverlay(false);
+    S.rcStart = 0; S.restartMsg = '';
+    if (S.code) LS.del(sessKey(S.code));
+    S.session = null; S.state = null; S.code = null;
+    nav('/'); S.view = S.game ? 'gamehome' : 'home'; render();
+  };
+}
 async function resume() {
   if (!S.code || !S.session) return;
-  const res = await new Promise((r) => socket.emit('room:resume', { code: S.code, token: S.session.token }, r));
+  const res = await new Promise((r) => socket.timeout(8000).emit('room:resume', { code: S.code, token: S.session.token }, (err, x) => r(err ? { ok: false, retry: true } : x)));
   if (res && res.ok) {
+    S.rcStart = 0; S.restartMsg = '';
+    reconnectOverlay(false);
     if (res.pending) { S.view = 'pending'; render(); }
     else S.view = 'room';
+    return;
+  }
+  // 방에 있던 중이면(또는 방금 서버가 다시 켜졌으면) 바로 포기하지 않고 잠시 뒤 다시
+  const inRoom = S.view === 'room' || S.view === 'boot' || S.rcStart;
+  const gone = res && /만료|내보내/.test(res.message || '');
+  if (inRoom && !gone) {
+    S.rcStart = S.rcStart || Date.now();
+    // 방에서 놀던 중이면 90초, 새로 연 링크(예전 방일 수 있음)는 10초만 기다린다
+    if (Date.now() - S.rcStart < (S.wasInRoom === S.code ? RECONNECT_MS : 10000)) {
+      reconnectOverlay(true);
+      const tries = (S.rcTries = (S.rcTries || 0) + 1);
+      setTimeout(() => { if (S.rcStart) resume(); }, Math.min(8000, 800 * 2 ** Math.min(tries, 4)));
+      return;
+    }
+    reconnectGiveUp();
     return;
   }
   LS.del(sessKey(S.code));
@@ -721,19 +772,34 @@ async function resume() {
   toast((res && res.message) || '다시 참가해 주세요', 'error');
   await showJoin(S.code);
 }
+socket.on('server:restarting', (m) => {
+  S.restartMsg = (m && m.message) || '🔧 서버 업데이트 중 — 잠시 후 자동으로 돌아와요';
+  if (S.view === 'room') { S.rcStart = Date.now(); reconnectOverlay(true); }
+});
 
 socket.on('connect', () => {
   S.connected = true;
   document.body.classList.remove('offline');
+  clearTimeout(S.dcTimer);
   if (S.session && S.code) resume();
+  else reconnectOverlay(false);
 });
 socket.on('disconnect', () => {
   S.connected = false;
   document.body.classList.add('offline');
+  // 방 안에서 끊기면 1.5초 뒤에도 안 붙으면 "재연결 중…" (잠깐 끊김은 조용히)
+  clearTimeout(S.dcTimer);
+  if (S.view === 'room') S.dcTimer = setTimeout(() => { if (!S.connected) { S.rcStart = S.rcStart || Date.now(); reconnectOverlay(true); } }, 1500);
 });
 socket.on('state', (st) => {
   const first = !S.state || S.state.room.code !== st.room.code;
+  if (!first && S.state.room.hostId && st.room.hostId && S.state.room.hostId !== st.room.hostId) {
+    const nh = st.players.find((p) => p.id === st.room.hostId);
+    if (nh) toast(nh.id === (st.me && st.me.id) ? '👑 내가 새 방장이에요' : `👑 ${nh.name}님이 새 방장이에요`, 'ok');
+  }
+  if (!first && S.state.me && S.state.me.sittingOut && st.me && !st.me.sittingOut) toast('자리로 돌아왔어요', 'ok');
   S.state = st;
+  S.wasInRoom = st.room.code;
   S.clockSkew = st.serverTime - Date.now();
   if (S.view !== 'room') S.view = 'room';
   processEvents(st, first);
@@ -760,6 +826,50 @@ socket.on('kicked', (d) => {
   S.message = d.message || '방에서 나왔어요';
   render();
 });
+
+// ── 자리 비움 자동 복귀: 화면을 다시 보거나 아무 데나 누르면 (시간 초과·연결 끊김으로 비운 경우만) ──
+function autoSitIn() {
+  const me = S.state && S.state.me;
+  if (S.view !== 'room' || !me || !me.sittingOut || me.awayReason === 'self' || S.sitInAt > Date.now() - 1500) return;
+  S.sitInAt = Date.now();
+  emit('game:sitin');
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(autoSitIn, 300); });
+window.addEventListener('pointerdown', () => autoSitIn(), { capture: true, passive: true });
+
+// ── 말하기: 섯다 "삥!" "따당!" "하프!" … · 홀덤 "콜" "레이즈" … + 말풍선 ──
+const SD_CALL = { bbing: '삥', ddadang: '따당', half: '하프', call: '콜', die: '다이', check: '체크', allin: '올인', bet: '베팅', raise: '레이즈' };
+const HD_CALL = { fold: '폴드', check: '체크', call: '콜', bet: '베팅', raise: '레이즈', allin: '올인' };
+function actionCallout(st, e) {
+  const game = gameOf(st);
+  if (!['fold', 'check', 'call', 'bet', 'raise', 'allin'].includes(e.type)) return;
+  let key = e.type, text;
+  if (game === 'seotda') {
+    const bb = (st.room.tournament && st.room.tournament.running ? st.room.tournament.bb : st.room.settings.bb) || 0;
+    if (e.type === 'fold') key = 'die';
+    else if (e.type === 'bet') key = e.to <= bb ? 'bbing' : 'half';
+    else if (e.type === 'raise') key = S.sdLastTo && e.to <= S.sdLastTo * 2 ? 'ddadang' : 'half';
+    if (e.to) S.sdLastTo = Math.max(S.sdLastTo || 0, e.to);
+    text = SD_CALL[key];
+    sound.callout('seotda_' + key, text);
+  } else {
+    text = HD_CALL[e.type];
+    // 홀덤은 원래 있던 음성(v_call 등)이 나옴 — 말풍선만
+  }
+  seatBubble(e.id, text + '!');
+}
+function seatBubble(id, text) {
+  const seat = document.querySelector(`.seat[data-id="${id}"] .seat-av`) || document.querySelector(`.omok-player[data-id="${id}"]`);
+  if (!seat || !text) return;
+  const r = seat.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'fx-say';
+  el.textContent = text;
+  el.style.left = Math.max(40, Math.min(innerWidth - 40, r.left + r.width / 2)) + 'px';
+  el.style.top = Math.max(20, r.top - 6) + 'px';
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
 
 // ── 손님에게 로그인 권하기 (막지 않음 · 닫으면 이 방에서는 안 뜸) ──
 function guestNudgeHTML(st, compact = false) {
@@ -876,7 +986,9 @@ function processEvents(st, first) {
     }
     if (e.type === 'allin') setTimeout(() => allinStamp(e.id), delay);
     const iWon = e.type === 'end' && e.winners && e.winners.includes(meId);
-    setTimeout(() => sound.playForEvent(e, { isMe: e.id === meId, iWon }), delay);
+    if (e.type === 'street' || e.type === 'end') S.sdLastTo = 0;
+    const sd = gameOf(st) === 'seotda';
+    setTimeout(() => { if (!sd || !['fold', 'check', 'call', 'bet', 'raise', 'allin'].includes(e.type)) sound.playForEvent(e, { isMe: e.id === meId, iWon }); else sound.play(e.type === 'fold' ? 'fold' : e.type === 'check' ? 'check' : e.type === 'allin' ? 'allin' : 'chips'); actionCallout(st, e); }, delay);
     delay += 160;
   }
   const turnId = st.hand && st.hand.toActId;
@@ -963,7 +1075,7 @@ const GAME_INFO = {
 };
 const GAME_RULES = {
   holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
-  seotda: '<p><b>두 장 섯다</b>: 모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p><b>세 장 섯다</b>: 두 장을 받고 1차 베팅, 한 장을 더 받고 2차 베팅. 세 장 중 가장 좋은 두 장으로 승부해요(자동으로 골라 줘요).</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
+  seotda: '<p><b>두 장 섯다</b>: 모두 판돈을 내고 화투 두 장씩 받아요. 한 바퀴 베팅한 뒤 족보가 높은 사람이 판돈을 가져가요.</p><p><b>세 장 섯다</b>: 두 장을 받고 1차 베팅, 한 장을 더 받고 2차 베팅. 세 장 중 가장 좋은 두 장으로 승부해요(자동으로 골라 줘요). <b>카드는 쇼다운 전까지 아무에게도 공개되지 않아요</b> — 내 화면에 세 장이 앞면으로 보이는 건 나만 보는 거예요.</p><p>베팅: 다이(포기) · 체크 · 삥(판돈만큼) · 콜 · 따당(두 배) · 하프(판의 절반 더) · 올인</p><p>족보는 게임 안의 <b>족보표</b>에서 볼 수 있어요. 구사가 나오면 판돈을 걸고 재경기해요.</p>',
   omok: '<p>흑이 먼저 두고, 가로·세로·대각선으로 <b>정확히 다섯 알</b>을 먼저 이으면 이겨요.</p><p>흑은 <b>삼삼</b>(열린 3이 두 개 생기는 자리)에 둘 수 없어요. 흑의 여섯 알(장목)은 승리가 아니에요.</p><p>로그인하면 대국마다 점수가 오르내리고 티어가 정해져요.</p>',
 };
 // ── 게임 그림: 랑방 대전은 내 진행 챕터(langbang:chapter, 랑방 화면이 저장)에 맞는 키 아트 ──
@@ -1179,8 +1291,8 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
   <div class="grid2 chips-only">
     <label class="field"><span>시작 칩</span><input class="input" type="number" inputmode="numeric" name="startChips" min="100" value="${s.startChips}"></label>
     <label class="field"><span>턴 제한시간(초)</span><input class="input" type="number" inputmode="numeric" name="turnSeconds" min="10" max="120" value="${s.turnSeconds}"></label>
-    <label class="field"><span>스몰 블라인드</span><input class="input" type="number" inputmode="numeric" name="sb" min="1" value="${s.sb}"></label>
-    <label class="field"><span>빅 블라인드</span><input class="input" type="number" inputmode="numeric" name="bb" min="1" value="${s.bb}"></label>
+    <label class="field holdem-only-f"><span>스몰 블라인드</span><input class="input" type="number" inputmode="numeric" name="sb" min="1" value="${s.sb}"></label>
+    <label class="field"><span><span class="holdem-only-f">빅 블라인드</span><span class="seotda-only-f">기본 판돈 (삥)</span></span><input class="input" type="number" inputmode="numeric" name="bb" min="1" value="${s.bb}"></label>
     <label class="field"><span>최소 인원</span><input class="input" type="number" inputmode="numeric" name="minPlayers" min="2" max="9" value="${s.minPlayers}"></label>
     <label class="field"><span>최대 인원</span><input class="input" type="number" inputmode="numeric" name="maxPlayers" min="2" max="9" value="${s.maxPlayers}"></label>
   </div>
@@ -1216,6 +1328,8 @@ function bindGamePick(form, name = 'game') {
 function readSettings(form) {
   const fd = new FormData(form);
   const num = (k) => Number(fd.get(k));
+  // 섯다는 스몰 블라인드가 없다: 기본 판돈(삥) = 빅 블라인드 칸
+  if ((fd.get('game') || form.dataset.game) === 'seotda') fd.set('sb', fd.get('bb'));
   return {
     startChips: num('startChips'), turnSeconds: num('turnSeconds'), sb: num('sb'), bb: num('bb'),
     minPlayers: num('minPlayers'), maxPlayers: num('maxPlayers'),
@@ -1574,6 +1688,7 @@ function openSettingsModal() {
   const s = S.state.room.settings;
   openModal('방 설정 바꾸기', `<form class="form" id="set-form">${settingsFormHTML(s)}<button class="btn btn-gold btn-lg">저장</button></form>`, (body) => {
     const form = body.querySelector('#set-form');
+    form.dataset.game = s.game || 'holdem'; // 게임에 맞는 칸만 (섯다: 기본 판돈)
     form.onsubmit = async (e) => {
       e.preventDefault();
       const next = readSettings(form);
@@ -1761,7 +1876,9 @@ function renderBanner(st) {
     } else if (me.stack === 0 && !(st.hand && !st.hand.result && st.players.find((p) => p.id === me.id)?.status === 'allin')) {
       msgs.push(['info', '칩이 모두 떨어졌어요. 이제 관전하며 응원해 주세요']);
     }
-    if (me.sittingOut) msgs.push(['warn', '자리 비움 중 · 내 차례엔 자동으로 체크, 안 되면 다이해요', '<button class="btn btn-sm btn-gold" id="sitin-btn">자리로 돌아가기</button>']);
+    if (me.sittingOut) msgs.push(['away', '⏸️ 자리 비움 중 · 내 차례엔 자동으로 체크/다이해요 (화면을 누르면 돌아와요)', '<button class="btn btn-sm btn-gold" id="sitin-btn">자리로 돌아가기</button>']);
+    const myRow = st.players.find((p) => p.id === me.id);
+    if (st.room.phase === 'playing' && myRow && myRow.status === 'waiting' && !me.sittingOut) msgs.push(['info', '🪑 다음 판부터 참여해요 · 이번 판은 구경 중']);
   }
   if (st.room.waiting) msgs.push(['info', '카드를 받을 수 있는 참가자가 2명 이상이 되면 다음 판이 시작돼요']);
   const nudge = guestNudgeHTML(st, true);
@@ -2167,8 +2284,9 @@ function renderActions(st) {
     return;
   }
 
-  if (h.game === 'seotda') { renderSeotdaActions(el, st, la, info); return; }
-  el.innerHTML = `
+  const awayNote = st.me && st.me.sittingOut ? '<div class="away-turn">⏸️ 자리 비움 중이에요 — 아래 버튼을 누르면 <b>자리로 돌아가며 바로 행동</b>해요</div>' : '';
+  if (h.game === 'seotda') { renderSeotdaActions(el, st, la, info, awayNote); return; }
+  el.innerHTML = `${awayNote}
     <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
     <div class="act-info"><span class="my-turn">내 차례 · <span data-deadline-text>남은 시간 -</span></span><span>${info.join(' · ')}</span></div>
     <div class="act-row">
@@ -2193,7 +2311,7 @@ function renderActions(st) {
 }
 
 // 섯다 베팅: 다이 · 체크 · 삥 · 콜 · 따당 · 하프 · 올인
-function renderSeotdaActions(el, st, la, info) {
+function renderSeotdaActions(el, st, la, info, awayNote = '') {
   const h = st.hand;
   const bb = h.pot !== undefined ? st.room.tournament && st.room.tournament.running ? st.room.tournament.bb : st.room.settings.bb : st.room.settings.bb;
   const canUp = la.canBet || la.canRaise;
@@ -2212,15 +2330,18 @@ function renderSeotdaActions(el, st, la, info) {
     btns.push(['half', '하프', `${fmt(half)}까지`, half >= la.maxTo ? { type: 'allin' } : { type: la.canBet ? 'bet' : 'raise', amount: Math.max(half, la.minTo) }, 'act-raise']);
   }
   btns.push(['allin', '올인', fmt(la.stack), la.canAllIn ? { type: 'allin' } : null, 'act-allin']);
+  // 금액을 직접: 슬라이더·½팟·팟·올인 (레이즈 창)
+  if (canUp && la.minTo < la.maxTo) btns.push(['custom', '금액 ✏️', '직접 정하기', { custom: true }, 'act-custom']);
   void bb;
-  el.innerHTML = `
+  el.innerHTML = `${awayNote}
     <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
     <div class="act-info"><span class="my-turn">내 차례 · <span data-deadline-text>남은 시간 -</span></span><span>${info.join(' · ')}</span></div>
-    <div class="act-row sd-acts ${btns.length > 4 ? 'sd-acts-6' : ''}">${btns.map(([k, t, sub, a, c]) => `<button class="btn act ${c}" data-sd="${k}" ${a ? '' : 'disabled'}>${t}<small>${sub}</small></button>`).join('')}</div>`;
+    <div class="act-row sd-acts ${btns.length > 4 ? 'sd-acts-6' : ''} ${btns.length > 6 ? 'sd-acts-7' : ''}">${btns.map(([k, t, sub, a, c]) => `<button class="btn act ${c}" data-sd="${k}" ${a ? '' : 'disabled'}>${t}<small>${sub}</small></button>`).join('')}</div>`;
   el.querySelectorAll('[data-sd]').forEach((b) => {
     const def = btns.find((x) => x[0] === b.dataset.sd);
     b.onclick = () => {
       if (!def[3]) return;
+      if (def[3].custom) { S.raise.open = true; S.raise.to = la.minTo; S.actionSig = ''; renderActions(S.state); return; }
       if (def[3].type === 'allin' && !confirm(`${fmt(la.stack)} 올인할까요?`)) return;
       doAct(def[3]);
     };
@@ -2266,6 +2387,9 @@ function tickTimers() {
     });
     const meTurn = st.me && h.toActId === st.me.id;
     if (meTurn && sec <= 5 && sec > 0 && S.lastTick !== sec) { S.lastTick = sec; sound.play('tick'); }
+    // 5초 남으면 한 번 진동 (설정에서 켜 둔 경우만)
+    const vkey = `${h.no}:${h.deadline}`;
+    if (meTurn && sec <= 5 && sec > 0 && S.vib5 !== vkey) { S.vib5 = vkey; gws.vibrate([120, 80, 120]); }
   }
   if (st.room.nextHandAt) {
     const s2 = Math.max(0, Math.ceil((st.room.nextHandAt - now) / 1000));

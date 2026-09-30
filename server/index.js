@@ -15,7 +15,7 @@ const { createLbPvp } = require('./langbang-pvp');
 
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12시간 아무 일 없으면 방 정리
 // 과부하 방지: 전체 방 수, 연습 방 수, 한 사람(IP)이 동시에 가진 방 수, 방 만들기 간격
-const LIMITS = { rooms: 300, practiceRooms: 60, roomsPerIp: 6, createGapMs: 3000 };
+const LIMITS = { rooms: 300, practiceRooms: 60, roomsPerIp: 6, createGapMs: 3000, emptyRoomMs: 5 * 60 * 1000 }; // emptyRoomMs: 사람이 다 나간 친구 방을 지우기까지
 const PRACTICE_IDLE_MS = 15 * 60 * 1000;
 
 function lanUrls(port) {
@@ -76,29 +76,71 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const rooms = new Map();
 
   // ── 저장/복구 ─────────────────────────────────────
+  // 방은 메모리에 있다. 배포(재시작)해도 게임이 끊기지 않게 스냅숏을 남긴다:
+  //  · DATABASE_URL 이 있으면 PostgreSQL 표 rooms_snapshot (배포 서버는 디스크가 매번 새로 만들어짐)
+  //  · 없으면 data/rooms.json (로컬·테스트)
+  //  바뀔 때마다(0.3초 모아서) + 10초마다 + 꺼질 때(SIGTERM) 저장. 켜질 때 10분 안의 스냅숏만 복구.
+  const pool = acct.store && acct.store.pool;
+  const SNAP_MAX_AGE_MS = 10 * 60 * 1000;
   let saveTimer = null;
-  function scheduleSave() {
-    if (!dataFile || saveTimer) return;
-    saveTimer = setTimeout(() => {
-      saveTimer = null;
-      const data = [...rooms.values()].map((r) => r.serialize());
+  let dirty = false;
+  let saving = Promise.resolve();
+  const snapshot = () => ({ savedAt: Date.now(), rooms: [...rooms.values()].map((r) => r.serialize()) });
+  async function writeSnapshot() {
+    const data = snapshot();
+    if (pool) {
+      await pool.query(`INSERT INTO rooms_snapshot (id, data, saved_at) VALUES ('rooms', $1, $2)
+        ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, saved_at = EXCLUDED.saved_at`, [JSON.stringify(data), data.savedAt]);
+    } else if (dataFile) {
       fs.mkdirSync(path.dirname(dataFile), { recursive: true });
       fs.writeFileSync(dataFile + '.tmp', JSON.stringify(data));
       fs.renameSync(dataFile + '.tmp', dataFile);
-    }, 300);
+    }
   }
-  if (dataFile && fs.existsSync(dataFile)) {
-    try {
-      for (const obj of JSON.parse(fs.readFileSync(dataFile, 'utf8'))) {
+  function saveNow() {
+    dirty = false;
+    saving = saving.then(writeSnapshot).catch((e) => console.error('[rooms] 저장 실패:', e.message));
+    return saving;
+  }
+  function scheduleSave() {
+    if (!dataFile && !pool) return;
+    dirty = true;
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => { saveTimer = null; saveNow(); }, 300);
+  }
+  const periodic = (dataFile || pool) ? setInterval(() => { if (dirty || [...rooms.values()].some((r) => r.hand && !r.hand.finished)) saveNow(); }, 10 * 1000) : null;
+  if (periodic && periodic.unref) periodic.unref();
+  function restoreFrom(data) {
+    const list = Array.isArray(data) ? data : (data && data.rooms) || [];
+    const savedAt = Array.isArray(data) ? Date.now() : Number(data && data.savedAt) || 0;
+    if (!Array.isArray(data) && Date.now() - savedAt > SNAP_MAX_AGE_MS) { console.log('[rooms] 스냅숏이 10분보다 오래돼서 건너뜀'); return; }
+    for (const obj of list) {
+      try {
         if (Date.now() - obj.touchedAt > ROOM_TTL_MS) continue;
+        if (rooms.has(obj.code)) continue;
         const r = Room.restore(obj);
         wire(r);
         rooms.set(r.code, r);
-      }
-      console.log(`저장된 방 ${rooms.size}개를 복구했어요`);
-    } catch (e) {
-      console.error('저장 파일을 읽지 못했어요:', e.message);
+      } catch (e) { console.error('[rooms] 방 복구 실패:', obj && obj.code, e.message); }
     }
+    console.log(`저장된 방 ${rooms.size}개를 복구했어요`);
+  }
+  let roomsReady = Promise.resolve();
+  if (pool) {
+    roomsReady = acct.ready.then(async () => {
+      await pool.query('CREATE TABLE IF NOT EXISTS rooms_snapshot (id TEXT PRIMARY KEY, data JSONB NOT NULL, saved_at BIGINT NOT NULL)');
+      const r = await pool.query("SELECT data FROM rooms_snapshot WHERE id = 'rooms'");
+      if (r.rows[0]) restoreFrom(r.rows[0].data);
+    }).catch((e) => console.error('[rooms] 스냅숏 읽기 실패:', e.message));
+  } else if (dataFile && fs.existsSync(dataFile)) {
+    try { restoreFrom(JSON.parse(fs.readFileSync(dataFile, 'utf8'))); }
+    catch (e) { console.error('저장 파일을 읽지 못했어요:', e.message); }
+  }
+  /** 꺼지기 직전(배포): 알리고 · 마지막으로 저장 */
+  async function shutdown() {
+    try { io.emit('server:restarting', { message: '🔧 서버 업데이트 중 — 잠시 후 자동으로 돌아와요' }); } catch {}
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    await saveNow();
   }
 
   function wire(room) {
@@ -183,6 +225,15 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     rooms.delete(code);
     scheduleSave();
     return true;
+  }
+  // 사람이 모두 나간 방: 연습 방은 바로, 친구 방은 잠깐(5분) 기다렸다가 그래도 비어 있으면 지운다
+  function closeIfEmpty(room) {
+    if (!room.isEmpty) return false;
+    if (room.practice) { room.clearAllTimers(); rooms.delete(room.code); return true; }
+    room.setTimer('empty', LIM.emptyRoomMs, () => {
+      if (room.isEmpty && rooms.get(room.code) === room) { room.clearAllTimers(); rooms.delete(room.code); }
+    });
+    return false;
   }
   function kickPlayer(code, id, reason) {
     const room = rooms.get(code);
@@ -355,6 +406,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
 
     socket.on('room:join', async (payload, ack) => {
       payload = payload || {};
+      await roomsReady;
       const user = await userOf(payload);
       if (user) payload.name = user.nickname;
       try {
@@ -376,8 +428,9 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     });
 
     // 새로고침·재접속: 저장해 둔 토큰으로 같은 플레이어로 복귀
-    socket.on('room:resume', (payload, ack) => {
+    socket.on('room:resume', async (payload, ack) => {
       payload = payload || {};
+      await roomsReady;
       try {
         const room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방이 없어졌어요');
@@ -456,8 +509,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
           socket.leave('room:' + room.code);
           socket.data.playerId = null;
           socket.data.pendingId = null;
-          if (room.isEmpty) { room.clearAllTimers(); rooms.delete(room.code); }
-          else broadcast(room);
+          if (!closeIfEmpty(room)) broadcast(room);
         }
         reply(ack, { ok: true });
       } catch (e) { fail(ack, e); }
@@ -479,8 +531,11 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
 
   return {
     app, server, io, rooms, accounts: acct, site, lbPvp, get rankings() { return rankings; },
+    saveNow, shutdown, roomsReady: () => roomsReady,
     listen: () => new Promise((resolve) => server.listen(port, '0.0.0.0', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => {
+      if (periodic) clearInterval(periodic);
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
       for (const r of rooms.values()) r.clearAllTimers();
       lbPvp.close();
       io.close(() => resolve());
@@ -496,6 +551,17 @@ if (require.main === module) {
   process.on('unhandledRejection', (e) => console.error('[unhandled]', e));
   const port = Number(process.env.PORT) || 3000;
   const srv = createServer({ port, dataFile: path.join(__dirname, '..', 'data', 'rooms.json') });
+  // 배포(Render)는 SIGTERM 을 보내고 잠시 뒤 끈다 → 방 상태를 저장하고 알린 뒤 끈다
+  let stopping = false;
+  for (const sig of ['SIGTERM', 'SIGINT']) {
+    process.on(sig, () => {
+      if (stopping) return;
+      stopping = true;
+      console.log(`[${sig}] 방 상태를 저장하고 끕니다`);
+      const force = setTimeout(() => process.exit(0), 8000);
+      srv.shutdown().catch(() => {}).finally(() => { clearTimeout(force); setTimeout(() => process.exit(0), 300); });
+    });
+  }
   srv.listen().then((p) => {
     console.log('');
     console.log('  ♠ 찬이의 게임월드 서버가 켜졌어요');

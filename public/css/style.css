@@ -1239,3 +1239,25 @@ html.gw-standalone body::after { content: ''; position: fixed; left: 0; right: 0
 .hall-join { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 211, 90, .1); border: 1px dashed rgba(255, 211, 90, .5); font-size: .78rem; }
 .hall-join span { flex: 1; min-width: 0; word-break: keep-all; }
 .hall-join .btn { white-space: nowrap; }
+
+/* ═══ 재연결 · 자리 비움 · 말풍선 · 섯다 금액 ═══ */
+.reconnect { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; background: rgba(4, 8, 14, .78); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); color: #fff; }
+.reconnect b { font-size: 1.1rem; }
+.reconnect small { color: var(--muted); }
+.reconnect .rc-icon { font-size: 2.4rem; }
+.reconnect .row { gap: 8px; margin-top: 6px; }
+.banner-away { background: linear-gradient(90deg, rgba(216, 67, 75, .55), rgba(216, 67, 75, .25)); border: 1px solid #ff6b73; color: #fff; font-weight: 800; animation: awayPulse 1.6s ease-in-out infinite; }
+@keyframes awayPulse { 50% { box-shadow: 0 0 0 3px rgba(255, 90, 100, .35); } }
+.away-turn { margin: 0 0 6px; padding: 7px 10px; border-radius: 10px; background: rgba(216, 67, 75, .25); border: 1px solid #ff6b73; color: #ffe1e3; font-size: .82rem; text-align: center; animation: awayPulse 1.2s ease-in-out infinite; }
+.fx-say { position: fixed; transform: translate(-50%, -100%); z-index: 56; padding: 3px 10px; border-radius: 12px; background: #fff; color: #2a1200; font: 900 .9rem 'Noto Sans KR', sans-serif; white-space: nowrap; box-shadow: 0 4px 12px rgba(0, 0, 0, .5); pointer-events: none; animation: sayIn 1.4s ease forwards; }
+.fx-say::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-top-color: #fff; border-bottom: 0; }
+@keyframes sayIn { 0% { opacity: 0; transform: translate(-50%, -70%) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -110%) scale(1.1); } 25% { transform: translate(-50%, -100%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -130%); } }
+.act.act-custom { background: linear-gradient(180deg, #3b3f55, #262a3c); color: #e6e9ff; border-color: rgba(160, 170, 255, .45); }
+.sd-acts.sd-acts-7 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.sd-acts.sd-acts-7 .act { min-width: 0; padding-left: 2px; padding-right: 2px; font-size: .88rem; }
+.sd-acts.sd-acts-7 .act small { font-size: .62rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+form:not([data-game=seotda]) .seotda-only-f { display: none; }
+form[data-game=seotda] .holdem-only-f { display: none; }
+.sd-center { white-space: nowrap; font-size: .8rem; }
+body[data-theme="seotda"] .sd-center { font-size: .95rem; letter-spacing: .12em; }
+html.gw-vv .game { height: var(--vv-h, 100dvh); }

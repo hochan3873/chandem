@@ -396,19 +396,34 @@ test('봇: 매판 올인하는 사람에게는 적당한 패로 받아치고, �
   assert.ok(foldTrash === 10, `83o 는 폴드 (${foldTrash}/10)`);
 });
 
-test('게임 진행 중에 들어오는 사람은 방장 승인이 필요하다', async () => {
+test('게임 진행 중에 들어오면 이번 판은 구경하고 다음 판부터 참여 (참가 승인 방이면 방장 승인)', async () => {
   const a = client(); const b = client(); const c = client();
-  const ra = await a.call('room:create', { name: '방장', settings: {} });
+  const ra = await a.call('room:create', { name: '방장', settings: { turnSeconds: 60 } });
   await b.call('room:join', { code: ra.code, name: '친구' });
   await b.call('lobby:ready', { ready: true });
   assert.equal((await a.call('lobby:start')).ok, true);
+  await until(() => a.last && a.last.hand && !a.last.hand.finished);
+  const handNow = a.last.hand.no;
   const rc = await c.call('room:join', { code: ra.code, name: '늦은친구' });
-  assert.equal(rc.ok, true);
-  assert.equal(rc.pending, true);
-  await until(() => a.last && a.last.pending && a.last.pending.length === 1);
-  assert.equal((await a.call('host:approve', { id: rc.playerId, ok: true })).ok, true);
-  await until(() => a.last.players.some((p) => p.name === '늦은친구'));
-  a.close(); b.close(); c.close();
+  assert.equal(rc.ok, true, rc.message);
+  assert.notEqual(rc.pending, true, '승인 없이 바로');
+  await until(() => c.last && c.last.me && c.last.me.role === 'player');
+  const mid = c.last.players.find((p) => p.id === rc.playerId);
+  assert.equal(mid.status, 'waiting', '이번 판은 대기');
+  assert.equal(mid.cards, null);
+  // 이번 판을 끝내면 다음 판에 카드가 온다
+  const play = (v) => { const la = v.hand && v.hand.legal; if (la) v.__s.emit('game:act', { type: la.canCheck ? 'check' : 'call' }, () => {}); };
+  for (const s of [a, b, c]) { s.on('state', (v) => { v.__s = s; play(v); }); if (s.last) { s.last.__s = s; play(s.last); } }
+  await until(() => c.last.hand && c.last.hand.no > handNow && c.last.players.find((p) => p.id === rc.playerId).cards, 10000);
+  // '참가 승인' 방이면 방장이 받아 준다
+  const d = client();
+  const g = client();
+  const r2 = await g.call('room:create', { name: '승인방장', settings: { approval: true } });
+  const e = client(); const f = client();
+  await e.call('room:resume', { code: r2.code, token: r2.token });
+  const rf = await f.call('room:join', { code: r2.code, name: '신청자' });
+  assert.equal(rf.pending, true, '참가 승인 방은 대기');
+  a.close(); b.close(); c.close(); d.close(); e.close(); f.close(); g.close();
 });
 
 test('프로필 사진: 작은 이미지만 받고 주소로 내려준다', async () => {
@@ -471,7 +486,7 @@ test('토너먼트: 시간이 지나면 블라인드가 오르고, 한 명 남�
   room.clearAllTimers();
 });
 
-test('관전: 게임 중에도 바로 관전 입장, 자리에 앉으려면 방장 승인, 방 목록에 표시', async () => {
+test('관전: 게임 중에도 바로 관전 입장, 자리에 앉으면 다음 판부터, 방 목록에 표시', async () => {
   const a = client(); const b = client(); const c = client();
   const ra = await a.call('room:create', { name: '방장', settings: {} });
   await b.call('room:join', { code: ra.code, name: '친구' });
@@ -485,9 +500,7 @@ test('관전: 게임 중에도 바로 관전 입장, 자리에 앉으려면 방�
   assert.ok(c.last.players.filter((p) => p.cards).every((p) => p.cards.every((x) => x === '??')));
   const sit = await c.call('lobby:role', { spectator: false });
   assert.equal(sit.ok, true);
-  assert.equal(sit.requested, true);
-  await until(() => a.last.pending && a.last.pending.some((p) => p.id === rc.playerId && p.seat));
-  await a.call('host:approve', { id: rc.playerId, ok: true });
+  assert.notEqual(sit.requested, true, '승인 없이 바로 앉음 (다음 판부터)');
   await until(() => c.last.me.role === 'player');
   const list = await (await fetch(`${base}/api/rooms`)).json();
   const mine = list.rooms.find((x) => x.code === ra.code);

@@ -268,13 +268,46 @@ const TTS = {
   v_h5: '플러시!', v_h6: '풀하우스!', v_h7: '포카드!', v_h8: '스트레이트 플러시!', v_h9: '로열 스트레이트 플러시!',
   e_angry: '아 진짜 열받네!', e_happy: '나이스!', e_mock: '쫄리냐?', e_laugh: '크하하하!', e_cry: '아이고 내 칩',
 };
-function speak(text) {
+let koVoice = null;
+function pickVoice() {
+  try {
+    const vs = speechSynthesis.getVoices() || [];
+    koVoice = vs.find((v) => /^ko/i.test(v.lang) && /Yuna|유나|Google|Heami|SunHi/i.test(v.name)) || vs.find((v) => /^ko/i.test(v.lang)) || null;
+  } catch {}
+}
+if (window.speechSynthesis) { pickVoice(); try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch {} }
+function speak(text, rate = 1.05) {
   try {
     if (!window.speechSynthesis) return;
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ko-KR'; u.rate = 1.05; u.volume = Math.min(1, prefs.volume + 0.2);
+    u.lang = 'ko-KR'; u.rate = rate; u.volume = Math.min(1, prefs.volume + 0.2);
+    if (koVoice) u.voice = koVoice;
     speechSynthesis.speak(u);
   } catch {}
+}
+
+// ── 섯다 외치기 ("삥!" "따당!" …): /sounds/seotda_<말>.mp3 가 있으면 그 파일, 없으면 기기 음성 ──
+const fileKnown = {};
+async function hasFile(name) {
+  if (fileKnown[name] !== undefined) return fileKnown[name];
+  if (manifest && manifest[name]) return (fileKnown[name] = true);
+  try { const r = await fetch('/sounds/' + name + '.mp3', { method: 'HEAD' }); fileKnown[name] = r.ok; } catch { fileKnown[name] = false; }
+  return fileKnown[name];
+}
+let calloutChain = Promise.resolve();
+export function callout(name, text) {
+  if (!unlocked || prefs.muted || !prefs.voice) return;
+  // 여러 사람이 연달아 해도 겹치지 않게 줄 세운다 (한 마디 + 잠깐 쉼)
+  calloutChain = calloutChain.then(async () => {
+    if (await hasFile(name)) {
+      if (manifest && !manifest[name]) manifest[name] = name + '.mp3';
+      await play(name, 1.1);
+      await new Promise((r) => setTimeout(r, 650));
+    } else {
+      speak(text, 1.1);
+      await new Promise((r) => setTimeout(r, 520));
+    }
+  }).catch(() => {});
 }
 
 /** 짧은 말을 기기 음성으로 (섯다 족보 등 파일이 없는 말) */

@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
 const AWAY_SKIP_MS = 60 * 1000;       // 이만큼 끊긴 사람은 다음 판에서 제외(자리 비움)
+const AWAY_ACT_MS = 8 * 1000;         // 자리 비움인데 화면은 켜져 있으면: 차례에 8초 동안 직접 할 수 있게 기다린다
 const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // 결과를 보여준 뒤 다음 판까지
 // 쇼다운 연출(ms). 올인 승부는 패 공개 → 남은 카드를 한 장씩 → 리버는 뜸을 들여 '쪼기'
 const REVEAL = { first: 700, perHand: 1100, allinHands: 1600, flop: 1800, turn: 2200, squeeze: 1900, river: 1300, result: 900 };
@@ -292,14 +293,21 @@ class Room {
     if (this.settings.password && password !== this.settings.password && !masterPeek) {
       throw new RoomError('비밀번호가 맞지 않아요');
     }
+    // 같은 계정으로 다시 들어오면(다른 기기·새 탭) 새 자리를 만들지 않고 원래 자리로 돌려보낸다
+    if (user) {
+      const ex = this.players.find((x) => x.userId === user.id && !x.leaving && !x.isBot);
+      if (ex) { this.touch(); return { player: ex, pending: false, resumed: true }; }
+    }
     const uname = this.uniqueName(name);
     const p = this.createPlayer(uname, true, avatar);
     this.setPhoto(p, photo);
     if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; if (user.isMaster) p.isMaster = true; }
     if (masterPeek) p.masterPeek = true;
     p.wantSpectator = !!spectator;
-    // 방장 승인 설정이 켜져 있거나, 게임 중에 '참가'하려면 방장이 받아 줘야 한다 (관전은 바로 입장)
-    if (!masterPeek && (this.settings.approval || (this.phase === 'playing' && !spectator)) && this.players.some((x) => !x.isBot)) {
+    // 토너먼트가 진행 중이면 관전으로만
+    if (this.phase === 'playing' && this.isTournament) p.wantSpectator = true;
+    // '참가 승인' 방 설정이 켜져 있을 때만 방장이 받아 준다 (게임 중이면 이번 판은 관전, 다음 판부터 참여)
+    if (!masterPeek && this.settings.approval && !p.wantSpectator && this.players.some((x) => !x.isBot)) {
       this.pending.push(p);
       this.touch();
       return { player: p, pending: true };
@@ -375,8 +383,8 @@ class Room {
     } else {
       if (p.role === 'player') return;
       if (this.phase === 'playing' && this.isTournament) throw new RoomError('토너먼트 중에는 관전만 할 수 있어요');
-      if (this.phase === 'playing' && p.id !== this.hostId && this.players.some((x) => !x.isBot && x.id !== p.id)) {
-        // 게임 중에 관전하다 앉으려면 방장이 받아 줘야 한다
+      if (this.settings.approval && this.phase === 'playing' && p.id !== this.hostId && this.players.some((x) => !x.isBot && x.id !== p.id)) {
+        // '참가 승인' 방이면 게임 중에 관전하다 앉으려면 방장이 받아 줘야 한다
         if (this.freeSeat() === null) throw new RoomError('빈 자리가 없어요');
         if (!p.seatRequest) { p.seatRequest = true; this.pushFeed(`${p.name}님이 자리에 앉고 싶어해요`); }
         this.touch();
@@ -616,7 +624,11 @@ class Room {
       throw e;
     }
     const p = this.get(id);
-    if (p) p.timeouts = 0;
+    if (p) {
+      p.timeouts = 0;
+      // 자리 비움이었어도 직접 누르면 바로 자리로 돌아온 것으로
+      if (p.sittingOut) { p.sittingOut = false; p.awayReason = null; this.pushFeed(`${p.name}님이 자리로 돌아왔어요`); }
+    }
     const seat = this.hand.seatOf(id);
     if (seat && seat.lastAction) bot.observeAct(this.stats, id, seat.lastAction, this.handNo);
     this.syncStacks();
@@ -640,7 +652,10 @@ class Room {
       const cur = this.get(this.hand.currentId);
       if (cur && this.isAway(cur)) {
         const id = cur.id;
-        this.setTimer('auto', 700 * this.pace, () => {
+        // 화면은 켜져 있는데 자리 비움(시간 초과 등): 바로 넘기지 않고 잠깐 기다려 직접 할 기회를 준다
+        const wait = cur.connected && cur.sittingOut ? Math.min(AWAY_ACT_MS, ms) : 700;
+        if (wait > 700) this.turnDeadline = this.now() + wait;
+        this.setTimer('auto', wait * this.pace, () => {
           if (!this.hand || this.hand.finished || this.hand.currentId !== id) return;
           this.hand.autoAct(id);
           this.syncStacks();
@@ -702,8 +717,9 @@ class Room {
     if (p) {
       p.timeouts += 1;
       this.pushFeed(`${p.name}님 시간 초과 → ${did === 'place' ? '자동으로 한 수 둠' : `자동 ${did === 'check' ? '체크' : '폴드'}`}`);
-      if (p.timeouts >= MAX_TIMEOUTS) {
+      if (p.timeouts >= MAX_TIMEOUTS && !p.sittingOut) {
         p.sittingOut = true;
+        p.awayReason = 'timeout';
         this.pushFeed(`${p.name}님은 자리 비움으로 바뀌었어요 (차례가 오면 자동 체크/다이)`);
       }
     }
@@ -848,7 +864,9 @@ class Room {
   sitIn(id) {
     const p = this.get(id);
     if (!p) return;
+    if (!p.sittingOut) return;
     p.sittingOut = false;
+    p.awayReason = null;
     p.timeouts = 0;
     this.pushFeed(`${p.name}님이 자리로 돌아왔어요`);
     this.maybeStartWaitingHand();
@@ -859,6 +877,7 @@ class Room {
     const p = this.get(id);
     if (!p || p.role !== 'player') return;
     p.sittingOut = true;
+    p.awayReason = 'self';
     this.pushFeed(`${p.name}님이 자리를 비웠어요 (차례가 오면 자동 체크/다이)`);
     // 지금 내 차례였다면 바로 자동 처리되도록 타이머를 다시 건다
     if (this.hand && !this.hand.finished && this.hand.currentId === id) this.afterHandChange();
@@ -997,7 +1016,7 @@ class Room {
       if (hs) {
         if (p.id === viewerId) cards = hs.hole;
         else if (showdown && h.result.hands[p.id] && (!rv || rv.shown.includes(p.id))) cards = h.result.hands[p.id].hole;
-        else if (!hs.folded) cards = ['??', '??'];
+        else if (!hs.folded) cards = hs.hole.map(() => '??'); // 남의 카드는 장 수만큼 뒷면 (세 장 섯다면 세 장)
       }
       return {
         id: p.id,
@@ -1057,6 +1076,7 @@ class Room {
         pendingRebuy: me.pendingRebuy,
         canRebuy: this.canRebuy(me),
         sittingOut: me.sittingOut,
+        awayReason: me.sittingOut ? me.awayReason || 'timeout' : null,
         masterPeek: !!me.masterPeek, // 운영자 관전(비밀번호·승인 건너뜀) — 자리에 앉을 수 없음
       },
       players,
@@ -1167,12 +1187,35 @@ class Room {
     return { ...rest, hand: hand ? hand.toJSON() : null };
   }
 
+  /** 복구한 판이 말이 되는지 (칩 합계가 판 시작 때와 같고, 자리의 사람이 다 있는지) */
+  handConsistent() {
+    const h = this.hand;
+    if (!h || h.kind === 'omok' || !Array.isArray(h.seats)) return true;
+    if (h.seats.some((s) => !this.get(s.id))) return false;
+    const now = h.seats.reduce((a, s) => a + (Number(s.stack) || 0) + (Number(s.contributed) || 0), 0);
+    const start = h.seats.reduce((a, s) => a + (Number(s.startStack) || 0), 0);
+    return Number.isFinite(now) && now === start;
+  }
+  /** 판 무효: 모두 판 시작 전 칩으로 되돌리고 다음 판을 준비 */
+  voidHand(hand, why) {
+    const seats = (hand && hand.seats) || [];
+    for (const s of seats) { const p = this.get(s.id); if (p && Number.isFinite(Number(s.startStack))) p.stack = Number(s.startStack); }
+    this.handPlayers = [];
+    this.reveal = null;
+    this.pushFeed(`${why} 이번 판은 무효가 됐어요 — 판 시작 전 칩으로 돌려드려요`);
+    if (this.phase === 'playing') this.nextHandAt = 0;
+  }
+
   static restore(obj, now = Date.now) {
     const r = new Room({ code: obj.code, settings: obj.settings, now });
     const { hand, ...rest } = obj;
     Object.assign(r, rest);
     r.timers = {};
-    r.hand = hand ? (hand.kind === 'seotda' ? SeotdaHand.fromJSON(hand) : hand.kind === 'omok' ? OmokGame.fromJSON(hand) : Hand.fromJSON(hand)) : null;
+    try {
+      r.hand = hand ? (hand.kind === 'seotda' ? SeotdaHand.fromJSON(hand) : hand.kind === 'omok' ? OmokGame.fromJSON(hand) : Hand.fromJSON(hand)) : null;
+    } catch (e) { r.hand = null; r.voidHand(hand, '판을 되살리지 못해'); }
+    // 진행 중인 판이 앞뒤가 안 맞으면(칩 합계·자리) 그 판은 없던 일로: 판 시작 전 칩으로 돌려주고 다음 판
+    if (r.hand && !r.hand.finished && !r.handConsistent()) { const h0 = r.hand; r.hand = null; r.voidHand(h0, '서버가 다시 켜지며'); }
     if (r.reveal) { r.reveal.done = true; r.reveal.board = 5; r.reveal.squeeze = false; } // 재시작하면 연출은 건너뜀
     for (const p of r.players) { if (p.isBot) continue; p.connected = false; p.disconnectedAt = p.disconnectedAt || now(); }
     r.setTimer('host', HOST_GRACE_MS, () => {
