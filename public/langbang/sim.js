@@ -921,7 +921,7 @@ function aimAngle(h, t, speed) {
 
 function spawnProj(g, type, h, target, dmg, o) {
   const p = g._projPool.pop() || { hitIds: [] };
-  const sp = o.speed || h.def.projSpeed;
+  const sp = (o.speed || h.def.projSpeed) * (g.tempo && !o.speed && type !== 'cane' ? TEMPO.proj : 1); // 템포: 투사체가 천천히 날아가 눈에 보인다
   let a = o.angle;
   if (a === undefined) a = Math.atan2(target.y - h.y, target.x - h.x) + (o.spread || 0);
   p.type = type; p.hero = h; p.dead = false;

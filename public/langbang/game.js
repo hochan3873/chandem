@@ -7,7 +7,7 @@ import {
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
-  FUSE_ART, MYTH, gearStats, WEAPON,
+  FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART,
 } from './data.js';
 import * as L from './live.js';
 import * as S from './sim.js';
@@ -35,7 +35,7 @@ const DEBUG = {
   autopick: Q.has('autopick'),
   hidden: Q.has('hidden'),
   stage: parseStage(Q.get('stage')),
-  join: Q.has('join'), tempo: Q.has('tempo'), // 개발용: 합류 모드 · 새 템포 미리 켜 보기 (배치 4에서 기본으로)
+  join: !Q.has('nojoin'), tempo: !Q.has('notempo'), // 합류 모드 · 새 템포 (기본 켜짐 · 개발용으로 ?nojoin ?notempo)
 };
 const STEP = 1 / 60;
 const SNAP_KEY = 'langbang:snap';
@@ -343,7 +343,7 @@ async function startRun(opt = {}) {
   if (app.firstRunTip) {
     showTip('적을 탭하면 집중 공격! 경험치는 저절로 모여요', 4500);
     app.firstRunTip = false;
-  }
+  } else if (g.joinMode && !tutDone('join')) { setTut('join'); showTip('대장 혼자 시작! 레벨업 카드로 멤버를 합류시켜요', 5000); }
 }
 function resumeRun() {
   const d = loadSnap();
@@ -925,6 +925,7 @@ function handleEvents(g, loud) {
         break;
       case 'join': {
         const h = HD(e.hero);
+        if (g.joinMode && live && !e.hidden) { const W = WEAPON[e.hero]; fx.banner(`${h.name} 합류!`, W ? `${W.item} — ${KIND_TXT[W.kind] || ''}` : h.role || '', ATTRS[h.attr].color, 1.1, 'wave', 'h_' + e.hero); }
         fx.ring(e.x, e.y, 10, 90, 0.6, h.color, 5);
         fx.burst(e.x, e.y, 18, h.color, 200, 'dot', 4, 0.6);
         for (let k = 0; k < 6; k++) fx.part('star', e.x, e.y, (Math.random() - 0.5) * 200, -100 - Math.random() * 120, 0.9, 9, null, { grav: 300 });
@@ -936,6 +937,7 @@ function handleEvents(g, loud) {
         break;
       }
       case 'bus': fx.banner(e.big ? '2층 막차 버스!' : '막차 버스!', '이호찬: "다들 타! 집에 가자!"', '#8a6a00', 0.9, 'wave'); fx.addShake(e.big ? 8 : 5); break;
+      case 'slash': R.addSlash(e.x, e.y); break;
       case 'weaponEvo': fx.text(e.x, e.y - 96, '무기 진화!', '#ffd23f', 16, 1.3, -30); fx.ring(e.x, e.y - 30, 12, 60, 0.6, '#ffd23f', 4); break;
       case 'reload': if (Math.random() < 0.12 && WEAPON[e.hero]) fx.text(e.x, e.y - 70, WEAPON[e.hero].reload, '#e8e0ff', 10, 0.8, -16); break;
       case 'heroLv':
@@ -1281,8 +1283,20 @@ skillbar.addEventListener('click', (ev) => {
   A.unlock();
   useSkillBtn(Number(b.dataset.slot));
 });
+// 스킬 컷인: 멤버 얼굴 카드가 0.5초 미끄러져 지나간다 (CSS)
+function cutIn(h) {
+  if (!HEROES[h.id]) return;
+  const old = stage.querySelector('.cutin'); if (old) old.remove();
+  const d = document.createElement('div');
+  d.className = 'cutin';
+  d.style.setProperty('--c', h.def.color || '#ffd23f');
+  d.innerHTML = `<span class="ci-art"><img src="${thumbSrc(h.id) || h.def.img}" alt="" onerror="this.onerror=null;this.src='${h.def.img}'"></span><b>${esc(h.def.skill.name)}</b>`;
+  stage.appendChild(d);
+  setTimeout(() => d.remove(), 900);
+}
 function skillFx(h) {
   const sk = h.def.skill;
+  cutIn(h);
   fx.text(h.x, h.y - 80, sk.name + '!', h.def.color, 20, 1.1, -26);
   fx.ring(h.x, h.y, 10, 80, 0.5, h.def.color, 5);
   A.sfx.join();
@@ -3639,7 +3653,52 @@ function cardRar(c) {
   if (c.rarity === 'rare' && (c.kind === 'heroLv' || c.kind === 'addHero')) return 'epic';
   return c.rarity === 'epic' ? 'epic' : c.rarity === 'rare' ? 'rare' : 'common';
 }
+const KIND_TXT = { burst: '연달아 던진다', rapid: '쉴 새 없이 날린다', pierce: '한 줄을 꿰뚫는다', chain: '옆으로 튕겨 번진다', lob: '던져서 터뜨린다', heavy: '묵직하게 내리친다', melee: '가까이서 휘두른다', beam: '일직선으로 쏜다', homing: '끝까지 쫓아간다', aura: '주변을 한꺼번에', gauge: '게이지가 차면 막차 버스!' };
+// 이 카드의 주인 멤버: 멤버 카드는 그 멤버 · 길/속성 카드는 그 길·속성을 가장 많이 키운 멤버 · 나머지는 대장
+function cardOwner(c) {
+  const g = app.g;
+  if (c.hero && (HEROES[c.hero] || SUMMONS[c.hero])) return c.hero;
+  if (!g || !g.heroes.length) return null;
+  const hs = g.heroes.filter((h) => HEROES[h.id]);
+  const tg = (c.tags || [])[0] || c.tag, a = cardAttr(c);
+  const by = (f) => hs.filter(f).sort((x, y) => (y.picks || 0) - (x.picks || 0) || y.lv - x.lv)[0];
+  const h = (tg && by((x) => (HERO_TAGS[x.id] || []).includes(tg))) || (a && by((x) => x.def.attr === a)) || hs.find((x) => x.id === g.leader) || by(() => true);
+  return h ? h.id : null;
+}
+function cardRound(c) {
+  const tg = (c.tags || [])[0] || c.tag;
+  if (c.kind === 'cc' && CC_IC[c.cc]) return ui2(CC_IC[c.cc]);
+  if (c.kind === 'join' && PROJ_ART[c.hero]) return `/img/lb/fx/w_${PROJ_ART[c.hero]}.webp`;
+  if (c.kind === 'heroLv' || c.kind === 'evo') return ui2('star_gold');
+  if (c.kind === 'skillEvo') return ui2('sparkle');
+  if (cardAttr(c)) return `/img/lb/attr/${cardAttr(c)}.webp`;
+  if (tg && PATH_IC[tg]) return ui2(PATH_IC[tg]);
+  if (c.hero && HEROES[c.hero]) return `/img/lb/attr/${HEROES[c.hero].attr}.webp`;
+  return ui2(iconName(c.icon, c.desc));
+}
 function cardHtml(c, i) {
+  if (c.kind === 'join' || (app.g && app.g.tempo)) return cardHtml5(c, i);
+  return cardHtml4(c, i);
+}
+function cardHtml5(c, i) {
+  const isNew = (c.kind === 'global' && !c.stack) || c.kind === 'addHero' || c.kind === 'evo' || c.kind === 'join';
+  const rec = app.cards && app.g && i === recIndex(app.g, app.cards);
+  const own = cardOwner(c);
+  const ef = cardEffect(c), t = c.kind === 'join' ? HEROES[c.hero].name : cardTitle(c);
+  const W = c.kind === 'join' && WEAPON[c.hero];
+  const lab = c.kind === 'join' ? `${esc(W ? W.item : '')} — ${esc(W ? KIND_TXT[W.kind] || '' : HEROES[c.hero].role || '')}` : ef.hl || !ef.big ? esc(ef.label).replace(/([+\-−×]?\d+(?:\.\d+)?\s?(?:%p|%|초|배|명|칸|번|발)?)/g, '<em>$1</em>') : `${esc(ef.label)} <em>${esc(ef.big)}</em>`;
+  const art = own ? `<img src="${thumbSrc(own) || (HEROES[own] || SUMMONS[own]).img}" alt="" draggable="false" onerror="this.onerror=null;this.src='${(HEROES[own] || SUMMONS[own]).img}'">` : '';
+  return `<button class="card v4 v5 r-${cardRar(c)} k-${c.kind} ${c.onPath ? 'onpath' : ''} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
+    <span class="c5-art">${art}</span>
+    ${isNew ? `<i class="c5-new">${c.kind === 'join' ? 'NEW · 합류' : 'NEW'}</i>` : ''}${rec ? `<i class="c5-rec">${pimg(ui2('badge_rec'))}</i>` : ''}
+    <i class="c5-ico">${pimg(cardRound(c))}</i>
+    <span class="c4-rib"><b class="${t.length > 7 ? 'long' : ''}">${esc(t)}</b></span>
+    <span class="c5-desc">${lab}</span>
+    ${c.kind === 'join' ? `<span class="c4-chip">${pimg(`/img/lb/attr/${HEROES[c.hero].attr}.webp`)}${ATTRS[HEROES[c.hero].attr].name}</span>` : cardChip(c)}
+    <i class="c5-shine"></i>
+  </button>`;
+}
+function cardHtml4(c, i) {
   const isNew = (c.kind === 'global' && !c.stack) || c.kind === 'addHero' || c.kind === 'evo';
   const rec = app.cards && app.g && i === recIndex(app.g, app.cards);
   const ef = cardEffect(c), t = cardTitle(c);
@@ -3684,7 +3743,8 @@ function renderCards(fresh) {
     <div class="cs-head">${pimg(ui2(welcome ? 'welcome' : 'crest'), 'crest')}<b>${welcome ? '웰컴 드링크' : 'LEVEL UP'}</b>${welcome ? '' : `<span class="cs-lv">Lv.${g.level}</span>`}${g.pendingLevels > 1 ? `<small>남은 선택 <b>${g.pendingLevels}</b></small>` : ''}
       <button class="cs-re" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'} aria-label="다시 뽑기">${pimg(ui2('dice'))}<b>${app.rerollsRun}</b></button></div>
     <i class="cs-timer"><b></b></i>
-    <div class="card-list v4 n${n}">${app.cards.map(cardHtml).join('')}</div>
+    <div class="card-list v4 n${n} ${g.tempo || app.cards.some((c) => c.kind === 'join') ? 'v5' : ''}">${app.cards.map(cardHtml).join('')}</div>
+    <div class="cs-foot"><small>이번 전투 다시 뽑기 <b>${app.rerollsRun}/5</b></small><button class="cs-re2" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>${pimg(ui2('dice'))}다시 뽑기</button></div>
   </div>`;
   if (fresh) A.sfx.card();
   if (fresh && app.cards.some((c) => c.rarity === 'hidden')) { fx.flash('#ff9ff0', 0.3); A.sfx.join(); }

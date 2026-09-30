@@ -66,9 +66,9 @@ export function expNeed(lv) {
 export const JOIN = { solo: 1.6, freePick: true, hp: [0.9, 0.87, 1.2, 1.25, 1.12, 1.05], hellStart: 2, exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
 // ─── 전투 템포 (느리고 묵직하게) · 무기 정체성 ─── opt.tempo 로 켠다 (합류 모드와 같이)
 // 진상 수 ×0.6 · 한 명 체력 ×1.6 / 멤버 공속 ÷1.54 · 한 방 ×1.6 / 스킬 쿨 ×1.5
-export const TEMPO = { count: 0.6, hp: 1.5, hellHp: 1.0, endHp: 1.3, fix: { donghan: 0.68, wonsik: 0.64, staff: 0.8, eunok: 0.85, myunghoon: 1.28, bangjang: 0.92, soyoung: 0.9, ingyu: 0.92 }, rate: 1 / 1.54, dmg: 1.6, cd: 1.5 };
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, endHp: 1.1, fix: { donghan: 0.77, wonsik: 0.6, staff: 0.9, eunok: 0.9, myunghoon: 1.28, bangjang: 0.92, soyoung: 0.93, ingyu: 0.87 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
-export const BUS = { sec: [7.5, 7.2, 6.8, 6.4, 6], w: 96, w2: 190, speed: 560, kb: 80, dmg: 6.5, stun: 0.9 };
+export const BUS = { sec: [5.5, 5.2, 4.8, 4.4, 4], w: 110, w2: 200, speed: 560, kb: 90, dmg: 12, stun: 0.9 };
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
 export const PROJ_ART = { staff: 'card_y', eunok: 'cup', jungmin: 'bottle', sanghwa: 'coin', wonsik: 'dumbbell', ingyu: 'dumbbell', soyoung: 'bubble', gunman: 'bb', donghan: 'coffee', sunggu: 'cane', jiwon: 'mosaic', gunnyeo: 'heart', junyoung: 'chip', ara: 'hammer', jieun: 'clock', myunghoon: 'swear' };
 export const PROJ_ART_NAMES = ['bottle', 'cup', 'coin', 'dumbbell', 'bubble', 'card_y', 'card_r', 'bb', 'coffee', 'cane', 'mosaic', 'heart', 'chip', 'hammer', 'claw', 'clock', 'swear'];

@@ -828,12 +828,14 @@ export class Renderer {
     this.drawMapFxUnder(g, t);
     this.drawGems(g, t);
     this.drawEnemies(g, t);
+    this.drawJoinWait(g);
     this.drawRope(g, t);
     this.drawPools(g, t);
     this.drawHeroes(g, t, ui);
     this.drawBeams(g, t);
     this.drawProjs(g);
     if (g.buses && g.buses.length) this.drawBuses(g);
+    this.drawSlashes();
     this.drawArcs();
     this.drawBlasts();
     this.drawParts();
@@ -1766,7 +1768,7 @@ export class Renderer {
       if (h.rage) { rot = Math.sin(t * 24) * 0.05; bob += Math.sin(t * 30) * 1.5; }
       if (h.charmT > 0) { rot = Math.sin(t * 4) * 0.14; }
       if (h.stunT > 0) { rot = Math.sin(t * 10) * 0.1; sy = 0.94; }
-      if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; sx *= e * p; sy *= e * p; }
+      if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; if (g.joinMode) { bob += (1 - p) * 70; sx *= 0.6 + 0.4 * p; sy *= 0.6 + 0.4 * p * e; } else { sx *= e * p; sy *= e * p; } } // 합류: 아래에서 미끄러져 올라온다
       if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
       sy *= 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 숨쉬기
       if (h.reloadT > 0 && h.reloadMax > 0.25) { const q = 1 - h.reloadT / h.reloadMax; rot += Math.sin(q * Math.PI) * -0.13; bob += Math.sin(q * Math.PI) * 1.5; } // 장전: 살짝 기울여 챙기기
@@ -1876,6 +1878,34 @@ export class Renderer {
   }
 
   // 이호찬 막차 버스: 그림(fx/bus · bus2) 이 있으면 그 그림 · 없으면 노란 버스 모양
+  // 합류 대기: 빈 자리에 흐린 실루엣 + 글자
+  drawJoinWait(g) {
+    if (!g.joinMode || !g.joinPool || !g.joinPool.length) return;
+    const cx = this.cx, box = HERO_BOX;
+    for (const j of g.joinPool) {
+      const sp = this.sprites['h_' + j.id];
+      const x = g.slotX[j.slot], feet = g.rowY + box * FEET_OFF;
+      if (x === undefined) continue;
+      if (sp) {
+        const sil = (this.sils || (this.sils = {}))[j.id] || (this.sils[j.id] = (() => { const c = mkCanvas(sp.c.width, sp.c.height), x2 = c.getContext('2d'); x2.drawImage(sp.c, 0, 0); x2.globalCompositeOperation = 'source-in'; x2.fillStyle = '#c9b8ff'; x2.fillRect(0, 0, c.width, c.height); return c; })());
+        this.tf(x, feet, 0, 1, 1); cx.globalAlpha = 0.28 + Math.sin(performance.now() / 500 + j.slot) * 0.06; cx.drawImage(sil, -box / 2, -box * FEET, box, box); cx.globalAlpha = 1;
+      }
+      this.world();
+      cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      cx.fillStyle = 'rgba(8,4,20,0.7)'; roundRect(cx, x - 24, g.rowY + 16, 48, 14, 7); cx.fill();
+      cx.fillStyle = '#d8ccff'; cx.fillText('합류 대기', x, g.rowY + 23);
+    }
+    this.world();
+  }
+  addSlash(x, y) { const s = this.slashes || (this.slashes = []); if (s.length > 12) s.shift(); s.push({ x, y, t: performance.now(), r: (Math.random() - 0.5) * 1.2 }); }
+  drawSlashes() {
+    const s = this.slashes, img = this.images.w_claw;
+    if (!s || !s.length || !imgOk(img)) { if (s) s.length = 0; return; }
+    const cx = this.cx, now = performance.now();
+    this.slashes = s.filter((q) => now - q.t < 220);
+    for (const q of this.slashes) { const k = (now - q.t) / 220; this.tf(q.x, q.y, q.r, 1 + k * 0.3, 1 + k * 0.3); cx.globalAlpha = 1 - k; cx.drawImage(img, -36, -36, 72, 72); }
+    cx.globalAlpha = 1; this.world();
+  }
   drawBuses(g) {
     const cx = this.cx;
     for (const b of g.buses) {
