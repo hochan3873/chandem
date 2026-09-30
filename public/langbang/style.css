@@ -1920,3 +1920,23 @@ html, body { height: 100%; height: -webkit-fill-available; height: 100svh; heigh
 #cardq small { display: block; font-size: calc(var(--u) * 9); opacity: 0.8; }
 #cardq[hidden] { display: none; }
 @keyframes cardqBob { to { transform: translateX(-50%) translateY(calc(var(--u) * -4)); } }
+
+/* 속성·계열 배지 그림 (없으면 이모지) */
+.aico { display: inline-block; width: 1.25em; height: 1.25em; vertical-align: -0.28em; object-fit: contain; margin-right: 0.1em; }
+.tchart .aico { width: 1.6em; height: 1.6em; }
+
+/* 스킬 바: 6개도 360에 맞게 · 이름 알약 크게 · 쿨타임 숫자 가운데 · READY 빛 고리 */
+#skillbar { gap: calc(var(--u) * 4); bottom: calc(var(--u) * 78); }
+#skillbar[data-n="5"] .sk, #skillbar[data-n="6"] .sk { width: calc(var(--u) * 42); height: calc(var(--u) * 42); }
+#skillbar[data-n="6"] { gap: calc(var(--u) * 3); }
+#skillbar .sk em { bottom: calc(var(--u) * -13); font-size: calc(var(--u) * 11); font-weight: 900; color: #fff; background: rgba(8, 4, 18, 0.92); border: 1px solid rgba(255, 255, 255, 0.35); padding: calc(var(--u) * 1) calc(var(--u) * 5); border-radius: 99px; text-shadow: 0 0 2px #000, 0 1px 0 #000; letter-spacing: -0.02em; max-width: calc(var(--u) * 56); overflow: hidden; text-overflow: ellipsis; }
+#skillbar .sk em.long { font-size: calc(var(--u) * 9.5); }
+#skillbar .sk .cdn { position: absolute; inset: 0; display: grid; place-items: center; z-index: 3; font-size: calc(var(--u) * 17); font-weight: 900; color: #fff; text-shadow: 0 0 3px #000, 0 2px 0 #000; pointer-events: none; }
+#skillbar .sk:not(.ready) .cd { display: none; }
+#skillbar .sk.ready .cd { top: calc(var(--u) * -7); right: 50%; transform: translateX(50%); font-size: calc(var(--u) * 7.5); padding: 0 calc(var(--u) * 4); }
+#skillbar .sk.ready::after { content: ''; position: absolute; inset: calc(var(--u) * -3); border-radius: 50%; border: calc(var(--u) * 3) solid #ffe066; box-shadow: 0 0 calc(var(--u) * 10) #ffd23f, inset 0 0 calc(var(--u) * 6) #ffd23f; animation: skRing 0.9s ease-in-out infinite alternate; pointer-events: none; }
+@keyframes skRing { to { transform: scale(1.08); opacity: 0.75; } }
+/* 왼쪽 버프: 2줄 격자로 짧게 */
+.h-syn .syn-tray.grid { display: grid; grid-template-columns: repeat(2, auto); gap: calc(var(--u) * 3); }
+.h-syn .syn-tray .sy { padding: 0 calc(var(--u) * 4); font-size: calc(var(--u) * 10); }
+.h-syn .syn-tray .sy.more { pointer-events: auto; cursor: pointer; border-color: #7df9ff; color: #7df9ff; font-weight: 900; }

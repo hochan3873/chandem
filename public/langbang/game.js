@@ -932,6 +932,7 @@ const H$ = {
   mute: $('#btn-mute'), baseBox: document.querySelector('.base-hp'), fx: $('#h-fx'),
   time: $('#h-time'), speed: $('#btn-speed'), syn: $('#h-syn'),
 };
+H$.syn.addEventListener('click', (e) => { if (e.target.closest('[data-act="synMore"]')) ACTS.synMore(); });
 function setText(el, key, v) {
   if (app.hudCache[key] === v) return false;
   app.hudCache[key] = v;
@@ -1225,7 +1226,7 @@ function renderSkillbar() {
   if (skillbar.dataset.key !== key) {
     skillbar.dataset.key = key;
     skillbar.dataset.n = list.length;
-    skillbar.innerHTML = list.map((h) => `<button class="sk" data-slot="${h.slot}" style="--c:${h.def.color}"><span class="ring"></span>${av(h.def)}<em>${esc(h.def.skill.name)}</em><i class="cd"></i></button>`).join('');
+    skillbar.innerHTML = list.map((h) => { const nm = h.def.skill.name; return `<button class="sk" data-slot="${h.slot}" style="--c:${h.def.color}"><span class="ring"></span>${av(h.def)}<em class="${nm.replace(/\s/g, '').length > 4 ? 'long' : ''}">${esc(nm)}</em><i class="cd"></i><b class="cdn"></b></button>`; }).join('');
   }
   let ready = false;
   for (const b of skillbar.children) {
@@ -1238,7 +1239,8 @@ function renderSkillbar() {
     if (r && !b.classList.contains('ready')) vibrate(12);
     b.classList.toggle('ready', r);
     b.classList.toggle('aiming', !!(app.aim && app.aim.h === h));
-    b.querySelector('.cd').textContent = r ? 'READY' : Math.ceil(h.skillCd);
+    b.querySelector('.cd').textContent = r ? 'READY' : '';
+    { const cn = b.querySelector('.cdn'); const v = r ? '' : String(Math.ceil(h.skillCd)); if (cn.textContent !== v) cn.textContent = v; }
     if (r) ready = true;
   }
   // 튜토리얼: 1-1 에서 처음 스킬이 준비되면 알려 준다 · 1-2 에서는 지목
@@ -2043,7 +2045,7 @@ function artCard(id, o = {}) {
   const sub = ok ? `${'★'.repeat(st)}${lv ? ` · +${lv}` : ''}` : pr ? `카드 ${pr[0]}/${pr[1]}` : HERO_UNLOCK[id] ? `${stageLabel(HERO_UNLOCK[id])} 클리어` : '모집';
   return `<button class="acard t${t} ${ok ? '' : 'locked'} ${o.on ? 'on' : ''} ${o.cls || ''}" data-act="${o.act || 'heroCard'}" data-id="${id}" style="--c:${ATTRS[d.attr].color}">
     <span class="ac-art">${art}</span>
-    <i class="ac-tier">${TIER_NAME[t]}</i><span class="ac-attr" style="--ac:${ATTRS[d.attr].color}">${ATTRS[d.attr].icon}<small>${ATTRS[d.attr].name}</small></span>
+    <i class="ac-tier">${TIER_NAME[t]}</i><span class="ac-attr" style="--ac:${ATTRS[d.attr].color}">${attrIco(d.attr)}<small>${ATTRS[d.attr].name}</small></span>
     <span class="ac-foot"><b>${ok ? esc(d.name) : '???'}</b><small>${sub}</small>${pr ? `<i class="ac-prog"><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i>` : ''}</span>${o.extra || ''}${o.dot ? '<i class="rd"></i>' : ''}</button>`;
 }
 // ─── 덱 탭: 큰 그림 카드 덱 + 전투력 + 모음 (필터 · 전투력 순) ───
@@ -2084,7 +2086,7 @@ function showDeckTab() {
     <div class="dk-power"><small>덱 전투력</small><b id="dkPow" data-from="${app.lastDeckPow || pw}" data-to="${pw}">${fmt(pw)}</b><em class="${diff >= 0 ? 'up' : 'down'}">다음 스테이지 추천보다 ${diff >= 0 ? '+' : ''}${diff}%</em></div>
     <div class="dk-slots n${max}">${slots.join('')}</div>
     <p class="sub">${ids.length}/${max}명 · 카드를 누르면 넣기/빼기 · 길게 누르면 자세히</p>
-    <div class="chips dk-chips">${ROLE_CHIPS.map(([k, n]) => `<button class="chip ${f === k ? 'on' : ''}" data-act="deckFilter" data-v="${k}">${n}</button>`).join('')}</div>
+    <div class="chips dk-chips">${ROLE_CHIPS.map(([k, n]) => `<button class="chip ${f === k ? 'on' : ''}" data-act="deckFilter" data-v="${k}">${k.startsWith('a:') ? attrIco(k.slice(2)) + ATTRS[k.slice(2)].name : n}</button>`).join('')}</div>
     <div class="agrid three">${coll || '<div class="empty-state"><span>🙋</span><b>이 조건의 멤버가 없어요</b></div>'}</div>
     ${navHtml('deck')}
   `, 'dim withnav deck-screen');
@@ -2414,6 +2416,7 @@ Object.assign(ACTS, {
   heroCard: (b) => showHeroModal(b.dataset.id, app.screen === 'prep' ? 'prep' : ''),
   starUp: (b) => doStarUp(b.dataset.id),
   misTab: (b) => { app.misTab = b.dataset.tab; showMissions(); },
+  synMore: () => { app.synOpen = !app.synOpen; app.hudCache.syn = null; },
   bulkOn: () => { app.bulk = new Set(); app.bagSel = null; showBag(); },
   bulkOff: () => { app.bulk = null; showBag(); },
   bulkPick: (b) => {
@@ -2793,8 +2796,11 @@ function showStages() {
 // ─── 출전 준비: 동료 고르기 ──────────────────────────
 // 맵 효과가 속성을 건드리면: " · 말빨 → 방장·운영진"
 function fxWho(fx0, g) { if (!fx0 || !fx0.attr) return ''; return Object.keys(fx0.attr).map((a) => { const w = attrWho(g, a); return ATTRS[a] && w ? ` · ${ATTRS[a].icon}${ATTRS[a].name} → ${w}` : ''; }).join(''); }
-const attrTag = (a) => (ATTRS[a] ? `<span class="attr" style="--ac:${ATTRS[a].color}">${ATTRS[a].icon}${ATTRS[a].name}</span>` : '');
-const clsTag = (c) => (CLASSES[c] ? `<span class="attr cls" style="--ac:${CLASSES[c].color}">${CLASSES[c].icon}${CLASSES[c].name}</span>` : '');
+const aIco = (id, emoji) => `<img class="aico" src="/img/lb/attr/${id}.webp" alt="${emoji}" draggable="false" onerror="this.replaceWith(document.createTextNode('${emoji}'))">`;
+const attrIco = (a) => (ATTRS[a] ? aIco(a, ATTRS[a].icon) : '');
+const clsIco = (c) => (CLASSES[c] ? aIco(c, CLASSES[c].icon) : '');
+const attrTag = (a) => (ATTRS[a] ? `<span class="attr" style="--ac:${ATTRS[a].color}">${attrIco(a)}${ATTRS[a].name}</span>` : '');
+const clsTag = (c) => (CLASSES[c] ? `<span class="attr cls" style="--ac:${CLASSES[c].color}">${clsIco(c)}${CLASSES[c].name}</span>` : '');
 function strongWeak(attr) {
   const t = TYPE_CHART[attr] || {};
   const st = Object.keys(t).filter((c) => t[c] > 1).map((c) => CLASSES[c].name);
@@ -2811,8 +2817,8 @@ function heroInfoHtml(d, full) {
     ${full ? `<p class="ip">Lv3 ${esc(d.perks[3])} · Lv5 ${esc(d.perks[5])}</p><p class="ip">${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p>` : ''}`;
 }
 function enemyInfoHtml(e) {
-  const good = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) > 1).map((a) => ATTRS[a].icon + ATTRS[a].name);
-  const bad = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) < 1).map((a) => ATTRS[a].icon + ATTRS[a].name);
+  const good = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) > 1).map((a) => attrIco(a) + ATTRS[a].name);
+  const bad = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) < 1).map((a) => attrIco(a) + ATTRS[a].name);
   return `<div class="ih"><b>${e.name}</b>${clsTag(e.cls)}${e.boss ? '<em class="bs">보스</em>' : ''}</div>
     <p class="ia">${esc(ENEMY_TIPS[e.id] || '')}</p>
     <p class="ip">잘 먹힘 ${good.join(' ')} · 안 먹힘 ${bad.join(' ')}</p>`;
@@ -3087,16 +3093,17 @@ function synTrayHtml(g, big) {
     const n = g.attrCount[a] || 0;
     if (!n) continue;
     const on = n >= 2;
-    out.push(`<span class="sy ${on ? 'on' : ''}" title="${ATTRS[a].name}">${ATTRS[a].icon}${n}${on ? `<small>+${Math.round(ATTR_SET[Math.min(ATTR_SET.length - 1, n)] * 100)}%</small>` : ''}</span>`);
+    out.push(`<span class="sy ${on ? 'on' : ''}" title="${ATTRS[a].name}">${attrIco(a)}${n}${on ? `<small>+${Math.round(ATTR_SET[Math.min(ATTR_SET.length - 1, n)] * 100)}%</small>` : ''}</span>`);
   }
   for (const t of Object.keys(TAGS)) { const k = g.stacks['tag_' + t] || 0; if (k) out.push(`<span class="sy tag on">${TAGS[t].icon}${k > 1 ? '×' + k : ''}</span>`); }
   const evo = g.heroes.filter((h) => h.evo).length;
   if (evo) out.push(`<span class="sy evo on">✨${evo}</span>`);
-  return out.length ? `<div class="syn-tray ${big ? 'big' : ''}">${out.join('')}</div>` : '';
+  if (!big && out.length > 8 && !app.synOpen) { const more = out.length - 7; out.length = 7; out.push(`<span class="sy more" data-act="synMore">+${more}</span>`); }
+  return out.length ? `<div class="syn-tray ${big ? 'big' : ''} ${out.length > 4 ? 'grid' : ''}">${out.join('')}</div>` : '';
 }
 // 속성 카드(말빨·힘·매력·술 +%)가 어느 속성인지 · 지금 판에서 그 속성인 멤버 이름
 const cardAttr = (c) => (c && (c.attr || (/^syn_(talk|power|charm|booze)$/.test(c.id || '') ? c.id.slice(4) : ''))) || '';
-const attrChip = (a) => (ATTRS[a] ? `<span class="attr mini" style="--ac:${ATTRS[a].color}">${ATTRS[a].icon}${ATTRS[a].name}</span>` : '');
+const attrChip = (a) => (ATTRS[a] ? `<span class="attr mini" style="--ac:${ATTRS[a].color}">${attrIco(a)}${ATTRS[a].name}</span>` : '');
 function attrWho(g, a) { const hs = g ? g.heroes.map((h) => h.def) : (curDeck() || []).filter(Boolean).map((id) => HEROES[id]); return hs.filter((d) => d && d.attr === a).map((d) => d.name).join('·'); }
 // 레벨업 카드: 세로로 긴 종이 카드 + 둥근 메달 아이콘 + NEW 리본 + 시너지 아이콘
 function cardHtml(c, i) {
@@ -3105,9 +3112,9 @@ function cardHtml(c, i) {
   if (c.hero) icon = av(HEROES[c.hero]);
   const isNew = (c.kind === 'global' && !c.stack) || c.kind === 'addHero' || c.kind === 'evo';
   const syn = [];
-  if (c.attr) syn.push(ATTRS[c.attr].icon);
+  if (c.attr) syn.push(attrIco(c.attr));
   if (c.tag) syn.push(TAGS[c.tag].icon);
-  if (c.hero) { syn.push(ATTRS[HEROES[c.hero].attr].icon); for (const t of HERO_TAGS[c.hero] || []) syn.push(TAGS[t].icon); }
+  if (c.hero) { syn.push(attrIco(HEROES[c.hero].attr)); for (const t of HERO_TAGS[c.hero] || []) syn.push(TAGS[t].icon); }
   if (c.risk) syn.push('⚠️');
   const stack = c.kind === 'global' && c.stack ? `<span class="stk">${c.stack}→${c.stack + 1}</span>` : '';
   const rec = app.cards && app.g && i === recIndex(app.g, app.cards);
@@ -3548,7 +3555,7 @@ function showDex() {
     const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
     const ok = dexKnown(kind, id);
     const isNew = ok && !v.has((kind === 'hero' ? 'h:' : 'e:') + id);
-    const tag = kind === 'hero' ? ATTRS[d.attr].icon : CLASSES[d.cls].icon;
+    const tag = kind === 'hero' ? attrIco(d.attr) : clsIco(d.cls);
     const fr = kind === 'hero' ? `fr-t${heroTier(id)}` : d.boss ? 'fr-boss' : d.mid ? 'fr-mid' : 'fr-e';
     const badge = kind === 'hero' ? `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>` : d.boss ? '<i class="dxb bs">보스</i>' : d.mid ? `<i class="dxb md">${d.fuse ? '합체' : '각성'}</i>` : '';
     return `<button class="dexc2 ${fr} ${ok ? '' : 'lock'}" data-act="dexCard" data-kind="${kind}" data-id="${id}" style="--c:${dexColor(kind, d)}">
@@ -3593,8 +3600,8 @@ function dexPageHtml(kind, id, form, duo) {
   } else {
     const fs = firstStageOf(id);
     const tipId = ENEMY_TIPS[id] ? id : d.base || (d.fuse && d.fuse[0]) || id;
-    const good = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) > 1).map((a) => ATTRS[a].icon + ATTRS[a].name);
-    const bad = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) < 1).map((a) => ATTRS[a].icon + ATTRS[a].name);
+    const good = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) > 1).map((a) => attrIco(a) + ATTRS[a].name);
+    const bad = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) < 1).map((a) => attrIco(a) + ATTRS[a].name);
     const flav = DEX_FLAVOR[id] || (d.fuse ? `${ENEMIES[d.fuse[0]].name} + ${ENEMIES[d.fuse[1]].name} 이 합체했다! 두 진상의 기술을 모두 쓴다.` : d.base ? `평범한 ${ENEMIES[d.base].name} 이 각성했다! 훨씬 크고 단단하다.` : '');
     const shout = (d.shouts || []).slice(0, 2).map((s) => `“${esc(s)}”`).join(' ');
     plate = `<div class="dp-plate"><small>${d.mid ? `중간 보스 · ${d.fuse ? '합체' : '각성'} · ` : d.boss ? '보스 · ' : ''}${shout || esc(CLASSES[d.cls].name)}</small></div>`;
@@ -4050,10 +4057,10 @@ function showHowto() {
     </div>
     <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">속성 상성</h2>
     <p class="sub">머리 쓰는 진상(유혹·정치)엔 🗣️말빨 · 🍶술, 몸 쓰는 진상(폭력·진상)엔 👊힘 · 💖매력! (×${TYPE_STRONG} / ×${TYPE_WEAK})</p>
-    <table class="tchart"><tr><th></th>${Object.values(CLASSES).map((c) => `<th>${c.icon}<br>${c.name}</th>`).join('')}</tr>
-      ${Object.values(ATTRS).map((a) => `<tr><th>${a.icon} ${a.name}</th>${Object.keys(CLASSES).map((c) => { const m = typeMul(a.id, c); return `<td class="${m > 1 ? 'st' : m < 1 ? 'wk' : ''}">${m > 1 ? '◎' : m < 1 ? '△' : '·'}</td>`; }).join('')}</tr>`).join('')}
+    <table class="tchart"><tr><th></th>${Object.values(CLASSES).map((c) => `<th>${clsIco(c.id)}<br>${c.name}</th>`).join('')}</tr>
+      ${Object.values(ATTRS).map((a) => `<tr><th>${attrIco(a.id)} ${a.name}</th>${Object.keys(CLASSES).map((c) => { const m = typeMul(a.id, c); return `<td class="${m > 1 ? 'st' : m < 1 ? 'wk' : ''}">${m > 1 ? '◎' : m < 1 ? '△' : '·'}</td>`; }).join('')}</tr>`).join('')}
     </table>
-    <div class="attr-legend">${Object.values(ATTRS).map((a) => { const st = Object.keys(CLASSES).filter((c) => typeMul(a.id, c) > 1).map((c) => CLASSES[c].icon + CLASSES[c].name).join('·'); const who = Object.values(HEROES).filter((d) => d.attr === a.id && !d.summon).map((d) => d.name).join('·'); return `<p>${attrChip(a.id)} <b>${st} 에게 강함</b><small>${esc(who)}</small></p>`; }).join('')}</div>
+    <div class="attr-legend">${Object.values(ATTRS).map((a) => { const st = Object.keys(CLASSES).filter((c) => typeMul(a.id, c) > 1).map((c) => clsIco(c) + CLASSES[c].name).join('·'); const who = Object.values(HEROES).filter((d) => d.attr === a.id && !d.summon).map((d) => d.name).join('·'); return `<p>${attrChip(a.id)} <b>${st} 에게 강함</b><small>${esc(who)}</small></p>`; }).join('')}</div>
     <p class="sub" style="margin-top:6px">스테이지마다 <b>맵 효과</b>(🌧️비 · 🌫️안개 · 💡정전 · 🎤노래방 …)도 있어요. 스테이지 정보에서 추천 속성을 보고 팀을 짜요!</p>
     <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">진상 도감</h2>
     <div class="enemy-grid">${enemies}</div>

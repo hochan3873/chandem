@@ -292,3 +292,15 @@ test('장비 일괄 판매: 한 번에 · 장착 중은 안 팔림 · 두 번 �
   const r3 = await post('/api/langbang/gear/autoSell', u.token, { on: true });
   assert.equal(r3.ok, true); assert.equal(r3.profile.autoSell, true);
 });
+
+test('멤버 모음 목록(방장 + 동료 목록)에 LB_HEROES 20명이 빠짐없이 · 마스터는 전부 해금', async () => {
+  const LBR = require('../server/langbang-rules');
+  const D = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'data.js')).href);
+  const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  const list = ['bangjang', 'staff', 'gunman', 'gunnyeo', ...D.UNLOCK_HEROES, ...D.HIDDEN_HEROES, ...D.GACHA_HEROES, ...D.LEGEND_HEROES]; // game.js partnerList() 와 같은 순서
+  assert.deepEqual([...new Set(list)].sort(), [...LBR.LB_HEROES].sort());
+  for (const h of LBR.LB_HEROES) assert.equal(L.heroUnlocked({ master: true }, h), true, '마스터 ' + h);
+  const fresh = { stages: {}, heroes: {}, owned: {} };
+  assert.equal(L.heroUnlocked(fresh, 'sunggu'), false);
+  assert.equal(L.heroUnlocked({ ...fresh, stages: { 20: 1 } }, 'sunggu'), true, '2-10 깨면 강성구');
+});

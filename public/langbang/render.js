@@ -262,6 +262,7 @@ export class Renderer {
     for (let i = 0; i < 4; i++) list['bar' + i] = `/img/lb/ui/barricade_${i}.webp`;
     for (const k of ['heart', 'fire', 'electric', 'gold', 'shock', 'spark']) list['fx_' + k] = `/img/lb/fx/${k === 'shock' ? 'shock_ring' : k === 'spark' ? 'hit_spark' : 'explo_' + k}.webp`;
     list.pCrown = '/img/lb/fx/p_crown.webp'; list.pBottle = '/img/lb/fx/p_bottle.webp'; list.pBottleRage = '/img/lb/fx/p_bottle_rage.webp'; // 그린 투사체 (없으면 코드로 그린 것)
+    for (const k of ['talk', 'power', 'charm', 'booze']) list['attr_' + k] = `/img/lb/attr/${k}.webp`; // 속성 배지 그림
     list.bg = '/img/lb/bg.webp';
     list.bg2 = '/img/lb/bg2.webp';
     list.bg3 = '/img/lb/bg3.webp';
@@ -1725,35 +1726,26 @@ export class Renderer {
         cx.drawImage(hs.c, -8, -8, 16, 16);
         cx.globalAlpha = 1;
       }
-      // 이름표: [속성 동그라미] 이름 한 알약 + 오른쪽 위에 작은 레벨 칩 · 옆 멤버와 안 겹치게 폭 제한(넘치면 …)
+      // 발밑 배지: 이름은 안 쓴다 (눌러서 보기) — [속성] Lv칩 · 게스트는 G 리본 (다른 디펜스 게임들처럼)
       this.world();
       {
-        const label = h.guest ? '게스트 ' + h.def.name : h.def.name;
-        const gap = g.slotX && g.slotX.length > 1 ? Math.abs(g.slotX[1] - g.slotX[0]) : 58;
-        const maxW = Math.max(40, Math.min(64, gap - 4));
-        cx.textBaseline = 'middle';
-        if ('letterSpacing' in cx) cx.letterSpacing = '0.2px';
-        cx.font = `800 9.5px ${FONT}`;
-        let name = label, nw = cx.measureText(name).width;
-        while (nw > maxW - 19 && name.length > 1) { name = name.slice(0, -1); nw = cx.measureText(name + '…').width; }
-        if (name !== label) name += '…';
-        const pw = Math.min(maxW, nw + 19), ph = 14, px = hx - pw / 2, ly = feet + 9;
-        cx.fillStyle = h.guest ? 'rgba(10,90,110,0.92)' : h.def.legend ? 'rgba(90,60,0,0.92)' : h.def.hidden ? 'rgba(80,10,70,0.88)' : 'rgba(12,10,28,0.85)';
-        roundRect(cx, px, ly - ph / 2, pw, ph, ph / 2); cx.fill();
-        cx.strokeStyle = h.def.legend ? '#ffd84a' : h.def.hidden ? '#ff7fe6' : 'rgba(255,255,255,0.18)'; cx.lineWidth = 1; cx.stroke();
-        const at = ATTRS[h.def.attr];
-        if (at) { cx.fillStyle = at.color; cx.beginPath(); cx.arc(px + 7, ly, 4.6, 0, Math.PI * 2); cx.fill(); cx.font = `6.5px ${FONT}`; cx.textAlign = 'center'; cx.fillText(at.icon, px + 7, ly + 0.5); }
-        cx.font = `800 9.5px ${FONT}`; cx.textAlign = 'left'; cx.fillStyle = '#ffe9a8';
-        cx.fillText(name, px + 13.5, ly + 0.5);
-        // 레벨 칩 (알약 오른쪽 위에 살짝 걸치게)
+        const ly = feet + 9, at = ATTRS[h.def.attr];
         const lvT = h.lv >= 5 ? 'MAX' : 'Lv' + h.lv;
-        cx.font = `800 7.5px ${FONT}`;
-        const cw = cx.measureText(lvT).width + 6, chh = 10, cxp = px + pw - cw + 3, cyp = ly - ph / 2 - chh + 3;
-        cx.fillStyle = h.lv >= 5 ? '#ff9f1c' : '#2b6f9e'; roundRect(cx, cxp, cyp, cw, chh, 5); cx.fill();
-        cx.strokeStyle = 'rgba(0,0,0,0.55)'; cx.stroke();
-        cx.fillStyle = '#fff'; cx.textAlign = 'center'; cx.fillText(lvT, cxp + cw / 2, cyp + chh / 2 + 0.5);
-        if ('letterSpacing' in cx) cx.letterSpacing = '0px';
-        cx.textAlign = 'center';
+        cx.textBaseline = 'middle'; cx.textAlign = 'center';
+        cx.font = `800 8px ${FONT}`;
+        const tw = cx.measureText(lvT).width, pw = tw + 20, ph = 13, px = hx - pw / 2;
+        cx.fillStyle = h.def.legend ? 'rgba(90,60,0,0.92)' : h.def.hidden ? 'rgba(80,10,70,0.9)' : 'rgba(12,10,28,0.85)';
+        roundRect(cx, px, ly - ph / 2, pw, ph, ph / 2); cx.fill();
+        cx.strokeStyle = h.lv >= 5 ? '#ff9f1c' : h.def.legend ? '#ffd84a' : h.def.hidden ? '#ff7fe6' : 'rgba(255,255,255,0.25)'; cx.lineWidth = 1; cx.stroke();
+        const ai = at && this.images['attr_' + h.def.attr];
+        if (at && imgOk(ai)) cx.drawImage(ai, px + 1.5, ly - 5, 10, 10);
+        else if (at) { cx.fillStyle = at.color; cx.beginPath(); cx.arc(px + 6.5, ly, 4.2, 0, Math.PI * 2); cx.fill(); cx.font = `6px ${FONT}`; cx.fillStyle = '#000'; cx.fillText(at.icon, px + 6.5, ly + 0.5); cx.font = `800 8px ${FONT}`; }
+        cx.fillStyle = h.lv >= 5 ? '#ffb347' : '#bfeaff';
+        cx.fillText(lvT, px + 13 + tw / 2, ly + 0.5);
+        if (h.guest) { // G 리본
+          cx.fillStyle = '#1fb3c9'; cx.beginPath(); cx.arc(px + pw + 1, ly - 6, 5.5, 0, Math.PI * 2); cx.fill(); cx.strokeStyle = '#063a44'; cx.stroke();
+          cx.fillStyle = '#fff'; cx.font = `900 7px ${FONT}`; cx.fillText('G', px + pw + 1, ly - 5.5);
+        }
       }
       const ly = feet + 9;
       // 배현경 다이어트 게이지 · 고아라 나이 게이지
