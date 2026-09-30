@@ -60,13 +60,56 @@ export function starUp(lb, id) {
 }
 
 // ─── 치장: 칭호 · 프레임 ───────────────────────────────
-export const FRAMES = { neon: { id: 'neon', name: '네온 프레임', color: '#6ff0ff' }, gold: { id: 'gold', name: '황금 프레임', color: '#ffcf3f' }, crown: { id: 'crown', name: '챔피언 왕관', color: '#ff6fd8' } };
+// 치장은 능력치가 없다 (대전 공정하게) — 다른 사람에게 보이는 멋 · 모으는 재미
+//  rarity: common(그냥) · rare(빛나는 테두리) · epic(반짝이는 흐름) · legend(금빛 + 반짝이)
+export const FRAMES = {
+  neon: { id: 'neon', name: '네온 프레임', color: '#6ff0ff', rarity: 'rare', how: '시즌 20단계' },
+  gold: { id: 'gold', name: '황금 프레임', color: '#ffcf3f', rarity: 'epic', how: '시즌 30단계' },
+  crown: { id: 'crown', name: '챔피언 왕관', color: '#ff6fd8', rarity: 'legend', how: '주간 도전 1위' },
+  rookie: { id: 'rookie', name: '새내기 프레임', color: '#9fb3c8', rarity: 'common', how: '1장 클리어' },
+  star3: { id: 'star3', name: '별빛 프레임', color: '#ffe066', rarity: 'rare', how: '한 장 ★30 (전부 ★★★)' },
+  pvpgold: { id: 'pvpgold', name: '골드 투기장', color: '#ffd35a', rarity: 'epic', how: '1:1 대전 골드 (1200점)' },
+  pvpdia: { id: 'pvpdia', name: '다이아 투기장', color: '#6fd3ff', rarity: 'legend', how: '1:1 대전 다이아 (1500점)' },
+  collector: { id: 'collector', name: '수집가 프레임', color: '#c77dff', rarity: 'epic', how: '멤버 16명 모으기' },
+};
+// 칭호 카탈로그 (얻는 법 · 등급) — 시즌 칭호는 titleName 으로 따로
+export const TITLE_INFO = {
+  wchamp: { rarity: 'legend', how: '주간 도전 1위' }, wtop3: { rarity: 'epic', how: '주간 도전 TOP 3' }, gacha100: { rarity: 'rare', how: '업적: 모집 100번' },
+  perfect30: { rarity: 'epic', how: '업적: PERFECT 30개' }, raid1: { rarity: 'legend', how: '레이드 데미지 1위' },
+  ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어 (전부)' },
+  allstar1: { rarity: 'rare', how: '1장 ★30' }, pvpsilver: { rarity: 'common', how: '1:1 대전 실버 (1050점)' }, pvpgold: { rarity: 'rare', how: '1:1 대전 골드 (1200점)' },
+  heroes12: { rarity: 'rare', how: '멤버 12명 모으기' }, heroes20: { rarity: 'legend', how: '멤버 20명 모으기' },
+};
+const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족' };
+// 조건을 채우면 저절로 들어오는 칭호 · 프레임 (서버 normLb · 손님 둘 다 같은 함수)
+function autoCosmetics(raw) {
+  const st = raw.stages || {};
+  let max = raw.maxStage | 0; for (const k of Object.keys(st)) if ((st[k] | 0) > 0 && +k > max) max = +k;
+  const chStars = (c) => { let n = 0; for (let i = 1; i <= 10; i++) n += st[(c - 1) * 10 + i] | 0; return n; };
+  const full = [1, 2, 3, 4, 5, 6].some((c) => chStars(c) >= 30);
+  const rating = ((raw.pvp || {}).rating) | 0;
+  const heroes = Object.keys(HEROES).filter((h) => heroUnlocked(raw, h)).length;
+  const t = [], f = [];
+  if (max >= 10) { t.push('ch1'); f.push('rookie'); }
+  if (max >= 30) t.push('ch3');
+  if (max >= 60) t.push('ch6');
+  if (chStars(1) >= 30) t.push('allstar1');
+  if (full) f.push('star3');
+  if (rating >= 1050) t.push('pvpsilver');
+  if (rating >= 1200) { t.push('pvpgold'); f.push('pvpgold'); }
+  if (rating >= 1500) f.push('pvpdia');
+  if (heroes >= 12) t.push('heroes12');
+  if (heroes >= 16) f.push('collector');
+  if (heroes >= 20) t.push('heroes20');
+  return { t, f };
+}
+export const cosmeticRarity = (kind, id) => (kind === 'frame' ? (FRAMES[id] || {}).rarity : (TITLE_INFO[id] || (/^s\d+_t30$/.test(id) ? { rarity: 'legend' } : /^s\d+_t10$/.test(id) ? { rarity: 'rare' } : {})).rarity) || 'common';
 export function titleName(id) {
   let m = /^s(\d{1,3})_t10$/.exec(id);
   if (m) return `시즌${m[1]} 단골`;
   m = /^s(\d{1,3})_t30$/.exec(id);
   if (m) return `시즌${m[1]} 랑방 레전드`;
-  return { wchamp: '주간 챔피언', wtop3: '주간 TOP 3', gacha100: '모집왕', perfect30: '무결점 문지기', raid1: '레이드 MVP' }[id] || '';
+  return { wchamp: '주간 챔피언', wtop3: '주간 TOP 3', gacha100: '모집왕', perfect30: '무결점 문지기', raid1: '레이드 MVP', ...TITLE_NAMES }[id] || '';
 }
 const titleOk = (id) => typeof id === 'string' && id.length < 16 && !!titleName(id);
 
@@ -630,8 +673,9 @@ export function normLive(raw, out) {
   out.ach = [...new Set((raw.ach || []).filter((id) => ACHIEVEMENTS.some((m) => m.id === id)))];
   const s = raw.season;
   out.season = s && Number.isInteger(s.id) ? { id: s.id, sp: int(s.sp, 0, 1e7), claimed: [...new Set((s.claimed || []).map((t) => int(t, 0, 99)).filter((t) => t >= 1 && t <= SEASON_TIERS))] } : null;
-  out.titles = [...new Set((raw.titles || []).filter(titleOk))].slice(0, 60);
-  out.frames = [...new Set((raw.frames || []).filter((f) => FRAMES[f]))];
+  const auto = autoCosmetics(raw);
+  out.titles = [...new Set([...(raw.titles || []), ...auto.t].filter(titleOk))].slice(0, 60);
+  out.frames = [...new Set([...(raw.frames || []), ...auto.f].filter((f) => FRAMES[f]))];
   out.title = out.titles.includes(raw.title) ? raw.title : '';
   out.frame = out.frames.includes(raw.frame) ? raw.frame : '';
   const wk = (x) => (x && Number.isInteger(x.wi) ? { wi: x.wi, best: int(x.best, 0, 1e9), runs: int(x.runs, 0, 1e6), waves: int(x.waves, 0, WEEKLY_WAVES), at: int(x.at, 0, 9e15) } : null);

@@ -1633,14 +1633,20 @@ function navHtml(on) {
   const tabs = [['shop', '상점', '🛒'], ['deck', '덱', '👥'], ['battle', '전투', '⚔️'], ['bag', '강화·장비', '🎒'], ['pvp', '대전', '🥊']];
   return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'deck' ? 'members' : k, e)}<b>${n}</b>${rdot(d[k])}</button>`).join('')}</nav>`;
 }
+// ─── 칭호 · 프레임 (보이기만 · 능력치 없음) ─────
+const titleChip = (id) => { const n = id ? L.titleName(id) : ''; return n ? `<u class="tchip r-${L.cosmeticRarity('title', id)}">${esc(n)}</u>` : ''; };
+const frameCls = (id) => (id && L.FRAMES[id] ? `fr r-${L.FRAMES[id].rarity} ` : '');
+const frameStyle = (id) => (id && L.FRAMES[id] ? `--fr:${L.FRAMES[id].color}` : '');
+// 이름 + 칭호 (랭킹 · 방 목록 · 대전 · 선수 카드에서 같이 쓴다)
+const whoHtml = (nick, title, extra = '') => `<span class="who2"><b>${esc(nick || '')}</b>${titleChip(title)}${extra}</span>`;
 function topPills() {
   const p = P();
   const expPct = p.expToNext ? Math.round((p.exp / p.expToNext) * 100) : 0;
   const fr = p.frame && L.FRAMES[p.frame] ? L.FRAMES[p.frame].color : '';
   const title = p.title ? L.titleName(p.title) : '';
   return `<div class="lb-top">
-    <button class="pill me" data-act="settings" style="${fr ? `--fr:${fr}` : ''}"><span class="ava ${fr ? 'framed' : ''}">${av(HEROES.bangjang)}</span>
-      <span class="who"><b>${app.guest ? '손님' : `Lv.${p.level}`}</b><em>${esc(app.guest ? '로그인하면 랭킹 등록' : app.nickname || '랑방 멤버')}</em>${title ? `<u>${esc(title)}</u>` : ''}<i class="xp"><b style="width:${app.guest ? 0 : expPct}%"></b></i></span></button>
+    <button class="pill me" data-act="cosmetics" style="${fr ? `--fr:${fr}` : ''}"><span class="ava ${fr ? 'framed ' + frameCls(p.frame) : ''}">${av(HEROES.bangjang)}</span>
+      <span class="who"><b>${app.guest ? '손님' : `Lv.${p.level}`}</b><em>${esc(app.guest ? '로그인하면 랭킹 등록' : app.nickname || '랑방 멤버')}</em>${titleChip(p.title)}<i class="xp"><b style="width:${app.guest ? 0 : expPct}%"></b></i></span></button>
     <div class="curs"><span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pill cur tk" data-act="nav" data-tab="shop">🎟️<b>${p.unlimited ? '∞' : fmt(p.tickets || 0)}</b><em>+</em></button></div>
   </div>`;
 }
@@ -1672,6 +1678,7 @@ function showMenu() {
   app.cardsOpen = false;
   hud.hidden = true;
   guardOn();
+  if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) cosmNewCheck(); }, 600);
   layout();
   const s = lobbyStage();
   const ch = chapterOf(s);
@@ -2359,7 +2366,7 @@ async function showWeekly() {
   const bosses = def.bosses.map((b) => `<span class="wb">${av(ENEMIES[b])}<small>${esc(ENEMIES[b].name)}</small></span>`).join('');
   const my = p.weekly && p.weekly.wi === wi ? p.weekly : null;
   const render = (bd) => {
-    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span class="nm">${esc(r.nickname)}${r.title ? `<u>${esc(r.title)}</u>` : ''}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin">⏳</span> 순위 불러오는 중…'}</div>`;
+    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin">⏳</span> 순위 불러오는 중…'}</div>`;
     const prev = bd && bd.prev;
     const prevBox = prev ? `<div class="panel wprev"><b>지난주 결과: ${prev.rank ? `${prev.rank}위` : '-'} · ${fmt(prev.best)}점</b><small>${prev.reward ? esc(prev.reward.label) + ' · ' + gotText(prev.reward) : ''}</small>
       <button class="btn ${prev.claimed ? '' : 'primary'}" data-act="weeklyClaim" ${prev.claimed ? 'disabled' : ''}>${prev.claimed ? '받았어요' : '보상 받기'}</button></div>` : '';
@@ -2407,6 +2414,43 @@ const NOTICES = [
 function showNotice() {
   popup(`<h3>📮 공지</h3><div class="nlist">${NOTICES.map(([i, t, d]) => `<div class="nrow"><span>${i}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></div>`).join('')}</div>`);
 }
+// 꾸미기: 칭호 · 프레임 전부 (가진 것 · 잠긴 것 · 얻는 법) + 내 카드 미리 보기
+function cosmList() {
+  const seasonIds = Array.from({ length: 2 }, (_, i) => `s${L.seasonOf(L.weekIndex()) - i}_t30`).filter((x) => /^s\d+_t30$/.test(x));
+  const titles = [...new Set([...Object.keys(L.TITLE_INFO), ...(P().titles || []), ...seasonIds])].filter((t) => L.titleName(t));
+  return { titles, frames: Object.keys(L.FRAMES) };
+}
+function showCosmetics() {
+  const p = P(), tab = app.cosmTab || 'title', { titles, frames } = cosmList();
+  const own = new Set(tab === 'title' ? p.titles || [] : p.frames || []);
+  const list = tab === 'title' ? titles : frames;
+  const how = (id) => (tab === 'title' ? (L.TITLE_INFO[id] || {}).how || (/_t30$/.test(id) ? '시즌 30단계' : '시즌 10단계') : L.FRAMES[id].how);
+  const rows = list.sort((a, b) => (own.has(b) - own.has(a))).map((id) => {
+    const on = tab === 'title' ? p.title === id : p.frame === id, have = own.has(id);
+    const r = L.cosmeticRarity(tab, id);
+    const face = tab === 'title' ? `<u class="tchip r-${r}">${esc(L.titleName(id))}</u>` : `<span class="ava framed ${frameCls(id)}" style="${frameStyle(id)}">${av(HEROES.bangjang)}</span><b>${esc(L.FRAMES[id].name)}</b>`;
+    return `<div class="cosm-row ${have ? '' : 'lock'} ${on ? 'on' : ''}">${face}<small>${have ? (on ? '장착 중' : '보유') : '🔒 ' + esc(how(id))}</small>${have ? `<button class="btn mini ${on ? '' : 'primary'}" data-act="${tab === 'title' ? 'setTitle' : 'setFrame'}" data-v="${on ? '' : id}">${on ? '빼기' : '장착'}</button>` : ''}</div>`;
+  }).join('');
+  const nT = (p.titles || []).length, nF = (p.frames || []).length;
+  popup(`<h3>🎨 꾸미기</h3>
+    <div class="cosm-preview"><span class="ava framed ${frameCls(p.frame)}" style="${frameStyle(p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', p.title)}<small>랭킹 · 대전 · 방 목록에서 이렇게 보여요</small></div></div>
+    <p class="ip">모은 칭호 <b>${nT}</b> · 프레임 <b>${nF}</b> — 치장은 능력치가 없어요 (대전은 공정하게)</p>
+    <div class="tabs"><button class="${tab === 'title' ? 'on' : ''}" data-act="cosmTab" data-v="title">🏷️ 칭호</button><button class="${tab === 'frame' ? 'on' : ''}" data-act="cosmTab" data-v="frame">🖼️ 프레임</button></div>
+    <div class="cosm-list">${rows}</div>`, 'cosm');
+}
+// 새로 얻은 칭호 · 프레임 알림 (한 번) → 바로 장착
+function cosmNewCheck() {
+  const p = P(); if (app.guest && !(p.titles || []).length) return;
+  let seen; try { seen = JSON.parse(localStorage.getItem('langbang:cosmSeen') || 'null'); } catch { seen = null; }
+  const now = [...(p.titles || []).map((t) => 't:' + t), ...(p.frames || []).map((f) => 'f:' + f)];
+  if (!seen) { try { localStorage.setItem('langbang:cosmSeen', JSON.stringify(now)); } catch { /* 무시 */ } return; }
+  const fresh = now.filter((x) => !seen.includes(x));
+  if (!fresh.length) return;
+  try { localStorage.setItem('langbang:cosmSeen', JSON.stringify(now)); } catch { /* 무시 */ }
+  const [k, id] = fresh[0].split(/:(.*)/);
+  const name = k === 't' ? L.titleName(id) : L.FRAMES[id].name;
+  popup(`<h3>✨ 새 ${k === 't' ? '칭호' : '프레임'} 획득!</h3><p class="ip big-got">${k === 't' ? titleChip(id) : `<span class="ava framed ${frameCls(id)}" style="${frameStyle(id)}">${av(HEROES.bangjang)}</span> ${esc(name)}`}</p>${fresh.length > 1 ? `<p class="ip">외 ${fresh.length - 1}개 더</p>` : ''}<div class="grid2"><button class="btn" data-x>나중에</button><button class="btn primary" data-act="${k === 't' ? 'setTitle' : 'setFrame'}" data-v="${id}">바로 장착</button></div>`, 'cosm-new');
+}
 function showSettings() {
   const p = P();
   const titles = (p.titles || []).map((t) => `<button class="chip ${p.title === t ? 'on' : ''}" data-act="setTitle" data-v="${t}">${esc(L.titleName(t))}</button>`).join('') || '<small class="dimtxt">시즌·주간 도전·업적에서 칭호를 얻어요</small>';
@@ -2415,6 +2459,7 @@ function showSettings() {
     <div class="set-row"><span>🔊 소리</span><button class="btn ghost" data-act="mute">${A.isMuted() ? '🔇 꺼짐' : '🔊 켜짐'}</button></div>
     <div class="set-row"><span>🃏 카드 자동 선택 <small>추천 카드를 바로 골라요 (1:1 대전 제외)</small></span><button class="btn ghost" data-act="autoCardsT">${app.autoCards ? '✅ 켜짐' : '꺼짐'}</button></div>
     <div class="set-row"><span>🧹 자동 판매 <small>일반 등급 드롭은 바로 코인으로</small></span><button class="btn ghost" data-act="autoSellT">${p.autoSell ? '✅ 켜짐' : '꺼짐'}</button></div>
+    <div class="set-row"><span>🎨 꾸미기 <small>칭호 · 프레임 모음 (다른 사람에게 보여요)</small></span><button class="btn ghost" data-act="cosmetics">열기</button></div>
     <div class="set-row col"><span>🏷️ 칭호</span><div class="chips"><button class="chip ${!p.title ? 'on' : ''}" data-act="setTitle" data-v="">없음</button>${titles}</div></div>
     <div class="set-row col"><span>🖼️ 프레임</span><div class="chips"><button class="chip ${!p.frame ? 'on' : ''}" data-act="setFrame" data-v="">없음</button>${frames}</div></div>
     <div class="grid2"><button class="btn" data-act="howto">📖 게임 방법</button><button class="btn" data-act="toHub">‹ 게임월드</button></div>
@@ -2489,8 +2534,10 @@ Object.assign(ACTS, {
     });
   },
   settings: () => showSettings(),
-  setTitle: async (b) => { if (await liveAct(API.setCosmetic(b.dataset.v, undefined, app.guest))) { showSettings(); refreshBehind(); } },
-  setFrame: async (b) => { if (await liveAct(API.setCosmetic(undefined, b.dataset.v, app.guest))) { showSettings(); refreshBehind(); } },
+  setTitle: async (b) => { if (await liveAct(API.setCosmetic(b.dataset.v, undefined, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
+  cosmetics: () => showCosmetics(),
+  cosmTab: (b) => { app.cosmTab = b.dataset.v; showCosmetics(); },
+  setFrame: async (b) => { if (await liveAct(API.setCosmetic(undefined, b.dataset.v, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
   chest: (b) => {
     const ch = Number(b.dataset.ch), n = Number(b.dataset.n);
     if (b.classList.contains('open')) { toast('이미 연 상자예요'); return; }
@@ -2620,7 +2667,7 @@ async function showRaid() {
     const total = bd ? bd.total : 0;
     const pct = Math.min(100, (total / L.RAID.hp) * 100);
     const me = bd && bd.me;
-    const top = bd ? bd.top.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span class="nm">${esc(r.nickname)}</span><b>${fmt(r.dmg)}</b></div>`).join('') || '<div class="empty-msg">아직 아무도 안 때렸어요 — 첫 타!</div>' : `<div class="empty-msg">${app.guest ? '레이드는 로그인하면 참가해요' : '<span class="spin">⏳</span> 불러오는 중…'}</div>`;
+    const top = bd ? bd.top.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><b>${fmt(r.dmg)}</b></div>`).join('') || '<div class="empty-msg">아직 아무도 안 때렸어요 — 첫 타!</div>' : `<div class="empty-msg">${app.guest ? '레이드는 로그인하면 참가해요' : '<span class="spin">⏳</span> 불러오는 중…'}</div>`;
     const open = bd ? bd.open : st.open;
     show(`
       ${topPills()}
@@ -2704,7 +2751,7 @@ async function showPvp() {
   pvpSocket().then((sock) => sock.emit('rooms:list', {}, (r) => { if (r && r.ok) { PVP.rooms = r.rooms; renderRooms(); } })).catch(() => { const el = $('#roomList'); if (el) el.innerHTML = '<div class="empty-msg">서버에 연결할 수 없어요</div>'; });
   const rk = await API.pvpRanking();
   const box = $('#pvpRank');
-  if (box && rk) box.innerHTML = `<h4>🏆 대전 순위</h4>${rk.ranking.map((r) => `<div class="wrow" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="rk">${r.rank}</span><span class="nm">${esc(r.nickname)}</span><span class="wv">${r.wins}/${r.games}</span><b>${r.rating}</b></div>`).join('') || '<div class="empty-msg">아직 대전 기록이 없어요</div>'}`;
+  if (box && rk) box.innerHTML = `<h4>🏆 대전 순위</h4>${rk.ranking.map((r) => `<div class="wrow" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="rk">${r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wv">${r.wins}/${r.games}</span><b>${r.rating}</b></div>`).join('') || '<div class="empty-msg">아직 대전 기록이 없어요</div>'}`;
 }
 // 선수 카드: 스테이지 진행 · 대전 등급 · 승률 · 덱
 const PVP_TIERS = [[1800, '그랜드마스터', '👑', '#ff5d73'], [1650, '마스터', '🔮', '#c77dff'], [1500, '다이아몬드', '💎', '#6fd3ff'], [1350, '플래티넘', '🛡️', '#4fe0c1'], [1200, '골드', '🥇', '#ffd35a'], [1050, '실버', '🥈', '#cfd8e3'], [900, '브론즈', '🥉', '#d59a6a'], [-Infinity, '아이언', '⚙️', '#9aa1a8']];
@@ -2718,7 +2765,7 @@ async function showPlayerCard(u) {
   const t = PVP_TIERS.find((x) => pl.pvp.rating >= x[0]);
   const fr = pl.frame && L.FRAMES[pl.frame] ? L.FRAMES[pl.frame].color : '#ffd23f';
   const deck = pl.deck.map((h) => HD(h.id) ? `<span class="pc-h" style="--c:${ATTRS[HD(h.id).attr].color}">${dexImg(h.id, HD(h.id).img)}<i class="tier t${heroTier(h.id)}">${TIER_NAME[heroTier(h.id)]}</i><small>${'★'.repeat(h.star)} ${h.lv ? '+' + h.lv : ''}</small><b>${esc(HD(h.id).name)}</b></span>` : '').join('');
-  box.innerHTML = `<div class="pc-head" style="--fr:${fr}"><b>${esc(pl.nickname)}</b>${pl.master ? '<em class="lb-master">MASTER</em>' : ''}<small>Lv.${pl.level || 1}${pl.title ? ` · 🏷️ ${esc(L.titleName(pl.title))}` : ''}</small></div>
+  box.innerHTML = `<div class="pc-head ${frameCls(pl.frame)}" style="--fr:${fr}"><b>${esc(pl.nickname)}</b>${pl.master ? '<em class="lb-master">MASTER</em>' : ''}${titleChip(pl.title)}<small>Lv.${pl.level || 1}</small></div>
     <div class="pc-stats">
       <div><small>최고 스테이지</small><b>${esc(pl.stageLabel)}</b><i>★ ${pl.totalStars || 0}</i></div>
       <div><small>대전 등급</small><b style="color:${t[3]}">${t[2]} ${t[1]}</b><i>${pl.pvp.rating}점</i></div>
@@ -2743,7 +2790,7 @@ function renderRooms() {
   const list = PVP.rooms || [];
   const n = $('#roomN'); if (n) n.textContent = list.length ? `${list.length}개` : '';
   const wait = (sec) => (sec < 60 ? `${sec}초` : `${Math.floor(sec / 60)}분`);
-  el.innerHTML = list.length ? list.map((r) => `<button class="room-row" data-act="pvpEnter" data-code="${r.code}"><span class="rr-host"><b>${esc(r.title)}</b><small>${esc(r.host)} · ${esc(r.tier)} · ${r.games}판 ${r.wins}승</small></span><span class="rr-pw">⚔ ${fmt(r.power)}</span><span class="rr-wait">⏱ ${wait(r.waitSec)}</span><em>들어가기 ›</em></button>`).join('')
+  el.innerHTML = list.length ? list.map((r) => `<button class="room-row" data-act="pvpEnter" data-code="${r.code}"><span class="rr-host"><b>${esc(r.title)}</b><small>${esc(r.host)}${r.hostTitle ? ' ' + titleChip(r.hostTitle) : ''} · ${esc(r.tier)} · ${r.games}판 ${r.wins}승</small></span><span class="rr-pw">⚔ ${fmt(r.power)}</span><span class="rr-wait">⏱ ${wait(r.waitSec)}</span><em>들어가기 ›</em></button>`).join('')
     : '<div class="empty-msg">열린 방이 없어요 — 🏠 방 만들기로 친구를 불러요!</div>';
 }
 // 초대 링크 보내기: /langbang/?room=코드 → 열면 바로 그 방으로
@@ -2810,7 +2857,7 @@ const oppName = () => (PVP.opp && PVP.opp.nickname) || '상대';
 function vsSide(o, me) {
   const t = pvpTier(o.rating);
   const deck = (o.deck || []).filter((id) => HEROES[id]).slice(0, 7).map((id) => `<span class="vs-h">${av(HEROES[id])}</span>`).join('');
-  return `<div class="vs-side ${me ? 'me' : 'op'}"><b class="vs-name">${esc(o.nickname || '손님')}${o.bot ? ' 🤖' : ''}</b>
+  return `<div class="vs-side ${me ? 'me' : 'op'} ${frameCls(o.frame)}" style="${frameStyle(o.frame)}"><b class="vs-name">${esc(o.nickname || '손님')}${o.bot ? ' 🤖' : ''}</b>${titleChip(o.title)}
     <span class="vs-tier" style="--tc:${t[3]}">${t[2]} ${t[1]} · ${o.rating | 0}점</span>
     <small>${o.bot ? '연습 상대' : o.games ? `${o.wins | 0}승 ${Math.max(0, (o.games | 0) - (o.wins | 0))}패` : '첫 대전'} · ⚔ ${fmt(o.power | 0)}</small>
     <div class="vs-deck">${deck}</div></div>`;
@@ -2818,7 +2865,7 @@ function vsSide(o, me) {
 function showVsSplash(m) {
   const el = document.createElement('div');
   el.className = 'vs-splash';
-  el.innerHTML = `${vsSide(Object.assign({}, m.you || {}, { nickname: (m.you && m.you.nickname) || app.nickname || '나' }), true)}<div class="vs-mid">VS</div>${vsSide(m.opp, false)}<p class="vs-go">${Math.round((m.startIn || 3000) / 1000)}초 뒤 시작!</p>`;
+  el.innerHTML = `${vsSide(Object.assign({}, m.you || {}, { nickname: (m.you && m.you.nickname) || app.nickname || '나', title: (m.you && m.you.title) || P().title, frame: (m.you && m.you.frame) || P().frame }), true)}<div class="vs-mid">VS</div>${vsSide(m.opp, false)}<p class="vs-go">${Math.round((m.startIn || 3000) / 1000)}초 뒤 시작!</p>`;
   stage.appendChild(el);
   A.sfx.card && A.sfx.card();
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, Math.max(1500, (m.startIn || 3000) - 700));
@@ -2832,7 +2879,7 @@ function renderOppView(peek) {
   const hp = Math.round(((o.hp || 0) / Math.max(1, o.max || 1)) * 100);
   const heroes = (o.heroes && o.heroes.length ? o.heroes : (o.deck || []).map((id) => ({ id, r: false, lv: 1 }))).filter((h) => HEROES[h.id]);
   oppView.classList.toggle('peek', !!peek);
-  oppView.innerHTML = `<div class="ov-box"><div class="ov-head"><b>${esc(oppName())}</b><span class="vs-tier" style="--tc:${pvpTier(o.rating)[3]}">${pvpTier(o.rating)[2]} ${o.rating | 0}</span>${o.username ? '<button class="chip mini" data-pc="1">선수 카드</button>' : ''}</div>
+  oppView.innerHTML = `<div class="ov-box"><div class="ov-head"><b>${esc(oppName())}</b>${titleChip(o.title)}<span class="vs-tier" style="--tc:${pvpTier(o.rating)[3]}">${pvpTier(o.rating)[2]} ${o.rating | 0}</span>${o.username ? '<button class="chip mini" data-pc="1">선수 카드</button>' : ''}</div>
     <div class="ov-hp"><span>🚪 입구</span><div class="ohp"><div style="width:${hp}%"></div></div><b>${hp}%</b></div>
     <div class="ov-stats"><span>🌊 웨이브 <b>${o.wave | 0}</b></span><span>👹 진상 <b>${o.enemies | 0}</b></span><span>💀 처치 <b>${o.kills | 0}</b></span><span>📣 총공지 <b>${o.ults | 0}</b></span></div>
     <div class="ov-heroes">${heroes.map((h) => `<span class="ov-h ${h.r ? 'ready' : ''}">${av(HEROES[h.id])}<small>Lv${h.lv || 1}</small></span>`).join('')}</div>
@@ -4234,7 +4281,7 @@ async function showRanking() {
   const medal = ['🥇', '🥈', '🥉'];
   box.innerHTML = res.ranking.length
     ? res.ranking.map((r) => `<div class="rank r${r.rank} ${res.me && res.me.username === r.username ? 'me' : ''}" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="no">${medal[r.rank - 1] || r.rank}</span>
-      <span class="nm">${esc(r.nickname)}<small>Lv.${r.level || 1}</small></span>${cell(r)}</div>`).join('')
+      <span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}<small>Lv.${r.level || 1}</small></span>${cell(r)}</div>`).join('')
     : '<div class="empty-msg">아직 기록이 없어요<br>첫 번째 랑방 수호자가 되어 보세요!</div>';
   if (app.guest) my.innerHTML = '<div class="guest-note" style="margin:0">손님은 랭킹에 안 올라가요 · <a href="/">로그인</a>하고 이름을 올려 봐요!</div>';
   else if (res.me && res.me.rank) my.innerHTML = `<div class="rank me"><span class="no">${res.me.rank}</span><span class="nm">내 순위<small>${esc(app.nickname)}</small></span>${cell(res.me)}</div>`;

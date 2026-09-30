@@ -66,7 +66,7 @@ function createLbPvp(opts) {
   function roomList() {
     const t = now();
     return [...codes.entries()].filter(([, h]) => !h.match && h.room).sort((a, b) => a[1].room.at - b[1].room.at).map(([code, h]) => ({
-      code, title: h.room.title, host: h.nickname, rating: h.rating, tier: tierName(h.rating), games: h.games | 0, wins: h.wins | 0,
+      code, title: h.room.title, host: h.nickname, hostTitle: h.title || '', hostFrame: h.frame || '', rating: h.rating, tier: tierName(h.rating), games: h.games | 0, wins: h.wins | 0,
       power: h.room.power, waitSec: Math.floor((t - h.room.at) / 1000), guest: !h.uid,
     }));
   }

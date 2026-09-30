@@ -2110,3 +2110,27 @@ body.rm .ig-chip img { animation: none; }
 .ov-h .av { width: 130%; height: 130%; margin: -5% 0 0 -15%; } .ov-h small { position: absolute; bottom: 0; left: 0; right: 0; font-size: calc(var(--u) * 7.5); text-align: center; background: rgba(0, 0, 0, 0.6); color: #fff; }
 .ov-cards { display: flex; flex-wrap: wrap; gap: 4px; font-size: calc(var(--u) * 10); } .ov-cards small { color: var(--dim); width: 100%; } .ov-cards span { background: rgba(255, 255, 255, 0.1); border-radius: 99px; padding: 0 8px; }
 .ov-close { margin: calc(var(--u) * 6) 0 0; font-size: calc(var(--u) * 9.5); color: var(--dim); text-align: center; }
+
+/* ── 칭호 칩 · 프레임 (등급: 일반 그냥 · 희귀 빛 · 영웅 반짝 흐름 · 전설 금빛 반짝이) ── */
+.tchip { display: inline-block; text-decoration: none; margin-left: calc(var(--u) * 4); padding: 0 calc(var(--u) * 6); border-radius: 99px; font-size: calc(var(--u) * 9); font-weight: 900; font-style: normal; color: #e6ddff; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.25); vertical-align: middle; white-space: nowrap; }
+.tchip.r-rare { color: #bfe6ff; border-color: #4ea8ff; box-shadow: 0 0 calc(var(--u) * 5) rgba(78, 168, 255, 0.7); }
+.tchip.r-epic { color: #fff; border-color: #c77dff; background: linear-gradient(90deg, #5a2a8a, #9a4ad0, #5a2a8a); background-size: 200% 100%; animation: tShim 2.4s linear infinite; }
+.tchip.r-legend { color: #2a1600; border-color: #fff2b0; background: linear-gradient(90deg, #ffb400, #ffe98a, #ffb400); background-size: 200% 100%; animation: tShim 1.8s linear infinite; box-shadow: 0 0 calc(var(--u) * 8) rgba(255, 200, 60, 0.8); }
+@keyframes tShim { to { background-position: 200% 0; } }
+.fr.r-common { box-shadow: 0 0 0 2px var(--fr) inset; }
+.ava.fr { box-shadow: 0 0 0 2.5px var(--fr); }
+.ava.fr.r-rare, .fr.r-rare { box-shadow: 0 0 0 2.5px var(--fr), 0 0 calc(var(--u) * 8) var(--fr); }
+.ava.fr.r-epic, .fr.r-epic { box-shadow: 0 0 0 2.5px var(--fr), 0 0 calc(var(--u) * 10) var(--fr); animation: frPulse 2s ease-in-out infinite; }
+.ava.fr.r-legend, .fr.r-legend { box-shadow: 0 0 0 3px #ffe98a, 0 0 calc(var(--u) * 14) #ffb400; animation: frPulse 1.4s ease-in-out infinite; }
+@keyframes frPulse { 50% { filter: brightness(1.25); } }
+.rank .nm.fr, .wrow .nm.fr { border-radius: calc(var(--u) * 8); padding: 0 calc(var(--u) * 4); }
+.who2 { display: inline-flex; align-items: center; min-width: 0; } .who2 b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cosm-preview { display: flex; align-items: center; gap: calc(var(--u) * 10); padding: calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: rgba(255, 255, 255, 0.06); margin-bottom: calc(var(--u) * 6); }
+.cosm-preview .ava, .cosm-row .ava { width: calc(var(--u) * 44); height: calc(var(--u) * 44); border-radius: 50%; overflow: hidden; flex: none; display: inline-block; }
+.cosm-preview small { display: block; color: var(--dim); font-size: calc(var(--u) * 10); }
+.cosm-list { display: flex; flex-direction: column; gap: calc(var(--u) * 5); max-height: 50vh; overflow-y: auto; }
+.cosm-row { display: flex; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 6) calc(var(--u) * 8); border-radius: calc(var(--u) * 10); background: rgba(255, 255, 255, 0.05); }
+.cosm-row.on { outline: 2px solid #ffd23f; }
+.cosm-row.lock { opacity: 0.55; filter: grayscale(0.6); }
+.cosm-row small { margin-left: auto; color: var(--dim); font-size: calc(var(--u) * 10); text-align: right; }
+.cosm-row .btn { flex: none; width: auto; padding: 0 calc(var(--u) * 10); }

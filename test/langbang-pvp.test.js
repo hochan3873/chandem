@@ -437,3 +437,24 @@ test('무한 기록: 40웨이브(처치 2.3만 · 점수 160만)도 저장 · �
   const h = await post('/api/langbang/result', u.token, { mode: 'stage', stage: 5, stars: 3, kills: 2653, score: 100258, bossKills: 1, skills: 20, durationSec: 900, seen: [] });
   assert.equal(h.ok, true, '긴 스테이지 판: ' + h.message);
 });
+
+test('칭호 · 프레임: 조건을 채우면 저절로 들어오고, 랭킹 · 대전 순위에 보인다 (능력치 없음)', async () => {
+  const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  const out = {};
+  L.normLive({ stages: Object.fromEntries(Array.from({ length: 30 }, (_, i) => [i + 1, 3])), pvp: { rating: 1250 } }, out);
+  for (const t of ['ch1', 'ch3', 'allstar1', 'pvpsilver', 'pvpgold']) assert.ok(out.titles.includes(t), t);
+  for (const f of ['rookie', 'star3', 'pvpgold']) assert.ok(out.frames.includes(f), f);
+  assert.ok(!out.titles.includes('ch6'), '6장은 아직');
+  for (const id of Object.keys(L.TITLE_INFO)) assert.ok(L.titleName(id), '이름 ' + id);
+  for (const f of Object.values(L.FRAMES)) assert.ok(f.rarity && f.how, f.id);
+  const u = await user('cosmuser');
+  const st = await srv.accounts.store.byId(u.user.id);
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { maxStage: 10, stages: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 3])) });
+  await srv.accounts.store.saveStats(u.user.id, st.stats);
+  const r = await post('/api/langbang/cosmetic', u.token, { title: 'ch1', frame: 'rookie' });
+  assert.equal(r.ok, true, r.message);
+  const rk = await get('/api/langbang/ranking?mode=stage');
+  const row = rk.ranking.find((x) => x.username === 'cosmuser');
+  assert.equal(row.title, 'ch1'); assert.equal(row.frame, 'rookie');
+  assert.equal((await post('/api/langbang/cosmetic', u.token, { title: 'ch6' })).ok, false, '없는 칭호는 못 낌');
+});

@@ -796,7 +796,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     // 지금 열려 있지 않으면 방금 끝난 레이드 결과
     const wi = st.open || now >= st.endsAt ? st.wi : st.wi - 1;
     const total = await store.raidTotal(wi);
-    const top = (await store.raidTop(wi, 20)).map((u, i) => ({ rank: i + 1, nickname: u.nickname, dmg: raidDmgOf(u, wi) }));
+    const top = (await store.raidTop(wi, 20)).map((u, i) => { const lb = lbOf(u); return { rank: i + 1, nickname: u.nickname, username: u.username, dmg: raidDmgOf(u, wi), title: lb.title || '', frame: lb.frame || '' }; });
     let me = null;
     const id = token ? verifyToken(token) : null;
     if (id) {
@@ -830,7 +830,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   }
   async function lbPvpRanking(token) {
     await ready;
-    const list = (await store.pvpTop(50)).map((u, i) => { const p = pvpOf(u); return { rank: i + 1, nickname: u.nickname, username: u.username, rating: p.rating, games: p.games, wins: p.wins, tier: tierOf(p.rating) }; });
+    const list = (await store.pvpTop(50)).map((u, i) => { const p = pvpOf(u); const lb0 = lbOf(u); return { rank: i + 1, title: lb0.title || '', frame: lb0.frame || '', nickname: u.nickname, username: u.username, rating: p.rating, games: p.games, wins: p.wins, tier: tierOf(p.rating) }; });
     let me = null;
     const id = token ? verifyToken(token) : null;
     if (id) { const u = await store.byId(id); if (u) { const p = pvpOf(u); me = { ...p, tier: tierOf(p.rating) }; } }
@@ -900,7 +900,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   const wkRow = (u, wi, i) => {
     const lb = u.stats.langbang || {};
     const e = lb.weekly && lb.weekly.wi === wi ? lb.weekly : lb.weeklyPrev || {};
-    return { rank: i + 1, nickname: u.nickname, best: weeklyBestOf(u, wi), waves: e.waves | 0, title: LIVE.titleName(lb.title || '') || '', frame: lb.frame || '' };
+    return { rank: i + 1, nickname: u.nickname, username: u.username, best: weeklyBestOf(u, wi), waves: e.waves | 0, title: lb.title || '', frame: lb.frame || '' };
   };
   async function lbWeeklyBoard(token) {
     await ready;
@@ -1006,7 +1006,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   function lbAutoSell(token, on) { return lbGear(token, () => ({ apply: (x) => { x.autoSell = !!on; }, extra: { autoSell: !!on } })); }
   const lbRow = (u, i) => {
     const lb = lbOf(u);
-    return { rank: i + 1, nickname: u.nickname, username: u.username, level: lb.level, maxStage: lb.maxStage, stageLabel: lb.maxStage ? LBR.stageLabel(lb.maxStage) : '-', totalStars: lb.totalStars, bestWave: lb.bestWave, bestScore: lb.bestScore, runs: lb.runs };
+    return { rank: i + 1, nickname: u.nickname, username: u.username, level: lb.level, maxStage: lb.maxStage, stageLabel: lb.maxStage ? LBR.stageLabel(lb.maxStage) : '-', totalStars: lb.totalStars, bestWave: lb.bestWave, bestScore: lb.bestScore, runs: lb.runs, title: lb.title || '', frame: lb.frame || '' };
   };
   /** mode: 'stage' | 'endless'. token 이 있으면 내 순위도 */
   async function lbRanking(n = 50, mode = 'stage', token = null) {
