@@ -114,7 +114,7 @@ export const WEAPON = {
   dohoon: { item: '마이크 떼창', kind: 'aura', reload: '물 한 모금' },
   ingyu: { item: '할리', kind: 'pierce', reload: '시동 걸기' },
   donghan: { item: '뜨거운 커피', kind: 'lob', reload: '커피 리필' },
-  youngjun: { item: '흑표범 발톱', kind: 'melee', reload: '숨 고르기' },
+  youngjun: { item: '블랙캣 후드 러시', kind: 'melee', reload: '숨 고르기' },
   eunok: { item: '소주잔', kind: 'burst', mag: 2, gap: 0.3, reload: '소주 한 잔 원샷' },
   hanna: { item: '윙크 하트', kind: 'beam', reload: '거울 보기' },
   sunggu: { item: '지팡이', kind: 'pierce', reload: '허리 펴기' },
@@ -706,7 +706,7 @@ export const HEROES = {
     img: '/img/lb/h_youngjun.webp', imgOn: '/img/lb/h_youngjun_dash.webp', role: '근접 돌격 · 초고속 연속 베기',
     dmg: 34, interval: 0.14, range: 350, proj: 'dash', outSec: [3, 3, 3.3, 3.3, 3.6], restSec: [1.6, 1.6, 1.4, 1.4, 1.1], reach: 70,
     attack: '돌격 — 제일 몰린 곳으로 뛰어들어 초고속 연속 베기(가오 무시), 돌아와서 크로스핏',
-    desc: '흑표범 같은 파티 전사. 뛰어든 동안엔 아무것도 안 통한다. 한 명씩 확실하게 끝내는 타입.',
+    desc: '검은 고양이 후드를 쓴 파티 전사. 뛰어든 동안엔 아무것도 안 통한다. 한 명씩 확실하게 끝내는 타입.',
     perks: { 3: '더 오래 싸우고 빨리 회복', 5: '제일 오래 싸우고 크로스핏 최단' },
     skill: { id: 'rush', name: '블랙 러시', cd: 20, desc: '지목한 적부터 최대 6명을 번개처럼 연속 돌파 · 큰 피해', n: [6, 6, 7, 7, 8], mul: 5 },
   },
@@ -1517,7 +1517,7 @@ export const ATTR_SET = [0, 0, 0.12, 0.22, 0.34, 0.44, 0.52];
 export const EVO = {
   bangjang: { tag: 'kb', name: '황금 확성기' }, staff: { tag: 'ctrl', name: '운영 총괄' }, gunman: { tag: 'pierce', name: '레일 새총' }, gunnyeo: { tag: 'heal', name: '천사 간호사' },
   myunghoon: { tag: 'chain', name: '구미호 욕신' }, dohoon: { tag: 'heal', name: '전국 투어' }, ingyu: { tag: 'kb', name: '3대 700' }, donghan: { tag: 'splash', name: '각성한 간보기' },
-  youngjun: { tag: 'boss', name: '검은 표범 왕' }, eunok: { tag: 'splash', name: '폭탄주 여왕' }, hanna: { tag: 'kb', name: '윙크 여신' }, sunggu: { tag: 'pierce', name: '지팡이 달인' },
+  youngjun: { tag: 'boss', name: '한밤의 블랙캣' }, eunok: { tag: 'splash', name: '폭탄주 여왕' }, hanna: { tag: 'kb', name: '윙크 여신' }, sunggu: { tag: 'pierce', name: '지팡이 달인' },
   junseo: { tag: 'chain', name: '인맥왕' }, hyungyeong: { tag: 'kb', name: '다이어트 챔피언' }, ara: { tag: 'boss', name: '여왕 폐하' }, hochan: { tag: 'ctrl', name: '랑방의 전설' },
   soyoung: { tag: 'ctrl', name: '잔소리 대마왕' }, jieun: { tag: 'ctrl', name: '시간의 마녀' }, sanghwa: { tag: 'boss', name: '완벽한남자' }, jungmin: { tag: 'heal', name: '붕대 장인' }, jiwon: { tag: 'boss', name: '모자이크 여왕' }, wonsik: { tag: 'heal', name: '품절남' },
 };
@@ -1790,7 +1790,7 @@ export const AUGMENTS = [
 // 멤버 전용 증강 (그 멤버 전용 카드 효과 두 번 + 공격력 +40%)
 export const HERO_AUG = {
   donghan: '진심 폭주', jieun: '시간 가속 역전', sanghwa: '끝내주는 이자', bangjang: '전 직원 집합', staff: '레드카드 폭풍', gunman: '저격 명인',
-  gunnyeo: '천사 모드', myunghoon: '욕의 신', dohoon: '콘서트 앵콜', ingyu: '할리 군단', youngjun: '표범 질주', eunok: '폭탄주 파티', hanna: '윙크 여왕',
+  gunnyeo: '천사 모드', myunghoon: '욕의 신', dohoon: '콘서트 앵콜', ingyu: '할리 군단', youngjun: '블랙캣 질주', eunok: '폭탄주 파티', hanna: '윙크 여왕',
   sunggu: '지팡이 폭풍', junseo: '인맥 총동원', hyungyeong: '다이어트 성공', ara: '여왕 즉위', hochan: '랑방의 이름으로', soyoung: '올인 앵콜', jungmin: '붕대 장인', jiwon: '모자이크 폭풍', wonsik: '올해는 결혼',
 };
 // 제어 분기: 멤버마다 하나 (맞히면 가끔 제어) — 눈에 잘 띄는 색 · 아이콘

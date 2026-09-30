@@ -2597,12 +2597,15 @@ function artCard(id, o = {}) {
 // 역할 배지 그림 · 용어 풀이 (칩·배지를 누르면 말풍선)
 const ROLE_IC = { splash: 'role_aoe', boss: 'role_burst', ctrl: 'role_cc', heal: 'role_heal' };
 const ROLE_TXT = { splash: ['범위', '여러 진상을 한 번에 때려요 · 떼거리에 강해요'], boss: ['한 방', '센 한 방으로 보스·정예를 잡아요'], ctrl: ['제어', '기절·느리게·끌어오기로 진상을 묶어요'], heal: ['회복', '입구를 고치고 멤버를 지켜요'] };
+const CLASS_TXT = { seduce: '꼬시고 홀리는 진상 · 멤버를 홀려 멈추게 해요', violent: '힘으로 밀고 들어오는 진상 · 단단하고 입구를 세게 쳐요', politic: '말과 편 가르기로 괴롭히는 진상 · 버프·방해가 많아요', jerk: '민폐형 진상 · 빠르거나 터지거나 훔쳐 가요' };
 const ATTR_TXT = { talk: '말로 몰아붙이는 멤버', power: '힘으로 밀어붙이는 멤버', charm: '매력으로 홀리는 멤버', booze: '술로 판을 뒤집는 멤버' };
 const TIER_TXT = { 1: ['T1', '기본 멤버 · 처음부터 함께'], 2: ['T2', '흔한 멤버 · 모집에서 자주 나와요'], 3: ['T3', '희귀 멤버 · 성장 폭이 커요'], 4: ['T4', '영웅 멤버 · 모집 확률 낮음'], 5: ['LEGEND', '전설 · 4-10 클리어 후 모집'] };
 function glossLine(key) {
   const [kind, v] = key.split(':');
   if (kind === 'attr' && ATTRS[v]) { const strong = Object.keys(CLASSES).filter((c) => typeMul(v, c) > 1).map((c) => CLASSES[c].name); const weak = Object.keys(CLASSES).filter((c) => typeMul(v, c) < 1).map((c) => CLASSES[c].name); return [ATTRS[v].name, `${strong.join('·') || '-'} 진상에 강하고 ${weak.join('·') || '-'} 진상에 약해요`, ATTR_TXT[v] || '']; }
   if (kind === 'role' && ROLE_TXT[v]) return [ROLE_TXT[v][0], ROLE_TXT[v][1]];
+  if (kind === 'cls' && CLASSES[v]) { const at = key.split(':')[2]; const mul = at && ATTRS[at] ? typeMul(at, v) : 1; const who = Object.keys(ENEMIES).filter((e) => ENEMIES[e].cls === v && !ENEMIES[e].boss && !ENEMIES[e].mid && !ENEMIES[e].dot && dexKnown('enemy', e)).slice(0, 5); return [`${CLASSES[v].name} 진상`, CLASS_TXT[v] || '', at && ATTRS[at] ? `${ATTRS[at].name} 멤버는 이 진상에게 피해 ×${mul.toFixed(2)} (${mul > 1 ? `${Math.round((mul - 1) * 100)}% 더` : mul < 1 ? `${Math.round((1 - mul) * 100)}% 덜` : '보통'})` : '', who]; }
+  if (kind === 'mul') { const x = Number(v) || 1; return ['이번 스테이지 상성', x > 1.001 ? `이 멤버는 이번 스테이지에서 피해 ${Math.round((x - 1) * 100)}% 더` : x < 0.999 ? `이 멤버는 이번 스테이지에서 피해 ${Math.round((1 - x) * 100)}% 덜` : '이번 스테이지와는 보통이에요', '나오는 진상 종류 비율로 계산해요']; }
   if (kind === 'tier' && TIER_TXT[v]) return [TIER_TXT[v][0], TIER_TXT[v][1], `최대 강화 +${metaMaxOf ? metaMaxOfTier(+v) : 20}`];
   return null;
 }
@@ -2613,7 +2616,8 @@ function glossTip(el, key) {
   const r = el.getBoundingClientRect(), sr = stage.getBoundingClientRect();
   const t = document.createElement('div');
   t.className = 'gl-tip';
-  t.innerHTML = `<b>${esc(L0[0])}</b><span>${esc(L0[1])}</span>${L0[2] ? `<small>${esc(L0[2])}</small>` : ''}`;
+  t.innerHTML = `<b>${esc(L0[0])}</b><span>${esc(L0[1])}</span>${L0[2] ? `<small>${esc(L0[2])}</small>` : ''}${Array.isArray(L0[3]) && L0[3].length ? `<span class="gl-faces">${L0[3].map((e) => `<img src="${ENEMIES[e].img}" alt="" title="${esc(ENEMIES[e].name)}">`).join('')}</span>` : ''}`;
+  t.style.pointerEvents = 'none';
   stage.appendChild(t);
   const w = t.offsetWidth;
   t.style.left = Math.max(8, Math.min(sr.width - w - 8, r.left - sr.left + r.width / 2 - w / 2)) + 'px';
@@ -2749,11 +2753,11 @@ function showHeroModal(id, ctx = '') {
   const strong = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) > 1), weak = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) < 1);
   const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>
       <div class="hs-skill">${ic('swords', '', '')}<span><small>기본 공격</small><b>${esc((w && w.item) || '기본 공격')}</b><p>${esc(d.attack)}</p></span></div>
-      <div class="hs-skill ult">${ic('bolt', '', '')}<span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
+      <div class="hs-skill sk-ult">${ic('bolt', '', '')}<span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
       ${w || ev ? `<div class="hs-tree"><span class="t0">${esc((w && w.item) || '기본')}</span><i></i><span class="t1">${ev ? esc(ev.name) : '진화'}</span></div>` : ''}
-      <div class="hs-match"><span class="ok">${ic('check', '', 'sm')}강한 상대</span>${strong.map(clsTag).join('') || '<small>없음</small>'}</div>
-      <div class="hs-match"><span class="no">${ic('scale', '', 'sm')}약한 상대</span>${weak.map(clsTag).join('') || '<small>없음</small>'}</div>
-      <div class="hm-match ${m.cls}"><b>${m.arrow} 이번 스테이지 상성 ${m.text}</b></div>
+      <div class="hs-match"><span class="ok">${ic('check', '', 'sm')}강한 상대</span>${strong.map((c0) => `<button class="gl-chip" data-gl="cls:${c0}:${d.attr}">${clsTag(c0)}</button>`).join('') || '<small>없음</small>'}</div>
+      <div class="hs-match"><span class="no">${ic('scale', '', 'sm')}약한 상대</span>${weak.map((c0) => `<button class="gl-chip" data-gl="cls:${c0}:${d.attr}">${clsTag(c0)}</button>`).join('') || '<small>없음</small>'}</div>
+      <button class="hm-match ${m.cls}" data-gl="mul:${(m.v || 1).toFixed(2)}"><b>${m.arrow} 이번 스테이지 상성 ${m.text}</b><small>눌러서 설명</small></button>
       ${perks ? `<div class="hm-sec"><h4>${ic('chart', '', 'sm')}레벨 효과</h4><ul>${perks}</ul></div>` : ''}`;
   const body = tab === 'up' ? upBody() : tab === 'gear' ? gearBody() : infoBody();
   closeInfoCard();
@@ -2766,7 +2770,7 @@ function showHeroModal(id, ctx = '') {
     <div class="hf-art ${ok ? '' : 'sil'}" data-hf="poke">${artSrc ? `<img src="${artSrc}" alt="" draggable="false" onerror="this.onerror=null;this.src='${hqSrc(id) || d.img}'">` : ''}</div>
     <div class="hf-grad"></div>
     <button class="dp-x hf-x" data-hf="x" aria-label="닫기"></button>
-    <div class="hf-head v2"><i class="tier t${t}">${TIER_NAME[t]}</i><span class="hn-attr" style="--ac:${ATTRS[d.attr].color}">${attrIco(d.attr)}</span><b>${ok ? esc(d.name) : '???'}</b><small class="hn-role">${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small><span class="hn-stars">${Array.from({ length: L.STAR_MAX }, (_, k) => `<i class="${k < st ? 'on' : ''}">★</i>`).join('')}</span></div>
+    <div class="hf-head v2"><i class="tier t${t}">${TIER_NAME[t]}</i><span class="hn-attr" data-gl="attr:${d.attr}" style="--ac:${ATTRS[d.attr].color}">${attrIco(d.attr)}</span><b>${ok ? esc(d.name) : '???'}</b><small class="hn-role">${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small><span class="hn-stars">${Array.from({ length: L.STAR_MAX }, (_, k) => `<i class="${k < st ? 'on' : ''}">★</i>`).join('')}</span></div>
     <div class="hf-tabs v2">${[['info', '정보'], ['up', '강화'], ['gear', '장비']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-hf="tab" data-k="${k}">${n}</button>`).join('')}</div>
     <div class="hf-body">${ok ? body : `<p class="ip">${ic('lock', '', 'sm')} ${esc(heroHow(id))}</p>${body}`}</div>
     <div class="hf-foot ${tab === 'up' && ok ? 'up' : ''}">${tab === 'up' && ok && app._hsUp && app._hsUp.id === id ? (() => { const u = app._hsUp; return `<button class="btn ghost hf-deck" data-act="deckToggle" data-id="${id}">${inDeck ? '덱에서 빼기' : '덱에 넣기'}</button><button class="hs-up ${u.can ? '' : 'dim'}" data-act="buy" data-id="${id}" data-pw="${u.pw}" ${u.can ? '' : 'disabled'}><i class="gb-shine"></i><b>${u.cost === null ? 'MAX' : `강화 +${u.lv + 1}`}</b>${u.cost === null ? '' : `<span class="hs-cost">${u.free ? '공짜' : `<i class="ci"></i>${fmt(u.cost)} · ${ic('aug_card', '', 'sm')}${Math.min(u.have, 99)}/${u.cn}`}</span>`}</button>`; })() : `${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">${ic('ic_dex', '', 'sm')}도감</button>`}</div>`;
@@ -2786,6 +2790,8 @@ function showHeroModal(id, ctx = '') {
   if (pwEl && app.hsPrev && app.hsPrev.id === id && app.hsPrev.v !== pw) { const a = app.hsPrev.v, bv = pw, t1 = performance.now(); const stp = () => { const k = Math.min(1, (performance.now() - t1) / 700); pwEl.textContent = fmt(Math.round(a + (bv - a) * (1 - (1 - k) ** 3))); if (k < 1) requestAnimationFrame(stp); else pwEl.classList.add('done'); }; requestAnimationFrame(stp); }
   app.hsPrev = { id, v: pw };
   box.addEventListener('click', (ev) => {
+    const gl = ev.target.closest('[data-gl]');
+    if (gl && gl.dataset.gl) { glossTip(gl, gl.dataset.gl); A.sfx.tap(); return; }
     const b = ev.target.closest('[data-hf]');
     if (b) {
       if (b.dataset.hf === 'x') { closeInfoCard(); if (app.screen === 'deck') showDeckTab(); return; }
@@ -4576,7 +4582,7 @@ const DEX_FLAVOR = {
   dohoon: '노래방에서 마이크를 절대 안 놓는 남자. 앵콜이 끝나지 않는 한 랑방도 무너지지 않는다.',
   ingyu: '3대 500 헬창. 진상이 뭘 던지든 "오 근육 자극 좋다"로 받아친다.',
   donghan: '모임 내내 소파에 누워 간만 보는 사람. 근데 "이제 좀 해볼까?" 하는 순간 한 줄이 사라진다.',
-  youngjun: '파티장에 흑표범처럼 뛰어드는 전사. 뛰어든 동안엔 아무것도 안 통한다.',
+  youngjun: '검은 고양이 후드를 쓰고 파티장에 뛰어드는 전사. 뛰어든 동안엔 아무것도 안 통한다.',
   eunok: '처음엔 얌전히 홀짝홀짝. 20초 뒤엔… 소주병이 날아다니기 시작한다.',
   hanna: '랑방 공식 윙크 담당. 남자 진상은 윙크 한 방에 정신 못 차리고 날아간다.',
   sunggu: '"요즘 것들은…"이 입버릇인 최고참. 지팡이 하나로 한 줄을 통째로 정리한다.',

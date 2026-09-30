@@ -3218,7 +3218,7 @@ body.rm .lb-start.v2, body.rm .lb-start.v2 .ls-shine { animation: none !importan
 .hs-quote { position: relative; margin: calc(var(--u) * 2) 0 calc(var(--u) * 10); padding: calc(var(--u) * 12) calc(var(--u) * 14) calc(var(--u) * 12) calc(var(--u) * 30); border-radius: calc(var(--u) * 14); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 18%, #1e1438), #160e2c); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); font-size: calc(var(--u) * 13); font-weight: 700; line-height: 1.55; color: #fff; word-break: keep-all; }
 .hs-quote::before { content: '\201C'; position: absolute; left: calc(var(--u) * 8); top: calc(var(--u) * -4); font-family: var(--heavy); font-size: calc(var(--u) * 40); color: var(--c); }
 .hs-skill { display: flex; gap: calc(var(--u) * 10); align-items: flex-start; padding: calc(var(--u) * 10) calc(var(--u) * 12); margin-bottom: calc(var(--u) * 8); border-radius: calc(var(--u) * 14); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); }
-.hs-skill.ult { background: linear-gradient(180deg, rgba(255, 210, 63, 0.1), rgba(255, 255, 255, 0.03)); border-color: rgba(255, 210, 63, 0.35); }
+.hs-skill.sk-ult { background: linear-gradient(180deg, rgba(255, 210, 63, 0.1), rgba(255, 255, 255, 0.03)); border-color: rgba(255, 210, 63, 0.35); }
 .hs-skill > .ic { width: calc(var(--u) * 34); height: calc(var(--u) * 34); flex: none; }
 .hs-skill span { display: flex; flex-direction: column; gap: calc(var(--u) * 2); min-width: 0; }
 .hs-skill small { font-size: calc(var(--u) * 11); color: var(--dim); font-weight: 800; }
@@ -3355,3 +3355,13 @@ u.tchip.r-legend { background-image: url(/img/lb/ui2/title_legend.webp) !importa
 .show-v2 .hf-foot.up .hs-up { min-height: calc(var(--u) * 54); }
 .show-v2 .hf-foot.up .hf-deck { min-height: calc(var(--u) * 54); font-size: calc(var(--u) * 13); }
 .show-v2 .hf-art img { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12%, #000 86%, transparent 100%) !important; mask-image: linear-gradient(90deg, transparent 0, #000 12%, #000 86%, transparent 100%) !important; }
+/* 정보 탭: 스킬 카드는 한 줄 가득 · 긴 한글도 칸을 넘지 않게 */
+.hs-skill { width: 100%; box-sizing: border-box; position: relative; }
+.hs-skill > span { flex: 1 1 auto; min-width: 0; }
+.hs-skill p, .hs-skill b, .hs-quote, .hs-match, .hm-sec li { word-break: keep-all; overflow-wrap: anywhere; }
+
+.gl-chip { border: 0; background: none; padding: 0; }
+button.hm-match { width: 100%; border: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+button.hm-match small { font-size: calc(var(--u) * 10); opacity: 0.75; font-weight: 700; }
+.gl-tip .gl-faces { display: flex; gap: 4px; margin-top: 4px; }
+.gl-tip .gl-faces img { width: calc(var(--u) * 28); height: calc(var(--u) * 28); object-fit: contain; border-radius: 50%; background: #f0eaff; }
