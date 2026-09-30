@@ -262,11 +262,14 @@ function closeModal() {
 // (보호 기록은 사용자가 화면을 한 번 누른 뒤에 만든다 — 브라우저 규칙상 그래야 뒤로가기에 걸린다)
 // 뒤로가기를 계속 눌러도 이전 페이지(랑방 대전·예전 메인 기록 등)로 가지 않고 메인까지만 올라온다.
 // '종료'를 골랐을 때만, 이 탭에서 사이트에 처음 들어온 기록(gw:startIdx) 바로 앞으로 한 번에 돌아가 사이트를 떠난다.
-const H = { url: location.pathname + location.search, armed: false, exiting: false, base: history.length - 1 };
+// 기록 상태: { gw: 'base'|'guard', i: 사이트 첫 기록 위치(base), n: 지금 기록 위치 }
+// 크롬(안드로이드·설치 앱 포함)은 '손가락이 닿지 않은 채 쌓은 기록'을 뒤로 가기에서 건너뛰어 바로 앱이 닫힐 수 있다.
+// → 화면을 누를 때마다(아직 누른 채 건 보호 기록이 없으면) 보호 기록을 하나 더 쌓아 둔다 (랑방 대전과 같은 방식)
+const H = { url: location.pathname + location.search, armed: false, gesture: false, exiting: false, base: history.length - 1, n: history.length - 1 };
 (() => {
   const st = history.state;
-  if (st && (st.gw === 'guard' || st.gw === 'base') && Number.isFinite(st.i)) { H.base = st.i; H.armed = st.gw === 'guard'; }
-  else { try { history.replaceState({ gw: 'base', i: H.base }, '', H.url); } catch {} }
+  if (st && (st.gw === 'guard' || st.gw === 'base') && Number.isFinite(st.i)) { H.base = st.i; H.armed = st.gw === 'guard'; H.n = Number.isFinite(st.n) ? st.n : H.base + (H.armed ? 1 : 0); }
+  else { try { history.replaceState({ gw: 'base', i: H.base, n: H.base }, '', H.url); } catch {} }
   try {
     const navType = ((performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {}).type || 'navigate';
     let outside = true;
@@ -280,12 +283,18 @@ function nav(url) {
   H.url = url;
   try { history.replaceState(history.state, '', url); } catch {}
 }
-function armGuard(e) {
-  if (H.armed || H.exiting) return;
-  if (e && e.target && e.target.closest && e.target.closest('[data-exit-go]')) return; // '종료'를 누른 터치로는 다시 걸지 않음
-  try { history.pushState({ gw: 'guard', i: H.base }, '', H.url); H.armed = true; } catch {}
+function pushGuard(gesture) {
+  try { history.pushState({ gw: 'guard', i: H.base, n: H.n + 1 }, '', H.url); H.n++; H.armed = true; H.gesture = gesture; } catch {}
 }
-['click', 'pointerup', 'touchend', 'keydown'].forEach((ev) => window.addEventListener(ev, armGuard, { capture: true, passive: true }));
+function armGuard(e) {
+  if (H.exiting) return;
+  // 진짜 사용자 입력(브라우저가 '누름'으로 인정한 순간)일 때만 '누른 채 건 기록'으로 친다
+  const gesture = !!(e && e.isTrusted && (!navigator.userActivation || navigator.userActivation.isActive));
+  if (H.armed && (H.gesture || !gesture)) return; // 이미 걸려 있음 (누른 채 건 게 아니면 누를 때 한 번 더)
+  if (e && e.target && e.target.closest && e.target.closest('[data-exit-go]')) return; // '종료'를 누른 터치로는 다시 걸지 않음
+  pushGuard(gesture);
+}
+['pointerdown', 'click', 'pointerup', 'touchend', 'keydown'].forEach((ev) => window.addEventListener(ev, armGuard, { capture: true, passive: true }));
 // 처음부터 보호를 걸어 둔다 (한 번 누르기 전이면 브라우저가 건너뛸 수도 있어서, 누를 때 다시 확인). 종료 직후 돌아온 화면은 제외
 if (!H.exitHint) armGuard();
 function routeCode() {
@@ -1418,7 +1427,7 @@ function openExitMenu() {
   const g = gameOf(st);
   const inHand = st.hand && !st.hand.finished && st.players.some((p) => p.id === me?.id && ['inhand', 'allin'].includes(p.status));
   const canWatch = me && me.role === 'player' && !st.room.practice;
-  openModal('어디로 갈까요?', `
+  openModal('게임을 나가시겠습니까?', `
     <p class="muted small">${inHand ? '진행 중인 판은 다이(폴드) 처리돼요. ' : ''}${st.room.practice ? '연습 방은 나가면 사라져요.' : '방을 나가도 초대 링크로 다시 들어올 수 있어요.'}</p>
     <div class="stack">
       ${canWatch ? '<button class="btn btn-outline" data-act="watch">👀 관전으로 남기 <small class="muted">(자리만 비우고 구경)</small></button>' : ''}
@@ -2377,16 +2386,23 @@ function celebrate(st) {
 // 뒤로가기: 보호 기록이 빠지면(= 뒤로가기를 눌렀으면) 화면에 맞게 처리하고 다시 보호를 건다
 window.addEventListener('popstate', (e) => {
   if (H.exiting) return;
-  if (e.state && e.state.gw === 'guard') { H.armed = true; return; } // 앞으로 가기로 돌아옴
-  H.armed = false;
-  try { history.replaceState({ gw: 'base', i: H.base }, '', H.url); } catch {}
+  const st = e.state || {};
+  const n = Number.isFinite(st.n) ? st.n : H.base;
+  if (n > H.n) { H.n = n; H.armed = true; return; } // 앞으로 가기로 돌아옴
+  H.n = n;
+  H.armed = false; H.gesture = false;
+  try { history.replaceState({ gw: n > H.base ? 'guard' : 'base', i: H.base, n }, '', H.url); } catch {}
   handleBack();
 });
 function handleBack() {
   const stay = () => armGuard();
   if (S.launching) { stay(); return; } // 게임 들어가는 중
   if ($modal.querySelector('.modal')) {
-    if ($modal.querySelector('[data-exit-ask]')) { reallyExit(); return; } // 종료 확인 창에서 또 뒤로 → 진짜 나가기
+    if ($modal.querySelector('[data-exit-ask]')) {
+      // 종료 확인 창이 뜬 뒤 2초 안에 또 뒤로 → 진짜 나가기. 늦으면 다시 안내
+      if (Date.now() - (H.askAt || 0) < 2000) { reallyExit(); return; }
+      H.askAt = Date.now(); toast('한 번 더 누르면 종료돼요'); stay(); return;
+    }
     closeModal(); stay(); return;
   }
   const raise = document.getElementById('raise-cancel');
@@ -2411,8 +2427,10 @@ function handleBack() {
 }
 function toHome() { S.code = null; S.view = 'home'; nav('/'); render(); }
 function askExit() {
-  openModal('게임월드를 종료할까요?', `<div class="exit-ask" data-exit-ask>
-      <p class="center">🎮 조금 더 놀다 가요!<br><span class="muted small">다시 들어오면 로그인은 그대로예요</span></p>
+  H.askAt = Date.now();
+  toast('한 번 더 누르면 종료돼요');
+  openModal('종료하시겠습니까?', `<div class="exit-ask" data-exit-ask>
+      <p class="center">🎮 조금 더 놀다 가요!<br><span class="muted small">뒤로 가기를 한 번 더 누르면 종료돼요 · 다시 들어오면 로그인은 그대로예요</span></p>
       <div class="row"><button class="btn btn-outline grow" data-close>취소</button><button class="btn btn-gold grow" data-exit-go>종료</button></div>
     </div>`, (body) => { body.querySelector('[data-exit-go]').onclick = reallyExit; }, { onClose: () => armGuard() });
 }
@@ -2424,7 +2442,7 @@ function reallyExit() {
   const gone = () => left || document.visibilityState === 'hidden';
   let start = NaN;
   try { start = Number(sessionStorage.getItem('gw:startIdx')); } catch {}
-  const cur = H.base + (H.armed ? 1 : 0); // 지금 있는 기록 위치
+  const cur = H.n; // 지금 있는 기록 위치
   if (!Number.isFinite(start) || start > H.base) start = H.base;
   // 사이트에 들어오기 전 페이지가 있으면 거기로 한 번에 (중간의 메인·랑방 대전 기록은 건너뜀)
   if (start > 0) { try { history.go(-(cur - start + 1)); } catch {} }
@@ -2437,7 +2455,7 @@ function reallyExit() {
       if (cur > 0) {
         try { sessionStorage.setItem('gw:exitHint', '1'); } catch {}
         try { history.go(-cur); } catch {}
-        setTimeout(() => { if (!gone()) { try { sessionStorage.removeItem('gw:exitHint'); } catch {} H.exiting = false; H.base = 0; H.armed = false; toast('뒤로 가기를 한 번 더 누르면 종료돼요'); } }, 400);
+        setTimeout(() => { if (!gone()) { try { sessionStorage.removeItem('gw:exitHint'); } catch {} H.exiting = false; H.base = 0; H.n = 0; H.armed = false; toast('뒤로 가기를 한 번 더 누르면 종료돼요'); } }, 400);
         return;
       }
       H.exiting = false;
@@ -2451,6 +2469,7 @@ window.addEventListener('pageshow', (e) => {
   if (!e.persisted) return;
   H.exiting = false;
   H.armed = !!(history.state && history.state.gw === 'guard');
+  if (history.state && Number.isFinite(history.state.n)) H.n = history.state.n;
   S.launching = false;
   document.querySelectorAll('.gw-loader').forEach((x) => x.remove());
   document.documentElement.classList.remove('gw-leave-dark');
