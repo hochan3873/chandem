@@ -35,6 +35,7 @@ const DEBUG = {
   autopick: Q.has('autopick'),
   hidden: Q.has('hidden'),
   stage: parseStage(Q.get('stage')),
+  join: Q.has('join'), tempo: Q.has('tempo'), // 개발용: 합류 모드 · 새 템포 미리 켜 보기 (배치 4에서 기본으로)
 };
 const STEP = 1 / 60;
 const SNAP_KEY = 'langbang:snap';
@@ -323,7 +324,7 @@ async function startRun(opt = {}) {
   const g = S.createGame({
     H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), slots: deckSlotsNow(), gear: API.gearFor(p, deck.filter(Boolean), pvp ? 0.5 : 1), stars: p.hstars || {},
     guestPool: [...UNLOCK_HEROES, ...HIDDEN_HEROES].filter((id) => !API.heroUnlocked(p, id)),
-    god: DEBUG.god || DEBUG.stress > 0, mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
+    god: DEBUG.god || DEBUG.stress > 0, join: DEBUG.join, tempo: DEBUG.tempo, leader: deckLeader(), mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
   });
   if (DEBUG.wave > 1) {
     // 디버그: 중간 웨이브부터 시작하면 그만큼 강하게
@@ -934,6 +935,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.join();
         break;
       }
+      case 'bus': fx.banner(e.big ? '2층 막차 버스!' : '막차 버스!', '이호찬: "다들 타! 집에 가자!"', '#8a6a00', 0.9, 'wave'); fx.addShake(e.big ? 8 : 5); break;
       case 'weaponEvo': fx.text(e.x, e.y - 96, '무기 진화!', '#ffd23f', 16, 1.3, -30); fx.ring(e.x, e.y - 30, 12, 60, 0.6, '#ffd23f', 4); break;
       case 'reload': if (Math.random() < 0.12 && WEAPON[e.hero]) fx.text(e.x, e.y - 70, WEAPON[e.hero].reload, '#e8e0ff', 10, 0.8, -16); break;
       case 'heroLv':

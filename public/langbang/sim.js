@@ -7,7 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
-  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -305,6 +305,12 @@ function updateHeroes(g, dt) {
         if (g.rng() < 0.3) ev(g, 'shot', { hero: h.id, x: h.x, y: h.y });
       }
     }
+    // 이호찬 (템포): 게이지가 차면 막차 버스
+    if (g.tempo && WEAPON[h.id] && WEAPON[h.id].kind === 'gauge') {
+      if (g.phase === 'wave' || g.phase === 'intro') h.meter = Math.min(100, (h.meter || 0) + dt * rate * (100 / BUS.sec[h.lv - 1]) / TEMPO.rate * (g.heroes.length === 1 ? 2 : 1)); // 혼자인 대장이면 두 배로 빨리
+      if (h.meter >= 100 && g.enemies.some((e) => !e.dead && e.y > 0 && Math.abs(e.x - h.x) < 160)) launchBus(g, h);
+      continue;
+    }
     // 이한나: 하트 레이저 (쏘는 동안 계속)
     if (d.proj === 'beam') { updateBeam(g, h, dt, rate); continue; }
     // 김영준: 뛰어들어 연속 베기 → 돌아와 크로스핏
@@ -381,6 +387,26 @@ export function harleyBand(q, e) {
   const cx = Math.cos(q.a), cy = Math.sin(q.a);
   const dx = e.x - q.x0, dy = e.y - q.y0, along = dx * cx + dy * cy;
   return along >= -20 && along <= q.d + 50 && Math.abs(dx * cy - dy * cx) <= q.hw + (e.r || 16);
+}
+export function launchBus(g, h) {
+  h.meter = 0;
+  const big = !!h.evo;
+  (g.buses || (g.buses = [])).push({ hero: h, x: h.x, y: g.rowY + 30, w: big ? BUS.w2 : BUS.w, big, dmg: heroDamage(g, h) * BUS.dmg, stun: h.lv >= 5 ? BUS.stun : 0, hit: new Set() });
+  ev(g, 'bus', { hero: h.id, x: h.x, y: g.rowY, big });
+}
+function updateBuses(g, dt) {
+  for (const b of g.buses) {
+    b.y -= BUS.speed * dt;
+    for (const e of g.enemies) {
+      if (e.dead || b.hit.has(e.uid) || Math.abs(e.x - b.x) > b.w / 2 + e.r || e.y > b.y + 50 || e.y < b.y - 60) continue;
+      b.hit.add(e.uid);
+      damageEnemy(g, e, b.dmg, false, b.hero, true);
+      if (e.dead) continue;
+      if (!e.boss && !e.mid) { e.y -= BUS.kb; e.x += (e.x < b.x ? -1 : 1) * 14; } else e.y -= BUS.kb * 0.25;
+      if (b.stun) e.stunT = Math.max(e.stunT, b.stun * (e.boss ? 0.4 : 1));
+    }
+  }
+  g.buses = g.buses.filter((b) => b.y > -120);
 }
 function updateHarleys(g, dt) {
   for (const q of g.harleys) {
@@ -2646,6 +2672,7 @@ export function step(g, dt) {
   if (g.bandT > 0) g.bandT -= dt;
   if (g.holes && g.holes.length) updateHoles(g, dt); // 강성구 블랙홀
   if (g.harleys && g.harleys.length) updateHarleys(g, dt); // 백인규 할리
+  if (g.buses && g.buses.length) updateBuses(g, dt); // 이호찬 막차 버스
   if (g.tauntZone && (g.tauntZone.t -= dt) <= 0) g.tauntZone = null;
   updateIdleEv(g, dt);
   if (g.augOffer && g.phase !== 'intro' && (g.augOffer.t -= dt) <= 0) applyAug(g, g.augOffer.opts[0]);

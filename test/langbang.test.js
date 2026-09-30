@@ -1722,3 +1722,20 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
   assert.ok(n1 < n0 * 0.7 && n1 > n0 * 0.5, `진상 수 ${n0} → ${n1}`);
   assert.ok(Math.abs(h1 / h0 - D.TEMPO.hp) < 1e-6);
 });
+
+test('템포: 이호찬 = 기본 공격 없이 게이지 → 막차 버스가 자기 줄 진상을 밀어내고 때린다 · 진화면 2층 버스', async () => {
+  const S = await load('sim.js');
+  const g = S.createGame({ H: 760, rng: seeded(4), noWaves: true, heroes: ['hochan'], tempo: true, meta: {} });
+  g.phase = 'wave';
+  const h = g.heroes[0];
+  const foes = [0, 1, 2].map((i) => { const e = S.spawnEnemy(g, 'thug', h.x + (i - 1) * 20, g.rowY - 120 - i * 60, { hpMul: 50 }); e.speed = 0; return e; });
+  const y0 = foes.map((e) => e.y);
+  let bus = 0, shots = 0;
+  for (let i = 0; i < 60 * 12; i++) { S.step(g, 1 / 60); for (const v of g.events) { if (v.type === 'bus') bus++; if (v.type === 'shot' && v.hero === 'hochan') shots++; } g.events.length = 0; }
+  assert.ok(bus >= 1, '버스 출발');
+  assert.equal(shots, 0, '기본 공격 없음');
+  assert.ok(foes.some((e, i) => e.dead || e.y < y0[i] - 40), '밀려남');
+  assert.ok(h.dmgDone > 0);
+  h.evo = true; h.meter = 100; S.launchBus(g, h);
+  assert.ok(g.buses[g.buses.length - 1].big && g.buses[g.buses.length - 1].w > 150);
+});

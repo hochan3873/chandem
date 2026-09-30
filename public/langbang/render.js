@@ -1,7 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS } from './data.js';
 const HEROES = { ...HEROES0, ...SUMMONS }; // 소환 멤버(성준영)도 그린다
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
@@ -108,7 +108,7 @@ export class FX {
     // 같은 진상에게 0.15초 안에 들어간 피해는 숫자 하나로 합친다 (숫자끼리 겹쳐 "30))1300" 처럼 안 보이게)
     for (let i = items.length - 1; i >= 0; i--) {
       const o = items[i];
-      if (o.max - o.life < 0.15 && !!o.crit === !!crit && Math.abs(o.x0 - x) < 18 && Math.abs(o.y0 - y) < 26) {
+      if (o.max - o.life < 0.25 && !!o.crit === !!crit && Math.abs(o.x0 - x) < 18 && Math.abs(o.y0 - y) < 26) {
         o.val += v; o.text = crit ? o.val + '!' : '' + o.val; o.life = o.max; o.pop = 0.08; return;
       }
     }
@@ -185,7 +185,7 @@ export class FX {
     this.banners.push({ text, sub, color, life, max: life, kind, sprite, t: 0 });
   }
   flash(color, a) { this.flashColor = color; this.flashA = Math.max(this.flashA, a); }
-  addShake(v) { this.shake = Math.min(18, Math.max(this.shake, v)); }
+  addShake(v) { if (v < 3) return; this.shake = Math.min(18, Math.max(this.shake, v)); } // 작은 흔들림은 무시 (큰 한 방·보스만)
   update(dt) {
     this.time += dt;
     this.shake = Math.max(0, this.shake - dt * 30);
@@ -258,6 +258,8 @@ export class Renderer {
         this.formDefs[key] = Object.assign({}, ENEMIES[id], forms[f], { id: id + '_' + f, size: forms[f].size || ENEMIES[id].size });
       }
     }
+    for (const n of PROJ_ART_NAMES) list['w_' + n] = `/img/lb/fx/w_${n}.webp`; // 투사체 그림 (없으면 코드 모양)
+    list.bus = '/img/lb/fx/bus.webp'; list.bus2 = '/img/lb/fx/bus2.webp';
     for (const id in ENEMY_ANIM) for (const k in ENEMY_ANIM[id]) list[`anim_${id}_${k}`] = ENEMY_ANIM[id][k].src; // 프레임 띠 (없으면 요청 실패 → 코드 움직임)
     for (const id of FUSE_ART) if (ENEMIES[id]) { const key = `e_${id}_one`; list[key] = `/img/lb/e_${id}.webp`; this.formDefs[key] = ENEMIES[id]; } // 합체 한 장 그림
     for (const id in ENEMIES) if (ENEMIES[id].boss) for (const f of ['skill', 'rage']) { const key = `e_${id}_${f}`; list[key] = `/img/lb/e_${id}_${f}.webp`; this.formDefs[key] = Object.assign({}, ENEMIES[id], { id: `${id}_${f}` }); } // 보스 기술 · 분노 모습 (없으면 기본 그림)
@@ -282,7 +284,7 @@ export class Renderer {
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => {
-        if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_')) return;
+        if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_') || key.startsWith('w_') || key === 'bus' || key === 'bus2') return;
         if (key.startsWith('bar')) { this.bakeBar(key); return; }
         if (key.startsWith('fx_')) return;
         if (key === 'bg' || key === 'base' || /^bg\d$/.test(key)) this.bakeBg();
@@ -831,6 +833,7 @@ export class Renderer {
     this.drawHeroes(g, t, ui);
     this.drawBeams(g, t);
     this.drawProjs(g);
+    if (g.buses && g.buses.length) this.drawBuses(g);
     this.drawArcs();
     this.drawBlasts();
     this.drawParts();
@@ -1765,6 +1768,8 @@ export class Renderer {
       if (h.stunT > 0) { rot = Math.sin(t * 10) * 0.1; sy = 0.94; }
       if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; sx *= e * p; sy *= e * p; }
       if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
+      sy *= 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 숨쉬기
+      if (h.reloadT > 0 && h.reloadMax > 0.25) { const q = 1 - h.reloadT / h.reloadMax; rot += Math.sin(q * Math.PI) * -0.13; bob += Math.sin(q * Math.PI) * 1.5; } // 장전: 살짝 기울여 챙기기
       if (h.id === 'hyungyeong' && h.alt) bob += Math.sin(t * 22) * 1.6; // 날씬 복서 스텝
       this.tf(hx, feet + bob, rot, sx, sy);
       cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
@@ -1870,6 +1875,24 @@ export class Renderer {
     }
   }
 
+  // 이호찬 막차 버스: 그림(fx/bus · bus2) 이 있으면 그 그림 · 없으면 노란 버스 모양
+  drawBuses(g) {
+    const cx = this.cx;
+    for (const b of g.buses) {
+      const img = this.images[b.big ? 'bus2' : 'bus'];
+      const w = b.w * (b.big ? 1.05 : 1.25), h = img && imgOk(img) ? w * (img.naturalHeight / img.naturalWidth) : w * (b.big ? 1.25 : 1.9); // 그림: 뒷모습 · 위로 달림 (비율 그대로)
+      this.tf(b.x, b.y, 0, 1, 1);
+      { const gr = cx.createLinearGradient(0, 20, 0, 140); gr.addColorStop(0, 'rgba(255,210,63,0.28)'); gr.addColorStop(1, 'rgba(255,210,63,0)'); cx.fillStyle = gr; cx.fillRect(-b.w / 2, 20, b.w, 120); } // 지나간 자리 빛
+      if (img && imgOk(img)) cx.drawImage(img, -w / 2, -h / 2, w, h);
+      else {
+        cx.fillStyle = '#f5b800'; roundRect(cx, -w / 2, -h / 2, w, h, 12); cx.fill();
+        cx.strokeStyle = '#3a2400'; cx.lineWidth = 3; cx.stroke();
+        cx.fillStyle = '#9fdcff'; for (let i = 0; i < 4; i++) { roundRect(cx, -w / 2 + 8, -h / 2 + 14 + i * (h / 4.6), w - 16, h / 7, 4); cx.fill(); }
+        cx.fillStyle = '#fff6b0'; cx.fillRect(-w / 2 + 6, -h / 2 + 2, 10, 6); cx.fillRect(w / 2 - 16, -h / 2 + 2, 10, 6);
+      }
+    }
+    this.world();
+  }
   drawProjs(g) {
     const cx = this.cx, P = this.projSprites;
     for (const p of g.projs) {
@@ -1881,8 +1904,22 @@ export class Renderer {
       cx.beginPath(); cx.arc(0, 0, p.splash * (0.4 + k * 0.6), 0, TAU); cx.stroke();
       cx.globalAlpha = 1;
     }
-    for (const p of g.projs) {
-      if (p.dead) continue;
+    let shown = 0;
+    const cap = g.projs.length > 120 ? g.projs.length - 120 : 0; // 화면 한도 120: 넘치면 오래된 것부터 안 그림 (피해는 그대로)
+    for (let pi = 0; pi < g.projs.length; pi++) {
+      const p = g.projs[pi];
+      if (p.dead || pi < cap) continue;
+      shown++;
+      // 그린 투사체: 멤버 물건 그림을 날아가는 방향으로
+      const an = p.hero && p.type !== 'moto' && p.type !== 'gf' && PROJ_ART[p.hero.id];
+      const art = an && this.images['w_' + (an === 'card_y' && p.big ? 'card_r' : an)];
+      if (art && imgOk(art)) {
+        const sz = Math.max(18, (p.r || 8) * 3.1) * (p.big ? 1.45 : 1);
+        const ang = p.lob || an === 'coin' || an === 'chip' ? (p.rot || 0) : Math.atan2(p.vy || 0, p.vx || 1);
+        this.tf(p.x, p.y, ang, 1, 1);
+        cx.drawImage(art, -sz / 2, -sz / 2, sz, sz);
+        continue;
+      }
       let s;
       switch (p.type) {
         case 'notice': s = p.big ? P.noticeBig : P.notice; this.tf(p.x, p.y, 0, 1, 1); break;
