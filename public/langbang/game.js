@@ -6,6 +6,7 @@ import {
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
+  TRAITS, stageMix,
 } from './data.js';
 import * as L from './live.js';
 import * as S from './sim.js';
@@ -547,10 +548,37 @@ function handleEvents(g, loud) {
         if (e.v) fx.text(e.x + 18, e.y - 22, `+${e.v}`, '#7be38f', 12, 0.8);
         if (loud) A.sfx.heal();
         break;
-      case 'summon': fx.banner('📣 준영아 나와!', '정소영 잔소리 게이지 가득 → 성준영 출동', '#b0306a', 1.2, 'wave'); fx.text(e.x, e.y - 70, '준영아 나와!', '#ffb8d0', 15, 1.1); fx.burst(e.x, e.y - 30, 16, '#9fd4ff', 160, 'spark', 4, 0.6); fx.ring(e.x, e.y - 30, 10, 60, 0.7, '#ff9fc0', 5); if (loud) A.sfx.join(); break;
+      case 'jyDown': fx.text(e.x, e.y - 60, '준영 퇴장… 올인!', '#9fd4ff', 13, 1.0); break;
+      case 'jyRage': fx.text(e.x, e.y - 70, '🔥 준영 폭주!', '#ff7a4f', 15, 1.0); fx.ring(e.x, e.y - 30, 10, 60, 0.6, '#ff7a4f', 4); break;
+      case 'chipRain': if (!busy) fx.burst(e.x, e.y - 20, 5, '#ffd23f', 110, 'spark', 3, 0.35); break;
+      case 'summon': fx.banner(e.again ? '📣 준영아 다시 나와!' : '📣 준영아 나와!', '정소영 잔소리 게이지 가득 → 성준영이 걸어 나간다', '#b0306a', 1.2, 'wave'); fx.text(e.x, e.y - 70, '준영아 나와!', '#ffb8d0', 15, 1.1); fx.burst(e.x, e.y - 30, 16, '#9fd4ff', 160, 'spark', 4, 0.6); fx.ring(e.x, e.y - 30, 10, 60, 0.7, '#ff9fc0', 5); if (loud) A.sfx.join(); break;
       case 'allin': fx.text(e.x, e.y - 20, '올인!', '#ffd23f', 20, 1.0); fx.blast(e.x, e.y, e.r, 'gold'); fx.addShake(5); if (loud) A.sfx.explode(); break;
       case 'nagbomb': fx.text(e.x, e.y - 20, '잔소리 폭격!', '#ff9fc0', 16, 0.9); fx.blast(e.x, e.y, e.r, 'heart'); if (loud) A.sfx.explode(); break;
       case 'timestop': fx.text(e.x, e.y - 30, '…시간아 멈춰라', '#c9a8ff', 16, 1.2); fx.ring(e.x, e.y, 10, e.r, 0.7, '#b48cff', 4); fx.flash('#6a3cff', 0.18); if (loud) A.sfx.charm(); break;
+      case 'bossWind': fx.text(e.x, e.y - 20, `⚠️ ${e.name}!`, '#ff5a5a', 15, 1.0, -10); fx.addShake(2); if (loud) A.sfx.charm && A.sfx.charm(); break;
+      case 'bossSkill': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('🤐 스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('🐢 멤버 공격 속도 ↓ (4초)', 1500); break;
+      case 'bossGap': fx.text(e.x, e.y, '틈! 지금 때려!', '#ffe066', 15, 1.1); break;
+      case 'bossRage': fx.banner(`😡 ${e.name} 분노!`, '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
+      case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
+      case 'heroStun': if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); break;
+      case 'traitSeen': { // 처음 보는 특성 진상: 한 번 안내 (기기마다)
+        const d = ENEMIES[e.type]; if (!d || !d.traits) break;
+        let seenT = {}; try { seenT = JSON.parse(localStorage.getItem('langbang:traitSeen') || '{}'); } catch { /* 무시 */ }
+        if (seenT[e.type]) break;
+        seenT[e.type] = 1; try { localStorage.setItem('langbang:traitSeen', JSON.stringify(seenT)); } catch { /* 무시 */ }
+        const k = Object.keys(d.traits).find((x) => TRAITS[x]);
+        if (k) { const T = TRAITS[k]; toast(`${T.icon} ${d.name} — ${T.tip} (추천: ${T.counter.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join('·')})`, 4200); }
+        break;
+      }
+      case 'immune': if (!busy) fx.text(e.x, e.y, '안 들림!', '#9fd4ff', 12, 0.6); break;
+      case 'blocked': if (!busy) fx.text(e.x, e.y, `막음! 🛡${e.n}`, '#9feaff', 12, 0.6); break;
+      case 'split': fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
+      case 'praise': if (!busy) { fx.text(e.x, e.y, e.text || '언니 너무 이뻐요~', '#ffb3d9', 11, 0.9); fx.ring(e.x, e.y + 20, 10, 90, 0.5, '#ffb3d9', 3); } break;
+      case 'praiseRage': fx.text(e.x, e.y, '(표정 싹 바뀜)', '#ff4f6a', 13, 1.0); break;
+      case 'haste': if (!busy) fx.text(e.x, e.y, '💨 빨라짐!', '#ffd23f', 12, 0.7); break;
+      case 'unveil': if (!busy) fx.text(e.x, e.y, '👻 들켰다!', '#c9a8ff', 12, 0.8); break;
+      case 'fuckall': fx.banner('🖕 단체 뻑큐!', `${e.n}명 방깎 최대 · 회복 막기`, '#b0203a', 1.1, 'wave'); fx.arc(e.x, e.y - 40, e.a, e.half, e.r, 0.5, '#ff5a7a'); fx.addShake(3); if (loud) A.sfx.slam(); break;
+      case 'marry': fx.banner('💍 결혼정보회사 등록!', '"올해는 꼭…" 진상들이 원식만 바라본다', '#c0307a', 1.3, 'wave'); for (let k = 0; k < 14; k++) fx.part('heart', e.x + (Math.random() - 0.5) * e.r, e.y - 120 - Math.random() * 160, 0, -40, 1.4, 12, '#ff7ac8'); fx.ring(e.x, e.y - 80, 20, e.r, 0.8, '#ff7ac8', 5); if (loud) A.sfx.join(); break;
       case 'heartBeam': fx.banner('💗 하트 레이저 풀파워!', `${e.n}명 꿰뚫기`, '#c0307a', 1.1, 'wave'); fx.flash('#ff7ac8', 0.2); fx.addShake(3); if (loud) A.sfx.slam(); break;
       case 'harley': fx.banner('🏍️ 부릉부릉~!', '백인규의 할리', '#1a3a8a', 1.3, 'wave'); fx.addShake(4); if (loud) A.sfx.slam(); break;
       case 'bhStart': fx.text(e.x, e.y - e.r * 0.7, '지팡이 블랙홀!', '#c9a8ff', 18, 1.2); fx.pillar(e.x, 90, e.y + 10, 0.8); fx.ring(e.x, e.y, e.r, 12, 2, '#9b6bff', 4); if (loud) A.sfx.charm(); break;
@@ -3093,7 +3121,7 @@ function showPrep(mode, s) {
   show(`
     <div class="topbar"><button class="back" data-act="${mode === 'stage' ? 'menu' : mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button>${coinsPill()}</div>
     ${head}
-    ${cls ? `<div class="si-cls prep-cls">적 ${cls}</div>` : ''}
+    ${cls ? `<div class="si-cls prep-cls">적 ${cls}</div>` : ''}${st ? traitHintHtml(st) : ''}
     ${st && app.mode === 'stage' ? `<p class="story">📖 ${esc(stageStory(st))}</p>${waveRowHtml(st)}` : ''}
     <div class="deck-top">
       <div class="deck-tabs">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">덱 ${k + 1}</button>`).join('')}</div>
@@ -3606,13 +3634,13 @@ const DEX_FLAVOR = {
   boss_soloparty: '매일 밤 솔로파티를 여는 중독자. 디스코볼 한 번에 모두가 홀린다.',
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
-const DEX_EN = { bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
+const DEX_EN = { jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
 const DEX_FACE = { hochan: [0.49, 0.125, 0.19], bangjang: [0.45, 0.1, 0.17], staff: [0.47, 0.085, 0.14], gunnyeo: [0.47, 0.09, 0.14], eunok: [0.44, 0.078, 0.13], hanna: [0.47, 0.083, 0.14], sunggu: [0.49, 0.09, 0.15], gunman: [0.59, 0.085, 0.14], dohoon: [0.56, 0.09, 0.14], myunghoon: [0.56, 0.1, 0.17], youngjun: [0.5, 0.085, 0.14], donghan: [0.63, 0.11, 0.2], ingyu: [0.52, 0.056, 0.13], junseo: [0.55, 0.11, 0.15], ara: [0.38, 0.34, 0.13], hyungyeong: [0.55, 0.19, 0.25], jungmin: [0.43, 0.11, 0.13], soyoung: [0.47, 0.11, 0.14], jieun: [0.52, 0.12, 0.15], sanghwa: [0.45, 0.07, 0.13] }; // dexhq 전신 그림에서 잰 얼굴 (가운데 x, y, 얼굴 폭 — 그림 폭 대비) // 없으면 [0.48, 0.09, 0.15]
 // 변신 그림 (그림을 누르면 바뀜)
 const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
 const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 모드', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
-const DEX_ANIM = { sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
+const DEX_ANIM = { jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
 function dexAnim(kind, d, id) {
   if (DEX_ANIM[id]) return DEX_ANIM[id];
   if (kind === 'hero') return 'breathe';
@@ -3717,6 +3745,7 @@ function dexPageHtml(kind, id, form, duo) {
     plate = `<div class="dp-plate"><small>${d.mid ? `중간 보스 · ${d.fuse ? '합체' : '각성'} · ` : d.boss ? '보스 · ' : ''}${shout || esc(CLASSES[d.cls].name)}</small></div>`;
     body = `<p class="dp-flavor">“${esc(flav)}”</p>
       <div class="sbars">${bar('체력', Math.log10(d.hp) / Math.log10(4000))}${bar('속도', d.speed / 95)}${bar('입구 피해', d.atk / 36)}</div>
+      ${d.traits ? `<div class="dp-sec"><b>🔎 특성</b>${Object.keys(d.traits).filter((k) => TRAITS[k]).map((k) => `<p>${TRAITS[k].icon} <b>${esc(TRAITS[k].name)}</b> — ${esc(TRAITS[k].tip)} <small>추천: ${TRAITS[k].counter.filter((h) => HEROES[h]).map((h) => esc(HEROES[h].name)).join('·')}</small></p>`).join('')}</div>` : ''}
       <section><h4>🧨 특징</h4>${(d.fuse ? d.fuse : [tipId]).map((t) => `<p>${d.fuse ? `<b>${esc(ENEMIES[t].name)}</b> · ` : ''}${esc(ENEMY_TIPS[t] || '')}</p>`).join('')}</section>
       <section><h4>⚖️ 상성</h4><p>잘 먹힘 ${good.join(' ')} <span class="rg">×${TYPE_STRONG}</span></p><p>안 먹힘 ${bad.join(' ')} <span class="rg">×${TYPE_WEAK}</span></p></section>
       <section><h4>📍 등장</h4><p>${fs ? `${stageLabel(fs)} 부터` : '무한 도전'}${d.boss ? ' · 보스' : d.mid ? ' · 3웨이브 중간 보스' : ''}</p></section>`;
@@ -4207,7 +4236,23 @@ function showHowto() {
     <div class="enemy-grid">${enemies}</div>
   `, 'dim');
 }
+// 이 스테이지에 나오는 특성 진상 → 잘 맞는 멤버 (출격 준비 · 스테이지 정보)
+function traitHintHtml(s) {
+  const seenK = new Set();
+  const rows = [];
+  for (const [t] of stageMix(s)) {
+    const d = ENEMIES[t]; if (!d || !d.traits) continue;
+    for (const k of Object.keys(d.traits)) { if (!TRAITS[k] || seenK.has(k)) continue; seenK.add(k); const T = TRAITS[k]; rows.push(`<div class="trait-hint"><b>${T.icon} ${esc(T.name)}</b> <small>${esc(d.name)}</small> → 추천 ${T.counter.filter((h) => HEROES[h]).map((h) => esc(HEROES[h].name)).join('·')}</div>`); }
+  }
+  return rows.length ? `<div class="trait-hints">${rows.join('')}</div>` : '';
+}
 const ENEMY_TIPS = {
+  earphone: '노이즈 캔슬링 이어폰: 범위 공격이 전혀 안 들린다 — 건전남 · 운영진 같은 한 명씩 치는 공격으로',
+  noshow: '입구 두 칸 앞까지 안 보인다(은신). 운영진 · 건전남은 먼저 찾아낸다. 입구에 닿으면 "약속 취소~" 하고 경험치를 들고 나간다',
+  clubguy: '쓰러지면 데려온 클럽녀가 튀어나온다(분열) — 범위 공격으로 한 번에',
+  clubgirl: '클럽남이 데려온 빠른 클럽녀. 약하지만 빠르다',
+  praise1: '둘이 붙어 다니며 곁의 진상을 회복시키고 빠르게 한다. 한 명을 잡으면 다른 한 명이 분노 — 한 방에 같이',
+  praise2: '둘이 붙어 다니며 곁의 진상을 회복시키고 빠르게 한다. 한 명을 잡으면 다른 한 명이 분노 — 한 방에 같이',
   fakesingle: '처음엔 잘 피하다가, 중간쯤 "사실 돌싱!" 들키면 빨라진다 — 여자 멤버를 홀림',
   secretmom: '거짓말 방패(유모차)가 있다. 방패가 깨지면 들켜서 기절 + 친구 2명 소환',
   carpoor: '외제차로 확 달려오다 중간에 퍼진다! 퍼진 동안은 약점',

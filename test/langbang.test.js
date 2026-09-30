@@ -560,7 +560,8 @@ test('멤버마다 사거리 · 공격 간격 · 공격 방식 · 스킬이 전�
   for (const h of H) { assert.ok(D.ATTRS[h.attr], h.id); assert.ok(h.attack && h.skill.name && h.skill.cd >= 12 && h.skill.cd <= 30, h.id); }
   const cnt = {};
   for (const h of H) cnt[h.attr] = (cnt[h.attr] || 0) + 1;
-  assert.deepEqual(cnt, { talk: 5, power: 5, charm: 5, booze: 5 });
+  const vals = Object.values(cnt);
+  assert.ok(Math.max(...vals) - Math.min(...vals) <= 1, '속성 인원이 고르게 ' + JSON.stringify(cnt));
 });
 
 test('상성: 속성마다 강한 계열 2개 · 약한 계열 1개, 피해에 강함/약함 배율이 붙는다', () => {
@@ -1344,7 +1345,8 @@ test('새 멤버 4명: 정소영 잔소리 → 성준영 소환(올인!) · 오�
   assert.ok(jy && jy.summon, '성준영 소환');
   assert.ok(g.events.some((e) => e.type === 'summon'));
   g.events.length = 0;
-  for (let i = 0; i < 60 * (D.HEROES.soyoung.nag.sec[0] + 1); i++) { S.step(g, 1 / 60); if (g.events.some((e) => e.type === 'allin')) break; }
+  jy.jhp = 0; // 이제는 시간이 아니라 쓰러질 때 "올인!"
+  for (let i = 0; i < 30; i++) { S.step(g, 1 / 60); if (g.events.some((e) => e.type === 'allin')) break; }
   assert.ok(g.events.some((e) => e.type === 'allin'), '올인!');
   S.step(g, 1 / 60);
   assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '사라짐');
@@ -1454,4 +1456,87 @@ test('건전남: 필드 구석 진상도 쏜다 (자기 줄 제한 없음) · �
   for (let i = 0; i < 120; i++) { S.step(g, 1 / 60); shots += g.events.filter((x) => x.type === 'shot' && x.hero === 'gunman').length; g.events.length = 0; }
   assert.ok(shots >= 3, '구석 진상에게 쏜다');
   assert.ok(e.hp < e.maxHp || g.projs.length > 0, '맞거나 날아가는 중');
+});
+
+test('진상 특성: 범위 면역 · 분열 · 은신 · 회복 · 방깎 · 도발 · 제어/넉백 면역', () => {
+  // 범위 면역: 범위 피해 0 · 단일 피해는 들어간다
+  let g = bare([]);
+  const ear = still(g, 'earphone', 180, g.rowY - 200);
+  assert.equal(S.damageEnemy(g, ear, 50, false, { def: { attr: 'talk' }, gear: {} }, true), 0, '범위 공격 안 들림');
+  assert.ok(S.damageEnemy(g, ear, 50, false, { def: { attr: 'talk' }, gear: {} }, false) > 0, '단일 공격은 들어감');
+  // 분열: 클럽남이 쓰러지면 클럽녀
+  g = bare([]);
+  const club = still(g, 'clubguy', 180, g.rowY - 200, 1);
+  S.damageEnemy(g, club, 1e6, false, null, false);
+  assert.ok(g.enemies.some((e) => !e.dead && e.type === 'clubgirl'), '클럽녀 등장');
+  // 은신: 건전녀는 못 보고 운영진은 찾아낸다
+  g = bare(['gunnyeo', 'staff']);
+  const ns = still(g, 'noshow', 180, g.rowY - 260);
+  assert.equal(S.findTarget(g, g.heroes.find((h) => h.id === 'gunnyeo')), null, '은신은 안 보임');
+  assert.equal(S.findTarget(g, g.heroes.find((h) => h.id === 'staff')), ns, '운영진은 찾아낸다');
+  // 회복: 칭찬 빌런이 곁의 진상을 고친다 · 짝을 잡으면 분노
+  g = bare([]);
+  const p1 = still(g, 'praise1', 180, g.rowY - 250), p2 = still(g, 'praise2', 200, g.rowY - 250), hurt = still(g, 'thug', 190, g.rowY - 240);
+  hurt.hp = hurt.maxHp * 0.3;
+  run(g, 4);
+  assert.ok(hurt.hp > hurt.maxHp * 0.3, '회복');
+  const atk0 = p2.atk;
+  S.damageEnemy(g, p1, 1e6, false, null, false);
+  assert.ok(p2.atk > atk0, '짝이 분노');
+  // 방깎: 여지원 모자이크 → 쌓일수록 피해 증가
+  g = bare(['jiwon']);
+  const t1 = still(g, 'thug', g.heroes[0].x, g.rowY - 200);
+  run(g, 4);
+  assert.ok(t1.shredN >= 2, '방깎 겹 ' + t1.shredN);
+  const a = S.damageEnemy(g, t1, 100, false, null, false);
+  assert.ok(a > 100, '방깎만큼 더 아프다');
+  // 도발: 정원식 결혼정보회사 → 입구 피해 -80%
+  g = bare(['wonsik']);
+  const w = g.heroes[0];
+  const th = still(g, 'thug', w.x, g.rowY - 120);
+  w.skillCd = 0; S.castSkill(g, w, w.x, g.rowY - 120);
+  assert.ok(th.tauntT > 0, '도발 걸림');
+  // 제어 · 넉백 면역
+  g = bare([]);
+  const gao = still(g, 'gao', 180, g.rowY - 250);
+  const y0 = gao.y; S.applyKnockback(gao, 80, g);
+  assert.equal(gao.y, y0, '가오충은 안 밀린다');
+});
+
+test('정소영 → 성준영: 10초 안에 나와서 걸어 나가고, 여러 진상을 맞힌다 · 잔소리가 맞을수록 세진다', () => {
+  const g = S.createGame({ H: 760, rng: seeded(31), mode: 'stage', stage: 8, deck: [null, 'staff', 'bangjang', 'soyoung', 'gunman', null], meta: {}, god: true });
+  let at = null;
+  for (let t = 0; t < 12 && at === null; t += 1 / 60) { S.step(g, 1 / 60); for (const e of g.events) if (e.type === 'summon') at = g.t; g.events.length = 0; if (g.pendingLevels) { S.applyCard(g, S.rollCards(g)[0]); g.pendingLevels--; } }
+  assert.ok(at !== null && at <= 12, '12초 안에 소환 ' + at);
+  const jy = g.heroes.find((h) => h.id === 'junyoung');
+  const y0 = jy.homeY;
+  const hitIds = new Set();
+  for (let t = 0; t < 8; t += 1 / 60) {
+    S.step(g, 1 / 60); g.events.length = 0;
+    if (g.pendingLevels) { S.applyCard(g, S.rollCards(g)[0]); g.pendingLevels--; }
+    for (const p of g.projs) if (p.hero === jy && p.target) hitIds.add(p.target.uid);
+  }
+  assert.ok(jy.py < y0 - 20 || jy.gone, '앞으로 걸어 나감');
+  assert.ok(hitIds.size >= 2, '여러 진상을 노린다 ' + hitIds.size);
+});
+
+test('보스 패턴: 예고(1초) → 기술 → 틈(약점) → 반복 · 체력 50% 에서 분노 2페이즈 · 도발 탱커가 먼저 맞는다', () => {
+  const g = bare(['wonsik', 'staff', 'gunman']);
+  const b = still(g, 'boss_inpi', 180, 200, 5);
+  b.bai.next = 0.1;
+  const seen = [];
+  for (let t = 0; t < 4; t += 1 / 60) { S.step(g, 1 / 60); for (const e of g.events) seen.push(e.type); g.events.length = 0; }
+  assert.ok(seen.includes('bossWind'), '예고');
+  assert.ok(seen.includes('bossSkill'), '기술');
+  assert.ok(seen.includes('bossGap') || b.weakT > 0, '틈');
+  assert.ok(seen.indexOf('bossWind') < seen.indexOf('bossSkill'), '예고가 먼저');
+  b.hp = b.maxHp * 0.45;
+  S.step(g, 1 / 60);
+  assert.equal(b.bai.p2, true, '2페이즈');
+  // 기절 기술은 도발 탱커(정원식)부터 노린다
+  const g2 = bare(['wonsik', 'staff']);
+  const b2 = still(g2, 'boss_gapjil', 180, 200, 5);
+  b2.bai.i = 1; b2.bai.next = 0.05; // 두 번째 기술 = 돌진 호통(기절)
+  for (let t = 0; t < 0.3; t += 1 / 60) S.step(g2, 1 / 60);
+  assert.ok(b2.bai.targets.some((h) => h.id === 'wonsik'), '원식이 대신 맞는다');
 });

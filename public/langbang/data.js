@@ -221,7 +221,7 @@ const STAGE_CASTS = [
   ['mukti:0.35 yeokko:0.8 namkko:0.6', '계산대 앞에서 사라지는 먹튀들 — 경험치를 지켜라'],
   ['drunk:1 namkko:0.5 mukti:0.15', '골목 호프집에서 쏟아져 나온 술진상들'],
   ['thug:0.25 drunk:0.6 mukti:0.2', '골목 사채업자가 폭력배를 끌고 나타났다'],
-  ['yeokko:1 namkko:1 vomit:0.12', '불금 전야, 꼬충들이 떼로 몰려온다'],
+  ['yeokko:1 namkko:1 vomit:0.12 clubguy:0.12', '불금 전야, 꼬충들이 떼로 몰려온다 — 클럽남은 클럽녀를 데려왔다'],
   ['drunk:0.8 vomit:0.2 cutter:0.2', '포장마차 줄에 새치기꾼과 토하는 인간까지'],
   ['cutter:0.35 drunk:0.7 mukti:0.2', '막차 놓치기 싫은 새치기꾼들이 한 줄로 달려온다'],
   ['drunk:0.8 thug:0.2 vomit:0.2 namkko:0.5', '새벽 두 시, 골목이 제일 험한 시간'],
@@ -232,14 +232,14 @@ const STAGE_CASTS = [
   ['inpi_gossip:0.4 selfie:0.15 couple:0.12 namkko:0.5', '뒷담러가 수군수군, 셀카 플래시가 번쩍'],
   ['inpi_clique:0.6 inpi_gossip:0.2 handsy:0.18', '라이벌 모임 "인피"가 패거리로 몰려온다'],
   ['inpi_clique:0.5 thug:0.2 gao:0.12', '행동대장이 "무릎 꿇어!" 서열 정리하러 왔다'],
-  ['drunk:1 vomit:0.2 gao:0.12', '번화가를 가득 메운 만취 대행진'],
+  ['drunk:1 vomit:0.2 gao:0.12 clubguy:0.2', '번화가를 가득 메운 만취 대행진 · 클럽 앞 줄까지'],
   ['inpi_dictator:0.12 inpi_clique:0.5 inpi_gossip:0.2', '인피 독재자가 패거리를 단단하게 만든다 — 먼저 잡자'],
-  ['cutter:0.3 drunk:0.7 mukti:0.15 handsy:0.12', '택시 한 대에 열 명 — 새치기꾼과 붙잡는 손진상'],
+  ['cutter:0.3 drunk:0.7 handsy:0.12 earphone:0.14', '택시 한 대에 열 명 — 새치기꾼 · 손진상 · 아무 말도 안 들리는 노캔 이어폰녀'],
   ['cutter:0.3 mukti:0.25 gao:0.15 drunk:0.5', '첫차를 향한 전쟁, 발 빠른 진상들'],
   ['yeokko:0.7 namkko:0.7 scammer:0.25 couple:0.12', '여왕벌이 번화가 꼬충까지 거느리고 돌아왔다'],
   // 3장 인피 아지트
   ['inpi_clique:0.6 kkondae:0.1 thug:0.15', '인피 아지트 입구 — 꼰대 문지기가 "라떼는~"'],
-  ['inpi_gossip:0.35 spam:0.15 selfie:0.12', '복도마다 수군수군, 단톡방 알림이 쏟아진다'],
+  ['inpi_gossip:0.35 spam:0.15 selfie:0.12 earphone:0.15', '복도마다 수군수군, 단톡방 알림 — 이어폰 낀 사람은 못 들은 척'],
   ['inpi_clique:0.8 inpi_gossip:0.15 inpi_treasurer:0.14 inpi_dictator:0.08', '끼리끼리 뭉친 패거리 — 범위 공격으로 한 번에'],
   ['scammer:0.5 handsy:0.15 couple:0.12', '사기꾼들의 소굴, 예쁜 프사에 속지 마'],
   ['thug:0.3 gao:0.2 inpi_clique:0.4', '행동대장과 폭력배 두목이 함께 기다린다'],
@@ -252,12 +252,12 @@ const STAGE_CASTS = [
   ['cutter:0.3 fakesingle:0.3 namkko:0.3', '출국 수속 줄에 새치기꾼, 그리고 "저 싱글이에요~"'],
   ['carpoor:0.35 selfie:0.15 fakesingle:0.4 couple:0.1', '면세점 명품 코너에 카푸어와 셀카족'],
   ['drunk:0.6 kkondae:0.12 vomit:0.2 handsy:0.1', '기내 진상: 술 달라, 토하고, "라떼는~"'],
-  ['secretmom:0.3 fakesingle:0.4 carpoor:0.25', '렌터카 줄에 돌싱남과 싱글맘이 섞여 들었다'],
+  ['secretmom:0.3 fakesingle:0.4 carpoor:0.25 noshow:0.18', '렌터카 줄 — 그리고 당일 아침 「약속 취소~」'],
   ['kkondae:0.15 fakesingle:0.45 gao:0.12', '꼰대 + 돌싱 + 찌질을 다 가진 보스가 나타났다'],
   ['kkondae2:0.12 secretmom:0.25 carpoor:0.25 cutter:0.2', '돌담길에 울리는 골프 꼰대의 "나이스 샷!"'],
   ['selfie:0.2 couple:0.15 yeokko:0.6 fakesingle:0.3', '유채꽃밭 인생샷 전쟁 — 셀카족과 커플'],
   ['sarcasm:0.15 drunk:0.5 kkondae2:0.1 mukti:0.2', '횟집에서 돌려까기 장인이 "어머 많이 먹는다~"'],
-  ['secretmom:0.3 fakesingle:0.4 sarcasm:0.12 inpi_gossip:0.15', '게스트하우스 파티 — 거짓말쟁이들과 뒷담러'],
+  ['secretmom:0.3 fakesingle:0.4 sarcasm:0.12 noshow:0.15', '게스트하우스 파티 — 거짓말쟁이들과 뒷담러, 약속취소 빌런'],
   ['secretmom:0.3 carpoor:0.25 sarcasm:0.12 fakesingle:0.3', '여왕된장싱글맘이 명품 가방을 휘두른다'],
   // 5장 MT · 펜션 편
   ['sales:0.3 carpoor:0.2 fakesingle:0.3', '펜션 주차장에 영업쟁이가 먼저 와 있다'],
@@ -265,18 +265,18 @@ const STAGE_CASTS = [
   ['drunk:0.6 vomit:0.15 jjijil:0.18 gao:0.1', '고기 굽는 연기 속 술진상과 찌질남'],
   ['sales:0.35 spam:0.15 secretmom:0.2', '"보험 하나 드세요!" 다단계 영업 러시'],
   ['sales:0.3 carpoor:0.25 kkondae2:0.1', '영업의 왕이 계약서를 들고 나타났다'],
-  ['couple:0.15 jjijil:0.35 sarcasm:0.15 yeokko:0.4', '캠프파이어 앞 커플과 "왜 답장 안 해?"'],
+  ['couple:0.15 jjijil:0.35 sarcasm:0.15 praise1:0.1', '캠프파이어 앞 커플과 "왜 답장 안 해?" — "언니 너무 이뻐요~"'],
   ['selfie:0.2 inpi_gossip:0.2 couple:0.15 otaku:0.08', '노래방 대첩 — 마이크 뺏기 전쟁'],
   ['drunk_cry:0.35 drunk:0.5 vomit:0.2', '새벽 술판, 세 잔째부터 우는 진상'],
   ['otaku:0.15 jjijil:0.35 drunk_cry:0.25', '오타쿠의 밤 — 피규어 부대 출동'],
   ['otaku:0.12 sales:0.2 jjijil:0.3 drunk_cry:0.2', '오타쿠 왕이 굿즈 방패를 들었다'],
   // 6장 연말 파티 · 인피 본부
-  ['drunk_run:0.4 couple:0.15 selfie:0.15', '연말 거리, 뛰는 취객과 커플들'],
+  ['drunk_run:0.4 couple:0.15 selfie:0.15 praise1:0.1', '연말 거리, 뛰는 취객과 커플들 — "언니 너무 이뻐요~" 칭찬 빌런'],
   ['kkondae:0.12 kkondae2:0.1 drunk:0.5 sarcasm:0.15', '송년회 — 꼰대들의 라떼 폭격'],
   ['drunk_cry:0.3 drunk_run:0.35 drunk_sleep:0.1 drunk_home:0.25', '주사 4종 대행진'],
   ['cutter:0.3 drunk_run:0.3 drunk_home:0.25 drunk_sleep:0.08', '산타 대란 — 택시 잡기 전쟁'],
   ['drunk_cry:0.3 drunk_run:0.3 drunk_sleep:0.15 drunk_home:0.2', '울고 뛰고 자고 집에 가는 주사왕'],
-  ['couple:0.15 fakesingle:0.3 jjijil:0.3 secretmom:0.2', '눈 내리는 밤, 솔로들의 발악'],
+  ['couple:0.15 fakesingle:0.3 jjijil:0.3 secretmom:0.2', '눈 내리는 밤, 솔로들의 발악 · 칭찬 빌런 · 노캔 이어폰녀'],
   ['selfie:0.2 spam:0.15 otaku:0.1 drunk_run:0.3', '카운트다운 — 관종들의 마지막 인증샷'],
   ['inpi_clique:0.5 inpi_dictator:0.1 inpi_treasurer:0.1 gao:0.12', '인피 본부 — 총무와 독재자가 지키는 문'],
   ['sales:0.2 sarcasm:0.15 inpi_gossip:0.2 kkondae2:0.1', '최후의 파티 — 말로 싸우는 진상들'],
@@ -541,7 +541,7 @@ export function recommendAttrs(s) {
 const ART_READY = new Set(['h_jungmin', 'h_junyoung', 'h_soyoung', 'h_jieun', 'h_jieun_demon', 'h_sanghwa']);
 const ART = (n) => (ART_READY.has(n) ? `/img/lb/${n}.webp` : '');
 export const NO_DEX_ART = new Set([]); // dex/<id>.webp 없음
-export const NO_HQ_ART = new Set(['junyoung']); // dexhq/<id>.webp 없음
+export const NO_HQ_ART = new Set(['junyoung', 'jiwon', 'wonsik']); // dexhq/<id>.webp 없음
 export const NO_DUO_ART = new Set([]); // dexhq/<id>_duo.webp 없음
 export const HEROES = {
   bangjang: {
@@ -722,7 +722,7 @@ export const HEROES = {
     id: 'soyoung', bossKit: 0.95, kit: 1.05, name: '정소영', gender: 'f', emoji: '🗯️', color: '#ff8fb1', gacha: true, attr: 'talk',
     img: ART('h_soyoung'), role: '소환사 · 잔소리 게이지 → 성준영 소환',
     dmg: 30, interval: 0.95, range: 375, proj: 'nag', projSpeed: 520,
-    nag: { perHit: [12, 12, 13, 13, 15], perSec: 2.5, sec: [10, 10, 12, 12, 14] }, // 잔소리 한 번에 게이지 +% · 성준영이 버티는 시간
+    nag: { perHit: [12, 12, 13, 13, 15], perSec: 2.5, firstSec: 10, sec: [10, 10, 12, 12, 14] }, // 잔소리 한 번에 게이지 +% · 성준영이 버티는 시간
     attack: '잔소리 말풍선 — 맞힐 때마다 "잔소리 게이지"가 차고, 가득 차면 성준영을 불러낸다',
     desc: '"그러니까 내가 뭐랬어!" 잔소리가 쌓이면 어디선가 성준영이 끌려 나온다. 둘이 같이 있으면 진상들이 더 괴롭다.',
     perks: { 3: '게이지가 더 빨리 · 성준영이 더 오래', 5: '성준영 올인! 폭발이 더 커진다' },
@@ -763,6 +763,27 @@ export const HEROES = {
     skill: { id: 'bandage', name: '붕대 대공사', cd: 24, desc: '입구 크게 수리 + 잠깐 입구가 받는 피해 -35%', heal: [0.16, 0.16, 0.19, 0.19, 0.23], sec: [6, 6, 7, 7, 8], armor: 0.35 },
     shouts: ['가만있어 봐, 붙여 줄게.', '이 정도는 금방이지.', '어디 또 깨졌냐?'],
   },
+  jiwon: {
+    id: 'jiwon', bossKit: 1.1, kit: 1.0, name: '여지원', gender: 'f', emoji: '🖕', color: '#e0304a', gacha: true, attr: 'talk',
+    img: '/img/lb/h_jiwon.webp', role: '방깎 · 모자이크 뻑큐',
+    dmg: 31, interval: 0.83, range: 365, proj: 'mosaic', projSpeed: 560,
+    shred: { per: 0.06, max: 5, sec: 5 }, // 맞은 진상 방어 -6% × 최대 5겹 (5초) → 다른 멤버 피해도 같이 오른다 · 회복도 막는다
+    attack: '모자이크 뻑큐 — 날아가는 모자이크 손, 맞은 진상 방어가 겹겹이 깎인다',
+    desc: '새빨간 입술, 긴 흑발. 말보다 손이 먼저 나간다 (모자이크 처리됨).',
+    perks: { 3: '방깎 +1겹 (최대 6)', 5: '방깎 한 겹 -8%' },
+    skill: { id: 'fuckall', name: '단체 뻑큐', cd: 20, desc: '앞쪽 부채꼴에 모자이크 손 폭격 — 맞은 진상 전부 방깎 최대 · 회복 막기 6초', r: [230, 230, 250, 250, 280], half: 0.6, mul: [1.4, 1.4, 1.6, 1.6, 1.9], sec: 6 },
+  },
+  wonsik: {
+    id: 'wonsik', bossKit: 0.8, kit: 0.9, name: '정원식', gender: 'm', emoji: '🏋️', color: '#6fae6f', gacha: true, attr: 'power',
+    img: '/img/lb/h_wonsik.webp', role: '도발 탱커 · 피해 감소',
+    dmg: 44, interval: 1.23, range: 255, proj: 'jab', projSpeed: 700,
+    taunt: 0.4, // 도발: 멤버를 노리는 진상 기술을 대신 받는다 (40% 시간)
+    guard: { r: 110, cut: 0.3 }, // 곁의 진상이 입구를 칠 때 -30%
+    attack: '헬스 잽 — 가까운 진상을 묵직하게 · 곁의 진상 공격을 대신 받아 준다',
+    desc: '결혼을 꿈꾸는 마흔 살 헬스 총각. 작은 눈, 단정한 머리, 따뜻한 얼굴. "올해는 꼭…"',
+    perks: { 3: '피해 감소 반경 +20%', 5: '결혼정보회사 등록이 1초 더' },
+    skill: { id: 'marry', name: '결혼정보회사 등록', cd: 22, desc: '넓은 반경 진상 4초 동안 원식만 바라본다 (입구 피해 -80% · 느려짐) + 입구 보호막', r: [260, 260, 280, 280, 300], sec: [4, 4, 4, 4, 5], shield: 0.1 },
+  },
 };
 // 소환 멤버 (덱 · 모집 · 도감 목록에는 없다): 정소영이 부르는 성준영
 export const SUMMONS = {
@@ -770,7 +791,7 @@ export const SUMMONS = {
     id: 'junyoung', summon: true, bossKit: 1, kit: 1, name: '성준영', gender: 'm', emoji: '🃏', color: '#9fd4ff', attr: 'talk',
     img: ART('h_junyoung'), role: '소환 · 홀덤 칩과 카드 던지기',
     dmg: 20, interval: 0.5, range: 360, proj: 'chip', projSpeed: 600,
-    allin: { r: 90, mul: 5 }, // 사라질 때 "올인!" 작은 폭발 (피해 = 한 발 × 5)
+    allin: { r: 90, mul: 5 }, // 쓰러질 때 "올인!" 작은 폭발 (피해 = 한 발 × 5)
     attack: '홀덤 칩 · 카드 — 빠르게 휙휙 던진다. 사라질 때 "올인!"',
     desc: '비실비실해 보이지만 칩 던지는 손목은 프로. 소영이 부르면 어쩔 수 없이 나온다.',
     perks: { 3: '-', 5: '-' },
@@ -785,7 +806,7 @@ export const HERO_TIER = {
   hanna: 3, donghan: 3, sunggu: 3, youngjun: 3,
   junseo: 4, hyungyeong: 4, ara: 4,
   hochan: 5,
-  soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, junyoung: 3,
+  soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, junyoung: 3, jiwon: 3, wonsik: 3,
 };
 // 티어: 늦게 만나는 멤버일수록 기본이 세고(공격력 · 공격 속도) 성장은 완만 — 초반 멤버는 성장형
 //  강화 0: T4 ≈ T1 × 1.6 · 강화 최대(20): T1 ≈ T4 × 0.85
@@ -802,7 +823,7 @@ export const metaMaxOf = (id) => TIER_MAX[heroTier(id)];
 export const BASE_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
 export const UNLOCK_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun']; // 스테이지를 깨면 합류하는 일반 영웅
 export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu'];
-export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin']; // 모집(뽑기) 영웅 등급
+export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik']; // 모집(뽑기) 영웅 등급
 export const LEGEND_HEROES = ['hochan']; // 모집 전설 (마지막 스테이지를 깨야 모집에 나온다)
 export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; // 해금이 필요한 영웅 전부
 // 같이 출전하는 동료 수: 1챕터 1명, 1-10 을 깨면(2챕터부터) 2명
@@ -876,6 +897,43 @@ export const ENEMIES = {
     charmImmune: true, // 이한나 윙크(넉백·홀림)가 안 통한다
     shouts: ['꽁냥꽁냥~', '자기야♡', '우리만 보여', '헤어져!'],
   },
+  // ── 특성 진상 (덱을 골라야 이긴다) ──
+  earphone: {
+    id: 'earphone', cls: 'jerk', name: '노캔 이어폰녀', gender: 'f', emoji: '🎧', color: '#9fd4ff',
+    img: '/img/lb/e_earphone.webp', hp: 60, speed: 40, atk: 4, atkInterval: 1.2, exp: 5, r: 17, size: 74,
+    traits: { aoeImmune: 1 }, // 노이즈 캔슬링: 범위 공격이 안 들린다 — 단일 공격만
+    shouts: ['(안 들림)', '네? 뭐라고요?', '…🎶', '지금 노래 듣는 중'],
+  },
+  noshow: {
+    id: 'noshow', cls: 'seduce', name: '당일약속취소 빌런', gender: 'f', emoji: '📱', color: '#c9a8ff',
+    img: '/img/lb/e_noshow.webp', hp: 48, speed: 46, atk: 3, atkInterval: 1.2, exp: 5, r: 16, size: 72,
+    traits: { stealth: 1 }, stealth: { reveal: 120 }, // 은신: 입구 2칸 앞까지 안 보인다 (운영진 · 건전남은 먼저 찾아냄)
+    steal: { base: 3, perLevel: 0.6 }, // 입구에 닿으면 "약속 취소~" 하고 경험치를 조금 들고 나간다
+    shouts: ['오늘 약속 취소할게요~', '갑자기 일이 생겨서…', '다음에 봐요!', '(읽씹)'],
+  },
+  clubguy: {
+    id: 'clubguy', cls: 'seduce', name: '클럽남', gender: 'm', emoji: '🕺', color: '#7df9ff',
+    img: '/img/lb/e_clubguy.webp', hp: 70, speed: 42, atk: 5, atkInterval: 1.2, exp: 5, r: 17, size: 76,
+    traits: { split: 1 }, splitInto: { type: 'clubgirl', n: 1 }, // 분열: 쓰러지면 데려온 클럽녀가 튀어나온다
+    shouts: ['오늘 물 좋다~', '같이 놀자!', 'DJ 형 한 곡 더!', '여기 테이블 잡았어'],
+  },
+  clubgirl: {
+    id: 'clubgirl', cls: 'seduce', name: '클럽녀', gender: 'f', emoji: '💃', color: '#ff9fe6',
+    img: '/img/lb/e_clubgirl.webp', hp: 26, speed: 70, atk: 3, atkInterval: 1.0, exp: 2, r: 14, size: 62,
+    shouts: ['나 먼저 간다~', '택시!', '어디 가?'],
+  },
+  praise1: {
+    id: 'praise1', cls: 'politic', name: '언니 너무 이뻐요 빌런', gender: 'f', emoji: '🥰', color: '#ffb3d9',
+    img: '/img/lb/e_praise1.webp', hp: 55, speed: 34, atk: 3, atkInterval: 1.3, exp: 6, r: 16, size: 72,
+    traits: { heal: 1 }, praise: { every: 3, r: 95, heal: 0.08, haste: 2.5, pair: 'praise2', rageAtk: 1.6, rageSpd: 1.3 },
+    shouts: ['언니 너무 이뻐요~', '언제 밥 한번 먹어요~', '피부 뭐 써요?', '(속으로: 별로인데)'],
+  },
+  praise2: {
+    id: 'praise2', cls: 'politic', name: '언니 너무 이뻐요 빌런', gender: 'f', emoji: '😊', color: '#ffc8a8',
+    img: '/img/lb/e_praise2.webp', hp: 55, speed: 34, atk: 3, atkInterval: 1.3, exp: 6, r: 16, size: 72,
+    traits: { heal: 1 }, praise: { every: 3, r: 95, heal: 0.08, haste: 2.5, pair: 'praise1', rageAtk: 1.6, rageSpd: 1.3 },
+    shouts: ['언니 진짜 동안이다~', '어머 어머~', '우리 친해지자~', '(속으로: 흥)'],
+  },
   handsy: {
     id: 'handsy', cls: 'jerk', name: '손진상', gender: 'm', emoji: '🙌', color: '#e8b27a',
     img: '/img/lb/e_handsy.webp', hp: 70, speed: 38, atk: 3, atkInterval: 1.2, exp: 5, r: 17, size: 76,
@@ -885,7 +943,7 @@ export const ENEMIES = {
   gao: {
     id: 'gao', cls: 'violent', name: '가오충', gender: 'm', emoji: '😎', color: '#e8c33a',
     img: '/img/lb/e_gao.webp', hp: 140, speed: 26, atk: 12, atkInterval: 1.4, armor: 4, exp: 7, r: 20, size: 82,
-    gao: { cut: 0.6, broken: 1.3, flexR: 110, flexSpd: 1.15 }, // 가오 중엔 피해 -60% · 말빨 공격이나 치명타로 "가오 깨짐!" → 피해 +30%
+    traits: { kbImmune: 1 }, gao: { cut: 0.6, broken: 1.3, flexR: 110, flexSpd: 1.15 }, // 가오 중엔 피해 -60% · 말빨 공격이나 치명타로 "가오 깨짐!" → 피해 +30%
     shouts: ['내가 누군지 알아?', '가오 떨어지게', '폼 미쳤다', '어깨 봐라'],
   },
   selfie: {
@@ -1310,13 +1368,15 @@ export const HERO_CARDS = {
   jieun: { title: '오지은: 감속 +15%p · 1초 더', add: { slowX: 0.15, slowSec: 1 } },
   sanghwa: { title: '박상화: 성장 한도 +15%', add: { growMax: 0.15 } },
   jungmin: { title: '홍정민: 수리 +40%', mul: { heal: 1.4 } },
+  jiwon: { title: '여지원: 방깎 +1겹 · 5초 → 7초', add: { shredMax: 1, shredSec: 2 } },
+  wonsik: { title: '정원식: 피해 감소 +10%p · 반경 +25%', add: { guardCut: 0.1 }, mul: { guardR: 1.25 } },
 };
 // 스킬 진화 카드 (Lv3 이상 멤버 · 한 번): 스킬이 한 번 더 터진다 (0.5초 뒤, 옆자리에)
 export const SKILL_EVO = {
   bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '난사 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
   dohoon: '무한 앵콜 앵콜', ingyu: '할리 한 바퀴 더', donghan: '진심 빔 두 줄', youngjun: '블랙 러시 왕복', eunok: '원샷 두 잔',
   hanna: '하트 레이저 풀파워 (화면 끝까지 꿰뚫는 굵은 빔)', sunggu: '지팡이 블랙홀 두 개', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
-  soyoung: '잔소리 폭격 2연발', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더',
+  soyoung: '잔소리 폭격 2연발', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '단체 뻑큐 앵콜', wonsik: '결혼정보회사 VIP 등록',
 };
 // 숨은 카드 (드물게): 임시 증원 · 게스트 합류 — 한 판에 한 번
 export const SECRET = { tempSlot: 0.045, guest: 0.035 };
@@ -1339,7 +1399,7 @@ export const EVO = {
   myunghoon: { tag: 'chain', name: '구미호 욕신' }, dohoon: { tag: 'heal', name: '전국 투어' }, ingyu: { tag: 'kb', name: '3대 700' }, donghan: { tag: 'splash', name: '각성한 간보기' },
   youngjun: { tag: 'boss', name: '검은 표범 왕' }, eunok: { tag: 'splash', name: '폭탄주 여왕' }, hanna: { tag: 'kb', name: '윙크 여신' }, sunggu: { tag: 'pierce', name: '지팡이 달인' },
   junseo: { tag: 'chain', name: '인맥왕' }, hyungyeong: { tag: 'kb', name: '다이어트 챔피언' }, ara: { tag: 'boss', name: '여왕 폐하' }, hochan: { tag: 'ctrl', name: '랑방의 전설' },
-  soyoung: { tag: 'ctrl', name: '잔소리 대마왕' }, jieun: { tag: 'ctrl', name: '시간의 마녀' }, sanghwa: { tag: 'boss', name: '완벽한남자' }, jungmin: { tag: 'heal', name: '붕대 장인' },
+  soyoung: { tag: 'ctrl', name: '잔소리 대마왕' }, jieun: { tag: 'ctrl', name: '시간의 마녀' }, sanghwa: { tag: 'boss', name: '완벽한남자' }, jungmin: { tag: 'heal', name: '붕대 장인' }, jiwon: { tag: 'boss', name: '모자이크 여왕' }, wonsik: { tag: 'heal', name: '품절남' },
 };
 export const EVO_MUL = { dmg: 1.45, spd: 0.18, cd: 0.7 };
 // 뽑을 게 모자랄 때 채워 넣는 카드 (제한 없음)
@@ -1507,3 +1567,37 @@ export function rollHeroCard(seed, stars, hell, used) {
   return used[(rng() * used.length) | 0];
 }
 export const CARD_PICK = { cost: 2500, n: 3, perWeek: 3 }; // 상점 "멤버 카드 선택권": 고른 멤버 카드 3장 · 주 3번
+
+// ─── 진상 특성: 덱을 골라야 이긴다 (모든 특성에 잘 맞는 멤버 2명 이상) ─────
+export const TRAITS = {
+  aoeImmune: { icon: '🎧', name: '범위 면역', tip: '범위 공격이 안 들려요! 단일 공격으로', counter: ['gunman', 'staff', 'jiwon', 'ara'] },
+  singleResist: { icon: '🧱', name: '단일 저항', tip: '한 명씩 치는 공격은 절반만! 범위 공격으로', counter: ['sunggu', 'bangjang', 'eunok'] },
+  projShield: { icon: '🛡️', name: '원거리 방패', tip: '처음 몇 발은 막아요! 연사로 방패를 벗기세요', counter: ['gunman', 'hanna'] },
+  kbImmune: { icon: '🪨', name: '넉백 면역', tip: '밀리지 않아요! 딜로 잡으세요', counter: ['youngjun', 'ara', 'jiwon'] },
+  ccImmune: { icon: '🌀', name: '제어 면역', tip: '기절이 안 걸려요! 딜로 밀어붙이세요', counter: ['youngjun', 'sanghwa', 'jiwon'] },
+  split: { icon: '👯', name: '분열', tip: '쓰러지면 하나 더 나와요! 범위 공격으로 한 번에', counter: ['sunggu', 'bangjang', 'donghan'] },
+  regen: { icon: '💚', name: '재생', tip: '가만두면 회복해요! 방깎·불로 회복을 막으세요', counter: ['jiwon', 'eunok'] },
+  stealth: { icon: '👻', name: '은신', tip: '입구 앞까지 안 보여요! 운영진·건전남은 먼저 찾아내요', counter: ['staff', 'gunman'] },
+  haste: { icon: '💨', name: '가속', tip: '체력이 줄면 빨라져요! 감속·제어로 붙잡으세요', counter: ['jieun', 'dohoon', 'soyoung'] },
+  heal: { icon: '💖', name: '회복 · 버프', tip: '곁의 진상을 회복시키고 빠르게 해요! 먼저 한 방에', counter: ['ara', 'youngjun', 'jiwon'] },
+};
+export const REVEAL_HEROES = ['staff', 'gunman']; // 은신 진상을 먼저 찾아내는 멤버
+
+// ─── 보스 패턴: 걷기 → 기모으기(1초 예고) → 기술 → 틈!(1.5초 약점) → 반복 · 체력 50% 에서 2페이즈(분노 모습 · 빨라짐 · 새 기술) ───
+//  기술: stun(멤버 기절) · silence(스킬 게이지 멈춤) · slow(멤버 공격 속도 ↓) · shock(날아가던 공격 지우기) · summon(부하 부르기) · drain(경험치 빼앗기)
+//  상태이상 저항(강화 · 장비 res)만큼 짧아지고, 백인규 · 정원식 도발이 대신 맞는다
+export const BOSS_KITS = {
+  queen: { name: '꼬충 여왕벌', skills: [['summon', '꼬충 호출', { types: ['yeokko', 'namkko'], n: 3 }], ['stun', '윙크 폭격', { n: 1, sec: 1.2 }]], p2: ['slow', '여왕의 한숨', { cut: 0.25, sec: 4 }] },
+  boss_thug: { name: '폭력배 두목', skills: [['stun', '땅 내려치기', { n: 2, sec: 1.5 }], ['summon', '애들 불러', { types: ['thug'], n: 2 }]], p2: ['shock', '주먹 충격파', {}] },
+  boss_gapjil: { name: '갑질 사장', skills: [['slow', '야근 지시', { cut: 0.3, sec: 4 }], ['stun', '돌진 호통', { n: 1, sec: 1.5 }]], p2: ['silence', '회의 소집', { sec: 3 }] },
+  boss_inpi: { name: '인피 대장', skills: [['silence', '뒷담화', { sec: 3 }], ['summon', '패거리 집합', { types: ['inpi_clique'], n: 3 }]], p2: ['stun', '서열 정리', { n: 2, sec: 1.4 }] },
+  boss_loan: { name: '사채업자', skills: [['drain', '추심', { v: 0.12 }], ['stun', '빚 독촉', { n: 1, sec: 1.6 }]], p2: ['shock', '압류 딱지', {}] },
+  boss_kkondol: { name: '꼰대 돌싱', skills: [['slow', '라떼는 말이야', { cut: 0.25, sec: 4 }], ['silence', '훈계', { sec: 3 }]], p2: ['summon', '동창 호출', { types: ['kkondae', 'fakesingle'], n: 2 }] },
+  boss_queenmom: { name: '여왕된장싱글맘', skills: [['stun', '명품백 휘두르기', { n: 2, sec: 1.3 }], ['summon', '맘카페 호출', { types: ['secretmom'], n: 2 }]], p2: ['slow', '갑질 한숨', { cut: 0.3, sec: 4 }] },
+  boss_sales: { name: '영업왕', skills: [['silence', '계약서 들이밀기', { sec: 3 }], ['slow', '끝없는 설명', { cut: 0.25, sec: 4 }]], p2: ['summon', '다단계 하부', { types: ['sales'], n: 3 }] },
+  boss_otaku: { name: '오타쿠 왕', skills: [['summon', '피규어 부대', { types: ['otaku'], n: 2 }], ['shock', '굿즈 방패 충격파', {}]], p2: ['stun', '덕후 샤우팅', { n: 2, sec: 1.3 }] },
+  boss_jusa: { name: '주사왕', skills: [['stun', '술병 던지기', { n: 1, sec: 1.5 }], ['slow', '술주정', { cut: 0.25, sec: 4 }]], p2: ['summon', '술친구 호출', { types: ['drunk_cry', 'drunk_run'], n: 3 }] },
+  boss_soloparty: { name: '솔로파티 중독자', skills: [['summon', '솔로 호출', { types: ['yeokko', 'namkko'], n: 3 }], ['silence', '디스코 타임', { sec: 3 }]], p2: ['stun', '미러볼 섬광', { n: 2, sec: 1.4 }] },
+  boss_union: { name: '인피 연합 총수', skills: [['silence', '연합 공지', { sec: 3 }], ['stun', '총수 호령', { n: 2, sec: 1.5 }]], p2: ['summon', '연합 총동원', { types: ['inpi_clique', 'inpi_dictator'], n: 3 }] },
+};
+export const BOSS_AI = { every: [8, 12], everyP2: [6, 9], windup: 1.0, recover: 1.5, roar: 20 };

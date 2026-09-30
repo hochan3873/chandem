@@ -1,7 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS } from './data.js';
 const HEROES = { ...HEROES0, ...SUMMONS }; // 소환 멤버(성준영)도 그린다
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
@@ -220,6 +220,8 @@ export class FX {
 
 // ─── 렌더러 ───────────────────────────────────────────
 const PAINTED = { crownIco: 'pCrown', bottle: 'pBottle', bottleRage: 'pBottleRage' };
+const PAINTED_MORE = ['bullet', 'cane', 'wink', 'swear', 'swearBig', 'notice', 'noticeBig', 'flower', 'rose', 'chip', 'card', 'tick', 'dumbbell', 'snack', 'hammer', 'note', 'heartBomb', 'duck', 'paper', 'gem', 'mosaic'];
+for (const n of PAINTED_MORE) PAINTED[n] = 'p_' + n; // 그린 투사체: fx/p_<이름>.webp (없으면 코드로 그린 것)
 export class Renderer {
   constructor(canvas) {
     this.cv = canvas;
@@ -256,11 +258,13 @@ export class Renderer {
         this.formDefs[key] = Object.assign({}, ENEMIES[id], forms[f], { id: id + '_' + f, size: forms[f].size || ENEMIES[id].size });
       }
     }
+    for (const id in ENEMIES) if (ENEMIES[id].boss) for (const f of ['skill', 'rage']) { const key = `e_${id}_${f}`; list[key] = `/img/lb/e_${id}_${f}.webp`; this.formDefs[key] = Object.assign({}, ENEMIES[id], { id: `${id}_${f}` }); } // 보스 기술 · 분노 모습 (없으면 기본 그림)
     list.moto = '/img/lb/p_motorcycle.webp';
     list.ingyuBike = '/img/lb/h_ingyu_bike.webp'; // 백인규 할리 돌진
     list.gf = '/img/lb/p_girlfriend.webp';
     for (let i = 0; i < 4; i++) list['bar' + i] = `/img/lb/ui/barricade_${i}.webp`;
     for (const k of ['heart', 'fire', 'electric', 'gold', 'shock', 'spark']) list['fx_' + k] = `/img/lb/fx/${k === 'shock' ? 'shock_ring' : k === 'spark' ? 'hit_spark' : 'explo_' + k}.webp`;
+    for (const n of PAINTED_MORE) list['p_' + n] = `/img/lb/fx/p_${n}.webp`;
     list.pCrown = '/img/lb/fx/p_crown.webp'; list.pBottle = '/img/lb/fx/p_bottle.webp'; list.pBottleRage = '/img/lb/fx/p_bottle_rage.webp'; // 그린 투사체 (없으면 코드로 그린 것)
     for (const k of ['talk', 'power', 'charm', 'booze']) list['attr_' + k] = `/img/lb/attr/${k}.webp`; // 속성 배지 그림
     list.bg = '/img/lb/bg.webp';
@@ -609,6 +613,11 @@ export class Renderer {
       x.fillStyle = '#5a2a1a'; x.beginPath(); x.arc(w / 2, h / 2 - 3, 8, Math.PI, 0); x.fill();
       heart(x, w / 2 + 7, h / 2 - 8, 4, '#ff4f9a', null);
     });
+    make('mosaic', 22, 22, (x, w, h) => { // 여지원: 모자이크 처리된 손 (픽셀 네모)
+      const c = ['#f2c7a8', '#d9a07f', '#f7d9c4', '#c98e6e', '#e8b896'];
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) { if ((i === 0 || i === 4) && (j === 0 || j === 4)) continue; x.fillStyle = c[(i * 3 + j * 7) % 5]; x.fillRect(1 + i * 4, 1 + j * 4, 4, 4); }
+      x.strokeStyle = 'rgba(40,10,20,0.8)'; x.lineWidth = 1; x.strokeRect(1.5, 1.5, 19, 19);
+    });
     make('jab', 20, 16, (x, w, h) => {
       glow(x, w / 2, h / 2, 10, 'rgba(255,120,90,0.6)');
       x.fillStyle = '#ff5a4f'; x.strokeStyle = '#fff'; x.lineWidth = 1.4;
@@ -833,6 +842,14 @@ export class Renderer {
   // 불바다 (최은옥 분노 소주병) · 토 웅덩이
   drawPools(g, t) {
     const cx = this.cx;
+    // 보스 예고: 노리는 멤버 발밑 빨간 원 · 분노한 보스는 붉게
+    for (const e of g.enemies) {
+      if (e.dead || !e.bai) continue;
+      if (e.bai.st === 'windup' && e.bai.targets.length) { this.world(); const k = 1 - e.bai.t / 1.0; cx.strokeStyle = '#ff2a2a'; cx.lineWidth = 3; cx.globalAlpha = 0.5 + k * 0.5; for (const h of e.bai.targets) { cx.beginPath(); cx.arc(h.x, h.y + 6, 26 - k * 8, 0, TAU); cx.stroke(); } cx.globalAlpha = 1; }
+      if (e.bai.p2) { const gl = this.projSprites.glowRed; const r = e.def.size * 0.7; this.tf(e.x, e.y - e.def.size * 0.3, 0, 1, 1); cx.globalAlpha = 0.55 + Math.sin(this.fx.time * 8) * 0.15; cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1; }
+    }
+    // 정원식 결혼정보회사: 분홍 점선 원
+    if (g.tauntZone) { const z = g.tauntZone; this.world(); cx.globalAlpha = 0.35 + Math.sin(this.fx.time * 6) * 0.1; cx.strokeStyle = '#ff7ac8'; cx.lineWidth = 3; cx.setLineDash([10, 8]); cx.beginPath(); cx.arc(z.x, z.y, z.r, 0, TAU); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1; }
     // 이한나 하트 레이저 풀파워: 굵은 분홍 빔
     for (const q of g.hbeams || []) {
       this.world();
@@ -1258,6 +1275,7 @@ export class Renderer {
         const f = e.form === 'reveal' ? (Math.sin(t * 30) > 0 ? e.nextForm : null) : e.form;
         if (f === 'ugly' || f === 'fat') { key += '_' + f; def = this.formDefs[key] || def; }
       }
+      if (e.bai) { const vk = e.bwind > 0 || e.windup > 0 ? `e_${e.type}_skill` : e.bai.p2 ? `e_${e.type}_rage` : ''; if (vk && imgOk(this.images[vk]) && this.sprites[vk]) key = vk; }
       const box = def.size;
       let sp = this.sprites[key] || this.sprites['e_' + e.type];
       // 중간 보스: 각성 = 원래 그림을 크게 · 합체 = 두 그림 나란히
@@ -1265,7 +1283,7 @@ export class Renderer {
       if (def.mid && def.base) sp = this.sprites['e_' + def.base] || sp;
       if (!sp) continue;
       const feet = e.y + box * FEET_OFF;
-      const moving = !e.atRope && e.stunT <= 0 && e.windup <= 0;
+      const moving = !e.atRope && e.stunT <= 0 && e.windup <= 0 && !(e.bwind > 0);
       const w = e.age * (4 + e.speed * 0.09) + e.phase;
       let bob = 0, rot = 0, sx = 1, sy = 1;
       if (moving) {
@@ -1282,7 +1300,7 @@ export class Renderer {
       } else {
         sy = 1 + Math.sin(t * 3 + e.phase) * 0.02;
       }
-      if (e.windup > 0) { sy = 0.82; sx = 1.14; bob = 0; rot = Math.sin(t * 60) * 0.03; }
+      if (e.windup > 0 || e.bwind > 0) { sy = 0.82; sx = 1.14; bob = 0; rot = Math.sin(t * 60) * 0.03; if (e.bwind > 0 && Math.sin(t * 40) > 0.6) { this.tf(e.x, e.y - box * 0.3, 0, 1, 1); const gl = this.projSprites.glowRed; cx.drawImage(gl.c, -box * 0.6, -box * 0.6, box * 1.2, box * 1.2); } }
       if (e.kbv < -30) rot -= Math.min(0.5, -e.kbv * 0.0012) * (e.phase > 3 ? 1 : -1);
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
       if (e.fleeing) { sx = -sx; bob = -Math.abs(Math.sin(e.age * 18)) * 5; }
@@ -1354,7 +1372,10 @@ export class Renderer {
       } else {
         this.tf(e.x, feet + bob, rot, sx, sy);
         const img = e.flash > 0 ? sp.f : g.hell ? this.hellSprite(sp) : sp.c; // 헬: 붉은 빛을 미리 구운 그림 (그리기 1번)
+        const hid = e.def.traits && e.def.traits.stealth && !e.unveiled;
+        if (hid) cx.globalAlpha = 0.22 + Math.sin(t * 5 + e.phase) * 0.06; // 은신: 흐릿하게
         cx.drawImage(img, -box / 2, -box * FEET, box, box);
+        if (hid) cx.globalAlpha = 1;
       }
       if (def.mid) {
         // 이름표
@@ -1368,6 +1389,14 @@ export class Renderer {
       }
       // 상태 아이콘 / 체력바는 회전 없이
       const top = feet - box * 0.86;
+      if (e.def.traits) { // 특성 아이콘 (머리 위 작은 동그라미)
+        this.world();
+        const keys = Object.keys(e.def.traits).filter((k) => TRAITS[k]);
+        keys.forEach((k, i) => { const x0 = e.x + box * 0.3 + i * 13, y0 = top - 4; cx.fillStyle = 'rgba(10,6,24,0.8)'; cx.beginPath(); cx.arc(x0, y0, 6.5, 0, TAU); cx.fill(); cx.font = `8px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(TRAITS[k].icon, x0, y0 + 0.5); });
+        if (e.pShield > 0) { cx.font = `900 8px ${FONT}`; cx.fillStyle = '#9feaff'; cx.fillText('🛡' + e.pShield, e.x - box * 0.3, top - 4); }
+      }
+      if (e.shredN > 0 && e.shredT > 0) { this.world(); cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.fillStyle = '#ff5a7a'; cx.strokeStyle = '#000'; cx.lineWidth = 2.5; const tx = `방깎×${e.shredN}`; cx.strokeText(tx, e.x, feet + 8); cx.fillText(tx, e.x, feet + 8); }
+      if (e.tauntT > 0) { this.world(); cx.font = `11px ${FONT}`; cx.textAlign = 'center'; cx.fillText('💘', e.x - box * 0.32, top + 2); }
       const vip = e.boss || e.mid || e.elite;
       if (e.slowT > 0 && (!heavy || vip)) { // 진상이 많을 땐 표시를 줄인다
         this.tf(e.x, feet, 0, 1, 0.35);
@@ -1757,6 +1786,14 @@ export class Renderer {
         cx.fillStyle = h.def.diet ? (h.alt ? '#ff5fa2' : '#ffb347') : h.alt ? '#a8a8a8' : '#ffc4ec';
         cx.fillRect(hx - bw / 2, ly + 8, bw * clamp01(f), 4);
       }
+      // 성준영: 체력바 · 잔소리 스택 · 화남
+      if (h.id === 'junyoung' && h.jhpMax) {
+        const f = clamp01(h.jhp / h.jhpMax), bw = 38;
+        cx.fillStyle = 'rgba(0,0,0,0.65)'; roundRect(cx, hx - bw / 2, hy - box * 0.95, bw, 5, 2.5); cx.fill();
+        cx.fillStyle = f < 0.35 ? '#ff5a5a' : '#9fd4ff'; roundRect(cx, hx - bw / 2, hy - box * 0.95, Math.max(2, bw * f), 5, 2.5); cx.fill();
+        cx.font = `900 8px ${FONT}`; cx.textAlign = 'center'; cx.fillStyle = h.rageT > 0 ? '#ff7a4f' : '#fff';
+        cx.fillText(`준영${h.nagStack ? ` ×${h.nagStack}` : ''}${h.rageT > 0 ? ' 🔥' : ''}`, hx, hy - box * 0.95 - 6);
+      }
       // 정소영 잔소리 게이지 (가득 차면 성준영 소환) — "잔소리 70%"
       if (h.def.nag) {
         const on = g.heroes.some((o) => o.id === 'junyoung');
@@ -1853,7 +1890,7 @@ export class Renderer {
     for (const q of g.eprojs || []) {
       const s = q.kind === 'duck' ? P.duck : q.kind === 'paper' ? P.paper : P['ep_' + q.kind] || P.rumor;
       this.tf(q.x, q.y, q.kind === 'rumor' ? Math.sin(q.t * 14) * 0.12 : q.t * 12, 1, 1);
-      cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
+      { const pi = s.paint && this.images[s.paint]; if (imgOk(pi)) { const hh = Math.max(s.h, s.w) * 1.3, ww = hh * pi.naturalWidth / pi.naturalHeight; cx.drawImage(pi, -ww / 2, -hh / 2, ww, hh); } else cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h); }
     }
   }
 

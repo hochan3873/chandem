@@ -2066,3 +2066,10 @@ body.rm .ig-chip img { animation: none; }
 .bag-screen.v2 .eq-row > .eq-mid { grid-area: mid; display: flex; align-items: baseline; gap: calc(var(--u) * 8); }
 .bag-screen.v2 .eq-row > .eq-slot[data-slot="w"] { grid-area: w; } .bag-screen.v2 .eq-row > .eq-slot[data-slot="a"] { grid-area: a; }
 .bag-actions { bottom: calc(var(--u) * 72 + env(safe-area-inset-bottom)); }
+
+.trait-hints { display: flex; flex-direction: column; gap: 3px; margin: 4px 0 6px; }
+.trait-hint { font-size: calc(var(--u) * 11); font-weight: 800; color: #ffe9a8; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 210, 63, 0.35); border-radius: 99px; padding: 2px calc(var(--u) * 10); }
+.trait-hint small { color: var(--dim); }
+.dp-body .dp-sec { margin: calc(var(--u) * 8) 0; padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 10); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
+.dp-body .dp-sec p { margin: calc(var(--u) * 4) 0 0; font-size: calc(var(--u) * 11.5); line-height: 1.45; }
+.dp-body .dp-sec small { display: block; color: #9fe8ff; font-weight: 800; }

@@ -2,13 +2,13 @@
 // 랑방 대전 — 서버가 믿는 경제 규칙 (보상 · 강화 비용 · 해금).
 // 화면 표시/손님용 같은 공식이 public/langbang/data.js 에 있다. 둘이 어긋나면 test/langbang.test.js 가 잡는다.
 
-const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin'];
+const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik'];
 const HIDDEN = ['eunok', 'hanna', 'sunggu'];
-const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin']; // 모집(뽑기)으로만 합류
+const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik']; // 모집(뽑기)으로만 합류
 const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN, ...GACHA]; // 해금이 필요한 영웅
 const META_MAX = 20;
 // 멤버 등급별 강화 한도 (화면 data.js HERO_TIER · TIER_MAX 와 같음)
-const HERO_TIER = { bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1, dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2, hanna: 3, donghan: 3, sunggu: 3, youngjun: 3, junseo: 4, hyungyeong: 4, ara: 4, hochan: 5, soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2 };
+const HERO_TIER = { bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1, dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2, hanna: 3, donghan: 3, sunggu: 3, youngjun: 3, junseo: 4, hyungyeong: 4, ara: 4, hochan: 5, soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, jiwon: 3, wonsik: 3 };
 const TIER_MAX = [20, 20, 20, 20, 20, 20];
 const metaMaxOf = (id) => TIER_MAX[HERO_TIER[id] || 1];
 const STAGE_COUNT = 60;
@@ -17,7 +17,7 @@ const STAGES_PER_CHAPTER = 10;
 const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3
 const ENDLESS_UNLOCK = 10;
 // 도감에 올라가는 진상 (화면 data.js ENEMIES 와 같아야 한다 — 테스트가 검사)
-const ENEMY_IDS = ['yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'queen', 'boss_thug', 'vomit', 'couple', 'handsy', 'gao', 'selfie', 'cutter', 'kkondae', 'spam',
+const ENEMY_IDS = ['earphone', 'noshow', 'clubguy', 'clubgirl', 'praise1', 'praise2', 'yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'queen', 'boss_thug', 'vomit', 'couple', 'handsy', 'gao', 'selfie', 'cutter', 'kkondae', 'spam',
   'inpi_gossip', 'inpi_dictator', 'inpi_clique', 'scammer', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'inpi_treasurer', 'boss_union',
   'mid_mukti', 'mid_drunk', 'mid_thug', 'mid_scammer', 'mid_selfie', 'mid_gao', 'mid_kkondae', 'fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi',
   'fakesingle', 'secretmom', 'carpoor', 'sales', 'sarcasm', 'jjijil', 'otaku', 'drunk_cry', 'drunk_run', 'drunk_sleep', 'drunk_home', 'kkondae2',
