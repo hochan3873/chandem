@@ -3766,3 +3766,16 @@ body.rm .lb-side .ls-hot { animation: none; }
 .mg-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 3); min-height: calc(var(--u) * 76); padding: calc(var(--u) * 6) 0; border-radius: calc(var(--u) * 14); border: 2px solid #0a0614; background: linear-gradient(180deg, #3a2a66, #1c1236 75%); box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.35), inset 0 calc(var(--u) * 2) 0 rgba(255, 255, 255, 0.12), 0 calc(var(--u) * 3) 0 #07040f; color: #fff; }
 .mg-cell .uic { width: calc(var(--u) * 40); height: calc(var(--u) * 40); filter: drop-shadow(0 calc(var(--u) * 2) 0 rgba(0, 0, 0, 0.6)); }
 .mg-cell b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 12); text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000; }
+
+/* 멤버 얼굴(.av.hq)은 이미 동그라미에 맞춘 그림 — 예전 전신 그림용 확대·내림이 얼굴을 잘랐다 */
+.card .ico .av.hq, .pill .ava .av.hq, .card-list.v2 .card .medal .av.hq, .bitem.v2 .bi-eq .av.hq, .vs-deck .vs-h .av.hq, .ov-h .av.hq, .ab-ico .av.hq, .eqh-face .av.hq { width: 100%; height: 100%; margin: 0; }
+/* 화면 속 팁: 눈에 띄게 (전구 그림 + 노란 띠) */
+p.sub.tipbar { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 7); margin: 0 auto calc(var(--u) * 12); width: fit-content; max-width: 100%; box-sizing: border-box;
+  padding: calc(var(--u) * 7) calc(var(--u) * 12); border-radius: calc(var(--u) * 12); background: linear-gradient(90deg, rgba(255, 210, 63, 0.2), rgba(255, 150, 40, 0.12));
+  border: 1.5px solid rgba(255, 210, 63, 0.55); color: #fff3c4; font-size: calc(var(--u) * 12.5); font-weight: 800; line-height: 1.4; text-align: left; word-break: keep-all;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); box-shadow: 0 0 calc(var(--u) * 12) rgba(255, 210, 63, 0.18); animation: tipIn 0.5s 0.15s both; }
+p.sub.tipbar > .uic, p.sub.tipbar > img:first-child { flex: none; width: calc(var(--u) * 22); height: calc(var(--u) * 22); animation: tipBulb 2.4s ease-in-out infinite; }
+p.sub.tipbar > span { min-width: 0; }
+@keyframes tipIn { from { opacity: 0; transform: translateY(calc(var(--u) * 6)) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes tipBulb { 0%, 100% { filter: drop-shadow(0 0 0 rgba(255, 220, 90, 0)); } 50% { filter: drop-shadow(0 0 calc(var(--u) * 6) rgba(255, 220, 90, 0.95)); } }
+body.rm p.sub.tipbar, body.rm p.sub.tipbar > * { animation: none; }

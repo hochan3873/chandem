@@ -2619,7 +2619,7 @@ function showShop() {
         <button class="btn primary" data-act="gpull" data-n="10"><b>10회 뽑기</b><small>${ic('gem', '', 'sm')}${L.GEAR_GACHA_COST.ten} · 영웅 이상 1개</small></button>
       </div>
       <button class="btn ghost rates-btn" data-act="grates">${ic('chart', '', 'sm')} 확률 공개 · 보유 강화석 ${ic('gem', '', 'sm')}${p.stones | 0}</button>
-      <p class="sub">강화석은 스테이지 보상 · 장비 분해로 모여요</p>`;
+      <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>강화석은 스테이지 보상 · 장비 분해로 모여요</span></p>`;
   } else if (tab === 'recruit') {
     const pity = L.PITY_HERO - (p.pity.hero | 0);
     const lopen = L.legendOpen(p);
@@ -2643,7 +2643,7 @@ function showShop() {
  </div>
  <button class="btn ghost rates-btn" data-act="rates">${ic('chart', '', 'sm')} 확률 공개 · 보유 모집권 ${ic('ticket', '', 'sm')}${p.unlimited ? '∞' : p.tickets | 0}</button>
       <div class="card-prog">${[...GACHA_HEROES, ...LEGEND_HEROES].map((h) => { const pr = L.cardProgress(p, h); const d = HEROES[h]; const lock = LEGEND_HEROES.includes(h) && !L.legendOpen(p); const ok = own(h); return `<div class="cp ${pr ? '' : 'done'} ${lock ? 'lock' : ''}" style="--c:${d.color}">${av(d, ok ? '' : 'sil')}<b>${ok ? esc(d.name) : `<span class="cp-attr">${attrIco(d.attr)}</span>???`}</b>${pr ? `<i><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i><small>${lock ? `${stageLabel(L.HOCHAN_GATE)} 뒤` : `${pr[0]}/${pr[1]}장`}</small>` : '<small>합류 </small>'}</div>`; }).join('')}</div>
-      <p class="sub">모집 멤버는 <b>카드</b>를 모아 합류 (영웅 ${L.UNLOCK_CARDS.epic}장 · LEGEND ${L.UNLOCK_CARDS.legend}장) · 합류한 뒤 카드와 조각으로 <b>★ 승급</b> (공격력 +${Math.round(L.STAR_ATK * 100)}% / ★)</p>`;
+      <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>모집 멤버는 <b>카드</b>를 모아 합류 (영웅 ${L.UNLOCK_CARDS.epic}장 · LEGEND ${L.UNLOCK_CARDS.legend}장) · 합류한 뒤 카드와 조각으로 <b>★ 승급</b> (공격력 +${Math.round(L.STAR_ATK * 100)}% / ★)</span></p>`;
   } else {
     body = `<div class="up-list">${ITEM_IDS.map((id) => {
       const it = ITEMS[id];
@@ -2952,7 +2952,7 @@ function showMembers() {
   }).join('');
   show(`
     ${subTop('멤버')}
-    <p class="sub">멤버를 누르면 자세한 설명 · 강화 · ★승급 · 장비</p>
+    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>멤버를 누르면 자세한 설명 · 강화 · ★승급 · 장비</span></p>
     <div class="agrid">${cards}</div>
     ${navHtml('members')}
   `, 'dim withnav');
@@ -3065,7 +3065,7 @@ function showDeckTab() {
  </div>
  <div class="dk-power"><small>덱 전투력</small><b id="dkPow" data-from="${app.lastDeckPow || pw}" data-to="${pw}">${fmt(pw)}</b><em class="${diff >= 0 ? 'up' : 'down'}">다음 스테이지 추천보다 ${diff >= 0 ? '+' : ''}${diff}%</em></div>
     <div class="dk-slots n${max}">${slots.join('')}</div>
-    <p class="sub">${ids.length}/${max}명 · 누르면 넣기/빼기 · 끌어서 순서 · 1번 칸 = 대장</p>
+    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${ids.length}/${max}명 · 누르면 넣기/빼기 · 끌어서 순서 · 1번 칸 = 대장</span></p>
     <div class="chips dk-chips">${ROLE_CHIPS.map(([k, n]) => `<button class="chip ${f === k ? 'on' : ''}" data-act="deckFilter" data-v="${k}" data-gl="${k.startsWith('a:') ? 'attr:' + k.slice(2) : ROLE_IC[k] ? 'role:' + k : /^t\d$/.test(k) ? 'tier:' + k.slice(1) : ''}">${k.startsWith('a:') ? attrIco(k.slice(2)) + ATTRS[k.slice(2)].name : ROLE_IC[k] ? `<img class="role-ic" src="/img/lb/ui2/${ROLE_IC[k]}.webp" alt="" draggable="false">${n.replace(/^\S+\s/, '')}` : n}</button>`).join('')}<button class="chip gl-open" data-act="glossary" aria-label="한눈에 보기">${ic('book', '', 'sm')}한눈에</button></div>
     <div class="agrid three">${coll || '<div class="empty-state"><span></span><b>이 조건의 멤버가 없어요</b></div>'}</div>
     ${navHtml('deck')}
@@ -5442,7 +5442,7 @@ function showItemDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${all.length}</button></div>
-    <p class="sub">한 번이라도 얻은 장비가 기록돼요${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'} <button class="chip mini" data-act="dropTable">드롭 표</button></p>
+    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>한 번이라도 얻은 장비가 기록돼요${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'} <button class="chip mini" data-act="dropTable">드롭 표</button></span></p>
     <div class="dex-grid v2 idx-grid">${all.map(cell).join('')}</div>
     <h3 class="sec-t">소모품</h3>
     <div class="dex-grid v2 idx-grid">${L.CONS_IDS.map((id) => { const c = L.CONS[id]; const known = !c.hidden || (P().consDex || []).includes(id); if (!known) return `<button class="dexc2 idx lock" data-act="bagTabGo" data-v="cons"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>???</b></button>`; return `<button class="dexc2 idx r-${c.rarity}" data-act="bagTabGo" data-v="cons" style="--c:${CONS_RC[c.rarity]}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>${esc(c.name)}</b></button>`; }).join('')}</div>
@@ -5484,7 +5484,7 @@ function showDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
-    <p class="sub">${tab === 'hero' ? '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버' : '만나 본 진상만 기록돼요 · 눌러서 약점 확인! · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</p>
+    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${tab === 'hero' ? '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버' : '만나 본 진상만 기록돼요 · 눌러서 약점 확인! · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</span></p>
     <div class="dex-grid v2">${cards}</div>
   `, 'dim');
 }
@@ -5770,9 +5770,9 @@ function showBag() {
   } else if (tab === 'overOld') {
     body = `<div class="eq-over v2"><div class="eq-head"><span class="eq-scope">${app.bagAll ? '가진 멤버 전부' : '지금 덱'}</span><button class="chip" data-act="bagAll">${app.bagAll ? '덱만 보기' : '전부 보기'}</button></div>
       <div class="eq-rows">${rows}</div>
- <p class="sub">칸을 누르면 끼울 장비를 골라요 · ${ic('gem', '', 'sm')} 강화석 <b>${p.stones | 0}</b></p></div>`;
+ <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>칸을 누르면 끼울 장비를 골라요 · ${ic('gem', '', 'sm')} 강화석 <b>${p.stones | 0}</b></span></p></div>`;
   } else if (tab === 'cons') {
-    body = `<div class="cons-inv">${L.CONS_IDS.map((id) => { const c = L.CONS[id], n = (p.cons || {})[id] | 0; if (c.hidden && !(p.consDex || []).includes(id) && !n) return `<div class="ci-row none" style="--rc:#4a3f60">${consIc(id, 'sil')}<span><b>???</b><small>${esc(c.tip)}</small><small class="ci-tip">${esc(c.hint || '')}</small></span></div>`; return `<div class="ci-row ${n ? '' : 'none'}" style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small><small class="ci-tip">${esc(c.tip)}</small></span></div>`; }).join('')}</div><p class="sub">출전 화면 소모품 칸에 넣어 가면 전투 중에 눌러 써요 · 칸마다 판에 한 번</p>`;
+    body = `<div class="cons-inv">${L.CONS_IDS.map((id) => { const c = L.CONS[id], n = (p.cons || {})[id] | 0; if (c.hidden && !(p.consDex || []).includes(id) && !n) return `<div class="ci-row none" style="--rc:#4a3f60">${consIc(id, 'sil')}<span><b>???</b><small>${esc(c.tip)}</small><small class="ci-tip">${esc(c.hint || '')}</small></span></div>`; return `<div class="ci-row ${n ? '' : 'none'}" style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small><small class="ci-tip">${esc(c.tip)}</small></span></div>`; }).join('')}</div><p class="sub tipbar">${ic('bulb', '', 'sm')}<span>출전 화면 소모품 칸에 넣어 가면 전투 중에 눌러 써요 · 칸마다 판에 한 번</span></p>`;
   } else if (tab === 'bag') {
     body = `${tools}${app.bulk ? bulkBarHtml(p, locks) : ''}${grid}`;
   } else {
@@ -5876,7 +5876,7 @@ function equipTabHtml(p) {
         <div class="eq-st">${statLines(st)}</div>
         <button class="chip mini" data-act="eqUnall" data-hero="${sel}" ${sl.w || sl.a || sl.m ? '' : 'disabled'}>전체 해제</button></div>
     </div>
-    <p class="sub eq-tip">칸을 누르면 비교하며 골라요 · 다른 멤버 장비도 한 번에 "빼서 끼기"</p>
+    <p class="sub eq-tip tipbar">${ic('bulb', '', 'sm')}<span>칸을 누르면 비교하며 골라요 · 다른 멤버 장비도 한 번에 "빼서 끼기"</span></p>
     <div class="eq-slots2">${slot('w')}${slot('a')}</div>
     <div class="eq-slots2 myth">${slot('m')}</div>
   </div>`;
@@ -6214,7 +6214,7 @@ function showHowto() {
  <div class="it"><i>${ic('retry', '', 'sm')}</i><div>필드의 멤버를 <b>끌어다 놓으면</b> 자리를 바꿔요. 짧게 누르면 공격 방식·스킬·사거리를 보여 줘요.</div></div>
  </div>
  <h2 class="title" style="font-size:calc(var(--u)*18);margin-top:14px">속성 상성</h2>
- <p class="sub">머리 쓰는 진상(유혹·정치)엔 말빨 · 술, 몸 쓰는 진상(폭력·진상)엔 힘 · 매력! (×${TYPE_STRONG} / ×${TYPE_WEAK})</p>
+ <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>머리 쓰는 진상(유혹·정치)엔 말빨 · 술, 몸 쓰는 진상(폭력·진상)엔 힘 · 매력! (×${TYPE_STRONG} / ×${TYPE_WEAK})</span></p>
     <table class="tchart"><tr><th></th>${Object.values(CLASSES).map((c) => `<th>${clsIco(c.id)}<br>${c.name}</th>`).join('')}</tr>
       ${Object.values(ATTRS).map((a) => `<tr><th>${attrIco(a.id)} ${a.name}</th>${Object.keys(CLASSES).map((c) => { const m = typeMul(a.id, c); return `<td class="${m > 1 ? 'st' : m < 1 ? 'wk' : ''}">${m > 1 ? '◎' : m < 1 ? '△' : '·'}</td>`; }).join('')}</tr>`).join('')}
     </table>
