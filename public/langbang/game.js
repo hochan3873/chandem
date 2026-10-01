@@ -4496,6 +4496,7 @@ function recIndex(g, cards) {
 }
 function openCards() {
   const g = app.g;
+  if (!g || app.screen !== 'play' || g.over || g.phase === 'victory') return; // 판이 끝났으면 (결과 화면 뒤로 카드가 비치지 않게) 안 연다
   app.cardsOpen = true;
   cardQBtn.hidden = true;
   app.cardsAt = performance.now();
