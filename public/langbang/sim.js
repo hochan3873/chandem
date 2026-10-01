@@ -3405,3 +3405,24 @@ export function useCons(g, id) {
   } else return false;
   return true;
 }
+
+// ─── 친구 도우미: 레이드에 친구 대표 멤버 한 명이 더 (친구의 강화 · 성급 · 장비 그대로) ───
+// s = { hero, lv, star, gear(장비 능력치 · gearStats 결과), nick } — 서버가 만든 모습. 내 덱에 같은 멤버가 있으면 못 온다
+export function addSupport(g, s) {
+  if (!s || !HEROES[s.hero] || hasHero(g, s.hero)) return null;
+  g.meta = Object.assign({}, g.meta, { [s.hero]: Math.max(0, s.lv | 0) });
+  g.hstars = Object.assign({}, g.hstars, { [s.hero]: Math.max(1, Math.min(5, s.star | 0 || 1)) });
+  g.gear = Object.assign({}, g.gear, { [s.hero]: s.gear || {} });
+  const used = new Set(g.heroes.map((o) => o.slot));
+  const order = g.nPos >= 7 ? [3, 2, 4, 1, 5, 0, 6] : SLOT_ORDER;
+  const slot = order.filter((x) => x < g.nPos && !used.has(x))[0];
+  g._summoning = true; // 덱 인원 제한과 상관없이 (소환처럼)
+  const h = addHero(g, s.hero, slot);
+  g._summoning = false;
+  if (!h) return null;
+  if (slot === undefined) { const mid = g.heroes.find((o) => o !== h && o.slot === order[0]) || g.heroes[0]; h.slot = mid.slot; h.x = h.rx = h.px = mid.x + 26; h.overlap = true; }
+  h.support = String(s.nick || '친구').slice(0, 12);
+  g.maxHeroes = (g.maxHeroes || 99) + 1; // 도우미 자리는 따로 (카드 합류 칸을 빼앗지 않게)
+  g.support = { hero: s.hero, nick: h.support };
+  return h;
+}

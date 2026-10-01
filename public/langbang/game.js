@@ -17,6 +17,7 @@ import { Renderer } from './render.js';
 import * as A from './audio.js';
 import * as API from './api.js';
 import * as SH from './share.js';
+import * as FRX from './friends.js';
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -375,6 +376,7 @@ async function startRun(opt = {}) {
     g.events.length = 0;
   }
   g.cons = consIds; g.consUsed = {};
+  if (mode === 'raid' && opt.help) { const sh = S.addSupport(g, { ...opt.help, gear: gearStats(opt.help.gear || []) }); if (sh) toast(`도우미 합류! ${opt.help.nick}님의 ${HEROES[opt.help.hero].name}`, 2600); }
   g.lastSnap = S.snapshot(g); // 첫 웨이브 전에 나가도 이어할 수 있게
   const locked = mode === 'stage' && !stageUnlocked(st);
   app.debugRun = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || locked;
@@ -1077,6 +1079,11 @@ function handleEvents(g, loud) {
           for (let k = 0; k < 20; k++) fx.part('star', 40 + Math.random() * 280, g.H * 0.2 + Math.random() * 200, (Math.random() - 0.5) * 80, -60, 1.4, 12, null, { grav: 60 });
         } else if (g.mode === 'stage') fx.banner(`${stageLabel(g.stage)} 클리어!!`, starStr(e.stars), '#c77a00', 2.4, 'big');
         else fx.banner('랑방 수호 성공!!', '20웨이브 전부 막아냈다', '#c77a00', 2.6, 'big');
+        if (loud) A.sfx.win();
+        if (live) endRun(true);
+        break;
+      case 'raidEnd': // 레이드 시간 끝 → 결과 (예전엔 이 이벤트를 안 받아서 판이 멈춰 있었다)
+        fx.banner('레이드 종료!', `보스에게 ${fmt(e.dmg || 0)} 피해`, '#5a2aa0', 2.2, 'big');
         if (loud) A.sfx.win();
         if (live) endRun(true);
         break;
@@ -1955,6 +1962,7 @@ function lobbyStage() {
 function todoList() {
   const p = P(), now = Date.now(), out = [];
   const mail = L.mailCount(p); if (mail) out.push({ txt: `우편 ${mail}통 받기`, ic: 'mail', go: 'mail' });
+  const frb = FRX.badge(p); if (frb) out.push({ txt: `친구 소식 ${frb}개 (선물 · 요청)`, ic: 'gift', go: 'friends' });
   const mis = L.claimable(p, uid(), now); if (mis) out.push({ txt: `미션 보상 ${mis}개 받기`, ic: 'scroll', go: 'missions' });
   if (!L.checkinState(p, now).done) out.push({ txt: '오늘 출석 체크', ic: 'calendar', go: 'checkin' });
   const tier = L.seasonTier(p); if (p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t))) out.push({ txt: '시즌 보상 받기', ic: 'trophy', go: 'season' });
@@ -1968,6 +1976,7 @@ function todoList() {
 function todoGo(t) {
   closeInfoCard();
   if (t.go === 'mail') ACTS.mail();
+  else if (t.go === 'friends') FRX.showFriends(L.giftInbox(P()).length ? 'gifts' : 'req');
   else if (t.go === 'missions') { const p = P(), now = Date.now(); const v = L.missionView(p, uid(), now); app.misTab = ['daily', 'weekly', 'ach'].find((k) => v[k].some((m) => !m.done && m.have >= m.n)) || app.misTab; showMissions(); setTimeout(() => { const b = document.querySelector('[data-act="claimMis"]:not([disabled])'); if (b) { b.scrollIntoView({ block: 'center', behavior: 'smooth' }); b.closest('.ms-row, div').classList.add('todo-hl'); } }, 60); }
   else if (t.go === 'checkin') showCheckin();
   else if (t.go === 'season') { showSeason(); setTimeout(() => { const b = document.querySelector('[data-act="claimSeason"]:not([disabled]):not([data-t="all"])'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); }
@@ -2210,8 +2219,8 @@ function showMenu() {
     `<button class="tile ${L.raidState(now).open ? 'hot' : ''}" data-act="raid">${uiIco('raid', '')}<b>레이드</b><small class="tl-t ${L.raidState(now).open ? 'raid-open' : ''}">${esc(shortTime(L.raidLabel(now).text))}</small>${rdot(L.raidState(now).open && !(p.raid && p.raid.wi === L.raidState(now).wi && p.raid.runs))}</button>`,
     `<button class="tile" data-act="pvp">${uiIco('pvp', '')}<b>1:1 대전</b><small class="tl-t">${(p.pvp && p.pvp.rating) || 1000}점</small></button>`,
   ].join('');
-  const right = [['missions', '미션', '', 'missionsNav'], ['share', '공유', '', 'share'], ['checkin', '출석', '', 'checkin'], ['ranking', '랭킹', '', 'ranking'], ['dex', '도감', '', 'dex'], ['mail', '우편', '', 'mail'], ['notice', '공지', '', 'notice'], ['settings', '설정', '', 'settings']]
-    .map(([ic0, n, e, act]) => `<button class="rb" data-act="${act}">${ic0 === 'notice' ? '<span class="uic"><img src="/img/lb/ui2/megaphone.webp" alt="" draggable="false"></span>' : uiIco(ic0, '')}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions) || (act === 'mail' && L.mailCount(p) > 0))}</button>`).join('');
+  const right = [['missions', '미션', '', 'missionsNav'], ['share', '공유', '', 'share'], ['checkin', '출석', '', 'checkin'], ['ranking', '랭킹', '', 'ranking'], ['dex', '도감', '', 'dex'], ['mail', '우편', '', 'mail'], ['friends', '친구', '', 'friends'], ['notice', '공지', '', 'notice'], ['settings', '설정', '', 'settings']]
+    .map(([ic0, n, e, act]) => `<button class="rb" data-act="${act}">${ic0 === 'notice' ? '<span class="uic"><img src="/img/lb/ui2/megaphone.webp" alt="" draggable="false"></span>' : ic0 === 'friends' ? '<span class="uic"><img src="/img/lb/ui2/ic_party.webp" alt="" draggable="false"></span>' : uiIco(ic0, '')}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions) || (act === 'mail' && L.mailCount(p) > 0) || (act === 'friends' && FRX.badge(p) > 0))}</button>`).join('');
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~6)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
@@ -3509,10 +3518,14 @@ async function showRaid() {
   if (!app.guest) { const bd = await API.raidBoard(); if (app.screen === 'raid') render(bd); }
 }
 async function startRaid() {
-  const r = await API.raidStart();
+  // 친구 도우미: 친구 대표 멤버 한 명을 데려간다 (고를 친구가 없으면 바로 혼자 · 취소하면 그만)
+  const fid = await FRX.pickHelper((curDeck() || []).filter(Boolean));
+  if (fid === false) return;
+  const r = await API.raidStart(fid);
   if (!r.ok) { toast(r.message || '레이드를 시작할 수 없어요'); return; }
+  if (r.profile) app.profile = r.profile;
   app.raidRun = r.runId;
-  startRun({ mode: 'raid', force: true, raidWi: r.wi });
+  startRun({ mode: 'raid', force: true, raidWi: r.wi, help: r.help || null });
 }
 async function saveRaid(sum, g, box) {
   const r = await API.postRaid(sum, app.raidRun, g.raid.dmg);
@@ -3522,7 +3535,7 @@ async function saveRaid(sum, g, box) {
   if (!r.ok) { box.innerHTML = `<div class="err">기록을 저장하지 못했어요: ${esc(r.message || '')}</div>`; return; }
   const rd = r.raid || {};
   box.innerHTML = `<div class="rewards"><div class="rw hl"><span>${ic('dragon', '', 'sm')}이번 판 피해</span><b>${fmt(rd.dmg || 0)}</b></div><div class="rw"><span>이번 주 내 피해</span><b>${fmt(rd.mine || 0)}</b></div>
-    <div class="rw"><span>모두 합계</span><b>${fmt(rd.total || 0)} / ${fmt(rd.hp || L.RAID.hp)}</b></div></div>${r.rank ? `<div class="own"><span class="badge">기여 ${r.rank}위</span></div>` : ''}${rd.master ? '<div class="guest-note">마스터 테스트 판은 순위에 안 들어가요</div>' : ''}`;
+    <div class="rw"><span>모두 합계</span><b>${fmt(rd.total || 0)} / ${fmt(rd.hp || L.RAID.hp)}</b></div></div>${r.rank ? `<div class="own"><span class="badge">기여 ${r.rank}위</span></div>` : ''}${rd.help && HEROES[rd.help.hero] ? `<div class="fr-helped">${av(HEROES[rd.help.hero])}<span><b>${esc(rd.help.nick)}님의 멤버가 도와줬어요</b><small>${esc(HEROES[rd.help.hero].name)} · 친구에게 도움 포인트가 쌓였어요</small></span></div>` : ''}${rd.master ? '<div class="guest-note">마스터 테스트 판은 순위에 안 들어가요</div>' : ''}`;
 }
 
 // ─── 실시간 1:1 대전 ──────────────────────────────────
@@ -6192,6 +6205,10 @@ async function boot() {
   else if (Q.has('autostart')) startRun(Q.has('endless') ? { mode: 'endless', force: true } : { mode: 'stage', stage: nextStage(), force: true });
 }
 
+// 친구 화면 (public/langbang/friends.js): 화면 도구를 넘기고 버튼 동작을 합친다
+Object.assign(ACTS, FRX.initFriends({
+  app, P, setProfile: (p) => { app.profile = p; }, show, popup, toast, confirmBox, topbar, esc, fmt, ic, av, frameCls, frameStyle, whoHtml, titleChip,
+}));
 // 테스트/디버그용 핸들
 window.__lb = {
   face: () => DEX_FACE,
