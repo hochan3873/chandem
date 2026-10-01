@@ -192,7 +192,7 @@ function infoPop() {
   const rules = Object.keys(TW.RULES).map((r) => `<div class="tw-ir">${ruleIc(r)}<span><b>${esc(TW.RULES[r].name)}</b><small>${esc(TW.RULES[r].desc)}</small><em>${esc(TW.RULES[r].hint)}</em></span></div>`).join('');
   const miles = Object.entries(TW.MILES).map(([f, m]) => `<p class="ip">${C.ic('crown', '', 'sm')}<b>${f}F</b> ${esc(m.label)}</p>`).join('');
   C.popup(`<h3>${C.ic('book', '', 'sm')}진상의 탑 안내</h3>
-    <p class="ip">60층 · 15층마다 구역 · 5층마다 보스 · 46층부터 규칙 둘 · 멤버 <b>한 명</b>만 · 위로 갈수록 진상 체력 ×${TW.TOWER.hpGrow} (복리)</p>
+    <p class="ip">60층 · 15층마다 구역 · 5층마다 보스 · 46층부터 규칙 둘 · 멤버 <b>한 명</b>만 · 위로 갈수록 진상이 단단해진다 (30층 체력 ×${Math.round(TW.floorHp(30) / TW.floorHp(1))} · 16~35층이 가장 가파르다)</p>
     <p class="ip">하루 도전 <b>${TW.TOWER.tries}번</b> (자정 초기화) · 깬 판은 도전을 돌려받아요 · 체력은 안 써요</p>
     <h4 class="gl-h">층 규칙</h4>${rules}
     <h4 class="gl-h">보상 (층을 처음 깰 때)</h4><p class="ip">코인 · 염화석 · 강화석 · 보스 층 모집권 · 구역 끝 모집권 3</p>${miles}

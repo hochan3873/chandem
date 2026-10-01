@@ -1611,7 +1611,7 @@ function renderSkillbar() {
   renderConsBar();
   const list = g.heroes.filter((h) => h.def.skill && !h.summon).sort((a, b) => (b.id === g.leader) - (a.id === g.leader) || a.slot - b.slot);
   list.forEach((h, i) => { h._skNo = i + 1; });
-  const key = list.map((h) => h.id + h.lv).join(',');
+  const key = list.map((h) => h.id + h.lv + '@' + h.slot).join(','); // 칸도 (자리를 옮기면 버튼이 옛 칸을 가리키지 않게)
   if (skillbar.dataset.key !== key) {
     skillbar.dataset.key = key;
     skillbar.dataset.n = list.length;

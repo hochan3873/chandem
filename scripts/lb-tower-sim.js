@@ -3,6 +3,8 @@
 //   node scripts/lb-tower-sim.js                    멤버별로 "보통(+10 ★3 괜찮은 장비)" · "최대(+20 ★5 최고 장비 + 지옥 세트)" 가 몇 층까지 가나
 //   node scripts/lb-tower-sim.js floor 25 ara       한 층을 여러 판 (승률 · 걸린 시간)
 //   옵션: --heroes=ara,bangjang  --seeds=N (층마다 판 수, 기본 3 · 그중 하나라도 이기면 통과)  --tries=N (하루 도전처럼 실패 허용)
+//   node scripts/lb-tower-sim.js grid --p=strong --from=20 --to=60 --seeds=3   계정 전체(모든 멤버가 그 성장)로 층마다 누가 깨나 — 실제 계정은 층마다 멤버를 바꿔 오르니 막히는 층은 이걸로 본다
+//   숫자 바꿔 보기: --grow=[[2,1.09,1.04],[16,1.17,1.05]]  --ts.solo.youngjun=0.7 (data.js TOWER_SIM)
 const path = require('path');
 const { pathToFileURL } = require('url');
 const LIB = path.join(__dirname, '..', 'public', 'langbang');
@@ -14,9 +16,11 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
 
 (async () => {
   const D = await load('data.js');
+  for (const a of args.filter((x) => x.startsWith('--ts.'))) { const [k, v] = a.slice(5).split('='); const ks = k.split('.'); let o = D.TOWER_SIM; while (ks.length > 1) o = o[ks.shift()]; o[ks[0]] = Number(v); } // 규칙 숫자 바꿔 보기: --ts.solo.youngjun=0.8
   const S = await load('sim.js');
   const T = await load('tower.js');
-  for (const k of ['hpGrow', 'atkGrow', 'hp0', 'atk0', 'exp']) if (opt(k)) T.TOWER[k] = Number(opt(k)); // 숫자 바꿔 보기: --hpGrow=1.07
+  for (const k of ['hp0', 'atk0', 'exp']) if (opt(k)) T.TOWER[k] = Number(opt(k)); // 숫자 바꿔 보기: --hp0=1.2
+  if (opt('grow')) T.TOWER.grow = JSON.parse(opt('grow')); // 구간: --grow=[[2,1.1,1.04],[25,1.07,1.03]]
   // 성장 단계: 장비는 무기 · 액세서리 · 신화 칸 능력치 합 · 지옥 세트 · 각성
   const PROFILES = {
     typical: { name: '보통 (+10 ★3)', meta: 10, star: 3, items: { door: 8, battery: 6, charm: 6 }, gear: { atk: 0.3, spd: 0.08, crit: 0.04, skill: 0.18 }, hell: 0 },
@@ -106,7 +110,8 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
     const out = [];
     for (let f = from; f <= to; f += step) {
       const ok = [];
-      for (const h of hs) { let w = false; for (let s = 1; s <= 2 && !w; s++) w = play(h, f, P, f * 101 + s * 7, awakeAt(f)).win; if (w) ok.push(D.HEROES[h].name); }
+      const n = Number(opt('seeds', 2)); // 멤버마다 판 수 (하루 도전처럼)
+      for (const h of hs) { let w = false; for (let s = 1; s <= n && !w; s++) w = play(h, f, P, f * 101 + s * 7, awakeAt(f)).win; if (w) ok.push(D.HEROES[h].name); }
       console.log(`${String(f).padStart(2)}층 ${pad(T.floorRules(f).join('+'), 14)} ${String(ok.length).padStart(2)}명  ${ok.join(' ')}`);
       out.push(ok.length);
     }

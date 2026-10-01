@@ -9,7 +9,10 @@ const int = (v, lo = 0, hi = 1e9) => { const n = Math.floor(Number(v)); return N
 // ─── 기본 숫자 (밸런스: scripts/lb-tower-sim.js 로 맞춘 값) ───
 export const TOWER = {
   floors: 60, perZone: 15, unlock: 10, tries: 5, // 1-10 클리어로 열림 · 하루 5번 (실패할 때만 깎인다)
-  hpGrow: 1.065, atkGrow: 1.035, // 층마다 진상 체력 ×1.065 (60층 ≈ 1층의 41배) · 공격력 ×1.035 (≈ 8배) — 1.09 로는 최고 성장(+20 ★5 최고 장비)도 46층부터 한 판도 못 깼다 (scripts/lb-tower-sim.js)
+  // 층마다 진상 체력 · 공격력 배율 (복리): [이 층부터, 체력 ×, 공격력 ×] — scripts/lb-tower-sim.js grid 로 맞춘 값
+  //  예전 한 줄(체력 ×1.065)은 멤버를 층마다 바꿔 가며 오르면 +10 ★3 계정도 42층, +15 ★4 는 53층까지 갔다 (출시 첫날 47층)
+  //  → 16~35층을 가파르게: 계정 전체 +10 ★3 은 29층 · +15 ★4 는 33층에서 막힌다 · 46층부터는 규칙 둘이 벽이라 체력은 거의 그대로
+  grow: [[2, 1.09, 1.04], [16, 1.17, 1.05], [26, 1.09, 1.04], [36, 1.015, 1.02], [46, 1.005, 1.01]],
   hp0: 0.9, atk0: 0.55, waveHp: 0.14, // 1층 체력 · 공격 배율 · 같은 층 웨이브마다 체력 +14%
   exp: 2.1, // 혼자라서 경험치를 넉넉히 (레벨업 카드가 판마다 5~7번)
   minSec: 8, // 웨이브 하나에 최소 8초 (조작 방지)
@@ -35,9 +38,9 @@ export const isBossFloor = (f) => f % 5 === 0;
 // ─── 층 규칙: 층마다 하나 (46~60층은 둘) — 모든 멤버가 빛나는 층이 있게 돌아가며 ───
 export const RULES = {
   titan: { id: 'titan', name: '거물', short: '거물', color: '#ff8a4f', desc: '한 번에 한 명씩 · 아주 느리지만 체력이 엄청나고 문을 세게 친다', hint: '추천: 한 방 · 단일 공격 · 보스 킬러' },
-  swarm: { id: 'swarm', name: '떼거리', short: '떼거리', color: '#ffd23f', desc: '약한 진상이 서너 배로 쏟아진다 — 지치지 마라', hint: '추천: 범위 · 관통 · 연쇄' },
-  curse: { id: 'curse', name: '저주', short: '저주', color: '#c77dff', desc: '진상이 계속 기절 · 침묵 · 홀림 · 감속을 건다', hint: '추천: 상태이상 해제 · 면역 · 저항 장비' },
-  rush: { id: 'rush', name: '돌진', short: '돌진', color: '#6ff0ff', desc: '빠른 진상이 몰려오고 잘 피한다 (느려지거나 기절한 진상은 못 피함)', hint: '추천: 감속 · 기절 · 밀어내기' },
+  swarm: { id: 'swarm', name: '떼거리', short: '떼거리', color: '#ffd23f', desc: '약한 진상이 서너 배로 쏟아진다 — 지치지 마라', hint: '추천: 범위 · 관통 · 연쇄 (돌격형은 둘러싸여 금방 지친다)' },
+  curse: { id: 'curse', name: '저주', short: '저주', color: '#c77dff', desc: '진상이 계속 기절 · 침묵 · 홀림 · 감속을 건다 (돌격 중에 걸리면 돌격이 끊긴다)', hint: '추천: 상태이상 해제 · 면역 · 저항 장비' },
+  rush: { id: 'rush', name: '돌진', short: '돌진', color: '#6ff0ff', desc: '빠른 진상이 몰려오고 잘 피한다 (느려지거나 기절한 진상은 못 피함)', hint: '추천: 감속 · 기절 · 밀어내기 (근접 돌격은 절반이 빗나간다)' },
   seal: { id: 'seal', name: '속성 봉인', short: '봉인', color: '#7be38f', desc: '한 속성은 피해 −60% · 다른 한 속성은 +30%', hint: '추천: 강해지는 속성' },
   shield: { id: 'shield', name: '보호막', short: '보호막', color: '#9feaff', desc: '모든 진상이 보호막 3겹 (한 방에 한 겹 · 3초마다 다시 참) + 체력 보호막', hint: '추천: 연사 · 범위 · 보호막 깨기' },
   dark: { id: 'dark', name: '어둠', short: '어둠', color: '#8a8fb8', desc: '사거리 −35% · 진상이 가까이 오기 전엔 안 보이고 불도 자주 꺼진다', hint: '추천: 근접 · 오라 · 은신 탐지' },
@@ -76,8 +79,11 @@ export function ruleHint(r, f) {
 }
 export const floorBoss = (f) => (isBossFloor(f) ? zoneOf(f).bosses[((f - 1) % 15) / 5 | 0] : null);
 // 층 배율: 체력 · 공격력 (1층 = hp0 · atk0)
-export const floorHp = (f) => TOWER.hp0 * Math.pow(TOWER.hpGrow, int(f, 1, 999) - 1);
-export const floorAtk = (f) => TOWER.atk0 * Math.pow(TOWER.atkGrow, int(f, 1, 999) - 1);
+//  TOWER.grow 구간마다 한 층 오를 때 곱하는 값이 다르다
+export const growAt = (f, i) => { let r = 1; for (const s of TOWER.grow) if (f >= s[0]) r = s[i]; return r; };
+const growMul = (f, i) => { let m = 1; for (let x = 2; x <= int(f, 1, 999); x++) m *= growAt(x, i); return m; };
+export const floorHp = (f) => TOWER.hp0 * growMul(f, 1);
+export const floorAtk = (f) => TOWER.atk0 * growMul(f, 2);
 
 // ─── 탑 전용 보스: 원래 보스 그림에 지옥 색 + 새 이름 · 구역 기술 하나 더 ───
 const TB = [
