@@ -618,7 +618,10 @@ function handleEvents(g, loud) {
       case 'baseHit':
         fx.baseHitA = Math.min(1, fx.baseHitA + (e.boss ? 0.8 : 0.35));
         fx.ropeWobble = 1;
-        if (e.boss) fx.addShake(6);
+        fx.addShake(e.boss ? 6 : 1.5);
+        // 문 부수기: 나무 조각 · 불꽃 · 바닥 금 (많을 땐 조각 생략)
+        if (!busy) { fx.burst(e.x, e.y - 4, e.boss ? 12 : 6, '#c9a27a', e.boss ? 220 : 160, 'dot', 4, 0.55, 420); fx.burst(e.x, e.y - 8, e.boss ? 6 : 3, '#ffd27a', 130, 'star', 6, 0.35); }
+        R.vfx('crack', e.x, e.y + 6, { anim: 'fade', dur: e.boss ? 900 : 520, sz: e.boss ? 130 : 64, flat: true });
         fx.text(e.x, e.y + 20, '-' + e.v, '#ff5a6a', e.boss ? 20 : 13, 0.7, -30);
         hitBaseHud();
         if (loud) A.sfx.baseHit();

@@ -1538,8 +1538,9 @@ export class Renderer {
         if (astrip && imgOk(astrip)) {
           const fh = astrip.naturalHeight, n = aa.frames || Math.max(1, Math.round(astrip.naturalWidth / fh)), fw = astrip.naturalWidth / n, rel = Math.min(n - 1, aa.release || 3);
           const fi = e.hitT > 0 ? Math.min(n - 1, rel + Math.floor((1 - e.hitT / 0.25) * (n - rel))) : e.atkCd > 0 && e.atkCd < 0.3 ? Math.floor((1 - e.atkCd / 0.3) * rel) : 0;
+          const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ea_' + e.type, astrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet, 0, 1, 1);
-          cx.drawImage(astrip, fi * fw, 0, fw, fh, -box / 2, -box * FEET, box, box);
+          cx.drawImage(astrip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (strip && imgOk(strip)) { // 프레임 띠 걷기: 코드 들썩임 대신 그림 칸을 넘긴다
           const fh = strip.naturalHeight, n = an.frames || Math.max(1, Math.round(strip.naturalWidth / fh)), fw = strip.naturalWidth / n;
           const fi = Math.floor(e.age * (an.fps || 10) * Math.max(0.6, e.speed / 50) + e.phase * 3) % n;
