@@ -176,6 +176,7 @@ export const sfx = {
   win() { if (ok('win', 2)) [523, 659, 784, 1046, 784, 1046, 1318].forEach((f, i) => tone(f, 0.25, 'square', 0.07, 0, i * 0.12)); },
   lose() { if (ok('lose', 2)) [392, 370, 349, 262].forEach((f, i) => tone(f, 0.35, 'triangle', 0.09, 0, i * 0.22)); },
   tap() { if (ok('tap', 0.05)) tone(1000, 0.03, 'sine', 0.04, 1400); },
+  thud() { if (ok('thud', 0.12)) { noise(0.16, 0.07, 160, 0.6, 0, 'lowpass'); tone(70, 0.14, 'sine', 0.05, 48); } }, // 윤정섭 발소리 (쿵 · 작게)
   // UI 소리: 확인(출격·구매) · 뒤로 · 탭 바꾸기 · 안 됨 · 보상 받기
   confirm() { if (ok('ui', 0.06)) { tone(660, 0.05, 'triangle', 0.06, 990); tone(990, 0.07, 'triangle', 0.05, 1320, 0.04); } },
   whoosh() { if (ok('whoosh', 0.2)) noise(0.18, 0.05, 1800, 0.8, 0, 'bandpass'); },

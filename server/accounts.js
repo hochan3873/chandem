@@ -1142,6 +1142,16 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.get('/raid', wrap((req) => lbRaidBoard(tok(req) || null)));
     r.get('/pvp/ranking', wrap((req) => lbPvpRanking(tok(req) || null)));
     r.get('/player', wrap((req) => lbPlayer(String(req.query.u || ''))));
+    // 진상 걷기·쓰러짐 프레임 띠 목록 (그림만 올리면 코드 수정 없이 쓰이게 · 1분 캐시)
+    let animCache = { at: 0, v: null };
+    r.get('/anim', wrap(async () => {
+      if (animCache.v && Date.now() - animCache.at < 60e3) return animCache.v;
+      const fs = require('fs'), dir = path.join(__dirname, '..', 'public', 'img', 'lb');
+      const out = {};
+      try { for (const f of await fs.promises.readdir(dir)) { const m = /^e_([a-z0-9_]+?)_(walk|die|attack)\.webp$/.exec(f); if (m) (out[m[1]] = out[m[1]] || []).push(m[2]); } } catch { /* 무시 */ }
+      animCache = { at: Date.now(), v: { enemies: out } };
+      return animCache.v;
+    }));
     return r;
   }
 

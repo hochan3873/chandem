@@ -4,6 +4,9 @@
 import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, WEAPON } from './data.js';
 // 효과 종류: 빛(더하기 섞기) · 물건(보통) · 층 · 색 · 맞은 자리 표시
 const VFX_KIND = {
+  soundring: { blend: 'lighter', layer: 'front' },
+  banner: { blend: 'source-over', layer: 'ground' },
+  winkring: { blend: 'lighter', layer: 'front' },
   _: { blend: 'lighter', layer: 'front' },
   aura_red: { blend: 'lighter', layer: 'ground', col: '#ff4a4a' }, aura_blue: { blend: 'lighter', layer: 'ground', col: '#5ab4ff' },
   crack: { blend: 'source-over', layer: 'ground' }, warn: { blend: 'lighter', layer: 'ground', col: '#ff3a3a' }, summon: { blend: 'lighter', layer: 'ground', col: '#c07bff' },
@@ -276,6 +279,13 @@ export class Renderer {
       }
     }
     for (const id in HERO_ANIM) list['hanim_' + id] = HERO_ANIM[id].src; // 멤버 공격 프레임 띠
+    for (const id in HEROES) if (HEROES[id].skill) list['sk_' + id] = `/img/lb/ui2/sk_${id}.webp`; // 스킬 아이콘 (준비 표시 · 쓸 때 터짐)
+    list.ui2_shield = '/img/lb/ui2/shield.webp';
+    list.ws_back = '/img/lb/h_wonsik_back.webp'; list.ws_consult = '/img/lb/h_wonsik_consult.webp'; list.ws_walkb = '/img/lb/h_wonsik_walkback.webp'; list.ws_walkf = '/img/lb/h_wonsik_walkfront.webp'; // 정원식 결정사 상담
+    list.vfx_soundring = '/img/lb/fx/vfx_soundring.webp'; list.vfx_banner = '/img/lb/fx/vfx_banner.webp'; // 방장 음파 · 집합 깃발
+    list.dh_tf = '/img/lb/h_donghan_transform.webp'; // 문동한 진심 모드 변신 (12칸 · 한 번)
+    list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
+    list.js_back = '/img/lb/h_jeongseob_back.webp'; list.js_walk = '/img/lb/h_jeongseob_walkfront.webp'; list.js_walkb = '/img/lb/h_jeongseob_walkback.webp'; list.js_rest = '/img/lb/h_jeongseob_rest.webp'; // 윤정섭 걷기 · 쉬기
     for (const id in HERO_ANIM_FORM) list['hanim_' + id + '_f'] = HERO_ANIM_FORM[id].src; // 변신 모습 띠
     for (const n of PROJ_ART_NAMES) list['w_' + n] = `/img/lb/fx/w_${n}.webp`; // 투사체 그림 (없으면 코드 모양)
     list.bus = '/img/lb/fx/bus.webp'; list.bus2 = '/img/lb/fx/bus2.webp';
@@ -301,18 +311,39 @@ export class Renderer {
     for (let i = 1; i <= 6; i++) list['arena' + i] = `/img/lb/arena${i}.webp`; // 보스 무대 (없으면 챕터 배경 + 붉은 조명)
     list.base = '/img/lb/base.webp';
     const skip = new URLSearchParams(location.search).has('noimg');
+    const q = [];
     for (const key in list) {
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => {
+        if (key.startsWith('sk_')) return;
         if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_') || key.startsWith('w_') || key.startsWith('vfx_') || key.startsWith('hanim_') || key.startsWith('cc_') || key === 'bus' || key === 'bus2') return;
         if (key.startsWith('bar')) { this.bakeBar(key); return; }
         if (key.startsWith('fx_')) return;
         if (key === 'bg' || key === 'base' || /^bg\d$/.test(key)) this.bakeBg();
         else this.bakeSprite(key);
       };
-      if (!skip && list[key]) img.src = list[key]; // 아직 없는 그림은 요청 안 함 (자리표시자)
+      if (!skip && list[key]) q.push([img, list[key]]); // 아직 없는 그림은 요청 안 함 (자리표시자)
       this.images[key] = img;
+    }
+    // 한꺼번에 수백 장을 요청하면 브라우저가 거절한다 (ERR_INSUFFICIENT_RESOURCES) → 16장씩 차례로
+    let on = 0;
+    const pump = () => { while (on < 16 && q.length) { const [im, src] = q.shift(); on++; const done = () => { on--; pump(); }; im.addEventListener('load', done, { once: true }); im.addEventListener('error', done, { once: true }); im.src = src; } };
+    pump();
+  }
+
+  // 서버 목록으로 새 진상 프레임 띠 붙이기 (걷기 12칸 · 쓰러짐 8칸 · 공격 8칸 기본)
+  addEnemyAnims(map) {
+    for (const [id, kinds] of Object.entries(map || {})) {
+      if (!ENEMIES[id]) continue;
+      const cur = ENEMY_ANIM[id] || (ENEMY_ANIM[id] = {});
+      for (const kd of kinds) {
+        if (cur[kd]) continue;
+        cur[kd] = kd === 'walk' ? { src: `/img/lb/e_${id}_walk.webp`, frames: 12, fps: 10 } : kd === 'die' ? { src: `/img/lb/e_${id}_die.webp`, frames: 8, fps: 14, hold: ENEMIES[id].boss ? 0.3 : 0.15 } : { src: `/img/lb/e_${id}_attack.webp`, frames: 8, release: 3 };
+        const key = `anim_${id}_${kd}`;
+        if (this.images[key]) continue;
+        const img = new Image(); img.decoding = 'async'; img.src = cur[kd].src; this.images[key] = img;
+      }
     }
   }
 
@@ -363,7 +394,7 @@ export class Renderer {
     let real = false;
     if (imgOk(img)) {
       x.imageSmoothingQuality = 'high';
-      if (isHero) {
+      if (isHero && false) { // (사용자 요청: 캐릭터 둘레 흰·색 테두리 없음 — 발밑 그림자만)
         // 어두운 옷(최은옥 가죽자켓·이한나 교복)이 골목 배경에 묻히지 않게 테두리를 두른다. 히든은 분홍 빛
         const sil = mkCanvas(px, px);
         const sx = sil.getContext('2d');
@@ -862,6 +893,7 @@ export class Renderer {
     this.drawSlashes();
     this.drawDoorHits();
     this.drawVfx('front');
+    if (!demo && this._skOverlay) this._skOverlay();
     this.drawArcs();
     this.drawBlasts();
     this.drawParts();
@@ -1000,21 +1032,17 @@ export class Renderer {
       if (h.def.proj !== 'beam') continue;
       for (const [e, w] of [[h.beamE, 1], [h.beam2E, 0.6]]) {
         if (!e || e.dead) continue;
-        const x0 = h.rx !== undefined ? h.rx : h.x, y0 = h.y - 40, x1 = e.x, y1 = e.y - e.def.size * 0.3;
+        const x0 = (h.rx !== undefined ? h.rx : h.x) + 4, y0 = h.y - 52, x1 = e.x, y1 = e.y - e.def.size * 0.3;
         const ramp = Math.min(1, h.beamT / 2.5);
         this.world();
-        cx.lineCap = 'round';
-        cx.globalAlpha = 0.35;
-        cx.strokeStyle = '#ff5fcf'; cx.lineWidth = (7 + ramp * 7) * w + Math.sin(t * 30) * 1.5;
+        cx.lineCap = 'round'; cx.globalCompositeOperation = 'lighter';
+        cx.globalAlpha = 0.22 + ramp * 0.12;
+        cx.strokeStyle = '#ff7fd8'; cx.lineWidth = (3 + ramp * 3) * w;
         cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x1, y1); cx.stroke();
-        cx.globalAlpha = 0.95;
-        cx.strokeStyle = '#ffe0f6'; cx.lineWidth = (2 + ramp * 2.5) * w;
-        cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x1, y1); cx.stroke();
-        cx.globalAlpha = 1;
-        const hs = this.projSprites.heart;
-        const k = (t * 1.6 + h.slot * 0.3) % 1;
-        this.tf(x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, 0, 0.9 + ramp * 0.4, 0.9 + ramp * 0.4);
-        cx.drawImage(hs.c, -8, -8, 16, 16);
+        cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
+        const ring = this.images.vfx_winkring;
+        if (ring && imgOk(ring) && w === 1) { const nowMs = performance.now(); if (nowMs - (h._ringT || 0) > 460 - ramp * 120) { h._ringT = nowMs; this.vfx('winkring', x0, y0, { anim: 'ring', dur: 620, sz: 70 + ramp * 40, tx: x1, ty: y1, rot: Math.random() * 6 }); } }
+        else { const hs = this.projSprites.heart; const k = (t * 1.6 + h.slot * 0.3) % 1; this.tf(x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, 0, 0.9 + ramp * 0.4, 0.9 + ramp * 0.4); cx.drawImage(hs.c, -8, -8, 16, 16); }
       }
     }
   }
@@ -1316,8 +1344,9 @@ export class Renderer {
       cx.globalAlpha = Math.max(0, alpha);
       if (useStrip) {
         const fw = strip.naturalWidth / n, fi = Math.min(n - 1, Math.floor(a * (an.fps || 14)));
+        const idle = this.sprites['e_' + c.type], fit = idle && idle.c ? this.stripFit('ed_' + c.type, strip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
         this.tf(c.x, feet, 0, c.dir, 1);
-        cx.drawImage(strip, fi * fw, 0, fw, strip.naturalHeight, -box / 2, -box * FEET, box, box);
+        cx.drawImage(strip, fi * fw, 0, fw, strip.naturalHeight, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
       } else {
         const sp = this.sprites['e_' + c.type];
         const slide = Math.min(1, a / 0.12) * 8 * k; // 뒤로 살짝 밀려나고
@@ -1505,8 +1534,9 @@ export class Renderer {
         } else if (strip && imgOk(strip)) { // 프레임 띠 걷기: 코드 들썩임 대신 그림 칸을 넘긴다
           const fh = strip.naturalHeight, n = an.frames || Math.max(1, Math.round(strip.naturalWidth / fh)), fw = strip.naturalWidth / n;
           const fi = Math.floor(e.age * (an.fps || 10) * Math.max(0.6, e.speed / 50) + e.phase * 3) % n;
+          const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ew_' + e.type, strip, n, idle.c) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet, 0, 1, 1);
-          cx.drawImage(strip, fi * fw, 0, fw, fh, -box / 2, -box * FEET, box, box);
+          cx.drawImage(strip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (e.bai && e._skb > 0.02 && e._skb < 0.98 && this.sprites[baseKey] && this.sprites[e._lvk]) {
           const b0 = e._skb, s0 = this.sprites[baseKey], s1 = this.sprites[e._lvk];
           cx.globalAlpha = 1 - b0; cx.drawImage(e.flash > 0 ? s0.f : s0.c, -box / 2, -box * FEET, box, box);
@@ -1535,6 +1565,7 @@ export class Renderer {
         keys.forEach((k, i) => { const x0 = e.x + box * 0.3 + i * 13, y0 = top - 4; cx.fillStyle = 'rgba(10,6,24,0.8)'; cx.beginPath(); cx.arc(x0, y0, 6.5, 0, TAU); cx.fill(); cx.font = `8px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(TRAITS[k].icon, x0, y0 + 0.5); });
         if (e.pShield > 0) { cx.font = `900 8px ${FONT}`; cx.fillStyle = '#9feaff'; cx.fillText('' + e.pShield, e.x - box * 0.3, top - 4); }
       }
+      if (e.brkT > 0) { this.world(); const im = this.images.ui2_shield, sx0 = e.x + e.def.size * 0.42, sy0 = e.y - e.def.size * 1.02; if (imgOk(im)) { cx.drawImage(im, sx0 - 9, sy0 - 9, 18, 18); } cx.strokeStyle = '#ff2a4a'; cx.lineWidth = 2.2; cx.beginPath(); cx.moveTo(sx0 - 1, sy0 - 8); cx.lineTo(sx0 + 3, sy0 - 2); cx.lineTo(sx0 - 2, sy0 + 2); cx.lineTo(sx0 + 2, sy0 + 8); cx.stroke(); } // 쌍뻑큐 방깎: 금 간 방패
       if (e.shredN > 0 && e.shredT > 0) { this.world(); cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.fillStyle = '#ff5a7a'; cx.strokeStyle = '#000'; cx.lineWidth = 2.5; const tx = `방깎×${e.shredN}`; cx.strokeText(tx, e.x, feet + 8); cx.fillText(tx, e.x, feet + 8); }
       if (e.tauntT > 0) { this.world(); cx.font = `11px ${FONT}`; cx.textAlign = 'center'; cx.fillText('', e.x - box * 0.32, top + 2); }
       const vip = e.boss || e.mid || e.elite;
@@ -1798,6 +1829,30 @@ export class Renderer {
 
   drawHeroes(g, t, ui) {
     const cx = this.cx;
+    this._skOverlay = () => { // 멤버 위에: 스킬 준비 아이콘 · 누르고 있는 버튼 점선
+      this.world();
+      for (const h of g.heroes) {
+        if (!h.def.skill || h.summon || h.skillCd > 0 || h.gone) continue;
+        const ic = this.images['sk_' + h.id]; const hx = h.out && h.px !== undefined ? h.px : h.rx !== undefined ? h.rx : h.x, hy = h.out && h.py !== undefined ? h.py : h.y;
+        const bob = Math.sin(t * 3 + h.slot) * 2.5;
+        this.tf(hx, hy + 22, 0, 1, 0.34); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.5 + Math.sin(t * 4 + h.slot) * 0.15; const gg = this.projSprites.glowGold; if (gg) cx.drawImage(gg.c, -40, -40, 80, 80); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
+        if (imgOk(ic)) { this.tf(hx, hy - 92 + bob, 0, 1, 1); cx.drawImage(ic, -12, -12, 24, 24); }
+      }
+      const L0 = ui && ui.skLink;
+      if (L0 && L0.h && L0.x !== undefined) {
+        const h = L0.h, hx = h.out && h.px !== undefined ? h.px : h.x, hy = (h.out && h.py !== undefined ? h.py : h.y) - 40;
+        const k = Math.min(1, (performance.now() - L0.t0) / 180);
+        this.world(); cx.save(); cx.setLineDash([5, 6]); cx.lineDashOffset = -t * 40; cx.lineWidth = 3; cx.strokeStyle = 'rgba(255,226,120,0.9)'; cx.globalAlpha = k;
+        cx.beginPath(); cx.moveTo(L0.x, L0.y); cx.lineTo(L0.x + (hx - L0.x) * k, L0.y + (hy - L0.y) * k); cx.stroke(); cx.restore();
+        this.tf(hx, hy + 62, 0, 1, 0.36); cx.globalAlpha = 0.8; cx.strokeStyle = '#ffe07a'; cx.lineWidth = 5; cx.beginPath(); cx.arc(0, 0, 30 + Math.sin(t * 12) * 5, 0, Math.PI * 2); cx.stroke(); cx.globalAlpha = 1;
+      }
+      // 찍는 스킬: 조준 원을 멤버에서부터 선으로 잇는다
+      const a = ui && ui.aim;
+      if (a && a.h && a.x !== undefined) { this.world(); cx.save(); cx.setLineDash([3, 6]); cx.strokeStyle = 'rgba(255,255,255,0.55)'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(a.h.x, a.h.y - 40); cx.lineTo(a.x, a.y); cx.stroke(); cx.restore(); }
+    };
+    // 강성구 기절 면역 오라: 바닥에 옅은 파란 고리 · 지켜지는 멤버 머리 위 작은 방패
+    { const sg = g.heroes.find((h) => h.id === 'sunggu' && !h.gone); if (sg) { this.world(); const R0 = 130; cx.save(); cx.translate(sg.x, sg.y + 16); cx.scale(1, 0.4); cx.globalCompositeOperation = 'lighter'; const gr = cx.createRadialGradient(0, 0, R0 * 0.6, 0, 0, R0); gr.addColorStop(0, 'rgba(90,170,255,0)'); gr.addColorStop(0.85, 'rgba(90,170,255,0.16)'); gr.addColorStop(1, 'rgba(120,200,255,0.35)'); cx.fillStyle = gr; cx.beginPath(); cx.arc(0, 0, R0, 0, Math.PI * 2); cx.fill(); cx.strokeStyle = 'rgba(140,210,255,' + (0.35 + Math.sin(t * 3) * 0.12) + ')'; cx.lineWidth = 2.5; cx.beginPath(); cx.arc(0, 0, R0, 0, Math.PI * 2); cx.stroke(); cx.restore(); cx.globalCompositeOperation = 'source-over';
+      const shI = this.ccIcons && this.images.ui2_shield; for (const o of g.heroes) { if (o === sg || Math.hypot(o.x - sg.x, o.y - sg.y) > R0) continue; cx.globalAlpha = 0.75; cx.fillStyle = 'rgba(120,200,255,0.9)'; const x0 = o.x + 14, y0 = o.y - 70; cx.beginPath(); cx.moveTo(x0, y0 - 6); cx.lineTo(x0 + 5, y0 - 3); cx.lineTo(x0 + 4, y0 + 3); cx.lineTo(x0, y0 + 6); cx.lineTo(x0 - 4, y0 + 3); cx.lineTo(x0 - 5, y0 - 3); cx.closePath(); cx.fill(); cx.globalAlpha = 1; void shI; } } }
     for (const sl of []) { // (예전: 잠긴 자리 자물쇠 — 이제 자리는 모두 열려 있다)
       const x = g.slotX[sl], y = g.rowY + 6;
       this.world();
@@ -1842,6 +1897,7 @@ export class Renderer {
       const sp = this.sprites[key];
       if (!sp) continue;
       let bob = Math.sin(t * 3 + h.slot) * 1.2, rot = 0, sx = 1, sy = 1;
+      if (h.id === 'donghan' && !up) bob -= 12; // 누운 문동한: 스킬 버튼 줄에 가리지 않게
       if (h.recoil > 0) { const p = h.recoil / 0.14; sy = 1 + p * 0.07; sx = 1 - p * 0.05; bob -= p * 3; }
       if (h.rage) { rot = Math.sin(t * 24) * 0.05; bob += Math.sin(t * 30) * 1.5; }
       if (h.charmT > 0) { rot = Math.sin(t * 4) * 0.14; }
@@ -1894,8 +1950,45 @@ export class Renderer {
           usedStrip = true;
         }
       }
+      if (h.id === 'wonsik' && h.wsSt && !usedStrip) { // 정원식: 걸어 나감(뒷모습) → 앉아 상담(분홍 하트 고리 · 체력 막대) → 돌아옴(앞모습)
+        const px = h.px !== undefined ? h.px : hx, py = (h.py !== undefined ? h.py : h.y) + box * FEET_OFF;
+        const wb = this.images.ws_walkb, wf = this.images.ws_walkf, bk = this.images.ws_back, cs = this.images.ws_consult;
+        const strip = (im) => { const n = 8, fw = im.naturalWidth / n, fi = Math.floor(t * 7) % n; this.tf(px, py, 0, 1, 1); cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -box / 2, -box * FEET, box, box); };
+        if (h.wsSt === 'sit') {
+          this.world(); cx.save(); cx.translate(px, py); cx.scale(1, 0.38); cx.globalCompositeOperation = 'lighter'; cx.strokeStyle = 'rgba(255,120,190,' + (0.45 + Math.sin(t * 5) * 0.15) + ')'; cx.lineWidth = 5;
+          const R0 = h.def.skill.consult.r * 0.55; cx.beginPath(); for (let k = 0; k <= 40; k++) { const a0 = (k / 40) * Math.PI * 2, hr = R0 * (1 - 0.18 * Math.sin(a0) ** 8); const xx = Math.cos(a0) * hr, yy = Math.sin(a0) * hr; if (!k) cx.moveTo(xx, yy); else cx.lineTo(xx, yy); } cx.stroke(); cx.restore(); cx.globalCompositeOperation = 'source-over';
+          if (imgOk(cs)) { this.tf(px, py, 0, 1, 1); const bw = box * 1.25; cx.drawImage(cs, -bw / 2, -bw * FEET, bw, bw); }
+          const f = Math.max(0, h.wsPool / (h.wsPoolMax || 1)); this.tf(px - 22, py - box * 1.05, 0, 1, 1); cx.fillStyle = 'rgba(10,6,22,0.85)'; cx.fillRect(-1, -1, 46, 7); cx.fillStyle = '#ff8ab8'; cx.fillRect(0, 0, 44 * f, 5);
+        } else if (h.wsSt === 'walk') { if (imgOk(wb)) strip(wb); else if (imgOk(bk)) { this.tf(px, py - Math.abs(Math.sin(t * 6)) * 3, 0, 1, 1); cx.drawImage(bk, -box / 2, -box * FEET, box, box); } }
+        else { if (imgOk(wf)) strip(wf); else { this.tf(px, py - Math.abs(Math.sin(t * 6)) * 3, 0, 1, 1); cx.drawImage(sp.c, -box / 2, -box * FEET, box, box); } }
+        usedStrip = true;
+      }
+      if (h.id === 'donghan' && !usedStrip && imgOk(this.images.dh_tf)) { // 문동한: 누워 있다가 일어나 커피 한 모금 → 진심 모드 (끝나면 거꾸로 짧게 눕기)
+        const tf = this.images.dh_tf, n = 12, fw = tf.naturalWidth / n, wind = h.def.burst ? h.def.burst.windup : 1;
+        const nowMs = performance.now();
+        if (h.upT > 0) h._wasUp = true; else if (h._wasUp) { h._wasUp = false; h._downAt = nowMs; }
+        let fi = -1;
+        if (h.burstT > 0) fi = Math.min(n - 1, Math.floor((1 - h.burstT / wind) * n));
+        else if (h._downAt && nowMs - h._downAt < 500) fi = Math.max(0, 7 - Math.floor(((nowMs - h._downAt) / 500) * 8));
+        if (fi >= 0) { const fit = this.stripFit('dh_tf', tf, n, this.sprites['h_donghan_rage'] ? this.sprites['h_donghan_rage'].c : sp.c); this.tf(hx, feet, 0, 1, 1); cx.drawImage(tf, fi * fw, 0, fw, tf.naturalHeight, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k); usedStrip = true; }
+      }
+      if (h.id === 'hanna' && !usedStrip && imgOk(this.images.hanna_back) && ((h.beamE && !h.beamE.dead) || g.t - (h.lastShotT || -9) < 0.5)) { // 이한나: 쏠 땐 진상 쪽을 보는 뒷모습 · 앞으로 6px 기울고 톡톡 커짐
+        const im = this.images.hanna_back, bw = box, ph = (t * 2.2) % 1, pulse = 1 + (ph < 0.18 ? Math.sin((ph / 0.18) * Math.PI) * 0.05 : 0);
+        this.tf(hx, feet - 6 * Math.min(1, (h.beamT || 0) * 4), -0.03, pulse, pulse); cx.drawImage(im, -bw / 2, -bw * FEET, bw, bw);
+        if (ph < 0.12) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - ph / 0.12; const gr = cx.createRadialGradient(bw * 0.08, -bw * 0.72, 0, bw * 0.08, -bw * 0.72, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.4, 'rgba(255,140,220,0.8)'); gr.addColorStop(1, 'rgba(255,90,200,0)'); cx.fillStyle = gr; cx.fillRect(bw * 0.08 - 16, -bw * 0.72 - 16, 32, 32); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; } // 눈에서 반짝 (윙크)
+        usedStrip = true;
+      }
+      if (h.id === 'jeongseob' && !usedStrip) { // 윤정섭: 키 1.25배 · 나갈 땐 뒷모습 뚜벅뚜벅(6프레임/초) · 돌아올 땐 앞모습 · 쉴 땐 앉아서 물 마시기
+        const S0 = (h.def.scale || 1) * (h.growT > 0 ? h.def.skill.grow : 1), bw = box * S0;
+        const wb = this.images.js_walkb, wk = this.images.js_walk, rs0 = this.images.js_rest, bk = this.images.js_back;
+        const strip = (im, fps) => { const n = 8, fw = im.naturalWidth / n, fi = Math.floor(t * fps) % n; const step = (t * fps) % 1; this.tf(hx, feet - (step < 0.5 ? step * 4 : (1 - step) * 4), 0, 1, 1); cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw); return fi; };
+        if (h.wallSt === 'out' && imgOk(wb)) { const fi = strip(wb, 5); if ((fi === 0 || fi === 4) && h._lastStep !== fi) { h._lastStep = fi; this.onStep && this.onStep(h, hx, feet); } else if (fi !== 0 && fi !== 4) h._lastStep = -1; usedStrip = true; }
+        else if (h.wallSt === 'out' && imgOk(bk)) { this.tf(hx, feet, 0, 1, 1); cx.drawImage(bk, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; }
+        else if (h.wallSt === 'back' && imgOk(wk)) { strip(wk, 5); usedStrip = true; }
+        else if (imgOk(rs0)) { this.tf(hx, feet, 0, 1, 1 + Math.sin(t * 1.6) * 0.01); cx.drawImage(rs0, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; }
+      }
       if (!usedStrip) {
-        this.tf(hx + dx, feet + bob, rot, sx, sy);
+        { const ck = h._castAt ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); }
         cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
         cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
         const hk2 = h._hitAt ? (performance.now() - h._hitAt) / 160 : 9;
@@ -1961,12 +2054,14 @@ export class Renderer {
       this.world();
       {
         const ly = feet + 9, at = ATTRS[h.def.attr];
-        const lvT = h.lv >= 5 ? 'MAX' : 'Lv' + h.lv;
+        const lvT = (h._skNo ? h._skNo + ' · ' : '') + (h.lv >= 5 ? 'MAX' : 'Lv' + h.lv);
+        const rfk = this.rallyFlashAt ? (performance.now() - this.rallyFlashAt - h.slot * 30) / 260 : 9; const rallyTag = rfk > 0 && rfk < 1;
         cx.textBaseline = 'middle'; cx.textAlign = 'center';
         cx.font = `800 8px ${FONT}`;
         const tw = cx.measureText(lvT).width, pw = tw + 20, ph = 13, px = hx - pw / 2;
-        cx.fillStyle = 'rgba(12,10,28,0.88)';
+        cx.fillStyle = rallyTag ? 'rgba(255,200,40,0.95)' : 'rgba(12,10,28,0.88)';
         roundRect(cx, px, ly - ph / 2, pw, ph, ph / 2); cx.fill();
+        if (g.leader === 'bangjang' && g.heroes.some((o) => o.id === 'bangjang')) { cx.fillStyle = '#ffd23f'; cx.beginPath(); cx.arc(px + pw - 2, ly - ph / 2 + 1, 2.6, 0, Math.PI * 2); cx.fill(); } // 방장이 대장: 모두 공속 +
         cx.strokeStyle = h.lv >= 5 ? '#ffb347' : 'rgba(255,214,110,0.45)'; cx.lineWidth = 1; cx.stroke(); // 색깔 테두리 없이 (사용자 요청) · 금빛 한 가지
         const ai = at && this.images['attr_' + h.def.attr];
         if (at && imgOk(ai)) cx.drawImage(ai, px + 1.5, ly - 5, 10, 10);
@@ -2020,14 +2115,15 @@ export class Renderer {
       const sp = this.sprites['h_' + j.id];
       const x = g.slotX[j.slot], feet = g.rowY + box * FEET_OFF;
       if (x === undefined) continue;
-      if (sp) {
+      if (sp && sp.real) { // (자리표시자 그림엔 이름이 그려져 있어서 실루엣으로 안 씀)
         const sil = (this.sils || (this.sils = {}))[j.id] || (this.sils[j.id] = (() => { const c = mkCanvas(sp.c.width, sp.c.height), x2 = c.getContext('2d'); x2.drawImage(sp.c, 0, 0); x2.globalCompositeOperation = 'source-in'; x2.fillStyle = '#c9b8ff'; x2.fillRect(0, 0, c.width, c.height); return c; })());
         this.tf(x, feet, 0, 1, 1); cx.globalAlpha = 0.28 + Math.sin(performance.now() / 500 + j.slot) * 0.06; cx.drawImage(sil, -box / 2, -box * FEET, box, box); cx.globalAlpha = 1;
       }
       this.world();
       cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-      cx.fillStyle = 'rgba(8,4,20,0.7)'; roundRect(cx, x - 24, g.rowY + 16, 48, 14, 7); cx.fill();
-      cx.fillStyle = '#d8ccff'; cx.fillText('합류 대기', x, g.rowY + 23);
+      cx.fillStyle = 'rgba(8,4,20,0.7)'; roundRect(cx, x - 22, g.rowY + 16, 44, 14, 7); cx.fill();
+      const ai = this.images['attr_' + ((HEROES[j.id] || {}).attr || '')]; if (imgOk(ai)) cx.drawImage(ai, x - 19, g.rowY + 17.5, 11, 11); // 이름은 숨기고 속성 아이콘만 (합류할 때 공개)
+      cx.fillStyle = '#d8ccff'; cx.fillText('???', x + 5, g.rowY + 23);
     }
     this.world();
   }
@@ -2077,13 +2173,13 @@ export class Renderer {
     }
     return { l, r: r2, t, b };
   }
-  stripFit(key, strip, n, idle) {
+  stripFit(key, strip, n, idle, only = 0) {
     const m = this._fit || (this._fit = {});
     if (m[key]) return m[key];
     let fit = { k: 1, dx: 0, dy: 0 };
     try {
       const fw = strip.naturalWidth / n, fh = strip.naturalHeight;
-      const a = this.alphaBox(strip, 0, fw, fh, n), i = this.alphaBox(idle, 0, idle.width, idle.height, 1);
+      const a = this.alphaBox(strip, 0, fw, fh, only || n), i = this.alphaBox(idle, 0, idle.width, idle.height, 1);
       const hS = a.b - a.t, hI = i.b - i.t;
       if (hS > 0.05 && hI > 0.05) {
         const lying = (i.r - i.l) > hI * 1.25; // 누운 모습(문동한 평소)이면 크기는 그대로 · 발만 맞춘다
@@ -2115,6 +2211,9 @@ export class Renderer {
       else if (q.anim === 'grow') { s = (0.55 + k * 0.5) * (1 + Math.sin(now / 110) * 0.03); a = Math.min(1, el / 80) * (0.6 + Math.sin(now / 90) * 0.18) * (k > 0.85 ? (1 - k) / 0.15 : 1); }
       else if (q.anim === 'fly') { x = q.x + (q.tx - q.x) * k; y = q.y + (q.ty - q.y) * k - Math.sin(k * Math.PI) * 60; rot = q.rot + k * 9; a = 1; }
       else if (q.anim === 'streak') { s = 1; a = 1 - k; }
+      else if (q.anim === 'line') { x = q.x + (q.tx - q.x) * k; y = q.y + (q.ty - q.y) * k; rot = q.rot; a = k > 0.85 ? (1 - k) / 0.15 : 1; // 곧게 날아감 + 잔상
+        if (img && imgOk(img)) { for (let gi = 3; gi >= 1; gi--) { const kk = Math.max(0, k - gi * 0.05); this.tf(q.x + (q.tx - q.x) * kk, q.y + (q.ty - q.y) * kk, rot, 1, 1); cx.globalAlpha = 0.18 * (4 - gi) * a; const w = q.sz, hh = q.sz * (img.naturalHeight / img.naturalWidth); cx.drawImage(img, -w / 2, -hh / 2, w, hh); } } }
+      else if (q.anim === 'ring') { const ek = 1 - (1 - k) * (1 - k); x = q.x + (q.tx - q.x) * ek; y = q.y + (q.ty - q.y) * ek; s = 0.3 + k * 0.9; rot = q.norot ? q.rot : q.rot + k * 4; a = k < 0.15 ? k / 0.15 : (1 - k) / 0.85; }
       if (q.name === 'pullLine') { this.world(); cx.globalAlpha = 1 - k; cx.strokeStyle = q.col; cx.lineWidth = 2.5; cx.setLineDash([6, 5]); cx.lineDashOffset = -now / 20; cx.beginPath(); cx.moveTo(q.x, q.y); cx.quadraticCurveTo((q.x + q.tx) / 2 + 30, (q.y + q.ty) / 2 - 30, q.tx, q.ty); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1; continue; }
       if (q.spin) rot += now / 250;
       const fsz = q.follow && q.follow.def && q.follow.def.size && !q.fixed ? Math.max(0.7, Math.min(1.6, q.follow.def.size / 70)) : 1;
@@ -2209,8 +2308,7 @@ export class Renderer {
           if (imgOk(img) && !this._gfGlow) {
             const c = document.createElement('canvas'); c.width = c.height = 80;
             const x = c.getContext('2d');
-            x.shadowColor = '#ff7fc8'; x.shadowBlur = 10; x.drawImage(img, 13, 13, 54, 54);
-            x.shadowColor = '#ffffff'; x.shadowBlur = 4; x.drawImage(img, 13, 13, 54, 54);
+            x.drawImage(img, 13, 13, 54, 54); // 테두리 빛 없이 (잔상 꼬리만)
             this._gfGlow = c;
           }
           const tr = p._tr || (p._tr = []);

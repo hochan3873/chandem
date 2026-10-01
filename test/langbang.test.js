@@ -132,21 +132,19 @@ test('꼬충은 반대 성별 영웅을 홀린다', () => {
   assert.ok(e);
 });
 
-test('먹튀는 경험치를 훔쳐 도망가고, 잡으면 보석으로 돌려받는다', () => {
-  const g = S.createGame({ rng: seeded(12), noWaves: true, heroes: [] });
-  g.exp = 5;
-  g.need = 100;
-  g.diff = 2;
-  const m = S.spawnEnemy(g, 'mukti', 150, g.ropeY - 10);
-  run(g, 0.3);
-  assert.ok(m.fleeing, '도망 중');
-  assert.ok(g.exp < 5, '경험치가 줄었다');
-  const stolen = m.stolen;
-  assert.ok(stolen > 0);
-  const before = g.exp;
-  S.damageEnemy(g, m, 9999, false, null);
-  run(g, 2); // 보석이 저절로 날아와 먹힌다
-  assert.ok(g.exp >= before + stolen - 1e-9, `되찾음 ${before} → ${g.exp}`);
+test('빠른 진상(먹튀): 도망 없이 입구에 붙어 세게 · 경험치 안 훔침 · 잘 피한다(느리게 하면 못 피함)', () => {
+  const g = S.createGame({ rng: seeded(12), noWaves: true, heroes: ['gunman'] });
+  g.exp = 5; g.need = 100; g.diff = 2; g.phase = 'wave';
+  const m = S.spawnEnemy(g, 'mukti', 150, g.ropeY - 10, { hpMul: 1000, keep: true });
+  const hp0 = g.base.hp;
+  run(g, 2);
+  assert.ok(!m.fleeing, '도망 안 감');
+  assert.ok(g.exp >= 5, '경험치 안 훔침');
+  assert.ok(g.base.hp < hp0, '입구를 친다');
+  let miss = 0; for (let i = 0; i < 200; i++) if (S.damageEnemy(g, m, 1, false, g.heroes[0]) === 0) miss++;
+  assert.ok(miss > 30 && miss < 95, `피함 ${miss}/200`);
+  m.slowT = 5; miss = 0; for (let i = 0; i < 100; i++) if (S.damageEnemy(g, m, 1, false, g.heroes[0]) === 0) miss++;
+  assert.equal(miss, 0, '느려지면 못 피함');
 });
 
 test('결과 요약은 서버 허용 범위 안 (점수·처치 상한)', () => {
@@ -713,17 +711,13 @@ test('새 빌런: 토 · 애정행각 · 손진상 · 가오충 · 셀카 · 새
   assert.equal(gao.gaoOn, false, '가오 깨짐');
   h0 = gao.hp; S.damageEnemy(g, gao, 100, false, gm); const broken = h0 - gao.hp;
   assert.ok(broken > armored * 2.5, `${armored.toFixed(0)} → ${broken.toFixed(0)}`);
-  // 셀카: 눈부신 멤버는 빗나감
+  // 셀카: 0.6초 찰칵 준비 → 가장 가까운 멤버 1초 기절
   g = bare(['gunman']);
   const sf = still(g, 'selfie', 180, g.ropeY - 150);
   sf.atRope = true;
-  g.heroes[0].stunT = 99;
-  run(g, 4.1);
-  assert.ok(g.heroes[0].blindT > 0, '찰칵!');
-  const dummy = still(g, 'thug', 100, 200);
-  let miss = 0;
-  for (let i = 0; i < 40; i++) if (S.damageEnemy(g, dummy, 1, false, g.heroes[0]) === 0) miss++;
-  assert.ok(miss > 8 && miss < 32, `빗나감 ${miss}/40`);
+  let stunned = false;
+  for (let i = 0; i < 60 * 5.5; i++) { S.step(g, 1 / 60); if (g.heroes[0].stunT > 0) stunned = true; }
+  assert.ok(stunned, '찰칵! 기절');
   // 새치기꾼: 앞줄 근처에서 훌쩍
   g = bare([]);
   const ct = S.spawnEnemy(g, 'cutter', 180, g.ropeY - 300);
@@ -1347,7 +1341,7 @@ test('새 멤버 4명: 정소영 잔소리 → 성준영 소환(올인!) · 오�
   so.skillCd = 0; assert.equal(S.castSkill(g, so), true);
   const jy = g.heroes.find((h) => h.id === 'junyoung');
   assert.ok(jy && jy.summon, '성준영 소환');
-  for (let i = 0; i < 60 * 12; i++) S.step(g, 1 / 60);
+  for (let i = 0; i < 60 * 16; i++) S.step(g, 1 / 60);
   assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '시간이 지나면 사라짐');
   // 오지은: 공격하면 악마 모습 + 맞은 진상 느려짐
   g = S.createGame({ rng: seeded(502), noWaves: true, heroes: ['jieun'] });
@@ -1474,12 +1468,22 @@ test('진상 특성: 범위 면역 · 분열 · 은신 · 회복 · 방깎 · �
   assert.ok(t1.shredN >= 2, '방깎 겹 ' + t1.shredN);
   const a = S.damageEnemy(g, t1, 100, false, null, false);
   assert.ok(a > 100, '방깎만큼 더 아프다');
-  // 도발: 정원식 결혼정보회사 → 입구 피해 -80%
+  // 도발: 정원식 결정사 상담 → 걸어 나가 앉으면 곁 진상이 원식을 친다 (입구 대신)
   g = bare(['wonsik']);
   const w = g.heroes[0];
-  const th = still(g, 'thug', w.x, g.rowY - 120);
   w.skillCd = 0; S.castSkill(g, w, w.x, g.rowY - 120);
+  assert.equal(w.wsSt, 'walk', '걸어 나감');
+  for (let i = 0; i < 60 * 8 && w.wsSt === 'walk'; i++) S.step(g, 1 / 60);
+  assert.equal(w.wsSt, 'sit', '앉아서 상담');
+  const th = still(g, 'thug', w.px, w.py - 60);
+  run(g, 0.5);
   assert.ok(th.tauntT > 0, '도발 걸림');
+  const pool0 = w.wsPool, door0 = g.base.hp;
+  th.atRope = true; S.damageBase(g, 10, th);
+  assert.equal(g.base.hp, door0, '입구 대신');
+  assert.ok(w.wsPool < pool0, '원식이 맞는다');
+  for (let i = 0; i < 60 * 14 && w.wsSt; i++) S.step(g, 1 / 60);
+  assert.ok(!w.wsSt && w.tiredT > 0, '돌아와 쉰다');
   // 제어 · 넉백 면역
   g = bare([]);
   const gao = still(g, 'gao', 180, g.rowY - 250);
@@ -1616,8 +1620,8 @@ test('정소영 올인 콜 → 성준영: 진상을 한곳으로 모은다(평�
     assert.ok(spread() < d0 * 0.8, `뭉침 ${d0.toFixed(0)} → ${spread().toFixed(0)}`);
     assert.ok(Math.abs(jy.ax - ax) < 120, '기준점이 크게 안 흔들림');
     assert.equal(still, 0, '기준점에서 떨어진 채 멈춰 있지 않음');
-    for (let i = 0; i < 60 * 6; i++) S.step(g, 1 / 60);
-    assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '8초 뒤 사라짐');
+    for (let i = 0; i < 60 * 10; i++) S.step(g, 1 / 60);
+    assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '12초 뒤 사라짐');
   }
 });
 
@@ -1893,4 +1897,21 @@ test('전투 소모품: 보조배터리 100% · 알디콤 상태이상 해제 + 
   assert.equal(S.useCons(g, 'battery'), false, '판마다 한 번');
   assert.equal(S.useCons(g, 'uiriju'), false, '가져가지 않은 건 못 씀');
   const snap = S.snapshot(g); assert.deepEqual(Object.keys(snap.consUsed).sort(), ['aldicom', 'battery', 'tambourine']);
+});
+
+test('합류 모드: 아직 안 온 멤버의 전용 카드는 안 나온다 · 레벨업 50번 동안 대기 카드가 늘 비워진다', () => {
+  const g = S.createGame({ rng: seeded(91), noWaves: true, deck: ['staff', 'gunman', 'jiwon', 'wonsik', 'hanna', 'sunggu'], leader: 'staff', join: true, tempo: true, meta: {}, unlocked: [] });
+  g.phase = 'wave';
+  let bad = 0;
+  for (let k = 0; k < 50; k++) {
+    g.pendingLevels++;
+    while (g.pendingLevels > 0) {
+      const cs = S.rollCards(g);
+      for (const c of cs) if (c.hero && !['join', 'addHero', 'secret'].includes(c.kind) && c.rarity !== 'hidden' && !g.heroes.some((h) => h.id === c.hero)) bad++;
+      const pick = cs.find((c) => c.kind !== 'join') || cs[0];
+      S.applyCard(g, pick); g.pendingLevels--;
+    }
+    assert.equal(g.pendingLevels, 0);
+  }
+  assert.equal(bad, 0, '없는 멤버 카드');
 });

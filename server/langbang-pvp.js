@@ -14,14 +14,20 @@ function createLbPvp(opts) {
   const { accounts, normLb } = opts;
   // 보상 규칙은 화면과 같은 live.js 에서 (하루 판 수 · 첫 승 · 등급 달성 우편)
   if (!opts.live) import(require('url').pathToFileURL(require('path').join(__dirname, '..', 'public', 'langbang', 'live.js')).href).then((m) => { opts.live = m; }).catch(() => {});
+  // AI 상대: 화면과 같은 시뮬레이션(sim.js)을 서버에서 돌린다
+  const AI = opts.ai || {};
+  const lbMod = (f) => import(require('url').pathToFileURL(require('path').join(__dirname, '..', 'public', 'langbang', f)).href);
+  const simReady = Promise.all([lbMod('sim.js'), lbMod('data.js')]).then(([S, D]) => { AI.S = S; AI.D = D; }).catch((e) => console.error('[lbpvp] AI 시뮬 불러오기 실패', e.message));
+  void simReady;
   const now = opts.now || Date.now;
   const T = {
-    botAfter: opts.botAfterMs !== undefined ? opts.botAfterMs : 20000,
+    botAfter: opts.botAfterMs !== undefined ? opts.botAfterMs : 30000, // 30초 동안 사람을 먼저 찾는다
     grace: opts.graceMs !== undefined ? opts.graceMs : 15000,
     delay: opts.sendDelayMs !== undefined ? opts.sendDelayMs : 1000,
     countdown: opts.countdownMs !== undefined ? opts.countdownMs : 3000,
     botTick: opts.botTickMs !== undefined ? opts.botTickMs : 1000,
     roomTtl: opts.roomTtlMs !== undefined ? opts.roomTtlMs : 10 * 60e3, // 빈 방은 10분 뒤 없어진다
+    aiNotice: opts.aiNoticeMs,
   };
   const eloDelta = opts.eloDelta;
   const queue = []; // 대기 중인 선수
@@ -37,14 +43,16 @@ function createLbPvp(opts) {
   async function playerOf(socket) {
     const tok = String((socket.handshake.auth && socket.handshake.auth.token) || '');
     const uid = tok ? accounts.verifyToken(tok) : null;
-    let wins = 0, nickname = '손님', username = '', rating = START_RATING, games = 0, master = false, title = '', frame = '';
+    let wins = 0, nickname = '손님', username = '', rating = START_RATING, games = 0, master = false, title = '', frame = '', aiAdj = 0;
     if (uid) {
       const u = await accounts.store.byId(uid);
-      if (u) { nickname = u.nickname; username = u.username; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; wins = pv.wins | 0; title = typeof u.stats.langbang.title === 'string' ? u.stats.langbang.title.slice(0, 24) : ''; frame = typeof u.stats.langbang.frame === 'string' ? u.stats.langbang.frame.slice(0, 24) : ''; master = !!(opts.isMaster && opts.isMaster(u.username)); }
+      if (u) { nickname = u.nickname; username = u.username; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; wins = pv.wins | 0; aiAdj = pv.ai ? Number(pv.ai.adj) || 0 : 0; title = typeof u.stats.langbang.title === 'string' ? u.stats.langbang.title.slice(0, 24) : ''; frame = typeof u.stats.langbang.frame === 'string' ? u.stats.langbang.frame.slice(0, 24) : ''; master = !!(opts.isMaster && opts.isMaster(u.username)); }
     }
-    return { socket, uid, master, key: uid || 'g:' + socket.id, nickname, username, rating, games, wins, title, frame, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
+    if (!uid) aiAdj = guestAdj.get('g:' + socket.id) || 0;
+    return { socket, uid, master, aiAdj, key: uid || 'g:' + socket.id, nickname, username, rating, games, wins, title, frame, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
   }
-  const pub = (p) => ({ nickname: p.nickname, username: p.username || '', rating: p.rating, deck: p.deck, bot: !!p.bot, power: p.power | 0, games: p.games | 0, wins: p.wins | 0, title: p.title || '', frame: p.frame || '' });
+  const guestAdj = new Map();
+  const pub = (p) => ({ nickname: p.nickname, username: p.username || '', rating: p.rating, deck: p.deck, bot: !!p.bot, ai: !!p.ai, power: p.power | 0, games: p.games | 0, wins: p.wins | 0, title: p.title || '', frame: p.frame || '' });
   // 상대 미니 화면용 (영웅 · 스킬 준비 · 최근 카드 · 진상 수 · 총공지) — 짧은 문자열만
   const cleanView = (b) => ({
     enemies: Math.max(0, Math.min(999, Math.floor(Number(b.enemies) || 0))),
@@ -55,11 +63,12 @@ function createLbPvp(opts) {
 
   function makeMatch(a, b) {
     const id = crypto.randomBytes(6).toString('base64url');
-    const m = { id, seed: crypto.randomBytes(4).readUInt32LE(0), a, b, startAt: now() + T.countdown, over: false, bot: !!b.bot };
+    const aiNote = b.ai ? (T.aiNotice !== undefined ? T.aiNotice : 1500) : 0; // AI 판: "사람 상대가 없어 AI와 대전해요" 1.5초 뒤 VS
+    const m = { id, seed: crypto.randomBytes(4).readUInt32LE(0), a, b, startAt: now() + T.countdown + aiNote, over: false, bot: !!b.bot };
     a.match = m; b.match = m;
     for (const p of [a, b]) { p.kills = 0; p.spent = 0; p.lastSend = 0; p.dead = false; p.hp = 1; p.max = 1; p.wave = 0; }
     matches.set(id, m);
-    for (const [me, op] of [[a, b], [b, a]]) if (me.socket) me.socket.emit('match', { id, seed: m.seed, startIn: T.countdown, opp: pub(op), you: pub(me) });
+    for (const [me, op] of [[a, b], [b, a]]) if (me.socket) me.socket.emit('match', { id, seed: m.seed, startIn: T.countdown + aiNote, aiNotice: aiNote, opp: pub(op), you: pub(me) });
     if (m.bot) startBot(m, b);
     return m;
   }
@@ -83,13 +92,110 @@ function createLbPvp(opts) {
     broadcastRooms();
     return code;
   }
+  // 사람 먼저: 아직 시작 안 한 AI 판에 있는 사람이 있으면 그 판을 없던 일로 하고 둘을 붙인다
+  function stealFromAi(pl) {
+    for (const m of matches.values()) {
+      if (!m.bot || m.over || now() >= m.startAt) continue;
+      const h = m.a.bot ? m.b : m.a;
+      if (h === pl || h.key === pl.key) continue;
+      m.over = true; matches.delete(m.id);
+      const bot = other(m, h); cancelT(bot.tickT); h.match = null;
+      return h;
+    }
+    return null;
+  }
   function unqueue(p) { const i = queue.indexOf(p); if (i >= 0) queue.splice(i, 1); cancelT(p.botT); p.botT = null; cancelT(p.roomT); p.roomT = null; let gone = false; for (const [c, q] of codes) if (q === p) { codes.delete(c); gone = true; } p.room = null; if (gone) broadcastRooms(); }
 
-  // ─── 봇 (연습 상대): 서버에서 간단히 흉내 — 시간이 갈수록 입구가 닳고, 가끔 보내기 ───
+  // ─── AI 상대 (30초 동안 사람이 없으면) : 같은 실력 · 같은 규칙 · 진짜로 판을 돌린다 ───
+  const AI_NICK = ['야식왕', '골목대장', '랑방단골', '막차탑승', '노래방VIP', '새벽두시', '편의점요정', '치킨은반반', '라떼는말야', '오늘도출근', '월요병환자', '소주한잔'];
+  function aiPower(D, id, m) { const h = D.HEROES[id]; return (h.dmg / h.interval) * D.tierPower(D.heroTier(id), m) * 10; }
+  // 덱: 비슷한 전투력 (±5%) · 절반은 상대 속성을 노린 구성
+  function aiDeck(D, pl, rng) {
+    const pool = Object.keys(D.HEROES).filter((id) => !D.HEROES[id].summon && id !== 'hochan' && id !== 'jeongseob');
+    const pick = [];
+    const pAttrs = (pl.deck || []).map((id) => D.HEROES[id] && D.HEROES[id].attr).filter(Boolean);
+    if (rng() < 0.5 && pAttrs.length) { const want = pAttrs[Math.floor(rng() * pAttrs.length)]; const same = pool.filter((id) => D.HEROES[id].attr === want); while (pick.length < 2 && same.length) pick.push(same.splice(Math.floor(rng() * same.length), 1)[0]); }
+    const rest = pool.filter((id) => !pick.includes(id));
+    const n = Math.max(2, Math.min(5, (pl.deck || []).length || 5));
+    while (pick.length < n && rest.length) pick.push(rest.splice(Math.floor(rng() * rest.length), 1)[0]);
+    const target = Math.max(1, pl.power | 0);
+    // 강화 0 으로도 너무 세면: 높은 등급부터 낮은 등급 멤버로 바꾸고 · 그래도 세면 한 명씩 뺀다
+    const p0 = () => pick.reduce((a, id) => a + aiPower(D, id, 0), 0);
+    const low = pool.filter((id) => !pick.includes(id)).sort((x, y) => aiPower(D, x, 0) - aiPower(D, y, 0));
+    for (let k = 0; k < 10 && p0() > target * 1.05 && low.length; k++) { let hi = 0; pick.forEach((id, i) => { if (aiPower(D, id, 0) > aiPower(D, pick[hi], 0)) hi = i; }); const c = low.shift(); if (aiPower(D, c, 0) < aiPower(D, pick[hi], 0)) pick[hi] = c; }
+    while (pick.length > 2 && p0() > target * 1.05) { let hi = 0; pick.forEach((id, i) => { if (aiPower(D, id, 0) > aiPower(D, pick[hi], 0)) hi = i; }); pick.splice(hi, 1); }
+    // 강화를 끝까지 해도 모자라면: 약한 멤버를 높은 등급 멤버로 바꾼다
+    const pMax = () => pick.reduce((a, id) => a + aiPower(D, id, D.metaMaxOf(id)), 0);
+    const high = pool.filter((id) => !pick.includes(id)).sort((x, y) => aiPower(D, y, D.metaMaxOf(y)) - aiPower(D, x, D.metaMaxOf(x)));
+    for (let k = 0; k < 10 && pMax() < target * 0.95 && high.length; k++) { let lo = 0; pick.forEach((id, i) => { if (aiPower(D, id, D.metaMaxOf(id)) < aiPower(D, pick[lo], D.metaMaxOf(pick[lo]))) lo = i; }); const c = high.shift(); if (aiPower(D, c, D.metaMaxOf(c)) > aiPower(D, pick[lo], D.metaMaxOf(pick[lo]))) pick[lo] = c; }
+    let best = 0, bd = Infinity;
+    for (let m = 0; m <= 20; m++) { const p = pick.reduce((a, id) => a + aiPower(D, id, Math.min(m, D.metaMaxOf(id))), 0); if (Math.abs(p - target) < bd) { bd = Math.abs(p - target); best = m; } }
+    const meta = Object.fromEntries(pick.map((id) => [id, Math.min(best, D.metaMaxOf(id))]));
+    // 남은 차이는 한 명씩 ±1 로 맞춘다 (±5% 안으로)
+    for (let k = 0; k < 60; k++) {
+      const p = pick.reduce((a, id) => a + aiPower(D, id, meta[id]), 0);
+      if (Math.abs(p - target) <= target * 0.05) break;
+      const id = pick[k % pick.length]; meta[id] = Math.max(0, Math.min(D.metaMaxOf(id), meta[id] + (p < target ? 1 : -1)));
+    }
+    const power = Math.round(pick.reduce((a, id) => a + aiPower(D, id, meta[id]), 0));
+    return { deck: pick, meta, power };
+  }
   function makeBot(pl) {
-    return { bot: true, nickname: '연습 상대', rating: pl.rating, deck: ['bangjang', 'staff', 'gunman', 'gunnyeo'], power: pl.power | 0, games: 0, wins: 0, hp: 300, max: 300, kills: 0, spent: 0, wave: 0, dead: false, socket: null, hurt: 0 };
+    const base = { bot: true, nickname: '연습 상대', rating: pl.rating, deck: ['bangjang', 'staff', 'gunman', 'gunnyeo'], power: pl.power | 0, games: 0, wins: 0, hp: 300, max: 300, kills: 0, spent: 0, wave: 0, dead: false, socket: null, hurt: 0 };
+    if (!AI.S) return base;
+    const seed = crypto.randomBytes(4).readUInt32LE(0);
+    let a = seed; const rng = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const dk = aiDeck(AI.D, pl, rng);
+    const r = Math.max(800, Math.round(pl.rating + (rng() - 0.5) * 80));
+    return Object.assign(base, { ai: true, nickname: AI_NICK[Math.floor(rng() * AI_NICK.length)] + Math.floor(10 + rng() * 89), rating: r, deck: dk.deck, meta: dk.meta, power: dk.power, games: 20 + Math.floor(rng() * 200), rng, adj: Math.max(-0.15, Math.min(0.15, pl.aiAdj || 0)) });
+  }
+  // AI 판단: 사람처럼 0.4~1.2초 늦게 · 가끔 실수 · 뭉친 곳에 스킬 · 입구가 위험하면 먼저 · 보스·떼거리에 총공지
+  function aiThink(g, bot, S, D) {
+    const rng = bot.rng, eff = 1 + bot.adj, miss = Math.max(0.02, 0.1 - bot.adj * 0.5);
+    while (g.pendingLevels > 0) { const c = S.rollCards(g); const sc = (x) => (x.kind === 'join' ? 100 : x.kind === 'heroLv' ? 60 : /공격|공속/.test((x.title || '') + (x.desc || '')) ? 50 : 20) + rng() * 10 * (1 - eff + 1); c.sort((p, q) => sc(q) - sc(p)); S.applyCard(g, rng() < miss ? c[c.length - 1] : c[0]); g.pendingLevels--; }
+    if (g.augOffer) S.applyAug(g, g.augOffer.opts[rng() < miss ? g.augOffer.opts.length - 1 : 0]);
+    bot.plan = bot.plan || [];
+    const alive = g.enemies.filter((e) => !e.dead && e.y > 0);
+    const boss = alive.find((e) => e.boss || e.mid);
+    const doorLow = g.base.hp / g.base.max < 0.5;
+    let cl = null, cn = 0;
+    for (const e of alive) { let n = 0; for (const o of alive) if (Math.abs(o.x - e.x) < 80 && Math.abs(o.y - e.y) < 80) n++; if (n > cn) { cn = n; cl = e; } }
+    for (const h of g.heroes) {
+      if (!S.skillReady(h) || bot.plan.some((p) => p.h === h)) continue;
+      const good = cn >= 3 || doorLow || (boss && rng() < 0.6);
+      if (!good) continue;
+      const t = boss && rng() < 0.5 ? boss : cl;
+      if (!t) continue;
+      bot.plan.push({ at: g.t + 0.4 + rng() * 0.8, h, x: t.x, y: t.y });
+    }
+    if (g.ult >= D.RULES.ultMax && (boss || alive.length >= 8 || doorLow) && !bot.plan.some((p) => p.ult)) bot.plan.push({ at: g.t + 0.4 + rng() * 0.8, ult: true });
+    const due = bot.plan.filter((p) => p.at <= g.t); bot.plan = bot.plan.filter((p) => p.at > g.t);
+    for (const p of due) { if (rng() < miss) continue; if (p.ult) S.useUlt(g); else if (S.skillReady(p.h)) S.castSkill(g, p.h, p.x, p.y); }
   }
   function startBot(m, bot) {
+    if (!bot.ai || !AI.S) return startScriptBot(m, bot);
+    const S = AI.S, D = AI.D;
+    const g = S.createGame({ H: 760, rng: bot.rng, mode: 'stage', stage: 12 + (m.seed % 17), pvp: { seed: m.seed }, deck: [...bot.deck, null], leader: bot.deck[0], meta: bot.meta, tempo: true, join: true, unlocked: D.LOCKED_HEROES.slice() });
+    g.mods.dmg *= 1 + bot.adj; // 조정: 사람이 두 번 연속 지면 -5% · 이기면 +5% (±15%)
+    bot.g = g;
+    const human = other(m, bot);
+    const dt = 1 / 30, per = Math.max(1, Math.round((T.botTick / 1000) / dt));
+    const tick = () => {
+      if (m.over) return;
+      for (let k = 0; k < per && !g.over; k++) { S.step(g, dt); g.events.length = 0; }
+      aiThink(g, bot, S, D);
+      bot.hp = g.base.hp; bot.max = g.base.max; bot.kills = g.stats.kills; bot.wave = g.wave;
+      if (human && human.socket) human.socket.emit('opp', { hp: Math.round(g.base.hp), max: g.base.max, kills: bot.kills, wave: g.wave, enemies: g.enemies.filter((e) => !e.dead).length, heroes: g.heroes.filter((h) => !h.def.summon).map((h) => ({ id: h.id, r: S.skillReady(h), lv: h.lv })), cards: [], ults: g.stats.ults | 0 });
+      const left = bot.kills - bot.spent, gapOk = now() - (bot.lastSend || 0) >= SEND.big.gap;
+      if (gapOk && left >= SEND.big.cost && bot.rng() < 0.3) { bot.spent += SEND.big.cost; bot.lastSend = now(); deliver(m, bot, 'big'); }
+      else if (gapOk && left >= SEND.small.cost && bot.rng() < 0.45) { bot.spent += SEND.small.cost; bot.lastSend = now(); deliver(m, bot, 'small'); }
+      if (g.over || g.base.hp <= 0) { finish(m, bot, 'dead'); return; }
+      bot.tickT = later(T.botTick, tick);
+    };
+    bot.tickT = later(T.countdown + T.botTick, tick);
+  }
+  // (시뮬을 못 불러왔을 때만) 예전 흉내 봇
+  function startScriptBot(m, bot) {
     const t0 = m.startAt;
     const tick = () => {
       if (m.over) return;
@@ -99,7 +205,7 @@ function createLbPvp(opts) {
       bot.hp = Math.max(0, bot.hp - (el > 60 ? 0.6 + (el - 60) * 0.03 : 0.2) - bot.hurt);
       bot.hurt *= 0.6;
       const human = other(m, bot);
-      if (human.socket) human.socket.emit('opp', { hp: Math.round(bot.hp), max: bot.max, kills: bot.kills, wave: bot.wave, enemies: 8 + Math.floor(el / 10), heroes: bot.deck.map((id, i) => ({ id, r: (Math.floor(el) + i * 5) % 20 < 3, lv: Math.min(5, 1 + Math.floor(el / 40)) })), cards: [], ults: Math.floor(el / 60) });
+      if (human.socket) human.socket.emit('opp', { hp: Math.round(bot.hp), max: bot.max, kills: bot.kills, wave: bot.wave, enemies: 8 + Math.floor(el / 10), heroes: bot.deck.map((id, i) => ({ id, r: (Math.floor(el) + i * 5) % 20 < 3, lv: Math.min(5, 1 + Math.floor(el / 30)) })) });
       if (el > 20 && bot.kills - bot.spent >= SEND.small.cost && Math.random() < 0.25) { bot.spent += SEND.small.cost; deliver(m, bot, 'small'); }
       if (el > 110 && bot.kills - bot.spent >= SEND.big.cost && Math.random() < 0.15) { bot.spent += SEND.big.cost; deliver(m, bot, 'big'); }
       if (bot.hp <= 0) { finish(m, bot, 'dead'); return; }
@@ -111,7 +217,7 @@ function createLbPvp(opts) {
     const to = other(m, from);
     later(T.delay, () => {
       if (m.over) return;
-      if (to.bot) { to.hurt += kind === 'big' ? 18 : 6; return; }
+      if (to.bot) { if (to.g && AI.S) { AI.S.pvpIncoming(to.g, kind); to.g.events.length = 0; } else to.hurt += kind === 'big' ? 18 : 6; return; }
       if (to.socket) to.socket.emit('incoming', { kind });
     });
     if (from.socket) from.socket.emit('sent', { kind });
@@ -123,14 +229,16 @@ function createLbPvp(opts) {
     matches.delete(m.id);
     const winner = other(m, loser);
     for (const p of [m.a, m.b]) { cancelT(p.tickT); cancelT(p.leftT); p.match = null; if (!p.bot) byUser.delete(p.key); }
-    const ranked = !m.bot && winner.uid && loser.uid && winner.uid !== loser.uid && !winner.master && !loser.master; // 마스터 테스트 판은 점수 안 바뀜
-    const d = ranked ? Math.max(8, eloDelta(winner.rating, loser.rating, 1, winner.games)) : 0;
+    const aiM = m.bot && (m.a.ai || m.b.ai);
+    const human0 = m.a.bot ? m.b : m.a;
+    const ranked = aiM ? !!human0.uid && !human0.master : !m.bot && winner.uid && loser.uid && winner.uid !== loser.uid && !winner.master && !loser.master; // 마스터 테스트 판은 점수 안 바뀜 · AI 판은 60%
+    const d = ranked ? Math.max(aiM ? 5 : 8, Math.round(eloDelta(winner.rating, loser.rating, 1, winner.games) * (aiM ? 0.6 : 1))) : 0;
     const res = new Map();
     for (const p of [winner, loser]) {
       if (p.bot) continue;
       const win = p === winner;
       const delta = ranked ? (win ? d : -d) : 0;
-      let coins = m.bot ? (win ? REWARD.bot : 0) : win ? REWARD.win : REWARD.lose, note = '', left = null;
+      let coins = m.bot && !aiM ? (win ? REWARD.bot : 0) : win ? REWARD.win : REWARD.lose, note = '', left = null;
       let rating = p.rating, streak = 0;
       const before = p.rating;
       if (p.uid) {
@@ -140,14 +248,16 @@ function createLbPvp(opts) {
             const pv = lb.pvp = lb.pvp || { rating: START_RATING, games: 0, wins: 0 };
             if (ranked) { pv.rating = Math.max(0, (pv.rating | 0 || START_RATING) + delta); pv.games++; if (win) pv.wins++; pv.streak = win ? (pv.streak | 0) + 1 : 0; pv.best = Math.max(pv.best | 0, pv.streak); }
             pv.last = now();
-            if (opts.live) { const o = other(m, p); const rr = opts.live.pvpRewardCoins(lb, win, o.bot ? 'bot' : String(o.uid || o.key || ''), (now() - m.startAt) / 1000, now()); coins = p.master ? coins : rr.coins; note = rr.note; left = rr.left; if (ranked) opts.live.pvpTierUp(lb, pv.rating, now()); }
+            if (aiM) { const a0 = pv.ai = pv.ai || { adj: 0, w: 0, l: 0 }; if (win) { a0.w = (a0.w | 0) + 1; a0.l = 0; if (a0.w >= 2) { a0.adj = Math.min(0.15, (Number(a0.adj) || 0) + 0.05); a0.w = 0; } } else { a0.l = (a0.l | 0) + 1; a0.w = 0; if (a0.l >= 2) { a0.adj = Math.max(-0.15, (Number(a0.adj) || 0) - 0.05); a0.l = 0; } } p.aiAdj = a0.adj; }
+            if (opts.live) { const o = other(m, p); const rr = opts.live.pvpRewardCoins(lb, win, o.bot ? (o.ai ? 'ai:' + o.nickname : 'bot') : String(o.uid || o.key || ''), (now() - m.startAt) / 1000, now()); coins = p.master ? coins : rr.coins; note = rr.note; left = rr.left; if (ranked) opts.live.pvpTierUp(lb, pv.rating, now()); }
             lb.coins += coins;
             rating = pv.rating; streak = pv.streak | 0;
           }));
         } catch (e) { console.error('[lbpvp] 결과 저장 실패', e.message); }
       }
       p.rating = rating;
-      res.set(p, { win, delta, coins, rating, before, streak, reason, ranked, bot: m.bot, note, left });
+      if (aiM && !p.uid) { const k = p.key, st = guestAdj.get(k + ':s') || { w: 0, l: 0 }; let adj = guestAdj.get(k) || 0; if (win) { st.w++; st.l = 0; if (st.w >= 2) { adj = Math.min(0.15, adj + 0.05); st.w = 0; } } else { st.l++; st.w = 0; if (st.l >= 2) { adj = Math.max(-0.15, adj - 0.05); st.l = 0; } } guestAdj.set(k, adj); guestAdj.set(k + ':s', st); p.aiAdj = adj; }
+      res.set(p, { win, delta, coins, rating, before, streak, reason, ranked, bot: m.bot, ai: !!aiM, note, left });
     }
     for (const [p, r] of res) if (p.socket) p.socket.emit('end', r);
     return res;
@@ -172,13 +282,22 @@ function createLbPvp(opts) {
         if (pl.match) return ack(fn, { ok: false, message: '이미 대전 중이에요' });
         pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : []; pl.power = Math.max(0, Math.min(1e7, Math.floor(Number(b && b.power) || 0)));
         unqueue(pl);
-        const opp = queue.find((q) => q !== pl && q.key !== pl.key);
+        const opp = queue.find((q) => q !== pl && q.key !== pl.key) || stealFromAi(pl);
         if (opp) { unqueue(opp); makeMatch(opp, pl); return ack(fn, { ok: true, matched: true }); }
         queue.push(pl);
         pl.botT = later(T.botAfter, () => { if (!pl.match && queue.includes(pl)) { unqueue(pl); makeMatch(pl, makeBot(pl)); } });
         ack(fn, { ok: true, waiting: true, botIn: T.botAfter });
       });
       socket.on('cancel', (b, fn) => { unqueue(me()); ack(fn, { ok: true }); });
+      socket.on('requeue', (b, fn) => {
+        const pl = me(), m = pl.match;
+        if (!m || !m.bot || m.over || now() >= m.startAt) return ack(fn, { ok: false, message: '이미 시작했어요' });
+        m.over = true; matches.delete(m.id);
+        const bot = other(m, pl); cancelT(bot.tickT); pl.match = null;
+        queue.push(pl);
+        pl.botT = later(T.botAfter, () => { if (!pl.match && queue.includes(pl)) { unqueue(pl); makeMatch(pl, makeBot(pl)); } });
+        ack(fn, { ok: true, waiting: true, botIn: T.botAfter });
+      });
       socket.on('room:create', (b, fn) => {
         const pl = me();
         if (pl.match) return ack(fn, { ok: false, message: '이미 대전 중이에요' });
@@ -196,7 +315,8 @@ function createLbPvp(opts) {
         pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map(String) : []; pl.power = Math.max(0, Math.min(1e7, Math.floor(Number(b && b.power) || 0)));
         unqueue(pl);
         const oldest = [...codes.values()].filter((h) => h !== pl && !h.match && h.key !== pl.key && h.room).sort((x, y) => x.room.at - y.room.at)[0];
-        if (oldest) { unqueue(oldest); makeMatch(oldest, pl); return ack(fn, { ok: true, matched: true }); }
+        const firstH = oldest || stealFromAi(pl);
+        if (firstH) { unqueue(firstH); makeMatch(firstH, pl); return ack(fn, { ok: true, matched: true }); }
         const code = openRoom(pl, Object.assign({}, b, { title: '빠른 매칭' }));
         pl.botT = later(T.botAfter, () => { if (!pl.match && codes.get(code) === pl) { unqueue(pl); makeMatch(pl, makeBot(pl)); } });
         ack(fn, { ok: true, waiting: true, code, botIn: T.botAfter });
@@ -255,7 +375,7 @@ function createLbPvp(opts) {
     });
   }
   function close() { for (const t of timers) clearTimeout(t); timers.clear(); }
-  return { attach, close, queue, matches, finish, roomList, SEND, REWARD };
+  return { attach, close, queue, matches, finish, roomList, SEND, REWARD, aiDeck: (pl, rng) => aiDeck(AI.D, pl, rng || Math.random), aiPower: (id, m) => aiPower(AI.D, id, m), makeBot, aiThink: (g, bot) => aiThink(g, bot, AI.S, AI.D), simReady, AI };
 }
 
 module.exports = { createLbPvp, SEND, REWARD };

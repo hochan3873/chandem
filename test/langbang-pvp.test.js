@@ -534,3 +534,53 @@ test('미션 · 시즌 보상에 범용 멤버 카드 (누구 강화에나)', as
   assert.equal(r.ok, true, r.message);
   assert.equal(r.profile.wild, L.ACHIEVEMENTS.find((m) => m.id === 'ch1').wild, '1장 클리어 업적 → 범용 카드');
 });
+
+test('1:1 AI 상대: 덱 전투력이 내 전투력 ±5% · 두 번 연속 지면 AI -5% / 이기면 +5% (±15% 까지)', async () => {
+  const { createLbPvp } = require('../server/langbang-pvp');
+  const k = createLbPvp({ accounts: {}, normLb: (x) => x, eloDelta: () => 10, live: {}, countdownMs: 10, botTickMs: 1000 });
+  await k.simReady;
+  let seed = 5; const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (const power of [600, 1500, 3000, 6000, 12000]) {
+    const d = k.aiDeck({ power, deck: ['staff', 'gunman', 'gunnyeo', 'bangjang', 'dohoon'] }, rng);
+    assert.ok(d.deck.length >= 2 && d.deck.length <= 5);
+    assert.ok(Math.abs(d.power - power) <= power * 0.05 + 30, `전투력 ${power} → ${d.power}`);
+  }
+  const human = { key: 'g:x', nickname: '나', rating: 1000, deck: ['staff'], power: 2000, aiAdj: 0 };
+  const play = async (humanWins) => { const bot = k.makeBot(human); const m = { id: 'm' + Math.random(), a: human, b: bot, bot: true, over: false }; k.matches.set(m.id, m); await k.finish(m, humanWins ? bot : human, 'dead'); return m; };
+  await play(false); assert.equal(human.aiAdj, 0, '한 번은 그대로');
+  await play(false); assert.equal(Math.round(human.aiAdj * 100), -5, '두 번 지면 -5%');
+  for (let i = 0; i < 10; i++) await play(false);
+  assert.equal(Math.round(human.aiAdj * 100), -15, '최대 -15%');
+  for (let i = 0; i < 20; i++) await play(true);
+  assert.equal(Math.round(human.aiAdj * 100), 15, '최대 +15%');
+  const bot = k.makeBot(human); assert.equal(bot.ai, true); assert.ok(Math.abs(bot.adj - 0.15) < 1e-9, 'AI 에 조정값이 들어간다');
+  k.close();
+});
+
+test('1:1: 사람 먼저 — AI 판이 시작되기 전에 사람이 오면 AI 판을 취소하고 사람끼리 · 다시 찾기', async () => {
+  const s1 = player(''), s2 = player('');
+  await until(() => s1.connected && s2.connected);
+  await s1.call('queue', { deck: ['staff'], power: 1500 });
+  await until(() => s1.got.match, 3000);
+  const m1 = s1.got.match[0];
+  assert.equal(m1.opp.ai, true, 'AI 상대');
+  assert.ok(m1.aiNotice > 0, 'AI 안내 시간');
+  assert.equal((await s2.call('queue', { deck: ['gunman'] })).matched, true, '사람이 오면 바로 붙는다');
+  await until(() => s1.got.match.length >= 2 && s2.got.match);
+  assert.equal(s1.got.match[1].opp.ai, false, '두 번째는 사람');
+  assert.equal(s1.got.match[1].id, s2.got.match[0].id);
+  s1.emit('quit'); await until(() => s1.got.end);
+  s1.close(); s2.close();
+  // 다시 찾기: AI 판 시작 전이면 없던 일로 하고 다시 대기
+  const s3 = player('');
+  await until(() => s3.connected);
+  await s3.call('queue', { deck: ['staff'], power: 1500 });
+  await until(() => s3.got.match, 3000);
+  const rq = await s3.call('requeue', {});
+  assert.equal(rq.ok, true); assert.equal(rq.waiting, true);
+  await until(() => s3.got.match.length >= 2, 3000);
+  assert.equal(s3.got.match[1].opp.ai, true, '다시 30초(테스트 0.25초) 뒤 AI');
+  s3.emit('quit'); await until(() => s3.got.end);
+  assert.ok(!s3.got.end.slice(0, -1).length, '취소한 판은 결과 없음');
+  s3.close();
+});

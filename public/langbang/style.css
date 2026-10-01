@@ -3449,11 +3449,22 @@ body.rm .screen.enter, body.rm .screen.enter > * { animation: none !important; }
 @keyframes rkMq { 0% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--mq, 0)); } }
 body.rm #lbRank .rk-in.mq { animation: none; white-space: normal; word-break: keep-all; }
 #lbRank { overflow: hidden; } body.rm #lbRank { height: auto; min-height: calc(var(--u) * 22); }
+#h-hp-sh { position: absolute; right: 0; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(220,240,255,0.95) 0 4px, rgba(170,210,255,0.85) 4px 8px); border-radius: inherit; box-shadow: 0 0 6px rgba(160,210,255,0.8); transition: width 0.2s; z-index: 2; }
+
+/* 부팅 로딩 (첫 화면 · 새로고침 · 뒤로 가기로 들어올 때) */
+#bootld .bl-in { position: relative; width: min(86%, 340px); margin-bottom: calc(var(--u, 1px) * 70); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+#bootld .bl-logo { width: 78%; max-width: 280px; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.7)); margin-bottom: 18vh; }
+#bootld .bl-load { width: 100%; display: flex; align-items: center; gap: 8px; }
+#bootld .bl-bar { flex: 1; height: 14px; border-radius: 99px; border: 2px solid #1a0b1f; background: rgba(0, 0, 0, 0.6); box-shadow: 0 0 0 1px #c9962a inset; overflow: hidden; padding: 2px; }
+#bootld .bl-bar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(180deg, #fff2a8, #ffc933 50%, #e59a12); transition: width 0.25s; }
+#bootld #bl-pct { min-width: 44px; text-align: right; color: #fff; font: 900 15px 'Noto Sans KR', sans-serif; text-shadow: 0 0 2px #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
+#bootld .bl-txt { margin: 0; color: #fff; font: 700 14px 'Noto Sans KR', sans-serif; text-shadow: 0 0 2px #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
+#bootld .bl-tip { margin: 0; padding: 8px 12px; border-radius: 12px; background: rgba(10, 8, 20, 0.78); color: #f1ecff; font: 500 13px 'Noto Sans KR', sans-serif; text-align: center; word-break: keep-all; line-height: 1.45; }
 
 /* 소모품: 출전 칸 · 고르기 · 전투 버튼 · 가방 */
 .pp-cons { margin: calc(var(--u) * 6) 0; padding: calc(var(--u) * 8); border-radius: calc(var(--u) * 14); background: rgba(10, 6, 22, 0.7); border: 1.5px solid rgba(255, 255, 255, 0.12); }
-.pp-cons.tut { border-color: #ffd23f; box-shadow: 0 0 0 2px rgba(255, 210, 63, 0.35), 0 0 calc(var(--u) * 14) rgba(255, 210, 63, 0.45); animation: cqTut 1.4s ease-in-out infinite; }
-@keyframes cqTut { 50% { box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.6), 0 0 calc(var(--u) * 20) rgba(255, 210, 63, 0.7); } }
+.pp-cons.tut { border-color: #ffd23f; box-shadow: 0 0 0 2px rgba(255, 210, 63, 0.35), 0 0 calc(var(--u) * 14) rgba(255, 210, 63, 0.45); animation: pcTut 1.4s ease-in-out infinite; }
+@keyframes pcTut { 50% { box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.6), 0 0 calc(var(--u) * 20) rgba(255, 210, 63, 0.7); } }
 body.rm .pp-cons.tut { animation: none; }
 .pp-cons .cq-h { display: flex; align-items: baseline; gap: calc(var(--u) * 6); margin-bottom: calc(var(--u) * 6); }
 .pp-cons .cq-h small { color: var(--dim); font-size: calc(var(--u) * 10); word-break: keep-all; }
@@ -3484,3 +3495,112 @@ body.rm .pp-cons.tut { animation: none; }
 #consbar .cb .cb-cd { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgba(8, 5, 18, 0.7) calc(var(--cd, 0) * 360deg), transparent 0); pointer-events: none; }
 .mail-row .mail-from { display: block; font-style: normal; font-size: calc(var(--u) * 10); color: #ffe07a; font-weight: 800; }
 .sec-t { margin: calc(var(--u) * 14) 0 calc(var(--u) * 6); font-size: calc(var(--u) * 14); }
+/* 캐릭터 둘레 선(색·흰 빛 테두리) 없음 — 뒤쪽 은은한 빛은 따로, 그림엔 아래 그림자만 */
+.anim-gold .dx-art { filter: drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 8) rgba(0, 0, 0, 0.5)); }
+.grand-cut .gc-card img { filter: drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 8) rgba(0, 0, 0, 0.5)); }
+.show-v2 .hf-art img { filter: drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 8) rgba(0, 0, 0, 0.5)) !important; }
+.jr-art img { filter: drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 8) rgba(0, 0, 0, 0.5)); }
+
+/* 총공지 메달 (v2): 금테 보석 + 확성기 · 둘레 기세 3칸 고리 · 준비되면 빛살 */
+.ult.v2 { width: calc(var(--u) * 72); height: calc(var(--u) * 72); padding: 0; background: none; filter: none; opacity: 1; border: 0; overflow: visible; }
+.ult.v2::before { display: none; }
+.ult.v2 .ult-ring { position: absolute; inset: calc(var(--u) * -4); width: calc(100% + var(--u) * 8); height: calc(100% + var(--u) * 8); overflow: visible; z-index: 3; pointer-events: none; }
+.ult.v2 .ult-ring path { fill: none; stroke-width: 7; stroke-linecap: butt; }
+.ult.v2 .ur-bg path { stroke: rgba(10, 6, 22, 0.85); stroke-width: 9; }
+.ult.v2 .ur-fg path { stroke: #ffb52a; stroke-dasharray: 0 100; transition: stroke-dasharray 0.25s linear; filter: drop-shadow(0 0 2px rgba(255, 190, 60, 0.6)); }
+.ult.v2 .ur-fg path.full { stroke: #ffe46b; filter: drop-shadow(0 0 4px rgba(255, 230, 110, 0.95)); }
+.ult.v2.noring .ult-ring { display: none; }
+.ult.v2 .ult-gem { position: absolute; inset: calc(var(--u) * 6); border-radius: 50%; overflow: hidden; z-index: 2; background: radial-gradient(circle at 38% 30%, #6a3fb0, #24103f 70%); box-shadow: 0 0 0 calc(var(--u) * 3) #c9962a, 0 0 0 calc(var(--u) * 5) #5a3a0c, inset 0 calc(var(--u) * -6) calc(var(--u) * 10) rgba(0, 0, 0, 0.55), 0 calc(var(--u) * 4) 0 rgba(0, 0, 0, 0.5); }
+.ult.v2 .ult-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--p, 0) * 1%); background: linear-gradient(0deg, #c8410f, #ff9a3d 70%, #ffd27a); opacity: 0.9; transition: height 0.3s; }
+.ult.v2 .ult-ico { position: absolute; left: 50%; top: 44%; width: 62%; height: 62%; transform: translate(-50%, -50%); object-fit: contain; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6)); margin: 0; font-size: 0; }
+.ult.v2 .ult-txt { position: absolute; left: 50%; bottom: calc(var(--u) * -3); transform: translateX(-50%); z-index: 4; padding: 0 calc(var(--u) * 7); border-radius: 99px; background: linear-gradient(180deg, #3a1f5a, #1a0b2e); border: 1.5px solid #c9962a; color: #ffe8a0; font-size: calc(var(--u) * 10.5); font-weight: 900; white-space: nowrap; margin: 0; text-shadow: 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
+.ult.v2 .ult-rays { position: absolute; inset: calc(var(--u) * -18); z-index: 1; border-radius: 50%; opacity: 0; background: repeating-conic-gradient(rgba(255, 220, 110, 0.55) 0 8deg, transparent 8deg 24deg); -webkit-mask-image: radial-gradient(circle, #000 35%, transparent 70%); mask-image: radial-gradient(circle, #000 35%, transparent 70%); pointer-events: none; }
+.ult.v2.ready { animation: none; }
+.ult.v2.ready .ult-gem { animation: ultGem 1s ease-in-out infinite; }
+.ult.v2.ready .ult-rays { opacity: 1; animation: ultRays 6s linear infinite; }
+.ult.v2.ready .ult-fill { background: linear-gradient(0deg, #ff7a1a, #ffd23f 70%, #fff3b0); }
+@keyframes ultGem { 50% { box-shadow: 0 0 0 calc(var(--u) * 3) #ffe07a, 0 0 0 calc(var(--u) * 5) #7a520f, 0 0 calc(var(--u) * 18) rgba(255, 210, 63, 0.9), inset 0 calc(var(--u) * -6) calc(var(--u) * 10) rgba(0, 0, 0, 0.4); } }
+@keyframes ultRays { to { transform: rotate(360deg); } }
+.ult.v2.tut { animation: ultTut 1s ease-in-out 6; }
+@keyframes ultTut { 50% { transform: scale(1.08); } }
+.ult.v2 .ult-bub { position: absolute; right: 0; bottom: calc(100% + var(--u) * 10); z-index: 6; white-space: nowrap; padding: calc(var(--u) * 4) calc(var(--u) * 9); border-radius: 99px; background: #ffd23f; color: #2a1400; font-weight: 900; font-size: calc(var(--u) * 12); box-shadow: 0 calc(var(--u) * 3) 0 rgba(0, 0, 0, 0.45); animation: ultBub 1.8s ease-out both; pointer-events: none; }
+@keyframes ultBub { 0% { transform: translateY(6px) scale(0.6); opacity: 0; } 12% { transform: none; opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+body.rm .ult.v2.ready .ult-rays, body.rm .ult.v2.ready .ult-gem, body.rm .ult.v2.tut { animation: none; }
+#skillbar .sk .sk-lock { display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; white-space: nowrap; font-style: normal; font-size: calc(var(--u) * 9); font-weight: 900; color: #fff; padding: 0 calc(var(--u) * 4); border-radius: 99px; background: rgba(10, 6, 22, 0.85); text-shadow: 0 0 2px #000; }
+#skillbar .sk.nomom .sk-lock { display: block; }
+#skillbar .sk .sk-pip { display: none; position: absolute; right: calc(var(--u) * 3); bottom: calc(var(--u) * 3); z-index: 5; width: calc(var(--u) * 7); height: calc(var(--u) * 7); border-radius: 50%; background: #ffe46b; box-shadow: 0 0 calc(var(--u) * 4) rgba(255, 220, 90, 0.9); }
+#skillbar .sk.mompip.ready .sk-pip { display: block; }
+#mombar { display: none !important; }
+
+/* 스킬 버튼: 누구 스킬인지 — 얼굴 배지(왼쪽 위) · 번호 · 멤버 이름 · 준비되면 스킬 이름 반짝 */
+#skillbar.v2 .sk .sk-face { position: absolute; left: -9%; top: -9%; width: 38%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; z-index: 5; background: #1a1030; box-shadow: 0 0 0 2px #d9a93a, inset 0 0 0 1.5px var(--ac); }
+#skillbar.v2 .sk .sk-face img.fz { filter: none; }
+#skillbar.v2 .sk .sk-lv { left: auto; right: calc(var(--u) * -3); }
+#skillbar.v2 .sk .sk-no { position: absolute; left: calc(var(--u) * -2); bottom: calc(var(--u) * -2); z-index: 5; font-style: normal; min-width: calc(var(--u) * 14); height: calc(var(--u) * 14); border-radius: 99px; background: #1a0b1f; color: #ffe8a0; font-size: calc(var(--u) * 9); font-weight: 900; line-height: calc(var(--u) * 14); text-align: center; }
+#skillbar.v2 .sk .sk-rdname { position: absolute; left: 50%; bottom: calc(100% + var(--u) * 6); transform: translateX(-50%); z-index: 7; white-space: nowrap; padding: 0 calc(var(--u) * 6); border-radius: 99px; background: rgba(10, 6, 22, 0.9); color: #ffe07a; font-size: calc(var(--u) * 10); font-weight: 900; animation: ultBub 1.4s ease-out both; pointer-events: none; }
+#skillbar.v2 .sk.cast { animation: skCast 0.32s ease-out; }
+@keyframes skCast { 0% { transform: scale(1); } 35% { transform: scale(0.82); } 100% { transform: scale(1); } }
+
+/* 뽑기 결과 v3: 뒷면이 등급 색으로 빛남 (예고) · 등급별 뒤집기 연출 */
+.gacha-res.v3 .gr-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); opacity: 0; transition: opacity 0.35s; pointer-events: none; z-index: 1; }
+.gacha-res.v3.dim .gr-dim { opacity: 1; }
+.gacha-res.v3 .gr-grid { position: relative; z-index: 2; }
+.gacha-res.v3 .gcard { position: relative; --gc: #7a8aa8; cursor: pointer; }
+.gacha-res.v3 .gcard.t-ra { --gc: #4ea8ff; } .gacha-res.v3 .gcard.t-ep { --gc: #c77dff; } .gacha-res.v3 .gcard.t-lg { --gc: #ffd23f; } .gacha-res.v3 .gcard.t-my { --gc: #ffffff; }
+.gacha-res.v3 .gc-back { background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--gc) 45%, #241840) 0, #1a1030 70%); border-color: var(--gc); box-shadow: 0 0 calc(var(--u) * 10) color-mix(in srgb, var(--gc) 70%, transparent), inset 0 0 calc(var(--u) * 10) color-mix(in srgb, var(--gc) 50%, transparent); }
+.gacha-res.v3 .gcard.t-my .gc-back { border-color: transparent; background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.25), #1a1030 70%) padding-box, conic-gradient(#ff5f6d, #ffc371, #7bff9a, #5fd4ff, #b77bff, #ff5f6d) border-box; animation: gcPrism 2s linear infinite; }
+@keyframes gcPrism { to { filter: hue-rotate(360deg); } }
+.gacha-res.v3 .gcard.t-ep .gc-back, .gacha-res.v3 .gcard.t-lg .gc-back { animation: backGlow 0.6s ease-in-out infinite alternate; }
+.gacha-res.v3 .gc-back .gc-bk { width: 46%; height: 46%; object-fit: contain; opacity: 0.9; }
+.gacha-res.v3 .gc-front { border-color: var(--gc); }
+.gacha-res.v3 .gc-newb { position: absolute; top: calc(var(--u) * -6); right: calc(var(--u) * -6); width: calc(var(--u) * 30); height: auto; z-index: 3; }
+.gacha-res.v3 .gc-shine { position: absolute; inset: 0; border-radius: calc(var(--u) * 10); pointer-events: none; overflow: hidden; }
+.gacha-res.v3 .gcard.shine .gc-shine::after { content: ''; position: absolute; top: -20%; bottom: -20%; width: 30%; left: -40%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.7), transparent); animation: gcShine 0.6s 0.25s ease-out both; }
+@keyframes gcShine { to { left: 120%; } }
+.gacha-res.v3 .gcard.lift { animation: gcLift 0.5s ease-out both; }
+@keyframes gcLift { 50% { transform: translateY(calc(var(--u) * -14)) scale(1.1); } 100% { transform: translateY(calc(var(--u) * -4)) scale(1.04); } }
+.gacha-res.v3 .gcard.burst::after { content: ''; position: absolute; left: 50%; top: 50%; width: 40%; aspect-ratio: 1; border-radius: 50%; border: 4px solid #c77dff; transform: translate(-50%, -50%); animation: gcRing 0.6s ease-out both; pointer-events: none; }
+@keyframes gcRing { to { width: 240%; opacity: 0; border-width: 1px; } }
+.gacha-res.v3 .gc-pillar { position: absolute; left: 10%; right: 10%; bottom: 40%; height: 0; z-index: 3; background: linear-gradient(180deg, transparent, rgba(255, 230, 140, 0.9)); mix-blend-mode: screen; pointer-events: none; opacity: 0; }
+.gacha-res.v3 .gcard.pillar { z-index: 5; }
+.gacha-res.v3 .gcard.pillar .gc-pillar { animation: gcPillar 0.65s ease-in both; }
+@keyframes gcPillar { 0% { height: 0; opacity: 0; } 60% { opacity: 1; } 100% { height: 900%; opacity: 1; } }
+.gacha-res.v3 .gcard.slow .gc-in { transition: transform 1.1s cubic-bezier(0.25, 0.9, 0.3, 1); }
+.gacha-res.v3 .gcard.slow { animation: gcRise 1.2s ease-out both; z-index: 5; }
+@keyframes gcRise { 0% { transform: none; } 60% { transform: translateY(calc(var(--u) * -18)) scale(1.18); } 100% { transform: translateY(calc(var(--u) * -6)) scale(1.08); } }
+.gacha-res.v3 .gc-rays { position: absolute; left: 50%; top: 50%; width: 280%; aspect-ratio: 1; transform: translate(-50%, -50%); background: repeating-conic-gradient(color-mix(in srgb, var(--gc) 45%, transparent) 0 8deg, transparent 8deg 22deg); -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 65%); mask-image: radial-gradient(circle, #000 20%, transparent 65%); opacity: 0; pointer-events: none; z-index: 0; }
+.gacha-res.v3 .gcard.rays .gc-rays { opacity: 1; animation: gcRays 8s linear infinite; }
+.gacha-res.v3 .gcard.t-my.rays .gc-rays { background: repeating-conic-gradient(rgba(255, 120, 150, 0.5) 0 6deg, rgba(120, 230, 255, 0.45) 6deg 12deg, transparent 12deg 22deg); }
+@keyframes gcRays { to { transform: translate(-50%, -50%) rotate(360deg); } }
+.gacha-res.v3 .gr-cf { position: absolute; width: 7px; height: 11px; border-radius: 2px; z-index: 6; pointer-events: none; animation: grCf 1.4s cubic-bezier(0.2, 0.8, 0.4, 1) both; }
+@keyframes grCf { to { transform: translate(var(--dx), calc(var(--dy) + 340px)) rotate(var(--r)); opacity: 0; } }
+.gacha-res.v3 .gr-sh { position: absolute; width: 8px; height: 8px; border-radius: 50%; z-index: 6; background: #d9a8ff; box-shadow: 0 0 6px #d9a8ff; pointer-events: none; animation: grSh 1s ease-in both; }
+@keyframes grSh { 0% { transform: none; opacity: 1; } 100% { transform: translate(var(--dx), -140px) scale(0.4); opacity: 0; } }
+.gacha-res.v3 .gr-btns { position: relative; z-index: 4; display: flex; gap: calc(var(--u) * 8); margin-top: calc(var(--u) * 14); }
+.gacha-res.v3 .gr-btns .btn { min-height: 44px; }
+.gacha-res.v3 .gr-zoom { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; background: radial-gradient(circle, rgba(60, 30, 110, 0.6), rgba(0, 0, 0, 0.9)); }
+.gacha-res.v3 .gr-zoom[hidden] { display: none; }
+.gacha-res.v3 .gr-zoom .grz-art { max-height: 78%; max-width: 92%; object-fit: contain; animation: grzIn 1.5s ease-out both; }
+.gacha-res.v3 .gr-zoom .grz-gear { font-size: calc(var(--u) * 150); animation: grzIn 1.5s ease-out both; }
+.gacha-res.v3 .gr-zoom .grz-prism { position: absolute; inset: 0; background: conic-gradient(from 0deg, rgba(255, 95, 109, 0.25), rgba(255, 195, 113, 0.25), rgba(123, 255, 154, 0.25), rgba(95, 212, 255, 0.25), rgba(183, 123, 255, 0.25), rgba(255, 95, 109, 0.25)); animation: gcRays 4s linear infinite; mix-blend-mode: screen; }
+.gacha-res.v3 .gr-zoom .grz-plate { position: absolute; left: 8%; right: 8%; bottom: 12%; text-align: center; padding: calc(var(--u) * 8); border-radius: calc(var(--u) * 14); background: rgba(10, 6, 22, 0.85); border: 2px solid #ffd23f; }
+.gacha-res.v3 .gr-zoom .grz-plate b { display: block; font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 26); color: #ffe07a; text-shadow: 0 0 2px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000; }
+.gacha-res.v3 .gr-zoom .grz-plate small { color: #f0e8ff; font-size: calc(var(--u) * 12); word-break: keep-all; }
+.gacha-res.v3 .gr-zoom.out { opacity: 0; transition: opacity 0.3s; }
+@keyframes grzIn { 0% { transform: scale(0.6); opacity: 0; } 30% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1.12); } }
+.gacha-res.v3.still * { animation: none !important; transition: opacity 0.3s !important; }
+.gacha-res.v3.still .gcard.flip .gc-in { transform: rotateY(180deg); }
+
+#skillbar.v2 { bottom: calc(var(--u) * 78); } /* 멤버 이름표를 덜 가리게 조금 아래로 */
+.gacha-res.v3 .gr-btns [hidden] { display: none !important; }
+
+/* 1:1: AI 안내 · AI 배지 */
+.pv-search .ps-note { display: block; margin-top: calc(var(--u) * 6); color: #e8e0ff; font-size: calc(var(--u) * 11); text-align: center; word-break: keep-all; line-height: 1.4; }
+.pv-search .ps-ai { display: block; margin-top: calc(var(--u) * 4); color: #ffe07a; font-weight: 900; font-size: calc(var(--u) * 12); text-align: center; }
+.pv-ainote .pa-box { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 18) calc(var(--u) * 16); border-radius: calc(var(--u) * 16); background: rgba(12, 8, 26, 0.95); border: 2px solid #c9962a; text-align: center; }
+.pv-ainote .pa-box b { font-size: calc(var(--u) * 16); color: #fff; word-break: keep-all; }
+.pv-ainote .pa-box small { color: #d8d0ee; font-size: calc(var(--u) * 11); }
+.pv-ainote .pa-box .btn { min-height: 44px; }
+.vs-name .vs-ai { display: inline-block; margin-left: calc(var(--u) * 5); padding: 0 calc(var(--u) * 5); border-radius: calc(var(--u) * 5); background: #3a8aff; color: #fff; font-style: normal; font-size: 0.7em; vertical-align: middle; }
+.bubble .cb-bic { width: calc(var(--u) * 24); height: calc(var(--u) * 24); object-fit: contain; vertical-align: middle; margin-right: calc(var(--u) * 4); }
+.cs-cur .cs-ic { width: calc(var(--u) * 26); height: calc(var(--u) * 26); object-fit: contain; vertical-align: middle; margin-right: calc(var(--u) * 4); }

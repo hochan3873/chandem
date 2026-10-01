@@ -24,11 +24,23 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <style>#bootld{position:fixed;inset:0;z-index:90;background:#0b0a16;display:grid;place-items:end center;transition:opacity .35s}#bootld .bl-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55}#bootld.out{opacity:0;pointer-events:none}</style>
+  <link rel="preload" as="image" href="/img/lb/title_poster.jpg?v=3" fetchpriority="high">
   <link rel="stylesheet" href="/langbang/style.css?v=20261001a">
 </head>
 <body>
   <div id="stage">
     <canvas id="cv"></canvas>
+    <!-- 부팅 로딩: 첫 화면부터 로비가 다 준비될 때까지 (그림 · 글꼴 · 계정) -->
+    <div id="bootld" class="bootld" aria-live="polite">
+      <img class="bl-bg" src="/img/lb/title_poster.jpg?v=3" alt="" fetchpriority="high">
+      <div class="bl-in">
+        <img class="bl-logo" src="/img/lb/logo_langbang.webp" alt="랑방대전" draggable="false">
+        <div class="bl-load"><div class="bl-bar"><i id="bl-fill"></i></div><b id="bl-pct">0%</b></div>
+        <p id="bl-txt" class="bl-txt">랑방 문 여는 중</p>
+        <p id="bl-tip" class="bl-tip">속성 상성이 맞으면 피해가 두 배!</p>
+      </div>
+    </div>
 
     <!-- 게임 중 HUD -->
     <div id="hud" hidden>
@@ -61,8 +73,10 @@
           </div>
         </div>
         <button id="btn-send" class="send-btn" hidden>📤 보내기</button>
-        <button id="btn-ult" class="ult" aria-label="궁극기 총공지">
-          <span class="ult-ico">📣</span>
+        <button id="btn-ult" class="ult v2" aria-label="총공지 (기세 2칸)">
+          <svg class="ult-ring" viewBox="0 0 100 100" aria-hidden="true"><g class="ur-bg"><path d="M55.6 4.3 A46 46 0 0 1 92.3 68.0"/><path d="M86.7 77.7 A46 46 0 0 1 13.3 77.7"/><path d="M7.7 68.0 A46 46 0 0 1 44.4 4.3"/></g><g class="ur-fg"><path id="ur0" d="M55.6 4.3 A46 46 0 0 1 92.3 68.0" pathLength="100"/><path id="ur1" d="M86.7 77.7 A46 46 0 0 1 13.3 77.7" pathLength="100"/><path id="ur2" d="M7.7 68.0 A46 46 0 0 1 44.4 4.3" pathLength="100"/></g></svg>
+          <span class="ult-rays"></span>
+          <span class="ult-gem"><i class="ult-fill"></i><img class="ult-ico" src="/img/lb/ui2/megaphone.webp" alt="" draggable="false"></span>
           <span class="ult-txt">총공지</span>
         </button>
       </div>

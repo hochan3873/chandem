@@ -8,7 +8,7 @@ import {
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
-  FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS,
+  FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -48,6 +48,7 @@ const canvas = $('#cv');
 const ui = $('#ui');
 const hud = $('#hud');
 const R = new Renderer(canvas);
+R.onStep = (h, x, y) => { fx.burst(x + (Math.random() - 0.5) * 20, y - 2, 4, '#cdbfa8', 60, 'dot', 2, 0.4); try { A.sfx.thud(); } catch (e) {} }; // 윤정섭 발걸음: 먼지 + 쿵
 const fx = R.fx;
 
 const app = {
@@ -536,7 +537,7 @@ function handleEvents(g, loud) {
     switch (e.type) {
       case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝
       case 'dmg':
-        if (!busy || ((e.crit || e.eff > 0) && fx.nums.items.length < (crowd ? 14 : 60))) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : null, e.eff);
+        if (!busy || ((e.crit || e.eff > 0) && fx.nums.items.length < (crowd ? 14 : 60))) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : e.sk ? '#ffd23f' : null, e.eff);
         break;
       case 'hit': {
         const col = e.crit ? '#ffe14d' : PROJ_COL[e.proj] || '#fff';
@@ -721,8 +722,15 @@ function handleEvents(g, loud) {
       case 'praise': if (!busy) { fx.text(e.x, e.y, e.text || '언니 너무 이뻐요~', '#ffb3d9', 11, 0.9); fx.ring(e.x, e.y + 20, 10, 90, 0.5, '#ffb3d9', 3); } break;
       case 'praiseRage': fx.text(e.x, e.y, '(표정 싹 바뀜)', '#ff4f6a', 13, 1.0); break;
       case 'haste': if (!busy) fx.text(e.x, e.y, '빨라짐!', '#ffd23f', 12, 0.7); break;
-      case 'unveil': if (!busy) fx.text(e.x, e.y, '들켰다!', '#c9a8ff', 12, 0.8); break;
-      case 'fuckall': fx.banner('단체 뻑큐!', `${e.n}명 방깎 최대 · 회복 막기`, '#b0203a', 1.1, 'wave'); fx.arc(e.x, e.y - 40, e.a, e.half, e.r, 0.5, '#ff5a7a'); fx.addShake(3); if (loud) A.sfx.slam(); break;
+      case 'unveil': if (!busy) fx.text(e.x, e.y, e.eye ? '찾았다!' : '들켰다!', '#e3d0ff', 12, 0.8); if (e.eye) R.vfx('shock2', e.x, e.y + 10, { anim: 'pop', dur: 420, sz: 70, tint: '#c9a8ff' }); break;
+      case 'wallGo': fx.text(e.x, e.y - 90, '뚜벅뚜벅', '#dfe8ff', 12, 1); break;
+      case 'wallHit': fx.burst(e.x, e.y + 10, 5, '#d8d0c0', 90, 'dot', 2, 0.35); break;
+      case 'wallPush': if (loud) A.sfx.kick(); break;
+      case 'wallTurn': case 'wallTired': fx.addShake(4); fx.text(e.x, e.y - 60, e.type === 'wallTired' ? '헉헉… 쉬러 간다' : '쿵!', '#fff', 14, 0.9); R.vfx('shock', e.x, e.y - 30, { anim: 'pop', dur: 450, sz: 130 }); if (loud) A.sfx.slam(); break;
+      case 'wallWalk': fx.text(e.x, e.y - 100, '벽이 걸어온다', '#bfd4ff', 15, 1.2); break;
+      case 'lockOn': for (const o of e.list || []) R.vfx('warn', o.x, o.y - 10, { anim: 'grow', dur: 600, sz: 56 }); break;
+      case 'curseBolt': R.vfx('w_swear', e.x, e.y, { anim: 'fly', dur: 380, sz: 34, tx: e.tx, ty: e.ty }); break;
+      case 'fuckall': fx.banner('쌍뻑큐!', `${e.n}명 방깎 3초`, '#b0203a', 1.0, 'wave'); for (const s0 of [-1, 1]) R.vfx('w_mosaic', e.x + s0 * 14, e.y - 40, { anim: 'line', dur: 520, sz: 78, tx: e.x + s0 * 14, ty: 40, blend: 'source-over' }); setTimeout(() => { for (let k = 0; k < 18; k++) fx.part('dot', e.x + (Math.random() - 0.5) * e.w * 2, 60 + Math.random() * (e.y - 100), (Math.random() - 0.5) * 80, -30, 0.6, 5, Math.random() < 0.5 ? '#ff4fb0' : '#d02070'); }, 200); fx.addShake(3); if (loud) A.sfx.slam(); break;
       case 'marry': fx.banner('결혼정보회사 등록!', '"올해는 꼭…" 진상들이 원식만 바라본다', '#c0307a', 1.3, 'wave'); for (let k = 0; k < 14; k++) fx.part('heart', e.x + (Math.random() - 0.5) * e.r, e.y - 120 - Math.random() * 160, 0, -40, 1.4, 12, '#ff7ac8'); fx.ring(e.x, e.y - 80, 20, e.r, 0.8, '#ff7ac8', 5); if (loud) A.sfx.join(); break;
       case 'heartBeam': fx.banner('하트 레이저 풀파워!', `${e.n}명 꿰뚫기`, '#c0307a', 1.1, 'wave'); fx.flash('#ff7ac8', 0.2); fx.addShake(3); if (loud) A.sfx.slam(); break;
       case 'harley': fx.banner('부릉부릉~!', '백인규의 할리', '#1a3a8a', 1.3, 'wave'); fx.addShake(4); if (loud) A.sfx.slam(); break;
@@ -903,16 +911,27 @@ function handleEvents(g, loud) {
         for (const h of g.heroes) fx.ring(h.x, h.y, 6, 44, 0.5, '#ffd84a', 4);
         if (loud) A.sfx.levelUp();
         break;
-      case 'cone':
-        fx.arc(e.x, e.y, e.a, e.half, e.r, e.big ? 0.45 : 0.28, e.big ? 'rgba(255,160,40,0.9)' : 'rgba(255,220,90,0.8)');
+      case 'cone': // 방장 확성기 공지: 금빛 음파 고리 2~3개가 앞으로 퍼져 나간다
+        for (let k = 0; k < (e.big ? 3 : 2); k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 520, sz: 60 + e.r * 0.5, tx: e.x + Math.cos(e.a) * e.r * 0.9, ty: e.y + Math.sin(e.a) * e.r * 0.9, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 110);
         if (e.big) fx.text(e.x, e.y - 40, '전체공지!', '#ffb347', 16, 0.8);
         break;
-      case 'skill':
+      case 'skill': { if (live && !e.echo) { app.hitStop = Math.max(app.hitStop || 0, 0.04); fx.addShake(e.target || MOMENTUM.strong.includes(e.hero) ? 6 : 3); } const hh = g.heroes.find((o) => o.id === e.hero); if (hh) { hh._castAt = performance.now(); R.vfx('sk_' + e.hero, 0, 0, { follow: hh, dy: -96, anim: 'pop', dur: 520, sz: 54, blend: 'source-over' }); } }
         if (e.target) { fx.ring(e.x, e.y, 10, e.r, 0.5, HD(e.hero).color, 6); fx.ring(e.x, e.y, 6, e.r * 0.6, 0.4, '#fff', 3); fx.addShake(5); }
-        if (e.skill === 'rally') { fx.flash('#ffe08a', 0.3); fx.banner('집합!!', '모두 공격 속도 UP', '#b86b00', 1.2, 'big'); }
+        if (e.skill === 'rally') { fx.flash('#ffe08a', 0.3); fx.banner('집합!!', '8초 동안 모두 공격 속도 +50% · 공격력 +20%', '#b86b00', 1.2, 'big'); R.vfx('banner', g.W / 2, g.ropeY + 6, { anim: 'pulse', dur: (g.rallyT || 8) * 1000, sz: 90, blend: 'source-over', layer: 'ground' }); fx.ring(g.W / 2, g.ropeY, 20, 460, 0.8, '#ffd23f', 8); R.rallyFlashAt = performance.now(); if (loud) { A.sfx.horn(); setTimeout(() => A.sfx.slam(), 180); } }
         if (e.skill === 'curse') fx.text(e.x, e.y - 30, '#@!%&!!', '#ff7a2e', 24, 1, -20);
         if (e.skill === 'winkbomb') for (let k = 0; k < 10; k++) fx.part('heart', e.x, e.y, (Math.random() - 0.5) * 260, -60 - Math.random() * 160, 0.9, 10, null, { grav: 200 });
-        if (e.skill === 'redcard') fx.text(e.x, e.y - 30, '레드카드!', '#ff4b3a', 20, 1, -20);
+        if (e.skill === 'redcard') { // 운영진: 거대한 레드카드가 바닥에 쾅 · 파편 · 빨간 도장
+          fx.text(e.x, e.y - e.r - 20, '레드카드!', '#ff4b3a', 22, 1.1, -20);
+          R.vfx('w_card_r', e.x, e.y - 200, { anim: 'line', dur: 260, sz: 120, tx: e.x, ty: e.y - 10, blend: 'source-over' });
+          setTimeout(() => { R.vfx('crack', e.x, e.y + 10, { anim: 'fade', dur: 1200, sz: e.r * 2, flat: true }); R.vfx('w_card_r', e.x, e.y - 10, { anim: 'fade', dur: 900, sz: 120, blend: 'source-over' }); fx.burst(e.x, e.y, 22, '#ff4b3a', 300, 'shard', 5, 0.6, 300); fx.addShake(9); if (loud) A.sfx.slam(); }, 260);
+        }
+        if (e.skill === 'frenzy') { // 건전남 난사: 부채꼴로 12발 폭풍 + 총구 불빛 고리
+          const hh = g.heroes.find((o) => o.id === 'gunman'); fx.banner('난사!!', '3초 동안 폭풍 연사', '#2f6d2f', 0.9, 'wave');
+          if (hh) for (let k = 0; k < 12; k++) setTimeout(() => { fx.ring(hh.x, hh.y - 50, 4, 26, 0.18, '#fff3b0', 3); if (k % 3 === 0) R.vfx('hitspark', hh.x, hh.y - 52, { anim: 'pop', dur: 160, sz: 40 }); }, k * 240);
+        }
+        if (e.skill === 'blinddate') { fx.banner('소개팅 주선!', '여사친 3명 출동', '#c0407a', 0.9, 'wave'); for (let k = 0; k < 16; k++) fx.part('heart', e.x + (Math.random() - 0.5) * 60, e.y - 60, (Math.random() - 0.5) * 240, -80 - Math.random() * 140, 1, 11, null, { grav: 160 }); fx.ring(e.x, e.y - 50, 10, 120, 0.5, '#ff8ac8', 5); }
+        if (e.skill === 'goodman') { fx.banner('좋은남자 박상화!', '5초 동안 모두 공격력 +25%', '#b08a10', 1, 'wave'); for (let k = 0; k < 24; k++) fx.part('star', 20 + Math.random() * 320, -10 - Math.random() * 60, (Math.random() - 0.5) * 30, 160 + Math.random() * 120, 1.6, 9, null); for (const o of g.heroes) fx.ring(o.x, o.y - 30, 8, 50, 0.5, '#ffd23f', 3); if (loud) A.sfx.coin(); }
+        if (e.skill === 'bandage') { fx.banner('붕대 대공사!', '입구 크게 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); for (let k = 0; k < 7; k++) setTimeout(() => { fx.text(30 + k * 50, g.ropeY - 10, '탁!', '#e8ffe0', 13, 0.6, -20); fx.burst(30 + k * 50, g.ropeY, 6, '#f5f0e0', 120, 'dot', 3, 0.4); }, k * 90); }
         break;
       case 'cleanse': fx.text(e.x, e.y - 90, '응급처치! 상태이상 해제', '#9dffb0', 15, 1.1); break;
       case 'wave':
@@ -945,7 +964,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.crit();
         break;
       }
-      case 'lazyUp': fx.text(e.x, e.y - 80, '이제 좀 해볼까?', '#c8ffe0', 15, 1.1, -20); break;
+      case 'lazyUp': { fx.flash('#000000', 0.3); fx.text(e.x, e.y - 96, '진심 모드!', '#ffe07a', 19, 1.1, -14); const hh = g.heroes.find((o) => o.id === 'donghan'); if (hh) R.vfx('sk_donghan', 0, 0, { follow: hh, dy: -120, anim: 'pop', dur: 900, sz: 48, blend: 'source-over' }); for (let k = 0; k < 10; k++) fx.part('dot', e.x + (Math.random() - 0.5) * 40, e.y - 20, (Math.random() - 0.5) * 30, -60 - Math.random() * 60, 1, 5, k % 2 ? '#ffe07a' : '#fff4c8'); if (loud) { A.sfx.whoosh(); setTimeout(() => A.sfx.gem(), 380); } break; }
       case 'burst':
         fx.pillar(e.x, e.w, g.rowY - 20, 0.7);
         fx.flash('#e8fff4', 0.35); fx.addShake(12);
@@ -963,7 +982,31 @@ function handleEvents(g, loud) {
       case 'grab': { fx.text(e.hx, e.hy - 70, '붙잡힘!', '#ffc08a', 15, 1); R.vfx('slap', e.hx, e.hy - 30, { anim: 'pop', dur: 380, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.hx) < 2 && Math.abs(x.y - e.hy) < 2); if (hh) hh._hitAt = performance.now(); if (loud) A.sfx.charm(); break; }
       case 'release': fx.text(e.x, e.y - 70, '풀려났다!', '#9dffb0', 13, 0.9); break;
       case 'gaoBreak': fx.text(e.x, e.y, '가오 깨짐!', '#ffe14d', 18, 1.1, -24); fx.burst(e.x, e.y + 20, 14, '#ffd23f', 180, 'shard', 5, 0.6, 300); if (loud) A.sfx.crit(); break;
-      case 'flash': fx.flash('#ffffff', 0.2); fx.text(e.x, e.y, '찰칵!', '#fff', 15, 0.8); fx.text(e.hx, e.hy - 70, '눈부셔!', '#ffe9a0', 13, 0.9); break;
+      case 'flash': fx.flash('#ffffff', 0.25); fx.text(e.x, e.y, '찰칵!', '#fff', 15, 0.8); if (e.stun) { fx.text(e.hx, e.hy - 70, '기절!', '#ffe9a0', 13, 0.9); R.vfx('stun', 0, 0, { follow: g.heroes.find((h) => Math.abs(h.x - e.hx) < 2) || null, dy: -78, anim: 'pulse', dur: 1000, sz: 50 }); } break;
+      case 'flashWind': R.vfx('warn', e.x, e.y + 10, { anim: 'grow', dur: 600, sz: 70, flat: true }); fx.text(e.x, e.y - 10, '찰칵 준비…', '#fff4b0', 11, 0.6); break;
+      case 'bottleThrow': R.vfx('w_bottle', e.x, e.y, { anim: 'fly', dur: 420, sz: 30, tx: e.hx, ty: e.hy, blend: 'source-over' }); setTimeout(() => fx.text(e.hx, e.hy - 30, '공속 ↓', '#ffb08a', 11, 0.8), 420); break;
+      case 'drunkBoom': R.vfx('shock', e.x, e.y + 10, { anim: 'pop', dur: 500, sz: 150 }); fx.addShake(5); fx.text(e.x, e.y - 30, '술병 폭발! 기절', '#ff9a6a', 13, 1); break;
+      case 'spamBomb': R.vfx('shock2', e.x, e.y, { anim: 'pop', dur: 450, sz: 220 }); fx.text(e.x, e.y - 20, '알림 폭탄! 공속 -30%', '#9ff4ff', 12, 1); break;
+      case 'latteSilence': R.vfx('silence', e.hx, e.hy, { anim: 'pulse', dur: 3000, sz: 44 }); fx.text(e.hx, e.hy - 20, '라떼 훈계… 스킬 막힘', '#d8c8ff', 11, 1.2); break;
+      case 'consUse': {
+        const c = L.CONS[e.id];
+        if (e.id === 'battery') { fx.banner('보조배터리!', `방어진 ${e.v ? '+' + fmt(e.v) : ''} 가득 충전`, '#7b3fe0', 1.3, 'wave'); fx.repairT = 1.6; for (let k = 0; k < 14; k++) fx.part('star', 30 + Math.random() * 300, g.rowY + 40 + Math.random() * 60, 0, -70, 0.9, 8, null); fx.flash('#b890ff', 0.18); if (loud) A.sfx.heal(); }
+        else if (e.id === 'aldicom') { fx.banner('알디콤!', `상태이상 싹 · 5초 면역${e.n ? ` · 버프 ${e.n}개 깨짐` : ''}`, '#2f7fd8', 1.2, 'wave'); for (let k = 0; k < 26; k++) fx.part('dot', 20 + Math.random() * 320, g.ropeY + Math.random() * 40, (Math.random() - 0.5) * 40, -60 - Math.random() * 80, 1.1, 4 + Math.random() * 4, Math.random() < 0.5 ? '#bfe8ff' : '#e8fbff'); fx.ring(g.W / 2, g.ropeY, 20, 260, 0.6, '#9fd8ff', 4); if (loud) A.sfx.heal(); }
+        else if (e.id === 'tambourine') { fx.banner('노래방 탬버린!', '8초 동안 공격 속도 +40%', '#c08a10', 1.1, 'wave'); for (const h of g.heroes) fx.ring(h.x, h.y - 30, 8, 60, 0.5, '#ffd23f', 3); if (loud) A.sfx.levelUp(); }
+        void c; break;
+      }
+      case 'tauntMark': fx.text(e.x, e.y, '!', '#ff8ab8', 18, 0.7, -30); break;
+      case 'consultSit': fx.text(e.x, e.y - 90, '결정사 상담 시작!', '#ffb0d0', 15, 1.1); for (let k = 0; k < 8; k++) fx.part('heart', e.x + (Math.random() - 0.5) * 60, e.y - 40, (Math.random() - 0.5) * 60, -60, 0.9, 9, null); break;
+      case 'consultEnd': fx.text(e.x, e.y - 90, e.broke ? '상담 끝… 너무 맞았다' : '상담 끝! 돌아갈게요', '#ffd0e0', 13, 1); break;
+      case 'dodge': fx.text(e.x + (Math.random() - 0.5) * 16, e.y, 'MISS', '#b8b8c8', 12, 0.6, -30); break;
+      case 'ccBlock': fx.text(e.x, e.y, '막음!', '#8fd8ff', 13, 0.8); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
+      case 'shieldBreak': R.vfx('hitspark', e.x, e.y, { anim: 'pop', dur: 380, sz: 90 }); fx.burst(e.x, e.y, 12, '#cfe9ff', 220, 'dot', 3, 0.5); fx.text(e.x, e.y - 20, '보호막 깨짐!', '#ff6a6a', 13, 0.9); break;
+      case 'doorShield': fx.text(e.x, e.y - 40, `방패 +${e.v}`, '#bfe6ff', 16, 1.2); R.vfx('aura_blue', e.x, e.y, { anim: 'pulse', dur: 8000, sz: 320, flat: true }); break;
+      case 'doorShieldBreak': fx.text(e.x, e.y - 40, '방패 깨짐', '#bfe6ff', 13, 0.9); fx.burst(e.x, e.y, 16, '#cfe9ff', 260, 'dot', 3, 0.6); break;
+      case 'buffAura': for (const h of g.heroes) R.vfx('aura_red', 0, 0, { follow: h, dy: 0, anim: 'pulse', dur: (e.sec || 6) * 1000, sz: 90, flat: true }); fx.text(180, g.rowY - 70, '집합! 공속 +50% · 공격력 +20%', '#ffd23f', 14, 1.3); break;
+      case 'hammer': R.vfx('crack', e.x, e.y + 22, { anim: 'fade', dur: 600, sz: 80, flat: true }); fx.addShake(3); break;
+      case 'crack': R.vfx('crack', e.x, e.y, { anim: 'fade', dur: 1400, sz: 190, flat: true }); fx.addShake(10); break;
+      case 'tip': { const k = 'tip:' + e.text.slice(0, 14); if (live && !tutDone(k)) { setTut(k); showTip(e.text, 4800); } break; } // 처음 한 번만 (기기에 기억)
       case 'vault': fx.text(e.x, e.y, '새치기!', '#8fe3ff', 15, 0.8); break;
       case 'spam': if (e.n > 1) fx.text(e.x, e.y, '카톡카톡카톡!', '#ff6b7a', 15, 0.9); else if (Math.random() < 0.5) fx.text(e.x, e.y, '카톡!', '#ff6b7a', 13, 0.7); break;
       case 'interest':
@@ -1041,13 +1084,6 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.rage();
         break;
       case 'sober': fx.text(e.x, e.y - 60, '술 깼다… 한 잔 더?', '#ffd6a8', 12, 1.3); break;
-      case 'consUse': {
-        const c = L.CONS[e.id];
-        if (e.id === 'battery') { fx.banner('보조배터리!', `방어진 ${e.v ? '+' + fmt(e.v) : ''} 가득 충전`, '#7b3fe0', 1.3, 'wave'); fx.repairT = 1.6; for (let k = 0; k < 14; k++) fx.part('star', 30 + Math.random() * 300, g.rowY + 40 + Math.random() * 60, 0, -70, 0.9, 8, null); fx.flash('#b890ff', 0.18); if (loud) A.sfx.heal(); }
-        else if (e.id === 'aldicom') { fx.banner('알디콤!', `상태이상 싹 · 5초 면역${e.n ? ` · 버프 ${e.n}개 깨짐` : ''}`, '#2f7fd8', 1.2, 'wave'); for (let k = 0; k < 26; k++) fx.part('dot', 20 + Math.random() * 320, g.ropeY + Math.random() * 40, (Math.random() - 0.5) * 40, -60 - Math.random() * 80, 1.1, 4 + Math.random() * 4, Math.random() < 0.5 ? '#bfe8ff' : '#e8fbff'); fx.ring(g.W / 2, g.ropeY, 20, 260, 0.6, '#9fd8ff', 4); if (loud) A.sfx.heal(); }
-        else if (e.id === 'tambourine') { fx.banner('노래방 탬버린!', '8초 동안 공격 속도 +40%', '#c08a10', 1.1, 'wave'); for (const h of g.heroes) fx.ring(h.x, h.y - 30, 8, 60, 0.5, '#ffd23f', 3); if (loud) A.sfx.levelUp(); }
-        void c; break;
-      }
       case 'heal':
         fx.repairT = 1.2; // 방어선 수리 연출
         if (e.v > 0) fx.text(e.x, e.y - 60, `+${e.v} 수리`, '#7dff9a', 14, 1);
@@ -1164,6 +1200,8 @@ function updateHud() {
     H$.xp.parentNode.classList.toggle('near', near);
     if (near && app.hudCache.nearLv !== g.level) { app.hudCache.nearLv = g.level; fx.text(180, 70, '레벨업 임박!', '#9ff4ff', 12, 0.9, -10); }
   }
+  // 건전녀 방패: 체력 막대 위에 흰 칸
+  { const sh = g.doorShield > 0 && g.doorShieldT > 0 ? Math.min(1, g.doorShield / g.base.max) : 0; const sp = Math.round(sh * 1000) / 10; if (app.hudCache.sh !== sp) { app.hudCache.sh = sp; let el = document.getElementById('h-hp-sh'); if (!el && H$.hp.parentNode) { el = document.createElement('div'); el.id = 'h-hp-sh'; H$.hp.parentNode.appendChild(el); } if (el) el.style.width = sp + '%'; } }
   const frac = g.base.hp / g.base.max;
   const hpP = Math.round(frac * 1000) / 10;
   if (app.hudCache.hp !== hpP) {
@@ -1181,8 +1219,18 @@ function updateHud() {
   if (app.hudCache.ult !== up) {
     app.hudCache.ult = up;
     H$.ult.style.setProperty('--p', up);
-    H$.ult.classList.toggle('ready', up >= RULES.ultMax);
-    if (up >= RULES.ultMax && !app.ultTipShown) { app.ultTipShown = true; showTip('총공지 준비 완료! 오른쪽 아래 버튼을 눌러요', 3500); }
+  }
+  // 기세 고리: 3칸이 부드럽게 차고 · 한 칸 꽉 차면 딸깍 · 총공지 = 충전 100% + 기세 2칸
+  { const on = g.mom !== null && g.mom !== undefined, m = on ? g.mom : 300;
+    for (let i = 0; i < 3; i++) { const el = document.getElementById('ur' + i); if (!el) continue; const f = Math.max(0, Math.min(1, (m - i * 100) / 100)); const v = (f * 100).toFixed(1); if (el.dataset.v !== v) { el.dataset.v = v; el.style.strokeDasharray = `${v} 100`; el.classList.toggle('full', f >= 1); } }
+    const full = on ? Math.floor(m / 100) : 3;
+    if (app.hudCache.momN !== undefined && full > app.hudCache.momN && on) { try { A.sfx.tap(); } catch { /* 무시 */ } }
+    app.hudCache.momN = full;
+    H$.ult.classList.toggle('noring', !on);
+    const rd = up >= RULES.ultMax && full >= 2;
+    if (H$.ult.classList.contains('ready') !== rd) { H$.ult.classList.toggle('ready', rd); if (rd) { const b = document.createElement('span'); b.className = 'ult-bub'; b.textContent = '총공지 준비!'; H$.ult.appendChild(b); setTimeout(() => b.remove(), 1800); } }
+    if (rd && !app.ultTipShown) { app.ultTipShown = true; showTip('총공지 준비 완료! 오른쪽 아래 메달을 눌러요', 3500); }
+    if (on && !tutDone('mom') && g.mode === 'stage' && g.t > 6) { setTut('mom'); showTip('기세: 스킬을 쓸 때마다 1칸씩 써요 · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이면 총공지!', 6000); H$.ult.classList.add('tut'); setTimeout(() => H$.ult.classList.remove('tut'), 6000); }
   }
   // 보스 체력바
   let hp = 0, max = 0, name = '';
@@ -1256,6 +1304,7 @@ function frame(now) {
     perf.steps += n;
   }
   fx.update(dt);
+  if (app.skLink && app.skLink.el && app.g) { const cr = canvas.getBoundingClientRect(), br = app.skLink.el.getBoundingClientRect(); app.skLink.x = ((br.left + br.width / 2 - cr.left) / cr.width) * FIELD.W; app.skLink.y = ((br.top + br.height * 0.3 - cr.top) / cr.height) * app.g.H; app.skLink.h = app.g.heroes.find((o) => o.slot === app.skLink.slot); }
   R.draw(g, app);
   hudT -= dt;
   if (live && hudT <= 0) { hudT = 1 / 15; updateHud(); renderSkillbar(); checkNewEnemies(live); if (app.infoHero && !bubble.hidden && (app.infoTick = (app.infoTick || 0) + 1) % 4 === 0) bubble.innerHTML = heroStatsHtml(live, app.infoHero); }
@@ -1408,7 +1457,8 @@ function useSkillBtn(slot) {
     hideBubble();
     return;
   }
-  S.castSkill(g, h); handleEvents(g, true);
+  if (S.castSkill(g, h)) { const bt = skillbar.querySelector(`[data-slot="${slot}"]`); if (bt) { bt.classList.remove('cast'); void bt.offsetWidth; bt.classList.add('cast'); } }
+  handleEvents(g, true);
 }
 function cancelAim() { app.aim = null; aimbar.hidden = true; }
 aimbar.addEventListener('click', (ev) => { if (ev.target.closest('[data-aim]')) { A.sfx.tap(); cancelAim(); } });
@@ -1439,15 +1489,15 @@ function skillFx(h) {
   A.sfx.join();
   app.tutSkillDone = true;
 }
-const SKILL_SHORT = { bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '응급처치', myunghoon: '쌍욕', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '뻑큐', wonsik: '결정사' };
+const SKILL_SHORT = { jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '뻑큐', wonsik: '결정사' };
 const skShort = (h) => SKILL_SHORT[h.id] || h.def.skill.name.replace(/[!\s]/g, '').slice(0, 5);
 const momBar = document.createElement('div');
 momBar.id = 'mombar'; momBar.hidden = true;
 momBar.innerHTML = '<small>기세</small><i><b></b></i><i><b></b></i><i><b></b></i>';
 stage.appendChild(momBar);
 function renderMom(g) {
-  const on = g && g.mom !== null && g.mom !== undefined && app.screen === 'play';
-  momBar.hidden = !on;
+  momBar.hidden = true; // (기세는 총공지 메달 둘레 고리로 옮김)
+  const on = false;
   if (!on) return;
   const bs = momBar.querySelectorAll('b');
   for (let i = 0; i < 3; i++) { const f = Math.max(0, Math.min(1, (g.mom - i * 100) / 100)); bs[i].style.transform = `scaleY(${f.toFixed(3)})`; bs[i].parentElement.classList.toggle('full', f >= 1); }
@@ -1457,13 +1507,14 @@ function renderSkillbar() {
   if (!g) return;
   renderMom(g);
   renderConsBar();
-  const list = g.heroes.filter((h) => h.def.skill).sort((a, b) => a.slot - b.slot);
+  const list = g.heroes.filter((h) => h.def.skill && !h.summon).sort((a, b) => (b.id === g.leader) - (a.id === g.leader) || a.slot - b.slot);
+  list.forEach((h, i) => { h._skNo = i + 1; });
   const key = list.map((h) => h.id + h.lv).join(',');
   if (skillbar.dataset.key !== key) {
     skillbar.dataset.key = key;
     skillbar.dataset.n = list.length;
     skillbar.classList.add('v2');
-    skillbar.innerHTML = list.map((h) => { const nm = skShort(h); return `<button class="sk sk-v2" data-slot="${h.slot}"><span class="ring"></span><img class="sk-ic" src="/img/lb/ui2/sk_${h.id}.webp" alt="" draggable="false" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sk-fb'}))"><em>${esc(nm)}</em><i class="cd"></i><b class="cdn"></b><i class="sk-lv">${h.lv}</i><i class="sk-sweat"></i></button>`; }).join('');
+    skillbar.innerHTML = list.map((h, i) => { const nm = h.def.name; return `<button class="sk sk-v2" data-slot="${h.slot}" aria-label="${esc(h.def.name)} · ${esc(h.def.skill.name)}"><span class="ring"></span><span class="sk-face" style="--ac:${(ATTRS[h.def.attr] || {}).color || '#888'}"><img class="fz" data-face="${h.id}" data-fc="1" style="${faceCircStyle(h.id)}" src="${thumbSrc(h.id) || h.def.img}" alt="" draggable="false"></span><i class="sk-no">${i + 1}</i><img class="sk-ic" src="/img/lb/ui2/sk_${h.id}.webp" alt="" draggable="false" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sk-fb'}))"><em>${esc(nm)}</em><i class="cd"></i><b class="cdn"></b><i class="sk-lv">${h.lv}</i><i class="sk-sweat"></i><i class="sk-lock">기세 부족</i><i class="sk-pip"></i></button>`; }).join('');
   }
   let ready = false;
   for (const b of skillbar.children) {
@@ -1473,11 +1524,12 @@ function renderSkillbar() {
     const pct = Math.round((1 - Math.max(0, h.skillCd) / sk.cd) * 100);
     b.style.setProperty('--p', pct);
     const r = h.skillCd <= 0;
-    if (r && !b.classList.contains('ready')) vibrate(12);
+    if (r && !b.classList.contains('ready')) { vibrate(12); if (app.hudCache.skRd && app.hudCache.skRd[h.slot] === false) { const f = document.createElement('span'); f.className = 'sk-rdname'; f.textContent = sk.name; b.appendChild(f); setTimeout(() => f.remove(), 1400); } }
+    (app.hudCache.skRd = app.hudCache.skRd || {})[h.slot] = r;
     b.classList.toggle('ready', r);
     b.classList.toggle('aiming', !!(app.aim && app.aim.h === h));
     { const lv = b.querySelector('.sk-lv'); if (lv && lv.textContent !== String(h.lv)) lv.textContent = h.lv; }
-    b.classList.toggle('nomom', g.mom !== null && g.mom !== undefined && g.mom < 100);
+    { const need = h.def.skill && h.def.skill.id === 'forlangbang' ? 200 : 100, has = g.mom === null || g.mom === undefined || g.mom >= need; b.classList.toggle('nomom', !has); b.classList.toggle('mompip', has && g.mom !== null && g.mom !== undefined); }
     b.classList.toggle('tired', h.tiredT > 0);
     { const cn = b.querySelector('.cdn'); const v = r ? '' : String(Math.ceil(h.skillCd)); if (cn.textContent !== v) cn.textContent = v; }
     if (r) ready = true;
@@ -1556,6 +1608,7 @@ skillbar.addEventListener('pointerdown', (ev) => {
   const b = ev.target.closest('[data-slot]');
   if (!b) return;
   const slot = Number(b.dataset.slot);
+  app.skLink = { slot, t0: performance.now(), el: b };
   skPress = { slot, long: false, t: setTimeout(() => {
     const g = app.g;
     const h = g && g.heroes.find((o) => o.slot === slot);
@@ -1570,7 +1623,7 @@ skillbar.addEventListener('pointerdown', (ev) => {
     vibrate(12);
   }, 450) };
 });
-const skEnd = () => { if (skPress) clearTimeout(skPress.t); };
+const skEnd = () => { if (skPress) clearTimeout(skPress.t); if (app.skLink) { const L0 = app.skLink; setTimeout(() => { if (app.skLink === L0) app.skLink = null; }, 380); } };
 skillbar.addEventListener('pointerup', skEnd);
 skillbar.addEventListener('pointercancel', skEnd);
 skillbar.addEventListener('pointerleave', skEnd);
@@ -2547,39 +2600,75 @@ async function doPull(n) {
   await gachaShow(list);
   refresh();
 }
-// 모집 결과: 카드가 한 장씩 뒤집힌다. 영웅·LEGEND 멤버는 큰 연출
+// 모집·장비 결과: 뒷면이 먼저 등급 색으로 빛나고 (살짝 예고) → 탭하면 한 장씩 · "모두 열기"
+//   보통·희귀: 휙 + 반짝 한 줄 · 영웅(보라): 들렸다가 보라 고리 + 흔들 · 전설(금): 어두워지고 금빛 기둥 · 천천히 돌며 빛살 + 꽃가루
+//   신화·LEGEND 멤버: 전설 + 무지개 빛 + 화면 흔들 + 큰 그림 1.5초 (이름표) — 좋은 카드는 "모두 열기"에도 맨 끝에 제 연출 그대로
+const GC_TIER = { legendHero: 'my', mythGear: 'my', epicHero: 'lg', legendGear: 'lg', t3Card: 'ep', epicGear: 'ep', rareGear: 'ra', t2Card: 'ra', shard10: 'co', shard4: 'co' };
+const GC_RANK = { co: 0, ra: 1, ep: 2, lg: 3, my: 4 };
+function gcSfx(t) { try { ({ co: () => A.sfx.card(), ra: () => A.sfx.confirm(), ep: () => A.sfx.levelUp(), lg: () => { A.sfx.win(); A.sfx.slam(); }, my: () => { A.sfx.ult(); setTimeout(() => A.sfx.win(), 300); } })[t](); } catch { /* 무시 */ } }
 function gachaShow(list) {
   return new Promise((resolve) => {
     const m = document.createElement('div');
-    m.className = 'gacha-res';
-    const RANK = { legendHero: 9, mythGear: 8, epicHero: 7, legendGear: 6, t3Card: 5, epicGear: 4, rareGear: 3, t2Card: 2, shard10: 1, shard4: 0 };
-    if (list.length > 1) { const bi = list.reduce((b, x, i) => ((RANK[x.k] | 0) > (RANK[list[b].k] | 0) ? i : b), 0); const [bx] = list.splice(bi, 1); list.push(bx); list.bestLast = true; }
+    const rm = document.body.classList.contains('rm');
+    m.className = 'gacha-res v3' + (rm ? ' still' : '');
+    const tierOf = (x) => GC_TIER[x.k] || (x.gear ? ({ myth: 'my', legend: 'lg', epic: 'ep', rare: 'ra' })[x.gear.r] || 'co' : 'co');
+    // 좋은 카드는 맨 뒤로 (등급 낮은 것부터)
+    if (list.length > 1) list.sort((a, b) => GC_RANK[tierOf(a)] - GC_RANK[tierOf(b)]);
     const rar = (x) => (x.k === 'legendHero' ? 'lg' : x.k === 'epicHero' ? 'ep' : x.k === 't3Card' ? 'rgear' : x.k === 'mythGear' ? 'lg' : x.k === 'legendGear' ? 'lgear' : x.k === 'epicGear' ? 'egear' : x.k === 'rareGear' ? 'rgear' : 'sh');
-    m.innerHTML = `<div class="gr-grid n${list.length}">${list.map((x, i) => `<div class="gcard ${rar(x)} ${list.bestLast && i === list.length - 1 && (RANK[x.k] | 0) >= 5 ? 'best' : ''}" style="--i:${i}"><div class="gc-in"><div class="gc-back">?</div><div class="gc-front">${gachaFace(x)}${x.new ? '<i class="gc-new">NEW</i>' : ''}</div></div></div>`).join('')}</div>
-      <button class="btn primary gr-ok" hidden>확인</button><p class="gr-skip">탭하면 빨리 넘어가요</p>`;
+    m.innerHTML = `<div class="gr-dim"></div><div class="gr-grid n${list.length}">${list.map((x, i) => { const t = tierOf(x); return `<div class="gcard ${rar(x)} t-${t}" data-i="${i}" style="--i:${i}"><i class="gc-rays"></i><i class="gc-pillar"></i><div class="gc-in"><div class="gc-back"><img class="gc-bk" src="/img/lb/ui2/${t === 'my' ? 'prism' : 'star_gold'}.webp" alt="" draggable="false"></div><div class="gc-front">${gachaFace(x)}${x.new ? '<img class="gc-newb" src="/img/lb/ui2/badge_new.webp" alt="NEW">' : ''}</div></div><i class="gc-shine"></i></div>`; }).join('')}</div>
+      <div class="gr-btns"><button class="btn gr-all">모두 열기</button><button class="btn primary gr-ok" hidden>확인</button></div><p class="gr-skip">카드를 눌러 한 장씩 열어요</p><div class="gr-zoom" hidden></div>`;
     stage.appendChild(m);
     const cards = [...m.querySelectorAll('.gcard')];
-    let i = 0, fast = false, done = false, busy = false;
+    let done = false, busy = false, opened = 0;
     const finish = () => { if (done) return; done = true; m.remove(); resolve(); };
-    const next = async () => {
-      if (busy) return;
-      busy = true;
-      while (i < cards.length) {
-        const x = list[i], c = cards[i];
-        if (c.classList.contains('best') && !fast) { m.classList.add('slowmo'); await sleep(450); }
-        c.classList.add('flip');
-        A.sfx.card();
-        if (x.card) { await sleep(fast ? 80 : 260); if (x.new) await showJoinReveal(x.hero, LEGEND_HEROES.includes(x.hero) ? 'legend' : 'epic'); else if (x.k === 'legendHero' || x.k === 'epicHero') A.sfx.levelUp(); }
-        else if (x.k === 'legendGear') { fx.flash('#ffd23f', 0.3); A.sfx.levelUp(); }
-        i++;
-        await sleep(fast ? 40 : list.length > 1 ? 150 : 300);
+    const shake = (px) => { if (rm) return; m.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${px}px,${-px / 2}px)` }, { transform: `translate(${-px}px,${px / 2}px)` }, { transform: 'translate(0,0)' }], { duration: 280 }); };
+    const confetti = (c, n, cols) => { if (rm) return; const r0 = c.getBoundingClientRect(), mr = m.getBoundingClientRect(); for (let k = 0; k < n; k++) { const s = document.createElement('i'); s.className = 'gr-cf'; s.style.left = (r0.left - mr.left + r0.width / 2) + 'px'; s.style.top = (r0.top - mr.top + r0.height / 2) + 'px'; s.style.background = cols[k % cols.length]; s.style.setProperty('--dx', ((Math.random() - 0.5) * 320).toFixed(0) + 'px'); s.style.setProperty('--dy', (-80 - Math.random() * 260).toFixed(0) + 'px'); s.style.setProperty('--r', ((Math.random() - 0.5) * 900).toFixed(0) + 'deg'); m.appendChild(s); setTimeout(() => s.remove(), 1500); } };
+    const shardFlow = (c) => { if (rm) return; const r0 = c.getBoundingClientRect(), mr = m.getBoundingClientRect(); for (let k = 0; k < 7; k++) { const s = document.createElement('i'); s.className = 'gr-sh'; s.style.left = (r0.left - mr.left + r0.width / 2) + 'px'; s.style.top = (r0.top - mr.top + r0.height * 0.7) + 'px'; s.style.setProperty('--dx', ((Math.random() - 0.5) * 60).toFixed(0) + 'px'); s.style.animationDelay = (k * 50) + 'ms'; m.appendChild(s); setTimeout(() => s.remove(), 1200); } };
+    const zoom = (x, t) => new Promise((ok) => { // 큰 그림 1.5초 (신화 · LEGEND)
+      const z = m.querySelector('.gr-zoom');
+      const d = x.hero && HEROES[x.hero];
+      const art = d ? `<img class="grz-art" src="${hqSrc(x.hero) || d.img}" alt="">` : x.gear ? `<span class="grz-gear">${gearIco(x.gear)}</span>` : '';
+      const nm = d ? `${t === 'my' ? 'LEGEND ' : ''}${esc(d.name)}!` : x.gear ? `신화 ${esc(GEAR[x.gear.t].name)}!` : '';
+      z.innerHTML = `<i class="grz-prism"></i>${art}<div class="grz-plate"><b>${nm}</b><small>${d ? esc(d.role.replace(/^(HIDDEN|LEGEND) · /, '')) : '신화 장비'}</small></div>`;
+      z.hidden = false; z.className = 'gr-zoom on';
+      setTimeout(() => { z.className = 'gr-zoom out'; setTimeout(() => { z.hidden = true; ok(); }, 300); }, rm ? 900 : 1500);
+    });
+    const flip = async (c, full) => {
+      if (c.classList.contains('flip') || c.dataset.busy) return;
+      c.dataset.busy = '1';
+      const x = list[Number(c.dataset.i)], t = tierOf(x);
+      if (!rm && full && (t === 'lg' || t === 'my')) { // 전설·신화: 어두워지고 금빛 기둥 → 천천히 돌며
+        m.classList.add('dim'); c.classList.add('pillar'); A.sfx.heartbeat && A.sfx.heartbeat(); await sleep(650);
+        c.classList.add('slow');
+      } else if (!rm && full && t === 'ep') { c.classList.add('lift'); await sleep(260); }
+      c.classList.add('flip');
+      gcSfx(t);
+      if (!rm) {
+        if (t === 'co' || t === 'ra') c.classList.add('shine');
+        if (t === 'ep') { c.classList.add('burst'); shake(4); confetti(c, 8, ['#c77dff', '#e8c8ff', '#fff']); }
+        if (t === 'lg' || t === 'my') { await sleep(full ? 700 : 250); c.classList.add('rays'); fx.flash('#ffd23f', 0.35); confetti(c, 26, t === 'my' ? ['#ff5f6d', '#ffc371', '#7bff9a', '#5fd4ff', '#b77bff'] : ['#ffd23f', '#fff3b0', '#ff9a2a']); shake(t === 'my' ? 9 : 5); }
       }
-      m.querySelector('.gr-ok').hidden = false;
-      m.querySelector('.gr-skip').hidden = true;
+      if (x.dup || (!x.new && x.shards)) shardFlow(c);
+      if (x.card && x.new) { await sleep(rm ? 100 : 300); await showJoinReveal(x.hero, LEGEND_HEROES.includes(x.hero) ? 'legend' : t === 'lg' || t === 'my' ? 'epic' : 'new'); }
+      else if (full && t === 'my') await zoom(x, t);
+      m.classList.remove('dim'); c.classList.remove('pillar');
+      opened++;
+      delete c.dataset.busy;
+      if (opened >= cards.length) { m.querySelector('.gr-ok').hidden = false; m.querySelector('.gr-all').hidden = true; m.querySelector('.gr-skip').hidden = true; }
+    };
+    const openAll = async () => { // 낮은 카드는 빠르게 · 영웅 이상은 맨 끝에 한 장씩 제 연출
+      if (busy) return; busy = true;
+      for (const c of cards) { const t = tierOf(list[Number(c.dataset.i)]); if (GC_RANK[t] < 2 && !c.classList.contains('flip')) { flip(c, false); await sleep(70); } }
+      await sleep(250);
+      for (const c of cards) if (!c.classList.contains('flip')) await flip(c, true);
       busy = false;
     };
-    m.addEventListener('click', (ev) => { if (ev.target.closest('.gr-ok')) { finish(); return; } fast = true; });
-    next();
+    m.addEventListener('click', (ev) => {
+      if (ev.target.closest('.gr-ok')) { finish(); return; }
+      if (ev.target.closest('.gr-all')) { openAll(); return; }
+      const c = ev.target.closest('.gcard'); if (c && !busy) flip(c, true);
+    });
+    if (cards.length === 1) setTimeout(() => flip(cards[0], true), 450); // 1회: 저절로
   });
 }
 function gachaFace(x) {
@@ -2752,7 +2841,8 @@ function showGlossary() {
   const attrRows = at.map((a) => { const l = glossLine('attr:' + a); return `<div class="gl-row">${attrIco(a)}<span><b>${esc(l[0])}</b><small>${esc(l[1])}</small></span></div>`; }).join('');
   const roleRows = Object.keys(ROLE_IC).map((k) => `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/${ROLE_IC[k]}.webp" alt=""><span><b>${ROLE_TXT[k][0]}</b><small>${ROLE_TXT[k][1]}</small></span></div>`).join('');
   const tierRows = [1, 2, 3, 4, 5].map((t) => `<div class="gl-row"><i class="tier t${t}">${TIER_NAME[t]}</i><span><b>${TIER_TXT[t][0]}</b><small>${TIER_TXT[t][1]} · 최대 +${metaMaxOfTier(t)}</small></span></div>`).join('');
-  popup(`<h3>한눈에 보기</h3><h4 class="gl-h">속성</h4>${attrRows}<h4 class="gl-h">역할</h4>${roleRows}<h4 class="gl-h">등급</h4>${tierRows}<p class="ip">배지나 칩을 꾹 누르면 설명이 떠요</p>`, 'pp-gloss');
+  const momRow = `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/megaphone.webp" alt=""><span><b>기세 (총공지 둘레 3칸)</b><small>멤버 스킬을 쓸 때마다 1칸씩 써요 (이호찬은 2칸) · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이 차고 총공지 충전이 끝나면 총공지!</small></span></div>`;
+  popup(`<h3>한눈에 보기</h3><h4 class="gl-h">기세</h4>${momRow}<h4 class="gl-h">속성</h4>${attrRows}<h4 class="gl-h">역할</h4>${roleRows}<h4 class="gl-h">등급</h4>${tierRows}<p class="ip">배지나 칩을 꾹 누르면 설명이 떠요</p>`, 'pp-gloss');
   void wheel;
 }
 const ROLE_CHIPS = [['all', '전체'], ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LEGEND'], ['a:talk', '말빨'], ['a:power', '힘'], ['a:charm', '매력'], ['a:booze', '술'], ['splash', '범위'], ['boss', '한 방'], ['ctrl', '제어'], ['heal', '회복']];
@@ -3458,7 +3548,7 @@ async function showPvp() {
       </div>
     </div>
     <div class="pv-day"><small>오늘 보상 <b>${Math.min(d.n, L.PVP_REWARD.perDay)}/${L.PVP_REWARD.perDay}</b>판 ${d.won ? '' : '· 첫 승은 2배!'}</small><div class="pv-track">${track}</div></div>
-    <button class="pv-cta" data-act="pvpQuick"><i class="pv-ring"></i><b>랭크 매칭</b><small>내 덱 전투력 ${fmt(pw)} · 이기면 코인 ${L.PVP_REWARD.win}</small></button>
+    <button class="pv-cta" data-act="pvpQuick"><i class="pv-ring"></i><b>랭크 매칭</b><small>사람 상대를 먼저 찾아요 · 30초 동안 없으면 비슷한 실력의 AI와 대전해요</small></button>
     <div class="pv-sub"><button class="pv-s" data-act="pvpRoom">${ic('duo', '', '')}<b>친구와 대전</b><small>방 만들기 · 초대 링크</small></button><button class="pv-s" data-act="pvpJoin">${ic('key', '', '')}<b>코드로 참가</b><small>4자리 방 코드</small></button></div>
     <div class="pv-top" id="pvpTop"><div class="empty-msg">순위 불러오는 중</div></div>
     <div class="panel pvp-rooms"><h4>${ic('door', '', 'sm')}열린 방 <small id="roomN"></small></h4><div id="roomList"><div class="empty-msg">방 목록 불러오는 중</div></div></div>
@@ -3498,13 +3588,14 @@ async function showPlayerCard(u) {
     <button class="pop-x" data-x>✕</button>`;
 }
 const PVP_TIPS = ['처치 10명마다 상대에게 진상 5명을 보내요', '30명 모으면 중간 보스를 보낼 수 있어요', '150초부터 서든데스! 진상이 확 빨라져요', '상대 입구 줄을 누르면 상대 화면을 볼 수 있어요', '오늘 첫 승은 코인 2배', '같은 상대와는 하루 3판까지만 보상'];
-function pvpWaiting(text, code) {
+function pvpWaiting(text, code, botIn) {
   closeInfoCard();
   const m = document.createElement('div');
   m.className = 'info-modal pvp-wait pv-search';
   m.innerHTML = `<div class="ps-radar"><i></i><i></i><i></i>${tierEmb((P().pvp || {}).rating || 1000, 'mid')}</div>
     <b class="ps-t">${esc(text)}</b><span class="ps-time">0:00</span>
-    ${code ? `<div class="pvp-code">${code}</div><button class="btn primary big-share" data-act="pvpShare" data-code="${code}">${ic('share', '', 'sm')}초대 링크 보내기</button><small class="ps-note">20초 안에 아무도 없으면 연습 상대와 붙어요</small>` : ''}
+    <small class="ps-note">사람 상대를 먼저 찾아요 · 30초 동안 없으면 비슷한 실력의 AI와 대전해요</small>${botIn ? `<small class="ps-ai" data-until="${Date.now() + botIn}">AI 대전까지 ${Math.ceil(botIn / 1000)}초</small>` : ''}
+    ${code ? `<div class="pvp-code">${code}</div><button class="btn primary big-share" data-act="pvpShare" data-code="${code}">${ic('share', '', 'sm')}초대 링크 보내기</button>` : ''}
     <p class="ps-tip">${ic('bulb', '', 'sm')}<span>${esc(PVP_TIPS[0])}</span></p>
     <button class="btn ghost ps-x" data-act="pvpCancel">취소</button>`;
   m.addEventListener('click', (ev) => { const b = ev.target.closest('[data-act]'); if (!b) return; A.unlock(); uiSound(b.dataset.act); if (ACTS[b.dataset.act]) ACTS[b.dataset.act](b); });
@@ -3514,6 +3605,7 @@ function pvpWaiting(text, code) {
     if (!m.isConnected) { clearInterval(iv); return; }
     const s = Math.floor((Date.now() - t0) / 1000);
     m.querySelector('.ps-time').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    { const ai = m.querySelector('.ps-ai'); if (ai) { const left = Math.max(0, Math.ceil((Number(ai.dataset.until) - Date.now()) / 1000)); ai.textContent = left ? `AI 대전까지 ${left}초` : 'AI 상대 준비 중…'; } }
     if (s && s % 3 === 0 && s !== k) { k = s; const tp = m.querySelector('.ps-tip span'); tp.textContent = PVP_TIPS[(s / 3) % PVP_TIPS.length]; }
   }, 250);
 }
@@ -3521,7 +3613,7 @@ async function pvpQueue() {
   const sock = await pvpSocket().catch(() => null);
   if (!sock) { toast('서버에 연결할 수 없어요'); return; }
   fixDeck();
-  sock.emit('queue', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중'); });
+  sock.emit('queue', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중', null, r.botIn); });
 }
 function renderRooms() {
   const el = $('#roomList');
@@ -3546,7 +3638,7 @@ async function pvpQuick() {
   const sock = await pvpSocket().catch(() => null);
   if (!sock) { toast('서버에 연결할 수 없어요'); return; }
   fixDeck();
-  sock.emit('quick', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 기다리는 중', r.code); });
+  sock.emit('quick', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중', r.code, r.botIn); });
 }
 // 게임 안 입력창 (카톡 인앱 브라우저 · 일부 웹뷰는 prompt() 를 막는다)
 const ROOM_TITLES = ['한 판 붙자!', '랑방 최강 가린다', '진상 막기 대결', '초보 환영~', '지는 사람 커피', '딱 한 판만!'];
@@ -3586,6 +3678,16 @@ async function pvpRoom(join) {
 function pvpMatched(m) {
   closeInfoCard();
   PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.kills = 0; PVP.spent = 0; PVP.myCards = []; PVP.myUlts = 0;
+  if (m.opp && m.opp.ai && m.aiNotice) { // 사람 상대가 없어 AI 로: 1.5초 안내 ("다시 찾기" 누르면 취소하고 계속 찾기)
+    const n = document.createElement('div');
+    n.className = 'info-modal pvp-wait pv-ainote';
+    n.innerHTML = `<div class="pa-box"><b>사람 상대가 없어 AI와 대전해요</b><small>비슷한 실력 · 점수는 60%만 오르내려요</small><button class="btn ghost" data-re>다시 찾기</button></div>`;
+    stage.appendChild(n);
+    let gone = false;
+    const tStart = setTimeout(() => { if (gone) return; n.remove(); showVsSplash(Object.assign({}, m, { startIn: (m.startIn || 3000) - m.aiNotice })); setTimeout(() => { if (PVP.match === m) startRun({ mode: 'pvp', force: true, pvpSeed: m.seed }); }, Math.max(0, (m.startIn || 3000) - m.aiNotice - 800)); }, m.aiNotice);
+    n.querySelector('[data-re]').addEventListener('click', () => { gone = true; clearTimeout(tStart); n.remove(); PVP.match = null; if (PVP.sock) PVP.sock.emit('requeue', {}, (r) => { if (r && r.ok) pvpWaiting('상대 찾는 중', null, r.botIn); else toast((r && r.message) || '다시 찾을 수 없어요'); }); });
+    return;
+  }
   showVsSplash(m);
   setTimeout(() => startRun({ mode: 'pvp', force: true, pvpSeed: m.seed }), Math.max(0, (m.startIn || 3000) - 800));
 }
@@ -3598,7 +3700,7 @@ function vsSide(o, me) {
   const deck = (o.deck || []).filter((id) => HEROES[id]).slice(0, 5).map((id, k) => `<span class="vs-h ${k === 0 ? 'lead' : ''}" style="--k:${k}">${av(HEROES[id])}${k === 0 ? '<i>대장</i>' : ''}</span>`).join('');
   return `<div class="vs-side ${me ? 'me' : 'op'} ${frameCls(o.frame)}" style="--tc:${t[3]};${frameStyle(o.frame)}">
     <div class="vs-emb">${tierEmb(o.rating, 'mid')}</div>
-    <b class="vs-name">${esc(o.nickname || '손님')}</b>${o.title ? titleChip(o.title) : ''}
+    <b class="vs-name">${esc(o.nickname || '손님')}${o.ai ? '<i class="vs-ai">AI</i>' : ''}</b>${o.title ? titleChip(o.title) : ''}
     <span class="vs-tier">${esc(t[1])} · ${o.rating | 0}점</span>
     <small>${o.bot ? '연습 상대' : o.games ? `${o.wins | 0}승 ${Math.max(0, (o.games | 0) - (o.wins | 0))}패` : '첫 대전'} · 전투력 ${fmt(o.power | 0)}</small>
     <div class="vs-deck">${deck}</div></div>`;
@@ -4120,17 +4222,32 @@ function consPrepHtml() {
 function showConsPick(k) {
   const lo = consLoadout();
   const rows = L.CONS_IDS.map((id) => { const c = L.CONS[id], n = consHave(id), on = lo.includes(id); return `<button class="cs-row ${n ? '' : 'none'} ${on ? 'on' : ''}" data-act="consPick" data-k="${k}" data-id="${id}" ${n ? '' : 'disabled'} style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small></span></button>`; }).join('');
-  popup(`<h3>소모품 고르기</h3><div class="cs-list">${rows}</div>${lo[k] ? `<button class="btn" data-act="consPick" data-k="${k}" data-id="">칸 비우기</button>` : ''}<p class="ip">전투에 가져간 소모품은 끝나면 안 쓴 것만 돌려받아요 · 1:1 대전에서는 못 써요</p>`, 'pp-mini cons-pop');
+  const cur = lo[k] && L.CONS[lo[k]];
+  popup(`<h3>소모품 고르기</h3>${cur ? `<p class="ip cs-cur">${consIc(lo[k])}<b>${esc(cur.name)}</b> — ${esc(cur.desc)} <small>(${esc(cur.tip)})</small></p>` : ''}<div class="cs-list">${rows}</div>${lo[k] ? `<button class="btn" data-act="consPick" data-k="${k}" data-id="">칸 비우기</button>` : ''}<p class="ip">전투에 가져간 소모품은 끝나면 안 쓴 것만 돌려받아요 · 1:1 대전에서는 못 써요</p>`, 'pp-mini cons-pop');
 }
 // 전투 버튼 (스킬 버튼 위)
 const consBar = document.createElement('div');
 consBar.id = 'consbar'; consBar.hidden = true;
 stage.appendChild(consBar);
+// 길게 누르면 (0.35초) 설명 말풍선 · 처음 쓰는 소모품은 한 번 눌러 설명 → 한 번 더 누르면 사용
+let consPress = null;
+function consBubble(b, id, extra) {
+  const c = L.CONS[id], g = app.g, left = g && (g.consUsed || {})[id] ? 0 : 1;
+  bubble.className = 'bubble skill-info';
+  bubble.innerHTML = `<div class="ih">${consIc(id, 'cb-bic')}<b>${esc(c.name)}</b></div><p class="ia">${esc(c.desc)} · 남은 ${left}개</p>${extra ? `<p class="ip">${extra}</p>` : ''}`;
+  const cr = canvas.getBoundingClientRect(), br = b.getBoundingClientRect();
+  placeBubble(Math.max(90, Math.min(270, ((br.left + br.width / 2 - cr.left) / cr.width) * FIELD.W)), ((br.bottom - cr.top) / cr.height) * (g ? g.H : 720) + 70);
+  bubble.hidden = false; clearTimeout(showHeroBubble.t); showHeroBubble.t = setTimeout(hideBubble, 2600);
+}
+consBar.addEventListener('pointerdown', (ev) => { const b = ev.target.closest('[data-cons]'); if (!b) return; consPress = { long: false, t: setTimeout(() => { consPress.long = true; consBubble(b, b.dataset.cons); vibrate(10); }, 350) }; });
+for (const evn of ['pointerup', 'pointercancel', 'pointerleave']) consBar.addEventListener(evn, () => { if (consPress) clearTimeout(consPress.t); });
 consBar.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-cons]'); const g = app.g;
   if (!b || !g || app.paused) return;
+  if (consPress && consPress.long) { consPress = null; return; }
   A.unlock();
   const id = b.dataset.cons;
+  if (!tutDone('consuse:' + id) && !(g.consUsed || {})[id]) { setTut('consuse:' + id); consBubble(b, id, '한 번 더 누르면 사용'); return; }
   if ((g.consUsed || {})[id]) { toast('이번 판에 이미 썼어요', 900); return; }
   if (g.consCdT > 0) { toast(`소모품은 ${Math.ceil(g.consCdT)}초 뒤에`, 900); return; }
   if (S.useCons(g, id)) { vibrate(20); handleEvents(g, true); renderConsBar(true); }
@@ -4914,8 +5031,8 @@ const DEX_FLAVOR = {
   boss_soloparty: '매일 밤 솔로파티를 여는 중독자. 디스코볼 한 번에 모두가 홀린다.',
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
-const DEX_EN = { jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
-const DEX_FACE = { hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
+const DEX_EN = { jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
+const DEX_FACE = { jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
 // 얼굴 맞춤 자르기: 얼굴 높이 = 칸 높이의 f · 얼굴 가운데 = (50%, cy) — 그림 비율과 상관없이 (자기 크기 기준 translate)
 // 동그란 얼굴용 얼굴 상자 (썸네일 기준 · 이마~턱 · 가운데 x, 가운데 y, 높이) — 그림을 재서 맞춘 값
 const FACE_BOX = { hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.47, 0.15, 0.12], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
@@ -4934,7 +5051,7 @@ function faceImgStyle(id, f = 0.24, cy = 0.36) {
 const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
 const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 모드', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
-const DEX_ANIM = { jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
+const DEX_ANIM = { jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
 function dexAnim(kind, d, id) {
   if (DEX_ANIM[id]) return DEX_ANIM[id];
   if (kind === 'hero') return 'breathe';
@@ -5785,7 +5902,7 @@ function traitHintHtml(s) {
 }
 const ENEMY_TIPS = {
   earphone: '노이즈 캔슬링 이어폰: 범위 공격이 전혀 안 들린다 — 건전남 · 운영진 같은 한 명씩 치는 공격으로',
-  noshow: '입구 두 칸 앞까지 안 보인다(은신). 운영진 · 건전남은 먼저 찾아낸다. 입구에 닿으면 "약속 취소~" 하고 경험치를 들고 나간다',
+  noshow: '길 3/4 까지 안 보인다(은신) · 입구를 세게 친다. 배현경이 찾아내고(표시 +25%) · 범위 공격 · 오지은 시간 정지에 들킨다',
   clubguy: '쓰러지면 데려온 클럽녀가 튀어나온다(분열) — 범위 공격으로 한 번에',
   clubgirl: '클럽남이 데려온 빠른 클럽녀. 약하지만 빠르다',
   praise1: '둘이 붙어 다니며 곁의 진상을 회복시키고 빠르게 한다. 한 명을 잡으면 다른 한 명이 분노 — 한 방에 같이',
@@ -5813,7 +5930,7 @@ const ENEMY_TIPS = {
   namkko: '빠름. 가까이 오면 남자 멤버를 홀린다',
   drunk: '갈지자 걸음. 죽으면 술병이 터져 주변 진상에게 피해',
   thug: '느리지만 단단함. 약한 공격은 덜 아프다',
-  mukti: '엄청 빠름. 경험치를 훔쳐 도망! 잡으면 되찾는다',
+  mukti: '엄청 빠름 · 잘 피함 (MISS). 입구에 붙으면 세게 친다 — 감속 · 기절 · 범위 · 따라가는 공격으로 잡자',
   queen: '졸개 소환 + 주변에 보호막',
   boss_thug: '땅 내려치기로 멤버 전원 기절',
   inpi_gossip: '멀찍이 서서 "수군수군" 뒷담화 — 맞은 멤버 공격 속도↓',
@@ -5918,6 +6035,7 @@ function startGate(quick = false) {
     <div class="gate-in"><div class="gate-logo"><img src="/img/lb/logo_langbang.webp" alt="랑방대전" draggable="false" onerror="this.parentNode.classList.add('noimg')"><i class="gl-shine"></i><b class="gl-sub">찬이의 게임월드</b><h1 class="gl-txt">랑방 대전</h1></div></div>
     <div class="gate-foot"><div class="gate-load"><div class="gate-bar"><i></i></div><b class="gate-pct">0%</b></div><p class="gate-txt">멤버들 모으는 중</p><p class="gate-tip">${ic('bulb', '', 'sm')}<span>${esc(GATE_TIPS[(Math.random() * GATE_TIPS.length) | 0])}</span></p><button class="gate-btn" disabled><span class="gb-spark"></span><b>터치해서 시작</b><small>TAP TO START</small></button></div>`;
   stage.appendChild(box);
+  { const bl = document.getElementById('bootld'); if (bl) { bl.classList.add('out'); setTimeout(() => bl.remove(), 400); } BOOT.gate = true; }
   if (!still) gateLoop(box);
   const go = () => box.classList.add('enter');
   setTimeout(go, 60);
@@ -5930,7 +6048,8 @@ function startGate(quick = false) {
     const done = all.filter((im) => !im.src || im.complete).length;
     const pct = Math.round((done / Math.max(1, all.length)) * 100);
     const el = performance.now() - t0;
-    const shown = Math.min(pct, Math.round((el / MIN_MS) * 100)); // 최소 3초는 보여 준다 (다시 볼 땐 짧게)
+    const bootPct = BOOT.over ? 100 : BOOT.total ? Math.floor((BOOT.done / BOOT.total) * 100) : 0;
+    const shown = Math.min(pct, bootPct, Math.round((el / MIN_MS) * 100)); // 최소 3초는 보여 준다 · 로비 그림·계정까지 다 받아야 100%
     bar.style.width = shown + '%'; box.querySelector('.gate-pct').textContent = shown + '%';
     // 프로필이 오면 가진 멤버를 컬러로 (없던 멤버는 실루엣 그대로)
     if (!synced && app.profileLoaded) {
@@ -5953,6 +6072,54 @@ function startGate(quick = false) {
     setTimeout(() => box.remove(), 400);
   });
 }
+// 부팅 로딩: 로비가 다 준비될 때까지 (최소 1.2초 · 최대 8초) — 막대는 실제로 받은 개수
+const BOOT = { total: 0, done: 0, shown: 0, t0: performance.now(), over: false, seen: new Set() };
+function bootTrack(p) { BOOT.total++; bootPaint(); return Promise.resolve(p).catch(() => {}).then(() => { BOOT.done++; bootPaint(); }); }
+function bootImg(url) {
+  if (!url || BOOT.seen.has(url)) return null; BOOT.seen.add(url);
+  const im = new Image(); im.decoding = 'async'; im.src = url;
+  return bootTrack((im.decode ? im.decode() : new Promise((r) => { im.onload = im.onerror = r; })).catch(() => {}));
+}
+function bootPaint() {
+  const el = document.getElementById('bootld'); if (!el || BOOT.over) return;
+  const pct = BOOT.total ? Math.floor((BOOT.done / BOOT.total) * 100) : 0;
+  BOOT.shown = Math.max(BOOT.shown, pct);
+  const f = document.getElementById('bl-fill'), p = document.getElementById('bl-pct');
+  if (f) f.style.width = BOOT.shown + '%'; if (p) p.textContent = BOOT.shown + '%';
+}
+// 화면(#ui)에 실제로 쓰인 그림 (img · 배경 그림) 을 모두 받아서 풀어 둔다 → 페이드 뒤에 튀어나오는 것 없게
+function bootScanUi() {
+  const root = document.getElementById('ui'); if (!root) return [];
+  const out = [];
+  for (const im of root.querySelectorAll('img')) { const u = im.currentSrc || im.src; if (u) { const r = bootImg(u); if (r) out.push(r); } }
+  for (const el of root.querySelectorAll('*')) { const bg = getComputedStyle(el).backgroundImage; if (bg && bg !== 'none') for (const m of bg.matchAll(/url\(["']?([^"')]+)["']?\)/g)) { const r = bootImg(m[1]); if (r) out.push(r); } }
+  return out;
+}
+function bootDone() {
+  if (BOOT.over) return; BOOT.over = true;
+  const el = document.getElementById('bootld'); if (!el) return;
+  const f = document.getElementById('bl-fill'), p = document.getElementById('bl-pct');
+  if (f) f.style.width = '100%'; if (p) p.textContent = '100%';
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 120);
+}
+async function bootWait(profileP) {
+  const el = document.getElementById('bootld');
+  if (!el) return;
+  const tipT = setInterval(() => { const tp = document.getElementById('bl-tip'); if (tp && typeof GATE_TIPS !== 'undefined') tp.textContent = GATE_TIPS[(Math.random() * GATE_TIPS.length) | 0]; }, 2400);
+  const first = [bootImg('/img/lb/title_poster.jpg?v=3'), bootImg('/img/lb/logo_langbang.webp'), bootTrack(document.fonts ? document.fonts.ready : null), bootTrack(profileP)];
+  const cap = new Promise((r) => setTimeout(r, 8000));
+  const all = (async () => {
+    await Promise.all(first);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); // 계정 받아서 로비를 다시 그린 뒤
+    await Promise.all(bootScanUi());
+    await Promise.all(bootScanUi()); // 한 번 더 (그림이 늦게 붙는 칸)
+  })();
+  await Promise.race([all, cap]);
+  const left = 1200 - (performance.now() - BOOT.t0);
+  if (left > 0) await new Promise((r) => setTimeout(r, left));
+  clearInterval(tipT);
+  bootDone();
+}
 async function boot() {
   try { if (gwPref('reduceMotion') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) document.body.classList.add('rm'); } catch { /* 무시 */ }
   requestAnimationFrame(() => document.body.classList.add('ready'));
@@ -5966,7 +6133,10 @@ async function boot() {
   if (document.fonts && document.fonts.load) {
     document.fonts.load("900 16px 'Noto Sans KR'").then(() => R.bakeAll()).catch(() => {});
   }
-  const r = await API.loadProfile();
+  fetch('/api/langbang/anim').then((x) => x.json()).then((m) => { if (m && m.enemies) R.addEnemyAnims(m.enemies); }).catch(() => {}); // 새 진상 프레임 띠
+  const profP = API.loadProfile();
+  const bootP = bootWait(profP.then(() => new Promise((ok) => setTimeout(ok, 0))));
+  const r = await profP;
   app.profile = r.profile;
   app.guest = r.guest;
   app.profileLoaded = true;
@@ -5982,6 +6152,7 @@ async function boot() {
   if (r.error) toast(r.error);
   if (app.screen === 'menu') showMenu();
   if (Q.get('partner') && HEROES[Q.get('partner')]) app.partner = Q.get('partner');
+  void bootP;
   if (DEBUG.stage) startRun({ mode: 'stage', stage: DEBUG.stage, force: true });
   else if (Q.has('autostart')) startRun(Q.has('endless') ? { mode: 'endless', force: true } : { mode: 'stage', stage: nextStage(), force: true });
 }
@@ -5990,6 +6161,8 @@ async function boot() {
 window.__lb = {
   face: () => DEX_FACE,
   faceC: () => FACE_BOX,
+  gachaShow: (l) => gachaShow(l),
+  R,
   pvpUi: { waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: () => startRun({ mode: 'pvp', force: true, pvpSeed: 7 }), end: (r) => pvpEnded(r) },
   get g() { return app.g; },
   get app() { return app; },
