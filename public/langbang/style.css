@@ -2950,6 +2950,9 @@ body.rm .chm-art, body.rm .mn.cur .mn-dot, body.rm .mn-here { animation: none !i
 .pv-tp b { font-size: calc(var(--u) * 12); max-width: 100%; word-break: keep-all; text-align: center; line-height: 1.15; }
 .pv-tp small { font-family: var(--heavy); font-size: calc(var(--u) * 13); color: #ffd23f; }
 .pv-rule { margin-top: calc(var(--u) * 10); }
+/* 1:1 대전: 전투력 한도 안내 · 서든데스 중 남은 시간 */
+.pv-norm { opacity: 0.85; font-size: calc(var(--u) * 11); }
+.oppstrip em.os-sd { color: #ff6a6a; }
 .room-row.v2 { display: flex; align-items: center; gap: calc(var(--u) * 8); width: 100%; padding: calc(var(--u) * 10); border-radius: calc(var(--u) * 14); border: 2px solid #000; background: rgba(255, 255, 255, 0.06); color: #fff; text-align: left; margin-bottom: calc(var(--u) * 6); }
 .room-row.v2 .rr-host { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .room-row.v2 .rr-meta { display: flex; flex-direction: column; gap: calc(var(--u) * 2); font-size: calc(var(--u) * 11); color: #d8ccff; font-weight: 800; }

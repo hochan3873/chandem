@@ -8,6 +8,7 @@ import {
   GEAR_IDS, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, heroCardNeed, rollHeroCard, CARD_PICK,
 } from './data.js';
 import * as L from './live.js';
+import { pvpLoadout } from './pvp.js';
 
 const GUEST_KEY = 'langbang:guest';
 const OLD_GUEST_KEY = 'langbang:guestBest'; // 예전(20웨이브 시절) 손님 최고 기록
@@ -395,6 +396,7 @@ export async function setAutoSell(on, guest) {
 }
 // 덱 멤버들의 장비 능력치 → sim
 export function gearFor(profile, ids, mythMul = 1) {
+  if (mythMul === 'pvp') return pvpLoadout(profile, ids).gear; // 1:1 대전: 전설 · 신화 장비는 영웅 등급 값으로
   const out = {};
   for (const id of ids) {
     const sl = (profile.equip || {})[id] || {};

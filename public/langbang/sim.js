@@ -10,6 +10,7 @@ import {
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
+import { PVP_END, pvpStepN, pvpWaveHp, pvpMatchHp, pvpMeta, pvpStar, pvpCapMap } from './pvp.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const ENEMY_CAP = 140; // 폰 성능: 화면에 동시에 있는 진상 최대 (넘치면 조금 기다렸다 나온다)
@@ -36,7 +37,7 @@ export function createGame(opt = {}) {
     weekly: wk, wmod, cdMul: (wmod.cd || 1) * (opt.tempo ? TEMPO.cd : 1), hstars: opt.stars || {}, hell: !!opt.hell && mode === 'stage' && !wk,
     hcT: 0, hcBuff: 0, hcSkT: 0, hcSkAtk: 0, // 이호찬 "랑방을 위하여" 버프
     raid: opt.raid ? { sec: opt.raid.sec || 150, dmg: 0, boss: null } : null, // 주말 레이드: 거대 보스에게 준 피해
-    pvp: opt.pvp ? { seed: opt.pvp.seed | 0, sudden: false } : null, // 1:1 대전
+    pvp: opt.pvp ? { seed: opt.pvp.seed | 0, sudden: false, hp: Math.max(0.1, Math.min(20, Number(opt.pvp.hp) || 1)), n: 0, doorMul: 1, hurt: 0, timeUp: false, clock: null } : null, // 1:1 대전 (hp: 두 덱 전투력으로 정한 진상 체력 · n: 서든데스 단계)
     rng: opt.rng || Math.random,
     meta: opt.meta || {}, // { heroId: 영구 강화 레벨 }
     items,
@@ -74,6 +75,7 @@ export function createGame(opt = {}) {
     _enemyPool: [], _projPool: [], _gemPool: [], _boom: [],
     _grid: null,
   };
+  if (g.pvp) { g.meta = pvpCapMap(g.meta, pvpMeta); g.hstars = pvpCapMap(g.hstars, pvpStar); } // 1:1 대전: 강화 +10 · ★3 까지만
   if (g.mapFx.exp) g.mods.expMul += g.mapFx.exp;
   if (mode === 'stage') g.mods.expMul *= wk ? 0.34 : stageExpMul(opt.stage || 1); // 뒤 스테이지는 진상이 많은 만큼 경험치를 줄여 레벨업 횟수를 비슷하게
   if (wmod.exp) g.mods.expMul += wmod.exp;
@@ -1400,6 +1402,7 @@ export function damageBase(g, dmg, e) {
   if (e && e.tauntT > 0) dmg *= 0.2; // 정원식 결혼정보회사: 원식만 바라본다
   dmg *= g.mods.baseArmor * (g.bandT > 0 ? 1 - g.bandArmor : 1) * (g.bouncerT > 0 ? 1 - CONS_FX.bouncer.cut : 1); // 경호원 호출: 입구 피해 −80%
   if (g.doorShield > 0 && g.doorShieldT > 0) { const a = Math.min(g.doorShield, dmg); g.doorShield -= a; dmg -= a; if (g.doorShield <= 0) { g.doorShield = 0; ev(g, 'doorShieldBreak', { x: g.W / 2, y: g.ropeY }); } } // 건전녀 방패가 먼저 막는다
+  if (g.pvp) { dmg *= g.pvp.doorMul; g.pvp.hurt += dmg; } // 1:1 서든데스: 입구 받는 피해 단계마다 +20%
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
   ev(g, 'baseHit', { x: e.x, y: g.ropeY, v: Math.round(dmg), boss: e.boss });
@@ -2462,6 +2465,7 @@ export function startWave(g, n) {
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
   g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
+  if (g.pvp) g.hpScale *= pvpMatchHp(g.pvp.hp, n) * pvpWaveHp(n) * hpMul(PVP_END.baseLevel, g.mode === 'stage') / hpMul(Math.max(1, g.diff), g.mode === 'stage'); // 1:1 대전: 두 덱 전투력 × 웨이브마다 ×1.22 (체력 오름은 이것 하나로 · 공격력은 웨이브대로)
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
   const more = g.mapFx.spawn || 1;
@@ -2853,10 +2857,49 @@ export function pvpIncoming(g, kind) {
     const ids = ['mid_drunk', 'mid_thug', 'fuse_kko', 'mid_gao'];
     const e = spawnEnemy(g, ids[(g.rng() * ids.length) | 0], g.W / 2, -50);
     e.sent = true;
+    if (g.pvp && g.pvp.sudden) { e.hp *= PVP_END.bigHpSudden; e.maxHp *= PVP_END.bigHpSudden; if (e.shield) e.shield *= PVP_END.bigHpSudden; } // 서든데스 뒤: 중간 보스 체력 ×1.5
   } else {
-    for (let i = 0; i < 5; i++) { const e = spawnEnemy(g, i % 2 ? 'drunk_run' : 'mukti', 40 + i * 70, -30 - i * 12); e.sent = true; }
+    const n = g.pvp && g.pvp.sudden ? PVP_END.sendSmallSudden : PVP_END.sendSmall; // 서든데스 뒤: 5 → 8명
+    for (let i = 0; i < n; i++) { const e = spawnEnemy(g, i % 2 ? 'drunk_run' : 'mukti', 40 + (i % 5) * 70 + (i >= 5 ? 35 : 0), -30 - i * 12); e.sent = true; }
   }
-  ev(g, 'incoming', { kind });
+  ev(g, 'incoming', { kind, n: kind === 'big' ? 1 : g.pvp && g.pvp.sudden ? PVP_END.sendSmallSudden : PVP_END.sendSmall });
+}
+// 1:1 대전 끝내기 타임라인 — 150초부터 15초마다 서든데스 단계 (진상 체력 · 속도 +15% · 입구 피해 +20% · 회복 절반)
+//  240초부터 입구가 초당 1% 씩 · 300초면 멈추고 판정 (판정은 서버가 — 화면은 기다린다)
+//  시간은 g.pvp.clock (화면: 서버 시작 시각부터 실제로 지난 초 → 두 사람이 똑같이) · 없으면 g.t (서버 AI)
+export const pvpSendCount = (g) => (g && g.pvp && g.pvp.sudden ? PVP_END.sendSmallSudden : PVP_END.sendSmall);
+export function pvpTime(g) { return g.pvp && g.pvp.clock !== null && g.pvp.clock !== undefined ? g.pvp.clock : g.t; }
+function pvpStep(g, dt) {
+  const P = g.pvp;
+  if (P.timeUp || g.over) return;
+  if (P.n > 0 && P.hpEnd !== undefined && g.base.hp > P.hpEnd) g.base.hp = P.hpEnd + (g.base.hp - P.hpEnd) * PVP_END.healMul; // 스킬 · 카드로 회복한 것도 절반
+  const hp0 = g.base.hp;
+  P.hurt = 0;
+  g._pvpIn = true;
+  try { step(g, dt); } finally { g._pvpIn = false; }
+  if (P.n > 0 && !g.over) { const gain = g.base.hp - hp0 + P.hurt; if (gain > 0) g.base.hp -= gain * (1 - PVP_END.healMul); } // 이번 틱 회복 절반
+  const t = pvpTime(g);
+  const n = pvpStepN(t);
+  if (n !== P.n) {
+    const k = (1 + PVP_END.hpStep * n) / (1 + PVP_END.hpStep * P.n), ks = (1 + PVP_END.spdStep * n) / (1 + PVP_END.spdStep * P.n);
+    g.mods.enemyHp *= k; g.mods.enemySpd *= ks;
+    for (const e of g.enemies) if (!e.dead) { e.hp *= k; e.maxHp *= k; if (e.shield) e.shield *= k; e.speed *= ks; }
+    const first = !P.sudden;
+    P.n = n; P.sudden = n > 0; P.doorMul = 1 + PVP_END.doorStep * n;
+    ev(g, first ? 'sudden' : 'suddenUp', { n });
+  }
+  if (t >= PVP_END.drainAt && !g.over) {
+    const from = Math.max(PVP_END.drainAt, P.drainT === undefined ? PVP_END.drainAt : P.drainT);
+    const sec = Math.min(t, PVP_END.end) - from;
+    P.drainT = Math.max(from, Math.min(t, PVP_END.end));
+    if (sec > 0) {
+      if (!P.drainOn) { P.drainOn = true; ev(g, 'pvpDrain', {}); }
+      g.base.hp -= g.base.max * PVP_END.drain * sec;
+      if (g.base.hp <= 0 && !g.god) { g.base.hp = 0; g.over = true; g.phase = 'over'; ev(g, 'gameover', {}); }
+    }
+  }
+  if (t >= PVP_END.end && !g.over) { P.timeUp = true; ev(g, 'pvpTimeUp', { hp: g.base.hp, max: g.base.max, kills: g.stats.kills }); }
+  P.hpEnd = g.base.hp;
 }
 // 영웅 자리 바꾸기 (끌어다 놓기). 잠깐 쿨타임
 export function swapHeroes(g, h, slot) {
@@ -2900,6 +2943,7 @@ export function setFocus(g, x, y) {
 
 // ─── 한 스텝 ──────────────────────────────────────────
 export function step(g, dt) {
+  if (g.pvp && !g._pvpIn) { pvpStep(g, dt); return; } // 1:1 대전: 끝내기 타임라인을 감싸서
   if (g.over || g.phase === 'victory') return;
   g.t += dt;
   if (g.phase === 'break') {
@@ -2979,7 +3023,6 @@ export function step(g, dt) {
   list.length = j;
   if (g.phase === 'wave' && !g.over && g.spawnI >= g.spawnQ.length && list.length === 0) waveClear(g);
   if (g.raid && !g.over && g.phase !== 'victory' && g.t >= g.raid.sec) { g.victory = true; g.phase = 'victory'; g.stars = 0; ev(g, 'raidEnd', { dmg: g.raid.dmg }); }
-  if (g.pvp && !g.pvp.sudden && g.t >= PVP.sudden) { g.pvp.sudden = true; g.mods.enemySpd *= 1.3; for (const e of g.enemies) e.speed *= 1.3; ev(g, 'sudden', {}); }
   if ((g.pvp || g.raid) && g.phase === 'wave' && g.spawnI >= g.spawnQ.length && g.waveT > 18) startWave(g, g.wave + 1); // 대전 · 레이드는 18초마다 다음 웨이브 (다 안 잡아도)
 }
 
