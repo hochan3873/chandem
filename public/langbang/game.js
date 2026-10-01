@@ -17,6 +17,7 @@ import { Renderer } from './render.js';
 import * as A from './audio.js';
 import * as API from './api.js';
 import * as SH from './share.js';
+import * as PV from './pvp.js';
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -326,7 +327,7 @@ async function startRun(opt = {}) {
   app.weeklyRun = null;
   const raid = mode === 'raid' ? { sec: L.RAID.sec } : null;
   if (raid) weekly = L.raidDef(opt.raidWi !== undefined ? opt.raidWi : L.raidState().wi);
-  const pvp = mode === 'pvp' ? { seed: opt.pvpSeed | 0 } : null;
+  const pvp = mode === 'pvp' ? { seed: opt.pvpSeed | 0, hp: opt.pvpHp || 1 } : null; // hp: 서버가 두 덱 전투력으로 정한 진상 체력
   const dbg = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || (mode === 'stage' && !stageUnlocked(st));
   if (mode === 'stage' && !dbg && !opt.resume) {
     const r = await API.stageStart(st, !!hell, app.guest);
@@ -361,7 +362,7 @@ async function startRun(opt = {}) {
   layoutForNewRun();
   const deck = curDeck();
   const g = S.createGame({
-    H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), slots: deckSlotsNow(), gear: API.gearFor(p, deck.filter(Boolean), pvp ? 0.5 : 1), stars: p.hstars || {},
+    H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), slots: deckSlotsNow(), gear: API.gearFor(p, deck.filter(Boolean), pvp ? 'pvp' : 1), stars: p.hstars || {},
     guestPool: [...UNLOCK_HEROES, ...HIDDEN_HEROES].filter((id) => !API.heroUnlocked(p, id)),
     god: DEBUG.god || DEBUG.stress > 0, join: DEBUG.join, tempo: DEBUG.tempo, leader: deckLeader(), mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
   });
@@ -540,6 +541,7 @@ function handleEvents(g, loud) {
   for (let i = 0; i < ev.length; i++) {
     const e = ev[i];
     switch (e.type) {
+      case 'sudden': case 'suddenUp': case 'pvpDrain': case 'pvpTimeUp': if (live) pvpTimelineEv(g, e); break;
       case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝
       case 'dmg':
         if (!busy || ((e.crit || e.eff > 0) && fx.nums.items.length < (crowd ? 14 : 60))) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : e.sk ? '#ffd23f' : null, e.eff);
@@ -1194,8 +1196,9 @@ function updateHud() {
   const stageMode = g.mode === 'stage';
   const def = g.wave > 0 ? S.waveDefFor(g, w) : null;
   const bossWave = !!(def && def.boss);
-  setText(H$.wave, 'wave', g.pvp ? `대전 · WAVE ${w}${g.pvp.sudden ? ' 서든데스' : ''}` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
+  setText(H$.wave, 'wave', g.pvp ? `대전 · WAVE ${w}${g.pvp.n ? ` · 서든데스 ${g.pvp.n}단계` : ''}` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
   setText(H$.time, 'time', `${Math.floor(g.t / 60)}:${String(Math.floor(g.t % 60)).padStart(2, '0')}`);
+  if (g.pvp) setText(H$.time, 'time', `남은 ${PV.pvpLeftText(S.pvpTime(g))}`); // 1:1 대전: 5분 판정까지 남은 시간
   // 방어선 위험 경고
   const low = g.base.hp / g.base.max < 0.15 && !g.over;
   if (low && !app.hudCache.lowWarn && g.base.hp > 0) { fx.banner('방어선 위험!', '입구가 곧 뚫려요 — 회복 스킬!', '#a3121e', 1.6, 'wave'); fx.flash('#ff2030', 0.35); }
@@ -1301,6 +1304,7 @@ function frame(now) {
       if (idle > 60000) { live.afkSec = (live.afkSec || 0) + dt; if (!app.afkShown) { app.afkShown = true; fx.banner('자리 비움 — 보상 멈춤', '화면을 누르면 다시 보상이 쌓여요', '#333a55', 2.2, 'big'); } }
       else app.afkShown = false;
     }
+    if (live && live.pvp && PVP.t0) live.pvp.clock = (Date.now() - PVP.t0) / 1000; // 1:1 대전: 서든데스 · 판정 시간은 두 사람 똑같이 (실제 시간)
     acc += dt * ts * speed;
     const maxSteps = Math.ceil(10 * Math.max(1, speed));
     let n = 0;
@@ -3532,15 +3536,16 @@ function loadSocketIo() {
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/socket.io/socket.io.js'; s.onload = () => res(window.io); s.onerror = rej; document.head.appendChild(s); });
 }
 async function pvpSocket() {
-  if (PVP.sock && PVP.sock.connected) return PVP.sock;
+  if (PVP.sock && PVP.sock.connected) { pvpSendLo(PVP.sock); return PVP.sock; }
   const io = await loadSocketIo();
   const sock = io('/lbpvp', { transports: ['websocket', 'polling'], auth: { token: API.authToken() || '' } });
   PVP.sock = sock;
+  pvpSendLo(sock);
   sock.on('match', (m) => pvpMatched(m));
   sock.on('rejoin', (m) => { toast('대전으로 다시 들어왔어요', 1400); });
   sock.on('opp', (o) => { const prev = PVP.opp || {}; PVP.opp = Object.assign({}, prev, o); renderOppStrip(); oppPeekCheck(prev, PVP.opp); if (oppView.isConnected) renderOppView(); });
-  sock.on('incoming', (x) => { if (app.g && app.g.pvp) { S.pvpIncoming(app.g, x.kind); handleEvents(app.g, true); pvpBanner('in', x.kind === 'big' ? '중간 보스가 온다!' : '진상 5명이 온다!', `${oppName()}이(가) 보냈어요`); } });
-  sock.on('sent', (x) => { pvpBanner('out', x.kind === 'big' ? '중간 보스 보냈다!' : '진상 5명 보냈다!', `${oppName()} 쪽으로 출발`); });
+  sock.on('incoming', (x) => { if (app.g && app.g.pvp) { S.pvpIncoming(app.g, x.kind); handleEvents(app.g, true); pvpBanner('in', x.kind === 'big' ? '중간 보스가 온다!' : `진상 ${S.pvpSendCount(app.g)}명이 온다!`, `${oppName()}이(가) 보냈어요`); } });
+  sock.on('sent', (x) => { pvpBanner('out', x.kind === 'big' ? '중간 보스 보냈다!' : `진상 ${S.pvpSendCount(app.g)}명 보냈다!`, `${oppName()} 쪽으로 출발`); });
   sock.on('end', (r) => pvpEnded(r));
   sock.on('rooms', (list) => { PVP.rooms = list; if (app.screen === 'pvp') renderRooms(); });
   sock.on('roomClosed', () => { closeInfoCard(); toast('방이 10분 동안 비어서 닫혔어요', 1800); });
@@ -3581,7 +3586,8 @@ async function showPvp() {
     <div class="pv-top" id="pvpTop"><div class="empty-msg">순위 불러오는 중</div></div>
     <div class="panel pvp-rooms"><h4>${ic('door', '', 'sm')}열린 방 <small id="roomN"></small></h4><div id="roomList"><div class="empty-msg">방 목록 불러오는 중</div></div></div>
     <div class="panel wboard" id="pvpRank"><h4>${ic('trophy', '', 'sm')}대전 순위</h4><div class="empty-msg">불러오는 중</div></div>
-    <p class="sub pv-rule">처치 ${L.PVP.sendSmall}명마다 진상 5명 보내기 · ${L.PVP.sendBig}명이면 중간 보스 · ${L.PVP.sudden}초부터 서든데스</p>
+    <p class="sub pv-rule">처치 ${L.PVP.sendSmall}명마다 진상 5명 보내기 · ${L.PVP.sendBig}명이면 중간 보스 · ${L.PVP.sudden}초부터 서든데스 · 5분이면 판정</p>
+    <p class="sub pv-rule pv-norm">${PV.PVP_NOTE}</p>
     ${navHtml('pvp')}
   `, 'dim withnav pvp-v2');
   pvpSocket().then((sock) => sock.emit('rooms:list', {}, (r) => { if (r && r.ok) { PVP.rooms = r.rooms; renderRooms(); } })).catch(() => { const el = $('#roomList'); if (el) el.innerHTML = '<div class="empty-msg">서버에 연결할 수 없어요</div>'; });
@@ -3615,7 +3621,7 @@ async function showPlayerCard(u) {
     ${pl.bestWave ? `<p class="ip">${ic('infinity', '', 'sm')}무한 도전 최고 W${pl.bestWave}</p>` : ''}
     <button class="pop-x" data-x>✕</button>`;
 }
-const PVP_TIPS = ['처치 10명마다 상대에게 진상 5명을 보내요', '30명 모으면 중간 보스를 보낼 수 있어요', '150초부터 서든데스! 진상이 확 빨라져요', '상대 입구 줄을 누르면 상대 화면을 볼 수 있어요', '오늘 첫 승은 코인 2배', '같은 상대와는 하루 3판까지만 보상'];
+const PVP_TIPS = ['처치 10명마다 상대에게 진상 5명을 보내요', '30명 모으면 중간 보스를 보낼 수 있어요', '150초부터 서든데스! 15초마다 진상이 더 세져요', '5분이 되면 입구가 더 많이 남은 쪽이 이겨요', PV.PVP_NOTE, '상대 입구 줄을 누르면 상대 화면을 볼 수 있어요', '오늘 첫 승은 코인 2배', '같은 상대와는 하루 3판까지만 보상'];
 function pvpWaiting(text, code, botIn) {
   closeInfoCard();
   const m = document.createElement('div');
@@ -3625,6 +3631,7 @@ function pvpWaiting(text, code, botIn) {
     <small class="ps-note">사람 상대를 먼저 찾아요 · 30초 동안 없으면 비슷한 실력의 AI와 대전해요</small>${botIn ? `<small class="ps-ai" data-until="${Date.now() + botIn}">AI 대전까지 ${Math.ceil(botIn / 1000)}초</small>` : ''}
     ${code ? `<div class="pvp-code">${code}</div><button class="btn primary big-share" data-act="pvpShare" data-code="${code}">${ic('share', '', 'sm')}초대 링크 보내기</button>` : ''}
     <p class="ps-tip">${ic('bulb', '', 'sm')}<span>${esc(PVP_TIPS[0])}</span></p>
+    <p class="sub pv-norm">${esc(PV.PVP_NOTE)}</p>
     <button class="btn ghost ps-x" data-act="pvpCancel">취소</button>`;
   m.addEventListener('click', (ev) => { const b = ev.target.closest('[data-act]'); if (!b) return; A.unlock(); uiSound(b.dataset.act); if (ACTS[b.dataset.act]) ACTS[b.dataset.act](b); });
   stage.appendChild(m);
@@ -3705,6 +3712,7 @@ async function pvpRoom(join) {
 }
 function pvpMatched(m) {
   closeInfoCard();
+  PVP.t0 = Date.now() + (m.startIn || 3000); // 서버 시작 시각 (서든데스 · 5분 판정 기준)
   PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.kills = 0; PVP.spent = 0; PVP.myCards = []; PVP.myUlts = 0;
   if (m.opp && m.opp.ai && m.aiNotice) { // 사람 상대가 없어 AI 로: 1.5초 안내 ("다시 찾기" 누르면 취소하고 계속 찾기)
     const n = document.createElement('div');
@@ -3712,12 +3720,12 @@ function pvpMatched(m) {
     n.innerHTML = `<div class="pa-box"><b>사람 상대가 없어 AI와 대전해요</b><small>비슷한 실력 · 점수는 60%만 오르내려요</small><button class="btn ghost" data-re>다시 찾기</button></div>`;
     stage.appendChild(n);
     let gone = false;
-    const tStart = setTimeout(() => { if (gone) return; n.remove(); showVsSplash(Object.assign({}, m, { startIn: (m.startIn || 3000) - m.aiNotice })); setTimeout(() => { if (PVP.match === m) startRun({ mode: 'pvp', force: true, pvpSeed: m.seed }); }, Math.max(0, (m.startIn || 3000) - m.aiNotice - 800)); }, m.aiNotice);
+    const tStart = setTimeout(() => { if (gone) return; n.remove(); showVsSplash(Object.assign({}, m, { startIn: (m.startIn || 3000) - m.aiNotice })); setTimeout(() => { if (PVP.match === m) startRun({ mode: 'pvp', force: true, pvpSeed: m.seed, pvpHp: m.hp }); }, Math.max(0, (m.startIn || 3000) - m.aiNotice - 800)); }, m.aiNotice);
     n.querySelector('[data-re]').addEventListener('click', () => { gone = true; clearTimeout(tStart); n.remove(); PVP.match = null; if (PVP.sock) PVP.sock.emit('requeue', {}, (r) => { if (r && r.ok) pvpWaiting('상대 찾는 중', null, r.botIn); else toast((r && r.message) || '다시 찾을 수 없어요'); }); });
     return;
   }
   showVsSplash(m);
-  setTimeout(() => startRun({ mode: 'pvp', force: true, pvpSeed: m.seed }), Math.max(0, (m.startIn || 3000) - 800));
+  setTimeout(() => startRun({ mode: 'pvp', force: true, pvpSeed: m.seed, pvpHp: m.hp }), Math.max(0, (m.startIn || 3000) - 800));
 }
 document.getElementById('oppstrip').addEventListener('click', () => openOppView());
 // ─── 1:1 상대 보기: 맞대결 화면 · 위쪽 VS 줄 · 미니 화면 · 자동 엿보기 ─────
@@ -3783,7 +3791,8 @@ function renderOppStrip() {
   const g = app.g, my = g ? Math.round((g.base.hp / Math.max(1, g.base.max)) * 100) : 100;
   const oh = Math.round((o.hp / Math.max(1, o.max)) * 100);
   el.classList.add('v2');
-  el.innerHTML = `<span class="os-me"><small>나</small><div class="ohp me"><div style="width:${my}%"></div></div><b>${my}%</b></span><em>VS</em><span class="os-op">${tierEmb(o.rating, 'xs')}<span class="os-nm"><b>${esc(o.nickname || '상대')}</b><small>W${o.wave || 0}</small></span><div class="ohp ${oh < 30 ? 'low' : ''}"><div style="width:${oh}%"></div></div><b>${oh}%</b></span>`;
+  const tl = g && g.pvp ? PV.pvpLeftText(S.pvpTime(g)) : 'VS';
+  el.innerHTML = `<span class="os-me"><small>나</small><div class="ohp me"><div style="width:${my}%"></div></div><b>${my}%</b></span><em class="${g && g.pvp && g.pvp.n ? 'os-sd' : ''}">${tl}</em><span class="os-op">${tierEmb(o.rating, 'xs')}<span class="os-nm"><b>${esc(o.nickname || '상대')}</b><small>W${o.wave || 0}</small></span><div class="ohp ${oh < 30 ? 'low' : ''}"><div style="width:${oh}%"></div></div><b>${oh}%</b></span>`;
 }
 function pvpTick() {
   const g = app.g;
@@ -3857,6 +3866,26 @@ function pvpEnded(r) {
   resyncProfile();
 }
 setInterval(pvpTick, 500);
+// ─── 1:1 대전 끝내기 (pvp.js 타임라인) ───
+// 손님: 서버에 강화 · 장비 기록이 없어서 덱 멤버 것만 보낸다 (서버가 대전 한도로 잘라서 진상 체력을 정한다)
+function pvpSendLo(sock) {
+  if (!sock || !app.guest) return;
+  const p = P(), ids = curDeck().filter(Boolean), eq = {}, gids = new Set();
+  for (const id of ids) { const sl = (p.equip || {})[id]; if (sl) { eq[id] = { w: sl.w, a: sl.a, m: sl.m }; for (const k of ['w', 'a', 'm']) if (sl[k] !== undefined) gids.add(sl[k]); } }
+  const pick = (o) => Object.fromEntries(ids.map((id) => [id, (o || {})[id] | 0]));
+  sock.emit('loadout', { heroes: pick(p.heroes), hstars: pick(p.hstars), equip: eq, gear: (p.gear || []).filter((it) => gids.has(it.id)).map((it) => ({ id: it.id, t: it.t, r: it.r, lv: it.lv | 0 })) });
+}
+function pvpTimelineEv(g, e) {
+  if (e.type === 'sudden') pvpBanner('in', '서든데스 시작!', '15초마다 진상이 더 세지고 입구 피해가 늘어요');
+  else if (e.type === 'suddenUp') { if (e.n % 2 === 0) pvpBanner('in', `서든데스 ${e.n}단계`, `진상 체력 · 속도 +${Math.round(PV.PVP_END.hpStep * e.n * 100)}%`); }
+  else if (e.type === 'pvpDrain') pvpBanner('in', '입구가 무너지기 시작!', '매초 내구도 1%씩 · 5분이면 판정');
+  else if (e.type === 'pvpTimeUp') { pvpTick(); pvpBanner('out', '시간 종료!', '입구가 더 많이 남은 쪽이 이겨요 · 판정 중'); }
+}
+function pvpTimeSub(pr) {
+  const a = pr.hp | 0, b = pr.oppHp | 0;
+  if (pr.draw) return `시간 종료 · 입구 ${a}% 대 ${b}% · 처치 수도 같았어요`;
+  return pr.win ? (a !== b ? `시간 종료 · 입구 ${a}% 대 ${b}% 로 이겼다!` : '시간 종료 · 처치 수로 이겼다!') : (a !== b ? `시간 종료 · 입구 ${a}% 대 ${b}%` : '시간 종료 · 처치 수에서 졌어요');
+}
 Object.assign(ACTS, {
   raid: () => showRaid(),
   raidGo: () => startRaid(),
@@ -4818,12 +4847,12 @@ function showResult(victory, quit) {
     top = `<div class="score-big"><small>보스 피해</small><b>${fmt(g.raid.dmg)}</b></div>`;
   } else if (g.pvp) {
     const pr = app.pvpResult || {};
-    title = pr.win ? '승리!' : '패배';
-    sub = pr.reason === 'forfeit' ? '상대가 나가서 기권승' : pr.win ? '상대 방어선이 먼저 뚫렸다!' : '방어선이 먼저 뚫렸어요';
+    title = pr.draw ? '무승부' : pr.win ? '승리!' : '패배';
+    sub = pr.reason === 'forfeit' ? '상대가 나가서 기권승' : pr.reason === 'time' ? pvpTimeSub(pr) : pr.win ? '상대 방어선이 먼저 뚫렸다!' : '방어선이 먼저 뚫렸어요';
     const b0 = pr.before || (pr.rating - (pr.delta || 0)) || 1000, t0 = pvpTier(b0), t1 = pvpTier(pr.rating || b0);
-    top = `<div class="pv-res ${pr.win ? 'win' : 'lose'}"><i class="pr-burst"></i><b class="pr-word">${pr.win ? 'VICTORY' : 'DEFEAT'}</b>
+    top = `<div class="pv-res ${pr.win ? 'win' : pr.draw ? 'lose draw' : 'lose'}"><i class="pr-burst"></i><b class="pr-word">${pr.win ? 'VICTORY' : pr.draw ? 'DRAW' : 'DEFEAT'}</b>
       <div class="pr-emb">${tierEmb(b0, 'xl old')}${t0[1] !== t1[1] ? tierEmb(pr.rating, 'xl new') : ''}</div>
-      ${pr.ranked ? `<div class="pr-rt"><b data-from="${b0}" data-to="${pr.rating}">${b0}</b><em class="${pr.delta >= 0 ? 'up' : 'down'}">${pr.delta >= 0 ? '▲' : '▼'}${Math.abs(pr.delta)}</em></div>` : `<div class="pr-rt"><small>${pr.bot ? '연습 상대 · 점수 변동 없음' : '친선전 · 점수 변동 없음'}</small></div>`}
+      ${pr.ranked ? `<div class="pr-rt"><b data-from="${b0}" data-to="${pr.rating}">${b0}</b><em class="${pr.delta >= 0 ? 'up' : 'down'}">${pr.delta >= 0 ? '▲' : '▼'}${Math.abs(pr.delta)}</em></div>` : `<div class="pr-rt"><small>${pr.draw ? '무승부 · 점수 변동 없음' : pr.bot ? '연습 상대 · 점수 변동 없음' : '친선전 · 점수 변동 없음'}</small></div>`}
       ${t0[1] !== t1[1] ? `<div class="pr-tier ${t1[0] > t0[0] ? 'up' : 'down'}">${t1[0] > t0[0] ? '등급 올라감!' : '등급 내려감'} <b>${esc(t1[1])}</b></div>` : ''}
       ${pr.win && (pr.streak | 0) >= 2 ? `<div class="pr-streak">${ic('fire', '', 'sm')}${pr.streak}연승 중</div>` : ''}</div>`;
   } else if (wk) {
