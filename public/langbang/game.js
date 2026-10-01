@@ -19,6 +19,7 @@ import * as A from './audio.js';
 import * as API from './api.js';
 import * as SH from './share.js';
 import * as FRX from './friends.js';
+import * as BKX from './bonkae-ui.js'; // 본캐 · 출연료 · 주간 인기 멤버
 import * as PV from './pvp.js';
 import { initTower } from './tower-ui.js';
 
@@ -2019,6 +2020,7 @@ function todoList() {
   const p = P(), now = Date.now(), out = [];
   const mail = L.mailCount(p); if (mail) out.push({ txt: `우편 ${mail}통 받기`, ic: 'mail', go: 'mail' });
   const frb = FRX.badge(p); if (frb) out.push({ txt: `친구 소식 ${frb}개 (선물 · 요청)`, ic: 'gift', go: 'friends' });
+  const bkt = BKX.todo(p); if (bkt) out.push(bkt); // 본캐 출연료
   const mis = L.claimable(p, uid(), now); if (mis) out.push({ txt: `미션 보상 ${mis}개 받기`, ic: 'scroll', go: 'missions' });
   if (!L.checkinState(p, now).done) out.push({ txt: '오늘 출석 체크', ic: 'calendar', go: 'checkin' });
   const tier = L.seasonTier(p); if (p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t))) out.push({ txt: '시즌 보상 받기', ic: 'trophy', go: 'season' });
@@ -2033,6 +2035,7 @@ function todoGo(t) {
   closeInfoCard();
   if (t.go === 'mail') ACTS.mail();
   else if (t.go === 'friends') FRX.showFriends(L.giftInbox(P()).length ? 'gifts' : 'req');
+  else if (t.go === 'bonkae') BKX.showFees();
   else if (t.go === 'missions') { const p = P(), now = Date.now(); const v = L.missionView(p, uid(), now); app.misTab = ['daily', 'weekly', 'ach'].find((k) => v[k].some((m) => !m.done && m.have >= m.n)) || app.misTab; showMissions(); setTimeout(() => { const b = document.querySelector('[data-act="claimMis"]:not([disabled])'); if (b) { b.scrollIntoView({ block: 'center', behavior: 'smooth' }); b.closest('.ms-row, div').classList.add('todo-hl'); } }, 60); }
   else if (t.go === 'checkin') showCheckin();
   else if (t.go === 'season') { showSeason(); setTimeout(() => { const b = document.querySelector('[data-act="claimSeason"]:not([disabled]):not([data-t="all"])'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); }
@@ -2276,7 +2279,7 @@ function showMenu() {
     `<button class="tile" data-act="pvp">${uiIco('pvp', '')}<b>1:1 대전</b><small class="tl-t">${(p.pvp && p.pvp.rating) || 1000}점</small></button>`,
   ].join('');
   const right = [['missions', '미션', '', 'missionsNav'], ['share', '공유', '', 'share'], ['checkin', '출석', '', 'checkin'], ['ranking', '랭킹', '', 'ranking'], ['dex', '도감', '', 'dex'], ['mail', '우편', '', 'mail'], ['friends', '친구', '', 'friends'], ['notice', '공지', '', 'notice'], ['settings', '설정', '', 'settings']]
-    .map(([ic0, n, e, act]) => `<button class="rb" data-act="${act}">${ic0 === 'notice' ? '<span class="uic"><img src="/img/lb/ui2/megaphone.webp" alt="" draggable="false"></span>' : ic0 === 'friends' ? '<span class="uic"><img src="/img/lb/ui2/ic_friends.webp" alt="" draggable="false"></span>' : uiIco(ic0, '')}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions) || (act === 'mail' && L.mailCount(p) > 0) || (act === 'friends' && FRX.badge(p) > 0))}</button>`).join('');
+    .map(([ic0, n, e, act]) => `<button class="rb" data-act="${act}">${ic0 === 'notice' ? '<span class="uic"><img src="/img/lb/ui2/megaphone.webp" alt="" draggable="false"></span>' : ic0 === 'friends' ? '<span class="uic"><img src="/img/lb/ui2/ic_friends.webp" alt="" draggable="false"></span>' : uiIco(ic0, '')}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions) || (act === 'mail' && L.mailCount(p) > 0) || (act === 'friends' && FRX.badge(p) > 0) || (act === 'ranking' && BKX.dot(p)))}</button>`).join('');
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~7)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
@@ -2491,7 +2494,7 @@ async function resyncProfile() {
   return true;
 }
 // 다른 기기·탭에서 쓴 뒤 돌아오면 서버 값으로 (전투 중엔 안 건드림)
-document.addEventListener('visibilitychange', () => { if (!document.hidden && app.profileLoaded && !app.guest && app.screen !== 'play') resyncProfile().then((ok) => { if (ok && app.screen !== 'play') refresh(); }); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && app.profileLoaded && !app.guest && app.screen !== 'play') resyncProfile().then((ok) => { if (ok && app.screen !== 'play') { refresh(); BKX.notify(); } }); });
 async function liveAct(promise, okMsg) {
   const r = await promise;
   if (r.ok && r.profile) app.profile = r.profile;
@@ -2888,7 +2891,7 @@ function artCard(id, o = {}) {
   return `<button class="acard t${t} ${ok ? '' : 'locked'} ${o.on ? 'on' : ''} ${o.cls || ''}" data-act="${o.act || 'heroCard'}" data-id="${id}" style="--c:${ATTRS[d.attr].color}">
     <span class="ac-art">${art}</span>
     <i class="ac-tier" data-gl="tier:${t}">${TIER_NAME[t]}</i><span class="ac-attr" data-gl="attr:${d.attr}" style="--ac:${ATTRS[d.attr].color}">${attrIco(d.attr)}<small>${ATTRS[d.attr].name}</small></span>
-    <span class="ac-foot"><b>${ok ? esc(d.name) : '???'}</b><small>${sub}</small>${pr ? `<i class="ac-prog"><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i>` : ''}</span>${ok && TWUI ? TWUI.cardBadge(id) : ''}${o.extra || ''}${o.dot ? '<i class="rd"></i>' : ''}</button>`;
+    <span class="ac-foot"><b>${ok ? esc(d.name) : '???'}</b><small>${sub}</small>${pr ? `<i class="ac-prog"><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i>` : ''}</span>${ok && TWUI ? TWUI.cardBadge(id) : ''}${ok ? BKX.cardBadge(id) : ''}${o.extra || ''}${o.dot ? '<i class="rd"></i>' : ''}</button>`;
 }
 // ─── 덱 탭: 큰 그림 카드 덱 + 전투력 + 모음 (필터 · 전투력 순) ───
 // 역할 배지 그림 · 용어 풀이 (칩·배지를 누르면 말풍선)
@@ -3049,7 +3052,7 @@ function showHeroModal(id, ctx = '') {
   // ─── 정보 탭: 한 줄 소개 인용 · 스킬 카드 · 무기 진화 · 상성 칩 ───
   const w = WEAPON[id], ev = EVO[id];
   const strong = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) > 1), weak = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) < 1);
-  const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>
+  const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>${ok ? BKX.heroHtml(id) : ''}
       <div class="hs-skill">${ic('swords', '', '')}<span><small>기본 공격</small><b>${esc((w && w.item) || '기본 공격')}</b><p>${esc(d.attack)}</p></span></div>
       <div class="hs-skill sk-ult"><img class="ic hs-skic" src="/img/lb/ui2/sk_${id}.webp" alt="" draggable="false"><span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
       ${w || ev ? `<div class="hs-tree"><span class="t0">${esc((w && w.item) || '기본')}</span><i></i><span class="t1">${ev ? esc(ev.name) : '진화'}</span></div>` : ''}
@@ -6017,12 +6020,13 @@ async function showRanking() {
   show(`
     ${topbar(true)}
  <h2 class="title">${ic('trophy', '', 'sm')} 랑방 명예의 전당</h2>
- <div class="tabs"><button class="${tab === 'stage' ? 'on' : ''}" data-act="rankTab" data-tab="stage">${ic('map', '', 'sm')}스테이지</button><button class="${tab === 'endless' ? 'on' : ''}" data-act="rankTab" data-tab="endless">${ic('infinity', '', 'sm')}무한 도전</button><button class="${tab === 'endlessWeek' ? 'on' : ''}" data-act="rankTab" data-tab="endlessWeek">${ic('calendar', '', 'sm')} 무한 주간</button></div>
- <p class="sub">${tab === 'stage' ? '최고 스테이지 → 총 별 → 먼저 도달한 순' : tab === 'endlessWeek' ? '이번 주 무한 도전 최고 점수 · 주가 끝나면 순위 보상이 우편함으로' : '최고 웨이브 → 최고 점수 순'}</p>
+ <div class="tabs"><button class="${tab === 'stage' ? 'on' : ''}" data-act="rankTab" data-tab="stage">${ic('map', '', 'sm')}스테이지</button><button class="${tab === 'endless' ? 'on' : ''}" data-act="rankTab" data-tab="endless">${ic('infinity', '', 'sm')}무한 도전</button><button class="${tab === 'endlessWeek' ? 'on' : ''}" data-act="rankTab" data-tab="endlessWeek">${ic('calendar', '', 'sm')} 무한 주간</button><button class="${tab === 'popular' ? 'on' : ''}" data-act="rankTab" data-tab="popular">${ic('party', '', 'sm')}인기 멤버${BKX.dot(P()) ? '<i class="rd"></i>' : ''}</button></div>
+ <p class="sub">${tab === 'popular' ? BKX.rankSub() : tab === 'stage' ? '최고 스테이지 → 총 별 → 먼저 도달한 순' : tab === 'endlessWeek' ? '이번 주 무한 도전 최고 점수 · 주가 끝나면 순위 보상이 우편함으로' : '최고 웨이브 → 최고 점수 순'}</p>
  <div class="rank-list" id="rk"><div class="empty-msg"><span class="spin">${ic('hourglass', '', 'sm')}</span> 불러오는 중…</div></div>
  <div class="spacer"></div>
  <div class="my-rank" id="myrk"></div>
  `, 'dim');
+  if (tab === 'popular') { await BKX.renderRanking($('#rk'), $('#myrk')); return; } // 주간 인기 멤버 (bonkae-ui.js)
   const res = await API.loadRanking(tab);
   const box = $('#rk');
   if (!box || app.screen !== 'ranking' || app.rankTab !== tab) return;
@@ -6349,7 +6353,7 @@ async function boot() {
   app.profile = r.profile;
   app.guest = r.guest;
   app.profileLoaded = true;
-  Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {});
+  Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {}).then(() => BKX.boot()).catch(() => {}); // 다음: 본캐 출연료 정산 · 알림
   saveCrowd();
   if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크
   // 로그인: 서버에 저장된 덱이 있고 이 기기에 덱이 없으면 서버 덱으로
@@ -6369,6 +6373,12 @@ async function boot() {
 // 친구 화면 (public/langbang/friends.js): 화면 도구를 넘기고 버튼 동작을 합친다
 Object.assign(ACTS, FRX.initFriends({
   app, P, setProfile: (p) => { app.profile = p; }, show, popup, toast, confirmBox, topbar, esc, fmt, ic, av, frameCls, frameStyle, whoHtml, titleChip,
+}));
+
+// 본캐 · 출연료 · 주간 인기 멤버 (public/langbang/bonkae-ui.js)
+Object.assign(ACTS, BKX.initBonkae({
+  app, P, setProfile: (p) => { app.profile = p; }, show, popup, toast, confirmBox, esc, fmt, ic, av, refresh: () => refresh(), closeInfoCard: () => closeInfoCard(),
+  reopenHero: (id) => { if (stage.querySelector('.hero-full')) showHeroModal(id); else refresh(); }, resync: () => resyncProfile(),
 }));
 
 // 진상의 탑 연결 (화면 · 버튼 · 전투 HUD · 결과)

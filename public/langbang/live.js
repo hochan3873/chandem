@@ -180,9 +180,9 @@ export const TITLE_INFO = {
   ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어' }, ch7: { rarity: 'legend', how: '7장 스키장 클리어 (고난도)' },
   allstar1: { rarity: 'rare', how: '1장 ★30' }, pvpsilver: { rarity: 'common', how: '1:1 대전 실버 (1050점)' }, pvpgold: { rarity: 'rare', how: '1:1 대전 골드 (1200점)' },
   heroes12: { rarity: 'rare', how: '멤버 12명 모으기' }, heroes20: { rarity: 'legend', how: '멤버 20명 모으기' },
-  tower15: { rarity: 'rare', how: '진상의 탑 15층' }, tower60: { rarity: 'legend', how: '진상의 탑 60층' }, towerking: { rarity: 'legend', how: '주간 탑 랭킹 1위 (다음 한 주 동안)' },
+  tower15: { rarity: 'rare', how: '진상의 탑 15층' }, tower60: { rarity: 'legend', how: '진상의 탑 60층' }, towerking: { rarity: 'legend', how: '주간 탑 랭킹 1위 (다음 한 주 동안)' }, popstar: { rarity: 'legend', how: '주간 인기 멤버 1위의 본캐 주인 (다음 한 주 동안)' },
 };
-const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', ch7: '설산의 정복자', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인' };
+const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', ch7: '설산의 정복자', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인', popstar: '이번 주 인기 스타' };
 // 조건을 채우면 저절로 들어오는 칭호 · 프레임 (서버 normLb · 손님 둘 다 같은 함수)
 // 우편 보상은 정해진 칸만 (숫자 · 등급 · 칭호/프레임 이름)
 function cleanRw(rw) {
