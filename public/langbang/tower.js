@@ -32,6 +32,47 @@ export const ZONES = [
     mix: [['drunk_cry', 2], ['drunk_run', 2], ['drunk_sleep', 1], ['kkondae2', 1], ['carpoor', 2], ['inpi_treasurer', 1], ['sales', 2], ['earphone', 1]], swarm: ['drunk_run', 'drunk_home', 'clubgirl', 'inpi_clique', 'mukti'], titan: ['kkondae2', 'drunk_sleep', 'carpoor'], rush: ['drunk_run', 'cutter', 'carpoor'],
     bosses: ['tb_king1', 'tb_king2', 'tb_king3'], kit: ['drain', '왕의 착취', { v: 0.15 }] },
 ];
+// ─── 피로도 (멤버마다 0~100) ───
+//  탑을 오를 때마다 쌓이고 · 시간이 지나면 저절로 풀린다 (한 시간에 6 · 0까지 약 17시간)
+//  피로한 멤버는 탑에서만 약해진다 (공격력 · 입구 내구도 × (1 − 피로 × 0.004) → 100이면 −40%) · 100이면 쉬어야 들어갈 수 있다
+//  하루 몇 층 제한 대신: 센 멤버 하나로 끝없이 오르지 못하게 (마스터 · 무료 모드는 안 쌓인다)
+export const FATIGUE = {
+  max: 100, perHour: 6, // 한 시간에 6씩 회복
+  clear: 25, clearHigh: 40, highFrom: 31, // 깬 층 +25 (31층부터 +40)
+  fail: 15, replay: 25, // 실패 +15 · 이미 깬 층을 다시 깨도 +25
+  pow: 0.004, // 피로 1 = 공격력 · 내구도 −0.4%
+  potion: 50, // 피로 회복제 하나 −50
+};
+const HOUR = 3600e3;
+// 지금 피로 (저장된 값에서 지난 시간만큼 뺀다)
+export function fatigueOf(lb, hero, now = Date.now()) {
+  const x = ((lb && lb.tower && lb.tower.fat) || {})[hero];
+  if (!x) return 0;
+  const v = x.v - (Math.max(0, now - (x.at || 0)) / HOUR) * FATIGUE.perHour;
+  return Math.max(0, Math.min(FATIGUE.max, Math.ceil(v - 1e-9)));
+}
+// 피로 더하기 (빼기는 음수) — 지금 값으로 다시 적는다
+export function fatigueAdd(lb, hero, d, now = Date.now()) {
+  const t = lb.tower; t.fat = t.fat || {};
+  const v = Math.max(0, Math.min(FATIGUE.max, fatigueOf(lb, hero, now) + d));
+  if (v > 0) t.fat[hero] = { v, at: now }; else delete t.fat[hero];
+  return v;
+}
+// 탑 전투 배율 (공격력 · 입구 내구도): 피로 100 → 0.6
+export const fatigueMul = (v) => 1 - Math.max(0, Math.min(FATIGUE.max, v || 0)) * FATIGUE.pow;
+// 다 풀릴 때까지 남은 시간 (ms) · 다시 들어갈 수 있을 때까지 (100 미만)
+export const fatigueRestMs = (v) => Math.ceil((Math.max(0, v) / FATIGUE.perHour) * HOUR);
+export function fatigueOkMs(lb, hero, now = Date.now()) {
+  const x = ((lb && lb.tower && lb.tower.fat) || {})[hero];
+  if (!x || fatigueOf(lb, hero, now) < FATIGUE.max) return 0;
+  const raw = x.v - (Math.max(0, now - (x.at || 0)) / HOUR) * FATIGUE.perHour;
+  return Math.max(60e3, Math.ceil(((raw - (FATIGUE.max - 1)) / FATIGUE.perHour) * HOUR));
+}
+// 이 층을 깨면 / 실패하면 쌓이는 피로
+export const fatigueGain = (f, clear, replay) => (!clear ? FATIGUE.fail : replay ? FATIGUE.replay : f >= FATIGUE.highFrom ? FATIGUE.clearHigh : FATIGUE.clear);
+const hoursText = (ms) => { const m = Math.ceil(ms / 60e3); return m >= 60 ? `${Math.ceil(m / 60)}시간` : `${Math.max(1, m)}분`; };
+export const fatigueTimeText = hoursText;
+
 export const zoneOf = (f) => ZONES[Math.max(0, Math.min(3, Math.floor((int(f, 1, 60) - 1) / 15)))];
 export const isBossFloor = (f) => f % 5 === 0;
 
@@ -223,19 +264,28 @@ export const TOWER_SHOP = [
   { id: 'energydrink', kind: 'cons', cost: 20, per: 'week', n: 2 },
   { id: 'tickets', kind: 'tickets', amount: 1, cost: 40, per: 'week', n: 3, name: '모집권' },
   { id: 'stones', kind: 'stones', amount: 5, cost: 15, per: 'week', n: 3, name: '강화석 5개' },
+  { id: 'potion', kind: 'fat', amount: FATIGUE.potion, cost: 30, per: 'day', n: 2, name: '피로 회복제', desc: `고른 멤버 피로 −${FATIGUE.potion}` },
 ];
+// 피로 회복제 그림 (/img/lb/tower/tw_potion.webp) — 아직 없어서 에너지 드링크 그림으로 (그림이 오면 주소만 바꾸기)
+export const POTION_ART = '/img/lb/ui2/it_energydrink.webp';
 
 // ─── 진행 상태 (lb.tower) — 이상한 값은 버린다 ───
-export function emptyTower() { return { best: 0, hb: {}, day: -1, used: 0, run: null, wk: null, wkPrev: null, wkPaid: -1e6, stone: 0, hs: {}, buy: {}, picks: { legend: 0, hero: 0 }, miles: [], hall: null, kingUntil: 0 }; }
+export function emptyTower() { return { best: 0, hb: {}, fat: {}, day: -1, used: 0, run: null, wk: null, wkPrev: null, wkPaid: -1e6, stone: 0, hs: {}, buy: {}, picks: { legend: 0, hero: 0 }, miles: [], hall: null, kingUntil: 0 }; }
 const wkClean = (x) => (x && Number.isInteger(x.wi) ? { wi: x.wi, f: int(x.f, 0, TOWER.floors), sec: int(x.sec, 0, 1e6), hero: typeof x.hero === 'string' && HEROES[x.hero] ? x.hero : '', at: int(x.at, 0, 9e15) } : null);
 export function normTower(raw, out, now = Date.now()) {
   const t = (raw && raw.tower) || {};
   const o = emptyTower();
   o.best = int(t.best, 0, TOWER.floors);
   for (const [h, v] of Object.entries(t.hb || {})) if (HEROES[h]) { const n = int(v, 0, TOWER.floors); if (n) o.hb[h] = n; }
+  // 피로: { 멤버: { v 0~100, at 시각 } } — 다 풀린 기록 · 이상한 값은 버린다
+  for (const [h, x] of Object.entries(t.fat && typeof t.fat === 'object' ? t.fat : {})) {
+    if (!HEROES[h] || !x || typeof x !== 'object') continue;
+    const v = int(x.v, 0, FATIGUE.max), at = int(x.at, 0, 9e15);
+    if (v > 0 && v - (Math.max(0, now - at) / HOUR) * FATIGUE.perHour > 0) o.fat[h] = { v, at: Math.min(at, now) };
+  }
   o.day = Number.isInteger(t.day) ? t.day : -1;
   o.used = int(t.used, 0, 99);
-  o.run = t.run && typeof t.run.id === 'string' && t.run.id.length <= 32 ? { id: t.run.id, f: int(t.run.f, 1, TOWER.floors), hero: HEROES[t.run.hero] ? t.run.hero : 'bangjang', at: int(t.run.at, 0, 9e15) } : null;
+  o.run = t.run && typeof t.run.id === 'string' && t.run.id.length <= 32 ? { id: t.run.id, f: int(t.run.f, 1, TOWER.floors), hero: HEROES[t.run.hero] ? t.run.hero : 'bangjang', at: int(t.run.at, 0, 9e15), fat: int(t.run.fat, 0, FATIGUE.max) } : null;
   o.wk = wkClean(t.wk); o.wkPrev = wkClean(t.wkPrev);
   o.wkPaid = Number.isInteger(t.wkPaid) ? t.wkPaid : -1e6;
   o.stone = int(t.stone, 0, 1e7);
@@ -269,9 +319,11 @@ export function towerStart(lb, f, hero, runId, now = Date.now(), free = false) {
   const day = L.dayIndex(now);
   if (t.day !== day) { t.day = day; t.used = 0; }
   if (!free && t.used >= TOWER.tries) return { error: `오늘 탑 도전은 다 했어요 (하루 ${TOWER.tries}번 · 깬 층은 안 깎여요 · 자정에 초기화)` };
+  const fat = free ? 0 : fatigueOf(lb, hero, now);
+  if (fat >= FATIGUE.max) return { error: `${HEROES[hero].name}: 지쳐서 쉬어야 해요 · ${hoursText(fatigueOkMs(lb, hero, now))} 뒤 회복` };
   if (!free) t.used++;
-  t.run = { id: String(runId).slice(0, 32), f, hero, at: now };
-  return { runId: t.run.id, f, hero, left: triesLeft(lb, now) };
+  t.run = { id: String(runId).slice(0, 32), f, hero, at: now, fat };
+  return { runId: t.run.id, f, hero, fat, left: triesLeft(lb, now) };
 }
 // 탑 끝: 서버가 판 번호 · 시간을 확인하고 보상 (처음 깬 층만)
 export function towerFinish(lb, body, uid, now = Date.now(), free = false) {
@@ -288,7 +340,9 @@ export function towerFinish(lb, body, uid, now = Date.now(), free = false) {
     let cap = 0; for (const w of def.waves) for (const x of w.g) cap += x[1] * (ENEMIES[x[0]] && ENEMIES[x[0]].pack ? ENEMIES[x[0]].pack.max : 1) * 2.4; cap += 80 * def.waves.length;
     if (kills > cap) return { error: '기록을 확인할 수 없어요' };
   }
-  const out = { clear, f: run.f, hero: run.hero, first: false, reward: null, miles: [], awake: null, weekBest: false, hall: false, left: 0 };
+  const out = { clear, f: run.f, hero: run.hero, first: false, reward: null, miles: [], awake: null, weekBest: false, hall: false, left: 0, fat: 0, fatAdd: 0 };
+  // 피로: 깨면 +25 (31층부터 +40) · 이미 깬 층을 다시 깨도 +25 · 실패 +15 (무료 모드는 안 쌓인다)
+  if (!free) { out.fatAdd = fatigueGain(run.f, clear, run.f <= t.best); out.fat = fatigueAdd(lb, run.hero, out.fatAdd, now); }
   L.trackRun(lb, { mode: 'tower', kills: Math.min(kills, 2000), bosses: clear && isBossFloor(run.f) ? 1 : 0, skills: L.skillCap(body.skills, dur) }, uid, now); // 미션 진행 (처치 · 보스 · 스킬)
   if (clear) {
     const day = L.dayIndex(now);
@@ -357,7 +411,7 @@ export function shopLeft(lb, id, now = Date.now()) {
   const b = ((lb.tower || {}).buy || {})[id];
   return Math.max(0, s.n - (b && b.k === buyKey(s, now) ? b.n | 0 : 0));
 }
-export function shopBuy(lb, id, now = Date.now()) {
+export function shopBuy(lb, id, now = Date.now(), hero = null) {
   lb.tower = lb.tower || emptyTower();
   const t = lb.tower;
   if (HELL_SET[id]) {
@@ -371,6 +425,10 @@ export function shopBuy(lb, id, now = Date.now()) {
   if (!s) return { error: '살 수 없는 물건이에요' };
   if (shopLeft(lb, id, now) <= 0) return { error: s.per === 'week' ? '이번 주에 다 샀어요' : '오늘은 다 샀어요' };
   if (t.stone < s.cost) return { error: `염화석이 부족해요 (${s.cost} 필요)` };
+  if (s.kind === 'fat') { // 피로 회복제: 산 자리에서 고른 멤버에게 바로
+    if (!hero || !HEROES[hero] || !L.heroUnlocked(lb, hero)) return { error: '피로를 풀 멤버를 골라 주세요' };
+    if (fatigueOf(lb, hero, now) <= 0) return { error: '피로하지 않은 멤버예요' };
+  }
   if (s.kind === 'cons' && ((lb.cons || {})[s.id] | 0) >= L.CONS_CAP) return { error: '더 가질 수 없어요 (99개)' };
   t.stone -= s.cost;
   const key = buyKey(s, now), b = t.buy[id] && t.buy[id].k === key ? t.buy[id] : { k: key, n: 0 };
@@ -378,6 +436,7 @@ export function shopBuy(lb, id, now = Date.now()) {
   if (s.kind === 'cons') { L.consAdd(lb, { [s.id]: 1 }); return { got: { cons: { [s.id]: 1 } } }; }
   if (s.kind === 'tickets') { lb.tickets = (lb.tickets | 0) + s.amount; return { got: { tickets: s.amount } }; }
   if (s.kind === 'stones') { lb.stones = (lb.stones | 0) + s.amount; return { got: { stones: s.amount } }; }
+  if (s.kind === 'fat') { const v = fatigueAdd(lb, hero, -s.amount, now); return { got: { fat: { hero, v, cut: s.amount } } }; }
   return { error: '살 수 없는 물건이에요' };
 }
 export function hellUp(lb, id) {

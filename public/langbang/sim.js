@@ -3868,7 +3868,11 @@ function towerSetup(g, opt) {
     titan: has('titan'), swarm: has('swarm'), rush: has('rush'), layers: has('shield'), curse: has('curse'), dark: has('dark'),
     cT: 4, curseI: 0, k: Math.min(1, (def.f - 1) / TOWER_SIM.ramp), // 규칙 세기 (0 → 1)
     limit: TOWER_SIM.limit[0] + TOWER_SIM.limit[1] * def.waves.length, // 제한 시간 (끝없이 버티기만 하는 판 막기)
+    fat: Math.max(0, Math.min(100, Number(opt.towerFat) || 0)), // 멤버 피로 (0~100 · tower.js FATIGUE)
   };
+  // 피로한 멤버: 공격력 · 입구 내구도 × (1 − 피로 × 0.004) — 탑에서만 (100 → −40%)
+  g.tower.fatK = 1 - g.tower.fat * (opt.towerFatPow || 0.004);
+  if (g.tower.fatK < 1) { g.base.max = Math.max(1, Math.round(g.base.max * g.tower.fatK)); g.base.hp = g.base.max; }
   g.stage = def.stage || 35;
   g.totalWaves = def.waves.length;
   g.maxHeroes = 1; // 혼자 (다른 칸은 잠김)
@@ -3975,7 +3979,7 @@ function extraKill(g, e, src) {
 function heroExtraMul(g, h) {
   let m = (1 + (h.saAtk || 0)) * (h.awake >= 1 ? 1 + TOWER_AWAKE_FX.atk : 1);
   const T = g.tower;
-  if (T) m *= TOWER_SIM.solo[h.id] || 1; // 혼자인 탑: 지원형 멤버 보정
+  if (T) m *= (TOWER_SIM.solo[h.id] || 1) * (T.fatK || 1); // 혼자인 탑: 지원형 멤버 보정 · 피로
   if (T && T.seal && h.def) { const a = h.def.attr; if (a === T.seal.weak) m *= lerpK(TOWER_SIM.seal.weak, T.k); else if (a === T.seal.strong) m *= lerpK(TOWER_SIM.seal.strong, T.k); }
   return m;
 }

@@ -379,3 +379,119 @@ test('탑 서버: 시작 · 끝 (판 번호 · 첫 클리어 보상 서버 계�
   assert.equal(r.ok, true, r.message);
   assert.equal(r.profile.tower.hs.hs_horn.on, 'bangjang');
 });
+
+test('탑 피로: 깨면 +25 (31층부터 +40) · 다시 깨도 +25 · 실패 +15 · 한 시간에 6씩 회복 · 100이면 못 들어감 · 무료 모드는 안 쌓임', () => {
+  const now = Date.UTC(2026, 9, 1, 3, 0, 0), H = 3600e3, F = T.FATIGUE;
+  assert.equal(F.max, 100); assert.equal(F.perHour, 6); assert.equal(F.pow, 0.004);
+  const lb = lbOf();
+  const play = (f, hero, clear, at, free = false) => {
+    const s = T.towerStart(lb, f, hero, 'p' + f + at, at, free);
+    if (s.error) return s;
+    return T.towerFinish(lb, { runId: 'p' + f + at, clear, durationSec: 100, kills: 10 }, 'u', at + 200e3, free);
+  };
+  // 처음 깬 층 +25 · 다시 깨도 +25 · 실패 +15
+  let r = play(1, 'bangjang', true, now);
+  assert.equal(r.fatAdd, 25); assert.equal(r.fat, 25);
+  r = play(1, 'bangjang', true, now + 300e3);
+  assert.equal(r.fatAdd, 25, '이미 깬 층'); assert.equal(T.fatigueOf(lb, 'bangjang', now + 500e3), 50);
+  r = play(2, 'bangjang', false, now + 600e3);
+  assert.equal(r.fatAdd, 15); assert.equal(T.fatigueOf(lb, 'bangjang', now + 800e3), 65);
+  assert.equal(T.fatigueOf(lb, 'gunman', now), 0, '멤버마다 따로');
+  // 31층부터 처음 깨면 +40 · 그 밑은 +25 · 다시 깨기 +25
+  assert.equal(T.fatigueGain(30, true, false), 25); assert.equal(T.fatigueGain(31, true, false), 40); assert.equal(T.fatigueGain(45, true, true), 25); assert.equal(T.fatigueGain(45, false, false), 15);
+  lb.tower.best = 30;
+  r = play(31, 'gunman', true, now);
+  assert.equal(r.fatAdd, 40); assert.equal(lb.tower.best, 31);
+  // 회복: 한 시간에 6 (65 → 5시간 뒤 35 → 11시간 뒤 0) · 다 풀리면 기록이 지워진다
+  const t0 = lb.tower.fat.bangjang.at;
+  assert.equal(T.fatigueOf(lb, 'bangjang', t0 + 5 * H), 35);
+  assert.equal(T.fatigueOf(lb, 'bangjang', t0 + 11 * H), 0);
+  assert.equal(T.fatigueRestMs(100), Math.ceil((100 / 6) * H), '0 까지 약 17시간');
+  const n = {};
+  T.normTower({ tower: lb.tower }, n, t0 + 12 * H);
+  assert.equal(n.tower.fat.bangjang, undefined, '다 풀린 기록은 버린다');
+  const n2 = {}; T.normTower({ tower: lb.tower }, n2, t0 + 5 * H);
+  assert.deepEqual(n2.tower.fat.bangjang, lb.tower.fat.bangjang, '아직 남은 피로는 그대로');
+  // 100까지만 · 100이면 못 들어간다 (n시간 뒤 회복) · 조금 쉬면 다시
+  lb.tower.fat.staff = { v: 100, at: now };
+  const blocked = T.towerStart(lb, 1, 'staff', 'b1', now);
+  assert.ok(blocked.error && blocked.error.includes('지쳐서 쉬어야 해요') && blocked.error.includes('뒤 회복'), blocked.error);
+  assert.ok(T.fatigueOkMs(lb, 'staff', now) > 0);
+  assert.ok(!T.towerStart(lb, 1, 'staff', 'b2', now + H).error, '한 시간 쉬면 94');
+  lb.tower.fat.staff = { v: 95, at: now };
+  T.towerStart(lb, 1, 'staff', 'b3', now);
+  r = T.towerFinish(lb, { runId: 'b3', clear: true, durationSec: 100, kills: 10 }, 'u', now + 200e3);
+  assert.equal(r.fat, 100, '100 넘게 안 쌓인다');
+  // 무료(마스터) 모드: 안 쌓이고 · 안 막힌다
+  lb.tower.fat.gunnyeo = { v: 100, at: now };
+  const fs = T.towerStart(lb, 1, 'gunnyeo', 'm1', now, true);
+  assert.ok(!fs.error, fs.error); assert.equal(fs.fat, 0);
+  r = T.towerFinish(lb, { runId: 'm1', clear: true, durationSec: 100, kills: 10 }, 'u', now + 200e3, true);
+  assert.equal(r.fatAdd, 0); assert.equal(T.fatigueOf(lb, 'gunnyeo', now), 100);
+  delete lb.tower.fat.gunnyeo;
+  play(1, 'gunnyeo', false, now, true);
+  assert.equal(T.fatigueOf(lb, 'gunnyeo', now + 300e3), 0);
+  // 이상한 값은 버린다
+  const junk = lbOf({ tower: { fat: { bangjang: { v: 'x', at: now }, nobody: { v: 50, at: now }, gunman: { v: 999, at: Date.now() }, staff: 5 } } });
+  assert.deepEqual(Object.keys(junk.tower.fat), ['gunman']);
+  assert.equal(junk.tower.fat.gunman.v, 100);
+});
+
+test('탑 피로: 전투에서 공격력 · 입구 내구도 × (1 − 피로 × 0.004) — 탑에서만 · 피로 0이면 그대로', () => {
+  const dmgOf = (g) => S.heroDamage(g, g.heroes[0]);
+  const g0 = towerGame(10, 'gunman'), g0b = towerGame(10, 'gunman', { towerFat: 0 }), g50 = towerGame(10, 'gunman', { towerFat: 50 }), g100 = towerGame(10, 'gunman', { towerFat: 100 });
+  assert.equal(dmgOf(g0b), dmgOf(g0)); assert.equal(g0b.base.max, g0.base.max, '피로 0 → 그대로');
+  assert.ok(Math.abs(dmgOf(g50) / dmgOf(g0) - 0.8) < 1e-9, '피로 50 → −20%');
+  assert.ok(Math.abs(dmgOf(g100) / dmgOf(g0) - 0.6) < 1e-9, '피로 100 → −40%');
+  assert.ok(Math.abs(g100.base.max / g0.base.max - 0.6) < 0.01); assert.equal(g100.base.hp, g100.base.max);
+  // 탑 밖에서는 피로가 없다
+  const s0 = S.createGame({ H: 760, rng: seeded(1), heroes: ['gunman'], noWaves: true }), s1 = S.createGame({ H: 760, rng: seeded(1), heroes: ['gunman'], noWaves: true, towerFat: 100 });
+  assert.equal(dmgOf(s1), dmgOf(s0)); assert.equal(s1.base.max, s0.base.max);
+  // 화면이 넘기는 값 (tower-ui gameOpt 와 같은 이름)
+  assert.equal(T.fatigueMul(100), 0.6); assert.equal(T.fatigueMul(0), 1);
+});
+
+test('탑 상점 피로 회복제: 염화석 · 고른 멤버 −50 · 하루 2개 · 피로 없는 멤버는 못 씀', () => {
+  const now = Date.UTC(2026, 9, 1, 3, 0, 0);
+  const lb = lbOf();
+  const s = T.TOWER_SHOP.find((x) => x.id === 'potion');
+  assert.ok(s && s.per === 'day' && s.n === 2 && s.amount === 50 && s.cost > 0);
+  lb.tower.stone = 1000;
+  lb.tower.fat.bangjang = { v: 80, at: now };
+  assert.ok(T.shopBuy(lb, 'potion', now).error, '멤버를 골라야');
+  assert.ok(T.shopBuy(lb, 'potion', now, 'gunman').error, '피로 없는 멤버');
+  assert.ok(T.shopBuy(lb, 'potion', now, 'hanna').error, '없는 멤버');
+  assert.equal(lb.tower.stone, 1000, '실패하면 염화석 그대로');
+  let r = T.shopBuy(lb, 'potion', now, 'bangjang');
+  assert.ok(!r.error, r.error);
+  assert.equal(r.got.fat.v, 30); assert.equal(T.fatigueOf(lb, 'bangjang', now), 30); assert.equal(lb.tower.stone, 1000 - s.cost);
+  r = T.shopBuy(lb, 'potion', now, 'bangjang');
+  assert.equal(r.got.fat.v, 0); assert.equal(lb.tower.fat.bangjang, undefined, '0 아래로는 안 내려간다');
+  lb.tower.fat.bangjang = { v: 80, at: now };
+  assert.ok(T.shopBuy(lb, 'potion', now, 'bangjang').error.includes('오늘'), '하루 2개');
+  lb.tower.fat.bangjang = { v: 80, at: now + 86400e3 };
+  assert.ok(!T.shopBuy(lb, 'potion', now + 86400e3, 'bangjang').error, '다음 날 다시');
+  lb.tower.stone = 0;
+  assert.ok(T.shopBuy(lb, 'potion', now + 86400e3, 'bangjang').error, '염화석 부족');
+});
+
+test('탑 서버 피로: 끝나면 서버가 피로를 쌓고 · 100이면 시작을 막고 · 회복제는 멤버를 받는다', async () => {
+  const lbPost = (url, token, body) => fetch(base + url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify(body) }).then((x) => x.json());
+  const { token, user } = await srv.accounts.signup({ username: 'tiredman', password: 'secret12', nickname: '피곤이' });
+  const lbOfUser = async () => (await srv.accounts.store.byId(user.id)).stats.langbang;
+  const st = (await srv.accounts.store.byId(user.id)).stats;
+  st.langbang = Object.assign(st.langbang || {}, { stages: Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 3])) });
+  let r = await lbPost('/api/langbang/tower/start', token, { f: 1, hero: 'bangjang' });
+  assert.equal(r.ok, true, r.message); assert.equal(r.fat, 0);
+  (await lbOfUser()).tower.run.at -= 300e3;
+  r = await lbPost('/api/langbang/tower/finish', token, { runId: r.runId, clear: false, durationSec: 60, kills: 5 });
+  assert.equal(r.ok, true, r.message); assert.equal(r.fatAdd, 15); assert.equal(r.profile.tower.fat.bangjang.v, 15);
+  (await lbOfUser()).tower.fat.bangjang = { v: 100, at: Date.now() };
+  r = await lbPost('/api/langbang/tower/start', token, { f: 1, hero: 'bangjang' });
+  assert.equal(r.ok, false); assert.ok(r.message.includes('지쳐서 쉬어야 해요'), r.message);
+  (await lbOfUser()).tower.stone = 100;
+  r = await lbPost('/api/langbang/tower/shop', token, { id: 'potion', hero: 'bangjang' });
+  assert.equal(r.ok, true, r.message); assert.equal(r.profile.tower.fat.bangjang.v, 50);
+  r = await lbPost('/api/langbang/tower/start', token, { f: 1, hero: 'bangjang' });
+  assert.equal(r.ok, true, r.message); assert.equal(r.fat, 50);
+});

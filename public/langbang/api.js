@@ -525,7 +525,7 @@ export function towerStart(f, hero, guest) { return guest ? guestLive((p) => TW.
 export function towerFinish(body, guest) { return guest ? guestLive((p) => TW.towerFinish(p, body, GUEST_UID, Date.now())) : liveCall('tower/finish', body); }
 export async function towerBoard() { const r = await call('/api/langbang/tower'); return r.ok ? r : null; }
 export function towerClaim() { return liveCall('tower/claim', {}); }
-export function towerShop(id, guest) { return guest ? guestLive((p) => TW.shopBuy(p, id, Date.now())) : liveCall('tower/shop', { id }); }
+export function towerShop(id, guest, hero) { return guest ? guestLive((p) => TW.shopBuy(p, id, Date.now(), hero || null)) : liveCall('tower/shop', hero ? { id, hero } : { id }); }
 export function towerHellUp(id, guest) { return guest ? guestLive((p) => TW.hellUp(p, id)) : liveCall('tower/hell/up', { id }); }
 export function towerHellEquip(id, hero, guest) { return guest ? guestLive((p) => TW.hellEquip(p, id, hero)) : liveCall('tower/hell/equip', { id, hero }); }
 export function towerPickGear(type, guest) { return guest ? guestLive((p) => TW.pickLegendGear(p, type)) : liveCall('tower/pick/gear', { type }); }
