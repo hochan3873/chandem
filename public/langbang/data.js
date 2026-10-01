@@ -1651,7 +1651,7 @@ export const GEAR = {
   radio: { id: 'radio', slot: 'a', icon: '', name: '경호원 무전기', stat: 'guard', base: 0.012, ch: 5 },
 };
 // 그림이 아직 없는 장비: 비슷한 그림으로 대신 보여 준다 (public/img/lb/gear/<id>.webp 가 생기면 여기서 지우기)
-export const GEAR_ART_TODO = { gymcard: 'belt', speaker: 'megaphone', goldchain: 'clover', rolex: 'hourglass', corpcard: 'passport', lastorder: 'stamp', radio: 'carrier' };
+export const GEAR_ART_TODO = {};
 // 장비 한 줄 소개 · 잘 맞는 멤버 (추천)
 export const GEAR_INFO = {
   megaphone: ['방장이 쓰던 바로 그 확성기. 목소리에 무게가 실린다.', ['bangjang', 'myunghoon']],

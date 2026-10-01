@@ -2018,9 +2018,8 @@ test('새 소모품 3종: 폭탄주 · 에너지 드링크 · 경호원 호출 �
   const L = await load('live.js');
   for (const id of ['bombshot', 'energydrink', 'bouncer']) {
     assert.ok(L.CONS[id] && L.CONS_IDS.includes(id));
-    assert.equal(L.CONS[id].art, 'it_' + id, '만들 그림 이름');
-    assert.equal(L.CONS[id].icon, L.CONS_ART_TODO[id], '그림이 생길 때까지 있는 그림');
-    assert.ok(/^it_(aldicom|battery|tambourine|taxi|icewater|reroll|uiriju)$/.test(L.CONS[id].icon));
+    if (L.CONS_ART_TODO[id]) { assert.equal(L.CONS[id].art, 'it_' + id, '만들 그림 이름'); assert.equal(L.CONS[id].icon, L.CONS_ART_TODO[id], '그림이 생길 때까지 있는 그림'); }
+    else assert.equal(L.CONS[id].icon, 'it_' + id, '전용 그림');
   }
   const mk = () => { const g = S.createGame({ rng: seeded(9), noWaves: true, heroes: ['staff', 'bangjang'], tempo: true }); g.cons = ['bombshot', 'energydrink', 'bouncer']; return g; };
   let g = mk();

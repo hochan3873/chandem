@@ -29,7 +29,7 @@ export const CONS = {
   uiriju: { id: 'uiriju', name: '의리주', rarity: 'legend', icon: 'it_uiriju', hidden: true, desc: '12초 동안 모든 멤버 공격력 +60% · 공격 속도 +20% · 기세 +1칸', tip: '진짜 친구들끼리만 아는 술', hint: '방장 · 건전남 · 건전녀가 함께 보스를 잡으면? · 출석 20일 · 헬 모드에서 아주 가끔' },
 };
 // 그림이 아직 없는 소모품: 비슷한 그림을 대신 쓴다 (public/img/lb/ui2/<art>.webp 가 생기면 여기서 지우기)
-export const CONS_ART_TODO = { bombshot: 'it_aldicom', energydrink: 'it_icewater', bouncer: 'it_taxi' };
+export const CONS_ART_TODO = {};
 for (const [id, fb] of Object.entries(CONS_ART_TODO)) if (CONS[id]) { CONS[id].art = CONS[id].icon; CONS[id].icon = fb; }
 // 얻는 곳 (서버 시드로): 2장부터 알디콤 8% · 3장부터 보스 판 보조배터리 3% · 탬버린 6% · 택시 3% · 얼음물 3% · 쿠폰 5% · 헬 의리주 0.5%
 //  · 에너지 드링크 4%(2장~) · 폭탄주 3%(3장~) · 경호원 호출 4%(4장~ 보스 판)
