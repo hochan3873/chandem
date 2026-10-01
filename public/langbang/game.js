@@ -337,7 +337,7 @@ async function startRun(opt = {}) {
   app.weeklyRun = null;
   const raid = mode === 'raid' ? { sec: L.RAID.sec } : null;
   if (raid) weekly = L.raidDef(opt.raidWi !== undefined ? opt.raidWi : L.raidState().wi);
-  const pvp = mode === 'pvp' ? { seed: opt.pvpSeed | 0, hp: opt.pvpHp || 1 } : null; // hp: 서버가 두 덱 전투력으로 정한 진상 체력
+  const pvp = mode === 'pvp' ? { seed: Number(opt.pvpSeed) >>> 0, hp: opt.pvpHp || 1 } : null; // hp: 서버가 두 덱 전투력으로 정한 진상 체력
   const tw = mode === 'tower' ? opt.tower : null; // 진상의 탑: { f, hero, runId } (시작은 탑 화면이 서버에 먼저 알린다)
   const dbg = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || (mode === 'stage' && !stageUnlocked(st));
   if (mode === 'stage' && !dbg && !opt.resume) {
@@ -388,6 +388,7 @@ async function startRun(opt = {}) {
     g.events.length = 0;
   }
   g.cons = consIds; g.consUsed = {};
+  if (pvp) g.pvpMid = (PVP.match && PVP.match.id) || ''; // 이 화면이 돌리는 대전 판 (다시 붙을 때 맞춰 보기)
   if (mode === 'raid' && opt.help) { const sh = S.addSupport(g, { ...opt.help, gear: gearStats(opt.help.gear || []) }); if (sh) toast(`도우미 합류! ${opt.help.nick}님의 ${HEROES[opt.help.hero].name}`, 2600); }
   g.lastSnap = S.snapshot(g); // 첫 웨이브 전에 나가도 이어할 수 있게
   const locked = mode === 'stage' && !stageUnlocked(st);
@@ -3680,11 +3681,14 @@ function loadSocketIo() {
 async function pvpSocket() {
   if (PVP.sock && PVP.sock.connected) { pvpSendLo(PVP.sock); return PVP.sock; }
   const io = await loadSocketIo();
-  const sock = io('/lbpvp', { transports: ['websocket', 'polling'], auth: { token: API.authToken() || '' } });
+  // auth 는 다시 붙을 때마다 새로: 손님 고정 id (끊겼다 붙어도 같은 선수) · 지금 하던 판 id (끊긴 사이에 끝났으면 결과를 받게)
+  const sock = io('/lbpvp', { transports: ['websocket', 'polling'], auth: (cb) => cb({ token: API.authToken() || '', gid: pvpGid(), mid: (PVP.match && PVP.match.id) || '' }) });
   PVP.sock = sock;
   pvpSendLo(sock);
+  let first = true;
+  sock.on('connect', () => { if (first) { first = false; return; } pvpReconnected(); });
   sock.on('match', (m) => pvpMatched(m));
-  sock.on('rejoin', (m) => { toast('대전으로 다시 들어왔어요', 1400); });
+  sock.on('rejoin', (m) => pvpRejoin(m));
   sock.on('opp', (o) => { const prev = PVP.opp || {}; PVP.opp = Object.assign({}, prev, o); renderOppStrip(); oppPeekCheck(prev, PVP.opp); if (oppView.isConnected) renderOppView(); });
   sock.on('incoming', (x) => { if (app.g && app.g.pvp) { S.pvpIncoming(app.g, x.kind); handleEvents(app.g, true); pvpBanner('in', x.kind === 'big' ? '중간 보스가 온다!' : `진상 ${S.pvpSendCount(app.g)}명이 온다!`, `${oppName()}이(가) 보냈어요`); } });
   sock.on('sent', (x) => { pvpBanner('out', x.kind === 'big' ? '중간 보스 보냈다!' : `진상 ${S.pvpSendCount(app.g)}명 보냈다!`, `${oppName()} 쪽으로 출발`); });
@@ -3790,6 +3794,7 @@ async function pvpQueue() {
   const sock = await pvpSocket().catch(() => null);
   if (!sock) { toast('서버에 연결할 수 없어요'); return; }
   fixDeck();
+  PVP.want = { f: pvpQueue };
   sock.emit('queue', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중', null, r.botIn); });
 }
 function renderRooms() {
@@ -3815,6 +3820,7 @@ async function pvpQuick() {
   const sock = await pvpSocket().catch(() => null);
   if (!sock) { toast('서버에 연결할 수 없어요'); return; }
   fixDeck();
+  PVP.want = { f: pvpQuick };
   sock.emit('quick', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중', r.code, r.botIn); });
 }
 // 게임 안 입력창 (카톡 인앱 브라우저 · 일부 웹뷰는 prompt() 를 막는다)
@@ -3849,13 +3855,44 @@ async function pvpRoom(join) {
   } else {
     const title = await inputBox({ title: '방 만들기', placeholder: ROOM_TITLES[(Math.random() * ROOM_TITLES.length) | 0], max: 20, ok: '만들기', sub: '방 제목 (안 써도 돼요)', useHint: true });
     if (title === null) return;
-    sock.emit('room:create', { deck: curDeck().filter(Boolean), title, power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (r && r.ok) pvpWaiting('방을 만들었어요', r.code); });
+    pvpRoomCreate(sock, title);
   }
+}
+function pvpRoomCreate(sock, title) {
+  PVP.want = { f: () => pvpRoomCreate(PVP.sock, title) };
+  sock.emit('room:create', { deck: curDeck().filter(Boolean), title, power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (r && r.ok) pvpWaiting('방을 만들었어요', r.code); });
+}
+// 손님 고정 id: 연결이 끊겼다 다시 붙어도 서버가 같은 선수로 알아본다 (대전 이어하기 · 끝난 판 결과)
+function pvpGid() {
+  try { let id = localStorage.getItem('langbang:pvpGid'); if (!id || !/^[A-Za-z0-9_-]{8,40}$/.test(id)) { id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join(''); localStorage.setItem('langbang:pvpGid', id); } return id; } catch { return ''; }
+}
+// 다시 붙음 (앱 전환 · 화면 꺼짐 · 신호 끊김): 서버는 끊긴 연결의 대기를 지우므로, 아직 찾는 중이면 다시 찾는다
+//  (대전 중이었으면 서버가 'rejoin' 을 보내고, 끊긴 사이에 끝났으면 'end' 를 보낸다)
+function pvpReconnected() {
+  if (PVP.match || !PVP.want || !stage.querySelector('.pvp-wait.pv-search')) return;
+  PVP.want.f();
+}
+// 서버: "너는 아직 이 판 중이야" — 이 화면에서 그 판이 돌고 있으면 이어서, 아니면 (새로고침 · 'match' 를 못 받음) 그 판으로 들어간다
+function pvpRejoin(m) {
+  const g = app.g;
+  if (PVP.match && PVP.match.id === m.id) {
+    if (g && g.pvp && g.pvpMid === m.id) { if (!g.over) { toast('대전에 다시 연결됐어요', 1400); pvpTick(); } else if (PVP.sock) PVP.sock.emit('quit'); } // 끊긴 사이에 그만둔 판
+    return; // 아직 VS 화면: 곧 시작한다
+  }
+  if (app.screen === 'play' && g && !g.over) { if (PVP.sock) PVP.sock.emit('quit'); return; } // 다른 판을 하는 중: 두고 간 대전은 그만둔 것으로
+  const left = (Number(m.startAt) || 0) - (Number(m.now) || 0); // 시작까지 남은 ms (지났으면 음수)
+  if (left > 900) { pvpMatched(Object.assign({}, m, { startIn: left, aiNotice: 0 })); return; }
+  closeInfoCard();
+  PVP.t0 = Date.now() + left;
+  PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.myCards = []; PVP.myUlts = 0;
+  PVP.koff = m.kills | 0; PVP.spent = m.spent | 0; // 서버에 쌓인 처치 · 보내기는 그대로 (새 판에서 이어서)
+  toast('하던 대전으로 다시 들어왔어요', 1600);
+  startRun({ mode: 'pvp', force: true, pvpSeed: m.seed, pvpHp: m.hp });
 }
 function pvpMatched(m) {
   closeInfoCard();
   PVP.t0 = Date.now() + (m.startIn || 3000); // 서버 시작 시각 (서든데스 · 5분 판정 기준)
-  PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.kills = 0; PVP.spent = 0; PVP.myCards = []; PVP.myUlts = 0;
+  PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.kills = 0; PVP.spent = 0; PVP.koff = 0; PVP.myCards = []; PVP.myUlts = 0;
   if (m.opp && m.opp.ai && m.aiNotice) { // 사람 상대가 없어 AI 로: 1.5초 안내 ("다시 찾기" 누르면 취소하고 계속 찾기)
     const n = document.createElement('div');
     n.className = 'info-modal pvp-wait pv-ainote';
@@ -3939,9 +3976,9 @@ function renderOppStrip() {
 function pvpTick() {
   const g = app.g;
   if (!g || !g.pvp || !PVP.sock) return;
-  PVP.sock.emit('hp', { hp: Math.round(g.base.hp), max: g.base.max, kills: g.stats.kills, wave: g.wave, enemies: g.enemies.filter((e) => !e.dead).length, heroes: g.heroes.filter((h) => !h.def.summon).map((h) => ({ id: h.id, r: S.skillReady(h), lv: h.lv })), cards: (PVP.myCards || []).slice(-3), ults: PVP.myUlts | 0 });
+  PVP.sock.emit('hp', { hp: Math.round(g.base.hp), max: g.base.max, kills: pvpKills(g), wave: g.wave, enemies: g.enemies.filter((e) => !e.dead).length, heroes: g.heroes.filter((h) => !h.def.summon).map((h) => ({ id: h.id, r: S.skillReady(h), lv: h.lv })), cards: (PVP.myCards || []).slice(-3), ults: PVP.myUlts | 0 });
   renderOppStrip();
-  const gauge = g.stats.kills - PVP.spent;
+  const gauge = pvpKills(g) - PVP.spent;
   const b = $('#btn-send');
   if (b) { b.hidden = false; b.innerHTML = `${ic('share', '', 'sm')}보내기 <small>${Math.min(gauge, L.PVP.sendBig)}/${gauge >= L.PVP.sendBig ? L.PVP.sendBig : L.PVP.sendSmall}</small>`; b.classList.toggle('ready', gauge >= L.PVP.sendSmall); b.classList.toggle('big', gauge >= L.PVP.sendBig); }
 }
@@ -3991,13 +4028,15 @@ function coinFly(from, n) {
 function pvpSend() {
   const g = app.g;
   if (!g || !g.pvp) return;
-  const gauge = g.stats.kills - PVP.spent;
+  const gauge = pvpKills(g) - PVP.spent;
   const kind = gauge >= L.PVP.sendBig ? 'big' : gauge >= L.PVP.sendSmall ? 'small' : null;
   if (!kind) { toast(`처치 ${L.PVP.sendSmall}명이 모이면 보낼 수 있어요`, 1000); return; }
   PVP.sock.emit('send', { kind }, (r) => { if (r && r.ok) { PVP.spent += kind === 'big' ? L.PVP.sendBig : L.PVP.sendSmall; A.sfx.levelUp(); } else if (r && r.message) toast(r.message, 900); });
 }
+const pvpKills = (g) => g.stats.kills + (PVP.koff | 0); // 다시 들어온 판: 서버에 쌓인 처치 수부터
 function pvpEnded(r) {
   const g = app.g;
+  if (r && r.id && (!PVP.match || PVP.match.id !== r.id)) { resyncProfile(); return; } // 지난 판 결과 (이미 끝냈거나 다른 판)
   PVP.match = null;
   const el = $('#oppstrip'); if (el) el.hidden = true; if (oppView.isConnected) oppView.remove();
   const sb = $('#btn-send'); if (sb) sb.hidden = true;
@@ -4021,7 +4060,12 @@ function pvpTimelineEv(g, e) {
   if (e.type === 'sudden') pvpBanner('in', '서든데스 시작!', '15초마다 진상이 더 세지고 입구 피해가 늘어요');
   else if (e.type === 'suddenUp') { if (e.n % 2 === 0) pvpBanner('in', `서든데스 ${e.n}단계`, `진상 체력 · 속도 +${Math.round(PV.PVP_END.hpStep * e.n * 100)}%`); }
   else if (e.type === 'pvpDrain') pvpBanner('in', '입구가 무너지기 시작!', '매초 내구도 1%씩 · 5분이면 판정');
-  else if (e.type === 'pvpTimeUp') { pvpTick(); pvpBanner('out', '시간 종료!', '입구가 더 많이 남은 쪽이 이겨요 · 판정 중'); }
+  else if (e.type === 'pvpTimeUp') {
+    pvpTick(); pvpBanner('out', '시간 종료!', '입구가 더 많이 남은 쪽이 이겨요 · 판정 중');
+    // 판정이 안 오면 (연결이 끊긴 채로 서버가 판을 끝냄) 멈춘 화면에 갇히지 않게: 결과 없이 끝낸다
+    const m = PVP.match;
+    setTimeout(() => { if (app.g === g && !g.over && PVP.match === m) pvpEnded({ id: m && m.id, win: false, lost: true, reason: 'lost', coins: 0, delta: 0, ranked: false }); }, 15000);
+  }
 }
 function pvpTimeSub(pr) {
   const a = pr.hp | 0, b = pr.oppHp | 0;
@@ -5015,7 +5059,7 @@ function showResult(victory, quit) {
   } else if (g.pvp) {
     const pr = app.pvpResult || {};
     title = pr.draw ? '무승부' : pr.win ? '승리!' : '패배';
-    sub = pr.reason === 'forfeit' ? '상대가 나가서 기권승' : pr.reason === 'time' ? pvpTimeSub(pr) : pr.win ? '상대 방어선이 먼저 뚫렸다!' : '방어선이 먼저 뚫렸어요';
+    sub = pr.reason === 'lost' ? '연결이 끊겨 판정 결과를 받지 못했어요' : pr.reason === 'forfeit' ? '상대가 나가서 기권승' : pr.reason === 'time' ? pvpTimeSub(pr) : pr.win ? '상대 방어선이 먼저 뚫렸다!' : '방어선이 먼저 뚫렸어요';
     const b0 = pr.before || (pr.rating - (pr.delta || 0)) || 1000, t0 = pvpTier(b0), t1 = pvpTier(pr.rating || b0);
     top = `<div class="pv-res ${pr.win ? 'win' : pr.draw ? 'lose draw' : 'lose'}"><i class="pr-burst"></i><b class="pr-word">${pr.win ? 'VICTORY' : pr.draw ? 'DRAW' : 'DEFEAT'}</b>
       <div class="pr-emb">${tierEmb(b0, 'xl old')}${t0[1] !== t1[1] ? tierEmb(pr.rating, 'xl new') : ''}</div>
@@ -6462,7 +6506,7 @@ window.__lb = {
   faceC: () => FACE_BOX,
   gachaShow: (l) => gachaShow(l),
   R,
-  pvpUi: { waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: () => startRun({ mode: 'pvp', force: true, pvpSeed: 7 }), end: (r) => pvpEnded(r) },
+  pvpUi: { waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: (seed) => startRun({ mode: 'pvp', force: true, pvpSeed: seed === undefined ? 7 : seed }), end: (r) => pvpEnded(r) },
   get g() { return app.g; },
   get app() { return app; },
   perf,

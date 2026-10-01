@@ -27,7 +27,7 @@ const topAt = (page, sel) => page.evaluate((sel) => {
 }, sel);
 
 (async () => {
-  const srv = createServer({ port: 0 });
+  const srv = createServer({ port: 0, lbpvp: { botAfterMs: 4000 } }); // 1:1 대전: 4초 동안 사람이 없으면 AI
   const port = await srv.listen();
   const exe = BROWSERS.find((p) => fs.existsSync(p));
   const browser = await puppeteer.launch({ executablePath: exe, headless: 'new', args: ['--mute-audio'] });
@@ -192,6 +192,30 @@ const topAt = (page, sel) => page.evaluate((sel) => {
   await page.evaluate(() => document.querySelector('.pause-box [data-act="quit"]').click()); await wait(300);
   await page.evaluate(() => document.querySelector('.confirm-modal [data-c="yes"]').click()); await wait(1200);
   check(await page.evaluate(() => !!document.querySelector('.tw-res.lose') && JSON.parse(localStorage.getItem('langbang:guest')).tower.used === 1), '그만두면 추락 결과 · 도전 1번 사용');
+  // 1:1 대전이 멈추던 것 (1) 시드가 2^31 이상이면 화면이 (seed | 0) 으로 음수 → 웨이브 표가 없어 매 프레임 오류 · 진상이 안 나옴
+  await page.goto(base + '?nogate', { waitUntil: 'networkidle0' }); await wait(800);
+  const e0 = errors.length;
+  await page.evaluate(() => window.__lb.pvpUi.start(4294967283)); // (4294967283 | 0) % 17 = -13 → 예전엔 stage -1
+  let seen = false;
+  for (let k = 0; k < 40 && !seen; k++) { await wait(250); seen = await page.evaluate(() => { const g = window.__lb.g; return !!(g && g.pvp && g.wave >= 1 && g.spawnQ.length > 0 && g.enemies.length > 0 && g.stage >= 12 && g.stage <= 28); }); }
+  check(seen && errors.length === e0, '1:1 대전: 큰 시드에도 진상이 나온다 (멈추지 않음)' + (errors.length > e0 ? ': ' + errors.slice(e0, e0 + 2).join(' | ') : ''));
+  await page.evaluate(() => { const g = window.__lb.g; g.over = true; g.phase = 'over'; });
+  // (2) 연결이 끊겼다 다시 붙으면: 기다리던 중이면 다시 찾고 · 대전 중이면 (손님도) 그 판으로 이어서
+  await page.goto(base + '?nogate', { waitUntil: 'networkidle0' }); await wait(800);
+  await page.evaluate(() => document.querySelector('[data-act="nav"][data-tab="pvp"]').click()); await wait(1200);
+  await page.evaluate(() => document.querySelector('[data-act="pvpQuick"]').click()); await wait(1000);
+  const dropAll = () => { for (const so of srv.io.of('/lbpvp').sockets.values()) so.conn.close(); };
+  dropAll(); await wait(2000);
+  check(srv.lbPvp.roomList().length === 1 && await page.evaluate(() => !!document.querySelector('.pvp-wait.pv-search')), '1:1 대전: 기다리다 끊기면 다시 붙어서 계속 찾는다');
+  let inMatch = false;
+  for (let k = 0; k < 40 && !inMatch; k++) { await wait(250); inMatch = await page.evaluate(() => { const g = window.__lb.g; return !!(g && g.pvp && !g.over && g.pvp.clock > 0.5); }); }
+  check(inMatch, '1:1 대전: 다시 찾아서 AI 판 시작');
+  const t1 = await page.evaluate(() => window.__lb.g.t);
+  dropAll(); await wait(2500);
+  const mm = [...srv.lbPvp.matches.values()][0];
+  check(!!(mm && !mm.over && (mm.a.bot ? mm.b : mm.a).socket) && await page.evaluate((t) => { const g = window.__lb.g; return !!(g && g.pvp && !g.over && g.t > t + 1); }, t1), '1:1 대전: 판 중에 끊겨도 (손님) 다시 붙어 같은 판을 이어 한다');
+  await page.evaluate(() => { const g = window.__lb.g; if (g) { g.over = true; g.phase = 'over'; } });
+  if (mm) await srv.lbPvp.finish(mm, mm.a.bot ? mm.b : mm.a, 'quit');
   check(!errors.length, '페이지 에러 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   await srv.close();

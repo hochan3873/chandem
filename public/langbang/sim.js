@@ -38,7 +38,7 @@ export function createGame(opt = {}) {
     weekly: wk, wmod, cdMul: (wmod.cd || 1) * (opt.tempo ? TEMPO.cd : 1), hstars: opt.stars || {}, hell: !!opt.hell && mode === 'stage' && !wk,
     hcT: 0, hcBuff: 0, hcSkT: 0, hcSkAtk: 0, // 이호찬 "랑방을 위하여" 버프
     raid: opt.raid ? { sec: opt.raid.sec || 150, dmg: 0, boss: null } : null, // 주말 레이드: 거대 보스에게 준 피해
-    pvp: opt.pvp ? { seed: opt.pvp.seed | 0, sudden: false, hp: Math.max(0.1, Math.min(20, Number(opt.pvp.hp) || 1)), n: 0, doorMul: 1, hurt: 0, timeUp: false, clock: null } : null, // 1:1 대전 (hp: 두 덱 전투력으로 정한 진상 체력 · n: 서든데스 단계)
+    pvp: opt.pvp ? { seed: Number(opt.pvp.seed) >>> 0, sudden: false, hp: Math.max(0.1, Math.min(20, Number(opt.pvp.hp) || 1)), n: 0, doorMul: 1, hurt: 0, timeUp: false, clock: null } : null, // 1:1 대전 (hp: 두 덱 전투력으로 정한 진상 체력 · n: 서든데스 단계)
     rng: opt.rng || Math.random,
     meta: opt.meta || {}, // { heroId: 영구 강화 레벨 }
     items,

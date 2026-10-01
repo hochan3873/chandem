@@ -36,7 +36,8 @@ function createLbPvp(opts) {
   const codes = new Map(); // 방 코드 → 선수 (방장)
   let nspRef = null;
   const matches = new Map();
-  const byUser = new Map(); // 끊겼다 다시 들어오기용: userId|guestId → 선수
+  const byUser = new Map(); // 끊겼다 다시 들어오기용: userId|guestId → 대전 중인 선수
+  const ended = new Map(); // 끊긴 사이에 끝난 판 결과: key → { r, at }
   const timers = new Set();
   const later = (ms, fn) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); return t; };
   const cancelT = (t) => { if (t) { clearTimeout(t); timers.delete(t); } };
@@ -44,14 +45,17 @@ function createLbPvp(opts) {
   // 선수: 소켓 하나 = 선수 하나
   async function playerOf(socket) {
     const tok = String((socket.handshake.auth && socket.handshake.auth.token) || '');
+    // 손님: 기기마다 고정된 id (화면이 localStorage 에 만들어 보낸다) → 연결이 끊겼다 다시 붙어도 같은 선수 (없으면 소켓마다 새로)
+    const gid = String((socket.handshake.auth && socket.handshake.auth.gid) || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
     const uid = tok ? accounts.verifyToken(tok) : null;
     let lbSnap = null, wins = 0, nickname = '손님', username = '', rating = START_RATING, games = 0, master = false, title = '', frame = '', aiAdj = 0;
     if (uid) {
       const u = await accounts.store.byId(uid);
       if (u) { nickname = u.nickname; username = u.username; const pv = (u.stats.langbang || {}).pvp || {}; rating = pv.rating | 0 || START_RATING; games = pv.games | 0; wins = pv.wins | 0; aiAdj = pv.ai ? Number(pv.ai.adj) || 0 : 0; title = typeof u.stats.langbang.title === 'string' ? u.stats.langbang.title.slice(0, 24) : ''; frame = typeof u.stats.langbang.frame === 'string' ? u.stats.langbang.frame.slice(0, 24) : ''; master = !!(opts.isMaster && opts.isMaster(u.username)); lbSnap = u.stats.langbang || null; }
     }
-    if (!uid) aiAdj = guestAdj.get('g:' + socket.id) || 0;
-    return { socket, uid, master, aiAdj, key: uid || 'g:' + socket.id, nickname, username, rating, games, wins, title, frame, lb: lbSnap, fp: 0, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
+    const key = uid || (gid.length >= 8 ? 'g:' + gid : 'g:' + socket.id);
+    if (!uid) aiAdj = guestAdj.get(key) || 0;
+    return { socket, uid, master, aiAdj, key, nickname, username, rating, games, wins, title, frame, lb: lbSnap, fp: 0, deck: [], power: 0, match: null, kills: 0, spent: 0, lastSend: 0, hp: 1, max: 1, wave: 0, dead: false, left: null };
   }
   const guestAdj = new Map();
   const pub = (p) => ({ nickname: p.nickname, username: p.username || '', rating: p.rating, deck: p.deck, bot: !!p.bot, ai: !!p.ai, power: p.power | 0, games: p.games | 0, wins: p.wins | 0, title: p.title || '', frame: p.frame || '' });
@@ -66,9 +70,10 @@ function createLbPvp(opts) {
   function makeMatch(a, b) {
     const id = crypto.randomBytes(6).toString('base64url');
     const aiNote = b.ai ? (T.aiNotice !== undefined ? T.aiNotice : 1500) : 0; // AI 판: "사람 상대가 없어 AI와 대전해요" 1.5초 뒤 VS
-    const m = { id, seed: crypto.randomBytes(4).readUInt32LE(0), a, b, startAt: now() + T.countdown + aiNote, over: false, bot: !!b.bot };
+    const m = { id, seed: crypto.randomBytes(4).readUInt32LE(0) >>> 1, a, b, startAt: now() + T.countdown + aiNote, over: false, bot: !!b.bot };
     m.hp = matchHp(a, b); // 두 덱 전투력 → 진상 체력 (두 사람 똑같이)
     a.match = m; b.match = m;
+    for (const p of [a, b]) if (!p.bot) byUser.set(p.key, p); // 끊겼다 다시 붙으면 (새로고침 · 앱 전환 · 신호 끊김) 이 판으로 — 'match' 를 못 받았어도
     m.endT = later(T.countdown + aiNote + T.len + T.judgeGrace, () => judgeTime(m));
     for (const p of [a, b]) { p.kills = 0; p.spent = 0; p.lastSend = 0; p.dead = false; p.hp = 1; p.max = 1; p.wave = 0; }
     matches.set(id, m);
@@ -187,8 +192,10 @@ function createLbPvp(opts) {
     const dt = 1 / 30, per = Math.max(1, Math.round((T.botTick / 1000) / dt));
     const tick = () => {
       if (m.over) return;
-      for (let k = 0; k < per && !g.over; k++) { S.step(g, dt); g.events.length = 0; }
-      aiThink(g, bot, S, D);
+      try {
+        for (let k = 0; k < per && !g.over; k++) { S.step(g, dt); g.events.length = 0; }
+        aiThink(g, bot, S, D);
+      } catch (e) { console.error('[lbpvp] AI 시뮬 오류 → 흉내 봇으로', e && e.message); bot.g = null; bot.hurt = 0; startScriptBot(m, bot); return; } // 시뮬이 터져도 AI 가 멈춘 채로 남지 않게
       bot.hp = g.base.hp; bot.max = g.base.max; bot.kills = g.stats.kills; bot.wave = g.wave;
       if (human && human.socket) human.socket.emit('opp', { hp: Math.round(g.base.hp), max: g.base.max, kills: bot.kills, wave: g.wave, enemies: g.enemies.filter((e) => !e.dead).length, heroes: g.heroes.filter((h) => !h.def.summon).map((h) => ({ id: h.id, r: S.skillReady(h), lv: h.lv })), cards: [], ults: g.stats.ults | 0 });
       const left = g.pvp.timeUp ? 0 : bot.kills - bot.spent, gapOk = now() - (bot.lastSend || 0) >= SEND.big.gap;
@@ -270,7 +277,11 @@ function createLbPvp(opts) {
       if (aiM && !p.uid && !draw) { const k = p.key, st = guestAdj.get(k + ':s') || { w: 0, l: 0 }; let adj = guestAdj.get(k) || 0; if (win) { st.w++; st.l = 0; if (st.w >= 2) { adj = Math.min(0.15, adj + 0.05); st.w = 0; } } else { st.l++; st.w = 0; if (st.l >= 2) { adj = Math.max(-0.15, adj - 0.05); st.l = 0; } } guestAdj.set(k, adj); guestAdj.set(k + ':s', st); p.aiAdj = adj; }
       res.set(p, { win, draw, delta, coins, rating, before, streak, reason, ranked, bot: m.bot, ai: !!aiM, note, left, hp: pctOf(p), oppHp: pctOf(other(m, p)) });
     }
-    for (const [p, r] of res) if (p.socket) p.socket.emit('end', r);
+    for (const [p, r] of res) {
+      r.id = m.id;
+      if (p.socket) p.socket.emit('end', r);
+      if (!p.bot) { ended.set(p.key, { r, at: now() }); for (const [k, v] of ended) if (now() - v.at > 10 * 60e3) ended.delete(k); } // 끊긴 사이에 끝났으면 다시 붙을 때 결과를 준다
+    }
     return res;
   }
 
@@ -314,13 +325,21 @@ function createLbPvp(opts) {
     nsp.on('connection', async (socket) => {
       const p = await playerOf(socket);
       // 끊겼다가 다시 들어온 사람: 판 이어서
+      //  (서버가 옛 연결이 끊긴 걸 아직 모를 때도: 새 연결이 판을 넘겨받는다)
       const old = byUser.get(p.key);
-      if (old && old.match && !old.match.over && p.uid) {
+      for (const w of [...queue, ...codes.values()]) if (w.key === p.key && w !== old) unqueue(w); // 옛 연결로 기다리던 것은 치운다 (화면이 다시 찾는다)
+      if (old && old.match && !old.match.over) {
+        const prev = old.socket;
         old.socket = socket; cancelT(old.leftT); old.leftT = null;
         socket.data.pl = old;
+        if (prev && prev !== socket) prev.disconnect(true);
         const m = old.match;
-        socket.emit('rejoin', { id: m.id, seed: m.seed, hp: m.hp, len: T.len, startAt: m.startAt, now: now(), opp: pub(other(m, old)) });
-      } else socket.data.pl = p;
+        socket.emit('rejoin', { id: m.id, seed: m.seed, hp: m.hp, len: T.len, startAt: m.startAt, now: now(), opp: pub(other(m, old)), you: pub(old), kills: old.kills, spent: old.spent });
+      } else {
+        socket.data.pl = p;
+        const e = ended.get(p.key), mid = String((socket.handshake.auth && socket.handshake.auth.mid) || '');
+        if (e && mid && e.r.id === mid) { ended.delete(p.key); socket.emit('end', e.r); } // 끊긴 사이에 끝난 판: 화면이 아직 그 판을 돌리고 있으면 결과를 준다
+      }
       const me = () => socket.data.pl;
       const ack = (fn, v) => { if (typeof fn === 'function') fn(v); };
       socket.on('queue', (b, fn) => {

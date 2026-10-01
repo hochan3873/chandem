@@ -789,6 +789,7 @@ export function raidReward(myDmg, total, rank, killed) {
 // ─── 1:1 대전 웨이브: 두 사람이 같은 시드로 같은 진상을 받는다 (끝없이 · 150초부터 서든데스) ───
 export const PVP = { sudden: 150, sendSmall: 10, sendBig: 30 };
 export function pvpWave(seed, n) {
+  seed = Number(seed) >>> 0; // 시드는 0 이상 정수로 (음수면 stage 가 0 아래 → 웨이브 표가 없어 멈췄다)
   const rng = seedRng(hashSeed('lbpvp:' + seed + ':' + n));
   const stage = 12 + (seed % 17);
   const b = stageWave(stage, 1 + ((n - 1) % 4));
