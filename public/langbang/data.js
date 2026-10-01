@@ -240,11 +240,11 @@ export const CHAPTERS = [
   },
   {
     id: 2, name: '불금 번화가', desc: '사기꾼과 라이벌 모임 "인피"가 나타난 금요일 밤', color: '#ff6fd8',
-    names: ['불금 시작', '가입인사 사기꾼', '뒷담화 골목', '인피 패거리', '인피 행동대장', '만취 대행진', '독재자 등장', '택시 대란', '첫차 전쟁', '여왕벌의 귀환'],
+    names: ['불금 시작', '가입인사 사기꾼', '뒷담화 골목', '인피 패거리', '인피 행동대장', '만취 대행진', '독재자 등장', '택시 대란', '첫차 전쟁', '번화가 삐끼왕'],
   },
   {
     id: 3, name: '인피 아지트', desc: '라이벌 모임 인피의 본거지로 쳐들어간다', color: '#57d68d',
-    names: ['아지트 입구', '뒷담화 복도', '끼리끼리 방', '사기꾼 소굴', '행동대장의 방', '독재자의 연설', '인피 총동원', '오리고기 냄새', '최후의 방어선', '인피 대장'],
+    names: ['아지트 입구', '뒷담화 복도', '끼리끼리 방', '사기꾼 소굴', '연합 회장실', '독재자의 연설', '인피 총동원', '오리고기 냄새', '최후의 방어선', '인피 대장'],
   },
   {
     id: 4, name: '랑방 여행 편', desc: '공항에서 제주도까지 — 여행지에도 진상은 따라온다', color: '#4fd1ff',
@@ -260,7 +260,7 @@ export const CHAPTERS = [
   },
   {
     id: 7, name: '스키장 MT', desc: '겨울 스키장 MT — 얼리고 · 막고 · 들이받는 진상들. 조합과 컨트롤이 없으면 못 깬다', color: '#7fd6ff', hard: true,
-    names: ['리조트 도착', '리프트 대기줄', '초보 슬로프', '눈썰매장', '회장님 순시', '야간 스키', '눈싸움 대첩', '핫팩 실종 사건', '정상 휴게소', '리조트 갑부 회장'],
+    names: ['리조트 도착', '리프트 대기줄', '초보 슬로프', '눈썰매장', '펜션 사장님', '야간 스키', '눈싸움 대첩', '핫팩 실종 사건', '정상 휴게소', '리조트 갑부 회장'],
   },
 ];
 // 이 스테이지를 처음 깨면 히든 영웅이 영구 합류 (출전 동료로 고를 수 있고, 카드로도 나온다)
@@ -309,7 +309,7 @@ export const STAGE = {
 // ── 7장 스키장 MT: 난이도 숫자 (기존 1~6장 값은 그대로 · 이 블록만 7장) — scripts/lb-balance.js ch7 로 맞춘 값 ──
 //   목표: 한 명만 키운 덱 < 30% · 역할을 갖춘 T3/T4 강화 덱 50~70% · 키운 LEGEND 포함 덱은 그보다 높게 · 헬은 더 어렵게
 export const CH7 = { chapterAdd: 0, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 0.75,
-  stageAdd: { 61: 3.9, 62: 0.5, 63: -4.5, 64: -9, 65: 0.5, 66: -0.2, 67: 6.5, 68: -0.8, 69: -8.5, 70: 0 }, waveAdd: [-4, -2, 0, -1.5, 1],
+  stageAdd: { 61: 3.9, 62: 0.5, 63: -3, /* (-4.5 → -3: 펜션 사장님 중간 보스가 7-5 보스로 빠진 만큼) */ 64: -9, 65: 0.5, 66: -0.2, 67: 6.5, 68: -0.8, 69: -8.5, 70: 0 }, waveAdd: [-4, -2, 0, -1.5, 1],
   coldTier: [1, 1.4, 1.2, 1, 0.75, 0.45], thaw: 2 }; // thaw: 눈덩이 빙결이 풀린 뒤 2초는 다시 안 언다 // 겨울 산 적응: 등급이 높은 멤버일수록 빙결 · 침묵 · 추위(공속↓)가 짧다 (T1 ×1.3 … LEGEND ×0.55) // waveAdd: 첫 웨이브(대장 혼자)는 덜 · 뒤 웨이브와 보스는 더
 STAGE.chapterAdd[6] = CH7.chapterAdd; STAGE.bossStage[7] = CH7.boss; STAGE.deckHp[6] = CH7.deckHp; STAGE.hpTune[6] = CH7.hpTune; STAGE.swarm[6] = CH7.swarm;
 Object.assign(STAGE.stageAdd, CH7.stageAdd);
@@ -352,18 +352,18 @@ const STAGE_CASTS = [
   ['inpi_dictator:0.12 inpi_clique:0.5 inpi_gossip:0.2', '인피 독재자가 패거리를 단단하게 만든다 — 먼저 잡자'],
   ['cutter:0.3 drunk:0.7 handsy:0.12 earphone:0.14', '택시 한 대에 열 명 — 새치기꾼 · 손진상 · 아무 말도 안 들리는 노캔 이어폰녀'],
   ['cutter:0.3 mukti:0.25 gao:0.15 drunk:0.5', '첫차를 향한 전쟁, 발 빠른 진상들'],
-  ['yeokko:0.7 namkko:0.7 scammer:0.25 couple:0.12', '여왕벌이 번화가 꼬충까지 거느리고 돌아왔다'],
+  ['yeokko:0.7 namkko:0.7 scammer:0.25 couple:0.12', '"VIP 무료입장~!" 번화가 삐끼왕이 손님을 싹 끌고 왔다 — 행동대장까지'],
   // 3장 인피 아지트
   ['inpi_clique:0.6 kkondae:0.1 thug:0.15', '인피 아지트 입구 — 꼰대 문지기가 "라떼는~"'],
   ['inpi_gossip:0.35 spam:0.15 selfie:0.12 earphone:0.15', '복도마다 수군수군, 단톡방 알림 — 이어폰 낀 사람은 못 들은 척'],
   ['inpi_clique:0.8 inpi_gossip:0.15 inpi_treasurer:0.14 inpi_dictator:0.08', '끼리끼리 뭉친 패거리 — 범위 공격으로 한 번에'],
   ['scammer:0.5 handsy:0.15 couple:0.12', '사기꾼들의 소굴, 예쁜 프사에 속지 마'],
-  ['thug:0.3 gao:0.2 inpi_clique:0.4', '행동대장과 폭력배 두목이 함께 기다린다'],
+  ['thug:0.3 gao:0.2 inpi_clique:0.4', '진상 연합 회장이 폭력배 두목을 경호원으로 데리고 아지트에 왔다'],
   ['inpi_dictator:0.15 inpi_clique:0.6 kkondae:0.1 inpi_treasurer:0.06', '독재자의 연설에 패거리가 한껏 단단해졌다'],
   ['inpi_clique:0.5 inpi_gossip:0.2 inpi_dictator:0.08 inpi_treasurer:0.08', '인피 전원 출동!'],
   ['drunk:0.6 vomit:0.12 spam:0.08 mukti:0.2', '오리고기 회식 냄새에 먹튀와 토하는 인간이 몰렸다'],
   ['inpi_treasurer:0.07 inpi_dictator:0.06 inpi_clique:0.5 gao:0.12', '보호막 뿌리는 총무와 독재자 — 누구부터 잡을까'],
-  ['inpi_clique:0.5 inpi_gossip:0.25 spam:0.12', '인피 대장과 최종 결전'],
+  ['inpi_clique:0.5 inpi_gossip:0.25 spam:0.12', '인피 대장과 진상 연합 회장 — 아지트 최종 결전'],
   // 4장 랑방 여행 편
   ['cutter:0.3 fakesingle:0.3 namkko:0.3 carpoor:0.2', '출국 수속 줄에 새치기꾼, 그리고 "저 싱글이에요~"'],
   ['carpoor:0.35 selfie:0.15 fakesingle:0.4 couple:0.1', '면세점 명품 코너에 카푸어와 셀카족'],
@@ -400,14 +400,14 @@ const STAGE_CASTS = [
   // 7장 스키장 MT (고난도): 얼리기 · 침묵 · 공속↓ · 보호 · 돌진 — 한 명만 키운 덱으론 못 깬다
   ['snowboard:0.45 liftcut:0.5 hotpack:0.2', '"오늘 파우더 미쳤다!" 리조트 입구부터 보드 과시남과 새치기 떼'],
   ['liftcut:0.7 snowboard:0.3 fakecoach:0.12', '리프트 줄에 두세 명씩 우르르 새치기 — 강습 사칭남이 "제가 알려 드릴게요~"'],
-  ['fakecoach:0.18 sledgirl:0.35 snowball:0.2 liftcut:0.3', '초보 슬로프 — 펜션 사장님이 "밤 10시 이후 소음 금지!" 스킬을 막는다'],
+  ['fakecoach:0.18 sledgirl:0.35 snowball:0.2 liftcut:0.3', '초보 슬로프 — 눈싸움 원정대가 리프트 줄을 뚫고 내려온다'],
   ['sledgirl:0.45 snowball:0.25 hotpack:0.25', '눈썰매장 — 브레이크 없는 썰매가 입구로 돌진, 눈덩이에 멤버가 꽁꽁'],
-  ['snowboard:0.4 fakecoach:0.15 snowball:0.2', '리조트 갑부 회장의 첫 순시 — 눈사태 예고가 뜨면 스킬로 끊어라'],
+  ['snowboard:0.4 fakecoach:0.15 snowball:0.2', '"여기 밤 10시 이후 소음 금지예요!" 펜션 사장님 등판 — 예고 중에 기절시켜 끊어라'],
   ['snowboard:0.4 hotpack:0.3 fakecoach:0.15 sledgirl:0.25', '야간 스키 — 어둠 속에서 줄을 휙휙 바꾸는 보드남과 핫팩 도둑'],
   ['snowball:0.45 liftcut:0.5 fakecoach:0.12', '과 대항 눈싸움 대첩 — 멀리서 날아오는 눈덩이부터 잡자'],
-  ['hotpack:0.45 snowball:0.25 sledgirl:0.3 snowboard:0.2', '핫팩이 사라졌다! 손이 곱아 공격이 느려진다 — 다시 펜션 사장님까지'],
+  ['hotpack:0.45 snowball:0.25 sledgirl:0.3 snowboard:0.2', '핫팩이 사라졌다! 손이 곱아 공격이 느려진다'],
   ['fakecoach:0.2 hotpack:0.3 snowboard:0.35 snowball:0.2', '정상 휴게소 — 사칭 강사단이 보호막을 두르고 버틴다'],
-  ['snowboard:0.4 fakecoach:0.15 sledgirl:0.3 snowball:0.2', '리조트 갑부 회장과 펜션 사장님 — 눈사태와 소음 금지가 동시에'],
+  ['snowboard:0.4 fakecoach:0.15 sledgirl:0.3 snowball:0.2', '드디어 리조트 갑부 회장 — 펜션 사장님까지 다시, 눈사태와 소음 금지가 동시에'],
 ];
 const CAST = STAGE_CASTS.map(([c]) => c.split(' ').map((x) => { const [t, w] = x.split(':'); return [t, +w]; }));
 export const stageStory = (s) => (STAGE_CASTS[s - 1] || [])[1] || '';
@@ -479,12 +479,15 @@ export function stageTheme(s) {
 // 보스: x-5, x-10 마지막 웨이브
 export function stageBosses(s) {
   const n = stageNo(s), ch = chapterOf(s);
-  const B5 = [null, ['boss_loan'], ['boss_gapjil'], ['boss_gapjil', 'boss_thug'], ['boss_kkondol'], ['boss_sales'], ['boss_jusa'], ['boss_resort']];
-  const B10 = [null, ['queen'], ['queen', 'boss_gapjil'], ['boss_inpi', 'boss_gapjil'], ['boss_queenmom', 'boss_kkondol'], ['boss_otaku', 'boss_sales'], ['boss_soloparty', 'boss_jusa'], ['boss_resort', 'mid_pension']]; // 7-10: 회장 + 펜션 사장님 난입
+  // 규칙: x-5 = 그 장의 첫 보스 · x-10 = 그 장의 끝 보스(새 얼굴) + x-5 보스가 다시 (다른 장 보스를 끌어오지 않는다)
+  const B5 = [null, ['boss_loan'], ['boss_gapjil'], ['boss_union', 'boss_thug'], ['boss_kkondol'], ['boss_sales'], ['boss_jusa'], ['mid_pension']];
+  const B10 = [null, ['queen'], ['boss_bbikki', 'boss_gapjil'], ['boss_inpi', 'boss_union'], ['boss_queenmom', 'boss_kkondol'], ['boss_otaku', 'boss_sales'], ['boss_soloparty', 'boss_jusa'], ['boss_resort', 'mid_pension']]; // 7-10: 회장 + 펜션 사장님 다시
   if (n === 5) return B5[ch] || [];
   if (n === 10) return B10[ch] || [];
   return [];
 }
+// 스테이지 보스 체력 배율 [첫 보스, 둘째 보스] — 보스를 바꾼 스테이지만 예전 난이도에 맞춤 (scripts/lb-balance.js deck · ch7)
+export const STAGE_BOSS_HP = { 25: [0.5, 1], 30: [1, 0.4], 70: [1, 0.15] }; // 3-5 · 3-10 진상 연합 회장(기술이 세서 체력은 낮게) · 7-10 다시 나온 펜션 사장님
 // ─── 웨이브 성격: 떼거리(범위 공격) · 정예(한 방 공격) · 혼합 · 보스+호위 떼 ─────
 // count = 진상 수 배율, hp = 한 명 체력 배율 (떼거리·혼합 졸개), eliteHp = 정예 체력 배율
 export const WAVE_KINDS = {
@@ -536,6 +539,9 @@ export function stageWave(s, w) {
   if (w === MID_WAVE && stageMid(s)) def.mid = stageMid(s);
   if (bosses[0]) def.boss = bosses[0];
   if (bosses[1]) def.boss2 = bosses[1];
+  const bh = STAGE_BOSS_HP[s];
+  if (bh && bosses[0] && bh[0] !== 1) def.bossHp = bh[0];
+  if (bh && bosses[1] && bh[1] !== 1) def.boss2Hp = bh[1];
   return def;
 }
 function clamp01(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -569,7 +575,7 @@ export const MAP_FX = {
 const STAGE_FX = [ // 속성 버프가 있는 효과(노래방·안개=말빨, 회식=술)는 그 속성이 추천인 스테이지에만
   'none', 'none', 'none', 'rain', 'none', 'icy', 'happy', 'rain', 'icy', 'karaoke',
   'happy', 'karaoke', 'rain', 'construction', 'icy', 'construction', 'karaoke', 'rain', 'blackout', 'feast',
-  'megaphone', 'karaoke', 'construction', 'blackout', 'icy', 'happy', 'fog', 'rain', 'blackout', 'feast',
+  'megaphone', 'karaoke', 'construction', 'blackout', 'icy', 'happy', 'fog', 'rain', 'blackout', 'megaphone', // (3-10: 연합 회장(jerk)이 함께 나와 술 추천이 빠져서 회식 → 인피 확성기)
   'none', 'conveyor', 'wind', 'conveyor', 'wind', 'happy', 'wind', 'rain', 'fog', 'conveyor',
   'none', 'campfire', 'campfire', 'karaoke', 'happy', 'campfire', 'karaoke', 'blackout', 'fog', 'campfire',
   'snow', 'lightshow', 'snow', 'happy', 'snow', 'lightshow', 'megaphone', 'snow', 'lightshow', 'snow',
@@ -1113,6 +1119,16 @@ export const ENEMIES = {
     title: '여왕벌 등장!', subtitle: '"내 애들 건드리면 가만 안 둬~"',
     shouts: ['내 애들아, 가!', '여기 물 흐리네~', '다들 내 편이지?'],
   },
+  // 2-10 끝 보스: 번화가 삐끼왕 (호객꾼 대장 — 형광 조끼 · 네온 선글라스 · 전단지 뭉치 · "VIP 무료입장" 팻말)
+  //  기술은 BOSS_KITS.boss_bbikki (전단지 폭탄 · 호객 행위 · VIP 줄 세우기) · 체력 40% 에서 분노 (기술이 더 빨리)
+  //  그림이 오기 전엔 영업왕 그림에 색만 입혀서 (fb)
+  boss_bbikki: {
+    id: 'boss_bbikki', cls: 'seduce', name: '번화가 삐끼왕', gender: 'm', emoji: '', color: '#c6ff3a', boss: true, fb: '/img/lb/e_boss_sales.webp',
+    img: '/img/lb/e_boss_bbikki.webp', hp: 1250, speed: 12, atk: 28, atkInterval: 1.6,
+    armor: 4, exp: 50, coin: 60, r: 42, size: 144,
+    title: '번화가 삐끼왕 등장!', subtitle: '"VIP 무료입장~! 오늘 물 좋아요!"',
+    shouts: ['VIP 무료입장~!', '오늘 물 좋아요!', '형님 한 번만 들어가 봐요', '전단지 받아 가세요~', '줄 서세요 줄!'],
+  },
   boss_thug: {
     id: 'boss_thug', cls: 'violent', name: '폭력배 두목', gender: 'm', emoji: '👊', color: '#b0413e', boss: true,
     img: '/img/lb/e_boss_thug.webp', hp: 1300, speed: 16, atk: 30, atkInterval: 2.0,
@@ -1456,9 +1472,9 @@ export const ENEMIES = {
   },
   mid_pension: {
     id: 'mid_pension', cls: 'politic', name: '펜션 사장님', gender: 'm', emoji: '', color: '#c9a36b', ch7: true, fb: '/img/lb/e_kkondae.webp',
-    mid: true, solo: true, noKit: true, coin: 10,
-    img: '/img/lb/e_mid_pension.webp', hp: 1100, speed: 14, atk: 24, atkInterval: 1.6, armor: 4, exp: 40, r: 30, size: 118,
-    quiet: { every: 9, first: 4, windup: 1.3, sec: 3, r: 230 }, // "여기 밤 10시 이후 소음 금지예요!" 넓은 범위 멤버 스킬 침묵 3초 (예고 중에 기절시키면 끊긴다)
+    boss: true, coin: 60, // 7-5 보스 (예전엔 중간 보스 — 그림 파일 이름은 그대로 e_mid_pension*) · 7-10 에 회장과 다시
+    img: '/img/lb/e_mid_pension.webp', hp: 6800, speed: 13, atk: 36, atkInterval: 1.7, armor: 5, exp: 80, r: 42, size: 146,
+    quiet: { every: 10, first: 5, windup: 1.4, sec: 3, r: 230 }, // "여기 밤 10시 이후 소음 금지예요!" 넓은 범위 멤버 스킬 침묵 3초 (예고 중에 기절시키면 끊긴다)
     title: '펜션 사장님 등장!', subtitle: '"여기 밤 10시 이후 소음 금지예요!"',
     shouts: ['여기 밤 10시 이후 소음 금지예요!', '퇴실은 11시까지!', '고기는 밖에서 구워요!', '추가 인원은 만 원씩!'],
   },
@@ -1582,7 +1598,7 @@ const MID_BY_STAGE = [
   'mid_fakesingle', 'mid_carpoor', 'fuse_puke', 'fuse_lie', 'mid_kkondae', 'mid_carpoor', 'fuse_karaoke', 'mid_sarcasm', 'fuse_lie', 'fuse_lie',
   'fuse_lease', 'mid_mukti', 'mid_drunk', 'fuse_adspam', 'fuse_lease', 'mid_sarcasm', 'fuse_karaoke', 'fuse_puke', 'fuse_mt', 'mid_otaku',
   'fuse_karaoke', 'fuse_latte', 'fuse_jusa', 'fuse_taxi', 'fuse_sleep', 'fuse_lie', 'fuse_spam', 'fuse_inpi', 'mid_sarcasm', 'fuse_kko',
-  'mid_snowboard', 'fuse_lift', 'mid_pension', 'mid_sledgirl', 'mid_pension', 'fuse_coach', 'fuse_snowfight', 'mid_pension', 'fuse_coach', 'mid_sledgirl', // 7장 (펜션 사장님은 따로 그린 중간 보스)
+  'mid_snowboard', 'fuse_lift', 'fuse_snowfight', 'mid_sledgirl', 'mid_snowboard', 'fuse_coach', 'fuse_snowfight', 'mid_sledgirl', 'fuse_coach', 'mid_sledgirl', // 7장 (펜션 사장님은 7-5 보스로 승격 — 중간 보스로는 안 나온다)
 ];
 export const MID_WAVE = 3;
 export function stageMid(s) { return MID_BY_STAGE[s - 1] || null; }
@@ -2205,3 +2221,17 @@ Object.assign(SHORT_NAME, { snowboard: '보드남', liftcut: '리프트 새치�
   mid_snowboard: '각성 보드남', mid_sledgirl: '각성 썰매녀', fuse_lift: '리프트 무법자', fuse_coach: '사칭 강사단', fuse_snowfight: '눈싸움 원정대' });
 FEW.push('fakecoach', 'snowball', 'hotpack');
 BOSS_KITS.boss_resort = { name: '리조트 갑부 회장', skills: [['silence', '회장님 훈화', { sec: 3 }], ['stun', 'VIP 갑질', { n: 2, sec: 1.4 }]], p2: ['summon', '스키 강사단', { types: ['fakecoach', 'snowboard'], n: 3 }] };
+// 7-5 보스로 승격한 펜션 사장님: "소음 금지!" 침묵(원래 기술)은 그대로 + 보스 패턴
+BOSS_KITS.mid_pension = { name: '펜션 사장님', skills: [['slow', '퇴실 독촉', { cut: 0.25, sec: 4 }], ['summon', '단체 손님 받기', { types: ['liftcut', 'hotpack'], n: 3 }]], p2: ['stun', '바비큐 집게', { n: 2, sec: 1.3 }] };
+// 2-10 끝 보스 번화가 삐끼왕 — 새 기술 3개 (sim.js bossSkill)
+//  flyer 전단지 폭탄: 예고된 멤버 n명 시야를 가려 사거리 -cut (sec초)
+//  lure 호객 행위: 곁(r)의 진상을 한 줄로 바짝 모아 입구로 우르르 (sec초 빨라짐) + 2장 진상 n명 호객
+//  vip VIP 줄 세우기: 입구에 제일 가까운 진상 n명에게 최대 체력 frac 보호막
+//  rageAt: 체력 40% 에서 분노 · everyP2: 분노하면 기술 간격이 짧아진다
+BOSS_KITS.boss_bbikki = {
+  name: '번화가 삐끼왕', rageAt: 0.4, everyP2: [4, 6], rageSub: '기술을 훨씬 자주 쓴다',
+  skills: [['flyer', '전단지 폭탄', { n: 3, cut: 0.3, sec: 4 }], ['lure', '호객 행위', { r: 240, pull: 0.65, sec: 3, spd: 1.45, types: ['scammer', 'handsy'], n: 3 }], ['vip', 'VIP 줄 세우기', { n: 5, frac: 0.35 }]],
+  p2: null,
+};
+Object.assign(ENEMY_ATK, { boss_bbikki: 'slap' });
+Object.assign(SHORT_NAME, { boss_bbikki: '삐끼왕' });
