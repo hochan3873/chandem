@@ -154,7 +154,7 @@ const chArtCss = (kind, c) => (c > 6 ? `url('/img/lb/${kind}${c}.webp'), url('/i
 // 동그란 얼굴: 멤버는 그림(HQ) 얼굴 맞춤 · 진상은 원래 그림 (꼬마 그림은 전투 화면에서만)
 function av(def, extra = ' ') {
   const hq = def && def.id && (HEROES[def.id] || SUMMONS[def.id]) && typeof thumbSrc === 'function' ? thumbSrc(def.id) : ' ';
-  if (hq && !/\/h_/.test(hq)) return `<span class="av hq ${extra}" style="--c:${def.color}"><img class="fz" data-face="${def.id}" data-fc="1" style="${faceCircStyle(def.id)}" src="${hq}" alt="" draggable="false" onerror="this.onerror=null;this.className=' ';this.removeAttribute('style');this.src='${def.img}'"></span>`;
+  if (hq && !/\/h_/.test(hq)) return `<span class="av hq ${extra}" style="--c:${def.color}"><img class="fz" data-face="${def.id}" data-fc="1" style="${faceCircStyle(def.id)}" src="${hq}" alt="" draggable="false" onerror="${def.fb ? `this.onerror=function(){this.onerror=null;this.src='${def.fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'};` : 'this.onerror=null;'}this.className=' ';this.removeAttribute('style');this.src='${def.img}'"></span>`; // (진상: 전용 그림이 없으면 fb 그림에 색만 바꿔서)
   if (def && def.fb) return `<span class="av ${extra}" style="--c:${def.color}"><img src="${def.img}" alt="" draggable="false" onerror="this.onerror=null;this.src='${def.fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'"></span>`; // 7장: 그림이 오기 전엔 비슷한 진상 그림에 색만 바꿔서
   return `<span class="av ${extra}" style="--c:${def.color}"><img src="${def.img}" alt="" draggable="false" onerror="this.parentNode.classList.add('noimg');this.remove()"><i>${def.emoji}</i></span>`;
 }
@@ -711,6 +711,13 @@ function handleEvents(g, loud) {
         else if (e.kind === 'silence') R.vfx('silence', e.x, e.y - 60, { anim: 'pulse', dur: W, sz: 90 });
         else if (e.kind === 'slow') R.vfx('aura_blue', e.x, e.y, { anim: 'grow', dur: W, sz: 150, flat: true });
         else if (e.kind === 'drain') R.vfx('aura_red', e.x, e.y, { anim: 'grow', dur: W, sz: 150, flat: true });
+        else if (BBIKKI_SK[e.kind]) { // 삐끼왕: 처음 한 번은 배너로 무슨 기술인지 알려 주고 · 예고 표시
+          if (!g._bbSeen) g._bbSeen = {};
+          if (!g._bbSeen[e.kind]) { g._bbSeen[e.kind] = 1; fx.banner(e.name, BBIKKI_SK[e.kind], '#4a7a00', 1.1, 'wave'); }
+          if (e.kind === 'flyer') for (const q of e.targets || []) R.vfx('warn', q.x, q.y + 10, { anim: 'grow', dur: W, sz: 90, flat: true });
+          else if (e.kind === 'lure') { R.vfx('summon', e.x, e.y + 20, { anim: 'grow', dur: W, sz: 170, flat: true }); R.vfx('warn', e.x, e.y + 20, { anim: 'grow', dur: W, sz: 240, flat: true }); }
+          else R.vfx('aura_blue', 180, g.ropeY - 40, { anim: 'grow', dur: W, sz: 300, flat: true });
+        }
         break;
       }
       case 'bossSkill': {
@@ -727,12 +734,15 @@ function handleEvents(g, loud) {
         else if (e.kind === 'slow') R.vfx('aura_blue', 180, g.rowY - 10, { anim: 'pulse', dur: 3500, sz: 340, flat: true });
         else if (e.kind === 'summon') { R.vfx('summon', e.x, e.y + 20, { anim: 'pop', dur: 600, sz: 180, flat: true }); R.vfx('smoke', e.x, e.y, { anim: 'pop', dur: 600, sz: 140 }); }
         else if (e.kind === 'drain') R.vfx('aura_red', e.x, e.y, { anim: 'pop', dur: 700, sz: 180 });
+        else if (e.kind === 'flyer') for (const q of e.hits || []) { R.vfx('barrage_card', e.x, e.y - 20, { anim: 'fly', dur: 420, sz: 44, tx: q.x, ty: q.y - 30 }); const hh = g.heroes.find((x) => x.id === q.id); if (hh) R.vfx('barrage_card', 0, 0, { follow: hh, dy: -40, anim: 'pulse', dur: q.sec * 1000, sz: 52 }); }
+        else if (e.kind === 'lure') { R.vfx('summon', e.x, e.y + 20, { anim: 'pop', dur: 600, sz: 200, flat: true }); R.vfx('dash', e.x, e.y + 120, { anim: 'streak', dur: 500, sz: 220, rot: Math.PI / 2 }); }
+        else if (e.kind === 'vip') for (const q of e.pts || []) R.vfx('aura_blue', q.x, q.y, { anim: 'pop', dur: 700, sz: 90, flat: true });
         if (bossE) R.vfx(e.kind === 'drain' || e.kind === 'stun' ? 'aura_red' : 'aura_blue', 0, 0, { follow: bossE, dy: 0, anim: 'pulse', dur: 900, sz: bossE.def.size * 1.3, flat: true });
       }
       // falls through
-      case 'bossSkillFx': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('멤버 공격 속도 ↓ (4초)', 1500); break;
+      case 'bossSkillFx': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('멤버 공격 속도 ↓ (4초)', 1500); if (e.kind === 'flyer' && e.hits && e.hits.length) toast(`전단지에 가려 ${e.hits.length}명 사거리 −${Math.round(e.cut * 100)}% (${e.sec}초)`, 1500); if (e.kind === 'lure') toast('진상들이 한 줄로 우르르! 범위 공격 기회', 1500); if (e.kind === 'vip') toast('앞줄 진상 보호막 — 운영진으로 깨자', 1500); break;
       case 'bossGap': fx.text(e.x, e.y, '틈! 지금 때려!', '#ffe066', 15, 1.1); break;
-      case 'bossRage': fx.banner(`${e.name} 분노!`, '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
+      case 'bossRage': fx.banner(`${e.name} 분노!`, e.sub || '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
       case 'midRage': fx.text(e.x, e.y, `${e.name} 흥분!`, '#ff7a4f', 14, 1.0); break;
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
       case 'heroStun': { if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 300, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.x) < 2 && Math.abs(x.y - e.y) < 2) || g.heroes.find((x) => x.id === e.hero); if (hh) hh._hitAt = performance.now(); fx.addShake(4); app.hitStop = Math.max(app.hitStop || 0, 0.04); break; }
@@ -1235,6 +1245,7 @@ function handleEvents(g, loud) {
   }
   ev.length = 0;
 }
+const BBIKKI_SK = { flyer: '전단지가 멤버 시야를 가린다 · 사거리 −30%', lure: '진상을 한 줄로 모아 입구로 우르르 + 손님 호객', vip: '입구 앞줄 진상에게 보호막' }; // 삐끼왕 기술 첫 배너
 const SHIELD_TXT = { queen: '여왕의 보호막!', inpi_treasurer: '회비 지원!', boss_union: '회장님 회비 지원!' };
 const UNION_PHASE = {
   kneel: ['갑질 타임!', '"전원 무릎 꿇어!" 멤버가 기절해요'],
@@ -1244,7 +1255,7 @@ const UNION_PHASE = {
   shieldAura: ['회비 지원!', '진상들에게 보호막'],
 };
 const PROJ_COL = { notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#ff9a3c' };
-const BOSS_COL = { boss_resort: '#1a5a9a', mid_pension: '#7a5a2a', queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a', boss_loan: '#8a6a00', boss_union: '#5a0a9a', boss_kkondol: '#4a3a6a', boss_queenmom: '#8a2a9a', boss_sales: '#8a6a00', boss_otaku: '#1a7a4a', boss_jusa: '#9a2a1a', boss_soloparty: '#a0158a' };
+const BOSS_COL = { boss_resort: '#1a5a9a', mid_pension: '#7a5a2a', boss_bbikki: '#5a8a00', queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a', boss_loan: '#8a6a00', boss_union: '#5a0a9a', boss_kkondol: '#4a3a6a', boss_queenmom: '#8a2a9a', boss_sales: '#8a6a00', boss_otaku: '#1a7a4a', boss_jusa: '#9a2a1a', boss_soloparty: '#a0158a' };
 const POOF = ['퍽!', '빡!', '뿅', '컷!', '퇴장~', '아웃!'];
 const CONFETTI = ['#ffd23f', '#ff4fd8', '#6ff0ff', '#7dff9a', '#ff8a00', '#ffffff'];
 
@@ -5321,6 +5332,7 @@ const DEX_FLAVOR = {
   boss_loan: '골목 사채업자. 시간이 갈수록 이자가 붙어 입구를 점점 더 뜯어 간다.',
   inpi_treasurer: '인피 총무. 뒤에 숨어 회비로 보호막을 사 뿌린다. 영수증은 없다.',
   boss_union: '전국 진상들을 모은 연합 회장. 보스들 기술을 돌아가며 다 쓴다.',
+  boss_bbikki: '형광 조끼에 네온 선글라스, 번화가 호객꾼들의 대장. "VIP 무료입장~" 팻말 하나로 길 가던 진상을 다 끌고 온다.',
   fakesingle: '"저 싱글이에요~" 하고 들어온 돌싱남. 들키는 순간 발이 빨라진다.',
   secretmom: '스무 살이라고 우기며 들어온 싱글맘. 유모차는 "짐"이라고 한다.',
   carpoor: '60개월 할부 외제차로 부아앙 들어오는 카푸어. 꼭 중간에 퍼진다.',
@@ -5346,7 +5358,7 @@ const DEX_FLAVOR = {
   sledgirl: '브레이크 없는 눈썰매로 입구까지 일직선. 한 번 붙잡히면 썰매에서 굴러떨어진다.',
   hotpack: '남의 핫팩만 골라 슬쩍하는 손. 옆을 지나가기만 해도 손이 꽁꽁 언다.',
   snowball: '과 대항 눈싸움에 목숨 건 대학생. 제일 잘 싸우는 사람 머리부터 노린다.',
-  mid_pension: 'MT 펜션 사장님. "여기 밤 10시 이후 소음 금지예요!" 한마디면 모두 입을 다문다.',
+  mid_pension: 'MT 펜션 사장님. "여기 밤 10시 이후 소음 금지예요!" 한마디면 모두 입을 다문다. 7-5 보스, 7-10 에 회장님과 다시.',
   boss_resort: '스키장을 통째로 가진 리조트 갑부 회장. 손짓 한 번에 산 위에서 눈사태가 쏟아진다.',
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
@@ -6254,7 +6266,7 @@ const ENEMY_TIPS = {
   sledgirl: '아주 빠른 썰매 돌진, 입구에 처음 부딪히면 크게 아프다. 몸은 약함 — 감속 · 기절에 걸리면 썰매에서 떨어져 느려진다',
   hotpack: '길 절반부터 옆을 지나간 멤버의 공격 속도 -35% (약화) — 멀리서 먼저 잡자',
   snowball: '멀찍이 서서 눈덩이 → 맞은 멤버 1.5초 빙결 (제일 잘 치는 멤버를 노림) — 건전녀 응급 방패 · 강성구 곁 · 도발 탱커로 막는다',
-  mid_pension: '중간 보스. 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기',
+  mid_pension: '7장 보스 (7-5 · 7-10). 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기 · 퇴실 독촉(공속↓) · 단체 손님 소환',
   boss_resort: '7장 보스. "눈사태 경고!" 3초 예고 뒤 멤버 전원 빙결 + 입구 피해 + 보드남 — 예고 중에 스킬 · 총공지 · 알디콤을 쓰면 끊긴다',
   mid_snowboard: '각성한 보드남. 줄을 더 자주 바꾼다',
   mid_sledgirl: '각성한 썰매 폭주녀. 입구에 부딪히면 크게 아프다',
@@ -6273,7 +6285,8 @@ const ENEMY_TIPS = {
   boss_inpi: '오리고기 투척으로 기절 · "오리고기 회식"으로 진상 회복',
   boss_loan: '"이자 붙었다!" 입구 내구도를 점점 더 떼어 간다. 빨리 잡으면 "빚 탕감!"',
   inpi_treasurer: '뒤에 숨어 "회비 지원!" 보호막을 뿌린다. 체력이 낮으니 먼저!',
-  boss_union: '무한 도전 25웨이브부터. 갑질·회식·독재·이자·회비를 번갈아 쓴다',
+  boss_union: '3장 보스 (3-5 · 3-10) · 무한 도전 25웨이브부터. 갑질·회식·독재·이자·회비를 번갈아 쓴다',
+  boss_bbikki: '2장 끝 보스. 전단지 폭탄(맞은 멤버 사거리 -30%, 4초) · 호객 행위(진상을 한 줄로 모아 우르르 + 손님 호객) · VIP 줄 세우기(앞줄 보호막) · 체력 40%면 분노 — 앞줄 보호막은 운영진으로, 모인 줄은 범위 공격으로',
   vomit: '"우웩!" 멤버 발밑에 토 → 공속↓. 죽으면 토 웅덩이가 진상을 빠르게 — 멀리서 잡자',
   couple: '안 맞으면 "꽁냥꽁냥" 회복, 윙크 안 통함. 반쯤 때리면 "헤어져!" 둘로',
   handsy: '로프에 닿으면 멤버를 붙잡아 못 쏘게 한다. 잡으면 풀려요 — 먼저 지목!',

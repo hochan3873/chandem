@@ -179,6 +179,7 @@ export function heroRange(g, h, seeAll) {
   if (fx.longRange && base >= 400 && d.attr !== 'talk') r *= fx.longRange;
   if (g.darkT > 0 && !seeAll) r = Math.min(r, fx.seeR);
   if (g.rangeMul) r *= g.rangeMul; // 탑 어둠
+  if (h.flyerT > 0) r *= 1 - (h.flyerCut || 0); // 삐끼왕 전단지 폭탄: 시야가 가려 사거리 ↓
   return r;
 }
 export function heroDamage(g, h) {
@@ -254,6 +255,7 @@ function updateHeroes(g, dt) {
     if (h.fearT > 0) h.fearT -= dt;
     if (h.sarcT > 0) h.sarcT -= dt;
     if (h.silenceT > 0) h.silenceT -= dt;
+    if (h.flyerT > 0) h.flyerT -= dt;
     if (h.muteT > 0) h.muteT -= dt; if (h.freezeT > 0) h.freezeT -= dt; if (h.thawT > 0) h.thawT -= dt; // 7장: 침묵(스킬 막힘) · 빙결 표시 · 녹은 뒤 잠깐 면역
     if (h.skillCd > 0 && !(h.silenceT > 0)) h.skillCd -= dt;
     // 최은옥: 술 → 분노 → 술 깸 반복
@@ -1152,7 +1154,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.interestT = def.interest ? def.interest.every : 0; e.interestN = 0; e.loanTaken = 0; e.paperT = def.paper ? 2.5 : 0;
   e.phaseI = -1; e.phaseT = 0; e.auraOn = false;
   e.pukeT = def.puke ? 2 + g.rng() * 2 : 0; e.hurtT = 9; e.split = false; e.grabbing = null; e.grabCd = 0;
-  e.weakT = 0; e.warnN = 0;
+  e.weakT = 0; e.warnN = 0; e.lureT = 0;
   // 진상 특성
   const tr = def.traits || {};
   e.bai = def.boss && BOSS_KITS[type] ? { st: 'walk', t: 0, next: BOSS_AI.every[0] + g.rng() * (BOSS_AI.every[1] - BOSS_AI.every[0]), roar: BOSS_AI.roar, i: 0, p2: false, targets: [] } : null;
@@ -1317,8 +1319,8 @@ function midKit(e) {
 // 보스 패턴 (예고 → 기술 → 틈) · 2페이즈 · 포효
 function bossBrain(g, e, dt) {
   const b = e.bai, kit = b.mid ? midKit(e) : BOSS_KITS[e.type];
-  if (e.y < 60 || e.stunT > 0 || e.avaW > 0) return; // (7장 회장: 눈사태 예고 중엔 다른 기술 안 씀)
-  if (!b.p2 && e.hp < e.maxHp * 0.5) { b.p2 = true; e.spdMul *= 1.25; e.atk *= 1.2; ev(g, b.mid ? 'midRage' : 'bossRage', { x: e.x, y: e.y - e.def.size * 0.7, name: kit.name }); }
+  if (e.y < 60 || e.stunT > 0 || e.avaW > 0 || e.quietW > 0) return; // (7장 회장 눈사태 · 펜션 사장님 소음 금지 예고 중엔 다른 기술 안 씀)
+  if (!b.p2 && e.hp < e.maxHp * (kit.rageAt || 0.5)) { b.p2 = true; e.spdMul *= 1.25; e.atk *= 1.2; if (b.st === 'walk' && kit.everyP2) b.next = Math.min(b.next, kit.everyP2[1]); ev(g, b.mid ? 'midRage' : 'bossRage', { x: e.x, y: e.y - e.def.size * 0.7, name: kit.name, sub: kit.rageSub, type: e.type }); }
   if ((b.roar -= dt) <= 0) { // 포효: 날아가던 공격을 지우고 곁의 부하에게 보호막
     b.roar = BOSS_AI.roar;
     g.projs = g.projs.filter((p) => Math.hypot(p.x - e.x, p.y - e.y) > 220);
@@ -1333,7 +1335,7 @@ function bossBrain(g, e, dt) {
     b.st = 'windup'; b.t = BOSS_AI.windup; e.bwind = BOSS_AI.windup;
     // 예고: 기절이면 노릴 멤버를 먼저 정한다 (빨간 원)
     const [kind, , o] = b.cur;
-    b.targets = kind === 'stun' ? pickTargets(g, o.n) : [];
+    b.targets = kind === 'stun' || kind === 'flyer' ? pickTargets(g, o.n) : [];
     ev(g, 'bossWind', { x: e.x, y: e.y - e.def.size * 0.6, kind, name: b.cur[1], targets: b.targets.map((h) => ({ x: h.x, y: h.y })) });
   } else if (b.st === 'windup') {
     e.bwind = b.t;
@@ -1344,7 +1346,7 @@ function bossBrain(g, e, dt) {
     ev(g, 'bossGap', { x: e.x, y: e.y - e.def.size * 0.8 });
   } else if ((b.t -= dt) <= 0) {
     b.st = 'walk';
-    const r = b.mid ? MID_AI.every : b.p2 ? BOSS_AI.everyP2 : BOSS_AI.every;
+    const r = b.mid ? MID_AI.every : b.p2 ? kit.everyP2 || BOSS_AI.everyP2 : BOSS_AI.every;
     b.next = r[0] + g.rng() * (r[1] - r[0]);
   }
 }
@@ -1363,6 +1365,23 @@ function bossSkill(g, e, [kind, name, o]) {
   else if (kind === 'shock') { g.projs = g.projs.filter((p) => p.y > e.y + 220 || Math.abs(p.x - e.x) > 200); forEnemiesNear(g, e.x, e.y, 200, (x) => { if (x !== e && !x.dead) x.shield = Math.max(x.shield, x.maxHp * 0.1); return true; }); }
   else if (kind === 'summon') { for (let k = 0; k < o.n; k++) { const t = o.types[k % o.types.length]; if (ENEMIES[t]) spawnEnemy(g, t, clamp(e.x + (k - (o.n - 1) / 2) * 36, 20, g.W - 20), Math.max(20, e.y - 30)); } }
   else if (kind === 'drain') { const v = Math.floor(g.exp * o.v); g.exp -= v; g.stats.stolen += v; e.stolen = (e.stolen || 0) + v; }
+  else if (kind === 'flyer') { // 삐끼왕 전단지 폭탄: 예고된 멤버 시야를 가린다 (사거리 ↓ · 저항 · 강성구 곁이면 짧게)
+    const hit = [];
+    for (const h of e.bai.targets) { if (h.gone) continue; const sc = debuffSec(h, o.sec, 'slow'); if (sc <= 0) continue; h.flyerT = Math.max(h.flyerT || 0, sc); h.flyerCut = o.cut; hit.push({ x: h.x, y: h.y, id: h.id, sec: sc }); }
+    ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, hits: hit, cut: o.cut, sec: o.sec, type: e.type });
+    return;
+  } else if (kind === 'lure') { // 삐끼왕 호객 행위: 곁의 진상을 한 줄로 바짝 모아 입구로 우르르 + 손님(2장 진상) 호객
+    let n = 0;
+    forEnemiesNear(g, e.x, e.y, o.r, (x) => { if (x !== e && !x.dead && !x.boss && !x.mid) { x.x = clamp(x.x + (e.x - x.x) * o.pull, 20, g.W - 20); x.baseX = x.x; x.lureT = Math.max(x.lureT || 0, o.sec); x.lureSpd = o.spd; n++; } return true; });
+    for (let k = 0; k < o.n; k++) { const t = o.types[k % o.types.length]; if (!ENEMIES[t]) continue; const c = spawnEnemy(g, t, clamp(e.x + (k - (o.n - 1) / 2) * 30, 20, g.W - 20), Math.max(20, e.y - 20)); c.lureT = o.sec; c.lureSpd = o.spd; }
+    ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, n: n + o.n, type: e.type });
+    return;
+  } else if (kind === 'vip') { // 삐끼왕 VIP 줄 세우기: 입구 앞 줄 진상에게 보호막
+    const front = g.enemies.filter((x) => !x.dead && x !== e && !x.boss && x.y > 40).sort((a, c) => c.y - a.y).slice(0, o.n);
+    for (const x of front) x.shield = Math.max(x.shield, x.maxHp * o.frac);
+    ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, pts: front.map((x) => ({ x: x.x, y: x.y })), type: e.type });
+    return;
+  }
   ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name });
 }
 export const isHidden = (e) => !e.unveiled && !!((e.def.traits && e.def.traits.stealth) || e.cloak);
@@ -1692,10 +1711,11 @@ function updateEnemies(g, dt) {
       continue;
     }
     if (e.form === 'reveal') { if (e.hitT > 0) e.hitT -= dt; continue; } // 들켰다! 제자리에서 허둥지둥
+    if (e.lureT > 0) e.lureT -= dt;
     if (!e.atRope) {
       const sp = e.speed * (e.slowT > 0 ? e.slowMul : 1) * (e.dictT > 0 ? e.dictSpd : 1) * (g.megaT > 0 ? g.mapFx.speed : 1)
         * (e.flexT > 0 ? ENEMIES.gao.gao.flexSpd : 1) * (e.puddleT > 0 ? ENEMIES.vomit.deathPuddle.speed : 1)
-        * e.spdMul * (e.hasteT > 0 ? 1.15 : 1) * (e.sleeping ? 0 : 1)
+        * e.spdMul * (e.hasteT > 0 ? 1.15 : 1) * (e.sleeping ? 0 : 1) * (e.lureT > 0 ? e.lureSpd : 1) // (삐끼왕 호객: 우르르)
         * (g.mapFx.belt && e.x > g.mapFx.belt[0] && e.x < g.mapFx.belt[1] ? g.mapFx.beltMul : 1);
       e.y += sp * dt;
       if (def.zigzag) e.x = clamp(e.baseX + Math.sin(e.age * (def.erratic ? 3.1 + Math.sin(e.age * 0.7 + e.phase) * 1.5 : 2.3) + e.phase) * def.zigzag, g.mapFx.lane ? g.mapFx.lane[0] : 16, g.mapFx.lane ? g.mapFx.lane[1] : W - 16);
@@ -2839,10 +2859,10 @@ export function startWave(g, n) {
       for (let j = 0; j < n; j++) q.push({ type, at: at + j * 0.06, hpX, x: clamp(x0 + (j - (n - 1) / 2) * 20 + g.rng() * 6, 20, g.W - 20) });
     }
   }
-  if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true });
+  if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true, bossHp: def.bossHp });
   if (def.boss && g.twinBoss) q.push({ type: def.boss, at: 3.5, boss: true }); // 저주 계약 '보스 둘'
   if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true });
-  if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? 14 : 26, boss: true });
+  if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? 14 : 26, boss: true, bossHp: def.boss2Hp });
   q.sort((a, b) => a.at - b.at);
   g.spawnQ = q;
   g.spawnI = 0;
@@ -3319,6 +3339,7 @@ export function step(g, dt) {
       const s = q[g.spawnI++];
       const e = spawnEnemy(g, s.type, s.boss ? g.W / 2 : s.x, s.boss ? -60 : undefined, s.hpX || s.elite ? { hpX: s.hpX, elite: s.elite } : undefined);
       alive++;
+      if (s.bossHp) { e.maxHp *= s.bossHp; e.hp = e.maxHp; } // 보스를 바꾼 스테이지: 예전 난이도에 맞춘 체력 (data.js STAGE_BOSS_HP)
       if (g.raid && s.boss && !s.mid && !g.raid.boss) { g.raid.boss = e; e.raidBoss = true; e.maxHp = e.hp = 1e12; }
       if (s.mid) ev(g, 'midSpawn', { enemy: s.type, x: e.x, y: e.y });
       else if (s.boss) ev(g, 'bossSpawn', { enemy: s.type, x: e.x, y: e.y });

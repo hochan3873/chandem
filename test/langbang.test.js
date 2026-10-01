@@ -207,9 +207,23 @@ test('스테이지 70개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
     if (m && !D.ENEMIES[m].solo) { const e = D.ENEMIES[m]; for (const p of e.fuse || [e.base]) assert.ok(cast.includes(p), `${D.stageLabel(s)} 중간 보스 ${m} ← ${p}`); } // (solo: 7장 펜션 사장님처럼 따로 그린 중간 보스)
     assert.equal(D.stageWaveKinds(s).length, D.STAGE_WAVES);
   }
-  assert.deepEqual(D.stageBosses(30), ['boss_inpi', 'boss_gapjil']);
+  assert.deepEqual(D.stageBosses(20), ['boss_bbikki', 'boss_gapjil']);
+  assert.deepEqual(D.stageBosses(25), ['boss_union', 'boss_thug']);
+  assert.deepEqual(D.stageBosses(30), ['boss_inpi', 'boss_union']);
   assert.deepEqual(D.stageBosses(60), ['boss_soloparty', 'boss_jusa']);
+  assert.deepEqual(D.stageBosses(65), ['mid_pension']);
   assert.deepEqual(D.stageBosses(70), ['boss_resort', 'mid_pension']);
+  // 보스 중복 금지: x-10 의 첫 보스는 그 장의 새 얼굴 · 둘째는 그 장 x-5 보스 · x-5 첫 보스는 앞 장 보스가 아니다
+  const used = new Set();
+  for (let c = 1; c <= D.CHAPTERS.length; c++) {
+    const b5 = D.stageBosses((c - 1) * 10 + 5), b10 = D.stageBosses(c * 10);
+    assert.ok(!used.has(b5[0]), `${c}-5 보스 ${b5[0]} 앞 장과 겹침`);
+    assert.ok(!used.has(b10[0]) && b10[0] !== b5[0], `${c}-10 보스 ${b10[0]} 겹침`);
+    if (b10[1]) assert.equal(b10[1], b5[0], `${c}-10 둘째 보스는 ${c}-5 보스가 다시`);
+    used.add(b5[0]); used.add(b10[0]);
+    for (const id of [...b5, ...b10]) assert.ok(D.ENEMIES[id].boss && D.BOSS_KITS[id], `${id} 보스 기술`);
+  }
+  for (let s = 1; s <= D.STAGE_COUNT; s++) { const m = D.stageMid(s); if (m) assert.ok(!D.ENEMIES[m].boss, `${D.stageLabel(s)} 중간 보스 자리에 보스 ${m}`); }
   assert.ok(has(31, 'fakesingle') && has(41, 'sales') && has(51, 'drunk_run'), '4~6장 새 진상');
   assert.equal(D.parseStage('6-10'), 60);
   assert.equal(D.parseStage('7-10'), 70);
@@ -527,7 +541,7 @@ test('진상 연합 회장: 무한 도전 25·35·45웨이브 보스, 단계마�
   assert.equal(D.waveDef(35).boss, 'boss_union');
   assert.notEqual(D.waveDef(30).boss, 'boss_union');
   assert.notEqual(D.waveDef(20).boss, 'boss_union');
-  for (let s = 1; s <= 30; s++) assert.ok(!D.stageEnemies(s).includes('boss_union'), '스테이지엔 안 나옴');
+  for (let s = 1; s <= D.STAGE_COUNT; s++) assert.equal(D.stageEnemies(s).includes('boss_union'), s === 25 || s === 30, `${D.stageLabel(s)}: 스테이지엔 3-5 · 3-10 만`);
   const g = S.createGame({ rng: seeded(151), noWaves: true, heroes: ['gunman', 'staff'] });
   const b = S.spawnEnemy(g, 'boss_union', 180, 200, { hpMul: 100 });
   b.speed = 0;
@@ -2082,8 +2096,8 @@ test('7장 스키장: 챕터 · 진상 8종 · 해금 · 보스 · 그림 대체
     assert.equal(e.emoji, '', `${id}: 이모지 없음`);
     assert.ok(D.ENEMY_ATK[id] && D.SHORT_NAME[id] && F.FLAVOR[id] && e.shouts.length >= 3, id);
   }
-  assert.ok(D.ENEMIES.boss_resort.boss && D.ENEMIES.mid_pension.mid && D.BOSS_KITS.boss_resort);
-  assert.deepEqual(D.stageBosses(65), ['boss_resort']);
+  assert.ok(D.ENEMIES.boss_resort.boss && D.ENEMIES.mid_pension.boss && D.BOSS_KITS.boss_resort && D.BOSS_KITS.mid_pension);
+  assert.deepEqual(D.stageBosses(65), ['mid_pension'], '7-5 보스 = 펜션 사장님 (회장은 7-10 에서 처음)');
   for (let s = 61; s <= 70; s++) { assert.ok(D.stageMid(s), D.stageLabel(s)); assert.ok(D.stageMix(s).every(([t]) => D.ENEMIES[t].ch7), `${D.stageLabel(s)} 7장 진상만`); }
 });
 
@@ -2246,4 +2260,41 @@ test('팀 기여: 수리 · 막은 피해 · 버프로 늘린 피해를 멤버�
 test('상성: 강함 1.6 · 약함 0.7 (2.0/0.45 에서 줄임)', () => {
   assert.equal(D.TYPE_STRONG, 1.6);
   assert.equal(D.TYPE_WEAK, 0.7);
+});
+
+test('2-10 번화가 삐끼왕: 전단지 폭탄(사거리 -30%) · 호객 행위(모아서 우르르 + 호객) · VIP 줄 세우기(앞줄 보호막) · 40% 분노', async () => {
+  const F = await load('flavor.js');
+  const k = D.BOSS_KITS.boss_bbikki, e = D.ENEMIES.boss_bbikki;
+  assert.ok(e.boss && e.fb && e.img === '/img/lb/e_boss_bbikki.webp' && e.emoji === '' && F.FLAVOR.boss_bbikki && D.SHORT_NAME.boss_bbikki && D.ENEMY_ATK.boss_bbikki);
+  assert.deepEqual(k.skills.map((x) => x[0]), ['flyer', 'lure', 'vip']);
+  assert.equal(D.stageName(20), '번화가 삐끼왕');
+  const g = bare(['gunman', 'staff', 'hanna']);
+  const b = still(g, 'boss_bbikki', 180, 200, 5);
+  const seen = [];
+  const cast = (i) => { b.bai.i = i; b.bai.st = 'walk'; b.bai.next = 0.05; for (let t = 0; t < 1.3; t += 1 / 60) { S.step(g, 1 / 60); for (const x of g.events) seen.push(x); g.events.length = 0; } };
+  // 전단지 폭탄: 예고(노릴 멤버 표시) → 맞은 멤버 사거리 -30% (4초)
+  const r0 = Object.fromEntries(g.heroes.map((h) => [h.id, S.heroRange(g, h)]));
+  cast(0);
+  const w = seen.find((x) => x.type === 'bossWind' && x.kind === 'flyer');
+  assert.ok(w && w.targets.length === 3, '전단지 예고 (노릴 멤버)');
+  const fl = seen.find((x) => x.type === 'bossSkill' && x.kind === 'flyer');
+  assert.ok(fl && fl.hits.length >= 1, '전단지');
+  for (const hh of fl.hits) { const h = g.heroes.find((q) => q.id === hh.id); assert.ok(Math.abs(S.heroRange(g, h) / r0[h.id] - 0.7) < 0.01, '사거리 -30%'); }
+  run(g, 4.5);
+  for (const h of g.heroes) assert.ok(Math.abs(S.heroRange(g, h) - r0[h.id]) < 0.01, '4초 뒤 원래대로');
+  // 호객 행위: 곁의 진상을 보스 쪽으로 바짝 모으고 빨라진다 + 2장 진상 호객
+  const m1 = still(g, 'yeokko', 60, 230), m2 = still(g, 'namkko', 320, 220);
+  const n0 = g.enemies.filter((x) => !x.dead).length;
+  seen.length = 0; cast(1);
+  assert.ok(seen.some((x) => x.type === 'bossSkill' && x.kind === 'lure'), '호객');
+  assert.ok(Math.abs(m1.x - 180) < 60 && Math.abs(m2.x - 180) < 60 && m1.lureT > 0, '한 줄로 바짝');
+  assert.ok(g.enemies.filter((x) => !x.dead).length >= n0 + 3, '손님 호객');
+  // VIP 줄 세우기: 입구에 가까운 앞줄 진상에게 보호막
+  const front = still(g, 'yeokko', 200, g.ropeY - 40);
+  seen.length = 0; cast(2);
+  assert.ok(seen.some((x) => x.type === 'bossSkill' && x.kind === 'vip') && front.shield > 0, 'VIP 보호막');
+  // 분노: 체력 40% 아래에서만 · 기술 간격이 짧아진다
+  b.hp = b.maxHp * 0.45; run(g, 0.05); assert.equal(b.bai.p2, false, '45% 는 아직');
+  b.hp = b.maxHp * 0.39; b.bai.st = 'walk'; b.bai.next = 30; run(g, 0.05);
+  assert.ok(b.bai.p2 && b.bai.next <= k.everyP2[1], '40% 분노 · 빨리');
 });

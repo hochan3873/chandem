@@ -21,7 +21,7 @@ const ENEMY_IDS = ['earphone', 'noshow', 'clubguy', 'clubgirl', 'praise1', 'prai
   'inpi_gossip', 'inpi_dictator', 'inpi_clique', 'scammer', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'inpi_treasurer', 'boss_union',
   'mid_mukti', 'mid_drunk', 'mid_thug', 'mid_scammer', 'mid_selfie', 'mid_gao', 'mid_kkondae', 'fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi',
   'fakesingle', 'secretmom', 'carpoor', 'sales', 'sarcasm', 'jjijil', 'otaku', 'drunk_cry', 'drunk_run', 'drunk_sleep', 'drunk_home', 'kkondae2',
-  'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty',
+  'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty', 'boss_bbikki',
   'mid_fakesingle', 'mid_carpoor', 'fuse_lease', 'fuse_lie', 'mid_otaku', 'mid_sarcasm', 'fuse_jusa', 'fuse_sleep',
   'fuse_karaoke', 'fuse_taxi', 'fuse_mt', 'fuse_latte', 'fuse_adspam',
   'snowboard', 'liftcut', 'fakecoach', 'sledgirl', 'hotpack', 'snowball', 'mid_pension', 'boss_resort', 'mid_snowboard', 'mid_sledgirl', 'fuse_lift', 'fuse_coach', 'fuse_snowfight']; // 7장 스키장
