@@ -356,3 +356,13 @@
 
 body.rm .tw-embers, body.rm .tw-climb .tc-wall, body.rm .tw-bolt { animation: none !important; display: none; }
 body.rm .tw-near, body.rm .tw-far, body.rm .tw-vortex { animation: none !important; }
+
+/* 탑 보물상자: 그린 그림 (닫힘 → 열림) */
+.tr-chest { width: calc(var(--u) * 128); height: calc(var(--u) * 116); }
+.tr-chest .tc-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 10) rgba(0, 0, 0, 0.6)); }
+.tr-chest .tc-open { opacity: 0; transform: scale(0.8); }
+.tr-chest.wait .tc-shut { animation: twShake 0.5s ease-in-out infinite; }
+.tr-chest.open .tc-shut { animation: tcOut 0.25s ease-in forwards; }
+.tr-chest.open .tc-open { animation: tcIn 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) 0.12s forwards; }
+@keyframes tcOut { to { opacity: 0; transform: scale(1.15); } }
+@keyframes tcIn { to { opacity: 1; transform: scale(1); } }

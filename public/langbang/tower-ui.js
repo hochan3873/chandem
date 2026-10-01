@@ -361,7 +361,7 @@ function result(g, victory, quit) {
       <em class="tr-floor">${f}<small>F</small></em>
       <h2>${win ? `${f}층 돌파!` : quit ? '오늘은 여기까지' : g.tower && g.t >= g.tower.limit ? '시간 초과…' : '탑에서 떨어졌다…'}</h2>
       <p class="sub">${win ? `${esc(HEROES[hero].name)} · ${time}` : `${esc(TW.zoneOf(f).name)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}`}</p>
-      <div class="tr-chest ${win ? 'wait' : 'none'}" id="twChest">${win ? '<i class="tc-box"></i><i class="tc-lid"></i><i class="tc-glow"></i>' : ''}</div>
+      <div class="tr-chest ${win ? 'wait' : 'none'}" id="twChest">${win ? '<i class="tc-glow"></i><img class="tc-img tc-shut" src="/img/lb/fx/tower_chest.webp" alt="" draggable="false"><img class="tc-img tc-open" src="/img/lb/fx/tower_chest_open.webp" alt="" draggable="false">' : ''}</div>
       <div class="tr-rw" id="twRw">${win ? '<span class="spin"></span> 보상 받는 중…' : ''}</div>
       <div class="stats"><div><small>처치</small><b>${fmt(sum.kills)}</b></div><div><small>시간</small><b>${time}</b></div><div><small>레벨</small><b>${g.level}</b></div></div>
     </div>
