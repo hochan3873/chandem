@@ -1,0 +1,51 @@
+/* 랑방 친구 화면 · 레이드 도우미 (friends.js) — 글자 외곽선은 text-shadow 만 */
+.screen.friends .fr-body { display: flex; flex-direction: column; gap: calc(var(--u) * 8); }
+.fr-add { display: flex; gap: calc(var(--u) * 6); align-items: center; }
+.fr-add input { flex: 1; min-width: 0; height: calc(var(--u) * 36); border-radius: 99px; border: 2px solid #0a0614; background: rgba(0, 0, 0, 0.45); color: #fff; padding: 0 calc(var(--u) * 14); font: inherit; font-size: calc(var(--u) * 13); font-weight: 700; box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.3); outline: none; }
+.fr-add input:focus { box-shadow: inset 0 0 0 1.5px var(--gold); }
+.fr-add .btn { flex: none; height: calc(var(--u) * 36); }
+.fr-me { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 6) calc(var(--u) * 10); background: var(--panel); border: 1px solid var(--line); border-radius: calc(var(--u) * 12); padding: calc(var(--u) * 8) calc(var(--u) * 12); font-size: calc(var(--u) * 12); font-weight: 700; color: var(--dim); }
+.fr-me .fr-code { color: var(--gold); font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 17); letter-spacing: 0.12em; margin-left: calc(var(--u) * 4); text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; }
+.fr-me .fr-pts { margin-left: auto; display: inline-flex; align-items: center; gap: calc(var(--u) * 3); }
+.fr-me .fr-pts b { color: #8fffc0; }
+.fr-bar { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 8); }
+.fr-bar small { color: var(--dim); font-size: calc(var(--u) * 11); font-weight: 700; line-height: 1.35; }
+.fr-bar small b { color: var(--gold); }
+.fr-bar .btn { flex: none; white-space: nowrap; }
+.fr-row { gap: calc(var(--u) * 8) !important; padding: calc(var(--u) * 7) calc(var(--u) * 9) !important; }
+.fr-row .nm small { display: block; margin-left: 0 !important; margin-top: calc(var(--u) * 2); }
+.fr-row .btn.mini { flex: none; display: inline-flex; align-items: center; gap: calc(var(--u) * 2); white-space: nowrap; }
+.fr-row.off { opacity: 0.55; }
+.fr-face { position: relative; flex: none; width: calc(var(--u) * 44); height: calc(var(--u) * 44); border-radius: 50%; background: radial-gradient(circle at 50% 35%, #4a3a7a, #1a1030 75%); box-shadow: 0 0 0 2px #0a0614, inset 0 0 0 1px rgba(255, 210, 63, 0.4); display: grid; place-items: center; overflow: visible; }
+.fr-face .av { width: 100%; height: 100%; border-radius: 50%; overflow: hidden; }
+.fr-face > i { position: absolute; right: calc(var(--u) * -4); top: calc(var(--u) * -4); font-style: normal; font-size: calc(var(--u) * 9.5); font-weight: 900; color: #fff; background: #6b3dff; border: 1.5px solid #0a0614; border-radius: 99px; padding: 0 calc(var(--u) * 4); line-height: 1.45; }
+.fr-face > i:empty { display: none; }
+.fr-face > em { position: absolute; left: 50%; bottom: calc(var(--u) * -5); transform: translateX(-50%); font-style: normal; font-size: calc(var(--u) * 8); color: #ffd23f; white-space: nowrap; letter-spacing: -0.08em; text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; }
+.fr-more { flex: none; width: calc(var(--u) * 28); height: calc(var(--u) * 28); border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: var(--dim); font-weight: 900; font-size: calc(var(--u) * 12); letter-spacing: -0.1em; }
+.fr-h { margin: calc(var(--u) * 6) 0 calc(var(--u) * 2); font-size: calc(var(--u) * 13); color: var(--gold); }
+.empty-msg.sm { padding: calc(var(--u) * 12) 0; }
+.fr-gifts { max-height: none; }
+.fr-g b { display: inline-flex !important; align-items: center; gap: calc(var(--u) * 3); }
+.fr-guest { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 8); text-align: center; padding: calc(var(--u) * 26) calc(var(--u) * 12); background: var(--panel); border: 1px solid var(--line); border-radius: calc(var(--u) * 16); }
+.fr-guest .ic { width: calc(var(--u) * 72); height: calc(var(--u) * 72); }
+.fr-guest b { font-size: calc(var(--u) * 15); }
+.fr-guest small { color: var(--dim); font-size: calc(var(--u) * 11.5); font-weight: 700; }
+.fr-guest .btn { width: auto; padding: 0 calc(var(--u) * 22); text-decoration: none; display: inline-grid; place-items: center; }
+/* 친구 메뉴 · 도우미 고르기 팝업 */
+.fr-pop .fr-lead { display: flex; align-items: center; gap: calc(var(--u) * 10); background: rgba(255, 255, 255, 0.06); border-radius: calc(var(--u) * 12); padding: calc(var(--u) * 10); margin-bottom: calc(var(--u) * 6); }
+.fr-pop .fr-lead span { display: flex; flex-direction: column; min-width: 0; }
+.fr-pop .fr-lead small { color: var(--dim); font-size: calc(var(--u) * 10); font-weight: 700; }
+.fr-pop .fr-lead b { font-size: calc(var(--u) * 15); }
+.fr-pop .fr-lead i { font-style: normal; color: var(--dim); font-size: calc(var(--u) * 10.5); }
+.fr-pop .confirm-row { display: flex; gap: calc(var(--u) * 8); margin-top: calc(var(--u) * 10); }
+.fr-pop .confirm-row .btn { flex: 1; }
+.fr-pop .btn.danger-t { color: #ff8a9a; }
+.fr-pick { max-height: 52vh; overflow-y: auto; margin: calc(var(--u) * 8) 0; }
+/* 레이드 결과: 도와준 친구 */
+.fr-helped { display: flex; align-items: center; gap: calc(var(--u) * 10); margin-top: calc(var(--u) * 8); padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: linear-gradient(90deg, rgba(120, 90, 255, 0.35), rgba(120, 90, 255, 0.08)); border: 1px solid rgba(180, 160, 255, 0.45); text-align: left; }
+.fr-helped .av { flex: none; width: calc(var(--u) * 40); height: calc(var(--u) * 40); border-radius: 50%; overflow: hidden; background: #1a1030; }
+.fr-helped span { display: flex; flex-direction: column; min-width: 0; }
+.fr-helped b { font-size: calc(var(--u) * 13); color: #fff; text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; }
+.fr-helped small { color: var(--dim); font-size: calc(var(--u) * 10.5); font-weight: 700; }
+/* 로비 오른쪽 버튼이 9개(친구 추가) — 낮은 화면에서 아래 탭에 가리지 않게 조금 촘촘히 */
+@media (max-height: 720px) { .lb-right { gap: calc(var(--u) * 2) !important; } .lb-right .rb { padding: calc(var(--u) * 2) 0; } .lb-right .rb .uic { width: calc(var(--u) * 24); height: calc(var(--u) * 24); } }

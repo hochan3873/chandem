@@ -486,7 +486,7 @@ export function saveDecksRemote(decks, i, leaders) { return liveCall('decks', { 
 export function masterAct(action, extra = {}) { return liveCall('master', Object.assign({ action }, extra)); }
 // 레이드 · 1:1 대전
 export async function raidBoard() { const r = await call('/api/langbang/raid'); return r.ok ? r : null; }
-export function raidStart() { return liveCall('raid/start', {}); }
+export function raidStart(friend) { return liveCall('raid/start', friend ? { friend } : {}); } // friend: 데려갈 친구 아이디 (없으면 혼자)
 export function raidClaim() { return liveCall('raid/claim', {}); }
 export function postRaid(sum, runId, dmg) { return liveCall('result', { mode: 'raid', runId, raidDmg: Math.floor(dmg), wave: sum.wave, kills: sum.kills, bossKills: 0, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen }); }
 export async function playerCard(u) { const r = await call('/api/langbang/player?u=' + encodeURIComponent(u)); return r.ok ? r.player : null; }
@@ -509,3 +509,8 @@ export async function pvpRanking() { const r = await call('/api/langbang/pvp/ran
 export function authToken() { return token(); }
 // 미션 시드용 사용자 번호 (서버와 같은 값 — 토큰 앞부분)
 export function liveUid() { const t = token(); return t ? String(t).split('.')[0] : GUEST_UID; }
+
+// ─── 친구 (로그인만 · 서버가 두 사람 기록을 같이 고친다) ───
+export async function friendsLoad() { return call('/api/langbang/friends'); }
+// kind: request {q} · accept/decline/cancel/remove {id} · gift {id | 'all'} · claim {k | 'all'}
+export function friendAct(kind, body) { return liveCall('friends/' + kind, body || {}); }

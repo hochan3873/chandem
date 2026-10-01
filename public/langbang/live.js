@@ -1028,6 +1028,129 @@ export function normLive(raw, out) {
   out.giftsSent = (Array.isArray(raw.giftsSent) ? raw.giftsSent : []).filter((c) => c && typeof c.id === 'string').slice(-20).map((c) => ({ id: String(c.id).slice(0, 40), from: String(c.from || '').slice(0, 12), title: String(c.title || '').slice(0, 40), text: String(c.text || '').slice(0, 80), rw: cleanRw(c.rw), at: int(c.at, 0, 9e15), activeSince: int(c.activeSince, 0, 9e15), openUntil: int(c.openUntil, 0, 9e15), days: int(c.days, 1, 60) || MAIL_DAYS, n: int(c.n, 0, 1e7) }));
   out.pvpDay = raw.pvpDay && Number.isInteger(raw.pvpDay.day) ? { day: raw.pvpDay.day, n: int(raw.pvpDay.n, 0, 999), won: !!raw.pvpDay.won, opp: Object.fromEntries(Object.entries(raw.pvpDay.opp || {}).slice(0, 50).map(([k, v]) => [String(k).slice(0, 40), int(v, 0, 999)])) } : null;
   out.pvpTiers = (Array.isArray(raw.pvpTiers) ? raw.pvpTiers : []).map((x) => int(x, 0, 5000)).filter((x) => PVP_TIER_LADDER.some((t) => t[0] === x));
+  normFriends(raw, out); // 친구 · 체력 선물 · 레이드 도움 (아래 친구 블록)
   return out;
 }
 export const MAPFX = MAP_FX; // (화면 표시용)
+
+// ─── 친구: 체력(피로도) 선물 · 레이드 도와주기 ─────────────
+// 친구 관계는 두 사람 기록에 같이 적힌다 (서버 server/langbang-friends.js 가 둘을 함께 고친다).
+// 하루 = KST 자정 기준 dayIndex. 손님은 친구 기능을 못 쓴다 (서버 기록이 없어서).
+export const FRIEND = {
+  max: 30, reqMax: 30, reqPerDay: 20, // 친구 최대 · 받은/보낸 요청 보관 · 하루 요청 수
+  gift: 5, recvPerDay: 10, giftDays: 7, inboxMax: 40, // 체력 선물 +5 · 하루 받기 10개 · 7일 보관
+  lendPerDay: 10, lendRw: { coins: 200 }, lendPts: 10, // 내 멤버를 빌려준 보상 (하루 10번까지) · 도움 포인트
+  capMul: 1.35, // 도와주는 멤버가 있으면 레이드 피해 상한 +35%
+};
+const FC_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// 친구 코드: 아이디에서 정해지는 6글자 (바뀌지 않음 · 헷갈리는 0/O/1/I 없음)
+export function friendCode(uid) {
+  let h = hashSeed('lbfc:' + uid) >>> 0, s = '';
+  for (let i = 0; i < 6; i++) { s += FC_ABC[h & 31]; h = i === 2 ? hashSeed('lbfc2:' + uid) >>> 0 : h >>> 5; }
+  return s;
+}
+export const cleanFriendCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+const frDay = (x) => (x && Number.isInteger(x.day) ? x : null);
+const cleanSnapGear = (a) => (Array.isArray(a) ? a : []).filter((it) => it && GEAR[it.t] && (GEAR_RARITIES.includes(it.r) || it.r === 'myth')).slice(0, 3).map((it) => ({ t: it.t, r: it.r, lv: int(it.lv, 0, 30) }));
+function normFriends(raw, out) {
+  const f = (raw && raw.fr) || {};
+  const ids = (a, n) => { const seen = new Set(); return (Array.isArray(a) ? a : []).filter((x) => x && typeof x.id === 'string' && x.id.length > 0 && x.id.length <= 40 && !seen.has(x.id) && seen.add(x.id)).slice(-n).map((x) => ({ id: x.id, at: int(x.at, 0, 9e15) })); };
+  const dayIds = (x) => (frDay(x) ? { day: x.day, ids: [...new Set((Array.isArray(x.ids) ? x.ids : []).filter((i) => typeof i === 'string' && i.length <= 40))].slice(0, 60) } : null);
+  const dayN = (x) => (frDay(x) ? { day: x.day, n: int(x.n, 0, 999) } : null);
+  const h = f.help;
+  out.fr = {
+    list: ids(f.list, FRIEND.max), inReq: ids(f.inReq, FRIEND.reqMax), outReq: ids(f.outReq, FRIEND.reqMax),
+    sent: dayIds(f.sent), bor: dayIds(f.bor), got: dayN(f.got), rq: dayN(f.rq), lent: dayN(f.lent),
+    gin: (Array.isArray(f.gin) ? f.gin : []).filter((g) => g && typeof g.id === 'string' && g.id.length <= 40 && Number.isInteger(g.k)).slice(-FRIEND.inboxMax)
+      .map((g) => ({ k: g.k, id: g.id, nick: String(g.nick || '').slice(0, 12), at: int(g.at, 0, 9e15) })),
+    ginSeq: int(f.ginSeq, 0, 1e9), pts: int(f.pts, 0, 1e9), lentAll: int(f.lentAll, 0, 1e9),
+    help: h && typeof h.run === 'string' && h.run.length <= 32 && typeof h.id === 'string' && HEROES[h.hero]
+      ? { run: h.run, id: h.id.slice(0, 40), nick: String(h.nick || '').slice(0, 12), hero: h.hero, lv: int(h.lv, 0, 99), star: int(h.star, 1, STAR_MAX), gear: cleanSnapGear(h.gear) } : null,
+  };
+}
+const frToday = (x, now) => (x && x.day === dayIndex(now) ? x : null);
+export const isFriend = (lb, id) => !!(lb.fr && lb.fr.list.some((x) => x.id === id));
+export const giftSentToday = (lb, id, now = Date.now()) => { const s = frToday(lb.fr && lb.fr.sent, now); return !!s && s.ids.includes(id); };
+export const borrowedToday = (lb, id, now = Date.now()) => { const s = frToday(lb.fr && lb.fr.bor, now); return !!s && s.ids.includes(id); };
+export const giftRecvLeft = (lb, now = Date.now()) => FRIEND.recvPerDay - ((frToday(lb.fr && lb.fr.got, now) || { n: 0 }).n);
+export const giftInbox = (lb, now = Date.now()) => ((lb.fr && lb.fr.gin) || []).filter((g) => now - g.at < FRIEND.giftDays * DAY);
+export const friendReqLeft = (lb, now = Date.now()) => FRIEND.reqPerDay - ((frToday(lb.fr && lb.fr.rq, now) || { n: 0 }).n);
+// 로비 빨간 점: 받은 요청 + (오늘 더 받을 수 있으면) 받을 선물
+export const friendBadge = (lb, now = Date.now()) => ((lb.fr && lb.fr.inReq.length) || 0) + (giftRecvLeft(lb, now) > 0 ? giftInbox(lb, now).length : 0);
+const frDayPush = (fr, key, id, now) => { const d = dayIndex(now); if (!fr[key] || fr[key].day !== d) fr[key] = { day: d, ids: [] }; fr[key].ids.push(id); };
+const frDayInc = (fr, key, now) => { const d = dayIndex(now); if (!fr[key] || fr[key].day !== d) fr[key] = { day: d, n: 0 }; fr[key].n++; return fr[key].n; };
+// 목록(list · inReq · outReq)에 넣기/빼기
+export function frSet(lb, key, id, on, now = Date.now()) {
+  lb.fr[key] = lb.fr[key].filter((x) => x.id !== id);
+  if (on) lb.fr[key].push({ id, at: now });
+}
+export const frCountReq = (lb, now = Date.now()) => frDayInc(lb.fr, 'rq', now);
+// 체력 선물 보내기: 보내는 사람(me)과 받는 사람(them) 기록을 같이 고친다 — 서로 친구 · 오늘 그 친구에게 처음
+export function giftSend(me, them, meId, themId, meNick, now = Date.now()) {
+  if (!isFriend(me, themId) || !isFriend(them, meId)) return { error: '친구에게만 보낼 수 있어요' };
+  if (giftSentToday(me, themId, now)) return { error: '오늘은 이미 보냈어요' };
+  frDayPush(me.fr, 'sent', themId, now);
+  them.fr.ginSeq = (them.fr.ginSeq | 0) + 1;
+  them.fr.gin = giftInbox(them, now);
+  them.fr.gin.push({ k: them.fr.ginSeq, id: meId, nick: String(meNick || '').slice(0, 12), at: now });
+  them.fr.gin = them.fr.gin.slice(-FRIEND.inboxMax);
+  return { sent: 1 };
+}
+// 선물 받기: 하루 10개까지 · 체력 상한(STAMINA.cap)을 넘기면 멈춘다 (못 받은 선물은 그대로 남는다)
+export function giftClaim(lb, k, now = Date.now()) {
+  lb.fr.gin = giftInbox(lb, now);
+  const want = k === 'all' ? lb.fr.gin.slice() : lb.fr.gin.filter((g) => g.k === k);
+  if (!want.length) return { error: k === 'all' ? '받을 선물이 없어요' : '없는 선물이에요' };
+  let left = giftRecvLeft(lb, now);
+  if (left <= 0) return { error: `선물은 하루 ${FRIEND.recvPerDay}개까지 받을 수 있어요` };
+  if (staminaNow(lb, now).v + FRIEND.gift > STAMINA.cap) return { error: `체력이 가득이에요 (최대 ${STAMINA.cap})` };
+  let n = 0;
+  const took = new Set();
+  for (const g of want) {
+    if (left <= 0 || staminaNow(lb, now).v + FRIEND.gift > STAMINA.cap) break;
+    staminaAdd(lb, FRIEND.gift, now);
+    frDayInc(lb.fr, 'got', now);
+    took.add(g.k); left--; n++;
+  }
+  lb.fr.gin = lb.fr.gin.filter((g) => !took.has(g.k));
+  return { n, sta: staminaNow(lb, now).v, gotSta: n * FRIEND.gift, left: giftRecvLeft(lb, now), rest: lb.fr.gin.length };
+}
+// 대표 멤버: 지금 덱의 대장 → 덱 첫 멤버 → 가장 많이 강화한 멤버 (가진 멤버만)
+export function leaderOf(lb) {
+  const ok = (h) => typeof h === 'string' && heroUnlocked(lb, h);
+  const d = lb.decks && Array.isArray(lb.decks.decks) ? lb.decks.decks[lb.decks.i | 0] || [] : [];
+  const l = lb.decks && Array.isArray(lb.decks.leaders) ? lb.decks.leaders[lb.decks.i | 0] : null;
+  if (ok(l) && d.includes(l)) return l;
+  const first = d.find(ok);
+  if (first) return first;
+  const best = Object.keys(HEROES).filter(ok).sort((a, b) => (((lb.heroes || {})[b]) | 0) - (((lb.heroes || {})[a]) | 0))[0];
+  return best || 'staff';
+}
+// 빌려줄 멤버 모습 (서버가 친구 기록에서 만든다 — 화면이 보낸 능력치는 안 믿음)
+export function friendSnapshot(flb) {
+  const hero = leaderOf(flb);
+  const sl = (flb.equip || {})[hero] || {};
+  const gear = cleanSnapGear(['w', 'a', 'm'].map((k) => (flb.gear || []).find((g) => g.id === sl[k])).filter(Boolean));
+  return { hero, lv: int((flb.heroes || {})[hero], 0, 99), star: heroStar(flb, hero), gear };
+}
+// 레이드 시작 때 친구 멤버 빌리기 확인 (한 판에 한 명 · 같은 친구는 하루 한 번)
+export function borrowCheck(lb, fid, now = Date.now()) {
+  if (!isFriend(lb, fid)) return '친구의 멤버만 빌릴 수 있어요';
+  if (borrowedToday(lb, fid, now)) return '이 친구의 멤버는 오늘 이미 빌렸어요 (내일 다시)';
+  return null;
+}
+export function borrowMark(lb, fid, help, runId, now = Date.now()) {
+  frDayPush(lb.fr, 'bor', fid, now);
+  lb.fr.help = Object.assign({ run: runId, id: fid }, help);
+}
+export const helpFor = (lb, runId) => (lb.fr && lb.fr.help && lb.fr.help.run === runId ? lb.fr.help : null);
+// 빌려준 사람: 우편 보상 (하루 FRIEND.lendPerDay 번까지) · 도움 포인트도 같이 쌓인다
+export function lendReward(flb, borrowerNick, now = Date.now()) {
+  const n = frDayInc(flb.fr, 'lent', now);
+  flb.fr.lentAll = (flb.fr.lentAll | 0) + 1;
+  if (n > FRIEND.lendPerDay) return false;
+  flb.fr.pts = (flb.fr.pts | 0) + FRIEND.lendPts;
+  const who = String(borrowerNick || '친구').slice(0, 12);
+  mailAdd(flb, { title: '내 멤버가 레이드를 도왔어요', text: `${who}님이 내 멤버를 빌려 갔어요 · 도움 포인트 +${FRIEND.lendPts}`, from: who, rw: FRIEND.lendRw, days: 7 }, now);
+  return true;
+}

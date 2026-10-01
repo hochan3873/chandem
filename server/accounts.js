@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { isMasterName, masterList } = require('./masters');
+const { createFriends } = require('./langbang-friends');
 
 // ── 오목 티어 (Elo 점수) ───────────────────────────────
 const TIERS = [
@@ -529,8 +530,9 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           if (!run || run.id !== String(body.runId || '') || (run.wi !== st.wi && now - run.at > 10 * 60e3)) { out = { error: '레이드를 다시 시작해 주세요' }; return; } // 시간이 끝나도 진행 중이던 판은 인정
           if (dur > (now - run.at) / 1000 * 1.15 + 20) { out = { error: '기록을 확인할 수 없어요' }; return; }
           const dmg = Math.floor(Number(body.raidDmg) || 0);
-          if (dmg < 0 || dmg > LIVE.raidCap(before, dur)) { out = { error: '기록을 확인할 수 없어요' }; return; }
-          rd = { wi: run.wi, dmg };
+          const help = LIVE.helpFor(before, run.id); // 친구 멤버를 데려간 판: 피해 상한을 조금 올린다
+          if (dmg < 0 || dmg > LIVE.raidCap(before, dur) * (help ? LIVE.FRIEND.capMul : 1)) { out = { error: '기록을 확인할 수 없어요' }; return; }
+          rd = { wi: run.wi, dmg, help: help ? { nick: help.nick, hero: help.hero } : null };
         }
         // 미션용 숫자도 서버가 상한을 건다
         const bosses = Math.min(int(body.bossKills, 99), mode === 'stage' ? LIVE.stageBossN(stage) : mode === 'weekly' ? 20 : mode === 'raid' ? 0 : Math.floor(wave / 5) + 1);
@@ -583,6 +585,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           } else if (mode === 'raid') {
             if (!master) LIVE.raidRecord(lb, rd.dmg, now, rd.wi);
             lb.raidRun = null;
+            if (lb.fr) lb.fr.help = null;
             lb.exp += 40;
           } else if (mode === 'weekly') {
             if (!master) weeklyBest = LIVE.weeklyRecord(lb, wk.wi, wk.score, wave, now); // 마스터 테스트 판은 순위에 안 올린다
@@ -604,7 +607,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         out = {
           profile: lbView(lb, id, master), reward: { ...reward, firstClear: first, stage, stars, isPerfect: perfect, firstPerfect, drops: got, hell, stones, cardDrop },
           levelUp: lb.level > before.level, rank: mode === 'weekly' ? await store.rankWeekly(wk.wi, id) : mode === 'raid' ? await store.raidRank(rd.wi, id) : await store.rankLangbang(mode, id),
-          raid: rd ? { dmg: rd.dmg, mine: lb.raid ? lb.raid.dmg : 0, total: await store.raidTotal(rd.wi), hp: LIVE.RAID.hp, master } : null,
+          raid: rd ? { dmg: rd.dmg, mine: lb.raid ? lb.raid.dmg : 0, total: await store.raidTotal(rd.wi), hp: LIVE.RAID.hp, master, help: rd.help } : null,
           weekly: wk ? { score: wk.score, best: lb.weekly ? lb.weekly.best : 0, newBest: weeklyBest, master } : null,
           unlockedHeroes: first ? Object.keys(LBR.HERO_UNLOCK).filter((h) => LBR.HERO_UNLOCK[h] === stage && !LBR.heroUnlocked(before, h)) : [],
           endlessUnlocked: first && !LBR.endlessUnlocked(before) && LBR.endlessUnlocked(lb),
@@ -1090,6 +1093,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     }
     return { ranking, me, mode };
   }
+  // 친구 · 체력 선물 · 레이드 도와주기 (server/langbang-friends.js)
+  const FR = createFriends({ store, update, serial, userFromToken, lbLive, lbView, normLb, isMasterName, AuthError, LIVE: () => LIVE });
   function langbangRouter(express) {
     const r = express.Router();
     r.use(express.json({ limit: '4kb' }));
@@ -1101,6 +1106,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         else { console.error('[langbang]', e); res.status(500).json({ ok: false, message: '잠시 후 다시 해 주세요' }); }
       }
     };
+    FR.mount(r, wrap, tok); // 친구 (/friends/* · 친구 멤버를 데려가는 /raid/start)
     r.get('/me', wrap((req) => lbMe(tok(req))));
     r.post('/result', wrap((req) => lbResult(tok(req), req.body || {})));
     r.post('/upgrade', wrap((req) => lbUpgrade(tok(req), String((req.body || {}).hero || ''))));
