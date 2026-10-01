@@ -148,6 +148,20 @@ const topAt = (page, sel) => page.evaluate((sel) => {
   const nBefore = await page.evaluate(() => document.querySelectorAll('.dk-slots [data-dslot] .acard').length);
   await drag('.dk-slots [data-dslot="1"] .acard', null);
   check(await page.evaluate((n) => document.querySelectorAll('.dk-slots [data-dslot] .acard').length === n - 1, nBefore), '칸 밖으로 끌면 빠진다');
+  // 진상의 탑: 로비 입구 → 탑 로비(한 칸만 열림) → 오르기 연출 → 한 명만 싸운다 → 그만두면 추락 결과 · 도전 1번 깎임
+  await page.evaluate(() => { const g = JSON.parse(localStorage.getItem('langbang:guest') || '{}'); g.stages = Object.assign(g.stages || {}, Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 3]))); delete g.tower; localStorage.setItem('langbang:guest', JSON.stringify(g)); localStorage.removeItem('langbang:snap'); });
+  await page.goto(base + '?nogate', { waitUntil: 'networkidle0' }); await wait(800);
+  check(await topAt(page, '.tw-entry'), '로비에 진상의 탑 입구');
+  await page.evaluate(() => document.querySelector('.tw-entry').click()); await wait(900);
+  check(await page.evaluate(() => window.__lb.app.screen === 'tower' && document.querySelectorAll('.tw-slot.lock').length === 5 && !!document.querySelector('.tw-fc.main')), '탑 로비: 다음 층 카드 · 멤버 칸 하나만 열림');
+  await page.evaluate(() => document.querySelector('[data-act="twGo"]').click()); await wait(600);
+  check(await page.evaluate(() => !!document.querySelector('.tw-climb')), '오르기 연출');
+  await wait(3200);
+  check(await page.evaluate(() => { const g = window.__lb.g; return !!(g && g.tower && g.tower.f === 1 && g.heroes.length === 1 && document.querySelector('.tw-hud')); }), '탑 1층 전투: 한 명 · 지옥 1F 배지');
+  await page.evaluate(() => { window.__lb.g.augOffer = null; document.getElementById('btn-pause').click(); }); await wait(400);
+  await page.evaluate(() => document.querySelector('.pause-box [data-act="quit"]').click()); await wait(300);
+  await page.evaluate(() => document.querySelector('.confirm-modal [data-c="yes"]').click()); await wait(1200);
+  check(await page.evaluate(() => !!document.querySelector('.tw-res.lose') && JSON.parse(localStorage.getItem('langbang:guest')).tower.used === 1), '그만두면 추락 결과 · 도전 1번 사용');
   check(!errors.length, '페이지 에러 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   await srv.close();

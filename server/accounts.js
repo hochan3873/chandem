@@ -45,6 +45,7 @@ const LBR = require('./langbang-rules');
 let LIVE = null;
 const liveReady = import(require('url').pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href)
   .then((m) => { LIVE = m; }).catch((e) => console.error('[langbang] live.js 불러오기 실패:', e.message));
+const TOWER_MOD = require('./langbang-tower'); // 진상의 탑 (공식은 public/langbang/tower.js)
 const LB_HEROES = LBR.LB_HEROES;
 const LB_MAX_META = LBR.META_MAX;
 function emptyLangbang() {
@@ -101,6 +102,7 @@ function normLb(raw, master = false) {
   for (const k of Object.keys((raw && raw.perfects) || {})) if (+k >= 1 && +k <= LBR.STAGE_COUNT) lb.perfects[+k] = true;
   lb.totalStars = Object.values(lb.stages).reduce((a, b) => a + b, 0);
   if (LIVE) LIVE.normLive(raw, lb); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록 (이상한 값은 버린다)
+  if (TOWER_MOD.getTower()) TOWER_MOD.getTower().normTower(raw, lb); // 진상의 탑
   return lb;
 }
 const lbExpToNext = (level) => 100 + (level - 1) * 60; // 다음 계정 레벨까지 필요한 경험치
@@ -304,7 +306,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       for (const x of r.rows) noteMeta(x.id, x.meta);
     } else for (const u of Object.values(store.data.users)) if (u.meta) noteMeta(u.id, u.meta);
   }
-  const ready = Promise.all([store.init().then(warmMeta), liveReady]).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
+  const ready = Promise.all([store.init().then(warmMeta), liveReady, TOWER_MOD.towerReady]).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
 
   // 토큰: 아이디.만료.토큰버전.서명 (옛 토큰 아이디.만료.서명 은 버전 0 으로 본다)
   const sign = (id, exp, tv) => crypto.createHmac('sha256', key).update(tv === undefined ? `${id}.${exp}` : `${id}.${exp}.${tv}`).digest('base64url');
@@ -1166,6 +1168,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       animCache = { at: Date.now(), v: { enemies: out, files } };
       return animCache.v;
     }));
+    TOWER_MOD(r, { store, lbLive, verifyToken, freeMaster, isMasterName, masterList, wrap, tok, normLb }); // 진상의 탑
     return r;
   }
 

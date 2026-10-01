@@ -9,6 +9,7 @@ import {
 } from './data.js';
 import * as L from './live.js';
 import { pvpLoadout } from './pvp.js';
+import * as TW from './tower.js';
 
 const GUEST_KEY = 'langbang:guest';
 const OLD_GUEST_KEY = 'langbang:guestBest'; // 예전(20웨이브 시절) 손님 최고 기록
@@ -84,6 +85,7 @@ function normalize(p, guest) {
   out.deckSlots = deckSlots(out.items);
   out.guest = !!guest;
   L.normLive(p || {}, out); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록
+  TW.normTower(p || {}, out); // 진상의 탑 (층 · 각성 · 염화석 · 지옥 세트)
   out.master = !guest && !!(p && p.master); // 서버가 정한 값 (손님은 절대 아님)
   out.autoSell = !!(p && p.autoSell);
   out.stones = Math.max(0, (p && p.stones) | 0);
@@ -117,7 +119,7 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
+const LIVE_KEYS = ['gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed', 'tower'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
@@ -401,6 +403,7 @@ export function gearFor(profile, ids, mythMul = 1) {
   for (const id of ids) {
     const sl = (profile.equip || {})[id] || {};
     out[id] = gearStats(['w', 'a', 'm'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter(Boolean), mythMul);
+    for (const [k, v] of Object.entries(TW.hellStats(profile, id))) out[id][k] = (out[id][k] || 0) + v; // 진상의 탑 지옥 세트 (모든 모드)
   }
   return out;
 }
@@ -516,3 +519,14 @@ export function liveUid() { const t = token(); return t ? String(t).split('.')[0
 export async function friendsLoad() { return call('/api/langbang/friends'); }
 // kind: request {q} · accept/decline/cancel/remove {id} · gift {id | 'all'} · claim {k | 'all'}
 export function friendAct(kind, body) { return liveCall('friends/' + kind, body || {}); }
+
+// ─── 진상의 탑 (손님은 같은 함수로 이 기기에 · 로그인은 서버가 계산하고 확인) ───
+export function towerStart(f, hero, guest) { return guest ? guestLive((p) => TW.towerStart(p, f, hero, 'g' + Date.now().toString(36), Date.now())) : liveCall('tower/start', { f, hero }); }
+export function towerFinish(body, guest) { return guest ? guestLive((p) => TW.towerFinish(p, body, GUEST_UID, Date.now())) : liveCall('tower/finish', body); }
+export async function towerBoard() { const r = await call('/api/langbang/tower'); return r.ok ? r : null; }
+export function towerClaim() { return liveCall('tower/claim', {}); }
+export function towerShop(id, guest) { return guest ? guestLive((p) => TW.shopBuy(p, id, Date.now())) : liveCall('tower/shop', { id }); }
+export function towerHellUp(id, guest) { return guest ? guestLive((p) => TW.hellUp(p, id)) : liveCall('tower/hell/up', { id }); }
+export function towerHellEquip(id, hero, guest) { return guest ? guestLive((p) => TW.hellEquip(p, id, hero)) : liveCall('tower/hell/equip', { id, hero }); }
+export function towerPickGear(type, guest) { return guest ? guestLive((p) => TW.pickLegendGear(p, type)) : liveCall('tower/pick/gear', { type }); }
+export function towerPickHero(hero, guest) { return guest ? guestLive((p) => TW.pickLegendHero(p, hero)) : liveCall('tower/pick/hero', { hero }); }

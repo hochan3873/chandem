@@ -180,3 +180,13 @@ test('서버: 손님 전투력은 보낸 강화 · 장비를 대전 한도로 �
   assert.equal(m1, m2, '순서 상관없이 같은 진상 체력');
   k.close();
 });
+
+test('1:1 대전: 지옥 각성 · 지옥 세트는 전투력 보정으로 빠진다', async () => {
+  const S = await import(require('url').pathToFileURL(require('path').join(__dirname, '../public/langbang/sim.js')).href);
+  const g = S.createGame({ mode: 'pvp', pvp: { seed: 3 }, heroes: ['gunman'], awake: { gunman: 3 }, gear: { gunman: { atk: 0.1, hellSet: 4 } }, noWaves: true });
+  const h = g.heroes[0];
+  assert.equal(h.awake | 0, 0);
+  assert.equal(h.gear.hellSet | 0, 0);
+  const g2 = S.createGame({ mode: 'stage', stage: 1, heroes: ['gunman'], awake: { gunman: 3 }, gear: { gunman: { atk: 0.1, hellSet: 4 } }, noWaves: true });
+  assert.equal(g2.heroes[0].awake, 3); assert.equal(g2.heroes[0].gear.hellSet, 4);
+});
