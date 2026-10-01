@@ -553,7 +553,7 @@ function updateDash(g, h, dt, rate) {
     h.px += (h.x - h.px) * Math.min(1, dt * 10); h.py += (h.y - h.py) * Math.min(1, dt * 10);
     const t = pickCluster(g, h, heroRange(g, h));
     if (!t) return;
-    h.out = true; h.outT = d.outSec[lv - 1] + (h.cm.out || 0); h.dashE = t; h.upT = h.outT; h.cd = 0;
+    h.out = true; h.outT = (d.outSec[lv - 1] + (h.cm.out || 0)) * (g.tower && g.tower.swarm ? TOWER_SIM.dash.swarmOut : 1); h.dashE = t; h.upT = h.outT; h.cd = 0; // 탑 떼거리: 둘러싸여 금방 지친다
     ev(g, 'dash', { x: h.x, y: h.y, tx: t.x, ty: t.y });
     return;
   }
@@ -575,7 +575,7 @@ function updateDash(g, h, dt, rate) {
     if ((h.shots++ % 5) === 0) ev(g, 'slash', { x: t.x, y: t.y - 20 });
   }
   if (h.outT <= 0 || (!t && h.outT < d.outSec[lv - 1] - 0.3)) {
-    h.out = false; h.upT = 0; h.restT = d.restSec[lv - 1] * (h.sa && h.sa.endless ? 0.6 : 1); h.dashE = null;
+    h.out = false; h.upT = 0; h.restT = d.restSec[lv - 1] * (h.sa && h.sa.endless ? 0.6 : 1) * (g.tower && g.tower.swarm ? TOWER_SIM.dash.swarmRest : 1); h.dashE = null;
     ev(g, 'crossfit', { x: h.x, y: h.y });
   }
 }
@@ -1211,7 +1211,8 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     }
   }
   if (e.fast && src && src.def && !(e.slowT > 0) && !(e.stunT > 0) && !BAL.noMiss.includes(src.def.proj) && !(g.timeStopT > 0)) {
-    const ch = e.boss || e.mid ? BAL.fast.dodgeBig : aoe ? BAL.fast.dodgeAoe : BAL.fast.dodge;
+    let ch = e.boss || e.mid ? BAL.fast.dodgeBig : aoe ? BAL.fast.dodgeAoe : BAL.fast.dodge;
+    if (g.tower && g.tower.rush && src.def.proj === 'dash') ch = Math.max(ch, TOWER_SIM.dash.rushDodge); // 탑 돌진: 근접 돌격은 더 잘 빗나간다
     if (g.rng() < ch) { if (g.t - (e.missT || -9) > 0.35) { e.missT = g.t; ev(g, 'dodge', { x: e.x, y: e.y - e.def.size * 0.6 }); } return 0; }
   }
   if (e.boardT > 0 && ch7Dodge(g, e, src)) return 0; // 7장 보드남: 줄 바꾸는 순간엔 잘 피한다
@@ -1760,7 +1761,7 @@ function updateEnemies(g, dt) {
       if (e.atkCd <= 0) {
         e.atkCd = e.fast ? BAL.fast.atkInt : def.atkInterval; // 빠른 진상: 입구에 붙으면 빠르게 세게
         e.hitT = 0.25;
-        damageBase(g, e.atk * (e.fast ? BAL.fast.atkMul : 1) * ((e.def.traits && e.def.traits.stealth) || e.cloak ? 2 : 1), e);
+        damageBase(g, e.atk * (e.fast ? BAL.fast.atkMul : 1) * (e.def.traits && e.def.traits.stealth ? 2 : e.cloak ? TOWER_SIM.dark.door : 1), e);
       }
     }
     if (e.hitT > 0) e.hitT -= dt;
@@ -3255,11 +3256,11 @@ function pvpStep(g, dt) {
 }
 // 영웅 자리 바꾸기 (끌어다 놓기). 잠깐 쿨타임
 export function swapHeroes(g, h, slot) {
-  if (!h || slot < 0 || slot >= g.nPos || slot === h.slot) return false; // 자리 바꾸기는 바로 · 공짜
-  const other = g.heroes.find((o) => o.slot === slot);
+  if (!h || slot < 0 || slot >= g.nPos || (slot === h.slot && (!g.tower || Math.abs(h.x - g.slotX[slot]) < 1))) return false; // 자리 바꾸기는 바로 · 공짜 (탑: 걸어가서 칸을 벗어났으면 같은 칸으로도 돌아온다)
+  const other = g.heroes.find((o) => o !== h && o.slot === slot);
   if (other) { other.slot = h.slot; other.x = g.slotX[other.slot]; }
   h.slot = slot; h.x = g.slotX[slot];
-  if (!g._autoSwap) g.swapAt = g.t; // 손으로 옮김 (탑 자동 자리 잡기가 잠깐 쉰다)
+  if (!g._autoSwap) { g.swapAt = g.t; if (g.tower) { h.laneX = h.x; g.laneT = 0; } } // 손으로 옮김: 탑 자동 자리 잡기가 쉬고 · 가던 길도 멈춘다 (옆으로 밀리지 않게)
   ev(g, 'swap', { hero: h.id, x: h.x, y: h.y });
   return true;
 }
@@ -3859,14 +3860,15 @@ function towerEnemy(g, e, o) {
   const T = g.tower, S0 = TOWER_SIM;
   let atk = e.def.atk * T.atk, hpm = 1, spd = 1;
   if (e.boss) atk *= 1.2;
-  else if (T.titan && e.elite) { hpm *= lerpK(S0.titan.hp, T.k); spd *= S0.titan.spd; atk *= lerpK(S0.titan.atk, T.k); e.titan = true; }
+  else if (T.titan && e.elite) { hpm *= lerpK(S0.titan.hp, T.k) * (T.rules.length > 1 ? S0.titan.pair : 1); spd *= S0.titan.spd; atk *= lerpK(S0.titan.atk, T.k); e.titan = true; }
   else if (T.swarm && !e.elite) { hpm *= lerpK(S0.swarm.hp, T.k); atk *= S0.swarm.atk; }
   if (T.rush && !e.boss && !e.titan) { e.fast = true; spd *= lerpK(S0.rush.spd, T.k); }
   if (hpm !== 1) { e.maxHp *= hpm; e.hp = e.maxHp; }
   e.speed = Math.min(e.boss ? 60 : S0.rush.maxSpd, e.speed * spd); e.baseSpeed = e.speed;
   e.atk = atk; e.baseAtk = atk;
   if (T.layers) { const li = T.f >= 20 ? 2 : T.f >= 10 ? 1 : 0; e.tLay = e.tLayMax = (e.boss ? S0.shield.boss : S0.shield.layers)[li]; e.tLayT = S0.shield.regen; e.shield = Math.max(e.shield, e.maxHp * S0.shield.hp); }
-  e.cloak = !!T.dark && !e.boss; e.unveiled = !e.cloak && !(e.def.traits && e.def.traits.stealth);
+  e.cloak = !!T.dark && !e.boss && !e.titan; e.unveiled = !e.cloak && !(e.def.traits && e.def.traits.stealth);
+  if (T.dark && e.def.sleep) e.slept = true; // 어둠의 층: 드러눕지 않는다 (줄어든 사거리 밖 길 한가운데 누우면 혼자서는 못 잡아 시간 초과) · 거물은 커서 어둠 속에서도 보인다
 }
 // 보호막 겹: 한 방에 한 겹 (버프 벗기기 장비는 한 번에 다 깬다)
 function layerHit(g, e, src) {
@@ -3889,12 +3891,18 @@ function towerCurse(g, dt) {
   const e = src[(g.rng() * src.length) | 0], h = victim(g, hs);
   const kind = CURSE_KINDS[T.curseI++ % CURSE_KINDS.length];
   ev(g, 'twCurse', { kind, x: h.x, y: h.y, ex: e.x, ey: e.y - e.def.size * 0.5, hero: h.id });
-  if (kind === 'stun') { const s0 = debuffSec(h, C.stun[0] + (C.stun[1] - C.stun[0]) * k); if (s0 > 0) { h.stunT = Math.max(h.stunT, s0); ev(g, 'heroStun', { x: h.x, y: h.y, hero: h.id }); } }
+  if (kind === 'stun') { const s0 = debuffSec(h, C.stun[0] + (C.stun[1] - C.stun[0]) * k); if (s0 > 0) { h.stunT = Math.max(h.stunT, s0); dashBreak(g, h); ev(g, 'heroStun', { x: h.x, y: h.y, hero: h.id }); } }
   else if (kind === 'silence') { const s0 = debuffSec(h, C.silence); if (s0 > 0) h.silenceT = Math.max(h.silenceT || 0, s0); }
   else if (kind === 'charm') {
     if (g.heroes.some((o) => o.id === 'gunnyeo' && o.lv >= 5)) ev(g, 'charmBlock', { x: h.x, y: h.y });
-    else { const s0 = debuffSec(h, C.charm[0] + (C.charm[1] - C.charm[0]) * k); if (s0 > 0) { h.charmT = Math.max(h.charmT, s0); ev(g, 'charm', { hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y }); } }
+    else { const s0 = debuffSec(h, C.charm[0] + (C.charm[1] - C.charm[0]) * k); if (s0 > 0) { h.charmT = Math.max(h.charmT, s0); dashBreak(g, h); ev(g, 'charm', { hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y }); } }
   } else { const s0 = debuffSec(h, C.slow[1], 'slow'); if (s0 > 0) { h.aspdDebT = Math.max(h.aspdDebT || 0, s0); h.aspdDebCut = C.slow[0]; } }
+}
+// 저주의 층: 돌격 중(김영준)에 기절 · 홀림이 걸리면 돌격이 끊기고 숨 고르기부터 (뛰어든 동안 아무것도 안 통하던 것을 탑에선 막는다)
+function dashBreak(g, h) {
+  if (!h.out || h.def.proj !== 'dash') return;
+  h.out = false; h.upT = 0; h.dashE = null; h.restT = h.def.restSec[h.lv - 1] * TOWER_SIM.dash.curseRest;
+  ev(g, 'crossfit', { x: h.x, y: h.y });
 }
 // 매 스텝: 탑 규칙 · 미끄러운 길(송바울) · 지옥 세트 화염 폭발
 function extraTick(g, dt) {
@@ -3912,7 +3920,7 @@ function extraTick(g, dt) {
       for (const e of g.enemies) {
         if (e.dead) continue;
         if (e.tLayMax && e.tLay < e.tLayMax) { if (e.noShieldT > 0) e.tLay = 0; else if ((e.tLayT -= dt) <= 0) { e.tLay++; e.tLayT = TOWER_SIM.shield.regen; } }
-        if (e.cloak && !e.unveiled && e.y > rv) { e.unveiled = true; ev(g, 'unveil', { x: e.x, y: e.y - 30 }); }
+        if (e.cloak && !e.unveiled && (e.y > rv || e.sleeping || (e.hideT = (e.hideT || 0) + dt) > TOWER_SIM.dark.maxHide)) { e.unveiled = true; ev(g, 'unveil', { x: e.x, y: e.y - 30 }); } // 길 중간에 드러누운 진상 · 멈춘 진상도 결국 보인다 (못 잡아서 시간 초과 나지 않게)
       }
     }
   }
@@ -3997,7 +4005,7 @@ function redChain(g, h, x, y, r, dmg, sk) {
   });
   ev(g, 'skill', { hero: h.id, skill: sk.id, name: '레드카드 연쇄!', x: best.x, y: best.y, r, target: true, echo: true });
 }
-// 혼자인 탑: 멤버가 진상이 몰린 줄로 알아서 걸어간다 (자기 줄만 치는 멤버도 싸울 수 있게 · 손으로 옮기면 4초 쉼)
+// 혼자인 탑: 멤버가 진상이 몰린 줄로 알아서 걸어간다 (자기 줄만 치는 멤버도 싸울 수 있게 · 손으로 옮기면 TOWER_SIM.laneHold 초 동안 그 자리)
 function towerAutoLane(g, dt) {
   const h = g.heroes.find((o) => !o.def.summon && !o.gone);
   if (!h) return;
@@ -4008,7 +4016,7 @@ function towerAutoLane(g, dt) {
   if ((g.laneT = (g.laneT || 0) - dt) > 0) return;
   g.laneT = 0.6;
   if (h.out || h.wsSt || (h.wallSt && h.wallSt !== 'rest') || h.frenzyT > 0 || h.burstT > 0) return;
-  if (g.t - (g.swapAt === undefined ? -9 : g.swapAt) < 4) { h.laneX = h.x; return; }
+  if (g.t - (g.swapAt === undefined ? -99 : g.swapAt) < TOWER_SIM.laneHold) { h.laneX = h.x; return; } // 손으로 옮긴 뒤엔 그 자리 그대로
   const d0 = h.def;
   const lw = h.id === 'hochan' ? d0.waveW[h.lv - 1] : h.id === 'sunggu' ? 14 : d0.proj === 'wall' ? d0.wall.w[h.lv - 1] * 0.8 : 0; // 자기 줄만 치는 폭
   const score = (x) => {

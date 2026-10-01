@@ -54,7 +54,11 @@ test('탑: 60층 · 15층마다 구역 · 5층마다 보스 · 46층부터 규�
 
 test('탑: 층이 오를수록 진상 체력 · 공격력이 복리로 오른다 (같은 층 안에서도 웨이브마다)', () => {
   for (let f = 2; f <= 60; f++) { assert.ok(T.floorHp(f) > T.floorHp(f - 1)); assert.ok(T.floorAtk(f) > T.floorAtk(f - 1)); }
-  assert.ok(Math.abs(T.floorHp(60) / T.floorHp(1) - Math.pow(T.TOWER.hpGrow, 59)) < 1e-6);
+  let m = 1; for (let f = 2; f <= 60; f++) m *= T.growAt(f, 1);
+  assert.ok(Math.abs(T.floorHp(60) / T.floorHp(1) - m) < 1e-6, '구간 배율을 층마다 곱한다');
+  // 16~35층이 가파르다 (예전 한 줄 ×1.065 보다 35층이 4배 넘게 단단) · 46층부터는 규칙 둘이 벽이라 거의 그대로
+  assert.ok(T.floorHp(35) > 0.9 * Math.pow(1.065, 34) * 4, `35층 ${T.floorHp(35).toFixed(1)}`);
+  assert.ok(T.floorHp(60) / T.floorHp(46) < 1.15);
   // 실제 진상 체력 (웨이브 배율까지)
   const hp = (f) => { const g = towerGame(f); S.startWave(g, 1); for (let i = 0; i < 400 && !g.enemies.length; i++) S.step(g, 1 / 60); const e = g.enemies[0]; return e.maxHp / e.def.hp / (e.titan ? 1 : 1); };
   assert.ok(hp(40) > hp(10) * 3, '40층 진상이 10층보다 훨씬 단단');
@@ -115,6 +119,60 @@ test('탑 규칙: 보호막 겹 · 속성 봉인 · 어둠 사거리 · 거물 �
   g.t = g.tower.limit + 1; g.phase = 'wave';
   S.step(g, 1 / 60);
   assert.equal(g.over, true, '시간 초과 = 실패');
+});
+
+test('탑 김영준: 혼자일 때 공격력 −30% (탑에서만) · 떼거리엔 금방 지치고 · 돌진 진상은 절반 빗나가고 · 저주에 걸리면 돌격이 끊긴다', () => {
+  const dmg = (tw) => { const g0 = S.createGame({ H: 760, rng: seeded(1), deck: [null, null, 'youngjun', null, null, null], noWaves: true, tower: tw }); return S.heroDamage(g0, g0.heroes[0]); };
+  const fPlain = 5; // 보스 층 (봉인 없음)
+  assert.ok(Math.abs(dmg(T.floorDef(fPlain)) / dmg(undefined) - D.TOWER_SIM.solo.youngjun) < 1e-6, '탑에서만 −30%');
+  const floorOf = (r) => [...Array(60).keys()].map((i) => i + 1).find((f) => T.floorRules(f).length === 1 && T.floorRules(f)[0] === r && f > 25);
+  // 떼거리: 돌격 시간 짧게 · 숨 고르기 길게
+  const outOf = (f) => { const g = towerGame(f, 'youngjun'); for (let i = 0; i < 60 * 40 && !g.heroes[0].out; i++) { S.step(g, 1 / 60); g.augOffer = null; g.pendingLevels = 0; } return g.heroes[0].outT; };
+  const fSw = floorOf('swarm'), fCu = floorOf('curse');
+  assert.ok(outOf(fSw) < outOf(fCu) * 0.7, `떼거리 돌격 ${outOf(fSw).toFixed(2)}초`);
+  // 돌진: 근접 돌격은 빠른 진상에게 절반이 빗나간다 (다른 멤버는 그대로)
+  const miss = (hero) => { const g = towerGame(floorOf('rush'), hero); const h = g.heroes[0]; let n = 0; for (let i = 0; i < 400; i++) { const e = S.spawnEnemy(g, 'mukti', 180, 200); e.tLay = 0; if (S.damageEnemy(g, e, 1, false, h) === 0) n++; e.dead = true; } return n / 400; };
+  assert.ok(miss('youngjun') > 0.4 && miss('gunman') < 0.4, `빗나감 김영준 ${miss('youngjun')} · 건전남 ${miss('gunman')}`);
+  // 저주: 돌격 중에 기절 · 홀림이 걸리면 돌격이 끊긴다
+  const g = towerGame(fCu, 'youngjun'); const h = g.heroes[0];
+  let broke = false;
+  for (let i = 0; i < 60 * 90 && !broke && !g.over; i++) { const was = h.out; S.step(g, 1 / 60); g.augOffer = null; g.pendingLevels = 0; if (was && !h.out && g.events.some((x) => (x.type === 'twCurse' && (x.kind === 'stun' || x.kind === 'charm')))) broke = true; g.events.length = 0; }
+  assert.ok(broke, '저주가 돌격을 끊는다');
+});
+
+test('탑 어둠 · 거물: 어둠의 층 드러눕는 진상은 눕지 않고 · 거물은 보인다 · 규칙 둘인 층 거물은 체력 절반', () => {
+  const fD = [...Array(60).keys()].map((i) => i + 1).find((f) => T.floorRules(f).includes('dark') && T.floorRules(f).includes('titan'));
+  const g = towerGame(fD, 'ara');
+  const sl = S.spawnEnemy(g, 'drunk_sleep', 180, 50);
+  assert.ok(sl.slept && !sl.sleeping, '드러눕지 않는다');
+  const ti = S.spawnEnemy(g, 'kkondae2', 120, 50, { elite: true });
+  assert.ok(ti.titan && !S.isHidden(ti), '거물은 어둠에서도 보인다');
+  const fT1 = [...Array(60).keys()].map((i) => i + 1).find((f) => T.floorRules(f).length === 1 && T.floorRules(f)[0] === 'titan' && f > 30);
+  const g1 = towerGame(fT1); const one = S.spawnEnemy(g1, 'kkondae2', 120, 50, { elite: true }), base1 = S.spawnEnemy(g1, 'kkondae2', 120, 50);
+  const two = ti, base2 = S.spawnEnemy(g, 'kkondae2', 120, 50);
+  assert.ok(Math.abs(two.maxHp / base2.maxHp / (one.maxHp / base1.maxHp) - D.TOWER_SIM.titan.pair) < 0.01, '규칙 둘: 거물 체력 ×0.5');
+});
+
+test('탑 자리 옮기기: 손으로 끝 칸에 놓으면 바로 그 자리 · 옆으로 밀리지 않고 · 자동 자리 잡기는 잠깐 쉰다 (이호찬 · 강성구)', () => {
+  for (const hero of ['hochan', 'sunggu']) {
+    const g = towerGame(3, hero, { meta: { [hero]: 10 } });
+    const h = g.heroes[0];
+    const walk = (sec) => { for (let i = 0; i < sec * 60; i++) { S.step(g, 1 / 60); g.augOffer = null; g.pendingLevels = 0; } };
+    // 진상이 몰린 줄로 알아서 걸어가는 중일 때
+    let moved = false;
+    for (let i = 0; i < 40 * 60 && !moved; i++) { S.step(g, 1 / 60); g.augOffer = null; g.pendingLevels = 0; moved = h.laneX !== undefined && Math.abs(h.laneX - h.x) > 30; }
+    assert.ok(moved, `${hero}: 자동으로 걸어가는 중`);
+    for (const slot of [0, g.nPos - 1]) {
+      assert.equal(S.swapHeroes(g, h, slot), true, `${hero}: ${slot}번 칸으로 옮겨진다`);
+      const x0 = g.slotX[slot];
+      for (let t = 0; t < D.TOWER_SIM.laneHold - 0.5; t += 0.5) { walk(0.5); assert.ok(Math.abs(h.x - x0) < 1, `${hero}: ${slot}번 칸 그대로 (${t + 0.5}초 뒤 x=${h.x.toFixed(0)} · 칸 ${x0})`); }
+    }
+    // 걸어가서 칸을 벗어난 뒤에도, 처음 칸으로 다시 끌어 놓으면 돌아온다 (같은 칸이라고 무시하지 않기)
+    h.x = g.slotX[h.slot] + 120; h.laneX = h.x;
+    assert.equal(S.swapHeroes(g, h, h.slot), true, `${hero}: 벗어난 같은 칸으로도 돌아온다`);
+    assert.equal(h.x, g.slotX[h.slot]);
+    assert.equal(S.swapHeroes(g, h, h.slot), false, '이미 그 칸이면 그대로');
+  }
 });
 
 test('탑: 하루 도전 5번 (실패만 깎임) · 층은 최고+1 까지 · 처음 깬 층만 보상 · 판 번호 · 시간 확인', () => {
