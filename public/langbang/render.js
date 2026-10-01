@@ -309,6 +309,7 @@ export class Renderer {
     list.js_back = '/img/lb/h_jeongseob_back.webp'; list.js_walk = '/img/lb/h_jeongseob_walkfront.webp'; list.js_walkb = '/img/lb/h_jeongseob_walkback.webp'; list.js_rest = '/img/lb/h_jeongseob_rest.webp'; // 윤정섭 걷기 · 쉬기
     for (const id in HERO_ANIM_FORM) list['hanim_' + id + '_f'] = HERO_ANIM_FORM[id].src; // 변신 모습 띠
     for (const n of PROJ_ART_NAMES) list['w_' + n] = `/img/lb/fx/w_${n}.webp`; // 투사체 그림 (없으면 코드 모양)
+    for (const n of ['syringe', 'banknote', 'bandage']) list['sk_fx_' + n] = `/img/lb/fx/p_sk_${n}.webp`; // 스킬 연출 그림 (있으면 · 없으면 코드 모양)
     list.bus = '/img/lb/fx/bus.webp'; list.bus2 = '/img/lb/fx/bus2.webp';
     for (const n of ['cc_pull', 'cc_stun', 'cc_slow', 'cc_freeze', 'cc_push']) list[n] = `/img/lb/ui2/${n}.webp`;
     for (const n of ['hitspark', 'smoke', 'slap', 'grab', 'phone', 'shock', 'shock2', 'crack', 'summon', 'silence', 'stun', 'dash', 'aura_red', 'aura_blue', 'warn', 'barrage_card', 'arm']) list['vfx_' + n] = `/img/lb/fx/vfx_${n}.webp`; // 이펙트 그림
@@ -966,10 +967,12 @@ export class Renderer {
     if (!demo) this.drawRopeShadow(g);
     this.drawMapFxUnder(g, t);
     this.drawGems(g, t);
+    if (this.skfx) this.skfx.draw('ground', g); // 스킬 전용 연출 (skillfx.js) — 바닥
     this.drawVfx('ground'); // 바닥 무늬: 금 · 경고 원 · 소환진 · 오라 (캐릭터 발밑 · 납작하게)
     this.drawEnemies(g, t);
     this.drawJoinWait(g);
     if (!demo) this.drawRope(g, t);
+    if (this.skfx) this.skfx.draw('gate', g); // 입구 위 (붕대)
     this.drawEnemies(g, t, true); // 때리는 진상은 바리케이드 앞
     this.drawPools(g, t);
     this.drawHeroes(g, t, ui);
@@ -979,11 +982,13 @@ export class Renderer {
     this.drawSlashes();
     this.drawDoorHits();
     this.drawVfx('front');
+    if (this.skfx) this.skfx.draw('mid', g); // 캐릭터 위 (오라 · 시간 정지 회색)
     if (!demo && this._skOverlay) this._skOverlay();
     this.drawArcs();
     this.drawBlasts();
     this.drawParts();
     this.drawRings();
+    if (this.skfx) this.skfx.draw('top', g); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
     this.drawTexts();
     this.drawBubbles();
     this.drawUiWorld(g, t, ui);
@@ -2045,7 +2050,22 @@ export class Renderer {
       const formOn = !!HERO_ANIM_FORM[h.id] && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!h.alt);
       const HA = formOn ? HERO_ANIM_FORM[h.id] : HERO_ANIM[h.id], hstrip = HA && this.images[formOn ? 'hanim_' + h.id + '_f' : 'hanim_' + h.id];
       let usedStrip = false;
-      if (hstrip && imgOk(hstrip) && !busy && (formOn || (!up && !h.alt))) {
+      if (h.id === 'youngjun' && h.out) { // 김영준: 진상에 붙으면 달리는 모습 대신 싸우는 자세(발톱 베기 띠) · 진상 쪽을 본다 · 한 대마다 앞으로 톡
+        const tg = h.dashE, im = this.images.hanim_youngjun;
+        if (h.shots !== h._ysShots) { if (h._ysShots !== undefined && tg && !tg.dead) { h._ysAt = performance.now(); if (this.skfx) this.skfx.ysStrike(h, tg); } h._ysShots = h.shots; }
+        const near = tg && !tg.dead && Math.hypot(tg.x - h.px, tg.y - h.py) < (h.def.reach || 70) + (tg.r || 14) + 12;
+        if (tg && !tg.dead) h._ysFace = tg.x < h.px - 2 ? -1 : tg.x > h.px + 2 ? 1 : h._ysFace || 1;
+        if (near && imgOk(im)) {
+          const s2 = (performance.now() - (h._ysAt || 0)) / 1000, face = h._ysFace || 1;
+          const fi = s2 < 0.13 ? 3 + Math.min(2, Math.floor((s2 / 0.13) * 3)) : 2 - (Math.floor(t * 8) % 2); // 베기 3~5칸 · 사이엔 자세 1~2칸
+          const nud = s2 < 0.1 ? (1 - s2 / 0.1) * 5 : 0;
+          const fit = this.stripFit('hanim_youngjun', im, 8, sp.c), fw = im.naturalWidth / 8;
+          this.tf(hx + face * nud, feet, 0, face, 1);
+          cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+          usedStrip = true;
+        }
+      }
+      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !h.alt))) {
         const n = HA.frames, fw = hstrip.naturalWidth / n, fh = hstrip.naturalHeight, rel = HA.release;
         let fi = -1;
         if (since < 0.3) fi = Math.min(n - 1, rel + Math.floor((since / 0.3) * (n - rel)));
@@ -2676,6 +2696,7 @@ export class Renderer {
       cx.fillStyle = gr; cx.fillRect(0, 0, W, H);
     }
     if (g && g.mapFx && g.mapFx.id !== 'none') this.drawMapFxOver(g);
+    if (g && this.skfx) this.skfx.draw('screen', g); // 스킬: 화면 어둡게 · 조명 · 집중선
     if (fx.flashA > 0) {
       cx.globalAlpha = fx.flashA;
       cx.fillStyle = fx.flashColor;
