@@ -4,7 +4,7 @@ import {
   FIELD, RULES, HEROES, SUMMONS, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
   STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
-  TRAITS, REVEAL_HEROES,
+  TRAITS, REVEAL_HEROES, CH7,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
@@ -243,6 +243,7 @@ function updateHeroes(g, dt) {
     if (h.fearT > 0) h.fearT -= dt;
     if (h.sarcT > 0) h.sarcT -= dt;
     if (h.silenceT > 0) h.silenceT -= dt;
+    if (h.muteT > 0) h.muteT -= dt; if (h.freezeT > 0) h.freezeT -= dt; if (h.thawT > 0) h.thawT -= dt; // 7장: 침묵(스킬 막힘) · 빙결 표시 · 녹은 뒤 잠깐 면역
     if (h.skillCd > 0 && !(h.silenceT > 0)) h.skillCd -= dt;
     // 최은옥: 술 → 분노 → 술 깸 반복
     if (d.soberSec) {
@@ -1144,7 +1145,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   // 진상 특성
   const tr = def.traits || {};
   e.bai = def.boss && BOSS_KITS[type] ? { st: 'walk', t: 0, next: BOSS_AI.every[0] + g.rng() * (BOSS_AI.every[1] - BOSS_AI.every[0]), roar: BOSS_AI.roar, i: 0, p2: false, targets: [] } : null;
-  if (!e.bai && def.mid && MID_KIT[def.cls] && g.mode !== 'pvp') e.bai = { st: 'walk', t: 0, next: MID_AI.every[0] + g.rng() * 4, roar: 1e9, i: 0, p2: false, targets: [], mid: true };
+  if (!e.bai && def.mid && !def.noKit && MID_KIT[def.cls] && g.mode !== 'pvp') e.bai = { st: 'walk', t: 0, next: MID_AI.every[0] + g.rng() * 4, roar: 1e9, i: 0, p2: false, targets: [], mid: true };
   e.cloak = !tr.stealth && !!o.elite && g.mode === 'stage' && chapterOf(g.stage || 1) >= 3 && g.rng() < 0.35; e.markT = 0;
   e.pShield = tr.projShield ? (def.projShield || 3) : 0; e.unveiled = !(tr.stealth || e.cloak); if (!e.unveiled && !g.stealthTip && g.mode === 'stage') { g.stealthTip = true; ev(g, 'tip', { text: '숨은 진상! 배현경이 찾아내고 · 범위 공격이나 오지은 시간 정지에 들켜요' }); } e.shredN = 0; e.shredT = 0; e.healBlockT = 0; e.hasted = false; e.praiseT = def.praise ? 1.5 : 0; e.praiseRage = false; e.tauntT = 0;
   if (def.traits && g.seenTrait && !g.seenTrait[type]) { g.seenTrait[type] = 1; ev(g, 'traitSeen', { type, x: e.x, y: 120 }); }
@@ -1163,6 +1164,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.stopY = def.standoff ? g.ropeY - def.standoff - g.rng() * 24 : g.ropeY - (e.boss ? 16 : 4 + g.rng() * 16);
   e.tLay = 0; e.tLayMax = 0; e.titan = false;
   if (g.tower) towerEnemy(g, e, o); // 진상의 탑: 층 공격력 · 규칙 (거물 · 떼거리 · 돌진 · 보호막 · 어둠)
+  if (def.ch7 || e.ch7On) ch7Init(g, e); // 7장 스키장 진상 상태 (풀에서 꺼낸 진상은 지난 값을 지운다)
   g.enemies.push(e);
   if (e.boss) g.bossAlive++;
   return e;
@@ -1198,6 +1200,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     const ch = e.boss || e.mid ? BAL.fast.dodgeBig : aoe ? BAL.fast.dodgeAoe : BAL.fast.dodge;
     if (g.rng() < ch) { if (g.t - (e.missT || -9) > 0.35) { e.missT = g.t; ev(g, 'dodge', { x: e.x, y: e.y - e.def.size * 0.6 }); } return 0; }
   }
+  if (e.boardT > 0 && ch7Dodge(g, e, src)) return 0; // 7장 보드남: 줄 바꾸는 순간엔 잘 피한다
   if (!e.unveiled && src) { e.unveiled = true; ev(g, 'unveil', { x: e.x, y: e.y - 30 }); } // (숨은 적은 맞으면 드러난다 · 범위 공격으로도)
   if (e.markT > 0) dmg *= 1.25 + (g.markBonus || 0); // 배현경 표시: 모두에게 +25% (표적 표시 증강 +20%p)
   if (src && src.id === 'hyungyeong') e.markT = Math.max(e.markT, 1.5);
@@ -1298,7 +1301,7 @@ function midKit(e) {
 // 보스 패턴 (예고 → 기술 → 틈) · 2페이즈 · 포효
 function bossBrain(g, e, dt) {
   const b = e.bai, kit = b.mid ? midKit(e) : BOSS_KITS[e.type];
-  if (e.y < 60 || e.stunT > 0) return;
+  if (e.y < 60 || e.stunT > 0 || e.avaW > 0) return; // (7장 회장: 눈사태 예고 중엔 다른 기술 안 씀)
   if (!b.p2 && e.hp < e.maxHp * 0.5) { b.p2 = true; e.spdMul *= 1.25; e.atk *= 1.2; ev(g, b.mid ? 'midRage' : 'bossRage', { x: e.x, y: e.y - e.def.size * 0.7, name: kit.name }); }
   if ((b.roar -= dt) <= 0) { // 포효: 날아가던 공격을 지우고 곁의 부하에게 보호막
     b.roar = BOSS_AI.roar;
@@ -1483,6 +1486,7 @@ function updateEnemies(g, dt) {
     // 가입인사 사기꾼: 예쁜 프사 → 들켰다! → 실물(못생김/뚱뚱) → 들켰다! → 예쁜 프사 …
     if (def.scam) updateScammer(g, e, dt);
     if (def.fake || def.dash || def.insurance || def.sarcasm || def.figures || def.goods || def.sleep || def.homeward || def.golf || def.toss || def.enrage || def.disco || def.confetti || def.jusa || e.hasteT > 0 || e.lieWeakT > 0 || (g.hell && e.boss)) updateNewEnemy(g, e, dt);
+    if (def.ch7) ch7Tick(g, e, dt); // 7장 스키장 진상 기술
     if (e.stunT > 0) { e.stunT -= dt; continue; }
     if (def.vault && !e.vaulted && !e.atRope && e.y > g.ropeY - def.vault.at && e.stunT <= 0) {
       e.vaulted = true; e.jumpT = def.vault.sec; e.kbv = 0;
@@ -1941,6 +1945,8 @@ function updateEprojs(g, dt) {
     } else if (p.kind === 'glow') {
       h.paperT = Math.max(h.paperT, debuffSec(h, p.stun || 3));
       ev(g, 'tossHit', { hero: h.id, x: h.x, y: h.y, kind: p.kind });
+    } else if (p.kind === 'snowball') { // 7장 눈싸움 대학생: 꽁꽁 (빙결 = 기절 계열)
+      ch7Freeze(g, h, p.stun || 1.5, 'snowHit');
     } else if (p.kind === 'golf' || p.kind === 'bag' || p.kind === 'stamp') {
       h.stunT = Math.max(h.stunT, debuffSec(h, p.stun || 1));
       ev(g, 'tossHit', { hero: h.id, x: h.x, y: h.y, kind: p.kind });
@@ -2023,6 +2029,156 @@ function spamDots(g, e, n) {
   ev(g, 'spam', { x: e.x, y: e.y - e.def.size * 0.6, n });
 }
 
+// ─── 7장 스키장 MT 진상 기술 (줄 바꾸기 · 떼 · 보호막 · 썰매 돌진 · 온기 도둑 · 눈덩이 빙결 · 소음 금지 침묵 · 눈사태) ───
+function ch7Init(g, e) {
+  const d = e.def;
+  e.ch7On = !!d.ch7;
+  e.boardT = 0; e.boardCd = d.board ? d.board.every[0] + g.rng() * (d.board.every[1] - d.board.every[0]) : 0; e.boardFrom = e.x; e.boardTo = e.x;
+  e.coachT = 0; e.coachCd = d.coach ? d.coach.first : 0;
+  e.sledOff = false; e.crashed = false;
+  e.coldCd = 0; e.snowT = d.snowball ? 1 + g.rng() * 1.5 : 0;
+  e.quietCd = d.quiet ? d.quiet.first : 0; e.quietW = 0;
+  e.avaT = d.avalanche ? d.avalanche.first : 0; e.avaW = 0;
+}
+// 빙결: 기절과 같은 계열 (응급 방패 면역 · 강성구 곁 면역 · 강병화 곁 절반 · 강화/장비 저항으로 짧게)
+const coldMul = (h) => CH7.coldTier[HERO_TIER[h.id] || 1] || 1; // 겨울 산 적응 (등급이 높을수록 덜 언다)
+function ch7Freeze(g, h, sec, kind) {
+  if (!h || h.gone) return 0;
+  if (kind === 'snowHit' && h.thawT > 0) { ev(g, 'c7freeze', { hero: h.id, x: h.x, y: h.y, sec: 0, kind, block: true }); return 0; } // 막 녹은 멤버는 잠깐 눈덩이에 안 언다 (계속 얼리기 방지)
+  const sc = debuffSec(h, sec * coldMul(h), 'stun');
+  if (sc > 0) { h.stunT = Math.max(h.stunT, sc); h.freezeT = Math.max(h.freezeT || 0, sc); h.thawT = Math.max(h.thawT || 0, sc + CH7.thaw); firstStunTip(g); }
+  ev(g, 'c7freeze', { hero: h.id, x: h.x, y: h.y, sec: sc, kind, block: sc <= 0 });
+  return sc;
+}
+// 보드남: 줄 바꾸는 0.4초 동안 회피 (감속 · 기절 중이거나 시간 정지 · 따라가는 공격은 못 피함)
+function ch7Dodge(g, e, src) {
+  if (!src || !src.def || e.slowT > 0 || e.stunT > 0 || g.timeStopT > 0 || BAL.noMiss.includes(src.def.proj)) return false;
+  if (g.rng() >= e.def.board.evade) return false;
+  if (g.t - (e.missT || -9) > 0.35) { e.missT = g.t; ev(g, 'dodge', { x: e.x, y: e.y - e.def.size * 0.6 }); }
+  return true;
+}
+// 눈사태 끊기: 예고 중에 스킬 · 총공지 · 알디콤 → 회장이 비틀 (기절 + 빈틈)
+function ch7Interrupt(g, by) {
+  const e = g.avalanche;
+  g.avalanche = null;
+  if (!e || e.dead || !(e.avaW > 0)) return false;
+  const a = e.def.avalanche;
+  e.avaW = 0; e.windup = 0; e.avaT = a.every * (g.hell ? 0.8 : 1);
+  e.stunT = Math.max(e.stunT, a.stun); e.weakT = Math.max(e.weakT, a.weak);
+  g.stats.avaStop = (g.stats.avaStop || 0) + 1;
+  ev(g, 'c7avaStop', { x: e.x, y: e.y, by });
+  return true;
+}
+function ch7Tick(g, e, dt) {
+  const d = e.def;
+  const stunned = e.stunT > 0;
+  const prog = e.y / g.ropeY;
+  // 스노보드 과시남: 뒤로 타다가 갑자기 줄 바꾸기
+  if (d.board) {
+    if (e.boardT > 0) {
+      e.boardT -= dt;
+      const k = 1 - Math.max(0, e.boardT) / d.board.sec;
+      e.x = e.boardFrom + (e.boardTo - e.boardFrom) * k;
+      e.baseX = e.x;
+    } else if (!stunned && !(e.slowT > 0) && !e.atRope && e.y > 40 && prog < 0.9 && (e.boardCd -= dt) <= 0) {
+      const b = d.board;
+      e.boardCd = b.every[0] + g.rng() * (b.every[1] - b.every[0]);
+      const lo = g.mapFx.lane ? g.mapFx.lane[0] : 20, hi = g.mapFx.lane ? g.mapFx.lane[1] : g.W - 20;
+      const dist = b.dist[0] + g.rng() * (b.dist[1] - b.dist[0]);
+      let to = e.x + (g.rng() < 0.5 ? -dist : dist);
+      if (to < lo || to > hi) to = 2 * e.x - to; // 벽 쪽이면 반대로
+      e.boardFrom = e.x; e.boardTo = clamp(to, lo, hi); e.boardT = b.sec;
+      if (g.rng() < 0.35) ev(g, 'c7board', { x: e.x, y: e.y - d.size * 0.6, to: e.boardTo });
+    }
+  }
+  // 눈썰매 폭주녀: 감속 · 기절에 걸리면 썰매에서 굴러떨어진다 · 입구에 처음 부딪히면 크게
+  if (d.sled) {
+    if (!e.sledOff && (e.slowT > 0 || stunned)) { e.sledOff = true; e.spdMul *= d.sled.off; ev(g, 'c7sledOff', { x: e.x, y: e.y - d.size * 0.5 }); }
+    if (e.atRope && !e.crashed && !stunned) {
+      e.crashed = true;
+      if (!e.sledOff) { damageBase(g, e.atk * d.sled.crash, e); e.atkCd = d.atkInterval; e.stunT = Math.max(e.stunT, d.sled.daze); ev(g, 'c7crash', { x: e.x, y: g.ropeY }); } // 꽈당! 부딪힌 뒤 잠깐 어질어질
+    }
+  }
+  if (stunned) {
+    if (e.quietW > 0) { e.quietW = 0; e.windup = 0; e.quietCd = d.quiet.every; ev(g, 'c7quietStop', { x: e.x, y: e.y - d.size * 0.6 }); } // 펜션 사장님: 기절시키면 조용
+    if (!d.avalanche) return;
+  }
+  // 강습 사칭남: "제가 알려 드릴게요~" 곁의 진상 보호막 + 안 밀림
+  if (d.coach && e.y > 20 && !(e.auraOffT > 0)) {
+    if ((e.coachCd -= dt) <= 0) {
+      const c = d.coach;
+      e.coachCd = c.every;
+      const near = [];
+      for (const o of g.enemies) { if (o.dead || o === e || o.boss || o.noShieldT > 0) continue; const dx = o.x - e.x, dy = o.y - e.y; if (dx * dx + dy * dy < c.r * c.r) near.push([dx * dx + dy * dy, o]); }
+      near.sort((a, b) => a[0] - b[0]);
+      for (const [, o] of near.slice(0, c.n)) { o.shield = Math.max(o.shield, o.maxHp * c.frac); o.coachT = c.every; o.ch7On = true; }
+      ev(g, 'c7coach', { x: e.x, y: e.y - d.size * 0.6, r: c.r, n: Math.min(c.n, near.length) });
+    }
+  }
+  if (e.coachT > 0) e.coachT -= dt;
+  // 핫팩 도둑: 길 절반부터 옆을 지나간 멤버의 온기를 훔친다 → 공격 속도 ↓
+  if (d.hotpack && prog > d.hotpack.from && (e.coldCd -= dt) <= 0) {
+    const hp = d.hotpack;
+    e.coldCd = hp.tick;
+    let n = 0;
+    for (const h of g.heroes) {
+      if (Math.abs(h.x - e.x) > hp.r) continue;
+      const sc = debuffSec(h, hp.sec * coldMul(h), 'slow');
+      if (sc <= 0) continue;
+      h.aspdDebCut = h.aspdDebT > 0 ? Math.max(h.aspdDebCut || 0, hp.cut) : hp.cut;
+      h.aspdDebT = Math.max(h.aspdDebT || 0, sc);
+      n++;
+    }
+    if (n && g.t - (g.coldEvT || -9) > 1.2) { g.coldEvT = g.t; ev(g, 'c7cold', { x: e.x, y: e.y - d.size * 0.6 }); }
+  }
+  // 눈싸움 대학생: 멀찍이 서서 눈덩이 → 빙결
+  if (d.snowball && e.atRope && g.heroes.length && (e.snowT -= dt) <= 0) {
+    const sb = d.snowball;
+    e.snowT = sb.every * (0.85 + g.rng() * 0.3);
+    const fresh = g.heroes.filter((h) => h.stunT <= 0 && !h.gone), list = fresh.length ? fresh : g.heroes;
+    const top = list.reduce((a, h) => (h.dmgDone > a.dmgDone ? h : a), list[0]); // "헤드샷~!" 제일 잘 치는 멤버부터 노린다 (도발 탱커가 있으면 그쪽)
+    throwAt(g, 'snowball', e, list.find((h) => h.def.taunt) || (g.rng() < sb.aim ? top : victim(g, list)), sb.fly, sb.sec);
+    ev(g, 'c7snow', { x: e.x, y: e.y - d.size * 0.6 });
+  }
+  // 펜션 사장님: "여기 밤 10시 이후 소음 금지예요!" — 예고 1.3초 → 넓은 범위 멤버 침묵 (스킬 못 씀)
+  if (d.quiet && e.y > 60) {
+    const q = d.quiet;
+    if (e.quietW > 0) {
+      e.quietW -= dt; e.windup = Math.max(0, e.quietW);
+      if (e.quietW <= 0) {
+        e.windup = 0; e.quietCd = q.every;
+        let n = 0;
+        for (const h of g.heroes) {
+          if (Math.abs(h.x - e.x) > q.r) continue;
+          const sc = debuffSec(h, q.sec * coldMul(h), 'silence');
+          if (sc > 0) { h.silenceT = Math.max(h.silenceT || 0, sc); h.muteT = Math.max(h.muteT || 0, sc); n++; }
+        }
+        ev(g, 'c7quiet', { x: e.x, y: e.y - d.size * 0.6, r: q.r, n });
+      }
+    } else if ((e.quietCd -= dt) <= 0) { e.quietW = q.windup; e.windup = q.windup; ev(g, 'c7quietWind', { x: e.x, y: e.y - d.size * 0.6, text: d.shouts[0] }); }
+  }
+  // 리조트 갑부 회장: 눈사태 (크게 예고 → 멤버 전원 빙결) — 예고 중에 스킬을 쓰면 끊긴다
+  if (d.avalanche && e.y > 0 && !g.over) {
+    const a = d.avalanche;
+    if (e.avaW > 0) {
+      e.avaW -= dt; e.windup = Math.max(0.01, e.avaW);
+      if (e.avaW <= 0) {
+        e.avaW = 0; e.windup = 0; g.avalanche = null;
+        e.avaT = a.every * (g.hell ? 0.8 : 1) * (e.bai && e.bai.p2 ? 0.85 : 1);
+        let n = 0;
+        for (const h of g.heroes) if (ch7Freeze(g, h, a.freeze, 'avalanche') > 0) n++;
+        if (a.door && !g.god) damageBase(g, g.base.max * a.door, e); // 눈더미가 입구를 덮친다
+        for (let k = 0; k < (a.riders || 0); k++) spawnEnemy(g, 'snowboard', clamp(e.x + (k - (a.riders - 1) / 2) * 60, 20, g.W - 20), Math.max(20, e.y + 30), { hpMul: hpMul(g.diff, g.mode === 'stage') * (g.hpScale || 1) * 0.8 }); // 눈사태를 타고 보드남이 내려온다
+        g.stats.avaHit = (g.stats.avaHit || 0) + 1;
+        ev(g, 'c7ava', { x: e.x, y: e.y, n });
+        bossWeak(g, e);
+      }
+    } else if (!stunned && !(e.bai && e.bai.st === 'windup') && (e.avaT -= dt) <= 0) {
+      e.avaW = a.windup; e.windup = a.windup; g.avalanche = e;
+      ev(g, 'c7avaWarn', { x: e.x, y: e.y, sec: a.windup });
+    }
+  }
+}
 // 멤버를 노리는 진상 기술: 탱커(백인규)가 있으면 그쪽으로
 function victim(g, list, dflt) {
   const t = list.find((h) => h.def.taunt);
@@ -2298,6 +2454,7 @@ export function hitEnemy(g, p, e) {
 export function applyKnockback(e, dist, g) {
   if (e.boss || e.mid) return;
   if (e.def.traits && e.def.traits.kbImmune) return; // 넉백 면역
+  if (e.coachT > 0 && e.shield > 0) return; // 7장 강습 사칭남 보호막: 자세 교정 중엔 안 밀린다
   if (e.dictT > 0) dist *= e.dictKb; // 독재자 곁에서는 잘 안 밀린다
   if (g && g.mapFx.kb) dist *= g.mapFx.kb; // 미끄러운 바닥
   if (g) dist *= g.mods.kbMul; // 밀어내기 달인 카드
@@ -2501,6 +2658,17 @@ export function startWave(g, n) {
     const elite = tag === 'E';
     const hpX = elite ? def.eliteHp || 1 : def.fodderHp || 1;
     let laneX = 0;
+    // 7장 리프트 새치기꾼: 두세 명이 한 줄로 바짝 (정예 웨이브에서도 무리로)
+    const grp = ENEMIES[type].group;
+    if (grp) {
+      for (let i = 0; i < count; i++) {
+        const at = delay + i * every + g.rng() * every * 0.5;
+        const n = grp.min + ((g.rng() * (grp.max - grp.min + 1)) | 0);
+        const x0 = 40 + g.rng() * (g.W - 80);
+        for (let j = 0; j < n; j++) q.push({ type, at: at + j * grp.gap, hpX, elite: elite || undefined, x: clamp(x0 + (g.rng() - 0.5) * 10, 20, g.W - 20) });
+      }
+      continue;
+    }
     // 떼거리: 5명씩 한 줄로 바짝 붙어서 (범위 공격 한 방에 여럿)
     if (def.clump && !elite && !pack) {
       let cx = 0, at0 = 0;
@@ -2587,6 +2755,7 @@ export function useUlt(g) {
     if (!e.dead && !e.boss) { applyKnockback(e, 40, g); e.stunT = Math.max(e.stunT, 0.7); }
   }
   ev(g, 'ult', {});
+  if (g.avalanche) ch7Interrupt(g, 'ult');
   return true;
 }
 
@@ -2621,10 +2790,11 @@ export function skillReady(h) { return !!h.def.skill && h.skillCd <= 0; }
 // x, y: 찍은 곳 (target 스킬만). 성공하면 true
 export const momCharges = (g) => (g.mom === null || g.mom === undefined ? 9 : Math.floor(g.mom / MOMENTUM.per));
 // 스킬로 준 피해는 화면에 금빛 큰 숫자 (g._inSkill 동안)
-export function castSkill(g, h, x, y, echo, fromQ) { g._inSkill = true; try { return castSkill0(g, h, x, y, echo, fromQ); } finally { g._inSkill = false; } }
+export function castSkill(g, h, x, y, echo, fromQ) { g._inSkill = true; try { const ok = castSkill0(g, h, x, y, echo, fromQ); if (ok && !echo && g.avalanche) ch7Interrupt(g, h.id); return ok; } finally { g._inSkill = false; } } // 7장: 눈사태 예고 중 스킬 → 끊기
 function castSkill0(g, h, x, y, echo, fromQ) {
   const sk = h.def.skill;
   if (!sk || (!echo && h.skillCd > 0) || g.over || g.phase === 'victory') return false;
+  if (!echo && h.muteT > 0 && h.silenceT > 0) { ev(g, 'c7muted', { hero: h.id, x: h.x, y: h.y }); return false; } // 7장 펜션 사장님 "소음 금지!": 침묵 중엔 스킬을 못 쓴다 (응급처치 · 알디콤으로 풀기)
   if (!echo && g.mom !== null && g.mom !== undefined) {
     if (g.mom < MOMENTUM.per * (sk.id === 'forlangbang' ? 2 : 1)) { ev(g, 'noMomentum', { hero: h.id, two: sk.id === 'forlangbang', x: h.x, y: h.y }); return false; }
     if (g.t - g.lastSkillT < MOMENTUM.gap && !fromQ) { g.skillQ = { h, x, y, at: g.lastSkillT + MOMENTUM.gap }; ev(g, 'skillQueued', { hero: h.id }); return false; } // 0.6초 뒤에 나간다
@@ -3464,6 +3634,7 @@ export function useCons(g, id) {
     let n = 0;
     for (const e of g.enemies) if (!e.dead && e.y > g.ropeY - 220) { if (e.shield > 0 || e.dictT > 0 || e.gaoOn) n++; e.shield = 0; e.dictT = 0; e.gaoOn = false; e.noShieldT = Math.max(e.noShieldT || 0, 3); e.auraOffT = Math.max(e.auraOffT || 0, 3); }
     ev(g, 'consUse', { id, n, x: g.W / 2, y: g.ropeY });
+    if (g.avalanche) ch7Interrupt(g, 'aldicom');
   } else if (id === 'tambourine') { // 노래방 탬버린: 8초 공속 +40%
     g.tambT = 8;
     ev(g, 'consUse', { id, sec: 8, x: g.W / 2, y: g.rowY });

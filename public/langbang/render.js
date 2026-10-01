@@ -32,9 +32,9 @@ const PROJ_COLOR = {
   notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#ff9a3c',
 };
 // 챕터 전용 배경에서 랑방 지붕(영웅 줄 뒤) 위치 — 그림 높이 대비
-const BG_ROOF = { 2: 0.735, 3: 0.735, 4: 0.735, 5: 0.66, 6: 0.73 };
+const BG_ROOF = { 2: 0.735, 3: 0.735, 4: 0.735, 5: 0.66, 6: 0.73, 7: 0.73 }; // (7장: bg7 그림이 오면 이 값을 그림에 맞게)
 const MAP_ROOF = 0.735; // 레이드 · 대전 맵: 랑방 지붕 높이 (그림 높이의 비율 · bg2~4 와 같게)
-const BG_BRIGHT = { 4: 0.42, 6: 0.36 }; // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
+const BG_BRIGHT = { 4: 0.42, 6: 0.36, 7: 0.4 }; // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
 // 챕터별 분위기 (같은 배경 그림에 색만 덧씌운다)
 // 있으면 쓰는 그림 주소 (서버 /api/langbang/anim 의 files 와 같은 규칙)
 const OPT_ART = /^\/img\/lb\/(arena\d|map_[a-z0-9_]+|e_[a-z0-9_]+_(skill|rage)|h_wonsik_walk(back|front))\.webp$|^\/img\/lb\/fx\/p_[A-Za-z0-9_]+\.webp$/;
@@ -282,6 +282,7 @@ export class Renderer {
         this.formDefs[key] = Object.assign({}, ENEMIES[id], forms[f], { id: id + '_' + f, size: forms[f].size || ENEMIES[id].size });
       }
     }
+    for (const id in ENEMIES) if (ENEMIES[id].fb) list['fb:' + ENEMIES[id].fb] = ENEMIES[id].fb; // 7장: 그림이 아직 없을 때 쓸 비슷한 진상 그림 (색만 입힘)
     for (const id in HERO_ANIM) list['hanim_' + id] = HERO_ANIM[id].src; // 멤버 공격 프레임 띠
     for (const id in HEROES) if (HEROES[id].skill) list['sk_' + id] = `/img/lb/ui2/sk_${id}.webp`; // 스킬 아이콘 (준비 표시 · 쓸 때 터짐)
     list.ui2_shield = '/img/lb/ui2/shield.webp';
@@ -312,7 +313,8 @@ export class Renderer {
     list.bg4 = '/img/lb/bg4.webp';
     list.bg5 = '/img/lb/bg5.webp';
     list.bg6 = '/img/lb/bg6.webp';
-    for (let i = 1; i <= 6; i++) list['arena' + i] = `/img/lb/arena${i}.webp`; // 보스 무대 (없으면 챕터 배경 + 붉은 조명)
+    list.bg7 = '/img/lb/bg7.webp'; // 7장 스키장 (없으면 bg6 에 얼음빛)
+    for (let i = 1; i <= 7; i++) list['arena' + i] = `/img/lb/arena${i}.webp`; // 보스 무대 (없으면 챕터 배경 + 붉은 조명)
     list.map_raid = '/img/lb/map_raid.webp'; list.map_pvp = '/img/lb/map_pvp.webp'; // 레이드 · 1:1 대전 전용 맵 (없으면 원래 배경)
     list.base = '/img/lb/base.webp';
     const skip = new URLSearchParams(location.search).has('noimg');
@@ -325,6 +327,7 @@ export class Renderer {
         if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_') || key.startsWith('w_') || key.startsWith('vfx_') || key.startsWith('hanim_') || key.startsWith('cc_') || key === 'bus' || key === 'bus2') return;
         if (key.startsWith('bar')) { this.bakeBar(key); return; }
         if (key.startsWith('fx_')) return;
+        if (key.startsWith('fb:')) { for (const id in ENEMIES) if (ENEMIES[id].fb === list[key]) this.bakeSprite('e_' + id); return; }
         if (key === 'bg' || key === 'base' || /^bg\d$/.test(key) || key.startsWith('map_')) this.bakeBg();
         else this.bakeSprite(key);
       };
@@ -435,6 +438,13 @@ export class Renderer {
         }
       }
       x.drawImage(img, 0, 0, px, px);
+      real = true;
+    } else if (!isHero && def.fb && imgOk(this.images['fb:' + def.fb])) {
+      // 7장: 전용 그림이 오기 전엔 비슷한 진상 그림에 그 진상 색을 입혀서
+      x.imageSmoothingQuality = 'high';
+      x.drawImage(this.images['fb:' + def.fb], 0, 0, px, px);
+      x.globalCompositeOperation = 'source-atop'; x.globalAlpha = 0.42; x.fillStyle = def.color; x.fillRect(0, 0, px, px);
+      x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
       real = true;
     } else {
       this.placeholder(x, px, def, isHero, rage);
@@ -672,6 +682,12 @@ export class Renderer {
       x.fillStyle = '#5a3ab0'; x.font = `900 11px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillText('수군수군', w / 2, h / 2 - 2);
     });
+    make('ep_snowball', 24, 24, (x, w, h) => { // 7장 눈덩이
+      glow(x, w / 2, h / 2, 12, 'rgba(190,240,255,0.6)');
+      x.fillStyle = '#f4fbff'; x.strokeStyle = '#7fc8ef'; x.lineWidth = 1.6;
+      x.beginPath(); x.arc(w / 2, h / 2, 7.5, 0, TAU); x.fill(); x.stroke();
+      x.fillStyle = 'rgba(160,210,240,0.8)'; x.beginPath(); x.arc(w / 2 + 2.5, h / 2 + 2.5, 2.4, 0, TAU); x.fill();
+    });
     make('paper', 30, 34, (x, w, h) => {
       glow(x, w / 2, h / 2, 15, 'rgba(255,230,140,0.4)');
       x.fillStyle = '#fffaf0'; x.strokeStyle = '#6b5420'; x.lineWidth = 1.2;
@@ -793,10 +809,11 @@ export class Renderer {
     const c = mkCanvas(W * k, H * k);
     const x = c.getContext('2d');
     x.scale(k, k);
-    const ch = typeof this.themeKey === 'number' && this.themeKey >= 2 && this.themeKey <= 6 ? this.themeKey : 0;
+    const ch0 = typeof this.themeKey === 'number' && this.themeKey >= 2 && this.themeKey <= 7 ? this.themeKey : 0;
+    const ch = ch0 === 7 && !imgOk(this.images.bg7) ? 6 : ch0; // 7장 배경(bg7)이 아직 없으면 연말 눈길(bg6)로
     // 레이드 · 1:1 대전: 전용 맵(map_raid / map_pvp)이 있으면 그걸로 · 없으면 원래 테마 배경 그대로
     const modeMap = this.modeKey && imgOk(this.images['map_' + this.modeKey]) ? this.images['map_' + this.modeKey] : null;
-    const arena = !modeMap && this.arenaOn && imgOk(this.images['arena' + (ch || 1)]) ? this.images['arena' + (ch || 1)] : null;
+    const arena = !modeMap && this.arenaOn && imgOk(this.images['arena' + (ch0 || 1)]) ? this.images['arena' + (ch0 || 1)] : null;
     const own = !arena && !modeMap && ch && imgOk(this.images['bg' + ch]); // 챕터 전용 배경이 있으면 그걸로 (색은 살짝만)
     const img = modeMap || arena || (own ? this.images['bg' + ch] : this.images.bg);
     const rowY = rowYFor(H);
@@ -2043,6 +2060,7 @@ export class Renderer {
         { const ck = h._castAt ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); }
         cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
         cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
+        if (h.freezeT > 0 && h.stunT > 0 && sp.f) { cx.globalAlpha = 0.5; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); } // 7장 빙결: 하얗게 언 모습
         const hk2 = h._hitAt ? (performance.now() - h._hitAt) / 160 : 9;
         if (hk2 < 1 && sp.f) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * (1 - hk2); cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalCompositeOperation = 'source-over'; }
         cx.globalAlpha = 1;
@@ -2089,7 +2107,8 @@ export class Renderer {
       }
       { // 상태 딱지: 머리 위 가운데에 위로 쌓기 (옆 멤버와 안 겹치게)
         const tags = [];
-        if (h.stunT > 0) tags.push(['기절', '#ffe27a']);
+        if (h.stunT > 0) tags.push(h.freezeT > 0 ? ['빙결', '#bff4ff'] : ['기절', '#ffe27a']);
+        if (h.muteT > 0 && h.silenceT > 0) tags.push(['침묵', '#d0c0ff']); // 7장 펜션 사장님 소음 금지
         if (h.grabT > 0) tags.push(['붙잡힘', '#ff8a8a']);
         if (h.blindT > 0) tags.push(['눈부심', '#fff2a0']);
         if (h.fearT > 0) tags.push(['공포', '#d8a8ff']);

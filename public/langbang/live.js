@@ -177,12 +177,12 @@ export const FRAMES = {
 export const TITLE_INFO = {
   ewchamp: { rarity: 'legend', how: '무한 도전 주간 1위' }, collector: { rarity: 'legend', how: '장비 도감 전부 모으기' }, wchamp: { rarity: 'legend', how: '주간 도전 1위' }, wtop3: { rarity: 'epic', how: '주간 도전 TOP 3' }, gacha100: { rarity: 'rare', how: '업적: 모집 100번' },
   perfect30: { rarity: 'epic', how: '업적: PERFECT 30개' }, raid1: { rarity: 'legend', how: '레이드 데미지 1위' },
-  ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어 (전부)' },
+  ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어' }, ch7: { rarity: 'legend', how: '7장 스키장 클리어 (고난도)' },
   allstar1: { rarity: 'rare', how: '1장 ★30' }, pvpsilver: { rarity: 'common', how: '1:1 대전 실버 (1050점)' }, pvpgold: { rarity: 'rare', how: '1:1 대전 골드 (1200점)' },
   heroes12: { rarity: 'rare', how: '멤버 12명 모으기' }, heroes20: { rarity: 'legend', how: '멤버 20명 모으기' },
   tower15: { rarity: 'rare', how: '진상의 탑 15층' }, tower60: { rarity: 'legend', how: '진상의 탑 60층' }, towerking: { rarity: 'legend', how: '주간 탑 랭킹 1위 (다음 한 주 동안)' },
 };
-const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인' };
+const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', ch7: '설산의 정복자', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인' };
 // 조건을 채우면 저절로 들어오는 칭호 · 프레임 (서버 normLb · 손님 둘 다 같은 함수)
 // 우편 보상은 정해진 칸만 (숫자 · 등급 · 칭호/프레임 이름)
 function cleanRw(rw) {
@@ -199,13 +199,14 @@ function autoCosmetics(raw) {
   const st = raw.stages || {};
   let max = raw.maxStage | 0; for (const k of Object.keys(st)) if ((st[k] | 0) > 0 && +k > max) max = +k;
   const chStars = (c) => { let n = 0; for (let i = 1; i <= 10; i++) n += st[(c - 1) * 10 + i] | 0; return n; };
-  const full = [1, 2, 3, 4, 5, 6].some((c) => chStars(c) >= 30);
+  const full = [1, 2, 3, 4, 5, 6, 7].some((c) => chStars(c) >= 30);
   const rating = ((raw.pvp || {}).rating) | 0;
   const heroes = Object.keys(HEROES).filter((h) => heroUnlocked(raw, h)).length;
   const t = [], f = [];
   if (max >= 10) { t.push('ch1'); f.push('rookie'); }
   if (max >= 30) t.push('ch3');
   if (max >= 60) t.push('ch6');
+  if (max >= 70) t.push('ch7'); // 7장 스키장 정복
   if (chStars(1) >= 30) t.push('allstar1');
   if (full) f.push('star3');
   if (rating >= 1050) t.push('pvpsilver');
@@ -346,8 +347,10 @@ export const ACHIEVEMENTS = [
   { id: 'ch3', icon: '', name: '3장 클리어', n: 30, v: (lb) => lb.maxStage | 0, coins: 3000, tickets: 3, wild: 4 },
   { id: 'ch4', icon: '', name: '4장 클리어', n: 40, v: (lb) => lb.maxStage | 0, coins: 4000, tickets: 3, wild: 5 },
   { id: 'ch5', icon: '', name: '5장 클리어', n: 50, v: (lb) => lb.maxStage | 0, coins: 6000, tickets: 4, wild: 6 },
-  { id: 'ch6', icon: '', name: '6장 클리어 (마지막!)', n: 60, v: (lb) => lb.maxStage | 0, coins: 10000, tickets: 6 },
-  { id: 'stars180', icon: '', name: '별 180개 전부', n: 180, v: (lb) => lb.totalStars | 0, coins: 8000, tickets: 5 },
+  { id: 'ch6', icon: '', name: '6장 클리어', n: 60, v: (lb) => lb.maxStage | 0, coins: 10000, tickets: 6 },
+  { id: 'ch7', icon: '', name: '7장 스키장 클리어 (고난도!)', n: 70, v: (lb) => lb.maxStage | 0, coins: 16000, tickets: 8 },
+  { id: 'stars180', icon: '', name: '별 180개', n: 180, v: (lb) => lb.totalStars | 0, coins: 8000, tickets: 5 },
+  { id: 'stars210', icon: '', name: '별 210개 전부 (7장까지)', n: 210, v: (lb) => lb.totalStars | 0, coins: 12000, tickets: 6 },
   { id: 'perfect10', icon: '', name: 'PERFECT 스테이지 10개', n: 10, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 1500, tickets: 2 },
   { id: 'perfect30', icon: '', name: 'PERFECT 스테이지 30개', n: 30, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 4000, tickets: 4, title: 'perfect30' },
   { id: 'legend1', icon: '', name: '전설 장비 얻기', n: 1, v: (lb) => (lb.cnt || {}).legends | 0, coins: 1000, tickets: 1 },

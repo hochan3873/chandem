@@ -137,11 +137,14 @@ function layout() {
   if (window.visualViewport) { visualViewport.addEventListener('resize', relayout); visualViewport.addEventListener('scroll', relayout); }
 }
 
+// 챕터 그림 (keyart · dio): 7장 그림이 아직 없으면 6장 그림이 뒤에 깔려 보인다
+const chArtCss = (kind, c) => (c > 6 ? `url('/img/lb/${kind}${c}.webp'), url('/img/lb/${kind}6.webp')` : `url('/img/lb/${kind}${c}.webp')`);
 // ─── 이미지(없으면 이모지) 태그 ──────────────────────
 // 동그란 얼굴: 멤버는 그림(HQ) 얼굴 맞춤 · 진상은 원래 그림 (꼬마 그림은 전투 화면에서만)
 function av(def, extra = ' ') {
   const hq = def && def.id && (HEROES[def.id] || SUMMONS[def.id]) && typeof thumbSrc === 'function' ? thumbSrc(def.id) : ' ';
   if (hq && !/\/h_/.test(hq)) return `<span class="av hq ${extra}" style="--c:${def.color}"><img class="fz" data-face="${def.id}" data-fc="1" style="${faceCircStyle(def.id)}" src="${hq}" alt="" draggable="false" onerror="this.onerror=null;this.className=' ';this.removeAttribute('style');this.src='${def.img}'"></span>`;
+  if (def && def.fb) return `<span class="av ${extra}" style="--c:${def.color}"><img src="${def.img}" alt="" draggable="false" onerror="this.onerror=null;this.src='${def.fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'"></span>`; // 7장: 그림이 오기 전엔 비슷한 진상 그림에 색만 바꿔서
   return `<span class="av ${extra}" style="--c:${def.color}"><img src="${def.img}" alt="" draggable="false" onerror="this.parentNode.classList.add('noimg');this.remove()"><i>${def.emoji}</i></span>`;
 }
 
@@ -410,7 +413,7 @@ function showBattleLoading(g) {
   const tip = TIPS[(Math.random() * TIPS.length) | 0];
   const d = document.createElement('div');
   d.className = 'bload';
-  d.innerHTML = `<div class="bl-art" style="background-image:url('/img/lb/dio${Math.max(1, ch || 1)}.webp')"></div>
+  d.innerHTML = `<div class="bl-art" style="background-image:${chArtCss('dio', Math.max(1, ch || 1))}"></div>
     <div class="bl-box">
       <em class="bl-no">${st ? stageLabel(st) : g.mode === 'endless' ? '무한 도전' : '주간 도전'}</em><b class="bl-name">${st ? esc(stageName(st)) : ''}</b>
       ${foes.length ? `<div class="bl-sec"><small>이번 판 공략</small>${foes.map((t) => { const T = foeTrait(t); const good2 = Object.keys(ATTRS).filter((a) => typeMul(a, ENEMIES[t].cls) > 1); return `<div class="bl-foe">${foeFace(t)}<span><b>${esc(ENEMIES[t].name)}</b><small>${T ? esc(T.tip) : `${good2.map((a) => ATTRS[a].name).join(' · ')} 멤버에게 약해요`}</small></span></div>`; }).join('')}</div>` : ''}
@@ -1010,6 +1013,21 @@ function handleEvents(g, loud) {
       case 'drunkBoom': R.vfx('shock', e.x, e.y + 10, { anim: 'pop', dur: 500, sz: 150 }); fx.addShake(5); fx.text(e.x, e.y - 30, '술병 폭발! 기절', '#ff9a6a', 13, 1); break;
       case 'spamBomb': R.vfx('shock2', e.x, e.y, { anim: 'pop', dur: 450, sz: 220 }); fx.text(e.x, e.y - 20, '알림 폭탄! 공속 -30%', '#9ff4ff', 12, 1); break;
       case 'latteSilence': R.vfx('silence', e.hx, e.hy, { anim: 'pulse', dur: 3000, sz: 44 }); fx.text(e.hx, e.hy - 20, '라떼 훈계… 스킬 막힘', '#d8c8ff', 11, 1.2); break;
+      // ── 7장 스키장 ──
+      case 'c7freeze': { const hh = g.heroes.find((h) => h.id === e.hero); if (e.block) { if (!busy) fx.text(e.x, e.y - 70, '빙결 막음!', '#9dffb0', 12, 0.8); break; } fx.text(e.x, e.y - 72, e.kind === 'avalanche' ? '꽁꽁!' : '눈덩이에 꽁꽁!', '#bff4ff', 14, 1); fx.burst(e.x, e.y - 30, 10, '#e8fbff', 140, 'dot', 4, 0.5); if (hh) { hh._hitAt = performance.now(); R.vfx('stun', 0, 0, { follow: hh, dy: -78, anim: 'pulse', dur: Math.round((e.sec || 1) * 1000), sz: 50 }); } break; }
+      case 'c7snow': if (!busy) fx.text(e.x, e.y - 10, '받아라!', '#e8fbff', 11, 0.6); break;
+      case 'c7board': if (!busy) fx.text(e.x, e.y, '휙~ 줄 바꾸기!', '#9fe0ff', 11, 0.7); break;
+      case 'c7crash': fx.text(e.x, e.y - 24, '썰매 쾅!', '#ff9fd8', 14, 0.9); fx.burst(e.x, e.y, 12, '#ffffff', 170, 'dot', 4, 0.5, 260); fx.addShake(3); break;
+      case 'c7sledOff': if (!busy) fx.text(e.x, e.y, '썰매에서 꽈당!', '#ffd1ec', 12, 0.8); break;
+      case 'c7cold': if (!busy) fx.text(e.x, e.y, '핫팩 슬쩍~ 손이 꽁꽁 공속↓', '#ffc08a', 11, 0.9); break;
+      case 'c7coach': fx.ring(e.x, e.y + 40, 20, e.r, 0.7, '#ff8a8a', 4); if (e.n) fx.text(e.x, e.y - 20, '제가 알려 드릴게요~ 보호막!', '#ffd0d0', 13, 1); break;
+      case 'c7quietWind': fx.text(e.x, e.y - 20, e.text || '소음 금지!', '#ffe08a', 14, 1.3, -10); R.vfx('silence', e.x, e.y - 40, { anim: 'pulse', dur: 1300, sz: 90 }); R.vfx('warn', 180, g.rowY + 10, { anim: 'grow', dur: 1300, sz: 300, flat: true }); if (loud) A.sfx.charm && A.sfx.charm(); break;
+      case 'c7quiet': fx.ring(e.x, g.rowY, 20, e.r, 0.7, '#b48cff', 6); for (const h of g.heroes) if (h.muteT > 0) R.vfx('silence', 0, 0, { follow: h, dy: -86, anim: 'pulse', dur: 2800, sz: 46 }); if (e.n) toast('소음 금지! 스킬 침묵 — 응급 방패 · 알디콤으로 풀어요', 1800); break;
+      case 'c7quietStop': fx.text(e.x, e.y - 10, '…조용해졌다', '#c8ffd0', 13, 1); break;
+      case 'c7muted': fx.text(e.x, e.y - 80, '침묵 중!', '#c8b8ff', 13, 0.8); break;
+      case 'c7avaWarn': fx.banner('눈사태 경고!!', `${Math.round(e.sec * 10) / 10}초 뒤 전원 빙결 — 지금 스킬로 끊어요!`, '#1a5a9a', Math.min(2.6, e.sec), 'big', 'e_boss_resort'); fx.flash('#cfefff', 0.25); R.vfx('warn', 180, g.rowY - 40, { anim: 'grow', dur: Math.round(e.sec * 1000), sz: 420, flat: true }); R.vfx('crack', e.x, e.y + 40, { anim: 'grow', dur: Math.round(e.sec * 1000), sz: 220, flat: true }); fx.addShake(4); if (loud) A.sfx.horn && A.sfx.horn(); break;
+      case 'c7ava': fx.flash('#ffffff', 0.55); fx.banner('눈사태!!', '멤버 전원 꽁꽁 · 입구가 눈에 묻혔다', '#2a4a7a', 1.6, 'wave'); for (let k = 0; k < 40; k++) fx.part('dot', Math.random() * g.W, Math.random() * g.rowY, (Math.random() - 0.5) * 60, 220 + Math.random() * 200, 1.2, 4 + Math.random() * 5, '#f2fbff'); fx.addShake(12); if (loud) A.sfx.explode(); break;
+      case 'c7avaStop': fx.banner('눈사태 저지!', '회장이 비틀 — 빈틈! 지금 몰아쳐요', '#1a7a4a', 1.6, 'wave'); fx.ring(e.x, e.y, 20, 180, 0.6, '#9dffb0', 6); fx.addShake(5); if (loud) A.sfx.crit(); break;
       case 'consUse': {
         const c = L.CONS[e.id];
         if (e.id === 'battery') { fx.banner('보조배터리!', `방어진 ${e.v ? '+' + fmt(e.v) : ''} 가득 충전`, '#7b3fe0', 1.3, 'wave'); fx.repairT = 1.6; for (let k = 0; k < 14; k++) fx.part('star', 30 + Math.random() * 300, g.rowY + 40 + Math.random() * 60, 0, -70, 0.9, 8, null); fx.flash('#b890ff', 0.18); if (loud) A.sfx.heal(); }
@@ -1186,7 +1204,7 @@ const UNION_PHASE = {
   shieldAura: ['회비 지원!', '진상들에게 보호막'],
 };
 const PROJ_COL = { notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#ff9a3c' };
-const BOSS_COL = { queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a', boss_loan: '#8a6a00', boss_union: '#5a0a9a', boss_kkondol: '#4a3a6a', boss_queenmom: '#8a2a9a', boss_sales: '#8a6a00', boss_otaku: '#1a7a4a', boss_jusa: '#9a2a1a', boss_soloparty: '#a0158a' };
+const BOSS_COL = { boss_resort: '#1a5a9a', mid_pension: '#7a5a2a', queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a', boss_loan: '#8a6a00', boss_union: '#5a0a9a', boss_kkondol: '#4a3a6a', boss_queenmom: '#8a2a9a', boss_sales: '#8a6a00', boss_otaku: '#1a7a4a', boss_jusa: '#9a2a1a', boss_soloparty: '#a0158a' };
 const POOF = ['퍽!', '빡!', '뿅', '컷!', '퇴장~', '아웃!'];
 const CONFETTI = ['#ffd23f', '#ff4fd8', '#6ff0ff', '#7dff9a', '#ff8a00', '#ffffff'];
 
@@ -2234,10 +2252,10 @@ function showMenu() {
   ].join('');
   const right = [['missions', '미션', '', 'missionsNav'], ['share', '공유', '', 'share'], ['checkin', '출석', '', 'checkin'], ['ranking', '랭킹', '', 'ranking'], ['dex', '도감', '', 'dex'], ['mail', '우편', '', 'mail'], ['friends', '친구', '', 'friends'], ['notice', '공지', '', 'notice'], ['settings', '설정', '', 'settings']]
     .map(([ic0, n, e, act]) => `<button class="rb" data-act="${act}">${ic0 === 'notice' ? '<span class="uic"><img src="/img/lb/ui2/megaphone.webp" alt="" draggable="false"></span>' : ic0 === 'friends' ? '<span class="uic"><img src="/img/lb/ui2/ic_friends.webp" alt="" draggable="false"></span>' : uiIco(ic0, '')}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions) || (act === 'mail' && L.mailCount(p) > 0) || (act === 'friends' && FRX.badge(p) > 0))}</button>`).join('');
-  try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~6)
+  try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~7)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
-    <div class="lb-key" style="background-image:url('/img/lb/keyart${ch}.webp')"></div>
+    <div class="lb-key" style="background-image:${chArtCss('keyart', ch)}"></div>
     <div class="lb-dim"></div>
     ${topPills()}
     ${TWUI ? TWUI.lobbyButton(p) : ''}
@@ -2250,7 +2268,7 @@ function showMenu() {
     </button>
     <div class="lb-dio">
       <button class="chev l" data-act="lbStep" data-d="-1" ${s <= 1 ? 'disabled' : ''} aria-label="이전 스테이지"><i></i>${s > 1 ? `<small>◂ ${stageLabel(s - 1)}</small>` : ''}</button>
-      <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio${c2}.webp" alt="" draggable="false" onerror="this.remove()">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>`}</div></div>`; }).join('')}</div>
+      <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio${c2}.webp" alt="" draggable="false" onerror="${c2 > 6 ? "this.onerror=null;this.src='/img/lb/dio6.webp'" : 'this.remove()'}">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>`}</div></div>`; }).join('')}</div>
       ${(() => { const lock = s >= (p.master ? STAGE_COUNT : nextStage()); const nx = Math.min(STAGE_COUNT, s + 1); return `<button class="chev r ${lock && s < STAGE_COUNT ? 'lockd' : ''}" data-act="lbStep" data-d="1" ${lock ? 'disabled' : ''} aria-label="다음 스테이지"><i></i>${s < STAGE_COUNT ? `<small>${lock ? '' : ''}${stageLabel(nx)} ▸</small>` : ''}</button>`; })()}
     </div>
     <div class="lb-chests"><div class="cbar"><b style="width:${Math.min(100, (cs / 30) * 100)}%"></b></div>${chests}<em>${ch}장 ★${cs}/30</em></div>
@@ -2870,7 +2888,7 @@ function glossTip(el, key) {
   const r = el.getBoundingClientRect(), sr = stage.getBoundingClientRect();
   const t = document.createElement('div');
   t.className = 'gl-tip';
-  t.innerHTML = `<b>${esc(L0[0])}</b><span>${esc(L0[1])}</span>${L0[2] ? `<small>${esc(L0[2])}</small>` : ''}${Array.isArray(L0[3]) && L0[3].length ? `<span class="gl-faces">${L0[3].map((e) => `<img src="${ENEMIES[e].img}" alt="" title="${esc(ENEMIES[e].name)}">`).join('')}</span>` : ''}`;
+  t.innerHTML = `<b>${esc(L0[0])}</b><span>${esc(L0[1])}</span>${L0[2] ? `<small>${esc(L0[2])}</small>` : ''}${Array.isArray(L0[3]) && L0[3].length ? `<span class="gl-faces">${L0[3].map((e) => `<img src="${ENEMIES[e].img}" alt="" title="${esc(ENEMIES[e].name)}"${ENEMIES[e].fb ? ` onerror="this.onerror=null;this.src='${ENEMIES[e].fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'"` : ''}>`).join('')}</span>` : ''}`;
   t.style.pointerEvents = 'none';
   stage.appendChild(t);
   const w = t.offsetWidth;
@@ -3967,12 +3985,12 @@ function chapterMapHtml(p, c) {
     return `<button class="mchest chest ${st}" style="left:${x}%;top:${y}%" data-act="chest" data-ch="${c.id}" data-n="${n}">${ic(st === 'open' ? 'check' : 'gift', '', '')}<small>★${n}</small></button>`;
   }).join('');
   return `<section class="chmap ${open ? '' : 'lk'}" data-ch="${c.id}" style="--cc:${c.color}">
-    <div class="chm-banner"><div class="chm-art" style="background-image:url('/img/lb/keyart${c.id}.webp')"></div>
-      <div class="chm-txt"><em>CHAPTER ${c.id}</em><b>${esc(c.name)}</b><span>${esc(c.desc)}</span></div>
+    <div class="chm-banner"><div class="chm-art" style="background-image:${chArtCss('keyart', c.id)}"></div>
+      <div class="chm-txt"><em>CHAPTER ${c.id}${c.hard ? ' · 고난도' : ''}</em><b>${esc(c.name)}</b><span>${esc(c.desc)}</span></div>
       <div class="chm-prog"><div><i style="width:${Math.round((stars / 30) * 100)}%"></i></div><b>★ ${stars}<small>/30</small></b></div>
       ${open ? '' : `<div class="chm-lock">${ic('lock', '', '')}<b>${stageLabel(first - 1)} 깨면 열려요</b></div>`}
     </div>
-    <div class="chm-map" style="background-image:url('/img/lb/dio${c.id}.webp')">
+    <div class="chm-map" style="background-image:${chArtCss('dio', c.id)}">
       <svg class="chm-path" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${path}" class="p0"/><path d="${donePath}" class="p1"/></svg>
       ${chests}${nodes}
     </div>
@@ -4198,7 +4216,7 @@ function stagePower(p, s, hell) { // 권장 전투력: 기본 멤버 4명이 그
   const q = Object.assign({}, p, { heroes: Object.fromEntries(base.map((h) => [h, m])), equip: {}, hstars: {} });
   return Math.round(deckPower(q, base) * (1 + 0.05 * (chapterOf(s) - 1)) * (hell ? 1.9 : 1));
 }
-const foeFace = (id, cls = '') => { const d = ENEMIES[id]; return `<span class="pp-face ${cls}" style="--fc:${d.color || '#8a7ab0'}"><img src="${d.img}" alt="" draggable="false" onerror="this.remove()"></span>`; };
+const foeFace = (id, cls = '') => { const d = ENEMIES[id]; return `<span class="pp-face ${cls}" style="--fc:${d.color || '#8a7ab0'}"><img src="${d.img}" alt="" draggable="false" onerror="${d.fb ? `this.onerror=null;this.src='${d.fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'` : 'this.remove()'}"></span>`; };
 const foeTrait = (id) => { const t = ENEMIES[id].traits || {}; const k = Object.keys(t).find((x) => TRAITS[x]); return k ? TRAITS[k] : null; };
 function prepFoes(st) { return st ? stageMix(st).filter(([t]) => ENEMIES[t] && !ENEMIES[t].dot).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t) : []; }
 function prepRecSet(st) {
@@ -4232,7 +4250,7 @@ function showPrep(mode, s) {
   const bossId = st ? stageBosses(st)[0] || stageMid(st) : null;
   const bossTag = st && stageBosses(st).length ? 'BOSS' : '중간 보스';
   const stars = mode === 'stage' ? (hellOn ? (p.hell || {})[s] || 0 : p.stages[s] || 0) : 0;
-  const bg = `/img/lb/bg${ch >= 2 && ch <= 6 ? ch : ''}.webp`;
+  const bg = `/img/lb/bg${ch >= 2 && ch <= 7 ? ch : ''}.webp`;
   const head = mode === 'stage'
     ? `<em class="pp-no">${stageLabel(s)}</em><b class="pp-name">${esc(stageName(s))}</b><span class="pp-meta"><i class="pp-stars">${'★'.repeat(stars)}<u>${'★'.repeat(3 - stars)}</u></i>${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}<button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
     : wk ? `<em class="pp-no sm">${ic('calendar', '')} 주간 도전</em><b class="pp-name">${esc(L.WEEKLY_MODS[wk.mod].name)}</b><span class="pp-meta"><button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
@@ -5125,6 +5143,15 @@ const DEX_FLAVOR = {
   boss_otaku: '오타쿠의 왕. 피규어 부대를 거느리고 응원봉 빔을 쏜다.',
   boss_jusa: '울고, 뛰고, 자고, 집에 가는 주사를 한 몸에 다 가진 왕.',
   boss_soloparty: '매일 밤 솔로파티를 여는 중독자. 디스코볼 한 번에 모두가 홀린다.',
+  // 7장 스키장 MT
+  snowboard: '시즌권을 자랑하러 MT까지 따라온 보드남. 뒤로 타며 과시하다가 갑자기 옆 줄로 휙 넘어간다.',
+  liftcut: '"저희 일행이에요~" 리프트 줄을 두세 명씩 우르르 끼어드는 새치기꾼들.',
+  fakecoach: '강사 자격증은 없지만 강습은 한다. "제가 알려 드릴게요~" 하면 옆 진상들 자세가 단단해진다.',
+  sledgirl: '브레이크 없는 눈썰매로 입구까지 일직선. 한 번 붙잡히면 썰매에서 굴러떨어진다.',
+  hotpack: '남의 핫팩만 골라 슬쩍하는 손. 옆을 지나가기만 해도 손이 꽁꽁 언다.',
+  snowball: '과 대항 눈싸움에 목숨 건 대학생. 제일 잘 싸우는 사람 머리부터 노린다.',
+  mid_pension: 'MT 펜션 사장님. "여기 밤 10시 이후 소음 금지예요!" 한마디면 모두 입을 다문다.',
+  boss_resort: '스키장을 통째로 가진 리조트 갑부 회장. 손짓 한 번에 산 위에서 눈사태가 쏟아진다.',
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
 const DEX_EN = { baul: 'SONG BAUL', byunghwa: 'KANG BYUNGHWA', jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
@@ -5171,6 +5198,8 @@ const dexSrc = (id, fb) => (NO_DEX_ART.has(id) ? fb || '' : `/img/lb/dex/${id}.w
 function dexImg(id, fb, cls = '') {
   const src = dexSrc(id, fb);
   if (!src) return `<span class="dx-art dx-emo ${cls}">${esc((HEROES[id] || ENEMIES[id] || {}).emoji || '')}</span>`;
+  const fb2 = (ENEMIES[id] && ENEMIES[id].fb) || ''; // 7장: 도감 그림 → 전투 그림 → 비슷한 진상 그림 (색만 바꿔서)
+  if (fb2) return `<img class="dx-art ${cls}" src="${src}" alt="" draggable="false" onerror="if(this.dataset.f){this.onerror=null;this.src='${fb2}';this.style.filter='hue-rotate(160deg) saturate(1.3)'}else{this.dataset.f=1;this.src='${fb}'}">`;
   return `<img class="dx-art ${cls}" src="${src}" alt="" draggable="false" onerror="this.onerror=null;this.src='${fb}'">`;
 }
 function dexArt(d, id, form) {
@@ -5180,11 +5209,11 @@ function dexArt(d, id, form) {
   return dexImg(form || base, d.img);
 }
 function dexColor(kind, d) { return kind === 'hero' ? ATTRS[d.attr].color : d.boss ? '#ff5a5a' : d.mid ? '#ff9d3f' : CLASSES[d.cls].color; }
-function dexChapter(kind, id) { const s = kind === 'hero' ? HERO_UNLOCK[id] || 1 : firstStageOf(id) || STAGE_COUNT; return clamp(chapterOf(s), 1, 6); }
+function dexChapter(kind, id) { const s = kind === 'hero' ? HERO_UNLOCK[id] || 1 : firstStageOf(id) || STAGE_COUNT; return clamp(chapterOf(s), 1, CHAPTERS.length); }
 function heroHow(id) {
   if (!LOCKED_HEROES.includes(id)) return '처음부터 함께하는 멤버';
   if (HERO_UNLOCK[id]) return `${stageLabel(HERO_UNLOCK[id])} 클리어하면 합류`;
-  if (LEGEND_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `마지막 스테이지(${stageLabel(STAGE_COUNT)}) 클리어 후 모집에서 카드 ${L.UNLOCK_CARDS.legend}장을 모으면 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; }
+  if (LEGEND_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `${stageLabel(L.HOCHAN_GATE)} 클리어 후 모집에서 카드 ${L.UNLOCK_CARDS.legend}장을 모으면 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; }
   const pr = L.cardProgress(P(), id);
   return `모집에서 카드를 모아 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`;
 }
@@ -6021,7 +6050,17 @@ const ENEMY_TIPS = {
   boss_sales: '5장 보스. 보험 보호막 폭탄 · 영업쟁이 소환 · 계약 도장 기절',
   boss_otaku: '5장 끝 보스. 피규어 부대 + 굿즈 보호막 · 응원봉 빔',
   boss_jusa: '6장 보스. 울고(웅덩이) → 뛰고 → 자고(회복, 빈틈!) → 집에 간다(경험치↓)',
-  boss_soloparty: '마지막 보스. 디스코볼로 전원 홀림 · 꽃가루 눈부심 · 체력 30%면 분노',
+  boss_soloparty: '6장 끝 보스. 디스코볼로 전원 홀림 · 꽃가루 눈부심 · 체력 30%면 분노',
+  snowboard: '빠르고, 가끔 옆 줄로 휙 넘어간다(줄 바꾸기 · 그 순간 40% 회피). 감속 · 기절이면 못 바꾼다 — 범위 공격으로',
+  liftcut: '두세 명이 한 줄로 우르르(떼로 등장) · 입구 앞에서 한 번 새치기 점프 — 관통 · 줄 공격 · 범위로 한 번에',
+  fakecoach: '"제가 알려 드릴게요~" 곁의 진상 4명에게 보호막(최대 체력 40%) · 보호막 동안 안 밀림 — 운영진 레드카드 · 버프 벗기기로 먼저',
+  sledgirl: '아주 빠른 썰매 돌진, 입구에 처음 부딪히면 크게 아프다. 몸은 약함 — 감속 · 기절에 걸리면 썰매에서 떨어져 느려진다',
+  hotpack: '길 절반부터 옆을 지나간 멤버의 공격 속도 -35% (약화) — 멀리서 먼저 잡자',
+  snowball: '멀찍이 서서 눈덩이 → 맞은 멤버 1.5초 빙결 (제일 잘 치는 멤버를 노림) — 건전녀 응급 방패 · 강성구 곁 · 도발 탱커로 막는다',
+  mid_pension: '중간 보스. 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기',
+  boss_resort: '7장 보스. "눈사태 경고!" 3초 예고 뒤 멤버 전원 빙결 + 입구 피해 + 보드남 — 예고 중에 스킬 · 총공지 · 알디콤을 쓰면 끊긴다',
+  mid_snowboard: '각성한 보드남. 줄을 더 자주 바꾼다',
+  mid_sledgirl: '각성한 썰매 폭주녀. 입구에 부딪히면 크게 아프다',
   yeokko: '빠름. 가까이 오면 여자 멤버를 홀린다',
   namkko: '빠름. 가까이 오면 남자 멤버를 홀린다',
   drunk: '갈지자 걸음. 죽으면 술병이 터져 주변 진상에게 피해',

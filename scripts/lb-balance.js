@@ -74,7 +74,14 @@ function seeded(seed = 1) {
     }
     return best ? { x: best.x, y: best.y, n: bn } : null;
   }
-  function aiSkills(g) {
+  function aiSkills(g, control) {
+    // 컨트롤(7장): 눈사태 예고가 뜨면 0.6초쯤 뒤 아무 스킬로 끊고 · 예고가 곧 올 땐 스킬 하나를 아껴 둔다
+    if (control) {
+      const ava = g.avalanche && !g.avalanche.dead && g.avalanche.avaW > 0 ? g.avalanche : null;
+      if (ava) { if (ava.def.avalanche.windup - ava.avaW > 0.6) for (const h of g.heroes) if (S.skillReady(h) && S.castSkill(g, h, ava.x, ava.y)) break; return; }
+      const boss = g.enemies.find((e) => !e.dead && e.def.avalanche && e.y > 0);
+      if (boss && boss.avaT < 4 && g.base.hp / g.base.max > 0.35) return;
+    }
     for (const h of g.heroes) {
       if (!S.skillReady(h)) continue;
       const sk = h.def.skill;
@@ -94,7 +101,7 @@ function seeded(seed = 1) {
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
-      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE,
+      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader,
     });
     g.partner = o.partner;
     if (o.noTypes) g.noTypes = true;
@@ -115,7 +122,7 @@ function seeded(seed = 1) {
         g.pickAt = undefined;
       }
       if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
-      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % SKILL_EVERY) === 0) aiSkills(g);
+      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % SKILL_EVERY) === 0) aiSkills(g, o.control);
       if (o.stopWave && g.wave >= o.stopWave && g.phase === 'break') break;
     }
     const heroes = {};
@@ -434,7 +441,7 @@ function seeded(seed = 1) {
     }
     const jp = (process.argv.find((x) => x.startsWith('--json=')) || '').slice(7);
     if (jp) {
-      const TG = [80, 65, 55, 45, 30, 20];
+      const TG = [80, 65, 55, 45, 30, 20, 15];
       const out = { chapters: CH.map((c) => ({ chapter: c, target: TG[c - 1], hpTune: D.STAGE.hpTune[c - 1],
         ...Object.fromEntries(kinds.map(([k]) => { const P = per[k + c] || { w: 0, n: 1, st: 0, hp: 0 }; return [k, { clear: Math.round((P.w / P.n) * 100), stars: +(P.st / Math.max(1, P.w)).toFixed(2), hpLeft: Math.round((P.hp / Math.max(1, P.w)) * 100) }]; })) })),
         pickRate: Object.fromEntries(Object.entries(picks).map(([id, n]) => [id, Math.round((n / Math.max(1, teams)) * 100)])), curve };
@@ -448,7 +455,7 @@ function seeded(seed = 1) {
   //  목표: 챕터 목표 + 챕터 앞쪽은 조금 쉽게 · 보스 스테이지는 조금 어렵게 → 들쭉날쭉하지 않은 곡선
   function calib() {
     const N = opt('seeds', 8), IT = opt('iters', 4);
-    const TG = [80, 65, 55, 45, 30, 20];
+    const TG = [80, 65, 55, 45, 30, 20, 15];
     const ht = (process.argv.find((x) => x.startsWith('--hptune=')) || '').slice(9);
     if (ht) D.STAGE.hpTune = ht.split(',').map(Number);
     const pool = ['staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu'];
@@ -487,7 +494,70 @@ function seeded(seed = 1) {
     }
     console.log('stageAdd: ' + JSON.stringify(Object.fromEntries(Object.entries(out).filter(([, v]) => v !== 0))));
   }
+  // ── 9) 7장 스키장 (node scripts/lb-balance.js ch7 [--seeds=N] [--list=61,65] [--hell]) — 실제 게임처럼 합류 · 템포 · 스킬 · 6칸 덱
+  //  덱 성향별 클리어율: 한 명만 키운 덱 · 역할을 갖춘 T3/T4 덱(컨트롤 있음/없음) · 키운 LEGEND 포함 덱
+  function ch7() {
+    const N = opt('seeds', 8);
+    const list = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
+    if (!list.length) for (let s = 61; s <= 70; s++) list.push(s);
+    const hell = args.includes('--hell');
+    const only = (process.argv.find((x) => x.startsWith('--prof=')) || '').slice(7).split(',').filter(Boolean);
+    const lo = (ids, m, extra = {}) => Object.assign(Object.fromEntries(ids.map((id) => [id, m])), extra);
+    const PROF = [
+      ['한 명 몰빵(T4 아라 20)', ['ara', 'bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon'], lo(['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon'], 8, { ara: 20 }), true],
+      ['한 명 몰빵(LEGEND 20)', ['hochan', 'bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon'], lo(['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon'], 8, { hochan: 20 }), true],
+      ['T3·T4 역할 덱 (컨트롤 X)', ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'hyungyeong'], 15), false],
+      ['T3·T4 역할 덱', ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'hyungyeong'], 15), true],
+      ['역할 덱 + LEGEND 이호찬', ['donghan', 'hochan', 'ara', 'gunnyeo', 'sunggu', 'staff'], lo(['ara', 'gunnyeo', 'sunggu', 'donghan', 'staff'], 15, { hochan: 20 }), true],
+      ['역할 덱 + LEGEND 강병화', ['donghan', 'byunghwa', 'ara', 'gunnyeo', 'sunggu', 'staff'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan'], 15, { byunghwa: 20 }), true],
+      ['역할 덱 + LEGEND 둘', ['donghan', 'hochan', 'byunghwa', 'gunnyeo', 'sunggu', 'staff'], lo(['gunnyeo', 'sunggu', 'donghan', 'staff'], 15, { hochan: 20, byunghwa: 20 }), true],
+      ['역할 덱 강화 20 (헬용)', ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'hyungyeong'], 20), true],
+      ['역할+LEGEND 강화 20 (헬용)', ['donghan', 'byunghwa', 'ara', 'gunnyeo', 'sunggu', 'staff'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'byunghwa'], 20), true],
+      ['T1·T2만 (강화 15)', ['dohoon', 'bangjang', 'staff', 'gunman', 'gunnyeo', 'eunok'], lo(['dohoon', 'bangjang', 'staff', 'gunman', 'gunnyeo', 'eunok'], 15), true],
+    ].filter((p, i) => !only.length || only.includes(String(i)));
+    const items = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
+    console.log(`
+■ 7장 스키장${hell ? ' (헬)' : ''} — 합류 · 템포 · 스킬 자동 · ${N}판씩`);
+    console.log(pad('덱', 26) + list.map((s) => pad(D.stageLabel(s), 7)).join('') + '평균');
+    const out = {};
+    for (const [name, ids, meta, control] of PROF) {
+      const cells = []; let tw = 0, tn = 0; const lossW = {}, ava = [0, 0], share = {};
+      for (const s of list) {
+        let w = 0;
+        for (let i = 1; i <= N; i++) {
+          const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items, seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control, join: true, tempo: true, hell });
+          if (r.win) w++; else lossW[r.wave] = (lossW[r.wave] || 0) + 1;
+          ava[0] += r.g.stats.avaHit || 0; ava[1] += r.g.stats.avaStop || 0;
+          for (const [id, v] of Object.entries(r.heroes)) share[id] = (share[id] || 0) + v.dmg / Math.max(1, r.dmg) / (N * list.length);
+        }
+        cells.push(Math.round((w / N) * 100)); tw += w; tn += N;
+      }
+      out[name] = cells;
+      console.log(pad(name, 26) + cells.map((c) => pad(c + '%', 7)).join('') + Math.round((tw / tn) * 100) + '%' + (args.includes('--why') ? `  진 웨이브 ${JSON.stringify(lossW)} · 눈사태 맞음/끊음 ${ava[0]}/${ava[1]} · 피해 몫 ${Object.entries(share).map(([k, v]) => k + ' ' + Math.round(v * 100)).join(' ')}` : ''));
+    }
+    return out;
+  }
+  // 7장 스테이지별 맞춤: 역할 덱(컨트롤 있음)으로 stageAdd 를 이분 탐색 (node scripts/lb-balance.js ch7calib --list=64 --target=60)
+  function ch7calib() {
+    const N = opt('seeds', 8), IT = opt('iters', 4), RG = opt('range', 4);
+    const TG = { 61: 72, 62: 68, 63: 64, 64: 62, 65: 55, 66: 60, 67: 58, 68: 56, 69: 54, 70: 46 };
+    const list = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
+    const ids = ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'];
+    const meta = Object.fromEntries(ids.map((id) => [id, 15]));
+    const items = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
+    for (const s of list) {
+      const target = opt('target', TG[s] || 60);
+      const base = D.STAGE.stageAdd[s] || 0;
+      const rate = (add) => { D.STAGE.stageAdd[s] = base + add; let w = 0; for (let i = 1; i <= N; i++) if (play({ stage: s, deck: placeDeck(ids), leader: ids[0], meta, gear: gearAt(s, ids), items, seed: i * 173 + s * 11, unlocked: [], skills: true, control: true, join: true, tempo: true }).win) w++; return (w / N) * 100; };
+      let lo = -RG, hi = RG, best = 0, bestErr = 1e9;
+      const r0 = rate(0); bestErr = Math.abs(r0 - target);
+      if (bestErr >= 100 / N) for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2; const r = rate(mid); if (Math.abs(r - target) < bestErr) { bestErr = Math.abs(r - target); best = mid; } if (r > target) lo = mid; else hi = mid; }
+      console.log(`${s} 목표 ${target}% · 처음 ${r0.toFixed(0)}% → 가산 ${+(base + best).toFixed(2)} (오차 ${bestErr.toFixed(0)})`);
+    }
+  }
   const t0 = Date.now();
+  if (what === 'ch7calib') ch7calib();
+  if (what === 'ch7') ch7();
   if (what === 'calib') calib();
   if (what === 'final') final();
   if (what === 'innate') innate();
