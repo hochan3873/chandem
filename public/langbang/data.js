@@ -1909,3 +1909,132 @@ export const SHORT_NAME = { noshow: '약속취소러', praise1: '칭찬빌런', 
   drunk_cry: '우는 주사', drunk_run: '뛰는 주사', drunk_sleep: '눕는 주사', drunk_home: '귀가 주사', boss_kkondol: '꼰대돌싱', boss_queenmom: '된장싱글맘', boss_soloparty: '솔로파티왕', boss_union: '연합회장',
   mid_selfie: '각성 인플루', fuse_gossip: '뒷담 대장', fuse_jusa: '울뛰 만취자', fuse_karaoke: '노래방 커플', fuse_taxi: '택시만취러', fuse_lease: '리스왕', fuse_adspam: '광고방장', fuse_latte: '라떼 연합' };
 export const shortName = (id) => SHORT_NAME[id] || (ENEMIES[id] ? ENEMIES[id].name : id);
+
+// ─── 멤버 전용 스킬 증강 (레벨업 카드) ─────────────────────────
+//  그 멤버가 판에 있을 때만 · 증강마다 한 번 · 고르면 그 멤버 공격력 +10% + 아래 효과
+//  스테이지에선 그 멤버 Lv3 부터 가끔 · 진상의 탑(혼자)에선 자주
+//  cm: 멤버 전용 카드와 같은 배율(mul)/더하기(add) · skCd: 스킬 쿨 배율 · skDmg: 스킬 피해 + · 나머지는 sim.js 가 id 로 처리
+export const SKILL_AUG = {
+  bangjang: [
+    { id: 'tri', name: '3갈래 음파', desc: '확성기 음파가 양옆으로 한 줄기씩 더 (각 50%)' },
+    { id: 'rally', name: '전원 집합', desc: '집합! +3초 · 공격 속도 버프 +20%p' },
+    { id: 'loud', name: '확성기 과부하', desc: '음파 사거리 +20% · 밀치기 +60%', cm: { mul: { range: 1.2 } } },
+  ],
+  staff: [
+    { id: 'redchain', name: '레드카드 연쇄', desc: '레드카드가 다른 무리에 한 장 더 날아간다 (80%)' },
+    { id: 'warn2', name: '즉결 강퇴', desc: '경고 2번이면 강퇴', cm: { add: { warnN: 1 } } },
+    { id: 'kickboom', name: '강퇴 폭발', desc: '강퇴당한 진상 주변이 터지며 0.8초 기절' },
+  ],
+  gunman: [
+    { id: 'frenzy', name: '난사 연장전', desc: '난사 +1.5초 · 난사 피해 +20%' },
+    { id: 'head', name: '헤드샷 장인', desc: '치명타 +15% · 3발마다 헤드샷 (Lv 상관없이)' },
+  ],
+  gunnyeo: [
+    { id: 'aegis', name: '철벽 방패', desc: '응급 방패 +50% · 면역 5초' },
+    { id: 'angel', name: '천사의 손길', desc: '수리 +50% · 하트 폭탄 범위 +30%', cm: { mul: { heal: 1.5, splash: 1.3 } } },
+  ],
+  myunghoon: [
+    { id: 'bolts', name: '저주 폭격', desc: '쌍욕 저격이 8명까지' },
+    { id: 'chain', name: '욕 연쇄', desc: '욕 튕김 +2 · 기절 +30%', cm: { add: { bounce: 2 }, mul: { ctrl: 1.3 } } },
+  ],
+  dohoon: [
+    { id: 'medley', name: '앙코르 메들리', desc: '무한 앵콜 버프 2배 길게 · 회복 +30%' },
+    { id: 'hi', name: '고음 폭발', desc: '음파 반경 +25% · 한 번에 4명 더', cm: { mul: { range: 1.25 } } },
+  ],
+  ingyu: [
+    { id: 'twin', name: '할리 2대', desc: '할리가 반대쪽으로 한 대 더 달린다' },
+    { id: 'booster', name: '부스터', desc: '오토바이 게이지 2칸 빨리 · 오토바이 피해 +50%', cm: { add: { moto: 2 } } },
+  ],
+  donghan: [
+    { id: 'double', name: '두 줄 빔', desc: '빔이 두 번째로 붐비는 줄에도 (70%)' },
+    { id: 'fastmeter', name: '빠른 간보기', desc: '간보기 게이지 +40% 빨리' },
+  ],
+  youngjun: [
+    { id: 'rushx', name: '블랙 러시 연속', desc: '블랙 러시 +3명 · 피해 +30%', cm: { add: { rush: 3 } } },
+    { id: 'endless', name: '끝없는 돌격', desc: '돌격 +1.5초 · 크로스핏 −40%', cm: { add: { out: 1.5 } } },
+  ],
+  eunok: [
+    { id: 'inferno', name: '불바다 확장', desc: '분노 불바다 범위 +50% · 1초 더' },
+    { id: 'bottoms', name: '끝장 원샷', desc: '분노 +4초 · 원샷 쿨타임 −30%', cm: { add: { rage: 4 } }, skCd: 0.7 },
+  ],
+  hanna: [
+    { id: 'focus', name: '집중 레이저', desc: '레이저 세지는 속도 +60% · 최대치 +80%p', cm: { mul: { ramp: 1.6 } } },
+    { id: 'wbomb', name: '윙크 폭탄 연쇄', desc: '윙크 폭탄 범위 +35% · 홀림 +0.8초' },
+  ],
+  sunggu: [
+    { id: 'tricane', name: '지팡이 하나 더', desc: '지팡이 +1개', cm: { add: { cane: 1 } } },
+    { id: 'bighole', name: '블랙홀 확장', desc: '블랙홀 반경 +35% · 마지막 쾅 +40%' },
+  ],
+  junseo: [
+    { id: 'pinball', name: '인맥 핀볼', desc: '여사친 튕김 +2', cm: { add: { bounce: 2 } } },
+    { id: 'jackpot', name: '소개팅 대박', desc: '소개팅 주선 여사친 +2명 · 피해 +30%' },
+  ],
+  hyungyeong: [
+    { id: 'noyoyo', name: '요요 없음', desc: '날씬 모드 +5초', cm: { add: { diet: 5 } } },
+    { id: 'target', name: '표적 표시', desc: '표시한 진상이 받는 피해 +25% → +45%' },
+  ],
+  ara: [
+    { id: 'forever', name: '영원한 공주', desc: '공주로 +6초 · 늙는 시간 −40%', cm: { add: { young: 6 } } },
+    { id: 'combo', name: '공주의 연타', desc: '공주의 일격이 다음 센 적 둘에게도 (60%)' },
+  ],
+  hochan: [
+    { id: 'bond', name: '랑방 결속', desc: '랑방 버프 최대 +12%p', cm: { add: { buff: 0.12 } } },
+    { id: 'extra', name: '막차 증차', desc: '막차 대행진 버스 +2대 · 기절 +0.5초' },
+  ],
+  soyoung: [
+    { id: 'nagbomb', name: '잔소리 폭격', desc: '성준영 +4초', cm: { add: { nag: 4 } } },
+    { id: 'allin', name: '올인 끌어당기기', desc: '성준영 칩 · 카드 피해 +50%' },
+  ],
+  jieun: [
+    { id: 'frozen', name: '완전 정지', desc: '시간 정지가 훨씬 느리게 (−88%) · 반경 +20%' },
+    { id: 'tick', name: '째깍 감속', desc: '시계침 감속 +15%p · 1초 더', cm: { add: { slowX: 0.15, slowSec: 1 } } },
+  ],
+  sanghwa: [
+    { id: 'growth', name: '끝없는 성장', desc: '성장 한도 +20%', cm: { add: { growMax: 0.2 } } },
+    { id: 'perfect', name: '완벽한 박상화', desc: '좋은남자 버프 +15%p · 2초 더' },
+  ],
+  jungmin: [
+    { id: 'craft', name: '붕대 장인', desc: '수리 +50%', cm: { mul: { heal: 1.5 } } },
+    { id: 'iron', name: '철벽 붕대', desc: '붕대 대공사 입구 피해 감소 +20%p · 3초 더' },
+  ],
+  jiwon: [
+    { id: 'deep', name: '깊은 방깎', desc: '방깎 +1겹 · 2초 더', cm: { add: { shredMax: 1, shredSec: 2 } } },
+    { id: 'wide', name: '쌍뻑큐 확장', desc: '쌍뻑큐 폭 +50% · 피해 +40%' },
+  ],
+  wonsik: [
+    { id: 'consult', name: '상담 반경 +40%', desc: '결혼정보회사 상담 반경 +40%' },
+    { id: 'back', name: '든든한 등', desc: '피해 감소 +10%p · 반경 +25%', cm: { add: { guardCut: 0.1 }, mul: { guardR: 1.25 } } },
+  ],
+  baul: [
+    { id: 'ice', name: '미끄러운 길', desc: '썰매가 지나간 줄 4초 동안 미끄러운 길 (진상 −45%)' },
+    { id: 'twice', name: '썰매 두 번', desc: '썰매가 한 번 더 지나간다 (60%)' },
+    { id: 'jab', name: '윙크 잽 강화', desc: '잽 피해 +25% · 밀치기 ↑' },
+  ],
+  byunghwa: [
+    { id: 'curtain', name: '커튼콜', desc: '원맨쇼 중 처치하면 시간 +0.5초 (최대 +3초)' },
+    { id: 'stage', name: '무대 확장', desc: '고함 대상 +2명 · 홀림 +0.3초' },
+  ],
+  jeongseob: [
+    { id: 'giant', name: '거인의 팔', desc: '미는 폭 +30% · 버티는 힘 +50%' },
+    { id: 'stomp', name: '벽 쿵쿵', desc: '끝에서 쿵 기절 +1초 · 범위 +40' },
+    { id: 'stride', name: '성큼성큼', desc: '걷는 속도 +30% · 쉬는 시간 −3초' },
+  ],
+};
+export const SKILL_AUG_W = { stage: 1.1, tower: 7, stageLv: 3, atk: 0.1 }; // 카드 가중치 (스테이지 · 탑) · 스테이지는 그 멤버 Lv3 부터 · 고르면 공격력 +10%
+// 진상의 탑 규칙 숫자 (sim.js 가 읽는다 · 층 구성은 tower.js)
+export const TOWER_SIM = { // [아래층, 25층 이상] — 규칙은 아래층에선 순하게, 25층쯤부터 제 세기
+  ramp: 24, // 1층 → 25층에 걸쳐 규칙 세기가 오른다
+  titan: { hp: [3, 10], spd: 0.5, atk: [1.6, 3.2] }, // 거물: 체력 · 속도 · 문 공격 배율
+  swarm: { hp: [0.4, 0.34], atk: 0.7, count: [0.4, 1.1] }, // 떼거리: 한 명은 약하게 · 수는 위로 갈수록
+  rush: { spd: [1.25, 1.6], maxSpd: 150 }, // 돌진: 빠르고 잘 피한다 (BAL.fast 회피)
+  shield: { layers: [1, 2, 2], boss: [3, 4, 4], regen: 4, hp: 0.2 }, // 보호막 겹 (10층 · 20층마다 +1 · 한 방에 한 겹 · 3초마다 한 겹) + 체력 보호막 25%
+  curse: { every: [8, 3.2], stun: [0.8, 1.6], silence: 3, charm: [1, 2], slow: [0.35, 4] }, // 저주 간격(1층 → 60층) · 시간
+  dark: { range: [0.85, 0.7], reveal: 0.62 }, // 어둠: 사거리 · 길 62% 지나야 보인다
+  seal: { weak: [0.7, 0.4], strong: [1.15, 1.3] }, // 속성 봉인
+  wallDps: 7, // 윤정섭 (혼자 탑): 밀고 가는 진상에게 초당 한 방 ×7
+  wall: { w: 3, spd: 1.6, rest: 0.35 }, // 윤정섭 (혼자 탑): 미는 폭 · 걷는 속도 · 쉬는 시간
+  limit: [30, 80], // 제한 시간: 30초 + 웨이브마다 80초
+  solo: { wonsik: 1.7, jungmin: 1.35, dohoon: 1.25, gunnyeo: 1.25, jieun: 1.15, sanghwa: 1.15, baul: 1.1 }, // 혼자라서 동료 덕을 못 보는 멤버(탱커 · 회복 · 지원)는 탑에서만 공격력 보정
+};
+export const TOWER_AWAKE_FX = { atk: 0.05, skill: 0.15, cd: 0.08 }; // 지옥 각성 (20층 공격력 · 40층 스킬)
+export const HELL_SET_FX = { cc: 0.3, boom: 0.6, r: 64 }; // 지옥 세트 2세트 · 4세트

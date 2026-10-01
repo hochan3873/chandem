@@ -448,6 +448,28 @@ export class Renderer {
     this.sprites[key] = { c, f, box, real };
   }
 
+  // 진상의 탑 지옥 각성 (60층): 발밑 불꽃 고리 + 붉은 오라 + 올라가는 불티 — 그림(fx/awake_aura.webp)이 오면 그걸로, 없으면 불꽃 고리 그림
+  drawAwake(h, hx, feet, box, t) {
+    const cx = this.cx;
+    if (!this.images.awakeAura) { const im = new Image(); im.decoding = 'async'; im.src = this.awakeAuraSrc || '/img/lb/fx/vfx_aura_red.webp'; this.images.awakeAura = im; } // (tower-ui 가 그림 주소를 알려 준다)
+    const gl = this.projSprites.glowRed, pr = box * (0.62 + Math.sin(t * 5 + h.slot) * 0.05);
+    this.tf(hx, feet - box * 0.45, 0, 1, 1);
+    cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.42 + Math.sin(t * 3.3) * 0.12;
+    if (gl) cx.drawImage(gl.c, -pr, -pr * 1.25, pr * 2, pr * 2.5);
+    cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
+    const ring = this.images.awakeAura;
+    if (imgOk(ring)) { this.tf(hx, feet - 4, 0, 1, 0.36); cx.globalAlpha = 0.85; const rw = box * (0.95 + Math.sin(t * 6) * 0.03); cx.drawImage(ring, -rw / 2, -rw * 0.72, rw, rw); cx.globalAlpha = 1; }
+    if (Math.random() < 0.35) this.fx.part('flame', hx + (Math.random() - 0.5) * box * 0.5, feet - Math.random() * box * 0.5, (Math.random() - 0.5) * 20, -60 - Math.random() * 50, 0.7, 6 + Math.random() * 5, null);
+  }
+  drawAwakeEyes(h, hx, feet, box, t) {
+    const cx = this.cx, gl = this.projSprites.glowRed;
+    if (!gl) return;
+    const y = feet - box * (h.def.scale ? 0.86 : 0.78), k = 0.8 + Math.sin(t * 9 + h.slot) * 0.2;
+    this.world();
+    cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * k;
+    for (const s0 of [-1, 1]) cx.drawImage(gl.c, hx + s0 * box * 0.07 - 7, y - 4, 14, 8);
+    cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
+  }
   // 헬 모드용: 붉은 기운을 미리 구운 그림 (진상마다 빛을 따로 그리지 않게)
   hellSprite(sp) {
     if (sp.h) return sp.h;
@@ -1547,7 +1569,7 @@ export class Renderer {
         if (a) { this.tf(e.x - box * 0.2, feet + bob, -rot, sx, sy); cx.drawImage(e.flash > 0 ? a.f : a.c, -bw / 2, -bw * FEET, bw, bw); }
       } else {
         this.tf(e.x, feet + bob, rot, sx, sy);
-        const img = e.flash > 0 ? sp.f : g.hell ? this.hellSprite(sp) : sp.c; // 헬: 붉은 빛을 미리 구운 그림 (그리기 1번)
+        const img = e.flash > 0 ? sp.f : g.hell || g.tower ? this.hellSprite(sp) : sp.c; // 헬 · 진상의 탑: 붉은 빛을 미리 구운 그림 (그리기 1번)
         const hid = e.def.traits && e.def.traits.stealth && !e.unveiled;
         if (hid) cx.globalAlpha = 0.22 + Math.sin(t * 5 + e.phase) * 0.06; // 은신: 흐릿하게
         const aa = e.atRope && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack; // 입구 공격 프레임 띠 (있으면)
@@ -1919,6 +1941,7 @@ export class Renderer {
         cx.drawImage(gg.c, -rr, -rr, rr * 2, rr * 2);
         cx.globalAlpha = 1;
       }
+      if (h.awake >= 3) this.drawAwake(h, hx, feet, box, t); // 진상의 탑 60층 지옥 각성: 붉은 오라
       this.tf(hx, feet, 0, 1, 1);
       cx.drawImage(sh.c, -26, -7, 52, 14);
       const up = h.rage || h.upT > 0;
@@ -2024,6 +2047,7 @@ export class Renderer {
         if (hk2 < 1 && sp.f) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * (1 - hk2); cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalCompositeOperation = 'source-over'; }
         cx.globalAlpha = 1;
       }
+      if (h.awake >= 3) this.drawAwakeEyes(h, hx, feet, box, t); // 지옥 각성: 빛나는 눈
       if (h.tiredT > 0) { // 땀방울 · 소용돌이
         const top2 = feet - box * 0.95;
         this.world();

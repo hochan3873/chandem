@@ -170,6 +170,8 @@ export const FRAMES = {
   pvpgold: { id: 'pvpgold', name: '골드 투기장', color: '#ffd35a', rarity: 'epic', how: '1:1 대전 골드 (1200점)' },
   pvpdia: { id: 'pvpdia', name: '다이아 투기장', color: '#6fd3ff', rarity: 'legend', how: '1:1 대전 다이아 (1500점)' },
   collector: { id: 'collector', name: '수집가 프레임', color: '#c77dff', rarity: 'epic', how: '멤버 16명 모으기' },
+  towerflame: { id: 'towerflame', name: '지옥 불꽃 프레임', color: '#ff5a1f', rarity: 'epic', how: '진상의 탑 30층', anim: 'flame' }, // 진상의 탑 (움직이는 불꽃)
+  towergold: { id: 'towergold', name: '황금 지옥 프레임', color: '#ffcf3f', rarity: 'legend', how: '진상의 탑 60층', anim: 'hellgold' },
 };
 // 칭호 카탈로그 (얻는 법 · 등급) — 시즌 칭호는 titleName 으로 따로
 export const TITLE_INFO = {
@@ -178,8 +180,9 @@ export const TITLE_INFO = {
   ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어 (전부)' },
   allstar1: { rarity: 'rare', how: '1장 ★30' }, pvpsilver: { rarity: 'common', how: '1:1 대전 실버 (1050점)' }, pvpgold: { rarity: 'rare', how: '1:1 대전 골드 (1200점)' },
   heroes12: { rarity: 'rare', how: '멤버 12명 모으기' }, heroes20: { rarity: 'legend', how: '멤버 20명 모으기' },
+  tower15: { rarity: 'rare', how: '진상의 탑 15층' }, tower60: { rarity: 'legend', how: '진상의 탑 60층' }, towerking: { rarity: 'legend', how: '주간 탑 랭킹 1위 (다음 한 주 동안)' },
 };
-const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족' };
+const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인' };
 // 조건을 채우면 저절로 들어오는 칭호 · 프레임 (서버 normLb · 손님 둘 다 같은 함수)
 // 우편 보상은 정해진 칸만 (숫자 · 등급 · 칭호/프레임 이름)
 function cleanRw(rw) {
@@ -417,7 +420,7 @@ export function grant(lb, rw, uid, now) {
   if (rw.frame && !lb.frames.includes(rw.frame)) { lb.frames.push(rw.frame); got.frame = rw.frame; }
   return got;
 }
-function addGear(lb, t, r) {
+export function addGear(lb, t, r) {
   if (r === 'legend') lb.cnt.legends = (lb.cnt.legends | 0) + 1;
   if (lb.gear.length >= GEAR_BAG) { const v = gearSellValue(r, 0); lb.coins += v; return { t, r, sold: v }; }
   const it = { id: ++lb.gearSeq, t, r, lv: 0 };
