@@ -120,7 +120,8 @@ const topAt = (page, sel) => page.evaluate((sel) => {
   await page.evaluate(() => document.querySelector('.gate').click()); await wait(700);
   const noGate = () => page.evaluate(() => !document.querySelector('.gate') && location.pathname.startsWith('/langbang'));
   const closeConfirm = () => page.evaluate(() => { const b = document.querySelector('.confirm-modal [data-c="no"]'); if (b) b.click(); });
-  await page.evaluate(() => document.querySelector('[data-act="dex"]').click()); await wait(600);
+  await page.evaluate(() => document.querySelector('[data-act="lbMenu"]').click()); await wait(500); // 도감은 메뉴 창 안
+  await page.evaluate(() => document.querySelector('.mg-sheet [data-act="dex"]').click()); await wait(600);
   let ok1 = true;
   for (let k = 0; k < 3; k++) { await page.evaluate(() => history.back()); await wait(600); ok1 = ok1 && (await noGate()); await closeConfirm(); await wait(200); }
   check(ok1, '도감에서 뒤로×3: 타이틀로 안 감 · 랑방에 남음');
@@ -151,8 +152,37 @@ const topAt = (page, sel) => page.evaluate((sel) => {
   // 진상의 탑: 로비 입구 → 탑 로비(한 칸만 열림) → 오르기 연출 → 한 명만 싸운다 → 그만두면 추락 결과 · 도전 1번 깎임
   await page.evaluate(() => { const g = JSON.parse(localStorage.getItem('langbang:guest') || '{}'); g.stages = Object.assign(g.stages || {}, Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, 3]))); delete g.tower; localStorage.setItem('langbang:guest', JSON.stringify(g)); localStorage.removeItem('langbang:snap'); });
   await page.goto(base + '?nogate', { waitUntil: 'networkidle0' }); await wait(800);
-  check(await topAt(page, '.tw-entry'), '로비에 진상의 탑 입구');
+  // 로비 정리: 가운데 제목을 아무것도 안 가리고 · 하단 탭 뒤에 숨은 버튼 없음 · 버튼은 44px 이상
+  for (const [w, h] of [[360, 740], [390, 844], [412, 915]]) {
+    await page.setViewport({ width: w, height: h, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await wait(500);
+    const lay = await page.evaluate(() => {
+      const t = document.querySelector('.lb-stage h2').getBoundingClientRect();
+      const pts = [0.05, 0.25, 0.5, 0.75, 0.95].map((k) => document.elementFromPoint(t.left + t.width * k, t.top + t.height / 2));
+      const titleClear = pts.every((el) => el && el.closest('.lb-stage'));
+      const nav = document.querySelector('.lb-nav').getBoundingClientRect();
+      const bad = [];
+      for (const b of document.querySelectorAll('.screen.lobby button:not([hidden])')) {
+        const r = b.getBoundingClientRect(); if (!r.width) continue;
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        if (!hit || !(hit === b || b.contains(hit))) bad.push('가려짐 ' + (b.dataset.act || b.className));
+        else if (r.bottom > nav.top + 1) bad.push('탭 뒤 ' + (b.dataset.act || b.className));
+        else if (!b.closest('.curs') && (r.width < 44 || r.height < 44)) bad.push('작음 ' + (b.dataset.act || b.className));
+      }
+      return { titleClear, bad };
+    });
+    check(lay.titleClear && !lay.bad.length, `로비 ${w}×${h}: 제목 안 가림 · 숨은/작은 버튼 없음` + (lay.bad.length ? ' ' + lay.bad.join(', ') : ''));
+  }
+  await page.setViewport({ width: 360, height: 740, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await wait(400);
+  // 메뉴 창: 출석 · 랭킹 · 도감 · 친구 · 모집 · 공유 · 공지 · 설정
+  await page.tap('[data-act="lbMenu"]'); await wait(500);
+  check(await page.evaluate(() => ['checkin', 'ranking', 'dex', 'friends', 'recruit', 'share', 'notice', 'settings'].every((a) => document.querySelector(`.mg-sheet [data-act="${a}"]`))), '메뉴 창에 버튼 8개');
+  await page.evaluate(() => document.querySelector('.mg-sheet [data-x]').click()); await wait(300);
+  // 도전 창: 진상의 탑 · 주간 · 무한 · 레이드 · 1:1 · 시즌
+  await page.tap('[data-act="lbModes"]'); await wait(500);
+  check(await page.evaluate(() => ['tower', 'weekly', 'endless', 'raid', 'pvp', 'season'].every((a) => document.querySelector(`.md-sheet [data-act="${a}"]`))), '도전 창에 모드 6개');
+  check(await topAt(page, '.md-sheet .tw-entry'), '도전 창에 진상의 탑 입구');
   await page.evaluate(() => document.querySelector('.tw-entry').click()); await wait(900);
+  check(await page.evaluate(() => !document.querySelector('.md-sheet')), '모드를 고르면 도전 창이 닫힌다');
   check(await page.evaluate(() => window.__lb.app.screen === 'tower' && document.querySelectorAll('.tw-slot.lock').length === 5 && !!document.querySelector('.tw-fc.main')), '탑 로비: 다음 층 카드 · 멤버 칸 하나만 열림');
   await page.evaluate(() => document.querySelector('[data-act="twGo"]').click()); await wait(600);
   check(await page.evaluate(() => !!document.querySelector('.tw-climb')), '오르기 연출');
