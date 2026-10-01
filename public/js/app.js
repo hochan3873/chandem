@@ -161,7 +161,26 @@ async function shareLink(url, title, text) {
 function shareTop() {
   const code = S.state && S.state.room && S.state.room.code;
   if (code) shareLink(inviteUrl(code), '찬이의 게임월드 초대', `찬이의 게임월드 ${GAME_NAMES[gameOf(S.state)]} 방 ${code}에 들어와!`);
-  else shareLink(siteUrl(), '찬이의 게임월드', '친구들이랑 휴대폰으로 홀덤 · 섯다 · 오목 한 판 하자!');
+  else sharePick();
+}
+// 방 밖 공유: 찬이의 게임월드 · 랑방 대전 링크 중에서 고른다 (카톡 미리보기는 각 페이지의 og:image)
+function sharePick() {
+  document.querySelectorAll('.share-pick').forEach((m) => m.remove());
+  const box = document.createElement('div');
+  box.className = 'share-pick';
+  box.innerHTML = `<div class="sp-card"><h3>공유하기</h3>
+    <button class="sp-opt" data-sp="gw"><img src="/img/og-gw4.jpg" alt="" draggable="false"><span><b>찬이의 게임월드</b><small>랑방 대전 · 홀덤 · 섯다 · 오목 모음</small></span></button>
+    <button class="sp-opt" data-sp="lb"><img src="/img/og-lb4.jpg" alt="" draggable="false"><span><b>랑방 대전</b><small>바로 게임으로 들어오는 링크</small></span></button>
+    <button class="sp-x" data-sp="x">닫기</button></div>`;
+  box.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-sp]');
+    if (ev.target === box || (b && b.dataset.sp === 'x')) { box.remove(); return; }
+    if (!b) return;
+    box.remove();
+    if (b.dataset.sp === 'lb') shareLink(siteUrl().replace(/\/?$/, '/') + 'langbang/', '랑방 대전', '랑방 대전 도전장! 진상들로부터 우리 아지트 랑방을 같이 지키자');
+    else shareLink(siteUrl(), '찬이의 게임월드', '우리 모임 친구들과 폰으로 랑방 대전 · 홀덤 · 섯다 · 오목 한 판 하자!');
+  });
+  document.body.appendChild(box);
 }
 
 const ICON_NOTE = '<p class="muted tiny install-note">이미 설치한 앱 아이콘은 앱을 지우고 다시 설치해야 새 아이콘으로 바뀌어요</p>';

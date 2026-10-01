@@ -3623,3 +3623,14 @@ body.rm .ult.v2.ready .ult-rays, body.rm .ult.v2.ready .ult-gem, body.rm .ult.v2
 .card.v5 .c5-art:has(img.c5-face)::after { display: none; }
 .card.v5 .c5-art img.c5-face { -webkit-mask: linear-gradient(180deg, #000 calc(var(--u) * (24 + 48 * var(--fyv))), transparent calc(var(--u) * (52 + 48 * var(--fyv)))); mask: linear-gradient(180deg, #000 calc(var(--u) * (24 + 48 * var(--fyv))), transparent calc(var(--u) * (52 + 48 * var(--fyv)))); }
 .card-list.v4.v5.n4 .card.v5 .c5-art img.c5-face { -webkit-mask: linear-gradient(180deg, #000 calc(var(--u) * (20 + 41 * var(--fyv))), transparent calc(var(--u) * (44 + 41 * var(--fyv)))); mask: linear-gradient(180deg, #000 calc(var(--u) * (20 + 41 * var(--fyv))), transparent calc(var(--u) * (44 + 41 * var(--fyv)))); }
+
+/* 공유하기 고르기 (랑방 대전 · 찬이의 게임월드) */
+.share-pick { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: rgba(8, 4, 18, 0.72); padding: 16px; }
+.share-pick .sp-card { width: min(92vw, 380px); background: linear-gradient(180deg, #2a1846, #170c2a); border: 2px solid #000; box-shadow: 0 0 0 1px rgba(255, 150, 240, 0.35) inset, 0 12px 30px rgba(0, 0, 0, 0.5); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.share-pick h3 { margin: 0 0 2px; color: #fff; font-size: 18px; text-align: center; text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000; }
+.share-pick .sp-opt { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; border: 2px solid #000; background: rgba(255, 255, 255, 0.07); color: #fff; text-align: left; cursor: pointer; }
+.share-pick .sp-opt:active { transform: scale(0.98); }
+.share-pick .sp-opt img { width: 120px; height: 63px; object-fit: cover; border-radius: 10px; flex: none; }
+.share-pick .sp-opt b { display: block; font-size: 16px; }
+.share-pick .sp-opt small { display: block; font-size: 12px; color: #d9cdf2; margin-top: 2px; }
+.share-pick .sp-x { margin-top: 2px; padding: 10px; border-radius: 12px; border: 2px solid #000; background: rgba(255, 255, 255, 0.1); color: #fff; font-weight: 800; cursor: pointer; }

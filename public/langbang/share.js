@@ -29,7 +29,34 @@ async function shareText(text) {
   toastFn(ok ? '링크를 복사했어요! 카톡방에 붙여 넣어 주세요' : `이 주소를 친구에게 보내 주세요: ${URL_}`, 3000);
 }
 
-export function shareInvite() { return shareText(INVITE); }
+// 공유하기: 랑방 대전 링크 · 찬이의 게임월드 링크 중에서 고른다 (카톡 미리보기는 각 index.html 의 og:image)
+const WORLD_URL = location.origin + '/';
+const WORLD_TEXT = '찬이의 게임월드 — 우리 모임 친구들과 랑방 대전 · 홀덤 · 섯다 · 오목 한 판! ';
+async function shareUrl(url, title, text) {
+  if (navigator.share) {
+    try { await navigator.share({ title, text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  const ok = await copy(`${text} ${url}`);
+  toastFn(ok ? '링크를 복사했어요! 카톡방에 붙여 넣어 주세요' : `이 주소를 친구에게 보내 주세요: ${url}`, 3000);
+}
+export function shareInvite() {
+  closeShare();
+  const box = document.createElement('div');
+  box.className = 'share-pick';
+  box.innerHTML = `<div class="sp-card"><h3>공유하기</h3>
+    <button class="sp-opt" data-sp="lb"><img src="/img/og-lb4.jpg" alt="" draggable="false"><span><b>랑방 대전</b><small>바로 게임으로 들어오는 링크</small></span></button>
+    <button class="sp-opt" data-sp="gw"><img src="/img/og-gw4.jpg" alt="" draggable="false"><span><b>찬이의 게임월드</b><small>랑방 대전 · 홀덤 · 섯다 · 오목 모음</small></span></button>
+    <button class="sp-x" data-sp="x">닫기</button></div>`;
+  box.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-sp]');
+    if (ev.target === box || (b && b.dataset.sp === 'x')) { box.remove(); return; }
+    if (!b) return;
+    box.remove();
+    if (b.dataset.sp === 'lb') shareText(INVITE);
+    else shareUrl(WORLD_URL, '찬이의 게임월드', WORLD_TEXT);
+  });
+  document.body.appendChild(box);
+}
 
 // ─── 결과 카드 ───────────────────────────────────────
 function loadImg(src) {
@@ -191,6 +218,7 @@ export function shareLine(r) {
 }
 
 export function closeShare() {
+  for (const m of document.querySelectorAll('.share-pick')) m.remove();
   for (const m of document.querySelectorAll('.share-modal')) {
     if (m._url) URL.revokeObjectURL(m._url);
     m.remove();
