@@ -1,0 +1,130 @@
+/* 랑방 대전 — 화면 넘김 연출 (transit.js) · 움직임은 transform · opacity 만 · 글자 테두리는 text-shadow 로만 */
+
+/* ── 이전 화면 잔상 ── */
+#ui > .screen.tr-old { pointer-events: none !important; animation: none !important; } /* 원래 등장 애니메이션이 다시 돌지 않게 */
+#ui > .screen.tr-g { z-index: -1; } /* 보통 넘김: 새 화면 아래에서 물러난다 */
+#ui > .screen.tr-g.g-fwd { animation: trOutFwd 0.28s cubic-bezier(0.4, 0, 0.6, 1) both !important; }
+#ui > .screen.tr-g.g-back { animation: trOutBack 0.26s cubic-bezier(0.4, 0, 0.6, 1) both !important; }
+#ui > .screen.tr-g.g-tab { animation: trOutTab 0.18s ease-out both !important; }
+@keyframes trOutFwd { to { opacity: 0; transform: translateX(-5%) scale(0.96); filter: blur(2.5px); } }
+@keyframes trOutBack { to { opacity: 0; transform: translateX(5%) scale(0.96); filter: blur(2.5px); } }
+@keyframes trOutTab { to { opacity: 0; transform: scale(0.98); } }
+body.tr-low #ui > .screen.tr-g.g-fwd { animation-name: trOutFwdL !important; }
+body.tr-low #ui > .screen.tr-g.g-back { animation-name: trOutBackL !important; }
+@keyframes trOutFwdL { to { opacity: 0; transform: translateX(-5%) scale(0.96); } }
+@keyframes trOutBackL { to { opacity: 0; transform: translateX(5%) scale(0.96); } }
+/* 출격: 출전 화면이 살짝 커지며 사라진다 (그 위로 로딩 카드) */
+#ui > .screen.tr-leave { animation: trLeave 0.3s ease-in both !important; }
+@keyframes trLeave { to { opacity: 0; transform: scale(1.04); } }
+
+/* ── 새 화면 ── */
+/* 덮는 동안 새 화면은 그리지도 않는다(첫 프레임이 가볍게) → 다 덮이면 한 프레임 미리 그려 두고(tr-wait) → 드러내기 */
+#ui.tr-hold > :not(.tr-old) { visibility: hidden !important; }
+#ui.tr-wait > :not(.tr-old) { opacity: 0 !important; }
+.screen.tr-now, .screen.tr-now > * { animation: none !important; }
+.screen.enter.tr-rv-pop { animation: trRvPop 0.34s cubic-bezier(0.2, 0.9, 0.3, 1) both !important; }
+.screen.enter.tr-rv-tower { animation: trRvTower 0.42s cubic-bezier(0.2, 0.8, 0.3, 1) both !important; }
+.screen.enter.tr-rv-out { transform-origin: var(--tr-o, 20% 11%); animation: trRvOut 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both !important; }
+@keyframes trRvPop { from { opacity: 0; transform: scale(0.97); } }
+@keyframes trRvTower { from { opacity: 0; transform: scale(1.08); } }
+@keyframes trRvOut { from { opacity: 0; transform: scale(1.28); } }
+/* 패널 · 버튼 순서대로 등장 (45ms 간격) */
+.screen.enter > :nth-child(-n+8) { animation: stagIn 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.screen.enter > :nth-child(2) { animation-delay: 0.045s; } .screen.enter > :nth-child(3) { animation-delay: 0.09s; } .screen.enter > :nth-child(4) { animation-delay: 0.135s; }
+.screen.enter > :nth-child(5) { animation-delay: 0.18s; } .screen.enter > :nth-child(6) { animation-delay: 0.225s; } .screen.enter > :nth-child(7) { animation-delay: 0.27s; } .screen.enter > :nth-child(8) { animation-delay: 0.315s; }
+.screen.lobby.enter > *, .screen.enter > .tw-scene { animation: none; }
+
+/* ── 덮개 공통 ── */
+.tr-ov { position: absolute; inset: 0; z-index: 43; overflow: hidden; pointer-events: auto; touch-action: none; contain: strict; -webkit-tap-highlight-color: transparent; }
+.tr-ov.pass, .tr-ov.pass * { pointer-events: none; }
+.tr-ov > * { position: absolute; display: block; pointer-events: none; }
+.tr-ov.tr-eat { background: transparent; }
+
+/* ── 진상의 탑 ── */
+.tr-tower .trt-art { inset: 0; background: #120206 center 30% / cover no-repeat; opacity: 0; will-change: transform, opacity; }
+.tr-tower .trt-fog { left: -20%; right: -20%; top: -10%; height: 120%; opacity: 0; will-change: transform, opacity;
+  background: radial-gradient(60% 34% at 50% 50%, rgba(255, 70, 30, 0.7), rgba(150, 10, 20, 0.45) 45%, transparent 75%), linear-gradient(180deg, transparent 10%, rgba(110, 0, 10, 0.5) 42%, rgba(255, 90, 40, 0.32) 55%, transparent 88%); }
+.tr-tower .trt-vig { inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 30%, rgba(40, 0, 6, 0.88) 100%); }
+.tr-tower .trt-emb { inset: 0; }
+.tr-tower .trt-emb i { position: absolute; bottom: -2%; width: calc(var(--u) * 7); height: calc(var(--u) * 7); border-radius: 50%; opacity: 0; will-change: transform, opacity; background: radial-gradient(circle, #fff3c0 0, #ff8a2a 40%, rgba(255, 60, 20, 0) 70%); }
+.tr-tower .trt-name { left: 0; right: 0; top: 44%; text-align: center; opacity: 0; font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 36); letter-spacing: 0.06em; color: #ffe7b0;
+  text-shadow: var(--tw-ol, var(--ol)), 0 0 calc(var(--u) * 18) #ff3b2f; }
+.tr-tower.out .trt-fog { background: radial-gradient(70% 40% at 50% 50%, rgba(255, 70, 30, 0.45), rgba(110, 0, 10, 0.4) 50%, transparent 80%); }
+
+/* ── 레이드: 엘리베이터 ── */
+.tr-elev .tre-door { top: 0; bottom: 0; width: 50.5%; will-change: transform;
+  background: linear-gradient(90deg, #23262f, #5d6476 22%, #a3aabd 46%, #6b7286 64%, #2a2d38); }
+.tr-elev .tre-door.l { left: 0; transform: translateX(-101%); box-shadow: inset calc(var(--u) * -4) 0 calc(var(--u) * 6) rgba(0, 0, 0, 0.55); }
+.tr-elev .tre-door.r { right: 0; transform: translateX(101%); box-shadow: inset calc(var(--u) * 4) 0 calc(var(--u) * 6) rgba(0, 0, 0, 0.55); }
+.tr-elev .tre-door.l::after, .tr-elev .tre-door.r::after { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: #0d0f15; }
+.tr-elev .tre-door.l::after { right: 0; } .tr-elev .tre-door.r::after { left: 0; }
+.tr-elev .tre-door u { position: absolute; inset: 22% 16% 14%; border-radius: calc(var(--u) * 6); border: 2px solid rgba(255, 255, 255, 0.14);
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 7px); box-shadow: inset 0 0 calc(var(--u) * 10) rgba(0, 0, 0, 0.35); }
+.tr-elev .tre-lamp { left: 50%; top: calc(var(--u) * 54); transform: translateX(-50%); display: flex; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 5) calc(var(--u) * 16);
+  border-radius: 99px; background: #170a10; border: 2px solid #7a5a2a; box-shadow: 0 calc(var(--u) * 3) 0 #07020a; opacity: 0; transition: opacity 0.12s; }
+.tr-elev .tre-lamp.on { opacity: 1; }
+.tr-elev .tre-lamp b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 17); color: #ffd23f; text-shadow: var(--ol); }
+.tr-elev .tre-lamp i { width: calc(var(--u) * 10); height: calc(var(--u) * 10); border-radius: 50%; background: #ff5a3a; box-shadow: 0 0 calc(var(--u) * 10) #ff5a3a; }
+
+/* ── 1:1 대전: 대각선 VS ── */
+.tr-vs .trv-h { inset: 0; will-change: transform; }
+.tr-vs .trv-h.red { clip-path: polygon(0 0, 100% 0, 0 100%); transform: translate(-100%, -100%);
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 2px, transparent 2px 16px), linear-gradient(135deg, #ff4655, #a3101f 70%); }
+.tr-vs .trv-h.blue { clip-path: polygon(100% 0, 100% 100%, 0 100%); transform: translate(100%, 100%);
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 2px, transparent 2px 16px), linear-gradient(135deg, #1846c8, #3fa6ff 70%); }
+.tr-vs .trv-slash { left: 0; top: calc(50% - var(--u) * 3); height: calc(var(--u) * 6); border-radius: 99px; opacity: 0; transform-origin: 50% 50%;
+  background: linear-gradient(90deg, transparent, #fff 20%, #fffbe0 50%, #fff 80%, transparent); box-shadow: 0 0 calc(var(--u) * 14) #fff; }
+.tr-vs .trv-vs { left: 0; right: 0; top: 50%; margin-top: -0.62em; text-align: center; opacity: 0; font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 78); line-height: 1.2; color: #fff;
+  text-shadow: var(--ol), 0 0 calc(var(--u) * 22) rgba(255, 220, 120, 0.9); }
+
+/* ── 상점 · 모집: 셔터 ── */
+.tr-shut .trs-panel { inset: 0; transform: translateY(-100%); will-change: transform; background: linear-gradient(180deg, #454b5a, #2a2e39); box-shadow: 0 calc(var(--u) * 6) calc(var(--u) * 14) rgba(0, 0, 0, 0.5); }
+.tr-shut .trs-slats { position: absolute; inset: 0; background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0 2px, transparent 2px 15px, rgba(0, 0, 0, 0.35) 15px 18px, transparent 18px 22px); }
+.tr-shut .trs-bar { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--u) * 20); background: linear-gradient(180deg, #a07a2c, #4a3410); border-top: 2px solid #ffd23f; }
+.tr-shut .trs-sign { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) rotate(-3deg); display: flex; flex-direction: column; align-items: center; padding: calc(var(--u) * 10) calc(var(--u) * 26);
+  border-radius: calc(var(--u) * 14); background: linear-gradient(180deg, #ffe066, #ffb21f); border: 3px solid #4a2a08; box-shadow: 0 calc(var(--u) * 4) 0 #2a1604; }
+.tr-shut .trs-sign b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 32); color: #fff; text-shadow: var(--ol); line-height: 1.1; }
+.tr-shut .trs-sign small { font-size: calc(var(--u) * 11); font-weight: 900; letter-spacing: 0.32em; color: #6a3a08; }
+.tr-shut .trs-sp { inset: 0; }
+.tr-shut .trs-sp img { position: absolute; width: calc(var(--u) * 28); height: calc(var(--u) * 28); margin: calc(var(--u) * -14) 0 0 calc(var(--u) * -14); opacity: 0; will-change: transform, opacity; }
+
+/* ── 진짜로 불러올 때만: 목적지 로딩 카드 ── */
+.tr-ov > .tr-card { left: 50%; top: 50%; width: min(80%, calc(var(--u) * 300)); transform: translate(-50%, -50%); z-index: 5; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 8);
+  padding: 0 0 calc(var(--u) * 14); border-radius: calc(var(--u) * 16); overflow: hidden; background: rgba(12, 6, 20, 0.94); border: 1.5px solid rgba(255, 210, 63, 0.5);
+  box-shadow: 0 calc(var(--u) * 10) calc(var(--u) * 30) rgba(0, 0, 0, 0.6); animation: fadeIn 0.25s both; }
+.tr-card .trc-art { width: 100%; height: calc(var(--u) * 110); background: center 35% / cover no-repeat #1a0c12; }
+.tr-card b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 22); color: #fff; text-shadow: var(--ol); }
+.tr-card .trc-tip { padding: 0 calc(var(--u) * 14); min-height: 2.9em; font-size: calc(var(--u) * 12); font-weight: 800; line-height: 1.45; color: #e8dcff; text-align: center; word-break: keep-all; }
+.tr-card .trc-tip.in { animation: fadeIn 0.4s both; }
+.tr-card .trc-dots { display: flex; gap: calc(var(--u) * 6); }
+.tr-card .trc-dots i { width: calc(var(--u) * 7); height: calc(var(--u) * 7); border-radius: 50%; background: #ffd23f; animation: trDot 0.9s ease-in-out infinite; }
+.tr-card .trc-dots i:nth-child(2) { animation-delay: 0.15s; } .tr-card .trc-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes trDot { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+.tr-card em { font-style: normal; font-size: calc(var(--u) * 10); font-weight: 800; color: var(--dim); }
+.tr-card.out { opacity: 0; transition: opacity 0.2s; }
+
+/* ── 출격 로딩: 맵이 천천히 다가오고 · 스테이지 이름 카드가 미끄러져 들어온다 ── */
+.bload { animation: trBlIn 0.32s ease-out both; }
+@keyframes trBlIn { from { opacity: 0; } }
+.bload .bl-art { animation: trBlZoom 3.6s cubic-bezier(0.2, 0.6, 0.3, 1) both; will-change: transform; }
+@keyframes trBlZoom { from { transform: scale(1.16); } to { transform: scale(1.03); } }
+.bload .bl-box > * { animation: trBlUp 0.36s cubic-bezier(0.2, 0.9, 0.3, 1) both; animation-delay: 0.36s; }
+.bload .bl-box > .bl-no { animation-name: trBlCard; animation-delay: 0.1s; }
+.bload .bl-box > .bl-name { animation-name: trBlCard; animation-delay: 0.17s; }
+.bload .bl-box > :nth-child(3) { animation-delay: 0.24s; } .bload .bl-box > :nth-child(4) { animation-delay: 0.29s; } .bload .bl-box > :nth-child(5) { animation-delay: 0.33s; }
+.bload .bl-box::before { animation: trBlCard 0.36s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+@keyframes trBlCard { from { opacity: 0; transform: translateX(calc(var(--u) * -48)); } }
+@keyframes trBlUp { from { opacity: 0; transform: translateY(calc(var(--u) * 12)); } }
+.bload.out { transform: scale(1.04); transition: opacity 0.28s, transform 0.28s; }
+
+/* 그린 그림으로 바꿈: 엘리베이터 문 · 셔터 · VS 로고 */
+.tr-elev .tre-door { background: #2a2d38 center / cover no-repeat; }
+.tr-elev .tre-door.l { background-image: url('/img/lb/tr_door_l.webp'); }
+.tr-elev .tre-door.r { background-image: url('/img/lb/tr_door_r.webp'); }
+.tr-elev .tre-door u, .tr-elev .tre-door.l::after, .tr-elev .tre-door.r::after { display: none; }
+.tr-shut .trs-panel { background: #1c1a26 url('/img/lb/tr_shutter.webp') center / cover no-repeat; }
+.tr-shut .trs-slats, .tr-shut .trs-bar { display: none; }
+.tr-shut .trs-sign { top: 13%; transform: translate(-50%, -50%); padding: 0; background: none; border: 0; box-shadow: none; }
+.tr-shut .trs-sign b { color: #ffe066; text-shadow: var(--ol), 0 0 calc(var(--u) * 14) rgba(255, 120, 220, 0.9); }
+.tr-shut .trs-sign small { color: #ff9ff0; text-shadow: 0 0 calc(var(--u) * 8) rgba(255, 120, 220, 0.9); }
+.tr-vs img.trv-vs { left: 50%; top: 50%; right: auto; width: calc(var(--u) * 220); height: calc(var(--u) * 220); margin: calc(var(--u) * -110) 0 0 calc(var(--u) * -110); filter: drop-shadow(0 0 calc(var(--u) * 18) rgba(255, 220, 120, 0.8)); }
