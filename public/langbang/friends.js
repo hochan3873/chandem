@@ -49,19 +49,19 @@ function render() {
   const cnt = (n) => (n ? `<i class="cnt">${n}</i>` : '');
   let body = '';
   if (C.app.guest) {
-    body = `<div class="fr-guest">${C.ic('ic_party', '', '')}<b>친구는 로그인하면 쓸 수 있어요</b><small>친구와 체력을 주고받고, 레이드에서 친구 멤버를 빌려요</small><a class="btn primary" href="/">로그인하러 가기</a></div>`;
+    body = `<div class="fr-guest">${C.ic('ic_friends', '', '')}<b>친구는 로그인하면 쓸 수 있어요</b><small>친구와 체력을 주고받고, 레이드에서 친구 멤버를 빌려요</small><a class="btn primary" href="/">로그인하러 가기</a></div>`;
   } else if (!d) body = '<div class="empty-msg"><span class="spin"></span> 불러오는 중…</div>';
   else if (tab === 'list') {
     const canGift = d.friends.filter((f) => !f.sent).length;
     const rows = d.friends.map((f) => `<div class="rank fr-row">${face(f.leader)}${nameCell(f, `Lv.${f.level || 1} · ${ago(f.last)}`)}
-      <button class="btn mini ${f.sent ? 'ghost' : 'primary'} fr-gift" data-act="frGift" data-id="${C.esc(f.id)}" ${f.sent ? 'disabled' : ''}>${C.ic('energy', '', 'sm')}${f.sent ? '보냄' : '+' + L.FRIEND.gift}</button>
+      <button class="btn mini ${f.sent ? 'ghost' : 'primary'} fr-gift" data-act="frGift" data-id="${C.esc(f.id)}" ${f.sent ? 'disabled' : ''}>${C.ic('gift_stamina', '', 'sm')}${f.sent ? '보냄' : '+' + L.FRIEND.gift}</button>
       <button class="fr-more" data-act="frMenu" data-id="${C.esc(f.id)}" aria-label="친구 메뉴">···</button></div>`).join('');
     body = `<div class="fr-add"><input id="frQ" maxlength="20" placeholder="닉네임 또는 친구 코드" autocomplete="off" enterkeyhint="send"><button class="btn mini primary" data-act="frAdd">친구 요청</button></div>
-      <div class="fr-me"><span>내 친구 코드 <b class="fr-code">${C.esc(d.code)}</b></span><button class="btn mini ghost" data-act="frCopy">복사</button><span class="fr-pts">${C.ic('heal', '', 'sm')}도움 포인트 <b>${C.fmt(d.pts || 0)}</b></span></div>
+      <div class="fr-me"><span>내 친구 코드 <b class="fr-code">${C.esc(d.code)}</b></span><button class="btn mini ghost" data-act="frCopy">복사</button><span class="fr-pts">${C.ic('help_point', '', 'sm')}도움 포인트 <b>${C.fmt(d.pts || 0)}</b></span></div>
       <div class="fr-bar"><small>친구 ${d.friends.length}/${L.FRIEND.max} · 하루 한 번 친구마다 체력 +${L.FRIEND.gift}</small><button class="btn mini ${canGift ? 'primary' : 'ghost'}" data-act="frGift" data-id="all" ${canGift ? '' : 'disabled'}>${C.ic('gift', '', 'sm')}모두 보내기${canGift ? ` (${canGift})` : ''}</button></div>
       <div class="rank-list fr-list">${rows || '<div class="empty-msg">아직 친구가 없어요<br>닉네임이나 친구 코드로 요청해 봐요</div>'}</div>`;
   } else if (tab === 'gifts') {
-    const rows = d.gifts.map((g) => `<div class="mail-row fr-g"><div><b>${C.ic('energy', '', 'sm')}체력 +${L.FRIEND.gift}</b><i class="mail-from">보낸 사람 ${C.esc(g.nick || '친구')}</i><small>${ago(g.at)} · ${Math.max(1, Math.ceil((g.at + L.FRIEND.giftDays * 86400e3 - now) / 86400e3))}일 남음</small></div><button class="btn mini primary" data-act="frClaim" data-k="${g.k}" ${d.recvLeft > 0 ? '' : 'disabled'}>받기</button></div>`).join('');
+    const rows = d.gifts.map((g) => `<div class="mail-row fr-g"><div><b>${C.ic('gift_stamina', '', 'sm')}체력 +${L.FRIEND.gift}</b><i class="mail-from">보낸 사람 ${C.esc(g.nick || '친구')}</i><small>${ago(g.at)} · ${Math.max(1, Math.ceil((g.at + L.FRIEND.giftDays * 86400e3 - now) / 86400e3))}일 남음</small></div><button class="btn mini primary" data-act="frClaim" data-k="${g.k}" ${d.recvLeft > 0 ? '' : 'disabled'}>받기</button></div>`).join('');
     body = `<div class="fr-bar"><small>오늘 더 받을 수 있는 선물 <b>${d.recvLeft}/${L.FRIEND.recvPerDay}</b> · 체력 ${L.staminaNow(p, now).v}/${L.STAMINA.max} (최대 ${L.STAMINA.cap})</small>${d.gifts.length > 1 ? `<button class="btn mini primary" data-act="frClaim" data-k="all" ${d.recvLeft > 0 ? '' : 'disabled'}>${C.ic('gift', '', 'sm')}모두 받기</button>` : ''}</div>
       <div class="mail-list fr-gifts">${rows || '<div class="empty-msg">받은 선물이 없어요</div>'}</div><p class="ip">선물은 ${L.FRIEND.giftDays}일 동안 보관돼요 · 하루 ${L.FRIEND.recvPerDay}개까지 받아요</p>`;
   } else {
@@ -71,7 +71,7 @@ function render() {
       <h4 class="fr-h">보낸 요청 ${d.outReq.length}</h4><div class="rank-list">${rout || '<div class="empty-msg sm">보낸 요청이 없어요</div>'}</div><p class="ip">오늘 보낼 수 있는 요청 ${d.reqLeft}/${L.FRIEND.reqPerDay}</p>`;
   }
   C.show(`${C.topbar(true)}
-    <h2 class="title">${C.ic('ic_party', '', 'sm')} 친구</h2>
+    <h2 class="title">${C.ic('ic_friends', '', 'sm')} 친구</h2>
     <div class="tabs"><button class="${tab === 'list' ? 'on' : ''}" data-act="frTab" data-tab="list">친구 목록</button><button class="${tab === 'gifts' ? 'on' : ''}" data-act="frTab" data-tab="gifts">받은 선물${cnt(nGift)}</button><button class="${tab === 'req' ? 'on' : ''}" data-act="frTab" data-tab="req">요청${cnt(nIn)}</button></div>
     <div class="fr-body">${body}</div>`, 'dim friends');
   const q = document.getElementById('frQ');
@@ -114,7 +114,7 @@ const ACTS = {
     const d = f.leader && HEROES[f.leader.hero];
     C.popup(`<div class="fr-card"><div class="pc-head ${C.frameCls(f.frame)}" style="--fr:${(f.frame && L.FRAMES[f.frame] && L.FRAMES[f.frame].color) || '#ffd23f'}"><b>${C.esc(f.nickname)}</b>${C.titleChip(f.title)}<small>Lv.${f.level || 1} · ${ago(f.last)}</small></div>
       ${d ? `<div class="fr-lead">${face(f.leader)}<span><small>대표 멤버</small><b>${C.esc(d.name)}</b><i>레이드에서 하루 한 번 빌릴 수 있어요${f.borrowed ? ' · 오늘 빌림' : ''}</i></span></div>` : ''}
-      <p class="ip">${C.ic('heal', '', 'sm')}도움 포인트 ${C.fmt(f.pts || 0)}</p>
+      <p class="ip">${C.ic('help_point', '', 'sm')}도움 포인트 ${C.fmt(f.pts || 0)}</p>
       <div class="confirm-row"><button class="btn ghost danger-t" data-act="frRemove" data-id="${C.esc(f.id)}">친구 삭제</button><button class="btn primary" data-x>닫기</button></div></div>`, 'fr-pop');
   },
   frRemove: async (b) => {
@@ -143,7 +143,7 @@ export async function pickHelper(myDeck) {
       const d = f.leader && HEROES[f.leader.hero];
       return `<div class="rank fr-row ${why ? 'off' : ''}">${face(f.leader)}${nameCell(f, d ? `${C.esc(d.name)} · ${ago(f.last)}` : ago(f.last))}<button class="btn mini ${why ? 'ghost' : 'primary'}" data-pick="${C.esc(f.id)}" ${why ? 'disabled' : ''}>${why || '데려가기'}</button></div>`;
     }).join('');
-    const m = C.popup(`<h3>${C.ic('ic_party', '', 'sm')}도와줄 친구 고르기</h3><p class="ip">친구의 대표 멤버가 강화 · 성급 · 장비 그대로 한 명 더 와요 · 친구마다 하루 한 번 · 빌려준 친구는 코인 ${L.FRIEND.lendRw.coins}과 도움 포인트를 받아요</p>
+    const m = C.popup(`<h3>${C.ic('ic_friends', '', 'sm')}도와줄 친구 고르기</h3><p class="ip">친구의 대표 멤버가 강화 · 성급 · 장비 그대로 한 명 더 와요 · 친구마다 하루 한 번 · 빌려준 친구는 코인 ${L.FRIEND.lendRw.coins}과 도움 포인트를 받아요</p>
       <div class="rank-list fr-pick">${rows}</div><button class="btn" data-pick="">혼자 도전</button>`, 'fr-pop fr-pick-pop');
     m.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-pick]');
