@@ -44,7 +44,7 @@ export function shareInvite() {
   const box = document.createElement('div');
   box.className = 'share-pick';
   box.innerHTML = `<div class="sp-card"><h3>공유하기</h3>
-    <button class="sp-opt" data-sp="lb"><img src="/img/og-lb4.jpg" alt="" draggable="false"><span><b>랑방 대전</b><small>바로 게임으로 들어오는 링크</small></span></button>
+    <button class="sp-opt" data-sp="lb"><img src="/img/og-lb5.jpg" alt="" draggable="false"><span><b>랑방 대전</b><small>바로 게임으로 들어오는 링크</small></span></button>
     <button class="sp-opt" data-sp="gw"><img src="/img/og-gw4.jpg" alt="" draggable="false"><span><b>찬이의 게임월드</b><small>랑방 대전 · 홀덤 · 섯다 · 오목 모음</small></span></button>
     <button class="sp-x" data-sp="x">닫기</button></div>`;
   box.addEventListener('click', (ev) => {

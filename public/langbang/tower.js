@@ -44,11 +44,11 @@ export const RULES = {
   boss: { id: 'boss', name: '보스', short: '보스', color: '#ff4f5a', desc: '탑 전용 보스 + 구역 기술', hint: '추천: 보스 킬러 · 한 방' },
 };
 // 층 규칙 그림 (public/img/lb/ui2/tw_<규칙>.webp) — 아직 없는 그림은 비슷한 아이콘으로 (그림이 오면 여기서 지우기)
-export const RULE_ART_TODO = { titan: 'hammer', swarm: 'path_boom', curse: 'cc_stun', rush: 'speed', seal: 'lock', shield: 'shield', dark: 'orb', boss: 'ic_bosscrown' };
+export const RULE_ART_TODO = {};
 export const ruleIcon = (r) => `/img/lb/ui2/${RULE_ART_TODO[r] || 'tw_' + r}.webp`;
 // 그 밖의 탑 그림 — 아직 없는 그림은 비슷한 그림으로 (그림이 오면 주소만 바꾸기)
 //  hellstone → /img/lb/ui2/hellstone.webp · aura → /img/lb/fx/awake_aura.webp · tile → /img/lb/ui2/tower_tile.webp
-export const TOWER_ART = { hellstone: '/img/lb/ui2/fire.webp', aura: '/img/lb/fx/vfx_aura_red.webp', tile: '/img/lb/ui2/fire.webp', lobby: '/img/lb/tower_lobby.webp' };
+export const TOWER_ART = { hellstone: '/img/lb/ui2/hellstone.webp', aura: '/img/lb/fx/vfx_aura_red.webp', tile: '/img/lb/ui2/tower_tile.webp', lobby: '/img/lb/tower_lobby.webp' };
 const PATTERN = [
   ['swarm', 'titan', 'curse', 'rush', 'seal', 'shield', 'dark', 'swarm', 'titan', 'rush', 'curse', 'seal'],
   ['titan', 'curse', 'swarm', 'dark', 'shield', 'rush', 'seal', 'titan', 'curse', 'swarm', 'dark', 'shield'],
@@ -197,7 +197,7 @@ export const HELL_IDS = Object.keys(HELL_SET);
 export const HELL_MAX = 5;
 export const HELL_BONUS = { 2: { cc: HELL_SET_FX.cc, label: `2세트: 상태이상 시간 −${Math.round(HELL_SET_FX.cc * 100)}%` }, 4: { boom: HELL_SET_FX.boom, r: HELL_SET_FX.r, label: `4세트: 처치하면 화염 폭발 (한 방 피해의 ${Math.round(HELL_SET_FX.boom * 100)}%)` } };
 // 지옥 세트 그림 (public/img/lb/gear/<id>.webp) — 아직 없어서 비슷한 장비 그림 + 붉은 빛 (그림이 오면 여기서 지우기)
-export const HELL_ART_TODO = { hs_horn: 'santahat', hs_armor: 'carrier', hs_chain: 'belt', hs_boots: 'sneaker' };
+export const HELL_ART_TODO = {};
 export const hellImg = (id) => `/img/lb/gear/${HELL_ART_TODO[id] || id}.webp`;
 export const hellUpCost = (lv) => 20 * (lv + 1);
 export const hellValue = (id, lv) => { const s = HELL_SET[id]; return s ? Math.round((s.base + s.per * (lv || 0)) * 1000) / 1000 : 0; };
