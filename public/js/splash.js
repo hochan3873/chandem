@@ -24,7 +24,7 @@ const TIPS = [
 ];
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const lbArt = () => { let n = 1; try { n = Math.trunc(Number(JSON.parse(localStorage.getItem('langbang:chapter') || '1'))); } catch {} return n >= 1 && n <= 6 ? `/img/lb/keyart${n}.webp` : '/img/lb/keyart1.webp'; };
+const lbArt = () => { let n = 1; try { n = Math.trunc(Number(JSON.parse(localStorage.getItem('langbang:chapter') || '1'))); } catch {} return n >= 1 && n <= 7 ? `/img/lb/keyart${n}.webp` : '/img/lb/keyart1.webp'; };
 
 // ── 소리 켜기 (소리가 막혀 있을 때만) ──
 function soundPill() {
