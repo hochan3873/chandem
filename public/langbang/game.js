@@ -3030,8 +3030,15 @@ function showHeroModal(id, ctx = '') {
   }
   // 강화 버튼 꾹: 0.45초마다 한 번 더
   let holdIv = 0;
-  box.addEventListener('pointerdown', (ev) => { const bu = ev.target.closest('.hs-up'); if (!bu || bu.disabled) return; clearInterval(holdIv); let n = 0; holdIv = setInterval(() => { const cur = stage.querySelector('.hero-full .hs-up'); if (!cur || cur.disabled || ++n > 30) { clearInterval(holdIv); return; } if (n > 1) ACTS.buy(cur); }, 450); });
-  for (const t0 of ['pointerup', 'pointercancel']) window.addEventListener(t0, () => clearInterval(holdIv), { once: true });
+  // 멈춤은 누를 때마다 새로 건다 (화면을 그릴 때 한 번만 걸면 다른 탭에서 먼저 쓰여 버려 한 번 눌러도 계속 강화되던 버그)
+  box.addEventListener('pointerdown', (ev) => {
+    const bu = ev.target.closest('.hs-up'); if (!bu || bu.disabled) return;
+    clearInterval(holdIv); let n = 0;
+    const iv = setInterval(() => { const cur = stage.querySelector('.hero-full .hs-up'); if (!cur || cur.disabled || ++n > 30) { clearInterval(iv); return; } if (n > 1) ACTS.buy(cur); }, 450);
+    holdIv = iv;
+    const stop = () => { clearInterval(iv); for (const t0 of ['pointerup', 'pointercancel', 'blur']) window.removeEventListener(t0, stop, true); };
+    for (const t0 of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(t0, stop, true);
+  });
   const pwEl = box.querySelector('.hs-pw');
   if (pwEl && app.hsPrev && app.hsPrev.id === id && app.hsPrev.v !== pw) { const a = app.hsPrev.v, bv = pw, t1 = performance.now(); const stp = () => { const k = Math.min(1, (performance.now() - t1) / 700); pwEl.textContent = fmt(Math.round(a + (bv - a) * (1 - (1 - k) ** 3))); if (k < 1) requestAnimationFrame(stp); else pwEl.classList.add('done'); }; requestAnimationFrame(stp); }
   app.hsPrev = { id, v: pw };
