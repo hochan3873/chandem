@@ -171,10 +171,10 @@ function playOut(g, maxSec = 900) {
   return g;
 }
 
-test('스테이지 60개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽게 오르고 너무 튀지 않는다', () => {
-  assert.equal(D.STAGE_COUNT, 60);
+test('스테이지 70개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽게 오르고 너무 튀지 않는다', () => {
+  assert.equal(D.STAGE_COUNT, 70);
   let prevLast = 0;
-  for (let s = 1; s <= 60; s++) {
+  for (let s = 1; s <= 70; s++) {
     assert.equal(D.parseStage(D.stageLabel(s)), s);
     let prev = -99; // 캐스트가 센 스테이지는 레벨(체력·공격 배율)이 1보다 낮을 수 있다
     for (let w = 1; w <= D.STAGE_WAVES; w++) {
@@ -199,19 +199,21 @@ test('스테이지 60개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
   assert.ok(!has(4, 'thug') && has(5, 'thug'));
   assert.ok(!has(11, 'scammer') && has(12, 'scammer') && has(13, 'inpi_gossip') && has(14, 'inpi_clique') && has(17, 'inpi_dictator'));
   // 스테이지마다 제목에 맞는 캐스트 2~4종 + 한 줄 이야기 + 그 캐스트에서 나온 중간 보스
-  for (let s = 1; s <= 60; s++) {
+  for (let s = 1; s <= 70; s++) {
     const cast = D.stageMix(s).map(([t]) => t);
     assert.ok(cast.length >= 2 && cast.length <= 4, `${D.stageLabel(s)} 캐스트 ${cast.length}종`);
     assert.ok(D.stageStory(s).length > 5, `${D.stageLabel(s)} 이야기`);
     const m = D.stageMid(s);
-    if (m) { const e = D.ENEMIES[m]; for (const p of e.fuse || [e.base]) assert.ok(cast.includes(p), `${D.stageLabel(s)} 중간 보스 ${m} ← ${p}`); }
+    if (m && !D.ENEMIES[m].solo) { const e = D.ENEMIES[m]; for (const p of e.fuse || [e.base]) assert.ok(cast.includes(p), `${D.stageLabel(s)} 중간 보스 ${m} ← ${p}`); } // (solo: 7장 펜션 사장님처럼 따로 그린 중간 보스)
     assert.equal(D.stageWaveKinds(s).length, D.STAGE_WAVES);
   }
   assert.deepEqual(D.stageBosses(30), ['boss_inpi', 'boss_gapjil']);
   assert.deepEqual(D.stageBosses(60), ['boss_soloparty', 'boss_jusa']);
+  assert.deepEqual(D.stageBosses(70), ['boss_resort', 'mid_pension']);
   assert.ok(has(31, 'fakesingle') && has(41, 'sales') && has(51, 'drunk_run'), '4~6장 새 진상');
   assert.equal(D.parseStage('6-10'), 60);
-  assert.equal(D.parseStage('7-1'), 0);
+  assert.equal(D.parseStage('7-10'), 70);
+  assert.equal(D.parseStage('8-1'), 0);
   assert.equal(D.parseStage('2-11'), 0);
 });
 
@@ -2064,4 +2066,95 @@ test('상점 영구 강화: 진행도에 따라 살 수 있는 레벨 · Lv.11~1
   assert.ok(D.itemCost('door', 10) > D.itemCost('door', 9) * 1.7);
   assert.ok(Math.abs(D.itemValue('door', 15) - 1.25) < 1e-9 && Math.abs(D.itemValue('door', 10) - 1) < 1e-9);
   assert.equal(D.ITEMS.door.max, 15); assert.equal(D.ITEMS.drink.max, 3);
+});
+
+// ─── 7장 스키장 MT (고난도) ─────────────────────────────
+test('7장 스키장: 챕터 · 진상 8종 · 해금 · 보스 · 그림 대체', async () => {
+  const F = await load('flavor.js');
+  assert.equal(D.CHAPTERS.length, 7);
+  const c7 = D.CHAPTERS[6];
+  assert.equal(c7.name, '스키장 MT'); assert.equal(c7.names.length, 10);
+  assert.equal(D.chapterOf(61), 7); assert.equal(D.stageName(70), '리조트 갑부 회장');
+  for (const id of ['snowboard', 'liftcut', 'fakecoach', 'sledgirl', 'hotpack', 'snowball', 'mid_pension', 'boss_resort']) {
+    const e = D.ENEMIES[id];
+    assert.ok(e && e.ch7 && e.fb && e.img === `/img/lb/e_${id}.webp`, id);
+    assert.equal(e.emoji, '', `${id}: 이모지 없음`);
+    assert.ok(D.ENEMY_ATK[id] && D.SHORT_NAME[id] && F.FLAVOR[id] && e.shouts.length >= 3, id);
+  }
+  assert.ok(D.ENEMIES.boss_resort.boss && D.ENEMIES.mid_pension.mid && D.BOSS_KITS.boss_resort);
+  assert.deepEqual(D.stageBosses(65), ['boss_resort']);
+  for (let s = 61; s <= 70; s++) { assert.ok(D.stageMid(s), D.stageLabel(s)); assert.ok(D.stageMix(s).every(([t]) => D.ENEMIES[t].ch7), `${D.stageLabel(s)} 7장 진상만`); }
+});
+
+test('7장 진상 기술: 떼 등장 · 보호막 · 썰매 · 핫팩 · 눈덩이 빙결 · 소음 금지 침묵', () => {
+  // 리프트 새치기꾼: 두세 명이 같은 줄로 바짝
+  const g0 = S.createGame({ H: 760, rng: seeded(70), mode: 'stage', stage: 62, deck: [null, 'staff', 'bangjang', 'gunman', null, null], meta: {} });
+  S.startWave(g0, 1);
+  const lc = g0.spawnQ.filter((q) => q.type === 'liftcut');
+  assert.ok(lc.length >= 4);
+  let pairs = 0; for (let i = 1; i < lc.length; i++) if (lc[i].x !== undefined && Math.abs(lc[i].x - lc[i - 1].x) < 12 && lc[i].at - lc[i - 1].at < 0.3) pairs++;
+  assert.ok(pairs >= lc.length / 3, '두세 명씩 붙어서 나온다');
+  // 강습 사칭남: 곁의 진상 보호막 + 안 밀림
+  const g = S.createGame({ H: 760, rng: seeded(71), noWaves: true, heroes: ['bangjang', 'gunman', 'gunnyeo'] });
+  const coach = still(g, 'fakecoach', 180, 200);
+  const buddy = still(g, 'snowboard', 200, 210);
+  run(g, 3);
+  assert.ok(buddy.shield > 0 && buddy.coachT > 0, '보호막');
+  const y0 = buddy.y; S.applyKnockback(buddy, 80, g); assert.equal(buddy.kbv, 0, '보호막 동안 안 밀림'); assert.equal(buddy.y, y0);
+  assert.ok(coach.shield === 0, '자기는 안 씌움');
+  // 눈덩이: 멀찍이 서서 → 멤버 빙결 (제일 잘 치는 멤버를 노린다) · 응급 방패 면역이면 안 언다
+  const g2 = S.createGame({ H: 760, rng: seeded(72), noWaves: true, heroes: ['bangjang', 'gunman', 'staff'] });
+  const sb = still(g2, 'snowball', 180, g2.ropeY - 200); sb.atRope = true; sb.snowT = 0.1;
+  g2.heroes[1].dmgDone = 1e6;
+  let froze = null;
+  for (let t = 0; t < 3 && !froze; t += 1 / 60) { S.step(g2, 1 / 60); const f = g2.events.find((x) => x.type === 'c7freeze'); if (f) froze = f; g2.events.length = 0; }
+  assert.ok(froze && !froze.block, '빙결');
+  const fh = g2.heroes.find((h) => h.id === froze.hero);
+  assert.ok(fh.stunT > 0 && fh.freezeT > 0);
+  for (const h of g2.heroes) { h.stunT = 0; h.freezeT = 0; h.ccImmT = 5; }
+  sb.snowT = 0.1; let blocked = false;
+  for (let t = 0; t < 3; t += 1 / 60) { sb.y = sb.stopY; sb.atRope = true; sb.kbv = 0; S.step(g2, 1 / 60); if (g2.events.some((x) => x.type === 'c7freeze' && x.block)) blocked = true; g2.events.length = 0; }
+  assert.ok(blocked && g2.heroes.every((h) => !(h.freezeT > 0)), '응급 방패 면역');
+  // 펜션 사장님: 예고 → 넓은 범위 침묵 → 스킬 못 씀 · 예고 중에 기절시키면 끊김
+  const g3 = S.createGame({ H: 760, rng: seeded(73), noWaves: true, heroes: ['bangjang', 'gunman', 'gunnyeo'] });
+  const pn = still(g3, 'mid_pension', 180, 250, 50); pn.quietCd = 0.1;
+  let quiet = false;
+  for (let t = 0; t < 3 && !quiet; t += 1 / 60) { S.step(g3, 1 / 60); if (g3.events.some((x) => x.type === 'c7quiet')) quiet = true; g3.events.length = 0; }
+  assert.ok(quiet && g3.heroes.every((h) => h.muteT > 0));
+  const gm = g3.heroes.find((h) => h.id === 'gunman'); gm.skillCd = 0;
+  assert.equal(S.castSkill(g3, gm), false, '침묵 중엔 스킬 못 씀');
+  for (const h of g3.heroes) { h.muteT = 0; h.silenceT = 0; }
+  pn.quietCd = 0.05; run(g3, 0.3); assert.ok(pn.quietW > 0, '예고 중');
+  pn.stunT = 1; let stop = false;
+  for (let t = 0; t < 0.5; t += 1 / 60) { S.step(g3, 1 / 60); if (g3.events.some((x) => x.type === 'c7quietStop')) stop = true; g3.events.length = 0; }
+  assert.ok(stop && g3.heroes.every((h) => !(h.muteT > 0)), '기절시키면 조용');
+  // 핫팩 도둑: 옆을 지나간 멤버 공격 속도 ↓ · 썰매: 감속에 걸리면 굴러떨어진다
+  const g4 = S.createGame({ H: 760, rng: seeded(74), noWaves: true, heroes: ['bangjang'] });
+  const hp = still(g4, 'hotpack', g4.heroes[0].x, g4.ropeY - 100);
+  run(g4, 1); assert.ok(g4.heroes[0].aspdDebT > 0 && hp.coldCd >= 0);
+  const sl = S.spawnEnemy(g4, 'sledgirl', 100, 100, { hpMul: 50 });
+  const sp0 = sl.spdMul; sl.slowT = 1; sl.slowMul = 0.5; run(g4, 0.1);
+  assert.ok(sl.sledOff && sl.spdMul < sp0, '썰매에서 떨어짐');
+});
+
+test('7장 보스 눈사태: 예고 중 스킬로 끊으면 회장이 비틀 · 안 끊으면 전원 빙결', () => {
+  const mk = (seed) => {
+    const g = S.createGame({ H: 760, rng: seeded(seed), noWaves: true, heroes: ['bangjang', 'gunman', 'staff'] });
+    const b = S.spawnEnemy(g, 'boss_resort', 180, 150, { hpMul: 50 }); b.speed = 0; b.baseSpeed = 0; b.avaT = 0.1; if (b.bai) b.bai.next = 99;
+    return [g, b];
+  };
+  const [g, b] = mk(80);
+  run(g, 0.5);
+  assert.ok(g.avalanche === b && b.avaW > 0, '예고');
+  const h = g.heroes.find((x) => x.id === 'gunman'); h.skillCd = 0;
+  assert.ok(S.castSkill(g, h, b.x, b.y));
+  assert.equal(g.avalanche, null); assert.ok(b.stunT > 0 && b.weakT > 0, '끊김 → 기절 + 빈틈');
+  assert.equal(g.stats.avaStop, 1);
+  const [g2, b2] = mk(81);
+  const hp0 = g2.base.hp, n0 = g2.enemies.length;
+  run(g2, 0.5 + D.ENEMIES.boss_resort.avalanche.windup);
+  assert.ok(g2.heroes.every((x) => x.freezeT > 0 && x.stunT > 0), '전원 빙결');
+  assert.ok(g2.base.hp < hp0 && g2.enemies.length > n0, '입구 피해 + 보드남');
+  // 등급이 높을수록 덜 언다 (LEGEND < T1)
+  assert.ok(D.CH7.coldTier[5] < D.CH7.coldTier[1]);
 });

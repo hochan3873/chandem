@@ -11,7 +11,7 @@ const META_MAX = 20;
 const HERO_TIER = { bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1, dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2, hanna: 3, donghan: 3, sunggu: 3, youngjun: 3, junseo: 4, hyungyeong: 4, ara: 4, hochan: 5, soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, jiwon: 3, wonsik: 3, jeongseob: 3, byunghwa: 5, baul: 3 };
 const TIER_MAX = [20, 20, 20, 20, 20, 20];
 const metaMaxOf = (id) => TIER_MAX[HERO_TIER[id] || 1];
-const STAGE_COUNT = 60;
+const STAGE_COUNT = 70; // 7장 스키장 MT 까지
 const STAGE_WAVES = 5;
 const STAGES_PER_CHAPTER = 10;
 const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3
@@ -23,7 +23,8 @@ const ENEMY_IDS = ['earphone', 'noshow', 'clubguy', 'clubgirl', 'praise1', 'prai
   'fakesingle', 'secretmom', 'carpoor', 'sales', 'sarcasm', 'jjijil', 'otaku', 'drunk_cry', 'drunk_run', 'drunk_sleep', 'drunk_home', 'kkondae2',
   'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty',
   'mid_fakesingle', 'mid_carpoor', 'fuse_lease', 'fuse_lie', 'mid_otaku', 'mid_sarcasm', 'fuse_jusa', 'fuse_sleep',
-  'fuse_karaoke', 'fuse_taxi', 'fuse_mt', 'fuse_latte', 'fuse_adspam'];
+  'fuse_karaoke', 'fuse_taxi', 'fuse_mt', 'fuse_latte', 'fuse_adspam',
+  'snowboard', 'liftcut', 'fakecoach', 'sledgirl', 'hotpack', 'snowball', 'mid_pension', 'boss_resort', 'mid_snowboard', 'mid_sledgirl', 'fuse_lift', 'fuse_coach', 'fuse_snowfight']; // 7장 스키장
 // 중간 보스가 나오는 스테이지 (1-1 · 1-2 제외) — 클리어 보상에 중간 보스 보너스
 const hasMid = (s) => s >= 3;
 

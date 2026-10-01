@@ -114,7 +114,7 @@ test('마스터 테스트 도구: 서버가 아이디로 확인 · 올클리어 
   assert.equal((await post('/api/langbang/master', n.token, { action: 'allclear' })).ok, false, '마스터만');
   let r = await post('/api/langbang/master', m.token, { action: 'allclear', level: 20, star5: true });
   assert.equal(r.ok, true, r.message);
-  assert.equal(r.profile.maxStage, 60);
+  assert.equal(r.profile.maxStage, 70);
   assert.equal(r.profile.master, true);
   assert.equal(r.profile.deckSlots, 6, '마스터는 덱 6칸');
   assert.equal(r.profile.hstars.hochan, 5);

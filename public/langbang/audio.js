@@ -45,7 +45,7 @@ export function setMuted(v) {
 // 배경음악: 챕터마다 다른 곡 + 보스 웨이브 곡 (필요할 때만 불러온다). 바꿀 때는 부드럽게 겹쳐서
 const TRACKS = {
   1: '/sounds/bgm_langbang.mp3', 2: '/sounds/bgm_lb2.mp3', 3: '/sounds/bgm_lb3.mp3',
-  4: '/sounds/bgm_lb4.mp3', 5: '/sounds/bgm_lb5.mp3', 6: '/sounds/bgm_lb6.mp3', boss: '/sounds/bgm_lb_boss.mp3',
+  4: '/sounds/bgm_lb4.mp3', 5: '/sounds/bgm_lb5.mp3', 6: '/sounds/bgm_lb6.mp3', 7: '/sounds/bgm_lb6.mp3', boss: '/sounds/bgm_lb_boss.mp3', // (7장 스키장: 전용 곡이 오기 전까진 연말 눈 곡)
   raid: '/sounds/bgm_lb_raid.mp3', pvp: '/sounds/bgm_lb_pvp.mp3', // 레이드 · 1:1 대전 전용 곡 (없으면 챕터 곡 그대로)
 };
 const OPTIONAL = new Set(['raid', 'pvp']); // 서버 파일 목록에 없으면 요청도 안 한다

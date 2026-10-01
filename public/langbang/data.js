@@ -232,7 +232,7 @@ export function itemGateCh(id, lv, maxStage) {
 // 3챕터 × 10스테이지. 스테이지 번호 s = 1..30 ('1-1' … '3-10')
 export const STAGE_WAVES = 5;
 export const STAGES_PER_CHAPTER = 10;
-export const STAGE_COUNT = 60;
+export const STAGE_COUNT = 70;
 export const CHAPTERS = [
   {
     id: 1, name: '랑방 골목', desc: '꼬충들이 기웃거리는 우리 동네 골목', color: '#ffd23f',
@@ -257,6 +257,10 @@ export const CHAPTERS = [
   {
     id: 6, name: '연말 파티 · 인피 본부', desc: '크리스마스 파티, 그리고 인피 본부 최종전', color: '#c77dff',
     names: ['연말 거리', '송년회', '주사 대행진', '산타 대란', '주사왕', '눈 내리는 밤', '카운트다운', '인피 본부 입구', '최후의 파티', '솔로파티 중독자'],
+  },
+  {
+    id: 7, name: '스키장 MT', desc: '겨울 스키장 MT — 얼리고 · 막고 · 들이받는 진상들. 조합과 컨트롤이 없으면 못 깬다', color: '#7fd6ff', hard: true,
+    names: ['리조트 도착', '리프트 대기줄', '초보 슬로프', '눈썰매장', '회장님 순시', '야간 스키', '눈싸움 대첩', '핫팩 실종 사건', '정상 휴게소', '리조트 갑부 회장'],
   },
 ];
 // 이 스테이지를 처음 깨면 히든 영웅이 영구 합류 (출전 동료로 고를 수 있고, 카드로도 나온다)
@@ -300,6 +304,15 @@ export const STAGE = {
   augAdd: 2, // 증강(1·3·5웨이브)이 생겨서 진상도 그만큼 조금 세게
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
+// ── 7장 스키장 MT: 난이도 숫자 (기존 1~6장 값은 그대로 · 이 블록만 7장) — scripts/lb-balance.js ch7 로 맞춘 값 ──
+//   목표: 한 명만 키운 덱 < 30% · 역할을 갖춘 T3/T4 강화 덱 50~70% · 키운 LEGEND 포함 덱은 그보다 높게 · 헬은 더 어렵게
+export const CH7 = { chapterAdd: 0, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.84, swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 0.75,
+  stageAdd: { 61: 3.9, 62: 0.5, 63: -4.5, 64: -9, 65: 0.5, 66: -0.2, 67: 6.5, 68: -0.8, 69: -8.5, 70: 0 }, waveAdd: [-4, -2, 0, -1.5, 1],
+  coldTier: [1, 1.4, 1.2, 1, 0.75, 0.45], thaw: 2 }; // thaw: 눈덩이 빙결이 풀린 뒤 2초는 다시 안 언다 // 겨울 산 적응: 등급이 높은 멤버일수록 빙결 · 침묵 · 추위(공속↓)가 짧다 (T1 ×1.3 … LEGEND ×0.55) // waveAdd: 첫 웨이브(대장 혼자)는 덜 · 뒤 웨이브와 보스는 더
+STAGE.chapterAdd[6] = CH7.chapterAdd; STAGE.bossStage[7] = CH7.boss; STAGE.deckHp[6] = CH7.deckHp; STAGE.hpTune[6] = CH7.hpTune; STAGE.swarm[6] = CH7.swarm;
+Object.assign(STAGE.stageAdd, CH7.stageAdd);
+STAGE.waveAdd = Object.assign(STAGE.waveAdd || {}, { 7: CH7.waveAdd });
+BAL.chHp[7] = CH7.chHp; JOIN.hp[6] = CH7.joinHp; TEMPO.hellCh[6] = CH7.hellCh;
 // 덱 5명으로 싸우니 적도 그만큼 단단하게 — 1-1 은 연습이라 그대로, 1-3 부터 본격
 export function stageHpScale(s) { return (1 + (STAGE.deckHp[chapterOf(s) - 1] - 1) * Math.min(1, (s - 1) / 2)) * (s <= 2 ? [0.7, 0.8][s - 1] : STAGE.hpTune[chapterOf(s) - 1] || 1); } // 1-1 · 1-2 는 튜토리얼 (어떤 덱이든 쉽게)
 export function stageLevel(s, w) {
@@ -307,7 +320,7 @@ export function stageLevel(s, w) {
   const bs = STAGE.bossStage[chapterOf(s)];
   const boss = n === 10 ? bs[1] : n === 5 ? bs[0] : 0;
   // 첫 웨이브는 새로 시작한 멤버도 버티게 천천히, 스테이지 안에서 웨이브마다 가파르게 (뒤 스테이지일수록 더)
-  return 1 + STAGE.levelPerStage * Math.pow(s - 1, STAGE.levelPow) + (w - 1) * (STAGE.levelPerWave + STAGE.wavePerStage * Math.min(s - 1, 29)) + boss + STAGE.chapterAdd[chapterOf(s) - 1] + (STAGE.themeLevel[stageTheme(s)] || 0) + (STAGE.stageAdd[s] || 0) + (s >= 3 ? STAGE.augAdd * Math.min(1, (s - 2) / 3) * (s > 20 ? 1.3 : 1) : 0);
+  return 1 + STAGE.levelPerStage * Math.pow(s - 1, STAGE.levelPow) + (w - 1) * (STAGE.levelPerWave + STAGE.wavePerStage * Math.min(s - 1, 29)) + boss + STAGE.chapterAdd[chapterOf(s) - 1] + (STAGE.themeLevel[stageTheme(s)] || 0) + (STAGE.stageAdd[s] || 0) + (s >= 3 ? STAGE.augAdd * Math.min(1, (s - 2) / 3) * (s > 20 ? 1.3 : 1) : 0) + (((STAGE.waveAdd || {})[chapterOf(s)] || [])[w - 1] || 0); // waveAdd: 장별 웨이브 보정 (7장)
 }
 // 적은 스테이지마다 조금씩 늘어난다:
 //  1챕터 꼬충 → 먹튀(1-3) → 술진상(1-4) → 폭력배(1-8)
@@ -382,6 +395,17 @@ const STAGE_CASTS = [
   ['inpi_clique:0.5 inpi_dictator:0.1 inpi_treasurer:0.1 gao:0.12', '인피 본부 — 총무와 독재자가 지키는 문'],
   ['sales:0.2 sarcasm:0.15 inpi_gossip:0.2 kkondae2:0.1', '최후의 파티 — 말로 싸우는 진상들'],
   ['couple:0.15 yeokko:0.4 namkko:0.4 drunk_run:0.25', '솔로파티 중독자의 디스코볼이 돈다'],
+  // 7장 스키장 MT (고난도): 얼리기 · 침묵 · 공속↓ · 보호 · 돌진 — 한 명만 키운 덱으론 못 깬다
+  ['snowboard:0.45 liftcut:0.5 hotpack:0.2', '"오늘 파우더 미쳤다!" 리조트 입구부터 보드 과시남과 새치기 떼'],
+  ['liftcut:0.7 snowboard:0.3 fakecoach:0.12', '리프트 줄에 두세 명씩 우르르 새치기 — 강습 사칭남이 "제가 알려 드릴게요~"'],
+  ['fakecoach:0.18 sledgirl:0.35 snowball:0.2 liftcut:0.3', '초보 슬로프 — 펜션 사장님이 "밤 10시 이후 소음 금지!" 스킬을 막는다'],
+  ['sledgirl:0.45 snowball:0.25 hotpack:0.25', '눈썰매장 — 브레이크 없는 썰매가 입구로 돌진, 눈덩이에 멤버가 꽁꽁'],
+  ['snowboard:0.4 fakecoach:0.15 snowball:0.2', '리조트 갑부 회장의 첫 순시 — 눈사태 예고가 뜨면 스킬로 끊어라'],
+  ['snowboard:0.4 hotpack:0.3 fakecoach:0.15 sledgirl:0.25', '야간 스키 — 어둠 속에서 줄을 휙휙 바꾸는 보드남과 핫팩 도둑'],
+  ['snowball:0.45 liftcut:0.5 fakecoach:0.12', '과 대항 눈싸움 대첩 — 멀리서 날아오는 눈덩이부터 잡자'],
+  ['hotpack:0.45 snowball:0.25 sledgirl:0.3 snowboard:0.2', '핫팩이 사라졌다! 손이 곱아 공격이 느려진다 — 다시 펜션 사장님까지'],
+  ['fakecoach:0.2 hotpack:0.3 snowboard:0.35 snowball:0.2', '정상 휴게소 — 사칭 강사단이 보호막을 두르고 버틴다'],
+  ['snowboard:0.4 fakecoach:0.15 sledgirl:0.3 snowball:0.2', '리조트 갑부 회장과 펜션 사장님 — 눈사태와 소음 금지가 동시에'],
 ];
 const CAST = STAGE_CASTS.map(([c]) => c.split(' ').map((x) => { const [t, w] = x.split(':'); return [t, +w]; }));
 export const stageStory = (s) => (STAGE_CASTS[s - 1] || [])[1] || '';
@@ -453,8 +477,8 @@ export function stageTheme(s) {
 // 보스: x-5, x-10 마지막 웨이브
 export function stageBosses(s) {
   const n = stageNo(s), ch = chapterOf(s);
-  const B5 = [null, ['boss_loan'], ['boss_gapjil'], ['boss_gapjil', 'boss_thug'], ['boss_kkondol'], ['boss_sales'], ['boss_jusa']];
-  const B10 = [null, ['queen'], ['queen', 'boss_gapjil'], ['boss_inpi', 'boss_gapjil'], ['boss_queenmom', 'boss_kkondol'], ['boss_otaku', 'boss_sales'], ['boss_soloparty', 'boss_jusa']];
+  const B5 = [null, ['boss_loan'], ['boss_gapjil'], ['boss_gapjil', 'boss_thug'], ['boss_kkondol'], ['boss_sales'], ['boss_jusa'], ['boss_resort']];
+  const B10 = [null, ['queen'], ['queen', 'boss_gapjil'], ['boss_inpi', 'boss_gapjil'], ['boss_queenmom', 'boss_kkondol'], ['boss_otaku', 'boss_sales'], ['boss_soloparty', 'boss_jusa'], ['boss_resort', 'mid_pension']]; // 7-10: 회장 + 펜션 사장님 난입
   if (n === 5) return B5[ch] || [];
   if (n === 10) return B10[ch] || [];
   return [];
@@ -493,7 +517,7 @@ export function stageWave(s, w) {
   mix.forEach(([type, wt], i) => {
     if (wt <= 0) return;
     const few = FEW.includes(type);
-    const pack = ENEMIES[type].pack;
+    const pack = ENEMIES[type].pack || ENEMIES[type].group; // (group: 7장 리프트 새치기꾼 — 두세 명씩)
     let c = Math.round((n * wt) / sum);
     if (c < 1) c = few ? ((w + i) % 2 === 0 || bosses.length ? 1 : 0) : 2; // 드문 진상은 웨이브 걸러 한 명씩
     if (pack) c = Math.max(1, Math.round(c / ((pack.min + pack.max) / 2)) || 1); // 무리 수
@@ -537,6 +561,7 @@ export const MAP_FX = {
   campfire: { id: 'campfire', icon: '🔥', name: '캠프파이어', desc: '가운데 모닥불 곁을 지나는 진상이 불탄다 · 술 멤버 +20%', fire: { x: 180, r: 58, dps: 10 }, attr: { booze: 1.2 } },
   snow: { id: 'snow', icon: '❄️', name: '연말 눈', desc: '진상 -12% 느림 · 멤버 공격 속도 -8% (손이 시려요)', enemySpd: 0.88, heroSpd: 0.92 },
   lightshow: { id: 'lightshow', icon: '🪩', name: '조명 쇼', desc: '9초마다 2초 동안 번쩍! 멤버 공격 25% 빗나감', every: 9, strobe: 2, miss: 0.25 },
+  blizzard: { id: 'blizzard', icon: '', name: '눈보라', desc: '멤버 사거리 -15% · 공격 속도 -10% · 진상 -5% 느림 (7장)', range: 0.85, heroSpd: 0.9, enemySpd: 0.95 },
 };
 // 스테이지별 맵 효과 (1챕터는 순하게, 뒤로 갈수록 적 구성과 맞물리게)
 const STAGE_FX = [ // 속성 버프가 있는 효과(노래방·안개=말빨, 회식=술)는 그 속성이 추천인 스테이지에만
@@ -546,6 +571,7 @@ const STAGE_FX = [ // 속성 버프가 있는 효과(노래방·안개=말빨, �
   'none', 'conveyor', 'wind', 'conveyor', 'wind', 'happy', 'wind', 'rain', 'fog', 'conveyor',
   'none', 'campfire', 'campfire', 'karaoke', 'happy', 'campfire', 'karaoke', 'blackout', 'fog', 'campfire',
   'snow', 'lightshow', 'snow', 'happy', 'snow', 'lightshow', 'megaphone', 'snow', 'lightshow', 'snow',
+  'snow', 'icy', 'blizzard', 'icy', 'snow', 'blackout', 'blizzard', 'snow', 'icy', 'blizzard', // 7장 스키장
 ];
 export function stageFx(s) { return MAP_FX[STAGE_FX[s - 1] || 'none']; }
 
@@ -1316,6 +1342,60 @@ export const ENEMIES = {
     title: '솔로파티 중독자 등장!', subtitle: '"솔로들이여, 파티다!!"',
     shouts: ['파티 타임!', '솔로 만세!', '디스코볼 받아라!'],
   },
+  // ── 7장 스키장 MT (고난도): 진상마다 상태이상 · 보호 · 돌진 — 그림이 아직 없으면 fb(비슷한 진상 그림)에 색만 입혀 쓴다 ──
+  snowboard: {
+    id: 'snowboard', cls: 'jerk', name: '스노보드 과시남', gender: 'm', emoji: '', color: '#5ec8ff', ch7: true, fb: '/img/lb/e_cutter.webp',
+    img: '/img/lb/e_snowboard.webp', hp: 110, speed: 64, atk: 8, atkInterval: 1.1, exp: 8, r: 18, size: 80,
+    board: { every: [1.8, 3.0], dist: [70, 120], sec: 0.4, evade: 0.4 }, // 뒤로 타며 과시하다 갑자기 줄 바꾸기 (바꾸는 동안 40% 회피)
+    shouts: ['오늘 파우더 미쳤다!', '뒤로 타는 거 봤어?', '나 시즌권 있어', '비켜~ 지나간다!'],
+  },
+  liftcut: {
+    id: 'liftcut', cls: 'violent', name: '리프트 새치기꾼', gender: 'm', emoji: '', color: '#ffb347', ch7: true, fb: '/img/lb/e_cutter.webp',
+    img: '/img/lb/e_liftcut.webp', hp: 60, speed: 56, atk: 6, atkInterval: 1.2, exp: 4, r: 15, size: 70,
+    group: { min: 2, max: 3, gap: 0.22 }, // 두세 명이 한 줄로 바짝 붙어 우르르 (관통 · 줄 공격이 빛난다)
+    vault: { at: 230, dist: 110, sec: 0.5 }, // 입구 앞에서 한 번 훌쩍 새치기
+    shouts: ['저희 일행이에요~', '먼저 좀 탈게요', '줄 어디예요?', '한 명만 끼워 줘요'],
+  },
+  fakecoach: {
+    id: 'fakecoach', cls: 'politic', name: '스키 강습 사칭남', gender: 'm', emoji: '', color: '#ff6b6b', ch7: true, fb: '/img/lb/e_sales.webp',
+    img: '/img/lb/e_fakecoach.webp', hp: 140, speed: 32, atk: 7, atkInterval: 1.3, armor: 2, exp: 10, r: 18, size: 80,
+    coach: { every: 6, first: 2.5, r: 170, n: 4, frac: 0.4 }, // "제가 알려 드릴게요~" 곁의 진상 4명 보호막(최대 체력 40%) · 보호막이 있는 동안 안 밀린다
+    shouts: ['제가 알려 드릴게요~', '자세가 틀렸어요', '강습비는 나중에~', '무릎을 이렇게!'],
+  },
+  sledgirl: {
+    id: 'sledgirl', cls: 'seduce', name: '눈썰매 폭주녀', gender: 'f', emoji: '', color: '#ff8fd0', ch7: true, fb: '/img/lb/e_clubgirl.webp',
+    img: '/img/lb/e_sledgirl.webp', hp: 50, speed: 120, atk: 9, atkInterval: 1.0, exp: 4, r: 15, size: 70,
+    sled: { crash: 1.6, off: 0.4, daze: 1.5 }, // 브레이크 없는 썰매 돌진 — 입구에 처음 부딪히면 1.6배 피해 (그 뒤 1.5초 어질어질) · 감속·기절에 걸리면 썰매에서 굴러떨어져 느려진다
+    shouts: ['비켜요오오~!', '브레이크 없어요!', '꺄아아 썰매다!', '한 번 더 탈래!'],
+  },
+  hotpack: {
+    id: 'hotpack', cls: 'jerk', name: '핫팩 도둑', gender: 'm', emoji: '', color: '#ff9a3c', ch7: true, fb: '/img/lb/e_mukti.webp',
+    img: '/img/lb/e_hotpack.webp', hp: 120, speed: 40, atk: 7, atkInterval: 1.2, exp: 8, r: 17, size: 76,
+    hotpack: { r: 80, cut: 0.35, sec: 2.5, from: 0.45, tick: 0.5 }, // 길 절반부터: 옆을 지나간 멤버의 온기를 훔친다 → 공격 속도 -35% (2.5초)
+    shouts: ['어 따뜻하다~', '이거 제 핫팩인데요?', '손 좀 녹이고 갈게', '하나만 빌려 줘'],
+  },
+  snowball: {
+    id: 'snowball', cls: 'violent', name: '눈싸움 대학생', gender: 'm', emoji: '', color: '#bfe9ff', ch7: true, fb: '/img/lb/e_yeokko.webp',
+    img: '/img/lb/e_snowball.webp', hp: 80, speed: 42, atk: 5, atkInterval: 1.3, exp: 7, r: 16, size: 72, standoff: 195,
+    snowball: { every: 4.0, sec: 1.5, fly: 0.75, aim: 0.8 }, // 멀찍이 서서 눈덩이 → 맞은 멤버 1.5초 꽁꽁 · 제일 잘 치는 멤버를 노린다(60%) (빙결 = 기절 · 응급처치 · 강성구 곁 · 저항으로 막는다)
+    shouts: ['눈싸움 하실 분!', '받아라 눈덩이!', '과 대항전이다!', '헤드샷~!'],
+  },
+  mid_pension: {
+    id: 'mid_pension', cls: 'politic', name: '펜션 사장님', gender: 'm', emoji: '', color: '#c9a36b', ch7: true, fb: '/img/lb/e_kkondae.webp',
+    mid: true, solo: true, noKit: true, coin: 10,
+    img: '/img/lb/e_mid_pension.webp', hp: 1100, speed: 14, atk: 24, atkInterval: 1.6, armor: 4, exp: 40, r: 30, size: 118,
+    quiet: { every: 9, first: 4, windup: 1.3, sec: 3, r: 230 }, // "여기 밤 10시 이후 소음 금지예요!" 넓은 범위 멤버 스킬 침묵 3초 (예고 중에 기절시키면 끊긴다)
+    title: '펜션 사장님 등장!', subtitle: '"여기 밤 10시 이후 소음 금지예요!"',
+    shouts: ['여기 밤 10시 이후 소음 금지예요!', '퇴실은 11시까지!', '고기는 밖에서 구워요!', '추가 인원은 만 원씩!'],
+  },
+  boss_resort: {
+    id: 'boss_resort', cls: 'politic', name: '리조트 갑부 회장', gender: 'm', emoji: '', color: '#3a8ad8', boss: true, ch7: true, fb: '/img/lb/e_boss_sales.webp',
+    img: '/img/lb/e_boss_resort.webp', hp: 7600, speed: 15, atk: 42, atkInterval: 1.8, armor: 5, exp: 90, r: 46, size: 158,
+    summon: { every: 11, count: 3, types: ['snowboard'] },
+    avalanche: { every: 12, first: 5, windup: 3.2, freeze: 3, door: 0.15, riders: 3, stun: 2.5, weak: 4 }, // 눈사태: 크게 예고 → 멤버 전원 3초 빙결 + 입구 최대 내구도 15% 피해 + 보드남 3명이 눈사태를 타고 내려온다. 예고 중에 스킬 · 총공지 · 알디콤을 쓰면 끊기고 회장이 비틀 (빈틈)
+    title: '리조트 갑부 회장 등장!', subtitle: '"이 산 전부 내 거야!"',
+    shouts: ['이 산 전부 내 거야!', 'VIP 전용 슬로프다!', '눈사태 한 번 보여 줘?', '리프트 멈춰!'],
+  },
   // ── 무한 도전 전용 보스: 25웨이브부터 10웨이브마다 ──
   boss_union: {
     id: 'boss_union', cls: 'jerk', name: '진상 연합 회장', gender: 'm', emoji: '🎩', color: '#8a2be2', boss: true, inpi: true,
@@ -1361,6 +1441,12 @@ const MID_DEFS = {
   fuse_mt: { fuse: ['jjijil', 'otaku'], name: '찌질 오타쿠', hpX: 5 },
   fuse_latte: { fuse: ['kkondae', 'kkondae2'], name: '라떼 골프 연합', hpX: 3.5 },
   fuse_adspam: { fuse: ['sales', 'spam'], name: '광고 단톡방장', hpX: 5 },
+  // 7장 스키장
+  mid_snowboard: { base: 'snowboard', name: '각성 보드남', hpX: 9 },
+  mid_sledgirl: { base: 'sledgirl', name: '각성 썰매 폭주녀', hpX: 15 },
+  fuse_lift: { fuse: ['liftcut', 'snowboard'], name: '리프트 무법자', hpX: 6 },
+  fuse_coach: { fuse: ['fakecoach', 'hotpack'], name: '사칭 강사단', hpX: 5 },
+  fuse_snowfight: { fuse: ['snowball', 'liftcut'], name: '눈싸움 원정대', hpX: 7 },
 };
 // 합체 중간 보스 한 장 그림 (둘이 한 몸) — e_<id>.webp (전투) · dex/<id>.webp (도감). 그림이 오면 여기에 추가
 // 진상 프레임 애니메이션 (선택): 가로 띠 그림 · 칸은 정사각형 (frames 를 안 적으면 너비 ÷ 높이) — 그림이 없으면 코드 움직임 그대로
@@ -1422,6 +1508,7 @@ const MID_BY_STAGE = [
   'mid_fakesingle', 'mid_carpoor', 'fuse_puke', 'fuse_lie', 'mid_kkondae', 'mid_carpoor', 'fuse_karaoke', 'mid_sarcasm', 'fuse_lie', 'fuse_lie',
   'fuse_lease', 'mid_mukti', 'mid_drunk', 'fuse_adspam', 'fuse_lease', 'mid_sarcasm', 'fuse_karaoke', 'fuse_puke', 'fuse_mt', 'mid_otaku',
   'fuse_karaoke', 'fuse_latte', 'fuse_jusa', 'fuse_taxi', 'fuse_sleep', 'fuse_lie', 'fuse_spam', 'fuse_inpi', 'mid_sarcasm', 'fuse_kko',
+  'mid_snowboard', 'fuse_lift', 'mid_pension', 'mid_sledgirl', 'mid_pension', 'fuse_coach', 'fuse_snowfight', 'mid_pension', 'fuse_coach', 'mid_sledgirl', // 7장 (펜션 사장님은 따로 그린 중간 보스)
 ];
 export const MID_WAVE = 3;
 export function stageMid(s) { return MID_BY_STAGE[s - 1] || null; }
@@ -1909,3 +1996,9 @@ export const SHORT_NAME = { noshow: '약속취소러', praise1: '칭찬빌런', 
   drunk_cry: '우는 주사', drunk_run: '뛰는 주사', drunk_sleep: '눕는 주사', drunk_home: '귀가 주사', boss_kkondol: '꼰대돌싱', boss_queenmom: '된장싱글맘', boss_soloparty: '솔로파티왕', boss_union: '연합회장',
   mid_selfie: '각성 인플루', fuse_gossip: '뒷담 대장', fuse_jusa: '울뛰 만취자', fuse_karaoke: '노래방 커플', fuse_taxi: '택시만취러', fuse_lease: '리스왕', fuse_adspam: '광고방장', fuse_latte: '라떼 연합' };
 export const shortName = (id) => SHORT_NAME[id] || (ENEMIES[id] ? ENEMIES[id].name : id);
+// 7장 스키장: 입구 공격 동작 · 짧은 이름 · 드문 진상 · 회장 보스 패턴
+Object.assign(ENEMY_ATK, { snowboard: 'kick', liftcut: 'shove', fakecoach: 'slap', sledgirl: 'headbutt', hotpack: 'shove', snowball: 'bottle', mid_pension: 'bag', boss_resort: 'punch' });
+Object.assign(SHORT_NAME, { snowboard: '보드남', liftcut: '리프트 새치기', fakecoach: '사칭 강사', sledgirl: '썰매녀', hotpack: '핫팩 도둑', snowball: '눈싸움러', mid_pension: '펜션 사장', boss_resort: '리조트 회장',
+  mid_snowboard: '각성 보드남', mid_sledgirl: '각성 썰매녀', fuse_lift: '리프트 무법자', fuse_coach: '사칭 강사단', fuse_snowfight: '눈싸움 원정대' });
+FEW.push('fakecoach', 'snowball', 'hotpack');
+BOSS_KITS.boss_resort = { name: '리조트 갑부 회장', skills: [['silence', '회장님 훈화', { sec: 3 }], ['stun', 'VIP 갑질', { n: 2, sec: 1.4 }]], p2: ['summon', '스키 강사단', { types: ['fakecoach', 'snowboard'], n: 3 }] };
