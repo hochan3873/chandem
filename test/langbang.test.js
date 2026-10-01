@@ -982,10 +982,11 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   // LEGEND 확정 90 · 합류 · 겹치면 카드
   lb = mk(60); lb.pulls = 5; lb.pity.legend = L.PITY_LEGEND - 1;
   let x = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
-  assert.equal(x.hero, 'hochan'); assert.ok(x.new && L.heroUnlocked(lb, 'hochan'), '90회 확정 → 합류');
+  assert.ok(D.LEGEND_HEROES.includes(x.hero)); assert.ok(x.new && L.heroUnlocked(lb, x.hero), '90회 확정 → 합류');
+  for (const h of D.LEGEND_HEROES) lb.owned[h] = true; // LEGEND 둘 다 있으면 → 겹침
   lb.pity.legend = L.PITY_LEGEND - 1;
   x = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
-  assert.ok(x.dup && lb.shards.hochan === L.DUP_SHARDS.legendHero, '겹치면 멤버 카드(강화·★)');
+  assert.ok(x.dup && (lb.shards[x.hero] | 0) >= L.DUP_SHARDS.legendHero, '겹치면 멤버 카드(강화·★)');
   // 소프트 천장: 70번째까지 0.6% → 가파르게 → 90번째 100%
   assert.equal(L.legendRate(0), 0.6); assert.equal(L.legendRate(68), 0.6); assert.ok(L.legendRate(75) > 30); assert.equal(L.legendRate(89), 100);
   // 100만 번 (천장 없이) 확률이 표와 맞는다
@@ -1914,4 +1915,28 @@ test('합류 모드: 아직 안 온 멤버의 전용 카드는 안 나온다 · 
     assert.equal(g.pendingLevels, 0);
   }
   assert.equal(bad, 0, '없는 멤버 카드');
+});
+
+test('소모품 나머지: 택시(밀기·느리게) · 얼음물(꽁꽁 · 보스는 느리게) · 의리주(공격력 · 공속 · 기세) · 드롭 · 상점 한도', async () => {
+  const L = await load('live.js');
+  const g = S.createGame({ rng: seeded(33), noWaves: true, heroes: ['gunman'], tempo: true });
+  g.phase = 'wave'; g.cons = ['taxi', 'icewater', 'uiriju']; g.consUsed = {}; g.mom = 0;
+  const e = S.spawnEnemy(g, 'thug', 150, g.ropeY - 20, { hpMul: 100 }), b = S.spawnEnemy(g, 'boss_thug', 200, g.ropeY - 40, { hpMul: 5 });
+  const y0 = e.y, yb = b.y;
+  assert.equal(S.useCons(g, 'taxi'), true);
+  assert.ok(y0 - e.y >= 79 && yb - b.y >= 39 && yb - b.y < 41, '두 칸 · 보스 한 칸'); assert.ok(e.slowT >= 3 && !(b.slowT > 0.1 && b.slowMul < 0.7), '보스는 안 느려짐');
+  g.consCdT = 0; assert.equal(S.useCons(g, 'icewater'), true); assert.ok(e.stunT >= 3 && !(b.stunT > 0) && b.slowMul <= 0.5);
+  const h = g.heroes[0], d0 = S.heroDamage(g, h), r0 = S.heroRate(g, h);
+  g.consCdT = 0; assert.equal(S.useCons(g, 'uiriju'), true);
+  assert.ok(S.heroDamage(g, h) > d0 * 1.55 && S.heroRate(g, h) > r0 * 1.15 && g.mom >= 100, '의리주');
+  // 드롭: 같은 시드 = 같은 결과 · 1장엔 없음 · 창립 멤버 셋이 보스 판 → 가끔 의리주
+  assert.deepEqual(L.rollCons(5, 3, 3, false, []), {});
+  let n = 0, u = 0; for (let s = 0; s < 2000; s++) { const r = L.rollCons(s, 30, 3, false, ['bangjang', 'gunman', 'gunnyeo']); n += Object.values(r).reduce((a, x) => a + x, 0); u += r.uiriju | 0; }
+  assert.ok(n > 300 && n < 900, '3장 보스 판 드롭 ' + n); assert.ok(u > 120 && u < 300, '의리주 ' + u);
+  // 상점: 보조배터리 주 1개
+  const lb = { stones: 1000, coins: 99999, cons: {} };
+  assert.ok(!L.consBuy(lb, 'battery').error); assert.equal(lb.cons.battery, 1); assert.equal(lb.stones, 700);
+  assert.ok(L.consBuy(lb, 'battery').error, '주 1개');
+  for (let i = 0; i < 3; i++) assert.ok(!L.consBuy(lb, 'aldicom').error); assert.ok(L.consBuy(lb, 'aldicom').error, '하루 3개');
+  assert.ok(L.consBuy(lb, 'uiriju').error, '의리주는 안 판다');
 });

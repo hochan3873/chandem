@@ -911,6 +911,9 @@ function handleEvents(g, loud) {
         for (const h of g.heroes) fx.ring(h.x, h.y, 6, 44, 0.5, '#ffd84a', 4);
         if (loud) A.sfx.levelUp();
         break;
+      case 'bhShout': for (let k = 0; k < 2; k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 480, sz: 56 + e.r * 0.45, tx: e.x + Math.cos(e.a) * e.r * 0.85, ty: e.y + Math.sin(e.a) * e.r * 0.85, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 120); if (!busy && Math.random() < 0.3) fx.part('heart', e.x, e.y - 20, (Math.random() - 0.5) * 60, -60, 0.8, 9, null); break;
+      case 'sled': { fx.banner('팬클럽 썰매 활강!', '한 줄 통째로 쓸어 버린다', '#2f8ac8', 1.1, 'wave', 'h_baul'); R.vfx('dash', e.x, e.y - 30, { anim: 'line', dur: 520, sz: 120, tx: e.x, ty: 30, rot: -Math.PI / 2, blend: 'lighter' }); for (let k = 0; k < 14; k++) setTimeout(() => fx.part('heart', e.x + (Math.random() - 0.5) * 50, e.y - 60 - k * 30, (Math.random() - 0.5) * 80, -30, 0.8, 10, null), k * 30); fx.addShake(6); if (loud) A.sfx.whoosh(); break; }
+      case 'oneman': { fx.flash('#ff7ab8', 0.35); fx.banner('원맨쇼!!', '보스 빼고 모두 춤추며 멈춤 · 모든 멤버 공격력 +30%', '#b0306a', 1.6, 'big', 'h_byunghwa'); const hh = g.heroes.find((o) => o.id === 'byunghwa'); if (hh) { hh._castAt = performance.now(); } for (const en of g.enemies) if (!en.dead && !en.boss) fx.part('note', en.x, en.y - 30, (Math.random() - 0.5) * 30, -40, 1.2, 11, '#ffb0e0'); fx.pillar(e.x, 90, g.rowY + 20, 1.2); fx.addShake(8); if (loud) { A.sfx.ult(); setTimeout(() => A.sfx.win(), 400); } break; }
       case 'cone': // 방장 확성기 공지: 금빛 음파 고리 2~3개가 앞으로 퍼져 나간다
         for (let k = 0; k < (e.big ? 3 : 2); k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 520, sz: 60 + e.r * 0.5, tx: e.x + Math.cos(e.a) * e.r * 0.9, ty: e.y + Math.sin(e.a) * e.r * 0.9, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 110);
         if (e.big) fx.text(e.x, e.y - 40, '전체공지!', '#ffb347', 16, 0.8);
@@ -992,6 +995,10 @@ function handleEvents(g, loud) {
         const c = L.CONS[e.id];
         if (e.id === 'battery') { fx.banner('보조배터리!', `방어진 ${e.v ? '+' + fmt(e.v) : ''} 가득 충전`, '#7b3fe0', 1.3, 'wave'); fx.repairT = 1.6; for (let k = 0; k < 14; k++) fx.part('star', 30 + Math.random() * 300, g.rowY + 40 + Math.random() * 60, 0, -70, 0.9, 8, null); fx.flash('#b890ff', 0.18); if (loud) A.sfx.heal(); }
         else if (e.id === 'aldicom') { fx.banner('알디콤!', `상태이상 싹 · 5초 면역${e.n ? ` · 버프 ${e.n}개 깨짐` : ''}`, '#2f7fd8', 1.2, 'wave'); for (let k = 0; k < 26; k++) fx.part('dot', 20 + Math.random() * 320, g.ropeY + Math.random() * 40, (Math.random() - 0.5) * 40, -60 - Math.random() * 80, 1.1, 4 + Math.random() * 4, Math.random() < 0.5 ? '#bfe8ff' : '#e8fbff'); fx.ring(g.W / 2, g.ropeY, 20, 260, 0.6, '#9fd8ff', 4); if (loud) A.sfx.heal(); }
+        else if (e.id === 'taxi') { fx.banner('막차 택시!', '진상들 두 칸 뒤로 · 3초 느리게', '#c08a10', 1.1, 'wave'); R.vfx('bus', -60, e.y, { anim: 'line', dur: 700, sz: 150, tx: g.W + 60, ty: e.y, blend: 'source-over' }); fx.addShake(8); if (loud) A.sfx.horn(); }
+        else if (e.id === 'icewater') { fx.banner('얼음물 한 잔!', '보스 빼고 3초 꽁꽁', '#2f7fd8', 1.1, 'wave'); fx.flash('#cfefff', 0.35); R.vfx('crack', g.W / 2, g.H * 0.4, { anim: 'fade', dur: 1500, sz: 420, flat: true }); for (let k = 0; k < 24; k++) fx.part('dot', Math.random() * g.W, Math.random() * g.ropeY, 0, 20, 1.2, 4, '#e8fbff'); if (loud) A.sfx.crit(); }
+        else if (e.id === 'uiriju') { fx.banner('의리!!', '12초 동안 공격력 +60% · 공속 +20%', '#b08a10', 1.5, 'big'); fx.flash('#ffd23f', 0.4); for (const o of g.heroes) { fx.ring(o.x, o.y - 30, 8, 60, 0.7, '#ffd23f', 4); R.vfx('aura_red', 0, 0, { follow: o, anim: 'pulse', dur: 12000, sz: 90, flat: true }); } if (loud) { A.sfx.coin(); setTimeout(() => A.sfx.win(), 200); } }
+        else if (e.id === 'reroll') { /* 카드 화면에서 연출 */ }
         else if (e.id === 'tambourine') { fx.banner('노래방 탬버린!', '8초 동안 공격 속도 +40%', '#c08a10', 1.1, 'wave'); for (const h of g.heroes) fx.ring(h.x, h.y - 30, 8, 60, 0.5, '#ffd23f', 3); if (loud) A.sfx.levelUp(); }
         void c; break;
       }
@@ -1489,7 +1496,7 @@ function skillFx(h) {
   A.sfx.join();
   app.tutSkillDone = true;
 }
-const SKILL_SHORT = { jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '뻑큐', wonsik: '결정사' };
+const SKILL_SHORT = { baul: '썰매', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '뻑큐', wonsik: '결정사' };
 const skShort = (h) => SKILL_SHORT[h.id] || h.def.skill.name.replace(/[!\s]/g, '').slice(0, 5);
 const momBar = document.createElement('div');
 momBar.id = 'mombar'; momBar.hidden = true;
@@ -2483,6 +2490,7 @@ function showShop() {
         <button class="btn ${can ? 'primary' : ''}" data-act="buyItem" data-id="${id}" ${can ? '' : 'disabled'}>${cost === null ? 'MAX' : `<i class="ci"></i>${fmt(cost)}`}</button></div>`;
     }).join('')}</div>
     <p class="sub" style="margin-top:10px">덱 칸이 많을수록 뒤 챕터가 쉬워져요 · 기본 ${DECK_BASE}칸</p>
+    <h3 class="sec-t">소모품</h3><div class="up-list">${Object.keys(L.CONS_SHOP).map((id) => { const c = L.CONS[id], s = L.CONS_SHOP[id], left = L.consShopLeft(p, id), have = (p.cons || {})[id] | 0; const can = left > 0 && (s.stones ? (p.stones | 0) >= s.stones : p.coins >= s.coins); return `<div class="up item cons-shop" style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<div class="mid"><b>${esc(c.name)} <span class="lvtag">보유 ${have}</span></b><small class="eff">${esc(c.desc)}</small><small>${s.per === 'week' ? '이번 주' : '오늘'} ${left}/${s.n}개 남음</small></div><button class="btn ${can ? 'primary' : ''}" data-act="consBuy" data-id="${id}" ${can ? '' : 'disabled'}>${s.stones ? `${ic('gem', '', 'sm')}${s.stones}` : `<i class="ci"></i>${fmt(s.coins)}`}</button></div>`; }).join('')}</div>
     ${(() => { const wi = L.weekIndex(Date.now()); const n = p.cardPick && p.cardPick.wi === wi ? p.cardPick.n : 0; const left = CARD_PICK.perWeek - n; return `<div class="up item"><span class="it-ico">${ic('card_common', '', 'sm')}</span><div class="mid"><b>멤버 카드 선택권<span class="lvtag">이번 주 ${left}/${CARD_PICK.perWeek}</span></b><small class="eff">고른 멤버 카드 ${CARD_PICK.n}장 (강화·★승급에 써요)</small></div><button class="btn ${left > 0 && p.coins >= CARD_PICK.cost ? 'primary' : ''}" data-act="cardPickOpen" ${left > 0 ? '' : 'disabled'}><i class="ci"></i>${fmt(CARD_PICK.cost)}</button></div>`; })()}
  <button class="btn ghost" data-act="cardConvert" style="margin-top:8px">${ic('retry', '', 'sm')} 다 키운 멤버의 남는 카드 → 범용 카드 (보유 ${p.wild | 0})</button>`;
   }
@@ -3319,6 +3327,8 @@ Object.assign(ACTS, {
   cosmTab: (b) => { app.cosmTab = b.dataset.v; showCosmetics(); },
   setFrame: async (b) => { if (await liveAct(API.setCosmetic(undefined, b.dataset.v, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
   bagTabGo: (b) => { app.bagTab = b.dataset.v; showBag(); },
+  consBuy: async (b) => { const r = await liveAct(API.consBuy(b.dataset.id, app.guest)); if (r) { A.sfx.coin(); toast(`${L.CONS[b.dataset.id].name} 1개 샀어요`, 1400); showShop(); } },
+  rerollCoupon: () => rerollCoupon(),
   consSlot: (b) => showConsPick(Number(b.dataset.k) || 0),
   consPick: (b) => { const k = Number(b.dataset.k) || 0, id = b.dataset.id || null; const lo = consLoadout(); if (id) { const j = lo.indexOf(id); if (j >= 0 && j !== k) lo[j] = lo[k]; } lo[k] = id; consSave(lo); setTut('cons'); closeInfoCard(); A.sfx.pick(); showPrep(app.mode, app.stage); },
   chest: (b) => {
@@ -4221,7 +4231,7 @@ function consPrepHtml() {
 }
 function showConsPick(k) {
   const lo = consLoadout();
-  const rows = L.CONS_IDS.map((id) => { const c = L.CONS[id], n = consHave(id), on = lo.includes(id); return `<button class="cs-row ${n ? '' : 'none'} ${on ? 'on' : ''}" data-act="consPick" data-k="${k}" data-id="${id}" ${n ? '' : 'disabled'} style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small></span></button>`; }).join('');
+  const rows = L.CONS_IDS.filter((id) => !L.CONS[id].hidden || consHave(id) > 0).map((id) => { const c = L.CONS[id], n = consHave(id), on = lo.includes(id); return `<button class="cs-row ${n ? '' : 'none'} ${on ? 'on' : ''}" data-act="consPick" data-k="${k}" data-id="${id}" ${n ? '' : 'disabled'} style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small></span></button>`; }).join('');
   const cur = lo[k] && L.CONS[lo[k]];
   popup(`<h3>소모품 고르기</h3>${cur ? `<p class="ip cs-cur">${consIc(lo[k])}<b>${esc(cur.name)}</b> — ${esc(cur.desc)} <small>(${esc(cur.tip)})</small></p>` : ''}<div class="cs-list">${rows}</div>${lo[k] ? `<button class="btn" data-act="consPick" data-k="${k}" data-id="">칸 비우기</button>` : ''}<p class="ip">전투에 가져간 소모품은 끝나면 안 쓴 것만 돌려받아요 · 1:1 대전에서는 못 써요</p>`, 'pp-mini cons-pop');
 }
@@ -4247,6 +4257,7 @@ consBar.addEventListener('click', (ev) => {
   if (consPress && consPress.long) { consPress = null; return; }
   A.unlock();
   const id = b.dataset.cons;
+  if (id === 'reroll') { if (app.cardsOpen) rerollCoupon(); else toast('레벨업 카드 화면에서 눌러 써요', 1400); return; }
   if (!tutDone('consuse:' + id) && !(g.consUsed || {})[id]) { setTut('consuse:' + id); consBubble(b, id, '한 번 더 누르면 사용'); return; }
   if ((g.consUsed || {})[id]) { toast('이번 판에 이미 썼어요', 900); return; }
   if (g.consCdT > 0) { toast(`소모품은 ${Math.ceil(g.consCdT)}초 뒤에`, 900); return; }
@@ -4493,6 +4504,7 @@ function openCards() {
   renderCards(true);
   if (DEBUG.autopick) setTimeout(() => { if (app.cardsOpen) pickCard(0); }, 120);
 }
+function rerollCoupon() { const g = app.g; if (!g || !app.cardsOpen || !g.cons || !g.cons.includes('reroll') || (g.consUsed || {}).reroll) return; (g.consUsed = g.consUsed || {}).reroll = true; app.cards = rollFor(g); app.cardSel = -1; app.cardLockUntil = performance.now() + 400; renderCards(true); A.sfx.card(); toast('증강 새로고침 쿠폰 사용!', 1200); renderConsBar(true); }
 function rollFor(g) {
   return DEBUG.hidden ? S.rollCards(g, RULES.cardChoices, { hiddenChance: 0.5 }) : S.rollCards(g);
 }
@@ -4650,6 +4662,7 @@ cardStrip.addEventListener('click', (ev) => {
   A.unlock();
   if (b.dataset.act === 'pick') tapCard(Number(b.dataset.i));
   else if (b.dataset.act === 'reroll') rerollCards();
+  else if (b.dataset.act === 'rerollCoupon') rerollCoupon();
 });
 function renderCards(fresh) {
   const g = app.g;
@@ -4663,7 +4676,7 @@ function renderCards(fresh) {
       <button class="cs-re" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'} aria-label="다시 뽑기">${pimg(ui2('dice'))}<b>${app.rerollsRun}</b></button></div>
     <i class="cs-timer"><b></b></i>
     <div class="card-list v4 n${n} ${g.tempo || app.cards.some((c) => c.kind === 'join') ? 'v5' : ''}">${app.cards.map(cardHtml).join('')}</div>
-    <div class="cs-foot"><small>이번 전투 다시 뽑기 <b>${app.rerollsRun}/${REROLLS}</b></small><button class="cs-re2" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>${pimg(ui2('dice'))}다시 뽑기</button></div>
+    <div class="cs-foot"><small>이번 전투 다시 뽑기 <b>${app.rerollsRun}/${REROLLS}</b></small><button class="cs-re2" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>${pimg(ui2('dice'))}다시 뽑기</button>${app.g && app.g.cons && app.g.cons.includes('reroll') && !(app.g.consUsed || {}).reroll ? `<button class="cs-re2 coupon" data-act="rerollCoupon">${consIc('reroll')}쿠폰</button>` : ''}</div>
   </div>`;
   if (fresh) A.sfx.card();
   if (fresh && app.cards.some((c) => c.rarity === 'hidden')) { fx.flash('#ff9ff0', 0.3); A.sfx.join(); }
@@ -4906,7 +4919,7 @@ async function saveResult(sum, g) {
   }).join('');
   const endless = r.endlessUnlocked ? '<div class="unlock"><span class="big-ico"></span><div><small>새 모드 열림!</small><b>무한 도전</b><span>어디까지 버티나 랭킹 경쟁!</span></div></div>' : '';
   const drops = (rw.drops || []).map((it) => `<span class="drop r-${it.r}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}<b>${esc(GEAR[it.t].name)}</b><small>${GEAR_RARITY[it.r].name}${it.sold ? ` · 가방 꽉 참 → +${it.sold}` : ''}</small></span>`).join('');
-  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">${ic('gem', '', 'sm')}강화석 <b>+${rw.stones}</b></div>` : ''}${rw.cardDrop && HEROES[rw.cardDrop] ? `<div class="rw-stones">${ic('card_common', '', 'sm')}${esc(HEROES[rw.cardDrop].name)} 카드 <b>+1</b></div>` : ''}</div>${drops ? `<div class="drops"><small>${ic('gift', '', 'sm')}장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
+  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">${ic('gem', '', 'sm')}강화석 <b>+${rw.stones}</b></div>` : ''}${rw.cons ? Object.entries(rw.cons).map(([k, n]) => (L.CONS[k] ? `<div class="rw-stones">${consIc(k)}${esc(L.CONS[k].name)} <b>+${n}</b></div>` : '')).join('') : ''}${rw.cardDrop && HEROES[rw.cardDrop] ? `<div class="rw-stones">${ic('card_common', '', 'sm')}${esc(HEROES[rw.cardDrop].name)} 카드 <b>+1</b></div>` : ''}</div>${drops ? `<div class="drops"><small>${ic('gift', '', 'sm')}장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
     <div class="own">${badges.join('')}<span>보유 <i class="ci"></i>${fmt(p.coins)}</span>${app.guest ? ' · <span class="dimtxt">손님 기록은 이 기기에만</span>' : ''}</div>`;
   if (unlocks) { fx.flash('#ff9ff0', 0.4); A.sfx.join(); }
   for (const id of r.unlockedHeroes || []) await showJoinReveal(id, HEROES[id].legend ? 'legend' : HEROES[id].hidden ? 'hidden' : 'new');
@@ -5031,11 +5044,11 @@ const DEX_FLAVOR = {
   boss_soloparty: '매일 밤 솔로파티를 여는 중독자. 디스코볼 한 번에 모두가 홀린다.',
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
-const DEX_EN = { jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
-const DEX_FACE = { jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
+const DEX_EN = { baul: 'SONG BAUL', byunghwa: 'KANG BYUNGHWA', jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
+const DEX_FACE = { baul: [0.49, 0.085, 0.12], byunghwa: [0.42, 0.085, 0.11], jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
 // 얼굴 맞춤 자르기: 얼굴 높이 = 칸 높이의 f · 얼굴 가운데 = (50%, cy) — 그림 비율과 상관없이 (자기 크기 기준 translate)
 // 동그란 얼굴용 얼굴 상자 (썸네일 기준 · 이마~턱 · 가운데 x, 가운데 y, 높이) — 그림을 재서 맞춘 값
-const FACE_BOX = { hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.47, 0.15, 0.12], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
+const FACE_BOX = { byunghwa: [0.42, 0.1, 0.075], hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.47, 0.15, 0.12], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
 // 동그라미 안에 얼굴: 얼굴(이마~턱)이 지름의 70% · 가운데
 function faceCircStyle(id, f = 0.7, cy = 0.5) {
   const fb = FACE_BOX[id] || DEX_FACE[id] || [0.48, 0.12, 0.1];
@@ -5051,7 +5064,7 @@ function faceImgStyle(id, f = 0.24, cy = 0.36) {
 const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
 const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 모드', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
-const DEX_ANIM = { jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
+const DEX_ANIM = { baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
 function dexAnim(kind, d, id) {
   if (DEX_ANIM[id]) return DEX_ANIM[id];
   if (kind === 'hero') return 'breathe';
@@ -5112,7 +5125,7 @@ function showItemDex() {
     <p class="sub">한 번이라도 얻은 장비가 기록돼요${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'} <button class="chip mini" data-act="dropTable">드롭 표</button></p>
     <div class="dex-grid v2 idx-grid">${all.map(cell).join('')}</div>
     <h3 class="sec-t">소모품</h3>
-    <div class="dex-grid v2 idx-grid">${L.CONS_IDS.map((id) => { const c = L.CONS[id]; return `<button class="dexc2 idx r-${c.rarity}" data-act="bagTabGo" data-v="cons" style="--c:${CONS_RC[c.rarity]}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>${esc(c.name)}</b></button>`; }).join('')}</div>
+    <div class="dex-grid v2 idx-grid">${L.CONS_IDS.map((id) => { const c = L.CONS[id]; const known = !c.hidden || (P().consDex || []).includes(id); if (!known) return `<button class="dexc2 idx lock" data-act="bagTabGo" data-v="cons"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>???</b></button>`; return `<button class="dexc2 idx r-${c.rarity}" data-act="bagTabGo" data-v="cons" style="--c:${CONS_RC[c.rarity]}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>${esc(c.name)}</b></button>`; }).join('')}</div>
   `, 'dim');
 }
 function showItemCard(t) {
@@ -5439,7 +5452,7 @@ function showBag() {
       <div class="eq-rows">${rows}</div>
  <p class="sub">칸을 누르면 끼울 장비를 골라요 · ${ic('gem', '', 'sm')} 강화석 <b>${p.stones | 0}</b></p></div>`;
   } else if (tab === 'cons') {
-    body = `<div class="cons-inv">${L.CONS_IDS.map((id) => { const c = L.CONS[id], n = (p.cons || {})[id] | 0; return `<div class="ci-row ${n ? '' : 'none'}" style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small><small class="ci-tip">${esc(c.tip)}</small></span></div>`; }).join('')}</div><p class="sub">출전 화면 소모품 칸에 넣어 가면 전투 중에 눌러 써요 · 칸마다 판에 한 번</p>`;
+    body = `<div class="cons-inv">${L.CONS_IDS.map((id) => { const c = L.CONS[id], n = (p.cons || {})[id] | 0; if (c.hidden && !(p.consDex || []).includes(id) && !n) return `<div class="ci-row none" style="--rc:#4a3f60">${consIc(id, 'sil')}<span><b>???</b><small>${esc(c.tip)}</small><small class="ci-tip">${esc(c.hint || '')}</small></span></div>`; return `<div class="ci-row ${n ? '' : 'none'}" style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small><small class="ci-tip">${esc(c.tip)}</small></span></div>`; }).join('')}</div><p class="sub">출전 화면 소모품 칸에 넣어 가면 전투 중에 눌러 써요 · 칸마다 판에 한 번</p>`;
   } else if (tab === 'bag') {
     body = `${tools}${app.bulk ? bulkBarHtml(p, locks) : ''}${grid}`;
   } else {

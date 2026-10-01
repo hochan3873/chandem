@@ -561,6 +561,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           const lb = s.langbang = normLb(s.langbang);
           if (mode === 'stage') { if (lb.staRun && lb.staRun.stage === stage) lb.staRun = null; else if (!freeMaster(u)) LIVE.staminaAdd(lb, -LIVE.stageStaminaCost(lb, stage, hell), now); }
           if (mode === 'endless') { const ef = LIVE.endlessFinish(lb, wave, master ? 0 : Math.round(score * (1 - afkF)), (lb.endRun || master || LIVE.endlessLeft(lb, now) > 0) ? reward.total : 0, id, now); if (!lb.endRun && !master && LIVE.endlessLeft(lb, now) > 0) LIVE.endlessStart(lb, false, now); lb.endRun = null; endInfo = ef; reward.total = ef.coins; }
+          if (mode === 'stage') { const cg = LIVE.rollCons(LBR.hashSeed(`cs:${id}:${before.clears}:${stage}`), stage, stars, hell, usedOk); if (Object.keys(cg).length) { LIVE.consAdd(lb, cg); reward.cons = cg; } }
           lb.runs++; lb.kills += kills; lb.coins += reward.total; lb.stones = (lb.stones | 0) + stones; if (cardDrop) { lb.shards = lb.shards || {}; lb.shards[cardDrop] = (lb.shards[cardDrop] | 0) + 1; }
           // 도감: 이번 판에 만난 진상 (있는 이름만)
           if (Array.isArray(body.seen)) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => LBR.ENEMY_IDS.includes(t))])];
@@ -1132,6 +1133,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/mail/sync', wrap((req) => lbMailSync(tok(req))));
     r.post('/cons/start', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.consStart(lb, b(req).ids, now))));
     r.post('/cons/end', wrap((req) => lbLive(tok(req), (lb) => LIVE.consEnd(lb, b(req).used))));
+    r.post('/cons/buy', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.consBuy(lb, String(b(req).id || ''), now))));
     r.post('/mail/claim', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.mailClaim(lb, b(req).id === 'all' ? 'all' : Math.floor(Number(b(req).id) || 0), id, now))));
     r.post('/weekly/start', wrap((req) => lbWeeklyStart(tok(req))));
     r.post('/weekly/claim', wrap((req) => lbWeeklyClaim(tok(req))));

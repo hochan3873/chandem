@@ -20,7 +20,54 @@ export const CONS = {
   battery: { id: 'battery', name: '보조배터리', rarity: 'epic', icon: 'it_battery', desc: '방어진(입구) 내구도를 100% 로 가득 채워요', tip: '위급할 때 한 번! 판마다 1개만' },
   aldicom: { id: 'aldicom', name: '알디콤', rarity: 'rare', icon: 'it_aldicom', desc: '숙취 해소! 모든 멤버 상태이상 해제 + 5초 상태이상 면역 · 입구 근처 진상 버프 깨기', tip: '기절·침묵·홀림이 한꺼번에 걸렸을 때' },
   tambourine: { id: 'tambourine', name: '노래방 탬버린', rarity: 'rare', icon: 'it_tambourine', desc: '8초 동안 모든 멤버 공격 속도 +40%', tip: '보스가 나왔을 때 · 떼거리가 몰려올 때' },
+  taxi: { id: 'taxi', name: '막차 택시 호출권', rarity: 'epic', icon: 'it_taxi', desc: '택시가 길을 쓸고 지나가 화면의 진상을 두 칸 밀치고 3초 40% 느리게 (보스는 한 칸 · 안 느려짐)', tip: '입구에 진상이 잔뜩 붙었을 때' },
+  icewater: { id: 'icewater', name: '얼음물 한 잔', rarity: 'epic', icon: 'it_icewater', desc: '보스 빼고 모두 3초 꽁꽁 · 보스는 3초 50% 느리게', tip: '스킬을 몰아 쓰기 직전에' },
+  reroll: { id: 'reroll', name: '증강 새로고침 쿠폰', rarity: 'rare', icon: 'it_reroll', desc: '레벨업 카드 화면에서 카드를 한 번 새로 뽑아요', tip: '원하는 멤버 카드가 안 뜰 때' },
+  uiriju: { id: 'uiriju', name: '의리주', rarity: 'legend', icon: 'it_uiriju', hidden: true, desc: '12초 동안 모든 멤버 공격력 +60% · 공격 속도 +20% · 기세 +1칸', tip: '진짜 친구들끼리만 아는 술', hint: '방장 · 건전남 · 건전녀가 함께 보스를 잡으면? · 출석 20일 · 헬 모드에서 아주 가끔' },
 };
+// 얻는 곳 (서버 시드로): 2장부터 알디콤 8% · 3장부터 보스 판 보조배터리 3% · 탬버린 6% · 택시 3% · 얼음물 3% · 쿠폰 5% · 헬 의리주 0.5%
+export function rollCons(seed, stage, stars, hell, deck) {
+  if (!stars) return {};
+  let a = (seed ^ 0x2c0f) >>> 0;
+  const rng = () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const ch = Math.ceil(stage / 10), boss = stage % 10 === 0 || stage % 5 === 0;
+  const out = {};
+  const add = (id) => { out[id] = (out[id] | 0) + 1; };
+  if (ch >= 2 && rng() < 0.08) add('aldicom');
+  if (ch >= 2 && rng() < 0.06) add('tambourine');
+  if (ch >= 2 && rng() < 0.05) add('reroll');
+  if (ch >= 3 && boss && rng() < 0.03) add('battery');
+  if (ch >= 3 && rng() < 0.03) add('taxi');
+  if (ch >= 3 && rng() < 0.03) add('icewater');
+  if (hell && rng() < 0.005) add('uiriju');
+  // 히든: 창립 멤버 셋(방장 · 건전남 · 건전녀)이 함께 보스 판을 깨면 의리주 (처음 한 번은 꼭 · 그 뒤 10%)
+  if (boss && Array.isArray(deck) && ['bangjang', 'gunman', 'gunnyeo'].every((h) => deck.includes(h)) && rng() < 0.1) add('uiriju');
+  return out;
+}
+export function consAdd(lb, got) { lb.cons = lb.cons || {}; lb.consDex = Array.isArray(lb.consDex) ? lb.consDex : []; for (const [k, v] of Object.entries(got || {})) if (CONS[k] && v > 0) { lb.cons[k] = Math.min(CONS_CAP, (lb.cons[k] | 0) + v); if (!lb.consDex.includes(k)) lb.consDex.push(k); } }
+// 상점: 보조배터리 주 1개 (강화석 300) · 알디콤 하루 3개 (코인) · 탬버린 · 쿠폰 하루 2개 (코인)
+export const CONS_SHOP = { battery: { stones: 300, per: 'week', n: 1 }, aldicom: { coins: 800, per: 'day', n: 3 }, tambourine: { coins: 1200, per: 'day', n: 2 }, reroll: { coins: 1500, per: 'day', n: 2 } };
+export function consShopLeft(lb, id, now = Date.now()) {
+  const s = CONS_SHOP[id]; if (!s) return 0;
+  const key = s.per === 'week' ? 'w' + weekIndex(now) : 'd' + dayIndex(now);
+  const b = (lb.consBuy || {})[id];
+  return Math.max(0, s.n - (b && b.k === key ? b.n | 0 : 0));
+}
+export function consBuy(lb, id, now = Date.now()) {
+  const s = CONS_SHOP[id];
+  if (!s || !CONS[id]) return { error: '살 수 없는 소모품이에요' };
+  if (consShopLeft(lb, id, now) <= 0) return { error: s.per === 'week' ? '이번 주에 다 샀어요' : '오늘은 다 샀어요' };
+  if (s.stones && (lb.stones | 0) < s.stones) return { error: `강화석이 부족해요 (${s.stones} 필요)` };
+  if (s.coins && (lb.coins | 0) < s.coins) return { error: `코인이 부족해요 (${s.coins.toLocaleString()} 필요)` };
+  if ((lb.cons || {})[id] >= CONS_CAP) return { error: '더 가질 수 없어요 (99개)' };
+  if (s.stones) lb.stones -= s.stones; if (s.coins) lb.coins -= s.coins;
+  const key = s.per === 'week' ? 'w' + weekIndex(now) : 'd' + dayIndex(now);
+  lb.consBuy = lb.consBuy || {};
+  const b = lb.consBuy[id] && lb.consBuy[id].k === key ? lb.consBuy[id] : { k: key, n: 0 };
+  b.n++; lb.consBuy[id] = b;
+  consAdd(lb, { [id]: 1 });
+  return { got: { cons: { [id]: 1 } } };
+}
 export const CONS_IDS = Object.keys(CONS);
 export const CONS_CAP = 99;
 export const consSlots = (lv) => ((lv | 0) >= 20 ? 3 : 2); // 계정 Lv 20 부터 칸 3개
@@ -351,7 +398,7 @@ export function grant(lb, rw, uid, now) {
   if (rw.tickets) { lb.tickets = (lb.tickets | 0) + rw.tickets; got.tickets = rw.tickets; }
   if (rw.stones) { lb.stones = (lb.stones | 0) + rw.stones; got.stones = rw.stones; }
   if (rw.wild) { lb.wild = (lb.wild | 0) + rw.wild; got.wild = rw.wild; }
-  if (rw.cons) { lb.cons = lb.cons || {}; for (const [k, v] of Object.entries(rw.cons)) if (CONS[k] && v > 0) { lb.cons[k] = Math.min(CONS_CAP, (lb.cons[k] | 0) + v); (got.cons = got.cons || {})[k] = v; } }
+  if (rw.cons) { consAdd(lb, rw.cons); for (const [k, v] of Object.entries(rw.cons)) if (CONS[k] && v > 0) (got.cons = got.cons || {})[k] = v; }
   if (rw.sta) { staminaAdd(lb, rw.sta, now); got.sta = rw.sta; }
   if (rw.sp) { ensureLive(lb, uid, now); lb.season.sp += rw.sp; got.sp = rw.sp; }
   if (rw.gear) { const ids = rw.gear === 'myth' ? MYTH_IDS : GEAR_IDS; got.gear = addGear(lb, ids[hashSeed(`rw:${lb.gearSeq}:${rw.gear}:${uid}`) % ids.length], rw.gear); }
@@ -484,7 +531,7 @@ export const CARD_BUNDLE = { epicHero: 10, legendHero: 30, t3Card: 3, t2Card: 3 
 export const cardsNeed = (h) => (LEGEND_HEROES.includes(h) ? UNLOCK_CARDS.legend : UNLOCK_CARDS.epic);
 export const GACHA_RATES = [ // 확률 공개 (%) — 등급별 (다른 모집 게임처럼): LEGEND 0.6 · T4 5.4 · T3 20 · 나머지
   { k: 'mythGear', w: 0.3, name: '신화 장비 (만능 6종)', color: '#ff7ad9' },
-  { k: 'legendHero', w: 0.6, name: 'LEGEND 이호찬 합류 (70번부터 확률 ↑ · 90번 확정)', color: '#ffcf3f' },
+  { k: 'legendHero', w: 0.6, name: 'LEGEND 멤버 합류 (이호찬 · 강병화 · 70번부터 확률 ↑ · 90번 확정)', color: '#ffcf3f' },
   { k: 'epicHero', w: 5.4, name: 'T4 멤버 합류 (윤준서 · 배현경 · 고아라) · 픽업 50%', color: '#c77dff' },
   { k: 't3Card', w: 20, name: 'T3 멤버 카드 ×3 (정소영 · 오지은 · 여지원 · 정원식)', color: '#4ea8ff' },
   { k: 'legendGear', w: 1.2, name: '전설 장비', color: '#ffb400' },
@@ -642,7 +689,10 @@ export function claimCheckin(lb, uid, now = Date.now()) {
   if (st.done) return { error: '오늘은 이미 출석했어요' };
   const rw = CHECKIN[st.streak % 7];
   lb.checkin = { last: dayIndex(now), streak: st.streak + 1 };
-  return { got: grant(lb, Object.assign({ sta: STAMINA.checkin }, rw), uid, now), day: (st.streak % 7) + 1 };
+  const got = grant(lb, Object.assign({ sta: STAMINA.checkin }, rw), uid, now);
+  lb.gifts = Array.isArray(lb.gifts) ? lb.gifts : [];
+  if (lb.checkin.streak >= 20 && !lb.gifts.includes('uiriju_att20')) { lb.gifts.push('uiriju_att20'); consAdd(lb, { uiriju: 1 }); got.cons = { uiriju: 1 }; } // 히든: 출석 20일 → 의리주
+  return { got, day: (st.streak % 7) + 1 };
 }
 
 // ─── 모임 레이드: 하루 3번 (KST) · 모두의 피해를 합쳐 거대 보스 하나 ───
@@ -943,6 +993,8 @@ export function normLive(raw, out) {
   out.ew = ew(raw.ew); out.ewPrev = ew(raw.ewPrev); out.ewPaid = Number.isInteger(raw.ewPaid) ? raw.ewPaid : -1e6;
   out.mailSeq = int(raw.mailSeq, 0, 1e9);
   out.mail = (Array.isArray(raw.mail) ? raw.mail : []).filter((m) => m && Number.isInteger(m.id) && Number.isFinite(m.exp)).slice(-50).map((m) => ({ id: m.id, title: String(m.title || '').slice(0, 40), text: String(m.text || '').slice(0, 80), rw: cleanRw(m.rw), from: m.from ? String(m.from).slice(0, 12) : undefined, at: int(m.at, 0, 9e15), exp: int(m.exp, 0, 9e15) }));
+  out.consBuy = {}; for (const [k, v] of Object.entries(raw.consBuy || {})) if (CONS_SHOP[k] && v && typeof v.k === 'string') out.consBuy[k] = { k: v.k.slice(0, 12), n: int(v.n, 0, 99) };
+  out.consDex = [...new Set([...(Array.isArray(raw.consDex) ? raw.consDex : []), ...Object.keys(raw.cons || {})])].filter((k) => CONS[k]);
   out.cons = {}; for (const k of CONS_IDS) { const v = int((raw.cons || {})[k], 0, CONS_CAP); if (v) out.cons[k] = v; }
   out.consRun = raw.consRun && Array.isArray(raw.consRun.ids) ? { ids: [...new Set(raw.consRun.ids.map(String))].filter((k) => CONS[k]).slice(0, 3), at: int(raw.consRun.at, 0, 9e15) } : null;
   out.gifts = (Array.isArray(raw.gifts) ? raw.gifts : []).filter((x) => typeof x === 'string' && x.length <= 40).slice(-100);

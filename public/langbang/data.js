@@ -129,6 +129,8 @@ export const WEAPON = {
   jiwon: { item: '모자이크 손', kind: 'pierce', reload: '손 풀기' },
   wonsik: { item: '덤벨', kind: 'heavy', reload: '덤벨 다시 들기' },
   jeongseob: { item: '두 팔', kind: 'melee', reload: '앉아서 쉬기' },
+  byunghwa: { item: '목소리', kind: 'beam', reload: '숨 고르기' },
+  baul: { item: '윙크', kind: 'melee', reload: '앞머리 넘기기' },
 };
 // 밸런스 개편 (역할 · 상성 · 난이도) — 숫자는 모의 전투로 맞춘 값
 export const BAL = {
@@ -866,6 +868,27 @@ export const HEROES = {
     perks: { 3: '피해 감소 반경 +20%', 5: '결혼정보회사 등록이 1초 더' },
     skill: { id: 'marry', name: '결혼정보회사 등록', cd: 22, consult: { walk: 48, r: 220, pool: 0.18, poolLv: 0.06, sec: 10, cut: 0.2, reflect: 0.2, slow: 0.25 }, desc: '길 가운데로 걸어 나가 앉아서 결정사 상담 — 넓은 반경 진상이 입구 대신 원식을 친다 (원식 체력 = 입구의 18%+ · 받는 피해 -20% · 20% 되돌려 줌 · 곁 진상 25% 느리게) · 다 맞거나 10초 뒤 돌아와 쉰다', r: [260, 260, 280, 280, 300], sec: [4, 4, 4, 4, 5], shield: 0.1 },
   },
+  baul: {
+    id: 'baul', bossKit: 1.0, kit: 1.0, name: '송바울', gender: 'm', emoji: '🏂', color: '#7ad0ff', gacha: true, attr: 'charm',
+    img: '/img/lb/h_baul.webp', role: '돌진 · 한 줄 썰매 관통',
+    dmg: 44, interval: 0.92, range: 285, proj: 'jab', projSpeed: 820,
+    attack: '윙크 잽 — 가볍게 톡톡 · 맞은 여자 진상은 가끔 0.4초 멈칫 ("이거 내가 원래 알던 거야~")',
+    desc: '앞머리 내린 아이돌상, 덧니 미소가 무기다. 설레발과 아는 척이 특기.',
+    perks: { 3: '썰매 피해 +15%', 5: '썰매가 두 번 지나간다' },
+    skill: { id: 'sled', name: '팬클럽 썰매 활강', cd: 20, desc: '팬클럽이 끄는 썰매로 자기 줄을 통째로 쓸고 내려간다 — 줄 위 진상 전부 큰 피해 + 크게 밀치기 (보스는 덜)', w: 38, mul: [3, 3, 3.4, 3.4, 3.8], kb: 70 },
+    shouts: ['이거 내가 원래 알던 거야~', '내가 알지~', '팬클럽 출동!', '설레발 아니고 진짜야'],
+  },
+  byunghwa: {
+    id: 'byunghwa', bossKit: 1.1, kit: 1.2, name: '강병화', gender: 'm', emoji: '🎤', color: '#ff7ab8', legend: true, gacha: true, attr: 'charm',
+    img: '/img/lb/h_byunghwa.webp', role: 'LEGEND · 매력 · 원맨쇼 무대 장악',
+    dmg: 30, interval: 1.6, range: 310, proj: 'shout', cone: [0.5, 0.5, 0.58, 0.58, 0.66], coneMax: 6, charm: [1.2, 1.2, 1.3, 1.3, 1.5],
+    aura: { r: 130, spd: 0.15, cc: 0.5 }, // 곁(2칸) 멤버 공속 +15% · 상태이상 시간 절반
+    attack: '고함 연기 — 부채꼴로 우렁차게 외치면 맞은 진상이 1.2초 홀려 멈춘다 (보스는 느려짐) · 곁 멤버 공속 +15% · 상태이상 절반',
+    desc: '무대 위에선 누구보다 빛나는 연기파. 한 번 외치면 골목 전체가 관객석이 된다.',
+    perks: { 3: '홀림 시간 +0.1초', 5: '원맨쇼 1초 더' },
+    skill: { id: 'oneman', name: '원맨쇼', cd: 26, desc: '컷인! 8초 동안 보스 빼고 모두 춤추며 멈춤 · 보스는 50% 느리게 · 모든 멤버 공격력 +30% · 상태이상 해제', sec: [8, 8, 8, 8, 9], atk: 0.3 },
+    shouts: ['컷! 다시 가자!', '여기가 내 무대야', '관객 여러분~', '박수!'],
+  },
   jeongseob: {
     id: 'jeongseob', bossKit: 0.6, kit: 0.7, name: '윤정섭', gender: 'm', emoji: '🧍', color: '#8fa6d8', gacha: true, attr: 'booze',
     img: '/img/lb/h_jeongseob.webp', role: '탱커 · 밀어내기 · 감속',
@@ -897,7 +920,7 @@ export const HERO_TIER = {
   dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2,
   hanna: 3, donghan: 3, sunggu: 3, youngjun: 3,
   junseo: 4, hyungyeong: 4, ara: 4,
-  hochan: 5,
+  hochan: 5, byunghwa: 5, baul: 3,
   soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, junyoung: 3, jiwon: 3, wonsik: 3, jeongseob: 3,
 };
 // 티어: 늦게 만나는 멤버일수록 기본이 세고(공격력 · 공격 속도) 성장은 완만 — 초반 멤버는 성장형
@@ -922,8 +945,8 @@ export const metaMaxOf = (id) => TIER_MAX[heroTier(id)];
 export const BASE_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
 export const UNLOCK_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun']; // 스테이지를 깨면 합류하는 일반 영웅
 export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu'];
-export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob']; // 모집(뽑기) 영웅 등급
-export const LEGEND_HEROES = ['hochan']; // 모집 전설 (마지막 스테이지를 깨야 모집에 나온다)
+export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'baul']; // 모집(뽑기) 영웅 등급
+export const LEGEND_HEROES = ['hochan', 'byunghwa']; // 모집 전설 (마지막 스테이지를 깨야 모집에 나온다)
 export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; // 해금이 필요한 영웅 전부
 // 같이 출전하는 동료 수: 1챕터 1명, 1-10 을 깨면(2챕터부터) 2명
 export const partnerSlots = (maxStage) => (maxStage >= 10 ? 2 : 1);

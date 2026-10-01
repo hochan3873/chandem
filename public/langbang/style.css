@@ -3604,3 +3604,8 @@ body.rm .ult.v2.ready .ult-rays, body.rm .ult.v2.ready .ult-gem, body.rm .ult.v2
 .vs-name .vs-ai { display: inline-block; margin-left: calc(var(--u) * 5); padding: 0 calc(var(--u) * 5); border-radius: calc(var(--u) * 5); background: #3a8aff; color: #fff; font-style: normal; font-size: 0.7em; vertical-align: middle; }
 .bubble .cb-bic { width: calc(var(--u) * 24); height: calc(var(--u) * 24); object-fit: contain; vertical-align: middle; margin-right: calc(var(--u) * 4); }
 .cs-cur .cs-ic { width: calc(var(--u) * 26); height: calc(var(--u) * 26); object-fit: contain; vertical-align: middle; margin-right: calc(var(--u) * 4); }
+
+.cons-shop .cs-ic { width: calc(var(--u) * 40); height: calc(var(--u) * 40); object-fit: contain; flex-shrink: 0; }
+.cs-ic.sil { filter: brightness(0) drop-shadow(0 0 2px rgba(170, 140, 255, 0.6)); }
+.cs-re2.coupon .cs-ic { width: calc(var(--u) * 18); height: calc(var(--u) * 18); object-fit: contain; vertical-align: middle; }
+.rw-stones .cs-ic { width: calc(var(--u) * 20); height: calc(var(--u) * 20); object-fit: contain; vertical-align: middle; margin-right: calc(var(--u) * 4); }

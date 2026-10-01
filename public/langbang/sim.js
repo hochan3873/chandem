@@ -164,7 +164,7 @@ export function heroDamage(g, h) {
   const fxm = (g.mapFx.attr && g.mapFx.attr[d.attr]) || 1;
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
-  const hc = (1 + (g.hcT > 0 ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0)) * (g.rallyT > 0 && g.rallyDmg ? 1 + g.rallyDmg : 1); // "랑방을 위하여!" · 집합!
+  const hc = (1 + (g.hcT > 0 ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0)) * (g.rallyT > 0 && g.rallyDmg ? 1 + g.rallyDmg : 1) * (g.uirijuT > 0 ? 1.6 : 1) * (g.onemanT > 0 ? 1 + (g.onemanAtk || 0.3) : 1); // "랑방을 위하여!" · 집합! · 의리주 · 원맨쇼
   return buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + 0.2 * (h.cmN || 0)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * old * hc;
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
@@ -180,10 +180,11 @@ export const heroTags = (id) => HERO_TAGS[id] || [];
 // 이 멤버 치명타 확률 (장비 포함)
 function critOf(g, h) { return g.mods.crit + (h && h.gear ? h.gear.crit || 0 : 0); }
 // 뒷담화(수군수군)·공포(사기꾼 실물) 로 느려진 공격 속도 배율
+const byungNear = (g, h) => { const b = g.heroes.find((o) => o.id === 'byunghwa' && !o.gone); return !!b && b !== h && Math.abs(b.x - h.x) <= HEROES.byunghwa.aura.r; };
 export function heroSpeedMul(h) {
   return (h.rumorT > 0 ? 1 - ENEMIES.inpi_gossip.rumor.cut : 1) * (h.fearT > 0 ? 1 - ENEMIES.scammer.scam.fear : 1)
     * (h.paperT > 0 ? 1 - ENEMIES.boss_loan.paper.cut : 1)
-    * (h.vomitT > 0 ? 1 - ENEMIES.vomit.puke.cut : 1) * (h.drowsyT > 0 ? 1 / (1 + ENEMIES.kkondae.latte.slow) : 1) * (h.aspdDebT > 0 ? 1 - (h.aspdDebCut || 0.25) : 1) * (h._g && h._g.tambT > 0 ? 1.4 : 1); // 노래방 탬버린 +40%
+    * (h.vomitT > 0 ? 1 - ENEMIES.vomit.puke.cut : 1) * (h.drowsyT > 0 ? 1 / (1 + ENEMIES.kkondae.latte.slow) : 1) * (h.aspdDebT > 0 ? 1 - (h.aspdDebCut || 0.25) : 1) * (h._g && h._g.tambT > 0 ? 1.4 : 1) * (h._g && h._g.uirijuT > 0 ? 1.2 : 1) * (h._g && byungNear(h._g, h) ? 1 + HEROES.byunghwa.aura.spd : 1); // 노래방 탬버린 +40% · 의리주 +20% · 강병화 곁
 }
 // 공격 속도 배율: 전투 계산과 화면 표시가 같은 식을 쓴다 (강화·장비·카드·증강·오라·기진맥진·템포 모두)
 export function heroRate(g, h, aura = auraBonus(g, h), sing = 0) {
@@ -724,6 +725,25 @@ export function fire(g, h, t) {
   const wk = g.tempo && WEAPON[h.id] ? WEAPON[h.id].kind : '';
   const pierce = g.mods.pierce + (h.lv >= 5 && (wk === 'burst' || wk === 'rapid' || wk === 'pierce') ? 1 : 0);
   switch (d.proj) {
+    case 'shout': { // 강병화 고함 연기: 부채꼴 · 맞은 진상 홀려 멈춤 (보스는 느려짐)
+      const ang = Math.atan2(t.y - h.y, t.x - h.x), half = d.cone[lv - 1], R = heroRange(g, h, true);
+      let n = 0;
+      for (const e of g.enemies) {
+        if (e.dead || e.y < -20 || n >= d.coneMax) continue;
+        const dx = e.x - h.x, dy = e.y - (h.y - 30), dist = Math.hypot(dx, dy);
+        if (dist > R + e.r) continue;
+        let da = Math.abs(Math.atan2(dy, dx) - ang); if (da > Math.PI) da = Math.PI * 2 - da;
+        if (da > half + Math.atan2(e.r, Math.max(1, dist))) continue;
+        n++;
+        const crit = g.rng() < critOf(g, h);
+        damageEnemy(g, e, dmg * (crit ? g.mods.critMul : 1), crit, h, true);
+        if (e.dead) continue;
+        if (e.boss || e.def.charmImmune) { e.slowT = Math.max(e.slowT, 1); e.slowMul = Math.min(e.slowMul || 1, 0.7); }
+        else e.stunT = Math.max(e.stunT, d.charm[lv - 1] * stunMul(e));
+      }
+      ev(g, 'bhShout', { x: h.x, y: h.y - 30, a: ang, half, r: R });
+      break;
+    }
     case 'cone': {
       // 방장 확성기 음파: 짧은 부채꼴 안을 한꺼번에
       const big = lv >= 5 && h.shots % 5 === 0;
@@ -1980,6 +2000,7 @@ function debuffSec(h, sec, kind = 'hard') {
   const g = h._g;
   if (h.ccImmT > 0 && kind !== 'slow') return 0; // 건전녀 응급 방패: 잠깐 상태이상 면역
   if (g && kind !== 'none') { const au = g.heroes.find((o) => o.id === BAL.aura.id && !o.gone && o !== h && Math.hypot(o.x - h.x, o.y - h.y) < BAL.aura.r); const self = h.id === BAL.aura.id; if (au || self) { if (kind === 'slow') sec *= 0.5; else { if (g.t - (h.blockT || -9) > 0.8) { h.blockT = g.t; ev(g, 'ccBlock', { x: h.x, y: h.y - 60 }); } return 0; } } }
+  if (g && byungNear(g, h)) sec *= HEROES.byunghwa.aura.cc; // 강병화 곁: 상태이상 절반
   return (h.def.taunt ? sec * h.def.taunt : sec) * (h.debuffMul || 1) * (1 - resOf(h.meta, h.gear && h.gear.res));
 } // 강화 · 장비 저항 · 면역
 // 첫 기절: 한 번만 팁
@@ -2726,6 +2747,22 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       ev(g, 'wallWalk', { x: h.x, y: h.y });
       break;
     }
+    case 'sled': { // 송바울 팬클럽 썰매 활강: 자기 줄 전부 큰 피해 + 밀치기
+      r = 0;
+      const mul = sk.mul[lv] * (h.lv >= 3 ? 1.15 : 1);
+      const pass = () => { for (const e of g.enemies) { if (e.dead || e.y < -20 || Math.abs(e.x - h.x) > sk.w + (e.r || 14)) continue; damageEnemy(g, e, base * mul * (h.lv >= 5 ? 0.6 : 1), false, h, false); if (!e.dead) applyKnockback(e, e.boss ? sk.kb * 0.3 : sk.kb, g); } };
+      pass(); if (h.lv >= 5) pass();
+      ev(g, 'sled', { x: h.x, y: h.y, w: sk.w });
+      break;
+    }
+    case 'oneman': { // 강병화 원맨쇼: 8초 보스 빼고 모두 춤추며 멈춤 · 보스 50% 느리게 · 모두 공격력 +30% · 상태이상 해제
+      const sec = sk.sec[lv] + (h.lv >= 5 ? 1 : 0);
+      for (const e of g.enemies) { if (e.dead) continue; if (e.boss) { e.slowT = Math.max(e.slowT, sec); e.slowMul = Math.min(e.slowMul || 1, 0.5); } else { e.stunT = Math.max(e.stunT, sec * stunMul(e)); e.danceT = sec; } }
+      for (const o of g.heroes) { o.stunT = 0; o.charmT = 0; o.rumorT = 0; o.fearT = 0; o.paperT = 0; o.grabT = 0; o.silenceT = 0; o.aspdDebT = 0; }
+      g.onemanT = sec; g.onemanAtk = sk.atk;
+      ev(g, 'oneman', { x: h.x, y: h.y, sec });
+      break;
+    }
     case 'princess': {
       // 공주의 일격: 가장 센 적에게 거대한 망치 + 바로 공주로
       const t = bossTarget(g, h, 2000);
@@ -2891,6 +2928,8 @@ export function step(g, dt) {
   if (g.pools.length) updatePools(g, dt);
   if (g.rallyT > 0) { g.rallyT -= dt; if (g.rallyHeal && g.base.hp < g.base.max) g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * g.rallyHeal * dt); }
   if (g.tambT > 0) g.tambT -= dt;
+  if (g.uirijuT > 0) g.uirijuT -= dt;
+  if (g.onemanT > 0) g.onemanT -= dt;
   if (g.consCdT > 0) g.consCdT -= dt;
   if (g.doorShieldT > 0) { g.doorShieldT -= dt; if (g.doorShieldT <= 0) g.doorShield = 0; }
   if (g.encoreT > 0) g.encoreT -= dt;
@@ -3324,6 +3363,18 @@ export function useCons(g, id) {
   } else if (id === 'tambourine') { // 노래방 탬버린: 8초 공속 +40%
     g.tambT = 8;
     ev(g, 'consUse', { id, sec: 8, x: g.W / 2, y: g.rowY });
+  } else if (id === 'taxi') { // 막차 택시: 두 칸 밀기 · 3초 40% 느리게 (보스는 한 칸만)
+    for (const e of g.enemies) { if (e.dead || e.y < 0) continue; e.y = Math.max(FIELD.spawnY + 10, e.y - (e.boss ? 40 : 80)); e.atRope = false; if (!e.boss) { e.slowT = Math.max(e.slowT, 3); e.slowMul = Math.min(e.slowMul || 1, 0.6); } }
+    ev(g, 'consUse', { id, x: g.W / 2, y: g.ropeY - 60 });
+  } else if (id === 'icewater') { // 얼음물: 보스 빼고 3초 꽁꽁 · 보스는 3초 50%
+    for (const e of g.enemies) { if (e.dead || e.y < 0) continue; if (e.boss) { e.slowT = Math.max(e.slowT, 3); e.slowMul = Math.min(e.slowMul || 1, 0.5); } else e.stunT = Math.max(e.stunT, 3); }
+    ev(g, 'consUse', { id, x: g.W / 2, y: g.H * 0.4 });
+  } else if (id === 'uiriju') { // 의리주: 12초 공격력 +60% · 공속 +20% · 기세 +1칸
+    g.uirijuT = 12;
+    if (g.mom !== null && g.mom !== undefined) g.mom = Math.min(MOMENTUM.max, g.mom + MOMENTUM.per);
+    ev(g, 'consUse', { id, x: g.W / 2, y: g.rowY });
+  } else if (id === 'reroll') { // 쿠폰: 카드 화면에서 (여기선 쓴 표시만)
+    ev(g, 'consUse', { id, x: g.W / 2, y: g.rowY });
   } else return false;
   return true;
 }
