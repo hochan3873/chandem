@@ -1216,7 +1216,8 @@ test('헬 모드: 진상 체력·속도·공격·수 ↑ · 보상 ×3 · 희귀
   const b = S.createGame({ rng: seeded(1230), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null], hell: true });
   S.startWave(a, 2); S.startWave(b, 2);
   const ea = S.spawnEnemy(a, 'thug', 100, 100), eb = S.spawnEnemy(b, 'thug', 100, 100);
-  assert.ok(Math.abs(eb.maxHp / ea.maxHp - D.HELL.hp) < 1e-6);
+  const condHp = (g) => (g.conds.length ? D.COND_HP[D.chapterOf(12) - 1] : 1); // 헬은 스테이지 조건이 하나 더 (조건 스테이지 체력 보정)
+  assert.ok(Math.abs(eb.maxHp / ea.maxHp - (D.HELL.hp * condHp(b)) / condHp(a)) < 1e-6);
   assert.ok(eb.atk / ea.atk > D.HELL.atk - 1e-6);
   assert.ok(b.spawnQ.length > a.spawnQ.length, '수도 많다');
   assert.equal(S.summary(b, 1).hell, true);
@@ -2157,4 +2158,92 @@ test('7장 보스 눈사태: 예고 중 스킬로 끊으면 회장이 비틀 · 
   assert.ok(g2.base.hp < hp0 && g2.enemies.length > n0, '입구 피해 + 보드남');
   // 등급이 높을수록 덜 언다 (LEGEND < T1)
   assert.ok(D.CH7.coldTier[5] < D.CH7.coldTier[1]);
+});
+
+// ─── 덱 구성이 중요하게: 스테이지 조건 · 강화 권장 상한 · ★★★ 미션 · 팀 기여 ───
+test('스테이지 조건: 앞쪽 스테이지는 없음 · 중후반 1~3개 · 헬은 하나 더 · 7장은 자기 기믹', () => {
+  for (let s = 1; s <= 6; s++) assert.deepEqual(D.stageConds(s), [], `${D.stageLabel(s)} 은 순하게`);
+  for (let s = 61; s <= 70; s++) assert.deepEqual(D.stageConds(s), [], '7장은 따로');
+  for (let c = 3; c <= 6; c++) for (let n = 3; n <= 10; n++) {
+    const s = (c - 1) * 10 + n, list = D.stageConds(s);
+    assert.ok(list.length >= 1 && list.length <= 3, `${D.stageLabel(s)} 조건 ${list}`);
+    for (const k of list) assert.ok(D.COND[k], k);
+    const h = D.stageConds(s, true);
+    assert.equal(h.length, list.length + 1, `${D.stageLabel(s)} 헬은 하나 더`);
+  }
+  // 조건마다 맞는 멤버가 2명 이상 (기본 멤버로도 대응 가능하게)
+  for (const k of D.COND_IDS) assert.ok(D.COND[k].counter.filter((id) => D.HEROES[id]).length >= 2, k);
+  assert.deepEqual(D.condFits('gunnyeo', ['cc', 'rush']), ['cc', 'rush']);
+});
+
+test('강화 권장 상한: 장 권장을 넘는 만큼은 절반 · 대전/무한은 그대로', () => {
+  assert.equal(D.softMeta(4, 25), 4);
+  assert.equal(D.softMeta(20, 25), D.recMeta(25) + (20 - D.recMeta(25)) * 0.5);
+  assert.ok(D.recMeta(25, true) > D.recMeta(25), '헬은 조금 더');
+  const g = S.createGame({ rng: seeded(3), mode: 'stage', stage: 25, deck: [null, null, 'gunman', null, null, null], meta: { gunman: 20 } });
+  assert.equal(g.heroes[0].meta, D.softMeta(20, 25));
+  const e = S.createGame({ rng: seeded(3), mode: 'endless', deck: [null, null, 'gunman', null, null, null], meta: { gunman: 20 } });
+  assert.equal(e.heroes[0].meta, 20);
+});
+
+test('보호막 진상: 겹이 남아 있으면 −90% · 한 방에 한 겹 · 운영진은 한 번에 깬다', () => {
+  const g = S.createGame({ rng: seeded(5), mode: 'stage', stage: 41, noWaves: true, heroes: ['gunman', 'staff'], conds: ['shield'] });
+  g.noTypes = true;
+  const [gm, st] = g.heroes;
+  const e = still(g, 'thug', 180, 300, 400), ref = still(g, 'thug', 120, 300, 400); e.armor = 0; ref.armor = 0; e.cLay = e.cLayMax = 2;
+  const hp0 = e.hp, r0 = ref.hp;
+  S.damageEnemy(g, e, 100, false, gm); S.damageEnemy(g, ref, 100, false, gm);
+  assert.ok(Math.abs((hp0 - e.hp) / (r0 - ref.hp) - (1 - D.COND.shield.cut)) < 1e-6, '첫 방은 10%');
+  assert.equal(e.cLay, 1);
+  S.damageEnemy(g, e, 100, false, st);
+  assert.equal(e.cLay, 0, '운영진 경고장은 한 번에 깨기');
+  assert.equal(g.cstat.breaks, 1);
+});
+
+test('★★★ = 입구 70% + 스테이지 미션 (1-4 부터) · 기존 별 규칙은 그대로', () => {
+  assert.equal(D.starsFor(0.9, false), 2);
+  assert.equal(D.starsFor(0.9, true), 3);
+  assert.equal(D.starsFor(0.5, true), 2);
+  assert.equal(D.stageMission(3), null, '1-3 까지는 미션 없음');
+  for (let s = 4; s <= 60; s++) { const m = D.stageMission(s); assert.ok(m && m.text && D.MISSIONS[m.id], D.stageLabel(s)); }
+  assert.equal(D.stageMission(65), null, '7장은 미션 없음');
+  // 해제 · 수리 · 깨기 미션이 먼저
+  assert.equal(D.stageMission(45, false, ['swarm', 'cc']).id, 'cc');
+  assert.ok(D.missionOk({ stat: 'ccSec', n: 10, max: true }, { ccSec: 8 }));
+  assert.ok(!D.missionOk({ stat: 'ccSec', n: 10, max: true }, { ccSec: 12 }));
+  assert.ok(D.missionOk({ stat: 'found', n: 0.85, pct: true }, { found: 9, hidden: 10 }));
+});
+
+test('기절 예고: 기를 모은 뒤 제일 센 멤버에게 · 건전녀가 있으면 바로 풀어 준다', () => {
+  const mk = (ids) => {
+    const g = S.createGame({ rng: seeded(8), mode: 'stage', stage: 45, noWaves: true, heroes: ids, conds: ['cc'] });
+    g.phase = 'wave'; g.ccT = 0;
+    still(g, 'thug', 180, 300, 999);
+    g.heroes[0].dmgDone = 1e6; // 제일 센 멤버
+    let sec = null;
+    for (let t = 0; t < 2.5 && sec === null; t += 1 / 60) { S.step(g, 1 / 60); for (const ev of g.events) if (ev.type === 'condCc') sec = ev.sec; g.events.length = 0; }
+    return sec;
+  };
+  const alone = mk(['gunman', 'staff']), withGn = mk(['gunman', 'gunnyeo']);
+  assert.ok(alone > 1.5, `건전녀 없으면 길게 (${alone})`);
+  assert.ok(withGn !== null && withGn <= D.COND.cc.react + 1e-6, `건전녀 있으면 짧게 (${withGn})`);
+});
+
+test('팀 기여: 수리 · 막은 피해 · 버프로 늘린 피해를 멤버별로 센다', () => {
+  const g = S.createGame({ rng: seeded(9), mode: 'stage', stage: 45, noWaves: true, heroes: ['bangjang', 'gunnyeo', 'wonsik', 'gunman'] });
+  g.phase = 'wave';
+  g.base.hp = g.base.max * 0.5;
+  const e = still(g, 'thug', g.heroes.find((h) => h.id === 'wonsik').x, 300);
+  S.damageBase(g, 50, e);
+  run(g, 6);
+  const T = g.stats.teamBy;
+  assert.ok(T.gunnyeo && T.gunnyeo.repair > 0, '건전녀 수리');
+  assert.ok(T.wonsik && T.wonsik.prevent > 0, '정원식 막음');
+  assert.ok(T.bangjang && T.bangjang.buff > 0, '방장 오라 → 버프 피해');
+  assert.ok(g.stats.team.repair >= T.gunnyeo.repair);
+});
+
+test('상성: 강함 1.6 · 약함 0.7 (2.0/0.45 에서 줄임)', () => {
+  assert.equal(D.TYPE_STRONG, 1.6);
+  assert.equal(D.TYPE_WEAK, 0.7);
 });

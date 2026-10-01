@@ -124,13 +124,19 @@ export class FX {
       this.part(type, x, y, Math.cos(a) * s, Math.sin(a) * s, life * (0.6 + Math.random() * 0.6), size * (0.7 + Math.random() * 0.6), color, { grav, drag: 3 });
     }
   }
-  num(x, y, v, crit, color, eff = 0) {
+  num(x, y, v, crit, color, eff = 0, uid = 0) {
     const items = this.nums.items;
-    // 같은 진상에게 0.15초 안에 들어간 피해는 숫자 하나로 합친다 (숫자끼리 겹쳐 "30))1300" 처럼 안 보이게)
+    // 같은 진상에게 0.2초 안에 들어간 피해는 (치명타든 아니든) 숫자 하나로 합친다 — 숫자끼리 겹쳐 "47247201062!" 처럼 안 보이게
+    //  uid(진상 번호)가 있으면 그걸로, 없으면 가까운 자리로 같은 진상인지 본다
     for (let i = items.length - 1; i >= 0; i--) {
       const o = items[i];
-      if (o.max - o.life < 0.25 && !!o.crit === !!crit && Math.abs(o.x0 - x) < 18 && Math.abs(o.y0 - y) < 26) {
-        o.val += v; o.text = crit ? o.val + '!' : '' + o.val; o.life = o.max; o.pop = 0.08; return;
+      if (this.time - (o.lastT || 0) > 0.2) continue;
+      if (uid ? o.uid === uid : Math.abs(o.x0 - x) < 18 && Math.abs(o.y0 - y) < 26) {
+        o.val += v; o.lastT = this.time;
+        if (crit && !o.crit) { o.crit = true; o.vy = Math.min(o.vy, -60); o.max = 0.9; if (!o.fixedColor) o.color = '#ff7a1a'; }
+        if (eff > o.eff) o.eff = eff;
+        o.x += x - o.x0; o.x0 = x; o.y0 = y; // 걸어가는 진상을 따라간다
+        o.text = o.crit ? o.val + '!' : '' + o.val; o.life = o.max; o.pop = 0.08; return;
       }
     }
     // 화면에 12개까지: 넘으면 가장 오래된 것부터 빨리 사라지게
@@ -140,8 +146,8 @@ export class FX {
     // 가까운 숫자가 있으면 위로 한 칸씩 쌓고 옆으로 살짝 비켜서
     let stack = 0;
     for (const o of items) if (o !== n && Math.abs(o.x0 - x) < 34 && Math.abs(o.y0 - y) < 40 && o.max - o.life < 0.45) stack++;
-    n.x0 = x; n.y0 = y; n.val = v; n.pop = 0;
-    n.x = x + (Math.random() - 0.5) * 20 + (stack % 2 ? 9 : -9) * Math.min(stack, 1); n.y = y - Math.min(stack, 4) * 12; n.vy = crit ? -70 : eff > 0 ? -60 : -48; n.life = crit ? 0.9 : eff > 0 ? 0.8 : 0.6; n.max = n.life;
+    n.x0 = x; n.y0 = y; n.val = v; n.pop = 0; n.uid = uid; n.lastT = this.time; n.fixedColor = !!color;
+    n.x = x + (Math.random() - 0.5) * 20 + (stack % 2 ? 9 : -9) * Math.min(stack, 1); n.y = y - Math.min(stack, 4) * 15; n.vy = crit ? -70 : eff > 0 ? -60 : -48; n.life = crit ? 0.9 : eff > 0 ? 0.8 : 0.6; n.max = n.life;
     n.text = crit ? v + '!' : '' + v; n.crit = crit; n.eff = eff;
     n.color = color || (crit ? '#ff7a1a' : eff > 0 ? '#ffb02e' : eff < 0 ? '#9aa0ad' : '#ffffff');
   }
@@ -172,6 +178,14 @@ export class FX {
     if (!t) return;
     life = Math.min(life, 0.9); // 외침 글자는 짧게 · 피해 숫자보다 조금 위에 (겹치지 않게)
     y -= 16;
+    { const hw = Math.max(50, String(text).length * size * 0.48 + 6); x = Math.max(hw, Math.min(360 - hw, x)); } // 화면 끝에서 잘리지 않게 ("이어트 주사!" · 긴 글자는 글자 폭만큼)
+    // 이미 떠 있는 글자와 겹치면 한 줄씩 위로 비켜서 ("빈틈! 지금이야!" 위에 "꼬충 호출!" 겹침 방지)
+    for (let k = 0; k < 4; k++) {
+      let hit = false;
+      for (const o of this.texts.items) if (o !== t && o.life > 0.15 && Math.abs(o.x - x) < 80 && Math.abs(o.y - y) < (o.size + size) * 0.62) { hit = true; break; }
+      if (!hit) break;
+      y -= size * 1.3;
+    }
     t.x = x; t.y = y; t.text = text; t.color = color; t.size = size; t.life = life; t.max = life; t.vy = vy;
   }
   bubble(x, y, text) {
@@ -204,8 +218,9 @@ export class FX {
     text = noEmo(text); sub = noEmo(sub);
     if (this.noBanner) return; // 메뉴 뒤 데모 판에서는 배너 생략
     // 같은 종류가 이미 대기 중이면 교체
-    if (this.banners.length > 2) this.banners.splice(1, 1);
+    if (this.banners.length > 2) { const i = this.banners.findIndex((x, j) => j > 0 && x.kind !== 'boss'); this.banners.splice(i > 0 ? i : 1, 1); }
     this.banners.push({ text, sub, color, life, max: life, kind, sprite, t: 0 });
+    this.bannerAt = this.time; // 스킬 컷인이 "이 스킬은 같은 프레임에 큰 배너를 띄웠나" 확인용 (이름을 한 번만 보이게)
   }
   flash(color, a) { this.flashColor = color; this.flashA = Math.max(this.flashA, a); }
   addShake(v) { if (v < 3) return; this.shake = Math.min(18, Math.max(this.shake, v)); } // 작은 흔들림은 무시 (큰 한 방·보스만)
@@ -237,7 +252,8 @@ export class FX {
     this.blasts.update((r) => { r.life -= dt; return r.life > 0; });
     const b = this.banners[0];
     // 배너가 밀려 있으면 앞의 것을 빨리 넘긴다
-    if (b) { b.t += dt * (this.banners.length > 1 ? 2.2 : 1); if (b.t >= b.life) this.banners.shift(); }
+    //  (보스 등장 배너는 끝까지 — 뒤에 밀린 합류 배너가 보스 소개를 잘라 먹지 않게)
+    if (b) { b.t += dt * (this.banners.length > 1 && b.kind !== 'boss' ? 2.2 : 1); if (b.t >= b.life) this.banners.shift(); }
   }
 }
 
@@ -574,6 +590,18 @@ export class Renderer {
       x.fillStyle = '#3a2600'; x.font = `900 10px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillText('공지', w / 2, h / 2 - 2);
     });
+    // 운영진 경고장: 심판 카드처럼 (둥근 모서리 · 진한 테두리 · 안쪽 흰 선 · 느낌표) — 노랑(경고) · 빨강(강퇴)
+    const refCard = (fill, dark, mark) => (x, w, h) => {
+      glow(x, w / 2, h / 2, 15, fill === '#ffd23f' ? 'rgba(255,214,60,0.5)' : 'rgba(255,70,60,0.55)');
+      x.fillStyle = fill; x.strokeStyle = dark; x.lineWidth = 2;
+      roundRect(x, 3, 2, w - 6, h - 4, 3.5); x.fill(); x.stroke();
+      x.strokeStyle = 'rgba(255,255,255,0.75)'; x.lineWidth = 1; roundRect(x, 5.5, 4.5, w - 11, h - 9, 2); x.stroke();
+      x.fillStyle = 'rgba(255,255,255,0.35)'; x.beginPath(); x.moveTo(6, 5); x.lineTo(w * 0.55, 5); x.lineTo(6, h * 0.42); x.closePath(); x.fill(); // 반짝
+      x.fillStyle = dark; x.font = `900 ${Math.round(h * 0.5)}px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText(mark, w / 2, h / 2 + 1);
+    };
+    make('staffCard', 22, 30, refCard('#ffd23f', '#5a3a00', '!'));
+    make('staffCardRed', 26, 34, refCard('#ff3b30', '#4a0800', '!!'));
     make('noticeBig', 58, 34, (x, w, h) => {
       glow(x, w / 2, h / 2, 28, 'rgba(255,160,40,0.55)');
       x.fillStyle = '#ff9f1c'; x.strokeStyle = '#5a2a00'; x.lineWidth = 2;
@@ -1555,6 +1583,18 @@ export class Renderer {
         cx.drawImage(gl.c, -r, -r, r * 2, r * 2);
         cx.globalAlpha = 1;
       }
+      if (e.cLay > 0) { // 스테이지 조건 '보호막 진상': 남은 겹 수만큼 고리 (한 방에 한 겹)
+        this.tf(e.x, e.y - box * 0.12, 0, 1, 1);
+        cx.strokeStyle = '#9feaff'; cx.lineWidth = 2; cx.globalAlpha = 0.6;
+        for (let k = 0; k < e.cLay; k++) { cx.beginPath(); cx.arc(0, 0, box * (0.48 + k * 0.09), 0, TAU); cx.stroke(); }
+        cx.globalAlpha = 1;
+      }
+      if (e.cArmor) { // '철갑 진상': 발밑 강철 판
+        this.tf(e.x, feet - 1, 0, 1, 0.35);
+        cx.strokeStyle = '#c9d2dc'; cx.lineWidth = 4; cx.globalAlpha = 0.8;
+        cx.beginPath(); cx.arc(0, 0, box * 0.4, 0, TAU); cx.stroke();
+        cx.globalAlpha = 1;
+      }
       if (e.dictT > 0 && !e.auraOn) {
         const gl = this.projSprites.glowRed;
         const r = box * 0.36;
@@ -2349,6 +2389,10 @@ export class Renderer {
       shown++;
       // 그린 투사체: 멤버 물건 그림을 날아가는 방향으로
       const an = p.hero && p.type !== 'moto' && p.type !== 'gf' && PROJ_ART[p.hero.id];
+      if (an === 'card_y') { // 운영진 경고장: 그림(민무늬 노란 사각형) 대신 코드로 그린 심판 카드 · 날아가며 팔랑팔랑
+        const sc = this.projSprites[p.big ? 'staffCardRed' : 'staffCard'];
+        if (sc) { const ang = Math.atan2(p.vy || 0, p.vx || 1) + Math.PI / 2 + Math.sin(this.fx.time * 14 + (p.uid || pi)) * 0.35; this.tf(p.x, p.y, ang, 1, 1); cx.drawImage(sc.c, -sc.w / 2, -sc.h / 2, sc.w, sc.h); continue; }
+      }
       const art = an && this.images['w_' + (an === 'card_y' && p.big ? 'card_r' : an)];
       if (art && imgOk(art)) {
         const sz = Math.max(18, (p.r || 8) * 3.1) * (p.big ? 1.45 : 1);
@@ -2675,16 +2719,21 @@ export class Renderer {
       cx.setTransform(k, 0, 0, k, 0, 0);
     }
     const b = fx.banners[0];
-    if (b) this.drawBanner(b);
+    if (b) this.drawBanner(b, g);
   }
 
-  drawBanner(b) {
+  drawBanner(b, g) {
     const cx = this.cx, W = this.W, H = this.H, k = this.k;
     const p = b.t / b.life;
     const inT = Math.min(1, b.t / 0.28);
     const outT = Math.max(0, (b.t - (b.life - 0.35)) / 0.35);
     const ease = 1 - Math.pow(1 - inT, 3);
-    const y = H * (b.kind === 'boss' ? 0.34 : 0.3);
+    let y = H * (b.kind === 'boss' ? 0.34 : 0.3);
+    // 보스전: 합류 · 웨이브 같은 배너가 보스를 가리지 않게 보스 아래(안 되면 위)로 비켜서
+    if (b.kind !== 'boss' && g && g.bossAlive > 0) {
+      const boss = g.enemies.find((e) => e.boss && !e.dead && e.y > 0);
+      if (boss && Math.abs(boss.y - y) < 90) { const below = boss.y + 120; y = below < (g.ropeY || H * 0.7) - 70 ? below : Math.max(110, boss.y - 130); b.y0 = b.y0 === undefined ? y : b.y0 + (y - b.y0) * 0.15; y = b.y0; }
+    }
     const alpha = 1 - outT;
     cx.globalAlpha = alpha;
     if (b.kind === 'boss' || b.kind === 'rage' || b.kind === 'hidden' || b.kind === 'big') {
@@ -2710,10 +2759,16 @@ export class Renderer {
     }
     const jit = b.kind === 'rage' ? (Math.random() - 0.5) * 4 : 0;
     const scale = (b.kind === 'wave' ? 0.6 + ease * 0.4 : 1) * (1 + Math.max(0, 1 - b.t / 0.18) * 0.4);
-    const tx = b.sprite ? W / 2 + 44 : W / 2;
+    const band = b.kind === 'boss' || b.kind === 'rage' || b.kind === 'hidden' || b.kind === 'big';
+    const withArt = !!(band && b.sprite && this.sprites[b.sprite]); // 그림은 띠 배너에서만 그린다 → 그때만 글자를 오른쪽으로
+    const tx = withArt ? W / 2 + 44 : W / 2;
     cx.setTransform(k * scale, 0, 0, k * scale, k * (tx + jit + (1 - ease) * 60), k * (y - (b.sub ? 10 : 0)));
     cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.lineJoin = 'round';
-    const size = b.kind === 'wave' ? 44 : b.kind === 'boss' ? 30 : 26;
+    // 긴 제목("팬클럽 썰매 활강!" · "올인 콜! 준영 등판")은 화면 폭에 맞게 글자를 줄인다
+    const avail = withArt ? 2 * Math.min(tx - (8 + (b.kind === 'boss' ? 130 : 84) * 0.8), W - tx) - 12 : W - 24;
+    let size = b.kind === 'wave' ? 44 : b.kind === 'boss' ? 30 : 26;
+    if (b.fit === undefined) { cx.font = `900 italic ${size}px ${FONT}`; const w = cx.measureText(b.text).width + 8; cx.font = `800 13px ${FONT}`; const ws = b.sub ? cx.measureText(b.sub).width + 5 : 0; b.fit = Math.min(1, avail / w); b.fitSub = ws ? Math.min(1, avail / ws) : 1; }
+    size = Math.round(size * b.fit);
     cx.font = `900 italic ${size}px ${FONT}`;
     cx.lineWidth = 8; cx.strokeStyle = 'rgba(15,5,25,0.95)';
     cx.strokeText(b.text, 0, 0);
@@ -2722,7 +2777,7 @@ export class Renderer {
     cx.fillStyle = gr;
     cx.fillText(b.text, 0, 0);
     if (b.sub) {
-      cx.font = `800 13px ${FONT}`;
+      cx.font = `800 ${Math.max(9, Math.round(13 * b.fitSub))}px ${FONT}`;
       cx.lineWidth = 5;
       cx.strokeText(b.sub, 0, size * 0.5 + 12);
       cx.fillStyle = '#fff4d6';
