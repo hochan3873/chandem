@@ -46,17 +46,20 @@ export function setMuted(v) {
 const TRACKS = {
   1: '/sounds/bgm_langbang.mp3', 2: '/sounds/bgm_lb2.mp3', 3: '/sounds/bgm_lb3.mp3',
   4: '/sounds/bgm_lb4.mp3', 5: '/sounds/bgm_lb5.mp3', 6: '/sounds/bgm_lb6.mp3', boss: '/sounds/bgm_lb_boss.mp3',
+  raid: '/sounds/bgm_lb_raid.mp3', pvp: '/sounds/bgm_lb_pvp.mp3', // 레이드 · 1:1 대전 전용 곡 (없으면 챕터 곡 그대로)
 };
+const OPTIONAL = new Set(['raid', 'pvp']); // 서버 파일 목록에 없으면 요청도 안 한다
 const VOL = 0.4;
 const players = {};
 const bad = {};
-let playing = false, want = 1, bossOn = false, curKey = null;
+let playing = false, want = 1, bossOn = false, curKey = null, modeKey = null, avail = null;
 function player(key) {
   if (bad[key] || !TRACKS[key]) return null;
+  if (OPTIONAL.has(key) && avail && !avail.has(TRACKS[key])) { bad[key] = true; return null; }
   if (!players[key]) {
     const a = new Audio(TRACKS[key]);
     a.loop = true; a.volume = 0; a.preload = 'auto';
-    a.addEventListener('error', () => { bad[key] = true; if (curKey === key) { curKey = null; if (playing) switchTo(1); } });
+    a.addEventListener('error', () => { bad[key] = true; if (curKey === key) { curKey = null; if (playing && !muted) switchTo(target()); } });
     players[key] = a;
   }
   return players[key];
@@ -65,7 +68,8 @@ let fadeT = 0;
 function switchTo(key) {
   if (bad[key]) key = bad[want] ? 1 : want;
   if (bad[key]) return;
-  const next = player(key);
+  let next = player(key);
+  if (!next && key !== want && !bad[want]) { key = want; next = player(key); } // 모드 곡이 없으면 챕터 곡
   if (!next) return;
   const prev = curKey && curKey !== key ? players[curKey] : null;
   curKey = key;
@@ -82,8 +86,13 @@ function switchTo(key) {
   // 다른 곡은 멈춰 둔다
   for (const [k2, a] of Object.entries(players)) if (a !== next && a !== prev && !a.paused) a.pause();
 }
-const target = () => (bossOn && !bad.boss ? 'boss' : want);
+// 레이드 · 대전 곡이 있으면 보스 웨이브에도 그 곡 그대로 (모드 곡이 우선)
+const target = () => (modeKey && !bad[modeKey] && !(avail && !avail.has(TRACKS[modeKey])) ? modeKey : bossOn && !bad.boss ? 'boss' : want);
 export function setChapter(ch) { want = TRACKS[ch] ? ch : 1; if (playing && !muted) switchTo(target()); }
+// 레이드 · 1:1 대전: 전용 곡 (null 이면 챕터 곡으로)
+export function setMode(m) { const k = m && TRACKS[m] ? m : null; if (modeKey === k) return; modeKey = k; if (playing && !muted) switchTo(target()); }
+// 서버가 알려준 "있는 파일" 목록 (없는 곡은 요청 안 함)
+export function setAvail(files) { avail = Array.isArray(files) ? new Set(files) : null; if (modeKey && playing && !muted && curKey !== target()) switchTo(target()); }
 export function setBoss(on) { if (bossOn === !!on) return; bossOn = !!on; if (playing && !muted) switchTo(target()); }
 export function playBgm() {
   playing = true;

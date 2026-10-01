@@ -33,8 +33,11 @@ const PROJ_COLOR = {
 };
 // 챕터 전용 배경에서 랑방 지붕(영웅 줄 뒤) 위치 — 그림 높이 대비
 const BG_ROOF = { 2: 0.735, 3: 0.735, 4: 0.735, 5: 0.66, 6: 0.73 };
+const MAP_ROOF = 0.735; // 레이드 · 대전 맵: 랑방 지붕 높이 (그림 높이의 비율 · bg2~4 와 같게)
 const BG_BRIGHT = { 4: 0.42, 6: 0.36 }; // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
 // 챕터별 분위기 (같은 배경 그림에 색만 덧씌운다)
+// 있으면 쓰는 그림 주소 (서버 /api/langbang/anim 의 files 와 같은 규칙)
+const OPT_ART = /^\/img\/lb\/(arena\d|map_[a-z0-9_]+|e_[a-z0-9_]+_(skill|rage)|h_wonsik_walk(back|front))\.webp$|^\/img\/lb\/fx\/p_[A-Za-z0-9_]+\.webp$/;
 const THEMES = {
   1: null, // 랑방 골목: 원래 그대로
   2: { top: 'rgba(255,60,170,0.24)', bottom: 'rgba(255,140,40,0.18)', glow: 'rgba(255,80,200,0.26)', mode: 'soft-light', wash: 'rgba(160,30,120,0.35)' }, // 불금 번화가: 분홍·주황 네온
@@ -262,6 +265,7 @@ export class Renderer {
 
   loadImages() {
     const list = {};
+    this.optQ = [];
     for (const id in HEROES) {
       list['h_' + id] = HEROES[id].img;
       if (HEROES[id].imgRage) list['h_' + id + '_rage'] = HEROES[id].imgRage;
@@ -309,6 +313,7 @@ export class Renderer {
     list.bg5 = '/img/lb/bg5.webp';
     list.bg6 = '/img/lb/bg6.webp';
     for (let i = 1; i <= 6; i++) list['arena' + i] = `/img/lb/arena${i}.webp`; // 보스 무대 (없으면 챕터 배경 + 붉은 조명)
+    list.map_raid = '/img/lb/map_raid.webp'; list.map_pvp = '/img/lb/map_pvp.webp'; // 레이드 · 1:1 대전 전용 맵 (없으면 원래 배경)
     list.base = '/img/lb/base.webp';
     const skip = new URLSearchParams(location.search).has('noimg');
     const q = [];
@@ -320,16 +325,26 @@ export class Renderer {
         if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_') || key.startsWith('w_') || key.startsWith('vfx_') || key.startsWith('hanim_') || key.startsWith('cc_') || key === 'bus' || key === 'bus2') return;
         if (key.startsWith('bar')) { this.bakeBar(key); return; }
         if (key.startsWith('fx_')) return;
-        if (key === 'bg' || key === 'base' || /^bg\d$/.test(key)) this.bakeBg();
+        if (key === 'bg' || key === 'base' || /^bg\d$/.test(key) || key.startsWith('map_')) this.bakeBg();
         else this.bakeSprite(key);
       };
-      if (!skip && list[key]) q.push([img, list[key]]); // 아직 없는 그림은 요청 안 함 (자리표시자)
+      // 있으면 쓰는 그림(보스 무대 · 그린 투사체 · 모드 맵 …)은 서버 파일 목록이 온 뒤에 있는 것만 요청 (없는 파일 404 폭탄 방지)
+      if (!skip && list[key]) (OPT_ART.test(list[key]) ? this.optQ : q).push([img, list[key]]);
       this.images[key] = img;
     }
     // 한꺼번에 수백 장을 요청하면 브라우저가 거절한다 (ERR_INSUFFICIENT_RESOURCES) → 16장씩 차례로
     let on = 0;
     const pump = () => { while (on < 16 && q.length) { const [im, src] = q.shift(); on++; const done = () => { on--; pump(); }; im.addEventListener('load', done, { once: true }); im.addEventListener('error', done, { once: true }); im.src = src; } };
+    this.imgQ = q; this.imgPump = pump;
     pump();
+  }
+  // 서버가 알려준 "있는 파일" 목록으로 미뤄 둔 그림을 불러온다 (files 가 없으면 = 목록을 못 받음 → 예전처럼 전부 시도)
+  loadOptional(files) {
+    if (!this.optQ) return;
+    const have = Array.isArray(files) ? new Set(files) : null;
+    for (const it of this.optQ) if (!have || have.has(it[1])) this.imgQ.push(it);
+    this.optQ = null;
+    this.imgPump();
   }
 
   // 서버 목록으로 새 진상 프레임 띠 붙이기 (걷기 12칸 · 쓰러짐 8칸 · 공격 8칸 기본)
@@ -347,10 +362,12 @@ export class Renderer {
     }
   }
 
-  setTheme(t) {
+  // mode: 'raid' | 'pvp' 면 전용 맵(map_<mode>.webp)이 있을 때 그걸로 · 없으면 t 테마 그대로
+  setTheme(t, mode = null) {
     const key = t || 1;
-    if (this.themeKey === key) return;
+    if (this.themeKey === key && this.modeKey === mode) return;
     this.themeKey = key;
+    this.modeKey = mode;
     this.bakeBg();
   }
 
@@ -755,14 +772,16 @@ export class Renderer {
     const x = c.getContext('2d');
     x.scale(k, k);
     const ch = typeof this.themeKey === 'number' && this.themeKey >= 2 && this.themeKey <= 6 ? this.themeKey : 0;
-    const arena = this.arenaOn && imgOk(this.images['arena' + (ch || 1)]) ? this.images['arena' + (ch || 1)] : null;
-    const own = !arena && ch && imgOk(this.images['bg' + ch]); // 챕터 전용 배경이 있으면 그걸로 (색은 살짝만)
-    const img = arena || (own ? this.images['bg' + ch] : this.images.bg);
+    // 레이드 · 1:1 대전: 전용 맵(map_raid / map_pvp)이 있으면 그걸로 · 없으면 원래 테마 배경 그대로
+    const modeMap = this.modeKey && imgOk(this.images['map_' + this.modeKey]) ? this.images['map_' + this.modeKey] : null;
+    const arena = !modeMap && this.arenaOn && imgOk(this.images['arena' + (ch || 1)]) ? this.images['arena' + (ch || 1)] : null;
+    const own = !arena && !modeMap && ch && imgOk(this.images['bg' + ch]); // 챕터 전용 배경이 있으면 그걸로 (색은 살짝만)
+    const img = modeMap || arena || (own ? this.images['bg' + ch] : this.images.bg);
     const rowY = rowYFor(H);
     if (imgOk(img)) {
       const sc = Math.max(W / img.naturalWidth, H / img.naturalHeight);
       const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
-      let dy = rowY + 10 - (own ? BG_ROOF[ch] : 0.7) * dh; // 배경의 랑방 건물 지붕이 영웅 줄 바로 뒤에 오도록
+      let dy = rowY + 10 - (own ? BG_ROOF[ch] : modeMap ? MAP_ROOF : 0.7) * dh; // 배경의 랑방 건물 지붕이 영웅 줄 바로 뒤에 오도록
       dy = Math.min(0, Math.max(H - dh, dy));
       x.imageSmoothingQuality = 'high';
       x.drawImage(img, (W - dw) / 2, dy, dw, dh);
@@ -784,7 +803,7 @@ export class Renderer {
     x.fillStyle = g; x.fillRect(0, 0, W, H);
     // 챕터 분위기 색 덧씌우기
     const th0 = THEMES[this.themeKey || 1];
-    const th = own && th0 ? Object.assign({}, th0, { wash: 'rgba(0,0,0,0)', top: 'rgba(0,0,0,0)', bottom: 'rgba(0,0,0,0)' }) : th0;
+    const th = (own || modeMap) && th0 ? Object.assign({}, th0, { wash: 'rgba(0,0,0,0)', top: 'rgba(0,0,0,0)', bottom: 'rgba(0,0,0,0)' }) : th0;
     if (th) {
       x.save();
       x.globalCompositeOperation = th.mode;

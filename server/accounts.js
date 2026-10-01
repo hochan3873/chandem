@@ -553,7 +553,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const got = [];
         let endInfo = null;
         const afkF = mode === 'endless' ? Math.max(0, Math.min(1, (Number(body.afkSec) || 0) / Math.max(1, dur))) : 0;
-        if (mode === 'endless') reward.total = Math.round(reward.total * (1 - afkF) * Math.min(2, Math.max(1, Number(body.coinMul) || 1)));
+        if (mode === 'endless') reward.total = Math.round(reward.total * (1 - afkF) * LIVE.endlessCoinMul(body.curses, wave)); // 계약 코인 배율은 서버가 계약 이름으로 다시 계산 (화면이 보낸 coinMul 은 안 믿음)
         const usedOk = Array.isArray(body.heroesUsed) ? [...new Set(body.heroesUsed.map(String))].filter((h) => LB_HEROES.includes(h) && LBR.heroUnlocked(before, h)).slice(0, 7) : [];
         const cardDrop = mode === 'stage' ? LBR.rollHeroCard(LBR.hashSeed(`hc:${id}:${before.clears}:${stage}`), stars, hell, usedOk) : null;
         const stones = mode === 'stage' ? LBR.rollStones(LBR.hashSeed(`st:${id}:${before.clears}:${stage}`), stage, stars, !prevStars, hell) : mode === 'raid' ? 2 : 0; // 레이드 한 판마다 강화석 2개
@@ -684,6 +684,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       const lvl = lb.items[item] || 0;
       const cost = LBR.itemCost(item, lvl);
       if (cost === null) return { error: '이미 최대 레벨이에요' };
+      const gate = lb.master ? 0 : LBR.itemGateCh(item, lvl, lb.maxStage); // 진행도에 따라 살 수 있는 레벨 (이미 산 건 그대로)
+      if (gate) return { error: `${gate}장을 깨야 다음 레벨을 살 수 있어요` };
       const need = LBR.ITEMS[item].needs;
       if (need && !(lb.items[need] | 0)) return { error: '앞 칸부터 사 주세요' };
       return { cost, apply: (x) => { x.items[item] = lvl + 1; } };
@@ -1151,7 +1153,11 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       const fs = require('fs'), dir = path.join(__dirname, '..', 'public', 'img', 'lb');
       const out = {};
       try { for (const f of await fs.promises.readdir(dir)) { const m = /^e_([a-z0-9_]+?)_(walk|die|attack)\.webp$/.exec(f); if (m) (out[m[1]] = out[m[1]] || []).push(m[2]); } } catch { /* 무시 */ }
-      animCache = { at: Date.now(), v: { enemies: out } };
+      // 있으면 쓰는 그림·음악 (보스 무대 · 그린 투사체 · 레이드/대전 맵 · 모드 음악) — 없는 파일을 요청해 404 를 쏟지 않게 목록을 준다
+      const files = [];
+      const opt = [[dir, '/img/lb/', /^(arena\d|map_[a-z0-9_]+|e_[a-z0-9_]+_(skill|rage)|h_wonsik_walk(back|front))\.webp$/], [path.join(dir, 'fx'), '/img/lb/fx/', /^p_[A-Za-z0-9_]+\.webp$/], [path.join(__dirname, '..', 'public', 'sounds'), '/sounds/', /^bgm_lb_[a-z0-9_]+\.mp3$/]];
+      for (const [d, pre, re] of opt) { try { for (const f of await fs.promises.readdir(d)) if (re.test(f)) files.push(pre + f); } catch { /* 무시 */ } }
+      animCache = { at: Date.now(), v: { enemies: out, files } };
       return animCache.v;
     }));
     return r;

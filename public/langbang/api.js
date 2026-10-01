@@ -3,7 +3,7 @@
 // 손님: 같은 공식(data.js)으로 이 기기 localStorage 에만 저장 (랭킹에는 안 올라감)
 import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
-  metaCost, itemCost, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen, metaMaxOf,
+  metaCost, itemCost, itemGateCh, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen, metaMaxOf,
   GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearEnhanceChance, gearSellValue, rollDrops, gearStats, stageBosses,
   GEAR_IDS, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, heroCardNeed, rollHeroCard, CARD_PICK,
 } from './data.js';
@@ -116,7 +116,7 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
+const LIVE_KEYS = ['gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
@@ -225,6 +225,8 @@ export async function buyItem(item, guest) {
       const lv = p.items[item] | 0;
       const cost = itemCost(item, lv);
       if (cost === null) return { error: '이미 최대 레벨이에요' };
+      const gate = itemGateCh(item, lv, p.maxStage);
+      if (gate) return { error: `${gate}장을 깨야 다음 레벨을 살 수 있어요` };
       return { cost, apply: (x) => { x.items[item] = lv + 1; } };
     });
   }
@@ -252,6 +254,8 @@ export function itemCostOf(profile, item) {
   if (profile.itemCosts && item in profile.itemCosts) return profile.itemCosts[item];
   return itemCost(item, lv);
 }
+// 다음 레벨을 사려면 깨야 하는 장 (0 = 지금 살 수 있음) — 마스터는 없음
+export function itemGateOf(profile, item) { return profile.master ? 0 : itemGateCh(item, (profile.items && profile.items[item]) || 0, profile.maxStage) || 0; }
 export function hasToken() { return !!token(); }
 
 // ─── 장비: 장착 · 강화 · 팔기 ─────────────────────────

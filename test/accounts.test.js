@@ -195,12 +195,20 @@ test('랑방 대전: 영웅 강화(최대 20) · 아이템 구입은 서버가 �
   // 코인 부족
   const poor = await lbPost('/api/langbang/buy', u.token, { item: 'drink' });
   (await u.raw()).langbang.coins = 100;
-  r = await lbPost('/api/langbang/buy', u.token, { item: 'drink' });
+  r = await lbPost('/api/langbang/buy', u.token, { item: 'door' });
   assert.equal(r.ok, false);
   assert.match(r.message, /부족/);
   assert.equal(poor.profile.items.drink, 1);
+  // 진행도 잠금: 1장을 못 깼으면 드링크 2장째 · 문 Lv.4 는 못 산다 (이미 산 건 그대로)
+  (await u.raw()).langbang.coins = 1e6;
+  assert.match((await lbPost('/api/langbang/buy', u.token, { item: 'drink' })).message, /1장을 깨야/);
+  (await u.raw()).langbang.items.door = 3;
+  assert.match((await lbPost('/api/langbang/buy', u.token, { item: 'door' })).message, /1장을 깨야/);
+  (await u.raw()).langbang.items.door = 9;
+  r = await lbPost('/api/langbang/buy', u.token, { item: 'coupon' });
+  assert.equal(r.ok, true, r.message); assert.equal(r.profile.items.door, 9, '상한보다 높게 산 레벨도 그대로');
   // 최대 레벨
-  (await u.raw()).langbang.items.charm = 10;
+  (await u.raw()).langbang.items.charm = 15;
   (await u.raw()).langbang.coins = 1e6;
   assert.match((await lbPost('/api/langbang/buy', u.token, { item: 'charm' })).message, /최대/);
   (await u.raw()).langbang.heroes.staff = 20;
@@ -366,7 +374,7 @@ test('랑방 대전 모집 · 미션 · 시즌 · 성급 · 출석 · 상자 · 
   let r = await lbPost('/api/langbang/gacha', u.token, { n: 10, pay: 'coin' });
   assert.equal(r.ok, true, r.message);
   assert.equal(r.results.length, 10);
-  assert.equal(r.profile.coins, 100000 - 2700);
+  assert.equal(r.profile.coins, 100000 - 4500);
   assert.equal(r.profile.pulls, 10);
   assert.equal((await lbPost('/api/langbang/gacha', u.token, { n: 10, pay: 'ticket' })).ok, false, '모집권 없음');
   const me = (await get('/api/langbang/me', u.token)).profile;

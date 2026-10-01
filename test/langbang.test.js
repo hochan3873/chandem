@@ -471,7 +471,7 @@ test('보상 계산: 첫 클리어 보너스가 크고, 새 별마다 보너스,
   assert.equal(more.newStars, 1);
   assert.ok(more.total > again.total && first.total > more.total);
   assert.ok(D.stageReward(30, 3, 3).total > D.stageReward(1, 3, 3).total * 5, '뒤 스테이지일수록 많이');
-  assert.ok(D.stageReward(5, 3, 0, 10).total > D.stageReward(5, 3, 0, 0).total * 1.5, '단골 쿠폰');
+  assert.ok(D.stageReward(5, 3, 0, 10).total > D.stageReward(5, 3, 0, 0).total * 1.35, '단골 쿠폰 (+4% × 10)');
 });
 
 // ─── 새 악당: 골목 사채업자 · 인피 총무 · 진상 연합 회장 ─────────
@@ -970,7 +970,7 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   let first = L.gachaPull(lb, 10, 'coin', 'u0', 0).results;
   assert.ok(first.some((x) => x.k === 'epicHero'), '처음 10회 T4 확정');
   for (let i = 0; i < 300; i++) {
-    lb.coins = 1e9; lb.gear.length = 0;
+    lb.coins = 1e9; lb.gear.length = 0; lb.gachaDay = null; // (코인 하루 30번 제한은 따로 검사)
     const r = L.gachaPull(lb, 10, 'coin', 'u', 0);
     assert.ok(r.results.some((x) => ['legendHero', 'epicHero', 't3Card', 'mythGear'].includes(x.k)), '10회 T3 이상');
     assert.ok(!r.results.some((x) => x.k === 'legendHero'), '4-10 전엔 LEGEND 없음');
@@ -992,11 +992,11 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   // 100만 번 (천장 없이) 확률이 표와 맞는다
   lb = mk(60); lb.pulls = 5;
   const cnt = {}, N = 1e6;
-  for (let i = 0; i < N; i++) { lb.pity.hero = 0; lb.pity.legend = 0; lb.gear.length = 0; const k = L.gachaPull(lb, 1, 'coin', 'r', 0, i * 2654435761 >>> 0).results[0].k; cnt[k] = (cnt[k] || 0) + 1; lb.coins = 1e9; }
+  for (let i = 0; i < N; i++) { lb.pity.hero = 0; lb.pity.legend = 0; lb.gear.length = 0; lb.gachaDay = null; const k = L.gachaPull(lb, 1, 'coin', 'r', 0, i * 2654435761 >>> 0).results[0].k; cnt[k] = (cnt[k] || 0) + 1; lb.coins = 1e9; }
   for (const r of L.GACHA_RATES) { const got = (cnt[r.k] || 0) / N * 100; assert.ok(Math.abs(got - r.w) < Math.max(0.06, r.w * 0.03), `${r.k} ${got.toFixed(3)}% vs ${r.w}%`); }
   // 실제 천장까지: 평균 LEGEND 까지 횟수 (소프트 천장 효과) · 90 넘지 않음
   lb = mk(60); lb.pulls = 5; let n = 0, got = [], max = 0;
-  for (let i = 0; i < 40000; i++) { n++; const k = L.gachaPull(lb, 1, 'coin', 'q', 0, i * 40503 + 7).results[0].k; lb.coins = 1e9; lb.gear.length = 0; if (k === 'legendHero') { got.push(n); max = Math.max(max, n); n = 0; } }
+  for (let i = 0; i < 40000; i++) { n++; lb.gachaDay = null; const k = L.gachaPull(lb, 1, 'coin', 'q', 0, i * 40503 + 7).results[0].k; lb.coins = 1e9; lb.gear.length = 0; if (k === 'legendHero') { got.push(n); max = Math.max(max, n); n = 0; } }
   assert.ok(max <= L.PITY_LEGEND, `최대 ${max}`);
   const avg = got.reduce((a, b) => a + b, 0) / got.length;
   assert.ok(avg > 50 && avg < 75, `평균 ${avg.toFixed(1)}회`);
@@ -1008,6 +1008,21 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   lb = mk(12); lb.coins = 100; lb.tickets = 0;
   assert.match(L.gachaPull(lb, 1, 'coin', 'u', 0).error, /코인/);
   assert.match(L.gachaPull(lb, 10, 'ticket', 'u', 0).error, /모집권/);
+  // 코인 모집은 하루 30번 (한국 시간 자정 초기화) · 모집권은 제한 없음
+  assert.deepEqual(L.GACHA_COST, { one: 500, ten: 4500 });
+  lb = mk(12); lb.pulls = 5; lb.tickets = 100;
+  const day0 = Date.UTC(2026, 9, 1, 3); // KST 정오
+  for (let i = 0; i < 3; i++) assert.ok(!L.gachaPull(lb, 10, 'coin', 'cap', day0).error);
+  assert.equal(L.gachaCoinLeft(lb, day0), 0);
+  assert.match(L.gachaPull(lb, 1, 'coin', 'cap', day0).error, /오늘 코인 모집은 다 했어요/);
+  assert.ok(!L.gachaPull(lb, 10, 'ticket', 'cap', day0).error, '모집권은 그대로');
+  assert.equal(lb.coins, 1e9 - 3 * 4500);
+  lb = mk(12); lb.pulls = 5; lb.gachaDay = { day: L.dayIndex(day0), n: 25 };
+  assert.match(L.gachaPull(lb, 10, 'coin', 'cap', day0).error, /5번 남았어요/, '10회는 남은 횟수가 모자라면 안 됨');
+  assert.ok(!L.gachaPull(lb, 1, 'coin', 'cap', day0).error);
+  const nextDay = day0 + 15 * 3600e3; // 다음날 KST 03시
+  assert.equal(L.gachaCoinLeft(lb, nextDay), L.GACHA_COIN_DAILY, '자정에 초기화');
+  assert.deepEqual(L.normLive(JSON.parse(JSON.stringify({ gachaDay: lb.gachaDay })), {}).gachaDay, lb.gachaDay, '저장·불러오기');
 });
 
 test('live: 성급 · 시즌 30단계 · 칭호/프레임 · 챕터 별 상자 · 출석 · 이상한 값 정리', async () => {
@@ -1932,11 +1947,122 @@ test('소모품 나머지: 택시(밀기·느리게) · 얼음물(꽁꽁 · 보�
   // 드롭: 같은 시드 = 같은 결과 · 1장엔 없음 · 창립 멤버 셋이 보스 판 → 가끔 의리주
   assert.deepEqual(L.rollCons(5, 3, 3, false, []), {});
   let n = 0, u = 0; for (let s = 0; s < 2000; s++) { const r = L.rollCons(s, 30, 3, false, ['bangjang', 'gunman', 'gunnyeo']); n += Object.values(r).reduce((a, x) => a + x, 0); u += r.uiriju | 0; }
-  assert.ok(n > 300 && n < 900, '3장 보스 판 드롭 ' + n); assert.ok(u > 120 && u < 300, '의리주 ' + u);
+  assert.ok(n > 300 && n < 1100, '3장 보스 판 드롭 ' + n); assert.ok(u > 120 && u < 300, '의리주 ' + u);
   // 상점: 보조배터리 주 1개
   const lb = { stones: 1000, coins: 99999, cons: {} };
-  assert.ok(!L.consBuy(lb, 'battery').error); assert.equal(lb.cons.battery, 1); assert.equal(lb.stones, 700);
+  assert.ok(!L.consBuy(lb, 'battery').error); assert.equal(lb.cons.battery, 1); assert.equal(lb.stones, 900);
   assert.ok(L.consBuy(lb, 'battery').error, '주 1개');
   for (let i = 0; i < 3; i++) assert.ok(!L.consBuy(lb, 'aldicom').error); assert.ok(L.consBuy(lb, 'aldicom').error, '하루 3개');
   assert.ok(L.consBuy(lb, 'uiriju').error, '의리주는 안 판다');
+});
+
+test('경제 조정: 무한 계약 코인 배율은 서버 계산 · 주간 보상 순서 · 레이드 1위 전설 · 상점 값', async () => {
+  const L = await load('live.js');
+  assert.equal(L.endlessCoinMul(undefined, 30), 1);
+  assert.equal(L.endlessCoinMul(['fast'], 3), 1, '6웨이브 전엔 계약이 없다');
+  assert.ok(Math.abs(L.endlessCoinMul(['fast', 'fast', 'thick', 'nope'], 30) - 1.3 * 1.15) < 1e-9, '종류마다 한 번 · 없는 이름은 무시');
+  assert.equal(L.endlessCoinMul(['slowhand'], 30), 1, '점수 계약은 코인 그대로');
+  // 무한 주간: 순위가 높을수록 모집권이 많거나 같다
+  const tk = [1, 2, 3, 4, 10, 11].map((r) => L.endlessWeekReward(r).tickets);
+  for (let i = 1; i < tk.length; i++) assert.ok(tk[i] <= tk[i - 1], `무한 주간 ${tk}`);
+  assert.equal(L.raidReward(1, 1, 1, true).gear, 'legend');
+  assert.equal(L.CONS_SHOP.battery.stones, 100);
+  const LBR = require('../server/langbang-rules');
+  assert.deepEqual(LBR.CARD_PICK, D.CARD_PICK);
+  assert.deepEqual(D.CARD_PICK, { cost: 1500, n: 5, perWeek: 5 });
+  assert.deepEqual(['door', 'coupon', 'battery', 'charm'].map((k) => [D.ITEMS[k].base, D.ITEMS[k].per]), [[150, 0.1], [250, 0.04], [120, 0.08], [165, 0.015]]);
+});
+
+test('새 장비 7종: 보스 · 졸개 · 치명타 피해 · 마무리 · 팀 경험치 · 입구 보호 · 총공지 (상한) · 서버와 같음 · 그림 대신', async () => {
+  const R = require('../server/langbang-rules');
+  const NEW = ['gymcard', 'speaker', 'goldchain', 'rolex', 'corpcard', 'lastorder', 'radio'];
+  for (const t of NEW) {
+    assert.ok(D.GEAR_IDS.includes(t) && R.GEAR_IDS.includes(t), t);
+    assert.ok(D.GEAR_STATS[D.GEAR[t].stat] && D.STAT_HELP[D.GEAR[t].stat] && D.GEAR_INFO[t], t + ' 설명');
+    assert.equal(D.GEAR[t].img, `/img/lb/gear/${D.GEAR_ART_TODO[t] || t}.webp`);
+  }
+  for (const t of Object.values(D.GEAR_ART_TODO)) assert.ok(D.GEAR[t] && !D.GEAR_ART_TODO[t], '대신 쓰는 그림은 있는 장비 그림');
+  assert.deepEqual(D.gearPoolFor(5).filter((t) => NEW.includes(t)), ['gymcard', 'speaker'], '1장은 두 개만');
+  const mk = (gear, extra = {}) => { const g = S.createGame({ rng: seeded(3), noWaves: true, heroes: ['staff'], gear: { staff: gear }, ...extra }); return g; };
+  const hit = (gear, kind, crit = false) => {
+    const g = mk(gear); g.noTypes = true;
+    const e = S.spawnEnemy(g, 'thug', 180, 200, { hpMul: 100 });
+    if (kind === 'boss') e.boss = true;
+    if (kind === 'low') e.hp = e.maxHp * 0.2;
+    e.armor = 0; e.fast = false;
+    return S.damageEnemy(g, e, 100, crit, g.heroes[0], false);
+  };
+  const b0 = hit({}, 'boss'), n0 = hit({}, 'normal'), l0 = hit({}, 'low'), c0 = hit({}, 'normal', true);
+  assert.ok(Math.abs(hit({ boss: 0.2 }, 'boss') / b0 - 1.2) < 1e-6, '헬스장 회원권: 보스');
+  assert.equal(hit({ boss: 0.2 }, 'normal'), n0, '보스 아니면 그대로');
+  assert.ok(Math.abs(hit({ swarm: 0.2 }, 'normal') / n0 - 1.2) < 1e-6, '스피커: 졸개');
+  assert.equal(hit({ swarm: 0.2 }, 'boss'), b0, '보스엔 안 붙음');
+  assert.ok(Math.abs(hit({ critDmg: 0.5 }, 'normal', true) / c0 - 1.25) < 1e-6, '금목걸이: 치명타 2배 → 2.5배');
+  assert.equal(hit({ critDmg: 0.5 }, 'normal', false), n0, '치명타 아니면 그대로');
+  assert.ok(Math.abs(hit({ exec: 0.3 }, 'low') / l0 - 1.3) < 1e-6, '라스트오더 종: 체력 30% 이하');
+  assert.equal(hit({ exec: 0.3 }, 'normal'), n0);
+  // 팀 능력치: 멤버 것을 더하고 상한
+  const team = (q) => S.createGame({ rng: seeded(3), noWaves: true, heroes: ['staff', 'gunman'], gear: { staff: q, gunman: q } });
+  const g0 = team({});
+  assert.ok(Math.abs(team({ exp: 0.1 }).mods.expMul / g0.mods.expMul - 1.2) < 1e-9, '법인카드: 둘이 +20%');
+  assert.ok(Math.abs(team({ exp: 0.5 }).mods.expMul / g0.mods.expMul - 1 - D.GEAR_TEAM_CAP.exp) < 1e-9, '경험치 상한');
+  assert.ok(Math.abs(team({ guard: 0.5 }).mods.baseArmor / g0.mods.baseArmor - (1 - D.GEAR_TEAM_CAP.guard)) < 1e-9, '입구 보호 상한');
+  assert.ok(Math.abs(team({ ult: 0.1 }).mods.ultCharge - g0.mods.ultCharge - 0.2) < 1e-9, '명품 시계');
+  assert.ok(Math.abs(team({ ult: 0.9 }).mods.ultCharge - g0.mods.ultCharge - D.GEAR_TEAM_CAP.ult) < 1e-9, '총공지 상한');
+  // 무전기: 입구 피해가 실제로 준다
+  const gg = team({ guard: 0.1 }), e = S.spawnEnemy(gg, 'thug', 180, gg.ropeY);
+  const hp0 = gg.base.hp; S.damageBase(gg, 100, e); assert.ok(Math.abs(hp0 - gg.base.hp - 80) < 1e-6, '무전기 둘: −20%');
+});
+
+test('새 소모품 3종: 폭탄주 · 에너지 드링크 · 경호원 호출 · 드롭 · 상점 · 그림 대신', async () => {
+  const L = await load('live.js');
+  for (const id of ['bombshot', 'energydrink', 'bouncer']) {
+    assert.ok(L.CONS[id] && L.CONS_IDS.includes(id));
+    assert.equal(L.CONS[id].art, 'it_' + id, '만들 그림 이름');
+    assert.equal(L.CONS[id].icon, L.CONS_ART_TODO[id], '그림이 생길 때까지 있는 그림');
+    assert.ok(/^it_(aldicom|battery|tambourine|taxi|icewater|reroll|uiriju)$/.test(L.CONS[id].icon));
+  }
+  const mk = () => { const g = S.createGame({ rng: seeded(9), noWaves: true, heroes: ['staff', 'bangjang'], tempo: true }); g.cons = ['bombshot', 'energydrink', 'bouncer']; return g; };
+  let g = mk();
+  const a = S.spawnEnemy(g, 'thug', 120, 200, { hpMul: 1 }), b = S.spawnEnemy(g, 'boss_thug', 240, 200);
+  a.armor = 0; b.armor = 0; const ah = a.hp, bh = b.hp;
+  assert.equal(S.useCons(g, 'bombshot'), true);
+  assert.ok(a.dead || Math.abs(ah - a.hp - a.maxHp * 0.4) < 1, '졸개 40%');
+  assert.ok(bh - b.hp > 0 && bh - b.hp <= b.maxHp * 0.0601, '보스는 6%');
+  g = mk(); for (const h of g.heroes) { h.skillCd = 20; h.tiredT = 5; } g.mom = 0;
+  assert.equal(S.useCons(g, 'energydrink'), true);
+  assert.ok(g.heroes.every((h) => h.skillCd === 0 && h.tiredT === 0) && g.mom === 100, '스킬 바로 · 기세 +1칸');
+  g = mk(); assert.equal(S.useCons(g, 'bouncer'), true);
+  const e = S.spawnEnemy(g, 'thug', 180, g.ropeY), hp0 = g.base.hp;
+  S.damageBase(g, 50, e); assert.ok(Math.abs(hp0 - g.base.hp - 10) < 1e-6, '경호원: −80%');
+  for (let i = 0; i < 600; i++) S.step(g, 1 / 60);
+  assert.ok(!(g.bouncerT > 0), '8초 뒤 끝');
+  // 드롭: 장마다 열림 · 같은 시드 같은 결과 · 예전 소모품 드롭은 그대로 (뒤에 굴림)
+  let ed = 0, bs = 0, bo = 0;
+  for (let s = 0; s < 4000; s++) { const r = L.rollCons(s, 40, 3, false, []); ed += r.energydrink | 0; bs += r.bombshot | 0; bo += r.bouncer | 0; }
+  assert.ok(ed > 100 && ed < 230 && bs > 70 && bs < 180 && bo > 90 && bo < 240, `드롭 ${ed}/${bs}/${bo}`);
+  for (let s = 0; s < 500; s++) { const r = L.rollCons(s, 15, 3, false, []); assert.ok(!r.bombshot && !r.bouncer); }
+  // 상점
+  const lb = { stones: 1000, coins: 99999, cons: {} };
+  assert.ok(!L.consBuy(lb, 'energydrink').error); assert.ok(L.consBuy(lb, 'energydrink').error, '하루 1개');
+  assert.ok(!L.consBuy(lb, 'bouncer').error && !L.consBuy(lb, 'bouncer').error); assert.ok(L.consBuy(lb, 'bouncer').error, '주 2개');
+  assert.ok(L.consBuy(lb, 'bombshot').error, '폭탄주는 드롭만');
+  assert.equal(lb.stones, 1000 - 120);
+});
+
+test('상점 영구 강화: 진행도에 따라 살 수 있는 레벨 · Lv.11~15 윗단계 (비싸고 효과 절반) · 서버와 같음', async () => {
+  const R = require('../server/langbang-rules');
+  for (const id of D.ITEM_IDS) {
+    for (let lv = 0; lv <= 16; lv++) { assert.equal(R.itemCost(id, lv), D.itemCost(id, lv), `${id} ${lv} 값`); assert.equal(R.itemValue(id, lv), D.itemValue(id, lv)); }
+    for (let s = 0; s <= 60; s++) { assert.equal(R.itemLvCap(id, s), D.itemLvCap(id, s)); for (let lv = 0; lv <= 15; lv++) assert.equal(R.itemGateCh(id, lv, s), D.itemGateCh(id, lv, s)); }
+  }
+  // 3-2 도 못 깬 사람(최대 2-10)은 문 Lv.7 · 드링크 2장까지만
+  assert.equal(D.itemLvCap('door', 20), 7); assert.equal(D.itemLvCap('drink', 21), 2); assert.equal(D.itemLvCap('slot5', 0), 1, '덱 칸은 그대로');
+  assert.equal(D.itemGateCh('door', 7, 21), 3, '다음 레벨은 3장 클리어 필요'); assert.equal(D.itemGateCh('door', 6, 21), 0);
+  assert.equal(D.itemGateCh('coupon', 10, 49), 5, 'Lv.11 은 5장 클리어'); assert.equal(D.itemGateCh('coupon', 14, 60), 0); assert.equal(D.itemGateCh('coupon', 15, 60), null, '최대');
+  assert.equal(D.itemGateCh('door', 12, 40), 6, '이미 산 레벨이 상한보다 높아도 그대로 (더 못 살 뿐)');
+  // 윗단계: 값은 가파르게 · 효과는 절반
+  assert.ok(D.itemCost('door', 10) > D.itemCost('door', 9) * 1.7);
+  assert.ok(Math.abs(D.itemValue('door', 15) - 1.25) < 1e-9 && Math.abs(D.itemValue('door', 10) - 1) < 1e-9);
+  assert.equal(D.ITEMS.door.max, 15); assert.equal(D.ITEMS.drink.max, 3);
 });

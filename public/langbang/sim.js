@@ -7,7 +7,7 @@ import {
   TRAITS, REVEAL_HEROES,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
-  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL,
+  CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
 
@@ -84,7 +84,12 @@ export function createGame(opt = {}) {
   let hpUp = 0;
   for (const k in g.gear) hpUp += (g.gear[k] && g.gear[k].hp) || 0;
   // 신화: 입구 초당 회복 (최대 내구도 비율) · 총공지 충전
-  for (const k in g.gear) { const q = g.gear[k] || {}; if (q.regen) g.mods.regen += q.regen * RULES.baseHp; if (q.ult) g.mods.ultCharge += q.ult; }
+  // 팀 장비: 총공지 충전 · 경험치(법인카드) · 입구 보호(경호원 무전기) — 멤버 것을 더하되 상한
+  const team = { ult: 0, exp: 0, guard: 0 };
+  for (const k in g.gear) { const q = g.gear[k] || {}; if (q.regen) g.mods.regen += q.regen * RULES.baseHp; for (const t in team) team[t] += q[t] || 0; }
+  g.mods.ultCharge += Math.min(GEAR_TEAM_CAP.ult, team.ult);
+  if (team.exp) g.mods.expMul *= 1 + Math.min(GEAR_TEAM_CAP.exp, team.exp);
+  if (team.guard) g.mods.baseArmor *= 1 - Math.min(GEAR_TEAM_CAP.guard, team.guard);
   if (hpUp) { g.base.max = Math.round(g.base.max * (1 + hpUp)); g.base.hp = g.base.max; }
   if (opt.deck && opt.join && !opt.raid) {
     // 합류 모드: 대장(덱 1번) 한 명으로 시작 → 나머지는 레벨업 "합류" 카드로 (자리는 덱에서 정한 자리)
@@ -566,7 +571,7 @@ function updateWall(g, h, dt) {
   if (h.wallSt === 'out') {
     const v = W0.speed[lv] * (big > 1 ? 1.25 : 1); // 뚜벅뚜벅 — 절대 뛰지 않는다
     h.py -= v * dt;
-    const hw = W0.w * big;
+    const hw = (Array.isArray(W0.w) ? W0.w[lv] : W0.w) * big; // 밀어내는 폭의 절반 (레벨마다 넓어짐)
     let touch = 0;
     for (const e of g.enemies) {
       if (e.dead || Math.abs(e.x - h.px) > hw + (e.r || 14) || e.y > h.py + 10 || e.y < h.py - 70) continue;
@@ -579,7 +584,7 @@ function updateWall(g, h, dt) {
       e.slowT = Math.max(e.slowT, W0.slowSec); e.slowMul = Math.min(e.slowMul || 1, e.boss ? W0.bossTouch : W0.touchSlow);
       h.wallHp -= (e.atk || 3) * (e.boss ? 1.5 : 1) * (1 - W0.cut) * dt * 0.7;
     }
-    if (touch && g.t - (h.pushT || -9) > 1.2) { h.pushT = g.t; ev(g, 'wallPush', { x: h.px, y: h.py - 30, n: touch }); }
+    if (touch && g.t - (h.pushT || -9) > 1.2) { h.pushT = g.t; ev(g, 'wallPush', { x: h.px, y: h.py - 30, n: touch, w: hw }); }
     if (h.py < 110 || h.wallHp <= 0) {
       // 끝에서 쿵: 뭉친 진상 1칸 더 밀치고 0.5초 기절 (스킬 중이면 1초)
       forEnemiesNear(g, h.px, h.py - 30, hw + 60, (e) => { if (!e.boss) { e.y = Math.max(FIELD.spawnY + 10, e.y - 40); e.stunT = Math.max(e.stunT, big > 1 ? 1 : 0.5); } return true; });
@@ -1186,6 +1191,14 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.goodsOn) dmg *= 1 - e.def.goods.cut; // 오타쿠 굿즈 보호막
   if (e.sleeping) { dmg *= e.def.sleep ? e.def.sleep.dmg : 0.5; if (e.def.sleep && ++e.sleepHits >= e.def.sleep.hits) { e.sleeping = false; ev(g, 'wake', { x: e.x, y: e.y - e.def.size * 0.6 }); } }
   if (src && src.def) dmg *= e.boss || e.mid ? 1 + g.mods.bossDmg : 1 + g.mods.swarmDmg;
+  // 장비: 보스 피해(헬스장 회원권) · 졸개 피해(우퍼 스피커) · 치명타 피해(금목걸이) · 마무리(라스트오더 종)
+  if (src && src.gear) {
+    const q = src.gear;
+    if (q.boss && (e.boss || e.mid)) dmg *= 1 + q.boss;
+    if (q.swarm && !e.boss && !e.mid && !e.elite) dmg *= 1 + q.swarm;
+    if (q.critDmg && crit) dmg *= 1 + q.critDmg / g.mods.critMul;
+    if (q.exec && e.maxHp > 0 && e.hp <= e.maxHp * 0.3) dmg *= 1 + q.exec;
+  }
   // 장비 '버프 벗기기': 보호막 · 독재자 버프 · 가오를 벗긴다
   if (src && src.gear && src.gear.strip && (e.shield > 0 || e.dictT > 0 || e.gaoOn) && g.rng() < src.gear.strip) {
     e.shield = 0; e.dictT = 0; if (e.gaoOn) e.gaoOn = false;
@@ -1385,7 +1398,7 @@ export function damageBase(g, dmg, e) {
   for (const tank of g.heroes) if (tank.def.guard && e && Math.abs(e.x - tank.x) < tank.def.guard.r * (tank.cm.guardR || 1)) dmg *= 1 - Math.min(0.6, tank.def.guard.cut + (tank.cm.guardCut || 0));
   if (e && e.tauntBy && e.tauntBy.wsSt === 'sit' && e.tauntBy.wsPool > 0) { const C = e.tauntBy.def.skill.consult; e.tauntBy.wsPool -= dmg * (1 - C.cut); return; } // 상담 중: 입구 대신 원식
   if (e && e.tauntT > 0) dmg *= 0.2; // 정원식 결혼정보회사: 원식만 바라본다
-  dmg *= g.mods.baseArmor * (g.bandT > 0 ? 1 - g.bandArmor : 1);
+  dmg *= g.mods.baseArmor * (g.bandT > 0 ? 1 - g.bandArmor : 1) * (g.bouncerT > 0 ? 1 - CONS_FX.bouncer.cut : 1); // 경호원 호출: 입구 피해 −80%
   if (g.doorShield > 0 && g.doorShieldT > 0) { const a = Math.min(g.doorShield, dmg); g.doorShield -= a; dmg -= a; if (g.doorShield <= 0) { g.doorShield = 0; ev(g, 'doorShieldBreak', { x: g.W / 2, y: g.ropeY }); } } // 건전녀 방패가 먼저 막는다
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
@@ -2755,9 +2768,9 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       ev(g, 'sled', { x: h.x, y: h.y, w: sk.w });
       break;
     }
-    case 'oneman': { // 강병화 원맨쇼: 8초 보스 빼고 모두 춤추며 멈춤 · 보스 50% 느리게 · 모두 공격력 +30% · 상태이상 해제
+    case 'oneman': { // 강병화 원맨쇼: 5초(Lv5 6.5초) 보스·중간 보스 빼고 모두 춤추며 멈춤 · 보스 50% 느리게 · 모두 공격력 +25% · 상태이상 해제
       const sec = sk.sec[lv] + (h.lv >= 5 ? 1 : 0);
-      for (const e of g.enemies) { if (e.dead) continue; if (e.boss) { e.slowT = Math.max(e.slowT, sec); e.slowMul = Math.min(e.slowMul || 1, 0.5); } else { e.stunT = Math.max(e.stunT, sec * stunMul(e)); e.danceT = sec; } }
+      for (const e of g.enemies) { if (e.dead) continue; if (e.boss || e.mid) { e.slowT = Math.max(e.slowT, sec); e.slowMul = Math.min(e.slowMul || 1, 0.5); } else { e.stunT = Math.max(e.stunT, sec * stunMul(e)); e.danceT = sec; } } // 중간 보스도 보스처럼 느려지기만
       for (const o of g.heroes) { o.stunT = 0; o.charmT = 0; o.rumorT = 0; o.fearT = 0; o.paperT = 0; o.grabT = 0; o.silenceT = 0; o.aspdDebT = 0; }
       g.onemanT = sec; g.onemanAtk = sk.atk;
       ev(g, 'oneman', { x: h.x, y: h.y, sec });
@@ -2929,6 +2942,7 @@ export function step(g, dt) {
   if (g.rallyT > 0) { g.rallyT -= dt; if (g.rallyHeal && g.base.hp < g.base.max) g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * g.rallyHeal * dt); }
   if (g.tambT > 0) g.tambT -= dt;
   if (g.uirijuT > 0) g.uirijuT -= dt;
+  if (g.bouncerT > 0) g.bouncerT -= dt;
   if (g.onemanT > 0) g.onemanT -= dt;
   if (g.consCdT > 0) g.consCdT -= dt;
   if (g.doorShieldT > 0) { g.doorShieldT -= dt; if (g.doorShieldT <= 0) g.doorShield = 0; }
@@ -3346,6 +3360,8 @@ export function restoreGame(snap, opt = {}) {
 
 // ─── 전투 소모품 (live.js CONS) — 칸마다 판에 한 번 · 소모품끼리 3초 간격 ───
 export const CONS_CD = 3;
+// 새 소모품 숫자 (live.js CONS 설명과 같게)
+export const CONS_FX = { bombshot: { pct: 0.4, boss: 0.06 }, bouncer: { sec: 8, cut: 0.8 } };
 export function consReady(g, id) { return !!(g.cons && g.cons.includes(id) && !(g.consUsed || {})[id] && !(g.consCdT > 0) && !g.over && !(g.pvp && g.pvp.ranked)); }
 export function useCons(g, id) {
   if (!consReady(g, id)) return false;
@@ -3373,6 +3389,17 @@ export function useCons(g, id) {
     g.uirijuT = 12;
     if (g.mom !== null && g.mom !== undefined) g.mom = Math.min(MOMENTUM.max, g.mom + MOMENTUM.per);
     ev(g, 'consUse', { id, x: g.W / 2, y: g.rowY });
+  } else if (id === 'bombshot') { // 폭탄주: 화면의 진상 모두에게 최대 체력 비례 피해 (보스·중간 보스는 조금)
+    let n = 0;
+    for (const e of g.enemies) { if (e.dead || e.y < 0 || e.raidBoss) continue; n++; damageEnemy(g, e, (e.maxHp || e.hp) * (e.boss || e.mid ? CONS_FX.bombshot.boss : CONS_FX.bombshot.pct), false, null, true); }
+    ev(g, 'consUse', { id, n, x: g.W / 2, y: g.H * 0.4 });
+  } else if (id === 'energydrink') { // 에너지 드링크: 모든 멤버 스킬 바로 준비 · 기진맥진 풀기 · 기세 +1칸
+    for (const h of g.heroes) { if (h.def.skill) h.skillCd = 0; h.tiredT = 0; }
+    if (g.mom !== null && g.mom !== undefined) g.mom = Math.min(MOMENTUM.max, g.mom + MOMENTUM.per);
+    ev(g, 'consUse', { id, x: g.W / 2, y: g.rowY });
+  } else if (id === 'bouncer') { // 경호원 호출: 8초 동안 입구 받는 피해 −80%
+    g.bouncerT = CONS_FX.bouncer.sec;
+    ev(g, 'consUse', { id, sec: CONS_FX.bouncer.sec, x: g.W / 2, y: g.ropeY });
   } else if (id === 'reroll') { // 쿠폰: 카드 화면에서 (여기선 쓴 표시만)
     ev(g, 'consUse', { id, x: g.W / 2, y: g.rowY });
   } else return false;

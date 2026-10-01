@@ -177,7 +177,7 @@ test('레이드 공식: 매일 3번 (12:00~13:30 · 15:00~16:30 · 21:00~23:00 K
   assert.ok(strong > weak * 5, '성장할수록 상한이 크다');
   assert.ok(L.raidCap({ maxStage: 60, heroes: {} }, 9999) === L.raidCap({ maxStage: 60, heroes: {} }, 165), '시간은 165초까지만');
   const k = L.raidReward(500000, 900000, 1, true), p = L.raidReward(100000, 400000, 3, false);
-  assert.ok(k.tickets >= 5 && k.title === 'raid1');
+  assert.ok(k.tickets >= 5 && k.title === 'raid1' && k.gear === 'legend', '1위는 전설 장비 (레이드는 하루 3번이라 신화 아님)');
   assert.ok(p.coins > 0 && p.coins < k.coins);
   const bd = await get('/api/langbang/raid');
   assert.equal(bd.ok, true);
@@ -399,11 +399,11 @@ test('멤버 강화 = 코인 + 그 멤버 카드 (+1~5 1장 · +6~10 2장 · +11
   await setLb({ wild: 1 });
   const b = await post('/api/langbang/upgrade', u.token, { hero: 'staff' });
   assert.equal(b.ok, true, b.message); assert.equal(b.profile.heroes.staff, 6); assert.equal(b.profile.shards.staff | 0, 0); assert.equal(b.profile.wild, 0, '범용 카드로 채움');
-  for (let i = 0; i < 3; i++) { const r = await post('/api/langbang/cards/pick', u.token, { hero: 'staff' }); assert.equal(r.ok, true, r.message); }
+  for (let i = 0; i < LBR.CARD_PICK.perWeek; i++) { const r = await post('/api/langbang/cards/pick', u.token, { hero: 'staff' }); assert.equal(r.ok, true, r.message); }
   const c = await post('/api/langbang/cards/pick', u.token, { hero: 'staff' });
-  assert.equal(c.ok, false, '주 3번까지');
+  assert.equal(c.ok, false, `주 ${LBR.CARD_PICK.perWeek}번까지`);
   const me = await get('/api/langbang/me', u.token);
-  assert.equal(me.profile.shards.staff, LBR.CARD_PICK.n * 3);
+  assert.equal(me.profile.shards.staff, LBR.CARD_PICK.n * LBR.CARD_PICK.perWeek);
   await setLb({ heroes: { staff: LBR.metaMaxOf('staff') }, hstars: { staff: 5 }, shards: { staff: 7 }, wild: 0 });
   const cv = await post('/api/langbang/cards/convert', u.token, {});
   assert.equal(cv.ok, true, cv.message); assert.equal(cv.profile.wild, 7); assert.equal(cv.profile.shards.staff | 0, 0);
@@ -465,7 +465,8 @@ test('체력 · 무한 입장 · 우편함: 스테이지는 체력(실패 절반
   const lb = {}; L.normLive({}, lb);
   const t0 = 1e12;
   const M = L.STAMINA.max, C = L.STAMINA.stage, RF = Math.floor(C / 2);
-  assert.deepEqual([M, C, L.STAMINA.repeat, L.STAMINA.hell, L.STAMINA.checkin, L.STAMINA.buy.perDay, L.STAMINA.regenMs], [50, 6, 4, 12, 10, 2, 8 * 60e3], '조인 기력 숫자');
+  assert.deepEqual([M, C, L.STAMINA.repeat, L.STAMINA.hell, L.STAMINA.checkin, L.STAMINA.buy.perDay, L.STAMINA.regenMs], [50, 6, 4, 9, 10, 2, 8 * 60e3], '조인 기력 숫자');
+  assert.deepEqual(L.STAMINA.buy.cost, [600, 1500], '체력 사기 값');
   assert.equal(L.staminaNow(lb, t0).v, M);
   assert.equal(L.stageStart(lb, 3, false, false, t0).cost, C);
   assert.equal(L.staminaNow(lb, t0).v, M - C);

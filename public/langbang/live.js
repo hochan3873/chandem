@@ -4,7 +4,7 @@
 // 모든 코인은 게임 안 점수일 뿐 (현금 결제 없음).
 import {
   HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK,
-  GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT, heroTier, GEAR,
+  GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT, heroTier, GEAR, CURSES,
 } from './data.js';
 export const stageBossN = (s) => stageBosses(s).length;
 
@@ -23,9 +23,16 @@ export const CONS = {
   taxi: { id: 'taxi', name: '막차 택시 호출권', rarity: 'epic', icon: 'it_taxi', desc: '택시가 길을 쓸고 지나가 화면의 진상을 두 칸 밀치고 3초 40% 느리게 (보스는 한 칸 · 안 느려짐)', tip: '입구에 진상이 잔뜩 붙었을 때' },
   icewater: { id: 'icewater', name: '얼음물 한 잔', rarity: 'epic', icon: 'it_icewater', desc: '보스 빼고 모두 3초 꽁꽁 · 보스는 3초 50% 느리게', tip: '스킬을 몰아 쓰기 직전에' },
   reroll: { id: 'reroll', name: '증강 새로고침 쿠폰', rarity: 'rare', icon: 'it_reroll', desc: '레벨업 카드 화면에서 카드를 한 번 새로 뽑아요', tip: '원하는 멤버 카드가 안 뜰 때' },
+  bombshot: { id: 'bombshot', name: '폭탄주', rarity: 'epic', icon: 'it_bombshot', banner: '화면 진상에게 한 방!', desc: '화면 위 진상 모두에게 최대 체력 40% 피해 (보스·중간 보스는 6%)', tip: '떼거리가 화면을 꽉 채웠을 때' },
+  energydrink: { id: 'energydrink', name: '에너지 드링크', rarity: 'rare', icon: 'it_energydrink', banner: '스킬 전부 준비 완료!', desc: '모든 멤버 스킬 쿨타임 바로 충전 · 기진맥진 풀기 · 기세 +1칸', tip: '스킬을 다 쓴 직후 보스가 나왔을 때' },
+  bouncer: { id: 'bouncer', name: '경호원 호출', rarity: 'epic', icon: 'it_bouncer', banner: '8초 동안 입구 철벽', desc: '8초 동안 입구가 받는 피해 −80%', tip: '입구에 진상이 붙어 마구 때릴 때' },
   uiriju: { id: 'uiriju', name: '의리주', rarity: 'legend', icon: 'it_uiriju', hidden: true, desc: '12초 동안 모든 멤버 공격력 +60% · 공격 속도 +20% · 기세 +1칸', tip: '진짜 친구들끼리만 아는 술', hint: '방장 · 건전남 · 건전녀가 함께 보스를 잡으면? · 출석 20일 · 헬 모드에서 아주 가끔' },
 };
+// 그림이 아직 없는 소모품: 비슷한 그림을 대신 쓴다 (public/img/lb/ui2/<art>.webp 가 생기면 여기서 지우기)
+export const CONS_ART_TODO = { bombshot: 'it_aldicom', energydrink: 'it_icewater', bouncer: 'it_taxi' };
+for (const [id, fb] of Object.entries(CONS_ART_TODO)) if (CONS[id]) { CONS[id].art = CONS[id].icon; CONS[id].icon = fb; }
 // 얻는 곳 (서버 시드로): 2장부터 알디콤 8% · 3장부터 보스 판 보조배터리 3% · 탬버린 6% · 택시 3% · 얼음물 3% · 쿠폰 5% · 헬 의리주 0.5%
+//  · 에너지 드링크 4%(2장~) · 폭탄주 3%(3장~) · 경호원 호출 4%(4장~ 보스 판)
 export function rollCons(seed, stage, stars, hell, deck) {
   if (!stars) return {};
   let a = (seed ^ 0x2c0f) >>> 0;
@@ -42,11 +49,15 @@ export function rollCons(seed, stage, stars, hell, deck) {
   if (hell && rng() < 0.005) add('uiriju');
   // 히든: 창립 멤버 셋(방장 · 건전남 · 건전녀)이 함께 보스 판을 깨면 의리주 (처음 한 번은 꼭 · 그 뒤 10%)
   if (boss && Array.isArray(deck) && ['bangjang', 'gunman', 'gunnyeo'].every((h) => deck.includes(h)) && rng() < 0.1) add('uiriju');
+  // 새 소모품 (뒤에 굴려서 기존 드롭은 그대로): 2장부터 에너지 드링크 4% · 3장부터 폭탄주 3% · 4장부터 보스 판 경호원 4%
+  if (ch >= 2 && rng() < 0.04) add('energydrink');
+  if (ch >= 3 && rng() < 0.03) add('bombshot');
+  if (ch >= 4 && boss && rng() < 0.04) add('bouncer');
   return out;
 }
 export function consAdd(lb, got) { lb.cons = lb.cons || {}; lb.consDex = Array.isArray(lb.consDex) ? lb.consDex : []; for (const [k, v] of Object.entries(got || {})) if (CONS[k] && v > 0) { lb.cons[k] = Math.min(CONS_CAP, (lb.cons[k] | 0) + v); if (!lb.consDex.includes(k)) lb.consDex.push(k); } }
-// 상점: 보조배터리 주 1개 (강화석 300) · 알디콤 하루 3개 (코인) · 탬버린 · 쿠폰 하루 2개 (코인)
-export const CONS_SHOP = { battery: { stones: 300, per: 'week', n: 1 }, aldicom: { coins: 800, per: 'day', n: 3 }, tambourine: { coins: 1200, per: 'day', n: 2 }, reroll: { coins: 1500, per: 'day', n: 2 } };
+// 상점: 보조배터리 주 1개 (강화석 100) · 에너지 드링크 하루 1개 (코인 1,800) · 경호원 호출 주 2개 (강화석 60) · 폭탄주는 드롭만 · 알디콤 하루 3개 (코인) · 탬버린 · 쿠폰 하루 2개 (코인)
+export const CONS_SHOP = { battery: { stones: 100, per: 'week', n: 1 }, aldicom: { coins: 800, per: 'day', n: 3 }, tambourine: { coins: 1200, per: 'day', n: 2 }, reroll: { coins: 1500, per: 'day', n: 2 }, energydrink: { coins: 1800, per: 'day', n: 1 }, bouncer: { stones: 60, per: 'week', n: 2 } };
 export function consShopLeft(lb, id, now = Date.now()) {
   const s = CONS_SHOP[id]; if (!s) return 0;
   const key = s.per === 'week' ? 'w' + weekIndex(now) : 'd' + dayIndex(now);
@@ -521,7 +532,10 @@ export function setCosmetic(lb, title, frame) {
 }
 
 // ─── 모집 (뽑기) — 코인/모집권만, 현금 결제 없음 ───────────
-export const GACHA_COST = { one: 300, ten: 2700 };
+export const GACHA_COST = { one: 500, ten: 4500 }; // (300/2700 → 500/4500: 후반 코인으로 하루 100번 넘게 뽑던 것 조임)
+// 코인 모집은 하루 30번까지 (한국 시간 자정 초기화) — 모집권은 제한 없음
+export const GACHA_COIN_DAILY = 30;
+export function gachaCoinLeft(lb, now = Date.now()) { const d = lb.gachaDay; return Math.max(0, GACHA_COIN_DAILY - (d && d.day === dayIndex(now) ? d.n | 0 : 0)); }
 export const HOCHAN_GATE = 40; // 4-10 클리어 후 LEGEND 이호찬이 모집에 나온다 (6-10 → 4-10 로 당김)
 // 천장: T4 멤버 40번 안에 확정 · LEGEND 는 70번부터 확률이 가파르게 올라 90번째에 확정 (소프트 천장)
 export const PITY_HERO = 40, PITY_LEGEND = 90, PITY_SOFT = 70;
@@ -564,9 +578,14 @@ function rollKind(rng, lb, only) {
 export function gachaPull(lb, n, pay, uid, now = Date.now(), seed) {
   if (n !== 1 && n !== 10) return { error: '잘못된 요청이에요' };
   if (pay === 'ticket') { if ((lb.tickets | 0) < n) return { error: `모집권이 부족해요 (${n}장 필요)` }; }
-  else if (pay === 'coin') { const c = n === 10 ? GACHA_COST.ten : GACHA_COST.one; if ((lb.coins | 0) < c) return { error: `코인이 부족해요 (${c.toLocaleString()} 필요)` }; }
+  else if (pay === 'coin') {
+    const left = gachaCoinLeft(lb, now);
+    if (left < n) return { error: left ? `오늘 코인 모집은 ${left}번 남았어요 (하루 ${GACHA_COIN_DAILY}번 · 모집권은 제한 없음)` : `오늘 코인 모집은 다 했어요 (하루 ${GACHA_COIN_DAILY}번 · 자정에 초기화 · 모집권은 제한 없음)` };
+    const c = n === 10 ? GACHA_COST.ten : GACHA_COST.one; if ((lb.coins | 0) < c) return { error: `코인이 부족해요 (${c.toLocaleString()} 필요)` };
+  }
   else return { error: '잘못된 요청이에요' };
-  if (pay === 'ticket') lb.tickets -= n; else lb.coins -= n === 10 ? GACHA_COST.ten : GACHA_COST.one;
+  if (pay === 'ticket') lb.tickets -= n;
+  else { lb.coins -= n === 10 ? GACHA_COST.ten : GACHA_COST.one; const day = dayIndex(now); lb.gachaDay = { day, n: (lb.gachaDay && lb.gachaDay.day === day ? lb.gachaDay.n | 0 : 0) + n }; }
   const rng = seedRng(seed !== undefined ? seed : hashSeed(`lbgacha:${uid}:${lb.pulls}`));
   const out = [];
   let epicPlus = false;
@@ -754,7 +773,7 @@ export function raidReward(myDmg, total, rank, killed) {
   if (!myDmg) return null;
   const share = total ? myDmg / total : 0;
   if (killed) {
-    const top = rank === 1 ? { tickets: 5, gear: 'myth', title: 'raid1' } : rank <= 3 ? { tickets: 3, gear: 'epic' } : rank <= 10 ? { tickets: 2 } : { tickets: 1 };
+    const top = rank === 1 ? { tickets: 5, gear: 'legend', title: 'raid1' } : rank <= 3 ? { tickets: 3, gear: 'epic' } : rank <= 10 ? { tickets: 2 } : { tickets: 1 };
     return Object.assign({ coins: 2000 + Math.round(4000 * share), label: `처치 성공! ${rank}위 (기여 ${(share * 100).toFixed(1)}%)` }, top);
   }
   const pct = Math.min(1, total / RAID.hp);
@@ -816,7 +835,7 @@ export function cleanDecks(raw) {
 
 // ─── 체력 (스태미나): 스테이지는 체력을 쓴다 · 무한 · 레이드 · 1:1 대전은 따로 입장 횟수 ───
 //  최대 60 · 6분에 1 · 보상으로 180 까지 넘칠 수 있다 · 마스터는 안 씀 (서버가 정한다)
-export const STAMINA = { max: 50, regenMs: 8 * 60e3, cap: 150, stage: 6, hell: 12, repeat: 4, lvUp: 5, checkin: 10, buy: { n: 30, perDay: 2, cost: [300, 700] } }; // (60·6분·5·10·3·출석20·하루3번 → 조임)
+export const STAMINA = { max: 50, regenMs: 8 * 60e3, cap: 150, stage: 6, hell: 9, repeat: 4, lvUp: 5, checkin: 10, buy: { n: 30, perDay: 2, cost: [600, 1500] } }; // (60·6분·5·10·3·출석20·하루3번 → 조임) · 헬 12 → 9 · 사기 300/700 → 600/1500
 export function staminaNow(lb, now = Date.now()) {
   const s = lb.sta || { v: STAMINA.max, t: now };
   let v = s.v | 0, t = s.t || now;
@@ -885,11 +904,17 @@ export function endlessFinish(lb, wave, score, coins, uid, now = Date.now()) {
   lb.endRun = null;
   return { coins: give, capped: give < coins, weekBest: newBest };
 }
+// 무한 계약(저주) 코인 배율: 화면이 보낸 배율은 믿지 않고, 받은 계약 이름으로 서버가 다시 계산한다
+//  계약은 6 · 11 · 16 … 웨이브 시작에 하나씩 → 도달 웨이브로 개수 상한 · 종류마다 한 번
+export function endlessCoinMul(curses, wave) {
+  const ids = [...new Set((Array.isArray(curses) ? curses : []).map(String))].filter((k) => CURSES[k]).slice(0, Math.max(0, Math.floor((int(wave, 0, 9999) + 1) / 5)));
+  return ids.reduce((m, k) => m * (CURSES[k].coin || 1), 1);
+}
 export function endlessWeekReward(rank) {
   if (!rank) return null;
   if (rank === 1) return { coins: 6000, tickets: 5, gear: 'legend', title: 'ewchamp', label: '무한 주간 1위' };
   if (rank <= 3) return { coins: 3500, tickets: 3, gear: 'epic', label: `무한 주간 ${rank}위` };
-  if (rank <= 10) return { coins: 1500, tickets: 10, label: `무한 주간 ${rank}위 (TOP 10)` };
+  if (rank <= 10) return { coins: 1500, tickets: 2, label: `무한 주간 ${rank}위 (TOP 10)` }; // (모집권 10 → 2: 1~3위보다 많던 실수)
   return { coins: 500, tickets: 1, label: `무한 주간 ${rank}위 (참가)` };
 }
 // ─── 1:1 대전 보상: 하루 10판까지 코인 · 첫 승 2배 · 30초 안 끝난 판 · 같은 상대 하루 3판 넘게는 코인 없음 ───
@@ -984,6 +1009,7 @@ export function normLive(raw, out) {
   out.checkin = ci && Number.isInteger(ci.last) ? { last: ci.last, streak: int(ci.streak, 0, 1e5) } : null;
   // 체력 · 무한 · 우편함 · 1:1 보상 기록
   out.sta = raw.sta && Number.isFinite(raw.sta.t) ? { v: int(raw.sta.v, 0, STAMINA.cap), t: int(raw.sta.t, 0, 9e15) } : { v: STAMINA.max, t: 0 };
+  out.gachaDay = raw.gachaDay && Number.isInteger(raw.gachaDay.day) ? { day: raw.gachaDay.day, n: int(raw.gachaDay.n, 0, 999) } : null;
   out.staBuy = raw.staBuy && Number.isInteger(raw.staBuy.day) ? { day: raw.staBuy.day, n: int(raw.staBuy.n, 0, 9) } : null;
   out.staRun = raw.staRun && Number.isFinite(raw.staRun.at) ? { stage: int(raw.staRun.stage, 0, 999), hell: !!raw.staRun.hell, cost: int(raw.staRun.cost, 0, 99), at: int(raw.staRun.at, 0, 9e15) } : null;
   out.endDay = raw.endDay && Number.isInteger(raw.endDay.day) ? { day: raw.endDay.day, n: int(raw.endDay.n, 0, 99) } : null;

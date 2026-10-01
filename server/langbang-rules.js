@@ -28,10 +28,10 @@ const ENEMY_IDS = ['earphone', 'noshow', 'clubguy', 'clubgirl', 'praise1', 'prai
 const hasMid = (s) => s >= 3;
 
 const ITEMS = {
-  door: { max: 10, per: 0.1, base: 50 },
-  coupon: { max: 10, per: 0.06, base: 60 },
-  battery: { max: 10, per: 0.08, base: 40 },
-  charm: { max: 10, per: 0.015, base: 55 },
+  door: { max: 15, per: 0.1, base: 150 },
+  coupon: { max: 15, per: 0.04, base: 250 },
+  battery: { max: 15, per: 0.08, base: 120 },
+  charm: { max: 15, per: 0.015, base: 165 },
   drink: { max: 3, per: 1, costs: [600, 2400, 6000] },
   slot5: { max: 1, per: 1, costs: [25000] },
   slot6: { max: 1, per: 1, costs: [80000], needs: 'slot5' },
@@ -39,13 +39,29 @@ const ITEMS = {
 const ITEM_IDS = Object.keys(ITEMS);
 
 const metaCost = (lv) => Math.round((40 * Math.pow(lv + 1, 1.7)) / 10) * 10;
+// Lv.11~15 (5·6장에서 열리는 윗단계): 값이 가파르게 (×1.6 씩) · 효과는 한 단계에 절반 (화면 data.js 와 같음)
+const ITEM_TOP = { from: 10, costMul: 1.6, perMul: 0.5 };
 function itemCost(id, lv) {
   const it = ITEMS[id];
   if (!it || lv >= it.max) return null;
   if (it.costs) return it.costs[lv];
-  return Math.round((it.base * Math.pow(lv + 1, 1.6)) / 10) * 10;
+  return Math.round((it.base * Math.pow(lv + 1, 1.6) * (lv >= ITEM_TOP.from ? Math.pow(ITEM_TOP.costMul, lv - ITEM_TOP.from + 1) : 1)) / 10) * 10;
 }
-const itemValue = (id, lv) => (ITEMS[id] ? ITEMS[id].per : 0) * (lv || 0);
+const itemValue = (id, lv) => { const per = ITEMS[id] ? ITEMS[id].per : 0; lv = lv || 0; return per * Math.min(lv, ITEM_TOP.from) + per * ITEM_TOP.perMul * Math.max(0, lv - ITEM_TOP.from); };
+// 진행도에 따라 살 수 있는 레벨 상한 (깬 장 수 0~6) — 이미 산 레벨은 그대로 둔다
+const ITEM_LV_CAP = { stat: [3, 5, 7, 9, 10, 12, 15], drink: [1, 2, 2, 3, 3, 3, 3] };
+function itemLvCap(id, maxStage) {
+  const it = ITEMS[id]; if (!it) return 0;
+  const c = Math.max(0, Math.min(6, Math.floor((maxStage | 0) / STAGES_PER_CHAPTER)));
+  const t = id === 'drink' ? ITEM_LV_CAP.drink : it.costs ? null : ITEM_LV_CAP.stat;
+  return t ? Math.min(it.max, t[c]) : it.max;
+}
+function itemGateCh(id, lv, maxStage) {
+  const it = ITEMS[id]; if (!it || lv >= it.max) return null;
+  if (lv < itemLvCap(id, maxStage)) return 0;
+  for (let c = 1; c <= 6; c++) if (itemLvCap(id, c * STAGES_PER_CHAPTER) > lv) return c;
+  return null;
+}
 
 const REWARD = { base: 60, perStage: 18, firstMul: 2, starMul: 0.5 };
 const clearCoins = (s) => REWARD.base + REWARD.perStage * (s - 1);
@@ -138,9 +154,16 @@ const GEAR = {
   santahat: { id: 'santahat', slot: 'a', icon: '🎅', name: '산타 모자', stat: 'cd', base: 0.055, ch: 6 },
   champagne: { id: 'champagne', slot: 'w', icon: '🥂', name: '샴페인 잔', stat: 'atk', base: 0.065, ch: 6 },
   hangover: { id: 'hangover', slot: 'a', icon: '💊', name: '숙취해소 부적', stat: 'res', base: 0.06 },
+  gymcard: { id: 'gymcard', slot: 'a', icon: '', name: '헬스장 1년 회원권', stat: 'boss', base: 0.07 },
+  speaker: { id: 'speaker', slot: 'w', icon: '', name: '클럽 우퍼 스피커', stat: 'swarm', base: 0.07 },
+  goldchain: { id: 'goldchain', slot: 'a', icon: '', name: '18K 금목걸이', stat: 'critDmg', base: 0.1, ch: 2 },
+  rolex: { id: 'rolex', slot: 'a', icon: '', name: '명품 시계', stat: 'ult', base: 0.015, ch: 3 },
+  corpcard: { id: 'corpcard', slot: 'w', icon: '', name: '법인카드', stat: 'exp', base: 0.012, ch: 3 },
+  lastorder: { id: 'lastorder', slot: 'w', icon: '', name: '라스트오더 종', stat: 'exec', base: 0.12, ch: 4 },
+  radio: { id: 'radio', slot: 'a', icon: '', name: '경호원 무전기', stat: 'guard', base: 0.012, ch: 5 },
 };
 // 신화 (전설 위): 어느 멤버에게나 좋은 만능 장비 6종 · 멤버마다 신화 칸(m) 하나 · 강화·합성 없음 (처음부터 완성)
-//   드롭: 레이드 1위 · 무한 50웨이브(주마다) · 시즌 마지막 단계 · 모집 0.3%
+//   드롭: 무한 50웨이브(주마다) · 시즌 마지막 단계 · 모집 0.3% · 장비 뽑기 1%
 const MYTH = {
   myth_card: { name: '황금 멤버십 카드', stats: { atk: 0.1, spd: 0.1, skill: 0.1, hp: 0.1 }, desc: '모든 능력치 +10%' },
   myth_seal: { name: '방장의 인장', stats: { cd: 0.15 }, desc: '스킬 쿨타임 −15%' },
@@ -163,7 +186,7 @@ function gearValue(t, r, lv) {
 }
 function gearEnhanceCost(r, lv) {
   if (lv >= GEAR_MAX_LV || r === 'myth') return null; // 신화는 강화 없음
-  return Math.round((100 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 2.3)) / 10) * 10; // 영웅 +10 까지 합 약 18만 (보통 8~10일치)
+  return Math.round((100 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 2.3)) / 10) * 10; // 영웅 +10: 성공만 치면 약 18만 · 실패(+4부터 90%→40%) 포함 기대 비용 약 35만 + 강화석 15개
 }
 // 강화석: +6 부터 필요 (+6 1개 · +7 2개 · +8 3개 · +9 4개 · +10 5개)
 function gearStoneNeed(lv) { return lv >= 5 && lv < GEAR_MAX_LV ? lv - 4 : 0; }
@@ -232,7 +255,7 @@ function rollHeroCard(seed, stars, hell, used) {
   if (rng() >= p) return null;
   return used[(rng() * used.length) | 0];
 }
-const CARD_PICK = { cost: 2500, n: 3, perWeek: 3 }; // 상점 "멤버 카드 선택권": 고른 멤버 카드 3장 · 주 3번
+const CARD_PICK = { cost: 1500, n: 5, perWeek: 5 }; // 상점 "멤버 카드 선택권": 고른 멤버 카드 5장 · 주 5번 (2500·3장·주 3번 → 장당 833 → 300 코인: 카드가 강화의 병목이라)
 
 module.exports = {
   MYTH, MYTH_IDS,
@@ -240,5 +263,5 @@ module.exports = {
   heroCardNeed, rollHeroCard, CARD_PICK,
   GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
   LB_HEROES, HIDDEN, GACHA, LOCKED, HERO_TIER, TIER_MAX, metaMaxOf, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
-  metaCost, itemCost, itemValue, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
+  metaCost, itemCost, itemValue, itemLvCap, itemGateCh, ITEM_LV_CAP, ITEM_TOP, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };

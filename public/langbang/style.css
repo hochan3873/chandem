@@ -543,6 +543,7 @@ h3.sec { margin: calc(var(--u) * 12) 0 calc(var(--u) * 6); font-size: calc(var(-
 .pbar div { height: 100%; background: linear-gradient(90deg, #ffe07a, #ff9f1c); border-radius: 99px; }
 .up.item .it-ico { width: calc(var(--u) * 50); height: calc(var(--u) * 50); flex: none; display: grid; place-items: center; font-size: calc(var(--u) * 28); background: rgba(255, 255, 255, 0.06); border-radius: calc(var(--u) * 12); margin-left: calc(var(--u) * 4); }
 .up .mid small .nx { color: #9dffb0; }
+.up.item .it-ico img.ic { width: 78%; height: 78%; margin: 0; vertical-align: middle; }
 
 /* 랭킹 */
 .rank.me { border-color: var(--cyan); background: linear-gradient(90deg, rgba(111, 240, 255, 0.16), var(--panel)); }
@@ -1662,6 +1663,10 @@ body.rm .lb-dio .chev { animation: none; }
 .card-prog .cp i b { display: block; height: 100%; background: linear-gradient(90deg, #d9a8ff, #ffd23f); }
 .card-prog .cp small { font-size: calc(var(--u) * 9.5); font-weight: 800; color: #ffe9b0; }
 .card-prog .cp.lock { opacity: 0.6; }
+/* 아직 합류 안 한 멤버: 검은 실루엣 + ??? (속성 아이콘만 힌트) */
+.gacha-banner.v2 .gb-main.sil { filter: brightness(0) drop-shadow(0 0 calc(var(--u) * 6) rgba(170, 140, 255, 0.75)) drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 10) rgba(0, 0, 0, 0.6)); }
+.gacha-banner.v2 .gb-back.sil { filter: brightness(0) drop-shadow(0 0 calc(var(--u) * 3) rgba(170, 140, 255, 0.55)); }
+.gacha-banner .gb-attr .aico, .card-prog .cp .cp-attr .aico { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 0.15em; }
 .dexc2 .dx-cards { position: absolute; left: 8%; right: 8%; bottom: calc(var(--u) * 24); height: calc(var(--u) * 12); border-radius: 99px; background: rgba(0, 0, 0, 0.55); overflow: hidden; border: 1px solid rgba(217, 168, 255, 0.6); }
 .dexc2 .dx-cards i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #a06bff, #ffd23f); }
 .dexc2 .dx-cards em { position: relative; display: block; text-align: center; font-style: normal; font-size: calc(var(--u) * 8.5); font-weight: 900; line-height: calc(var(--u) * 11); color: #fff; }
@@ -3140,6 +3145,7 @@ body.rm .lb-start.v2, body.rm .lb-start.v2 .ls-shine { animation: none !importan
 
 .av.hq { overflow: hidden; border-radius: 50%; background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--c, #7a5cff) 45%, #2a1c4a), #140c26); isolation: isolate; }
 .av.hq img.fz { filter: none; }
+.av.hq.sil img.fz { filter: brightness(0) drop-shadow(0 0 calc(var(--u) * 2) rgba(255, 150, 240, 0.7)); opacity: 0.85; } /* 아직 없는 멤버 얼굴: 위 filter:none 보다 우선 */
 .fzw { position: relative; display: block; overflow: hidden; border-radius: 50%; width: 100%; height: 100%; background: radial-gradient(circle at 50% 40%, #3a2a66, #140c26); }
 .card.v4 .c4-ico .fzw, .aug-box.v4 .ab-ico .fzw { width: 100%; height: 100%; }
 

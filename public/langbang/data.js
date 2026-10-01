@@ -96,7 +96,7 @@ export const ATTACK_RELEASE = { soyoung: 3, eunok: 3, jieun: 3, gunnyeo: 4, hyun
 export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', 'bike'], ['hyungyeong', 'slim'], ['ara', 'old'], ['jieun', 'demon'], ['eunok', 'rage'], ['youngjun', 'dash']].map(([id, f]) => [id, { form: f, src: `/img/lb/h_${id}_${f}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id + '_' + f] || 4 }]));
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
   'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.5, 0.42, 0.3, 0.24], endHp: 1.1, fix: { donghan: 0.77, wonsik: 1.8, staff: 1.1, eunok: 0.9, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.1, ingyu: 0.87, jiwon: 2.0, jungmin: 1.5, gunman: 0.75, junseo: 1.3, ara: 1.15 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { donghan: 1.3, wonsik: 2.4, staff: 1.1, eunok: 1.0, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.9, junyoung: 1.5, ingyu: 0.87, jiwon: 2.0, jungmin: 1.7, gunman: 0.75, junseo: 2.0, ara: 1.65, jieun: 1.7, baul: 1.5, sanghwa: 1.35 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7.6, stun: 0.9 };
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -183,10 +183,10 @@ export function metaCost(lv) {
 }
 // 아이템: 코인으로 사는 영구 강화 (레벨제)
 export const ITEMS = {
-  door: { id: 'door', icon: '🚪', name: '튼튼한 문', max: 10, per: 0.1, base: 50, desc: (v) => `입구 내구도 +${pct(v)}` },
-  coupon: { id: 'coupon', icon: '🎟️', name: '단골 쿠폰', max: 10, per: 0.06, base: 60, desc: (v) => `스테이지 코인 보상 +${pct(v)}` },
-  battery: { id: 'battery', icon: '🔋', name: '확성기 배터리', max: 10, per: 0.08, base: 40, desc: (v) => `총공지 충전 +${pct(v)}` },
-  charm: { id: 'charm', icon: '🍀', name: '행운 부적', max: 10, per: 0.015, base: 55, desc: (v) => `치명타 확률 +${pct(v, 1)}` },
+  door: { id: 'door', icon: '🚪', name: '튼튼한 문', max: 15, per: 0.1, base: 150, desc: (v) => `입구 내구도 +${pct(v)}` },
+  coupon: { id: 'coupon', icon: '🎟️', name: '단골 쿠폰', max: 15, per: 0.04, base: 250, desc: (v) => `스테이지 코인 보상 +${pct(v)}` },
+  battery: { id: 'battery', icon: '🔋', name: '확성기 배터리', max: 15, per: 0.08, base: 120, desc: (v) => `총공지 충전 +${pct(v)}` },
+  charm: { id: 'charm', icon: '🍀', name: '행운 부적', max: 15, per: 0.015, base: 165, desc: (v) => `치명타 확률 +${pct(v, 1)}` },
   drink: { id: 'drink', icon: '🍹', name: '웰컴 드링크', max: 3, per: 1, costs: [600, 2400, 6000], desc: (v) => (v ? `시작 전 카드 ${v}장 고르기` : '아직 없음') },
   slot5: { id: 'slot5', icon: '💺', name: '덱 5번째 칸', max: 1, per: 1, costs: [25000], desc: (v) => (v ? '덱 5칸!' : '덱에 멤버 한 명 더') },
   slot6: { id: 'slot6', icon: '🛋️', name: '덱 6번째 칸', max: 1, per: 1, costs: [80000], needs: 'slot5', desc: (v) => (v ? '덱 6칸!' : '덱에 멤버 한 명 더 (5번째 칸 먼저)') },
@@ -203,13 +203,30 @@ export function migrateDeckItems(items) {
 }
 export const ITEM_IDS = Object.keys(ITEMS);
 function pct(v, d = 0) { return `${(v * 100).toFixed(d)}%`; }
+// Lv.11~15 (5·6장에서 열리는 윗단계): 값이 가파르게 (×1.6 씩) · 효과는 한 단계에 절반
+export const ITEM_TOP = { from: 10, costMul: 1.6, perMul: 0.5 };
 export function itemCost(id, lv) {
   const it = ITEMS[id];
   if (!it || lv >= it.max) return null;
   if (it.costs) return it.costs[lv];
-  return Math.round((it.base * Math.pow(lv + 1, 1.6)) / 10) * 10;
+  return Math.round((it.base * Math.pow(lv + 1, 1.6) * (lv >= ITEM_TOP.from ? Math.pow(ITEM_TOP.costMul, lv - ITEM_TOP.from + 1) : 1)) / 10) * 10;
 }
-export function itemValue(id, lv) { return (ITEMS[id] ? ITEMS[id].per : 0) * (lv || 0); }
+export function itemValue(id, lv) { const per = ITEMS[id] ? ITEMS[id].per : 0; lv = lv || 0; return per * Math.min(lv, ITEM_TOP.from) + per * ITEM_TOP.perMul * Math.max(0, lv - ITEM_TOP.from); }
+// 진행도에 따라 살 수 있는 레벨 상한 (깬 장 수 0~6) — 이미 산 레벨은 그대로 둔다 (깎지 않음)
+export const ITEM_LV_CAP = { stat: [3, 5, 7, 9, 10, 12, 15], drink: [1, 2, 2, 3, 3, 3, 3] };
+export function itemLvCap(id, maxStage) {
+  const it = ITEMS[id]; if (!it) return 0;
+  const c = Math.max(0, Math.min(6, Math.floor((maxStage | 0) / STAGES_PER_CHAPTER)));
+  const t = id === 'drink' ? ITEM_LV_CAP.drink : it.costs ? null : ITEM_LV_CAP.stat;
+  return t ? Math.min(it.max, t[c]) : it.max;
+}
+// 다음 레벨을 사려면 몇 장을 깨야 하나 (0 = 지금 살 수 있음 · null = 최대)
+export function itemGateCh(id, lv, maxStage) {
+  const it = ITEMS[id]; if (!it || lv >= it.max) return null;
+  if (lv < itemLvCap(id, maxStage)) return 0;
+  for (let c = 1; c <= 6; c++) if (itemLvCap(id, c * STAGES_PER_CHAPTER) > lv) return c;
+  return null;
+}
 
 // ─── 스테이지 ─────────────────────────────────────────
 // 3챕터 × 10스테이지. 스테이지 번호 s = 1..30 ('1-1' … '3-10')
@@ -279,7 +296,7 @@ export const STAGE = {
   deckCount: 1.45, // 덱 보정: 적 수 배율
   hpTune: [1.0, 1.4, 1.9, 1.15, 0.62, 0.45], // (5·6장: 강화 12~16 덱 기준으로 다시 맞춤 — 전엔 5-1부터 벽) // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
-  stageAdd: {3: 2.5, 4: 3.5, 5: -2, 6: -4, 7: 1.5, 8: 3.6, 9: -0.8, 10: 1.2, 11: -1.6, 12: 1.2, 13: 0.8, 14: 9.5, 15: -6, 16: 3.5, 17: 3.25, 18: 3, 19: -0.9, 20: -0.3, 22: 6, 25: 6, 26: 1.7, 27: 2, 28: -6, 29: -9.5, 30: 3.5, 31: -15.5, 32: -5.5, 33: -4, 34: -10, 35: -2, 36: -8, 37: -1.5, 38: 3, 39: -11, 40: -4.6, 41: -1.5, 42: -1, 43: -2.5, 45: 2, 46: 0, 47: 1, 48: -2, 50: 1.5, 51: -3.2, 52: 3, 53: 3.5, 55: 9, 56: -5, 59: 7, 60: -2.3}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  stageAdd: {3: 2.5, 4: 3.5, 5: -2, 6: -4, 7: 1.5, 8: 3.6, 9: -0.8, 10: 1.2, 11: -1.6, 12: 1.2, 13: 0.8, 14: 9.5, 15: -6, 16: 3.5, 17: 1, 18: 3, 19: -0.9, 20: -0.3, 25: 6, 26: 1.7, 27: 2, 28: -6, 29: -9.5, 30: 3.5, 31: -15.5, 32: -5.5, 33: -4, 34: -10, 35: -2, 36: -8, 37: -1.5, 38: 3, 39: -11, 40: -4.6, 41: -1.5, 42: -1, 43: -2.5, 45: 2, 47: 1, 48: -2, 50: 1.5, 51: -3.2, 52: 3, 53: 3.5, 55: 9, 56: -5, 59: 7, 60: -2.3}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   augAdd: 2, // 증강(1·3·5웨이브)이 생겨서 진상도 그만큼 조금 세게
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
@@ -686,12 +703,12 @@ export const HEROES = {
     id: 'dohoon', bossKit: 0.7, kit: 0.6, name: '김도훈', gender: 'm', emoji: '🎤', color: '#b58cff', unlock: true, attr: 'booze',
     img: '/img/lb/h_dohoon.webp', role: '힐러 · 떼창 오라 · 제어',
     dmg: 51, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, slow: 0.2, slowSec: 1,
-    regen: [0.0065, 0.0073, 0.0091, 0.0099, 0.012], // 떼창: 초당 입구 최대 내구도의 %
-    sing: { r: 200, spd: [0.18, 0.18, 0.24, 0.24, 0.3] }, // 떼창: 곁(약 3.5칸) 멤버 공격 속도 +%
+    regen: [0.0057, 0.0064, 0.008, 0.0087, 0.0105], // 떼창: 초당 입구 최대 내구도의 % (×0.88: T2 인데 회복으로 거의 모든 판을 받쳐 줘서)
+    sing: { r: 200, spd: [0.13, 0.13, 0.18, 0.18, 0.23] }, // 떼창: 곁(약 3.5칸) 멤버 공격 속도 +% (18~30 → 13~23: T2 가 LEGEND 만큼 판을 쉽게 만들어서)
     attack: '마이크 음파 — 둥글게 퍼지는 음파가 근처 진상 전부를 때리고 살짝 느리게',
     desc: '마이크를 절대 안 놓는 노래방 사나이. 떼창으로 랑방을 꾸준히 고친다.',
     perks: { 3: '음파 범위 · 떼창 강화', 5: '떼창 최대 · 앵콜이 더 길다' },
-    skill: { id: 'encore', name: '무한 앵콜', cd: 22, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 5초 동안 멤버 전원 공격 속도 +25% · 피해 +15% + 근처 진상 춤추느라 멈춤', heal: [0.26, 0.26, 0.3, 0.3, 0.36], buffSec: 5, buffSpd: 0.25, buffDmg: 0.15, r: 250, dance: [3, 3, 3.3, 3.3, 3.8] },
+    skill: { id: 'encore', name: '무한 앵콜', cd: 22, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 5초 동안 멤버 전원 공격 속도 +25% · 피해 +15% + 근처 진상 춤추느라 멈춤', heal: [0.22, 0.22, 0.26, 0.26, 0.31], buffSec: 5, buffSpd: 0.25, buffDmg: 0.15, r: 250, dance: [3, 3, 3.3, 3.3, 3.8] },
   },
   ingyu: {
     id: 'ingyu', bossKit: 1.15, kit: 0.95, name: '백인규', gender: 'm', emoji: '🏋️', color: '#3f8cff', unlock: true, attr: 'power',
@@ -862,7 +879,7 @@ export const HEROES = {
     img: '/img/lb/h_wonsik.webp', role: '도발 탱커 · 피해 감소',
     dmg: 62, interval: 1.23, range: 255, proj: 'jab', projSpeed: 700,
     taunt: 0.4, // 도발: 멤버를 노리는 진상 기술을 대신 받는다 (40% 시간)
-    guard: { r: 110, cut: 0.3 }, // 곁의 진상이 입구를 칠 때 -30%
+    guard: { r: 110, cut: 0.4 }, // 곁의 진상이 입구를 칠 때 -40% (30 → 40)
     attack: '헬스 잽 — 가까운 진상을 묵직하게 · 곁의 진상 공격을 대신 받아 준다',
     desc: '결혼을 꿈꾸는 마흔셋. 유일한 취미는 헬스. 따뜻한 마음으로 모두를 지켜 준다. "올해는 꼭…"',
     perks: { 3: '피해 감소 반경 +20%', 5: '결혼정보회사 등록이 1초 더' },
@@ -875,29 +892,29 @@ export const HEROES = {
     attack: '윙크 잽 — 가볍게 톡톡 · 맞은 여자 진상은 가끔 0.4초 멈칫 ("이거 내가 원래 알던 거야~")',
     desc: '앞머리 내린 아이돌상, 덧니 미소가 무기다. 설레발과 아는 척이 특기.',
     perks: { 3: '썰매 피해 +15%', 5: '썰매가 두 번 지나간다' },
-    skill: { id: 'sled', name: '팬클럽 썰매 활강', cd: 20, desc: '팬클럽이 끄는 썰매로 자기 줄을 통째로 쓸고 내려간다 — 줄 위 진상 전부 큰 피해 + 크게 밀치기 (보스는 덜)', w: 38, mul: [3, 3, 3.4, 3.4, 3.8], kb: 70 },
+    skill: { id: 'sled', name: '팬클럽 썰매 활강', cd: 20, desc: '팬클럽이 끄는 썰매로 자기 줄을 통째로 쓸고 내려간다 — 줄 위 진상 전부 큰 피해 + 크게 밀치기 (보스는 덜)', w: 44, mul: [3.6, 3.6, 4, 4, 4.5], kb: 80 }, // (폭 38 → 44 · 피해 ×1.2 · 밀치기 70 → 80)
     shouts: ['이거 내가 원래 알던 거야~', '내가 알지~', '팬클럽 출동!', '설레발 아니고 진짜야'],
   },
   byunghwa: {
     id: 'byunghwa', bossKit: 1.1, kit: 1.2, name: '강병화', gender: 'm', emoji: '🎤', color: '#ff7ab8', legend: true, gacha: true, attr: 'charm',
     img: '/img/lb/h_byunghwa.webp', role: 'LEGEND · 매력 · 원맨쇼 무대 장악',
-    dmg: 30, interval: 1.6, range: 310, proj: 'shout', cone: [0.5, 0.5, 0.58, 0.58, 0.66], coneMax: 6, charm: [1.2, 1.2, 1.3, 1.3, 1.5],
+    dmg: 30, interval: 1.6, range: 310, proj: 'shout', cone: [0.5, 0.5, 0.58, 0.58, 0.66], coneMax: 4, charm: [0.8, 0.8, 0.9, 0.9, 1.0], // (홀림 1.2~1.5 → 0.8~1.0초 · 한 번에 6 → 4명: 기본 공격 홀림만으로 판이 멈춰 있었음)
     aura: { r: 130, spd: 0.15, cc: 0.5 }, // 곁(2칸) 멤버 공속 +15% · 상태이상 시간 절반
-    attack: '고함 연기 — 부채꼴로 우렁차게 외치면 맞은 진상이 1.2초 홀려 멈춘다 (보스는 느려짐) · 곁 멤버 공속 +15% · 상태이상 절반',
+    attack: '고함 연기 — 부채꼴로 우렁차게 외치면 맞은 진상(최대 4명)이 0.8초 홀려 멈춘다 (보스는 느려짐) · 곁 멤버 공속 +15% · 상태이상 절반',
     desc: '무대 위에선 누구보다 빛나는 연기파. 한 번 외치면 골목 전체가 관객석이 된다.',
     perks: { 3: '홀림 시간 +0.1초', 5: '원맨쇼 1초 더' },
-    skill: { id: 'oneman', name: '원맨쇼', cd: 26, desc: '컷인! 8초 동안 보스 빼고 모두 춤추며 멈춤 · 보스는 50% 느리게 · 모든 멤버 공격력 +30% · 상태이상 해제', sec: [8, 8, 8, 8, 9], atk: 0.3 },
+    skill: { id: 'oneman', name: '원맨쇼', cd: 30, desc: '컷인! 5초 동안 보스·중간 보스 빼고 모두 춤추며 멈춤 · 보스·중간 보스는 50% 느리게 · 모든 멤버 공격력 +25% · 상태이상 해제', sec: [5, 5, 5.5, 5.5, 5.5], atk: 0.25 }, // (8~10초 · 쿨 26 · +30% → 화면 전체를 너무 오래 멈춰서 판이 쉬워짐)
     shouts: ['컷! 다시 가자!', '여기가 내 무대야', '관객 여러분~', '박수!'],
   },
   jeongseob: {
     id: 'jeongseob', bossKit: 0.6, kit: 0.7, name: '윤정섭', gender: 'm', emoji: '🧍', color: '#8fa6d8', gacha: true, attr: 'booze',
     img: '/img/lb/h_jeongseob.webp', role: '탱커 · 밀어내기 · 감속',
     dmg: 4, interval: 9, range: 200, proj: 'wall', scale: 1.25,
-    wall: { speed: [28, 28, 30, 30, 32], back: 29, rest: [10, 10, 9, 9, 8], hp: [520, 520, 640, 640, 800], cut: 0.5, touchSlow: 0.3, afterSlow: 0.5, bossTouch: 0.65, bossAfter: 0.75, slowSec: 3, bossPush: 0.3, w: 46 }, // 아주 천천히 (한 줄 12~15초)
+    wall: { speed: [28, 28, 30, 30, 32], back: 29, rest: [10, 10, 9, 9, 8], hp: [520, 520, 640, 640, 800], cut: 0.5, touchSlow: 0.3, afterSlow: 0.5, bossTouch: 0.65, bossAfter: 0.75, slowSec: 3, bossPush: 0.3, w: [50, 50, 54, 54, 58] }, // 아주 천천히 (한 줄 12~15초) · w = 밀어내는 폭의 절반 (46 → 50~58: 자기 줄 + 양옆 줄 절반쯤)
     attack: '뚜벅뚜벅 — 두 팔 벌리고 자기 줄을 걸어 올라가며 진상을 통째로 밀어낸다 (피해 없음 · 닿으면 느려짐)',
     desc: '키 210의 차분한 거인. 말없이 걸어가 진상들을 밖으로 모셔 간다.',
-    perks: { 3: '걷는 속도 · 버티는 힘 ↑', 5: '쉬는 시간이 1초 짧아진다' },
-    skill: { id: 'wallwalk', name: '벽이 걸어온다', cd: 22, desc: '6초 동안 1.3배로 커지고 조금 빨라져 넓게 밀어낸다 · 끝에서 쿵! 뭉친 진상 1칸 밀치고 1초 기절 (피해 없음)', sec: [6, 6, 6, 6, 7], grow: 1.3 },
+    perks: { 3: '걷는 속도 · 버티는 힘 · 미는 폭 ↑', 5: '쉬는 시간이 1초 짧아진다 · 미는 폭 ↑' },
+    skill: { id: 'wallwalk', name: '벽이 걸어온다', cd: 22, desc: '6초 동안 1.5배로 커지고 조금 빨라져 넓게 밀어낸다 · 끝에서 쿵! 뭉친 진상 1칸 밀치고 1초 기절 (피해 없음)', sec: [6, 6, 6, 6, 7], grow: 1.5 }, // (1.3 → 1.5배: 범위가 좁다는 의견)
   },
 };
 // 소환 멤버 (덱 · 모집 · 도감 목록에는 없다): 정소영이 부르는 성준영
@@ -1595,8 +1612,12 @@ export const GEAR_STATS = {
   strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true },
   range: { name: '사거리 (최대 +35%)', pct: true },
   res: { name: '상태이상 시간 감소', pct: true },
-  regen: { name: '입구 초당 회복', pct: true }, coin: { name: '코인 획득', pct: true }, ult: { name: '총공지 충전', pct: true },
+  regen: { name: '입구 초당 회복', pct: true }, coin: { name: '코인 획득', pct: true }, ult: { name: '총공지 충전 (팀 합 최대 +100%)', pct: true },
+  boss: { name: '보스·중간 보스 피해', pct: true }, swarm: { name: '졸개 피해', pct: true }, critDmg: { name: '치명타 피해', pct: true },
+  exp: { name: '경험치 (팀 합 최대 +40%)', pct: true }, exec: { name: '체력 30% 이하 진상 피해', pct: true }, guard: { name: '입구 받는 피해 감소 (팀 합 최대 30%)', pct: true },
 };
+// 팀 전체에 걸리는 장비 능력치는 멤버들 것을 더하되 상한이 있다 (sim createGame)
+export const GEAR_TEAM_CAP = { exp: 0.4, guard: 0.3, ult: 1 };
 export const GEAR = {
   megaphone: { id: 'megaphone', slot: 'w', icon: '📣', name: '명품 확성기', stat: 'atk', base: 0.06 },
   goldmic: { id: 'goldmic', slot: 'w', icon: '🎤', name: '노래방 황금 마이크', stat: 'skill', base: 0.1 },
@@ -1620,7 +1641,17 @@ export const GEAR = {
   santahat: { id: 'santahat', slot: 'a', icon: '🎅', name: '산타 모자', stat: 'cd', base: 0.055, ch: 6 },
   champagne: { id: 'champagne', slot: 'w', icon: '🥂', name: '샴페인 잔', stat: 'atk', base: 0.065, ch: 6 },
   hangover: { id: 'hangover', slot: 'a', icon: '💊', name: '숙취해소 부적', stat: 'res', base: 0.06 },
+  // ─── 새 장비 7종 (모임 · 밤문화 소품) — 새 능력치: 보스 · 졸개 · 치명타 피해 · 경험치 · 마무리 · 입구 보호 ───
+  gymcard: { id: 'gymcard', slot: 'a', icon: '', name: '헬스장 1년 회원권', stat: 'boss', base: 0.07 },
+  speaker: { id: 'speaker', slot: 'w', icon: '', name: '클럽 우퍼 스피커', stat: 'swarm', base: 0.07 },
+  goldchain: { id: 'goldchain', slot: 'a', icon: '', name: '18K 금목걸이', stat: 'critDmg', base: 0.1, ch: 2 },
+  rolex: { id: 'rolex', slot: 'a', icon: '', name: '명품 시계', stat: 'ult', base: 0.015, ch: 3 },
+  corpcard: { id: 'corpcard', slot: 'w', icon: '', name: '법인카드', stat: 'exp', base: 0.012, ch: 3 },
+  lastorder: { id: 'lastorder', slot: 'w', icon: '', name: '라스트오더 종', stat: 'exec', base: 0.12, ch: 4 },
+  radio: { id: 'radio', slot: 'a', icon: '', name: '경호원 무전기', stat: 'guard', base: 0.012, ch: 5 },
 };
+// 그림이 아직 없는 장비: 비슷한 그림으로 대신 보여 준다 (public/img/lb/gear/<id>.webp 가 생기면 여기서 지우기)
+export const GEAR_ART_TODO = { gymcard: 'belt', speaker: 'megaphone', goldchain: 'clover', rolex: 'hourglass', corpcard: 'passport', lastorder: 'stamp', radio: 'carrier' };
 // 장비 한 줄 소개 · 잘 맞는 멤버 (추천)
 export const GEAR_INFO = {
   megaphone: ['방장이 쓰던 바로 그 확성기. 목소리에 무게가 실린다.', ['bangjang', 'myunghoon']],
@@ -1645,6 +1676,13 @@ export const GEAR_INFO = {
   santahat: ['산타 모자 쓰면 선물(스킬)이 빨리 온다.', ['hochan', 'sanghwa']],
   champagne: ['축하할 일이 생기면 한 방이 더 세진다. 건배!', ['sanghwa', 'eunok']],
   hangover: ['숙취해소 부적. 기절·매혹도 금방 깬다.', ['ingyu', 'bangjang']],
+  gymcard: ['1년 치 끊어 놓고 세 번 갔다. 그래도 큰 놈 앞에선 힘이 난다.', ['ara', 'gunman']],
+  speaker: ['쿵쿵 울리는 우퍼. 떼로 몰려온 졸개들이 귀를 막는다.', ['bangjang', 'eunok']],
+  goldchain: ['목에 건 18K. 한 번 번쩍이면 치명타가 더 아프다.', ['gunman', 'junseo']],
+  rolex: ['"이거 얼마짜리게?" 시간 맞춰 총공지가 빨리 찬다. 팀 전체 (합 최대 +100%).', ['bangjang', 'hochan']],
+  corpcard: ['"오늘은 회사가 쏜다!" 다 같이 경험치를 더 받는다. 팀 전체 (합 최대 +40%).', ['dohoon', 'sanghwa']],
+  lastorder: ['"라스트오더 받습니다~" 다 쓰러져 가는 진상을 마무리.', ['youngjun', 'hanna']],
+  radio: ['"입구 지원 바랍니다." 입구가 덜 아프다. 팀 전체 (합 최대 30%).', ['wonsik', 'gunnyeo']],
 };
 // 능력치 설명 (용어 풀이)
 export const STAT_HELP = {
@@ -1658,9 +1696,16 @@ export const STAT_HELP = {
   hp: ['체력(입구)', '랑방 입구 최대 내구도가 늘어난다'],
   skill: ['스킬 피해', '스킬로 주는 피해만 세진다'],
   res: ['상태이상 저항', '기절·매혹·공포 같은 상태이상이 짧게 끝난다'],
+  boss: ['보스 피해', '보스 · 중간 보스에게 주는 피해만 세진다'],
+  swarm: ['졸개 피해', '보스 · 중간 보스 · 정예가 아닌 보통 진상에게 주는 피해가 세진다'],
+  critDmg: ['치명타 피해', '치명타가 터졌을 때 더 아프다 (기본 2배에 더해짐)'],
+  ult: ['총공지 충전', '총공지 게이지가 더 빨리 찬다 (팀 전체 · 합 최대 +100%)'],
+  exp: ['경험치', '레벨업 카드가 더 자주 뜬다 (팀 전체 · 합 최대 +40%)'],
+  exec: ['마무리', '체력이 30% 이하로 남은 진상에게 피해가 세진다'],
+  guard: ['입구 보호', '입구가 받는 피해가 줄어든다 (팀 전체 · 합 최대 30%)'],
 };
 // 신화 (전설 위): 어느 멤버에게나 좋은 만능 장비 6종 · 멤버마다 신화 칸(m) 하나 · 강화·합성 없음 (처음부터 완성)
-//   드롭: 레이드 1위 · 무한 50웨이브(주마다) · 시즌 마지막 단계 · 모집 0.3%
+//   드롭: 무한 50웨이브(주마다) · 시즌 마지막 단계 · 모집 0.3% · 장비 뽑기 1% (레이드 1위는 하루 3번이라 전설로)
 export const MYTH = {
   myth_card: { name: '황금 멤버십 카드', stats: { atk: 0.1, spd: 0.1, skill: 0.1, hp: 0.1 }, desc: '모든 능력치 +10%' },
   myth_seal: { name: '방장의 인장', stats: { cd: 0.15 }, desc: '스킬 쿨타임 −15%' },
@@ -1672,12 +1717,14 @@ export const MYTH = {
 export const MYTH_IDS = Object.keys(MYTH);
 for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true }; }
 export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
+// 그림 주소 (화면): 그림이 아직 없는 새 장비는 비슷한 장비 그림으로
+for (const t of Object.keys(GEAR)) GEAR[t].img = `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;
 // 드롭 표 (모든 콘텐츠) — 숫자는 실제 규칙(rollDrops · rollHeroCard · live.js 보상)과 같다
 export const DROPS = [
   ['스테이지 클리어', '장비 1개 (일반 70 · 희귀 24+0.4×스테이지 · 영웅 5+0.35× · 전설 0.6+0.08×) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%)', '강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
   ['헬', '장비 +1개 · 일반 없음 · 영웅·전설 ×2', '멤버 카드 ×2 확률', '강화석 ×2 · 코인 ×3'],
-  ['무한 도전', '달성 우편 10/20/30/40/50웨이브 (주마다): 모집권 1~5 · 50웨이브 신화 장비', '주간 순위: 1위 전설 장비 · TOP3 영웅 장비 · TOP10 모집권 10', ''],
-  ['레이드', '참가 코인 · 강화석 2 · 1위 신화 장비 · 2~3위 영웅 장비', 'TOP10 모집권', ''],
+  ['무한 도전', '달성 우편 10/20/30/40/50웨이브 (주마다): 모집권 1~5 · 50웨이브 신화 장비', '주간 순위: 1위 전설 장비 · TOP3 영웅 장비 · TOP10 모집권 2', ''],
+  ['레이드', '참가 코인 · 강화석 2 · 1위 전설 장비 · 2~3위 영웅 장비', 'TOP10 모집권', ''],
   ['주간 도전', '순위 보상: 1위 모집권 5 + 영웅 장비 · TOP3 모집권 3 · TOP10 2 · 참가 1', '', ''],
   ['1:1 대전', '하루 10판 코인 (승 300 · 패 80 · 첫 승 2배)', '등급 올리기 보상: 코인 · 모집권', ''],
   ['시즌 (30단계)', '5단계 희귀 · 15단계 영웅 · 25단계 전설 장비 · 30단계 신화 장비', '4단계마다 범용 카드 · 3단계마다 모집권', ''],
@@ -1695,7 +1742,7 @@ export function gearValue(t, r, lv) {
 }
 export function gearEnhanceCost(r, lv) {
   if (lv >= GEAR_MAX_LV || r === 'myth') return null; // 신화는 강화 없음
-  return Math.round((100 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 2.3)) / 10) * 10; // 영웅 +10 까지 합 약 18만 (보통 8~10일치)
+  return Math.round((100 * GEAR_RARITY[r].mul * Math.pow(lv + 1, 2.3)) / 10) * 10; // 영웅 +10: 성공만 치면 약 18만 · 실패(+4부터 90%→40%) 포함 기대 비용 약 35만 + 강화석 15개
 }
 // 강화석: +6 부터 필요 (+6 1개 · +7 2개 · +8 3개 · +9 4개 · +10 5개)
 export function gearStoneNeed(lv) { return lv >= 5 && lv < GEAR_MAX_LV ? lv - 4 : 0; }
@@ -1767,7 +1814,7 @@ export function rollHeroCard(seed, stars, hell, used) {
   if (rng() >= p) return null;
   return used[(rng() * used.length) | 0];
 }
-export const CARD_PICK = { cost: 2500, n: 3, perWeek: 3 }; // 상점 "멤버 카드 선택권": 고른 멤버 카드 3장 · 주 3번
+export const CARD_PICK = { cost: 1500, n: 5, perWeek: 5 }; // 상점 "멤버 카드 선택권": 고른 멤버 카드 5장 · 주 5번 (2500·3장·주 3번 → 장당 833 → 300 코인: 카드가 강화의 병목이라)
 
 // ─── 진상 특성: 덱을 골라야 이긴다 (모든 특성에 잘 맞는 멤버 2명 이상) ─────
 export const TRAITS = {
