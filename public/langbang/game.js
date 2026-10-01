@@ -2216,24 +2216,83 @@ async function loadRankTicker() {
   if (!lines.length) lines.push('아직 랭킹이 비었어요 — 1등 할 기회!');
   rankTicker.lines = lines;
 }
-function tickRank() {
+// 로비 소식 띠 (한 줄): 할 일(우편 · 미션 보상 · 출석 …) 다음에 랭킹 — 4초마다 넘어가고 좌우로 밀어도 넘어간다
+//  누르면 할 일 목록(todo) / 전체 랭킹(ranking)
+function newsItems() {
+  let td = [];
+  try { td = app.profileLoaded ? todoList() : []; } catch { td = []; }
+  return [...td.map((t) => ({ html: `${ic(t.ic, '', 'sm')}${esc(t.txt)}`, act: 'todo', hot: true })),
+    ...rankTicker.lines.map((l) => ({ html: `${ic('trophy', '', 'sm')}${l}`, act: 'ranking' }))];
+}
+function newsInner(it, n, rev) { return `<span class="nw-txt"><span class="rk-in${rev ? ' rev' : ''}">${it.html}</span></span>${n > 1 ? `<i class="nw-pg">${(rankTicker.i % n) + 1}/${n}</i>` : ''}`; }
+function newsFirst() { const items = newsItems(); if (!items.length) return ''; rankTicker.i %= items.length; const it = items[rankTicker.i]; return `<button class="lb-news ${it.hot ? 'hot' : ''}" data-act="${it.act}" id="lbRank" aria-label="소식">${newsInner(it, items.length)}</button>`; }
+function tickRank(step = 1) {
   let next = 4000;
   try {
     const el = document.getElementById('lbRank');
     if (!el || app.screen !== 'menu') return;
-    if (!rankTicker.lines.length) { el.hidden = true; return; }
+    const items = newsItems();
+    if (!items.length) { el.hidden = true; return; }
     el.hidden = false;
-    const line = rankTicker.lines[rankTicker.i++ % rankTicker.lines.length];
-    el.innerHTML = `<span class="rk-in">${line}</span>`;
+    rankTicker.i = (((rankTicker.i + step) % items.length) + items.length) % items.length;
+    const it = items[rankTicker.i];
+    el.dataset.act = it.act; el.classList.toggle('hot', !!it.hot);
+    el.innerHTML = newsInner(it, items.length, step < 0);
     // 한 줄에 다 안 들어가면: 잠깐 멈췄다가 끝까지 부드럽게 흘러간다 (잘리지 않게)
-    const sp = el.firstElementChild, over = sp.scrollWidth - el.clientWidth + 12;
+    const box = el.firstElementChild, sp = box.firstElementChild, over = sp.scrollWidth - box.clientWidth + 12;
     if (over > 8) { const sec = Math.max(3, over / 38); sp.classList.add('mq'); sp.style.setProperty('--mq', `-${over}px`); sp.style.setProperty('--mqs', `${sec + 1.6}s`); next = (sec + 2.8) * 1000; }
   } finally { clearTimeout(tickRank.t); tickRank.t = setTimeout(tickRank, next); }
 }
 tickRank.t = setTimeout(tickRank, 4000);
+// 소식 띠 좌우로 밀기 → 다음 / 이전 소식 (미는 건 누르기 아님)
+let newsSw = null;
+ui.addEventListener('pointerdown', (ev) => { const n = app.screen === 'menu' && ev.target.closest('#lbRank'); newsSw = n ? { x0: ev.clientX, y0: ev.clientY } : null; });
+ui.addEventListener('pointerup', (ev) => {
+  if (!newsSw) return;
+  const dx = ev.clientX - newsSw.x0, dy = ev.clientY - newsSw.y0; newsSw = null;
+  if (Math.abs(dx) < 28 || Math.abs(dy) > Math.abs(dx)) return;
+  ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 60);
+  A.sfx.tabSw(); tickRank(dx < 0 ? 1 : -1);
+});
 setInterval(() => { if (app.screen === 'menu' && app.profileLoaded && document.visibilityState === 'visible') Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { const before = (P().mail || []).length; app.profile = r.profile; if ((r.profile.mail || []).length > before) { toast('우편이 도착했어요!', 2200); if (app.screen === 'menu') showMenu(); } } }).catch(() => {}); }, 180e3);
-// 줄 칸용 짧은 시간: "점심 6시간 36분 뒤" → "6시간" · "36분 뒤" → "36분"
-function shortTime(s) { const h = /(\d+)\s*시간/.exec(s), m = /(\d+)\s*분/.exec(s), d = /(\d+)\s*일/.exec(s); return d ? `${d[1]}일` : h ? `${h[1]}시간` : m ? `${m[1]}분` : s.length > 6 ? s.slice(0, 6) : s; }
+// 로비 버튼 그림: 새 그림(ui2/<name>.webp)이 없으면 비슷한 그림으로
+const lbArt = (name, alt) => `<span class="uic"><img src="/img/lb/ui2/${name}.webp" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/ui2/${alt}.webp'"></span>`;
+// 빨간 점 모으기: 도전(모드) 버튼 · 메뉴 버튼
+function lobbyModeDot(p, d, now) {
+  const rs = L.raidState(now);
+  const tw = TWUI ? TWUI.lobbyButton(p).includes('class="rd"') : false;
+  return !!(d.weekly || d.season || tw || (rs.open && !(p.raid && p.raid.wi === rs.wi && p.raid.runs)));
+}
+function lobbyMenuDot(p, d) { return !!(d.checkin || dexHasNew() || FRX.badge(p) > 0); }
+// 도전 고르기 창: 진상의 탑 · 주간 도전 · 무한 도전 · 레이드 · 1:1 대전 · 시즌 (남은 시간 · 기록 · 빨간 점)
+function showModes() {
+  const p = P(), now = Date.now(), d = dots();
+  const wkOpen = (p.maxStage | 0) >= L.WEEKLY_UNLOCK, rs = L.raidState(now), rl = L.raidLabel(now);
+  const pvpN = (p.pvp && p.pvp.rating) || 1000;
+  const card = (act, art, name, desc, info, { locked = false, hot = false, dot = false } = {}) => `<button class="md-card ${locked ? 'locked' : ''} ${hot ? 'hot' : ''}" data-act="${act}">${art}<span class="md-t"><b>${name}</b><small>${desc}</small></span><em class="md-i">${info}</em>${locked ? `<i class="md-lock">${ic('lock', '', 'sm')}</i>` : ''}${rdot(dot)}</button>`;
+  const cards = [
+    card('weekly', uiIco('weekly', ''), '주간 도전', '한 주 최고 점수 겨루기', wkOpen ? `${ic('clock', '', 'sm')}${L.leftText(L.msToWeekEnd(now))} 남음` : `${stageLabel(L.WEEKLY_UNLOCK)} 클리어`, { locked: !wkOpen, dot: d.weekly }),
+    card('endless', lbArt('infinity', 'infinity'), '무한 도전', '끝없는 웨이브 버티기', p.endlessUnlocked ? `최고 W${p.bestWave || 0} · 오늘 ${p.master && !p.testNormal ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}` : `${stageLabel(ENDLESS_UNLOCK)} 클리어`, { locked: !p.endlessUnlocked }),
+    card('raid', uiIco('raid', ''), '레이드', '다 같이 거대 보스 잡기', `${ic('clock', '', 'sm')}${esc(rl.text)}`, { hot: rs.open, dot: rs.open && !(p.raid && p.raid.wi === rs.wi && p.raid.runs) }),
+    card('pvp', uiIco('pvp', ''), '1:1 대전', '실시간으로 겨루기', `${pvpN}점`),
+    card('season', uiIco('season', ''), '시즌', '단계마다 시즌 보상', `${L.seasonTier(p)}/${L.SEASON_TIERS}단계`, { dot: d.season }),
+  ].join('');
+  const m = popup(`<h3>${lbArt('lobby_mode', 'swords').replace('class="uic"', 'class="uic h3i"')}도전</h3><div class="md-feat">${TWUI ? TWUI.lobbyButton(p) : ''}</div><div class="md-grid">${cards}</div>`, 'lb-sheet md-sheet');
+  lobbySheetClose(m);
+}
+// 메뉴 창: 출석 · 랭킹 · 도감 · 친구 · 모집 · 공유 · 공지 · 설정
+function showLobbyMenu() {
+  const p = P(), d = dots();
+  const IC2 = { notice: 'megaphone', friends: 'ic_friends' };
+  const cells = [['checkin', '출석', 'checkin', d.checkin], ['ranking', '랭킹', 'ranking', false], ['dex', '도감', 'dex', dexHasNew()], ['friends', '친구', 'friends', FRX.badge(p) > 0], ['recruit', '모집', 'recruit', d.recruit], ['share', '공유', 'share', false], ['notice', '공지', 'notice', false], ['settings', '설정', 'settings', false]]
+    .map(([k, n, act, on]) => `<button class="mg-cell" data-act="${act}">${IC2[k] ? lbArt(IC2[k], IC2[k]) : uiIco(k, '')}<b>${n}</b>${rdot(on)}</button>`).join('');
+  const m = popup(`<h3>${lbArt('lobby_menu', 'tools').replace('class="uic"', 'class="uic h3i"')}메뉴</h3><div class="mg-grid">${cells}</div>`, 'lb-sheet mg-sheet');
+  lobbySheetClose(m);
+}
+// 창 안에서 고르면 창을 닫고 그 화면으로 (잠긴 칸은 창을 남겨 둔다 → 안내만)
+function lobbySheetClose(m) {
+  m.addEventListener('click', (ev) => { const b = ev.target.closest('[data-act]'); if (b && !b.classList.contains('locked') && !ui.dataset.noclick) m.remove(); }, true);
+}
 function showMenu() {
   app.screen = 'menu';
   app.g = null;
@@ -2250,7 +2309,7 @@ function showMenu() {
   if (A.setMode) A.setMode(null);
   A.setChapter(ch);
   if (app.touched) A.playBgm(); // 전투 · 대전 · 레이드에서 돌아오면 로비 음악 다시 (같은 곡이면 그대로)
-  setTimeout(() => { loadRankTicker().then(tickRank).catch(() => {}); }, 0);
+  setTimeout(() => { loadRankTicker().then(() => tickRank(0)).catch(() => {}); }, 0);
   if (!app.demo) app.demo = makeDemo();
   fx.reset();
   const p = P();
@@ -2265,27 +2324,19 @@ function showMenu() {
     return `<button class="chest ${st}" data-act="chest" data-ch="${ch}" data-n="${n}"><span>${ic(st === 'open' ? 'check' : 'gift', '', '')}</span><small>★${n}</small></button>`;
   }).join('');
   const now = Date.now();
-  const wkOpen = (p.maxStage | 0) >= L.WEEKLY_UNLOCK;
   const boss = stageBosses(s).length > 0;
-  const left = [
-    `<button class="tile ${wkOpen ? '' : 'locked'}" data-act="weekly">${uiIco('weekly', '')}<b>주간 도전</b><small class="tl-t">${wkOpen ? L.leftText(L.msToWeekEnd(now)) : `${stageLabel(L.WEEKLY_UNLOCK)}`}</small>${rdot(d.weekly)}</button>`,
-    `<button class="tile ${p.endlessUnlocked ? '' : 'locked'}" data-act="endless"><span class="uic"><img src="/img/lb/ui2/infinity.webp" alt="" draggable="false"></span><b>무한 도전</b><small class="tl-t">${p.endlessUnlocked ? `W${p.bestWave || 0}` : stageLabel(ENDLESS_UNLOCK)}</small></button>`,
-    `<button class="tile" data-act="season">${uiIco('season', '')}<b>시즌</b><small class="tl-t">${L.seasonTier(p)}/${L.SEASON_TIERS}</small>${rdot(d.season)}</button>`,
-    `<button class="tile" data-act="recruit">${uiIco('recruit', '')}<b>모집</b><small class="tl-t">${ic('ticket', '', 'sm')}${p.unlimited ? '∞' : p.tickets | 0}</small>${rdot(d.recruit)}</button>`,
-    `<button class="tile ${L.raidState(now).open ? 'hot' : ''}" data-act="raid">${uiIco('raid', '')}<b>레이드</b><small class="tl-t ${L.raidState(now).open ? 'raid-open' : ''}">${esc(shortTime(L.raidLabel(now).text))}</small>${rdot(L.raidState(now).open && !(p.raid && p.raid.wi === L.raidState(now).wi && p.raid.runs))}</button>`,
-    `<button class="tile" data-act="pvp">${uiIco('pvp', '')}<b>1:1 대전</b><small class="tl-t">${(p.pvp && p.pvp.rating) || 1000}점</small></button>`,
-  ].join('');
-  const right = [['missions', '미션', '', 'missionsNav'], ['share', '공유', '', 'share'], ['checkin', '출석', '', 'checkin'], ['ranking', '랭킹', '', 'ranking'], ['dex', '도감', '', 'dex'], ['mail', '우편', '', 'mail'], ['friends', '친구', '', 'friends'], ['notice', '공지', '', 'notice'], ['settings', '설정', '', 'settings']]
-    .map(([ic0, n, e, act]) => `<button class="rb" data-act="${act}">${ic0 === 'notice' ? '<span class="uic"><img src="/img/lb/ui2/megaphone.webp" alt="" draggable="false"></span>' : ic0 === 'friends' ? '<span class="uic"><img src="/img/lb/ui2/ic_friends.webp" alt="" draggable="false"></span>' : uiIco(ic0, '')}<small>${n}</small>${rdot((act === 'dex' && dexHasNew()) || (act === 'checkin' && d.checkin) || (act === 'missionsNav' && d.missions) || (act === 'mail' && L.mailCount(p) > 0) || (act === 'friends' && FRX.badge(p) > 0))}</button>`).join('');
+  const md = lobbyModeDot(p, d, now), mn = lobbyMenuDot(p, d);
+  const raidOpen = L.raidState(now).open;
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~7)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
     <div class="lb-key" style="background-image:${chArtCss('keyart', ch)}"></div>
     <div class="lb-dim"></div>
     ${topPills()}
-    ${TWUI ? TWUI.lobbyButton(p) : ''}
     ${p.master ? '<button class="lb-master" data-act="settings">MASTER</button>' : ''}
-    <button class="lb-rank" data-act="ranking" id="lbRank" aria-label="랭킹 보기" hidden></button>
+    <div class="lb-bar2">${newsFirst() || '<button class="lb-news" data-act="ranking" id="lbRank" aria-label="소식" hidden></button>'}
+      <div class="lb-quick">${[['mail', '우편', 'mail', L.mailCount(p) > 0], ['missions', '미션', 'missionsNav', d.missions], ['settings', '설정', 'settings', false]].map(([k, n, act, on]) => `<button class="qb" data-act="${act}">${uiIco(k, '')}<small>${n}</small>${rdot(on)}</button>`).join('')}</div>
+    </div>
     <button class="lb-stage" data-act="stages">
       <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
       <span class="lb-chip" style="--cc:${c.color}">${ch}장 ${esc(c.name)} · ${esc(fxd.name)}${boss ? ` · ${ic('ic_bosscrown', '', 'sm')}보스` : ''}</span>
@@ -2299,9 +2350,8 @@ function showMenu() {
     <div class="lb-chests"><div class="cbar"><b style="width:${Math.min(100, (cs / 30) * 100)}%"></b></div>${chests}<em>${ch}장 ★${cs}/30</em></div>
     ${snap ? `<button class="lb-resume" data-act="resumeSnap">${ic('retry', '', 'sm')}이어하기 <small>${esc(snapLabel(snap))}</small></button>` : ''}
     <button class="lb-start v2" data-act="lbGo"><i class="ls-shine"></i><span class="ls-txt"><b>출격!</b><small>${stageLabel(s)} ${esc(stageName(s))}</small></span><span class="ls-cost">${ic('energy', '', 'sm')}<em>${p.master ? 0 : L.stageStaminaCost(p, s, false)}</em></span></button>
-    ${(() => { const td = todoList(); return td.length ? `<button class="lb-todo" data-act="todo">${ic(td[0].ic, '', 'sm')}<span>${esc(td[0].txt)}</span>${td.length > 1 ? `<b>+${td.length - 1}</b>` : ''}</button>` : ''; })()}
-    <div class="lb-left">${left}</div>
-    <div class="lb-right">${right}</div>
+    <button class="lb-side l ${raidOpen ? 'hot' : ''}" data-act="lbModes">${lbArt('lobby_mode', 'swords')}<b>도전</b>${raidOpen ? '<em class="ls-hot">레이드 열림</em>' : ''}${rdot(md)}</button>
+    <button class="lb-side r" data-act="lbMenu">${lbArt('lobby_menu', 'tools')}<b>메뉴</b>${rdot(mn)}</button>
     ${navHtml('battle')}
     ${app.profileLoaded ? '' : '<div class="lb-loading"><span class="spin"></span></div>'}
   `, 'lobby');
@@ -3357,6 +3407,8 @@ async function claimChestAct(ch, n) {
 Object.assign(ACTS, {
   nav: (b) => goNav(b.dataset.tab),
   lbStep: (b) => lobbyStep(Number(b.dataset.d)),
+  lbModes: () => showModes(),
+  lbMenu: () => showLobbyMenu(),
   lbGo: () => showPrep('stage', lobbyStage()),
   weekly: () => showWeekly(),
   weeklyGo: () => showPrep('weekly', 0),
