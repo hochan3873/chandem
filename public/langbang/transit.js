@@ -24,7 +24,7 @@ export function initTransit(ctx) {
   if (LOW) document.body.classList.add('tr-low');
   // 탑이 열려 있으면 로비가 한가할 때 탑 그림을 미리 받아 둔다 (처음 들어갈 때 기다리지 않게 · 84KB 한 장)
   const idle = window.requestIdleCallback || ((f) => setTimeout(f, 200));
-  setTimeout(() => idle(() => { if (document.querySelector('.tw-entry:not(.locked)')) { const im = new Image(); im.decoding = 'async'; im.src = ART.tower; } }), 2500);
+  setTimeout(() => idle(() => { if (document.querySelector('.tw-entry:not(.locked), [data-act="lbModes"]')) { const im = new Image(); im.decoding = 'async'; im.src = ART.tower; } }), 2500);
   return { begin, after, finish, hold, leave, busy: () => !!(cur && cur.blocking) };
 }
 const reduced = () => document.body.classList.contains('rm');
@@ -59,7 +59,7 @@ function begin(prev, next, kind, oldEl) {
   const t = { theme, themed: theme !== 'generic', kind, prev, next, old: oldEl, keep: true, timers: [], anims: [], holds: [], blocking: false, done: false };
   const sr = stageRect();
   t.sr = sr;
-  if (theme === 'towerIn') t.origin = centerOf(oldEl.querySelector('.tw-entry'), sr);
+  if (theme === 'towerIn') t.origin = centerOf(oldEl.querySelector('.tw-entry') || oldEl.querySelector('[data-act="lbModes"]'), sr); // 탑 버튼은 [도전] 시트 안 → 시트가 닫히면 [도전] 버튼 쪽으로
   // 이전 화면: 누를 수 없게 · 아이디 겹침 없게 (getElementById 가 새 화면을 찾도록)
   oldEl.classList.add('tr-old');
   oldEl.classList.remove('enter', 'same', 'go-fwd', 'go-back', 'go-tab');
@@ -214,7 +214,7 @@ const THEMES = {
     const aVig = anim(t, ov.querySelector('.trt-vig'), [{ opacity: 0 }, { opacity: 0.9, offset: 0.45 }, { opacity: 0 }], { duration: 640 });
     sfx('whooshBack'); buzz(12);
     then(t, aOld, () => whenCovered(t, () => {
-      const o = centerOf(t.el && t.el.querySelector('.tw-entry'), t.sr);
+      const o = centerOf(t.el && (t.el.querySelector('.tw-entry') || t.el.querySelector('[data-act="lbModes"]')), t.sr);
       if (o && t.el) t.el.style.setProperty('--tr-o', `${o.x}px ${o.y}px`);
       revealScreen(t, 'tr-rv-out');
       end(t, 0, aVig);

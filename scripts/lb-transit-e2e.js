@@ -38,7 +38,7 @@ function check(cond, msg) {
   const toMenu = () => page.evaluate(() => (document.querySelector('#ui > .screen [data-act="menu"]') || document.querySelector('[data-act="nav"][data-tab="battle"]')).click());
 
   // 1) 진상의 탑: 화면 상태는 바로 바뀌고 · 탑 전용 덮개 · 1초 안에 깨끗이 끝남
-  await page.evaluate(() => document.querySelector('.tw-entry').click());
+  await page.evaluate(() => document.querySelector('[data-act="lbModes"]').click()); await wait(250); await page.evaluate(() => document.querySelector('.tw-entry').click());
   let s = await state();
   check(s.scr === 'tower' && /tr-tower/.test(s.ov) && s.old === 1, '탑 입장: 상태는 바로 탑 · 탑 전용 덮개 · 로비 잔상');
   s = await settle();
@@ -50,7 +50,7 @@ function check(cond, msg) {
   s = await settle();
   check(s.n === 1 && !s.ov && !s.old, '탑 → 로비 끝: 화면 하나 ' + JSON.stringify(s));
   // 3) 탭해서 건너뛰기
-  await page.evaluate(() => document.querySelector('.tw-entry').click());
+  await page.evaluate(() => document.querySelector('[data-act="lbModes"]').click()); await wait(250); await page.evaluate(() => document.querySelector('.tw-entry').click());
   await wait(120);
   await page.evaluate(() => { const o = document.querySelector('.tr-ov'); o.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })); });
   s = await state();
@@ -59,7 +59,7 @@ function check(cond, msg) {
   check(!(await state()).ov, '건너뛴 뒤 덮개 정리');
   await toMenu(); await settle();
   // 4) 레이드: 엘리베이터 · 전환 중 뒤로 가기
-  await page.evaluate(() => document.querySelector('[data-act="raid"]').click());
+  await page.evaluate(() => document.querySelector('[data-act="lbModes"]').click()); await wait(250); await page.evaluate(() => document.querySelector('.md-card[data-act="raid"]').click());
   s = await state();
   check(s.scr === 'raid' && /tr-elev/.test(s.ov), '레이드: 엘리베이터 문');
   await wait(150);
@@ -69,12 +69,13 @@ function check(cond, msg) {
   check(s.scr === 'menu' && !s.ov && !s.old && s.n === 1, '전환 중 뒤로 가기: 로비로 · 덮개 · 잔상 없음');
   check(/^\/langbang/.test(await page.evaluate(() => location.pathname)), '뒤로 가기로 랑방을 떠나지 않음');
   // 5) 1:1 대전: VS 와이프
-  await page.evaluate(() => document.querySelector('.tile[data-act="pvp"]').click());
+  await page.evaluate(() => document.querySelector('[data-act="lbModes"]').click()); await wait(250); await page.evaluate(() => document.querySelector('.md-card[data-act="pvp"]').click());
   check(/tr-vs/.test((await state()).ov), '1:1 대전: 대각선 VS');
   await settle();
   await toMenu(); await settle();
   // 6) 모집: 셔터 · 빠른 두 번 탭 (두 번째 탭은 건너뛰기만 · 화면은 하나)
-  const tile = await page.$('[data-act="recruit"]');
+  await page.evaluate(() => document.querySelector('[data-act="lbMenu"]').click()); await wait(300);
+  const tile = await page.$('.mg-cell[data-act="recruit"]');
   const box = await tile.boundingBox();
   await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
   await wait(60);
@@ -84,14 +85,14 @@ function check(cond, msg) {
   check(s.scr === 'shop' && s.n === 1 && !s.ov, '빠른 두 번 탭: 상점 하나만 · 엉뚱한 버튼 안 눌림');
   // 7) 보통 넘김: 이전 화면이 잠깐 잔상 → 정리
   await toMenu(); await settle();
-  await page.evaluate(() => document.querySelector('[data-act="season"]').click());
+  await page.evaluate(() => document.querySelector('[data-act="lbModes"]').click()); await wait(250); await page.evaluate(() => document.querySelector('.md-card[data-act="season"]').click());
   s = await state();
   check(s.scr === 'season' && s.old === 1 && !s.ov, '보통 넘김: 덮개 없이 깊이감 잔상');
   check((await settle()).old === 0, '보통 넘김 잔상 정리');
   // 8) 움직임 줄이기: 연출 없이 바로
   await page.evaluate(() => document.body.classList.add('rm'));
   await toMenu(); await wait(100);
-  await page.evaluate(() => document.querySelector('.tw-entry').click());
+  await page.evaluate(() => document.querySelector('[data-act="lbModes"]').click()); await wait(250); await page.evaluate(() => document.querySelector('.tw-entry').click());
   s = await state();
   check(s.scr === 'tower' && !s.ov && !s.old, '움직임 줄이기: 연출 없이 바로 넘어감');
   check(errors.length === 0, '페이지 에러 없음' + (errors.length ? ': ' + errors.join(' | ') : ''));
