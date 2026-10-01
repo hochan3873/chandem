@@ -37,13 +37,13 @@ const tw = () => P().tower || TW.emptyTower();
 // 피로 (마스터 무료 모드는 안 쌓이고 안 막힌다)
 const freeMode = () => { const p = P(); return !!(p.master && !p.testNormal); };
 const fatOf = (h) => (freeMode() ? 0 : TW.fatigueOf(P(), h));
-const fatBlocked = (h) => fatOf(h) >= TW.FATIGUE.max;
+const fatBlocked = (h) => !freeMode() && TW.fatigueLocked(P(), h); // 100을 찍으면 70 아래로 풀릴 때까지
 const fatWait = (h) => TW.fatigueTimeText(TW.fatigueOkMs(P(), h));
 const fatLv = (v) => (v >= TW.FATIGUE.max ? 'full' : v >= 70 ? 'hi' : v >= 35 ? 'mid' : 'lo');
 // 피로 게이지: 막대 (초록 → 노랑 → 빨강) · "피로 n% · 전투력 −x%" · 다 풀릴 때까지
 function fatGauge(h, cls = '') {
   const v = fatOf(h), pow = Math.round(v * TW.FATIGUE.pow * 100);
-  const tail = !v ? '쌩쌩해요' : v >= TW.FATIGUE.max ? `지쳐서 쉬어야 해요 · ${fatWait(h)} 뒤 회복` : `${TW.fatigueTimeText(TW.fatigueRestMs(v))} 뒤 다 풀려요`;
+  const tail = !v ? '쌩쌩해요' : fatBlocked(h) ? `지쳐서 쉬어야 해요 · ${fatWait(h)} 뒤 회복` : `${TW.fatigueTimeText(TW.fatigueRestMs(v))} 뒤 다 풀려요`;
   return `<span class="tw-fat ${fatLv(v)} ${cls}"><i class="tf-bar"><b style="width:${v}%"></b></i><small>피로 ${v}%${pow ? ` · 전투력 −${pow}%` : ''}</small><em>${tail}</em></span>`;
 }
 
@@ -208,7 +208,7 @@ function infoPop() {
     <p class="ip">60층 · 15층마다 구역 · 5층마다 보스 · 46층부터 규칙 둘 · 멤버 <b>한 명</b>만 · 위로 갈수록 진상이 단단해진다 (30층 체력 ×${Math.round(TW.floorHp(30) / TW.floorHp(1))} · 16~35층이 가장 가파르다)</p>
     <p class="ip">하루 도전 <b>${TW.TOWER.tries}번</b> (자정 초기화) · 깬 판은 도전을 돌려받아요 · 체력은 안 써요</p>
     <h4 class="gl-h">피로</h4><p class="ip">탑에 오를 때마다 그 멤버의 피로가 쌓여요 · 깨면 <b>+${TW.FATIGUE.clear}</b> (${TW.FATIGUE.highFrom}층부터 <b>+${TW.FATIGUE.clearHigh}</b>) · 이미 깬 층 다시 깨기 +${TW.FATIGUE.replay} · 실패 +${TW.FATIGUE.fail}</p>
-    <p class="ip">피로한 멤버는 탑에서 공격력 · 입구 내구도가 줄어요 (피로 100 = <b>−${Math.round(TW.FATIGUE.max * TW.FATIGUE.pow * 100)}%</b>) · 100이면 쉬어야 들어갈 수 있어요 · 한 시간에 ${TW.FATIGUE.perHour}씩 저절로 풀려요 (다 풀리기까지 약 ${Math.round(TW.FATIGUE.max / TW.FATIGUE.perHour)}시간) · 탑 상점 피로 회복제 −${TW.FATIGUE.potion} · 여러 멤버를 번갈아 데려가요</p>
+    <p class="ip">피로한 멤버는 탑에서 공격력 · 입구 내구도가 줄어요 (피로 100 = <b>−${Math.round(TW.FATIGUE.max * TW.FATIGUE.pow * 100)}%</b>) · 100이 되면 지쳐서 ${TW.FATIGUE.unlock} 아래로 풀릴 때까지 (약 5시간) 못 들어가요 · 한 시간에 ${TW.FATIGUE.perHour}씩 저절로 풀려요 (다 풀리기까지 약 ${Math.round(TW.FATIGUE.max / TW.FATIGUE.perHour)}시간) · 탑 상점 피로 회복제 −${TW.FATIGUE.potion} · 여러 멤버를 번갈아 데려가요</p>
     <h4 class="gl-h">층 규칙</h4>${rules}
     <h4 class="gl-h">보상 (층을 처음 깰 때)</h4><p class="ip">코인 · 염화석 · 강화석 · 보스 층 모집권 · 구역 끝 모집권 3</p>${miles}
     <h4 class="gl-h">주간 탑 랭킹</h4><p class="ip">이번 주에 깬 가장 높은 층 (같으면 더 빨리 깬 기록) · 1위 칭호 "이번 주 탑의 주인" (다음 한 주) + 코인 5,000 · 모집권 3 · 염화석 40 · TOP 10 작은 보상</p>

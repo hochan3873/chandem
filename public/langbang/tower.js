@@ -42,6 +42,7 @@ export const FATIGUE = {
   fail: 15, replay: 25, // 실패 +15 · 이미 깬 층을 다시 깨도 +25
   pow: 0.004, // 피로 1 = 공격력 · 내구도 −0.4%
   potion: 50, // 피로 회복제 하나 −50
+  unlock: 70, // 100이 되면 지친 상태 → 70 아래로 풀릴 때까지 못 들어감 (약 5시간)
 };
 const HOUR = 3600e3;
 // 지금 피로 (저장된 값에서 지난 시간만큼 뺀다)
@@ -55,18 +56,26 @@ export function fatigueOf(lb, hero, now = Date.now()) {
 export function fatigueAdd(lb, hero, d, now = Date.now()) {
   const t = lb.tower; t.fat = t.fat || {};
   const v = Math.max(0, Math.min(FATIGUE.max, fatigueOf(lb, hero, now) + d));
-  if (v > 0) t.fat[hero] = { v, at: now }; else delete t.fat[hero];
+  const was = t.fat[hero] && t.fat[hero].lock && v >= FATIGUE.unlock;
+  if (v > 0) t.fat[hero] = { v, at: now, ...(v >= FATIGUE.max || was ? { lock: 1 } : {}) }; else delete t.fat[hero];
   return v;
 }
 // 탑 전투 배율 (공격력 · 입구 내구도): 피로 100 → 0.6
 export const fatigueMul = (v) => 1 - Math.max(0, Math.min(FATIGUE.max, v || 0)) * FATIGUE.pow;
 // 다 풀릴 때까지 남은 시간 (ms) · 다시 들어갈 수 있을 때까지 (100 미만)
 export const fatigueRestMs = (v) => Math.ceil((Math.max(0, v) / FATIGUE.perHour) * HOUR);
+// 지쳐서 못 들어가는 중? (100을 찍으면 70 아래로 풀릴 때까지)
+export function fatigueLocked(lb, hero, now = Date.now()) {
+  const x = ((lb && lb.tower && lb.tower.fat) || {})[hero];
+  if (!x) return false;
+  const v = fatigueOf(lb, hero, now);
+  return v >= FATIGUE.max || (!!x.lock && v >= FATIGUE.unlock);
+}
 export function fatigueOkMs(lb, hero, now = Date.now()) {
   const x = ((lb && lb.tower && lb.tower.fat) || {})[hero];
-  if (!x || fatigueOf(lb, hero, now) < FATIGUE.max) return 0;
+  if (!x || !fatigueLocked(lb, hero, now)) return 0;
   const raw = x.v - (Math.max(0, now - (x.at || 0)) / HOUR) * FATIGUE.perHour;
-  return Math.max(60e3, Math.ceil(((raw - (FATIGUE.max - 1)) / FATIGUE.perHour) * HOUR));
+  return Math.max(60e3, Math.ceil(((raw - (FATIGUE.unlock - 1)) / FATIGUE.perHour) * HOUR));
 }
 // 이 층을 깨면 / 실패하면 쌓이는 피로
 export const fatigueGain = (f, clear, replay) => (!clear ? FATIGUE.fail : replay ? FATIGUE.replay : f >= FATIGUE.highFrom ? FATIGUE.clearHigh : FATIGUE.clear);
@@ -267,7 +276,7 @@ export const TOWER_SHOP = [
   { id: 'potion', kind: 'fat', amount: FATIGUE.potion, cost: 30, per: 'day', n: 2, name: '피로 회복제', desc: `고른 멤버 피로 −${FATIGUE.potion}` },
 ];
 // 피로 회복제 그림 (/img/lb/tower/tw_potion.webp) — 아직 없어서 에너지 드링크 그림으로 (그림이 오면 주소만 바꾸기)
-export const POTION_ART = '/img/lb/ui2/it_energydrink.webp';
+export const POTION_ART = '/img/lb/tower/tw_potion.webp';
 
 // ─── 진행 상태 (lb.tower) — 이상한 값은 버린다 ───
 export function emptyTower() { return { best: 0, hb: {}, fat: {}, day: -1, used: 0, run: null, wk: null, wkPrev: null, wkPaid: -1e6, stone: 0, hs: {}, buy: {}, picks: { legend: 0, hero: 0 }, miles: [], hall: null, kingUntil: 0 }; }
@@ -281,7 +290,7 @@ export function normTower(raw, out, now = Date.now()) {
   for (const [h, x] of Object.entries(t.fat && typeof t.fat === 'object' ? t.fat : {})) {
     if (!HEROES[h] || !x || typeof x !== 'object') continue;
     const v = int(x.v, 0, FATIGUE.max), at = int(x.at, 0, 9e15);
-    if (v > 0 && v - (Math.max(0, now - at) / HOUR) * FATIGUE.perHour > 0) o.fat[h] = { v, at: Math.min(at, now) };
+    if (v > 0 && v - (Math.max(0, now - at) / HOUR) * FATIGUE.perHour > 0) o.fat[h] = { v, at: Math.min(at, now), ...(x.lock ? { lock: 1 } : {}) };
   }
   o.day = Number.isInteger(t.day) ? t.day : -1;
   o.used = int(t.used, 0, 99);
@@ -320,7 +329,7 @@ export function towerStart(lb, f, hero, runId, now = Date.now(), free = false) {
   if (t.day !== day) { t.day = day; t.used = 0; }
   if (!free && t.used >= TOWER.tries) return { error: `오늘 탑 도전은 다 했어요 (하루 ${TOWER.tries}번 · 깬 층은 안 깎여요 · 자정에 초기화)` };
   const fat = free ? 0 : fatigueOf(lb, hero, now);
-  if (fat >= FATIGUE.max) return { error: `${HEROES[hero].name}: 지쳐서 쉬어야 해요 · ${hoursText(fatigueOkMs(lb, hero, now))} 뒤 회복` };
+  if (!free && fatigueLocked(lb, hero, now)) return { error: `${HEROES[hero].name}: 지쳐서 쉬어야 해요 · ${hoursText(fatigueOkMs(lb, hero, now))} 뒤 회복` };
   if (!free) t.used++;
   t.run = { id: String(runId).slice(0, 32), f, hero, at: now, fat };
   return { runId: t.run.id, f, hero, fat, left: triesLeft(lb, now) };

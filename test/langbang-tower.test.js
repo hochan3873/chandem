@@ -495,3 +495,17 @@ test('탑 서버 피로: 끝나면 서버가 피로를 쌓고 · 100이면 시�
   r = await lbPost('/api/langbang/tower/start', token, { f: 1, hero: 'bangjang' });
   assert.equal(r.ok, true, r.message); assert.equal(r.fat, 50);
 });
+
+test('피로 100을 찍으면 70 아래로 풀릴 때까지 못 들어간다', async () => {
+  const TW = await import('../public/langbang/tower.js');
+  const lb = { tower: TW.emptyTower() };
+  const t0 = 1e12;
+  TW.fatigueAdd(lb, 'bangjang', 100, t0);
+  assert.equal(TW.fatigueLocked(lb, 'bangjang', t0), true);
+  assert.equal(TW.fatigueLocked(lb, 'bangjang', t0 + 3600e3), true); // 94
+  assert.equal(TW.fatigueLocked(lb, 'bangjang', t0 + 4.9 * 3600e3), true); // 약 71
+  assert.equal(TW.fatigueLocked(lb, 'bangjang', t0 + 5.2 * 3600e3), false); // 69
+  const lb2 = { tower: TW.emptyTower() };
+  TW.fatigueAdd(lb2, 'bangjang', 90, t0);
+  assert.equal(TW.fatigueLocked(lb2, 'bangjang', t0), false); // 100을 안 찍었으면 막지 않는다
+});
