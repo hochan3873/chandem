@@ -4,6 +4,7 @@
 //   node scripts/lb-tower-sim.js floor 25 ara       한 층을 여러 판 (승률 · 걸린 시간)
 //   옵션: --heroes=ara,bangjang  --seeds=N (층마다 판 수, 기본 3 · 그중 하나라도 이기면 통과)  --tries=N (하루 도전처럼 실패 허용)
 //   node scripts/lb-tower-sim.js grid --p=strong --from=20 --to=60 --seeds=3   계정 전체(모든 멤버가 그 성장)로 층마다 누가 깨나 — 실제 계정은 층마다 멤버를 바꿔 오르니 막히는 층은 이걸로 본다
+//   피로: --fat=50 (0~100 · 공격력 · 입구 내구도 × (1 − 피로 × 0.004))
 //   숫자 바꿔 보기: --grow=[[2,1.09,1.04],[16,1.17,1.05]]  --ts.solo.youngjun=0.7 (data.js TOWER_SIM)
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -70,7 +71,7 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
     const rng = seeded(seed);
     const def = T.floorDef(f);
     const deck = [null, null, hero, null, null, null];
-    const g = S.createGame({ H: 760, rng, mode: 'stage', stage: def.stage, meta: { [hero]: P.meta }, items: P.items, deck, gear: { [hero]: gearFor(P) }, stars: { [hero]: P.star }, tempo: true, join: false, tower: def, towerExp: T.TOWER.exp, awake: { [hero]: awake }, unlocked: D.LOCKED_HEROES });
+    const g = S.createGame({ H: 760, rng, mode: 'stage', stage: def.stage, meta: { [hero]: P.meta }, items: P.items, deck, gear: { [hero]: gearFor(P) }, stars: { [hero]: P.star }, tempo: true, join: false, tower: def, towerExp: T.TOWER.exp, towerFat: Number(opt('fat', 0)), awake: { [hero]: awake }, unlocked: D.LOCKED_HEROES }); // --fat=50: 피로한 멤버로
     const pr = seeded(seed * 7 + 3);
     let steps = 0;
     while (!g.over && g.phase !== 'victory' && g.t < 400) {

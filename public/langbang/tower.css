@@ -366,3 +366,22 @@ body.rm .tw-near, body.rm .tw-far, body.rm .tw-vortex { animation: none !importa
 .tr-chest.open .tc-open { animation: tcIn 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) 0.12s forwards; }
 @keyframes tcOut { to { opacity: 0; transform: scale(1.15); } }
 @keyframes tcIn { to { opacity: 1; transform: scale(1); } }
+
+/* 피로 게이지 (멤버마다 · 초록 → 노랑 → 빨강) — 글자 테두리는 text-shadow 로만 */
+.tw-fat { --fc: #5fe07a; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.5); width: 100%; min-width: calc(var(--u) * 120); line-height: 1.15; }
+.tw-fat.mid { --fc: #ffd23f; }
+.tw-fat.hi { --fc: #ff8a3a; }
+.tw-fat.full { --fc: #ff3b2f; }
+.tw-fat .tf-bar { position: relative; display: block; width: 100%; height: calc(var(--u) * 5); border-radius: 99px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.18); overflow: hidden; }
+.tw-fat .tf-bar > b { display: block; height: 100%; border-radius: 99px; background: var(--fc); box-shadow: 0 0 calc(var(--u) * 5) var(--fc); font-size: 0; }
+.tw-fat small { font-size: calc(var(--u) * 9); font-weight: 900; color: var(--fc); text-shadow: var(--tw-ol-s); }
+.tw-fat em { display: block; font-style: normal; font-size: calc(var(--u) * 8); font-weight: 700; color: #d8c0b8; text-decoration: none; text-shadow: var(--tw-ol-s); }
+.tw-fat.full em { color: #ffb0a8; font-weight: 900; }
+.tw-fat.sm { min-width: 0; margin-top: calc(var(--u) * 2); }
+.tw-fat.sm small { font-size: calc(var(--u) * 8); }
+.tw-fat.sm em { font-size: calc(var(--u) * 7.5); }
+.tr-lines span.fat { border-color: #ffd23f; color: #fff0b8; }
+.tr-lines span.fat.hi { border-color: #ff8a3a; color: #ffd8b8; }
+.tr-lines span.fat.full { border-color: #ff3b2f; color: #ffc0b8; background: rgba(70, 6, 8, 0.88); }
+.tw-poti { width: calc(var(--u) * 26); height: calc(var(--u) * 26); object-fit: contain; }
+.tw-who .tw-fat { margin-top: calc(var(--u) * 3); }

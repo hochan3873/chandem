@@ -83,7 +83,7 @@ module.exports = function towerRoutes(r, ctx) {
   // 지난주 순위 보상 (순위는 서버가 센다)
   r.post('/tower/claim', wrap(async (req) => { await ready(); return lbLive(tok(req), (lb, id, now, c) => T.weekClaim(lb, c.rank, id, now), async (u, id, now) => { const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href); return { rank: await weekRank(L.weekIndex(now) - 1, id) }; }); }));
   // 염화석 상점 · 지옥 세트 · 선택권
-  r.post('/tower/shop', wrap(async (req) => { await ready(); return lbLive(tok(req), (lb, id, now) => T.shopBuy(lb, String(b(req).id || ''), now)); }));
+  r.post('/tower/shop', wrap(async (req) => { await ready(); return lbLive(tok(req), (lb, id, now) => T.shopBuy(lb, String(b(req).id || ''), now, b(req).hero ? String(b(req).hero) : null)); })); // 피로 회복제는 멤버를 고른다
   r.post('/tower/hell/up', wrap(async (req) => { await ready(); return lbLive(tok(req), (lb) => T.hellUp(lb, String(b(req).id || ''))); }));
   r.post('/tower/hell/equip', wrap(async (req) => { await ready(); return lbLive(tok(req), (lb) => T.hellEquip(lb, String(b(req).id || ''), b(req).hero ? String(b(req).hero) : null)); }));
   r.post('/tower/pick/gear', wrap(async (req) => { await ready(); return lbLive(tok(req), (lb) => T.pickLegendGear(lb, String(b(req).type || ''))); }));

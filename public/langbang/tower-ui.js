@@ -34,11 +34,23 @@ function curHero() {
 }
 function curFloor() { const mx = TW.maxFloor(P()); st.f = clamp(st.f || mx, 1, mx); return st.f; }
 const tw = () => P().tower || TW.emptyTower();
+// 피로 (마스터 무료 모드는 안 쌓이고 안 막힌다)
+const freeMode = () => { const p = P(); return !!(p.master && !p.testNormal); };
+const fatOf = (h) => (freeMode() ? 0 : TW.fatigueOf(P(), h));
+const fatBlocked = (h) => !freeMode() && TW.fatigueLocked(P(), h); // 100을 찍으면 70 아래로 풀릴 때까지
+const fatWait = (h) => TW.fatigueTimeText(TW.fatigueOkMs(P(), h));
+const fatLv = (v) => (v >= TW.FATIGUE.max ? 'full' : v >= 70 ? 'hi' : v >= 35 ? 'mid' : 'lo');
+// 피로 게이지: 막대 (초록 → 노랑 → 빨강) · "피로 n% · 전투력 −x%" · 다 풀릴 때까지
+function fatGauge(h, cls = '') {
+  const v = fatOf(h), pow = Math.round(v * TW.FATIGUE.pow * 100);
+  const tail = !v ? '쌩쌩해요' : fatBlocked(h) ? `지쳐서 쉬어야 해요 · ${fatWait(h)} 뒤 회복` : `${TW.fatigueTimeText(TW.fatigueRestMs(v))} 뒤 다 풀려요`;
+  return `<span class="tw-fat ${fatLv(v)} ${cls}"><i class="tf-bar"><b style="width:${v}%"></b></i><small>피로 ${v}%${pow ? ` · 전투력 −${pow}%` : ''}</small><em>${tail}</em></span>`;
+}
 
 // 전투 옵션 (game.js startRun 이 createGame 에 덧붙인다): 한 명 · 층 규칙 · 지옥 각성
 function gameOpt(t, p) {
   const def = TW.floorDef(t.f);
-  return { mode: 'stage', stage: def.stage, deck: [null, null, t.hero, null, null, null], join: false, leader: t.hero, slots: 1, tower: def, towerExp: TW.TOWER.exp, awake: TW.awakeMap(p), weekly: null, hell: false, unlocked: [] };
+  return { mode: 'stage', stage: def.stage, deck: [null, null, t.hero, null, null, null], join: false, leader: t.hero, slots: 1, tower: def, towerExp: TW.TOWER.exp, towerFat: t.fat | 0, towerFatPow: TW.FATIGUE.pow, awake: TW.awakeMap(p), weekly: null, hell: false, unlocked: [] };
 }
 
 // 구역 맵 (전투 배경): 처음 들어갈 때만 불러온다 (로비에서는 안 받는다)
@@ -86,7 +98,7 @@ function partyHtml(hero) {
   const nextA = TW.AWAKE.find((a) => b < a.f);
   return `<div class="tw-party">
     <div class="tw-slots">${slots}</div>
-    <button class="tw-who" data-act="twPick"><b>${esc(HEROES[hero].name)}</b><small>이 멤버 최고 ${b}F${nextA ? ` · ${nextA.f}F 에서 ${esc(nextA.name)}` : ' · 지옥 각성 완료'}</small><i class="tw-abar"><b style="width:${Math.round((b / 60) * 100)}%"></b>${TW.AWAKE.map((a) => `<u style="left:${(a.f / 60) * 100}%" class="${b >= a.f ? 'on' : ''}"></u>`).join('')}</i><em>멤버 바꾸기</em></button>
+    <button class="tw-who" data-act="twPick"><b>${esc(HEROES[hero].name)}</b><small>이 멤버 최고 ${b}F${nextA ? ` · ${nextA.f}F 에서 ${esc(nextA.name)}` : ' · 지옥 각성 완료'}</small><i class="tw-abar"><b style="width:${Math.round((b / 60) * 100)}%"></b>${TW.AWAKE.map((a) => `<u style="left:${(a.f / 60) * 100}%" class="${b >= a.f ? 'on' : ''}"></u>`).join('')}</i>${fatGauge(hero)}<em>멤버 바꾸기</em></button>
   </div>`;
 }
 function hallHtml() {
@@ -117,6 +129,7 @@ function renderLobby() {
   const z = TW.zoneOf(f);
   const left = TW.triesLeft(p);
   const free = p.master && !p.testNormal;
+  const tired = fatBlocked(hero), canGo = (left || free) && !tired;
   const list = [];
   for (let k = 1; k <= 4 && f + k <= TW.TOWER.floors; k++) list.push(f + k);
   const el = C.show(`
@@ -136,7 +149,7 @@ function renderLobby() {
       </div>
     </div>
     ${partyHtml(hero)}
-    <button class="tw-go ${left || free ? '' : 'off'}" data-act="twGo" ${left || free ? '' : 'disabled'}><i class="tg-fire"></i><span><b>${f}층 오르기</b><small>${left || free ? '도전 1번 · 깨면 돌려받아요' : '오늘 도전을 다 썼어요 · 자정에 초기화'}</small></span></button>
+    <button class="tw-go ${canGo ? '' : 'off'}" data-act="twGo" ${canGo ? '' : 'disabled'}><i class="tg-fire"></i><span><b>${f}층 오르기</b><small>${tired ? `${esc(HEROES[hero].name)} 지쳐서 쉬어야 해요 · ${fatWait(hero)} 뒤 회복` : left || free ? `도전 1번 · 깨면 돌려받아요${free ? '' : ` · 피로 +${TW.fatigueGain(f, true, f <= best)}`}` : '오늘 도전을 다 썼어요 · 자정에 초기화'}</small></span></button>
     <div class="tw-menu"><button data-act="twShop">${hsIc()}<small>탑 상점</small>${t.picks && (t.picks.legend || t.picks.hero) ? '<i class="rd"></i>' : ''}</button><button data-act="twRank">${C.ic('trophy', '', 'sm')}<small>주간 랭킹</small></button><button data-act="twAwake">${C.ic('fire', '', 'sm')}<small>지옥 각성</small></button><button data-act="twInfo">${C.ic('book', '', 'sm')}<small>보상 안내</small></button></div>
     ${hallHtml()}
   `, 'tower-screen');
@@ -179,8 +192,8 @@ function gotLine(got) {
 function pickPop() {
   const p = P(), t = tw(), cur = curHero();
   const list = owned().sort((a, b) => C.heroPower(p, b) - C.heroPower(p, a));
-  const rows = list.map((h) => { const b = (t.hb || {})[h] | 0, aw = TW.awakeLv(p, h); return `<button class="tw-pk ${h === cur ? 'on' : ''} ${aw >= 3 ? 'aw3' : ''}" data-act="twPickHero" data-h="${h}">${face(h)}<b>${esc(HEROES[h].name)}</b><small>최고 ${b}F</small><i class="tw-pips">${[1, 2, 3].map((k) => `<u class="${aw >= k ? 'on' : ''}"></u>`).join('')}</i><em>${C.ic('swords', '', 'sm')}${fmt(C.heroPower(p, h))}</em></button>`; }).join('');
-  C.popup(`<h3>${C.ic('duo', '', 'sm')}탑에 오를 멤버</h3><p class="ip">탑에서는 <b>한 명만</b> 싸워요 · 층 규칙에 맞는 멤버를 골라요 · 각성은 멤버마다 따로</p><div class="tw-pkgrid">${rows}</div>`, 'tw-pop tw-pick');
+  const rows = list.map((h) => { const b = (t.hb || {})[h] | 0, aw = TW.awakeLv(p, h); return `<button class="tw-pk ${h === cur ? 'on' : ''} ${aw >= 3 ? 'aw3' : ''}" data-act="twPickHero" data-h="${h}">${face(h)}<b>${esc(HEROES[h].name)}</b><small>최고 ${b}F</small><i class="tw-pips">${[1, 2, 3].map((k) => `<u class="${aw >= k ? 'on' : ''}"></u>`).join('')}</i><em>${C.ic('swords', '', 'sm')}${fmt(C.heroPower(p, h))}</em>${fatGauge(h, 'sm')}</button>`; }).join('');
+  C.popup(`<h3>${C.ic('duo', '', 'sm')}탑에 오를 멤버</h3><p class="ip">탑에서는 <b>한 명만</b> 싸워요 · 층 규칙에 맞는 멤버를 골라요 · 각성 · 피로는 멤버마다 따로</p><div class="tw-pkgrid">${rows}</div>`, 'tw-pop tw-pick');
 }
 function awakePop() {
   const p = P(), t = tw();
@@ -194,6 +207,8 @@ function infoPop() {
   C.popup(`<h3>${C.ic('book', '', 'sm')}진상의 탑 안내</h3>
     <p class="ip">60층 · 15층마다 구역 · 5층마다 보스 · 46층부터 규칙 둘 · 멤버 <b>한 명</b>만 · 위로 갈수록 진상이 단단해진다 (30층 체력 ×${Math.round(TW.floorHp(30) / TW.floorHp(1))} · 16~35층이 가장 가파르다)</p>
     <p class="ip">하루 도전 <b>${TW.TOWER.tries}번</b> (자정 초기화) · 깬 판은 도전을 돌려받아요 · 체력은 안 써요</p>
+    <h4 class="gl-h">피로</h4><p class="ip">탑에 오를 때마다 그 멤버의 피로가 쌓여요 · 깨면 <b>+${TW.FATIGUE.clear}</b> (${TW.FATIGUE.highFrom}층부터 <b>+${TW.FATIGUE.clearHigh}</b>) · 이미 깬 층 다시 깨기 +${TW.FATIGUE.replay} · 실패 +${TW.FATIGUE.fail}</p>
+    <p class="ip">피로한 멤버는 탑에서 공격력 · 입구 내구도가 줄어요 (피로 100 = <b>−${Math.round(TW.FATIGUE.max * TW.FATIGUE.pow * 100)}%</b>) · 100이 되면 지쳐서 ${TW.FATIGUE.unlock} 아래로 풀릴 때까지 (약 5시간) 못 들어가요 · 한 시간에 ${TW.FATIGUE.perHour}씩 저절로 풀려요 (다 풀리기까지 약 ${Math.round(TW.FATIGUE.max / TW.FATIGUE.perHour)}시간) · 탑 상점 피로 회복제 −${TW.FATIGUE.potion} · 여러 멤버를 번갈아 데려가요</p>
     <h4 class="gl-h">층 규칙</h4>${rules}
     <h4 class="gl-h">보상 (층을 처음 깰 때)</h4><p class="ip">코인 · 염화석 · 강화석 · 보스 층 모집권 · 구역 끝 모집권 3</p>${miles}
     <h4 class="gl-h">주간 탑 랭킹</h4><p class="ip">이번 주에 깬 가장 높은 층 (같으면 더 빨리 깬 기록) · 1위 칭호 "이번 주 탑의 주인" (다음 한 주) + 코인 5,000 · 모집권 3 · 염화석 40 · TOP 10 작은 보상</p>
@@ -232,6 +247,7 @@ function shopPop() {
   }).join('');
   const shop = TW.TOWER_SHOP.map((s) => {
     const left = TW.shopLeft(p, s.id);
+    if (s.kind === 'fat') return `<div class="tw-si"><img class="cs-ic" src="${TW.POTION_ART}" alt="" draggable="false"><span><b>${esc(s.name)}</b><small>${esc(s.desc)} · 오늘 ${left}/${s.n}</small></span><button class="btn sm ${left && t.stone >= s.cost ? 'primary' : ''}" data-act="twPotion" ${left && t.stone >= s.cost ? '' : 'disabled'}>${hsIc()}${s.cost}</button></div>`;
     const name = s.kind === 'cons' ? L.CONS[s.id].name : s.name;
     const icon = s.kind === 'cons' ? C.consIc(s.id) : C.ic(s.kind === 'tickets' ? 'ticket' : 'gem', '', '');
     return `<div class="tw-si">${icon}<span><b>${esc(name)}</b><small>${s.per === 'week' ? '이번 주' : '오늘'} ${left}/${s.n}</small></span><button class="btn sm ${left && t.stone >= s.cost ? 'primary' : ''}" data-act="twBuy" data-id="${s.id}" ${left && t.stone >= s.cost ? '' : 'disabled'}>${hsIc()}${s.cost}</button></div>`;
@@ -246,6 +262,14 @@ function shopPop() {
     <div class="tw-hglist">${pieces}</div>
     <p class="ip">지옥 세트는 탑 밖(스테이지 · 무한 · 대전)에서도 그 멤버에게 그대로 적용돼요</p>
     <h4 class="gl-h">소모품 · 재료</h4><div class="tw-silist">${shop}</div>`, 'tw-pop tw-shop');
+}
+// 피로 회복제: 피로가 있는 멤버 고르기
+function potionPop() {
+  const p = P(), s = TW.TOWER_SHOP.find((x) => x.id === 'potion');
+  const list = owned().filter((h) => TW.fatigueOf(p, h) > 0).sort((a, b) => TW.fatigueOf(p, b) - TW.fatigueOf(p, a));
+  if (!list.length) { C.toast('피로한 멤버가 없어요', 1600); return; }
+  const rows = list.map((h) => `<button class="tw-pk" data-act="twPotionDo" data-h="${h}">${face(h)}<b>${esc(HEROES[h].name)}</b>${fatGauge(h, 'sm')}</button>`).join('');
+  C.popup(`<h3><img class="tw-poti" src="${TW.POTION_ART}" alt="" draggable="false">피로 회복제</h3><p class="ip">고른 멤버 피로 <b>−${s.amount}</b> · ${hsIc()}${s.cost} · 오늘 ${TW.shopLeft(p, 'potion')}/${s.n}</p><div class="tw-pkgrid">${rows}</div>`, 'tw-pop tw-pick');
 }
 function pickGearPop() {
   const rows = GEAR_IDS.map((t) => `<button class="tw-gpk" data-act="twPickGearDo" data-t="${t}"><i class="gico r-legend" style="--rc:${GEAR_RARITY.legend.color}"><img src="${GEAR[t].img}" alt="" draggable="false"></i><b>${esc(GEAR[t].name)}</b><small>${esc((C.GEAR_STATS[GEAR[t].stat] || {}).name || '')}</small></button>`).join('');
@@ -265,11 +289,11 @@ async function go(f, hero) {
     const r = await C.API.towerStart(f, hero, app.guest);
     if (!r.ok) { C.toast(r.message || '오를 수 없어요', 2400); return; }
     if (r.profile) app.profile = r.profile;
-    app.towerRun = { runId: r.runId, f, hero };
+    app.towerRun = { runId: r.runId, f, hero, fat: r.fat | 0 };
     lsSet('langbang:towerHero', hero);
     const from = st.last && st.last.f ? st.last.f : Math.max(0, f - 1);
     await climb(from, f);
-    C.startRun({ mode: 'tower', force: true, tower: { f, hero, runId: r.runId } });
+    C.startRun({ mode: 'tower', force: true, tower: { f, hero, runId: r.runId, fat: r.fat | 0 } });
   } finally { st.busy = false; }
 }
 // 엘리베이터 연출: 벽이 아래로 지나가고 · 층 숫자가 올라가고 · 붉은 빛 · 쿵 (구역이 바뀌면 큰 컷인)
@@ -372,9 +396,12 @@ function result(g, victory, quit) {
     const p = P(), left = TW.triesLeft(p), free = p.master && !p.testNormal;
     const nf = Math.min(TW.TOWER.floors, f + 1);
     const canNext = win && f < TW.TOWER.floors && nf <= TW.maxFloor(p);
+    const tired = fatBlocked(hero), ok = (left || free) && !tired;
+    const why = tired ? `${esc(HEROES[hero].name)} 지쳐서 쉬어야 해요 · ${fatWait(hero)} 뒤 회복` : '';
+    const fz = fatOf(hero) ? ` · 피로 ${fatOf(hero)}%` : '';
     const b = [];
-    if (canNext) b.push(`<button class="tw-go" data-act="twNext" data-f="${nf}" data-h="${hero}" ${left || free ? '' : 'disabled'}><i class="tg-fire"></i><span><b>${nf}층으로 오르기</b><small>${left || free ? `남은 도전 ${free ? '∞' : left}` : '오늘 도전을 다 썼어요'}</small></span></button>`);
-    else if (!win && !quit) b.push(`<button class="tw-go retry" data-act="twNext" data-f="${f}" data-h="${hero}" ${left || free ? '' : 'disabled'}><span><b>다시 도전</b><small>${left || free ? `남은 도전 ${free ? '∞' : left}` : '오늘 도전을 다 썼어요 · 자정에 초기화'}</small></span></button>`);
+    if (canNext) b.push(`<button class="tw-go" data-act="twNext" data-f="${nf}" data-h="${hero}" ${ok ? '' : 'disabled'}><i class="tg-fire"></i><span><b>${nf}층으로 오르기</b><small>${why || (left || free ? `남은 도전 ${free ? '∞' : left}${fz}` : '오늘 도전을 다 썼어요')}</small></span></button>`);
+    else if (!win && !quit) b.push(`<button class="tw-go retry" data-act="twNext" data-f="${f}" data-h="${hero}" ${ok ? '' : 'disabled'}><span><b>다시 도전</b><small>${why || (left || free ? `남은 도전 ${free ? '∞' : left}${fz}` : '오늘 도전을 다 썼어요 · 자정에 초기화')}</small></span></button>`);
     b.push('<div class="grid2"><button class="btn" data-act="tower">탑 로비</button><button class="btn ghost" data-act="menu">메인 메뉴</button></div>');
     const box = document.getElementById('twBtns'); if (box) box.innerHTML = b.join('');
     void r;
@@ -389,7 +416,8 @@ function result(g, victory, quit) {
     const rw = document.getElementById('twRw'), ch = document.getElementById('twChest');
     if (!rw) return;
     if (!r || !r.ok) { rw.innerHTML = `<div class="err">기록을 저장하지 못했어요: ${esc((r && r.message) || '')}</div>`; return; }
-    if (!win) { rw.innerHTML = `<div class="tr-lines"><span>도전 ${r.left}/${TW.TOWER.tries} 남음</span><span>층 규칙에 맞는 다른 멤버로도 도전해 봐요</span></div>`; return; }
+    const fatLine = r.fatAdd ? `<span class="fat ${fatLv(r.fat)}">${esc(HEROES[r.hero].name)} 피로 +${r.fatAdd} · 지금 ${r.fat}%${r.fat >= TW.FATIGUE.max ? ' · 쉬어야 해요' : ''}</span>` : '';
+    if (!win) { rw.innerHTML = `<div class="tr-lines"><span>도전 ${r.left}/${TW.TOWER.tries} 남음</span>${fatLine}<span>층 규칙에 맞는 다른 멤버로도 도전해 봐요</span></div>`; return; }
     const lines = [];
     const got = r.reward;
     if (got) {
@@ -401,6 +429,7 @@ function result(g, victory, quit) {
     for (const m of r.miles || []) lines.push(`<span class="mile">${C.ic('crown', '', 'sm')}${m.f}F 달성 보상 — ${esc(m.label)}</span>`);
     if (r.awake) lines.push(`<span class="awk">${C.ic('fire', '', 'sm')}${esc(HEROES[r.awake.hero].name)} ${esc(TW.AWAKE[r.awake.to - 1].name)}! ${esc(TW.AWAKE[r.awake.to - 1].desc)}</span>`);
     if (r.hall) lines.push(`<span class="mile">${C.ic('trophy', '', 'sm')}명예의 전당에 이름이 새겨졌다!</span>`);
+    if (fatLine) lines.push(fatLine);
     setTimeout(() => {
       if (ch) { ch.classList.remove('wait'); ch.classList.add('open'); }
       try { C.A.sfx.reward ? C.A.sfx.reward() : C.A.sfx.levelUp(); } catch { /* 무시 */ }
@@ -443,6 +472,8 @@ const ACTS = {
   twGo: () => go(curFloor(), curHero()),
   twNext: (b) => go(Number(b.dataset.f), b.dataset.h || curHero()),
   twShop: () => shopPop(),
+  twPotion: () => potionPop(),
+  twPotionDo: async (b) => { const h = b.dataset.h; const r = await C.liveAct(C.API.towerShop('potion', C.app.guest, h)); if (r) { C.A.sfx.reward ? C.A.sfx.reward() : C.A.sfx.levelUp(); const fv = r.got && r.got.fat; C.toast(`${HEROES[h].name} 피로 −${fv ? fv.cut : TW.FATIGUE.potion} · 지금 ${fv ? fv.v : TW.fatigueOf(P(), h)}%`, 1800); shopPop(); if (C.app.screen === 'tower') renderLobby(); } },
   twRank: () => rankPop(),
   twAwake: () => awakePop(),
   twInfo: () => infoPop(),
