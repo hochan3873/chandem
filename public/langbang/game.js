@@ -21,6 +21,7 @@ import * as SH from './share.js';
 import * as FRX from './friends.js';
 import * as PV from './pvp.js';
 import { initTower } from './tower-ui.js';
+import { initTransit } from './transit.js';
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -55,6 +56,12 @@ const R = new Renderer(canvas);
 R.onStep = (h, x, y) => { fx.burst(x + (Math.random() - 0.5) * 20, y - 2, 4, '#cdbfa8', 60, 'dot', 2, 0.4); try { A.sfx.thud(); } catch (e) {} }; // 윤정섭 발걸음: 먼지 + 쿵
 const fx = R.fx;
 let TWUI = null; // 진상의 탑 화면 (tower-ui.js · 맨 아래에서 연결)
+// 화면 넘김 연출: 탑 · 레이드 · 1:1 대전 · 상점은 전용 전환, 그 밖은 깊이감 있는 밀기 (transit.js)
+const TR = initTransit({
+  stage, ui, A, tips: TIPS,
+  buzz: (p) => { if (!app.touched || !gwPref('vibrate')) return; try { if (navigator.vibrate) navigator.vibrate(p); } catch { /* 무시 */ } },
+  shopLabel: () => (app.shopTab === 'recruit' ? '모집' : '상점'),
+});
 
 const app = {
   screen: 'menu', // menu | stages | prep | play | result | shop | ranking | howto
@@ -246,6 +253,7 @@ window.addEventListener('pointerdown', (ev) => { if (ev.pointerType === 'mouse')
 try { sessionStorage.setItem('lb_active', String(Date.now())); } catch { /* 무시 */ }
 setInterval(() => { try { sessionStorage.setItem('lb_active', String(Date.now())); } catch { /* 무시 */ } }, 1000);
 for (const t of ['pointerdown', 'keydown']) window.addEventListener(t, () => { app.lastInput = performance.now(); }, { capture: true, passive: true });
+window.addEventListener('pointerdown', () => { app.downAt = performance.now(); }, { capture: true, passive: true });
 function leaveToHub() {
   saveSnap();
   document.body.classList.add('leaving');
@@ -270,6 +278,7 @@ function closeTopLayer() {
 }
 window.addEventListener('popstate', (ev) => {
   if (ignorePop > 0) { ignorePop--; return; }
+  if (TR) TR.finish();
   const d = (ev.state && ev.state.lb === 'guard' && ev.state.d) | 0;
   if (d > hDepth) { hDepth = d; return; } // 앞으로 가기 — 무시
   hDepth = d;
@@ -478,7 +487,7 @@ function beginPlay(g) {
   skillbar.dataset.key = '';
   cancelAim(); hideBubble(); app.drag = null;
   if (g.mapFx.id !== 'none') setTimeout(() => { if (app.g === g) fx.banner(`${g.mapFx.icon} ${g.mapFx.name}`, g.mapFx.desc, '#23336a', 2.2, 'big'); }, 300);
-  ui.innerHTML = '';
+  TR.leave(); // 출전 화면은 잠깐 흐려지며 사라진다 (뚝 끊기지 않게)
   hud.hidden = false;
   hud.classList.toggle('endless', g.mode !== 'stage' || !!g.weekly);
   hud.classList.toggle('fast', app.runSpeed > 1);
@@ -1791,17 +1800,21 @@ function show(html, cls = '') {
   const same = ui.firstElementChild && ui.firstElementChild.dataset.scr === app.screen;
   const keep = same ? ui.firstElementChild.scrollTop : 0;
   // 화면 넘김: 앞으로 = 오른쪽에서 · 뒤로 = 왼쪽에서 · 아래 탭 = 서서히 · 소리
-  const prevScr = ui.firstElementChild && ui.firstElementChild.dataset.scr;
+  const prevEl = ui.firstElementChild, prevScr = prevEl && prevEl.dataset.scr;
   const kind = same ? '' : app.navBack || app._goBack ? 'go-back' : app._goTab ? 'go-tab' : 'go-fwd';
   app._goBack = false; app._goTab = false;
-  ui.innerHTML = `<div class="screen ${cls} ${same ? 'same' : 'enter ' + kind}" data-scr="${app.screen}">${html}</div>`;
-  if (!same && prevScr && !document.body.classList.contains('rm') && app.screen !== 'play') { if (kind === 'go-back') A.sfx.whooshBack(); else if (kind === 'go-fwd') A.sfx.whoosh(); }
+  // 목적지마다 다른 넘김 연출 (transit.js): 새 화면 DOM 은 지금 바로 바뀌고 · 이전 화면은 잠깐 잔상으로 남아 물러난다
+  const tr = same ? null : TR.begin(prevScr, app.screen, kind, prevEl);
+  const body = `<div class="screen ${cls} ${same ? 'same' : tr && tr.themed ? '' : 'enter ' + kind}" data-scr="${app.screen}">${html}</div>`;
+  if (tr) { for (const c of [...ui.children]) if (c !== prevEl) c.remove(); ui.insertAdjacentHTML('afterbegin', body); } else ui.innerHTML = body;
+  if (!same) app.navAt = performance.now();
   noteScreen();
   // 아래 탭은 스크롤 화면 밖(화면 틀 맨 아래)에 둔다 — 스크롤 안에 있으면 폰에서 화면 가운데에 떠 버린다
   const nav = ui.firstElementChild.querySelector('.lb-nav');
   if (nav) ui.appendChild(nav);
   document.body.classList.toggle('has-nav', !!nav);
   if (keep) ui.firstElementChild.scrollTop = keep;
+  if (tr) TR.after(tr, ui.firstElementChild);
   return ui.firstElementChild;
 }
 ui.addEventListener('click', (ev) => {
@@ -1818,6 +1831,7 @@ ui.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-act]');
   if (!b || b.disabled) return;
   if (ui.dataset.noclick) return;
+  if (ev.isTrusted && ev.detail > 0 && app.downAt < app.navAt) return; // 이전 화면에서 누르기 시작한 탭 (빠른 두 번 탭)
   A.unlock();
   const act = b.dataset.act;
   if (act !== 'pick' && act !== 'partner' && act !== 'confirmPick') uiSound(act, b);
@@ -3580,7 +3594,7 @@ async function showRaid() {
     `, 'dim');
   };
   render(null);
-  if (!app.guest) { const bd = await API.raidBoard(); if (app.screen === 'raid') render(bd); }
+  if (!app.guest) { const pr = API.raidBoard(); TR.hold(pr); const bd = await pr; if (app.screen === 'raid') render(bd); } // 엘리베이터 문이 닫힌 동안 불러온다
 }
 async function startRaid() {
   // 친구 도우미: 친구 대표 멤버 한 명을 데려간다 (고를 친구가 없으면 바로 혼자 · 취소하면 그만)

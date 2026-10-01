@@ -191,6 +191,8 @@ export const sfx = {
   confirm() { if (ok('ui', 0.06)) { tone(660, 0.05, 'triangle', 0.06, 990); tone(990, 0.07, 'triangle', 0.05, 1320, 0.04); } },
   whoosh() { if (ok('whoosh', 0.2)) noise(0.18, 0.05, 1800, 0.8, 0, 'bandpass'); },
   whooshBack() { if (ok('whoosh', 0.2)) noise(0.14, 0.03, 900, 0.8, 0, 'bandpass'); },
+  ding() { if (ok('ding', 0.3)) { tone(1568, 0.55, 'sine', 0.07); tone(2093, 0.7, 'sine', 0.05, 0, 0.13); } }, // 엘리베이터 띵 (레이드 입장)
+  shutter() { if (ok('shutter', 0.3)) for (let i = 0; i < 6; i++) noise(0.045, 0.05, 2400 - i * 180, 1.4, i * 0.04); }, // 셔터 드르륵 (상점 입장)
   heartbeat() { if (ok('hb', 1)) [0, 0.28, 1.1, 1.38].forEach((d) => tone(60, 0.14, 'sine', 0.22, 40, d)); },
   rise() { if (ok('rise', 1)) { noise(1.2, 0.08, 800, 0.6); tone(220, 1.2, 'sawtooth', 0.05, 880); } },
   horn() { if (ok('horn', 1)) { tone(233, 0.55, 'sawtooth', 0.1, 220); tone(294, 0.55, 'sawtooth', 0.08, 277); tone(233, 0.4, 'sawtooth', 0.09, 220, 0.62); tone(294, 0.4, 'sawtooth', 0.07, 277, 0.62); } }, // 빠앙- 빵!
