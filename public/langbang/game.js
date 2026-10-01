@@ -9,6 +9,7 @@ import {
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
+  COND, stageConds, stageMission, condFits, recMeta,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -418,6 +419,7 @@ function showBattleLoading(g) {
       <em class="bl-no">${st ? stageLabel(st) : g.mode === 'endless' ? '무한 도전' : '주간 도전'}</em><b class="bl-name">${st ? esc(stageName(st)) : ''}</b>
       ${foes.length ? `<div class="bl-sec"><small>이번 판 공략</small>${foes.map((t) => { const T = foeTrait(t); const good2 = Object.keys(ATTRS).filter((a) => typeMul(a, ENEMIES[t].cls) > 1); return `<div class="bl-foe">${foeFace(t)}<span><b>${esc(ENEMIES[t].name)}</b><small>${T ? esc(T.tip) : `${good2.map((a) => ATTRS[a].name).join(' · ')} 멤버에게 약해요`}</small></span></div>`; }).join('')}</div>` : ''}
       ${st ? `<div class="bl-match"><span class="ok">${ic('check', '', 'sm')} 유리 ${good}명</span><span class="no">${ic('scale', '', 'sm')} 불리 ${bad}명</span></div>` : ''}
+      ${g.conds && g.conds.length ? `<div class="bl-cond">${g.conds.map((c) => `<span>${ic(COND[c].icon, '', 'sm')}${esc(COND[c].name)}</span>`).join('')}</div>` : ''}${g.mission ? `<div class="bl-mis">★★★ 미션 · ${esc(g.mission.text)}</div>` : ''}
       ${st ? `<p class="bl-hint">${ic('target', '', 'sm')}<span>${esc(stageHint(st))}</span></p>` : ''}
       <p class="bl-tip" data-bl="tip">${ic('bulb', '', 'sm')}<span>${esc(tip)}</span><small>다음 팁</small></p>
       <div class="bl-bar"><b></b></div><small class="bl-skip">잠시만요</small>
@@ -556,7 +558,7 @@ function handleEvents(g, loud) {
       case 'sudden': case 'suddenUp': case 'pvpDrain': case 'pvpTimeUp': if (live) pvpTimelineEv(g, e); break;
       case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝
       case 'dmg':
-        if (!busy || ((e.crit || e.eff > 0) && fx.nums.items.length < (crowd ? 14 : 60))) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : e.sk ? '#ffd23f' : null, e.eff);
+        if (!busy || ((e.crit || e.eff > 0) && fx.nums.items.length < (crowd ? 14 : 60))) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : e.sk ? '#ffd23f' : null, e.eff, e.uid);
         break;
       case 'hit': {
         const col = e.crit ? '#ffe14d' : PROJ_COL[e.proj] || '#fff';
@@ -674,7 +676,7 @@ function handleEvents(g, loud) {
       case 'allinCall': fx.banner('올인 콜! 준영 등판', `${e.sec}초 동안 진상을 한곳으로 모은다`, '#1a4a8a', 1.3, 'wave'); break;
       case 'jyRage': fx.text(e.x, e.y - 70, '준영 폭주!', '#ff7a4f', 15, 1.0); fx.ring(e.x, e.y - 30, 10, 60, 0.6, '#ff7a4f', 4); break;
       case 'chipRain': if (!busy) fx.burst(e.x, e.y - 20, 5, '#ffd23f', 110, 'spark', 3, 0.35); break;
-      case 'summon': fx.text(e.x, e.y - 80, '준영아 나와!', '#ff9fc0', 15, 1.1); fx.text(e.x, e.y - 70, '준영아 나와!', '#ffb8d0', 15, 1.1); fx.burst(e.x, e.y - 30, 16, '#9fd4ff', 160, 'spark', 4, 0.6); fx.ring(e.x, e.y - 30, 10, 60, 0.7, '#ff9fc0', 5); if (loud) A.sfx.join(); break;
+      case 'summon': fx.text(e.x, e.y - 80, '준영아 나와!', '#ff9fc0', 15, 1.1); fx.burst(e.x, e.y - 30, 16, '#9fd4ff', 160, 'spark', 4, 0.6); fx.ring(e.x, e.y - 30, 10, 60, 0.7, '#ff9fc0', 5); if (loud) A.sfx.join(); break;
       case 'allin': fx.text(e.x, e.y - 20, '올인!', '#ffd23f', 20, 1.0); fx.blast(e.x, e.y, e.r, 'gold'); fx.addShake(5); if (loud) A.sfx.explode(); break;
       case 'nagbomb': fx.text(e.x, e.y - 20, '잔소리 폭격!', '#ff9fc0', 16, 0.9); fx.blast(e.x, e.y, e.r, 'heart'); if (loud) A.sfx.explode(); break;
       case 'timestop': fx.text(e.x, e.y - 30, '…시간아 멈춰라', '#c9a8ff', 16, 1.2); fx.ring(e.x, e.y, 10, e.r, 0.7, '#b48cff', 4); fx.flash('#6a3cff', 0.18); if (loud) A.sfx.charm(); break;
@@ -874,11 +876,11 @@ function handleEvents(g, loud) {
       case 'strip': if (!busy) fx.text(e.x, e.y, '버프 벗김!', '#9feaff', 13, 0.8); break;
       case 'eff':
         if (e.strong) {
-          fx.text(e.x, e.y, '효과 굉장!', '#ffb02e', 16, 0.9, -34);
+          fx.text(e.x, e.y - 26, '효과 굉장!', '#ffb02e', 14, 0.8, -34); // 피해 숫자(위로 뜨며 커짐)와 겹치지 않게 한 줄 위에
           fx.burst(e.x, e.y + 20, 8, '#ff9a1a', 190, 'spark', 4, 0.35);
           fx.ring(e.x, e.y + 22, 6, 34, 0.25, '#ffb02e', 3);
         } else if (!busy) {
-          fx.text(e.x, e.y, '별로…', '#8a90a0', 11, 0.7, -22);
+          fx.text(e.x, e.y - 22, '별로…', '#8a90a0', 11, 0.7, -22);
           fx.burst(e.x, e.y + 20, 3, 'rgba(160,165,180,0.7)', 40, 'puff', 6, 0.35);
         }
         break;
@@ -1044,6 +1046,20 @@ function handleEvents(g, loud) {
       case 'consultSit': fx.text(e.x, e.y - 90, '결정사 상담 시작!', '#ffb0d0', 15, 1.1); for (let k = 0; k < 8; k++) fx.part('heart', e.x + (Math.random() - 0.5) * 60, e.y - 40, (Math.random() - 0.5) * 60, -60, 0.9, 9, null); break;
       case 'consultEnd': fx.text(e.x, e.y - 90, e.broke ? '상담 끝… 너무 맞았다' : '상담 끝! 돌아갈게요', '#ffd0e0', 13, 1); break;
       case 'dodge': fx.text(e.x + (Math.random() - 0.5) * 16, e.y, 'MISS', '#b8b8c8', 12, 0.6, -30); break;
+      case 'condCcWarn': fx.text(e.x, e.y - 18, '!!', '#ff4b4b', 22, 1.0, -10); R.vfx('warn', e.x, e.y + 34, { anim: 'grow', dur: 1000, sz: 90, flat: true }); break; // 스테이지 조건: 기절 예고 (기 모으는 중 — 기절시키면 끊긴다)
+      case 'condCcStop': fx.text(e.x, e.y - 10, '끊었다!', '#7dff9a', 14, 0.9); break;
+      case 'gunnyeoReact': fx.text(e.x, e.y - 70, '응급처치!', '#7dff9a', 13, 0.9); break;
+      case 'condCc': {
+        const h = HD(e.hero), nm = { stun: '기절', charm: '홀림', silence: '침묵' }[e.kind] || '';
+        for (let k = 0; k < 5; k++) { const q = k / 5; fx.part('dot', e.ex + (e.x - e.ex) * q, e.ey + (e.y - 40 - e.ey) * q, 0, -10, 0.5 + q * 0.4, 5, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'silence' ? '#b9a8ff' : '#ffd23f'); }
+        if (e.block) { fx.text(e.x, e.y - 62, '막음!', '#8fd8ff', 14, 0.9); break; }
+        fx.text(e.x, e.y - 62, `${h.name} ${nm}!`, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'silence' ? '#c9b8ff' : '#ffd23f', 14, 1.1);
+        const fh = g.heroes.find((x) => x.id === e.hero);
+        if (fh && e.kind === 'stun') R.vfx('stun', 0, 0, { follow: fh, dy: -78, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 52 });
+        else if (fh && e.kind === 'silence') R.vfx('silence', 0, 0, { follow: fh, dy: -86, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 44 });
+        if (loud && A.sfx.charm) A.sfx.charm();
+        break;
+      }
       case 'ccBlock': fx.text(e.x, e.y, '막음!', '#8fd8ff', 13, 0.8); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
       case 'shieldBreak': R.vfx('hitspark', e.x, e.y, { anim: 'pop', dur: 380, sz: 90 }); fx.burst(e.x, e.y, 12, '#cfe9ff', 220, 'dot', 3, 0.5); fx.text(e.x, e.y - 20, '보호막 깨짐!', '#ff6a6a', 13, 0.9); break;
       case 'doorShield': fx.text(e.x, e.y - 40, `방패 +${e.v}`, '#bfe6ff', 16, 1.2); R.vfx('aura_blue', e.x, e.y, { anim: 'pulse', dur: 8000, sz: 320, flat: true }); break;
@@ -1143,7 +1159,7 @@ function handleEvents(g, loud) {
         break;
       case 'join': {
         const h = HD(e.hero);
-        if (g.joinMode && live && !e.hidden) { const W = WEAPON[e.hero]; fx.banner(`${h.name} 합류!`, W ? `${W.item} — ${KIND_TXT[W.kind] || ''}` : h.role || '', ATTRS[h.attr].color, 1.1, 'wave', 'h_' + e.hero); }
+        if (g.joinMode && live && !e.hidden && !SUMMONS[e.hero]) { const W = WEAPON[e.hero]; /* 소환된 성준영은 스킬 배너가 대신 알려 준다 */ fx.banner(`${h.name} 합류!`, W ? `${W.item} — ${KIND_TXT[W.kind] || ''}` : h.role || '', ATTRS[h.attr].color, 1.1, 'wave', 'h_' + e.hero); }
         fx.ring(e.x, e.y, 10, 90, 0.6, h.color, 5);
         fx.burst(e.x, e.y, 18, h.color, 200, 'dot', 4, 0.6);
         for (let k = 0; k < 6; k++) fx.part('star', e.x, e.y, (Math.random() - 0.5) * 200, -100 - Math.random() * 120, 0.9, 9, null, { grav: 300 });
@@ -1265,7 +1281,8 @@ function updateHud() {
   }
   setText(H$.hpText, 'hpt', `${Math.ceil(g.base.hp)} / ${g.base.max}`);
   if (stageMode) {
-    const st = starsFor(frac);
+    const ms = g.mission, lost = !!(ms && ms.max && !ms.pct && ((g.cstat || {})[ms.stat] || 0) > ms.n); // '이하' 미션을 넘기면 ★★★ 은 이번 판에 끝
+    const st = starsFor(frac, !lost);
     if (setText(H$.stars, 'stars', starStr(st))) { H$.stars.classList.remove('bump'); void H$.stars.offsetWidth; H$.stars.classList.add('bump'); }
   }
   const up = Math.floor(g.ult);
@@ -1531,14 +1548,21 @@ function cutIn(h) {
   const d = document.createElement('div');
   d.className = 'cutin';
   d.style.setProperty('--c', h.def.color || '#ffd23f');
-  d.innerHTML = `<span class="ci-art"><img src="${thumbSrc(h.id) || h.def.img}" alt="" onerror="this.onerror=null;this.src='${h.def.img}'"></span><b>${esc(h.def.skill.name)}</b>`;
+  // 얼굴 맞춤 자르기: 썸네일 얼굴 상자(FACE_BOX)로 얼굴이 띠 높이의 46% · 위에서 40% 자리에 오게 (고아라 · 배현경처럼 얼굴이 아래에 있는 그림도)
+  const hq = !NO_HQ_ART.has(h.id) && (FACE_BOX[h.id] || DEX_FACE[h.id]);
+  d.innerHTML = `<span class="ci-art"><img ${hq ? `class="fz" style="${faceCircStyle(h.id, 0.46, 0.4)}"` : ''} src="${thumbSrc(h.id) || h.def.img}" alt="" onerror="this.onerror=null;this.className='';this.removeAttribute('style');this.src='${h.def.img}'"></span><b>${esc(h.def.skill.name)}</b>`;
   stage.appendChild(d);
+  // 긴 이름은 띠 안에 들어가게 글자를 줄인다
+  const b = d.querySelector('b'), room = d.clientWidth - d.querySelector('.ci-art').offsetWidth - 14;
+  if (b && room > 0 && b.scrollWidth > room) b.style.fontSize = `${(parseFloat(getComputedStyle(b).fontSize) * room / b.scrollWidth).toFixed(1)}px`;
   setTimeout(() => d.remove(), 900);
 }
 function skillFx(h) {
-  const sk = h.def.skill;
-  cutIn(h);
-  fx.text(h.x, h.y - 80, sk.name + '!', h.def.color, 20, 1.1, -26);
+  // 스킬 이름은 한 번만: 이 스킬이 같은 프레임에 큰 배너를 띄웠으면 배너만, 아니면 컷인 띠만 (머리 위 글자는 없앰 — 스킬 아이콘이 대신 톡 튄다)
+  if (!(fx.bannerAt === fx.time && fx.banners.length)) cutIn(h);
+  // 같은 프레임에 스킬별로 띄운 이름 글자("공주의 일격!!" · "다이어트 주사!" · "레드카드!")도 지운다 — 띠나 배너가 이미 이름을 보여 준다
+  const nm = h.def.skill.name.replace(/[!\s]+$/, '');
+  for (const t of fx.texts.items) if (t.text && t.text.startsWith(nm) && t.max - t.life < 0.05) t.life = 0;
   fx.ring(h.x, h.y, 10, 80, 0.5, h.def.color, 5);
   A.sfx.join();
   app.tutSkillDone = true;
@@ -1847,8 +1871,9 @@ const ACTS = {
   edPreset: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckEditor(); },
   edAuto: () => { autoDeck(); A.sfx.levelUp(); showDeckEditor(); },
   prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
-  prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[L.weeklyDef(L.weekIndex()).fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${g.icon} ${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
-  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★)</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${HELL.hp} · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 보스 분노. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
+  prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[L.weeklyDef(L.weekIndex()).fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
+  prepCond: () => prepCondPopup(),
+  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${HELL.hp} · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 보스 분노. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
   prepFoe: (b) => {
     const id = b.dataset.id, d = ENEMIES[id]; if (!d) return;
     const T = foeTrait(id), c = CLASSES[d.cls];
@@ -4218,6 +4243,25 @@ function stagePower(p, s, hell) { // 권장 전투력: 기본 멤버 4명이 그
 }
 const foeFace = (id, cls = '') => { const d = ENEMIES[id]; return `<span class="pp-face ${cls}" style="--fc:${d.color || '#8a7ab0'}"><img src="${d.img}" alt="" draggable="false" onerror="${d.fb ? `this.onerror=null;this.src='${d.fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'` : 'this.remove()'}"></span>`; };
 const foeTrait = (id) => { const t = ENEMIES[id].traits || {}; const k = Object.keys(t).find((x) => TRAITS[x]); return k ? TRAITS[k] : null; };
+// 준비 화면 '이 스테이지' 칸: 맵 효과 한 줄 · 진상 기믹 칩 · ★★★ 미션 (누르면 공략 · 맞는 멤버)
+function prepCondHtml(fxd, conds, mis, rec) {
+  const chips = [];
+  if (fxd && fxd.id !== 'none') chips.push(`<button class="pc-chip fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.short || fxd.name)}</button>`);
+  for (const c of conds) chips.push(`<button class="pc-chip" data-act="prepCond">${ic(COND[c].icon, '', 'sm')}${esc(COND[c].name)}</button>`);
+  if (!chips.length && !mis) return '';
+  return `<div class="pp-cond">${chips.length ? `<div class="pc-row"><span class="pp-lab">이 스테이지</span>${chips.join('')}</div>` : ''}${mis ? `<button class="pc-mis" data-act="prepCond"><span class="pc-st">★★★</span>입구 70% + <b>${esc(mis.text)}</b>${rec ? `<small>권장 +${rec}</small>` : ''}</button>` : ''}</div>`;
+}
+function prepCondPopup() {
+  const s = app.stage, hellOn = hellOpen(P().stages, s) && app.hellMode;
+  const conds = stageConds(s, hellOn), mis = stageMission(s, hellOn), rec = recMeta(s, hellOn);
+  const deck = new Set(curDeck().filter(Boolean)), mine = owned();
+  const who = (c) => COND[c].counter.filter((id) => HEROES[id] && mine.includes(id)).map((id) => `<span class="pc-who ${deck.has(id) ? 'on' : ''}">${esc(HEROES[id].name)}</span>`).join('') || '<span class="pc-who">아직 없음</span>';
+  popup(`<h3>이 스테이지 공략</h3>
+    ${conds.map((c) => `<div class="pc-pop">${ic(COND[c].icon, '', 'sm')}<div><b>${esc(COND[c].name)}</b><p class="ip">${esc(COND[c].tip.replace(/^[^:]+:\s*/, ''))}</p><div class="pc-whos">${who(c)}</div></div></div>`).join('') || '<p class="ip">특별한 진상 기믹은 없어요</p>'}
+    ${mis ? `<p class="ip"><b>★★★</b> = 입구 70% 이상 + 미션 「${esc(mis.text)}」 (전에 받은 별은 그대로)</p>` : ''}
+    <p class="ip">강화는 이 장 권장 <b>+${rec}</b> 까지 제값 · 넘는 만큼은 절반만 들어가요 — 덱 구성이 먼저!</p>
+    <p class="ip dim">초록 이름 = 지금 덱에 있는 맞는 멤버</p>`, 'pp-mini');
+}
 function prepFoes(st) { return st ? stageMix(st).filter(([t]) => ENEMIES[t] && !ENEMIES[t].dot).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t) : []; }
 function prepRecSet(st) {
   const r = new Set();
@@ -4264,6 +4308,10 @@ function showPrep(mode, s) {
   const diffHtml = mode === 'stage'
     ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0">보통</button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1">${hellOk ? '' : ic('lock', '', 'sm')}헬</button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
     : diffLine ? `<p class="pp-line solo">${esc(diffLine)}</p>` : '';
+  // 2-1) 이 스테이지 조건: 맵 효과 · 진상 기믹(보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격) · ★★★ 미션 · 강화 권장
+  const conds = mode === 'stage' ? stageConds(s, hellOn) : [];
+  const mis = mode === 'stage' ? stageMission(s, hellOn) : null;
+  const condHtml = prepCondHtml(fxd, conds, mis, mode === 'stage' ? recMeta(s, hellOn) : 0);
   // 3) 전투력
   const pw = deckPower(p, ids), need = st ? stagePower(p, st, hellOn) : 0;
   const ok = !need || pw >= need;
@@ -4277,7 +4325,7 @@ function showPrep(mode, s) {
   for (let i = 0; i < 6; i++) {
     const id = dl[i];
     if (i >= max) { cells.push(`<button class="pp-slot lock" data-act="shop">${ic('lock', '')}<small>${i === max ? fmt(ITEMS[max < 5 ? 'slot5' : 'slot6'].costs[0]) : ''}</small></button>`); continue; }
-    cells.push(id ? deckCard(id, i === 0, 'prepEdit', app.deckPop === id ? 'pop' : '') : '<button class="pp-slot empty" data-act="prepEdit"><i>+</i></button>');
+    cells.push(id ? deckCard(id, i === 0, 'prepEdit', `${app.deckPop === id ? 'pop' : ''} ${condFits(id, conds).length ? 'fit' : ''}`) : '<button class="pp-slot empty" data-act="prepEdit"><i>+</i></button>');
   }
   app.deckPop = null;
   const deckHtml = `<div class="pp-deck">
@@ -4303,7 +4351,7 @@ function showPrep(mode, s) {
     </div>`;
   show(`
     <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="stamina">${ic('energy', '', 'sm')}<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
-    ${headHtml}${diffHtml}${powHtml}${foeHtml}${deckHtml}${consPrepHtml()}${rw}
+    ${headHtml}${diffHtml}${condHtml}${powHtml}${foeHtml}${deckHtml}${consPrepHtml()}${rw}
     <div class="spacer"></div>
     ${goHtml}
   `, 'dim prep-screen pp');
@@ -4890,7 +4938,7 @@ function showResult(victory, quit) {
     sub = win ? `입구 내구도 ${sum.hpPct}% 로 지켜냈다!` : `웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}에서 막혔어요 · ${quit ? '다음엔 끝까지!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]}`;
     top = win
       ? `<div class="big-stars">${[1, 2, 3].map((k) => `<span class="${k <= g.stars ? 'on' : ''}" style="animation-delay:${0.25 + k * 0.28}s">★</span>`).join('')}</div>
-         <div class="star-rule">${sum.perfect ? '<b class="perfect">PERFECT! 입구가 한 번도 안 맞았다</b>' : g.stars >= 3 ? '완벽 방어! ★★★ (입구 무피해면 PERFECT)' : g.stars === 2 ? '★★★ 까지 입구 70% 이상 남기기' : '★★ 는 입구 35% 이상 남기면!'}</div>`
+         <div class="star-rule">${sum.perfect ? '<b class="perfect">PERFECT! 입구가 한 번도 안 맞았다</b>' : g.stars >= 3 ? '완벽 방어! ★★★ (입구 무피해면 PERFECT)' : g.stars === 2 ? (sum.hpPct >= 70 && g.mission && !g.mission.ok ? '입구는 지켰는데 미션을 못 했어요 — ★★★ 은 미션까지!' : '★★★ 까지 입구 70% 이상 남기기') : '★★ 는 입구 35% 이상 남기면!'}</div>${missionHtml(g)}`
       : `<div class="fail-tip">${ic('bulb', '', 'sm')}${FAIL_TIPS[(Math.random() * FAIL_TIPS.length) | 0]}</div>`;
   } else if (g.raid) {
     title = '레이드 끝!';
@@ -4937,7 +4985,7 @@ function showResult(victory, quit) {
       <div><small>플레이 시간</small><b>${time}</b></div>
       <div><small>점수</small><b>${fmt(sum.score)}</b></div>
     </div>
-    <div class="panel mvp">${mvp}</div>
+    <div class="panel mvp">${mvp}</div>${teamHtml(g)}
     <div class="server" id="srv">${win || !stageMode ? '<span class="spin"></span> 보상 받는 중…' : ''}</div>
  <div class="spacer"></div>
  <button class="btn share-result" data-act="shareResult">${ic('share', '', 'sm')} 결과 공유하기 <small>친구에게 기록 카드 보내고 도전장 날리기</small></button>
@@ -4952,6 +5000,28 @@ function showResult(victory, quit) {
   };
   if (win || !stageMode || wk || g.raid || g.pvp) saveResult(sum, g);
   else if (stageMode && !app.debugRun) Promise.resolve(API.stageFail(g.stage, app.guest)).then((r) => { if (r && r.ok) { if (r.profile) app.profile = r.profile; if (r.refund) toast(`체력 ${r.refund} 돌려받았어요 (실패하면 절반)`, 1800); } });
+}
+// 결과: ★★★ 스테이지 미션 (성공 · 실패 · 센 값)
+function missionHtml(g) {
+  const m = g.mission;
+  if (!m || g.mode !== 'stage') return '';
+  const st = g.cstat || {};
+  const v = m.stat === 'found' ? `${st.found | 0}/${st.hidden | 0}명` : m.stat === 'endDoor' ? `${Math.round((st.endDoor || 0) * 100)}%` : m.stat === 'ccSec' ? `${(st.ccSec || 0).toFixed(1)}초` : m.stat === 'combo' ? `${g.stats.maxCombo | 0}` : `${st[m.stat] | 0}`;
+  return `<div class="rs-mis ${m.ok ? 'ok' : 'no'}">${ic(m.ok ? 'check' : 'scale', '', 'sm')}<span>★★★ 미션 · ${esc(m.text)}</span><b>${m.ok ? '성공' : '실패'} <small>${v}</small></b></div>`;
+}
+// 결과: 팀 기여 — 딜 말고도 입구 수리 · 막은 피해 · 버프로 늘린 피해 (서포터도 MVP)
+function teamHtml(g) {
+  const by = (g.stats && g.stats.teamBy) || {};
+  const rows = g.heroes.filter((h) => by[h.id] && (by[h.id].repair >= 1 || by[h.id].prevent >= 1 || by[h.id].buff >= 1)).map((h) => {
+    const t = by[h.id], parts = [];
+    if (t.repair >= 1) parts.push(`<span class="tc r">수리 +${fmt(t.repair)}</span>`);
+    if (t.prevent >= 1) parts.push(`<span class="tc p">막음 ${fmt(t.prevent)}</span>`);
+    if (t.buff >= 1) parts.push(`<span class="tc b">버프 피해 +${fmt(t.buff)}</span>`);
+    return { h, html: `<div class="row">${av(h.def)}<span class="nm">${h.def.name}</span><span class="tcs">${parts.join('')}</span></div>`, k: (t.repair + t.prevent) * 60 + t.buff };
+  }).sort((a, b) => b.k - a.k);
+  if (!rows.length) return '';
+  const T = g.stats.team || {};
+  return `<div class="panel team"><div class="tm-h">팀 기여 <small>입구 ${fmt(g.base.max)} 중 수리 ${fmt(T.repair || 0)} · 막은 피해 ${fmt(T.prevent || 0)}</small></div>${rows.map((r) => r.html).join('')}</div>`;
 }
 const LOSE_LINES = ['진상들이 랑방을 점령했다… 다음엔 꼭!', '"한 잔만 더~" 술진상이 문을 열고 들어왔다', '먹튀 인간들이 경험치를 털어 갔다…', '인피: "랑방? 이제 우리 아지트야~"', '여왕벌: "여기 이제 내 가게야~"'];
 const FAIL_TIPS = [
@@ -6089,7 +6159,7 @@ const ENEMY_TIPS = {
 };
 
 // ─── 시작 ────────────────────────────────────────────
-const GATE_TIPS = ['속성 상성이 맞으면 피해 ×2! 덱 짤 때 ▲▼ 를 보세요', '보스가 큰 기술을 쓴 뒤 금빛 "빈틈"에 스킬을 몰아 써요', '같은 속성 2명 이상이면 자동 시너지', '레벨업 카드는 게임이 멈추지 않아요 — 빨리 골라요!', '멤버 조각을 모아 ★ 승급', '주간 도전은 매주 월요일 새 판', '헬 모드는 ★★★ 스테이지에서 열려요', '처치 10명마다 1:1 대전에서 진상을 보낼 수 있어요'];
+const GATE_TIPS = ['속성 상성이 맞으면 피해 ×1.6 (안 맞으면 ×0.7)! 덱 짤 때 ▲▼ 를 보세요', '보스가 큰 기술을 쓴 뒤 금빛 "빈틈"에 스킬을 몰아 써요', '같은 속성 2명 이상이면 자동 시너지', '레벨업 카드는 게임이 멈추지 않아요 — 빨리 골라요!', '멤버 조각을 모아 ★ 승급', '주간 도전은 매주 월요일 새 판', '헬 모드는 ★★★ 스테이지에서 열려요', '처치 10명마다 1:1 대전에서 진상을 보낼 수 있어요'];
 // 로딩 화면: 멤버 전원이 레드카펫 위에 모인 장면을 코드로 조합 (그림 ≤16장, 미리 디코딩)
 const CROWD_ROWS = [
   { y: 75.5, w: 40, dim: 1, xs: [50, 29, 71, 10, 90] }, // 앞줄
@@ -6268,8 +6338,11 @@ async function boot() {
   if (document.fonts && document.fonts.load) {
     document.fonts.load("900 16px 'Noto Sans KR'").then(() => R.bakeAll()).catch(() => {});
   }
-  // 새 진상 프레임 띠 + 있으면 쓰는 그림·음악 목록 (없는 파일은 아예 요청 안 함 · 목록을 못 받으면 예전처럼 전부 시도)
-  fetch('/api/langbang/anim').then((x) => x.json()).then((m) => { if (m && m.enemies) R.addEnemyAnims(m.enemies); const f = m && Array.isArray(m.files) ? m.files : null; R.loadOptional(f); if (A.setAvail) A.setAvail(f); }).catch(() => { R.loadOptional(null); });
+  // 새 진상 프레임 띠 + 있으면 쓰는 그림·음악 목록 (없는 파일은 아예 요청 안 함)
+  //  목록을 못 받으면 한 번 더 묻고, 그래도 안 되면 "있으면 쓰는 그림"은 요청하지 않는다 (없는 파일 404 를 쏟지 않게 · 대신 기본 그림)
+  const animList = (retry) => fetch('/api/langbang/anim').then((x) => { if (!x.ok) throw new Error('anim ' + x.status); return x.json(); }).then((m) => { if (m && m.enemies) R.addEnemyAnims(m.enemies); const f = m && Array.isArray(m.files) ? m.files : []; R.loadOptional(f); if (A.setAvail) A.setAvail(f); })
+    .catch(() => { if (retry) setTimeout(() => animList(false), 2500); else { R.loadOptional([]); if (A.setAvail) A.setAvail([]); } });
+  animList(true);
   const profP = API.loadProfile();
   const bootP = bootWait(profP.then(() => new Promise((ok) => setTimeout(ok, 0))));
   const r = await profP;

@@ -5,6 +5,12 @@
 //   node scripts/lb-balance.js stages      방장 + 동료별, 정해진 강화 수준으로 주요 스테이지 여러 판
 //   node scripts/lb-balance.js campaign    0코인에서 시작해 보상으로 강화하며 1-1 → 3-10 진행
 //   옵션: --seeds=N (판 수), --plays=N (캠페인 최대 판 수)
+//   node scripts/lb-balance.js deck [--ch=2,3] [--nos=3,4,...] [--value=b] [--meta=6] [--hell] [--misdump]
+//        덱 구성: 딜러만 덱 vs 균형 덱(딜러 핵심 + 조건 맞춤 서포터 · 유틸) · 같은 강화 · --value: 멤버를 '아무것도 안 하는 멤버'로 바꿨을 때 하락 = 가치
+//   node scripts/lb-balance.js attr [--notypes] [--meta=-2]   한 속성 덱의 장별 클리어율 (상성 켬/끔)
+//   node scripts/lb-balance.js diag --list=56 --deck=a|b|id+id   한 판씩 자세히 (조건 · 미션 숫자 · 팀 기여)
+//   node scripts/lb-balance.js stagecalib --list=41 · condcalib · custom --decks=a+b|c+d   맞춤 · 아무 덱
+//   node scripts/lb-par.js deck --ch=2,3,4,5,6 ...   장마다 따로 띄워 병렬로
 const path = require('path');
 const { pathToFileURL } = require('url');
 // --lib=폴더 : 다른 버전(예: 바꾸기 전 복사본)의 data.js · sim.js 로 같은 검사를 돌린다
@@ -15,9 +21,11 @@ const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? Number(a.split('=')[1]) : d; };
 const what = args.find((x) => !x.startsWith('--')) || 'all';
 const JOIN_MODE = args.includes('--join'); // --join: 대장 1명 시작 · 레벨업 카드로 합류
-const TEMPO_MODE = args.includes('--tempo'); // --tempo: 느리고 묵직한 전투 (진상 수 ×0.6 · 공속 ÷1.54 · 한 방 ×1.6 · 스킬 쿨 ×1.5)
+const TEMPO_MODE = args.includes('--tempo');
+const COND_ARG = (() => { const v = (process.argv.find((x) => x.startsWith('--conds=')) || '').slice(8); return v ? (v === 'none' ? [] : v.split(',')) : undefined; })(); // --conds=shield,cc | none : 스테이지 조건을 바꿔서 측정
+const NOSOFT = args.includes('--nosoft'); // 강화 권장 상한(넘는 만큼 절반) 끄기 // --tempo: 느리고 묵직한 전투 (진상 수 ×0.6 · 공속 ÷1.54 · 한 방 ×1.6 · 스킬 쿨 ×1.5)
 const PARTNERS = ((process.argv.find((x) => x.startsWith('--partners=')) || '').slice(11) || 'staff,gunman,gunnyeo,dohoon,myunghoon,ingyu,donghan,youngjun,eunok,hanna,sunggu').split(',');
-const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준' };
+const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준', ara: '고아라', jiwon: '여지원', wonsik: '정원식', jungmin: '홍정민', hochan: '이호찬', byunghwa: '강병화', hyungyeong: '배현경', jeongseob: '윤정섭', soyoung: '정소영', jieun: '오지은', sanghwa: '박상화', baul: '송바울', junseo: '윤준서' };
 const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
 
 function seeded(seed = 1) {
@@ -27,6 +35,9 @@ function seeded(seed = 1) {
 
 (async () => {
   const D = await load('data.js');
+  // --condsfrom=폴더 : 균형 덱을 고를 때 쓰는 스테이지 조건을 다른 버전(지금 버전)에서 (바꾸기 전 버전과 같은 덱으로 비교)
+  const CF = (process.argv.find((x) => x.startsWith('--condsfrom=')) || '').slice(12);
+  const DC = CF ? await import(pathToFileURL(path.join(CF, 'data.js')).href) : D;
   const S = await load('sim.js');
 
   // 카드 자동 선택: 사람이 고를 법한 단순한 우선순위 + 약간의 무작위
@@ -101,7 +112,7 @@ function seeded(seed = 1) {
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
-      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader,
+      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG, noSoft: o.noSoft || NOSOFT,
     });
     g.partner = o.partner;
     if (o.noTypes) g.noTypes = true;
@@ -382,7 +393,7 @@ function seeded(seed = 1) {
 
   function placeDeck(ids) {
     const out = new Array(6).fill(null), order = [2, 3, 1, 4, 0, 5];
-    const center = (id) => (['cone', 'wave', 'dash', 'bullet', 'cane'].includes(D.HEROES[id].proj) ? 0 : 1);
+    const center = (id) => (['cone', 'wave', 'dash', 'bullet', 'cane', 'crown', 'shout'].includes(D.HEROES[id].proj) ? 0 : 1); // (막차 버스 · 고함도 가운데 줄이 낫다)
     ids.slice().sort((a, b) => center(a) - center(b)).forEach((id, i) => { out[order[i]] = id; });
     return out;
   }
@@ -555,7 +566,206 @@ function seeded(seed = 1) {
       console.log(`${s} 목표 ${target}% · 처음 ${r0.toFixed(0)}% → 가산 ${+(base + best).toFixed(2)} (오차 ${bestErr.toFixed(0)})`);
     }
   }
+  // ── 10) 덱 구성 (node scripts/lb-balance.js deck [--seeds=N] [--ch=2,3,4,5,6] [--nos=4,6,8,9] [--value] [--hell] [--meta=6])
+  //  실제 게임처럼 합류 · 템포 · 스킬 자동 · 같은 강화 총량으로
+  //   (a) 딜러만 vs (b) 딜러 + 서포터 + 유틸 · (c) --value: 한 명씩 뺐을 때 클리어율이 얼마나 떨어지나 (= 그 멤버 가치)
+  // 가치 측정용 '아무것도 안 하는 멤버' (운영진 모습 · 피해 0 · 스킬 안 씀 · 경고 안 쌓임)
+  if (!D.HEROES.zz) {
+    const st = D.HEROES.staff;
+    D.HEROES.zz = Object.assign({}, st, { id: 'zz', name: '빈자리', dmg: 0.0001, slow: 0, warn: Object.assign({}, st.warn, { n: 1e9 }), skill: Object.assign({}, st.skill, { cd: 1e9 }) });
+    D.HERO_TIER.zz = 1;
+  }
+  const DECKS = {
+    // 장: [칸 수, 딜러만, 균형] — 균형 = 같은 딜러 핵심 + 마지막 두 칸을 같은 등급의 서포터 · 유틸로 (건전남 T1 ↔ 건전녀/운영진 T1 · 강성구/여지원/이한나 T3 ↔ 정원식 T3 · 김도훈/홍정민 T2)
+    1: [4, ['gunman', 'bangjang', 'eunok', 'staff'], ['gunman', 'dohoon', 'gunnyeo', 'staff']],
+    2: [4, ['gunman', 'hanna', 'myunghoon', 'eunok'], ['gunman', 'hanna', 'dohoon', 'staff']],
+    3: [5, ['donghan', 'hanna', 'youngjun', 'gunman', 'sunggu'], ['donghan', 'hanna', 'youngjun', 'gunnyeo', 'wonsik']],
+    4: [5, ['ara', 'donghan', 'youngjun', 'hanna', 'gunman'], ['ara', 'donghan', 'youngjun', 'jungmin', 'staff']],
+    5: [6, ['ara', 'donghan', 'youngjun', 'hanna', 'gunman', 'jiwon'], ['ara', 'donghan', 'youngjun', 'hanna', 'gunnyeo', 'wonsik']],
+    6: [6, ['ara', 'donghan', 'youngjun', 'hanna', 'gunman', 'jiwon'], ['ara', 'donghan', 'youngjun', 'hanna', 'dohoon', 'wonsik']],
+  };
+  const REC = [4, 7, 10, 12, 14, 16, 18];
+  const listArg = (k, d) => ((process.argv.find((x) => x.startsWith(`--${k}=`)) || '').slice(k.length + 3) || d).split(',').filter(Boolean);
+  const MISDUMP = args.includes('--misdump') ? {} : null; // 미션 숫자 분포 (이긴 판) — 미션 기준값 맞출 때
+  function deckRun(ids, s, meta, N, hell, extra = {}) {
+    let w = 0, st3 = 0, pf = 0, hp = 0, mis = 0;
+    const share = {};
+    const contrib = { repair: 0, prevent: 0, buff: 0 };
+    for (let i = 1; i <= N; i++) {
+      const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...extra });
+      if (r.win) { w++; hp += r.hp; if (r.stars >= 3) st3++; if (!r.g.baseHit) pf++; if (r.g.mission && r.g.mission.ok) mis++; }
+      if (r.win && r.g.mission && MISDUMP) { const m = r.g.mission, cs = r.g.cstat; const v = m.stat === 'found' ? (cs.hidden ? cs.found / cs.hidden : 1) : m.stat === 'combo' ? r.g.stats.maxCombo : cs[m.stat]; const key = `${D.chapterOf(s)}장 ${m.id}${extra.tag || ''}`; (MISDUMP[key] || (MISDUMP[key] = [])).push(v); }
+      const tc = r.g.stats.team || {};
+      contrib.repair += (tc.repair || 0) / N; contrib.prevent += (tc.prevent || 0) / N; contrib.buff += (tc.buff || 0) / N;
+      for (const [id, v] of Object.entries(r.heroes)) share[id] = (share[id] || 0) + v.dmg / Math.max(1, r.dmg) / N;
+    }
+    return { w: w / N, st3: st3 / N, pf: pf / N, hp: w ? hp / w : 0, mis: mis / N, share, contrib };
+  }
+  // 균형 덱 (스테이지마다): 딜러만 덱의 앞쪽 딜러 핵심(칸-2) + 그 스테이지 조건에 맞는 서포터 · 유틸 둘
+  //  기절 예고 → 건전녀(해제 · 면역) · 문 돌격 → 김도훈(수리 · 범위) · 보호막 → 운영진(깨기) · 은신 · 철갑 → 건전남(찾기 · 방어 무시) · 떼거리 → 김도훈(범위 · 회복) · 모자라면 건전녀 → 김도훈 → 정원식
+  const COUNTER_PICK = { cc: 'gunnyeo', rush: 'dohoon', shield: 'staff', stealth: 'gunman', swarm: 'dohoon', armor: 'gunman' };
+  for (const kv of listArg('pick', '')) { const [k, v] = kv.split(':'); COUNTER_PICK[k] = v; } // --pick=rush:wonsik (측정용)
+  function balFor(c, s, hell) {
+    const [n, dps] = DECKS[c];
+    const core = dps.slice(0, n - 2), add = [];
+    for (const cd of (COND_ARG || DC.stageConds(s, hell))) { const id = COUNTER_PICK[cd]; if (id && !add.includes(id) && !core.includes(id) && add.length < 2) add.push(id); }
+    for (const id of ['gunnyeo', 'dohoon', 'wonsik']) if (add.length < 2 && !add.includes(id)) add.push(id);
+    return [...core, ...add];
+  }
+  function deck() {
+    const N = opt('seeds', 6);
+    const hell = args.includes('--hell');
+    const chs = listArg('ch', '2,3,4,5,6').map(Number);
+    const nos = listArg('nos', '4,6,8,9').map(Number);
+    const plus = opt('meta', 6);
+    const kinds = [['a', '딜러만', (c) => DECKS[c][1]], ['b', '균형', (c, s) => balFor(c, s, hell)]];
+    if (args.includes('--fixed')) kinds.push(['f', '균형고정', (c) => DECKS[c][2]]);
+    console.log(`
+■ 덱 구성${hell ? ' (헬)' : ''} — 합류 · 템포 · 스킬 자동 · 강화 = 장 권장 + ${plus} (모든 덱 같은 총량) · ${N}판씩 · 스테이지 ${nos.join(',')}번`);
+    console.log('  균형 = 딜러만 덱 앞쪽 딜러 + 그 스테이지 조건에 맞는 서포터 · 유틸 2명');
+    console.log(pad('장', 5) + pad('덱', 10) + pad('클리어', 8) + pad('★★★', 7) + pad('퍼펙트', 8) + pad('남은 입구', 10) + pad('미션', 6) + '팀 기여(수리/막음/버프 피해) · 피해 몫%');
+    const tot = {};
+    const pc = (v) => Math.round(v * 100) + '%';
+    const valueOn = args.some((x) => x === '--value' || x.startsWith('--value='));
+    const vk = (process.argv.find((x) => x.startsWith('--value=')) || '').slice(8);
+    const valAll = {};
+    for (const c of chs) {
+      const m = REC[c - 1] + plus;
+      for (const [k, label, pick] of kinds) {
+        const agg = { w: 0, st3: 0, pf: 0, hp: 0, mis: 0, share: {}, contrib: { repair: 0, prevent: 0, buff: 0 } };
+        const val = {};
+        for (const no of nos) {
+          const s = (c - 1) * 10 + no, ids = pick(c, s);
+          const meta = Object.fromEntries(ids.map((id) => [id, m]));
+          const r = deckRun(ids, s, meta, N, hell, { tag: ' ' + k });
+          for (const f of ['w', 'st3', 'pf', 'hp', 'mis']) agg[f] += r[f] / nos.length;
+          for (const f in r.contrib) agg.contrib[f] += r.contrib[f] / nos.length;
+          for (const [id, v] of Object.entries(r.share)) agg.share[id] = (agg.share[id] || 0) + v / nos.length;
+          if (valueOn && (!vk || vk === k)) {
+            // 한 명씩 '아무것도 안 하는 멤버'(zz)로 바꿔서 떨어진 클리어율 · ★★★ = 그 멤버 가치 (합류 카드 · 레벨업 몰아주기는 그대로)
+            for (const x of ids) {
+              const q = deckRun(ids.map((y) => (y === x ? 'zz' : y)), s, Object.assign({}, meta, { zz: m }), N, hell);
+              const v0 = val[x] || (val[x] = [0, 0, 0]); v0[0] += r.w - q.w; v0[1] += r.st3 - q.st3; v0[2]++;
+              const va = valAll[x] || (valAll[x] = [0, 0, 0]); va[0] += r.w - q.w; va[1] += r.st3 - q.st3; va[2]++;
+            }
+          }
+        }
+        const T = tot[k] || (tot[k] = [0, 0, 0]); T[0] += agg.w; T[1] += agg.st3; T[2]++;
+        console.log(pad(c + '장', 5) + pad(label, 10) + pad(pc(agg.w), 8) + pad(pc(agg.st3), 7) + pad(pc(agg.pf), 8) + pad(pc(agg.hp), 10) + pad(pc(agg.mis), 6)
+          + `${Math.round(agg.contrib.repair)}/${Math.round(agg.contrib.prevent)}/${Math.round(agg.contrib.buff)} · ` + Object.entries(agg.share).sort((x, y) => y[1] - x[1]).map(([id, v]) => `${NAME[id] || id} ${Math.round(v * 100)}`).join(' '));
+        if (Object.keys(val).length) console.log(pad('', 15) + '가치 (zz 로 바꿨을 때 클리어/★★★ 하락 %p): ' + Object.entries(val).map(([id, v]) => `${NAME[id] || id} ${Math.round((v[0] / v[2]) * 100)}/${Math.round((v[1] / v[2]) * 100)}`).join(' · '));
+      }
+    }
+    if (MISDUMP) { const q = (arr, f) => { const v = arr.slice().sort((x, y) => x - y); return v[Math.min(v.length - 1, Math.floor(f * v.length))]; }; for (const [k, arr] of Object.entries(MISDUMP).sort()) console.log(`  미션 ${k}: n=${arr.length} 25%=${(+q(arr, 0.25)).toFixed(2)} 50%=${(+q(arr, 0.5)).toFixed(2)} 75%=${(+q(arr, 0.75)).toFixed(2)}`); }
+    console.log('평균: ' + kinds.map(([k, label]) => `${label} 클리어 ${pc(tot[k][0] / tot[k][2])} ★★★ ${pc(tot[k][1] / tot[k][2])}`).join(' · '));
+    if (Object.keys(valAll).length) {
+      const SUP = ['gunnyeo', 'dohoon', 'jungmin', 'wonsik', 'staff', 'bangjang', 'byunghwa', 'ingyu', 'jeongseob'];
+      const rows = Object.entries(valAll).map(([id, v]) => [id, v[0] / v[2], v[1] / v[2], v[2]]).sort((x, y) => y[1] + y[2] - x[1] - x[2]);
+      console.log('멤버 가치 (모든 스테이지 평균 · 클리어/★★★ %p · 판 묶음 수): ' + rows.map(([id, w, st, n]) => `${SUP.includes(id) ? '[서포터]' : ''}${NAME[id] || id} ${Math.round(w * 100)}/${Math.round(st * 100)}(${n})`).join(' · '));
+      const avg = (f) => { const r = rows.filter(f); return r.length ? r.reduce((a, x) => a + x[1] + x[2], 0) / r.length / 2 : 0; };
+      console.log(`서포터 평균 ${Math.round(avg((r) => SUP.includes(r[0])) * 100)}%p · 딜러 평균 ${Math.round(avg((r) => !SUP.includes(r[0])) * 100)}%p (클리어 · ★★★ 평균)`);
+    }
+  }
+  // ── 11) 한 속성 덱 (node scripts/lb-balance.js attr [--seeds=N] [--notypes]) — 속성 하나로만 짠 덱의 장별 클리어율
+  function attrDecks() {
+    const N = opt('seeds', 4);
+    const noT = args.includes('--notypes');
+    const chs = listArg('ch', '2,3,4,5,6').map(Number);
+    const nos = listArg('nos', '3,6,8').map(Number);
+    const POOL = { talk: ['myunghoon', 'staff', 'bangjang', 'jiwon', 'soyoung', 'hochan'], power: ['gunman', 'ingyu', 'sunggu', 'hyungyeong', 'sanghwa', 'wonsik'], charm: ['hanna', 'donghan', 'gunnyeo', 'baul', 'jieun', 'junseo'], booze: ['youngjun', 'eunok', 'dohoon', 'ara', 'jungmin', 'jeongseob'] };
+    console.log(`\n■ 한 속성 덱 — 상성 ${noT ? '끔' : '켬'} · 합류 · 템포 · 스킬 · ${N}판씩 · 스테이지 ${nos.join(',')}번`);
+    console.log(pad('속성', 8) + chs.map((c) => pad(c + '장', 7)).join('') + '평균');
+    for (const a of Object.keys(POOL)) {
+      const cells = []; let tw = 0;
+      for (const c of chs) {
+        const ids = POOL[a].slice(0, DECKS[c][0]);
+        const meta = Object.fromEntries(ids.map((id) => [id, REC[c - 1] + opt('meta', 3)]));
+        let w = 0;
+        for (const n of nos) w += deckRun(ids, (c - 1) * 10 + n, meta, N, false, { noTypes: noT }).w / nos.length;
+        cells.push(Math.round(w * 100)); tw += w;
+      }
+      console.log(pad(D.ATTRS[a].name, 8) + cells.map((v) => pad(v + '%', 7)).join('') + Math.round((tw / chs.length) * 100) + '%');
+    }
+  }
+  // ── 12) 한 판씩 자세히 (node scripts/lb-balance.js diag --list=56 --deck=a|b [--seeds=N] [--meta=6])
+  function diag() {
+    const N = opt('seeds', 4), plus = opt('meta', 6);
+    const k = (process.argv.find((x) => x.startsWith('--deck=')) || '--deck=b').slice(7);
+    for (const s of listArg('list', '56').map(Number)) {
+      const c = D.chapterOf(s), ids = k === 'a' ? DECKS[c][1] : k === 'b' ? DECKS[c][2] : k.split('+');
+      const meta = Object.fromEntries(ids.map((id) => [id, REC[c - 1] + plus]));
+      console.log(`\n${D.stageLabel(s)} ${D.stageName(s)} · 조건 ${(COND_ARG || (D.stageConds ? D.stageConds(s) : [])).join(',') || '-'} · 미션 ${((D.stageMission && D.stageMission(s)) || {}).text || '-'} · 덱 ${ids.join('+')}`);
+      for (let i = 1; i <= N; i++) {
+        const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11, unlocked: [], skills: true, control: true, join: true, tempo: true, hell: args.includes('--hell') });
+        const cs = r.g.cstat || { leak: 0, shieldLeak: 0, armorLeak: 0, found: 0, hidden: 0, ccSec: 0, multi: 0 }, T = r.g.stats.teamBy || {};
+        console.log(`  ${r.win ? '승' : '패'} W${r.wave} 입구 ${Math.round(r.hp * 100)}% ${Math.round(r.t)}초 ★${r.stars} · 새는 ${cs.leak} 보호막새 ${cs.shieldLeak} 철갑새 ${cs.armorLeak} 숨은 ${cs.found}/${cs.hidden} 기절 ${cs.ccSec.toFixed(0)}초 멀티 ${cs.multi} 콤보 ${r.g.stats.maxCombo} · `
+          + Object.entries(r.heroes).map(([id, v]) => `${NAME[id] || id}:${Math.round((v.dmg / Math.max(1, r.dmg)) * 100)}${T[id] ? `(${Math.round(T[id].repair)}/${Math.round(T[id].prevent)}/${Math.round(T[id].buff / 1000)}k)` : ''}`).join(' '));
+      }
+    }
+  }
+  // ── 13) 조건 스테이지 체력 맞춤 (node scripts/lb-balance.js condcalib [--ch=2,3] [--target=90,80,70,62,55] [--seeds=6])
+  //  균형 덱(강화 권장+6)의 클리어율이 목표가 되게 장별 COND_HP 를 이분 탐색
+  function condcalib() {
+    const N = opt('seeds', 6), IT = opt('iters', 5), plus = opt('meta', 6);
+    const chs = listArg('ch', '2,3,4,5,6').map(Number);
+    const TG = listArg('target', '90,80,70,62,55').map(Number);
+    const nos = listArg('nos', '4,6,8,9').map(Number);
+    const out = D.COND_HP.slice();
+    for (const c of chs) {
+      const target = TG[chs.indexOf(c)] !== undefined ? TG[chs.indexOf(c)] : 60;
+      const rate = (f) => { D.COND_HP[c - 1] = f; let w = 0; for (const n of nos) { const s = (c - 1) * 10 + n, ids = balFor(c, s, false); w += deckRun(ids, s, Object.fromEntries(ids.map((id) => [id, REC[c - 1] + plus])), N, false).w / nos.length; } return w * 100; };
+      let lo = 0.25, hi = 1.2, best = 1, err = 1e9;
+      for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2, r = rate(mid); if (Math.abs(r - target) < err) { err = Math.abs(r - target); best = mid; } if (r > target) lo = mid; else hi = mid; console.log(`  ${c}장 체력 x${mid.toFixed(3)} -> ${r.toFixed(0)}%`); }
+      D.COND_HP[c - 1] = best; out[c - 1] = +best.toFixed(2);
+      console.log(`${c}장 목표 ${target}% -> COND_HP ${out[c - 1]} (오차 ${err.toFixed(0)})`);
+    }
+    console.log('COND_HP: ' + JSON.stringify(out));
+  }
+  // ── 14) 스테이지별 맞춤 (node scripts/lb-balance.js stagecalib --list=41,42 [--seeds=8]) — 균형 덱(조건 맞춤)이 목표 클리어율이 되게 stageAdd 이분 탐색
+  //  목표: 장 목표 + 장 앞쪽은 쉽게 (n=1 +7 … n=10 −6) · 출력 JSON 을 data.js STAGE.stageAdd 에 넣는다
+  function stagecalib() {
+    const N = opt('seeds', 8), IT = opt('iters', 5), RG = opt('range', 5), plus = opt('meta', 6);
+    const TGC = { 1: 92, 2: 88, 3: 80, 4: 72, 5: 65, 6: 58 };
+    const out = {};
+    for (const s of listArg('list', '51').map(Number)) {
+      const c = D.chapterOf(s), n = D.stageNo(s);
+      const target = TGC[c] + (5.5 - n) * 1.4 - (n === 10 ? 3 : 0);
+      const base = D.STAGE.stageAdd[s] || 0;
+      const ids = balFor(c, s, false), meta = Object.fromEntries(ids.map((id) => [id, REC[c - 1] + plus]));
+      const rate = (add) => { D.STAGE.stageAdd[s] = base + add; return deckRun(ids, s, meta, N, false).w * 100; };
+      const r0 = rate(0);
+      let lo = -RG, hi = RG, best = 0, err = Math.abs(r0 - target);
+      if (err > 100 / N) for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2, r = rate(mid); if (Math.abs(r - target) < err) { err = Math.abs(r - target); best = mid; } if (r > target) lo = mid; else hi = mid; }
+      D.STAGE.stageAdd[s] = base + best; out[s] = +(base + best).toFixed(2);
+      console.log(`${D.stageLabel(s)} 목표 ${target.toFixed(0)}% · 처음 ${r0.toFixed(0)}% → 가산 ${out[s]} (원래 ${base} · 오차 ${err.toFixed(0)})`);
+    }
+    console.log('stageAdd: ' + JSON.stringify(out));
+  }
+  // ── 15) 아무 덱이나 (node scripts/lb-balance.js custom --list=61,62 --decks=donghan+ara+...|... [--m=15] [--lm=20] [--seeds=N] [--hell])
+  //  덱마다 클리어율 · 피해 몫 (lm: LEGEND 강화 · 7장처럼 아이템 넉넉히)
+  function custom() {
+    const N = opt('seeds', 8), m = opt('m', 15), lm = opt('lm', 20), hell = args.includes('--hell');
+    const list = listArg('list', '61,62,63,64,65,66,67,68,69,70').map(Number);
+    const decks = ((process.argv.find((x) => x.startsWith('--decks=')) || '').slice(8)).split('|').filter(Boolean).map((d) => d.split('+'));
+    const items = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
+    for (const ids of decks) {
+      const meta = Object.fromEntries(ids.map((id) => [id, D.HEROES[id] && D.HEROES[id].legend ? lm : m]));
+      let w = 0, n = 0; const share = {};
+      for (const s of list) for (let i = 1; i <= N; i++) {
+        const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items, seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell });
+        if (r.win) w++; n++;
+        for (const [id, v] of Object.entries(r.heroes)) share[id] = (share[id] || 0) + v.dmg / Math.max(1, r.dmg);
+      }
+      console.log(`${pad(ids.map((id) => NAME[id] || id).join('+'), 46)} ${Math.round((w / n) * 100)}%  · 피해 몫 ${Object.entries(share).sort((a, b) => b[1] - a[1]).map(([id, v]) => `${NAME[id] || id} ${Math.round((v / n) * 100)}`).join(' ')}`);
+    }
+  }
   const t0 = Date.now();
+  if (what === 'diag') diag();
+  if (what === 'condcalib') condcalib();
+  if (what === 'stagecalib') stagecalib();
+  if (what === 'custom') custom();
+  if (what === 'deck') deck();
+  if (what === 'attr') attrDecks();
   if (what === 'ch7calib') ch7calib();
   if (what === 'ch7') ch7();
   if (what === 'calib') calib();

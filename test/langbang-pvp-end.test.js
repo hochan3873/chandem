@@ -41,7 +41,9 @@ test('대전 전투력 한도: 강화 +10 · ★3 · 전설/신화 장비는 영
   const gp = S.createGame({ H: 760, mode: 'stage', stage: 12, pvp: { seed: 3 }, deck: STRONG, meta, stars, rng: () => 0.5 });
   for (const h of gp.heroes) { assert.equal(h.meta, 10); assert.equal(h.star, 3); }
   const gs = S.createGame({ H: 760, mode: 'stage', stage: 12, deck: STRONG, meta, stars, rng: () => 0.5 });
-  for (const h of gs.heroes) { assert.equal(h.meta, 20); assert.equal(h.star, 5); }
+  for (const h of gs.heroes) { assert.equal(h.meta, D.softMeta(20, 12)); assert.equal(h.star, 5); } // 스테이지: 장별 권장 강화를 넘는 만큼은 절반 (대전 한도와는 따로)
+  const ge = S.createGame({ H: 760, mode: 'endless', deck: STRONG, meta, stars, rng: () => 0.5 });
+  for (const h of ge.heroes) { assert.equal(h.meta, 20); assert.equal(h.star, 5); }
   assert.equal(meta.hochan, 20, '프로필 자체는 안 바뀐다');
 });
 

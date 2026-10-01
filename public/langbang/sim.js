@@ -4,7 +4,7 @@ import {
   FIELD, RULES, HEROES, SUMMONS, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
   STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
-  TRAITS, REVEAL_HEROES, CH7,
+  TRAITS, REVEAL_HEROES, CH7, COND, COND_HP, stageConds, DOOR_PRESSURE, softMeta, stageMission, missionOk,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
@@ -73,11 +73,21 @@ export function createGame(opt = {}) {
     combo: 0, comboT: 0, ult: 0, focus: null,
     uid: 1, victory: false, endless: mode === 'endless', over: false, stars: 0, lastSnap: null,
     awakeMap: opt.pvp ? {} : opt.awake || {}, // 진상의 탑 멤버별 지옥 각성 (0~3) · 1:1 대전은 전투력 보정이라 빼요
+    // 스테이지 조건 (보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격) · 스테이지 미션 · 장별 강화 권장(넘는 만큼 절반)
+    conds: [], cond: {}, mission: null, metaSoft: mode === 'stage' && !opt.pvp && !wk && !opt.raid && !opt.tower && !opt.noSoft,
+    cstat: { leak: 0, shieldLeak: 0, armorLeak: 0, hidden: 0, found: 0, ccSec: 0, multi: 0, combo: 0, breaks: 0, minDoor: 1, endDoor: 0 }, ccT: 0, ccE: null,
     // 오브젝트 풀
     _enemyPool: [], _projPool: [], _gemPool: [], _boom: [],
     _grid: null,
   };
   if (g.pvp) { g.meta = pvpCapMap(g.meta, pvpMeta); g.hstars = pvpCapMap(g.hstars, pvpStar); } // 1:1 대전: 강화 +10 · ★3 까지만
+  if (g.metaSoft) {
+    g.conds = opt.conds ? opt.conds.slice() : stageConds(g.stage, g.hell); // (opt.conds: 밸런스 측정용)
+    for (const c of g.conds) g.cond[c] = 1;
+    g.mission = stageMission(g.stage, g.hell, opt.conds);
+    g.ccT = COND.cc.every[0] * 0.8;
+  }
+  g.stats.team = { repair: 0, prevent: 0, buff: 0 }; g.stats.teamBy = {}; // 팀 기여: 입구 수리 · 막은 피해 · 버프로 늘어난 피해 (멤버별)
   if (g.mapFx.exp) g.mods.expMul += g.mapFx.exp;
   if (mode === 'stage') g.mods.expMul *= wk ? 0.34 : stageExpMul(opt.stage || 1); // 뒤 스테이지는 진상이 많은 만큼 경험치를 줄여 레벨업 횟수를 비슷하게
   if (wmod.exp) g.mods.expMul += wmod.exp;
@@ -137,7 +147,7 @@ export function addHero(g, id, want) {
   const order = g.nPos >= 7 ? [3, 2, 4, 1, 5, 0, 6] : SLOT_ORDER;
   const slot = want !== undefined && !used.has(want) && want < g.nPos ? want : order.find((s) => !used.has(s));
   const h = {
-    id, def, slot, x: g.slotX[slot], y: g.rowY, lv: 1, meta: Math.min(g.meta[id] || 0, TIER_MAX[HERO_TIER[id] || 1]), gear: g.pvp && g.gear[id] && g.gear[id].hellSet ? Object.assign({}, g.gear[id], { hellSet: 0 }) : g.gear[id] || {},
+    id, def, slot, x: g.slotX[slot], y: g.rowY, lv: 1, meta: g.metaSoft ? softMeta(Math.min(g.meta[id] || 0, TIER_MAX[HERO_TIER[id] || 1]), g.stage, g.hell) : Math.min(g.meta[id] || 0, TIER_MAX[HERO_TIER[id] || 1]), gear: g.pvp && g.gear[id] && g.gear[id].hellSet ? Object.assign({}, g.gear[id], { hellSet: 0 }) : g.gear[id] || {},
     cd: 0.3 + g.rng() * 0.4, charmT: 0, stunT: 0, rumorT: 0, fearT: 0, paperT: 0, vomitT: 0, blindT: 0, drowsyT: 0, grabT: 0, grabBy: 0, recoil: 0, shots: 0, joinT: 0,
     rage: false, rageT: def.soberSec ? def.soberSec[0] : 0, healT: def.heal ? def.heal[0][0] : 0,
     kills: 0, dmgDone: 0,
@@ -153,7 +163,7 @@ export function addHero(g, id, want) {
   Object.defineProperty(h, '_g', { value: g, enumerable: false, writable: true }); // 상태이상 면역 확인용 (저장에는 안 들어감)
   g.heroes.push(h);
   if (id === 'bangjang') g.mods.ultCharge += NICHE.bangjang.ult * h.meta; // 방장: 강화할수록 총공지가 빨리 찬다
-  if (id === 'gunnyeo') g.mods.baseArmor *= 1 - Math.min(0.3, NICHE.gunnyeo.guard * h.meta); // 건전녀: 입구 보호
+  if (id === 'gunnyeo') { const f = 1 - Math.min(0.3, NICHE.gunnyeo.guard * h.meta); g.mods.baseArmor *= f; g.gnGuard = f; } // 건전녀: 입구 보호
   g.attrCount[def.attr] = (g.attrCount[def.attr] || 0) + 1;
   g.heroesUsed[id] = true;
   if (def.hidden) g.hiddenTaken[id] = true;
@@ -176,7 +186,7 @@ export function heroDamage(g, h) {
   const fxm = (g.mapFx.attr && g.mapFx.attr[d.attr]) || 1;
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
-  const hc = (1 + (g.hcT > 0 ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0)) * (g.rallyT > 0 && g.rallyDmg ? 1 + g.rallyDmg : 1) * (g.uirijuT > 0 ? 1.6 : 1) * (g.onemanT > 0 ? 1 + (g.onemanAtk || 0.3) : 1); // "랑방을 위하여!" · 집합! · 의리주 · 원맨쇼
+  const hc = (1 + (g.hcT > 0 && h.id !== 'hochan' ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0)) * (g.rallyT > 0 && g.rallyDmg ? 1 + g.rallyDmg : 1) * (g.uirijuT > 0 ? 1.6 : 1) * (g.onemanT > 0 ? 1 + (g.onemanAtk || 0.3) : 1); // "랑방을 위하여!" · 집합! · 의리주 · 원맨쇼
   return buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + 0.2 * (h.cmN || 0)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * old * hc * heroExtraMul(g, h);
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
@@ -201,7 +211,7 @@ export function heroSpeedMul(h) {
 // 공격 속도 배율: 전투 계산과 화면 표시가 같은 식을 쓴다 (강화·장비·카드·증강·오라·기진맥진·템포 모두)
 export function heroRate(g, h, aura = auraBonus(g, h), sing = 0) {
   const d = h.def;
-  return (h.tiredT > 0 ? MOMENTUM.tiredSpd : 1) * (g.tempo ? TEMPO.rate : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * (g.mods.spd + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
+  return (h.tiredT > 0 ? MOMENTUM.tiredSpd : 1) * (g.tempo ? TEMPO.rate : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * g.mods.spd * (1 + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
 }
 // 실제 공격 간격 (초): 기본 간격 ÷ 공격 속도 배율 (탄창 무기는 평균)
 export function heroInterval(g, h) {
@@ -222,10 +232,11 @@ export function auraBonus(g, h) {
 
 function updateHeroes(g, dt) {
   if (g.heroes.some((h) => h.gone)) g.heroes = g.heroes.filter((h) => !h.gone);
+  teamBuffs(g);
   const aura = auraBonus(g);
   // 김도훈 떼창: 입구 회복 + 곁 멤버 공속
   const singers = g.heroes.filter((o) => o.def.sing && o.stunT <= 0 && o.grabT <= 0);
-  if (g.phase !== 'test') for (const d0 of singers) if (g.base.hp < g.base.max) g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * d0.def.regen[d0.lv - 1] * dt * g.mods.healMul * (d0.cm.heal || 1));
+  if (g.phase !== 'test') for (const d0 of singers) healDoor(g, d0.id, g.base.max * d0.def.regen[d0.lv - 1] * dt * g.mods.healMul * (d0.cm.heal || 1));
   for (const h of g.heroes) {
     const d = h.def;
     h.joinT += dt;
@@ -285,8 +296,8 @@ function updateHeroes(g, dt) {
       h.repT = (h.repT || 0) + dt;
       if (h.repT >= d.repair.every && h.stunT <= 0 && h.charmT <= 0) {
         h.repT = 0;
-        const v = Math.min(g.base.max - g.base.hp, g.base.max * d.repair.pct[h.lv - 1] * g.mods.healMul * (h.lv >= 3 ? 1.2 : 1) * (h.cm.heal || 1));
-        if (v > 0) { g.base.hp += v; ev(g, 'bandage', { x: h.x, y: g.ropeY + 8, v: Math.round(v), hero: h.id }); }
+        const v = healDoor(g, h.id, g.base.max * d.repair.pct[h.lv - 1] * g.mods.healMul * (h.lv >= 3 ? 1.2 : 1) * (h.cm.heal || 1));
+        if (v > 0) ev(g, 'bandage', { x: h.x, y: g.ropeY + 8, v: Math.round(v), hero: h.id });
         if (h.lv >= 5) { const sick = g.heroes.find((o) => o.stunT > 0 || o.charmT > 0 || o.grabT > 0 || o.blindT > 0); if (sick) { sick.stunT = 0; sick.charmT = 0; sick.blindT = 0; if (sick.grabT > 0) { sick.grabT = 0; sick.grabBy = 0; } ev(g, 'cleanse', { x: sick.x, y: sick.y }); } }
       }
     }
@@ -300,13 +311,10 @@ function updateHeroes(g, dt) {
       if (h.healT <= 0) {
         const [per, amt] = d.heal[h.lv - 1];
         h.healT = per;
-        if (g.base.hp < g.base.max) {
-          const v = Math.min(g.base.max - g.base.hp, g.base.max * amt * g.mods.healMul * (h.cm.heal || 1) * (h.id === 'gunnyeo' ? 1 + NICHE.gunnyeo.heal * (h.meta || 0) : 1));
-          g.base.hp += v;
-          ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
-        }
-        const sick = g.heroes.find((o) => o.stunT > 0.3 || o.charmT > 0.3 || o.rumorT > 0.3 || o.paperT > 0.3 || o.fearT > 0.3 || o.vomitT > 0.3 || o.blindT > 0.3 || o.drowsyT > 0.3);
-        if (sick) { sick.stunT = 0; sick.charmT = 0; sick.rumorT = 0; sick.paperT = 0; sick.fearT = 0; sick.vomitT = 0; sick.blindT = 0; sick.drowsyT = 0; ev(g, 'cleanse', { x: sick.x, y: sick.y }); }
+        { const v = healDoor(g, h.id, g.base.max * amt * g.mods.healMul * (h.cm.heal || 1) * (h.id === 'gunnyeo' ? 1 + NICHE.gunnyeo.heal * (h.meta || 0) : 1));
+          if (v > 0) ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) }); }
+        // 상태이상 해제: 걸린 멤버 모두 (예전엔 한 명) — 기절 예고 스테이지에서 해제 역할이 확실히 보이게
+        for (const sick of g.heroes) if (sick.stunT > 0.3 || sick.charmT > 0.3 || sick.rumorT > 0.3 || sick.paperT > 0.3 || sick.fearT > 0.3 || sick.vomitT > 0.3 || sick.blindT > 0.3 || sick.drowsyT > 0.3 || sick.silenceT > 0.3) { sick.stunT = 0; sick.charmT = 0; sick.rumorT = 0; sick.paperT = 0; sick.fearT = 0; sick.vomitT = 0; sick.blindT = 0; sick.drowsyT = 0; sick.silenceT = 0; sick.muteT = 0; ev(g, 'cleanse', { x: sick.x, y: sick.y }); }
       }
     }
     if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
@@ -346,6 +354,8 @@ function updateHeroes(g, dt) {
     if (d.proj === 'beam') { updateBeam(g, h, dt, rate); continue; }
     // 김영준: 뛰어들어 연속 베기 → 돌아와 크로스핏
     if (d.proj === 'dash') { updateDash(g, h, dt, rate); continue; }
+    // 운영진 · 건전남: 곁(사거리 60%)의 숨은 진상을 찾아내 모두가 칠 수 있게 (스테이지 조건 '숨은 진상')
+    if (g.cond.stealth && REVEAL_HEROES.includes(h.id) && (h.revT = (h.revT || 0) - dt) <= 0) { h.revT = 0.25; const rr = heroRange(g, h) * 0.6; for (const e of g.enemies) if (!e.dead && !e.unveiled && Math.hypot(e.x - h.x, e.y - h.y) < rr) { e.unveiled = true; ev(g, 'unveil', { x: e.x, y: e.y - 30, eye: true }); } }
     // 배현경: 사거리 안 숨은 적을 드러낸다 (날씬 모드면 화면 전체 · 표시 1.5초)
     if (h.id === 'hyungyeong') { const rr = h.alt ? 1e9 : heroRange(g, h); for (const e of g.enemies) if (!e.dead && !e.unveiled && (h.alt || Math.hypot(e.x - h.x, e.y - h.y) < rr)) { e.unveiled = true; e.markT = Math.max(e.markT || 0, 1.5); ev(g, 'unveil', { x: e.x, y: e.y - 30, eye: true }); } }
     // 윤정섭: 뚜벅뚜벅 걸어 올라가며 밀어낸다 → 끝에서 돌아와 앉아서 쉰다
@@ -440,6 +450,7 @@ function updateBuses(g, dt) {
       if (e.dead || b.hit.has(e.uid) || Math.abs(e.x - b.x) > b.w / 2 + e.r || e.y > b.y + 50 || e.y < b.y - 60) continue;
       b.hit.add(e.uid);
       damageEnemy(g, e, b.dmg * (b.gold && (e.boss || e.mid) ? BAL.hochan.busBoss : 1), false, b.hero, true);
+      { const hb = b.hero, bf = hb.def.buff; if (bf && !b.gold) { g.hcBuff = g.hcT > 0 ? Math.min(bf.max + (hb.cm.buff || 0), g.hcBuff + bf.per) : bf.per; g.hcT = bf.sec[hb.lv - 1] + 1; } } // "랑방을 위하여!" 템포에선 버스가 친 진상마다 모두 공격력 + (예전엔 템포에서 안 붙었음)
       if (e.dead) continue;
       if (!e.boss && !e.mid) { e.y -= BUS.kb; e.x += (e.x < b.x ? -1 : 1) * 14; } else e.y -= BUS.kb * 0.25;
       if (b.stun) e.stunT = Math.max(e.stunT, b.stun * (e.boss ? 0.4 : 1));
@@ -735,7 +746,7 @@ export function fire(g, h, t) {
   const lv = h.lv;
   h.recoil = 0.14;
   h.lastShotT = g.t; // 프레임 띠: 던진 순간
-  if (h.id === 'gunnyeo') { g.doorShield = Math.min(g.base.max * 0.15, Math.max(g.doorShield || 0, 0) + g.base.max * 0.01); g.doorShieldT = Math.max(g.doorShieldT || 0, 5); g.doorShieldMax = Math.max(g.doorShieldMax || 0, g.doorShield); }
+  if (h.id === 'gunnyeo') { g.doorShield = Math.min(g.base.max * 0.15, Math.max(g.doorShield || 0, 0) + g.base.max * 0.01); g.doorShieldT = Math.max(g.doorShieldT || 0, 5); g.doorShieldMax = Math.max(g.doorShieldMax || 0, g.doorShield); g.doorShieldBy = 'gunnyeo'; }
   h.shots++;
   const dmg = heroDamage(g, h);
   ev(g, 'shot', { hero: h.id, x: h.x, y: h.y });
@@ -1165,6 +1176,8 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.tLay = 0; e.tLayMax = 0; e.titan = false;
   if (g.tower) towerEnemy(g, e, o); // 진상의 탑: 층 공격력 · 규칙 (거물 · 떼거리 · 돌진 · 보호막 · 어둠)
   if (def.ch7 || e.ch7On) ch7Init(g, e); // 7장 스키장 진상 상태 (풀에서 꺼낸 진상은 지난 값을 지운다)
+  e.cLay = 0; e.cLayMax = 0; e.cArmor = false; e.cHid = false; e.cDone = false; e.cLeak = false; e.cRush = false; e.cOff = false; e.cCrashed = false;
+  if (g.conds.length && g.wave >= DOOR_PRESSURE.from) condEnemy(g, e); // 스테이지 조건 (보호막 · 철갑 · 은신 · 돌격 · 문 압박)
   g.enemies.push(e);
   if (e.boss) g.bossAlive++;
   return e;
@@ -1176,6 +1189,7 @@ export const BOSS_GUARD = { hit: 0.05, perSec: 0.07, over: 0.2, from: 30 }; // 4
 export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.dead) return 0;
   if (e.tLay > 0 && src && layerHit(g, e, src)) return 0; // 탑 보호막: 한 방에 한 겹
+  if (e.cLay > 0 && src && condLayer(g, e, src)) dmg *= 1 - COND.shield.cut; // 스테이지 보호막 진상: 겹이 남아 있으면 −90% (한 방에 한 겹)
   if (src && src.id === 'gunman' && (e.armor > 0 || (e.def.traits && (e.def.traits.aoeImmune || e.def.traits.projShield || e.def.traits.singleResist || e.def.traits.kbImmune)))) dmg *= NICHE.gunman.hard + NICHE.gunman.hardLv * (src.meta || 0); // 건전남: 단단한 진상 전문
   const tr = e.def.traits;
   if (tr && src) {
@@ -1186,7 +1200,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   }
   { const sh = (e.shredN > 0 && e.shredT > 0 ? e.shredN * (e.shredPer || 0.06) : 0) + (e.brkT > 0 ? e.brkDmg || 0 : 0); if (sh > 0) dmg *= 1 + Math.min(0.7, sh); } // 여지원 방깎 (기본 겹 + 쌍뻑큐 · 합쳐 최대 +70%)
   if (g.encoreT > 0 && src && src.def) dmg *= 1 + (g.encoreDmg || 0); // 김도훈 앵콜 버프
-  // 속성 상성: 효과 굉장! ×1.5 / 별로… ×0.7
+  // 속성 상성: 효과 굉장! ×TYPE_STRONG(1.6) / 별로… ×TYPE_WEAK(0.7) — data.js TYPE_CHART
   let tm = 1;
   if (src && src.def && src.def.attr && !g.noTypes) {
     const m = typeMul(src.def.attr, e.def.cls);
@@ -1266,8 +1280,8 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.raidBoss) g.raid.dmg += dmg;
   e.flash = 0.09;
   g.stats.damage += dmg;
-  if (src) src.dmgDone += dmg;
-  ev(g, 'dmg', { x: e.x, y: e.y - e.def.size * 0.55, v: Math.round(shown), crit: !!crit || !!g._inSkill, sk: !!g._inSkill, shield: dmg < shown, eff: tm > 1 ? 1 : tm < 1 ? -1 : 0 });
+  if (src) { src.dmgDone += dmg; if (src._bfM > 1.001) creditBuff(g, src, dmg); }
+  ev(g, 'dmg', { uid: e.uid, x: e.x, y: e.y - e.def.size * 0.55, v: Math.round(shown), crit: !!crit || !!g._inSkill, sk: !!g._inSkill, shield: dmg < shown, eff: tm > 1 ? 1 : tm < 1 ? -1 : 0 });
   if (e.hp <= 0) killEnemy(g, e, src);
   else if (e.def.breakup && !e.split && e.hp < e.maxHp * e.def.breakup.at) breakUp(g, e);
   return shown;
@@ -1277,6 +1291,7 @@ const MK_WIN = 0.35;
 function flushMultiKill(g) {
   const mk = g.mk;
   if (mk.n >= 3) ev(g, 'multikill', { n: mk.n, x: mk.x / mk.n, y: mk.y / mk.n, combo: g.combo });
+  if (mk.n >= 4 && g.cstat) g.cstat.multi++;
   mk.n = 0; mk.x = 0; mk.y = 0;
 }
 function traitTick(g, e, dt, tr) {
@@ -1419,11 +1434,14 @@ export function damageBase(g, dmg, e) {
   if (g.over || g.god) return;
   // 정원식 도발: 입구 피해의 20% 를 되돌려 준다
   if (e && e.tauntT > 0 && !e.dead) { const ws = g.heroes.find((o) => o.id === 'wonsik'); if (ws) damageEnemy(g, e, dmg * 0.2 * (1 + ws.meta * 0.02), false, ws, false); }
-  for (const tank of g.heroes) if (tank.def.guard && e && Math.abs(e.x - tank.x) < tank.def.guard.r * (tank.cm.guardR || 1)) dmg *= 1 - Math.min(0.6, tank.def.guard.cut + (tank.cm.guardCut || 0));
-  if (e && e.tauntBy && e.tauntBy.wsSt === 'sit' && e.tauntBy.wsPool > 0) { const C = e.tauntBy.def.skill.consult; e.tauntBy.wsPool -= dmg * (1 - C.cut); return; } // 상담 중: 입구 대신 원식
-  if (e && e.tauntT > 0) dmg *= 0.2; // 정원식 결혼정보회사: 원식만 바라본다
+  for (const tank of g.heroes) if (tank.def.guard && e) { const near = Math.abs(e.x - tank.x) < tank.def.guard.r * (tank.cm.guardR || 1); const cut = near ? Math.min(0.6, tank.def.guard.cut + (tank.cm.guardCut || 0)) : tank.def.guard.all || 0; if (cut > 0) { prevented(g, tank.id, dmg * cut); dmg *= 1 - cut; } } // 탱커: 곁은 크게 · 나머지 입구도 조금
+  if (e && e.tauntBy && e.tauntBy.wsSt === 'sit' && e.tauntBy.wsPool > 0) { const C = e.tauntBy.def.skill.consult; e.tauntBy.wsPool -= dmg * (1 - C.cut); prevented(g, e.tauntBy.id, dmg); return; } // 상담 중: 입구 대신 원식
+  if (e && e.tauntT > 0) { prevented(g, 'wonsik', dmg * 0.8); dmg *= 0.2; } // 정원식 결혼정보회사: 원식만 바라본다
+  if (g.gnGuard && g.gnGuard < 1) prevented(g, 'gunnyeo', dmg * (1 - g.gnGuard)); // 건전녀 입구 보호 (강화)
+  { const jm = HEROES.jungmin.brace; if (jm && g.heroes.some((o) => o.id === 'jungmin' && !o.gone)) { const c0 = e && e.cRush && !e.cCrashed ? jm.crash : jm.all; prevented(g, 'jungmin', dmg * c0); dmg *= 1 - c0; } } // 홍정민 보강: 입구 피해 −10% · 돌격 충돌 −50%
+  if (g.bandT > 0) prevented(g, 'jungmin', dmg * g.mods.baseArmor * g.bandArmor);
   dmg *= g.mods.baseArmor * (g.bandT > 0 ? 1 - g.bandArmor : 1) * (g.bouncerT > 0 ? 1 - CONS_FX.bouncer.cut : 1); // 경호원 호출: 입구 피해 −80%
-  if (g.doorShield > 0 && g.doorShieldT > 0) { const a = Math.min(g.doorShield, dmg); g.doorShield -= a; dmg -= a; if (g.doorShield <= 0) { g.doorShield = 0; ev(g, 'doorShieldBreak', { x: g.W / 2, y: g.ropeY }); } } // 건전녀 방패가 먼저 막는다
+  if (g.doorShield > 0 && g.doorShieldT > 0) { const a = Math.min(g.doorShield, dmg); g.doorShield -= a; dmg -= a; prevented(g, g.doorShieldBy || 'gunnyeo', a); if (g.doorShield <= 0) { g.doorShield = 0; ev(g, 'doorShieldBreak', { x: g.W / 2, y: g.ropeY }); } } // 건전녀 방패가 먼저 막는다
   if (g.pvp) { dmg *= g.pvp.doorMul; g.pvp.hurt += dmg; } // 1:1 서든데스: 입구 받는 피해 단계마다 +20%
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
@@ -2179,6 +2197,136 @@ function ch7Tick(g, e, dt) {
     }
   }
 }
+// ─── 스테이지 조건 (1~6장 중후반 · 헬): 보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격 — 강화만으로는 못 뚫게, 역할이 필요하게 ───
+function condEnemy(g, e) {
+  const C = g.cond, ch = chapterOf(g.stage || 1), k = g.hell ? 1.25 : 1;
+  e.atk *= (DOOR_PRESSURE.atk[ch - 1] || 1) * (g.hell ? DOOR_PRESSURE.hell : 1); e.baseAtk = e.atk; // 문 압박: 입구에 닿은 진상이 더 세게
+  if (e.boss || e.mid || e.def.dot || e.def.figure) return;
+  if (C.shield && (e.elite || g.rng() < COND.shield.frac * k)) { e.cLay = e.cLayMax = COND.shield.layers[e.elite || g.hell ? 1 : 0]; e.cLayT = COND.shield.regen; }
+  if (C.armor && (e.elite || g.rng() < COND.armor.frac * k)) { e.armor += COND.armor.armor[ch] || 0; e.cArmor = true; }
+  if (C.stealth && e.unveiled && g.rng() < COND.stealth.frac * k) { e.cloak = true; e.unveiled = false; }
+  if (C.rush && !e.fast && !e.elite && g.rng() < COND.rush.frac * k) { e.fast = true; e.cRush = true; e.speed *= COND.rush.spd; e.baseSpeed = e.speed; e.atk *= COND.rush.atk; e.baseAtk = e.atk; }
+  if (!e.unveiled) { e.cHid = true; g.cstat.hidden++; }
+}
+// 보호막 한 겹: 운영진 · 여지원(깨기 전문)이나 버프 벗기기 장비는 한 번에 다 깬다. 겹이 남아 있으면 true (피해 −90%)
+function condLayer(g, e, src) {
+  if ((src.id && COND.shield.breaker.includes(src.id)) || (src.gear && src.gear.strip && g.rng() < src.gear.strip)) {
+    e.cLay = 0; e.cLayT = COND.shield.regen; g.cstat.breaks++;
+    ev(g, 'shieldBreak', { x: e.x, y: e.y - e.def.size * 0.6, by: src.id });
+    return false;
+  }
+  e.cLay--; e.cLayT = COND.shield.regen;
+  if (e.cLay <= 0) ev(g, 'shieldBreak', { x: e.x, y: e.y - e.def.size * 0.6 });
+  else if (g.t - (e.layT || -9) > 0.3) { e.layT = g.t; ev(g, 'blocked', { x: e.x, y: e.y - e.def.size * 0.7, n: e.cLay }); }
+  return true;
+}
+function condTick(g, dt) {
+  const st = g.cstat, rv = FIELD.spawnY + (g.ropeY - FIELD.spawnY) * 0.75;
+  for (const e of g.enemies) {
+    if (e.dead) continue;
+    if (e.cLayMax && e.cLay < e.cLayMax) { if (e.noShieldT > 0) e.cLay = 0; else if ((e.cLayT -= dt) <= 0) { e.cLay++; e.cLayT = COND.shield.regen; } } // 4초 안 맞으면 한 겹 다시
+    if (e.cHid && !e.cDone && e.unveiled) { e.cDone = true; if (e.y < rv - 4) st.found++; } // 길 ¾ 전에 찾아냄
+    if (e.cRush && !e.cOff && (e.slowT > 0 || e.stunT > 0)) { e.cOff = true; e.speed *= COND.rush.off; ev(g, 'c7sledOff', { x: e.x, y: e.y - e.def.size * 0.5 }); } // 돌격 진상: 감속 · 기절에 걸리면 넘어져 느려진다
+    if (e.atRope && !e.cLeak && !e.def.standoff) {
+      e.cLeak = true; st.leak++; if (e.cLay > 0) st.shieldLeak++; if (e.cArmor) st.armorLeak++;
+      if (e.cRush && !e.cOff && e.stunT <= 0) { damageBase(g, g.base.max * (COND.rush.crash[Math.min(6, chapterOf(g.stage || 1)) - 1] || 0.04) * (g.hell ? 1.2 : 1), e); e.cCrashed = true; ev(g, 'c7crash', { x: e.x, y: g.ropeY }); } // 쾅! 입구에 부딪힘
+    }
+  }
+  if (g.phase === 'wave') { for (const h of g.heroes) if (!h.def.summon && (h.stunT > 0 || h.charmT > 0)) st.ccSec += dt; const f = g.base.hp / g.base.max; if (f < st.minDoor) st.minDoor = f; }
+  if (g.cond.cc && g.phase === 'wave') condCc(g, dt);
+}
+// 기절 예고: 진상 하나가 1초 기를 모았다가 제일 센 멤버(도발 탱커가 있으면 탱커)에게 기절 → 홀림 → 침묵 차례로
+//  기 모으는 중에 기절시키면 끊긴다 · 건전녀 응급 방패/강성구 곁은 면역 · 건전녀 · 김도훈 · 홍정민(Lv5)이 풀어 준다
+const CC_ORDER = ['stun', 'charm', 'silence'];
+function condCc(g, dt) {
+  const C = COND.cc, e = g.ccE;
+  if (e) {
+    if (!e.dead && e.stunT > 0) { g.ccE = null; e.windup = 0; e.ccW = 0; g.ccT = 2.5; ev(g, 'condCcStop', { x: e.x, y: e.y - e.def.size * 0.6 }); return; } // 기 모으는 중 기절시키면 끊긴다 (쓰러뜨려도 이미 날아간 저주는 온다)
+    e.ccW -= dt; if (!e.dead) e.windup = Math.max(0.01, e.ccW);
+    if (e.ccW > 0) return;
+    e.windup = 0; e.ccW = 0; g.ccE = null;
+    const ch = Math.min(6, chapterOf(g.stage || 1));
+    g.ccT = (C.every[0] + (C.every[1] - C.every[0]) * Math.max(0, ch - 2) / 4) * (g.hell ? 0.8 : 1);
+    const hs = g.heroes.filter((h) => !h.def.summon && !h.gone);
+    if (!hs.length) return;
+    const fresh = hs.filter((h) => h.stunT <= 0 && h.charmT <= 0), list = fresh.length ? fresh : hs;
+    const top = list.reduce((a, h) => (h.dmgDone > a.dmgDone ? h : a), list[0]);
+    const h = victim(g, list, top);
+    const kind = CC_ORDER[(g.ccI = (g.ccI | 0) + 1) % CC_ORDER.length];
+    const hk = g.hell ? 1.2 : 1;
+    // 해제 담당: 건전녀가 있으면 바로 응급처치 (4초에 한 번 · 0.6초 만에 풀림) · 김도훈 떼창 곁이면 40% 짧게
+    const gn = g.heroes.find((o) => o.id === 'gunnyeo' && o.stunT <= 0 && o.charmT <= 0 && !o.gone);
+    const react = !!gn && !(g.gnReactT > g.t);
+    const sing = g.heroes.find((o) => o.def.sing && o !== h && o.stunT <= 0 && Math.abs(o.x - h.x) <= o.def.sing.r);
+    const cut = (v) => (react ? Math.min(v, C.react) : v) * (sing ? C.singCut : 1);
+    let sec = 0;
+    if (kind === 'stun') { sec = cut(debuffSec(h, C.stun * hk)); if (sec > 0) { h.stunT = Math.max(h.stunT, sec); firstStunTip(g); } }
+    else if (kind === 'charm') {
+      if (g.heroes.some((o) => o.id === 'gunnyeo' && o.lv >= 5)) ev(g, 'charmBlock', { x: h.x, y: h.y });
+      else { sec = cut(debuffSec(h, C.charm * hk)); if (sec > 0) h.charmT = Math.max(h.charmT, sec); }
+    } else { sec = cut(debuffSec(h, C.silence * hk, 'silence')); if (sec > 0) { h.silenceT = Math.max(h.silenceT || 0, sec); h.muteT = Math.max(h.muteT || 0, sec); } }
+    if (react && sec > 0) { g.gnReactT = g.t + C.reactCd; ev(g, 'cleanse', { x: h.x, y: h.y }); ev(g, 'gunnyeoReact', { x: gn.x, y: gn.y, hero: h.id }); }
+    ev(g, 'condCc', { kind, hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y - e.def.size * 0.5, sec, block: sec <= 0 });
+    return;
+  }
+  if ((g.ccT -= dt) > 0) return;
+  let pick = null;
+  for (const o of g.enemies) {
+    if (o.dead || o.boss || o.mid || o.def.dot || o.stunT > 0 || isHidden(o) || o.y < 60 || o.y > g.ropeY - 10) continue;
+    if (!pick || (o.elite && !pick.elite) || (o.elite === pick.elite && o.y > pick.y)) pick = o;
+  }
+  if (!pick) { g.ccT = 1; return; }
+  g.ccE = pick; pick.ccW = C.windup; pick.windup = C.windup;
+  ev(g, 'condCcWarn', { x: pick.x, y: pick.y - pick.def.size * 0.6, sec: C.windup });
+}
+// 팀 기여: 입구 수리 · 막은 피해 · 버프로 늘어난 피해 (결과 화면 MVP 옆에 보여 준다)
+function teamOf(g, id) { const m = g.stats.teamBy || (g.stats.teamBy = {}); return m[id] || (m[id] = { repair: 0, prevent: 0, buff: 0 }); }
+// 입구 회복 (raw = 회복량): 꽉 찬 입구에 넘친 회복은 절반이 입구 방패로 (최대 내구도 15% · 5초) — 서포터가 '꽉 찬 입구'에서도 일을 한다
+export const OVERHEAL = { eff: 0.5, cap: 0.15, sec: 5 };
+function healDoor(g, id, raw) {
+  if (!(raw > 0) || g.over) return 0;
+  const v = Math.min(g.base.max - g.base.hp, raw);
+  if (v > 0) repairDoor(g, id, v);
+  const over = (raw - v) * OVERHEAL.eff;
+  if (over > 0 && g.mode === 'stage' && g.metaSoft) {
+    const cap = g.base.max * OVERHEAL.cap;
+    if ((g.doorShield || 0) < cap) { g.doorShield = Math.min(cap, (g.doorShieldT > 0 ? g.doorShield || 0 : 0) + over); g.doorShieldT = Math.max(g.doorShieldT || 0, OVERHEAL.sec); g.doorShieldMax = Math.max(g.doorShieldMax || 0, g.doorShield); g.doorShieldBy = id; }
+  }
+  return v;
+}
+function repairDoor(g, id, v) {
+  if (!(v > 0)) return 0;
+  g.base.hp += v;
+  if (g.stats.team) { g.stats.team.repair += v; teamOf(g, id).repair += v; }
+  return v;
+}
+function prevented(g, id, v) { if (v > 0 && g.stats.team && !g.over) { g.stats.team.prevent += v; teamOf(g, id).prevent += v; } }
+// 멤버마다 지금 받는 버프 (누가 · 몇 배) — 방장 오라 · 집합 · 김도훈 떼창/앵콜 · 강병화 오라/원맨쇼 · 이호찬 "랑방을 위하여"
+function teamBuffs(g) {
+  const b = hasHero(g, 'bangjang');
+  for (const h of g.heroes) {
+    const L = h._bf || (h._bf = []);
+    L.length = 0;
+    let M = 1;
+    const add = (id, f) => { if (f > 1.0001 && id && id !== h.id) { L.push(id, f); M *= f; } };
+    if (b) add('bangjang', 1 + auraBonus(g, h));
+    let sing = 0, sid = null;
+    for (const d0 of g.heroes) if (d0.def.sing && d0 !== h && d0.stunT <= 0 && Math.abs(d0.x - h.x) <= d0.def.sing.r && d0.def.sing.spd[d0.lv - 1] > sing) { sing = d0.def.sing.spd[d0.lv - 1]; sid = d0.id; }
+    if (sid) add(sid, 1 + sing);
+    if (byungNear(g, h)) add('byunghwa', 1 + HEROES.byunghwa.aura.spd);
+    if (g.rallyT > 0 && g.rallySpd) add(g.rallyBy || 'bangjang', (1 + g.rallySpd) * (g.rallyDmg && g.rallyBy !== 'dohoon' ? 1 + g.rallyDmg : 1));
+    if (g.encoreT > 0) add('dohoon', 1 + (g.encoreDmg || 0));
+    if (g.hcT > 0 || g.hcSkT > 0) add('hochan', 1 + (g.hcT > 0 ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0));
+    if (g.onemanT > 0) add('byunghwa', 1 + (g.onemanAtk || 0.3));
+    h._bfM = M;
+  }
+}
+function creditBuff(g, h, dmg) {
+  const L = h._bf, M = h._bfM, add = dmg * (1 - 1 / M), lnM = Math.log(M);
+  if (!g.stats.team || !L || !L.length) return;
+  g.stats.team.buff += add;
+  for (let i = 0; i < L.length; i += 2) teamOf(g, L[i]).buff += (add * Math.log(L[i + 1])) / lnM;
+}
 // 멤버를 노리는 진상 기술: 탱커(백인규)가 있으면 그쪽으로
 function victim(g, list, dflt) {
   const t = list.find((h) => h.def.taunt);
@@ -2646,17 +2794,18 @@ export function startWave(g, n) {
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
   g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
+  if (g.conds.length && n >= DOOR_PRESSURE.from) g.hpScale *= COND_HP[chapterOf(g.stage) - 1] || 1; // 조건 스테이지: 기믹만큼 체력은 덜어 준다
   if (g.pvp) g.hpScale *= pvpMatchHp(g.pvp.hp, n) * pvpWaveHp(n) * hpMul(PVP_END.baseLevel, g.mode === 'stage') / hpMul(Math.max(1, g.diff), g.mode === 'stage'); // 1:1 대전: 두 덱 전투력 × 웨이브마다 ×1.22 (체력 오름은 이것 하나로 · 공격력은 웨이브대로)
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
   const more = g.mapFx.spawn || 1;
   // 무한 도전: 웨이브가 갈수록 떼로 (×1.3 → 30웨이브 ×3.0) · 주간 도전 ×2
-  const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1) * (g.tempo && !g.raid ? TEMPO.count : 1);
+  const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1) * (g.tempo && !g.raid ? TEMPO.count : 1) * (g.cond.swarm ? COND.swarm.count : 1); // 떼거리 조건: 약한 진상이 훨씬 많이
   for (const [type, count0, every0, delay, tag] of def.g) {
     const count = Math.round(count0 * more * swarm), every = every0 / (more * swarm);
     const pack = ENEMIES[type].pack;
     const elite = tag === 'E';
-    const hpX = elite ? def.eliteHp || 1 : def.fodderHp || 1;
+    const hpX = elite ? def.eliteHp || 1 : (def.fodderHp || 1) * (g.cond.swarm ? COND.swarm.hp : 1);
     let laneX = 0;
     // 7장 리프트 새치기꾼: 두세 명이 한 줄로 바짝 (정예 웨이브에서도 무리로)
     const grp = ENEMIES[type].group;
@@ -2717,7 +2866,8 @@ function waveClear(g) {
   if (done) {
     g.victory = true;
     const hpFrac = g.base.hp / g.base.max;
-    g.stars = starsFor(hpFrac);
+    if (g.mission) { g.cstat.combo = g.stats.maxCombo; g.cstat.endDoor = hpFrac; g.mission.ok = missionOk(g.mission, g.cstat); }
+    g.stars = starsFor(hpFrac, g.mission ? g.mission.ok : true);
     s.score += (g.mode === 'stage' ? SCORE.stageClear : SCORE.victory) + Math.round(hpFrac * 100) * SCORE.hpPct;
     g.phase = 'victory';
     ev(g, 'victory', { stars: g.stars });
@@ -2809,7 +2959,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
   let r = 0;
   switch (sk.id) {
     case 'rally':
-      g.rallyT = sk.sec[lv] + (sa.rally ? 3 : 0); g.rallySpd = sk.spd[lv] + (sa.rally ? 0.2 : 0); g.rallyDmg = 0.2; g.rallyHeal = h.lv >= 5 ? 0.02 : 0;
+      g.rallyT = sk.sec[lv] + (sa.rally ? 3 : 0); g.rallySpd = sk.spd[lv] + (sa.rally ? 0.2 : 0); g.rallyDmg = 0.2; g.rallyBy = h.id; g.rallyHeal = h.lv >= 5 ? 0.02 : 0;
       for (const e of g.enemies) if (!e.dead && !e.boss && e.y > 0) { e.y = Math.max(FIELD.spawnY + 10, e.y - 40); e.atRope = false; }
       ev(g, 'buffAura', { kind: 'rally', sec: sk.sec[lv] });
       break;
@@ -2817,7 +2967,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       r = sk.r[lv];
       forEnemiesNear(g, x, y, r, (e) => {
         if (e.shield > 0 || e.dictT > 0 || e.gaoOn || e.goodsOn) ev(g, 'shieldBreak', { x: e.x, y: e.y - e.def.size * 0.6 });
-        e.shield = 0; e.dictT = 0; e.gaoOn = false; e.goodsOn = false; e.noShieldT = 4; e.auraOffT = 4; // 레드카드: 보호막·버프 깨기
+        if (e.cLay > 0) { ev(g, 'shieldBreak', { x: e.x, y: e.y - e.def.size * 0.6 }); if (g.cstat) g.cstat.breaks++; } e.cLay = 0; e.shield = 0; e.dictT = 0; e.gaoOn = false; e.goodsOn = false; e.noShieldT = 4; e.auraOffT = 4; // 레드카드: 보호막·버프 깨기
         damageEnemy(g, e, base * sk.dmgMul, false, h, true);
         if (!e.dead) { e.slowT = Math.max(e.slowT, sk.slowSec * (e.boss ? 0.5 : 1)); e.slowMul = e.boss ? 0.7 : 0.4; }
         if (lv >= 4 && !e.dead && !e.boss) e.stunT = Math.max(e.stunT, 1);
@@ -2833,8 +2983,8 @@ function castSkill0(g, h, x, y, echo, fromQ) {
     }
     case 'firstaid': {
       const v = Math.min(g.base.max - g.base.hp, g.base.max * sk.heal[lv] * 0.5 * g.mods.healMul);
-      g.base.hp += v;
-      g.doorShield = Math.max(g.doorShield || 0, g.base.max * (0.35 + 0.02 * lv) * g.mods.healMul * (sa.aegis ? 1.5 : 1)); g.doorShieldT = 8; g.doorShieldMax = g.doorShield;
+      repairDoor(g, h.id, v);
+      g.doorShield = Math.max(g.doorShield || 0, g.base.max * (0.35 + 0.02 * lv) * g.mods.healMul * (sa.aegis ? 1.5 : 1)); g.doorShieldT = 8; g.doorShieldMax = g.doorShield; g.doorShieldBy = h.id;
       ev(g, 'doorShield', { x: g.W / 2, y: g.ropeY, v: Math.round(g.doorShield) });
       for (const o of g.heroes) { o.stunT = 0; o.charmT = 0; o.rumorT = 0; o.fearT = 0; o.paperT = 0; o.grabT = 0; o.silenceT = 0; o.aspdDebT = 0; o.ccImmT = sa.aegis ? 5 : 3; }
       ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
@@ -2894,8 +3044,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       break;
     }
     case 'encore': {
-      const v = Math.min(g.base.max - g.base.hp, g.base.max * sk.heal[lv] * g.mods.healMul * (sa.medley ? 1.3 : 1));
-      g.base.hp += v;
+      const v = healDoor(g, h.id, g.base.max * sk.heal[lv] * g.mods.healMul * (sa.medley ? 1.3 : 1));
       for (const o of g.heroes) { o.stunT = 0; o.charmT = 0; o.rumorT = 0; o.fearT = 0; o.paperT = 0; o.vomitT = 0; o.blindT = 0; o.drowsyT = 0; if (o.grabT > 0) { o.grabT = 0; o.grabBy = 0; } }
       r = sk.r;
       forEnemiesNear(g, h.x, h.y - 60, r, (e) => {
@@ -2904,7 +3053,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       });
       // 앵콜 떼창: 잠깐 멤버 전원 공속 · 피해 업 (방장 '집합!'과 겹치면 센 쪽)
       const bsec = sk.buffSec * (sa.medley ? 2 : 1);
-      g.rallyT = Math.max(g.rallyT, bsec); g.rallySpd = Math.max(g.rallyT > bsec ? g.rallySpd : 0, sk.buffSpd);
+      if (g.rallyT <= bsec) g.rallyBy = h.id; g.rallyT = Math.max(g.rallyT, bsec); g.rallySpd = Math.max(g.rallyT > bsec ? g.rallySpd : 0, sk.buffSpd);
       g.encoreT = bsec; g.encoreDmg = sk.buffDmg;
       ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
       ev(g, 'encore', { x: h.x, y: h.y, r });
@@ -3031,8 +3180,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       break;
     }
     case 'bandage': { // 홍정민: 붕대 대공사 — 크게 수리 + 입구 피해 ↓
-      const v = Math.min(g.base.max - g.base.hp, g.base.max * sk.heal[lv] * g.mods.healMul * (h.cm.heal || 1));
-      g.base.hp += v; g.bandT = sk.sec[lv] + (sa.iron ? 3 : 0); g.bandArmor = sk.armor + (sa.iron ? 0.2 : 0);
+      const v = healDoor(g, h.id, g.base.max * sk.heal[lv] * g.mods.healMul * (h.cm.heal || 1)); g.bandT = sk.sec[lv] + (sa.iron ? 3 : 0); g.bandArmor = sk.armor + (sa.iron ? 0.2 : 0);
       ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
       ev(g, 'bandage', { x: g.W / 2, y: g.ropeY + 8, v: Math.round(v), big: true, hero: h.id });
       break;
@@ -3185,10 +3333,11 @@ export function step(g, dt) {
   updateAuras(g);
   updateHeroes(g, dt);
   updateEnemies(g, dt);
+  if (g.conds.length) condTick(g, dt);
   updateEprojs(g, dt);
   updateProjs(g, dt);
   if (g.pools.length) updatePools(g, dt);
-  if (g.rallyT > 0) { g.rallyT -= dt; if (g.rallyHeal && g.base.hp < g.base.max) g.base.hp = Math.min(g.base.max, g.base.hp + g.base.max * g.rallyHeal * dt); }
+  if (g.rallyT > 0) { g.rallyT -= dt; if (g.rallyHeal && g.base.hp < g.base.max) repairDoor(g, 'bangjang', Math.min(g.base.max - g.base.hp, g.base.max * g.rallyHeal * dt)); }
   if (g.tambT > 0) g.tambT -= dt;
   if (g.uirijuT > 0) g.uirijuT -= dt;
   if (g.bouncerT > 0) g.bouncerT -= dt;
@@ -3568,7 +3717,7 @@ export function snapshot(g) {
     mods: Object.assign({}, g.mods, { attrDmg: Object.assign({}, g.mods.attrDmg), tagDmg: Object.assign({}, g.mods.tagDmg) }), stacks: Object.assign({}, g.stacks),
     hiddenTaken: Object.assign({}, g.hiddenTaken), heroesUsed: Object.assign({}, g.heroesUsed),
     level: g.level, exp: g.exp, need: g.need, pendingLevels: g.pendingLevels, welcomePicks: g.welcomePicks, cons: (g.cons || []).slice(), consUsed: Object.assign({}, g.consUsed || {}),
-    base: { hp: g.base.hp, max: g.base.max }, ult: g.ult, stats: Object.assign({}, g.stats),
+    base: { hp: g.base.hp, max: g.base.max }, ult: g.ult, stats: JSON.parse(JSON.stringify(g.stats)), cstat: Object.assign({}, g.cstat),
     meta: Object.assign({}, g.meta), items: Object.assign({}, g.items), unlocked: g.unlocked.slice(), trial: (g.trial || []).slice(),
     curses: g.curses || [], scoreMul: g.scoreMul || 1, coinMul: g.coinMul || 1, streak: g.streak || 1, twinBoss: !!g.twinBoss,
     gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, hell: g.hell, maxHeroes: g.maxHeroes, awake: g.awakeMap || {}, markBonus: g.markBonus || 0, saJy: g.saJy || 0,
@@ -3600,6 +3749,8 @@ export function restoreGame(snap, opt = {}) {
   g.base.max = snap.base.max; g.base.hp = clamp(snap.base.hp, 1, snap.base.max);
   g.ult = snap.ult || 0;
   Object.assign(g.stats, snap.stats || {});
+  if (snap.cstat) Object.assign(g.cstat, snap.cstat);
+  if (!g.stats.team) { g.stats.team = { repair: 0, prevent: 0, buff: 0 }; g.stats.teamBy = {}; }
   g.cons = (snap.cons || []).slice(); g.consUsed = Object.assign({}, snap.consUsed || {});
   g.t = snap.t || 0;
   g.wave = Math.max(0, (snap.wave || 1) - 1);
