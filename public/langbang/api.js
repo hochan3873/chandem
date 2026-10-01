@@ -470,7 +470,7 @@ export async function postWeekly(sum, runId, guest) {
     writeGuest(q);
     return { ok: true, profile: guestProfile(), reward: { total: coins }, weekly: { score, best: q.weekly.best, newBest } };
   }
-  return liveCall('result', { mode: 'weekly', runId, wave: sum.wave, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, victory: !!sum.victory, score: sum.score, seen: sum.seen });
+  return liveCall('result', { mode: 'weekly', runId, wave: sum.wave, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, victory: !!sum.victory, score: sum.score, seen: sum.seen, heroesUsed: sum.heroesUsed });
 }
 export async function weeklyBoard() {
   const r = await call('/api/langbang/weekly');
@@ -493,7 +493,7 @@ export function masterAct(action, extra = {}) { return liveCall('master', Object
 export async function raidBoard() { const r = await call('/api/langbang/raid'); return r.ok ? r : null; }
 export function raidStart(friend) { return liveCall('raid/start', friend ? { friend } : {}); } // friend: 데려갈 친구 아이디 (없으면 혼자)
 export function raidClaim() { return liveCall('raid/claim', {}); }
-export function postRaid(sum, runId, dmg) { return liveCall('result', { mode: 'raid', runId, raidDmg: Math.floor(dmg), wave: sum.wave, kills: sum.kills, bossKills: 0, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen }); }
+export function postRaid(sum, runId, dmg) { return liveCall('result', { mode: 'raid', runId, raidDmg: Math.floor(dmg), wave: sum.wave, kills: sum.kills, bossKills: 0, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen, heroesUsed: sum.heroesUsed }); }
 export async function playerCard(u) { const r = await call('/api/langbang/player?u=' + encodeURIComponent(u)); return r.ok ? r.player : null; }
 export function claimAllMissions(tab, guest) {
   if (guest) return guestLive((p) => { const r = L.claimAllMissions(p, tab, GUEST_UID, Date.now()); return r.n ? r : { error: '받을 보상이 없어요' }; });
@@ -530,3 +530,11 @@ export function towerHellUp(id, guest) { return guest ? guestLive((p) => TW.hell
 export function towerHellEquip(id, hero, guest) { return guest ? guestLive((p) => TW.hellEquip(p, id, hero)) : liveCall('tower/hell/equip', { id, hero }); }
 export function towerPickGear(type, guest) { return guest ? guestLive((p) => TW.pickLegendGear(p, type)) : liveCall('tower/pick/gear', { type }); }
 export function towerPickHero(hero, guest) { return guest ? guestLive((p) => TW.pickLegendHero(p, hero)) : liveCall('tower/pick/hero', { hero }); }
+
+// ─── 본캐 · 출연료 · 주간 인기 멤버 (서버 server/langbang-bonkae.js · 손님은 없음) ───
+export async function bonkaeLoad() { return call('/api/langbang/bonkae'); }
+export function bonkaeClaim(hero) { return liveCall('bonkae/claim', { hero: hero || null }); }
+export function bonkaeSync() { return liveCall('bonkae/sync', {}); }
+export function bonkaeCollect() { return liveCall('bonkae/collect', {}); }
+export function bonkaeSeen(s) { return liveCall('bonkae/seen', { s }); }
+export function bonkaeMaster(hero, user) { return call('/api/langbang/bonkae/master', { hero, user: user || '' }); }

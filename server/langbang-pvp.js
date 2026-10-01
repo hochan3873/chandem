@@ -263,6 +263,8 @@ function createLbPvp(opts) {
             rating = pv.rating; streak = pv.streak | 0;
           }));
         } catch (e) { console.error('[lbpvp] 결과 저장 실패', e.message); }
+        // 본캐 출연료: 점수가 걸린 판(사람 · AI)에서 이기면 덱 멤버의 본캐 주인에게 (가진 멤버만 · 서버가 다시 확인)
+        if (win && ranked && typeof accounts.bonkaeRun === 'function') await accounts.bonkaeRun(p.uid, p.deck, 'pvp', {});
       }
       p.rating = rating;
       if (aiM && !p.uid && !draw) { const k = p.key, st = guestAdj.get(k + ':s') || { w: 0, l: 0 }; let adj = guestAdj.get(k) || 0; if (win) { st.w++; st.l = 0; if (st.w >= 2) { adj = Math.min(0.15, adj + 0.05); st.w = 0; } } else { st.l++; st.w = 0; if (st.l >= 2) { adj = Math.max(-0.15, adj - 0.05); st.l = 0; } } guestAdj.set(k, adj); guestAdj.set(k + ':s', st); p.aiAdj = adj; }

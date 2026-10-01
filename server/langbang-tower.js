@@ -53,7 +53,10 @@ module.exports = function towerRoutes(r, ctx) {
   r.post('/tower/finish', wrap(async (req) => {
     await ready();
     const body = { runId: String(b(req).runId || '').slice(0, 32), clear: b(req).clear === true, durationSec: Number(b(req).durationSec) || 0, kills: Number(b(req).kills) || 0, bossKills: Number(b(req).bossKills) || 0, skills: Number(b(req).skills) || 0 };
-    return lbLive(tok(req), (lb, id, now, c) => T.towerFinish(lb, body, id, now, c.free), freeCtx);
+    let who = null;
+    const out = await lbLive(tok(req), (lb, id, now, c) => { who = id; return T.towerFinish(lb, body, id, now, c.free); }, freeCtx);
+    if (out && out.clear && who && ctx.onRun) out.bonkae = await ctx.onRun(who, [out.hero], 'tower', { f: out.f }); // 본캐 출연료 (데려간 멤버 = 시작할 때 서버가 확인한 한 명)
+    return out;
   }));
   // 주간 랭킹 · 지난주 내 순위 · 명예의 전당
   r.get('/tower', wrap(async (req) => {

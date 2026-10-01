@@ -46,6 +46,7 @@ let LIVE = null;
 const liveReady = import(require('url').pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href)
   .then((m) => { LIVE = m; }).catch((e) => console.error('[langbang] live.js 불러오기 실패:', e.message));
 const TOWER_MOD = require('./langbang-tower'); // 진상의 탑 (공식은 public/langbang/tower.js)
+const BK_MOD = require('./langbang-bonkae'); // 본캐 · 출연료 · 주간 인기 멤버 (공식은 public/langbang/bonkae.js)
 const LB_HEROES = LBR.LB_HEROES;
 const LB_MAX_META = LBR.META_MAX;
 function emptyLangbang() {
@@ -103,6 +104,7 @@ function normLb(raw, master = false) {
   lb.totalStars = Object.values(lb.stages).reduce((a, b) => a + b, 0);
   if (LIVE) LIVE.normLive(raw, lb); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록 (이상한 값은 버린다)
   if (TOWER_MOD.getTower()) TOWER_MOD.getTower().normTower(raw, lb); // 진상의 탑
+  if (BK_MOD.getBk()) BK_MOD.getBk().normBonkae(raw, lb); // 본캐 · 출연료 · 주간 출전 기록
   return lb;
 }
 const lbExpToNext = (level) => 100 + (level - 1) * 60; // 다음 계정 레벨까지 필요한 경험치
@@ -306,7 +308,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       for (const x of r.rows) noteMeta(x.id, x.meta);
     } else for (const u of Object.values(store.data.users)) if (u.meta) noteMeta(u.id, u.meta);
   }
-  const ready = Promise.all([store.init().then(warmMeta), liveReady, TOWER_MOD.towerReady]).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
+  const ready = Promise.all([store.init().then(warmMeta), liveReady, TOWER_MOD.towerReady, BK_MOD.bkReady]).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
 
   // 토큰: 아이디.만료.토큰버전.서명 (옛 토큰 아이디.만료.서명 은 버전 0 으로 본다)
   const sign = (id, exp, tv) => crypto.createHmac('sha256', key).update(tv === undefined ? `${id}.${exp}` : `${id}.${exp}.${tv}`).digest('base64url');
@@ -501,7 +503,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (score > 10 * (1000 * Math.pow(wave + 1, 2.3) + 50000 * (wave + 1)) || kills > 40 * (wave + 1) * (wave + 1) + 400 * (wave + 1)) throw bad(); // (계약 ×5 · 스킬 연속 ×2 배율까지)
         if (wave >= 3 && dur < wave * 8) throw bad();
       }
-      let out = null;
+      let out = null, bkRun = null;
       await serial(async () => {
         const u = await store.byId(id);
         if (!u) return;
@@ -605,6 +607,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           for (const d of got) if (d.r === 'legend') lb.cnt.legends = (lb.cnt.legends | 0) + 1;
         });
         const lb = stats.langbang;
+        // 본캐 출연료: 깬 스테이지 · 레이드 한 판 · 주간 승리 · 무한 10웨이브+ (데려간 멤버는 위에서 확인한 usedOk)
+        if (mode === 'stage' || mode === 'raid' || (mode === 'weekly' && wk && wk.victory) || (mode === 'endless' && wave >= 10)) bkRun = { h: usedOk, info: { hell, label: mode === 'stage' ? LBR.stageLabel(stage) : '', wave } };
         const first = mode === 'stage' && !prevStars && !hell;
         out = {
           profile: lbView(lb, id, master), reward: { ...reward, firstClear: first, stage, stars, isPerfect: perfect, firstPerfect, drops: got, hell, stones, cardDrop },
@@ -618,6 +622,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       });
       if (!out) throw new AuthError('다시 로그인해 주세요');
       if (out.error) throw new AuthError(out.error);
+      if (bkRun) out.bonkae = await BKS.afterRun(id, bkRun.h, mode, bkRun.info);
       return out;
     })();
   }
@@ -1097,6 +1102,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   }
   // 친구 · 체력 선물 · 레이드 도와주기 (server/langbang-friends.js)
   const FR = createFriends({ store, update, serial, userFromToken, lbLive, lbView, normLb, isMasterName, AuthError, LIVE: () => LIVE });
+  // 본캐 · 출연료 · 주간 인기 멤버 (server/langbang-bonkae.js)
+  const BKS = BK_MOD.createBonkae({ store, update, exclusive, lbLive, verifyToken, userFromToken, lbView, normLb, isMasterName, freeMaster, AuthError, LIVE: () => LIVE });
   function langbangRouter(express) {
     const r = express.Router();
     r.use(express.json({ limit: '4kb' }));
@@ -1109,6 +1116,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       }
     };
     FR.mount(r, wrap, tok); // 친구 (/friends/* · 친구 멤버를 데려가는 /raid/start)
+    BKS.mount(r, wrap, tok); // 본캐 (/bonkae*)
     r.get('/me', wrap((req) => lbMe(tok(req))));
     r.post('/result', wrap((req) => lbResult(tok(req), req.body || {})));
     r.post('/upgrade', wrap((req) => lbUpgrade(tok(req), String((req.body || {}).hero || ''))));
@@ -1168,7 +1176,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       animCache = { at: Date.now(), v: { enemies: out, files } };
       return animCache.v;
     }));
-    TOWER_MOD(r, { store, lbLive, verifyToken, freeMaster, isMasterName, masterList, wrap, tok, normLb }); // 진상의 탑
+    TOWER_MOD(r, { store, lbLive, verifyToken, freeMaster, isMasterName, masterList, wrap, tok, normLb, onRun: BKS.afterRun }); // 진상의 탑 (깬 층 → 본캐 출연료)
     return r;
   }
 
@@ -1235,7 +1243,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
 
   return { signup, login, me, verifyToken, recordHand, recordOmok, recordTourney, profile, ranking, router, langbangRouter, lbResult, lbUpgrade, lbBuy, lbMe, lbRanking, ready, tierOf, store,
     // 플랫폼(site.js · admin.js)용
-    makeToken, publicUser, noteMeta, exclusive, updateStats: update, addLangbangCoins, adminAdjustLangbangCoins };
+    makeToken, publicUser, noteMeta, exclusive, updateStats: update, addLangbangCoins, adminAdjustLangbangCoins,
+    bonkae: BKS, bonkaeRun: BKS.afterRun }; // 본캐 출연료 (1:1 대전 승리에서 부름)
 }
 
 module.exports = { createAccounts, tierOf, eloDelta, TIERS, AI_RATING, START_RATING, AuthError, normLb, lbCompare, hashPassword, checkPassword, emptyStats };
