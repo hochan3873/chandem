@@ -192,3 +192,60 @@ test('1:1 대전: 지옥 각성 · 지옥 세트는 전투력 보정으로 빠�
   const g2 = S.createGame({ mode: 'stage', stage: 1, heroes: ['gunman'], awake: { gunman: 3 }, gear: { gunman: { atk: 0.1, hellSet: 4 } }, noWaves: true });
   assert.equal(g2.heroes[0].awake, 3); assert.equal(g2.heroes[0].gear.hellSet, 4);
 });
+
+test('1:1 대전 시드가 2^31 이상이어도 진상이 나온다 (화면이 seed | 0 → 음수 → stage 0 아래 → 웨이브 표 없음 → 멈춤)', async () => {
+  const S = await lb('sim.js'), L = await lb('live.js'), D = await lb('data.js');
+  for (const seed of [2 ** 31, 2 ** 32 - 13, 2 ** 32 - 16, 2 ** 32 - 1, 0xdeadbeef, -13, 7]) {
+    for (let n = 1; n <= 10; n++) assert.ok(L.pvpWave(seed, n).g.length > 0, `시드 ${seed} 웨이브 ${n}`);
+    assert.deepEqual(L.pvpWave(-13, 3), L.pvpWave(2 ** 32 - 13, 3), '음수로 온 시드도 같은 웨이브');
+    const sd = Number(seed) >>> 0;
+    const g = S.createGame({ H: 760, mode: 'stage', stage: 12 + (sd % 17), pvp: { seed, hp: 1 }, deck: ['bangjang', 'staff', null, null, null, null], leader: 'bangjang', meta: {}, join: true, unlocked: D.LOCKED_HEROES.slice(), rng: () => 0.5 });
+    let seen = 0;
+    for (let i = 0; i < 30 * 25; i++) { g.pvp.clock = i / 30; S.step(g, 1 / 30); g.events.length = 0; seen = Math.max(seen, g.enemies.length); }
+    assert.ok(g.wave >= 1 && seen > 0, `시드 ${seed}: 웨이브 ${g.wave} · 진상 ${seen}`);
+  }
+});
+
+test('1:1 대전 끊김: 손님도 같은 기기 id 로 다시 붙으면 같은 판 · 서버가 옛 연결을 아직 몰라도 넘겨받음 · 끊긴 사이 끝난 판은 결과를 준다 · 시드는 2^31 아래', async () => {
+  const srv = createServer({ port: 0, lbpvp: { botAfterMs: 100, graceMs: 300, sendDelayMs: 30, countdownMs: 30, botTickMs: 40, aiNoticeMs: 0 } });
+  const port = await srv.listen();
+  const sock = (auth) => { const s = connect(`http://127.0.0.1:${port}/lbpvp`, { transports: ['websocket'], forceNew: true, reconnection: false, auth }); s.got = {}; for (const ev of ['match', 'rejoin', 'end', 'disconnect']) s.on(ev, (v) => { (s.got[ev] = s.got[ev] || []).push(v); }); s.call = (ev, d) => new Promise((r) => s.emit(ev, d, r)); return s; };
+  try {
+    const s1 = sock({ gid: 'guestdev01' });
+    await until(() => s1.connected);
+    await s1.call('queue', { deck: ['staff'], power: 1500 });
+    await until(() => s1.got.match, 3000);
+    const m = s1.got.match[0];
+    assert.ok(m.seed >= 0 && m.seed < 2 ** 31, '시드는 0 ~ 2^31 (예전 화면이 |0 해도 음수가 안 되게)');
+    // 새 연결이 먼저 온다 (서버는 옛 연결이 끊긴 걸 아직 모름) → 새 연결이 판을 넘겨받고 옛 연결은 끊는다
+    const s2 = sock({ gid: 'guestdev01' });
+    await until(() => s2.got.rejoin && s1.got.disconnect);
+    assert.equal(s2.got.rejoin[0].id, m.id, '같은 판으로');
+    assert.equal(s2.got.rejoin[0].seed, m.seed);
+    await wait(500); // 기권 유예(0.3초)가 지나도
+    assert.ok(!s2.got.end, '넘겨받았으니 기권 아님');
+    assert.ok(srv.lbPvp.matches.has(m.id), '판은 그대로');
+    // 오래 끊김 → 기권 → 다시 붙으면 (그 판 id 를 들고) 결과를 받는다
+    s2.close();
+    await until(() => !srv.lbPvp.matches.has(m.id), 3000);
+    const s3 = sock({ gid: 'guestdev01' });
+    await until(() => s3.connected); await wait(100);
+    assert.ok(!s3.got.end, '판 id 없이 붙으면 지난 결과를 안 준다');
+    s3.close();
+    const s4 = sock({ gid: 'guestdev01', mid: m.id });
+    await until(() => s4.got.end);
+    assert.equal(s4.got.end[0].id, m.id);
+    assert.equal(s4.got.end[0].reason, 'forfeit');
+    assert.equal(s4.got.end[0].win, false);
+    s4.close();
+    // 기다리던 중에 새 연결이 오면 옛 연결의 방은 치운다 (화면이 다시 찾는다)
+    const w1 = sock({ gid: 'guestdev02' });
+    await until(() => w1.connected);
+    await w1.call('room:create', { deck: ['staff'] });
+    assert.equal(srv.lbPvp.roomList().length, 1);
+    const w2 = sock({ gid: 'guestdev02' });
+    await until(() => w2.connected); await wait(50);
+    assert.equal(srv.lbPvp.roomList().length, 0, '주인 없는 방이 남지 않는다');
+    w1.close(); w2.close();
+  } finally { await srv.close(); }
+});
