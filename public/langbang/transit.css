@@ -116,3 +116,15 @@ body.tr-low #ui > .screen.tr-g.g-back { animation-name: trOutBackL !important; }
 @keyframes trBlCard { from { opacity: 0; transform: translateX(calc(var(--u) * -48)); } }
 @keyframes trBlUp { from { opacity: 0; transform: translateY(calc(var(--u) * 12)); } }
 .bload.out { transform: scale(1.04); transition: opacity 0.28s, transform 0.28s; }
+
+/* 그린 그림으로 바꿈: 엘리베이터 문 · 셔터 · VS 로고 */
+.tr-elev .tre-door { background: #2a2d38 center / cover no-repeat; }
+.tr-elev .tre-door.l { background-image: url('/img/lb/tr_door_l.webp'); }
+.tr-elev .tre-door.r { background-image: url('/img/lb/tr_door_r.webp'); }
+.tr-elev .tre-door u, .tr-elev .tre-door.l::after, .tr-elev .tre-door.r::after { display: none; }
+.tr-shut .trs-panel { background: #1c1a26 url('/img/lb/tr_shutter.webp') center / cover no-repeat; }
+.tr-shut .trs-slats, .tr-shut .trs-bar { display: none; }
+.tr-shut .trs-sign { top: 13%; transform: translate(-50%, -50%); padding: 0; background: none; border: 0; box-shadow: none; }
+.tr-shut .trs-sign b { color: #ffe066; text-shadow: var(--ol), 0 0 calc(var(--u) * 14) rgba(255, 120, 220, 0.9); }
+.tr-shut .trs-sign small { color: #ff9ff0; text-shadow: 0 0 calc(var(--u) * 8) rgba(255, 120, 220, 0.9); }
+.tr-vs img.trv-vs { left: 50%; top: 50%; right: auto; width: calc(var(--u) * 220); height: calc(var(--u) * 220); margin: calc(var(--u) * -110) 0 0 calc(var(--u) * -110); filter: drop-shadow(0 0 calc(var(--u) * 18) rgba(255, 220, 120, 0.8)); }

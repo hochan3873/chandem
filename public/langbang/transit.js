@@ -242,7 +242,7 @@ const THEMES = {
   },
   // 1:1 대전: 대각선 VS
   pvp(t) {
-    const ov = overlay(t, 'tr-vs', '<i class="trv-h red"></i><i class="trv-h blue"></i><i class="trv-slash"></i><b class="trv-vs">VS</b>');
+    const ov = overlay(t, 'tr-vs', '<i class="trv-h red"></i><i class="trv-h blue"></i><i class="trv-slash"></i><img class="trv-vs" src="/img/lb/tr_vs.webp" alt="" draggable="false">');
     const ang = (-Math.atan2(t.sr.height, t.sr.width) * 180 / Math.PI).toFixed(2) + 'deg';
     const red = ov.querySelector('.red'), blue = ov.querySelector('.blue'), slash = ov.querySelector('.trv-slash'), vs = ov.querySelector('.trv-vs');
     const dg = Math.ceil(Math.hypot(t.sr.width, t.sr.height));
