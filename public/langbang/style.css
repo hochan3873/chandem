@@ -3609,3 +3609,8 @@ body.rm .ult.v2.ready .ult-rays, body.rm .ult.v2.ready .ult-gem, body.rm .ult.v2
 .cs-ic.sil { filter: brightness(0) drop-shadow(0 0 2px rgba(170, 140, 255, 0.6)); }
 .cs-re2.coupon .cs-ic { width: calc(var(--u) * 18); height: calc(var(--u) * 18); object-fit: contain; vertical-align: middle; }
 .rw-stones .cs-ic { width: calc(var(--u) * 20); height: calc(var(--u) * 20); object-fit: contain; vertical-align: middle; margin-right: calc(var(--u) * 4); }
+
+/* 멤버 카드 그림: 아래 끝을 칼같이 자르지 않고 부드럽게 사라지게 (그림 기준 길이로 마스크) */
+.card.v5 .c5-art:has(img.c5-face)::after { display: none; }
+.card.v5 .c5-art img.c5-face { -webkit-mask: linear-gradient(180deg, #000 calc(var(--u) * (24 + 48 * var(--fyv))), transparent calc(var(--u) * (52 + 48 * var(--fyv)))); mask: linear-gradient(180deg, #000 calc(var(--u) * (24 + 48 * var(--fyv))), transparent calc(var(--u) * (52 + 48 * var(--fyv)))); }
+.card-list.v4.v5.n4 .card.v5 .c5-art img.c5-face { -webkit-mask: linear-gradient(180deg, #000 calc(var(--u) * (20 + 41 * var(--fyv))), transparent calc(var(--u) * (44 + 41 * var(--fyv)))); mask: linear-gradient(180deg, #000 calc(var(--u) * (20 + 41 * var(--fyv))), transparent calc(var(--u) * (44 + 41 * var(--fyv)))); }

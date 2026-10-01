@@ -985,7 +985,7 @@ function handleEvents(g, loud) {
       case 'grab': { fx.text(e.hx, e.hy - 70, '붙잡힘!', '#ffc08a', 15, 1); R.vfx('slap', e.hx, e.hy - 30, { anim: 'pop', dur: 380, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.hx) < 2 && Math.abs(x.y - e.hy) < 2); if (hh) hh._hitAt = performance.now(); if (loud) A.sfx.charm(); break; }
       case 'release': fx.text(e.x, e.y - 70, '풀려났다!', '#9dffb0', 13, 0.9); break;
       case 'gaoBreak': fx.text(e.x, e.y, '가오 깨짐!', '#ffe14d', 18, 1.1, -24); fx.burst(e.x, e.y + 20, 14, '#ffd23f', 180, 'shard', 5, 0.6, 300); if (loud) A.sfx.crit(); break;
-      case 'flash': fx.flash('#ffffff', 0.25); fx.text(e.x, e.y, '찰칵!', '#fff', 15, 0.8); if (e.stun) { fx.text(e.hx, e.hy - 70, '기절!', '#ffe9a0', 13, 0.9); R.vfx('stun', 0, 0, { follow: g.heroes.find((h) => Math.abs(h.x - e.hx) < 2) || null, dy: -78, anim: 'pulse', dur: 1000, sz: 50 }); } break;
+      case 'flash': fx.flash('#ffffff', 0.25); fx.text(e.x, e.y, '찰칵!', '#fff', 15, 0.8); if (e.stun) { fx.text(e.hx, e.hy - 70, '플래시에 눈부셔 기절!', '#ffe9a0', 13, 0.9); R.vfx('stun', 0, 0, { follow: g.heroes.find((h) => Math.abs(h.x - e.hx) < 2) || null, dy: -78, anim: 'pulse', dur: Math.round((e.sec || 1) * 1000), sz: 50 }); } break;
       case 'flashWind': R.vfx('warn', e.x, e.y + 10, { anim: 'grow', dur: 600, sz: 70, flat: true }); fx.text(e.x, e.y - 10, '찰칵 준비…', '#fff4b0', 11, 0.6); break;
       case 'bottleThrow': R.vfx('w_bottle', e.x, e.y, { anim: 'fly', dur: 420, sz: 30, tx: e.hx, ty: e.hy, blend: 'source-over' }); setTimeout(() => fx.text(e.hx, e.hy - 30, '공속 ↓', '#ffb08a', 11, 0.8), 420); break;
       case 'drunkBoom': R.vfx('shock', e.x, e.y + 10, { anim: 'pop', dur: 500, sz: 150 }); fx.addShake(5); fx.text(e.x, e.y - 30, '술병 폭발! 기절', '#ff9a6a', 13, 1); break;
@@ -4618,7 +4618,7 @@ function cardHtml5(c, i) {
   // 멤버 카드만 그 멤버 그림 (얼굴 맞춤) · 일반 증강은 그 카드 그림을 크게
   const heroCard = !!(c.hero && (HEROES[c.hero] || SUMMONS[c.hero]));
   const fb = heroCard ? (DEX_FACE[c.hero] || [0.48, 0.09, 0.14]) : null;
-  const art = heroCard ? `<img class="c5-face" data-face="${c.hero}" src="${thumbSrc(c.hero) || (HEROES[c.hero] || SUMMONS[c.hero]).img}" alt="" draggable="false" style="--k:${(1 / fb[2]).toFixed(3)};--fx:-${(fb[0] * 100).toFixed(1)}%;--fy:-${(fb[1] * 100).toFixed(1)}%">` : `<img class="c5-gen" src="${cardRound(c)}" alt="" draggable="false">`; void own;
+  const art = heroCard ? `<img class="c5-face" data-face="${c.hero}" src="${thumbSrc(c.hero) || (HEROES[c.hero] || SUMMONS[c.hero]).img}" alt="" draggable="false" style="--k:${(1 / fb[2]).toFixed(3)};--fx:-${(fb[0] * 100).toFixed(1)}%;--fy:-${(fb[1] * 100).toFixed(1)}%;--fyv:${(fb[1] / fb[2]).toFixed(3)}">` : `<img class="c5-gen" src="${cardRound(c)}" alt="" draggable="false">`; void own;
   return `<button class="card v4 v5 r-${cardRar(c)} k-${c.kind} ${c.onPath ? 'onpath' : ''} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
     <span class="c5-art">${art}</span>
     ${isNew ? `<i class="c5-new">${c.kind === 'join' ? 'NEW · 합류' : 'NEW'}</i>` : ''}${rec ? `<i class="c5-rec">${pimg(ui2('badge_rec'))}</i>` : ''}
@@ -5011,7 +5011,7 @@ const DEX_FLAVOR = {
   couple: '어디서든 꽁냥꽁냥, 남 눈치 제로. 반쯤 때리면 "헤어져!" 하고 둘로 갈라진다.',
   handsy: '"잠깐만~" 하며 붙잡고 안 놓아 주는 손진상. 붙잡힌 멤버는 아무것도 못 한다.',
   gao: '가오에 살고 가오에 죽는 남자. 가오 깨지기 전까진 뭘 맞아도 안 아픈 척.',
-  selfie: '모임 사진은 전부 자기 얼굴만 나오는 인플루언서. 플래시에 멤버 눈이 멀어 버린다.',
+  selfie: '모임 사진은 전부 자기 얼굴만 나오는 인플루언서. "찰칵!" 플래시에 가까운 멤버가 눈부셔 1초 기절한다.',
   cutter: '줄 서는 걸 모르는 새치기꾼. 앞줄 근처에서 한 번 훌쩍 뛰어넘는다.',
   kkondae: '"라떼는 말이야~" 무한 반복. 옆에만 있어도 멤버들 손이 느려진다.',
   spam: '단톡방에 하루 300개씩 공지를 뿌리는 빌런. 잡아도 알림이 셋 더 날아온다.',
@@ -5048,7 +5048,7 @@ const DEX_EN = { baul: 'SONG BAUL', byunghwa: 'KANG BYUNGHWA', jeongseob: 'YOON 
 const DEX_FACE = { baul: [0.49, 0.085, 0.12], byunghwa: [0.42, 0.085, 0.11], jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
 // 얼굴 맞춤 자르기: 얼굴 높이 = 칸 높이의 f · 얼굴 가운데 = (50%, cy) — 그림 비율과 상관없이 (자기 크기 기준 translate)
 // 동그란 얼굴용 얼굴 상자 (썸네일 기준 · 이마~턱 · 가운데 x, 가운데 y, 높이) — 그림을 재서 맞춘 값
-const FACE_BOX = { byunghwa: [0.42, 0.1, 0.075], hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.47, 0.15, 0.12], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
+const FACE_BOX = { byunghwa: [0.42, 0.1, 0.075], hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.565, 0.145, 0.13], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
 // 동그라미 안에 얼굴: 얼굴(이마~턱)이 지름의 70% · 가운데
 function faceCircStyle(id, f = 0.7, cy = 0.5) {
   const fb = FACE_BOX[id] || DEX_FACE[id] || [0.48, 0.12, 0.1];
@@ -5959,7 +5959,7 @@ const ENEMY_TIPS = {
   couple: '안 맞으면 "꽁냥꽁냥" 회복, 윙크 안 통함. 반쯤 때리면 "헤어져!" 둘로',
   handsy: '로프에 닿으면 멤버를 붙잡아 못 쏘게 한다. 잡으면 풀려요 — 먼저 지목!',
   gao: '가오 중엔 피해 -60%. 말빨 공격이나 치명타로 "가오 깨짐!" → 더 아프다',
-  selfie: '멀리서 "찰칵!" 멤버 눈부심 → 절반은 빗나감. 체력 낮음',
+  selfie: '5초마다 "찰칵!" 플래시 — 가장 가까운 멤버 1초 기절. 체력 낮음',
   cutter: '엄청 빠르고, 앞줄 근처에서 한 번 훌쩍 새치기',
   kkondae: '느리고 튼튼. "라떼는 말이야~" 근처 멤버 공속↓. 기절시키면 조용',
   spam: '가끔 "카톡!" 알림을 풀고, 죽으면 알림 3개가 돌진',

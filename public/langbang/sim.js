@@ -1473,7 +1473,7 @@ function updateEnemies(g, dt) {
           h = victim(g, g.heroes, h);
           const sec = debuffSec(h, 1, 'stun');
           if (sec > 0) { h.stunT = Math.max(h.stunT, sec); firstStunTip(g); }
-          ev(g, 'flash', { x: e.x, y: e.y - def.size * 0.6, hx: h.x, hy: h.y, stun: sec > 0 });
+          ev(g, 'flash', { x: e.x, y: e.y - def.size * 0.6, hx: h.x, hy: h.y, stun: sec > 0, sec });
         }
       } else {
         e.flashT -= dt;

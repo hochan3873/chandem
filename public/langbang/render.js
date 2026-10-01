@@ -625,12 +625,12 @@ export class Renderer {
       x.fillStyle = '#fff'; x.font = `900 15px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillText('#@!%&!', w / 2, h / 2 - 3);
     });
-    make('rumor', 40, 26, (x, w, h) => {
+    make('rumor', 60, 26, (x, w, h) => {
       glow(x, w / 2, h / 2, 16, 'rgba(170,140,255,0.45)');
       x.fillStyle = '#efe8ff'; x.strokeStyle = '#3a2470'; x.lineWidth = 1.5;
       roundRect(x, 3, 3, w - 6, h - 9, 9); x.fill(); x.stroke();
       x.beginPath(); x.moveTo(10, h - 6); x.lineTo(7, h - 1); x.lineTo(15, h - 6); x.fill();
-      x.fillStyle = '#5a3ab0'; x.font = `900 10px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillStyle = '#5a3ab0'; x.font = `900 11px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillText('수군수군', w / 2, h / 2 - 2);
     });
     make('paper', 30, 34, (x, w, h) => {
@@ -1267,6 +1267,15 @@ export class Renderer {
     }
   }
 
+  // 멤버 머리 위 상태 딱지 (작은 글씨 · 어두운 바탕)
+  stTag(x, y, txt, col) {
+    const cx = this.cx;
+    cx.save(); this.tf(x, y, 0, 1, 1);
+    cx.font = `900 10px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    const w = cx.measureText(txt).width + 10;
+    cx.fillStyle = 'rgba(20,10,40,0.82)'; roundRect(cx, -w / 2, -7, w, 14, 7); cx.fill();
+    cx.fillStyle = col; cx.fillText(txt, 0, 0.5); cx.restore();
+  }
   tf(x, y, rot, sx, sy) {
     const K = this.K;
     if (rot) {
@@ -2028,20 +2037,21 @@ export class Renderer {
         this.tf(hx + 16, top - 8 + Math.sin(t * 6) * 2, 0, 0.7, 0.7);
         cx.drawImage(rs.c, -rs.w / 2, -rs.h / 2, rs.w, rs.h);
       }
-      if (h.grabT > 0 || h.blindT > 0 || h.drowsyT > 0 || h.vomitT > 0) {
-        this.tf(hx + 20, top + 2, 0, 1, 1);
-        cx.font = `12px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-        cx.fillText(h.grabT > 0 ? '' : h.blindT > 0 ? '' : h.drowsyT > 0 ? '' : '', 0, Math.sin(t * 8) * 1.5);
-      }
+
       if (h.paperT > 0) {
         const ps = this.projSprites.paper;
         this.tf(hx - 18, top - 4 + Math.sin(t * 5) * 2, 0.2, 0.6, 0.6);
         cx.drawImage(ps.c, -ps.w / 2, -ps.h / 2, ps.w, ps.h);
       }
-      if (h.fearT > 0) {
-        this.tf(hx - 20, top + 2, 0, 1, 1);
-        cx.font = `12px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-        cx.fillText('', 0, Math.sin(t * 10) * 1.5);
+      { // 상태 딱지: 머리 위 가운데에 위로 쌓기 (옆 멤버와 안 겹치게)
+        const tags = [];
+        if (h.stunT > 0) tags.push(['기절', '#ffe27a']);
+        if (h.grabT > 0) tags.push(['붙잡힘', '#ff8a8a']);
+        if (h.blindT > 0) tags.push(['눈부심', '#fff2a0']);
+        if (h.fearT > 0) tags.push(['공포', '#d8a8ff']);
+        if (h.drowsyT > 0) tags.push(['졸림', '#b8d0ff']);
+        if (h.vomitT > 0) tags.push(['토 밟음', '#c8f08a']);
+        tags.slice(0, 2).forEach(([txt, col], i) => this.stTag(hx, top - 14 - i * 16, txt, col));
       }
       if (g.flirt && h.def.gender === 'm') {
         const hs = this.projSprites.heart;
