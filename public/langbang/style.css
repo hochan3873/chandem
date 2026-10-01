@@ -2912,7 +2912,7 @@ body.rm .chm-art, body.rm .mn.cur .mn-dot, body.rm .mn-here { animation: none !i
 .pp-slots .acard, .pp-slots .pp-slot, .pp-sg .acard { aspect-ratio: 3 / 4 !important; }
 @media (max-height: 700px) { .pp-slots.g6 .acard, .pp-slots.g6 .pp-slot, .pp-slots.g6 .pp-slot.lock { aspect-ratio: 3 / 4 !important; } }
 /* 출격 버튼: 끈적이 대신 맨 아래 제자리 (삼성·카톡 브라우저에서 둘째 줄이 가려지던 문제) */
-.screen.pp .pp-go { position: relative !important; bottom: auto !important; margin-top: calc(var(--u) * 10); padding-bottom: calc(var(--u) * 12 + env(safe-area-inset-bottom)); }
+.screen.pp .pp-go { position: sticky !important; bottom: 0 !important; z-index: 5; margin-top: calc(var(--u) * 10); padding-top: calc(var(--u) * 18); padding-bottom: calc(var(--u) * 12 + env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(14, 8, 26, 0), rgba(14, 8, 26, 0.92) 40%); } /* 덱 6칸 · 조건 칸이 길어도 출격 버튼은 항상 화면 아래에 */
 .screen.pp { padding-bottom: calc(var(--u) * 8 + env(safe-area-inset-bottom)) !important; }
 /* 멤버 상세 · 장비 칸: 아이콘 60px 고정 · 아이콘 / 이름 +N / 효과 가로 배치 */
 .hf-gear .gslot { display: flex !important; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 8) calc(var(--u) * 10); height: auto; text-align: left; overflow: hidden; font-size: calc(var(--u) * 20); }
