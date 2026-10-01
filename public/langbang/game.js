@@ -3933,6 +3933,8 @@ function showStages() {
         for (const d of ui.querySelectorAll('.chd')) d.classList.toggle('on', Number(d.dataset.ch) === c);
       }, 90);
     }, { passive: true });
+    // PC 마우스 휠: 옆으로 넘기는 지도 위에서도 세로 휠은 화면을 내린다
+    sc.addEventListener('wheel', (ev) => { if (Math.abs(ev.deltaY) <= Math.abs(ev.deltaX)) return; const s0 = sc.closest('.screen'); if (!s0) return; ev.preventDefault(); s0.scrollTop += ev.deltaY; }, { passive: false });
     // 지금 칸이 보이게
     const cur = sc.querySelector(`.chmap[data-ch="${app.chapterTab}"] .mn.cur`) || sc.querySelector(`.chmap[data-ch="${app.chapterTab}"] .mn[data-s="${app.selStage}"]`);
     const scr = ui.querySelector('#ui > .screen') || ui.firstElementChild;

@@ -2789,7 +2789,7 @@ body.rm .pp-gobtn2, body.rm .pp-gobtn2 .gb-shine { animation: none; }
 .chd.on { background: var(--cc); color: #fff; transform: scale(1.12); box-shadow: 0 0 calc(var(--u) * 10) color-mix(in srgb, var(--cc) 70%, transparent); }
 .chd.on b { text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000; }
 .chd.lk { opacity: 0.45; }
-.chmaps { display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+.chmaps { display: flex; flex-shrink: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
 .chmaps::-webkit-scrollbar { display: none; }
 .chmap { flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always; padding: 0 calc(var(--u) * 12); box-sizing: border-box; }
 .chm-banner { position: relative; height: calc(var(--u) * 150); border-radius: calc(var(--u) * 18); border: 2px solid #000; overflow: hidden; box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc) 60%, transparent) inset, 0 calc(var(--u) * 6) calc(var(--u) * 16) rgba(0, 0, 0, 0.45); }
