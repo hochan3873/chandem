@@ -1171,7 +1171,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       try { for (const f of await fs.promises.readdir(dir)) { const m = /^e_([a-z0-9_]+?)_(walk|die|attack)\.webp$/.exec(f); if (m) (out[m[1]] = out[m[1]] || []).push(m[2]); } } catch { /* 무시 */ }
       // 있으면 쓰는 그림·음악 (보스 무대 · 그린 투사체 · 레이드/대전 맵 · 모드 음악) — 없는 파일을 요청해 404 를 쏟지 않게 목록을 준다
       const files = [];
-      const opt = [[dir, '/img/lb/', /^(arena\d|map_[a-z0-9_]+|e_[a-z0-9_]+_(skill|rage)|h_wonsik_walk(back|front))\.webp$/], [path.join(dir, 'fx'), '/img/lb/fx/', /^p_[A-Za-z0-9_]+\.webp$/], [path.join(__dirname, '..', 'public', 'sounds'), '/sounds/', /^bgm_lb_[a-z0-9_]+\.mp3$/]];
+      const opt = [[dir, '/img/lb/', /^(arena\d|map_[a-z0-9_]+|e_[a-z0-9_]+_(skill|rage)|h_wonsik_walk(back|front)|h_youngjun_rest)\.webp$/], [path.join(dir, 'fx'), '/img/lb/fx/', /^p_[A-Za-z0-9_]+\.webp$/], [path.join(__dirname, '..', 'public', 'sounds'), '/sounds/', /^bgm_lb_[a-z0-9_]+\.mp3$/]];
       for (const [d, pre, re] of opt) { try { for (const f of await fs.promises.readdir(d)) if (re.test(f)) files.push(pre + f); } catch { /* 무시 */ } }
       animCache = { at: Date.now(), v: { enemies: out, files } };
       return animCache.v;

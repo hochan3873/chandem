@@ -3,7 +3,7 @@
 //  game.js handleEvents 가 add() 로 시작하고, render.js draw() 가 층마다 draw(layer, g) 를 부른다
 //   ground: 바닥(진상·멤버 아래) · gate: 입구(바리케이드 위 · 문 때리는 진상 아래) · mid: 캐릭터 위 · top: 입자 위 · 글자 아래 · screen: 화면 전체(카메라 없이)
 //  게임 숫자(피해·시간)는 건드리지 않는다 — 그림만. 진상이 많으면(busy) 입자를 줄인다.
-//  그림 파일이 있으면 그걸 쓰고(없으면 코드 모양): /img/lb/fx/p_sk_syringe.webp · p_sk_banknote.webp · p_sk_bandage.webp
+//  그림 파일이 있으면 그걸 쓰고(없으면 코드 모양): /img/lb/fx/p_sk_syringe.webp · p_sk_banknote.webp · p_sk_bandage.webp · p_sk_mosaic_hand.webp · p_sk_censor.webp
 import { HEROES } from './data.js';
 
 const TAU = Math.PI * 2;
@@ -62,6 +62,12 @@ export class SkillFx {
     } else if (kind === 'bandage') {
       for (const q of this.list) if (q.kind === 'bandage') q.done = true;
       o.v = e.v || 0; o.plus = []; o.tw = []; o.landed = [false, false, false, false];
+    } else if (kind === 'mosaic') { // 여지원 모자이크 폭격: 검열 띠 → 거대 모자이크 손 3개가 차례로 쾅
+      const h = this.heroOf(g, 'jiwon');
+      o.h = h; o.lanes = e.lanes || []; o.wind = e.wind || 0.6; o.gap = e.gap || 0.18; o.echo = !!e.echo;
+      o.w = (h && h.sa && h.sa.wide ? 1.5 : 1) * ((HEROES.jiwon.skill && HEROES.jiwon.skill.w) || 30);
+      o.ys = o.lanes.map((lx) => { let n = 0, sy = 0; for (const q of g.enemies) if (!q.dead && q.y > 0 && q.y < g.ropeY && Math.abs(q.x - lx) < o.w + 8) { n++; sy += q.y; } return n ? sy / n : g.ropeY - 220; });
+      o.hit = o.lanes.map(() => false);
     } else if (kind === 'ydash') {
       const h = this.heroOf(g, 'youngjun');
       if (!h) return;
@@ -107,6 +113,64 @@ export class SkillFx {
     cx.restore();
     cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
     if (layer === 'screen') cx.setTransform(R.k, 0, 0, R.k, 0, 0); else R.world();
+  }
+
+  // 모자이크 폭격: 실제로 내려친 줄의 진상 위치로 손 자리를 맞춘다 (game.js 'mosaicSlam')
+  mosaicSlam(e) {
+    for (let i = this.list.length - 1; i >= 0; i--) { const o = this.list[i]; if (o.kind !== 'mosaic' || o.done || o.echo !== !!e.echo) continue; if (e.k >= 0 && e.k < o.ys.length) { if (e.n) o.ys[e.k] = e.y; o.hit[e.k] = true; } return; }
+  }
+  // 손 그림: 새 그림(p_sk_mosaic_hand · 아래로 내려치는 손)이 있으면 그것 · 없으면 평타 모자이크 손(w_mosaic · 오른쪽을 보는 주먹)을 90° 돌려 아래로
+  mosaicHand(x, y, s, a, sq) {
+    const cx = this.R.cx, art = this.art('mosaic_hand'), im = art || (imgOk(this.R.images.w_mosaic) ? this.R.images.w_mosaic : null);
+    if (!im || a <= 0.01) return;
+    cx.save(); cx.translate(x, y); cx.globalAlpha = c01(a); cx.imageSmoothingEnabled = false; // 네모 깨진 손이 흐려지지 않게
+    if (!art) cx.rotate(Math.PI / 2);
+    cx.scale(art ? 1 + sq * 0.25 : 1 - sq * 0.3, art ? 1 - sq * 0.3 : 1 + sq * 0.25);
+    cx.drawImage(im, -s / 2, -s / 2, s, s);
+    cx.restore();
+  }
+  mosaic(layer, o, T, g) {
+    const cx = this.R.cx, n = o.lanes.length, wind = o.wind, end = wind + (n - 1) * o.gap + 0.55;
+    if (T > end) { o.done = true; return; }
+    const S = o.w * 3.2; // 손 크기 (줄 폭의 약 1.6배)
+    if (layer === 'ground') { // 내려칠 줄 미리 보기: 붉은 빛 기둥 (점점 진하게) → 맞은 자리 납작한 충격 고리
+      for (let i = 0; i < n; i++) {
+        const at = wind + i * o.gap, lx = o.lanes[i];
+        if (T < at) { const k = c01(T / at); this.glow(lx, o.ys[i], o.w * 1.4, 'rgba(255,60,110,1)', 0.12 + 0.25 * k, 2.4); }
+        else { const k = c01((T - at) / 0.4); this.flatRing(lx, o.ys[i] + 14, 12 + eOut(k) * S * 0.7, 8, 'rgba(255,90,150,1)', (1 - k) * 0.9); }
+      }
+      return;
+    }
+    if (layer === 'top') {
+      for (let i = 0; i < n; i++) {
+        const at = wind + i * o.gap, lx = o.lanes[i], y1 = Math.max(120, o.ys[i] - S * 0.15), d0 = at - 0.13; // 점수판 밑으로
+        if (T < d0) continue;
+        let y, a = 1, sq = 0;
+        if (T < at) { const k = eIn(c01((T - d0) / 0.13)); y = y1 - (1 - k) * 170; a = 0.4 + 0.6 * k; }
+        else { const k = c01((T - at) / 0.45); y = y1; sq = Math.max(0, 1 - k * 4) ; a = k < 0.55 ? 1 : 1 - (k - 0.55) / 0.45; }
+        this.mosaicHand(lx, y, S, a, sq);
+      }
+      return;
+    }
+    if (layer !== 'screen' || T > wind + 0.3) return;
+    // 검은 검열 띠: 0.6초 동안 화면을 왼쪽 → 오른쪽으로 쓸고 지나간다 ("삐—")
+    const C = cx.canvas, k0 = this.R.k || 1, cw = C.width / k0, ch = C.height / k0;
+    const bh = 46, by = Math.round(ch * 0.5 - bh / 2); // 화면 가운데 (위 기술 이름 띠 · 아래 멤버 줄을 안 가리게)
+    const k = c01(T / (wind * 0.8)), fade = T > wind ? 1 - (T - wind) / 0.3 : 1, bw = cw * eOut(k);
+    if (bw < 2 || fade <= 0) return;
+    cx.save(); cx.globalAlpha = c01(fade);
+    const bar = this.art('censor');
+    if (bar) cx.drawImage(bar, 0, 0, bar.naturalWidth * c01(bw / cw), bar.naturalHeight, 0, by, bw, bh);
+    else { // 그림이 오기 전: 그 자리 화면을 실제로 모자이크 (줄였다 키우기) + 어둡게
+      const N = Math.max(4, Math.round(bw / 9)), M = 5, sm = this._mzc || (this._mzc = document.createElement('canvas'));
+      if (sm.width !== N || sm.height !== M) { sm.width = N; sm.height = M; }
+      const sx = sm.getContext('2d'); sx.clearRect(0, 0, N, M); sx.drawImage(C, 0, by * k0, bw * k0, bh * k0, 0, 0, N, M);
+      cx.imageSmoothingEnabled = false; cx.drawImage(sm, 0, by, bw, bh); cx.imageSmoothingEnabled = true;
+      cx.fillStyle = 'rgba(0,0,0,0.62)'; cx.fillRect(0, by, bw, bh);
+    }
+    cx.font = `900 18px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = '#fff';
+    cx.shadowColor = '#ff2a5a'; cx.shadowBlur = 6; if (bw > 130) cx.fillText('삐————', Math.min(bw - 70, cw / 2), by + bh / 2 + 1);
+    cx.restore();
   }
 
   // ── 공용 그림 ────────────────────────────────
