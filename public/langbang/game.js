@@ -348,7 +348,7 @@ async function startRun(opt = {}) {
   let weekly = null;
   app.weeklyRun = null;
   const raid = mode === 'raid' ? { sec: opt.r2 ? R2UI.sec : L.RAID.sec } : null;
-  if (raid) weekly = opt.r2 ? R2UI.waveDef(opt.r2) : L.raidDef(opt.raidWi !== undefined ? opt.raidWi : L.raidState().wi); // 건물주 레이드: 졸개 웨이브 (보스는 raid2-sim 이 붙인다)
+  if (raid) weekly = opt.r2 ? R2UI.waveDef(opt.r2) : L.raidDef(opt.raidWi !== undefined ? opt.raidWi : L.raidState().wi); // 건물주 레이드: 진상 없는 빈 웨이브 (거대 보스는 raid2-sim 이 붙인다)
   const pvp = mode === 'pvp' ? { seed: Number(opt.pvpSeed) >>> 0, hp: opt.pvpHp || 1 } : null; // hp: 서버가 두 덱 전투력으로 정한 진상 체력
   const tw = mode === 'tower' ? opt.tower : null; // 진상의 탑: { f, hero, runId } (시작은 탑 화면이 서버에 먼저 알린다)
   const dbg = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || (mode === 'stage' && !stageUnlocked(st));
@@ -402,7 +402,7 @@ async function startRun(opt = {}) {
   g.cons = consIds; g.consUsed = {};
   if (pvp) g.pvpMid = (PVP.match && PVP.match.id) || ''; // 이 화면이 돌리는 대전 판 (다시 붙을 때 맞춰 보기)
   if (mode === 'raid' && opt.help) { const sh = S.addSupport(g, { ...opt.help, gear: gearStats(opt.help.gear || []) }); if (sh) toast(`도우미 합류! ${opt.help.nick}님의 ${HEROES[opt.help.hero].name}`, 2600); }
-  if (opt.r2 && R2UI) R2UI.attach(g, opt.r2); // 건물주 대마왕 (팔 · 본체 · 패턴)
+  if (opt.r2 && R2UI) R2UI.attach(g, opt.r2); // 건물주 대마왕 (거대 보스 혼자 · 패턴)
   g.lastSnap = S.snapshot(g); // 첫 웨이브 전에 나가도 이어할 수 있게
   const locked = mode === 'stage' && !stageUnlocked(st);
   app.debugRun = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || locked;
@@ -811,6 +811,7 @@ function handleEvents(g, loud) {
       }
       case 'skillHold': if (loud && performance.now() - (app.holdAt || 0) > 1500) { app.holdAt = performance.now(); fx.text(e.x, e.y - 60, '사거리에 진상이 없어요 — 아껴 둘게요', '#cfe3ff', 11, 0.9); } break;
       case 'waveStart': {
+        if (g.r2) break; // 건물주 레이드: 진상 웨이브가 없다 (숫자만 넘어감 · 증강 선택용)
         const n = S.enemiesLeft(g);
         const stageMode = g.mode === 'stage';
         const last = stageMode && e.wave >= g.totalWaves;
@@ -1324,7 +1325,7 @@ function updateHud() {
   const bossWave = !!(def && def.boss);
   if (TWUI) TWUI.hudTick(g);
   if (R2UI && g.r2) R2UI.hudTick(g);
-  setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.phase ? ` · ${PV.PVP_ESC.name[g.pvp.phase]}` : ''}` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
+  setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.phase ? ` · ${PV.PVP_ESC.name[g.pvp.phase]}` : ''}` : g.r2 ? `철거까지 ${Math.max(0, Math.ceil(R2UI.sec - g.t))}초` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
   setText(H$.time, 'time', `${Math.floor(g.t / 60)}:${String(Math.floor(g.t % 60)).padStart(2, '0')}`);
   if (g.pvp) setText(H$.time, 'time', `남은 ${PV.pvpLeftText(S.pvpTime(g))}`); // 1:1 대전: 5분 판정까지 남은 시간
   // 방어선 위험 경고
@@ -1333,7 +1334,7 @@ function updateHud() {
   app.hudCache.lowWarn = low;
   hud.classList.toggle('danger', low);
   H$.wave.classList.toggle('boss', bossWave && g.phase !== 'break');
-  setText(H$.left, 'left', g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : `남은 진상 ${S.enemiesLeft(g)}`);
+  setText(H$.left, 'left', g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : g.r2 ? `입구가 버티는 동안 때려라!${g.r2.angry ? ` · 화 ${g.r2.angry}` : ''}` : `남은 진상 ${S.enemiesLeft(g)}`);
   setText(H$.fx, 'fx', g.mapFx.id === 'none' ? '' : g.mapFx.icon);
   setText(H$.kills, 'kills', fmt(g.stats.kills));
   setText(H$.score, 'score', g.mode === 'endless' && ((g.scoreMul || 1) * (g.streak || 1)) > 1.001 ? `${fmt(g.stats.score)} ×${((g.scoreMul || 1) * (g.streak || 1)).toFixed(2)}` : fmt(g.stats.score));
@@ -5305,14 +5306,14 @@ function showResult(victory, quit) {
     <div class="big">${esc(title)}</div>
     <p class="sub" style="margin-top:6px">${esc(sub)}</p>
     ${top}
-    <div class="stats">
+    ${g.r2 && R2UI ? R2UI.stats(g, time) : `<div class="stats">
       <div><small>${stageMode ? '웨이브' : '도달 웨이브'}</small><b>${stageMode ? `${sum.wave}/${g.totalWaves}` : sum.wave}</b></div>
       <div><small>처치</small><b>${fmt(sum.kills)}</b></div>
       <div><small>보스 처치</small><b>${sum.bossKills}</b></div>
       <div><small>최대 콤보</small><b>${g.stats.maxCombo}</b></div>
       <div><small>플레이 시간</small><b>${time}</b></div>
       <div><small>점수</small><b>${fmt(sum.score)}</b></div>
-    </div>
+    </div>`}
     <div class="panel mvp">${mvp}</div>${teamHtml(g)}
     <div class="server" id="srv">${win || !stageMode ? '<span class="spin"></span> 보상 받는 중…' : ''}</div>
  <div class="spacer"></div>

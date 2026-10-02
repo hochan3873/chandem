@@ -1,204 +1,249 @@
 // 랑방 대전 — 건물주 레이드 전투 규칙 (DOM 없음 · Node 에서도 돈다)
 //  sim.js 는 훅 세 줄만 (g.r2.hitMul · g.r2.onHit · g.r2.tick) — 나머지는 전부 여기
-//  - 지금 드러난 부위(팔 1~4 / 팔 5~8 / 본체)가 입구 위에 손을 뻗고 있다 → 멤버들이 손을 때린다 (체력은 서버가 센다)
-//  - 팔마다 패턴 하나 (확성기 = 스킬 봉인 · 고지서 = 입구 폭탄 · 술병 = 취객 소환 · 골프채 = 기절 · 계약서 = 보호막 · 열쇠 = 자리 잠금 · 명품백 = 게이지 슬쩍 · 휴대폰 = 알림 폭탄)
-//  - 큰 내려찍기: 2.2초 예고(빨간 구역) → 입구에 큰 피해 + 구역 멤버 기절. 예고 중에 그 손에 스킬을 맞히거나 기절시키면 끊긴다 → 빈틈 (피해 ×1.5)
-import { ENEMIES, RULES, stageWave } from './data.js';
-import { spawnEnemy, damageBase, debuffSec } from './sim.js';
-import { ARMS, armOf, R2, WEAK_MUL, CONTRACT_WEAK, CONTRACT_OTHER, partName, BOSS } from './raid2.js';
+//  - 진상은 안 나온다. 옥상 위 거대한 건물주 대마왕 혼자 → 멤버들이 대마왕을 때리고, 대마왕은 직접 입구 · 멤버를 때린다
+//  - 패턴은 전부 예고가 있다 (빨간 구역 · 표시) · 내려찍기 · 휩쓸기 · 분노 연타는 예고 중에 스킬을 맞히거나 기절시키면 끊기고 빈틈 (피해 ×1.5)
+//  - 입구 붙잡기: 붙잡고 흔드는 동안 계속 피해 · 대신 빈틈 · 스킬 두 번이나 기절이면 손을 놓는다
+//  - 시간이 갈수록 화가 쌓여 세지고 빨라진다 → 입구가 부서지면 판 끝 (그동안 준 피해가 기록) · R2.sec 까지 버티면 "철거"로 끝
+//  - 진상을 안 잡으니 경험치 · 총공지 게이지는 시간 + 끊기로 채운다 (멤버 합류 · 카드는 그대로)
+import { RULES } from './data.js';
+import { spawnEnemy, damageBase, debuffSec, gainExp } from './sim.js';
+import { R2, BOSS, PATTERNS, phaseAt } from './raid2.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-// 팔 패턴 주기 (초) · 첫 사용
+// 패턴 숫자 (pct = 입구 최대 체력 대비)
 export const PAT = {
-  mega: { every: 15, first: 7, sec: 3.5 },
-  bill: { every: 14, first: 5, wind: 1.6, pct: 0.045 },
-  bottle: { every: 10, first: 4, n: 4 },
-  golf: { every: 13, first: 9, n: 2, sec: 2.2 },
-  contract: { every: 13, first: 6, frac: 0.3 },
-  keys: { every: 14, first: 8, sec: 4.5 },
-  bag: { every: 12, first: 10, ult: 0.25, exp: 0.15 },
-  phone: { every: 14, first: 6, sec: 5, cut: 0.25 },
-  rage: { every: 7, first: 4 },
+  slam: { wind: 2.0, wind3: 1.5, pct: 0.085, stun: 1.6, zone: 62, gap: 3.5, w: [5, 5, 4] },
+  sweep: { wind: 1.7, pct: 0.035, stun: 1.1, gap: 2.5, w: [3, 3, 3] },
+  bills: { n: [3, 4, 5], fly: 1.2, step: 0.28, pct: 0.016, w: [4, 3, 3] },
+  seal: { n: 2, sec: 3.5, w: [3, 2, 2] },
+  cash: { n: [2, 2, 3], fuse: 1.7, r: 46, stun: 1.3, pct: 0.012, w: [0, 3, 3] },
+  grab: { wind: 1.0, hold: 4.5, dps: 0.024, hits: 2, w: [0, 3, 3] },
+  combo: { n: 3, wind: 1.05, w: [0, 0, 4] },
 };
-export const SLAM = { every: [17, 14, 11], first: 9, wind: 2.2, pct: 0.09, stun: 1.6, zone: 70, gap: 4, weak: 4 };
-const VIS = 'boss_gapjil'; // 부위는 그릴 때 따로 그린다 (진상 그림은 안 씀) — 체력 · 상태만 빌린다
+export const SLAM = PAT.slam; // (예전 이름)
+export const TEMPO_R2 = {
+  gap: [5.0, 4.2, 3.5], // 패턴 사이 쉬는 시간 (페이즈별)
+  angryEvery: 35, angryPow: 0.45, angryFast: 0.13, // 35초마다 화 +1: 패턴 피해 +45% · 간격 −13%
+  first: 4, // 첫 패턴
+  exp: 7, expLv: 0.55, // 레벨업 간격 (초) = 7 + 레벨×0.55 → 대략 웨이브 판과 비슷하게 합류 · 카드
+  ult: 2.6, // 총공지 게이지 초당
+  heal: 0.7, // 입구 수리 효과 (대마왕 한 방이 워낙 세서 수리로 끝없이 버티지 않게)
+  dmgK: 1.3, // 대마왕이 받는 피해 배율 (진상 없이 혼자 다 맞으니까 — 한 판 피해를 예전 레이드와 비슷하게)
+};
+const VIS = 'boss_gapjil'; // 체력 · 상태만 빌린다 (그림은 raid2-ui 가 따로)
 
-// 판마다 웨이브 (보스 없음 · 졸개만) — 26스테이지 진상을 40%쯤 (막 1-5를 깬 사람도 버티게) · 단계마다 단단해진다
+// 판 정의: 진상 없음 (웨이브는 18초마다 숫자만 넘어간다 → 증강 선택은 그대로)
 export function waveDef(tier = 1) {
   const waves = [];
-  const k = 1 + 0.2 * (Math.max(1, tier) - 1);
-  for (let w = 1; w <= 9; w++) {
-    const b = stageWave(26, 1 + ((w - 1) % 4));
-    waves.push({ g: b.g.map(([t, c, e, d]) => [t, Math.max(1, Math.round(c * 0.42)), e, d]), level: 6 + 1.6 * (w - 1), hpScale: 1.2 * k });
-  }
-  return { wi: 0, r2: true, waves, sec: R2.sec };
+  for (let w = 1; w <= 12; w++) waves.push({ g: [], level: 6 + 1.6 * (w - 1), hpScale: 1, kind: 'R' });
+  return { wi: 0, r2: true, waves, sec: R2.sec + 10, tier };
 }
 
-// 부위 자리 (논리 좌표): 손은 입구 위 · 본체는 가운데
-function anchors(g, list) {
-  const n = list.length;
-  const xs = n === 1 ? [180] : n === 2 ? [110, 250] : n === 3 ? [80, 180, 280] : [62, 138, 222, 298];
-  return list.map((p, i) => (p === 'body' ? { x: 180, y: g.rowY - 250 } : { x: xs[i], y: g.rowY - 172 - (i % 2 ? 0 : 16) }));
+function bossDef() {
+  return { id: 'raid2_body', cls: 'raid2', name: BOSS.name, gender: 'm', color: '#ff2d45', boss: true, hp: 1, speed: 0, atk: 0, atkInterval: 9, exp: 0, r: 84, size: 300, shouts: ['월세 내!', '계약 갱신 없다!', '보증금 못 돌려줘!'], img: '' };
 }
-function partDef(p) {
-  const a = armOf(p);
-  return { id: 'raid2_' + p, cls: 'raid2', name: p === 'body' ? BOSS.name : `${a.item} 팔`, gender: 'm', color: a ? a.color : '#ff2d45', boss: true, hp: 1, speed: 0, atk: 0, atkInterval: 9, exp: 0, r: p === 'body' ? 70 : 34, size: p === 'body' ? 220 : 110, shouts: ['월세 내!', '계약 갱신 없다!', '보증금 못 돌려줘!'], img: '' };
-}
-function addPart(g, p, at) {
-  const e = spawnEnemy(g, VIS, at.x, at.y, { keep: true });
-  if (g.seen && !g.r2.sawVis) delete g.seen[VIS];
-  e.def = partDef(p); e.type = 'raid2_' + p; e.r2 = p;
-  e.maxHp = e.hp = 1e12; e.shield = 0; e.armor = 0; e.speed = e.baseSpeed = 0; e.atk = e.baseAtk = 0; e.bai = null;
-  e.r = e.def.r; e.stopY = 1e6; e.ax = at.x; e.ay = at.y; e.lift = 0; e.cloak = false; e.unveiled = true; e.pShield = 0;
-  return e;
-}
-
-// 판에 붙이기: o = { tier, exposed: [부위], rally: bool, broken: { 부위: 닉 } }
+// 판에 붙이기: o = { tier, rally: bool, hp, max } (hp · max: 서버 체력 → 시작 페이즈)
 export function attach(g, o = {}) {
+  const left = o.hp && Number.isFinite(o.hp.body) ? o.hp.body : 1, max = o.max && o.max.body > 0 ? o.max.body : 1;
   const r = g.r2 = {
-    tier: Math.max(1, o.tier | 0 || 1), parts: {}, dmg: {}, exposed: (o.exposed || []).slice(), buff: o.rally ? R2.rallyBuff : 0,
-    pat: {}, slam: null, slamT: SLAM.first, sawVis: !!(g.seen && g.seen[VIS]), rage: false, cuts: 0, slams: 0, hits: {}, gate: { slam: 0, bill: 0 },
+    tier: Math.max(1, o.tier | 0 || 1), phase: Math.min(3, phaseAt(left, max)), buff: o.rally ? R2.rallyBuff : 0,
+    dmg: { body: 0 }, parts: {}, act: null, nextT: TEMPO_R2.first, angry: 0, angryT: TEMPO_R2.angryEvery, last: '', finale: false,
+    marks: [], cuts: 0, slams: 0, pats: {}, hits: {}, gate: { slam: 0, bill: 0, other: 0 },
     hitMul, onHit, tick,
   };
-  r.pow = 1 + 0.15 * (r.tier - 1);
-  spawnParts(g, r.exposed);
-  g.events.push({ type: 'r2Start', parts: r.exposed.slice(), tier: r.tier });
+  r.pow0 = 1 + 0.15 * (r.tier - 1);
+  if (g.raid) g.raid.sec = R2.sec + 10;
+  if (g.mods) g.mods.healMul = (g.mods.healMul || 1) * TEMPO_R2.heal;
+  const e = spawnEnemy(g, VIS, g.W / 2, g.ropeY - 150, { keep: true }); // 몸 가운데 (발은 입구 줄 조금 위)
+  if (g.seen) delete g.seen[VIS];
+  e.def = bossDef(); e.type = 'raid2_body'; e.r2 = 'body';
+  e.maxHp = e.hp = 1e12; e.shield = 0; e.armor = 0; e.speed = e.baseSpeed = 0; e.atk = e.baseAtk = 0; e.bai = null;
+  e.r = e.def.r; e.stopY = 1e6; e.ax = e.x; e.ay = e.y; e.lift = 0; e.lean = 0; e.cloak = false; e.unveiled = true; e.pShield = 0;
+  r.parts.body = e;
+  g.events.push({ type: 'r2Start', tier: r.tier, phase: r.phase });
   return r;
 }
-function spawnParts(g, list) {
+// 서버에서 페이즈가 바뀌었다는 걸 알게 됨 (다른 사람이 깎음) → 이 판도 그 페이즈로
+export function setPhase(g, ph) {
   const r = g.r2;
-  const at = anchors(g, list);
-  list.forEach((p, i) => {
-    if (r.parts[p]) return;
-    r.parts[p] = addPart(g, p, at[i]);
-    r.dmg[p] = r.dmg[p] || 0;
-    const P = PAT[p === 'body' ? 'rage' : p];
-    r.pat[p] = P.first + i * 1.7;
-  });
-  r.rage = list.includes('body');
+  if (!r || g.over || !(ph > r.phase) || ph > 3) return false;
+  r.phase = ph;
+  g.events.push({ type: 'r2Phase', phase: ph });
+  return true;
 }
-// 다른 사람이 이 판 도중에 부위를 부숨 → 이 판에서도 떨어져 나간다 · 다음 부위가 드러나면 새로 붙는다
-export function syncParts(g, exposedNow, by = {}) {
-  const r = g.r2;
-  if (!r || g.over) return [];
-  const gone = [];
-  for (const [p, e] of Object.entries(r.parts)) {
-    if (exposedNow.includes(p) || e.dead) continue;
-    e.dead = true; if (e.boss) g.bossAlive--;
-    if (r.slam && r.slam.p === p) r.slam = null;
-    gone.push(p);
-    g.events.push({ type: 'r2Break', p, x: e.x, y: e.y, by: by[p] || '', remote: true });
-  }
-  for (const p of gone) delete r.parts[p];
-  const fresh = exposedNow.filter((p) => !r.parts[p]);
-  if (fresh.length && !Object.keys(r.parts).length) { spawnParts(g, fresh); g.events.push({ type: 'r2Phase', parts: fresh.slice() }); }
-  r.exposed = exposedNow.slice();
-  return gone;
-}
-const counter = (g, p) => { const a = armOf(p); return !!a && g.heroes.some((h) => !h.gone && a.weak.includes(h.id)); };
-// 피해 배율 (sim damageEnemy 맨 앞)
-function hitMul(g, e, dmg, src, aoe) {
-  const r = g.r2, a = armOf(e.r2);
-  let m = 1 + r.buff;
-  if (a && src && src.id) {
-    const w = a.weak.includes(src.id);
-    if (a.id === 'contract') m *= w ? CONTRACT_WEAK : CONTRACT_OTHER;
-    else if (w) m *= WEAK_MUL;
-  }
-  if (e.r2 === 'body' && !(e.weakT > 0)) m *= aoe ? 0.85 : 1; // 본체는 범위 공격이 조금 덜 먹힌다
-  return dmg * m;
-}
-// 피해 기록 · 예고 중 스킬 · 기절 → 끊기
-function onHit(g, e, dmg, src) {
-  const r = g.r2;
-  r.dmg[e.r2] = (r.dmg[e.r2] || 0) + dmg;
-  if (g.raid) g.raid.dmg += dmg;
-  if (src && src.id) r.hits[src.id] = (r.hits[src.id] || 0) + dmg;
-  if (r.slam && r.slam.p === e.r2 && r.slam.st === 'wind' && g._inSkill) cutSlam(g, '스킬로 끊었다!');
-}
-function nextSlam(g) { const r = g.r2, n = Object.keys(r.parts).length; r.slamT = SLAM.every[r.rage ? 2 : n >= 3 ? 0 : 1] * (0.85 + g.rng() * 0.3); }
-function cutSlam(g, why) {
-  const r = g.r2, s = r.slam, e = r.parts[s.p];
-  r.slam = null; r.cuts++; nextSlam(g);
-  if (e) { e.weakT = Math.max(e.weakT || 0, SLAM.weak); e.lift = 0; }
-  g.events.push({ type: 'r2Cut', p: s.p, x: e ? e.x : 180, y: e ? e.y : 200, text: why });
-}
-function pickHeroes(g, n, pref) {
-  const hs = g.heroes.filter((h) => !h.gone && !h.def.summon);
-  const out = [];
-  const tank = hs.find((h) => h.def.taunt || (pref && pref.includes(h.id)));
-  if (tank) out.push(tank);
+// (예전 이름 · 화면이 아직 부를 수 있게) 서버가 준 부위 목록 → 아무것도 안 떨어진다
+export function syncParts() { return []; }
+
+const boss = (g) => g.r2.parts.body;
+const pow = (g) => g.r2.pow0 * (1 + TEMPO_R2.angryPow * g.r2.angry + 0.22 * g.r2.angry * g.r2.angry) * (g.r2.phase === 3 ? 1.15 : 1);
+const alive = (g) => g.heroes.filter((h) => !h.gone && !h.def.summon);
+function pickHeroes(g, n) {
+  const hs = alive(g), out = [];
   let guard = 0;
   while (out.length < n && out.length < hs.length && guard++ < 40) { const h = hs[(g.rng() * hs.length) | 0]; if (!out.includes(h)) out.push(h); }
   return out;
 }
-// 팔 패턴
-function pattern(g, p, e) {
-  const r = g.r2, half = counter(g, p) ? 0.5 : 1, pow = r.pow * half;
-  const P = PAT[p];
-  const out = { type: 'r2Pat', p, x: e.x, y: e.y, half: half < 1, name: (armOf(p) || {}).pat || '' };
-  if (p === 'mega') { let n = 0; for (const h of g.heroes) { const sc = debuffSec(h, P.sec * pow); if (sc > 0) { h.silenceT = Math.max(h.silenceT || 0, sc); n++; } } out.n = n; }
-  else if (p === 'bill') { r.bill = { t: P.wind, p }; out.wind = P.wind; }
-  else if (p === 'bottle') { const n = Math.round(P.n * (half < 1 ? 0.5 : 1) * (1 + 0.25 * (r.tier - 1))); for (let k = 0; k < n; k++) if (ENEMIES.drunk) spawnEnemy(g, 'drunk', clamp(e.x + (k - (n - 1) / 2) * 30, 20, g.W - 20), e.y + 30); out.n = n; }
-  else if (p === 'golf') { const hit = []; for (const h of pickHeroes(g, P.n, armOf('golf').weak)) { const sc = debuffSec(h, P.sec * pow); if (sc > 0) { h.stunT = Math.max(h.stunT, sc); hit.push({ x: h.x, y: h.y }); } } out.hits = hit; }
-  else if (p === 'contract') { let n = 0; for (const o of g.enemies) if (!o.dead && !o.r2) { o.shield = Math.max(o.shield, o.maxHp * P.frac * pow); n++; } out.n = n; }
-  else if (p === 'keys') { const hs = g.heroes.filter((h) => !h.gone && !h.def.summon); if (hs.length) { const h = hs[(g.rng() * hs.length) | 0]; const sc = debuffSec(h, P.sec * pow); if (sc > 0) { h.stunT = Math.max(h.stunT, sc); h.r2Lock = sc; out.hx = h.x; out.hy = h.y; out.sec = sc; } } }
-  else if (p === 'bag') { const u = Math.min(g.ult, RULES.ultMax * P.ult * pow); g.ult -= u; const x = Math.floor(g.exp * P.exp * pow); g.exp -= x; out.ult = Math.round(u); out.exp = x; }
-  else if (p === 'phone') { for (const h of g.heroes) { const sc = debuffSec(h, P.sec * pow, 'slow'); if (sc > 0) { h.flyerT = Math.max(h.flyerT || 0, sc); h.flyerCut = P.cut; } } out.sec = P.sec * pow; }
-  else if (p === 'body') { const k = ['bill', 'bottle', 'golf', 'mega'][(r.rageN = (r.rageN | 0) + 1) % 4]; pattern(g, k, e); return; }
-  g.events.push(out);
+function gateHit(g, frac, key) {
+  const r = g.r2, b0 = g.base.hp;
+  damageBase(g, g.base.max * frac * pow(g), boss(g));
+  r.gate[key] = (r.gate[key] || 0) + (b0 - g.base.hp);
 }
+
+// 피해 배율 (sim damageEnemy 맨 앞) — 빈틈 ×1.5 는 sim 이 weakT 로 이미 준다
+function hitMul(g, e, dmg) {
+  return dmg * (1 + g.r2.buff) * TEMPO_R2.dmgK;
+}
+// 피해 기록 · 예고 중 스킬 → 끊기 · 붙잡기 중 스킬 → 손 놓기
+function onHit(g, e, dmg, src) {
+  const r = g.r2;
+  r.dmg.body += dmg;
+  if (g.raid) g.raid.dmg += dmg;
+  if (src && src.id) r.hits[src.id] = (r.hits[src.id] || 0) + dmg;
+  const a = r.act;
+  if (!a || !g._inSkill) return;
+  if (a.st === 'wind' && (a.k === 'slam' || a.k === 'sweep' || a.k === 'combo')) cut(g, '스킬로 끊었다!');
+  else if (a.k === 'grab' && a.st === 'hold' && g.t - (a.lastHit || -9) > 0.25) { a.lastHit = g.t; if (++a.hits >= PAT.grab.hits) release(g, '스킬로 떼어냈다!'); }
+}
+function cut(g, why) {
+  const r = g.r2, a = r.act, e = boss(g);
+  r.act = null; r.cuts++;
+  e.weakT = Math.max(e.weakT || 0, 4); e.lift = 0;
+  g.ult = Math.min(RULES.ultMax, g.ult + 8);
+  r.nextT = Math.max(r.nextT, 2.2);
+  g.events.push({ type: 'r2Cut', k: a.k, x: a.x || e.x, y: e.y, text: why });
+}
+function release(g, why) {
+  const r = g.r2, e = boss(g);
+  r.act = null; r.cuts++;
+  e.weakT = Math.max(e.weakT || 0, 3);
+  r.nextT = Math.max(r.nextT, 2.5);
+  g.events.push({ type: 'r2Release', x: e.x, y: e.y, text: why });
+}
+// 다음 패턴 고르기 (페이즈 · 바로 앞 패턴은 피해서)
+function choose(g) {
+  const r = g.r2, i = r.phase - 1;
+  const list = PATTERNS.filter((p) => PAT[p.id].w[i] > 0 && p.id !== r.last);
+  let sum = list.reduce((a, p) => a + PAT[p.id].w[i], 0), x = g.rng() * sum;
+  for (const p of list) { x -= PAT[p.id].w[i]; if (x <= 0) return p.id; }
+  return list[0].id;
+}
+const laneX = (g) => { const hs = alive(g); const h = hs.length ? hs[(g.rng() * hs.length) | 0] : null; return clamp(h ? h.x : 60 + g.rng() * (g.W - 120), PAT.slam.zone, g.W - PAT.slam.zone); };
+function begin(g, k) {
+  const r = g.r2, e = boss(g);
+  r.last = k; r.pats[k] = (r.pats[k] || 0) + 1;
+  const name = (PATTERNS.find((p) => p.id === k) || {}).name || '';
+  if (k === 'slam' || k === 'combo') {
+    const x = laneX(g);
+    r.act = { k, st: 'wind', t: k === 'combo' ? PAT.combo.wind : r.phase === 3 ? PAT.slam.wind3 : PAT.slam.wind, x, n: k === 'combo' ? PAT.combo.n : 1 };
+    g.events.push({ type: 'r2Wind', k, x, y: e.y, sec: r.act.t, zone: PAT.slam.zone, name });
+  } else if (k === 'sweep') {
+    const side = g.rng() < 0.5 ? -1 : 1;
+    r.act = { k, st: 'wind', t: PAT.sweep.wind, side, x: g.W / 2 + side * g.W / 4 };
+    g.events.push({ type: 'r2Wind', k, side, x: r.act.x, y: e.y, sec: PAT.sweep.wind, name });
+  } else if (k === 'bills') {
+    const n = PAT.bills.n[r.phase - 1];
+    for (let j = 0; j < n; j++) r.marks.push({ k: 'bill', x: 30 + g.rng() * (g.W - 60), y: g.ropeY, t: PAT.bills.fly + j * PAT.bills.step, t0: PAT.bills.fly + j * PAT.bills.step });
+    r.act = { k, st: 'throw', t: 0.9 };
+    g.events.push({ type: 'r2Pat', k, x: e.x, y: e.y, n, name });
+  } else if (k === 'seal') {
+    const hit = [];
+    for (const h of pickHeroes(g, PAT.seal.n)) { const sc = debuffSec(h, PAT.seal.sec); if (sc > 0) { h.silenceT = Math.max(h.silenceT || 0, sc); hit.push({ x: h.x, y: h.y }); } }
+    r.act = { k, st: 'throw', t: 0.8 };
+    g.events.push({ type: 'r2Pat', k, x: e.x, y: e.y, hits: hit, name });
+  } else if (k === 'cash') {
+    const hs = pickHeroes(g, PAT.cash.n[r.phase - 1]);
+    for (const h of hs) r.marks.push({ k: 'cash', x: h.x, y: h.y, t: PAT.cash.fuse, t0: PAT.cash.fuse });
+    r.act = { k, st: 'throw', t: 0.9 };
+    g.events.push({ type: 'r2Pat', k, x: e.x, y: e.y, n: hs.length, name });
+  } else if (k === 'grab') {
+    r.act = { k, st: 'wind', t: PAT.grab.wind, x: g.W / 2, hits: 0 };
+    g.events.push({ type: 'r2Wind', k, x: g.W / 2, y: e.y, sec: PAT.grab.wind, name });
+  }
+}
+function land(g, a) {
+  const r = g.r2, e = boss(g);
+  if (a.k === 'slam' || a.k === 'combo') {
+    r.slams++;
+    gateHit(g, PAT.slam.pct * (a.k === 'combo' ? 0.7 : 1), 'slam');
+    const hit = [];
+    for (const h of g.heroes) if (!h.gone && Math.abs(h.x - a.x) <= PAT.slam.zone + 16) { const sc = debuffSec(h, PAT.slam.stun); if (sc > 0) { h.stunT = Math.max(h.stunT, sc); hit.push({ x: h.x, y: h.y }); } }
+    g.events.push({ type: 'r2Slam', k: a.k, x: a.x, y: g.ropeY, hits: hit });
+    if (a.k === 'combo' && --a.n > 0) { const x = laneX(g); a.st = 'wind'; a.t = PAT.combo.wind * 0.85; a.x = x; a.chain = true; g.events.push({ type: 'r2Wind', k: 'combo', x, y: e.y, sec: a.t, zone: PAT.slam.zone, name: '분노 연타', chain: true }); return; }
+    a.st = 'gap'; a.t = PAT.slam.gap; e.weakT = Math.max(e.weakT || 0, PAT.slam.gap);
+    g.events.push({ type: 'r2Gap', x: e.x, y: e.y });
+  } else if (a.k === 'sweep') {
+    gateHit(g, PAT.sweep.pct, 'other');
+    const hit = [];
+    for (const h of g.heroes) if (!h.gone && (h.x - g.W / 2) * a.side >= -6) { const sc = debuffSec(h, PAT.sweep.stun); if (sc > 0) { h.stunT = Math.max(h.stunT, sc); hit.push({ x: h.x, y: h.y }); } }
+    g.events.push({ type: 'r2Sweep', side: a.side, x: a.x, y: g.rowY, hits: hit });
+    a.st = 'gap'; a.t = PAT.sweep.gap; e.weakT = Math.max(e.weakT || 0, PAT.sweep.gap * 0.6);
+  } else if (a.k === 'grab') {
+    a.st = 'hold'; a.t = PAT.grab.hold; e.weakT = Math.max(e.weakT || 0, PAT.grab.hold);
+    g.events.push({ type: 'r2Grab', x: e.x, y: g.ropeY, sec: PAT.grab.hold });
+  }
+}
+
 // 매 프레임 (sim step · updateEnemies 바로 뒤)
 function tick(g, dt) {
-  const r = g.r2;
-  if (g.over || g.phase === 'victory') return;
-  // 부위는 제자리 (밀려나도 다시) · 예고 땐 손을 들고 · 내려찍은 뒤엔 입구 가까이 (빈틈)
-  for (const [p, e] of Object.entries(r.parts)) {
-    if (e.dead) continue;
-    const s = r.slam && r.slam.p === p ? r.slam : null;
-    const want = s ? (s.st === 'wind' ? -40 : s.st === 'down' ? 86 : 0) : 0;
-    e.lift += (want - e.lift) * Math.min(1, dt * (s && s.st === 'down' ? 18 : 5));
-    e.x = e.ax; e.y = e.ay + e.lift; e.kbv = 0; e.atRope = false;
-    if (g.phase === 'wave' || g.phase === 'break') {
-      if ((r.pat[p] -= dt) <= 0) { r.pat[p] = PAT[p === 'body' ? 'rage' : p].every * (0.9 + g.rng() * 0.2); pattern(g, p, e); }
-    }
+  const r = g.r2, e = boss(g);
+  if (g.over || g.phase === 'victory' || !e) return;
+  g.waveT = Math.min(g.waveT, 17.9 + (g.wave < 4 ? 1 : 0)); // 4웨이브(증강 3번)까지만 숫자를 넘긴다
+  // 경험치 · 총공지 (진상이 없으니 시간으로)
+  if (g.phase === 'wave' || g.phase === 'break') {
+    gainExp(g, (g.need / (TEMPO_R2.exp + TEMPO_R2.expLv * g.level)) * dt);
+    g.ult = Math.min(RULES.ultMax, g.ult + TEMPO_R2.ult * (g.mods.ultCharge || 1) * dt);
   }
-  // 고지서 폭탄 (예고 뒤 입구 피해)
-  if (r.bill && (r.bill.t -= dt) <= 0) {
-    const half = counter(g, 'bill') ? 0.6 : 1;
-    const e = r.parts[r.bill.p] || Object.values(r.parts)[0];
-    r.bill = null;
-    if (e) { const b0 = g.base.hp; damageBase(g, g.base.max * PAT.bill.pct * r.pow * half, e); r.gate.bill += b0 - g.base.hp; g.events.push({ type: 'r2Bill', x: e.x, half: half < 1 }); }
+  // 화 쌓기
+  if ((r.angryT -= dt) <= 0) { r.angryT = TEMPO_R2.angryEvery; r.angry++; g.events.push({ type: 'r2Angry', n: r.angry, x: e.x, y: e.y }); }
+  // 철거 (최대 시간)
+  if (!r.finale && g.t >= R2.sec) {
+    r.finale = true; r.act = null;
+    g.events.push({ type: 'r2Final', x: e.x, y: g.ropeY });
+    g.sigRevived = true; g.doorShield = 0;
+    damageBase(g, g.base.max * 99, e);
+    if (!g.over) { g.base.hp = 0; g.over = true; g.phase = 'over'; g.events.push({ type: 'gameover' }); }
+    return;
   }
-  // 큰 내려찍기
-  const alive = Object.keys(r.parts).filter((p) => !r.parts[p].dead);
-  if (!r.slam && alive.length && (r.slamT -= dt) <= 0) {
-    const p = alive[(g.rng() * alive.length) | 0], e = r.parts[p];
-    r.slam = { p, st: 'wind', t: SLAM.wind, x: e.x };
-    g.events.push({ type: 'r2Wind', p, x: e.x, y: e.y, sec: SLAM.wind, zone: SLAM.zone, name: partName(p) });
-  } else if (r.slam) {
-    const s = r.slam, e = r.parts[s.p];
-    if (!e || e.dead) r.slam = null;
-    else if (s.st === 'wind') {
-      if (e.stunT > 0) cutSlam(g, '기절시켜 끊었다!');
-      else if ((s.t -= dt) <= 0) {
-        s.st = 'down'; s.t = 0.35; r.slams++;
-        const b0 = g.base.hp; damageBase(g, g.base.max * SLAM.pct * r.pow, e); r.gate.slam += b0 - g.base.hp;
+  // 몸: 좌우로 천천히 · 예고 땐 몸을 젖히고 · 내려찍은 뒤엔 앞으로 숙인다 (빈틈)
+  const a = r.act;
+  const wantLift = !a ? 0 : a.st === 'wind' ? (a.k === 'grab' ? 30 : -12) : a.st === 'down' ? 70 : a.k === 'grab' && a.st === 'hold' ? 92 : a.st === 'gap' ? 26 : 0;
+  const wantLean = a && (a.k === 'slam' || a.k === 'combo') && a.x ? clamp((a.x - g.W / 2) * 0.5, -60, 60) : a && a.k === 'sweep' ? a.side * 40 : 0;
+  e.lift += (wantLift - e.lift) * Math.min(1, dt * (a && a.st === 'down' ? 16 : 5));
+  e.lean += (wantLean - e.lean) * Math.min(1, dt * 4);
+  e.x = e.ax + e.lean + Math.sin(g.t * 0.5) * 18; e.y = e.ay + e.lift; e.kbv = 0; e.atRope = false;
+  // 표시물 (고지서 · 돈다발)
+  if (r.marks.length) {
+    for (const m of r.marks) {
+      if ((m.t -= dt) > 0) continue;
+      m.done = true;
+      if (m.k === 'bill') { const b0 = g.base.hp; damageBase(g, g.base.max * PAT.bills.pct * pow(g), e); r.gate.bill += b0 - g.base.hp; g.events.push({ type: 'r2Bill', x: m.x, y: m.y }); }
+      else if (m.k === 'cash') {
+        gateHit(g, PAT.cash.pct, 'other');
         const hit = [];
-        for (const h of g.heroes) if (!h.gone && Math.abs(h.x - s.x) <= SLAM.zone + 20) { const sc = debuffSec(h, SLAM.stun); if (sc > 0) { h.stunT = Math.max(h.stunT, sc); hit.push({ x: h.x, y: h.y }); } }
-        g.events.push({ type: 'r2Slam', p: s.p, x: s.x, y: g.ropeY, hits: hit });
+        for (const h of g.heroes) if (!h.gone && Math.hypot(h.x - m.x, h.y - m.y) <= PAT.cash.r) { const sc = debuffSec(h, PAT.cash.stun); if (sc > 0) { h.stunT = Math.max(h.stunT, sc); hit.push({ x: h.x, y: h.y }); } }
+        g.events.push({ type: 'r2Cash', x: m.x, y: m.y, hits: hit });
       }
-    } else if (s.st === 'down') { if ((s.t -= dt) <= 0) { s.st = 'gap'; s.t = SLAM.gap; e.weakT = Math.max(e.weakT || 0, SLAM.gap); g.events.push({ type: 'r2Gap', p: s.p, x: e.x, y: e.y }); } }
-    else if ((s.t -= dt) <= 0) { r.slam = null; }
-    if (!r.slam) nextSlam(g);
+      if (g.over) return;
+    }
+    r.marks = r.marks.filter((m) => !m.done);
   }
-  for (const h of g.heroes) if (h.r2Lock > 0) h.r2Lock -= dt;
+  if (g.phase !== 'wave' && g.phase !== 'break') return;
+  // 패턴 진행
+  if (!a) {
+    if ((r.nextT -= dt) <= 0) begin(g, choose(g));
+  } else if (a.st === 'wind') {
+    if (e.stunT > 0 && a.k !== 'grab') cut(g, '기절시켜 끊었다!');
+    else if ((a.t -= dt) <= 0) { if (a.k === 'grab') land(g, a); else { a.st = 'down'; a.t = 0.3; land(g, a); } }
+  } else if (a.st === 'hold') {
+    if (e.stunT > 0) release(g, '기절시켜 떼어냈다!');
+    else { gateHit(g, PAT.grab.dps * dt, 'other'); if ((a.t -= dt) <= 0) { r.act = null; e.weakT = 0; } }
+  } else if ((a.t -= dt) <= 0) r.act = null;
+  if (!r.act && a) r.nextT = Math.max(r.nextT, TEMPO_R2.gap[r.phase - 1] / (1 + TEMPO_R2.angryFast * r.angry) * (0.85 + g.rng() * 0.3));
 }
 // 판 결과에 붙일 숫자 (서버로)
 export function report(g) {
   const r = g.r2;
   if (!r) return null;
-  const parts = {};
-  for (const [p, v] of Object.entries(r.dmg)) if (v > 0) parts[p] = Math.floor(v);
-  return { parts, total: Object.values(parts).reduce((a, b) => a + b, 0), cuts: r.cuts, slams: r.slams, gate: { slam: Math.round(r.gate.slam), bill: Math.round(r.gate.bill) } };
+  const v = Math.floor(r.dmg.body || 0);
+  return { parts: v > 0 ? { body: v } : {}, total: v, cuts: r.cuts, slams: r.slams, angry: r.angry, gate: { slam: Math.round(r.gate.slam), bill: Math.round(r.gate.bill), other: Math.round(r.gate.other || 0) } };
 }

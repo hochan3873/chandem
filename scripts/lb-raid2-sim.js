@@ -1,7 +1,7 @@
 'use strict';
 // 건물주 레이드 한 판 피해 재기 (밸런스용) — 서버 체력 공식 · 피해 상한을 정할 때 쓴다
 //   node scripts/lb-raid2-sim.js [--seeds=4] [--phase=1|2|3]
-//   계정 수준 3가지(맨 위 · 중간 · 가볍게) × 덱 × 페이즈 → 한 판 피해 · 입구가 버틴 비율 · 내려찍기 끊은 수
+//   계정 수준 3가지(맨 위 · 중간 · 가볍게) × 덱 × 시작 페이즈 → 한 판 피해 · 버틴 시간(입구가 부서질 때까지) · 끊은 수 / 내려찍기 수
 const path = require('path');
 const { pathToFileURL } = require('url');
 const LIB = path.join(__dirname, '..', 'public', 'langbang');
@@ -27,7 +27,7 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
     p2weak: ['gunman', 'myunghoon', 'youngjun', 'junseo', 'soyoung', 'jieun'],
     basic: ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'ingyu'],
   };
-  const phases = { 1: ['mega', 'bill', 'bottle', 'golf'], 2: ['contract', 'keys', 'bag', 'phone'], 3: ['body'] };
+  const phases = { 1: 1, 2: 0.5, 3: 0.2 }; // 서버 체력 남은 비율 → 시작 페이즈
   const N = Number(opt('seeds', 3));
   const onlyPh = opt('phase', '');
   function play(prof, deck, ex, seed) {
@@ -37,10 +37,10 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
     const gear = Object.fromEntries(deck.map((h) => [h, { ...P.gear }]));
     const rng = seeded(seed);
     const g = S.createGame({ H: 760, rng, mode: 'stage', deck, join: true, tempo: true, leader: deck[0], meta, stars, gear, weekly: RS.waveDef(1), raid: { sec: R.R2.sec }, items: { door: 8, charm: 6, battery: 6 }, slots: 6 });
-    RS.attach(g, { tier: 1, exposed: ex });
+    RS.attach(g, { tier: 1, hp: { body: ex }, max: { body: 1 } });
     const pr = seeded(seed * 7 + 3);
     let steps = 0;
-    while (!g.over && g.phase !== 'victory' && g.t < 200) {
+    while (!g.over && g.phase !== 'victory' && g.t < 240) {
       S.step(g, 1 / 60); steps++;
       g.events.length = 0;
       if (g.pendingLevels > 0 && g.pickAt === undefined) g.pickAt = g.t + 1.5 + pr();
@@ -48,16 +48,16 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
       if (g.ult >= D.RULES.ultMax) S.useUlt(g);
       if (steps % 30 === 0) {
         // 스킬: 내려찍기 예고가 뜨면 그 손에 · 아니면 준비되는 대로 (가장 큰 부위 쪽)
-        const sl = g.r2.slam && g.r2.slam.st === 'wind' ? g.r2.parts[g.r2.slam.p] : null;
+        const a = g.r2.act, sl = a && (a.st === 'wind' || a.st === 'hold') ? g.r2.parts.body : null;
         for (const h of g.heroes) {
           if (!S.skillReady(h)) continue;
-          const tgt = sl || Object.values(g.r2.parts)[(pr() * Object.keys(g.r2.parts).length) | 0];
+          const tgt = sl || g.r2.parts.body;
           if (tgt) S.castSkill(g, h, tgt.x, tgt.y);
         }
       }
     }
     const rep = RS.report(g);
-    return { dmg: rep.total, door: g.base.hp / g.base.max, over: g.over, t: g.t, cuts: rep.cuts, slams: rep.slams, gs: rep.gate.slam / g.base.max, gb: rep.gate.bill / g.base.max };
+    return { dmg: rep.total, door: g.base.hp / g.base.max, over: g.over, t: g.t, cuts: rep.cuts, slams: rep.slams, gs: rep.gate.slam / g.base.max, gb: (rep.gate.bill + rep.gate.other) / g.base.max, lv: g.level, heroes: g.heroes.filter((h) => !h.gone).length };
   }
   const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
@@ -69,11 +69,11 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
     for (const [dk, deck] of Object.entries(DECKS)) {
       for (const ph of ['1', '2', '3']) {
         if (onlyPh && onlyPh !== ph) continue;
-        let d = 0, door = 0, cuts = 0, slams = 0, overN = 0, gs = 0, gb = 0, tt = 0;
-        for (let s = 1; s <= N; s++) { const r = play(prof, deck, phases[ph], s * 97 + Number(ph)); d += r.dmg; door += r.door; cuts += r.cuts; slams += r.slams; if (r.over) overN++; gs += r.gs; gb += r.gb; tt += r.t; }
+        let d = 0, door = 0, cuts = 0, slams = 0, overN = 0, gs = 0, gb = 0, tt = 0, lv = 0, hn = 0;
+        for (let s = 1; s <= N; s++) { const r = play(prof, deck, phases[ph], s * 97 + Number(ph)); d += r.dmg; door += r.door; cuts += r.cuts; slams += r.slams; if (r.over) overN++; gs += r.gs; gb += r.gb; tt += r.t; lv += r.lv; hn += r.heroes; }
         d /= N; door /= N;
         best[prof] = Math.max(best[prof] || 0, d);
-        console.log(pad(prof, 8) + pad(dk, 8) + pad(ph, 8) + pad(fmt(d), 14) + pad((door * 100).toFixed(0) + '%' + (overN ? `(${overN}뚫림)` : ''), 8) + pad(`${(cuts / N).toFixed(1)}/${(slams / N).toFixed(1)}`, 10) + pad(fmt(R.r2Cap(lb, R.R2.sec)), 14) + `찍기 ${(gs / N * 100).toFixed(0)}% 고지서 ${(gb / N * 100).toFixed(0)}% · ${(tt / N).toFixed(0)}초`);
+        console.log(pad(prof, 8) + pad(dk, 8) + pad(ph, 8) + pad(fmt(d), 14) + pad((door * 100).toFixed(0) + '%' + (overN ? `(${overN}뚫림)` : ''), 8) + pad(`${(cuts / N).toFixed(1)}/${(slams / N).toFixed(1)}`, 10) + pad(fmt(R.r2Cap(lb, R.R2.sec)), 14) + `찍기 ${(gs / N * 100).toFixed(0)}% 기타 ${(gb / N * 100).toFixed(0)}% · ${(tt / N).toFixed(0)}초 · Lv${(lv / N).toFixed(0)} 멤버${(hn / N).toFixed(1)}`);
       }
     }
   }
