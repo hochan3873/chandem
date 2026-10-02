@@ -1914,6 +1914,7 @@ const ACTS = {
   },
   prep: () => showPrep('stage', app.selStage),
   mapNode: (b) => mapNodeGo(b),
+  mapView: (b) => { closeInfoCard(); app.lobbyStage = Number(b.dataset.s); app._goBack = true; showMenu(); }, // 지난 판 구경: 로비에서 그 스테이지로
   endless: () => {
     if (!P().endlessUnlocked) { toast(`무한 도전은 ${stageLabel(ENDLESS_UNLOCK)}을 깨면 열려요`); return; }
     showPrep('endless', 0);
@@ -2371,6 +2372,8 @@ function showMenu0() {
   hud.hidden = true;
   guardOn();
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) cosmNewCheck(); }, 600);
+  // 스테이지 넘기기 안내 (한 번만): 깬 판이 몇 개 생기면
+  if (app.profileLoaded && nextStage() > 3) { let seen = true; try { seen = !!localStorage.getItem('langbang:navHint'); if (!seen) localStorage.setItem('langbang:navHint', '1'); } catch { /* 무시 */ } if (!seen) setTimeout(() => { if (app.screen === 'menu') toast('◂ ▸ 를 꾹 누르면 빠르게 넘어가요 · 스테이지 이름을 누르면 지도에서 골라 볼 수 있어요', 4200); }, 1400); }
   layout();
   const s = lobbyStage();
   const ch = chapterOf(s);
@@ -2447,6 +2450,20 @@ stage.addEventListener('pointerdown', (ev) => {
 });
 for (const t of ['pointerup', 'pointercancel', 'pointermove']) stage.addEventListener(t, (ev) => { if (t !== 'pointermove' || (ev.movementX * ev.movementX + ev.movementY * ev.movementY) > 16) clearTimeout(lpT); });
 let lbSwipe = null;
+// 로비 ◂ ▸ 꾹 누르면: 0.4초 뒤부터 점점 빠르게 연속으로 넘긴다 (놓으면 멈춤 · 마지막 click 은 먹는다)
+let chevHold = null;
+ui.addEventListener('pointerdown', (ev) => {
+  const c = app.screen === 'menu' && ev.target.closest('.chev[data-act="lbStep"]');
+  if (!c || c.disabled) return;
+  const d = Number(c.dataset.d);
+  const stop = () => { if (!chevHold) return; clearTimeout(chevHold.t); if (chevHold.n) { ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 80); } chevHold = null; };
+  stop();
+  chevHold = { n: 0, t: 0 };
+  const tick = () => { if (!chevHold) return; const s0 = lobbyStage(); app.lobbyStage = clamp(s0 + d, 1, P().master ? STAGE_COUNT : nextStage()); if (app.lobbyStage === s0) return stop(); chevHold.n++; A.sfx.tabSw(); showMenu(); chevHold.t = setTimeout(tick, Math.max(70, 190 - chevHold.n * 12)); };
+  chevHold.t = setTimeout(tick, 400);
+  const up = () => { stop(); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+  window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+});
 ui.addEventListener('pointerdown', (ev) => {
   const dio = null; // 예전 끌기 — 이제 lobbySwipe 가 한다
   if (!dio || app.screen !== 'menu' || ev.target.closest('.chev')) return;
@@ -4281,7 +4298,15 @@ function mapNodeGo(b) {
   const s = Number(b.dataset.s);
   if (!stageUnlocked(s)) { lockTip(b, stageLabel(s), '앞 스테이지를 먼저 깨 주세요'); return; }
   app.selStage = s;
+  // 지난 판은 구경만 할 수도 있다: 로비에서 보기 / 바로 출격 (지금 깰 차례인 판은 바로 출격)
+  if (!b.dataset.go && s !== nextStage()) {
+    A.sfx.card();
+    const m = popup(`<h3>${stageLabel(s)} ${esc(stageName(s))}</h3><p class="sub" style="color:#ffd23f">${starStr(P().stages[s] || 0)}</p><div class="map-pick"><button class="btn" data-act="mapView" data-s="${s}">${ic('map', '', 'sm')}로비에서 보기</button><button class="btn primary" data-act="mapNode" data-s="${s}" data-go="1">${ic('swords', '', 'sm')}바로 출격</button></div>`, 'lb-sheet map-pick-sheet');
+    lobbySheetClose(m);
+    return;
+  }
   A.sfx.confirm();
+  if (!ui.contains(b)) b = ui.querySelector(`.mn[data-s="${s}"]`) || b; // 창에서 [바로 출격]을 누른 경우: 지도 칸에서 확대
   b.classList.add('zoom');
   const scr = b.closest('.screen'); if (scr) { const r = b.getBoundingClientRect(), r0 = scr.getBoundingClientRect(); scr.style.setProperty('--zx', `${r.left - r0.left + r.width / 2}px`); scr.style.setProperty('--zy', `${r.top - r0.top + r.height / 2}px`); scr.classList.add('zoomout'); }
   setTimeout(() => showPrep('stage', s), 230);

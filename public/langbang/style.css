@@ -838,6 +838,8 @@ body.rm *, body.rm *::before, body.rm *::after { animation-duration: 0.001s !imp
 .chev { position: absolute; top: 50%; transform: translateY(-50%); width: calc(var(--u) * 34); height: calc(var(--u) * 52); z-index: 3; font-size: calc(var(--u) * 34); font-weight: 900; color: #fff; text-shadow: 0 calc(var(--u) * 1) 0 var(--ink), calc(var(--u) * 1) 0 0 var(--ink), calc(var(--u) * -1) 0 0 var(--ink), 0 calc(var(--u) * -1) 0 var(--ink), calc(var(--u) * 0.7) calc(var(--u) * 0.7) 0 var(--ink), calc(var(--u) * -0.7) calc(var(--u) * 0.7) 0 var(--ink), calc(var(--u) * 0.7) calc(var(--u) * -0.7) 0 var(--ink), calc(var(--u) * -0.7) calc(var(--u) * -0.7) 0 var(--ink), 0 calc(var(--u) * 3) 0 #000; }
 .chev.l { left: calc(var(--u) * 70); } .chev.r { right: calc(var(--u) * 70); }
 .chev:disabled { opacity: 0.25; }
+.map-pick { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 8); margin-top: calc(var(--u) * 10); } /* 지도 칸: 로비에서 보기 · 바로 출격 */
+.map-pick .btn { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 4); }
 .chev:active { transform: translateY(-50%) scale(0.9); }
 .lb-chests { position: absolute; bottom: calc(var(--u) * 196); left: 50%; transform: translateX(-50%); width: calc(var(--u) * 206); height: calc(var(--u) * 50); display: flex; justify-content: space-between; align-items: center; z-index: 2; }
 .lb-chests .cbar { position: absolute; left: calc(var(--u) * 18); right: calc(var(--u) * 18); top: calc(var(--u) * 20); height: calc(var(--u) * 6); background: rgba(0, 0, 0, 0.55); border-radius: 9px; border: 1.5px solid var(--ink); overflow: hidden; }
