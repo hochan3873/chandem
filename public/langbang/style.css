@@ -4076,3 +4076,24 @@ i.grd.g-unk { background: #241b38; color: #b8a8d8; border-color: #4a3f60; }
 .gv-wrap .gv-tap { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 40 + env(safe-area-inset-bottom)); z-index: 2; margin: 0; text-align: center; color: rgba(255, 240, 210, 0.85); font-size: calc(var(--u) * 12); font-weight: 900; text-shadow: 0 1px 3px #000; animation: gvTap 1.4s ease-in-out infinite alternate; pointer-events: none; }
 @keyframes gvTap { from { opacity: 0.35; } to { opacity: 1; } }
 body.rm .gv-wrap .gv-tap { animation: none; }
+
+/* 앱 설치: 로비 버튼 · 안내 창 (install.js) */
+.lb-quick .qb.qb-ins .uic img { border-radius: 22%; box-shadow: 0 0 calc(var(--u) * 6) rgba(255, 90, 200, 0.6); }
+.lb-quick .qb.qb-ins { border-color: #ffcf3f; animation: insGlow 2.4s ease-in-out infinite; }
+@keyframes insGlow { 50% { box-shadow: 0 0 calc(var(--u) * 10) rgba(255, 207, 63, 0.75); } }
+body.rm .lb-quick .qb.qb-ins { animation: none; }
+.ins-sheet .ins-head { display: flex; align-items: center; gap: calc(var(--u) * 10); margin: calc(var(--u) * 6) 0 calc(var(--u) * 10); text-align: left; }
+.ins-sheet .ins-head img { width: calc(var(--u) * 54); height: calc(var(--u) * 54); border-radius: 22%; box-shadow: 0 calc(var(--u) * 3) calc(var(--u) * 10) rgba(0, 0, 0, 0.5); }
+.ins-sheet .ins-head b { display: block; font-size: calc(var(--u) * 16); }
+.ins-sheet .ins-head small { display: block; opacity: 0.75; font-size: calc(var(--u) * 10.5); margin-top: calc(var(--u) * 2); }
+.ins-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 7); text-align: left; }
+.ins-steps li { display: flex; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.1); }
+.ins-steps .ins-n { flex: none; width: calc(var(--u) * 22); height: calc(var(--u) * 22); border-radius: 50%; display: grid; place-items: center; background: #ffcf3f; color: #2a1400; font-style: normal; font-weight: 900; font-size: calc(var(--u) * 12); }
+.ins-steps .ins-key { flex: none; width: calc(var(--u) * 32); height: calc(var(--u) * 32); border-radius: calc(var(--u) * 8); display: grid; place-items: center; background: #fff; color: #1f6fe5; }
+.ins-steps .ins-ico { width: 70%; height: 70%; }
+.ins-steps p { margin: 0; font-size: calc(var(--u) * 12.5); line-height: 1.35; }
+.ins-steps p small { display: block; opacity: 0.7; font-size: calc(var(--u) * 10); margin-top: calc(var(--u) * 2); }
+.ins-sheet .ins-warn { margin: 0 0 calc(var(--u) * 10); font-size: calc(var(--u) * 12.5); line-height: 1.45; text-align: left; }
+.ins-sheet .ins-note { margin: calc(var(--u) * 10) 0 0; opacity: 0.7; font-size: calc(var(--u) * 10.5); }
+.ins-sheet .ins-btns { display: flex; gap: calc(var(--u) * 8); margin-top: calc(var(--u) * 12); }
+.ins-sheet .ins-btns > * { flex: 1; text-align: center; text-decoration: none; }
