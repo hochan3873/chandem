@@ -387,8 +387,10 @@ test('가입인사 사기꾼: 예쁜 프사 → 들켰다! (약점) → 실물 �
 test('인피 뒷담러는 멀리서 뒷담화를 던져 멤버 공격 속도를 늦춘다', () => {
   const g = S.createGame({ rng: seeded(91), noWaves: true, heroes: ['gunman'] });
   const e = S.spawnEnemy(g, 'inpi_gossip', 180, g.ropeY - 200, { hpMul: 1000 });
-  g.heroes[0].stunT = 99; // 영웅이 쏘지 않게
+  const ch0 = S.RANGED_GATE.chance; S.RANGED_GATE.chance = 0; // (가끔 입구로 던지는 건 아래 테스트에서)
+  g.heroes[0].cd = 999; // 영웅이 쏘지 않게 (기절시키면 '이미 상태이상' 이라 입구로 던진다)
   run(g, 5);
+  S.RANGED_GATE.chance = ch0;
   assert.ok(e.atRope, '멀찍이 멈춤');
   assert.ok(e.y < g.ropeY - 120, '로프까지 오지 않는다');
   const h = g.heroes[0];
@@ -665,7 +667,37 @@ test('스킬: 모든 멤버 스킬이 쿨타임과 효과를 가진다', () => {
   assert.ok(g2.heroes.find((h) => h.id === 'eunok').rage, '원샷');
   assert.ok((g2.holes || []).length >= 1, '지팡이 블랙홀');
   assert.ok((g2.harleys || []).length >= 1, '부릉부릉 할리');
-  assert.equal(g2.heroes.find((h) => h.id === 'donghan').meter, 100, '진심 모드');
+  assert.ok(g2.heroes.find((h) => h.id === 'donghan').ssj, '초사이언 포격');
+});
+
+test('문동한 초사이언 포격: 변신 → 몰린 곳마다 예고 뒤 포격 · 끝나면 원래대로', () => {
+  const g = bare(['donghan']);
+  const h = g.heroes[0], sk = h.def.skill;
+  const pack = []; for (let i = 0; i < 6; i++) pack.push(still(g, 'thug', 120 + (i % 3) * 14, g.rowY - 200 + Math.floor(i / 3) * 14, 2000));
+  const lone = still(g, 'yeokko', 300, g.rowY - 360, 2000);
+  h.skillCd = 0;
+  assert.ok(S.castSkill(g, h), '쓸 수 있다');
+  assert.ok(h.ssj && h.ssjT > sk.wind, '변신 시작');
+  assert.ok(g.events.some((e) => e.type === 'ssjUp'), '변신 이벤트');
+  // 변신 중엔 아직 아무도 안 맞는다
+  const hp0 = pack.reduce((a, e) => a + e.hp, 0);
+  for (let t = 0; t < sk.wind * 0.9; t += 1 / 60) S.step(g, 1 / 60);
+  assert.equal(pack.reduce((a, e) => a + e.hp, 0), hp0, '변신하는 동안은 포격 없음');
+  // 첫 발은 몰린 곳에 예고 → delay 뒤 쾅
+  g.events.length = 0;
+  let mark = null, bolt = null, marks = 0, bolts = 0;
+  for (let t = 0; t < sk.wind * 0.2 + sk.delay + 0.1 && !bolt; t += 1 / 60) { S.step(g, 1 / 60); for (const e of g.events) { if (e.type === 'ssjMark') { marks++; if (!mark) mark = e; } if (e.type === 'ssjBolt') { bolts++; if (!bolt) bolt = e; } } g.events.length = 0; }
+  assert.ok(mark && Math.abs(mark.x - 134) < 40, `첫 예고는 진상이 몰린 곳 (${mark && mark.x.toFixed(0)})`);
+  assert.ok(bolt && bolt.n >= 4, `한 발에 여러 명 (${bolt && bolt.n})`);
+  assert.ok(pack.reduce((a, e) => a + e.hp, 0) < hp0, '포격 피해');
+  // 전부 떨어지면 끝 · 발 수는 레벨대로
+  for (let t = 0; t < 12 && h.ssj; t += 1 / 60) { S.step(g, 1 / 60); for (const e of g.events) { if (e.type === 'ssjMark') marks++; if (e.type === 'ssjBolt') bolts++; } g.events.length = 0; }
+  assert.equal(h.ssj, null, '포격이 끝난다');
+  assert.equal(marks, sk.n[h.lv - 1], `레벨 1: 포격 발 수 ${marks}`);
+  assert.equal(bolts, marks, '예고한 만큼 떨어진다');
+  assert.ok(lone.hp < lone.maxHp || pack.every((e) => e.dead || e.hp < e.maxHp), '여기저기 골고루');
+  for (let t = 0; t < 1; t += 1 / 60) S.step(g, 1 / 60);
+  assert.ok(!(h.ssjT > 0), '변신이 풀린다');
 });
 
 test('자리 바꾸기: 끌어다 놓으면 두 멤버가 바로 자리를 바꾼다 (쿨타임 없음)', () => {
@@ -2228,6 +2260,7 @@ test('7장 진상 기술: 떼 등장 · 보호막 · 썰매 · 핫팩 · 눈덩�
   assert.ok(coach.shield === 0, '자기는 안 씌움');
   // 눈덩이: 멀찍이 서서 → 멤버 빙결 (제일 잘 치는 멤버를 노린다) · 응급 방패 면역이면 안 언다
   const g2 = S.createGame({ H: 760, rng: seeded(72), noWaves: true, heroes: ['bangjang', 'gunman', 'staff'] });
+  const ch0 = S.RANGED_GATE.chance; S.RANGED_GATE.chance = 0;
   const sb = still(g2, 'snowball', 180, g2.ropeY - 200); sb.atRope = true; sb.snowT = 0.1;
   g2.heroes[1].dmgDone = 1e6;
   let froze = null;
@@ -2239,6 +2272,7 @@ test('7장 진상 기술: 떼 등장 · 보호막 · 썰매 · 핫팩 · 눈덩�
   sb.snowT = 0.1; let blocked = false;
   for (let t = 0; t < 3; t += 1 / 60) { sb.y = sb.stopY; sb.atRope = true; sb.kbv = 0; S.step(g2, 1 / 60); if (g2.events.some((x) => x.type === 'c7freeze' && x.block)) blocked = true; g2.events.length = 0; }
   assert.ok(blocked && g2.heroes.every((h) => !(h.freezeT > 0)), '응급 방패 면역');
+  S.RANGED_GATE.chance = ch0;
   // 펜션 사장님: 예고 → 넓은 범위 침묵 → 스킬 못 씀 · 예고 중에 기절시키면 끊김
   const g3 = S.createGame({ H: 760, rng: seeded(73), noWaves: true, heroes: ['bangjang', 'gunman', 'gunnyeo'] });
   const pn = still(g3, 'mid_pension', 180, 250, 50); pn.quietCd = 0.1;
@@ -2556,4 +2590,13 @@ test('송바울 보드: 기본 공격 없음 · 탭한 곳으로 돌진하며 �
   const many = [0, 1, 2, 3].map((k) => still(g2, 'thug', 200 + k * 8, 150 + k * 40, 1000));
   run(g2, 4);
   assert.ok(many.filter((e) => e.hp < e.maxHp).length >= 3, '자동 돌진: 몰린 쪽');
+});
+
+test('멀리서 던지는 진상: 노린 멤버가 이미 상태이상이면 입구로 던져 입구 피해', () => {
+  const g = S.createGame({ rng: seeded(93), noWaves: true, heroes: ['gunman'] });
+  const e = S.spawnEnemy(g, 'snowball', 180, g.ropeY - 200, { hpMul: 1000 });
+  g.heroes[0].cd = 999; g.heroes[0].stunT = 99; // 이미 꽁꽁 → 멤버 대신 입구
+  const hp0 = g.base.hp; let gate = 0;
+  for (let t = 0; t < 12; t += 1 / 60) { S.step(g, 1 / 60); gate += g.events.filter((x) => x.type === 'gateThrow').length; g.events.length = 0; }
+  assert.ok(e.atRope && gate > 0 && g.base.hp < hp0, `입구로 던짐 ${gate}번 · 입구 ${hp0} → ${g.base.hp.toFixed(0)}`);
 });

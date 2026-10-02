@@ -805,6 +805,7 @@ function handleEvents(g, loud) {
         if (!busy && !e.twin) fx.text(e.x, e.y - 110, e.revive ? '무한 붕대! 입구 부활' : '전용 신화!', '#ffb8ef', e.revive ? 17 : 13, 1.1, -30);
         if (e.revive) { fx.flash && fx.flash('#ff7ad9', 0.35); if (loud) A.sfx.reward(); }
         break;
+      case 'gateThrow': fx.burst(e.x, e.y, 10, e.kind === 'snowball' ? '#e8f6ff' : '#ffb0a0', 140, 'dot', 3, 0.5); fx.addShake(2); fx.text(e.x, e.y - 30, '입구 쾅!', '#ff8a7a', 12, 0.7); if (loud) A.sfx.kick(); break; // 멀리서 입구로 던진 것
       case 'wallHit': fx.burst(e.x, e.y + 10, 5, '#d8d0c0', 90, 'dot', 2, 0.35); break;
       case 'wallPush': if (e.w) for (const sx of [-1, 1]) fx.burst(e.x + sx * e.w, e.y + 24, 4, '#d8d0c0', 70, 'dot', 2, 0.35); if (loud) A.sfx.kick(); break; // 미는 폭 양 끝에 먼지 (실제 판정 폭과 같게)
       case 'wallTurn': case 'wallTired': fx.addShake(4); fx.text(e.x, e.y - 60, e.type === 'wallTired' ? '헉헉… 쉬러 간다' : '쿵!', '#fff', 14, 0.9); R.vfx('shock', e.x, e.y - 30, { anim: 'pop', dur: 450, sz: 130 }); if (loud) A.sfx.slam(); break;
@@ -1048,16 +1049,38 @@ function handleEvents(g, loud) {
         for (let k = 0; k < (busy ? 2 : 5); k++) { const a = Math.random() * TAU_; fx.part('note', e.x + Math.cos(a) * 20, e.y + Math.sin(a) * 14, Math.cos(a) * 60, -50 - Math.random() * 40, 1.0, 11, k % 2 ? '#6ff0ff' : '#ff9fe6'); }
         fx.ring(e.x, e.y + 30, 4, 26, 0.25, 'rgba(111,240,255,0.9)', 3); // 마이크 번쩍
         break;
-      case 'encore':
-        fx.banner('무한 앵콜~!', '입구 회복 · 5초 동안 전원 공속 +25% · 피해 +15%', '#7a3cc8', 1.4, 'wave'); fx.flash('#c77dff', 0.25);
+      case 'encore': {
+        const dh = g.heroes.find((o) => o.id === 'dohoon'); if (dh) dh._encAt = performance.now(); // 앵콜 띠 (점프 → 마이크를 관객에게)
+        SKFX.add('encore', g, e, busy); // 무대 조명 · 떼창 음표 (skillfx.js)
+        if (!document.body.classList.contains('rm')) fx.flash('#c77dff', 0.25);
         fx.pillar(e.x, 120, g.rowY + 30, 1.2); // 무대 조명
         for (const [c, k] of [['#ff4f7a', 0], ['#ffd23f', 0.12], ['#5de07a', 0.24], ['#6ff0ff', 0.36], ['#c77dff', 0.48]]) setTimeout(() => fx.ring(e.x, e.y - 60, 20, e.r * (0.7 + k), 0.9, c, 7), k * 400);
         for (let k = 0; k < 18; k++) fx.part('note', e.x + (Math.random() - 0.5) * 300, e.y - 260 - Math.random() * 120, (Math.random() - 0.5) * 40, 90 + Math.random() * 60, 2.2, 13, k % 3 ? '#ffe14d' : '#ff9fe6');
         fx.ring(e.x, e.y - 60, 20, e.r, 0.8, '#c9a8ff', 8);
-        fx.banner('무한 앵콜!!', '다 같이 떼창~ 진상들 춤추느라 멈춤', '#5a2aa0', 1.6, 'big');
-        for (let k = 0; k < 14; k++) fx.part('star', e.x + (Math.random() - 0.5) * 300, e.y - 100 - Math.random() * 200, 0, -30, 1, 9, null);
+        fx.banner('무한 앵콜!!', '다 같이 떼창~ 진상들 춤추느라 멈춤 · 멤버 공속 · 피해 업', '#5a2aa0', 1.6, 'big');
+        for (let k = 0; k < (busy ? 6 : 14); k++) fx.part('star', e.x + (Math.random() - 0.5) * 300, e.y - 100 - Math.random() * 200, 0, -30, 1, 9, null);
         if (loud) A.sfx.win();
         break;
+      }
+      // 문동한 초사이언 포격: 변신 (기합 · 금빛 오라) → 예고 동그라미 → 하늘 번개 기둥 쾅 (skillfx.js ssj · ssjMark)
+      case 'ssjUp': {
+        SKFX.add('ssj', g, e, busy);
+        const hh = g.heroes.find((o) => o.id === 'donghan'), n = hh && hh.ssj ? hh.ssj.left : 0;
+        fx.banner('초사이언 포격!!', `금빛 머리로 변신 → 하늘에서 포격 ${n}발`, '#a8740a', 1.4, 'big', 'h_donghan_ssj');
+        if (loud) { A.sfx.rise(); setTimeout(() => A.sfx.ult(), (e.wind || 0.9) * 450); }
+        break;
+      }
+      case 'ssjMark': SKFX.add('ssjMark', g, e, busy); if (loud && !busy) A.sfx.whoosh(); break;
+      case 'ssjBolt': {
+        const rm = document.body.classList.contains('rm');
+        if (!rm) fx.addShake(e.n >= 3 ? 6 : 4);
+        fx.burst(e.x, e.y - 8, busy ? 5 : 12, '#ffe07a', 220, 'spark', 3.5, 0.45);
+        if (!busy) for (let k = 0; k < 6; k++) fx.part('dot', e.x + (Math.random() - 0.5) * e.r, e.y, (Math.random() - 0.5) * 160, -80 - Math.random() * 120, 0.6, 4, k % 2 ? '#fff4c8' : '#c9a24a', { grav: 420, drag: 1 });
+        if (e.n >= 3 && !busy) fx.text(e.x, e.y - 40, '쾅!', '#fff1a8', 16, 0.6, -20);
+        if (loud) A.sfx.explode();
+        break;
+      }
+      case 'ssjEnd': fx.text(e.x, e.y - 90, '후… 이제 좀 쉬자', '#c8ffe0', 13, 1.2, -16); break;
       case 'moto': fx.text(e.x, e.y - 80, e.n > 1 ? '3대 500!!' : '부릉부릉!', '#ff8a4f', e.n > 1 ? 22 : 15, 1, -24); fx.addShake(e.n > 1 ? 8 : 4); if (loud) A.sfx.slam(); break;
       case 'dash': if (e.hero !== 'ara') SKFX.add('ydash', g, e, busy); else fx.part('star', e.x, e.y - 30, 0, -60, 0.4, 10, null); break; // 김영준: 박차고 나가는 흙먼지 · 잔상 줄 (skillfx.js)
       case 'slash': // 김영준 다섯 번째 베기마다: 발톱 자국 + 아주 짧은 멈칫(타격감)
@@ -1255,7 +1278,7 @@ function handleEvents(g, loud) {
       }
       case 'bus': for (const k of [0, 1]) fx.ring(e.x, e.y - 10, 10 + k * 16, 90 + k * 40, 0.45 + k * 0.15, '#ffd84a', 4 - k); fx.banner(e.big ? '2층 막차 버스!' : '막차 버스!', '이호찬: "다들 타! 집에 가자!"', '#8a6a00', 0.9, 'wave'); fx.addShake(e.big ? 8 : 5); break;
       case 'slash': R.addSlash(e.x, e.y); break;
-      case 'skillCast': { const h = g.heroes.find((x) => x.id === e.hero); if (h) skillFx(h); if (e.hero === 'donghan') { SKFX.add('serious', g, e, busy); if (loud) A.sfx.rise(); } break; } // 문동한 진심 모드: 어둡게 → 금빛 기운 → 일어서는 순간 쾅 (skillfx.js)
+      case 'skillCast': { const h = g.heroes.find((x) => x.id === e.hero); if (h) skillFx(h); break; } // (문동한 초사이언 포격 연출은 'ssjUp')
       case 'noMomentum': if (live) toast(e.ult ? '총공지는 기세 2칸이 필요해요' : '기세가 모자라요 — 조금 기다려요', 900); break;
       case 'skillQueued': break;
       case 'weaponEvo': fx.text(e.x, e.y - 96, '무기 진화!', '#ffd23f', 16, 1.3, -30); fx.ring(e.x, e.y - 30, 12, 60, 0.6, '#ffd23f', 4); break;
@@ -1670,7 +1693,7 @@ function skillFx(h) {
   A.sfx.join();
   app.tutSkillDone = true;
 }
-const SKILL_SHORT = { baul: '썰매', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '폭격', wonsik: '결정사' };
+const SKILL_SHORT = { baul: '썰매', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '포격', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '폭격', wonsik: '결정사' };
 const skShort = (h) => SKILL_SHORT[h.id] || h.def.skill.name.replace(/[!\s]/g, '').slice(0, 5);
 const momBar = document.createElement('div');
 momBar.id = 'mombar'; momBar.hidden = true;
@@ -1935,7 +1958,7 @@ ui.addEventListener('click', (ev) => {
 });
 const ACTS = {
   menu: () => showMenu(),
-  stages: () => showStages(),
+  stages: () => { if (app.screen === 'menu') { app.selStage = lobbyStage(); app.chapterTab = chapterOf(app.selStage); } showStages(); }, // 로비에서 열면 지금 보던 스테이지에서 시작
   next: () => showPrep('stage', nextStage()),
   shop: () => showShop(),
   shopTab: (b) => { app.shopTab = b.dataset.tab; showShop(); },
@@ -2416,6 +2439,8 @@ function showMenu() {
   showMenu0();
 }
 function showMenu0() {
+  // 스테이지 지도에서 고르거나 넘겨 본 스테이지로 로비도 맞춘다 (뒤로 와도 그 스테이지가 보이게)
+  if (app.screen === 'stages') { const c = app.chapterTab, first = c ? (c - 1) * STAGES_PER_CHAPTER + 1 : 0; const s = app.selStage && (!c || chapterOf(app.selStage) === c) ? app.selStage : chapterOf(nextStage()) === c ? nextStage() : first; if (s && stageUnlocked(s)) app.lobbyStage = s; }
   app.screen = 'menu';
   app.g = null;
   app.paused = false;
@@ -5491,7 +5516,7 @@ async function buyItemAct(id, btn) {
 
 // ─── 도감 (아군 · 악당) ──────────────────────────────
 // 인게임 캐릭터(작은 그림) — 모습이 바뀌는 멤버는 둘 다 · 정소영은 성준영까지 · 보스는 공격/분노 모습까지(있으면)
-const FORM_SPRITES = { ara: ['h_ara_old'], donghan: ['h_donghan_on'], eunok: ['h_eunok_rage'], hyungyeong: ['h_hyungyeong_slim'], jieun: ['h_jieun_demon'], youngjun: ['h_youngjun_dash'], soyoung: ['h_junyoung'], ingyu: ['h_ingyu_bike'] };
+const FORM_SPRITES = { ara: ['h_ara_old'], donghan: ['h_donghan_on', 'h_donghan_ssj'], eunok: ['h_eunok_rage'], hyungyeong: ['h_hyungyeong_slim'], jieun: ['h_jieun_demon'], youngjun: ['h_youngjun_dash'], soyoung: ['h_junyoung'], ingyu: ['h_ingyu_bike'] };
 function inGameSprites(kind, id, d) {
   if (kind === 'hero') return [d.img, ...(FORM_SPRITES[id] || []).map((n) => `/img/lb/${n}.webp`)];
   const base = d.img || `/img/lb/e_${id}.webp`;
@@ -5527,7 +5552,7 @@ const DEX_FLAVOR = {
   myunghoon: '실눈 뜬 티벳여우. 평소엔 조용한데 입을 열면 진상 셋이 한꺼번에 얼어붙는다.',
   dohoon: '노래방에서 마이크를 절대 안 놓는 남자. 앵콜이 끝나지 않는 한 랑방도 무너지지 않는다.',
   ingyu: '3대 500 헬창. 진상이 뭘 던지든 "오 근육 자극 좋다"로 받아친다.',
-  donghan: '모임 내내 소파에 누워 간만 보는 사람. 근데 "이제 좀 해볼까?" 하는 순간 한 줄이 사라진다.',
+  donghan: '모임 내내 소파에 누워 간만 보는 사람. 근데 "이제 좀 해볼까?" 하는 순간 한 줄이 사라진다. 진짜 진심이 되면 머리가 금빛으로 서고 하늘에서 포격이 쏟아진다.',
   youngjun: '검은 고양이 후드를 쓰고 파티장에 뛰어드는 전사. 뛰어든 동안엔 아무것도 안 통한다.',
   eunok: '처음엔 얌전히 홀짝홀짝. 14초쯤 뒤엔… 소주병이 날아다니기 시작한다.',
   hanna: '랑방 공식 윙크 담당. 남자 진상은 윙크 한 방에 정신 못 차리고 날아간다.',
@@ -5611,8 +5636,8 @@ function faceImgStyle(id, f = 0.24, cy = 0.36) {
   return `--fzh:${h.toFixed(1)}%;--fzy:${(cy * 100).toFixed(1)}%;--fzx:-${(fb[0] * 100).toFixed(1)}%;--fzt:-${(fb[1] * 100).toFixed(1)}%`; // 실제 배치는 CSS img.fz (다른 규칙보다 우선)
 }
 // 변신 그림 (그림을 누르면 바뀜)
-const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
-const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 모드', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
+const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on', 'donghan_ssj'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
+const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 빔', donghan_ssj: '초사이언', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
 const DEX_ANIM = { baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
 function dexAnim(kind, d, id) {

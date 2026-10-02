@@ -158,7 +158,7 @@ export function addHero(g, id, want) {
     alt: false, altT: 0, ageT: def.age ? def.age.princess[0] : 0, echoT: 0, // 배현경 날씬 · 고아라 늙음 · 이호찬 메아리
     sarcT: 0, clingBy: 0, cm: {}, // cm: 멤버 전용 카드 효과
     beamE: null, beamUid: 0, beamT: 0, beamTick: 0, beam2E: null, kbT: 0, rx: g.slotX[slot],
-    motoN: 0, meter: 0, upT: 0, burstT: 0, serious: 1, // 백인규 오토바이 게이지 · 문동한 간보기
+    motoN: 0, meter: 0, upT: 0, burstT: 0, serious: 1, ssj: null, ssjT: 0, // 백인규 오토바이 게이지 · 문동한 간보기 · 초사이언 포격
     out: false, outT: 0, restT: 0, px: g.slotX[slot], py: g.rowY, dashE: null, // 김영준 돌격
     awake: (g.awakeMap && g.awakeMap[id]) | 0, // 지옥 각성
     sig: !g.pvp && SIG[id] && g.gear[id] && g.gear[id].sig === id ? SIG[id].fx : null, // 전용 신화 새 효과 (1:1 대전은 끔)
@@ -314,6 +314,8 @@ function updateHeroes(g, dt) {
     if (h.sigEcho) { h.sigEcho.t -= dt; if (h.sigEcho.t <= 0) { const e0 = h.sigEcho; h.sigEcho = null; if (castSkill(g, h, e0.x, e0.y, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); } }
     // 건전녀 전용 신화: 멤버 2명 이상(혼자면 1명)이 기절 · 홀림 · 침묵이면 응급 방패 자동 (웨이브마다 1번)
     if (h.sig && h.sig.autoGuard && h.sigGuardW !== g.wave && !g.over && g.heroes.filter((o) => o.stunT > 0.3 || o.charmT > 0.3 || o.silenceT > 0.3 || o.freezeT > 0.3).length >= Math.min(h.sig.autoGuard, g.heroes.length)) { h.sigGuardW = g.wave; if (castSkill(g, h, undefined, undefined, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); }
+    if (h.ssj) ssjTick(g, h, dt); // 문동한 초사이언 포격
+    if (h.ssjT > 0) h.ssjT -= dt;
     if (h.mzQ && h.mzQ.length) mosaicTick(g, h, dt); // 여지원 모자이크 폭격: 손이 차례로 내려친다
     // 이호찬 5레벨: 파동 메아리
     if (h.echoT > 0) { h.echoT -= dt; if (h.echoT <= 0) crownWave(g, h, heroDamage(g, h) * 0.7, 0); }
@@ -346,6 +348,7 @@ function updateHeroes(g, dt) {
       let near = 0;
       for (const e of g.enemies) if (!e.dead && e.y > g.ropeY - d.meter.nearY) near++;
       if (g.phase === 'wave' || g.phase === 'intro') h.meter += dt * (d.meter.base[h.lv - 1] + d.meter.perNear * Math.min(near, 12) + d.meter.hpLow * (1 - g.base.hp / g.base.max)) * (h.sa && h.sa.fastmeter ? 1.4 : 1);
+      if (h.ssj) { h.meter = Math.min(100, h.meter); continue; } // 초사이언 포격 중엔 과자 · 빔 대신 포격만 (게이지는 계속 차서 끝나면 바로 빔)
       if (h.meter >= 100 && g.enemies.some((e) => !e.dead && e.y > 0)) { h.meter = 100; h.burstT = d.burst.windup; h.upT = d.burst.windup + d.burst.rest; ev(g, 'lazyUp', { x: h.x, y: h.y }); continue; }
       h.meter = Math.min(100, h.meter);
     }
@@ -681,10 +684,11 @@ function updateConsult(g, h, dt) {
   const C = h.def.skill.consult, CR = C.r * (h.sa && h.sa.consult ? 1.4 : 1); // 상담 반경 +40% 증강
   h.out = true;
   if (h.px === undefined) { h.px = h.x; h.py = h.y; }
-  if (h.wsSt === 'walk') {
-    const ty = g.ropeY * 0.55;
-    h.py -= C.walk * dt; h.px += (h.x - h.px) * Math.min(1, dt * 2);
-    if (h.py <= ty) { h.py = ty; h.wsSt = 'sit'; h.wsT = C.sec; h.wsPool = h.wsPoolMax = g.base.max * (C.pool + C.poolLv * (h.lv - 1)) * ((h.sig && h.sig.pool) || 1); ev(g, 'consultSit', { x: h.px, y: h.py }); }
+  if (h.wsSt === 'walk') { // 입구 바로 앞(가운데)으로 뛰어가 막아선다
+    const ty = g.ropeY - 40;
+    h.py += Math.sign(ty - h.py) * Math.min(Math.abs(ty - h.py), C.walk * dt); h.px += (g.W / 2 - h.px) * Math.min(1, dt * 4);
+    if (Math.abs(h.py - ty) < 1) h.py = ty;
+    if (h.py === ty) { h.wsSt = 'sit'; h.wsPool = h.wsPoolMax = g.base.max * (C.pool + C.poolLv * (h.lv - 1)) * ((h.sig && h.sig.pool) || 1); ev(g, 'consultSit', { x: h.px, y: h.py }); }
     return;
   }
   if (h.wsSt === 'sit') {
@@ -700,11 +704,12 @@ function updateConsult(g, h, dt) {
       // 원식 앞에서 멈춰 서서 원식을 친다 (보스는 밀리지 않고 그 자리에서)
       if (!e.boss && Math.abs(dx) < 60 && e.y < h.py + 10 && e.y > h.py - 70) { e.y = Math.min(e.y, h.py - 34); e.atRope = false; const hit = (e.atk || 3) * (e.fast ? 1.6 : 1) / Math.max(0.3, e.def.atkInterval || 1) * dt * (1 - C.cut); h.wsPool -= hit; if (g.rng() < dt * 1.2) damageEnemy(g, e, hit / dt * C.reflect * ((h.sig && h.sig.reflect) || 1), false, h, false); }
     }
-    if (h.wsPool <= 0 || h.wsT <= 0) { h.wsSt = 'back'; ev(g, 'consultEnd', { x: h.px, y: h.py, broke: h.wsPool <= 0 }); for (const e of g.enemies) if (e.tauntBy === h) { e.tauntBy = null; e.tauntT = 0; } }
+    // 시간 제한 없이 상담 체력(에너지 바)이 다 닳을 때까지 버틴다
+    if (h.wsPool <= 0) { h.wsSt = 'back'; ev(g, 'consultEnd', { x: h.px, y: h.py, broke: h.wsPool <= 0 }); for (const e of g.enemies) if (e.tauntBy === h) { e.tauntBy = null; e.tauntT = 0; } }
     return;
   }
   if (h.wsSt === 'back') {
-    h.py += C.walk * dt; h.px += (h.x - h.px) * Math.min(1, dt * 3);
+    h.py += C.walk * dt; h.px += (h.x - h.px) * Math.min(1, dt * 4);
     if (h.py >= h.y) { h.py = h.y; h.px = h.x; h.wsSt = null; h.out = false; h.tiredT = Math.max(h.tiredT || 0, Math.max(1, h.skillCd)); h.tiredMax = h.tiredT; }
   }
 }
@@ -1667,7 +1672,7 @@ export function damageBase(g, dmg, e) {
   // 정원식 도발: 입구 피해의 20% 를 되돌려 준다
   if (e && e.tauntT > 0 && !e.dead) { const ws = g.heroes.find((o) => o.id === 'wonsik'); if (ws) damageEnemy(g, e, dmg * 0.2 * (1 + ws.meta * 0.02), false, ws, false); }
   for (const tank of g.heroes) if (tank.def.guard && e) { const near = Math.abs(e.x - tank.x) < tank.def.guard.r * (tank.cm.guardR || 1); const cut = near ? Math.min(0.6, tank.def.guard.cut + (tank.cm.guardCut || 0)) : tank.def.guard.all || 0; if (cut > 0) { prevented(g, tank.id, dmg * cut); dmg *= 1 - cut; } } // 탱커: 곁은 크게 · 나머지 입구도 조금
-  if (e && e.tauntBy && e.tauntBy.wsSt === 'sit' && e.tauntBy.wsPool > 0) { const C = e.tauntBy.def.skill.consult; e.tauntBy.wsPool -= dmg * (1 - C.cut); prevented(g, e.tauntBy.id, dmg); return; } // 상담 중: 입구 대신 원식
+  { const ws = g.heroes.find((o) => o.wsSt === 'sit' && o.wsPool > 0); if (ws) { const C = ws.def.skill.consult; ws.wsPool -= dmg * (1 - C.cut); prevented(g, ws.id, dmg); return; } } // 상담 중: 입구 앞에 막아선 원식이 입구 대신 전부 맞는다
   if (e && e.tauntT > 0) { prevented(g, 'wonsik', dmg * 0.8); dmg *= 0.2; } // 정원식 결혼정보회사: 원식만 바라본다
   if (e && e.grooveT > 0 && HEROES.dohoon.groove) { const c0 = HEROES.dohoon.groove.cut; prevented(g, e.grooveBy || 'dohoon', dmg * c0); dmg *= 1 - c0; } // 김도훈 떼창에 빠진 진상: 입구를 덜 세게
   { const jm = HEROES.jungmin.brace; if (jm && g.heroes.some((o) => o.id === 'jungmin' && !o.gone)) { const c0 = e && e.cRush && !e.cCrashed ? jm.crash : jm.all; prevented(g, 'jungmin', dmg * c0); dmg *= 1 - c0; } } // 홍정민 보강: 입구 피해 −10% · 돌격 충돌 −50%
@@ -1955,7 +1960,7 @@ function updateEnemies(g, dt) {
           e.rumorT = def.rumor.every * (0.85 + g.rng() * 0.3);
           const fresh = g.heroes.filter((h) => h.rumorT <= 0);
           const list = fresh.length ? fresh : g.heroes;
-          throwAt(g, 'rumor', e, victim(g, list), def.rumor.fly);
+          throwOrGate(g, 'rumor', e, victim(g, list), def.rumor.fly);
           ev(g, 'rumor', { x: e.x, y: e.y - def.size * 0.6 });
         }
       }
@@ -2042,8 +2047,13 @@ function setForm(e, form, sc) {
 }
 
 // 적이 영웅에게 던지는 것 (뒷담화 말풍선 · 오리고기) — 날아가는 동안은 연출, 도착하면 효과
+// 멀리서 던지는 진상: 노린 멤버가 이미 상태이상이거나(30%면 언제나) 가끔은 입구로 던진다 → 입구 피해
+export const RANGED_GATE = { chance: 0.3, mul: 2 };
+const afflicted = (h) => h.stunT > 0 || h.rumorT > 0 || h.paperT > 0 || h.sarcT > 0 || h.charmT > 0;
+function throwOrGate(g, kind, e, h, dur, stun) { if (!h || afflicted(h) || g.rng() < RANGED_GATE.chance) throwAt(g, kind, e, null, dur, stun); else throwAt(g, kind, e, h, dur, stun); }
 function throwAt(g, kind, e, h, dur, stun) {
   const top = e.y - e.def.size * 0.5;
+  if (!h) { g.eprojs.push({ kind, sx: e.x, sy: top, tx: g.W / 2 + (g.rng() - 0.5) * 120, ty: g.ropeY + 8, x: e.x, y: top, t: 0, dur, hero: null, gate: true, src: e, srcUid: e.uid, stun: 0 }); return; }
   g.eprojs.push({ kind, sx: e.x, sy: top, tx: h.x, ty: h.y - 30, x: e.x, y: top, t: 0, dur, hero: h, src: e, srcUid: e.uid, stun: stun || 0 });
 }
 // ─── 4~6장 진상 기술 ───────────────────────────────────
@@ -2083,7 +2093,7 @@ function updateNewEnemy(g, e, dt) {
     if (e.sarcT <= 0) {
       e.sarcT = d.sarcasm.every * (0.85 + g.rng() * 0.3);
       const fresh = g.heroes.filter((h) => h.sarcT <= 0);
-      throwAt(g, 'sarcasm', e, victim(g, fresh.length ? fresh : g.heroes), d.sarcasm.fly);
+      throwOrGate(g, 'sarcasm', e, victim(g, fresh.length ? fresh : g.heroes), d.sarcasm.fly);
       ev(g, 'sarcasm', { x: e.x, y: e.y - d.size * 0.6 });
     }
   }
@@ -2183,6 +2193,7 @@ function updateEprojs(g, dt) {
     p.x = p.sx + (p.tx - p.sx) * k;
     p.y = p.sy + (p.ty - p.sy) * k - Math.sin(k * Math.PI) * 50;
     if (k < 1) { list[j++] = p; continue; }
+    if (p.gate) { const src = p.src && !p.src.dead && p.src.uid === p.srcUid ? p.src : null; damageBase(g, ((src && src.atk) || 3) * RANGED_GATE.mul, src); ev(g, 'gateThrow', { x: p.tx, y: p.ty, kind: p.kind }); continue; } // 입구로 던진 것: 쾅
     const h = p.hero;
     if (p.kind === 'paper') {
       h.paperT = Math.max(h.paperT, debuffSec(h, ENEMIES.boss_loan.paper.sec));
@@ -2397,7 +2408,7 @@ function ch7Tick(g, e, dt) {
     e.snowT = sb.every * (0.85 + g.rng() * 0.3);
     const fresh = g.heroes.filter((h) => h.stunT <= 0 && !h.gone), list = fresh.length ? fresh : g.heroes;
     const top = list.reduce((a, h) => (h.dmgDone > a.dmgDone ? h : a), list[0]); // "헤드샷~!" 제일 잘 치는 멤버부터 노린다 (도발 탱커가 있으면 그쪽)
-    throwAt(g, 'snowball', e, list.find((h) => h.def.taunt) || (g.rng() < sb.aim ? top : victim(g, list)), sb.fly, sb.sec);
+    throwOrGate(g, 'snowball', e, list.find((h) => h.def.taunt) || (g.rng() < sb.aim ? top : victim(g, list)), sb.fly, sb.sec);
     ev(g, 'c7snow', { x: e.x, y: e.y - d.size * 0.6 });
   }
   // 펜션 사장님: "여기 밤 10시 이후 소음 금지예요!" — 예고 1.3초 → 넓은 범위 멤버 침묵 (스킬 못 씀)
@@ -3039,6 +3050,8 @@ export function tapBag(g, x, y) {
 }
 export function startWave(g, n) {
   g.wave = n;
+  // 합류 보장: 2웨이브부터 웨이브마다 공짜 합류 카드 1장 (레벨업이 줄어 6명 덱인데 4~5명만 들어오던 문제)
+  if (g.joinMode && g.mode === 'stage' && n >= 2 && g.joinPool.length) { g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); }
   if (g.mode === 'endless' && n > 1 && (n - 1) % 5 === 0 && !g.pvp) offerCurse(g);
   if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 4].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism'); // 프리즘은 4웨이브 (5 → 4: 늦게 떠서 체감이 적었음)
   const def = waveDefFor(g, n);
@@ -3202,6 +3215,52 @@ export function applyMosaic(g, e, sk) {
   e.brkT = Math.max(e.brkT || 0, sk.sec); e.brkArmor = sk.brkArmor; e.brkDmg = sk.brkDmg;
   e.healBlockT = Math.max(e.healBlockT || 0, sk.sec);
 }
+// 문동한 초사이언 포격: 다음 자리 고르기 — 진상이 제일 몰린 곳 (방금 친 곳 근처는 피해서) · 가끔은 아무 진상 (제라스 궁처럼 여기저기)
+function ssjSpot(g, h, r) {
+  const hot = h.ssj.hot, live = g.enemies.filter((e) => !e.dead && e.y > 10 && e.y < g.ropeY + 20);
+  if (!live.length) return null;
+  const far = (e) => hot.every((p) => Math.hypot(e.x - p[0], e.y - p[1]) > r * 1.2);
+  let best = null, bn = 0;
+  for (const e of live) {
+    if (!far(e)) continue;
+    let n = 0;
+    for (const o of live) if (Math.hypot(o.x - e.x, o.y - e.y) <= r) n += o.boss ? 3 : 1;
+    if (n > bn) { bn = n; best = e; }
+  }
+  if (!best || (bn <= 1 && g.rng() < 0.5)) best = live[(g.rng() * live.length) | 0];
+  // 움직이는 진상: 떨어질 때쯤 있을 자리로 조금 앞을 본다
+  const lead = (best.stunT > 0 || best.y >= (best.stopY || 1e9) - 2 ? 0 : 0.6) * (best.speed || 0) * h.def.skill.delay;
+  return { x: clamp(best.x + (g.rng() - 0.5) * r * 0.3, 16, g.W - 16), y: Math.min(g.ropeY, best.y + lead) };
+}
+function ssjTick(g, h, dt) {
+  const sk = h.def.skill, q = h.ssj;
+  q.t += dt;
+  const r = sk.r[q.lv];
+  while (q.left > 0 && q.t >= q.next) {
+    q.next += sk.gap;
+    const p = ssjSpot(g, h, r);
+    if (!p) { q.idle = (q.idle || 0) + sk.gap; if (!g.enemies.some((e) => !e.dead) || q.idle > 2.5) q.left = 0; break; } // 칠 진상이 아직 없으면 잠깐 아껴 둔다 (2.5초 넘게 없으면 끝)
+    q.left--;
+    q.q.push({ x: p.x, y: p.y, t: sk.delay });
+    q.hot.push([p.x, p.y]); if (q.hot.length > 2) q.hot.shift();
+    h.lastShotT = g.t; h.ssjShot = (h.ssjShot || 0) + 1;
+    ev(g, 'ssjMark', { hero: h.id, x: p.x, y: p.y, r, t: sk.delay, hx: h.x, hy: h.y });
+  }
+  for (const b of q.q) {
+    b.t -= dt;
+    if (b.t > 0) continue;
+    let n = 0;
+    buildGrid(g);
+    forEnemiesNear(g, b.x, b.y, r, (e) => {
+      damageEnemy(g, e, q.base * sk.mul[q.lv] * (e.boss ? 0.8 : 1), false, h, true);
+      if (!e.dead) { n++; if (!e.boss) e.stunT = Math.max(e.stunT, sk.daze * stunMul(e)); }
+      return true;
+    });
+    ev(g, 'ssjBolt', { hero: h.id, x: b.x, y: b.y, r, n });
+  }
+  q.q = q.q.filter((b) => b.t > 0);
+  if (q.left <= 0 && !q.q.length) { h.ssj = null; h.ssjT = Math.min(h.ssjT, 0.35); ev(g, 'ssjEnd', { hero: h.id, x: h.x, y: h.y }); }
+}
 function mosaicTick(g, h, dt) {
   const sk = h.def.skill;
   for (const q of h.mzQ) {
@@ -3345,9 +3404,15 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       ev(g, 'harley', { x: h.x, y: h.y, a });
       break;
     }
-    case 'serious':
-      h.meter = 100; h.serious = 1.5;
+    case 'ssj': { // 문동한 초사이언 포격: 변신(wind) → gap 마다 진상이 몰린 곳에 포격 예고 → delay 뒤 쾅 (updateHeroes 의 ssjTick)
+      const add = echo ? 4 : 0; // 스킬 진화 · 신화 메아리: 변신은 그대로 · 포격만 4발 더
+      if (h.ssj) { h.ssj.left += add || sk.n[lv]; h.ssjT = Math.max(h.ssjT, (h.ssj.left + 1) * sk.gap + sk.delay + 0.5); break; }
+      if (echo) break;
+      h.ssj = { t: 0, left: sk.n[lv], next: sk.wind, base, lv, q: [], hot: [] };
+      h.ssjT = sk.wind + sk.n[lv] * sk.gap + sk.delay + 0.5; // 변신 모습 유지 시간
+      ev(g, 'ssjUp', { hero: h.id, x: h.x, y: h.y, wind: sk.wind, sec: h.ssjT });
       break;
+    }
     case 'rush': {
       const n = sk.n[lv] + (h.cm.rush || 0) + ((h.sig && h.sig.rushN) || 0);
       const list = [];
@@ -3649,7 +3714,7 @@ export function step(g, dt) {
   }
   if (g.phase === 'wave') {
     g.waveT += dt;
-    if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.stage | 0) <= (JOIN.freeUntil || 99)) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
+    if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.stage | 0) <= (JOIN.freeUntil || 99)) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
     const q = g.spawnQ;
     // 동시에 화면에 있는 진상은 최대 ENEMY_CAP (폰 성능) — 넘치면 조금 기다렸다 나온다
     let alive = 0;
@@ -3857,7 +3922,8 @@ export function rollCards(g, n = RULES.cardChoices, opt = {}) {
     const cap = g.joinPool.length <= g.joinTotal / 2 ? 1 : 2; // 후보를 절반 넘게 쓰면 한 번에 1장까지
     let nj = picks.filter(isJ).length;
     // 처음 3번의 레벨업은 합류 카드를 꼭 1장 이상
-    if (!nj && g.pickN < JOIN.guarantee && picks.length) { const j = pool.filter(isJ)[(rng() * pool.filter(isJ).length) | 0]; if (j) { pool.splice(pool.indexOf(j), 1); picks[picks.length - 1] = j; nj = 1; } }
+    if (!nj && (g.pickN < JOIN.guarantee || g.joinDue > 0) && picks.length) { const j = pool.filter(isJ)[(rng() * pool.filter(isJ).length) | 0]; if (j) { pool.splice(pool.indexOf(j), 1); picks[picks.length - 1] = j; nj = 1; } }
+    if (nj && g.joinDue > 0) g.joinDue--; // 공짜 합류 몫을 썼다
     while (nj > cap) { const k = picks.map(isJ).lastIndexOf(true); const alt = pool.filter((c) => !isJ(c)).sort((a, b) => b.w - a.w)[0]; if (!alt) break; pool.splice(pool.indexOf(alt), 1); picks[k] = alt; nj--; }
   }
   // 아직 합류 안 한 멤버의 전용 카드(무기 · 멤버 Lv · 전용 효과)는 빼고 빈자리는 일반 카드로
