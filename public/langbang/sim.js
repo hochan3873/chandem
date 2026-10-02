@@ -312,8 +312,6 @@ function updateHeroes(g, dt) {
     if (h.echoSk) { h.echoSk.t -= dt; if (h.echoSk.t <= 0) { const e0 = h.echoSk; h.echoSk = null; castSkill(g, h, e0.x, e0.y, true); } }
     // 전용 신화: 스킬 한 번 더 (같은 세기)
     if (h.sigEcho) { h.sigEcho.t -= dt; if (h.sigEcho.t <= 0) { const e0 = h.sigEcho; h.sigEcho = null; if (castSkill(g, h, e0.x, e0.y, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); } }
-    // 건전녀 전용 신화: 멤버 2명 이상(혼자면 1명)이 기절 · 홀림 · 침묵이면 응급 방패 자동 (웨이브마다 1번)
-    if (h.sig && h.sig.autoGuard && h.sigGuardW !== g.wave && !g.over && g.heroes.filter((o) => o.stunT > 0.3 || o.charmT > 0.3 || o.silenceT > 0.3 || o.freezeT > 0.3).length >= Math.min(h.sig.autoGuard, g.heroes.length)) { h.sigGuardW = g.wave; if (castSkill(g, h, undefined, undefined, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); }
     if (h.ssj) ssjTick(g, h, dt); // 문동한 초사이언 포격
     if (h.ssjT > 0) h.ssjT -= dt;
     if (h.mzQ && h.mzQ.length) mosaicTick(g, h, dt); // 여지원 모자이크 폭격: 손이 차례로 내려친다
@@ -321,7 +319,7 @@ function updateHeroes(g, dt) {
     if (h.echoT > 0) { h.echoT -= dt; if (h.echoT <= 0) crownWave(g, h, heroDamage(g, h) * 0.7, 0); }
     // 건전녀 간호: 주기마다 멤버 상태이상 전부 풀기 (풀린 멤버는 잠깐 면역) · 지친 멤버(기진맥진) 빨리 일으키기 — 입구 수리는 홍정민 몫
     if (d.care && g.phase !== 'test') {
-      h.healT -= dt * (h.cm.care || 1) * (1 + NICHE.gunnyeo.care * (h.meta || 0));
+      h.healT -= dt * (h.cm.care || 1) * (1 + NICHE.gunnyeo.care * (h.meta || 0)) * ((h.sig && h.sig.careMul) || 1); // 건전녀 전용 신화: 간호가 더 자주
       if (h.healT <= 0 && h.stunT <= 0 && h.charmT <= 0) {
         const C = d.care, k = h.lv - 1;
         h.healT = C.every[k];
@@ -330,7 +328,7 @@ function updateHeroes(g, dt) {
           if (cleanseHero(o, 0.3)) { o.ccImmT = Math.max(o.ccImmT || 0, C.guard[k]); o.cheerT = C.cheer.sec; n++; ev(g, 'cleanse', { x: o.x, y: o.y }); }
           if (o.tiredT > 0.3) { o.tiredT = Math.max(0, o.tiredT - C.tired[k]); o.cheerT = C.cheer.sec; n++; ev(g, 'care', { x: o.x, y: o.y, hero: o.id }); }
         }
-        if (!n && g.phase === 'wave') { const top = g.heroes.filter((o) => o !== h && !o.def.summon && !o.gone).sort((a, b) => b.dmgDone - a.dmgDone)[0]; if (top) { top.cheerT = C.cheer.sec; ev(g, 'care', { x: top.x, y: top.y, hero: top.id, cheer: true }); } } // 아픈 멤버가 없으면 제일 잘 싸우는 멤버에게 "힘내요!"
+        if (!n && g.phase === 'wave') { const tops = g.heroes.filter((o) => o !== h && !o.def.summon && !o.gone).sort((a, b) => b.dmgDone - a.dmgDone).slice(0, (h.sig && h.sig.cheerN) || 1); for (const top of tops) { top.cheerT = C.cheer.sec; ev(g, 'care', { x: top.x, y: top.y, hero: top.id, cheer: true }); } } // 아픈 멤버가 없으면 제일 잘 싸우는 멤버에게 "힘내요!" (전용 신화: 3명)
       }
     }
     if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
@@ -1154,7 +1152,7 @@ function segDist(px, py, ax, ay, bx, by) {
 function updateBoard(g, h, dt, rate) {
   const B = h.def.board, lv = h.lv - 1;
   if (!h.bd) { h.bd = { st: 'ride', uses: 0, cdT: 0.6, fixT: 0 }; h.px = h.x; h.py = h.y; }
-  const b = h.bd, maxUse = B.uses[lv];
+  const b = h.bd, maxUse = B.uses[lv] + ((h.sig && h.sig.boardUses) || 0); // 송바울 전용 신화: 정비 전에 더 탄다
   if (b.st === 'fix') { // 보드 정비: 자리에서 무릎 꿇고 고친다 (못 탄다)
     h.out = false; h.px = h.x; h.py = h.y;
     b.fixT -= dt;

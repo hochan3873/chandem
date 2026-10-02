@@ -787,7 +787,65 @@ function seeded(seed = 1) {
       console.log(pad(c + '장', 5) + pad(f(a.lv), 8) + pad(f(a.pick), 7) + pad(f(a.join), 6) + pad(f(a.hl), 8) + pad(f(a.l5), 6) + pad(f(a.l3), 6) + Math.round((a.w / a.n) * 100) + '%');
     }
   }
+  // ── 17) 멤버 순위 (node scripts/lb-balance.js rank [--ch=1,3,5,7] [--nos=3,6,10] [--seeds=6] [--hell] [--only=id,id] [--meta=6])
+  //  '기본 덱(칸−1명) + 한 명'으로 판을 돌려, 빈자리(zz)를 넣었을 때보다 클리어율이 얼마나 오르나 = 그 멤버의 몫
+  //  기본 덱은 두 벌(A · B) — 그 멤버가 든 덱은 빼고 잰다 · 몫 = 같은 기본 덱 평균보다 클리어율 +%p (빈자리 대비 = 빈자리보다) · 피해 몫 · 처치 몫 · 보스 스테이지(10번) 클리어
+  function rank() {
+    const N = opt('seeds', 6), plus = opt('meta', 6), hell = args.includes('--hell'), LEAD = args.includes('--lead');
+    const chs = listArg('ch', '1,3,5,7').map(Number), nos = listArg('nos', '3,6,10').map(Number);
+    const only = listArg('only', '');
+    for (const kv of listArg('hard', '')) { const [c, v] = kv.split(':').map(Number); D.STAGE.chapterAdd[c - 1] += v; } // --hard=1:4,3:3 : 재는 동안만 장 난이도를 올려 빈자리 덱이 반쯤 깨게 (차이가 잘 보이게)
+    const BASES = { A: ['gunman', 'hanna', 'eunok', 'staff', 'sunggu'], B: ['myunghoon', 'youngjun', 'jiwon', 'gunnyeo', 'ingyu'] };
+    const items7 = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
+    const ids0 = Object.keys(D.HEROES).filter((id) => id !== 'zz' && !D.HEROES[id].summon && (!only.length || only.includes(id)));
+    const sizeOf = (c) => (c >= 5 ? 6 : c >= 3 ? 5 : 4);
+    function runSet(ids, c, X) {
+      const m = Math.max(0, Math.min(D.META_MAX, REC[c - 1] + plus + (c >= 7 ? opt('m7', 2) : 0)));
+      const meta = Object.fromEntries(ids.map((id) => [id, m]));
+      const o = { w: 0, n: 0, sh: 0, kl: 0, bw: 0, bn: 0 };
+      for (const no of nos) {
+        const s = (c - 1) * 10 + no;
+        for (let i = 1; i <= N; i++) {
+          const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? items7 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell });
+          o.n++; if (r.win) o.w++;
+          if (no === 10) { o.bn++; if (r.win) o.bw++; }
+          if (X && r.heroes[X]) { o.sh += r.heroes[X].dmg / Math.max(1, r.dmg); o.kl += r.heroes[X].kills / Math.max(1, r.g.stats.kills); }
+        }
+      }
+      return o;
+    }
+    const rows = {};
+    console.log(`\n■ 멤버 순위${hell ? ' (헬)' : ''} — 기본 덱 + 한 명 · 합류 · 템포 · 스킬 자동 · 스테이지 ${nos.join(',')}번 × ${N}판`);
+    for (const c of chs) {
+      const k = sizeOf(c) - 1;
+      const base = { A: BASES.A.slice(0, k), B: BASES.B.slice(0, k) };
+      const zz = { A: runSet([...base.A, 'zz'], c), B: runSet([...base.B, 'zz'], c) };
+      console.log(`${c}장 빈자리 기준: A ${Math.round((zz.A.w / zz.A.n) * 100)}% · B ${Math.round((zz.B.w / zz.B.n) * 100)}%`);
+      for (const X of ids0) {
+        const a = { v: 0, w: 0, n: 0, sh: 0, kl: 0, bw: 0, bn: 0, k: 0, p: {} };
+        for (const b of ['A', 'B']) {
+          if (base[b].includes(X)) continue;
+          const r = runSet(LEAD ? [X, ...base[b]] : [...base[b], X], c, X); // --lead: 그 멤버가 대장(1번 · 처음부터 · 주력)
+          a.v += r.w / r.n - zz[b].w / zz[b].n; a.k++; a.p[b] = r.w / r.n;
+          a.w += r.w; a.n += r.n; a.sh += r.sh; a.kl += r.kl; a.bw += r.bw; a.bn += r.bn;
+        }
+        const R = rows[X] || (rows[X] = {});
+        R[c] = { z: a.v / a.k, w: a.w / a.n, sh: a.sh / a.n, kl: a.kl / a.n, b: a.bn ? a.bw / a.bn : 0, p: a.p };
+      }
+      // 몫 = 같은 기본 덱에서 잰 모든 멤버 평균보다 클리어율이 얼마나 높나 (기본 덱 A · B 세기 차이를 지운다)
+      const mean = {};
+      for (const b of ['A', 'B']) { const v = ids0.map((X) => rows[X][c].p[b]).filter((x) => x !== undefined); mean[b] = v.reduce((x, y) => x + y, 0) / Math.max(1, v.length); }
+      for (const X of ids0) { const R = rows[X][c], bs = Object.keys(R.p); R.v = bs.reduce((x, b) => x + R.p[b] - mean[b], 0) / bs.length; }
+    }
+    console.log('\n' + pad('멤버', 10) + pad('등급', 8) + chs.map((c) => pad(`${c}장 몫/빈자리 대비/클/피해/처치/보스`, 32)).join('') + '평균 몫');
+    const list = Object.entries(rows).map(([id, R]) => [id, R, chs.reduce((x, c) => x + R[c].v, 0) / chs.length]).sort((x, y) => y[2] - x[2]);
+    const P = (v) => Math.round(v * 100);
+    for (const [id, R, av] of list) console.log(pad(NAME[id] || id, 10) + pad(D.TIER_NAME[D.HERO_TIER[id]], 8) + chs.map((c) => pad(`${P(R[c].v) >= 0 ? '+' : ''}${P(R[c].v)} / ${P(R[c].z) >= 0 ? '+' : ''}${P(R[c].z)} / ${P(R[c].w)} / ${P(R[c].sh)} / ${P(R[c].kl)} / ${P(R[c].b)}`, 32)).join('') + `${P(av) >= 0 ? '+' : ''}${P(av)}`);
+    const jp = (process.argv.find((x) => x.startsWith('--json=')) || '').slice(7);
+    if (jp) require('fs').writeFileSync(jp, JSON.stringify(rows));
+  }
   const t0 = Date.now();
+  if (what === 'rank') rank();
   if (what === 'growth') growth();
   if (what === 'diag') diag();
   if (what === 'condcalib') condcalib();
