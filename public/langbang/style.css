@@ -4102,3 +4102,36 @@ body.rm .lb-quick .qb.qb-ins { animation: none; }
 .ed-s.picked > * { outline: calc(var(--u) * 3) solid #ffd23f; outline-offset: calc(var(--u) * 2); border-radius: calc(var(--u) * 10); animation: edPick 0.9s ease-in-out infinite alternate; }
 @keyframes edPick { to { outline-color: #fff3a0; transform: translateY(calc(var(--u) * -3)); } }
 body.rm .ed-s.picked > * { animation: none; }
+
+/* 도감 수집 보너스: 도감 위 띠 (지금 효과 · 다음 단계까지) · 눌러서 단계 표 */
+.coll-bar { display: flex; flex-direction: column; gap: calc(var(--u) * 5); width: 100%; box-sizing: border-box; margin: 0 0 calc(var(--u) * 8); padding: calc(var(--u) * 8) calc(var(--u) * 11); text-align: left; cursor: pointer;
+  border-radius: calc(var(--u) * 12); border: 1.5px solid rgba(255, 210, 63, 0.6); background: linear-gradient(135deg, rgba(255, 210, 63, 0.18), rgba(199, 125, 255, 0.14)); color: #fff; font: inherit; box-shadow: 0 0 calc(var(--u) * 10) rgba(255, 210, 63, 0.15); }
+.coll-bar:active { transform: scale(0.985); }
+.coll-bar .cb-top { display: flex; align-items: center; gap: calc(var(--u) * 6); }
+.coll-bar .cb-top b { display: flex; align-items: center; gap: calc(var(--u) * 4); font-size: calc(var(--u) * 13.5); color: #ffd23f; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); white-space: nowrap; }
+.coll-bar .cb-top b .ic, .coll-bar .cb-top b .uic { width: calc(var(--u) * 16); height: calc(var(--u) * 16); }
+.coll-bar .cb-top small { font-size: calc(var(--u) * 11); color: #e9dcff; font-weight: 700; white-space: nowrap; }
+.coll-bar .cb-top em { margin-left: auto; font-style: normal; font-size: calc(var(--u) * 10.5); font-weight: 800; color: #ffd23f; white-space: nowrap; }
+.coll-bar .cb-prog { height: calc(var(--u) * 7); border-radius: 99px; background: rgba(0, 0, 0, 0.45); overflow: hidden; }
+.coll-bar .cb-prog i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #ffb13f, #ffd23f); box-shadow: 0 0 calc(var(--u) * 6) rgba(255, 210, 63, 0.7); }
+.coll-bar .cb-next { font-size: calc(var(--u) * 11); color: #fff3c4; font-weight: 700; line-height: 1.35; word-break: keep-all; }
+.coll-bar .cb-next b { color: #7dffb0; }
+.coll-bar .cb-now { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4); }
+.coll-bar .cb-fx { font-style: normal; font-size: calc(var(--u) * 10.5); font-weight: 800; padding: calc(var(--u) * 2) calc(var(--u) * 7); border-radius: 99px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.18); color: #fff; }
+.coll-bar .cb-fx.f-atk { color: #ff9d8a; border-color: rgba(255, 120, 100, 0.5); } .coll-bar .cb-fx.f-hp { color: #8fd8ff; border-color: rgba(100, 190, 255, 0.5); }
+.coll-bar .cb-fx.f-exp { color: #b6ff8f; border-color: rgba(140, 240, 110, 0.5); } .coll-bar .cb-fx.f-coin { color: #ffd23f; border-color: rgba(255, 210, 63, 0.5); }
+.coll-bar .cb-fx.none { color: #cbbbe8; font-weight: 700; }
+.coll-pop .pop-box { max-width: calc(var(--u) * 340); padding: calc(var(--u) * 16); }
+.coll-pop h3 { margin: 0 0 calc(var(--u) * 6); color: #ffd23f; }
+.coll-pop .cp-sec { margin: calc(var(--u) * 10) 0 0; padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 10); background: rgba(0, 0, 0, 0.28); }
+.coll-pop .cp-sec h4 { display: flex; align-items: baseline; gap: calc(var(--u) * 6); margin: 0 0 calc(var(--u) * 4); font-size: calc(var(--u) * 13); }
+.coll-pop .cp-sec h4 small { color: var(--dim); font-size: calc(var(--u) * 11); }
+.coll-pop .cp-row { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 8); margin: 0; padding: calc(var(--u) * 3) 0; font-size: calc(var(--u) * 11.5); color: #a99cc4; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.coll-pop .cp-row:first-of-type { border-top: 0; }
+.coll-pop .cp-row span { display: flex; align-items: center; gap: calc(var(--u) * 5); white-space: nowrap; }
+.coll-pop .cp-row b { text-align: right; font-size: calc(var(--u) * 11); word-break: keep-all; }
+.coll-pop .cp-row.on { color: #fff; } .coll-pop .cp-row.on b { color: #7dffb0; }
+.coll-pop .cp-dot { display: inline-grid; place-items: center; width: calc(var(--u) * 16); height: calc(var(--u) * 16); border-radius: 50%; font-style: normal; font-size: calc(var(--u) * 9.5); background: rgba(255, 255, 255, 0.1); }
+.coll-pop .cp-row .ic, .coll-pop .cp-row .uic { width: calc(var(--u) * 16); height: calc(var(--u) * 16); }
+.coll-pop .cp-tot { background: linear-gradient(135deg, rgba(255, 210, 63, 0.16), rgba(199, 125, 255, 0.12)); border: 1px solid rgba(255, 210, 63, 0.4); }
+.coll-pop .cp-row.tot { color: #fff; } .coll-pop .cp-row.tot b { color: #ffd23f; font-size: calc(var(--u) * 12.5); }

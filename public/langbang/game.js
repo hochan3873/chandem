@@ -392,6 +392,7 @@ async function startRun(opt = {}) {
     guestPool: [...UNLOCK_HEROES, ...HIDDEN_HEROES].filter((id) => !API.heroUnlocked(p, id)),
     god: DEBUG.god || DEBUG.stress > 0, join: DEBUG.join, tempo: DEBUG.tempo, leader: deckLeader(), mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
     awake: TWUI ? TWUI.awake(p) : {}, ...(tw ? TWUI.gameOpt(tw, p) : {}), // 지옥 각성 (모든 모드) · 탑 한 명
+    coll: p.coll || null, // 도감 수집 보너스 (서버가 계산 · 1:1 대전은 sim 이 뺀다)
   });
   if (DEBUG.wave > 1) {
     // 디버그: 중간 웨이브부터 시작하면 그만큼 강하게
@@ -2082,6 +2083,7 @@ const ACTS = {
   sigExDo: (b) => doSigExchange(b.dataset.id),
   itemCard: (b) => showItemCard(b.dataset.id),
   dropTable: () => showDropTable(),
+  collPop: () => showCollPop(),
   dexCard: (b) => showDexCard(b.dataset.kind, b.dataset.id),
   skill: (b) => useSkillBtn(Number(b.dataset.slot)),
   aimCancel: () => cancelAim(),
@@ -5482,6 +5484,7 @@ async function saveResult(sum, g) {
     if (rw.perfect) lines.push(`<div class="rw hl perf"><span>${ic('gem', '', 'sm')}PERFECT${rw.firstPerfect ? ' (첫 퍼펙트!)' : ''}</span><b>+${fmt(rw.perfect)}</b></div>`);
     if (rw.mid) lines.push(`<div class="rw"><span>${ic('bolt', '', 'sm')}중간 보스 처치</span><b>+${fmt(rw.mid)}</b></div>`);
     if (rw.sanghwa) lines.push(`<div class="rw"><span>능력남 박상화 보너스</span><b>+${fmt(rw.sanghwa)}</b></div>`);
+    if (rw.coll) lines.push(`<div class="rw"><span>도감 수집 보너스</span><b>+${fmt(rw.coll)}</b></div>`);
     if (rw.hell) lines.push(`<div class="rw hl hellrw"><span>${ic('fire', '', 'sm')}헬 모드 보상 ×${HELL.coin}</span><b>포함</b></div>`);
     if (rw.bonus) lines.push(`<div class="rw"><span>${ic('ticket', '', 'sm')}단골 쿠폰</span><b>+${fmt(rw.bonus)}</b></div>`);
   }
@@ -5741,6 +5744,7 @@ function showItemDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${nGear}</button></div>
+    ${collBar('item')}
     ${chips}
     <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${cat === 'sig' ? `멤버마다 하나뿐인 전용 신화 · 모은 것 ${sigN}/${SIG_IDS.length} · 모집 ${SIG_RATE.hero}% · 장비 뽑기 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환` : `한 번이라도 얻은 장비가 기록돼요 · 테두리는 얻어 본 가장 높은 등급${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'}`} <button class="chip mini" data-act="dropTable">드롭 표</button></span></p>
     ${cat === 'cons' ? '' : groups(all, gradeOf, (gr, l) => (gr === 'unk' ? '얻으면 등급이 보여요' : gr === 'sig' || gr === 'myth' ? nOk(l, (t) => have.has(t)) : ''), cell)}
@@ -5794,6 +5798,30 @@ function dexCatChips(kind) {
   return `<div class="dex-cats">${chip('dexKind', 'all', k0, '전체', all.length)}${Object.entries(ENEMY_KINDS).map(([k, nm]) => chip('dexKind', k, k0, nm, all.filter((id) => enemyKind(ENEMIES[id]) === k).length)).join('')}</div>
     <div class="dex-cats ch">${chip('dexCh', 0, ch0, '모든 장', all.filter((id) => k0 === 'all' || enemyKind(ENEMIES[id]) === k0).length)}${CHAPTERS.map((_, i) => chip('dexCh', i + 1, ch0, `${i + 1}장`, byCh(i + 1))).join('')}</div>`;
 }
+// ─── 도감 수집 보너스: 도감 위 띠 (지금 효과 · 이 탭 다음 단계까지) + 눌러서 단계 표 ───
+const collPct = (v) => `+${Math.round(v * 100)}%`;
+const collFxText = (fx, lv = 1) => Object.keys(fx).map((f) => `${L.COLL_FX[f]} ${collPct(fx[f] * lv)}`).join(' · ');
+function collBar(tab) {
+  const cb = P().coll || L.collectBonus(P()), c = L.COLLECT.find((x) => x.k === tab) || L.COLLECT[0], t = cb.tabs[c.k];
+  const need = c.steps.map((s) => (s === 'all' ? t.total : Math.min(s, t.total))), lo = t.lv ? need[t.lv - 1] : 0;
+  const w = t.next ? Math.round(((t.n - lo) / Math.max(1, t.next - lo)) * 100) : 100;
+  const now = ['atk', 'hp', 'exp', 'coin'].filter((f) => cb[f] > 0).map((f) => `<i class="cb-fx f-${f}">${{ atk: '공격력', hp: '입구', exp: '경험치', coin: '코인' }[f]} ${collPct(cb[f])}</i>`).join('');
+  return `<button class="coll-bar" data-act="collPop"><span class="cb-top"><b>${ic('star_gold', '', 'sm')}수집 보너스</b><small>${esc(c.name)} ${t.n}/${t.total} · ${t.lv}/${t.max}단계</small><em>단계 표 ›</em></span>
+    <span class="cb-prog"><i style="width:${w}%"></i></span>
+    <span class="cb-next">${t.next ? `${t.next}${c.unit} 모으면 <b>${esc(collFxText(c.fx))}</b> (${t.next - t.n}${c.unit} 남음)` : `<b>${esc(c.name)} 전부 모았어요!</b>`}</span>
+    <span class="cb-now">${now || '<i class="cb-fx none">아직 효과 없음 — 모을수록 세져요</i>'}</span></button>`;
+}
+function showCollPop() {
+  const cb = P().coll || L.collectBonus(P());
+  const sec = (c) => {
+    const t = cb.tabs[c.k], need = c.steps.map((s) => (s === 'all' ? t.total : Math.min(s, t.total)));
+    return `<div class="cp-sec"><h4>${esc(c.name)} <small>${t.n}/${t.total}${c.unit}</small></h4>${need.map((n, i) => `<p class="cp-row ${t.n >= n ? 'on' : ''}"><span>${t.n >= n ? ic('check', '', 'sm') : `<i class="cp-dot">${i + 1}</i>`}${c.steps[i] === 'all' ? `전부 (${n}${c.unit})` : `${n}${c.unit}`}</span><b>${esc(collFxText(c.fx))}</b></p>`).join('')}</div>`;
+  };
+  const tot = ['atk', 'hp', 'exp', 'coin'].map((f) => `<p class="cp-row tot"><span>${L.COLL_FX[f]}</span><b>${collPct(cb[f])}</b></p>`).join('');
+  popup(`<h3>수집 보너스</h3><p class="ip">도감을 채울수록 계정 전체가 조금씩 세져요. 안 쓰는 멤버 · 장비도 모으기만 하면 보탬이 돼요</p>
+    <div class="cp-sec cp-tot"><h4>지금 받는 효과</h4>${tot}</div>${L.COLLECT.map(sec).join('')}
+    <p class="ip dimtxt">스테이지 · 헬 · 무한 · 주간 도전 · 레이드 · 진상의 탑에 적용 · 1:1 대전은 공정하게 빠져요 · 코인은 스테이지 보상에만</p>`, 'coll-pop');
+}
 function showDex() {
   app.screen = 'dex';
   hud.hidden = true;
@@ -5820,6 +5848,7 @@ function showDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
+    ${collBar(kind)}
     ${dexCatChips(kind)}
     <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${tab === 'hero' ? (app.dexRole && app.dexRole !== 'all' && HERO_ROLES[app.dexRole] ? esc(HERO_ROLES[app.dexRole].desc) : '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버') : '만나 본 진상만 기록돼요 · 정예 = 방어가 있거나 체력이 높은 진상 · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</span></p>
     ${cards || '<p class="sub">이 분류엔 아직 없어요</p>'}

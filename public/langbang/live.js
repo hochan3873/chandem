@@ -159,6 +159,42 @@ export function starUp(lb, id) {
   return { star: s + 1 };
 }
 
+// ─── 도감 수집 보너스: 많이 모을수록 계정 전체가 조금씩 세진다 ───
+// 안 쓰는 멤버 · 장비도 모으기만 하면 보탬. 전부 모아도 공격력 +5% · 입구 +6% · 경험치 +6% · 스테이지 코인 +12% (스테이지 밸런스 안 깨지게 작게)
+// 서버가 저장된 기록으로 계산해 프로필(coll)에 넣어 준다 (화면이 보낸 값은 안 믿음) · 1:1 대전은 빼요
+//  n: 모은 수 ('all' = 전부) · fx: 단계마다 더하는 효과
+export const COLLECT = [
+  { k: 'hero', name: '모임 멤버', unit: '명', steps: [5, 10, 15, 20, 'all'], fx: { atk: 0.01 } },
+  { k: 'enemy', name: '진상', unit: '종', steps: [15, 30, 45, 60, 75, 'all'], fx: { hp: 0.01 } },
+  { k: 'item', name: '아이템', unit: '종', steps: [5, 10, 15, 20, 25, 'all'], fx: { exp: 0.01, coin: 0.02 } },
+];
+export const COLL_FX = { atk: '멤버 전원 공격력', hp: '입구 내구도', exp: '전투 경험치', coin: '스테이지 코인' };
+const DEX_ENEMY_IDS = () => Object.keys(ENEMIES).filter((id) => !ENEMIES[id].dot && !ENEMIES[id].towerOnly); // 도감과 같은 목록 (탑 전용 보스 · 장판 빼고)
+// 탭마다 [모은 수, 전체]
+export function collectCounts(lb) {
+  const seen = new Set(Array.isArray(lb.seen) ? lb.seen : []);
+  const gd = new Set([...(Array.isArray(lb.gearDex) ? lb.gearDex : []), ...(Array.isArray(lb.gear) ? lb.gear.map((g) => g && g.t) : [])]);
+  const items = [...GEAR_IDS, ...MYTH_IDS], foes = DEX_ENEMY_IDS();
+  return { hero: [Object.keys(HEROES).filter((h) => heroUnlocked(lb, h)).length, Object.keys(HEROES).length], enemy: [foes.filter((e) => seen.has(e)).length, foes.length], item: [items.filter((t) => gd.has(t)).length, items.length] };
+}
+// → { atk, hp, exp, coin, tabs: { hero: { n, total, lv, max, next } … } }
+export function collectBonus(lb) {
+  const cnt = collectCounts(lb || {}), out = { atk: 0, hp: 0, exp: 0, coin: 0, tabs: {} };
+  for (const c of COLLECT) {
+    const [n, total] = cnt[c.k], need = c.steps.map((s) => (s === 'all' ? total : Math.min(s, total)));
+    const lv = need.filter((s) => n >= s).length;
+    for (const f in c.fx) out[f] = Math.round((out[f] + c.fx[f] * lv) * 1000) / 1000;
+    out.tabs[c.k] = { n, total, lv, max: need.length, next: lv < need.length ? need[lv] : 0 };
+  }
+  return out;
+}
+// 전투에 넘기는 값만 (상한을 다시 걸어서 이상한 값이 와도 안전하게)
+export function collectMods(c) {
+  if (!c) return null;
+  const cap = (v, hi) => Math.max(0, Math.min(hi, Number(v) || 0));
+  return { atk: cap(c.atk, 0.05), hp: cap(c.hp, 0.06), exp: cap(c.exp, 0.06) };
+}
+
 // ─── 치장: 칭호 · 프레임 ───────────────────────────────
 // 치장은 능력치가 없다 (대전 공정하게) — 다른 사람에게 보이는 멋 · 모으는 재미
 //  rarity: common(그냥) · rare(빛나는 테두리) · epic(반짝이는 흐름) · legend(금빛 + 반짝이)
@@ -783,7 +819,7 @@ export function raidDef(wi) {
 export function raidCap(lb, dur) {
   const meta = Object.values(lb.heroes || {}).reduce((a, b) => a + (b | 0), 0);
   const perSec = (600 + 260 * (lb.maxStage | 0)) * (1 + meta / 80) * (1 + Object.values(lb.hstars || {}).reduce((a, b) => a + Math.max(0, b - 1), 0) * 0.05);
-  return Math.round(Math.min(RAID.sec + 15, int(dur, 0, 1e6)) * perSec);
+  return Math.round(Math.min(RAID.sec + 15, int(dur, 0, 1e6)) * perSec * (1 + collectBonus(lb).atk)); // 도감 수집 공격력만큼 더
 }
 export function raidTriesLeft(lb, now = Date.now()) {
   const r = lb.raid;

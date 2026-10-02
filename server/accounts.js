@@ -463,6 +463,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       view.owned = Object.fromEntries(LBR.LB_HEROES.map((h) => [h, true])); // 마스터: 20명 전부
       view.endlessUnlocked = true;
     }
+    if (LIVE) view.coll = LIVE.collectBonus(view); // 도감 수집 보너스: 저장된 기록(멤버 · 만난 진상 · 장비 도감)으로 서버가 계산 → 화면은 이 값을 전투에 넘긴다
     delete view.lastResultAt;
     delete view.weeklyRun;
     delete view.raidRun;
@@ -588,6 +589,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (mode === 'stage' && Array.isArray(body.heroesUsed) && body.heroesUsed.includes('sanghwa') && LBR.heroUnlocked(before, 'sanghwa')) { const x = Math.round(reward.total * 0.12); reward.total += x; reward.sanghwa = x; }
         // 신화 1등 복권: 데려간 멤버가 끼고 있으면 코인 +20%
         if (Array.isArray(body.heroesUsed) && body.heroesUsed.some((h) => { const gid = ((before.equip || {})[h] || {}).m; const it = gid && (before.gear || []).find((g) => g.id === gid); return it && it.t === 'myth_lotto'; })) { const x = Math.round(reward.total * LBR.MYTH.myth_lotto.stats.coin); reward.total += x; reward.lotto = x; }
+        // 도감 수집 보너스: 스테이지 코인 +% (저장된 기록으로 다시 계산)
+        if (mode === 'stage') { const cb = LIVE.collectBonus(before); const x = Math.round(reward.total * cb.coin); if (x > 0) { reward.total += x; reward.coll = x; } }
         let weeklyBest = false;
         // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
         const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];
