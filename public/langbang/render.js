@@ -305,6 +305,8 @@ export class Renderer {
     list.ws_back = '/img/lb/h_wonsik_back.webp'; list.ws_consult = '/img/lb/h_wonsik_consult.webp'; list.ws_walkb = '/img/lb/h_wonsik_walkback.webp'; list.ws_walkf = '/img/lb/h_wonsik_walkfront.webp'; // 정원식 결정사 상담
     list.vfx_soundring = '/img/lb/fx/vfx_soundring.webp'; list.vfx_banner = '/img/lb/fx/vfx_banner.webp'; // 방장 음파 · 집합 깃발
     list.dh_tf = '/img/lb/h_donghan_transform.webp'; // 문동한 진심 모드 변신 (12칸 · 한 번)
+    list.h_donghan_ssj = '/img/lb/h_donghan_ssj.webp'; list.dh_ssj_tf = '/img/lb/h_donghan_ssj_tf.webp'; list.dh_ssj_cast = '/img/lb/h_donghan_ssj_attack.webp'; // 문동한 초사이언: 금빛 모습 · 변신 8칸 · 포격 8칸
+    list.dohoon_idle = '/img/lb/h_dohoon_idle.webp'; list.dohoon_encore = '/img/lb/h_dohoon_encore.webp'; // 김도훈: 리듬 타기 8칸(평소) · 앵콜 8칸
     list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
     list.hanim_youngjun_rest = '/img/lb/h_youngjun_rest.webp'; // 김영준 숨 고르기 (크로스핏 8칸 · 있으면)
     list.js_back = '/img/lb/h_jeongseob_back.webp'; list.js_walk = '/img/lb/h_jeongseob_walkfront.webp'; list.js_walkb = '/img/lb/h_jeongseob_walkback.webp'; list.js_rest = '/img/lb/h_jeongseob_rest.webp'; // 윤정섭 걷기 · 쉬기
@@ -422,6 +424,7 @@ export class Renderer {
       if (HEROES[id].imgRage || HEROES[id].imgOn) this.bakeSprite('h_' + id + '_rage');
       if (HEROES[id].imgAlt) this.bakeSprite('h_' + id + '_alt');
     }
+    this.bakeSprite('h_donghan_ssj'); // 문동한 초사이언 모습
     for (const id in ENEMIES) this.bakeSprite('e_' + id);
     for (const key in this.formDefs) this.bakeSprite(key);
     this.bakeProj();
@@ -432,7 +435,7 @@ export class Renderer {
   bakeSprite(key) {
     const isHero = key[0] === 'h';
     const rage = key.endsWith('_rage');
-    const id = key.slice(2).replace('_rage', '').replace(/_alt$/, '');
+    const id = key.slice(2).replace('_rage', '').replace(/_(alt|ssj)$/, '');
     const def = isHero ? HEROES[id] : ENEMIES[id] || (this.formDefs && this.formDefs[key]);
     if (!def) return;
     if (def.dot) { this.bakeDot(key, def); return; }
@@ -2132,6 +2135,16 @@ export class Renderer {
       const formOn = !!HERO_ANIM_FORM[h.id] && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!alt);
       const HA = formOn ? HERO_ANIM_FORM[h.id] : HERO_ANIM[h.id], hstrip = HA && this.images[formOn ? 'hanim_' + h.id + '_f' : 'hanim_' + h.id];
       let usedStrip = false;
+      if (h.id === 'donghan' && h.ssjT > 0 && this.sprites.h_donghan_ssj) { // 문동한 초사이언 포격: 변신 띠 → 한 발마다 포격 띠 (두 손 모아 기 모으기 → 가리키는 칸에 발사) · 사이엔 금빛 모습
+        const sk = h.def.skill, q = h.ssj, ssp = this.sprites.h_donghan_ssj, tfI = this.images.dh_ssj_tf, ca = this.images.dh_ssj_cast;
+        let im = null, key = '', fi = 0;
+        if (q && q.t < sk.wind && imgOk(tfI)) { im = tfI; key = 'dh_ssj_tf'; fi = Math.min(7, Math.floor((q.t / sk.wind) * 8)); }
+        else if (q && !busy && imgOk(ca) && (q.left > 0 || since < 0.3)) { const p = Math.max(0, since) / sk.gap; im = ca; key = 'dh_ssj_cast'; fi = q.left > 0 ? Math.floor(((p + 5 / 8) % 1) * 8) : Math.min(7, 5 + Math.floor((since / 0.3) * 3)); }
+        const shake = q && q.t >= sk.wind * 0.35 && q.t < sk.wind ? Math.sin(t * 70) * 1.6 : 0; // 기합 넣는 동안 부들부들
+        if (im) { const fit = this.stripFit(key, im, 8, ssp.c), fw = im.naturalWidth / 8; this.tf(hx + shake, feet, 0, 1, 1); cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k); }
+        else { this.tf(hx + shake, feet + Math.sin(t * 6) * 1.2, 0, 1, 1 + Math.sin(t * 9) * 0.012); cx.drawImage(ssp.c, -box / 2, -box * FEET, box, box); }
+        usedStrip = true;
+      }
       if (h.id === 'youngjun' && h.out) { // 김영준: 진상에 붙으면 달리는 모습 대신 싸우는 자세(발톱 베기 띠) · 진상 쪽을 본다 · 한 대마다 앞으로 톡
         const tg = h.dashE, im = this.images.hanim_youngjun;
         if (h.shots !== h._ysShots) { if (h._ysShots !== undefined && tg && !tg.dead) { h._ysAt = performance.now(); if (this.skfx) this.skfx.ysStrike(h, tg); } h._ysShots = h.shots; }
@@ -2147,7 +2160,7 @@ export class Renderer {
           usedStrip = true;
         }
       }
-      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
+      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length) && !(h.id === 'dohoon' && h._encAt && performance.now() - h._encAt < 1700)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
         const n = HA.frames, fw = hstrip.naturalWidth / n, fh = hstrip.naturalHeight, rel = HA.release;
         let fi = -1;
         if (since < 0.3) fi = Math.min(n - 1, rel + Math.floor((since / 0.3) * (n - rel)));
@@ -2160,6 +2173,13 @@ export class Renderer {
           cx.drawImage(hstrip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, bw, bw);
           usedStrip = true;
         }
+      }
+      if (h.id === 'dohoon' && !usedStrip && !busy) { // 김도훈: 앵콜 띠 (점프 → 마이크를 관객에게 → 주먹 번쩍) · 평소엔 리듬 타기 띠 (연출 줄이기면 가만히)
+        const enc = this.images.dohoon_encore, idl = this.images.dohoon_idle, ek = h._encAt ? (performance.now() - h._encAt) / 1700 : 9;
+        let im = null, key = '', fi = 0, lift = 0;
+        if (ek < 1 && imgOk(enc)) { im = enc; key = 'dohoon_encore'; fi = Math.min(7, Math.floor(ek * 8)); lift = fi === 2 ? -10 : fi === 1 ? -4 : 0; }
+        else if (imgOk(idl) && !(typeof document !== 'undefined' && document.body.classList.contains('rm'))) { im = idl; key = 'dohoon_idle'; fi = Math.floor(t * 6 + h.slot * 3) % 8; }
+        if (im) { const fit = this.stripFit(key, im, 8, sp.c, key === 'dohoon_encore' ? 0 : 1), fw = im.naturalWidth / 8; this.tf(hx, feet + lift + (h.tiredT > 0 ? 3 : 0), 0, 1, 1); cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k); usedStrip = true; }
       }
       if (h.id === 'wonsik' && h.wsSt && !usedStrip) { // 정원식: 걸어 나감(뒷모습) → 앉아 상담(분홍 하트 고리 · 체력 막대) → 돌아옴(앞모습)
         const px = h.px !== undefined ? h.px : hx, py = (h.py !== undefined ? h.py : h.y) + box * FEET_OFF;

@@ -47,6 +47,18 @@ export class SkillFx {
       if (!h) return;
       o.h = h; o.imp = false; o.impT = 0;
       for (const q of this.list) if (q.kind === 'serious') q.done = true;
+    } else if (kind === 'ssj') { // 문동한 초사이언 변신 (포격이 끝날 때까지 금빛 오라)
+      const h = this.heroOf(g, 'donghan');
+      if (!h) return;
+      for (const q of this.list) if (q.kind === 'ssj' || q.kind === 'serious') q.done = true;
+      o.h = h; o.wind = e.wind || 0.9; o.yell = false; o.rm = this.rmOn();
+    } else if (kind === 'ssjMark') { // 포격 예고 동그라미 → 하늘에서 금빛 번개 기둥 쾅 (게임 시간 기준)
+      if (this.list.filter((q) => q.kind === 'ssjMark').length > 14) return;
+      o.x = e.x; o.y = e.y; o.r = e.r || 56; o.delay = e.t || 0.55; o.rm = this.rmOn();
+    } else if (kind === 'encore') { // 김도훈 앵콜: 무대 조명 세 줄기가 훑고 · 멈춘 진상 머리 위로 떼창 음표
+      for (const q of this.list) if (q.kind === 'encore') q.done = true;
+      const h = this.heroOf(g, 'dohoon');
+      o.h = h; o.x = h ? h.x : e.x; o.y = h ? h.y : e.y; o.r = e.r || 290; o.rm = this.rmOn();
     } else if (kind === 'timestop') {
       const h = this.heroOf(g, 'jieun');
       const dur = h && h.altT > 0 ? h.altT : 4;
@@ -110,6 +122,7 @@ export class SkillFx {
     this.list.push(o);
   }
   // 고화질 전신 그림 (컷인용 · 처음 쓸 때 한 번 받아 둔다 · 없으면 작은 그림)
+  rmOn() { return typeof document !== 'undefined' && !!document.body && document.body.classList.contains('rm'); } // 연출 줄이기
   hqArt(id) {
     const m = this._hq || (this._hq = {});
     if (!m[id] && typeof Image !== 'undefined') { const im = new Image(); im.src = `/img/lb/dexhq/${id}.webp`; m[id] = im; }
@@ -450,6 +463,133 @@ export class SkillFx {
       const k = it / 0.35;
       cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - k; cx.strokeStyle = '#fff1b0'; cx.lineWidth = 6 * (1 - k) + 1;
       cx.beginPath(); cx.arc(hx, hy - 24, 20 + eOut(k) * 80, 0, TAU); cx.stroke(); cx.restore();
+    }
+  }
+
+  // ── 문동한: 초사이언 포격 ──────────────────────
+  //  변신(wind): 화면 어둡게 · 금빛 기운이 빨려 들어감 → 기합 순간 "하아아앗!!" 번쩍 · 집중선 · 충격파 → 포격 동안 금빛 불꽃 오라 + 머리 주변 파지직
+  //  (연출 줄이기: 번쩍 · 흔들림 · 집중선 · 번개 없이 · 오라는 잔잔하게)
+  flames(hx, by, big, A, T, n) { // 위로 타오르는 금빛 불꽃 혀 (몸 뒤)
+    const cx = this.R.cx;
+    cx.save(); cx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n; i++) {
+      const u = (i / (n - 1)) * 2 - 1, ph = T * (6 + (i % 3)) + i * 1.7;
+      const bx = hx + u * 28 * big, tall = (60 + (1 - Math.abs(u)) * 54 + Math.sin(ph) * 14) * big;
+      const gr = cx.createLinearGradient(bx, by, bx, by - tall);
+      gr.addColorStop(0, 'rgba(255,170,40,0)'); gr.addColorStop(0.2, 'rgba(255,196,60,0.6)'); gr.addColorStop(0.7, 'rgba(255,240,160,0.4)'); gr.addColorStop(1, 'rgba(255,255,230,0)');
+      cx.globalAlpha = c01(A); cx.fillStyle = gr;
+      const sw = Math.sin(ph * 0.8) * 8 * big;
+      cx.beginPath(); cx.moveTo(bx - 10 * big, by); cx.quadraticCurveTo(bx - 12 * big + sw, by - tall * 0.55, bx + sw * 1.4, by - tall); cx.quadraticCurveTo(bx + 12 * big + sw, by - tall * 0.55, bx + 10 * big, by); cx.closePath(); cx.fill();
+    }
+    cx.restore();
+  }
+  zap(x0, y0, x1, y1, seg, jit, col, w, a) { // 지그재그 번개 줄
+    if (a <= 0.01) return;
+    const cx = this.R.cx;
+    cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = c01(a); cx.strokeStyle = col; cx.lineWidth = w; cx.lineCap = 'round'; cx.lineJoin = 'round';
+    cx.beginPath(); cx.moveTo(x0, y0);
+    for (let i = 1; i < seg; i++) { const k = i / seg; cx.lineTo(x0 + (x1 - x0) * k + (Math.random() - 0.5) * jit, y0 + (y1 - y0) * k + (Math.random() - 0.5) * jit * 0.3); }
+    cx.lineTo(x1, y1); cx.stroke(); cx.restore();
+  }
+  ssj(layer, o, T, g) {
+    const fx = this.fx, cx = this.R.cx, h = o.h;
+    if (!h || h.gone || !g.heroes.includes(h)) { o.done = true; return; }
+    const on = h.ssjT > 0, hx = h.rx || h.x, hy = h.y, wind = o.wind;
+    if (!on && T > wind) { o.endT = o.endT || T; if (T - o.endT > 0.5) { o.done = true; return; } }
+    const fade = o.endT ? 1 - c01((T - o.endT) / 0.5) : 1;
+    const pre = c01(T / wind); // 기 모으기
+    const yellAt = wind * 0.45, it = T - yellAt; // 기합 순간
+    if (!o.yell && T >= yellAt && layer === 'ground') {
+      o.yell = true;
+      if (!o.rm) { fx.flash('#fff3c0', 0.5); fx.addShake(12); if (!g.pvp && !(fx.slowmo > 0)) { fx.slowmo = 0.18; fx.zoomTarget = 1.06; fx.zx = hx; fx.zy = hy - 40; } }
+      fx.burst(hx, hy - 30, o.busy ? 10 : 24, '#ffd84a', 280, 'spark', 4, 0.55);
+      fx.text(hx, hy - 104, '하아아앗!!', '#fff1a8', 21, 1.1, -18);
+    }
+    if (layer === 'screen') {
+      if (T < wind + 0.3) { const [sx, sy] = this.scr(hx, hy - 20); this.dim(sx, sy, 0.5 * (T < wind ? c01(T / 0.2) : 1 - c01((T - wind) / 0.3)), 60, 300); }
+      if (!o.rm && it > 0 && it < 0.45) { // 집중선
+        const [sx, sy] = this.scr(hx, hy - 30), a = (1 - it / 0.45) * 0.7, W = this.R.W, H = this.R.H, n = o.busy ? 24 : 44;
+        cx.save(); cx.globalAlpha = a; cx.fillStyle = '#fffbe8';
+        for (let i = 0; i < n; i++) { const an = (i / n) * TAU + Math.random() * 0.1, w = 0.012 + Math.random() * 0.02, r0 = 90 + Math.random() * 70, r1 = Math.max(W, H) * 1.2; cx.beginPath(); cx.moveTo(sx + Math.cos(an) * r0, sy + Math.sin(an) * r0); cx.lineTo(sx + Math.cos(an - w) * r1, sy + Math.sin(an - w) * r1); cx.lineTo(sx + Math.cos(an + w) * r1, sy + Math.sin(an + w) * r1); cx.closePath(); cx.fill(); }
+        cx.restore();
+      }
+      return;
+    }
+    const big = it < 0 ? pre * 0.55 : it < 0.15 ? 0.6 + (it / 0.15) * 0.65 : 1.25 - c01((it - 0.15) / 0.4) * 0.2;
+    const pulse = o.rm ? 1 : 1 + Math.sin(T * 11) * 0.06;
+    if (layer === 'ground') {
+      this.glow(hx, hy + HERO_FEET, (50 + big * 34) * pulse, 'rgba(255,196,60,1)', (0.4 + big * 0.35) * fade, 0.36);
+      if (it > 0 && it < 0.7) { const k = it / 0.7; this.flatRing(hx, hy + HERO_FEET, 18 + eOut(k) * 180, 14, 'rgba(255,214,90,1)', 1 - k); this.flatRing(hx, hy + HERO_FEET, 10 + eOut(c01(k * 1.3)) * 120, 8, 'rgba(255,255,230,1)', (1 - k) * 0.85); }
+      if (big > 0.02) { this.glow(hx, hy - 24, 70 * big * pulse, 'rgba(255,190,50,1)', 0.55 * fade, 1.35); this.flames(hx, hy + HERO_FEET - 4, big, fade * (it > 0 ? 1 : 0.6), o.rm ? 0.6 : T, o.busy ? 7 : 11); }
+      return;
+    }
+    if (layer === 'mid') {
+      if (it < 0) { // 금빛 기운이 몸으로 빨려 들어감
+        cx.save(); cx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < (o.busy ? 8 : 16); i++) { const ph = (T * 1.8 + i / 16) % 1, an = i * 2.4, rr = 96 * (1 - ph); cx.globalAlpha = ph * 0.9; cx.fillStyle = i % 2 ? '#ffe07a' : '#fff4c8'; cx.beginPath(); cx.arc(hx + Math.cos(an) * rr, hy - 24 + Math.sin(an) * rr * 0.8, 2 + ph * 2.5, 0, TAU); cx.fill(); }
+        cx.restore();
+      }
+      if (it > 0 && it < 0.5) { const k = it / 0.5, w = 32 * (1 - k * 0.7); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - k; const gr = cx.createLinearGradient(hx - w, 0, hx + w, 0); gr.addColorStop(0, 'rgba(255,200,60,0)'); gr.addColorStop(0.5, 'rgba(255,248,210,1)'); gr.addColorStop(1, 'rgba(255,200,60,0)'); cx.fillStyle = gr; cx.fillRect(hx - w, -40, w * 2, hy - 56 + 40); cx.restore(); } // 위로 솟는 빛 기둥
+      return;
+    }
+    if (layer === 'top') {
+      if (it > 0 && !o.rm && !o.busy && on && Math.random() < 0.18) { const a0 = Math.random() * TAU, r0 = 26 + Math.random() * 12; this.zap(hx + Math.cos(a0) * r0, hy - 46 + Math.sin(a0) * r0, hx + Math.cos(a0) * (r0 + 22), hy - 46 + Math.sin(a0) * (r0 + 22), 4, 10, 'rgba(180,255,255,0.95)', 1.6, fade); } // 머리 주변 파지직
+      if (it > 0 && it < 0.35) { const k = it / 0.35; cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - k; cx.strokeStyle = '#fff1b0'; cx.lineWidth = 6 * (1 - k) + 1; cx.beginPath(); cx.arc(hx, hy - 26, 22 + eOut(k) * 86, 0, TAU); cx.stroke(); cx.restore(); }
+    }
+  }
+  ssjMark(layer, o, T0, g) {
+    const T = g.t - o.st0, d = o.delay, cx = this.R.cx, x = o.x, y = o.y, r = o.r;
+    if (T > d + 0.6 || T < -0.1) { o.done = true; return; }
+    if (layer === 'ground') {
+      if (T < d) { // 예고: 금빛 테두리 + 안쪽이 점점 차오름 + 도는 조준 표시
+        const k = c01(T / d), bl = o.rm ? 1 : 0.75 + 0.25 * Math.sin(T * 30);
+        cx.save(); cx.translate(x, y); cx.scale(1, 0.42); cx.globalCompositeOperation = 'lighter';
+        cx.globalAlpha = 0.18 + 0.25 * k; cx.fillStyle = 'rgba(255,190,60,1)'; cx.beginPath(); cx.arc(0, 0, r * k, 0, TAU); cx.fill();
+        cx.globalAlpha = 0.85 * bl; cx.strokeStyle = 'rgba(255,220,110,1)'; cx.lineWidth = 3.5; cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.stroke();
+        cx.globalAlpha = 0.6 * bl; cx.lineWidth = 2; cx.beginPath(); for (let i = 0; i < 4; i++) { const an = i * Math.PI / 2 + (o.rm ? 0 : T * 1.5); cx.moveTo(Math.cos(an) * r * 0.55, Math.sin(an) * r * 0.55); cx.lineTo(Math.cos(an) * r * 1.15, Math.sin(an) * r * 1.15); } cx.stroke();
+        cx.restore();
+      } else { // 맞은 자리: 납작한 충격 고리 · 그을음
+        const k = c01((T - d) / 0.6);
+        this.flatRing(x, y, r * (0.5 + eOut(k) * 0.9), 12, 'rgba(255,214,90,1)', 1 - k, 0.42);
+        cx.save(); cx.translate(x, y); cx.scale(1, 0.42); cx.globalAlpha = 0.35 * (1 - k); cx.fillStyle = '#2a1a08'; cx.beginPath(); cx.arc(0, 0, r * 0.55, 0, TAU); cx.fill(); cx.restore();
+      }
+      return;
+    }
+    if (layer === 'top') {
+      const a = T < d - 0.07 ? 0 : T < d ? (T - d + 0.07) / 0.07 : 1 - c01((T - d) / 0.28);
+      if (a <= 0.01) return;
+      const top = -60, w = r * 0.42 * (T < d ? 0.6 : 1 + (T - d) * 1.5); // 하늘에서 내리꽂는 금빛 기둥 (가운데 흰 줄) + 지그재그 번개
+      cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = c01(a);
+      const gr = cx.createLinearGradient(x - w, 0, x + w, 0); gr.addColorStop(0, 'rgba(255,170,40,0)'); gr.addColorStop(0.35, 'rgba(255,200,70,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,235,1)'); gr.addColorStop(0.65, 'rgba(255,200,70,0.55)'); gr.addColorStop(1, 'rgba(255,170,40,0)');
+      cx.fillStyle = gr; cx.fillRect(x - w, top, w * 2, y - top);
+      cx.restore();
+      if (!o.rm) { this.zap(x + (Math.random() - 0.5) * 8, top, x, y, 9, 26, 'rgba(255,250,210,1)', 3, a); if (!o.busy) this.zap(x, top + 40, x + (Math.random() - 0.5) * 30, y - 10, 7, 30, 'rgba(160,240,255,0.9)', 1.6, a * 0.8); }
+      if (T >= d) { const k = c01((T - d) / 0.35); this.glow(x, y - 6, r * (0.9 + k * 0.5), 'rgba(255,224,120,1)', (1 - k) * 0.9, 0.7); this.spark(x, y - 8, r * 0.75, 'rgba(255,236,150,1)', k); }
+    }
+  }
+  // ── 김도훈: 무한 앵콜 ── 무대 조명 세 줄기가 바닥을 훑고(연출 줄이기면 가만히) · 멈춘 진상 머리 위로 떼창 음표 · "앵콜!" 함성
+  encore(layer, o, T, g) {
+    const R = this.R, cx = R.cx, W = R.W, END = 2.6;
+    if (T > END) { o.done = true; return; }
+    const show = c01(T / 0.25) * (1 - c01((T - END + 0.6) / 0.6)), t = o.rm ? 0.4 : g.t;
+    const COL = ['255,90,200', '110,210,255', '255,214,110'], nSpot = o.busy ? 2 : 3;
+    if (layer === 'ground') { for (let i = 0; i < nSpot; i++) { const [px, py] = this.omSpot(i, t * 1.6, W, g); this.glow(px, py, 74, `rgba(${COL[i]},1)`, 0.55 * show, 0.42); this.flatRing(px, py, 56, 5, `rgba(${COL[i]},1)`, 0.5 * show, 0.42); } return; }
+    if (layer === 'mid') {
+      cx.save(); cx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < nSpot; i++) { const [px, py] = this.omSpot(i, t * 1.6, W, g), ox = W * (0.1 + 0.4 * i); this.beam(ox, -40, px, py, 10, 66, COL[i], 0.16 * show); this.beam(ox, -40, px, py, 4, 36, COL[i], 0.22 * show); }
+      const h = o.h && !o.h.gone ? o.h : null; if (h) { const hx = h.rx || h.x; this.beam(hx, -40, hx, h.y + HERO_FEET, 14, 54, '255,244,214', 0.16 * show); }
+      cx.restore();
+      return;
+    }
+    if (layer === 'top') {
+      let n = 0; const cap = o.busy ? 8 : 22;
+      for (const e of g.enemies) {
+        if (e.dead || !(e.stunT > 0 || e.slowT > 0) || e.y < 20 || Math.hypot(e.x - o.x, e.y - (o.y - 60)) > o.r + 20) continue;
+        if (++n > cap) break;
+        const id = e.uid || n, sz = e.def ? e.def.size : 50, ph = g.t * 3 + id * 1.7, rise = o.rm ? 0 : (T * 0.9 + id * 0.31) % 1;
+        this.note(e.x + sz * 0.2 + Math.sin(ph) * 6, e.y - sz * 0.6 - rise * 26, 7, id % 2 ? '#ff8ad8' : '#9fe0ff', show * (1 - rise * 0.7), Math.sin(ph) * 0.3);
+      }
+      if (!o.busy && !o.chant && T > 0.3) { o.chant = true; for (let k = 0; k < 3; k++) setTimeout(() => this.fx.text(40 + Math.random() * (W - 80), 150 + Math.random() * 120, '앵콜!', ['#ff9fe6', '#ffe14d', '#9fe0ff'][k], 15, 0.9, -20), k * 380); } // 진상들 떼창
     }
   }
 
