@@ -10,7 +10,7 @@
 //    어려운 난이도일수록 입구가 빨리 부서져 판이 짧다 → 준 피해에 난이도 배율(×1 · ×1.4 · ×2.4)을 곱해 서버 체력 · 기여 순위에 넣는다
 //    (한 판 상한 1% 에도 같은 배율 · 순위는 하나 — 입장 수는 같으니 잘하는 사람이 어려운 걸 골라 더 크게 기여)
 import { HEROES, hashSeed } from './data.js';
-import { weekIndex, weekStartMs, dayIndex, mailAdd, isFriend, KST, DAY } from './live.js';
+import { weekIndex, weekStartMs, dayIndex, mailAdd, isFriend, KST, DAY, collectBonus } from './live.js';
 
 const int = (v, lo = 0, hi = 1e9) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : lo; };
 
@@ -269,7 +269,7 @@ export function r2Cap(lb, dur, o = {}) {
   const meta = Object.values(lb.heroes || {}).reduce((a, b) => a + (b | 0), 0);
   const stars = Object.values(lb.hstars || {}).reduce((a, b) => a + Math.max(0, b - 1), 0);
   const perSec = (900 + 380 * (lb.maxStage | 0)) * (1 + meta / 70) * (1 + stars * 0.05);
-  return Math.round(Math.min(R2.sec + 15, int(dur, 0, 1e6)) * perSec * (o.help ? 1.35 : 1) * (o.rally ? 1 + R2.rallyBuff : 1));
+  return Math.round(Math.min(R2.sec + 15, int(dur, 0, 1e6)) * perSec * (o.help ? 1.35 : 1) * (o.rally ? 1 + R2.rallyBuff : 1) * (1 + collectBonus(lb).atk)); // 도감 수집 공격력만큼 더
 }
 
 // ─── 보상 ───

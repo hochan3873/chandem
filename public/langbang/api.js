@@ -96,6 +96,7 @@ function normalize(p, guest) {
   out.owned = out.owned || {};
   out.unlocked = LOCKED_HEROES.filter((h) => heroUnlocked(out, h));
   if (guest) L.ensureLive(out, 'guest', Date.now()); // 로그인은 서버가 이미 맞춰서 준다
+  out.coll = !guest && p && p.coll && p.coll.tabs ? p.coll : L.collectBonus(out); // 도감 수집 보너스 (로그인은 서버가 계산한 값 · 손님은 같은 함수로 이 기기에서)
   return out;
 }
 
@@ -145,6 +146,7 @@ export async function postStage(sum, guest) {
     const firstPerfect = perfect && !p.perfects[sum.stage];
     const reward = hell ? hellReward(sum.stage, sum.stars, prev, p.items.coupon) : stageReward(sum.stage, sum.stars, prev, p.items.coupon, perfect, firstPerfect);
     if ((sum.heroesUsed || []).includes('sanghwa') && heroUnlocked(p, 'sanghwa')) { const x = Math.round(reward.total * 0.12); reward.total += x; reward.sanghwa = x; } // 박상화: 코인 +12%
+    { const x = Math.round(reward.total * (p.coll ? p.coll.coin : 0)); if (x > 0) { reward.total += x; reward.coll = x; } } // 도감 수집 보너스 (서버와 같은 순서)
     const q = Object.assign({}, p, { coins: p.coins + reward.total, runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
     if (hell) q.hell = Object.assign({}, p.hell, { [sum.stage]: Math.max(prev, sum.stars) });
     else q.stages = Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) });
