@@ -5541,7 +5541,7 @@ const GRADE = {
   sig: ['전용 신화', '#ff4fd8'], myth: ['신화', '#ff7ad9'], legend: ['전설', '#ffd23f'], epic: ['영웅', '#c77dff'], rare: ['희귀', '#4ea8ff'], common: ['일반', '#9fb3c8'], unk: ['미획득', '#6a5a8a'],
   boss: ['보스', '#ff5a5a'], mid: ['중간 보스', '#ff9d3f'], elite: ['정예', '#c77dff'], normal: ['일반', '#9fb3c8'],
 };
-const GRADE_ORDER = { hero: ['t5', 't4', 't3', 't2', 't1', 'hidden'], enemy: ['boss', 'mid', 'elite', 'normal'], item: ['sig', 'myth', 'legend', 'epic', 'rare', 'common', 'unk'] };
+const GRADE_ORDER = { hero: ['t5', 't4', 't3', 't2', 't1', 'hidden'], enemy: ['boss', 'mid', 'elite', 'normal'], item: ['myth', 'sig', 'legend', 'epic', 'rare', 'common', 'unk'] };
 const grdChip = (g, cls = '') => `<i class="grd g-${g} ${cls}" style="--g:${GRADE[g][1]}">${GRADE[g][0]}</i>`;
 const heroGrade = (id) => (HIDDEN_HEROES.includes(id) ? 'hidden' : 't' + heroTier(id));
 const dexGrade = (kind, id) => (kind === 'hero' ? heroGrade(id) : enemyGrade(ENEMIES[id]));
