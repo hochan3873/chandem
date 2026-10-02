@@ -58,10 +58,11 @@ function check(cond, msg) {
   await wait(500);
   check(!(await state()).ov, '건너뛴 뒤 덮개 정리');
   await toMenu(); await settle();
-  // 4) 레이드: 엘리베이터 · 전환 중 뒤로 가기
+  // 4) 건물주 레이드 (R2UI.modeCard → raid2-ui show): 엘리베이터 · 전환 중 뒤로 가기
+  //    show() 가 레이드 그림 목록을 먼저 불러온 뒤(await) 화면을 바꾸므로 → 화면이 'raid' 로 바뀌는 순간을 잠깐 기다려서 본다
   await page.evaluate(() => document.querySelector('[data-act="lbModes"]').click()); await wait(250); await page.evaluate(() => document.querySelector('.md-card[data-act="raid"]').click());
-  s = await state();
-  check(s.scr === 'raid' && /tr-elev/.test(s.ov), '레이드: 엘리베이터 문');
+  s = await page.waitForFunction(() => window.__lb.app.screen === 'raid', { timeout: 3000, polling: 16 }).then(() => state(), () => state());
+  check(s.scr === 'raid' && /tr-elev/.test(s.ov), '건물주 레이드: 엘리베이터 문 ' + JSON.stringify(s));
   await wait(150);
   await page.evaluate(() => history.back());
   await wait(700);

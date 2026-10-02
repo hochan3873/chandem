@@ -1038,12 +1038,12 @@ export const SUMMONS = {
     id: 'junyoung', summon: true, bossKit: 1, kit: 1, name: '성준영', gender: 'm', emoji: '🃏', color: '#9fd4ff', attr: 'talk',
     img: ART('h_junyoung'), role: '소환 · 돈 쓸어 모으기 · 진상 끌어모으는 미끼',
     dmg: 30, interval: 0.55, range: 380, proj: 'sweep',
-    sweep: { hp: [0.4, 0.4, 0.48, 0.48, 0.56], hpMeta: 0.02, r: [110, 110, 120, 120, 135], hold: 40, pull: 110, bossPull: 0.25, max: [6, 6, 7, 7, 8], tick: 0.5, dmgK: 0.18, walk: 58, cut: 0.2, wp: [1.4, 2.6], allinR: 1.5 }, // 체력 = 입구 최대 내구도의 % · 끌어모으는 반경 · 붙잡는 최대 수 · 0.5초마다 붙잡은 진상에게 조금씩 (한 방의 18%) · 받는 피해 −40%
+    sweep: { hp: [0.32, 0.32, 0.38, 0.38, 0.45], hpMeta: 0.02, r: [110, 110, 120, 120, 135], hold: 40, pull: 110, bossPull: 0.25, max: [6, 6, 7, 7, 8], tick: 0.5, dmgK: 0.18, walk: 58, cut: 0.2, tire: 0.02, wp: [1.4, 2.6], allinR: 1.5 }, // 체력 = 입구 최대 내구도의 % · 끌어모으는 반경 · 붙잡는 최대 수 · 0.5초마다 붙잡은 진상에게 조금씩 (한 방의 18%) · 받는 피해 −40%
     allin: { r: 90, mul: 5 }, // 지쳐서 퇴근할 때 "올인!" 작은 폭발 (피해 = 한 방 × 5)
-    attack: '빗자루질 — 바닥의 돈을 쓸어 담듯 아래에서부터 이리저리 돌아다니며 주변 진상을 자기 쪽으로 끌어모은다 (피해는 아주 조금). 붙잡힌 진상은 입구 대신 준영을 때린다',
+    attack: '칩 긁어모으기 — 바닥의 배팅 칩을 갈퀴로 긁어 담듯 아래에서부터 이리저리 돌아다니며 주변 진상을 자기 쪽으로 끌어모은다 (피해는 아주 조금). 붙잡힌 진상은 입구 대신 준영을 때린다',
     desc: '비실비실해 보이지만 돈 냄새는 귀신같이 맡는다. 소영 잔소리에 떠밀려 나와 바닥의 돈을 쓸어 담고, 지치면 "올인!" 하고 퇴근한다.',
     perks: { 3: '-', 5: '-' },
-    shouts: ['올인!', '이거 다 내 돈!', '쓸어 담자~', '아 왜 또 불러…'],
+    shouts: ['올인!', '이거 다 내 칩!', '칩 긁어 담자~', '아 왜 또 불러…'],
   },
 };
 // ─── 멤버 등급(티어): 늦게 만나는 멤버일수록 기본이 세다 · 초반 멤버는 강화 한도가 낮다 ───
@@ -1584,6 +1584,7 @@ export const ENEMY_ANIM = {
   boss_inpi: { walk: { src: '/img/lb/e_boss_inpi_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_inpi_die.webp', frames: 8, fps: 12, hold: 0.3 } },
   boss_queenmom: { walk: { src: '/img/lb/e_boss_queenmom_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_queenmom_die.webp', frames: 8, fps: 12, hold: 0.3 } },
   boss_sales: { walk: { src: '/img/lb/e_boss_sales_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_sales_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+  vomit: { puke: { src: '/img/lb/e_vomit_puke.webp', frames: 8, release: 3, lead: 0.45, fps: 9 } }, // 토하는 인간 "우웩!": 0~2 숙이고 꿀렁(토 직전) · 3~5 쏟기 · 6~7 입 닦기
 };
 // 입구 공격 동작 (진상마다 컨셉대로): 준비(뒤로 젖힘) → 때림(입구 쪽으로 · 불꽃) → 반동
 //   punch 주먹 · kick 발차기 · headbutt 박치기 · shove 밀치기 · phone 폰 내리치기 · bottle 병 내리치기 · bag 가방 휘두르기 · slap 따귀
