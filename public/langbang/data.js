@@ -1956,7 +1956,7 @@ export const gearFits = (t, hero) => !!GEAR[t] && (!GEAR[t].hero || GEAR[t].hero
 export const sigOf = (hero) => (SIG[hero] ? 'sig_' + hero : null);
 export const sigStatText = (t) => Object.entries(GEAR[t].stats).map(([k, v]) => `${(GEAR_STATS[k] || { name: k }).name.replace(/ \(.*\)$/, '')} +${Math.round(v * 1000) / 10}%`).join(' · ');
 // 그림이 아직 없는 전용 신화: 멤버 얼굴(도감 썸네일)로 대신 (public/img/lb/gear/myth_<멤버>.webp 가 생기면 여기서 지우기)
-export const SIG_ART_TODO = new Set(Object.keys(SIG));
+export const SIG_ART_TODO = new Set(); // 25종 모두 그림 있음 (gear/myth_<멤버>.webp)
 export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
 // 그림 주소 (화면): 그림이 아직 없는 새 장비는 비슷한 장비 그림으로
 for (const t of Object.keys(GEAR)) GEAR[t].img = GEAR[t].hero ? (SIG_ART_TODO.has(GEAR[t].hero) ? `/img/lb/dexhq/thumb/${GEAR[t].hero}.webp` : `/img/lb/gear/myth_${GEAR[t].hero}.webp`) : `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;
