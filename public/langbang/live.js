@@ -5,6 +5,7 @@
 import {
   HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK,
   GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT, heroTier, GEAR, CURSES,
+  SIG, SIG_IDS, SIG_PITY, SIG_DUP_SHARDS, SIG_RATE,
 } from './data.js';
 export const stageBossN = (s) => stageBosses(s).length;
 
@@ -425,7 +426,7 @@ export function grant(lb, rw, uid, now) {
 }
 export function addGear(lb, t, r) {
   if (r === 'legend') lb.cnt.legends = (lb.cnt.legends | 0) + 1;
-  if (lb.gear.length >= GEAR_BAG) { const v = gearSellValue(r, 0); lb.coins += v; return { t, r, sold: v }; }
+  if (lb.gear.length >= GEAR_BAG && !(GEAR[t] && GEAR[t].hero)) { const v = gearSellValue(r, 0); lb.coins += v; return { t, r, sold: v }; } // 전용 신화는 가방이 꽉 차도 들어간다
   const it = { id: ++lb.gearSeq, t, r, lv: 0 };
   lb.gear.push(it);
   if (!(lb.gearDex || (lb.gearDex = [])).includes(t)) lb.gearDex.push(t); // 장비 도감
@@ -550,6 +551,7 @@ export const UNLOCK_CARDS = { epic: 10, legend: 30 };
 export const CARD_BUNDLE = { epicHero: 10, legendHero: 30, t3Card: 3, t2Card: 3 }; // LEGEND · T4 는 한 번에 합류 (겹치면 그만큼 멤버 카드) · T3·T2 는 카드 3장
 export const cardsNeed = (h) => (LEGEND_HEROES.includes(h) ? UNLOCK_CARDS.legend : UNLOCK_CARDS.epic);
 export const GACHA_RATES = [ // 확률 공개 (%) — 등급별 (다른 모집 게임처럼): LEGEND 0.6 · T4 5.4 · T3 20 · 나머지
+  { k: 'sigGear', w: SIG_RATE.hero, name: '전용 신화 장비 (멤버마다 1개 · 가진 멤버 중)', color: '#ff4fd8' },
   { k: 'mythGear', w: 0.3, name: '신화 장비 (만능 6종)', color: '#ff7ad9' },
   { k: 'legendHero', w: 0.6, name: 'LEGEND 멤버 합류 (이호찬 · 강병화 · 70번부터 확률 ↑ · 90번 확정)', color: '#ffcf3f' },
   { k: 'epicHero', w: 5.4, name: 'T4 멤버 합류 (윤준서 · 배현경 · 고아라) · 픽업 50%', color: '#c77dff' },
@@ -559,7 +561,7 @@ export const GACHA_RATES = [ // 확률 공개 (%) — 등급별 (다른 모집 �
   { k: 'rareGear', w: 16.5, name: '희귀 장비', color: '#7ec4ff' },
   { k: 't2Card', w: 15, name: 'T2 멤버 카드 ×3 (박상화 · 홍정민)', color: '#5de07a' },
   { k: 'shard10', w: 10, name: '멤버 조각 ×10', color: '#ff9f5a' },
-  { k: 'shard4', w: 25, name: '멤버 조각 ×4', color: '#9fb3c8' },
+  { k: 'shard4', w: 25 - SIG_RATE.hero, name: '멤버 조각 ×4', color: '#9fb3c8' },
 ];
 const T3_PLUS = ['legendHero', 'epicHero', 't3Card', 'mythGear'];
 const tierPool = (t) => GACHA_HEROES.filter((h) => heroTier(h) === t);
@@ -606,7 +608,8 @@ export function gachaPull(lb, n, pay, uid, now = Date.now(), seed) {
     else k = rollKind(rng, lb);
     if (first10 && i === 9 && !out.some((x) => x.k === 'epicHero' || x.k === 'legendHero') && k !== 'legendHero') k = 'epicHero';
     else if (n === 10 && i === 9 && !t3 && !T3_PLUS.includes(k)) k = rollKind(rng, lb, T3_PLUS); // 10회: T3 이상 1개 확정
-    if (T3_PLUS.includes(k)) t3 = true;
+    if (T3_PLUS.includes(k) || k === 'sigGear') t3 = true;
+    lb.pity.sig = (lb.pity.sig | 0) + 1; // 신화 조각 +1
     out.push(resolvePull(lb, k, rng, now));
     lb.pulls++;
   }
@@ -628,6 +631,7 @@ function resolvePull(lb, k, rng, now) {
     if (lb.shards[h] >= need) { lb.shards[h] -= need; lb.owned[h] = true; return { k, hero: h, card: true, shards: v, new: true, have: need, need }; }
     return { k, hero: h, card: true, shards: v, have: lb.shards[h], need };
   }
+  if (k === 'sigGear') return grantSig(lb, rng);
   if (k === 'mythGear') return { k, gear: addGear(lb, MYTH_IDS[(rng() * MYTH_IDS.length) | 0], 'myth') };
   if (k === 'legendGear' || k === 'epicGear' || k === 'rareGear') {
     const r = k === 'legendGear' ? 'legend' : k === 'epicGear' ? 'epic' : 'rare';
@@ -643,14 +647,15 @@ function resolvePull(lb, k, rng, now) {
   return { k, hero: h, shards: v };
 }
 
-// ─── 장비 뽑기 (강화석) — 신화 1% · 전설 5% · 영웅 24% · 희귀 70% · 80번째 신화 확정 · 10회는 영웅 이상 1개 ───
+// ─── 장비 뽑기 (강화석) — 전용 신화 0.1% · 신화 1% · 전설 5% · 영웅 24% · 희귀 69.9% · 80번째 신화 확정 · 10회는 영웅 이상 1개 ───
 export const GEAR_GACHA_COST = { one: 40, ten: 360 };
 export const GEAR_PITY = 80;
 export const GEAR_GACHA_RATES = [
+  { k: 'sig', w: SIG_RATE.gear, name: '전용 신화 장비', color: '#ff4fd8' },
   { k: 'myth', w: 1, name: '신화 장비', color: '#ff7ad9' },
   { k: 'legend', w: 5, name: '전설 장비', color: '#ffb400' },
   { k: 'epic', w: 24, name: '영웅 장비', color: '#c77dff' },
-  { k: 'rare', w: 70, name: '희귀 장비', color: '#4ea8ff' },
+  { k: 'rare', w: 70 - SIG_RATE.gear, name: '희귀 장비', color: '#4ea8ff' },
 ];
 function rollGearTier(rng, only) {
   const list = GEAR_GACHA_RATES.filter((r) => !only || only.includes(r.k));
@@ -673,11 +678,35 @@ export function gearGachaPull(lb, n, uid, now = Date.now(), seed) {
     if (n === 10 && i === 9 && !epicPlus && (t === 'rare')) t = rollGearTier(rng, ['myth', 'legend', 'epic']);
     if (t !== 'rare') epicPlus = true;
     if (t === 'myth') lb.pity.gear = 0;
+    lb.pity.sig = (lb.pity.sig | 0) + 1; // 신화 조각 +1
+    if (t === 'sig') { out.push(grantSig(lb, rng)); lb.gpulls++; continue; }
     const id = t === 'myth' ? MYTH_IDS[(rng() * MYTH_IDS.length) | 0] : GEAR_IDS[(rng() * GEAR_IDS.length) | 0];
     out.push({ k: t + 'Gear', gear: addGear(lb, id, t) });
     lb.gpulls++;
   }
   return { results: out };
+}
+
+// ─── 전용 신화 (멤버마다 1개) ─────────────────
+// 뽑기에서 나오면: 가진 멤버 중 아직 그 멤버 전용 신화가 없는 멤버 → (다 있으면) 신화 조각 300개
+export const sigOwned = (lb, h) => (lb.gear || []).some((it) => it && it.t === 'sig_' + h);
+export function grantSig(lb, rng) {
+  const mine = Object.keys(SIG).filter((h) => heroUnlocked(lb, h));
+  const fresh = mine.filter((h) => !sigOwned(lb, h));
+  if (!fresh.length) { lb.pity.sig = (lb.pity.sig | 0) + SIG_DUP_SHARDS; return { k: 'sigGear', dup: true, sigShards: SIG_DUP_SHARDS }; }
+  const h = fresh[(rng() * fresh.length) | 0];
+  return { k: 'sigGear', hero: h, gear: addGear(lb, 'sig_' + h, 'myth') };
+}
+// 신화 조각 600개 → 고른 멤버 전용 신화 (합류한 멤버만 · 이미 있으면 안 됨)
+export function sigExchange(lb, hero, uid) {
+  if (typeof hero !== 'string' || !SIG[hero]) return { error: '없는 멤버예요' };
+  if (!heroUnlocked(lb, hero)) return { error: '아직 합류하지 않은 멤버예요' };
+  if (sigOwned(lb, hero)) return { error: '이미 가진 전용 신화예요' };
+  lb.pity = lb.pity || {};
+  if ((lb.pity.sig | 0) < SIG_PITY) return { error: `신화 조각이 부족해요 (${lb.pity.sig | 0}/${SIG_PITY})` };
+  lb.pity.sig -= SIG_PITY;
+  void uid;
+  return { results: [{ k: 'sigGear', hero, gear: addGear(lb, 'sig_' + hero, 'myth'), pick: true }] };
 }
 
 // ─── 챕터 별 상자 (★10 · ★20 · ★30) ─────────────────
@@ -978,7 +1007,7 @@ export function normLive(raw, out) {
   for (const h of [...GACHA_HEROES, ...LEGEND_HEROES]) if ((raw.owned || {})[h]) out.owned[h] = true;
   { const rp0 = raw.pity || {}; const v2 = rp0.v === 2; // 예전 천장(50/200)에서 넘어오면 진행 비율대로 옮긴다
     out.gearDex = [...new Set([...(Array.isArray(raw.gearDex) ? raw.gearDex : []), ...(Array.isArray(raw.gear) ? raw.gear.map((g) => g && g.t) : [])])].filter((t) => typeof t === 'string' && GEAR[t]); // 장비 도감: 한 번이라도 얻은 종류
-  out.pity = { v: 2, hero: int(v2 ? rp0.hero : Math.floor((rp0.hero | 0) * 40 / 50), 0, PITY_HERO - 1), legend: int(v2 ? rp0.legend : Math.floor((rp0.legend | 0) * 90 / 200), 0, PITY_LEGEND - 1), gear: int(rp0.gear, 0, GEAR_PITY - 1) }; }
+  out.pity = { v: 2, hero: int(v2 ? rp0.hero : Math.floor((rp0.hero | 0) * 40 / 50), 0, PITY_HERO - 1), legend: int(v2 ? rp0.legend : Math.floor((rp0.legend | 0) * 90 / 200), 0, PITY_LEGEND - 1), gear: int(rp0.gear, 0, GEAR_PITY - 1), sig: int(rp0.sig, 0, 1e6) }; } // sig: 신화 조각 (전용 신화 교환)
   out.pulls = int(raw.pulls, 0, 1e7);
   out.gpulls = int(raw.gpulls, 0, 1e7);
   out.cnt = {};

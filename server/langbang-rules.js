@@ -175,6 +175,38 @@ const MYTH = {
 };
 const MYTH_IDS = Object.keys(MYTH);
 for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true }; }
+// 전용 신화 (멤버마다 1개 · 그 멤버만 낄 수 있다 · 신화 칸) — 화면 data.js SIG 와 같은 이름·능력치 (테스트가 검사). 새 효과(fx)는 전투(sim.js)에서만
+const SIG = {
+  bangjang: { name: '초대 방장의 황금 확성기', stats: { spd: 0.1, cd: 0.1 } },
+  staff: { name: '영구 정지 도장', stats: { cd: 0.12, strip: 0.1 } },
+  gunman: { name: '쌍열 새총', stats: { atk: 0.12, crit: 0.06 } },
+  gunnyeo: { name: '수호천사 구급상자', stats: { hp: 0.12, res: 0.2 } },
+  myunghoon: { name: '욕 사전 무삭제판', stats: { atk: 0.1, skill: 0.15 } },
+  dohoon: { name: '앵콜 전용 골든 마이크', stats: { cd: 0.12, hp: 0.1 } },
+  ingyu: { name: '할리 사이드카 세트', stats: { atk: 0.1, hp: 0.1 } },
+  donghan: { name: '꿀잠 바디필로우', stats: { skill: 0.15, atk: 0.08 } },
+  youngjun: { name: '블랙 러시 운동화', stats: { atk: 0.12, spd: 0.08 } },
+  eunok: { name: '무한 리필 소주 박스', stats: { atk: 0.12, attr: 0.1 } },
+  hanna: { name: '쌍 하트 렌즈', stats: { atk: 0.12, range: 0.08 } },
+  sunggu: { name: '쌍지팡이', stats: { skill: 0.15, cd: 0.08 } },
+  junseo: { name: '여사친 단톡방 초대권', stats: { atk: 0.1, spd: 0.08 } },
+  hyungyeong: { name: '요요 없는 다이어트 주사', stats: { atk: 0.1, spd: 0.1 } },
+  ara: { name: '영원한 공주 티아라', stats: { boss: 0.15, atk: 0.08 } },
+  hochan: { name: '랑방 초대 방장의 왕관', stats: { atk: 0.1, ult: 0.15 } },
+  soyoung: { name: '성준영 평생 출석부', stats: { skill: 0.12, cd: 0.1 } },
+  jieun: { name: '멈춰 버린 금시계', stats: { cd: 0.12, skill: 0.1 } },
+  sanghwa: { name: '백 송이 장미 꽃다발', stats: { atk: 0.1, exp: 0.1 } },
+  jungmin: { name: '무한 붕대 롤', stats: { hp: 0.15, guard: 0.1 } },
+  jiwon: { name: '네 손 모자이크 장갑', stats: { skill: 0.12, atk: 0.08 } },
+  wonsik: { name: '다이아 결혼반지', stats: { hp: 0.15, guard: 0.08 } },
+  baul: { name: '팬클럽 응원 썰매 2호', stats: { skill: 0.15, atk: 0.08 } },
+  byunghwa: { name: '앵콜 원맨쇼 핀 조명', stats: { cd: 0.12, atk: 0.08 } },
+  jeongseob: { name: '쌍둥이 정섭 가면', stats: { res: 0.3, hp: 0.1 } },
+};
+const SIG_IDS = Object.keys(SIG).map((h) => 'sig_' + h);
+for (const [h, m] of Object.entries(SIG)) { const id = 'sig_' + h, k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true, hero: h }; }
+// 장비가 이 멤버에게 맞나 (전용 신화는 그 멤버만)
+const gearFits = (t, hero) => !!GEAR[t] && (!GEAR[t].hero || GEAR[t].hero === hero);
 const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth); // 일반 드롭 · 모집 장비 (신화 제외)
 const gearPoolFor = (stage) => GEAR_IDS.filter((t) => !GEAR[t].ch || GEAR[t].ch <= Math.ceil(stage / 10));
 const GEAR_MAX_LV = 10;
@@ -259,7 +291,7 @@ function rollHeroCard(seed, stars, hell, used) {
 const CARD_PICK = { cost: 1500, n: 5, perWeek: 5 }; // 상점 "멤버 카드 선택권": 고른 멤버 카드 5장 · 주 5번 (2500·3장·주 3번 → 장당 833 → 300 코인: 카드가 강화의 병목이라)
 
 module.exports = {
-  MYTH, MYTH_IDS,
+  MYTH, MYTH_IDS, SIG, SIG_IDS, gearFits,
   hellOpen, hellReward, HELL_COIN,
   heroCardNeed, rollHeroCard, CARD_PICK,
   GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,

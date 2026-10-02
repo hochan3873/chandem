@@ -5,7 +5,7 @@ import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
   metaCost, itemCost, itemGateCh, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen, metaMaxOf,
   GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearEnhanceChance, gearSellValue, rollDrops, gearStats, stageBosses,
-  GEAR_IDS, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, heroCardNeed, rollHeroCard, CARD_PICK,
+  GEAR_IDS, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, heroCardNeed, rollHeroCard, CARD_PICK, gearFits,
 } from './data.js';
 import * as L from './live.js';
 import { pvpLoadout } from './pvp.js';
@@ -278,6 +278,7 @@ export async function equipGear(hero, slot, id, guest) {
       if (id === null) return { apply: (x) => { if (x.equip[hero]) delete x.equip[hero][slot]; } };
       const it = p.gear.find((g) => g.id === id);
       if (!it || GEAR[it.t].slot !== slot) return { error: '그 칸에는 못 껴요' };
+      if (!gearFits(it.t, hero)) return { error: `${GEAR[it.t].name}은(는) 다른 멤버 전용이에요` };
       return { apply: (x) => { for (const h of Object.keys(x.equip)) for (const k of ['w', 'a', 'm']) if (x.equip[h][k] === id) delete x.equip[h][k]; (x.equip[hero] = x.equip[hero] || {})[slot] = id; } };
     });
   }
@@ -344,7 +345,7 @@ export async function cardPick(hero, guest) {
 export async function dismantleGear(ids, guest) {
   if (guest) {
     return guestGear((p) => {
-      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a, s.m]).filter(Boolean));
       const list = p.gear.filter((g) => ids.includes(g.id) && !eq.has(g.id));
       if (!list.length) return { error: '분해할 수 있는 장비가 없어요' };
       const n = list.reduce((a, it) => a + gearDismantle(it.r, it.lv), 0), set = new Set(list.map((g) => g.id));
@@ -359,7 +360,7 @@ export async function fuseGear(ids, guest) {
   if (guest) {
     return guestGear((p) => {
       if (ids.length !== 3) return { error: '같은 등급 장비 3개를 골라요' };
-      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a, s.m]).filter(Boolean));
       const list = ids.map((id) => p.gear.find((g) => g.id === id));
       if (list.some((it) => !it) || list.some((it) => eq.has(it.id))) return { error: '장착 중이거나 없는 장비가 있어요' };
       if (list.some((it) => it.r !== list[0].r)) return { error: '같은 등급끼리만 합성돼요' };
@@ -379,7 +380,7 @@ export async function fuseGear(ids, guest) {
 export async function sellGearMany(ids, guest) {
   if (guest) {
     return guestGear((p) => {
-      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const eq = new Set(Object.values(p.equip || {}).flatMap((s) => [s.w, s.a, s.m]).filter(Boolean));
       const set = new Set(ids.filter((id) => p.gear.some((g) => g.id === id) && !eq.has(id)));
       if (!set.size) return { error: '팔 수 있는 장비가 없어요' };
       const v = p.gear.filter((g) => set.has(g.id)).reduce((a, it) => a + gearSellValue(it.r, it.lv), 0);
@@ -402,7 +403,9 @@ export function gearFor(profile, ids, mythMul = 1) {
   const out = {};
   for (const id of ids) {
     const sl = (profile.equip || {})[id] || {};
-    out[id] = gearStats(['w', 'a', 'm'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter(Boolean), mythMul);
+    const its = ['w', 'a', 'm'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter((g) => g && gearFits(g.t, id));
+    out[id] = gearStats(its, mythMul);
+    if (its.some((g) => GEAR[g.t].hero === id)) out[id].sig = id; // 전용 신화: 새 효과 켜기 (sim · 1:1 대전은 pvpLoadout 이라 없음)
     for (const [k, v] of Object.entries(TW.hellStats(profile, id))) out[id][k] = (out[id][k] || 0) + v; // 진상의 탑 지옥 세트 (모든 모드)
   }
   return out;
@@ -425,6 +428,11 @@ async function liveCall(path, body) {
 export function gacha(n, pay, guest) {
   if (guest) return guestLive((p) => L.gachaPull(p, n, pay, GUEST_UID, Date.now(), (Math.random() * 4294967296) >>> 0));
   return liveCall('gacha', { n, pay });
+}
+// 신화 조각 600개 → 고른 멤버 전용 신화
+export function sigExchange(hero, guest) {
+  if (guest) return guestLive((p) => L.sigExchange(p, hero, GUEST_UID));
+  return liveCall('sig/exchange', { hero });
 }
 export function gearGacha(n, guest) {
   if (guest) return guestLive((p) => L.gearGachaPull(p, n, GUEST_UID, Date.now(), (Math.random() * 4294967296) >>> 0));

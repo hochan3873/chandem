@@ -1071,6 +1071,27 @@ export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu'];
 export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'baul']; // 모집(뽑기) 영웅 등급
 export const LEGEND_HEROES = ['hochan', 'byunghwa']; // 모집 전설 (마지막 스테이지를 깨야 모집에 나온다)
 export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; // 해금이 필요한 영웅 전부
+// 도감 · 멤버 카드 역할 분류 (실제 기술 기준 · 멤버마다 정확히 하나)
+export const HERO_ROLES = {
+  tank: { name: '탱커', desc: '앞에 나가서 막거나 밀어내고, 진상 공격을 대신 맞는다' },
+  support: { name: '지원·회복', desc: '입구를 고치고, 멤버를 빠르게 · 세게 해 준다' },
+  aoe: { name: '범위 공격', desc: '한 줄 · 한 무더기를 한꺼번에 쓸어 버린다' },
+  single: { name: '단일 저격', desc: '보스 · 빠른 진상 · 센 진상 하나를 골라 잡는다' },
+  ctrl: { name: '군중 제어', desc: '멈추고 · 느리게 · 홀려서 진상 발을 묶는다' },
+  special: { name: '약화·특수', desc: '방어 깎기 · 표시 · 소환처럼 판을 바꾸는 기술' },
+};
+export const HERO_ROLE = {
+  ingyu: 'tank', wonsik: 'tank', jeongseob: 'tank',
+  bangjang: 'support', gunnyeo: 'support', dohoon: 'support', jungmin: 'support', sanghwa: 'support',
+  eunok: 'aoe', sunggu: 'aoe', donghan: 'aoe', baul: 'aoe', junseo: 'aoe', hochan: 'aoe',
+  gunman: 'single', ara: 'single', hanna: 'single', youngjun: 'single', myunghoon: 'single',
+  staff: 'ctrl', jieun: 'ctrl', byunghwa: 'ctrl',
+  jiwon: 'special', hyungyeong: 'special', soyoung: 'special',
+};
+export const heroRole = (id) => HERO_ROLE[id] || 'special';
+// 진상 분류 (도감): 일반 · 중간 보스 · 보스
+export const enemyKind = (d) => (d.boss ? 'boss' : d.mid ? 'mid' : 'normal');
+export const ENEMY_KINDS = { normal: '일반 진상', mid: '중간 보스', boss: '보스' };
 // 같이 출전하는 동료 수: 1챕터 1명, 1-10 을 깨면(2챕터부터) 2명
 export const partnerSlots = (maxStage) => (maxStage >= 10 ? 2 : 1);
 export const STARTER_PARTNERS = ['gunman', 'staff', 'gunnyeo']; // 방장 + 이 중 1명으로 시작
@@ -1892,10 +1913,52 @@ export const MYTH = {
   myth_crown: { name: '랑방 VIP 왕관', stats: { ult: 0.25 }, desc: '총공지(궁극기) 충전 +25%' },
 };
 export const MYTH_IDS = Object.keys(MYTH);
-for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true }; }
+for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true, desc: m.desc }; }
+// ─── 전용 신화 (신화 위 · 멤버마다 1개): 그 멤버만 낄 수 있다 · 신화 칸(m) · 강화·합성 없음 ───
+//   능력치는 만능 신화 정도 + "플레이가 바뀌는" 새 효과 (fx · sim.js 가 멤버별로 읽는다)
+//   1:1 대전에서는 새 효과가 꺼지고 능력치만 (영웅 비율로) 남는다
+//   드롭 (서버 live.js 가 굴림): 장비 뽑기 1회 0.1% · 모집 1회 0.05% · 신화 조각 600개 = 원하는 멤버 것 1개 (조각: 뽑기 1회마다 1개)
+export const SIG = {
+  bangjang: { name: '초대 방장의 황금 확성기', stats: { spd: 0.1, cd: 0.1 }, fx: { rallyCd: 0.5 }, desc: '"집합!"을 외치면 다른 멤버들 남은 스킬 쿨타임이 절반으로 줄어든다' },
+  staff: { name: '영구 정지 도장', stats: { cd: 0.12, strip: 0.1 }, fx: { warnN: 2, kickStun: 2 }, desc: '경고 2번이면 바로 강퇴 · 강퇴 기절 2배' },
+  gunman: { name: '쌍열 새총', stats: { atk: 0.12, crit: 0.06 }, fx: { multi: 1, multiK: 0.8 }, desc: '새총알을 한 번에 두 발 — 두 번째 알은 다른 진상에게 (80% 세기)' },
+  gunnyeo: { name: '수호천사 구급상자', stats: { hp: 0.12, res: 0.2 }, fx: { autoGuard: 0.3 }, desc: '입구가 30% 아래로 떨어지면 응급 방패가 저절로 터진다 (웨이브마다 1번 · 쿨타임 상관없이)' },
+  myunghoon: { name: '욕 사전 무삭제판', stats: { atk: 0.1, skill: 0.15 }, fx: { curseN: 10, root: 3 }, desc: '쌍욕 저격이 5명 → 10명을 노리고, 묶는 시간 2초 → 3초' },
+  dohoon: { name: '앵콜 전용 골든 마이크', stats: { cd: 0.12, hp: 0.1 }, fx: { echo: 3 }, desc: '무한 앵콜이 3초 뒤 한 번 더 터진다 (회복 · 해제 · 버프 · 멈춤 모두 다시)' },
+  ingyu: { name: '할리 사이드카 세트', stats: { atk: 0.1, hp: 0.1 }, fx: { twinHarley: 1, moto: 2 }, desc: '할리가 두 대 (반대 대각선으로 한 대 더) · 오토바이 돌진 게이지가 2배로 찬다' },
+  donghan: { name: '꿀잠 바디필로우', stats: { skill: 0.15, atk: 0.08 }, fx: { refill: 50 }, desc: '빔을 쏘고 나면 간보기 게이지 절반이 바로 다시 찬다 (빔이 거의 두 배로 자주)' },
+  youngjun: { name: '블랙 러시 운동화', stats: { atk: 0.12, spd: 0.08 }, fx: { rushN: 3, rushTwice: 0.7 }, desc: '블랙 러시가 3명 더 돌파하고, 돌아오면서 한 번 더 벤다 (두 번째 70%)' },
+  eunok: { name: '무한 리필 소주 박스', stats: { atk: 0.12, attr: 0.1 }, fx: { rageMul: 2, multi: 1, multiK: 0.8, rageOnly: 1 }, desc: '분노 모드가 2배 오래 · 분노 중엔 소주병을 두 병씩 던진다' },
+  hanna: { name: '쌍 하트 렌즈', stats: { atk: 0.12, range: 0.08 }, fx: { beam2: 1 }, desc: '하트 레이저가 처음부터 두 갈래 — 두 번째 갈래도 100% 세기로 같이 세진다' },
+  sunggu: { name: '쌍지팡이', stats: { skill: 0.15, cd: 0.08 }, fx: { echo: 1.2 }, desc: '블랙홀을 꽂고 1.2초 뒤, 그때 가장 몰린 곳에 블랙홀 하나 더' },
+  junseo: { name: '여사친 단톡방 초대권', stats: { atk: 0.1, spd: 0.08 }, fx: { gfN: 1 }, desc: '여사친이 늘 한 명 더 나간다 (다른 진상에게)' },
+  hyungyeong: { name: '요요 없는 다이어트 주사', stats: { atk: 0.1, spd: 0.1 }, fx: { dietMul: 2, mark: 0.25 }, desc: '날씬 모드가 2배 오래 · 표시한 진상이 받는 피해 +25% → +50%' },
+  ara: { name: '영원한 공주 티아라', stats: { boss: 0.15, atk: 0.08 }, fx: { ageless: 1, echo: 0.8 }, desc: '다시는 늙지 않는다 (늘 공주) · 공주의 일격이 0.8초 뒤 한 번 더' },
+  hochan: { name: '랑방 초대 방장의 왕관', stats: { atk: 0.1, ult: 0.15 }, fx: { echo: 2 }, desc: '막차 대행진이 2초 뒤 한 번 더 지나간다 (기세는 한 번만)' },
+  soyoung: { name: '성준영 평생 출석부', stats: { skill: 0.12, cd: 0.1 }, fx: { summonMul: 2, multi: 1, multiK: 1 }, desc: '성준영이 2배 오래 머문다 · 잔소리 말풍선을 두 개씩' },
+  jieun: { name: '멈춰 버린 금시계', stats: { cd: 0.12, skill: 0.1 }, fx: { freeze: 2.5 }, desc: '시간 정지가 진짜 멈춤 — 범위 안 진상 2.5초 꼼짝 못 함 (보스는 더 크게 느려짐)' },
+  sanghwa: { name: '백 송이 장미 꽃다발', stats: { atk: 0.1, exp: 0.1 }, fx: { growMul: 2 }, desc: '성장 한도 2배 · 성장 속도 2배 (판이 길수록 훨씬 세진다)' },
+  jungmin: { name: '무한 붕대 롤', stats: { hp: 0.15, guard: 0.1 }, fx: { revive: 0.5 }, desc: '입구가 무너지는 순간 한 판에 한 번 붕대로 다시 붙인다 (내구도 50%)' },
+  jiwon: { name: '네 손 모자이크 장갑', stats: { skill: 0.12, atk: 0.08 }, fx: { lanes: 1 }, desc: '쌍뻑큐가 자기 줄 + 양옆 줄까지 세 줄을 뚫는다' },
+  wonsik: { name: '다이아 결혼반지', stats: { hp: 0.15, guard: 0.08 }, fx: { pool: 2, reflect: 3 }, desc: '결정사 상담 때 버티는 체력 2배 · 되돌려 주는 피해 3배' },
+  baul: { name: '팬클럽 응원 썰매 2호', stats: { skill: 0.15, atk: 0.08 }, fx: { sledBack: 1, stun: 1 }, desc: '썰매가 내려갔다가 다시 올라오며 한 번 더 쓸고 · 줄 위 진상 1초 기절' },
+  byunghwa: { name: '앵콜 원맨쇼 핀 조명', stats: { cd: 0.12, atk: 0.08 }, fx: { encore: 1 }, desc: '원맨쇼가 끝나는 순간 앵콜 원맨쇼가 한 번 더 (멈춤 · 버프 시간 2배)' },
+  jeongseob: { name: '쌍둥이 정섭 가면', stats: { res: 0.3, hp: 0.1 }, fx: { twin: 1, stun: 2 }, desc: '나갈 때마다 윤정섭이 둘! 옆 줄에서 그림자 정섭이 함께 밀고 올라간다 · 끝 기절 2배' },
+};
+export const SIG_IDS = Object.keys(SIG).map((h) => 'sig_' + h); // 장비 id: sig_<멤버>
+export const SIG_PITY = 600; // 신화 조각 600개 = 원하는 멤버 전용 신화 1개
+export const SIG_DUP_SHARDS = 300; // 이미 가진 멤버 것이 또 나오면 신화 조각 300개로
+export const SIG_RATE = { gear: 0.1, hero: 0.05 }; // % (장비 뽑기 1회 · 모집 1회)
+for (const [h, m] of Object.entries(SIG)) { const id = 'sig_' + h, k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true, hero: h, fx: m.fx, desc: m.desc }; }
+// 장비가 이 멤버에게 맞나 (전용 신화는 그 멤버만)
+export const gearFits = (t, hero) => !!GEAR[t] && (!GEAR[t].hero || GEAR[t].hero === hero);
+export const sigOf = (hero) => (SIG[hero] ? 'sig_' + hero : null);
+export const sigStatText = (t) => Object.entries(GEAR[t].stats).map(([k, v]) => `${(GEAR_STATS[k] || { name: k }).name.replace(/ \(.*\)$/, '')} +${Math.round(v * 1000) / 10}%`).join(' · ');
+// 그림이 아직 없는 전용 신화: 멤버 얼굴(도감 썸네일)로 대신 (public/img/lb/gear/myth_<멤버>.webp 가 생기면 여기서 지우기)
+export const SIG_ART_TODO = new Set(Object.keys(SIG));
 export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
 // 그림 주소 (화면): 그림이 아직 없는 새 장비는 비슷한 장비 그림으로
-for (const t of Object.keys(GEAR)) GEAR[t].img = `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;
+for (const t of Object.keys(GEAR)) GEAR[t].img = GEAR[t].hero ? (SIG_ART_TODO.has(GEAR[t].hero) ? `/img/lb/dexhq/thumb/${GEAR[t].hero}.webp` : `/img/lb/gear/myth_${GEAR[t].hero}.webp`) : `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;
 // 드롭 표 (모든 콘텐츠) — 숫자는 실제 규칙(rollDrops · rollHeroCard · live.js 보상)과 같다
 export const DROPS = [
   ['스테이지 클리어', '장비 1개 (일반 70 · 희귀 24+0.4×스테이지 · 영웅 5+0.35× · 전설 0.6+0.08×) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%)', '강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
@@ -1905,7 +1968,9 @@ export const DROPS = [
   ['주간 도전', '순위 보상: 1위 모집권 5 + 영웅 장비 · TOP3 모집권 3 · TOP10 2 · 참가 1', '', ''],
   ['1:1 대전', '하루 10판 코인 (승 300 · 패 80 · 첫 승 2배)', '등급 올리기 보상: 코인 · 모집권', ''],
   ['시즌 (30단계)', '5단계 희귀 · 15단계 영웅 · 25단계 전설 장비 · 30단계 신화 장비', '4단계마다 범용 카드 · 3단계마다 모집권', ''],
-  ['모집', 'LEGEND 0.6% (70번부터 ↑ · 90번 확정) · T4 5.4% (40번 확정 · 픽업 50%) · T3 카드 20%', '신화 0.3% · 전설 1.2% · 영웅 6% · 희귀 16.5%', '10회: T3 이상 1개 · 처음 10회 T4'],
+  ['모집', 'LEGEND 0.6% (70번부터 ↑ · 90번 확정) · T4 5.4% (40번 확정 · 픽업 50%) · T3 카드 20%', '전용 신화 0.05% · 신화 0.3% · 전설 1.2% · 영웅 6% · 희귀 16.5%', '10회: T3 이상 1개 · 처음 10회 T4'],
+  ['장비 뽑기', '신화 1% (80번 확정) · 전설 5% · 영웅 24% · 희귀 69.9%', '전용 신화 0.1%', '10회: 영웅 이상 1개'],
+  ['전용 신화 (멤버마다 1개)', '모집 1회 0.05% · 장비 뽑기 1회 0.1% (가진 멤버 중 · 아직 없는 멤버 것 먼저)', '신화 조각: 모집·장비 뽑기 1회마다 1개 · 600개 = 원하는 멤버 것 1개 · 겹치면 조각 300개', ''],
 ]; // 일반 드롭 · 모집 장비 (신화 제외)
 // 이 스테이지에서 떨어지는 장비 (새 세트는 그 챕터부터)
 export const gearPoolFor = (stage) => GEAR_IDS.filter((t) => !GEAR[t].ch || GEAR[t].ch <= Math.ceil(stage / 10));

@@ -80,7 +80,8 @@ function normLb(raw, master = false) {
   // 장비: 이상한 값은 버린다 (종류 · 등급 · 레벨 · 번호)
   const ids = new Set();
   lb.gear = ((raw && raw.gear) || []).filter((it) => it && LBR.GEAR[it.t] && LBR.GEAR_RARITY[it.r] && !LBR.GEAR[it.t].myth === (it.r !== 'myth') && Number.isInteger(it.id) && !ids.has(it.id) && ids.add(it.id))
-    .map((it) => ({ id: it.id, t: it.t, r: it.r, lv: Math.max(0, Math.min(LBR.GEAR_MAX_LV, it.lv | 0)) })).slice(0, LBR.GEAR_BAG);
+    .map((it) => ({ id: it.id, t: it.t, r: it.r, lv: Math.max(0, Math.min(LBR.GEAR_MAX_LV, it.lv | 0)) }));
+  { const isSig = (it) => !!LBR.GEAR[it.t].hero; lb.gear = [...lb.gear.filter((it) => !isSig(it)).slice(0, LBR.GEAR_BAG), ...lb.gear.filter(isSig).slice(0, LBR.SIG_IDS.length * 3)]; } // 전용 신화는 가방 칸과 따로 (가방이 꽉 차도 안 사라진다)
   lb.gearSeq = Math.max(lb.gearSeq | 0, ...lb.gear.map((x) => x.id), 0);
   lb.autoSell = !!(raw && raw.autoSell); // 자동 판매: 일반 등급 드롭은 바로 코인으로
   lb.stones = Math.max(0, Math.min(99999, (raw && raw.stones) | 0)); // 강화석
@@ -93,7 +94,7 @@ function normLb(raw, master = false) {
     if (!LBR.LB_HEROES.includes(h) || !sl) continue;
     for (const k of ['w', 'a', 'm']) {
       const it = lb.gear.find((x) => x.id === sl[k]);
-      if (it && LBR.GEAR[it.t].slot === k && !used.has(it.id)) { used.add(it.id); (eq[h] = eq[h] || {})[k] = it.id; }
+      if (it && LBR.GEAR[it.t].slot === k && LBR.gearFits(it.t, h) && !used.has(it.id)) { used.add(it.id); (eq[h] = eq[h] || {})[k] = it.id; }
     }
   }
   lb.equip = eq;
@@ -731,6 +732,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       const it = findGear(lb, gid);
       if (!it) return { error: '없는 장비예요' };
       if (LBR.GEAR[it.t].slot !== slot) return { error: '그 칸에는 못 껴요' };
+      if (!LBR.gearFits(it.t, hero)) return { error: `${LBR.GEAR[it.t].name}은(는) 다른 멤버 전용이에요` }; // 전용 신화: 그 멤버만
       return { apply: (x) => {
         for (const h of Object.keys(x.equip)) for (const k of ['w', 'a', 'm']) if (x.equip[h][k] === gid) delete x.equip[h][k]; // 다른 멤버가 끼고 있던 건 빼고
         (x.equip[hero] = x.equip[hero] || {})[slot] = gid;
@@ -1011,7 +1013,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   function lbSellMany(token, ids) {
     const want = [...new Set((Array.isArray(ids) ? ids : []).map((x) => Math.floor(Number(x)) || 0).filter((x) => x > 0))].slice(0, LBR.GEAR_BAG);
     return lbGear(token, (lb) => {
-      const eq = new Set(Object.values(lb.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const eq = new Set(Object.values(lb.equip || {}).flatMap((s) => [s.w, s.a, s.m]).filter(Boolean));
       const list = want.map((g) => findGear(lb, g)).filter((it) => it && !eq.has(it.id));
       if (!list.length) return { error: '팔 수 있는 장비가 없어요' };
       const v = list.reduce((a, it) => a + LBR.gearSellValue(it.r, it.lv), 0);
@@ -1023,7 +1025,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   function lbDismantle(token, ids) {
     const want = [...new Set((Array.isArray(ids) ? ids : []).map((x) => Math.floor(Number(x)) || 0).filter((x) => x > 0))].slice(0, LBR.GEAR_BAG);
     return lbGear(token, (lb) => {
-      const eq = new Set(Object.values(lb.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+      const eq = new Set(Object.values(lb.equip || {}).flatMap((s) => [s.w, s.a, s.m]).filter(Boolean));
       const list = want.map((g) => findGear(lb, g)).filter((it) => it && !eq.has(it.id));
       if (!list.length) return { error: '분해할 수 있는 장비가 없어요' };
       const n = list.reduce((a, it) => a + LBR.gearDismantle(it.r, it.lv), 0);
@@ -1042,7 +1044,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (!u) return;
         const lb0 = normLb(u.stats.langbang, isMasterName(u.username));
         if (want.length !== 3) { out = { error: '같은 등급 장비 3개를 골라요' }; return; }
-        const eq = new Set(Object.values(lb0.equip || {}).flatMap((s) => [s.w, s.a]).filter(Boolean));
+        const eq = new Set(Object.values(lb0.equip || {}).flatMap((s) => [s.w, s.a, s.m]).filter(Boolean));
         const list = want.map((g) => findGear(lb0, g));
         if (list.some((it) => !it)) { out = { error: '없는 장비가 있어요' }; return; }
         if (list.some((it) => eq.has(it.id))) { out = { error: '장착 중인 장비는 합성할 수 없어요' }; return; }
@@ -1135,6 +1137,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     const b = (req) => req.body || {};
     r.post('/gacha', wrap((req) => lbGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1, String(b(req).pay || ''))));
     r.post('/gear-gacha', wrap((req) => lbGearGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1)));
+    r.post('/sig/exchange', wrap((req) => lbLive(tok(req), (lb) => LIVE.sigExchange(lb, String(b(req).hero || ''))))); // 신화 조각 600 → 전용 신화
     r.post('/mission/claim', wrap((req) => lbMission(tok(req), String(b(req).kind || ''), String(b(req).id || ''))));
     r.post('/mission/claimAll', wrap((req) => lbLive(tok(req), (lb, id, now) => { const t = ['daily', 'weekly', 'ach'].includes(b(req).tab) ? b(req).tab : 'all'; const r = LIVE.claimAllMissions(lb, t, id, now); return r.n ? r : { error: '받을 보상이 없어요' }; })));
     r.post('/season/claim', wrap((req) => lbSeason(tok(req), b(req).tier === 'all' ? 'all' : Math.floor(Number(b(req).tier) || 0))));
