@@ -792,7 +792,7 @@ function handleEvents(g, loud) {
       case 'wallHit': fx.burst(e.x, e.y + 10, 5, '#d8d0c0', 90, 'dot', 2, 0.35); break;
       case 'wallPush': if (e.w) for (const sx of [-1, 1]) fx.burst(e.x + sx * e.w, e.y + 24, 4, '#d8d0c0', 70, 'dot', 2, 0.35); if (loud) A.sfx.kick(); break; // 미는 폭 양 끝에 먼지 (실제 판정 폭과 같게)
       case 'wallTurn': case 'wallTired': fx.addShake(4); fx.text(e.x, e.y - 60, e.type === 'wallTired' ? '헉헉… 쉬러 간다' : '쿵!', '#fff', 14, 0.9); R.vfx('shock', e.x, e.y - 30, { anim: 'pop', dur: 450, sz: 130 }); if (loud) A.sfx.slam(); break;
-      case 'wallWalk': fx.text(e.x, e.y - 100, '벽이 걸어온다', '#bfd4ff', 15, 1.2); break;
+      case 'wallWalk': fx.text(e.x, e.y - 100, e.turn ? '돌아서 다시 간다!' : '벽이 걸어온다', '#bfd4ff', 15, 1.2); break;
       case 'lockOn': for (const o of e.list || []) R.vfx('warn', o.x, o.y - 10, { anim: 'grow', dur: 600, sz: 56 }); break;
       case 'curseBolt': R.vfx('w_swear', e.x, e.y, { anim: 'fly', dur: 380, sz: 34, tx: e.tx, ty: e.ty }); break;
       case 'mosaicCast': SKFX.add('mosaic', g, e, busy); if (!e.echo) fx.banner('모자이크 폭격!', '삐— 3줄 쾅쾅쾅 · 방어 -40% · 받는 피해 +25%', '#b0203a', 1.0, 'wave'); if (loud) A.sfx.censor(); break; // 여지원: 검열 띠 · 삐— (skillfx.js mosaic)

@@ -721,7 +721,14 @@ function updateAra(g, h, dt, rate) {
   if (h.cd <= 0 && Math.hypot(t.x - h.px, t.y + 18 - h.py) < 40 + (t.r || 16)) {
     h.cd += d.interval * LEVEL_INTERVAL[lv - 1];
     const crit = g.rng() < critOf(g, h);
-    damageEnemy(g, t, heroDamage(g, h) * B.hitMul * (t.boss || t.mid ? B.bossMul : 1) * (crit ? g.mods.critMul : 1), crit, h, false);
+    const hit = heroDamage(g, h) * B.hitMul * (t.boss || t.mid ? B.bossMul : 1) * (crit ? g.mods.critMul : 1);
+    damageEnemy(g, t, hit, crit, h, false);
+    if (g.tower) { // 탑에서만: 망치는 보호막을 한 겹 더 벗기고 · 떨어진 곳 주변도 쿵 (센 진상 하나만 쳐서 떼거리 · 보호막 층에 막히지 않게) — TOWER_SIM.ara
+      const A = TOWER_SIM.ara;
+      if (t.tLay > 0 && !t.dead) { t.tLay--; t.tLayT = TOWER_SIM.shield.regen; if (t.tLay <= 0) ev(g, 'shieldBreak', { x: t.x, y: t.y - t.def.size * 0.6 }); }
+      ev(g, 'splash', { x: t.x, y: t.y, r: A.r, proj: 'hammer' });
+      forEnemiesNear(g, t.x, t.y, A.r, (o) => { if (o !== t) damageEnemy(g, o, hit * A.k, false, h, true); return true; });
+    }
     h.lastShotT = g.t; h.shots++;
     ev(g, 'hammer', { x: t.x, y: t.y - 10, big: true });
   }
@@ -3203,8 +3210,11 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       break;
     case 'wallwalk': { // 윤정섭: 벽이 걸어온다 — 크게 · 빠르게 · 끝에서 기절
       h.growT = sk.sec[lv];
-      if (h.wallSt === 'rest' || h.wallSt === undefined) { h.wallSt = 'out'; h.wallHp = h.def.wall.hp[lv] * 1.5; h.px = h.x; h.py = h.y; }
-      ev(g, 'wallWalk', { x: h.x, y: h.y });
+      // 언제 눌러도 의미 있게: 쉬는 중이면 바로 출발 · 돌아오는 중이면 그 자리에서 돌아서 다시 밀고 올라간다 · 지쳤어도 체력 가득
+      const turn = h.wallSt === 'back';
+      if (h.wallSt !== 'out') { if (h.wallSt !== 'back') { h.px = h.x; h.py = h.y; } h.wallSt = 'out'; h.tired = false; h.out = true; }
+      h.wallHp = Math.max(h.wallHp || 0, h.def.wall.hp[lv] * (1 + h.meta * 0.05) * 1.5);
+      ev(g, 'wallWalk', { x: h.px, y: h.py, turn });
       break;
     }
     case 'sled': { // 송바울 팬클럽 썰매 활강: 자기 줄 전부 큰 피해 + 밀치기
