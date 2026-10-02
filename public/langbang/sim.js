@@ -2858,7 +2858,7 @@ export function tapBag(g, x, y) {
 export function startWave(g, n) {
   g.wave = n;
   if (g.mode === 'endless' && n > 1 && (n - 1) % 5 === 0 && !g.pvp) offerCurse(g);
-  if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 5].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism');
+  if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 4].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism'); // 프리즘은 4웨이브 (5 → 4: 늦게 떠서 체감이 적었음)
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
   g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
