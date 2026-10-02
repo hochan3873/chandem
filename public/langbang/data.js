@@ -104,7 +104,7 @@ export const ATTACK_RELEASE = { soyoung: 3, baul: 3, eunok: 3, jieun: 3, gunnyeo
 export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', 'bike'], ['hyungyeong', 'slim'], ['ara', 'old'], ['jieun', 'demon'], ['eunok', 'rage'], ['youngjun', 'dash']].map(([id, f]) => [id, { form: f, src: `/img/lb/h_${id}_${f}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id + '_' + f] || 4 }]));
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
   'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.4, wonsik: 2.4, staff: 1.1, eunok: 1.2, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.9, junyoung: 1.5, ingyu: 0.95, jiwon: 2.0, jungmin: 1.7, gunman: 0.85, junseo: 2.8, ara: 1.65, jieun: 1.85, baul: 1.65, sanghwa: 1.7, hanna: 1.12 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.2, wonsik: 2.4, staff: 1.1, eunok: 1.2, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.9, junyoung: 1.5, ingyu: 0.95, jiwon: 2.0, jungmin: 1.7, gunman: 0.85, junseo: 2.8, ara: 1.65, jieun: 1.85, baul: 1.65, sanghwa: 1.7, hanna: 1.12 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 9, stun: 0.9 }; // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -843,7 +843,7 @@ export const HEROES = {
     attack: '과자 던지기 — 누워서 약한 과자를 휙 (맞힐 때마다 간보기 게이지 +3). 간보기 게이지가 차면 일어나서 한 줄 전체에 빔!',
     desc: '늘 귀찮은 간보는 사람. 누워만 있다가 "이제 좀 해볼까?" 한 방이면 한 줄이 싹 비워진다. 진짜 화나면 금빛 머리 초사이언으로 변신!',
     perks: { 3: '게이지 빨라짐 · 빔 두꺼워짐 · 포격 +1발', 5: '게이지 최대 · 빔 제일 두껍게 · 포격 11발 · 범위 +' },
-    skill: { id: 'ssj', name: '초사이언 포격', cd: 20, desc: '"하아아앗!" 금빛 머리로 변신 → 진상이 몰린 곳마다 하늘에서 금빛 포격이 연달아 쾅 (떨어질 자리에 먼저 동그라미) · 맞은 진상은 잠깐 휘청', wind: 0.9, gap: 0.42, delay: 0.55, n: [8, 8, 9, 9, 11], r: [56, 56, 60, 60, 66], mul: [3.7, 3.7, 3.7, 3.7, 3.8], daze: 0.3 }, // 제라스 궁처럼: 변신 0.9초 → 0.42초마다 한 발 (0.55초 뒤 떨어짐) · 보스 0.8배
+    skill: { id: 'ssj', name: '초사이언 포격', cd: 20, desc: '"하아아앗!" 금빛 머리로 변신 → 진상이 몰린 곳마다 하늘에서 금빛 포격이 연달아 쾅 (떨어질 자리에 먼저 동그라미) · 맞은 진상은 잠깐 휘청', wind: 0.9, gap: 0.42, delay: 0.55, n: [7, 7, 8, 8, 9], r: [56, 56, 60, 60, 66], mul: [2.5, 2.5, 2.6, 2.6, 2.7], daze: 0.3 }, // 제라스 궁처럼: 변신 0.9초 → 0.42초마다 한 발 (0.55초 뒤 떨어짐) · 보스 0.8배
   },
   youngjun: {
     id: 'youngjun', bossKit: 1.2, kit: 0.95, name: '김영준', gender: 'm', emoji: '🐆', color: '#7a4dff', unlock: true, attr: 'booze',
@@ -935,7 +935,7 @@ export const HEROES = {
     id: 'soyoung', bossKit: 0.95, kit: 1.05, name: '정소영', gender: 'f', emoji: '🗯️', color: '#ff8fb1', gacha: true, attr: 'talk',
     img: ART('h_soyoung'), role: '소환사 · 잔소리로 성준영 조종 (직접 공격 없음)',
     dmg: 30, interval: 0.95, range: 375, proj: 'nag', projSpeed: 520, noHit: true,
-    nag: { heal: [0.075, 0.075, 0.09, 0.09, 0.11], call: [13, 13, 14, 14, 16], start: 60 }, // 잔소리 한 번에 성준영 체력 +% (최대 체력 대비) · 준영이 없으면 부르기 게이지 +% (100 = 등판) · 처음 게이지
+    nag: { heal: [0.03, 0.03, 0.035, 0.035, 0.045], call: [13, 13, 14, 14, 16], start: 60 }, // 잔소리 한 번에 성준영 체력 +% (최대 체력 대비) · 준영이 없으면 부르기 게이지 +% (100 = 등판) · 처음 게이지
     attack: '잔소리 — 진상은 안 때린다. 잔소리 한 번마다 성준영 체력이 차고 (공격 속도가 빠를수록 자주), 준영이 없으면 부르기 게이지가 차서 가득 차면 준영이 나온다',
     desc: '"그러니까 내가 뭐랬어!" 직접 싸우진 않는다. 잔소리로 성준영을 부려 진상을 쓸어 모으게 하고, 준영이 지쳐 쓰러질 것 같으면 또 잔소리로 일으켜 세운다.',
     perks: { 3: '잔소리 한 번에 준영 체력이 더 많이 찬다', 5: '준영이 더 튼튼하고 더 넓게 쓸어 모은다' },
@@ -1038,7 +1038,7 @@ export const SUMMONS = {
     id: 'junyoung', summon: true, bossKit: 1, kit: 1, name: '성준영', gender: 'm', emoji: '🃏', color: '#9fd4ff', attr: 'talk',
     img: ART('h_junyoung'), role: '소환 · 돈 쓸어 모으기 · 진상 끌어모으는 미끼',
     dmg: 30, interval: 0.55, range: 380, proj: 'sweep',
-    sweep: { hp: [0.55, 0.55, 0.65, 0.65, 0.8], hpMeta: 0.02, r: [110, 110, 120, 120, 135], hold: 40, pull: 110, bossPull: 0.25, max: [6, 6, 7, 7, 8], tick: 0.5, dmgK: 0.18, walk: 58, cut: 0.4, wp: [1.4, 2.6], allinR: 1.5 }, // 체력 = 입구 최대 내구도의 % · 끌어모으는 반경 · 붙잡는 최대 수 · 0.5초마다 붙잡은 진상에게 조금씩 (한 방의 18%) · 받는 피해 −40%
+    sweep: { hp: [0.32, 0.32, 0.38, 0.38, 0.45], hpMeta: 0.02, r: [110, 110, 120, 120, 135], hold: 40, pull: 110, bossPull: 0.25, max: [6, 6, 7, 7, 8], tick: 0.5, dmgK: 0.18, walk: 58, cut: 0.2, wp: [1.4, 2.6], allinR: 1.5 }, // 체력 = 입구 최대 내구도의 % · 끌어모으는 반경 · 붙잡는 최대 수 · 0.5초마다 붙잡은 진상에게 조금씩 (한 방의 18%) · 받는 피해 −40%
     allin: { r: 90, mul: 5 }, // 지쳐서 퇴근할 때 "올인!" 작은 폭발 (피해 = 한 방 × 5)
     attack: '빗자루질 — 바닥의 돈을 쓸어 담듯 아래에서부터 이리저리 돌아다니며 주변 진상을 자기 쪽으로 끌어모은다 (피해는 아주 조금). 붙잡힌 진상은 입구 대신 준영을 때린다',
     desc: '비실비실해 보이지만 돈 냄새는 귀신같이 맡는다. 소영 잔소리에 떠밀려 나와 바닥의 돈을 쓸어 담고, 지치면 "올인!" 하고 퇴근한다.',

@@ -805,6 +805,7 @@ function handleEvents(g, loud) {
         if (!busy && !e.twin) fx.text(e.x, e.y - 110, e.revive ? '무한 붕대! 입구 부활' : '전용 신화!', '#ffb8ef', e.revive ? 17 : 13, 1.1, -30);
         if (e.revive) { fx.flash && fx.flash('#ff7ad9', 0.35); if (loud) A.sfx.reward(); }
         break;
+      case 'wsHit': fx.text(e.x + (Math.random() - 0.5) * 30, e.y, '-' + e.v, '#ff7a7a', 12, 0.6, -30); fx.burst(e.x, e.y + 20, 4, '#ffd0c0', 80, 'dot', 2, 0.3); break; // 정원식이 입구 대신 맞음
       case 'gateThrow': fx.burst(e.x, e.y, 10, e.kind === 'snowball' ? '#e8f6ff' : '#ffb0a0', 140, 'dot', 3, 0.5); fx.addShake(2); fx.text(e.x, e.y - 30, '입구 쾅!', '#ff8a7a', 12, 0.7); if (loud) A.sfx.kick(); break; // 멀리서 입구로 던진 것
       case 'wallHit': fx.burst(e.x, e.y + 10, 5, '#d8d0c0', 90, 'dot', 2, 0.35); break;
       case 'wallPush': if (e.w) for (const sx of [-1, 1]) fx.burst(e.x + sx * e.w, e.y + 24, 4, '#d8d0c0', 70, 'dot', 2, 0.35); if (loud) A.sfx.kick(); break; // 미는 폭 양 끝에 먼지 (실제 판정 폭과 같게)

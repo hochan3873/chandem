@@ -1771,7 +1771,7 @@ test('정소영 · 성준영: 정소영은 진상을 안 때림 · 잔소리 = �
     return jy.hp / jy.hpMax;
   };
   const slow = healIn(1), fast = healIn(2);
-  assert.ok(slow > 0.3 && fast > slow + 0.1, `잔소리 회복 ${slow.toFixed(2)} → 공속 2배 ${fast.toFixed(2)}`);
+  assert.ok(slow > 0.24 && fast > slow + 0.06, `잔소리 회복 ${slow.toFixed(2)} → 공속 2배 ${fast.toFixed(2)}`);
   // 붙잡힌 진상은 입구 대신 준영을 친다
   {
     const g = S.createGame({ H: 760, rng: seeded(10), noWaves: true, heroes: ['soyoung'], god: true });
@@ -2097,7 +2097,7 @@ test('소모품 나머지: 택시(밀기·느리게) · 얼음물(꽁꽁 · 보�
   const e = S.spawnEnemy(g, 'thug', 150, g.ropeY - 20, { hpMul: 100 }), b = S.spawnEnemy(g, 'boss_thug', 200, g.ropeY - 40, { hpMul: 5 });
   const y0 = e.y, yb = b.y;
   assert.equal(S.useCons(g, 'taxi'), true);
-  assert.ok(y0 - e.y >= 79 && yb - b.y >= 39 && yb - b.y < 41, '두 칸 · 보스 한 칸'); assert.ok(e.slowT >= 3 && !(b.slowT > 0.1 && b.slowMul < 0.7), '보스는 안 느려짐');
+  assert.ok(y0 - e.y >= 79 && yb - b.y > 0 && yb - b.y < 15, '두 칸 · 보스는 조금만 (보스 · 중간 보스는 덜 밀린다)'); assert.ok(e.slowT >= 3 && !(b.slowT > 0.1 && b.slowMul < 0.7), '보스는 안 느려짐');
   g.consCdT = 0; assert.equal(S.useCons(g, 'icewater'), true); assert.ok(e.stunT >= 3 && !(b.stunT > 0) && b.slowMul <= 0.5);
   const h = g.heroes[0], d0 = S.heroDamage(g, h), r0 = S.heroRate(g, h);
   g.consCdT = 0; assert.equal(S.useCons(g, 'uiriju'), true);
