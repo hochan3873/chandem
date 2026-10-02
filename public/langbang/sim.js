@@ -511,7 +511,7 @@ function updateBuses(g, dt) {
       damageEnemy(g, e, b.dmg * (b.gold && (e.boss || e.mid) ? BAL.hochan.busBoss : 1), false, b.hero, true);
       { const hb = b.hero, bf = hb.def.buff; if (bf && !b.gold) { g.hcBuff = g.hcT > 0 ? Math.min(bf.max + (hb.cm.buff || 0), g.hcBuff + bf.per) : bf.per; g.hcT = bf.sec[hb.lv - 1] + 1; } } // "랑방을 위하여!" 템포에선 버스가 친 진상마다 모두 공격력 + (예전엔 템포에서 안 붙었음)
       if (e.dead) continue;
-      if (!e.boss && !e.mid) { pushUp(g, e, BUS.kb); e.x += (e.x < b.x ? -1 : 1) * 14; } else pushUp(g, e, BUS.kb * 0.25);
+      pushUp(g, e, BUS.kb); if (!e.boss && !e.mid) e.x += (e.x < b.x ? -1 : 1) * 14;
       if (b.stun) e.stunT = Math.max(e.stunT, b.stun * (e.boss ? 0.4 : 1));
     }
   }
@@ -659,8 +659,8 @@ function updateWall(g, h, dt) {
       touch++;
       if (wTick) { damageEnemy(g, e, heroDamage(g, h.src || h) * TOWER_SIM.wallDps * 0.3 * (e.titan || e.boss ? 2 : 1), false, h.src || h, false); if (e.dead) continue; }
       const front = h.py - 30 - (e.boss ? 0 : (touch % 3) * 6); // 팔 앞에 뭉쳐서 같이 밀려 올라간다
-      if (!e.wallBy) { e.wallBy = h; if (!e.boss) e.y = Math.min(e.y, front) - 10; ev(g, 'wallHit', { x: e.x, y: e.y }); } // 처음 닿으면 살짝 튕김
-      if (e.boss) { if (e.y > front) e.y -= (e.y - front) * W0.bossPush; e.strainT = 0.3; } else e.y = Math.min(e.y, front);
+      if (!e.wallBy) { e.wallBy = h; if (!e.boss && !e.mid) e.y = Math.min(e.y, front) - 10; ev(g, 'wallHit', { x: e.x, y: e.y }); } // 처음 닿으면 살짝 튕김
+      if (e.boss || e.mid) { if (e.y > front) e.y -= (e.y - front) * W0.bossPush * (e.boss ? 1 : 2); e.strainT = 0.3; } else e.y = Math.min(e.y, front); // 보스 · 중간 보스는 버틴다 (조금씩만 밀림)
       e.atRope = false;
       e.wallT = 0.1; // 붙어 있는 동안 -70% (보스 -35%)
       e.slowT = Math.max(e.slowT, W0.slowSec); e.slowMul = Math.min(e.slowMul || 1, e.boss ? W0.bossTouch : W0.touchSlow);
@@ -1072,7 +1072,7 @@ function updateJunyoung(g, j, dt) {
     if (d > 0.5) { const sp = Math.min(d, S0.pull * k * dt); e.x += (dx / d) * sp; e.y += (dy / d) * sp; }
     e.baseX = e.x; e.jyT = 0.15; e.atRope = false; held++;
     if (!e.jyHeld) { e.jyHeld = true; ev(g, 'jyGrab', { x: e.x, y: e.y - (e.def.size || 30) * 0.6, jx: j.px, jy: j.py }); }
-    if (d < 16 && !(e.stunT > 0) && !e.sleeping) hurt += (e.atk || 3) * (e.fast ? 1.6 : 1) / Math.max(0.3, e.def.atkInterval || 1) * dt; // 곁에 붙은 진상은 입구 대신 준영을 친다
+    if (d < 45 && held <= 3 && !(e.stunT > 0) && !e.sleeping) hurt += (e.atk || 3) * (e.fast ? 1.6 : 1) / Math.max(0.3, e.def.atkInterval || 1) * dt; // 곁에 붙은 진상은 입구 대신 준영을 친다
   }
   j.held = held;
   if (hurt > 0) { j.hp -= hurt * (1 - S0.cut); prevented(g, j.by || 'soyoung', hurt); j.hurtT = g.t; }
@@ -1672,7 +1672,7 @@ export function damageBase(g, dmg, e) {
   // 정원식 도발: 입구 피해의 20% 를 되돌려 준다
   if (e && e.tauntT > 0 && !e.dead) { const ws = g.heroes.find((o) => o.id === 'wonsik'); if (ws) damageEnemy(g, e, dmg * 0.2 * (1 + ws.meta * 0.02), false, ws, false); }
   for (const tank of g.heroes) if (tank.def.guard && e) { const near = Math.abs(e.x - tank.x) < tank.def.guard.r * (tank.cm.guardR || 1); const cut = near ? Math.min(0.6, tank.def.guard.cut + (tank.cm.guardCut || 0)) : tank.def.guard.all || 0; if (cut > 0) { prevented(g, tank.id, dmg * cut); dmg *= 1 - cut; } } // 탱커: 곁은 크게 · 나머지 입구도 조금
-  { const ws = g.heroes.find((o) => o.wsSt === 'sit' && o.wsPool > 0); if (ws) { const C = ws.def.skill.consult; ws.wsPool -= dmg * (1 - C.cut); prevented(g, ws.id, dmg); return; } } // 상담 중: 입구 앞에 막아선 원식이 입구 대신 전부 맞는다
+  { const ws = g.heroes.find((o) => o.wsSt === 'sit' && o.wsPool > 0); if (ws) { const C = ws.def.skill.consult; ws.wsPool -= dmg * (1 - C.cut); prevented(g, ws.id, dmg); ws.hurtT = g.t; if (e && g.t - (ws.wsHitT || -9) > 0.35) { ws.wsHitT = g.t; ev(g, 'wsHit', { x: ws.px, y: ws.py - 40, ex: e.x, ey: e.y, v: Math.round(dmg * (1 - C.cut)) }); } return; } } // 상담 중: 입구 앞에 막아선 원식이 입구 대신 전부 맞는다
   if (e && e.tauntT > 0) { prevented(g, 'wonsik', dmg * 0.8); dmg *= 0.2; } // 정원식 결혼정보회사: 원식만 바라본다
   if (e && e.grooveT > 0 && HEROES.dohoon.groove) { const c0 = HEROES.dohoon.groove.cut; prevented(g, e.grooveBy || 'dohoon', dmg * c0); dmg *= 1 - c0; } // 김도훈 떼창에 빠진 진상: 입구를 덜 세게
   { const jm = HEROES.jungmin.brace; if (jm && g.heroes.some((o) => o.id === 'jungmin' && !o.gone)) { const c0 = e && e.cRush && !e.cCrashed ? jm.crash : jm.all; prevented(g, 'jungmin', dmg * c0); dmg *= 1 - c0; } } // 홍정민 보강: 입구 피해 −10% · 돌격 충돌 −50%
@@ -2853,7 +2853,7 @@ export function hitEnemy(g, p, e) {
 }
 
 // 스킬 · 버스로 바로 밀기: 영웅 줄에서 kbMaxReach 위로는 안 밀어낸다 (화면 위로 날아가 아무도 못 때리던 버그) · 이미 그 위면 그대로
-function pushUp(g, e, d) { const top = g.rowY - RULES.kbMaxReach; if (e.y > top) e.y = Math.max(top, e.y - d); e.atRope = false; }
+function pushUp(g, e, d) { d *= e.boss ? 0.2 : e.mid ? 0.45 : 1; const top = g.rowY - RULES.kbMaxReach; if (e.y > top) e.y = Math.max(top, e.y - d); e.atRope = false; } // 보스 · 중간 보스는 덜 밀린다
 // 넉백: 위쪽(적이 온 방향)으로 밀어낸다. 총 이동 거리 ≈ dist
 // 보스는 안 밀린다. 연달아 맞으면 점점 덜 밀리고, 영웅들 사거리 밖(화면 위쪽)으로는 절대 안 밀려난다
 export function applyKnockback(e, dist, g) {
