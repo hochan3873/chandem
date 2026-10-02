@@ -815,14 +815,13 @@ export const HEROES = {
   },
   dohoon: {
     id: 'dohoon', bossKit: 0.7, kit: 0.6, name: '김도훈', gender: 'm', emoji: '🎤', color: '#b58cff', unlock: true, attr: 'booze',
-    img: '/img/lb/h_dohoon.webp', role: '힐러 · 떼창 오라 · 제어',
-    dmg: 56, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, groove: { sec: 2, cut: 0.35 }, // (51 → 56: 회복을 줄인 만큼 술 범위 딜로) · 감속 대신 떼창에 빠져 입구를 덜 세게 친다 (감속은 오지은 · 운영진 몫)
-    regen: [0.004, 0.0045, 0.0056, 0.0061, 0.0074], // 떼창: 초당 입구 최대 내구도의 % (×0.7 한 번 더: T2 인데 회복 · 오라 · 앵콜을 다 가져서 LEGEND 급이었음)
+    img: '/img/lb/h_dohoon.webp', role: '떼창 오라 · 입구 지키기 · 제어',
+    dmg: 56, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, groove: { sec: 2, cut: 0.45 }, // 입구 수리는 홍정민 몫 → 회복을 빼고 떼창 −35% → −45% // (51 → 56: 회복을 줄인 만큼 술 범위 딜로) · 감속 대신 떼창에 빠져 입구를 덜 세게 친다 (감속은 오지은 · 운영진 몫)
     sing: { r: 170, spd: [0.13, 0.13, 0.18, 0.18, 0.23] }, // (반경 200 → 170: 덱 전체가 아니라 곁 멤버만) // 떼창: 곁(약 3.5칸) 멤버 공격 속도 +% (18~30 → 13~23: T2 가 LEGEND 만큼 판을 쉽게 만들어서)
-    attack: '마이크 음파 — 둥글게 퍼지는 음파가 근처 진상 전부를 때린다 · 맞은 진상은 떼창에 빠져 2초 동안 입구를 덜 세게 친다 (−35%)',
-    desc: '마이크를 절대 안 놓는 노래방 사나이. 떼창으로 랑방을 꾸준히 고친다.',
+    attack: '마이크 음파 — 둥글게 퍼지는 음파가 근처 진상 전부를 때린다 · 맞은 진상은 떼창에 빠져 2초 동안 입구를 덜 세게 친다 (−45%)',
+    desc: '마이크를 절대 안 놓는 노래방 사나이. 떼창 한 번이면 진상도 같이 따라 부른다.',
     perks: { 3: '음파 범위 · 떼창 강화', 5: '떼창 최대 · 앵콜이 더 길다' },
-    skill: { id: 'encore', name: '무한 앵콜', cd: 22, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 5초 동안 멤버 전원 공격 속도 +25% · 피해 +15% + 근처 진상 춤추느라 멈춤', heal: [0.18, 0.18, 0.21, 0.21, 0.25], buffSec: 5, buffSpd: 0.25, buffDmg: 0.15, r: 250, dance: [3, 3, 3.3, 3.3, 3.8] },
+    skill: { id: 'encore', name: '무한 앵콜', cd: 22, desc: '넓은 범위 진상이 춤추느라 멈춤 + 멤버 상태이상 전부 해제 + 5초 동안 멤버 전원 공격 속도 +25% · 피해 +15%', buffSec: 5, buffSpd: 0.25, buffDmg: 0.15, r: 290, dance: [3.4, 3.4, 3.7, 3.7, 4.2] }, // (입구 회복은 홍정민 몫 → 빼고 범위 250 → 290 · 멈춤 +0.4초)
   },
   ingyu: {
     id: 'ingyu', bossKit: 1.15, kit: 0.95, name: '백인규', gender: 'm', emoji: '🏋️', color: '#3f8cff', unlock: true, attr: 'power',
@@ -1748,7 +1747,7 @@ export const HERO_CARDS = {
   gunman: { title: '건전남: 관통 +1 · 사거리 +15%', add: { pierce: 1 }, mul: { range: 1.15 } },
   gunnyeo: { title: '건전녀: 하트 폭탄 범위 +35% · 간호 40% 더 자주', mul: { splash: 1.35, care: 1.4 } },
   myunghoon: { title: '서명훈: 욕 튕김 +1 · 기절 +20%', add: { bounce: 1 }, mul: { ctrl: 1.2 } },
-  dohoon: { title: '김도훈: 음파 반경 +25% · 떼창 회복 +40%', mul: { range: 1.25, heal: 1.4 } },
+  dohoon: { title: '김도훈: 음파 반경 +30%', mul: { range: 1.3 } },
   ingyu: { title: '백인규: 오토바이 덤벨 1번 빨리 · 밀치기 +30%', add: { moto: 1 }, mul: { motoKb: 1.3 } },
   donghan: { title: '문동한: 빔 두께 +40%', mul: { beam: 1.4 } },
   youngjun: { title: '김영준: 돌격 +1초 · 블랙 러시 +2명', add: { out: 1, rush: 2 } },
@@ -2193,7 +2192,7 @@ export const SKILL_AUG = {
     { id: 'chain', name: '욕 연쇄', desc: '욕 튕김 +2 · 기절 +30%', cm: { add: { bounce: 2 }, mul: { ctrl: 1.3 } } },
   ],
   dohoon: [
-    { id: 'medley', name: '앙코르 메들리', desc: '무한 앵콜 버프 2배 길게 · 회복 +30%' },
+    { id: 'medley', name: '앙코르 메들리', desc: '무한 앵콜 버프 2배 길게 · 범위 +30%' },
     { id: 'hi', name: '고음 폭발', desc: '음파 반경 +25% · 한 번에 4명 더', cm: { mul: { range: 1.25 } } },
   ],
   ingyu: [

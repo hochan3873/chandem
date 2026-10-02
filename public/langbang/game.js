@@ -2696,7 +2696,7 @@ function showShop() {
         <button class="btn" data-act="gpull" data-n="1"><b>1회 뽑기</b><small>${ic('gem', '', 'sm')}${L.GEAR_GACHA_COST.one}</small></button>
         <button class="btn primary" data-act="gpull" data-n="10"><b>10회 뽑기</b><small>${ic('gem', '', 'sm')}${L.GEAR_GACHA_COST.ten} · 영웅 이상 1개</small></button>
       </div>
-      <button class="btn ghost rates-btn" data-act="grates">${ic('chart', '', 'sm')} 확률 공개 · 보유 강화석 ${ic('gem', '', 'sm')}${p.stones | 0}</button>
+      <button class="btn ghost rates-btn" data-act="grates">${ic('chart', '', 'sm')} 확률 공개 · 보유 강화석 ${ic('gem', '', 'sm')}${p.unlimited ? "∞" : p.stones | 0}</button>
       ${sigBarHtml(p)}
       <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>강화석은 스테이지 보상 · 장비 분해로 모여요</span></p>`;
   } else if (tab === 'recruit') {
@@ -6008,7 +6008,7 @@ function showBag() {
   } else if (tab === 'overOld') {
     body = `<div class="eq-over v2"><div class="eq-head"><span class="eq-scope">${app.bagAll ? '가진 멤버 전부' : '지금 덱'}</span><button class="chip" data-act="bagAll">${app.bagAll ? '덱만 보기' : '전부 보기'}</button></div>
       <div class="eq-rows">${rows}</div>
- <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>칸을 누르면 끼울 장비를 골라요 · ${ic('gem', '', 'sm')} 강화석 <b>${p.stones | 0}</b></span></p></div>`;
+ <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>칸을 누르면 끼울 장비를 골라요 · ${ic('gem', '', 'sm')} 강화석 <b>${p.unlimited ? "∞" : p.stones | 0}</b></span></p></div>`;
   } else if (tab === 'cons') {
     body = `<div class="cons-inv">${L.CONS_IDS.map((id) => { const c = L.CONS[id], n = (p.cons || {})[id] | 0; if (c.hidden && !(p.consDex || []).includes(id) && !n) return `<div class="ci-row none" style="--rc:#4a3f60">${consIc(id, 'sil')}<span><b>???</b><small>${esc(c.tip)}</small><small class="ci-tip">${esc(c.hint || '')}</small></span></div>`; return `<div class="ci-row ${n ? '' : 'none'}" style="--rc:${CONS_RC[c.rarity]}">${consIc(id)}<span><b>${esc(c.name)} <em>×${n}</em></b><small>${esc(c.desc)}</small><small class="ci-tip">${esc(c.tip)}</small></span></div>`; }).join('')}</div><p class="sub tipbar">${ic('bulb', '', 'sm')}<span>출전 화면 소모품 칸에 넣어 가면 전투 중에 눌러 써요 · 칸마다 판에 한 번</span></p>`;
   } else if (tab === 'bag') {

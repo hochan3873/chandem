@@ -511,3 +511,19 @@ test('랑방 소모품: 첫 선물 우편 · 마스터 선물(한 번만) · 전
   const sv = await lbPost('/api/langbang/mail/sync', v.token, {});
   assert.ok(sv.profile.mail.some((x) => x.title === '이호찬님의 선물'), '열린 동안 들어오면 받음');
 });
+
+test('마스터 계정: 들어오면 멤버 · 별 · 장비(신화 · 전용 신화 포함) · 소모품 · 강화석 전부 가득', async () => {
+  const LBR = require('../server/langbang-rules');
+  const m = await srv.accounts.login({ username: 'gun8401', password: 'secret12' }); // (앞 테스트에서 만든 마스터)
+  const me = await get('/api/langbang/me', m.token);
+  const p = me.profile;
+  assert.ok(p.master && p.unlimited, '마스터');
+  assert.ok(LBR.LB_HEROES.every((h) => p.heroes[h] === LBR.metaMaxOf(h) && p.hstars[h] === 5), '멤버 최대 · 별 5');
+  assert.ok(p.stones >= 99999, '강화석 무한');
+  const types = new Set(p.gear.map((x) => x.t));
+  assert.ok([...LBR.SIG_IDS, ...LBR.MYTH_IDS].every((t) => types.has(t)), '신화 · 전용 신화 전부');
+  assert.ok(p.gear.filter((x) => x.r === 'legend').every((x) => x.lv === LBR.GEAR_MAX_LV), '전설 최대 강화');
+  assert.ok(p.gear.length <= LBR.GEAR_BAG, '가방 한도');
+  const me2 = await get('/api/langbang/me', m.token);
+  assert.equal(me2.profile.gear.length, p.gear.length, '다시 들어와도 늘지 않음');
+});
