@@ -1,0 +1,316 @@
+// 랑방 대전 — 건물주 레이드 (주간 서버 레이드) 규칙: 화면 · 서버가 같은 파일을 쓴다 (DOM 없음)
+//  「건물주 대마왕」: 랑방 건물 위에 쭈그려 앉은 거대 악당. 팔 8개에 물건을 하나씩 들고 있다.
+//  - 월요일 00:00 (KST) 등장 → 일요일 23:59 까지. 서버 전체가 체력 하나를 같이 깎는다
+//  - 1페이즈: 팔 1~4 · 2페이즈: 팔 5~8 · 3페이즈: 본체 (분노)
+//  - 이번 주에 잡으면 → 참가자 모두 토벌 보상 · 다음 주에 한 단계 더 세져서 돌아온다
+//  - 못 잡으면 → 다음 주에 남은 체력 그대로 이어서 (같은 단계)
+//  - 한 사람이 한 판에 깎을 수 있는 양은 최대 체력의 1% (혼자서는 절대 못 잡는다)
+import { HEROES, hashSeed } from './data.js';
+import { weekIndex, weekStartMs, dayIndex, mailAdd, isFriend, KST, DAY } from './live.js';
+
+const int = (v, lo = 0, hi = 1e9) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : lo; };
+
+// ─── 숫자 (scripts/lb-raid2-sim.js 로 잰 값에 맞춤 · 보고서 참고) ───
+export const R2 = {
+  sec: 160, // 한 판 시간
+  entries: 3, // 주마다 기본 입장
+  bonusMax: 2, // 친구 "같이 때려줘" 응답으로 받는 추가 입장 (주마다 최대)
+  unlock: 5, // 1-5 를 깨면 참가
+  armPct: 0.08, bodyPct: 0.36, // 팔 8개 × 8% + 본체 36% = 100%
+  runCapPct: 0.01, // 한 판에 깎을 수 있는 최대 (최대 체력의 1%)
+  perPlayer: 3.5e6, // 활동 인원 한 명당 체력 (1단계) — 한 판 보통 0.3~1백만 · 센 계정 2~4백만 (scripts/lb-raid2-sim.js)
+  floor: 20, // 활동 인원이 적어도 이만큼은 있다고 본다 (1단계 최소 7천만 → 한 판 최대 70만)
+  tierMul: 1.5, // 단계마다 체력 ×1.5
+  tierMax: 30,
+  activeDays: 14, // 최근 14일 안에 판을 한 사람 = 활동 인원
+  rallyPerDay: 5, rallyDays: 3, rallyBuff: 0.15, coopPct: 0.1, // 부르기: 하루 5번 · 3일 보관 · 응답한 사람 피해 +15% · 둘 다 협동 기여 +10%
+  liveSec: 200, // "지금 때리는 중" (시작한 지 200초 안에 안 끝난 판)
+  feedMax: 30, histMax: 6,
+};
+// 팔 8개 (순서 = 등장 순서) · weak: 이 멤버들에게 약하다 (피해 ×2.5 · 계약서는 ×3) + 데려가면 그 팔 패턴이 절반으로 약해진다
+//  art: 팔 그림 /img/lb/raid2/arm_<id>.webp (어깨가 회전 중심) · fb: 그림이 없을 때 대신 쓰는 진짜 그림 (손에 든 물건)
+export const ARMS = [
+  { id: 'mega', item: '확성기', phase: 1, color: '#ff6b4a', fb: '/img/lb/gear/megaphone.webp', weak: ['gunnyeo', 'sunggu', 'byunghwa', 'staff'], role: '상태이상 해제 · 면역', pat: '"조용히 해!" 멤버 전원 스킬 봉인', tip: '건전녀 응급 방패 · 강성구 곁은 봉인이 안 먹혀요' },
+  { id: 'bill', item: '월세 고지서', phase: 1, color: '#ffcf3f', fb: '/img/lb/ui2/mail.webp', weak: ['jungmin', 'sanghwa', 'wonsik', 'donghan'], role: '입구 수리 · 피해 감소', pat: '고지서 폭탄: 입구에 큰 피해', tip: '홍정민 붕대 · 정원식 도발로 버텨요' },
+  { id: 'bottle', item: '술병', phase: 1, color: '#4fd18b', fb: '/img/lb/ui2/it_uiriju.webp', weak: ['dohoon', 'bangjang', 'hochan', 'eunok', 'baul'], role: '범위 공격', pat: '술 취한 손님 소환', tip: '몰려오는 취객은 범위 공격으로 한 번에' },
+  { id: 'golf', item: '골프채', phase: 1, color: '#6fd3ff', fb: '/img/lb/gear/belt.webp', weak: ['jeongseob', 'ingyu', 'wonsik', 'sunggu'], role: '탱커 · 벽', pat: '풀스윙: 멤버 둘을 날려 기절', tip: '탱커가 대신 맞아 줘요' },
+  { id: 'contract', item: '계약서', phase: 2, color: '#c77dff', fb: '/img/lb/gear/stamp.webp', weak: ['gunman', 'myunghoon', 'ara', 'jiwon', 'staff'], role: '단일 저격 · 방깎', pat: '불공정 계약: 진상 전원 보호막', tip: '계약서 팔은 단단해요 · 저격수만 ×3' },
+  { id: 'keys', item: '열쇠 꾸러미', phase: 2, color: '#e8a25a', fb: '/img/lb/ui2/key.webp', weak: ['youngjun', 'baul', 'jieun', 'hyungyeong'], role: '빠른 공격 · 돌격', pat: '자리 잠그기: 멤버 하나가 잠깐 못 움직여요', tip: '빠른 멤버가 잠긴 틈을 메워요' },
+  { id: 'bag', item: '명품백', phase: 2, color: '#ff6fd8', fb: '/img/lb/ui2/bag.webp', weak: ['junseo', 'byunghwa', 'hanna', 'donghan'], role: '매력', pat: '총공지 게이지 · 경험치 슬쩍', tip: '매력 멤버에게 홀려서 덜 훔쳐 가요' },
+  { id: 'phone', item: '휴대폰', phase: 2, color: '#5ab0ff', fb: '/img/lb/gear/clover.webp', weak: ['soyoung', 'jieun', 'hochan', 'gunman'], role: '소환 · 시간 · 장거리', pat: '알림 폭탄: 화면이 가려지고 사거리 ↓', tip: '정소영 · 오지은이 알림을 꺼 줘요' },
+];
+export const ARM_IDS = ARMS.map((a) => a.id);
+export const PARTS = [...ARM_IDS, 'body'];
+export const armOf = (id) => ARMS.find((a) => a.id === id) || null;
+export const BODY = { id: 'body', item: '본체', name: '건물주 대마왕 본체', color: '#ff2d45', weak: [], pat: '분노: 건물 흔들기 · 내려찍기가 빨라져요', tip: '내려찍기 예고 때 스킬을 맞히면 끊겨요' };
+export const partName = (id) => (id === 'body' ? '본체' : `${(armOf(id) || {}).item || ''} 팔`);
+export const WEAK_MUL = 2.5, CONTRACT_WEAK = 3, CONTRACT_OTHER = 0.6;
+export const BOSS = { name: '건물주 대마왕', sub: '"이 건물 이번 달부터 월세 두 배야!"' };
+export const R2_ART = {
+  body: '/img/lb/raid2/boss_body.webp', rage: '/img/lb/raid2/boss_body_rage.webp', map: '/img/lb/raid2/map_raid2.webp', lobby: '/img/lb/raid2/lobby.webp',
+  arm: (id) => `/img/lb/raid2/arm_${id}.webp`,
+  bodyFb: '/img/lb/e_boss_gapjil.webp', rageFb: '/img/lb/e_boss_gapjil_rage.webp', mapFb: '/img/lb/map_raid.webp', lobbyFb: '/img/lb/map_raid.webp',
+};
+
+// ─── 주 · 단계 · 체력 ───
+export const tierHpMul = (tier) => Math.pow(R2.tierMul, Math.max(1, Math.min(R2.tierMax, tier | 0 || 1)) - 1);
+// 최대 체력 = 한 명당 체력 × 활동 인원(최소 floor) × 단계 배율
+export function hpMaxFor(tier, active) {
+  return Math.round(R2.perPlayer * Math.max(R2.floor, active | 0) * tierHpMul(tier) / 1000) * 1000;
+}
+export const partMax = (hpMax, id) => Math.round(hpMax * (id === 'body' ? R2.bodyPct : R2.armPct));
+export function newBoss(wi, tier, active, now = Date.now()) {
+  const hpMax = hpMaxFor(tier, active);
+  const hp = {}, max = {};
+  for (const p of PARTS) hp[p] = max[p] = partMax(hpMax, p);
+  return { v: 1, wi, tier: Math.max(1, tier | 0), active: active | 0, hpMax, hp, max, by: {}, killedAt: 0, killer: null, startedAt: now, board: {}, feed: [], live: {}, hist: [] };
+}
+export const weekEndMs = (wi) => weekStartMs(wi + 1);
+export const hpLeft = (s) => PARTS.reduce((a, p) => a + Math.max(0, s.hp[p] | 0), 0);
+export const isDead = (s, p) => (s.hp[p] | 0) <= 0;
+export const killed = (s) => isDead(s, 'body');
+// 지금 페이즈 (1 · 2 · 3) · 지금 때릴 수 있는 부위
+export function phaseOf(s) {
+  if (killed(s)) return 4;
+  if (ARMS.some((a) => a.phase === 1 && !isDead(s, a.id))) return 1;
+  if (ARMS.some((a) => a.phase === 2 && !isDead(s, a.id))) return 2;
+  return 3;
+}
+export function exposed(s) {
+  const ph = phaseOf(s);
+  if (ph === 4) return [];
+  if (ph === 3) return ['body'];
+  return ARMS.filter((a) => a.phase === ph && !isDead(s, a.id)).map((a) => a.id);
+}
+// 주가 바뀌었으면: 지난 주 기록을 보관(순위 · 막타) → 잡았으면 다음 단계 새 보스 · 못 잡았으면 남은 체력 그대로 (같은 단계)
+export function rollWeek(s, now, active) {
+  const wi = weekIndex(now);
+  if (!s || !Number.isInteger(s.wi)) return { s: newBoss(wi, 1, active, now), rolled: true };
+  if (s.wi >= wi) return { s, rolled: false };
+  const arc = archiveOf(s);
+  const hist = [arc, ...(s.hist || [])].slice(0, R2.histMax);
+  let n;
+  if (killed(s)) n = newBoss(wi, Math.min(R2.tierMax, s.tier + 1), active, now);
+  else { n = { ...s, wi, board: {}, feed: [], live: {}, by: { ...s.by } }; } // 이어서 (부순 팔은 그대로 부서진 채)
+  n.hist = hist;
+  return { s: n, rolled: true, arc };
+}
+export function archiveOf(s) {
+  const rank = Object.entries(s.board || {}).map(([uid, b]) => [uid, scoreOf(b), b.d | 0, b.n || '']).filter((x) => x[2] > 0).sort((a, b) => b[1] - a[1] || b[2] - a[2]);
+  return { wi: s.wi, tier: s.tier, killed: killed(s), killedAt: s.killedAt || 0, killer: s.killer || null, hpMax: s.hpMax, left: hpLeft(s), rank, by: { ...(s.by || {}) } };
+}
+export const scoreOf = (b) => (b ? (b.d | 0) + (b.c | 0) : 0);
+export function rankOf(s, uid) {
+  const me = (s.board || {})[uid];
+  if (!me || !(me.d > 0)) return null;
+  const sc = scoreOf(me);
+  return Object.values(s.board).filter((b) => b.d > 0 && scoreOf(b) > sc).length + 1;
+}
+export function topList(s, n = 20) {
+  return Object.entries(s.board || {}).filter(([, b]) => b.d > 0).sort((a, b) => scoreOf(b[1]) - scoreOf(a[1])).slice(0, n).map(([uid, b], i) => ({ rank: i + 1, uid, nickname: b.n || '', dmg: b.d | 0, coop: b.c | 0, runs: b.r | 0, score: scoreOf(b) }));
+}
+export const participants = (s) => Object.values(s.board || {}).filter((b) => b.d > 0).length;
+export const nowHitting = (s, now = Date.now()) => Object.values(s.live || {}).filter((t) => now - t < R2.liveSec * 1000).length;
+function feedPush(s, f) { s.feed = [f, ...(s.feed || [])].slice(0, R2.feedMax); }
+
+// ─── 한 판 피해 반영 (서버만 부른다 · 한 줄씩 차례로) ───
+// parts: { 부위: 피해 } (화면이 보낸 값 · 위에서 상한을 이미 확인) → 실제로 깎인 양 · 부서진 부위 · 처치
+//  - 이미 부서진 부위에 들어간 피해는 지금 드러난 다른 부위로 넘어간다 (다음 페이즈까지)
+//  - 한 판 최대 = 최대 체력의 1% (넘으면 비율대로 줄인다)
+export function applyRun(s, uid, nick, parts, now = Date.now(), o = {}) {
+  const want = {};
+  let total = 0;
+  for (const p of PARTS) { const v = int((parts || {})[p], 0, 1e12); if (v > 0) { want[p] = v; total += v; } }
+  const cap = Math.round(s.hpMax * R2.runCapPct);
+  const k = total > cap ? cap / total : 1;
+  let pool = 0, counted = 0;
+  const broke = [];
+  const hit = (p, v) => {
+    if (v <= 0 || isDead(s, p)) return v;
+    const a = Math.min(v, s.hp[p]);
+    s.hp[p] -= a; counted += a;
+    if (s.hp[p] <= 0) {
+      s.hp[p] = 0;
+      s.by[p] = { uid, n: String(nick || '').slice(0, 12), at: now };
+      broke.push(p);
+      feedPush(s, { t: now, n: String(nick || '').slice(0, 12), k: p === 'body' ? 'kill' : 'break', p });
+      if (p === 'body') { s.killedAt = now; s.killer = { uid, n: String(nick || '').slice(0, 12) }; }
+    }
+    return v - a;
+  };
+  // 화면이 때린 부위 먼저 (지금 드러난 부위만 바로 · 나머지는 넘치는 피해로)
+  const ex0 = new Set(exposed(s));
+  for (const p of PARTS) { if (!want[p]) continue; const v = Math.floor(want[p] * k); pool += ex0.has(p) ? hit(p, v) : v; }
+  // 넘친 피해: 지금 드러난 부위들에 고르게 → 페이즈가 넘어가면 다음 부위로
+  let guard = 0;
+  while (pool > 0 && !killed(s) && guard++ < 20) {
+    const ex = exposed(s);
+    if (!ex.length) break;
+    const each = Math.ceil(pool / ex.length);
+    let left = 0;
+    for (const p of ex) { const give = Math.min(each, pool); pool -= give; left += hit(p, give); }
+    pool += left;
+    if (left > 0 && exposed(s).length === ex.length && ex.every((p) => !isDead(s, p))) break;
+  }
+  const b = s.board[uid] || (s.board[uid] = { n: '', d: 0, r: 0, c: 0, lh: 0 });
+  b.n = String(nick || '').slice(0, 12); b.d += counted; b.r++; b.lh += broke.length;
+  if (o.coop) b.c += Math.round(counted * R2.coopPct);
+  delete (s.live || {})[uid];
+  if (counted >= cap * 0.5 && !broke.length) feedPush(s, { t: now, n: b.n, k: 'hit', d: counted });
+  return { counted, cap, clipped: k < 1, broke, killed: broke.includes('body') };
+}
+// 부르기에 응답한 판: 부른 사람도 협동 기여
+export function coopCredit(s, uid, nick, v) {
+  const b = s.board[uid] || (s.board[uid] = { n: String(nick || '').slice(0, 12), d: 0, r: 0, c: 0, lh: 0 });
+  b.c += Math.max(0, Math.round(v));
+}
+
+// ─── 개인 기록 (lb.raid2) ───
+//  wi: 이번 주 · used: 쓴 입장 · bonus: 부르기로 받은 추가 입장 · run: 진행 중인 판
+//  rin: 받은 부르기 [{ id, n, at }] · rout: 오늘 보낸 부르기 { day, ids } · paid: [{ wi, f }] (보상 받은 주 · 비트 1 참가 2 토벌 4 순위)
+//  set: 건물주 세트 { 조각: { lv, on } }
+export function emptyR2() { return { wi: -1, used: 0, bonus: 0, run: null, rin: [], rout: null, paid: [], set: {}, best: 0, total: 0 }; }
+export function normRaid2(raw, out) {
+  const r = (raw && raw.raid2) || {};
+  const o = emptyR2();
+  o.wi = Number.isInteger(r.wi) ? r.wi : -1;
+  o.used = int(r.used, 0, 99); o.bonus = int(r.bonus, 0, R2.bonusMax);
+  o.best = int(r.best, 0, 1e13); o.total = int(r.total, 0, 1e15);
+  o.run = r.run && typeof r.run.id === 'string' && r.run.id.length <= 32 ? { id: r.run.id, wi: int(r.run.wi, -1e6, 1e6), at: int(r.run.at, 0, 9e15), rally: typeof r.run.rally === 'string' ? r.run.rally.slice(0, 40) : null, rn: String(r.run.rn || '').slice(0, 12), help: !!r.run.help, ex: (Array.isArray(r.run.ex) ? r.run.ex : []).filter((p) => PARTS.includes(p)) } : null;
+  o.rin = (Array.isArray(r.rin) ? r.rin : []).filter((x) => x && typeof x.id === 'string' && x.id.length <= 40 && Number.isFinite(x.at)).slice(-20).map((x) => ({ id: x.id, n: String(x.n || '').slice(0, 12), at: int(x.at, 0, 9e15) }));
+  o.rout = r.rout && Number.isInteger(r.rout.day) ? { day: r.rout.day, ids: [...new Set((Array.isArray(r.rout.ids) ? r.rout.ids : []).filter((x) => typeof x === 'string' && x.length <= 40))].slice(0, 30) } : null;
+  o.paid = (Array.isArray(r.paid) ? r.paid : []).filter((x) => x && Number.isInteger(x.wi)).slice(-12).map((x) => ({ wi: x.wi, f: int(x.f, 0, 7) }));
+  for (const [id, v] of Object.entries(r.set && typeof r.set === 'object' ? r.set : {})) if (SET[id] && v && typeof v === 'object') o.set[id] = { lv: int(v.lv, 0, SET_MAX), on: typeof v.on === 'string' && HEROES[v.on] ? v.on : null };
+  out.raid2 = o;
+  return o;
+}
+// 이번 주로 맞추기 (주가 바뀌었으면 입장 다시)
+export function r2Week(lb, now = Date.now()) {
+  const r = lb.raid2 || (lb.raid2 = emptyR2());
+  const wi = weekIndex(now);
+  if (r.wi !== wi) { r.wi = wi; r.used = 0; r.bonus = 0; }
+  r.rin = (r.rin || []).filter((x) => now - x.at < R2.rallyDays * DAY);
+  return r;
+}
+export const entriesLeft = (lb, now = Date.now()) => { const r = r2Week(lb, now); return Math.max(0, R2.entries + r.bonus - r.used); };
+export const rallyInbox = (lb, now = Date.now()) => r2Week(lb, now).rin.slice().reverse();
+export function r2Unlocked(lb) { return (lb.maxStage | 0) >= R2.unlock || !!lb.master; }
+
+// 판 시작: 입장 하나 쓰기 · 부르기에 응답하면 추가 입장 (+1, 주마다 최대 R2.bonusMax) · 응답 버프
+export function r2Start(lb, state, rid, now = Date.now(), o = {}) {
+  if (!r2Unlocked(lb)) return { error: `건물주 레이드는 1-5를 깨면 참가할 수 있어요` };
+  if (killed(state)) return { error: '이번 주 건물주는 이미 쓰러졌어요! 다음 주 월요일에 더 세져서 돌아와요' };
+  const r = r2Week(lb, now);
+  let rally = null;
+  if (o.rally) {
+    const i = r.rin.findIndex((x) => x.id === o.rally);
+    if (i < 0) return { error: '그 친구의 부르기가 없어요 (3일이 지나면 사라져요)' };
+    rally = r.rin[i];
+    r.rin.splice(i, 1);
+    if (r.bonus < R2.bonusMax) r.bonus++;
+  }
+  if (!o.free && R2.entries + r.bonus - r.used <= 0) return { error: `이번 주 입장을 다 썼어요 (주마다 ${R2.entries}번 · 친구가 부르면 +1)` };
+  if (!o.free) r.used++;
+  r.run = { id: rid, wi: state.wi, at: now, rally: rally ? rally.id : null, rn: rally ? rally.n : '', help: !!o.help, ex: exposed(state) };
+  return { runId: rid, wi: state.wi, tier: state.tier, exposed: exposed(state), hp: { ...state.hp }, max: { ...state.max }, rally: rally ? { id: rally.id, n: rally.n } : null, left: entriesLeft(lb, now) };
+}
+// 부르기 보내기 (보내는 사람 · 받는 사람 기록을 같이 고친다 — 서버가 둘을 함께 저장)
+export function rallySend(me, them, meId, themId, meNick, now = Date.now()) {
+  if (!isFriend(me, themId) || !isFriend(them, meId)) return { error: '서로 친구일 때만 부를 수 있어요' };
+  const r = r2Week(me, now), t = r2Week(them, now);
+  const day = dayIndex(now);
+  if (!r.rout || r.rout.day !== day) r.rout = { day, ids: [] };
+  if (r.rout.ids.includes(themId)) return { error: '오늘은 이미 불렀어요' };
+  if (r.rout.ids.length >= R2.rallyPerDay) return { error: `부르기는 하루 ${R2.rallyPerDay}번까지예요` };
+  r.rout.ids.push(themId);
+  t.rin = t.rin.filter((x) => x.id !== meId);
+  t.rin.push({ id: meId, n: String(meNick || '').slice(0, 12), at: now });
+  t.rin = t.rin.slice(-20);
+  return { sent: true };
+}
+export const rallySentToday = (lb, id, now = Date.now()) => { const r = (lb.raid2 || {}).rout; return !!r && r.day === dayIndex(now) && r.ids.includes(id); };
+
+// 한 판 피해 상한 (서버가 믿는 최대) — 성장 정도 × 시간 (멤버 약점 · 응원 버프까지 넉넉히)
+export function r2Cap(lb, dur, o = {}) {
+  const meta = Object.values(lb.heroes || {}).reduce((a, b) => a + (b | 0), 0);
+  const stars = Object.values(lb.hstars || {}).reduce((a, b) => a + Math.max(0, b - 1), 0);
+  const perSec = (900 + 380 * (lb.maxStage | 0)) * (1 + meta / 70) * (1 + stars * 0.05);
+  return Math.round(Math.min(R2.sec + 15, int(dur, 0, 1e6)) * perSec * (o.help ? 1.35 : 1) * (o.rally ? 1 + R2.rallyBuff : 1));
+}
+
+// ─── 보상 ───
+export const PART_RW = { coins: 1500, stones: 8, tickets: 1 }; // 팔 막타
+export const KILL_RW = { tickets: 5, gear: 'legend', title: 'r2king' }; // 본체 막타 (막타왕)
+export const JOIN_RW = { coins: 1500, stones: 5, tickets: 1 }; // 참가 상자 (한 번이라도 때리면)
+export const SLAY_RW = { coins: 3000, tickets: 3, title: 'r2slayer', frame: 'r2frame' }; // 토벌 성공 (참가자 모두)
+// 주간 기여 순위 (지난주가 끝난 뒤 우편) · set: 건물주 세트 조각 수
+export function rankReward(rank, n) {
+  if (!rank) return null;
+  if (rank === 1) return { tickets: 10, gear: 'myth', title: 'r2mvp', set: 2, label: '기여 1위' };
+  if (rank <= 3) return { tickets: 6, gear: 'legend', set: 2, label: `기여 ${rank}위` };
+  if (rank <= 10) return { tickets: 4, gear: 'epic', set: 1, label: `기여 ${rank}위` };
+  if (rank <= Math.max(10, Math.ceil(n * 0.5))) return { tickets: 2, coins: 2000, set: 1, label: `기여 상위 50% (${rank}위)` };
+  return { tickets: 1, coins: 1000, label: `기여 ${rank}위` };
+}
+// 받을 보상 계산 (archive 또는 이번 주 상태) — f: 이미 받은 비트
+export function pendingRewards(src, uid, f, ended) {
+  const out = [];
+  const row = (src.rank || []).findIndex((x) => x[0] === uid);
+  const did = row >= 0;
+  if (!did) return out;
+  if (!(f & 1)) out.push({ bit: 1, title: '건물주 레이드 참가 상자', text: `${src.tier}단계 건물주를 때렸어요`, rw: { ...JOIN_RW }, set: 0 });
+  if (src.killed && !(f & 2)) out.push({ bit: 2, title: '건물주 토벌 성공!', text: `${src.tier}단계 건물주를 서버 모두가 쓰러뜨렸어요`, rw: { ...SLAY_RW }, set: 1 });
+  if (ended && !(f & 4)) { const rw = rankReward(row + 1, src.rank.length); if (rw) { const { set, label, ...rest } = rw; out.push({ bit: 4, title: `건물주 레이드 ${label}`, text: `주간 기여 ${row + 1}위 / ${src.rank.length}명`, rw: rest, set: set || 0 }); } }
+  return out;
+}
+
+// ─── 건물주 세트 (레이드 전용 · 멤버 한 명에게 끼운다 · 모든 모드 · 1:1 대전 제외) ───
+//  조각마다 Lv 0~5 (같은 조각을 또 받으면 +1 · 다 키우면 코인)
+export const SET_MAX = 5;
+export const SET = {
+  raid2_contract: { id: 'raid2_contract', name: '갑의 계약서', stat: 'boss', base: 0.1, per: 0.02, desc: '보스 피해', fb: '/img/lb/gear/stamp.webp' },
+  raid2_keys: { id: 'raid2_keys', name: '마스터키 꾸러미', stat: 'cd', base: 0.06, per: 0.012, desc: '스킬 쿨타임 감소', fb: '/img/lb/gear/hourglass.webp' },
+  raid2_bag: { id: 'raid2_bag', name: '월세 명품백', stat: 'atk', base: 0.08, per: 0.02, desc: '공격력', fb: '/img/lb/gear/carrier.webp' },
+  raid2_golf: { id: 'raid2_golf', name: 'VIP 골프채', stat: 'critDmg', base: 0.15, per: 0.03, desc: '치명타 피해', fb: '/img/lb/gear/belt.webp' },
+};
+export const SET_IDS = Object.keys(SET);
+export const SET_BONUS2 = { boss: 0.12, label: '2세트: 보스 · 중간 보스 피해 +12%' };
+export const SET_BONUS4 = { atk: 0.1, ult: 0.1, label: '4세트: 공격력 +10% · 총공지 충전 +10%' };
+export const setImg = (id) => `/img/lb/gear/${id}.webp`;
+export const setValue = (id, lv) => { const s = SET[id]; return s ? Math.round((s.base + s.per * (lv || 0)) * 1000) / 1000 : 0; };
+export function setStats(lb, hero) {
+  const set = (lb && lb.raid2 && lb.raid2.set) || {};
+  const st = {}; let n = 0;
+  for (const id of SET_IDS) { const it = set[id]; if (!it || it.on !== hero) continue; n++; const k = SET[id].stat; st[k] = (st[k] || 0) + setValue(id, it.lv); }
+  if (n >= 2) st.boss = (st.boss || 0) + SET_BONUS2.boss;
+  if (n >= 4) { st.atk = (st.atk || 0) + SET_BONUS4.atk; st.ult = (st.ult || 0) + SET_BONUS4.ult; }
+  if (n) st.r2Set = n;
+  return st;
+}
+// 조각 받기 (서버 시드): 없는 조각 먼저 · 다 있으면 Lv +1 · 다 키웠으면 코인 3000
+export function setGive(lb, seedStr) {
+  const r = lb.raid2 || (lb.raid2 = emptyR2());
+  const miss = SET_IDS.filter((id) => !r.set[id]);
+  const up = SET_IDS.filter((id) => r.set[id] && r.set[id].lv < SET_MAX);
+  const h = hashSeed(seedStr);
+  if (miss.length) { const id = miss[h % miss.length]; r.set[id] = { lv: 0, on: null }; return { id, lv: 0, new: true }; }
+  if (up.length) { const id = up[h % up.length]; r.set[id].lv++; return { id, lv: r.set[id].lv }; }
+  lb.coins = (lb.coins | 0) + 3000;
+  return { id: null, coins: 3000 };
+}
+export function setEquip(lb, id, hero) {
+  const r = lb.raid2 || {};
+  const it = (r.set || {})[id];
+  if (!SET[id] || !it) return { error: '아직 없는 조각이에요' };
+  if (hero && !HEROES[hero]) return { error: '없는 멤버예요' };
+  it.on = hero || null;
+  return { id, on: it.on };
+}
+
+// ─── 화면용 ───
+export function weekLeftText(now = Date.now()) {
+  const ms = weekStartMs(weekIndex(now) + 1) - now;
+  const d = Math.floor(ms / DAY), h = Math.floor((ms % DAY) / 3600e3), m = Math.floor((ms % 3600e3) / 60e3);
+  return d > 0 ? `${d}일 ${h}시간 남음` : h > 0 ? `${h}시간 ${m}분 남음` : `${m}분 남음`;
+}
+export const kstNow = (now = Date.now()) => new Date(now + KST);

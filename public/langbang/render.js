@@ -995,6 +995,7 @@ export class Renderer {
     this.drawGems(g, t);
     if (this.skfx) this.skfx.draw('ground', g); // 스킬 전용 연출 (skillfx.js) — 바닥
     this.drawVfx('ground'); // 바닥 무늬: 금 · 경고 원 · 소환진 · 오라 (캐릭터 발밑 · 납작하게)
+    if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'back'); // 건물주 레이드: 몸통 · 팔 · 내려찍기 구역 (raid2-ui.js)
     this.drawEnemies(g, t);
     this.drawJoinWait(g);
     if (!demo) this.drawRope(g, t);
@@ -1014,6 +1015,7 @@ export class Renderer {
     this.drawBlasts();
     this.drawParts();
     this.drawRings();
+    if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'top'); // 건물주 레이드: 부서져 떨어지는 팔
     if (this.skfx) this.skfx.draw('top', g); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
     this.drawTexts();
     this.drawBubbles();
@@ -1495,7 +1497,7 @@ export class Renderer {
     list.length = 0;
     const striking = (e) => e.atRope && e.stunT <= 0 && (e.hitT > 0 || (e.atkCd > 0 && e.atkCd < 0.3)); // 입구를 때리는 중: 바리케이드 앞에 그린다
     const dark = g.darkT > 0 ? g.rowY - (g.mapFx.seeR || 190) : -1e9;
-    for (const e of g.enemies) if (!e.dead && (e.y > dark || e === g.focus) && (front ? striking(e) : !striking(e))) list.push(e);
+    for (const e of g.enemies) if (!e.dead && !e.r2 && (e.y > dark || e === g.focus) && (front ? striking(e) : !striking(e))) list.push(e); // (건물주 레이드 부위는 raid2-ui 가 따로 그린다)
     list.sort((a, b) => a.y - b.y);
     const sh = this.projSprites.shadow;
     const heavy = list.length > 85 || (g.hell && list.length > 50); // 많을 땐 가벼운 그리기 (작은 진상 그림자 생략 · 연기 줄임)
