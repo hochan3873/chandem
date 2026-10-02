@@ -259,6 +259,7 @@ export class FX {
 
 // ─── 렌더러 ───────────────────────────────────────────
 const PAINTED = { crownIco: 'pCrown', bottle: 'pBottle', bottleRage: 'pBottleRage' };
+const JY_CHIPS = ['#e53935', '#1e6fe0', '#2e9e4a', '#222', '#f2b01e', '#8e44ad']; // 성준영 배팅 칩 색
 const PAINTED_MORE = ['bullet', 'cane', 'wink', 'swear', 'swearBig', 'notice', 'noticeBig', 'flower', 'rose', 'chip', 'card', 'tick', 'dumbbell', 'snack', 'hammer', 'note', 'heartBomb', 'duck', 'paper', 'gem', 'mosaic'];
 for (const n of PAINTED_MORE) PAINTED[n] = 'p_' + n; // 그린 투사체: fx/p_<이름>.webp (없으면 코드로 그린 것)
 export class Renderer {
@@ -310,7 +311,7 @@ export class Renderer {
     list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
     list.hanim_youngjun_rest = '/img/lb/h_youngjun_rest.webp'; // 김영준 숨 고르기 (크로스핏 8칸 · 있으면)
     list.hanim_baul_ride = '/img/lb/h_baul_ride.webp'; list.hanim_baul_fix = '/img/lb/h_baul_fix.webp'; // 송바울 보드 타기 · 보드 정비 (8칸 반복)
-    list.hanim_junyoung_sweep = '/img/lb/h_junyoung_sweep.webp'; // 성준영 빗자루로 돈 쓸어 모으기 (8칸 반복)
+    list.hanim_junyoung_sweep = '/img/lb/h_junyoung_sweep.webp'; // 성준영 칩 갈퀴로 배팅 칩 긁어모으기 (8칸 반복)
     list.js_back = '/img/lb/h_jeongseob_back.webp'; list.js_walk = '/img/lb/h_jeongseob_walkfront.webp'; list.js_walkb = '/img/lb/h_jeongseob_walkback.webp'; list.js_rest = '/img/lb/h_jeongseob_rest.webp'; // 윤정섭 걷기 · 쉬기
     for (const id in HERO_ANIM_FORM) list['hanim_' + id + '_f'] = HERO_ANIM_FORM[id].src; // 변신 모습 띠
     for (const n of PROJ_ART_NAMES) list['w_' + n] = `/img/lb/fx/w_${n}.webp`; // 투사체 그림 (없으면 코드 모양)
@@ -1110,11 +1111,15 @@ export class Renderer {
     for (const q of g.puddles || []) {
       const a = Math.min(1, q.t / 0.5);
       this.tf(q.x, q.y, 0, 1, 0.35);
-      cx.globalAlpha = 0.55 * a;
-      cx.fillStyle = q.enemy ? '#b8d64a' : '#9acd32';
-      cx.beginPath(); cx.arc(0, 0, q.r, 0, TAU); cx.fill();
-      cx.globalAlpha = 0.6 * a; cx.fillStyle = '#e8ff9a';
-      for (let i = 0; i < 4; i++) { cx.beginPath(); cx.arc(Math.cos(i * 1.7 + q.x) * q.r * 0.5, Math.sin(i * 2.3) * q.r * 0.5, 4 + (i % 2) * 3, 0, TAU); cx.fill(); }
+      // 토 웅덩이: 울퉁불퉁한 덩어리 · 진한 테두리 · 번들거림 · 건더기 · 가끔 보글
+      const sd = q.x * 0.37 + q.r, grow = Math.min(1, (q.max - q.t) / 0.25 + 0.4), R0 = q.r * grow;
+      const lobes = (k) => { cx.beginPath(); cx.arc(0, 0, R0 * 0.72 * k, 0, TAU); for (let i = 0; i < 6; i++) { const an = i * 1.05 + sd, d = R0 * (0.42 + 0.14 * Math.sin(sd * 3 + i * 2.1)); cx.moveTo(Math.cos(an) * d + R0 * 0.38 * k, Math.sin(an) * d); cx.arc(Math.cos(an) * d, Math.sin(an) * d, R0 * 0.38 * k, 0, TAU); } };
+      cx.globalAlpha = 0.75 * a; cx.fillStyle = q.enemy ? '#7f9a22' : '#6f8f1c'; lobes(1.08); cx.fill();
+      cx.fillStyle = q.enemy ? '#c9d84a' : '#b5cf3a'; lobes(0.96); cx.fill();
+      cx.globalAlpha = 0.5 * a; cx.fillStyle = '#eef79a'; cx.beginPath(); cx.ellipse(-R0 * 0.2, -R0 * 0.22, R0 * 0.32, R0 * 0.14, -0.3, 0, TAU); cx.fill();
+      cx.globalAlpha = 0.8 * a; cx.fillStyle = '#e6b84a';
+      for (let i = 0; i < 5; i++) { cx.beginPath(); cx.arc(Math.cos(i * 2.4 + sd) * R0 * 0.45, Math.sin(i * 1.9 + sd) * R0 * 0.4, 2.5 + (i % 2) * 1.5, 0, TAU); cx.fill(); }
+      const bt = (t * 1.3 + sd) % 1; cx.globalAlpha = 0.7 * a * (1 - bt); cx.strokeStyle = '#f4ffb0'; cx.lineWidth = 1.5; cx.beginPath(); cx.arc(Math.cos(sd) * R0 * 0.3, Math.sin(sd * 2) * R0 * 0.3, 2 + bt * 5, 0, TAU); cx.stroke();
       cx.globalAlpha = 1;
     }
     // 찌질남: 달라붙은 멤버와 하트 끈
@@ -1695,12 +1700,24 @@ export class Renderer {
         const img = e.flash > 0 ? sp.f : g.hell || g.tower ? this.hellSprite(sp) : sp.c; // 헬 · 진상의 탑: 붉은 빛을 미리 구운 그림 (그리기 1번)
         const hid = e.def.traits && e.def.traits.stealth && !e.unveiled;
         if (hid) cx.globalAlpha = 0.22 + Math.sin(t * 5 + e.phase) * 0.06; // 은신: 흐릿하게
+        const pk = def.puke && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].puke, pstrip = pk && this.images[`anim_${e.type}_puke`]; // 토하는 인간: 웩 동작 띠 (구부림 → 쏟음 → 입 닦기)
+        let pfi = -1;
+        if (pstrip && imgOk(pstrip)) {
+          const lead = pk.lead || 0.4, rel = pk.release || 3, after = (def.puke.every - e.pukeT) * (pk.fps || 10);
+          if (e.pukeT < lead && e.y > g.ropeY - def.puke.reach && g.heroes.length) pfi = Math.min(rel - 1, Math.floor((1 - e.pukeT / lead) * rel)); // 토하기 직전: 몸을 숙이고 꿀렁
+          else if (after >= 0 && after < (pk.frames || 8) - rel) pfi = rel + Math.floor(after); // 쏟은 뒤: 웩 → 입 닦기
+        }
         const aa = e.atRope && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack; // 입구 공격 프레임 띠 (있으면)
         const astrip = aa && this.images[`anim_${e.type}_attack`];
         const an = moving && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].walk; // 보스 기술·분노 그림이 뜨는 동안은 그 그림
         const strip = an && this.images[`anim_${e.type}_walk`];
         if (e.brkT > 0 && !(e.flash > 0)) cx.drawImage(this.mosaicSprite(sp), -box / 2, -box * FEET, box, box); // 여지원 「모자이크」: 몸 전체를 큰 네모로 깨뜨린 그림 (한 번 구워 두고 재사용 · 띠 대신)
-        else if (astrip && imgOk(astrip)) {
+        else if (pfi >= 0) {
+          const fh = pstrip.naturalHeight, n = pk.frames || 8, fw = pstrip.naturalWidth / n;
+          const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ep_' + e.type, pstrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
+          this.tf(e.x, feet, 0, 1, 1);
+          cx.drawImage(pstrip, pfi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+        } else if (astrip && imgOk(astrip)) {
           const fh = astrip.naturalHeight, n = aa.frames || Math.max(1, Math.round(astrip.naturalWidth / fh)), fw = astrip.naturalWidth / n, rel = Math.min(n - 1, aa.release || 3);
           const fi = e.hitT > 0 ? Math.min(n - 1, rel + Math.floor((1 - e.hitT / 0.25) * (n - rel))) : e.atkCd > 0 && e.atkCd < 0.3 ? Math.floor((1 - e.atkCd / 0.3) * rel) : 0;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ea_' + e.type, astrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
@@ -2460,7 +2477,7 @@ export class Renderer {
     for (let k = 0; k < maxUse; k++) { cx.fillStyle = k < left ? '#7ad0ff' : 'rgba(0,0,0,0.5)'; cx.fillRect(hx - tw / 2 + k * (w0 + gap), feet + 19, w0, 3); }
     return true;
   }
-  // 성준영: 빗자루로 바닥의 돈을 쓸어 모으며 돌아다닌다 — 끌어모으는 반경 고리 · 빗자루 쪽으로 미끄러져 들어오는 동전
+  // 성준영: 칩 갈퀴로 바닥의 배팅 칩을 긁어모으며 돌아다닌다 — 끌어모으는 반경 고리 · 갈퀴 쪽으로 굴러 들어오는 칩
   drawJunyoung(g, h, hx, feet, box, sp, t) {
     const cx = this.cx, im = this.images.hanim_junyoung_sweep, S0 = h.def.sweep;
     const R0 = S0.r[h.lv - 1] * (h.allinT > 0 ? S0.allinR : 1) * (g.saJy ? 1.2 : 1), gold = h.allinT > 0;
@@ -2468,18 +2485,26 @@ export class Renderer {
     cx.setLineDash([7, 7]); cx.lineDashOffset = t * 24; cx.strokeStyle = gold ? 'rgba(255,210,63,0.75)' : 'rgba(190,140,255,0.45)'; cx.lineWidth = gold ? 4 : 2.5;
     cx.beginPath(); cx.arc(0, 0, R0, 0, Math.PI * 2); cx.stroke(); cx.setLineDash([]); cx.restore();
     const face = h.face || 1, sk = this.skfx;
-    if (sk) { // 동전 · 지폐가 둘레에서 빗자루 앞으로 쓸려 들어온다
+    if (sk) { // 빨강 · 파랑 · 초록 · 검정 배팅 칩이 둘레에서 갈퀴 앞으로 쓸려 들어온다
       this.world();
       for (let k = 0; k < 6; k++) {
         const ph = (t * 0.9 + k / 6) % 1, a = k * 1.9 + Math.floor(t * 0.9 + k / 6) * 2.3, r = 46 * (1 - ph) + 8;
         const x = hx + face * 16 + Math.cos(a) * r, y = feet - 2 + Math.sin(a) * r * 0.35;
-        if (k % 3 === 2) sk.bill(x, y, t * 4 + k, a, (1 - ph) * 0.9); else sk.coin(x, y, 3.4, t * 7 + k, 0.35 + (1 - ph) * 0.65);
+        this.pokerChip(x, y, 3.6, t * 7 + k, 0.35 + (1 - ph) * 0.65, JY_CHIPS[k % JY_CHIPS.length]);
       }
     }
     if (!imgOk(im)) return false;
     const fi = Math.floor(t * 9) % 8, hop = Math.abs(Math.sin(t * 9 * Math.PI / 4)) * 1.5;
     this.loopStrip(im, fi, hx, feet - hop, face, box * 1.05);
     return true;
+  }
+  pokerChip(x, y, r, ph, a, col) { // 배팅 칩 한 개 (뒤집히며 굴러 들어온다)
+    const cx = this.cx, w = Math.abs(Math.cos(ph)) * r + 0.8;
+    cx.save(); cx.translate(x, y); cx.globalAlpha = Math.max(0, Math.min(1, a));
+    cx.fillStyle = 'rgba(0,0,0,0.45)'; cx.beginPath(); cx.ellipse(0, 1.2, w, r, 0, 0, Math.PI * 2); cx.fill();
+    cx.fillStyle = col; cx.beginPath(); cx.ellipse(0, 0, w, r, 0, 0, Math.PI * 2); cx.fill();
+    if (w > r * 0.45) { cx.strokeStyle = '#fff'; cx.lineWidth = 1.1; cx.setLineDash([1.6, 1.4]); cx.beginPath(); cx.ellipse(0, 0, w * 0.72, r * 0.72, 0, 0, Math.PI * 2); cx.stroke(); cx.setLineDash([]); cx.fillStyle = 'rgba(255,255,255,0.85)'; cx.beginPath(); cx.ellipse(0, 0, w * 0.32, r * 0.32, 0, 0, Math.PI * 2); cx.fill(); }
+    cx.restore();
   }
   // 정소영 잔소리: 말풍선이 준영에게 날아가 체력을 채운다 (game.js 'nag')
   nagFly(x0, y0, x1, y1) { (this._nag || (this._nag = [])).push({ x0, y0, x1, y1, at: performance.now() }); }

@@ -704,7 +704,7 @@ function handleEvents(g, loud) {
         break;
       }
       case 'jyGrab': if (!busy && Math.random() < 0.6) R.vfx('pullLine', e.x, e.y, { anim: 'streak', dur: 380, tx: e.jx, ty: e.jy - 20, col: '#c07bff' }); break;
-      case 'jySweep': if (!busy) { fx.burst(e.x + (e.face || 1) * 18, e.y + 18, 3, '#ffd23f', 70, 'coin', 6, 0.5); if (Math.random() < 0.08) fx.text(e.x, e.y - 72, ['이거 다 내 돈!', '쓸어 담자~', '하나도 안 흘린다'][(Math.random() * 3) | 0], '#ffe27a', 11, 0.9); } break;
+      case 'jySweep': if (!busy) { for (const c of ['#e53935', '#1e6fe0', '#2e9e4a']) fx.burst(e.x + (e.face || 1) * 18, e.y + 18, 1, c, 70, 'dot', 4, 0.5); if (Math.random() < 0.08) fx.text(e.x, e.y - 72, ['이거 다 내 칩!', '칩 긁어 담자~', '한 칩도 안 흘린다'][(Math.random() * 3) | 0], '#ffe27a', 11, 0.9); } break;
       case 'boardDash': if (loud) A.sfx.whoosh(); if (!busy) fx.burst(e.x, e.y + 18, 6, 'rgba(220,240,255,0.9)', 120, 'puff', 6, 0.35); if (e.aimed && !busy) fx.ring(e.tx, e.ty, 6, 26, 0.3, '#7ad0ff', 2); if (e.left === 1) fx.text(e.x, e.y - 74, '보드가 삐걱…', '#ffd9a0', 11, 0.9); break;
       case 'boardCombo': if (!busy) fx.text(e.x, e.y - 70, `${e.n}명 쓸었다!`, '#7ad0ff', 13, 0.9); break;
       case 'boardBroke': fx.text(e.x, e.y - 74, '보드 정비하러 간다~', '#ffd9a0', 12, 1.0); fx.burst(e.x, e.y + 10, 6, '#c8ccd8', 90, 'shard', 4, 0.5); break;
@@ -1110,7 +1110,11 @@ function handleEvents(g, loud) {
       case 'lightsOn': fx.flash('#fff8d0', 0.25); break;
       case 'megaphone': fx.text(180, g.H * 0.26, '인피 확성기! 진상 가속', '#ff8a8a', 17, 1.2, -10); break;
       case 'puke':
-        if (e.cry) { fx.text(e.x, e.y, '엉엉…', '#9fd8ff', 13, 0.9, -20); break; } fx.text(e.x, e.y, '우웩!', '#b8e04a', 16, 0.9); fx.burst(e.hx, g.rowY + 18, 10, '#9acd32', 120, 'dot', 5, 0.5, 200); break;
+        if (e.cry) { fx.text(e.x, e.y, '엉엉…', '#9fd8ff', 13, 0.9, -20); break; } fx.text(e.x, e.y - 14, '우웩!', '#b8e04a', 16, 0.9); { // 입에서 멤버 발밑까지 토 덩어리가 포물선으로 날아가 철퍽
+          const T = 0.42, G = 900, ty = g.rowY + 18;
+          for (let i = 0; i < 9; i++) { const t0 = T * (0.85 + Math.random() * 0.3), dx = (Math.random() - 0.5) * 30; fx.part('dot', e.x + (Math.random() - 0.5) * 6, e.y + 8, (e.hx + dx - e.x) / t0, (ty - e.y - 8) / t0 - 0.5 * G * t0, t0, 4 + Math.random() * 4, i % 3 ? '#c9d84a' : '#9acd32', { grav: G }); }
+          setTimeout(() => { fx.burst(e.hx, ty, 12, '#c9d84a', 140, 'dot', 5, 0.5, 260); fx.burst(e.hx, ty, 6, '#e8f07a', 90, 'dot', 3, 0.4, 200); }, T * 1000);
+        } break;
       case 'cuddle': fx.text(e.x, e.y, '꽁냥꽁냥♡', '#ffb0d0', 12, 0.8); fx.part('heart', e.x, e.y, 0, -40, 0.8, 9, null); break;
       case 'breakup': fx.text(e.x, e.y, '헤어져!!', '#ff7fa8', 18, 1.1, -20); fx.burst(e.x, e.y + 20, 12, '#ff9ecb', 160, 'shard', 5, 0.6, 300); break;
       case 'grab': { fx.text(e.hx, e.hy - 70, '붙잡힘!', '#ffc08a', 15, 1); R.vfx('slap', e.hx, e.hy - 30, { anim: 'pop', dur: 380, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.hx) < 2 && Math.abs(x.y - e.hy) < 2); if (hh) hh._hitAt = performance.now(); if (loud) A.sfx.charm(); break; }
@@ -1756,7 +1760,7 @@ function placeBubble(x, y) {
 }
 // 필드 멤버 정보 카드: 지금 능력치 · 공격 방식 · 레벨 효과 · 버프/디버프 (열려 있는 동안 게임 50% 속도)
 const PROJ_TXT = {
-  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', board: '보드 돌진 (탭한 곳으로 · 길 위 전부 · 몇 번 타면 정비)', nag: '잔소리 (피해 없음 · 성준영 체력 · 부르기 게이지)', sweep: '빗자루질 (주변 진상 끌어모아 붙잡기 · 피해 조금)', warn: '유도탄 (감속 · 경고 누적)', bullet: '직선 저격 (자기 줄만)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
+  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', board: '보드 돌진 (탭한 곳으로 · 길 위 전부 · 몇 번 타면 정비)', nag: '잔소리 (피해 없음 · 성준영 체력 · 부르기 게이지)', sweep: '칩 긁어모으기 (주변 진상 끌어모아 붙잡기 · 피해 조금)', warn: '유도탄 (감속 · 경고 누적)', bullet: '직선 저격 (자기 줄만)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
   wave: '둥근 음파 (주변 전부 · 맞은 진상은 입구를 덜 세게)', dumbbell: '포물선 덤벨 (범위) + 오토바이 돌진', snack: '유도 과자 + 한 줄 빔', dash: '뛰어들어 연속 베기', bottle: '포물선 소주병 (범위 · 분노 중 불바다)',
   beam: '레이저 (계속 쏘면 세짐)', cane: '관통 지팡이 (자기 줄 전부)', gf: '핀볼 여사친 (3~4명 튕김 · 밀어내기)', slam: '몸통 박치기 충격파 / 날씬 모드 연타', hammer: '무거운 유도 망치 (보스 우선)', crown: '황금 파동 (자기 줄 전부 관통)',
 };
