@@ -6,6 +6,9 @@
 //  - 이번 주에 잡으면 → 참가자 모두 토벌 보상 · 다음 주에 한 단계 더 세져서 돌아온다
 //  - 못 잡으면 → 다음 주에 남은 체력 그대로 이어서 (같은 단계)
 //  - 한 사람이 한 판에 깎을 수 있는 양은 최대 체력의 1% (혼자서는 절대 못 잡는다)
+//  - 난이도 (보통 · 어려움 · 지옥): 판마다 고른다 · 서버가 열렸는지 확인하고 판 기록에 적는다 (화면이 보낸 값은 안 믿음)
+//    어려운 난이도일수록 입구가 빨리 부서져 판이 짧다 → 준 피해에 난이도 배율(×1 · ×1.4 · ×2.4)을 곱해 서버 체력 · 기여 순위에 넣는다
+//    (한 판 상한 1% 에도 같은 배율 · 순위는 하나 — 입장 수는 같으니 잘하는 사람이 어려운 걸 골라 더 크게 기여)
 import { HEROES, hashSeed } from './data.js';
 import { weekIndex, weekStartMs, dayIndex, mailAdd, isFriend, KST, DAY } from './live.js';
 
@@ -27,7 +30,26 @@ export const R2 = {
   rallyPerDay: 5, rallyDays: 3, rallyBuff: 0.15, coopPct: 0.1, // 부르기: 하루 5번 · 3일 보관 · 응답한 사람 피해 +15% · 둘 다 협동 기여 +10%
   liveSec: 220, // "지금 때리는 중" (시작한 지 220초 안에 안 끝난 판)
   feedMax: 30, histMax: 6,
+  hellSec: 90, // 어려움에서 이만큼 버티면 지옥이 열린다 (또는 4장 클리어)
 };
+// ─── 난이도 (판마다 고름) ───
+//  mul: 서버 체력 · 기여에 들어가는 배율 (한 판 상한도 같이) · rw: 판마다 받는 보상 · open: 열리는 조건 (화면 글)
+export const DIFF_IDS = ['normal', 'hard', 'hell'];
+export const DIFF = {
+  normal: { id: 'normal', name: '보통', mul: 1, color: '#5fd17a', rw: { coins: 100, stones: 2 }, text: '패턴을 익히기 좋아요 · 스킬 2번이면 예고를 끊어요', open: '' },
+  hard: { id: 'hard', name: '어려움', mul: 1.4, color: '#ff9a3a', rw: { coins: 200, stones: 4 }, text: '예고가 빨라요 · 처음부터 붙잡기 · 돈다발 · 퇴거 명령 · 끊으려면 스킬 3번', open: '1장을 깨면 열려요', stage: 10 },
+  hell: { id: 'hell', name: '지옥', mul: 2.4, color: '#ff2d45', rw: { coins: 350, stones: 7 }, text: '모든 패턴이 처음부터 · 연계 공격 · 기절이 아주 길어요 · 끊으려면 스킬 4번', open: `어려움에서 ${R2.hellSec}초 버티면 열려요 (4장을 깨도)`, stage: 40 },
+};
+export const diffOf = (id) => (typeof id === 'string' && DIFF[id] ? id : 'normal');
+export const diffMul = (id) => DIFF[diffOf(id)].mul;
+// 열렸나: { ok, why } — master 는 다 열림 · lb.raid2.hardSec: 어려움에서 가장 오래 버틴 초
+export function diffOpen(lb, id, master = false) {
+  if (!DIFF[id]) return { ok: false, why: '없는 난이도예요' };
+  if (id === 'normal' || master || (lb && lb.master)) return { ok: true };
+  const ms = (lb && lb.maxStage) | 0, hs = (lb && lb.raid2 && lb.raid2.hardSec) | 0;
+  if (id === 'hard') return ms >= DIFF.hard.stage ? { ok: true } : { ok: false, why: `어려움은 ${DIFF.hard.open}` };
+  return ms >= DIFF.hell.stage || hs >= R2.hellSec ? { ok: true } : { ok: false, why: `지옥은 ${DIFF.hell.open}` };
+}
 // 체력은 하나 (body). 페이즈 경계를 넘긴 판 = 그 페이즈 "막타" (p2 · p3) · 마지막 일격 = body
 export const PARTS = ['body'];
 export const BODY = { id: 'body', name: '건물주 대마왕', color: '#ff2d45' };
@@ -38,13 +60,14 @@ export const PHASES = [
 ];
 // 패턴 (화면 안내 · 전투 이벤트 이름) — from: 이 페이즈부터 · 버티는 법
 export const PATTERNS = [
-  { id: 'slam', name: '내려찍기', from: 1, img: '/img/lb/ui2/hammer.webp', text: '빨간 줄에 주먹을 내려찍어 입구에 큰 피해 · 그 줄 멤버 기절', tip: '예고 중에 스킬을 맞히거나 기절시키면 끊기고 빈틈!' },
+  { id: 'slam', name: '내려찍기', from: 1, img: '/img/lb/ui2/hammer.webp', text: '빨간 줄에 주먹을 내려찍어 입구에 큰 피해 · 그 줄 멤버 오래 기절', tip: '예고 중에 스킬을 여러 번 맞히거나 기절 · 총공지로 끊으면 빈틈!' },
   { id: 'bills', name: '고지서 뿌리기', from: 1, img: '/img/lb/raid2/pi_bills.webp', text: '고지서 여러 장이 입구로 날아와요', tip: '탱커 · 건전녀 방패가 막아 줘요' },
-  { id: 'seal', name: '도장 쾅', from: 1, img: '/img/lb/gear/stamp.webp', text: '멤버 둘의 스킬을 잠깐 봉인', tip: '건전녀 응급 방패 · 강성구 곁은 안 먹혀요' },
-  { id: 'sweep', name: '휩쓸기', from: 1, img: '/img/lb/ui2/cc_push.webp', text: '한쪽 절반을 팔로 쓸어 멤버 기절', tip: '예고 중에 끊을 수 있어요' },
+  { id: 'seal', name: '도장 쾅', from: 1, img: '/img/lb/gear/stamp.webp', text: '멤버 둘(어려움부터 셋)의 스킬을 한참 봉인', tip: '건전녀 응급 방패 · 강성구 곁은 안 먹혀요' },
+  { id: 'sweep', name: '휩쓸기', from: 1, img: '/img/lb/ui2/cc_push.webp', text: '한쪽 절반을 팔로 쓸어 멤버 기절', tip: '예고 중에 스킬을 여러 번 맞히면 끊겨요' },
   { id: 'cash', name: '돈다발 폭탄', from: 2, img: '/img/lb/raid2/pi_cash.webp', text: '멤버 발밑에 돈다발이 떨어져 터져요', tip: '홍정민 붕대로 입구를 메워요' },
-  { id: 'grab', name: '입구 붙잡기', from: 2, img: '/img/lb/ui2/door.webp', text: '입구를 붙잡고 흔들어 계속 피해 · 대신 맞기 쉬워요 (피해 ×1.5)', tip: '스킬 두 번 · 기절이면 손을 놓아요' },
-  { id: 'combo', name: '분노 연타', from: 3, img: '/img/lb/raid2/pi_rage.webp', text: '내려찍기 세 번을 연달아', tip: '첫 예고를 끊으면 연타가 멈춰요' },
+  { id: 'grab', name: '입구 붙잡기', from: 2, img: '/img/lb/ui2/door.webp', text: '입구를 붙잡고 흔들어 계속 피해 · 대신 맞기 쉬워요 (피해 ×1.5)', tip: '스킬 여러 번 · 기절 · 총공지면 손을 놓아요' },
+  { id: 'combo', name: '분노 연타', from: 3, img: '/img/lb/raid2/pi_rage.webp', text: '내려찍기를 여러 번 연달아 (지옥은 4번)', tip: '예고 하나를 끊으면 연타가 멈춰요' },
+  { id: 'evict', name: '퇴거 명령', from: 0, img: '/img/lb/ui2/lock.webp', text: '퇴거 명령서를 들이밀어 멤버 모두 스킬 봉인 · 입구 피해', tip: '예고 중에 꼭 끊어요! 못 끊으면 다 같이 봉인' },
 ];
 export const patternOf = (id) => PATTERNS.find((p) => p.id === id) || null;
 export const partName = (id) => (id === 'body' ? BODY.name : id === 'p2' ? '2페이즈 돌입' : id === 'p3' ? '3페이즈 (분노)' : '큰 한 방');
@@ -121,7 +144,7 @@ export function rankOf(s, uid) {
   return Object.values(s.board).filter((b) => b.d > 0 && scoreOf(b) > sc).length + 1;
 }
 export function topList(s, n = 20) {
-  return Object.entries(s.board || {}).filter(([, b]) => b.d > 0).sort((a, b) => scoreOf(b[1]) - scoreOf(a[1])).slice(0, n).map(([uid, b], i) => ({ rank: i + 1, uid, nickname: b.n || '', dmg: b.d | 0, coop: b.c | 0, runs: b.r | 0, score: scoreOf(b) }));
+  return Object.entries(s.board || {}).filter(([, b]) => b.d > 0).sort((a, b) => scoreOf(b[1]) - scoreOf(a[1])).slice(0, n).map(([uid, b], i) => ({ rank: i + 1, uid, nickname: b.n || '', dmg: b.d | 0, coop: b.c | 0, runs: b.r | 0, score: scoreOf(b), df: DIFF_IDS[b.x | 0] || 'normal' }));
 }
 export const participants = (s) => Object.values(s.board || {}).filter((b) => b.d > 0).length;
 export const nowHitting = (s, now = Date.now()) => Object.values(s.live || {}).filter((t) => now - t < R2.liveSec * 1000).length;
@@ -130,9 +153,13 @@ function feedPush(s, f) { s.feed = [f, ...(s.feed || [])].slice(0, R2.feedMax); 
 // ─── 한 판 피해 반영 (서버만 부른다 · 한 줄씩 차례로) ───
 // parts: { body: 피해 } (옛 팔 이름도 받아서 합친다 · 위에서 상한을 이미 확인) → 실제로 깎인 양 · 넘긴 페이즈(p2 · p3) · 처치
 //  - 한 판 최대 = 최대 체력의 1% (넘으면 줄인다)
+//  - o.diff: 난이도 (서버가 판 기록에서 꺼낸 값) → 피해 × 배율 · 상한도 × 배율
+export const runCapOf = (s, diff) => Math.round(s.hpMax * R2.runCapPct * diffMul(diff));
 export function applyRun(s, uid, nick, parts, now = Date.now(), o = {}) {
-  const want = normParts(parts).body || 0;
-  const cap = Math.round(s.hpMax * R2.runCapPct);
+  const diff = diffOf(o.diff), mul = diffMul(diff);
+  const raw = normParts(parts).body || 0;
+  const want = Math.round(raw * mul);
+  const cap = runCapOf(s, diff);
   const v = Math.min(want, cap);
   const nk = String(nick || '').slice(0, 12);
   const broke = [];
@@ -156,10 +183,11 @@ export function applyRun(s, uid, nick, parts, now = Date.now(), o = {}) {
   }
   const b = s.board[uid] || (s.board[uid] = { n: '', d: 0, r: 0, c: 0, lh: 0 });
   b.n = nk; b.d += counted; b.r++; b.lh += broke.length;
+  b.x = Math.max(b.x | 0, DIFF_IDS.indexOf(diff)); // 이번 주 가장 어려운 난이도 (순위표 표시)
   if (o.coop) b.c += Math.round(counted * R2.coopPct);
   delete (s.live || {})[uid];
-  if (counted >= cap * 0.5 && !broke.length) feedPush(s, { t: now, n: b.n, k: 'hit', d: counted });
-  return { counted, cap, clipped: want > cap, broke, killed: broke.includes('body') };
+  if (counted >= cap * 0.5 && !broke.length) feedPush(s, { t: now, n: b.n, k: 'hit', d: counted, df: diff });
+  return { counted, raw, mul, diff, cap, clipped: want > cap, broke, killed: broke.includes('body') };
 }
 // 부르기에 응답한 판: 부른 사람도 협동 기여
 export function coopCredit(s, uid, nick, v) {
@@ -171,14 +199,15 @@ export function coopCredit(s, uid, nick, v) {
 //  wi: 이번 주 · used: 쓴 입장 · bonus: 부르기로 받은 추가 입장 · run: 진행 중인 판
 //  rin: 받은 부르기 [{ id, n, at }] · rout: 오늘 보낸 부르기 { day, ids } · paid: [{ wi, f }] (보상 받은 주 · 비트 1 참가 2 토벌 4 순위)
 //  set: 건물주 세트 { 조각: { lv, on } }
-export function emptyR2() { return { wi: -1, used: 0, bonus: 0, run: null, rin: [], rout: null, paid: [], set: {}, best: 0, total: 0 }; }
+//  hardSec: 어려움에서 가장 오래 버틴 초 (지옥 열기)
+export function emptyR2() { return { wi: -1, used: 0, bonus: 0, run: null, rin: [], rout: null, paid: [], set: {}, best: 0, total: 0, hardSec: 0 }; }
 export function normRaid2(raw, out) {
   const r = (raw && raw.raid2) || {};
   const o = emptyR2();
   o.wi = Number.isInteger(r.wi) ? r.wi : -1;
   o.used = int(r.used, 0, 99); o.bonus = int(r.bonus, 0, R2.bonusMax);
-  o.best = int(r.best, 0, 1e13); o.total = int(r.total, 0, 1e15);
-  o.run = r.run && typeof r.run.id === 'string' && r.run.id.length <= 32 ? { id: r.run.id, wi: int(r.run.wi, -1e6, 1e6), at: int(r.run.at, 0, 9e15), rally: typeof r.run.rally === 'string' ? r.run.rally.slice(0, 40) : null, rn: String(r.run.rn || '').slice(0, 12), help: !!r.run.help, ex: (Array.isArray(r.run.ex) ? r.run.ex : []).filter((p) => PARTS.includes(p)) } : null;
+  o.best = int(r.best, 0, 1e13); o.total = int(r.total, 0, 1e15); o.hardSec = int(r.hardSec, 0, R2.sec + 30);
+  o.run = r.run && typeof r.run.id === 'string' && r.run.id.length <= 32 ? { id: r.run.id, wi: int(r.run.wi, -1e6, 1e6), at: int(r.run.at, 0, 9e15), rally: typeof r.run.rally === 'string' ? r.run.rally.slice(0, 40) : null, rn: String(r.run.rn || '').slice(0, 12), help: !!r.run.help, df: diffOf(r.run.df), ex: (Array.isArray(r.run.ex) ? r.run.ex : []).filter((p) => PARTS.includes(p)) } : null;
   o.rin = (Array.isArray(r.rin) ? r.rin : []).filter((x) => x && typeof x.id === 'string' && x.id.length <= 40 && Number.isFinite(x.at)).slice(-20).map((x) => ({ id: x.id, n: String(x.n || '').slice(0, 12), at: int(x.at, 0, 9e15) }));
   o.rout = r.rout && Number.isInteger(r.rout.day) ? { day: r.rout.day, ids: [...new Set((Array.isArray(r.rout.ids) ? r.rout.ids : []).filter((x) => typeof x === 'string' && x.length <= 40))].slice(0, 30) } : null;
   o.paid = (Array.isArray(r.paid) ? r.paid : []).filter((x) => x && Number.isInteger(x.wi)).slice(-12).map((x) => ({ wi: x.wi, f: int(x.f, 0, 7) }));
@@ -202,6 +231,9 @@ export function r2Unlocked(lb) { return (lb.maxStage | 0) >= R2.unlock || !!lb.m
 export function r2Start(lb, state, rid, now = Date.now(), o = {}) {
   if (!r2Unlocked(lb)) return { error: `건물주 레이드는 1-5를 깨면 참가할 수 있어요` };
   if (killed(state)) return { error: '이번 주 건물주는 이미 쓰러졌어요! 다음 주 월요일에 더 세져서 돌아와요' };
+  const diff = o.diff === undefined || o.diff === null || o.diff === '' ? 'normal' : String(o.diff);
+  const op = diffOpen(lb, diff, !!o.master);
+  if (!op.ok) return { error: op.why };
   const r = r2Week(lb, now);
   let rally = null;
   if (o.rally) {
@@ -213,8 +245,8 @@ export function r2Start(lb, state, rid, now = Date.now(), o = {}) {
   }
   if (!o.free && R2.entries + r.bonus - r.used <= 0) return { error: `이번 주 입장을 다 썼어요 (주마다 ${R2.entries}번 · 친구가 부르면 +1)` };
   if (!o.free) r.used++;
-  r.run = { id: rid, wi: state.wi, at: now, rally: rally ? rally.id : null, rn: rally ? rally.n : '', help: !!o.help, ex: exposed(state) };
-  return { runId: rid, wi: state.wi, tier: state.tier, exposed: exposed(state), hp: { ...state.hp }, max: { ...state.max }, rally: rally ? { id: rally.id, n: rally.n } : null, left: entriesLeft(lb, now) };
+  r.run = { id: rid, wi: state.wi, at: now, rally: rally ? rally.id : null, rn: rally ? rally.n : '', help: !!o.help, df: diff, ex: exposed(state) };
+  return { runId: rid, wi: state.wi, tier: state.tier, diff, mul: diffMul(diff), exposed: exposed(state), hp: { ...state.hp }, max: { ...state.max }, rally: rally ? { id: rally.id, n: rally.n } : null, left: entriesLeft(lb, now) };
 }
 // 부르기 보내기 (보내는 사람 · 받는 사람 기록을 같이 고친다 — 서버가 둘을 함께 저장)
 export function rallySend(me, them, meId, themId, meNick, now = Date.now()) {

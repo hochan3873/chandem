@@ -356,10 +356,16 @@ test('전투(sim): 거대 보스 하나 · 진상 없음 · 예고 → 스킬로
   assert.ok(g.level > lv0 || g.exp > 0, '경험치는 시간으로');
   assert.ok(g.wave >= 2, '웨이브 숫자는 넘어간다 (증강 선택)');
   g.god = false; g.r2.cuts = 0;
-  // 내려찍기 예고 → 스킬 피해 → 끊김 → 빈틈
+  // 내려찍기 예고 → 스킬 한 번으론 안 끊김 · 같은 순간 같은 멤버는 한 번 · 두 번째 스킬 → 끊김 → 빈틈
   g.r2.act = null; g.r2.nextT = 0; g.r2.last = 'x';
   const rng0 = g.rng; g.rng = () => 0.01; S.step(g, 1 / 60); g.rng = rng0;
   assert.ok(g.r2.act && g.r2.act.st === 'wind' && g.r2.act.k === 'slam', g.r2.act && g.r2.act.k);
+  assert.equal(g.r2.fx.cut, 2, '보통: 스킬 2번');
+  g._inSkill = true; S.damageEnemy(g, e, 10, false, gm); S.damageEnemy(g, e, 10, false, gm); g._inSkill = false;
+  assert.ok(g.r2.act, '스킬 한 번(여러 대 맞아도)으론 안 끊긴다');
+  assert.equal(g.r2.act.hits, 1);
+  assert.ok(g.events.some((x) => x.type === 'r2Stagger' && x.n === 1 && x.need === 2));
+  g.t += 0.3;
   g._inSkill = true; S.damageEnemy(g, e, 10, false, gm); g._inSkill = false;
   assert.equal(g.r2.act, null); assert.equal(g.r2.cuts, 1); assert.ok(e.weakT > 0, '빈틈');
   // 끊지 않으면: 입구 피해
@@ -416,8 +422,155 @@ test('숫자 · 패턴 표: 1단계 최소 체력 · 페이즈 경계 · 패턴�
   assert.ok(R2.R2.phaseAt[0] > R2.R2.phaseAt[1] && R2.R2.phaseAt[1] > 0);
   assert.equal(R2.phaseAt(100, 100), 1); assert.equal(R2.phaseAt(50, 100), 2); assert.equal(R2.phaseAt(10, 100), 3); assert.equal(R2.phaseAt(0, 100), 4);
   assert.equal(R2.PHASES.length, 3);
-  for (const p of R2.PATTERNS) { assert.ok(RS.PAT[p.id], p.id); assert.ok(p.name && p.text && p.tip && p.img, p.id); assert.ok(p.from >= 1 && p.from <= 3); }
-  for (const ph of [0, 1, 2]) assert.ok(R2.PATTERNS.filter((p) => RS.PAT[p.id].w[ph] > 0).length >= 3, '페이즈마다 패턴 3개 이상');
+  for (const p of R2.PATTERNS) { assert.ok(RS.PAT[p.id], p.id); assert.ok(p.name && p.text && p.tip && p.img, p.id); assert.equal(RS.patFrom(p.id, 'normal'), p.from, p.id + ' 안내 페이즈 = 보통 확률표'); assert.ok(RS.patFrom(p.id, 'hell') >= 1, p.id + ' 지옥엔 다 나온다'); }
+  for (const d of R2.DIFF_IDS) for (const ph of [1, 2, 3]) assert.ok(R2.PATTERNS.filter((p) => RS.patW(p.id, d, ph) > 0).length >= 3, `${d} ${ph}페이즈 패턴 3개 이상`);
+  for (const d of R2.DIFF_IDS) for (const p of R2.PATTERNS) for (const ph of [1, 2, 3]) if (RS.patW(p.id, 'normal', ph) > 0) assert.ok(RS.patW(p.id, d, ph) > 0, `${d}: 보통에 나오는 패턴은 다 나온다 (${p.id})`);
   for (const k of ['throne', 'idle', 'wind', 'slam', 'throw', 'rage']) assert.match(R2.R2_ART[k], /^\/img\/lb\/raid2\/boss_.*\.webp$/);
   assert.ok(R2.R2.sec >= 150, '한 판 최대 시간');
+});
+
+test('난이도: 열림 조건 · 배율(서버 체력 · 상한 · 순위) · 판 기록 · 이상한 값', () => {
+  assert.deepEqual(R2.DIFF_IDS, ['normal', 'hard', 'hell']);
+  assert.ok(R2.DIFF.normal.mul === 1 && R2.DIFF.hard.mul > 1 && R2.DIFF.hell.mul > R2.DIFF.hard.mul, '어려울수록 배율 ↑');
+  assert.ok(R2.DIFF.hard.rw.coins > R2.DIFF.normal.rw.coins && R2.DIFF.hell.rw.coins > R2.DIFF.hard.rw.coins, '판 보상 ↑');
+  assert.equal(R2.diffOf('zzz'), 'normal'); assert.equal(R2.diffOf(undefined), 'normal'); assert.equal(R2.diffOf('hell'), 'hell');
+  // 열림
+  const lb = { maxStage: 5, raid2: R2.emptyR2() };
+  assert.equal(R2.diffOpen(lb, 'normal').ok, true);
+  assert.equal(R2.diffOpen(lb, 'hard').ok, false); assert.match(R2.diffOpen(lb, 'hard').why, /1장/);
+  assert.equal(R2.diffOpen(lb, 'hell').ok, false);
+  assert.equal(R2.diffOpen(lb, 'hell', true).ok, true, '마스터는 다 열림');
+  assert.equal(R2.diffOpen(lb, 'nope').ok, false);
+  lb.maxStage = 10;
+  assert.equal(R2.diffOpen(lb, 'hard').ok, true); assert.equal(R2.diffOpen(lb, 'hell').ok, false);
+  lb.raid2.hardSec = R2.R2.hellSec;
+  assert.equal(R2.diffOpen(lb, 'hell').ok, true, '어려움에서 버티면 지옥');
+  assert.equal(R2.diffOpen({ maxStage: 40, raid2: R2.emptyR2() }, 'hell').ok, true, '4장 클리어도 지옥');
+  // 시작: 잠긴 난이도 · 없는 난이도 → 입장을 안 쓰고 거절 · 열린 난이도 → 판 기록에 적힘
+  const now = Date.now();
+  const bs = R2.newBoss(L.weekIndex(now), 1, 0, now);
+  const lb2 = { maxStage: 12, raid2: R2.emptyR2() };
+  const e1 = R2.r2Start(lb2, bs, 'r1', now, { diff: 'hell' });
+  assert.ok(e1.error && /지옥/.test(e1.error)); assert.equal(R2.entriesLeft(lb2, now), R2.R2.entries, '거절되면 입장 안 씀');
+  assert.ok(R2.r2Start(lb2, bs, 'r1', now, { diff: 'boss' }).error);
+  const ok = R2.r2Start(lb2, bs, 'r2', now, { diff: 'hard' });
+  assert.equal(ok.diff, 'hard'); assert.equal(ok.mul, R2.DIFF.hard.mul); assert.equal(lb2.raid2.run.df, 'hard');
+  assert.equal(R2.r2Start(lb2, bs, 'r3', now, {}).diff, 'normal', '안 보내면 보통');
+  // 판 기록 정리 (저장된 값이 이상해도)
+  const out = {};
+  R2.normRaid2({ raid2: { hardSec: 9999, run: { id: 'x', wi: 1, at: 1, df: 'god' } } }, out);
+  assert.equal(out.raid2.run.df, 'normal'); assert.ok(out.raid2.hardSec <= R2.R2.sec + 30);
+  // 배율: 서버 체력 · 기여 = 피해 × 배율 · 상한도 × 배율 · 순위표에 가장 어려운 난이도
+  const s = R2.newBoss(10, 1, 0);
+  const cap = Math.round(s.hpMax * R2.R2.runCapPct);
+  const r1 = R2.applyRun(s, 'a', '가', { body: 1000 }, 1, { diff: 'hell' });
+  assert.equal(r1.counted, Math.round(1000 * R2.DIFF.hell.mul)); assert.equal(r1.raw, 1000); assert.equal(r1.diff, 'hell');
+  const r2 = R2.applyRun(s, 'b', '나', { body: cap * 10 }, 2, { diff: 'hard' });
+  assert.equal(r2.counted, Math.round(cap * R2.DIFF.hard.mul), '상한도 × 배율'); assert.equal(r2.clipped, true);
+  const r3 = R2.applyRun(s, 'c', '다', { body: 1000 }, 3, {});
+  assert.equal(r3.counted, 1000, '보통 ×1');
+  const top = R2.topList(s);
+  assert.equal(top[0].uid, 'b'); assert.equal(top[0].df, 'hard');
+  assert.equal(top.find((x) => x.uid === 'a').df, 'hell'); assert.equal(top.find((x) => x.uid === 'c').df, 'normal');
+});
+
+test('난이도 (서버): 잠긴 난이도 거절 · 끝낼 때 보낸 난이도는 무시 (시작 기록만) · 배율 · 판 보상 · 어려움 버티기 → 지옥 열림', async () => {
+  const realNow = Date.now;
+  let T = mid(L.weekIndex(realNow()) + 6);
+  Date.now = () => T;
+  try {
+    await smallBoss(T, 1, 1e9);
+    const u = await user('난이도', { stages: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, 3])), heroes: strong.heroes });
+    const bd = await get('/raid2', u.token);
+    assert.deepEqual(bd.me.diffs, { normal: true, hard: true, hell: false });
+    const no = await post('/raid2/start', u.token, { diff: 'hell' });
+    assert.equal(no.ok, false); assert.match(no.message, /지옥/);
+    assert.equal((await post('/raid2/start', u.token, { diff: 'nightmare' })).ok, false, '없는 난이도');
+    assert.equal((await get('/raid2', u.token)).me.left, R2.R2.entries, '거절된 시작은 입장 안 씀');
+    // 보통으로 시작해 놓고 끝낼 때 "지옥"이라고 우겨도 보통
+    const s1 = await post('/raid2/start', u.token, {});
+    assert.equal(s1.ok, true, s1.message); assert.equal(s1.diff, 'normal');
+    T += 100e3;
+    const coins0 = (await get('/me', u.token)).profile.coins;
+    const f1 = await post('/raid2/finish', u.token, { runId: s1.runId, parts: { body: 10000 }, durationSec: 95, diff: 'hell' });
+    assert.equal(f1.ok, true, f1.message);
+    assert.equal(f1.raid2.diff, 'normal'); assert.equal(f1.raid2.counted, 10000, '보낸 난이도는 안 믿는다');
+    assert.equal(f1.profile.coins - coins0, R2.DIFF.normal.rw.coins);
+    // 어려움: × 배율 · 보상 · 90초 못 버팀 → 지옥 그대로 잠김
+    const s2 = await post('/raid2/start', u.token, { diff: 'hard' });
+    assert.equal(s2.ok, true, s2.message); assert.equal(s2.diff, 'hard'); assert.equal(s2.mul, R2.DIFF.hard.mul);
+    T += 80e3;
+    const f2 = await post('/raid2/finish', u.token, { runId: s2.runId, parts: { body: 10000 }, durationSec: 70 });
+    assert.equal(f2.ok, true, f2.message);
+    assert.equal(f2.raid2.counted, Math.round(10000 * R2.DIFF.hard.mul)); assert.equal(f2.raid2.hellNew, false);
+    assert.equal(f2.profile.coins - f1.profile.coins, R2.DIFF.hard.rw.coins);
+    assert.equal(srv.accounts.raid2._state().board[u.id].d, 10000 + Math.round(10000 * R2.DIFF.hard.mul), '기여 = 피해 × 배율 합');
+    // 어려움에서 90초 이상 → 지옥 열림 (한 번만 "새로 열림")
+    const s3 = await post('/raid2/start', u.token, { diff: 'hard' });
+    T += 120e3;
+    const f3 = await post('/raid2/finish', u.token, { runId: s3.runId, parts: { body: 100 }, durationSec: R2.R2.hellSec + 5 });
+    assert.equal(f3.ok, true, f3.message); assert.equal(f3.raid2.hellNew, true);
+    const b2 = await get('/raid2', u.token);
+    assert.equal(b2.me.diffs.hell, true); assert.equal(b2.me.hardSec, R2.R2.hellSec + 5);
+    assert.equal(b2.top.find((x) => x.me).df, 'hard', '순위표: 가장 어려운 난이도');
+  } finally { Date.now = realNow; }
+});
+
+test('전투(sim) 난이도: 어려울수록 예고가 짧고 · 끊기에 스킬이 더 들고 · 기절이 길고 · 입구 피해가 세다 · 총공지는 바로 끊는다', () => {
+  const mk = (diff) => {
+    const g = S.createGame({ H: 760, mode: 'stage', deck: ['gunman', 'bangjang', 'staff', null, null, null], weekly: RS.waveDef(1), raid: { sec: R2.R2.sec }, slots: 3, rng: () => 0.3 });
+    RS.attach(g, { tier: 1, diff, hp: { body: 100 }, max: { body: 100 } });
+    g.phase = 'wave';
+    return g;
+  };
+  const res = {};
+  for (const d of R2.DIFF_IDS) {
+    const g = mk(d);
+    assert.equal(g.r2.diff, d);
+    // 내려찍기 예고
+    g.r2.act = null; g.r2.nextT = 0; g.r2.last = 'x';
+    const rng0 = g.rng; g.rng = () => 0.01; S.step(g, 1 / 60); g.rng = rng0;
+    assert.equal(g.r2.act.k, 'slam');
+    const wind = g.r2.act.t0, need = g.r2.fx.cut;
+    // 기절 시간: 맞은 멤버
+    const h = g.heroes[0]; h.stunT = 0; h.x = g.r2.act.x;
+    for (let t = 0; t < wind + 0.5 && g.r2.act && g.r2.act.st === 'wind'; t += 1 / 60) S.step(g, 1 / 60);
+    res[d] = { wind, need, stun: h.stunT, hit: g.r2.gate.slam };
+    // 총공지 → 예고 바로 끊김
+    const g2 = mk(d);
+    g2.r2.act = null; g2.r2.nextT = 0; g2.r2.last = 'x'; g2.rng = () => 0.01; S.step(g2, 1 / 60); g2.rng = () => 0.3;
+    assert.ok(g2.r2.act && g2.r2.act.st === 'wind');
+    g2.ult = 1e9; S.step(g2, 1 / 60); g2.ult = 0; S.step(g2, 1 / 60);
+    assert.equal(g2.r2.act, null, d + ': 총공지로 끊김'); assert.ok(g2.events.some((x) => x.type === 'r2Cut' && /총공지/.test(x.text)));
+  }
+  assert.ok(res.normal.wind > res.hard.wind && res.hard.wind > res.hell.wind, '예고 시간');
+  assert.ok(res.normal.need < res.hard.need && res.hard.need < res.hell.need, '끊기에 필요한 스킬 수');
+  assert.ok(res.normal.stun >= 1.5 && res.hell.stun > res.normal.stun * 1.4, `기절 시간 ${res.normal.stun} → ${res.hell.stun}`);
+  assert.ok(res.hell.hit > res.normal.hit, '입구 피해');
+});
+
+test('전투(sim) 입구 금: 맞은 만큼 금이 남아 수리로 못 메움 · 방패로 막아도 금은 남음 · 금이 입구를 다 덮으면 무너짐', () => {
+  const g = S.createGame({ H: 760, mode: 'stage', deck: ['gunman', 'bangjang', 'staff', null, null, null], weekly: RS.waveDef(1), raid: { sec: R2.R2.sec }, slots: 3, rng: () => 0.3 });
+  RS.attach(g, { tier: 1, diff: 'normal', hp: { body: 100 }, max: { body: 100 } });
+  g.phase = 'wave';
+  const slamOnce = () => {
+    g.r2.act = null; g.r2.nextT = 0; g.r2.last = 'x';
+    g.rng = () => 0.01; S.step(g, 1 / 60); g.rng = () => 0.3; g.r2.nextT = 99;
+    assert.equal(g.r2.act.k, 'slam');
+    for (let t = 0; t < 3 && g.r2.act && g.r2.act.st === 'wind'; t += 1 / 60) S.step(g, 1 / 60);
+  };
+  slamOnce();
+  assert.ok(g.r2.crack > 0, '내려찍기 → 금');
+  // 수리해도 최대 − 금 까지만
+  g.base.hp = g.base.max; S.step(g, 1 / 60);
+  assert.ok(g.base.hp <= g.base.max - g.r2.crack + 1e-6, '금 간 만큼은 못 채움');
+  // 방패로 다 막아도 금은 남는다
+  const c0 = g.r2.crack;
+  g.doorShield = g.base.max * 10; g.doorShieldT = 30;
+  slamOnce();
+  assert.ok(g.r2.crack > c0, '방패로 막아도 금');
+  // 금이 다 덮으면 판 끝
+  g.r2.crack = g.base.max; S.step(g, 1 / 60);
+  assert.equal(g.over, true); assert.equal(g.base.hp, 0);
+  assert.ok(RS.report(g).crack >= 1);
 });

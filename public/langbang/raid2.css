@@ -134,3 +134,25 @@
 .r2-broke b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 14); color: #ffe27a; text-shadow: var(--ol); }
 .r2-broke small { display: block; font-size: calc(var(--u) * 9); color: #f2dcc0; }
 .r2-killed { margin-top: calc(var(--u) * 6); padding: calc(var(--u) * 8); border-radius: calc(var(--u) * 12); text-align: center; background: rgba(120, 10, 20, 0.6); border: 1.5px solid #ff6a4a; font-weight: 900; color: #fff; text-shadow: var(--ol); }
+
+/* ── 난이도 고르기 (보통 · 어려움 · 지옥) ── */
+.r2-diff { display: flex; flex-direction: column; gap: calc(var(--u) * 4); padding: calc(var(--u) * 7) calc(var(--u) * 8); border-radius: calc(var(--u) * 12); background: rgba(22, 8, 14, 0.88); border: 1.5px solid rgba(255, 120, 80, 0.45); }
+.r2-dh { display: flex; align-items: baseline; gap: calc(var(--u) * 6); }
+.r2-dh b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 13); color: #ffe7a0; text-shadow: var(--ol); }
+.r2-dh small { font-size: calc(var(--u) * 9); font-weight: 800; color: #d4bfc6; }
+.r2-dg { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 5); }
+.r2-d { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); min-width: 0; padding: calc(var(--u) * 6) calc(var(--u) * 2); border-radius: calc(var(--u) * 10); background: rgba(10, 4, 8, 0.75); border: 2px solid rgba(255, 255, 255, 0.14); color: #fff; font: inherit; cursor: pointer; }
+.r2-d b { display: inline-flex; align-items: center; gap: calc(var(--u) * 2); font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 14); color: var(--c); text-shadow: var(--ol); }
+.r2-d b .ic { width: calc(var(--u) * 13); height: calc(var(--u) * 13); }
+.r2-d em { font-style: normal; font-size: calc(var(--u) * 10); font-weight: 900; color: #fff; text-shadow: var(--ol); }
+.r2-d small { font-size: calc(var(--u) * 8); font-weight: 800; color: #cdb8bf; white-space: nowrap; }
+.r2-d.on { border-color: var(--c); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 30%, transparent), rgba(30, 8, 14, 0.92)); box-shadow: 0 0 calc(var(--u) * 10) var(--c); }
+.r2-d.lock { opacity: 0.5; filter: grayscale(0.7); }
+.r2-dt { margin: 0; font-size: calc(var(--u) * 9.5); font-weight: 800; color: #f2e6ea; line-height: 1.3; }
+.r2-dt b { color: var(--c); text-shadow: var(--ol); margin-right: calc(var(--u) * 2); }
+.r2-dl { margin: 0; font-size: calc(var(--u) * 8.5); font-weight: 700; color: #b9a3ab; line-height: 1.3; }
+.r2-dbadge { display: inline-block; margin-left: calc(var(--u) * 3); padding: 0 calc(var(--u) * 4); border-radius: 6px; border: 1px solid var(--c); color: var(--c); font-style: normal; font-size: calc(var(--u) * 8); font-weight: 900; vertical-align: middle; }
+.r2h-df { display: inline-block; padding: 0 calc(var(--u) * 4); border-radius: 6px; background: rgba(10, 4, 8, 0.8); border: 1px solid var(--c); color: var(--c); font-family: sans-serif; font-style: normal; font-weight: 900; font-size: calc(var(--u) * 9); text-shadow: none; vertical-align: middle; }
+/* 입구 금: 입구 체력 줄 오른쪽 (수리로 못 메우는 만큼) */
+.r2-crack { position: absolute; right: 0; top: 0; bottom: 0; width: 0; z-index: 3; border-radius: 0 99px 99px 0; background: repeating-linear-gradient(115deg, #1a0d0a 0 5px, #3a2218 5px 7px); box-shadow: inset 2px 0 0 #ff6a4a; transition: width 0.3s; }
+.r2-hellnew { background: rgba(140, 10, 30, 0.75); border-color: #ff2d45; }

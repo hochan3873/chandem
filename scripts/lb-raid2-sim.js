@@ -1,6 +1,6 @@
 'use strict';
 // 건물주 레이드 한 판 피해 재기 (밸런스용) — 서버 체력 공식 · 피해 상한을 정할 때 쓴다
-//   node scripts/lb-raid2-sim.js [--seeds=4] [--phase=1|2|3]
+//   node scripts/lb-raid2-sim.js [--seeds=4] [--phase=1|2|3] [--diff=normal|hard|hell] [--quiet]
 //   계정 수준 3가지(맨 위 · 중간 · 가볍게) × 덱 × 시작 페이즈 → 한 판 피해 · 버틴 시간(입구가 부서질 때까지) · 끊은 수 / 내려찍기 수
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -30,6 +30,9 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
   const phases = { 1: 1, 2: 0.5, 3: 0.2 }; // 서버 체력 남은 비율 → 시작 페이즈
   const N = Number(opt('seeds', 3));
   const onlyPh = opt('phase', '');
+  const DIFF = opt('diff', 'normal');
+  const quiet = args.includes('--quiet');
+  const runs = []; // 판마다 { prof, t, broke(입구가 부서짐) · finale(철거) · dmg }
   function play(prof, deck, ex, seed) {
     const P = PROFILES[prof];
     const meta = Object.fromEntries(ALL.map((h) => [h, P.meta]));
@@ -37,7 +40,7 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
     const gear = Object.fromEntries(deck.map((h) => [h, { ...P.gear }]));
     const rng = seeded(seed);
     const g = S.createGame({ H: 760, rng, mode: 'stage', deck, join: true, tempo: true, leader: deck[0], meta, stars, gear, weekly: RS.waveDef(1), raid: { sec: R.R2.sec }, items: { door: 8, charm: 6, battery: 6 }, slots: 6 });
-    RS.attach(g, { tier: 1, hp: { body: ex }, max: { body: 1 } });
+    RS.attach(g, { tier: 1, diff: DIFF, hp: { body: ex }, max: { body: 1 } });
     const pr = seeded(seed * 7 + 3);
     let steps = 0;
     while (!g.over && g.phase !== 'victory' && g.t < 240) {
@@ -57,7 +60,7 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
       }
     }
     const rep = RS.report(g);
-    return { dmg: rep.total, door: g.base.hp / g.base.max, over: g.over, t: g.t, cuts: rep.cuts, slams: rep.slams, gs: rep.gate.slam / g.base.max, gb: (rep.gate.bill + rep.gate.other) / g.base.max, lv: g.level, heroes: g.heroes.filter((h) => !h.gone).length };
+    return { finale: !!g.r2.finale, dmg: rep.total, door: g.base.hp / g.base.max, over: g.over, t: g.t, cuts: rep.cuts, slams: rep.slams, gs: rep.gate.slam / g.base.max, gb: (rep.gate.bill + rep.gate.other) / g.base.max, lv: g.level, heroes: g.heroes.filter((h) => !h.gone).length };
   }
   const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
@@ -70,13 +73,21 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
       for (const ph of ['1', '2', '3']) {
         if (onlyPh && onlyPh !== ph) continue;
         let d = 0, door = 0, cuts = 0, slams = 0, overN = 0, gs = 0, gb = 0, tt = 0, lv = 0, hn = 0;
-        for (let s = 1; s <= N; s++) { const r = play(prof, deck, phases[ph], s * 97 + Number(ph)); d += r.dmg; door += r.door; cuts += r.cuts; slams += r.slams; if (r.over) overN++; gs += r.gs; gb += r.gb; tt += r.t; lv += r.lv; hn += r.heroes; }
+        for (let s = 1; s <= N; s++) { const r = play(prof, deck, phases[ph], s * 97 + Number(ph)); runs.push({ prof, dk, ph, t: r.t, finale: r.finale, dmg: r.dmg }); d += r.dmg; door += r.door; cuts += r.cuts; slams += r.slams; if (r.over) overN++; gs += r.gs; gb += r.gb; tt += r.t; lv += r.lv; hn += r.heroes; }
         d /= N; door /= N;
         best[prof] = Math.max(best[prof] || 0, d);
-        console.log(pad(prof, 8) + pad(dk, 8) + pad(ph, 8) + pad(fmt(d), 14) + pad((door * 100).toFixed(0) + '%' + (overN ? `(${overN}뚫림)` : ''), 8) + pad(`${(cuts / N).toFixed(1)}/${(slams / N).toFixed(1)}`, 10) + pad(fmt(R.r2Cap(lb, R.R2.sec)), 14) + `찍기 ${(gs / N * 100).toFixed(0)}% 기타 ${(gb / N * 100).toFixed(0)}% · ${(tt / N).toFixed(0)}초 · Lv${(lv / N).toFixed(0)} 멤버${(hn / N).toFixed(1)}`);
+        if (!quiet) console.log(pad(prof, 8) + pad(dk, 8) + pad(ph, 8) + pad(fmt(d), 14) + pad((door * 100).toFixed(0) + '%' + (overN ? `(${overN}뚫림)` : ''), 8) + pad(`${(cuts / N).toFixed(1)}/${(slams / N).toFixed(1)}`, 10) + pad(fmt(R.r2Cap(lb, R.R2.sec)), 14) + `찍기 ${(gs / N * 100).toFixed(0)}% 기타 ${(gb / N * 100).toFixed(0)}% · ${(tt / N).toFixed(0)}초 · Lv${(lv / N).toFixed(0)} 멤버${(hn / N).toFixed(1)}`);
       }
     }
   }
+  const med = (a) => { const b = a.slice().sort((x, y) => x - y); return b.length ? (b.length % 2 ? b[(b.length - 1) / 2] : (b[b.length / 2 - 1] + b[b.length / 2]) / 2) : 0; };
+  const avg = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
+  const sum = (list, label) => console.log(pad(label, 10) + `판 ${list.length} · 시간 중앙 ${med(list.map((x) => x.t)).toFixed(0)}초 (평균 ${avg(list.map((x) => x.t)).toFixed(0)}) · 입구 붕괴로 끝 ${Math.round(100 * list.filter((x) => !x.finale).length / Math.max(1, list.length))}% · 피해 평균 ${fmt(avg(list.map((x) => x.dmg)))} (중앙 ${fmt(med(list.map((x) => x.dmg)))})`);
+  console.log(`\n── 요약 (난이도 ${DIFF}) ──`);
+  sum(runs, '전체');
+  for (const prof of Object.keys(PROFILES)) sum(runs.filter((x) => x.prof === prof), prof);
+  for (const dk of Object.keys(DECKS)) sum(runs.filter((x) => x.dk === dk), dk);
+  for (const ph of ['1', '2', '3']) sum(runs.filter((x) => x.ph === ph), ph + '페이즈');
   console.log('\n최고 한 판 피해:', Object.entries(best).map(([k, v]) => `${k} ${fmt(v)}`).join(' · '));
   console.log('1단계 체력 (활동 인원 floor):', fmt(R.hpMaxFor(1, 0)), '→ 맨 위 계정 한 판 비율', ((best.top / R.hpMaxFor(1, 0)) * 100).toFixed(2) + '%');
 })();
