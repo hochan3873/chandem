@@ -3,7 +3,7 @@
 //  1) 전투력 맞추기: 대전에서는 강화 +10 · ★3 · 영웅 장비까지만 (그보다 센 것은 그 값으로 낮춰서)
 //  2) 진상 체력: 두 사람 덱 전투력으로 정한다 (판 시작 때 서버가 계산해서 시드와 같이 보낸다 → 두 사람 똑같이)
 //  3) 웨이브마다 진상 체력 ×1.22 (복리)
-//  4) 끝내기: 150초부터 15초마다 서든데스 단계 ↑ · 240초부터 입구가 초당 1% 씩 줄고 · 300초면 판정
+//  4) 끝내기: 90초 과열(보내기 ×2) · 150초 폭주(15초마다 진상 ↑ · 자동 중간 보스 · 보스 묶음) · 210초 서든데스(정해진 큰 웨이브 · 입구 무너짐) · 300초면 판정
 import { HEROES, GEAR, GEAR_RARITY, gearStats, tierPower, heroTier, gearFits } from './data.js';
 import { STAR_ATK } from './live.js';
 
@@ -65,7 +65,7 @@ export const PVP_END = {
   hpStep: 0.15, spdStep: 0.15, // 단계마다 진상 체력 · 속도 +15% (쌓임)
   doorStep: 0.2, // 단계마다 입구가 받는 피해 +20%
   healMul: 0.5, // 서든데스 동안 입구 회복 절반
-  drainAt: 240, drain: 0.01, // 240초부터 입구 최대 내구도의 1% 씩 매초
+  drainAt: 210, drain: 0.01, // 210초(서든데스)부터 입구 최대 내구도의 1% 씩 매초
   end: 300, // 300초: 둘 다 살아 있으면 판정
   sendSmall: 5, sendSmallSudden: 8, bigHpSudden: 1.5, // 서든데스 뒤 보내는 진상이 세진다
 };
@@ -83,4 +83,35 @@ export function pvpJudge(a, b) {
   if (ka !== kb) return ka > kb ? 1 : -1;
   return 0;
 }
-export const pvpLeftText = (t) => { const s = Math.max(0, Math.ceil(PVP_END.end - t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+// ─── 늘어지는 판 막기: 단계 (서버 시계 · 두 사람 똑같이) ───
+//  0 기본 → 1 과열(90초): 보내기 ×2 → 2 폭주(150초): 처치 N명마다 중간 보스 자동 · 보스 묶음
+//  → 3 서든데스(210초): 처치와 상관없이 정해진 큰 웨이브 · 입구 피해 더 · 입구 무너짐 시작
+export const PVP_ESC = {
+  at: [0, 90, 150, 210], // 단계 시작 초
+  name: ['', '과열', '폭주', '서든데스'],
+  mul: [1, 2, 2, 3], // 보내기 한 번에 가는 묶음 수 (단계별)
+  autoEvery: 25, // 폭주부터: 처치 25명마다 상대에게 중간 보스 하나 (게이지 안 씀)
+  bunch: [[150, 2], [180, 3]], // 보스 묶음: [초, 보스 수] — 두 사람에게 똑같이
+  bunchHp: 0.5, // 보스 묶음 한 명 체력 (웨이브 보스 대비)
+  sdEvery: 8, sdPacks: 1, sdMid: 2, // 서든데스: 10초마다 빠른 진상 한 묶음(8명) + 중간 보스 1
+  sdDoor: 1.5, // 서든데스: 입구가 받는 피해 ×1.5 (폭주 단계 피해에 곱해서)
+  cap: 110, // 보내기로 한꺼번에 화면에 있는 진상 최대 (느린 폰) — 넘치면 수 대신 체력으로
+};
+export const pvpPhase = (t) => { let p = 0; for (let i = 1; i < PVP_ESC.at.length; i++) if ((Number(t) || 0) >= PVP_ESC.at[i]) p = i; return p; };
+export const pvpSendMul = (t) => PVP_ESC.mul[pvpPhase(t)];
+// 폭주 자동 중간 보스: from = 세기 시작한 처치 수 (null 이면 지금부터) → 이번에 보낼 수 n
+export function pvpAutoBig(t, kills, from) {
+  if (pvpPhase(t) < 2) return { from: null, n: 0 };
+  const k = Math.max(0, Math.floor(Number(kills) || 0));
+  if (from === null || from === undefined || from > k) return { from: k, n: 0 };
+  const n = Math.floor((k - from) / PVP_ESC.autoEvery);
+  return { from: from + n * PVP_ESC.autoEvery, n };
+}
+// 서든데스 정해진 웨이브: t 초까지 몇 번 나왔어야 하나 · 보스 묶음: 몇 번
+export const pvpSdCount = (t) => (t < PVP_ESC.at[3] ? 0 : Math.min(Math.floor((Math.min(t, PVP_END.end) - PVP_ESC.at[3]) / PVP_ESC.sdEvery) + 1, Math.ceil((PVP_END.end - PVP_ESC.at[3]) / PVP_ESC.sdEvery)));
+export const pvpBunchCount = (t) => PVP_ESC.bunch.filter(([s]) => t >= s).length;
+// 상대 미니 화면 점: x(0~63) · y(0~63) · 종류(0 진상 · 1 중간 보스 · 2 보스 · 3 보낸 진상) → 정수 하나
+export const PVP_DOTS = 40;
+export const pvpDot = (x, y, k) => Math.max(0, Math.min(63, x | 0)) | (Math.max(0, Math.min(63, y | 0)) << 6) | ((k & 3) << 12);
+export const pvpUndot = (v) => ({ x: v & 63, y: (v >> 6) & 63, k: (v >> 12) & 3 });
+export const pvpLeftText =(t) => { const s = Math.max(0, Math.ceil(PVP_END.end - t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };

@@ -63,7 +63,7 @@ test('진상 체력: 두 덱 전투력으로 · 순서 상관없이 같은 값 �
   assert.ok(Math.abs(hpAt(3, 1) / hpAt(1, 1) - 1) < 1e-9, '웨이브 1 은 대장 혼자라 덱 배율 없이');
 });
 
-test('끝내기 타임라인: 150초 서든데스 · 15초마다 +15% · 입구 피해 +20% · 회복 절반 · 240초부터 1% · 300초 멈춤 · 판정', async () => {
+test('끝내기 타임라인: 150초 서든데스 · 15초마다 +15% · 입구 피해 +20% · 회복 절반 · 210초(서든데스)부터 1% · 300초 멈춤 · 판정', async () => {
   const PV = await lb('pvp.js'), S = await lb('sim.js');
   assert.equal(PV.pvpStepN(149.9), 0); assert.equal(PV.pvpStepN(150), 1); assert.equal(PV.pvpStepN(165), 2); assert.equal(PV.pvpStepN(299), 10); assert.equal(PV.pvpStepN(400), 10);
   const g = S.createGame({ H: 760, mode: 'stage', stage: 12, pvp: { seed: 5, hp: 1 }, deck: WEAK, rng: () => 0.5 });
@@ -85,10 +85,10 @@ test('끝내기 타임라인: 150초 서든데스 · 15초마다 +15% · 입구 
   // 회복 절반 (틱 사이 스킬 · 카드 회복)
   const b1 = g.base.hp; g.pvp.hpEnd = b1; g.base.hp += 20; S.step(g, 1 / 60);
   assert.ok(Math.abs(g.base.hp - (b1 + 10)) < 0.5, `회복 절반 (${g.base.hp - b1})`);
-  // 240초부터 초당 1%
+  // 210초(서든데스)부터 초당 1%
   g.base.hp = g.base.max; g.pvp.hpEnd = g.base.hp;
-  g.pvp.clock = 240; S.step(g, 1 / 60);
-  g.pvp.clock = 250; S.step(g, 1 / 60);
+  g.pvp.clock = 210; S.step(g, 1 / 60);
+  g.pvp.clock = 220; S.step(g, 1 / 60);
   assert.ok(Math.abs(g.base.hp - g.base.max * 0.9) < g.base.max * 0.01, `10초 → 10% (${g.base.hp}/${g.base.max})`);
   // 300초: 멈추고 판정 기다림
   g.pvp.clock = 300; S.step(g, 1 / 60);

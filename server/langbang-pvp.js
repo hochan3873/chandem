@@ -30,6 +30,7 @@ function createLbPvp(opts) {
     aiNotice: opts.aiNoticeMs,
     len: opts.matchMs !== undefined ? opts.matchMs : 300e3, // 300초: 둘 다 살아 있으면 판정 (pvp.js PVP_END.end)
     judgeGrace: opts.judgeGraceMs !== undefined ? opts.judgeGraceMs : 1500, // 마지막 입구 보고를 기다렸다가
+    oppGap: opts.oppGapMs !== undefined ? opts.oppGapMs : 350, // 상대 미니 화면: 한 사람 상태를 0.35초에 한 번까지만 넘긴다 (화면은 0.5초마다 보냄)
   };
   const eloDelta = opts.eloDelta;
   const queue = []; // 대기 중인 선수
@@ -65,6 +66,7 @@ function createLbPvp(opts) {
     heroes: (Array.isArray(b.heroes) ? b.heroes : []).slice(0, 8).map((h) => ({ id: String((h && h.id) || '').slice(0, 16), r: !!(h && h.r), lv: Math.max(1, Math.min(5, Math.floor(Number(h && h.lv) || 1))) })),
     cards: (Array.isArray(b.cards) ? b.cards : []).slice(-3).map((c) => String(c || '').slice(0, 24)),
     ults: Math.max(0, Math.min(999, Math.floor(Number(b.ults) || 0))),
+    ep: (Array.isArray(b.ep) ? b.ep : []).slice(0, 40).map((v) => Math.max(0, Math.min(16383, Math.floor(Number(v) || 0)))), // 진상 점 (x · y · 종류를 정수 하나로 · pvp.js pvpDot) — 보여 주기만, 판정에는 안 씀
   });
 
   function makeMatch(a, b) {
@@ -75,13 +77,21 @@ function createLbPvp(opts) {
     a.match = m; b.match = m;
     for (const p of [a, b]) if (!p.bot) byUser.set(p.key, p); // 끊겼다 다시 붙으면 (새로고침 · 앱 전환 · 신호 끊김) 이 판으로 — 'match' 를 못 받았어도
     m.endT = later(T.countdown + aiNote + T.len + T.judgeGrace, () => judgeTime(m));
-    for (const p of [a, b]) { p.kills = 0; p.spent = 0; p.lastSend = 0; p.dead = false; p.hp = 1; p.max = 1; p.wave = 0; }
+    for (const p of [a, b]) { p.kills = 0; p.spent = 0; p.lastSend = 0; p.dead = false; p.hp = 1; p.max = 1; p.wave = 0; p.autoK = null; p.oppAt = 0; }
     matches.set(id, m);
     for (const [me, op] of [[a, b], [b, a]]) if (me.socket) me.socket.emit('match', { id, seed: m.seed, hp: m.hp, len: T.len, startIn: T.countdown + aiNote, aiNotice: aiNote, opp: pub(op), you: pub(me) });
     if (m.bot) startBot(m, b);
     return m;
   }
   const other = (m, p) => (m.a === p ? m.b : m.a);
+  const elOf = (m) => (now() - m.startAt) / 1000; // 판 시작부터 지난 초 (서버 시계 = 단계 기준)
+  // 폭주: 처치 N명마다 상대에게 중간 보스 자동 (두 사람 같은 규칙 · 한 번에 최대 3)
+  function autoSend(m, p) {
+    if (!AI.PV || m.over) return;
+    const r = AI.PV.pvpAutoBig(elOf(m), p.kills, p.autoK);
+    p.autoK = r.from;
+    for (let i = 0; i < Math.min(3, r.n); i++) deliver(m, p, 'big', true);
+  }
   const tierName = (r) => (r >= 1800 ? '랑방킹' : r >= 1500 ? '다이아' : r >= 1350 ? '플래티넘' : r >= 1200 ? '골드' : r >= 1050 ? '실버' : '브론즈'); // 엠블럼 6종과 같게
   function roomList() {
     const t = now();
@@ -189,22 +199,31 @@ function createLbPvp(opts) {
     g.mods.dmg *= 1 + bot.adj; // 조정: 사람이 두 번 연속 지면 -5% · 이기면 +5% (±15%)
     bot.g = g;
     const human = other(m, bot);
-    const dt = 1 / 30, per = Math.max(1, Math.round((T.botTick / 1000) / dt));
+    const dt = 1 / 30, per = Math.max(1, Math.round((T.botTick / 1000) / dt)), half = Math.ceil(per / 2);
+    let odd = false;
+    // 반 틱(0.5초)마다: 시뮬 반만큼 · 상대 미니 화면 보내기 / 한 틱(1초)마다: AI 판단 · 보내기
     const tick = () => {
       if (m.over) return;
+      if (now() < m.startAt) { bot.tickT = later(T.botTick / 2, tick); return; } // 시작 전엔 안 움직인다 (AI 안내 1.5초 동안도)
+      odd = !odd;
+      const n = odd ? half : per - half;
       try {
-        for (let k = 0; k < per && !g.over; k++) { S.step(g, dt); g.events.length = 0; }
-        aiThink(g, bot, S, D);
+        const el = elOf(m);
+        for (let k = 0; k < n && !g.over; k++) { g.pvp.clock = Math.max(0, el - (n - 1 - k) * dt); S.step(g, dt); g.events.length = 0; } // 단계 시계는 서버 시계로 (사람과 똑같이)
+        if (!odd) aiThink(g, bot, S, D);
       } catch (e) { console.error('[lbpvp] AI 시뮬 오류 → 흉내 봇으로', e && e.message); bot.g = null; bot.hurt = 0; startScriptBot(m, bot); return; } // 시뮬이 터져도 AI 가 멈춘 채로 남지 않게
       bot.hp = g.base.hp; bot.max = g.base.max; bot.kills = g.stats.kills; bot.wave = g.wave;
-      if (human && human.socket) human.socket.emit('opp', { hp: Math.round(g.base.hp), max: g.base.max, kills: bot.kills, wave: g.wave, enemies: g.enemies.filter((e) => !e.dead).length, heroes: g.heroes.filter((h) => !h.def.summon).map((h) => ({ id: h.id, r: S.skillReady(h), lv: h.lv })), cards: [], ults: g.stats.ults | 0 });
-      const left = g.pvp.timeUp ? 0 : bot.kills - bot.spent, gapOk = now() - (bot.lastSend || 0) >= SEND.big.gap;
-      if (gapOk && left >= SEND.big.cost && bot.rng() < 0.3) { bot.spent += SEND.big.cost; bot.lastSend = now(); deliver(m, bot, 'big'); }
-      else if (gapOk && left >= SEND.small.cost && bot.rng() < 0.45) { bot.spent += SEND.small.cost; bot.lastSend = now(); deliver(m, bot, 'small'); }
+      if (human && human.socket) human.socket.emit('opp', { hp: Math.round(g.base.hp), max: g.base.max, kills: bot.kills, wave: g.wave, enemies: g.enemies.filter((e) => !e.dead).length, heroes: g.heroes.filter((h) => !h.def.summon).map((h) => ({ id: h.id, r: S.skillReady(h), lv: h.lv })), cards: [], ults: g.stats.ults | 0, ep: S.pvpView ? S.pvpView(g) : [] });
+      if (!odd) {
+        const left = g.pvp.timeUp ? 0 : bot.kills - bot.spent, gapOk = now() - (bot.lastSend || 0) >= SEND.big.gap;
+        if (gapOk && left >= SEND.big.cost && bot.rng() < 0.3) { bot.spent += SEND.big.cost; bot.lastSend = now(); deliver(m, bot, 'big'); }
+        else if (gapOk && left >= SEND.small.cost && bot.rng() < 0.45) { bot.spent += SEND.small.cost; bot.lastSend = now(); deliver(m, bot, 'small'); }
+        if (!g.pvp.timeUp) autoSend(m, bot);
+      }
       if (g.over || g.base.hp <= 0) { finish(m, bot, 'dead'); return; }
-      bot.tickT = later(T.botTick, tick);
+      bot.tickT = later(T.botTick / 2, tick);
     };
-    bot.tickT = later(T.countdown + T.botTick, tick);
+    bot.tickT = later(T.countdown + T.botTick / 2, tick);
   }
   // (시뮬을 못 불러왔을 때만) 예전 흉내 봇
   function startScriptBot(m, bot) {
@@ -225,14 +244,18 @@ function createLbPvp(opts) {
     };
     bot.tickT = later(T.countdown + T.botTick, tick);
   }
-  function deliver(m, from, kind) {
+  // 보내기: 과열 · 폭주 · 서든데스 단계면 한 번에 여러 묶음 (서버 시계로 정해서 두 사람 똑같이) · auto = 폭주 자동 중간 보스 (늘 하나)
+  function deliver(m, from, kind, auto) {
     const to = other(m, from);
+    const n = auto ? 1 : AI.PV ? AI.PV.pvpSendMul(elOf(m)) : 1;
+    const x = { kind, n, auto: !!auto };
     later(T.delay, () => {
       if (m.over) return;
-      if (to.bot) { if (to.g && AI.S) { AI.S.pvpIncoming(to.g, kind); to.g.events.length = 0; } else to.hurt += kind === 'big' ? 18 : 6; return; }
-      if (to.socket) to.socket.emit('incoming', { kind });
+      if (from.socket) from.socket.emit('landed', x); // 보낸 사람 화면: "상대에게 중간 보스 도착!"
+      if (to.bot) { if (to.g && AI.S) { AI.S.pvpIncoming(to.g, kind, n, x); to.g.events.length = 0; } else to.hurt += (kind === 'big' ? 18 : 6) * n; return; }
+      if (to.socket) to.socket.emit('incoming', x);
     });
-    if (from.socket) from.socket.emit('sent', { kind });
+    if (from.socket) from.socket.emit('sent', x);
   }
   // 판 끝: loser 가 졌다 (reason: dead | forfeit | quit | time) · loser 가 없으면 무승부 (300초 판정 · 점수 변동 없음)
   async function finish(m, loser, reason) {
@@ -412,8 +435,10 @@ function createLbPvp(opts) {
         pl.hp = Math.max(0, Math.min(pl.max, Number(b.hp) || 0));
         pl.wave = Math.max(0, Math.floor(Number(b.wave) || 0));
         const op = other(m, pl);
-        if (op.socket) op.socket.emit('opp', Object.assign({ hp: Math.round(pl.hp), max: Math.round(pl.max), kills: pl.kills, wave: pl.wave }, cleanView(b)));
-        if (pl.hp <= 0) finish(m, pl, 'dead');
+        const tn = now();
+        if (op.socket && (tn - (pl.oppAt || 0) >= T.oppGap || pl.hp <= 0)) { pl.oppAt = tn; op.socket.emit('opp', Object.assign({ hp: Math.round(pl.hp), max: Math.round(pl.max), kills: pl.kills, wave: pl.wave }, cleanView(b))); } // 너무 자주 오면 건너뛴다 (판정용 값은 위에서 다 받음)
+        if (pl.hp <= 0) { finish(m, pl, 'dead'); return; }
+        if (el >= 0 && el < T.len / 1000) autoSend(m, pl);
       });
       socket.on('send', (b, fn) => {
         const pl = me(), m = pl.match;
