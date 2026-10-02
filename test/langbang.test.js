@@ -657,7 +657,8 @@ test('스킬: 모든 멤버 스킬이 쿨타임과 효과를 가진다', () => {
     }
   }
   assert.ok(g.rallyT > 0, '집합!');
-  assert.ok(g.base.hp > g.base.max * 0.5, '응급처치 회복');
+  const g3 = bare(['jungmin']); g3.base.hp = g3.base.max * 0.5; g3.heroes[0].skillCd = 0;
+  assert.ok(S.castSkill(g3, g3.heroes[0], 180, g3.rowY - 160) && g3.base.hp > g3.base.max * 0.5, '붕대 대공사 수리 (입구 수리는 홍정민 몫)');
   assert.ok(g.enemies.some((e) => e.slowT > 0), '레드카드 감속');
   assert.ok(g.enemies.some((e) => e.stunT > 0), '쌍욕 폭격 기절');
   assert.ok(g.heroes.find((h) => h.id === 'gunman').frenzyT > 0, '난사');
@@ -793,7 +794,7 @@ test('새 멤버: 도발 탱커(정원식)가 기술을 대신 맞고 짧게 · 
   g.phase = 'wave';
   g.base.hp = g.base.max * 0.5;
   run(g, 5);
-  assert.ok(g.base.hp > g.base.max * 0.51, '떼창 회복');
+  assert.ok(g.base.hp <= g.base.max * 0.5, '김도훈은 입구를 안 고친다 (홍정민 몫)');
   g = bare(['donghan']);
   g.phase = 'wave';
   const col = [0, 1, 2, 3, 4].map((i) => still(g, 'yeokko', 200, 100 + i * 60, 3));

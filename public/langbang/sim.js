@@ -239,9 +239,9 @@ function updateHeroes(g, dt) {
   if (g.heroes.some((h) => h.gone)) g.heroes = g.heroes.filter((h) => !h.gone);
   teamBuffs(g);
   const aura = auraBonus(g);
-  // 김도훈 떼창: 입구 회복 + 곁 멤버 공속
+  // 김도훈 떼창: 곁 멤버 공속 (입구 회복은 홍정민 몫이라 뺐다)
   const singers = g.heroes.filter((o) => o.def.sing && o.stunT <= 0 && o.grabT <= 0);
-  if (g.phase !== 'test') for (const d0 of singers) healDoor(g, d0.id, g.base.max * d0.def.regen[d0.lv - 1] * dt * g.mods.healMul * (d0.cm.heal || 1));
+  if (g.phase !== 'test') for (const d0 of singers) if (d0.def.regen) healDoor(g, d0.id, g.base.max * d0.def.regen[d0.lv - 1] * dt * g.mods.healMul * (d0.cm.heal || 1));
   for (const h of g.heroes) {
     const d = h.def;
     h.joinT += dt;
@@ -504,7 +504,7 @@ function updateBuses(g, dt) {
       damageEnemy(g, e, b.dmg * (b.gold && (e.boss || e.mid) ? BAL.hochan.busBoss : 1), false, b.hero, true);
       { const hb = b.hero, bf = hb.def.buff; if (bf && !b.gold) { g.hcBuff = g.hcT > 0 ? Math.min(bf.max + (hb.cm.buff || 0), g.hcBuff + bf.per) : bf.per; g.hcT = bf.sec[hb.lv - 1] + 1; } } // "랑방을 위하여!" 템포에선 버스가 친 진상마다 모두 공격력 + (예전엔 템포에서 안 붙었음)
       if (e.dead) continue;
-      if (!e.boss && !e.mid) { e.y -= BUS.kb; e.x += (e.x < b.x ? -1 : 1) * 14; } else e.y -= BUS.kb * 0.25;
+      if (!e.boss && !e.mid) { pushUp(g, e, BUS.kb); e.x += (e.x < b.x ? -1 : 1) * 14; } else pushUp(g, e, BUS.kb * 0.25);
       if (b.stun) e.stunT = Math.max(e.stunT, b.stun * (e.boss ? 0.4 : 1));
     }
   }
@@ -662,7 +662,7 @@ function updateWall(g, h, dt) {
     if (touch && g.t - (h.pushT || -9) > 1.2) { h.pushT = g.t; ev(g, 'wallPush', { x: h.px, y: h.py - 30, n: touch, w: hw }); }
     if (h.py < 110 || h.wallHp <= 0) {
       // 끝에서 쿵: 뭉친 진상 1칸 더 밀치고 0.5초 기절 (스킬 중이면 1초)
-      forEnemiesNear(g, h.px, h.py - 30, hw + 60 + (sa.stomp ? 40 : 0), (e) => { if (!e.boss) { e.y = Math.max(FIELD.spawnY + 10, e.y - 40); e.stunT = Math.max(e.stunT, ((h.growT > 0 ? 1 : 0.5) + (sa.stomp ? 1 : 0)) * ((h.sig && h.sig.stun) || 1)); } return true; });
+      forEnemiesNear(g, h.px, h.py - 30, hw + 60 + (sa.stomp ? 40 : 0), (e) => { if (!e.boss) { pushUp(g, e, 40); e.stunT = Math.max(e.stunT, ((h.growT > 0 ? 1 : 0.5) + (sa.stomp ? 1 : 0)) * ((h.sig && h.sig.stun) || 1)); } return true; });
       h.wallSt = 'back'; h.tired = h.wallHp <= 0; ev(g, h.tired ? 'wallTired' : 'wallTurn', { x: h.px, y: h.py });
       for (const e of g.enemies) if (e.wallBy === h) e.wallBy = null;
     }
@@ -1546,6 +1546,7 @@ function updateEnemies(g, dt) {
       if (Math.abs(e.kbv) < 6) e.kbv = 0;
       if (e.y < e.stopY - 2) e.atRope = false;
     }
+    if (e.atRope && e.y < e.stopY - 2) e.atRope = false; // 스킬 · 버스에 밀려 자리보다 위로 올라가면 다시 걸어 내려온다 (멀리 서는 진상이 위에 붙어 안 내려오던 버그)
     if (e.dictT > 0) e.dictT -= dt;
     // (모든 진상) 보스 몰아치기 한도 회복 · 방깎 · 회복 막기 · 도발 · 특성 — 전엔 4~6장 진상 함수 안에만 있어서 대부분 보스의 한도가 안 돌아왔다
     if (e.burst > 0) e.burst = Math.max(0, e.burst - e.maxHp * BOSS_GUARD.perSec * dt);
@@ -2678,6 +2679,8 @@ export function hitEnemy(g, p, e) {
   } else p.dead = true;
 }
 
+// 스킬 · 버스로 바로 밀기: 영웅 줄에서 kbMaxReach 위로는 안 밀어낸다 (화면 위로 날아가 아무도 못 때리던 버그) · 이미 그 위면 그대로
+function pushUp(g, e, d) { const top = g.rowY - RULES.kbMaxReach; if (e.y > top) e.y = Math.max(top, e.y - d); e.atRope = false; }
 // 넉백: 위쪽(적이 온 방향)으로 밀어낸다. 총 이동 거리 ≈ dist
 // 보스는 안 밀린다. 연달아 맞으면 점점 덜 밀리고, 영웅들 사거리 밖(화면 위쪽)으로는 절대 안 밀려난다
 export function applyKnockback(e, dist, g) {
@@ -3076,7 +3079,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
   switch (sk.id) {
     case 'rally':
       g.rallyT = sk.sec[lv] + (sa.rally ? 3 : 0); g.rallySpd = sk.spd[lv] + (sa.rally ? 0.2 : 0); g.rallyDmg = 0; g.rallyBy = h.id; g.rallyHeal = 0; // (공격력 +20% · Lv5 입구 회복은 뺐다: 공격력 버프는 이호찬 · 강병화 · 김도훈, 입구 수리는 홍정민 — 방장은 공속 · 지목)
-      for (const e of g.enemies) if (!e.dead && !e.boss && e.y > 0) { e.y = Math.max(FIELD.spawnY + 10, e.y - 40); e.atRope = false; }
+      for (const e of g.enemies) if (!e.dead && !e.boss && e.y > 0) pushUp(g, e, 40);
       if (h.sig && h.sig.rallyCd) { for (const o of g.heroes) if (o !== h && o.skillCd > 0) o.skillCd *= 1 - h.sig.rallyCd; ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); } // 방장 전용 신화: 모두 스킬 쿨 절반
       ev(g, 'buffAura', { kind: 'rally', sec: sk.sec[lv] });
       break;
@@ -3157,9 +3160,8 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       break;
     }
     case 'encore': {
-      const v = healDoor(g, h.id, g.base.max * sk.heal[lv] * g.mods.healMul * (sa.medley ? 1.3 : 1));
       for (const o of g.heroes) { o.stunT = 0; o.charmT = 0; o.rumorT = 0; o.fearT = 0; o.paperT = 0; o.vomitT = 0; o.blindT = 0; o.drowsyT = 0; if (o.grabT > 0) { o.grabT = 0; o.grabBy = 0; } }
-      r = sk.r;
+      r = sk.r * (sa.medley ? 1.3 : 1);
       forEnemiesNear(g, h.x, h.y - 60, r, (e) => {
         if (e.boss) { e.slowT = Math.max(e.slowT, sk.dance[lv]); e.slowMul = 0.5; } else e.stunT = Math.max(e.stunT, sk.dance[lv] * stunMul(e));
         return true;
@@ -3168,7 +3170,6 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       const bsec = sk.buffSec * (sa.medley ? 2 : 1);
       if (g.rallyT <= bsec) g.rallyBy = h.id; g.rallyT = Math.max(g.rallyT, bsec); g.rallySpd = Math.max(g.rallyT > bsec ? g.rallySpd : 0, sk.buffSpd);
       g.encoreT = bsec; g.encoreDmg = sk.buffDmg;
-      ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
       ev(g, 'encore', { x: h.x, y: h.y, r });
       break;
     }
@@ -3982,7 +3983,7 @@ export function useCons(g, id) {
     g.tambT = 8;
     ev(g, 'consUse', { id, sec: 8, x: g.W / 2, y: g.rowY });
   } else if (id === 'taxi') { // 막차 택시: 두 칸 밀기 · 3초 40% 느리게 (보스는 한 칸만)
-    for (const e of g.enemies) { if (e.dead || e.y < 0) continue; e.y = Math.max(FIELD.spawnY + 10, e.y - (e.boss ? 40 : 80)); e.atRope = false; if (!e.boss) { e.slowT = Math.max(e.slowT, 3); e.slowMul = Math.min(e.slowMul || 1, 0.6); } }
+    for (const e of g.enemies) { if (e.dead || e.y < 0) continue; pushUp(g, e, e.boss ? 40 : 80); if (!e.boss) { e.slowT = Math.max(e.slowT, 3); e.slowMul = Math.min(e.slowMul || 1, 0.6); } }
     ev(g, 'consUse', { id, x: g.W / 2, y: g.ropeY - 60 });
   } else if (id === 'icewater') { // 얼음물: 보스 빼고 3초 꽁꽁 · 보스는 3초 50%
     for (const e of g.enemies) { if (e.dead || e.y < 0) continue; if (e.boss) { e.slowT = Math.max(e.slowT, 3); e.slowMul = Math.min(e.slowMul || 1, 0.5); } else e.stunT = Math.max(e.stunT, 3); }
