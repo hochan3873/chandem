@@ -805,6 +805,16 @@ export class Renderer {
       x.fillStyle = '#1f6e3a'; x.fillRect(w / 2 - 3.2, h - 5.5, 6.4, 4); x.strokeRect(w / 2 - 3.2, h - 5.5, 6.4, 4); // 뚜껑
       x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillRect(4.2, 3, 1.8, 17); x.fillRect(w / 2 - 1.4, 29, 1.1, h - 36); // 유리 반짝
     });
+    make('glow', 44, 44, (x, w, h) => { // 송바울 응원봉: 빛나는 막대 + 하트 머리 (코드로 그린 자리표시 · 빙글빙글 돈다)
+      glow(x, w / 2, h / 2, 21, 'rgba(122,208,255,0.55)');
+      x.save(); x.translate(w / 2, h / 2); x.rotate(-0.6);
+      const gr = x.createLinearGradient(0, -14, 0, 12); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, '#9fe6ff'); gr.addColorStop(1, '#ff8fd0');
+      x.fillStyle = gr; x.strokeStyle = '#1d5f8a'; x.lineWidth = 1.3;
+      roundRect(x, -3.5, -9, 7, 17, 3.5); x.fill(); x.stroke(); // 빛나는 막대
+      x.fillStyle = '#2b2b3a'; roundRect(x, -3, 8, 6, 6, 2); x.fill(); // 손잡이
+      heart(x, 0, -12, 5.5, '#ff5fb0', '#fff'); // 하트 머리
+      x.restore();
+    });
     make('hammer', 34, 34, (x, w, h) => {
       glow(x, w / 2, h / 2, 17, 'rgba(255,170,230,0.55)');
       x.fillStyle = '#ffd1ec'; x.strokeStyle = '#b0407a'; x.lineWidth = 1.6;
@@ -1732,6 +1742,7 @@ export class Renderer {
         cx.strokeText('' + e.cLay, x0 + 7, y0 + 4); cx.fillText('' + e.cLay, x0 + 7, y0 + 4);
       }
       if (e.brkT > 0) { this.world(); const bx = e.x, by = e.y - e.def.size * 1.0 - 4 + Math.sin(t * 9 + e.phase) * 1.2; cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; const tw = cx.measureText('삐-').width + 8; cx.fillStyle = 'rgba(0,0,0,0.92)'; roundRect(cx, bx - tw / 2, by - 6, tw, 12, 3); cx.fill(); cx.fillStyle = '#ff4a6a'; cx.fillRect(bx - tw / 2, by + 5, tw * Math.min(1, e.brkT / 5), 1.5); cx.fillStyle = '#fff'; cx.fillText('삐-', bx, by + 0.5); } // 여지원 「모자이크」: 머리 위 검은 "삐-" 딱지 (아래 붉은 줄 = 남은 시간)
+      if (e.orderT > 0) { this.world(); const ox = e.x, oy = e.y - e.def.size * 1.0 - 14 + Math.sin(t * 8 + e.phase) * 1.2; cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; const tw = cx.measureText('지목').width + 10; cx.fillStyle = 'rgba(120,70,0,0.92)'; roundRect(cx, ox - tw / 2, oy - 6, tw, 12, 4); cx.fill(); cx.fillStyle = '#ffd23f'; cx.fillRect(ox - tw / 2, oy + 5, tw * Math.min(1, e.orderT / 3), 1.5); cx.fillStyle = '#fff6c8'; cx.fillText('지목', ox, oy + 0.5); } // 방장 지목: 모두에게 더 아프게
       if (e.shredN > 0 && e.shredT > 0) { this.world(); cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.fillStyle = '#ff5a7a'; cx.strokeStyle = '#000'; cx.lineWidth = 2.5; const tx = `방깎×${e.shredN}`; cx.strokeText(tx, e.x, feet + 8); cx.fillText(tx, e.x, feet + 8); }
       if (e.tauntT > 0) { this.world(); cx.font = `11px ${FONT}`; cx.textAlign = 'center'; cx.fillText('', e.x - box * 0.32, top + 2); }
       const vip = e.boss || e.mid || e.elite;
@@ -2112,6 +2123,7 @@ export class Renderer {
           case 'jab': sy *= 1 - q * 0.05; bob += q * 3 - e * 12; dx += Math.sin(since * 40) * e * 3; break;
           case 'cast': bob -= q * 9 + e * 4; { const pp = 1 + e * 0.1 * Math.sin(Math.min(1, since / 0.12) * Math.PI); sx *= pp; sy *= pp; } break;
           case 'pop': sy *= 1 - q * 0.12; sx *= 1 + q * 0.06; bob += q * 3 - e * 11; sy *= 1 + e * 0.1; sx *= 1 - e * 0.05; break;
+          case 'cheer': rot += Math.sin(q * Math.PI * 6) * 0.11 * q; bob -= q * 4; dx -= q * 3 * side; rot -= e * 0.2 * side; dx += e * 7 * side; bob -= e * 9; { const pp = 1 + e * 0.07; sx *= pp; sy *= pp; } break; // 송바울: 응원봉 흔들흔들 → 휙 던지고 윙크 점프
         }
       }
       // 기진맥진: 주저앉기 · 느린 숨 · 땀 · 어지러운 소용돌이
@@ -2278,7 +2290,13 @@ export class Renderer {
         if (h.fearT > 0) tags.push(['공포', '#d8a8ff']);
         if (h.drowsyT > 0) tags.push(['졸림', '#b8d0ff']);
         if (h.vomitT > 0) tags.push(['토 밟음', '#c8f08a']);
+        if (h.fanT > 0) tags.push(['함성!', '#9fe6ff']); // 송바울 팬클럽 함성
         tags.slice(0, 2).forEach(([txt, col], i) => this.stTag(hx, top - 14 - i * 16, txt, col));
+      }
+      if (h.heartT > 0) { // 건전녀 응급 방패: 머리 위 하트 방패 (끝날 때쯤 깜빡)
+        const hs = this.projSprites.heart, k = h.heartT < 1 ? 0.5 + 0.5 * Math.sin(t * 20) : 1;
+        this.tf(hx + 20, top + 2 + Math.sin(t * 3 + h.slot) * 2, 0, 0.9, 0.9);
+        cx.globalAlpha = 0.9 * k; cx.drawImage(hs.c, -8, -8, 16, 16); cx.globalAlpha = 1;
       }
       if (g.flirt && h.def.gender === 'm') {
         const hs = this.projSprites.heart;

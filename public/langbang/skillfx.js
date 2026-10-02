@@ -77,8 +77,7 @@ export class SkillFx {
     } else if (kind === 'goodman') {
       const h = this.heroOf(g, 'sanghwa');
       o.h = h; o.x = h ? h.x : e.x; o.y = h ? h.y : e.y + 70; o.echo = !!e.echo;
-      const sk = HEROES.sanghwa.skill, lv = h ? h.lv - 1 : 0;
-      o.atk = Math.round(((sk.atk && sk.atk[lv]) || 0.25) * 100 + (h && h.sa && h.sa.perfect ? 15 : 0));
+      o.grow = h ? Math.round((h.grow || 0) * 100) : 0; // 지금까지 자란 만큼 (꽃다발 세기)
       o.rain = [];
       const nc = busy ? 12 : 34, nb = busy ? 4 : 12, W = g.W || 360;
       for (let i = 0; i < nc + nb; i++) {
@@ -1005,7 +1004,7 @@ export class SkillFx {
   }
 
   // ── 박상화: 좋은남자 ──────────────────────────
-  //  금빛 조명이 박상화에게 → 금화·지폐 비 → 금빛 "좋은 남자!" 띠 · 버프 받는 멤버들 둘레 반짝 (공격력 버프 동안)
+  //  금빛 조명이 박상화에게 → 금화·지폐 비 → 금빛 "좋은 남자!" 띠 (꽃다발 한 방은 game.js 'bouquet')
   coin(x, y, r, ph, a) {
     const cx = this.R.cx, w = Math.abs(Math.cos(ph)) * r + 0.8;
     cx.save(); cx.translate(x, y); cx.globalAlpha = c01(a);
@@ -1044,7 +1043,7 @@ export class SkillFx {
       if (T > 0.25 && T < 0.75) { const sxp = -bw / 2 + ((T - 0.25) / 0.5) * bw; cx.save(); cx.clip(); cx.globalCompositeOperation = 'lighter'; const sg = cx.createLinearGradient(sxp - 24, 0, sxp + 24, 0); sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, 'rgba(255,255,255,0.85)'); sg.addColorStop(1, 'rgba(255,255,255,0)'); cx.fillStyle = sg; cx.fillRect(sxp - 24, -bh, 48, bh * 2); cx.restore(); }
       cx.restore();
       this.label(W / 2, by - 3, o.echo ? '끝내주는 남자!!' : '좋은 남자!', 25, '#fffdf2', '#6a3d00', a, Math.max(0.01, k));
-      this.label(W / 2, by + 30, `모든 멤버 공격력 +${o.atk}%`, 12, '#ffe9a8', '#3a2400', a * c01((T - 0.15) / 0.2), 1);
+      this.label(W / 2, by + 30, `백 송이 꽃다발! · 성장 +${o.grow}%`, 12, '#ffe9a8', '#3a2400', a * c01((T - 0.15) / 0.2), 1);
     }
   }
   goodman(layer, o, T, g) {
