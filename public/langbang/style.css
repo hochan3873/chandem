@@ -1955,8 +1955,8 @@ html, body { height: 100%; height: -webkit-fill-available; height: 100svh; heigh
 #skillbar .sk .cdn { position: absolute; inset: 0; display: grid; place-items: center; z-index: 3; font-size: calc(var(--u) * 17); font-weight: 900; color: #fff; text-shadow: 0 0 3px #000, 0 2px 0 #000; pointer-events: none; }
 #skillbar .sk:not(.ready) .cd { display: none; }
 #skillbar .sk.ready .cd { top: calc(var(--u) * -7); right: 50%; transform: translateX(50%); font-size: calc(var(--u) * 7.5); padding: 0 calc(var(--u) * 4); }
-#skillbar .sk.ready::after { content: ''; position: absolute; inset: calc(var(--u) * -3); border-radius: 50%; border: calc(var(--u) * 3) solid #ffe066; box-shadow: 0 0 calc(var(--u) * 10) #ffd23f, inset 0 0 calc(var(--u) * 6) #ffd23f; animation: skRing 0.9s ease-in-out infinite alternate; pointer-events: none; }
-@keyframes skRing { to { transform: scale(1.08); opacity: 0.75; } }
+#skillbar .sk.ready::after { content: ''; position: absolute; inset: calc(var(--u) * -3); border-radius: 50%; border: calc(var(--u) * 3) solid #ffe066; box-shadow: 0 0 calc(var(--u) * 10) #ffd23f, inset 0 0 calc(var(--u) * 6) #ffd23f; animation: skRing 1.6s ease-in-out infinite alternate; pointer-events: none; }
+@keyframes skRing { from { opacity: 1; } to { opacity: 0.55; } }
 /* 왼쪽 버프: 2줄 격자로 짧게 */
 .h-syn .syn-tray.grid { display: grid; grid-template-columns: repeat(2, auto); gap: calc(var(--u) * 3); }
 .h-syn .syn-tray .sy { padding: 0 calc(var(--u) * 4); font-size: calc(var(--u) * 10); }
@@ -2446,7 +2446,7 @@ body.rm .ig-chip img { animation: none; }
 #skillbar.v2 .sk .av { filter: none !important; z-index: 1; }
 #skillbar.v2 .sk::after { content: ''; position: absolute; inset: calc(var(--u) * 3); border-radius: 50%; z-index: 2; border: 0; animation: none; background: conic-gradient(from 0deg, transparent calc(var(--p, 0) * 1%), rgba(8, 4, 20, 0.62) 0); pointer-events: none; }
 #skillbar.v2 .sk.ready::after { background: none; box-shadow: 0 0 0 calc(var(--u) * 2) #ffd23f, 0 0 calc(var(--u) * 12) rgba(255, 210, 63, 0.85); inset: calc(var(--u) * 1); }
-#skillbar.v2 .sk.ready { animation: skBounce 1.4s ease-in-out infinite; }
+#skillbar.v2 .sk.ready { animation: none; } /* 준비되면 튀지 않고 테두리만 은은하게 숨 쉰다 (톡톡 튀기 + 테두리 커졌다 작아지기가 겹쳐 부들부들해 보였음) */
 @keyframes skBounce { 0%, 100% { transform: translateY(0); } 12% { transform: translateY(calc(var(--u) * -4)); } 24% { transform: translateY(0); } }
 #skillbar.v2 .sk .cdn { inset: auto calc(var(--u) * -3) calc(var(--u) * -1) auto; display: block; z-index: 4; font-size: calc(var(--u) * 12); font-weight: 900; line-height: 1; padding: calc(var(--u) * 2) calc(var(--u) * 4); border-radius: 99px; background: rgba(8, 4, 20, 0.85); color: #fff; font-variant-numeric: tabular-nums;  text-shadow: none; }
 #skillbar.v2 .sk .cdn:empty { display: none; }

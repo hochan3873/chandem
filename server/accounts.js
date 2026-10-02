@@ -453,7 +453,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       view.master = true;
       view.testNormal = !!lb.testNormal; // 🧪 일반 유저처럼 테스트: 코인·아이템·강화 비용은 보통 유저처럼
       if (!lb.testNormal) {
-        view.unlimited = true; view.coins = 1e9; view.tickets = 1e6; // 마스터: 코인 · 모집권 무한 (화면엔 ∞)
+        view.unlimited = true; view.coins = 1e9; view.tickets = 1e6; view.stones = Math.max(view.stones | 0, 99999); // 마스터: 코인 · 모집권 · 강화석 무한 (화면엔 ∞)
         view.items = Object.fromEntries(LBR.ITEM_IDS.map((i) => [i, LBR.ITEMS[i].max])); // 아이템 전부 최대
       }
       view.unlocked = LBR.LOCKED.slice();
@@ -474,10 +474,41 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     await ready;
     return id;
   }
+  // 마스터(운영자) 계정: 멤버 · 별 · 장비(무기 · 장신구 전설 최대 강화 + 신화 · 전용 신화 전부) · 소모품 · 강화석 · 신화 조각 · 칭호 · 테두리 전부 가득
+  // (들어올 때마다 비어 있는 것만 채운다 · "일반 유저처럼 테스트" 중엔 안 채움)
+  const MASTER_FULL_V = 1;
+  function masterFill(lb) {
+    for (let st = 1; st <= LBR.STAGE_COUNT; st++) lb.stages[st] = 3;
+    for (const h of LBR.LB_HEROES) lb.heroes[h] = LBR.metaMaxOf(h);
+    lb.owned = Object.fromEntries(LBR.GACHA.map((h) => [h, true]));
+    lb.hstars = Object.fromEntries(LBR.LB_HEROES.map((h) => [h, 5]));
+    for (const it of Object.keys(LBR.ITEMS)) lb.items[it] = LBR.ITEMS[it].max;
+    lb.stones = 99999;
+    lb.gear = Array.isArray(lb.gear) ? lb.gear : [];
+    const want = [...LBR.GEAR_IDS.map((t) => [t, 'legend']), ...LBR.MYTH_IDS.map((t) => [t, 'myth']), ...LBR.SIG_IDS.map((t) => [t, 'myth'])];
+    for (const [t, r] of want) {
+      const have = lb.gear.find((x) => x.t === t && (x.r === r || r === 'legend' && x.r === 'legend'));
+      if (have) { if (r !== 'myth') have.lv = LBR.GEAR_MAX_LV; continue; }
+      if (lb.gear.length >= LBR.GEAR_BAG) { const k = lb.gear.findIndex((x) => x.r !== 'legend' && x.r !== 'myth' && !Object.values(lb.equip || {}).some((e) => Object.values(e || {}).includes(x.id))); if (k < 0) break; lb.gear.splice(k, 1); } // 가방이 꽉 차면 안 끼고 있는 낮은 등급부터 비운다
+      lb.gear.push({ id: ++lb.gearSeq, t, r, lv: r === 'myth' ? 0 : LBR.GEAR_MAX_LV });
+    }
+    if (LIVE) {
+      lb.cons = Object.fromEntries(LIVE.CONS_IDS.map((k) => [k, LIVE.CONS_CAP || 99]));
+      lb.shards = Math.max(lb.shards | 0, 9999);
+      lb.frames = Object.keys(LIVE.FRAMES);
+      if (LIVE.TITLE_INFO) lb.titles = [...new Set([...(lb.titles || []), ...Object.keys(LIVE.TITLE_INFO)])];
+      lb.gearDex = [...new Set([...(lb.gearDex || []), ...LBR.GEAR_IDS, ...LBR.MYTH_IDS, ...LBR.SIG_IDS])];
+    }
+    lb.seen = LBR.ENEMY_IDS.slice();
+    lb.maxStage = LBR.maxCleared(lb.stages);
+    lb.totalStars = Object.values(lb.stages).reduce((x, y) => x + y, 0);
+    lb.masterFull = MASTER_FULL_V;
+  }
   async function lbMe(token) {
     const id = await userFromToken(token);
-    const u = await store.byId(id);
+    let u = await store.byId(id);
     if (!u) throw new AuthError('다시 로그인해 주세요');
+    if (freeMaster(u) && ((u.stats.langbang || {}).masterFull | 0) < MASTER_FULL_V) { await serial(async () => { await update(id, (st) => { masterFill(st.langbang = normLb(st.langbang, true)); }); }); u = await store.byId(id); }
     return { profile: lbView(u.stats.langbang, id, isMasterName(u.username)), nickname: u.nickname };
   }
   // 코인은 클라이언트가 보낸 값을 믿지 않는다: 스테이지·별·첫 클리어 여부(서버 기록)로 서버가 계산
@@ -947,6 +978,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           else if (act === 'stones') lb.stones = Math.min(99999, (lb.stones | 0) + (v || 50));
           else if (act === 'tickets') lb.tickets = Math.min(1e6, (lb.tickets | 0) + (v || 100));
           else if (act === 'stage') { const n = Math.min(LBR.STAGE_COUNT, v); lb.stages = {}; for (let s = 1; s <= n; s++) lb.stages[s] = 3; }
+          else if (act === 'full') masterFill(lb); // 전부 가득 (다시 채우기)
           else if (act === 'allclear') {
             for (let s = 1; s <= LBR.STAGE_COUNT; s++) lb.stages[s] = 3;
             const lv = Math.max(0, Math.min(LBR.META_MAX, body.level === undefined ? LBR.META_MAX : Math.floor(Number(body.level) || 0)));
