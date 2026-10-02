@@ -665,7 +665,37 @@ test('스킬: 모든 멤버 스킬이 쿨타임과 효과를 가진다', () => {
   assert.ok(g2.heroes.find((h) => h.id === 'eunok').rage, '원샷');
   assert.ok((g2.holes || []).length >= 1, '지팡이 블랙홀');
   assert.ok((g2.harleys || []).length >= 1, '부릉부릉 할리');
-  assert.equal(g2.heroes.find((h) => h.id === 'donghan').meter, 100, '진심 모드');
+  assert.ok(g2.heroes.find((h) => h.id === 'donghan').ssj, '초사이언 포격');
+});
+
+test('문동한 초사이언 포격: 변신 → 몰린 곳마다 예고 뒤 포격 · 끝나면 원래대로', () => {
+  const g = bare(['donghan']);
+  const h = g.heroes[0], sk = h.def.skill;
+  const pack = []; for (let i = 0; i < 6; i++) pack.push(still(g, 'thug', 120 + (i % 3) * 14, g.rowY - 200 + Math.floor(i / 3) * 14, 2000));
+  const lone = still(g, 'yeokko', 300, g.rowY - 360, 2000);
+  h.skillCd = 0;
+  assert.ok(S.castSkill(g, h), '쓸 수 있다');
+  assert.ok(h.ssj && h.ssjT > sk.wind, '변신 시작');
+  assert.ok(g.events.some((e) => e.type === 'ssjUp'), '변신 이벤트');
+  // 변신 중엔 아직 아무도 안 맞는다
+  const hp0 = pack.reduce((a, e) => a + e.hp, 0);
+  for (let t = 0; t < sk.wind * 0.9; t += 1 / 60) S.step(g, 1 / 60);
+  assert.equal(pack.reduce((a, e) => a + e.hp, 0), hp0, '변신하는 동안은 포격 없음');
+  // 첫 발은 몰린 곳에 예고 → delay 뒤 쾅
+  g.events.length = 0;
+  let mark = null, bolt = null, marks = 0, bolts = 0;
+  for (let t = 0; t < sk.wind * 0.2 + sk.delay + 0.1 && !bolt; t += 1 / 60) { S.step(g, 1 / 60); for (const e of g.events) { if (e.type === 'ssjMark') { marks++; if (!mark) mark = e; } if (e.type === 'ssjBolt') { bolts++; if (!bolt) bolt = e; } } g.events.length = 0; }
+  assert.ok(mark && Math.abs(mark.x - 134) < 40, `첫 예고는 진상이 몰린 곳 (${mark && mark.x.toFixed(0)})`);
+  assert.ok(bolt && bolt.n >= 4, `한 발에 여러 명 (${bolt && bolt.n})`);
+  assert.ok(pack.reduce((a, e) => a + e.hp, 0) < hp0, '포격 피해');
+  // 전부 떨어지면 끝 · 발 수는 레벨대로
+  for (let t = 0; t < 12 && h.ssj; t += 1 / 60) { S.step(g, 1 / 60); for (const e of g.events) { if (e.type === 'ssjMark') marks++; if (e.type === 'ssjBolt') bolts++; } g.events.length = 0; }
+  assert.equal(h.ssj, null, '포격이 끝난다');
+  assert.equal(marks, sk.n[h.lv - 1], `레벨 1: 포격 발 수 ${marks}`);
+  assert.equal(bolts, marks, '예고한 만큼 떨어진다');
+  assert.ok(lone.hp < lone.maxHp || pack.every((e) => e.dead || e.hp < e.maxHp), '여기저기 골고루');
+  for (let t = 0; t < 1; t += 1 / 60) S.step(g, 1 / 60);
+  assert.ok(!(h.ssjT > 0), '변신이 풀린다');
 });
 
 test('자리 바꾸기: 끌어다 놓으면 두 멤버가 바로 자리를 바꾼다 (쿨타임 없음)', () => {

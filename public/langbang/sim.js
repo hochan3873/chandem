@@ -158,7 +158,7 @@ export function addHero(g, id, want) {
     alt: false, altT: 0, ageT: def.age ? def.age.princess[0] : 0, echoT: 0, // 배현경 날씬 · 고아라 늙음 · 이호찬 메아리
     sarcT: 0, clingBy: 0, cm: {}, // cm: 멤버 전용 카드 효과
     beamE: null, beamUid: 0, beamT: 0, beamTick: 0, beam2E: null, kbT: 0, rx: g.slotX[slot],
-    motoN: 0, meter: 0, upT: 0, burstT: 0, serious: 1, // 백인규 오토바이 게이지 · 문동한 간보기
+    motoN: 0, meter: 0, upT: 0, burstT: 0, serious: 1, ssj: null, ssjT: 0, // 백인규 오토바이 게이지 · 문동한 간보기 · 초사이언 포격
     out: false, outT: 0, restT: 0, px: g.slotX[slot], py: g.rowY, dashE: null, // 김영준 돌격
     awake: (g.awakeMap && g.awakeMap[id]) | 0, // 지옥 각성
     sig: !g.pvp && SIG[id] && g.gear[id] && g.gear[id].sig === id ? SIG[id].fx : null, // 전용 신화 새 효과 (1:1 대전은 끔)
@@ -314,6 +314,8 @@ function updateHeroes(g, dt) {
     if (h.sigEcho) { h.sigEcho.t -= dt; if (h.sigEcho.t <= 0) { const e0 = h.sigEcho; h.sigEcho = null; if (castSkill(g, h, e0.x, e0.y, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); } }
     // 건전녀 전용 신화: 멤버 2명 이상(혼자면 1명)이 기절 · 홀림 · 침묵이면 응급 방패 자동 (웨이브마다 1번)
     if (h.sig && h.sig.autoGuard && h.sigGuardW !== g.wave && !g.over && g.heroes.filter((o) => o.stunT > 0.3 || o.charmT > 0.3 || o.silenceT > 0.3 || o.freezeT > 0.3).length >= Math.min(h.sig.autoGuard, g.heroes.length)) { h.sigGuardW = g.wave; if (castSkill(g, h, undefined, undefined, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); }
+    if (h.ssj) ssjTick(g, h, dt); // 문동한 초사이언 포격
+    if (h.ssjT > 0) h.ssjT -= dt;
     if (h.mzQ && h.mzQ.length) mosaicTick(g, h, dt); // 여지원 모자이크 폭격: 손이 차례로 내려친다
     // 이호찬 5레벨: 파동 메아리
     if (h.echoT > 0) { h.echoT -= dt; if (h.echoT <= 0) crownWave(g, h, heroDamage(g, h) * 0.7, 0); }
@@ -342,6 +344,7 @@ function updateHeroes(g, dt) {
       let near = 0;
       for (const e of g.enemies) if (!e.dead && e.y > g.ropeY - d.meter.nearY) near++;
       if (g.phase === 'wave' || g.phase === 'intro') h.meter += dt * (d.meter.base[h.lv - 1] + d.meter.perNear * Math.min(near, 12) + d.meter.hpLow * (1 - g.base.hp / g.base.max)) * (h.sa && h.sa.fastmeter ? 1.4 : 1);
+      if (h.ssj) { h.meter = Math.min(100, h.meter); continue; } // 초사이언 포격 중엔 과자 · 빔 대신 포격만 (게이지는 계속 차서 끝나면 바로 빔)
       if (h.meter >= 100 && g.enemies.some((e) => !e.dead && e.y > 0)) { h.meter = 100; h.burstT = d.burst.windup; h.upT = d.burst.windup + d.burst.rest; ev(g, 'lazyUp', { x: h.x, y: h.y }); continue; }
       h.meter = Math.min(100, h.meter);
     }
@@ -3040,6 +3043,52 @@ export function applyMosaic(g, e, sk) {
   e.brkT = Math.max(e.brkT || 0, sk.sec); e.brkArmor = sk.brkArmor; e.brkDmg = sk.brkDmg;
   e.healBlockT = Math.max(e.healBlockT || 0, sk.sec);
 }
+// 문동한 초사이언 포격: 다음 자리 고르기 — 진상이 제일 몰린 곳 (방금 친 곳 근처는 피해서) · 가끔은 아무 진상 (제라스 궁처럼 여기저기)
+function ssjSpot(g, h, r) {
+  const hot = h.ssj.hot, live = g.enemies.filter((e) => !e.dead && e.y > 10 && e.y < g.ropeY + 20);
+  if (!live.length) return null;
+  const far = (e) => hot.every((p) => Math.hypot(e.x - p[0], e.y - p[1]) > r * 1.2);
+  let best = null, bn = 0;
+  for (const e of live) {
+    if (!far(e)) continue;
+    let n = 0;
+    for (const o of live) if (Math.hypot(o.x - e.x, o.y - e.y) <= r) n += o.boss ? 3 : 1;
+    if (n > bn) { bn = n; best = e; }
+  }
+  if (!best || (bn <= 1 && g.rng() < 0.5)) best = live[(g.rng() * live.length) | 0];
+  // 움직이는 진상: 떨어질 때쯤 있을 자리로 조금 앞을 본다
+  const lead = (best.stunT > 0 || best.y >= (best.stopY || 1e9) - 2 ? 0 : 0.6) * (best.speed || 0) * h.def.skill.delay;
+  return { x: clamp(best.x + (g.rng() - 0.5) * r * 0.3, 16, g.W - 16), y: Math.min(g.ropeY, best.y + lead) };
+}
+function ssjTick(g, h, dt) {
+  const sk = h.def.skill, q = h.ssj;
+  q.t += dt;
+  const r = sk.r[q.lv];
+  while (q.left > 0 && q.t >= q.next) {
+    q.next += sk.gap;
+    const p = ssjSpot(g, h, r);
+    if (!p) { q.idle = (q.idle || 0) + sk.gap; if (!g.enemies.some((e) => !e.dead) || q.idle > 2.5) q.left = 0; break; } // 칠 진상이 아직 없으면 잠깐 아껴 둔다 (2.5초 넘게 없으면 끝)
+    q.left--;
+    q.q.push({ x: p.x, y: p.y, t: sk.delay });
+    q.hot.push([p.x, p.y]); if (q.hot.length > 2) q.hot.shift();
+    h.lastShotT = g.t; h.ssjShot = (h.ssjShot || 0) + 1;
+    ev(g, 'ssjMark', { hero: h.id, x: p.x, y: p.y, r, t: sk.delay, hx: h.x, hy: h.y });
+  }
+  for (const b of q.q) {
+    b.t -= dt;
+    if (b.t > 0) continue;
+    let n = 0;
+    buildGrid(g);
+    forEnemiesNear(g, b.x, b.y, r, (e) => {
+      damageEnemy(g, e, q.base * sk.mul[q.lv] * (e.boss ? 0.8 : 1), false, h, true);
+      if (!e.dead) { n++; if (!e.boss) e.stunT = Math.max(e.stunT, sk.daze * stunMul(e)); }
+      return true;
+    });
+    ev(g, 'ssjBolt', { hero: h.id, x: b.x, y: b.y, r, n });
+  }
+  q.q = q.q.filter((b) => b.t > 0);
+  if (q.left <= 0 && !q.q.length) { h.ssj = null; h.ssjT = Math.min(h.ssjT, 0.35); ev(g, 'ssjEnd', { hero: h.id, x: h.x, y: h.y }); }
+}
 function mosaicTick(g, h, dt) {
   const sk = h.def.skill;
   for (const q of h.mzQ) {
@@ -3183,9 +3232,15 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       ev(g, 'harley', { x: h.x, y: h.y, a });
       break;
     }
-    case 'serious':
-      h.meter = 100; h.serious = 1.5;
+    case 'ssj': { // 문동한 초사이언 포격: 변신(wind) → gap 마다 진상이 몰린 곳에 포격 예고 → delay 뒤 쾅 (updateHeroes 의 ssjTick)
+      const add = echo ? 4 : 0; // 스킬 진화 · 신화 메아리: 변신은 그대로 · 포격만 4발 더
+      if (h.ssj) { h.ssj.left += add || sk.n[lv]; h.ssjT = Math.max(h.ssjT, (h.ssj.left + 1) * sk.gap + sk.delay + 0.5); break; }
+      if (echo) break;
+      h.ssj = { t: 0, left: sk.n[lv], next: sk.wind, base, lv, q: [], hot: [] };
+      h.ssjT = sk.wind + sk.n[lv] * sk.gap + sk.delay + 0.5; // 변신 모습 유지 시간
+      ev(g, 'ssjUp', { hero: h.id, x: h.x, y: h.y, wind: sk.wind, sec: h.ssjT });
       break;
+    }
     case 'rush': {
       const n = sk.n[lv] + (h.cm.rush || 0) + ((h.sig && h.sig.rushN) || 0);
       const list = [];
