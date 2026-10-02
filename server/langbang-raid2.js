@@ -1,7 +1,8 @@
 'use strict';
 // 랑방 대전 — 건물주 레이드 서버 길 (/api/langbang/raid2*)
 //  규칙(체력 · 페이즈 · 입장 · 보상 · 세트)은 화면과 같은 파일(public/langbang/raid2.js)
-//  서버가 믿는 것: 판 번호(시작할 때 서버가 줌) · 걸린 시간 · 피해 상한(성장 정도) — 실제로 깎이는 양 · 부서진 팔 · 보상은 서버가 계산
+//  서버가 믿는 것: 판 번호(시작할 때 서버가 줌) · 걸린 시간 · 피해 상한(성장 정도) — 실제로 깎이는 양 · 넘긴 페이즈 · 보상은 서버가 계산
+//  예전(팔 8개) 상태가 저장돼 있으면 처음 불러올 때 체력 하나로 옮겨 저장한다 (R2.migrateState)
 //  서버 전체 보스 상태는 표 하나(lb_raid2, 파일 저장소면 data.raid2)에 — 전적 기록과 같은 줄(serial)에서 차례로 고친다 (동시에 끝나도 두 번 세지 않게)
 const path = require('path');
 const crypto = require('crypto');
@@ -42,7 +43,7 @@ function createRaid2(d) {
   // (serial 안에서) 이번 주로 맞추기
   async function ensure(now = Date.now()) {
     await r2Ready;
-    if (!S) S = await loadState();
+    if (!S) { const raw = await loadState(); S = R2.migrateState(raw); if (S && S !== raw) await saveState(); }
     const wi = L().weekIndex(now);
     if (!S || !Number.isInteger(S.wi) || S.wi < wi) {
       const r = R2.rollWeek(S, now, await activeCount(now));
@@ -201,9 +202,8 @@ function createRaid2(d) {
     const id = await userFromToken(token);
     const now = Date.now();
     const dur = Math.max(0, Math.min(1e6, Math.floor(Number(body.durationSec) || 0)));
-    const parts = {};
-    let total = 0;
-    for (const p of R2.PARTS) { const v = Math.max(0, Math.floor(Number((body.parts || {})[p]) || 0)); if (v) { parts[p] = v; total += v; } }
+    const parts = R2.normParts(body.parts); // 옛 팔 이름이 와도 몸통 피해로 합친다
+    const total = parts.body || 0;
     const kills = Math.max(0, Math.min(1e5, Math.floor(Number(body.kills) || 0)));
     let bk = null;
     const out = await inSerial(async () => {
@@ -235,10 +235,10 @@ function createRaid2(d) {
         if (Array.isArray(body.seen) && d.ENEMY_IDS) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => d.ENEMY_IDS.includes(t))])];
         lb.lastResultAt = now;
         L().trackRun(lb, { mode: 'raid', kills, bosses: 0, skills }, id, now);
-        // 막타 보상: 팔 · 본체
+        // 막타 보상: 페이즈 넘기기 (2 · 3페이즈) · 마지막 일격
         for (const p of res.broke) {
           const rw = p === 'body' ? R2.KILL_RW : R2.PART_RW;
-          L().mailAdd(lb, { title: p === 'body' ? '건물주 대마왕 막타!' : `${R2.partName(p)} 막타!`, text: `${S.tier}단계 건물주의 ${R2.partName(p)}을 내 손으로 끝냈어요`, rw, days: 14 }, now);
+          L().mailAdd(lb, { title: p === 'body' ? '건물주 대마왕 막타!' : `건물주 ${R2.partName(p)} 막타!`, text: p === 'body' ? `${S.tier}단계 건물주 대마왕을 내 손으로 쓰러뜨렸어요` : `${S.tier}단계 건물주를 ${p === 'p3' ? '3페이즈(분노)' : '2페이즈(짜증)'}로 몰아넣었어요`, rw, days: 14 }, now);
           mailN++;
         }
       });
@@ -294,7 +294,7 @@ function createRaid2(d) {
   }
   // 테스트용: 서버 상태 직접 보기 · 바꾸기
   const _state = () => S;
-  const _setState = async (s) => { await r2Ready; S = s; await inSerial(() => saveState()); };
+  const _setState = async (s) => { await r2Ready; S = R2.migrateState(s); await inSerial(() => saveState()); };
   const _reload = async () => { S = null; };
   // 우편함 맞추기(/mail/sync · 이미 serial 안)에서: 레이드 화면을 안 열어도 보상 우편이 오게
   async function mailPrep(u, id, now) { await ensure(now); return { r2old: await oldRaidCtx(u, id) }; }

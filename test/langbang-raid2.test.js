@@ -1,5 +1,5 @@
 'use strict';
-// 건물주 레이드 (주간 서버 레이드): 주 바뀜(잡음/못 잡음) · 서버 체력 셈(동시에 끝나도 한 번씩) · 한 판 1% 상한 · 입장 · 부르기 · 팔 막타 · 보상(한 번만) · 세트 · 옛 레이드 보상
+// 건물주 레이드 (주간 서버 레이드 · 거대 보스 혼자): 주 바뀜(잡음/못 잡음) · 서버 체력 셈(동시에 끝나도 한 번씩) · 한 판 1% 상한 · 페이즈 · 입장 · 부르기 · 페이즈 막타 · 보상(한 번만) · 세트 · 옛(팔 8개) 기록 옮기기 · 옛 레이드 보상
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -49,9 +49,10 @@ test('주 바뀜: 잡았으면 다음 단계 새 보스 · 못 잡았으면 남�
   assert.equal(R2.hpMaxFor(1, 3), R2.hpMaxFor(1, R2.R2.floor), '활동 인원이 적어도 floor 만큼');
   assert.ok(R2.hpMaxFor(1, 100) > R2.hpMaxFor(1, 50), '활동 인원이 많으면 체력도 많이');
   assert.ok(Math.abs(R2.hpMaxFor(2, 50) / R2.hpMaxFor(1, 50) - R2.R2.tierMul) < 0.01, '단계마다 ×1.5');
-  assert.equal(R2.PARTS.reduce((a, p) => a + s.max[p], 0), s.hpMax, '팔 8개 + 본체 = 최대 체력');
-  // 못 잡은 주 → 이어서
+  assert.equal(s.max.body, s.hpMax, '체력은 하나 (거대 보스 혼자)');
+  // 못 잡은 주 → 이어서 (옛 팔 이름으로 와도 몸통 피해로 들어간다)
   R2.applyRun(s, 'u1', '가', { mega: 1e12 }, now);
+  assert.ok(R2.hpLeft(s) < s.hpMax);
   const left = R2.hpLeft(s);
   const r1 = R2.rollWeek(s, mid(wi + 1), 99);
   assert.equal(r1.rolled, true);
@@ -75,40 +76,81 @@ test('주 바뀜: 잡았으면 다음 단계 새 보스 · 못 잡았으면 남�
   assert.equal(r3.s.wi, wi + 9); assert.equal(r3.s.tier, 2);
 });
 
-test('한 판 반영: 최대 체력 1% 상한 · 부서진 팔 → 다음 부위로 넘침 · 막타 기록 · 페이즈 · 처치', () => {
+test('한 판 반영: 최대 체력 1% 상한 · 페이즈 넘긴 판 기록(2 · 3페이즈) · 소식 · 처치', () => {
   const s = R2.newBoss(10, 1, 0);
   const cap = Math.round(s.hpMax * R2.R2.runCapPct);
-  assert.deepEqual(R2.exposed(s), ['mega', 'bill', 'bottle', 'golf']);
+  assert.deepEqual(R2.exposed(s), ['body']);
+  assert.equal(R2.phaseOf(s), 1);
   // 1% 상한 (맨 위 계정이 아무리 세도)
-  const r = R2.applyRun(s, 'a', '가', { mega: cap * 10, bill: cap * 10 }, 1);
+  const r = R2.applyRun(s, 'a', '가', { body: cap * 10 }, 1);
   assert.equal(r.counted, cap); assert.equal(r.clipped, true);
   assert.ok(r.counted <= s.hpMax * 0.01 + 1, '한 판에 1% 를 못 넘는다');
-  // 팔 하나를 거의 다 깎아 두고 → 막타
-  s.hp.mega = 100;
-  const r2 = R2.applyRun(s, 'b', '나', { mega: 500 }, 2);
-  assert.deepEqual(r2.broke, ['mega']);
-  assert.equal(s.by.mega.uid, 'b', '막타 기록');
-  assert.equal(s.feed[0].k, 'break'); assert.equal(s.feed[0].n, '나'); assert.equal(s.feed[0].p, 'mega');
-  assert.equal(r2.counted, 500, '넘친 피해는 다른 팔로');
-  assert.deepEqual(R2.exposed(s), ['bill', 'bottle', 'golf']);
-  // 부서진 팔에 들어온 피해 → 지금 드러난 팔로
-  const before = R2.hpLeft(s);
-  R2.applyRun(s, 'c', '다', { mega: 900 }, 3);
-  assert.equal(before - R2.hpLeft(s), 900);
-  assert.equal(s.hp.mega, 0);
-  // 1페이즈 다 부수면 2페이즈 → 3페이즈(본체) → 처치
-  for (const p of ['bill', 'bottle', 'golf']) s.hp[p] = 1;
-  R2.applyRun(s, 'c', '다', { bill: 10 }, 4);
+  // 2페이즈 경계 바로 위 → 넘긴 사람 기록 · 소식
+  s.hp.body = Math.floor(s.hpMax * R2.R2.phaseAt[0]) + 100;
+  const r2 = R2.applyRun(s, 'b', '나', { body: 500 }, 2);
+  assert.deepEqual(r2.broke, ['p2']);
   assert.equal(R2.phaseOf(s), 2);
-  assert.deepEqual(R2.exposed(s), ['contract', 'keys', 'bag', 'phone']);
-  for (const a of R2.ARMS) s.hp[a.id] = 0;
-  assert.equal(R2.phaseOf(s), 3); assert.deepEqual(R2.exposed(s), ['body']);
+  assert.equal(s.by.p2.uid, 'b', '2페이즈 막타 기록');
+  assert.equal(s.feed[0].k, 'phase'); assert.equal(s.feed[0].n, '나'); assert.equal(s.feed[0].p, 'p2');
+  assert.equal(r2.counted, 500);
+  // 같은 페이즈를 또 넘겨도(이미 기록) 두 번 안 준다 · 옛 팔 이름 피해도 몸통으로
+  const before = R2.hpLeft(s);
+  assert.deepEqual(R2.applyRun(s, 'c', '다', { mega: 300, golf: 600 }, 3).broke, []);
+  assert.equal(before - R2.hpLeft(s), 900, '옛 팔 이름 피해 → 몸통');
+  // 3페이즈 → 처치
+  s.hp.body = Math.floor(s.hpMax * R2.R2.phaseAt[1]) + 100;
+  assert.deepEqual(R2.applyRun(s, 'c', '다', { body: 500 }, 4).broke, ['p3']);
+  assert.equal(s.by.p3.uid, 'c');
   s.hp.body = 50;
   const rk = R2.applyRun(s, 'd', '라', { body: 999 }, 5);
+  assert.deepEqual(rk.broke, ['body']);
   assert.equal(rk.killed, true); assert.equal(s.killer.uid, 'd');
   assert.equal(R2.phaseOf(s), 4); assert.deepEqual(R2.exposed(s), []);
   assert.equal(rk.counted, 50, '죽은 뒤로는 안 깎인다');
   assert.equal(s.feed[0].k, 'kill');
+  assert.equal(R2.applyRun(s, 'e', '마', { body: 999 }, 6).counted, 0);
+});
+
+test('예전(팔 8개) 서버 상태 · 판 기록 → 체력 하나로 옮김 (남은 체력 · 막타 · 페이즈 그대로) · 서버가 불러와도 안 깨짐', async () => {
+  const OLD = ['mega', 'bill', 'bottle', 'golf', 'contract', 'keys', 'bag', 'phone'];
+  const hpMax = 1e6;
+  const old = { v: 1, wi: 10, tier: 2, active: 5, hpMax, hp: {}, max: {}, by: { mega: { uid: 'x', n: '옛막타', at: 1 } }, killedAt: 0, killer: null, startedAt: 0, board: { u: { n: '가', d: 5, r: 1, c: 0, lh: 1 } }, feed: [{ t: 1, n: '옛막타', k: 'break', p: 'mega' }], live: {}, hist: [] };
+  for (const p of OLD) { old.max[p] = hpMax * 0.08; old.hp[p] = p === 'mega' ? 0 : hpMax * 0.03; }
+  old.max.body = old.hp.body = hpMax * 0.36;
+  const m = R2.migrateState(old);
+  assert.equal(m.v, 2);
+  assert.deepEqual(Object.keys(m.hp), ['body']);
+  assert.equal(m.hp.body, Math.round(hpMax * 0.03 * 7 + hpMax * 0.36), '남은 체력 = 팔 + 본체');
+  assert.equal(m.max.body, hpMax);
+  assert.equal(R2.phaseOf(m), 2, '남은 57% → 2페이즈');
+  assert.equal(m.board.u.d, 5, '기여 순위 그대로');
+  assert.equal(R2.migrateState(m), m, '두 번 옮기지 않는다');
+  // 다 잡힌 옛 상태 → 잡힌 그대로
+  const dead = JSON.parse(JSON.stringify(old)); for (const p of [...OLD, 'body']) dead.hp[p] = 0; dead.killedAt = 5;
+  assert.equal(R2.killed(R2.migrateState(dead)), true);
+  // 서버: 옛 상태를 넣어도 화면 · 끝내기가 돈다 (옛 팔 이름으로 온 판도 몸통 피해로)
+  const realNow = Date.now;
+  let T = mid(L.weekIndex(realNow()) + 7);
+  Date.now = () => T;
+  try {
+    const cur = JSON.parse(JSON.stringify(old)); cur.wi = L.weekIndex(T);
+    await srv.accounts.raid2._setState(cur);
+    const u = await user('옛팔', strong);
+    const bd = await get('/raid2', u.token);
+    assert.equal(bd.ok, true, bd.message);
+    assert.deepEqual(Object.keys(bd.hp), ['body']); assert.equal(bd.phase, 2);
+    const s0 = await post('/raid2/start', u.token, {});
+    assert.equal(s0.ok, true, s0.message);
+    T += 120e3;
+    const left0 = R2.hpLeft(srv.accounts.raid2._state());
+    const f = await post('/raid2/finish', u.token, { runId: s0.runId, parts: { bill: 700, phone: 300 }, durationSec: 110 });
+    assert.equal(f.ok, true, f.message);
+    assert.equal(left0 - R2.hpLeft(srv.accounts.raid2._state()), 1000);
+  } finally { Date.now = realNow; }
+  // 판 기록(lb.raid2.run.ex)에 옛 이름이 있어도 버린다
+  const out = {};
+  R2.normRaid2({ raid2: { run: { id: 'r1', wi: 1, at: 1, ex: ['mega', 'body'] } } }, out);
+  assert.deepEqual(out.raid2.run.ex, ['body']);
 });
 
 test('입장 3번 · 친구 부르기(+1 입장 · 응답 버프 · 둘 다 협동 기여 · 하루 한 번) · 친구가 아니면 못 부름', async () => {
@@ -181,7 +223,7 @@ test('서버 체력: 동시에 끝난 판도 한 번씩만 · 같은 판 두 번
     for (const r of dup) assert.equal(r.ok, false, '같은 판 두 번');
     const st = srv.accounts.raid2._state();
     assert.equal(left0 - R2.hpLeft(st), amt.reduce((a, b) => a + b, 0), '정확히 한 번씩');
-    assert.equal(st.hp.golf, s0.max.golf - amt.reduce((a, b) => a + b, 0));
+    assert.equal(st.hp.body, s0.max.body - amt.reduce((a, b) => a + b, 0), '옛 팔 이름(golf)으로 와도 몸통 체력에서');
     assert.equal(R2.participants(st), 4);
     // 상한 넘는 기록 · 판 번호 없음 · 시간이 안 맞음
     const u = await user('조작', {});
@@ -202,28 +244,29 @@ test('서버 체력: 동시에 끝난 판도 한 번씩만 · 같은 판 두 번
   } finally { Date.now = realNow; }
 });
 
-test('팔 막타 → 피드에 "누가 부쉈다" · 막타 우편 · 잡으면 참가 · 토벌 보상 우편 (여러 번 열어도 한 번만) · 주가 끝나면 순위 보상 + 세트 조각', async () => {
+test('페이즈 넘긴 판 → 피드에 "누가 몰아넣었다" · 막타 우편 · 잡으면 참가 · 토벌 보상 우편 (여러 번 열어도 한 번만) · 주가 끝나면 순위 보상 + 세트 조각', async () => {
   const realNow = Date.now;
   let T = mid(L.weekIndex(realNow()) + 3);
   Date.now = () => T;
   try {
     const s = await smallBoss(T, 1, 1e6);
     const a = await user('막타왕후보', strong), b = await user('구경꾼', strong);
-    // 확성기 팔만 남기고 거의 다 깎아 둠
-    s.hp.mega = 3000;
+    // 2페이즈 경계 바로 위까지 깎아 둠
+    s.hp.body = Math.floor(s.hpMax * R2.R2.phaseAt[0]) + 3000;
     const ra = await post('/raid2/start', a.token, {});
     T += 165e3;
-    const fa = await post('/raid2/finish', a.token, { runId: ra.runId, parts: { mega: 9000 }, durationSec: 160 });
+    const fa = await post('/raid2/finish', a.token, { runId: ra.runId, parts: { body: 9000 }, durationSec: 160 });
     assert.equal(fa.ok, true, fa.message);
-    assert.ok(fa.raid2.broke.includes('mega'));
+    assert.deepEqual(fa.raid2.broke, ['p2']);
     const bd = await get('/raid2', b.token);
-    assert.equal(bd.by.mega, '막타왕후보');
-    assert.ok(bd.feed.some((f) => f.k === 'break' && f.p === 'mega' && f.n === '막타왕후보'), '피드: 누가 부쉈다');
-    assert.ok(fa.profile.mail.some((m) => /확성기 팔 막타/.test(m.title)), '막타 우편');
+    assert.equal(bd.phase, 2);
+    assert.equal(bd.by.p2, '막타왕후보');
+    assert.ok(bd.feed.some((f) => f.k === 'phase' && f.p === 'p2' && f.n === '막타왕후보'), '피드: 누가 2페이즈로 몰아넣었다');
+    assert.ok(fa.profile.mail.some((m) => /2페이즈 돌입 막타/.test(m.title) && m.rw.tickets === R2.PART_RW.tickets), '페이즈 막타 우편');
     assert.equal(fa.mailN, 1);
-    // 남은 부위를 1로 → b 가 마지막 일격 (본체 막타)
+    // 남은 체력을 1로 → b 가 마지막 일격 (3페이즈 넘김 + 대마왕 막타)
     const st = srv.accounts.raid2._state();
-    for (const p of R2.PARTS) st.hp[p] = p === 'mega' ? 0 : 1;
+    st.hp.body = 1;
     const rb = await post('/raid2/start', b.token, {});
     T += 165e3;
     const fb = await post('/raid2/finish', b.token, { runId: rb.runId, parts: { bill: 5000 }, durationSec: 160 });
@@ -294,39 +337,57 @@ test('세트: 조각 받기(없는 것 먼저 → Lv) · 2세트 · 4세트 효�
   assert.ok(!out.raid2.set.hack); assert.equal(out.raid2.rin.length, 0); assert.equal(out.raid2.paid[0].f, 7);
 });
 
-test('전투(sim): 부위가 생기고 · 약점 멤버 ×2.5 · 계약서는 저격 ×3 · 내려찍기 예고 → 스킬로 끊으면 빈틈 · 다른 사람이 부순 팔은 떨어져 나감', () => {
-  const g = S.createGame({ H: 760, mode: 'stage', deck: ['gunman', 'bangjang', 'staff', null, null, null], weekly: RS.waveDef(1), raid: { sec: R2.R2.sec }, slots: 3, rng: () => 0.3 });
-  RS.attach(g, { tier: 1, exposed: ['mega', 'contract'] });
-  assert.equal(Object.keys(g.r2.parts).length, 2);
-  const mega = g.r2.parts.mega, con = g.r2.parts.contract;
-  const gm = g.heroes.find((h) => h.id === 'gunman'), sf = g.heroes.find((h) => h.id === 'staff') || { id: 'staff', def: {} };
-  assert.equal(g.r2.hitMul(g, con, 100, gm), 300, '계약서: 저격수 ×3');
-  assert.equal(g.r2.hitMul(g, con, 100, { id: 'dohoon' }), 60, '계약서: 나머지 ×0.6');
-  assert.equal(g.r2.hitMul(g, mega, 100, sf), 250, '확성기: 운영진 ×2.5');
-  assert.equal(g.r2.hitMul(g, mega, 100, { id: 'dohoon' }), 100);
-  S.damageEnemy(g, mega, 1000, false, sf);
-  assert.ok(g.r2.dmg.mega > 0 && g.raid.dmg > 0, '부위별 피해 기록');
-  // 내려찍기 예고 → 스킬 피해 → 끊김
-  g.r2.slamT = 0; S.step(g, 1 / 60);
-  assert.ok(g.r2.slam && g.r2.slam.st === 'wind');
-  const p = g.r2.parts[g.r2.slam.p];
-  g._inSkill = true; S.damageEnemy(g, p, 10, false, gm); g._inSkill = false;
-  assert.equal(g.r2.slam, null); assert.equal(g.r2.cuts, 1); assert.ok(p.weakT > 0, '빈틈');
+test('전투(sim): 거대 보스 하나 · 진상 없음 · 예고 → 스킬로 끊으면 빈틈 · 안 끊으면 입구 피해 · 입구 붙잡기 떼기 · 화가 쌓임 · 시간 끝 = 철거', () => {
+  const mk = () => S.createGame({ H: 760, mode: 'stage', deck: ['gunman', 'bangjang', 'staff', null, null, null], weekly: RS.waveDef(1), raid: { sec: R2.R2.sec }, slots: 3, rng: () => 0.3 });
+  const g = mk();
+  RS.attach(g, { tier: 1, hp: { body: 100 }, max: { body: 100 } });
+  const e = g.r2.parts.body;
+  assert.ok(e && e.r2 === 'body');
+  assert.equal(g.r2.phase, 1);
+  const gm = g.heroes.find((h) => h.id === 'gunman');
+  assert.equal(g.r2.hitMul(g, e, 100, gm), 100 * RS.TEMPO_R2.dmgK, '약점 없음 · 피해 배율만');
+  S.damageEnemy(g, e, 1000, false, gm);
+  assert.ok(g.r2.dmg.body > 0 && g.raid.dmg > 0, '피해 기록');
+  // 몇 웨이브가 지나도 진상은 안 나온다 · 경험치는 시간으로 쌓인다
+  const lv0 = g.level;
+  g.god = true; // (입구는 안 깎이게 — 진상 · 경험치만 본다)
+  for (let t = 0; t < 40; t += 1 / 30) { S.step(g, 1 / 30); g.pendingLevels = 0; if (g.over) break; }
+  assert.equal(g.enemies.filter((x) => !x.dead && !x.r2).length, 0, '진상 없음');
+  assert.ok(g.level > lv0 || g.exp > 0, '경험치는 시간으로');
+  assert.ok(g.wave >= 2, '웨이브 숫자는 넘어간다 (증강 선택)');
+  g.god = false; g.r2.cuts = 0;
+  // 내려찍기 예고 → 스킬 피해 → 끊김 → 빈틈
+  g.r2.act = null; g.r2.nextT = 0; g.r2.last = 'x';
+  const rng0 = g.rng; g.rng = () => 0.01; S.step(g, 1 / 60); g.rng = rng0;
+  assert.ok(g.r2.act && g.r2.act.st === 'wind' && g.r2.act.k === 'slam', g.r2.act && g.r2.act.k);
+  g._inSkill = true; S.damageEnemy(g, e, 10, false, gm); g._inSkill = false;
+  assert.equal(g.r2.act, null); assert.equal(g.r2.cuts, 1); assert.ok(e.weakT > 0, '빈틈');
   // 끊지 않으면: 입구 피해
-  g.r2.slamT = 0; S.step(g, 1 / 60);
+  g.r2.nextT = 0; g.r2.last = 'x'; g.rng = () => 0.01; S.step(g, 1 / 60); g.rng = rng0;
   const hp0 = g.base.hp;
-  for (let t = 0; t < 3; t += 1 / 60) S.step(g, 1 / 60);
+  for (let t = 0; t < 2.6; t += 1 / 60) S.step(g, 1 / 60);
   assert.ok(g.base.hp < hp0, '내려찍기 → 입구 피해');
-  // 다른 사람이 확성기 팔을 부숨
-  const gone = RS.syncParts(g, ['contract'], { mega: '누구' });
-  assert.deepEqual(gone, ['mega']); assert.ok(!g.r2.parts.mega);
-  assert.ok(g.events.some((e) => e.type === 'r2Break' && e.by === '누구'));
-  // 다 부서지면 다음 페이즈 부위가 붙는다
-  RS.syncParts(g, ['body']);
-  assert.ok(g.r2.parts.body && g.r2.rage);
-  for (let t = 0; t < 20; t += 1 / 30) S.step(g, 1 / 30);
+  assert.ok(g.r2.slams >= 1);
+  // 입구 붙잡기: 스킬 두 번이면 손을 놓는다
+  g.r2.act = { k: 'grab', st: 'hold', t: 4, hits: 0 };
+  g._inSkill = true; S.damageEnemy(g, e, 10, false, gm); g.t += 0.5; S.damageEnemy(g, e, 10, false, gm); g._inSkill = false;
+  assert.equal(g.r2.act, null, '두 번 맞으면 떼어냄');
+  assert.ok(g.events.some((x) => x.type === 'r2Release'));
+  // 서버에서 페이즈가 바뀜 → 이 판도
+  assert.equal(RS.setPhase(g, 3), true); assert.equal(g.r2.phase, 3);
+  assert.ok(g.events.some((x) => x.type === 'r2Phase' && x.phase === 3));
   const rep = RS.report(g);
-  assert.ok(rep.total > 0 && rep.parts.mega > 0);
+  assert.ok(rep.total > 0 && rep.parts.body === rep.total && rep.cuts >= 2);
+  // 시간 끝 = 철거 (입구가 무너지고 판 끝) · 그 전에 화가 쌓인다
+  const g2 = mk();
+  g2.god = false;
+  RS.attach(g2, { tier: 1, hp: { body: 10 }, max: { body: 100 } });
+  assert.equal(g2.r2.phase, 3, '서버 체력 10% → 3페이즈부터');
+  g2.r2.angryT = 0; S.step(g2, 1 / 60);
+  assert.equal(g2.r2.angry, 1);
+  g2.t = R2.R2.sec; S.step(g2, 1 / 60);
+  assert.equal(g2.over, true); assert.equal(g2.base.hp, 0);
+  assert.ok(g2.r2.finale && g2.events.some((x) => x.type === 'r2Final'));
 });
 
 test('옛 모임 레이드에서 못 받은 보상은 우편으로 한 번 · 옛 기록이 있어도 계정이 안 깨짐', async () => {
@@ -350,11 +411,13 @@ test('옛 모임 레이드에서 못 받은 보상은 우편으로 한 번 · �
   } finally { Date.now = realNow; }
 });
 
-test('숫자 · 약점 표: 1단계 최소 체력 · 팔 8개 · 약점 멤버는 진짜 멤버 · 고르게', async () => {
-  const D = await lib('data.js');
+test('숫자 · 패턴 표: 1단계 최소 체력 · 페이즈 경계 · 패턴마다 숫자와 안내 · 그림 주소', () => {
   assert.ok(R2.hpMaxFor(1, 0) >= 5e7, '1단계 최소 체력');
-  assert.equal(R2.ARMS.length, 8);
-  const all = new Set();
-  for (const a of R2.ARMS) { assert.ok(a.weak.length >= 4); for (const h of a.weak) { assert.ok(D.HEROES[h], h); all.add(h); } }
-  assert.ok(all.size >= 20, '약점 멤버가 고르게');
+  assert.ok(R2.R2.phaseAt[0] > R2.R2.phaseAt[1] && R2.R2.phaseAt[1] > 0);
+  assert.equal(R2.phaseAt(100, 100), 1); assert.equal(R2.phaseAt(50, 100), 2); assert.equal(R2.phaseAt(10, 100), 3); assert.equal(R2.phaseAt(0, 100), 4);
+  assert.equal(R2.PHASES.length, 3);
+  for (const p of R2.PATTERNS) { assert.ok(RS.PAT[p.id], p.id); assert.ok(p.name && p.text && p.tip && p.img, p.id); assert.ok(p.from >= 1 && p.from <= 3); }
+  for (const ph of [0, 1, 2]) assert.ok(R2.PATTERNS.filter((p) => RS.PAT[p.id].w[ph] > 0).length >= 3, '페이즈마다 패턴 3개 이상');
+  for (const k of ['throne', 'idle', 'wind', 'slam', 'throw', 'rage']) assert.match(R2.R2_ART[k], /^\/img\/lb\/raid2\/boss_.*\.webp$/);
+  assert.ok(R2.R2.sec >= 150, '한 판 최대 시간');
 });
