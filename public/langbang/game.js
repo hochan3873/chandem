@@ -3687,7 +3687,8 @@ Object.assign(ACTS, {
     app.paused = false;
     if (g) { g.over = true; g.phase = 'over'; }
     clearSnap();
-    startRun({ mode: app.mode, stage: app.stage, force: true });
+    app.g = null; hud.hidden = true; guardOff();
+    showPrep(app.mode, app.stage); // 바로 시작하지 않고 출전 준비부터 (멤버 · 자리를 바꿀 수 있게)
   },
   mst: async (b) => {
     const a = b.dataset.a;
@@ -4642,6 +4643,7 @@ function prepRecSet(st) {
   return r;
 }
 function showPrep(mode, s) {
+  app.edSel = null; // 덱 편집에서 고르던 것 풀기
   if (mode === 'stage' && !stageUnlocked(s)) s = nextStage();
   app.mode = mode;
   app.stage = mode === 'stage' ? s : 0;
@@ -4838,12 +4840,12 @@ function showDeckEditor() {
   for (let i = 0; i < 6; i++) {
     const id = dl[i];
     if (i >= max) { slots.push(`<span class="pp-slot lock">${ic('lock', '')}</span>`); continue; }
-    slots.push(id ? `<span class="ed-s" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}</span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
+    slots.push(id ? `<span class="ed-s ${id === app.edSel ? 'picked' : ''}" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}</span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
   }
   const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
   popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '', 'sm')}자동 편성</button></div>
     <div class="pp-slots g6 ed">${slots.join('')}</div>
-    <p class="ed-hint">${lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 끌어서 순서 바꾸기 · 1번 칸에 놓으면 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
+    <p class="ed-hint">${app.edSel && HEROES[app.edSel] ? `<b>${esc(HEROES[app.edSel].name)}</b> 고름 → 위 멤버를 누르면 자리 바꾸기 · 아래 멤버를 누르면 교체 · 한 번 더 누르면 빼기` : lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 눌러서 고른 뒤 다른 멤버를 누르면 자리 바꾸기 · 1번 칸이 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
     <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="edF" data-f="${k}">${t}</button>`).join('')}<span class="ed-sort">${[['pw', '전투력'], ['tier', '등급'], ['lv', '레벨']].map(([k, t]) => `<button class="${k === so ? 'on' : ''}" data-act="edSort" data-v="${k}">${t}</button>`).join('')}</span></div></div>
     <div class="pp-sg">${list.map((id) => artCard(id, { act: 'edPick', on: dl.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
     <div class="ed-done"><button class="btn primary" data-x>완료</button></div>`, 'pp-sheet pp-editor');
@@ -4929,6 +4931,9 @@ function edApply(ids, lead) {
 function edPick(id) {
   if (!API.heroUnlocked(P(), id)) return;
   const ids = deckList();
+  // 위에서 고른 멤버가 있으면: 아래 멤버와 교체 (이미 덱에 있으면 서로 자리 바꾸기)
+  if (app.edSel && ids.includes(app.edSel) && app.edSel !== id) { const a = ids.indexOf(app.edSel), b = ids.indexOf(id), nx = ids.slice(); if (b >= 0) [nx[a], nx[b]] = [nx[b], nx[a]]; else nx[a] = id; app.edSel = null; app.deckPop = id; A.sfx.card(); setDeckOrder(nx); showDeckEditor(); return; }
+  app.edSel = null;
   if (ids.includes(id)) { edApply(ids.filter((x) => x !== id), id === ids[0] ? ids.find((x) => x !== id) : null); A.sfx.tap(); return; }
   if (ids.length >= deckSlotsNow()) { toast('덱이 꽉 찼어요 — 위에서 뺄 멤버를 눌러요', 1400); A.sfx.tap(); return; }
   const lead = !ids.length || app.edLeadNext ? id : null;
@@ -4938,6 +4943,10 @@ function edPick(id) {
 }
 function edSlot(id) {
   const ids = deckList();
+  // 눌러서 고르기 → 다른 덱 멤버를 누르면 자리 바꾸기 · 같은 멤버를 한 번 더 누르면 빼기
+  if (!app.edSel || !ids.includes(app.edSel)) { app.edSel = id; A.sfx.tap(); showDeckEditor(); return; }
+  if (app.edSel !== id) { const a = ids.indexOf(app.edSel), b = ids.indexOf(id), nx = ids.slice(); [nx[a], nx[b]] = [nx[b], nx[a]]; app.edSel = null; A.sfx.card(); setDeckOrder(nx); showDeckEditor(); return; }
+  app.edSel = null;
   const wasLead = id === ids[0];
   app.edLeadNext = wasLead; app.edHole = true; // 빈 자리를 채우는 멤버가 대장을 이어받는다
   A.sfx.tap();

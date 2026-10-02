@@ -4097,3 +4097,8 @@ body.rm .lb-quick .qb.qb-ins { animation: none; }
 .ins-sheet .ins-note { margin: calc(var(--u) * 10) 0 0; opacity: 0.7; font-size: calc(var(--u) * 10.5); }
 .ins-sheet .ins-btns { display: flex; gap: calc(var(--u) * 8); margin-top: calc(var(--u) * 12); }
 .ins-sheet .ins-btns > * { flex: 1; text-align: center; text-decoration: none; }
+
+/* 덱 편집: 고른 멤버 (다음에 누르는 멤버와 자리 바꾸기 · 교체) */
+.ed-s.picked > * { outline: calc(var(--u) * 3) solid #ffd23f; outline-offset: calc(var(--u) * 2); border-radius: calc(var(--u) * 10); animation: edPick 0.9s ease-in-out infinite alternate; }
+@keyframes edPick { to { outline-color: #fff3a0; transform: translateY(calc(var(--u) * -3)); } }
+body.rm .ed-s.picked > * { animation: none; }
