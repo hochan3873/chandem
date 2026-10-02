@@ -792,7 +792,7 @@ function handleEvents(g, loud) {
       case 'wallHit': fx.burst(e.x, e.y + 10, 5, '#d8d0c0', 90, 'dot', 2, 0.35); break;
       case 'wallPush': if (e.w) for (const sx of [-1, 1]) fx.burst(e.x + sx * e.w, e.y + 24, 4, '#d8d0c0', 70, 'dot', 2, 0.35); if (loud) A.sfx.kick(); break; // 미는 폭 양 끝에 먼지 (실제 판정 폭과 같게)
       case 'wallTurn': case 'wallTired': fx.addShake(4); fx.text(e.x, e.y - 60, e.type === 'wallTired' ? '헉헉… 쉬러 간다' : '쿵!', '#fff', 14, 0.9); R.vfx('shock', e.x, e.y - 30, { anim: 'pop', dur: 450, sz: 130 }); if (loud) A.sfx.slam(); break;
-      case 'wallWalk': fx.text(e.x, e.y - 100, '벽이 걸어온다', '#bfd4ff', 15, 1.2); break;
+      case 'wallWalk': fx.text(e.x, e.y - 100, e.turn ? '돌아서 다시 간다!' : '벽이 걸어온다', '#bfd4ff', 15, 1.2); break;
       case 'lockOn': for (const o of e.list || []) R.vfx('warn', o.x, o.y - 10, { anim: 'grow', dur: 600, sz: 56 }); break;
       case 'curseBolt': R.vfx('w_swear', e.x, e.y, { anim: 'fly', dur: 380, sz: 34, tx: e.tx, ty: e.ty }); break;
       case 'mosaicCast': SKFX.add('mosaic', g, e, busy); if (!e.echo) fx.banner('모자이크 폭격!', '삐— 3줄 쾅쾅쾅 · 방어 -40% · 받는 피해 +25%', '#b0203a', 1.0, 'wave'); if (loud) A.sfx.censor(); break; // 여지원: 검열 띠 · 삐— (skillfx.js mosaic)
@@ -5376,7 +5376,7 @@ const DEX_FLAVOR = {
   ingyu: '3대 500 헬창. 진상이 뭘 던지든 "오 근육 자극 좋다"로 받아친다.',
   donghan: '모임 내내 소파에 누워 간만 보는 사람. 근데 "이제 좀 해볼까?" 하는 순간 한 줄이 사라진다.',
   youngjun: '검은 고양이 후드를 쓰고 파티장에 뛰어드는 전사. 뛰어든 동안엔 아무것도 안 통한다.',
-  eunok: '처음엔 얌전히 홀짝홀짝. 20초 뒤엔… 소주병이 날아다니기 시작한다.',
+  eunok: '처음엔 얌전히 홀짝홀짝. 14초쯤 뒤엔… 소주병이 날아다니기 시작한다.',
   hanna: '랑방 공식 윙크 담당. 남자 진상은 윙크 한 방에 정신 못 차리고 날아간다.',
   sunggu: '"요즘 것들은…"이 입버릇인 최고참. 지팡이 하나로 한 줄을 통째로 정리한다.',
   junseo: '여사친이 유난히 많은 남자. "잠깐, 내 친구 소개해 줄게!" 하면 여사친이 굴러간다.',

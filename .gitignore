@@ -2,3 +2,6 @@ node_modules/
 data/
 e2e-shots/
 *.log
+
+# 기획 메모·대화기록 (코드 아님 — 작업방에만 둔다)
+_자료/
