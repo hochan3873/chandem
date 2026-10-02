@@ -39,6 +39,7 @@ body.tr-low #ui > .screen.tr-g.g-back { animation-name: trOutBackL !important; }
 .tr-ov.pass, .tr-ov.pass * { pointer-events: none; }
 .tr-ov > * { position: absolute; display: block; pointer-events: none; }
 .tr-ov.tr-eat { background: transparent; }
+.tr-ov.tr-dim { background: #07040a; opacity: 0; } /* 판 → 로비: 어둡게 덮었다 드러내기 */
 
 /* ── 진상의 탑 ── */
 .tr-tower .trt-art { inset: 0; background: #120206 center 30% / cover no-repeat; opacity: 0; will-change: transform, opacity; }

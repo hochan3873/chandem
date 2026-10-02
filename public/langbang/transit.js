@@ -25,7 +25,7 @@ export function initTransit(ctx) {
   // 탑이 열려 있으면 로비가 한가할 때 탑 그림을 미리 받아 둔다 (처음 들어갈 때 기다리지 않게 · 84KB 한 장)
   const idle = window.requestIdleCallback || ((f) => setTimeout(f, 200));
   setTimeout(() => idle(() => { if (document.querySelector('.tw-entry:not(.locked), [data-act="lbModes"]')) { const im = new Image(); im.decoding = 'async'; im.src = ART.tower; } }), 2500);
-  return { begin, after, finish, hold, leave, busy: () => !!(cur && cur.blocking) };
+  return { begin, after, finish, hold, leave, dim, busy: () => !!(cur && cur.blocking) };
 }
 const reduced = () => document.body.classList.contains('rm');
 const sfx = (k) => { try { if (C.A.sfx[k]) C.A.sfx[k](); } catch { /* 무시 */ } };
@@ -110,6 +110,23 @@ function leave() {
   el.inert = true;
   for (const e of el.querySelectorAll('[id]')) e.removeAttribute('id');
   setTimeout(() => el.remove(), ms(320));
+}
+
+// 판을 끝내고 로비로: 게임 화면이 뚝 바뀌지 않게 어둡게 덮고 → 바꾸고(fn) → 밝게 드러낸다 (탭하면 바로)
+let dimOv = null;
+function dim(fn) {
+  if (dimOv || reduced() || !C.stage.animate) { fn(); return; }
+  const ov = document.createElement('div');
+  ov.className = 'tr-ov tr-dim';
+  C.stage.appendChild(ov);
+  dimOv = ov;
+  sfx('whooshBack');
+  let swapped = false;
+  const swap = () => { if (swapped) return; swapped = true; try { fn(); } finally { const a = ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms(340), easing: 'ease-out', fill: 'both' }); ov.classList.add('pass'); const kill = () => { ov.remove(); if (dimOv === ov) dimOv = null; }; a.finished.then(kill, kill); setTimeout(kill, ms(800)); } };
+  ov.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); swap(); });
+  const a = ov.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms(200), easing: 'ease-in', fill: 'both' });
+  a.finished.then(swap, swap);
+  setTimeout(swap, ms(600)); // 혹시 애니메이션이 멈춰도
 }
 
 // ─── 공통 도우미 ───
