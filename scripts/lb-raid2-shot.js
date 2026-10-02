@@ -1,5 +1,6 @@
 'use strict';
-// 건물주 레이드 화면 찍기 (로비 · 전투 · 결과) — node scripts/lb-raid2-shot.js <저장 폴더> [시작 페이즈 1|2|3]
+// 건물주 레이드 화면 찍기 (로비 · 난이도 고르기 · 전투 · 결과) — node scripts/lb-raid2-shot.js <저장 폴더> [시작 페이즈 1|2|3] [난이도 normal|hard|hell]
+//  계정은 1장(12판)까지 깬 상태 → 어려움은 열림 · 지옥은 잠김 (지옥으로 찍으면 어려움 90초 기록을 넣어 연다)
 //  서버를 잠깐 띄우고 계정 하나를 만들어 레이드 로비 → 도전 → 전투 몇 장면 (예고 · 붙잡기 · 고지서) → 입구가 부서진 결과
 const fs = require('fs');
 const path = require('path');
@@ -10,6 +11,7 @@ const BROWSERS = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const OUT = process.argv[2] || '.';
 const PH = Number(process.argv[3] || 1);
+const DF = process.argv[4] || 'normal';
 (async () => {
   const R2 = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'raid2.js')).href);
   const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
@@ -19,6 +21,7 @@ const PH = Number(process.argv[3] || 1);
   const { token, user } = await srv.accounts.signup({ username: `shot${Date.now() % 1e6}`, password: 'secret12', nickname: '찍사' });
   const st = (await srv.accounts.store.byId(user.id)).stats;
   st.langbang.stages = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, 3]));
+  if (DF === 'hell') st.langbang.raid2 = { ...(st.langbang.raid2 || {}), hardSec: 95 };
   await srv.accounts.store.saveStats(user.id, st);
   // 서버 보스: 원하는 페이즈 · 소식 몇 줄
   const now = Date.now();
@@ -41,6 +44,17 @@ const PH = Number(process.argv[3] || 1);
   await wait(2500);
   const shot = async (name) => { await page.screenshot({ path: path.join(OUT, `raid2-${name}.png`) }); console.log('shot', name); };
   await shot(`lobby-p${PH}`);
+  // 난이도 고르기 (잠긴 칸 눌러 보기 → 안내 · 고른 난이도로)
+  await page.evaluate(() => { const d = document.querySelector('.r2-diff'); const s = document.querySelector('.r2-screen'); if (d && s) s.scrollTop = d.offsetTop - 200; });
+  await wait(300);
+  await page.evaluate((df) => { const b = document.querySelector(`.r2-d[data-id="${df}"]`); if (b) b.click(); }, DF);
+  await wait(400);
+  await page.evaluate(() => { const d = document.querySelector('.r2-diff'); const s = document.querySelector('.r2-screen'); if (d && s) s.scrollTop = d.offsetTop - 200; });
+  await wait(300);
+  await shot(`lobby-diff-${DF}`);
+  await page.evaluate(() => { const s = document.querySelector('.r2-screen'); const d = document.querySelector('.r2-pats'); if (s && d) s.scrollTop = d.offsetTop - 60; });
+  await wait(300);
+  await shot(`lobby-pats-${DF}`);
   await page.evaluate(() => { const s = document.querySelector('.screen.r2-screen') || document.querySelector('.r2-screen'); if (s) s.scrollTop = 470; });
   await wait(400);
   await shot(`lobby-p${PH}-2`);
@@ -57,29 +71,37 @@ const PH = Number(process.argv[3] || 1);
   if (ok) {
     const clean = () => page.evaluate(() => { const g = window.__lb.g; if (g) { g.augOffer = null; g.pendingLevels = 0; g.god = true; } for (const c of document.querySelectorAll('#cardstrip, .tip, .lb-tip')) c.hidden = true; });
     await wait(5000); await clean(); await wait(300);
-    await shot('fight-idle');
-    // 내려찍기 예고
-    await page.evaluate(() => { const g = window.__lb.g; g.r2.act = { k: 'slam', st: 'wind', t: 1.6, x: 110, n: 1 }; g.r2.nextT = 9; });
+    await shot(`fight-idle-${DF}`);
+    // 내려찍기 예고 (끊기 게이지: 한 번 맞힘)
+    await page.evaluate(() => { const g = window.__lb.g; g.r2.act = { k: 'slam', st: 'wind', t: 1.6, t0: 2, x: 110, n: 1, hits: 1, seen: {} }; g.r2.nextT = 9; });
     await wait(900); await clean();
-    await shot('fight-wind');
+    await shot(`fight-wind-${DF}`);
     await wait(900);
-    await shot('fight-slam');
+    await shot(`fight-slam-${DF}`);
+    // 퇴거 명령 예고 (어려움부터)
+    await page.evaluate(() => { const g = window.__lb.g; g.r2.act = { k: 'evict', st: 'wind', t: 2.2, t0: 2.6, x: g.W / 2, hits: 0, seen: {} }; g.r2.nextT = 9; });
+    await wait(700); await clean();
+    await shot(`fight-evict-${DF}`);
+    await page.evaluate(() => { const g = window.__lb.g; g.r2.act = null; g.r2.crack = g.base.max * 0.3; g.base.hp = Math.min(g.base.hp, g.base.max * 0.55); g.r2.nextT = 9; });
     // 고지서 · 돈다발
     await page.evaluate(() => { const g = window.__lb.g; g.r2.act = { k: 'bills', st: 'throw', t: 1.2 }; g.r2.nextT = 9; g.r2.marks.push({ k: 'bill', x: 90, y: g.ropeY, t: 0.9, t0: 1.2 }, { k: 'bill', x: 250, y: g.ropeY, t: 0.6, t0: 1.2 }, { k: 'cash', x: g.heroes[0].x, y: g.heroes[0].y, t: 1.0, t0: 1.7 }); });
     await wait(450); await clean();
-    await shot('fight-throw');
+    await shot(`fight-throw-${DF}`);
     // 입구 붙잡기
     await page.evaluate(() => { const g = window.__lb.g; g.r2.marks = []; g.r2.act = { k: 'grab', st: 'hold', t: 3, hits: 0, x: 180 }; g.r2.nextT = 9; });
     await wait(700); await clean();
-    await shot('fight-grab');
+    await shot(`fight-grab-${DF}`);
     // 분노
     await page.evaluate(() => { const g = window.__lb.g; g.r2.act = null; g.r2.phase = 3; g.r2.angry = 4; g.r2.nextT = 9; });
     await wait(700); await clean();
-    await shot('fight-rage');
+    await shot(`fight-rage-${DF}`);
     // 입구 부서짐 → 결과
     await page.evaluate(() => { const g = window.__lb.g; g.god = false; g.r2.nextT = 99; g.base.hp = 1; window.__lb.S.damageBase ? window.__lb.S.damageBase(g, 999, g.r2.parts.body) : (g.base.hp = 0); });
     await wait(3500);
-    await shot('result');
+    await shot(`result-${DF}`);
+    await page.evaluate(() => { const s = document.querySelector('.screen'); if (s) s.scrollTop = 400; });
+    await wait(400);
+    await shot(`result-${DF}-2`);
   }
   console.log('errors:', errors.length ? errors : 'none');
   await browser.close(); await srv.close(); process.exit(0);

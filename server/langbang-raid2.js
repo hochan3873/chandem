@@ -2,6 +2,7 @@
 // 랑방 대전 — 건물주 레이드 서버 길 (/api/langbang/raid2*)
 //  규칙(체력 · 페이즈 · 입장 · 보상 · 세트)은 화면과 같은 파일(public/langbang/raid2.js)
 //  서버가 믿는 것: 판 번호(시작할 때 서버가 줌) · 걸린 시간 · 피해 상한(성장 정도) — 실제로 깎이는 양 · 넘긴 페이즈 · 보상은 서버가 계산
+//  난이도: 시작할 때 서버가 열렸는지 확인하고 판 기록(run.df)에 적는다 → 끝낼 때는 그 기록만 쓴다 (끝낼 때 보낸 난이도는 무시)
 //  예전(팔 8개) 상태가 저장돼 있으면 처음 불러올 때 체력 하나로 옮겨 저장한다 (R2.migrateState)
 //  서버 전체 보스 상태는 표 하나(lb_raid2, 파일 저장소면 data.raid2)에 — 전적 기록과 같은 줄(serial)에서 차례로 고친다 (동시에 끝나도 두 번 세지 않게)
 const path = require('path');
@@ -113,7 +114,7 @@ function createRaid2(d) {
       await ensure(now);
       const base = pub(now);
       if (lite) return base;
-      base.top = R2.topList(S, 20).map((x) => ({ rank: x.rank, nickname: x.nickname, dmg: x.dmg, coop: x.coop, runs: x.runs, score: x.score, me: x.uid === id }));
+      base.top = R2.topList(S, 20).map((x) => ({ rank: x.rank, nickname: x.nickname, dmg: x.dmg, coop: x.coop, runs: x.runs, score: x.score, df: x.df, me: x.uid === id }));
       if (!id) return base;
       const u = await store.byId(id);
       if (!u) return base;
@@ -139,6 +140,7 @@ function createRaid2(d) {
         friends: fr.map((x) => ({ id: x.id, n: names.get(x.id) || '', sent: R2.rallySentToday(lb, x.id, now) })).filter((x) => x.n),
         rallyLeft: Math.max(0, R2.R2.rallyPerDay - ((r.rout && r.rout.day === L().dayIndex(now)) ? r.rout.ids.length : 0)),
         master: isMasterName(u.username),
+        diffs: Object.fromEntries(R2.DIFF_IDS.map((k) => [k, R2.diffOpen(lb, k, isMasterName(u.username)).ok])), hardSec: r.hardSec | 0,
       };
       return { ...base, me, mailed, profile };
     });
@@ -158,6 +160,7 @@ function createRaid2(d) {
     const id = await userFromToken(token);
     const now = Date.now();
     const rally = typeof body.rally === 'string' ? body.rally.slice(0, 40) : null;
+    const diff = body.diff === undefined || body.diff === null ? 'normal' : String(body.diff).slice(0, 12);
     const fid = typeof body.friend === 'string' && body.friend !== id ? body.friend.slice(0, 40) : null;
     const rid = crypto.randomBytes(9).toString('base64url');
     let lend = null;
@@ -175,7 +178,7 @@ function createRaid2(d) {
           const e = L().borrowCheck(lb, fid, now);
           if (e) return { error: e };
         }
-        const r = R2.r2Start(lb, S, rid, now, { rally, free: freeMaster(u), help: !!fid });
+        const r = R2.r2Start(lb, S, rid, now, { rally, free: freeMaster(u), help: !!fid, diff, master: ms });
         if (r.error) return r;
         if (fid) { const help = { nick: f.nickname, ...L().friendSnapshot(fl) }; L().borrowMark(lb, fid, help, rid, now); r.help = help; }
         return r;
@@ -217,20 +220,23 @@ function createRaid2(d) {
       if (now - run.at > 15 * 60e3) return { error: '너무 오래된 판이에요' };
       if (dur > (now - run.at) / 1000 * 1.15 + 20 || dur > R2.R2.sec + 30) return { error: '기록을 확인할 수 없어요' };
       const help = !!L().helpFor(before, run.id);
+      const diff = R2.diffOf(run.df); // 시작할 때 서버가 확인해 적어 둔 난이도만 (body.diff 는 안 믿음)
+      const dRw = R2.DIFF[diff].rw;
       if (total > R2.r2Cap(before, dur, { help, rally: !!run.rally })) return { error: '기록을 확인할 수 없어요' };
       // 서버 체력 (마스터 테스트 판은 안 깎는다)
-      const res = ms ? { counted: 0, cap: Math.round(S.hpMax * R2.R2.runCapPct), broke: [], killed: false, test: true } : R2.applyRun(S, id, u.nickname, parts, now, { coop: !!run.rally });
+      const res = ms ? { counted: 0, raw: total, mul: R2.diffMul(diff), diff, cap: R2.runCapOf(S, diff), broke: [], killed: false, test: true } : R2.applyRun(S, id, u.nickname, parts, now, { coop: !!run.rally, diff });
       if (!ms && run.rally && res.counted > 0) R2.coopCredit(S, run.rally, run.rn, res.counted * R2.R2.coopPct);
       if (ms && S.live) delete S.live[id];
       await saveState();
       const skills = L().skillCap(body.skills, dur);
-      let mailN = 0;
+      let mailN = 0, hellNew = false;
       const st = await saveLb(id, (lb) => {
         const r = R2.r2Week(lb, now);
         r.run = null;
         if (lb.fr) lb.fr.help = null;
         r.best = Math.max(r.best | 0, res.counted); r.total = (r.total | 0) + res.counted;
-        lb.coins += 100; lb.stones = (lb.stones | 0) + 2; lb.exp += 40; lb.runs++; lb.kills += kills;
+        if (diff === 'hard' && dur > (r.hardSec | 0)) { const was = R2.diffOpen(lb, 'hell').ok; r.hardSec = Math.min(R2.R2.sec + 30, dur); hellNew = !was && R2.diffOpen(lb, 'hell').ok; }
+        lb.coins += dRw.coins; lb.stones = (lb.stones | 0) + dRw.stones; lb.exp += 40; lb.runs++; lb.kills += kills;
         while (lb.exp >= 100 + (lb.level - 1) * 60) { lb.exp -= 100 + (lb.level - 1) * 60; lb.level++; L().staminaAdd(lb, L().STAMINA.lvUp, now); }
         if (Array.isArray(body.seen) && d.ENEMY_IDS) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => d.ENEMY_IDS.includes(t))])];
         lb.lastResultAt = now;
@@ -251,7 +257,7 @@ function createRaid2(d) {
       bk = usedOk;
       const b = (S.board || {})[id] || {};
       return {
-        profile: lbView(st.langbang, id, ms), raid2: { dmg: total, counted: res.counted, cap: res.cap, clipped: !!res.clipped, broke: res.broke, killed: res.killed, test: !!res.test, coop: run.rally ? Math.round(res.counted * R2.R2.coopPct) : 0, rally: run.rally ? run.rn : '', help: help ? { nick: L().helpFor(before, run.id).nick, hero: L().helpFor(before, run.id).hero } : null },
+        profile: lbView(st.langbang, id, ms), raid2: { dmg: total, diff, mul: R2.diffMul(diff), rw: dRw, hellNew, counted: res.counted, cap: res.cap, clipped: !!res.clipped, broke: res.broke, killed: res.killed, test: !!res.test, coop: run.rally ? Math.round(res.counted * R2.R2.coopPct) : 0, rally: run.rally ? run.rn : '', help: help ? { nick: L().helpFor(before, run.id).nick, hero: L().helpFor(before, run.id).hero } : null },
         mine: { dmg: b.d | 0, coop: b.c | 0, rank: R2.rankOf(S, id) }, state: pub(now), mailN,
       };
     });
