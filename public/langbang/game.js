@@ -298,7 +298,7 @@ window.addEventListener('popstate', (ev) => {
     else pauseGame();
     return;
   }
-  if (app.screen === 'play' || app.screen === 'result') { app.g = null; showMenu(); return; }
+  if (app.screen === 'play' || app.screen === 'result') { showMenu(); return; }
   if (app.screen !== 'menu') {
     const h = app.screenHist || [];
     if (h[h.length - 1] === app.screen) h.pop();
@@ -554,7 +554,7 @@ function quitRun() {
 function leaveForLater() {
   saveSnap();
   const d = loadSnap();
-  app.g = null;
+  app.paused = true; // 어둡게 덮는 동안 판이 더 흐르지 않게
   guardOff();
   showMenu();
   if (d) toast(`${snapLabel(d)}부터 이어할 수 있어요`, 2600);
@@ -2359,6 +2359,11 @@ function lobbySheetClose(m) {
   m.addEventListener('click', (ev) => { const b = ev.target.closest('[data-act]'); if (b && !b.classList.contains('locked') && !ui.dataset.noclick) m.remove(); }, true);
 }
 function showMenu() {
+  // 판(결과)에서 로비로: 뚝 바뀌지 않게 어둡게 덮었다가 드러낸다
+  if (app.screen === 'play' || app.screen === 'result') { TR.dim(showMenu0); return; }
+  showMenu0();
+}
+function showMenu0() {
   app.screen = 'menu';
   app.g = null;
   app.paused = false;
@@ -3530,7 +3535,7 @@ Object.assign(ACTS, {
     const sure = !g || g.over || app.screen !== 'play' || await confirmBox({ title: '메인 메뉴로 갈까요?', sub: g && (g.pvp || g.weekly || g.raid || g.tower) ? '이 판은 여기서 끝나요' : '지금 판은 이어하기로 남아요', ok: '메인 메뉴로', cancel: '취소' });
     if (!sure) return;
     if (g && !g.over && (g.pvp || g.weekly || g.raid || g.tower)) { quitRun(); if (!g.tower) showMenu(); return; }
-    if (g && !g.over) leaveForLater(); else { app.g = null; showMenu(); }
+    if (g && !g.over) leaveForLater(); else showMenu();
   },
   restart: async () => {
     if (!(await confirmBox({ title: '처음부터 다시 할까요?', sub: '지금 판은 사라져요', ok: '다시 하기', cancel: '취소', danger: true }))) return;
