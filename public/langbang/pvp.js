@@ -4,7 +4,7 @@
 //  2) 진상 체력: 두 사람 덱 전투력으로 정한다 (판 시작 때 서버가 계산해서 시드와 같이 보낸다 → 두 사람 똑같이)
 //  3) 웨이브마다 진상 체력 ×1.22 (복리)
 //  4) 끝내기: 150초부터 15초마다 서든데스 단계 ↑ · 240초부터 입구가 초당 1% 씩 줄고 · 300초면 판정
-import { HEROES, GEAR, GEAR_RARITY, gearStats, tierPower, heroTier } from './data.js';
+import { HEROES, GEAR, GEAR_RARITY, gearStats, tierPower, heroTier, gearFits } from './data.js';
 import { STAR_ATK } from './live.js';
 
 export const PVP_NORM = { meta: 10, star: 3, rarity: 'epic' };
@@ -30,8 +30,8 @@ export function pvpLoadout(p, ids) {
     meta[id] = pvpMeta(((p && p.heroes) || {})[id]);
     stars[id] = pvpStar(((p && p.hstars) || {})[id]);
     const sl = ((p && p.equip) || {})[id] || {};
-    const items = ['w', 'a', 'm'].map((k) => ((p && p.gear) || []).find((g) => g && sl[k] !== undefined && g.id === sl[k])).map(pvpGearItem).filter(Boolean);
-    gear[id] = gearStats(items, PVP_MYTH_MUL);
+    const items = ['w', 'a', 'm'].map((k) => ((p && p.gear) || []).find((g) => g && sl[k] !== undefined && g.id === sl[k])).map(pvpGearItem).filter((it) => it && gearFits(it.t, id));
+    gear[id] = gearStats(items, PVP_MYTH_MUL); // 전용 신화: 능력치만 (영웅 비율) · 새 효과(sig)는 대전에서 끔
   }
   return { deck, meta, stars, gear };
 }

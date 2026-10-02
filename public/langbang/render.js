@@ -1982,6 +1982,15 @@ export class Renderer {
     }
     const box = g.nPos >= 7 ? HERO_BOX * 0.86 : HERO_BOX;
     const sh = this.projSprites.shadow;
+    // 윤정섭 전용 신화: 옆 줄 그림자 정섭 (반투명 · 분홍 빛) — 진짜 정섭과 같은 뒷모습 걷기 그림
+    for (const tw of g.twins || []) {
+      const S0 = (tw.def.scale || 1) * (tw.growT > 0 ? tw.def.skill.grow : 1), bw = box * S0, feet = tw.py + box * FEET_OFF;
+      const im = tw.wallSt === 'back' ? this.images.js_walk : this.images.js_walkb;
+      const gl = this.projSprites.glowPink || this.projSprites.glowGold;
+      this.tf(tw.px, feet - 2, 0, 1, 0.35); cx.globalAlpha = 0.6; cx.drawImage(gl.c, -40, -40, 80, 80);
+      if (imgOk(im)) { const n = 8, fw = im.naturalWidth / n, fi = Math.floor(t * 5 + 3) % n; this.tf(tw.px, feet, 0, 1, 1); cx.globalAlpha = 0.72; cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw); }
+      cx.globalAlpha = 1;
+    }
     for (const h of g.heroes) {
       if (h.rx === undefined) h.rx = h.x;
       h.rx += (h.x - h.rx) * 0.25;

@@ -10,6 +10,7 @@ import {
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta,
+  SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -778,7 +779,12 @@ function handleEvents(g, loud) {
       case 'praiseRage': fx.text(e.x, e.y, '(표정 싹 바뀜)', '#ff4f6a', 13, 1.0); break;
       case 'haste': if (!busy) fx.text(e.x, e.y, '빨라짐!', '#ffd23f', 12, 0.7); break;
       case 'unveil': if (!busy) fx.text(e.x, e.y, e.eye ? '찾았다!' : '들켰다!', '#e3d0ff', 12, 0.8); if (e.eye) R.vfx('shock2', e.x, e.y + 10, { anim: 'pop', dur: 420, sz: 70, tint: '#c9a8ff' }); break;
-      case 'wallGo': fx.text(e.x, e.y - 90, '뚜벅뚜벅', '#dfe8ff', 12, 1); break;
+      case 'wallGo': fx.text(e.x, e.y - 90, e.twin ? '정섭이 하나 더!' : '뚜벅뚜벅', e.twin ? '#ffb8ef' : '#dfe8ff', e.twin ? 14 : 12, 1); break;
+      case 'sigFx': // 전용 신화 효과 발동: 분홍 무지개 반짝 + 짧은 글자
+        fx.burst(e.x, e.y - 40, busy ? 6 : 16, '#ff7ad9', 140, 'star', 6, 0.7); fx.ring(e.x, e.y - 20, 12, 110, 0.5, '#ffb8ef', 4);
+        if (!busy && !e.twin) fx.text(e.x, e.y - 110, e.revive ? '무한 붕대! 입구 부활' : '전용 신화!', '#ffb8ef', e.revive ? 17 : 13, 1.1, -30);
+        if (e.revive) { fx.flash && fx.flash('#ff7ad9', 0.35); if (loud) A.sfx.reward(); }
+        break;
       case 'wallHit': fx.burst(e.x, e.y + 10, 5, '#d8d0c0', 90, 'dot', 2, 0.35); break;
       case 'wallPush': if (e.w) for (const sx of [-1, 1]) fx.burst(e.x + sx * e.w, e.y + 24, 4, '#d8d0c0', 70, 'dot', 2, 0.35); if (loud) A.sfx.kick(); break; // 미는 폭 양 끝에 먼지 (실제 판정 폭과 같게)
       case 'wallTurn': case 'wallTired': fx.addShake(4); fx.text(e.x, e.y - 60, e.type === 'wallTired' ? '헉헉… 쉬러 간다' : '쿵!', '#fff', 14, 0.9); R.vfx('shock', e.x, e.y - 30, { anim: 'pop', dur: 450, sz: 130 }); if (loud) A.sfx.slam(); break;
@@ -1672,7 +1678,7 @@ function heroStatsHtml(g, h) {
   const d = h.def;
   const iv = S.heroInterval(g, h); // 장비·카드·기진맥진까지 모두 들어간 실제 값
   const crit = (g.mods.crit + (h.gear.crit || 0) + (d.critBonus || 0)) * 100;
-  const gearTxt = Object.entries(h.gear || {}).filter(([, v]) => v).map(([k, v]) => `${GEAR_STATS[k] ? GEAR_STATS[k].name : k} +${(v * 100).toFixed(0)}%`).join(' · ');
+  const gearTxt = Object.entries(h.gear || {}).filter(([, v]) => typeof v === 'number' && v).map(([k, v]) => `${GEAR_STATS[k] ? GEAR_STATS[k].name : k} +${(v * 100).toFixed(0)}%`).join(' · ');
   const flags = [d.lane ? '자기 줄만' : '', d.splash || d.slamR ? '범위' : '', d.proj === 'cane' || d.proj === 'crown' || (h.lv >= 3 && d.proj === 'bullet') ? '관통' : '', d.bounces || d.ricochet ? '튕김' : '', d.slow ? '감속' : ''].filter(Boolean).join(' ');
   const st = [];
   const res = resOf(h.meta, h.gear && h.gear.res);
@@ -1975,6 +1981,12 @@ const ACTS = {
   info: (b) => showInfoCard(b.dataset.kind, b.dataset.id),
   dex: () => showDex(),
   dexTab: (b) => { app.dexTab = b.dataset.tab; showDex(); },
+  dexRole: (b) => { app.dexRole = b.dataset.v; showDex(); },
+  dexKind: (b) => { app.dexKind = b.dataset.v; showDex(); },
+  dexCh: (b) => { app.dexCh = Number(b.dataset.v) || 0; showDex(); },
+  itemCat: (b) => { app.itemCat = b.dataset.v; showItemDex(); },
+  sigEx: () => showSigExchange(),
+  sigExDo: (b) => doSigExchange(b.dataset.id),
   itemCard: (b) => showItemCard(b.dataset.id),
   dropTable: () => showDropTable(),
   dexCard: (b) => showDexCard(b.dataset.kind, b.dataset.id),
@@ -2116,7 +2128,7 @@ function uiSound(act, el) {
   if (/^(go|lbGo|pull|buy|staBuy|eqDo|doCheckin|prepEdit|edPick|confirm)/.test(act)) A.sfx.confirm();
   else if (/^(claim|mailGet|claimAll|claimSeason)/.test(act)) A.sfx.reward();
   else if (/^(menu|back|toLobby|weekly$)/.test(act)) A.sfx.back();
-  else if (/Tab$|^nav$|^tab|^dexTab|^bagTab|^shopTab|^misTab|^edF|^edSort|^prepSheetF/.test(act)) A.sfx.tabSw();
+  else if (/Tab$|^nav$|^tab|^dexTab|^dexRole|^dexKind|^dexCh|^itemCat|^bagTab|^shopTab|^misTab|^edF|^edSort|^prepSheetF/.test(act)) A.sfx.tabSw();
   else A.sfx.tap();
 }
 // 잠김 안내: 누른 자리 위에 작은 자물쇠 말풍선 (토스트 대신)
@@ -2619,6 +2631,7 @@ function showShop() {
         <button class="btn primary" data-act="gpull" data-n="10"><b>10회 뽑기</b><small>${ic('gem', '', 'sm')}${L.GEAR_GACHA_COST.ten} · 영웅 이상 1개</small></button>
       </div>
       <button class="btn ghost rates-btn" data-act="grates">${ic('chart', '', 'sm')} 확률 공개 · 보유 강화석 ${ic('gem', '', 'sm')}${p.stones | 0}</button>
+      ${sigBarHtml(p)}
       <p class="sub">강화석은 스테이지 보상 · 장비 분해로 모여요</p>`;
   } else if (tab === 'recruit') {
     const pity = L.PITY_HERO - (p.pity.hero | 0);
@@ -2642,6 +2655,7 @@ function showShop() {
         <button class="btn primary" data-act="pull" data-n="10"><b>10회 모집</b><small>${cost10} · ${(p.pulls | 0) === 0 ? '처음 10회는 T4 확정' : 'T3 이상 1개 확정'}</small></button>
  </div>
  <button class="btn ghost rates-btn" data-act="rates">${ic('chart', '', 'sm')} 확률 공개 · 보유 모집권 ${ic('ticket', '', 'sm')}${p.unlimited ? '∞' : p.tickets | 0}</button>
+      ${sigBarHtml(p)}
       <div class="card-prog">${[...GACHA_HEROES, ...LEGEND_HEROES].map((h) => { const pr = L.cardProgress(p, h); const d = HEROES[h]; const lock = LEGEND_HEROES.includes(h) && !L.legendOpen(p); const ok = own(h); return `<div class="cp ${pr ? '' : 'done'} ${lock ? 'lock' : ''}" style="--c:${d.color}">${av(d, ok ? '' : 'sil')}<b>${ok ? esc(d.name) : `<span class="cp-attr">${attrIco(d.attr)}</span>???`}</b>${pr ? `<i><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i><small>${lock ? `${stageLabel(L.HOCHAN_GATE)} 뒤` : `${pr[0]}/${pr[1]}장`}</small>` : '<small>합류 </small>'}</div>`; }).join('')}</div>
       <p class="sub">모집 멤버는 <b>카드</b>를 모아 합류 (영웅 ${L.UNLOCK_CARDS.epic}장 · LEGEND ${L.UNLOCK_CARDS.legend}장) · 합류한 뒤 카드와 조각으로 <b>★ 승급</b> (공격력 +${Math.round(L.STAR_ATK * 100)}% / ★)</p>`;
   } else {
@@ -2691,6 +2705,28 @@ function showItemInfo(id) {
 function subTop(title) {
   return `${topPills()}<h2 class="title sub-title">${esc(title)}</h2>`;
 }
+// 신화 조각 막대 (상점 두 탭) — 600개면 교환 버튼
+function sigBarHtml(p) {
+  const n = (p.pity || {}).sig | 0, ok = n >= SIG_PITY;
+  return `<button class="sig-bar ${ok ? 'ready' : ''}" data-act="sigEx">${ic('prism', '', 'sm')}<span><b>신화 조각 ${Math.min(n, SIG_PITY)}/${SIG_PITY}</b><small>${ok ? '원하는 멤버 전용 신화로 바꿀 수 있어요!' : '모집·장비 뽑기 1회마다 1개 · 다 모으면 원하는 멤버 전용 신화'}</small></span><i class="sig-pb"><b style="width:${Math.min(100, Math.round((n / SIG_PITY) * 100))}%"></b></i></button>`;
+}
+function showSigExchange() {
+  const p = P(), n = (p.pity || {}).sig | 0, ok = n >= SIG_PITY;
+  const rows = Object.keys(SIG).filter((h) => API.heroUnlocked(p, h)).map((h) => { const t = 'sig_' + h, have = sigHave(p, h); return `<button class="sig-pick ${have ? 'off' : ''}" ${have || !ok ? 'disabled' : ''} data-act="sigExDo" data-id="${h}"><span class="sig-ic">${gearIco({ t, r: 'myth' })}</span><span><b>${esc(HEROES[h].name)} · ${esc(GEAR[t].name)}</b><small>${have ? '가지고 있어요' : esc(GEAR[t].desc)}</small></span></button>`; }).join('');
+  popup(`<h3 class="rt-h">${ic('prism', '', '')}전용 신화 교환</h3><p class="ip">신화 조각 <b>${n}</b>/${SIG_PITY} · ${ok ? '멤버를 고르면 바로 그 멤버 전용 신화를 받아요' : `${SIG_PITY - n}개 더 모으면 고를 수 있어요`}</p><div class="sig-list">${rows || '<p class="ip">합류한 멤버가 없어요</p>'}</div><p class="rt-foot">모집 1회 ${SIG_RATE.hero}% · 장비 뽑기 1회 ${SIG_RATE.gear}% 로도 나와요 (가진 멤버 중) · 겹치면 신화 조각 ${SIG_DUP_SHARDS}개</p>`, 'pp-sheet sig-sheet');
+}
+async function doSigExchange(h) {
+  const t = 'sig_' + h;
+  if (!GEAR[t]) return;
+  const yes = await confirmBox({ title: `${HEROES[h].name} 전용 신화로 바꿀까요?`, sub: `${GEAR[t].name} · 신화 조각 ${SIG_PITY}개를 써요`, ok: '바꾸기', cancel: '취소' });
+  if (!yes) return;
+  closeInfoCard();
+  const r = await liveAct(API.sigExchange(h, app.guest));
+  if (!r) return;
+  await gachaVideo('gear', 'gold');
+  await gachaShow(r.results || []);
+  refresh();
+}
 // 확률 정보: 등급별 막대 · 큰 숫자 · 천장 진행 · 멤버 이름은 숨기고 "N명 · 각 x%"
 function showRates() {
   const p = P();
@@ -2698,8 +2734,8 @@ function showRates() {
   const lk = (k) => k === 'legendHero';
   const rows = L.GACHA_RATES.filter((r) => lopen || !lk(r.k));
   const sum = rows.reduce((a, r) => a + r.w, 0);
-  const TIER_OF = { legendHero: [5, 'LEGEND 멤버 합류'], epicHero: [4, 'T4 멤버 합류'], t3Card: [3, 'T3 멤버 카드 ×3'], t2Card: [2, 'T2 멤버 카드 ×3'], mythGear: ['myth', '신화 장비'], legendGear: ['legend', '전설 장비'], epicGear: ['epic', '영웅 장비'], rareGear: ['rare', '희귀 장비'], shard10: ['s', '멤버 조각 ×10'], shard4: ['s', '멤버 조각 ×4'] };
-  const nOf = (r) => { const m = /\(([^)]*)\)/.exec(r.name); if (r.k === 'legendHero') return LEGEND_HEROES.length; if (r.k === 'mythGear') return MYTH_IDS.length; if (/Gear$/.test(r.k)) return GEAR_IDS.length; if (!m || /^shard/.test(r.k)) return 0; return m[1].split('·').map((s) => s.trim()).filter((s) => s && !/[0-9]/.test(s)).length; };
+  const TIER_OF = { legendHero: [5, 'LEGEND 멤버 합류'], epicHero: [4, 'T4 멤버 합류'], t3Card: [3, 'T3 멤버 카드 ×3'], t2Card: [2, 'T2 멤버 카드 ×3'], sigGear: ['sig', '전용 신화 장비'], mythGear: ['myth', '신화 장비'], legendGear: ['legend', '전설 장비'], epicGear: ['epic', '영웅 장비'], rareGear: ['rare', '희귀 장비'], shard10: ['s', '멤버 조각 ×10'], shard4: ['s', '멤버 조각 ×4'] };
+  const nOf = (r) => { const m = /\(([^)]*)\)/.exec(r.name); if (r.k === 'legendHero') return LEGEND_HEROES.length; if (r.k === 'mythGear') return MYTH_IDS.length; if (r.k === 'sigGear') return 0; if (/Gear$/.test(r.k)) return GEAR_IDS.length; if (!m || /^shard/.test(r.k)) return 0; return m[1].split('·').map((s) => s.trim()).filter((s) => s && !/[0-9]/.test(s)).length; };
   const maxW = Math.max(...rows.map((r) => r.w));
   const bar = (r) => { const pct = (r.w / sum) * 100, n = nOf(r), T = TIER_OF[r.k] || [0, r.name]; const unit = /Gear$/.test(r.k) ? '종' : '명'; return `<div class="rt-row" style="--rc:${r.color}"><i class="rt-crest ${typeof T[0] === 'number' ? 'tier t' + T[0] : 'g-' + T[0]}">${typeof T[0] === 'number' ? TIER_NAME[T[0]] : T[0] === 's' ? ic('star_gold', '', 'sm') : ic('gem', '', 'sm')}</i><span class="rt-n"><b>${T[1]}</b>${n ? `<small>${n}${unit} · 각 ${(pct / n).toFixed(pct / n < 0.1 ? 3 : 2)}%</small>` : ''}</span><b class="rt-p">${pct.toFixed(2)}<small>%</small></b><i class="rt-bar"><b style="width:${Math.max(2, (r.w / maxW) * 100)}%"></b></i></div>`; };
   const heroRows = rows.filter((r) => /Hero$|Card$/.test(r.k)).map(bar).join(''), gearRows = rows.filter((r) => /Gear$/.test(r.k)).map(bar).join(''), etcRows = rows.filter((r) => /^shard/.test(r.k)).map(bar).join('');
@@ -2710,6 +2746,7 @@ function showRates() {
       ${pityRow('crown', `${L.PITY_LEGEND}회 안에 LEGEND 확정 · ${L.PITY_SOFT}회부터 확률 상승`, ph.legend | 0, L.PITY_LEGEND)}
       ${pityRow('sparkle', `${L.PITY_HERO}회 안에 T4 멤버 확정`, ph.hero | 0, L.PITY_HERO)}
       ${pityRow('card_epic', '10회 모집: T3 이상 1장 보장 · 처음 10회는 T4 확정', 0, 0)}
+      ${pityRow('prism', `신화 조각 ${SIG_PITY}개 = 원하는 멤버 전용 신화 (모집·장비 뽑기 1회마다 1개)`, Math.min(SIG_PITY, ph.sig | 0), SIG_PITY)}
     </div>
     <details class="rt-sec" open><summary>멤버</summary>${heroRows}</details>
     <details class="rt-sec"><summary>장비</summary>${gearRows}</details>
@@ -2724,21 +2761,22 @@ async function doGearPull(n) {
   const r = await liveAct(API.gearGacha(n, app.guest));
   if (!r) return;
   const list = r.results || [];
-  const best = list.some((x) => x.k === 'mythGear') ? 'gold' : list.some((x) => x.k === 'legendGear') ? 'purple' : 'blue';
+  const best = list.some((x) => x.k === 'mythGear' || x.k === 'sigGear') ? 'gold' : list.some((x) => x.k === 'legendGear') ? 'purple' : 'blue';
   await gachaVideo('gear', best);
   await gachaShow(list);
   refresh();
 }
 function showGearRates() {
   const p = P(), rs = L.GEAR_GACHA_RATES, sum = rs.reduce((a, r) => a + r.w, 0), maxW = Math.max(...rs.map((r) => r.w));
-  const nOf = (k) => (k === 'myth' ? MYTH_IDS.length : GEAR_IDS.length);
-  const row = (r) => { const pct = (r.w / sum) * 100, n = nOf(r.k); return `<div class="rt-row" style="--rc:${r.color}"><i class="rt-crest g-${r.k}">${ic('gem', '', 'sm')}</i><span class="rt-n"><b>${r.name}</b><small>${n}종 · 각 ${(pct / n).toFixed(pct / n < 0.1 ? 3 : 2)}%</small></span><b class="rt-p">${pct.toFixed(2)}<small>%</small></b><i class="rt-bar"><b style="width:${Math.max(2, (r.w / maxW) * 100)}%"></b></i></div>`; };
+  const nOf = (k) => (k === 'myth' ? MYTH_IDS.length : k === 'sig' ? 0 : GEAR_IDS.length);
+  const row = (r) => { const pct = (r.w / sum) * 100, n = nOf(r.k); return `<div class="rt-row" style="--rc:${r.color}"><i class="rt-crest g-${r.k}">${ic('gem', '', 'sm')}</i><span class="rt-n"><b>${r.name}</b><small>${n ? `${n}종 · 각 ${(pct / n).toFixed(pct / n < 0.1 ? 3 : 2)}%` : '가진 멤버 중 · 아직 없는 멤버 것 먼저'}</small></span><b class="rt-p">${pct.toFixed(2)}<small>%</small></b><i class="rt-bar"><b style="width:${Math.max(2, (r.w / maxW) * 100)}%"></b></i></div>`; };
   const cur = (p.pity || {}).gear | 0;
   popup(`<h3 class="rt-h">${ic('gift', '', '')}장비 뽑기 확률</h3>
     <div class="rt-pitys"><div class="rt-pity">${ic('crown', '', '')}<span><b>${L.GEAR_PITY}회 안에 신화 장비 확정</b><i class="rt-pb"><b style="width:${Math.round((cur / L.GEAR_PITY) * 100)}%"></b></i><small>${cur}/${L.GEAR_PITY}회</small></span></div>
-    <div class="rt-pity">${ic('sparkle', '', '')}<span><b>10회 뽑기: 영웅 이상 1개 보장</b></span></div></div>
+    <div class="rt-pity">${ic('sparkle', '', '')}<span><b>10회 뽑기: 영웅 이상 1개 보장</b></span></div>
+    <div class="rt-pity">${ic('prism', '', '')}<span><b>신화 조각 ${SIG_PITY}개 = 원하는 멤버 전용 신화</b><i class="rt-pb"><b style="width:${Math.round((Math.min(SIG_PITY, (p.pity || {}).sig | 0) / SIG_PITY) * 100)}%"></b></i><small>${Math.min(SIG_PITY, (p.pity || {}).sig | 0)}/${SIG_PITY}개</small></span></div></div>
     <details class="rt-sec" open><summary>등급</summary>${rs.map(row).join('')}</details>
-    <p class="rt-foot">표시 확률은 1회 기준 · 같은 등급 안에서는 모두 같은 확률 · 천장 횟수는 서버에 저장돼요</p>`, 'rates-pop rt-v2');
+    <p class="rt-foot">표시 확률은 1회 기준 · 같은 등급 안에서는 모두 같은 확률 · 천장 횟수와 신화 조각은 서버에 저장돼요 · 전용 신화가 겹치면 신화 조각 ${SIG_DUP_SHARDS}개로</p>`, 'rates-pop rt-v2');
 }
 // 뽑기 연출 영상: 가장 좋은 등급 색 (금 · 보라 · 파랑) · 금은 보라로 시작해서 3초에 금으로 · 보라는 파랑으로 시작 · 1초 뒤 건너뛰기
 const GV_BLOB = {};
@@ -2779,7 +2817,7 @@ async function doPull(n) {
   const r = await liveAct(API.gacha(n, pay, app.guest));
   if (!r) return;
   const list = r.results || [];
-  const best = list.some((x) => x.k === 'legendHero' || x.k === 'epicHero' || x.k === 'mythGear') ? 'gold' : list.some((x) => x.k === 't3Card' || x.k === 'legendGear' || x.k === 'epicGear') ? 'purple' : 'blue';
+  const best = list.some((x) => x.k === 'legendHero' || x.k === 'epicHero' || x.k === 'mythGear' || x.k === 'sigGear') ? 'gold' : list.some((x) => x.k === 't3Card' || x.k === 'legendGear' || x.k === 'epicGear') ? 'purple' : 'blue';
   await gachaVideo('hero', best);
   await gachaShow(list);
   refresh();
@@ -2787,7 +2825,7 @@ async function doPull(n) {
 // 모집·장비 결과: 뒷면이 먼저 등급 색으로 빛나고 (살짝 예고) → 탭하면 한 장씩 · "모두 열기"
 //   보통·희귀: 휙 + 반짝 한 줄 · 영웅(보라): 들렸다가 보라 고리 + 흔들 · 전설(금): 어두워지고 금빛 기둥 · 천천히 돌며 빛살 + 꽃가루
 //   신화·LEGEND 멤버: 전설 + 무지개 빛 + 화면 흔들 + 큰 그림 1.5초 (이름표) — 좋은 카드는 "모두 열기"에도 맨 끝에 제 연출 그대로
-const GC_TIER = { legendHero: 'my', mythGear: 'my', epicHero: 'lg', legendGear: 'lg', t3Card: 'ep', epicGear: 'ep', rareGear: 'ra', t2Card: 'ra', shard10: 'co', shard4: 'co' };
+const GC_TIER = { sigGear: 'my', legendHero: 'my', mythGear: 'my', epicHero: 'lg', legendGear: 'lg', t3Card: 'ep', epicGear: 'ep', rareGear: 'ra', t2Card: 'ra', shard10: 'co', shard4: 'co' };
 const GC_RANK = { co: 0, ra: 1, ep: 2, lg: 3, my: 4 };
 function gcSfx(t) { try { ({ co: () => A.sfx.card(), ra: () => A.sfx.confirm(), ep: () => A.sfx.levelUp(), lg: () => { A.sfx.win(); A.sfx.slam(); }, my: () => { A.sfx.ult(); setTimeout(() => A.sfx.win(), 300); } })[t](); } catch { /* 무시 */ } }
 function gachaShow(list) {
@@ -2798,8 +2836,8 @@ function gachaShow(list) {
     const tierOf = (x) => GC_TIER[x.k] || (x.gear ? ({ myth: 'my', legend: 'lg', epic: 'ep', rare: 'ra' })[x.gear.r] || 'co' : 'co');
     // 좋은 카드는 맨 뒤로 (등급 낮은 것부터)
     if (list.length > 1) list.sort((a, b) => GC_RANK[tierOf(a)] - GC_RANK[tierOf(b)]);
-    const rar = (x) => (x.k === 'legendHero' ? 'lg' : x.k === 'epicHero' ? 'ep' : x.k === 't3Card' ? 'rgear' : x.k === 'mythGear' ? 'lg' : x.k === 'legendGear' ? 'lgear' : x.k === 'epicGear' ? 'egear' : x.k === 'rareGear' ? 'rgear' : 'sh');
-    m.innerHTML = `<div class="gr-dim"></div><div class="gr-grid n${list.length}">${list.map((x, i) => { const t = tierOf(x); return `<div class="gcard ${rar(x)} t-${t}" data-i="${i}" style="--i:${i}"><i class="gc-rays"></i><i class="gc-pillar"></i><div class="gc-in"><div class="gc-back"><img class="gc-bk" src="/img/lb/ui2/${t === 'my' ? 'prism' : 'star_gold'}.webp" alt="" draggable="false"></div><div class="gc-front">${gachaFace(x)}${x.new ? '<img class="gc-newb" src="/img/lb/ui2/badge_new.webp" alt="NEW">' : ''}</div></div><i class="gc-shine"></i></div>`; }).join('')}</div>
+    const rar = (x) => (x.k === 'legendHero' ? 'lg' : x.k === 'epicHero' ? 'ep' : x.k === 't3Card' ? 'rgear' : x.k === 'mythGear' || x.k === 'sigGear' ? 'lg' : x.k === 'legendGear' ? 'lgear' : x.k === 'epicGear' ? 'egear' : x.k === 'rareGear' ? 'rgear' : 'sh');
+    m.innerHTML = `<div class="gr-dim"></div><div class="gr-grid n${list.length}">${list.map((x, i) => { const t = tierOf(x); return `<div class="gcard ${rar(x)} t-${t} ${x.k === 'sigGear' ? 'sig' : ''}" data-i="${i}" style="--i:${i}"><i class="gc-rays"></i><i class="gc-pillar"></i><div class="gc-in"><div class="gc-back"><img class="gc-bk" src="/img/lb/ui2/${t === 'my' ? 'prism' : 'star_gold'}.webp" alt="" draggable="false"></div><div class="gc-front">${gachaFace(x)}${x.new ? '<img class="gc-newb" src="/img/lb/ui2/badge_new.webp" alt="NEW">' : ''}</div></div><i class="gc-shine"></i></div>`; }).join('')}</div>
       <div class="gr-btns"><button class="btn gr-all">모두 열기</button><button class="btn primary gr-ok" hidden>확인</button></div><p class="gr-skip">카드를 눌러 한 장씩 열어요</p><div class="gr-zoom" hidden></div>`;
     stage.appendChild(m);
     const cards = [...m.querySelectorAll('.gcard')];
@@ -2810,6 +2848,13 @@ function gachaShow(list) {
     const shardFlow = (c) => { if (rm) return; const r0 = c.getBoundingClientRect(), mr = m.getBoundingClientRect(); for (let k = 0; k < 7; k++) { const s = document.createElement('i'); s.className = 'gr-sh'; s.style.left = (r0.left - mr.left + r0.width / 2) + 'px'; s.style.top = (r0.top - mr.top + r0.height * 0.7) + 'px'; s.style.setProperty('--dx', ((Math.random() - 0.5) * 60).toFixed(0) + 'px'); s.style.animationDelay = (k * 50) + 'ms'; m.appendChild(s); setTimeout(() => s.remove(), 1200); } };
     const zoom = (x, t) => new Promise((ok) => { // 큰 그림 1.5초 (신화 · LEGEND)
       const z = m.querySelector('.gr-zoom');
+      if (x.k === 'sigGear' && x.gear && GEAR[x.gear.t]) { // 전용 신화: 큰 "신화 획득!" — 장비 그림 + 주인 멤버 + 새 효과
+        const g = GEAR[x.gear.t], hd = HEROES[g.hero];
+        z.innerHTML = `<i class="grz-prism"></i><i class="grz-sig"></i><img class="grz-art sig" src="${hqSrc(g.hero) || hd.img}" alt=""><span class="grz-gear sig">${gearIco(x.gear)}</span><div class="grz-plate sig"><em>신화 획득!</em><b>${esc(g.name)}</b><small>${esc(hd.name)} 전용 · ${esc(g.desc)}</small></div>`;
+        z.hidden = false; z.className = 'gr-zoom on sig'; fx.flash('#ff4fd8', 0.5);
+        setTimeout(() => { z.className = 'gr-zoom out sig'; setTimeout(() => { z.hidden = true; ok(); }, 300); }, rm ? 1400 : 2800);
+        return;
+      }
       const d = x.hero && HEROES[x.hero];
       const art = d ? `<img class="grz-art" src="${hqSrc(x.hero) || d.img}" alt="">` : x.gear ? `<span class="grz-gear">${gearIco(x.gear)}</span>` : '';
       const nm = d ? `${t === 'my' ? 'LEGEND ' : ''}${esc(d.name)}!` : x.gear ? `신화 ${esc(GEAR[x.gear.t].name)}!` : '';
@@ -2861,6 +2906,8 @@ function gachaFace(x) {
     const pr = x.new ? '합류!' : x.dup ? `★조각 +${x.shards}` : `${x.have}/${x.need}`;
     return `<span class="gc-thumb">${thumbSrc(x.hero) ? `<img class="fz" data-face="${x.hero}" style="${faceImgStyle(x.hero, 0.3, 0.42)}" src="${thumbSrc(x.hero)}" alt="" onerror="this.onerror=null;this.src='${d.img}'">` : av(d)}</span><b>${d.name} 카드</b><small>+${x.shards}장 · ${pr}</small>${!x.dup && x.need ? `<i class="gc-prog"><b style="width:${Math.round(((x.new ? x.need : x.have) / x.need) * 100)}%"></b></i>` : ''}`;
   }
+  if (x.k === 'sigGear' && !x.gear) return `<span class="gi">${ic('prism', '', '')}</span><b>신화 조각</b><small style="color:${SIG_COLOR}">+${x.sigShards} (겹침)</small>`;
+  if (x.k === 'sigGear') return `<span class="gi">${gearIco(x.gear)}</span><b>${esc(GEAR[x.gear.t].name)}</b><small style="color:${SIG_COLOR}">전용 신화 · ${esc(HEROES[GEAR[x.gear.t].hero].name)}</small>`;
   if (x.gear) return `<span class="gi">${gearIco(x.gear)}</span><b>${esc(GEAR[x.gear.t].name)}</b><small style="color:${GEAR_RARITY[x.gear.r].color}">${GEAR_RARITY[x.gear.r].name}${x.gear.sold ? ' → 코인' : ''}</small>`;
   const d = HEROES[x.hero];
   return `${av(d)}<b>${d.name} 조각</b><small>+${x.shards}</small>`;
@@ -3144,6 +3191,7 @@ function showHeroModal(id, ctx = '') {
   const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>${ok ? BKX.heroHtml(id) : ''}
       <div class="hs-skill">${ic('swords', '', '')}<span><small>기본 공격</small><b>${esc((w && w.item) || '기본 공격')}</b><p>${esc(d.attack)}</p></span></div>
       <div class="hs-skill sk-ult"><img class="ic hs-skic" src="/img/lb/ui2/sk_${id}.webp" alt="" draggable="false"><span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
+      ${sigRowHtml(id)}
       ${w || ev ? `<div class="hs-tree"><span class="t0">${esc((w && w.item) || '기본')}</span><i></i><span class="t1">${ev ? esc(ev.name) : '진화'}</span></div>` : ''}
       ${(HERO_TAGS[id] || []).filter((t) => ROLE_IC[t]).length ? `<div class="hs-match hs-roles"><span>${ic('target', '', 'sm')}역할</span>${(HERO_TAGS[id] || []).filter((t) => ROLE_IC[t]).map((t) => `<button class="gl-chip role-chip" data-gl="role:${t}"><img class="role-ic" src="/img/lb/ui2/${ROLE_IC[t]}.webp" alt="">${ROLE_TXT[t][0]}</button>`).join('')}</div>` : ''}
       <div class="hs-match"><span class="ok">${ic('check', '', 'sm')}강한 상대</span>${strong.map((c0) => `<button class="gl-chip" data-gl="cls:${c0}:${d.attr}">${clsTag(c0)}</button>`).join('') || '<small>없음</small>'}</div>
@@ -3162,7 +3210,7 @@ function showHeroModal(id, ctx = '') {
     <div class="hf-art ${ok ? '' : 'sil'}" data-hf="poke">${artSrc ? `<img src="${artSrc}" alt="" draggable="false" onerror="this.onerror=null;this.src='${hqSrc(id) || d.img}'">` : ''}</div>
     <div class="hf-grad"></div>
     <button class="dp-x hf-x" data-hf="x" aria-label="닫기"></button>
-    <div class="hf-head v2"><i class="tier t${t}">${TIER_NAME[t]}</i><span class="hn-attr" data-gl="attr:${d.attr}" style="--ac:${ATTRS[d.attr].color}">${attrIco(d.attr)}</span><b>${ok ? esc(d.name) : '???'}</b><small class="hn-role">${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small><span class="hn-stars">${Array.from({ length: L.STAR_MAX }, (_, k) => `<i class="${k < st ? 'on' : ''}">★</i>`).join('')}</span></div>
+    <div class="hf-head v2"><i class="tier t${t}">${TIER_NAME[t]}</i><span class="hn-attr" data-gl="attr:${d.attr}" style="--ac:${ATTRS[d.attr].color}">${attrIco(d.attr)}</span><b>${ok ? esc(d.name) : '???'}</b>${roleChip(id, 'hn-cat')}<small class="hn-role">${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small><span class="hn-stars">${Array.from({ length: L.STAR_MAX }, (_, k) => `<i class="${k < st ? 'on' : ''}">★</i>`).join('')}</span></div>
     <div class="hf-tabs v2">${[['info', '정보'], ['up', '강화'], ['gear', '장비']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-hf="tab" data-k="${k}">${n}</button>`).join('')}</div>
     <div class="hf-body">${ok ? body : `<p class="ip">${ic('lock', '', 'sm')} ${esc(heroHow(id))}</p>${body}`}</div>
     <div class="hf-foot ${tab === 'up' && ok ? 'up' : ''}">${tab === 'up' && ok && app._hsUp && app._hsUp.id === id ? (() => { const u = app._hsUp; return `<button class="btn ghost hf-deck" data-act="${inDeck && deckList()[0] !== id ? 'edLead' : 'deckToggle'}" data-id="${id}">${inDeck ? (deckList()[0] === id ? '덱에서 빼기' : '대장으로') : '덱에 넣기'}</button><button class="hs-up ${u.can ? '' : 'dim'}" data-act="buy" data-id="${id}" data-pw="${u.pw}" ${u.can ? '' : 'disabled'}><i class="gb-shine"></i><b>${u.cost === null ? 'MAX' : `강화 +${u.lv + 1}`}</b>${u.cost === null ? '' : `<span class="hs-cost">${u.free ? '공짜' : `<i class="ci"></i>${fmt(u.cost)} · ${ic('aug_card', '', 'sm')}카드 ${u.cn}장 <small>(보유 ${u.have})</small>`}</span>`}</button>`; })() : `${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">${ic('ic_dex', '', 'sm')}도감</button>`}</div>`;
@@ -5425,40 +5473,83 @@ function heroHow(id) {
   const pr = L.cardProgress(P(), id);
   return `모집에서 카드를 모아 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`;
 }
-function dexList(kind) { return kind === 'hero' ? DEX_HEROES() : DEX_ENEMIES(); }
+function dexList(kind) { const l = dexFiltered(kind); return l.length ? l : kind === 'hero' ? DEX_HEROES() : DEX_ENEMIES(); }
 // ─── 아이템 도감: 모든 장비(신화 포함) · 얻은 적 없으면 실루엣 · 등급별 능력치 · 어디서 나오나 ───
 const gearDexSet = () => new Set([...(P().gearDex || []), ...(P().gear || []).map((x) => x.t)]);
 const gearDexN = () => gearDexSet().size;
-function gearWhere(t) { const g = GEAR[t]; return g.myth ? '무한 50웨이브(주마다) · 시즌 30단계 · 모집 0.3% · 장비 뽑기 1%' : `${g.ch || 1}장부터 스테이지·헬 보상 · 모집 · 시즌 · 순위 보상`; }
+function gearWhere(t) { const g = GEAR[t]; if (g.hero) return `모집 1회 ${SIG_RATE.hero}% · 장비 뽑기 1회 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환`; return g.myth ? '무한 50웨이브(주마다) · 시즌 30단계 · 모집 0.3% · 장비 뽑기 1%' : `${g.ch || 1}장부터 스테이지·헬 보상 · 모집 · 시즌 · 순위 보상`; }
 function showItemDex() {
   app.screen = 'dex';
   const have = gearDexSet();
-  const all = [...GEAR_IDS, ...MYTH_IDS];
+  const ITEM_CATS = [['all', '전체'], ['w', '무기'], ['a', '장신구'], ['myth', '신화'], ['sig', '전용 신화'], ['cons', '소모품']];
+  const cat = ITEM_CATS.some(([k]) => k === app.itemCat) ? app.itemCat : 'all';
+  const inCat = (t, c) => { const g = GEAR[t]; return c === 'all' ? true : c === 'sig' ? !!g.hero : c === 'myth' ? g.myth && !g.hero : c === 'cons' ? false : !g.myth && g.slot === c; };
+  const every = [...GEAR_IDS, ...MYTH_IDS, ...SIG_IDS];
+  const all = every.filter((t) => inCat(t, cat));
   const RK = ['common', 'rare', 'epic', 'legend', 'myth'];
   const best = (t) => { let b = -1; for (const it of P().gear || []) if (it.t === t) b = Math.max(b, RK.indexOf(it.r)); return b >= 0 ? RK[b] : 'rare'; };
-  const cell = (t) => { const ok = have.has(t), g = GEAR[t], r = g.myth ? 'myth' : best(t); return `<button class="dexc2 idx ${ok ? 'r-' + r : 'lock'} ${g.myth ? 'r-myth' : ''}" data-act="itemCard" data-id="${t}" style="--c:${GEAR_RARITY[r].color}"><span class="dx-pic"><img class="idx-ic" src="${g.img}" alt="" draggable="false"></span><b>${ok ? esc(g.name) : '???'}</b><small class="idx-k">${g.myth ? '신화' : g.slot === 'w' ? '무기' : '장신구'}</small></button>`; };
-  const n = have.size, next = [10, 20, all.length].find((x) => n < x);
+  const cell = (t) => { const ok = have.has(t), g = GEAR[t], r = g.myth ? 'myth' : best(t); return `<button class="dexc2 idx ${ok ? 'r-' + r : 'lock'} ${g.myth ? 'r-myth' : ''} ${g.hero ? 'r-sig' : ''}" data-act="itemCard" data-id="${t}" style="--c:${g.hero ? SIG_COLOR : GEAR_RARITY[r].color}"><span class="dx-pic"><img class="idx-ic ${g.hero ? 'sig-face' : ''}" src="${g.img}" alt="" draggable="false"></span><b>${ok ? esc(g.name) : g.hero ? esc(HEROES[g.hero].name) + ' 전용' : '???'}</b><small class="idx-k">${g.hero ? '전용 신화' : g.myth ? '신화' : g.slot === 'w' ? '무기' : '장신구'}</small></button>`; };
+  const nGear = [...GEAR_IDS, ...MYTH_IDS].length, n = [...have].filter((t) => GEAR[t] && !GEAR[t].hero).length, next = [10, 20, nGear].find((x) => n < x);
+  const cnt = (c) => (c === 'cons' ? L.CONS_IDS.length : every.filter((t) => inCat(t, c)).length);
+  const chips = `<div class="dex-cats">${ITEM_CATS.map(([k, nm]) => `<button class="chip ${k === cat ? 'on' : ''} ${k === 'sig' ? 'c-sig' : ''}" data-act="itemCat" data-v="${k}">${nm} <small>${cnt(k)}</small></button>`).join('')}</div>`;
+  const sigN = SIG_IDS.filter((t) => have.has(t)).length;
   show(`
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
-    <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${all.length}</button></div>
-    <p class="sub">한 번이라도 얻은 장비가 기록돼요${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'} <button class="chip mini" data-act="dropTable">드롭 표</button></p>
-    <div class="dex-grid v2 idx-grid">${all.map(cell).join('')}</div>
-    <h3 class="sec-t">소모품</h3>
-    <div class="dex-grid v2 idx-grid">${L.CONS_IDS.map((id) => { const c = L.CONS[id]; const known = !c.hidden || (P().consDex || []).includes(id); if (!known) return `<button class="dexc2 idx lock" data-act="bagTabGo" data-v="cons"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>???</b></button>`; return `<button class="dexc2 idx r-${c.rarity}" data-act="bagTabGo" data-v="cons" style="--c:${CONS_RC[c.rarity]}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>${esc(c.name)}</b></button>`; }).join('')}</div>
+    <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${nGear}</button></div>
+    ${chips}
+    <p class="sub">${cat === 'sig' ? `멤버마다 하나뿐인 전용 신화 · 모은 것 ${sigN}/${SIG_IDS.length} · 모집 ${SIG_RATE.hero}% · 장비 뽑기 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환` : `한 번이라도 얻은 장비가 기록돼요${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'}`} <button class="chip mini" data-act="dropTable">드롭 표</button></p>
+    ${cat === 'cons' ? '' : `<div class="dex-grid v2 idx-grid">${all.map(cell).join('')}</div>`}
+    ${cat === 'all' || cat === 'cons' ? `<h3 class="sec-t">소모품</h3>
+    <div class="dex-grid v2 idx-grid">${L.CONS_IDS.map((id) => { const c = L.CONS[id]; const known = !c.hidden || (P().consDex || []).includes(id); if (!known) return `<button class="dexc2 idx lock" data-act="bagTabGo" data-v="cons"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>???</b></button>`; return `<button class="dexc2 idx r-${c.rarity}" data-act="bagTabGo" data-v="cons" style="--c:${CONS_RC[c.rarity]}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>${esc(c.name)}</b></button>`; }).join('')}</div>` : ''}
   `, 'dim');
 }
 function showItemCard(t) {
+  if (GEAR[t] && GEAR[t].hero) { popup(sigInfoHtml(t), 'pp-mini sig-pop'); return; }
   const g = GEAR[t], ok = gearDexSet().has(t);
   const pct = (v) => `+${(v * 100).toFixed(1)}%`;
-  const rows = g.myth ? `<p class="ip"><b>${esc(MYTH[t].desc)}</b> · 강화 없음 · 멤버마다 신화 칸 하나</p>`
+  const rows = g.myth ? `<p class="ip"><b>${esc(g.desc)}</b> · 강화 없음 · 멤버마다 신화 칸 하나</p>`
     : `<div class="idx-tab"><div><span></span>${['common', 'rare', 'epic', 'legend'].map((r) => `<b style="color:${GEAR_RARITY[r].color}">${GEAR_RARITY[r].name}</b>`).join('')}</div>${[0, 5, 10].map((lv) => `<div><span>+${lv}</span>${['common', 'rare', 'epic', 'legend'].map((r) => `<i>${pct(gearValue(t, r, lv))}</i>`).join('')}</div>`).join('')}</div>`;
   popup(`<div class="idx-head"><img src="${g.img}" alt="" class="${ok ? '' : 'sil'}"><div><h3>${ok ? esc(g.name) : '??? (아직 못 얻음)'}</h3><small>${g.myth ? '신화' : g.slot === 'w' ? '무기' : '장신구'} · ${esc(GEAR_STATS[g.stat] ? GEAR_STATS[g.stat].name : '')}</small></div></div>
     ${ok && GEAR_INFO[t] ? `<p class="ip">"${esc(GEAR_INFO[t][0])}"</p>` : ''}${rows}
     <p class="ip">얻는 곳: ${esc(gearWhere(t))}</p>`, 'pp-mini');
 }
+// 전용 신화 소개 (도감 · 장비 카드 · 멤버 상세 공용): 그림 · 이름 · 주인 · 새 효과 · 능력치 · 얻는 법
+function sigInfoHtml(t, mine) {
+  const g = GEAR[t], h = g.hero, p = P(), ok = mine || sigHave(p, h), d = HEROES[h];
+  return `<div class="idx-head sig-head"><span class="sig-ic ${ok ? '' : 'off'}">${gearIco({ t, r: 'myth' })}</span><div><small class="sig-k">전용 신화 · ${esc(d.name)} 전용</small><h3>${esc(g.name)}</h3></div></div>
+    <p class="ip sig-fx"><b>새 효과</b> ${esc(g.desc)}</p>
+    <p class="ip"><b>능력치</b> ${esc(sigStatText(t))} · 강화 없음 · 신화 칸</p>
+    <p class="ip sig-how">${ok ? `${ic('check', '', 'sm')}가지고 있어요` : `${ic('lock', '', 'sm')}아직 없어요`} · 얻는 곳: 모집 1회 ${SIG_RATE.hero}% · 장비 뽑기 1회 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환 (지금 ${((p.pity || {}).sig | 0)}개)</p>
+    <p class="ip dimtxt">1:1 대전에서는 새 효과 없이 능력치만 적용돼요</p>`;
+}
+// 멤버 상세: 이 멤버 전용 신화 한 줄 (없으면 흐리게 + 얻는 법)
+function sigRowHtml(id) {
+  const t = sigOf(id); if (!t) return '';
+  const g = GEAR[t], have = sigHave(P(), id);
+  return `<div class="hs-sig ${have ? '' : 'off'}"><span class="sig-ic">${gearIco({ t, r: 'myth' })}</span><span><small>신화장비${have ? '' : ' · 아직 없음'}</small><b>${esc(g.name)}</b><p>${esc(g.desc)}</p>${have ? '' : `<em>얻는 법: 모집 ${SIG_RATE.hero}% · 장비 뽑기 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환</em>`}</span></div>`;
+}
+const roleChip = (id, cls = '') => `<i class="role-cat r-${heroRole(id)} ${cls}">${esc(HERO_ROLES[heroRole(id)].name)}</i>`;
+// 도감 분류: 멤버 = 역할 · 진상 = 종류 + 장
+function dexFiltered(kind) {
+  const ids = kind === 'hero' ? DEX_HEROES() : DEX_ENEMIES();
+  if (kind === 'hero') { const c = app.dexRole || 'all'; return c === 'all' ? ids : ids.filter((id) => heroRole(id) === c); }
+  const k = app.dexKind || 'all', ch = app.dexCh || 0;
+  return ids.filter((id) => (k === 'all' || enemyKind(ENEMIES[id]) === k) && (!ch || dexChapter('enemy', id) === ch));
+}
 function showDropTable() {
   popup(`<h3>드롭 표</h3><div class="ilist">${DROPS.map(([k, a, b, c]) => `<p class="ip"><b>${esc(k)}</b> — ${esc(a)}${b ? ` · ${esc(b)}` : ''}${c ? ` · ${esc(c)}` : ''}</p>`).join('')}</div>`, 'pp-more-pop');
+}
+function dexCatChips(kind) {
+  const chip = (act, v, cur, nm, n, cls = '') => `<button class="chip ${String(v) === String(cur) ? 'on' : ''} ${cls}" data-act="${act}" data-v="${v}">${nm} <small>${n}</small></button>`;
+  if (kind === 'hero') {
+    const all = DEX_HEROES(), cur = app.dexRole || 'all';
+    return `<div class="dex-cats">${chip('dexRole', 'all', cur, '전체', all.length)}${Object.entries(HERO_ROLES).map(([k, r]) => chip('dexRole', k, cur, esc(r.name), all.filter((id) => heroRole(id) === k).length, 'r-' + k)).join('')}</div>`;
+  }
+  const all = DEX_ENEMIES(), k0 = app.dexKind || 'all', ch0 = app.dexCh || 0;
+  const byCh = (c) => all.filter((id) => (k0 === 'all' || enemyKind(ENEMIES[id]) === k0) && dexChapter('enemy', id) === c).length;
+  return `<div class="dex-cats">${chip('dexKind', 'all', k0, '전체', all.length)}${Object.entries(ENEMY_KINDS).map(([k, nm]) => chip('dexKind', k, k0, nm, all.filter((id) => enemyKind(ENEMIES[id]) === k).length)).join('')}</div>
+    <div class="dex-cats ch">${chip('dexCh', 0, ch0, '모든 장', all.filter((id) => k0 === 'all' || enemyKind(ENEMIES[id]) === k0).length)}${CHAPTERS.map((_, i) => chip('dexCh', i + 1, ch0, `${i + 1}장`, byCh(i + 1))).join('')}</div>`;
 }
 function showDex() {
   app.screen = 'dex';
@@ -5466,7 +5557,7 @@ function showDex() {
   const tab = app.dexTab || 'hero';
   if (tab === 'item') { showItemDex(); return; }
   const kind = tab === 'hero' ? 'hero' : 'enemy';
-  const ids = dexList(kind);
+  const ids = dexFiltered(kind);
   const nH = DEX_HEROES().filter((id) => dexKnown('hero', id)).length, nE = DEX_ENEMIES().filter((id) => dexKnown('enemy', id)).length;
   const v = dexViewed();
   const cards = ids.map((id) => {
@@ -5475,7 +5566,7 @@ function showDex() {
     const isNew = ok && !v.has((kind === 'hero' ? 'h:' : 'e:') + id);
     const tag = kind === 'hero' ? attrIco(d.attr) : clsIco(d.cls);
     const fr = kind === 'hero' ? `fr-t${heroTier(id)}` : d.boss ? 'fr-boss' : d.mid ? 'fr-mid' : 'fr-e';
-    const badge = kind === 'hero' ? `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>` : d.boss ? '<i class="dxb bs">보스</i>' : d.mid ? `<i class="dxb md">${d.fuse ? '합체' : '각성'}</i>` : '';
+    const badge = kind === 'hero' ? `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>${roleChip(id, 'dx-role')}${sigHave(P(), id) ? '<i class="dx-sig">전용</i>' : ''}` : d.boss ? '<i class="dxb bs">보스</i>' : d.mid ? `<i class="dxb md">${d.fuse ? '합체' : '각성'}</i>` : '';
     return `<button class="dexc2 ${fr} ${ok ? '' : 'lock'}" data-act="dexCard" data-kind="${kind}" data-id="${id}" style="--c:${dexColor(kind, d)}">
       <span class="dx-pic">${kind === 'hero' && thumbSrc(id) ? `<img class="dx-art hq fz" data-face="${id}" style="${faceImgStyle(id, 0.22, 0.36)}" src="${thumbSrc(id)}" alt="" loading="lazy" decoding="async" draggable="false" onerror="this.onerror=null;this.src='${dexSrc(id, d.img) || d.img}'">` : dexArt(d, id)}${ok ? `<img class="dx-mini" src="${inGameSprites(kind, id, d)[0]}" alt="" loading="lazy" draggable="false" onerror="this.remove()">` : ''}</span>${badge}<span class="dt">${tag}</span>
       <b>${ok ? esc(d.name) : '???'}</b>${isNew ? '<span class="newdot">N</span>' : ''}${!ok && kind === 'hero' && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? (() => { const pr = L.cardProgress(P(), id); return pr ? `<span class="dx-cards"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i><em>${pr[0]}/${pr[1]}</em></span>` : ''; })() : ''}</button>`;
@@ -5484,8 +5575,9 @@ function showDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
-    <p class="sub">${tab === 'hero' ? '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버' : '만나 본 진상만 기록돼요 · 눌러서 약점 확인! · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</p>
-    <div class="dex-grid v2">${cards}</div>
+    ${dexCatChips(kind)}
+    <p class="sub">${tab === 'hero' ? (app.dexRole && app.dexRole !== 'all' && HERO_ROLES[app.dexRole] ? esc(HERO_ROLES[app.dexRole].desc) : '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버') : '만나 본 진상만 기록돼요 · 눌러서 약점 확인! · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</p>
+    <div class="dex-grid v2">${cards || '<p class="sub">이 분류엔 아직 없어요</p>'}</div>
   `, 'dim');
 }
 function dexPageHtml(kind, id, form, duo) {
@@ -5514,6 +5606,7 @@ function dexPageHtml(kind, id, form, duo) {
       ${sk ? `<section><h4>${ic('sparkle', '', 'sm')}스킬 · ${esc(sk.name)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></h4><p>${esc(sk.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화 카드: <b>${esc(SKILL_EVO[id])}</b></p>` : ''}</section>` : ''}
       ${d.perks ? `<section><h4>${ic('chart', '', 'sm')}성장</h4><p>Lv3 ${esc(d.perks[3])}</p><p>Lv5 ${esc(d.perks[5])}</p></section>` : ''}
  <section><h4>${ic('scale', '', 'sm')} 상성</h4><p>${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p></section>
+ <section><h4>${ic('prism', '', 'sm')} 신화장비</h4>${sigRowHtml(id)}</section>
  <section><h4>${ic('pin', '', 'sm')} 합류</h4><p>${esc(heroHow(id))}</p></section>`;
   } else {
     const fs = firstStageOf(id);
@@ -5543,7 +5636,7 @@ function dexPageHtml(kind, id, form, duo) {
     : dexArt(d, id, cur);
   const fb = DEX_FACE[id] || [0.48, 0.09, 0.15];
   const faces = ''; // 얼굴 확대 칸은 없앴다 (멤버마다 들쭉날쭉 · 주먹·병이 잘려 '컵 두 개'처럼 보였다) — 큰 그림이 그 자리까지 채운다
-  const badges = hero ? `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>${attrTag(d.attr)}` : `${d.boss ? '<i class="dxb bs">보스</i>' : d.mid ? `<i class="dxb md">${d.fuse ? '합체' : '각성'}</i>` : ''}${clsTag(d.cls)}`;
+  const badges = hero ? `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>${roleChip(id)}${attrTag(d.attr)}` : `${d.boss ? '<i class="dxb bs">보스</i>' : d.mid ? `<i class="dxb md">${d.fuse ? '합체' : '각성'}</i>` : ''}${clsTag(d.cls)}`;
   const en = ok ? (hero ? DEX_EN[id] || id.toUpperCase() : id.replace(/^(boss|mid|fuse)_/, '').replace(/_/g, ' ').toUpperCase()) : '? ? ?';
   return `<div class="dp-bg" style="background-image:url('/img/lb/${ch === 1 ? 'bg' : 'bg' + ch}.webp')"></div><div class="dp-grad"></div>
     <div class="dp-top"><button class="dp-x" data-dp="x">✕</button><span>${i + 1} / ${list.length}</span></div>
@@ -5627,11 +5720,15 @@ function showDexCard(kind, id) {
 
 // ─── 장비 ────────────────────────────────────────────
 // 장비 아이콘: 그린 그림 (없으면 이모지) + 등급 색 테두리 · 빛
-const gearIco = (it) => `<i class="gico r-${it.r || 'common'}" style="--rc:${(GEAR_RARITY[it.r] || GEAR_RARITY.common).color}"><img src="${GEAR[it.t].img}" alt="" draggable="false" onerror="this.replaceWith(document.createTextNode('${GEAR[it.t].icon}'))"></i>`;
+const isSig = (t) => !!(GEAR[t] && GEAR[t].hero);
+// 전용 신화 그림: gear/myth_<멤버>.webp 가 생기기 전엔 멤버 얼굴 그림 (data.js SIG_ART_TODO)
+const gearIco = (it) => `<i class="gico r-${it.r || 'common'} ${isSig(it.t) ? 'sig' : ''}" style="--rc:${isSig(it.t) ? SIG_COLOR : (GEAR_RARITY[it.r] || GEAR_RARITY.common).color}"><img src="${GEAR[it.t].img}" alt="" draggable="false" ${isSig(it.t) ? `class="sig-face" onerror="this.onerror=null;this.src='${HEROES[GEAR[it.t].hero].img}'"` : `onerror="this.replaceWith(document.createTextNode('${GEAR[it.t].icon}'))"`}></i>`;
+const SIG_COLOR = '#ff4fd8';
 const gearName = (it) => `${GEAR[it.t].icon} ${GEAR[it.t].name}${it.lv ? ` +${it.lv}` : ''}`;
 function gearStatText(it) {
   const g = GEAR[it.t];
-  if (g.myth) return MYTH[it.t].desc;
+  if (g.hero) return `${HEROES[g.hero].name} 전용 · ${g.desc}`;
+  if (g.myth) return g.desc;
   return `${GEAR_STATS[g.stat].name} +${(gearValue(it.t, it.r, it.lv) * 100).toFixed(1)}%`;
 }
 function equippedBy(p, gid) { for (const [h, sl] of Object.entries(p.equip || {})) for (const k of ['w', 'a', 'm']) if (sl[k] === gid) return h; return null; }
@@ -5689,7 +5786,7 @@ function gearModal(html) {
 function showGearPicker(hero, slot) {
   const p = P();
   const cur = ((p.equip || {})[hero] || {})[slot];
-  const list = (p.gear || []).filter((x) => GEAR[x.t].slot === slot).sort((a, b) => gearValue(b.t, b.r, b.lv) * GEAR_RARITY[b.r].mul - gearValue(a.t, a.r, a.lv) * GEAR_RARITY[a.r].mul);
+  const list = (p.gear || []).filter((x) => GEAR[x.t].slot === slot && gearFits(x.t, hero)).sort((a, b) => gearValue(b.t, b.r, b.lv) * GEAR_RARITY[b.r].mul - gearValue(a.t, a.r, a.lv) * GEAR_RARITY[a.r].mul);
   const rows = list.map((it) => `<button class="gpick ${it.id === cur ? 'on' : ''}" data-g="equip:${hero}:${slot}:${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${gearName(it)}<small>${GEAR_RARITY[it.r].name} · ${esc(gearStatText(it))}${equippedBy(p, it.id) && equippedBy(p, it.id) !== hero ? ` · ${HEROES[equippedBy(p, it.id)].name}` : ''}</small></button>`).join('');
   gearModal(`<div class="ih"><b>${HEROES[hero].name} · ${slot === 'w' ? '무기' : '액세서리'}</b></div>
     <div class="gpick-list">${rows || '<p class="sub">이 칸에 낄 장비가 없어요</p>'}</div>
@@ -5710,10 +5807,13 @@ function heroPower(p, id) {
   if (!d) return 0;
   const st = heroGearStats(p, id);
   const base = (d.dmg / d.interval) * tierPower(heroTier(id), (p.heroes || {})[id] | 0) * (1 + L.STAR_ATK * (L.heroStar(p, id) - 1));
-  return Math.round(base * (1 + (st.atk || 0)) * (1 + (st.spd || 0)) * (1 + (st.skill || 0) * 0.3) * 10);
+  return Math.round(base * (1 + (st.atk || 0)) * (1 + (st.spd || 0)) * (1 + (st.skill || 0) * 0.3) * (sigOn(p, id) ? 1.25 : 1) * 10); // 전용 신화 새 효과 ≈ +25%
 }
+// 이 멤버가 자기 전용 신화를 끼고 있나
+function sigOn(p, id) { const gid = ((p.equip || {})[id] || {}).m; const it = gid && (p.gear || []).find((g) => g.id === gid); return !!(it && GEAR[it.t] && GEAR[it.t].hero === id); }
+const sigHave = (p, id) => (p.gear || []).some((g) => g.t === 'sig_' + id);
 const deckPower = (p, ids) => ids.reduce((a, id) => a + heroPower(p, id), 0);
-const gearScore = (it) => gearValue(it.t, it.r, it.lv) * (GEAR_W[GEAR[it.t].stat] || 0.5);
+const gearScore = (it) => (isSig(it.t) ? 1 : gearValue(it.t, it.r, it.lv) * (GEAR_W[GEAR[it.t].stat] || 0.5)); // 전용 신화: 그 멤버에겐 늘 제일 좋은 것
 function lsSet(key) { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); } }
 function lsSave(key, set) { try { localStorage.setItem(key, JSON.stringify([...set].slice(-400))); } catch { /* 무시 */ } }
 const gearLocked = () => lsSet('langbang:gearLock');
@@ -5725,7 +5825,7 @@ function bagHero() {
 }
 function heroGearStats(p, id) {
   const sl = (p.equip || {})[id] || {};
-  return gearStats(['w', 'a', 'm'].map((k) => (p.gear || []).find((g) => g.id === sl[k])).filter(Boolean));
+  return gearStats(['w', 'a', 'm'].map((k) => (p.gear || []).find((g) => g.id === sl[k])).filter((g) => g && gearFits(g.t, id)));
 }
 function statLines(st) {
   const ks = Object.keys(st);
@@ -5832,6 +5932,7 @@ async function equipTo(hero, slot, gid) {
   const it = (P().gear || []).find((x) => x.id === gid);
   if (!it) return;
   if (GEAR[it.t].slot !== slot) { toast(`${GEAR[it.t].slot === 'w' ? '무기' : '장신구'} 칸에만 낄 수 있어요`, 1400); return; }
+  if (!gearFits(it.t, hero)) { toast(`${HEROES[GEAR[it.t].hero].name} 전용이에요`, 1400); return; }
   const r = await API.equipGear(hero, slot, gid, app.guest);
   if (r.ok && r.profile) { app.profile = r.profile; A.sfx.pick(); toast(`${HEROES[hero].name}에게 ${GEAR[it.t].name}!`, 1100); app.bagSel = null; }
   else toast(r.message || '못 끼웠어요');
@@ -5839,7 +5940,7 @@ async function equipTo(hero, slot, gid) {
 }
 // ─── 멤버 중심 장비 화면 ───
 const gMaxed = (it) => it.r === 'myth' || (it.lv | 0) >= GEAR_MAX_LV;
-const gIco = (it) => `<span class="gwrap ${gMaxed(it) ? 'gmax' : ''} ${it.r === 'myth' ? 'myth' : ''}">${gearIco(it)}${gMaxed(it) ? `<i class="gmax-b">${it.r === 'myth' ? '신화' : 'MAX'}</i>` : ''}</span>`;
+const gIco = (it) => `<span class="gwrap ${gMaxed(it) ? 'gmax' : ''} ${it.r === 'myth' ? 'myth' : ''} ${isSig(it.t) ? 'sig' : ''}">${gearIco(it)}${gMaxed(it) ? `<i class="gmax-b">${isSig(it.t) ? '전용' : it.r === 'myth' ? '신화' : 'MAX'}</i>` : ''}</span>`;
 // 이 장비를 끼면 그 멤버 전투력이 얼마가 되나 (다른 멤버가 끼고 있던 것도 옮겨 온다고 치고)
 function powerWith(p, hero, slot, gid) {
   const eq = {};
@@ -5862,7 +5963,7 @@ function equipTabHtml(p) {
   const find = (gid) => (p.gear || []).find((x) => x.id === gid);
   const slot = (k) => {
     const it = find(sl[k]);
-    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && g.id !== sl[k] && powerWith(p, sel, k, g.id) > pw);
+    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && powerWith(p, sel, k, g.id) > pw);
     return `<button class="eq-big ${it ? 'r-' + it.r : 'empty'}" data-act="eqOpen" data-hero="${sel}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">
       <small class="eqb-k">${k === 'w' ? '무기' : k === 'a' ? '장신구' : '신화'}</small>${better ? '<i class="rd"></i>' : ''}
       ${it ? `${gIco(it)}<b>${esc(GEAR[it.t].name)}${it.lv ? ` <em>+${it.lv}</em>` : ''}</b><small>${esc(gearStatText(it))}</small>` : `<span class="eqb-plus">+</span><b>비어 있음</b><small>${k === 'm' ? '신화 장비 전용' : '눌러서 끼기'}</small>`}</button>`;
@@ -5887,7 +5988,7 @@ function showEquipSheet(hero, slot, selId) {
   const curId = ((p.equip || {})[hero] || {})[slot];
   const cur = (p.gear || []).find((x) => x.id === curId);
   const base = heroPower(p, hero);
-  const rows = (p.gear || []).filter((it) => GEAR[it.t].slot === slot).map((it) => ({ it, d: it.id === curId ? 0 : powerWith(p, hero, slot, it.id) - base, own: equippedBy(p, it.id) }))
+  const rows = (p.gear || []).filter((it) => GEAR[it.t].slot === slot && gearFits(it.t, hero)).map((it) => ({ it, d: it.id === curId ? 0 : powerWith(p, hero, slot, it.id) - base, own: equippedBy(p, it.id) }))
     .sort((a, b) => (a.it.id === curId) - (b.it.id === curId) || b.d - a.d);
   const pick = rows.find((r) => r.it.id === selId) || rows.find((r) => r.it.id !== curId) || rows[0];
   app.eqSheet = { hero, slot, sel: pick ? pick.it.id : null };
@@ -5993,7 +6094,7 @@ function bestGearPlan(p, id, steal) {
   for (const k of ['w', 'a', 'm']) {
     const cur = ((p.equip || {})[id] || {})[k];
     const curIt = (p.gear || []).find((x) => x.id === cur);
-    const cands = (p.gear || []).filter((it) => GEAR[it.t] && GEAR[it.t].slot === k && !taken.has(it.id) && it.id !== cur && (steal || !equippedBy(p, it.id)));
+    const cands = (p.gear || []).filter((it) => GEAR[it.t] && GEAR[it.t].slot === k && gearFits(it.t, id) && !taken.has(it.id) && it.id !== cur && (steal || !equippedBy(p, it.id)));
     cands.sort((a, b) => gearScore(b) - gearScore(a));
     const best = cands[0];
     if (best && (!curIt || gearScore(best) > gearScore(curIt) + 1e-9)) { taken.add(best.id); plan.push({ k, it: best, from: equippedBy(p, best.id), prev: curIt || null }); }
@@ -6042,7 +6143,7 @@ async function autoEquipAll() {
   const used = new Set();
   let n = 0;
   for (const h of ids) for (const k of ['w', 'a', 'm']) {
-    const best = (P().gear || []).filter((it) => GEAR[it.t].slot === k && !used.has(it.id)).sort((a, b) => gearScore(b) - gearScore(a))[0];
+    const best = (P().gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !used.has(it.id)).sort((a, b) => gearScore(b) - gearScore(a))[0];
     if (!best) continue;
     used.add(best.id);
     if (((P().equip || {})[h] || {})[k] === best.id) continue;
@@ -6092,7 +6193,7 @@ function showGearCard(gid) {
   if (!it) return;
   const cost = gearEnhanceCost(it.r, it.lv);
   const eq = equippedBy(p, gid);
-  const hero = app.screen === 'bag' ? bagHero() : eq || owned()[0];
+  const hero = GEAR[it.t].hero && API.heroUnlocked(p, GEAR[it.t].hero) ? GEAR[it.t].hero : app.screen === 'bag' ? bagHero() : eq || owned()[0];
   const cur = heroGearStats(p, hero);
   const k = GEAR[it.t].slot;
   const old = ((p.equip || {})[hero] || {})[k];
@@ -6112,6 +6213,7 @@ function showGearCard(gid) {
     <div class="gc-row"><button class="btn ghost" data-g="lock:${gid}">${locked ? '잠금 풀기' : '☆ 잠그기 (팔기 방지)'}</button><button class="btn ghost" data-g="sell:${gid}" ${locked || eq ? 'disabled' : ''}>팔기 +${fmt(gearSellValue(it.r, it.lv))}</button><button class="btn ghost" data-g="dis:${gid}" ${locked || eq ? 'disabled' : ''}>분해 ${ic('gem', '', 'sm')}+${gearDismantle(it.r, it.lv)}</button></div>`);
 }
 function gearInfoHtml(it) {
+  if (GEAR[it.t].hero) return sigInfoHtml(it.t, true);
   const g = GEAR[it.t], R0 = GEAR_RARITY[it.r], st = GEAR_STATS[g.stat];
   const info = GEAR_INFO[it.t] || ['', []];
   const pct = (v) => `${(v * 100).toFixed(1)}%`;

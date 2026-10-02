@@ -3766,3 +3766,80 @@ body.rm .lb-side .ls-hot { animation: none; }
 .mg-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 3); min-height: calc(var(--u) * 76); padding: calc(var(--u) * 6) 0; border-radius: calc(var(--u) * 14); border: 2px solid #0a0614; background: linear-gradient(180deg, #3a2a66, #1c1236 75%); box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.35), inset 0 calc(var(--u) * 2) 0 rgba(255, 255, 255, 0.12), 0 calc(var(--u) * 3) 0 #07040f; color: #fff; }
 .mg-cell .uic { width: calc(var(--u) * 40); height: calc(var(--u) * 40); filter: drop-shadow(0 calc(var(--u) * 2) 0 rgba(0, 0, 0, 0.6)); }
 .mg-cell b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 12); text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000; }
+
+/* ═══ 도감 분류 칩 · 역할 칩 · 전용 신화 (신화 위 등급) ═══ */
+.dex-cats { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 5); margin: 0 0 calc(var(--u) * 6); }
+.dex-cats.ch { margin-top: calc(var(--u) * -2); }
+.dex-cats .chip { padding: calc(var(--u) * 4) calc(var(--u) * 9); font-size: calc(var(--u) * 11); }
+.dex-cats .chip small { font-size: calc(var(--u) * 9); opacity: 0.75; margin-left: calc(var(--u) * 2); }
+.dex-cats .chip.c-sig:not(.on) { border-color: #ff4fd8; color: #ffb8ef; }
+.role-cat { --rcol: #ffd23f; display: inline-block; font-style: normal; font-weight: 900; font-size: calc(var(--u) * 9); line-height: 1.2; padding: calc(var(--u) * 1.5) calc(var(--u) * 6); border-radius: 99px; color: #fff; background: color-mix(in srgb, var(--rcol) 38%, #120a22); border: 1.5px solid var(--rcol); text-shadow: var(--ol); white-space: nowrap; }
+.role-cat.r-tank, .dex-cats .chip.r-tank { --rcol: #6fb3ff; } .role-cat.r-support, .dex-cats .chip.r-support { --rcol: #5de07a; }
+.role-cat.r-aoe, .dex-cats .chip.r-aoe { --rcol: #ff9d3f; } .role-cat.r-single, .dex-cats .chip.r-single { --rcol: #ff5a6a; }
+.role-cat.r-ctrl, .dex-cats .chip.r-ctrl { --rcol: #c77dff; } .role-cat.r-special, .dex-cats .chip.r-special { --rcol: #ffd23f; }
+.dex-cats .chip[class*=" r-"]:not(.on) { border-color: var(--rcol); }
+.dexc2 .dx-role { position: absolute; top: calc(var(--u) * 4); left: calc(var(--u) * 4); z-index: 3; font-size: calc(var(--u) * 7.5); padding: calc(var(--u) * 1) calc(var(--u) * 4); }
+.dexc2 .dx-sig { position: absolute; top: calc(var(--u) * 19); left: calc(var(--u) * 4); z-index: 3; font-style: normal; font-weight: 900; font-size: calc(var(--u) * 7.5); padding: calc(var(--u) * 1) calc(var(--u) * 4); border-radius: 99px; color: #fff; background: #b0168f; border: 1.5px solid #ff8ae6; text-shadow: var(--ol); box-shadow: 0 0 calc(var(--u) * 6) rgba(255, 79, 216, 0.8); }
+.hf-head.v2 .hn-cat { order: 3; align-self: center; }
+.gc-badges .role-cat { font-size: calc(var(--u) * 10); }
+
+/* 전용 신화 아이콘: 분홍 이중 테두리 + 숨 쉬는 빛 (그림이 없으면 멤버 얼굴을 동그랗게) */
+.gico.sig::before { inset: -14%; background: radial-gradient(circle, rgba(255, 79, 216, 0.7), rgba(255, 79, 216, 0) 70%); animation: sigGlow 1.8s ease-in-out infinite; }
+.gico.sig img.sig-face { border-radius: 50%; object-fit: cover; object-position: 50% 14%; box-shadow: 0 0 0 calc(var(--u) * 1.5) #fff, 0 0 0 calc(var(--u) * 3.5) #ff4fd8, 0 0 calc(var(--u) * 10) #ff4fd8; background: #2a0f3a; }
+@keyframes sigGlow { 0%, 100% { opacity: 0.55; transform: scale(0.95); } 50% { opacity: 1; transform: scale(1.08); } }
+.gwrap.sig .gmax-b { background: #d31aa6; color: #fff; }
+.bitem .gwrap.sig, .eq-big .gwrap.sig { filter: drop-shadow(0 0 calc(var(--u) * 4) rgba(255, 79, 216, 0.8)); }
+.idx-grid .dexc2.idx.r-sig { --c: #ff4fd8; border-color: #ff4fd8; background: #1c0a24; box-shadow: 0 0 0 calc(var(--u) * 1.5) #fff inset, 0 0 calc(var(--u) * 12) rgba(255, 79, 216, 0.75); animation: sigCell 2.4s ease-in-out infinite; }
+.idx-grid .dexc2.idx.r-sig .idx-ic { width: auto; height: 76%; aspect-ratio: 1; border-radius: 50%; object-fit: cover; object-position: 50% 14%; box-shadow: 0 0 0 calc(var(--u) * 2) #ff4fd8; }
+.idx-grid .dexc2.idx.r-sig.lock { animation: none; box-shadow: none; border-color: #6a3a66; }
+.idx-grid .dexc2.idx.r-sig.lock .idx-ic { filter: grayscale(1) brightness(0.45); }
+@keyframes sigCell { 0%, 100% { box-shadow: 0 0 0 calc(var(--u) * 1.5) #fff inset, 0 0 calc(var(--u) * 8) rgba(255, 79, 216, 0.5); } 50% { box-shadow: 0 0 0 calc(var(--u) * 1.5) #fff inset, 0 0 calc(var(--u) * 18) rgba(255, 79, 216, 0.95); } }
+body.rm .gico.sig::before, body.rm .idx-grid .dexc2.idx.r-sig { animation: none; }
+@media (prefers-reduced-motion: reduce) { .gico.sig::before, .idx-grid .dexc2.idx.r-sig { animation: none; } }
+
+/* 전용 신화 소개 (도감 팝업 · 장비 카드) */
+.sig-head .sig-ic .gico { width: calc(var(--u) * 64); height: calc(var(--u) * 64); }
+.sig-head .sig-ic.off .gico img { filter: grayscale(1) brightness(0.6); }
+.sig-head .sig-k { display: block; color: #ffb8ef; font-weight: 900; font-size: calc(var(--u) * 10.5); }
+.sig-head h3 { color: #fff; text-shadow: var(--ol); }
+.ip.sig-fx { background: rgba(255, 79, 216, 0.12); border: 1px solid rgba(255, 79, 216, 0.45); border-radius: calc(var(--u) * 10); padding: calc(var(--u) * 8) calc(var(--u) * 10); }
+.ip.sig-fx b { color: #ffe07a; }
+
+/* 멤버 상세 · 도감: 신화장비 한 줄 */
+.hs-sig { display: flex; gap: calc(var(--u) * 10); align-items: flex-start; width: 100%; box-sizing: border-box; text-align: left; padding: calc(var(--u) * 10) calc(var(--u) * 12); margin-bottom: calc(var(--u) * 8); border-radius: calc(var(--u) * 14); background: linear-gradient(135deg, rgba(255, 79, 216, 0.16), rgba(80, 30, 140, 0.18)); border: 1.5px solid rgba(255, 79, 216, 0.7); box-shadow: 0 0 calc(var(--u) * 10) rgba(255, 79, 216, 0.3); color: #fff; }
+.hs-sig .sig-ic .gico { width: calc(var(--u) * 46); height: calc(var(--u) * 46); }
+.hs-sig small { display: block; color: #ffb8ef; font-weight: 900; font-size: calc(var(--u) * 10); }
+.hs-sig b { display: block; font-size: calc(var(--u) * 14); text-shadow: var(--ol); }
+.hs-sig p { margin: calc(var(--u) * 3) 0 0; font-size: calc(var(--u) * 11.5); line-height: 1.4; color: #f3e8ff; word-break: keep-all; }
+.hs-sig em { display: block; margin-top: calc(var(--u) * 4); font-style: normal; font-size: calc(var(--u) * 10); color: #c9b8e8; word-break: keep-all; }
+.hs-sig.off { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.15); box-shadow: none; }
+.hs-sig.off .gico img { filter: grayscale(1) brightness(0.55); }
+.hs-sig.off .gico::before { animation: none; opacity: 0.25; }
+.hs-sig.off b, .hs-sig.off p { opacity: 0.6; }
+
+/* 상점: 신화 조각 막대 · 교환 */
+.sig-bar { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--u) * 4) calc(var(--u) * 8); align-items: center; width: 100%; box-sizing: border-box; margin: calc(var(--u) * 6) 0; padding: calc(var(--u) * 8) calc(var(--u) * 12); border-radius: calc(var(--u) * 14); background: rgba(40, 10, 50, 0.7); border: 1.5px solid rgba(255, 79, 216, 0.55); color: #fff; text-align: left; }
+.sig-bar b { display: block; font-size: calc(var(--u) * 12.5); text-shadow: var(--ol); }
+.sig-bar small { display: block; font-size: calc(var(--u) * 10); color: #e6d4ff; word-break: keep-all; }
+.sig-bar .sig-pb { grid-column: 1 / -1; height: calc(var(--u) * 7); border-radius: 99px; background: rgba(0, 0, 0, 0.5); overflow: hidden; }
+.sig-bar .sig-pb b { display: block; height: 100%; background: #ff4fd8; box-shadow: 0 0 calc(var(--u) * 6) #ff4fd8; }
+.sig-bar.ready { border-color: #ff4fd8; box-shadow: 0 0 calc(var(--u) * 14) rgba(255, 79, 216, 0.7); }
+.sig-list { display: grid; gap: calc(var(--u) * 6); max-height: 52vh; overflow-y: auto; }
+.sig-pick { display: flex; gap: calc(var(--u) * 8); align-items: center; text-align: left; padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: rgba(255, 79, 216, 0.1); border: 1.5px solid rgba(255, 79, 216, 0.5); color: #fff; }
+.sig-pick .gico { width: calc(var(--u) * 40); height: calc(var(--u) * 40); flex: none; }
+.sig-pick b { display: block; font-size: calc(var(--u) * 12); }
+.sig-pick small { display: block; font-size: calc(var(--u) * 10); color: #e6d4ff; word-break: keep-all; }
+.sig-pick:disabled { opacity: 0.55; }
+.sig-pick.off { border-color: rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.04); }
+
+/* "신화 획득!" 큰 연출 (모집 결과 확대 화면) */
+.gacha-res.v3 .gr-zoom.sig { background: radial-gradient(circle, rgba(140, 20, 120, 0.7), rgba(0, 0, 0, 0.92)); overflow: hidden; }
+.gacha-res.v3 .gr-zoom .grz-sig { position: absolute; inset: -20%; background: repeating-conic-gradient(from 0deg, rgba(255, 79, 216, 0.28) 0deg 8deg, rgba(255, 79, 216, 0) 8deg 20deg); animation: sigSpin 6s linear infinite; }
+@keyframes sigSpin { to { transform: rotate(360deg); } }
+.gacha-res.v3 .gr-zoom .grz-art.sig { position: absolute; max-height: 62%; opacity: 0.85; top: 6%; }
+.gacha-res.v3 .gr-zoom .grz-gear.sig { position: relative; z-index: 2; font-size: calc(var(--u) * 120); margin-top: 18%; }
+.gacha-res.v3 .gr-zoom .grz-gear.sig .gico { width: 1.2em; height: 1.2em; }
+.gacha-res.v3 .gr-zoom .grz-plate.sig { z-index: 3; border: 2px solid #ff4fd8; box-shadow: 0 0 calc(var(--u) * 18) rgba(255, 79, 216, 0.8); }
+.gacha-res.v3 .gr-zoom .grz-plate.sig em { display: block; font-style: normal; font-family: var(--heavy); font-size: calc(var(--u) * 30); color: #ff8ae6; text-shadow: var(--ol); animation: grzIn 0.9s ease-out both; }
+.gacha-res.v3 .gcard.sig { filter: drop-shadow(0 0 calc(var(--u) * 10) rgba(255, 79, 216, 0.9)); }
+body.rm .gacha-res.v3 .gr-zoom .grz-sig { animation: none; }
