@@ -1093,6 +1093,10 @@ export const heroRole = (id) => HERO_ROLE[id] || 'special';
 // 진상 분류 (도감): 일반 · 중간 보스 · 보스
 export const enemyKind = (d) => (d.boss ? 'boss' : d.mid ? 'mid' : 'normal');
 export const ENEMY_KINDS = { normal: '일반 진상', mid: '중간 보스', boss: '보스' };
+// 진상 등급 (도감): 보스 · 중간 보스 · 정예 · 일반 — 정예 = 일반 진상 중 단단한 쪽 (방어가 있거나 체력 100 이상)
+//  (정예 웨이브 · 혼합 웨이브가 '제일 단단한 진상'을 정예로 세우는 것과 같은 기준: 한 방 공격이 잘 듣는 상대)
+export const ELITE_HP = 100;
+export const enemyGrade = (d) => (d.boss ? 'boss' : d.mid ? 'mid' : (d.armor || 0) > 0 || d.hp >= ELITE_HP ? 'elite' : 'normal');
 // 같이 출전하는 동료 수: 1챕터 1명, 1-10 을 깨면(2챕터부터) 2명
 export const partnerSlots = (maxStage) => (maxStage >= 10 ? 2 : 1);
 export const STARTER_PARTNERS = ['gunman', 'staff', 'gunnyeo']; // 방장 + 이 중 1명으로 시작
