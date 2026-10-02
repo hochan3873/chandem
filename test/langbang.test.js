@@ -603,11 +603,21 @@ test('상성: 속성마다 강한 계열 2개 · 약한 계열 1개, 피해에 �
   assert.equal(D.partnerSlots(10), 2);
 });
 
-test('공격 방식: 방장 음파는 여러 명 · 건전녀 폭탄은 떨어진 곳 범위 · 서명훈 욕은 3명 이상 튕김 · 이한나 레이저는 점점 세진다', () => {
-  let g = bare(['bangjang']);
-  const row = [0, 1, 2, 3].map((i) => still(g, 'yeokko', 130 + i * 14, g.rowY - 150));
-  S.fire(g, g.heroes[0], row[0]);
-  assert.ok(row.filter((e) => e.hp < e.maxHp).length >= 3, '음파 여러 명');
+test('공격 방식: 방장 지시는 한 명 「지목」(모두에게 더 아프게) · 건전녀 폭탄은 떨어진 곳 범위 · 서명훈 욕은 3명 이상 튕김 · 이한나 레이저는 점점 세진다', () => {
+  let g = bare(['bangjang', 'gunman']);
+  const row = [0, 1, 2, 3].map((i) => still(g, 'yeokko', 130 + i * 14, g.rowY - 150, 1000));
+  const bj = g.heroes.find((h) => h.id === 'bangjang');
+  bj.shots = 1; // (Lv5 전체 지시가 아닌 보통 한 발)
+  S.fire(g, bj, row[0]);
+  assert.ok(row[0].hp < row[0].maxHp && row[0].orderT > 0, '찍힌 진상만 지목');
+  assert.equal(row.filter((e) => e.orderT > 0).length, 1, '한 명만');
+  const hit = (e) => { const h0 = e.hp; S.damageEnemy(g, e, 100, false, g.heroes.find((h) => h.id === 'gunman')); return h0 - e.hp; };
+  const a = hit(row[0]), b = hit(row[1]);
+  assert.ok(Math.abs(a / b - (1 + D.HEROES.bangjang.order.mul[0])) < 0.01, `지목 피해 + (${a} / ${b})`);
+  assert.ok(g.stats.teamBy.bangjang.buff > 0, '지목으로 늘린 피해는 방장 기여');
+  bj.lv = 5; bj.shots = D.HEROES.bangjang.order.every - 1;
+  S.fire(g, bj, row[3]);
+  assert.ok(row.filter((e) => e.orderT > 0).length >= 3, 'Lv5 전체 지시: 근처 3명');
   g = bare(['gunnyeo']);
   const pack = [0, 1, 2].map((i) => still(g, 'drunk', 170 + i * 12, g.rowY - 200));
   S.fire(g, g.heroes[0], pack[1]);
@@ -762,14 +772,23 @@ test('새 빌런: 토 · 애정행각 · 손진상 · 가오충 · 셀카 · 새
   assert.ok(D.waveDef(24).g.some(([t]) => t === 'kkondae'), '무한 도전에도');
 });
 
-test('새 멤버: 백인규(탱커) 가 기술을 대신 맞고 짧게 · 김도훈 떼창 회복 · 문동한 간보다가 한 줄 빔', () => {
-  let g = bare(['gunman', 'ingyu']);
+test('새 멤버: 도발 탱커(정원식)가 기술을 대신 맞고 짧게 · 백인규 오토바이 돌진 · 김도훈 떼창 회복 · 문동한 간보다가 한 줄 빔', () => {
+  let g = bare(['gunman', 'wonsik']);
   const hs = still(g, 'handsy', 40, g.ropeY - 10);
   hs.atRope = true;
   run(g, 0.2);
-  const ing = g.heroes.find((h) => h.id === 'ingyu');
-  assert.ok(ing.grabT > 0 && ing.grabT < 2, '백인규가 대신 · 짧게');
+  const ws = g.heroes.find((h) => h.id === 'wonsik');
+  assert.ok(ws.grabT > 0 && ws.grabT < 2, '정원식이 대신 · 짧게');
   assert.ok(!(g.heroes[0].grabT > 0));
+  assert.ok(!D.HEROES.ingyu.taunt && !D.HEROES.ingyu.guard, '백인규는 도발 · 입구 피해 감소 없음 (정원식 몫)');
+  // 백인규: 덤벨 5번 → 오토바이 돌진 (자기 줄 진상 크게 밀치고 잠깐 휘청)
+  g = bare(['ingyu']);
+  const ig = g.heroes[0], lane = still(g, 'thug', ig.x, g.rowY - 200, 50), y0 = lane.y;
+  for (let i = 0; i < D.HEROES.ingyu.moto.every[0]; i++) S.fire(g, ig, lane);
+  assert.ok(g.projs.some((p) => p.type === 'moto'), '오토바이 출발');
+  let dazed = false;
+  for (let t = 0; t < 1.5; t += 1 / 60) { S.step(g, 1 / 60); if (lane.stunT > 0) dazed = true; g.events.length = 0; }
+  assert.ok(lane.y < y0 - 40 && dazed, `크게 밀리고 휘청 (${y0.toFixed(0)} → ${lane.y.toFixed(0)})`);
   g = bare(['dohoon']);
   g.phase = 'wave';
   g.base.hp = g.base.max * 0.5;
@@ -1147,11 +1166,11 @@ test('카드: 4장 · 속성 결속은 그 속성 멤버가 있어야 · 진화�
   S.applyCard(g, evo);
   assert.ok(gm.evo && Math.abs(S.heroDamage(g, gm) / d0 - D.EVO_MUL.dmg) < 1e-9);
   assert.ok(!S.cardPool(g).some((c) => c.kind === 'evo' && c.hero === 'gunman'), '진화는 한 번');
-  // 올인: 입구 -20% · 공격력 +35%
-  const max0 = g.base.max, dmg0 = g.mods.dmg;
+  // 올인: 입구 -20% · 공격력 +55% (일반 스테이지는 큰 카드: × GROW.card)
+  const max0 = g.base.max, dmg0 = g.mods.dmg, k = D.GROW.card;
   S.applyCard(g, { kind: 'global', id: 'risk_allin', key: 'risk_allin' });
-  assert.equal(g.base.max, Math.round(max0 * 0.8));
-  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.55) < 1e-9);
+  assert.equal(g.base.max, Math.round(max0 * (1 - 0.2 * k)));
+  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.55 * k) < 1e-9);
 });
 
 test('중간 보스: 3웨이브에 나오고(1-1·1-2 제외) · 합체는 두 진상 기술을 모두 · 넉백 안 됨 · 보너스 코인', () => {
@@ -1257,7 +1276,7 @@ test('덱 넣기/빼기: 빈 자리에 넣고 · 이미 있으면 빼고 · 꽉 
 
 test('레벨업: 드물게(필요 경험치 ×2.2) · 레벨 카드 한 장 = 2레벨 · 멤버 전용 카드 · 멤버 수 제한(자리는 6칸 모두) · 임시 증원 + 게스트', () => {
   const g = S.createGame({ rng: seeded(1301), mode: 'stage', stage: 5, slots: 4, deck: [null, 'staff', 'gunnyeo', 'gunman', 'bangjang', null], guestPool: ['dohoon'] });
-  assert.equal(g.need, Math.round(D.expNeed(1) * D.EXP_NEED_MUL));
+  assert.equal(g.need, Math.round(D.expNeed(1) * D.EXP_NEED_MUL * D.GROW.need), '일반 스테이지는 레벨업이 덜 잦다');
   assert.equal(g.maxHeroes, 4, '4명까지 데려감');
   assert.equal(g.locked.length, 0, '자리는 잠기지 않는다');
   const gn = g.heroes.find((h) => h.id === 'gunnyeo');
@@ -1268,7 +1287,8 @@ test('레벨업: 드물게(필요 경험치 ×2.2) · 레벨 카드 한 장 = 2�
   assert.ok(hm, '건전녀 전용 카드');
   const d0 = S.heroDamage(g, gn);
   S.applyCard(g, hm);
-  assert.ok(gn.cm.splash > 1 && Math.abs(S.heroDamage(g, gn) / d0 - 1.2) < 1e-9);
+  assert.ok(gn.cm.splash > 1 && Math.abs(S.heroDamage(g, gn) / d0 - (1 + D.GROW.lv + 0.2 * D.GROW.card) / (1 + D.GROW.lv)) < 1e-9, '전용 카드 공격력도 큰 카드 (레벨 카드 +15% 와 더해서)');
+  assert.equal(gn.lvAtk, D.GROW.lv, '큰 레벨 카드: 그 멤버 공격력 +');
   assert.ok(!S.cardPool(g).some((c) => c.kind === 'heroMod' && c.hero === 'dohoon'), '덱에 없는 멤버 카드는 없음');
   assert.equal(S.swapHeroes(g, gn, 0), true, '빈 끝자리로도 옮길 수 있다');
   assert.equal(gn.slot, 0);
@@ -1283,6 +1303,53 @@ test('레벨업: 드물게(필요 경험치 ×2.2) · 레벨 카드 한 장 = 2�
   const guest = g.heroes.find((h) => h.guest);
   assert.ok(guest && guest.id === 'dohoon' && guest.slot === g.tempSlot, '게스트 합류');
   assert.equal(S.rollCards(g, 4, { secretChance: 1 }).some((c) => c.kind === 'secret'), false, '한 판에 한 번');
+});
+
+test('주력 2명: Lv3 을 넘기는 레벨 카드를 먼저 고른 두 명만 Lv5 · 나머지 Lv3 까지 · 빈 카드 없음 · 이어하기에도 남는다', () => {
+  const g = S.createGame({ rng: seeded(1401), mode: 'stage', stage: 14, deck: ['staff', 'bangjang', 'gunman', 'gunnyeo', 'dohoon', null] });
+  assert.ok(g.mainOn && g.grow);
+  const H = (id) => g.heroes.find((h) => h.id === id);
+  const lvCard = (id) => S.cardPool(g).find((c) => c.kind === 'heroLv' && c.hero === id);
+  for (const id of ['staff', 'bangjang', 'gunman']) { const c = lvCard(id); assert.equal(c.main, ''); S.applyCard(g, c); assert.equal(H(id).lv, 3); assert.ok(!H(id).main, 'Lv3 까지는 주력이 아님'); }
+  // Lv3 → 5 카드: 고르면 주력 (1/2 · 2/2)
+  const c1 = lvCard('gunman'); assert.equal(c1.main, 'new'); assert.match(c1.sub, /주력 지정 \(1\/2\)/);
+  S.applyCard(g, c1);
+  assert.ok(H('gunman').main && H('gunman').lv === 5 && S.mainCount(g) === 1);
+  assert.ok(g.events.some((e) => e.type === 'mainPick' && e.hero === 'gunman' && e.n === 1 && e.max === D.MAIN.n));
+  S.applyCard(g, lvCard('staff'));
+  assert.equal(S.mainCount(g), 2);
+  // 주력이 다 찼다: 다른 멤버는 Lv3 을 넘기는 카드가 안 나오고 (Lv1 → 3 은 된다) · 억지로 넣어도 안 오른다
+  assert.ok(!lvCard('bangjang'), '방장 Lv3→5 카드 없음');
+  assert.ok(lvCard('gunnyeo') && lvCard('gunnyeo').main === '', '건전녀 Lv1→3 은 된다');
+  S.applyCard(g, { kind: 'heroLv', hero: 'bangjang', key: 'lv:bangjang' });
+  assert.equal(H('bangjang').lv, 3, '주력이 아니면 Lv3 까지');
+  assert.ok(!S.canGrow(g, H('bangjang')) && S.canGrow(g, H('gunnyeo')));
+  for (let i = 0; i < 30; i++) { const cs = S.rollCards(g); assert.equal(cs.length, 4); assert.ok(!cs.some((c) => c.kind === 'heroLv' && c.hero === 'bangjang'), '죽은 카드 없음'); }
+  // 이어하기: 주력 표시가 남는다
+  const r = S.restoreGame(JSON.parse(JSON.stringify(S.snapshot(g))), { rng: seeded(1) });
+  assert.deepEqual(r.heroes.filter((h) => h.main).map((h) => h.id).sort(), ['gunman', 'staff']);
+  assert.ok(!S.cardPool(r).some((c) => c.kind === 'heroLv' && c.hero === 'bangjang'));
+  // 큰 카드: 설명 숫자도 같이 커진다 · 개수 효과(관통 +1)는 그대로
+  const dm = S.cardPool(g).find((c) => c.id === 'dmg');
+  assert.equal(dm.desc, `모든 멤버 공격력 +${Math.round(27 * D.GROW.card)}%`);
+  assert.equal(S.bigDesc('관통 멤버 공격력 +40% · 투사체 관통 +1', 1.5), '관통 멤버 공격력 +60% · 투사체 관통 +1');
+});
+
+test('주력 · 큰 카드는 모드마다: 스테이지 · 헬은 둘 다 · 주간 도전은 주력만 · 무한 · 대전 · 레이드 · 탑은 그대로', () => {
+  const deck = ['staff', 'bangjang', 'gunman', 'gunnyeo', null, null];
+  const hell = S.createGame({ rng: seeded(1), mode: 'stage', stage: 14, hell: true, deck });
+  assert.ok(hell.mainOn && hell.grow);
+  const end = S.createGame({ rng: seeded(1), mode: 'endless', deck });
+  assert.ok(!end.mainOn && !end.grow);
+  assert.equal(S.cardPool(end).find((c) => c.id === 'dmg').desc, '모든 멤버 공격력 +27%', '무한은 카드 그대로');
+  const pvp = S.createGame({ rng: seeded(1), mode: 'stage', stage: 14, pvp: { seed: 5, hp: 1 }, deck, join: true, tempo: true });
+  assert.ok(!pvp.mainOn && !pvp.grow, '대전은 두 사람 같은 규칙 그대로');
+  assert.equal(pvp.need, S.expNeedFor(Object.assign({}, pvp, { grow: false }), 1, true));
+  // 주력이 꺼진 모드: 셋 넘게 Lv5 까지
+  for (const id of ['staff', 'bangjang', 'gunman']) { const h = end.heroes.find((x) => x.id === id); h.lv = 3; assert.ok(S.canGrow(end, h)); }
+  for (const id of ['staff', 'bangjang', 'gunman']) S.applyCard(end, { kind: 'heroLv', hero: id, key: 'lv:' + id });
+  assert.equal(end.heroes.filter((h) => h.lv === 5).length, 3);
+  assert.equal(S.mainCount(end), 0);
 });
 
 test('멤버 티어: 늦게 만나는 멤버는 기본이 세고(강화 0: T4 ≈ T1 × 1.6), 초반 멤버는 성장형 (강화 20: T1 ≈ T4 × 0.85)', () => {
@@ -2187,7 +2254,8 @@ test('스테이지 조건: 앞쪽 스테이지는 없음 · 중후반 1~3개 · 
   }
   // 조건마다 맞는 멤버가 2명 이상 (기본 멤버로도 대응 가능하게)
   for (const k of D.COND_IDS) assert.ok(D.COND[k].counter.filter((id) => D.HEROES[id]).length >= 2, k);
-  assert.deepEqual(D.condFits('gunnyeo', ['cc', 'rush']), ['cc', 'rush']);
+  assert.deepEqual(D.condFits('gunnyeo', ['cc', 'rush']), ['cc'], '건전녀는 멤버 간호 (입구 돌격은 홍정민 · 탱커)');
+  assert.deepEqual(D.condFits('jungmin', ['cc', 'rush']), ['rush']);
 });
 
 test('강화 권장 상한: 장 권장을 넘는 만큼은 절반 · 대전/무한은 그대로', () => {
@@ -2244,17 +2312,17 @@ test('기절 예고: 기를 모은 뒤 제일 센 멤버에게 · 건전녀가 �
 });
 
 test('팀 기여: 수리 · 막은 피해 · 버프로 늘린 피해를 멤버별로 센다', () => {
-  const g = S.createGame({ rng: seeded(9), mode: 'stage', stage: 45, noWaves: true, heroes: ['bangjang', 'gunnyeo', 'wonsik', 'gunman'] });
+  const g = S.createGame({ rng: seeded(9), mode: 'stage', stage: 45, noWaves: true, heroes: ['bangjang', 'jungmin', 'wonsik', 'gunman'] });
   g.phase = 'wave';
   g.base.hp = g.base.max * 0.5;
   const e = still(g, 'thug', g.heroes.find((h) => h.id === 'wonsik').x, 300);
   S.damageBase(g, 50, e);
   run(g, 6);
   const T = g.stats.teamBy;
-  assert.ok(T.gunnyeo && T.gunnyeo.repair > 0, '건전녀 수리');
+  assert.ok(T.jungmin && T.jungmin.repair > 0, '홍정민 수리');
   assert.ok(T.wonsik && T.wonsik.prevent > 0, '정원식 막음');
   assert.ok(T.bangjang && T.bangjang.buff > 0, '방장 오라 → 버프 피해');
-  assert.ok(g.stats.team.repair >= T.gunnyeo.repair);
+  assert.ok(g.stats.team.repair >= T.jungmin.repair);
 });
 
 test('상성: 강함 1.6 · 약함 0.7 (2.0/0.45 에서 줄임)', () => {
@@ -2350,4 +2418,69 @@ test('여지원 모자이크 폭격: 0.6초 뒤 자기 줄 → 양옆 줄 차례
   es[0].armor = 50; es[0].brkT = 0; const noM = S.damageEnemy(g, es[0], 100, false, null, false);
   es[0].brkT = 5; es[0].brkDmg = 0; const withM = S.damageEnemy(g, es[0], 100, false, null, false);
   assert.ok(Math.abs(noM - 50) < 1e-6 && Math.abs(withM - 70) < 1e-6, `방어 50 → 30 (${noM} → ${withM})`);
+});
+
+test('역할 정리: 건전녀 = 멤버 간호 · 응급 방패 (입구 수리 없음) · 홍정민 = 입구 수리 전담', () => {
+  let g = bare(['gunnyeo', 'gunman']);
+  g.phase = 'wave'; g.spawnQ = [{ type: 'yeokko', at: 999 }];
+  g.base.hp = g.base.max * 0.5;
+  const gn = g.heroes.find((h) => h.id === 'gunnyeo'), gm = g.heroes.find((h) => h.id === 'gunman');
+  gm.stunT = 5; gm.tiredT = 6; gn.healT = 0.01;
+  run(g, 0.1);
+  assert.ok(gm.stunT <= 0 && gm.ccImmT > 0, '간호: 기절 풀고 잠깐 면역');
+  assert.ok(gm.tiredT < 6 - 1, '간호: 기진맥진 빨리 일으키기');
+  run(g, 6);
+  assert.ok(g.base.hp <= g.base.max * 0.5 + 1e-6, '건전녀는 입구를 안 고친다');
+  gm.ccImmT = 0; gm.charmT = 3; gm.skillCd = 10; gn.skillCd = 0;
+  assert.ok(S.castSkill(g, gn), '응급 방패');
+  assert.ok(gm.charmT <= 0 && gm.ccImmT >= D.HEROES.gunnyeo.skill.imm[0] - 1e-6 && gm.heartT > 0, '해제 · 면역 · 하트 방패');
+  assert.ok(Math.abs(gm.skillCd - (10 - D.HEROES.gunnyeo.skill.cdCut)) < 1e-6, '다른 멤버 스킬 쿨 −2초');
+  assert.ok(!(g.doorShield > 0), '입구 방패는 이제 없다');
+  assert.equal(S.debuffSec(gm, 3), 0, '면역 중엔 안 걸린다');
+  g = bare(['jungmin']);
+  g.phase = 'wave'; g.spawnQ = [{ type: 'yeokko', at: 999 }];
+  g.base.hp = g.base.max * 0.5;
+  run(g, 3.2);
+  assert.ok(g.base.hp > g.base.max * 0.53, '홍정민 붕대 수리');
+});
+
+test('겹침 정리: 김도훈 떼창(입구 덜 침) · 문동한 과자(간보기 +) · 박상화 꽃다발(자란 만큼) · 송바울 응원봉 부메랑 · 팬클럽 함성', () => {
+  // 김도훈: 감속 대신 떼창 — 맞은 진상은 2초 동안 입구를 25% 덜 세게
+  let g = bare(['dohoon']);
+  const e = still(g, 'thug', g.heroes[0].x, g.rowY - 120, 100);
+  S.fire(g, g.heroes[0], e);
+  assert.ok(e.grooveT > 0 && !(e.slowT > 0), '떼창 · 감속 없음');
+  let hp0 = g.base.hp; S.damageBase(g, 100, e); const cut = hp0 - g.base.hp;
+  const e2 = still(g, 'thug', 330, 120);
+  hp0 = g.base.hp; S.damageBase(g, 100, e2); const full = hp0 - g.base.hp;
+  assert.ok(Math.abs(cut / full - (1 - D.HEROES.dohoon.groove.cut)) < 0.01, `입구 피해 ${cut.toFixed(1)} / ${full.toFixed(1)}`);
+  // 문동한: 과자가 맞으면 간보기 게이지 + (감속 없음)
+  g = bare(['donghan']);
+  const dh = g.heroes[0], t = still(g, 'thug', dh.x, g.rowY - 120, 100);
+  dh.meter = 10; S.fire(g, dh, t); run(g, 1.5);
+  assert.ok(dh.meter >= 10 + D.HEROES.donghan.snackMeter - 1e-6 && !(t.slowT > 0), `과자 게이지 ${dh.meter}`);
+  // 박상화: 꽃다발 — 성장한 만큼 더 아프다 · 팀 공격력 버프 없음
+  const bouquet = (grow) => { const q = bare(['sanghwa']); q.mods.crit = 0; const sh = q.heroes[0]; sh.grow = grow; const b = still(q, 'thug', 180, q.rowY - 200, 1000); sh.skillCd = 0; S.castSkill(q, sh); assert.ok(!(q.hcSkT > 0), '팀 버프 없음'); return { d: b.maxHp - b.hp, grow: sh.grow }; };
+  const b0 = bouquet(0), b4 = bouquet(0.4);
+  assert.ok(b4.d > b0.d * 1.9, `자란 만큼 세다 ${b0.d.toFixed(0)} → ${b4.d.toFixed(0)}`);
+  assert.ok(Math.abs(b0.grow - D.HEROES.sanghwa.skill.grow) < 1e-6, '성장 +12%');
+  // 송바울: 응원봉 — 가는 길 관통 · 돌아오며 한 번 더 (70%)
+  g = bare(['baul']);
+  g.mods.crit = 0;
+  const bh = g.heroes[0], near = still(g, 'thug', bh.x, g.rowY - 120, 1000), far = still(g, 'thug', bh.x, g.rowY - 220, 1000);
+  S.fire(g, bh, near);
+  assert.ok(g.projs.some((p) => p.type === 'glow' && p.boomerang), '응원봉');
+  run(g, 4);
+  assert.ok(far.hp < far.maxHp, '관통');
+  const one = S.heroDamage(g, bh), got = near.maxHp - near.hp;
+  assert.ok(got > one * 1.5, `돌아오며 한 번 더 (${got.toFixed(0)} / ${one.toFixed(0)})`);
+  const r0 = S.heroRate(g, bh);
+  bh.skillCd = 0; assert.ok(S.castSkill(g, bh), '썰매');
+  assert.ok(bh.fanT > 0 && S.heroRate(g, bh) > r0 * 1.5, '팬클럽 함성: 공속 +60%');
+  // 이호찬 막차 대행진 하향: 기절 0.8초 · 모든 멤버 공격력 +20% (Lv1)
+  g = bare(['hochan', 'gunman']);
+  still(g, 'thug', 180, g.rowY - 200, 100);
+  const hc = g.heroes.find((h) => h.id === 'hochan'); hc.skillCd = 0;
+  assert.ok(S.castSkill(g, hc), '막차 대행진');
+  assert.ok(Math.abs(g.hcSkAtk - 0.2) < 1e-9 && g.buses.every((b) => Math.abs(b.stun - 0.8) < 1e-9), `공격력 +${g.hcSkAtk} · 기절 ${g.buses[0].stun}`);
 });
