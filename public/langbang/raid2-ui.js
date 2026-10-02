@@ -54,9 +54,9 @@ const realArt = (k) => artOk(k) && st.art[k].real;
 
 // ─── 몸통 · 어깨 (그림 규격: 보고서 참고) ───
 // 몸통 그림 1024×1024 · 아래 가운데가 기준점 · 어깨 = 몸통 그림 안 비율 위치 (x 0~1 왼→오, y 0~1 위→아래)
-export const SHOULDER = { mega: [0.30, 0.62], bill: [0.70, 0.62], bottle: [0.24, 0.52], golf: [0.76, 0.52], contract: [0.27, 0.42], keys: [0.73, 0.42], bag: [0.33, 0.33], phone: [0.67, 0.33] };
+export const SHOULDER = { mega: [0.09, 0.48], bill: [0.91, 0.48], bottle: [0.14, 0.56], golf: [0.86, 0.56], contract: [0.21, 0.35], keys: [0.79, 0.35], bag: [0.12, 0.41], phone: [0.88, 0.41] }; // 실제 몸통 그림의 소매 끝 · 옆구리에 맞춤
 // 팔 그림 256×640 · 어깨 관절(회전 중심) = (128, 56) · 손(물건) 가운데 = (128, 560)
-export const ARM_IMG = { w: 256, h: 640, px: 128, py: 56, hy: 560 };
+export const ARM_IMG = { w: 320, h: 640, px: 160, py: 56, hy: 520 };
 const BODY_W = 330;
 const bodyBox = (g) => ({ cx: g.W / 2, bottom: g.rowY - 140, w: BODY_W, h: BODY_W });
 function shoulderAt(g, id, t) {
