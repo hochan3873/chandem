@@ -225,6 +225,24 @@ export const sfx = {
   },
   // 떼거리 웨이브: 낮은 우르르
   rumble() { if (ok('rumble', 1)) { noise(1.1, 0.22, 220, 0.4, 0, 'lowpass'); tone(48, 1.0, 'sine', 0.28, 36); tone(62, 0.8, 'sawtooth', 0.04, 44, 0.1); } },
+  // 뽑기 카드: 깔기(착) · 뒤집기(등급 r 0~5 · 높을수록 밝고 길게 · 보라부터 아르페지오) · 모으기(낮게 웅— 올라감) · 터짐(쿵 + 팡파레 + 반짝 꼬리)
+  gDeal() { if (ok('gdeal', 0.035)) { noise(0.05, 0.06, 3400, 1.2); tone(480 + Math.random() * 90, 0.04, 'triangle', 0.035, 340); } },
+  gFlip(r = 0) {
+    if (!ok('gflip', 0.05)) return;
+    const b = [587, 659, 784, 880, 1046, 1175][r] || 587;
+    noise(0.08, 0.06, 2800, 0.9);
+    tone(b, 0.1 + r * 0.03, 'triangle', 0.06, b * 1.5);
+    if (r >= 1) tone(b * 1.5, 0.14 + r * 0.04, 'sine', 0.045, 0, 0.05);
+    if (r >= 3) [1, 1.26, 1.5, 2].forEach((k, i) => tone(b * k, 0.16, 'square', 0.03, 0, 0.08 + i * 0.06));
+  },
+  gCharge(dur = 1) { if (!ok('gcharge', 0.3)) return; noise(dur, 0.07, 700, 0.5); tone(120, dur, 'sawtooth', 0.035, 560); tone(65, dur, 'sine', 0.14, 110); },
+  gBoom(r = 4) {
+    if (!ok('gboom', 0.3)) return;
+    noise(0.7, 0.3, 240, 0.5, 0, 'lowpass'); tone(55, 0.6, 'sine', 0.3, 32);
+    const notes = r >= 5 ? [784, 988, 1175, 1568, 1976] : [659, 880, 1046, 1318];
+    notes.forEach((f, i) => { tone(f, 0.32, 'square', 0.05, 0, 0.06 + i * 0.075); tone(f * 2, 0.26, 'sine', 0.03, 0, 0.09 + i * 0.075); });
+    for (let i = 0; i < 6; i++) tone(2400 + Math.random() * 1600, 0.06, 'sine', 0.025, 0, 0.45 + i * 0.07); // 반짝 꼬리
+  },
   // "와 떴다!" 등장 스팅어: 올라가는 휘릭 + 번쩍 + 팡파레 (LEGEND 는 더 길고 낮은 울림)
   reveal(kind) {
     if (!ok('reveal', 1)) return;

@@ -2787,10 +2787,11 @@ async function doSigExchange(h) {
   const yes = await confirmBox({ title: `${HEROES[h].name} 전용 신화로 바꿀까요?`, sub: `${GEAR[t].name} · 신화 조각 ${SIG_PITY}개를 써요`, ok: '바꾸기', cancel: '취소' });
   if (!yes) return;
   closeInfoCard();
+  const dex0 = gearDex0();
   const r = await liveAct(API.sigExchange(h, app.guest));
   if (!r) return;
   await gachaVideo('gear', 'gold');
-  await gachaShow(r.results || []);
+  await gachaShow(markGearNew(r.results || [], dex0));
   refresh();
 }
 // 확률 정보: 등급별 막대 · 큰 숫자 · 천장 진행 · 멤버 이름은 숨기고 "N명 · 각 x%"
@@ -2824,9 +2825,10 @@ function showRates() {
 async function doGearPull(n) {
   const p = P(), cost = n === 10 ? L.GEAR_GACHA_COST.ten : L.GEAR_GACHA_COST.one;
   if ((p.stones | 0) < cost) { toast(`강화석이 부족해요 (${cost} 필요)`); return; }
+  const dex0 = gearDex0();
   const r = await liveAct(API.gearGacha(n, app.guest));
   if (!r) return;
-  const list = r.results || [];
+  const list = markGearNew(r.results || [], dex0);
   const best = list.some((x) => x.k === 'mythGear' || x.k === 'sigGear') ? 'gold' : list.some((x) => x.k === 'legendGear') ? 'purple' : 'blue';
   await gachaVideo('gear', best);
   await gachaShow(list);
@@ -2844,7 +2846,8 @@ function showGearRates() {
     <details class="rt-sec" open><summary>등급</summary>${rs.map(row).join('')}</details>
     <p class="rt-foot">표시 확률은 1회 기준 · 같은 등급 안에서는 모두 같은 확률 · 천장 횟수와 신화 조각은 서버에 저장돼요 · 전용 신화가 겹치면 신화 조각 ${SIG_DUP_SHARDS}개로</p>`, 'rates-pop rt-v2');
 }
-// 뽑기 연출 영상: 가장 좋은 등급 색 (금 · 보라 · 파랑) · 금은 보라로 시작해서 3초에 금으로 · 보라는 파랑으로 시작 · 1초 뒤 건너뛰기
+// 뽑기 연출 영상 (VIP 문 · 상자): 가장 좋은 등급 색 (금 · 보라 · 파랑) · 금은 보라로 시작해서 3초에 금으로 · 보라는 파랑으로 시작
+//   화면 아무 데나 누르면 (가운데든 어디든) 바로 열림 — 건너뛰기 버튼은 보이게만 · 누른 탭은 아래 화면으로 새지 않음
 const GV_BLOB = {};
 async function gvUrl(src) { if (GV_BLOB[src]) return GV_BLOB[src]; try { const r = await fetch(src); if (!r.ok) throw 0; GV_BLOB[src] = URL.createObjectURL(await r.blob()); } catch { GV_BLOB[src] = src; } return GV_BLOB[src]; }
 function gachaVideo(kind, best) {
@@ -2852,16 +2855,17 @@ function gachaVideo(kind, best) {
     const still = document.body.classList.contains('rm') || (navigator.connection && navigator.connection.saveData);
     const d = document.createElement('div');
     d.className = 'gv-wrap ' + best;
-    if (still) { d.innerHTML = '<i class="gv-flash"></i>'; stage.appendChild(d); A.sfx.levelUp(); setTimeout(() => { d.remove(); resolve(); }, 1000); return; }
+    if (still) { d.innerHTML = '<i class="gv-flash"></i>'; stage.appendChild(d); A.sfx.levelUp(); let gone = false; const go = () => { if (gone) return; gone = true; d.remove(); resolve(); }; d.addEventListener('click', (ev) => { ev.stopPropagation(); go(); }); setTimeout(go, 1000); return; }
     const tease = best === 'gold' ? 'purple' : best === 'purple' ? 'blue' : null;
     const src = (c) => `/img/lb/fx/gacha_${kind}_${c}.mp4`;
-    d.innerHTML = `<video class="gv v0" muted playsinline preload="auto" poster="/img/lb/fx/gacha_${kind}_poster.jpg"></video><video class="gv v1" muted playsinline preload="auto"></video><button class="gv-skip" hidden>건너뛰기</button>`;
+    d.innerHTML = `<video class="gv v0" muted playsinline preload="auto" poster="/img/lb/fx/gacha_${kind}_poster.jpg"></video><video class="gv v1" muted playsinline preload="auto"></video><button class="gv-skip">건너뛰기</button><p class="gv-tap">화면을 누르면 바로 열려요</p>`;
     stage.appendChild(d);
     const [v0, v1] = d.querySelectorAll('video');
     let done = false;
     const end = () => { if (done) return; done = true; d.classList.add('flash'); A.sfx.reward(); setTimeout(() => { d.remove(); resolve(); }, 260); };
-    d.querySelector('.gv-skip').addEventListener('click', (ev) => { ev.stopPropagation(); end(); });
-    setTimeout(() => { const s = d.querySelector('.gv-skip'); if (s) s.hidden = false; }, 1000);
+    // 누르는 순간(pointerdown) 바로 연다 · 뒤따르는 click 은 덮개가 받아 버린다 (덮개는 0.26초 더 남음)
+    d.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); end(); });
+    d.addEventListener('click', (ev) => { ev.stopPropagation(); end(); });
     const [u0, u1] = await Promise.all([gvUrl(src(tease || best)), tease ? gvUrl(src(best)) : Promise.resolve(null)]);
     if (done) return;
     v0.src = u0; if (u1) v1.src = u1;
@@ -2880,90 +2884,135 @@ async function doPull(n) {
   const cost = n === 10 ? L.GACHA_COST.ten : L.GACHA_COST.one;
   if (pay === 'coin' && L.gachaCoinLeft(p) < n) { toast(`오늘 코인 모집은 ${L.gachaCoinLeft(p)}번 남았어요 (하루 ${L.GACHA_COIN_DAILY}번 · 모집권은 제한 없음)`); return; }
   if (pay === 'coin' && p.coins < cost) { toast(`코인이 부족해요 (${fmt(cost)} 필요) · 모집권은 미션·시즌·출석에서!`); return; }
+  const dex0 = gearDex0();
   const r = await liveAct(API.gacha(n, pay, app.guest));
   if (!r) return;
-  const list = r.results || [];
+  const list = markGearNew(r.results || [], dex0);
   const best = list.some((x) => x.k === 'legendHero' || x.k === 'epicHero' || x.k === 'mythGear' || x.k === 'sigGear') ? 'gold' : list.some((x) => x.k === 't3Card' || x.k === 'legendGear' || x.k === 'epicGear') ? 'purple' : 'blue';
   await gachaVideo('hero', best);
   await gachaShow(list);
   refresh();
 }
-// 모집·장비 결과: 뒷면이 먼저 등급 색으로 빛나고 (살짝 예고) → 탭하면 한 장씩 · "모두 열기"
-//   보통·희귀: 휙 + 반짝 한 줄 · 영웅(보라): 들렸다가 보라 고리 + 흔들 · 전설(금): 어두워지고 금빛 기둥 · 천천히 돌며 빛살 + 꽃가루
-//   신화·LEGEND 멤버: 전설 + 무지개 빛 + 화면 흔들 + 큰 그림 1.5초 (이름표) — 좋은 카드는 "모두 열기"에도 맨 끝에 제 연출 그대로
-const GC_TIER = { sigGear: 'my', legendHero: 'my', mythGear: 'my', epicHero: 'lg', legendGear: 'lg', t3Card: 'ep', epicGear: 'ep', rareGear: 'ra', t2Card: 'ra', shard10: 'co', shard4: 'co' };
-const GC_RANK = { co: 0, ra: 1, ep: 2, lg: 3, my: 4 };
-function gcSfx(t) { try { ({ co: () => A.sfx.card(), ra: () => A.sfx.confirm(), ep: () => A.sfx.levelUp(), lg: () => { A.sfx.win(); A.sfx.slam(); }, my: () => { A.sfx.ult(); setTimeout(() => A.sfx.win(), 300); } })[t](); } catch { /* 무시 */ } }
-function gachaShow(list) {
+// ─── 모집·장비 결과 (v4): 카드가 덱에서 한 장씩 날아와 깔리고 → 뒷면이 등급 색으로 살짝 예고 → 탭하면 다음 카드 · "모두 열기"
+//   색 = 도감 등급(GRADE) 그대로: 회색 < 초록 < 파랑 < 보라 < 금 · 특별: 신화 무지개 · 전용 신화 분홍 · LEGEND 금
+//   단계(rank) 0~2: 휙 뒤집고 반짝 + 가루 조금 · 3(보라): 들렸다가 고리 + 가루 · 흔들
+//   4(금 · 전설): 화면이 어두워지고 카드가 가운데로 불려 나와 빛이 모임 → 번쩍 · 쾅 · 빛살 · 꽃가루
+//   5(신화 · 전용 신화 · LEGEND): 4 + 모이던 빛이 한 번 더 색이 바뀌는 "승급" 예고 → 전체 화면 큰 그림
+//   탭: 연출 중이면 지금 단계를 바로 끝냄(그 뒤로도 빠르게) · 쉬는 중이면 다음 카드 · 버튼 밖 탭은 아래 화면으로 새지 않음
+const GC_GRADE = { shard4: 'common', shard10: 't2', t2Card: 't2', t3Card: 't3', rareGear: 'rare', epicGear: 'epic', epicHero: 't4', legendGear: 'legend', mythGear: 'myth', sigGear: 'sig', legendHero: 't5' };
+const GC_RANK = { common: 0, t1: 0, t2: 1, rare: 2, t3: 2, epic: 3, t4: 3, legend: 4, myth: 5, sig: 5, t5: 5 };
+const gcGrade = (x) => GC_GRADE[x.k] || (x.gear ? x.gear.r : 'common');
+const gcRank = (x) => (x.k === 'sigGear' && !x.gear ? 3 : GC_RANK[gcGrade(x)] | 0); // 전용 신화 겹침(조각) 은 보라 단계
+const GC_CF = { myth: ['#ff5f6d', '#ffc371', '#7bff9a', '#5fd4ff', '#b77bff'], sig: ['#ff4fd8', '#ff9bea', '#a06bff', '#fff'], t5: ['#ffd23f', '#fff3b0', '#ff9a2a', '#fff'] };
+const gcCols = (g) => GC_CF[g] || (g === 'legend' ? GC_CF.t5 : [GRADE[g][1], '#fff', GRADE[g][1]]);
+// 장비 NEW: 뽑기 전 장비 도감에 없던 종류 (첫 장만) — 호출 쪽에서 뽑기 전 도감을 넘긴다
+function gearDex0() { const p = P(); return new Set([...(p.gearDex || []), ...(p.gear || []).map((it) => it && it.t)]); }
+function markGearNew(list, dex0) { const seen = new Set(); for (const x of list) if (x.gear && !x.gear.sold && !dex0.has(x.gear.t) && !seen.has(x.gear.t)) { seen.add(x.gear.t); x.gnew = true; } return list; }
+function gachaShow(list, o = {}) {
   return new Promise((resolve) => {
     const m = document.createElement('div');
-    const rm = document.body.classList.contains('rm');
-    m.className = 'gacha-res v3' + (rm ? ' still' : '');
-    const tierOf = (x) => GC_TIER[x.k] || (x.gear ? ({ myth: 'my', legend: 'lg', epic: 'ep', rare: 'ra' })[x.gear.r] || 'co' : 'co');
-    // 좋은 카드는 맨 뒤로 (등급 낮은 것부터)
-    if (list.length > 1) list.sort((a, b) => GC_RANK[tierOf(a)] - GC_RANK[tierOf(b)]);
-    const rar = (x) => (x.k === 'legendHero' ? 'lg' : x.k === 'epicHero' ? 'ep' : x.k === 't3Card' ? 'rgear' : x.k === 'mythGear' || x.k === 'sigGear' ? 'lg' : x.k === 'legendGear' ? 'lgear' : x.k === 'epicGear' ? 'egear' : x.k === 'rareGear' ? 'rgear' : 'sh');
-    m.innerHTML = `<div class="gr-dim"></div><div class="gr-grid n${list.length}">${list.map((x, i) => { const t = tierOf(x); return `<div class="gcard ${rar(x)} t-${t} ${x.k === 'sigGear' ? 'sig' : ''}" data-i="${i}" style="--i:${i}"><i class="gc-rays"></i><i class="gc-pillar"></i><div class="gc-in"><div class="gc-back"><img class="gc-bk" src="/img/lb/ui2/${t === 'my' ? 'prism' : 'star_gold'}.webp" alt="" draggable="false"></div><div class="gc-front">${gachaFace(x)}${x.new ? '<img class="gc-newb" src="/img/lb/ui2/badge_new.webp" alt="NEW">' : ''}</div></div><i class="gc-shine"></i></div>`; }).join('')}</div>
-      <div class="gr-btns"><button class="btn gr-all">모두 열기</button><button class="btn primary gr-ok" hidden>확인</button></div><p class="gr-skip">카드를 눌러 한 장씩 열어요</p><div class="gr-zoom" hidden></div>`;
+    const rm = document.body.classList.contains('rm'), low = document.body.classList.contains('tr-low');
+    const PCAP = low ? 0.5 : 1; // 느린 기기: 가루 반
+    m.className = 'gacha-res v4' + (rm ? ' still' : '') + (low ? ' low' : '');
+    if (list.length > 1) list.sort((a, b) => gcRank(a) - gcRank(b)); // 좋은 카드는 맨 뒤로
+    const rows = list.length === 10 ? [3, 4, 3] : list.length > 5 ? [Math.ceil(list.length / 2), Math.floor(list.length / 2)] : [list.length];
+    let k0 = 0;
+    const cardHtml = (x, i) => { const g = gcGrade(x), r = gcRank(x); return `<div class="gcard g-${g} r${r} ${x.k === 'sigGear' ? 'sig' : ''} ${x.gear && !x.gear.sold ? 'gear' : ''}" data-i="${i}" style="--i:${i};--gc:${GRADE[g][1]}"><i class="gc-rays"></i><div class="gc-in"><div class="gc-back"><i class="gc-bglow"></i></div><div class="gc-front">${gachaFace(x)}<i class="gc-grd">${x.k === 'sigGear' && x.gear && GEAR[x.gear.t] ? esc(HEROES[GEAR[x.gear.t].hero].name) + ' 전용' : GRADE[g][0]}</i></div></div><i class="gc-shine"></i>${x.new || x.gnew ? '<i class="gc-stamp">NEW</i>' : ''}</div>`; };
+    const grid = rows.map((n) => { const h = list.slice(k0, k0 + n).map((x, j) => cardHtml(x, k0 + j)).join(''); k0 += n; return `<div class="gr-row">${h}</div>`; }).join('');
+    m.innerHTML = `<i class="gr-bg"></i><i class="gr-dim"></i><div class="gr-head"><b>${o.title || (list.some((x) => x.gear) && !list.some((x) => x.card) ? '장비 뽑기' : '모집')} 결과</b><small>${list.length}장</small></div>
+      <div class="gr-grid n${list.length}">${grid}</div>
+      <div class="gr-btns" hidden><button class="btn gr-all">모두 열기</button><button class="btn primary gr-ok" hidden>확인</button></div><p class="gr-skip">${list.length > 1 ? '화면을 누르면 다음 카드 · 연출 중에 누르면 빨리' : '화면을 누르면 열려요'}</p><div class="gr-zoom" hidden></div><i class="gr-flash"></i>`;
     stage.appendChild(m);
     const cards = [...m.querySelectorAll('.gcard')];
-    let done = false, busy = false, opened = 0;
-    const finish = () => { if (done) return; done = true; m.remove(); resolve(); };
-    const shake = (px) => { if (rm) return; m.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${px}px,${-px / 2}px)` }, { transform: `translate(${-px}px,${px / 2}px)` }, { transform: 'translate(0,0)' }], { duration: 280 }); };
-    const confetti = (c, n, cols) => { if (rm) return; const r0 = c.getBoundingClientRect(), mr = m.getBoundingClientRect(); for (let k = 0; k < n; k++) { const s = document.createElement('i'); s.className = 'gr-cf'; s.style.left = (r0.left - mr.left + r0.width / 2) + 'px'; s.style.top = (r0.top - mr.top + r0.height / 2) + 'px'; s.style.background = cols[k % cols.length]; s.style.setProperty('--dx', ((Math.random() - 0.5) * 320).toFixed(0) + 'px'); s.style.setProperty('--dy', (-80 - Math.random() * 260).toFixed(0) + 'px'); s.style.setProperty('--r', ((Math.random() - 0.5) * 900).toFixed(0) + 'deg'); m.appendChild(s); setTimeout(() => s.remove(), 1500); } };
-    const shardFlow = (c) => { if (rm) return; const r0 = c.getBoundingClientRect(), mr = m.getBoundingClientRect(); for (let k = 0; k < 7; k++) { const s = document.createElement('i'); s.className = 'gr-sh'; s.style.left = (r0.left - mr.left + r0.width / 2) + 'px'; s.style.top = (r0.top - mr.top + r0.height * 0.7) + 'px'; s.style.setProperty('--dx', ((Math.random() - 0.5) * 60).toFixed(0) + 'px'); s.style.animationDelay = (k * 50) + 'ms'; m.appendChild(s); setTimeout(() => s.remove(), 1200); } };
-    const zoom = (x, t) => new Promise((ok) => { // 큰 그림 1.5초 (신화 · LEGEND)
-      const z = m.querySelector('.gr-zoom');
-      if (x.k === 'sigGear' && x.gear && GEAR[x.gear.t]) { // 전용 신화: 큰 "신화 획득!" — 장비 그림 + 주인 멤버 + 새 효과
-        const g = GEAR[x.gear.t], hd = HEROES[g.hero];
-        z.innerHTML = `<i class="grz-prism"></i><i class="grz-sig"></i><img class="grz-art sig" src="${hqSrc(g.hero) || hd.img}" alt=""><span class="grz-gear sig">${gearIco(x.gear)}</span><div class="grz-plate sig"><em>신화 획득!</em><b>${esc(g.name)}</b><small>${esc(hd.name)} 전용 · ${esc(g.desc)}</small></div>`;
-        z.hidden = false; z.className = 'gr-zoom on sig'; fx.flash('#ff4fd8', 0.5);
-        setTimeout(() => { z.className = 'gr-zoom out sig'; setTimeout(() => { z.hidden = true; ok(); }, 300); }, rm ? 1400 : 2800);
-        return;
+    let done = false, busy = false, dealing = true, fast = false, opened = 0, skipNow = null;
+    // 기다리기: 탭하면 바로 끝 (fast 면 아주 짧게)
+    const wait = (ms) => new Promise((ok) => { const fin = () => { clearTimeout(t); if (skipNow === fin) skipNow = null; ok(); }; const t = setTimeout(fin, rm ? Math.min(ms, 120) : fast ? Math.min(ms, 90) : ms); skipNow = fin; });
+    const finish = () => { if (done) return; done = true; m.classList.add('out'); setTimeout(() => { m.remove(); resolve(); }, 200); };
+    const shake = (px) => { if (rm) return; m.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${px}px,${-px / 2}px)` }, { transform: `translate(${-px}px,${px / 3}px)` }, { transform: `translate(${px / 2}px,${px / 2}px)` }, { transform: 'translate(0,0)' }], { duration: 340, easing: 'ease-out' }); };
+    const flash = (col, a = 0.85) => { if (rm) return; const f = m.querySelector('.gr-flash'); f.style.background = col; f.style.setProperty('--a', a); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); };
+    const ctr = (c) => { const r0 = c.getBoundingClientRect(), mr = m.getBoundingClientRect(), s = mr.width / m.offsetWidth || 1; return [(r0.left - mr.left + r0.width / 2) / s, (r0.top - mr.top + r0.height / 2) / s]; };
+    // 가루: 카드 가운데서 사방으로 (transform · opacity 만) · 개수 상한
+    const burst = (c, n, cols, spread = 1) => { if (rm) return; n = Math.min(28, Math.round(n * PCAP)); const [x0, y0] = ctr(c); for (let k = 0; k < n; k++) { const s = document.createElement('i'); const a = (k / n) * Math.PI * 2 + Math.random() * 0.5, d = (60 + Math.random() * 110) * spread; s.className = 'gr-pt' + (k % 3 === 0 ? ' st' : ''); s.style.cssText = `left:${x0}px;top:${y0}px;--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d - 30).toFixed(0)}px;--c:${cols[k % cols.length]};--t:${(0.7 + Math.random() * 0.5).toFixed(2)}s`; m.appendChild(s); setTimeout(() => s.remove(), 1300); } };
+    // 모이는 빛: 바깥에서 카드 가운데로 빨려 들어감 (전설 이상 예고)
+    const gather = (c, n, cols) => { if (rm) return; n = Math.min(18, Math.round(n * PCAP)); const [x0, y0] = ctr(c); for (let k = 0; k < n; k++) { const s = document.createElement('i'); const a = Math.random() * Math.PI * 2, d = 120 + Math.random() * 90; s.className = 'gr-pt in'; s.style.cssText = `left:${x0}px;top:${y0}px;--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d).toFixed(0)}px;--c:${cols[k % cols.length]};--t:${(0.55 + Math.random() * 0.35).toFixed(2)}s;animation-delay:${(k * 45) % 600}ms`; m.appendChild(s); setTimeout(() => s.remove(), 1300); } };
+    const zoom = (x) => new Promise((ok) => { // 전체 화면 큰 그림 (신화 장비 · 전용 신화) — 탭하면 닫힘
+      const z = m.querySelector('.gr-zoom'), g = gcGrade(x);
+      if (x.k === 'sigGear' && x.gear && GEAR[x.gear.t]) {
+        const gd = GEAR[x.gear.t], hd = HEROES[gd.hero];
+        z.innerHTML = `<i class="grz-prism"></i><i class="grz-sig"></i><img class="grz-art sig" src="${hqSrc(gd.hero) || hd.img}" alt=""><span class="grz-gear sig">${gearIco(x.gear)}</span><div class="grz-plate sig"><em>전용 신화 획득!</em><b>${esc(gd.name)}</b><small>${esc(hd.name)} 전용 · ${esc(gd.desc)}</small></div><p class="grz-tap">탭해서 계속</p>`;
+        z.className = 'gr-zoom on sig';
+      } else {
+        const d = x.hero && HEROES[x.hero];
+        const art = d ? `<img class="grz-art" src="${hqSrc(x.hero) || d.img}" alt="">` : x.gear ? `<span class="grz-gear">${gearIco(x.gear)}</span>` : '';
+        const nm = d ? `${g === 't5' ? 'LEGEND ' : ''}${esc(d.name)}!` : x.gear ? esc(GEAR[x.gear.t].name) : '';
+        z.innerHTML = `<i class="grz-prism"></i>${art}<div class="grz-plate g-${g}"><em>${x.dup ? `★조각 +${x.shards}` : g === 'myth' ? '신화 획득!' : g === 't5' ? 'LEGEND 합류!' : '획득!'}</em><b>${nm}</b><small>${d ? esc(d.role.replace(/^(HIDDEN|LEGEND) · /, '')) : x.gear ? esc(GEAR[x.gear.t].desc || '') : ''}</small></div><p class="grz-tap">탭해서 계속</p>`;
+        z.className = 'gr-zoom on g-' + g;
       }
-      const d = x.hero && HEROES[x.hero];
-      const art = d ? `<img class="grz-art" src="${hqSrc(x.hero) || d.img}" alt="">` : x.gear ? `<span class="grz-gear">${gearIco(x.gear)}</span>` : '';
-      const nm = d ? `${t === 'my' ? 'LEGEND ' : ''}${esc(d.name)}!` : x.gear ? `신화 ${esc(GEAR[x.gear.t].name)}!` : '';
-      z.innerHTML = `<i class="grz-prism"></i>${art}<div class="grz-plate"><b>${nm}</b><small>${d ? esc(d.role.replace(/^(HIDDEN|LEGEND) · /, '')) : '신화 장비'}</small></div>`;
-      z.hidden = false; z.className = 'gr-zoom on';
-      setTimeout(() => { z.className = 'gr-zoom out'; setTimeout(() => { z.hidden = true; ok(); }, 300); }, rm ? 900 : 1500);
+      z.hidden = false;
+      let closed = false; const t0 = performance.now();
+      const close = () => { if (closed) return; closed = true; z.classList.add('out'); setTimeout(() => { z.hidden = true; z.onclick = null; ok(); }, 260); };
+      z.onclick = (ev) => { ev.stopPropagation(); if (performance.now() - t0 > 350) close(); };
+      setTimeout(close, rm ? 1400 : fast ? 1800 : 3200);
     });
-    const flip = async (c, full) => {
+    const flip = async (c) => {
       if (c.classList.contains('flip') || c.dataset.busy) return;
       c.dataset.busy = '1';
-      const x = list[Number(c.dataset.i)], t = tierOf(x);
-      if (!rm && full && (t === 'lg' || t === 'my')) { // 전설·신화: 어두워지고 금빛 기둥 → 천천히 돌며
-        m.classList.add('dim'); c.classList.add('pillar'); A.sfx.heartbeat && A.sfx.heartbeat(); await sleep(650);
-        c.classList.add('slow');
-      } else if (!rm && full && t === 'ep') { c.classList.add('lift'); await sleep(260); }
-      c.classList.add('flip');
-      gcSfx(t);
+      const x = list[Number(c.dataset.i)], g = gcGrade(x), r = gcRank(x), cols = gcCols(g);
+      if (!rm && !fast && r >= 4) { // 전설 이상: 어두워지고 가운데로 불려 나와 빛이 모임
+        const [cx, cy] = ctr(c);
+        c.style.setProperty('--fx', (m.offsetWidth / 2 - cx).toFixed(0) + 'px'); c.style.setProperty('--fy', (m.offsetHeight * 0.44 - cy).toFixed(0) + 'px');
+        m.classList.add('dim'); c.classList.add('focus'); A.sfx.whoosh && A.sfx.whoosh();
+        await wait(420);
+        c.classList.add('charge'); A.sfx.gCharge && A.sfx.gCharge(r >= 5 ? 1.6 : 1);
+        gather(c, 16, r >= 5 ? ['#c77dff', '#ffd23f'] : ['#ffd23f', '#fff3b0']);
+        await wait(r >= 5 ? 800 : 900);
+        if (r >= 5) { c.classList.add('up'); flash('#fff', 0.5); A.sfx.heartbeat && A.sfx.heartbeat(); gather(c, 18, cols); await wait(900); } // 승급 예고: 금 → 무지개·분홍
+      } else if (!rm && !fast && r === 3) { c.classList.add('lift'); A.sfx.gCharge && A.sfx.gCharge(0.4); await wait(300); }
+      c.classList.add('flip'); c.classList.remove('charge');
+      A.sfx.gFlip ? A.sfx.gFlip(r) : A.sfx.card();
       if (!rm) {
-        if (t === 'co' || t === 'ra') c.classList.add('shine');
-        if (t === 'ep') { c.classList.add('burst'); shake(4); confetti(c, 8, ['#c77dff', '#e8c8ff', '#fff']); }
-        if (t === 'lg' || t === 'my') { await sleep(full ? 700 : 250); c.classList.add('rays'); fx.flash('#ffd23f', 0.35); confetti(c, 26, t === 'my' ? ['#ff5f6d', '#ffc371', '#7bff9a', '#5fd4ff', '#b77bff'] : ['#ffd23f', '#fff3b0', '#ff9a2a']); shake(t === 'my' ? 9 : 5); }
+        if (r <= 2) { c.classList.add('shine'); burst(c, 4 + r * 3, cols, 0.55); }
+        if (r === 3) { c.classList.add('ring'); shake(4); burst(c, 14, cols, 0.9); }
+        if (r >= 4) { await wait(c.classList.contains('focus') ? 220 : 60); flash(r >= 5 ? (g === 'sig' ? '#ffd0f4' : '#fff') : '#fff3c4', 0.9); c.classList.add('ring', 'rays'); A.sfx.gBoom && A.sfx.gBoom(r); burst(c, r >= 5 ? 28 : 22, cols, 1.5); shake(r >= 5 ? 10 : 6); if (navigator.vibrate && gwPref('vibrate') && app.touched) { try { navigator.vibrate(r >= 5 ? [40, 30, 120] : [60]); } catch { /* 무시 */ } } }
       }
-      if (x.dup || (!x.new && x.shards)) shardFlow(c);
-      if (x.card && x.new) { await sleep(rm ? 100 : 300); await showJoinReveal(x.hero, LEGEND_HEROES.includes(x.hero) ? 'legend' : t === 'lg' || t === 'my' ? 'epic' : 'new'); }
-      else if (full && t === 'my') await zoom(x, t);
-      m.classList.remove('dim'); c.classList.remove('pillar');
+      if (x.new || x.gnew) setTimeout(() => { c.classList.add('stamped'); A.sfx.pick && A.sfx.pick(); }, rm ? 0 : r >= 4 ? 500 : 260);
+      if (c.classList.contains('focus')) await wait(fast ? 150 : 900);
+      if (x.card && x.new) { await wait(250); await showJoinReveal(x.hero, LEGEND_HEROES.includes(x.hero) ? 'legend' : r >= 4 ? 'epic' : 'new'); }
+      else if (r >= 5) await zoom(x);
+      c.classList.remove('focus'); m.classList.remove('dim');
       opened++;
       delete c.dataset.busy;
-      if (opened >= cards.length) { m.querySelector('.gr-ok').hidden = false; m.querySelector('.gr-all').hidden = true; m.querySelector('.gr-skip').hidden = true; }
+      if (opened >= cards.length) { m.querySelector('.gr-ok').hidden = false; m.querySelector('.gr-all').hidden = true; m.querySelector('.gr-skip').textContent = '확인을 누르면 닫혀요'; m.classList.add('alldone'); }
     };
-    const openAll = async () => { // 낮은 카드는 빠르게 · 영웅 이상은 맨 끝에 한 장씩 제 연출
-      if (busy) return; busy = true;
-      for (const c of cards) { const t = tierOf(list[Number(c.dataset.i)]); if (GC_RANK[t] < 2 && !c.classList.contains('flip')) { flip(c, false); await sleep(70); } }
-      await sleep(250);
-      for (const c of cards) if (!c.classList.contains('flip')) await flip(c, true);
-      busy = false;
+    const next = () => cards.find((c) => !c.classList.contains('flip') && !c.dataset.busy);
+    const openAll = async () => { // 낮은 카드는 촤라락 · 보라 이상은 한 장씩 제 연출
+      if (busy) return; busy = true; m.querySelector('.gr-all').hidden = true;
+      for (const c of cards) if (gcRank(list[Number(c.dataset.i)]) < 3 && !c.classList.contains('flip')) { flip(c); await wait(fast ? 30 : 110); }
+      await wait(260);
+      for (let c = next(); c; c = next()) await flip(c);
+      busy = false; fast = false; m.classList.remove('fast');
     };
+    const openOne = async (c) => { if (busy || !c) return; busy = true; await flip(c); busy = false; fast = false; m.classList.remove('fast'); };
+    // 깔기: 덱(아래 가운데)에서 제자리로 날아옴 · 끝나면 버튼
+    const dealEnd = () => { if (!dealing) return; dealing = false; m.classList.remove('deal'); m.classList.add('dealt'); m.querySelector('.gr-btns').hidden = false; if (list.length === 1) setTimeout(() => openOne(cards[0]), rm ? 100 : 300); };
+    if (rm) dealEnd();
+    else {
+      const W = m.offsetWidth, H = m.offsetHeight;
+      cards.forEach((c, i) => { const [cx, cy] = ctr(c); c.style.setProperty('--dx', (W / 2 - cx).toFixed(0) + 'px'); c.style.setProperty('--dy', (H + 40 - cy).toFixed(0) + 'px'); c.style.setProperty('--rot', ((i % 2 ? 1 : -1) * (8 + (i * 7) % 14)) + 'deg'); setTimeout(() => { if (dealing) A.sfx.gDeal ? A.sfx.gDeal() : A.sfx.card(); }, 120 + i * 85); });
+      m.classList.add('deal');
+      setTimeout(dealEnd, 120 + cards.length * 85 + 560);
+    }
+    // 탭 아무 데나: 깔기 중 → 바로 깔림 · 연출 중 → 지금 단계 끝내고 빠르게 · 쉬는 중 → 다음 카드 (버튼은 각자)
     m.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (done) return;
       if (ev.target.closest('.gr-ok')) { finish(); return; }
+      if (dealing) { m.classList.add('fastdeal'); dealEnd(); return; }
       if (ev.target.closest('.gr-all')) { openAll(); return; }
-      const c = ev.target.closest('.gcard'); if (c && !busy) flip(c, true);
+      if (busy) { fast = true; m.classList.add('fast'); if (skipNow) skipNow(); return; }
+      const c = ev.target.closest('.gcard');
+      openOne(c && !c.classList.contains('flip') ? c : next());
     });
-    if (cards.length === 1) setTimeout(() => flip(cards[0], true), 450); // 1회: 저절로
   });
 }
 function gachaFace(x) {
@@ -6780,7 +6829,8 @@ window.__lb = {
   tower: () => TWUI.show(),
   face: () => DEX_FACE,
   faceC: () => FACE_BOX,
-  gachaShow: (l) => gachaShow(l),
+  gachaShow: (l, o) => gachaShow(l, o),
+  gachaVideo: (k, b) => gachaVideo(k, b),
   R,
   pvpUi: { shift: (sec) => { PVP.t0 -= sec * 1000; }, waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: (seed) => startRun({ mode: 'pvp', force: true, pvpSeed: seed === undefined ? 7 : seed }), end: (r) => pvpEnded(r) },
   get g() { return app.g; },
