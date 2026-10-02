@@ -5219,8 +5219,30 @@ function showResult(victory, quit) {
     time, nickname: app.guest ? '' : app.nickname, chapter: g.mode === 'stage' ? chapterOf(g.stage) : 3,
     heroes: heroes.slice(0, 6).map((h) => ({ id: h.id, img: h.def.img, thumb: HEROES[h.id] ? thumbSrc(h.id) : '', face: DEX_FACE[h.id], name: h.def.name, color: h.def.color, tier: HEROES[h.id] ? heroTier(h.id) : 1 })),
   };
+  if (win && g.stars >= 3) clear3Video();
   if (win || !stageMode || wk || g.raid || g.pvp) saveResult(sum, g);
   else if (stageMode && !app.debugRun) Promise.resolve(API.stageFail(g.stage, app.guest)).then((r) => { if (r && r.ok) { if (r.profile) app.profile = r.profile; if (r.refund) toast(`체력 ${r.refund} 돌려받았어요 (실패하면 절반)`, 1800); } });
+}
+// ★★★ 클리어 축하 영상: 결과 화면 위쪽(별 위)에 한 번 · 소리 없음 · 탭하면 바로 넘김 · 버튼은 안 가림
+//   움직임 줄이기 · 데이터 절약 · 저사양(코어 2개 이하 · 메모리 1GB 이하)이면 안 띄움 · 못 틀면 조용히 빠짐 (별 연출은 그대로)
+function clear3Video() {
+  const nv = navigator, low = (nv.hardwareConcurrency || 4) <= 2 || (nv.deviceMemory || 4) <= 1;
+  if (document.body.classList.contains('rm') || (nv.connection && nv.connection.saveData) || low) return;
+  const scr = ui.firstElementChild;
+  if (!scr || scr.dataset.scr !== 'result') return;
+  const d = document.createElement('div');
+  d.className = 'c3v';
+  d.innerHTML = '<video muted playsinline preload="auto" disablepictureinpicture disableremoteplayback></video><small>탭하면 넘기기</small>';
+  const v = d.firstElementChild;
+  let done = false;
+  const end = () => { if (done) return; done = true; d.classList.remove('on'); setTimeout(() => d.remove(), 380); };
+  d.addEventListener('click', (ev) => { ev.stopPropagation(); end(); });
+  v.addEventListener('playing', () => { if (!done) d.classList.add('on'); }, { once: true });
+  v.addEventListener('ended', end); v.addEventListener('error', end);
+  v.muted = true; v.src = '/img/lb/fx/clear3.mp4';
+  scr.appendChild(d);
+  const p = v.play(); if (p && p.catch) p.catch(end);
+  setTimeout(end, 8000); // 멈춰도 8초면 치움
 }
 // 결과: ★★★ 스테이지 미션 (성공 · 실패 · 센 값)
 function missionHtml(g) {
