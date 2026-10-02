@@ -1,5 +1,6 @@
 // 랑방 대전 — 스킬 전용 연출 (캔버스 코드 그림 · 빛은 더하기 합성 · 바닥 효과는 발밑에 납작하게)
-//  배현경 다이어트 주사 · 문동한 진심 모드 · 오지은 시간 정지 · 홍정민 붕대 대공사 · 박상화 좋은남자
+//  배현경 다이어트 주사 · 요요 · 몸통 박치기 · 문동한 진심 모드 · 오지은 시간 정지 · 홍정민 붕대 대공사 · 붕대 탁 · 박상화 좋은남자 · 강병화 원맨쇼
+//  가벼운 평타 연출(lt): 서명훈 저주 번개 · 저주 딱지 · 홍정민 소주병 휘두름
 //  game.js handleEvents 가 add() 로 시작하고, render.js draw() 가 층마다 draw(layer, g) 를 부른다
 //   ground: 바닥(진상·멤버 아래) · gate: 입구(바리케이드 위 · 문 때리는 진상 아래) · mid: 캐릭터 위 · top: 입자 위 · 글자 아래 · screen: 화면 전체(카메라 없이)
 //  게임 숫자(피해·시간)는 건드리지 않는다 — 그림만. 진상이 많으면(busy) 입자를 줄인다.
@@ -85,14 +86,42 @@ export class SkillFx {
         o.rain.push({ bill, x: 10 + Math.random() * (W - 20), y: -20 - Math.random() * 260, vy: bill ? 110 + Math.random() * 60 : 300 + Math.random() * 140, vx: (Math.random() - 0.5) * (bill ? 50 : 30), sp: (Math.random() * 2 + 4) * (Math.random() < 0.5 ? -1 : 1), ph: Math.random() * TAU, s: bill ? 1 : 0.8 + Math.random() * 0.45, delay: Math.random() * 0.5 });
       }
       for (const q of this.list) if (q.kind === 'goodman') q.done = true;
+    } else if (kind === 'oneman') { // 강병화 원맨쇼
+      for (const q of this.list) if (q.kind === 'oneman') q.done = true;
+      const h = this.heroOf(g, 'byunghwa');
+      o.h = h; o.x = h ? h.x : e.x; o.y = h ? h.y : e.y;
+      o.sec = e.sec || 5; o.atk = Math.round(((HEROES.byunghwa.skill && HEROES.byunghwa.skill.atk) || 0.35) * 100);
+      o.rm = typeof document !== 'undefined' && !!document.body && document.body.classList.contains('rm'); // 연출 줄이기: 막이 닫히지 않고 · 조명이 덜 움직임
+      o.buffed = false;
+      this.hqArt('byunghwa');
+    } else if (kind === 'yoyo') { // 배현경 날씬 → 통통 (요요)
+      const h = this.heroOf(g, 'hyungyeong');
+      o.h = h; o.x = h ? h.x : e.x; o.y = h ? h.y : e.y;
+    } else if (kind === 'hgSlam') { // 배현경 통통 몸통 박치기: 몸 잔상이 날아가 쿵
+      const h = this.heroOf(g, 'hyungyeong');
+      if (!h || this.list.filter((q) => q.kind === 'hgSlam').length > 3) return;
+      o.h = h; o.sx = h.rx || h.x; o.sy = h.y; o.x = e.x; o.y = e.y; o.imp = false;
+    } else if (kind === 'bandSlap') { // 홍정민 평소 수리: 붕대 한 장이 날아가 입구에 탁
+      if (this.list.filter((q) => q.kind === 'bandSlap').length > 3) return;
+      const h = this.heroOf(g, 'jungmin');
+      o.sx = h ? h.rx || h.x : e.x; o.sy = h ? h.y - 34 : g.ropeY + 60;
+      const W = g.W || 360;
+      o.x = Math.max(40, Math.min(W - 40, o.sx + (Math.random() - 0.5) * 120)); o.y = g.ropeY - 34 - Math.random() * 40; o.an = (Math.random() - 0.5) * 1.2; o.v = e.v || 0; o.imp = false;
     }
     this.list.push(o);
+  }
+  // 고화질 전신 그림 (컷인용 · 처음 쓸 때 한 번 받아 둔다 · 없으면 작은 그림)
+  hqArt(id) {
+    const m = this._hq || (this._hq = {});
+    if (!m[id] && typeof Image !== 'undefined') { const im = new Image(); im.src = `/img/lb/dexhq/${id}.webp`; m[id] = im; }
+    return m[id] && imgOk(m[id]) ? m[id] : null;
   }
 
   draw(layer, g) {
     if (!g) return;
-    if (g !== this._ysG) { this.ys = []; this._ysG = g; }
+    if (g !== this._ysG) { this.ys = []; this.lt = []; this._ysG = g; }
     if (layer === 'top' && this.ys && this.ys.length) this.drawYs(g);
+    if (layer === 'top' && this.lt && this.lt.length) this.drawLt(g); // 가벼운 평타 연출 (저주 번개 · 소주병 휘두름)
     if (!this.list.length) return;
     if (g !== this.g) { this.list.length = 0; this.g = g; return; }
     const R = this.R, cx = R.cx, fx = this.fx;
@@ -675,6 +704,303 @@ export class SkillFx {
       cx.globalAlpha = (1 - k) * 0.85; cx.strokeStyle = gr; cx.lineWidth = i % 2 ? 2.5 : 4;
       cx.beginPath(); cx.moveTo(px - dx * back + nx, py - 30 - dy * back + ny); cx.lineTo(px + nx, py - 30 + ny); cx.stroke();
     }
+    cx.restore();
+  }
+
+  // ── 강병화: 원맨쇼 ──────────────────────────
+  //  컷인(기운 분홍 띠 · 고화질 윗몸 · "원맨쇼!!") 뒤로 붉은 막이 닫혔다가 촤악 열림 → 무대 조명:
+  //  바닥만 보라로 어둡게(캐릭터는 밝게 남음) · 색 스포트라이트가 무대를 훑고 · 강병화에게 핀 조명 · 미러볼 반짝이 · 춤추는 진상 머리 위 음표 (춤 동작은 render.js)
+  //  위 휘장 · 양옆 커튼은 원맨쇼 동안 남았다가 끝나면 걷힌다. 컷인 · 막은 화면 시간 · 조명은 게임 시간(g.onemanT · 멈추면 같이 멈춤)
+  omSpot(i, t, W, g) { // 스포트라이트 i 가 비추는 바닥 자리
+    const sp = 0.7 + i * 0.23, ph = i * 2.1;
+    return [W * (0.22 + 0.28 * i) + Math.sin(t * sp + ph) * W * 0.24, 170 + (Math.sin(t * sp * 0.63 + ph * 1.3) * 0.5 + 0.5) * Math.max(60, g.ropeY - 230)];
+  }
+  oneman(layer, o, T, g) {
+    const R = this.R, cx = R.cx, W = R.W, H = R.H, h = o.h && !o.h.gone && g.heroes.includes(o.h) ? o.h : null;
+    const left = g.onemanT || 0;
+    const endK = T < 1.1 ? 1 : c01(left / 0.45); // 끝날 때 0.45초 동안 걷힘
+    if (T >= 1.1 && endK <= 0) { o.done = true; return; }
+    const show = c01((T - 0.62) / 0.35) * endK; // 무대 조명 세기 (막이 열리며 켜짐)
+    const t = o.rm ? 0.3 : g.t, hx = h ? h.rx || h.x : o.x, hy = h ? h.y : o.y;
+    const COL = ['255,90,200', '110,210,255', '255,214,110'], nSpot = o.busy ? 2 : 3;
+    if (layer === 'ground') {
+      if (show <= 0.01) return;
+      cx.save(); cx.globalCompositeOperation = 'multiply'; cx.globalAlpha = 0.6 * show; cx.fillStyle = '#4a2a86'; cx.fillRect(-40, -60, W + 80, H + 120); cx.restore(); // 바닥만 보라로 어둡게
+      for (let i = 0; i < nSpot; i++) { const [px, py] = this.omSpot(i, t, W, g); this.glow(px, py, 70, `rgba(${COL[i]},1)`, 0.6 * show, 0.42); this.flatRing(px, py, 54, 5, `rgba(${COL[i]},1)`, 0.55 * show, 0.42); }
+      this.glow(hx, hy + HERO_FEET, 62, 'rgba(255,240,200,1)', 0.85 * show, 0.4); // 핀 조명 바닥
+      return;
+    }
+    if (layer === 'mid') {
+      if (show <= 0.01) return;
+      cx.save(); cx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < nSpot; i++) { const [px, py] = this.omSpot(i, t, W, g), ox = W * (0.1 + 0.4 * i); this.beam(ox, -40, px, py, 10, 64, COL[i], 0.16 * show); this.beam(ox, -40, px, py, 4, 36, COL[i], 0.22 * show); }
+      this.beam(hx, -40, hx, hy + HERO_FEET, 14, 54, '255,244,214', 0.14 * show); this.beam(hx, -40, hx, hy + HERO_FEET, 6, 32, '255,250,230', 0.2 * show); // 핀 조명
+      cx.restore();
+      if (!o.busy && !o.rm) for (let i = 0; i < 10; i++) { const u = g.t * 0.7 + i * 0.37, ph = u % 1, cyc = Math.floor(u), px = 10 + ((i * 97.3 + cyc * 53.1) % (W - 20)), py = 110 + ((i * 61.7 + cyc * 31.3) % Math.max(80, g.ropeY - 130)); this.star4(px, py, 5 + (i % 3) * 2, ph * 2, `rgba(${COL[i % 3]},1)`, Math.sin(ph * Math.PI) * show * 0.9); } // 미러볼 반짝이
+      return;
+    }
+    if (layer === 'top') {
+      if (!o.buffed && T > 0.75) { o.buffed = true; for (const q of g.heroes) if (!q.gone && !q.def.summon) this.fx.text(q.rx || q.x, q.y - 64, `공격 +${o.atk}%`, '#ffb0e0', 12, 1.1, -26); } // 막이 열릴 때 멤버마다
+      if (show > 0.01) { // 춤추는 진상 머리 위 음표
+        let n = 0; const cap = o.busy ? 8 : 24;
+        for (const e of g.enemies) {
+          if (e.dead || !(e.danceT > 0) || !(e.stunT > 0) || e.y < 20) continue;
+          if (++n > cap) break;
+          const sz = e.def ? e.def.size : 50, ph = g.t * 3 + e.uid * 1.7;
+          this.note(e.x + sz * 0.26 + Math.sin(ph) * 5, e.y - sz * 0.62 - Math.abs(Math.sin(ph * 1.3)) * 7, 7, e.uid % 2 ? '#ff8ad8' : '#9fe0ff', show * 0.95, Math.sin(ph) * 0.3);
+        }
+      }
+      return;
+    }
+    if (layer !== 'screen') return;
+    // 막: 양옆 커튼 (닫힘 → 열림 · 열린 뒤 양옆에 묶여 남음) + 위 휘장
+    const D = 22;
+    let xi;
+    if (o.rm) xi = D * c01(T / 0.3) * endK;
+    else if (T < 0.2) xi = (W / 2) * eIn(T / 0.2);
+    else if (T < 0.62) xi = W / 2;
+    else xi = (W / 2 + (D - W / 2) * eOut(c01((T - 0.62) / 0.42))) * (T > 1.1 ? endK : 1);
+    const pinch = o.rm ? 0.6 : c01((T - 0.62) / 0.42) * 0.6;
+    if (xi > 0.5) { this.curtain(xi, H, pinch); cx.save(); cx.translate(W, 0); cx.scale(-1, 1); this.curtain(xi, H, pinch); cx.restore(); }
+    if (!o.rm && T > 0.12 && T < 0.8) { const k = T < 0.62 ? c01((T - 0.12) / 0.15) : 1 - c01((T - 0.62) / 0.18); this.glow(W / 2, H * 0.66, 110, 'rgba(255,236,200,1)', 0.4 * k, 1.15); } // 닫힌 막에 동그란 조명
+    this.valance(W, (eOut(c01(T / 0.25)) - 1) * 90 + (T > 1.1 ? (endK - 1) * 100 : 0));
+    if (T < 1.05) this.omCutIn(o, T, W, H);
+  }
+  beam(x0, y0, x1, y1, w0, w1, col, a) { // 조명 줄기 (위가 좁고 바닥이 넓음 · 바닥 쪽이 밝음) — 부르는 쪽에서 더하기 합성
+    if (a <= 0.01) return;
+    const cx = this.R.cx, dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
+    const gr = cx.createLinearGradient(x0, y0, x1, y1);
+    gr.addColorStop(0, `rgba(${col},0)`); gr.addColorStop(0.45, `rgba(${col},0.5)`); gr.addColorStop(1, `rgba(${col},1)`);
+    cx.globalAlpha = c01(a); cx.fillStyle = gr;
+    cx.beginPath(); cx.moveTo(x0 + nx * w0, y0 + ny * w0); cx.lineTo(x1 + nx * w1, y1 + ny * w1 * 0.4); cx.lineTo(x1 - nx * w1, y1 - ny * w1 * 0.4); cx.lineTo(x0 - nx * w0, y0 - ny * w0); cx.closePath(); cx.fill();
+  }
+  note(x, y, s, col, a, rot = 0) { // 음표 (코드 그림)
+    if (a <= 0.01) return;
+    const cx = this.R.cx;
+    cx.save(); cx.translate(x, y); cx.rotate(rot); cx.globalAlpha = c01(a); cx.lineCap = 'round';
+    const stem = () => { cx.beginPath(); cx.moveTo(s * 0.05, s * 0.5); cx.lineTo(s * 0.05, -s * 0.95); cx.quadraticCurveTo(s * 0.75, -s * 0.6, s * 0.6, -s * 0.05); };
+    cx.strokeStyle = 'rgba(30,8,40,0.9)'; cx.lineWidth = 3.4; stem(); cx.stroke();
+    cx.strokeStyle = col; cx.lineWidth = 1.6; stem(); cx.stroke();
+    cx.fillStyle = col; cx.strokeStyle = 'rgba(30,8,40,0.9)'; cx.lineWidth = 1.4;
+    cx.beginPath(); cx.ellipse(-s * 0.3, s * 0.55, s * 0.42, s * 0.3, -0.45, 0, TAU); cx.fill(); cx.stroke();
+    cx.restore();
+  }
+  curtain(xi, H, pinch) { // 붉은 벨벳 커튼 (왼쪽 · 오른쪽은 뒤집어서) — 주름 수가 그대로라 걷히면 촘촘하게 몰림 · 열리면 허리를 금 끈으로 묶음
+    const cx = this.R.cx, mid = H * 0.6, xm = xi * (1 - pinch * 0.6), xb = xi * (1 + pinch * 0.3);
+    cx.save();
+    const gr = cx.createLinearGradient(0, 0, xi, 0), N = 7;
+    for (let i = 0; i < N; i++) { const u = i / N, s = 1 / N; gr.addColorStop(u, '#4e0512'); gr.addColorStop(u + s * 0.4, '#b8183a'); gr.addColorStop(u + s * 0.62, '#ea4a66'); gr.addColorStop(u + s * 0.88, '#80091f'); }
+    gr.addColorStop(1, '#4e0512');
+    cx.fillStyle = gr;
+    cx.beginPath(); cx.moveTo(-4, -4); cx.lineTo(xi, -4); cx.quadraticCurveTo(xm, mid, xb, H + 4); cx.lineTo(-4, H + 4); cx.closePath(); cx.fill();
+    cx.strokeStyle = 'rgba(20,0,6,0.45)'; cx.lineWidth = 4; cx.beginPath(); cx.moveTo(xi, -4); cx.quadraticCurveTo(xm, mid, xb, H + 4); cx.stroke(); // 안쪽 그림자
+    cx.strokeStyle = '#ffcf4a'; cx.lineWidth = 1.6; cx.beginPath(); cx.moveTo(xi - 1.5, -4); cx.quadraticCurveTo(xm - 1.5, mid, xb - 1.5, H + 4); cx.stroke(); // 금 테
+    if (pinch > 0.25) { const ty = mid * 0.97, tx = (xi + 2 * xm + xb) / 4; cx.fillStyle = '#ffd24a'; cx.strokeStyle = '#7a4a00'; cx.lineWidth = 1.2; cx.beginPath(); cx.ellipse(tx * 0.5, ty, tx * 0.62 + 3, 4, 0, 0, TAU); cx.fill(); cx.stroke(); cx.beginPath(); cx.arc(tx + 2, ty + 7, 3.2, 0, TAU); cx.fill(); cx.stroke(); cx.fillRect(tx + 1, ty + 9, 2, 10); } // 금 끈 · 술
+    cx.restore();
+  }
+  valance(W, vy) { // 위 휘장 (물결 붉은 천 + 금 테 · 술)
+    const cx = this.R.cx, h0 = 64 + vy, n = 6, sw = W / n;
+    if (h0 < -24) return;
+    const edge = () => { for (let i = n - 1; i >= 0; i--) cx.quadraticCurveTo(i * sw + sw / 2, h0 + 22, i * sw, h0); };
+    cx.save();
+    const gr = cx.createLinearGradient(0, h0 - 64, 0, h0 + 12); gr.addColorStop(0, 'rgba(60,4,18,0.92)'); gr.addColorStop(0.65, 'rgba(176,22,56,0.96)'); gr.addColorStop(1, '#7a0a22');
+    cx.fillStyle = gr; cx.beginPath(); cx.moveTo(0, -10); cx.lineTo(W, -10); cx.lineTo(W, h0); edge(); cx.closePath(); cx.fill();
+    cx.strokeStyle = '#ffcf4a'; cx.lineWidth = 2.5; cx.beginPath(); cx.moveTo(W, h0); edge(); cx.stroke();
+    cx.fillStyle = '#ffd65a'; for (let i = 0; i <= n; i++) { cx.beginPath(); cx.arc(i * sw, h0 + 3, 3.4, 0, TAU); cx.fill(); cx.fillRect(i * sw - 1, h0 + 3, 2, 10); }
+    cx.restore();
+  }
+  omCutIn(o, T, W, H) { // 컷인: 기운 분홍 띠가 오른쪽에서 쑥 → 윗몸 그림(머리가 띠 위로 삐져나옴) · 이름 → 왼쪽으로 쓱
+    const cx = this.R.cx, cy = H * 0.44, bh = 92, sk = 24;
+    const kin = eOut(c01((T - 0.04) / 0.16)), kout = eIn(c01((T - 0.86) / 0.17));
+    if (kin <= 0 || kout >= 1) return;
+    const off = (1 - kin) * W * 1.15 - kout * W * 1.15;
+    const band = () => { cx.beginPath(); cx.moveTo(-30, cy - bh / 2 + sk); cx.lineTo(W + 30, cy - bh / 2 - sk); cx.lineTo(W + 30, cy + bh / 2 - sk); cx.lineTo(-30, cy + bh / 2 + sk); cx.closePath(); };
+    cx.save(); cx.translate(off, 0);
+    cx.globalAlpha = 0.35; cx.fillStyle = '#000'; cx.save(); cx.translate(0, 8); band(); cx.fill(); cx.restore(); cx.globalAlpha = 1; // 그림자
+    const gr = cx.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, '#6a1cc8'); gr.addColorStop(0.5, '#d42c92'); gr.addColorStop(1, '#ff79b6');
+    cx.fillStyle = gr; band(); cx.fill();
+    cx.save(); band(); cx.clip(); cx.globalCompositeOperation = 'lighter'; cx.fillStyle = '#fff'; // 속도선
+    for (let i = 0; i < 12; i++) { const y = cy - bh / 2 - sk + ((i * 37) % (bh + sk * 2)), len = 40 + ((i * 23) % 70), x = W + 40 - ((T * 900 + i * 131) % (W + 160)); cx.globalAlpha = 0.18 + (i % 3) * 0.1; cx.fillRect(x, y, len, 1.5 + (i % 2)); }
+    cx.restore();
+    cx.strokeStyle = '#ffe27a'; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(-30, cy - bh / 2 + sk); cx.lineTo(W + 30, cy - bh / 2 - sk); cx.moveTo(-30, cy + bh / 2 + sk); cx.lineTo(W + 30, cy + bh / 2 - sk); cx.stroke();
+    // 윗몸 그림: 띠 아래 선 위쪽만 (머리 · 뻗은 손은 띠 밖으로)
+    const im = this.hqArt('byunghwa'), lo = this.R.images && this.R.images.h_byunghwa, px = W * 0.02 + (1 - kin) * 50, bot = cy + bh / 2 + sk * 0.55;
+    cx.save(); cx.beginPath(); cx.moveTo(-30, -400); cx.lineTo(W + 30, -400); cx.lineTo(W + 30, cy + bh / 2 - sk); cx.lineTo(-30, cy + bh / 2 + sk); cx.closePath(); cx.clip();
+    if (im) { const dh = 176, dw = dh * 700 / 640; cx.drawImage(im, 60, 0, 700, 640, px, bot - dh, dw, dh); }
+    else if (imgOk(lo)) { const dh = 176, dw = dh * 220 / 140; cx.drawImage(lo, 18, 0, 220, 140, px, bot - dh, dw, dh); }
+    cx.restore();
+    const tx = W * 0.68, ty = cy - sk * 0.36, tsc = T < 0.32 ? Math.max(0.01, eBack(c01((T - 0.1) / 0.22))) : 1;
+    this.label(tx, ty - 26, 'LEGEND · 강병화', 11, '#fff2fa', '#4a0832', 1, 1);
+    this.label(tx, ty + 2, '원맨쇼!!', 34, '#ffffff', '#86083f', 1, tsc);
+    this.label(tx, ty + 30, `${o.sec}초 · 보스 빼고 모두 춤 · 공격 +${o.atk}%`, 10, '#ffe6f3', '#4a0832', 1, 1);
+    cx.restore();
+  }
+
+  // ── 배현경: 요요 (날씬 → 통통) ─────────────────
+  //  뻥! 살구색 연기가 몸을 감쌌다 부풀며 걷힘(그 사이 통통으로) · 바닥 고리 · 터지는 고리 · 땀방울
+  yoyo(layer, o, T, g) {
+    if (T > 0.9) { o.done = true; return; }
+    const cx = this.R.cx, h = o.h && !o.h.gone ? o.h : null, hx = h ? h.rx || h.x : o.x, hy = h ? h.y : o.y;
+    if (layer === 'ground') { const k = c01(T / 0.5); if (k < 1) this.flatRing(hx, hy + HERO_FEET, 16 + eOut(k) * 74, 9, 'rgba(255,170,90,1)', (1 - k) * 0.9); return; }
+    if (layer === 'mid') {
+      const k = T / 0.7; if (k >= 1) return;
+      const n = o.busy ? 6 : 10;
+      for (let i = 0; i < n; i++) {
+        const an = i * TAU / n + 0.4, rr = 8 + eOut(k) * (30 + (i % 3) * 9), px = hx + Math.cos(an) * rr, py = hy - 16 + Math.sin(an) * rr * 0.75, r = (15 + (i % 3) * 5) * (0.7 + eOut(k) * 0.7);
+        cx.save(); cx.globalAlpha = (1 - k) * (k < 0.12 ? k / 0.12 : 1) * 0.88;
+        const gr = cx.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, i % 2 ? 'rgba(255,246,232,1)' : 'rgba(255,214,170,1)'); gr.addColorStop(0.6, 'rgba(255,200,150,0.72)'); gr.addColorStop(1, 'rgba(255,190,140,0)');
+        cx.fillStyle = gr; cx.beginPath(); cx.arc(px, py, r, 0, TAU); cx.fill(); cx.restore();
+      }
+      return;
+    }
+    if (layer !== 'top') return;
+    if (T < 0.35) { const k = T / 0.35; cx.save(); cx.globalAlpha = 1 - k; cx.strokeStyle = '#ffe2c0'; cx.lineWidth = 5 * (1 - k) + 1; cx.beginPath(); cx.arc(hx, hy - 20, 14 + eOut(k) * 52, 0, TAU); cx.stroke(); cx.restore(); }
+    if (T < 0.5) this.label(hx, hy - 58 - eOut(c01(T / 0.3)) * 10, '뻥!', 15, '#fff1dc', '#8a3a00', 1 - c01((T - 0.35) / 0.15), T < 0.12 ? Math.max(0.01, eBack(T / 0.12)) : 1);
+    for (let i = 0; i < 3; i++) { const k = c01((T - 0.15 - i * 0.08) / 0.55); if (k <= 0 || k >= 1) continue; const sd = i === 1 ? 1 : -1; this.drop(hx + sd * (24 + i * 4 + k * 14), hy - 50 + k * k * 30, 4.5, '#9fdcff', 1 - k); }
+  }
+  drop(x, y, s, col, a) { // 땀방울
+    if (a <= 0.01) return;
+    const cx = this.R.cx;
+    cx.save(); cx.globalAlpha = c01(a); cx.fillStyle = col; cx.strokeStyle = 'rgba(20,40,80,0.8)'; cx.lineWidth = 1.2;
+    cx.beginPath(); cx.moveTo(x, y - s * 1.6); cx.quadraticCurveTo(x + s, y - s * 0.2, x, y + s); cx.quadraticCurveTo(x - s, y - s * 0.2, x, y - s * 1.6); cx.fill(); cx.stroke();
+    cx.fillStyle = 'rgba(255,255,255,0.85)'; cx.beginPath(); cx.arc(x - s * 0.3, y, s * 0.25, 0, TAU); cx.fill();
+    cx.restore();
+  }
+  // ── 배현경 통통: 몸통 박치기 ─────────────────
+  //  몸 잔상(통통 그림)이 진상에게 휙 날아가 쿵 — 납작하게 눌렸다 사라짐 · 바닥 금 · 흙먼지 고리 (날씬 잽은 render.js 글러브)
+  hgSlam(layer, o, T, g) {
+    const FLY = 0.11, END = FLY + 0.45;
+    if (T > END) { o.done = true; return; }
+    const cx = this.R.cx, fx = this.fx, it = T - FLY, feet = o.y + 14;
+    if (it >= 0 && !o.imp) {
+      o.imp = true;
+      fx.burst(o.x, o.y + 6, o.busy ? 5 : 10, 'rgba(210,180,140,0.85)', 130, 'puff', 10, 0.45);
+      fx.burst(o.x, o.y - 10, o.busy ? 3 : 6, '#ffd08a', 200, 'spark', 4, 0.3);
+      if (Math.random() < 0.4) fx.text(o.x, o.y - 34, '쿵!', '#ffd08a', 17, 0.6, -30);
+      fx.addShake(3);
+    }
+    if (layer === 'ground') {
+      if (it < 0) return;
+      const k = c01(it / 0.45);
+      this.flatRing(o.x, feet, 12 + eOut(k) * 58, 8, 'rgba(255,190,120,1)', (1 - k) * 0.85);
+      cx.save(); cx.translate(o.x, feet); cx.scale(1, 0.4); cx.globalAlpha = (1 - k) * 0.75; cx.strokeStyle = 'rgba(50,24,8,0.95)'; cx.lineWidth = 2.4; cx.lineCap = 'round'; cx.lineJoin = 'round';
+      for (let i = 0; i < 6; i++) { const an = i * TAU / 6 + 0.3, r1 = 26 + (i % 2) * 12; cx.beginPath(); cx.moveTo(Math.cos(an) * 7, Math.sin(an) * 7); cx.lineTo(Math.cos(an + 0.18) * r1 * 0.55, Math.sin(an + 0.18) * r1 * 0.55); cx.lineTo(Math.cos(an) * r1, Math.sin(an) * r1); cx.stroke(); } // 바닥 금
+      cx.restore();
+      return;
+    }
+    if (layer !== 'mid') return;
+    const sp = this.R.sprites && this.R.sprites.h_hyungyeong;
+    if (!sp) return;
+    const S = 72;
+    let x, y, sx = 1, sy = 1, a;
+    if (it < 0) { const k = eIn(T / FLY); x = o.sx + (o.x - o.sx) * k; y = o.sy + (o.y - o.sy) * k - Math.sin(k * Math.PI) * 26; sx = 0.86; sy = 1.14; a = 0.35 + k * 0.4; }
+    else { const k = c01(it / 0.3); x = o.x; y = o.y; sx = 1 + 0.45 * (1 - k * 0.5); sy = 1 - 0.38 * (1 - k * 0.5); a = 0.85 * (1 - k); }
+    if (a <= 0.01) return;
+    if (it < 0) { cx.save(); cx.globalCompositeOperation = 'lighter'; cx.strokeStyle = 'rgba(255,190,130,1)'; cx.lineCap = 'round'; const dx = o.x - o.sx, dy = o.y - o.sy, L = Math.hypot(dx, dy) || 1; for (let i = -1; i <= 1; i++) { cx.globalAlpha = 0.5 * a; cx.lineWidth = i ? 2 : 3.5; const nx = -dy / L * i * 14, ny = dx / L * i * 14; cx.beginPath(); cx.moveTo(x - dx / L * 60 + nx, y - 4 - dy / L * 60 + ny); cx.lineTo(x + nx, y - 4 + ny); cx.stroke(); } cx.restore(); } // 날아가는 줄
+    if (!this._hgGhost || this._hgGhost.src !== sp.c) { // 살구빛 잔상 그림 (한 번만 만들어 둔다)
+      const c = document.createElement('canvas'); c.width = sp.c.width; c.height = sp.c.height;
+      const x2 = c.getContext('2d'); x2.drawImage(sp.c, 0, 0); x2.globalCompositeOperation = 'source-atop'; x2.fillStyle = 'rgba(255,196,130,0.35)'; x2.fillRect(0, 0, c.width, c.height);
+      this._hgGhost = { src: sp.c, c };
+    }
+    cx.save(); cx.translate(x, y + S * 0.42); cx.scale(sx, sy); cx.globalAlpha = c01(a);
+    cx.drawImage(this._hgGhost.c, -S / 2, -S, S, S);
+    cx.restore();
+  }
+  // ── 홍정민 평소 수리: 붕대 한 장이 빙글빙글 날아가 입구에 탁 붙음 (조금 남았다가 흐려짐) ──
+  bandSlap(layer, o, T, g) {
+    const FLY = 0.24, END = FLY + 1.4;
+    if (T > END) { o.done = true; return; }
+    const cx = this.R.cx;
+    if (T < FLY) {
+      if (layer !== 'top') return;
+      const k = eOut(T / FLY), x = o.sx + (o.x - o.sx) * k, y = o.sy + (o.y - o.sy) * k - Math.sin(k * Math.PI) * 40;
+      cx.save(); cx.translate(x, y); cx.rotate(T * 26); this.plaster(34, 1); cx.restore();
+      return;
+    }
+    const it = T - FLY;
+    if (!o.imp) { o.imp = true; this.fx.text(o.x + 16, o.y - 16, '탁!', '#eaffea', 13, 0.5, -30); this.fx.burst(o.x, o.y, o.busy ? 3 : 6, '#fff6e0', 110, 'dot', 3, 0.3); }
+    if (layer === 'gate') {
+      const sq = it < 0.12 ? 1 + (1 - it / 0.12) * 0.4 : 1, a = it > 1 ? 1 - (it - 1) / 0.4 : 1;
+      cx.save(); cx.translate(o.x, o.y); cx.rotate(o.an); cx.scale(sq, 2 - sq); this.plaster(46, a); cx.restore();
+      if (it < 0.3) this.glow(o.x, o.y, 34, 'rgba(120,255,160,1)', (1 - it / 0.3) * 0.6);
+      return;
+    }
+    if (layer === 'top' && it < 0.6) {
+      const k = it / 0.6, s = 5, px = o.x + 12, py = o.y - 14 - k * 26;
+      cx.save(); cx.globalAlpha = Math.sin(k * Math.PI); cx.fillStyle = '#d6ffe0'; cx.strokeStyle = '#1d6b35'; cx.lineWidth = 1.5;
+      cx.beginPath(); cx.rect(px - s * 0.3, py - s, s * 0.6, s * 2); cx.rect(px - s, py - s * 0.3, s * 2, s * 0.6); cx.fill(); cx.stroke(); cx.restore();
+    }
+  }
+
+  plaster(L, a) { // 반창고 한 장 (가운데 기준 · 가로) — 살색 띠 + 흰 패드 + 숨구멍 · 진한 테두리라 모래주머니 위에서도 보임
+    if (a <= 0.01) return;
+    const cx = this.R.cx, H = L * 0.34, r = H / 2;
+    cx.save(); cx.globalAlpha = c01(a);
+    const rr = (x, y, w, h, q) => { cx.beginPath(); if (cx.roundRect) cx.roundRect(x, y, w, h, q); else cx.rect(x, y, w, h); };
+    cx.fillStyle = 'rgba(30,10,0,0.3)'; rr(-L / 2 + 1, -r + 2.5, L, H, r); cx.fill(); // 그림자
+    cx.fillStyle = '#f2c79c'; cx.strokeStyle = '#5a3418'; cx.lineWidth = 1.6; rr(-L / 2, -r, L, H, r); cx.fill(); cx.stroke();
+    cx.fillStyle = '#fff6ec'; cx.strokeStyle = 'rgba(90,52,24,0.6)'; cx.lineWidth = 1; rr(-L * 0.17, -r * 0.62, L * 0.34, H * 0.62, 2); cx.fill(); cx.stroke(); // 패드
+    cx.fillStyle = 'rgba(120,70,30,0.55)'; for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) { cx.beginPath(); cx.arc(sx * (L * 0.27 + (i % 2) * 3), (i - 1) * r * 0.45, 0.9, 0, TAU); cx.fill(); } // 숨구멍
+    cx.restore();
+  }
+
+  // ── 가벼운 평타 연출 (여러 개가 동시에 · 짧게 · 40개까지) ──
+  //  서명훈 저주 번개: 들쭉날쭉 번개 줄(검은 테 · 검붉은 · 보라 · 흰 심 · 1/30초마다 모양이 바뀌며 지직) + 맞은 자리 저주 딱지 "#@!"
+  //  홍정민: 거꾸로 든 소주병을 휘두르는 초승달 자국
+  lightPush(q) { const a = this.lt || (this.lt = []); if (a.length > 40) a.shift(); q.t = this.fx.time; a.push(q); }
+  bolt(x, y, x2, y2, busy) {
+    this.lightPush({ k: 'bolt', x, y, x2, y2, seed: Math.random() * 1000, life: 0.28 });
+    if (!busy || Math.random() < 0.4) this.curse(x2, y2);
+  }
+  curse(x, y) { this.lightPush({ k: 'curse', x, y, life: 0.6, rot: (Math.random() - 0.5) * 0.5 }); }
+  jmSwing(x, y, side) { this.lightPush({ k: 'swing', x, y, side, life: 0.2 }); }
+  drawLt(g) {
+    const now = this.fx.time;
+    this.lt = this.lt.filter((q) => now - q.t < q.life);
+    for (const q of this.lt) {
+      const k = (now - q.t) / q.life;
+      if (q.k === 'bolt') this.drawBolt(q, k);
+      else if (q.k === 'curse') this.drawCurse(q, k);
+      else if (q.k === 'swing') this.drawSwing(q, k);
+    }
+  }
+  drawBolt(q, k) {
+    const cx = this.R.cx, dx = q.x2 - q.x, dy = q.y2 - q.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
+    const n = Math.max(4, Math.min(9, Math.round(L / 14)));
+    let s = Math.floor(q.seed + Math.floor(this.fx.time * 30) * 7.31) % 233280;
+    const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+    const pts = [q.x, q.y];
+    for (let i = 1; i < n; i++) { const u = i / n, j = (rnd() - 0.5) * Math.min(28, L * 0.3); pts.push(q.x + dx * u + nx * j, q.y + dy * u + ny * j); }
+    pts.push(q.x2, q.y2);
+    const path = () => { cx.beginPath(); cx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) cx.lineTo(pts[i], pts[i + 1]); };
+    const a = k < 0.2 ? 1 : 1 - (k - 0.2) / 0.8;
+    cx.save(); cx.lineJoin = 'round'; cx.lineCap = 'round';
+    cx.globalAlpha = a * 0.8; cx.strokeStyle = 'rgb(22,0,18)'; cx.lineWidth = 8.5; path(); cx.stroke(); // 검은 테 (밝은 바닥에서도 보이게)
+    cx.globalAlpha = a; cx.strokeStyle = 'rgb(140,8,52)'; cx.lineWidth = 5; path(); cx.stroke(); // 검붉은 몸통
+    cx.strokeStyle = 'rgb(122,40,214)'; cx.lineWidth = 2.6; path(); cx.stroke(); // 보라 속
+    cx.globalCompositeOperation = 'lighter'; cx.strokeStyle = 'rgb(200,140,255)'; cx.lineWidth = 0.9; path(); cx.stroke(); // 가는 빛 심
+    if (pts.length > 6) { // 곁가지
+      const i = 2 * (1 + Math.floor(rnd() * (n - 2))), bx = pts[i], by = pts[i + 1], ba = Math.atan2(dy, dx) + (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd() * 0.5), bl = 10 + rnd() * 14;
+      cx.strokeStyle = 'rgb(160,40,200)'; cx.lineWidth = 1.8; cx.beginPath(); cx.moveTo(bx, by); cx.lineTo(bx + Math.cos(ba) * bl * 0.5 + (rnd() - 0.5) * 6, by + Math.sin(ba) * bl * 0.5 + (rnd() - 0.5) * 6); cx.lineTo(bx + Math.cos(ba) * bl, by + Math.sin(ba) * bl); cx.stroke();
+    }
+    cx.restore();
+    this.glow(q.x2, q.y2, 22, 'rgba(150,20,120,1)', a * 0.55);
+    this.glow(q.x, q.y, 14, 'rgba(120,40,220,1)', a * 0.4);
+  }
+  drawCurse(q, k) { // 저주 딱지: 검은 가시 원 안에 붉은 "#@!" (톡 커졌다가 위로 흐려짐)
+    const cx = this.R.cx, sc = k < 0.18 ? Math.max(0.01, eBack(k / 0.18)) : 1, a = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4, y = q.y - 16 - eOut(k) * 16;
+    this.glow(q.x, y, 20, 'rgba(170,30,150,1)', a * 0.55);
+    cx.save(); cx.translate(q.x, y); cx.scale(sc, sc); cx.globalAlpha = c01(a);
+    cx.save(); cx.rotate(q.rot + k * 1.2); cx.fillStyle = 'rgb(28,0,22)'; cx.strokeStyle = '#b44cff'; cx.lineWidth = 1.4;
+    cx.beginPath(); for (let i = 0; i < 16; i++) { const an = i * TAU / 16, r = i % 2 ? 11.5 : 15; cx.lineTo(Math.cos(an) * r, Math.sin(an) * r); } cx.closePath(); cx.fill(); cx.stroke();
+    cx.restore();
+    cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = '#ff4a72'; cx.fillText('#@!', 0, 0.5);
+    cx.restore();
+  }
+  drawSwing(q, k) { // 소주병 휘두름: 흰·초록 초승달 (몸 옆에서 위로 쓱)
+    const cx = this.R.cx, sd = q.side || 1, a0 = sd > 0 ? -Math.PI * 0.95 : -Math.PI * 0.05, a1 = a0 + eOut(c01(k * 1.5)) * 1.9 * sd;
+    cx.save(); cx.translate(q.x, q.y); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - k; cx.lineCap = 'round';
+    for (const [w, col] of [[8, 'rgba(90,220,130,0.5)'], [3.5, 'rgba(225,255,235,1)']]) { cx.strokeStyle = col; cx.lineWidth = w * (1 - k * 0.5); cx.beginPath(); if (sd > 0) cx.arc(0, 0, 26, Math.max(a0, a1 - 1.2), a1); else cx.arc(0, 0, 26, a1, Math.min(a0, a1 + 1.2)); cx.stroke(); }
     cx.restore();
   }
 

@@ -789,6 +789,22 @@ export class Renderer {
       x.fillStyle = '#ff5a4f'; x.strokeStyle = '#fff'; x.lineWidth = 1.4;
       roundRect(x, 3, 3, w - 6, h - 6, 5); x.fill(); x.stroke();
     });
+    make('jabGlove', 24, 20, (x, w, h) => { // 배현경 날씬 잽: 분홍 복싱 글러브 (오른쪽을 봄 · 날아가는 쪽으로 돌려 그림)
+      glow(x, w / 2, h / 2, 11, 'rgba(255,120,180,0.55)');
+      x.fillStyle = '#ff5c9e'; x.strokeStyle = '#5a0a2e'; x.lineWidth = 1.4;
+      x.beginPath(); x.ellipse(14.5, 10.5, 8, 7.2, 0, 0, TAU); x.fill(); x.stroke(); // 주먹
+      x.beginPath(); x.ellipse(11.5, 5, 4.2, 2.9, -0.3, 0, TAU); x.fill(); x.stroke(); // 엄지
+      x.fillStyle = '#fff2f8'; x.fillRect(3, 6, 5.5, 9); x.strokeRect(3, 6, 5.5, 9); // 손목 띠
+      x.fillStyle = 'rgba(255,255,255,0.75)'; x.beginPath(); x.ellipse(16.5, 7.5, 3, 1.7, -0.4, 0, TAU); x.fill(); // 반짝
+    });
+    make('jmBottle', 16, 38, (x, w, h) => { // 홍정민: 거꾸로 든 초록 소주병 (위가 바닥 · 아래가 뚜껑)
+      glow(x, w / 2, h / 2, 15, 'rgba(120,230,150,0.35)');
+      x.fillStyle = '#2fae5c'; x.strokeStyle = '#0b3a1c'; x.lineWidth = 1.3;
+      x.beginPath(); x.moveTo(2.5, 4); x.quadraticCurveTo(2.5, 1.5, 5, 1.5); x.lineTo(w - 5, 1.5); x.quadraticCurveTo(w - 2.5, 1.5, w - 2.5, 4); x.lineTo(w - 2.5, 22); x.quadraticCurveTo(w - 2.5, 26, w / 2 + 2.6, 29); x.lineTo(w / 2 + 2.6, h - 5); x.lineTo(w / 2 - 2.6, h - 5); x.lineTo(w / 2 - 2.6, 29); x.quadraticCurveTo(2.5, 26, 2.5, 22); x.closePath(); x.fill(); x.stroke();
+      x.fillStyle = '#f4f1e4'; x.fillRect(3, 8, w - 6, 9); x.fillStyle = '#2a8a4a'; x.fillRect(5, 11, w - 10, 1.6); x.fillRect(6, 13.6, w - 12, 1.2); // 라벨
+      x.fillStyle = '#1f6e3a'; x.fillRect(w / 2 - 3.2, h - 5.5, 6.4, 4); x.strokeRect(w / 2 - 3.2, h - 5.5, 6.4, 4); // 뚜껑
+      x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillRect(4.2, 3, 1.8, 17); x.fillRect(w / 2 - 1.4, 29, 1.1, h - 36); // 유리 반짝
+    });
     make('hammer', 34, 34, (x, w, h) => {
       glow(x, w / 2, h / 2, 17, 'rgba(255,170,230,0.55)');
       x.fillStyle = '#ffd1ec'; x.strokeStyle = '#b0407a'; x.lineWidth = 1.6;
@@ -1579,6 +1595,8 @@ export class Renderer {
       if (e.windup > 0 || e.bwind > 0) { sy = 0.82; sx = 1.14; bob = 0; rot = Math.sin(t * 60) * 0.03; if (e.bwind > 0 && Math.sin(t * 40) > 0.6) { this.tf(e.x, e.y - box * 0.3, 0, 1, 1); const gl = this.projSprites.glowRed; cx.drawImage(gl.c, -box * 0.6, -box * 0.6, box * 1.2, box * 1.2); } }
       if (e.kbv < -30) rot -= Math.min(0.5, -e.kbv * 0.0012) * (e.phase > 3 ? 1 : -1);
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
+      const dancing = e.danceT > 0 && e.stunT > 0 && g.onemanT > 0;
+      if (dancing) { const b = t * 4.4 + e.phase * 0.7, beat = Math.abs(Math.sin(b)); bob = -beat * box * 0.1; rot = Math.sin(b) * 0.22; sy = 1 - (1 - beat) * 0.08; sx = (1 / sy) * (Math.sin(b * 0.25 + e.phase) > 0 ? 1 : -1); } // 강병화 원맨쇼: 박자 맞춰 좌우로 흔들 · 통통 · 가끔 뒤돌기
       if (e.fleeing) { sx = -sx; bob = -Math.abs(Math.sin(e.age * 18)) * 5; }
       // 보스 발밑 오라
       if (e.warnN > 0) {
@@ -1722,7 +1740,7 @@ export class Renderer {
         cx.strokeStyle = 'rgba(120,200,255,0.85)'; cx.lineWidth = 3;
         cx.beginPath(); cx.arc(0, 0, box * 0.3, 0, TAU); cx.stroke();
       }
-      if ((e.stunT > 0 || e.windup > 0) && (!heavy || vip || e.windup > 0)) {
+      if ((e.stunT > 0 || e.windup > 0) && (!heavy || vip || e.windup > 0) && !dancing) { // (춤추는 진상은 기절 별 대신 음표 · skillfx.js)
         const st = this.projSprites.star;
         for (let i = 0; i < 3; i++) {
           const a = t * 5 + i * TAU / 3;
@@ -2051,7 +2069,14 @@ export class Renderer {
       this.tf(hx, feet, 0, 1, 1);
       cx.drawImage(sh.c, -26, -7, 52, 14);
       const up = h.rage || h.upT > 0;
-      const key = h.alt && this.sprites['h_' + h.id + '_alt'] ? 'h_' + h.id + '_alt' : up && this.sprites['h_' + h.id + '_rage'] ? 'h_' + h.id + '_rage' : 'h_' + h.id;
+      // 배현경 변신: 주사기가 꽂히는 순간(0.33초 뒤 · 연기 속)에 날씬으로 바뀐다 · 요요는 바로 (skillfx.js diet · yoyo)
+      let hgK = 1, alt = h.alt;
+      if (h.id === 'hyungyeong') {
+        if (h._hgAlt !== h.alt) { if (h._hgAlt !== undefined) h._hgTfAt = performance.now(); h._hgAlt = h.alt; }
+        const ms = h._hgTfAt ? performance.now() - h._hgTfAt - (h.alt ? 330 : 0) : 1e9;
+        if (ms < 0) alt = false; else hgK = Math.min(1, ms / 560);
+      }
+      const key = alt && this.sprites['h_' + h.id + '_alt'] ? 'h_' + h.id + '_alt' : up && this.sprites['h_' + h.id + '_rage'] ? 'h_' + h.id + '_rage' : 'h_' + h.id;
       const sp = this.sprites[key];
       if (!sp) continue;
       let bob = Math.sin(t * 3 + h.slot) * 1.2, rot = 0, sx = 1, sy = 1;
@@ -2064,7 +2089,8 @@ export class Renderer {
       if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
       sy *= 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 숨쉬기
       if (h.reloadT > 0 && h.reloadMax > 0.25) { const q = 1 - h.reloadT / h.reloadMax; rot += Math.sin(q * Math.PI) * -0.13; bob += Math.sin(q * Math.PI) * 1.5; } // 장전: 살짝 기울여 챙기기
-      if (h.id === 'hyungyeong' && h.alt) bob += Math.sin(t * 22) * 1.6; // 날씬 복서 스텝
+      if (h.id === 'hyungyeong' && alt) bob += Math.sin(t * 22) * 1.6; // 날씬 복서 스텝
+      if (hgK < 1) { const w = Math.sin(hgK * Math.PI * 3) * (1 - hgK) * (1 - hgK); if (alt) { sx *= 1 - 0.3 * w; sy *= 1 + 0.32 * w; } else { sx *= 1 + 0.34 * w; sy *= 1 - 0.24 * w; } } // 변신 순간 말랑: 날씬 = 쭉 늘었다 출렁 · 통통 = 옆으로 빵빵 부풀었다 출렁
       // 공격 리듬: 준비(다음 공격 직전 뒤로 젖힘·들어 올리기) → 던짐(반동) — 멤버마다 다르게
       const wk = WEAPON[h.id] ? WEAPON[h.id].kind : '';
       const C = CADENCE[h.id] || CADENCE['_' + wk] || CADENCE._default;
@@ -2091,7 +2117,7 @@ export class Renderer {
       // 기진맥진: 주저앉기 · 느린 숨 · 땀 · 어지러운 소용돌이
       if (h.tiredT > 0) { const k = Math.min(1, h.tiredT / 1.2); sy *= 1 - 0.08 * k; sx *= 1 + 0.04 * k; bob += 3 * k; rot += Math.sin(t * 1.4 + h.slot) * 0.05 * k; }
       // 프레임 띠 (있으면): 준비 = 0~release-1 칸 · 던진 뒤 0.3초 = release~끝 칸
-      const formOn = !!HERO_ANIM_FORM[h.id] && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!h.alt);
+      const formOn = !!HERO_ANIM_FORM[h.id] && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!alt);
       const HA = formOn ? HERO_ANIM_FORM[h.id] : HERO_ANIM[h.id], hstrip = HA && this.images[formOn ? 'hanim_' + h.id + '_f' : 'hanim_' + h.id];
       let usedStrip = false;
       if (h.id === 'youngjun' && h.out) { // 김영준: 진상에 붙으면 달리는 모습 대신 싸우는 자세(발톱 베기 띠) · 진상 쪽을 본다 · 한 대마다 앞으로 톡
@@ -2109,7 +2135,7 @@ export class Renderer {
           usedStrip = true;
         }
       }
-      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !h.alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
+      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
         const n = HA.frames, fw = hstrip.naturalWidth / n, fh = hstrip.naturalHeight, rel = HA.release;
         let fi = -1;
         if (since < 0.3) fi = Math.min(n - 1, rel + Math.floor((since / 0.3) * (n - rel)));
@@ -2485,6 +2511,15 @@ export class Renderer {
       const p = g.projs[pi];
       if (p.dead || pi < cap) continue;
       shown++;
+      if (p.type === 'tap' && p.hero && p.hero.id === 'jungmin' && this.projSprites.jmBottle) { // 홍정민: 거꾸로 든 소주병이 빙글빙글 (잔상 2개 · 뒤로 튀는 술방울)
+        const bs = this.projSprites.jmBottle, sv = Math.hypot(p.vx || 0, p.vy || 0) || 1, ux = (p.vx || 0) / sv, uy = (p.vy || -1) / sv, spin = this.fx.time * 17 + (p.uid || pi);
+        cx.globalCompositeOperation = 'lighter';
+        for (let k = 1; k <= 3; k++) { const d = 8 + k * 8, j = Math.sin(this.fx.time * 30 + k * 2 + pi) * 3; this.tf(p.x - ux * d - uy * j, p.y - uy * d + ux * j, 0, 1, 1); cx.globalAlpha = 0.75 - k * 0.18; cx.fillStyle = '#c8f6ff'; cx.beginPath(); cx.arc(0, 0, 2.6 - k * 0.4, 0, TAU); cx.fill(); }
+        cx.globalCompositeOperation = 'source-over';
+        for (let k = 2; k >= 1; k--) { this.tf(p.x - ux * k * 9, p.y - uy * k * 9, spin - k * 0.55, 1, 1); cx.globalAlpha = 0.32 - k * 0.1; cx.drawImage(bs.c, -bs.w / 2, -bs.h / 2, bs.w, bs.h); }
+        cx.globalAlpha = 1; this.tf(p.x, p.y, spin, 1, 1); cx.drawImage(bs.c, -bs.w / 2, -bs.h / 2, bs.w, bs.h);
+        continue;
+      }
       // 그린 투사체: 멤버 물건 그림을 날아가는 방향으로
       const an = p.hero && p.type !== 'moto' && p.type !== 'gf' && PROJ_ART[p.hero.id];
       if (an === 'card_y') { // 운영진 경고장: 그림(민무늬 노란 사각형) 대신 코드로 그린 심판 카드 · 날아가며 팔랑팔랑
@@ -2516,6 +2551,14 @@ export class Renderer {
         case 'wink': s = P.wink; this.tf(p.x, p.y, 0, 1, 1); break;
         case 'flower': s = P.flower; this.tf(p.x, p.y, p.rot * 0.2, 1, 1); break;
         case 'swear': s = p.big ? P.swearBig : P.swear; this.tf(p.x, p.y, Math.sin(p.dist * 0.05) * 0.15, 1, 1); break;
+        case 'jab': { // 배현경 날씬 잽: 글러브가 날아가는 쪽을 보고 · 뒤로 속도선 세 줄 (다른 멤버 잽은 그대로)
+          if (!(p.hero && p.hero.id === 'hyungyeong')) { s = P.jab; this.tf(p.x, p.y, p.rot, 1, 1); break; }
+          this.tf(p.x, p.y, Math.atan2(p.vy || 0, p.vx || 1), 1, 1);
+          cx.globalCompositeOperation = 'lighter'; cx.strokeStyle = 'rgba(255,175,215,0.75)'; cx.lineWidth = 1.6; cx.lineCap = 'round';
+          cx.beginPath(); for (const oy of [-5, 0, 5]) { cx.moveTo(-9, oy); cx.lineTo(oy ? -20 : -27, oy); } cx.stroke();
+          cx.globalCompositeOperation = 'source-over'; s = P.jabGlove;
+          break;
+        }
         case 'gf': {
           // 윤준서 여사친: 동그랗게 말려 데굴데굴
           // 잘 보이게: 1.6배 · 흰/분홍 테두리 빛 · 잔상 꼬리

@@ -574,14 +574,15 @@ function handleEvents(g, loud) {
     if (R2UI && e.type.startsWith('r2')) { R2UI.onEvent(g, e, loud); continue; } // 건물주 레이드 연출
     switch (e.type) {
       case 'sudden': case 'suddenUp': case 'pvpDrain': case 'pvpTimeUp': case 'pvpPhase': case 'pvpBunch': case 'pvpWave': if (live) pvpTimelineEv(g, e); break;
-      case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝
+      case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } if (e.hero === 'jungmin' && !busy) SKFX.jmSwing(e.x, e.y - 34, e.x < 180 ? 1 : -1); break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝 · 홍정민: 소주병 휘두름 자국
       case 'dmg':
         if (!busy || ((e.crit || e.eff > 0) && fx.nums.items.length < (crowd ? 14 : 60))) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : e.sk ? '#ffd23f' : null, e.eff, e.uid);
         break;
       case 'hit': {
         const col = e.crit ? '#ffe14d' : PROJ_COL[e.proj] || '#fff';
         fx.burst(e.x, e.y, e.crit ? 7 : 3, col, e.crit ? 220 : 140, 'spark', e.crit ? 4 : 3, 0.3);
-        if (loud) { if (e.crit) A.sfx.crit(); else A.sfx.hit(); }
+        if (e.proj === 'swear' && (!busy || e.crit)) SKFX.curse(e.x, e.y); // 서명훈: 첫 대상에도 저주 딱지
+        else if (e.proj === 'tap' && !busy) { fx.burst(e.x, e.y - 4, 6, 'rgba(200,245,255,0.95)', 150, 'dot', 2.6, 0.4, 420); fx.burst(e.x, e.y, 3, '#7be38f', 120, 'shard', 4, 0.35, 300); if (Math.random() < 0.25) fx.text(e.x + 10, e.y - 22, '툭', '#c8ffd4', 12, 0.5, -30); } // 홍정민 소주병: 술 튀김 · 초록 유리 조각        if (loud) { if (e.crit) A.sfx.crit(); else A.sfx.hit(); }
         break;
       }
       case 'kill': {
@@ -626,8 +627,9 @@ function handleEvents(g, loud) {
         fx.burst(e.x, e.y, 4, '#9fe8ff', 90, 'spark', 3, 0.35);
         if (loud) A.sfx.kick();
         break;
-      case 'chain':
-        for (let k = 1; k <= 5; k++) fx.part('spark', e.x + (e.x2 - e.x) * k / 6, e.y + (e.y2 - e.y) * k / 6, 0, 0, 0.25, 3, '#ff9a3c');
+      case 'chain': // 서명훈 욕 튕김: 검붉은·보라 저주 번개가 다음 진상에게 지직 + 저주 딱지 "#@!" (skillfx.js bolt)
+        SKFX.bolt(e.x, e.y, e.x2, e.y2, busy);
+        if (!busy) fx.burst(e.x2, e.y2, 3, '#d04aff', 120, 'spark', 3, 0.25);
         break;
       case 'miss': if (!busy) fx.text(e.x, e.y, '빗나감!', '#ffc6e4', 12, 0.6); break;
       case 'form':
@@ -687,9 +689,8 @@ function handleEvents(g, loud) {
       case 'grow': if (!busy) fx.text(e.x, e.y - 70, `성장 +${e.v}%`, '#ffd23f', 12, 0.9); break;
       case 'bandage': // 홍정민: 거꾸로 든 소주병으로 탁탁 → 입구에 붕대 · 스킬은 붕대가 입구를 감고 초록 회복 물결 (skillfx.js)
         if (e.big) { SKFX.add('bandage', g, e, busy); for (const t of fx.texts.items) if (t.text === `+${e.v} 수리` && t.max - t.life < 0.05) t.life = 0; if (loud) { A.sfx.heal(); A.sfx.whoosh(); } break; }
-        fx.text(e.x, e.y - 6, e.big ? '붕대 대공사!' : '탁탁', e.big ? '#9dffb0' : '#c8ffd4', e.big ? 16 : 12, 0.9, -24);
-        fx.burst(e.x, e.y, e.big ? 12 : 5, '#ffffff', 80, 'spark', 3, 0.35);
-        if (e.v) fx.text(e.x + 18, e.y - 22, `+${e.v}`, '#7be38f', 12, 0.8);
+        SKFX.add('bandSlap', g, e, busy); // 평소 수리: 붕대 한 장이 빙글 날아가 입구에 탁 (skillfx.js)
+        if (e.v) setTimeout(() => { if (app.g === g) fx.text(e.x + 18, e.y - 30, `+${e.v}`, '#7be38f', 12, 0.8); }, 240);
         if (loud) A.sfx.heal();
         break;
       case 'jyLeave': fx.burst(e.x, e.y - 30, 14, '#ffffff', 120, 'puff', 10, 0.6); fx.text(e.x, e.y - 70, '들어갈게~', '#9fd4ff', 13, 1.0); break;
@@ -897,6 +898,11 @@ function handleEvents(g, loud) {
       }
       case 'windup': fx.text(e.x, e.y - 90, '!!', '#ff4b4b', 26, 0.8, -10); break;
       case 'slam':
+        if (e.hx !== undefined) { // 배현경 통통 몸통 박치기 (보스 내려찍기와 이름이 같아 여기서 나눈다): 몸 잔상이 날아가 쿵 · 바닥 금 (skillfx.js hgSlam)
+          SKFX.add('hgSlam', g, e, busy);
+          if (loud) A.sfx.slam();
+          break;
+        }
         fx.addShake(16);
         fx.flash('#ffffff', 0.25);
         fx.ring(e.x, e.y + 30, 20, 420, 0.7, '#ffb36b', 10);
@@ -934,19 +940,12 @@ function handleEvents(g, loud) {
         if (e.x2 !== undefined) for (let k = 1; k <= 6; k++) fx.part('spark', e.x + (e.x2 - e.x) * k / 7, e.y + (e.y2 - e.y) * k / 7, 0, 0, 0.22, 4, k % 2 ? '#ffffff' : '#ff8fd0');
         if (loud) A.sfx.hit();
         break;
-      case 'slam':
-        fx.blast(e.x, e.y, e.r, 'gold', 0.45);
-        fx.burst(e.x, e.y, 10, 'rgba(210,180,140,0.8)', 120, 'puff', 10, 0.45);
-        if (Math.random() < 0.3) fx.text(e.x, e.y - 30, '쿵!', '#ffd08a', 16, 0.6);
-        fx.addShake(2.5);
-        if (loud) A.sfx.slam();
-        break;
       case 'diet': // 배현경: 큰 주사기 푹 → 분홍 약물 고리 · 변신 연기 · 근처 진상에 약물 방울 (skillfx.js)
         fx.text(e.x, e.y - 80, '다이어트 주사!', '#ff7fb8', 17, 1.1, -24);
         SKFX.add('diet', g, e, busy);
         if (loud) { A.sfx.whoosh(); setTimeout(() => A.sfx.levelUp(), 300); }
         break;
-      case 'yoyo': fx.text(e.x, e.y - 80, '요요…!', '#ffb347', 16, 1.0, -20); fx.burst(e.x, e.y - 20, 8, 'rgba(255,200,150,0.8)', 80, 'puff', 12, 0.5); break;
+      case 'yoyo': fx.text(e.x, e.y - 84, '요요…!', '#ffb347', 16, 1.0, -20); SKFX.add('yoyo', g, e, busy); if (loud) A.sfx.whoosh(); break; // 배현경 날씬 → 통통: 뻥! 연기 · 땀방울 (skillfx.js)
       case 'aged': fx.text(e.x, e.y - 80, '폭삭… 아이고 허리야', '#c8c8c8', 14, 1.2, -18); fx.burst(e.x, e.y - 30, 10, 'rgba(200,200,200,0.8)', 60, 'puff', 12, 0.6); break;
       case 'young':
         fx.text(e.x, e.y - 80, '다시 공주!', '#ffc4ec', 17, 1.1, -24);
@@ -978,7 +977,13 @@ function handleEvents(g, loud) {
         break;
       case 'bhShout': for (let k = 0; k < 2; k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 480, sz: 56 + e.r * 0.45, tx: e.x + Math.cos(e.a) * e.r * 0.85, ty: e.y + Math.sin(e.a) * e.r * 0.85, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 120); if (!busy && Math.random() < 0.3) fx.part('heart', e.x, e.y - 20, (Math.random() - 0.5) * 60, -60, 0.8, 9, null); break;
       case 'sled': { fx.banner('팬클럽 썰매 활강!', '한 줄 통째로 쓸어 버린다', '#2f8ac8', 1.1, 'wave', 'h_baul'); R.vfx('dash', e.x, e.y - 30, { anim: 'line', dur: 520, sz: 120, tx: e.x, ty: 30, rot: -Math.PI / 2, blend: 'lighter' }); for (let k = 0; k < 14; k++) setTimeout(() => fx.part('heart', e.x + (Math.random() - 0.5) * 50, e.y - 60 - k * 30, (Math.random() - 0.5) * 80, -30, 0.8, 10, null), k * 30); fx.addShake(6); if (loud) A.sfx.whoosh(); break; }
-      case 'oneman': { fx.flash('#ff7ab8', 0.35); fx.banner('원맨쇼!!', '보스 빼고 모두 춤추며 멈춤 · 모든 멤버 공격력 +30%', '#b0306a', 1.6, 'big', 'h_byunghwa'); const hh = g.heroes.find((o) => o.id === 'byunghwa'); if (hh) { hh._castAt = performance.now(); } for (const en of g.enemies) if (!en.dead && !en.boss) fx.part('note', en.x, en.y - 30, (Math.random() - 0.5) * 30, -40, 1.2, 11, '#ffb0e0'); fx.pillar(e.x, 90, g.rowY + 20, 1.2); fx.addShake(8); if (loud) { A.sfx.ult(); setTimeout(() => A.sfx.win(), 400); } break; }
+      case 'oneman': { // 강병화 원맨쇼: 컷인 → 붉은 막이 닫혔다 촤악 열림 → 무대 조명 · 스포트라이트 · 진상 춤 (skillfx.js oneman · 춤은 render.js)
+        fx.flash('#ff7ab8', 0.2); SKFX.add('oneman', g, e, busy);
+        const hh = g.heroes.find((o) => o.id === 'byunghwa'); if (hh) { hh._castAt = performance.now(); }
+        setTimeout(() => { if (app.g !== g) return; let n = 0; for (const en of g.enemies) if (!en.dead && !en.boss && n++ < (busy ? 10 : 30)) fx.part('note', en.x, en.y - 30, (Math.random() - 0.5) * 30, -40, 1.2, 11, '#ffb0e0'); fx.pillar(e.x, 90, g.rowY + 20, 1.2); fx.addShake(8); }, 650); // 막이 열리는 순간
+        if (loud) { A.sfx.ult(); setTimeout(() => A.sfx.win(), 650); }
+        break;
+      }
       case 'cone': // 방장 확성기 공지: 금빛 음파 고리 2~3개가 앞으로 퍼져 나간다
         for (let k = 0; k < (e.big ? 3 : 2); k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 520, sz: 60 + e.r * 0.5, tx: e.x + Math.cos(e.a) * e.r * 0.9, ty: e.y + Math.sin(e.a) * e.r * 0.9, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 110);
         if (e.big) fx.text(e.x, e.y - 40, '전체공지!', '#ffb347', 16, 0.8);
@@ -1265,7 +1270,7 @@ const UNION_PHASE = {
   interest: ['이자 폭탄!', '입구 내구도가 계속 떼여요'],
   shieldAura: ['회비 지원!', '진상들에게 보호막'],
 };
-const PROJ_COL = { notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#ff9a3c' };
+const PROJ_COL = { notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#d04aff', tap: '#bff4ff' };
 const BOSS_COL = { boss_resort: '#1a5a9a', mid_pension: '#7a5a2a', boss_bbikki: '#5a8a00', queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a', boss_loan: '#8a6a00', boss_union: '#5a0a9a', boss_kkondol: '#4a3a6a', boss_queenmom: '#8a2a9a', boss_sales: '#8a6a00', boss_otaku: '#1a7a4a', boss_jusa: '#9a2a1a', boss_soloparty: '#a0158a' };
 const POOF = ['퍽!', '빡!', '뿅', '컷!', '퇴장~', '아웃!'];
 const CONFETTI = ['#ffd23f', '#ff4fd8', '#6ff0ff', '#7dff9a', '#ff8a00', '#ffffff'];
@@ -1613,7 +1618,7 @@ function cutIn(h) {
 }
 function skillFx(h) {
   // 스킬 이름은 한 번만: 이 스킬이 같은 프레임에 큰 배너를 띄웠으면 배너만, 아니면 컷인 띠만 (머리 위 글자는 없앰 — 스킬 아이콘이 대신 톡 튄다)
-  if (!(fx.bannerAt === fx.time && fx.banners.length) && h.id !== 'sanghwa') cutIn(h); // 박상화는 금빛 "좋은 남자!" 띠가 이름 (skillfx.js)
+  if (!(fx.bannerAt === fx.time && fx.banners.length) && h.id !== 'sanghwa' && h.id !== 'byunghwa') cutIn(h); // 박상화는 금빛 "좋은 남자!" 띠 · 강병화는 원맨쇼 컷인이 이름 (skillfx.js)
   // 같은 프레임에 스킬별로 띄운 이름 글자("공주의 일격!!" · "다이어트 주사!" · "레드카드!")도 지운다 — 띠나 배너가 이미 이름을 보여 준다
   const nm = h.def.skill.name.replace(/[!\s]+$/, '');
   for (const t of fx.texts.items) if (t.text && t.text.startsWith(nm) && t.max - t.life < 0.05) t.life = 0;
