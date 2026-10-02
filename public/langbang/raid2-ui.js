@@ -1,12 +1,12 @@
-// 랑방 대전 — 건물주 레이드 화면: 로비(거대 보스 · 팔 상태 · 서버 체력 · 주간 시계 · 추천 멤버 · 부르기 · 기여 순위 · 세트)
-//  · 전투(보스 몸통 + 팔 8개를 캔버스에 따로 그려 흔들기 · 들어올리기 · 내려찍기 · 부서져 떨어지기) · 전투 HUD(서버 체력 · 지금 때리는 사람 · 소식) · 결과
+// 랑방 대전 — 건물주 레이드 화면: 로비(의자에 앉은 거대 보스 · 서버 체력 · 페이즈 · 패턴 안내 · 주간 시계 · 부르기 · 기여 순위 · 세트)
+//  · 전투(옥상 위 거대 건물주 혼자 — 자세 그림을 바꿔 끼우고 늘이기 · 찌그러뜨리기 · 흔들기 · 예고 구역 · 날아오는 고지서 · 돈다발) · 전투 HUD(서버 체력 · 지금 때리는 사람 · 소식) · 결과
 //  game.js 는 initRaid2(도우미) 로 부르고 돌려받은 함수들을 몇 군데에만 끼운다 (게임 코드는 최소한만 건드리게)
 import { HEROES, ATTRS, GEAR_RARITY, STAT_HELP } from './data.js';
 import * as R2 from './raid2.js';
 import * as RS from './raid2-sim.js';
 
 let C = null;
-const st = { board: null, boardAt: 0, run: null, live: null, pollT: 0, feedT: 0, fx: [], art: {}, artTried: false, hud: null, hudT: 0, spam: null };
+const st = { board: null, boardAt: 0, run: null, live: null, pollT: 0, feedT: 0, fx: [], art: {}, artTried: false, hud: null, hudT: 0, hit: 0 };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
 const P = () => C.P();
@@ -16,7 +16,7 @@ const big = (n) => (n >= 1e8 ? `${(n / 1e8).toFixed(n >= 1e9 ? 0 : 1)}억` : n >
 export function initRaid2(ctx) {
   C = ctx;
   C.R.r2Draw = (g, t, layer) => draw(g, t, layer);
-  return { show, acts: ACTS, sec: R2.R2.sec, waveDef: (o) => RS.waveDef((o && o.tier) || 1), attach, onEvent, hudTick, resultTop, save, modeCard, hot, dot, leave, R2 };
+  return { show, acts: ACTS, sec: R2.R2.sec, waveDef: (o) => RS.waveDef((o && o.tier) || 1), attach, onEvent, hudTick, resultTop, stats, save, modeCard, hot, dot, leave, R2 };
 }
 
 // ─── 그림 (없으면 가장 가까운 진짜 그림으로) ───
@@ -25,21 +25,16 @@ let have = null;
 const listReady = () => have ? Promise.resolve(have) : fetch('/api/langbang/anim').then((x) => x.json()).then((m) => { have = new Set((m && m.files) || []); return have; }).catch(() => { have = new Set(); return have; });
 const hasFile = (src) => !!(have && have.has(src));
 const src = (real, fb) => (hasFile(real) ? real : fb);
-const armSrc = (id) => src(R2.R2_ART.arm(id), (R2.armOf(id) || {}).fb);
-const bodySrc = (rage) => (rage ? src(R2.R2_ART.rage, src(R2.R2_ART.body, R2.R2_ART.rageFb)) : src(R2.R2_ART.body, R2.R2_ART.bodyFb));
+const POSES = ['idle', 'wind', 'slam', 'throw', 'rage'];
+const poseSrc = (k) => src(R2.R2_ART[k], k === 'rage' ? src(R2.R2_ART.idle, R2.R2_ART.rageFb) : src(R2.R2_ART.idle, R2.R2_ART.bodyFb));
+const lobbySrc = (rage) => (rage ? poseSrc('rage') : src(R2.R2_ART.throne, poseSrc('idle')));
+
 async function loadArt() {
   if (st.artTried) return;
   st.artTried = true;
   await listReady();
-  const one = (key, real, fb) => {
-    const im = new Image(); im.decoding = 'async';
-    const o = st.art[key] = { img: im, ok: false, real: !!real && hasFile(real), fb: !(real && hasFile(real)) };
-    im.onload = () => { o.ok = true; };
-    im.src = o.real ? real : fb;
-  };
-  one('body', R2.R2_ART.body, R2.R2_ART.bodyFb);
-  one('rage', R2.R2_ART.rage, hasFile(R2.R2_ART.body) ? R2.R2_ART.body : R2.R2_ART.rageFb);
-  for (const a of R2.ARMS) { if (hasFile(R2.R2_ART.arm(a.id))) one('arm_' + a.id, R2.R2_ART.arm(a.id), null); one('item_' + a.id, null, a.fb); }
+  const one = (key, url) => { const im = new Image(); im.decoding = 'async'; const o = st.art[key] = { img: im, ok: false }; im.onload = () => { o.ok = true; }; im.src = url; };
+  for (const k of POSES) one(k, poseSrc(k));
   // 전투 맵 (없으면 예전 레이드 맵)
   const R = C.R;
   if (!R.images.map_raid2) {
@@ -50,169 +45,158 @@ async function loadArt() {
   }
 }
 const artOk = (k) => st.art[k] && st.art[k].ok && st.art[k].img.naturalWidth > 0;
-const realArt = (k) => artOk(k) && st.art[k].real;
-
-// ─── 몸통 · 어깨 (그림 규격: 보고서 참고) ───
-// 몸통 그림 1024×1024 · 아래 가운데가 기준점 · 어깨 = 몸통 그림 안 비율 위치 (x 0~1 왼→오, y 0~1 위→아래)
-export const SHOULDER = { mega: [0.09, 0.48], bill: [0.91, 0.48], bottle: [0.14, 0.56], golf: [0.86, 0.56], contract: [0.21, 0.35], keys: [0.79, 0.35], bag: [0.12, 0.41], phone: [0.88, 0.41] }; // 실제 몸통 그림의 소매 끝 · 옆구리에 맞춤
-// 팔 그림 256×640 · 어깨 관절(회전 중심) = (128, 56) · 손(물건) 가운데 = (128, 560)
-export const ARM_IMG = { w: 320, h: 640, px: 160, py: 56, hy: 520 };
-const BODY_W = 330;
-const bodyBox = (g) => ({ cx: g.W / 2, bottom: g.rowY - 140, w: BODY_W, h: BODY_W });
-function shoulderAt(g, id, t) {
-  const b = bodyBox(g), s = SHOULDER[id];
-  const breath = Math.sin(t * 1.4) * 3;
-  return { x: b.cx - b.w / 2 + s[0] * b.w, y: b.bottom - b.h + s[1] * b.h + breath };
-}
 
 // ─── 전투 그리기 (render.js draw 안에서: back = 진상 뒤 · top = 입자 위) ───
+// 자세 그림은 768×768 · 발이 맨 아래 가운데 · 몸 크기는 그림마다 맞춰 둠 → 캔버스에서 BOSS_H 크기로 (화면 높이에 맞춤)
+function poseOf(r) {
+  const a = r.act;
+  if (a) {
+    if (a.st === 'wind' && a.k !== 'grab') return 'wind';
+    if (a.st === 'down' || a.st === 'gap' || a.st === 'hold' || (a.k === 'grab' && a.st === 'wind')) return 'slam';
+    if (a.st === 'throw') return 'throw';
+  }
+  return r.phase >= 3 || r.angry >= 4 ? 'rage' : 'idle';
+}
 function draw(g, t, layer) {
   const r = g.r2;
   if (!r) return;
-  const R = C.R, cx = R.cx;
+  const e = r.parts.body;
+  const cx = C.R.cx;
   if (layer === 'back') {
-    const b = bodyBox(g);
-    const rage = r.rage;
-    const key = rage && artOk('rage') ? 'rage' : 'body';
-    if (artOk(key)) {
+    // 예고 구역 (먼저 — 보스 뒤 바닥에)
+    const a = r.act;
+    const blink = 0.5 + 0.5 * Math.sin(t * 18);
+    if (a && a.st === 'wind' && (a.k === 'slam' || a.k === 'combo')) {
+      const z = RS.PAT.slam.zone, k = 1 - a.t / (a.k === 'combo' ? RS.PAT.combo.wind : RS.PAT.slam.wind);
+      zone(cx, a.x - z, g.ropeY - 40, z * 2, g.rowY - g.ropeY + 90, 0.16 + 0.2 * blink + 0.3 * clamp(k, 0, 1));
+    } else if (a && a.st === 'wind' && a.k === 'sweep') {
+      const x0 = a.side < 0 ? 0 : g.W / 2;
+      zone(cx, x0, g.rowY - 70, g.W / 2, 130, 0.14 + 0.18 * blink);
+    } else if (a && a.k === 'grab') {
+      zone(cx, 20, g.ropeY - 26, g.W - 40, 40, a.st === 'hold' ? 0.3 + 0.2 * blink : 0.18 + 0.2 * blink);
+    }
+    // 돈다발 · 고지서 떨어질 자리
+    for (const m of r.marks) {
+      const k = 1 - m.t / m.t0;
+      cx.save();
+      cx.globalAlpha = 0.35 + 0.35 * blink;
+      cx.strokeStyle = m.k === 'cash' ? '#7dff9a' : '#ffcf3f'; cx.lineWidth = 2.5; cx.setLineDash([5, 4]);
+      const rad = m.k === 'cash' ? RS.PAT.cash.r : 18;
+      cx.beginPath(); cx.ellipse(m.x, m.y + (m.k === 'cash' ? 14 : 0), rad, rad * 0.45, 0, 0, Math.PI * 2); cx.stroke();
+      cx.globalAlpha = 0.25 + 0.3 * k; cx.fillStyle = m.k === 'cash' ? '#2fbf5a' : '#ff9a2a';
+      cx.beginPath(); cx.ellipse(m.x, m.y + (m.k === 'cash' ? 14 : 0), rad * k, rad * 0.45 * k, 0, 0, Math.PI * 2); cx.fill();
+      cx.restore();
+    }
+    if (!e) return;
+    // 거대 보스: 자세 그림 하나 (늘이기 · 찌그러뜨리기 · 기울이기 · 분노 떨림)
+    const pose = poseOf(r);
+    const key = artOk(pose) ? pose : artOk('idle') ? 'idle' : null;
+    const feet = e.y + 100;
+    const BOSS_H = clamp(feet - e.lift - 112, 220, 320); // 위 HUD 아래로 머리가 들어오게 (화면 높이에 맞춰)
+    const breath = Math.sin(t * 1.6);
+    let sx = 1 + breath * 0.012, sy = 1 - breath * 0.012;
+    if (pose === 'wind') { sx = 0.96; sy = 1.05 + Math.sin(t * 40) * 0.004; }
+    if (a && a.st === 'down') { sx = 1.1; sy = 0.9; }
+    if (a && a.k === 'grab' && a.st === 'hold') { const w = Math.sin(t * 22); sx = 1.04 + w * 0.02; sy = 0.97 - w * 0.02; }
+    const shake = pose === 'rage' || (a && a.st === 'wind') ? Math.sin(t * 47) * 1.6 : 0;
+    const lean = (e.lean || 0) * 0.0035;
+    if (key) {
       const im = st.art[key].img;
-      const sq = 1 + Math.sin(t * 1.4) * 0.015 + (r.slam && r.slam.st === 'down' ? 0.03 : 0);
-      const sh = rage ? Math.sin(t * 30) * 1.5 : 0;
       cx.save();
-      cx.translate(b.cx + sh, b.bottom);
-      cx.scale(1 / sq * (rage ? 1.04 : 1), sq * (rage ? 1.04 : 1));
-      cx.globalAlpha = st.art[key].fb ? 0.92 : 1;
-      if (rage) { cx.shadowColor = 'rgba(255,40,30,0.8)'; cx.shadowBlur = 24; }
-      cx.drawImage(im, -b.w / 2, -b.h, b.w, b.h);
+      cx.translate(e.x + shake, feet);
+      cx.rotate(lean);
+      cx.scale(sx, sy);
+      if (e.weakT > 0) { cx.shadowColor = '#ffd23f'; cx.shadowBlur = 26; }
+      else if (pose === 'rage') { cx.shadowColor = 'rgba(255,40,30,0.85)'; cx.shadowBlur = 24; }
+      if (st.hit > 0) cx.filter = 'brightness(1.6)';
+      const ph = key === 'wind' ? BOSS_H * 0.93 : BOSS_H; // 팔을 든 자세는 조금 작게 (주먹이 위 HUD 에 안 가리게)
+      cx.drawImage(im, -ph / 2, -ph, ph, ph);
       cx.restore();
     }
-    // 내려찍기 예고 구역 (빨간 띠 · 깜빡)
-    if (r.slam && r.slam.st === 'wind') {
-      const z = RS.SLAM.zone, k = 1 - r.slam.t / RS.SLAM.wind;
-      cx.save();
-      cx.globalAlpha = 0.18 + 0.22 * (0.5 + 0.5 * Math.sin(t * 18)) + 0.25 * k;
-      cx.fillStyle = '#ff2a1a';
-      cx.fillRect(r.slam.x - z, g.ropeY - 36, z * 2, g.rowY - g.ropeY + 80);
-      cx.globalAlpha = 0.9; cx.strokeStyle = '#ffd23f'; cx.lineWidth = 2; cx.setLineDash([6, 5]);
-      cx.strokeRect(r.slam.x - z, g.ropeY - 36, z * 2, g.rowY - g.ropeY + 80);
-      cx.restore();
+    // 빈틈 표시
+    if (e.weakT > 0) {
+      cx.save(); cx.globalAlpha = 0.85 + 0.15 * blink; cx.fillStyle = '#ffd23f'; cx.font = '900 13px sans-serif'; cx.textAlign = 'center';
+      cx.strokeStyle = '#2a1200'; cx.lineWidth = 3; cx.strokeText('빈틈! 피해 ×1.5', e.x, feet - BOSS_H * 0.62); cx.fillText('빈틈! 피해 ×1.5', e.x, feet - BOSS_H * 0.62); cx.restore();
     }
-    // 팔: 드러난 팔은 손 = 부위 자리 · 나머지 살아 있는 팔은 몸통 옆에서 대기 · 부서진 팔은 안 그림
-    const live = st.live || (st.run ? { hp: st.run.hp, max: st.run.max } : null);
-    R2.ARMS.forEach((a, i) => {
-      const e = r.parts[a.id];
-      const dead = live && live.hp && (live.hp[a.id] | 0) <= 0 && !e;
-      if (dead) return;
-      const s = shoulderAt(g, a.id, t);
-      const side = SHOULDER[a.id][0] < 0.5 ? -1 : 1;
-      let hx, hy, idle = !e;
-      if (e) { hx = e.x + Math.sin(t * 1.7 + i) * 4; hy = e.y + Math.cos(t * 1.3 + i) * 3; if (r.slam && r.slam.p === a.id && r.slam.st === 'wind') { hx += Math.sin(t * 60) * 2; } }
-      else { hx = s.x + side * (62 + Math.sin(t * 1.2 + i) * 8); hy = s.y + 96 + Math.cos(t * 1.5 + i) * 10; }
-      drawArm(g, a.id, s, hx, hy, idle, t, e);
-    });
-    if (r.parts.body && !r.parts.body.dead) drawPartBar(g, r.parts.body, 'body');
   } else if (layer === 'top') {
-    // 부서져 떨어지는 팔
-    const now = performance.now() / 1000;
-    st.fx = st.fx.filter((f) => now - f.t0 < 1.6);
-    for (const f of st.fx) {
-      const a = now - f.t0;
-      const x = f.x + f.vx * a, y = f.y + f.vy * a + 420 * a * a;
-      cx.save();
-      cx.globalAlpha = clamp(1.6 - a, 0, 1);
-      cx.translate(x, y); cx.rotate(f.rot + f.vr * a);
-      const im = artOk('arm_' + f.p) ? st.art['arm_' + f.p].img : artOk('item_' + f.p) ? st.art['item_' + f.p].img : null;
-      if (im) { if (im === (st.art['arm_' + f.p] || {}).img) { const k = 0.32; cx.drawImage(im, -ARM_IMG.px * k, -ARM_IMG.py * k, ARM_IMG.w * k, ARM_IMG.h * k); } else cx.drawImage(im, -34, -34, 68, 68); }
-      cx.restore();
+    // 날아가는 고지서 · 돈다발 (보스 손 → 떨어질 자리)
+    if (e) {
+      for (const m of r.marks) {
+        const k = clamp(1 - m.t / m.t0, 0, 1);
+        const x0 = e.x + (m.k === 'cash' ? 60 : -60), y0 = e.y - 40; // 고지서는 던지는 손(왼쪽) · 돈다발은 오른손
+        const x = x0 + (m.x - x0) * k, y = y0 + (m.y - y0) * k - Math.sin(k * Math.PI) * 90;
+        cx.save(); cx.translate(x, y); cx.rotate(m.k === 'cash' ? Math.sin(k * 12) * 0.5 : k * 9 + m.x);
+        cx.strokeStyle = '#2a1a14'; cx.lineWidth = 1.5;
+        if (m.k === 'cash') { // 돈다발: 초록 지폐 뭉치 + 띠
+          cx.fillStyle = '#3f9a52'; cx.fillRect(-15, -9, 30, 18); cx.strokeRect(-15, -9, 30, 18);
+          cx.fillStyle = '#7fd08a'; cx.fillRect(-13, -7, 26, 5);
+          cx.fillStyle = '#f2e3b0'; cx.fillRect(-4, -9, 8, 18); cx.strokeRect(-4, -9, 8, 18);
+        } else { // 고지서: 흰 종이 + 빨간 도장 줄
+          cx.fillStyle = '#fbf6e8'; cx.fillRect(-9, -12, 18, 24); cx.strokeRect(-9, -12, 18, 24);
+          cx.fillStyle = '#9a8f80'; for (let l = 0; l < 4; l++) cx.fillRect(-6, -8 + l * 4, 12, 1.5);
+          cx.fillStyle = '#e0302a'; cx.fillRect(1, 6, 6, 4);
+        }
+        cx.restore();
+      }
     }
+    // 끊기 · 붙잡기 떼기 때 튀는 별 (짧게)
+    const now = performance.now() / 1000;
+    st.fx = st.fx.filter((f) => now - f.t0 < 1);
   }
 }
-function drawArm(g, id, s, hx, hy, idle, t, e) {
-  const R = C.R, cx = R.cx;
-  const dx = hx - s.x, dy = hy - s.y, len = Math.hypot(dx, dy);
-  if (realArt('arm_' + id)) {
-    const im = st.art['arm_' + id].img;
-    const k = clamp(len / (ARM_IMG.hy - ARM_IMG.py), 0.22, 0.7) * (idle ? 0.85 : 1);
-    cx.save();
-    cx.translate(s.x, s.y);
-    cx.rotate(Math.atan2(dy, dx) - Math.PI / 2);
-    if (idle) cx.globalAlpha = 0.85;
-    if (e && e.weakT > 0) { cx.shadowColor = '#ffd23f'; cx.shadowBlur = 18; }
-    if (e && e.flash > 0) cx.filter = 'brightness(1.8)';
-    cx.drawImage(im, -ARM_IMG.px * k, -ARM_IMG.py * k, ARM_IMG.w * k, ARM_IMG.h * k);
-    cx.restore();
-  } else if (artOk('item_' + id)) {
-    // 팔 그림이 오기 전: 손에 든 물건 그림만 (손 자리에서 흔들림)
-    const im = st.art['item_' + id].img, sz = idle ? 40 : 62;
-    cx.save();
-    cx.translate(hx, hy);
-    cx.rotate(Math.sin(t * 2.2 + sz) * 0.18 + (e && e.lift < -10 ? -0.4 : e && e.lift > 30 ? 0.5 : 0));
-    if (idle) cx.globalAlpha = 0.7;
-    if (e && e.weakT > 0) { cx.shadowColor = '#ffd23f'; cx.shadowBlur = 20; }
-    else { cx.shadowColor = (R2.armOf(id) || {}).color || '#fff'; cx.shadowBlur = idle ? 6 : 14; }
-    if (e && e.flash > 0) cx.filter = 'brightness(1.8)';
-    cx.drawImage(im, -sz / 2, -sz / 2, sz, sz);
-    cx.restore();
-  }
-  if (e) drawPartBar(g, e, id);
-}
-// 부위 머리 위: 서버 체력 (마지막으로 받은 값 − 이 판에서 넣은 피해)
-function drawPartBar(g, e, id) {
-  const cx = C.R.cx, live = st.live || st.run;
-  if (!live || !live.max || !live.max[id]) return;
-  const left = Math.max(0, (live.hp[id] || 0) - ((g.r2.dmg[id] || 0) - (st.dmgAtPoll[id] || 0)));
-  const p = clamp(left / live.max[id], 0, 1);
-  const w = id === 'body' ? 120 : 56, x = e.x - w / 2, y = e.y - (id === 'body' ? 120 : 46);
+function zone(cx, x, y, w, h, alpha) {
   cx.save();
-  cx.fillStyle = 'rgba(12,4,10,0.8)'; cx.fillRect(x - 1.5, y - 1.5, w + 3, 8);
-  cx.fillStyle = e.weakT > 0 ? '#ffd23f' : (R2.armOf(id) || R2.BODY).color; cx.fillRect(x, y, w * p, 5);
+  cx.globalAlpha = alpha; cx.fillStyle = '#ff2a1a'; cx.fillRect(x, y, w, h);
+  cx.globalAlpha = 0.9; cx.strokeStyle = '#ffd23f'; cx.lineWidth = 2; cx.setLineDash([6, 5]); cx.strokeRect(x, y, w, h);
   cx.restore();
 }
-st.dmgAtPoll = {};
+st.dmgAtPoll = 0;
 
 // ─── 판에 붙이기 (game.js startRun · createGame 바로 뒤) ───
 function attach(g, o) {
   loadArt();
-  st.run = o; st.live = { hp: { ...o.hp }, max: { ...o.max }, exposed: o.exposed.slice(), by: {}, hitting: 0, feed: [] };
-  st.dmgAtPoll = {}; st.feedT = Date.now(); st.fx = []; st.pollT = 0;
-  RS.attach(g, { tier: o.tier, exposed: o.exposed, rally: !!o.rally });
+  st.run = o; st.live = { hp: { ...o.hp }, max: { ...o.max }, hitting: 0, feed: [] };
+  st.dmgAtPoll = 0; st.feedT = Date.now(); st.fx = []; st.pollT = 0; st.hit = 0;
+  RS.attach(g, { tier: o.tier, rally: !!o.rally, hp: o.hp, max: o.max });
   mountHud(g);
   if (o.rally) setTimeout(() => C.toast(`${o.rally.n}님의 부름에 응답! 피해 +${Math.round(R2.R2.rallyBuff * 100)}% · 둘 다 협동 기여`, 3000), 800);
   return g.r2;
 }
-function leave() { if (st.hud) { st.hud.remove(); st.hud = null; } clearSpam(); st.run = null; }
+function leave() { if (st.hud) { st.hud.remove(); st.hud = null; } st.run = null; }
 
-// ─── 전투 HUD: 서버 체력 · 지금 때리는 사람 · 소식 ───
+// ─── 전투 HUD: 서버 체력 · 페이즈 · 지금 때리는 사람 · 소식 ───
 function mountHud(g) {
   if (st.hud) st.hud.remove();
   const d = document.createElement('div');
   d.className = 'r2-hud';
-  d.innerHTML = `<div class="r2h-top"><b class="r2h-name">${esc(R2.BOSS.name)} <em>${st.run.tier}단계</em></b><span class="r2h-live"></span></div><div class="r2h-bar"><b></b><i></i></div><div class="r2h-feed"></div>`;
+  d.innerHTML = `<div class="r2h-top"><b class="r2h-name">${esc(R2.BOSS.name)} <em>${st.run.tier}단계 · <span class="r2h-ph">${g.r2.phase}페이즈</span></em></b><span class="r2h-live"></span></div><div class="r2h-bar"><b></b><i></i><s style="left:${(R2.R2.phaseAt[1] * 100).toFixed(1)}%"></s><s style="left:${(R2.R2.phaseAt[0] * 100).toFixed(1)}%"></s></div><div class="r2h-feed"></div>`;
   C.stage.appendChild(d);
   st.hud = d;
 }
 function hudTick(g) {
   if (!g.r2 || !st.hud) return;
+  if (st.hit > 0) st.hit -= 1 / 60;
   const now = performance.now();
   if (now - st.hudT > 250) {
     st.hudT = now;
-    const L0 = st.live, max = (st.run && R2.PARTS.reduce((a, p) => a + (st.run.max[p] || 0), 0)) || 1;
-    const left = R2.PARTS.reduce((a, p) => a + Math.max(0, (L0.hp[p] || 0) - ((g.r2.dmg[p] || 0) - (st.dmgAtPoll[p] || 0))), 0);
+    const L0 = st.live, max = (st.run && st.run.max && st.run.max.body) || 1;
+    const mine = g.r2.dmg.body || 0;
+    const left = Math.max(0, (L0.hp.body || 0) - (mine - st.dmgAtPoll));
     st.hud.querySelector('.r2h-bar b').style.width = `${clamp((left / max) * 100, 0, 100).toFixed(2)}%`;
-    const mine = Object.values(g.r2.dmg).reduce((a, b) => a + b, 0);
     const cap = Math.round(max * R2.R2.runCapPct);
     st.hud.querySelector('.r2h-bar i').style.width = `${clamp((Math.min(mine, cap) / max) * 100, 0, 100).toFixed(2)}%`;
     st.hud.querySelector('.r2h-live').textContent = `지금 ${Math.max(1, L0.hitting | 0)}명이 때리는 중 · 내 피해 ${big(mine)}${mine >= cap ? ' (한 판 최대)' : ''}`;
+    st.hud.querySelector('.r2h-ph').textContent = `${g.r2.phase}페이즈${g.r2.angry ? ` · 화 ${g.r2.angry}` : ''}`;
   }
-  // 15초마다 서버 상태 (다른 사람이 부순 팔 · 소식)
+  // 15초마다 서버 상태 (다른 사람이 넘긴 페이즈 · 소식)
   if (!g.over && now - st.pollT > 15000) { st.pollT = now; poll(g); }
 }
 async function poll(g) {
   const b = await C.API.r2Board(true).catch(() => null);
   if (!b || C.app.g !== g || !g.r2) return;
-  st.dmgAtPoll = { ...g.r2.dmg };
-  st.live = { hp: b.hp, max: b.max, exposed: b.exposed, by: b.by, hitting: b.hitting, feed: b.feed };
-  const gone = RS.syncParts(g, b.exposed, b.by);
+  st.dmgAtPoll = g.r2.dmg.body || 0;
+  st.live = { hp: b.hp, max: b.max, hitting: b.hitting, feed: b.feed };
+  if (b.phase <= 3) RS.setPhase(g, b.phase);
   if (b.killed && g.raid) g.raid.sec = Math.min(g.raid.sec, g.t + 4); // 다른 사람이 잡았다 → 이 판도 곧 끝
   for (const f of (b.feed || []).slice().reverse()) {
     if (f.t <= st.feedT) continue;
@@ -220,9 +204,11 @@ async function poll(g) {
     feedLine(feedText(f), f.k);
     if (f.k === 'kill') C.fx.banner('건물주 대마왕 쓰러짐!', `${f.n}님이 마지막 일격!`, '#7a1020', 3, 'boss');
   }
-  if (gone.length) C.A.sfx.slam();
 }
-const feedText = (f) => (f.k === 'break' ? `${f.n}님이 ${R2.partName(f.p)}을 부쉈다!` : f.k === 'kill' ? `${f.n}님이 건물주 대마왕을 쓰러뜨렸다!` : `${f.n}님 큰 한 방 ${big(f.d || 0)}`);
+const feedText = (f) => (f.k === 'kill' ? `${f.n}님이 건물주 대마왕을 쓰러뜨렸다!`
+  : f.k === 'phase' ? `${f.n}님이 건물주를 ${f.p === 'p3' ? '분노(3페이즈)' : '짜증(2페이즈)'}로 몰아넣었다!`
+    : f.k === 'break' ? `${f.n}님이 건물주에게 큰 타격!` // (예전 기록: 팔 부숨)
+      : `${f.n}님 큰 한 방 ${big(f.d || 0)}`);
 function feedLine(text, k) {
   if (!st.hud) return;
   const box = st.hud.querySelector('.r2h-feed');
@@ -236,80 +222,104 @@ function feedLine(text, k) {
 }
 
 // ─── 전투 이벤트 → 연출 ───
+const PATN = Object.fromEntries(R2.PATTERNS.map((p) => [p.id, p.name]));
 function onEvent(g, e, loud) {
   const fx = C.fx, A = C.A;
   switch (e.type) {
     case 'r2Start':
-      fx.banner(R2.BOSS.name, R2.BOSS.sub, '#7a1020', 2.6, 'boss');
-      if (loud) A.sfx.rage();
+      fx.banner(R2.BOSS.name, `${R2.BOSS.sub} · 입구가 부서질 때까지!`, '#7a1020', 2.8, 'boss');
+      fx.addShake(10);
+      if (loud) A.sfx.rumble();
       break;
-    case 'r2Wind':
-      fx.text(e.x, e.y - 60, `${e.name} 내려찍기!`, '#ff5a3a', 17, 1.6);
-      if (loud) { A.sfx.heartbeat(); if (!st.windTip) { st.windTip = true; C.showTip('빨간 구역 = 내려찍기! 그 손에 스킬을 맞히거나 기절시키면 끊겨요', 4200); } }
+    case 'r2Wind': {
+      const col = e.k === 'grab' ? '#ff9a3a' : '#ff5a3a';
+      fx.text(e.x, g.ropeY - 70, e.chain ? '한 번 더!' : `${e.name}!`, col, e.chain ? 16 : 18, 1.3);
+      if (loud) { if (!e.chain) A.sfx.heartbeat(); else A.sfx.warn(); }
+      if (!st.windTip && e.k !== 'grab') { st.windTip = true; C.showTip('빨간 구역 = 대마왕 공격 예고! 예고 중에 스킬을 맞히거나 기절시키면 끊겨요', 4200); }
+      if (e.k === 'grab' && !st.grabTip) { st.grabTip = true; C.showTip('입구를 붙잡으면 계속 피해! 스킬 두 번이나 기절이면 손을 놓아요', 4200); }
       break;
+    }
     case 'r2Slam':
-      fx.addShake(16); fx.flash('#ff3020', 0.28);
+      fx.addShake(e.k === 'combo' ? 12 : 18); fx.flash('#ff3020', 0.26);
       fx.blast(e.x, e.y, 84, 'fire', 0.5);
       fx.ring(e.x, e.y, 12, 130, 0.55, '#ff7a3a', 6);
       fx.burst(e.x, e.y, 26, '#c9a27a', 240, 'dot', 4, 0.8, 360);
       for (const h of e.hits || []) fx.text(h.x, h.y - 70, '기절', '#ffd23f', 13, 1);
       if (loud) A.sfx.slam();
       break;
+    case 'r2Sweep':
+      fx.addShake(10);
+      fx.burst(e.x, e.y, 30, '#ffb07a', 300, 'dot', 4, 0.6, 180);
+      fx.text(e.x, e.y - 90, '휩쓸기!', '#ff9a5a', 16, 1.1);
+      for (const h of e.hits || []) fx.text(h.x, h.y - 70, '기절', '#ffd23f', 13, 1);
+      if (loud) A.sfx.whoosh();
+      break;
     case 'r2Cut':
-      fx.text(e.x, e.y - 50, `${e.text} 빈틈!`, '#ffd23f', 19, 1.6);
-      fx.ring(e.x, e.y, 10, 70, 0.5, '#ffd23f', 4);
+      fx.text(e.x, e.y - 60, `${e.text} 빈틈!`, '#ffd23f', 19, 1.6);
+      fx.ring(e.x, e.y, 10, 90, 0.5, '#ffd23f', 4);
       fx.burst(e.x, e.y, 18, '#ffe27a', 200, 'star', 5, 0.6);
-      if (loud) A.sfx.reveal();
+      st.hit = 0.15;
+      if (loud) A.sfx.reveal ? A.sfx.reveal() : A.sfx.pick();
       break;
-    case 'r2Gap': fx.ring(e.x, e.y, 20, 60, 0.4, '#ffd23f', 3); break;
-    case 'r2Bill': fx.addShake(8); fx.flash('#ffcf3f', 0.16); fx.text(e.x, g.ropeY - 30, e.half ? '고지서 폭탄 (반감)' : '고지서 폭탄!', '#ffcf3f', 15, 1.2); if (loud) A.sfx.hit(); break;
+    case 'r2Release':
+      fx.text(e.x, e.y - 60, e.text, '#7dffb0', 18, 1.5);
+      fx.ring(e.x, g.ropeY, 10, 120, 0.5, '#7dffb0', 4);
+      if (loud) A.sfx.pick();
+      break;
+    case 'r2Grab':
+      fx.addShake(14); fx.flash('#ff7a3a', 0.2);
+      fx.text(g.W / 2, g.ropeY - 40, '입구를 붙잡았다!', '#ff9a3a', 17, 1.6);
+      if (loud) A.sfx.rumble();
+      break;
+    case 'r2Gap': fx.ring(e.x, e.y, 20, 70, 0.4, '#ffd23f', 3); break;
+    case 'r2Bill': fx.addShake(5); fx.burst(e.x, e.y, 10, '#fff3c0', 150, 'dot', 3, 0.5); if (loud) A.sfx.hit(); break;
+    case 'r2Cash':
+      fx.blast(e.x, e.y, 46, 'gold', 0.4); fx.burst(e.x, e.y, 20, '#7dff9a', 200, 'dot', 4, 0.6);
+      for (const h of e.hits || []) fx.text(h.x, h.y - 70, '기절', '#ffd23f', 13, 1);
+      if (loud) { A.sfx.explode(); A.sfx.coin(); }
+      break;
     case 'r2Pat': patFx(g, e, loud); break;
-    case 'r2Break': {
-      const now = performance.now() / 1000;
-      st.fx.push({ p: e.p, x: e.x, y: e.y, t0: now, vx: (Math.random() - 0.5) * 60, vy: -120, rot: 0, vr: (Math.random() < 0.5 ? -1 : 1) * 4 });
-      fx.addShake(14); fx.flash('#ffffff', 0.3);
-      fx.blast(e.x, e.y, 70, 'gold', 0.5); fx.burst(e.x, e.y, 34, (R2.armOf(e.p) || R2.BODY).color, 260, 'star', 5, 0.8, 200);
-      fx.banner(`${R2.partName(e.p)} 부서짐!`, e.by ? `${e.by}님의 막타!` : '서버 모두의 힘!', '#5a2aa0', 2.2, 'big');
-      feedLine(e.by ? `${e.by}님이 ${R2.partName(e.p)}을 부쉈다!` : `${R2.partName(e.p)} 부서짐!`, 'break');
-      if (loud) A.sfx.levelUp();
+    case 'r2Angry':
+      fx.banner('건물주가 더 화났다!', `화 ${e.n} · 공격이 더 세고 빨라져요`, '#9a1a1a', 1.8, 'wave');
+      fx.addShake(8);
+      if (loud) A.sfx.rage();
       break;
-    }
+    case 'r2Final':
+      fx.banner('철거 개시!', '건물주가 입구를 통째로 뜯어냈다', '#5a0a10', 2.6, 'boss');
+      fx.addShake(26); fx.flash('#ff2010', 0.5);
+      if (loud) A.sfx.slam();
+      break;
     case 'r2Phase':
-      fx.banner(e.parts.includes('body') ? '본체 등장! 분노!' : '다음 팔들이 나왔다!', e.parts.includes('body') ? '건물이 흔들린다' : e.parts.map((p) => (R2.armOf(p) || {}).item).join(' · '), '#7a1020', 2.4, 'boss');
+      fx.banner(e.phase >= 3 ? '건물주 분노! 3페이즈' : '건물주 짜증! 2페이즈', R2.PHASES[e.phase - 1].text, '#7a1020', 2.4, 'boss');
       if (loud) A.sfx.rage();
       break;
   }
 }
-const SPAM = ['[건물주] 이번 달 월세 입금 확인 바랍니다', '[건물주] 관리비 인상 안내 (필독)', '[건물주] 보일러 고장 신고는 받지 않습니다', '[건물주] 계약서 다시 씁시다', '[건물주] 반려동물 금지 재공지', '[건물주] 주차 자리 없어요'];
 function patFx(g, e, loud) {
-  const fx = C.fx, A = C.A, a = R2.armOf(e.p) || R2.BODY;
-  fx.text(e.x, e.y - 58, `${a.item}${e.half ? ' (추천 멤버로 반감)' : ''}`, a.color, 13, 1.3);
-  if (e.p === 'mega') { fx.ring(e.x, e.y, 10, 260, 0.6, '#ff6b4a', 5); if (loud) A.sfx.horn(); }
-  else if (e.p === 'bill') { fx.text(e.x, g.ropeY - 60, '고지서 날아온다!', '#ffcf3f', 14, 1.4); }
-  else if (e.p === 'bottle') { fx.burst(e.x, e.y, 14, '#4fd18b', 140, 'dot', 4, 0.5); if (loud) A.sfx.whoosh(); }
-  else if (e.p === 'golf') { for (const h of e.hits || []) fx.text(h.x, h.y - 70, '풀스윙!', '#6fd3ff', 14, 1.1); if (loud) A.sfx.whoosh(); }
-  else if (e.p === 'contract') { fx.ring(e.x, e.y, 10, 320, 0.7, '#c77dff', 4); }
-  else if (e.p === 'keys') { if (e.hx) fx.text(e.hx, e.hy - 70, '자리 잠김!', '#e8a25a', 14, 1.4); }
-  else if (e.p === 'bag') { fx.text(e.x, e.y - 30, `총공지 −${e.ult | 0}`, '#ff6fd8', 14, 1.4); if (loud) A.sfx.coin(); }
-  else if (e.p === 'phone') { spam(e.sec || 5); }
+  const fx = C.fx, A = C.A;
+  fx.text(e.x, e.y - 150, `${PATN[e.k] || ''}!`, '#ffcf3f', 15, 1.2);
+  if (e.k === 'seal') { for (const h of e.hits || []) { fx.text(h.x, h.y - 70, '봉인!', '#c77dff', 14, 1.3); fx.ring(h.x, h.y - 20, 6, 34, 0.5, '#c77dff', 3); } if (loud) A.sfx.mzSlam ? A.sfx.mzSlam() : A.sfx.hit(); }
+  else if (e.k === 'bills') { if (loud) A.sfx.whoosh(); }
+  else if (e.k === 'cash') { if (loud) A.sfx.coin(); }
 }
-function spam(sec) {
-  clearSpam();
-  const box = document.createElement('div');
-  box.className = 'r2-spam';
-  const n = 4;
-  box.innerHTML = Array.from({ length: n }, (_, i) => `<div class="r2-noti" style="--x:${(8 + Math.random() * 30).toFixed(0)}%;--y:${(14 + i * 13 + Math.random() * 6).toFixed(0)}%;--d:${(i * 0.12).toFixed(2)}s"><b>알림</b><span>${esc(SPAM[(Math.random() * SPAM.length) | 0])}</span><small>지금</small></div>`).join('');
-  box.addEventListener('pointerdown', (ev) => { const n0 = ev.target.closest('.r2-noti'); if (n0) n0.remove(); });
-  C.stage.appendChild(box);
-  st.spam = box;
-  st.spamT = setTimeout(clearSpam, sec * 1000);
-}
-function clearSpam() { clearTimeout(st.spamT); if (st.spam) { st.spam.remove(); st.spam = null; } }
 
 // ─── 결과 ───
 function resultTop(g) {
   const rep = RS.report(g) || { total: 0 };
-  return { title: '건물주 레이드 끝!', sub: `${Math.round(Math.min(g.t, R2.R2.sec))}초 동안 건물주에게 준 피해 · 끊은 내려찍기 ${rep.cuts | 0}번`, top: `<div class="score-big"><small>건물주 피해</small><b>${fmt(rep.total)}</b></div>` };
+  const sec = Math.round(Math.min(g.t, R2.R2.sec));
+  return { title: g.r2 && g.r2.finale ? '철거당했다!' : '입구가 무너졌다!', sub: `${sec}초 동안 버티며 준 피해 · 끊은 공격 ${rep.cuts | 0}번`, top: `<div class="score-big"><small>건물주 피해</small><b>${fmt(rep.total)}</b></div>` };
+}
+// 결과 숫자 칸 (진상 처치 · 웨이브 대신 레이드 숫자)
+function stats(g, time) {
+  const r = g.r2 || {}, rep = RS.report(g) || {};
+  return `<div class="stats">
+      <div><small>버틴 시간</small><b>${time}</b></div>
+      <div><small>끊은 공격</small><b>${rep.cuts | 0}</b></div>
+      <div><small>맞은 내려찍기</small><b>${rep.slams | 0}</b></div>
+      <div><small>쌓인 화</small><b>${r.angry | 0}</b></div>
+      <div><small>페이즈</small><b>${r.phase || 1}</b></div>
+      <div><small>팀 레벨</small><b>${g.level | 0}</b></div>
+    </div>`;
 }
 async function save(sum, g, box) {
   leave();
@@ -329,7 +339,7 @@ async function save(sum, g, box) {
       <div class="rw"><span>이번 주 내 기여</span><b>${fmt((m.dmg || 0) + (m.coop || 0))}${m.rank ? ` · ${m.rank}위` : ''}</b></div>
       <div class="rw total"><span><i class="ci"></i>참가 보상</span><b>+100 · ${C.ic('gem', '', 'sm')}2</b></div>
     </div>
-    ${(x.broke || []).map((p) => `<div class="r2-broke">${partImg(p)}<b>${esc(R2.partName(p))} 막타!</b><small>${p === 'body' ? '칭호 "막타왕" · 전설 장비 · 모집권 5 (우편)' : '코인 · 강화석 · 모집권 (우편)'}</small></div>`).join('')}
+    ${(x.broke || []).map((p) => `<div class="r2-broke">${bossImg(p === 'body' ? 'rage' : p === 'p3' ? 'rage' : 'wind')}<b>${p === 'body' ? '건물주 대마왕 막타!' : `${esc(R2.partName(p))} 막타!`}</b><small>${p === 'body' ? '칭호 "막타왕" · 전설 장비 · 모집권 5 (우편)' : '코인 · 강화석 · 모집권 (우편)'}</small></div>`).join('')}
     ${x.killed ? '<div class="r2-killed">건물주 대마왕을 쓰러뜨렸다! 참가자 모두 토벌 보상</div>' : ''}
     ${x.help && HEROES[x.help.hero] ? `<div class="fr-helped">${C.av(HEROES[x.help.hero])}<span><b>${esc(x.help.nick)}님의 멤버가 도와줬어요</b><small>${esc(HEROES[x.help.hero].name)}</small></span></div>` : ''}
     ${x.test ? '<div class="guest-note">마스터 테스트 판은 서버 체력에 안 들어가요</div>' : ''}`;
@@ -337,40 +347,39 @@ async function save(sum, g, box) {
 }
 
 // ─── 로비 ───
-const partImg = (p, cls = '') => (p === 'body' ? `<img class="r2-pi ${cls} ${hasFile(R2.R2_ART.body) ? '' : 'fb'}" src="${bodySrc(false)}" alt="" draggable="false">` : `<img class="r2-pi ${cls} ${hasFile(R2.R2_ART.arm(p)) ? '' : 'fb'}" src="${armSrc(p)}" alt="" draggable="false">`);
+const bossImg = (pose, cls = '') => `<img class="r2-pi ${cls}" src="${poseSrc(pose)}" alt="" draggable="false">`;
 function owned(id) { return C.API.heroUnlocked(P(), id); }
-// 추천 멤버 얼굴: 가진 멤버만 얼굴 + 이름 · 없는 멤버는 이름 없이 실루엣
+// 멤버 얼굴 (세트 끼우기 창): 가진 멤버만 얼굴 + 이름
 function recFace(id) {
   const h = HEROES[id];
   if (!h) return '';
   if (owned(id)) return `<span class="r2-rf" title="${esc(h.name)}"><span class="r2-face" style="--c:${ATTRS[h.attr].color}"><img src="${C.thumbSrc(id) || h.img}" alt="" draggable="false" style="${C.faceCircStyle(id)}" onerror="this.onerror=null;this.removeAttribute('style');this.src='${h.img}'"></span><small>${esc(h.name)}</small></span>`;
   return `<span class="r2-rf no"><span class="r2-face sil"><img src="${h.img}" alt="" draggable="false"></span><small>???</small></span>`;
 }
+// 의자에 앉은 거대 보스 (3페이즈는 일어나서 분노) · 숨쉬기 · 쓰러지면 회색
 function bossStage(b) {
-  const arms = R2.ARMS.map((a, i) => {
-    const dead = b && (b.hp[a.id] | 0) <= 0;
-    const on = b && b.exposed.includes(a.id);
-    const [sx, sy] = SHOULDER[a.id];
-    return `<i class="r2-arm a-${a.id} ${dead ? 'gone' : ''} ${on ? 'on' : ''} ${hasFile(R2.R2_ART.arm(a.id)) ? 'real' : 'item'}" style="--i:${i};--sx:${sx};--sy:${sy};--side:${sx < 0.5 ? -1 : 1};--c:${a.color}">${partImg(a.id)}</i>`;
-  }).join('');
-  const rage = b && b.phase >= 3;
-  return `<div class="r2-boss ${rage ? 'rage' : ''} ${b && b.killed ? 'dead' : ''}"><div class="r2-bb"><img class="r2-body ${hasFile(R2.R2_ART.body) ? '' : 'fb'}" src="${bodySrc(rage)}" alt="" draggable="false">${arms}</div></div>`;
+  const ph = b ? b.phase : 1;
+  const rage = ph === 3;
+  return `<div class="r2-boss ph${ph} ${rage ? 'rage' : ''} ${b && b.killed ? 'dead' : ''}"><i class="r2-glow"></i><div class="r2-bb"><img class="r2-body" src="${lobbySrc(rage)}" alt="" draggable="false"></div></div>`;
 }
-function armChips(b) {
-  return R2.ARMS.map((a) => {
-    const dead = b && (b.hp[a.id] | 0) <= 0, on = b && b.exposed.includes(a.id);
-    const pct = b ? Math.round(((b.hp[a.id] || 0) / (b.max[a.id] || 1)) * 100) : 100;
-    return `<div class="r2-chip ${dead ? 'gone' : ''} ${on ? 'on' : ''}" style="--c:${a.color}">${partImg(a.id)}<b>${esc(a.item)}</b>${dead ? `<small>부서짐${b.by[a.id] ? ` · ${esc(b.by[a.id])}` : ''}</small>` : `<small>${on ? `${pct}% 남음` : `${a.phase}페이즈`}</small><i class="r2-mini"><em style="width:${pct}%"></em></i>`}</div>`;
-  }).join('');
+// 페이즈 줄: 1 여유만만 → 2 짜증 (66%) → 3 분노 (33%) · 누가 넘겼는지
+function phaseHtml(b) {
+  const ph = b ? b.phase : 1;
+  return `<div class="r2-phases">${R2.PHASES.map((p) => {
+    const on = ph === p.n, done = ph > p.n;
+    const by = b && b.by && b.by['p' + p.n];
+    const at = p.n === 1 ? '100%' : `${Math.round(R2.R2.phaseAt[p.n - 2] * 100)}%`;
+    return `<div class="r2-ph ${on ? 'on' : ''} ${done ? 'done' : ''}" style="--c:${p.color}"><b>${p.n}페이즈 · ${esc(p.name)}</b><small>${on ? '지금!' : done ? '지나감' : `체력 ${at} 부터`}${by ? ` · ${esc(by)}님` : ''}</small></div>`;
+  }).join('')}</div>`;
 }
-function recHtml(b) {
-  const ex = b ? b.exposed : ['mega', 'bill', 'bottle', 'golf'];
-  if (ex.includes('body')) return `<div class="r2-rec-row"><span class="r2-rec-h">${partImg('body')}<span><b>${esc(R2.BODY.name)}</b><small>${esc(R2.BODY.pat)}</small></span></span><p class="r2-rec-tip">${esc(R2.BODY.tip)} · 약점 멤버 없음 — 다 같이!</p></div>`;
-  return ex.map((p) => { const a = R2.armOf(p); return `<div class="r2-rec-row" style="--c:${a.color}"><span class="r2-rec-h">${partImg(p)}<span><b>${esc(a.item)} 팔 · ${esc(a.pat)}</b><small>약점: ${esc(a.role)} ${p === 'contract' ? '×3' : '×2.5'} · 추천 멤버가 있으면 패턴 절반</small></span></span><div class="r2-rec-f">${a.weak.map(recFace).join('')}</div></div>`; }).join('');
+// 패턴 안내: 지금 페이즈에 나오는 것 · 다음 페이즈부터 나오는 것 · 버티는 법
+function patHtml(b) {
+  const ph = b ? Math.min(3, b.phase) : 1;
+  return R2.PATTERNS.map((p) => `<div class="r2-pat ${p.from > ph ? 'later' : ''}"><img src="${p.img}" alt="" draggable="false"><span><b>${esc(p.name)}${p.from > ph ? ` <em>${p.from}페이즈부터</em>` : ''}</b><small>${esc(p.text)}</small><i>${esc(p.tip)}</i></span></div>`).join('');
 }
 function feedHtml(b) {
   const list = (b && b.feed) || [];
-  if (!list.length) return '<div class="r2-feed-e">아직 소식이 없어요 — 첫 팔을 부숴 봐요!</div>';
+  if (!list.length) return '<div class="r2-feed-e">아직 소식이 없어요 — 첫 한 방을 먹여 봐요!</div>';
   return list.slice(0, 6).map((f) => `<div class="r2-feed-l ${f.k}"><b>${esc(feedText(f))}</b><small>${ago(f.t)}</small></div>`).join('');
 }
 const ago = (t) => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? '방금' : s < 3600 ? `${Math.floor(s / 60)}분 전` : s < 86400 ? `${Math.floor(s / 3600)}시간 전` : `${Math.floor(s / 86400)}일 전`; };
@@ -397,7 +406,7 @@ async function show() {
     const left = b ? b.left : 0, max = b ? b.hpMax : 1;
     const pct = b ? (left / max) * 100 : 100;
     const top = b && b.top ? b.top.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''} ${r.me ? 'me' : ''}"><span class="rk">${r.rank}</span><span class="nm">${esc(r.nickname)}</span><b>${fmt(r.score)}</b></div>`).join('') || '<div class="empty-msg">아직 아무도 안 때렸어요 — 첫 타!</div>' : `<div class="empty-msg">${C.app.guest ? '건물주 레이드는 로그인하면 참가해요' : '<span class="spin"></span> 불러오는 중…'}</div>`;
-    const phaseTxt = !b ? '' : b.killed ? `쓰러짐! · ${esc(b.killer)}님 막타` : b.phase === 3 ? '3페이즈 · 본체 (분노)' : `${b.phase}페이즈 · 팔 ${b.phase === 1 ? '1~4' : '5~8'}`;
+    const phaseTxt = !b ? '' : b.killed ? `쓰러짐! · ${esc(b.killer)}님 막타` : `${b.phase}페이즈 · ${esc(R2.PHASES[b.phase - 1].name)}`;
     const canGo = b && !b.killed && me && me.left > 0 && !C.app.guest;
     C.show(`
       <div class="r2-scene"><i class="r2-bg" style="background-image:url('${src(R2.R2_ART.lobby, R2.R2_ART.lobbyFb)}')"></i><i class="r2-vig"></i></div>
@@ -405,15 +414,15 @@ async function show() {
       <h2 class="r2-title">${esc(R2.BOSS.name)}</h2>
       <p class="r2-sub">${esc(R2.BOSS.sub)} · 서버 모두가 같은 보스를 때려요</p>
       ${bossStage(b)}
-      <div class="r2-hp"><div class="r2-hpbar"><b style="width:${pct.toFixed(2)}%"></b></div><em>${b ? `${big(left)} / ${big(max)}` : ''}</em><small>${phaseTxt}</small></div>
+      <div class="r2-hp"><div class="r2-hpbar"><b style="width:${pct.toFixed(2)}%"></b><s style="left:${(R2.R2.phaseAt[1] * 100).toFixed(1)}%"></s><s style="left:${(R2.R2.phaseAt[0] * 100).toFixed(1)}%"></s></div><em>${b ? `${big(left)} / ${big(max)}` : ''}</em><small>${phaseTxt}</small></div>
+      ${phaseHtml(b)}
       <div class="r2-live">${C.ic('party', '', 'sm')}<b>지금 ${b ? b.hitting : 0}명이 때리는 중</b><small>이번 주 ${b ? b.players : 0}명 참가 · 활동 ${b ? Math.max(b.active, R2.R2.floor) : 0}명 기준 체력</small></div>
       <div class="r2-feed">${feedHtml(b)}</div>
-      <div class="r2-arms">${armChips(b)}</div>
       ${rinHtml(me)}
       <div class="wmy r2-me"><div><small>남은 입장</small><b>${me ? me.left : '-'}</b></div><div><small>내 기여</small><b>${me ? big((me.dmg || 0) + (me.coop || 0)) : '-'}</b></div><div><small>기여 순위</small><b>${me && me.rank ? me.rank + '위' : '-'}</b></div></div>
-      <div class="r2-cta"><button class="btn primary" data-act="raidGo" ${canGo ? '' : 'disabled'}>${b && b.killed ? '이번 주는 쓰러뜨렸어요!' : '도전!'} <small>${b && b.killed ? '다음 주 월요일 더 세져서 등장' : `${R2.R2.sec}초 · 한 판 최대 ${big(b ? b.runCap : 0)}`}</small></button>
+      <div class="r2-cta"><button class="btn primary" data-act="raidGo" ${canGo ? '' : 'disabled'}>${b && b.killed ? '이번 주는 쓰러뜨렸어요!' : '도전!'} <small>${b && b.killed ? '다음 주 월요일 더 세져서 등장' : `입구가 부서질 때까지 · 한 판 최대 ${big(b ? b.runCap : 0)}`}</small></button>
         <button class="btn r2-rally" data-act="r2Rally" ${b && !b.killed && !C.app.guest ? '' : 'disabled'}>${C.ic('megaphone', '', 'sm')}같이 때려줘 <small>친구 부르기</small></button></div>
-      <div class="panel r2-recs"><h4>${C.ic('target', '', 'sm')}지금 드러난 부위 · 추천 멤버</h4>${recHtml(b)}</div>
+      <div class="panel r2-pats"><h4>${C.ic('target', '', 'sm')}건물주 패턴 · 버티는 법 <small>진상 없이 대마왕 혼자 와요</small></h4>${patHtml(b)}</div>
       <div class="panel wboard"><h4>${C.ic('trophy', '', 'sm')}이번 주 기여 순위 <small>피해 + 협동</small></h4>${top}</div>
       ${setHtml()}
       <button class="chip rw-i" data-act="r2Info">${C.ic('book', '', 'sm')} 레이드 안내 · 보상</button>
@@ -468,12 +477,14 @@ function info() {
   C.popup(`<h3>${C.ic('book', '', 'sm')}건물주 레이드</h3><div class="ilist">
     <p class="ip">${C.ic('clock', '', 'sm')}월요일 0시 등장 → 일요일 밤까지. 서버 모두가 같은 체력을 깎아요</p>
     <p class="ip">${C.ic('energy', '', 'sm')}입장 주마다 ${R2.R2.entries}번 (체력 안 씀) · 친구 부름에 응답하면 +1 (주 ${R2.R2.bonusMax}번까지)</p>
-    <p class="ip">${C.ic('target', '', 'sm')}1페이즈 팔 1~4 → 2페이즈 팔 5~8 → 3페이즈 본체(분노). 팔마다 패턴이 있고 약점 멤버는 피해 ×2.5 (계약서 팔은 저격 ×3)</p>
-    <p class="ip">${C.ic('shield', '', 'sm')}빨간 구역 = 내려찍기. 예고 중에 그 손에 스킬을 맞히거나 기절시키면 끊기고 빈틈 (피해 ×1.5)</p>
+    <p class="ip">${C.ic('target', '', 'sm')}진상은 안 나와요. 거대한 건물주 혼자 입구와 멤버를 직접 때려요 — 입구가 부서지면 그 판 끝, 그동안 준 피해가 기록돼요</p>
+    <p class="ip">${C.ic('fire', '', 'sm')}시간이 갈수록 화가 쌓여 공격이 세지고 빨라져요 (${R2.R2.sec}초가 되면 "철거"로 입구가 무너져요) · 이 레이드에선 입구 수리 효과가 조금 줄어요</p>
+    <p class="ip">${C.ic('shield', '', 'sm')}빨간 구역 = 공격 예고. 예고 중에 스킬을 맞히거나 기절시키면 끊기고 빈틈 (피해 ×1.5)</p>
+    <p class="ip">${C.ic('help_point', '', 'sm')}서버 체력 66% · 33% 아래로 → 2페이즈(짜증) · 3페이즈(분노): 새 패턴이 나오고 더 빨라져요</p>
     <p class="ip">${C.ic('scale', '', 'sm')}한 판에 깎을 수 있는 건 최대 체력의 1% — 혼자서는 절대 못 잡아요</p>
     <p class="ip">${C.ic('gift', '', 'sm')}한 번이라도 때리면 참가 상자: ${rw(R2.JOIN_RW)}</p>
     <p class="ip">${C.ic('crown', '', 'sm')}잡으면 참가자 모두 토벌 보상: ${rw(R2.SLAY_RW)} · 건물주 세트 조각 · 다음 주엔 한 단계 더 센 건물주</p>
-    <p class="ip">${C.ic('dragon', '', 'sm')}팔 막타: ${rw(R2.PART_RW)} · 본체 막타: ${rw(R2.KILL_RW)}</p>
+    <p class="ip">${C.ic('dragon', '', 'sm')}페이즈를 넘긴 판(2 · 3페이즈 막타): ${rw(R2.PART_RW)} · 마지막 일격: ${rw(R2.KILL_RW)}</p>
     <p class="ip">${C.ic('trophy', '', 'sm')}주간 기여 순위(피해 + 협동): 1위 신화 장비 · 칭호 "건물주 저승사자" · 세트 조각 2 / 2~3위 전설 장비 · 조각 2 / 4~10위 영웅 장비 · 조각 1 / 상위 50% 조각 1 — 우편으로</p>
     <p class="ip">${C.ic('help_point', '', 'sm')}못 잡으면 다음 주에 남은 체력 그대로 이어서</p></div>`, 'r2-info-pop');
 }
@@ -494,7 +505,7 @@ function modeCard(p, card, art) {
   const left = R2.entriesLeft(p);
   const k = st.board && st.board.killed;
   const unlocked = R2.r2Unlocked(p) || p.master;
-  return card('raid', art, '건물주 레이드', '서버 모두가 거대 보스 하나를', unlocked ? (k ? '이번 주 토벌 성공!' : `${C.ic('clock', '', 'sm')}입장 ${left}번 · ${esc(R2.weekLeftText())}`) : '1-5 클리어', { locked: !unlocked, hot: unlocked && !k && left > 0, dot: dot(p) });
+  return card('raid', art, '건물주 레이드', '거대 보스 혼자 · 서버 모두가 같이', unlocked ? (k ? '이번 주 토벌 성공!' : `${C.ic('clock', '', 'sm')}입장 ${left}번 · ${esc(R2.weekLeftText())}`) : '1-5 클리어', { locked: !unlocked, hot: unlocked && !k && left > 0, dot: dot(p) });
 }
 function hot(p) { return (R2.r2Unlocked(p) || p.master) && !(st.board && st.board.killed) && R2.entriesLeft(p) > 0; }
 // 빨간 점: 친구가 불렀거나 · 이번 주에 아직 한 번도 안 때렸을 때
