@@ -1147,11 +1147,11 @@ test('카드: 4장 · 속성 결속은 그 속성 멤버가 있어야 · 진화�
   S.applyCard(g, evo);
   assert.ok(gm.evo && Math.abs(S.heroDamage(g, gm) / d0 - D.EVO_MUL.dmg) < 1e-9);
   assert.ok(!S.cardPool(g).some((c) => c.kind === 'evo' && c.hero === 'gunman'), '진화는 한 번');
-  // 올인: 입구 -20% · 공격력 +35%
-  const max0 = g.base.max, dmg0 = g.mods.dmg;
+  // 올인: 입구 -20% · 공격력 +55% (일반 스테이지는 큰 카드: × GROW.card)
+  const max0 = g.base.max, dmg0 = g.mods.dmg, k = D.GROW.card;
   S.applyCard(g, { kind: 'global', id: 'risk_allin', key: 'risk_allin' });
-  assert.equal(g.base.max, Math.round(max0 * 0.8));
-  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.55) < 1e-9);
+  assert.equal(g.base.max, Math.round(max0 * (1 - 0.2 * k)));
+  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.55 * k) < 1e-9);
 });
 
 test('중간 보스: 3웨이브에 나오고(1-1·1-2 제외) · 합체는 두 진상 기술을 모두 · 넉백 안 됨 · 보너스 코인', () => {
@@ -1257,7 +1257,7 @@ test('덱 넣기/빼기: 빈 자리에 넣고 · 이미 있으면 빼고 · 꽉 
 
 test('레벨업: 드물게(필요 경험치 ×2.2) · 레벨 카드 한 장 = 2레벨 · 멤버 전용 카드 · 멤버 수 제한(자리는 6칸 모두) · 임시 증원 + 게스트', () => {
   const g = S.createGame({ rng: seeded(1301), mode: 'stage', stage: 5, slots: 4, deck: [null, 'staff', 'gunnyeo', 'gunman', 'bangjang', null], guestPool: ['dohoon'] });
-  assert.equal(g.need, Math.round(D.expNeed(1) * D.EXP_NEED_MUL));
+  assert.equal(g.need, Math.round(D.expNeed(1) * D.EXP_NEED_MUL * D.GROW.need), '일반 스테이지는 레벨업이 덜 잦다');
   assert.equal(g.maxHeroes, 4, '4명까지 데려감');
   assert.equal(g.locked.length, 0, '자리는 잠기지 않는다');
   const gn = g.heroes.find((h) => h.id === 'gunnyeo');
@@ -1268,7 +1268,8 @@ test('레벨업: 드물게(필요 경험치 ×2.2) · 레벨 카드 한 장 = 2�
   assert.ok(hm, '건전녀 전용 카드');
   const d0 = S.heroDamage(g, gn);
   S.applyCard(g, hm);
-  assert.ok(gn.cm.splash > 1 && Math.abs(S.heroDamage(g, gn) / d0 - 1.2) < 1e-9);
+  assert.ok(gn.cm.splash > 1 && Math.abs(S.heroDamage(g, gn) / d0 - (1 + D.GROW.lv + 0.2 * D.GROW.card) / (1 + D.GROW.lv)) < 1e-9, '전용 카드 공격력도 큰 카드 (레벨 카드 +15% 와 더해서)');
+  assert.equal(gn.lvAtk, D.GROW.lv, '큰 레벨 카드: 그 멤버 공격력 +');
   assert.ok(!S.cardPool(g).some((c) => c.kind === 'heroMod' && c.hero === 'dohoon'), '덱에 없는 멤버 카드는 없음');
   assert.equal(S.swapHeroes(g, gn, 0), true, '빈 끝자리로도 옮길 수 있다');
   assert.equal(gn.slot, 0);
@@ -1283,6 +1284,53 @@ test('레벨업: 드물게(필요 경험치 ×2.2) · 레벨 카드 한 장 = 2�
   const guest = g.heroes.find((h) => h.guest);
   assert.ok(guest && guest.id === 'dohoon' && guest.slot === g.tempSlot, '게스트 합류');
   assert.equal(S.rollCards(g, 4, { secretChance: 1 }).some((c) => c.kind === 'secret'), false, '한 판에 한 번');
+});
+
+test('주력 2명: Lv3 을 넘기는 레벨 카드를 먼저 고른 두 명만 Lv5 · 나머지 Lv3 까지 · 빈 카드 없음 · 이어하기에도 남는다', () => {
+  const g = S.createGame({ rng: seeded(1401), mode: 'stage', stage: 14, deck: ['staff', 'bangjang', 'gunman', 'gunnyeo', 'dohoon', null] });
+  assert.ok(g.mainOn && g.grow);
+  const H = (id) => g.heroes.find((h) => h.id === id);
+  const lvCard = (id) => S.cardPool(g).find((c) => c.kind === 'heroLv' && c.hero === id);
+  for (const id of ['staff', 'bangjang', 'gunman']) { const c = lvCard(id); assert.equal(c.main, ''); S.applyCard(g, c); assert.equal(H(id).lv, 3); assert.ok(!H(id).main, 'Lv3 까지는 주력이 아님'); }
+  // Lv3 → 5 카드: 고르면 주력 (1/2 · 2/2)
+  const c1 = lvCard('gunman'); assert.equal(c1.main, 'new'); assert.match(c1.sub, /주력 지정 \(1\/2\)/);
+  S.applyCard(g, c1);
+  assert.ok(H('gunman').main && H('gunman').lv === 5 && S.mainCount(g) === 1);
+  assert.ok(g.events.some((e) => e.type === 'mainPick' && e.hero === 'gunman' && e.n === 1 && e.max === D.MAIN.n));
+  S.applyCard(g, lvCard('staff'));
+  assert.equal(S.mainCount(g), 2);
+  // 주력이 다 찼다: 다른 멤버는 Lv3 을 넘기는 카드가 안 나오고 (Lv1 → 3 은 된다) · 억지로 넣어도 안 오른다
+  assert.ok(!lvCard('bangjang'), '방장 Lv3→5 카드 없음');
+  assert.ok(lvCard('gunnyeo') && lvCard('gunnyeo').main === '', '건전녀 Lv1→3 은 된다');
+  S.applyCard(g, { kind: 'heroLv', hero: 'bangjang', key: 'lv:bangjang' });
+  assert.equal(H('bangjang').lv, 3, '주력이 아니면 Lv3 까지');
+  assert.ok(!S.canGrow(g, H('bangjang')) && S.canGrow(g, H('gunnyeo')));
+  for (let i = 0; i < 30; i++) { const cs = S.rollCards(g); assert.equal(cs.length, 4); assert.ok(!cs.some((c) => c.kind === 'heroLv' && c.hero === 'bangjang'), '죽은 카드 없음'); }
+  // 이어하기: 주력 표시가 남는다
+  const r = S.restoreGame(JSON.parse(JSON.stringify(S.snapshot(g))), { rng: seeded(1) });
+  assert.deepEqual(r.heroes.filter((h) => h.main).map((h) => h.id).sort(), ['gunman', 'staff']);
+  assert.ok(!S.cardPool(r).some((c) => c.kind === 'heroLv' && c.hero === 'bangjang'));
+  // 큰 카드: 설명 숫자도 같이 커진다 · 개수 효과(관통 +1)는 그대로
+  const dm = S.cardPool(g).find((c) => c.id === 'dmg');
+  assert.equal(dm.desc, `모든 멤버 공격력 +${Math.round(27 * D.GROW.card)}%`);
+  assert.equal(S.bigDesc('관통 멤버 공격력 +40% · 투사체 관통 +1', 1.5), '관통 멤버 공격력 +60% · 투사체 관통 +1');
+});
+
+test('주력 · 큰 카드는 모드마다: 스테이지 · 헬은 둘 다 · 주간 도전은 주력만 · 무한 · 대전 · 레이드 · 탑은 그대로', () => {
+  const deck = ['staff', 'bangjang', 'gunman', 'gunnyeo', null, null];
+  const hell = S.createGame({ rng: seeded(1), mode: 'stage', stage: 14, hell: true, deck });
+  assert.ok(hell.mainOn && hell.grow);
+  const end = S.createGame({ rng: seeded(1), mode: 'endless', deck });
+  assert.ok(!end.mainOn && !end.grow);
+  assert.equal(S.cardPool(end).find((c) => c.id === 'dmg').desc, '모든 멤버 공격력 +27%', '무한은 카드 그대로');
+  const pvp = S.createGame({ rng: seeded(1), mode: 'stage', stage: 14, pvp: { seed: 5, hp: 1 }, deck, join: true, tempo: true });
+  assert.ok(!pvp.mainOn && !pvp.grow, '대전은 두 사람 같은 규칙 그대로');
+  assert.equal(pvp.need, S.expNeedFor(Object.assign({}, pvp, { grow: false }), 1, true));
+  // 주력이 꺼진 모드: 셋 넘게 Lv5 까지
+  for (const id of ['staff', 'bangjang', 'gunman']) { const h = end.heroes.find((x) => x.id === id); h.lv = 3; assert.ok(S.canGrow(end, h)); }
+  for (const id of ['staff', 'bangjang', 'gunman']) S.applyCard(end, { kind: 'heroLv', hero: id, key: 'lv:' + id });
+  assert.equal(end.heroes.filter((h) => h.lv === 5).length, 3);
+  assert.equal(S.mainCount(end), 0);
 });
 
 test('멤버 티어: 늦게 만나는 멤버는 기본이 세고(강화 0: T4 ≈ T1 × 1.6), 초반 멤버는 성장형 (강화 20: T1 ≈ T4 × 0.85)', () => {

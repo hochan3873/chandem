@@ -43,6 +43,7 @@ function seeded(seed = 1) {
   // 카드 자동 선택: 사람이 고를 법한 단순한 우선순위 + 약간의 무작위
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || 'smart';
+  const LV_FIRST = args.includes('--lvfirst');
   function pickCard(g, cards, rng) {
     if (POLICY === 'random' || (POLICY === 'mid' && rng() < 0.4)) return (rng() * cards.length) | 0;
     let best = 0, bv = -1;
@@ -53,7 +54,7 @@ function seeded(seed = 1) {
       else if (c.kind === 'addHero') v = g.heroes.length < 4 ? 8 : 5;
       else if (c.kind === 'heroLv') {
         const h = S.hasHero(g, c.hero);
-        v = 6 + (h.lv + 1 === 3 || h.lv + 1 === 5 ? 2.5 : 0) + (h.def.hidden ? 1 : 0) + (h.id === g.partner ? 1 : 0);
+        v = 6 + (h.lv + 1 === 3 || h.lv + 1 === 5 ? 2.5 : 0) + (h.def.hidden ? 1 : 0) + (h.id === g.partner ? 1 : 0) + (LV_FIRST ? 4 : 0); // --lvfirst: 멤버 레벨 카드부터 (다 키우는 사람)
       } else if (c.kind === 'evo') v = 9.5;
       else if (c.kind === 'secret') v = 9;
       else if (c.kind === 'skillEvo') v = SKILLS ? 8 : 3;
@@ -126,8 +127,9 @@ function seeded(seed = 1) {
       // 레벨업 카드는 게임이 안 멈춘다 → 사람처럼 1.5~3초 뒤에 고른다
       if (g.pendingLevels > 0 && g.pickAt === undefined) g.pickAt = g.t + (g.welcomePicks > 0 ? 0 : PICK_DELAY * (0.75 + pr() * 0.5));
       if (g.pendingLevels > 0 && g.t >= g.pickAt) {
-        const cards = S.rollCards(g);
-        S.applyCard(g, cards[pickCard(g, cards, pr)]);
+        const cards = S.rollCards(g), c = cards[pickCard(g, cards, pr)];
+        g._pk = g._pk || {}; g._pk[c.kind] = (g._pk[c.kind] || 0) + 1; // 고른 카드 종류 (growth 측정용)
+        S.applyCard(g, c);
         g.pendingLevels--;
         if (g.welcomePicks > 0) g.welcomePicks--;
         g.pickAt = undefined;
@@ -759,7 +761,31 @@ function seeded(seed = 1) {
       console.log(`${pad(ids.map((id) => NAME[id] || id).join('+'), 46)} ${Math.round((w / n) * 100)}%  · 피해 몫 ${Object.entries(share).sort((a, b) => b[1] - a[1]).map(([id, v]) => `${NAME[id] || id} ${Math.round((v / n) * 100)}`).join(' ')}`);
     }
   }
+  // ── 16) 한 판 성장 (node scripts/lb-balance.js growth [--ch=1,3,5,7] [--nos=3,6,9] [--seeds=6] [--lib=예전 폴더])
+  //  레벨업(경험치) 횟수 · 카드 고른 횟수(합류 공짜 포함) · 멤버 레벨 카드 · 끝났을 때 Lv5/Lv3 멤버 수 · 클리어율
+  function growth() {
+    const N = opt('seeds', 6), plus = opt('meta', 6);
+    const chs = listArg('ch', '1,3,5,7').map(Number), nos = listArg('nos', '3,6,9').map(Number);
+    for (const kv of listArg('chadd', '')) { const [c, v] = kv.split(':').map(Number); D.STAGE.chapterAdd[c - 1] += v; } // --chadd=5:-0.5 : 장 난이도를 바꿔 보며 측정
+    const C7 = ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], items7 = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
+    console.log(pad('장', 5) + pad('레벨업', 8) + pad('카드', 7) + pad('합류', 6) + pad('Lv카드', 8) + pad('Lv5', 6) + pad('Lv3+', 6) + '클리어');
+    for (const c of chs) {
+      const a = { lv: 0, pick: 0, join: 0, hl: 0, l5: 0, l3: 0, w: 0, n: 0 };
+      for (const no of nos) {
+        const s = (c - 1) * 10 + no, ids = c >= 7 ? C7 : balFor(c, s, false);
+        const meta = Object.fromEntries(ids.map((id) => [id, c >= 7 ? 15 : REC[c - 1] + plus]));
+        for (let i = 1; i <= N; i++) {
+          const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? items7 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell: args.includes('--hell') });
+          const pk = r.g._pk || {};
+          a.lv += r.g.level - 1; a.pick += r.g.pickN; a.join += pk.join || 0; a.hl += pk.heroLv || 0; a.l5 += r.g.heroes.filter((h) => h.lv >= 5).length; a.l3 += r.g.heroes.filter((h) => h.lv >= 3).length; a.w += r.win ? 1 : 0; a.n++;
+        }
+      }
+      const f = (v) => (v / a.n).toFixed(1);
+      console.log(pad(c + '장', 5) + pad(f(a.lv), 8) + pad(f(a.pick), 7) + pad(f(a.join), 6) + pad(f(a.hl), 8) + pad(f(a.l5), 6) + pad(f(a.l3), 6) + Math.round((a.w / a.n) * 100) + '%');
+    }
+  }
   const t0 = Date.now();
+  if (what === 'growth') growth();
   if (what === 'diag') diag();
   if (what === 'condcalib') condcalib();
   if (what === 'stagecalib') stagecalib();

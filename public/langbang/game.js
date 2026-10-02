@@ -10,7 +10,7 @@ import {
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta,
-  SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade,
+  SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -1227,6 +1227,15 @@ function handleEvents(g, loud) {
       case 'skillQueued': break;
       case 'weaponEvo': fx.text(e.x, e.y - 96, '무기 진화!', '#ffd23f', 16, 1.3, -30); fx.ring(e.x, e.y - 30, 12, 60, 0.6, '#ffd23f', 4); break;
       case 'reload': if (Math.random() < 0.12 && WEAPON[e.hero]) fx.text(e.x, e.y - 70, WEAPON[e.hero].reload, '#e8e0ff', 10, 0.8, -16); break;
+      case 'mainPick': { // 주력 지정: Lv3 을 넘긴 첫 두 명 (처음 한 번은 설명)
+        const h = HD(e.hero);
+        fx.text(e.x, e.y - 84, '★ 주력!', '#ffb347', 17, 1.4, -30); fx.ring(e.x, e.y - 20, 10, 80, 0.7, '#ffb347', 5);
+        if (live) {
+          fx.banner(`★ 주력 ${e.n}/${e.max} · ${h.name}`, e.n >= e.max ? '주력 완성! 나머지 멤버는 Lv3 까지예요' : 'Lv5 진화까지 클 수 있어요', '#a35a00', 1.4, 'wave');
+          if (!tutDone('main')) { setTut('main'); showTip('주력 멤버: 한 판에 2명만 Lv5(진화)까지 커요. 나머지는 Lv3 까지!', 5200); }
+        }
+        break;
+      }
       case 'heroLv':
         fx.ring(e.x, e.y, 8, 60, 0.5, '#ffd23f', 4);
         for (let k = 0; k < 5; k++) fx.part('star', e.x, e.y - 20, (Math.random() - 0.5) * 160, -120 - Math.random() * 80, 0.8, 8, null, { grav: 300 });
@@ -5017,7 +5026,7 @@ function cardHtml5(c, i) {
   const art = heroCard ? `<img class="c5-face" data-face="${c.hero}" src="${thumbSrc(c.hero) || (HEROES[c.hero] || SUMMONS[c.hero]).img}" alt="" draggable="false" style="--k:${(1 / fb[2]).toFixed(3)};--fx:-${(fb[0] * 100).toFixed(1)}%;--fy:-${(fb[1] * 100).toFixed(1)}%;--fyv:${(fb[1] / fb[2]).toFixed(3)}">` : `<img class="c5-gen" src="${cardRound(c)}" alt="" draggable="false">`; void own;
   return `<button class="card v4 v5 r-${cardRar(c)} k-${c.kind} ${c.onPath ? 'onpath' : ''} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
     <span class="c5-art">${art}</span>
-    ${isNew ? `<i class="c5-new">${c.kind === 'join' ? 'NEW · 합류' : 'NEW'}</i>` : ''}${c.kind === 'skillAug' ? '<i class="c5-excl">전용</i>' : ''}${rec ? `<i class="c5-rec">${pimg(ui2('badge_rec'))}</i>` : ''}
+    ${isNew ? `<i class="c5-new">${c.kind === 'join' ? 'NEW · 합류' : 'NEW'}</i>` : ''}${c.main ? `<i class="c5-main ${c.main}">★ 주력${c.main === 'new' ? ` ${S.mainCount(app.g) + 1}/${MAIN.n}` : ''}</i>` : ''}${c.kind === 'skillAug' ? '<i class="c5-excl">전용</i>' : ''}${rec ? `<i class="c5-rec">${pimg(ui2('badge_rec'))}</i>` : ''}
     <i class="c5-ico">${pimg(cardRound(c))}</i>
     <span class="c4-rib"><b class="${t.length > 7 ? 'long' : ''}">${esc(t)}</b></span>
     <span class="c5-desc">${lab}</span>
@@ -5070,7 +5079,7 @@ function renderCards(fresh) {
   cardStrip.innerHTML = `<div class="cs-panel">
     <div class="cs-head">${pimg(ui2(welcome ? 'welcome' : 'crest'), 'crest')}<b>${welcome ? '웰컴 드링크' : 'LEVEL UP'}</b>${welcome ? '' : `<span class="cs-lv">Lv.${g.level}</span>`}${g.pendingLevels > 1 ? `<small>남은 선택 <b>${g.pendingLevels}</b></small>` : ''}
       <button class="cs-re" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'} aria-label="다시 뽑기">${pimg(ui2('dice'))}<b>${app.rerollsRun}</b></button></div>
-    <i class="cs-timer"><b></b></i>
+    <i class="cs-timer"><b></b></i>${app.cards.some((c) => c.main === 'new') && !tutDone('main') ? `<p class="cs-main">★ <b>주력</b>은 한 판에 ${MAIN.n}명만! Lv5(진화)까지 크고, 나머지는 Lv3 까지예요</p>` : ''}
     <div class="card-list v4 n${n} ${g.tempo || app.cards.some((c) => c.kind === 'join') ? 'v5' : ''}">${app.cards.map(cardHtml).join('')}</div>
     <div class="cs-foot"><small>이번 전투 다시 뽑기 <b>${app.rerollsRun}/${REROLLS}</b></small><button class="cs-re2" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>${pimg(ui2('dice'))}다시 뽑기</button>${app.g && app.g.cons && app.g.cons.includes('reroll') && !(app.g.consUsed || {}).reroll ? `<button class="cs-re2 coupon" data-act="rerollCoupon">${consIc('reroll')}쿠폰</button>` : ''}</div>
   </div>`;
@@ -6413,6 +6422,7 @@ function showHowto() {
  <div class="it"><i>${ic('door', '', 'sm')}</i><div>진상들이 골목 위에서 몰려와요. 우리 멤버들이 <b>자동으로 공격</b>해요. 벨벳 로프까지 온 진상은 <b>랑방 입구</b>를 두드려요.</div></div>
  <div class="it"><i>${ic('tap', '', 'sm')}</i><div>진상을 <b>탭하면 집중 공격</b>. 경험치는 <b>저절로</b> 모여요. 게이지가 차면 <b>${ic('megaphone', '', 'sm')} 총공지</b>로 화면 전체 공격!</div></div>
  <div class="it"><i>${ic('card_common', '', 'sm')}</i><div>레벨이 오르면 카드 3장! 카드를 <b>눌러 고르고 → 선택</b>. 덱 멤버 레벨업(3·5레벨에 특수 능력) · 전체 강화. 카드는 스테이지마다 새로 시작해요.</div></div>
+ <div class="it"><i>${ic('star_gold', '', 'sm')}</i><div><b>★ 주력</b>: 스테이지 한 판에 <b>${MAIN.n}명만</b> Lv5(진화)까지 커요. Lv3 을 넘기는 레벨 카드를 먼저 고른 ${MAIN.n}명이 주력이 되고, 나머지 멤버는 Lv3 까지예요. 누구를 키울지 골라 보세요!</div></div>
  <div class="it"><i>${ic('cart', '', 'sm')}</i><div>코인으로 <b>강화 상점</b>에서 멤버를 영구 강화(최대 20)하고 아이템(튼튼한 문 · 단골 쿠폰 · 확성기 배터리 · 행운 부적 · 웰컴 드링크)을 사요.</div></div>
  <div class="it"><i>${ic('sparkle', '', 'sm')}</i><div>1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 을 처음 깨면 <b>새 멤버</b>가 합류해요 (<b>HIDDEN</b> 멤버도 있어요!). 힐러·탱커·한 방 딜러까지 — 덱에 넣어 써요.</div></div>
  <div class="it"><i>${ic('infinity', '', 'sm')}</i><div>1-10을 깨면 <b>무한 도전</b>이 열려요. 어디까지 버티나 랭킹 경쟁! 무한 도전에선 아직 못 만난 멤버도 카드로 <b>체험 합류</b>해요. 25웨이브부터는 <b>진상 연합 회장</b>이 10웨이브마다 찾아와요.</div></div>
