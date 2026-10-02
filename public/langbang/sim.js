@@ -1190,6 +1190,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
 export const BOSS_GUARD = { hit: 0.05, perSec: 0.07, over: 0.2, from: 30 }; // 4장부터 (3-10 은 원래대로)
 export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.dead) return 0;
+  if (e.r2 && g.r2) { dmg = g.r2.hitMul(g, e, dmg, src, aoe); if (!(dmg > 0)) return 0; } // 건물주 레이드 부위: 약점 멤버 · 응원 버프 (raid2-sim.js)
   if (e.tLay > 0 && src && layerHit(g, e, src)) return 0; // 탑 보호막: 한 방에 한 겹
   if (e.cLay > 0 && src && condLayer(g, e, src)) dmg *= 1 - COND.shield.cut; // 스테이지 보호막 진상: 겹이 남아 있으면 −90% (한 방에 한 겹)
   if (src && src.id === 'gunman' && (e.armor > 0 || (e.def.traits && (e.def.traits.aoeImmune || e.def.traits.projShield || e.def.traits.singleResist || e.def.traits.kbImmune)))) dmg *= NICHE.gunman.hard + NICHE.gunman.hardLv * (src.meta || 0); // 건전남: 단단한 진상 전문
@@ -1281,6 +1282,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   }
   e.hp -= dmg;
   if (e.raidBoss) g.raid.dmg += dmg;
+  if (e.r2 && g.r2) g.r2.onHit(g, e, dmg, src); // 건물주 레이드: 부위별 피해 · 내려찍기 끊기
   e.flash = 0.09;
   g.stats.damage += dmg;
   if (src) { src.dmgDone += dmg; if (src._bfM > 1.001) creditBuff(g, src, dmg); }
@@ -2356,7 +2358,7 @@ function victim(g, list, dflt) {
   const pool = inRow.length ? inRow : list;
   return dflt && !dflt.out ? dflt : pool[(g.rng() * pool.length) | 0];
 }
-function debuffSec(h, sec, kind = 'hard') {
+export function debuffSec(h, sec, kind = 'hard') {
   const g = h._g;
   if (h.ccImmT > 0 && kind !== 'slow') return 0; // 건전녀 응급 방패: 잠깐 상태이상 면역
   if (g && kind !== 'none') { const au = g.heroes.find((o) => o.id === BAL.aura.id && !o.gone && o !== h && Math.hypot(o.x - h.x, o.y - h.y) < BAL.aura.r); const self = h.id === BAL.aura.id; if (au || self) { if (kind === 'slow') sec *= 0.5; else { if (g.t - (h.blockT || -9) > 0.8) { h.blockT = g.t; ev(g, 'ccBlock', { x: h.x, y: h.y - 60 }); } return 0; } } }
@@ -3355,6 +3357,7 @@ export function step(g, dt) {
   updateAuras(g);
   updateHeroes(g, dt);
   updateEnemies(g, dt);
+  if (g.r2) g.r2.tick(g, dt); // 건물주 레이드: 팔 패턴 · 내려찍기 (raid2-sim.js)
   if (g.conds.length) condTick(g, dt);
   updateEprojs(g, dt);
   updateProjs(g, dt);

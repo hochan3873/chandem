@@ -146,7 +146,7 @@ test('체력 선물: 친구마다 하루 한 번 · 모두 보내기 · 받기�
   assert.equal(lb.fr.gin.length, 1);
 });
 
-test('레이드 도와주기: 친구 대표 멤버(서버 스냅샷) · 친구마다 하루 한 번 · 빌려준 사람 우편 보상 · 결과에 이름', async () => {
+test('레이드 도와주기 (건물주 레이드): 친구 대표 멤버(서버 스냅샷) · 친구마다 하루 한 번 · 빌려준 사람 우편 보상 · 결과에 이름 · 옛 모임 레이드는 닫힘', async () => {
   const realNow = Date.now;
   const day = L.EPOCH - L.KST + (L.dayIndex(realNow()) + 1) * L.DAY; // 내일 00:00 KST
   let T = day + (12 * 60 + 5) * 60e3; // 점심 레이드
@@ -169,10 +169,15 @@ test('레이드 도와주기: 친구 대표 멤버(서버 스냅샷) · 친구�
     const D = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'data.js')).href);
     st.langbang.equip = { gunman: { [D.GEAR[st.langbang.gear[0].t].slot]: 1 } };
     await srv.accounts.store.saveStats(b.id, st);
+    // 옛 모임 레이드는 닫힘 (혼자 · 친구 둘 다)
+    const old1 = await post('/raid/start', a.token, {}), old2 = await post('/raid/start', a.token, { friend: b.id });
+    assert.equal(old1.ok, false); assert.match(old1.message, /건물주 레이드/);
+    assert.equal(old2.ok, false); assert.match(old2.message, /건물주 레이드/);
+    const R2 = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'raid2.js')).href);
     // 친구가 아니면 못 빌림
-    const bad = await post('/raid/start', a.token, { friend: c.id });
+    const bad = await post('/raid2/start', a.token, { friend: c.id });
     assert.equal(bad.ok, false);
-    const r = await post('/raid/start', a.token, { friend: b.id });
+    const r = await post('/raid2/start', a.token, { friend: b.id });
     assert.equal(r.ok, true, r.message);
     assert.ok(r.runId);
     assert.equal(r.help.hero, 'gunman', '친구 덱의 대장');
@@ -187,26 +192,26 @@ test('레이드 도와주기: 친구 대표 멤버(서버 스냅샷) · 친구�
     assert.equal(vb.profile.fr.pts, L.FRIEND.lendPts);
     // 같은 날 같은 친구는 다시 못 빌림 (도움 없는 레이드는 됨)
     T += 60e3;
-    const again = await post('/raid/start', a.token, { friend: b.id });
+    const again = await post('/raid2/start', a.token, { friend: b.id });
     assert.equal(again.ok, false);
     assert.match(again.message, /오늘 이미/);
     // 결과: 친구 멤버가 있으면 피해 상한 ×1.35 · 결과에 누가 도왔는지
-    const plain = await post('/raid/start', a.token, {});
+    const plain = await post('/raid2/start', a.token, {});
     assert.equal(plain.ok, true, plain.message);
     T += 150e3;
     const lbA = (await get('/me', a.token)).profile;
-    const cap = L.raidCap(lbA, 150);
-    const over = await post('/result', a.token, { mode: 'raid', runId: plain.runId, raidDmg: Math.floor(cap * 1.2), wave: 8, kills: 50, durationSec: 150 });
+    const cap = R2.r2Cap(lbA, 150);
+    const over = await post('/raid2/finish', a.token, { runId: plain.runId, parts: { mega: Math.floor(cap * 1.2) }, kills: 50, durationSec: 150 });
     assert.equal(over.ok, false, '도움 없는 판은 원래 상한');
     // 도움 판 다시 (같은 날 다른 친구가 없으니 내일)
     T += L.DAY;
-    const r2 = await post('/raid/start', a.token, { friend: b.id });
+    const r2 = await post('/raid2/start', a.token, { friend: b.id });
     assert.equal(r2.ok, true, r2.message);
     T += 150e3;
-    const res = await post('/result', a.token, { mode: 'raid', runId: r2.runId, raidDmg: Math.floor(cap * 1.2), wave: 8, kills: 50, durationSec: 150 });
+    const res = await post('/raid2/finish', a.token, { runId: r2.runId, parts: { mega: Math.floor(cap * 1.2) }, kills: 50, durationSec: 150 });
     assert.equal(res.ok, true, res.message);
-    assert.equal(res.raid.help.nick, '도우미');
-    assert.equal(res.raid.help.hero, 'gunman');
+    assert.equal(res.raid2.help.nick, '도우미');
+    assert.equal(res.raid2.help.hero, 'gunman');
     // 빌려준 보상은 하루 상한까지만 (순수 함수)
     const flb = { fr: { lent: null, pts: 0 }, mail: [] };
     for (let i = 0; i < L.FRIEND.lendPerDay + 3; i++) L.lendReward(flb, '누구', T);

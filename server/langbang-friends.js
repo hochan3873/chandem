@@ -198,6 +198,7 @@ function createFriends(d) {
     let lend = null;
     const out = await lbLive(token, (lb, uid, now, ctx) => {
       const LV = L(), st = LV.raidState(now);
+      if (d.retired) return { error: '모임 레이드는 건물주 레이드로 바뀌었어요 (친구 멤버는 건물주 레이드에서 빌려요)' };
       if (!st.open) return { error: '레이드는 매일 12:00~13:30 · 15:00~16:30 · 21:00~23:00 에 열려요' };
       if ((lb.maxStage | 0) < 5) return { error: '레이드는 1-5를 깨면 참가할 수 있어요' };
       if (LV.raidTriesLeft(lb, now) <= 0) return { error: `이번 레이드 도전은 다 했어요 (레이드마다 ${LV.RAID.tries}번)` };
