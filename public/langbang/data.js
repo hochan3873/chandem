@@ -841,10 +841,10 @@ export const HEROES = {
   youngjun: {
     id: 'youngjun', bossKit: 1.2, kit: 0.95, name: '김영준', gender: 'm', emoji: '🐆', color: '#7a4dff', unlock: true, attr: 'booze',
     img: '/img/lb/h_youngjun.webp', imgOn: '/img/lb/h_youngjun_dash.webp', role: '근접 돌격 · 초고속 연속 베기',
-    dmg: 34, interval: 0.14, range: 350, proj: 'dash', outSec: [3, 3, 3.3, 3.3, 3.6], restSec: [1.6, 1.6, 1.4, 1.4, 1.1], reach: 70,
-    attack: '돌격 — 제일 몰린 곳으로 뛰어들어 초고속 연속 베기(가오 무시), 돌아와서 크로스핏',
+    dmg: 34, interval: 0.18, range: 350, proj: 'dash', outSec: [2.6, 2.6, 2.9, 2.9, 3.2], restSec: [2.4, 2.4, 2.1, 2.1, 1.8], reach: 70, // 0.14 · 3초/1.6초 → 0.18 · 2.6초/2.4초 (혼자 실효 DPS 158 → 98 · 고아라쯤)
+    attack: '돌격 — 제일 몰린 곳으로 뛰어들어 초고속 연속 베기(가오 무시) 2.6초, 돌아와서 크로스핏으로 숨 고르기 2.4초',
     desc: '검은 고양이 후드를 쓴 파티 전사. 뛰어든 동안엔 아무것도 안 통한다. 한 명씩 확실하게 끝내는 타입.',
-    perks: { 3: '더 오래 싸우고 빨리 회복', 5: '제일 오래 싸우고 크로스핏 최단' },
+    perks: { 3: '돌격 2.9초 · 크로스핏 2.1초', 5: '돌격 3.2초 · 크로스핏 1.8초' },
     skill: { id: 'rush', name: '블랙 러시', cd: 20, desc: '지목한 적부터 최대 6명을 번개처럼 연속 돌파 · 큰 피해', n: [6, 6, 7, 7, 8], mul: 5 },
   },
   // ── HIDDEN ──
@@ -972,13 +972,14 @@ export const HEROES = {
   },
   jiwon: {
     id: 'jiwon', bossKit: 1.1, kit: 1.0, name: '여지원', gender: 'f', emoji: '🖕', color: '#e0304a', gacha: true, attr: 'talk',
-    img: '/img/lb/h_jiwon.webp', role: '방깎 · 일직선 쌍뻑큐',
+    img: '/img/lb/h_jiwon.webp', role: '방깎 · 3줄 모자이크 폭격',
     dmg: 42, interval: 0.83, range: 365, proj: 'mosaic', projSpeed: 560,
     shred: { per: 0.09, max: 5, sec: 5 }, // 맞은 진상 방어 -6% × 최대 5겹 (5초) → 다른 멤버 피해도 같이 오른다 · 회복도 막는다
     attack: '모자이크 뻑큐 — 날아가는 모자이크 손, 맞은 진상 방어가 겹겹이 깎인다',
     desc: '착해 보이는 얼굴, 하지만 속엔 당찬 욕망이 가득. 오늘도 웃으며 모자이크 뻑큐를 날린다. "어머, 실수~"',
     perks: { 3: '방깎 +1겹 (최대 6)', 5: '방깎 한 겹 -8%' },
-    skill: { id: 'fuckall', name: '쌍뻑큐', cd: 18, desc: '두 손을 쭉! 모자이크 큰 손 두 개가 자기 줄을 따라 일직선으로 뚫고 간다 — 줄 위 진상 전부 방깎 3초 (방어 -40% · 받는 피해 +20%) + 피해', w: 34, mul: [1.1, 1.1, 1.25, 1.25, 1.45], sec: 3, brkArmor: 0.4, brkDmg: 0.2 },
+    skill: { id: 'mosaicbomb', name: '모자이크 폭격', cd: 22, desc: '두 손 번쩍! 검은 검열 띠가 지나가고 "삐—" — 거대 모자이크 손이 자기 줄과 양옆 줄을 차례로 쾅! 쾅! 쾅! 맞은 진상 피해 + 0.5초 기절 + 「모자이크」 5초 (방어 -40% · 모든 멤버에게 받는 피해 +25%)',
+      wind: 0.6, gap: 0.18, w: 30, mul: [0.5, 0.5, 0.55, 0.55, 0.65], stun: 0.5, sec: 5, brkArmor: 0.4, brkDmg: 0.25 }, // 쌍뻑큐(1줄 · 1.1~1.45배 · 18초) → 3줄 × 0.5~0.65배 = 합계 약 ×1.35 · 22초
   },
   wonsik: {
     id: 'wonsik', bossKit: 0.8, kit: 0.9, name: '정원식', gender: 'm', emoji: '🏋️', color: '#6fae6f', gacha: true, attr: 'power',
@@ -1758,7 +1759,7 @@ export const SKILL_EVO = {
   bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '난사 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
   dohoon: '무한 앵콜 앵콜', ingyu: '할리 한 바퀴 더', donghan: '진심 빔 두 줄', youngjun: '블랙 러시 왕복', eunok: '원샷 두 잔',
   hanna: '하트 레이저 풀파워 (화면 끝까지 꿰뚫는 굵은 빔)', sunggu: '지팡이 블랙홀 두 개', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
-  soyoung: '올인 콜 앵콜 (준영 더 오래)', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '단체 뻑큐 앵콜', wonsik: '결혼정보회사 VIP 등록',
+  soyoung: '올인 콜 앵콜 (준영 더 오래)', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '모자이크 폭격 앵콜', wonsik: '결혼정보회사 VIP 등록',
 };
 // 숨은 카드 (드물게): 임시 증원 · 게스트 합류 — 한 판에 한 번
 export const SECRET = { tempSlot: 0.045, guest: 0.035 };
@@ -1939,7 +1940,7 @@ export const SIG = {
   jieun: { name: '멈춰 버린 금시계', stats: { cd: 0.12, skill: 0.1 }, fx: { freeze: 2.5 }, desc: '시간 정지가 진짜 멈춤 — 범위 안 진상 2.5초 꼼짝 못 함 (보스는 더 크게 느려짐)' },
   sanghwa: { name: '백 송이 장미 꽃다발', stats: { atk: 0.1, exp: 0.1 }, fx: { growMul: 2 }, desc: '성장 한도 2배 · 성장 속도 2배 (판이 길수록 훨씬 세진다)' },
   jungmin: { name: '무한 붕대 롤', stats: { hp: 0.15, guard: 0.1 }, fx: { revive: 0.5 }, desc: '입구가 무너지는 순간 한 판에 한 번 붕대로 다시 붙인다 (내구도 50%)' },
-  jiwon: { name: '네 손 모자이크 장갑', stats: { skill: 0.12, atk: 0.08 }, fx: { lanes: 1 }, desc: '쌍뻑큐가 자기 줄 + 양옆 줄까지 세 줄을 뚫는다' },
+  jiwon: { name: '네 손 모자이크 장갑', stats: { skill: 0.12, atk: 0.08 }, fx: { echo: 1 }, desc: '모자이크 폭격이 1초 뒤 한 번 더 쏟아진다 (세 줄 다시 쾅쾅쾅)' },
   wonsik: { name: '다이아 결혼반지', stats: { hp: 0.15, guard: 0.08 }, fx: { pool: 2, reflect: 3 }, desc: '결정사 상담 때 버티는 체력 2배 · 되돌려 주는 피해 3배' },
   baul: { name: '팬클럽 응원 썰매 2호', stats: { skill: 0.15, atk: 0.08 }, fx: { sledBack: 1, stun: 1 }, desc: '썰매가 내려갔다가 다시 올라오며 한 번 더 쓸고 · 줄 위 진상 1초 기절' },
   byunghwa: { name: '앵콜 원맨쇼 핀 조명', stats: { cd: 0.12, atk: 0.08 }, fx: { encore: 1 }, desc: '원맨쇼가 끝나는 순간 앵콜 원맨쇼가 한 번 더 (멈춤 · 버프 시간 2배)' },
@@ -2241,7 +2242,7 @@ export const SKILL_AUG = {
   ],
   jiwon: [
     { id: 'deep', name: '깊은 방깎', desc: '방깎 +1겹 · 2초 더', cm: { add: { shredMax: 1, shredSec: 2 } } },
-    { id: 'wide', name: '쌍뻑큐 확장', desc: '쌍뻑큐 폭 +50% · 피해 +40%' },
+    { id: 'wide', name: '더 큰 모자이크', desc: '모자이크 손 폭 +50% · 피해 +40%' },
   ],
   wonsik: [
     { id: 'consult', name: '상담 반경 +40%', desc: '결혼정보회사 상담 반경 +40%' },

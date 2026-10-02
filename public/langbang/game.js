@@ -791,7 +791,8 @@ function handleEvents(g, loud) {
       case 'wallWalk': fx.text(e.x, e.y - 100, '벽이 걸어온다', '#bfd4ff', 15, 1.2); break;
       case 'lockOn': for (const o of e.list || []) R.vfx('warn', o.x, o.y - 10, { anim: 'grow', dur: 600, sz: 56 }); break;
       case 'curseBolt': R.vfx('w_swear', e.x, e.y, { anim: 'fly', dur: 380, sz: 34, tx: e.tx, ty: e.ty }); break;
-      case 'fuckall': fx.banner('쌍뻑큐!', `${e.n}명 방깎 3초`, '#b0203a', 1.0, 'wave'); for (const s0 of [-1, 1]) R.vfx('w_mosaic', e.x + s0 * 14, e.y - 40, { anim: 'line', dur: 520, sz: 78, tx: e.x + s0 * 14, ty: 40, blend: 'source-over' }); setTimeout(() => { for (let k = 0; k < 18; k++) fx.part('dot', e.x + (Math.random() - 0.5) * e.w * 2, 60 + Math.random() * (e.y - 100), (Math.random() - 0.5) * 80, -30, 0.6, 5, Math.random() < 0.5 ? '#ff4fb0' : '#d02070'); }, 200); fx.addShake(3); if (loud) A.sfx.slam(); break;
+      case 'mosaicCast': SKFX.add('mosaic', g, e, busy); if (!e.echo) fx.banner('모자이크 폭격!', '삐— 3줄 쾅쾅쾅 · 방어 -40% · 받는 피해 +25%', '#b0203a', 1.0, 'wave'); if (loud) A.sfx.censor(); break; // 여지원: 검열 띠 · 삐— (skillfx.js mosaic)
+      case 'mosaicSlam': SKFX.mosaicSlam(e); fx.addShake(e.k === 0 ? 5 : 3); for (let k = 0; k < (busy ? 6 : 14); k++) fx.part('dot', e.x + (Math.random() - 0.5) * e.w * 2.4, e.y + 10 + (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 220, -60 - Math.random() * 140, 0.55, 4 + Math.random() * 4, ['#f3c8a8', '#d89a7a', '#ff4fb0', '#2a1020'][k % 4], { grav: 420, drag: 1 }); if (!busy) fx.text(e.x, e.y - 46, e.n ? '쾅!' : '쿵', '#ffd0e0', 15, 0.5); if (loud) A.sfx.mzSlam(); break; // 네모 조각이 튄다
       case 'marry': fx.banner('결혼정보회사 등록!', '"올해는 꼭…" 진상들이 원식만 바라본다', '#c0307a', 1.3, 'wave'); for (let k = 0; k < 14; k++) fx.part('heart', e.x + (Math.random() - 0.5) * e.r, e.y - 120 - Math.random() * 160, 0, -40, 1.4, 12, '#ff7ac8'); fx.ring(e.x, e.y - 80, 20, e.r, 0.8, '#ff7ac8', 5); if (loud) A.sfx.join(); break;
       case 'heartBeam': fx.banner('하트 레이저 풀파워!', `${e.n}명 꿰뚫기`, '#c0307a', 1.1, 'wave'); fx.flash('#ff7ac8', 0.2); fx.addShake(3); if (loud) A.sfx.slam(); break;
       case 'harley': fx.banner('부릉부릉~!', '백인규의 할리', '#1a3a8a', 1.3, 'wave'); fx.addShake(4); if (loud) A.sfx.slam(); break;
@@ -1615,7 +1616,7 @@ function skillFx(h) {
   A.sfx.join();
   app.tutSkillDone = true;
 }
-const SKILL_SHORT = { baul: '썰매', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '뻑큐', wonsik: '결정사' };
+const SKILL_SHORT = { baul: '썰매', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '진심', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '폭격', wonsik: '결정사' };
 const skShort = (h) => SKILL_SHORT[h.id] || h.def.skill.name.replace(/[!\s]/g, '').slice(0, 5);
 const momBar = document.createElement('div');
 momBar.id = 'mombar'; momBar.hidden = true;

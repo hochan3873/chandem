@@ -312,6 +312,7 @@ function updateHeroes(g, dt) {
     if (h.sigEcho) { h.sigEcho.t -= dt; if (h.sigEcho.t <= 0) { const e0 = h.sigEcho; h.sigEcho = null; if (castSkill(g, h, e0.x, e0.y, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); } }
     // 건전녀 전용 신화: 입구가 30% 아래면 응급 방패 자동 (웨이브마다 1번)
     if (h.sig && h.sig.autoGuard && g.base.hp < g.base.max * h.sig.autoGuard && h.sigGuardW !== g.wave && !g.over) { h.sigGuardW = g.wave; if (castSkill(g, h, undefined, undefined, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); }
+    if (h.mzQ && h.mzQ.length) mosaicTick(g, h, dt); // 여지원 모자이크 폭격: 손이 차례로 내려친다
     // 이호찬 5레벨: 파동 메아리
     if (h.echoT > 0) { h.echoT -= dt; if (h.echoT <= 0) crownWave(g, h, heroDamage(g, h) * 0.7, 0); }
     // 건전녀: 주기적으로 입구 수리
@@ -612,7 +613,7 @@ function updateDash(g, h, dt, rate) {
     if ((h.shots++ % 5) === 0) ev(g, 'slash', { x: t.x, y: t.y - 20 });
   }
   if (h.outT <= 0 || (!t && h.outT < d.outSec[lv - 1] - 0.3)) {
-    h.out = false; h.upT = 0; h.restT = d.restSec[lv - 1] * (h.sa && h.sa.endless ? 0.6 : 1) * (g.tower && g.tower.swarm ? TOWER_SIM.dash.swarmRest : 1); h.dashE = null;
+    h.out = false; h.upT = 0; h.restT = d.restSec[lv - 1] * (h.sa && h.sa.endless ? 0.6 : 1) * (g.tower && g.tower.swarm ? TOWER_SIM.dash.swarmRest : 1); h.restMax = h.restT; h.dashE = null; // restMax: 머리 위 회복 게이지
     ev(g, 'crossfit', { x: h.x, y: h.y });
   }
 }
@@ -1240,7 +1241,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     if (tr.projShield && !aoe && e.pShield > 0) { e.pShield--; ev(g, 'blocked', { x: e.x, y: e.y - e.def.size * 0.7, n: e.pShield }); return 0; }
     if (tr.stealth && !e.unveiled) e.unveiled = true; // 맞으면 들킨다
   }
-  { const sh = (e.shredN > 0 && e.shredT > 0 ? e.shredN * (e.shredPer || 0.06) : 0) + (e.brkT > 0 ? e.brkDmg || 0 : 0); if (sh > 0) dmg *= 1 + Math.min(0.7, sh); } // 여지원 방깎 (기본 겹 + 쌍뻑큐 · 합쳐 최대 +70%)
+  { const sh = (e.shredN > 0 && e.shredT > 0 ? e.shredN * (e.shredPer || 0.06) : 0) + (e.brkT > 0 ? e.brkDmg || 0 : 0); if (sh > 0) dmg *= 1 + Math.min(0.7, sh); } // 여지원 방깎 (기본 겹 + 모자이크 폭격 · 합쳐 최대 +70%)
   if (g.encoreT > 0 && src && src.def) dmg *= 1 + (g.encoreDmg || 0); // 김도훈 앵콜 버프
   // 속성 상성: 효과 굉장! ×TYPE_STRONG(1.6) / 별로… ×TYPE_WEAK(0.7) — data.js TYPE_CHART
   let tm = 1;
@@ -1295,7 +1296,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     dmg *= e.gaoOn ? (flank ? 1 : 1 - e.def.gao.cut) : e.def.gao.broken; // 옆에서 베면(김영준) 가오 무시
   }
   e.hurtT = 0;
-  if (e.armor && !(src && src.id === 'gunman')) { const ar = e.armor * (e.brkT > 0 ? 1 - (e.brkArmor || 0) : 1); dmg = Math.max(dmg * 0.35, dmg - ar); } // 건전남은 방어 무시 · 쌍뻑큐 방어 -40%
+  if (e.armor && !(src && src.id === 'gunman')) { const ar = e.armor * (e.brkT > 0 ? 1 - (e.brkArmor || 0) : 1); dmg = Math.max(dmg * 0.35, dmg - ar); } // 건전남은 방어 무시 · 모자이크 방어 -40%
   // 보스 · 중간 보스: 한 방에 최대 체력 5% 넘게는 잘 안 들어간다 (넘는 만큼은 ⅕) + 1초에 7% 넘게 몰아치면 넘친 만큼 ⅕
   //  → 아주 센 덱도 보스는 몇 초 만에 녹지 않는다 (공주의 일격 · 황금 파동 같은 큰 한 방도 여전히 크게 깎이긴 함)
   if ((e.boss || e.mid) && src && e.maxHp > 0 && (g.mode !== 'stage' || g.stage > BOSS_GUARD.from)) { // 1~3장은 보스가 원래대로
@@ -3005,6 +3006,37 @@ export function skillReady(h) { return !!h.def.skill && h.skillCd <= 0; }
 // x, y: 찍은 곳 (target 스킬만). 성공하면 true
 export const momCharges = (g) => (g.mom === null || g.mom === undefined ? 9 : Math.floor(g.mom / MOMENTUM.per));
 // 스킬로 준 피해는 화면에 금빛 큰 숫자 (g._inSkill 동안)
+// 여지원 모자이크 폭격: 자기 줄 + 양옆 줄 (끝 칸이면 안쪽으로 한 칸 밀어 늘 세 줄) · 칸 가운데 x
+export function mosaicLanes(g, h) {
+  const X = g.slotX; let c = 0;
+  for (let i = 1; i < X.length; i++) if (Math.abs(X[i] - h.x) < Math.abs(X[c] - h.x)) c = i;
+  const m = Math.max(1, Math.min(X.length - 2, c));
+  return [c, ...[m - 1, m, m + 1].filter((i) => i !== c)].slice(0, 3).map((i) => X[i]); // 자기 줄 먼저 → 왼쪽 → 오른쪽
+}
+// 모자이크 상태: 5초 · 방어 −40% · 모든 멤버에게 받는 피해 +25% (다시 맞으면 시간만 새로 · 겹치지 않음)
+export function applyMosaic(g, e, sk) {
+  e.brkT = Math.max(e.brkT || 0, sk.sec); e.brkArmor = sk.brkArmor; e.brkDmg = sk.brkDmg;
+  e.healBlockT = Math.max(e.healBlockT || 0, sk.sec);
+}
+function mosaicTick(g, h, dt) {
+  const sk = h.def.skill;
+  for (const q of h.mzQ) {
+    q.t += dt;
+    while (q.i < q.lanes.length && q.t >= sk.wind + q.i * sk.gap) {
+      const lx = q.lanes[q.i++]; let n = 0, sy = 0;
+      const hit = q.hit || (q.hit = new Set());
+      for (const e of g.enemies.slice()) {
+        if (e.dead || hit.has(e) || e.y < -20 || e.y > h.y || Math.abs(e.x - lx) > q.w + (e.r || 14) * 0.5) continue;
+        hit.add(e); n++; sy += e.y;
+        applyMosaic(g, e, sk);
+        damageEnemy(g, e, q.base * sk.mul[q.lv], false, h, false); // 한 명씩 내려치는 손 (범위 면역도 맞는다)
+        if (!e.dead) { if (!e.boss) e.stunT = Math.max(e.stunT, sk.stun * stunMul(e) * g.mods.ctrlMul); else { e.slowT = Math.max(e.slowT, 1); e.slowMul = Math.min(e.slowMul || 1, 0.7); } } // 보스는 기절 대신 잠깐 느려짐
+      }
+      ev(g, 'mosaicSlam', { hero: h.id, x: lx, y: n ? sy / n : g.ropeY - 220, w: q.w, n, k: q.i - 1, echo: q.echo });
+    }
+  }
+  h.mzQ = h.mzQ.filter((q) => q.i < q.lanes.length);
+}
 export function castSkill(g, h, x, y, echo, fromQ) { g._inSkill = true; try { const ok = castSkill0(g, h, x, y, echo, fromQ); if (ok && !echo && g.avalanche) ch7Interrupt(g, h.id); return ok; } finally { g._inSkill = false; } } // 7장: 눈사태 예고 중 스킬 → 끊기
 function castSkill0(g, h, x, y, echo, fromQ) {
   const sk = h.def.skill;
@@ -3061,17 +3093,11 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       if (h.rage) h.rageT += 5;
       else { h.rage = true; h.rageT = h.def.rageSec[lv] * (g.mapFx.rage || 1) * ((h.sig && h.sig.rageMul) || 1); ev(g, 'rage', { hero: h.id, x: h.x, y: h.y }); }
       break;
-    case 'fuckall': { // 여지원 쌍뻑큐: 자기 줄 따라 일직선 · 모두 뚫고 · 줄 폭 안 진상 방깎 3초
+    case 'mosaicbomb': { // 여지원 모자이크 폭격: 0.6초 두 손 번쩍(검은 검열 띠 · 삐—) → 자기 줄 · 양옆 줄에 거대 모자이크 손이 차례로 쾅 (updateHeroes 의 mzQ)
       r = 0;
-      let n = 0;
-      const lanes = h.sig && h.sig.lanes ? [h.x, h.x - (g.slotX[1] - g.slotX[0]), h.x + (g.slotX[1] - g.slotX[0])] : [h.x]; // 여지원 전용 신화: 양옆 줄까지
-      for (const e of g.enemies) {
-        if (e.dead || e.y < -20 || e.y > h.y || !lanes.some((lx) => Math.abs(e.x - lx) <= sk.w * (sa.wide ? 1.5 : 1) + (e.r || 14))) continue;
-        e.brkT = sk.sec; e.brkArmor = sk.brkArmor; e.brkDmg = sk.brkDmg; e.healBlockT = Math.max(e.healBlockT || 0, sk.sec);
-        damageEnemy(g, e, base * sk.mul[lv] * (sa.wide ? 1.4 : 1), false, h, false); // 한 명씩 맞는 손 (범위 면역도 맞는다)
-        n++;
-      }
-      for (const lx of lanes) ev(g, 'fuckall', { x: lx, y: h.y, w: sk.w * (sa.wide ? 1.5 : 1), n });
+      const lanes = mosaicLanes(g, h);
+      (h.mzQ || (h.mzQ = [])).push({ t: 0, i: 0, lanes, base: base * (sa.wide ? 1.4 : 1), lv, w: sk.w * (sa.wide ? 1.5 : 1), echo: !!echo });
+      ev(g, 'mosaicCast', { hero: h.id, x: h.x, y: h.y, lanes, wind: sk.wind, gap: sk.gap, echo: !!echo });
       break;
     }
     case 'marry': { // 정원식: 결정사 상담 — 걸어 나가서 앉는다 (앉으면 도발)
@@ -3978,7 +4004,7 @@ function towerCurse(g, dt) {
 // 저주의 층: 돌격 중(김영준)에 기절 · 홀림이 걸리면 돌격이 끊기고 숨 고르기부터 (뛰어든 동안 아무것도 안 통하던 것을 탑에선 막는다)
 function dashBreak(g, h) {
   if (!h.out || h.def.proj !== 'dash') return;
-  h.out = false; h.upT = 0; h.dashE = null; h.restT = h.def.restSec[h.lv - 1] * TOWER_SIM.dash.curseRest;
+  h.out = false; h.upT = 0; h.dashE = null; h.restT = h.def.restSec[h.lv - 1] * TOWER_SIM.dash.curseRest; h.restMax = h.restT;
   ev(g, 'crossfit', { x: h.x, y: h.y });
 }
 // 매 스텝: 탑 규칙 · 미끄러운 길(송바울) · 지옥 세트 화염 폭발

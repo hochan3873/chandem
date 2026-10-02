@@ -37,7 +37,7 @@ const MAP_ROOF = 0.735; // 레이드 · 대전 맵: 랑방 지붕 높이 (그림
 const BG_BRIGHT = { 4: 0.42, 6: 0.36, 7: 0.4 }; // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
 // 챕터별 분위기 (같은 배경 그림에 색만 덧씌운다)
 // 있으면 쓰는 그림 주소 (서버 /api/langbang/anim 의 files 와 같은 규칙)
-const OPT_ART = /^\/img\/lb\/(arena\d|map_[a-z0-9_]+|e_[a-z0-9_]+_(skill|rage)|h_wonsik_walk(back|front))\.webp$|^\/img\/lb\/fx\/p_[A-Za-z0-9_]+\.webp$/;
+const OPT_ART = /^\/img\/lb\/(arena\d|map_[a-z0-9_]+|e_[a-z0-9_]+_(skill|rage)|h_wonsik_walk(back|front)|h_youngjun_rest)\.webp$|^\/img\/lb\/fx\/p_[A-Za-z0-9_]+\.webp$/;
 const THEMES = {
   1: null, // 랑방 골목: 원래 그대로
   2: { top: 'rgba(255,60,170,0.24)', bottom: 'rgba(255,140,40,0.18)', glow: 'rgba(255,80,200,0.26)', mode: 'soft-light', wash: 'rgba(160,30,120,0.35)' }, // 불금 번화가: 분홍·주황 네온
@@ -306,10 +306,11 @@ export class Renderer {
     list.vfx_soundring = '/img/lb/fx/vfx_soundring.webp'; list.vfx_banner = '/img/lb/fx/vfx_banner.webp'; // 방장 음파 · 집합 깃발
     list.dh_tf = '/img/lb/h_donghan_transform.webp'; // 문동한 진심 모드 변신 (12칸 · 한 번)
     list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
+    list.hanim_youngjun_rest = '/img/lb/h_youngjun_rest.webp'; // 김영준 숨 고르기 (크로스핏 8칸 · 있으면)
     list.js_back = '/img/lb/h_jeongseob_back.webp'; list.js_walk = '/img/lb/h_jeongseob_walkfront.webp'; list.js_walkb = '/img/lb/h_jeongseob_walkback.webp'; list.js_rest = '/img/lb/h_jeongseob_rest.webp'; // 윤정섭 걷기 · 쉬기
     for (const id in HERO_ANIM_FORM) list['hanim_' + id + '_f'] = HERO_ANIM_FORM[id].src; // 변신 모습 띠
     for (const n of PROJ_ART_NAMES) list['w_' + n] = `/img/lb/fx/w_${n}.webp`; // 투사체 그림 (없으면 코드 모양)
-    for (const n of ['syringe', 'banknote', 'bandage']) list['sk_fx_' + n] = `/img/lb/fx/p_sk_${n}.webp`; // 스킬 연출 그림 (있으면 · 없으면 코드 모양)
+    for (const n of ['syringe', 'banknote', 'bandage', 'mosaic_hand', 'censor']) list['sk_fx_' + n] = `/img/lb/fx/p_sk_${n}.webp`; // 스킬 연출 그림 (있으면 · 없으면 코드 모양)
     list.bus = '/img/lb/fx/bus.webp'; list.bus2 = '/img/lb/fx/bus2.webp';
     for (const n of ['cc_pull', 'cc_stun', 'cc_slow', 'cc_freeze', 'cc_push']) list[n] = `/img/lb/ui2/${n}.webp`;
     for (const n of ['hitspark', 'smoke', 'slap', 'grab', 'phone', 'shock', 'shock2', 'crack', 'summon', 'silence', 'stun', 'dash', 'aura_red', 'aura_blue', 'warn', 'barrage_card', 'arm']) list['vfx_' + n] = `/img/lb/fx/vfx_${n}.webp`; // 이펙트 그림
@@ -510,6 +511,19 @@ export class Renderer {
     cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
   }
   // 헬 모드용: 붉은 기운을 미리 구운 그림 (진상마다 빛을 따로 그리지 않게)
+  // 「모자이크」 걸린 진상: 그림을 아주 작게 줄였다가(평균색) 매끈하게 하지 않고 다시 키워 네모 깨짐 (그림마다 한 번만 굽는다)
+  mosaicSprite(sp) {
+    if (sp.mz) return sp.mz;
+    const N = 14, S = N * 8;
+    const sm = mkCanvas(N, N), x0 = sm.getContext('2d');
+    x0.drawImage(sp.c, 0, 0, N, N);
+    const c = mkCanvas(S, S), x = c.getContext('2d');
+    x.imageSmoothingEnabled = false; x.drawImage(sm, 0, 0, S, S);
+    x.globalCompositeOperation = 'source-atop'; x.strokeStyle = 'rgba(0,0,0,0.18)'; x.lineWidth = 1; // 네모 칸 경계 살짝
+    x.beginPath(); for (let i = 1; i < N; i++) { x.moveTo(i * 8 + 0.5, 0); x.lineTo(i * 8 + 0.5, S); x.moveTo(0, i * 8 + 0.5); x.lineTo(S, i * 8 + 0.5); } x.stroke();
+    sp.mz = c;
+    return c;
+  }
   hellSprite(sp) {
     if (sp.h) return sp.h;
     const c = mkCanvas(sp.c.width, sp.c.height);
@@ -1650,7 +1664,8 @@ export class Renderer {
         const astrip = aa && this.images[`anim_${e.type}_attack`];
         const an = moving && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].walk; // 보스 기술·분노 그림이 뜨는 동안은 그 그림
         const strip = an && this.images[`anim_${e.type}_walk`];
-        if (astrip && imgOk(astrip)) {
+        if (e.brkT > 0 && !(e.flash > 0)) cx.drawImage(this.mosaicSprite(sp), -box / 2, -box * FEET, box, box); // 여지원 「모자이크」: 몸 전체를 큰 네모로 깨뜨린 그림 (한 번 구워 두고 재사용 · 띠 대신)
+        else if (astrip && imgOk(astrip)) {
           const fh = astrip.naturalHeight, n = aa.frames || Math.max(1, Math.round(astrip.naturalWidth / fh)), fw = astrip.naturalWidth / n, rel = Math.min(n - 1, aa.release || 3);
           const fi = e.hitT > 0 ? Math.min(n - 1, rel + Math.floor((1 - e.hitT / 0.25) * (n - rel))) : e.atkCd > 0 && e.atkCd < 0.3 ? Math.floor((1 - e.atkCd / 0.3) * rel) : 0;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ea_' + e.type, astrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
@@ -1696,7 +1711,7 @@ export class Renderer {
         cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = '#e6faff'; cx.strokeStyle = '#06202c'; cx.lineWidth = 2.5;
         cx.strokeText('' + e.cLay, x0 + 7, y0 + 4); cx.fillText('' + e.cLay, x0 + 7, y0 + 4);
       }
-      if (e.brkT > 0) { this.world(); const im = this.images.ui2_shield, sx0 = e.x + e.def.size * 0.42, sy0 = e.y - e.def.size * 1.02; if (imgOk(im)) { cx.drawImage(im, sx0 - 9, sy0 - 9, 18, 18); } cx.strokeStyle = '#ff2a4a'; cx.lineWidth = 2.2; cx.beginPath(); cx.moveTo(sx0 - 1, sy0 - 8); cx.lineTo(sx0 + 3, sy0 - 2); cx.lineTo(sx0 - 2, sy0 + 2); cx.lineTo(sx0 + 2, sy0 + 8); cx.stroke(); } // 쌍뻑큐 방깎: 금 간 방패
+      if (e.brkT > 0) { this.world(); const bx = e.x, by = e.y - e.def.size * 1.0 - 4 + Math.sin(t * 9 + e.phase) * 1.2; cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; const tw = cx.measureText('삐-').width + 8; cx.fillStyle = 'rgba(0,0,0,0.92)'; roundRect(cx, bx - tw / 2, by - 6, tw, 12, 3); cx.fill(); cx.fillStyle = '#ff4a6a'; cx.fillRect(bx - tw / 2, by + 5, tw * Math.min(1, e.brkT / 5), 1.5); cx.fillStyle = '#fff'; cx.fillText('삐-', bx, by + 0.5); } // 여지원 「모자이크」: 머리 위 검은 "삐-" 딱지 (아래 붉은 줄 = 남은 시간)
       if (e.shredN > 0 && e.shredT > 0) { this.world(); cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.fillStyle = '#ff5a7a'; cx.strokeStyle = '#000'; cx.lineWidth = 2.5; const tx = `방깎×${e.shredN}`; cx.strokeText(tx, e.x, feet + 8); cx.fillText(tx, e.x, feet + 8); }
       if (e.tauntT > 0) { this.world(); cx.font = `11px ${FONT}`; cx.textAlign = 'center'; cx.fillText('', e.x - box * 0.32, top + 2); }
       const vip = e.boss || e.mid || e.elite;
@@ -2092,7 +2107,7 @@ export class Renderer {
           usedStrip = true;
         }
       }
-      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !h.alt))) {
+      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !h.alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
         const n = HA.frames, fw = hstrip.naturalWidth / n, fh = hstrip.naturalHeight, rel = HA.release;
         let fi = -1;
         if (since < 0.3) fi = Math.min(n - 1, rel + Math.floor((since / 0.3) * (n - rel)));
@@ -2143,6 +2158,29 @@ export class Renderer {
         else if (h.wallSt === 'back' && imgOk(wk)) { strip(wk, 5); usedStrip = true; }
         else if (imgOk(rs0)) { this.tf(hx, feet, 0, 1, 1 + Math.sin(t * 1.6) * 0.01); cx.drawImage(rs0, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; }
       }
+      if (h.id === 'jiwon' && !busy && !usedStrip && h.mzQ && h.mzQ.length && imgOk(this.images.hanim_jiwon)) { // 여지원 모자이크 폭격: 손 번쩍 든 칸(0)으로 버티며 몸을 끌어올렸다가 → 내려칠 때마다 내지르는 칸(5~6)
+        const q = h.mzQ[0], wind = (h.def.skill && h.def.skill.wind) || 0.6, im = this.images.hanim_jiwon, n = 8, fw = im.naturalWidth / n;
+        const slamming = q.t >= wind, ph = slamming ? ((q.t - wind) % ((h.def.skill && h.def.skill.gap) || 0.18)) / 0.18 : 0;
+        const fi = slamming ? (ph < 0.5 ? 5 : 6) : 0, k = slamming ? 1 : Math.min(1, q.t / wind);
+        const fit = this.stripFit('hanim_jiwon', im, n, sp.c);
+        this.tf(hx, feet + (slamming ? Math.sin(ph * Math.PI) * 3 : -k * 6), 0, 1 + (slamming ? 0 : -0.04 * k), 1 + (slamming ? 0 : 0.07 * k));
+        cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+        usedStrip = true;
+      }
+      if (h.id === 'youngjun' && !h.out && h.restT > 0 && !busy && !usedStrip) { // 김영준 숨 고르기: 자리로 돌아와 크로스핏 (쉬기 띠가 있으면 띠 · 없으면 기본 그림에 스쿼트 점프 모션)
+        const rs = this.images.hanim_youngjun_rest;
+        if (imgOk(rs)) {
+          const n = 8, fw = rs.naturalWidth / n, fi = Math.floor(t * 9) % n, fit = this.stripFit('hanim_youngjun_rest', rs, n, sp.c);
+          this.tf(hx, feet, 0, 1, 1); cx.drawImage(rs, fi * fw, 0, fw, rs.naturalHeight, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+        } else {
+          const ph = (t * 1.5 + h.slot * 0.3) % 1; let yb = 0, ksx = 1, ksy = 1; // 0~0.4 쪼그려 앉기 · 0.4~0.7 점프 · 0.7~1 착지
+          if (ph < 0.4) { const k = Math.sin((ph / 0.4) * Math.PI * 0.5); ksy = 1 - 0.16 * k; ksx = 1 + 0.08 * k; }
+          else if (ph < 0.7) { const k = (ph - 0.4) / 0.3; yb = -Math.sin(k * Math.PI) * 13; ksy = 1.06 - 0.06 * k; ksx = 0.97 + 0.03 * k; }
+          else { const k = (ph - 0.7) / 0.3; ksy = 1 - 0.07 * Math.sin(k * Math.PI); ksx = 1 + 0.04 * Math.sin(k * Math.PI); }
+          this.tf(hx, feet + yb, 0, ksx, ksy); cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
+        }
+        usedStrip = true;
+      }
       if (!usedStrip) {
         { const ck = h._castAt ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); }
         cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
@@ -2161,6 +2199,17 @@ export class Renderer {
         cx.strokeStyle = 'rgba(255,255,255,0.8)'; cx.lineWidth = 1.6; cx.beginPath();
         for (let a = 0; a < TAU * 1.6; a += 0.3) { const r = 2 + a * 1.6; const x = hx + Math.cos(a + t * 5) * r, y = top2 - 4 + Math.sin(a + t * 5) * r * 0.45; if (a === 0) cx.moveTo(x, y); else cx.lineTo(x, y); }
         cx.stroke();
+      }
+      if (h.id === 'youngjun' && !h.out && h.restT > 0 && h.restMax > 0) { // 숨 고르기: 땀방울 + 머리 위 동그란 회복 게이지 (다 차면 다시 돌격)
+        const top2 = feet - box * 0.95, f = Math.max(0, Math.min(1, 1 - h.restT / h.restMax)), gx = hx, gy = top2 - 12;
+        this.world();
+        cx.fillStyle = 'rgba(140,210,255,0.95)';
+        for (let i = 0; i < 2; i++) { const ph = (t * 1.8 + i * 0.5) % 1; cx.globalAlpha = 1 - ph; cx.beginPath(); cx.ellipse(hx + (i ? 17 : -15), top2 + 12 + ph * 18, 2.4, 3.6, 0, 0, TAU); cx.fill(); }
+        cx.globalAlpha = 1;
+        cx.fillStyle = 'rgba(14,8,30,0.82)'; cx.beginPath(); cx.arc(gx, gy, 11, 0, TAU); cx.fill();
+        cx.lineWidth = 3.5; cx.strokeStyle = 'rgba(255,255,255,0.18)'; cx.beginPath(); cx.arc(gx, gy, 8, 0, TAU); cx.stroke();
+        cx.strokeStyle = f > 0.85 ? '#7dffb0' : '#b48cff'; cx.lineCap = 'round'; cx.beginPath(); cx.arc(gx, gy, 8, -Math.PI / 2, -Math.PI / 2 + TAU * f); cx.stroke(); cx.lineCap = 'butt';
+        cx.fillStyle = '#fff'; cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(Math.ceil(h.restT), gx, gy + 0.5);
       }
       const top = feet - box * 0.9;
       // 홀림 하트

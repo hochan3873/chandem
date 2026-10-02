@@ -2298,3 +2298,56 @@ test('2-10 번화가 삐끼왕: 전단지 폭탄(사거리 -30%) · 호객 행�
   b.hp = b.maxHp * 0.39; b.bai.st = 'walk'; b.bai.next = 30; run(g, 0.05);
   assert.ok(b.bai.p2 && b.bai.next <= k.everyP2[1], '40% 분노 · 빨리');
 });
+
+test('김영준 너프: 0.18초 · 돌격 2.6초 / 숨 고르기 2.4초 → 혼자 실효 DPS 약 98 (고아라쯤) · 쉬는 동안 회복 게이지(restMax)', () => {
+  const d = D.HEROES.youngjun;
+  assert.equal(d.interval, 0.18);
+  assert.deepEqual(d.outSec, [2.6, 2.6, 2.9, 2.9, 3.2]);
+  assert.deepEqual(d.restSec, [2.4, 2.4, 2.1, 2.1, 1.8]);
+  const eff = (d.dmg / d.interval) * d.outSec[0] / (d.outSec[0] + d.restSec[0]);
+  assert.ok(eff > 90 && eff < 105, '실효 DPS ' + eff.toFixed(1));
+  const g = S.createGame({ rng: seeded(611), noWaves: true, heroes: ['youngjun'], unlocked: D.LOCKED_HEROES });
+  const yj = g.heroes[0];
+  const e = S.spawnEnemy(g, 'thug', yj.x, g.rowY - 200, { hpMul: 100 }); e.speed = 0;
+  for (let i = 0; i < 60 * 6 && !(yj.restT > 0); i++) S.step(g, 1 / 60);
+  assert.ok(yj.restT > 0 && Math.abs(yj.restMax - 2.4) < 1e-9, '숨 고르기 2.4초 · 게이지 최대값');
+});
+
+test('여지원 모자이크 폭격: 0.6초 뒤 자기 줄 → 양옆 줄 차례로 (0.18초 간격) · 피해 + 0.5초 기절 · 「모자이크」 5초 (방어 -40% · 받는 피해 +25%, 겹치지 않고 시간만 새로)', () => {
+  const sk = D.HEROES.jiwon.skill;
+  assert.equal(sk.id, 'mosaicbomb'); assert.equal(sk.cd, 22);
+  const g = bare(['jiwon']);
+  const h = g.heroes[0]; h.cd = 99; // 평타(방깎 겹)는 빼고 본다
+  const lanes = S.mosaicLanes(g, h);
+  assert.equal(lanes.length, 3); assert.equal(lanes[0], g.slotX[h.slot], '자기 줄 먼저');
+  const X = g.slotX, li = lanes.map((x) => X.indexOf(x)).sort((a, b) => a - b);
+  assert.ok(li[2] - li[0] === 2, '붙어 있는 세 줄');
+  const far = X.find((x) => !lanes.includes(x) && Math.min(...lanes.map((l) => Math.abs(l - x))) > 50);
+  const es = lanes.map((x) => { const e = S.spawnEnemy(g, 'thug', x, g.rowY - 220, { hpMul: 100 }); e.speed = 0; return e; });
+  const fe = S.spawnEnemy(g, 'thug', far, g.rowY - 220, { hpMul: 100 }); fe.speed = 0;
+  const boss = S.spawnEnemy(g, Object.keys(D.ENEMIES).find((k) => D.ENEMIES[k].boss), lanes[0], g.rowY - 300, { hpMul: 100 }); boss.speed = 0;
+  h.skillCd = 0;
+  assert.ok(S.castSkill(g, h));
+  run(g, 0.5);
+  assert.ok(es.every((e) => e.hp === e.maxHp), '0.6초 손 들기 동안은 아직');
+  run(g, 0.12);
+  assert.ok(es[0].hp < es[0].maxHp && es[1].hp === es[1].maxHp, '자기 줄 먼저 쾅');
+  run(g, 0.4);
+  assert.ok(es.every((e) => e.hp < e.maxHp), '세 줄 다');
+  assert.equal(fe.hp, fe.maxHp, '먼 줄은 안 맞음');
+  for (const e of es) { assert.ok(e.brkT > 4 && e.brkT <= 5); assert.equal(e.brkArmor, 0.4); assert.equal(e.brkDmg, 0.25); }
+  assert.ok(es[2].stunT > 0, '0.5초 기절');
+  assert.ok(!(boss.stunT > 0) && boss.slowT > 0, '보스는 기절 대신 느려짐');
+  // 받는 피해 +25% (다른 멤버 · 방어 없는 진상)
+  const plain = S.spawnEnemy(g, 'thug', far, g.rowY - 100, { hpMul: 100 }); plain.speed = 0; plain.armor = 0;
+  const base = S.damageEnemy(g, plain, 100, false, null, false);
+  es[1].armor = 0; const amp = S.damageEnemy(g, es[1], 100, false, null, false);
+  assert.ok(Math.abs(amp / base - 1.25) < 1e-6, `+25% (${amp} / ${base})`);
+  // 다시 걸면 시간만 새로 (곱해서 겹치지 않음)
+  S.applyMosaic(g, es[1], sk); S.applyMosaic(g, es[1], sk);
+  assert.equal(es[1].brkDmg, 0.25); assert.equal(es[1].brkT, 5);
+  // 방어 -40%
+  es[0].armor = 50; es[0].brkT = 0; const noM = S.damageEnemy(g, es[0], 100, false, null, false);
+  es[0].brkT = 5; es[0].brkDmg = 0; const withM = S.damageEnemy(g, es[0], 100, false, null, false);
+  assert.ok(Math.abs(noM - 50) < 1e-6 && Math.abs(withM - 70) < 1e-6, `방어 50 → 30 (${noM} → ${withM})`);
+});

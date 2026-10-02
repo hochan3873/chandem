@@ -186,6 +186,14 @@ export const sfx = {
   win() { if (ok('win', 2)) [523, 659, 784, 1046, 784, 1046, 1318].forEach((f, i) => tone(f, 0.25, 'square', 0.07, 0, i * 0.12)); },
   lose() { if (ok('lose', 2)) [392, 370, 349, 262].forEach((f, i) => tone(f, 0.35, 'triangle', 0.09, 0, i * 0.22)); },
   tap() { if (ok('tap', 0.05)) tone(1000, 0.03, 'sine', 0.04, 1400); },
+  censor() { // 방송 검열 "삐—" (1kHz 평평한 소리 · 끝만 살짝 줄임)
+    if (!ok('censor', 0.4)) return;
+    const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(1000, t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.11, t + 0.01); g.gain.setValueAtTime(0.11, t + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.56);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 0.6);
+  },
+  mzSlam() { if (ok('mzslam', 0.1)) { noise(0.22, 0.32, 240, 0.6, 0, 'lowpass'); tone(95, 0.2, 'sine', 0.22, 45); noise(0.06, 0.08, 2600, 1.2); } }, // 모자이크 손 쾅 (0.18초 간격이라 slam 과 따로)
   thud() { if (ok('thud', 0.12)) { noise(0.16, 0.07, 160, 0.6, 0, 'lowpass'); tone(70, 0.14, 'sine', 0.05, 48); } }, // 윤정섭 발소리 (쿵 · 작게)
   // UI 소리: 확인(출격·구매) · 뒤로 · 탭 바꾸기 · 안 됨 · 보상 받기
   confirm() { if (ok('ui', 0.06)) { tone(660, 0.05, 'triangle', 0.06, 990); tone(990, 0.07, 'triangle', 0.05, 1320, 0.04); } },
