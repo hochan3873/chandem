@@ -16,7 +16,7 @@
 필요한 것: [Node.js](https://nodejs.org) 18 이상 (이 PC에는 v24 설치됨)
 
 ```bash
-cd "D:\바탕화면\브이에스코드 폴더\찬덤"
+cd "C:\브이에스코드 폴더\찬덤"
 npm install        # 처음 한 번만
 npm start          # 서버 켜기
 ```
