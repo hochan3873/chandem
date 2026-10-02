@@ -793,6 +793,7 @@ function handleEvents(g, loud) {
         if (!busy && !e.twin) fx.text(e.x, e.y - 110, e.revive ? '무한 붕대! 입구 부활' : '전용 신화!', '#ffb8ef', e.revive ? 17 : 13, 1.1, -30);
         if (e.revive) { fx.flash && fx.flash('#ff7ad9', 0.35); if (loud) A.sfx.reward(); }
         break;
+      case 'gateThrow': fx.burst(e.x, e.y, 10, e.kind === 'snowball' ? '#e8f6ff' : '#ffb0a0', 140, 'dot', 3, 0.5); fx.addShake(2); fx.text(e.x, e.y - 30, '입구 쾅!', '#ff8a7a', 12, 0.7); if (loud) A.sfx.kick(); break; // 멀리서 입구로 던진 것
       case 'wallHit': fx.burst(e.x, e.y + 10, 5, '#d8d0c0', 90, 'dot', 2, 0.35); break;
       case 'wallPush': if (e.w) for (const sx of [-1, 1]) fx.burst(e.x + sx * e.w, e.y + 24, 4, '#d8d0c0', 70, 'dot', 2, 0.35); if (loud) A.sfx.kick(); break; // 미는 폭 양 끝에 먼지 (실제 판정 폭과 같게)
       case 'wallTurn': case 'wallTired': fx.addShake(4); fx.text(e.x, e.y - 60, e.type === 'wallTired' ? '헉헉… 쉬러 간다' : '쿵!', '#fff', 14, 0.9); R.vfx('shock', e.x, e.y - 30, { anim: 'pop', dur: 450, sz: 130 }); if (loud) A.sfx.slam(); break;
@@ -1921,7 +1922,7 @@ ui.addEventListener('click', (ev) => {
 });
 const ACTS = {
   menu: () => showMenu(),
-  stages: () => showStages(),
+  stages: () => { if (app.screen === 'menu') { app.selStage = lobbyStage(); app.chapterTab = chapterOf(app.selStage); } showStages(); }, // 로비에서 열면 지금 보던 스테이지에서 시작
   next: () => showPrep('stage', nextStage()),
   shop: () => showShop(),
   shopTab: (b) => { app.shopTab = b.dataset.tab; showShop(); },
@@ -2402,6 +2403,8 @@ function showMenu() {
   showMenu0();
 }
 function showMenu0() {
+  // 스테이지 지도에서 고르거나 넘겨 본 스테이지로 로비도 맞춘다 (뒤로 와도 그 스테이지가 보이게)
+  if (app.screen === 'stages') { const c = app.chapterTab, first = c ? (c - 1) * STAGES_PER_CHAPTER + 1 : 0; const s = app.selStage && (!c || chapterOf(app.selStage) === c) ? app.selStage : chapterOf(nextStage()) === c ? nextStage() : first; if (s && stageUnlocked(s)) app.lobbyStage = s; }
   app.screen = 'menu';
   app.g = null;
   app.paused = false;
