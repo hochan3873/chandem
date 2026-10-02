@@ -387,8 +387,10 @@ test('가입인사 사기꾼: 예쁜 프사 → 들켰다! (약점) → 실물 �
 test('인피 뒷담러는 멀리서 뒷담화를 던져 멤버 공격 속도를 늦춘다', () => {
   const g = S.createGame({ rng: seeded(91), noWaves: true, heroes: ['gunman'] });
   const e = S.spawnEnemy(g, 'inpi_gossip', 180, g.ropeY - 200, { hpMul: 1000 });
-  g.heroes[0].stunT = 99; // 영웅이 쏘지 않게
+  const ch0 = S.RANGED_GATE.chance; S.RANGED_GATE.chance = 0; // (가끔 입구로 던지는 건 아래 테스트에서)
+  g.heroes[0].cd = 999; // 영웅이 쏘지 않게 (기절시키면 '이미 상태이상' 이라 입구로 던진다)
   run(g, 5);
+  S.RANGED_GATE.chance = ch0;
   assert.ok(e.atRope, '멀찍이 멈춤');
   assert.ok(e.y < g.ropeY - 120, '로프까지 오지 않는다');
   const h = g.heroes[0];
@@ -2187,6 +2189,7 @@ test('7장 진상 기술: 떼 등장 · 보호막 · 썰매 · 핫팩 · 눈덩�
   assert.ok(coach.shield === 0, '자기는 안 씌움');
   // 눈덩이: 멀찍이 서서 → 멤버 빙결 (제일 잘 치는 멤버를 노린다) · 응급 방패 면역이면 안 언다
   const g2 = S.createGame({ H: 760, rng: seeded(72), noWaves: true, heroes: ['bangjang', 'gunman', 'staff'] });
+  const ch0 = S.RANGED_GATE.chance; S.RANGED_GATE.chance = 0;
   const sb = still(g2, 'snowball', 180, g2.ropeY - 200); sb.atRope = true; sb.snowT = 0.1;
   g2.heroes[1].dmgDone = 1e6;
   let froze = null;
@@ -2198,6 +2201,7 @@ test('7장 진상 기술: 떼 등장 · 보호막 · 썰매 · 핫팩 · 눈덩�
   sb.snowT = 0.1; let blocked = false;
   for (let t = 0; t < 3; t += 1 / 60) { sb.y = sb.stopY; sb.atRope = true; sb.kbv = 0; S.step(g2, 1 / 60); if (g2.events.some((x) => x.type === 'c7freeze' && x.block)) blocked = true; g2.events.length = 0; }
   assert.ok(blocked && g2.heroes.every((h) => !(h.freezeT > 0)), '응급 방패 면역');
+  S.RANGED_GATE.chance = ch0;
   // 펜션 사장님: 예고 → 넓은 범위 침묵 → 스킬 못 씀 · 예고 중에 기절시키면 끊김
   const g3 = S.createGame({ H: 760, rng: seeded(73), noWaves: true, heroes: ['bangjang', 'gunman', 'gunnyeo'] });
   const pn = still(g3, 'mid_pension', 180, 250, 50); pn.quietCd = 0.1;
@@ -2484,4 +2488,13 @@ test('겹침 정리: 김도훈 떼창(입구 덜 침) · 문동한 과자(간보
   const hc = g.heroes.find((h) => h.id === 'hochan'); hc.skillCd = 0;
   assert.ok(S.castSkill(g, hc), '막차 대행진');
   assert.ok(Math.abs(g.hcSkAtk - 0.2) < 1e-9 && g.buses.every((b) => Math.abs(b.stun - 0.8) < 1e-9), `공격력 +${g.hcSkAtk} · 기절 ${g.buses[0].stun}`);
+});
+
+test('멀리서 던지는 진상: 노린 멤버가 이미 상태이상이면 입구로 던져 입구 피해', () => {
+  const g = S.createGame({ rng: seeded(93), noWaves: true, heroes: ['gunman'] });
+  const e = S.spawnEnemy(g, 'snowball', 180, g.ropeY - 200, { hpMul: 1000 });
+  g.heroes[0].cd = 999; g.heroes[0].stunT = 99; // 이미 꽁꽁 → 멤버 대신 입구
+  const hp0 = g.base.hp; let gate = 0;
+  for (let t = 0; t < 12; t += 1 / 60) { S.step(g, 1 / 60); gate += g.events.filter((x) => x.type === 'gateThrow').length; g.events.length = 0; }
+  assert.ok(e.atRope && gate > 0 && g.base.hp < hp0, `입구로 던짐 ${gate}번 · 입구 ${hp0} → ${g.base.hp.toFixed(0)}`);
 });
