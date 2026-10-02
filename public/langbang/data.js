@@ -92,14 +92,14 @@ export const CADENCE = {
   gunman: { wind: 0.08, back: 0.03, sq: 0.02, snap: 0.05 }, // 새총 연사
   jungmin: { wind: 0.28, back: 0.14, sq: 0.06, snap: 0.22, lift: 10 }, // 머리 위로 크게
   ara: { wind: 0.3, back: 0.1, sq: 0.1, snap: 0.25, lift: 12 }, // 두 손 망치
-  baul: { wind: 0.34, back: 0.08, sq: 0.05, snap: 0.22, lift: 6, move: 'cheer' }, // 응원봉 머리 위로 흔들흔들 → 휙 던지고 윙크 점프
+  baul: { wind: 0.2, back: 0.06, sq: 0.06, snap: 0.16, lift: 4 }, // 보드 돌진: 웅크렸다 → 박차고 나간다 (띠가 없을 때만)
   _heavy: { wind: 0.28, back: 0.12, sq: 0.1, snap: 0.18, lift: 6 }, _lob: { wind: 0.22, back: 0.1, sq: 0.05, snap: 0.16, lift: 6 },
   _burst: { wind: 0.12, back: 0.06, sq: 0.03, snap: 0.1 }, _rapid: { wind: 0.08, back: 0.03, sq: 0.02, snap: 0.05 }, _melee: { wind: 0.18, back: 0.1, sq: 0.06, snap: 0.2 },
   _default: { wind: 0.16, back: 0.07, sq: 0.04, snap: 0.12 },
 };
 // 멤버 공격 프레임 띠 (선택): 8칸 · release 칸에서 투사체가 나간다 — 있으면 코드 모션 대신
 // 던지는 칸: 기본 4 · PixVerse 띠는 칸마다 달라서 따로 (2~6칸 중 모습이 제일 크게 바뀌는 칸을 재서 정함)
-export const ATTACK_RELEASE = { soyoung: 3, eunok: 3, jieun: 3, gunnyeo: 4, hyungyeong: 4, hanna: 5, donghan_on: 5, ingyu_bike: 3 };
+export const ATTACK_RELEASE = { soyoung: 3, baul: 3, eunok: 3, jieun: 3, gunnyeo: 4, hyungyeong: 4, hanna: 5, donghan_on: 5, ingyu_bike: 3 };
 // 변신 모습 공격 띠: h_<id>_<form>_attack.webp — donghan 진심 모드(alt) · ingyu 할리 타는 동안
 export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', 'bike'], ['hyungyeong', 'slim'], ['ara', 'old'], ['jieun', 'demon'], ['eunok', 'rage'], ['youngjun', 'dash']].map(([id, f]) => [id, { form: f, src: `/img/lb/h_${id}_${f}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id + '_' + f] || 4 }]));
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
@@ -130,7 +130,7 @@ export const WEAPON = {
   hyungyeong: { item: '몸통 박치기', kind: 'melee', reload: '간식 한 입' },
   ara: { item: '공주 망치', kind: 'heavy', reload: '"아이고 허리야"' },
   hochan: { item: '금빛 확성기', kind: 'gauge', reload: '막차 버스 호출' },
-  soyoung: { item: '잔소리 말풍선', kind: 'rapid', mag: 5, gap: 0.45, reload: '숨 고르기' },
+  soyoung: { item: '잔소리', kind: 'nag', reload: '숨 고르기' },
   jieun: { item: '시계 초침', kind: 'chain', reload: '태엽 감기' },
   sanghwa: { item: '동전', kind: 'burst', mag: 3, gap: 0.3, reload: '지갑 꺼내기' },
   jungmin: { item: '소주병', kind: 'lob', reload: '새 병 따기' },
@@ -138,7 +138,7 @@ export const WEAPON = {
   wonsik: { item: '덤벨', kind: 'heavy', reload: '덤벨 다시 들기' },
   jeongseob: { item: '두 팔', kind: 'melee', reload: '앉아서 쉬기' },
   byunghwa: { item: '목소리', kind: 'beam', reload: '숨 고르기' },
-  baul: { item: '응원봉', kind: 'pierce', reload: '앞머리 넘기기' },
+  baul: { item: '스노보드', kind: 'board', reload: '보드 정비' },
 };
 // 밸런스 개편 (역할 · 상성 · 난이도) — 숫자는 모의 전투로 맞춘 값
 export const BAL = {
@@ -933,14 +933,14 @@ export const HEROES = {
   // ─── 새 멤버 4명 (모집 · 카드 10장) ───
   soyoung: {
     id: 'soyoung', bossKit: 0.95, kit: 1.05, name: '정소영', gender: 'f', emoji: '🗯️', color: '#ff8fb1', gacha: true, attr: 'talk',
-    img: ART('h_soyoung'), role: '소환사 · 잔소리 게이지 → 성준영 소환',
-    dmg: 30, interval: 0.95, range: 375, proj: 'nag', projSpeed: 520,
-    nag: { perHit: [12, 12, 13, 13, 15], perSec: 2.5, firstSec: 10, sec: [10, 10, 12, 12, 14] }, // 잔소리 한 번에 게이지 +% · 성준영이 버티는 시간
-    attack: '잔소리 말풍선 — 맞힐 때마다 "잔소리 게이지"가 차고, 가득 차면 성준영을 불러낸다',
-    desc: '"그러니까 내가 뭐랬어!" 잔소리가 쌓이면 어디선가 성준영이 끌려 나온다. 둘이 같이 있으면 진상들이 더 괴롭다.',
-    perks: { 3: '성준영이 더 오래 머문다', 5: '칩·카드 피해 ↑ · 더 오래' },
-    skill: { id: 'allincall', name: '올인 콜! 준영 등판', cd: 21, desc: '성준영이 나와서 정해진 시간 동안 칩·카드를 던진다 — 맞은 진상은 한곳으로 끌려와 뭉친다 (범위 공격 멤버와 찰떡)', sec: [12, 12, 13, 13, 15] },
-    shouts: ['그러니까 내가 뭐랬어!', '준영아 나와!', '한 번만 더 말한다?'],
+    img: ART('h_soyoung'), role: '소환사 · 잔소리로 성준영 조종 (직접 공격 없음)',
+    dmg: 30, interval: 0.95, range: 375, proj: 'nag', projSpeed: 520, noHit: true,
+    nag: { heal: [0.075, 0.075, 0.09, 0.09, 0.11], call: [13, 13, 14, 14, 16], start: 60 }, // 잔소리 한 번에 성준영 체력 +% (최대 체력 대비) · 준영이 없으면 부르기 게이지 +% (100 = 등판) · 처음 게이지
+    attack: '잔소리 — 진상은 안 때린다. 잔소리 한 번마다 성준영 체력이 차고 (공격 속도가 빠를수록 자주), 준영이 없으면 부르기 게이지가 차서 가득 차면 준영이 나온다',
+    desc: '"그러니까 내가 뭐랬어!" 직접 싸우진 않는다. 잔소리로 성준영을 부려 진상을 쓸어 모으게 하고, 준영이 지쳐 쓰러질 것 같으면 또 잔소리로 일으켜 세운다.',
+    perks: { 3: '잔소리 한 번에 준영 체력이 더 많이 찬다', 5: '준영이 더 튼튼하고 더 넓게 쓸어 모은다' },
+    skill: { id: 'allincall', name: '올인 콜! 준영 등판', cd: 21, desc: '성준영을 바로 불러낸다 (이미 있으면 체력 가득) · 6초 동안 올인 모드 — 끌어모으는 범위 +50% · 한 번에 3명 더 · 쓸어 담기 피해 2배', sec: [6, 6, 6, 6, 7] },
+    shouts: ['그러니까 내가 뭐랬어!', '준영아 나와!', '한 번만 더 말한다?', '준영아 똑바로 해!'],
   },
   jieun: {
     id: 'jieun', bossKit: 1.0, kit: 1.05, name: '오지은', gender: 'f', emoji: '🕰️', color: '#b48cff', gacha: true, attr: 'charm',
@@ -1001,12 +1001,13 @@ export const HEROES = {
   },
   baul: {
     id: 'baul', bossKit: 1.0, kit: 1.0, name: '송바울', gender: 'm', emoji: '🏂', color: '#7ad0ff', gacha: true, attr: 'charm',
-    img: '/img/lb/h_baul.webp', role: '응원봉 부메랑 · 한 줄 썰매 관통',
-    dmg: 44, interval: 1.15, range: 360, proj: 'glow', projSpeed: 520, glow: { r: 13, back: 0.7, n5: 2 }, // (잽 → 응원봉: 정원식 잽과 안 겹치게) 던진 쪽으로 쭉 관통 → 돌아오며 한 번 더 (돌아올 땐 70%) · Lv5 2개
-    attack: '응원봉 부메랑 — 반짝이는 응원봉을 휙 던지면 가는 길의 진상을 전부 뚫고, 돌아오면서 한 번 더 때린다 ("이거 내가 원래 알던 거야~")',
-    desc: '앞머리 내린 아이돌상, 덧니 미소가 무기다. 설레발과 아는 척이 특기. 응원봉 하나로 팬클럽을 몰고 다닌다.',
-    perks: { 3: '응원봉이 더 멀리 · 썰매 피해 +15%', 5: '응원봉 2개 · 썰매가 두 번 지나간다' },
-    skill: { id: 'sled', name: '팬클럽 썰매 활강', cd: 20, desc: '팬클럽이 끄는 썰매로 자기 줄과 양옆 줄까지 통째로 쓸고 내려간다 — 줄 위 진상 전부 큰 피해 + 크게 밀치기 (보스는 덜) · 팬클럽 함성으로 5초 동안 바울 공격 속도 +60%', w: 52, mul: [4.2, 4.2, 4.6, 4.6, 5.2], kb: 90, fan: { sec: 5, spd: 0.6 } }, // (폭 44 → 52: 양옆 줄까지 · 피해 ×1.15 · 밀치기 80 → 90 · 함성 새로)
+    img: '/img/lb/h_baul.webp', role: '보드 조종 · 탭한 곳으로 돌진 (기본 공격 없음)',
+    dmg: 44, interval: 1.15, range: 360, proj: 'board',
+    board: { cd: [1.45, 1.45, 1.35, 1.35, 1.2], speed: 560, w: 24, mul: 1.6, chain: 0.85, kb: 8, daze: 0.35, reach: 300, uses: [6, 6, 7, 7, 8], fix: [3.4, 3.4, 3.1, 3.1, 2.6], aimT: 5 }, // (응원봉 → 보드) 짧은 쿨마다 돌진 · 길 위 진상 전부 (둘째부터 85%) · 살짝 밀침 · uses 번 타면 자리로 돌아가 fix 초 보드 정비
+    attack: '스노보드 돌진 — 필드를 탭하면 그곳으로 보드를 타고 쭉 미끄러지며 길 위 진상을 전부 치고 지나간다 (탭 안 하면 진상이 많이 줄 선 쪽으로 알아서) · 몇 번 타면 자리로 돌아가 무릎 꿇고 보드 정비',
+    desc: '앞머리 내린 아이돌상, 덧니 미소가 무기다. 설레발과 아는 척이 특기. "이거 내가 원래 알던 거야~" 하며 보드 하나로 골목을 휘젓는다.',
+    perks: { 3: '보드가 더 멀리 · 썰매 피해 +15%', 5: '정비 전에 더 많이 탄다 · 부딪힌 진상 휘청 · 썰매가 두 번 지나간다' },
+    skill: { id: 'sled', name: '팬클럽 썰매 활강', cd: 20, desc: '팬클럽이 끄는 썰매로 바울이 있는 줄과 양옆 줄까지 통째로 쓸고 내려간다 — 줄 위 진상 전부 큰 피해 + 크게 밀치기 (보스는 덜) · 팬클럽이 새 보드를 갖다 줘서 정비 끝 · 5초 동안 보드 쿨 +60% 빨리', w: 52, mul: [4.2, 4.2, 4.6, 4.6, 5.2], kb: 90, fan: { sec: 5, spd: 0.6 } }, // (폭 44 → 52: 양옆 줄까지 · 피해 ×1.15 · 밀치기 80 → 90 · 함성 새로)
     shouts: ['이거 내가 원래 알던 거야~', '내가 알지~', '팬클럽 출동!', '설레발 아니고 진짜야'],
   },
   byunghwa: {
@@ -1035,13 +1036,14 @@ export const HEROES = {
 export const SUMMONS = {
   junyoung: {
     id: 'junyoung', summon: true, bossKit: 1, kit: 1, name: '성준영', gender: 'm', emoji: '🃏', color: '#9fd4ff', attr: 'talk',
-    img: ART('h_junyoung'), role: '소환 · 홀덤 칩과 카드 던지기',
-    dmg: 30, chipDmg: 28, interval: 0.55, range: 380, proj: 'chip', projSpeed: 600, // 칩 한 번 = 고정 피해 (강화·레벨 조금) · 끌어당기기가 본업
-    allin: { r: 90, mul: 5 }, // 쓰러질 때 "올인!" 작은 폭발 (피해 = 한 발 × 5)
-    attack: '홀덤 칩 · 카드 — 빠르게 휙휙 던진다. 사라질 때 "올인!"',
-    desc: '비실비실해 보이지만 칩 던지는 손목은 프로. 소영이 부르면 어쩔 수 없이 나온다.',
+    img: ART('h_junyoung'), role: '소환 · 돈 쓸어 모으기 · 진상 끌어모으는 미끼',
+    dmg: 30, interval: 0.55, range: 380, proj: 'sweep',
+    sweep: { hp: [0.55, 0.55, 0.65, 0.65, 0.8], hpMeta: 0.02, r: [110, 110, 120, 120, 135], hold: 40, pull: 110, bossPull: 0.25, max: [6, 6, 7, 7, 8], tick: 0.5, dmgK: 0.18, walk: 58, cut: 0.4, wp: [1.4, 2.6], allinR: 1.5 }, // 체력 = 입구 최대 내구도의 % · 끌어모으는 반경 · 붙잡는 최대 수 · 0.5초마다 붙잡은 진상에게 조금씩 (한 방의 18%) · 받는 피해 −40%
+    allin: { r: 90, mul: 5 }, // 지쳐서 퇴근할 때 "올인!" 작은 폭발 (피해 = 한 방 × 5)
+    attack: '빗자루질 — 바닥의 돈을 쓸어 담듯 아래에서부터 이리저리 돌아다니며 주변 진상을 자기 쪽으로 끌어모은다 (피해는 아주 조금). 붙잡힌 진상은 입구 대신 준영을 때린다',
+    desc: '비실비실해 보이지만 돈 냄새는 귀신같이 맡는다. 소영 잔소리에 떠밀려 나와 바닥의 돈을 쓸어 담고, 지치면 "올인!" 하고 퇴근한다.',
     perks: { 3: '-', 5: '-' },
-    shouts: ['올인!', '콜!', '레이즈!', '아 왜 또 불러…'],
+    shouts: ['올인!', '이거 다 내 돈!', '쓸어 담자~', '아 왜 또 불러…'],
   },
 };
 // ─── 멤버 등급(티어): 늦게 만나는 멤버일수록 기본이 세다 · 초반 멤버는 강화 한도가 낮다 ───
@@ -1758,7 +1760,7 @@ export const HERO_CARDS = {
   hyungyeong: { title: '배현경: 날씬 모드 +3초', add: { diet: 3 } },
   ara: { title: '고아라: 공주로 +5초 더', add: { young: 5 } },
   hochan: { title: '이호찬: 랑방 버프 최대 +12%', add: { buff: 0.12 } },
-  soyoung: { title: '정소영: 성준영 +3초', add: { nag: 3 } },
+  soyoung: { title: '정소영: 성준영 체력 +30%', add: { nag: 0.3 } },
   jieun: { title: '오지은: 감속 +15%p · 1초 더', add: { slowX: 0.15, slowSec: 1 } },
   sanghwa: { title: '박상화: 성장 한도 +15%', add: { growMax: 0.15 } },
   jungmin: { title: '홍정민: 수리 +40%', mul: { heal: 1.4 } },
@@ -1770,7 +1772,7 @@ export const SKILL_EVO = {
   bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '난사 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
   dohoon: '무한 앵콜 앵콜', ingyu: '할리 한 바퀴 더', donghan: '초사이언 포격 4발 더', youngjun: '블랙 러시 왕복', eunok: '원샷 두 잔',
   hanna: '하트 레이저 풀파워 (화면 끝까지 꿰뚫는 굵은 빔)', sunggu: '지팡이 블랙홀 두 개', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
-  soyoung: '올인 콜 앵콜 (준영 더 오래)', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '모자이크 폭격 앵콜', wonsik: '결혼정보회사 VIP 등록',
+  soyoung: '올인 콜 앵콜 (올인 모드 한 번 더)', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '모자이크 폭격 앵콜', wonsik: '결혼정보회사 VIP 등록',
 };
 // 숨은 카드 (드물게): 임시 증원 · 게스트 합류 — 한 판에 한 번
 export const SECRET = { tempSlot: 0.045, guest: 0.035 };
@@ -1947,7 +1949,7 @@ export const SIG = {
   hyungyeong: { name: '요요 없는 다이어트 주사', stats: { atk: 0.1, spd: 0.1 }, fx: { dietMul: 2, mark: 0.25 }, desc: '날씬 모드가 2배 오래 · 표시한 진상이 받는 피해 +25% → +50%' },
   ara: { name: '영원한 공주 티아라', stats: { boss: 0.15, atk: 0.08 }, fx: { ageless: 1, echo: 0.8 }, desc: '다시는 늙지 않는다 (늘 공주) · 공주의 일격이 0.8초 뒤 한 번 더' },
   hochan: { name: '랑방 초대 방장의 왕관', stats: { atk: 0.1, ult: 0.15 }, fx: { echo: 2 }, desc: '막차 대행진이 2초 뒤 한 번 더 지나간다 (기세는 한 번만)' },
-  soyoung: { name: '성준영 평생 출석부', stats: { skill: 0.12, cd: 0.1 }, fx: { summonMul: 2, multi: 1, multiK: 1 }, desc: '성준영이 2배 오래 머문다 · 잔소리 말풍선을 두 개씩' },
+  soyoung: { name: '성준영 평생 출석부', stats: { skill: 0.12, cd: 0.1 }, fx: { summonMul: 2, multi: 1, multiK: 1 }, desc: '성준영 체력 2배 · 잔소리 한 번에 두 배로 채운다' },
   jieun: { name: '멈춰 버린 금시계', stats: { cd: 0.12, skill: 0.1 }, fx: { freeze: 2.5 }, desc: '시간 정지가 진짜 멈춤 — 범위 안 진상 2.5초 꼼짝 못 함 (보스는 더 크게 느려짐)' },
   sanghwa: { name: '백 송이 장미 꽃다발', stats: { atk: 0.1, exp: 0.1 }, fx: { growMul: 2 }, desc: '성장 한도 2배 · 성장 속도 2배 (판이 길수록 훨씬 세진다)' },
   jungmin: { name: '무한 붕대 롤', stats: { hp: 0.15, guard: 0.1 }, fx: { revive: 0.5 }, desc: '입구가 무너지는 순간 한 판에 한 번 붕대로 다시 붙인다 (내구도 50%)' },
@@ -2236,8 +2238,8 @@ export const SKILL_AUG = {
     { id: 'extra', name: '막차 증차', desc: '막차 대행진 버스 +2대 · 기절 +0.5초' },
   ],
   soyoung: [
-    { id: 'nagbomb', name: '잔소리 폭격', desc: '성준영 +4초', cm: { add: { nag: 4 } } },
-    { id: 'allin', name: '올인 끌어당기기', desc: '성준영 칩 · 카드 피해 +50%' },
+    { id: 'nagbomb', name: '잔소리 폭격', desc: '성준영 체력 +40%', cm: { add: { nag: 0.4 } } },
+    { id: 'allin', name: '올인 끌어당기기', desc: '성준영 쓸어 담기 피해 +50% · 끌어모으는 범위 +20%' },
   ],
   jieun: [
     { id: 'frozen', name: '완전 정지', desc: '시간 정지가 훨씬 느리게 (−88%) · 반경 +20%' },
@@ -2262,7 +2264,7 @@ export const SKILL_AUG = {
   baul: [
     { id: 'ice', name: '미끄러운 길', desc: '썰매가 지나간 줄 4초 동안 미끄러운 길 (진상 −45%)' },
     { id: 'twice', name: '썰매 두 번', desc: '썰매가 한 번 더 지나간다 (60%)' },
-    { id: 'glow', name: '응원봉 강화', desc: '응원봉 피해 +25% · 더 굵게 (맞히기 쉬움)' },
+    { id: 'glow', name: '튜닝 보드', desc: '보드 돌진 피해 +25% · 보드 폭 +40% (맞히기 쉬움)' },
   ],
   byunghwa: [
     { id: 'curtain', name: '커튼콜', desc: '원맨쇼 중 처치하면 시간 +0.5초 (최대 +3초)' },

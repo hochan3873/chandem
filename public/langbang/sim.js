@@ -297,8 +297,8 @@ function updateHeroes(g, dt) {
     if (d.demon && h.alt) { h.altT -= dt; if (h.altT <= 0) h.alt = false; }
     // 정소영: 잔소리 게이지 → 성준영 소환
     // 정소영: 성준영은 스킬(올인 콜)로만 부른다
-    // 성준영: 시간이 다 되면 "올인!" 하고 사라진다
-    if (d.summon) updateJunyoung(g, h, dt);
+    // 성준영: 돌아다니며 진상을 쓸어 모은다 (체력이 다 떨어지면 "올인!" 하고 퇴근) — 평소 공격 없음
+    if (d.summon) { updateJunyoung(g, h, dt); continue; }
     // 홍정민: 틈틈이 붕대로 입구 수리 (탁탁)
     if (d.repair && g.phase !== 'test') {
       h.repT = (h.repT || 0) + dt;
@@ -337,6 +337,10 @@ function updateHeroes(g, dt) {
     let sing = 0;
     for (const d0 of singers) if (d0 !== h && Math.abs(d0.x - h.x) <= d0.def.sing.r) sing = Math.max(sing, d0.def.sing.spd[d0.lv - 1]);
     const rate = heroRate(g, h, auraBonus(g, h), sing);
+    // 정소영: 진상은 안 때리고 잔소리로 성준영을 부린다 (잔소리 = 준영 체력 · 부르기 게이지)
+    if (d.proj === 'nag') { updateNag(g, h, dt, rate); continue; }
+    // 송바울: 기본 공격 없이 보드 돌진 (탭한 곳 · 아니면 알아서) · 몇 번 타면 보드 정비
+    if (d.proj === 'board') { updateBoard(g, h, dt, rate); continue; }
     // 문동한: 간보기 게이지 → 일어나서 한 줄 빔
     if (d.meter) {
       if (h.upT > 0) h.upT -= dt;
@@ -876,7 +880,7 @@ export function fire(g, h, t) {
       spawnProj(g, 'snack', h, t, dmg, { homing: true, pierce, spin: 9, r: 8 });
       break;
     case 'glow': { // 송바울 응원봉 부메랑: 던진 쪽으로 쭉 관통 → 돌아오며 한 번 더 (Lv5 2개)
-      const G = d.glow, n = lv >= 5 ? G.n5 : 1, ang = aimAngle(h, t, d.projSpeed), reach = heroRange(g, h) * (lv >= 3 ? 1.15 : 1);
+      const G = d.glow || { r: 13, back: 0.7, n5: 2 }, n = lv >= 5 ? G.n5 : 1, ang = aimAngle(h, t, d.projSpeed), reach = heroRange(g, h) * (lv >= 3 ? 1.15 : 1);
       for (let i = 0; i < n; i++) spawnProj(g, 'glow', h, null, dmg * (h.sa && h.sa.glow ? 1.25 : 1), { angle: ang + (i - (n - 1) / 2) * 0.22, pierce: Infinity, spin: 15, boomerang: true, maxDist: reach, speed: d.projSpeed * (g.tempo ? 0.62 : 1), r: G.r * (h.sa && h.sa.glow ? 1.3 : 1) });
       break;
     }
@@ -991,8 +995,14 @@ export function fire(g, h, t) {
 }
 
 // 정소영 → 성준영 소환 (빈자리에, 없으면 정소영 옆에 겹쳐서) · 멤버 수 제한과 상관없이
-function summonJunyoung(g, h, sec) {
-  if (hasHero(g, 'junyoung')) { const j0 = hasHero(g, 'junyoung'); j0.leaveT = Math.max(j0.leaveT, sec); return j0; }
+//  준영은 아래(입구 앞)에서 나와 바닥의 돈을 쓸어 모으듯 돌아다닌다 · 체력이 다 떨어지면 "올인!" 하고 퇴근
+export function jyHpMax(g, j, so) {
+  const S0 = j.def.sweep, lv = j.lv - 1;
+  return g.base.max * S0.hp[lv] * (1 + (j.meta || 0) * S0.hpMeta) * (1 + ((so && so.cm && so.cm.nag) || 0)) * ((so && so.sig && so.sig.summonMul) || 1);
+}
+function summonJunyoung(g, h) {
+  const j0 = hasHero(g, 'junyoung');
+  if (j0) { j0.hp = j0.hpMax = jyHpMax(g, j0, h); return j0; }
   const used = new Set(g.heroes.map((o) => o.slot));
   const slot = SLOT_ORDER.filter((x) => x < g.nPos && !used.has(x))[0];
   g._summoning = true;
@@ -1000,43 +1010,194 @@ function summonJunyoung(g, h, sec) {
   g._summoning = false;
   if (!j) return null;
   if (slot === undefined) { j.slot = h.slot; j.x = h.x + 26; j.overlap = true; }
-  j.lv = Math.min(5, h.lv); j.meta = h.meta; j.summon = true;
-  j.summonT = Infinity; j.leaveT = sec; j.by = h.id;
-  const a = jyAnchor(g, h.x);
-  j.homeX = j.x; j.homeY = j.y; j.px = j.x; j.py = j.y; j.out = true;
-  j.ax = a.x; j.ay = a.y; j.anchorT = 2;
-  ev(g, 'summon', { hero: 'junyoung', x: j.x, y: j.y, by: h.id });
+  j.lv = Math.min(5, h.lv); j.meta = h.meta; j.summon = true; j.by = h.id;
+  j.homeX = j.x; j.homeY = j.y; j.out = true;
+  j.px = clamp(h.x, 40, g.W - 40); j.py = g.ropeY - 34; j.x = j.px; j.y = j.py; // 아래(입구 바로 앞)에서 시작
+  j.hp = j.hpMax = jyHpMax(g, j, h); j.wpT = 0; j.tickT = 0.3; j.held = 0; j.allinT = 0; j.face = 1;
+  ev(g, 'summon', { hero: 'junyoung', x: j.px, y: j.py, by: h.id });
   return j;
 }
-// 기준점: 앞쪽(입구에 가까운)에서 진상이 가장 몰린 곳 — 난수 없음
-function jyAnchor(g, fx) {
-  let best = null, bs = -1;
-  for (const e of g.enemies) {
-    if (e.dead || e.y < 40) continue;
-    let n = 0;
-    for (const o of g.enemies) if (!o.dead && Math.abs(o.x - e.x) < 90 && Math.abs(o.y - e.y) < 90) n++;
-    const sc = n * 10 + e.y * 0.05;
-    if (sc > bs) { bs = sc; best = e; }
+// 다음 쓸 곳: 바닥 아래쪽 절반에서 아무 데나 — 반쯤은 진상이 몰린 쪽으로 (난수는 g.rng 라 재현된다)
+function jyWaypoint(g, j) {
+  const y0 = g.ropeY * 0.5, y1 = g.ropeY - 40;
+  let x = 40 + g.rng() * (g.W - 80), y = y0 + g.rng() * (y1 - y0);
+  if (g.rng() < 0.5) {
+    let best = null, bs = -1;
+    for (const e of g.enemies) {
+      if (e.dead || e.y < 60 || e.boss) continue;
+      let n = 0;
+      for (const o of g.enemies) if (!o.dead && Math.abs(o.x - e.x) < 90 && Math.abs(o.y - e.y) < 90) n++;
+      const sc = n * 10 + e.y * 0.03;
+      if (sc > bs) { bs = sc; best = e; }
+    }
+    if (best) { x = (x + best.x * 2) / 3; y = clamp((y + (best.y + 40) * 2) / 3, y0, y1); }
   }
-  return best ? { x: clamp(best.x, 30, g.W - 30), y: clamp(best.y, 140, g.ropeY - 60) } : { x: clamp(fx, 30, g.W - 30), y: g.ropeY - 160 };
+  // 한 번에 너무 멀리도 · 너무 조금도 안 간다 (빗자루질: 이쪽저쪽 쓸고 다닌다)
+  let dx = x - j.px, dy = y - j.py, d = Math.hypot(dx, dy);
+  const max = 170, min = 70;
+  if (d < min) { const a = g.rng() * Math.PI * 2; dx = Math.cos(a); dy = Math.sin(a) * 0.6; d = Math.hypot(dx, dy); x = j.px + (dx / d) * min; y = j.py + (dy / d) * min; }
+  else if (d > max) { x = j.px + (dx / d) * max; y = j.py + (dy / d) * max; }
+  j.wx = clamp(x, 30, g.W - 30); j.wy = clamp(y, y0, y1);
+  j.wpT = j.def.sweep.wp[0] + g.rng() * (j.def.sweep.wp[1] - j.def.sweep.wp[0]);
 }
-// 성준영: 기준점 근처에 서서 칩·카드를 던진다 — 맞은 진상은 기준점으로 끌려와 뭉친다 · 시간이 되면 "들어갈게~"
+// 성준영: 돌아다니며 쓸어 모은다 — 주변 진상을 끌어와 곁에 붙잡아 두고(조금씩 피해) · 붙잡힌 진상은 입구 대신 준영을 친다
 function updateJunyoung(g, j, dt) {
-  j.leaveT -= dt;
-  if ((j.anchorT -= dt) <= 0) { const a = jyAnchor(g, j.ax); j.ax += (a.x - j.ax) * 0.35; j.ay += (a.y - j.ay) * 0.35; j.anchorT = 2; } // 기준점은 천천히만 옮긴다
-  const tx = j.ax, ty = j.ay + 70; // 무리 바로 앞에 선다
-  const dx = tx - j.px, dy = ty - j.py, dist = Math.hypot(dx, dy);
-  if (dist > 3) { const sp = Math.min(dist, 120 * dt); j.px += (dx / dist) * sp; j.py += (dy / dist) * sp; }
+  const S0 = j.def.sweep, so = g.heroes.find((o) => o.id === 'soyoung' && !o.gone);
+  if (so) j.lv = Math.min(5, so.lv);
+  const lv = j.lv - 1;
+  if (j.allinT > 0) j.allinT -= dt;
+  if (j.hp === undefined) { j.hp = j.hpMax = jyHpMax(g, j, so); j.wpT = 0; j.tickT = 0.3; }
+  // 빗자루질: 정한 곳까지 천천히 (붙잡은 진상이 많으면 더 느리게)
+  j.wpT -= dt;
+  if (j.wpT <= 0 || j.wx === undefined || Math.hypot(j.wx - j.px, j.wy - j.py) < 6) jyWaypoint(g, j);
+  { const dx = j.wx - j.px, dy = j.wy - j.py, d = Math.hypot(dx, dy); if (d > 1) { const sp = Math.min(d, S0.walk * (1 - Math.min(0.3, j.held * 0.04)) * dt); j.px += (dx / d) * sp; j.py += (dy / d) * sp; if (Math.abs(dx) > 2) j.face = dx < 0 ? -1 : 1; } }
   j.x = j.px; j.y = j.py;
-  if (j.leaveT <= 0) { j.gone = true; ev(g, 'jyLeave', { x: j.px, y: j.py }); }
+  // 끌어모으기
+  const R = S0.r[lv] * (j.allinT > 0 ? S0.allinR : 1) * (g.saJy ? 1.2 : 1), max = S0.max[lv] + (j.allinT > 0 ? 3 : 0);
+  const near = [];
+  for (const e of g.enemies) { if (e.dead || e.y < 0 || e.fleeing) continue; const d = Math.hypot(e.x - j.px, e.y - j.py); if (d < R + (e.r || 14)) near.push([d, e]); }
+  near.sort((a, b) => a[0] - b[0]);
+  let held = 0, hurt = 0;
+  for (const [, e] of near) {
+    if (e.boss || e.mid) { // 보스 · 중간 보스: 붙잡지는 못하고 조금 끌어당기기만
+      const dx = j.px - e.x, dy = j.py - e.y, d = Math.hypot(dx, dy) || 1;
+      e.x += (dx / d) * S0.pull * S0.bossPull * dt; e.baseX = e.x;
+      continue;
+    }
+    if (held >= max) continue;
+    const a = Math.PI * (1.08 + 0.84 * ((((e.uid || 0) * 0.618 + g.t * 0.05) % 1 + 1) % 1)), rr = S0.hold + (held % 3) * 9; // 준영 뒤(위쪽) 반원에 줄줄이 붙는다 (준영이 가려지지 않게)
+    const tx = clamp(j.px + Math.cos(a) * rr, 16, g.W - 16), ty = j.py - 14 + Math.sin(a) * rr * 0.6;
+    const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy);
+    const k = e.def.traits && e.def.traits.kbImmune ? 0.5 : 1;
+    if (d > 0.5) { const sp = Math.min(d, S0.pull * k * dt); e.x += (dx / d) * sp; e.y += (dy / d) * sp; }
+    e.baseX = e.x; e.jyT = 0.15; e.atRope = false; held++;
+    if (!e.jyHeld) { e.jyHeld = true; ev(g, 'jyGrab', { x: e.x, y: e.y - (e.def.size || 30) * 0.6, jx: j.px, jy: j.py }); }
+    if (d < 16 && !(e.stunT > 0) && !e.sleeping) hurt += (e.atk || 3) * (e.fast ? 1.6 : 1) / Math.max(0.3, e.def.atkInterval || 1) * dt; // 곁에 붙은 진상은 입구 대신 준영을 친다
+  }
+  j.held = held;
+  if (hurt > 0) { j.hp -= hurt * (1 - S0.cut); prevented(g, j.by || 'soyoung', hurt); j.hurtT = g.t; }
+  // 쓸어 담기: 붙잡은 진상에게 조금씩 피해 (본업은 모으기)
+  if ((j.tickT -= dt) <= 0) {
+    j.tickT += S0.tick;
+    const dmg = heroDamage(g, j) * S0.dmgK * (j.allinT > 0 ? 2 : 1) * (g.saJy || 1);
+    let n = 0;
+    for (const [, e] of near) { if (e.dead || !(e.jyT > 0)) continue; damageEnemy(g, e, dmg, false, j, true); n++; }
+    if (n) ev(g, 'jySweep', { x: j.px, y: j.py, n, face: j.face });
+  }
+  if (j.hp <= 0) { // 지쳐서 퇴근: "올인!" 작은 폭발 → 사라진다 · 정소영은 부르기 게이지를 처음부터
+    j.hp = 0;
+    allinBurst(g, j);
+    j.gone = true;
+    for (const e of g.enemies) if (e.jyT > 0) { e.jyT = 0; e.jyHeld = false; }
+    if (so) so.callM = 0;
+    ev(g, 'jyLeave', { x: j.px, y: j.py });
+  }
 }
 function allinBurst(g, h) {
   const a = h.def.allin, boss = g.heroes.find((o) => o.id === 'soyoung');
-  const t = findTarget(g, h) || nearestEnemy(g, h.x, h.y, 420);
-  const x = t ? t.x : h.x, y = t ? t.y : h.y - 200;
+  const x = h.px !== undefined ? h.px : h.x, y = (h.py !== undefined ? h.py : h.y) - 10;
   const r = a.r * (boss && boss.lv >= 5 ? 1.35 : 1);
   forEnemiesNear(g, x, y, r, (e) => { damageEnemy(g, e, heroDamage(g, h) * a.mul, false, h, true); return true; });
-  ev(g, 'allin', { x, y, r, hx: h.x, hy: h.y });
+  ev(g, 'allin', { x, y, r, hx: x, hy: y });
+}
+// 정소영: 진상은 안 때린다 — 잔소리 한 번마다 성준영 체력이 차고(공격 속도가 빠를수록 더 자주) · 준영이 없으면 부르기 게이지가 차서 가득 차면 등판
+function updateNag(g, h, dt, rate) {
+  const N = h.def.nag, lv = h.lv - 1;
+  if (h.callM === undefined) h.callM = N.start;
+  const j = g.heroes.find((o) => o.id === 'junyoung' && !o.gone);
+  const foes = g.enemies.some((e) => !e.dead && e.y > 0);
+  h.cd -= dt * rate;
+  if (h.cd > 0) return;
+  if (!foes && (!j || j.hp >= j.hpMax)) { h.cd = 0; return; } // 진상도 없고 준영도 멀쩡하면 쉰다
+  h.cd += h.def.interval * LEVEL_INTERVAL[lv];
+  h.lastShotT = g.t; h.recoil = 0.14; h.shots++;
+  const k = (h.sig && h.sig.multi ? 2 : 1) * (h.cm.nagX || 1);
+  if (j) {
+    const add = j.hpMax * N.heal[lv] * k;
+    const v = Math.min(add, j.hpMax - j.hp);
+    j.hp += v; h.nagHeal = (h.nagHeal || 0) + v;
+    ev(g, 'nag', { hero: h.id, x: h.x, y: h.y, tx: j.px, ty: j.py, heal: v > 0 });
+  } else {
+    h.callM = Math.min(100, h.callM + N.call[lv] * k);
+    ev(g, 'nag', { hero: h.id, x: h.x, y: h.y, call: h.callM });
+    if (h.callM >= 100 && foes) { h.callM = 0; summonJunyoung(g, h); }
+  }
+}
+// 송바울 보드: 탭한 곳(g.boardAim)으로 미끄러져 가며 길 위 진상을 쓸고 지나간다 · 탭이 없으면 진상이 많이 줄 선 쪽으로 알아서
+//  st: ride(보드 위 · 다음 돌진 대기) → dash(돌진 중) → … uses 번 타면 home(자리로 복귀) → fix(무릎 꿇고 보드 정비) → ride
+export function setBoardAim(g, x, y) {
+  const h = g.heroes.find((o) => o.def.proj === 'board' && !o.gone);
+  if (!h || y > g.ropeY + 6 || y < 24) return null;
+  g.boardAim = { x: clamp(x, 20, g.W - 20), y: clamp(y, 70, g.ropeY - 16), t: g.t };
+  return h;
+}
+function boardAuto(g, h, B) { // 지금 자리에서 진상을 가장 많이 꿰뚫는 끝점 (지목한 진상이 있으면 그쪽)
+  const f = g.focus, sx = h.px, sy = h.py, reach = B.reach * (h.lv >= 3 ? 1.15 : 1);
+  if (f && !f.dead && f.uid === g.focusUid && f.y > 0) return { x: f.x, y: f.y, focus: true };
+  let best = null, bn = 0;
+  for (const e of g.enemies) {
+    if (e.dead || e.y < 20 || isHidden(e)) continue;
+    const dx = e.x - sx, dy = e.y - sy, d = Math.hypot(dx, dy) || 1;
+    const k = Math.min(1, reach / d) * 1.15, ex = sx + dx * k, ey = sy + dy * k; // 그 진상을 지나 조금 더
+    let n = 0;
+    for (const o of g.enemies) { if (o.dead || o.y < 0) continue; if (segDist(o.x, o.y, sx, sy, ex, ey) < B.w + (o.r || 14)) n += o.boss || o.mid ? 2 : 1; }
+    n += (e.y / g.ropeY) * 0.8; // 입구에 가까운 줄을 더 먼저
+    if (n > bn) { bn = n; best = { x: ex, y: ey }; }
+  }
+  return best;
+}
+function segDist(px, py, ax, ay, bx, by) {
+  const vx = bx - ax, vy = by - ay, L = vx * vx + vy * vy || 1;
+  const t = clamp(((px - ax) * vx + (py - ay) * vy) / L, 0, 1);
+  return Math.hypot(px - (ax + vx * t), py - (ay + vy * t));
+}
+function updateBoard(g, h, dt, rate) {
+  const B = h.def.board, lv = h.lv - 1;
+  if (!h.bd) { h.bd = { st: 'ride', uses: 0, cdT: 0.6, fixT: 0 }; h.px = h.x; h.py = h.y; }
+  const b = h.bd, maxUse = B.uses[lv];
+  if (b.st === 'fix') { // 보드 정비: 자리에서 무릎 꿇고 고친다 (못 탄다)
+    h.out = false; h.px = h.x; h.py = h.y;
+    b.fixT -= dt;
+    if (b.fixT <= 0) { b.st = 'ride'; b.uses = 0; b.cdT = 0.2; ev(g, 'boardFixed', { x: h.x, y: h.y }); }
+    return;
+  }
+  if (b.st === 'home') { // 자리로 미끄러져 돌아가기 (때리지 않음)
+    const dx = h.x - h.px, dy = h.y - h.py, d = Math.hypot(dx, dy), sp = B.speed * 0.8 * dt;
+    if (d <= sp + 1) { h.px = h.x; h.py = h.y; h.out = false; b.st = 'fix'; b.fixT = b.fixMax = B.fix[lv]; ev(g, 'boardFix', { x: h.x, y: h.y, sec: b.fixT }); }
+    else { h.px += (dx / d) * sp; h.py += (dy / d) * sp; }
+    return;
+  }
+  if (b.st === 'dash') {
+    const dx = b.tx - h.px, dy = b.ty - h.py, d = Math.hypot(dx, dy), sp = B.speed * dt;
+    const ox = h.px, oy = h.py;
+    if (d <= sp) { h.px = b.tx; h.py = b.ty; } else { h.px += (dx / d) * sp; h.py += (dy / d) * sp; }
+    // 이번 프레임에 지나간 길 위 진상: 한 번씩만
+    for (const e of g.enemies) {
+      if (e.dead || e.y < -10 || b.hit.has(e)) continue;
+      if (segDist(e.x, e.y - 6, ox, oy, h.px, h.py) > B.w * (h.sa && h.sa.glow ? 1.4 : 1) + (e.r || 14)) continue;
+      b.hit.add(e);
+      const crit = g.rng() < critOf(g, h);
+      damageEnemy(g, e, b.dmg * (b.hit.size === 1 ? 1 : B.chain) * (crit ? g.mods.critMul : 1), crit, h, false);
+      if (!e.dead && !e.boss) { applyKnockback(e, B.kb, g); if (lv >= 4) e.stunT = Math.max(e.stunT, B.daze * stunMul(e)); }
+    }
+    if (d <= sp) { b.st = 'ride'; b.cdT = B.cd[lv] * LEVEL_INTERVAL[lv]; if (b.hit.size >= 3) ev(g, 'boardCombo', { x: h.px, y: h.py, n: b.hit.size }); if (b.uses >= maxUse) { b.st = 'home'; ev(g, 'boardBroke', { x: h.px, y: h.py }); } }
+    return;
+  }
+  // ride: 보드 위에서 살랑살랑 (다음 돌진 대기)
+  b.cdT -= dt * rate;
+  if (b.cdT > 0) return;
+  const aim = g.boardAim && g.t - g.boardAim.t < B.aimT ? g.boardAim : null;
+  const tg = aim || boardAuto(g, h, B);
+  if (!tg || !g.enemies.some((e) => !e.dead && e.y > 0)) { b.cdT = 0; if (!h.out) return; if (!aim) { b.st = 'home'; b.uses = maxUse; } return; } // 진상이 없으면 자리로 돌아가 보드 손질
+  if (aim) g.boardAim = null;
+  let tx = tg.x, ty = tg.y;
+  if (!aim) { const dx = tx - h.px, dy = ty - h.py, d = Math.hypot(dx, dy), reach = B.reach * (h.lv >= 3 ? 1.15 : 1); if (d > reach) { tx = h.px + (dx / d) * reach; ty = h.py + (dy / d) * reach; } }
+  b.tx = clamp(tx, 20, g.W - 20); b.ty = clamp(ty, 70, g.ropeY - 16);
+  b.st = 'dash'; b.hit = new Set(); b.uses++; b.aimed = !!aim;
+  b.dmg = heroDamage(g, h) * B.mul * (h.sa && h.sa.glow ? 1.25 : 1);
+  h.out = true; h.lastShotT = g.t; h.recoil = 0.14; h.shots++;
+  b.face = b.tx < h.px ? -1 : 1;
+  ev(g, 'boardDash', { hero: h.id, x: h.px, y: h.py, tx: b.tx, ty: b.ty, aimed: !!aim, left: maxUse - b.uses });
 }
 // 윤준서 여사친: 유도탄처럼 날아가 맞으면 다음 진상으로 튕긴다 (hitEnemy 참고)
 function spawnGf(g, h, t, dmg, rico, spread) {
@@ -1521,7 +1682,7 @@ export function damageBase(g, dmg, e) {
   if (g.pvp) { dmg *= g.pvp.doorMul; g.pvp.hurt += dmg; } // 1:1 서든데스: 입구 받는 피해 단계마다 +20%
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
-  ev(g, 'baseHit', { x: e.x, y: g.ropeY, v: Math.round(dmg), boss: e.boss });
+  ev(g, 'baseHit', { x: e ? e.x : g.W / 2, y: g.ropeY, v: Math.round(dmg), boss: !!(e && e.boss) }); // (던진 진상이 이미 죽었으면 e 가 없다)
   if (g.base.hp <= 0 && !g.sigRevived) { // 홍정민 전용 신화: 한 판에 한 번 붕대로 다시 붙인다
     const jm = g.heroes.find((o) => o.sig && o.sig.revive && !o.gone);
     if (jm) { g.sigRevived = true; g.base.hp = Math.round(g.base.max * jm.sig.revive); ev(g, 'bandage', { x: g.W / 2, y: g.ropeY + 8, v: Math.round(g.base.hp), big: true, hero: jm.id }); ev(g, 'sigFx', { hero: jm.id, x: jm.x, y: jm.y, revive: true }); return; }
@@ -1774,7 +1935,8 @@ function updateEnemies(g, dt) {
     }
     if (e.form === 'reveal') { if (e.hitT > 0) e.hitT -= dt; continue; } // 들켰다! 제자리에서 허둥지둥
     if (e.lureT > 0) e.lureT -= dt;
-    if (!e.atRope) {
+    if (e.jyT > 0) { e.jyT -= dt; if (e.jyT <= 0) e.jyHeld = false; } // 성준영에게 붙잡힘: 제자리 (준영이 끌고 다닌다)
+    else if (!e.atRope) {
       const sp = e.speed * (e.slowT > 0 ? e.slowMul : 1) * (e.dictT > 0 ? e.dictSpd : 1) * (g.megaT > 0 ? g.mapFx.speed : 1)
         * (e.flexT > 0 ? ENEMIES.gao.gao.flexSpd : 1) * (e.puddleT > 0 ? ENEMIES.vomit.deathPuddle.speed : 1)
         * e.spdMul * (e.hasteT > 0 ? 1.15 : 1) * (e.sleeping ? 0 : 1) * (e.lureT > 0 ? e.lureSpd : 1) // (삐끼왕 호객: 우르르)
@@ -2571,7 +2733,7 @@ export function hitEnemy(g, p, e) {
     return;
   }
   const crit = p.headshot || g.rng() < critOf(g, h) + p.critBonus;
-  let dmg = p.dmg * (p.headshot ? 3 : crit ? g.mods.critMul : 1) * (p.type === 'glow' && p.returning ? h.def.glow.back : 1); // 송바울 응원봉: 돌아올 땐 70%
+  let dmg = p.dmg * (p.headshot ? 3 : crit ? g.mods.critMul : 1) * (p.type === 'glow' && p.returning ? (h.def.glow ? h.def.glow.back : 0.7) : 1); // 송바울 응원봉: 돌아올 땐 70%
   if (p.swear) {
     // 서명훈: 기절한 적 · 들킨 사기꾼에게 더 아프게
     if (e.stunT > 0) dmg *= h.def.stunnedBonus[h.lv - 1];
@@ -3296,13 +3458,15 @@ function castSkill0(g, h, x, y, echo, fromQ) {
     }
     case 'sled': { // 송바울 팬클럽 썰매 활강: 자기 줄 전부 큰 피해 + 밀치기
       r = 0;
+      const lx = h.out && h.px !== undefined ? h.px : h.x; // 보드 타고 나가 있으면 그 줄에서
       const mul = sk.mul[lv] * (h.lv >= 3 ? 1.15 : 1);
-      const pass = (k = 1) => { for (const e of g.enemies) { if (e.dead || e.y < -20 || Math.abs(e.x - h.x) > sk.w + (e.r || 14)) continue; damageEnemy(g, e, base * mul * (h.lv >= 5 ? 0.6 : 1) * k, false, h, false); if (!e.dead) applyKnockback(e, e.boss ? sk.kb * 0.3 : sk.kb, g); if (!e.dead && !e.boss && h.sig && h.sig.stun) e.stunT = Math.max(e.stunT, h.sig.stun * stunMul(e)); } };
+      const pass = (k = 1) => { for (const e of g.enemies) { if (e.dead || e.y < -20 || Math.abs(e.x - lx) > sk.w + (e.r || 14)) continue; damageEnemy(g, e, base * mul * (h.lv >= 5 ? 0.6 : 1) * k, false, h, false); if (!e.dead) applyKnockback(e, e.boss ? sk.kb * 0.3 : sk.kb, g); if (!e.dead && !e.boss && h.sig && h.sig.stun) e.stunT = Math.max(e.stunT, h.sig.stun * stunMul(e)); } };
       pass(); if (h.lv >= 5) pass(); if (sa.twice) pass(0.6); // 썰매 두 번 증강
       if (h.sig && h.sig.sledBack) { pass(); ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); } // 송바울 전용 신화: 다시 올라오며 한 번 더
-      if (sa.ice) (g.saLanes = g.saLanes || []).push({ x: h.x, w: sk.w, t: 4, slow: 0.45 }); // 미끄러운 길
+      if (sa.ice) (g.saLanes = g.saLanes || []).push({ x: lx, w: sk.w, t: 4, slow: 0.45 }); // 미끄러운 길
       if (sk.fan) { h.fanT = sk.fan.sec; h.fanSpd = sk.fan.spd; } // 팬클럽 함성: 잠깐 바울 공격 속도 ↑
-      ev(g, 'sled', { x: h.x, y: h.y, w: sk.w });
+      if (h.bd && (h.bd.st === 'fix' || h.bd.st === 'home' || h.bd.uses > 0)) { const fixed = h.bd.st === 'fix' || h.bd.st === 'home'; h.bd.uses = 0; if (fixed) { h.bd.st = 'ride'; h.bd.cdT = 0; h.bd.fixT = 0; h.px = h.x; h.py = h.y; } } // 팬클럽이 새 보드를 갖다 준다 (정비 끝 · 다시 처음부터)
+      ev(g, 'sled', { x: lx, y: h.y, w: sk.w });
       break;
     }
     case 'oneman': { // 강병화 원맨쇼: 5초(Lv5 6.5초) 보스·중간 보스 빼고 모두 춤추며 멈춤 · 보스 50% 느리게 · 모두 공격력 +25% · 상태이상 해제
@@ -3346,9 +3510,9 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       break;
     }
     case 'allincall': { // 정소영: 올인 콜! 준영 등판 — 정해진 시간 동안 진상을 한곳으로 모은다
-      const sec = (sk.sec[lv] + (h.cm.nag || 0)) * ((h.sig && h.sig.summonMul) || 1);
-      const j = summonJunyoung(g, h, sec);
-      if (j) ev(g, 'allinCall', { x: j.x, y: j.y, sec });
+      const sec = sk.sec[lv];
+      const j = summonJunyoung(g, h); // 없으면 불러내고 · 있으면 체력 가득
+      if (j) { j.allinT = sec; h.callM = 0; ev(g, 'allinCall', { x: j.px, y: j.py, sec }); }
       break;
     }
     case 'timestop': { // 오지은: 넓게 시간 정지 (크게 느려짐) · 숨은 적도 드러남

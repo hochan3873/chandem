@@ -120,9 +120,11 @@ function seeded(seed = 1) {
     const pr = seeded(o.seed * 7 + 3);
     const maxT = o.maxT || 900;
     let steps = 0;
+    const summons = new Set(); // 소환(성준영)은 퇴근하면 목록에서 빠진다 → 피해 몫을 따로 모은다
     while (!g.over && g.phase !== 'victory' && g.t < maxT) {
       S.step(g, 1 / 60);
       steps++;
+      for (const h of g.heroes) if (h.def.summon) summons.add(h);
       g.events.length = 0;
       // 레벨업 카드는 게임이 안 멈춘다 → 사람처럼 1.5~3초 뒤에 고른다
       if (g.pendingLevels > 0 && g.pickAt === undefined) g.pickAt = g.t + (g.welcomePicks > 0 ? 0 : PICK_DELAY * (0.75 + pr() * 0.5));
@@ -139,7 +141,8 @@ function seeded(seed = 1) {
       if (o.stopWave && g.wave >= o.stopWave && g.phase === 'break') break;
     }
     const heroes = {};
-    for (const h of g.heroes) heroes[h.id] = { dmg: h.dmgDone, lv: h.lv, kills: h.kills };
+    for (const h of g.heroes) if (!h.def.summon) heroes[h.id] = { dmg: h.dmgDone, lv: h.lv, kills: h.kills };
+    for (const h of summons) { const o = heroes[h.id] || (heroes[h.id] = { dmg: 0, lv: h.lv, kills: 0 }); o.dmg += h.dmgDone; o.kills += h.kills; }
     return { g, win: g.victory, stars: g.victory ? g.stars : 0, hp: g.base.hp / g.base.max, t: g.t, wave: g.wave, level: g.level, heroes, steps, dmg: g.stats.damage };
   }
 
