@@ -817,6 +817,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   function lbMailSync(token) {
     return lbLive(token, (lb, id, now, ctx) => {
       LIVE.giftTake(lb, LIVE.WELCOME_GIFT, now); // 소모품 첫 선물 (계정마다 한 번)
+      R2S.mailSettle(lb, id, now, ctx); // 건물주 레이드 보상 (참가 · 토벌 · 지난주 순위) · 옛 모임 레이드 남은 보상
       for (const c of ctx.gifts || []) if (LIVE.giftEligible(lb, c, now)) LIVE.giftTake(lb, c, now);
       lb.lastSeenAt = now;
       const prev = LIVE.weekIndex(now) - 1;
@@ -827,7 +828,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         lb.ewPaid = prev;
       }
       return { mail: LIVE.mailCount(lb, now) };
-    }, async (u, id, now) => ({ rank: await store.rankEndlessWeek(LIVE.weekIndex(now) - 1, id), gifts: await giftCampaigns(now) }));
+    }, async (u, id, now) => ({ rank: await store.rankEndlessWeek(LIVE.weekIndex(now) - 1, id), gifts: await giftCampaigns(now), ...(await R2S.mailPrep(u, id, now)) }));
   }
   function lbWeeklyClaim(token) {
     return lbLive(token, (lb, id, now, ctx) => {

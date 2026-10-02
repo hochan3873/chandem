@@ -296,7 +296,10 @@ function createRaid2(d) {
   const _state = () => S;
   const _setState = async (s) => { await r2Ready; S = s; await inSerial(() => saveState()); };
   const _reload = async () => { S = null; };
-  return { mount, board, start, finish, rally, ensure: () => inSerial(() => ensure()), _state, _setState, _reload };
+  // 우편함 맞추기(/mail/sync · 이미 serial 안)에서: 레이드 화면을 안 열어도 보상 우편이 오게
+  async function mailPrep(u, id, now) { await ensure(now); return { r2old: await oldRaidCtx(u, id) }; }
+  function mailSettle(lb, id, now, ctx) { if (!S) return 0; const n = settle(lb, id, now).length; return n + (oldRaidMail(lb, ctx && ctx.r2old, now) ? 1 : 0); }
+  return { mount, board, start, finish, rally, mailPrep, mailSettle, ensure: () => inSerial(() => ensure()), _state, _setState, _reload };
 }
 
 module.exports = { createRaid2, r2Ready, getR2: () => R2 };

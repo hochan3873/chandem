@@ -213,6 +213,7 @@ async function poll(g) {
   st.dmgAtPoll = { ...g.r2.dmg };
   st.live = { hp: b.hp, max: b.max, exposed: b.exposed, by: b.by, hitting: b.hitting, feed: b.feed };
   const gone = RS.syncParts(g, b.exposed, b.by);
+  if (b.killed && g.raid) g.raid.sec = Math.min(g.raid.sec, g.t + 4); // 다른 사람이 잡았다 → 이 판도 곧 끝
   for (const f of (b.feed || []).slice().reverse()) {
     if (f.t <= st.feedT) continue;
     st.feedT = f.t;

@@ -231,6 +231,11 @@ test('팔 막타 → 피드에 "누가 부쉈다" · 막타 우편 · 잡으면 
     assert.equal(fb.raid2.killed, true);
     assert.ok(fb.profile.mail.some((m) => /대마왕 막타/.test(m.title) && m.rw.title === 'r2king'), '본체 막타: 막타왕');
     assert.equal((await post('/raid2/start', a.token, {})).ok, false, '잡힌 뒤엔 입장 불가');
+    // 우편함 맞추기만 해도 (레이드 화면을 안 열어도) 참가 · 토벌 우편
+    const ms = await post('/mail/sync', b.token, {});
+    assert.equal(ms.ok, true, ms.message);
+    assert.equal(ms.profile.mail.filter((m) => m.title === '건물주 토벌 성공!').length, 1);
+    assert.equal((await post('/mail/sync', b.token, {})).profile.mail.filter((m) => m.title === '건물주 토벌 성공!').length, 1, '두 번 맞춰도 한 통');
     // 보드를 열면 참가 · 토벌 보상 우편 (한 번만)
     const v1 = await get('/raid2', a.token);
     assert.equal(v1.killed, true);
@@ -256,7 +261,7 @@ test('팔 막타 → 피드에 "누가 부쉈다" · 막타 우편 · 잡으면 
     assert.match(n1.mailed[0], /기여/);
     assert.deepEqual((await get('/raid2', a.token)).mailed, []);
     const nb = await get('/raid2', b.token);
-    assert.equal(nb.mailed.length, 3, 'b: 참가 · 토벌 · 순위');
+    assert.equal(nb.mailed.length, 1, 'b: 순위만 (참가 · 토벌은 우편함 맞출 때 이미)');
     mailA = (await get('/me', a.token)).profile.mail;
     const rk = mailA.find((m) => /기여/.test(m.title));
     assert.ok(rk.rw.tickets >= 1);
