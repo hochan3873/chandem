@@ -977,15 +977,16 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.levelUp();
         break;
       case 'bhShout': for (let k = 0; k < 2; k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 480, sz: 56 + e.r * 0.45, tx: e.x + Math.cos(e.a) * e.r * 0.85, ty: e.y + Math.sin(e.a) * e.r * 0.85, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 120); if (!busy && Math.random() < 0.3) fx.part('heart', e.x, e.y - 20, (Math.random() - 0.5) * 60, -60, 0.8, 9, null); break;
-      case 'sled': { fx.banner('팬클럽 썰매 활강!', '한 줄 통째로 쓸어 버린다', '#2f8ac8', 1.1, 'wave', 'h_baul'); R.vfx('dash', e.x, e.y - 30, { anim: 'line', dur: 520, sz: 120, tx: e.x, ty: 30, rot: -Math.PI / 2, blend: 'lighter' }); for (let k = 0; k < 14; k++) setTimeout(() => fx.part('heart', e.x + (Math.random() - 0.5) * 50, e.y - 60 - k * 30, (Math.random() - 0.5) * 80, -30, 0.8, 10, null), k * 30); fx.addShake(6); if (loud) A.sfx.whoosh(); break; }
+      case 'sled': { fx.banner('팬클럽 썰매 활강!', '세 줄 통째로 쓸고 · 팬클럽 함성 (공속 +60%)', '#2f8ac8', 1.1, 'wave', 'h_baul'); R.vfx('dash', e.x, e.y - 30, { anim: 'line', dur: 520, sz: 120, tx: e.x, ty: 30, rot: -Math.PI / 2, blend: 'lighter' }); for (let k = 0; k < 14; k++) setTimeout(() => fx.part('heart', e.x + (Math.random() - 0.5) * 50, e.y - 60 - k * 30, (Math.random() - 0.5) * 80, -30, 0.8, 10, null), k * 30); fx.addShake(6); if (loud) A.sfx.whoosh(); break; }
       case 'oneman': { fx.flash('#ff7ab8', 0.35); fx.banner('원맨쇼!!', '보스 빼고 모두 춤추며 멈춤 · 모든 멤버 공격력 +30%', '#b0306a', 1.6, 'big', 'h_byunghwa'); const hh = g.heroes.find((o) => o.id === 'byunghwa'); if (hh) { hh._castAt = performance.now(); } for (const en of g.enemies) if (!en.dead && !en.boss) fx.part('note', en.x, en.y - 30, (Math.random() - 0.5) * 30, -40, 1.2, 11, '#ffb0e0'); fx.pillar(e.x, 90, g.rowY + 20, 1.2); fx.addShake(8); if (loud) { A.sfx.ult(); setTimeout(() => A.sfx.win(), 400); } break; }
-      case 'cone': // 방장 확성기 공지: 금빛 음파 고리 2~3개가 앞으로 퍼져 나간다
-        for (let k = 0; k < (e.big ? 3 : 2); k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 520, sz: 60 + e.r * 0.5, tx: e.x + Math.cos(e.a) * e.r * 0.9, ty: e.y + Math.sin(e.a) * e.r * 0.9, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 110);
-        if (e.big) fx.text(e.x, e.y - 40, '전체공지!', '#ffb347', 16, 0.8);
+      case 'order': // 방장 확성기 지시: 금빛 음파 한 줄기가 콕 → 찍힌 진상에 표적 고리 (「지목」 표시는 render.js)
+        for (const [px, py] of e.pts) { R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 300, sz: 40, tx: px, ty: py, rot: Math.atan2(py - e.y, px - e.x) + Math.PI / 2, blend: 'lighter', norot: true }); fx.ring(px, py, 6, 28, 0.4, '#ffcf3f', 3); }
+        if (e.big) fx.text(e.x, e.y - 40, '전체 지시!', '#ffb347', 16, 0.8);
+        else if (!busy && Math.random() < 0.12) fx.text(e.x, e.y - 40, '저 사람!', '#ffd76a', 13, 0.7);
         break;
       case 'skill': { if (live && !e.echo) { app.hitStop = Math.max(app.hitStop || 0, 0.04); fx.addShake(e.target || MOMENTUM.strong.includes(e.hero) ? 6 : 3); } const hh = g.heroes.find((o) => o.id === e.hero); if (hh) { hh._castAt = performance.now(); R.vfx('sk_' + e.hero, 0, 0, { follow: hh, dy: -96, anim: 'pop', dur: 520, sz: 54, blend: 'source-over' }); } }
         if (e.target) { fx.ring(e.x, e.y, 10, e.r, 0.5, HD(e.hero).color, 6); fx.ring(e.x, e.y, 6, e.r * 0.6, 0.4, '#fff', 3); fx.addShake(5); }
-        if (e.skill === 'rally') { fx.flash('#ffe08a', 0.3); fx.banner('집합!!', '8초 동안 모두 공격 속도 +50% · 공격력 +20%', '#b86b00', 1.2, 'big'); R.vfx('banner', g.W / 2, g.ropeY + 6, { anim: 'pulse', dur: (g.rallyT || 8) * 1000, sz: 90, blend: 'source-over', layer: 'ground' }); fx.ring(g.W / 2, g.ropeY, 20, 460, 0.8, '#ffd23f', 8); R.rallyFlashAt = performance.now(); if (loud) { A.sfx.horn(); setTimeout(() => A.sfx.slam(), 180); } }
+        if (e.skill === 'rally') { fx.flash('#ffe08a', 0.3); fx.banner('집합!!', '8초 동안 모두 공격 속도 +50%', '#b86b00', 1.2, 'big'); R.vfx('banner', g.W / 2, g.ropeY + 6, { anim: 'pulse', dur: (g.rallyT || 8) * 1000, sz: 90, blend: 'source-over', layer: 'ground' }); fx.ring(g.W / 2, g.ropeY, 20, 460, 0.8, '#ffd23f', 8); R.rallyFlashAt = performance.now(); if (loud) { A.sfx.horn(); setTimeout(() => A.sfx.slam(), 180); } }
         if (e.skill === 'curse') fx.text(e.x, e.y - 30, '#@!%&!!', '#ff7a2e', 24, 1, -20);
         if (e.skill === 'winkbomb') for (let k = 0; k < 10; k++) fx.part('heart', e.x, e.y, (Math.random() - 0.5) * 260, -60 - Math.random() * 160, 0.9, 10, null, { grav: 200 });
         if (e.skill === 'redcard') { // 운영진: 거대한 레드카드가 바닥에 쾅 · 파편 · 빨간 도장
@@ -998,10 +999,23 @@ function handleEvents(g, loud) {
           if (hh) for (let k = 0; k < 12; k++) setTimeout(() => { fx.ring(hh.x, hh.y - 50, 4, 26, 0.18, '#fff3b0', 3); if (k % 3 === 0) R.vfx('hitspark', hh.x, hh.y - 52, { anim: 'pop', dur: 160, sz: 40 }); }, k * 240);
         }
         if (e.skill === 'blinddate') { fx.banner('소개팅 주선!', '여사친 3명 출동', '#c0407a', 0.9, 'wave'); for (let k = 0; k < 16; k++) fx.part('heart', e.x + (Math.random() - 0.5) * 60, e.y - 60, (Math.random() - 0.5) * 240, -80 - Math.random() * 140, 1, 11, null, { grav: 160 }); fx.ring(e.x, e.y - 50, 10, 120, 0.5, '#ff8ac8', 5); }
-        if (e.skill === 'goodman') { for (const o of g.heroes) fx.ring(o.x, o.y - 30, 8, 50, 0.5, '#ffd23f', 3); if (loud) A.sfx.coin(); } // 금빛 띠 · 금화 비는 skillfx.js
+        if (e.skill === 'goodman') { if (loud) A.sfx.coin(); } // 금빛 띠 · 금화 비는 skillfx.js · 꽃다발은 'bouquet'
         if (e.skill === 'bandage') fx.banner('붕대 대공사!', '입구 크게 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
         break;
-      case 'cleanse': fx.text(e.x, e.y - 90, '응급처치! 상태이상 해제', '#9dffb0', 15, 1.1); break;
+      case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 15, 1.1); break;
+      case 'care': if (!busy) { fx.text(e.x, e.y - 84, e.cheer ? '힘내요!' : '물 한 잔! 기운 회복', '#9dd8ff', 12, 0.9); fx.part('heart', e.x, e.y - 60, 0, -60, 0.8, 9, '#ff8fc0'); } break; // 건전녀 간호: 지친(기진맥진) 멤버
+      case 'heartShield': { // 건전녀 응급 방패: 멤버 전원에게 하트 방패
+        fx.banner('응급 방패!', `멤버 전원 상태이상 해제 · ${Math.round(e.sec)}초 면역 · 스킬 쿨 −2초`, '#c0407a', 1, 'wave', 'h_gunnyeo');
+        for (const [hx, hy] of e.heroes) { fx.ring(hx, hy - 40, 8, 46, 0.55, '#ff8fc0', 4); fx.ring(hx, hy - 40, 4, 30, 0.45, '#fff', 2); for (let k = 0; k < (busy ? 2 : 5); k++) fx.part('heart', hx + (Math.random() - 0.5) * 30, hy - 50, (Math.random() - 0.5) * 80, -60 - Math.random() * 80, 0.9, 10, '#ff6fae', { grav: 120 }); }
+        if (loud) A.sfx.heal();
+        break;
+      }
+      case 'bouquet': { // 박상화 꽃다발: 장미가 날아가 쾅 · 꽃잎 · 자란 만큼 숫자
+        fx.ring(e.tx, e.ty, 8, e.r, 0.5, '#ff4f7a', 5); fx.ring(e.tx, e.ty, 6, e.r * 0.6, 0.4, '#ffe27a', 3);
+        fx.burst(e.tx, e.ty - 10, busy ? 8 : 22, '#ff4f7a', 260, 'shard', 5, 0.8, 260); fx.burst(e.tx, e.ty - 10, busy ? 4 : 10, '#ffd23f', 180, 'star', 5, 0.7);
+        fx.text(e.tx, e.ty - 60, e.grow > 0 ? `꽃다발! (성장 +${e.grow}%)` : '꽃다발!', '#ff7aa0', 17, 1.1, -20); fx.addShake(5);
+        break;
+      }
       case 'wave':
         // 김도훈 마이크 음파: 겹겹이 퍼지는 굵은 고리 + 음표
         fx.ring(e.x, e.y, 10, e.r, 0.5, 'rgba(111,240,255,0.95)', 5);
@@ -1683,8 +1697,8 @@ function placeBubble(x, y) {
 }
 // 필드 멤버 정보 카드: 지금 능력치 · 공격 방식 · 레벨 효과 · 버프/디버프 (열려 있는 동안 게임 50% 속도)
 const PROJ_TXT = {
-  cone: '부채꼴 음파 (여러 명 동시)', warn: '유도탄 (감속 · 경고 누적)', bullet: '직선 저격 (자기 줄만)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
-  wave: '둥근 음파 (주변 전부 · 감속)', dumbbell: '포물선 덤벨 (범위) + 오토바이 돌진', snack: '유도 과자 + 한 줄 빔', dash: '뛰어들어 연속 베기', bottle: '포물선 소주병 (범위 · 분노 중 불바다)',
+  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', warn: '유도탄 (감속 · 경고 누적)', bullet: '직선 저격 (자기 줄만)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
+  wave: '둥근 음파 (주변 전부 · 맞은 진상은 입구를 덜 세게)', dumbbell: '포물선 덤벨 (범위) + 오토바이 돌진', snack: '유도 과자 + 한 줄 빔', dash: '뛰어들어 연속 베기', bottle: '포물선 소주병 (범위 · 분노 중 불바다)',
   beam: '레이저 (계속 쏘면 세짐)', cane: '관통 지팡이 (자기 줄 전부)', gf: '핀볼 여사친 (3~4명 튕김 · 밀어내기)', slam: '몸통 박치기 충격파 / 날씬 모드 연타', hammer: '무거운 유도 망치 (보스 우선)', crown: '황금 파동 (자기 줄 전부 관통)',
 };
 function heroStatsHtml(g, h) {
@@ -1697,6 +1711,8 @@ function heroStatsHtml(g, h) {
   const res = resOf(h.meta, h.gear && h.gear.res);
   if (res > 0) st.push(`상태이상 시간 −${Math.round(res * 100)}%`);
   if (g.rallyT > 0) st.push('집합! 공속↑');
+  if (h.heartT > 0) st.push('하트 방패 (상태이상 면역)');
+  if (h.fanT > 0) st.push('팬클럽 함성 공속↑');
   if (g.hcT > 0) st.push(`랑방을 위하여 +${Math.round(g.hcBuff * 100)}%`);
   if (g.hcSkT > 0) st.push(`공격력 +${Math.round(g.hcSkAtk * 100)}%`);
   if (h.evo) st.push(`진화: ${EVO[h.id].name}`);
@@ -2933,7 +2949,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ─── 새 멤버 합류 연출 (모집 카드가 다 모였을 때 · 스테이지 클리어 합류) ─────────
 // 카드 조각이 모여 → 빛으로 깨지고 → 어두운 화면에 빛기둥 → 큰 전신 그림이 확대되며 등장 → 이름 · "NEW MEMBER 합류!" 쾅
 const DEX_CATCH = {
-  bangjang: '"공지! 오늘도 랑방은 내가 지킨다!"', staff: '"경고 한 번, 두 번… 세 번이면 아웃이에요."', gunman: '"건전하게, 정확하게."', gunnyeo: '"다친 사람 먼저! 입구는 제가 고칠게요."',
+  bangjang: '"공지! 오늘도 랑방은 내가 지킨다!"', staff: '"경고 한 번, 두 번… 세 번이면 아웃이에요."', gunman: '"건전하게, 정확하게."', gunnyeo: '"다친 사람 먼저! 다들 괜찮아요?"',
   myunghoon: '"#@!% … 아, 미안. 조용히 해 줄래?"', dohoon: '"앵콜! 앵콜! 마이크는 안 놔!"', ingyu: '"오 그거 근육 자극 좋다."', donghan: '"…이제 좀 해볼까?"', youngjun: '"들어간다. 따라오지 마."',
   eunok: '"한 잔만… 딱 한 잔만 할게."', hanna: '"윙크 받을 준비 됐어?"', sunggu: '"요즘 것들은… 내가 보여 주마."', junseo: '"잠깐, 내 친구 소개해 줄게!"', hyungyeong: '"다이어트는 내일부터! 오늘은 박치기!"',
   ara: '"공주님 등장~ 아이고 허리야…"', hochan: '"랑방을 위하여!!"',
@@ -4391,12 +4407,12 @@ function deckToggleAct(id, replace) {
 // 자리 우선순위: 가운데부터 (7칸이면 3 → 2 → 4 …)
 const posOrder = () => openSlots(6); // 자리 6칸은 모두 쓸 수 있다 (가운데부터) — 데려갈 수 있는 멤버 수만 산 만큼
 const lockedPos = () => [];
-// 역할별 좋은 자리: 방장 음파·김도훈 음파·김영준 돌격은 가운데, 줄 공격(새총·지팡이)은 가운데 줄, 나머지는 바깥
+// 역할별 좋은 자리: 김도훈 음파·김영준 돌격은 가운데, 줄 공격(새총·지팡이)은 가운데 줄, 나머지는 바깥
 function placeDeck(ids) {
   const n = nPosNow();
   const out = new Array(n).fill(null);
   const order = posOrder();
-  const center = (id) => ['cone', 'wave', 'dash', 'bullet', 'cane'].includes(HEROES[id].proj) ? 0 : 1;
+  const center = (id) => ['wave', 'dash', 'bullet', 'cane'].includes(HEROES[id].proj) ? 0 : 1;
   ids.slice().sort((a, b) => center(a) - center(b)).forEach((id, i) => { out[order[i]] = id; });
   return out;
 }
@@ -5372,10 +5388,10 @@ function firstStageOf(id) { for (let s = 1; s <= STAGE_COUNT; s++) if (stageEnem
 function bar(label, v) { return `<div class="sbar"><span>${label}</span><i><b style="width:${Math.round(clamp(v, 0.05, 1) * 100)}%"></b></i></div>`; }
 // 도감 캐릭터 소개 (랑방에서 어떤 사람인지 한두 줄)
 const DEX_FLAVOR = {
-  bangjang: '랑방 단톡방 공지 담당. 확성기로 "공지!" 한마디 하면 멤버들 손이 저절로 빨라진다.',
+  bangjang: '랑방 단톡방 공지 담당. 확성기로 "저 사람!" 콕 집으면 멤버들이 한꺼번에 몰려간다.',
   staff: '랑방 규칙집을 통째로 외운 운영진. 경고 세 번이면 누구든 강퇴, 예외는 없다.',
   gunman: '모임 내내 바른 자세로 앉아 있는 건전남. 새총도 옆으로 안 새고 딱 자기 줄로만 쏜다.',
-  gunnyeo: '다친 멤버를 제일 먼저 챙기는 간호사 건전녀. 입구가 부서지면 말없이 고쳐 놓는다.',
+  gunnyeo: '다친 멤버를 제일 먼저 챙기는 간호사 건전녀. 기절한 멤버는 깨우고, 지친 멤버에겐 물 한 잔 건넨다.',
   myunghoon: '실눈 뜬 티벳여우. 평소엔 조용한데 입을 열면 진상 셋이 한꺼번에 얼어붙는다.',
   dohoon: '노래방에서 마이크를 절대 안 놓는 남자. 앵콜이 끝나지 않는 한 랑방도 무너지지 않는다.',
   ingyu: '3대 500 헬창. 진상이 뭘 던지든 "오 근육 자극 좋다"로 받아친다.',
@@ -5389,7 +5405,7 @@ const DEX_FLAVOR = {
   ara: '목소리 맑은 랑방 공주님. 가끔 폭삭 늙어서 "아이고 허리야"를 외치지만 망치는 여전히 무겁다.',
   soyoung: '랑방 공식 잔소리 담당. 잔소리가 쌓이면 어디선가 성준영이 끌려 나온다.',
   jieun: '보브컷의 순한 막내… 인 줄 알았는데 공격만 하면 악마가 된다. 시간도 멈춘다.',
-  sanghwa: '가르마 펌 앞머리에 예쁜 미소. 오래 있을수록 더 멋있어지고 코인도 더 벌어 온다.',
+  sanghwa: '가르마 펌 앞머리에 예쁜 미소. 오래 있을수록 더 멋있어지고, 꽃다발 한 방도 그만큼 세진다.',
   jungmin: '험한 눈매에 소주병 흉터. 무섭게 생겼지만 입구가 깨지면 제일 먼저 붕대를 붙인다.',
   hochan: '랑방을 처음 만든 진짜 방장. "랑방을 위하여!" 한마디에 금빛 파동이 한 줄을 쓸어 간다.',
   yeokko: '모임마다 나타나 여자 멤버 번호만 모으는 사냥꾼. 오늘도 "우연히" 옆자리.',

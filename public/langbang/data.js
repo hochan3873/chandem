@@ -85,6 +85,7 @@ export const CADENCE = {
   gunman: { wind: 0.08, back: 0.03, sq: 0.02, snap: 0.05 }, // 새총 연사
   jungmin: { wind: 0.28, back: 0.14, sq: 0.06, snap: 0.22, lift: 10 }, // 머리 위로 크게
   ara: { wind: 0.3, back: 0.1, sq: 0.1, snap: 0.25, lift: 12 }, // 두 손 망치
+  baul: { wind: 0.34, back: 0.08, sq: 0.05, snap: 0.22, lift: 6, move: 'cheer' }, // 응원봉 머리 위로 흔들흔들 → 휙 던지고 윙크 점프
   _heavy: { wind: 0.28, back: 0.12, sq: 0.1, snap: 0.18, lift: 6 }, _lob: { wind: 0.22, back: 0.1, sq: 0.05, snap: 0.16, lift: 6 },
   _burst: { wind: 0.12, back: 0.06, sq: 0.03, snap: 0.1 }, _rapid: { wind: 0.08, back: 0.03, sq: 0.02, snap: 0.05 }, _melee: { wind: 0.18, back: 0.1, sq: 0.06, snap: 0.2 },
   _default: { wind: 0.16, back: 0.07, sq: 0.04, snap: 0.12 },
@@ -96,9 +97,9 @@ export const ATTACK_RELEASE = { soyoung: 3, eunok: 3, jieun: 3, gunnyeo: 4, hyun
 export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', 'bike'], ['hyungyeong', 'slim'], ['ara', 'old'], ['jieun', 'demon'], ['eunok', 'rage'], ['youngjun', 'dash']].map(([id, f]) => [id, { form: f, src: `/img/lb/h_${id}_${f}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id + '_' + f] || 4 }]));
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
   'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { donghan: 1.4, wonsik: 2.4, staff: 1.1, eunok: 1.2, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.9, junyoung: 1.5, ingyu: 0.95, jiwon: 2.0, jungmin: 1.7, gunman: 0.85, junseo: 2.8, ara: 1.65, jieun: 1.85, baul: 1.65, sanghwa: 1.7, hanna: 1.12 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.4, wonsik: 2.4, staff: 1.1, eunok: 1.2, myunghoon: 1.28, bangjang: 0.92, soyoung: 1.9, junyoung: 1.5, ingyu: 0.95, jiwon: 2.0, jungmin: 1.7, gunman: 0.85, junseo: 2.8, ara: 1.65, jieun: 1.85, baul: 1.65, sanghwa: 1.7, hanna: 1.12 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
-export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7.6, stun: 0.9 }; // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
+export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 9, stun: 0.9 }; // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
 export const PROJ_ART = { staff: 'card_y', eunok: 'cup', jungmin: 'bottle', sanghwa: 'coin', wonsik: 'dumbbell', ingyu: 'dumbbell', soyoung: 'bubble', gunman: 'bb', donghan: 'coffee', sunggu: 'cane', jiwon: 'mosaic', gunnyeo: 'heart', junyoung: 'chip', ara: 'hammer', jieun: 'clock', myunghoon: 'swear' };
 export const PROJ_ART_NAMES = ['bottle', 'cup', 'coin', 'dumbbell', 'bubble', 'card_y', 'card_r', 'bb', 'coffee', 'cane', 'mosaic', 'heart', 'chip', 'hammer', 'claw', 'clock', 'swear'];
@@ -106,7 +107,7 @@ export const PROJ_ART_NAMES = ['bottle', 'cup', 'coin', 'dumbbell', 'bubble', 'c
 //   장전 시간 = 탄창 × 간격 − (탄창−1) × gap 간격 → 평균 DPS 는 그대로, 리듬만 "몇 발 → 장전"
 //   진화: Lv3 탄창 +1 · Lv5 관통 +1 (연발·속사) 또는 범위 +25% · 진화 카드 = 큰 투사체
 export const WEAPON = {
-  bangjang: { item: '확성기 공지', kind: 'melee', reload: '목 가다듬기' },
+  bangjang: { item: '확성기 지시', kind: 'melee', reload: '목 가다듬기' },
   staff: { item: '옐로·레드카드', kind: 'burst', mag: 2, gap: 0.3, reload: '수첩 넘기기' },
   gunman: { item: '장난감 새총 BB알', kind: 'rapid', mag: 6, gap: 0.45, reload: '고무줄 다시 감기' },
   gunnyeo: { item: '하트 폭탄', kind: 'lob', reload: '구급상자 열기' },
@@ -130,13 +131,13 @@ export const WEAPON = {
   wonsik: { item: '덤벨', kind: 'heavy', reload: '덤벨 다시 들기' },
   jeongseob: { item: '두 팔', kind: 'melee', reload: '앉아서 쉬기' },
   byunghwa: { item: '목소리', kind: 'beam', reload: '숨 고르기' },
-  baul: { item: '윙크', kind: 'melee', reload: '앞머리 넘기기' },
+  baul: { item: '응원봉', kind: 'pierce', reload: '앞머리 넘기기' },
 };
 // 밸런스 개편 (역할 · 상성 · 난이도) — 숫자는 모의 전투로 맞춘 값
 export const BAL = {
   chHp: { 1: 1, 2: 0.72, 3: 0.8, 4: 0.8, 5: 0.8, 6: 0.8 }, endHp: 0.9, // 장마다 적 체력 (개편으로 줄어든 팀 화력 · 느려진 레벨업만큼)
   expCh2: 1.6, // 2장부터 레벨업에 경험치 1.6배 (카드가 너무 자주 떠서 · 1장은 그대로 빠르게)
-  aoeMain: ['eunok', 'hyungyeong', 'donghan', 'soyoung', 'bangjang', 'gunnyeo', 'dohoon'], // 범위가 주 역할 (범위 그대로)
+  aoeMain: ['eunok', 'hyungyeong', 'donghan', 'soyoung', 'gunnyeo', 'dohoon'], // 범위가 주 역할 (범위 그대로)
   incSplashDmg: 0.4, incSplashR: 0.75, splashCap: 1.5, // 나머지 멤버의 곁다리 범위: 피해 40% · 반경 75% · 카드 범위 배율 최대 1.5
   fast: { types: ['mukti', 'cutter', 'drunk_run', 'clubgirl', 'mid_mukti', 'fuse_taxi'], dodge: 0.3, dodgeAoe: 0.15, dodgeBig: 0.2, atkMul: 1.5, atkInt: 0.55, from: 4 },
   noMiss: ['gf', 'swear', 'tick'], // 따라가는 · 튕기는 · 시간 멈춤 공격은 못 피한다
@@ -591,14 +592,14 @@ export const COND = {
     counter: ['staff', 'jiwon', 'gunman', 'youngjun', 'soyoung', 'myunghoon', 'hanna', 'sanghwa'], breaker: ['staff', 'jiwon'], frac: 0.22, layers: [2, 3], cut: 0.9, regen: 4 },
   stealth: { id: 'stealth', icon: 'tw_dark', name: '숨은 진상', short: '은신', tip: '숨은 진상: 길 ¾ 까지 안 보이고 입구를 두 배로 쳐요 → 운영진 · 건전남 · 배현경이 먼저 찾아내요',
     counter: ['staff', 'gunman', 'hyungyeong'], frac: 0.15 },
-  cc: { id: 'cc', icon: 'tw_curse', name: '기절 예고', short: '기절', tip: '기절 예고: 진상이 기를 모았다가(1초) 제일 센 멤버를 기절 · 침묵 · 홀림 → 건전녀 · 김도훈이 풀고 강성구 · 강병화 곁은 막아요 · 탱커(정원식 · 백인규)가 대신 맞아요 · 기 모을 때 기절시키면 끊겨요',
-    counter: ['gunnyeo', 'dohoon', 'sunggu', 'byunghwa', 'jungmin', 'wonsik', 'ingyu'], every: [7, 5.5], windup: 1.0, stun: 3, silence: 4, charm: 2.6, react: 0.6, reactCd: 4, singCut: 0.6 }, // react: 건전녀가 있으면 0.6초 만에 풀어 줌 (4초에 한 번) · singCut: 김도훈 떼창 곁 40% 짧게
+  cc: { id: 'cc', icon: 'tw_curse', name: '기절 예고', short: '기절', tip: '기절 예고: 진상이 기를 모았다가(1초) 제일 센 멤버를 기절 · 침묵 · 홀림 → 건전녀(간호 · 응급 방패) · 김도훈이 풀고 강성구 · 강병화 곁은 막아요 · 도발 탱커(정원식)가 대신 맞아요 · 기 모을 때 기절시키면 끊겨요',
+    counter: ['gunnyeo', 'dohoon', 'sunggu', 'byunghwa', 'wonsik'], every: [7, 5.5], windup: 1.0, stun: 3, silence: 4, charm: 2.6, react: 0.6, reactCd: 4, singCut: 0.6 }, // react: 건전녀가 있으면 0.6초 만에 풀어 줌 (4초에 한 번) · singCut: 김도훈 떼창 곁 40% 짧게
   armor: { id: 'armor', icon: 'tw_titan', name: '철갑 진상', short: '철갑', tip: '철갑 진상: 한 방마다 피해가 크게 깎여요 → 한 방이 큰 멤버 · 건전남(방어 무시)',
     counter: ['ara', 'sunggu', 'gunman', 'donghan', 'hyungyeong', 'wonsik', 'eunok', 'hochan'], frac: 0.3, armor: [0, 6, 10, 14, 18, 22, 26] },
   swarm: { id: 'swarm', icon: 'tw_swarm', name: '떼거리', short: '떼', tip: '떼거리: 약한 진상이 훨씬 많이 → 범위 공격',
-    counter: ['bangjang', 'eunok', 'donghan', 'soyoung', 'sunggu', 'hyungyeong', 'dohoon', 'gunnyeo', 'byunghwa', 'baul'], count: 1.5, hp: 0.6 },
-  rush: { id: 'rush', icon: 'tw_rush', name: '문 돌격', short: '돌격', tip: '문 돌격: 빠른 돌격 진상이 입구에 쾅 부딪혀요 (감속 · 기절에 걸리면 넘어짐) → 수리(김도훈 · 홍정민 · 건전녀) · 탱커(정원식 · 백인규 · 윤정섭) · 감속',
-    counter: ['jungmin', 'dohoon', 'gunnyeo', 'wonsik', 'ingyu', 'jeongseob', 'staff', 'jieun'], frac: 0.28, spd: 1.4, atk: 1, crash: [0.025, 0.03, 0.035, 0.04, 0.045, 0.05], off: 0.5 }, // 빠른 진상은 원래 입구를 세게 · 빨리 친다 · crash: 처음 부딪힐 때 입구 최대의 % (감속 · 기절에 걸리면 넘어져서 안 부딪힘)
+    counter: ['eunok', 'donghan', 'soyoung', 'sunggu', 'hyungyeong', 'dohoon', 'gunnyeo', 'byunghwa', 'baul'], count: 1.5, hp: 0.6 },
+  rush: { id: 'rush', icon: 'tw_rush', name: '문 돌격', short: '돌격', tip: '문 돌격: 빠른 돌격 진상이 입구에 쾅 부딪혀요 (감속 · 기절에 걸리면 넘어짐) → 수리(홍정민 · 김도훈) · 탱커(정원식 · 백인규 오토바이 · 윤정섭) · 감속',
+    counter: ['jungmin', 'dohoon', 'wonsik', 'ingyu', 'jeongseob', 'staff', 'jieun'], frac: 0.28, spd: 1.4, atk: 1, crash: [0.025, 0.03, 0.035, 0.04, 0.045, 0.05], off: 0.5 }, // 빠른 진상은 원래 입구를 세게 · 빨리 친다 · crash: 처음 부딪힐 때 입구 최대의 % (감속 · 기절에 걸리면 넘어져서 안 부딪힘)
 };
 export const COND_IDS = Object.keys(COND);
 // 스테이지별 조건 (1~60). 장 앞쪽은 순하게 — 1장은 1-7 부터 하나, 2장은 2-4 부터, 3장부터 2개, 보스 스테이지는 3개
@@ -752,13 +753,14 @@ export const NO_DUO_ART = new Set([]); // dexhq/<id>_duo.webp 없음
 export const HEROES = {
   bangjang: {
     id: 'bangjang', bossKit: 1, kit: 1, name: '방장', gender: 'm', emoji: '📢', color: '#f6b73c', attr: 'talk',
-    img: '/img/lb/h_bangjang.webp', role: '리더 · 대장이면 모두 공속 +',
-    dmg: 17, interval: 0.8, range: 250, proj: 'cone', cone: [0.42, 0.42, 0.55, 0.55, 0.62], coneMax: 7, kb: 10,
+    img: '/img/lb/h_bangjang.webp', role: '리더 · 확성기 지시(지목) · 대장이면 모두 공속 +',
+    dmg: 30, interval: 0.8, range: 340, proj: 'order', projSpeed: 900, // (부채꼴 음파 → 한 명 콕 집는 지시: 부채꼴은 강병화 고함만)
+    order: { sec: 3, mul: [0.2, 0.2, 0.25, 0.25, 0.3], every: 4, n: 3, r: 120 }, // 지목: 모든 멤버에게 받는 피해 +% (3초) · Lv5 4번마다 근처 3명 한꺼번에
     aura: [0.08, 0.1, 0.16, 0.19, 0.26], // 모든 아군 공격 속도 +%
-    attack: '확성기 공지 — 금빛 음파 고리가 앞으로 퍼지며 한꺼번에 · 맞은 진상 1초 느리게 · 대장(1번 칸)이면 모두 공속 +, 아니면 곁 멤버만 절반',
-    desc: '확성기 "공지"를 외친다. 곁에 있는 것만으로 모두의 손이 빨라진다.',
-    perks: { 3: '음파가 더 넓게 퍼진다 · 오라 강화', 5: '5번마다 "전체공지" 큰 음파' },
-    skill: { id: 'rally', name: '집합!', cd: 22, desc: '깃발을 꽂고 필드 전체 충격파 (보스 빼고 한 칸 밀기) · 8초 동안 모두 공격 속도 +50% · 공격력 +20% (Lv5: 입구 초당 2% 회복)', sec: [8, 8, 9, 9, 10], spd: [0.5, 0.5, 0.5, 0.6, 0.7] },
+    attack: '확성기 지시 — 입구에 제일 가까운 진상을 콕 집어 "저 사람!" · 맞은 진상은 3초 동안 「지목」 (모든 멤버에게 받는 피해 +20%) · 대장(1번 칸)이면 모두 공속 +, 아니면 곁 멤버만 절반',
+    desc: '확성기로 "저 사람!" 하고 콕 집어 준다. 방장이 찍은 진상은 모두가 더 세게 때리고, 곁에 있는 것만으로 모두의 손이 빨라진다.',
+    perks: { 3: '지목 피해 +5%p · 오라 강화', 5: '4번마다 "전체 지시" — 근처 진상 3명을 한꺼번에 지목 · 지목 +5%p' },
+    skill: { id: 'rally', name: '집합!', cd: 22, desc: '깃발을 꽂고 필드 전체 충격파 (보스 빼고 한 칸 밀기) · 8초 동안 모두 공격 속도 +50% (Lv4 +60% · Lv5 10초 +70%)', sec: [8, 8, 9, 9, 10], spd: [0.5, 0.5, 0.5, 0.6, 0.7] },
   },
   staff: {
     id: 'staff', bossKit: 0.9, kit: 1.0, name: '운영진', gender: 'f', emoji: '📋', color: '#5ab0ff', attr: 'talk',
@@ -782,13 +784,13 @@ export const HEROES = {
   },
   gunnyeo: {
     id: 'gunnyeo', bossKit: 0.8, kit: 1.0, name: '건전녀', gender: 'f', emoji: '🙋‍♀️', color: '#ff8fc0', attr: 'charm',
-    img: '/img/lb/h_gunnyeo.webp', role: '문 방패 · 상태이상 해제',
+    img: '/img/lb/h_gunnyeo.webp', role: '멤버 간호 · 상태이상 해제 · 면역',
     dmg: 30, interval: 1.0, range: 300, proj: 'heart', projSpeed: 1, lobSec: 0.85, splash: 36,
-    heal: [[5, 0.035], [5, 0.04], [4.5, 0.045], [4.5, 0.05], [4, 0.06]], // (조금 더 자주 · 많이: 문 압박 스테이지에서 수리가 판을 지키게) // [주기(초), 최대 내구도 대비 회복량]
-    attack: '하트 폭탄 — 가까이 온 진상에게 천천히 던지는 작은 폭탄. 진짜 가치는 입구 수리(꽉 차면 방패로) + 멤버 상태이상 풀기 (기절 예고는 바로 응급처치)',
-    desc: '다정한 간호사. 한 방은 약하지만 틈틈이 랑방 입구를 고치고, 고칠 때마다 멤버 한 명의 상태이상을 풀어 준다.',
-    perks: { 3: '회복량·주기 강화 · 폭발 범위 +', 5: '모든 멤버 홀림 면역 ("철벽!")' },
-    skill: { id: 'firstaid', name: '응급 방패', cd: 24, desc: '입구에 방패 (최대 내구도 35% · 8초) + 멤버 상태이상 해제 · 3초 면역 + 조금 회복', heal: [0.12, 0.12, 0.16, 0.16, 0.2] },
+    care: { every: [4.5, 4.5, 4, 4, 3.5], tired: [3, 3, 4, 4, 5], guard: [1, 1, 1.5, 1.5, 2], cheer: { sec: 3, spd: 0.25 } }, // 간호 (입구 수리는 홍정민 몫): [주기(초)] 마다 멤버 상태이상 전부 풀기 · 기진맥진 −초 · 풀어 준 멤버는 잠깐 면역(초) · 챙겨 준 멤버는 "힘내요!" 3초 공속 +25%
+    attack: '하트 폭탄 — 가까이 온 진상에게 천천히 던지는 작은 폭탄. 진짜 가치는 간호: 틈틈이 멤버 상태이상을 전부 풀고 (풀린 멤버는 잠깐 면역) 스킬 쓰고 지친 멤버(기진맥진)를 일으킨다 · 챙겨 준 멤버는 "힘내요!" 3초 공격 속도 +25% (아픈 멤버가 없으면 제일 잘 싸우는 멤버에게)',
+    desc: '다정한 간호사. 한 방은 약하지만 기절 · 홀림 · 침묵에 걸린 멤버를 제일 먼저 챙기고, 스킬 쓰고 지친 멤버에게 물 한 잔 건넨다.',
+    perks: { 3: '간호가 더 자주 · 면역 더 길게 · 폭발 범위 +', 5: '모든 멤버 홀림 면역 ("철벽!")' },
+    skill: { id: 'firstaid', name: '응급 방패', cd: 24, desc: '멤버 전원에게 하트 방패 — 상태이상 전부 해제 · 기진맥진도 풀림 · 5초 동안 상태이상 면역 (Lv3 6초 · Lv5 7초) · "힘내요!" 4초 공격 속도 +25% · 다른 멤버 스킬 쿨타임 −2초', imm: [5, 5, 6, 6, 7], cdCut: 2 },
   },
   // ── 해금 영웅 (스테이지를 깨면 합류) ──
   myunghoon: {
@@ -807,33 +809,32 @@ export const HEROES = {
   dohoon: {
     id: 'dohoon', bossKit: 0.7, kit: 0.6, name: '김도훈', gender: 'm', emoji: '🎤', color: '#b58cff', unlock: true, attr: 'booze',
     img: '/img/lb/h_dohoon.webp', role: '힐러 · 떼창 오라 · 제어',
-    dmg: 56, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, slow: 0.2, slowSec: 1, // (51 → 56: 회복을 줄인 만큼 술 범위 딜로)
+    dmg: 56, interval: 1.35, range: [210, 210, 240, 240, 265], proj: 'wave', waveMax: 10, groove: { sec: 2, cut: 0.35 }, // (51 → 56: 회복을 줄인 만큼 술 범위 딜로) · 감속 대신 떼창에 빠져 입구를 덜 세게 친다 (감속은 오지은 · 운영진 몫)
     regen: [0.004, 0.0045, 0.0056, 0.0061, 0.0074], // 떼창: 초당 입구 최대 내구도의 % (×0.7 한 번 더: T2 인데 회복 · 오라 · 앵콜을 다 가져서 LEGEND 급이었음)
     sing: { r: 170, spd: [0.13, 0.13, 0.18, 0.18, 0.23] }, // (반경 200 → 170: 덱 전체가 아니라 곁 멤버만) // 떼창: 곁(약 3.5칸) 멤버 공격 속도 +% (18~30 → 13~23: T2 가 LEGEND 만큼 판을 쉽게 만들어서)
-    attack: '마이크 음파 — 둥글게 퍼지는 음파가 근처 진상 전부를 때리고 살짝 느리게',
+    attack: '마이크 음파 — 둥글게 퍼지는 음파가 근처 진상 전부를 때린다 · 맞은 진상은 떼창에 빠져 2초 동안 입구를 덜 세게 친다 (−35%)',
     desc: '마이크를 절대 안 놓는 노래방 사나이. 떼창으로 랑방을 꾸준히 고친다.',
     perks: { 3: '음파 범위 · 떼창 강화', 5: '떼창 최대 · 앵콜이 더 길다' },
     skill: { id: 'encore', name: '무한 앵콜', cd: 22, desc: '입구 크게 회복 + 멤버 상태이상 전부 해제 + 5초 동안 멤버 전원 공격 속도 +25% · 피해 +15% + 근처 진상 춤추느라 멈춤', heal: [0.18, 0.18, 0.21, 0.21, 0.25], buffSec: 5, buffSpd: 0.25, buffDmg: 0.15, r: 250, dance: [3, 3, 3.3, 3.3, 3.8] },
   },
   ingyu: {
     id: 'ingyu', bossKit: 1.15, kit: 0.95, name: '백인규', gender: 'm', emoji: '🏋️', color: '#3f8cff', unlock: true, attr: 'power',
-    img: '/img/lb/h_ingyu.webp', role: '탱커 · 덤벨 · 오토바이 돌진',
+    img: '/img/lb/h_ingyu.webp', role: '돌진 탱커 · 오토바이로 밀어내기',
     dmg: 32, interval: 1.75, range: 420, proj: 'dumbbell', projSpeed: 1, lobSec: 0.5, splash: 34,
-    moto: { every: [8, 8, 7, 7, 6], mul: 1.7, speed: 560, kb: 60, w: 30 }, // 덤벨 8번 → 자기 줄로 오토바이 돌진
-    taunt: 0.35, // 근육 자랑: 멤버 노리는 기술(붙잡기·플래시·뒷담·무릎·오리고기)은 백인규가 대신 맞고 35% 시간만
-    guard: { r: 90, cut: 0.25, all: 0.12 }, // 곁 진상이 입구를 칠 때 -25% · 나머지도 -12% (50·15% → 90·25%: 탱커가 입구를 확실히 지키게)
-    attack: '덤벨 — 느리지만 묵직하게 던져 떨어진 곳을 쾅, 게이지가 차면 오토바이 돌진 · 곁 입구 피해 −25% (나머지 −12%)',
-    desc: '3대 500 헬창. 멤버를 노리는 진상 기술은 전부 "근육 자랑"으로 받아 낸다. 꼰대 잔소리도 안 통함.',
-    perks: { 3: '오토바이가 더 자주', 5: '오토바이 게이지 6번 · 덤벨 범위 +' },
-    skill: { id: 'harley', name: '부릉부릉 할리', cd: 22, desc: '커다란 할리를 타고 진상이 제일 많은 쪽으로 천천히 가로지른다 — 지나가는 3칸 폭 전부 계속 따끔 + 밀고 느리게 (보스는 안 밀림)', w: 174, sec: 3.5, tick: 0.25, mul: [0.27, 0.27, 0.3, 0.3, 0.36], kb: 12, slow: 0.45 },
+    moto: { every: [5, 5, 4, 4, 3], mul: 1.7, speed: 560, kb: 100, w: 36, daze: 0.4 }, // 덤벨 5번 → 자기 줄로 오토바이 돌진 (줄 위 진상 전부 크게 밀치고 0.4초 휘청) — 입구 피해 감소 · 도발은 정원식 몫
+    noDrowsy: true, // 꼰대 라떼 잔소리에 안 졸린다 (운동 루틴)
+    attack: '덤벨 — 느리지만 묵직하게 던져 떨어진 곳을 쾅. 5번 던지면 오토바이 돌진! 자기 줄 진상을 전부 치고 크게 밀어낸다',
+    desc: '3대 500 헬창. 오토바이 시동이 걸리면 앞에 있는 진상은 전부 줄 밖으로 밀려난다. 꼰대 잔소리도 안 통함.',
+    perks: { 3: '오토바이가 더 자주 (덤벨 4번)', 5: '오토바이 덤벨 3번마다 · 덤벨 범위 +' },
+    skill: { id: 'harley', name: '부릉부릉 할리', cd: 22, desc: '커다란 할리를 타고 진상이 제일 많은 쪽으로 천천히 가로지른다 — 지나가는 3칸 폭 전부 계속 따끔 + 계속 밀어낸다 (보스는 안 밀림)', w: 174, sec: 3.5, tick: 0.25, mul: [0.27, 0.27, 0.3, 0.3, 0.36], kb: 20, slow: 0 },
   },
   donghan: {
     id: 'donghan', bossKit: 0.9, kit: 1.0, name: '문동한', gender: 'm', emoji: '😪', color: '#8fb3a0', unlock: true, attr: 'charm',
     img: '/img/lb/h_donghan.webp', imgOn: '/img/lb/h_donghan_on.webp', role: '간보기 · 한 방 폭발',
-    dmg: 11, interval: 1.1, range: 320, proj: 'snack', projSpeed: 420, slow: 0.2, slowSec: 1,
+    dmg: 11, interval: 1.1, range: 320, proj: 'snack', projSpeed: 420, snackMeter: 3, // 과자가 맞으면 간보기 게이지 +3 (감속 대신: 간 보는 만큼 빨리 일어난다)
     meter: { base: [12.5, 13.4, 14.4, 15.4, 17.3], perNear: 1.4, nearY: 200, hpLow: 12 }, // 간보기 게이지 (초당)
     burst: { mul: 8.5, w: [48, 48, 56, 56, 66], windup: 0.6, rest: 1.2 }, // 가장 붐비는 줄에 두꺼운 빔
-    attack: '과자 던지기 — 누워서 약한 과자를 휙 (살짝 느려짐). 간보기 게이지가 차면 일어나서 한 줄 전체에 빔!',
+    attack: '과자 던지기 — 누워서 약한 과자를 휙 (맞힐 때마다 간보기 게이지 +3). 간보기 게이지가 차면 일어나서 한 줄 전체에 빔!',
     desc: '늘 귀찮은 간보는 사람. 누워만 있다가 "이제 좀 해볼까?" 한 방이면 한 줄이 싹 비워진다.',
     perks: { 3: '게이지 빨라짐 · 빔 두꺼워짐', 5: '게이지 최대 · 빔 제일 두껍게' },
     skill: { id: 'serious', name: '진심 모드', cd: 20, desc: '간보기 게이지 바로 가득 + 다음 빔 1.5배' },
@@ -920,7 +921,7 @@ export const HEROES = {
     attack: '랑방을 위하여! — 느린 박자로 자기 줄 전체를 휩쓰는 황금 파동. 맞힐 때마다 멤버 공격력 ↑ · 줄 안 진상 버프 하나 벗김',
     desc: '랑방의 진짜 방장. 금빛 확성기로 "랑방을 위하여!" 외치면 한 줄이 통째로 정리되고, 멤버들은 힘이 난다. (누가 봐도 사기캐 — 1:1 대전에선 힘 ×0.7)',
     perks: { 3: '파동이 더 넓고 버프가 오래', 5: '파동이 한 번 더 울린다 (메아리)' },
-    skill: { id: 'forlangbang', name: '막차 대행진', cd: 24, desc: '황금 버스 행렬이 모든 줄을 쓸어요 · 전부 밀치고 1.5초 기절 + 모든 멤버 공격력 +40% (5초) · 기세 2칸', sec: [5, 5, 6, 6, 7], atk: [0.4, 0.4, 0.45, 0.45, 0.5] },
+    skill: { id: 'forlangbang', name: '막차 대행진', cd: 24, desc: '황금 버스 행렬이 모든 줄을 쓸어요 · 전부 밀치고 0.8초 기절 + 모든 멤버 공격력 +20% (5초 · Lv3 +25% · Lv5 +30%) · 기세 2칸', sec: [5, 5, 6, 6, 7], atk: [0.2, 0.2, 0.25, 0.25, 0.3], stun: 0.8 }, // (1.5초 기절 · +40~50% → 0.8초 · +20~30%: 스킬 한 번에 판이 끝나서. 대신 막차 버스(기본 공격) 피해 7.6 → 9)
     shouts: ['랑방을 위하여!', '방장 왔다!', '다들 모여!', '여긴 내가 지킨다'],
   },
   // ─── 새 멤버 4명 (모집 · 카드 10장) ───
@@ -954,19 +955,19 @@ export const HEROES = {
     attack: '매너 장미 — 똑바로 날아가 콕. 판이 길어질수록 점점 세지고, 잡은 진상은 경험치를 더 준다',
     desc: '앞머리 살짝 가르마 펌, 작은 눈에 예쁜 미소. 오래 있을수록 점점 더 멋있어지는 남자. 클리어 코인 +12%.',
     perks: { 3: '성장 한도 +10%', 5: '경험치 보너스 +25%' },
-    skill: { id: 'goodman', name: '좋은남자 박상화!', cd: 20, desc: '모든 멤버 공격력 +25% (5초) + 성장 게이지 한 번에 +10%', sec: [5, 5, 6, 6, 7], atk: [0.25, 0.25, 0.3, 0.3, 0.35] },
+    skill: { id: 'goodman', name: '좋은남자 박상화!', cd: 20, desc: '백 송이 장미 꽃다발을 제일 센 진상에게 던진다 — 지금까지 자란 만큼 더 아프다 (성장 +10%마다 피해 +20%) · 터지며 주변도 · 성장 한 번에 +12%', mul: [4, 4, 4.6, 4.6, 5.4], r: 80, growK: 2, grow: 0.12 }, // (모든 멤버 공격력 버프 → 성장형 한 방: 팀 공격력 버프는 이호찬 · 강병화 · 김도훈)
     lines: ['좋은남자 박상화!', '끝내주는남자 박상화!', '매너남 박상화!', '다정한남자 박상화!', '능력남 박상화!', '센스쟁이 박상화!', '완벽한남자 박상화!'],
     shouts: ['좋은남자 박상화!', '끝내주는남자 박상화!'],
   },
   jungmin: {
     id: 'jungmin', bossKit: 0.8, kit: 0.9, name: '홍정민', gender: 'm', emoji: '🩹', color: '#7fd88f', gacha: true, attr: 'booze',
-    img: ART('h_jungmin'), role: '수리공 · 붕대로 입구 고치기',
+    img: ART('h_jungmin'), role: '입구 수리 전담 · 꽉 차면 방패',
     dmg: 30, interval: 1.2, range: 265, proj: 'tap', projSpeed: 480, // (24 → 30: 술 멤버 기본 화력)
-    repair: { every: 3.0, pct: [0.042, 0.042, 0.046, 0.046, 0.056] }, // 3초마다 입구 최대 내구도의 % 수리 (2.8~4% → 3.4~4.6%: 수리 담당이 김도훈 · 건전녀만큼 판을 지키게)
+    repair: { every: 3.0, every5: 2.4, pct: [0.046, 0.046, 0.05, 0.05, 0.058] }, // 3초마다 입구 최대 내구도의 % 수리 (Lv5 2.4초) — 입구 수리는 이제 홍정민 몫 (건전녀는 멤버 간호)
     brace: { all: 0.25, crash: 0.5 }, // 보강: 있는 동안 입구 받는 피해 −25% · 돌격 진상 충돌 −50%
     attack: '거꾸로 든 소주병 — 약하게 툭. 대신 틈틈이 붕대를 떼어 입구에 탁탁 붙인다 (꽉 차면 방패로) · 있는 동안 입구 피해 −25% · 돌격 충돌 −50%',
-    desc: '짧은 머리, 험한 눈매, 눈가에 소주병 흉터와 붕대. 무섭게 생겼는데 제일 먼저 입구를 고친다.',
-    perks: { 3: '수리량 +20%', 5: '수리할 때 멤버 상태이상도 하나 풀기' },
+    desc: '짧은 머리, 험한 눈매, 눈가에 소주병 흉터와 붕대. 무섭게 생겼는데 랑방 입구는 이 사람이 다 고친다.',
+    perks: { 3: '수리량 +20%', 5: '수리가 더 자주 (2.4초마다)' },
     skill: { id: 'bandage', name: '붕대 대공사', cd: 24, desc: '입구 크게 수리 + 잠깐 입구가 받는 피해 -35%', heal: [0.32, 0.32, 0.38, 0.38, 0.46], sec: [8, 8, 9, 9, 10], armor: 0.35 },
     shouts: ['가만있어 봐, 붙여 줄게.', '이 정도는 금방이지.', '어디 또 깨졌냐?'],
   },
@@ -994,12 +995,12 @@ export const HEROES = {
   },
   baul: {
     id: 'baul', bossKit: 1.0, kit: 1.0, name: '송바울', gender: 'm', emoji: '🏂', color: '#7ad0ff', gacha: true, attr: 'charm',
-    img: '/img/lb/h_baul.webp', role: '돌진 · 한 줄 썰매 관통',
-    dmg: 44, interval: 0.92, range: 285, proj: 'jab', projSpeed: 820,
-    attack: '윙크 잽 — 가볍게 톡톡 · 맞은 여자 진상은 가끔 0.4초 멈칫 ("이거 내가 원래 알던 거야~")',
-    desc: '앞머리 내린 아이돌상, 덧니 미소가 무기다. 설레발과 아는 척이 특기.',
-    perks: { 3: '썰매 피해 +15%', 5: '썰매가 두 번 지나간다' },
-    skill: { id: 'sled', name: '팬클럽 썰매 활강', cd: 20, desc: '팬클럽이 끄는 썰매로 자기 줄을 통째로 쓸고 내려간다 — 줄 위 진상 전부 큰 피해 + 크게 밀치기 (보스는 덜)', w: 44, mul: [3.6, 3.6, 4, 4, 4.5], kb: 80 }, // (폭 38 → 44 · 피해 ×1.2 · 밀치기 70 → 80)
+    img: '/img/lb/h_baul.webp', role: '응원봉 부메랑 · 한 줄 썰매 관통',
+    dmg: 44, interval: 1.15, range: 360, proj: 'glow', projSpeed: 520, glow: { r: 13, back: 0.7, n5: 2 }, // (잽 → 응원봉: 정원식 잽과 안 겹치게) 던진 쪽으로 쭉 관통 → 돌아오며 한 번 더 (돌아올 땐 70%) · Lv5 2개
+    attack: '응원봉 부메랑 — 반짝이는 응원봉을 휙 던지면 가는 길의 진상을 전부 뚫고, 돌아오면서 한 번 더 때린다 ("이거 내가 원래 알던 거야~")',
+    desc: '앞머리 내린 아이돌상, 덧니 미소가 무기다. 설레발과 아는 척이 특기. 응원봉 하나로 팬클럽을 몰고 다닌다.',
+    perks: { 3: '응원봉이 더 멀리 · 썰매 피해 +15%', 5: '응원봉 2개 · 썰매가 두 번 지나간다' },
+    skill: { id: 'sled', name: '팬클럽 썰매 활강', cd: 20, desc: '팬클럽이 끄는 썰매로 자기 줄과 양옆 줄까지 통째로 쓸고 내려간다 — 줄 위 진상 전부 큰 피해 + 크게 밀치기 (보스는 덜) · 팬클럽 함성으로 5초 동안 바울 공격 속도 +60%', w: 52, mul: [4.2, 4.2, 4.6, 4.6, 5.2], kb: 90, fan: { sec: 5, spd: 0.6 } }, // (폭 44 → 52: 양옆 줄까지 · 피해 ×1.15 · 밀치기 80 → 90 · 함성 새로)
     shouts: ['이거 내가 원래 알던 거야~', '내가 알지~', '팬클럽 출동!', '설레발 아니고 진짜야'],
   },
   byunghwa: {
@@ -1057,7 +1058,7 @@ export const TIER_MAX = [20, 20, 20, 20, 20, 20]; // 영구 강화 한도
 export const NICHE = {
   bangjang: { aura: 0.005, ult: 0.015, text: '팀 공속 오라 +0.5% · 총공지 충전 +1.5%' }, // +20: 오라 +10% · 충전 +30%
   gunman: { hard: 1.3, hardLv: 0.02, text: '단단한 진상(방어·범위 면역·방패·단일 저항)에게 ×1.3 + 레벨당 +2% · 방어 무시' }, // +20: ×1.7
-  gunnyeo: { guard: 0.012, heal: 0.03, text: '입구 받는 피해 −1.2% · 회복 +3%' }, // +20: 피해 −24% · 회복 +60%
+  gunnyeo: { res: 0.012, care: 0.012, text: '멤버 전원 상태이상 시간 −1.2% · 간호 주기 −1.2%' }, // +20: 상태이상 −24% · 간호 24% 빨리 (입구 보호 · 수리는 홍정민 몫)
   staff: { kick: 0.03, stun: 0.02, text: '강퇴 피해 +3% · 강퇴 기절 +2%' }, // +20: 강퇴 피해 +60% · 기절 +40%
 };
 export const RES_PER_META = 0.015, RES_MAX = 0.35; // 영구 강화 1레벨 = 상태이상(기절 · 홀림 · 감속 등) 시간 -1.5% (장비와 합쳐 최대 -35%)
@@ -1075,7 +1076,7 @@ export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROE
 // 도감 · 멤버 카드 역할 분류 (실제 기술 기준 · 멤버마다 정확히 하나)
 export const HERO_ROLES = {
   tank: { name: '탱커', desc: '앞에 나가서 막거나 밀어내고, 진상 공격을 대신 맞는다' },
-  support: { name: '지원·회복', desc: '입구를 고치고, 멤버를 빠르게 · 세게 해 준다' },
+  support: { name: '지원·회복', desc: '입구를 고치거나, 멤버 상태이상을 풀고 빠르게 · 세게 해 준다' },
   aoe: { name: '범위 공격', desc: '한 줄 · 한 무더기를 한꺼번에 쓸어 버린다' },
   single: { name: '단일 저격', desc: '보스 · 빠른 진상 · 센 진상 하나를 골라 잡는다' },
   ctrl: { name: '군중 제어', desc: '멈추고 · 느리게 · 홀려서 진상 발을 묶는다' },
@@ -1083,9 +1084,9 @@ export const HERO_ROLES = {
 };
 export const HERO_ROLE = {
   ingyu: 'tank', wonsik: 'tank', jeongseob: 'tank',
-  bangjang: 'support', gunnyeo: 'support', dohoon: 'support', jungmin: 'support', sanghwa: 'support',
+  bangjang: 'support', gunnyeo: 'support', dohoon: 'support', jungmin: 'support',
   eunok: 'aoe', sunggu: 'aoe', donghan: 'aoe', baul: 'aoe', junseo: 'aoe', hochan: 'aoe',
-  gunman: 'single', ara: 'single', hanna: 'single', youngjun: 'single', myunghoon: 'single',
+  gunman: 'single', sanghwa: 'single', ara: 'single', hanna: 'single', youngjun: 'single', myunghoon: 'single',
   staff: 'ctrl', jieun: 'ctrl', byunghwa: 'ctrl',
   jiwon: 'special', hyungyeong: 'special', soyoung: 'special',
 };
@@ -1731,13 +1732,13 @@ CARDS.push(
 );
 // 멤버 전용 카드 (덱에 있는 멤버만): 그 멤버 기술에 맞춘 강화 + 공격력 +20%. 멤버마다 2번까지
 export const HERO_CARDS = {
-  bangjang: { title: '방장: 공지 오라 +8% · 음파 더 넓게', mul: { cone: 1.3 }, add: { aura: 0.08 } },
+  bangjang: { title: '방장: 공지 오라 +8% · 지목 피해 +5%p', add: { aura: 0.08, order: 0.05 } },
   staff: { title: '운영진: 경고 2번이면 강퇴', add: { warnN: 1 } },
   gunman: { title: '건전남: 관통 +1 · 사거리 +15%', add: { pierce: 1 }, mul: { range: 1.15 } },
-  gunnyeo: { title: '건전녀: 하트 폭탄 범위 +35% · 수리 +40%', mul: { splash: 1.35, heal: 1.4 } },
+  gunnyeo: { title: '건전녀: 하트 폭탄 범위 +35% · 간호 40% 더 자주', mul: { splash: 1.35, care: 1.4 } },
   myunghoon: { title: '서명훈: 욕 튕김 +1 · 기절 +20%', add: { bounce: 1 }, mul: { ctrl: 1.2 } },
   dohoon: { title: '김도훈: 음파 반경 +25% · 떼창 회복 +40%', mul: { range: 1.25, heal: 1.4 } },
-  ingyu: { title: '백인규: 오토바이 게이지 2칸 빨리', add: { moto: 2 } },
+  ingyu: { title: '백인규: 오토바이 덤벨 1번 빨리 · 밀치기 +30%', add: { moto: 1 }, mul: { motoKb: 1.3 } },
   donghan: { title: '문동한: 빔 두께 +40%', mul: { beam: 1.4 } },
   youngjun: { title: '김영준: 돌격 +1초 · 블랙 러시 +2명', add: { out: 1, rush: 2 } },
   eunok: { title: '최은옥: 분노 +4초', add: { rage: 4 } },
@@ -1769,7 +1770,7 @@ export const TAGS = {
   kb: { id: 'kb', name: '넉백', icon: '💨' }, heal: { id: 'heal', name: '회복', icon: '💚' }, ctrl: { id: 'ctrl', name: '제어', icon: '🌀' }, boss: { id: 'boss', name: '보스킬', icon: '🎯' },
 };
 export const HERO_TAGS = { jeongseob: ['ctrl'],
-  bangjang: ['kb', 'ctrl'], staff: ['ctrl'], gunman: ['pierce', 'boss'], gunnyeo: ['splash', 'heal'], myunghoon: ['chain', 'ctrl'], dohoon: ['heal', 'ctrl'],
+  bangjang: ['boss', 'ctrl'], staff: ['ctrl'], gunman: ['pierce', 'boss'], gunnyeo: ['splash', 'heal'], myunghoon: ['chain', 'ctrl'], dohoon: ['heal', 'ctrl'],
   ingyu: ['splash', 'kb'], donghan: ['pierce', 'splash'], youngjun: ['boss'], eunok: ['splash'], hanna: ['kb', 'boss'], sunggu: ['pierce'],
   junseo: ['chain', 'kb'], hyungyeong: ['splash', 'kb'], ara: ['boss', 'splash'], hochan: ['pierce', 'ctrl'],
   soyoung: ['splash', 'ctrl'], jieun: ['ctrl'], sanghwa: ['boss'], jungmin: ['heal'],
@@ -1881,7 +1882,7 @@ export const GEAR_INFO = {
   rolex: ['"이거 얼마짜리게?" 시간 맞춰 총공지가 빨리 찬다. 팀 전체 (합 최대 +100%).', ['bangjang', 'hochan']],
   corpcard: ['"오늘은 회사가 쏜다!" 다 같이 경험치를 더 받는다. 팀 전체 (합 최대 +40%).', ['dohoon', 'sanghwa']],
   lastorder: ['"라스트오더 받습니다~" 다 쓰러져 가는 진상을 마무리.', ['youngjun', 'hanna']],
-  radio: ['"입구 지원 바랍니다." 입구가 덜 아프다. 팀 전체 (합 최대 30%).', ['wonsik', 'gunnyeo']],
+  radio: ['"입구 지원 바랍니다." 입구가 덜 아프다. 팀 전체 (합 최대 30%).', ['wonsik', 'jungmin']],
 };
 // 능력치 설명 (용어 풀이)
 export const STAT_HELP = {
@@ -1923,7 +1924,7 @@ export const SIG = {
   bangjang: { name: '초대 방장의 황금 확성기', stats: { spd: 0.1, cd: 0.1 }, fx: { rallyCd: 0.5 }, desc: '"집합!"을 외치면 다른 멤버들 남은 스킬 쿨타임이 절반으로 줄어든다' },
   staff: { name: '영구 정지 도장', stats: { cd: 0.12, strip: 0.1 }, fx: { warnN: 2, kickStun: 2 }, desc: '경고 2번이면 바로 강퇴 · 강퇴 기절 2배' },
   gunman: { name: '쌍열 새총', stats: { atk: 0.12, crit: 0.06 }, fx: { multi: 1, multiK: 0.8 }, desc: '새총알을 한 번에 두 발 — 두 번째 알은 다른 진상에게 (80% 세기)' },
-  gunnyeo: { name: '수호천사 구급상자', stats: { hp: 0.12, res: 0.2 }, fx: { autoGuard: 0.3 }, desc: '입구가 30% 아래로 떨어지면 응급 방패가 저절로 터진다 (웨이브마다 1번 · 쿨타임 상관없이)' },
+  gunnyeo: { name: '수호천사 구급상자', stats: { hp: 0.12, res: 0.2 }, fx: { autoGuard: 2 }, desc: '멤버 2명 이상(혼자면 자기)이 기절 · 홀림 · 침묵에 걸리면 응급 방패가 저절로 터진다 (웨이브마다 1번 · 쿨타임 상관없이)' },
   myunghoon: { name: '욕 사전 무삭제판', stats: { atk: 0.1, skill: 0.15 }, fx: { curseN: 10, root: 3 }, desc: '쌍욕 저격이 5명 → 10명을 노리고, 묶는 시간 2초 → 3초' },
   dohoon: { name: '앵콜 전용 골든 마이크', stats: { cd: 0.12, hp: 0.1 }, fx: { echo: 3 }, desc: '무한 앵콜이 3초 뒤 한 번 더 터진다 (회복 · 해제 · 버프 · 멈춤 모두 다시)' },
   ingyu: { name: '할리 사이드카 세트', stats: { atk: 0.1, hp: 0.1 }, fx: { twinHarley: 1, moto: 2 }, desc: '할리가 두 대 (반대 대각선으로 한 대 더) · 오토바이 돌진 게이지가 2배로 찬다' },
@@ -2062,11 +2063,11 @@ export const CARD_PICK = { cost: 1500, n: 5, perWeek: 5 }; // 상점 "멤버 카
 // ─── 진상 특성: 덱을 골라야 이긴다 (모든 특성에 잘 맞는 멤버 2명 이상) ─────
 export const TRAITS = {
   aoeImmune: { icon: '🎧', name: '범위 면역', tip: '범위 공격이 안 들려요! 단일 공격으로', counter: ['gunman', 'staff', 'jiwon', 'ara'] },
-  singleResist: { icon: '🧱', name: '단일 저항', tip: '한 명씩 치는 공격은 절반만! 범위 공격으로', counter: ['sunggu', 'bangjang', 'eunok'] },
+  singleResist: { icon: '🧱', name: '단일 저항', tip: '한 명씩 치는 공격은 절반만! 범위 공격으로', counter: ['sunggu', 'dohoon', 'eunok'] },
   projShield: { icon: '🛡️', name: '원거리 방패', tip: '처음 몇 발은 막아요! 연사로 방패를 벗기세요', counter: ['gunman', 'hanna'] },
   kbImmune: { icon: '🪨', name: '넉백 면역', tip: '밀리지 않아요! 딜로 잡으세요', counter: ['youngjun', 'ara', 'jiwon'] },
   ccImmune: { icon: '🌀', name: '제어 면역', tip: '기절이 안 걸려요! 딜로 밀어붙이세요', counter: ['youngjun', 'sanghwa', 'jiwon'] },
-  split: { icon: '👯', name: '분열', tip: '쓰러지면 하나 더 나와요! 범위 공격으로 한 번에', counter: ['sunggu', 'bangjang', 'donghan'] },
+  split: { icon: '👯', name: '분열', tip: '쓰러지면 하나 더 나와요! 범위 공격으로 한 번에', counter: ['sunggu', 'eunok', 'donghan'] },
   regen: { icon: '💚', name: '재생', tip: '가만두면 회복해요! 방깎·불로 회복을 막으세요', counter: ['jiwon', 'eunok'] },
   stealth: { icon: '👻', name: '은신', tip: '입구 앞까지 안 보여요! 운영진·건전남은 먼저 찾아내요', counter: ['staff', 'gunman'] },
   haste: { icon: '💨', name: '가속', tip: '체력이 줄면 빨라져요! 감속·제어로 붙잡으세요', counter: ['jieun', 'dohoon', 'soyoung'] },
@@ -2159,9 +2160,9 @@ export const shortName = (id) => SHORT_NAME[id] || (ENEMIES[id] ? ENEMIES[id].na
 //  cm: 멤버 전용 카드와 같은 배율(mul)/더하기(add) · skCd: 스킬 쿨 배율 · skDmg: 스킬 피해 + · 나머지는 sim.js 가 id 로 처리
 export const SKILL_AUG = {
   bangjang: [
-    { id: 'tri', name: '3갈래 음파', desc: '확성기 음파가 양옆으로 한 줄기씩 더 (각 50%)' },
+    { id: 'tri', name: '3명 지목', desc: '지시할 때마다 근처 진상 2명도 같이 지목' },
     { id: 'rally', name: '전원 집합', desc: '집합! +3초 · 공격 속도 버프 +20%p' },
-    { id: 'loud', name: '확성기 과부하', desc: '음파 사거리 +20% · 밀치기 +60%', cm: { mul: { range: 1.2 } } },
+    { id: 'loud', name: '확성기 과부하', desc: '사거리 +20% · 지목 피해 +10%p', cm: { mul: { range: 1.2 }, add: { order: 0.1 } } },
   ],
   staff: [
     { id: 'redchain', name: '레드카드 연쇄', desc: '레드카드가 다른 무리에 한 장 더 날아간다 (80%)' },
@@ -2173,8 +2174,8 @@ export const SKILL_AUG = {
     { id: 'head', name: '헤드샷 장인', desc: '치명타 +15% · 3발마다 헤드샷 (Lv 상관없이)' },
   ],
   gunnyeo: [
-    { id: 'aegis', name: '철벽 방패', desc: '응급 방패 +50% · 면역 5초' },
-    { id: 'angel', name: '천사의 손길', desc: '수리 +50% · 하트 폭탄 범위 +30%', cm: { mul: { heal: 1.5, splash: 1.3 } } },
+    { id: 'aegis', name: '철벽 방패', desc: '응급 방패 면역 +3초 · 스킬 쿨타임 −2초 더' },
+    { id: 'angel', name: '천사의 손길', desc: '간호 50% 더 자주 · 하트 폭탄 범위 +30%', cm: { mul: { care: 1.5, splash: 1.3 } } },
   ],
   myunghoon: [
     { id: 'bolts', name: '저주 폭격', desc: '쌍욕 저격이 8명까지' },
@@ -2186,7 +2187,7 @@ export const SKILL_AUG = {
   ],
   ingyu: [
     { id: 'twin', name: '할리 2대', desc: '할리가 반대쪽으로 한 대 더 달린다' },
-    { id: 'booster', name: '부스터', desc: '오토바이 게이지 2칸 빨리 · 오토바이 피해 +50%', cm: { add: { moto: 2 } } },
+    { id: 'booster', name: '부스터', desc: '오토바이 덤벨 1번 빨리 · 오토바이 피해 +50%', cm: { add: { moto: 1 } } },
   ],
   donghan: [
     { id: 'double', name: '두 줄 빔', desc: '빔이 두 번째로 붐비는 줄에도 (70%)' },
@@ -2234,7 +2235,7 @@ export const SKILL_AUG = {
   ],
   sanghwa: [
     { id: 'growth', name: '끝없는 성장', desc: '성장 한도 +20%', cm: { add: { growMax: 0.2 } } },
-    { id: 'perfect', name: '완벽한 박상화', desc: '좋은남자 버프 +15%p · 2초 더' },
+    { id: 'perfect', name: '완벽한 박상화', desc: '꽃다발 피해 +40% · 터지는 범위 +30%' },
   ],
   jungmin: [
     { id: 'craft', name: '붕대 장인', desc: '수리 +50%', cm: { mul: { heal: 1.5 } } },
@@ -2251,7 +2252,7 @@ export const SKILL_AUG = {
   baul: [
     { id: 'ice', name: '미끄러운 길', desc: '썰매가 지나간 줄 4초 동안 미끄러운 길 (진상 −45%)' },
     { id: 'twice', name: '썰매 두 번', desc: '썰매가 한 번 더 지나간다 (60%)' },
-    { id: 'jab', name: '윙크 잽 강화', desc: '잽 피해 +25% · 밀치기 ↑' },
+    { id: 'glow', name: '응원봉 강화', desc: '응원봉 피해 +25% · 더 굵게 (맞히기 쉬움)' },
   ],
   byunghwa: [
     { id: 'curtain', name: '커튼콜', desc: '원맨쇼 중 처치하면 시간 +0.5초 (최대 +3초)' },
@@ -2280,7 +2281,7 @@ export const TOWER_SIM = { // [아래층, 25층 이상] — 규칙은 아래층�
   dash: { swarmOut: 0.6, swarmRest: 1.6, rushDodge: 0.5, curseRest: 1.5 }, // 김영준 돌격 (혼자 탑): 떼거리엔 금방 지치고 · 돌진 진상은 더 잘 피하고 · 저주에 걸리면 돌격이 끊긴다
   ara: { r: 52, k: 0.4 }, // 고아라 (탑에서만): 망치가 떨어진 곳 반경 52 안 진상에게 40% 피해 · 맞은 진상 보호막 한 겹 더 벗김 (센 진상 하나만 쳐서 떼거리 · 보호막 층에서 2~6층에 막히던 문제)
   laneHold: 10, // 혼자인 탑: 손으로 옮기면 이 시간 동안 자동 자리 잡기를 쉰다 (초)
-  solo: { wonsik: 1.7, jungmin: 1.35, dohoon: 1.25, gunnyeo: 1.25, jieun: 1.15, sanghwa: 1.15, baul: 1.1, youngjun: 0.7 }, // 혼자라서 동료 덕을 못 보는 멤버(탱커 · 회복 · 지원)는 탑에서만 공격력 보정 · 김영준은 혼자일 때 너무 세서 탑에서만 −30% (출시 첫날 TOP 7 중 5명이 김영준)
+  solo: { wonsik: 1.7, jungmin: 1.35, dohoon: 1.25, gunnyeo: 1.25, jieun: 1.15, sanghwa: 1.15, baul: 0.75, ingyu: 1.5, youngjun: 0.7 }, // (송바울 1.1 → 0.75: 응원봉 부메랑 · 함성으로 혼자서도 세짐 · 백인규 1.5: 입구 피해 감소가 빠져서) // 혼자라서 동료 덕을 못 보는 멤버(탱커 · 회복 · 지원)는 탑에서만 공격력 보정 · 김영준은 혼자일 때 너무 세서 탑에서만 −30% (출시 첫날 TOP 7 중 5명이 김영준)
 };
 export const TOWER_AWAKE_FX = { atk: 0.05, skill: 0.15, cd: 0.08 }; // 지옥 각성 (20층 공격력 · 40층 스킬)
 export const HELL_SET_FX = { cc: 0.3, boom: 0.6, r: 64 }; // 지옥 세트 2세트 · 4세트
