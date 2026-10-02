@@ -1,5 +1,5 @@
 // 찬덤 서비스 워커: 앱 설치(홈 화면)용. 항상 새 버전을 먼저 받고, 인터넷이 끊겼을 때만 저장본을 쓴다.
-const CACHE = 'gameworld-v7';
+const CACHE = 'gameworld-v8';
 const SHELL = ['/', '/css/style.css', '/js/app.js', '/js/splash.js', '/js/platform.js', '/js/settings.js', '/js/cards.js', '/js/sound.js', '/js/seotda.js', '/js/evaluator.js', '/js/handchart.js', '/img/emblem.webp', '/img/splash2.webp', '/img/gw2-icon-192.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
@@ -19,9 +19,9 @@ self.addEventListener('fetch', (e) => {
     fetch(req).then((res) => {
       if (res.ok && (req.mode === 'navigate' || SHELL.includes(url.pathname) || /\.(webp|png|mp3|css|js)$/.test(url.pathname))) {
         const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req.mode === 'navigate' ? '/' : req, copy)).catch(() => {});
+        caches.open(CACHE).then((c) => c.put(req.mode === 'navigate' ? url.pathname : req, copy)).catch(() => {}); // 화면 주소마다 따로 (랑방 대전 화면이 게임월드 첫 화면 저장본을 덮어쓰지 않게)
       }
       return res;
-    }).catch(() => caches.match(req.mode === 'navigate' ? '/' : req).then((r) => r || new Response('인터넷 연결을 확인해 주세요', { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } }))),
+    }).catch(() => caches.match(req.mode === 'navigate' ? url.pathname : req).then((r) => r || (req.mode === 'navigate' ? caches.match(url.pathname.startsWith('/langbang') ? '/langbang/' : '/') : null)).then((r) => r || new Response('인터넷 연결을 확인해 주세요', { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } }))),
   );
 });

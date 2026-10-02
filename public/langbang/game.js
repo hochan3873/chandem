@@ -26,6 +26,7 @@ import * as PV from './pvp.js';
 import { initTower } from './tower-ui.js';
 import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버 레이드)
 import { initTransit } from './transit.js';
+import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -68,6 +69,8 @@ const TR = initTransit({
   buzz: (p) => { if (!app.touched || !gwPref('vibrate')) return; try { if (navigator.vibrate) navigator.vibrate(p); } catch { /* 무시 */ } },
   shopLabel: () => (app.shopTab === 'recruit' ? '모집' : '상점'),
 });
+const INS = initInstall({ popup: (h, c) => popup(h, c), toast: (m, ms) => toast(m, ms), closeInfoCard: () => closeInfoCard() }); // 로비 [앱 설치]
+
 
 const app = {
   screen: 'menu', // menu | stages | prep | play | result | shop | ranking | howto
@@ -2442,7 +2445,7 @@ function showMenu0() {
     ${topPills()}
     ${p.master ? '<button class="lb-master" data-act="settings">MASTER</button>' : ''}
     <div class="lb-bar2">${newsFirst() || '<button class="lb-news" data-act="ranking" id="lbRank" aria-label="소식" hidden></button>'}
-      <div class="lb-quick">${[['mail', '우편', 'mail', L.mailCount(p) > 0], ['missions', '미션', 'missionsNav', d.missions], ['settings', '설정', 'settings', false]].map(([k, n, act, on]) => `<button class="qb" data-act="${act}">${uiIco(k, '')}<small>${n}</small>${rdot(on)}</button>`).join('')}</div>
+      <div class="lb-quick">${INS.standalone() ? '' : `<button class="qb qb-ins" data-act="lbInstall"><span class="uic"><img src="/img/lb/app/icon-192.png" alt="" draggable="false"></span><small>앱 설치</small></button>`}${[['mail', '우편', 'mail', L.mailCount(p) > 0], ['missions', '미션', 'missionsNav', d.missions], ['settings', '설정', 'settings', false]].map(([k, n, act, on]) => `<button class="qb" data-act="${act}">${uiIco(k, '')}<small>${n}</small>${rdot(on)}</button>`).join('')}</div>
     </div>
     <button class="lb-stage" data-act="stages">
       <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
@@ -3613,6 +3616,7 @@ async function claimChestAct(ch, n) {
 Object.assign(ACTS, {
   nav: (b) => goNav(b.dataset.tab),
   lbStep: (b) => lobbyStep(Number(b.dataset.d)),
+  lbInstall: () => INS.open(),
   lbModes: () => showModes(),
   lbMenu: () => showLobbyMenu(),
   lbGo: () => showPrep('stage', lobbyStage()),
