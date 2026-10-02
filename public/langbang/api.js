@@ -10,6 +10,7 @@ import {
 import * as L from './live.js';
 import { pvpLoadout } from './pvp.js';
 import * as TW from './tower.js';
+import * as R2 from './raid2.js';
 
 const GUEST_KEY = 'langbang:guest';
 const OLD_GUEST_KEY = 'langbang:guestBest'; // 예전(20웨이브 시절) 손님 최고 기록
@@ -404,6 +405,7 @@ export function gearFor(profile, ids, mythMul = 1) {
     const sl = (profile.equip || {})[id] || {};
     out[id] = gearStats(['w', 'a', 'm'].map((k) => (profile.gear || []).find((g) => g.id === sl[k])).filter(Boolean), mythMul);
     for (const [k, v] of Object.entries(TW.hellStats(profile, id))) out[id][k] = (out[id][k] || 0) + v; // 진상의 탑 지옥 세트 (모든 모드)
+    for (const [k, v] of Object.entries(R2.setStats(profile, id))) out[id][k] = (out[id][k] || 0) + v; // 건물주 세트 (모든 모드 · 1:1 대전 제외)
   }
   return out;
 }
@@ -538,3 +540,10 @@ export function bonkaeSync() { return liveCall('bonkae/sync', {}); }
 export function bonkaeCollect() { return liveCall('bonkae/collect', {}); }
 export function bonkaeSeen(s) { return liveCall('bonkae/seen', { s }); }
 export function bonkaeMaster(hero, user) { return call('/api/langbang/bonkae/master', { hero, user: user || '' }); }
+
+// ─── 건물주 레이드 (주간 서버 레이드 · server/langbang-raid2.js) ───
+export async function r2Board(lite) { const r = await call('/api/langbang/raid2' + (lite ? '?lite=1' : '')); if (r.ok && r.profile) r.profile = normalize(r.profile, false); return r.ok ? r : null; }
+export function r2Start(body) { return liveCall('raid2/start', body || {}); } // { rally: 부른 친구 · friend: 멤버 빌릴 친구 }
+export function r2Finish(body) { return liveCall('raid2/finish', body); }
+export function r2Rally(id) { return liveCall('raid2/rally', { id }); }
+export function r2Set(id, hero) { return liveCall('raid2/set', { id, hero: hero || null }); }

@@ -23,6 +23,7 @@ import * as FRX from './friends.js';
 import * as BKX from './bonkae-ui.js'; // 본캐 · 출연료 · 주간 인기 멤버
 import * as PV from './pvp.js';
 import { initTower } from './tower-ui.js';
+import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버 레이드)
 import { initTransit } from './transit.js';
 
 const $ = (s) => document.querySelector(s);
@@ -59,6 +60,7 @@ R.onStep = (h, x, y) => { fx.burst(x + (Math.random() - 0.5) * 20, y - 2, 4, '#c
 const fx = R.fx;
 const SKFX = (R.skfx = new SkillFx(R)); // 스킬 전용 연출 (다이어트 주사 · 진심 모드 · 시간 정지 · 붕대 대공사 · 좋은남자)
 let TWUI = null; // 진상의 탑 화면 (tower-ui.js · 맨 아래에서 연결)
+let R2UI = null; // 건물주 레이드 화면 (raid2-ui.js · 맨 아래에서 연결)
 // 화면 넘김 연출: 탑 · 레이드 · 1:1 대전 · 상점은 전용 전환, 그 밖은 깊이감 있는 밀기 (transit.js)
 const TR = initTransit({
   stage, ui, A, tips: TIPS,
@@ -344,8 +346,8 @@ async function startRun(opt = {}) {
   }
   let weekly = null;
   app.weeklyRun = null;
-  const raid = mode === 'raid' ? { sec: L.RAID.sec } : null;
-  if (raid) weekly = L.raidDef(opt.raidWi !== undefined ? opt.raidWi : L.raidState().wi);
+  const raid = mode === 'raid' ? { sec: opt.r2 ? R2UI.sec : L.RAID.sec } : null;
+  if (raid) weekly = opt.r2 ? R2UI.waveDef(opt.r2) : L.raidDef(opt.raidWi !== undefined ? opt.raidWi : L.raidState().wi); // 건물주 레이드: 졸개 웨이브 (보스는 raid2-sim 이 붙인다)
   const pvp = mode === 'pvp' ? { seed: Number(opt.pvpSeed) >>> 0, hp: opt.pvpHp || 1 } : null; // hp: 서버가 두 덱 전투력으로 정한 진상 체력
   const tw = mode === 'tower' ? opt.tower : null; // 진상의 탑: { f, hero, runId } (시작은 탑 화면이 서버에 먼저 알린다)
   const dbg = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || (mode === 'stage' && !stageUnlocked(st));
@@ -399,6 +401,7 @@ async function startRun(opt = {}) {
   g.cons = consIds; g.consUsed = {};
   if (pvp) g.pvpMid = (PVP.match && PVP.match.id) || ''; // 이 화면이 돌리는 대전 판 (다시 붙을 때 맞춰 보기)
   if (mode === 'raid' && opt.help) { const sh = S.addSupport(g, { ...opt.help, gear: gearStats(opt.help.gear || []) }); if (sh) toast(`도우미 합류! ${opt.help.nick}님의 ${HEROES[opt.help.hero].name}`, 2600); }
+  if (opt.r2 && R2UI) R2UI.attach(g, opt.r2); // 건물주 대마왕 (팔 · 본체 · 패턴)
   g.lastSnap = S.snapshot(g); // 첫 웨이브 전에 나가도 이어할 수 있게
   const locked = mode === 'stage' && !stageUnlocked(st);
   app.debugRun = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || locked;
@@ -482,7 +485,7 @@ function beginPlay(g) {
   app.ultTipShown = false;
   fx.reset();
   // 레이드 · 1:1 대전은 전용 맵 · 전용 곡 (파일이 없으면 지금까지처럼 그 판 챕터 배경 · 챕터 곡)
-  const modeArt = g.raid ? 'raid' : g.pvp ? 'pvp' : g.tower ? 'tower' + g.tower.zone : null; // 진상의 탑: 구역 맵
+  const modeArt = g.r2 ? 'raid2' : g.raid ? 'raid' : g.pvp ? 'pvp' : g.tower ? 'tower' + g.tower.zone : null; // 진상의 탑: 구역 맵
   if (g.tower && TWUI) TWUI.ensureMap(g.tower.zone);
   R.setTheme(g.mode === 'stage' ? chapterOf(g.stage) : 'endless', modeArt);
   if (A.setChapter) A.setChapter(g.mode === 'stage' ? chapterOf(g.stage) : 3);
@@ -567,6 +570,7 @@ function handleEvents(g, loud) {
   for (let i = 0; i < ev.length; i++) {
     const e = ev[i];
     if (TWUI && TWUI.isTowerEvent(e.type)) { TWUI.onEvent(g, e, loud); continue; }
+    if (R2UI && e.type.startsWith('r2')) { R2UI.onEvent(g, e, loud); continue; } // 건물주 레이드 연출
     switch (e.type) {
       case 'sudden': case 'suddenUp': case 'pvpDrain': case 'pvpTimeUp': if (live) pvpTimelineEv(g, e); break;
       case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝
@@ -1281,6 +1285,7 @@ function updateHud() {
   const def = g.wave > 0 ? S.waveDefFor(g, w) : null;
   const bossWave = !!(def && def.boss);
   if (TWUI) TWUI.hudTick(g);
+  if (R2UI && g.r2) R2UI.hudTick(g);
   setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.n ? ` · 서든데스 ${g.pvp.n}단계` : ''}` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
   setText(H$.time, 'time', `${Math.floor(g.t / 60)}:${String(Math.floor(g.t % 60)).padStart(2, '0')}`);
   if (g.pvp) setText(H$.time, 'time', `남은 ${PV.pvpLeftText(S.pvpTime(g))}`); // 1:1 대전: 5분 판정까지 남은 시간
@@ -1340,7 +1345,7 @@ function updateHud() {
   // 보스 체력바
   let hp = 0, max = 0, name = '';
   let midOnly = true;
-  for (const e of g.enemies) if ((e.boss || e.mid) && !e.dead) { hp += Math.max(0, e.hp); max += e.maxHp; name = name ? name + ' · ' + shortName(e.type) : shortName(e.type); if (e.boss) midOnly = false; }
+  for (const e of g.enemies) if ((e.boss || e.mid) && !e.dead && !e.r2) { hp += Math.max(0, e.hp); max += e.maxHp; name = name ? name + ' · ' + shortName(e.type) : shortName(e.type); if (e.boss) midOnly = false; }
   if (max > 0) {
     if (H$.boss.hidden) H$.boss.hidden = false;
     setText(H$.bossName, 'bn', `${midOnly ? '중간 보스' : ''} ${name}`);
@@ -2203,7 +2208,6 @@ const REWARD_INFO = {
   pvpTiers: () => `<h3>1:1 대전 등급 보상</h3><p class="ip">처음 오른 등급마다 한 번씩 우편으로 와요</p><div class="tier-rw">${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<div class="trw">${tierEmb(min, 'sm')}<span><b>${esc(name)}</b><small>${min}점</small></span><em>${gotText({ coins: rw.coins, tickets: rw.tickets })}${rw.gear ? ' · 장비' : ''}</em></div>`).join('')}</div>`,
   endless: () => { const p = P(), left = L.endlessLeft(p); return `<h3>${ic('infinity', '', 'sm')}무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><div class="ilist">${L.ENDLESS.miles.map((w) => `<p class="ip">${ic('check', '', 'sm')}${w}웨이브 첫 달성(주마다) — ${esc(gotText(L.milestoneReward(w)))}${p.ew && p.ew.wi === L.weekIndex() && p.ew.miles.includes(w) ? '' : ''}</p>`).join('')}</div><p class="ip">웨이브 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 ${L.endlessWeekReward(4).tickets} · 참가 보상 (우편함)</p>`; },
   pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>${ic('swords', '', 'sm')}1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">${ic('trophy', '', 'sm')}${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? '' : ''}</p>`).join('')}</div>`; },
-  raid: () => `<h3>${ic('dragon', '', 'sm')}레이드 보상</h3><div class="ilist"><p class="ip">참가: 코인 · 보스 체력을 깎은 만큼 (50% 넘으면 모집권)</p><p class="ip">처치 성공: 모두 코인 2,000 + 기여도 · 1위 전설 장비 + 칭호 "레이드 MVP"· 2~3위 영웅 장비 · TOP10 모집권</p><p class="ip">한 판마다 ${ic('gem', '', 'sm')}강화석 2</p></div>`,
 };
 // 증강: 셋 중 하나 (15초면 첫 번째) · 등급 빛 · 뒤집히며 등장
 const augBox = document.createElement('div');
@@ -2308,21 +2312,20 @@ setInterval(() => { if (app.screen === 'menu' && app.profileLoaded && document.v
 const lbArt = (name, alt) => `<span class="uic"><img src="/img/lb/ui2/${name}.webp" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/ui2/${alt}.webp'"></span>`;
 // 빨간 점 모으기: 도전(모드) 버튼 · 메뉴 버튼
 function lobbyModeDot(p, d, now) {
-  const rs = L.raidState(now);
   const tw = TWUI ? TWUI.lobbyButton(p).includes('class="rd"') : false;
-  return !!(d.weekly || d.season || tw || (rs.open && !(p.raid && p.raid.wi === rs.wi && p.raid.runs)));
+  return !!(d.weekly || d.season || tw || (R2UI && R2UI.dot(p)));
 }
 function lobbyMenuDot(p, d) { return !!(d.checkin || dexHasNew() || FRX.badge(p) > 0 || BKX.dot(p)); }
 // 도전 고르기 창: 진상의 탑 · 주간 도전 · 무한 도전 · 레이드 · 1:1 대전 · 시즌 (남은 시간 · 기록 · 빨간 점)
 function showModes() {
   const p = P(), now = Date.now(), d = dots();
-  const wkOpen = (p.maxStage | 0) >= L.WEEKLY_UNLOCK, rs = L.raidState(now), rl = L.raidLabel(now);
+  const wkOpen = (p.maxStage | 0) >= L.WEEKLY_UNLOCK;
   const pvpN = (p.pvp && p.pvp.rating) || 1000;
   const card = (act, art, name, desc, info, { locked = false, hot = false, dot = false } = {}) => `<button class="md-card ${locked ? 'locked' : ''} ${hot ? 'hot' : ''}" data-act="${act}">${art}<span class="md-t"><b>${name}</b><small>${desc}</small></span><em class="md-i">${info}</em>${locked ? `<i class="md-lock">${ic('lock', '', 'sm')}</i>` : ''}${rdot(dot)}</button>`;
   const cards = [
     card('weekly', uiIco('weekly', ''), '주간 도전', '한 주 최고 점수 겨루기', wkOpen ? `${ic('clock', '', 'sm')}${L.leftText(L.msToWeekEnd(now))} 남음` : `${stageLabel(L.WEEKLY_UNLOCK)} 클리어`, { locked: !wkOpen, dot: d.weekly }),
     card('endless', lbArt('infinity', 'infinity'), '무한 도전', '끝없는 웨이브 버티기', p.endlessUnlocked ? `최고 W${p.bestWave || 0} · 오늘 ${p.master && !p.testNormal ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}` : `${stageLabel(ENDLESS_UNLOCK)} 클리어`, { locked: !p.endlessUnlocked }),
-    card('raid', uiIco('raid', ''), '레이드', '다 같이 거대 보스 잡기', `${ic('clock', '', 'sm')}${esc(rl.text)}`, { hot: rs.open, dot: rs.open && !(p.raid && p.raid.wi === rs.wi && p.raid.runs) }),
+    R2UI.modeCard(p, card, uiIco('raid', '')), // 건물주 레이드 (예전 모임 레이드 자리)
     card('pvp', uiIco('pvp', ''), '1:1 대전', '실시간으로 겨루기', `${pvpN}점`),
     card('season', uiIco('season', ''), '시즌', '단계마다 시즌 보상', `${L.seasonTier(p)}/${L.SEASON_TIERS}단계`, { dot: d.season }),
   ].join('');
@@ -2375,7 +2378,7 @@ function showMenu() {
   const now = Date.now();
   const boss = stageBosses(s).length > 0;
   const md = lobbyModeDot(p, d, now), mn = lobbyMenuDot(p, d);
-  const raidOpen = L.raidState(now).open;
+  const raidOpen = !!(R2UI && R2UI.hot(p)); // 건물주 레이드: 이번 주 입장이 남았고 아직 안 잡혔으면
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~7)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
@@ -2399,7 +2402,7 @@ function showMenu() {
     <div class="lb-chests"><div class="cbar"><b style="width:${Math.min(100, (cs / 30) * 100)}%"></b></div>${chests}<em>${ch}장 ★${cs}/30</em></div>
     ${snap ? `<button class="lb-resume" data-act="resumeSnap">${ic('retry', '', 'sm')}이어하기 <small>${esc(snapLabel(snap))}</small></button>` : ''}
     <button class="lb-start v2" data-act="lbGo"><i class="ls-shine"></i><span class="ls-txt"><b>출격!</b><small>${stageLabel(s)} ${esc(stageName(s))}</small></span><span class="ls-cost">${ic('energy', '', 'sm')}<em>${p.master ? 0 : L.stageStaminaCost(p, s, false)}</em></span></button>
-    <button class="lb-side l ${raidOpen ? 'hot' : ''}" data-act="lbModes">${lbArt('lobby_mode', 'swords')}<b>도전</b>${raidOpen ? '<em class="ls-hot">레이드 열림</em>' : ''}${rdot(md)}</button>
+    <button class="lb-side l ${raidOpen ? 'hot' : ''}" data-act="lbModes">${lbArt('lobby_mode', 'swords')}<b>도전</b>${raidOpen ? '<em class="ls-hot">건물주 출몰</em>' : ''}${rdot(md)}</button>
     <button class="lb-side r" data-act="lbMenu">${lbArt('lobby_menu', 'tools')}<b>메뉴</b>${rdot(mn)}</button>
     ${navHtml('battle')}
     ${app.profileLoaded ? '' : '<div class="lb-loading"><span class="spin"></span></div>'}
@@ -3650,60 +3653,6 @@ Object.assign(ACTS, {
   speedOpt: (b) => { app.speed2 = !!b.checked; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } },
 });
 
-// ─── 주말 모임 레이드 ─────────────────────────────────
-async function showRaid() {
-  const p = P();
-  if ((p.maxStage | 0) < 5 && !p.master) { toast('레이드는 1-5를 깨면 참가할 수 있어요'); return; }
-  app.screen = 'raid';
-  hud.hidden = true;
-  const st = L.raidState();
-  const render = (bd) => {
-    const boss = ENEMIES[(bd && bd.boss) || st.boss];
-    const total = bd ? bd.total : 0;
-    const pct = Math.min(100, (total / L.RAID.hp) * 100);
-    const me = bd && bd.me;
-    const top = bd ? bd.top.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['', '', ''][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><b>${fmt(r.dmg)}</b></div>`).join('') || '<div class="empty-msg">아직 아무도 안 때렸어요 — 첫 타!</div>' : `<div class="empty-msg">${app.guest ? '레이드는 로그인하면 참가해요' : '<span class="spin"></span> 불러오는 중…'}</div>`;
-    const open = bd ? bd.open : st.open;
-    show(`
-      ${topPills()}
- <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
- <h2 class="title">${ic('dragon', '', 'sm')} 모임 레이드 · ${esc(st.slot)}</h2>
- <button class="chip rw-i" data-act="rwInfo" data-v="raid">${ic('book', '', 'sm')} 보상 안내</button>
- <p class="sub">${open ? `끝까지 ${L.leftText(st.endsAt - Date.now())} · 모두의 피해를 합쳐 잡아요` : `다음 레이드: ${esc(st.slot)} (${L.leftText(st.opensAt - Date.now())} 뒤) · 매일 12:00~13:30 · 15:00~16:30 · 21:00~23:00`}</p>
-      <div class="raid-boss"><div class="rb-art">${av(boss)}</div><b>${esc(boss.name)}</b>
-        <div class="rb-hp"><div style="width:${100 - pct}%"></div><em>${bd && bd.killed ? '처치 성공!' : `${fmt(Math.max(0, L.RAID.hp - total))} / ${fmt(L.RAID.hp)}`}</em></div>
-        <small>${bd ? `${bd.players}명 참가 · 레이드마다 ${L.RAID.tries}번 · 한 판 ${L.RAID.sec}초 · 매일 12:00 · 15:00 · 21:00` : ''}</small></div>
-      <div class="wmy"><div><small>내 피해</small><b>${fmt(me ? me.dmg : 0)}</b></div><div><small>기여 순위</small><b>${me && me.rank ? me.rank + '위' : '-'}</b></div><div><small>남은 도전</small><b>${me ? me.tries : L.RAID.tries}</b></div></div>
-      ${me && me.reward ? `<div class="panel wprev"><b>${esc(me.reward.label)}</b><small>${gotText(me.reward)}</small><button class="btn ${me.canClaim && !me.claimed ? 'primary' : ''}" data-act="raidClaim" ${me.canClaim && !me.claimed ? '' : 'disabled'}>${me.claimed ? '받았어요' : me.canClaim ? '보상 받기' : '잡거나 끝나면 받기'}</button></div>` : ''}
-      <button class="btn primary" data-act="raidGo" ${open && !app.guest && (!me || me.tries > 0) ? '' : 'disabled'}>도전! <small>150초 동안 보스에게 최대한 피해를</small></button>
- <div class="gap"></div>
- <div class="panel wboard"><h4>${ic('trophy', '', 'sm')} 기여도 순위</h4>${top}</div>
-    `, 'dim');
-  };
-  render(null);
-  if (!app.guest) { const pr = API.raidBoard(); TR.hold(pr); const bd = await pr; if (app.screen === 'raid') render(bd); } // 엘리베이터 문이 닫힌 동안 불러온다
-}
-async function startRaid() {
-  // 친구 도우미: 친구 대표 멤버 한 명을 데려간다 (고를 친구가 없으면 바로 혼자 · 취소하면 그만)
-  const fid = await FRX.pickHelper((curDeck() || []).filter(Boolean));
-  if (fid === false) return;
-  const r = await API.raidStart(fid);
-  if (!r.ok) { toast(r.message || '레이드를 시작할 수 없어요'); return; }
-  if (r.profile) app.profile = r.profile;
-  app.raidRun = r.runId;
-  startRun({ mode: 'raid', force: true, raidWi: r.wi, help: r.help || null });
-}
-async function saveRaid(sum, g, box) {
-  const r = await API.postRaid(sum, app.raidRun, g.raid.dmg);
-  app.raidRun = null;
-  if (r.ok && r.profile) app.profile = r.profile;
-  if (!box || !box.isConnected) return;
-  if (!r.ok) { box.innerHTML = `<div class="err">기록을 저장하지 못했어요: ${esc(r.message || '')}</div>`; return; }
-  const rd = r.raid || {};
-  box.innerHTML = `<div class="rewards"><div class="rw hl"><span>${ic('dragon', '', 'sm')}이번 판 피해</span><b>${fmt(rd.dmg || 0)}</b></div><div class="rw"><span>이번 주 내 피해</span><b>${fmt(rd.mine || 0)}</b></div>
-    <div class="rw"><span>모두 합계</span><b>${fmt(rd.total || 0)} / ${fmt(rd.hp || L.RAID.hp)}</b></div></div>${r.rank ? `<div class="own"><span class="badge">기여 ${r.rank}위</span></div>` : ''}${rd.help && HEROES[rd.help.hero] ? `<div class="fr-helped">${av(HEROES[rd.help.hero])}<span><b>${esc(rd.help.nick)}님의 멤버가 도와줬어요</b><small>${esc(HEROES[rd.help.hero].name)} · 친구에게 도움 포인트가 쌓였어요</small></span></div>` : ''}${rd.master ? '<div class="guest-note">마스터 테스트 판은 순위에 안 들어가요</div>' : ''}`;
-}
-
 // ─── 실시간 1:1 대전 ──────────────────────────────────
 const PVP = { sock: null, match: null, opp: null, kills: 0, spent: 0, lastHp: 0 };
 function loadSocketIo() {
@@ -4105,9 +4054,6 @@ function pvpTimeSub(pr) {
   return pr.win ? (a !== b ? `시간 종료 · 입구 ${a}% 대 ${b}% 로 이겼다!` : '시간 종료 · 처치 수로 이겼다!') : (a !== b ? `시간 종료 · 입구 ${a}% 대 ${b}%` : '시간 종료 · 처치 수에서 졌어요');
 }
 Object.assign(ACTS, {
-  raid: () => showRaid(),
-  raidGo: () => startRaid(),
-  raidClaim: async () => { const r = await liveAct(API.raidClaim()); if (r) { A.sfx.levelUp(); toast(`${r.label || '레이드 보상'} ${gotText(r.got)}`, 3200); showRaid(); } },
   pvp: () => showPvp(),
   pvpQueue: () => pvpQuick(),
   pvpQuick: () => pvpQuick(),
@@ -5064,6 +5010,7 @@ function showResult(victory, quit) {
   consBar.hidden = true;
   guardOff();
   if (g.tower && TWUI) { TWUI.result(g, victory, quit); return; } // 진상의 탑: 돌파 · 보상 상자 / 추락
+  if (g.r2 && R2UI) R2UI.leave(); // 건물주 레이드 전투 HUD 닫기
   app.screen = 'result';
   hud.hidden = true;
   const sum = S.summary(g, g.t);
@@ -5084,6 +5031,8 @@ function showResult(victory, quit) {
       ? `<div class="big-stars">${[1, 2, 3].map((k) => `<span class="${k <= g.stars ? 'on' : ''}" style="animation-delay:${0.25 + k * 0.28}s">★</span>`).join('')}</div>
          <div class="star-rule">${sum.perfect ? '<b class="perfect">PERFECT! 입구가 한 번도 안 맞았다</b>' : g.stars >= 3 ? '완벽 방어! ★★★ (입구 무피해면 PERFECT)' : g.stars === 2 ? (sum.hpPct >= 70 && g.mission && !g.mission.ok ? '입구는 지켰는데 미션을 못 했어요 — ★★★ 은 미션까지!' : '★★★ 까지 입구 70% 이상 남기기') : '★★ 는 입구 35% 이상 남기면!'}</div>${missionHtml(g)}`
       : `<div class="fail-tip">${ic('bulb', '', 'sm')}${FAIL_TIPS[(Math.random() * FAIL_TIPS.length) | 0]}</div>`;
+  } else if (g.r2 && R2UI) {
+    ({ title, sub, top } = R2UI.resultTop(g, victory, quit));
   } else if (g.raid) {
     title = '레이드 끝!';
     sub = `${Math.round(Math.min(g.t, g.raid.sec))}초 동안 보스에게 준 피해`;
@@ -5197,7 +5146,7 @@ async function saveResult(sum, g) {
     if (box) box.innerHTML = '<div class="guest-note">디버그 판(?wave · ?god · ?stress · ?nosave · 잠긴 스테이지)은 기록을 저장하지 않아요</div>';
     return;
   }
-  if (g.raid) { saveRaid(sum, g, box); return; }
+  if (g.r2 && R2UI) { R2UI.save(sum, g, box); return; }
   if (g.pvp) { const pr = app.pvpResult || {}; if (box) box.innerHTML = `<div class="rewards"><div class="rw total"><span><i class="ci"></i>받은 코인</span><b>+${fmt(pr.coins || 0)}</b></div></div>`; return; }
   if (g.weekly) { saveWeekly(sum, g, box); return; }
   const stageMode = g.mode === 'stage';
@@ -6499,6 +6448,7 @@ async function boot() {
   Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {}).then(() => BKX.boot()).catch(() => {}); // 다음: 본캐 출연료 정산 · 알림
   saveCrowd();
   if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크
+  else if (Q.has('raid') && R2UI) setTimeout(() => R2UI.show(), 400); // "같이 때려줘" 링크 → 건물주 레이드
   // 로그인: 서버에 저장된 덱이 있고 이 기기에 덱이 없으면 서버 덱으로
   try { if (app.profile.decks && !localStorage.getItem(DECK_KEY)) { app.decks = app.profile.decks.decks.map((d) => d.slice()); app.deckI = app.profile.decks.i; } } catch { /* 무시 */ }
   try { const sl = app.profile.decks && app.profile.decks.leaders; if (sl) { const loc = leaders(); for (let k = 0; k < 3; k++) if (!loc[k] && sl[k]) loc[k] = sl[k]; localStorage.setItem(LEAD_KEY, JSON.stringify(loc)); } } catch { /* 무시 */ } // 서버 대장 → 이 기기에 없으면 채우기
@@ -6533,6 +6483,13 @@ TWUI = initTower({
   liveAct: (pr, ok) => liveAct(pr, ok), closeInfoCard: () => closeInfoCard(), showJoinReveal: (id, k) => showJoinReveal(id, k), startRun: (o) => startRun(o),
 });
 Object.assign(ACTS, TWUI.acts);
+// 건물주 레이드 연결 (로비 · 전투 그리기 · HUD · 결과)
+R2UI = initRaid2({
+  app, P, stage, hud, R, fx, A, API, FRX, TR, startRun: (o) => startRun(o), curDeck: () => curDeck(),
+  show: (h, c) => show(h, c), popup: (h, c) => popup(h, c), toast: (m, ms) => toast(m, ms), showTip: (m, ms) => showTip(m, ms), ic: (...a) => ic(...a), av: (d, x) => av(d, x),
+  thumbSrc: (id) => thumbSrc(id), faceCircStyle: (id, f, cy) => faceCircStyle(id, f, cy), gotText: (g) => gotText(g), liveAct: (pr, ok) => liveAct(pr, ok), closeInfoCard: () => closeInfoCard(),
+});
+Object.assign(ACTS, R2UI.acts);
 // 테스트/디버그용 핸들
 window.__lb = {
   tower: () => TWUI.show(),

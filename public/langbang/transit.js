@@ -17,7 +17,7 @@ const ms = (n) => Math.round(n * SPEED);
 const LOW = (navigator.hardwareConcurrency || 4) <= 4 || (navigator.deviceMemory || 4) <= 2;
 const TAB_SCR = new Set(['shop', 'bag', 'deck', 'members', 'missions', 'pvp']);
 const ART = { tower: '/img/lb/tower_lobby.webp', raid: '/img/lb/map_raid.webp', pvp: '/img/lb/map_pvp.webp', shop: '/img/lb/loading_bg.webp', spark: '/img/lb/ui2/sparkle.webp' };
-const NAME = { tower: '진상의 탑', raid: '모임 레이드', pvp: '1:1 대전', shop: '상점' };
+const NAME = { tower: '진상의 탑', raid: '건물주 레이드', pvp: '1:1 대전', shop: '상점' };
 
 export function initTransit(ctx) {
   C = ctx;
