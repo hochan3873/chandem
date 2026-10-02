@@ -343,6 +343,7 @@ async function startRun(opt = {}) {
   const mode = opt.mode || app.mode;
   const st = mode === 'stage' ? opt.stage || app.stage : 0;
   const hell = mode === 'stage' && (opt.hell !== undefined ? opt.hell : app.hellMode) && hellOpen(P().stages, st);
+  if (mode === 'stage' && st) app.lobbyStage = st; // 판이 끝나거나 나오면 로비도 방금 하던 스테이지로
   const snap = loadSnap();
   if (snap && !opt.force) {
     const ok = await confirmBox({ title: '새로 시작할까요?', sub: `이어하던 판(${snapLabel(snap)})은 사라져요`, ok: '새로 시작', cancel: '취소', danger: true });
@@ -469,6 +470,7 @@ function resumeRun() {
   if (!d) { toast('이어할 판이 없어요'); showMenu(); return; }
   app.mode = d.snap.mode;
   app.stage = d.snap.stage || 0;
+  if (app.mode === 'stage' && app.stage) app.lobbyStage = app.stage; // 이어하던 판도 로비가 따라오게
   app.runSpeed = 1;
   if (Array.isArray(d.partners)) app.partners = d.partners;
   app.partner = app.partners[0];
