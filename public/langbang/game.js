@@ -10,7 +10,7 @@ import {
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta,
-  SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind,
+  SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -1914,6 +1914,7 @@ const ACTS = {
   },
   prep: () => showPrep('stage', app.selStage),
   mapNode: (b) => mapNodeGo(b),
+  mapView: (b) => { closeInfoCard(); app.lobbyStage = Number(b.dataset.s); app._goBack = true; showMenu(); }, // 지난 판 구경: 로비에서 그 스테이지로
   endless: () => {
     if (!P().endlessUnlocked) { toast(`무한 도전은 ${stageLabel(ENDLESS_UNLOCK)}을 깨면 열려요`); return; }
     showPrep('endless', 0);
@@ -2371,6 +2372,8 @@ function showMenu0() {
   hud.hidden = true;
   guardOn();
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) cosmNewCheck(); }, 600);
+  // 스테이지 넘기기 안내 (한 번만): 깬 판이 몇 개 생기면
+  if (app.profileLoaded && nextStage() > 3) { let seen = true; try { seen = !!localStorage.getItem('langbang:navHint'); if (!seen) localStorage.setItem('langbang:navHint', '1'); } catch { /* 무시 */ } if (!seen) setTimeout(() => { if (app.screen === 'menu') toast('◂ ▸ 를 꾹 누르면 빠르게 넘어가요 · 스테이지 이름을 누르면 지도에서 골라 볼 수 있어요', 4200); }, 1400); }
   layout();
   const s = lobbyStage();
   const ch = chapterOf(s);
@@ -2447,6 +2450,20 @@ stage.addEventListener('pointerdown', (ev) => {
 });
 for (const t of ['pointerup', 'pointercancel', 'pointermove']) stage.addEventListener(t, (ev) => { if (t !== 'pointermove' || (ev.movementX * ev.movementX + ev.movementY * ev.movementY) > 16) clearTimeout(lpT); });
 let lbSwipe = null;
+// 로비 ◂ ▸ 꾹 누르면: 0.4초 뒤부터 점점 빠르게 연속으로 넘긴다 (놓으면 멈춤 · 마지막 click 은 먹는다)
+let chevHold = null;
+ui.addEventListener('pointerdown', (ev) => {
+  const c = app.screen === 'menu' && ev.target.closest('.chev[data-act="lbStep"]');
+  if (!c || c.disabled) return;
+  const d = Number(c.dataset.d);
+  const stop = () => { if (!chevHold) return; clearTimeout(chevHold.t); if (chevHold.n) { ui.dataset.noclick = '1'; setTimeout(() => { delete ui.dataset.noclick; }, 80); } chevHold = null; };
+  stop();
+  chevHold = { n: 0, t: 0 };
+  const tick = () => { if (!chevHold) return; const s0 = lobbyStage(); app.lobbyStage = clamp(s0 + d, 1, P().master ? STAGE_COUNT : nextStage()); if (app.lobbyStage === s0) return stop(); chevHold.n++; A.sfx.tabSw(); showMenu(); chevHold.t = setTimeout(tick, Math.max(70, 190 - chevHold.n * 12)); };
+  chevHold.t = setTimeout(tick, 400);
+  const up = () => { stop(); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+  window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+});
 ui.addEventListener('pointerdown', (ev) => {
   const dio = null; // 예전 끌기 — 이제 lobbySwipe 가 한다
   if (!dio || app.screen !== 'menu' || ev.target.closest('.chev')) return;
@@ -4281,7 +4298,15 @@ function mapNodeGo(b) {
   const s = Number(b.dataset.s);
   if (!stageUnlocked(s)) { lockTip(b, stageLabel(s), '앞 스테이지를 먼저 깨 주세요'); return; }
   app.selStage = s;
+  // 지난 판은 구경만 할 수도 있다: 로비에서 보기 / 바로 출격 (지금 깰 차례인 판은 바로 출격)
+  if (!b.dataset.go && s !== nextStage()) {
+    A.sfx.card();
+    const m = popup(`<h3>${stageLabel(s)} ${esc(stageName(s))}</h3><p class="sub" style="color:#ffd23f">${starStr(P().stages[s] || 0)}</p><div class="map-pick"><button class="btn" data-act="mapView" data-s="${s}">${ic('map', '', 'sm')}로비에서 보기</button><button class="btn primary" data-act="mapNode" data-s="${s}" data-go="1">${ic('swords', '', 'sm')}바로 출격</button></div>`, 'lb-sheet map-pick-sheet');
+    lobbySheetClose(m);
+    return;
+  }
   A.sfx.confirm();
+  if (!ui.contains(b)) b = ui.querySelector(`.mn[data-s="${s}"]`) || b; // 창에서 [바로 출격]을 누른 경우: 지도 칸에서 확대
   b.classList.add('zoom');
   const scr = b.closest('.screen'); if (scr) { const r = b.getBoundingClientRect(), r0 = scr.getBoundingClientRect(); scr.style.setProperty('--zx', `${r.left - r0.left + r.width / 2}px`); scr.style.setProperty('--zy', `${r.top - r0.top + r.height / 2}px`); scr.classList.add('zoomout'); }
   setTimeout(() => showPrep('stage', s), 230);
@@ -5509,7 +5534,23 @@ function heroHow(id) {
   const pr = L.cardProgress(P(), id);
   return `모집에서 카드를 모아 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`;
 }
-function dexList(kind) { const l = dexFiltered(kind); return l.length ? l : kind === 'hero' ? DEX_HEROES() : DEX_ENEMIES(); }
+// ─── 도감 등급: 세 탭이 같은 색 사다리 (회색 < 초록 < 파랑 < 보라 < 금색 · 특별 등급은 분홍 · 무지개 · 빨강) ───
+//  카드 테두리 · 등급 칩 · 묶음 제목이 모두 이 표 하나를 쓴다
+const GRADE = {
+  t5: ['LEGEND', '#ffd23f'], t4: ['T4', '#c77dff'], t3: ['T3', '#4ea8ff'], t2: ['T2', '#5de07a'], t1: ['T1', '#9fb3c8'], hidden: ['HIDDEN', '#ff4fd8'],
+  sig: ['전용 신화', '#ff4fd8'], myth: ['신화', '#ff7ad9'], legend: ['전설', '#ffd23f'], epic: ['영웅', '#c77dff'], rare: ['희귀', '#4ea8ff'], common: ['일반', '#9fb3c8'], unk: ['미획득', '#6a5a8a'],
+  boss: ['보스', '#ff5a5a'], mid: ['중간 보스', '#ff9d3f'], elite: ['정예', '#c77dff'], normal: ['일반', '#9fb3c8'],
+};
+const GRADE_ORDER = { hero: ['t5', 't4', 't3', 't2', 't1', 'hidden'], enemy: ['boss', 'mid', 'elite', 'normal'], item: ['myth', 'sig', 'legend', 'epic', 'rare', 'common', 'unk'] };
+const grdChip = (g, cls = '') => `<i class="grd g-${g} ${cls}" style="--g:${GRADE[g][1]}">${GRADE[g][0]}</i>`;
+const heroGrade = (id) => (HIDDEN_HEROES.includes(id) ? 'hidden' : 't' + heroTier(id));
+const dexGrade = (kind, id) => (kind === 'hero' ? heroGrade(id) : enemyGrade(ENEMIES[id]));
+// 등급별로 묶기: [[등급, [id…]], …] — 높은 등급 먼저 · 같은 등급 안은 원래 순서
+function gradeGroups(order, ids, gradeOf) { const m = {}; for (const id of ids) { const g = gradeOf(id); (m[g] = m[g] || []).push(id); } return order.filter((g) => m[g]).map((g) => [g, m[g]]); }
+// 묶음 제목: [등급 칩] N명 ────── 모은 수
+const gradeHead = (g, n, right) => `<h3 class="dex-sec g-${g}" style="--g:${GRADE[g][1]}">${grdChip(g)}<small>${n}</small><em>${right}</em></h3>`;
+const dexSorted = (kind, ids) => gradeGroups(GRADE_ORDER[kind], ids, (id) => dexGrade(kind, id)).flatMap((x) => x[1]);
+function dexList(kind) { const l = dexFiltered(kind); return dexSorted(kind, l.length ? l : kind === 'hero' ? DEX_HEROES() : DEX_ENEMIES()); }
 // ─── 아이템 도감: 모든 장비(신화 포함) · 얻은 적 없으면 실루엣 · 등급별 능력치 · 어디서 나오나 ───
 const gearDexSet = () => new Set([...(P().gearDex || []), ...(P().gear || []).map((x) => x.t)]);
 const gearDexN = () => gearDexSet().size;
@@ -5523,8 +5564,13 @@ function showItemDex() {
   const every = [...GEAR_IDS, ...MYTH_IDS, ...SIG_IDS];
   const all = every.filter((t) => inCat(t, cat));
   const RK = ['common', 'rare', 'epic', 'legend', 'myth'];
-  const best = (t) => { let b = -1; for (const it of P().gear || []) if (it.t === t) b = Math.max(b, RK.indexOf(it.r)); return b >= 0 ? RK[b] : 'rare'; };
-  const cell = (t) => { const ok = have.has(t), g = GEAR[t], r = g.myth ? 'myth' : best(t); return `<button class="dexc2 idx ${ok ? 'r-' + r : 'lock'} ${g.myth ? 'r-myth' : ''} ${g.hero ? 'r-sig' : ''}" data-act="itemCard" data-id="${t}" style="--c:${g.hero ? SIG_COLOR : GEAR_RARITY[r].color}"><span class="dx-pic"><img class="idx-ic ${g.hero ? 'sig-face' : ''}" src="${g.img}" alt="" draggable="false"></span><b>${ok ? esc(g.name) : g.hero ? esc(HEROES[g.hero].name) + ' 전용' : '???'}</b><small class="idx-k">${g.hero ? '전용 신화' : g.myth ? '신화' : g.slot === 'w' ? '무기' : '장신구'}</small></button>`; };
+  // 일반 장비 등급 = 얻어 본 것 중 가장 높은 등급 (기록만 있고 지금 없으면 일반) · 못 얻은 장비는 '미획득' (가짜 등급 색을 칠하지 않는다)
+  const best = (t) => { let b = -1; for (const it of P().gear || []) if (it.t === t) b = Math.max(b, RK.indexOf(it.r)); return b >= 0 ? RK[b] : 'common'; };
+  const gradeOf = (t) => { const g = GEAR[t]; return g.hero ? 'sig' : g.myth ? 'myth' : have.has(t) ? best(t) : 'unk'; };
+  const cell = (t) => { const ok = have.has(t), g = GEAR[t], gr = gradeOf(t); return `<button class="dexc2 idx gr g-${gr} ${ok ? '' : 'lock'} ${g.myth ? 'r-myth' : ''} ${g.hero ? 'r-sig' : ''}" data-act="itemCard" data-id="${t}" style="--c:${GRADE[gr][1]};--g:${GRADE[gr][1]}"><span class="dx-pic"><img class="idx-ic ${g.hero ? 'sig-face' : ''}" src="${g.img}" alt="" draggable="false"></span>${grdChip(gr, 'dx-g')}<b>${ok ? esc(g.name) : g.hero ? esc(HEROES[g.hero].name) + ' 전용' : '???'}</b><small class="idx-k">${g.hero ? '전용 신화' : g.myth ? '신화' : g.slot === 'w' ? '무기' : '장신구'}</small></button>`; };
+  const consCell = (id) => { const c = L.CONS[id], known = !c.hidden || (P().consDex || []).includes(id); return `<button class="dexc2 idx gr g-${c.rarity} ${known ? '' : 'lock'}" data-act="bagTabGo" data-v="cons" style="--c:${GRADE[c.rarity][1]};--g:${GRADE[c.rarity][1]}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span>${grdChip(c.rarity, 'dx-g')}<b>${known ? esc(c.name) : '???'}</b></button>`; };
+  const nOk = (l, ok) => `${l.filter(ok).length}/${l.length}`;
+  const groups = (ids, gOf, rightOf, cellOf) => gradeGroups(GRADE_ORDER.item, ids, gOf).map(([gr, l]) => `${gradeHead(gr, `${l.length}종`, rightOf(gr, l))}<div class="dex-grid v2 idx-grid dex-g">${l.map(cellOf).join('')}</div>`).join('');
   const nGear = [...GEAR_IDS, ...MYTH_IDS].length, n = [...have].filter((t) => GEAR[t] && !GEAR[t].hero).length, next = [10, 20, nGear].find((x) => n < x);
   const cnt = (c) => (c === 'cons' ? L.CONS_IDS.length : every.filter((t) => inCat(t, c)).length);
   const chips = `<div class="dex-cats">${ITEM_CATS.map(([k, nm]) => `<button class="chip ${k === cat ? 'on' : ''} ${k === 'sig' ? 'c-sig' : ''}" data-act="itemCat" data-v="${k}">${nm} <small>${cnt(k)}</small></button>`).join('')}</div>`;
@@ -5534,10 +5580,9 @@ function showItemDex() {
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${nGear}</button></div>
     ${chips}
-    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${cat === 'sig' ? `멤버마다 하나뿐인 전용 신화 · 모은 것 ${sigN}/${SIG_IDS.length} · 모집 ${SIG_RATE.hero}% · 장비 뽑기 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환` : `한 번이라도 얻은 장비가 기록돼요${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'}`} <button class="chip mini" data-act="dropTable">드롭 표</button></span></p>
-    ${cat === 'cons' ? '' : `<div class="dex-grid v2 idx-grid">${all.map(cell).join('')}</div>`}
-    ${cat === 'all' || cat === 'cons' ? `<h3 class="sec-t">소모품</h3>
-    <div class="dex-grid v2 idx-grid">${L.CONS_IDS.map((id) => { const c = L.CONS[id]; const known = !c.hidden || (P().consDex || []).includes(id); if (!known) return `<button class="dexc2 idx lock" data-act="bagTabGo" data-v="cons"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>???</b></button>`; return `<button class="dexc2 idx r-${c.rarity}" data-act="bagTabGo" data-v="cons" style="--c:${CONS_RC[c.rarity]}"><span class="dx-pic"><img class="idx-ic" src="/img/lb/ui2/${c.icon}.webp" alt="" draggable="false"></span><b>${esc(c.name)}</b></button>`; }).join('')}</div>` : ''}
+    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${cat === 'sig' ? `멤버마다 하나뿐인 전용 신화 · 모은 것 ${sigN}/${SIG_IDS.length} · 모집 ${SIG_RATE.hero}% · 장비 뽑기 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환` : `한 번이라도 얻은 장비가 기록돼요 · 테두리는 얻어 본 가장 높은 등급${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'}`} <button class="chip mini" data-act="dropTable">드롭 표</button></span></p>
+    ${cat === 'cons' ? '' : groups(all, gradeOf, (gr, l) => (gr === 'unk' ? '얻으면 등급이 보여요' : gr === 'sig' || gr === 'myth' ? nOk(l, (t) => have.has(t)) : ''), cell)}
+    ${cat === 'all' || cat === 'cons' ? `${cat === 'all' ? '<h3 class="sec-t dex-cons-t">소모품</h3>' : ''}${groups(L.CONS_IDS, (id) => L.CONS[id].rarity, (gr, l) => nOk(l, (id) => !L.CONS[id].hidden || (P().consDex || []).includes(id)), consCell)}` : ''}
   `, 'dim');
 }
 function showItemCard(t) {
@@ -5596,24 +5641,26 @@ function showDex() {
   const ids = dexFiltered(kind);
   const nH = DEX_HEROES().filter((id) => dexKnown('hero', id)).length, nE = DEX_ENEMIES().filter((id) => dexKnown('enemy', id)).length;
   const v = dexViewed();
-  const cards = ids.map((id) => {
+  const card = (id) => {
     const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
     const ok = dexKnown(kind, id);
     const isNew = ok && !v.has((kind === 'hero' ? 'h:' : 'e:') + id);
     const tag = kind === 'hero' ? attrIco(d.attr) : clsIco(d.cls);
-    const fr = kind === 'hero' ? `fr-t${heroTier(id)}` : d.boss ? 'fr-boss' : d.mid ? 'fr-mid' : 'fr-e';
-    const badge = kind === 'hero' ? `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>${roleChip(id, 'dx-role')}${sigHave(P(), id) ? '<i class="dx-sig">전용</i>' : ''}` : d.boss ? '<i class="dxb bs">보스</i>' : d.mid ? `<i class="dxb md">${d.fuse ? '합체' : '각성'}</i>` : '';
-    return `<button class="dexc2 ${fr} ${ok ? '' : 'lock'}" data-act="dexCard" data-kind="${kind}" data-id="${id}" style="--c:${dexColor(kind, d)}">
+    const gr = dexGrade(kind, id); // 테두리 · 칩 = 등급 (못 만난 카드도 등급은 보인다)
+    const badge = grdChip(gr, 'dx-g') + (kind === 'hero' ? `${roleChip(id, 'dx-role')}${sigHave(P(), id) ? '<i class="dx-sig">전용</i>' : ''}` : '');
+    return `<button class="dexc2 gr g-${gr} ${ok ? '' : 'lock'}" data-act="dexCard" data-kind="${kind}" data-id="${id}" style="--c:${dexColor(kind, d)};--g:${GRADE[gr][1]}">
       <span class="dx-pic">${kind === 'hero' && thumbSrc(id) ? `<img class="dx-art hq fz" data-face="${id}" style="${faceImgStyle(id, 0.22, 0.36)}" src="${thumbSrc(id)}" alt="" loading="lazy" decoding="async" draggable="false" onerror="this.onerror=null;this.src='${dexSrc(id, d.img) || d.img}'">` : dexArt(d, id)}${ok ? `<img class="dx-mini" src="${inGameSprites(kind, id, d)[0]}" alt="" loading="lazy" draggable="false" onerror="this.remove()">` : ''}</span>${badge}<span class="dt">${tag}</span>
       <b>${ok ? esc(d.name) : '???'}</b>${isNew ? '<span class="newdot">N</span>' : ''}${!ok && kind === 'hero' && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? (() => { const pr = L.cardProgress(P(), id); return pr ? `<span class="dx-cards"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i><em>${pr[0]}/${pr[1]}</em></span>` : ''; })() : ''}</button>`;
-  }).join('');
+  };
+  // 등급별로 묶어서: 분류 칩으로 거른 것 안에서 높은 등급부터
+  const cards = gradeGroups(GRADE_ORDER[kind], ids, (id) => dexGrade(kind, id)).map(([gr, l]) => `${gradeHead(gr, `${l.length}${kind === 'hero' ? '명' : '종'}`, `${l.filter((id) => dexKnown(kind, id)).length}/${l.length}`)}<div class="dex-grid v2 dex-g">${l.map(card).join('')}</div>`).join('');
   show(`
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
     ${dexCatChips(kind)}
-    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${tab === 'hero' ? (app.dexRole && app.dexRole !== 'all' && HERO_ROLES[app.dexRole] ? esc(HERO_ROLES[app.dexRole].desc) : '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버') : '만나 본 진상만 기록돼요 · 눌러서 약점 확인! · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</span></p>
-    <div class="dex-grid v2">${cards || '<p class="sub">이 분류엔 아직 없어요</p>'}</div>
+    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${tab === 'hero' ? (app.dexRole && app.dexRole !== 'all' && HERO_ROLES[app.dexRole] ? esc(HERO_ROLES[app.dexRole].desc) : '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버') : '만나 본 진상만 기록돼요 · 정예 = 방어가 있거나 체력이 높은 진상 · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</span></p>
+    ${cards || '<p class="sub">이 분류엔 아직 없어요</p>'}
   `, 'dim');
 }
 function dexPageHtml(kind, id, form, duo) {
@@ -5672,14 +5719,14 @@ function dexPageHtml(kind, id, form, duo) {
     : dexArt(d, id, cur);
   const fb = DEX_FACE[id] || [0.48, 0.09, 0.15];
   const faces = ''; // 얼굴 확대 칸은 없앴다 (멤버마다 들쭉날쭉 · 주먹·병이 잘려 '컵 두 개'처럼 보였다) — 큰 그림이 그 자리까지 채운다
-  const badges = hero ? `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>${roleChip(id)}${attrTag(d.attr)}` : `${d.boss ? '<i class="dxb bs">보스</i>' : d.mid ? `<i class="dxb md">${d.fuse ? '합체' : '각성'}</i>` : ''}${clsTag(d.cls)}`;
+  const badges = hero ? `${grdChip('t' + heroTier(id))}${HIDDEN_HEROES.includes(id) ? grdChip('hidden') : ''}${roleChip(id)}${attrTag(d.attr)}` : `${grdChip(enemyGrade(d))}${clsTag(d.cls)}`;
   const en = ok ? (hero ? DEX_EN[id] || id.toUpperCase() : id.replace(/^(boss|mid|fuse)_/, '').replace(/_/g, ' ').toUpperCase()) : '? ? ?';
   return `<div class="dp-bg" style="background-image:url('/img/lb/${ch === 1 ? 'bg' : 'bg' + ch}.webp')"></div><div class="dp-grad"></div>
     <div class="dp-top"><button class="dp-x" data-dp="x">✕</button><span>${i + 1} / ${list.length}</span></div>
     <div class="gc ${hero ? 'hero' : 'foe'} ${hqForm ? '' : 'nohq'} ${duo ? 'isduo' : ''}">
       <span class="gc-bg"></span><span class="gc-dots"></span>
       <div class="gc-no"><small>NO.</small><b>${String(i + 1).padStart(2, '0')}</b></div>
-      <div class="gc-badges">${ok ? badges : ''}</div>
+      <div class="gc-badges">${ok ? badges : grdChip(dexGrade(kind, id))}</div>
       ${faces}
       <div class="dp-stage ${ok ? 'anim-' + anim.replace(' ', ' anim-') : 'lock'}${rage}" ${alts ? 'data-dp="form"' : ''}>
         <span class="dp-glow"></span><span class="dp-shadow"></span>

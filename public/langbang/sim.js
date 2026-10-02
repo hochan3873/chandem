@@ -1211,7 +1211,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.pShield = tr.projShield ? (def.projShield || 3) : 0; e.unveiled = !(tr.stealth || e.cloak); if (!e.unveiled && !g.stealthTip && g.mode === 'stage') { g.stealthTip = true; ev(g, 'tip', { text: '숨은 진상! 배현경이 찾아내고 · 범위 공격이나 오지은 시간 정지에 들켜요' }); } e.shredN = 0; e.shredT = 0; e.healBlockT = 0; e.hasted = false; e.praiseT = def.praise ? 1.5 : 0; e.praiseRage = false; e.tauntT = 0;
   if (def.traits && g.seenTrait && !g.seenTrait[type]) { g.seenTrait[type] = 1; ev(g, 'traitSeen', { type, x: e.x, y: 120 }); }
   // 4~6장 진상 상태
-  e.spdMul = 1; e.hasteT = 0; e.revealed = false; e.dashDone = false; e.stallT = 0; e.lieOn = !!def.lie; e.lieWeakT = 0;
+  e.spdMul = 1; e.hasteT = 0; e.revealed = false; e.dashDone = false; e.stallT = 0; e.standT = 0; e.walkIn = false; e.lieOn = !!def.lie; e.lieWeakT = 0;
   e.insT = 2.5; e.sarcT = 1.5; e.figT = 3; e.golfT = 3; e.tossT = 3; e.discoT = 6; e.confT = 4; e.jT = 0; e.jI = -1; e.cryT = 0;
   e.goodsOn = false; e.goodsT = 0; e.owner = 0; e.sleeping = false; e.slept = false; e.sleepHits = 0; e.homed = false; e.enraged = false; e.clingTo = null;
   e.gaoOn = !!def.gao; e.flashT = def.flash ? 2 + g.rng() * 2 : 0; e.vaulted = false; e.jumpT = 0; e.latteOffT = 0;
@@ -1781,7 +1781,9 @@ function updateEnemies(g, dt) {
       tryCharm(g, e);
     }
     // 인피 뒷담러: 멀찍이 서서 뒷담화 말풍선을 던진다 (입구는 안 두드림)
-    if (def.standoff) {
+    if (def.standoff && !e.walkIn) {
+      // 버티기 방지: 진상이 다 나온 뒤 아무 멤버도 안 닿는 자리에 6초 넘게 서 있으면(영영 안 끝난다) 입구로 걸어 들어온다
+      if (e.atRope && g.spawnI >= g.spawnQ.length && g.heroes.length && !g.heroes.some((h) => inRange(h, e, heroRange(g, h)))) { if ((e.standT += dt) > 6) { e.walkIn = true; e.atRope = false; e.stopY = g.ropeY - 4 - g.rng() * 16; } } else e.standT = 0;
       if (e.atRope && def.rumor) {
         e.rumorT -= dt;
         if (e.rumorT <= 0 && g.heroes.length) {
