@@ -307,6 +307,8 @@ export class Renderer {
     list.dh_tf = '/img/lb/h_donghan_transform.webp'; // 문동한 진심 모드 변신 (12칸 · 한 번)
     list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
     list.hanim_youngjun_rest = '/img/lb/h_youngjun_rest.webp'; // 김영준 숨 고르기 (크로스핏 8칸 · 있으면)
+    list.hanim_baul_ride = '/img/lb/h_baul_ride.webp'; list.hanim_baul_fix = '/img/lb/h_baul_fix.webp'; // 송바울 보드 타기 · 보드 정비 (8칸 반복)
+    list.hanim_junyoung_sweep = '/img/lb/h_junyoung_sweep.webp'; // 성준영 빗자루로 돈 쓸어 모으기 (8칸 반복)
     list.js_back = '/img/lb/h_jeongseob_back.webp'; list.js_walk = '/img/lb/h_jeongseob_walkfront.webp'; list.js_walkb = '/img/lb/h_jeongseob_walkback.webp'; list.js_rest = '/img/lb/h_jeongseob_rest.webp'; // 윤정섭 걷기 · 쉬기
     for (const id in HERO_ANIM_FORM) list['hanim_' + id + '_f'] = HERO_ANIM_FORM[id].src; // 변신 모습 띠
     for (const n of PROJ_ART_NAMES) list['w_' + n] = `/img/lb/fx/w_${n}.webp`; // 투사체 그림 (없으면 코드 모양)
@@ -2132,6 +2134,8 @@ export class Renderer {
       const formOn = !!HERO_ANIM_FORM[h.id] && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!alt);
       const HA = formOn ? HERO_ANIM_FORM[h.id] : HERO_ANIM[h.id], hstrip = HA && this.images[formOn ? 'hanim_' + h.id + '_f' : 'hanim_' + h.id];
       let usedStrip = false;
+      if (h.id === 'baul' && h.bd && !busy) usedStrip = this.drawBaul(g, h, hx, feet, box, sp, t);
+      if (h.id === 'junyoung' && h.out && !busy) usedStrip = this.drawJunyoung(g, h, hx, feet, box, sp, t);
       if (h.id === 'youngjun' && h.out) { // 김영준: 진상에 붙으면 달리는 모습 대신 싸우는 자세(발톱 베기 띠) · 진상 쪽을 본다 · 한 대마다 앞으로 톡
         const tg = h.dashE, im = this.images.hanim_youngjun;
         if (h.shots !== h._ysShots) { if (h._ysShots !== undefined && tg && !tg.dead) { h._ysAt = performance.now(); if (this.skfx) this.skfx.ysStrike(h, tg); } h._ysShots = h.shots; }
@@ -2349,11 +2353,18 @@ export class Renderer {
         cx.fillStyle = 'rgba(0,0,0,0.55)'; roundRect(cx, hx - bw / 2, hy + 6, bw, 4, 2); cx.fill();
         cx.fillStyle = '#ffd23f'; roundRect(cx, hx - bw / 2, hy + 6, Math.max(2, bw * f), 4, 2); cx.fill();
       }
-      // 성준영: 남은 시간 막대
-      if (h.id === 'junyoung' && h.leaveT > 0) {
-        const bw = 38, f = clamp01(h.leaveT / 10);
-        cx.fillStyle = 'rgba(0,0,0,0.6)'; roundRect(cx, hx - bw / 2, hy - box * 0.95, bw, 5, 2.5); cx.fill();
-        cx.fillStyle = '#9fd4ff'; roundRect(cx, hx - bw / 2, hy - box * 0.95, Math.max(2, bw * f), 5, 2.5); cx.fill();
+      // 성준영: 체력 막대 (정소영 잔소리로 찬다 · 0 이면 퇴근)
+      if (h.id === 'junyoung' && h.hpMax > 0) {
+        const bw = 40, f = clamp01(h.hp / h.hpMax), by = ly + 8, healK = h._healAt ? 1 - (performance.now() - h._healAt) / 400 : 0;
+        cx.fillStyle = 'rgba(0,0,0,0.65)'; roundRect(cx, hx - bw / 2 - 1, by - 1, bw + 2, 7, 3); cx.fill();
+        cx.fillStyle = f < 0.3 ? '#ff6b6b' : h.allinT > 0 ? '#ffd23f' : '#7fe0a0'; roundRect(cx, hx - bw / 2, by, Math.max(2, bw * f), 5, 2.5); cx.fill();
+        if (healK > 0) { cx.globalAlpha = healK; cx.fillStyle = '#ffffff'; roundRect(cx, hx - bw / 2, by, Math.max(2, bw * f), 5, 2.5); cx.fill(); cx.globalAlpha = 1; }
+      }
+      // 정소영: 준영이 없을 때 부르기 게이지 (분홍 · 가득 차면 등판)
+      if (h.id === 'soyoung' && h.callM !== undefined && !g.heroes.some((o) => o.id === 'junyoung' && !o.gone)) {
+        const bw = 34, f = clamp01(h.callM / 100);
+        cx.fillStyle = 'rgba(0,0,0,0.6)'; cx.fillRect(hx - bw / 2, ly + 8, bw, 4);
+        cx.fillStyle = '#ff8fb1'; cx.fillRect(hx - bw / 2, ly + 8, bw * f, 4);
       }
       // 최은옥 술 게이지
       if (h.def.soberSec) {
@@ -2363,6 +2374,109 @@ export class Renderer {
         cx.fillStyle = 'rgba(0,0,0,0.6)'; cx.fillRect(hx - bw / 2, ly + 8, bw, 4);
         cx.fillStyle = h.rage ? '#ff3b30' : '#ffb347'; cx.fillRect(hx - bw / 2, ly + 8, bw * f, 4);
       }
+    }
+    this.drawNag(g);
+  }
+
+  // 8칸 반복 띠 한 칸 그리기 (발 = feet · face −1 이면 좌우 뒤집기)
+  loopStrip(im, fi, x, feet, face, bw) {
+    const fw = im.naturalWidth / 8;
+    this.tf(x, feet, 0, face, 1);
+    this.cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw);
+  }
+  // 송바울: 보드 타기(반복) · 돌진 순간(박차기 띠) · 정비(무릎 꿇고 고치기) · 돌진 자국 · 탭한 목표 표시 · 남은 보드 횟수
+  drawBaul(g, h, hx, feet, box, sp, t) {
+    const cx = this.cx, b = h.bd, B = h.def.board;
+    const ride = this.images.hanim_baul_ride, fix = this.images.hanim_baul_fix, atk = this.images.hanim_baul;
+    const now = performance.now();
+    // 탭한 곳: 점선 + 보드 표시 (다음 돌진은 여기로)
+    const aim = g.boardAim && g.t - g.boardAim.t < B.aimT ? g.boardAim : null;
+    if (aim) {
+      this.world(); cx.save();
+      cx.setLineDash([5, 6]); cx.lineDashOffset = -t * 30; cx.strokeStyle = 'rgba(122,208,255,0.85)'; cx.lineWidth = 2.2;
+      cx.beginPath(); cx.moveTo(hx, feet - 6); cx.lineTo(aim.x, aim.y); cx.stroke(); cx.setLineDash([]);
+      const pr = 13 + Math.sin(t * 8) * 2;
+      cx.translate(aim.x, aim.y); cx.scale(1, 0.55);
+      cx.strokeStyle = '#7ad0ff'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, pr, 0, Math.PI * 2); cx.stroke();
+      cx.fillStyle = 'rgba(122,208,255,0.25)'; cx.fill();
+      cx.restore();
+      this.world(); cx.save(); cx.translate(aim.x, aim.y - 2); cx.rotate(-0.35); // 작은 보드 모양
+      cx.fillStyle = '#7ad0ff'; cx.strokeStyle = '#123a5a'; cx.lineWidth = 1.5; roundRect(cx, -11, -3, 22, 6, 3); cx.fill(); cx.stroke();
+      cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(-4, 0, 1.3, 0, Math.PI * 2); cx.arc(4, 0, 1.3, 0, Math.PI * 2); cx.fill();
+      cx.restore();
+    }
+    // 돌진 자국 (하늘색 띠 · 금방 사라짐)
+    const tr = h._bTrail || (h._bTrail = []);
+    if (b.st === 'dash') tr.push({ x: hx, y: feet - 4, at: now });
+    while (tr.length && now - tr[0].at > 260) tr.shift();
+    if (tr.length > 1) {
+      this.world(); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.lineCap = 'round';
+      for (const [w, col] of [[16, 'rgba(90,180,255,0.28)'], [6, 'rgba(230,248,255,0.85)']]) {
+        cx.strokeStyle = col; cx.lineWidth = w; cx.beginPath(); cx.moveTo(tr[0].x, tr[0].y); for (const q of tr) cx.lineTo(q.x, q.y); cx.stroke();
+      }
+      cx.restore(); cx.globalCompositeOperation = 'source-over';
+    }
+    if (b.st === 'fix') {
+      if (!imgOk(fix)) return false;
+      // 띠: 0~3 무릎 꿇고 렌치 · 왁스 (반복) · 4 땀 닦기 (중간) · 7 엄지 척 (끝나기 직전)
+      const f = b.fixMax ? clamp01(1 - b.fixT / b.fixMax) : 0, gx = hx, gy = feet - box * 1.02;
+      const fi = f > 0.82 ? 7 : f > 0.45 && f < 0.56 ? 4 : Math.floor(t * 6) % 4;
+      this.loopStrip(fix, fi, hx, feet, 1, box * 1.08);
+      // 정비 게이지: 머리 위 동그라미 (다 차면 다시 탄다)
+      this.world();
+      cx.fillStyle = 'rgba(14,8,30,0.85)'; cx.beginPath(); cx.arc(gx, gy, 11, 0, Math.PI * 2); cx.fill();
+      cx.lineWidth = 3.5; cx.strokeStyle = 'rgba(255,255,255,0.18)'; cx.beginPath(); cx.arc(gx, gy, 8, 0, Math.PI * 2); cx.stroke();
+      cx.strokeStyle = '#7ad0ff'; cx.lineCap = 'round'; cx.beginPath(); cx.arc(gx, gy, 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); cx.stroke(); cx.lineCap = 'butt';
+      cx.fillStyle = '#fff'; cx.font = `900 8px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('정비', gx, gy + 0.5);
+      return true;
+    }
+    const face = b.face || 1, since = g.t - (h.lastShotT || -9);
+    if (imgOk(atk) && since < 0.42 && b.st !== 'home') this.loopStrip(atk, Math.min(7, 2 + Math.floor((since / 0.42) * 6)), hx, feet, face, box * 1.12);
+    else if (imgOk(ride)) this.loopStrip(ride, Math.floor(t * (b.st === 'dash' ? 14 : 7)) % 8, hx, feet + Math.sin(t * 5 + h.slot) * 1.5, face, box * 1.12);
+    else return false;
+    // 남은 보드 횟수: 발밑 작은 칸 (다 쓰면 정비)
+    const maxUse = B.uses[h.lv - 1], left = Math.max(0, maxUse - b.uses), w0 = 5, gap = 2, tw = maxUse * (w0 + gap) - gap;
+    this.world();
+    for (let k = 0; k < maxUse; k++) { cx.fillStyle = k < left ? '#7ad0ff' : 'rgba(0,0,0,0.5)'; cx.fillRect(hx - tw / 2 + k * (w0 + gap), feet + 19, w0, 3); }
+    return true;
+  }
+  // 성준영: 빗자루로 바닥의 돈을 쓸어 모으며 돌아다닌다 — 끌어모으는 반경 고리 · 빗자루 쪽으로 미끄러져 들어오는 동전
+  drawJunyoung(g, h, hx, feet, box, sp, t) {
+    const cx = this.cx, im = this.images.hanim_junyoung_sweep, S0 = h.def.sweep;
+    const R0 = S0.r[h.lv - 1] * (h.allinT > 0 ? S0.allinR : 1) * (g.saJy ? 1.2 : 1), gold = h.allinT > 0;
+    this.world(); cx.save(); cx.translate(hx, feet - 4); cx.scale(1, 0.42);
+    cx.setLineDash([7, 7]); cx.lineDashOffset = t * 24; cx.strokeStyle = gold ? 'rgba(255,210,63,0.75)' : 'rgba(190,140,255,0.45)'; cx.lineWidth = gold ? 4 : 2.5;
+    cx.beginPath(); cx.arc(0, 0, R0, 0, Math.PI * 2); cx.stroke(); cx.setLineDash([]); cx.restore();
+    const face = h.face || 1, sk = this.skfx;
+    if (sk) { // 동전 · 지폐가 둘레에서 빗자루 앞으로 쓸려 들어온다
+      this.world();
+      for (let k = 0; k < 6; k++) {
+        const ph = (t * 0.9 + k / 6) % 1, a = k * 1.9 + Math.floor(t * 0.9 + k / 6) * 2.3, r = 46 * (1 - ph) + 8;
+        const x = hx + face * 16 + Math.cos(a) * r, y = feet - 2 + Math.sin(a) * r * 0.35;
+        if (k % 3 === 2) sk.bill(x, y, t * 4 + k, a, (1 - ph) * 0.9); else sk.coin(x, y, 3.4, t * 7 + k, 0.35 + (1 - ph) * 0.65);
+      }
+    }
+    if (!imgOk(im)) return false;
+    const fi = Math.floor(t * 9) % 8, hop = Math.abs(Math.sin(t * 9 * Math.PI / 4)) * 1.5;
+    this.loopStrip(im, fi, hx, feet - hop, face, box * 1.05);
+    return true;
+  }
+  // 정소영 잔소리: 말풍선이 준영에게 날아가 체력을 채운다 (game.js 'nag')
+  nagFly(x0, y0, x1, y1) { (this._nag || (this._nag = [])).push({ x0, y0, x1, y1, at: performance.now() }); }
+  drawNag(g) {
+    const L = this._nag;
+    if (!L || !L.length) return;
+    const cx = this.cx, now = performance.now(), im = this.images.w_bubble, j = g.heroes.find((o) => o.id === 'junyoung' && !o.gone);
+    this.world();
+    for (let i = L.length - 1; i >= 0; i--) {
+      const q = L[i], k = (now - q.at) / 420;
+      if (k >= 1) { L.splice(i, 1); if (j) { j._healAt = now; this.fx.burst(j.px, j.py - 40, 6, '#7fe0a0', 70, 'spark', 3, 0.35); } continue; }
+      const x1 = j ? j.px : q.x1, y1 = (j ? j.py : q.y1) - 46, e = 1 - (1 - k) * (1 - k);
+      const x = q.x0 + (x1 - q.x0) * e, y = q.y0 + (y1 - q.y0) * e - Math.sin(k * Math.PI) * 40, s = 0.8 + Math.sin(k * Math.PI) * 0.35;
+      cx.save(); cx.translate(x, y); cx.scale(s, s); cx.rotate(Math.sin(k * 12) * 0.15);
+      if (imgOk(im)) cx.drawImage(im, -13, -11, 26, 22);
+      else { cx.fillStyle = '#fff'; cx.strokeStyle = '#ff8fb1'; cx.lineWidth = 2; cx.beginPath(); cx.ellipse(0, 0, 12, 9, 0, 0, Math.PI * 2); cx.fill(); cx.stroke(); cx.fillStyle = '#ff5f8f'; cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('!!', 0, 0.5); }
+      cx.restore();
     }
   }
 

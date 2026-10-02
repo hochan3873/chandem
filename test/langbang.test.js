@@ -1434,16 +1434,18 @@ test('줄 스킬 자동 조준: 가장 많이 걸리는 방향 · 아무도 없�
 });
 
 test('새 멤버 4명: 정소영 잔소리 → 성준영 소환(올인!) · 오지은 감속+악마 모습 · 박상화 성장+경험치 · 홍정민 입구 수리', () => {
-  // 정소영: 스킬(올인 콜)을 쓰면 성준영이 나오고, 시간이 지나면 "들어갈게~" 하고 사라진다
+  // 정소영: 스킬(올인 콜)을 쓰면 성준영이 나오고, 체력이 다 떨어지면 "올인!" 하고 퇴근한다
   let g = S.createGame({ rng: seeded(501), noWaves: true, heroes: ['soyoung'] });
   const so = g.heroes[0];
   g.phase = 'wave';
   S.spawnEnemy(g, 'thug', so.x, so.y - 200, { hpMul: 100 });
   so.skillCd = 0; assert.equal(S.castSkill(g, so), true);
   const jy = g.heroes.find((h) => h.id === 'junyoung');
-  assert.ok(jy && jy.summon, '성준영 소환');
+  assert.ok(jy && jy.summon && jy.hp === jy.hpMax, '성준영 소환 (체력 가득)');
+  g.heroes.splice(g.heroes.indexOf(so), 1); // 잔소리 없이 혼자 두면
+  jy.hp = 1;
   for (let i = 0; i < 60 * 16; i++) S.step(g, 1 / 60);
-  assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '시간이 지나면 사라짐');
+  assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '체력이 떨어지면 퇴근');
   // 오지은: 공격하면 악마 모습 + 맞은 진상 느려짐
   g = S.createGame({ rng: seeded(502), noWaves: true, heroes: ['jieun'] });
   const ji = g.heroes[0];
@@ -1703,7 +1705,7 @@ test('중간 보스: 기술 하나 (1초 예고 → 기술 → 틈) · 체력 50
   assert.ok(g.events.some((e) => e.type === 'midRage') || seen.includes('midRage') || m.bai.p2);
 });
 
-test('정소영 올인 콜 → 성준영: 진상을 한곳으로 모은다(평균 거리 ↓) · 정해진 시간 뒤 사라짐 · 가만히 서 있기(후퇴) 없음 · 덱 6칸 꽉 차도', () => {
+test('정소영 · 성준영: 정소영은 진상을 안 때림 · 잔소리 = 준영 체력 (빠를수록 많이) · 준영은 아래에서 나와 돌아다니며 진상을 끌어모은다 · 붙잡힌 진상은 준영을 친다 · 체력 0 이면 퇴근 → 다시 게이지', () => {
   for (const deck of [[null, 'staff', 'bangjang', 'soyoung', null, null], ['gunnyeo', 'staff', 'bangjang', 'soyoung', 'gunman', 'ingyu']]) {
     const g = S.createGame({ H: 760, rng: seeded(7), noWaves: true, deck, meta: {}, god: true });
     g.phase = 'wave';
@@ -1715,15 +1717,54 @@ test('정소영 올인 콜 → 성준영: 진상을 한곳으로 모은다(평�
     so.skillCd = 0; assert.equal(S.castSkill(g, so), true);
     const jy = g.heroes.find((h) => h.id === 'junyoung');
     assert.ok(jy, '소환 (' + deck.filter(Boolean).length + '명 덱)');
-    const ax = jy.ax;
-    let still = 0;
-    for (let i = 0; i < 60 * 6; i++) { const px = jy.px, py = jy.py; S.step(g, 1 / 60); if (Math.abs(jy.px - px) + Math.abs(jy.py - py) < 1e-6 && Math.hypot(jy.px - jy.ax, jy.py - (jy.ay + 70)) > 10) still++; }
+    assert.ok(jy.py > g.ropeY - 60, '입구 바로 앞(아래)에서 시작');
+    jy.hp = jy.hpMax = 1e9; // (여기선 모으기만 본다)
+    let moved = 0, px = jy.px, py = jy.py, maxHeld = 0;
+    for (let i = 0; i < 60 * 8; i++) { S.step(g, 1 / 60); moved += Math.hypot(jy.px - px, jy.py - py); px = jy.px; py = jy.py; maxHeld = Math.max(maxHeld, jy.held || 0); }
+    assert.ok(moved > 120, `돌아다닌다 (${moved.toFixed(0)}px)`);
     assert.ok(spread() < d0 * 0.8, `뭉침 ${d0.toFixed(0)} → ${spread().toFixed(0)}`);
-    assert.ok(Math.abs(jy.ax - ax) < 120, '기준점이 크게 안 흔들림');
-    assert.equal(still, 0, '기준점에서 떨어진 채 멈춰 있지 않음');
-    for (let i = 0; i < 60 * 10; i++) S.step(g, 1 / 60);
-    assert.ok(!g.heroes.some((h) => h.id === 'junyoung'), '12초 뒤 사라짐');
+    assert.ok(maxHeld >= 2, `곁에 붙잡음 ${maxHeld}`);
+    assert.equal(so.dmgDone, 0, '정소영은 직접 피해 없음');
+    assert.ok(jy.dmgDone > 0, '준영: 조금씩 피해');
   }
+  // 잔소리 = 준영 체력: 공격 속도가 빠르면 더 많이 찬다
+  const healIn = (spd) => {
+    const g = S.createGame({ H: 760, rng: seeded(8), noWaves: true, heroes: ['soyoung'], god: true });
+    g.phase = 'wave'; g.mods.spd = spd;
+    still(g, 'thug', 60, 120, 1000);
+    const so = g.heroes[0]; so.skillCd = 0; S.castSkill(g, so);
+    const jy = g.heroes.find((h) => h.id === 'junyoung');
+    jy.hp = jy.hpMax * 0.2; jy.wx = jy.px; jy.wy = jy.py; jy.wpT = 99; // 진상에서 멀리 · 가만히
+    run(g, 3);
+    return jy.hp / jy.hpMax;
+  };
+  const slow = healIn(1), fast = healIn(2);
+  assert.ok(slow > 0.3 && fast > slow + 0.1, `잔소리 회복 ${slow.toFixed(2)} → 공속 2배 ${fast.toFixed(2)}`);
+  // 붙잡힌 진상은 입구 대신 준영을 친다
+  {
+    const g = S.createGame({ H: 760, rng: seeded(10), noWaves: true, heroes: ['soyoung'], god: true });
+    g.phase = 'wave';
+    const so = g.heroes[0]; so.skillCd = 0; S.castSkill(g, so);
+    g.heroes.splice(g.heroes.indexOf(so), 1);
+    const jy = g.heroes.find((h) => h.id === 'junyoung');
+    for (let i = 0; i < 4; i++) still(g, 'thug', jy.px + (i - 1.5) * 30, jy.py - 40, 1000);
+    jy.wx = jy.px; jy.wy = jy.py; jy.wpT = 99;
+    run(g, 3);
+    assert.ok(jy.hp < jy.hpMax * 0.98, `준영이 맞는다 ${(jy.hp / jy.hpMax).toFixed(2)}`);
+  }
+  // 체력 0 → "올인!" 퇴근 → 정소영 부르기 게이지가 처음부터 → 가득 차면 다시 등판
+  const g = S.createGame({ H: 760, rng: seeded(9), noWaves: true, heroes: ['soyoung'], god: true });
+  g.phase = 'wave';
+  for (let i = 0; i < 6; i++) still(g, 'thug', 60 + i * 50, 200, 1000);
+  const so = g.heroes[0];
+  run(g, 0.2);
+  assert.ok(!g.heroes.some((h) => h.id === 'junyoung') && so.callM >= D.HEROES.soyoung.nag.start, '처음엔 게이지부터');
+  run(g, 6);
+  const jy = g.heroes.find((h) => h.id === 'junyoung');
+  assert.ok(jy, '잔소리로 게이지가 차면 등판');
+  jy.hp = 0.01; jy.hpMax = 1e9; S.step(g, 1 / 60); // (잔소리 한 번이 막 들어와도 못 버티게)
+  for (let i = 0; i < 3 && g.heroes.some((h) => h.id === 'junyoung' && !h.gone); i++) { jy.hp = -1; S.step(g, 1 / 60); }
+  assert.ok(!g.heroes.some((h) => h.id === 'junyoung' && !h.gone) && so.callM < 30, '퇴근 → 게이지 처음부터');
 });
 
 test('글자 CSS 규칙: -webkit-text-stroke · paint-order · background-clip:text 금지 (안드로이드에서 글자가 뭉개진다)', () => {
@@ -2465,16 +2506,10 @@ test('겹침 정리: 김도훈 떼창(입구 덜 침) · 문동한 과자(간보
   const b0 = bouquet(0), b4 = bouquet(0.4);
   assert.ok(b4.d > b0.d * 1.9, `자란 만큼 세다 ${b0.d.toFixed(0)} → ${b4.d.toFixed(0)}`);
   assert.ok(Math.abs(b0.grow - D.HEROES.sanghwa.skill.grow) < 1e-6, '성장 +12%');
-  // 송바울: 응원봉 — 가는 길 관통 · 돌아오며 한 번 더 (70%)
+  // 송바울: 기본 공격 없음 (보드 돌진은 아래 '송바울 보드' 테스트) · 썰매 = 팬클럽 함성 (보드 쿨 빨리)
   g = bare(['baul']);
-  g.mods.crit = 0;
-  const bh = g.heroes[0], near = still(g, 'thug', bh.x, g.rowY - 120, 1000), far = still(g, 'thug', bh.x, g.rowY - 220, 1000);
-  S.fire(g, bh, near);
-  assert.ok(g.projs.some((p) => p.type === 'glow' && p.boomerang), '응원봉');
-  run(g, 4);
-  assert.ok(far.hp < far.maxHp, '관통');
-  const one = S.heroDamage(g, bh), got = near.maxHp - near.hp;
-  assert.ok(got > one * 1.5, `돌아오며 한 번 더 (${got.toFixed(0)} / ${one.toFixed(0)})`);
+  const bh = g.heroes[0];
+  still(g, 'thug', bh.x, g.rowY - 120, 1000);
   const r0 = S.heroRate(g, bh);
   bh.skillCd = 0; assert.ok(S.castSkill(g, bh), '썰매');
   assert.ok(bh.fanT > 0 && S.heroRate(g, bh) > r0 * 1.5, '팬클럽 함성: 공속 +60%');
@@ -2484,4 +2519,41 @@ test('겹침 정리: 김도훈 떼창(입구 덜 침) · 문동한 과자(간보
   const hc = g.heroes.find((h) => h.id === 'hochan'); hc.skillCd = 0;
   assert.ok(S.castSkill(g, hc), '막차 대행진');
   assert.ok(Math.abs(g.hcSkAtk - 0.2) < 1e-9 && g.buses.every((b) => Math.abs(b.stun - 0.8) < 1e-9), `공격력 +${g.hcSkAtk} · 기절 ${g.buses[0].stun}`);
+});
+
+test('송바울 보드: 기본 공격 없음 · 탭한 곳으로 돌진하며 길 위 진상 전부 · 탭이 없으면 알아서 · 몇 번 타면 자리로 돌아가 정비 (못 탐) · 썰매가 정비를 끝내 준다', () => {
+  const g = bare(['baul'], { god: true });
+  g.phase = 'wave'; g.mods.crit = 0;
+  const bh = g.heroes[0], B = D.HEROES.baul.board;
+  // 세로 한 줄로 선 진상 3명 (위쪽) · 따로 떨어진 진상 1명 (왼쪽)
+  const line = [0, 1, 2].map((k) => still(g, 'thug', 300, 200 + k * 50, 1000));
+  const lone = still(g, 'thug', 40, 260, 1000);
+  bh.bd = { st: 'ride', uses: 0, cdT: 0.3, fixT: 0 }; bh.px = 300; bh.py = bh.y; bh.out = true; // (같은 세로줄에서 출발)
+  // 탭: 줄 서 있는 쪽 위로 → 그쪽으로 돌진 · 셋 다 맞는다 · 빈 곳 탭이라 지목은 없음
+  assert.equal(S.setFocus(g, 300, 90), null, '빈 곳 탭: 지목 없음');
+  assert.ok(S.setBoardAim(g, 300, 120), '보드 목표');
+  run(g, 1.3);
+  assert.equal(g.projs.length, 0, '투사체(기본 공격) 없음');
+  assert.ok(line.every((e) => e.hp < e.maxHp), `줄 위 진상 전부 맞음 ${line.map((e) => Math.round(e.maxHp - e.hp))}`);
+  assert.equal(lone.hp, lone.maxHp, '길 밖 진상은 안 맞음');
+  assert.ok(bh.out && bh.py < 200, `탭한 곳 쪽으로 감 (${bh.px.toFixed(0)}, ${bh.py.toFixed(0)})`);
+  // 계속 타면 정비: 자리로 돌아가 무릎 꿇고 고친다 (그동안 돌진 없음)
+  for (let i = 0; i < 60 * 40 && bh.bd.st !== 'fix'; i++) S.step(g, 1 / 60);
+  assert.equal(bh.bd.st, 'fix', '보드 정비');
+  assert.ok(!bh.out && bh.px === bh.x, '자리에서 정비');
+  const hp0 = line.concat(lone).reduce((a, e) => a + e.hp, 0);
+  run(g, B.fix[0] * 0.8);
+  assert.equal(line.concat(lone).reduce((a, e) => a + e.hp, 0), hp0, '정비 중엔 못 탐');
+  run(g, B.fix[0] * 0.3 + 0.3);
+  assert.notEqual(bh.bd.st, 'fix', '정비 끝 → 다시 탄다');
+  // 정비 중 썰매: 팬클럽이 새 보드 → 바로 다시 탄다
+  bh.bd.st = 'fix'; bh.bd.fixT = 3; bh.bd.uses = 99; bh.skillCd = 0;
+  assert.ok(S.castSkill(g, bh));
+  assert.ok(bh.bd.st === 'ride' && bh.bd.uses === 0, '썰매: 정비 끝');
+  // 탭 없이: 알아서 진상이 몰린 쪽으로
+  const g2 = bare(['baul'], { god: true });
+  g2.phase = 'wave';
+  const many = [0, 1, 2, 3].map((k) => still(g2, 'thug', 200 + k * 8, 150 + k * 40, 1000));
+  run(g2, 4);
+  assert.ok(many.filter((e) => e.hp < e.maxHp).length >= 3, '자동 돌진: 몰린 쪽');
 });

@@ -696,8 +696,20 @@ function handleEvents(g, loud) {
         if (e.v) setTimeout(() => { if (app.g === g) fx.text(e.x + 18, e.y - 30, `+${e.v}`, '#7be38f', 12, 0.8); }, 240);
         if (loud) A.sfx.heal();
         break;
-      case 'jyLeave': fx.burst(e.x, e.y - 30, 14, '#ffffff', 120, 'puff', 10, 0.6); fx.text(e.x, e.y - 70, '들어갈게~', '#9fd4ff', 13, 1.0); break;
-      case 'allinCall': fx.banner('올인 콜! 준영 등판', `${e.sec}초 동안 진상을 한곳으로 모은다`, '#1a4a8a', 1.3, 'wave'); break;
+      case 'jyLeave': fx.burst(e.x, e.y - 30, 14, '#ffffff', 120, 'puff', 10, 0.6); fx.text(e.x, e.y - 70, '아 몰라 퇴근!', '#9fd4ff', 13, 1.0); break;
+      case 'allinCall': fx.banner('올인 콜! 준영 등판', `체력 가득 · ${e.sec}초 동안 더 넓게 쓸어 모은다`, '#1a4a8a', 1.3, 'wave'); break;
+      case 'nag': { // 정소영 잔소리: 준영이 있으면 말풍선이 날아가 체력 · 없으면 부르기 게이지
+        if (e.tx !== undefined) { if (e.heal && !busy) R.nagFly(e.x, e.y - 50, e.tx, e.ty); if (Math.random() < 0.12) fx.text(e.x, e.y - 74, ['준영아 똑바로 해!', '그러니까 내가 뭐랬어!', '쓸어 담아!', '한 번만 더 말한다?'][(Math.random() * 4) | 0], '#ff9fc0', 11, 0.9); }
+        else if (!busy) { fx.burst(e.x, e.y - 60, 3, '#ff9fc0', 50, 'spark', 3, 0.3); if (e.call >= 100 - 1e-6 || Math.random() < 0.15) fx.text(e.x, e.y - 74, e.call >= 99.9 ? '준영아 나와!' : '잔소리 ' + Math.round(e.call) + '%', '#ff9fc0', 11, 0.8); }
+        break;
+      }
+      case 'jyGrab': if (!busy && Math.random() < 0.6) R.vfx('pullLine', e.x, e.y, { anim: 'streak', dur: 380, tx: e.jx, ty: e.jy - 20, col: '#c07bff' }); break;
+      case 'jySweep': if (!busy) { fx.burst(e.x + (e.face || 1) * 18, e.y + 18, 3, '#ffd23f', 70, 'coin', 6, 0.5); if (Math.random() < 0.08) fx.text(e.x, e.y - 72, ['이거 다 내 돈!', '쓸어 담자~', '하나도 안 흘린다'][(Math.random() * 3) | 0], '#ffe27a', 11, 0.9); } break;
+      case 'boardDash': if (loud) A.sfx.whoosh(); if (!busy) fx.burst(e.x, e.y + 18, 6, 'rgba(220,240,255,0.9)', 120, 'puff', 6, 0.35); if (e.aimed && !busy) fx.ring(e.tx, e.ty, 6, 26, 0.3, '#7ad0ff', 2); if (e.left === 1) fx.text(e.x, e.y - 74, '보드가 삐걱…', '#ffd9a0', 11, 0.9); break;
+      case 'boardCombo': if (!busy) fx.text(e.x, e.y - 70, `${e.n}명 쓸었다!`, '#7ad0ff', 13, 0.9); break;
+      case 'boardBroke': fx.text(e.x, e.y - 74, '보드 정비하러 간다~', '#ffd9a0', 12, 1.0); fx.burst(e.x, e.y + 10, 6, '#c8ccd8', 90, 'shard', 4, 0.5); break;
+      case 'boardFix': fx.burst(e.x, e.y - 10, 5, '#ffd23f', 80, 'spark', 3, 0.4); break;
+      case 'boardFixed': fx.text(e.x, e.y - 74, '다시 타 볼까~', '#7ad0ff', 12, 0.9); fx.ring(e.x, e.y - 20, 6, 36, 0.4, '#7ad0ff', 3); break;
       case 'jyRage': fx.text(e.x, e.y - 70, '준영 폭주!', '#ff7a4f', 15, 1.0); fx.ring(e.x, e.y - 30, 10, 60, 0.6, '#ff7a4f', 4); break;
       case 'chipRain': if (!busy) fx.burst(e.x, e.y - 20, 5, '#ffd23f', 110, 'spark', 3, 0.35); break;
       case 'summon': fx.text(e.x, e.y - 80, '준영아 나와!', '#ff9fc0', 15, 1.1); fx.burst(e.x, e.y - 30, 16, '#9fd4ff', 160, 'spark', 4, 0.6); fx.ring(e.x, e.y - 30, 10, 60, 0.7, '#ff9fc0', 5); if (loud) A.sfx.join(); break;
@@ -1523,9 +1535,11 @@ canvas.addEventListener('pointerdown', (ev) => {
     try { canvas.setPointerCapture(ev.pointerId); } catch { /* 무시 */ }
     return;
   }
-  // 3) 적: 지목 (모두가 그 적부터)
+  // 3) 적: 지목 (모두가 그 적부터) · 송바울이 있으면 그 자리가 다음 보드 돌진 목표
   const f = S.setFocus(g, x, y);
-  fx.ring(x, y, 4, 40, 0.3, f ? '#ff3b5c' : '#ffffff', 2);
+  const bh = S.setBoardAim(g, x, y);
+  fx.ring(x, y, 4, 40, 0.3, f ? '#ff3b5c' : bh ? '#7ad0ff' : '#ffffff', 2);
+  if (bh && !f && !g._boardTip) { g._boardTip = true; fx.text(x, y - 24, '송바울 보드 여기로!', '#7ad0ff', 12, 0.9); }
   if (f) { fx.text(f.x, f.y - f.def.size * 0.8, '지목!', '#ff6b80', 13, 0.7); A.sfx.tap(); vibrate(8); }
   hideBubble();
 });
@@ -1718,7 +1732,7 @@ function placeBubble(x, y) {
 }
 // 필드 멤버 정보 카드: 지금 능력치 · 공격 방식 · 레벨 효과 · 버프/디버프 (열려 있는 동안 게임 50% 속도)
 const PROJ_TXT = {
-  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', warn: '유도탄 (감속 · 경고 누적)', bullet: '직선 저격 (자기 줄만)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
+  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', board: '보드 돌진 (탭한 곳으로 · 길 위 전부 · 몇 번 타면 정비)', nag: '잔소리 (피해 없음 · 성준영 체력 · 부르기 게이지)', sweep: '빗자루질 (주변 진상 끌어모아 붙잡기 · 피해 조금)', warn: '유도탄 (감속 · 경고 누적)', bullet: '직선 저격 (자기 줄만)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
   wave: '둥근 음파 (주변 전부 · 맞은 진상은 입구를 덜 세게)', dumbbell: '포물선 덤벨 (범위) + 오토바이 돌진', snack: '유도 과자 + 한 줄 빔', dash: '뛰어들어 연속 베기', bottle: '포물선 소주병 (범위 · 분노 중 불바다)',
   beam: '레이저 (계속 쏘면 세짐)', cane: '관통 지팡이 (자기 줄 전부)', gf: '핀볼 여사친 (3~4명 튕김 · 밀어내기)', slam: '몸통 박치기 충격파 / 날씬 모드 연타', hammer: '무거운 유도 망치 (보스 우선)', crown: '황금 파동 (자기 줄 전부 관통)',
 };
@@ -1743,10 +1757,10 @@ function heroStatsHtml(g, h) {
   for (const [k, t] of [['stunT', '기절'], ['charmT', '홀림'], ['rumorT', '뒷담 공속↓'], ['paperT', '차용증 공속↓'], ['fearT', '공포'], ['vomitT', '토 공속↓'], ['blindT', '눈부심'], ['drowsyT', '라떼 공속↓'], ['grabT', '붙잡힘']]) if (h[k] > 0) st.push(t);
   const perks = Object.entries(d.perks || {}).map(([k, v]) => `<li class="${h.lv >= +k ? 'on' : ''}"><b>Lv${k}</b> ${esc(v)}</li>`).join('');
   return `<div class="hi-head">${av(d)}<div><b>${d.name} <small>Lv.${h.lv}${h.evo ? '' : ''} · ${'★'.repeat(h.star || 1)}</small></b>${attrTag(d.attr)}${(HERO_TAGS[h.id] || []).map((t) => `<span class="tg">${TAGS[t].icon}${TAGS[t].name}</span>`).join('')}</div><button class="hi-x"data-hix>✕</button></div>
- <div class="hi-stats"><span>${ic('swords', '', 'sm')} 공격력 <b>${fmt(S.heroDamage(g, h))}</b></span><span>${ic('speed', '', 'sm')}공속 <b>${(1 / iv).toFixed(2)}/초</b></span><span>사거리 <b>${Math.round(S.heroRange(g, h))}</b></span><span>${ic('target', '', 'sm')}치명타 <b>${crit.toFixed(0)}%</b></span></div>
+ <div class="hi-stats">${d.noHit ? `<span>${ic('sparkle', '', 'sm')} 준영 체력 <b>+${Math.round(d.nag.heal[h.lv - 1] * 100)}%</b>/번</span>` : d.sweep ? `<span>${ic('swords', '', 'sm')} 체력 <b>${Math.round(h.hp || 0)}/${Math.round(h.hpMax || 0)}</b></span>` : `<span>${ic('swords', '', 'sm')} 공격력 <b>${fmt(S.heroDamage(g, h))}</b></span>`}<span>${ic('speed', '', 'sm')}공속 <b>${(1 / iv).toFixed(2)}/초</b></span><span>사거리 <b>${Math.round(S.heroRange(g, h))}</b></span><span>${ic('target', '', 'sm')}치명타 <b>${crit.toFixed(0)}%</b></span></div>
  <p class="hi-row"> ${esc(PROJ_TXT[d.proj] || d.attack)} ${flags ? `<em>${flags}</em>` : ''}</p>
     ${gearTxt ? `<p class="hi-row">${ic('bag', '', 'sm')}${esc(gearTxt)}</p>` : ''}
- <p class="hi-row">${ic('sparkle', '', 'sm')} ${esc(d.skill.name)}: ${esc(d.skill.desc)}</p>
+${d.skill ? ` <p class="hi-row">${ic('sparkle', '', 'sm')} ${esc(d.skill.name)}: ${esc(d.skill.desc)}</p>` : ''}
     <ul class="hi-perks">${perks}</ul>
     ${st.length ? `<p class="hi-row st">${st.join(' · ')}</p>` : ''}
     <p class="hi-tip">끌어서 자리 바꾸기 · 게임은 느리게 흘러가요</p>`;
@@ -5058,7 +5072,7 @@ function cardRar(c) {
   if (c.rarity === 'rare' && (c.kind === 'heroLv' || c.kind === 'addHero')) return 'epic';
   return c.rarity === 'epic' ? 'epic' : c.rarity === 'rare' ? 'rare' : 'common';
 }
-const KIND_TXT = { burst: '연달아 던진다', rapid: '쉴 새 없이 날린다', pierce: '한 줄을 꿰뚫는다', chain: '옆으로 튕겨 번진다', lob: '던져서 터뜨린다', heavy: '묵직하게 내리친다', melee: '가까이서 휘두른다', beam: '일직선으로 쏜다', homing: '끝까지 쫓아간다', aura: '주변을 한꺼번에', gauge: '게이지가 차면 막차 버스!' };
+const KIND_TXT = { burst: '연달아 던진다', rapid: '쉴 새 없이 날린다', pierce: '한 줄을 꿰뚫는다', chain: '옆으로 튕겨 번진다', lob: '던져서 터뜨린다', heavy: '묵직하게 내리친다', melee: '가까이서 휘두른다', beam: '일직선으로 쏜다', homing: '끝까지 쫓아간다', aura: '주변을 한꺼번에', gauge: '게이지가 차면 막차 버스!', nag: '잔소리로 성준영을 부린다', board: '탭한 곳으로 보드 돌진!' };
 // 이 카드의 주인 멤버: 멤버 카드는 그 멤버 · 길/속성 카드는 그 길·속성을 가장 많이 키운 멤버 · 나머지는 대장
 function cardOwner(c) {
   const g = app.g;
