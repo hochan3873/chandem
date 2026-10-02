@@ -2279,6 +2279,11 @@ export class Renderer {
         else if (at) { cx.fillStyle = at.color; cx.beginPath(); cx.arc(px + 6.5, ly, 4.2, 0, Math.PI * 2); cx.fill(); cx.font = `6px ${FONT}`; cx.fillStyle = '#000'; cx.fillText(at.icon, px + 6.5, ly + 0.5); cx.font = `800 8px ${FONT}`; }
         cx.fillStyle = h.lv >= 5 ? '#ffb347' : '#bfeaff';
         cx.fillText(lvT, px + 13 + tw / 2, ly + 0.5);
+        if (h.main) { // 주력: Lv 칩 왼쪽 위에 금별 (한 판에 2명 · Lv5 까지)
+          const sx = px - 1, sy = ly - 7, R = 7;
+          cx.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? R * 0.45 : R, a = -Math.PI / 2 + (k * Math.PI) / 5; cx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r); } cx.closePath();
+          cx.fillStyle = '#ffb347'; cx.fill(); cx.strokeStyle = '#3a1a00'; cx.lineWidth = 1.2; cx.stroke();
+        }
         if (h.guest) { // G 리본
           cx.fillStyle = '#1fb3c9'; cx.beginPath(); cx.arc(px + pw + 1, ly - 6, 5.5, 0, Math.PI * 2); cx.fill(); cx.strokeStyle = '#063a44'; cx.stroke();
           cx.fillStyle = '#fff'; cx.font = `900 7px ${FONT}`; cx.fillText('G', px + pw + 1, ly - 5.5);
