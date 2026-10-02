@@ -1682,7 +1682,7 @@ export function damageBase(g, dmg, e) {
   if (g.pvp) { dmg *= g.pvp.doorMul; g.pvp.hurt += dmg; } // 1:1 서든데스: 입구 받는 피해 단계마다 +20%
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
-  ev(g, 'baseHit', { x: e.x, y: g.ropeY, v: Math.round(dmg), boss: e.boss });
+  ev(g, 'baseHit', { x: e ? e.x : g.W / 2, y: g.ropeY, v: Math.round(dmg), boss: !!(e && e.boss) }); // (던진 진상이 이미 죽었으면 e 가 없다)
   if (g.base.hp <= 0 && !g.sigRevived) { // 홍정민 전용 신화: 한 판에 한 번 붕대로 다시 붙인다
     const jm = g.heroes.find((o) => o.sig && o.sig.revive && !o.gone);
     if (jm) { g.sigRevived = true; g.base.hp = Math.round(g.base.max * jm.sig.revive); ev(g, 'bandage', { x: g.W / 2, y: g.ropeY + 8, v: Math.round(g.base.hp), big: true, hero: jm.id }); ev(g, 'sigFx', { hero: jm.id, x: jm.x, y: jm.y, revive: true }); return; }

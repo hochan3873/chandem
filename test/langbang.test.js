@@ -2592,6 +2592,13 @@ test('송바울 보드: 기본 공격 없음 · 탭한 곳으로 돌진하며 �
   assert.ok(many.filter((e) => e.hp < e.maxHp).length >= 3, '자동 돌진: 몰린 쪽');
 });
 
+test('입구 피해: 던진 진상이 이미 죽어 없어도 (e = null) 멈추지 않는다', () => {
+  const g = S.createGame({ rng: seeded(94), noWaves: true, heroes: ['gunman'] });
+  const hp0 = g.base.hp;
+  S.damageBase(g, 10, null);
+  assert.ok(g.base.hp < hp0 && g.events.some((x) => x.type === 'baseHit'));
+});
+
 test('멀리서 던지는 진상: 노린 멤버가 이미 상태이상이면 입구로 던져 입구 피해', () => {
   const g = S.createGame({ rng: seeded(93), noWaves: true, heroes: ['gunman'] });
   const e = S.spawnEnemy(g, 'snowball', 180, g.ropeY - 200, { hpMul: 1000 });
