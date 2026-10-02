@@ -1080,6 +1080,7 @@ function updateJunyoung(g, j, dt) {
   }
   j.held = held;
   if (hurt > 0) { j.hp -= hurt * (1 - S0.cut); prevented(g, j.by || 'soyoung', hurt); j.hurtT = g.t; }
+  if (held > 0) j.hp -= j.hpMax * S0.tire * dt; // 쓸어 담느라 지친다 (붙잡고 있는 동안 초당 최대 체력의 2%) — 입구가 튼튼해 체력이 커도 결국 퇴근
   // 쓸어 담기: 붙잡은 진상에게 조금씩 피해 (본업은 모으기)
   if ((j.tickT -= dt) <= 0) {
     j.tickT += S0.tick;
@@ -1117,7 +1118,7 @@ function updateNag(g, h, dt, rate) {
   h.lastShotT = g.t; h.recoil = 0.14; h.shots++;
   const k = (h.sig && h.sig.multi ? 2 : 1) * (h.cm.nagX || 1);
   if (j) {
-    const add = j.hpMax * N.heal[lv] * k;
+    const add = j.hpMax * N.heal[lv] * k * (j.hurtT !== undefined && g.t - j.hurtT < 1.5 ? 0.25 : 1); // 맞고 있는 동안엔 잔소리가 잘 안 먹힌다 (25%)
     const v = Math.min(add, j.hpMax - j.hp);
     j.hp += v; h.nagHeal = (h.nagHeal || 0) + v;
     ev(g, 'nag', { hero: h.id, x: h.x, y: h.y, tx: j.px, ty: j.py, heal: v > 0 });
