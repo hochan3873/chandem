@@ -3052,6 +3052,46 @@ body.rm .chm-art, body.rm .mn.cur .mn-dot, body.rm .mn-here { animation: none !i
 .pv-ban span { display: flex; flex-direction: column; }
 .pv-ban b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 17); color: #fff; text-shadow: var(--ol); }
 .pv-ban small { font-size: calc(var(--u) * 11); color: #fff; font-weight: 800; opacity: 0.9; }
+/* 1:1 대전 단계 띠 (과열 · 폭주 · 서든데스) · 띠 아래 단계 표시줄 */
+.pv-ban.ph1 { background: linear-gradient(90deg, #8a4a0e, #e08a1a); box-shadow: 0 0 calc(var(--u) * 18) rgba(255, 160, 40, 0.55); }
+.pv-ban.ph2 { background: linear-gradient(90deg, #5a0e7a, #c0206a); box-shadow: 0 0 calc(var(--u) * 20) rgba(220, 60, 200, 0.55); }
+.pv-ban.ph3 { background: linear-gradient(90deg, #5a0008, #e0101e); box-shadow: 0 0 calc(var(--u) * 24) rgba(255, 30, 50, 0.7); animation: pvBan 0.3s cubic-bezier(0.2, 1.3, 0.4, 1), pulse 0.35s 0.3s 4 alternate; }
+.pv-ban.ph b { font-size: calc(var(--u) * 20); }
+.oppstrip.v2 { padding-bottom: calc(var(--u) * 7); }
+.oppstrip .os-tl { position: absolute; left: calc(var(--u) * 10); right: calc(var(--u) * 10); bottom: calc(var(--u) * 2); height: calc(var(--u) * 3); border-radius: 99px; background: rgba(255, 255, 255, 0.14); }
+.oppstrip .os-tl .f { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: #ffd23f; }
+.oppstrip[data-ph="1"] .os-tl .f { background: #ff9a2e; }
+.oppstrip[data-ph="2"] .os-tl .f { background: #e040a0; }
+.oppstrip[data-ph="3"] .os-tl .f { background: #ff2a3a; animation: pulse 0.5s infinite alternate; }
+.oppstrip .os-tl .m { position: absolute; top: calc(var(--u) * -2); width: calc(var(--u) * 2); height: calc(var(--u) * 7); margin-left: calc(var(--u) * -1); border-radius: 1px; background: rgba(255, 255, 255, 0.45); }
+.oppstrip .os-tl .m.on { background: #fff; }
+.oppstrip em { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.oppstrip em small { font-size: calc(var(--u) * 7.5); font-weight: 900; color: inherit; }
+.oppstrip em.ph1 { color: #ffae4a; } .oppstrip em.ph2 { color: #ff6ad0; } .oppstrip em.ph3 { color: #ff4b5c; }
+/* 오른쪽 위 작은 상대 카드 (누르면 크게) */
+.oppcard { position: absolute; right: calc(var(--u) * 6); top: calc(var(--u) * 102); z-index: 5; width: calc(var(--u) * 62); padding: calc(var(--u) * 3); border-radius: calc(var(--u) * 9); background: rgba(14, 8, 30, 0.72); border: 1.5px solid #000; box-shadow: 0 0 0 1px rgba(255, 90, 110, 0.4) inset; pointer-events: auto; cursor: pointer; display: flex; flex-direction: column; gap: calc(var(--u) * 2); transition: top 0.2s; }
+.oppcard[hidden] { display: none; }
+#bossbar:not([hidden]) ~ .oppcard { top: calc(var(--u) * 128); }
+.oppcard .oc-top { display: flex; align-items: center; gap: calc(var(--u) * 3); }
+.oppcard .oc-top .av { width: calc(var(--u) * 20); height: calc(var(--u) * 20); flex: none; border-radius: 50%; overflow: hidden; border: 1.5px solid #ff6a7a; }
+.oppcard .oc-top .temb { width: calc(var(--u) * 20); height: calc(var(--u) * 20); }
+.oppcard .oc-n { display: flex; flex-direction: column; line-height: 1; min-width: 0; }
+.oppcard .oc-n b { font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 12); color: #fff; text-shadow: var(--ol); }
+.oppcard .oc-n small { font-size: calc(var(--u) * 7.5); color: var(--dim); font-weight: 900; }
+.oppcard .oc-map { display: block; width: 100%; height: calc(var(--u) * 70); border-radius: calc(var(--u) * 5); background: rgba(40, 24, 70, 0.55); }
+.oppcard .oc-hp { height: calc(var(--u) * 4); border-radius: 99px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.oppcard .oc-hp i { display: block; height: 100%; background: #5be37a; transition: width 0.3s; }
+.oppcard.danger .oc-hp i { background: #ff3b4e; }
+.oppcard.danger { box-shadow: 0 0 0 1.5px #ff3b4e inset, 0 0 calc(var(--u) * 10) rgba(255, 40, 60, 0.7); animation: pulse 0.45s infinite alternate; }
+.oppcard .oc-e { font-size: calc(var(--u) * 8.5); font-weight: 900; color: #d8ccef; text-align: center; line-height: 1; }
+.oppcard .oc-e b { color: #fff; font-size: calc(var(--u) * 9.5); }
+.oppcard.flash { box-shadow: 0 0 0 1.5px #5ab8ff inset, 0 0 calc(var(--u) * 12) rgba(60, 160, 255, 0.8); }
+.oppcard .oc-toast { position: absolute; right: calc(100% + var(--u) * 4); top: calc(var(--u) * 26); white-space: nowrap; padding: calc(var(--u) * 3) calc(var(--u) * 8); border-radius: 99px; border: 1.5px solid #000; background: #1a5ad8; color: #fff; font-size: calc(var(--u) * 10.5); font-weight: 900; text-shadow: var(--ol); pointer-events: none; opacity: 0; transform: translateX(calc(var(--u) * 10)); transition: opacity 0.2s, transform 0.2s; }
+.oppcard .oc-toast.on { opacity: 1; transform: none; }
+.oppcard .oc-toast[hidden] { display: none; }
+.opp-view .ov-map { display: block; width: 100%; height: calc(var(--u) * 150); margin: calc(var(--u) * 6) 0 0; border-radius: calc(var(--u) * 8); background: rgba(40, 24, 70, 0.7); }
+.opp-view.peek .ov-map { height: calc(var(--u) * 110); }
+.opp-view .ov-box { max-height: 70%; }
 @keyframes pvBan { from { transform: translateX(-50%) scale(0.6); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
 /* 결과 */
 .pv-res { position: relative; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 6); margin: calc(var(--u) * 6) 0 calc(var(--u) * 10); padding: calc(var(--u) * 10) 0; isolation: isolate; }

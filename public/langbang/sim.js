@@ -11,7 +11,7 @@ import {
   SKILL_AUG, SKILL_AUG_W, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP } from './live.js';
-import { PVP_END, pvpStepN, pvpWaveHp, pvpMatchHp, pvpMeta, pvpStar, pvpCapMap } from './pvp.js';
+import { PVP_END, pvpStepN, pvpWaveHp, pvpMatchHp, pvpMeta, pvpStar, pvpCapMap, PVP_ESC, pvpPhase, pvpSdCount, pvpBunchCount, PVP_DOTS, pvpDot } from './pvp.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const ENEMY_CAP = 140; // 폰 성능: 화면에 동시에 있는 진상 최대 (넘치면 조금 기다렸다 나온다)
@@ -3225,17 +3225,54 @@ function castSkill0(g, h, x, y, echo, fromQ) {
 }
 
 // 1:1 대전: 상대가 보낸 진상 (small = 빠른 진상 5명 · big = 중간 보스)
-export function pvpIncoming(g, kind) {
+//  mul: 과열 · 폭주 · 서든데스 단계의 보내기 배수 (서버가 정해서 보낸다 → 두 사람 똑같이)
+//  화면에 진상이 너무 많으면 (PVP_ESC.cap) 수 대신 체력으로 (느린 폰)
+export function pvpIncoming(g, kind, mul = 1, o = {}) {
+  const k = Math.max(1, Math.min(4, Math.floor(Number(mul) || 1)));
+  const sd = !!(g.pvp && g.pvp.sudden);
+  let alive = 0;
+  for (const e of g.enemies) if (!e.dead) alive++;
+  let n = k;
   if (kind === 'big') {
     const ids = ['mid_drunk', 'mid_thug', 'fuse_kko', 'mid_gao'];
-    const e = spawnEnemy(g, ids[(g.rng() * ids.length) | 0], g.W / 2, -50);
-    e.sent = true;
-    if (g.pvp && g.pvp.sudden) { e.hp *= PVP_END.bigHpSudden; e.maxHp *= PVP_END.bigHpSudden; if (e.shield) e.shield *= PVP_END.bigHpSudden; } // 서든데스 뒤: 중간 보스 체력 ×1.5
+    for (let j = 0; j < k; j++) {
+      const e = spawnEnemy(g, ids[(g.rng() * ids.length) | 0], k > 1 ? 90 + (j * 180) / (k - 1) : g.W / 2, -50 - j * 36);
+      e.sent = true;
+      if (sd) { e.hp *= PVP_END.bigHpSudden; e.maxHp *= PVP_END.bigHpSudden; if (e.shield) e.shield *= PVP_END.bigHpSudden; } // 서든데스 뒤: 중간 보스 체력 ×1.5
+    }
   } else {
-    const n = g.pvp && g.pvp.sudden ? PVP_END.sendSmallSudden : PVP_END.sendSmall; // 서든데스 뒤: 5 → 8명
-    for (let i = 0; i < n; i++) { const e = spawnEnemy(g, i % 2 ? 'drunk_run' : 'mukti', 40 + (i % 5) * 70 + (i >= 5 ? 35 : 0), -30 - i * 12); e.sent = true; }
+    n = (sd ? PVP_END.sendSmallSudden : PVP_END.sendSmall) * k; // 서든데스 뒤: 5 → 8명 (× 단계 배수)
+    const room = Math.min(n, Math.max(4, PVP_ESC.cap - alive));
+    const hpX = n / room;
+    for (let i = 0; i < room; i++) {
+      const e = spawnEnemy(g, i % 2 ? 'drunk_run' : 'mukti', 40 + (i % 5) * 70 + ((i / 5) & 1 ? 35 : 0), -30 - i * 12);
+      e.sent = true;
+      if (hpX > 1) { e.hp *= hpX; e.maxHp *= hpX; }
+    }
   }
-  ev(g, 'incoming', { kind, n: kind === 'big' ? 1 : g.pvp && g.pvp.sudden ? PVP_END.sendSmallSudden : PVP_END.sendSmall });
+  ev(g, 'incoming', { kind, n, auto: !!o.auto, sched: !!o.sched });
+}
+// 폭주 보스 묶음: 웨이브 보스 2~3명을 한꺼번에 (체력은 PVP_ESC.bunchHp) — 보스 고르기는 판 시드로 (두 사람 같은 보스)
+const PVP_BOSSES = ['boss_loan', 'boss_thug', 'boss_gapjil', 'queen'];
+function pvpBunch(g, cnt, i) {
+  for (let j = 0; j < cnt; j++) {
+    const id = PVP_BOSSES[((g.pvp.seed >>> 0) + i * 3 + j) % PVP_BOSSES.length];
+    const e = spawnEnemy(g, id, cnt > 1 ? 70 + (j * 220) / (cnt - 1) : g.W / 2, -60 - j * 40);
+    e.hp *= PVP_ESC.bunchHp; e.maxHp *= PVP_ESC.bunchHp; if (e.shield) e.shield *= PVP_ESC.bunchHp;
+    e.sent = true; e.bunch = true;
+    ev(g, 'bossSpawn', { enemy: id, x: e.x, y: e.y, bunch: true });
+  }
+  ev(g, 'pvpBunch', { n: cnt });
+}
+// 상대 미니 화면용 점 (보스 → 중간 보스 → 입구에 가까운 순 · 최대 PVP_DOTS 개) — 화면 표시용만
+export function pvpView(g) {
+  const top = Math.max(1, g.ropeY || g.H || 1), W = g.W || 360;
+  const list = [];
+  for (const e of g.enemies) if (!e.dead && e.y > -24) list.push(e);
+  list.sort((a, b) => (b.boss | 0) - (a.boss | 0) || (b.mid | 0) - (a.mid | 0) || b.y - a.y);
+  const out = [];
+  for (let i = 0; i < list.length && i < PVP_DOTS; i++) { const e = list[i]; out.push(pvpDot(Math.round((e.x / W) * 63), Math.round((Math.max(0, e.y) / top) * 63), e.boss ? 2 : e.mid ? 1 : e.sent ? 3 : 0)); }
+  return out;
 }
 // 1:1 대전 끝내기 타임라인 — 150초부터 15초마다 서든데스 단계 (진상 체력 · 속도 +15% · 입구 피해 +20% · 회복 절반)
 //  240초부터 입구가 초당 1% 씩 · 300초면 멈추고 판정 (판정은 서버가 — 화면은 기다린다)
@@ -3258,8 +3295,17 @@ function pvpStep(g, dt) {
     g.mods.enemyHp *= k; g.mods.enemySpd *= ks;
     for (const e of g.enemies) if (!e.dead) { e.hp *= k; e.maxHp *= k; if (e.shield) e.shield *= k; e.speed *= ks; }
     const first = !P.sudden;
-    P.n = n; P.sudden = n > 0; P.doorMul = 1 + PVP_END.doorStep * n;
+    P.n = n; P.sudden = n > 0;
     ev(g, first ? 'sudden' : 'suddenUp', { n });
+  }
+  // 늘어지는 판 막기 단계 (과열 → 폭주 → 서든데스) · 다시 들어온 판은 지난 묶음 · 웨이브를 한꺼번에 쏟지 않는다
+  const ph = pvpPhase(t);
+  if (P.bunchI === undefined) { P.bunchI = pvpBunchCount(t); P.sdI = pvpSdCount(t); P.phase = 0; }
+  if (ph !== P.phase) { const from = P.phase; P.phase = ph; ev(g, 'pvpPhase', { p: ph, from }); }
+  P.doorMul = (1 + PVP_END.doorStep * P.n) * (ph >= 3 ? PVP_ESC.sdDoor : 1);
+  if (!g.over) {
+    while (P.bunchI < pvpBunchCount(t)) { const i = P.bunchI++; pvpBunch(g, PVP_ESC.bunch[i][1], i); }
+    while (P.sdI < pvpSdCount(t)) { P.sdI++; for (let k = 0; k < PVP_ESC.sdPacks; k++) pvpIncoming(g, 'small', 1, { sched: true }); for (let k = 0; k < PVP_ESC.sdMid; k++) pvpIncoming(g, 'big', 1, { sched: true }); ev(g, 'pvpWave', { i: P.sdI }); }
   }
   if (t >= PVP_END.drainAt && !g.over) {
     const from = Math.max(PVP_END.drainAt, P.drainT === undefined ? PVP_END.drainAt : P.drainT);
