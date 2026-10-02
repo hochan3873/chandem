@@ -380,6 +380,18 @@ export class Renderer {
         const img = new Image(); img.decoding = 'async'; img.src = cur[kd].src; this.images[key] = img;
       }
     }
+    // 각성 · 합체 진상은 일반 진상 그림을 빌려 쓴다 → 걷기 · 쓰러짐 · 공격 띠도 같이 빌린다 (예전엔 각성 꼰대만 미끄러지듯 움직였다)
+    for (const [id, def] of Object.entries(ENEMIES)) {
+      const m = /\/e_([a-z0-9_]+)\.webp$/.exec(def.img || '');
+      const base = m && m[1];
+      if (!base || base === id || !ENEMY_ANIM[base]) continue;
+      const cur = ENEMY_ANIM[id] || (ENEMY_ANIM[id] = {});
+      for (const kd of ['walk', 'die', 'attack']) {
+        if (cur[kd] || !ENEMY_ANIM[base][kd] || !this.images[`anim_${base}_${kd}`]) continue;
+        cur[kd] = ENEMY_ANIM[base][kd];
+        this.images[`anim_${id}_${kd}`] = this.images[`anim_${base}_${kd}`];
+      }
+    }
   }
 
   // mode: 'raid' | 'pvp' 면 전용 맵(map_<mode>.webp)이 있을 때 그걸로 · 없으면 t 테마 그대로

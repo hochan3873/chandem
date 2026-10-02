@@ -378,7 +378,7 @@ async function startRun(opt = {}) {
   // 2배속: 이미 깬 스테이지만
   app.runSpeed = mode === 'stage' && app.speed2 && (p.stages[st] | 0) > 0 ? 2 : 1;
   const unlocked = DEBUG.hidden ? LOCKED_HEROES.slice() : p.unlocked || [];
-  if (hell) R.maxDpr = Math.min(R.maxDpr || 2, 1.5); // 헬 모드: 처음부터 해상도 조금 낮게 (진상이 많아서)
+  R.maxDpr = R.baseDpr = hell ? 1.75 : 2; // 판마다 새로 (지난 판에 낮춘 화질이 남지 않게) · 헬은 진상이 많아 조금 낮게 시작
   layoutForNewRun();
   const deck = tw ? [null, null, tw.hero, null, null, null] : curDeck();
   const g = S.createGame({
@@ -1422,8 +1422,15 @@ function frame(now) {
   if (perf.frames >= 60) {
     perf.work = perf.workSum / perf.frames;
     perf.frame = perf.frameSum / perf.frames;
-    // 자동 화질: 게임 중 1초 평균 프레임이 20ms 넘게 2번 연속이면 캔버스 해상도를 한 단계 낮춘다 (2 → 1.6 → 1.3)
-    if (live && perf.frame > 16.7) { perf.slow = (perf.slow || 0) + 1; if (perf.slow >= 2 && (R.maxDpr || 2) > 1.1) { const d0 = R.maxDpr || 2; R.maxDpr = d0 > 1.6 ? 1.6 : d0 > 1.3 ? 1.3 : 1.1; perf.slow = 0; layout(); } } else perf.slow = 0; // 16.7ms(60fps) 넘으면 한 단계씩: 2 → 1.6 → 1.3 → 1.1
+    // 자동 화질: 프레임 간격이 아니라 "한 프레임 일하는 시간"으로 판단한다
+    //  (절전 모드 · 30Hz 화면은 간격이 33ms 라도 일은 가볍다 → 예전엔 이걸 느린 폰으로 보고 1.1까지 내려 캐릭터가 흐릿해졌다)
+    //  일이 3초 연속 11ms 넘으면 한 단계 낮추고 (2 → 1.75 → 1.5, 아주 무거우면 1.3) · 5초 연속 6ms 아래면 다시 올린다
+    if (live) {
+      const d0 = R.maxDpr || 2, floor = perf.work > 20 ? 1.3 : 1.5;
+      if (perf.work > 11) { perf.slow = (perf.slow || 0) + 1; perf.fast = 0; if (perf.slow >= 3 && d0 > floor) { R.maxDpr = Math.max(floor, d0 > 1.75 ? 1.75 : 1.5); perf.slow = 0; layout(); } }
+      else if (perf.work < 6) { perf.fast = (perf.fast || 0) + 1; perf.slow = 0; if (perf.fast >= 5 && d0 < (R.baseDpr || 2)) { R.maxDpr = Math.min(R.baseDpr || 2, d0 + 0.25); perf.fast = 0; layout(); } }
+      else { perf.slow = 0; perf.fast = 0; }
+    }
     perf.window.push({ work: +perf.work.toFixed(2), frame: +perf.frame.toFixed(2), max: +perf.maxWork.toFixed(2), enemies: g ? g.enemies.length : 0, projs: g ? g.projs.length : 0, parts: fx.parts.items.length });
     if (perf.window.length > 30) perf.window.shift();
     perf.frames = 0; perf.workSum = 0; perf.frameSum = 0; perf.maxWork = 0;
