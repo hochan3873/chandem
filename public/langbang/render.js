@@ -1588,10 +1588,10 @@ export class Renderer {
         cx.drawImage(gl.c, -r, -r, r * 2, r * 2);
         cx.globalAlpha = 1;
       }
-      if (e.cLay > 0) { // 스테이지 조건 '보호막 진상': 남은 겹 수만큼 고리 (한 방에 한 겹)
-        this.tf(e.x, e.y - box * 0.12, 0, 1, 1);
-        cx.strokeStyle = '#9feaff'; cx.lineWidth = 2; cx.globalAlpha = 0.6;
-        for (let k = 0; k < e.cLay; k++) { cx.beginPath(); cx.arc(0, 0, box * (0.48 + k * 0.09), 0, TAU); cx.stroke(); }
+      if (e.cLay > 0) { // 스테이지 조건 '보호막 진상': 발밑에 옅은 고리 하나만 (겹 수는 머리 위 방패 그림 숫자로)
+        this.tf(e.x, feet - 1, 0, 1, 0.35);
+        cx.strokeStyle = '#9feaff'; cx.lineWidth = 2.5; cx.globalAlpha = 0.5;
+        cx.beginPath(); cx.arc(0, 0, box * 0.32, 0, TAU); cx.stroke();
         cx.globalAlpha = 1;
       }
       if (e.cArmor) { // '철갑 진상': 발밑 강철 판
@@ -1677,6 +1677,12 @@ export class Renderer {
         const keys = Object.keys(e.def.traits).filter((k) => TRAITS[k]);
         keys.forEach((k, i) => { const x0 = e.x + box * 0.3 + i * 13, y0 = top - 4; cx.fillStyle = 'rgba(10,6,24,0.8)'; cx.beginPath(); cx.arc(x0, y0, 6.5, 0, TAU); cx.fill(); cx.font = `8px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(TRAITS[k].icon, x0, y0 + 0.5); });
         if (e.pShield > 0) { cx.font = `900 8px ${FONT}`; cx.fillStyle = '#9feaff'; cx.fillText('' + e.pShield, e.x - box * 0.3, top - 4); }
+      }
+      if (e.cLay > 0) { // 보호막 겹: 머리 위 왼쪽 작은 방패 + 남은 겹 수
+        this.world(); const im = this.images.ui2_shield, x0 = e.x - box * 0.3, y0 = top - 6;
+        if (imgOk(im)) cx.drawImage(im, x0 - 7, y0 - 7, 14, 14);
+        cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = '#e6faff'; cx.strokeStyle = '#06202c'; cx.lineWidth = 2.5;
+        cx.strokeText('' + e.cLay, x0 + 7, y0 + 4); cx.fillText('' + e.cLay, x0 + 7, y0 + 4);
       }
       if (e.brkT > 0) { this.world(); const im = this.images.ui2_shield, sx0 = e.x + e.def.size * 0.42, sy0 = e.y - e.def.size * 1.02; if (imgOk(im)) { cx.drawImage(im, sx0 - 9, sy0 - 9, 18, 18); } cx.strokeStyle = '#ff2a4a'; cx.lineWidth = 2.2; cx.beginPath(); cx.moveTo(sx0 - 1, sy0 - 8); cx.lineTo(sx0 + 3, sy0 - 2); cx.lineTo(sx0 - 2, sy0 + 2); cx.lineTo(sx0 + 2, sy0 + 8); cx.stroke(); } // 쌍뻑큐 방깎: 금 간 방패
       if (e.shredN > 0 && e.shredT > 0) { this.world(); cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.fillStyle = '#ff5a7a'; cx.strokeStyle = '#000'; cx.lineWidth = 2.5; const tx = `방깎×${e.shredN}`; cx.strokeText(tx, e.x, feet + 8); cx.fillText(tx, e.x, feet + 8); }
