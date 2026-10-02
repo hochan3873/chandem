@@ -3895,3 +3895,36 @@ body.rm .gico.sig::before, body.rm .idx-grid .dexc2.idx.r-sig { animation: none;
 .gacha-res.v3 .gr-zoom .grz-plate.sig em { display: block; font-style: normal; font-family: var(--heavy); font-size: calc(var(--u) * 30); color: #ff8ae6; text-shadow: var(--ol); animation: grzIn 0.9s ease-out both; }
 .gacha-res.v3 .gcard.sig { filter: drop-shadow(0 0 calc(var(--u) * 10) rgba(255, 79, 216, 0.9)); }
 body.rm .gacha-res.v3 .gr-zoom .grz-sig { animation: none; }
+
+/* ─── 도감 등급: 카드 테두리 · 등급 칩 · 묶음 제목 (game.js GRADE 표와 같은 색) ───
+   회색 < 초록 < 파랑 < 보라 < 금색 · 특별 등급: HIDDEN·전용 신화 = 분홍 · 신화 = 무지개 · 보스 = 빨강 · 중간 보스 = 주황 */
+i.grd { display: inline-block; font-style: normal; font-weight: 900; font-size: calc(var(--u) * 9); line-height: 1.3; padding: calc(var(--u) * 1) calc(var(--u) * 6); border-radius: 99px; background: var(--g); color: #10081e; border: 1.5px solid rgba(0, 0, 0, 0.85); white-space: nowrap; letter-spacing: 0; }
+i.grd.g-t5, i.grd.g-legend { background: linear-gradient(90deg, #ffd23f, #ff8a00); color: #2a1200; }
+i.grd.g-myth { background: linear-gradient(90deg, #ff9aa6, #ffd38a, #a8ffbe, #8fe0ff, #d6b0ff); color: #1a0630; }
+i.grd.g-sig, i.grd.g-hidden { background: linear-gradient(90deg, #ff4fd8, #a06bff); color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
+i.grd.g-boss { color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); } i.grd.g-mid { color: #2a1000; }
+i.grd.g-unk { background: #241b38; color: #b8a8d8; border-color: #4a3f60; }
+.dexc2 .grd.dx-g { position: absolute; top: calc(var(--u) * 3); left: calc(var(--u) * 3); z-index: 3; font-size: calc(var(--u) * 7.5); padding: calc(var(--u) * 0.5) calc(var(--u) * 4); }
+.dexc2 .dx-role { top: calc(var(--u) * 18); left: calc(var(--u) * 3); }
+.dexc2 .dx-sig { top: calc(var(--u) * 32); left: calc(var(--u) * 3); }
+.gc-badges .grd { font-size: calc(var(--u) * 10); padding: calc(var(--u) * 2) calc(var(--u) * 8); }
+/* 카드 테두리 = 등급 색 · 못 얻은 카드도 점선으로 등급 색이 보인다 */
+.dexc2.gr, .idx-grid .dexc2.idx.gr { border-color: var(--g); }
+.dexc2.gr.g-t5, .idx-grid .dexc2.idx.gr.g-legend { box-shadow: 0 0 calc(var(--u) * 10) rgba(255, 200, 60, 0.6), 0 calc(var(--u) * 3) 0 #0a0614; }
+.dexc2.gr.g-hidden, .idx-grid .dexc2.idx.gr.g-sig { box-shadow: 0 0 calc(var(--u) * 10) rgba(255, 79, 216, 0.55), 0 calc(var(--u) * 3) 0 #0a0614; }
+.dexc2.gr.g-boss { box-shadow: 0 0 calc(var(--u) * 10) rgba(255, 90, 90, 0.5), 0 calc(var(--u) * 3) 0 #0a0614; }
+.dexc2.gr.lock, .idx-grid .dexc2.idx.gr.lock { border-color: color-mix(in srgb, var(--g) 62%, #0e0a1a); box-shadow: none; }
+.idx-grid .dexc2.idx.gr.g-unk { border-color: #4a3f60; }
+.idx-grid .dexc2.idx.gr.g-myth { border-style: solid; border-color: transparent; }
+.idx-grid .dexc2.idx.gr.g-myth.lock { background: linear-gradient(#0e0a1a, #0e0a1a) padding-box, conic-gradient(#ff5f6d, #ffc371, #7bff9a, #5fd4ff, #b77bff, #ff5f6d) border-box; }
+.idx-grid .dexc2.idx.gr.g-myth.lock::after { content: ''; position: absolute; inset: 0; background: rgba(14, 10, 26, 0.35); pointer-events: none; }
+.dexc2.lock .grd.dx-g { opacity: 0.8; }
+/* 묶음 제목: [등급] N명 ──────── 모은 수 */
+.dex-sec { display: flex; align-items: center; gap: calc(var(--u) * 6); margin: calc(var(--u) * 14) 0 calc(var(--u) * 7); padding: 0 calc(var(--u) * 2); font-size: calc(var(--u) * 12); }
+.dex-sec::after { content: ''; order: 2; flex: 1; min-width: calc(var(--u) * 10); height: calc(var(--u) * 2); border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--g) 75%, transparent), transparent); }
+.dex-sec .grd { font-size: calc(var(--u) * 11); padding: calc(var(--u) * 1.5) calc(var(--u) * 9); }
+.dex-sec small { font-size: calc(var(--u) * 11); font-weight: 800; color: #e8e0ff; white-space: nowrap; }
+.dex-sec em { order: 3; font-style: normal; font-size: calc(var(--u) * 10); font-weight: 800; color: var(--dim); white-space: nowrap; }
+.tipbar + .dex-sec { margin-top: calc(var(--u) * 6); }
+.dex-grid.v2.dex-g { padding-bottom: calc(var(--u) * 4); }
+.dex-grid.v2.dex-g:last-child { padding-bottom: calc(var(--u) * 20); }
