@@ -10,6 +10,10 @@
 //   node scripts/lb-balance.js attr [--notypes] [--meta=-2]   한 속성 덱의 장별 클리어율 (상성 켬/끔)
 //   node scripts/lb-balance.js diag --list=56 --deck=a|b|id+id   한 판씩 자세히 (조건 · 미션 숫자 · 팀 기여)
 //   node scripts/lb-balance.js stagecalib --list=41 · condcalib · custom --decks=a+b|c+d   맞춤 · 아무 덱
+//   node scripts/lb-balance.js stagecalib --list=1,2,...,80 [--seeds=16 --range=4]   기준 플레이어 첫 도전 클리어율이 목표가 되게 stageAdd 이분 탐색 (1~8장 · 테스트 가드레일 안에서)
+//        기준 플레이어 = 사람처럼 (스킬 1.5초 늦게 · 카드 40% 아무거나) · 강화 장 권장+2 · 주력 ★ · 도감 보너스 (--pro : 예전 완벽한 봇 · --bare : ★ · 도감 빼기)
+//   node scripts/lb-balance.js room   스테이지마다 가드레일(첫 웨이브 · 최고 레벨 · 체력 배율)까지 남은 난이도
+//   node scripts/lb-balance.js stagemeas --list=1,...,80 [--hell] [--seedoff=K] [--quiet]   측정만 · 장 평균 vs 목표
 //   node scripts/lb-balance.js wtrait --list=8,15,25 [--seeds=4] [--traits=near,swarm]   주간 진상 특성마다 균형 덱 클리어율 · 입구 (특성 없음과 비교)
 //   node scripts/lb-par.js deck --ch=2,3,4,5,6 ...   장마다 따로 띄워 병렬로
 const path = require('path');
@@ -44,7 +48,10 @@ function seeded(seed = 1) {
 
   // 카드 자동 선택: 사람이 고를 법한 단순한 우선순위 + 약간의 무작위
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
-  const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || 'smart';
+  // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
+  //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
+  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait'].includes(what) && !args.includes('--pro');
+  const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
   function pickCard(g, cards, rng) {
     if (POLICY === 'random' || (POLICY === 'mid' && rng() < 0.4)) return (rng() * cards.length) | 0;
@@ -76,7 +83,7 @@ function seeded(seed = 1) {
 
   // 스킬 자동 사용 (--skills=1): 준비되면 바로. 찍는 스킬은 진상이 가장 몰린 곳에
   const SKILLS = opt('skills', 0) > 0;
-  const SKILL_EVERY = opt('skillevery', 6);
+  const SKILL_EVERY = opt('skillevery', REF_HUMAN ? 90 : 6);
   const PICK_DELAY = opt('pickdelay', 2); // 스킬 확인 간격(스텝): 90 이면 보통 사람처럼 1.5초쯤 늦게
   function densest(g, r) {
     let best = null, bn = 0;
@@ -117,7 +124,7 @@ function seeded(seed = 1) {
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
-      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG, noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR,
+      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG, noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR, stars: o.stars, coll: o.coll,
     });
     g.partner = o.partner;
     if (o.noTypes) g.noTypes = true;
@@ -595,7 +602,15 @@ function seeded(seed = 1) {
     5: [6, ['ara', 'donghan', 'youngjun', 'hanna', 'gunman', 'jiwon'], ['ara', 'donghan', 'youngjun', 'hanna', 'gunnyeo', 'wonsik']],
     6: [6, ['ara', 'donghan', 'youngjun', 'hanna', 'gunman', 'jiwon'], ['ara', 'donghan', 'youngjun', 'hanna', 'dohoon', 'wonsik']],
   };
-  const REC = [4, 7, 10, 12, 14, 16, 18];
+  const REC = [4, 7, 10, 12, 14, 16, 18, 20];
+  // 기준 플레이어 (그 장을 처음 도전하는 보통 사람) — stagecalib · wtrait 기준
+  //  강화 = 장 권장 + REF_PLUS (권장 넘는 만큼은 절반만 들어가서 실제로는 권장 +1) · 예전 +6 은 권장보다 6 단계 더 키우고 첫 도전하는 셈이라 너무 셌다
+  //  ★ · 도감 수집 보너스가 생겨서 기준에도 넣는다 (덱 앞 두 명 = 주력 ★, 나머지는 한 단계 아래) · --bare : 예전처럼 ★ · 도감 없이
+  const REF_PLUS = 2;
+  const REF_STAR = [1, 1, 1, 2, 2, 2, 2, 3];
+  const REF_COLL = [[0.01, 0.01, 0.01], [0.01, 0.01, 0.01], [0.02, 0.02, 0.02], [0.02, 0.03, 0.02], [0.03, 0.03, 0.03], [0.03, 0.04, 0.03], [0.04, 0.05, 0.04], [0.04, 0.05, 0.04]]; // 공격 · 입구 · 경험치
+  const BARE = args.includes('--bare');
+  const refOf = (s, ids) => { if (BARE) return {}; const c = D.chapterOf(s), st = REF_STAR[c - 1], [atk, hp, exp] = REF_COLL[c - 1]; return { stars: Object.fromEntries(ids.map((id, i) => [id, i < 2 ? st : Math.max(1, st - 1)])), coll: { atk, hp, exp } }; };
   const listArg = (k, d) => ((process.argv.find((x) => x.startsWith(`--${k}=`)) || '').slice(k.length + 3) || d).split(',').filter(Boolean);
   const MISDUMP = args.includes('--misdump') ? {} : null; // 미션 숫자 분포 (이긴 판) — 미션 기준값 맞출 때
   function deckRun(ids, s, meta, N, hell, extra = {}) {
@@ -603,7 +618,7 @@ function seeded(seed = 1) {
     const share = {};
     const contrib = { repair: 0, prevent: 0, buff: 0 };
     for (let i = 1; i <= N; i++) {
-      const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...extra });
+      const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...refOf(s, ids), ...extra });
       if (r.win) { w++; hp += r.hp; if (r.stars >= 3) st3++; if (!r.g.baseHit) pf++; if (r.g.mission && r.g.mission.ok) mis++; }
       if (r.win && r.g.mission && MISDUMP) { const m = r.g.mission, cs = r.g.cstat; const v = m.stat === 'found' ? (cs.hidden ? cs.found / cs.hidden : 1) : m.stat === 'combo' ? r.g.stats.maxCombo : cs[m.stat]; const key = `${D.chapterOf(s)}장 ${m.id}${extra.tag || ''}`; (MISDUMP[key] || (MISDUMP[key] = [])).push(v); }
       const tc = r.g.stats.team || {};
@@ -735,22 +750,63 @@ function seeded(seed = 1) {
   // ── 14) 스테이지별 맞춤 (node scripts/lb-balance.js stagecalib --list=41,42 [--seeds=8]) — 균형 덱(조건 맞춤)이 목표 클리어율이 되게 stageAdd 이분 탐색
   //  목표: 장 목표 + 장 앞쪽은 쉽게 (n=1 +7 … n=10 −6) · 출력 JSON 을 data.js STAGE.stageAdd 에 넣는다
   function stagecalib() {
-    const N = opt('seeds', 8), IT = opt('iters', 5), RG = opt('range', 5), plus = opt('meta', 6);
-    const TGC = { 1: 92, 2: 88, 3: 80, 4: 72, 5: 65, 6: 58 };
+    const N = opt('seeds', 8), IT = opt('iters', 5), RG = opt('range', 5);
     const out = {};
     for (const s of listArg('list', '51').map(Number)) {
-      const c = D.chapterOf(s), n = D.stageNo(s);
-      const target = TGC[c] + (5.5 - n) * 1.4 - (n === 10 ? 3 : 0);
+      const target = stageTarget(s);
       const base = D.STAGE.stageAdd[s] || 0;
-      const ids = balFor(c, s, false), meta = Object.fromEntries(ids.map((id) => [id, REC[c - 1] + plus]));
-      const rate = (add) => { D.STAGE.stageAdd[s] = base + add; return deckRun(ids, s, meta, N, false).w * 100; };
+      const rate = (add) => { D.STAGE.stageAdd[s] = base + add; return refRun(s, N, false) * 100; };
       const r0 = rate(0);
-      let lo = -RG, hi = RG, best = 0, err = Math.abs(r0 - target);
-      if (err > 100 / N) for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2, r = rate(mid); if (Math.abs(r - target) < err) { err = Math.abs(r - target); best = mid; } if (r > target) lo = mid; else hi = mid; }
+      let lo = opt('lo', -RG), hi = opt('hi', RG), best = 0, err = Math.abs(r0 - target);
+      hi = Math.min(hi, levelRoom(s)); // 가드레일 넘게 올리지 않기 (넘으면 그만큼 내림)
+      if (r0 > target) lo = Math.max(lo, Math.min(0, hi)); else hi = Math.min(hi, 0);
+      if (hi < 0 && lo > hi) lo = hi;
+      if (err > 100 / N) for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2, r = rate(mid); if (Math.abs(r - target) < err || (Math.abs(r - target) === err && Math.abs(mid) < Math.abs(best))) { err = Math.abs(r - target); best = mid; } if (r > target) lo = mid; else hi = mid; }
+      best = Math.min(best, hi);
       D.STAGE.stageAdd[s] = base + best; out[s] = +(base + best).toFixed(2);
       console.log(`${D.stageLabel(s)} 목표 ${target.toFixed(0)}% · 처음 ${r0.toFixed(0)}% → 가산 ${out[s]} (원래 ${base} · 오차 ${err.toFixed(0)})`);
     }
     console.log('stageAdd: ' + JSON.stringify(out));
+  }
+  // 스테이지 목표 첫 도전 클리어율: 1~6장 = 장 목표 + 장 앞쪽은 쉽게 (n=1 +6 … n=10 −6 · 보스 −3) · 7 · 8장은 표 (8장이 7장보다 조금씩 낮게)
+  const TGC = { 1: 92, 2: 88, 3: 80, 4: 72, 5: 65, 6: 58 };
+  const TG78 = { 61: 72, 62: 68, 63: 64, 64: 62, 65: 55, 66: 60, 67: 58, 68: 56, 69: 54, 70: 46, 71: 70, 72: 66, 73: 62, 74: 60, 75: 52, 76: 58, 77: 56, 78: 54, 79: 52, 80: 44 };
+  function stageTarget(s) { const c = D.chapterOf(s), n = D.stageNo(s); return c >= 7 ? TG78[s] : TGC[c] + (5.5 - n) * 1.4 - (n === 10 ? 3 : 0); }
+  // 기준 플레이어 한 판 묶음 클리어율 (1~6장: 균형 덱 · 강화 권장+REF_PLUS / 7 · 8장: T3·T4 역할 덱 강화 15 · 아이템 넉넉히) — 둘 다 ★ · 도감 기준 포함
+  const C78 = ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], ITEMS78 = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
+  function refRun(s, N, hell, plus = opt('meta', REF_PLUS)) {
+    const c = D.chapterOf(s);
+    if (c <= 6) { const ids = balFor(c, s, hell); return deckRun(ids, s, Object.fromEntries(ids.map((id) => [id, REC[c - 1] + plus])), N, hell).w; }
+    const meta = Object.fromEntries(C78.map((id) => [id, 15 + opt('meta78', 0)]));
+    let w = 0;
+    for (let i = 1; i <= N; i++) if (play({ stage: s, deck: placeDeck(C78), partner: C78[0], leader: C78[0], meta, gear: gearAt(s, C78), items: ITEMS78, seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...refOf(s, C78) }).win) w++;
+    return w / N;
+  }
+  // 난이도 여유: test/langbang.test.js 의 가드레일(첫 웨이브 · 웨이브 최고 레벨 · 체력 배율)까지 stageAdd 를 얼마나 더 올릴 수 있나 (−면 넘음)
+  function levelRoom(s) {
+    const lo = s <= 30, capHp = lo ? 36 : 68, Lc = 1 + (-0.2 + Math.sqrt(0.04 + 0.12 * (capHp - 1))) / 0.06 - 0.05;
+    let room = 99;
+    for (let w = 1; w <= D.STAGE_WAVES; w++) {
+      const L = D.stageWave(s, w).level;
+      if (w === 1) room = Math.min(room, (lo ? 18.5 : 27.5) - 0.05 - L);
+      room = Math.min(room, (lo ? 31.5 : 43) - 0.05 - L, Lc - L);
+    }
+    return room;
+  }
+  if (what === 'room') { for (let c = 1; c <= 8; c++) { const r = []; for (let n = 1; n <= 10; n++) r.push(levelRoom((c - 1) * 10 + n).toFixed(1)); console.log(c + '장 여유 ' + r.join(' ')); } }
+  // 측정만 (node scripts/lb-balance.js stagemeas --list=1,2,... [--seeds=N] [--hell] [--seedoff=K]) — 스테이지별 · 장 평균 (목표와 비교)
+  function stagemeas() {
+    const N = opt('seeds', 8), hell = args.includes('--hell'), byCh = {};
+    for (const kv of listArg('chadd', '')) { const [c, v] = kv.split(':').map(Number); D.STAGE.chapterAdd[c - 1] += v; } // --chadd=5:2 : 장 난이도를 바꿔 보며 측정
+    for (const kv of listArg('sadd', '')) { const [st, v] = kv.split(':').map(Number); D.STAGE.stageAdd[st] = v; } // --sadd=30:-1.2 : 스테이지 가산을 바꿔 보며 측정
+    for (const kv of listArg('hellch', '')) { const [c, v] = kv.split(':').map(Number); D.TEMPO.hellCh[c - 1] *= v; } // --hellch=1:0.7 : 헬 장별 체력 배율을 곱해 보며 측정
+    const cells = [];
+    for (const s of listArg('list', '1,5,10').map(Number)) {
+      const r = refRun(s, N, hell) * 100, c = D.chapterOf(s), b = byCh[c] || (byCh[c] = [0, 0, 0]);
+      b[0] += r; b[1] += stageTarget(s); b[2]++; cells.push(`${D.stageLabel(s)} ${Math.round(r)}/${Math.round(stageTarget(s))}`);
+    }
+    if (!args.includes('--quiet')) console.log(cells.join(' '));
+    console.log(Object.entries(byCh).map(([c, b]) => `${c}장 ${Math.round(b[0] / b[2])}%(목표 ${Math.round(b[1] / b[2])})`).join(' · '));
   }
   // ── 15) 아무 덱이나 (node scripts/lb-balance.js custom --list=61,62 --decks=donghan+ara+...|... [--m=15] [--lm=20] [--seeds=N] [--hell])
   //  덱마다 클리어율 · 피해 몫 (lm: LEGEND 강화 · 7장처럼 아이템 넉넉히)
@@ -915,7 +971,7 @@ function seeded(seed = 1) {
   if (what === 'condcalib') condcalib();
   // ── 17) 주간 진상 특성 (node scripts/lb-balance.js wtrait --list=8,15,25 --seeds=4) — 특성마다 난이도가 비슷한지 (특성 없음과 비교)
   function wtrait() {
-    const N = opt('seeds', 4), plus = opt('meta', 6), list = listArg('list', '8,15,25').map(Number);
+    const N = opt('seeds', 4), plus = opt('meta', REF_PLUS), list = listArg('list', '8,15,25').map(Number);
     const ts = ['', ...(listArg('traits', '').length ? listArg('traits', '') : D.WEEK_TRAITS.map((t) => t.id))];
     for (const t of ts) {
       WTR = t || undefined;
@@ -926,6 +982,7 @@ function seeded(seed = 1) {
   }
   if (what === 'wtrait') wtrait();
   if (what === 'stagecalib') stagecalib();
+  if (what === 'stagemeas') stagemeas();
   if (what === 'custom') custom();
   if (what === 'deck') deck();
   if (what === 'attr') attrDecks();

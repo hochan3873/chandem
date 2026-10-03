@@ -105,7 +105,7 @@ export const ATTACK_RELEASE = { subin: 3, soyoung: 3, baul: 3, eunok: 3, jieun: 
 export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', 'bike'], ['hyungyeong', 'slim'], ['ara', 'old'], ['jieun', 'demon'], ['eunok', 'rage'], ['youngjun', 'dash']].map(([id, f]) => [id, { form: f, src: `/img/lb/h_${id}_${f}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id + '_' + f] || 4 }]));
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
   'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon', 'subin'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.65, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.0, 0.7, 0.6, 0.5, 0.46, 0.35], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.65, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -299,7 +299,7 @@ export function starsFor(hpFrac, mission = true) { return hpFrac >= 0.7 ? (missi
 // 난이도 숫자 (밸런스 스크립트 scripts/lb-balance.js 로 맞춘 값)
 export const STAGE = {
   levelPerStage: 0.55, levelPow: 0.8, wavePerStage: 0.08,
-  chapterAdd: [0, 0.8, -0.3, 0.1, 0.2, 0.8], // (주력 · 큰 카드 개편: 레벨업이 줄어든 만큼 3~6장 −0.3/−0.5/−1/−1) · 2챕터부터 동료가 2명이라 그만큼 더 단단하게 (첫 웨이브 난이도 = 1 + 1.1 × (s-1)^0.8 + 챕터 보정)
+  chapterAdd: [2, 2.8, 0.2, 1.6, 1.7, 1.4], // (10/03 재보정: 기준 플레이어를 사람처럼 바꾸고 다시 맞춤 — 도감 · ★ · 카드 개편으로 쉬워진 만큼 장마다 +0.5~+2.5) · (주력 · 큰 카드 개편: 레벨업이 줄어든 만큼 3~6장 −0.3/−0.5/−1/−1) · 2챕터부터 동료가 2명이라 그만큼 더 단단하게 (첫 웨이브 난이도 = 1 + 1.1 × (s-1)^0.8 + 챕터 보정)
   bossStage: { 1: [0.2, 1.2], 2: [-0.8, -2.6], 3: [-1.8, -2.2], 4: [-1.6, -2.4], 5: [-1.6, -2.4], 6: [-1.6, -2.6] }, // x-5 · x-10 스테이지는 조금 더 어렵게 (1-10 은 강화가 필요, 2·3챕터 끝은 보스 2명)
   levelPerWave: 1.75, // 스테이지 안에서 웨이브마다 +1.6 (+ 스테이지마다 0.08씩 더) (첫 웨이브는 쉽게, 뒤로 갈수록 확)
   baseCount: 12, // 1-1 첫 웨이브 적 수
@@ -316,14 +316,14 @@ export const STAGE = {
   hpTune: [1.0, 1.4, 1.9, 1.15, 0.62, 0.45], // (5·6장: 강화 12~16 덱 기준으로 다시 맞춤 — 전엔 5-1부터 벽) // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
   // (11~60: 2026-10 덱 구성 개편 뒤 'node scripts/lb-balance.js stagecalib' 로 균형 덱(조건 맞춤) 기준 다시 맞춤)
-  stageAdd: {3: 2.5, 4: 3.5, 5: -2, 6: -4, 7: 1.5, 8: 3.6, 9: -0.8, 10: 1.2, 11: -1.6, 12: 1.2, 13: 0.8, 14: 9.5, 15: -6, 16: 1, 17: 1, 18: 4.25, 19: 1.29, 20: 1.89, 21: 6.75, 22: -0.94, 25: 3.5, 26: 1.7, 27: 2, 28: -9.75, 29: -7, 30: 2.25, 31: -7.63, 32: -3, 33: 3.97, 34: -7.5, 35: 8.88, 36: -9.25, 37: 2.25, 38: 4.5, 39: -11.5, 40: -7.1, 41: 2.25, 42: 2.75, 43: 5.75, 44: -8.69, 45: 6.69, 46: 2.5, 47: 8.88, 48: -2, 49: -1.25, 50: 5.25, 51: -5.7, 52: 8.5, 53: 3.5, 54: -4.69, 55: 7.13, 56: -9.69, 58: 4.38, 59: 7.1, 60: -3.55}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  stageAdd: {3: 2.5, 4: 3.5, 5: -2, 6: -4, 7: 3.75, 8: 3.6, 9: 2.7, 10: 4.95, 11: -1.6, 12: 1.2, 13: 4.55, 14: 8.37, 15: -6, 16: 4, 17: 1, 18: 1.75, 19: 2.79, 20: 1.89, 21: 3.25, 22: -0.94, 23: 5.82, 24: 3.25, 25: -0.25, 26: 1.7, 27: 2, 28: -3.75, 29: -3.25, 30: 0.5, 31: -7.63, 32: -3, 33: 1.72, 34: -5, 35: 9.88, 36: -8.25, 37: 4.75, 38: 2.75, 39: -8, 40: -7.1, 41: -0.25, 42: 2.75, 43: 5.75, 44: -8.69, 45: 5.94, 46: 1, 47: 9.51, 48: -5, 49: -4.75, 50: 8.25, 51: -3.7, 52: 8.49, 54: -7.69, 55: 8.9, 56: -9.69, 57: 2, 58: 4.75, 59: 4.35, 60: -2.05}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   augAdd: 2, // 증강(1·3·4웨이브)이 생겨서 진상도 그만큼 조금 세게
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
 // ── 7장 스키장 MT: 난이도 숫자 (기존 1~6장 값은 그대로 · 이 블록만 7장) — scripts/lb-balance.js ch7 로 맞춘 값 ──
 //   목표: 한 명만 키운 덱 < 30% · 역할을 갖춘 T3/T4 강화 덱 50~70% · 키운 LEGEND 포함 덱은 그보다 높게 · 헬은 더 어렵게
-export const CH7 = { chapterAdd: 0, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 0.75,
-  stageAdd: { 61: 3.9, 62: 0.5, 63: -3, /* (-4.5 → -3: 펜션 사장님 중간 보스가 7-5 보스로 빠진 만큼) */ 64: -9, 65: 0.5, 66: -0.2, 67: 6.5, 68: -0.8, 69: -8.5, 70: 0 }, waveAdd: [-4, -2, 0, -1.5, 1],
+export const CH7 = { chapterAdd: 1, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 0.5,
+  stageAdd: { 61: 3.4, 62: 1.5, 63: -2, /* (-4.5 → -3: 펜션 사장님 중간 보스가 7-5 보스로 빠진 만큼) */ 64: -6, 65: 3.5, 66: -0.2, 67: 2.75, 68: 2.7, 69: -7.5, 70: 0 }, waveAdd: [-4, -2, 0, -1.5, 1],
   coldTier: [1, 1.4, 1.2, 1, 0.75, 0.45], thaw: 2 }; // thaw: 눈덩이 빙결이 풀린 뒤 2초는 다시 안 언다 // 겨울 산 적응: 등급이 높은 멤버일수록 빙결 · 침묵 · 추위(공속↓)가 짧다 (T1 ×1.3 … LEGEND ×0.55) // waveAdd: 첫 웨이브(대장 혼자)는 덜 · 뒤 웨이브와 보스는 더
 STAGE.chapterAdd[6] = CH7.chapterAdd; STAGE.bossStage[7] = CH7.boss; STAGE.deckHp[6] = CH7.deckHp; STAGE.hpTune[6] = CH7.hpTune; STAGE.swarm[6] = CH7.swarm;
 Object.assign(STAGE.stageAdd, CH7.stageAdd);
@@ -331,8 +331,8 @@ STAGE.waveAdd = Object.assign(STAGE.waveAdd || {}, { 7: CH7.waveAdd });
 BAL.chHp[7] = CH7.chHp; JOIN.hp[6] = CH7.joinHp; TEMPO.hellCh[6] = CH7.hellCh;
 // ── 8장 결혼식 뒤풀이: 난이도 숫자 (이 블록만 8장 · 7장과 같은 틀) — scripts/lb-balance.js ch8 로 대충 맞춘 값 (전체 재계산은 stagecalib 로) ──
 //   thief: 축의금 도둑이 위로 달아나면 이번 판 스테이지 코인 −per (최대 −cap) — 서버 server/langbang-rules.js THIEF 와 같아야 한다 (테스트가 검사)
-export const CH8 = { chapterAdd: 0, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 0.75,
-  stageAdd: { 71: 2, 72: 2, 73: -5, 74: 2, 75: 0, 76: 0, 77: -5, 78: -3, 79: 4, 80: 0 }, waveAdd: [-4, -2, 0, -1.5, 1],
+export const CH8 = { chapterAdd: 4, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 1.0, /* (0.8 → 1.0: 8장 앞쪽은 레벨 가드레일에 닿아서 체력으로) */ joinHp: 2.6, hellCh: 0.49,
+  stageAdd: { 71: 1.61, 72: 1.42, 73: -7.25, 74: 1.05, 75: -0.5, 76: 0.59, 77: -8.25, 78: -2.85, 79: 0.12, 80: -1 }, waveAdd: [-4, -2, 0, -1.5, 1],
   thief: { per: 0.08, cap: 0.4 }, rushSpd: 1.3, rushAtk: 1.4 };
 STAGE.chapterAdd[7] = CH8.chapterAdd; STAGE.bossStage[8] = CH8.boss; STAGE.deckHp[7] = CH8.deckHp; STAGE.hpTune[7] = CH8.hpTune; STAGE.swarm[7] = CH8.swarm;
 Object.assign(STAGE.stageAdd, CH8.stageAdd);
@@ -653,10 +653,10 @@ export const WEEK_TRAITS = [
   { id: 'near', icon: 'swords', name: '원거리 방패 주간', desc: '진상이 쟁반 방패를 들었어요 — 원거리 멤버 피해 −20% · 근접 멤버 피해 +30%', rec: ['youngjun', 'ara', 'hyungyeong', 'bangjang', 'jeongseob'], far: 0.8, near: 1.3 },
   { id: 'shield', icon: 'tw_shield', name: '보호막 주간', desc: '보호막 진상이 2배 · 대신 진상 체력 −15%', rec: ['staff', 'jiwon', 'gunman', 'youngjun', 'soyoung'], shield: 0.44, hp: 0.85 },
   { id: 'fast', icon: 'tw_rush', name: '빠른 진상 주간', desc: '진상 이동 속도 +25% · 대신 체력 −15%', rec: ['jieun', 'staff', 'jungmin', 'dohoon', 'wonsik'], spd: 1.25, hp: 0.85 },
-  { id: 'armor', icon: 'tw_titan', name: '단단한 주간', desc: '진상 모두 방어 + (한 방이 약하면 깎여요) · 대신 체력 −10%', rec: ['ara', 'gunman', 'sunggu', 'donghan', 'hochan'], armor: 0.6, hp: 0.9 },
+  { id: 'armor', icon: 'tw_titan', name: '단단한 주간', desc: '진상 모두 방어 + (한 방이 약하면 깎여요)', rec: ['ara', 'gunman', 'sunggu', 'donghan', 'hochan'], armor: 0.6, hp: 1 },
   { id: 'swarm', icon: 'tw_swarm', name: '떼거리 주간', desc: '진상 수 +40% · 대신 한 명 체력 −30%', rec: ['eunok', 'donghan', 'soyoung', 'sunggu', 'dohoon'], count: 1.4, hp: 0.7 },
-  { id: 'boss', icon: 'tw_boss', name: '보스 주간', desc: '보스 · 중간 보스 · 정예 체력 +30% · 일반 진상 체력 −15%', rec: ['gunman', 'sanghwa', 'ara', 'hanna', 'youngjun'], bossHp: 1.3, hp: 0.85 },
-  { id: 'ctrl', icon: 'cc_stun', name: '고집쟁이 주간', desc: '진상이 기절 · 감속에 잘 안 걸려요 (시간 −40%) · 대신 체력 −10%', rec: ['sanghwa', 'gunman', 'sunggu', 'eunok', 'ara'], ctrl: 0.6, hp: 0.9 },
+  { id: 'boss', icon: 'tw_boss', name: '보스 주간', desc: '보스 · 중간 보스 · 정예 체력 +20% · 일반 진상 체력 −20%', rec: ['gunman', 'sanghwa', 'ara', 'hanna', 'youngjun'], bossHp: 1.2, hp: 0.8 },
+  { id: 'ctrl', icon: 'cc_stun', name: '고집쟁이 주간', desc: '진상이 기절 · 감속에 잘 안 걸려요 (시간 −40%) · 대신 체력 −5%', rec: ['sanghwa', 'gunman', 'sunggu', 'eunok', 'ara'], ctrl: 0.6, hp: 0.95 },
   { id: 'crit', icon: 'path_crit', name: '치명타 주간', desc: '진상 약점이 훤히 보여요 — 치명타 확률 +15% · 대신 진상 체력 +10%', rec: ['gunman', 'sanghwa', 'staff', 'eunok'], crit: 0.15, hp: 1.1 },
 ];
 export const WEEK_TRAIT = Object.fromEntries(WEEK_TRAITS.map((t) => [t.id, t]));

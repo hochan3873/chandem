@@ -54,7 +54,7 @@ test('주간 진상 특성: 진상에게 걸린다 (체력 · 속도 · 수 · �
   const e0 = sp(undefined), ef = sp('fast'), eb = sp('boss');
   assert.ok(Math.abs(ef.maxHp / e0.maxHp - 0.85) < 1e-9, '빠른 주간: 체력 −15%');
   assert.ok(ef.speed > e0.speed * 1.2, '빠른 주간: 이동 +25%');
-  assert.ok(Math.abs(eb.maxHp / e0.maxHp - 0.85) < 1e-9, '보스 주간: 일반 진상은 −15%');
+  assert.ok(Math.abs(eb.maxHp / e0.maxHp - D.WEEK_TRAIT.boss.hp) < 1e-9 && D.WEEK_TRAIT.boss.hp < 1, '보스 주간: 일반 진상은 체력 −');
   const gs = S.createGame({ rng: () => 0.01, mode: 'stage', stage: 12, deck: DECK, wtrait: 'shield' });
   const es = S.spawnEnemy(gs, 'drunk', 100, 0);
   assert.ok(es.cLay > 0, '보호막 주간: 보호막 진상');
