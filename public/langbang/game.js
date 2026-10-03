@@ -10,7 +10,7 @@ import {
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM,
-  SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN,
+  SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -334,7 +334,7 @@ function fixPartners() {
 }
 function unlockText(id) {
   const s = HERO_UNLOCK[id];
-  return s ? `${stageLabel(s)} 클리어하면 합류` : '';
+  return s ? `${stageLabel(s)} 클리어하면 합류${GACHA_HEROES.includes(id) ? ' · 모집 카드로도' : ''}` : '';
 }
 function partnerList() { return ['staff', 'gunman', 'gunnyeo', ...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; }
 
@@ -1144,6 +1144,24 @@ function handleEvents(g, loud) {
       case 'c7muted': fx.text(e.x, e.y - 80, '침묵 중!', '#c8b8ff', 13, 0.8); break;
       case 'c7avaWarn': fx.banner('눈사태 경고!!', `${Math.round(e.sec * 10) / 10}초 뒤 전원 빙결 — 지금 스킬로 끊어요!`, '#1a5a9a', Math.min(2.6, e.sec), 'big', 'e_boss_resort'); fx.flash('#cfefff', 0.25); R.vfx('warn', 180, g.rowY - 40, { anim: 'grow', dur: Math.round(e.sec * 1000), sz: 420, flat: true }); R.vfx('crack', e.x, e.y + 40, { anim: 'grow', dur: Math.round(e.sec * 1000), sz: 220, flat: true }); fx.addShake(4); if (loud) A.sfx.horn && A.sfx.horn(); break;
       case 'c7ava': fx.flash('#ffffff', 0.55); fx.banner('눈사태!!', '멤버 전원 꽁꽁 · 입구가 눈에 묻혔다', '#2a4a7a', 1.6, 'wave'); for (let k = 0; k < 40; k++) fx.part('dot', Math.random() * g.W, Math.random() * g.rowY, (Math.random() - 0.5) * 60, 220 + Math.random() * 200, 1.2, 4 + Math.random() * 5, '#f2fbff'); fx.addShake(12); if (loud) A.sfx.explode(); break;
+      // ── 8장 결혼식 뒤풀이 ──
+      case 'c8grab': fx.text(e.x, e.y - 10, '봉투 슬쩍!', '#ffd0d0', 13, 0.9, -16); fx.burst(e.x, e.y, 5, '#ffffff', 90, 'dot', 3, 0.4); if (loud) A.sfx.charm && A.sfx.charm(); break;
+      case 'c8escape': fx.text(clamp(e.x, 70, 290), 88, `축의금 도난! −${e.pct}%`, '#ff6b6b', 17, 1.6, 14); fx.flash('#ff2040', 0.16); fx.addShake(3); if (e.n === 1) toast('축의금 도둑을 놓쳤어요 — 이번 판 코인 −8% (최대 −40%) · 묶기 · 기절 · 감속으로 잡아요', 2200); if (loud) A.sfx.explode && A.sfx.explode(); break;
+      case 'c8recover': fx.text(e.x, e.y, '축의금 되찾음!', '#ffe27a', 14, 1.0, -22); for (let k = 0; k < 6; k++) fx.part('dot', e.x, e.y, (Math.random() - 0.5) * 160, -60 - Math.random() * 120, 0.8, 5, '#ffffff'); if (loud) A.sfx.crit && A.sfx.crit(); break;
+      case 'c8tie': if (!busy || e.env) fx.text(e.x, e.y - 6, e.env ? '도둑 꽁꽁! 묶었다' : '리본 묶기!', '#ffb3d9', e.env ? 13 : 11, 0.8, -14); fx.ring(e.x, e.y + 26, 6, 26, 0.4, '#ff9fd0', 3); break;
+      case 'c8toss': fx.text(e.x, e.y - 40, '부케 토스!', '#ffd0ec', 18, 1.0, -20); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ff9fd0', 6); fx.burst(e.x, e.y, busy ? 10 : 24, '#ffc0dc', 220, 'dot', 4, 0.8, 200); fx.burst(e.x, e.y, 8, '#ffffff', 160, 'star', 4, 0.6); fx.addShake(3); if (loud) A.sfx.heal && A.sfx.heal(); break;
+      case 'c8eat': if (e.n && !busy) { fx.text(e.x, e.y, '냠냠~ 회복', '#c8f0a0', 11, 0.8); fx.ring(e.x, e.y + 30, 10, e.r * 0.6, 0.5, '#9dffb0', 3); } break;
+      case 'c8singWind': fx.text(e.x, e.y - 6, '아아~ (숨 들이쉬기)', '#ffe08a', 11, 0.8); R.vfx('warn', e.x, e.y + 30, { anim: 'grow', dur: 900, sz: 120, flat: true }); break;
+      case 'c8sing': fx.text(e.x, e.y - 10, '삑사리!! 공속↓', '#ffb070', 14, 1.0, -16); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ffb070', 5); if (loud) A.sfx.horn && A.sfx.horn(); break;
+      case 'c8singStop': fx.text(e.x, e.y - 6, '노래 끊김!', '#9dffb0', 12, 0.8); break;
+      case 'c8hurryWind': fx.text(e.x, e.y - 20, e.text || '시간 없어요!', '#ff9a9a', 15, 1.2, -10); R.vfx('warn', e.x, e.y + 40, { anim: 'grow', dur: 1200, sz: 260, flat: true }); break;
+      case 'c8hurry': fx.ring(e.x, e.y, 20, e.r, 0.7, '#ff6b6b', 6); if (e.n) fx.text(e.x, e.y - 30, '빨리빨리! 진상 재촉', '#ffd0d0', 13, 1.0); break;
+      case 'c8hurryStop': fx.text(e.x, e.y - 10, '…재촉 끊김', '#c8ffd0', 13, 1); break;
+      case 'c8clip': { fx.text(e.hx, e.hy - 70, '클립보드 쾅!', '#ffe27a', 13, 0.9); const hh = g.heroes.find((h) => Math.abs(h.x - e.hx) < 2); if (hh) { hh._hitAt = performance.now(); if (e.sec > 0) R.vfx('stun', 0, 0, { follow: hh, dy: -78, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 50 }); } fx.addShake(3); break; }
+      case 'c8speech': fx.banner('축사를 끊어라!', `금빛 테두리 = 무적 · 마구 때려 축사 게이지 ${e.need}칸 / 총공지로 끊기`, '#8a6a00', 2.4, 'big', 'e_boss_bestman'); fx.flash('#fff1a8', 0.2); if (!app.c8SpeechTip) { app.c8SpeechTip = true; toast('축사 중엔 무적! 한 대 = 1칸 · 스킬 = 5칸 · 부케 묶기 = 4칸 · 총공지는 바로 끊어요', 2600); } if (loud) A.sfx.horn && A.sfx.horn(); break;
+      case 'c8speechImm': if (!busy) fx.text(e.x, e.y, '무적! (축사 중)', '#ffe27a', 11, 0.6); break;
+      case 'c8speechCut': fx.banner('축사 끊었다!', '신랑 친구 대표가 비틀 — 빈틈! 지금 몰아쳐요', '#1a7a4a', 1.6, 'wave'); fx.ring(e.x, e.y, 20, 180, 0.6, '#9dffb0', 6); fx.addShake(5); if (loud) A.sfx.crit && A.sfx.crit(); break;
+      case 'c8speechEnd': fx.banner('축사 끝… 다들 졸려요', '입구 피해 · 멤버 공격 속도 −35% (4초)', '#5a3a1a', 1.6, 'wave'); fx.addShake(6); break;
       case 'c7avaStop': fx.banner('눈사태 저지!', '회장이 비틀 — 빈틈! 지금 몰아쳐요', '#1a7a4a', 1.6, 'wave'); fx.ring(e.x, e.y, 20, 180, 0.6, '#9dffb0', 6); fx.addShake(5); if (loud) A.sfx.crit(); break;
       case 'consUse': {
         const c = L.CONS[e.id];
@@ -1345,7 +1363,7 @@ const UNION_PHASE = {
   shieldAura: ['회비 지원!', '진상들에게 보호막'],
 };
 const PROJ_COL = { notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#d04aff', tap: '#bff4ff' };
-const BOSS_COL = { boss_resort: '#1a5a9a', mid_pension: '#7a5a2a', boss_bbikki: '#5a8a00', queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a', boss_loan: '#8a6a00', boss_union: '#5a0a9a', boss_kkondol: '#4a3a6a', boss_queenmom: '#8a2a9a', boss_sales: '#8a6a00', boss_otaku: '#1a7a4a', boss_jusa: '#9a2a1a', boss_soloparty: '#a0158a' };
+const BOSS_COL = { boss_bestman: '#9a7a10', mid_hallmgr: '#2a2a4a', boss_resort: '#1a5a9a', mid_pension: '#7a5a2a', boss_bbikki: '#5a8a00', queen: '#b01e8c', boss_thug: '#9a1a1a', boss_gapjil: '#5a1ec0', boss_inpi: '#137a4a', boss_loan: '#8a6a00', boss_union: '#5a0a9a', boss_kkondol: '#4a3a6a', boss_queenmom: '#8a2a9a', boss_sales: '#8a6a00', boss_otaku: '#1a7a4a', boss_jusa: '#9a2a1a', boss_soloparty: '#a0158a' };
 const POOF = ['퍽!', '빡!', '뿅', '컷!', '퇴장~', '아웃!'];
 const CONFETTI = ['#ffd23f', '#ff4fd8', '#6ff0ff', '#7dff9a', '#ff8a00', '#ffffff'];
 
@@ -1381,7 +1399,7 @@ function updateHud() {
   app.hudCache.lowWarn = low;
   hud.classList.toggle('danger', low);
   H$.wave.classList.toggle('boss', bossWave && g.phase !== 'break');
-  setText(H$.left, 'left', g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : g.r2 ? `입구가 버티는 동안 때려라!${g.r2.angry ? ` · 화 ${g.r2.angry}` : ''}` : `남은 진상 ${S.enemiesLeft(g)}`);
+  setText(H$.left, 'left', (g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : g.r2 ? `입구가 버티는 동안 때려라!${g.r2.angry ? ` · 화 ${g.r2.angry}` : ''}` : `남은 진상 ${S.enemiesLeft(g)}`) + (g.stats.envStolen ? ` · 축의금 도난 ${g.stats.envStolen} (−${Math.round(thiefCut(g.stats.envStolen) * 100)}%)` : '')); // 8장: 놓친 축의금 도둑
   setText(H$.fx, 'fx', g.mapFx.id === 'none' ? '' : g.mapFx.icon);
   setText(H$.kills, 'kills', fmt(g.stats.kills));
   setText(H$.score, 'score', g.mode === 'endless' && ((g.scoreMul || 1) * (g.streak || 1)) > 1.001 ? `${fmt(g.stats.score)} ×${((g.scoreMul || 1) * (g.streak || 1)).toFixed(2)}` : fmt(g.stats.score));
@@ -1702,7 +1720,7 @@ function skillFx(h) {
   A.sfx.join();
   app.tutSkillDone = true;
 }
-const SKILL_SHORT = { baul: '썰매', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '포격', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '폭격', wonsik: '결정사' };
+const SKILL_SHORT = { subin: '부케', baul: '썰매', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '포격', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '폭격', wonsik: '결정사' };
 const skShort = (h) => SKILL_SHORT[h.id] || h.def.skill.name.replace(/[!\s]/g, '').slice(0, 5);
 const momBar = document.createElement('div');
 momBar.id = 'mombar'; momBar.hidden = true;
@@ -4688,7 +4706,7 @@ function showPrep(mode, s) {
   const bossId = st ? stageBosses(st)[0] || stageMid(st) : null;
   const bossTag = st && stageBosses(st).length ? 'BOSS' : '중간 보스';
   const stars = mode === 'stage' ? (hellOn ? (p.hell || {})[s] || 0 : p.stages[s] || 0) : 0;
-  const bg = `/img/lb/bg${ch >= 2 && ch <= 7 ? ch : ''}.webp`;
+  const bg = `/img/lb/bg${ch >= 2 && ch <= 8 ? ch : ''}.webp`;
   const head = mode === 'stage'
     ? `<em class="pp-no">${stageLabel(s)}</em><b class="pp-name">${esc(stageName(s))}</b><span class="pp-meta"><i class="pp-stars">${'★'.repeat(stars)}<u>${'★'.repeat(3 - stars)}</u></i>${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}<button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
     : wk ? `<em class="pp-no sm">${ic('calendar', '')} 주간 도전</em><b class="pp-name">${esc(L.WEEKLY_MODS[wk.mod].name)}</b><span class="pp-meta"><button class="pp-fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.name)}</button></span>`
@@ -5485,7 +5503,7 @@ async function saveResult(sum, g) {
   if (g.weekly) { saveWeekly(sum, g, box); return; }
   const stageMode = g.mode === 'stage';
   const body = stageMode
-    ? { stage: sum.stage, stars: sum.stars, perfect: sum.perfect, hell: sum.hell, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, seen: sum.seen, speed: app.runSpeed || 1 }
+    ? { stage: sum.stage, stars: sum.stars, perfect: sum.perfect, hell: sum.hell, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, seen: sum.seen, speed: app.runSpeed || 1, stolen: sum.stolen | 0 }
     : { wave: sum.wave, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen, afkSec: sum.afkSec, coinMul: sum.coinMul, curses: sum.curses };
   const r = stageMode ? await API.postStage(body, app.guest) : await API.postEndless(body, app.guest);
   if (r.ok && r.profile) app.profile = r.profile;
@@ -5502,6 +5520,7 @@ async function saveResult(sum, g) {
     if (rw.mid) lines.push(`<div class="rw"><span>${ic('bolt', '', 'sm')}중간 보스 처치</span><b>+${fmt(rw.mid)}</b></div>`);
     if (rw.sanghwa) lines.push(`<div class="rw"><span>능력남 박상화 보너스</span><b>+${fmt(rw.sanghwa)}</b></div>`);
     if (rw.coll) lines.push(`<div class="rw"><span>도감 수집 보너스</span><b>+${fmt(rw.coll)}</b></div>`);
+    if (rw.stolen) lines.push(`<div class="rw"><span>축의금 도난 (도둑 ${rw.stolenN || 0}명 놓침)</span><b style="color:#ff8a8a">−${fmt(rw.stolen)}</b></div>`);
     if (rw.hell) lines.push(`<div class="rw hl hellrw"><span>${ic('fire', '', 'sm')}헬 모드 보상 ×${HELL.coin}</span><b>포함</b></div>`);
     if (rw.bonus) lines.push(`<div class="rw"><span>${ic('ticket', '', 'sm')}단골 쿠폰</span><b>+${fmt(rw.bonus)}</b></div>`);
   }
@@ -5653,11 +5672,11 @@ const DEX_FLAVOR = {
   boss_resort: '스키장을 통째로 가진 리조트 갑부 회장. 손짓 한 번에 산 위에서 눈사태가 쏟아진다.',
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
-const DEX_EN = { baul: 'SONG BAUL', byunghwa: 'KANG BYUNGHWA', jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
-const DEX_FACE = { baul: [0.49, 0.085, 0.12], byunghwa: [0.42, 0.085, 0.11], jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
+const DEX_EN = { subin: 'CHA SUBIN', baul: 'SONG BAUL', byunghwa: 'KANG BYUNGHWA', jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
+const DEX_FACE = { subin: [0.53, 0.115, 0.13], baul: [0.49, 0.085, 0.12], byunghwa: [0.42, 0.085, 0.11], jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
 // 얼굴 맞춤 자르기: 얼굴 높이 = 칸 높이의 f · 얼굴 가운데 = (50%, cy) — 그림 비율과 상관없이 (자기 크기 기준 translate)
 // 동그란 얼굴용 얼굴 상자 (썸네일 기준 · 이마~턱 · 가운데 x, 가운데 y, 높이) — 그림을 재서 맞춘 값
-const FACE_BOX = { byunghwa: [0.42, 0.1, 0.075], hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.565, 0.145, 0.13], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
+const FACE_BOX = { subin: [0.53, 0.12, 0.095], byunghwa: [0.42, 0.1, 0.075], hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.565, 0.145, 0.13], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
 // 동그라미 안에 얼굴: 얼굴(이마~턱)이 지름의 70% · 가운데
 function faceCircStyle(id, f = 0.7, cy = 0.5) {
   const fb = FACE_BOX[id] || DEX_FACE[id] || [0.48, 0.12, 0.1];
@@ -5673,7 +5692,7 @@ function faceImgStyle(id, f = 0.24, cy = 0.36) {
 const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on', 'donghan_ssj'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
 const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 빔', donghan_ssj: '초사이언', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
-const DEX_ANIM = { baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
+const DEX_ANIM = { subin: 'sway', baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
 function dexAnim(kind, d, id) {
   if (DEX_ANIM[id]) return DEX_ANIM[id];
   if (kind === 'hero') return 'breathe';
@@ -5711,6 +5730,7 @@ function dexColor(kind, d) { return kind === 'hero' ? ATTRS[d.attr].color : d.bo
 function dexChapter(kind, id) { const s = kind === 'hero' ? HERO_UNLOCK[id] || 1 : firstStageOf(id) || STAGE_COUNT; return clamp(chapterOf(s), 1, CHAPTERS.length); }
 function heroHow(id) {
   if (!LOCKED_HEROES.includes(id)) return '처음부터 함께하는 멤버';
+  if (HERO_UNLOCK[id] && GACHA_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `${stageLabel(HERO_UNLOCK[id])} 클리어하면 확정 합류 · 모집 카드로도${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; } // 8장 차수빈
   if (HERO_UNLOCK[id]) return `${stageLabel(HERO_UNLOCK[id])} 클리어하면 합류`;
   if (LEGEND_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `${stageLabel(L.HOCHAN_GATE)} 클리어 후 모집에서 카드 ${L.UNLOCK_CARDS.legend}장을 모으면 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; }
   const pr = L.cardProgress(P(), id);
@@ -6661,6 +6681,13 @@ const ENEMY_TIPS = {
   hotpack: '길 절반부터 옆을 지나간 멤버의 공격 속도 -35% (약화) — 멀리서 먼저 잡자',
   snowball: '멀찍이 서서 눈덩이 → 맞은 멤버 1.5초 빙결 (제일 잘 치는 멤버를 노림) — 건전녀 응급 방패 · 강성구 곁 · 도발 탱커로 막는다',
   mid_pension: '7장 보스 (7-5 · 7-10). 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기 · 퇴실 독촉(공속↓) · 단체 손님 소환',
+  envthief: '입구를 안 때리고 접수대 봉투를 들고 위로 달아난다 — 화면 위로 빠지면 이번 판 코인 −8% (최대 −40%). 차수빈 부케로 묶고 · 기절 · 감속으로 잡자',
+  buffet: '단단함(방어). 5초마다 냠냠 — 곁의 진상 체력 8% 회복 · 기절시키면 못 먹고, 여지원 방깎이면 회복이 막힌다',
+  badsinger: '멀찍이 서서 숨 들이쉬고(0.9초) → 음 이탈! 곁 멤버 공격 속도 −35% 3초 — 숨 들이쉴 때 기절시키면 끊긴다',
+  showoff: '셀카로 남자 멤버를 홀린다 — 여자 멤버 · 건전녀 Lv5 로 막기',
+  drunkfriend: '두세 명이 어깨동무하고 갈지자로 우르르 — 범위 · 관통 공격으로 한 번에',
+  mid_hallmgr: '8장 보스 (8-5 · 8-10). "시간 없어요!" 예고 뒤 곁 진상 5초 재촉(이동 ×1.3 · 입구 공격 ×1.4) — 예고 중 기절시키면 끊긴다 · 입구 앞 클립보드로 멤버 기절',
+  boss_bestman: '8장 끝 보스. 끝없는 축사 — 금빛 테두리 동안 무적 + 곁 진상 재촉 · 회복. 마구 때려 축사 게이지(한 대 1 · 스킬 5 · 부케 4)를 채우거나 총공지로 끊어라. 다 들으면 입구 피해 + 졸음',
   boss_resort: '7장 보스. "눈사태 경고!" 3초 예고 뒤 멤버 전원 빙결 + 입구 피해 + 보드남 — 예고 중에 스킬 · 총공지 · 알디콤을 쓰면 끊긴다',
   mid_snowboard: '각성한 보드남. 줄을 더 자주 바꾼다',
   mid_sledgirl: '각성한 썰매 폭주녀. 입구에 부딪히면 크게 아프다',

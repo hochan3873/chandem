@@ -5,7 +5,7 @@ import {
   HEROES, LOCKED_HEROES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEM_IDS, STAGE_COUNT, META_MAX,
   metaCost, itemCost, itemGateCh, stageReward, endlessReward, deckSlots, migrateDeckItems, hellReward, hellOpen, metaMaxOf,
   GEAR, GEAR_RARITY, GEAR_MAX_LV, GEAR_BAG, gearEnhanceCost, gearEnhanceChance, gearSellValue, rollDrops, gearStats, stageBosses,
-  GEAR_IDS, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, heroCardNeed, rollHeroCard, CARD_PICK, gearFits,
+  GEAR_IDS, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, heroCardNeed, rollHeroCard, CARD_PICK, gearFits, thiefCut,
 } from './data.js';
 import * as L from './live.js';
 import { pvpLoadout } from './pvp.js';
@@ -147,6 +147,7 @@ export async function postStage(sum, guest) {
     const reward = hell ? hellReward(sum.stage, sum.stars, prev, p.items.coupon) : stageReward(sum.stage, sum.stars, prev, p.items.coupon, perfect, firstPerfect);
     if ((sum.heroesUsed || []).includes('sanghwa') && heroUnlocked(p, 'sanghwa')) { const x = Math.round(reward.total * 0.12); reward.total += x; reward.sanghwa = x; } // 박상화: 코인 +12%
     { const x = Math.round(reward.total * (p.coll ? p.coll.coin : 0)); if (x > 0) { reward.total += x; reward.coll = x; } } // 도감 수집 보너스 (서버와 같은 순서)
+    { const cut = thiefCut(sum.stolen); if (cut > 0) { const x = Math.round(reward.total * cut); reward.total -= x; reward.stolen = x; reward.stolenN = Math.min(99, Math.floor(Number(sum.stolen) || 0)); } } // 8장 축의금 도둑 (서버와 같은 순서)
     const q = Object.assign({}, p, { coins: p.coins + reward.total, runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
     if (hell) q.hell = Object.assign({}, p.hell, { [sum.stage]: Math.max(prev, sum.stars) });
     else q.stages = Object.assign({}, p.stages, { [sum.stage]: Math.max(prev, sum.stars) });

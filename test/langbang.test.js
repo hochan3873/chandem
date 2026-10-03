@@ -171,10 +171,10 @@ function playOut(g, maxSec = 900) {
   return g;
 }
 
-test('스테이지 70개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽게 오르고 너무 튀지 않는다', () => {
-  assert.equal(D.STAGE_COUNT, 70);
+test('스테이지 80개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽게 오르고 너무 튀지 않는다', () => {
+  assert.equal(D.STAGE_COUNT, 80);
   let prevLast = 0;
-  for (let s = 1; s <= 70; s++) {
+  for (let s = 1; s <= 80; s++) {
     assert.equal(D.parseStage(D.stageLabel(s)), s);
     let prev = -99; // 캐스트가 센 스테이지는 레벨(체력·공격 배율)이 1보다 낮을 수 있다
     for (let w = 1; w <= D.STAGE_WAVES; w++) {
@@ -199,7 +199,7 @@ test('스테이지 70개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
   assert.ok(!has(4, 'thug') && has(5, 'thug'));
   assert.ok(!has(11, 'scammer') && has(12, 'scammer') && has(13, 'inpi_gossip') && has(14, 'inpi_clique') && has(17, 'inpi_dictator'));
   // 스테이지마다 제목에 맞는 캐스트 2~4종 + 한 줄 이야기 + 그 캐스트에서 나온 중간 보스
-  for (let s = 1; s <= 70; s++) {
+  for (let s = 1; s <= 80; s++) {
     const cast = D.stageMix(s).map(([t]) => t);
     assert.ok(cast.length >= 2 && cast.length <= 4, `${D.stageLabel(s)} 캐스트 ${cast.length}종`);
     assert.ok(D.stageStory(s).length > 5, `${D.stageLabel(s)} 이야기`);
@@ -213,6 +213,8 @@ test('스테이지 70개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
   assert.deepEqual(D.stageBosses(60), ['boss_soloparty', 'boss_jusa']);
   assert.deepEqual(D.stageBosses(65), ['mid_pension']);
   assert.deepEqual(D.stageBosses(70), ['boss_resort', 'mid_pension']);
+  assert.deepEqual(D.stageBosses(75), ['mid_hallmgr']);
+  assert.deepEqual(D.stageBosses(80), ['boss_bestman', 'mid_hallmgr']);
   // 보스 중복 금지: x-10 의 첫 보스는 그 장의 새 얼굴 · 둘째는 그 장 x-5 보스 · x-5 첫 보스는 앞 장 보스가 아니다
   const used = new Set();
   for (let c = 1; c <= D.CHAPTERS.length; c++) {
@@ -227,7 +229,8 @@ test('스테이지 70개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
   assert.ok(has(31, 'fakesingle') && has(41, 'sales') && has(51, 'drunk_run'), '4~6장 새 진상');
   assert.equal(D.parseStage('6-10'), 60);
   assert.equal(D.parseStage('7-10'), 70);
-  assert.equal(D.parseStage('8-1'), 0);
+  assert.equal(D.parseStage('8-10'), 80);
+  assert.equal(D.parseStage('9-1'), 0);
   assert.equal(D.parseStage('2-11'), 0);
 });
 
@@ -2238,7 +2241,7 @@ test('상점 영구 강화: 진행도에 따라 살 수 있는 레벨 · Lv.11~1
 // ─── 7장 스키장 MT (고난도) ─────────────────────────────
 test('7장 스키장: 챕터 · 진상 8종 · 해금 · 보스 · 그림 대체', async () => {
   const F = await load('flavor.js');
-  assert.equal(D.CHAPTERS.length, 7);
+  assert.ok(D.CHAPTERS.length >= 7);
   const c7 = D.CHAPTERS[6];
   assert.equal(c7.name, '스키장 MT'); assert.equal(c7.names.length, 10);
   assert.equal(D.chapterOf(61), 7); assert.equal(D.stageName(70), '리조트 갑부 회장');
