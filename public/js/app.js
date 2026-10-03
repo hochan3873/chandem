@@ -1101,7 +1101,7 @@ const GAME_RULES = {
   omok: '<p>흑이 먼저 두고, 가로·세로·대각선으로 <b>정확히 다섯 알</b>을 먼저 이으면 이겨요.</p><p>흑은 <b>삼삼</b>(열린 3이 두 개 생기는 자리)에 둘 수 없어요. 흑의 여섯 알(장목)은 승리가 아니에요.</p><p>로그인하면 대국마다 점수가 오르내리고 티어가 정해져요.</p>',
 };
 // ── 게임 그림: 랑방 대전은 내 진행 챕터(langbang:chapter, 랑방 화면이 저장)에 맞는 키 아트 ──
-const lbChapter = () => { const n = Math.trunc(Number(LS.get('langbang:chapter', 1))); return n >= 1 && n <= 7 ? n : 1; }; // (7장 키 아트가 없으면 뒤의 기본 그림)
+const lbChapter = () => { const n = Math.trunc(Number(LS.get('langbang:chapter', 1))); return n >= 1 && n <= 8 ? n : 1; }; // (8장까지 · 키 아트가 없으면 뒤의 기본 그림)
 const gameArt = (g) => (g === 'langbang' ? `/img/lb/keyart${lbChapter()}.webp` : `/img/games/${g}.webp`);
 // 키 아트가 없으면 뒤에 깔린 기본 그림이 보인다
 const gameArtCSS = (g) => (g === 'langbang' ? `url('${gameArt(g)}'), url('/img/games/langbang.webp')` : `url('${gameArt(g)}')`);
@@ -1111,7 +1111,7 @@ function gameCardArtHTML(k) {
   const cur = lbChapter();
   const prev = Number(LS.get('gw:lbArtShown', 0));
   LS.set('gw:lbArtShown', cur);
-  if (!prev || prev === cur || prev < 1 || prev > 7) return `<span class="gc-art" style="background-image:${gameArtCSS(k)}"></span>`;
+  if (!prev || prev === cur || prev < 1 || prev > 8) return `<span class="gc-art" style="background-image:${gameArtCSS(k)}"></span>`;
   return `<span class="gc-art" style="background-image:url('/img/lb/keyart${prev}.webp'), url('/img/games/langbang.webp')"></span>`
     + `<span class="gc-art gc-art-next" style="background-image:${gameArtCSS(k)}"></span>`;
 }

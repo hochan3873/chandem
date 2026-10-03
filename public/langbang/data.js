@@ -100,12 +100,12 @@ export const CADENCE = {
 };
 // 멤버 공격 프레임 띠 (선택): 8칸 · release 칸에서 투사체가 나간다 — 있으면 코드 모션 대신
 // 던지는 칸: 기본 4 · PixVerse 띠는 칸마다 달라서 따로 (2~6칸 중 모습이 제일 크게 바뀌는 칸을 재서 정함)
-export const ATTACK_RELEASE = { soyoung: 3, baul: 3, eunok: 3, jieun: 3, gunnyeo: 4, hyungyeong: 4, hanna: 5, donghan_on: 5, ingyu_bike: 3 };
+export const ATTACK_RELEASE = { subin: 3, soyoung: 3, baul: 3, eunok: 3, jieun: 3, gunnyeo: 4, hyungyeong: 4, hanna: 5, donghan_on: 5, ingyu_bike: 3 };
 // 변신 모습 공격 띠: h_<id>_<form>_attack.webp — donghan 진심 모드(alt) · ingyu 할리 타는 동안
 export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', 'bike'], ['hyungyeong', 'slim'], ['ara', 'old'], ['jieun', 'demon'], ['eunok', 'rage'], ['youngjun', 'dash']].map(([id, f]) => [id, { form: f, src: `/img/lb/h_${id}_${f}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id + '_' + f] || 4 }]));
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
-  'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.65, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
+  'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon', 'subin'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.65, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -140,6 +140,7 @@ export const WEAPON = {
   jeongseob: { item: '두 팔', kind: 'melee', reload: '앉아서 쉬기' },
   byunghwa: { item: '목소리', kind: 'beam', reload: '숨 고르기' },
   baul: { item: '스노보드', kind: 'board', reload: '보드 정비' },
+  subin: { item: '부케', kind: 'homing', reload: '새 부케 묶기' },
 };
 // 밸런스 개편 (역할 · 상성 · 난이도) — 숫자는 모의 전투로 맞춘 값
 export const BAL = {
@@ -241,7 +242,7 @@ export function itemGateCh(id, lv, maxStage) {
 // 3챕터 × 10스테이지. 스테이지 번호 s = 1..30 ('1-1' … '3-10')
 export const STAGE_WAVES = 5;
 export const STAGES_PER_CHAPTER = 10;
-export const STAGE_COUNT = 70;
+export const STAGE_COUNT = 80; // 8장 결혼식 뒤풀이 까지
 export const CHAPTERS = [
   {
     id: 1, name: '랑방 골목', desc: '꼬충들이 기웃거리는 우리 동네 골목', color: '#ffd23f',
@@ -271,9 +272,13 @@ export const CHAPTERS = [
     id: 7, name: '스키장 MT', desc: '겨울 스키장 MT — 얼리고 · 막고 · 들이받는 진상들. 조합과 컨트롤이 없으면 못 깬다', color: '#7fd6ff', hard: true,
     names: ['리조트 도착', '리프트 대기줄', '초보 슬로프', '눈썰매장', '펜션 사장님', '야간 스키', '눈싸움 대첩', '핫팩 실종 사건', '정상 휴게소', '리조트 갑부 회장'],
   },
+  {
+    id: 8, name: '결혼식 뒤풀이', desc: '친구 결혼식 뒤풀이 — 축의금 도둑을 놓치지 마! 끝없는 축사까지 끊어야 한다', color: '#ffb3d1', hard: true,
+    names: ['뒤풀이 입구', '축의금 접수대', '뷔페 홀', '축가 무대', '예식장 실장님', '포토존', '부케 던지기', '신랑 친구들 테이블', '뒷문 탈출', '끝없는 축사'],
+  },
 ];
 // 이 스테이지를 처음 깨면 히든 영웅이 영구 합류 (출전 동료로 고를 수 있고, 카드로도 나온다)
-export const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3
+export const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, subin: 75 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (차수빈: 모집으로도 · 8-5 를 깨면 확정 합류)
 export const HIDDEN_UNLOCK = HERO_UNLOCK; // (옛 이름)
 export const ENDLESS_UNLOCK = 10; // 1-10 클리어 → 무한 도전
 export const chapterOf = (s) => Math.ceil(s / STAGES_PER_CHAPTER);
@@ -324,6 +329,17 @@ STAGE.chapterAdd[6] = CH7.chapterAdd; STAGE.bossStage[7] = CH7.boss; STAGE.deckH
 Object.assign(STAGE.stageAdd, CH7.stageAdd);
 STAGE.waveAdd = Object.assign(STAGE.waveAdd || {}, { 7: CH7.waveAdd });
 BAL.chHp[7] = CH7.chHp; JOIN.hp[6] = CH7.joinHp; TEMPO.hellCh[6] = CH7.hellCh;
+// ── 8장 결혼식 뒤풀이: 난이도 숫자 (이 블록만 8장 · 7장과 같은 틀) — scripts/lb-balance.js ch8 로 대충 맞춘 값 (전체 재계산은 stagecalib 로) ──
+//   thief: 축의금 도둑이 위로 달아나면 이번 판 스테이지 코인 −per (최대 −cap) — 서버 server/langbang-rules.js THIEF 와 같아야 한다 (테스트가 검사)
+export const CH8 = { chapterAdd: 0, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 0.75,
+  stageAdd: { 71: 2, 72: 2, 73: -5, 74: 2, 75: 0, 76: 0, 77: -5, 78: -3, 79: 4, 80: 0 }, waveAdd: [-4, -2, 0, -1.5, 1],
+  thief: { per: 0.08, cap: 0.4 }, rushSpd: 1.3, rushAtk: 1.4 };
+STAGE.chapterAdd[7] = CH8.chapterAdd; STAGE.bossStage[8] = CH8.boss; STAGE.deckHp[7] = CH8.deckHp; STAGE.hpTune[7] = CH8.hpTune; STAGE.swarm[7] = CH8.swarm;
+Object.assign(STAGE.stageAdd, CH8.stageAdd);
+STAGE.waveAdd[8] = CH8.waveAdd;
+BAL.chHp[8] = CH8.chHp; JOIN.hp[7] = CH8.joinHp; TEMPO.hellCh[7] = CH8.hellCh;
+// 축의금 도둑: 도망간 수 → 코인 깎이는 비율 (8% 씩 · 최대 40%)
+export const thiefCut = (n) => Math.min(CH8.thief.cap, CH8.thief.per * Math.max(0, Math.floor(Number(n) || 0)));
 // 덱 5명으로 싸우니 적도 그만큼 단단하게 — 1-1 은 연습이라 그대로, 1-3 부터 본격
 export function stageHpScale(s) { return (1 + (STAGE.deckHp[chapterOf(s) - 1] - 1) * Math.min(1, (s - 1) / 2)) * (s <= 2 ? [0.7, 0.8][s - 1] : STAGE.hpTune[chapterOf(s) - 1] || 1); } // 1-1 · 1-2 는 튜토리얼 (어떤 덱이든 쉽게)
 export function stageLevel(s, w) {
@@ -417,6 +433,17 @@ const STAGE_CASTS = [
   ['hotpack:0.45 snowball:0.25 sledgirl:0.3 snowboard:0.2', '핫팩이 사라졌다! 손이 곱아 공격이 느려진다'],
   ['fakecoach:0.2 hotpack:0.3 snowboard:0.35 snowball:0.2', '정상 휴게소 — 사칭 강사단이 보호막을 두르고 버틴다'],
   ['snowboard:0.4 fakecoach:0.15 sledgirl:0.3 snowball:0.2', '드디어 리조트 갑부 회장 — 펜션 사장님까지 다시, 눈사태와 소음 금지가 동시에'],
+  // 8장 결혼식 뒤풀이 (고난도): 축의금 도둑(봉투 들고 도망 → 코인 깎임) · 뷔페 회복 · 축가 공속↓ · 홀림 · 취한 무리
+  ['drunkfriend:0.5 envthief:0.25 showoff:0.25', '친구 결혼식 뒤풀이 입구 — 벌써 취한 신랑 친구들 사이로 수상한 검은 정장이…'],
+  ['envthief:0.5 drunkfriend:0.35 buffet:0.12', '축의금 접수대에 도둑이 줄을 섰다! 봉투를 들고 위로 달아나면 코인이 깎인다 — 놓치지 마'],
+  ['buffet:0.35 drunkfriend:0.4 envthief:0.15', '뷔페 홀 — 산더미 접시를 든 아줌마가 먹으면서 곁의 진상까지 회복시킨다'],
+  ['badsinger:0.2 drunkfriend:0.45 showoff:0.25', '축가 무대 — 음 이탈 축가에 귀를 막느라 공격이 느려진다. 노래 부를 때 기절시켜 끊자'],
+  ['envthief:0.3 buffet:0.15 badsinger:0.12 drunkfriend:0.35', '"시간 없어요! 빨리빨리!" 예식장 실장님이 진상들을 재촉한다'],
+  ['showoff:0.45 envthief:0.25 drunkfriend:0.3', '포토존 — 하객룩 과시녀가 셀카를 찍으며 남자 멤버를 홀린다'],
+  ['showoff:0.3 buffet:0.2 badsinger:0.12 envthief:0.3', '부케 던지기 — 신부 친구가 부케를 들었다! 부케에 묶인 도둑은 못 도망간다'],
+  ['drunkfriend:0.7 badsinger:0.15 buffet:0.15', '신랑 친구들 테이블 — 어깨동무한 취객들이 갈지자로 우르르'],
+  ['envthief:0.6 drunkfriend:0.3 showoff:0.2', '뒷문 탈출 — 축의금 도둑단이 총출동! 봉투를 든 도둑부터 잡아라'],
+  ['drunkfriend:0.45 envthief:0.25 badsinger:0.12 showoff:0.2', '신랑 친구 대표의 끝없는 축사 — "축사를 끊어라!" 실장님까지 다시 왔다'],
 ];
 const CAST = STAGE_CASTS.map(([c]) => c.split(' ').map((x) => { const [t, w] = x.split(':'); return [t, +w]; }));
 export const stageStory = (s) => (STAGE_CASTS[s - 1] || [])[1] || '';
@@ -489,14 +516,14 @@ export function stageTheme(s) {
 export function stageBosses(s) {
   const n = stageNo(s), ch = chapterOf(s);
   // 규칙: x-5 = 그 장의 첫 보스 · x-10 = 그 장의 끝 보스(새 얼굴) + x-5 보스가 다시 (다른 장 보스를 끌어오지 않는다)
-  const B5 = [null, ['boss_loan'], ['boss_gapjil'], ['boss_union', 'boss_thug'], ['boss_kkondol'], ['boss_sales'], ['boss_jusa'], ['mid_pension']];
-  const B10 = [null, ['queen'], ['boss_bbikki', 'boss_gapjil'], ['boss_inpi', 'boss_union'], ['boss_queenmom', 'boss_kkondol'], ['boss_otaku', 'boss_sales'], ['boss_soloparty', 'boss_jusa'], ['boss_resort', 'mid_pension']]; // 7-10: 회장 + 펜션 사장님 다시
+  const B5 = [null, ['boss_loan'], ['boss_gapjil'], ['boss_union', 'boss_thug'], ['boss_kkondol'], ['boss_sales'], ['boss_jusa'], ['mid_pension'], ['mid_hallmgr']];
+  const B10 = [null, ['queen'], ['boss_bbikki', 'boss_gapjil'], ['boss_inpi', 'boss_union'], ['boss_queenmom', 'boss_kkondol'], ['boss_otaku', 'boss_sales'], ['boss_soloparty', 'boss_jusa'], ['boss_resort', 'mid_pension'], ['boss_bestman', 'mid_hallmgr']]; // 7-10: 회장 + 펜션 사장님 다시 · 8-10: 신랑 친구 대표 + 실장님 다시
   if (n === 5) return B5[ch] || [];
   if (n === 10) return B10[ch] || [];
   return [];
 }
 // 스테이지 보스 체력 배율 [첫 보스, 둘째 보스] — 보스를 바꾼 스테이지만 예전 난이도에 맞춤 (scripts/lb-balance.js deck · ch7)
-export const STAGE_BOSS_HP = { 25: [0.5, 1], 30: [1, 0.4], 70: [1, 0.15] }; // 3-5 · 3-10 진상 연합 회장(기술이 세서 체력은 낮게) · 7-10 다시 나온 펜션 사장님
+export const STAGE_BOSS_HP = { 25: [0.5, 1], 30: [1, 0.4], 70: [1, 0.15], 80: [1, 0.15] }; // 3-5 · 3-10 진상 연합 회장(기술이 세서 체력은 낮게) · 7-10 다시 나온 펜션 사장님
 // ─── 웨이브 성격: 떼거리(범위 공격) · 정예(한 방 공격) · 혼합 · 보스+호위 떼 ─────
 // count = 진상 수 배율, hp = 한 명 체력 배율 (떼거리·혼합 졸개), eliteHp = 정예 체력 배율
 export const WAVE_KINDS = {
@@ -579,6 +606,11 @@ export const MAP_FX = {
   snow: { id: 'snow', icon: '❄️', name: '연말 눈', short: '진상 −12% · 공속 −8%', desc: '진상 -12% 느림 · 멤버 공격 속도 -8% (손이 시려요)', enemySpd: 0.88, heroSpd: 0.92 },
   lightshow: { id: 'lightshow', icon: '🪩', name: '조명 쇼', short: '번쩍일 때 25% 빗나감', desc: '9초마다 2초 동안 번쩍! 멤버 공격 25% 빗나감', every: 9, strobe: 2, miss: 0.25 },
   blizzard: { id: 'blizzard', icon: '', name: '눈보라', short: '사거리 −15% · 공속 −10%', desc: '멤버 사거리 -15% · 공격 속도 -10% · 진상 -5% 느림 (7장)', range: 0.85, heroSpd: 0.9, enemySpd: 0.95 },
+  // 8장 결혼식 뒤풀이 (정전 · 조명 쇼 · 미끄러운 바닥 · 안개와 같은 틀)
+  champagne: { id: 'champagne', icon: '', name: '샴페인 바닥', short: '넉백 +40% · 진상 +5% 빠름', desc: '쏟아진 샴페인에 바닥이 미끌미끌 — 넉백 거리 +40% · 진상 이동 +5%', kb: 1.4, enemySpd: 1.05 },
+  songnoise: { id: 'songnoise', icon: '', name: '축가 소음', short: '말빨 −15% · 공속 −7%', desc: '음 이탈 축가가 끝없이 — 말빨 멤버 피해 -15% · 멤버 공격 속도 -7%', attr: { talk: 0.85 }, heroSpd: 0.93 },
+  dimlight: { id: 'dimlight', icon: '', name: '조명 암전', short: '가끔 암전 · 가까운 진상만 보임', desc: '신랑신부 입장처럼 가끔 조명이 꺼지면 가까운 진상과 지목한 진상만 보인다', every: 11, dark: 2.4, seeR: 200 },
+  petals: { id: 'petals', icon: '', name: '꽃가루', short: '먼 사거리 −18%', desc: '꽃가루가 흩날려 앞이 안 보인다 — 멀리 쏘는 멤버(사거리 400+) 사거리 -18%', longRange: 0.82 },
 };
 // 스테이지별 맵 효과 (1챕터는 순하게, 뒤로 갈수록 적 구성과 맞물리게)
 const STAGE_FX = [ // 속성 버프가 있는 효과(노래방·안개=말빨, 회식=술)는 그 속성이 추천인 스테이지에만
@@ -589,6 +621,7 @@ const STAGE_FX = [ // 속성 버프가 있는 효과(노래방·안개=말빨, �
   'none', 'campfire', 'campfire', 'karaoke', 'happy', 'campfire', 'karaoke', 'blackout', 'fog', 'campfire',
   'snow', 'lightshow', 'snow', 'happy', 'snow', 'lightshow', 'megaphone', 'snow', 'lightshow', 'snow',
   'snow', 'icy', 'blizzard', 'icy', 'snow', 'blackout', 'blizzard', 'snow', 'icy', 'blizzard', // 7장 스키장
+  'petals', 'champagne', 'champagne', 'songnoise', 'dimlight', 'lightshow', 'petals', 'champagne', 'dimlight', 'songnoise', // 8장 결혼식 뒤풀이
 ];
 export function stageFx(s) { return MAP_FX[STAGE_FX[s - 1] || 'none']; }
 
@@ -647,7 +680,7 @@ export function stageConds(s, hell) {
 export const COND_HP = [1, 0.95, 0.82, 0.78, 0.6, 0.52]; // 조건 스테이지 진상 체력 (기믹이 생긴 만큼 장별로 덜어 준다 · lb-balance.js deck 으로 맞춤)
 export const DOOR_PRESSURE = { atk: [1.1, 1.2, 1.3, 1.35, 1.4, 1.45], hell: 1.1, from: 2 }; // from: 첫 웨이브(대장 혼자 · 합류 중)는 기믹 없이
 // 장별 권장 강화: 넘는 만큼은 절반만 (업그레이드만으로 뚫지 않게) · 헬은 +4 까지 그대로
-export const REC_META = [4, 7, 10, 12, 14, 16, 18];
+export const REC_META = [4, 7, 10, 12, 14, 16, 18, 20];
 export const META_SOFT = { over: 0.5, hellAdd: 4 };
 export const recMeta = (s, hell) => REC_META[Math.max(0, Math.min(REC_META.length - 1, chapterOf(s || 1) - 1))] + (hell ? META_SOFT.hellAdd : 0);
 export function softMeta(m, s, hell) { const r = recMeta(s, hell); return m > r ? r + (m - r) * META_SOFT.over : m; }
@@ -1049,6 +1082,18 @@ export const HEROES = {
     perks: { 3: '걷는 속도 · 버티는 힘 · 미는 폭 ↑', 5: '쉬는 시간이 1초 짧아진다 · 미는 폭 ↑' },
     skill: { id: 'wallwalk', name: '벽이 걸어온다', cd: 22, desc: '언제 눌러도 그 자리에서 바로 돌아서 출발! 6초 동안 1.5배로 커지고 조금 빨라져 넓게 밀어낸다 (돌아오는 중 · 쉬는 중 · 지쳤을 때도 체력 가득) · 끝에서 쿵! 뭉친 진상 1칸 밀치고 1초 기절 (피해 없음)', sec: [6, 6, 6, 6, 7], grow: 1.5 }, // (1.3 → 1.5배: 범위가 좁다는 의견)
   },
+  subin: { // 8장 새 멤버 신부 친구 (이름은 임시 — 그림 파일은 *_subin)
+    id: 'subin', bossKit: 0.9, kit: 1.0, name: '차수빈', gender: 'f', emoji: '', color: '#c9a8ff', gacha: true, attr: 'power',
+    img: '/img/lb/h_subin.webp', role: '부케 묶기 · 도둑 잡기 · 묶인 진상 약점',
+    dmg: 40, interval: 1.12, range: 355, proj: 'bouquet', projSpeed: 600,
+    tie: { sec: [1.0, 1.0, 1.2, 1.2, 1.5], again: 2.5, bossSlow: 0.5, thief: 1.6 }, // 맞은 진상을 리본으로 묶어 제자리 (같은 진상은 2.5초 뒤부터 다시) · 보스 · 중간 보스는 묶이지 않고 50% 느려짐 · 봉투 든 축의금 도둑은 1.6배 오래
+    attack: '부케 던지기 — 맞은 진상을 리본으로 묶어 잠깐 제자리 (봉투 든 축의금 도둑은 더 오래 · 보스는 느려짐)',
+    desc: '신부의 20년 지기 베프. 부케는 받는 게 아니라 던지는 거라고 믿는다. "다음 차례는 너야~"',
+    perks: { 3: '묶는 시간 +0.2초', 5: '묶는 시간 +0.3초 · 부케 토스가 더 넓고 세게' },
+    skill: { id: 'bouqtoss', name: '부케 토스', cd: 22, target: true, r: [90, 90, 100, 100, 115], mul: [2.2, 2.2, 2.5, 2.5, 3.0], tie: [2.2, 2.2, 2.5, 2.5, 3.0], amp: 0.25, ampSec: 5,
+      desc: '찍은 곳에 큰 부케를 던진다 — 범위 진상 큰 피해 + 리본으로 2.2초 묶기 (보스는 느려짐) · 묶인 진상은 5초 동안 모든 멤버에게 받는 피해 +25%' },
+    shouts: ['다음 차례는 너야~', '부케 받아!', '도망가면 묶는다?', '신부 울리면 혼나'],
+  },
 };
 // 소환 멤버 (덱 · 모집 · 도감 목록에는 없다): 정소영이 부르는 성준영
 export const SUMMONS = {
@@ -1071,7 +1116,7 @@ export const HERO_TIER = {
   dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2,
   hanna: 3, donghan: 3, sunggu: 3, youngjun: 3,
   junseo: 4, hyungyeong: 4, ara: 4,
-  hochan: 5, byunghwa: 5, baul: 3,
+  hochan: 5, byunghwa: 5, baul: 3, subin: 3,
   soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, junyoung: 3, jiwon: 3, wonsik: 3, jeongseob: 3,
 };
 // 티어: 늦게 만나는 멤버일수록 기본이 세고(공격력 · 공격 속도) 성장은 완만 — 초반 멤버는 성장형
@@ -1096,7 +1141,7 @@ export const metaMaxOf = (id) => TIER_MAX[heroTier(id)];
 export const BASE_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
 export const UNLOCK_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun']; // 스테이지를 깨면 합류하는 일반 영웅
 export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu'];
-export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'baul']; // 모집(뽑기) 영웅 등급
+export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'baul', 'subin']; // 모집(뽑기) 영웅 등급
 export const LEGEND_HEROES = ['hochan', 'byunghwa']; // 모집 전설 (마지막 스테이지를 깨야 모집에 나온다)
 export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; // 해금이 필요한 영웅 전부
 // 도감 · 멤버 카드 역할 분류 (실제 기술 기준 · 멤버마다 정확히 하나)
@@ -1113,7 +1158,7 @@ export const HERO_ROLE = {
   bangjang: 'support', gunnyeo: 'support', dohoon: 'support', jungmin: 'support',
   eunok: 'aoe', sunggu: 'aoe', donghan: 'aoe', baul: 'aoe', junseo: 'aoe', hochan: 'aoe',
   gunman: 'single', sanghwa: 'single', ara: 'single', hanna: 'single', youngjun: 'single', myunghoon: 'single',
-  staff: 'ctrl', jieun: 'ctrl', byunghwa: 'ctrl',
+  staff: 'ctrl', jieun: 'ctrl', byunghwa: 'ctrl', subin: 'ctrl',
   jiwon: 'special', hyungyeong: 'special', soyoung: 'special',
 };
 export const heroRole = (id) => HERO_ROLE[id] || 'special';
@@ -1539,6 +1584,53 @@ export const ENEMIES = {
     title: '리조트 갑부 회장 등장!', subtitle: '"이 산 전부 내 거야!"',
     shouts: ['이 산 전부 내 거야!', 'VIP 전용 슬로프다!', '눈사태 한 번 보여 줘?', '리프트 멈춰!'],
   },
+  // ── 8장 결혼식 뒤풀이 (고난도): 축의금 도둑(쫓아가 잡기) · 뷔페 회복 · 축가 공속↓ · 홀림 · 취한 무리 · 실장님 재촉 · 끝없는 축사 ──
+  envthief: {
+    id: 'envthief', cls: 'jerk', name: '축의금 도둑', gender: 'm', emoji: '', color: '#3a3a4a', ch8: true,
+    img: '/img/lb/e_envthief.webp', hp: 66, speed: 58, atk: 0, atkInterval: 1.2, exp: 6, r: 16, size: 74,
+    envelope: { run: 1.45 }, // 입구(축의금 접수대)를 안 때리고 봉투를 집어 위로 달아난다 → 화면 위로 빠지면 이번 판 코인 -8% (최대 -40%) · 잡으면 봉투 되찾음 · 묶이면(차수빈 부케) 제자리
+    shouts: ['축의금 대신 받아 드릴게요~', '신랑 측이에요, 신부 측이에요?', '봉투 하나만…', '튀어!'],
+  },
+  buffet: {
+    id: 'buffet', cls: 'violent', name: '뷔페 싹쓸이 아줌마', gender: 'f', emoji: '', color: '#8a5ac8', ch8: true,
+    img: '/img/lb/e_buffet.webp', hp: 190, speed: 30, atk: 9, atkInterval: 1.4, armor: 3, exp: 11, r: 19, size: 84,
+    eat: { every: 5, first: 2.5, r: 110, heal: 0.08, self: 0.05 }, // 냠냠: 5초마다 곁(110) 진상 체력 8% 회복 (자기는 6%) · 기절 중엔 못 먹는다
+    shouts: ['이거 포장되죠?', '갈비찜 아직 남았어?', '우리 애 몫까지~', '접시 하나 더!'],
+  },
+  badsinger: {
+    id: 'badsinger', cls: 'politic', name: '축가 망치는 삼촌', gender: 'm', emoji: '', color: '#a0703a', ch8: true,
+    img: '/img/lb/e_badsinger.webp', hp: 96, speed: 38, atk: 6, atkInterval: 1.3, exp: 9, r: 17, size: 78, standoff: 175,
+    sing: { every: 7, first: 3, windup: 0.9, r: 130, cut: 0.35, sec: 3 }, // 마이크 들고 0.9초 숨 들이쉬고 → 음 이탈! 곁(가로 130) 멤버 공격 속도 -35% 3초 · 숨 들이쉴 때 기절시키면 끊긴다
+    shouts: ['사랑~해~도~ (삑)', '한 곡 더 할게!', '앵콜 안 받아요? 받아요!', '아아 마이크 테스트'],
+  },
+  showoff: {
+    id: 'showoff', cls: 'seduce', name: '하객룩 과시녀', gender: 'f', emoji: '', color: '#e8c050', ch8: true,
+    img: '/img/lb/e_showoff.webp', hp: 80, speed: 46, atk: 6, atkInterval: 1.1, exp: 7, r: 16, size: 74, charm: 'm',
+    shouts: ['신부보다 예쁘다는 말 들었어~', '셀카 한 장만!', '이 원피스 얼마게?', '오늘 주인공은 나야'],
+  },
+  drunkfriend: {
+    id: 'drunkfriend', cls: 'jerk', name: '술 취한 신랑 친구', gender: 'm', emoji: '', color: '#3d8a4a', ch8: true,
+    img: '/img/lb/e_drunkfriend.webp', hp: 58, speed: 44, atk: 7, atkInterval: 1.1, exp: 5, r: 16, size: 74, zigzag: 30, erratic: true,
+    group: { min: 2, max: 3, gap: 0.3 }, // 어깨동무한 두세 명이 갈지자로 우르르
+    shouts: ['신랑 나와라!', '건배~!', '내가 신랑 베프야', '2차 가자 2차!'],
+  },
+  mid_hallmgr: {
+    id: 'mid_hallmgr', cls: 'politic', name: '예식장 실장님', gender: 'm', emoji: '', color: '#2a2a3a', ch8: true,
+    boss: true, coin: 60, // 8-5 보스 (이름은 중간 보스처럼 mid_ — 7장 펜션 사장님과 같은 틀) · 8-10 에 신랑 친구 대표와 다시
+    img: '/img/lb/e_mid_hallmgr.webp', hp: 6600, speed: 14, atk: 34, atkInterval: 1.6, armor: 4, exp: 80, r: 42, size: 146,
+    hurry: { every: 10, first: 4, windup: 1.2, r: 260, sec: 5 }, // "시간 없어요!" 1.2초 예고 → 곁(260) 진상 5초 재촉 (이동 ×1.3 · 입구 공격 ×1.4) · 예고 중 기절시키면 끊긴다
+    clip: { every: 6, stun: 1.0 }, // 입구 앞에서 클립보드 휘두르기 — 제일 가까운 멤버 1초 기절
+    title: '예식장 실장님 등장!', subtitle: '"시간 없어요! 다음 예식 들어와요!"',
+    shouts: ['시간 없어요!', '다음 예식 들어와요!', '빨리빨리 빼 주세요~', '여기 사진 찍으시면 안 돼요!'],
+  },
+  boss_bestman: {
+    id: 'boss_bestman', cls: 'jerk', name: '신랑 친구 대표', gender: 'm', emoji: '', color: '#d8b040', boss: true, ch8: true,
+    img: '/img/lb/e_boss_bestman.webp', hp: 7400, speed: 15, atk: 40, atkInterval: 1.8, armor: 5, exp: 90, r: 46, size: 158,
+    summon: { every: 12, count: 3, types: ['drunkfriend'] },
+    speech: { every: 13, first: 5, sec: 9, need: 24, skillHit: 5, r: 280, buff: 0.03, stun: 2.5, weak: 4, door: 0.12, drowse: 4, drowseCut: 0.35 }, // 끝없는 축사: 하는 동안 무적(금빛 테두리) · 곁(280) 진상 재촉 + 초당 체력 3% 회복 · 축사 게이지 24 (한 대 1 · 스킬 5) 를 채우거나 기절 · 총공지로 끊으면 2.5초 기절 + 빈틈 · 9초를 다 하면 입구 12% 피해 + 멤버 4초 졸음(공속 -35%)
+    title: '신랑 친구 대표 등장!', subtitle: '"에… 신랑과 저는 초등학교 때부터…"',
+    shouts: ['에… 마지막으로 한 말씀만…', '신랑과 저는 초등학교 때부터…', '두루마리 2장 째입니다', '울지 마 신랑아!'],
+  },
   // ── 무한 도전 전용 보스: 25웨이브부터 10웨이브마다 ──
   boss_union: {
     id: 'boss_union', cls: 'jerk', name: '진상 연합 회장', gender: 'm', emoji: '🎩', color: '#8a2be2', boss: true, inpi: true,
@@ -1590,6 +1682,12 @@ const MID_DEFS = {
   fuse_lift: { fuse: ['liftcut', 'snowboard'], name: '리프트 무법자', hpX: 6 },
   fuse_coach: { fuse: ['fakecoach', 'hotpack'], name: '사칭 강사단', hpX: 5 },
   fuse_snowfight: { fuse: ['snowball', 'liftcut'], name: '눈싸움 원정대', hpX: 7 },
+  // 8장 결혼식 뒤풀이
+  mid_envthief: { base: 'envthief', name: '각성 축의금 도둑', hpX: 11 },
+  mid_buffet: { base: 'buffet', name: '각성 뷔페 아줌마', hpX: 5 },
+  mid_drunkfriend: { base: 'drunkfriend', name: '각성 취한 친구', hpX: 10 },
+  fuse_toast: { fuse: ['drunkfriend', 'badsinger'], name: '건배사 삼촌들', hpX: 6 },
+  fuse_selfie8: { fuse: ['showoff', 'envthief'], name: '인증샷 도둑단', hpX: 6 },
 };
 // 합체 중간 보스 한 장 그림 (둘이 한 몸) — e_<id>.webp (전투) · dex/<id>.webp (도감). 그림이 오면 여기에 추가
 // 진상 프레임 애니메이션 (선택): 가로 띠 그림 · 칸은 정사각형 (frames 를 안 적으면 너비 ÷ 높이) — 그림이 없으면 코드 움직임 그대로
@@ -1602,6 +1700,7 @@ export const ENEMY_ANIM = {
   boss_inpi: { walk: { src: '/img/lb/e_boss_inpi_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_inpi_die.webp', frames: 8, fps: 12, hold: 0.3 } },
   boss_queenmom: { walk: { src: '/img/lb/e_boss_queenmom_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_queenmom_die.webp', frames: 8, fps: 12, hold: 0.3 } },
   boss_sales: { walk: { src: '/img/lb/e_boss_sales_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_sales_die.webp', frames: 8, fps: 12, hold: 0.3 } },
+  envthief: { run: { src: '/img/lb/e_envthief_run.webp', frames: 12, fps: 14 } }, // 8장 축의금 도둑: 봉투 들고 위로 달아나는 뒷모습 (걷기 · 쓰러짐은 서버 목록으로)
   vomit: { puke: { src: '/img/lb/e_vomit_puke.webp', frames: 8, release: 3, lead: 0.45, fps: 9 } }, // 토하는 인간 "우웩!": 0~2 숙이고 꿀렁(토 직전) · 3~5 쏟기 · 6~7 입 닦기
 };
 // 입구 공격 동작 (진상마다 컨셉대로): 준비(뒤로 젖힘) → 때림(입구 쪽으로 · 불꽃) → 반동
@@ -1653,6 +1752,7 @@ const MID_BY_STAGE = [
   'fuse_lease', 'mid_mukti', 'mid_drunk', 'fuse_adspam', 'fuse_lease', 'mid_sarcasm', 'fuse_karaoke', 'fuse_puke', 'fuse_mt', 'mid_otaku',
   'fuse_karaoke', 'fuse_latte', 'fuse_jusa', 'fuse_taxi', 'fuse_sleep', 'fuse_lie', 'fuse_spam', 'fuse_inpi', 'mid_sarcasm', 'fuse_kko',
   'mid_snowboard', 'fuse_lift', 'fuse_snowfight', 'mid_sledgirl', 'mid_snowboard', 'fuse_coach', 'fuse_snowfight', 'mid_sledgirl', 'fuse_coach', 'mid_sledgirl', // 7장 (펜션 사장님은 7-5 보스로 승격 — 중간 보스로는 안 나온다)
+  'mid_drunkfriend', 'mid_envthief', 'mid_buffet', 'fuse_toast', 'mid_envthief', 'fuse_selfie8', 'mid_buffet', 'fuse_toast', 'mid_envthief', 'fuse_selfie8', // 8장
 ];
 export const MID_WAVE = 3;
 export function stageMid(s) { return MID_BY_STAGE[s - 1] || null; }
@@ -1785,13 +1885,14 @@ export const HERO_CARDS = {
   jungmin: { title: '홍정민: 수리 +40%', mul: { heal: 1.4 } },
   jiwon: { title: '여지원: 방깎 +1겹 · 5초 → 7초', add: { shredMax: 1, shredSec: 2 } },
   wonsik: { title: '정원식: 피해 감소 +10%p · 반경 +25%', add: { guardCut: 0.1 }, mul: { guardR: 1.25 } },
+  subin: { title: '차수빈: 묶는 시간 +0.5초', add: { tieSec: 0.5 } },
 };
 // 스킬 진화 카드 (Lv3 이상 멤버 · 한 번): 스킬이 한 번 더 터진다 (0.5초 뒤, 옆자리에)
 export const SKILL_EVO = {
   bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '난사 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
   dohoon: '무한 앵콜 앵콜', ingyu: '할리 한 바퀴 더', donghan: '초사이언 포격 4발 더', youngjun: '블랙 러시 왕복', eunok: '원샷 두 잔',
   hanna: '하트 레이저 풀파워 (화면 끝까지 꿰뚫는 굵은 빔)', sunggu: '지팡이 블랙홀 두 개', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
-  soyoung: '올인 콜 앵콜 (올인 모드 한 번 더)', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '모자이크 폭격 앵콜', wonsik: '결혼정보회사 VIP 등록',
+  soyoung: '올인 콜 앵콜 (올인 모드 한 번 더)', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '모자이크 폭격 앵콜', wonsik: '결혼정보회사 VIP 등록', subin: '부케 토스 2차 (한 번 더)',
 };
 // 숨은 카드 (드물게): 임시 증원 · 게스트 합류 — 한 판에 한 번
 export const SECRET = { tempSlot: 0.045, guest: 0.035 };
@@ -1800,7 +1901,7 @@ export const TAGS = {
   pierce: { id: 'pierce', name: '관통', icon: '🗡️' }, splash: { id: 'splash', name: '폭발', icon: '💥' }, chain: { id: 'chain', name: '연쇄', icon: '⚡' },
   kb: { id: 'kb', name: '넉백', icon: '💨' }, heal: { id: 'heal', name: '회복', icon: '💚' }, ctrl: { id: 'ctrl', name: '제어', icon: '🌀' }, boss: { id: 'boss', name: '보스킬', icon: '🎯' },
 };
-export const HERO_TAGS = { jeongseob: ['ctrl'],
+export const HERO_TAGS = { jeongseob: ['ctrl'], subin: ['ctrl'],
   bangjang: ['boss', 'ctrl'], staff: ['ctrl'], gunman: ['pierce', 'boss'], gunnyeo: ['splash', 'heal'], myunghoon: ['chain', 'ctrl'], dohoon: ['heal', 'ctrl'],
   ingyu: ['splash', 'kb'], donghan: ['pierce', 'splash'], youngjun: ['boss'], eunok: ['splash'], hanna: ['kb', 'boss'], sunggu: ['pierce'],
   junseo: ['chain', 'kb'], hyungyeong: ['splash', 'kb'], ara: ['boss', 'splash'], hochan: ['pierce', 'ctrl'],
@@ -1814,7 +1915,7 @@ export const EVO = {
   myunghoon: { tag: 'chain', name: '구미호 욕신' }, dohoon: { tag: 'heal', name: '전국 투어' }, ingyu: { tag: 'kb', name: '3대 700' }, donghan: { tag: 'splash', name: '각성한 간보기' },
   youngjun: { tag: 'boss', name: '한밤의 블랙캣' }, eunok: { tag: 'splash', name: '폭탄주 여왕' }, hanna: { tag: 'kb', name: '윙크 여신' }, sunggu: { tag: 'pierce', name: '지팡이 달인' },
   junseo: { tag: 'chain', name: '인맥왕' }, hyungyeong: { tag: 'kb', name: '다이어트 챔피언' }, ara: { tag: 'boss', name: '여왕 폐하' }, hochan: { tag: 'ctrl', name: '랑방의 전설' },
-  soyoung: { tag: 'ctrl', name: '잔소리 대마왕' }, jieun: { tag: 'ctrl', name: '시간의 마녀' }, sanghwa: { tag: 'boss', name: '완벽한남자' }, jungmin: { tag: 'heal', name: '붕대 장인' }, jiwon: { tag: 'boss', name: '모자이크 여왕' }, wonsik: { tag: 'heal', name: '품절남' },
+  soyoung: { tag: 'ctrl', name: '잔소리 대마왕' }, jieun: { tag: 'ctrl', name: '시간의 마녀' }, sanghwa: { tag: 'boss', name: '완벽한남자' }, jungmin: { tag: 'heal', name: '붕대 장인' }, jiwon: { tag: 'boss', name: '모자이크 여왕' }, wonsik: { tag: 'heal', name: '품절남' }, subin: { tag: 'ctrl', name: '부케의 여신' },
 };
 export const EVO_MUL = { dmg: 1.45, spd: 0.18, cd: 0.7 };
 // 뽑을 게 모자랄 때 채워 넣는 카드 (제한 없음)
@@ -1977,6 +2078,7 @@ export const SIG = {
   baul: { name: '팬클럽 응원 썰매 2호', stats: { skill: 0.15, atk: 0.08 }, fx: { sledBack: 1, stun: 1, boardUses: 3 }, desc: '보드 정비 전에 3번 더 탄다 · 썰매가 내려갔다가 다시 올라오며 한 번 더 쓸고 줄 위 진상 1초 기절' },
   byunghwa: { name: '앵콜 원맨쇼 핀 조명', stats: { cd: 0.12, atk: 0.08 }, fx: { encore: 1 }, desc: '원맨쇼가 끝나는 순간 앵콜 원맨쇼가 한 번 더 (멈춤 · 버프 시간 2배)' },
   jeongseob: { name: '쌍둥이 정섭 가면', stats: { res: 0.3, hp: 0.1 }, fx: { twin: 1, stun: 2 }, desc: '나갈 때마다 윤정섭이 둘! 옆 줄에서 그림자 정섭이 함께 밀고 올라간다 · 끝 기절 2배' },
+  subin: { name: '20년 우정 부케', stats: { skill: 0.12, cd: 0.1 }, fx: { tieN: 1, ampUp: 0.15 }, desc: '기본 부케가 맞은 진상 곁의 1명을 더 묶는다 · 부케 토스로 묶인 진상 받는 피해 +25% → +40%' },
 };
 export const SIG_IDS = Object.keys(SIG).map((h) => 'sig_' + h); // 장비 id: sig_<멤버>
 export const SIG_PITY = 600; // 신화 조각 600개 = 원하는 멤버 전용 신화 1개
@@ -1988,7 +2090,7 @@ export const gearFits = (t, hero) => !!GEAR[t] && (!GEAR[t].hero || GEAR[t].hero
 export const sigOf = (hero) => (SIG[hero] ? 'sig_' + hero : null);
 export const sigStatText = (t) => Object.entries(GEAR[t].stats).map(([k, v]) => `${(GEAR_STATS[k] || { name: k }).name.replace(/ \(.*\)$/, '')} +${Math.round(v * 1000) / 10}%`).join(' · ');
 // 그림이 아직 없는 전용 신화: 멤버 얼굴(도감 썸네일)로 대신 (public/img/lb/gear/myth_<멤버>.webp 가 생기면 여기서 지우기)
-export const SIG_ART_TODO = new Set(); // 25종 모두 그림 있음 (gear/myth_<멤버>.webp)
+export const SIG_ART_TODO = new Set(['subin']); // 차수빈(8장)만 아직 — 멤버 얼굴로 대신
 export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
 // 그림 주소 (화면): 그림이 아직 없는 새 장비는 비슷한 장비 그림으로
 for (const t of Object.keys(GEAR)) GEAR[t].img = GEAR[t].hero ? (SIG_ART_TODO.has(GEAR[t].hero) ? `/img/lb/dexhq/thumb/${GEAR[t].hero}.webp` : `/img/lb/gear/myth_${GEAR[t].hero}.webp`) : `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;
@@ -2166,7 +2268,7 @@ export const HERO_AUG = {
 export const CC_KINDS = { stun: { icon: '⭐', name: '기절', color: '#ffe066' }, slow: { icon: '🐢', name: '감속', color: '#6fb3ff' }, freeze: { icon: '🧊', name: '빙결', color: '#9ff0ff' }, kb: { icon: '💨', name: '밀치기', color: '#ffffff' }, pull: { icon: '🧲', name: '끌어당기기', color: '#c77dff' } };
 export const HERO_CC = {
   bangjang: 'kb', staff: 'slow', gunman: 'stun', gunnyeo: 'slow', myunghoon: 'stun', dohoon: 'slow', ingyu: 'kb', donghan: 'freeze', youngjun: 'stun', eunok: 'kb',
-  hanna: 'pull', sunggu: 'pull', junseo: 'kb', hyungyeong: 'kb', ara: 'stun', hochan: 'freeze', soyoung: 'slow', jieun: 'freeze', sanghwa: 'pull', jungmin: 'slow', jiwon: 'stun', wonsik: 'pull',
+  hanna: 'pull', sunggu: 'pull', junseo: 'kb', hyungyeong: 'kb', ara: 'stun', hochan: 'freeze', soyoung: 'slow', jieun: 'freeze', sanghwa: 'pull', jungmin: 'slow', jiwon: 'stun', wonsik: 'pull', subin: 'slow',
 };
 export const CC_ON_HIT = { chance: [0.12, 0.18, 0.25], stun: 0.8, slow: 1.8, freeze: 1.0, kb: 60, pull: 50 };
 
@@ -2289,6 +2391,10 @@ export const SKILL_AUG = {
     { id: 'curtain', name: '커튼콜', desc: '원맨쇼 중 처치하면 시간 +0.5초 (최대 +3초)' },
     { id: 'stage', name: '무대 확장', desc: '고함 대상 +2명 · 홀림 +0.3초' },
   ],
+  subin: [
+    { id: 'ribbon', name: '리본 이중 매듭', desc: '기본 공격 묶기 +0.5초', cm: { add: { tieSec: 0.5 } } },
+    { id: 'catch', name: '부케 캐치', desc: '부케 토스 반경 +25% · 묶인 진상 받는 피해 +15%p' },
+  ],
   jeongseob: [
     { id: 'giant', name: '거인의 팔', desc: '미는 폭 +30% · 버티는 힘 +50%' },
     { id: 'stomp', name: '벽 쿵쿵', desc: '끝에서 쿵 기절 +1초 · 범위 +40' },
@@ -2336,3 +2442,10 @@ BOSS_KITS.boss_bbikki = {
 };
 Object.assign(ENEMY_ATK, { boss_bbikki: 'slap' });
 Object.assign(SHORT_NAME, { boss_bbikki: '삐끼왕' });
+// 8장 결혼식 뒤풀이: 입구 공격 동작 · 짧은 이름 · 드문 진상 · 실장님 · 신랑 친구 대표 보스 패턴
+Object.assign(ENEMY_ATK, { envthief: 'shove', buffet: 'bag', badsinger: 'slap', showoff: 'slap', drunkfriend: 'bottle', mid_hallmgr: 'bag', boss_bestman: 'punch' });
+Object.assign(SHORT_NAME, { envthief: '축의금 도둑', buffet: '뷔페 아줌마', badsinger: '축가 삼촌', showoff: '과시녀', drunkfriend: '취한 친구', mid_hallmgr: '예식장 실장', boss_bestman: '친구 대표',
+  mid_envthief: '각성 도둑', mid_buffet: '각성 뷔페', mid_drunkfriend: '각성 취객', fuse_toast: '건배사 삼촌', fuse_selfie8: '인증샷 도둑단' });
+FEW.push('buffet', 'badsinger');
+BOSS_KITS.mid_hallmgr = { name: '예식장 실장님', skills: [['slow', '"다음 예식 들어와요!"', { cut: 0.25, sec: 4 }], ['summon', '하객 몰아넣기', { types: ['drunkfriend', 'envthief'], n: 3 }]], p2: ['stun', '클립보드 내려치기', { n: 2, sec: 1.3 }] };
+BOSS_KITS.boss_bestman = { name: '신랑 친구 대표', skills: [['stun', '건배 제의', { n: 1, sec: 1.3 }], ['slow', '"한 말씀만 더…"', { cut: 0.25, sec: 4 }]], p2: ['summon', '친구들 무대로!', { types: ['drunkfriend', 'showoff'], n: 3 }] };

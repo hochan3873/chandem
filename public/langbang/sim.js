@@ -4,7 +4,7 @@ import {
   FIELD, RULES, HEROES, SUMMONS, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
   STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
-  TRAITS, REVEAL_HEROES, CH7, COND, COND_HP, stageConds, DOOR_PRESSURE, softMeta, stageMission, missionOk,
+  TRAITS, REVEAL_HEROES, CH7, CH8, thiefCut, COND, COND_HP, stageConds, DOOR_PRESSURE, softMeta, stageMission, missionOk,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
@@ -1001,6 +1001,9 @@ export function fire(g, h, t) {
     case 'tap': // 홍정민 거꾸로 든 소주병
       spawnProj(g, 'tap', h, t, dmg, { homing: true, pierce, r: 8, spin: 10 });
       break;
+    case 'bouquet': // 차수빈: 부케 던지기 — 맞은 진상을 리본으로 묶는다
+      spawnProj(g, 'bouquet', h, t, dmg, { homing: true, pierce, r: 10, spin: 6, tie: (d.tie.sec[lv - 1] + (h.cm.tieSec || 0)) * g.mods.ctrlMul });
+      break;
     case 'wink':
       spawnProj(g, 'wink', h, t, dmg, { homing: true, pierce, kb: (d.knockback || [80])[lv - 1] || 80 });
       break;
@@ -1352,7 +1355,7 @@ function spawnProj(g, type, h, target, dmg, o) {
   p.stunChance = o.stunChance || 0; p.stunSec = (o.stunSec || 0) * g.mods.ctrlMul;
   p.kb = o.kb || 0; p.kbStun = o.kbStun || 0; p.critBonus = o.critBonus || 0;
   p.swear = !!o.swear; p.chain = !!o.chain; p.splashStun = !!o.splashStun; p.bounces = o.bounces || 0; p.headshot = !!o.headshot; p.pull = !!o.pull;
-  p.lob = false; p.fire = null; p.motoKb = o.motoKb || 0;
+  p.lob = false; p.fire = null; p.motoKb = o.motoKb || 0; p.tie = o.tie || 0; // (8장 차수빈 부케: 묶는 시간)
   p.spin = o.spin || 0; p.rot = a; p.boomerang = !!o.boomerang; p.returning = false;
   p.maxDist = o.maxDist || 9999; p.dist = 0; p.life = 3.2; p.rage = !!o.rage;
   p.hitIds.length = 0;
@@ -1408,6 +1411,8 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.tLay = 0; e.tLayMax = 0; e.titan = false;
   if (g.tower) towerEnemy(g, e, o); // 진상의 탑: 층 공격력 · 규칙 (거물 · 떼거리 · 돌진 · 보호막 · 어둠)
   if (def.ch7 || e.ch7On) ch7Init(g, e); // 7장 스키장 진상 상태 (풀에서 꺼낸 진상은 지난 값을 지운다)
+  e.tieT = 0; e.tieAgain = 0; e.tieAmpT = 0; e.tieAmp = 0; e.env = false; e.rushT = 0; e.speechT = 0; e.speechG = 0; e.hurryW = 0; e.singW = 0; // 8장: 부케 묶기 · 봉투 · 재촉 · 축사 (풀에서 꺼낸 진상도 지운다)
+  if (def.ch8) ch8Init(g, e); // 8장 결혼식 뒤풀이 진상 상태
   e.cLay = 0; e.cLayMax = 0; e.cArmor = false; e.cHid = false; e.cDone = false; e.cLeak = false; e.cRush = false; e.cOff = false; e.cCrashed = false;
   if (g.conds.length && g.wave >= DOOR_PRESSURE.from) condEnemy(g, e); // 스테이지 조건 (보호막 · 철갑 · 은신 · 돌격 · 문 압박)
   if (g.wtr) wtrEnemy(g, e); // 주간 진상 특성
@@ -1421,6 +1426,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
 export const BOSS_GUARD = { hit: 0.05, perSec: 0.07, over: 0.2, from: 30 }; // 4장부터 (3-10 은 원래대로)
 export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.dead) return 0;
+  if (e.speechT > 0) return ch8SpeechHit(g, e, src); // 8장 신랑 친구 대표: 축사 중엔 무적 — 대신 축사 게이지가 찬다
   if (e.r2 && g.r2) { dmg = g.r2.hitMul(g, e, dmg, src, aoe); if (!(dmg > 0)) return 0; } // 건물주 레이드 거대 보스: 응원 버프 · 피해 배율 (raid2-sim.js)
   if (e.tLay > 0 && src && layerHit(g, e, src)) return 0; // 탑 보호막: 한 방에 한 겹
   if (e.cLay > 0 && src && condLayer(g, e, src)) dmg *= 1 - COND.shield.cut; // 스테이지 보호막 진상: 겹이 남아 있으면 −90% (한 방에 한 겹)
@@ -1434,6 +1440,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   }
   { const sh = (e.shredN > 0 && e.shredT > 0 ? e.shredN * (e.shredPer || 0.06) : 0) + (e.brkT > 0 ? e.brkDmg || 0 : 0); if (sh > 0) dmg *= 1 + Math.min(0.7, sh); } // 여지원 방깎 (기본 겹 + 모자이크 폭격 · 합쳐 최대 +70%)
   if (g.encoreT > 0 && src && src.def) dmg *= 1 + (g.encoreDmg || 0); // 김도훈 앵콜 버프
+  if (e.tieAmpT > 0) dmg *= 1 + (e.tieAmp || 0); // 8장 차수빈 부케 토스: 묶인 진상은 모두에게 더 아프게
   // 속성 상성: 효과 굉장! ×TYPE_STRONG(1.6) / 별로… ×TYPE_WEAK(0.7) — data.js TYPE_CHART
   let tm = 1;
   if (src && src.def && src.def.attr && !g.noTypes) {
@@ -1553,7 +1560,7 @@ function midKit(e) {
 // 보스 패턴 (예고 → 기술 → 틈) · 2페이즈 · 포효
 function bossBrain(g, e, dt) {
   const b = e.bai, kit = b.mid ? midKit(e) : BOSS_KITS[e.type];
-  if (e.y < 60 || e.stunT > 0 || e.avaW > 0 || e.quietW > 0) return; // (7장 회장 눈사태 · 펜션 사장님 소음 금지 예고 중엔 다른 기술 안 씀)
+  if (e.y < 60 || e.stunT > 0 || e.avaW > 0 || e.quietW > 0 || e.speechT > 0 || e.hurryW > 0) return; // (7장 회장 눈사태 · 펜션 사장님 소음 금지 예고 중엔 다른 기술 안 씀)
   if (!b.p2 && e.hp < e.maxHp * (kit.rageAt || 0.5)) { b.p2 = true; e.spdMul *= 1.25; e.atk *= 1.2; if (b.st === 'walk' && kit.everyP2) b.next = Math.min(b.next, kit.everyP2[1]); ev(g, b.mid ? 'midRage' : 'bossRage', { x: e.x, y: e.y - e.def.size * 0.7, name: kit.name, sub: kit.rageSub, type: e.type }); }
   if ((b.roar -= dt) <= 0) { // 포효: 날아가던 공격을 지우고 곁의 부하에게 보호막
     b.roar = BOSS_AI.roar;
@@ -1642,6 +1649,7 @@ function killEnemy(g, e, src) {
   if (e.boss) {
     for (let i = 0; i < 10; i++) dropGem(g, e.x + (g.rng() - 0.5) * 80, e.y + (g.rng() - 0.5) * 60, xp / 10);
   } else dropGem(g, e.x, e.y, xp);
+  if (e.env && e.fleeing) { s.envSaved = (s.envSaved | 0) + 1; ev(g, 'c8recover', { x: e.x, y: e.y - def.size * 0.5 }); } // 8장: 도둑을 잡아 봉투를 되찾았다
   // 먹튀가 훔쳐 간 경험치 되찾기
   if (e.stolen) {
     dropGem(g, e.x, e.y, e.stolen);
@@ -1738,6 +1746,7 @@ function updateEnemies(g, dt) {
     if (e.healBlockT > 0) e.healBlockT -= dt;
     if (e.tauntT > 0) e.tauntT -= dt;
     if (e.orderT > 0) e.orderT -= dt; if (e.grooveT > 0) e.grooveT -= dt; // 방장 지목 · 김도훈 떼창
+    if (e.tieT > 0) e.tieT -= dt; if (e.tieAgain > 0) e.tieAgain -= dt; if (e.tieAmpT > 0) e.tieAmpT -= dt; if (e.rushT > 0) e.rushT -= dt; // 8장: 부케 묶기 · 재촉
     if (def.traits) traitTick(g, e, dt, def.traits);
     if (e.bai && !g.pvp) bossBrain(g, e, dt);
     e.hurtT += dt;
@@ -1765,6 +1774,7 @@ function updateEnemies(g, dt) {
     if (def.scam) updateScammer(g, e, dt);
     if (def.fake || def.dash || def.insurance || def.sarcasm || def.figures || def.goods || def.sleep || def.homeward || def.golf || def.toss || def.enrage || def.disco || def.confetti || def.jusa || e.hasteT > 0 || e.lieWeakT > 0 || (g.hell && e.boss)) updateNewEnemy(g, e, dt);
     if (def.ch7) ch7Tick(g, e, dt); // 7장 스키장 진상 기술
+    if (def.ch8) ch8Tick(g, e, dt); // 8장 결혼식 뒤풀이 진상 기술
     if (e.stunT > 0) { e.stunT -= dt; continue; }
     if (def.vault && !e.vaulted && !e.atRope && e.y > g.ropeY - def.vault.at && e.stunT <= 0) {
       e.vaulted = true; e.jumpT = def.vault.sec; e.kbv = 0;
@@ -1943,10 +1953,12 @@ function updateEnemies(g, dt) {
     }
     // 먹튀: 코인 들고 도망
     if (e.fleeing) {
-      e.y -= e.speed * 1.4 * dt;
+      if (e.env) { if (!(e.tieT > 0)) e.y -= e.speed * def.envelope.run * (e.slowT > 0 ? e.slowMul : 1) * dt; } // 8장 축의금 도둑: 봉투 들고 위로 (묶이면 제자리 · 감속에 느려짐)
+      else e.y -= e.speed * 1.4 * dt;
       if (e.y < -60) {
         e.dead = true;
-        ev(g, 'escape', { x: e.x, y: 0, v: Math.round(e.stolen) });
+        if (e.env) ch8Escape(g, e);
+        else ev(g, 'escape', { x: e.x, y: 0, v: Math.round(e.stolen) });
       }
       continue;
     }
@@ -1957,7 +1969,8 @@ function updateEnemies(g, dt) {
       const sp = e.speed * (e.slowT > 0 ? e.slowMul : 1) * (e.dictT > 0 ? e.dictSpd : 1) * (g.megaT > 0 ? g.mapFx.speed : 1)
         * (e.flexT > 0 ? ENEMIES.gao.gao.flexSpd : 1) * (e.puddleT > 0 ? ENEMIES.vomit.deathPuddle.speed : 1)
         * e.spdMul * (e.hasteT > 0 ? 1.15 : 1) * (e.sleeping ? 0 : 1) * (e.lureT > 0 ? e.lureSpd : 1) // (삐끼왕 호객: 우르르)
-        * (g.mapFx.belt && e.x > g.mapFx.belt[0] && e.x < g.mapFx.belt[1] ? g.mapFx.beltMul : 1);
+        * (g.mapFx.belt && e.x > g.mapFx.belt[0] && e.x < g.mapFx.belt[1] ? g.mapFx.beltMul : 1)
+        * (e.tieT > 0 || e.speechT > 0 ? 0 : 1) * (e.rushT > 0 ? CH8.rushSpd : 1); // 8장: 묶이면 · 축사 중엔 제자리 · 실장님 재촉엔 빨리
       e.y += sp * dt;
       if (def.zigzag) e.x = clamp(e.baseX + Math.sin(e.age * (def.erratic ? 3.1 + Math.sin(e.age * 0.7 + e.phase) * 1.5 : 2.3) + e.phase) * def.zigzag, g.mapFx.lane ? g.mapFx.lane[0] : 16, g.mapFx.lane ? g.mapFx.lane[1] : W - 16);
       if (e.y >= e.stopY) { e.y = e.stopY; e.atRope = true; e.atkCd = 0.25; }
@@ -2007,6 +2020,12 @@ function updateEnemies(g, dt) {
           ev(g, 'grab', { x: e.x, y: e.y, hx: h.x, hy: h.y, hero: h.id });
         }
       }
+      if (def.envelope && !e.env) { // 8장 축의금 도둑: 입구 대신 접수대 봉투를 집어 위로 달아난다
+        e.env = true; e.fleeing = true; e.atRope = false; e.kbv = 0;
+        if (!g.envTip && g.mode === 'stage') { g.envTip = true; ev(g, 'tip', { text: '축의금 도둑이 봉투를 들고 도망가요! 화면 위로 빠지면 코인 −8% — 묶고(차수빈) · 기절 · 감속으로 잡아요' }); }
+        ev(g, 'c8grab', { x: e.x, y: e.y - def.size * 0.6 });
+        continue;
+      }
       if (def.steal && !e.fast) {
         // 경험치를 훔쳐 도망 — 잡으면 보석으로 돌려받는다
         const amt = Math.round(def.steal.base + def.steal.perLevel * g.diff);
@@ -2020,7 +2039,8 @@ function updateEnemies(g, dt) {
         damageBase(g, e.atk, e);
         continue;
       }
-      e.atkCd -= dt;
+      if (e.speechT > 0) { if (e.hitT > 0) e.hitT -= dt; continue; } // 축사 중엔 입구를 안 친다
+      e.atkCd -= dt * (e.rushT > 0 ? CH8.rushAtk : 1); // (8장 실장님 재촉: 입구를 더 빨리)
       if (e.atkCd <= 0) {
         e.atkCd = e.fast ? BAL.fast.atkInt : def.atkInterval; // 빠른 진상: 입구에 붙으면 빠르게 세게
         e.hitT = 0.25;
@@ -2608,6 +2628,131 @@ function creditBuff(g, h, dmg) {
   g.stats.team.buff += add;
   for (let i = 0; i < L.length; i += 2) teamOf(g, L[i]).buff += (add * Math.log(L[i + 1])) / lnM;
 }
+// ─── 8장 결혼식 뒤풀이 진상 기술 (축의금 도둑 · 뷔페 회복 · 축가 공속↓ · 실장님 재촉 · 클립보드 · 끝없는 축사) ───
+function ch8Init(g, e) {
+  const d = e.def;
+  e.eatCd = d.eat ? d.eat.first + g.rng() : 0;
+  e.singCd = d.sing ? d.sing.first + g.rng() * 2 : 0;
+  e.hurryCd = d.hurry ? d.hurry.first : 0;
+  e.clipCd = d.clip ? d.clip.every * 0.5 : 0;
+  e.speechCd = d.speech ? d.speech.first : 0; e.speechNeed = 0; e.speechTick = 0;
+}
+// 부케 묶기: 제자리 (보스 · 중간 보스는 느려짐) · 같은 진상은 잠깐 뒤에 다시 · force = 부케 토스
+function ch8Tie(g, e, sec, h, force) {
+  if (!e || e.dead || !(sec > 0)) return false;
+  const T = HEROES.subin.tie;
+  if (e.boss || e.mid) {
+    if (e.speechT > 0) ch8SpeechAdd(g, e, 4, h); // 축사 중: 리본으로 마이크 줄을 감아 게이지 +4
+    e.slowT = Math.max(e.slowT, sec); e.slowMul = Math.min(e.slowMul || 1, 1 - T.bossSlow);
+    return false;
+  }
+  if (!force && e.tieAgain > 0 && !(e.env && e.fleeing && !(e.tieT > 0))) return false; // (봉투 들고 도망가는 도둑은 풀리자마자 다시 묶을 수 있다)
+  const k = stunMul(e); if (!(k > 0)) return false;
+  const s2 = sec * k * (e.env && e.fleeing ? T.thief : 1);
+  e.tieT = Math.max(e.tieT || 0, s2); e.tieAgain = s2 + T.again; e.kbv = 0;
+  g.stats.ties = (g.stats.ties | 0) + 1;
+  if (g.t - (e.tieEvT || -9) > 0.6) { e.tieEvT = g.t; ev(g, 'c8tie', { x: e.x, y: e.y - e.def.size * 0.6, env: !!(e.env && e.fleeing), sec: s2 }); }
+  return true;
+}
+function ch8Escape(g, e) {
+  const n = (g.stats.envStolen = (g.stats.envStolen | 0) + 1);
+  ev(g, 'c8escape', { x: clamp(e.x, 40, g.W - 40), y: 20, n, pct: Math.round(thiefCut(n) * 100) });
+}
+// 축사 게이지: 한 대 1 · 스킬 피해 5 · 부케 묶기 4 → 다 차면 끊긴다
+function ch8SpeechAdd(g, e, v, src) {
+  if (!(e.speechT > 0)) return;
+  e.speechG += v;
+  if (g.t - (e.spEvT || -9) > 0.25) { e.spEvT = g.t; ev(g, 'c8speechHit', { x: e.x, y: e.y - e.def.size * 0.8, f: Math.min(1, e.speechG / Math.max(1, e.speechNeed)) }); }
+  if (e.speechG >= e.speechNeed) ch8SpeechStop(g, e, src && src.id ? src.id : 'hit');
+}
+function ch8SpeechHit(g, e, src) {
+  ch8SpeechAdd(g, e, src && src.def ? (g._inSkill ? e.def.speech.skillHit : 1) : 0.5, src);
+  if (g.t - (e.immT || -9) > 0.7) { e.immT = g.t; ev(g, 'c8speechImm', { x: e.x, y: e.y - e.def.size * 0.7 }); }
+  return 0;
+}
+function ch8SpeechStop(g, e, by) {
+  if (g.speech === e) g.speech = null;
+  if (!e || e.dead || !(e.speechT > 0)) return false;
+  const sp = e.def.speech;
+  e.speechT = 0; e.speechG = 0; e.windup = 0; e.speechCd = sp.every * (g.hell ? 0.85 : 1);
+  e.stunT = Math.max(e.stunT, sp.stun); e.weakT = Math.max(e.weakT, sp.weak);
+  g.stats.speechCut = (g.stats.speechCut | 0) + 1;
+  ev(g, 'c8speechCut', { x: e.x, y: e.y, by });
+  return true;
+}
+function ch8Tick(g, e, dt) {
+  const d = e.def;
+  const stunned = e.stunT > 0;
+  // 신랑 친구 대표: 끝없는 축사 (무적 · 곁 진상 재촉 + 회복) — 기절 · 게이지 · 총공지로 끊는다
+  if (d.speech) {
+    const sp = d.speech;
+    if (e.speechT > 0) {
+      if (stunned) ch8SpeechStop(g, e, 'stun');
+      else {
+        e.speechT -= dt; e.windup = 0; e.kbv = 0;
+        if ((e.speechTick -= dt) <= 0) {
+          e.speechTick = 1;
+          forEnemiesNear(g, e.x, e.y, sp.r, (o) => { if (o === e || o.dead) return true; o.rushT = Math.max(o.rushT || 0, 1.5); if (!o.boss && !(o.healBlockT > 0)) o.hp = Math.min(o.maxHp, o.hp + o.maxHp * sp.buff); return true; });
+        }
+        if (e.speechT <= 0) { // 다 들었다… 하객 전원 졸음 + 입구 피해
+          e.speechT = 0; e.speechCd = sp.every * (g.hell ? 0.85 : 1); if (g.speech === e) g.speech = null;
+          let n = 0;
+          for (const h of g.heroes) { const sc = debuffSec(h, sp.drowse, 'slow'); if (sc > 0) { h.aspdDebCut = h.aspdDebT > 0 ? Math.max(h.aspdDebCut || 0, sp.drowseCut) : sp.drowseCut; h.aspdDebT = Math.max(h.aspdDebT || 0, sc); n++; } }
+          if (sp.door && !g.god) damageBase(g, g.base.max * sp.door, e);
+          g.stats.speechFull = (g.stats.speechFull | 0) + 1;
+          ev(g, 'c8speechEnd', { x: e.x, y: e.y, n });
+          bossWeak(g, e);
+        }
+      }
+    } else if (!stunned && e.y > 60 && !g.over && !(e.bai && e.bai.st === 'windup') && (e.speechCd -= dt) <= 0) {
+      e.speechT = sp.sec * (g.hell ? 1.15 : 1); e.speechG = 0; e.speechNeed = Math.round(sp.need * (g.hell ? 1.25 : 1)); e.speechTick = 0;
+      g.speech = e;
+      ev(g, 'c8speech', { x: e.x, y: e.y, sec: e.speechT, need: e.speechNeed });
+    }
+  }
+  // 뷔페 아줌마: 냠냠 — 곁의 진상 회복 (기절 중엔 못 먹음 · 방깎/회복 막기에 막힘)
+  if (d.eat && !stunned && e.y > 20 && (e.eatCd -= dt) <= 0) {
+    const ea = d.eat;
+    e.eatCd = ea.every;
+    let n = 0;
+    forEnemiesNear(g, e.x, e.y, ea.r, (o) => { if (o.dead || o.boss || o.healBlockT > 0 || o.hp >= o.maxHp) return true; o.hp = Math.min(o.maxHp, o.hp + o.maxHp * (o === e ? ea.self : ea.heal)); n++; return true; });
+    ev(g, 'c8eat', { x: e.x, y: e.y - d.size * 0.6, r: ea.r, n });
+  }
+  // 축가 삼촌: 숨 들이쉬고 → 음 이탈! 곁 멤버 공격 속도 ↓ (숨 들이쉴 때 기절시키면 끊김)
+  if (d.sing && e.y > 80) {
+    const si = d.sing;
+    if (e.singW > 0) {
+      if (stunned) { e.singW = 0; e.windup = 0; e.singCd = si.every; ev(g, 'c8singStop', { x: e.x, y: e.y - d.size * 0.6 }); }
+      else if ((e.singW -= dt) <= 0) {
+        e.singW = 0; e.windup = 0; e.singCd = si.every;
+        let n = 0;
+        for (const h of g.heroes) { if (Math.abs(h.x - e.x) > si.r) continue; const sc = debuffSec(h, si.sec, 'slow'); if (sc > 0) { h.aspdDebCut = h.aspdDebT > 0 ? Math.max(h.aspdDebCut || 0, si.cut) : si.cut; h.aspdDebT = Math.max(h.aspdDebT || 0, sc); n++; } }
+        ev(g, 'c8sing', { x: e.x, y: e.y - d.size * 0.6, r: si.r, n });
+      } else e.windup = e.singW;
+    } else if (!stunned && (e.singCd -= dt) <= 0) { e.singW = si.windup; e.windup = si.windup; ev(g, 'c8singWind', { x: e.x, y: e.y - d.size * 0.6 }); }
+  }
+  // 예식장 실장님: "시간 없어요!" 곁 진상 재촉 (예고 중 기절시키면 끊김) · 입구 앞 클립보드
+  if (d.hurry && e.y > 40) {
+    const hu = d.hurry;
+    if (e.hurryW > 0) {
+      if (stunned) { e.hurryW = 0; e.windup = 0; e.hurryCd = hu.every; ev(g, 'c8hurryStop', { x: e.x, y: e.y - d.size * 0.6 }); }
+      else if ((e.hurryW -= dt) <= 0) {
+        e.hurryW = 0; e.windup = 0; e.hurryCd = hu.every * (g.hell ? 0.85 : 1);
+        let n = 0;
+        forEnemiesNear(g, e.x, e.y, hu.r, (o) => { if (o.dead || o === e) return true; o.rushT = Math.max(o.rushT || 0, hu.sec); n++; return true; });
+        ev(g, 'c8hurry', { x: e.x, y: e.y - d.size * 0.6, r: hu.r, n });
+      } else e.windup = e.hurryW;
+    } else if (!stunned && (e.hurryCd -= dt) <= 0) { e.hurryW = hu.windup; e.windup = hu.windup; ev(g, 'c8hurryWind', { x: e.x, y: e.y - d.size * 0.6, text: d.shouts[0] }); }
+  }
+  if (d.clip && e.atRope && !stunned && g.heroes.length && (e.clipCd -= dt) <= 0) {
+    e.clipCd = d.clip.every;
+    let h = g.heroes[0]; for (const o of g.heroes) if (Math.abs(o.x - e.x) < Math.abs(h.x - e.x)) h = o;
+    h = victim(g, g.heroes, h);
+    const sc = debuffSec(h, d.clip.stun, 'stun');
+    if (sc > 0) { h.stunT = Math.max(h.stunT, sc); firstStunTip(g); }
+    ev(g, 'c8clip', { x: e.x, y: e.y - d.size * 0.5, hx: h.x, hy: h.y, sec: sc });
+  }
+}
 // 멤버를 노리는 진상 기술: 탱커(백인규)가 있으면 그쪽으로
 function victim(g, list, dflt) {
   const t = list.find((h) => h.def.taunt);
@@ -2794,6 +2939,7 @@ export function hitEnemy(g, p, e) {
     else if (k === 'pull' && !e.boss) { const others = g.enemies.filter((o) => !o.dead && o !== e && Math.hypot(o.x - e.x, o.y - e.y) < 120); for (const o of others.slice(0, 4)) { o.x += (e.x - o.x) * 0.35; o.y += (e.y - o.y) * 0.2; } }
     if (g.t - (e.ccT || -9) > 0.5) { e.ccT = g.t; ev(g, 'cc', { kind: k, x: e.x, y: e.y - e.def.size * 0.7 }); }
   }
+  if (p.tie && !e.dead) { ch8Tie(g, e, p.tie, h); if (h && h.sig && h.sig.tieN) { let o2 = null, bd = 80 * 80; for (const o of g.enemies) { if (o === e || o.dead || o.y < 0) continue; const d2 = (o.x - e.x) ** 2 + (o.y - e.y) ** 2; if (d2 < bd) { bd = d2; o2 = o; } } if (o2) ch8Tie(g, o2, p.tie * 0.8, h); } } // 8장 차수빈 부케 (전용 신화: 곁의 한 명 더)
   if (p.type === 'mosaic' && h && h.def.shred) { const sd = h.def.shred; e.shredPer = sd.per + (h.lv >= 5 ? 0.02 : 0); e.shredN = Math.min(sd.max + (h.lv >= 3 ? 1 : 0) + (h.cm.shredMax || 0), e.shredN + 1); e.shredT = sd.sec + (h.cm.shredSec || 0); e.healBlockT = Math.max(e.healBlockT, 2); }
   if (p.pull && h && h.ax !== undefined && !e.dead) { const k = e.boss || e.mid ? 0.08 : (e.def.traits && e.def.traits.kbImmune ? 0.12 : 0.4); e.x += (h.ax - e.x) * k; e.y += (h.ay - e.y) * k * 0.6; e.baseX = e.x; if (g.t - (e.ccT || -9) > 0.6) { e.ccT = g.t; ev(g, 'cc', { kind: 'pull', x: e.x, y: e.y - e.def.size * 0.7 }); } }
   if (p.type === 'gf') {
@@ -2887,6 +3033,7 @@ export function applyKnockback(e, dist, g) {
   if (e.boss || e.mid) return;
   if (e.def.traits && e.def.traits.kbImmune) return; // 넉백 면역
   if (e.coachT > 0 && e.shield > 0) return; // 7장 강습 사칭남 보호막: 자세 교정 중엔 안 밀린다
+  if (e.env && e.fleeing) return; // 8장: 도망가는 도둑을 위로 밀면 도와주는 꼴 — 안 밀린다
   if (e.dictT > 0) dist *= e.dictKb; // 독재자 곁에서는 잘 안 밀린다
   if (g && g.mapFx.kb) dist *= g.mapFx.kb; // 미끄러운 바닥
   if (g) dist *= g.mods.kbMul; // 밀어내기 달인 카드
@@ -3196,6 +3343,7 @@ export function useUlt(g) {
     if (!e.dead && !e.boss) { applyKnockback(e, 40, g); e.stunT = Math.max(e.stunT, 0.7); }
   }
   ev(g, 'ult', {});
+  if (g.speech) ch8SpeechStop(g, g.speech, 'ult'); // 8장: 총공지로 축사 끊기
   if (g.avalanche) ch7Interrupt(g, 'ult');
   return true;
 }
@@ -3570,6 +3718,17 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       const v = healDoor(g, h.id, g.base.max * sk.heal[lv] * g.mods.healMul * (h.cm.heal || 1)); g.bandT = sk.sec[lv] + (sa.iron ? 3 : 0); g.bandArmor = sk.armor + (sa.iron ? 0.2 : 0);
       ev(g, 'heal', { x: h.x, y: h.y, v: Math.round(v) });
       ev(g, 'bandage', { x: g.W / 2, y: g.ropeY + 8, v: Math.round(v), big: true, hero: h.id });
+      break;
+    }
+    case 'bouqtoss': { // 차수빈 부케 토스: 찍은 곳 범위 큰 피해 + 묶기 + 받는 피해 ↑
+      r = sk.r[lv] * (sa.catch ? 1.25 : 1);
+      const amp = sk.amp + (sa.catch ? 0.15 : 0) + ((h.sig && h.sig.ampUp) || 0);
+      forEnemiesNear(g, x, y, r, (e) => {
+        damageEnemy(g, e, base * sk.mul[lv], false, h, true);
+        if (!e.dead) { ch8Tie(g, e, sk.tie[lv] * g.mods.ctrlMul, h, true); e.tieAmp = Math.max(e.tieAmpT > 0 ? e.tieAmp || 0 : 0, amp); e.tieAmpT = Math.max(e.tieAmpT || 0, sk.ampSec); }
+        return true;
+      });
+      ev(g, 'c8toss', { x, y, r, hx: h.x, hy: h.y - 40 });
       break;
     }
     case 'curse': { // 서명훈 쌍욕 저격: 화면에서 가장 빠른 적 5명 조준 → 따라가는 저주 5발 (각 2초 묶기 · 큰 피해 · 보스는 보통)
@@ -4156,6 +4315,7 @@ export function summary(g, durationSec) {
     durationSec: Math.round(durationSec),
     victory: g.victory,
     heroesUsed: Object.keys(g.heroesUsed),
+    stolen: g.stats.envStolen | 0, // 8장 축의금 도둑을 놓친 수 (코인 −8% 씩)
     seen: Object.keys(g.seen || {}).filter((t) => !ENEMIES[t].dot),
   };
 }
@@ -4238,6 +4398,7 @@ export function useCons(g, id) {
     for (const e of g.enemies) if (!e.dead && e.y > g.ropeY - 220) { if (e.shield > 0 || e.dictT > 0 || e.gaoOn) n++; e.shield = 0; e.dictT = 0; e.gaoOn = false; e.noShieldT = Math.max(e.noShieldT || 0, 3); e.auraOffT = Math.max(e.auraOffT || 0, 3); }
     ev(g, 'consUse', { id, n, x: g.W / 2, y: g.ropeY });
     if (g.avalanche) ch7Interrupt(g, 'aldicom');
+    if (g.speech) ch8SpeechStop(g, g.speech, 'aldicom');
   } else if (id === 'tambourine') { // 노래방 탬버린: 8초 공속 +40%
     g.tambT = 8;
     ev(g, 'consUse', { id, sec: 8, x: g.W / 2, y: g.rowY });

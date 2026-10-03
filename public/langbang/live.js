@@ -217,13 +217,13 @@ export const FRAMES = {
 export const TITLE_INFO = {
   ewchamp: { rarity: 'legend', how: '무한 도전 주간 1위' }, collector: { rarity: 'legend', how: '장비 도감 전부 모으기' }, wchamp: { rarity: 'legend', how: '주간 도전 1위' }, wtop3: { rarity: 'epic', how: '주간 도전 TOP 3' }, gacha100: { rarity: 'rare', how: '업적: 모집 100번' },
   perfect30: { rarity: 'epic', how: '업적: PERFECT 30개' }, raid1: { rarity: 'legend', how: '레이드 데미지 1위' },
-  ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어' }, ch7: { rarity: 'legend', how: '7장 스키장 클리어 (고난도)' },
+  ch1: { rarity: 'common', how: '1장 클리어' }, ch3: { rarity: 'rare', how: '3장 클리어' }, ch6: { rarity: 'legend', how: '6장 클리어' }, ch7: { rarity: 'legend', how: '7장 스키장 클리어 (고난도)' }, ch8: { rarity: 'legend', how: '8장 결혼식 뒤풀이 클리어 (고난도)' },
   allstar1: { rarity: 'rare', how: '1장 ★30' }, pvpsilver: { rarity: 'common', how: '1:1 대전 실버 (1050점)' }, pvpgold: { rarity: 'rare', how: '1:1 대전 골드 (1200점)' },
   heroes12: { rarity: 'rare', how: '멤버 12명 모으기' }, heroes20: { rarity: 'legend', how: '멤버 20명 모으기' },
   tower15: { rarity: 'rare', how: '진상의 탑 15층' }, tower60: { rarity: 'legend', how: '진상의 탑 60층' }, towerking: { rarity: 'legend', how: '주간 탑 랭킹 1위 (다음 한 주 동안)' }, popstar: { rarity: 'legend', how: '주간 인기 멤버 1위의 본캐 주인 (다음 한 주 동안)' },
   r2slayer: { rarity: 'epic', how: '건물주 레이드 토벌 성공 (참가)' }, r2king: { rarity: 'legend', how: '건물주 대마왕 본체 막타' }, r2mvp: { rarity: 'legend', how: '건물주 레이드 주간 기여 1위' }, // 건물주 레이드
 };
-const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', ch7: '설산의 정복자', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인', popstar: '이번 주 인기 스타', r2slayer: '건물주 퇴치단', r2king: '막타왕', r2mvp: '건물주 저승사자' };
+const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', ch7: '설산의 정복자', ch8: '축의금 수호자', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인', popstar: '이번 주 인기 스타', r2slayer: '건물주 퇴치단', r2king: '막타왕', r2mvp: '건물주 저승사자' };
 // 조건을 채우면 저절로 들어오는 칭호 · 프레임 (서버 normLb · 손님 둘 다 같은 함수)
 // 우편 보상은 정해진 칸만 (숫자 · 등급 · 칭호/프레임 이름)
 function cleanRw(rw) {
@@ -240,7 +240,7 @@ function autoCosmetics(raw) {
   const st = raw.stages || {};
   let max = raw.maxStage | 0; for (const k of Object.keys(st)) if ((st[k] | 0) > 0 && +k > max) max = +k;
   const chStars = (c) => { let n = 0; for (let i = 1; i <= 10; i++) n += st[(c - 1) * 10 + i] | 0; return n; };
-  const full = [1, 2, 3, 4, 5, 6, 7].some((c) => chStars(c) >= 30);
+  const full = [1, 2, 3, 4, 5, 6, 7, 8].some((c) => chStars(c) >= 30);
   const rating = ((raw.pvp || {}).rating) | 0;
   const heroes = Object.keys(HEROES).filter((h) => heroUnlocked(raw, h)).length;
   const t = [], f = [];
@@ -248,6 +248,7 @@ function autoCosmetics(raw) {
   if (max >= 30) t.push('ch3');
   if (max >= 60) t.push('ch6');
   if (max >= 70) t.push('ch7'); // 7장 스키장 정복
+  if (max >= 80) t.push('ch8'); // 8장 결혼식 뒤풀이
   if (chStars(1) >= 30) t.push('allstar1');
   if (full) f.push('star3');
   if (rating >= 1050) t.push('pvpsilver');
@@ -391,7 +392,9 @@ export const ACHIEVEMENTS = [
   { id: 'ch6', icon: '', name: '6장 클리어', n: 60, v: (lb) => lb.maxStage | 0, coins: 10000, tickets: 6 },
   { id: 'ch7', icon: '', name: '7장 스키장 클리어 (고난도!)', n: 70, v: (lb) => lb.maxStage | 0, coins: 16000, tickets: 8 },
   { id: 'stars180', icon: '', name: '별 180개', n: 180, v: (lb) => lb.totalStars | 0, coins: 8000, tickets: 5 },
-  { id: 'stars210', icon: '', name: '별 210개 전부 (7장까지)', n: 210, v: (lb) => lb.totalStars | 0, coins: 12000, tickets: 6 },
+  { id: 'ch8', icon: '', name: '8장 결혼식 뒤풀이 클리어 (고난도!)', n: 80, v: (lb) => lb.maxStage | 0, coins: 20000, tickets: 9 },
+  { id: 'stars210', icon: '', name: '별 210개 (7장까지)', n: 210, v: (lb) => lb.totalStars | 0, coins: 12000, tickets: 6 },
+  { id: 'stars240', icon: '', name: '별 240개 전부 (8장까지)', n: 240, v: (lb) => lb.totalStars | 0, coins: 15000, tickets: 7 },
   { id: 'perfect10', icon: '', name: 'PERFECT 스테이지 10개', n: 10, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 1500, tickets: 2 },
   { id: 'perfect30', icon: '', name: 'PERFECT 스테이지 30개', n: 30, v: (lb) => Object.keys(lb.perfects || {}).length, coins: 4000, tickets: 4, title: 'perfect30' },
   { id: 'legend1', icon: '', name: '전설 장비 얻기', n: 1, v: (lb) => (lb.cnt || {}).legends | 0, coins: 1000, tickets: 1 },
@@ -663,9 +666,9 @@ function resolvePull(lb, k, rng, now) {
     const pool = k === 'legendHero' ? LEGEND_HEROES : tierPool(k === 'epicHero' ? 4 : k === 't3Card' ? 3 : 2);
     let h;
     if (k === 'epicHero' && rng() < 0.5) h = pickupHero(now); // 픽업 50%
-    else { const fresh = pool.filter((x) => !lb.owned[x]); const src = fresh.length && rng() < 0.6 ? fresh : pool; h = src[(rng() * src.length) | 0]; }
+    else { const fresh = pool.filter((x) => !lb.owned[x] && !heroUnlocked(lb, x)); const src = fresh.length && rng() < 0.6 ? fresh : pool; h = src[(rng() * src.length) | 0]; }
     const v = CARD_BUNDLE[k];
-    if (lb.owned[h]) { lb.shards[h] = (lb.shards[h] | 0) + (k === 'legendHero' ? DUP_SHARDS.legendHero : k === 'epicHero' ? DUP_SHARDS.epicHero : v); return { k, hero: h, dup: true, shards: k === 'legendHero' ? DUP_SHARDS.legendHero : k === 'epicHero' ? DUP_SHARDS.epicHero : v, card: true }; }
+    if (lb.owned[h] || heroUnlocked(lb, h)) { lb.shards[h] = (lb.shards[h] | 0) + (k === 'legendHero' ? DUP_SHARDS.legendHero : k === 'epicHero' ? DUP_SHARDS.epicHero : v); return { k, hero: h, dup: true, shards: k === 'legendHero' ? DUP_SHARDS.legendHero : k === 'epicHero' ? DUP_SHARDS.epicHero : v, card: true }; }
     lb.shards[h] = (lb.shards[h] | 0) + v;
     const need = cardsNeed(h);
     if (lb.shards[h] >= need) { lb.shards[h] -= need; lb.owned[h] = true; return { k, hero: h, card: true, shards: v, new: true, have: need, need }; }

@@ -32,9 +32,9 @@ const PROJ_COLOR = {
   notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#ff9a3c',
 };
 // 챕터 전용 배경에서 랑방 지붕(영웅 줄 뒤) 위치 — 그림 높이 대비
-const BG_ROOF = { 2: 0.735, 3: 0.735, 4: 0.735, 5: 0.66, 6: 0.73, 7: 0.73 }; // (7장: bg7 그림이 오면 이 값을 그림에 맞게)
+const BG_ROOF = { 2: 0.735, 3: 0.735, 4: 0.735, 5: 0.66, 6: 0.73, 7: 0.73, 8: 0.8 }; // (8장: 축의금 접수대 윗면이 멤버 줄 바로 뒤) // (7장: bg7 그림이 오면 이 값을 그림에 맞게)
 const MAP_ROOF = 0.735; // 레이드 · 대전 맵: 랑방 지붕 높이 (그림 높이의 비율 · bg2~4 와 같게)
-const BG_BRIGHT = { 4: 0.42, 6: 0.36, 7: 0.4 }; // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
+const BG_BRIGHT = { 4: 0.42, 6: 0.36, 7: 0.4, 8: 0.34 }; // (8장: 흰 버진로드) // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
 // 챕터별 분위기 (같은 배경 그림에 색만 덧씌운다)
 // 있으면 쓰는 그림 주소 (서버 /api/langbang/anim 의 files 와 같은 규칙)
 const OPT_ART = /^\/img\/lb\/(arena\d|map_[a-z0-9_]+|e_[a-z0-9_]+_(skill|rage)|h_wonsik_walk(back|front)|h_youngjun_rest)\.webp$|^\/img\/lb\/fx\/p_[A-Za-z0-9_]+\.webp$/;
@@ -337,7 +337,9 @@ export class Renderer {
     list.bg5 = '/img/lb/bg5.webp';
     list.bg6 = '/img/lb/bg6.webp';
     list.bg7 = '/img/lb/bg7.webp'; // 7장 스키장 (없으면 bg6 에 얼음빛)
-    for (let i = 1; i <= 7; i++) list['arena' + i] = `/img/lb/arena${i}.webp`; // 보스 무대 (없으면 챕터 배경 + 붉은 조명)
+    list.bg8 = '/img/lb/bg8.webp'; // 8장 결혼식 뒤풀이 (위 꽃 아치 → 버진로드 → 아래 축의금 접수대)
+    list.pBouquet = '/img/lb/fx/p_bouquet.webp'; // 8장 차수빈 부케
+    for (let i = 1; i <= 8; i++) list['arena' + i] = `/img/lb/arena${i}.webp`; // 보스 무대 (없으면 챕터 배경 + 붉은 조명)
     list.map_raid = '/img/lb/map_raid.webp'; list.map_pvp = '/img/lb/map_pvp.webp'; // 레이드 · 1:1 대전 전용 맵 (없으면 원래 배경)
     list.base = '/img/lb/base.webp';
     const skip = new URLSearchParams(location.search).has('noimg');
@@ -896,8 +898,8 @@ export class Renderer {
     const c = mkCanvas(W * k, H * k);
     const x = c.getContext('2d');
     x.scale(k, k);
-    const ch0 = typeof this.themeKey === 'number' && this.themeKey >= 2 && this.themeKey <= 7 ? this.themeKey : 0;
-    const ch = ch0 === 7 && !imgOk(this.images.bg7) ? 6 : ch0; // 7장 배경(bg7)이 아직 없으면 연말 눈길(bg6)로
+    const ch0 = typeof this.themeKey === 'number' && this.themeKey >= 2 && this.themeKey <= 8 ? this.themeKey : 0;
+    const ch = ch0 >= 7 && !imgOk(this.images['bg' + ch0]) ? 6 : ch0; // 7장 배경(bg7)이 아직 없으면 연말 눈길(bg6)로
     // 레이드 · 1:1 대전: 전용 맵(map_raid / map_pvp)이 있으면 그걸로 · 없으면 원래 테마 배경 그대로
     const modeMap = this.modeKey && imgOk(this.images['map_' + this.modeKey]) ? this.images['map_' + this.modeKey] : null;
     const arena = !modeMap && this.arenaOn && imgOk(this.images['arena' + (ch0 || 1)]) ? this.images['arena' + (ch0 || 1)] : null;
@@ -1617,7 +1619,9 @@ export class Renderer {
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
       const dancing = e.danceT > 0 && e.stunT > 0 && g.onemanT > 0;
       if (dancing) { const b = t * 4.4 + e.phase * 0.7, beat = Math.abs(Math.sin(b)); bob = -beat * box * 0.1; rot = Math.sin(b) * 0.22; sy = 1 - (1 - beat) * 0.08; sx = (1 / sy) * (Math.sin(b * 0.25 + e.phase) > 0 ? 1 : -1); } // 강병화 원맨쇼: 박자 맞춰 좌우로 흔들 · 통통 · 가끔 뒤돌기
-      if (e.fleeing) { sx = -sx; bob = -Math.abs(Math.sin(e.age * 18)) * 5; }
+      const runA = e.fleeing && e.env && !(e.flash > 0) && !(e.tieT > 0) && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].run, runS = runA && this.images[`anim_${e.type}_run`]; // 8장 축의금 도둑: 뒤돌아 달아나는 뒷모습 띠
+      if (e.fleeing) { if (!(runS && imgOk(runS))) sx = -sx; bob = e.tieT > 0 ? 0 : -Math.abs(Math.sin(e.age * 18)) * 5; }
+      if (e.tieT > 0) rot = Math.sin(t * 14 + e.phase) * 0.06; // 묶여서 버둥버둥
       // 보스 발밑 오라
       if (e.warnN > 0) {
         this.world();
@@ -1626,6 +1630,11 @@ export class Renderer {
           cx.strokeStyle = '#1a0b1f'; cx.lineWidth = 1.2;
           cx.beginPath(); cx.rect(e.x - 10 + i * 7, e.y - box * 0.78 - 8, 5, 7); cx.fill(); cx.stroke();
         }
+      }
+      if (e.speechT > 0) { // 8장 신랑 친구 대표 축사: 금빛 무적 기운
+        const gl = this.projSprites.glowGold, r = box * (0.85 + Math.sin(t * 9) * 0.06);
+        this.tf(e.x, e.y - box * 0.25, 0, 1, 1); cx.globalAlpha = 0.95; cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1;
+        if (Math.random() < 0.3) this.fx.part('star', e.x + (Math.random() - 0.5) * box * 0.7, e.y - box * Math.random() * 0.8, 0, -50, 0.7, 7, null);
       }
       if (e.boss && e.weakT > 0) {
         const gl = this.projSprites.glowGold;
@@ -1711,7 +1720,20 @@ export class Renderer {
         const astrip = aa && this.images[`anim_${e.type}_attack`];
         const an = moving && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].walk; // 보스 기술·분노 그림이 뜨는 동안은 그 그림
         const strip = an && this.images[`anim_${e.type}_walk`];
-        if (e.brkT > 0 && !(e.flash > 0)) cx.drawImage(this.mosaicSprite(sp), -box / 2, -box * FEET, box, box); // 여지원 「모자이크」: 몸 전체를 큰 네모로 깨뜨린 그림 (한 번 구워 두고 재사용 · 띠 대신)
+        const spA = e.speechT > 0 && !e.flash && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack, spS = spA && this.images[`anim_${e.type}_attack`]; // 8장 축사: 공격 띠(금빛 테두리 축사 루프)를 계속
+        if (runS && imgOk(runS) && key === 'e_' + e.type) {
+          const fh = runS.naturalHeight, n = runA.frames || 12, fw = runS.naturalWidth / n;
+          const fi = Math.floor(e.age * (runA.fps || 14) + e.phase * 3) % n;
+          const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('er_' + e.type, runS, n, idle.c) : { k: 1, dx: 0, dy: 0 };
+          this.tf(e.x, feet + bob, 0, 1, 1);
+          cx.drawImage(runS, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+        } else if (spS && imgOk(spS)) {
+          const fh = spS.naturalHeight, n = spA.frames || 8, fw = spS.naturalWidth / n;
+          const fi = Math.floor(t * 7) % n;
+          const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ea_' + e.type, spS, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
+          this.tf(e.x, feet, 0, 1, 1);
+          cx.drawImage(spS, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+        } else if (e.brkT > 0 && !(e.flash > 0)) cx.drawImage(this.mosaicSprite(sp), -box / 2, -box * FEET, box, box); // 여지원 「모자이크」: 몸 전체를 큰 네모로 깨뜨린 그림 (한 번 구워 두고 재사용 · 띠 대신)
         else if (pfi >= 0) {
           const fh = pstrip.naturalHeight, n = pk.frames || 8, fw = pstrip.naturalWidth / n;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ep_' + e.type, pstrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
@@ -1781,10 +1803,33 @@ export class Renderer {
           cx.drawImage(st.c, -8, -8, 16, 16);
         }
       }
-      if (e.fleeing) {
+      if (e.tieT > 0) { // 8장 차수빈 부케 리본: 몸을 감은 분홍 리본 두 줄 + 나비 매듭
+        this.tf(e.x, feet - box * 0.42, 0, 1, 1);
+        cx.strokeStyle = '#ff7fbf'; cx.lineWidth = 3; cx.globalAlpha = 0.95;
+        for (const k of [-0.12, 0.08]) { cx.beginPath(); cx.ellipse(0, box * k, box * 0.27, box * 0.08, 0.15, 0, TAU); cx.stroke(); }
+        cx.fillStyle = '#ff9fd0'; cx.strokeStyle = '#a0306a'; cx.lineWidth = 1.2;
+        for (const sd of [-1, 1]) { cx.beginPath(); cx.moveTo(box * 0.24, box * 0.08); cx.lineTo(box * 0.24 + sd * 9, box * 0.08 - 6); cx.lineTo(box * 0.24 + sd * 9, box * 0.08 + 6); cx.closePath(); cx.fill(); cx.stroke(); }
+        cx.globalAlpha = 1;
+      }
+      if (e.fleeing && e.env) { // 8장 축의금 도둑: 머리 위 흰 봉투(빨간 도장) + 붉은 꼬리
+        this.tf(e.x, top - 8 + Math.sin(t * 12) * 2, Math.sin(t * 6) * 0.12, 1, 1);
+        cx.fillStyle = '#ffffff'; cx.strokeStyle = '#3a1020'; cx.lineWidth = 1.6;
+        roundRect(cx, -11, -7, 22, 14, 2); cx.fill(); cx.stroke();
+        cx.beginPath(); cx.moveTo(-11, -7); cx.lineTo(0, 1); cx.lineTo(11, -7); cx.stroke();
+        cx.fillStyle = '#e02040'; cx.beginPath(); cx.arc(0, 2, 3, 0, TAU); cx.fill();
+        if (!(e.tieT > 0) && Math.random() < 0.6) this.fx.part('dot', e.x + (Math.random() - 0.5) * 14, feet - 6, (Math.random() - 0.5) * 20, 30, 0.5, 5, 'rgba(255,40,60,0.75)');
+      } else if (e.fleeing) {
         const gs = this.projSprites.gem;
         this.tf(e.x, top - 4 + Math.sin(t * 12) * 2, 0, 1.1, 1.1);
         cx.drawImage(gs.c, -gs.w / 2, -gs.h / 2, gs.w, gs.h);
+      }
+      if (e.speechT > 0 && e.speechNeed > 0) { // 축사 게이지: 다 채우면 끊긴다
+        this.world();
+        const bw = 92, bx = e.x - bw / 2, by = top - 26, f = Math.min(1, e.speechG / e.speechNeed);
+        cx.fillStyle = 'rgba(20,12,0,0.85)'; roundRect(cx, bx - 2, by - 2, bw + 4, 12, 5); cx.fill();
+        cx.fillStyle = '#ffd23f'; roundRect(cx, bx, by, Math.max(2, bw * f), 8, 4); cx.fill();
+        cx.font = `900 10px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.lineWidth = 3; cx.strokeStyle = '#000'; cx.fillStyle = '#fff6c8';
+        const tx = `축사를 끊어라! ${Math.floor(f * 100)}%`; cx.strokeText(tx, e.x, by - 9); cx.fillText(tx, e.x, by - 9);
       }
       if (def.gao && e.gaoOn) {
         const gl = this.projSprites.glowGold;
@@ -2703,6 +2748,12 @@ export class Renderer {
         continue;
       }
       // 그린 투사체: 멤버 물건 그림을 날아가는 방향으로
+      if (p.type === 'bouquet' && imgOk(this.images.pBouquet)) { // 8장 차수빈 부케: 빙글빙글 + 꽃잎
+        const sz = 34 * (p.big ? 1.4 : 1);
+        this.tf(p.x, p.y, (p.rot || 0) + this.fx.time * 6, 1, 1); cx.drawImage(this.images.pBouquet, -sz / 2, -sz / 2, sz, sz);
+        if (Math.random() < 0.25) this.fx.part('dot', p.x, p.y, (Math.random() - 0.5) * 40, 20, 0.4, 3, '#ffc0dc');
+        continue;
+      }
       const an = p.hero && p.type !== 'moto' && p.type !== 'gf' && PROJ_ART[p.hero.id];
       if (an === 'card_y') { // 운영진 경고장: 그림(민무늬 노란 사각형) 대신 코드로 그린 심판 카드 · 날아가며 팔랑팔랑
         const sc = this.projSprites[p.big ? 'staffCardRed' : 'staffCard'];

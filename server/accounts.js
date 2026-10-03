@@ -591,6 +591,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (Array.isArray(body.heroesUsed) && body.heroesUsed.some((h) => { const gid = ((before.equip || {})[h] || {}).m; const it = gid && (before.gear || []).find((g) => g.id === gid); return it && it.t === 'myth_lotto'; })) { const x = Math.round(reward.total * LBR.MYTH.myth_lotto.stats.coin); reward.total += x; reward.lotto = x; }
         // 도감 수집 보너스: 스테이지 코인 +% (저장된 기록으로 다시 계산)
         if (mode === 'stage') { const cb = LIVE.collectBonus(before); const x = Math.round(reward.total * cb.coin); if (x > 0) { reward.total += x; reward.coll = x; } }
+        // 8장 축의금 도둑: 이번 판에 놓친 도둑 수만큼 코인 −8% 씩 (최대 −40%) — 깎기만 하니 화면이 보낸 수를 그대로 (99 상한)
+        if (mode === 'stage') { const cut = LBR.thiefCut(body.stolen); if (cut > 0) { const x = Math.round(reward.total * cut); reward.total -= x; reward.stolen = x; reward.stolenN = Math.min(99, Math.floor(Number(body.stolen) || 0)); } }
         let weeklyBest = false;
         // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
         const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];

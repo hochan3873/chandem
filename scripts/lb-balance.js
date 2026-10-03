@@ -27,7 +27,7 @@ const COND_ARG = (() => { const v = (process.argv.find((x) => x.startsWith('--co
 let WTR = (process.argv.find((x) => x.startsWith('--wtrait=')) || '').slice(9) || undefined; // --wtrait=swarm : 주간 진상 특성 켜고 측정
 const NOSOFT = args.includes('--nosoft'); // 강화 권장 상한(넘는 만큼 절반) 끄기 // --tempo: 느리고 묵직한 전투 (진상 수 ×0.6 · 공속 ÷1.54 · 한 방 ×1.6 · 스킬 쿨 ×1.5)
 const PARTNERS = ((process.argv.find((x) => x.startsWith('--partners=')) || '').slice(11) || 'staff,gunman,gunnyeo,dohoon,myunghoon,ingyu,donghan,youngjun,eunok,hanna,sunggu').split(',');
-const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준', ara: '고아라', jiwon: '여지원', wonsik: '정원식', jungmin: '홍정민', hochan: '이호찬', byunghwa: '강병화', hyungyeong: '배현경', jeongseob: '윤정섭', soyoung: '정소영', jieun: '오지은', sanghwa: '박상화', baul: '송바울', junseo: '윤준서' };
+const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준', ara: '고아라', jiwon: '여지원', wonsik: '정원식', jungmin: '홍정민', hochan: '이호찬', byunghwa: '강병화', hyungyeong: '배현경', jeongseob: '윤정섭', soyoung: '정소영', jieun: '오지은', sanghwa: '박상화', baul: '송바울', junseo: '윤준서', subin: '차수빈' };
 const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
 
 function seeded(seed = 1) {
@@ -93,6 +93,8 @@ function seeded(seed = 1) {
     if (control) {
       const ava = g.avalanche && !g.avalanche.dead && g.avalanche.avaW > 0 ? g.avalanche : null;
       if (ava) { if (ava.def.avalanche.windup - ava.avaW > 0.6) for (const h of g.heroes) if (S.skillReady(h) && S.castSkill(g, h, ava.x, ava.y)) break; return; }
+      const sp = g.speech && !g.speech.dead && g.speech.speechT > 0 ? g.speech : null; // 8장 축사: 스킬을 대표에게 몰아 게이지 채우기
+      if (sp) { for (const h of g.heroes) if (S.skillReady(h)) S.castSkill(g, h, sp.x, sp.y); return; }
       const boss = g.enemies.find((e) => !e.dead && e.def.avalanche && e.y > 0);
       if (boss && boss.avaT < 4 && g.base.hp / g.base.max > 0.35) return;
     }
@@ -515,10 +517,10 @@ function seeded(seed = 1) {
   }
   // ── 9) 7장 스키장 (node scripts/lb-balance.js ch7 [--seeds=N] [--list=61,65] [--hell]) — 실제 게임처럼 합류 · 템포 · 스킬 · 6칸 덱
   //  덱 성향별 클리어율: 한 명만 키운 덱 · 역할을 갖춘 T3/T4 덱(컨트롤 있음/없음) · 키운 LEGEND 포함 덱
-  function ch7() {
+  function ch7(chap = 7) {
     const N = opt('seeds', 8);
     const list = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
-    if (!list.length) for (let s = 61; s <= 70; s++) list.push(s);
+    if (!list.length) for (let s = chap * 10 - 9; s <= chap * 10; s++) list.push(s);
     const hell = args.includes('--hell');
     const only = (process.argv.find((x) => x.startsWith('--prof=')) || '').slice(7).split(',').filter(Boolean);
     const lo = (ids, m, extra = {}) => Object.assign(Object.fromEntries(ids.map((id) => [id, m])), extra);
@@ -533,10 +535,11 @@ function seeded(seed = 1) {
       ['역할 덱 강화 20 (헬용)', ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'hyungyeong'], 20), true],
       ['역할+LEGEND 강화 20 (헬용)', ['donghan', 'byunghwa', 'ara', 'gunnyeo', 'sunggu', 'staff'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'byunghwa'], 20), true],
       ['T1·T2만 (강화 15)', ['dohoon', 'bangjang', 'staff', 'gunman', 'gunnyeo', 'eunok'], lo(['dohoon', 'bangjang', 'staff', 'gunman', 'gunnyeo', 'eunok'], 15), true],
+      ['역할 덱 + 차수빈 (8장)', ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'subin'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'subin'], 15), true],
     ].filter((p, i) => !only.length || only.includes(String(i)));
     const items = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
     console.log(`
-■ 7장 스키장${hell ? ' (헬)' : ''} — 합류 · 템포 · 스킬 자동 · ${N}판씩`);
+■ ${chap}장${hell ? ' (헬)' : ''} — 합류 · 템포 · 스킬 자동 · ${N}판씩`);
     console.log(pad('덱', 26) + list.map((s) => pad(D.stageLabel(s), 7)).join('') + '평균');
     const out = {};
     for (const [name, ids, meta, control] of PROF) {
@@ -546,20 +549,20 @@ function seeded(seed = 1) {
         for (let i = 1; i <= N; i++) {
           const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items, seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control, join: true, tempo: true, hell });
           if (r.win) w++; else lossW[r.wave] = (lossW[r.wave] || 0) + 1;
-          ava[0] += r.g.stats.avaHit || 0; ava[1] += r.g.stats.avaStop || 0;
+          ava[0] += r.g.stats.avaHit || 0; ava[1] += r.g.stats.avaStop || 0; ava[2] = (ava[2] || 0) + (r.g.stats.envStolen || 0); ava[3] = (ava[3] || 0) + (r.g.stats.speechCut || 0); ava[4] = (ava[4] || 0) + (r.g.stats.speechFull || 0);
           for (const [id, v] of Object.entries(r.heroes)) share[id] = (share[id] || 0) + v.dmg / Math.max(1, r.dmg) / (N * list.length);
         }
         cells.push(Math.round((w / N) * 100)); tw += w; tn += N;
       }
       out[name] = cells;
-      console.log(pad(name, 26) + cells.map((c) => pad(c + '%', 7)).join('') + Math.round((tw / tn) * 100) + '%' + (args.includes('--why') ? `  진 웨이브 ${JSON.stringify(lossW)} · 눈사태 맞음/끊음 ${ava[0]}/${ava[1]} · 피해 몫 ${Object.entries(share).map(([k, v]) => k + ' ' + Math.round(v * 100)).join(' ')}` : ''));
+      console.log(pad(name, 26) + cells.map((c) => pad(c + '%', 7)).join('') + Math.round((tw / tn) * 100) + '%' + (chap === 8 ? `  도둑 놓침 ${(ava[2] / tn).toFixed(1)}/판 · 축사 끊음/다 들음 ${ava[3]}/${ava[4]}` : '') + (args.includes('--why') ? `  진 웨이브 ${JSON.stringify(lossW)} · 눈사태 맞음/끊음 ${ava[0]}/${ava[1]} · 피해 몫 ${Object.entries(share).map(([k, v]) => k + ' ' + Math.round(v * 100)).join(' ')}` : ''));
     }
     return out;
   }
   // 7장 스테이지별 맞춤: 역할 덱(컨트롤 있음)으로 stageAdd 를 이분 탐색 (node scripts/lb-balance.js ch7calib --list=64 --target=60)
   function ch7calib() {
     const N = opt('seeds', 8), IT = opt('iters', 4), RG = opt('range', 4);
-    const TG = { 61: 72, 62: 68, 63: 64, 64: 62, 65: 55, 66: 60, 67: 58, 68: 56, 69: 54, 70: 46 };
+    const TG = { 61: 72, 62: 68, 63: 64, 64: 62, 65: 55, 66: 60, 67: 58, 68: 56, 69: 54, 70: 46, 71: 70, 72: 66, 73: 62, 74: 60, 75: 52, 76: 58, 77: 56, 78: 54, 79: 52, 80: 44 }; // (8장: 7장보다 조금씩 낮게)
     const list = (process.argv.find((x) => x.startsWith('--list=')) || '').slice(7).split(',').filter(Boolean).map(Number);
     const ids = ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'];
     const meta = Object.fromEntries(ids.map((id) => [id, 15]));
@@ -926,8 +929,9 @@ function seeded(seed = 1) {
   if (what === 'custom') custom();
   if (what === 'deck') deck();
   if (what === 'attr') attrDecks();
-  if (what === 'ch7calib') ch7calib();
+  if (what === 'ch7calib' || what === 'ch8calib') ch7calib(); // ch8calib --list=71,72,...
   if (what === 'ch7') ch7();
+  if (what === 'ch8') ch7(8); // 8장 결혼식 뒤풀이 (같은 덱 성향표 · node scripts/lb-balance.js ch8 [--seeds=N] [--list=71,75] [--prof=3,10])
   if (what === 'calib') calib();
   if (what === 'final') final();
   if (what === 'innate') innate();
