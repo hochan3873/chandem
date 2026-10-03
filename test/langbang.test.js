@@ -1366,6 +1366,17 @@ test('주력 2명: Lv3 을 넘기는 레벨 카드를 먼저 고른 두 명만 L
   const dm = S.cardPool(g).find((c) => c.id === 'dmg');
   assert.equal(dm.desc, `모든 멤버 공격력 +${Math.round(27 * D.GROW.card)}%`);
   assert.equal(S.bigDesc('관통 멤버 공격력 +40% · 투사체 관통 +1', 1.5), '관통 멤버 공격력 +60% · 투사체 관통 +1');
+  // 같은 카드를 또 고르면 덜 (2장째 ×0.7 · 3장째부터 ×0.5) — 설명 숫자도 실제로 받는 값
+  const dmg0 = g.mods.dmg;
+  for (const [i, f] of D.GROW.rep.concat([D.GROW.rep[D.GROW.rep.length - 1]]).entries()) {
+    const c = S.cardPool(g).find((x) => x.id === 'dmg');
+    if (!c) break;
+    assert.equal(c.desc, `모든 멤버 공격력 +${Math.round(27 * D.GROW.card * f)}%`, `${i + 1}장째 설명`);
+    const before = g.mods.dmg;
+    S.applyCard(g, c);
+    assert.ok(Math.abs(g.mods.dmg - before - 0.27 * D.GROW.card * f) < 1e-9, `${i + 1}장째 실제 값`);
+  }
+  assert.ok(g.mods.dmg > dmg0);
 });
 
 test('주력 · 큰 카드는 모드마다: 스테이지 · 헬은 둘 다 · 주간 도전은 주력만 · 무한 · 대전 · 레이드 · 탑은 그대로', () => {
@@ -1886,10 +1897,10 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
     for (let i = 0; i < 60 * 30; i++) { S.step(g, 1 / 60); for (const v of g.events) if (v.type === 'shot' && v.hero === id) shots.push(g.t); g.events.length = 0; }
     return { dmg: g.heroes[0].dmgDone, shots, g };
   };
-  for (const id of ['staff', 'gunman', 'sanghwa']) { // 상화는 일부러 상향 (TEMPO.fix 1.38 → 1.7) → 1.83배 쯤
+  for (const id of ['staff', 'gunman', 'sanghwa']) { // 상화는 일부러 상향 (TEMPO.fix 1.38 → 1.7 → 2.9) → 3.1배 쯤
     const a = run(false, id), b = run(true, id);
     const r = b.dmg / a.dmg;
-    assert.ok(r > 0.7 && r < (id === 'sanghwa' ? 2 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
+    assert.ok(r > 0.7 && r < (id === 'sanghwa' ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
     const gaps = b.shots.slice(1).map((t, i) => t - b.shots[i]);
     const mn = Math.min(...gaps), mx = Math.max(...gaps);
     assert.ok(mx > mn * 2.5, `${id} 장전 리듬 (간격 ${mn.toFixed(2)} ~ ${mx.toFixed(2)})`);

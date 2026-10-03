@@ -316,8 +316,6 @@ function updateHeroes(g, dt) {
     if (h.echoSk) { h.echoSk.t -= dt; if (h.echoSk.t <= 0) { const e0 = h.echoSk; h.echoSk = null; castSkill(g, h, e0.x, e0.y, true); } }
     // 전용 신화: 스킬 한 번 더 (같은 세기)
     if (h.sigEcho) { h.sigEcho.t -= dt; if (h.sigEcho.t <= 0) { const e0 = h.sigEcho; h.sigEcho = null; if (castSkill(g, h, e0.x, e0.y, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); } }
-    // 건전녀 전용 신화: 멤버 2명 이상(혼자면 1명)이 기절 · 홀림 · 침묵이면 응급 방패 자동 (웨이브마다 1번)
-    if (h.sig && h.sig.autoGuard && h.sigGuardW !== g.wave && !g.over && g.heroes.filter((o) => o.stunT > 0.3 || o.charmT > 0.3 || o.silenceT > 0.3 || o.freezeT > 0.3).length >= Math.min(h.sig.autoGuard, g.heroes.length)) { h.sigGuardW = g.wave; if (castSkill(g, h, undefined, undefined, 'sig')) ev(g, 'sigFx', { hero: h.id, x: h.x, y: h.y }); }
     if (h.ssj) ssjTick(g, h, dt); // 문동한 초사이언 포격
     if (h.ssjT > 0) h.ssjT -= dt;
     if (h.mzQ && h.mzQ.length) mosaicTick(g, h, dt); // 여지원 모자이크 폭격: 손이 차례로 내려친다
@@ -325,7 +323,7 @@ function updateHeroes(g, dt) {
     if (h.echoT > 0) { h.echoT -= dt; if (h.echoT <= 0) crownWave(g, h, heroDamage(g, h) * 0.7, 0); }
     // 건전녀 간호: 주기마다 멤버 상태이상 전부 풀기 (풀린 멤버는 잠깐 면역) · 지친 멤버(기진맥진) 빨리 일으키기 — 입구 수리는 홍정민 몫
     if (d.care && g.phase !== 'test') {
-      h.healT -= dt * (h.cm.care || 1) * (1 + NICHE.gunnyeo.care * (h.meta || 0));
+      h.healT -= dt * (h.cm.care || 1) * (1 + NICHE.gunnyeo.care * (h.meta || 0)) * ((h.sig && h.sig.careMul) || 1); // 건전녀 전용 신화: 간호가 더 자주
       if (h.healT <= 0 && h.stunT <= 0 && h.charmT <= 0) {
         const C = d.care, k = h.lv - 1;
         h.healT = C.every[k];
@@ -334,7 +332,7 @@ function updateHeroes(g, dt) {
           if (cleanseHero(o, 0.3)) { o.ccImmT = Math.max(o.ccImmT || 0, C.guard[k]); o.cheerT = C.cheer.sec; n++; ev(g, 'cleanse', { x: o.x, y: o.y }); }
           if (o.tiredT > 0.3) { o.tiredT = Math.max(0, o.tiredT - C.tired[k]); o.cheerT = C.cheer.sec; n++; ev(g, 'care', { x: o.x, y: o.y, hero: o.id }); }
         }
-        if (!n && g.phase === 'wave') { const top = g.heroes.filter((o) => o !== h && !o.def.summon && !o.gone).sort((a, b) => b.dmgDone - a.dmgDone)[0]; if (top) { top.cheerT = C.cheer.sec; ev(g, 'care', { x: top.x, y: top.y, hero: top.id, cheer: true }); } } // 아픈 멤버가 없으면 제일 잘 싸우는 멤버에게 "힘내요!"
+        if (!n && g.phase === 'wave') { const tops = g.heroes.filter((o) => o !== h && !o.def.summon && !o.gone).sort((a, b) => b.dmgDone - a.dmgDone).slice(0, (h.sig && h.sig.cheerN) || 1); for (const top of tops) { top.cheerT = C.cheer.sec; ev(g, 'care', { x: top.x, y: top.y, hero: top.id, cheer: true }); } } // 아픈 멤버가 없으면 제일 잘 싸우는 멤버에게 "힘내요!" (전용 신화: 3명)
       }
     }
     if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
@@ -1086,7 +1084,7 @@ function updateJunyoung(g, j, dt) {
     j.tickT += S0.tick;
     const dmg = heroDamage(g, j) * S0.dmgK * (j.allinT > 0 ? 2 : 1) * (g.saJy || 1);
     let n = 0;
-    for (const [, e] of near) { if (e.dead || !(e.jyT > 0)) continue; damageEnemy(g, e, dmg, false, j, true); n++; }
+    for (const [, e] of near) { if (e.dead) continue; const bm = e.boss || e.mid; if (!bm && !(e.jyT > 0)) continue; damageEnemy(g, e, dmg * (bm ? 0.6 : 1), false, j, true); n++; } // 보스 · 중간 보스는 못 붙잡아도 곁에서 쓸면 조금씩 맞는다 (60%)
     if (n) ev(g, 'jySweep', { x: j.px, y: j.py, n, face: j.face });
   }
   if (j.hp <= 0) { // 지쳐서 퇴근: "올인!" 작은 폭발 → 사라진다 · 정소영은 부르기 게이지를 처음부터
@@ -1103,6 +1101,8 @@ function allinBurst(g, h) {
   const x = h.px !== undefined ? h.px : h.x, y = (h.py !== undefined ? h.py : h.y) - 10;
   const r = a.r * (boss && boss.lv >= 5 ? 1.35 : 1);
   forEnemiesNear(g, x, y, r, (e) => { damageEnemy(g, e, heroDamage(g, h) * a.mul, false, h, true); return true; });
+  // 퇴근하며 붙잡고 있던 진상을 위로 밀어 보낸다 (입구 앞에 모아 둔 채 놓아 버리면 오히려 입구가 맞아서)
+  if (a.kb) for (const e of g.enemies) if (!e.dead && !e.boss && (e.jyT > 0 || Math.hypot(e.x - x, e.y - y) < r)) applyKnockback(e, e.mid ? a.kb * 0.5 : a.kb, g);
   ev(g, 'allin', { x, y, r, hx: x, hy: y });
 }
 // 정소영: 진상은 안 때린다 — 잔소리 한 번마다 성준영 체력이 차고(공격 속도가 빠를수록 더 자주) · 준영이 없으면 부르기 게이지가 차서 가득 차면 등판
@@ -1159,7 +1159,7 @@ function segDist(px, py, ax, ay, bx, by) {
 function updateBoard(g, h, dt, rate) {
   const B = h.def.board, lv = h.lv - 1;
   if (!h.bd) { h.bd = { st: 'ride', uses: 0, cdT: 0.6, fixT: 0 }; h.px = h.x; h.py = h.y; }
-  const b = h.bd, maxUse = B.uses[lv];
+  const b = h.bd, maxUse = B.uses[lv] + ((h.sig && h.sig.boardUses) || 0); // 송바울 전용 신화: 정비 전에 더 탄다
   if (b.st === 'fix') { // 보드 정비: 자리에서 무릎 꿇고 고친다 (못 탄다)
     h.out = false; h.px = h.x; h.py = h.y;
     b.fixT -= dt;
@@ -3802,7 +3802,8 @@ function heroCardDesc(def, next, add = 0) { // add: 큰 카드 (일반 스테이
 }
 // ─── 큰 카드 · 주력 ───
 // 큰 카드: 일반 카드의 % 효과 × GROW.card (설명 숫자도 같이)
-export const cardK = (g) => (g && g.grow ? GROW.card : 1);
+// n: 이미 고른 같은 카드 수 → 큰 카드 모드(일반 스테이지 · 헬)에선 겹칠수록 덜 (GROW.rep)
+export const cardK = (g, n = 0) => (g && g.grow ? GROW.card * GROW.rep[Math.min(n, GROW.rep.length - 1)] : 1);
 export const bigDesc = (desc, k) => (k === 1 ? desc : desc.replace(/(\d+(?:\.\d+)?)%/g, (_, n) => `${Math.round(Number(n) * k)}%`));
 // 주력: 한 판에 Lv3 을 넘길 수 있는 멤버는 MAIN.n 명 (먼저 Lv3 을 넘긴 순서)
 export const mainCount = (g) => g.heroes.filter((h) => h.main).length;
@@ -3834,7 +3835,7 @@ export function cardPool(g) {
     }
     if (SKILL_EVO[h.id] && !h.skEvo && h.lv >= 3) pool.push({ key: 'se:' + h.id, kind: 'skillEvo', hero: h.id, rarity: 'legend', icon: '✨', title: SKILL_EVO[h.id], desc: `${d.skill.name}이(가) 0.5초 뒤 한 번 더 터진다 (75% 위력)`, sub: '스킬 진화 · 한 번', w: 6 });
     const hc = HERO_CARDS[h.id];
-    if (hc && (h.cmN || 0) < 2) pool.push({ key: 'hm:' + h.id, kind: 'heroMod', hero: h.id, rarity: 'rare', icon: d.emoji, title: hc.title.split(':')[0] + ' 전용', desc: hc.title.split(':').slice(1).join(':').trim() + ` · 공격력 +${Math.round(20 * cardK(g))}%`, sub: '멤버 전용 카드', w: 7, stack: h.cmN || 0 });
+    if (hc && (h.cmN || 0) < 2) pool.push({ key: 'hm:' + h.id, kind: 'heroMod', hero: h.id, rarity: 'rare', icon: d.emoji, title: hc.title.split(':')[0] + ' 전용', desc: hc.title.split(':').slice(1).join(':').trim() + ` · 공격력 +${Math.round(20 * cardK(g, h.cmN || 0))}%`, sub: '멤버 전용 카드', w: 7, stack: h.cmN || 0 });
   }
   // 멤버 전용 스킬 증강: 그 멤버가 판에 있을 때 (스테이지는 Lv3 부터 가끔 · 탑은 자주)
   for (const h of g.heroes) {
@@ -3857,7 +3858,7 @@ export function cardPool(g) {
     if (c.tag && c.tag !== 'boss') { const k = tagN[c.tag] || 0; if (!k) continue; w = 2 + 2 * k; }
     if (c.risk) w = 2.2;
     const tags = c.tag ? [c.tag] : CARD_TAGS[c.id] || [];
-    pool.push({ key: c.id, kind: 'global', id: c.id, rarity: c.rarity, icon: c.icon, title: c.title, desc: bigDesc(c.desc, cardK(g)), stack: n, w: w * pathW(g, tags), attr: c.attr || null, tag: c.tag || null, tags, risk: !!c.risk });
+    pool.push({ key: c.id, kind: 'global', id: c.id, rarity: c.rarity, icon: c.icon, title: c.title, desc: bigDesc(c.desc, cardK(g, n)), stack: n, w: w * pathW(g, tags), attr: c.attr || null, tag: c.tag || null, tags, risk: !!c.risk });
   }
   // 무한: 카드가 다 차도 계속 자라게 — 조금씩 · 갈수록 덜 (모두 같은 규칙이라 순위는 공정)
   if (g.mode === 'endless') {
@@ -4015,7 +4016,7 @@ export function applyCard(g, c) {
       const h = hasHero(g, c.hero);
       const hc = HERO_CARDS[c.hero];
       if (h && hc) {
-        h.cmAtk = cmAtk(h) - (h.lvAtk || 0) + 0.2 * cardK(g); h.cmN = (h.cmN || 0) + 1;
+        h.cmAtk = cmAtk(h) - (h.lvAtk || 0) + 0.2 * cardK(g, h.cmN || 0); h.cmN = (h.cmN || 0) + 1;
         for (const [k, v] of Object.entries(hc.mul || {})) h.cm[k] = (h.cm[k] || 1) * v;
         for (const [k, v] of Object.entries(hc.add || {})) h.cm[k] = (h.cm[k] || 0) + v;
         ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y });
@@ -4035,9 +4036,9 @@ export function applyCard(g, c) {
       break;
     }
     case 'global': {
+      const k = cardK(g, g.stacks[c.id] || 0); // 큰 카드 (일반 스테이지): % 효과 × k (겹칠수록 덜) — 설명 숫자(bigDesc)와 같게 · 관통 +1 같은 개수는 그대로
       g.stacks[c.id] = (g.stacks[c.id] || 0) + 1;
-      // 큰 카드 (일반 스테이지): % 효과 × k — 설명 숫자(bigDesc)와 같게 · 관통 +1 같은 개수는 그대로
-      const k = cardK(g), up = (x) => 1 + x * k, dn = (x) => Math.max(0.05, 1 - x * k);
+      const up = (x) => 1 + x * k, dn = (x) => Math.max(0.05, 1 - x * k);
       switch (c.id) {
         case 'dmg': m.dmg += 0.27 * k; break;
         case 'spd': m.spd += 0.2 * k; break;

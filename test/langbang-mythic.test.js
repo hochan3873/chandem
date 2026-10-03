@@ -159,6 +159,27 @@ test('sim: 전용 신화 효과가 켜진다 — 건전남 두 발 · 김도훈 
   assert.ok(g3.over, '두 번째는 끝');
 });
 
+test('전용 신화: 모든 새 효과(fx)를 전투(sim.js)가 실제로 읽는다 — 바뀐 멤버 기술에 안 맞는 죽은 효과 없음', () => {
+  const src = require('node:fs').readFileSync(path.join(__dirname, '..', 'public', 'langbang', 'sim.js'), 'utf8');
+  for (const [h, m] of Object.entries(D.SIG)) for (const k of Object.keys(m.fx)) assert.ok(new RegExp(`sig\\.${k}\\b`).test(src), `${h} 전용 신화 효과 ${k} 를 sim.js 가 안 읽음`);
+});
+
+test('sim: 건전녀 전용 신화 — 간호가 더 자주 · 「힘내요!」 3명 / 송바울 — 정비 전에 3번 더', () => {
+  const careRun = (on) => {
+    const g = S.createGame({ mode: 'stage', stage: 5, deck: [null, 'staff', 'gunnyeo', 'gunman', 'eunok', null], rng: seeded(21), gear: on ? { gunnyeo: sigGear('gunnyeo') } : {} });
+    g.phase = 'wave';
+    for (const o of g.heroes) o.dmgDone = 10;
+    let cheers = 0;
+    for (let i = 0; i < 60 * 12; i++) { S.step(g, 1 / 60); g.phase = 'wave'; for (const e of g.events) if (e.type === 'care' && e.cheer) cheers++; g.events.length = 0; }
+    return cheers;
+  };
+  const off = careRun(false), on = careRun(true);
+  assert.ok(off > 0 && on >= off * 3, `힘내요 ${off} → ${on}`);
+  const g = S.createGame({ noWaves: true, heroes: ['baul'], rng: seeded(22), gear: { baul: sigGear('baul') } });
+  const b = g.heroes[0];
+  assert.equal(b.sig.boardUses, 3);
+});
+
 test('sim: 1:1 대전에서는 전용 신화 새 효과가 꺼진다 (능력치만 영웅 비율로)', () => {
   const g = S.createGame({ pvp: { seed: 7, hp: 1 }, mode: 'stage', stage: 12, deck: [null, null, 'gunman', 'jeongseob', null, null], rng: seeded(7), gear: { gunman: sigGear('gunman'), jeongseob: sigGear('jeongseob') } });
   for (const h of g.heroes) assert.equal(h.sig, null, h.id);
