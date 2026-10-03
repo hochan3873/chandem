@@ -10,6 +10,7 @@
 //   node scripts/lb-balance.js attr [--notypes] [--meta=-2]   한 속성 덱의 장별 클리어율 (상성 켬/끔)
 //   node scripts/lb-balance.js diag --list=56 --deck=a|b|id+id   한 판씩 자세히 (조건 · 미션 숫자 · 팀 기여)
 //   node scripts/lb-balance.js stagecalib --list=41 · condcalib · custom --decks=a+b|c+d   맞춤 · 아무 덱
+//   node scripts/lb-balance.js wtrait --list=8,15,25 [--seeds=4] [--traits=near,swarm]   주간 진상 특성마다 균형 덱 클리어율 · 입구 (특성 없음과 비교)
 //   node scripts/lb-par.js deck --ch=2,3,4,5,6 ...   장마다 따로 띄워 병렬로
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -23,6 +24,7 @@ const what = args.find((x) => !x.startsWith('--')) || 'all';
 const JOIN_MODE = args.includes('--join'); // --join: 대장 1명 시작 · 레벨업 카드로 합류
 const TEMPO_MODE = args.includes('--tempo');
 const COND_ARG = (() => { const v = (process.argv.find((x) => x.startsWith('--conds=')) || '').slice(8); return v ? (v === 'none' ? [] : v.split(',')) : undefined; })(); // --conds=shield,cc | none : 스테이지 조건을 바꿔서 측정
+let WTR = (process.argv.find((x) => x.startsWith('--wtrait=')) || '').slice(9) || undefined; // --wtrait=swarm : 주간 진상 특성 켜고 측정
 const NOSOFT = args.includes('--nosoft'); // 강화 권장 상한(넘는 만큼 절반) 끄기 // --tempo: 느리고 묵직한 전투 (진상 수 ×0.6 · 공속 ÷1.54 · 한 방 ×1.6 · 스킬 쿨 ×1.5)
 const PARTNERS = ((process.argv.find((x) => x.startsWith('--partners=')) || '').slice(11) || 'staff,gunman,gunnyeo,dohoon,myunghoon,ingyu,donghan,youngjun,eunok,hanna,sunggu').split(',');
 const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준', ara: '고아라', jiwon: '여지원', wonsik: '정원식', jungmin: '홍정민', hochan: '이호찬', byunghwa: '강병화', hyungyeong: '배현경', jeongseob: '윤정섭', soyoung: '정소영', jieun: '오지은', sanghwa: '박상화', baul: '송바울', junseo: '윤준서' };
@@ -113,7 +115,7 @@ function seeded(seed = 1) {
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
-      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG, noSoft: o.noSoft || NOSOFT,
+      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG, noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR,
     });
     g.partner = o.partner;
     if (o.noTypes) g.noTypes = true;
@@ -908,6 +910,18 @@ function seeded(seed = 1) {
   if (what === 'growth') growth();
   if (what === 'diag') diag();
   if (what === 'condcalib') condcalib();
+  // ── 17) 주간 진상 특성 (node scripts/lb-balance.js wtrait --list=8,15,25 --seeds=4) — 특성마다 난이도가 비슷한지 (특성 없음과 비교)
+  function wtrait() {
+    const N = opt('seeds', 4), plus = opt('meta', 6), list = listArg('list', '8,15,25').map(Number);
+    const ts = ['', ...(listArg('traits', '').length ? listArg('traits', '') : D.WEEK_TRAITS.map((t) => t.id))];
+    for (const t of ts) {
+      WTR = t || undefined;
+      let w = 0, hp = 0, n = 0;
+      for (const s of list) { const c = D.chapterOf(s), ids = balFor(c, s, false), meta = Object.fromEntries(ids.map((id) => [id, REC[c - 1] + plus])); const r = deckRun(ids, s, meta, N, false); w += r.w * N; hp += (r.hp || 0) * r.w * N; n += N; }
+      console.log(`${pad(t ? D.WEEK_TRAIT[t].name : '(특성 없음)', 20)} 클리어 ${Math.round((w / n) * 100)}% · 이긴 판 입구 ${Math.round((hp / Math.max(1, w)) * 100)}%`);
+    }
+  }
+  if (what === 'wtrait') wtrait();
   if (what === 'stagecalib') stagecalib();
   if (what === 'custom') custom();
   if (what === 'deck') deck();

@@ -4135,3 +4135,13 @@ body.rm .ed-s.picked > * { animation: none; }
 .coll-pop .cp-row .ic, .coll-pop .cp-row .uic { width: calc(var(--u) * 16); height: calc(var(--u) * 16); }
 .coll-pop .cp-tot { background: linear-gradient(135deg, rgba(255, 210, 63, 0.16), rgba(199, 125, 255, 0.12)); border: 1px solid rgba(255, 210, 63, 0.4); }
 .coll-pop .cp-row.tot { color: #fff; } .coll-pop .cp-row.tot b { color: #ffd23f; font-size: calc(var(--u) * 12.5); }
+.card.v4 .c4-chip.lvatk { border-color: rgba(255, 210, 63, 0.55); }
+.card.v4 .c4-chip.lvatk b { color: #ffd23f; }
+/* 주간 진상 특성: 로비 칩 (스테이지 이름 아래) · 출전 준비 칩 */
+.lb-wtr { position: absolute; top: calc(var(--u) * 196); left: 50%; transform: translateX(-50%); z-index: 3; display: inline-flex; align-items: center; gap: calc(var(--u) * 4); padding: calc(var(--u) * 3) calc(var(--u) * 10) calc(var(--u) * 3) calc(var(--u) * 5); border-radius: 99px; border: 2px solid var(--ink); background: linear-gradient(180deg, #6a3fc0, #3b2178); color: #fff; font-size: calc(var(--u) * 10.5); font-weight: 900; white-space: nowrap; box-shadow: 0 calc(var(--u) * 2) 0 rgba(0, 0, 0, 0.45); }
+.lb-wtr .ic { width: calc(var(--u) * 17); height: calc(var(--u) * 17); }
+.lb-wtr span { color: #d9c8ff; font-weight: 800; }
+.lb-wtr b { color: #ffd23f; }
+.pc-chip.wtr { border-color: rgba(200, 160, 255, 0.6); background: rgba(70, 35, 130, 0.6); color: #ecdfff; }
+.pc-chip.wtr span { display: none; }
+.pc-who.no { opacity: 0.5; }

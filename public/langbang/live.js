@@ -5,7 +5,7 @@
 import {
   HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK,
   GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT, heroTier, GEAR, CURSES,
-  SIG, SIG_IDS, SIG_PITY, SIG_DUP_SHARDS, SIG_RATE,
+  SIG, SIG_IDS, SIG_PITY, SIG_DUP_SHARDS, SIG_RATE, WEEK_TRAITS,
 } from './data.js';
 export const stageBossN = (s) => stageBosses(s).length;
 
@@ -121,6 +121,8 @@ export const dayIndex = (now = Date.now()) => Math.floor((now + KST - EPOCH) / D
 export const weekStartMs = (wi) => EPOCH + wi * WEEK - KST; // 진짜(UTC) 시각
 export const msToWeekEnd = (now = Date.now()) => weekStartMs(weekIndex(now) + 1) - now;
 export const msToDayEnd = (now = Date.now()) => EPOCH + (dayIndex(now) + 1) * DAY - KST - now;
+// 주간 진상 특성 (일반 스테이지 · 헬): 주마다 차례로 돈다 — 서버 · 화면 같은 공식
+export const weekTrait = (wi = weekIndex()) => WEEK_TRAITS[((Math.floor(Number(wi)) || 0) % WEEK_TRAITS.length + WEEK_TRAITS.length) % WEEK_TRAITS.length];
 export function weekLabel(wi) {
   const a = new Date(EPOCH + wi * WEEK), b = new Date(EPOCH + wi * WEEK + 6 * DAY);
   return `${a.getUTCMonth() + 1}/${a.getUTCDate()} ~ ${b.getUTCMonth() + 1}/${b.getUTCDate()}`;
