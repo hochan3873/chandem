@@ -9,7 +9,7 @@ import {
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
-  COND, stageConds, stageMission, condFits, recMeta,
+  COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN,
 } from './data.js';
 import * as L from './live.js';
@@ -394,6 +394,7 @@ async function startRun(opt = {}) {
     god: DEBUG.god || DEBUG.stress > 0, join: DEBUG.join, tempo: DEBUG.tempo, leader: deckLeader(), mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
     awake: TWUI ? TWUI.awake(p) : {}, ...(tw ? TWUI.gameOpt(tw, p) : {}), // 지옥 각성 (모든 모드) · 탑 한 명
     coll: p.coll || null, // 도감 수집 보너스 (서버가 계산 · 1:1 대전은 sim 이 뺀다)
+    wtrait: mode === 'stage' && !weekly && !pvp ? L.weekTrait(L.weekIndex()).id : undefined, // 주간 진상 특성 (일반 스테이지 · 헬 · 1-4 부터 — sim 이 한 번 더 거른다)
   });
   if (DEBUG.wave > 1) {
     // 디버그: 중간 웨이브부터 시작하면 그만큼 강하게
@@ -2500,6 +2501,7 @@ function showMenu0() {
       <span class="lb-chip" style="--cc:${c.color}">${ch}장 ${esc(c.name)} · ${esc(fxd.name)}${boss ? ` · ${ic('ic_bosscrown', '', 'sm')}보스` : ''}</span>
       <span class="lb-st">${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}</span>
     </button>
+    ${wtrChip(s, 'lb-wtr')}
     <div class="lb-dio">
       <button class="chev l" data-act="lbStep" data-d="-1" ${s <= 1 ? 'disabled' : ''} aria-label="이전 스테이지"><i></i>${s > 1 ? `<small>◂ ${stageLabel(s - 1)}</small>` : ''}</button>
       <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio/s${s2}.webp" alt="" draggable="false" onerror="this.onerror=function(){this.onerror=null;this.src='/img/lb/dio6.webp'};this.src='/img/lb/dio${c2}.webp'">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>`}</div></div>`; }).join('')}</div>
@@ -3668,6 +3670,7 @@ Object.assign(ACTS, {
   lbModes: () => showModes(),
   lbMenu: () => showLobbyMenu(),
   lbGo: () => showPrep('stage', lobbyStage()),
+  wtrInfo: () => wtrPopup(),
   weekly: () => showWeekly(),
   weeklyGo: () => showPrep('weekly', 0),
   weeklyClaim: async () => { const r = await liveAct(API.weeklyClaim()); if (r) { A.sfx.levelUp(); toast(`지난주 ${r.label || ''} 보상! ${gotText(r.got)}`, 3200); showWeekly(); } },
@@ -4623,12 +4626,23 @@ function stagePower(p, s, hell) { // 권장 전투력: 기본 멤버 4명이 그
 const foeFace = (id, cls = '') => { const d = ENEMIES[id]; return `<span class="pp-face ${cls}" style="--fc:${d.color || '#8a7ab0'}"><img src="${d.img}" alt="" draggable="false" onerror="${d.fb ? `this.onerror=null;this.src='${d.fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'` : 'this.remove()'}"></span>`; };
 const foeTrait = (id) => { const t = ENEMIES[id].traits || {}; const k = Object.keys(t).find((x) => TRAITS[x]); return k ? TRAITS[k] : null; };
 // 준비 화면 '이 스테이지' 칸: 맵 효과 한 줄 · 진상 기믹 칩 · ★★★ 미션 (누르면 공략 · 맞는 멤버)
-function prepCondHtml(fxd, conds, mis, rec) {
+// 주간 진상 특성 (일반 스테이지 · 헬 · 1-4 부터): 로비 · 출전 준비에 작은 칩 → 누르면 설명 · 이번 주 추천 멤버
+const wtrNow = (s) => ((s | 0) >= WEEK_TRAIT_FROM ? L.weekTrait(L.weekIndex()) : null);
+function wtrChip(s, cls) {
+  const t = wtrNow(s);
+  return t ? `<button class="${cls}" data-act="wtrInfo">${ic(t.icon, '', 'sm')}<span>이번 주 진상</span><b>${esc(t.name)}</b></button>` : '';
+}
+function wtrPopup() {
+  const t = L.weekTrait(L.weekIndex()), mine = owned(), deck = new Set(curDeck().filter(Boolean));
+  const who = t.rec.filter((id) => HEROES[id]).map((id) => `<span class="pc-who ${deck.has(id) ? 'on' : mine.includes(id) ? '' : 'no'}">${esc(HEROES[id].name)}</span>`).join('');
+  popup(`<h3>${ic(t.icon, '', 'sm')}${esc(t.name)}</h3><p class="ip"><small>이번 주 진상 특성</small></p><p class="ip">${esc(t.desc)}</p><p class="ip"><b>이번 주 추천 멤버</b></p><div class="pc-whos">${who}</div><p class="ip"><small>일반 스테이지 · 헬에만 (${stageLabel(WEEK_TRAIT_FROM)} 부터) · 주간 도전 · 대전 · 레이드 · 탑은 그대로 · 월요일마다 바뀌어요 (${esc(L.leftText(L.msToWeekEnd()))} 남음)</small></p>`, 'pp-mini');
+}
+function prepCondHtml(fxd, conds, mis, rec, wt) {
   const chips = [];
   if (fxd && fxd.id !== 'none') chips.push(`<button class="pc-chip fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.short || fxd.name)}</button>`);
   for (const c of conds) chips.push(`<button class="pc-chip" data-act="prepCond">${ic(COND[c].icon, '', 'sm')}${esc(COND[c].name)}</button>`);
-  if (!chips.length && !mis) return '';
-  return `<div class="pp-cond">${chips.length ? `<div class="pc-row"><span class="pp-lab">이 스테이지</span>${chips.join('')}</div>` : ''}${mis ? `<button class="pc-mis" data-act="prepCond"><span class="pc-st">★★★</span>입구 70% + <b>${esc(mis.text)}</b>${rec ? `<small>권장 +${rec}</small>` : ''}</button>` : ''}</div>`;
+  if (!chips.length && !mis && !wt) return '';
+  return `<div class="pp-cond">${chips.length ? `<div class="pc-row"><span class="pp-lab">이 스테이지</span>${chips.join('')}</div>` : ''}${wt ? `<div class="pc-row"><span class="pp-lab">이번 주</span>${wt}</div>` : ''}${mis ? `<button class="pc-mis" data-act="prepCond"><span class="pc-st">★★★</span>입구 70% + <b>${esc(mis.text)}</b>${rec ? `<small>권장 +${rec}</small>` : ''}</button>` : ''}</div>`;
 }
 function prepCondPopup() {
   const s = app.stage, hellOn = hellOpen(P().stages, s) && app.hellMode;
@@ -4691,7 +4705,7 @@ function showPrep(mode, s) {
   // 2-1) 이 스테이지 조건: 맵 효과 · 진상 기믹(보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격) · ★★★ 미션 · 강화 권장
   const conds = mode === 'stage' ? stageConds(s, hellOn) : [];
   const mis = mode === 'stage' ? stageMission(s, hellOn) : null;
-  const condHtml = prepCondHtml(fxd, conds, mis, mode === 'stage' ? recMeta(s, hellOn) : 0);
+  const condHtml = prepCondHtml(fxd, conds, mis, mode === 'stage' ? recMeta(s, hellOn) : 0, mode === 'stage' ? wtrChip(s, 'pc-chip wtr') : '');
   // 3) 전투력
   const pw = deckPower(p, ids), need = st ? stagePower(p, st, hellOn) : 0;
   const ok = !need || pw >= need;
@@ -5103,6 +5117,7 @@ function cardChip(c) {
   if (tg && TAGS[tg]) { const cnt = g0 ? ((g0.tagCnt || {})[tg] || 0) : 0; return `<span class="c4-chip ${cnt + 1 >= 3 ? 'set' : ''}">${pimg(ui2(PATH_IC[tg]))}${TAGS[tg].name} <b>${cnt}→${cnt + 1}</b></span>`; }
   if (c.kind === 'cc' && CC_KINDS[c.cc]) return `<span class="c4-chip" style="--cc:${CC_KINDS[c.cc].color}">${pimg(ui2(CC_IC[c.cc]))}${c.hero ? esc(HEROES[c.hero].name) : CC_KINDS[c.cc].name}</span>`;
   if (cardAttr(c)) { const a = cardAttr(c), n = g0 ? g0.heroes.filter((h) => h.def.attr === a).length : 0; return `<span class="c4-chip">${pimg(`/img/lb/attr/${a}.webp`)}${ATTRS[a].name} <b>${n}명</b></span>`; }
+  if (c.kind === 'heroLv' && c.lvAtk) return `<span class="c4-chip lvatk">${pimg(ui2('star_gold'))}공격력 <b>+${Math.round(c.lvAtk * 100)}%</b></span>`; // 큰 레벨 카드: 그 멤버 공격력 + (레벨업과 따로 붙는 보너스)
   if (c.hero && HEROES[c.hero]) { const a = HEROES[c.hero].attr; return `<span class="c4-chip">${pimg(`/img/lb/attr/${a}.webp`)}${esc(HEROES[c.hero].name)}</span>`; }
   if (c.risk) return '<span class="c4-chip risk">위험 부담</span>';
   if (c.kind === 'global' && c.stack) return `<span class="c4-chip">단계 <b>${c.stack}→${c.stack + 1}</b></span>`;

@@ -8,7 +8,7 @@ import {
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
-  SKILL_AUG, SKILL_AUG_W, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN,
+  SKILL_AUG, SKILL_AUG_W, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
 import { PVP_END, pvpStepN, pvpWaveHp, pvpMatchHp, pvpMeta, pvpStar, pvpCapMap, PVP_ESC, pvpPhase, pvpSdCount, pvpBunchCount, PVP_DOTS, pvpDot } from './pvp.js';
@@ -89,6 +89,9 @@ export function createGame(opt = {}) {
     g.mission = stageMission(g.stage, g.hell, opt.conds);
     g.ccT = COND.cc.every[0] * 0.8;
   }
+  // 주간 진상 특성 (opt.wtrait: live.js weekTrait 의 id) — 일반 스테이지 · 헬에서만
+  g.wtr = mode === 'stage' && !wk && !opt.pvp && !opt.raid && !opt.tower && opt.wtrait && g.stage >= WEEK_TRAIT_FROM ? WEEK_TRAIT[opt.wtrait] || null : null;
+  if (g.wtr) { if (g.wtr.crit) g.mods.crit += g.wtr.crit; if (g.wtr.ctrl) g.mods.ctrlMul *= g.wtr.ctrl; }
   g.stats.team = { repair: 0, prevent: 0, buff: 0 }; g.stats.teamBy = {}; // 팀 기여: 입구 수리 · 막은 피해 · 버프로 늘어난 피해 (멤버별)
   if (g.mapFx.exp) g.mods.expMul += g.mapFx.exp;
   if (mode === 'stage') g.mods.expMul *= wk ? 0.34 : stageExpMul(opt.stage || 1); // 뒤 스테이지는 진상이 많은 만큼 경험치를 줄여 레벨업 횟수를 비슷하게
@@ -196,7 +199,7 @@ export function heroDamage(g, h) {
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
   const hc = (1 + (g.hcT > 0 && h.id !== 'hochan' ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0)) * (g.rallyT > 0 && g.rallyDmg ? 1 + g.rallyDmg : 1) * (g.uirijuT > 0 ? 1.6 : 1) * (g.onemanT > 0 ? 1 + (g.onemanAtk || 0.3) : 1); // "랑방을 위하여!" · 집합! · 의리주 · 원맨쇼
-  return buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + cmAtk(h)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * (1 + (g.collAtk || 0)) * old * hc * heroExtraMul(g, h);
+  return buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + cmAtk(h)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * (1 + (g.collAtk || 0)) * old * hc * heroExtraMul(g, h) * (g.wtr && g.wtr.near ? (NEAR_HEROES.includes(h.id) ? g.wtr.near : g.wtr.far) : 1); // (끝: 주간 진상 특성 — 근접 · 원거리)
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
 export function buildMul(g, h) {
@@ -716,9 +719,11 @@ function updateConsult(g, h, dt) {
   }
 }
 // 고아라 (개편): 제일 센 적 = 보스 > 중간 보스 > 정예 > 체력 많은 순
+// 혼자인 탑: 입구를 때리고 있는 진상이 정예보다 먼저 (혼자라 멀리 있는 정예만 쫓는 사이 입구가 무너지던 문제)
 function strongest(g) {
   let best = null, bv = -1;
-  for (const e of g.enemies) { if (e.dead || e.y < 10 || (e.def.traits && e.def.traits.stealth && !e.unveiled)) continue; const v = (e.boss ? 3e7 : e.mid ? 2e7 : e.elite ? 1e7 : 0) + e.hp; if (v > bv) { bv = v; best = e; } }
+  const gate = g.tower ? 1.5e7 : 0;
+  for (const e of g.enemies) { if (e.dead || e.y < 10 || (e.def.traits && e.def.traits.stealth && !e.unveiled)) continue; const v = (e.boss ? 3e7 : e.mid ? 2e7 : e.elite ? 1e7 : 0) + (e.atRope ? gate : 0) + e.hp; if (v > bv) { bv = v; best = e; } }
   return best;
 }
 function updateAra(g, h, dt, rate) {
@@ -747,16 +752,22 @@ function updateAra(g, h, dt, rate) {
     h.cd += d.interval * LEVEL_INTERVAL[lv - 1];
     const crit = g.rng() < critOf(g, h);
     const hit = heroDamage(g, h) * B.hitMul * (t.boss || t.mid ? B.bossMul : 1) * (crit ? g.mods.critMul : 1);
+    const A = g.tower && TOWER_SIM.ara;
+    if (A) araCrack(g, t, A.lay); // 탑에서만: 망치가 보호막을 먼저 깨고 그대로 때린다 (보호막 층에서 한 방이 헛치지 않게)
     damageEnemy(g, t, hit, crit, h, false);
-    if (g.tower) { // 탑에서만: 망치는 보호막을 한 겹 더 벗기고 · 떨어진 곳 주변도 쿵 (센 진상 하나만 쳐서 떼거리 · 보호막 층에 막히지 않게) — TOWER_SIM.ara
-      const A = TOWER_SIM.ara;
-      if (t.tLay > 0 && !t.dead) { t.tLay--; t.tLayT = TOWER_SIM.shield.regen; if (t.tLay <= 0) ev(g, 'shieldBreak', { x: t.x, y: t.y - t.def.size * 0.6 }); }
+    if (A) { // 탑에서만: 떨어진 곳 주변도 쿵 — 주변 진상 보호막도 깨고 40% 피해 (센 진상 하나만 쳐서 떼거리 · 보호막 층에 막히지 않게) — TOWER_SIM.ara
       ev(g, 'splash', { x: t.x, y: t.y, r: A.r, proj: 'hammer' });
-      forEnemiesNear(g, t.x, t.y, A.r, (o) => { if (o !== t) damageEnemy(g, o, hit * A.k, false, h, true); return true; });
+      forEnemiesNear(g, t.x, t.y, A.r, (o) => { if (o !== t) { araCrack(g, o, A.layNear); damageEnemy(g, o, hit * A.k, false, h, true); } return true; });
     }
     h.lastShotT = g.t; h.shots++;
     ev(g, 'hammer', { x: t.x, y: t.y - 10, big: true });
   }
+}
+// 고아라 망치 (탑): 보호막 겹을 n겹 먼저 깬다
+function araCrack(g, e, n) {
+  if (!(e.tLay > 0) || e.dead || !n) return;
+  e.tLay = Math.max(0, e.tLay - n); e.tLayT = TOWER_SIM.shield.regen;
+  if (e.tLay <= 0) ev(g, 'shieldBreak', { x: e.x, y: e.y - e.def.size * 0.6 });
 }
 // 제일 몰린 진상 (주변 60 안에 많은 순) — 지목이 있으면 그쪽
 function pickCluster(g, h, range) {
@@ -1399,6 +1410,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   if (def.ch7 || e.ch7On) ch7Init(g, e); // 7장 스키장 진상 상태 (풀에서 꺼낸 진상은 지난 값을 지운다)
   e.cLay = 0; e.cLayMax = 0; e.cArmor = false; e.cHid = false; e.cDone = false; e.cLeak = false; e.cRush = false; e.cOff = false; e.cCrashed = false;
   if (g.conds.length && g.wave >= DOOR_PRESSURE.from) condEnemy(g, e); // 스테이지 조건 (보호막 · 철갑 · 은신 · 돌격 · 문 압박)
+  if (g.wtr) wtrEnemy(g, e); // 주간 진상 특성
   g.enemies.push(e);
   if (e.boss) g.bossAlive++;
   return e;
@@ -2455,6 +2467,16 @@ function ch7Tick(g, e, dt) {
     }
   }
 }
+// 주간 진상 특성: 체력 · 이동 · 방어 · 보호막 (수는 웨이브 만들 때 · 피해 · 치명타 · 기절 시간은 heroDamage · mods)
+function wtrEnemy(g, e) {
+  const W = g.wtr;
+  if (e.def.dot || e.def.figure) return;
+  const m = W.bossHp && (e.boss || e.mid || e.elite) ? W.bossHp : W.hp || 1;
+  if (m !== 1) { e.maxHp *= m; e.hp *= m; e.shield *= m; }
+  if (W.spd) { e.speed *= W.spd; e.baseSpeed = e.speed; }
+  if (W.armor && !e.boss) e.armor += Math.round((COND.armor.armor[chapterOf(g.stage || 1)] || 6) * W.armor);
+  if (W.shield && !e.boss && !e.mid && !e.cLay && g.rng() < W.shield) { e.cLay = e.cLayMax = COND.shield.layers[0]; e.cLayT = COND.shield.regen; }
+}
 // ─── 스테이지 조건 (1~6장 중후반 · 헬): 보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격 — 강화만으로는 못 뚫게, 역할이 필요하게 ───
 function condEnemy(g, e) {
   const C = g.cond, ch = chapterOf(g.stage || 1), k = g.hell ? 1.25 : 1;
@@ -3070,7 +3092,8 @@ export function startWave(g, n) {
   // 무한 도전: 웨이브가 갈수록 떼로 (×1.3 → 30웨이브 ×3.0) · 주간 도전 ×2
   const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1) * (g.tempo && !g.raid ? TEMPO.count : 1) * (g.cond.swarm ? COND.swarm.count : 1); // 떼거리 조건: 약한 진상이 훨씬 많이
   for (const [type, count0, every0, delay, tag] of def.g) {
-    const count = Math.round(count0 * more * swarm), every = every0 / (more * swarm);
+    const wc = g.wtr && g.wtr.count && !ENEMIES[type].boss && !ENEMIES[type].mid ? g.wtr.count : 1; // 주간 떼거리: 보스는 그대로
+    const count = Math.round(count0 * more * swarm * wc), every = every0 / (more * swarm * wc);
     const pack = ENEMIES[type].pack;
     const elite = tag === 'E';
     const hpX = elite ? def.eliteHp || 1 : (def.fodderHp || 1) * (g.cond.swarm ? COND.swarm.hp : 1);
@@ -3746,7 +3769,7 @@ export function step(g, dt) {
   updateHeroes(g, dt);
   updateEnemies(g, dt);
   if (g.r2) g.r2.tick(g, dt); // 건물주 레이드: 거대 보스 패턴 · 화 쌓기 (raid2-sim.js)
-  if (g.conds.length) condTick(g, dt);
+  if (g.conds.length || (g.wtr && g.wtr.shield)) condTick(g, dt);
   updateEprojs(g, dt);
   updateProjs(g, dt);
   if (g.pools.length) updatePools(g, dt);
@@ -3830,7 +3853,7 @@ export function cardPool(g) {
       const mk = mainKind(g, h, next); // 주력: 'is' 이미 주력 · 'new' 고르면 주력이 된다
       pool.push({
         key: 'lv:' + h.id, kind: 'heroLv', hero: h.id, rarity: d.perks[next] || d.perks[h.lv + 1] ? 'rare' : 'common',
-        icon: d.emoji, title: `${d.name} Lv.${h.lv}→${next}`, desc: heroCardDesc(d, next, g.grow ? GROW.lv : 0) + (d.perks[h.lv + 1] && h.lv + 1 !== next ? ` · ★ ${d.perks[h.lv + 1]}` : ''), sub: mk === 'new' ? `주력 지정 (${mainCount(g) + 1}/${MAIN.n}) · Lv5까지` : d.role, w: d.perks[next] ? 9 : 11, main: mk,
+        icon: d.emoji, title: `${d.name} Lv.${h.lv}→${next}`, desc: heroCardDesc(d, next, g.grow ? GROW.lv : 0) + (d.perks[h.lv + 1] && h.lv + 1 !== next ? ` · ★ ${d.perks[h.lv + 1]}` : ''), lvAtk: g.grow ? GROW.lv : 0, sub: mk === 'new' ? `주력 지정 (${mainCount(g) + 1}/${MAIN.n}) · Lv5까지` : d.role, w: d.perks[next] ? 9 : 11, main: mk,
       });
     }
     if (SKILL_EVO[h.id] && !h.skEvo && h.lv >= 3) pool.push({ key: 'se:' + h.id, kind: 'skillEvo', hero: h.id, rarity: 'legend', icon: '✨', title: SKILL_EVO[h.id], desc: `${d.skill.name}이(가) 0.5초 뒤 한 번 더 터진다 (75% 위력)`, sub: '스킬 진화 · 한 번', w: 6 });
@@ -4054,7 +4077,7 @@ export function applyCard(g, c) {
         case 'charmRes': m.charmMul *= dn(0.6); break;
         case 'debuffRes': m.debuffMul *= dn(0.4); m.charmMul *= dn(0.5); // (연애 금지 서약 합침)
  for (const h of g.heroes) h.debuffMul = m.debuffMul; break;
-        case 'cdCut': g.cdMul *= dn(0.25); for (const h of g.heroes) h.skillCd *= dn(0.25); break; // 두 장이면 쿨 −44% (큰 카드면 −65%)
+        case 'cdCut': { const c0 = g.cdCard || 1, c1 = Math.max(1 - GROW.cdMax, c0 * dn(0.25)), r = c1 / c0; g.cdCard = c1; g.cdMul *= r; for (const h of g.heroes) h.skillCd *= r; break; } // 두 장이면 쿨 −44% (큰 카드 −34% · −24% → 합 −49%) · 카드로 줄이는 쿨은 최대 GROW.cdMax
         case 'armor': m.baseArmor *= dn(0.2); break;
         case 'attrUp': m.attrUp += 0.25 * k; break;
         case 'syn_talk': case 'syn_power': case 'syn_charm': case 'syn_booze': { const a = c.id.slice(4); m.attrDmg[a] = (m.attrDmg[a] || 0) + 0.42 * k; break; }
@@ -4149,7 +4172,7 @@ export function snapshot(g) {
     base: { hp: g.base.hp, max: g.base.max }, ult: g.ult, stats: JSON.parse(JSON.stringify(g.stats)), cstat: Object.assign({}, g.cstat),
     meta: Object.assign({}, g.meta), items: Object.assign({}, g.items), unlocked: g.unlocked.slice(), trial: (g.trial || []).slice(),
     curses: g.curses || [], scoreMul: g.scoreMul || 1, coinMul: g.coinMul || 1, streak: g.streak || 1, twinBoss: !!g.twinBoss,
-    gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, hell: g.hell, maxHeroes: g.maxHeroes, awake: g.awakeMap || {}, coll: g.coll || null, markBonus: g.markBonus || 0, saJy: g.saJy || 0, sigRevived: !!g.sigRevived,
+    gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, hell: g.hell, wtrait: g.wtr ? g.wtr.id : null, maxHeroes: g.maxHeroes, awake: g.awakeMap || {}, coll: g.coll || null, markBonus: g.markBonus || 0, saJy: g.saJy || 0, sigRevived: !!g.sigRevived,
     joinMode: !!g.joinMode, joinPool: (g.joinPool || []).map((x) => ({ id: x.id, slot: x.slot })), joinTotal: g.joinTotal | 0, leader: g.leader, pickN: g.pickN | 0, rollN: g.rollN | 0, picks: Object.fromEntries(g.heroes.map((h) => [h.id, h.picks || 0])),
   };
 }
@@ -4157,7 +4180,7 @@ export function snapshot(g) {
 export function restoreGame(snap, opt = {}) {
   const g = createGame({
     H: opt.H, rng: opt.rng, god: opt.god, mode: snap.mode, stage: snap.stage,
-    meta: snap.meta, items: snap.items, unlocked: snap.unlocked || snap.hiddenUnlocked || [], heroes: [], gear: snap.gear, positions: snap.nPos, stars: snap.hstars, weekly: snap.weekly || undefined, hell: !!snap.hell, awake: snap.awake || {}, coll: snap.coll || null,
+    meta: snap.meta, items: snap.items, unlocked: snap.unlocked || snap.hiddenUnlocked || [], heroes: [], gear: snap.gear, positions: snap.nPos, stars: snap.hstars, weekly: snap.weekly || undefined, hell: !!snap.hell, wtrait: snap.wtrait || undefined, awake: snap.awake || {}, coll: snap.coll || null,
   });
   g.markBonus = snap.markBonus || 0; g.saJy = snap.saJy || 0; g.sigRevived = !!snap.sigRevived;
   if (snap.maxHeroes) g.maxHeroes = snap.maxHeroes;

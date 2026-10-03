@@ -67,7 +67,7 @@ export function expNeed(lv) {
 //   card: 일반 카드 % 효과 × · 멤버 전용 카드 공격력도 · lv: 멤버 레벨 카드마다 그 멤버 공격력 + (키운 멤버가 세진다)
 //   주간 도전 · 1:1 대전 · 레이드 · 탑 · 무한은 그대로 (따로 맞춘 모드라)
 //   (card 1.65 → 1.35 · rep: 같은 카드를 또 고르면 2장째 ×0.7 · 3장째부터 ×0.5 — 공격력 +45% 카드가 계속 떠서 한쪽으로 눈덩이처럼 커지던 것 · 설명 숫자도 실제 값)
-export const GROW = { need: 2.3, card: 1.35, lv: 0.25, rep: [1, 0.7, 0.5] };
+export const GROW = { need: 2.3, card: 1.35, lv: 0.25, rep: [1, 0.7, 0.5], cdMax: 0.5 }; // cdMax: 카드(스킬 연습)로 줄이는 스킬 쿨 최대 50%
 // 주력: 한 판에 Lv5(진화)까지 키울 수 있는 멤버는 2명 — Lv3 을 넘기는 레벨 카드를 먼저 고른 두 명이 주력 · 나머지는 Lv3 까지
 //   (스테이지 · 헬 · 주간 도전만 · 탑은 혼자라 · 대전 · 레이드 · 무한은 따로 맞춘 모드라 그대로)
 export const MAIN = { n: 2, cap: 3 };
@@ -610,6 +610,23 @@ export const COND = {
     counter: ['jungmin', 'dohoon', 'wonsik', 'ingyu', 'jeongseob', 'staff', 'jieun'], frac: 0.28, spd: 1.4, atk: 1, crash: [0.025, 0.03, 0.035, 0.04, 0.045, 0.05], off: 0.5 }, // 빠른 진상은 원래 입구를 세게 · 빨리 친다 · crash: 처음 부딪힐 때 입구 최대의 % (감속 · 기절에 걸리면 넘어져서 안 부딪힘)
 };
 export const COND_IDS = Object.keys(COND);
+// 주간 진상 특성: 매주 (월요일 · 한국 시간) 진상에게 규칙 하나 — 일반 스테이지 · 헬에서만 (주간 도전 · 1:1 대전 · 레이드 · 탑 · 무한은 그대로)
+//   주는 live.js weekTrait(weekIndex) — 서버와 화면이 같은 공식 · 이번 주 추천 멤버(rec)가 빛나게, 대신 다른 쪽을 조금 깎아 난이도는 비슷하게
+//   hp: 진상 체력 × · bossHp: 보스 · 중간 보스 · 정예 체력 × · spd: 이동 × · count: 수 × · armor: 철갑 조건 방어의 몇 배를 모두에게 · shield: 보호막 진상 비율
+//   near/far: 근접(NEAR_HEROES) · 원거리 멤버 피해 × · crit: 치명타 확률 +p · ctrl: 기절 · 감속 시간 ×
+export const WEEK_TRAIT_FROM = 4; // 1-4 부터 (처음 세 판은 그대로)
+export const NEAR_HEROES = ['bangjang', 'youngjun', 'ara', 'hyungyeong', 'jeongseob', 'dohoon', 'wonsik', 'jungmin', 'gunnyeo', 'byunghwa']; // 사거리가 짧거나 붙어서 싸우는 멤버
+export const WEEK_TRAITS = [
+  { id: 'near', icon: 'swords', name: '원거리 방패 주간', desc: '진상이 쟁반 방패를 들었어요 — 원거리 멤버 피해 −20% · 근접 멤버 피해 +30%', rec: ['youngjun', 'ara', 'hyungyeong', 'bangjang', 'jeongseob'], far: 0.8, near: 1.3 },
+  { id: 'shield', icon: 'tw_shield', name: '보호막 주간', desc: '보호막 진상이 2배 · 대신 진상 체력 −15%', rec: ['staff', 'jiwon', 'gunman', 'youngjun', 'soyoung'], shield: 0.44, hp: 0.85 },
+  { id: 'fast', icon: 'tw_rush', name: '빠른 진상 주간', desc: '진상 이동 속도 +25% · 대신 체력 −15%', rec: ['jieun', 'staff', 'jungmin', 'dohoon', 'wonsik'], spd: 1.25, hp: 0.85 },
+  { id: 'armor', icon: 'tw_titan', name: '단단한 주간', desc: '진상 모두 방어 + (한 방이 약하면 깎여요) · 대신 체력 −10%', rec: ['ara', 'gunman', 'sunggu', 'donghan', 'hochan'], armor: 0.6, hp: 0.9 },
+  { id: 'swarm', icon: 'tw_swarm', name: '떼거리 주간', desc: '진상 수 +40% · 대신 한 명 체력 −30%', rec: ['eunok', 'donghan', 'soyoung', 'sunggu', 'dohoon'], count: 1.4, hp: 0.7 },
+  { id: 'boss', icon: 'tw_boss', name: '보스 주간', desc: '보스 · 중간 보스 · 정예 체력 +30% · 일반 진상 체력 −15%', rec: ['gunman', 'sanghwa', 'ara', 'hanna', 'youngjun'], bossHp: 1.3, hp: 0.85 },
+  { id: 'ctrl', icon: 'cc_stun', name: '고집쟁이 주간', desc: '진상이 기절 · 감속에 잘 안 걸려요 (시간 −40%) · 대신 체력 −10%', rec: ['sanghwa', 'gunman', 'sunggu', 'eunok', 'ara'], ctrl: 0.6, hp: 0.9 },
+  { id: 'crit', icon: 'path_crit', name: '치명타 주간', desc: '진상 약점이 훤히 보여요 — 치명타 확률 +15% · 대신 진상 체력 +10%', rec: ['gunman', 'sanghwa', 'staff', 'eunok'], crit: 0.15, hp: 1.1 },
+];
+export const WEEK_TRAIT = Object.fromEntries(WEEK_TRAITS.map((t) => [t.id, t]));
 // 스테이지별 조건 (1~60). 장 앞쪽은 순하게 — 1장은 1-7 부터 하나, 2장은 2-4 부터, 3장부터 2개, 보스 스테이지는 3개
 const STAGE_CONDS = [
   '', '', '', '', '', '', 'rush', 'rush', 'armor', 'swarm',
@@ -2293,7 +2310,7 @@ export const TOWER_SIM = { // [아래층, 25층 이상] — 규칙은 아래층�
   wall: { w: 3, spd: 1.6, rest: 0.35 }, // 윤정섭 (혼자 탑): 미는 폭 · 걷는 속도 · 쉬는 시간
   limit: [30, 80], // 제한 시간: 30초 + 웨이브마다 80초
   dash: { swarmOut: 0.6, swarmRest: 1.6, rushDodge: 0.5, curseRest: 1.5 }, // 김영준 돌격 (혼자 탑): 떼거리엔 금방 지치고 · 돌진 진상은 더 잘 피하고 · 저주에 걸리면 돌격이 끊긴다
-  ara: { r: 52, k: 0.4 }, // 고아라 (탑에서만): 망치가 떨어진 곳 반경 52 안 진상에게 40% 피해 · 맞은 진상 보호막 한 겹 더 벗김 (센 진상 하나만 쳐서 떼거리 · 보호막 층에서 2~6층에 막히던 문제)
+  ara: { r: 52, k: 0.4, lay: 2, layNear: 1 }, // 고아라 (탑에서만): 망치가 떨어진 곳 반경 52 안 진상에게 40% 피해 · 망치는 보호막을 먼저 2겹 깨고 그대로 때림 (주변은 1겹) (센 진상 하나만 쳐서 떼거리 · 보호막 층에서 2~6층에 막히던 문제)
   laneHold: 10, // 혼자인 탑: 손으로 옮기면 이 시간 동안 자동 자리 잡기를 쉰다 (초)
   solo: { junyoung: 1.6, eunok: 1.5, wonsik: 1.7, jungmin: 1.35, dohoon: 1.25, gunnyeo: 1.25, jieun: 1.15, sanghwa: 1.15, baul: 0.75, ingyu: 1.5, youngjun: 0.7 }, // (송바울 1.1 → 0.75: 응원봉 부메랑 · 함성으로 혼자서도 세짐 · 백인규 1.5: 입구 피해 감소가 빠져서) // (성준영 1.6: 정소영 혼자면 딜이 준영뿐 · 최은옥 1.5: 스테이지 템포 보정을 0.65 로 내린 만큼 탑에서만 돌려 줌) // 혼자라서 동료 덕을 못 보는 멤버(탱커 · 회복 · 지원)는 탑에서만 공격력 보정 · 김영준은 혼자일 때 너무 세서 탑에서만 −30% (출시 첫날 TOP 7 중 5명이 김영준)
 };
