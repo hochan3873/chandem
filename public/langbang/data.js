@@ -66,7 +66,8 @@ export function expNeed(lv) {
 // 한 판 성장 (일반 스테이지 · 헬): 레벨업은 덜 자주 (필요 경험치 × need → 한 판 카드 9장쯤 → 7장쯤) · 대신 한 장 한 장이 크게
 //   card: 일반 카드 % 효과 × · 멤버 전용 카드 공격력도 · lv: 멤버 레벨 카드마다 그 멤버 공격력 + (키운 멤버가 세진다)
 //   주간 도전 · 1:1 대전 · 레이드 · 탑 · 무한은 그대로 (따로 맞춘 모드라)
-export const GROW = { need: 2.3, card: 1.65, lv: 0.25 };
+//   (card 1.65 → 1.35 · rep: 같은 카드를 또 고르면 2장째 ×0.7 · 3장째부터 ×0.5 — 공격력 +45% 카드가 계속 떠서 한쪽으로 눈덩이처럼 커지던 것 · 설명 숫자도 실제 값)
+export const GROW = { need: 2.3, card: 1.35, lv: 0.25, rep: [1, 0.7, 0.5] };
 // 주력: 한 판에 Lv5(진화)까지 키울 수 있는 멤버는 2명 — Lv3 을 넘기는 레벨 카드를 먼저 고른 두 명이 주력 · 나머지는 Lv3 까지
 //   (스테이지 · 헬 · 주간 도전만 · 탑은 혼자라 · 대전 · 레이드 · 무한은 따로 맞춘 모드라 그대로)
 export const MAIN = { n: 2, cap: 3 };
@@ -104,9 +105,9 @@ export const ATTACK_RELEASE = { soyoung: 3, baul: 3, eunok: 3, jieun: 3, gunnyeo
 export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', 'bike'], ['hyungyeong', 'slim'], ['ara', 'old'], ['jieun', 'demon'], ['eunok', 'rage'], ['youngjun', 'dash']].map(([id, f]) => [id, { form: f, src: `/img/lb/h_${id}_${f}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id + '_' + f] || 4 }]));
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
   'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.7, myunghoon: 1.5, bangjang: 0.92, soyoung: 1.9, junyoung: 2.1, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.1, baul: 1.65, sanghwa: 2.6, hanna: 1.35, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.8, 1.0, 0.6, 0.5, 0.36, 0.29], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.65, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
-export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 9, stun: 0.9 }; // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
+export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
 export const PROJ_ART = { staff: 'card_y', eunok: 'cup', jungmin: 'bottle', sanghwa: 'coin', wonsik: 'dumbbell', ingyu: 'dumbbell', soyoung: 'bubble', gunman: 'bb', donghan: 'coffee', sunggu: 'cane', jiwon: 'mosaic', gunnyeo: 'heart', junyoung: 'chip', ara: 'hammer', jieun: 'clock', myunghoon: 'swear' };
 export const PROJ_ART_NAMES = ['bottle', 'cup', 'coin', 'dumbbell', 'bubble', 'card_y', 'card_r', 'bb', 'coffee', 'cane', 'mosaic', 'heart', 'chip', 'hammer', 'claw', 'clock', 'swear'];
@@ -1038,8 +1039,8 @@ export const SUMMONS = {
     id: 'junyoung', summon: true, bossKit: 1, kit: 1, name: '성준영', gender: 'm', emoji: '🃏', color: '#9fd4ff', attr: 'talk',
     img: ART('h_junyoung'), role: '소환 · 돈 쓸어 모으기 · 진상 끌어모으는 미끼',
     dmg: 30, interval: 0.55, range: 380, proj: 'sweep',
-    sweep: { hp: [0.32, 0.32, 0.38, 0.38, 0.45], hpMeta: 0.02, r: [110, 110, 120, 120, 135], hold: 40, pull: 110, bossPull: 0.25, max: [6, 6, 7, 7, 8], tick: 0.5, dmgK: 0.18, walk: 58, cut: 0.2, tire: 0.02, wp: [1.4, 2.6], allinR: 1.5 }, // 체력 = 입구 최대 내구도의 % · 끌어모으는 반경 · 붙잡는 최대 수 · 0.5초마다 붙잡은 진상에게 조금씩 (한 방의 18%) · 받는 피해 −40%
-    allin: { r: 90, mul: 5 }, // 지쳐서 퇴근할 때 "올인!" 작은 폭발 (피해 = 한 방 × 5)
+    sweep: { hp: [0.32, 0.32, 0.38, 0.38, 0.45], hpMeta: 0.02, r: [110, 110, 120, 120, 135], hold: 40, pull: 110, bossPull: 0.25, max: [6, 6, 7, 7, 8], tick: 0.5, dmgK: 0.24, walk: 58, cut: 0.2, tire: 0.02, wp: [1.4, 2.6], allinR: 1.5 }, // 체력 = 입구 최대 내구도의 % · 끌어모으는 반경 · 붙잡는 최대 수 · 0.5초마다 붙잡은 진상에게 조금씩 (한 방의 24%) · 받는 피해 −40%
+    allin: { r: 90, mul: 5, kb: 80 }, // 지쳐서 퇴근할 때 "올인!" 작은 폭발 · 붙잡던 진상은 위로 밀어 보낸다 (kb) (피해 = 한 방 × 5)
     attack: '칩 긁어모으기 — 바닥의 배팅 칩을 갈퀴로 긁어 담듯 아래에서부터 이리저리 돌아다니며 주변 진상을 자기 쪽으로 끌어모은다 (피해는 아주 조금). 붙잡힌 진상은 입구 대신 준영을 때린다',
     desc: '비실비실해 보이지만 돈 냄새는 귀신같이 맡는다. 소영 잔소리에 떠밀려 나와 바닥의 돈을 쓸어 담고, 지치면 "올인!" 하고 퇴근한다.',
     perks: { 3: '-', 5: '-' },
@@ -2294,7 +2295,7 @@ export const TOWER_SIM = { // [아래층, 25층 이상] — 규칙은 아래층�
   dash: { swarmOut: 0.6, swarmRest: 1.6, rushDodge: 0.5, curseRest: 1.5 }, // 김영준 돌격 (혼자 탑): 떼거리엔 금방 지치고 · 돌진 진상은 더 잘 피하고 · 저주에 걸리면 돌격이 끊긴다
   ara: { r: 52, k: 0.4 }, // 고아라 (탑에서만): 망치가 떨어진 곳 반경 52 안 진상에게 40% 피해 · 맞은 진상 보호막 한 겹 더 벗김 (센 진상 하나만 쳐서 떼거리 · 보호막 층에서 2~6층에 막히던 문제)
   laneHold: 10, // 혼자인 탑: 손으로 옮기면 이 시간 동안 자동 자리 잡기를 쉰다 (초)
-  solo: { wonsik: 1.7, jungmin: 1.35, dohoon: 1.25, gunnyeo: 1.25, jieun: 1.15, sanghwa: 1.15, baul: 0.75, ingyu: 1.5, youngjun: 0.7 }, // (송바울 1.1 → 0.75: 응원봉 부메랑 · 함성으로 혼자서도 세짐 · 백인규 1.5: 입구 피해 감소가 빠져서) // 혼자라서 동료 덕을 못 보는 멤버(탱커 · 회복 · 지원)는 탑에서만 공격력 보정 · 김영준은 혼자일 때 너무 세서 탑에서만 −30% (출시 첫날 TOP 7 중 5명이 김영준)
+  solo: { junyoung: 1.6, eunok: 1.5, wonsik: 1.7, jungmin: 1.35, dohoon: 1.25, gunnyeo: 1.25, jieun: 1.15, sanghwa: 1.15, baul: 0.75, ingyu: 1.5, youngjun: 0.7 }, // (송바울 1.1 → 0.75: 응원봉 부메랑 · 함성으로 혼자서도 세짐 · 백인규 1.5: 입구 피해 감소가 빠져서) // (성준영 1.6: 정소영 혼자면 딜이 준영뿐 · 최은옥 1.5: 스테이지 템포 보정을 0.65 로 내린 만큼 탑에서만 돌려 줌) // 혼자라서 동료 덕을 못 보는 멤버(탱커 · 회복 · 지원)는 탑에서만 공격력 보정 · 김영준은 혼자일 때 너무 세서 탑에서만 −30% (출시 첫날 TOP 7 중 5명이 김영준)
 };
 export const TOWER_AWAKE_FX = { atk: 0.05, skill: 0.15, cd: 0.08 }; // 지옥 각성 (20층 공격력 · 40층 스킬)
 export const HELL_SET_FX = { cc: 0.3, boom: 0.6, r: 64 }; // 지옥 세트 2세트 · 4세트

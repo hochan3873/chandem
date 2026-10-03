@@ -125,6 +125,7 @@ function seeded(seed = 1) {
       S.step(g, 1 / 60);
       steps++;
       for (const h of g.heroes) if (h.def.summon) summons.add(h);
+      if (o.onStep) o.onStep(g); // (focus: 판 중 사건 · 상태 세기)
       g.events.length = 0;
       // 레벨업 카드는 게임이 안 멈춘다 → 사람처럼 1.5~3초 뒤에 고른다
       if (g.pendingLevels > 0 && g.pickAt === undefined) g.pickAt = g.t + (g.welcomePicks > 0 ? 0 : PICK_DELAY * (0.75 + pr() * 0.5));
@@ -844,7 +845,65 @@ function seeded(seed = 1) {
     const jp = (process.argv.find((x) => x.startsWith('--json=')) || '').slice(7);
     if (jp) require('fs').writeFileSync(jp, JSON.stringify(rows));
   }
+  // ── 18) 바뀐 멤버 자세히 (node scripts/lb-balance.js focus [--only=soyoung,wonsik] [--ch=1,3,5,7] [--nos=3,5,8,10] [--seeds=6] [--hard=...])
+  //  실제로 쓸 법한 덱(균형 덱)의 한 칸에 그 멤버 vs 빈자리 · 피해 몫(소환 포함) · 멤버별 판 중 숫자
+  //   정소영: 준영 등판/퇴근 횟수 · 준영 피해 몫  정원식: 막아서기 횟수 · 평균/최대 버틴 초  송바울: 보드 돌진 · 정비 (분당)  문동한: 초사이언 횟수
+  function focus() {
+    const N = opt('seeds', 6), plus = opt('meta', 0);
+    const chs = listArg('ch', '1,3,5,7').map(Number), nos = listArg('nos', '3,5,8,10').map(Number);
+    for (const kv of listArg('hard', '')) { const [c, v] = kv.split(':').map(Number); D.STAGE.chapterAdd[c - 1] += v; }
+    const ids0 = listArg('only', 'soyoung,baul,donghan,dohoon,wonsik,gunnyeo,jungmin,bangjang,sanghwa,ingyu,hochan,jeongseob');
+    const REAL = { 1: DECKS[1][2], 3: DECKS[3][2], 5: DECKS[5][2], 7: ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'] };
+    const items7 = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
+    const one = (ids, c, X) => {
+      const m = Math.max(0, Math.min(D.META_MAX, REC[c - 1] + plus + (c >= 7 ? 2 : 0)));
+      const meta = Object.fromEntries(ids.map((id) => [id, m]));
+      const a = { w: 0, n: 0, bw: 0, bn: 0, sh: 0, jy: 0, sum: 0, leave: 0, sit: 0, sitN: 0, sitMax: 0, dash: 0, fix: 0, ssj: 0, min: 0 };
+      for (const no of nos) {
+        const s = (c - 1) * 10 + no;
+        for (let i = 1; i <= N; i++) {
+          let cur = 0;
+          const onStep = (g) => {
+            for (const e of g.events) {
+              if (e.type === 'summon' && e.hero === 'junyoung') a.sum++;
+              else if (e.type === 'jyLeave') a.leave++;
+              else if (e.type === 'boardDash') a.dash++;
+              else if (e.type === 'boardFixed') a.fix++;
+              else if (e.type === 'ssjUp') a.ssj++;
+            }
+            const w = X === 'wonsik' && g.heroes.find((h) => h.id === 'wonsik');
+            if (w) { if (w.wsSt === 'sit') { cur += 1 / 60; a.sit += 1 / 60; } else if (cur > 0) { a.sitN++; a.sitMax = Math.max(a.sitMax, cur); cur = 0; } }
+          };
+          const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? items7 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11, unlocked: [], skills: true, control: true, join: true, tempo: true, onStep: X ? onStep : null });
+          if (cur > 0) { a.sitN++; a.sitMax = Math.max(a.sitMax, cur); }
+          a.n++; if (r.win) a.w++;
+          if (no === 10 || no === 5) { a.bn++; if (r.win) a.bw++; }
+          a.min += r.t / 60;
+          if (X) { const own = (r.heroes[X] ? r.heroes[X].dmg : 0) + (X === 'soyoung' && r.heroes.junyoung ? r.heroes.junyoung.dmg : 0); a.sh += own / Math.max(1, r.dmg); if (r.heroes.junyoung) a.jy += r.heroes.junyoung.dmg / Math.max(1, r.dmg); }
+        }
+      }
+      return a;
+    };
+    const P = (v) => Math.round(v * 100), zc = {};
+    console.log(`\n■ 바뀐 멤버 자세히 — 균형 덱 한 칸 · 합류 · 템포 · 스킬 자동 · 스테이지 ${nos.join(',')}번 × ${N}판 (5 · 10번 = 중간 보스 · 보스)`);
+    for (const c of chs) {
+      const deck = REAL[c] || DECKS[c][2];
+      console.log(`${c}장 덱: ${deck.map((id) => NAME[id] || id).join('+')}`);
+      for (const X of ids0) {
+        const withX = deck.includes(X) ? deck : [...deck.slice(0, -1), X];
+        const noX = [...withX.filter((y) => y !== X), 'zz']; // 빈자리는 맨 뒤 (그 멤버가 대장이면 다음 멤버가 대장)
+        const zk = c + ':' + noX.join('+'), a = one(withX, c, X), z = zc[zk] || (zc[zk] = one(noX, c, null));
+        let extra = '';
+        if (X === 'soyoung') extra = `준영 등판 ${(a.sum / a.n).toFixed(1)} · 퇴근 ${(a.leave / a.n).toFixed(1)} (판당) · 준영 피해 몫 ${P(a.jy / a.n)}%`;
+        if (X === 'wonsik') extra = `막아서기 ${(a.sitN / a.n).toFixed(1)}번/판 · 평균 ${(a.sit / Math.max(1, a.sitN)).toFixed(1)}초 · 최대 ${a.sitMax.toFixed(1)}초`;
+        if (X === 'baul') extra = `보드 돌진 ${(a.dash / a.min).toFixed(0)}/분 · 정비 ${(a.fix / a.min).toFixed(1)}/분`;
+        if (X === 'donghan') extra = `초사이언 ${(a.ssj / a.n).toFixed(1)}번/판`;
+        console.log(`  ${pad(NAME[X] || X, 8)} 클리어 ${P(a.w / a.n)}% (빈자리 ${P(z.w / z.n)}% · ${P(a.w / a.n - z.w / z.n) >= 0 ? '+' : ''}${P(a.w / a.n - z.w / z.n)}) · 보스판 ${P(a.bw / Math.max(1, a.bn))}% (빈자리 ${P(z.bw / Math.max(1, z.bn))}%) · 피해 몫 ${P(a.sh / a.n)}%  ${extra}`);
+      }
+    }
+  }
   const t0 = Date.now();
+  if (what === 'focus') focus();
   if (what === 'rank') rank();
   if (what === 'growth') growth();
   if (what === 'diag') diag();
