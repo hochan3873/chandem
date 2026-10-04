@@ -338,7 +338,7 @@ export class Renderer {
     list.bg6 = '/img/lb/bg6.webp';
     list.bg7 = '/img/lb/bg7.webp'; // 7장 스키장 (없으면 bg6 에 얼음빛)
     list.bg8 = '/img/lb/bg8.webp'; // 8장 결혼식 뒤풀이 (위 꽃 아치 → 버진로드 → 아래 축의금 접수대)
-    list.pBouquet = '/img/lb/fx/p_bouquet.webp'; // 8장 차수빈 부케
+    list.pBouquet = '/img/lb/fx/p_bouquet.webp'; // 8장 임수빈 부케
     for (let i = 1; i <= 8; i++) list['arena' + i] = `/img/lb/arena${i}.webp`; // 보스 무대 (없으면 챕터 배경 + 붉은 조명)
     list.map_raid = '/img/lb/map_raid.webp'; list.map_pvp = '/img/lb/map_pvp.webp'; // 레이드 · 1:1 대전 전용 맵 (없으면 원래 배경)
     list.base = '/img/lb/base.webp';
@@ -1803,7 +1803,7 @@ export class Renderer {
           cx.drawImage(st.c, -8, -8, 16, 16);
         }
       }
-      if (e.tieT > 0) { // 8장 차수빈 부케 리본: 몸을 감은 분홍 리본 두 줄 + 나비 매듭
+      if (e.tieT > 0) { // 8장 임수빈 부케 리본: 몸을 감은 분홍 리본 두 줄 + 나비 매듭
         this.tf(e.x, feet - box * 0.42, 0, 1, 1);
         cx.strokeStyle = '#ff7fbf'; cx.lineWidth = 3; cx.globalAlpha = 0.95;
         for (const k of [-0.12, 0.08]) { cx.beginPath(); cx.ellipse(0, box * k, box * 0.27, box * 0.08, 0.15, 0, TAU); cx.stroke(); }
@@ -2748,7 +2748,7 @@ export class Renderer {
         continue;
       }
       // 그린 투사체: 멤버 물건 그림을 날아가는 방향으로
-      if (p.type === 'bouquet' && imgOk(this.images.pBouquet)) { // 8장 차수빈 부케: 빙글빙글 + 꽃잎
+      if (p.type === 'bouquet' && imgOk(this.images.pBouquet)) { // 8장 임수빈 부케: 빙글빙글 + 꽃잎
         const sz = 34 * (p.big ? 1.4 : 1);
         this.tf(p.x, p.y, (p.rot || 0) + this.fx.time * 6, 1, 1); cx.drawImage(this.images.pBouquet, -sz / 2, -sz / 2, sz, sz);
         if (Math.random() < 0.25) this.fx.part('dot', p.x, p.y, (Math.random() - 0.5) * 40, 20, 0.4, 3, '#ffc0dc');

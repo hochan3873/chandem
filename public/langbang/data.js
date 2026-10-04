@@ -278,7 +278,7 @@ export const CHAPTERS = [
   },
 ];
 // 이 스테이지를 처음 깨면 히든 영웅이 영구 합류 (출전 동료로 고를 수 있고, 카드로도 나온다)
-export const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, subin: 75 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (차수빈: 모집으로도 · 8-5 를 깨면 확정 합류)
+export const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, subin: 75 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (임수빈: 모집으로도 · 8-5 를 깨면 확정 합류)
 export const HIDDEN_UNLOCK = HERO_UNLOCK; // (옛 이름)
 export const ENDLESS_UNLOCK = 10; // 1-10 클리어 → 무한 도전
 export const chapterOf = (s) => Math.ceil(s / STAGES_PER_CHAPTER);
@@ -1085,7 +1085,7 @@ export const HEROES = {
     skill: { id: 'wallwalk', name: '벽이 걸어온다', cd: 22, desc: '언제 눌러도 그 자리에서 바로 돌아서 출발! 6초 동안 1.5배로 커지고 조금 빨라져 넓게 밀어낸다 (돌아오는 중 · 쉬는 중 · 지쳤을 때도 체력 가득) · 끝에서 쿵! 뭉친 진상 1칸 밀치고 1초 기절 (피해 없음)', sec: [6, 6, 6, 6, 7], grow: 1.5 }, // (1.3 → 1.5배: 범위가 좁다는 의견)
   },
   subin: { // 8장 새 멤버 신부 친구 (이름은 임시 — 그림 파일은 *_subin)
-    id: 'subin', bossKit: 0.9, kit: 1.0, name: '차수빈', gender: 'f', emoji: '', color: '#c9a8ff', gacha: true, attr: 'power',
+    id: 'subin', bossKit: 0.9, kit: 1.0, name: '임수빈', gender: 'f', emoji: '', color: '#c9a8ff', gacha: true, attr: 'power',
     img: '/img/lb/h_subin.webp', role: '부케 묶기 · 도둑 잡기 · 묶인 진상 약점',
     dmg: 40, interval: 1.12, range: 355, proj: 'bouquet', projSpeed: 600,
     tie: { sec: [1.0, 1.0, 1.2, 1.2, 1.5], again: 2.5, bossSlow: 0.5, thief: 1.6 }, // 맞은 진상을 리본으로 묶어 제자리 (같은 진상은 2.5초 뒤부터 다시) · 보스 · 중간 보스는 묶이지 않고 50% 느려짐 · 봉투 든 축의금 도둑은 1.6배 오래
@@ -1590,7 +1590,7 @@ export const ENEMIES = {
   envthief: {
     id: 'envthief', cls: 'jerk', name: '축의금 도둑', gender: 'm', emoji: '', color: '#3a3a4a', ch8: true,
     img: '/img/lb/e_envthief.webp', hp: 66, speed: 58, atk: 0, atkInterval: 1.2, exp: 6, r: 16, size: 74,
-    envelope: { run: 1.45 }, // 입구(축의금 접수대)를 안 때리고 봉투를 집어 위로 달아난다 → 화면 위로 빠지면 이번 판 코인 -8% (최대 -40%) · 잡으면 봉투 되찾음 · 묶이면(차수빈 부케) 제자리
+    envelope: { run: 1.45 }, // 입구(축의금 접수대)를 안 때리고 봉투를 집어 위로 달아난다 → 화면 위로 빠지면 이번 판 코인 -8% (최대 -40%) · 잡으면 봉투 되찾음 · 묶이면(임수빈 부케) 제자리
     shouts: ['축의금 대신 받아 드릴게요~', '신랑 측이에요, 신부 측이에요?', '봉투 하나만…', '튀어!'],
   },
   buffet: {
@@ -1887,7 +1887,7 @@ export const HERO_CARDS = {
   jungmin: { title: '홍정민: 수리 +40%', mul: { heal: 1.4 } },
   jiwon: { title: '여지원: 방깎 +1겹 · 5초 → 7초', add: { shredMax: 1, shredSec: 2 } },
   wonsik: { title: '정원식: 피해 감소 +10%p · 반경 +25%', add: { guardCut: 0.1 }, mul: { guardR: 1.25 } },
-  subin: { title: '차수빈: 묶는 시간 +0.5초', add: { tieSec: 0.5 } },
+  subin: { title: '임수빈: 묶는 시간 +0.5초', add: { tieSec: 0.5 } },
 };
 // 스킬 진화 카드 (Lv3 이상 멤버 · 한 번): 스킬이 한 번 더 터진다 (0.5초 뒤, 옆자리에)
 export const SKILL_EVO = {
@@ -2092,7 +2092,7 @@ export const gearFits = (t, hero) => !!GEAR[t] && (!GEAR[t].hero || GEAR[t].hero
 export const sigOf = (hero) => (SIG[hero] ? 'sig_' + hero : null);
 export const sigStatText = (t) => Object.entries(GEAR[t].stats).map(([k, v]) => `${(GEAR_STATS[k] || { name: k }).name.replace(/ \(.*\)$/, '')} +${Math.round(v * 1000) / 10}%`).join(' · ');
 // 그림이 아직 없는 전용 신화: 멤버 얼굴(도감 썸네일)로 대신 (public/img/lb/gear/myth_<멤버>.webp 가 생기면 여기서 지우기)
-export const SIG_ART_TODO = new Set(['subin']); // 차수빈(8장)만 아직 — 멤버 얼굴로 대신
+export const SIG_ART_TODO = new Set(['subin']); // 임수빈(8장)만 아직 — 멤버 얼굴로 대신
 export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
 // 그림 주소 (화면): 그림이 아직 없는 새 장비는 비슷한 장비 그림으로
 for (const t of Object.keys(GEAR)) GEAR[t].img = GEAR[t].hero ? (SIG_ART_TODO.has(GEAR[t].hero) ? `/img/lb/dexhq/thumb/${GEAR[t].hero}.webp` : `/img/lb/gear/myth_${GEAR[t].hero}.webp`) : `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;

@@ -5731,7 +5731,7 @@ function dexColor(kind, d) { return kind === 'hero' ? ATTRS[d.attr].color : d.bo
 function dexChapter(kind, id) { const s = kind === 'hero' ? HERO_UNLOCK[id] || 1 : firstStageOf(id) || STAGE_COUNT; return clamp(chapterOf(s), 1, CHAPTERS.length); }
 function heroHow(id) {
   if (!LOCKED_HEROES.includes(id)) return '처음부터 함께하는 멤버';
-  if (HERO_UNLOCK[id] && GACHA_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `${stageLabel(HERO_UNLOCK[id])} 클리어하면 확정 합류 · 모집 카드로도${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; } // 8장 차수빈
+  if (HERO_UNLOCK[id] && GACHA_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `${stageLabel(HERO_UNLOCK[id])} 클리어하면 확정 합류 · 모집 카드로도${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; } // 8장 임수빈
   if (HERO_UNLOCK[id]) return `${stageLabel(HERO_UNLOCK[id])} 클리어하면 합류`;
   if (LEGEND_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `${stageLabel(L.HOCHAN_GATE)} 클리어 후 모집에서 카드 ${L.UNLOCK_CARDS.legend}장을 모으면 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; }
   const pr = L.cardProgress(P(), id);
@@ -6682,7 +6682,7 @@ const ENEMY_TIPS = {
   hotpack: '길 절반부터 옆을 지나간 멤버의 공격 속도 -35% (약화) — 멀리서 먼저 잡자',
   snowball: '멀찍이 서서 눈덩이 → 맞은 멤버 1.5초 빙결 (제일 잘 치는 멤버를 노림) — 건전녀 응급 방패 · 강성구 곁 · 도발 탱커로 막는다',
   mid_pension: '7장 보스 (7-5 · 7-10). 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기 · 퇴실 독촉(공속↓) · 단체 손님 소환',
-  envthief: '입구를 안 때리고 접수대 봉투를 들고 위로 달아난다 — 화면 위로 빠지면 이번 판 코인 −8% (최대 −40%). 차수빈 부케로 묶고 · 기절 · 감속으로 잡자',
+  envthief: '입구를 안 때리고 접수대 봉투를 들고 위로 달아난다 — 화면 위로 빠지면 이번 판 코인 −8% (최대 −40%). 임수빈 부케로 묶고 · 기절 · 감속으로 잡자',
   buffet: '단단함(방어). 5초마다 냠냠 — 곁의 진상 체력 8% 회복 · 기절시키면 못 먹고, 여지원 방깎이면 회복이 막힌다',
   badsinger: '멀찍이 서서 숨 들이쉬고(0.9초) → 음 이탈! 곁 멤버 공격 속도 −35% 3초 — 숨 들이쉴 때 기절시키면 끊긴다',
   showoff: '셀카로 남자 멤버를 홀린다 — 여자 멤버 · 건전녀 Lv5 로 막기',

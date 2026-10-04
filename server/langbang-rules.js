@@ -4,7 +4,7 @@
 
 const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin'];
 const HIDDEN = ['eunok', 'hanna', 'sunggu'];
-const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin']; // 모집(뽑기)으로 합류 (차수빈은 8-5 를 깨도 합류)
+const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin']; // 모집(뽑기)으로 합류 (임수빈은 8-5 를 깨도 합류)
 const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN, ...GACHA]; // 해금이 필요한 영웅
 const META_MAX = 20;
 // 멤버 등급별 강화 한도 (화면 data.js HERO_TIER · TIER_MAX 와 같음)
@@ -14,7 +14,7 @@ const metaMaxOf = (id) => TIER_MAX[HERO_TIER[id] || 1];
 const STAGE_COUNT = 80; // 8장 결혼식 뒤풀이 까지
 const STAGE_WAVES = 5;
 const STAGES_PER_CHAPTER = 10;
-const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, subin: 75 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (차수빈: 모집 + 8-5 확정)
+const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, subin: 75 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (임수빈: 모집 + 8-5 확정)
 const ENDLESS_UNLOCK = 10;
 // 도감에 올라가는 진상 (화면 data.js ENEMIES 와 같아야 한다 — 테스트가 검사)
 const ENEMY_IDS = ['earphone', 'noshow', 'clubguy', 'clubgirl', 'praise1', 'praise2', 'yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'queen', 'boss_thug', 'vomit', 'couple', 'handsy', 'gao', 'selfie', 'cutter', 'kkondae', 'spam',
