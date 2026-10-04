@@ -5,7 +5,7 @@
   "description": "진상들로부터 우리 아지트 랑방을 지켜라! 랑방 모임 멤버들이 캐릭터로 나오는 디펜스 게임",
   "lang": "ko",
   "start_url": "/langbang/?source=app",
-  "scope": "/langbang/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0b0a16",
