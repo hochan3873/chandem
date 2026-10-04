@@ -27,6 +27,7 @@ import { initTower } from './tower-ui.js';
 import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버 레이드)
 import { initTransit } from './transit.js';
 import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
+import { initPush } from './push.js'; // 알림 받기 (웹 푸시)
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -70,6 +71,7 @@ const TR = initTransit({
   shopLabel: () => (app.shopTab === 'recruit' ? '모집' : '상점'),
 });
 const INS = initInstall({ popup: (h, c) => popup(h, c), toast: (m, ms) => toast(m, ms), closeInfoCard: () => closeInfoCard() }); // 로비 [앱 설치]
+const PUSHX = initPush({ popup: (h, c) => popup(h, c), toast: (m, ms) => toast(m, ms), closeInfoCard: () => closeInfoCard(), installOpen: () => INS.open(), standalone: () => INS.standalone(), profile: () => app.profile }); // 알림 받기 카드 · 설정 스위치
 
 
 const app = {
@@ -2479,6 +2481,7 @@ function showMenu0() {
   hud.hidden = true;
   guardOn();
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) cosmNewCheck(); }, 600);
+  if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) PUSHX.maybePrompt(); }, 1500); // 알림 받기 카드 (두 번째 방문부터 · 미루면 3일)
   // 스테이지 넘기기 안내 (한 번만): 깬 판이 몇 개 생기면
   if (app.profileLoaded && nextStage() > 3) { let seen = true; try { seen = !!localStorage.getItem('langbang:navHint'); if (!seen) localStorage.setItem('langbang:navHint', '1'); } catch { /* 무시 */ } if (!seen) setTimeout(() => { if (app.screen === 'menu') toast('◂ ▸ 를 꾹 누르면 빠르게 넘어가요 · 스테이지 이름을 누르면 지도에서 골라 볼 수 있어요', 4200); }, 1400); }
   layout();
@@ -3652,6 +3655,7 @@ function showSettings() {
       ${row('bolt', '진동', '', tog('vibT', gwPref('vibrate')))}
       ${row('speed', '기본 2배속', '다시 깬 스테이지에서', tog('speedDefT', !!app.speed2))}
     </section>
+    ${PUSHX.available() ? `<section class="st-sec"><h4>알림</h4>${row('megaphone', '알림 받기', PUSHX.settingHint(), tog('pushT', PUSHX.isOn()))}</section>` : ''}
     <section class="st-sec"><h4>게임</h4>
       ${row('aug_card', '카드 자동 선택', '1:1 대전 제외', tog('autoCardsT', !!app.autoCards))}
       ${row('coupon', '자동 판매', '일반 등급 장비는 바로 코인', tog('autoSellT', !!p.autoSell))}
@@ -3693,6 +3697,7 @@ Object.assign(ACTS, {
   nav: (b) => goNav(b.dataset.tab),
   lbStep: (b) => lobbyStep(Number(b.dataset.d)),
   lbInstall: () => INS.open(),
+  pushT: async () => { await PUSHX.toggle(); if (stage.querySelector('.st-v2')) showSettings(); }, // 설정 → 알림 받기
   lbModes: () => showModes(),
   lbMenu: () => showLobbyMenu(),
   lbGo: () => showPrep('stage', lobbyStage()),

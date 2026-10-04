@@ -12,6 +12,7 @@ const { createSite } = require('./site');
 const { createAdmin } = require('./admin');
 const { createRankings } = require('./rankings');
 const { createLbPvp } = require('./langbang-pvp');
+const { createPush, createPushStore } = require('./push');
 
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12시간 아무 일 없으면 방 정리
 // 과부하 방지: 전체 방 수, 연습 방 수, 한 사람(IP)이 동시에 가진 방 수, 방 만들기 간격
@@ -30,7 +31,7 @@ function lanUrls(port) {
   return out.sort((a, b) => score(a) - score(b));
 }
 
-function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null, now = Date.now, lbpvp = {} } = {}) {
+function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null, now = Date.now, lbpvp = {}, push: pushOpt = {} } = {}) {
   const LIM = { ...LIMITS, ...limits };
   const acct = accounts || createAccounts({ file: dataFile ? path.join(path.dirname(dataFile), 'accounts.json') : null });
   // 공지 · 출석 · 계정 관리 · 건의함 · 점검 모드 (server/site.js)
@@ -266,6 +267,11 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     res.sendFile(file, { etag: false, lastModified: false, headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800', ETag: tag } });
   });
   app.use(express.static(pub, { extensions: ['html'] }));
+  // 웹 푸시 알림 (server/push.js) — VAPID 열쇠가 환경 변수에 있을 때만 켜진다
+  const push = createPush({ acct, store: createPushStore({ pool: acct.store.pool || null, file: dataFile ? path.join(path.dirname(dataFile), 'push.json') : null }), now, ...pushOpt });
+  app.use('/api/push', push.router(express));
+  const pushTimer = push.enabled ? setInterval(() => { push.tick().catch((e) => console.error('[push] tick 실패:', e.message)); }, 15 * 60 * 1000) : null; // 서버가 깨어 있는 동안 15분마다
+  if (pushTimer && pushTimer.unref) pushTimer.unref();
   let rankings = null;
   const accountsOn = !!process.env.DATABASE_URL || !process.env.RENDER;
   if (accountsOn) {
@@ -546,11 +552,12 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   });
 
   return {
-    app, server, io, rooms, accounts: acct, site, lbPvp, get rankings() { return rankings; },
+    app, server, io, rooms, accounts: acct, site, lbPvp, push, get rankings() { return rankings; },
     saveNow, shutdown, roomsReady: () => roomsReady,
     listen: () => new Promise((resolve) => server.listen(port, '0.0.0.0', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => {
       if (periodic) clearInterval(periodic);
+      if (pushTimer) clearInterval(pushTimer);
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
       for (const r of rooms.values()) r.clearAllTimers();
       lbPvp.close();
