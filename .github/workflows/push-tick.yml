@@ -1,6 +1,6 @@
 # 랑방 대전 알림 보내기 — 한 시간마다 서버의 /api/push/tick 을 부른다.
 # 무료 서버(Render)는 잠들어 있다가 깨는 데 시간이 걸려서 넉넉히 기다리고, 실패하면 한 번 더 부른다.
-# 저장소 Settings → Secrets and variables → Actions 에 PUSH_TICK_KEY (서버 환경 변수와 같은 값)를 넣어 둘 것.
+# (선택) 서버에 PUSH_TICK_KEY 환경 변수를 두면 저장소 비밀값 PUSH_TICK_KEY 도 같은 값으로 — 없으면 열쇠 없이 부르고 서버가 5분에 한 번만 받는다.
 name: push-tick
 
 on:
@@ -17,10 +17,9 @@ jobs:
         env:
           PUSH_TICK_KEY: ${{ secrets.PUSH_TICK_KEY }}
         run: |
-          if [ -z "$PUSH_TICK_KEY" ]; then echo "PUSH_TICK_KEY 비밀값이 없어요 — 건너뜀"; exit 0; fi
           call() {
             curl -sS --fail-with-body --max-time 150 --connect-timeout 90 \
-              -X POST -H "x-push-key: $PUSH_TICK_KEY" -H "content-type: application/json" \
+              -X POST -H "x-push-key: ${PUSH_TICK_KEY}" -H "content-type: application/json" \
               https://chandem.onrender.com/api/push/tick
           }
           if ! call; then

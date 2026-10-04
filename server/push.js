@@ -1,8 +1,7 @@
 'use strict';
 // 랑방 대전 — 웹 푸시 알림 (체력 가득 · 출석 · 건물주 출몰 · 오랜만이에요 · 손님 로그인 안내)
-//  열쇠(VAPID)는 환경 변수에서만: VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY · VAPID_SUBJECT(없으면 사이트 주소)
-//  열쇠가 없으면 알림 기능 전체가 꺼진다 ({ ok:false, disabled:true }) — 화면도 알림 받기 카드를 숨긴다.
-//  보내기: POST /api/push/tick (헤더 x-push-key = PUSH_TICK_KEY) — 깃허브 액션이 한 시간마다 부른다 + 서버가 깨어 있는 동안 15분마다 스스로.
+//  열쇠(VAPID): 환경 변수가 있으면 그것 · 없으면 처음 켜질 때 스스로 만들어 저장소(push_meta)에 두고 계속 쓴다
+//  보내기: POST /api/push/tick — 깃허브 액션이 한 시간마다 + 서버가 깨어 있는 동안 15분마다. (PUSH_TICK_KEY 가 있으면 x-push-key 확인 · 없으면 5분에 한 번만)
 //  규칙: 구독 하나에 하루(KST) 최대 2번 · 밤 22시~아침 9시엔 안 보냄 · 같은 종류는 20시간 안에 다시 안 보냄.
 //  구독 저장: DATABASE_URL 이 있으면 계정 저장소의 PostgreSQL(push_subs 표), 없으면 JSON 파일(로컬·테스트).
 const fs = require('fs');
