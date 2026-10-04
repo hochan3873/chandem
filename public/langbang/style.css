@@ -4159,3 +4159,13 @@ body.rm .ed-s.picked > * { animation: none; }
 .screen:has(.dio-hint) .lb-dio .chev:not(:disabled) { animation: chevHint 1.4s ease-in-out infinite; }
 @keyframes chevHint { 50% { filter: drop-shadow(0 0 calc(var(--u) * 8) #ffd23f); } }
 body.rm .dio-hint, body.rm .dio-hint .dh-hand, body.rm .lb-dio .chev { animation: none !important; }
+
+/* 알림 받기 카드 (push.js) */
+.push-sheet .push-card { text-align: center; padding: calc(var(--u) * 4) calc(var(--u) * 6) 0; }
+.push-sheet .push-bell { display: block; width: calc(var(--u) * 56); height: calc(var(--u) * 56); border-radius: 22%; margin: calc(var(--u) * 4) auto calc(var(--u) * 6); box-shadow: 0 calc(var(--u) * 3) calc(var(--u) * 10) rgba(0, 0, 0, 0.5); animation: pushRing 1.6s ease-in-out 0.3s 2; transform-origin: 50% 10%; }
+@keyframes pushRing { 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-14deg); } 50% { transform: none; } }
+.push-sheet .push-txt { margin: 0 0 calc(var(--u) * 6); font-weight: 900; font-size: calc(var(--u) * 15); line-height: 1.45; }
+.push-sheet .push-sub { margin: 0 0 calc(var(--u) * 14); color: var(--dim); font-weight: 700; font-size: calc(var(--u) * 12); line-height: 1.5; }
+.push-sheet .push-btns { display: flex; flex-direction: column; gap: calc(var(--u) * 8); }
+.push-sheet .push-btns .btn { width: 100%; }
+body.rm .push-sheet .push-bell { animation: none; }
