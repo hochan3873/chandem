@@ -28,6 +28,7 @@ import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버
 import { initTransit } from './transit.js';
 import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
 import { initPush } from './push.js'; // 알림 받기 (웹 푸시)
+import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -2180,6 +2181,8 @@ function uiIco(name, emoji, cls = '') {
   return `<span class="uic ${cls}"><img src="/img/lb/ui/${name}.webp" alt="" draggable="false" onerror="${alt ? `this.onerror=function(){this.parentNode.classList.add('noimg');this.remove()};this.src='/img/lb/ui2/${alt}.webp'` : `this.parentNode.classList.add('noimg');this.remove()`}"><em></em></span>`;
 }
 const rdot = (on) => (on ? '<i class="rd"></i>' : '');
+// 숫자 배지: 받을 것 · 강화할 것이 몇 개인지 (점보다 크게 · 살짝 통통)
+const rbadge = (n, on) => (n > 0 ? `<i class="rd cnt">${n > 99 ? '99+' : n}</i>` : on ? '<i class="rd"></i>' : '');
 // 마지막 출격 스테이지는 계정마다 따로 기억 (한 폰에서 여러 아이디로 해도 섞이지 않게)
 const lastStageKey = () => 'langbang:lastStage:' + (app.guest ? 'guest' : (app.nickname || 'me'));
 function lobbyStage() {
@@ -2196,12 +2199,62 @@ function todoList() {
   const mis = L.claimable(p, uid(), now); if (mis) out.push({ txt: `미션 보상 ${mis}개 받기`, ic: 'scroll', go: 'missions' });
   if (!L.checkinState(p, now).done) out.push({ txt: '오늘 출석 체크', ic: 'calendar', go: 'checkin' });
   const tier = L.seasonTier(p); if (p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t))) out.push({ txt: '시즌 보상 받기', ic: 'trophy', go: 'season' });
-  const up = owned().find((h) => { const c = API.costOf(p, h); const lv = p.heroes[h] | 0; return c !== null && c !== undefined && (p.coins | 0) >= c && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv); });
-  if (up) out.push({ txt: `${HEROES[up].name} 강화할 수 있어요`, ic: 'hammer', go: 'hero', id: up });
-  const deck = [...new Set((curDeck() || []).filter(Boolean))];
-  for (const h of deck) { const k = ['w', 'a'].find((s) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[s]); return (p.gear || []).some((it) => GEAR[it.t].slot === s && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)); }); if (k) { out.push({ txt: `${HEROES[h].name}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', go: 'gear', id: h, slot: k }); break; } }
+  // 강화거리: 멤버(강화 · ★승급) 제일 좋은 것 하나 + 장비(바꾸기 · 강화) 제일 좋은 것 하나 — 맨 앞에 (눈에 띄게)
+  const ups = upgradeList(), um = ups.find((u) => u.go === 'hero' || u.go === 'star'), ug = ups.find((u) => u.go === 'gear' || u.go === 'enh');
+  const nM = new Set(ups.filter((u) => u.go === 'hero' || u.go === 'star').map((u) => u.id)).size;
+  if (ug) out.unshift(ug);
+  if (um) out.unshift(Object.assign({}, um, { txt: um.txt + (nM > 1 ? ` (외 ${nM - 1}명)` : '') }));
+  const ch = chestReady(p); if (ch) out.push({ txt: `${ch[0]}장 ★${ch[1]} 상자 열기`, ic: 'gift', go: 'chest', ch: ch[0] });
   if ((p.tickets | 0) > 0) out.push({ txt: `모집권 ${p.tickets | 0}장 쓰기`, ic: 'ticket', go: 'recruit' });
   return out;
+}
+// 열 수 있는 별 상자 [챕터, 별] (열린 챕터에서 앞쪽부터)
+function chestReady(p) { for (let c = 1; c <= chapterOf(nextStage()); c++) { const o = (p.chests || {})[c] || [], cs = L.chapterStars(p, c); const n = L.CHEST_STARS.find((k) => cs >= k && !o.includes(k)); if (n) return [c, n]; } return null; }
+// 지금 할 수 있는 강화 (좋은 순): ★승급 > 출전 멤버 강화 > 더 좋은 장비 > 장비 강화 > 덱 밖 멤버
+//  장비 강화는 코인이 넉넉할 때만 (늘 떠 있으면 무뎌진다)
+function upgradeList() {
+  const p = P(), out = [];
+  if (!app.profileLoaded || (p.master && !p.testNormal)) return out; // 마스터는 다 공짜라 안내 안 함
+  const d0 = [...new Set((curDeck() || []).filter(Boolean))].filter((h) => API.heroUnlocked(p, h)), deck = d0.length ? d0 : owned().slice(0, 4); // 덱이 아직 비었으면 (장비 화면처럼) 앞 4명
+  const pool = [...deck, ...owned().filter((h) => !deck.includes(h))];
+  for (const h of pool) {
+    const inD = deck.includes(h), nm = HEROES[h].name, st = L.heroStar(p, h), lv = p.heroes[h] | 0;
+    if (st < L.STAR_MAX && ((p.shards || {})[h] | 0) >= L.STAR_SHARDS[st]) out.push({ go: 'star', id: h, name: nm, txt: `${nm} ★승급할 수 있어요`, ic: 'star_gold', pri: inD ? 300 : 140, up: true });
+    const c = API.costOf(p, h);
+    if (c !== null && c !== undefined && (p.coins | 0) >= c && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv)) out.push({ go: 'hero', id: h, name: nm, txt: `${nm} 강화할 수 있어요`, ic: 'hammer', pri: (inD ? 250 : 100) - Math.min(40, lv), up: true });
+  }
+  for (const h of deck) {
+    const nm = HEROES[h].name, sl = (p.equip || {})[h] || {};
+    for (const k of ['w', 'a']) {
+      const cur = (p.gear || []).find((x) => x.id === sl[k]);
+      const best = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)).sort((a, b) => gearScore(b) - gearScore(a))[0];
+      if (best) { out.push({ go: 'gear', id: h, slot: k, gid: best.id, name: nm, txt: `${nm}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', pri: 200, up: true }); continue; }
+      if (!cur || gMaxed(cur)) continue;
+      const cost = gearEnhanceCost(cur.r, cur.lv);
+      if (cost !== null && cost !== undefined && cur.lv < 10 && (p.coins | 0) >= cost * 2 && (p.stones | 0) >= gearStoneNeed(cur.lv)) out.push({ go: 'enh', id: h, slot: k, gid: cur.id, name: nm, txt: `${nm} ${GEAR[cur.t].name} +${cur.lv + 1} 강화`, ic: 'hammer', pri: 90 - cur.lv, up: true });
+    }
+  }
+  return out.sort((a, b) => b.pri - a.pri);
+}
+// 아래 탭 · 로비 버튼 숫자: 강화할 수 있는 멤버 수 / 장비 수
+function upCounts() { const u = upgradeList(), deck = new Set(u.filter((x) => x.go === 'hero' || x.go === 'star').map((x) => x.id)).size, bag = new Set(u.filter((x) => x.go === 'gear' || x.go === 'enh').map((x) => x.gid)).size; return { deck, bag, all: deck + bag }; } // 장비는 같은 장비를 여러 멤버에게 세지 않게
+// ─── 길 안내 시작: 할 일 → 단계 → 코치 (못 짜면 예전처럼 바로 그 화면으로) ───
+const COACH = createCoach({ stage, toast: (m) => toast(m, 2600) });
+const coachState = { get screen() { return app.screen; }, hasSel: (q) => !!document.querySelector(q) };
+function guideTodo(t) {
+  const plan = t && planFor(t, coachState);
+  if (!plan) { if (t) todoGo(t); return; }
+  if (t.go === 'hero' || t.go === 'star') app.deckFilter = 'all';
+  if (t.go === 'gear' || t.go === 'enh') { app.bagTab = 'over'; app.bulk = null; app.fuse = null; }
+  if (t.go === 'missions') { const v = L.missionView(P(), uid(), Date.now()); app.misTab = ['daily', 'weekly', 'ach'].find((k) => v[k].some((m) => !m.done && m.have >= m.n)) || app.misTab; }
+  if (t.go === 'chest' && t.ch) { const s0 = (t.ch - 1) * STAGES_PER_CHAPTER + 1; if (chapterOf(lobbyStage()) !== t.ch && stageUnlocked(s0)) { app.lobbyStage = s0; if (app.screen === 'menu') showMenu(); } }
+  // 지금 떠 있는 창이 안내와 상관없으면 닫는다 (우편 · 메뉴 창 위에서 시작하면 그대로)
+  const keep = { mail: '.mail-pop', checkin: '.mg-sheet' }[t.go];
+  for (const m of stage.querySelectorAll('.info-modal')) if (!keep || !m.matches(keep)) m.remove();
+  plan.more = () => { if (!t.up) return null; const n = upgradeList()[0]; return n ? { txt: '다음 강화도', t: n } : null; };
+  plan.onEnd = (ok, more) => { if (more) setTimeout(() => guideTodo(more.t), 120); else if (ok) { closeInfoCard(); showMenu(); } };
+  A.sfx.tap();
+  COACH.start(plan);
 }
 function todoGo(t) {
   closeInfoCard();
@@ -2211,8 +2264,9 @@ function todoGo(t) {
   else if (t.go === 'missions') { const p = P(), now = Date.now(); const v = L.missionView(p, uid(), now); app.misTab = ['daily', 'weekly', 'ach'].find((k) => v[k].some((m) => !m.done && m.have >= m.n)) || app.misTab; showMissions(); setTimeout(() => { const b = document.querySelector('[data-act="claimMis"]:not([disabled])'); if (b) { b.scrollIntoView({ block: 'center', behavior: 'smooth' }); b.closest('.ms-row, div').classList.add('todo-hl'); } }, 60); }
   else if (t.go === 'checkin') showCheckin();
   else if (t.go === 'season') { showSeason(); setTimeout(() => { const b = document.querySelector('[data-act="claimSeason"]:not([disabled]):not([data-t="all"])'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60); }
-  else if (t.go === 'hero') { app.hmTab = 'up'; showHeroModal(t.id); }
-  else if (t.go === 'gear') { app.bagTab = 'over'; app.bagHero = t.id; showBag(); setTimeout(() => showEquipSheet(t.id, t.slot), 80); }
+  else if (t.go === 'hero' || t.go === 'star') { app.hmTab = 'up'; showHeroModal(t.id); }
+  else if (t.go === 'gear' || t.go === 'enh') { app.bagTab = 'over'; app.bagHero = t.id; showBag(); setTimeout(() => showEquipSheet(t.id, t.slot, t.go === 'enh' ? t.gid : undefined), 80); }
+  else if (t.go === 'chest') showMenu();
   else if (t.go === 'recruit') { app.shopTab = 'recruit'; showShop(); }
 }
 // 누르는 것마다 짧은 소리 (종류별로 다르게 · 소리 끄기 따름 · 너무 자주면 한 번만)
@@ -2292,9 +2346,10 @@ function dots() {
   return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: members || upg, bag: gearBetter };
 }
 function navHtml(on) {
-  const d = dots();
+  const d = dots(), u = upCounts(), p = P();
+  const cnt = { shop: (p.tickets | 0) > 0 && !p.unlimited ? p.tickets | 0 : 0, deck: u.deck, bag: u.bag };
   const tabs = [['shop', '상점', ''], ['deck', '강화', ''], ['battle', '전투', ''], ['bag', '장비', ''], ['pvp', '대전', '']];
-  return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'deck' ? 'members' : k, e)}<b>${n}</b>${rdot(d[k])}</button>`).join('')}</nav>`;
+  return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''} ${cnt[k] ? 'has-up' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'deck' ? 'members' : k, e)}<b>${n}</b>${rbadge(cnt[k], d[k])}</button>`).join('')}</nav>`;
 }
 // ─── 칭호 · 프레임 (보이기만 · 능력치 없음) ─────
 const titleChip = (id) => { const n = id ? L.titleName(id) : ''; return n ? `<u class="tchip r-${L.cosmeticRarity('title', id)}">${esc(n)}</u>` : ''; };
@@ -2395,11 +2450,11 @@ async function loadRankTicker() {
 function newsItems() {
   let td = [];
   try { td = app.profileLoaded ? todoList() : []; } catch { td = []; }
-  return [...td.map((t) => ({ html: `${ic(t.ic, '', 'sm')}${esc(t.txt)}`, act: 'todo', hot: true })),
+  return [...td.map((t, i) => ({ html: `${ic(t.ic, '', 'sm')}${esc(t.txt)}`, act: 'todoNews', i, hot: true, up: !!t.up })),
     ...rankTicker.lines.map((l) => ({ html: `${ic('trophy', '', 'sm')}${l}`, act: 'ranking' }))];
 }
-function newsInner(it, n, rev) { return `<span class="nw-txt"><span class="rk-in${rev ? ' rev' : ''}">${it.html}</span></span>${n > 1 ? `<i class="nw-pg">${(rankTicker.i % n) + 1}/${n}</i>` : ''}`; }
-function newsFirst() { const items = newsItems(); if (!items.length) return ''; rankTicker.i %= items.length; const it = items[rankTicker.i]; return `<button class="lb-news ${it.hot ? 'hot' : ''}" data-act="${it.act}" id="lbRank" aria-label="소식">${newsInner(it, items.length)}</button>`; }
+function newsInner(it, n, rev) { return `<span class="nw-txt"><span class="rk-in${rev ? ' rev' : ''}">${it.html}</span></span>${it.act === 'todoNews' ? `<em class="nw-go">${it.up ? '지금 하기' : '가기'} <i>→</i></em>` : ''}${n > 1 ? `<i class="nw-pg">${(rankTicker.i % n) + 1}/${n}</i>` : ''}`; }
+function newsFirst() { const items = newsItems(); if (!items.length) return ''; rankTicker.i %= items.length; const it = items[rankTicker.i]; return `<button class="lb-news ${it.hot ? 'hot' : ''} ${it.up ? 'up' : ''}" data-act="${it.act}" data-i="${it.i | 0}" id="lbRank" aria-label="소식">${newsInner(it, items.length)}</button>`; }
 function tickRank(step = 1) {
   let next = 4000;
   try {
@@ -2410,7 +2465,7 @@ function tickRank(step = 1) {
     el.hidden = false;
     rankTicker.i = (((rankTicker.i + step) % items.length) + items.length) % items.length;
     const it = items[rankTicker.i];
-    el.dataset.act = it.act; el.classList.toggle('hot', !!it.hot);
+    el.dataset.act = it.act; el.dataset.i = String(it.i | 0); el.classList.toggle('hot', !!it.hot); el.classList.toggle('up', !!it.up);
     el.innerHTML = newsInner(it, items.length, step < 0);
     // 한 줄에 다 안 들어가면: 잠깐 멈췄다가 끝까지 부드럽게 흘러간다 (잘리지 않게)
     const box = el.firstElementChild, sp = box.firstElementChild, over = sp.scrollWidth - box.clientWidth + 12;
@@ -2468,7 +2523,7 @@ function lobbySheetClose(m) {
 }
 function showMenu() {
   // 판(결과)에서 로비로: 뚝 바뀌지 않게 어둡게 덮었다가 드러낸다
-  if (app.screen === 'play' || app.screen === 'result') { TR.dim(showMenu0); return; }
+  if (app.screen === 'play' || app.screen === 'result') { app._fromRun = true; TR.dim(showMenu0); return; }
   showMenu0();
 }
 function showMenu0() {
@@ -2518,7 +2573,7 @@ function showMenu0() {
     ${topPills()}
     ${p.master ? '<button class="lb-master" data-act="settings">MASTER</button>' : ''}
     <div class="lb-bar2">${newsFirst() || '<button class="lb-news" data-act="ranking" id="lbRank" aria-label="소식" hidden></button>'}
-      <div class="lb-quick">${INS.standalone() ? '' : `<button class="qb qb-ins" data-act="lbInstall"><span class="uic"><img src="/img/lb/app/icon-192.png" alt="" draggable="false"></span><small>앱 설치</small></button>`}${[['mail', '우편', 'mail', L.mailCount(p) > 0], ['missions', '미션', 'missionsNav', d.missions], ['settings', '설정', 'settings', false]].map(([k, n, act, on]) => `<button class="qb" data-act="${act}">${uiIco(k, '')}<small>${n}</small>${rdot(on)}</button>`).join('')}</div>
+      <div class="lb-quick">${INS.standalone() ? '' : `<button class="qb qb-ins" data-act="lbInstall"><span class="uic"><img src="/img/lb/app/icon-192.png" alt="" draggable="false"></span><small>앱 설치</small></button>`}${[['mail', '우편', 'mail', L.mailCount(p)], ['missions', '미션', 'missionsNav', L.claimable(p, uid(), Date.now())], ['settings', '설정', 'settings', 0]].map(([k, n, act, c]) => `<button class="qb ${c ? 'has-up' : ''}" data-act="${act}">${uiIco(k, '')}<small>${n}</small>${rbadge(c)}</button>`).join('')}</div>
     </div>
     <button class="lb-stage" data-act="stages">
       <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
@@ -2537,10 +2592,29 @@ function showMenu0() {
     <button class="lb-start v2" data-act="lbGo"><i class="ls-shine"></i><span class="ls-txt"><b>출격!</b><small>${stageLabel(s)} ${esc(stageName(s))}</small></span><span class="ls-cost">${ic('energy', '', 'sm')}<em>${p.master ? 0 : L.stageStaminaCost(p, s, false)}</em></span></button>
     <button class="lb-side l ${raidOpen ? 'hot' : ''}" data-act="lbModes">${lbArt('lobby_mode', 'swords')}<b>도전</b>${raidOpen ? '<em class="ls-hot">건물주 출몰</em>' : ''}${rdot(md)}</button>
     <button class="lb-side r" data-act="lbMenu">${lbArt('lobby_menu', 'tools')}<b>메뉴</b>${rdot(mn)}</button>
+    ${(() => { const u = upCounts(); return u.all ? `<button class="lb-upg" data-act="upGuide">${ic('hammer', '', 'sm')}<b>추천 강화</b><i class="cnt">${u.all > 99 ? '99+' : u.all}</i></button>` : ''; })()}
     ${navHtml('battle')}
     ${app.profileLoaded ? '' : '<div class="lb-loading"><span class="spin"></span></div>'}
   `, 'lobby');
   lobbySwipe();
+  if (app._fromRun) { app._fromRun = false; setTimeout(upNudge, 1500); }
+}
+// ─── 초보 안내: 판을 끝내고 로비로 오면 (세션에 한 번 · 기기에 쉬는 시간) "같이 강화해 볼까요?" ───
+//  스테이지 15 이하 · 아직 강화를 한 번도 안 했으면 · 지금 할 수 있는 강화가 있을 때만
+const NUDGE_KEY = 'langbang:upNudge';
+function nudgeLoad() { try { return JSON.parse(localStorage.getItem(NUDGE_KEY) || '{}') || {}; } catch { return {}; } }
+function nudgeSave(no) { const v = nudgeLoad(); v.at = Date.now(); v.no = no ? (v.no | 0) + 1 : 0; try { localStorage.setItem(NUDGE_KEY, JSON.stringify(v)); } catch { /* 무시 */ } }
+function upNudge() {
+  if (app.screen !== 'menu' || app._nudged || COACH.active() || stage.querySelector('.info-modal, .gacha-res, .reveal, .confirm')) return;
+  const p = P(), lvSum = Object.values(p.heroes || {}).reduce((a, v) => a + (v | 0), 0);
+  if (!((p.maxStage | 0) <= 15 || lvSum === 0)) return;
+  const t = upgradeList()[0]; if (!t) return;
+  const v = nudgeLoad(), rest = (v.no | 0) >= 3 ? 24 * 3600e3 : (v.no | 0) >= 1 ? 3 * 3600e3 : 20 * 60e3; // "나중에" 를 누를수록 더 오래 쉰다
+  if (v.at && Date.now() - v.at < rest) return;
+  app._nudged = true; v.at = Date.now(); try { localStorage.setItem(NUDGE_KEY, JSON.stringify(v)); } catch { /* 무시 */ } // 띄운 때만 적고 "나중에" 횟수는 그대로
+  popup(`<div class="nudge-face">${av(HEROES.bangjang)}<i class="nudge-spark"></i></div><h3>강화하면 훨씬 쉬워져요!</h3><p class="ip">같이 해 볼까요? 누를 곳을 하나씩 알려 줄게요</p>
+    <p class="nudge-what">${ic(t.ic, '', 'sm')}<b>${esc(t.txt)}</b></p>
+    <button class="btn primary" data-act="upNudgeGo">${ic('hammer', '', 'sm')}같이 하기</button><button class="btn ghost" data-act="upNudgeNo">나중에</button>`, 'pp-mini nudge-pop');
 }
 // 메뉴 뒤 데모 전투: 내 덱 멤버들이 싸운다
 function makeDemo() {
@@ -3306,7 +3380,7 @@ function showDeckTab() {
     ${subTop('멤버 강화')}
     <div class="dk-top">
       <div class="deck-tabs">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPresetT" data-k="${k}">덱 ${k + 1}</button>`).join('')}</div>
- <button class="btn ghost auto" data-act="autoDeckT">${ic('sparkle', '', 'sm')} 추천 덱</button>
+ <button class="btn ghost auto" data-act="autoDeckT">${ic('sparkle', '', 'sm')} 추천 덱</button>${upCounts().deck ? `<button class="btn auto up-rec" data-act="upGuide">${ic('hammer', '', 'sm')} 추천 강화<i class="rd cnt">${upCounts().deck}</i></button>` : ''}
  </div>
  <div class="dk-power"><small>덱 전투력</small><b id="dkPow" data-from="${app.lastDeckPow || pw}" data-to="${pw}">${fmt(pw)}</b><em class="${diff >= 0 ? 'up' : 'down'}">다음 스테이지 추천보다 ${diff >= 0 ? '+' : ''}${diff}%</em></div>
     <div class="dk-slots n${max}">${slots.join('')}</div>
@@ -3886,7 +3960,11 @@ Object.assign(ACTS, {
   autoDeckT: () => { const ids = recommendTeam(nextStage(), owned(), deckSlotsNow()); app.decks[app.deckI] = placeDeck(ids); saveDecks(); A.sfx.card(); toast('다음 스테이지 추천 덱으로 바꿨어요', 1400); showDeckTab(); },
   missionsNav: () => showMissions(),
   todo: () => showTodo(),
-  todoGo: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) todoGo(t); },
+  todoGo: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) guideTodo(t); },
+  todoNews: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) guideTodo(t); else showTodo(); }, // 소식 띠의 할 일 → 바로 길 안내
+  upGuide: () => { const t = upgradeList()[0]; if (t) guideTodo(t); else toast('지금은 강화할 게 없어요 — 출격해서 코인 · 카드를 모아요', 2200); },
+  upNudgeGo: () => { closeInfoCard(); nudgeSave(0); const t = upgradeList()[0]; if (t) guideTodo(t); },
+  upNudgeNo: () => { closeInfoCard(); nudgeSave(1); },
   heroInfo: (b) => showDexCard('hero', b.dataset.id),
   deckReplace: (b) => deckToggleAct(b.dataset.id, Number(b.dataset.slot)),
   hellModeS: (b) => { app.hellMode = b.dataset.v === '1'; try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showStages(); },
