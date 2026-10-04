@@ -343,7 +343,7 @@ async function startRun(opt = {}) {
   const mode = opt.mode || app.mode;
   const st = mode === 'stage' ? opt.stage || app.stage : 0;
   const hell = mode === 'stage' && (opt.hell !== undefined ? opt.hell : app.hellMode) && hellOpen(P().stages, st);
-  if (mode === 'stage' && st) { app.lobbyStage = st; try { localStorage.setItem('langbang:lastStage', String(st)); } catch { /* 무시 */ } } // 판이 끝나거나 나오면 로비도 방금 하던 스테이지로 (앱을 껐다 켜도)
+  if (mode === 'stage' && st) { app.lobbyStage = st; try { localStorage.setItem(lastStageKey(), String(st)); } catch { /* 무시 */ } } // 판이 끝나거나 나오면 로비도 방금 하던 스테이지로 (앱을 껐다 켜도)
   const snap = loadSnap();
   if (snap && !opt.force) {
     const ok = await confirmBox({ title: '새로 시작할까요?', sub: `이어하던 판(${snapLabel(snap)})은 사라져요`, ok: '새로 시작', cancel: '취소', danger: true });
@@ -2178,8 +2178,10 @@ function uiIco(name, emoji, cls = '') {
   return `<span class="uic ${cls}"><img src="/img/lb/ui/${name}.webp" alt="" draggable="false" onerror="${alt ? `this.onerror=function(){this.parentNode.classList.add('noimg');this.remove()};this.src='/img/lb/ui2/${alt}.webp'` : `this.parentNode.classList.add('noimg');this.remove()`}"><em></em></span>`;
 }
 const rdot = (on) => (on ? '<i class="rd"></i>' : '');
+// 마지막 출격 스테이지는 계정마다 따로 기억 (한 폰에서 여러 아이디로 해도 섞이지 않게)
+const lastStageKey = () => 'langbang:lastStage:' + (app.guest ? 'guest' : (app.nickname || 'me'));
 function lobbyStage() {
-  if (!app.lobbyStage) { let s = 0; try { s = Number(localStorage.getItem('langbang:lastStage')) | 0; } catch { /* 무시 */ } if (s > 0) app.lobbyStage = s; } // 마지막으로 출격한 스테이지부터
+  if (!app.lobbyStage && app.profileLoaded) { let s = 0; try { s = Number(localStorage.getItem(lastStageKey())) | 0; } catch { /* 무시 */ } if (s > 0) app.lobbyStage = s; } // 마지막으로 출격한 스테이지부터 (계정마다 따로 · 프로필을 받은 뒤에)
   if (!app.lobbyStage || !stageUnlocked(app.lobbyStage)) app.lobbyStage = nextStage();
   return app.lobbyStage;
 }
@@ -2526,6 +2528,7 @@ function showMenu0() {
       <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio/s${s2}.webp" alt="" draggable="false" onerror="this.onerror=function(){this.onerror=null;this.src='/img/lb/dio6.webp'};this.src='/img/lb/dio${c2}.webp'">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>`}</div></div>`; }).join('')}</div>
       ${(() => { const lock = s >= (p.master ? STAGE_COUNT : nextStage()); const nx = Math.min(STAGE_COUNT, s + 1); return `<button class="chev r ${lock && s < STAGE_COUNT ? 'lockd' : ''}" data-act="lbStep" data-d="1" ${lock ? 'disabled' : ''} aria-label="다음 스테이지"><i></i>${s < STAGE_COUNT ? `<small>${lock ? '' : ''}${stageLabel(nx)} ▸</small>` : ''}</button>`; })()}
     </div>
+    ${navTries() < 3 ? `<div class="dio-hint"><i class="dh-hand">👆</i><span>좌우로 밀거나 ◂ ▸ 를 눌러 <b>다른 스테이지</b> 보기</span></div>` : ''}
     <div class="lb-chests"><div class="cbar"><b style="width:${Math.min(100, (cs / 30) * 100)}%"></b></div>${chests}<em>${ch}장 ★${cs}/30</em></div>
     ${snap ? `<button class="lb-resume" data-act="resumeSnap">${ic('retry', '', 'sm')}이어하기 <small>${esc(snapLabel(snap))}</small></button>` : ''}
     <button class="lb-start v2" data-act="lbGo"><i class="ls-shine"></i><span class="ls-txt"><b>출격!</b><small>${stageLabel(s)} ${esc(stageName(s))}</small></span><span class="ls-cost">${ic('energy', '', 'sm')}<em>${p.master ? 0 : L.stageStaminaCost(p, s, false)}</em></span></button>
@@ -2656,18 +2659,22 @@ function lobbySwipe() {
     set(-go * W(), true);
     try { if (navigator.vibrate) navigator.vibrate(8); } catch { /* 무시 */ }
     A.sfx.tabSw();
-    setTimeout(() => { app.lobbyStage = s + go; showMenu(); }, 260);
+    setTimeout(() => { navTried(); app.lobbyStage = s + go; showMenu(); }, 260);
   };
   box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
   box.addEventListener('click', (ev) => { if (box.dataset.swiped) { ev.stopPropagation(); ev.preventDefault(); } }, true);
   lobbySwipe.step = (d) => { // 화살표도 같은 움직임
     if ((d > 0 && !(s < max && s < STAGE_COUNT)) || (d < 0 && s <= 1)) return false;
     set(-d * W(), true); A.sfx.tabSw();
-    setTimeout(() => { app.lobbyStage = s + d; showMenu(); }, 260);
+    setTimeout(() => { navTried(); app.lobbyStage = s + d; showMenu(); }, 260);
     return true;
   };
 }
+// 스테이지 넘기기를 몇 번 해 봤나 — 3번 전까지는 안내(손가락 · ◂ ▸ 깜빡임)를 보여 준다
+const navTries = () => { try { return Number(localStorage.getItem('langbang:navTries')) | 0; } catch { return 9; } };
+const navTried = () => { try { localStorage.setItem('langbang:navTries', String(navTries() + 1)); } catch { /* 무시 */ } };
 function lobbyStep(d) {
+  navTried();
   if (lobbySwipe.step && ui.querySelector('.dio-track') && lobbySwipe.step(d)) return;
   const s = clamp(lobbyStage() + d, 1, P().master ? STAGE_COUNT : nextStage());
   if (s === app.lobbyStage) return;
@@ -2821,7 +2828,7 @@ function showShop() {
   show(`
     ${subTop('상점')}
     <div class="tabs"><button class="${tab === 'recruit' ? 'on' : ''}" data-act="shopTab" data-tab="recruit">${ic('gacha', '', 'sm')}모집</button><button class="${tab === 'gear' ? 'on' : ''}" data-act="shopTab" data-tab="gear">${ic('gift', '', 'sm')} 장비 뽑기</button><button class="${tab === 'items' ? 'on' : ''}" data-act="shopTab" data-tab="items">${ic('bag', '', 'sm')} 아이템</button></div>
- ${app.guest ? '<div class="guest-note">손님 기록은 이 기기에만 · <a href="/">로그인</a>하면 어디서든!</div>' : ''}
+ ${app.guest ? '<div class="guest-note">손님 기록은 이 기기에만 · <a href="/?login=1&next=langbang">로그인</a>하면 어디서든!</div>' : ''}
     ${body}
     ${navHtml('shop')}
   `, 'dim withnav');
@@ -3748,7 +3755,7 @@ Object.assign(ACTS, {
   },
   settings: () => showSettings(),
   setTitle: async (b) => { if (await liveAct(API.setCosmetic(b.dataset.v, undefined, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
-  cosmetics: () => showCosmetics(),
+  cosmetics: () => { if (app.guest) { location.href = '/?login=1&next=langbang'; return; } showCosmetics(); }, // 손님이 프로필을 누르면 바로 로그인 (앱 안에서 로그인 → 랑방으로 돌아옴)
   cosmTab: (b) => { app.cosmTab = b.dataset.v; showCosmetics(); },
   setFrame: async (b) => { if (await liveAct(API.setCosmetic(undefined, b.dataset.v, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
   bagTabGo: (b) => { app.bagTab = b.dataset.v; showBag(); },
@@ -6589,7 +6596,7 @@ async function showRanking() {
     ? res.ranking.map((r) => `<div class="rank r${r.rank} ${res.me && res.me.username === r.username ? 'me' : ''}" data-act="playerCard" data-u="${esc(r.username || '')}"><span class="no">${medal[r.rank - 1] || r.rank}</span>
       <span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}<small>Lv.${r.level || 1}</small></span>${cell(r)}</div>`).join('')
     : '<div class="empty-msg">아직 기록이 없어요<br>첫 번째 랑방 수호자가 되어 보세요!</div>';
-  if (app.guest) my.innerHTML = '<div class="guest-note" style="margin:0">손님은 랭킹에 안 올라가요 · <a href="/">로그인</a>하고 이름을 올려 봐요!</div>';
+  if (app.guest) my.innerHTML = '<div class="guest-note" style="margin:0">손님은 랭킹에 안 올라가요 · <a href="/?login=1&next=langbang">로그인</a>하고 이름을 올려 봐요!</div>';
   else if (res.me && res.me.rank) my.innerHTML = `<div class="rank me"><span class="no">${res.me.rank}</span><span class="nm">내 순위<small>${esc(app.nickname)}</small></span>${cell(res.me)}</div>`;
   else my.innerHTML = `<div class="guest-note" style="margin:0">${tab === 'stage' ? '스테이지를 깨면 랭킹에 올라가요!' : '무한 도전 기록이 아직 없어요'}</div>`;
 }
@@ -6910,7 +6917,9 @@ async function boot() {
   const r = await profP;
   app.profile = r.profile;
   app.guest = r.guest;
+  app.nickname = r.nickname || ''; // (마지막 출격 스테이지 키에 쓴다)
   app.profileLoaded = true;
+  app.lobbyStage = 0; // 프로필이 온 뒤 이 계정의 마지막 출격 스테이지로 다시 고른다
   Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {}).then(() => BKX.boot()).catch(() => {}); // 다음: 본캐 출연료 정산 · 알림
   saveCrowd();
   if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크

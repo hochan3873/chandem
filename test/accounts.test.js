@@ -400,14 +400,17 @@ test('랑방 대전 모집 · 미션 · 시즌 · 성급 · 출석 · 상자 · 
   assert.equal((await lbPost('/api/langbang/chest/claim', u.token, { ch: 1, n: 30 })).ok, true, '1장 ★30');
   assert.equal((await lbPost('/api/langbang/chest/claim', u.token, { ch: 2, n: 10 })).ok, false);
   await u.noLimit();
-  const wres = { mode: 'weekly', wave: 3, kills: 60, bossKills: 1, skills: 5, durationSec: 100, hpPct: 0, victory: false };
+  // (이번 주 1~4웨이브에 보스가 없으면 보스 처치 0 — 고정값 1이면 그 주엔 서버가 정상으로 거절한다)
+  const LV = await import(require('url').pathToFileURL(require('path').join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
+  const wdef = LV.weeklyDef(LV.weekIndex(Date.now())), wBoss = wdef.waves.slice(0, 4).some((w) => w.boss || w.boss2) ? 1 : 0;
+  const wres = { mode: 'weekly', wave: 3, kills: 60, bossKills: wBoss, skills: 5, durationSec: 100, hpPct: 0, victory: false };
   assert.equal((await lbPost('/api/langbang/result', u.token, { ...wres, runId: 'x' })).ok, false, '판 번호 필요');
   const s0 = await lbPost('/api/langbang/weekly/start', u.token, {});
   assert.equal(s0.ok, true, s0.message);
   (await u.raw()).langbang.weeklyRun.at = Date.now() - 200 * 1000; // 200초 전에 시작한 셈
   r = await lbPost('/api/langbang/result', u.token, { ...wres, runId: s0.runId });
   assert.equal(r.ok, true, r.message);
-  assert.equal(r.weekly.score, 3 * 1000 + 60 * 10 + 500, '점수는 서버가 계산');
+  assert.equal(r.weekly.score, 3 * 1000 + 60 * 10 + 500 * wBoss, '점수는 서버가 계산');
   assert.equal(r.profile.weekly.best, r.weekly.score);
   assert.equal(r.rank, 1);
   await u.noLimit();

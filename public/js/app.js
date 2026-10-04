@@ -443,6 +443,7 @@ function setAuth(r, { quiet = false } = {}) {
   S.auth = r.token; S.user = r.user;
   LS.set('chandem:auth', r.token);
   LS.set('chandem:name', r.user.nickname);
+  { let nx = null; try { nx = sessionStorage.getItem('chandem:next'); sessionStorage.removeItem('chandem:next'); } catch { /* 무시 */ } if (nx === '/langbang/') { setTimeout(() => { location.href = '/langbang/'; }, 400); return; } } // 랑방에서 로그인하러 왔으면 바로 돌아간다
   bindSeatToAccount(quiet);
 }
 // 방 안에서 로그인하면: 손님으로 앉은 이 자리를 계정에 묶는다 (지난 판은 소급 안 함, 다음 판부터 기록)
@@ -701,6 +702,8 @@ socket.on('rating', (list) => {
 });
 
 async function boot() {
+  // 랑방 대전(앱)에서 [로그인] → /?login=1&next=langbang : 로그인 창을 바로 열고, 끝나면 랑방으로 돌아간다
+  { const q0 = new URLSearchParams(location.search); if (q0.get('next') === 'langbang') { try { sessionStorage.setItem('chandem:next', '/langbang/'); } catch { /* 무시 */ } } if (q0.get('login') === '1' && !S.auth) setTimeout(() => openLogin(), 300); }
   loadMe().then(() => { if (S.view === 'home') render(); });
   fetch('/api/info').then((r) => r.json()).then((d) => { S.info = d; if (S.view === 'room' || S.view === 'home') render(); }).catch(() => {});
   const code = routeCode();
