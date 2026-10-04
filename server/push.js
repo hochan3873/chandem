@@ -53,10 +53,14 @@ class FilePushStore {
   async put(s) { this.data.subs[s.endpoint] = s; this.save(); return s; }
   async putMany(list) { for (const s of list) this.data.subs[s.endpoint] = s; if (list.length) this.save(); }
   async remove(endpoint) { const had = !!this.data.subs[endpoint]; delete this.data.subs[endpoint]; if (had) this.save(); return had; }
+  async getMeta(k) { return (this.data.meta || {})[k] || null; }
+  async setMeta(k, v) { this.data.meta = { ...(this.data.meta || {}), [k]: v }; this.save(); }
 }
 class PgPushStore {
   constructor(pool) { this.pool = pool; }
-  async init() { await this.pool.query('CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, data JSONB NOT NULL)'); }
+  async init() { await this.pool.query('CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, data JSONB NOT NULL)'); await this.pool.query('CREATE TABLE IF NOT EXISTS push_meta (k TEXT PRIMARY KEY, v JSONB NOT NULL)'); }
+  async getMeta(k) { const r = (await this.pool.query('SELECT v FROM push_meta WHERE k=$1', [k])).rows[0]; return r ? r.v : null; }
+  async setMeta(k, v) { await this.pool.query('INSERT INTO push_meta (k, v) VALUES ($1,$2) ON CONFLICT (k) DO UPDATE SET v=EXCLUDED.v', [k, v]); }
   async list() { return (await this.pool.query('SELECT data FROM push_subs')).rows.map((r) => r.data); }
   async get(endpoint) { const r = (await this.pool.query('SELECT data FROM push_subs WHERE endpoint=$1', [endpoint])).rows[0]; return r ? r.data : null; }
   async put(s) { await this.pool.query('INSERT INTO push_subs (endpoint, data) VALUES ($1,$2) ON CONFLICT (endpoint) DO UPDATE SET data=EXCLUDED.data', [s.endpoint, s]); return s; }
@@ -133,12 +137,19 @@ async function pool(items, n, fn) {
 }
 
 function createPush({ acct = null, store = null, env = process.env, now = Date.now, sender = null, concurrency = 6 } = {}) {
-  const pub = String(env.VAPID_PUBLIC_KEY || '').trim(), priv = String(env.VAPID_PRIVATE_KEY || '').trim();
+  let pub = String(env.VAPID_PUBLIC_KEY || '').trim(), priv = String(env.VAPID_PRIVATE_KEY || '').trim();
   const subject = String(env.VAPID_SUBJECT || '').trim() || 'https://chandem.onrender.com';
-  const enabled = !!(pub && priv);
+  let enabled = !!(pub && priv);
   const tickKey = String(env.PUSH_TICK_KEY || '');
   const st = store || createPushStore({});
-  const ready = Promise.all([st.init(), pushReady]).catch((e) => console.error('[push] 저장소 준비 실패:', e.message));
+  // 열쇠: 환경 변수가 없으면 처음 켜질 때 서버가 스스로 만들어 저장소(Postgres · 파일)에 두고 계속 쓴다 (비밀값을 손으로 넣을 필요 없음)
+  //  env.PUSH_AUTOKEY === '0' 이면 만들지 않는다 (테스트에서 '꺼짐' 확인용)
+  const ready = Promise.all([st.init(), pushReady]).then(async () => {
+    if (enabled || env.PUSH_AUTOKEY === '0' || !st.getMeta) return;
+    let k = await st.getMeta('vapid');
+    if (!(k && k.pub && k.priv)) { const g = require('web-push').generateVAPIDKeys(); k = { pub: g.publicKey, priv: g.privateKey, at: Date.now() }; await st.setMeta('vapid', k); console.log('[push] 알림 열쇠를 새로 만들어 저장했어요'); }
+    pub = k.pub; priv = k.priv; enabled = true;
+  }).catch((e) => console.error('[push] 저장소 준비 실패:', e.message));
   let webpush = null;
   // 보내기: 실패하면 statusCode 가 붙은 오류를 던진다 (404·410 = 구독이 사라짐 → 지운다)
   const send = sender || (async (sub, payload) => {
@@ -164,7 +175,7 @@ function createPush({ acct = null, store = null, env = process.env, now = Date.n
   }
   let running = null;
   async function tick() {
-    if (!enabled) return { disabled: true };
+    await ready; if (!enabled) return { disabled: true };
     if (running) return running; // 겹쳐 부르면 같은 결과를 기다린다
     running = (async () => {
       await ready;
@@ -190,6 +201,7 @@ function createPush({ acct = null, store = null, env = process.env, now = Date.n
     return running;
   }
 
+  let lastOpenTick = 0;
   function router(express) {
     const r = express.Router();
     r.use(express.json({ limit: '4kb' }));
@@ -199,9 +211,9 @@ function createPush({ acct = null, store = null, env = process.env, now = Date.n
       catch (e) { console.error('[push]', e); res.status(500).json({ ok: false, message: '잠시 후 다시 해 주세요' }); }
     };
     const off = { ok: false, disabled: true, message: '알림 기능이 꺼져 있어요' };
-    r.get('/key', (req, res) => res.json(enabled ? { ok: true, key: pub } : off));
+    r.get('/key', wrap(async () => { await ready; return enabled ? { ok: true, key: pub } : off; }));
     r.post('/subscribe', wrap(async (req, res) => {
-      if (!enabled) return off;
+      await ready; if (!enabled) return off;
       await ready;
       const body = req.body || {};
       const sub = cleanSub(body.subscription);
@@ -214,16 +226,18 @@ function createPush({ acct = null, store = null, env = process.env, now = Date.n
       return { ok: true, kinds: s.kinds, user: !!s.userId };
     }));
     r.post('/unsubscribe', wrap(async (req) => {
-      if (!enabled) return off;
+      await ready; if (!enabled) return off;
       await ready;
       const ep = String((req.body || {}).endpoint || '');
       return { ok: true, removed: ep ? await st.remove(ep) : false };
     }));
     r.post('/tick', wrap(async (req, res) => {
       const k = String(req.headers['x-push-key'] || '');
-      const good = tickKey && k.length === tickKey.length && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(tickKey));
-      if (!good) { res.status(403).json({ ok: false, message: '권한이 없어요' }); return; }
-      if (!enabled) return off;
+      // PUSH_TICK_KEY 가 있으면 열쇠 확인 · 없으면 누구나 부를 수 있되 5분에 한 번만 (보낼 것만 보내는 동작이라 위험이 없다 · 규칙이 하루 2번 등을 지킨다)
+      if (tickKey) { const good = k.length === tickKey.length && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(tickKey)); if (!good) { res.status(403).json({ ok: false, message: '권한이 없어요' }); return; } }
+      else { if (Date.now() - lastOpenTick < 5 * 60e3) return { ok: true, skipped: 'recent' }; lastOpenTick = Date.now(); }
+      await ready;
+      await ready; if (!enabled) return off;
       return { ok: true, ...(await tick()) };
     }));
     // 마스터 시험 알림: 내 계정으로 구독한 기기에 바로 하나 보낸다 (규칙 무시)
@@ -231,7 +245,7 @@ function createPush({ acct = null, store = null, env = process.env, now = Date.n
       const uid = uidOf(req);
       const u = uid && acct ? await acct.store.byId(uid) : null;
       if (!u || !isMasterName(u.username)) { res.status(403).json({ ok: false, message: '마스터만 쓸 수 있어요' }); return; }
-      if (!enabled) return off;
+      await ready; if (!enabled) return off;
       await ready;
       const kind = KINDS[(req.body || {}).kind] ? req.body.kind : null;
       const mine = (await st.list()).filter((s) => s.userId === uid);
@@ -242,7 +256,7 @@ function createPush({ acct = null, store = null, env = process.env, now = Date.n
     return r;
   }
 
-  return { enabled, publicKey: enabled ? pub : null, store: st, ready, tick, router, dueKind, markSent };
+  return { get enabled() { return enabled; }, get publicKey() { return enabled ? pub : null; }, store: st, ready, tick, router, dueKind, markSent };
 }
 
 module.exports = { createPush, createPushStore, FilePushStore, PgPushStore, dueKind, markSent, RULES, KINDS, kstDay, kstHour, quiet, cleanSub, pushReady };

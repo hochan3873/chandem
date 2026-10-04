@@ -119,8 +119,8 @@ test('tick: 가짜 보내기 · 하루 2번 상한 · 410 이면 구독 지움',
   assert.equal(s.sentToday, 1); assert.ok(s.lastSentAt > 0);
 });
 
-test('서버: 열쇠가 없으면 꺼짐 · tick 은 열쇠 없이 403', async () => {
-  const srv = createServer({ port: 0, push: { env: {} } });
+test('서버: 자동 열쇠를 끄고 열쇠가 없으면 꺼짐 · tick 은 tick 열쇠가 있으면 403', async () => {
+  const srv = createServer({ port: 0, push: { env: { PUSH_AUTOKEY: '0', PUSH_TICK_KEY: 'tk' } } });
   const base = `http://127.0.0.1:${await srv.listen()}`;
   try {
     const k = await (await fetch(base + '/api/push/key')).json();
@@ -163,4 +163,21 @@ test('서버: 구독 · tick 열쇠 · 마스터 시험 알림', async () => {
     await srv.close();
     if (prev === undefined) delete process.env.MASTER_USERS; else process.env.MASTER_USERS = prev;
   }
+});
+
+test('서버: 열쇠 환경 변수가 없으면 스스로 만들어 저장해 두고 다음에도 같은 열쇠 · tick 열쇠가 없으면 5분에 한 번만', async () => {
+  const P = require('../server/push');
+  const file = require('path').join(require('os').tmpdir(), 'pushkey-' + Date.now() + '.json');
+  const a = P.createPush({ env: {}, store: P.createPushStore({ file }) }); await a.ready;
+  assert.equal(a.enabled, true); const k1 = a.publicKey; assert.ok(k1 && k1.length > 40);
+  const b = P.createPush({ env: {}, store: P.createPushStore({ file }) }); await b.ready;
+  assert.equal(b.publicKey, k1, '다시 켜도 같은 열쇠');
+  require('fs').rmSync(file, { force: true });
+  const srv = createServer({ port: 0, push: { env: {}, sender: async () => {} } });
+  const base = `http://127.0.0.1:${await srv.listen()}`;
+  try {
+    const t1 = await (await fetch(base + '/api/push/tick', { method: 'POST' })).json();
+    const t2 = await (await fetch(base + '/api/push/tick', { method: 'POST' })).json();
+    assert.equal(t1.ok, true); assert.equal(t2.skipped, 'recent');
+  } finally { await srv.close(); }
 });
