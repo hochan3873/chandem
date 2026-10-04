@@ -4146,3 +4146,6 @@ body.rm .ed-s.picked > * { animation: none; }
 .pc-chip.wtr { border-color: rgba(200, 160, 255, 0.6); background: rgba(70, 35, 130, 0.6); color: #ecdfff; }
 .pc-chip.wtr span { display: none; }
 .pc-who.no { opacity: 0.5; }
+/* 로비 프로필: 칭호를 Lv 줄 오른쪽에 작게 — 칭호가 있으면 칸이 길어져 아래 소식 줄에 가리던 문제 */
+.lb-top .pill.me .who { position: relative; }
+.lb-top .pill.me .who > u.tchip { position: absolute; left: calc(var(--u) * 44); top: calc(var(--u) * -9); margin: 0; transform: scale(0.72); transform-origin: left top; pointer-events: none; }

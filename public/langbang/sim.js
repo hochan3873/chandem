@@ -1,7 +1,7 @@
 // 랑방 대전 — 순수 시뮬레이션 (DOM 없음, Node 에서도 import 가능)
 // 화면/소리는 g.events 로 흘려보내고, 렌더러가 매 프레임 꺼내서 연출한다.
 import {
-  FIELD, RULES, HEROES, SUMMONS, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
+  FIELD, RULES, STAGE_HPX, HEROES, SUMMONS, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
   STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
   TRAITS, REVEAL_HEROES, CH7, CH8, thiefCut, COND, COND_HP, stageConds, DOOR_PRESSURE, softMeta, stageMission, missionOk,
@@ -1370,7 +1370,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   if (g.seen) g.seen[type] = 1; // 도감: 이번 판에 만난 진상
   const e = g._enemyPool.pop() || {};
   const m = (o.hpMul || hpMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hpScale || 1)) * (def.boss && g.mode === 'stage' ? RULES.stageBossHp : 1) * (def.boss ? 1 : o.hpX || 1);
-  const chk = g.mode === 'stage' && !g.pvp ? BAL.chHp[chapterOf(g.stage || 1)] || 1 : g.mode === 'endless' ? BAL.endHp || 1 : 1; // 밸런스 개편 뒤 장마다 체력 다시 맞춤
+  const chk = g.mode === 'stage' && !g.pvp ? (BAL.chHp[chapterOf(g.stage || 1)] || 1) * (STAGE_HPX[g.stage] || 1) : g.mode === 'endless' ? BAL.endHp || 1 : 1; // 밸런스 개편 뒤 장마다 체력 다시 맞춤
   e.uid = g.uid++; e.type = type; e.def = def; e.boss = !!def.boss; e.mid = !!def.mid; e.gender = def.gender; e.elite = !!o.elite;
   const lane = g.mapFx.lane;
   e.x = x !== undefined ? x : lane ? lane[0] + g.rng() * (lane[1] - lane[0]) : 24 + g.rng() * (g.W - 48);

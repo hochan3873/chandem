@@ -343,7 +343,7 @@ async function startRun(opt = {}) {
   const mode = opt.mode || app.mode;
   const st = mode === 'stage' ? opt.stage || app.stage : 0;
   const hell = mode === 'stage' && (opt.hell !== undefined ? opt.hell : app.hellMode) && hellOpen(P().stages, st);
-  if (mode === 'stage' && st) app.lobbyStage = st; // 판이 끝나거나 나오면 로비도 방금 하던 스테이지로
+  if (mode === 'stage' && st) { app.lobbyStage = st; try { localStorage.setItem('langbang:lastStage', String(st)); } catch { /* 무시 */ } } // 판이 끝나거나 나오면 로비도 방금 하던 스테이지로 (앱을 껐다 켜도)
   const snap = loadSnap();
   if (snap && !opt.force) {
     const ok = await confirmBox({ title: '새로 시작할까요?', sub: `이어하던 판(${snapLabel(snap)})은 사라져요`, ok: '새로 시작', cancel: '취소', danger: true });
@@ -2179,6 +2179,7 @@ function uiIco(name, emoji, cls = '') {
 }
 const rdot = (on) => (on ? '<i class="rd"></i>' : '');
 function lobbyStage() {
+  if (!app.lobbyStage) { let s = 0; try { s = Number(localStorage.getItem('langbang:lastStage')) | 0; } catch { /* 무시 */ } if (s > 0) app.lobbyStage = s; } // 마지막으로 출격한 스테이지부터
   if (!app.lobbyStage || !stageUnlocked(app.lobbyStage)) app.lobbyStage = nextStage();
   return app.lobbyStage;
 }
