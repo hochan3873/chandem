@@ -337,6 +337,8 @@ export const CH8 = { chapterAdd: 4, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.7
 STAGE.chapterAdd[7] = CH8.chapterAdd; STAGE.bossStage[8] = CH8.boss; STAGE.deckHp[7] = CH8.deckHp; STAGE.hpTune[7] = CH8.hpTune; STAGE.swarm[7] = CH8.swarm;
 Object.assign(STAGE.stageAdd, CH8.stageAdd);
 STAGE.waveAdd[8] = CH8.waveAdd;
+// 스테이지별 진상 체력 배율 — 레벨 가드레일에 걸려 레벨로 더 못 올리는 판만 (8-9: 약 90% 로 너무 쉬웠음)
+export const STAGE_HPX = { 79: 1.7 };
 BAL.chHp[8] = CH8.chHp; JOIN.hp[7] = CH8.joinHp; TEMPO.hellCh[7] = CH8.hellCh;
 // 축의금 도둑: 도망간 수 → 코인 깎이는 비율 (8% 씩 · 최대 40%)
 export const thiefCut = (n) => Math.min(CH8.thief.cap, CH8.thief.per * Math.max(0, Math.floor(Number(n) || 0)));
