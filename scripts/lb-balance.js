@@ -31,7 +31,7 @@ const COND_ARG = (() => { const v = (process.argv.find((x) => x.startsWith('--co
 let WTR = (process.argv.find((x) => x.startsWith('--wtrait=')) || '').slice(9) || undefined; // --wtrait=swarm : 주간 진상 특성 켜고 측정
 const NOSOFT = args.includes('--nosoft'); // 강화 권장 상한(넘는 만큼 절반) 끄기 // --tempo: 느리고 묵직한 전투 (진상 수 ×0.6 · 공속 ÷1.54 · 한 방 ×1.6 · 스킬 쿨 ×1.5)
 const PARTNERS = ((process.argv.find((x) => x.startsWith('--partners=')) || '').slice(11) || 'staff,gunman,gunnyeo,dohoon,myunghoon,ingyu,donghan,youngjun,eunok,hanna,sunggu').split(',');
-const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준', ara: '고아라', jiwon: '여지원', wonsik: '정원식', jungmin: '홍정민', hochan: '이호찬', byunghwa: '강병화', hyungyeong: '배현경', jeongseob: '윤정섭', soyoung: '정소영', jieun: '오지은', sanghwa: '박상화', baul: '송바울', junseo: '윤준서', subin: '차수빈' };
+const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준', ara: '고아라', jiwon: '여지원', wonsik: '정원식', jungmin: '홍정민', hochan: '이호찬', byunghwa: '강병화', hyungyeong: '배현경', jeongseob: '윤정섭', soyoung: '정소영', jieun: '오지은', sanghwa: '박상화', baul: '송바울', junseo: '윤준서', subin: '임수빈' };
 const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
 
 function seeded(seed = 1) {
@@ -542,7 +542,7 @@ function seeded(seed = 1) {
       ['역할 덱 강화 20 (헬용)', ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'hyungyeong'], 20), true],
       ['역할+LEGEND 강화 20 (헬용)', ['donghan', 'byunghwa', 'ara', 'gunnyeo', 'sunggu', 'staff'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'byunghwa'], 20), true],
       ['T1·T2만 (강화 15)', ['dohoon', 'bangjang', 'staff', 'gunman', 'gunnyeo', 'eunok'], lo(['dohoon', 'bangjang', 'staff', 'gunman', 'gunnyeo', 'eunok'], 15), true],
-      ['역할 덱 + 차수빈 (8장)', ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'subin'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'subin'], 15), true],
+      ['역할 덱 + 임수빈 (8장)', ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'subin'], lo(['ara', 'gunnyeo', 'sunggu', 'staff', 'donghan', 'subin'], 15), true],
     ].filter((p, i) => !only.length || only.includes(String(i)));
     const items = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
     console.log(`

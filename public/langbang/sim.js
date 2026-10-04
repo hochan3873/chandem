@@ -1001,7 +1001,7 @@ export function fire(g, h, t) {
     case 'tap': // 홍정민 거꾸로 든 소주병
       spawnProj(g, 'tap', h, t, dmg, { homing: true, pierce, r: 8, spin: 10 });
       break;
-    case 'bouquet': // 차수빈: 부케 던지기 — 맞은 진상을 리본으로 묶는다
+    case 'bouquet': // 임수빈: 부케 던지기 — 맞은 진상을 리본으로 묶는다
       spawnProj(g, 'bouquet', h, t, dmg, { homing: true, pierce, r: 10, spin: 6, tie: (d.tie.sec[lv - 1] + (h.cm.tieSec || 0)) * g.mods.ctrlMul });
       break;
     case 'wink':
@@ -1355,7 +1355,7 @@ function spawnProj(g, type, h, target, dmg, o) {
   p.stunChance = o.stunChance || 0; p.stunSec = (o.stunSec || 0) * g.mods.ctrlMul;
   p.kb = o.kb || 0; p.kbStun = o.kbStun || 0; p.critBonus = o.critBonus || 0;
   p.swear = !!o.swear; p.chain = !!o.chain; p.splashStun = !!o.splashStun; p.bounces = o.bounces || 0; p.headshot = !!o.headshot; p.pull = !!o.pull;
-  p.lob = false; p.fire = null; p.motoKb = o.motoKb || 0; p.tie = o.tie || 0; // (8장 차수빈 부케: 묶는 시간)
+  p.lob = false; p.fire = null; p.motoKb = o.motoKb || 0; p.tie = o.tie || 0; // (8장 임수빈 부케: 묶는 시간)
   p.spin = o.spin || 0; p.rot = a; p.boomerang = !!o.boomerang; p.returning = false;
   p.maxDist = o.maxDist || 9999; p.dist = 0; p.life = 3.2; p.rage = !!o.rage;
   p.hitIds.length = 0;
@@ -1440,7 +1440,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   }
   { const sh = (e.shredN > 0 && e.shredT > 0 ? e.shredN * (e.shredPer || 0.06) : 0) + (e.brkT > 0 ? e.brkDmg || 0 : 0); if (sh > 0) dmg *= 1 + Math.min(0.7, sh); } // 여지원 방깎 (기본 겹 + 모자이크 폭격 · 합쳐 최대 +70%)
   if (g.encoreT > 0 && src && src.def) dmg *= 1 + (g.encoreDmg || 0); // 김도훈 앵콜 버프
-  if (e.tieAmpT > 0) dmg *= 1 + (e.tieAmp || 0); // 8장 차수빈 부케 토스: 묶인 진상은 모두에게 더 아프게
+  if (e.tieAmpT > 0) dmg *= 1 + (e.tieAmp || 0); // 8장 임수빈 부케 토스: 묶인 진상은 모두에게 더 아프게
   // 속성 상성: 효과 굉장! ×TYPE_STRONG(1.6) / 별로… ×TYPE_WEAK(0.7) — data.js TYPE_CHART
   let tm = 1;
   if (src && src.def && src.def.attr && !g.noTypes) {
@@ -2022,7 +2022,7 @@ function updateEnemies(g, dt) {
       }
       if (def.envelope && !e.env) { // 8장 축의금 도둑: 입구 대신 접수대 봉투를 집어 위로 달아난다
         e.env = true; e.fleeing = true; e.atRope = false; e.kbv = 0;
-        if (!g.envTip && g.mode === 'stage') { g.envTip = true; ev(g, 'tip', { text: '축의금 도둑이 봉투를 들고 도망가요! 화면 위로 빠지면 코인 −8% — 묶고(차수빈) · 기절 · 감속으로 잡아요' }); }
+        if (!g.envTip && g.mode === 'stage') { g.envTip = true; ev(g, 'tip', { text: '축의금 도둑이 봉투를 들고 도망가요! 화면 위로 빠지면 코인 −8% — 묶고(임수빈) · 기절 · 감속으로 잡아요' }); }
         ev(g, 'c8grab', { x: e.x, y: e.y - def.size * 0.6 });
         continue;
       }
@@ -2939,7 +2939,7 @@ export function hitEnemy(g, p, e) {
     else if (k === 'pull' && !e.boss) { const others = g.enemies.filter((o) => !o.dead && o !== e && Math.hypot(o.x - e.x, o.y - e.y) < 120); for (const o of others.slice(0, 4)) { o.x += (e.x - o.x) * 0.35; o.y += (e.y - o.y) * 0.2; } }
     if (g.t - (e.ccT || -9) > 0.5) { e.ccT = g.t; ev(g, 'cc', { kind: k, x: e.x, y: e.y - e.def.size * 0.7 }); }
   }
-  if (p.tie && !e.dead) { ch8Tie(g, e, p.tie, h); if (h && h.sig && h.sig.tieN) { let o2 = null, bd = 80 * 80; for (const o of g.enemies) { if (o === e || o.dead || o.y < 0) continue; const d2 = (o.x - e.x) ** 2 + (o.y - e.y) ** 2; if (d2 < bd) { bd = d2; o2 = o; } } if (o2) ch8Tie(g, o2, p.tie * 0.8, h); } } // 8장 차수빈 부케 (전용 신화: 곁의 한 명 더)
+  if (p.tie && !e.dead) { ch8Tie(g, e, p.tie, h); if (h && h.sig && h.sig.tieN) { let o2 = null, bd = 80 * 80; for (const o of g.enemies) { if (o === e || o.dead || o.y < 0) continue; const d2 = (o.x - e.x) ** 2 + (o.y - e.y) ** 2; if (d2 < bd) { bd = d2; o2 = o; } } if (o2) ch8Tie(g, o2, p.tie * 0.8, h); } } // 8장 임수빈 부케 (전용 신화: 곁의 한 명 더)
   if (p.type === 'mosaic' && h && h.def.shred) { const sd = h.def.shred; e.shredPer = sd.per + (h.lv >= 5 ? 0.02 : 0); e.shredN = Math.min(sd.max + (h.lv >= 3 ? 1 : 0) + (h.cm.shredMax || 0), e.shredN + 1); e.shredT = sd.sec + (h.cm.shredSec || 0); e.healBlockT = Math.max(e.healBlockT, 2); }
   if (p.pull && h && h.ax !== undefined && !e.dead) { const k = e.boss || e.mid ? 0.08 : (e.def.traits && e.def.traits.kbImmune ? 0.12 : 0.4); e.x += (h.ax - e.x) * k; e.y += (h.ay - e.y) * k * 0.6; e.baseX = e.x; if (g.t - (e.ccT || -9) > 0.6) { e.ccT = g.t; ev(g, 'cc', { kind: 'pull', x: e.x, y: e.y - e.def.size * 0.7 }); } }
   if (p.type === 'gf') {
@@ -3720,7 +3720,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       ev(g, 'bandage', { x: g.W / 2, y: g.ropeY + 8, v: Math.round(v), big: true, hero: h.id });
       break;
     }
-    case 'bouqtoss': { // 차수빈 부케 토스: 찍은 곳 범위 큰 피해 + 묶기 + 받는 피해 ↑
+    case 'bouqtoss': { // 임수빈 부케 토스: 찍은 곳 범위 큰 피해 + 묶기 + 받는 피해 ↑
       r = sk.r[lv] * (sa.catch ? 1.25 : 1);
       const amp = sk.amp + (sa.catch ? 0.15 : 0) + ((h.sig && h.sig.ampUp) || 0);
       forEnemiesNear(g, x, y, r, (e) => {

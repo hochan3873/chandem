@@ -1,5 +1,5 @@
 'use strict';
-// 랑방 대전 8장 「결혼식 뒤풀이」 — 축의금 도둑 · 끝없는 축사 · 새 멤버 차수빈
+// 랑방 대전 8장 「결혼식 뒤풀이」 — 축의금 도둑 · 끝없는 축사 · 새 멤버 임수빈
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -77,7 +77,7 @@ test('축의금 도둑: 입구 대신 봉투를 들고 위로 → 빠져나가�
   assert.equal(g2.stats.envSaved, 1);
 });
 
-test('부케에 묶인 도둑은 못 도망간다 · 차수빈 부케가 묶는다', () => {
+test('부케에 묶인 도둑은 못 도망간다 · 임수빈 부케가 묶는다', () => {
   const g = bare([], { god: true });
   const e = S.spawnEnemy(g, 'envthief', 180, g.ropeY - 30, { hpMul: 50 });
   run(g, 1.2);
@@ -87,7 +87,7 @@ test('부케에 묶인 도둑은 못 도망간다 · 차수빈 부케가 묶는�
   assert.ok(Math.abs(e.y - y0) < 0.5, '묶인 동안 제자리');
   run(g, 1);
   assert.ok(e.y < y0 - 20, '풀리면 다시 도망');
-  // 차수빈: 기본 공격(부케)이 진상을 묶는다 · 봉투 든 도둑은 더 오래
+  // 임수빈: 기본 공격(부케)이 진상을 묶는다 · 봉투 든 도둑은 더 오래
   const g2 = bare(['subin'], { god: true });
   const h = g2.heroes[0];
   const t = S.spawnEnemy(g2, 'envthief', h.x, g2.ropeY - 30, { hpMul: 200 });
@@ -161,7 +161,7 @@ test('8장 진상 기술: 뷔페 회복 · 축가 공속↓(기절로 끊김) ·
   assert.ok(x.rushT > 0, '"시간 없어요!" 재촉');
 });
 
-test('차수빈: 모집 멤버 + 8-5 클리어 확정 합류 · 도감 · 전용 신화 · 서버와 같은 목록', () => {
+test('임수빈: 모집 멤버 + 8-5 클리어 확정 합류 · 도감 · 전용 신화 · 서버와 같은 목록', () => {
   const h = D.HEROES.subin;
   assert.ok(h && h.gacha && h.skill.id === 'bouqtoss' && h.proj === 'bouquet');
   assert.equal(D.heroTier('subin'), 3); assert.equal(R.HERO_TIER.subin, 3);
