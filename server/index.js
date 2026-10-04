@@ -249,6 +249,22 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
 
   // ── HTTP ──────────────────────────────────────────
   const pub = path.join(__dirname, '..', 'public');
+  // 그림 · 소리 · 영상: 파일 '내용'으로 이름표(ETag)를 붙인다 — 배포마다 수정 시각이 바뀌어 전부 다시 받던 문제 (Render 무료 전송량 5GB를 4일 만에 다 씀)
+  //  하루는 폰에 저장해 두고, 그 뒤엔 바뀐 파일만 다시 받는다 (안 바뀌었으면 304 — 거의 0바이트)
+  const MEDIA = /\.(webp|png|jpe?g|gif|svg|mp3|ogg|wav|mp4|webm|woff2?)$/i, etags = new Map();
+  app.use((req, res, next) => {
+    if ((req.method !== 'GET' && req.method !== 'HEAD') || !MEDIA.test(req.path)) return next();
+    let rel; try { rel = decodeURIComponent(req.path); } catch { return next(); }
+    const file = path.join(pub, rel);
+    if (!file.startsWith(pub + path.sep)) return next();
+    let tag = etags.get(file);
+    if (tag === undefined) { try { tag = '"' + require('crypto').createHash('sha1').update(fs.readFileSync(file)).digest('base64url').slice(0, 20) + '"'; } catch { tag = null; } etags.set(file, tag); }
+    if (!tag) return next();
+    res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    res.set('ETag', tag);
+    if (req.headers['if-none-match'] === tag) return res.status(304).end();
+    res.sendFile(file, { etag: false, lastModified: false, headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800', ETag: tag } });
+  });
   app.use(express.static(pub, { extensions: ['html'] }));
   let rankings = null;
   const accountsOn = !!process.env.DATABASE_URL || !process.env.RENDER;
