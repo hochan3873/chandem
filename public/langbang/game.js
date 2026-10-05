@@ -2586,7 +2586,7 @@ function showMenu0() {
       <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio/s${s2}.webp" alt="" draggable="false" onerror="this.onerror=function(){this.onerror=null;this.src='/img/lb/dio6.webp'};this.src='/img/lb/dio${c2}.webp'">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>`}</div></div>`; }).join('')}</div>
       ${(() => { const lock = s >= (p.master ? STAGE_COUNT : nextStage()); const nx = Math.min(STAGE_COUNT, s + 1); return `<button class="chev r ${lock && s < STAGE_COUNT ? 'lockd' : ''}" data-act="lbStep" data-d="1" ${lock ? 'disabled' : ''} aria-label="다음 스테이지"><i></i>${s < STAGE_COUNT ? `<small>${lock ? '' : ''}${stageLabel(nx)} ▸</small>` : ''}</button>`; })()}
     </div>
-    ${navTries() < 3 ? `<div class="dio-hint"><i class="dh-hand">👆</i><span>좌우로 밀거나 ◂ ▸ 를 눌러 <b>다른 스테이지</b> 보기</span></div>` : ''}
+    ${navTries() < 5 ? `<div class="dio-hint"><i class="dh-hand">👆</i><span>좌우로 밀거나 ◂ ▸ 를 눌러 <b>다른 스테이지</b> 보기</span></div>` : ''}
     <div class="lb-chests"><div class="cbar"><b style="width:${Math.min(100, (cs / 30) * 100)}%"></b></div>${chests}<em>${ch}장 ★${cs}/30</em></div>
     ${snap ? `<button class="lb-resume" data-act="resumeSnap">${ic('retry', '', 'sm')}이어하기 <small>${esc(snapLabel(snap))}</small></button>` : ''}
     <button class="lb-start v2" data-act="lbGo"><i class="ls-shine"></i><span class="ls-txt"><b>출격!</b><small>${stageLabel(s)} ${esc(stageName(s))}</small></span><span class="ls-cost">${ic('energy', '', 'sm')}<em>${p.master ? 0 : L.stageStaminaCost(p, s, false)}</em></span></button>
@@ -2749,7 +2749,8 @@ function lobbySwipe() {
 }
 // 스테이지 넘기기를 몇 번 해 봤나 — 3번 전까지는 안내(손가락 · ◂ ▸ 깜빡임)를 보여 준다
 const navTries = () => { try { return Number(localStorage.getItem('langbang:navTries')) | 0; } catch { return 9; } };
-const navTried = () => { try { localStorage.setItem('langbang:navTries', String(navTries() + 1)); } catch { /* 무시 */ } };
+// 넘기기 안내: 한 번 들어온 동안(세션)은 몇 번 넘겨도 1번으로 센다 → 다섯 번 들어와서 넘겨 본 뒤에야 숨는다 (한 판 만에 사라지던 것)
+const navTried = () => { try { if (sessionStorage.getItem('langbang:navSess')) return; sessionStorage.setItem('langbang:navSess', '1'); localStorage.setItem('langbang:navTries', String(navTries() + 1)); } catch { /* 무시 */ } };
 function lobbyStep(d) {
   navTried();
   if (lobbySwipe.step && ui.querySelector('.dio-track') && lobbySwipe.step(d)) return;
