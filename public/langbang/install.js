@@ -10,12 +10,19 @@ const URL0 = location.origin + '/langbang/';
 let C = null; // { popup(html, cls) → 창, toast(msg, ms), closeInfoCard() }
 let evt = null; // 크롬이 준 설치 창 (beforeinstallprompt)
 
-export const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true || /source=app/.test(location.search);
+// 앱 화면인가 (찬이의 게임월드 앱 안에서 랑방으로 넘어온 것도 앱 화면이다)
+const appView = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+// 랑방 대전 앱으로 열었나: 랑방 앱은 /langbang/?source=app 으로 시작한다 → 그 창(세션) 동안 기억 · 한 번 본 적 있으면 '설치함' 도 기억
+const LB_APP = (() => { const q = /source=app/.test(location.search); try { if (q) { sessionStorage.setItem('langbang:inApp', '1'); localStorage.setItem('langbang:appInstalled', '1'); } return q || sessionStorage.getItem('langbang:inApp') === '1'; } catch { return q; } })();
+const lbInstalled = () => { try { return localStorage.getItem('langbang:appInstalled') === '1'; } catch { return false; } };
+// 허브(찬이의 게임월드) 앱 안에서 열린 랑방: 앱 화면이지만 랑방 앱은 아님 → [앱 설치] 를 보여 주고, 누르면 브라우저로 열어 설치하는 법
+const inHubApp = () => appView() && !LB_APP;
+export const standalone = () => LB_APP || (inHubApp() && lbInstalled());
 export function initInstall(ctx) {
   C = ctx;
   if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); evt = e; });
-  window.addEventListener('appinstalled', () => { evt = null; for (const b of document.querySelectorAll('[data-act="lbInstall"]')) b.remove(); C.toast('랑방 대전 앱을 설치했어요! 바탕화면 아이콘으로 열어 보세요', 3200); });
+  window.addEventListener('appinstalled', () => { evt = null; try { localStorage.setItem('langbang:appInstalled', '1'); } catch { /* 무시 */ } for (const b of document.querySelectorAll('[data-act="lbInstall"]')) b.remove(); C.toast('랑방 대전 앱을 설치했어요! 바탕화면 아이콘으로 열어 보세요', 3200); });
   return { open, standalone };
 }
 async function copyLink() {
@@ -31,6 +38,13 @@ const sheet = (body, btns = '') => { const m = C.popup(`<h3>앱으로 설치하�
 
 export async function open() {
   if (standalone()) { C.toast('이미 앱으로 열려 있어요', 1600); return; }
+  // 찬이의 게임월드 앱 안: 여기서는 랑방 앱을 따로 설치할 수 없다 → 브라우저(사파리 · 크롬)로 열어서
+  if (inHubApp()) {
+    sheet(`<p class="ins-warn">지금은 <b>찬이의 게임월드 앱</b> 안이에요. 랑방 대전만 따로 바탕화면에 두려면 <b>${IS_IOS ? '사파리' : '크롬'}</b>에서 열어 설치해 주세요.</p>
+      ${steps([[null, '아래 <b>[링크 복사]</b>'], [null, `<b>${IS_IOS ? '사파리' : '크롬'}</b> 주소창에 붙여 넣고 열기`], [null, '로비 위 <b>[앱 설치]</b> 를 눌러 따라 하기']])}`,
+      `${IS_IOS ? '' : `<a class="btn primary" href="intent://${location.host}/langbang/#Intent;scheme=https;package=com.android.chrome;end">크롬으로 열기</a>`}<button class="btn" data-ins="copy">링크 복사</button>`);
+    return;
+  }
   // 카톡 · 네이버 등 앱 안 브라우저: 여기서는 설치가 안 된다 → 바깥 브라우저로
   if (IN_APP) {
     const ext = IS_KAKAO ? `<a class="btn primary" href="kakaotalk://web/openExternal?url=${encodeURIComponent(URL0)}">바깥 브라우저로 열기</a>` : '';
