@@ -9,7 +9,7 @@ import {
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
-  COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM,
+  COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
 } from './data.js';
 import * as L from './live.js';
@@ -4727,10 +4727,16 @@ function matchTag(id) {
   return `<span class="mt ${m.cls}">${m.arrow}</span>`;
 }
 // ─── 출격 준비: 한 화면에 (스테이지 카드 · 난이도 · 전투력 · 등장 진상 · 덱 · 보상 · 출격) — 긴 설명은 ⋯ / ℹ️ 뒤로 ───
-function stagePower(p, s, hell) { // 권장 전투력: 기본 멤버 4명이 그 스테이지쯤 강화했을 때
-  const m = Math.round(s * 0.25), base = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
-  const q = Object.assign({}, p, { heroes: Object.fromEntries(base.map((h) => [h, m])), equip: {}, hstars: {} });
-  return Math.round(deckPower(q, base) * (1 + 0.05 * (chapterOf(s) - 1)) * (hell ? 1.9 : 1));
+// 권장 전투력: '그 장을 처음 도전하는 보통 유저'(난이도 맞출 때 쓴 기준 — 장 권장 강화 +1 · 앞 두 명 ★ 장마다) 의 기본 4명 전투력
+//  × 이 스테이지 진상 체력이 그 장 평균보다 얼마나 센지 × 조건 하나마다 +8% × 이번 주 진상 특성 +5% (예전엔 고정 공식이라 조건이 까다로운 판에서 너무 낮게 나왔다)
+const REF_STAR = [1, 1, 1, 2, 2, 2, 2, 3];
+function stageFoeHp(s) { let t = 0; for (let w = 1; w <= STAGE_WAVES; w++) t += hpMul(stageLevel(s, w), true); return (t / STAGE_WAVES) * stageHpScale(s) * ((BAL.chHp || {})[chapterOf(s)] || 1) * ((STAGE_HPX || {})[s] || 1); }
+function stagePower(p, s, hell) {
+  const c = chapterOf(s), base = ['bangjang', 'staff', 'gunman', 'gunnyeo'], m = recMeta(s, hell) + 1, st = REF_STAR[Math.min(7, c - 1)];
+  const q = Object.assign({}, p, { heroes: Object.fromEntries(base.map((h) => [h, m])), equip: {}, hstars: Object.fromEntries(base.map((h, i) => [h, i < 2 ? st : Math.max(1, st - 1)])) });
+  let avg = 0; for (let k = 1; k <= 10; k++) avg += stageFoeHp((c - 1) * 10 + k) / 10;
+  const conds = stageConds(s, hell).length, wk = s >= WEEK_TRAIT_FROM ? 1.05 : 1;
+  return Math.round(deckPower(q, base) * (stageFoeHp(s) / avg) * (1 + 0.08 * conds) * wk * (hell ? 1.4 : 1));
 }
 const foeFace = (id, cls = '') => { const d = ENEMIES[id]; return `<span class="pp-face ${cls}" style="--fc:${d.color || '#8a7ab0'}"><img src="${d.img}" alt="" draggable="false" onerror="${d.fb ? `this.onerror=null;this.src='${d.fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'` : 'this.remove()'}"></span>`; };
 const foeTrait = (id) => { const t = ENEMIES[id].traits || {}; const k = Object.keys(t).find((x) => TRAITS[x]); return k ? TRAITS[k] : null; };
@@ -4818,6 +4824,10 @@ function showPrep(mode, s) {
   // 3) 전투력
   const pw = deckPower(p, ids), need = st ? stagePower(p, st, hellOn) : 0;
   const ok = !need || pw >= need;
+  // 상성 경고: 이 판의 진상 기믹에 대처할 멤버가 덱에 없으면 짚어 준다 (가진 멤버 중 추천 2명)
+  const lack = mode === 'stage' ? conds.filter((c) => COND[c] && !ids.some((id) => COND[c].counter.includes(id))) : [];
+  const own = new Set(owned());
+  const lackHtml = lack.length ? `<div class="pp-lack">${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}</div>` : '';
   const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
   // 4) 등장 진상
   const foes = prepFoes(st);
@@ -4854,7 +4864,7 @@ function showPrep(mode, s) {
     </div>`;
   show(`
     <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="stamina">${ic('energy', '', 'sm')}<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
-    ${headHtml}${diffHtml}${condHtml}${powHtml}${foeHtml}${deckHtml}${consPrepHtml()}${rw}
+    ${headHtml}${diffHtml}${condHtml}${powHtml}${lackHtml}${foeHtml}${deckHtml}${consPrepHtml()}${rw}
     <div class="spacer"></div>
     ${goHtml}
   `, 'dim prep-screen pp');

@@ -4243,3 +4243,7 @@ i.rd.cnt { width: auto; min-width: calc(var(--u) * 17); height: calc(var(--u) * 
 body.rm i.rd.cnt, body.rm .lb-upg, body.rm .lb-news.up, body.rm .lb-news .nw-go i, body.rm .coach, body.rm .coach *, body.rm .coach .co-ring::after { animation: none !important; transition: none !important; }
 body.rm .lb-upg { transform: translateX(-50%); }
 body.rm .coach .co-burst { display: none; }
+/* 출전 준비: 상성 경고 (이 판 진상 기믹에 대처할 멤버가 덱에 없을 때) */
+.pp-lack { margin: calc(var(--u) * -2) 0 calc(var(--u) * 8); padding: calc(var(--u) * 6) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: rgba(255, 90, 60, 0.12); border: 1px solid rgba(255, 120, 90, 0.55); }
+.pp-lack p { margin: calc(var(--u) * 2) 0; font-size: calc(var(--u) * 11.5); font-weight: 700; line-height: 1.4; color: #ffd9cf; }
+.pp-lack b { color: #fff; } .pp-lack em { font-style: normal; color: #ffd23f; font-weight: 900; }
