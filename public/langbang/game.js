@@ -412,6 +412,7 @@ async function startRun(opt = {}) {
     g.events.length = 0;
   }
   g.cons = consIds; g.consUsed = {};
+  if (tw && TWUI) TWUI.afterCreate(g, tw); // 진상의 탑 (리메이크): 같이 간 멤버 · 바닥 예고 · 멤버 체력
   if (pvp) g.pvpMid = (PVP.match && PVP.match.id) || ''; // 이 화면이 돌리는 대전 판 (다시 붙을 때 맞춰 보기)
   if (mode === 'raid' && opt.help) { const sh = S.addSupport(g, { ...opt.help, gear: gearStats(opt.help.gear || []) }); if (sh) toast(`도우미 합류! ${opt.help.nick}님의 ${HEROES[opt.help.hero].name}`, 2600); }
   if (opt.r2 && R2UI) R2UI.attach(g, opt.r2); // 건물주 대마왕 (거대 보스 혼자 · 패턴)
@@ -1612,7 +1613,8 @@ canvas.addEventListener('pointermove', (ev) => {
   const { x, y } = fieldPos(ev);
   if (app.aim) { app.aim.x = x; app.aim.y = y; return; }
   if (!press) return;
-  if (!app.drag && Math.hypot(x - press.x0, y - press.y0) > 14) { app.drag = { h: press.h }; hideBubble(); }
+  if (!app.drag && !(g.twa && g.twa.drag) && Math.hypot(x - press.x0, y - press.y0) > 14) { if (g.twa) g.twa.drag = { h: press.h, x, y }; else app.drag = { h: press.h }; hideBubble(); } // 진상의 탑: 끌면 그 자리로 걸어간다
+  if (g.twa && g.twa.drag) { g.twa.drag.x = x; g.twa.drag.y = y; return; }
   if (app.drag) {
     const slot = S.nearestSlot(x, g);
     app.drag.x = x; app.drag.y = Math.min(y, g.rowY + 30); app.drag.slot = slot; app.drag.slotX = g.slotX[slot];
@@ -1633,6 +1635,11 @@ function endPress(ev) {
   if (!press || !g) { press = null; return; }
   const p0 = press;
   press = null;
+  if (g.twa && g.twa.drag) { // 진상의 탑: 손을 뗀 곳으로 걸어간다
+    const d = g.twa.drag; g.twa.drag = null;
+    if (ev.type === 'pointerup' && TWUI && TWUI.moveTo(g, d.h, d.x, d.y)) { A.sfx.tap(); vibrate(8); }
+    return;
+  }
   if (app.drag) {
     const d = app.drag;
     app.drag = null;

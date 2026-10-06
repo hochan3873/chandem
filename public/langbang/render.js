@@ -1037,6 +1037,7 @@ export class Renderer {
     if (!demo) this.drawRope(g, t);
     if (this.skfx) this.skfx.draw('gate', g); // 입구 위 (붕대)
     this.drawEnemies(g, t, true); // 때리는 진상은 바리케이드 앞
+    if (g.twa && this.twaDraw) this.twaDraw(g, t, 'back'); // 진상의 탑: 바닥 예고 · 독 웅덩이 · 기 모으기 (tower-arena-ui.js · 바리케이드 바닥 위 · 멤버 아래)
     this.drawPools(g, t);
     this.drawHeroes(g, t, ui);
     this.drawBeams(g, t);
@@ -1053,6 +1054,7 @@ export class Renderer {
     this.drawParts();
     this.drawRings();
     if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'top'); // 건물주 레이드: 날아오는 고지서 · 돈다발
+    if (g.twa && this.twaDraw) this.twaDraw(g, t, 'top'); // 진상의 탑: 멤버 체력 · 상태 · 끌기 화살표
     if (this.skfx) this.skfx.draw('top', g); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
     if (this.kit) this.kit.draw('top', g); // 대개편 스킬 연출 (kitfx.js)
     this.drawTexts();

@@ -534,7 +534,7 @@ export async function friendsLoad() { return call('/api/langbang/friends'); }
 export function friendAct(kind, body) { return liveCall('friends/' + kind, body || {}); }
 
 // ─── 진상의 탑 (손님은 같은 함수로 이 기기에 · 로그인은 서버가 계산하고 확인) ───
-export function towerStart(f, hero, guest) { return guest ? guestLive((p) => TW.towerStart(p, f, hero, 'g' + Date.now().toString(36), Date.now())) : liveCall('tower/start', { f, hero }); }
+export function towerStart(f, hero, guest, squad = []) { return guest ? guestLive((p) => TW.towerStart(p, f, hero, 'g' + Date.now().toString(36), Date.now(), false, squad)) : liveCall('tower/start', { f, hero, squad }); } // squad: 같이 갈 멤버 (리메이크)
 export function towerFinish(body, guest) { return guest ? guestLive((p) => TW.towerFinish(p, body, GUEST_UID, Date.now())) : liveCall('tower/finish', body); }
 export async function towerBoard() { const r = await call('/api/langbang/tower'); return r.ok ? r : null; }
 export function towerClaim() { return liveCall('tower/claim', {}); }

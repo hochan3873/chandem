@@ -16,7 +16,7 @@ const lerp = (a, b, k) => a + (b - a) * clamp(k, 0, 1);
 export const SQUAD = { max: 3, hp: [1, 1.75, 2.35], fat: [1, 0.6, 0.45] }; // 데려간 수에 따라: 진상 체력 배율 · 멤버 한 명당 피로 배율
 export const ARENA = {
   move: 125, slow: 0.45, charm: 70, // 걷는 속도 (초당) · 감속 중 × · 홀림에 끌려가는 속도
-  up: 80, down: 10, side: 22, // 움직일 수 있는 띠: 입구 줄(ropeY) 위 80 ~ 영웅 줄(rowY) 아래 10 · 양옆 22
+  band: { up: 80, down: 10, side: 22 }, // 움직일 수 있는 띠: 입구 줄(ropeY) 위 80 ~ 영웅 줄(rowY) 아래 10 · 양옆 22
   hpK: 10, // 체력 = 쓰러짐 게이지 크기(sim kdMax) × 10
   regen: { wait: 4, per: 0.008 }, // 마지막으로 맞고 4초 뒤부터 초당 최대 체력 0.8%
   down: { sec: 10, back: 0.35, grace: 2, quick: 0.6 }, // 쓰러짐 10초 → 체력 35% 로 일어남 · 2초 무적 · 건전녀가 있으면 ×0.6
@@ -116,7 +116,7 @@ export function attach(g, o = {}) {
 }
 export const members = (g) => g.heroes.filter((h) => !h.def.summon && !h.gone);
 const alive = (h) => !(h.twDown > 0);
-export function zoneOf(g) { return { x0: ARENA.side, x1: g.W - ARENA.side, y0: g.ropeY - ARENA.up, y1: g.rowY + ARENA.down }; }
+export function zoneOf(g) { const B = ARENA.band; return { x0: B.side, x1: g.W - B.side, y0: g.ropeY - B.up, y1: g.rowY + B.down }; }
 const inZone = (g, x, y) => { const z = zoneOf(g); return { x: clamp(x, z.x0, z.x1), y: clamp(y, z.y0, z.y1) }; };
 
 // 손가락으로 옮기기: 그 자리까지 걸어간다 (기절 · 빙결 · 쓰러짐 중엔 못 움직이고 풀리면 이어서)

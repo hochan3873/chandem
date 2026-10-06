@@ -8,7 +8,7 @@ const int = (v, lo = 0, hi = 1e9) => { const n = Math.floor(Number(v)); return N
 
 // ─── 기본 숫자 (밸런스: scripts/lb-tower-sim.js 로 맞춘 값) ───
 export const TOWER = {
-  floors: 60, perZone: 15, unlock: 10, tries: 5, // 1-10 클리어로 열림 · 하루 5번 (실패할 때만 깎인다)
+  floors: 100, perZone: 15, unlock: 10, tries: 5, hall: 60, // 1-10 클리어로 열림 · 하루 5번 (실패할 때만 깎인다) · (10/07 리메이크: 100층 · 61층부터는 4구역 왕좌가 이어진다 · 명예의 전당은 그대로 60층)
   // 층마다 진상 체력 · 공격력 배율 (복리): [이 층부터, 체력 ×, 공격력 ×] — scripts/lb-tower-sim.js grid 로 맞춘 값
   //  예전 한 줄(체력 ×1.065)은 멤버를 층마다 바꿔 가며 오르면 +10 ★3 계정도 42층, +15 ★4 는 53층까지 갔다 (출시 첫날 47층)
   //  → 16~35층을 가파르게: 계정 전체 +10 ★3 은 29층 · +15 ★4 는 33층에서 막힌다 · 46층부터는 규칙 둘이 벽이라 체력은 거의 그대로
@@ -17,6 +17,9 @@ export const TOWER = {
   exp: 2.1, // 혼자라서 경험치를 넉넉히 (레벨업 카드가 판마다 5~7번)
   minSec: 8, // 웨이브 하나에 최소 8초 (조작 방지)
 };
+// 탑 리메이크 (10/07): 멤버 최대 3명 (끌어서 자리 옮기기 · 바닥 예고 피하기 — tower-arena.js) · 데려간 멤버 모두에게 피로 (한 명당 배율)
+export const SQUAD = { max: 3, fat: [1, 0.6, 0.45] };
+export const squadFat = (n, v) => Math.max(1, Math.round(v * (SQUAD.fat[Math.max(1, Math.min(SQUAD.max, n)) - 1] || 1)));
 // 구역: 15층마다 맵 · 진상 구성 · 보스가 바뀐다 (맵 그림은 720×1290 · 입구는 다른 맵처럼 73.5% 높이)
 export const ZONES = [
   { id: 1, name: '용암 회랑', sub: '불길이 치솟는 탑의 입구', img: '/img/lb/bg_tower1.webp', color: '#ff6a2a', glow: 'rgba(255,90,30,', from: 1,
@@ -82,7 +85,7 @@ export const fatigueGain = (f, clear, replay) => (!clear ? FATIGUE.fail : replay
 const hoursText = (ms) => { const m = Math.ceil(ms / 60e3); return m >= 60 ? `${Math.ceil(m / 60)}시간` : `${Math.max(1, m)}분`; };
 export const fatigueTimeText = hoursText;
 
-export const zoneOf = (f) => ZONES[Math.max(0, Math.min(3, Math.floor((int(f, 1, 60) - 1) / 15)))];
+export const zoneOf = (f) => ZONES[Math.max(0, Math.min(3, Math.floor((int(f, 1, 999) - 1) / 15)))]; // 61층부터는 4구역(왕좌)이 이어진다
 export const isBossFloor = (f) => f % 5 === 0;
 
 // ─── 층 규칙: 층마다 하나 (46~60층은 둘) — 모든 멤버가 빛나는 층이 있게 돌아가며 ───
@@ -295,6 +298,7 @@ export function normTower(raw, out, now = Date.now()) {
   o.day = Number.isInteger(t.day) ? t.day : -1;
   o.used = int(t.used, 0, 99);
   o.run = t.run && typeof t.run.id === 'string' && t.run.id.length <= 32 ? { id: t.run.id, f: int(t.run.f, 1, TOWER.floors), hero: HEROES[t.run.hero] ? t.run.hero : 'bangjang', at: int(t.run.at, 0, 9e15), fat: int(t.run.fat, 0, FATIGUE.max) } : null;
+  if (o.run && Array.isArray(t.run.sq)) { const sq = [...new Set(t.run.sq.filter((h) => typeof h === 'string' && HEROES[h] && h !== o.run.hero))].slice(0, SQUAD.max - 1); if (sq.length) o.run.sq = sq; } // 같이 간 멤버 (리메이크)
   o.wk = wkClean(t.wk); o.wkPrev = wkClean(t.wkPrev);
   o.wkPaid = Number.isInteger(t.wkPaid) ? t.wkPaid : -1e6;
   o.stone = int(t.stone, 0, 1e7);
@@ -317,7 +321,8 @@ export function triesLeft(lb, now = Date.now()) { const t = lb.tower || {}; retu
 export const maxFloor = (lb) => Math.min(TOWER.floors, ((lb.tower && lb.tower.best) | 0) + 1);
 
 // 탑 시작: 도전 1번을 먼저 쓴다 (깨면 돌려준다 — 실패만 깎인다)
-export function towerStart(lb, f, hero, runId, now = Date.now(), free = false) {
+//  squad: 같이 갈 멤버 (대장 hero 말고 최대 2명 · 리메이크) — 없으면 예전처럼 혼자
+export function towerStart(lb, f, hero, runId, now = Date.now(), free = false, squad = []) {
   lb.tower = lb.tower || emptyTower();
   const t = lb.tower;
   f = int(f, 0, 999);
@@ -325,14 +330,18 @@ export function towerStart(lb, f, hero, runId, now = Date.now(), free = false) {
   if (f < 1 || f > TOWER.floors) return { error: '없는 층이에요' };
   if (f > maxFloor(lb) && !free) return { error: '아직 오를 수 없는 층이에요' };
   if (!HEROES[hero] || !L.heroUnlocked(lb, hero)) return { error: '데려갈 수 없는 멤버예요' };
+  const sq = [...new Set((Array.isArray(squad) ? squad : []).map(String).filter((h) => h !== hero))].slice(0, SQUAD.max - 1);
+  for (const h of sq) if (!HEROES[h] || !L.heroUnlocked(lb, h)) return { error: '데려갈 수 없는 멤버예요' };
   const day = L.dayIndex(now);
   if (t.day !== day) { t.day = day; t.used = 0; }
   if (!free && t.used >= TOWER.tries) return { error: `오늘 탑 도전은 다 했어요 (하루 ${TOWER.tries}번 · 깬 층은 안 깎여요 · 자정에 초기화)` };
   const fat = free ? 0 : fatigueOf(lb, hero, now);
-  if (!free && fatigueLocked(lb, hero, now)) return { error: `${HEROES[hero].name}: 지쳐서 쉬어야 해요 · ${hoursText(fatigueOkMs(lb, hero, now))} 뒤 회복` };
+  if (!free) for (const h of [hero, ...sq]) if (fatigueLocked(lb, h, now)) return { error: `${HEROES[h].name}: 지쳐서 쉬어야 해요 · ${hoursText(fatigueOkMs(lb, h, now))} 뒤 회복` };
   if (!free) t.used++;
   t.run = { id: String(runId).slice(0, 32), f, hero, at: now, fat };
-  return { runId: t.run.id, f, hero, fat, left: triesLeft(lb, now) };
+  const fats = { [hero]: fat };
+  if (sq.length) { t.run.sq = sq; for (const h of sq) fats[h] = free ? 0 : fatigueOf(lb, h, now); }
+  return { runId: t.run.id, f, hero, squad: [hero, ...sq], fat, fats, left: triesLeft(lb, now) };
 }
 // 탑 끝: 서버가 판 번호 · 시간을 확인하고 보상 (처음 깬 층만)
 export function towerFinish(lb, body, uid, now = Date.now(), free = false) {
@@ -349,9 +358,10 @@ export function towerFinish(lb, body, uid, now = Date.now(), free = false) {
     let cap = 0; for (const w of def.waves) for (const x of w.g) cap += x[1] * (ENEMIES[x[0]] && ENEMIES[x[0]].pack ? ENEMIES[x[0]].pack.max : 1) * 2.4; cap += 80 * def.waves.length;
     if (kills > cap) return { error: '기록을 확인할 수 없어요' };
   }
-  const out = { clear, f: run.f, hero: run.hero, first: false, reward: null, miles: [], awake: null, weekBest: false, hall: false, left: 0, fat: 0, fatAdd: 0 };
-  // 피로: 깨면 +25 (31층부터 +40) · 이미 깬 층을 다시 깨도 +25 · 실패 +15 (무료 모드는 안 쌓인다)
-  if (!free) { out.fatAdd = fatigueGain(run.f, clear, run.f <= t.best); out.fat = fatigueAdd(lb, run.hero, out.fatAdd, now); }
+  const team = [run.hero, ...(run.sq || [])];
+  const out = { clear, f: run.f, hero: run.hero, squad: team, first: false, reward: null, miles: [], awake: null, weekBest: false, hall: false, left: 0, fat: 0, fatAdd: 0, fats: {} };
+  // 피로: 깨면 +25 (31층부터 +40) · 이미 깬 층을 다시 깨도 +25 · 실패 +15 (무료 모드는 안 쌓인다) · 여럿이 가면 한 명당 덜 (SQUAD.fat)
+  if (!free) { out.fatAdd = squadFat(team.length, fatigueGain(run.f, clear, run.f <= t.best)); for (const h of team) out.fats[h] = fatigueAdd(lb, h, out.fatAdd, now); out.fat = out.fats[run.hero]; }
   L.trackRun(lb, { mode: 'tower', kills: Math.min(kills, 2000), bosses: clear && isBossFloor(run.f) ? 1 : 0, skills: L.skillCap(body.skills, dur) }, uid, now); // 미션 진행 (처치 · 보스 · 스킬)
   if (clear) {
     const day = L.dayIndex(now);
@@ -371,12 +381,14 @@ export function towerFinish(lb, body, uid, now = Date.now(), free = false) {
         if (m.heroPick) { t.picks.hero += m.heroPick; g2.heroPick = m.heroPick; }
         out.miles.push({ f: run.f, label: m.label, got: g2 });
       }
-      if (run.f === TOWER.floors && !t.hall) { t.hall = { at: now, hero: run.hero }; out.hall = true; }
+      if (run.f === TOWER.hall && !t.hall) { t.hall = { at: now, hero: run.hero }; out.hall = true; }
     }
-    const before = awakeLv(lb, run.hero);
-    t.hb[run.hero] = Math.max(t.hb[run.hero] | 0, run.f);
-    const after = awakeLv(lb, run.hero);
-    if (after > before) out.awake = { hero: run.hero, from: before, to: after };
+    for (const h of team) { // 같이 오른 멤버 모두 기록 (각성)
+      const before = awakeLv(lb, h);
+      t.hb[h] = Math.max(t.hb[h] | 0, run.f);
+      const after = awakeLv(lb, h);
+      if (after > before && !out.awake) out.awake = { hero: h, from: before, to: after };
+    }
     // 주간 탑 랭킹: 이번 주에 깬 가장 높은 층 (같으면 더 빨리 깬 기록)
     const wi = L.weekIndex(now);
     if (!t.wk || t.wk.wi !== wi) { if (t.wk && t.wk.wi === wi - 1) t.wkPrev = t.wk; t.wk = { wi, f: 0, sec: 0, hero: '', at: 0 }; }
