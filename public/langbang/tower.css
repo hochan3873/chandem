@@ -420,7 +420,7 @@ body.rm .tw-near, body.rm .tw-far, body.rm .tw-vortex { animation: none !importa
 .tw-pk.rec { border-color: rgba(140, 255, 176, 0.75); box-shadow: 0 0 calc(var(--u) * 8) rgba(80, 220, 140, 0.35); }
 .tw-pk .tw-in { text-decoration: none; margin-left: calc(var(--u) * 3); font-size: calc(var(--u) * 8); color: #ffcf3f; }
 .tw-pk .tw-rs { margin-top: calc(var(--u) * 1); }
-.tw-clear { margin: 0 auto calc(var(--u) * 6); display: block; }
+.tw-clear { margin: 0 auto calc(var(--u) * 6); display: block; width: auto !important; min-height: 0 !important; padding: calc(var(--u) * 4) calc(var(--u) * 14) !important; font-size: calc(var(--u) * 11) !important; }
 .tw-hud .th-hz { display: flex; gap: calc(var(--u) * 2); }
 .tw-hud .th-hz i { font-style: normal; font-size: calc(var(--u) * 8.5); font-weight: 900; padding: 0 calc(var(--u) * 4); border-radius: 99px; background: var(--hc); color: #0b0306; }
 .tw-rules { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 5); margin: calc(var(--u) * 4) 0; }

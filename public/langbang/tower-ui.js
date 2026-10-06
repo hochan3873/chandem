@@ -137,7 +137,7 @@ function partyHtml() {
   const slot = (h, i) => {
     if (!h) return `<button class="tw-mem empty" data-act="twPick" data-s="${i}"><span class="tw-plus">+</span><small>${i ? '빈자리' : '대장'}</small></button>`;
     const aw = TW.awakeLv(p, h), v = fatOf(h);
-    return `<button class="tw-mem ${fatBlocked(h) ? 'tired' : ''}" data-act="twPick" data-s="${i}">${i === 0 ? '<i class="tw-lead">대장</i>' : ''}${face(h, 'big')}${aw ? `<i class="tw-awk l${aw}">${aw >= 3 ? '지옥' : 'I'.repeat(aw)}</i>` : ''}<b>${esc(HEROES[h].name)}</b><small class="tw-hp">${C.ic('heart', '', 'sm')}${fmt(hpOf(h))}</small><span class="tw-rs">${resChips(h, f, 2)}</span><i class="tf-bar ${fatLv(v)}" title="피로 ${v}%"><b style="width:${v}%"></b></i></button>`;
+    return `<button class="tw-mem ${fatBlocked(h) ? 'tired' : ''}" data-act="twPick" data-s="${i}">${i === 0 ? '<i class="tw-lead">대장</i>' : ''}${face(h, 'big')}${aw ? `<i class="tw-awk l${aw}">${aw >= 3 ? '지옥' : 'I'.repeat(aw)}</i>` : ''}<b>${esc(HEROES[h].name)}</b><small class="tw-hp">체력 ${fmt(hpOf(h))}</small><span class="tw-rs">${resChips(h, f, 2)}</span><i class="tf-bar ${fatLv(v)}" title="피로 ${v}%"><b style="width:${v}%"></b></i></button>`;
   };
   return `<div class="tw-party sq"><div class="tw-mems">${sq.map(slot).join('')}</div></div>`;
 }
@@ -244,7 +244,7 @@ function pickPop(slot = 0) {
   const p = P(), t = tw(), sq = curSquad(), cur = sq[slot], f = curFloor();
   const rec = TWA.recommend(f, owned(), 6);
   const list = owned().sort((a, b) => (rec.includes(b) ? 1 : 0) - (rec.includes(a) ? 1 : 0) || C.heroPower(p, b) - C.heroPower(p, a));
-  const rows = list.map((h) => { const b = (t.hb || {})[h] | 0, aw = TW.awakeLv(p, h), at = sq.indexOf(h); return `<button class="tw-pk ${h === cur ? 'on' : ''} ${aw >= 3 ? 'aw3' : ''} ${rec.includes(h) ? 'rec' : ''}" data-act="twPickHero" data-h="${h}" data-s="${slot}">${face(h)}<b>${esc(HEROES[h].name)}${at >= 0 && h !== cur ? `<u class="tw-in">${at ? `${at + 1}번` : '대장'}</u>` : ''}</b><small>${C.ic('heart', '', 'sm')}${fmt(hpOf(h))} · 최고 ${b}F</small><span class="tw-rs">${resChips(h, f, 3)}</span><em>${C.ic('swords', '', 'sm')}${fmt(C.heroPower(p, h))}</em>${fatGauge(h, 'sm')}</button>`; }).join('');
+  const rows = list.map((h) => { const b = (t.hb || {})[h] | 0, aw = TW.awakeLv(p, h), at = sq.indexOf(h); return `<button class="tw-pk ${h === cur ? 'on' : ''} ${aw >= 3 ? 'aw3' : ''} ${rec.includes(h) ? 'rec' : ''}" data-act="twPickHero" data-h="${h}" data-s="${slot}">${face(h)}<b>${esc(HEROES[h].name)}${at >= 0 && h !== cur ? `<u class="tw-in">${at ? `${at + 1}번` : '대장'}</u>` : ''}</b><small>체력 ${fmt(hpOf(h))} · 최고 ${b}F</small><span class="tw-rs">${resChips(h, f, 3)}</span><em>${C.ic('swords', '', 'sm')}${fmt(C.heroPower(p, h))}</em>${fatGauge(h, 'sm')}</button>`; }).join('');
   C.popup(`<h3>${C.ic('duo', '', 'sm')}${slot ? `${slot + 1}번 멤버` : '대장'} 고르기</h3><p class="ip">최대 <b>3명</b> · 이 층 위험에 강한 멤버가 위에 있어요 · 체력은 탑 전용 · 피로 · 각성은 멤버마다</p>${slot ? `<button class="btn sm ghost tw-clear" data-act="twPickHero" data-h="" data-s="${slot}">이 자리 비우기</button>` : ''}<div class="tw-pkgrid">${rows}</div>`, 'tw-pop tw-pick');
 }
 function awakePop() {
@@ -436,6 +436,7 @@ function result(g, victory, quit) {
   const team = (run.squad && run.squad.length ? run.squad : g.heroes.filter((h) => !h.def.summon).map((h) => h.id)).filter((h) => HEROES[h]);
   const names = team.map((h) => HEROES[h].name).join(' · ');
   const rep = TWA.report(g);
+  const wiped = !!(g.twa && TWA.members(g).length && TWA.members(g).every((h) => h.twDown > 0)); // 멤버가 모두 쓰러짐
   const time = fmtSec(g.t);
   const z = TW.zoneOf(f);
   const win = !!victory;
@@ -443,7 +444,7 @@ function result(g, victory, quit) {
     <div class="tw-scene z${z.id} res ${win ? 'win' : 'lose'}" style="--zc:${z.color}"><div class="tw-bg"><i class="tw-far"></i><i class="tw-near"></i><i class="tw-heat"></i><i class="tw-vig"></i></div><div class="tw-embers">${embers(win ? 30 : 10)}</div></div>
     <div class="tw-res ${win ? 'win' : 'lose'}">
       <em class="tr-floor">${f}<small>F</small></em>
-      <h2>${win ? `${f}층 돌파!` : quit ? '오늘은 여기까지' : g.tower && g.t >= g.tower.limit ? '시간 초과…' : '탑에서 떨어졌다…'}</h2>
+      <h2>${win ? `${f}층 돌파!` : quit ? '오늘은 여기까지' : wiped ? '모두 쓰러졌다…' : g.tower && g.t >= g.tower.limit ? '시간 초과…' : '탑에서 떨어졌다…'}</h2>
       <p class="sub">${win ? `${esc(names)} · ${time}` : `${esc(TW.zoneOf(f).name)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}`}</p>
       <div class="tr-chest ${win ? 'wait' : 'none'}" id="twChest">${win ? '<i class="tc-glow"></i><img class="tc-img tc-shut" src="/img/lb/fx/tower_chest.webp" alt="" draggable="false"><img class="tc-img tc-open" src="/img/lb/fx/tower_chest_open.webp" alt="" draggable="false">' : ''}</div>
       <div class="tr-rw" id="twRw">${win ? '<span class="spin"></span> 보상 받는 중…' : ''}</div>
@@ -479,7 +480,7 @@ function result(g, victory, quit) {
     if (!r || !r.ok) { rw.innerHTML = `<div class="err">기록을 저장하지 못했어요: ${esc((r && r.message) || '')}</div>`; return; }
     const fats = r.fats && Object.keys(r.fats).length ? r.fats : { [r.hero]: r.fat };
     const fatLine = r.fatAdd ? `<span class="fat ${fatLv(Math.max(...Object.values(fats)))}">피로 +${r.fatAdd}씩 · ${Object.entries(fats).map(([h, v]) => `${esc((HEROES[h] || {}).name || '')} ${v}%${v >= TW.FATIGUE.max ? '(휴식)' : ''}`).join(' · ')}</span>` : '';
-    if (!win) { rw.innerHTML = `<div class="tr-lines"><span>도전 ${r.left}/${TW.TOWER.tries} 남음</span>${fatLine}<span>층 규칙에 맞는 다른 멤버로도 도전해 봐요</span></div>`; return; }
+    if (!win) { rw.innerHTML = `<div class="tr-lines"><span>도전 ${r.left}/${TW.TOWER.tries} 남음</span>${fatLine}<span>${wiped ? '바닥 경고를 피해 끌어 옮기고 · 이 층 위험에 강한 멤버로 도전해 봐요' : '층 규칙 · 위험에 맞는 다른 멤버로도 도전해 봐요'}</span></div>`; return; }
     const lines = [];
     const got = r.reward;
     if (got) {

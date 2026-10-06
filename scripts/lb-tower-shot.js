@@ -108,6 +108,10 @@ const SQUAD = (process.argv[4] || 'myunghoon,gunnyeo,wonsik').split(',');
     await page.evaluate(async (TW) => { const A = await import(TW); const g = window.__lb.g; const ms = A.members(g); ms.forEach((h, i) => { h.twDown = 0; h.stunT = 0; h.x = 70 + i * 110; h.y = g.rowY - 30; h.px = h.x; h.py = h.y; }); const k = ['freeze', 'charm', 'silence']; ms.forEach((h, i) => { const s = A.spawnTele(g, k[i], h); s.warn = 4; }); const s2 = A.spawnTele(g, 'poison', ms[0]); s2.warn = 4; }, TW);
     await wait(1500); await clean();
     await shot('shapes');
+    // 전멸 → 결과 화면 (파티 피로 · 회피 기록)
+    await page.evaluate(async (TW) => { const A = await import(TW); const g = window.__lb.g; g.god = false; for (const h of A.members(g)) { h.twDown = 0; h.twHp = 1; h.twGrace = 0; const s = A.spawnTele(g, 'hit', h); s.shape = 'circle'; s.r = 44; s.x = h.x; s.y = h.y; s.warn = 0.2; } }, TW);
+    await wait(5000);
+    await shot('result');
   }
   console.log('errors:', errors.length ? errors : 'none');
   await browser.close();
