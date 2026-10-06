@@ -8,6 +8,7 @@
 //  - 감전: 맞은 멤버 곁(88)으로 번진다 → 흩어져야 / 기 모으기(51층~): 진상이 크게 기를 모으면 안전한 곳으로 모이거나, 기절 · 빙결 · 큰 피해로 끊는다
 import { HEROES, HERO_RES, KD_HERO, KD_SUP } from './data.js';
 import * as S from './sim.js';
+import { floorHp, floorAtk } from './tower.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, k) => a + (b - a) * clamp(k, 0, 1);
@@ -26,8 +27,19 @@ export const ARENA = {
   knock: { d: 70, stun: 0.6 }, // 넉백: 70 밀려나고 0.6초 휘청
   pool: { sec: 5, tick: 0.5, poison: 2.5 }, // 독 웅덩이: 5초 · 밟으면 독
   poison: 0.12, // 독: 초당 기준 피해 × 0.12
-  dmg0: 120, dmgGrow: 0.035, // 기준 피해 = 120 × (1 + 0.035 × (층 − 1))
+  dmg0: 160, dmgGrow: 0.045, // 기준 피해 = 160 × (1 + 0.045 × (층 − 1))
+  // 진상 체력 · 공격력 곡선 (리메이크): from 층까지는 예전 탑 그대로 · 그 위로는 층마다 hp · atk 배씩만 — 벽은 숫자 대신 예고 · 상태이상 (scripts/lb-tower-sim.js arena 로 맞춤)
+  curve: { from: 15, hp: [[16, 1.065], [36, 1.03], [61, 1.015]], atk: [[16, 1.025], [46, 1.01], [61, 1.005]] },
+  rush: 0.8, // 돌진 층 빠른 진상 속도 × (멤버를 옮기느라 바쁜 판이라 조금 느리게)
+  door: 1.4, // 입구 내구도 × (멤버 셋이 지키는 판 · 벽은 입구보다 멤버 체력)
 };
+// 이 층 진상 체력 · 공격력 보정 (예전 탑 곡선 대비)
+const curveMul = (list, f) => { let m = 1; for (let x = ARENA.curve.from + 1; x <= f; x++) { let r = 1; for (const s0 of list) if (x >= s0[0]) r = s0[1]; m *= r; } return m; };
+export function curveFix(f) {
+  const C = ARENA.curve;
+  if (f <= C.from) return { hp: 1, atk: 1 };
+  return { hp: curveMul(C.hp, f) / (floorHp(f) / floorHp(C.from)), atk: curveMul(C.atk, f) / (floorAtk(f) / floorAtk(C.from)) };
+}
 // 위험 종류 (경고 모양 · 색 · 상태이상) — cc: 층 기절 시간 대비 배율 · dmg: 기준 피해 대비
 export const HZ = {
   hit: { id: 'hit', name: '충격', color: '#ff9a3c', shapes: ['circle', 'line'], dmg: 0.6, cc: 0, desc: '피해만 — 끌어서 옮겨 보세요' },
@@ -59,17 +71,29 @@ export function teamRes(kind) { const out = []; for (const [id, s] of Object.ent
 // ─── 층 설계 ───
 //  1~3 연습 (예고 없음) · 4~10 피해만 (가만히 있어도 이김 · 끌어 옮기기 배우기) · 11~30 기절 예고 (피하기 배우기)
 //  31~50 층마다 위험 하나 (저항 멤버가 편함) · 51~80 위험 둘 + 기 모으기 끊기 · 81~ 위험 셋 + 짧은 예고 (랭킹)
+// 단계별 숫자 [단계 첫 층, 끝 층] 사이 선형 — warn 예고 초 · every 예고 간격 · cc 기절 기준 초 · multi 동시에 하나 더 확률 · wind 기 모으기
+export const TIERS = [
+  { from: 1, to: 3 },
+  { from: 4, to: 10, warn: [2.6, 2.4], every: [7, 6], cc: [0, 0], multi: [0, 0] },
+  { from: 11, to: 30, warn: [2.1, 1.6], every: [5, 3.8], cc: [2.4, 2.8], multi: [0, 0.1] },
+  { from: 31, to: 50, warn: [1.6, 1.3], every: [4, 3.3], cc: [2.8, 3.1], multi: [0.1, 0.2] },
+  { from: 51, to: 80, warn: [1.3, 1.05], every: [3.5, 3.0], cc: [3.1, 3.4], multi: [0.15, 0.3], wind: { every: [17, 13], dur: [3.4, 2.9], safe: 50, cut: 0.07, dmg: 2.2, stun: 3.5 } },
+  { from: 81, to: 100, warn: [1.0, 0.8], every: [3.0, 2.5], cc: [3.2, 3.6], multi: [0.25, 0.4], wind: { every: [12.5, 10], dur: [2.8, 2.4], safe: 46, cut: 0.08, dmg: 2.6, stun: 4 } },
+];
 export function floorPlan(f) {
   f = Math.max(1, Math.floor(f) || 1);
   const tier = f <= 3 ? 0 : f <= 10 ? 1 : f <= 30 ? 2 : f <= 50 ? 3 : f <= 80 ? 4 : 5;
-  let kinds = [], warn = 2.6, every = 99, multi = 0, cc = 0, wind = null;
-  if (tier === 1) { kinds = ['hit']; warn = 2.6; every = 7; }
-  else if (tier === 2) { const k = (f - 11) / 19; kinds = f >= 21 ? ['stun', f % 2 ? 'knock' : 'slow'] : ['stun']; warn = lerp(2.1, 1.6, k); every = lerp(6, 4.6, k); cc = lerp(2.2, 2.5, k); }
-  else if (tier === 3) { const k = (f - 31) / 19; kinds = [HZ_IDS[(f - 31) % 8]]; warn = lerp(1.6, 1.3, k); every = lerp(4.6, 3.9, k); cc = lerp(2.6, 2.9, k); }
-  else if (tier === 4) { const k = (f - 51) / 29, i = (f - 51) % 8; kinds = [HZ_IDS[i], HZ_IDS[(i + 3) % 8]]; warn = lerp(1.3, 1.05, k); every = lerp(3.8, 3.1, k); multi = lerp(0.15, 0.3, k); cc = lerp(2.9, 3.2, k); wind = { every: lerp(17, 13, k), dur: lerp(3.4, 2.9, k), safe: 50, cut: 0.07, dmg: 2.2, stun: 3.5 }; }
-  else if (tier === 5) { const k = Math.min(1, (f - 81) / 19), i = (f - 81) % 8; kinds = [HZ_IDS[i], HZ_IDS[(i + 3) % 8], HZ_IDS[(i + 5) % 8]]; warn = lerp(1.0, 0.8, k); every = lerp(3.0, 2.5, k); multi = lerp(0.35, 0.5, k); cc = lerp(3.2, 3.6, k); wind = { every: lerp(12.5, 10, k), dur: lerp(2.8, 2.4, k), safe: 46, cut: 0.08, dmg: 2.6, stun: 4 }; }
+  const T = TIERS[tier], k = clamp((f - T.from) / Math.max(1, T.to - T.from), 0, 1), L = (ab) => (ab ? lerp(ab[0], ab[1], k) : 0);
+  let kinds = [];
+  if (tier === 1) kinds = ['hit'];
+  else if (tier === 2) kinds = f >= 21 ? ['stun', f % 2 ? 'knock' : 'slow'] : ['stun'];
+  else if (tier === 3) kinds = [HZ_IDS[(f - 31) % 8]];
+  else if (tier === 4) { const i = (f - 51) % 8; kinds = [HZ_IDS[i], HZ_IDS[(i + 3) % 8]]; }
+  else if (tier === 5) { const i = (f - 81) % 8; kinds = [HZ_IDS[i], HZ_IDS[(i + 3) % 8], HZ_IDS[(i + 5) % 8]]; }
+  const W = T.wind;
+  const wind = W ? { every: L(W.every), dur: L(W.dur), safe: W.safe, cut: W.cut, dmg: W.dmg, stun: W.stun } : null;
   if (wind && f % 5 === 0) { wind.every *= 0.8; wind.cut *= 0.7; } // 보스 층: 더 자주 · 보스는 끊기가 어렵다 (최대 체력 대비)
-  return { f, tier, kinds, warn: +warn.toFixed(2), every: +every.toFixed(2), multi: +multi.toFixed(2), cc: +cc.toFixed(2), dmg: Math.round(ARENA.dmg0 * (1 + ARENA.dmgGrow * (f - 1))), wind };
+  return { f, tier, kinds, warn: +(T.warn ? L(T.warn) : 2.6).toFixed(2), every: +(T.every ? L(T.every) : 99).toFixed(2), multi: +L(T.multi).toFixed(2), cc: +L(T.cc).toFixed(2), dmg: Math.round(ARENA.dmg0 * (1 + ARENA.dmgGrow * (f - 1))), wind };
 }
 export const TIER_TXT = ['연습 층 · 예고 없음', '튜토리얼 · 바닥 경고는 피해만 (멤버를 끌어 옮겨 보세요)', '예고 층 · 맞으면 한참 기절 — 피하세요', '위험 층 · 이 층의 위험에 강한 멤버가 편해요', '위험 둘 + 기 모으기 (안전한 곳으로 모이거나 기절 · 큰 피해로 끊기)', '지옥 · 위험 셋 · 짧은 예고 (랭킹)'];
 // 이 층에 추천하는 멤버 (가진 멤버 중): 위험마다 저항 합 + 팀 면역 서포터 + 회복
@@ -101,9 +125,12 @@ export function attach(g, o = {}) {
   squad.forEach((id, i) => { if (!S.hasHero(g, id)) S.addHero(g, id, slots[i] !== undefined ? slots[i] : undefined); });
   const n = g.heroes.filter((h) => !h.def.summon).length;
   // 데려간 수만큼 진상이 단단 (혼자 탑에 맞춘 체력 기준)
-  const hk = SQUAD.hp[Math.max(0, Math.min(SQUAD.hp.length, n) - 1)] || 1;
+  const cf = curveFix(g.tower.f);
+  const hk = (SQUAD.hp[Math.max(0, Math.min(SQUAD.hp.length, n) - 1)] || 1) * cf.hp;
   for (const w of g.tower.def.waves) w.hpScale *= hk;
   if (g.hpScale && g.wave >= 1) g.hpScale *= hk;
+  g.tower.atk *= cf.atk;
+  g.base.max = Math.round(g.base.max * ARENA.door); g.base.hp = g.base.max;
   g.tower.curse = false; // 예전 저주(무작위 상태이상)는 바닥 예고로 바뀌었다
   const A = {
     plan, n, tele: [], pools: [], wind: null, nextT: plan.tier >= 1 ? 3.5 : 1e9, windT: plan.wind ? plan.wind.every * 0.7 : 1e9, seq: 0,
@@ -334,6 +361,7 @@ function tick(g, dt) {
     h.twWalk = g.t;
   }
   if (g.phase !== 'wave') { A.tele.length = 0; A.wind = null; return; }
+  for (const e of g.enemies) if (!e._tw) { e._tw = 1; if (e.fast && !e.boss) { e.speed *= ARENA.rush; e.baseSpeed = e.speed; } } // 새로 나온 진상 (돌진 층 속도)
   // 예고 → 터짐
   for (const s of A.tele) { s.t += dt; if (s.t >= s.warn && !s.done) { s.done = true; resolve(g, s); } }
   if (A.tele.some((s) => s.done)) A.tele = A.tele.filter((s) => !s.done);
