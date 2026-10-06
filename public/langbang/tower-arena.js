@@ -212,7 +212,7 @@ export function spawnTele(g, kind, tgt) {
 }
 function startWind(g) {
   const A = g.twa, W = A.plan.wind;
-  const es = g.enemies.filter((e) => !e.dead && e.y > 30 && e.y < g.ropeY + 10);
+  const es = g.enemies.filter((e) => !e.dead && e.y > 30 && e.y < g.ropeY + 10 && !(e.stunT > 0) && !(e.frozenT > 0)); // 이미 기절한 진상은 기를 못 모은다
   if (!es.length) return false;
   const e = es.find((x) => x.boss) || es.find((x) => x.titan || x.elite) || es.reduce((a, b) => (b.maxHp > a.maxHp ? b : a));
   const z = zoneOf(g);
