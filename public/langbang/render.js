@@ -2528,6 +2528,7 @@ export class Renderer {
     const maxCh = B.charges ? B.charges[h.lv - 1] : 0, w0 = 7, gap = 2, tw = maxCh * (w0 + gap) - gap, part = B.refill ? clamp01((b.refT || 0) / B.refill[h.lv - 1]) : 0;
     this.world();
     for (let k = 0; k < maxCh; k++) { const x0 = hx - tw / 2 + k * (w0 + gap); cx.fillStyle = 'rgba(0,0,0,0.55)'; cx.fillRect(x0, feet + 19, w0, 4); cx.fillStyle = '#7ad0ff'; const f = k < Math.floor(b.ch) ? 1 : k === Math.floor(b.ch) ? part : 0; if (f > 0) cx.fillRect(x0, feet + 19, w0 * f, 4); }
+    if (b.fever > 0) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.4 + 0.2 * Math.sin(t * 12); cx.fillStyle = '#7ad0ff'; cx.beginPath(); cx.ellipse(hx, feet + 4, 30, 9, 0, 0, Math.PI * 2); cx.fill(); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; } // 총출동: 발밑 빛
     if (b.combo > 0 && g.t - (b.lastLand || -9) < B.combo.win) { cx.fillStyle = '#ffe14d'; cx.font = `900 10px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(`×${b.combo + 1}`, hx, feet + 32); }
     return true;
   }

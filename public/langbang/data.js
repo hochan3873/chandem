@@ -111,6 +111,14 @@ export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.1
 //  방관(pen): 그 멤버 공격은 방어율을 그만큼 뚫는다 (건전남 전부) · 여지원 모자이크 한 겹마다 방어율 shredPer 씩 벗김 (5겹 = 0) · 모자이크 폭격은 전부
 export const ARMOR = { ch: [0, 0.05, 0.1, 0.16, 0.22, 0.28, 0.34, 0.4], fodder: 0.35, mid: 1.15, boss: 1.3, eliteHp: 100, shredPer: 0.2,
   pen: { gunman: 1, ara: 0.5, sunggu: 0.45, ingyu: 0.35, wonsik: 0.3, hyungyeong: 0.3, youngjun: 0.25, jiwon: 0.4 } };
+// 스테이지 s 에서 이 진상의 방어율 (화면 · 전투 같은 식) — 보스 · 중간 보스 · 정예(방어 · 체력 100+) 는 표 그대로 · 졸개는 fodder 배
+export function armorPctStage(s, d, elite) {
+  const c = ARMOR.ch[Math.min(ARMOR.ch.length, Math.max(1, Math.ceil((s || 1) / 10))) - 1] || 0;
+  if (!c || !d) return 0;
+  const k = d.boss ? ARMOR.boss : d.mid ? ARMOR.mid : elite || (d.armor || 0) > 0 || d.hp >= ARMOR.eliteHp ? 1 : ARMOR.fodder;
+  return Math.min(0.6, c * k);
+}
+export const ARMOR_BREAKERS = ['jiwon', 'gunman', 'ara', 'sunggu']; // 방깎(여지원) · 방관(건전남 전부 · 고아라 · 강성구 절반쯤) — 상성 경고 추천
 // 화상 (박나영): tick 초마다 · 겹마다 +stack · 최대 max 겹 — 방어율 무시
 export const BURN = { tick: 0.5, stack: 0.5, max: 3 };
 export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.0, 0.7, 0.6, 0.5, 0.46, 0.35], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.65, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
@@ -1079,8 +1087,8 @@ export const HEROES = {
     board: { charges: [3, 3, 3, 4, 4], refill: [2.6, 2.6, 2.3, 2.3, 2.0], speed: 620, w: 24, mul: 1.7, chain: 0.85, kb: 8, daze: 0.35, reach: 330, idle: 3, combo: { win: 2.2, per: 0.15, max: 5 }, perfect: { win: 0.3, mul: 1.4, stun: 0.6 } }, // 보드 충전 칸 (refill 초마다 한 칸) · 탭한 곳으로만 돌진 · 이어 타기 콤보 (2.2초 안에 또 맞히면 +15% 씩 · 최대 5) · 퍼펙트 (착지 직전 0.3초 안에 다음 탭 → ×1.4 · 휘청) · 3초 탭 없으면 자리로
     attack: '수동 보드 — 기본 공격이 없다. 필드를 탭한 곳으로만 보드를 타고 쭉 미끄러지며 길 위 진상을 전부 친다 (보드 충전 3칸 · 2.6초마다 한 칸) · 2.2초 안에 또 맞히면 콤보 +15% · 착지 직전에 다음 곳을 탭하면 「퍼펙트!」 ×1.4',
     desc: '앞머리 내린 아이돌상, 덧니 미소가 무기다. 설레발과 아는 척이 특기. "이거 내가 원래 알던 거야~" 하며 보드 하나로 골목을 휘젓는다.',
-    perks: { 3: '충전이 빨라진다 (2.3초) · 점프대 피해 +15%', 5: '충전 4칸 · 2초마다 · 부딪힌 진상 휘청' },
-    skill: { id: 'sled', name: '팬클럽 점프대', cd: 20, target: true, r: [90, 90, 100, 100, 115], desc: '팬클럽이 점프대를 대령! 찍은 곳으로 높이 날아올라 공중 트릭 → 쾅 착지 (범위 큰 피해 + 바깥으로 크게 밀침 · 보스는 덜) · 보드 충전 가득 · 5초 동안 충전 +60% 빨리', mul: [4.2, 4.2, 4.6, 4.6, 5.2], kb: 70, air: 0.7, fan: { sec: 5, spd: 0.6 } },
+    perks: { 3: '충전이 빨라진다 (2.3초) · 총출동 착지 피해 +15%', 5: '충전 4칸 · 2초마다 · 부딪힌 진상 휘청' },
+    skill: { id: 'sled', name: '팬클럽 총출동', cd: 20, target: true, r: [80, 80, 90, 90, 100], desc: '팬클럽이 점프대를 대령! 찍은 곳으로 날아올라 공중 트릭 → 착지 (범위 피해 + 밀침) · 그 뒤 5초 동안 「총출동」 — 충전 안 쓰고 마음껏 탈 수 있고 돌진 +30% · 지나간 길은 3초 동안 빙판 (진상 40% 느리게)', mul: [2.6, 2.6, 2.9, 2.9, 3.3], kb: 50, air: 0.6, fan: { sec: 5, spd: 0.6 }, fever: { sec: 5, dmg: 0.3, trail: 3, w: 16, slow: 0.4 } }, // (점프 착지는 짧게 · 진짜는 그 뒤 5초 동안 직접 타는 것 — 박나영 급강하(불꽃 고리)와 다르게)
     shouts: ['이거 내가 원래 알던 거야~', '내가 알지~', '팬클럽 출동!', '설레발 아니고 진짜야'],
   },
   byunghwa: {
@@ -2491,4 +2499,4 @@ Object.assign(SHORT_NAME, { envthief: '축의금 도둑', buffet: '뷔페 아줌
   mid_envthief: '각성 도둑', mid_buffet: '각성 뷔페', mid_drunkfriend: '각성 취객', fuse_toast: '건배사 삼촌', fuse_selfie8: '인증샷 도둑단' });
 FEW.push('buffet', 'badsinger');
 BOSS_KITS.mid_hallmgr = { name: '예식장 실장님', skills: [['slow', '"다음 예식 들어와요!"', { cut: 0.25, sec: 4 }], ['summon', '하객 몰아넣기', { types: ['drunkfriend', 'envthief'], n: 3 }]], p2: ['stun', '클립보드 내려치기', { n: 2, sec: 1.3 }] };
-BOSS_KITS.boss_bestman = { name: '신랑 친구 대표', skills: [['stun', '건배 제의', { n: 1, sec: 1.3 }], ['slow', '"한 말씀만 더…"', { cut: 0.25, sec: 4 }]], p2: ['summon', '친구들 무대로!', { types: ['drunkfriend', 'showoff'], n: 3 }] };
+BOSS_KITS.boss_bestman = { name: '신랑 친구 대표', skills: [['stun', '건배 제의', { n: 1, sec: 1.3 }], ['slow', '"한 말씀만 더…"', { cut: 0.25, sec: 4 }]], p2: ['summon', '친구들 무대로!', { carpet: true, len: 260, types: ['drunkfriend', 'showoff'], n: 3 }] };

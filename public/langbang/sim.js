@@ -8,7 +8,7 @@ import {
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
-  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, ARMOR, BURN, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
+  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, ARMOR, BURN, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
 import { PVP_END, pvpStepN, pvpWaveHp, pvpMatchHp, pvpMeta, pvpStar, pvpCapMap, PVP_ESC, pvpPhase, pvpSdCount, pvpBunchCount, PVP_DOTS, pvpDot } from './pvp.js';
@@ -1587,6 +1587,12 @@ function bossSkill(g, e, [kind, name, o]) {
   else if (kind === 'silence') { for (const h of g.heroes) h.silenceT = Math.max(h.silenceT || 0, debuffSec(h, o.sec)); }
   else if (kind === 'slow') { g.bossSlowT = Math.max(g.bossSlowT || 0, o.sec); g.bossSlowCut = o.cut; }
   else if (kind === 'shock') { g.projs = g.projs.filter((p) => p.y > e.y + 220 || Math.abs(p.x - e.x) > 200); forEnemiesNear(g, e.x, e.y, 200, (x) => { if (x !== e && !x.dead) x.shield = Math.max(x.shield, x.maxHp * 0.1); return true; }); }
+  else if (kind === 'summon' && o.carpet) { // 8-10 신랑 친구 대표 「친구들 무대로!」: 두루마리가 레드카펫처럼 입구 쪽으로 쫙 펼쳐지고 그 위에 친구들이 줄줄이
+    const y0 = e.y + 40, y1 = Math.min(g.ropeY - 90, y0 + o.len), lx = clamp(e.x, 40, g.W - 40);
+    for (let k = 0; k < o.n; k++) { const t = o.types[k % o.types.length]; if (ENEMIES[t]) spawnEnemy(g, t, clamp(lx + (k % 2 ? 14 : -14), 20, g.W - 20), y0 + ((y1 - y0) * (k + 1)) / (o.n + 1)); }
+    ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, boss: e.type, carpet: { x: lx, y0, y1 } });
+    return;
+  }
   else if (kind === 'summon') { for (let k = 0; k < o.n; k++) { const t = o.types[k % o.types.length]; if (ENEMIES[t]) spawnEnemy(g, t, clamp(e.x + (k - (o.n - 1) / 2) * 36, 20, g.W - 20), Math.max(20, e.y - 30)); } }
   else if (kind === 'drain') { const v = Math.floor(g.exp * o.v); g.exp -= v; g.stats.stolen += v; e.stolen = (e.stolen || 0) + v; }
   else if (kind === 'flyer') { // 삐끼왕 전단지 폭탄: 예고된 멤버 시야를 가린다 (사거리 ↓ · 저항 · 강성구 곁이면 짧게)
@@ -1606,7 +1612,7 @@ function bossSkill(g, e, [kind, name, o]) {
     ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, pts: front.map((x) => ({ x: x.x, y: x.y })), type: e.type });
     return;
   }
-  ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name });
+  ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, boss: e.type, hits: kind === 'stun' ? e.bai.targets.filter((h) => !h.gone).map((h) => ({ x: h.x, y: h.y, id: h.id })) : undefined, sec: o.sec }); // (boss · hits: 보스마다 다른 기술 연출 — kitfx.js)
 }
 export const isHidden = (e) => !e.unveiled && !!((e.def.traits && e.def.traits.stealth) || e.cloak);
 function killEnemy(g, e, src) {
@@ -3688,6 +3694,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
         b.st = 'air'; b.airT = 0; b.airMax = sk.air; b.ax = h.px; b.ay = h.py; b.tx = P.x; b.ty = P.y; b.jr = r; b.jdmg = base * sk.mul[lv] * (h.lv >= 3 ? 1.15 : 1); b.jkb = sk.kb; b.twice = !!sa.twice && !echo; b.ice = !!sa.ice;
         b.ch = h.def.board.charges[lv]; h.out = true;
         if (sk.fan) { h.fanT = sk.fan.sec; h.fanSpd = sk.fan.spd; }
+        if (sk.fever) b.fever = sk.fever.sec; // 팬클럽 총출동: 착지하고 나서 5초 동안 충전 안 쓰고 마음껏 · 지나간 길은 빙판
         ev(g, 'jumpUp', { x: h.px, y: h.py, tx: P.x, ty: P.y, r, air: sk.air });
         x = P.x; y = P.y;
         break;
@@ -4741,12 +4748,9 @@ const lerpK = (ab, k) => ab[0] + (ab[1] - ab[0]) * k;
 //  낙하(stamp 운영진 경고 딱지) · 구르기(roll 백인규 덤벨) · 권총 연발(pistol 건전남) · 즉발 욕 번개(서명훈)
 //  장판(g.zones: clock 오지은 시계 · fire 박나영 불 바닥 · tape 홍정민 붕대 벽 · floor 임수빈 댄스 플로어 · stage 김도훈 무대 · skid 백인규 타이어 자국)
 //  퍼지는 고리(g.rings 김도훈 음파) · 화염 원뿔(박나영) · 화상(진상 burnT)
-export function armorPctOf(g, e) { // 장이 깊을수록 단단 — 정예 · 중간 보스 · 보스는 표 그대로 · 졸개는 ARMOR.fodder 배 (스테이지 · 주간 · 헬만)
+export function armorPctOf(g, e) { // 장이 깊을수록 단단 (스테이지 · 주간 · 헬만) — data.js armorPctStage
   if (g.mode !== 'stage' || g.pvp || g.raid || g.tower) return 0;
-  const c = ARMOR.ch[Math.min(ARMOR.ch.length, Math.max(1, chapterOf(g.stage || 1))) - 1] || 0;
-  if (!c) return 0;
-  const k = e.boss ? ARMOR.boss : e.mid ? ARMOR.mid : e.elite || (e.def.armor || 0) > 0 || e.def.hp >= ARMOR.eliteHp ? 1 : ARMOR.fodder;
-  return Math.min(0.6, c * k);
+  return armorPctStage(g.stage || 1, e.def, e.elite);
 }
 // 방어율이 깎는 비율 (방관 멤버 · 모자이크 겹 · 모자이크 폭격 반영) — 화면(진상 정보)도 같은 식
 export function armorCut(e, src) {
@@ -4952,6 +4956,8 @@ function updateZones(g, dt) {
           return true;
         });
       }
+    } else if (z.kind === 'iceline') { // 송바울 총출동 빙판 길: 지나가는 진상 미끄러져 느려진다
+      if ((z.tick -= dt) <= 0) { z.tick += 0.2; for (const e of g.enemies) if (!e.dead && segDist(e.x, e.y, z.x, z.y, z.x2, z.y2) < z.w + e.r) { e.slowT = Math.max(e.slowT, 0.4); e.slowMul = Math.min(e.slowMul || 1, 1 - z.slow * (e.boss ? 0.5 : 1)); } }
     } else if (z.kind === 'fuse') { // 최은옥 시한폭탄: 다 타면 펑
       if (z.t <= 0) landLob(g, z.p);
     } else if (z.kind === 'dive') { // 박나영 급강하: 그림자 예고가 끝나면 쾅 → 불꽃 고리
@@ -5100,12 +5106,15 @@ export function setBoardAim(g, x, y) {
 }
 function boardGo(g, h, P, perfect) {
   const B = h.def.board, b = h.bd, lv = h.lv - 1;
-  b.ch -= 1; b.idleT = 0;
+  const fever = b.fever > 0 && h.def.skill.fever;
+  if (!fever) b.ch -= 1;
+  b.idleT = 0; b.sx = h.px; b.sy = h.py;
   const comboOk = g.t - b.lastLand < B.combo.win && b.lastHit;
   b.combo = comboOk ? Math.min(B.combo.max, b.combo + 1) : 0;
   b.perfect = !!perfect;
   b.st = 'dash'; b.hit = new Set(); b.tx = P.x; b.ty = P.y;
-  b.dmg = heroDamage(g, h) * B.mul * (1 + B.combo.per * b.combo) * (perfect ? B.perfect.mul : 1) * (h.sa && h.sa.glow ? 1.25 : 1);
+  b.dmg = heroDamage(g, h) * B.mul * (1 + B.combo.per * b.combo) * (perfect ? B.perfect.mul : 1) * (h.sa && h.sa.glow ? 1.25 : 1) * (fever ? 1 + fever.dmg : 1);
+  b.feverDash = !!fever;
   h.out = true; h.lastShotT = g.t; h.recoil = 0.14; h.shots++;
   b.face = b.tx < h.px ? -1 : 1;
   ev(g, 'boardDash', { hero: h.id, x: h.px, y: h.py, tx: b.tx, ty: b.ty, aimed: true, left: Math.floor(b.ch), combo: b.combo, perfect: !!perfect });
@@ -5114,6 +5123,7 @@ function updateBoard(g, h, dt, rate) {
   const B = h.def.board, lv = h.lv - 1;
   if (!h.bd) boardInit(h);
   const b = h.bd, maxCh = B.charges[lv] + ((h.sig && h.sig.boardUses) ? 1 : 0);
+  if (b.fever > 0 && b.st !== 'air') b.fever -= dt;
   if (b.ch < maxCh) { b.refT += dt * rate * (h.fanT > 0 ? 1 + (h.fanSpd || 0) : 1); const rf = B.refill[lv]; if (b.refT >= rf) { b.refT -= rf; b.ch = Math.min(maxCh, b.ch + 1); ev(g, 'boardCharge', { x: h.px, y: h.py - 50, n: Math.floor(b.ch) }); } } else b.refT = 0;
   if (b.st === 'air') { // 팬클럽 점프대: 날아올라 → 착지 쾅
     b.airT += dt; const k = Math.min(1, b.airT / b.airMax);
@@ -5152,6 +5162,7 @@ function updateBoard(g, h, dt, rate) {
       if (!e.dead && !e.boss) { applyKnockback(e, B.kb, g); if (lv >= 4) e.stunT = Math.max(e.stunT, B.daze * stunMul(e)); if (b.perfect) e.stunT = Math.max(e.stunT, B.perfect.stun * stunMul(e)); }
     }
     if (d <= sp) {
+      if (b.feverDash) { const F = h.def.skill.fever; (g.zones || (g.zones = [])).push({ kind: 'iceline', x: b.sx, y: b.sy, x2: h.px, y2: h.py, w: F.w, slow: F.slow, t: F.trail, max: F.trail, tick: 0, hero: h }); } // 총출동: 지나간 길이 빙판
       b.st = 'ride'; b.lastLand = g.t; b.lastHit = b.hit.size > 0; b.idleT = 0;
       if (b.hit.size >= 3) ev(g, 'boardCombo', { x: h.px, y: h.py, n: b.hit.size });
       if (b.combo >= 1 && b.lastHit) ev(g, 'boardChain', { x: h.px, y: h.py - 50, n: b.combo + 1 });

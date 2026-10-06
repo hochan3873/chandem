@@ -11,6 +11,7 @@ import {
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
+  armorPctStage, ARMOR_BREAKERS,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -2047,8 +2048,10 @@ const ACTS = {
     const T = foeTrait(id), c = CLASSES[d.cls];
     const good = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) > 1);
     const cnt = T ? T.counter.filter((h) => HEROES[h]).map((h) => esc(heroNm(h))).join(' · ') : '';
+    const ap = armorPctStage(app.stage || 1, d, false), apEl = armorPctStage(app.stage || 1, d, true);
+    const apLine = apEl > 0 ? `<p class="pp-tip">${ic('shield', '', 'sm')}방어율 <b>${Math.round(ap * 100)}%</b>${apEl > ap ? ` (정예 ${Math.round(apEl * 100)}%)` : ''} — 한 방마다 깎여요 → <b>${ARMOR_BREAKERS.filter((h) => HEROES[h]).map((h) => esc(heroNm(h))).join(' · ')}</b> 가 뚫어요</p>` : '';
     popup(`<div class="pp-fp">${foeFace(id, 'big')}<div><b>${esc(d.name)}</b><small>${c ? `${c.icon} ${c.name}` : ''}${T ? ` · ${T.icon} ${esc(T.name)}` : ''}</small></div></div>
-      <p class="pp-tip">${T ? `${esc(T.tip)}${cnt ? ` → <b>${cnt}</b>` : ''}` : `${good.map((a) => `${attrIco(a)}${ATTRS[a].name}`).join(' · ')} 멤버에게 약해요`}</p>
+      <p class="pp-tip">${T ? `${esc(T.tip)}${cnt ? ` → <b>${cnt}</b>` : ''}` : `${good.map((a) => `${attrIco(a)}${ATTRS[a].name}`).join(' · ')} 멤버에게 약해요`}</p>${apLine}
       <button class="chip mini" data-act="info" data-kind="enemy" data-id="${id}">자세히</button>`, 'pp-mini');
   },
   prepRw: () => { const p = P(), s = app.stage, hell = app.hellMode && hellOpen(p.stages, s), r = stageReward(s, 3, hell ? 3 : p.stages[s] | 0); popup(`<h3>${ic('gift', '')} 보상</h3><div class="ilist"><p class="ip">클리어 코인 최대 <b>${fmt(Math.round(r.clear * (hell ? HELL.coin : 1)))}</b>${hell ? ` (헬 ×${HELL.coin})` : ''} · ★ 많을수록 ↑</p>${r.first ? `<p class="ip">첫 클리어 <b>+${fmt(r.first)}</b></p>` : ''}${r.star ? `<p class="ip">새 ★마다 코인 · ★★★까지 <b>+${fmt(r.star)}</b></p>` : ''}${r.mid ? `<p class="ip">중간 보스 처치 <b>+${fmt(r.mid)}</b></p>` : ''}<p class="ip">장비 1개 (★★★면 35%로 1개 더 · 퍼펙트 +1${hell ? ' · 헬 +1 · 희귀 이상' : ''})</p><p class="ip">데려간 멤버 카드 가끔${hell ? ' (헬 ×2)' : ''}</p><p class="ip">기력 ${ic('bolt', '', 'sm')}${L.stageStaminaCost(p, s, hell)} — 실패하면 일부 돌려받아요</p></div>`, 'pp-mini'); },
@@ -4593,7 +4596,7 @@ function enemyInfoHtml(e) {
   const bad = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) < 1).map((a) => attrIco(a) + ATTRS[a].name);
   return `<div class="ih"><b>${e.name}</b>${clsTag(e.cls)}${e.boss ? '<em class="bs">보스</em>' : ''}</div>
     <p class="ia">${esc(ENEMY_TIPS[e.id] || '')}</p>
-    <p class="ip">잘 먹힘 ${good.join(' ')} · 안 먹힘 ${bad.join(' ')}</p>`;
+    <p class="ip">잘 먹힘 ${good.join(' ')} · 안 먹힘 ${bad.join(' ')}</p>${(() => { const st = app.mode === 'stage' ? app.stage || 0 : 0, ap = st ? armorPctStage(st, e, false) : 0; return ap > 0 ? `<p class="ip">방어율 ${Math.round(ap * 100)}% (${chapterOf(st)}장) — 방깎 · 방관: ${ARMOR_BREAKERS.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join(' · ')}</p>` : ''; })()}`;
 }
 // 아이콘을 누르면 뜨는 설명 카드
 function showInfoCard(kind, id) {
@@ -4831,7 +4834,12 @@ function showPrep(mode, s) {
   // 상성 경고: 이 판의 진상 기믹에 대처할 멤버가 덱에 없으면 짚어 준다 (가진 멤버 중 추천 2명)
   const lack = mode === 'stage' ? conds.filter((c) => COND[c] && !ids.some((id) => COND[c].counter.includes(id))) : [];
   const own = new Set(owned());
-  const lackHtml = lack.length ? `<div class="pp-lack">${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}</div>` : '';
+  // 방어율 경고 (장이 깊을수록 정예 · 보스가 단단): 방깎 · 방관 멤버가 없으면 짚어 준다
+  const apE = mode === 'stage' ? armorPctStage(s, { hp: 999 }, true) : 0, apB = mode === 'stage' ? armorPctStage(s, { boss: true, hp: 999 }) : 0;
+  const armorLack = apE >= 0.15 && !ids.some((id) => ARMOR_BREAKERS.includes(id));
+  const armorRec = armorLack ? ARMOR_BREAKERS.filter((id) => HEROES[id] && own.has(id)).slice(0, 2) : [];
+  const armorHtml = armorLack ? `<p>${ic('bolt', '', 'sm')}<b>방어율 ${Math.round(apE * 100)}%</b> (정예 · 보스 ${Math.round(apB * 100)}%) — 방깎 · 방관 멤버가 덱에 없어요${armorRec.length ? ` → <em>${armorRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
+  const lackHtml = lack.length || armorHtml ? `<div class="pp-lack">${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}</div>` : '';
   const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
   // 4) 등장 진상
   const foes = prepFoes(st);

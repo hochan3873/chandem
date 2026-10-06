@@ -97,11 +97,21 @@ export class KitFx {
       case 'diveUp': this.add('diveup', { x: e.x, y: e.y, tx: e.tx, ty: e.ty, r: e.r, dur: e.air || 0.75 }); break;
       case 'diveLand': fx.blast(e.x, e.y, e.r * 1.3, 'fire'); fx.ring(e.x, e.y, 10, e.r * 1.4, 0.5, '#ff8a2a', 7); fx.addShake(9); fx.text(e.x, e.y - 30, '쾅!!', '#ffd23f', 20, 0.9); for (let i = 0; i < (busy ? 6 : 16); i++) { const a = Math.random() * TAU, s = 120 + Math.random() * 160; fx.part('flame', e.x, e.y, Math.cos(a) * s, Math.sin(a) * s * 0.5, 0.6, 12, i % 2 ? '#ff8a2a' : '#ffd23f', { drag: 3 }); } break;
       case 'jumpUp': this.add('ramp', { x: e.x, y: e.y, tx: e.tx, ty: e.ty, r: e.r, dur: e.air || 0.7 }); break;
-      case 'jumpLand': fx.ring(e.x, e.y, 10, e.r * 1.3, 0.45, '#bfe8ff', 6); fx.burst(e.x, e.y, busy ? 6 : 16, '#ffffff', 220, 'puff', 8, 0.55); fx.addShake(7); fx.text(e.x, e.y - 34, '착지!', '#7ad0ff', 16, 0.8); break;
+      case 'jumpLand': fx.ring(e.x, e.y, 10, e.r * 1.3, 0.45, '#bfe8ff', 6); fx.burst(e.x, e.y, busy ? 6 : 16, '#ffffff', 220, 'puff', 8, 0.55); fx.addShake(7); fx.text(e.x, e.y - 34, '팬클럽 총출동!', '#7ad0ff', 16, 0.9); fx.banner('총출동 5초!', '마음껏 탭해서 타세요 · 지나간 길은 빙판', '#2f8ac8', 0.9, 'wave'); break;
       case 'boardChain': fx.text(e.x, e.y, `콤보 ${e.n}!`, '#7ad0ff', 13 + Math.min(6, e.n), 0.8); break;
       case 'boardDash': if (e.perfect) { fx.text(e.x, e.y - 70, '퍼펙트!', '#ffe14d', 17, 0.9); fx.ring(e.x, e.y - 10, 6, 46, 0.35, '#ffe14d', 4); } break;
       case 'boardEmpty': if (!busy) fx.text(e.x, e.y, '보드 충전 중…', '#cfe3ff', 11, 0.7); break;
       case 'boardCharge': break;
+      case 'bossSkill': if (e.boss === 'boss_bestman') { // 8-10 신랑 친구 대표: 기술마다 눈에 보이는 연출
+        if (e.kind === 'stun') { // 건배 제의: 머리 위 샴페인 잔 번쩍 → 금빛 거품 · "건배!" → 표적 멤버에게 샴페인이 터진다
+          this.add('toast', { x: e.x, y: e.y - 110, dur: 0.9 }); fx.bubble(e.x, e.y - 150, '건배!');
+          for (const q of e.hits || []) { this.add('champ', { x: e.x, y: e.y - 100, tx: q.x, ty: q.y - 40, dur: 0.9 }); }
+        } else if (e.kind === 'slow') { // 한 말씀만 더…: 마이크에서 음파 고리 → 멤버마다 회색 두루마리가 칭칭 · "Zzz…"
+          for (let i = 0; i < 3; i++) this.add('speechRing', { x: e.x, y: e.y - 40, dur: 0.9, delay: i * 0.18 });
+          for (const h of g.heroes) { if (h.def.summon) continue; this.add('scroll', { h, dur: e.sec || 4 }); }
+          fx.bubble(e.x, e.y - 150, '한 말씀만 더…'); if (g.heroes[0]) fx.text(g.heroes[0].x, g.heroes[0].y - 100, 'Zzz…', '#d8d8e8', 14, 1.4);
+        } else if (e.kind === 'summon' && e.carpet) { this.add('carpet', { x: e.carpet.x, y0: e.carpet.y0, y1: e.carpet.y1, dur: 3 }); fx.bubble(e.x, e.y - 150, '친구들 무대로!'); }
+      } break;
       case 'skill': if (e.skill === 'winkbomb') this.add('wink', { x: e.x, y: e.y, r: e.r || 130, dur: 1.0 }); if (e.skill === 'firstaid') for (const h of g.heroes) this.add('aid', { h, dur: 1.1 }); if (e.skill === 'rally') this.add('flag', { h: g.heroes.find((o) => o.id === e.hero), dur: 1.2 }); break;
     }
     return false;
@@ -142,6 +152,10 @@ export class KitFx {
         cx.fillStyle = gr; cx.beginPath(); cx.arc(0, 0, z.r * (1 + Math.sin(now * 14 + z.x) * 0.04), 0, TAU); cx.fill();
         cx.globalCompositeOperation = 'source-over';
         if (Math.random() < 0.35) { const a = Math.random() * TAU, rr = z.r * (z.ring ? 0.8 + Math.random() * 0.2 : Math.random()); this.fx.part('flame', z.x + Math.cos(a) * rr, z.y + Math.sin(a) * rr * 0.5, 0, -50, 0.45, 8 + Math.random() * 6, Math.random() < 0.5 ? '#ff8a2a' : '#ffd23f'); }
+      } else if (z.kind === 'iceline') { // 송바울 총출동: 지나간 길이 빙판
+        R.world(); cx.globalAlpha = 0.7 * fade; cx.lineCap = 'round';
+        cx.strokeStyle = 'rgba(190,235,255,0.55)'; cx.lineWidth = z.w * 2; cx.beginPath(); cx.moveTo(z.x, z.y + 8); cx.lineTo(z.x2, z.y2 + 8); cx.stroke();
+        cx.strokeStyle = 'rgba(255,255,255,0.9)'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(z.x, z.y + 8); cx.lineTo(z.x2, z.y2 + 8); cx.stroke();
       } else if (z.kind === 'skid') { // 백인규 타이어 자국 · 송바울 눈길
         R.tf(z.x, z.y + 6, 0, 1, 0.5); cx.globalAlpha = 0.6 * fade; cx.strokeStyle = z.snow ? 'rgba(235,248,255,0.9)' : 'rgba(25,20,20,0.85)'; cx.lineWidth = 5;
         for (const rr of [0.55, 0.75, 0.92]) { cx.beginPath(); cx.arc(0, 0, z.r * rr, rr * 3, rr * 3 + TAU * 0.8); cx.stroke(); }
@@ -359,5 +373,33 @@ def('aid', 'mid', function (o, k) { // 건전녀 응급 방패: 멤버마다 초
   const h = o.h; if (!h) return; const cx = this.cx, q = eOut(Math.min(1, k * 2));
   this.R.tf(h.x, h.y - 20, 0, 1, 1); cx.globalAlpha = (1 - k) * 0.9; cx.strokeStyle = '#e8fff0'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, 34 * q, Math.PI, TAU); cx.stroke();
   cx.fillStyle = '#4fd18b'; cx.fillRect(-3, -60 - 20 * k, 6, 16); cx.fillRect(-8, -55 - 20 * k, 16, 6);
+});
+// 8-10 신랑 친구 대표 기술 연출
+def('toast', 'top', function (o, k) { // 머리 위 샴페인 잔 번쩍 + 금빛 거품
+  const cx = this.cx, s = 1 + 0.3 * Math.sin(Math.min(1, k * 3) * Math.PI); this.R.tf(o.x, o.y, Math.sin(k * 20) * 0.15, s, s); cx.globalAlpha = 1 - Math.max(0, k - 0.7) / 0.3;
+  cx.fillStyle = 'rgba(255,240,170,0.85)'; cx.beginPath(); cx.moveTo(-10, -18); cx.lineTo(10, -18); cx.lineTo(4, 2); cx.lineTo(-4, 2); cx.closePath(); cx.fill(); cx.strokeStyle = '#fff'; cx.lineWidth = 1.5; cx.stroke();
+  cx.fillStyle = '#e8d8a0'; cx.fillRect(-1, 2, 2, 12); cx.fillRect(-7, 13, 14, 2);
+  cx.globalCompositeOperation = 'lighter'; const gr = cx.createRadialGradient(0, -8, 2, 0, -8, 30); gr.addColorStop(0, `rgba(255,240,180,${0.8 * (1 - k)})`); gr.addColorStop(1, 'rgba(255,220,120,0)'); cx.fillStyle = gr; cx.fillRect(-30, -38, 60, 60); cx.globalCompositeOperation = 'source-over';
+  if (Math.random() < 0.6) this.fx.part('dot', o.x + (Math.random() - 0.5) * 16, o.y - 16, (Math.random() - 0.5) * 20, -60 - Math.random() * 40, 0.7, 3 + Math.random() * 2, '#ffe9a0');
+});
+def('champ', 'top', function (o, k) { // 샴페인 줄기가 멤버에게 쏟아져 둥글게 팡
+  const cx = this.cx;
+  if (k < 0.45) { const q = k / 0.45, x = o.x + (o.tx - o.x) * q, y = o.y + (o.ty - o.y) * q - Math.sin(q * Math.PI) * 50; this.R.tf(x, y, 0, 1, 1); cx.globalAlpha = 1; cx.fillStyle = '#ffe9a0'; cx.beginPath(); cx.arc(0, 0, 6, 0, Math.PI * 2); cx.fill(); if (Math.random() < 0.7) this.fx.part('dot', x, y, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40, 0.4, 3, '#fff6c8'); return; }
+  const q = (k - 0.45) / 0.55; this.R.tf(o.tx, o.ty, 0, 1, 1); cx.globalAlpha = 1 - q;
+  cx.strokeStyle = '#ffe9a0'; cx.lineWidth = 5; cx.beginPath(); cx.arc(0, 0, 10 + 40 * q, 0, Math.PI * 2); cx.stroke();
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; cx.fillStyle = i % 2 ? '#fff6c8' : '#ffd86a'; cx.beginPath(); cx.arc(Math.cos(a) * (14 + 34 * q), Math.sin(a) * (14 + 34 * q), 3.5 * (1 - q) + 1, 0, Math.PI * 2); cx.fill(); }
+});
+def('speechRing', 'top', function (o, k) { const q = k - (o.delay || 0) / o.dur; if (q <= 0) return; const cx = this.cx; this.R.tf(o.x, o.y, 0, 1, 0.6); cx.globalAlpha = 1 - q; cx.strokeStyle = '#d8d8e8'; cx.lineWidth = 4; cx.setLineDash([10, 6]); cx.beginPath(); cx.arc(0, 0, 30 + q * 260, 0, Math.PI * 2); cx.stroke(); cx.setLineDash([]); });
+def('scroll', 'mid', function (o, k) { // 회색 두루마리가 멤버를 칭칭 (축사에 지쳐 공속 ↓)
+  const h = o.h; if (!h || h.gone) return; const cx = this.cx, wrap = Math.min(1, k * 6), a = k > 0.9 ? (1 - k) / 0.1 : 1;
+  this.R.tf(h.x, h.y - 26, 0, 1, 1); cx.globalAlpha = 0.85 * a;
+  for (let i = 0; i < 3; i++) { const y = -20 + i * 16; cx.fillStyle = i % 2 ? '#d6d2c6' : '#ece8dc'; cx.fillRect(-22 * wrap, y, 44 * wrap, 9); cx.strokeStyle = '#9a968a'; cx.lineWidth = 1; cx.strokeRect(-22 * wrap, y, 44 * wrap, 9); cx.fillStyle = '#8a867a'; for (let j = -16; j < 16 * wrap; j += 7) cx.fillRect(j, y + 4, 4, 1); }
+  if (Math.random() < 0.03) this.fx.text(h.x + 10, h.y - 80, 'Zzz…', '#d8d8e8', 11, 0.9);
+});
+def('carpet', 'ground', function (o, k) { // 두루마리가 레드카펫처럼 쫙 (입구 쪽으로)
+  const cx = this.cx, un = Math.min(1, k * 4), y1 = o.y0 + (o.y1 - o.y0) * un, a = k > 0.8 ? (1 - k) / 0.2 : 1;
+  this.R.world(); cx.globalAlpha = 0.9 * a;
+  cx.fillStyle = '#b0182a'; cx.fillRect(o.x - 22, o.y0, 44, y1 - o.y0); cx.fillStyle = '#e8c860'; cx.fillRect(o.x - 22, o.y0, 3, y1 - o.y0); cx.fillRect(o.x + 19, o.y0, 3, y1 - o.y0);
+  cx.fillStyle = '#ece8dc'; cx.beginPath(); cx.ellipse(o.x, y1, 25, 7, 0, 0, Math.PI * 2); cx.fill(); cx.strokeStyle = '#9a968a'; cx.lineWidth = 1.5; cx.stroke(); // 굴러가는 두루마리 끝
 });
 def('flag', 'mid', function (o, k) { const h = o.h; if (!h) return; const cx = this.cx, q = eOut(Math.min(1, k * 3)); this.R.tf(h.x + 18, h.y - 10 - 40 * q, Math.sin(k * 20) * 0.05, 1, 1); cx.globalAlpha = 1 - Math.max(0, k - 0.7) / 0.3; cx.fillStyle = '#8a6a3a'; cx.fillRect(-1.5, 0, 3, 46); cx.fillStyle = '#ffd23f'; cx.beginPath(); cx.moveTo(1, 0); cx.lineTo(26, 7 + Math.sin(k * 30) * 2); cx.lineTo(1, 16); cx.closePath(); cx.fill(); });
