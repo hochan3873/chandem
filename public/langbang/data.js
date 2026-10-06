@@ -129,7 +129,7 @@ export const HERO_RES = {
 //  게이지 크기 = base × KD_HERO(멤버) × (1 + lv×(Lv−1)) × (1 + meta×강화) × (1 + star×(★−1)) × (1 + 장비 저항) — 키울수록 잘 버틴다
 //  status: 상태이상 1초당 +10 (감속은 slow) · decay: 마지막으로 맞고 wait 초 뒤부터 초당 per 씩 빠짐 · line: 입구 치는 진상 한 대 (r 안 가장 가까운 멤버 · 정예 · 보스 배) · taunt: 도발 멤버(정원식 · 배현경 · 윤정섭)가 r 안 멤버 대신 맞음
 //  poison: 독 — 초당 게이지 +dps · 공격 속도 ×spd · 기절 예고 조건(3장부터)에 독이 섞이고 오리고기 · 토 웅덩이도 독
-export const KD = { base: 100, lv: 0.06, meta: 0.025, star: 0.08, sec: 4, grace: 1.5, status: 10, slow: 3, decay: { wait: 4, per: 2.5 }, ch: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.1, 2.3], hell: 1.4, // ch: 장마다 채우는 양 배율 (멤버가 커지는 만큼) · hell: 헬 배율
+export const KD = { base: 100, lv: 0.06, meta: 0.025, star: 0.08, sec: 4, grace: 1.5, status: 10, slow: 3, kind: { silence: 0.4 } /* 침묵은 스킬만 막아서 덜 */, decay: { wait: 4, per: 2.5 }, ch: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.1, 2.3], hell: 1.4, // ch: 장마다 채우는 양 배율 (멤버가 커지는 만큼) · hell: 헬 배율
   line: { r: 46, hit: 5, elite: 1.6, boss: 3 }, taunt: { r: 95 }, poison: { dps: 5, spd: 0.8, cc: 5, duck: 4, puddle: 2 } };
 // 멤버별 게이지 배율: 탱커 크게 · 딜러 작게
 export const KD_HERO = { wonsik: 2.4, jeongseob: 2.4, hyungyeong: 2.0, ingyu: 1.7, sunggu: 1.4, bangjang: 1.4, jungmin: 1.4, gunnyeo: 1.3, dohoon: 1.3, ara: 1.2, byunghwa: 1.2, donghan: 1.1, soyoung: 1.1,

@@ -2548,7 +2548,7 @@ function condCc(g, dt) {
     const fresh = hs.filter((h) => h.stunT <= 0 && h.charmT <= 0), list = fresh.length ? fresh : hs;
     const top = list.reduce((a, h) => (h.dmgDone > a.dmgDone ? h : a), list[0]);
     const h = victim(g, list, top);
-    const kind = CC_ORDER[(g.ccI = (g.ccI | 0) + 1) % CC_ORDER.length];
+    let kind = CC_ORDER[(g.ccI = (g.ccI | 0) + 1) % CC_ORDER.length];
     const hk = g.hell ? 1.2 : 1;
     // 해제 담당: 건전녀가 있으면 바로 응급처치 (4초에 한 번 · 0.6초 만에 풀림) · 김도훈 떼창 곁이면 40% 짧게
     const gn = g.heroes.find((o) => o.id === 'gunnyeo' && o.stunT <= 0 && o.charmT <= 0 && !o.gone);
@@ -2765,7 +2765,7 @@ export function debuffSec(h, sec, kind = 'hard') {
   if (g && byungNear(g, h)) sec *= HEROES.byunghwa.aura.cc; // 강병화 곁: 상태이상 절반
   let out = (h.def.taunt ? sec * h.def.taunt : sec) * (h.debuffMul || 1) * (1 - resOf(h.meta, h.gear && h.gear.res)) * (g && g.gnRes ? 1 - g.gnRes : 1) * (h.gear && h.gear.hellSet >= 2 ? 1 - HELL_SET_FX.cc : 1);
   if (kind !== 'hard' && kind !== 'none') { const r = resPct(h, kind); if (r >= 100) { if (g && g.t - (h.immT || -9) > 0.8) { h.immT = g.t; ev(g, 'immune', { kind, hero: h.id, x: h.x, y: h.y - 60 }); } return 0; } out *= 1 - r / 100; } // 멤버 저항 (HERO_RES) + 서포터 면역 (KD_SUP)
-  if (g && g.kdOn && out > 0 && kind !== 'poison' && kind !== 'none') kdAdd(g, h, out * (kind === 'slow' ? KD.slow : KD.status));
+  if (g && g.kdOn && out > 0 && kind !== 'poison' && kind !== 'none') { const ex = h.kdExp || (h.kdExp = {}), p0 = Math.max(g.t, ex[kind] || 0), add = Math.max(0, g.t + out - p0); ex[kind] = Math.max(p0, g.t + out); if (add > 0) kdAdd(g, h, add * (kind === 'slow' ? KD.slow : KD.status * (KD.kind[kind] || 1)), { src: kind }); } // 늘어난 시간만큼만 (매 프레임 다시 거는 것도 한 번으로)
   return out;
 }
 // ─── 쓰러짐 게이지 (KD) — 레이드 등 다른 모드도 그대로 쓰게 export ───
@@ -2778,7 +2778,7 @@ export function kdAdd(g, h, v, o = {}) {
   if (!o.direct && !h.def.taunt) { const t = g.heroes.find((x) => x.def.taunt && x !== h && !x.gone && !(x.kdT > 0) && Math.abs(x.x - h.x) < KD.taunt.r); if (t) h = t; } // 탱커가 곁 멤버 대신 맞는다
   if (h.kdT > 0 || h.kdGrace > 0) return 0;
   v *= (1 - supOf(g, 'kdCut')) * (g.mode === 'stage' ? KD.ch[Math.min(8, chapterOf(g.stage || 1)) - 1] || 1 : 1) * (g.hell ? KD.hell : 1);
-  h.kdMax = kdMax(h); h.kd = (h.kd || 0) + v; h.kdHitT = g.t; g.stats.kdFill = (g.stats.kdFill || 0) + v; g.stats.kdPeak = Math.max(g.stats.kdPeak || 0, h.kd / h.kdMax);
+  h.kdMax = kdMax(h); h.kd = (h.kd || 0) + v; h.kdHitT = g.t; g.stats.kdFill = (g.stats.kdFill || 0) + v; { const k = o.src || 'etc', m = g.stats.kdSrc || (g.stats.kdSrc = {}); m[k] = (m[k] || 0) + v; } g.stats.kdPeak = Math.max(g.stats.kdPeak || 0, h.kd / h.kdMax);
   if (h.kd >= h.kdMax) { h.kd = h.kdMax; h.kdT = h.kdSec = KD.sec; h.beamE = null; h.beam2E = null; g.stats.kd = (g.stats.kd || 0) + 1; ev(g, 'knockdown', { hero: h.id, x: h.x, y: h.y, sec: KD.sec }); }
   return v;
 }
@@ -2788,7 +2788,7 @@ function kdTick(g, h, dt) {
   if (h.def.summon) return;
   h.kdMax = kdMax(h);
   if (h.kdGrace > 0) h.kdGrace -= dt;
-  if (h.poisonT > 0) { h.poisonT -= dt; kdAdd(g, h, KD.poison.dps * dt, { direct: true }); } // 독: 게이지가 계속 찬다
+  if (h.poisonT > 0) { h.poisonT -= dt; kdAdd(g, h, KD.poison.dps * dt, { direct: true, src: 'poison' }); } // 독: 게이지가 계속 찬다
   if (h.kdT > 0) { h.kdT -= dt * (supOf(g, 'getUp') || 1); if (h.kdT <= 0) { h.kdT = 0; h.kd = 0; h.kdGrace = KD.grace; ev(g, 'getUp', { hero: h.id, x: h.x, y: h.y }); } return; }
   if (h.kd > 0 && g.t - (h.kdHitT || 0) > KD.decay.wait) h.kd = Math.max(0, h.kd - KD.decay.per * dt);
   const s = KD_SUP[h.id]; // 건전녀 간호: 가장 찬 멤버 게이지를 내린다
@@ -2798,7 +2798,7 @@ function kdTick(g, h, dt) {
   }
 }
 // 입구를 치는 진상: 가장 가까운 멤버(줄 r 안)도 맞는다 (쓰러짐 게이지)
-function kdLine(g, e) { let best = null, bd = KD.line.r; for (const h of g.heroes) { if (h.def.summon || h.gone || h.out) continue; const d = Math.abs(h.x - e.x); if (d < bd) { bd = d; best = h; } } if (best) kdAdd(g, best, KD.line.hit * (e.boss ? KD.line.boss : e.elite || e.mid ? KD.line.elite : 1)); } // 강화 · 장비 저항 · 면역
+function kdLine(g, e) { let best = null, bd = KD.line.r; for (const h of g.heroes) { if (h.def.summon || h.gone || h.out) continue; const d = Math.abs(h.x - e.x); if (d < bd) { bd = d; best = h; } } if (best) kdAdd(g, best, KD.line.hit * (e.boss ? KD.line.boss : e.elite || e.mid ? KD.line.elite : 1), { src: 'line' }); } // 강화 · 장비 저항 · 면역
 // 첫 기절: 한 번만 팁
 function firstStunTip(g) { if (g.stunTip) return; g.stunTip = true; ev(g, 'tip', { text: '기절한 멤버는 건전녀 응급처치로 풀 수 있어요 · 강성구 곁은 기절 면역' }); }
 

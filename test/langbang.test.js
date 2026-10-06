@@ -2665,3 +2665,13 @@ test('쓰러짐 게이지: 가득 차면 쓰러짐 (공격 · 스킬 못 함) �
   assert.equal(S.poisonHero(g, g.heroes.find((h) => h.id === 'gunman'), 3), 0, '홍정민: 독 면역');
   assert.equal(S.resPct(g.heroes[0], 'poison'), 100);
 });
+
+test('쓰러짐 게이지: 실제 판(기절 예고 · 독 순서 포함)이 오류 없이 돈다 · 같은 상태이상을 매 프레임 다시 걸어도 늘어난 시간만큼만 찬다', () => {
+  const g = S.createGame({ H: 760, rng: seeded(31), mode: 'stage', stage: 33, deck: ['ara', 'donghan', 'youngjun', 'hanna', 'gunnyeo', null], leader: 'ara', meta: {}, tempo: true, join: true, unlocked: D.LOCKED_HEROES });
+  g.ccI = 1; // 다음 기절 예고 = 독
+  for (let i = 0; i < 60 * 60 && !g.over; i++) { S.step(g, 1 / 60); g.events.length = 0; }
+  const t = S.createGame({ H: 760, rng: seeded(3), mode: 'stage', stage: 25, noWaves: true, heroes: ['gunman'], tempo: true, meta: {} });
+  t.phase = 'wave'; const h = t.heroes[0];
+  for (let i = 0; i < 60; i++) { h.silenceT = Math.max(h.silenceT || 0, S.debuffSec(h, 1, 'silence')); S.step(t, 1 / 60); }
+  assert.ok(h.kd < 25, `1초 침묵을 계속 걸어도 조금만 (${h.kd.toFixed(1)})`);
+});
