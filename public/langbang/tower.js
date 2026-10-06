@@ -92,7 +92,7 @@ export const isBossFloor = (f) => f % 5 === 0;
 export const RULES = {
   titan: { id: 'titan', name: '거물', short: '거물', color: '#ff8a4f', desc: '한 번에 한 명씩 · 아주 느리지만 체력이 엄청나고 문을 세게 친다', hint: '추천: 한 방 · 단일 공격 · 보스 킬러' },
   swarm: { id: 'swarm', name: '떼거리', short: '떼거리', color: '#ffd23f', desc: '약한 진상이 서너 배로 쏟아진다 — 지치지 마라', hint: '추천: 범위 · 관통 · 연쇄 (돌격형은 둘러싸여 금방 지친다)' },
-  curse: { id: 'curse', name: '저주', short: '저주', color: '#c77dff', desc: '진상이 계속 기절 · 침묵 · 홀림 · 감속을 건다 (돌격 중에 걸리면 돌격이 끊긴다)', hint: '추천: 상태이상 해제 · 면역 · 저항 장비' },
+  curse: { id: 'curse', name: '저주', short: '저주', color: '#c77dff', desc: '바닥 예고가 더 자주 뜬다 (리메이크 · 예전: 무작위 기절 · 침묵 · 홀림 · 감속)', hint: '추천: 상태이상 해제 · 면역 · 저항 멤버 · 회복' },
   rush: { id: 'rush', name: '돌진', short: '돌진', color: '#6ff0ff', desc: '빠른 진상이 몰려오고 잘 피한다 (느려지거나 기절한 진상은 못 피함)', hint: '추천: 감속 · 기절 · 밀어내기 (근접 돌격은 절반이 빗나간다)' },
   seal: { id: 'seal', name: '속성 봉인', short: '봉인', color: '#7be38f', desc: '한 속성은 피해 −60% · 다른 한 속성은 +30%', hint: '추천: 강해지는 속성' },
   shield: { id: 'shield', name: '보호막', short: '보호막', color: '#9feaff', desc: '모든 진상이 보호막 3겹 (한 방에 한 겹 · 3초마다 다시 참) + 체력 보호막', hint: '추천: 연사 · 범위 · 보호막 깨기' },

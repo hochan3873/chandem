@@ -71,14 +71,14 @@ export function teamRes(kind) { const out = []; for (const [id, s] of Object.ent
 // ─── 층 설계 ───
 //  1~3 연습 (예고 없음) · 4~10 피해만 (가만히 있어도 이김 · 끌어 옮기기 배우기) · 11~30 기절 예고 (피하기 배우기)
 //  31~50 층마다 위험 하나 (저항 멤버가 편함) · 51~80 위험 둘 + 기 모으기 끊기 · 81~ 위험 셋 + 짧은 예고 (랭킹)
-// 단계별 숫자 [단계 첫 층, 끝 층] 사이 선형 — warn 예고 초 · every 예고 간격 · cc 기절 기준 초 · multi 동시에 하나 더 확률 · wind 기 모으기
+// 단계별 숫자 [단계 첫 층, 끝 층] 사이 선형 — dmgK 피해 배율 · warn 예고 초 · every 예고 간격 · cc 기절 기준 초 · multi 동시에 하나 더 확률 · wind 기 모으기
 export const TIERS = [
   { from: 1, to: 3 },
   { from: 4, to: 10, warn: [2.6, 2.4], every: [7, 6], cc: [0, 0], multi: [0, 0] },
   { from: 11, to: 30, warn: [2.1, 1.6], every: [5, 3.8], cc: [2.4, 2.8], multi: [0, 0.1] },
   { from: 31, to: 50, warn: [1.6, 1.3], every: [4, 3.3], cc: [2.8, 3.1], multi: [0.1, 0.2] },
-  { from: 51, to: 80, warn: [1.3, 1.05], every: [3.5, 3.0], cc: [3.1, 3.4], multi: [0.15, 0.3], wind: { every: [17, 13], dur: [3.4, 2.9], safe: 50, cut: 0.07, dmg: 2.2, stun: 3.5 } },
-  { from: 81, to: 100, warn: [1.0, 0.8], every: [3.0, 2.5], cc: [3.2, 3.6], multi: [0.25, 0.4], wind: { every: [12.5, 10], dur: [2.8, 2.4], safe: 46, cut: 0.08, dmg: 2.6, stun: 4 } },
+  { from: 51, to: 80, dmgK: 1.1, warn: [1.3, 1.05], every: [3.5, 3.0], cc: [3.1, 3.4], multi: [0.15, 0.3], wind: { every: [17, 13], dur: [3.4, 2.9], safe: 50, cut: 0.07, dmg: 2.2, stun: 3.5 } },
+  { from: 81, to: 100, dmgK: 1.7, warn: [1.0, 0.8], every: [3.0, 2.5], cc: [3.2, 3.6], multi: [0.25, 0.4], wind: { every: [12.5, 10], dur: [2.8, 2.4], safe: 46, cut: 0.08, dmg: 2.6, stun: 4 } },
 ];
 export function floorPlan(f) {
   f = Math.max(1, Math.floor(f) || 1);
@@ -93,7 +93,7 @@ export function floorPlan(f) {
   const W = T.wind;
   const wind = W ? { every: L(W.every), dur: L(W.dur), safe: W.safe, cut: W.cut, dmg: W.dmg, stun: W.stun } : null;
   if (wind && f % 5 === 0) { wind.every *= 0.8; wind.cut *= 0.7; } // 보스 층: 더 자주 · 보스는 끊기가 어렵다 (최대 체력 대비)
-  return { f, tier, kinds, warn: +(T.warn ? L(T.warn) : 2.6).toFixed(2), every: +(T.every ? L(T.every) : 99).toFixed(2), multi: +L(T.multi).toFixed(2), cc: +L(T.cc).toFixed(2), dmg: Math.round(ARENA.dmg0 * (1 + ARENA.dmgGrow * (f - 1))), wind };
+  return { f, tier, kinds, warn: +(T.warn ? L(T.warn) : 2.6).toFixed(2), every: +(T.every ? L(T.every) : 99).toFixed(2), multi: +L(T.multi).toFixed(2), cc: +L(T.cc).toFixed(2), dmg: Math.round(ARENA.dmg0 * (1 + ARENA.dmgGrow * (f - 1)) * (T.dmgK || 1)), wind };
 }
 export const TIER_TXT = ['연습 층 · 예고 없음', '튜토리얼 · 바닥 경고는 피해만 (멤버를 끌어 옮겨 보세요)', '예고 층 · 맞으면 한참 기절 — 피하세요', '위험 층 · 이 층의 위험에 강한 멤버가 편해요', '위험 둘 + 기 모으기 (안전한 곳으로 모이거나 기절 · 큰 피해로 끊기)', '지옥 · 위험 셋 · 짧은 예고 (랭킹)'];
 // 이 층에 추천하는 멤버 (가진 멤버 중): 위험마다 저항 합 + 팀 면역 서포터 + 회복
@@ -118,7 +118,7 @@ export function hpPreview(id, meta = 0, star = 1, gear = {}) { return Math.round
 //  o: { squad: [멤버 id …] (첫째는 이미 덱에 있음), plan: floorPlan(f) }
 export function attach(g, o = {}) {
   if (!g.tower) return null;
-  const plan = o.plan || floorPlan(g.tower.f);
+  let plan = o.plan || floorPlan(g.tower.f);
   const squad = (o.squad || []).filter((id, i, a) => HEROES[id] && a.indexOf(id) === i).slice(0, SQUAD.max);
   g.maxHeroes = Math.max(1, squad.length);
   const slots = [2, 3, 1];
@@ -131,6 +131,7 @@ export function attach(g, o = {}) {
   if (g.hpScale && g.wave >= 1) g.hpScale *= hk;
   g.tower.atk *= cf.atk;
   g.base.max = Math.round(g.base.max * ARENA.door); g.base.hp = g.base.max;
+  if (g.tower.curse && plan.kinds.length) plan = Object.assign({}, plan, { every: +(plan.every * 0.8).toFixed(2) }); // 저주 층: 예고가 더 자주
   g.tower.curse = false; // 예전 저주(무작위 상태이상)는 바닥 예고로 바뀌었다
   const A = {
     plan, n, tele: [], pools: [], wind: null, nextT: plan.tier >= 1 ? 3.5 : 1e9, windT: plan.wind ? plan.wind.every * 0.7 : 1e9, seq: 0,

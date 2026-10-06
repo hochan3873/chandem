@@ -5,7 +5,7 @@
 //   옵션: --heroes=ara,bangjang  --seeds=N (층마다 판 수, 기본 3 · 그중 하나라도 이기면 통과)  --tries=N (하루 도전처럼 실패 허용)
 //   node scripts/lb-tower-sim.js grid --p=strong --from=20 --to=60 --seeds=3   계정 전체(모든 멤버가 그 성장)로 층마다 누가 깨나 — 실제 계정은 층마다 멤버를 바꿔 오르니 막히는 층은 이걸로 본다
 //   리메이크 (멤버 3명 · 바닥 예고 · 체력): node scripts/lb-tower-sim.js arena --p=typical --from=1 --to=100 --step=3 --bot=none,human,pro --squad=ara,gunnyeo,wonsik (없으면 층마다 저항 추천 2명 + 딜러)
-//     봇: none = 가만히 (안 피함) · human = 0.45초 뒤 반응 · 12% 놓침 (괜찮은 사람) · pro = 0.3초 · 3% 놓침 — 층마다 --seeds 판 중 한 판이라도 이기면 통과 · --climb 이면 처음 막힌 층에서 멈춤
+//     봇: none = 가만히 (안 피함) · human = 0.6초 뒤 반응 (끌기 포함) · 15% 놓침 (괜찮은 사람) · pro = 0.35초 · 5% 놓침 — 층마다 --seeds 판 중 한 판이라도 이기면 통과 · --climb 이면 처음 막힌 층에서 멈춤
 //   피로: --fat=50 (0~100 · 공격력 · 입구 내구도 × (1 − 피로 × 0.004))
 //   숫자 바꿔 보기: --grow=[[2,1.09,1.04],[16,1.17,1.05]]  --ts.solo.youngjun=0.7 (data.js TOWER_SIM)
 const path = require('path');
@@ -89,7 +89,7 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
     return { win: g.phase === 'victory', t: g.t, hp: g.base.hp / g.base.max, wave: g.wave, lv: g.level };
   }
   // ── 리메이크: 파티 3명 + 바닥 예고 봇 ──
-  const BOTS = { none: null, human: { react: 0.45, miss: 0.12 }, pro: { react: 0.3, miss: 0.03 } };
+  const BOTS = { none: null, human: { react: 0.6, miss: 0.15 }, pro: { react: 0.35, miss: 0.05 } }; // human: 보고 → 끌어서 놓기까지 0.6초 (손가락 포함) · 15% 놓침 · pro: 0.35초 · 5%
   function playSquad(squad, f, P, seed, awake, bot) {
     const rng = seeded(seed);
     const def = T.floorDef(f);
