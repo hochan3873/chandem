@@ -1915,8 +1915,9 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
   // 진상 수 ×0.6 · 체력 ×1.6
   const cnt = (tempo) => { const q = S.createGame({ H: 760, rng: seeded(3), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null], tempo, meta: {} }); S.startWave(q, 2); return [q.spawnQ.length, q.hpScale]; };
   const [n0, h0] = cnt(false), [n1, h1] = cnt(true);
-  assert.ok(n1 < n0 * 0.7 && n1 > n0 * 0.5, `진상 수 ${n0} → ${n1}`);
-  assert.ok(Math.abs(h1 / h0 - D.TEMPO.hp) < 1e-6);
+  const k = D.TEMPO.count * D.SLOW_RUN.count; // 스테이지 템포 = 느린 판 (적게 · 단단하게)
+  assert.ok(n1 < n0 * k * 1.2 && n1 > n0 * k * 0.8, `진상 수 ${n0} → ${n1}`);
+  assert.ok(Math.abs(h1 / h0 - D.TEMPO.hp * D.SLOW_RUN.hp) < 1e-6);
 });
 
 test('템포: 이호찬 = 기본 공격 없이 게이지 → 막차 버스가 자기 줄 진상을 밀어내고 때린다 · 진화면 2층 버스', async () => {

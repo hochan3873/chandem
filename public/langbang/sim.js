@@ -8,7 +8,7 @@ import {
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
-  SKILL_AUG, SKILL_AUG_W, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
+  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
 import { PVP_END, pvpStepN, pvpWaveHp, pvpMatchHp, pvpMeta, pvpStar, pvpCapMap, PVP_ESC, pvpPhase, pvpSdCount, pvpBunchCount, PVP_DOTS, pvpDot } from './pvp.js';
@@ -58,6 +58,7 @@ export function createGame(opt = {}) {
     base: { hp: baseMax, max: baseMax },
     level: 1, exp: 0, need: 0, pendingLevels: welcome, welcomePicks: welcome,
     grow: mode === 'stage' && !wk && !opt.pvp && !opt.raid && !opt.tower, mainOn: mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower, // 큰 카드 · 덜 잦은 레벨업 (일반 스테이지 · 헬) · 주력 2명 (+ 주간 도전)
+    slow: !!opt.tempo && mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower, // 느린 판 (SLOW_RUN): 스테이지 · 주간 · 헬
     joinPool: [], joinTotal: 0, joinMode: false, leader: null, pickN: 0, rollN: 0, tempo: !!opt.tempo,
     mom: opt.tempo && !opt.raid ? MOMENTUM.max : null, lastSkillT: -9, skillQ: null, // 기세 (템포에서만)
     mods: {
@@ -96,7 +97,8 @@ export function createGame(opt = {}) {
   if (g.mapFx.exp) g.mods.expMul += g.mapFx.exp;
   if (mode === 'stage') g.mods.expMul *= wk ? 0.34 : stageExpMul(opt.stage || 1); // 뒤 스테이지는 진상이 많은 만큼 경험치를 줄여 레벨업 횟수를 비슷하게
   if (wmod.exp) g.mods.expMul += wmod.exp;
-  if (opt.tempo && !opt.raid) { g.mods.expMul /= TEMPO.count; g.mods.ultCharge /= TEMPO.count; } // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
+  if (opt.tempo && !opt.raid) { g.mods.expMul /= TEMPO.count; g.mods.ultCharge /= TEMPO.count; }
+  if (g.slow) { g.mods.expMul /= SLOW_RUN.count; g.mods.ultCharge /= SLOW_RUN.count; g.mods.enemySpd *= SLOW_RUN.espd; } // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총공지 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
   if (wmod.enemySpd) g.mods.enemySpd *= wmod.enemySpd;
   if (wmod.baseHp) { g.base.max = Math.round(g.base.max * wmod.baseHp); g.base.hp = g.base.max; }
   // 장비: 입구 내구도 +%
@@ -1379,7 +1381,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.baseX = e.x; e.phase = g.rng() * 6.28;
   const hm = g.hell ? HELL.hp : 1;
   e.maxHp = e.hp = def.hp * m * g.mods.enemyHp * hm * chk; e.shield = def.lie ? def.hp * m * g.mods.enemyHp * hm * chk * def.lie.frac : 0; // 싱글맘: 거짓말 방패
-  e.speed = def.speed * (0.92 + g.rng() * 0.16) * g.mods.enemySpd * (g.mapFx.enemySpd || 1) * (g.hell ? HELL.speed : 1); e.atk = def.atk * atkMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hell ? HELL.atk : 1);
+  e.speed = def.speed * (0.92 + g.rng() * 0.16) * g.mods.enemySpd * (g.mapFx.enemySpd || 1) * (g.hell ? HELL.speed : 1); e.atk = def.atk * atkMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hell ? HELL.atk : 1) * (g.slow ? SLOW_RUN.door : 1); // 느린 판: 입구를 더 세게 (수리 · 탱커 몫)
   e.atkCd = 0.4; e.slowT = 0; e.slowMul = 1; e.stunT = 0; e.kbv = 0; e.flash = 0;
   e.dead = false; e.atRope = false; e.fleeing = false; e.stolen = 0; e.charmCd = 0;
   e.fast = BAL.fast.types.includes(type); if (e.fast && !g.fastTip && g.mode === 'stage') { g.fastTip = true; ev(g, 'tip', { text: '빠른 진상은 잘 피해요 · 감속·기절·범위 공격으로 잡아요' }); } e.bottleT = def.bottle ? 2 + g.rng() * 2 : 0; e.flashW = 0; e.latteT = def.latte ? 3 + g.rng() * 2 : 0;
@@ -3231,13 +3233,14 @@ export function startWave(g, n) {
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
   g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
+  if (g.slow) g.hpScale *= SLOW_RUN.hp; // 느린 판: 적게 · 단단하게
   if (g.conds.length && n >= DOOR_PRESSURE.from) g.hpScale *= COND_HP[chapterOf(g.stage) - 1] || 1; // 조건 스테이지: 기믹만큼 체력은 덜어 준다
   if (g.pvp) g.hpScale *= pvpMatchHp(g.pvp.hp, n) * pvpWaveHp(n) * hpMul(PVP_END.baseLevel, g.mode === 'stage') / hpMul(Math.max(1, g.diff), g.mode === 'stage'); // 1:1 대전: 두 덱 전투력 × 웨이브마다 ×1.22 (체력 오름은 이것 하나로 · 공격력은 웨이브대로)
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
   const more = g.mapFx.spawn || 1;
   // 무한 도전: 웨이브가 갈수록 떼로 (×1.3 → 30웨이브 ×3.0) · 주간 도전 ×2
-  const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1) * (g.tempo && !g.raid ? TEMPO.count : 1) * (g.cond.swarm ? COND.swarm.count : 1); // 떼거리 조건: 약한 진상이 훨씬 많이
+  const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1) * (g.tempo && !g.raid ? TEMPO.count : 1) * (g.slow ? SLOW_RUN.count : 1) * (g.cond.swarm ? COND.swarm.count : 1); // 떼거리 조건: 약한 진상이 훨씬 많이
   for (const [type, count0, every0, delay, tag] of def.g) {
     const wc = g.wtr && g.wtr.count && !ENEMIES[type].boss && !ENEMIES[type].mid ? g.wtr.count : 1; // 주간 떼거리: 보스는 그대로
     const count = Math.round(count0 * more * swarm * wc), every = every0 / (more * swarm * wc);
@@ -3276,10 +3279,11 @@ export function startWave(g, n) {
       for (let j = 0; j < n; j++) q.push({ type, at: at + j * 0.06, hpX, x: clamp(x0 + (j - (n - 1) / 2) * 20 + g.rng() * 6, 20, g.W - 20) });
     }
   }
+  if (g.slow) for (const o of q) o.at *= SLOW_RUN.gap; // 느린 판: 진상이 띄엄띄엄
   if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true, bossHp: def.bossHp });
   if (def.boss && g.twinBoss) q.push({ type: def.boss, at: 3.5, boss: true }); // 저주 계약 '보스 둘'
   if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true });
-  if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? 14 : 26, boss: true, bossHp: def.boss2Hp });
+  if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? (g.slow ? 22 : 14) : 26, boss: true, bossHp: def.boss2Hp });
   q.sort((a, b) => a.at - b.at);
   g.spawnQ = q;
   g.spawnI = 0;
@@ -4324,7 +4328,7 @@ export function summary(g, durationSec) {
 // JSON 으로 바꿔 localStorage 에 넣을 수 있는 평범한 객체
 export function snapshot(g) {
   return {
-    v: 1, mode: g.mode, stage: g.stage, wave: g.wave, t: g.t,
+    v: 1, mode: g.mode, stage: g.stage, wave: g.wave, t: g.t, tempo: !!g.tempo,
     heroes: g.heroes.map((h) => ({ id: h.id, lv: h.lv, slot: h.slot, kills: h.kills, dmgDone: h.dmgDone, evo: !!h.evo, cm: h.cm, cmN: h.cmN || 0, guest: !!h.guest, skEvo: !!h.skEvo, sa: h.sa || null, saAtk: h.saAtk || 0, saCrit: h.saCrit || 0, skCdMul: h.skCdMul || 1, skDmg: h.skDmg || 0, main: !!h.main, cmAtk: h.cmAtk, lvAtk: h.lvAtk || 0 })),
     mods: Object.assign({}, g.mods, { attrDmg: Object.assign({}, g.mods.attrDmg), tagDmg: Object.assign({}, g.mods.tagDmg) }), stacks: Object.assign({}, g.stacks),
     hiddenTaken: Object.assign({}, g.hiddenTaken), heroesUsed: Object.assign({}, g.heroesUsed),
@@ -4341,6 +4345,7 @@ export function restoreGame(snap, opt = {}) {
   const g = createGame({
     H: opt.H, rng: opt.rng, god: opt.god, mode: snap.mode, stage: snap.stage,
     meta: snap.meta, items: snap.items, unlocked: snap.unlocked || snap.hiddenUnlocked || [], heroes: [], gear: snap.gear, positions: snap.nPos, stars: snap.hstars, weekly: snap.weekly || undefined, hell: !!snap.hell, wtrait: snap.wtrait || undefined, awake: snap.awake || {}, coll: snap.coll || null,
+    tempo: snap.tempo !== false, // (예전 저장엔 없음 — 화면은 늘 템포라 켠다)
   });
   g.markBonus = snap.markBonus || 0; g.saJy = snap.saJy || 0; g.sigRevived = !!snap.sigRevived;
   if (snap.maxHeroes) g.maxHeroes = snap.maxHeroes;

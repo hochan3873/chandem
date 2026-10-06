@@ -981,6 +981,19 @@ function seeded(seed = 1) {
     }
   }
   if (what === 'wtrait') wtrait();
+  // 판 길이 (node scripts/lb-balance.js runlen --list=3,15,25,... [--seeds=4]) — 기준 덱 한 판 시간(초) · 클리어 · 처치 수 · 스킬 횟수
+  function runlen() {
+    const N = opt('seeds', 4), all = [];
+    for (const s of listArg('list', '3,15,25,35,45,55').map(Number)) {
+      const c = D.chapterOf(s), ids = c <= 6 ? balFor(c, s, false) : C78, meta = Object.fromEntries(ids.map((id) => [id, c <= 6 ? REC[c - 1] + REF_PLUS : 15]));
+      let t = 0, w = 0, k = 0, sk = 0;
+      for (let i = 1; i <= N; i++) { const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11, unlocked: [], skills: true, control: true, join: true, tempo: true, ...refOf(s, ids) }); t += r.t; if (r.win) w++; k += r.g.stats.kills; sk += r.g.stats.skills || 0; }
+      all.push(t / N);
+      console.log(`${D.stageLabel(s)} ${(t / N).toFixed(0)}초 (${((t / N) / 60).toFixed(1)}분) · 클리어 ${Math.round((w / N) * 100)}% · 처치 ${Math.round(k / N)} · 스킬 ${Math.round(sk / N)}번`);
+    }
+    console.log(`평균 ${(all.reduce((a, b) => a + b, 0) / all.length).toFixed(0)}초`);
+  }
+  if (what === 'runlen') runlen();
   if (what === 'stagecalib') stagecalib();
   if (what === 'stagemeas') stagemeas();
   if (what === 'custom') custom();

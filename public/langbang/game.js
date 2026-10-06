@@ -385,8 +385,8 @@ async function startRun(opt = {}) {
   app.stage = st;
   fixDeck();
   const p = P();
-  // 2배속: 이미 깬 스테이지만
-  app.runSpeed = mode === 'stage' && app.speed2 && (p.stages[st] | 0) > 0 ? 2 : 1;
+  // 배속: 기본 ×1 · 전투 중 ×1 / ×2 버튼 (고른 걸 기억 · 1:1 대전만 빼고 어느 판이든)
+  app.runSpeed = !pvp && app.speed2 ? 2 : 1;
   const unlocked = DEBUG.hidden ? LOCKED_HEROES.slice() : p.unlocked || [];
   R.maxDpr = R.baseDpr = hell ? 1.75 : 2; // 판마다 새로 (지난 판에 낮춘 화질이 남지 않게) · 헬은 진상이 많아 조금 낮게 시작
   layoutForNewRun();
@@ -475,7 +475,7 @@ function resumeRun() {
   app.mode = d.snap.mode;
   app.stage = d.snap.stage || 0;
   if (app.mode === 'stage' && app.stage) app.lobbyStage = app.stage; // 이어하던 판도 로비가 따라오게
-  app.runSpeed = 1;
+  app.runSpeed = app.speed2 && !(d.snap && d.snap.pvp) ? 2 : 1;
   if (Array.isArray(d.partners)) app.partners = d.partners;
   app.partner = app.partners[0];
   app.debugRun = false;
@@ -1890,8 +1890,8 @@ document.addEventListener('pointerdown', () => { app.touched = true; A.unlock();
 
 $('#btn-pause').addEventListener('click', () => pauseGame());
 $('#btn-send').addEventListener('click', () => { A.unlock(); pvpSend(); });
-// 2배속 (이미 깬 스테이지만) — 선택은 기억한다
-function speedOk() { const g = app.g; return !!(g && g.mode === 'stage' && !g.weekly && (P().stages[g.stage] | 0) > 0); }
+// ×1 / ×2 배속 (1:1 대전만 빼고 어느 판이든) — 선택은 기억한다 (langbang:speed2)
+function speedOk() { const g = app.g; return !!(g && !g.pvp); }
 function syncSpeedPill() {
   const b = $('#btn-speed');
   b.hidden = !speedOk();
@@ -1903,6 +1903,7 @@ $('#btn-speed').addEventListener('click', () => {
   app.runSpeed = (app.runSpeed || 1) > 1 ? 1 : 2;
   app.speed2 = app.runSpeed > 1;
   try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ }
+  hud.classList.toggle('fast', app.runSpeed > 1);
   syncSpeedPill();
   A.sfx.tap();
 });
@@ -3728,7 +3729,7 @@ function showSettings() {
     <section class="st-sec"><h4>화면 · 연출</h4>
       ${row('sparkle', '연출 줄이기', '화면 흔들림 · 반짝임 줄이기', tog('rmT', gwPref('reduceMotion')))}
       ${row('bolt', '진동', '', tog('vibT', gwPref('vibrate')))}
-      ${row('speed', '기본 2배속', '다시 깬 스테이지에서', tog('speedDefT', !!app.speed2))}
+      ${row('speed', '기본 2배속', '전투를 ×2 로 시작 (전투 중 ×1 / ×2 버튼으로도)', tog('speedDefT', !!app.speed2))}
     </section>
     ${PUSHX.available() ? `<section class="st-sec"><h4>알림</h4>${row('megaphone', '알림 받기', PUSHX.settingHint(), tog('pushT', PUSHX.isOn()))}</section>` : ''}
     <section class="st-sec"><h4>게임</h4>
@@ -4796,7 +4797,6 @@ function showPrep(mode, s) {
   const ch = st ? chapterOf(st) : 0;
   R.setTheme(st ? ch : 'endless');
   const fxd = wk ? MAP_FX[wk.fx] || MAP_FX.none : mode === 'stage' ? stageFx(s) : MAP_FX.none;
-  const cleared = mode === 'stage' && (p.stages[s] | 0) > 0;
   const hellOk = mode === 'stage' && hellOpen(p.stages, s);
   const hellOn = hellOk && app.hellMode;
   const free = p.master && !p.testNormal;
@@ -4860,7 +4860,7 @@ function showPrep(mode, s) {
   // 7) 출격
   const cost = mode === 'stage' && !free ? L.stageStaminaCost(p, s, hellOn) : 0;
   const goHtml = `<div class="pp-go">
-      ${cleared ? `<button class="pp-spd ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-pressed="${app.speed2 ? 'true' : 'false'}" aria-label="2배속">${ic('speed', '')}<b>×2</b><small>${app.speed2 ? 'ON' : 'OFF'}</small></button>` : ''}
+      ${mode !== 'pvp' ? `<button class="pp-spd ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-pressed="${app.speed2 ? 'true' : 'false'}" aria-label="2배속">${ic('speed', '')}<b>×2</b><small>${app.speed2 ? 'ON' : 'OFF'}</small></button>` : ''}
       <button class="pp-gobtn2 ${ids.length ? '' : 'dim'} ${hellOn ? 'hell' : ''}" data-act="go"><i class="gb-shine"></i><b>출격!</b>${cost ? `<span class="gb-cost">${ic('energy', '', 'sm')}<em>${cost}</em></span>` : ''}</button>
     </div>`;
   show(`
