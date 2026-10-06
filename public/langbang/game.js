@@ -3202,6 +3202,7 @@ const DEX_CATCH = {
   eunok: '"한 잔만… 딱 한 잔만 할게."', hanna: '"윙크 받을 준비 됐어?"', sunggu: '"요즘 것들은… 내가 보여 주마."', junseo: '"잠깐, 내 친구 소개해 줄게!"', hyungyeong: '"다이어트는 내일부터! 오늘은 박치기!"',
   ara: '"공주님 등장~ 아이고 허리야…"', hochan: '"랑방을 위하여!!"',
   soyoung: '"그러니까 내가 뭐랬어!"', jieun: '"…시간아 멈춰라."', sanghwa: '"좋은남자 박상화!"', jungmin: '"가만있어 봐, 붙여 줄게."',
+  dragon: '"뭉치야, 불!"', subin: '"음악 틀어 줘! 같이 춰요~"',
 };
 function showJoinReveal(id, kind = 'new') {
   return new Promise((resolve) => {

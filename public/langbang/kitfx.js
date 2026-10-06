@@ -218,7 +218,7 @@ export class KitFx {
       if (e.roseT > 0 && e.roseN > 0) for (let i = 0; i < e.roseN; i++) { R.tf(e.x - 7 * (e.roseN - 1) / 2 + i * 7, top - 14, 0, 1, 1); cx.globalAlpha = 1; cx.fillStyle = '#ff3d6e'; cx.beginPath(); cx.arc(0, 0, 3.4, 0, TAU); cx.fill(); cx.fillStyle = '#2e9e4a'; cx.fillRect(-0.7, 3, 1.4, 4); }
       if (e.censorT > 0) { R.tf(e.x, e.y - sz * 0.42, 0, 1, 1); cx.globalAlpha = 0.92; cx.fillStyle = '#111'; cx.fillRect(-sz * 0.3, -5, sz * 0.6, 10); cx.fillStyle = '#ff4fb0'; cx.font = `900 8px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('검열', 0, 0.5); }
       if (e.danceT > 0 && !many && Math.random() < 0.06) this.fx.part('note', e.x + (Math.random() - 0.5) * 20, top, (Math.random() - 0.5) * 30, -40, 0.6, 9, '#ffb3f0');
-      if (e.tieT > 0 && e.tieBy !== 'x') { R.tf(e.x, e.y - sz * 0.1, 0, 1, 0.5); cx.globalAlpha = 0.85; cx.strokeStyle = '#e8a0ff'; cx.lineWidth = 3; cx.beginPath(); cx.ellipse(0, 0, sz * 0.36, sz * 0.36, now * 4, 0.3, TAU - 0.3); cx.stroke(); }
+      // (리본 묶기는 render.js 가 이미 그린다)
     }
     cx.globalAlpha = 1;
   }

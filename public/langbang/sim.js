@@ -3252,7 +3252,7 @@ export function startWave(g, n) {
   const def = waveDefFor(g, n);
   g.diff = def.level || n;
   g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
-  if (g.slow) g.hpScale *= SLOW_RUN.hp; // 느린 판: 적게 · 단단하게
+  if (g.slow) g.hpScale *= SLOW_RUN.hp * (g.mode === 'stage' && !g.weekly ? SLOW_RUN.chHp[chapterOf(g.stage || 1) - 1] || 1 : 1); // 느린 판: 적게 · 단단하게 (장마다 맞춤)
   if (g.conds.length && n >= DOOR_PRESSURE.from) g.hpScale *= COND_HP[chapterOf(g.stage) - 1] || 1; // 조건 스테이지: 기믹만큼 체력은 덜어 준다
   if (g.pvp) g.hpScale *= pvpMatchHp(g.pvp.hp, n) * pvpWaveHp(n) * hpMul(PVP_END.baseLevel, g.mode === 'stage') / hpMul(Math.max(1, g.diff), g.mode === 'stage'); // 1:1 대전: 두 덱 전투력 × 웨이브마다 ×1.22 (체력 오름은 이것 하나로 · 공격력은 웨이브대로)
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)

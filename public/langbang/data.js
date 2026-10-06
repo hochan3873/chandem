@@ -106,7 +106,7 @@ export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', '
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
   'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon', 'subin', 'dragon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
 // 느린 판 (2026-10 대개편 · 스테이지 · 주간 · 헬만): 진상 나오는 간격 ×gap · 수 ×count · 한 명 체력 ×hp · 이동 ×espd · 입구 치는 힘 ×door — 한 판 3~4분 · 멤버 하나하나 조종하는 맛
-export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.15 };
+export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.15, chHp: [0.86, 0.86, 0.74, 0.82, 0.92, 0.95, 0.6, 0.51] }; // chHp: 장마다 체력 다시 맞춤 (stagemeas · 대개편 뒤 1차)
 // 방어율 (장이 깊을수록 진상이 단단 — 한 방마다 %로 깎임): 정예 · 중간 보스 · 보스는 ch 그대로 · 졸개는 fodder 배
 //  방관(pen): 그 멤버 공격은 방어율을 그만큼 뚫는다 (건전남 전부) · 여지원 모자이크 한 겹마다 방어율 shredPer 씩 벗김 (5겹 = 0) · 모자이크 폭격은 전부
 export const ARMOR = { ch: [0, 0.05, 0.1, 0.16, 0.22, 0.28, 0.34, 0.4], fodder: 0.35, mid: 1.15, boss: 1.3, eliteHp: 100, shredPer: 0.2,
@@ -119,6 +119,11 @@ export function armorPctStage(s, d, elite) {
   return Math.min(0.6, c * k);
 }
 export const ARMOR_BREAKERS = ['jiwon', 'gunman', 'ara', 'sunggu']; // 방깎(여지원) · 방관(건전남 전부 · 고아라 · 강성구 절반쯤) — 상성 경고 추천
+// 멤버별 상태이상 저항 (0~100 · 아직 안 씀 — 무한의 탑 한 명 조종 · 멤버별 저항은 다음 단계에서): 성격대로 잘 버티는 상태이상
+export const HERO_RES = {
+  jeongseob: { slow: 60, stun: 40 }, wonsik: { stun: 40, charm: 30 }, hyungyeong: { charm: 60 }, ingyu: { silence: 50, slow: 30 }, sunggu: { stun: 50, silence: 30 },
+  youngjun: { slow: 40 }, eunok: { charm: 40 }, hanna: { charm: 70 }, byunghwa: { silence: 60 }, dragon: { freeze: 80, slow: 30 }, baul: { slow: 50, freeze: 40 }, subin: { charm: 40, slow: 30 },
+};
 // 화상 (박나영): tick 초마다 · 겹마다 +stack · 최대 max 겹 — 방어율 무시
 export const BURN = { tick: 0.5, stack: 0.5, max: 3 };
 export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [2.0, 0.7, 0.6, 0.5, 0.46, 0.35], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.65, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1.5 };
