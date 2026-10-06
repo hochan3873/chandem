@@ -259,6 +259,7 @@ export class FX {
 
 // ─── 렌더러 ───────────────────────────────────────────
 const PAINTED = { crownIco: 'pCrown', bottle: 'pBottle', bottleRage: 'pBottleRage' };
+// (대개편) 건전남 권총 · 박상화 장미 · 운영진 딱지 · 오지은 시계 · 서명훈 번개 · 홍정민 휘두르기 · 임수빈 리본 · 박나영 불은 kitfx.js 가 코드로 그린다
 const JY_CHIPS = ['#e53935', '#1e6fe0', '#2e9e4a', '#222', '#f2b01e', '#8e44ad']; // 성준영 배팅 칩 색
 const PAINTED_MORE = ['bullet', 'cane', 'wink', 'swear', 'swearBig', 'notice', 'noticeBig', 'flower', 'rose', 'chip', 'card', 'tick', 'dumbbell', 'snack', 'hammer', 'note', 'heartBomb', 'duck', 'paper', 'gem', 'mosaic'];
 for (const n of PAINTED_MORE) PAINTED[n] = 'p_' + n; // 그린 투사체: fx/p_<이름>.webp (없으면 코드로 그린 것)
@@ -1028,6 +1029,7 @@ export class Renderer {
     this.drawMapFxUnder(g, t);
     this.drawGems(g, t);
     if (this.skfx) this.skfx.draw('ground', g); // 스킬 전용 연출 (skillfx.js) — 바닥
+    if (this.kit) this.kit.draw('ground', g); // 대개편 장판 · 음파 고리 (kitfx.js)
     this.drawVfx('ground'); // 바닥 무늬: 금 · 경고 원 · 소환진 · 오라 (캐릭터 발밑 · 납작하게)
     if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'back'); // 건물주 레이드: 거대 보스 · 공격 예고 구역 (raid2-ui.js)
     this.drawEnemies(g, t);
@@ -1039,6 +1041,7 @@ export class Renderer {
     this.drawHeroes(g, t, ui);
     this.drawBeams(g, t);
     this.drawProjs(g);
+    if (this.kit) this.kit.draw('mid', g); // 대개편: 화염 · 휘두르기 · 진상 상태 (kitfx.js)
     if (g.buses && g.buses.length) this.drawBuses(g);
     this.drawSlashes();
     this.drawDoorHits();
@@ -1051,6 +1054,7 @@ export class Renderer {
     this.drawRings();
     if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'top'); // 건물주 레이드: 날아오는 고지서 · 돈다발
     if (this.skfx) this.skfx.draw('top', g); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
+    if (this.kit) this.kit.draw('top', g); // 대개편 스킬 연출 (kitfx.js)
     this.drawTexts();
     this.drawBubbles();
     this.drawUiWorld(g, t, ui);
@@ -2196,6 +2200,8 @@ export class Renderer {
       // 기진맥진: 주저앉기 · 느린 숨 · 땀 · 어지러운 소용돌이
       if (h.tiredT > 0) { const k = Math.min(1, h.tiredT / 1.2); sy *= 1 - 0.08 * k; sx *= 1 + 0.04 * k; bob += 3 * k; rot += Math.sin(t * 1.4 + h.slot) * 0.05 * k; }
       // 프레임 띠 (있으면): 준비 = 0~release-1 칸 · 던진 뒤 0.3초 = release~끝 칸
+      const cp = this.kit && !busy ? this.kit.castPose(h) : null; // 대개편: 스킬 시전 동작 (멤버마다 다른 몸짓)
+      if (cp) { dx += cp.dx; bob += cp.dy; rot += cp.rot; sx *= cp.sx; sy *= cp.sy; }
       const formOn = !!HERO_ANIM_FORM[h.id] && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!alt);
       const HA = formOn ? HERO_ANIM_FORM[h.id] : HERO_ANIM[h.id], hstrip = HA && this.images[formOn ? 'hanim_' + h.id + '_f' : 'hanim_' + h.id];
       let usedStrip = false;
@@ -2226,7 +2232,7 @@ export class Renderer {
           usedStrip = true;
         }
       }
-      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length) && !(h.id === 'dohoon' && h._encAt && performance.now() - h._encAt < 1700)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
+      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && !cp && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length) && !(h.id === 'dohoon' && h._encAt && performance.now() - h._encAt < 1700)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
         const n = HA.frames, fw = hstrip.naturalWidth / n, fh = hstrip.naturalHeight, rel = HA.release;
         let fi = -1;
         if (since < 0.3) fi = Math.min(n - 1, rel + Math.floor((since / 0.3) * (n - rel)));
@@ -2308,7 +2314,7 @@ export class Renderer {
         usedStrip = true;
       }
       if (!usedStrip) {
-        { const ck = h._castAt ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); }
+        { const ck = h._castAt && !cp ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); } // (시전 동작이 없는 멤버만 톡 커지기)
         cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
         cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
         if (h.freezeT > 0 && h.stunT > 0 && sp.f) { cx.globalAlpha = 0.5; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); } // 7장 빙결: 하얗게 언 모습
@@ -2471,8 +2477,9 @@ export class Renderer {
     const cx = this.cx, b = h.bd, B = h.def.board;
     const ride = this.images.hanim_baul_ride, fix = this.images.hanim_baul_fix, atk = this.images.hanim_baul;
     const now = performance.now();
-    // 탭한 곳: 점선 + 보드 표시 (다음 돌진은 여기로)
-    const aim = g.boardAim && g.t - g.boardAim.t < B.aimT ? g.boardAim : null;
+    if (h.airH > 0) { this.tf(hx, feet, 0, 1, 0.4); cx.globalAlpha = 0.35; cx.fillStyle = '#000'; cx.beginPath(); cx.arc(0, 0, 18, 0, Math.PI * 2); cx.fill(); cx.globalAlpha = 1; feet -= h.airH; } // 점프대: 공중 (그림자는 바닥에)
+    // 예약한 다음 곳 (타는 중에 탭): 점선 + 보드 표시
+    const aim = b.q || null;
     if (aim) {
       this.world(); cx.save();
       cx.setLineDash([5, 6]); cx.lineDashOffset = -t * 30; cx.strokeStyle = 'rgba(122,208,255,0.85)'; cx.lineWidth = 2.2;
@@ -2498,7 +2505,7 @@ export class Renderer {
       }
       cx.restore(); cx.globalCompositeOperation = 'source-over';
     }
-    if (b.st === 'fix') {
+    if (b.st === 'fix' && B.fix) {
       if (!imgOk(fix)) return false;
       // 띠: 0~3 무릎 꿇고 렌치 · 왁스 (반복) · 4 땀 닦기 (중간) · 7 엄지 척 (끝나기 직전)
       const f = b.fixMax ? clamp01(1 - b.fixT / b.fixMax) : 0, gx = hx, gy = feet - box * 1.02;
@@ -2513,13 +2520,15 @@ export class Renderer {
       return true;
     }
     const face = b.face || 1, since = g.t - (h.lastShotT || -9);
-    if (imgOk(atk) && since < 0.42 && b.st !== 'home') this.loopStrip(atk, Math.min(7, 2 + Math.floor((since / 0.42) * 6)), hx, feet, face, box * 1.12);
+    if (b.st === 'air' && imgOk(atk)) this.loopStrip(atk, 4, hx, feet, face, box * 1.12); // 공중 트릭
+    else if (imgOk(atk) && since < 0.42 && b.st !== 'home') this.loopStrip(atk, Math.min(7, 2 + Math.floor((since / 0.42) * 6)), hx, feet, face, box * 1.12);
     else if (imgOk(ride)) this.loopStrip(ride, Math.floor(t * (b.st === 'dash' ? 14 : 7)) % 8, hx, feet + Math.sin(t * 5 + h.slot) * 1.5, face, box * 1.12);
     else return false;
-    // 남은 보드 횟수: 발밑 작은 칸 (다 쓰면 정비)
-    const maxUse = B.uses[h.lv - 1], left = Math.max(0, maxUse - b.uses), w0 = 5, gap = 2, tw = maxUse * (w0 + gap) - gap;
+    // 보드 충전 칸: 발밑 (찬 칸 하늘색 · 차는 중인 칸은 조금씩)
+    const maxCh = B.charges ? B.charges[h.lv - 1] : 0, w0 = 7, gap = 2, tw = maxCh * (w0 + gap) - gap, part = B.refill ? clamp01((b.refT || 0) / B.refill[h.lv - 1]) : 0;
     this.world();
-    for (let k = 0; k < maxUse; k++) { cx.fillStyle = k < left ? '#7ad0ff' : 'rgba(0,0,0,0.5)'; cx.fillRect(hx - tw / 2 + k * (w0 + gap), feet + 19, w0, 3); }
+    for (let k = 0; k < maxCh; k++) { const x0 = hx - tw / 2 + k * (w0 + gap); cx.fillStyle = 'rgba(0,0,0,0.55)'; cx.fillRect(x0, feet + 19, w0, 4); cx.fillStyle = '#7ad0ff'; const f = k < Math.floor(b.ch) ? 1 : k === Math.floor(b.ch) ? part : 0; if (f > 0) cx.fillRect(x0, feet + 19, w0 * f, 4); }
+    if (b.combo > 0 && g.t - (b.lastLand || -9) < B.combo.win) { cx.fillStyle = '#ffe14d'; cx.font = `900 10px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(`×${b.combo + 1}`, hx, feet + 32); }
     return true;
   }
   // 성준영: 칩 갈퀴로 바닥의 배팅 칩을 긁어모으며 돌아다닌다 — 끌어모으는 반경 고리 · 갈퀴 쪽으로 굴러 들어오는 칩
@@ -2728,7 +2737,7 @@ export class Renderer {
       const k = Math.min(1, p.lt / p.T);
       this.tf(p.tx, p.ty + 6, 0, 1, 0.4);
       cx.globalAlpha = 0.25 + k * 0.35;
-      cx.strokeStyle = p.type === 'heart' ? '#ff7fc8' : '#7be38f'; cx.lineWidth = 3;
+      cx.strokeStyle = p.type === 'heart' ? '#ff7fc8' : p.type === 'stamp' ? '#ffd23f' : '#7be38f'; cx.lineWidth = 3;
       cx.beginPath(); cx.arc(0, 0, p.splash * (0.4 + k * 0.6), 0, TAU); cx.stroke();
       cx.globalAlpha = 1;
     }
@@ -2738,6 +2747,7 @@ export class Renderer {
       const p = g.projs[pi];
       if (p.dead || pi < cap) continue;
       shown++;
+      if (this.kit && this.kit.drawProj(p)) continue; // 대개편: 멤버마다 다른 비행 그림 (kitfx.js)
       if (p.type === 'tap' && p.hero && p.hero.id === 'jungmin' && this.projSprites.jmBottle) { // 홍정민: 거꾸로 든 소주병이 빙글빙글 (잔상 2개 · 뒤로 튀는 술방울)
         const bs = this.projSprites.jmBottle, sv = Math.hypot(p.vx || 0, p.vy || 0) || 1, ux = (p.vx || 0) / sv, uy = (p.vy || -1) / sv, spin = this.fx.time * 17 + (p.uid || pi);
         cx.globalCompositeOperation = 'lighter';

@@ -93,19 +93,21 @@ test('이한나 윙크 넉백은 남자 적에게만', () => {
   assert.ok(fem.hp < hpBefore, '여자도 피해는 받음');
 });
 
-test('강성구 지팡이는 한 줄의 여러 적을 관통한다', () => {
+test('강성구 지팡이는 몰린 무리까지 고리를 그리며 나갔다 돌아오며 전부 관통한다 (갈 때 · 올 때)', () => {
   const g = S.createGame({ rng: seeded(9), noWaves: true, heroes: ['sunggu'] });
   const h = g.heroes[0];
   h.cd = 0;
-  const line = [];
+  const pack = [];
   for (let i = 0; i < 5; i++) {
-    const e = S.spawnEnemy(g, 'thug', h.x, h.y - 120 - i * 50, { hpMul: 100 });
+    const e = S.spawnEnemy(g, 'thug', h.x + (i % 3) * 14 - 14, h.y - 260 + Math.floor(i / 3) * 14, { hpMul: 100 });
     e.speed = 0;
-    line.push(e);
+    pack.push(e);
   }
-  run(g, 1.6); // 한 번만 던질 시간
-  const hit = line.filter((e) => e.hp < e.maxHp).length;
+  let max = 0;
+  for (let t = 0; t < 2.4; t += 1 / 60) { S.step(g, 1 / 60); h.cd = Math.max(h.cd, 1); max = Math.max(max, g.projs.filter((p) => !p.dead && p.type === 'cane').length); }
+  const hit = pack.filter((e) => e.hp < e.maxHp).length;
   assert.ok(hit >= 4, `지팡이가 ${hit}명만 맞춤`);
+  assert.ok(max >= 1 && g.projs.filter((p) => !p.dead && p.type === 'cane').length === 0, '돌아와서 손에 쏙');
 });
 
 test('최은옥은 타이머가 지나면 분노 모드에 들어간다', () => {
@@ -669,7 +671,7 @@ test('스킬: 모든 멤버 스킬이 쿨타임과 효과를 가진다', () => {
   assert.ok(g.heroes.find((h) => h.id === 'gunman').frenzyT > 0, '난사');
   assert.ok(g2.heroes.find((h) => h.id === 'eunok').rage, '원샷');
   assert.ok((g2.holes || []).length >= 1, '지팡이 블랙홀');
-  assert.ok((g2.harleys || []).length >= 1, '부릉부릉 할리');
+  assert.ok((g2.zones || []).some((z) => z.kind === 'drift'), '할리 드리프트');
   assert.ok(g2.heroes.find((h) => h.id === 'donghan').ssj, '초사이언 포격');
 });
 
@@ -934,12 +936,12 @@ test('덱: 정한 자리에 멤버가 서고, 7칸이면 자리 7개 · 스테�
   assert.deepEqual(D.migrateDeckItems({ slot5: 1, slot6: 1 }), { slot5: 1, slot6: 1 });
 });
 
-test('줄 공격: 강성구 지팡이는 자기 줄 위의 적만 (건전남은 필드 전체)', () => {
+test('줄 제한 없음 (대개편): 강성구 지팡이 고리는 옆 줄 무리에도 · 건전남은 필드 전체', () => {
   const g = S.createGame({ rng: seeded(711), noWaves: true, deck: ['sunggu'] });
   const h = g.heroes[0];
   const far = S.spawnEnemy(g, 'thug', h.x + 150, g.rowY - 200, { hpMul: 100 }); far.speed = 0;
   run(g, 3);
-  assert.equal(far.hp, far.maxHp, '옆 줄 적은 안 친다');
+  assert.ok(far.hp < far.maxHp, '옆 줄 진상에게도 지팡이가 고리를 그리며 간다');
   const g2 = S.createGame({ rng: seeded(711), noWaves: true, deck: ['gunman'] });
   const f2 = S.spawnEnemy(g2, 'thug', g2.heroes[0].x + 150, g2.rowY - 200, { hpMul: 100 }); f2.speed = 0;
   run(g2, 2);
@@ -1465,7 +1467,7 @@ test('줄 스킬 자동 조준: 가장 많이 걸리는 방향 · 아무도 없�
   const h = g.heroes[0];
   assert.equal(S.bestLineAngle(g, h.x, h.y, 500, 12), null, '진상 없음');
   h.skillCd = 0;
-  assert.equal(S.castSkill(g, h, 0, 0), false, '진상이 없으면 안 쓴다');
+  assert.equal(S.castSkill(g, h), false, '(찍지 않고 쓰면) 진상이 없으면 안 쓴다');
   assert.ok(S.skillReady(h), '쿨타임 그대로');
   // 왼쪽 위 대각선에 3명, 바로 위에 1명
   const a = -Math.PI * 0.75;
@@ -1473,7 +1475,7 @@ test('줄 스킬 자동 조준: 가장 많이 걸리는 방향 · 아무도 없�
   S.spawnEnemy(g, 'thug', h.x, h.y - 200, { hpMul: 50 });
   const b = S.bestLineAngle(g, h.x, h.y, 500, 12);
   assert.ok(b && b.n === 3 && Math.abs(b.a - a) < 0.2, `가장 많이 걸리는 쪽 (${b && b.a})`);
-  assert.equal(S.castSkill(g, h, 0, 0), true);
+  assert.equal(S.castSkill(g, h), true);
   for (let i = 0; i < 60; i++) S.step(g, 1 / 60);
   const hurt = g.enemies.filter((e) => !e.dead && e.hp < e.maxHp).length;
   assert.ok(hurt >= 3, `대각선 3명 모두 맞음 (${hurt})`);
@@ -1532,12 +1534,12 @@ test('강성구 지팡이 블랙홀: 가장 몰린 곳에 → 2초 빨아들임(
   const g = S.createGame({ rng: seeded(801), noWaves: true, heroes: ['sunggu'] });
   const h = g.heroes[0];
   h.skillCd = 0;
-  assert.equal(S.castSkill(g, h, 0, 0), false, '진상 없으면 안 씀');
+  assert.equal(S.castSkill(g, h), false, '(찍지 않고 쓰면) 진상 없으면 안 씀');
   const list = [];
   for (let i = 0; i < 6; i++) list.push(S.spawnEnemy(g, 'thug', 110 + i * 22, 250 + (i % 2) * 20, { hpMul: 30 }));
   const far = S.spawnEnemy(g, 'thug', 330, 420, { hpMul: 30 });
   const d0 = Math.abs(list[5].x - list[0].x);
-  assert.equal(S.castSkill(g, h, 0, 0), true);
+  assert.equal(S.castSkill(g, h), true);
   let boom = null;
   for (let i = 0; i < 60 * 2.5; i++) { S.step(g, 1 / 60); for (const e of g.events) if (e.type === 'bhBoom') boom = e; g.events.length = 0; }
   assert.ok(boom && boom.n >= 4, `쾅 (${boom && boom.n}명)`);
@@ -1546,21 +1548,25 @@ test('강성구 지팡이 블랙홀: 가장 몰린 곳에 → 2초 빨아들임(
   assert.equal(far.hp, far.maxHp, '멀리 있는 진상은 안 맞음');
 });
 
-test('백인규 할리: 진상이 제일 많은 쪽으로 · 3칸 폭 띠 안은 전부 계속 따끔 · 밖은 안 맞음 · 보스는 안 밀림', () => {
+test('백인규 할리 드리프트 (대개편): 찍은 곳까지 달려가 원을 그리며 — 원 안 전부 따끔 + 바깥으로 · 밖은 안 맞음 · 보스는 안 밀림 · 끝나면 타이어 자국 감속', () => {
   const g = S.createGame({ rng: seeded(901), noWaves: true, heroes: ['ingyu'] });
   const h = g.heroes[0];
-  const sk = D.HEROES.ingyu.skill;
-  assert.ok(sk.w >= 150 && sk.w <= 190, '폭 약 3칸 (한 칸 ≈ 58)');
-  const inBand = [0, 60, -60, 80].map((dx, i) => S.spawnEnemy(g, 'thug', h.x + dx, h.y - 120 - i * 60, { hpMul: 40 }));
-  const out = S.spawnEnemy(g, 'thug', h.x + 150, h.y - 200, { hpMul: 40 });
-  const boss = S.spawnEnemy(g, 'boss_thug', h.x + 10, h.y - 300, { hpMul: 2 });
-  const bx = boss.x;
+  const sk = D.HEROES.ingyu.skill, r = sk.r[0], cx0 = 180, cy0 = g.rowY - 220;
+  const inside = [[0, 0], [30, 10], [-30, -10], [10, 40]].map(([dx, dy]) => S.spawnEnemy(g, 'thug', cx0 + dx, cy0 + dy, { hpMul: 40 }));
+  for (const e of inside) e.speed = 0;
+  const out = S.spawnEnemy(g, 'thug', cx0 + r + 80, cy0, { hpMul: 40 }); out.speed = 0;
+  const boss = S.spawnEnemy(g, 'boss_thug', cx0 - 20, cy0 + 20, { hpMul: 2 }); boss.speed = 0;
+  const bx = boss.x, d0 = Math.hypot(inside[1].x - cx0, inside[1].y - cy0);
   h.skillCd = 0;
-  assert.equal(S.castSkill(g, h, 0, 0), true);
-  for (let i = 0; i < 60 * 4; i++) { h.stunT = 1; h.cd = 9; S.step(g, 1 / 60); } // 기본 공격은 막고 할리만
-  assert.ok(inBand.every((e) => e.dead || e.hp < e.maxHp), '띠 안 전부 피해');
-  assert.equal(out.hp, out.maxHp, '띠 밖은 안 맞음');
+  assert.equal(S.castSkill(g, h, cx0, cy0), true);
+  assert.ok((g.zones || []).some((z) => z.kind === 'drift'), '드리프트 시작');
+  for (let i = 0; i < 60 * 3.2; i++) { h.stunT = 1; h.cd = 9; S.step(g, 1 / 60); } // 기본 공격은 막고 할리만
+  assert.ok(inside.every((e) => e.dead || e.hp < e.maxHp), '원 안 전부 피해');
+  assert.ok(inside[1].dead || Math.hypot(inside[1].x - cx0, inside[1].y - cy0) > d0, '바깥으로 튕겨 남');
+  assert.equal(out.hp, out.maxHp, '원 밖은 안 맞음');
   assert.ok(boss.hp < boss.maxHp && Math.abs(boss.x - bx) < 1, '보스는 맞지만 안 밀림');
+  assert.ok(g.zones.some((z) => z.kind === 'skid'), '타이어 자국');
+  assert.ok(h.pump > 0, '근육 펌프');
 });
 
 test('이한나 스킬 진화: 하트 빔이 한 줄로 늘어선 진상을 전부 꿰뚫는다 · 줄 밖은 안 맞음', () => {
@@ -1580,7 +1586,7 @@ test('건전남: 필드 구석 진상도 쏜다 (자기 줄 제한 없음) · �
   const h = g.heroes[0];
   const e = S.spawnEnemy(g, 'thug', 16, 90, { hpMul: 50 });
   let shots = 0;
-  for (let i = 0; i < 120; i++) { S.step(g, 1 / 60); shots += g.events.filter((x) => x.type === 'shot' && x.hero === 'gunman').length; g.events.length = 0; }
+  for (let i = 0; i < 240; i++) { S.step(g, 1 / 60); shots += g.events.filter((x) => x.type === 'shot' && x.hero === 'gunman').length; g.events.length = 0; } // (대개편: 권총은 한 발씩 또박또박)
   assert.ok(shots >= 3, '구석 진상에게 쏜다');
   assert.ok(e.hp < e.maxHp || g.projs.length > 0, '맞거나 날아가는 중');
 });
@@ -1964,7 +1970,7 @@ test('기세: 3칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(
   g.phase = 'wave';
   for (let i = 0; i < 3; i++) S.spawnEnemy(g, 'thug', 100 + i * 80, g.rowY - 200, { hpMul: 500 }).speed = 0;
   assert.equal(S.momCharges(g), 3);
-  const hs = g.heroes.filter((h) => h.def.skill && !h.def.skill.target);
+  const hs = g.heroes.filter((h) => h.def.skill); // (대개편: 조준 스킬도 찍지 않으면 가장 몰린 곳에)
   for (const h of hs) h.skillCd = 0;
   assert.equal(S.castSkill(g, hs[0]), true);
   assert.equal(S.castSkill(g, hs[1]), false, '0.6초 안에는 줄을 선다');
@@ -2570,41 +2576,46 @@ test('겹침 정리: 김도훈 떼창(입구 덜 침) · 문동한 과자(간보
   assert.ok(Math.abs(g.hcSkAtk - 0.2) < 1e-9 && g.buses.every((b) => Math.abs(b.stun - 0.8) < 1e-9), `공격력 +${g.hcSkAtk} · 기절 ${g.buses[0].stun}`);
 });
 
-test('송바울 보드: 기본 공격 없음 · 탭한 곳으로 돌진하며 길 위 진상 전부 · 탭이 없으면 알아서 · 몇 번 타면 자리로 돌아가 정비 (못 탐) · 썰매가 정비를 끝내 준다', () => {
+test('송바울 보드 (완전 수동): 기본 공격 없음 · 탭한 곳으로만 돌진 · 길 위 진상 전부 · 충전 칸 · 탭 없으면 안 탄다 · 콤보 · 퍼펙트 · 점프대', () => {
   const g = bare(['baul'], { god: true });
   g.phase = 'wave'; g.mods.crit = 0;
   const bh = g.heroes[0], B = D.HEROES.baul.board;
   // 세로 한 줄로 선 진상 3명 (위쪽) · 따로 떨어진 진상 1명 (왼쪽)
   const line = [0, 1, 2].map((k) => still(g, 'thug', 300, 200 + k * 50, 1000));
   const lone = still(g, 'thug', 40, 260, 1000);
-  bh.bd = { st: 'ride', uses: 0, cdT: 0.3, fixT: 0 }; bh.px = 300; bh.py = bh.y; bh.out = true; // (같은 세로줄에서 출발)
-  // 탭: 줄 서 있는 쪽 위로 → 그쪽으로 돌진 · 셋 다 맞는다 · 빈 곳 탭이라 지목은 없음
+  run(g, 3);
+  assert.ok(line.concat(lone).every((e) => e.hp === e.maxHp), '탭이 없으면 아무것도 안 한다 (자동 돌진 없음)');
+  bh.px = 300; bh.py = bh.y; // (같은 세로줄에서 출발)
+  assert.equal(S.boardCharges(bh), B.charges[0], '충전 칸 가득');
   assert.equal(S.setFocus(g, 300, 90), null, '빈 곳 탭: 지목 없음');
   assert.ok(S.setBoardAim(g, 300, 120), '보드 목표');
-  run(g, 1.3);
+  assert.equal(S.boardCharges(bh), B.charges[0] - 1, '한 칸 씀');
+  run(g, 1.0);
   assert.equal(g.projs.length, 0, '투사체(기본 공격) 없음');
   assert.ok(line.every((e) => e.hp < e.maxHp), `줄 위 진상 전부 맞음 ${line.map((e) => Math.round(e.maxHp - e.hp))}`);
   assert.equal(lone.hp, lone.maxHp, '길 밖 진상은 안 맞음');
   assert.ok(bh.out && bh.py < 200, `탭한 곳 쪽으로 감 (${bh.px.toFixed(0)}, ${bh.py.toFixed(0)})`);
-  // 계속 타면 정비: 자리로 돌아가 무릎 꿇고 고친다 (그동안 돌진 없음)
-  for (let i = 0; i < 60 * 40 && bh.bd.st !== 'fix'; i++) S.step(g, 1 / 60);
-  assert.equal(bh.bd.st, 'fix', '보드 정비');
-  assert.ok(!bh.out && bh.px === bh.x, '자리에서 정비');
-  const hp0 = line.concat(lone).reduce((a, e) => a + e.hp, 0);
-  run(g, B.fix[0] * 0.8);
-  assert.equal(line.concat(lone).reduce((a, e) => a + e.hp, 0), hp0, '정비 중엔 못 탐');
-  run(g, B.fix[0] * 0.3 + 0.3);
-  assert.notEqual(bh.bd.st, 'fix', '정비 끝 → 다시 탄다');
-  // 정비 중 썰매: 팬클럽이 새 보드 → 바로 다시 탄다
-  bh.bd.st = 'fix'; bh.bd.fixT = 3; bh.bd.uses = 99; bh.skillCd = 0;
-  assert.ok(S.castSkill(g, bh));
-  assert.ok(bh.bd.st === 'ride' && bh.bd.uses === 0, '썰매: 정비 끝');
-  // 탭 없이: 알아서 진상이 몰린 쪽으로
-  const g2 = bare(['baul'], { god: true });
-  g2.phase = 'wave';
-  const many = [0, 1, 2, 3].map((k) => still(g2, 'thug', 200 + k * 8, 150 + k * 40, 1000));
-  run(g2, 4);
-  assert.ok(many.filter((e) => e.hp < e.maxHp).length >= 3, '자동 돌진: 몰린 쪽');
+  // 콤보: 맞힌 뒤 2.2초 안에 또 맞히면 +15%
+  S.setBoardAim(g, 300, 330); run(g, 0.6);
+  assert.ok(bh.bd.combo >= 1, '이어 타기 콤보');
+  // 충전이 다 떨어지면 못 탄다 → 시간이 지나면 다시 찬다
+  bh.bd.ch = 0; const hp0 = line.reduce((a, e) => a + e.hp, 0);
+  S.setBoardAim(g, 300, 120); run(g, 0.5);
+  assert.equal(line.reduce((a, e) => a + e.hp, 0), hp0, '충전 0 이면 못 탄다');
+  run(g, B.refill[0] + 0.2);
+  assert.ok(S.boardCharges(bh) >= 1, '충전');
+  // 퍼펙트: 타는 중(착지 직전)에 다음 곳을 찍으면 ×1.4
+  bh.bd.ch = 3; bh.bd.st = 'ride'; bh.px = 300; bh.py = 330; S.setBoardAim(g, 300, 150);
+  let perfect = false;
+  for (let i = 0; i < 90; i++) { if (i === 8) S.setBoardAim(g, 300, 330); S.step(g, 1 / 60); for (const e of g.events) if (e.type === 'boardDash' && e.perfect) perfect = true; g.events.length = 0; }
+  assert.ok(perfect, '퍼펙트 연결');
+  // 점프대: 찍은 곳에 착지 쾅 · 충전 가득
+  bh.bd.ch = 0; bh.skillCd = 0;
+  const hp1 = line[1].hp;
+  assert.ok(S.castSkill(g, bh, 300, 250));
+  run(g, 1.0);
+  assert.ok(line[1].hp < hp1, '착지 피해');
+  assert.equal(S.boardCharges(bh), B.charges[0], '점프대: 충전 가득');
 });
 
 test('입구 피해: 던진 진상이 이미 죽어 없어도 (e = null) 멈추지 않는다', () => {

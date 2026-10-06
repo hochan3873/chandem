@@ -129,7 +129,7 @@ test('sim: 전용 신화 효과가 켜진다 — 건전남 두 발 · 김도훈 
     const h = g.heroes[0];
     S.spawnEnemy(g, 'thug', h.x, 300, { hpMul: 1000 }); S.spawnEnemy(g, 'thug', h.x + 60, 320, { hpMul: 1000 });
     S.fire(g, h, g.enemies[0]);
-    return g.projs.filter((p) => !p.dead && p.type === 'bullet').length;
+    return g.projs.filter((p) => !p.dead && (p.type === 'bullet' || p.type === 'pistol')).length; // (대개편: 권총)
   };
   assert.equal(shots(true), shots(false) + 1);
   // 김도훈: 무한 앵콜이 3초 뒤 한 번 더
