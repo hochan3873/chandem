@@ -1005,7 +1005,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.levelUp();
         break;
       case 'bhShout': for (let k = 0; k < 2; k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 480, sz: 56 + e.r * 0.45, tx: e.x + Math.cos(e.a) * e.r * 0.85, ty: e.y + Math.sin(e.a) * e.r * 0.85, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 120); if (!busy && Math.random() < 0.3) fx.part('heart', e.x, e.y - 20, (Math.random() - 0.5) * 60, -60, 0.8, 9, null); break;
-      case 'sled': { fx.banner('팬클럽 썰매 활강!', '세 줄 통째로 쓸고 · 팬클럽 함성 (공속 +60%)', '#2f8ac8', 1.1, 'wave', 'h_baul'); R.vfx('dash', e.x, e.y - 30, { anim: 'line', dur: 520, sz: 120, tx: e.x, ty: 30, rot: -Math.PI / 2, blend: 'lighter' }); for (let k = 0; k < 14; k++) setTimeout(() => fx.part('heart', e.x + (Math.random() - 0.5) * 50, e.y - 60 - k * 30, (Math.random() - 0.5) * 80, -30, 0.8, 10, null), k * 30); fx.addShake(6); if (loud) A.sfx.whoosh(); break; }
+      case 'sled': { fx.banner('팬클럽 썰매 활강!', '줄 통째로 쓸고 · 팬클럽 함성', '#2f8ac8', 1.1, 'wave', 'h_baul'); R.vfx('dash', e.x, e.y - 30, { anim: 'line', dur: 520, sz: 120, tx: e.x, ty: 30, rot: -Math.PI / 2, blend: 'lighter' }); for (let k = 0; k < 14; k++) setTimeout(() => fx.part('heart', e.x + (Math.random() - 0.5) * 50, e.y - 60 - k * 30, (Math.random() - 0.5) * 80, -30, 0.8, 10, null), k * 30); fx.addShake(6); if (loud) A.sfx.whoosh(); break; }
       case 'oneman': { // 강병화 원맨쇼: 컷인 → 붉은 막이 닫혔다 촤악 열림 → 무대 조명 · 스포트라이트 · 진상 춤 (skillfx.js oneman · 춤은 render.js)
         fx.flash('#ff7ab8', 0.2); SKFX.add('oneman', g, e, busy);
         const hh = g.heroes.find((o) => o.id === 'byunghwa'); if (hh) { hh._castAt = performance.now(); }
@@ -1032,12 +1032,12 @@ function handleEvents(g, loud) {
           setTimeout(() => { R.vfx('crack', e.x, e.y + 10, { anim: 'fade', dur: 1200, sz: e.r * 2, flat: true }); R.vfx('w_card_r', e.x, e.y - 10, { anim: 'fade', dur: 900, sz: 120, blend: 'source-over' }); fx.burst(e.x, e.y, 22, '#ff4b3a', 300, 'shard', 5, 0.6, 300); fx.addShake(9); if (loud) A.sfx.slam(); }, 260);
         }
         if (e.skill === 'frenzy') { // 건전남 난사: 부채꼴로 12발 폭풍 + 총구 불빛 고리
-          const hh = g.heroes.find((o) => o.id === 'gunman'); fx.banner('난사!!', '3초 동안 폭풍 연사', '#2f6d2f', 0.9, 'wave');
+          const hh = g.heroes.find((o) => o.id === 'gunman'); fx.banner('퀵드로우!!', '찍은 쪽으로 3초 연사', '#2f6d2f', 0.9, 'wave');
           if (hh) for (let k = 0; k < 12; k++) setTimeout(() => { fx.ring(hh.x, hh.y - 50, 4, 26, 0.18, '#fff3b0', 3); if (k % 3 === 0) R.vfx('hitspark', hh.x, hh.y - 52, { anim: 'pop', dur: 160, sz: 40 }); }, k * 240);
         }
         if (e.skill === 'blinddate') { fx.banner('소개팅 주선!', '여사친 3명 출동', '#c0407a', 0.9, 'wave'); for (let k = 0; k < 16; k++) fx.part('heart', e.x + (Math.random() - 0.5) * 60, e.y - 60, (Math.random() - 0.5) * 240, -80 - Math.random() * 140, 1, 11, null, { grav: 160 }); fx.ring(e.x, e.y - 50, 10, 120, 0.5, '#ff8ac8', 5); }
         if (e.skill === 'goodman') { if (loud) A.sfx.coin(); } // 금빛 띠 · 금화 비는 skillfx.js · 꽃다발은 'bouquet'
-        if (e.skill === 'bandage') fx.banner('붕대 대공사!', '입구 크게 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
+        if (e.skill === 'bandage') fx.banner('붕대 바리케이드!', '붕대 벽 · 입구 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
         break;
       case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 15, 1.1); break;
       case 'care': if (!busy) { fx.text(e.x, e.y - 84, e.cheer ? '힘내요!' : '물 한 잔! 기운 회복', '#9dd8ff', 12, 0.9); fx.part('heart', e.x, e.y - 60, 0, -60, 0.8, 9, '#ff8fc0'); } break; // 건전녀 간호: 지친(기진맥진) 멤버
@@ -1156,7 +1156,7 @@ function handleEvents(g, loud) {
       case 'c8escape': fx.text(clamp(e.x, 70, 290), 88, `축의금 도난! −${e.pct}%`, '#ff6b6b', 17, 1.6, 14); fx.flash('#ff2040', 0.16); fx.addShake(3); if (e.n === 1) toast('축의금 도둑을 놓쳤어요 — 이번 판 코인 −8% (최대 −40%) · 묶기 · 기절 · 감속으로 잡아요', 2200); if (loud) A.sfx.explode && A.sfx.explode(); break;
       case 'c8recover': fx.text(e.x, e.y, '축의금 되찾음!', '#ffe27a', 14, 1.0, -22); for (let k = 0; k < 6; k++) fx.part('dot', e.x, e.y, (Math.random() - 0.5) * 160, -60 - Math.random() * 120, 0.8, 5, '#ffffff'); if (loud) A.sfx.crit && A.sfx.crit(); break;
       case 'c8tie': if (!busy || e.env) fx.text(e.x, e.y - 6, e.env ? '도둑 꽁꽁! 묶었다' : '리본 묶기!', '#ffb3d9', e.env ? 13 : 11, 0.8, -14); fx.ring(e.x, e.y + 26, 6, 26, 0.4, '#ff9fd0', 3); break;
-      case 'c8toss': fx.text(e.x, e.y - 40, '부케 토스!', '#ffd0ec', 18, 1.0, -20); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ff9fd0', 6); fx.burst(e.x, e.y, busy ? 10 : 24, '#ffc0dc', 220, 'dot', 4, 0.8, 200); fx.burst(e.x, e.y, 8, '#ffffff', 160, 'star', 4, 0.6); fx.addShake(3); if (loud) A.sfx.heal && A.sfx.heal(); break;
+      case 'c8toss': fx.text(e.x, e.y - 40, '리본 회오리!', '#ffd0ec', 18, 1.0, -20); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ff9fd0', 6); fx.burst(e.x, e.y, busy ? 10 : 24, '#ffc0dc', 220, 'dot', 4, 0.8, 200); fx.burst(e.x, e.y, 8, '#ffffff', 160, 'star', 4, 0.6); fx.addShake(3); if (loud) A.sfx.heal && A.sfx.heal(); break;
       case 'c8eat': if (e.n && !busy) { fx.text(e.x, e.y, '냠냠~ 회복', '#c8f0a0', 11, 0.8); fx.ring(e.x, e.y + 30, 10, e.r * 0.6, 0.5, '#9dffb0', 3); } break;
       case 'c8singWind': fx.text(e.x, e.y - 6, '아아~ (숨 들이쉬기)', '#ffe08a', 11, 0.8); R.vfx('warn', e.x, e.y + 30, { anim: 'grow', dur: 900, sz: 120, flat: true }); break;
       case 'c8sing': fx.text(e.x, e.y - 10, '삑사리!! 공속↓', '#ffb070', 14, 1.0, -16); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ffb070', 5); if (loud) A.sfx.horn && A.sfx.horn(); break;
@@ -1789,9 +1789,9 @@ function placeBubble(x, y) {
 }
 // 필드 멤버 정보 카드: 지금 능력치 · 공격 방식 · 레벨 효과 · 버프/디버프 (열려 있는 동안 게임 50% 속도)
 const PROJ_TXT = {
-  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', board: '보드 돌진 (탭한 곳으로 · 길 위 전부 · 몇 번 타면 정비)', nag: '잔소리 (피해 없음 · 성준영 체력 · 부르기 게이지)', sweep: '칩 긁어모으기 (주변 진상 끌어모아 붙잡기 · 피해 조금)', warn: '유도탄 (감속 · 경고 누적)', bullet: '직선 저격 (자기 줄만)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
-  wave: '둥근 음파 (주변 전부 · 맞은 진상은 입구를 덜 세게)', dumbbell: '포물선 덤벨 (범위) + 오토바이 돌진', snack: '유도 과자 + 한 줄 빔', dash: '뛰어들어 연속 베기', bottle: '포물선 소주병 (범위 · 분노 중 불바다)',
-  beam: '레이저 (계속 쏘면 세짐)', cane: '관통 지팡이 (자기 줄 전부)', gf: '핀볼 여사친 (3~4명 튕김 · 밀어내기)', slam: '몸통 박치기 충격파 / 날씬 모드 연타', hammer: '무거운 유도 망치 (보스 우선)', crown: '황금 파동 (자기 줄 전부 관통)',
+  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', board: '수동 보드 (탭한 곳으로만 · 길 위 전부 · 충전 칸 · 콤보 · 퍼펙트)', nag: '잔소리 (피해 없음 · 성준영 체력 · 부르기 게이지)', sweep: '칩 긁어모으기 (주변 진상 끌어모아 붙잡기 · 피해 조금)', warn: '하늘에서 떨어지는 경고 딱지 (작은 원 · 감속 · 경고 누적)', bullet: '직선 저격', pistol: '권총 (한 명씩 · 레벨마다 연발 · 체력 적은 진상부터)', breath: '용의 불 뿜기 (짧은 부채꼴 · 화상)', tick: '발밑 시계 (째깍 · 감속 장판)', rose: '휘는 장미 (장미 표식 → 꽃다발)', tap: '소주병 휘두르기 (입구 앞 반원 · 흉터 눈빛)', mosaic: '점멸 모자이크 손 (방깎 · 번짐 · 검열)', jab: '짧은 주먹 충격파 (+ 반격)', bouquet: '나선 리본 (묶어 춤추게)', shout: '핀 조명 (끌어모아 홀림)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
+  wave: '퍼지는 음파 고리 (떼창 · 떼창 게이지)', dumbbell: '굴러가는 덤벨 (줄 위 전부 · 근육 펌프) + 오토바이 돌진', snack: '흐느적 과자 + 한 줄 빔', dash: '뛰어들어 연속 베기', bottle: '소주병 시한폭탄 (0.5초 뒤 펑 · 분노 중 술 웅덩이)',
+  beam: '레이저 (계속 쏘면 세짐)', cane: '고리 지팡이 (몰린 곳까지 크게 돌아 나갔다 돌아옴 · 관통)', gf: '핀볼 여사친 (3~4명 튕김 · 밀어내기)', slam: '땅이 갈라지는 직선 충격파 / 날씬 모드 직선 잽', hammer: '무거운 유도 망치 (보스 우선)', crown: '황금 파동 (자기 줄 전부 관통)',
 };
 function heroStatsHtml(g, h) {
   const d = h.def;

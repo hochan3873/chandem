@@ -90,7 +90,7 @@ export const CADENCE = {
   jieun: { wind: 0.45, back: 0.02, sq: 0.02, snap: 0.04, move: 'cast' }, // 스르르 떠올라 → 쿵 파동
   jiwon: { wind: 0.26, back: 0.03, sq: 0.14, snap: 0.08, move: 'pop' }, // 쪼그렸다 → 뿅 튀어 오름
   sanghwa: { wind: 0.12, back: 0.06, sq: 0.03, snap: 0.1 }, // 동전 휙휙휙
-  gunman: { wind: 0.08, back: 0.03, sq: 0.02, snap: 0.05 }, // 새총 연사
+  gunman: { wind: 0.22, back: 0.05, sq: 0.02, snap: 0.14 }, // 권총: 숨 고르고 또박또박 탕
   jungmin: { wind: 0.28, back: 0.14, sq: 0.06, snap: 0.22, lift: 10 }, // 머리 위로 크게
   ara: { wind: 0.3, back: 0.1, sq: 0.1, snap: 0.25, lift: 12 }, // 두 손 망치
   baul: { wind: 0.2, back: 0.06, sq: 0.06, snap: 0.16, lift: 4 }, // 보드 돌진: 웅크렸다 → 박차고 나간다 (띠가 없을 때만)
@@ -137,12 +137,12 @@ export const PROJ_ART_NAMES = ['bottle', 'cup', 'coin', 'dumbbell', 'bubble', 'c
 //   진화: Lv3 탄창 +1 · Lv5 관통 +1 (연발·속사) 또는 범위 +25% · 진화 카드 = 큰 투사체
 export const WEAPON = {
   bangjang: { item: '확성기 지시', kind: 'melee', reload: '목 가다듬기' },
-  staff: { item: '옐로·레드카드', kind: 'burst', mag: 2, gap: 0.3, reload: '수첩 넘기기' },
-  gunman: { item: '장난감 새총 BB알', kind: 'rapid', mag: 6, gap: 0.45, reload: '고무줄 다시 감기' },
+  staff: { item: '경고 딱지', kind: 'burst', mag: 2, gap: 0.3, reload: '수첩 넘기기' },
+  gunman: { item: '권총', kind: 'pistol', reload: '탄창 갈기' }, // (대개편: 새총 연사 → 권총 한 발씩 · 레벨마다 연발)
   gunnyeo: { item: '하트 폭탄', kind: 'lob', reload: '구급상자 열기' },
-  myunghoon: { item: '욕 "#@!%"', kind: 'chain', reload: '숨 고르기' },
+  myunghoon: { item: '욕 "#@!%" 번개', kind: 'chain', reload: '숨 고르기' },
   dohoon: { item: '마이크 떼창', kind: 'aura', reload: '물 한 모금' },
-  ingyu: { item: '할리', kind: 'pierce', reload: '시동 걸기' },
+  ingyu: { item: '굴리는 덤벨', kind: 'pierce', reload: '덤벨 다시 들기' },
   donghan: { item: '뜨거운 커피', kind: 'lob', reload: '커피 리필' },
   youngjun: { item: '블랙캣 후드 러시', kind: 'melee', reload: '숨 고르기' },
   eunok: { item: '소주잔', kind: 'burst', mag: 2, gap: 0.3, reload: '소주 한 잔 원샷' },
@@ -153,15 +153,16 @@ export const WEAPON = {
   ara: { item: '공주 망치', kind: 'heavy', reload: '"아이고 허리야"' },
   hochan: { item: '금빛 확성기', kind: 'gauge', reload: '막차 버스 호출' },
   soyoung: { item: '잔소리', kind: 'nag', reload: '숨 고르기' },
-  jieun: { item: '시계 초침', kind: 'chain', reload: '태엽 감기' },
-  sanghwa: { item: '동전', kind: 'burst', mag: 3, gap: 0.3, reload: '지갑 꺼내기' },
-  jungmin: { item: '소주병', kind: 'lob', reload: '새 병 따기' },
-  jiwon: { item: '모자이크 손', kind: 'pierce', reload: '손 풀기' },
+  jieun: { item: '바닥 시계', kind: 'zone', reload: '태엽 감기' },
+  sanghwa: { item: '매너 장미', kind: 'curve', reload: '장미 다듬기' },
+  jungmin: { item: '거꾸로 든 소주병', kind: 'melee', reload: '새 병 따기' },
+  jiwon: { item: '점멸 모자이크 손', kind: 'blink', reload: '손 풀기' },
   wonsik: { item: '덤벨', kind: 'heavy', reload: '덤벨 다시 들기' },
   jeongseob: { item: '두 팔', kind: 'melee', reload: '앉아서 쉬기' },
-  byunghwa: { item: '목소리', kind: 'beam', reload: '숨 고르기' },
+  byunghwa: { item: '핀 조명', kind: 'pull', reload: '조명 맞추기' },
   baul: { item: '스노보드', kind: 'board', reload: '보드 정비' },
-  subin: { item: '부케', kind: 'homing', reload: '새 부케 묶기' },
+  subin: { item: '리본', kind: 'helix', reload: '리본 다시 감기' },
+  dragon: { item: '뭉치의 불', kind: 'cone', reload: '뭉치 숨 고르기' },
 };
 // 밸런스 개편 (역할 · 상성 · 난이도) — 숫자는 모의 전투로 맞춘 값
 export const BAL = {
@@ -1877,7 +1878,7 @@ export const RARITY = {
 export const CARDS = [
   { id: 'dmg', icon: '💪', title: '회식 버프', desc: '모든 멤버 공격력 +27%', rarity: 'common', max: 6 },
   { id: 'spd', icon: '⚡', title: '카페인 충전', desc: '모든 멤버 공격 속도 +20%', rarity: 'common', max: 5 },
-  { id: 'gunExtra', icon: '🔫', title: '건전남 새총알 추가', desc: '건전남 한 번에 +1발', rarity: 'rare', max: 2, needs: 'gunman' },
+  { id: 'gunExtra', icon: '🔫', title: '건전남 연발 +1', desc: '건전남 한 번에 +1발', rarity: 'rare', max: 2, needs: 'gunman' },
   { id: 'crit', icon: '🎯', title: '정곡 찌르기', desc: '치명타 확률 +13% (피해 2배)', rarity: 'rare', max: 4 },
   { id: 'hp', icon: '🏗️', title: '방어선 보강', desc: '랑방 최대 내구도 +35% · 50% 회복 · 받는 피해 −15%', rarity: 'common', max: 5 },
   { id: 'exp', icon: '🍹', title: '인싸력 상승', desc: '경험치 획득 +35%', rarity: 'common', max: 3 },
@@ -1940,7 +1941,7 @@ export const HERO_CARDS = {
 };
 // 스킬 진화 카드 (Lv3 이상 멤버 · 한 번): 스킬이 한 번 더 터진다 (0.5초 뒤, 옆자리에)
 export const SKILL_EVO = {
-  bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '난사 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
+  bangjang: '집합! 두 번 외치기', staff: '레드카드 2장 발사', gunman: '퀵드로우 연장전', gunnyeo: '응급처치 + 하트 폭탄 3연발', myunghoon: '쌍욕 폭격 2회 연속',
   dohoon: '무한 앵콜 앵콜', ingyu: '할리 한 바퀴 더', donghan: '초사이언 포격 4발 더', youngjun: '블랙 러시 왕복', eunok: '원샷 두 잔',
   hanna: '하트 레이저 풀파워 (화면 끝까지 꿰뚫는 굵은 빔)', sunggu: '지팡이 블랙홀 두 개', junseo: '소개팅 2차', hyungyeong: '다이어트 주사 + 충격파', ara: '공주의 일격 2연타', hochan: '랑방을 위하여!! 앵콜',
   soyoung: '올인 콜 앵콜 (올인 모드 한 번 더)', jieun: '시간 정지 두 번', sanghwa: '끝내주는남자 박상화!!', jungmin: '붕대 대공사 한 번 더', jiwon: '모자이크 폭격 앵콜', wonsik: '결혼정보회사 VIP 등록', subin: '부케 토스 2차 (한 번 더)',
@@ -1962,7 +1963,7 @@ export const HERO_TAGS = { jeongseob: ['ctrl'], subin: ['ctrl'], dragon: ['splas
 export const ATTR_SET = [0, 0, 0.12, 0.22, 0.34, 0.44, 0.52];
 // 진화: Lv5 + 짝 특성 카드를 가지고 있으면 "진화" 카드가 나온다 (공격력 ×1.45 · 공격 속도 +18% · 스킬 쿨 -30%)
 export const EVO = {
-  bangjang: { tag: 'kb', name: '황금 확성기' }, staff: { tag: 'ctrl', name: '운영 총괄' }, gunman: { tag: 'pierce', name: '레일 새총' }, gunnyeo: { tag: 'heal', name: '천사 간호사' },
+  bangjang: { tag: 'kb', name: '황금 확성기' }, staff: { tag: 'ctrl', name: '운영 총괄' }, gunman: { tag: 'pierce', name: '황금 리볼버' }, gunnyeo: { tag: 'heal', name: '천사 간호사' },
   myunghoon: { tag: 'chain', name: '구미호 욕신' }, dohoon: { tag: 'heal', name: '전국 투어' }, ingyu: { tag: 'kb', name: '3대 700' }, donghan: { tag: 'splash', name: '각성한 간보기' },
   youngjun: { tag: 'boss', name: '한밤의 블랙캣' }, eunok: { tag: 'splash', name: '폭탄주 여왕' }, hanna: { tag: 'kb', name: '윙크 여신' }, sunggu: { tag: 'pierce', name: '지팡이 달인' },
   junseo: { tag: 'chain', name: '인맥왕' }, hyungyeong: { tag: 'kb', name: '다이어트 챔피언' }, ara: { tag: 'boss', name: '여왕 폐하' }, hochan: { tag: 'ctrl', name: '랑방의 전설' },
@@ -2106,9 +2107,9 @@ for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0];
 export const SIG = {
   bangjang: { name: '초대 방장의 황금 확성기', stats: { spd: 0.1, cd: 0.1 }, fx: { rallyCd: 0.5 }, desc: '"집합!"을 외치면 다른 멤버들 남은 스킬 쿨타임이 절반으로 줄어든다' },
   staff: { name: '영구 정지 도장', stats: { cd: 0.12, strip: 0.1 }, fx: { warnN: 2, kickStun: 2 }, desc: '경고 2번이면 바로 강퇴 · 강퇴 기절 2배' },
-  gunman: { name: '쌍열 새총', stats: { atk: 0.12, crit: 0.06 }, fx: { multi: 1, multiK: 0.8 }, desc: '새총알을 한 번에 두 발 — 두 번째 알은 다른 진상에게 (80% 세기)' },
+  gunman: { name: '쌍열 새총', stats: { atk: 0.12, crit: 0.06 }, fx: { multi: 1, multiK: 0.8 }, desc: '쏠 때마다 다른 진상에게 한 발 더 (쌍권총 · 80% 세기)' },
   gunnyeo: { name: '수호천사 구급상자', stats: { hp: 0.12, res: 0.2 }, fx: { careMul: 1.5, cheerN: 3 }, desc: '간호가 1.5배 자주 · 아픈 멤버가 없을 땐 「힘내요!」를 제일 잘 싸우는 멤버 3명에게 한꺼번에 (공격 속도 +30%)' },
-  myunghoon: { name: '욕 사전 무삭제판', stats: { atk: 0.1, skill: 0.15 }, fx: { curseN: 10, root: 3 }, desc: '쌍욕 저격이 5명 → 10명을 노리고, 묶는 시간 2초 → 3초' },
+  myunghoon: { name: '욕 사전 무삭제판', stats: { atk: 0.1, skill: 0.15 }, fx: { curseN: 10, root: 3 }, desc: '실눈 저격 벼락이 5발 → 10발, 얼리는 시간 3초' },
   dohoon: { name: '앵콜 전용 골든 마이크', stats: { cd: 0.12, hp: 0.1 }, fx: { echo: 3 }, desc: '무한 앵콜이 3초 뒤 한 번 더 터진다 (춤추느라 멈춤 · 상태이상 해제 · 공격 버프 모두 다시)' },
   ingyu: { name: '할리 사이드카 세트', stats: { atk: 0.1, hp: 0.1 }, fx: { twinHarley: 1, moto: 2 }, desc: '할리가 두 대 (반대 대각선으로 한 대 더) · 오토바이 돌진 게이지가 2배로 찬다' },
   donghan: { name: '꿀잠 바디필로우', stats: { skill: 0.15, atk: 0.08 }, fx: { refill: 50 }, desc: '빔을 쏘고 나면 간보기 게이지 절반이 바로 다시 찬다 (빔이 거의 두 배로 자주)' },
@@ -2355,7 +2356,7 @@ export const SKILL_AUG = {
     { id: 'kickboom', name: '강퇴 폭발', desc: '강퇴당한 진상 주변이 터지며 0.8초 기절' },
   ],
   gunman: [
-    { id: 'frenzy', name: '난사 연장전', desc: '난사 +1.5초 · 난사 피해 +20%' },
+    { id: 'frenzy', name: '퀵드로우 연장전', desc: '퀵드로우 +1.5초 · 피해 +20%' },
     { id: 'head', name: '헤드샷 장인', desc: '치명타 +15% · 3발마다 헤드샷 (Lv 상관없이)' },
   ],
   gunnyeo: [
@@ -2363,7 +2364,7 @@ export const SKILL_AUG = {
     { id: 'angel', name: '천사의 손길', desc: '간호 50% 더 자주 · 하트 폭탄 범위 +30%', cm: { mul: { care: 1.5, splash: 1.3 } } },
   ],
   myunghoon: [
-    { id: 'bolts', name: '저주 폭격', desc: '쌍욕 저격이 8명까지' },
+    { id: 'bolts', name: '벼락 폭격', desc: '실눈 저격 벼락 8발' },
     { id: 'chain', name: '욕 연쇄', desc: '욕 튕김 +2 · 기절 +30%', cm: { add: { bounce: 2 }, mul: { ctrl: 1.3 } } },
   ],
   dohoon: [
@@ -2383,7 +2384,7 @@ export const SKILL_AUG = {
     { id: 'endless', name: '끝없는 돌격', desc: '돌격 +1.5초 · 크로스핏 −40%', cm: { add: { out: 1.5 } } },
   ],
   eunok: [
-    { id: 'inferno', name: '불바다 확장', desc: '분노 불바다 범위 +50% · 1초 더' },
+    { id: 'inferno', name: '술 웅덩이 확장', desc: '분노 술 웅덩이 범위 +50% · 1초 더' },
     { id: 'bottoms', name: '끝장 원샷', desc: '분노 +4초 · 원샷 쿨타임 −30%', cm: { add: { rage: 4 } }, skCd: 0.7 },
   ],
   hanna: [
@@ -2424,7 +2425,7 @@ export const SKILL_AUG = {
   ],
   jungmin: [
     { id: 'craft', name: '붕대 장인', desc: '수리 +50%', cm: { mul: { heal: 1.5 } } },
-    { id: 'iron', name: '철벽 붕대', desc: '붕대 대공사 입구 피해 감소 +20%p · 3초 더' },
+    { id: 'iron', name: '철벽 붕대', desc: '바리케이드 붕대 벽 1.5배 튼튼 · 입구 피해 감소 +20%p · 3초 더' },
   ],
   jiwon: [
     { id: 'deep', name: '깊은 방깎', desc: '방깎 +1겹 · 2초 더', cm: { add: { shredMax: 1, shredSec: 2 } } },
