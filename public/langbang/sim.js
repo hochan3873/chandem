@@ -4072,6 +4072,7 @@ export function step(g, dt) {
   updateHeroes(g, dt);
   updateEnemies(g, dt);
   if (g.r2) g.r2.tick(g, dt); // 건물주 레이드: 거대 보스 패턴 · 화 쌓기 (raid2-sim.js)
+  if (g.twa) g.twa.tick(g, dt); // 진상의 탑: 바닥 예고 · 멤버 체력 · 끌어서 옮기기 (tower-arena.js)
   if (g.conds.length || (g.wtr && g.wtr.shield)) condTick(g, dt);
   updateEprojs(g, dt);
   updateProjs(g, dt);
@@ -4678,7 +4679,7 @@ function extraTick(g, dt) {
   }
   if (T && (g.phase === 'wave' || g.phase === 'intro')) {
     if (T.curse && g.phase === 'wave') towerCurse(g, dt);
-    towerAutoLane(g, dt);
+    if (!g.twa) towerAutoLane(g, dt); // (탑 리메이크: 멤버는 손으로 옮긴다)
     if (T.layers || T.dark) {
       const rv = FIELD.spawnY + (g.ropeY - FIELD.spawnY) * TOWER_SIM.dark.reveal;
       for (const e of g.enemies) {
