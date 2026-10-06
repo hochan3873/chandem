@@ -249,3 +249,22 @@ test('1:1 대전 끊김: 손님도 같은 기기 id 로 다시 붙으면 같은 
     w1.close(); w2.close();
   } finally { await srv.close(); }
 });
+
+test('1:1 대전: 매칭 대기 중 [AI와 바로 대전] → 30초 안 기다리고 바로 AI 판 · 대기 중이 아니면 거절', async () => {
+  const srv = createServer({ port: 0, lbpvp: { botAfterMs: 60000, graceMs: 300, sendDelayMs: 30, countdownMs: 30, botTickMs: 40, aiNoticeMs: 0 } });
+  const port = await srv.listen();
+  const s = connect(`http://127.0.0.1:${port}/lbpvp`, { transports: ['websocket'], forceNew: true, reconnection: false, auth: { gid: 'guestbot01' } });
+  s.got = {}; s.on('match', (m) => { s.got.match = m; });
+  const call = (ev, b) => new Promise((r) => s.emit(ev, b, r));
+  try {
+    await until(() => s.connected);
+    const no = await call('botnow', {});
+    assert.equal(no.ok, false, '대기 중이 아니면 거절');
+    const q = await call('queue', { deck: ['staff'], power: 1500 });
+    assert.ok(q.waiting);
+    const r = await call('botnow', {});
+    assert.ok(r.ok && r.matched);
+    await until(() => s.got.match, 2000);
+    assert.ok(s.got.match.opp && s.got.match.opp.bot, 'AI 상대');
+  } finally { s.close(); await srv.close(); }
+});

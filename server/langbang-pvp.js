@@ -377,6 +377,8 @@ function createLbPvp(opts) {
         ack(fn, { ok: true, waiting: true, botIn: T.botAfter });
       });
       socket.on('cancel', (b, fn) => { unqueue(me()); ack(fn, { ok: true }); });
+      // 기다리지 않고 바로 AI 와 대전 (매칭 대기 중에 [AI와 바로 대전]) — 대기열 · 빠른 매칭 방 (AI 타이머가 걸린 것만 · 친구 방은 X)
+      socket.on('botnow', (b, fn) => { const pl = me(); if (pl.match || !(queue.includes(pl) || (pl.botT && [...codes.values()].includes(pl)))) return ack(fn, { ok: false, message: '대기 중이 아니에요' }); unqueue(pl); makeMatch(pl, makeBot(pl)); ack(fn, { ok: true, matched: true }); });
       // 손님: 덱 멤버의 강화 · 성급 · 장비 (서버가 대전 한도로 잘라서 진상 체력에 쓴다)
       socket.on('loadout', (b) => { const pl = me(); if (!pl.uid && !pl.match && b && typeof b === 'object') setLoadout(pl, { lo: b }); });
       socket.on('requeue', (b, fn) => {
