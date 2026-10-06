@@ -1040,6 +1040,12 @@ function handleEvents(g, loud) {
         if (e.skill === 'bandage') fx.banner('붕대 바리케이드!', '붕대 벽 · 입구 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
         break;
       case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 15, 1.1); break;
+      case 'knockdown': fx.text(e.x, e.y - 80, '쓰러짐!', '#ff6a5a', 16, 1.2); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 360, sz: 90 }); fx.addShake(5); break; // 쓰러짐 게이지 가득
+      case 'getUp': fx.text(e.x, e.y - 80, '일어남!', '#ffe27a', 13, 0.9); break;
+      case 'kdHeal': fx.text(e.x, e.y - 72, '+간호', '#9dffb0', 12, 0.8); break; // 건전녀: 쓰러짐 게이지 회복
+      case 'poisonHit': fx.text(e.x, e.y - 76, '독!', '#9dff6a', 14, 0.9); break;
+      case 'immune': fx.text(e.x, e.y, ({ stun: '기절', charm: '홀림', silence: '침묵', freeze: '빙결', poison: '독', slow: '감속' }[e.kind] || '') + ' 면역!', '#8fd8ff', 13, 0.9); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
+      case 'kdNoSkill': fx.text(e.x, e.y - 70, '쓰러져서 못 써요', '#ff9a8a', 11, 0.8); break;
       case 'care': if (!busy) { fx.text(e.x, e.y - 84, e.cheer ? '힘내요!' : '물 한 잔! 기운 회복', '#9dd8ff', 12, 0.9); fx.part('heart', e.x, e.y - 60, 0, -60, 0.8, 9, '#ff8fc0'); } break; // 건전녀 간호: 지친(기진맥진) 멤버
       case 'heartShield': { // 건전녀 응급 방패: 멤버 전원에게 하트 방패
         fx.banner('응급 방패!', `멤버 전원 상태이상 해제 · ${Math.round(e.sec)}초 면역 · 스킬 쿨 −2초`, '#c0407a', 1, 'wave', 'h_gunnyeo');
@@ -1190,10 +1196,10 @@ function handleEvents(g, loud) {
       case 'condCcStop': fx.text(e.x, e.y - 10, '끊었다!', '#7dff9a', 14, 0.9); break;
       case 'gunnyeoReact': fx.text(e.x, e.y - 70, '응급처치!', '#7dff9a', 13, 0.9); break;
       case 'condCc': {
-        const h = HD(e.hero), nm = { stun: '기절', charm: '홀림', silence: '침묵' }[e.kind] || '';
-        for (let k = 0; k < 5; k++) { const q = k / 5; fx.part('dot', e.ex + (e.x - e.ex) * q, e.ey + (e.y - 40 - e.ey) * q, 0, -10, 0.5 + q * 0.4, 5, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'silence' ? '#b9a8ff' : '#ffd23f'); }
+        const h = HD(e.hero), nm = { stun: '기절', charm: '홀림', silence: '침묵', poison: '독' }[e.kind] || '';
+        for (let k = 0; k < 5; k++) { const q = k / 5; fx.part('dot', e.ex + (e.x - e.ex) * q, e.ey + (e.y - 40 - e.ey) * q, 0, -10, 0.5 + q * 0.4, 5, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'poison' ? '#9dff6a' : e.kind === 'silence' ? '#b9a8ff' : '#ffd23f'); }
         if (e.block) { fx.text(e.x, e.y - 62, '막음!', '#8fd8ff', 14, 0.9); break; }
-        fx.text(e.x, e.y - 62, `${h.name} ${nm}!`, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'silence' ? '#c9b8ff' : '#ffd23f', 14, 1.1);
+        fx.text(e.x, e.y - 62, `${h.name} ${nm}!`, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'poison' ? '#9dff6a' : e.kind === 'silence' ? '#c9b8ff' : '#ffd23f', 14, 1.1);
         const fh = g.heroes.find((x) => x.id === e.hero);
         if (fh && e.kind === 'stun') R.vfx('stun', 0, 0, { follow: fh, dy: -78, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 52 });
         else if (fh && e.kind === 'silence') R.vfx('silence', 0, 0, { follow: fh, dy: -86, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 44 });
@@ -3471,7 +3477,7 @@ function showHeroModal(id, ctx = '') {
   const strong = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) > 1), weak = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) < 1);
   const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>${ok ? BKX.heroHtml(id) : ''}
       <div class="hs-skill">${ic('swords', '', '')}<span><small>기본 공격</small><b>${esc((w && w.item) || '기본 공격')}</b><p>${esc(d.attack)}</p></span></div>
-      <div class="hs-skill sk-ult"><img class="ic hs-skic" src="/img/lb/ui2/sk_${id}.webp" alt="" draggable="false"><span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
+      ${d.supTip ? `<p class="ip">${ic('sparkle', '', 'sm')}<b>서포터 전문</b> ${esc(d.supTip)}</p>` : ''}<div class="hs-skill sk-ult"><img class="ic hs-skic" src="/img/lb/ui2/sk_${id}.webp" alt="" draggable="false"><span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
       ${sigRowHtml(id)}
       ${w || ev ? `<div class="hs-tree"><span class="t0">${esc((w && w.item) || '기본')}</span><i></i><span class="t1">${ev ? esc(ev.name) : '진화'}</span></div>` : ''}
       ${(HERO_TAGS[id] || []).filter((t) => ROLE_IC[t]).length ? `<div class="hs-match hs-roles"><span>${ic('target', '', 'sm')}역할</span>${(HERO_TAGS[id] || []).filter((t) => ROLE_IC[t]).map((t) => `<button class="gl-chip role-chip" data-gl="role:${t}"><img class="role-ic" src="/img/lb/ui2/${ROLE_IC[t]}.webp" alt="">${ROLE_TXT[t][0]}</button>`).join('')}</div>` : ''}

@@ -578,7 +578,7 @@ test('멤버마다 사거리 · 공격 간격 · 공격 방식 · 스킬이 전�
   assert.equal(new Set(H.map((h) => h.interval)).size, H.length, '공격 간격 겹침');
   assert.equal(new Set(H.map((h) => h.skill.id)).size, H.length, '스킬 겹침');
   assert.ok(new Set(H.map((h) => h.proj)).size >= H.length - 1, '공격 방식');
-  for (const h of H) { assert.ok(D.ATTRS[h.attr], h.id); assert.ok(h.attack && h.skill.name && h.skill.cd >= 12 && h.skill.cd <= 30, h.id); }
+  for (const h of H) { assert.ok(D.ATTRS[h.attr], h.id); assert.ok(h.attack && h.skill.name && h.skill.cd >= 6 && h.skill.cd <= 60, h.id); }
   const cnt = {};
   for (const h of H) cnt[h.attr] = (cnt[h.attr] || 0) + 1;
   const vals = Object.values(cnt);
@@ -890,7 +890,7 @@ test('김영준: 제일 몰린 곳으로 뛰어들어 연속 베기(가오 무�
   const es = [0, 1, 2, 3, 4, 5, 6].map((i) => { const e = S.spawnEnemy(g3, 'thug', 40 + i * 45, 200 + (i % 2) * 40, { hpMul: 100 }); e.speed = 0; return e; });
   g3.heroes[0].skillCd = 0;
   assert.ok(S.castSkill(g3, g3.heroes[0]));
-  assert.equal(es.filter((e) => e.hp < e.maxHp).length, 6);
+  assert.equal(es.filter((e) => e.hp < e.maxHp).length, D.HEROES.youngjun.skill.n[0]); // (쿨 다양화: 10초 · 3명)
 });
 
 test('맵 효과는 스테이지 추천 속성과 어긋나지 않는다 (노래방·안개 = 말빨 추천, 회식 = 술 추천)', () => {
@@ -1909,7 +1909,7 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
   for (const id of ['staff', 'eunok']) { // (대개편: 건전남 권총 · 박상화 장미는 탄창 대신 한 발씩) · 예전 메모: 상화는 일부러 상향 (TEMPO.fix 1.38 → 1.7 → 2.9) → 3.1배 쯤
     const a = run(false, id), b = run(true, id);
     const r = b.dmg / a.dmg;
-    assert.ok(r > 0.55 && r < (id === 'sanghwa' ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
+    assert.ok(r > 0.7 && r < (id === 'sanghwa' ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
     const gaps = b.shots.slice(1).map((t, i) => t - b.shots[i]);
     const mn = Math.min(...gaps), mx = Math.max(...gaps);
     assert.ok(mx > mn * 2.5, `${id} 장전 리듬 (간격 ${mn.toFixed(2)} ~ ${mx.toFixed(2)})`);
@@ -1988,11 +1988,11 @@ test('기세: 3칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(
   g.ult = D.RULES.ultMax; g.mom = 150;
   assert.equal(S.useUlt(g), false, '총공지는 2칸');
   g.mom = 220; assert.equal(S.useUlt(g), true);
-  // 강한 범위 스킬 쿨 ×2 (템포 ×1.5 대신)
+  // 쿨 다양화: 스킬 cd 가 곧 실제 초 (템포 · 강한 스킬 배율 없음)
   const q = S.createGame({ H: 760, rng: seeded(9), noWaves: true, heroes: ['gunman'], tempo: true, meta: {} });
   q.phase = 'wave'; S.spawnEnemy(q, 'thug', q.heroes[0].x, q.rowY - 200, { hpMul: 500 }).speed = 0;
   const gm = q.heroes[0]; gm.skillCd = 0; S.castSkill(q, gm);
-  assert.ok(Math.abs(gm.skillCd - D.HEROES.gunman.skill.cd * 2) < 0.5, `건전남 쿨 ${gm.skillCd}`);
+  assert.ok(Math.abs(gm.skillCd - D.HEROES.gunman.skill.cd) < 0.5, `건전남 쿨 ${gm.skillCd}`);
 });
 
 test('강화가 진짜로 먹힌다: 강화 · ★ · 장비 +N · 등급 · 신화 · 기본 멤버 역할 · 공속 카드 · 증강 → 전투 공격력/공격 속도가 정해진 만큼 바뀐다', async () => {
@@ -2352,7 +2352,7 @@ test('스테이지 조건: 앞쪽 스테이지는 없음 · 중후반 1~3개 · 
   // 조건마다 맞는 멤버가 2명 이상 (기본 멤버로도 대응 가능하게)
   for (const k of D.COND_IDS) assert.ok(D.COND[k].counter.filter((id) => D.HEROES[id]).length >= 2, k);
   assert.deepEqual(D.condFits('gunnyeo', ['cc', 'rush']), ['cc'], '건전녀는 멤버 간호 (입구 돌격은 홍정민 · 탱커)');
-  assert.deepEqual(D.condFits('jungmin', ['cc', 'rush']), ['rush']);
+  assert.deepEqual(D.condFits('jungmin', ['cc', 'rush']), ['cc', 'rush'], '홍정민: 기절 예고에 섞인 독 면역 · 입구 수리');
 });
 
 test('강화 권장 상한: 장 권장을 넘는 만큼은 절반 · 대전/무한은 그대로', () => {
@@ -2480,7 +2480,7 @@ test('김영준 너프: 0.18초 · 돌격 2.6초 / 숨 고르기 2.4초 → 혼�
 
 test('여지원 모자이크 폭격: 0.6초 뒤 자기 줄 → 양옆 줄 차례로 (0.18초 간격) · 피해 + 0.5초 기절 · 「모자이크」 5초 (방어 -40% · 받는 피해 +25%, 겹치지 않고 시간만 새로)', () => {
   const sk = D.HEROES.jiwon.skill;
-  assert.equal(sk.id, 'mosaicbomb'); assert.equal(sk.cd, 22);
+  assert.equal(sk.id, 'mosaicbomb'); assert.equal(sk.cd, 16);
   const g = bare(['jiwon']);
   const h = g.heroes[0]; h.cd = 99; // 평타(방깎 겹)는 빼고 본다
   const lanes = S.mosaicLanes(g, h);
@@ -2568,12 +2568,12 @@ test('겹침 정리: 김도훈 떼창(입구 덜 침) · 문동한 과자(간보
   const r0 = S.heroRate(g, bh);
   bh.skillCd = 0; assert.ok(S.castSkill(g, bh), '썰매');
   assert.ok(bh.fanT > 0 && S.heroRate(g, bh) > r0 * 1.5, '팬클럽 함성: 공속 +60%');
-  // 이호찬 막차 대행진 하향: 기절 0.8초 · 모든 멤버 공격력 +20% (Lv1)
+  // 이호찬 막차 대행진 하향: 기절 0.8초 · 모든 멤버 공격력 +25% (Lv1 · 쿨 다양화 55초)
   g = bare(['hochan', 'gunman']);
   still(g, 'thug', 180, g.rowY - 200, 100);
   const hc = g.heroes.find((h) => h.id === 'hochan'); hc.skillCd = 0;
   assert.ok(S.castSkill(g, hc), '막차 대행진');
-  assert.ok(Math.abs(g.hcSkAtk - 0.2) < 1e-9 && g.buses.every((b) => Math.abs(b.stun - 0.8) < 1e-9), `공격력 +${g.hcSkAtk} · 기절 ${g.buses[0].stun}`);
+  assert.ok(Math.abs(g.hcSkAtk - D.HEROES.hochan.skill.atk[0]) < 1e-9 && g.buses.every((b) => Math.abs(b.stun - 0.8) < 1e-9), `공격력 +${g.hcSkAtk} · 기절 ${g.buses[0].stun}`);
 });
 
 test('송바울 보드 (완전 수동): 기본 공격 없음 · 탭한 곳으로만 돌진 · 길 위 진상 전부 · 충전 칸 · 탭 없으면 안 탄다 · 콤보 · 퍼펙트 · 점프대', () => {
@@ -2632,4 +2632,36 @@ test('멀리서 던지는 진상: 노린 멤버가 이미 상태이상이면 입
   const hp0 = g.base.hp; let gate = 0;
   for (let t = 0; t < 12; t += 1 / 60) { S.step(g, 1 / 60); gate += g.events.filter((x) => x.type === 'gateThrow').length; g.events.length = 0; }
   assert.ok(e.atRope && gate > 0 && g.base.hp < hp0, `입구로 던짐 ${gate}번 · 입구 ${hp0} → ${g.base.hp.toFixed(0)}`);
+});
+
+test('쓰러짐 게이지: 가득 차면 쓰러짐 (공격 · 스킬 못 함) → 일어나며 0 · 탱커가 곁에서 대신 · 건전녀 간호 · 홍정민 독 면역 · 1:1 대전은 끔', () => {
+  const mk = (heroes, o = {}) => { const g = S.createGame({ H: 760, rng: seeded(11), mode: 'stage', stage: 25, noWaves: true, heroes, tempo: true, meta: {}, ...o }); g.phase = 'wave'; return g; };
+  let g = mk(['gunman', 'staff']);
+  assert.ok(g.kdOn, '일반 스테이지 · 템포 = 켬');
+  assert.equal(mk(['gunman'], { pvp: { seed: 1 } }).kdOn, false, '1:1 대전은 끔');
+  const gm = g.heroes.find((h) => h.id === 'gunman');
+  assert.ok(S.kdMax(gm) < S.kdMax({ id: 'wonsik', lv: 1, meta: 0, star: 1 }), '딜러 게이지 < 탱커');
+  assert.ok(S.kdMax({ id: 'gunman', lv: 5, meta: 10, star: 3 }) > S.kdMax(gm) * 1.4, '키울수록 커진다');
+  S.kdAdd(g, gm, 1e4, { direct: true });
+  assert.ok(gm.kdT > 0 && g.stats.kd === 1, '쓰러짐');
+  gm.skillCd = 0; g.mom = 300;
+  assert.equal(S.castSkill(g, gm), false, '쓰러지면 스킬 못 씀');
+  run(g, D.KD.sec + 0.1);
+  assert.ok(!(gm.kdT > 0) && gm.kd === 0, '일어나며 0');
+  // 탱커: 곁 멤버 대신 맞는다
+  g = mk(['wonsik', 'gunman']);
+  const ws = g.heroes.find((h) => h.id === 'wonsik'), g2 = g.heroes.find((h) => h.id === 'gunman');
+  if (Math.abs(ws.x - g2.x) < D.KD.taunt.r) { S.kdAdd(g, g2, 20); assert.ok(ws.kd > 0 && !(g2.kd > 0), '정원식이 대신'); }
+  // 건전녀 간호: 가장 찬 멤버 게이지가 내려간다
+  g = mk(['gunnyeo', 'gunman']);
+  const a = g.heroes.find((h) => h.id === 'gunman'); S.kdAdd(g, a, 40, { direct: true }); const k0 = a.kd;
+  run(g, 1);
+  assert.ok(a.kd < k0 - 3, `간호 ${k0} → ${a.kd}`);
+  // 독: 게이지가 계속 차고 · 홍정민이 있으면 면역
+  g = mk(['gunman', 'staff']);
+  const p = g.heroes[0]; assert.ok(S.poisonHero(g, p, 3) > 0 && p.poisonT > 0);
+  run(g, 1); assert.ok(p.kd > 0, '독 → 게이지');
+  g = mk(['gunman', 'jungmin']);
+  assert.equal(S.poisonHero(g, g.heroes.find((h) => h.id === 'gunman'), 3), 0, '홍정민: 독 면역');
+  assert.equal(S.resPct(g.heroes[0], 'poison'), 100);
 });

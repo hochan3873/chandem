@@ -2167,6 +2167,7 @@ export class Renderer {
       if (h.rage) { rot = Math.sin(t * 24) * 0.05; bob += Math.sin(t * 30) * 1.5; }
       if (h.charmT > 0) { rot = Math.sin(t * 4) * 0.14; }
       if (h.stunT > 0) { rot = Math.sin(t * 10) * 0.1; sy = 0.94; }
+      if (h.kdT > 0) { const k = Math.min(1, (h.kdSec - h.kdT) / 0.25, h.kdT / 0.35); rot = (hx < 180 ? -1 : 1) * 1.3 * k; sy = 1 - 0.1 * k; bob += 14 * k; } // 쓰러짐: 옆으로 픽 누움 (일어날 때 다시 세움)
       if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; if (g.joinMode) { bob += (1 - p) * 70; sx *= 0.6 + 0.4 * p; sy *= 0.6 + 0.4 * p * e; } else { sx *= e * p; sy *= e * p; } } // 합류: 아래에서 미끄러져 올라온다
       if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
       sy *= 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 숨쉬기
@@ -2176,7 +2177,7 @@ export class Renderer {
       // 공격 리듬: 준비(다음 공격 직전 뒤로 젖힘·들어 올리기) → 던짐(반동) — 멤버마다 다르게
       const wk = WEAPON[h.id] ? WEAPON[h.id].kind : '';
       const C = CADENCE[h.id] || CADENCE['_' + wk] || CADENCE._default;
-      const busy = h.stunT > 0 || h.charmT > 0 || h.grabT > 0;
+      const busy = h.stunT > 0 || h.charmT > 0 || h.grabT > 0 || h.kdT > 0;
       if (!busy && h.cd > 0 && h.cd < C.wind && !(h.reloadT > 0)) { const q = 1 - h.cd / C.wind; rot -= q * C.back * (hx < 180 ? 1 : -1) * 0.8; sy *= 1 - q * C.sq; sx *= 1 + q * C.sq * 0.6; bob -= q * (C.lift || 0); if (C.nod) rot += Math.sin(q * Math.PI) * 0.08; }
       const since = g.t - (h.lastShotT || -9);
       if (since < 0.22) { const q = 1 - since / 0.22; rot += q * C.snap * (hx < 180 ? 1 : -1) * 0.5; bob += q * 2; }
@@ -2353,7 +2354,7 @@ export class Renderer {
           cx.drawImage(hs.c, -8, -8, 16, 16);
         }
       }
-      if (h.stunT > 0) {
+      if (h.stunT > 0 || h.kdT > 0) {
         const st = this.projSprites.star;
         for (let i = 0; i < 3; i++) {
           const a = t * 6 + i * TAU / 3;
@@ -2375,7 +2376,9 @@ export class Renderer {
       }
       { // 상태 딱지: 머리 위 가운데에 위로 쌓기 (옆 멤버와 안 겹치게)
         const tags = [];
+        if (h.kdT > 0) tags.push(['쓰러짐', '#ff8a7a']); // 쓰러짐 게이지가 가득
         if (h.stunT > 0) tags.push(h.freezeT > 0 ? ['빙결', '#bff4ff'] : ['기절', '#ffe27a']);
+        if (h.poisonT > 0) tags.push(['독', '#9dff6a']);
         if (h.muteT > 0 && h.silenceT > 0) tags.push(['침묵', '#d0c0ff']); // 7장 펜션 사장님 소음 금지
         if (h.grabT > 0) tags.push(['붙잡힘', '#ff8a8a']);
         if (h.blindT > 0) tags.push(['눈부심', '#fff2a0']);
@@ -2415,6 +2418,11 @@ export class Renderer {
         else if (at) { cx.fillStyle = at.color; cx.beginPath(); cx.arc(px + 6.5, ly, 4.2, 0, Math.PI * 2); cx.fill(); cx.font = `6px ${FONT}`; cx.fillStyle = '#000'; cx.fillText(at.icon, px + 6.5, ly + 0.5); cx.font = `800 8px ${FONT}`; }
         cx.fillStyle = h.lv >= 5 ? '#ffb347' : '#bfeaff';
         cx.fillText(lvT, px + 13 + tw / 2, ly + 0.5);
+        if (h.kdMax && (h.kd > 0.5 || h.kdT > 0)) { // 쓰러짐 게이지: 찰 때만 Lv 칩 아래 (쓰러지면 빨갛게 · 일어날 때까지 줄어듦)
+          const bw = 34, bx = hx - bw / 2, by = ly + 8, f = h.kdT > 0 ? Math.max(0, h.kdT / (h.kdSec || 1)) : Math.min(1, h.kd / h.kdMax);
+          cx.fillStyle = 'rgba(12,10,28,0.85)'; roundRect(cx, bx - 1, by - 1, bw + 2, 5, 2.5); cx.fill();
+          cx.fillStyle = h.kdT > 0 ? '#ff5a4f' : h.poisonT > 0 ? '#8fe85a' : f > 0.7 ? '#ff9a3a' : '#ffd23f'; roundRect(cx, bx, by, Math.max(2, bw * f), 3, 1.5); cx.fill();
+        }
         if (h.main) { // 주력: Lv 칩 왼쪽 위에 금별 (한 판에 2명 · Lv5 까지)
           const sx = px - 1, sy = ly - 7, R = 7;
           cx.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? R * 0.45 : R, a = -Math.PI / 2 + (k * Math.PI) / 5; cx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r); } cx.closePath();
