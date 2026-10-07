@@ -38,7 +38,7 @@ export const PAT = {
   rush: { n: [5, 6, 7], warn: 1.1, hp: 1.1, speed: 1.5, atk: 2.5, crash: 0.045 }, // crash: 입구에 처음 닿으면 쾅 (입구 최대의 %) — 감속 · 기절 · 밀침으로 늦추면 덜 닿는다, // 금: 외제차 폭주 — 화살표 예고 뒤 빠른 진상
   tow: { wind: 1.9, stun: 3.0, knock: 60, pct: 0.04, gap: 2.0 }, // 금: 견인 갈고리 — 멤버 하나
   ticket: { n: [2, 3, 3], sec: 6, cut: 0.35 }, // 금: 주차 딱지 — 공격 속도 −35%
-  noise: { wind: 1.8, charm: 5, fear: 2.0, gap: 2.0 }, // 토: 민원 확성기 — 한쪽 홀림
+  noise: { wind: 1.8, charm: 7.5, fear: 3.0, gap: 1.6 }, // 토: 민원 확성기 — 한쪽 홀림
   broom: { wind: 1.7, fear: 4.0, knock: 30, pct: 0.03, gap: 2.2 }, // 토: 빗자루 쓸기 — 한쪽 공포 (공속 ↓)
   vault: { sec: 9, frac: 7, dps: 0.012, pct: 0.07, gap: 1.6 }, // 일: 보증금 금고 — 보호막 (팀 피해 frac 초어치) · 열린 동안 입구 흡수 · 못 깨면 꿀꺽
 };
