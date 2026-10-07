@@ -259,7 +259,8 @@ export class KitFx {
         return true;
       }
       case 'mosaic': { // 여지원: 점멸 손 — 나타난 자리마다 모자이크 네모 · 사이엔 깜빡
-        if (p.path === 'blink' && p.hop >= 0) { const fl = (now * 20) % 1 < 0.5; if (!fl && p.hop < 3) return true; }
+        if (p.path === 'blink' && p.hop <= 0) return true; // 첫 칸(손을 떠나기 전)은 안 그린다 — 여지원 공격 띠의 모자이크 손과 얼굴 앞에서 겹쳐 두 개로 보였다
+        if (p.path === 'blink') { const fl = (now * 20) % 1 < 0.5; if (!fl && p.hop < 3) return true; }
         R.tf(p.x, p.y, 0, 1, 1); cx.globalAlpha = 1; const im = R.images.w_mosaic;
         if (imgOk(im)) cx.drawImage(im, -14, -14, 28, 28); else { const cols = ['#f3c8a8', '#d89a7a', '#ff4fb0', '#2a1020']; for (let i = 0; i < 9; i++) { cx.fillStyle = cols[(i * 7 + (now * 10 | 0)) % 4]; cx.fillRect(-9 + (i % 3) * 6, -9 + ((i / 3) | 0) * 6, 6, 6); } }
         return true;

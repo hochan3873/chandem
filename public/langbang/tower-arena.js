@@ -144,6 +144,10 @@ export function attach(g, o = {}) {
 }
 export const members = (g) => g.heroes.filter((h) => !h.def.summon && !h.gone);
 const alive = (h) => !(h.twDown > 0);
+// 보이는 자리 (render 와 같은 식): 돌격 · 보드 · 걷는 벽처럼 자리를 떠나 있으면 그 자리 (px · py) — 바닥 판정 · 체력 막대 · 감전 번짐은 여기서
+export const posOf = (h) => ((h.out || h.restT > 0) && Number.isFinite(h.px) && Number.isFinite(h.py) ? { x: h.px, y: h.py } : { x: h.x, y: h.y });
+// 진상 사이로 뛰어든 멤버 (김영준 돌격 · 고아라 공주 · 송바울 보드 · 윤정섭 벽): 끌어 옮길 수 없으니 바닥 예고가 노리지 않는다
+const away = (h) => !!h.out;
 export function zoneOf(g) { const B = ARENA.band; return { x0: B.side, x1: g.W - B.side, y0: g.ropeY - B.up, y1: g.rowY + B.down }; }
 const inZone = (g, x, y) => { const z = zoneOf(g); return { x: clamp(x, z.x0, z.x1), y: clamp(y, z.y0, z.y1) }; };
 
@@ -176,7 +180,7 @@ export function inShape(s, px, py, g) {
 // ─── 예고 만들기 ───
 function rnd(g) { return g.rng(); }
 function pickTarget(g) {
-  const list = members(g).filter(alive);
+  const list = members(g).filter((h) => alive(h) && !away(h));
   if (!list.length) return null;
   const busy = new Set(g.twa.tele.map((s) => s.tgt));
   const free = list.filter((h) => !busy.has(h.id));
@@ -194,17 +198,18 @@ export function spawnTele(g, kind, tgt) {
   if (!h) return null;
   const shape = H.shapes[(rnd(g) * H.shapes.length) | 0];
   const jit = () => (rnd(g) - 0.5) * 16;
-  const s = { id: ++A.seq, kind, shape, t: 0, warn: P.warn * (shape === 'ring' || shape === 'band' ? 1.1 : 1), tgt: h.id, x: h.x + jit(), y: h.y + jit() * 0.5 };
+  const hp0 = posOf(h);
+  const s = { id: ++A.seq, kind, shape, t: 0, warn: P.warn * (shape === 'ring' || shape === 'band' ? 1.1 : 1), tgt: h.id, x: hp0.x + jit(), y: hp0.y + jit() * 0.5 };
   const z = zoneOf(g);
   if (shape === 'circle') s.r = kind === 'slow' || kind === 'knock' ? SHAPE.big : SHAPE.circle;
   else if (shape === 'line') s.w = SHAPE.line;
   else if (shape === 'band') { s.h = SHAPE.band; s.y = clamp(s.y, z.y0 + 6, z.y1 - 6); }
   else if (shape === 'cross') s.w = SHAPE.cross;
-  else if (shape === 'ring') { const ms = members(g).filter(alive); s.x = ms.reduce((a, o) => a + o.x, 0) / ms.length; s.y = ms.reduce((a, o) => a + o.y, 0) / ms.length; s.r1 = SHAPE.ring[0]; s.r2 = SHAPE.ring[1]; }
+  else if (shape === 'ring') { const ms = members(g).filter((o) => alive(o) && !away(o)); const ps = (ms.length ? ms : [h]).map(posOf); s.x = ps.reduce((a, o) => a + o.x, 0) / ps.length; s.y = ps.reduce((a, o) => a + o.y, 0) / ps.length; s.r1 = SHAPE.ring[0]; s.r2 = SHAPE.ring[1]; }
   else if (shape === 'cone') {
     const e = caster(g);
     s.x = e ? e.x : clamp(h.x + (rnd(g) - 0.5) * 120, 40, g.W - 40); s.y = e ? e.y : z.y0 - 140;
-    s.ang = Math.atan2(h.y - s.y, h.x - s.x); s.sp = SHAPE.cone[0] * 0.5; s.len = Math.hypot(h.x - s.x, h.y - s.y) + 120; s.from = e ? e.uid : 0;
+    s.ang = Math.atan2(hp0.y - s.y, hp0.x - s.x); s.sp = SHAPE.cone[0] * 0.5; s.len = Math.hypot(hp0.x - s.x, hp0.y - s.y) + 120; s.from = e ? e.uid : 0;
   }
   const src = caster(g); if (src && shape !== 'cone') { s.ex = src.x; s.ey = src.y - src.def.size * 0.5; }
   A.tele.push(s); A.stat.tele++;
@@ -232,7 +237,7 @@ function hurt(g, h, v, why) {
   if (h.twHp <= 0) {
     h.twHp = 0; h.twDown = ARENA.down.sec * (members(g).some((o) => o.id === 'gunnyeo' && o !== h && alive(o)) ? ARENA.down.quick : 1); h.twTo = null;
     g.twa.stat.down++;
-    g.events.push({ type: 'twaDown', hero: h.id, x: h.x, y: h.y, sec: h.twDown, why });
+    g.events.push({ type: 'twaDown', hero: h.id, ...posOf(h), sec: h.twDown, why });
   }
   return v;
 }
@@ -265,18 +270,19 @@ function afflict(g, h, kind, s, P, k = 1) {
     const L = Math.hypot(dx, dy) || 1;
     if (d > 2) { h.twKb = { x: h.x + (dx / L) * d, y: h.y + (dy / L) * d * 0.7 }; h.twKbT = ARENA.knock.stun * (1 - r); h.twTo = null; got = d; }
   }
-  g.events.push({ type: 'twaHit', kind, hero: h.id, x: h.x, y: h.y, sec: +got.toFixed(2), res: got <= 0 && kind !== 'hit' && kind !== 'poison' });
+  g.events.push({ type: 'twaHit', kind, hero: h.id, ...posOf(h), sec: +got.toFixed(2), res: got <= 0 && kind !== 'hit' && kind !== 'poison' });
 }
 function resolve(g, s) {
   const A = g.twa, P = A.plan;
   const hitL = [], dodged = [];
   for (const h of members(g)) {
     if (!alive(h)) continue;
-    if (inShape(s, h.x, h.y, g)) hitL.push(h);
+    const at = posOf(h);
+    if (inShape(s, at.x, at.y, g)) hitL.push(h);
     else if (s.tgt === h.id) dodged.push(h);
   }
   g.events.push({ type: 'twaBoom', kind: s.kind, shape: s.shape, x: s.x, y: s.y, r: s.r, w: s.w, h: s.h, r1: s.r1, r2: s.r2, ang: s.ang, sp: s.sp, len: s.len, n: hitL.length });
-  for (const h of dodged) { A.stat.dodge++; g.events.push({ type: 'twaDodge', hero: h.id, x: h.x, y: h.y }); }
+  for (const h of dodged) { A.stat.dodge++; g.events.push({ type: 'twaDodge', hero: h.id, ...posOf(h) }); }
   for (const h of hitL) { A.stat.hit++; afflict(g, h, s.kind, s, P); }
   if (s.kind === 'shock') { // 번개가 곁 멤버로 번진다
     let wave = hitL.slice(), seen = new Set(hitL.map((h) => h.id)), k = 1;
@@ -284,9 +290,10 @@ function resolve(g, s) {
       k *= ARENA.shock.k;
       const next = [];
       for (const a of wave) for (const b of members(g)) {
-        if (seen.has(b.id) || !alive(b) || Math.hypot(b.x - a.x, (b.y - a.y) / SHAPE.flat) > ARENA.shock.r) continue;
+        const pa = posOf(a), pb = posOf(b);
+        if (seen.has(b.id) || !alive(b) || Math.hypot(pb.x - pa.x, (pb.y - pa.y) / SHAPE.flat) > ARENA.shock.r) continue;
         seen.add(b.id); next.push(b); A.stat.shock++;
-        g.events.push({ type: 'twaChain', from: a.id, hero: b.id, x0: a.x, y0: a.y, x1: b.x, y1: b.y });
+        g.events.push({ type: 'twaChain', from: a.id, hero: b.id, x0: pa.x, y0: pa.y, x1: pb.x, y1: pb.y });
         afflict(g, b, 'shock', s, P, k);
       }
       wave = next;
@@ -307,14 +314,15 @@ function windEnd(g, ok) {
   const s = { shape: 'quake', x: W.x, y: W.y, r: W.r, kind: W.kind };
   g.events.push({ type: 'twaQuake', x: W.x, y: W.y, r: W.r, kind: W.kind });
   for (const h of members(g)) {
-    if (!alive(h) || !inShape(s, h.x, h.y, g)) continue;
+    const at = posOf(h);
+    if (!alive(h) || !inShape(s, at.x, at.y, g)) continue;
     A.stat.hit++;
     hurt(g, h, P.dmg * P.wind.dmg, 'wind');
     if (!alive(h)) continue;
     const got = ccSec(h, P.wind.stun, 'stun');
     if (got > 0) { h.stunT = Math.max(h.stunT, got); h.twTo = null; }
     if (W.kind && W.kind !== 'stun') afflict(g, h, W.kind, s, P, 0.5);
-    g.events.push({ type: 'twaHit', kind: 'wind', hero: h.id, x: h.x, y: h.y, sec: +got.toFixed(2) });
+    g.events.push({ type: 'twaHit', kind: 'wind', hero: h.id, ...posOf(h), sec: +got.toFixed(2) });
   }
 }
 
@@ -332,7 +340,7 @@ function tick(g, dt) {
     if (h.twShockT > 0) h.twShockT -= dt;
     if (h.twDown > 0) { // 쓰러짐: 누워 있는 동안 아무것도 못 함
       h.twDown -= dt; h.stunT = Math.max(h.stunT, 0.1); h.silenceT = Math.max(h.silenceT || 0, 0.1);
-      if (h.twDown <= 0) { h.twDown = 0; h.stunT = 0; h.silenceT = 0; h.twHp = h.twMax * ARENA.down.back; h.twGrace = ARENA.down.grace; g.events.push({ type: 'twaUp', hero: h.id, x: h.x, y: h.y }); }
+      if (h.twDown <= 0) { h.twDown = 0; h.stunT = 0; h.silenceT = 0; h.twHp = h.twMax * ARENA.down.back; h.twGrace = ARENA.down.grace; g.events.push({ type: 'twaUp', hero: h.id, ...posOf(h) }); }
       continue;
     }
     // 독: 체력이 계속 깎인다
@@ -370,7 +378,7 @@ function tick(g, dt) {
   if (A.pools.length) {
     for (const q of A.pools) {
       q.t -= dt;
-      if ((q.tick -= dt) <= 0) { q.tick = ARENA.pool.tick; for (const h of ms) if (alive(h) && inShape({ shape: 'circle', x: q.x, y: q.y, r: q.r }, h.x, h.y)) S.poisonHero(g, h, ARENA.pool.poison); }
+      if ((q.tick -= dt) <= 0) { q.tick = ARENA.pool.tick; for (const h of ms) { const at = posOf(h); if (alive(h) && inShape({ shape: 'circle', x: q.x, y: q.y, r: q.r }, at.x, at.y)) S.poisonHero(g, h, ARENA.pool.poison); } }
     }
     A.pools = A.pools.filter((q) => q.t > 0);
   }
@@ -415,7 +423,7 @@ export function botTick(g, o = {}) {
   const A = g.twa;
   if (!A || g.phase !== 'wave') return;
   const rng = o.rng || Math.random, react = o.react === undefined ? 0.45 : o.react, miss = o.miss === undefined ? 0.1 : o.miss;
-  const ms = members(g).filter(alive);
+  const ms = members(g).filter((h) => alive(h) && !away(h));
   for (const s of A.tele) {
     if (s.bot) continue;
     if (s.rt === undefined) s.rt = react * (0.8 + rng() * 0.4);
