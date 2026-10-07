@@ -17,7 +17,7 @@ const heroesUp = (g) => g.heroes.filter((h) => !h.def.summon && !h.gone);
 
 export function attach(g, def) {
   const m = def.mul || {};
-  g.hw = { def, n: def.n, puddleT: HWX.puddle.every, moon: false, marks: [], wisps: 0, tick, preKill };
+  g.hw = { def, n: def.n, sig: def.sig || null, puddleT: HWX.puddle.every, moon: false, marks: [], wisps: 0, tick, preKill, onHit };
   if (def.crowd && def.crowd < 1) { g.mods.expMul /= def.crowd; g.mods.ultCharge /= def.crowd; } // 진상 수를 줄인 만큼 한 명당 경험치 · 총공지 충전을 더
   if (m.hp && m.hp !== 1) g.mods.enemyHp *= m.hp;
   if (m.spd && m.spd !== 1) g.mods.enemySpd *= m.spd;
@@ -30,9 +30,43 @@ export function attach(g, def) {
   return g.hw;
 }
 
+// 판 특수 규칙에 걸린 멤버인지 (소환수는 부른 멤버로)
+const sigHero = (g, src) => { const S0 = g.hw.sig; if (!S0 || !src) return false; const id = src.id || ''; return S0.heroes.includes(id) || (src.def && src.def.summon && src.owner && S0.heroes.includes(src.owner.id || src.owner)); };
+// 덱에 든 특수 규칙 멤버 수 (처음 한 번 센다)
+const sigCount = (g) => (g.hw.sigN !== undefined ? g.hw.sigN : (g.hw.sigN = g.heroes.filter((h) => !h.def.summon && g.hw.sig.heroes.includes(h.id)).length));
+// H1: 좀비가 다시 일어나는 횟수 = max − 해장 멤버 수 (0 이면 바로 끝)
+const sigMax = (g) => Math.max(0, g.hw.sig.max - sigCount(g));
+// 피해 직전 (sim damageEnemy): H1 엎어진 좀비는 안 맞는다 · H2 불 붙은 호박등은 껍질 (끊는 멤버가 맞히면 불이 꺼진다)
+function onHit(g, e, dmg, src) {
+  if (e.hwLie) return 0;
+  const S0 = g.hw.sig;
+  if (S0 && S0.id === 'lantern' && e.hwLit) {
+    if (src && sigHero(g, src) && !((src.hwCutT || 0) > g.t)) { src.hwCutT = g.t + S0.cd; snuff(g, e, 'cut'); ev(g, 'hwCut', { hero: src.id, x: src.x, y: src.y - 60, cd: S0.cd }); return dmg * S0.crack; }
+    return dmg * S0.shell;
+  }
+  if (e.hwCracked) return dmg * (S0 ? S0.crack : 1);
+  return dmg;
+}
+function snuff(g, e, by) {
+  const S0 = g.hw.sig;
+  e.hwLit = false; e.hwCracked = true; e.stunT = Math.max(e.stunT, S0.stun); e.cast = null; e.castW = 0;
+  if (e.hwRollMul) { e.spdMul /= e.hwRollMul; e.hwRollMul = 0; }
+  g.stats.castBreak = (g.stats.castBreak | 0) + 1;
+  ev(g, 'hwSnuff', { x: e.x, y: e.y - e.def.size * 0.55, uid: e.uid, by });
+}
 // 쓰러지기 직전 (sim killEnemy 맨 앞): true 면 이번엔 안 쓰러진다 (좀비 회식러 "한 잔 더!")
 function preKill(g, e, src) {
   const R = e.def.hw && e.def.hw.revive;
+  const S0 = g.hw.sig;
+  if (R && S0 && S0.id === 'hangover') { // H1: 해장 멤버가 마무리하지 않으면 몇 번이고 (최대 S0.max 번) 엎어졌다 일어난다
+    if (e.hwLie) return true;
+    if (e.burnT > 0 || sigHero(g, src)) { ev(g, 'hwNoRise', { x: e.x, y: e.y - 30, by: e.burnT > 0 ? 'burn' : 'hang' }); return false; }
+    if ((e.hwRevN | 0) >= sigMax(g)) { ev(g, 'hwNoRise', { x: e.x, y: e.y - 30, by: 'tired' }); return false; }
+    e.hwRevN = (e.hwRevN | 0) + 1; e.hwLie = true; e.hwRiseT = S0.lie; e.hwRiseMax = S0.lie; e.cast = null; e.castW = 0;
+    e.hp = Math.max(1, e.maxHp * 0.02); e.stunT = Math.max(e.stunT, S0.lie); e.kbv = 0;
+    ev(g, 'hwDown', { x: e.x, y: e.y, uid: e.uid, sec: S0.lie, n: e.hwRevN, max: sigMax(g), hang: true });
+    return true;
+  }
   if (!R || e.hwRevived) return false;
   if (e.burnT > 0 || e.censorT > 0 || e.roseN > 0) { ev(g, 'hwNoRise', { x: e.x, y: e.y - 30, by: e.burnT > 0 ? 'burn' : e.censorT > 0 ? 'censor' : 'rose' }); return false; } // 화상 · 검열 · 장미 표식이 붙은 채로 쓰러지면 끝
   if (e.hwRiseT > 0) return false; // 일어나는 중에 또 쓰러짐 = 끝
@@ -84,8 +118,25 @@ function tick(g, dt) {
     // 좀비: 일어나는 중 (맞으면 그대로 쓰러짐)
     if (e.hwRiseT > 0) {
       e.hwRiseT -= dt;
-      if (e.hwRiseT <= 0) { e.hp = e.maxHp * X.revive.hp; e.stunT = 0; ev(g, 'hwRise', { x: e.x, y: e.y - e.def.size * 0.5, uid: e.uid }); }
+      if (e.hwRiseT <= 0) { e.hp = e.maxHp * (e.hwLie ? g.hw.sig.hp : X.revive.hp); e.stunT = 0; e.hwLie = false; ev(g, 'hwRise', { x: e.x, y: e.y - e.def.size * 0.5, uid: e.uid, n: e.hwRevN | 0 }); }
       continue;
+    }
+    // H2 호박등: 불 붙은 채 굴러온다 → 기절 · 빙결 · 묶기 · 밀치기 · 시간 정지로도 꺼진다 · 입구에 닿으면 펑
+    if (H.sig && H.sig.id === 'lantern' && e.type === 'hw_pumpkin' && !e.hwCracked) {
+      const S0 = H.sig;
+      if (!e.hwLit && e.y > 20) { e.hwLit = true; e.hwRollMul = S0.roll; e.spdMul *= S0.roll; ev(g, 'hwLight', { x: e.x, y: e.y - e.def.size * 0.55, uid: e.uid }); }
+      if (e.hwLit) {
+        if (e.atRope && !g.over) {
+          e.hwLit = false;
+          if (!g.god) S.damageBase(g, g.base.max * S0.door, e);
+          let nh = null, bd = 1e9; for (const h of heroesUp(g)) { const d = Math.abs(h.x - e.x); if (d < bd) { bd = d; nh = h; } }
+          if (nh && g.kdOn) S.kdAdd(g, nh, 30, { src: 'hit', by: e.type });
+          ev(g, 'hwBoom', { x: e.x, y: g.ropeY, ex: e.x, ey: e.y - e.def.size * 0.5 });
+          ev(g, 'doorKick', { x: e.x, y: g.ropeY, ex: e.x, ey: e.y - e.def.size * 0.5, name: '호박등 펑!' });
+          e.hp = 0; S.killEnemyX(g, e);
+          continue;
+        }
+      }
     }
     // 박쥐: 입구 흡혈
     if (X.drain && e.atRope && e.stunT <= 0 && !g.over) {
@@ -172,7 +223,7 @@ function tick(g, dt) {
   }
 }
 // 풀에서 꺼낸 진상: 지난 판 할로윈 상태를 지운다 (sim spawnEnemy)
-export function resetEnemy(e) { e.hwRiseT = 0; e.hwRevived = false; e.hwPhT = undefined; e.hwGhost = false; e.hwBrT = undefined; e.hwHopT = 0; e.hwAir = false; e.hwSpdBase = 0; e.hwHopY = 0; e.hwWrapped = false; e.hwListT = undefined; e.hwBatT = undefined; e.hwBat = 0; e.hwInv = false; e.hwDrT = 0; }
+export function resetEnemy(e) { e.hwLie = false; e.hwRevN = 0; e.hwRiseMax = 0; e.hwLit = false; e.hwCracked = false; e.hwRollMul = 0; e.hwRiseT = 0; e.hwRevived = false; e.hwPhT = undefined; e.hwGhost = false; e.hwBrT = undefined; e.hwHopT = 0; e.hwAir = false; e.hwSpdBase = 0; e.hwHopY = 0; e.hwWrapped = false; e.hwListT = undefined; e.hwBatT = undefined; e.hwBat = 0; e.hwInv = false; e.hwDrT = 0; }
 // 전투 화면용: 지금 명부에 이름이 적힌 멤버 (render · HUD)
 export const marksOf = (g) => (g.hw ? g.hw.marks : []);
 export const isGhost = (e) => !!e.hwGhost || e.hwBat > 0;
