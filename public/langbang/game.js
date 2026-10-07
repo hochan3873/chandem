@@ -28,6 +28,7 @@ import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버
 import { initTransit } from './transit.js';
 import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
 import { initPush } from './push.js'; // 알림 받기 (웹 푸시)
+import * as SSN from './season.js'; // 시즌 테마 (할로윈 등): 로비 그림 · 장식 · 로비 음악
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
 
 const $ = (s) => document.querySelector(s);
@@ -2544,7 +2545,9 @@ function showMenu0() {
   const ch = chapterOf(s);
   R.setTheme(ch);
   A.setBoss(false);
-  if (A.setMode) A.setMode(null);
+  const ssn = SSN.activeSeason(); // 시즌 테마: 로비 곡 · 키 아트 · 장식 (설정에서 끌 수 있음)
+  SSN.syncHub();
+  if (A.setMode) A.setMode(ssn && ssn.bgm ? ssn.bgm : null);
   A.setChapter(ch);
   if (app.touched) A.playBgm(); // 전투 · 대전 · 레이드에서 돌아오면 로비 음악 다시 (같은 곡이면 그대로)
   setTimeout(() => { loadRankTicker().then(() => tickRank(0)).catch(() => {}); }, 0);
@@ -2568,8 +2571,9 @@ function showMenu0() {
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~7)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
-    <div class="lb-key" style="background-image:${chArtCss('keyart', ch)}"></div>
+    <div class="lb-key${ssn ? ' ssn' : ''}" style="background-image:${ssn && ssn.keyart ? `url('${ssn.keyart}'), ` : ''}${chArtCss('keyart', ch)}"></div>
     <div class="lb-dim"></div>
+    ${SSN.seasonFxHtml(ssn)}
     ${topPills()}
     ${p.master ? '<button class="lb-master" data-act="settings">MASTER</button>' : ''}
     <div class="lb-bar2">${newsFirst() || '<button class="lb-news" data-act="ranking" id="lbRank" aria-label="소식" hidden></button>'}
@@ -3729,6 +3733,7 @@ function showSettings() {
       ${row('sparkle', '연출 줄이기', '화면 흔들림 · 반짝임 줄이기', tog('rmT', gwPref('reduceMotion')))}
       ${row('bolt', '진동', '', tog('vibT', gwPref('vibrate')))}
       ${row('speed', '기본 2배속', '다시 깬 스테이지에서', tog('speedDefT', !!app.speed2))}
+      ${(() => { const s = SSN.seasonAt(); return s ? row('sparkle', `${s.name} 테마`, `로비 그림 · 장식 · 음악 (${s.to[0]}/${s.to[1]}까지)`, tog('ssnT', SSN.seasonPref(s))) : ''; })()}
     </section>
     ${PUSHX.available() ? `<section class="st-sec"><h4>알림</h4>${row('megaphone', '알림 받기', PUSHX.settingHint(), tog('pushT', PUSHX.isOn()))}</section>` : ''}
     <section class="st-sec"><h4>게임</h4>
@@ -3930,6 +3935,7 @@ Object.assign(ACTS, {
     if (r) { A.sfx.coin && A.sfx.coin(); toast(`${r.n}개 팔았어요 · +${fmt(r.sold)} 코인`); }
     app.bulk = null; showBag();
   },
+  ssnT: () => { const s = SSN.seasonAt(); if (!s) return; const v = !SSN.seasonPref(s); SSN.setSeasonPref(s, v); if (app.screen === 'menu') showMenu0(); /* 뒤 로비 그림 · 음악도 바로 */ toast(v ? `${s.name} 테마를 켰어요` : `${s.name} 테마를 껐어요`, 1400); showSettings(); },
   rmT: () => { const v = !gwPref('reduceMotion'); setGwPref('reduceMotion', v); document.body.classList.toggle('rm', v); showSettings(); },
   vibT: () => { const v = !gwPref('vibrate'); setGwPref('vibrate', v); if (v) vibrate(20); showSettings(); },
   speedDefT: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } showSettings(); },

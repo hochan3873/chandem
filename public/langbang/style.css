@@ -4249,3 +4249,30 @@ body.rm .coach .co-burst { display: none; }
 .pp-lack b { color: #fff; } .pp-lack em { font-style: normal; color: #ffd23f; font-weight: 900; }
 /* 1:1 매칭 대기: [AI와 바로 대전] */
 .pv-search .ps-bot { margin: calc(var(--u) * 8) auto 0; display: flex; align-items: center; gap: calc(var(--u) * 4); }
+
+/* ─── 시즌 테마 (season.js) — 할로윈: 키 아트 · 박쥐 · 호박등 불빛 · 안개 · 거미줄 (전부 클릭 통과 · transform/opacity 만 움직임) ─── */
+.lobby .lb-key.ssn { opacity: 0.72; background-position: 50% 40%; }
+.ssn-fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; } /* (쌓임 맥락 안 만듦: 박쥐만 버튼 위로 날고 나머지는 UI 아래) */
+.ssn-fx > * { z-index: 1; } .ssn-fx .ssn-bats { z-index: 4; }
+.ssn-halloween::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--u) * 280); background: radial-gradient(ellipse 70% 55% at 50% 0%, rgba(150, 70, 230, 0.28), transparent 70%), radial-gradient(ellipse 60% 40% at 50% 100%, rgba(255, 120, 20, 0.16), transparent 70%); }
+.ssn-bats { pointer-events: none; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--u) * 230); }
+.ssn-bats .bat { position: absolute; left: 0; top: var(--y); width: calc(var(--u) * 34); height: calc(var(--u) * 24); transform: translate3d(110vw, 0, 0); animation: ssnBatFly 13s linear var(--d) infinite; will-change: transform; }
+.ssn-bats .bat::before { content: ''; position: absolute; inset: 0; background: url('/img/lb/season/hw_bat.webp') center / contain no-repeat; scale: var(--s); animation: ssnBatFlap 0.32s ease-in-out infinite alternate; }
+@keyframes ssnBatFly { 0% { transform: translate3d(110vw, 0, 0); } 25% { transform: translate3d(70vw, -14px, 0); } 50% { transform: translate3d(38vw, 10px, 0); } 75% { transform: translate3d(8vw, -8px, 0); } 100% { transform: translate3d(-30vw, 4px, 0); } }
+@keyframes ssnBatFlap { from { transform: scaleY(1); } to { transform: scaleY(0.55); } }
+.ssn-fog { position: absolute; left: -50%; width: 200%; top: calc(var(--u) * 175); height: calc(var(--u) * 90); opacity: 0.55;
+  background: radial-gradient(ellipse 18% 45% at 12% 55%, rgba(190, 160, 255, 0.45), transparent 70%), radial-gradient(ellipse 22% 40% at 38% 60%, rgba(170, 140, 240, 0.4), transparent 70%), radial-gradient(ellipse 18% 45% at 62% 50%, rgba(190, 160, 255, 0.45), transparent 70%), radial-gradient(ellipse 22% 40% at 88% 60%, rgba(170, 140, 240, 0.4), transparent 70%);
+  animation: ssnFog 26s linear infinite; will-change: transform; }
+@keyframes ssnFog { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-25%, 0, 0); } }
+.ssn-lant { position: absolute; top: calc(var(--u) * 196); width: calc(var(--u) * 40); height: calc(var(--u) * 40); background: url('/img/lb/season/hw_pumpkin.webp') center / contain no-repeat; filter: drop-shadow(0 0 calc(var(--u) * 6) rgba(255, 140, 30, 0.7)); }
+.ssn-lant.l { left: calc(var(--u) * 4); rotate: -8deg; }
+.ssn-lant.r { right: calc(var(--u) * 4); rotate: 8deg; scale: -1 1; }
+.ssn-lant::after { content: ''; position: absolute; inset: -60%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 150, 40, 0.45), rgba(255, 110, 20, 0.12) 45%, transparent 70%); animation: ssnFlicker 2.4s steps(1, end) infinite; }
+.ssn-lant.r::after { animation-delay: -1.1s; }
+@keyframes ssnFlicker { 0% { opacity: 0.9; } 12% { opacity: 0.55; } 18% { opacity: 1; } 40% { opacity: 0.75; } 46% { opacity: 0.95; } 70% { opacity: 0.6; } 78% { opacity: 1; } }
+.ssn-web { position: absolute; top: calc(var(--u) * 44); width: calc(var(--u) * 70); height: calc(var(--u) * 70); opacity: 0.32;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23e8dcff' stroke-width='1.3'%3E%3Cpath d='M0 0L100 100M0 0L50 100M0 0L100 50M0 0L0 100M0 0L100 0'/%3E%3Cpath d='M0 22Q12 14 22 0M0 44Q26 30 44 0M0 66Q40 46 66 0M0 88Q54 62 88 0'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat; }
+.ssn-web.l { left: 0; }
+.ssn-web.r { right: 0; transform: scaleX(-1); }
+body.rm .ssn-bats, body.rm .ssn-fog { display: none; }
+body.rm .ssn-lant::after { animation: none; opacity: 0.85; }
