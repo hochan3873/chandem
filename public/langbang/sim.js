@@ -342,7 +342,14 @@ function updateHeroes(g, dt) {
         if (!n && g.phase === 'wave') { const tops = g.heroes.filter((o) => o !== h && !o.def.summon && !o.gone).sort((a, b) => b.dmgDone - a.dmgDone).slice(0, (h.sig && h.sig.cheerN) || 1); for (const top of tops) { top.cheerT = C.cheer.sec; ev(g, 'care', { x: top.x, y: top.y, hero: top.id, cheer: true }); } } // 아픈 멤버가 없으면 제일 잘 싸우는 멤버에게 "힘내요!" (전용 신화: 3명)
       }
     }
-    if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) { h.beamE = null; h.beam2E = null; continue; }
+    if (h.charmT > 0 || h.stunT > 0 || h.grabT > 0) {
+      h.beamE = null; h.beam2E = null;
+      if (d.proj === 'dash') { // 김영준: 돌격 중에 묶이면 (탑) 돌격이 끊기고 · 숨 고르기 중이면 자리로 마저 돌아온다 (진상 사이에 달리는 모습으로 굳지 않게)
+        if (h.out && g.twa) dashBreak(g, h);
+        if (!h.out && h.px !== undefined) { h.px += (h.x - h.px) * Math.min(1, dt * 10); h.py += (h.y - h.py) * Math.min(1, dt * 10); }
+      }
+      continue;
+    }
     let sing = 0;
     for (const d0 of singers) if (d0 !== h && Math.abs(d0.x - h.x) <= d0.def.sing.r) sing = Math.max(sing, d0.def.sing.spd[d0.lv - 1]);
     const rate = heroRate(g, h, auraBonus(g, h), sing);

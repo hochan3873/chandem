@@ -206,3 +206,34 @@ test('서버 규칙: 파티 시작 (멤버 확인 · 피로 · 지친 멤버는 
   // 명예의 전당은 그대로 60층
   assert.equal(T.TOWER.hall, 60);
 });
+
+test('돌격 멤버 (김영준): 보이는 자리로 판정 · 뛰어든 동안엔 예고가 안 노린다 · 묶이면 돌격이 끊기고 자리로 돌아온다 (달리는 모습으로 굳지 않게)', () => {
+  const g = arena(12, ['youngjun', 'gunnyeo', 'wonsik']);
+  const y = mem(g, 'youngjun');
+  // 진상 사이로 뛰어든 상태를 만든다
+  y.out = true; y.outT = 2; y.upT = 2; y.px = y.x + 60; y.py = y.y - 180; y.restT = 0;
+  assert.deepEqual(A.posOf(y), { x: y.px, y: y.py }, '뛰어든 동안 보이는 자리는 px · py');
+  for (let i = 0; i < 30; i++) { const s = A.spawnTele(g, 'stun'); assert.ok(s && s.tgt !== 'youngjun', '뛰어든 멤버는 노리지 않는다'); }
+  g.twa.tele.length = 0;
+  // 집 자리에 터지는 예고: 집에는 없으니 안 맞는다
+  const s = A.spawnTele(g, 'stun', mem(g, 'gunnyeo')); s.shape = 'circle'; s.r = 44; s.x = y.x; s.y = y.y; s.warn = 0.05;
+  step(g, 0.1);
+  assert.ok(!(y.stunT > 0) || A.posOf(y).y > y.y - 60, '집 자리 예고에 멀리 나간 김영준이 맞지 않는다');
+  // 묶이면 (기절) 돌격이 끊기고 숨 고르기 · 기절 중에도 자리로 걸어 돌아온다
+  y.out = true; y.outT = 2; y.px = y.x + 60; y.py = y.y - 180; y.restT = 0; y.stunT = 2;
+  step(g, 1.0);
+  assert.equal(y.out, false, '기절하면 돌격이 끊긴다');
+  assert.ok(Math.hypot(y.px - y.x, y.py - y.y) < 10, `기절 중에도 자리로 돌아온다 (${Math.round(y.px - y.x)}, ${Math.round(y.py - y.y)})`);
+});
+
+test('일반 스테이지: 김영준이 숨 고르기 중 기절해도 자리로 돌아온다 (돌격 중 기절은 예전 그대로)', () => {
+  const g = S.createGame({ H: 760, rng: seeded(3), mode: 'stage', stage: 5, deck: [null, null, 'youngjun', null, null, null], tempo: true, join: false });
+  for (let i = 0; i < 60 * 6 && g.phase !== 'wave'; i++) S.step(g, 1 / 60);
+  const y = g.heroes.find((h) => h.id === 'youngjun');
+  y.out = false; y.restT = 2; y.restMax = 2; y.px = y.x + 50; y.py = y.y - 150; y.stunT = 1.5;
+  for (let i = 0; i < 60; i++) S.step(g, 1 / 60);
+  assert.ok(Math.hypot(y.px - y.x, y.py - y.y) < 10);
+  y.out = true; y.outT = 2; y.stunT = 0.5;
+  S.step(g, 1 / 60);
+  assert.equal(y.out, true, '일반 스테이지 돌격은 기절로 안 끊긴다 (탑만)');
+});

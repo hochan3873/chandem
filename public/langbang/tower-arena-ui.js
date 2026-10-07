@@ -137,23 +137,24 @@ function draw(g, t, layer) {
     label(cx, p.x, p.y - 8, `${(HEROES[h.id] || {}).name || ''} 여기로${bad ? ' (위험!)' : ''}`, col, 10);
   }
   for (const h of ms) {
-    const feet = h.y + 24.6, bw = 36, bx = h.x - bw / 2, by = feet + 18;
+    const p0 = TWA.posOf(h), hx = h.out || h.restT > 0 || h.rx === undefined ? p0.x : h.rx, hy = p0.y; // 보이는 자리 (render 와 같은 식)
+    const feet = hy + 24.6, bw = 36, bx = hx - bw / 2, by = feet + 18;
     const f = h.twMax ? clamp(h.twHp / h.twMax, 0, 1) : 1;
     // 감전: 몸에 번개 · 홀림: 끌려가는 하트 줄
     if (h.twShockT > 0) {
       cx.save(); cx.strokeStyle = '#7ff6ff'; cx.lineWidth = 2; cx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 40);
-      for (let i = 0; i < 3; i++) { const a0 = t * 9 + i * 2.1; cx.beginPath(); let x = h.x + Math.cos(a0) * 18, y = h.y - 30 + Math.sin(a0) * 26; cx.moveTo(x, y); for (let j = 0; j < 4; j++) { x += (Math.random() - 0.5) * 14; y += 8; cx.lineTo(x, y); } cx.stroke(); }
+      for (let i = 0; i < 3; i++) { const a0 = t * 9 + i * 2.1; cx.beginPath(); let x = hx + Math.cos(a0) * 18, y = hy - 30 + Math.sin(a0) * 26; cx.moveTo(x, y); for (let j = 0; j < 4; j++) { x += (Math.random() - 0.5) * 14; y += 8; cx.lineTo(x, y); } cx.stroke(); }
       cx.restore();
     }
-    if (h.charmT > 0 && h.twCharm) { cx.save(); cx.strokeStyle = 'rgba(255,111,208,0.7)'; cx.setLineDash([2, 5]); cx.lineWidth = 2; cx.beginPath(); cx.moveTo(h.x, h.y - 30); cx.lineTo(h.twCharm.x, h.twCharm.y); cx.stroke(); cx.restore(); }
+    if (h.charmT > 0 && h.twCharm) { cx.save(); cx.strokeStyle = 'rgba(255,111,208,0.7)'; cx.setLineDash([2, 5]); cx.lineWidth = 2; cx.beginPath(); cx.moveTo(hx, hy - 30); cx.lineTo(h.twCharm.x, h.twCharm.y); cx.stroke(); cx.restore(); }
     if (h.twDown > 0) { // 쓰러짐: 회색 그림자 + 일어날 때까지 원
-      cx.save(); cx.fillStyle = 'rgba(20,20,30,0.55)'; cx.beginPath(); cx.ellipse(h.x, feet - 4, 30, 12, 0, 0, TAU); cx.fill();
+      cx.save(); cx.fillStyle = 'rgba(20,20,30,0.55)'; cx.beginPath(); cx.ellipse(hx, feet - 4, 30, 12, 0, 0, TAU); cx.fill();
       const k = 1 - h.twDown / (TWA.ARENA.down.sec || 10);
-      cx.strokeStyle = '#ffd23f'; cx.lineWidth = 3; cx.beginPath(); cx.arc(h.x, h.y - 40, 13, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(k, 0, 1)); cx.stroke(); cx.restore();
-      label(cx, h.x, h.y - 40, `${Math.ceil(h.twDown)}`, '#ffd23f', 10);
-      label(cx, h.x, h.y - 62, '쓰러짐', '#ff8a7a', 9);
+      cx.strokeStyle = '#ffd23f'; cx.lineWidth = 3; cx.beginPath(); cx.arc(hx, hy - 40, 13, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(k, 0, 1)); cx.stroke(); cx.restore();
+      label(cx, hx, hy - 40, `${Math.ceil(h.twDown)}`, '#ffd23f', 10);
+      label(cx, hx, hy - 62, '쓰러짐', '#ff8a7a', 9);
     }
-    if (h.twGrace > 0) { cx.save(); cx.globalAlpha = 0.35 + 0.25 * Math.sin(t * 20); cx.strokeStyle = '#fff6b0'; cx.lineWidth = 2; cx.beginPath(); cx.ellipse(h.x, h.y - 20, 30, 44, 0, 0, TAU); cx.stroke(); cx.restore(); }
+    if (h.twGrace > 0) { cx.save(); cx.globalAlpha = 0.35 + 0.25 * Math.sin(t * 20); cx.strokeStyle = '#fff6b0'; cx.lineWidth = 2; cx.beginPath(); cx.ellipse(hx, hy - 20, 30, 44, 0, 0, TAU); cx.stroke(); cx.restore(); }
     // 체력 막대 (발밑 Lv 칩 아래)
     cx.fillStyle = 'rgba(8,6,18,0.88)'; cx.fillRect(bx - 1, by - 1, bw + 2, 6);
     cx.fillStyle = h.twDown > 0 ? '#6b6b7a' : h.poisonT > 0 ? '#8fe85a' : f > 0.5 ? '#4fe08a' : f > 0.25 ? '#ffd23f' : '#ff4f5a';
@@ -162,7 +163,7 @@ function draw(g, t, layer) {
     h.twHurtF = h.twHurtF === undefined ? f : Math.max(f, h.twHurtF - 0.6 / 60);
     // 상태 딱지 (render 가 안 그리는 것만): 감전 · 홀림 · 침묵 · 느림
     const tag = h.twShockT > 0 ? ['감전', '#7ff6ff', h.twShockT] : h.charmT > 0 && h.twCharm ? ['홀림', '#ff9ae0', h.charmT] : h.silenceT > 0 && !(h.twDown > 0) ? ['침묵', '#c9b8ff', h.silenceT] : h.twSlowT > 0 ? ['느림', '#9cc0ff', h.twSlowT] : h.stunT > 0 && !(h.twDown > 0) ? [h.freezeT > 0 ? '빙결' : '기절', h.freezeT > 0 ? '#bff4ff' : '#ffe27a', h.stunT] : null;
-    if (tag) label(cx, h.x, by + 13, `${tag[0]} ${tag[2].toFixed(1)}`, tag[1], 9);
+    if (tag) label(cx, hx, by + 13, `${tag[0]} ${tag[2].toFixed(1)}`, tag[1], 9);
   }
   // 잠깐 남는 연출: 감전 번개 줄기
   const now = performance.now();
