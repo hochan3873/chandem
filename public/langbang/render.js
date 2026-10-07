@@ -33,6 +33,7 @@ const PROJ_COLOR = {
 };
 // 챕터 전용 배경에서 랑방 지붕(영웅 줄 뒤) 위치 — 그림 높이 대비
 const BG_ROOF = { 2: 0.735, 3: 0.735, 4: 0.735, 5: 0.66, 6: 0.73, 7: 0.73, 8: 0.8 }; // (8장: 축의금 접수대 윗면이 멤버 줄 바로 뒤) // (7장: bg7 그림이 오면 이 값을 그림에 맞게)
+const SKIN_GLOW = { gunnyeo_hw: 'rgba(120,255,140,0.75)', hochan_hw: 'rgba(255,40,80,0.75)', jieun_hw: 'rgba(180,100,255,0.8)', sunggu_hw: 'rgba(255,235,180,0.7)', ara_hw: 'rgba(255,140,30,0.85)' }; // 할로윈 의상 투사체 빛 (hw-event.js COSTUMES tint)
 const MAP_ROOF = 0.735; // 레이드 · 대전 맵: 랑방 지붕 높이 (그림 높이의 비율 · bg2~4 와 같게)
 const BG_BRIGHT = { 4: 0.42, 6: 0.36, 7: 0.4, 8: 0.34 }; // (8장: 흰 버진로드) // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
 // 챕터별 분위기 (같은 배경 그림에 색만 덧씌운다)
@@ -2750,6 +2751,8 @@ export class Renderer {
     cx.globalAlpha = 1; this.world();
   }
   drawBuses(g) {
+    const batBus = this.skinMap && this.skinMap.hochan === 'hochan_hw' && !document.body.classList.contains('rm'); // 할로윈 드라큘라 방장: 버스 뒤로 박쥐 떼
+    if (batBus) for (const q of g.buses || []) if (Math.random() < 0.5) this.fx.part('puff', q.x + (Math.random() - 0.5) * 40, q.y + 30, (Math.random() - 0.5) * 40, 40, 0.5, 7, 'rgba(60,0,20,0.75)');
     const cx = this.cx;
     for (const b of g.buses) {
       const img = this.images[b.big ? 'bus2' : 'bus'];
@@ -2785,6 +2788,8 @@ export class Renderer {
       const p = g.projs[pi];
       if (p.dead || pi < cap) continue;
       shown++;
+      const skn = this.skinMap && p.hero && this.skinMap[p.hero.id]; // 할로윈 의상: 투사체 뒤에 의상 색 빛 (능력치는 같음)
+      if (skn && SKIN_GLOW[skn]) { const gl = SKIN_GLOW[skn]; cx.globalCompositeOperation = 'lighter'; this.tf(p.x, p.y, 0, 1, 1); const rg = cx.createRadialGradient(0, 0, 0, 0, 0, 16); rg.addColorStop(0, gl); rg.addColorStop(1, 'rgba(0,0,0,0)'); cx.fillStyle = rg; cx.beginPath(); cx.arc(0, 0, 16, 0, TAU); cx.fill(); cx.globalCompositeOperation = 'source-over'; if (Math.random() < 0.3 && !document.body.classList.contains('rm')) this.fx.part(skn === 'ara_hw' ? 'flame' : 'puff', p.x, p.y, (Math.random() - 0.5) * 20, -12, 0.42, 5, gl); }
       if (this.kit && this.kit.drawProj(p)) continue; // 대개편: 멤버마다 다른 비행 그림 (kitfx.js)
       if (p.type === 'tap' && p.hero && p.hero.id === 'jungmin' && this.projSprites.jmBottle) { // 홍정민: 거꾸로 든 소주병이 빙글빙글 (잔상 2개 · 뒤로 튀는 술방울)
         const bs = this.projSprites.jmBottle, sv = Math.hypot(p.vx || 0, p.vy || 0) || 1, ux = (p.vx || 0) / sv, uy = (p.vy || -1) / sv, spin = this.fx.time * 17 + (p.uid || pi);

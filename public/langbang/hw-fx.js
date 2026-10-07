@@ -146,14 +146,6 @@ export function drawHw(R, g, t, layer) {
     // 호박 폭탄 · 큰 펑: 주황 빛 고리
     for (const p of S.pops) { p.t -= dt; const k = 1 - p.t / p.max; cx.strokeStyle = `rgba(255,150,40,${1 - k})`; cx.lineWidth = 6 * (1 - k) + 1; cx.beginPath(); cx.arc(p.x, p.y, p.r * (0.3 + k), 0, TAU); cx.stroke(); }
     S.pops = S.pops.filter((p) => p.t > 0);
-    // 의상 투사체 꼬리 (할로윈 의상 입은 멤버)
-    const skin = R.skinMap || {};
-    if (Object.keys(skin).length && !rm) {
-      for (const p of g.projs) {
-        const id = p.hero && p.hero.id; if (!id || !skin[id]) continue;
-        if (Math.random() < 0.35) { const fx = R.fx; const c = { gunnyeo_hw: 'rgba(140,255,150,0.8)', hochan_hw: 'rgba(255,60,90,0.8)', jieun_hw: 'rgba(190,120,255,0.8)', sunggu_hw: 'rgba(240,225,180,0.8)', ara_hw: 'rgba(255,150,40,0.85)' }[skin[id]] || 'rgba(255,150,40,0.8)'; fx.part(skin[id] === 'ara_hw' ? 'flame' : 'puff', p.x, p.y, (Math.random() - 0.5) * 20, -10, 0.4, 5, c); }
-      }
-    }
     cx.restore();
   }
 }

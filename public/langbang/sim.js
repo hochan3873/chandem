@@ -1738,7 +1738,7 @@ export function damageBase(g, dmg, e) {
   if (g.pvp) { dmg *= g.pvp.doorMul; g.pvp.hurt += dmg; } // 1:1 서든데스: 입구 받는 피해 단계마다 +20%
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
-  ev(g, 'baseHit', { x: e ? e.x : g.W / 2, y: g.ropeY, v: Math.round(dmg), boss: !!(e && e.boss) }); // (던진 진상이 이미 죽었으면 e 가 없다)
+  ev(g, 'baseHit', { x: e ? e.x : g.W / 2, y: g.ropeY, v: Math.round(dmg), boss: !!(e && e.boss), by: e ? e.type : '' }); // (by: 밸런스 측정 — 누가 입구를 쳤나) // (던진 진상이 이미 죽었으면 e 가 없다)
   if (g.base.hp <= 0 && !g.sigRevived) { // 홍정민 전용 신화: 한 판에 한 번 붕대로 다시 붙인다
     const jm = g.heroes.find((o) => o.sig && o.sig.revive && !o.gone);
     if (jm) { g.sigRevived = true; g.base.hp = Math.round(g.base.max * jm.sig.revive); ev(g, 'bandage', { x: g.W / 2, y: g.ropeY + 8, v: Math.round(g.base.hp), big: true, hero: jm.id }); ev(g, 'sigFx', { hero: jm.id, x: jm.x, y: jm.y, revive: true }); return; }
@@ -2181,6 +2181,7 @@ function castTick(g, e, dt) {
     damageBase(g, e.atk * (sp.mul || 3), e);
     if (g.kdOn) { const h = nearHero(g, e.x); if (h) kdAdd(g, h, hitKd(sp, e), { src: 'hit' }); }
     ev(g, 'doorKick', { x: e.x, y: g.ropeY, ex: e.x, ey: e.y - e.def.size * 0.5, name: sp.name || '' });
+    if (e.def.selfBoom && !e.dead) { e.hp = 0; killEnemy(g, e, null); } // 할로윈 호박 폭탄: 터지면 자기도 (→ 호박씨)
     return;
   }
   const h = c.h;
@@ -3484,7 +3485,7 @@ export function startWave(g, n) {
   if (g.slow) for (const o of q) o.at *= SLOW_RUN.gap; // 느린 판: 진상이 띄엄띄엄
   if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true, bossHp: def.bossHp });
   if (def.boss && g.twinBoss) q.push({ type: def.boss, at: 3.5, boss: true }); // 저주 계약 '보스 둘'
-  if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true });
+  if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true, bossHp: def.midHp }); // (midHp: 할로윈 이벤트 — 머릿수를 줄인 체력 보정을 중간 보스는 빼고)
   if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? (g.slow ? 22 : 14) : 26, boss: true, bossHp: def.boss2Hp });
   q.sort((a, b) => a.at - b.at);
   g.spawnQ = q;

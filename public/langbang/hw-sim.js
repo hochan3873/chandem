@@ -10,13 +10,15 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const ev = (g, type, o) => { o.type = type; g.events.push(o); return o; };
 export const HWX = {
   puddle: { every: 8, wind: 1.1, sec: 3, r: 34 }, // 저주 '독 웅덩이': 8초마다 멤버 발밑 예고 1.1초 → 독 3초
-  phaseReveal: 0.55, // 유령화한 귀신을 찾는 거리 (사거리 비율 · 운영진 · 건전남 · 배현경)
+  phaseReveal: 1, // 유령화한 귀신을 찾는 거리 (사거리 비율 · 운영진 · 건전남 · 배현경)
+  phaseUntil: 0.7, // 길의 70% 까지만 유령화 (입구 앞에선 안 사라진다)
 };
 const heroesUp = (g) => g.heroes.filter((h) => !h.def.summon && !h.gone);
 
 export function attach(g, def) {
   const m = def.mul || {};
   g.hw = { def, n: def.n, puddleT: HWX.puddle.every, moon: false, marks: [], wisps: 0, tick, preKill };
+  if (def.crowd && def.crowd < 1) { g.mods.expMul /= def.crowd; g.mods.ultCharge /= def.crowd; } // 진상 수를 줄인 만큼 한 명당 경험치 · 총공지 충전을 더
   if (m.hp && m.hp !== 1) g.mods.enemyHp *= m.hp;
   if (m.spd && m.spd !== 1) g.mods.enemySpd *= m.spd;
   if (m.repair !== undefined && m.repair < 1) g.mods.healMul *= m.repair;
@@ -101,7 +103,7 @@ function tick(g, dt) {
         let seen = false;
         for (const h of g.heroes) if ((REVEAL_HEROES.includes(h.id) || h.id === 'hyungyeong') && !h.gone && Math.hypot(e.x - h.x, e.y - h.y) < S.heroRange(g, h, true) * HWX.phaseReveal) { seen = true; break; }
         if (e.hwPhT <= 0 || seen || e.unveiled) { e.hwGhost = false; e.cloak = false; e.unveiled = true; e.spdMul /= X.phase.spd; e.hwPhT = X.phase.every; ev(g, 'hwPhaseOut', { x: e.x, y: e.y - 30, uid: e.uid, seen }); }
-      } else if (e.y > 40 && !e.atRope && e.stunT <= 0 && (e.hwPhT -= dt) <= 0) {
+      } else if (e.y > 40 && e.y < g.ropeY * HWX.phaseUntil && !e.atRope && e.stunT <= 0 && (e.hwPhT -= dt) <= 0) {
         e.hwGhost = true; e.cloak = true; e.unveiled = false; e.spdMul *= X.phase.spd; e.hwPhT = X.phase.sec;
         ev(g, 'hwPhaseIn', { x: e.x, y: e.y - 30, uid: e.uid });
       }

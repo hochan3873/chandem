@@ -20,6 +20,7 @@ export const HW = {
   // 전투력 맞추기: 강화 +12 · ★3 · 영웅 장비까지 — 그보다 키운 멤버는 강화 4마다 +1 (최대 +2) 만 더 (키운 보람은 조금)
   sync: { meta: 12, star: 3, rarity: 'epic', per: 4, edge: 2 },
   minSec: 9, // 웨이브 하나 최소 9초 (기록 조작 방지)
+  crowd: 0.5, // 원래 웨이브 머릿수 × 0.5 (대신 한 명 체력 ×2) — 좀비 부활 · 유령화 · 호박 폭탄이 너무 많이 겹치지 않게
   rentals: 1, // 조건 멤버가 없으면 한 명은 빌려 갈 수 있다 (강화는 맞춘 값 그대로 · 더 키운 보너스 없음)
   dayCap: 360, // 다시 깨서 받는 사탕 하루 한도 (첫 클리어 · 새 저주 기록 보너스는 따로)
   wear: 0.1, wearMax: 0.3, // 할로윈 의상을 입은 멤버 한 명당 사탕 +10% (최대 +30%)
@@ -62,16 +63,16 @@ export const HW_ENEMY_IDS = ['hw_zombie', 'hw_pumpkin', 'hw_seed', 'hw_bat', 'hw
 //  base: 레벨 · 체력 · 웨이브 성격을 빌려 올 일반 스테이지 · add: 레벨 보정 (scripts/lb-hw-balance.js 로 맞춘 값)
 //  mix: [진상, 비중] · mid: 3웨이브 중간 보스 · boss: 마지막 웨이브 보스
 export const STAGES = [
-  { n: 1, name: '골목 입구의 좀비 회식러', map: 'alley', rules: ['noLegend'], base: 41, add: 0, mix: [['hw_zombie', 5], ['hw_pumpkin', 2], ['hw_bat', 2]], story: '회식 3차에서 좀비가 된 직장인들이 골목을 메웠다. "한 잔만 더어…"' },
-  { n: 2, name: '호박등 골목', map: 'alley', rules: ['ranged'], base: 42, add: 0, mix: [['hw_pumpkin', 5], ['hw_bat', 3], ['hw_zombie', 2]], story: '호박머리 진상이 입구 앞에서 펑! — 붙어 싸우면 같이 터진다.' },
-  { n: 3, name: '단톡방의 원한', map: 'bar', rules: ['sup2'], base: 43, add: 0, mix: [['hw_ghost', 5], ['hw_zombie', 3], ['hw_bat', 2]], story: '읽씹당한 처녀귀신 단톡방장이 술집을 점령했다. 단톡 초대 = 침묵의 저주.' },
-  { n: 4, name: '마녀 다단계 설명회', map: 'bar', rules: ['charmImm'], base: 44, add: 0, mix: [['hw_witch', 4], ['hw_ghost', 3], ['hw_pumpkin', 2]], story: '"건강 물약 한 병이면 인생 역전!" 마녀의 영입 윙크에 홀리면 끝장.' },
-  { n: 5, name: '저승사자 팀장의 야근 명부', map: 'bar', rules: ['cleanse'], base: 45, add: 0, mix: [['hw_ghost', 3], ['hw_zombie', 3], ['hw_witch', 2]], mid: 'hw_reaper', story: '명부에 이름이 적히면 3초 뒤 강제 퇴근(쓰러짐). 건전녀의 방패만이 명부를 지운다.' },
-  { n: 6, name: '공동묘지 회식', map: 'grave', rules: ['booze'], base: 46, add: 0, mix: [['hw_jiangshi', 4], ['hw_ghost', 3], ['hw_zombie', 2]], story: '묘지 한가운데서 고기 굽는 강시 꼰대. 술 못 마시는 사람은 입장 불가!' },
-  { n: 7, name: '강시 꼰대의 라떼 부적', map: 'grave', rules: ['breaker', 'notank'], base: 47, add: 0, mix: [['hw_jiangshi', 4], ['hw_mummy', 3], ['hw_witch', 2]], story: '"라떼는 말이야~" 부적이 붙으면 꽁꽁. 붕대 철갑 미라 부장님까지 합류했다.' },
+  { n: 1, name: '골목 입구의 좀비 회식러', map: 'alley', rules: ['noLegend'], base: 41, add: -8, mix: [['hw_zombie', 5], ['hw_pumpkin', 2], ['hw_bat', 2]], story: '회식 3차에서 좀비가 된 직장인들이 골목을 메웠다. "한 잔만 더어…"' },
+  { n: 2, name: '호박등 골목', map: 'alley', rules: ['ranged'], base: 42, add: -10, mix: [['hw_pumpkin', 5], ['hw_bat', 3], ['hw_zombie', 2]], story: '호박머리 진상이 입구 앞에서 펑! — 붙어 싸우면 같이 터진다.' },
+  { n: 3, name: '단톡방의 원한', map: 'bar', rules: ['sup2'], base: 43, add: -8, mix: [['hw_ghost', 5], ['hw_zombie', 3], ['hw_bat', 2]], story: '읽씹당한 처녀귀신 단톡방장이 술집을 점령했다. 단톡 초대 = 침묵의 저주.' },
+  { n: 4, name: '마녀 다단계 설명회', map: 'bar', rules: ['charmImm'], base: 44, add: 1.75, mix: [['hw_witch', 4], ['hw_ghost', 3], ['hw_pumpkin', 2]], story: '"건강 물약 한 병이면 인생 역전!" 마녀의 영입 윙크에 홀리면 끝장.' },
+  { n: 5, name: '저승사자 팀장의 야근 명부', map: 'bar', rules: ['cleanse'], base: 45, add: -4, mix: [['hw_ghost', 3], ['hw_zombie', 3], ['hw_witch', 2]], mid: 'hw_reaper', story: '명부에 이름이 적히면 3초 뒤 강제 퇴근(쓰러짐). 건전녀의 방패만이 명부를 지운다.' },
+  { n: 6, name: '공동묘지 회식', map: 'grave', rules: ['booze'], base: 46, add: -10, mix: [['hw_jiangshi', 4], ['hw_ghost', 3], ['hw_zombie', 2]], story: '묘지 한가운데서 고기 굽는 강시 꼰대. 술 못 마시는 사람은 입장 불가!' },
+  { n: 7, name: '강시 꼰대의 라떼 부적', map: 'grave', rules: ['breaker', 'notank'], base: 47, add: -13.75, mix: [['hw_jiangshi', 4], ['hw_mummy', 3], ['hw_witch', 2]], story: '"라떼는 말이야~" 부적이 붙으면 꽁꽁. 붕대 철갑 미라 부장님까지 합류했다.' },
   { n: 8, name: '미라 부장님 결재 라인', map: 'grave', rules: ['max4', 'sup2'], base: 48, add: 0, mix: [['hw_mummy', 4], ['hw_ghost', 3], ['hw_bat', 3]], mid: 'hw_reaper', story: '결재가 안 끝나는 밤. 4명이서 버텨야 한다 — 그중 둘은 서포터로.' },
-  { n: 9, name: '호박 축제의 마녀들', map: 'fest', rules: ['female'], base: 49, add: 0, mix: [['hw_witch', 4], ['hw_pumpkin', 4], ['hw_bat', 2], ['hw_ghost', 2]], story: '마녀들이 연 호박 축제. 여자 멤버만 입장 가능 — 호박은 여전히 터진다!' },
-  { n: 10, name: '드라큘라 사장의 강제 회식', map: 'fest', rules: ['poison', 'noLegend'], base: 50, add: 0, mix: [['hw_bat', 4], ['hw_zombie', 2], ['hw_ghost', 2], ['hw_mummy', 2], ['hw_witch', 2]], mid: 'hw_reaper', boss: 'hw_dracula', story: '"오늘 회식은 우리 성에서 한다. 빠지면 해고야!" 피의 와인은 독 — 홍정민이 꼭 필요하다.' },
+  { n: 9, name: '호박 축제의 마녀들', map: 'fest', rules: ['female'], base: 49, add: -1, mix: [['hw_witch', 4], ['hw_pumpkin', 4], ['hw_bat', 2], ['hw_ghost', 2]], story: '마녀들이 연 호박 축제. 여자 멤버만 입장 가능 — 호박은 여전히 터진다!' },
+  { n: 10, name: '드라큘라 사장의 강제 회식', map: 'fest', rules: ['poison', 'noLegend'], base: 50, add: -12.25, mix: [['hw_bat', 4], ['hw_zombie', 2], ['hw_ghost', 2], ['hw_mummy', 2], ['hw_witch', 2]], mid: 'hw_reaper', boss: 'hw_dracula', story: '"오늘 회식은 우리 성에서 한다. 빠지면 해고야!" 피의 와인은 독 — 홍정민이 꼭 필요하다.' },
 ];
 export const STAGE_COUNT = STAGES.length;
 export const stageOf = (n) => STAGES[int(n, 1, STAGE_COUNT) - 1];
@@ -89,7 +90,7 @@ export function waveDef(n, w, curses = []) {
   const baseHp = b.g.reduce((a, x) => a + x[1] * packN(ENEMIES[x[0]]) * hpOf(x[0]), 0);
   const sum = st.mix.reduce((a, m) => a + m[1], 0);
   const per = st.mix.reduce((a, [t, wt]) => a + (wt / sum) * hpOf(t), 0);
-  const heads = baseHp / Math.max(1, per); // 할로윈 진상 머릿수
+  const heads = (baseHp / Math.max(1, per)) * HW.crowd; // 할로윈 진상 머릿수 (기술이 있는 진상이라 수는 줄이고 체력으로 — crowd)
   const elite = b.kind === 'E';
   const dur = 13 + 0.12 * (st.base - 1);
   const g = [];
@@ -100,17 +101,18 @@ export function waveDef(n, w, curses = []) {
     if (c > 0) g.push([t, c, +(dur / c).toFixed(2), +(i * 0.7).toFixed(1), elite ? 'E' : '']);
   });
   if (b.kind === 'M') { const tough = st.mix.slice().sort((x, y) => ENEMIES[y[0]].hp - ENEMIES[x[0]].hp)[0]; if (tough) g.push([tough[0], 2 + ((n + w) % 3), +(dur / 4).toFixed(2), 3, 'E']); }
-  const def = { g, level: b.level + (st.add || 0) + (w === WAVES && st.boss ? -1.5 : 0), hpScale: b.hpScale, kind: b.kind, fodderHp: b.fodderHp, eliteHp: b.eliteHp, clump: b.clump };
+  const def = { g, level: b.level + (st.add || 0) + (w === WAVES && st.boss ? -1.5 : 0), hpScale: b.hpScale / HW.crowd, kind: b.kind, fodderHp: b.fodderHp, eliteHp: Math.min(b.eliteHp || 1, 1.7), clump: b.clump }; // (정예는 기술 진상이라 체력 배율을 덜)
   if (w === 3 && st.mid) def.mid = st.mid;
   if (w === WAVES && st.boss) { def.boss = st.boss; if (curses.includes('twin')) def.boss2 = 'hw_reaper'; } // 저주 '보스 둘': 드라큘라 사장 + 저승사자 팀장
   else if (w === WAVES && curses.includes('twin')) def.mid = 'hw_reaper'; // 보스가 없는 판: 마지막 웨이브에 저승사자 팀장
+  if (def.mid) def.midHp = HW.crowd; if (def.boss) def.bossHp = HW.crowd; if (def.boss2) def.boss2Hp = HW.crowd; // 보스 · 중간 보스는 머릿수 보정(crowd) 체력을 빼고 원래대로
   return def;
 }
 // sim.js createGame({ event }) 이 받는 판 정보
 export function eventDef(n, curses = [], deck = []) {
   const st = stageOf(n);
   const cs = cleanCurses(curses);
-  return { id: HW.id, n: st.n, name: st.name, map: st.map, mapImg: HW_MAPS[st.map].img, fx: HW_MAPS[st.map].fx, stage: st.base, curses: cs, waves: Array.from({ length: WAVES }, (_, i) => waveDef(st.n, i + 1, cs)), mul: curseMul(cs), deck };
+  return { id: HW.id, crowd: HW.crowd, n: st.n, name: st.name, map: st.map, mapImg: HW_MAPS[st.map].img, fx: HW_MAPS[st.map].fx, stage: st.base, curses: cs, waves: Array.from({ length: WAVES }, (_, i) => waveDef(st.n, i + 1, cs)), mul: curseMul(cs), deck };
 }
 
 // ─── 저주 (스테이지를 한 번 깬 뒤부터) — 점수(pt)가 곧 랭킹 점수 · 사탕 ───

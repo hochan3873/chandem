@@ -354,6 +354,7 @@ function partnerList() { return ['staff', 'gunman', 'gunnyeo', ...UNLOCK_HEROES,
 // ─── 게임 시작/끝 ─────────────────────────────────────
 async function startRun(opt = {}) {
   const mode = opt.mode || app.mode;
+  if (mode === 'hw' && !opt.hw) { if (HWUI) HWUI.prep(); return; } // 할로윈 이벤트: 다시 하기는 출전 준비에서 (판 번호를 서버에서 새로 받는다)
   const st = mode === 'stage' ? opt.stage || app.stage : 0;
   const hell = mode === 'stage' && (opt.hell !== undefined ? opt.hell : app.hellMode) && hellOpen(P().stages, st);
   if (mode === 'stage' && st) { app.lobbyStage = st; try { localStorage.setItem(lastStageKey(), String(st)); } catch { /* 무시 */ } } // 판이 끝나거나 나오면 로비도 방금 하던 스테이지로 (앱을 껐다 켜도)
@@ -2606,7 +2607,8 @@ function showLobbyMenu() {
   const IC2 = { notice: 'megaphone', friends: 'ic_friends' };
   const cells = [['checkin', '출석', 'checkin', d.checkin], ['ranking', '랭킹', 'ranking', BKX.dot(p)], ['dex', '도감', 'dex', dexHasNew()], ['friends', '친구', 'friends', FRX.badge(p) > 0], ['recruit', '모집', 'recruit', d.recruit], ['share', '공유', 'share', false], ['notice', '공지', 'notice', false], ['settings', '설정', 'settings', false]]
     .map(([k, n, act, on]) => `<button class="mg-cell" data-act="${act}">${IC2[k] ? lbArt(IC2[k], IC2[k]) : uiIco(k, '')}<b>${n}</b>${rdot(on)}</button>`).join('');
-  const m = popup(`<h3>${lbArt('lobby_menu', 'tools').replace('class="uic"', 'class="uic h3i"')}메뉴</h3><div class="mg-grid">${cells}</div>`, 'lb-sheet mg-sheet');
+  const hwCell = HWUI && HWUI.season() ? `<button class="mg-cell hw-cell" data-act="hw"><span class="uic"><img src="/img/lb/season/hw_pumpkin.webp" alt="" draggable="false"></span><b>할로윈</b>${rdot(HWUI.open() && !(P().hw && Object.keys(P().hw.best || {}).length))}</button>` : ''; // 할로윈 이벤트 (시즌 동안)
+  const m = popup(`<h3>${lbArt('lobby_menu', 'tools').replace('class="uic"', 'class="uic h3i"')}메뉴</h3><div class="mg-grid">${hwCell}${cells}</div>`, 'lb-sheet mg-sheet');
   lobbySheetClose(m);
 }
 // 창 안에서 고르면 창을 닫고 그 화면으로 (잠긴 칸은 창을 남겨 둔다 → 안내만)
