@@ -2284,7 +2284,7 @@ function tutCtx() {
     for (const h of g.heroes) if (h.kd > 0 && !h.gone) kdHi = Math.max(kdHi, h.kd / (h.kdMax || S.kdMax(h)));
     const sup = g.kdOn ? TUT_SUP.find((id) => g.heroes.some((h) => h.id === id && !h.gone)) : null;
     Object.assign(c, { stage: g.stage | 0, mode: g.weekly || g.raid || g.tower ? 'other' : g.mode, hell: !!g.hell, pvp: !!g.pvp, t: g.t || 0,
-      enemies: g.enemies.filter((e) => !e.dead && e.y > 45 && e.y < g.ropeY).length, cards: !!app.cardsOpen, aug: !!(g.augOffer && augBox.isConnected), aim: !!app.aim,
+      enemies: g.enemies.filter((e) => !e.dead && e.y > 12 && e.y < g.ropeY).length, cards: !!app.cardsOpen, aug: !!(g.augOffer && augBox.isConnected), aim: !!app.aim,
       speedOk: speedOk() && !$('#btn-speed').hidden, skillReady: !!skillbar.querySelector('.sk.ready:not(.nomom):not(.tired)'), ultReady: H$.ult.classList.contains('ready'),
       kdHi, sup, baul: g.heroes.some((h) => h.id === 'baul' && !h.gone) });
   }
@@ -2295,7 +2295,7 @@ function tutField(spec) {
   const cr = canvas.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = sr.width / (stage.offsetWidth || sr.width) || 1;
   const X = (x) => (cr.left - sr.left + (x / FIELD.W) * cr.width) / k, Y = (y) => (cr.top - sr.top + (y / g.H) * cr.height) / k;
   const box = (x0, y0, x1, y1, px, py) => { const top = Math.max(Y(y0), 62); return { x: X(x0), y: top, w: X(x1) - X(x0), h: Math.max(40, Y(y1) - top), px: X(px), py: Math.max(Y(py), top + 18) }; }; // 위 HUD 밑으로
-  const foes = g.enemies.filter((e) => !e.dead && e.y > 45 && e.y < g.ropeY);
+  const foes = g.enemies.filter((e) => !e.dead && e.y > 12 && e.y < g.ropeY);
   if (spec.f === 'enemy') { const e = foes.sort((a, b) => b.y - a.y)[0]; if (!e) return null; const z = Math.max(24, ((e.def && e.def.size) || 40) * 0.55); return box(e.x - z, e.y - z * 1.7, e.x + z, e.y + z * 0.3, e.x, e.y - z * 0.7); }
   if (spec.f === 'hero') {
     const hs = g.heroes.filter((h) => !h.gone && !h.summon && HEROES[h.id]);

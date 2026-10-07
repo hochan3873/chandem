@@ -114,8 +114,8 @@ export const LESSONS = [
     { id: 'more', say: '보드 충전은 <b>3칸</b> · 착지할 때 맞춰 탭하면 <b>퍼펙트!</b>', hold: 1, dim: false, tap: 'bubble', wait: 6 },
   ] },
   { id: 'pvp', need: 'any', when: (c) => play(c) && c.pvp && c.t > 2 && calm(c), scope: play, beats: [
-    { id: 'a', say: '<b>1:1 대전!</b> 두 사람에게 같은 진상이 와요.<br>입구가 <b>먼저 무너지는 쪽</b>이 져요', hold: 1, dim: false, tap: 'bubble', wait: 6 },
-    { id: 'b', at: '#oppstrip', say: '위에 <b>상대 상황</b>이 보여요. 총공지 · 스킬 타이밍으로 이겨요!', hold: 1, dim: false, tap: 'bubble', wait: 6, maxWait: 2 },
+    { id: 'a', when: calm, say: '<b>1:1 대전!</b> 두 사람에게 같은 진상이 와요.<br>입구가 <b>먼저 무너지는 쪽</b>이 져요', hold: 1, dim: false, tap: 'bubble', wait: 6 },
+    { id: 'b', when: calm, at: '#oppstrip', say: '위에 <b>상대 상황</b>이 보여요. 총공지 · 스킬 타이밍으로 이겨요!', hold: 1, dim: false, tap: 'bubble', wait: 6, maxWait: 2 },
   ] },
   { id: 'tower', need: 'any', when: (c) => c.where === 'tower', scope: (c) => c.where === 'tower', beats: [
     { id: 'a', say: '<b>진상의 탑</b>! 멤버 <b>3명 파티</b>로 한 층씩 올라가요', hold: 1, tap: 'bubble' },
@@ -347,6 +347,7 @@ export function createTutor(o) {
     const b = cur.b;
     if (!b) return finish(false);
     if (c.blocked || (c.modal && !b.modal)) { hideBits(); cur.shown = false; return; }
+    if (cur.shown && b.when) { let still = true; try { still = !!b.when(c); } catch { still = false; } if (!still) { hideBits(); cur.shown = false; return; } } // 조건이 사라지면 (증강 · 카드가 떠서) 잠깐 숨었다가 다시
     if (!cur.shown) {
       let sk = false; try { sk = !!(b.skip && b.skip(c, cur.seen)); } catch { sk = false; }
       if (sk) return advance(c, cur.i + 1);
