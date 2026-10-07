@@ -5,7 +5,7 @@
 import {
   HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK,
   GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT, heroTier, GEAR, CURSES,
-  SIG, SIG_IDS, SIG_PITY, SIG_DUP_SHARDS, SIG_RATE, WEEK_TRAITS,
+  SIG, SIG_IDS, SIG_PITY, SIG_DUP_SHARDS, SIG_RATE, WEEK_TRAITS, enemyGrade,
 } from './data.js';
 export const stageBossN = (s) => stageBosses(s).length;
 
@@ -461,6 +461,7 @@ export function grant(lb, rw, uid, now) {
   if (rw.tickets) { lb.tickets = (lb.tickets | 0) + rw.tickets; got.tickets = rw.tickets; }
   if (rw.stones) { lb.stones = (lb.stones | 0) + rw.stones; got.stones = rw.stones; }
   if (rw.wild) { lb.wild = (lb.wild | 0) + rw.wild; got.wild = rw.wild; }
+  if (rw.shards) { lb.shards = lb.shards || {}; for (const [h, v] of Object.entries(rw.shards)) if (HEROES[h] && v > 0) { lb.shards[h] = (lb.shards[h] | 0) + v; (got.shards = got.shards || {})[h] = v; } } // 멤버 조각 (★ 승급)
   if (rw.cons) { consAdd(lb, rw.cons); for (const [k, v] of Object.entries(rw.cons)) if (CONS[k] && v > 0) (got.cons = got.cons || {})[k] = v; }
   if (rw.sta) { staminaAdd(lb, rw.sta, now); got.sta = rw.sta; }
   if (rw.sp) { ensureLive(lb, uid, now); lb.season.sp += rw.sp; got.sp = rw.sp; }
@@ -1040,6 +1041,48 @@ export function mailClaim(lb, id, uid, now = Date.now()) {
 }
 export const mailCount = (lb, now = Date.now()) => (lb.mail || []).filter((m) => m.exp > now).length;
 
+// ── 도감 첫 발견 보상: 새 멤버 합류 · 처음 만난 진상 · 처음 얻은 장비마다 한 번씩 (도감에서 [받기]) + 모은 수 10개마다 모집권
+//  멤버 = 그 멤버 조각(★ 승급) + 코인 · 진상 = 등급별 코인 (중간 보스 · 보스는 강화석도) · 장비 = 강화석
+export const DEX_RW = {
+  hero: { coins: 500, shards: 10 },
+  enemy: { normal: { coins: 150 }, elite: { coins: 300 }, mid: { coins: 600, stones: 2 }, boss: { coins: 1200, stones: 5 } },
+  item: { stones: 2 },
+  every: 10, everyRw: { tickets: 1 },
+};
+function dexRwOf(k) {
+  const [t, id] = [k[0], k.slice(2)];
+  if (t === 'h') return { coins: DEX_RW.hero.coins, shards: { [id]: DEX_RW.hero.shards } };
+  if (t === 'e') return Object.assign({}, DEX_RW.enemy[enemyGrade(ENEMIES[id])] || DEX_RW.enemy.normal);
+  if (t === 'i') return Object.assign({}, DEX_RW.item);
+  return Object.assign({}, DEX_RW.everyRw);
+}
+// 아직 안 받은 발견 보상 → [{ k, rw }] (멤버 · 진상 · 장비 · 모은 수 단계)
+export function dexRwList(lb) {
+  lb = lb || {};
+  const got = new Set(Array.isArray(lb.dexRw) ? lb.dexRw : []), seen = new Set(Array.isArray(lb.seen) ? lb.seen : []);
+  const gd = new Set([...(Array.isArray(lb.gearDex) ? lb.gearDex : []), ...(Array.isArray(lb.gear) ? lb.gear.map((g) => g && g.t) : [])]);
+  const keys = [
+    ...Object.keys(HEROES).filter((h) => heroUnlocked(lb, h)).map((h) => 'h:' + h),
+    ...DEX_ENEMY_IDS().filter((e) => seen.has(e)).map((e) => 'e:' + e),
+    ...[...GEAR_IDS, ...MYTH_IDS].filter((t) => gd.has(t)).map((t) => 'i:' + t),
+  ];
+  const n = keys.length, out = keys.filter((k) => !got.has(k)).map((k) => ({ k, rw: dexRwOf(k) }));
+  for (let m = DEX_RW.every; m <= n; m += DEX_RW.every) if (!got.has('m:' + m)) out.push({ k: 'm:' + m, rw: dexRwOf('m:' + m) });
+  return out;
+}
+export function dexClaim(lb, key, uid, now = Date.now()) {
+  const list = dexRwList(lb).filter((x) => key === 'all' || x.k === key);
+  if (!list.length) return { error: '받을 도감 보상이 없어요' };
+  lb.dexRw = Array.isArray(lb.dexRw) ? lb.dexRw : [];
+  const got = {};
+  for (const x of list) {
+    const g = grant(lb, x.rw, uid, now);
+    for (const [k, v] of Object.entries(g)) { if (typeof v === 'number') got[k] = (got[k] || 0) + v; else if (k === 'shards') { got.shards = got.shards || {}; for (const [h, n] of Object.entries(v)) got.shards[h] = (got.shards[h] || 0) + n; } }
+    lb.dexRw.push(x.k);
+  }
+  return { n: list.length, got };
+}
+
 export function normLive(raw, out) {
   raw = raw || {};
   const heroIds = Object.keys(HEROES);
@@ -1099,6 +1142,7 @@ export function normLive(raw, out) {
   const ew = (x) => (x && Number.isInteger(x.wi) ? { wi: x.wi, best: int(x.best, 0, 1e10), miles: (x.miles || []).map((m) => int(m, 0, 999)).filter((m) => ENDLESS.miles.includes(m)) } : null);
   out.ew = ew(raw.ew); out.ewPrev = ew(raw.ewPrev); out.ewPaid = Number.isInteger(raw.ewPaid) ? raw.ewPaid : -1e6;
   out.mailSeq = int(raw.mailSeq, 0, 1e9);
+  out.dexRw = [...new Set((Array.isArray(raw.dexRw) ? raw.dexRw : []).filter((k) => typeof k === 'string' && /^[hei]:[a-z0-9_]{1,40}$|^m:\d{1,4}$/.test(k)))].slice(0, 600); // 도감 첫 발견 보상 받은 것
   out.mail = (Array.isArray(raw.mail) ? raw.mail : []).filter((m) => m && Number.isInteger(m.id) && Number.isFinite(m.exp)).slice(-50).map((m) => ({ id: m.id, title: String(m.title || '').slice(0, 40), text: String(m.text || '').slice(0, 80), rw: cleanRw(m.rw), from: m.from ? String(m.from).slice(0, 12) : undefined, at: int(m.at, 0, 9e15), exp: int(m.exp, 0, 9e15) }));
   out.consBuy = {}; for (const [k, v] of Object.entries(raw.consBuy || {})) if (CONS_SHOP[k] && v && typeof v.k === 'string') out.consBuy[k] = { k: v.k.slice(0, 12), n: int(v.n, 0, 99) };
   out.consDex = [...new Set([...(Array.isArray(raw.consDex) ? raw.consDex : []), ...Object.keys(raw.cons || {})])].filter((k) => CONS[k]);

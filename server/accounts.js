@@ -1207,6 +1207,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/cons/end', wrap((req) => lbLive(tok(req), (lb) => LIVE.consEnd(lb, b(req).used))));
     r.post('/cons/buy', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.consBuy(lb, String(b(req).id || ''), now))));
     r.post('/mail/claim', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.mailClaim(lb, b(req).id === 'all' ? 'all' : Math.floor(Number(b(req).id) || 0), id, now))));
+    r.post('/dex/claim', wrap((req) => lbLive(tok(req), (lb, id, now) => LIVE.dexClaim(lb, typeof b(req).key === 'string' ? b(req).key.slice(0, 50) : 'all', id, now)))); // 도감 첫 발견 보상
     r.post('/weekly/start', wrap((req) => lbWeeklyStart(tok(req))));
     r.post('/weekly/claim', wrap((req) => lbWeeklyClaim(tok(req))));
     r.get('/weekly', wrap((req) => lbWeeklyBoard(tok(req) || null)));

@@ -2069,6 +2069,7 @@ const ACTS = {
   prepEdit: () => showDeckEditor(),
   edPick: (b) => edPick(b.dataset.id),
   edSlot: (b) => edSlot(b.dataset.id),
+  edRm: (b) => edRemove(b.dataset.id), // 덱 칸 ✕: 바로 빼기
   edHole: () => { app.edHole = true; showDeckEditor(); },
   edLead: (b) => { const id = b.dataset.id; setDeckOrder([id, ...deckList().filter((x) => x !== id)]); A.sfx.card(); toast(`${HEROES[id].name} 대장!`, 900); if (stage.querySelector('.pp-editor')) showDeckEditor(); else if (app.screen === 'deck') showDeckTab(); },
   edF: (b) => { app.edF = b.dataset.f; showDeckEditor(); },
@@ -2629,7 +2630,7 @@ function showMenu0() {
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) cosmNewCheck(); }, 600);
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) PUSHX.maybePrompt(); }, 1500); // 알림 받기 카드 (두 번째 방문부터 · 미루면 3일)
   // 스테이지 넘기기 안내 (한 번만): 깬 판이 몇 개 생기면
-  if (app.profileLoaded && nextStage() > 3) { let seen = true; try { seen = !!localStorage.getItem('langbang:navHint'); if (!seen) localStorage.setItem('langbang:navHint', '1'); } catch { /* 무시 */ } if (!seen) setTimeout(() => { if (app.screen === 'menu') toast('◂ ▸ 를 꾹 누르면 빠르게 넘어가요 · 스테이지 이름을 누르면 지도에서 골라 볼 수 있어요', 4200); }, 1400); }
+  if (app.profileLoaded && nextStage() > 3) { let seen = true; try { seen = !!localStorage.getItem('langbang:navHint'); if (!seen) localStorage.setItem('langbang:navHint', '1'); } catch { /* 무시 */ } if (!seen) setTimeout(() => { if (app.screen === 'menu') toast('◂ ▸ 를 꾹 누르면 빠르게 넘어가요', 2600); }, 1400); }
   layout();
   const s = lobbyStage();
   const ch = chapterOf(s);
@@ -2672,7 +2673,7 @@ function showMenu0() {
     <button class="lb-stage" data-act="stages">
       <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
       <span class="lb-chip" style="--cc:${c.color}">${ch}장 ${esc(c.name)} · ${esc(fxd.name)}${boss ? ` · ${ic('ic_bosscrown', '', 'sm')}보스` : ''}</span>
-      <span class="lb-st">${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}</span>
+      <span class="lb-st">${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}<i class="lb-mapbtn">🗺 전체 지도</i></span>
     </button>
     ${wtrChip(s, 'lb-wtr')}
     ${HWUI ? HWUI.lobbyBanner(p) : ''}
@@ -3884,6 +3885,8 @@ Object.assign(ACTS, {
   doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
   notice: () => showNotice(),
   mail: async () => { await Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {}); showMail(); },
+  // 도감 첫 발견 보상: 하나 또는 모두 받기
+  dexRwGet: async (b) => { const r = await liveAct(API.dexClaim(b.dataset.k || 'all', app.guest)); if (r) { A.sfx.levelUp(); const g = r.got || {}, sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); toast(`도감 보상 ${r.n}개 · ${[g.coins ? `코인 +${fmt(g.coins)}` : '', g.stones ? `강화석 +${g.stones}` : '', g.tickets ? `모집권 +${g.tickets}` : '', sh ? `멤버 조각 +${sh}` : ''].filter(Boolean).join(' · ')}`, 2600); showDex(); } },
   mailGet: async (b) => { const r = await liveAct(API.mailClaim(b.dataset.id === 'all' ? 'all' : Number(b.dataset.id), app.guest)); if (r) { A.sfx.levelUp(); toast(`${r.n}개 받았어요 · ${gotText(r.got)}`, 2400); showMail(); refreshBehind(); } },
   stamina: () => showStamina(),
   staBuy: async () => { const r = await liveAct(API.staminaBuy(app.guest)); if (r) { toast(`체력 +${L.STAMINA.buy.n}!`, 1400); showStamina(); refreshBehind(); } },
@@ -4922,7 +4925,7 @@ function showPrep(mode, s) {
   // 2) 난이도
   const diffLine = hellOn ? `헬 · 체력 ×${HELL.hp} · 공격 ×${HELL.atk} · 보상 ×${HELL.coin}` : mode === 'stage' ? `보통 · ${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 보스' : stageMid(s) ? ' · 중간 보스' : ''}` : wk ? L.WEEKLY_MODS[wk.mod].desc : '';
   const diffHtml = mode === 'stage'
-    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0">보통</button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1">${hellOk ? '' : ic('lock', '', 'sm')}헬</button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
+    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0"><span class="sg-t">😊 보통</span><small>기본 난이도</small></button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1"><span class="sg-t">${hellOk ? '😈' : ic('lock', '', 'sm')} 헬</span><small>${hellOk ? '진상 강함 · 코인 ×3' : '보통 ★★★ 로 열림'}</small></button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
     : diffLine ? `<p class="pp-line solo">${esc(diffLine)}</p>` : '';
   // 2-1) 이 스테이지 조건: 맵 효과 · 진상 기믹(보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격) · ★★★ 미션 · 강화 권장
   const conds = mode === 'stage' ? stageConds(s, hellOn) : [];
@@ -5098,12 +5101,12 @@ function showDeckEditor() {
   for (let i = 0; i < 6; i++) {
     const id = dl[i];
     if (i >= max) { slots.push(`<span class="pp-slot lock">${ic('lock', '')}</span>`); continue; }
-    slots.push(id ? `<span class="ed-s ${id === app.edSel ? 'picked' : ''}" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}</span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
+    slots.push(id ? `<span class="ed-s ${id === app.edSel ? 'picked' : ''}" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}<button class="ed-rm ${id === app.edSel ? 'big' : ''}" data-act="edRm" data-id="${id}" aria-label="덱에서 빼기">✕${id === app.edSel ? ' 빼기' : ''}</button></span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
   }
   const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
   popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '', 'sm')}자동 편성</button></div>
     <div class="pp-slots g6 ed">${slots.join('')}</div>
-    <p class="ed-hint">${app.edSel && HEROES[app.edSel] ? `<b>${esc(HEROES[app.edSel].name)}</b> 고름 → 위 멤버를 누르면 자리 바꾸기 · 아래 멤버를 누르면 교체 · 한 번 더 누르면 빼기` : lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 눌러서 고른 뒤 다른 멤버를 누르면 자리 바꾸기 · 1번 칸이 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
+    <p class="ed-hint">${app.edSel && HEROES[app.edSel] ? `<b>${esc(HEROES[app.edSel].name)}</b> 고름 → 위 멤버를 누르면 자리 바꾸기 · 아래 멤버를 누르면 교체 · <b>✕ 빼기</b> 로 덱에서 빼기` : lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 눌러서 고른 뒤 다른 멤버를 누르면 자리 바꾸기 · 1번 칸이 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
     <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="edF" data-f="${k}">${t}</button>`).join('')}<span class="ed-sort">${[['pw', '전투력'], ['tier', '등급'], ['lv', '레벨']].map(([k, t]) => `<button class="${k === so ? 'on' : ''}" data-act="edSort" data-v="${k}">${t}</button>`).join('')}</span></div></div>
     <div class="pp-sg">${list.map((id) => artCard(id, { act: 'edPick', on: dl.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
     <div class="ed-done"><button class="btn primary" data-x>완료</button></div>`, 'pp-sheet pp-editor');
@@ -5209,6 +5212,15 @@ function edSlot(id) {
   app.edLeadNext = wasLead; app.edHole = true; // 빈 자리를 채우는 멤버가 대장을 이어받는다
   A.sfx.tap();
   edApply(ids.filter((x) => x !== id), wasLead ? null : null);
+}
+// 덱 칸 ✕ → 그 멤버를 덱에서 바로 뺀다 (대장이면 다음 멤버가 대장 · 마지막 한 명은 못 뺌)
+function edRemove(id) {
+  const ids = deckList();
+  if (!ids.includes(id)) return;
+  if (ids.length <= 1) { toast('덱에 한 명은 있어야 해요', 1400); A.sfx.tap(); return; }
+  app.edSel = null; app.edHole = true; app.edLeadNext = false;
+  A.sfx.tap();
+  edApply(ids.filter((x) => x !== id), id === ids[0] ? ids.find((x) => x !== id) : null);
 }
 function deckTapSlot(i) {
   if (lockedPos().includes(i)) { const it = ITEMS[deckSlotsNow() < 5 ? 'slot5' : 'slot6']; toast(`상점에서 열 수 있어요 — ${it.name} ${fmt(it.costs[0])}코인`, 2000); return; }
@@ -5806,6 +5818,7 @@ function seenEnemies() {
 function dexKnown(kind, id) { return kind === 'hero' ? API.heroUnlocked(P(), id) : seenEnemies().has(id); }
 function dexViewed() { try { return new Set(JSON.parse(localStorage.getItem('langbang:dexViewed') || '[]')); } catch { return new Set(); } }
 function dexHasNew() {
+  if (L.dexRwList(P()).length) return true; // 받을 도감 보상이 있으면 점
   const v = dexViewed();
   return DEX_HEROES().some((id) => dexKnown('hero', id) && !v.has('h:' + id)) || DEX_ENEMIES().some((id) => dexKnown('enemy', id) && !v.has('e:' + id));
 }
@@ -6003,6 +6016,7 @@ function showItemDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${nGear}</button></div>
+    ${dexRwBar()}
     ${collBar('item')}
     ${chips}
     <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${cat === 'sig' ? `멤버마다 하나뿐인 전용 신화 · 모은 것 ${sigN}/${SIG_IDS.length} · 모집 ${SIG_RATE.hero}% · 장비 뽑기 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환` : `한 번이라도 얻은 장비가 기록돼요 · 테두리는 얻어 본 가장 높은 등급${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'}`} <button class="chip mini" data-act="dropTable">드롭 표</button></span></p>
@@ -6081,6 +6095,15 @@ function showCollPop() {
     <div class="cp-sec cp-tot"><h4>지금 받는 효과</h4>${tot}</div>${L.COLLECT.map(sec).join('')}
     <p class="ip dimtxt">스테이지 · 헬 · 무한 · 주간 도전 · 레이드 · 진상의 탑에 적용 · 1:1 대전은 공정하게 빠져요 · 코인은 스테이지 보상에만</p>`, 'coll-pop');
 }
+// 도감 첫 발견 보상 띠: 받을 게 있으면 합계와 [모두 받기]
+function dexRwBar() {
+  const list = L.dexRwList(P());
+  if (!list.length) return '';
+  const t = { coins: 0, stones: 0, tickets: 0, shards: 0 };
+  for (const x of list) { t.coins += x.rw.coins || 0; t.stones += x.rw.stones || 0; t.tickets += x.rw.tickets || 0; t.shards += Object.values(x.rw.shards || {}).reduce((a, v) => a + v, 0); }
+  const parts = [t.coins ? `코인 ${fmt(t.coins)}` : '', t.shards ? `멤버 조각 ${t.shards}` : '', t.stones ? `강화석 ${t.stones}` : '', t.tickets ? `모집권 ${t.tickets}` : ''].filter(Boolean).join(' · ');
+  return `<div class="dex-rw"><span class="dr-ic">🎁</span><div><b>새로 만난 기록 보상 ${list.length}개</b><small>${parts}</small></div><button class="btn primary sm" data-act="dexRwGet" data-k="all">모두 받기</button></div>`;
+}
 function showDex() {
   app.screen = 'dex';
   hud.hidden = true;
@@ -6090,6 +6113,7 @@ function showDex() {
   const ids = dexFiltered(kind);
   const nH = DEX_HEROES().filter((id) => dexKnown('hero', id)).length, nE = DEX_ENEMIES().filter((id) => dexKnown('enemy', id)).length;
   const v = dexViewed();
+  const rwKeys = new Set(L.dexRwList(P()).map((x) => x.k));
   const card = (id) => {
     const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
     const ok = dexKnown(kind, id);
@@ -6099,7 +6123,7 @@ function showDex() {
     const badge = grdChip(gr, 'dx-g') + (kind === 'hero' ? `${roleChip(id, 'dx-role')}${sigHave(P(), id) ? '<i class="dx-sig">전용</i>' : ''}` : '');
     return `<button class="dexc2 gr g-${gr} ${ok ? '' : 'lock'}" data-act="dexCard" data-kind="${kind}" data-id="${id}" style="--c:${dexColor(kind, d)};--g:${GRADE[gr][1]}">
       <span class="dx-pic">${kind === 'hero' && thumbSrc(id) ? `<img class="dx-art hq fz" data-face="${id}" style="${faceImgStyle(id, 0.22, 0.36)}" src="${thumbSrc(id)}" alt="" loading="lazy" decoding="async" draggable="false" onerror="this.onerror=null;this.src='${dexSrc(id, d.img) || d.img}'">` : dexArt(d, id)}${ok ? `<img class="dx-mini" src="${inGameSprites(kind, id, d)[0]}" alt="" loading="lazy" draggable="false" onerror="this.remove()">` : ''}</span>${badge}<span class="dt">${tag}</span>
-      <b>${ok ? esc(d.name) : '???'}</b>${isNew ? '<span class="newdot">N</span>' : ''}${!ok && kind === 'hero' && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? (() => { const pr = L.cardProgress(P(), id); return pr ? `<span class="dx-cards"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i><em>${pr[0]}/${pr[1]}</em></span>` : ''; })() : ''}</button>`;
+      <b>${ok ? esc(d.name) : '???'}</b>${isNew ? '<span class="newdot">N</span>' : ''}${ok && rwKeys.has((kind === 'hero' ? 'h:' : 'e:') + id) ? '<span class="dx-rw">🎁</span>' : ''}${!ok && kind === 'hero' && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? (() => { const pr = L.cardProgress(P(), id); return pr ? `<span class="dx-cards"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i><em>${pr[0]}/${pr[1]}</em></span>` : ''; })() : ''}</button>`;
   };
   // 등급별로 묶어서: 분류 칩으로 거른 것 안에서 높은 등급부터
   const cards = gradeGroups(GRADE_ORDER[kind], ids, (id) => dexGrade(kind, id)).map(([gr, l]) => `${gradeHead(gr, `${l.length}${kind === 'hero' ? '명' : '종'}`, `${l.filter((id) => dexKnown(kind, id)).length}/${l.length}`)}<div class="dex-grid v2 dex-g">${l.map(card).join('')}</div>`).join('');
@@ -6107,6 +6131,7 @@ function showDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
+    ${dexRwBar()}
     ${collBar(kind)}
     ${dexCatChips(kind)}
     <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${tab === 'hero' ? (app.dexRole && app.dexRole !== 'all' && HERO_ROLES[app.dexRole] ? esc(HERO_ROLES[app.dexRole].desc) : '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버') : '만나 본 진상만 기록돼요 · 정예 = 방어가 있거나 체력이 높은 진상 · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</span></p>
