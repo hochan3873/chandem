@@ -106,6 +106,7 @@ function renderHub() {
     <div class="hw-path">${nodes}</div>
     <div class="hw-menu"><button data-act="hwShop">${candyIc()}<small>사탕 상점</small></button><button data-act="hwCloset"><span class="hw-ic closet"></span><small>할로윈 의상</small>${HW.COSTUME_IDS.some((k) => (P().skins.own || []).includes(k)) ? '' : ''}</button><button data-act="hwRank">${C.ic('trophy', '', 'sm')}<small>랭킹</small></button><button data-act="hwFoes">${C.ic('book', '', 'sm')}<small>할로윈 진상</small></button><button data-act="hwHelp">${C.ic('bulb', '', 'sm')}<small>안내</small></button><button data-act="hwIntro">${C.ic('megaphone', '', 'sm')}<small>인트로</small></button></div>
   `, 'hw-screen');
+  if (!lsGet('langbang:hwHelpSeen')) { lsSet('langbang:hwHelpSeen', '1'); setTimeout(() => { if (C.app.screen === 'hw') helpPop(); }, 400); } // 처음 들어오면 안내 (기간 · 보상 · 규칙) 한 번
 }
 
 // ─── 출전 준비: 규칙 · 덱 · 저주 ───
@@ -154,7 +155,7 @@ function renderPrep() {
   const card = (hh) => {
     const d = HEROES[hh], bn = banned(hh), nd = needOf(hh), inD = deck.includes(hh), m = lo.meta[hh] !== undefined ? lo.meta[hh] : HW.syncMeta((P().heroes || {})[hh]);
     const real = (P().heroes || {})[hh] | 0;
-    return `<button class="hw-hc ${inD ? 'on' : ''} ${bn ? 'ban' : ''} ${nd ? 'need' : ''}" data-act="hwPick" data-h="${hh}" style="--c:${ATTRS[d.attr].color}">${C.av(d)}<b>${esc(d.name)}</b><small>+${m}${m > HW.HW.sync.meta ? '<i class="edge">↑</i>' : ''}${real > m ? `<s>+${real}</s>` : ''}</small>${bn ? `<em class="bn">${esc(HW.RULES[bn].icon)} 금지</em>` : nd ? `<em class="nd">${esc(HW.RULES[nd].icon)} 조건</em>` : ''}<i class="role r-${HERO_ROLE[hh] || 'special'}">${esc((HERO_ROLES[HERO_ROLE[hh] || 'special'] || {}).name || '')}</i></button>`;
+    return `<button class="hw-hc ${inD ? 'on' : ''} ${bn ? 'ban' : ''} ${nd ? 'need' : ''}" data-act="hwPick" data-h="${hh}" style="--c:${ATTRS[d.attr].color}">${C.av(d)}<b>${esc(d.name)}</b><small>+${m}${real > m ? ` <s>+${real}</s>` : ''}</small>${bn ? `<em class="bn">${esc(HW.RULES[bn].icon)} 금지</em>` : nd ? `<em class="nd">${esc(HW.RULES[nd].icon)} 조건</em>` : ''}<i class="role r-${HERO_ROLE[hh] || 'special'}">${esc((HERO_ROLES[HERO_ROLE[hh] || 'special'] || {}).name || '')}</i></button>`;
   };
   const ownList = Object.keys(HEROES).filter((hh) => !HEROES[hh].summon && own(hh)).sort((a, x) => (banned(a) ? 1 : 0) - (banned(x) ? 1 : 0) || (needOf(x) ? 1 : 0) - (needOf(a) ? 1 : 0) || power(x) - power(a));
   const fix = sug.needs.map((q) => `<div class="hw-fix"><b>${esc(HW.RULES[q.rule].icon)} ${esc(HW.RULES[q.rule].name)}</b><span>${q.mine.length ? `넣기: ${q.mine.slice(0, 3).map((hh) => `<button class="hw-chip" data-act="hwAdd" data-h="${hh}">${C.av(HEROES[hh], 'xs')}${esc(HEROES[hh].name)}</button>`).join('')}` : ''}${!q.mine.length && q.rent.length ? `빌리기 (강화 +${HW.HW.sync.meta} · ★${HW.HW.sync.star}): ${q.rent.slice(0, 3).map((hh) => `<button class="hw-chip rent" data-act="hwRent" data-h="${hh}">${C.av(HEROES[hh], 'xs')}${esc(HEROES[hh].name)}</button>`).join('')}` : ''}</span></div>`).join('');
@@ -169,7 +170,7 @@ function renderPrep() {
       <div class="hp-head"><em>STAGE ${n}${s.boss ? ' · 최종 보스' : s.mid ? ' · 중간 보스' : ''}</em><h2>${esc(s.name)}</h2><p>${esc(s.story)}</p>${b ? `<span class="hp-best">최고 🔥${b.heat} · ${fmt(b.score)}점 · 입구 ${b.door}%</span>` : ''}</div>
       <div class="hp-sec rules"><h4>${C.ic('target', '', 'sm')}출전 제한</h4><div class="hp-rules">${s.rules.map((r) => `<div class="hp-rule ${ruleOk(r) ? 'ok' : 'no'}"><i>${esc(HW.RULES[r].icon)}</i><span><b>${esc(HW.RULES[r].name)}</b><small>${esc(HW.RULES[r].desc)}</small></span><em>${ruleOk(r) ? '✓' : '!'}</em></div>`).join('')}</div>${fix ? `<div class="hp-fixes">${fix}</div>` : ''}${(s.keys || []).length ? `<div class="hp-keys"><small>${C.ic('bulb', '', 'sm')}이 판 핵심 멤버 — ${esc(s.keyWhy || '')}</small><span>${s.keys.filter((hh) => HEROES[hh]).map((hh) => { const bn = banned(hh), ow = own(hh), inD = deck.includes(hh); return `<button class="hw-chip key ${inD ? 'in' : ''} ${!ow || bn ? 'off' : ''}" data-act="${ow && !bn && !inD ? 'hwAdd' : 'hwFoe0'}" data-h="${hh}" ${!ow || bn ? 'disabled' : ''}>${C.av(HEROES[hh], 'xs')}${esc(HEROES[hh].name)}${inD ? ' ✓' : !ow ? ' (없음)' : bn ? ' (금지)' : ''}</button>`; }).join('')}</span></div>` : ''}</div>
       <div class="hp-sec foes"><h4>${C.ic('ic_bosscrown', '', 'sm')}나오는 할로윈 진상 <small>탭하면 기술</small></h4><div class="hp-foes">${foes.map((t) => `<button class="hp-foe ${ENEMIES[t].boss ? 'boss' : ENEMIES[t].mid ? 'mid' : ''}" data-act="hwFoe" data-t="${t}"><img src="${ENEMIES[t].img}" alt="" draggable="false"><small>${esc(ENEMIES[t].name)}</small></button>`).join('')}</div></div>
-      <div class="hp-sec deck"><h4>${C.ic('party', '', 'sm')}출전 멤버 <small>${deck.length}/${chk.max} · 전투력 맞춤 +${HW.HW.sync.meta} ★${HW.HW.sync.star}</small><button class="hw-mini" data-act="hwAuto">추천 덱</button></h4>
+      <div class="hp-sec deck"><h4>${C.ic('party', '', 'sm')}출전 멤버 <small>${deck.length}/${chk.max} · 이벤트에선 강화가 +${HW.HW.sync.meta} ★${HW.HW.sync.star} 로 맞춰져요 (줄 그은 숫자 = 내 원래 강화 · 많이 키운 멤버는 +2 까지 더)</small><button class="hw-mini" data-act="hwAuto">추천 덱</button></h4>
         <div class="hp-slots">${slots.map((hh) => (hh ? `<button class="hp-slot on ${hh === rent ? 'rent' : ''}" data-act="hwPick" data-h="${hh}">${C.av(HEROES[hh])}<b>${esc(HEROES[hh].name)}</b>${hh === rent ? '<em>대여</em>' : HW.wornMap(P())[hh] ? '<em class="cos">🎃 의상</em>' : ''}</button>` : '<span class="hp-slot empty">+</span>')).join('')}</div>
         ${errs ? `<ul class="hp-errs">${errs}</ul>` : ''}
         <div class="hp-grid">${ownList.map(card).join('')}</div>
@@ -318,13 +319,23 @@ function foesPop(only) {
   C.popup(`<h3>${C.ic('book', '', 'sm')}${only ? esc(ENEMIES[only].name) : '할로윈 진상'}</h3><div class="hf-list">${ids.map(card).join('')}</div><button class="btn" data-x>닫기</button>`, 'hw-pop hw-foes');
 }
 function helpPop() {
-  C.popup(`<h3>🎃 할로윈 저주의 밤 안내</h3>
+  // 처음 들어오면 한 번 자동으로 · 메뉴 [안내] 로 다시 보기 — 기간 · 받는 것 · 랭킹 보상 · 사탕 얻는 법 · 규칙
+  const left = Math.max(0, Math.ceil((Date.UTC(2026, 10, 2, 15, 0) - Date.now()) / 864e5));
+  const it = (id) => HW.SHOP.find((x) => x.id === id);
+  const rk = [[1, '1위'], [2, '2~3위'], [10, '4~10위'], [99, '참가']].map(([r, t]) => { const w = HW.rankReward(r); return `<li><b>${t}</b>모집권 ${w.tickets} · 강화석 ${w.stones}${w.title ? ' · 칭호 「할로윈 저주왕」' : ''}</li>`; }).join('');
+  C.popup(`<h3>🎃 할로윈 저주의 밤</h3>
     <div class="hw-help">
-      <div><b>① 전투력 맞춤</b><small>모든 멤버가 강화 +${HW.HW.sync.meta} · ★${HW.HW.sync.star} · 영웅 장비로 맞춰져요. 더 키운 멤버는 강화 ${HW.HW.sync.per}마다 +1 (최대 +${HW.HW.sync.edge}) — 키운 보람은 조금, 이기는 건 조합!</small></div>
-      <div><b>② 출전 제한</b><small>스테이지마다 규칙이 있어요 (서포터 2명 · 원거리만 · 술 속성만 …). 조건 멤버가 없으면 한 명은 빌려 갈 수 있어요.</small></div>
-      <div><b>③ 할로윈 진상</b><small>예고가 뜨면 기절 · 빙결 · 밀치기로 끊으세요. 좀비는 다시 일어나고 · 귀신은 사라지고 · 저승사자는 명부에 이름을 적어요.</small></div>
-      <div><b>④ 저주 고르기</b><small>깬 스테이지는 저주를 걸고 다시 — 저주 점수만큼 랭킹 점수 · 사탕이 늘어요.</small></div>
-      <div><b>⑤ 사탕 · 의상</b><small>사탕으로 할로윈 의상 · 칭호 · 장비 · 모집권 · 박나영 조각. 의상 입은 멤버를 데려가면 사탕 +${Math.round(HW.HW.wear * 100)}%씩.</small></div>
+      <div class="hh-when"><b>📅 기간</b><small><em>10/7 ~ 11/2</em> · 남은 ${left}일 · 3-10 을 깨면 참가</small></div>
+      <div class="hh-why"><b>🎁 이벤트에서만 얻는 것 (사탕으로 교환)</b><small>
+        <span>👻 <em>할로윈 의상 5벌</em> (사탕 ${it(HW.COSTUME_IDS[0]).cost}) — 좀비 간호사 건전녀 · 드라큘라 방장 이호찬 · 시간의 마녀 오지은 · 미라 할아버지 강성구 · 호박 공주 고아라 · <em>이벤트가 끝나도 계속 입어요</em></span>
+        <span>🏷️ 칭호 「저주의 밤 생존자」(${it('hwtitle').cost}) · 호박등 프레임(${it('hwframe').cost})</span>
+        <span>🎫 모집권(${it('hwticket').cost}, 최대 ${it('hwticket').n}장) · 🐉 박나영 조각(${it('hwdragon').cost}) · 강화석 · 영웅/전설 장비 상자</span>
+      </small></div>
+      <div class="hh-rank"><b>🏆 랭킹 보상 (이벤트가 끝나면 우편으로)</b><ul>${rk}</ul></div>
+      <div class="hh-candy"><b>🍬 사탕 얻는 법</b><small>스테이지 첫 클리어 · 저주 걸고 다시 깨기 (저주가 셀수록 많이 · 하루 ${HW.HW.dayCap}개까지) · 의상 입은 멤버를 데려가면 한 명당 +${Math.round(HW.HW.wear * 100)}%</small></div>
+      <div><b>① 전투력 맞춤</b><small>모든 멤버가 강화 +${HW.HW.sync.meta} · ★${HW.HW.sync.star} 로 맞춰져요 — 키운 양보다 <em>조합과 컨트롤</em>!</small></div>
+      <div><b>② 출전 제한</b><small>판마다 규칙이 있어요 (서포터 2명 · 원거리만 · 술 속성만 …). 맞는 멤버가 없으면 한 명은 빌릴 수 있어요.</small></div>
+      <div><b>③ 저주 고르기</b><small>깬 판은 저주를 걸고 다시 — 저주 점수만큼 랭킹 점수 · 사탕이 늘어요.</small></div>
     </div><button class="btn primary" data-x>알겠어요</button>`, 'hw-pop hw-helppop');
 }
 
