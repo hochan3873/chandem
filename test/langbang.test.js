@@ -2654,7 +2654,7 @@ test('쓰러짐 게이지: 가득 차면 쓰러짐 (공격 · 스킬 못 함) �
   if (Math.abs(ws.x - g2.x) < D.KD.taunt.r) { S.kdAdd(g, g2, 20); assert.ok(ws.kd > 0 && !(g2.kd > 0), '정원식이 대신'); }
   // 건전녀 간호: 가장 찬 멤버 게이지가 내려간다
   g = mk(['gunnyeo', 'gunman']);
-  const a = g.heroes.find((h) => h.id === 'gunman'); S.kdAdd(g, a, 40, { direct: true }); const k0 = a.kd;
+  const a = g.heroes.find((h) => h.id === 'gunman'); S.kdAdd(g, a, 20, { direct: true }); const k0 = a.kd; // (3장 배율 ×2 — 40 이면 바로 쓰러짐) const k0 = a.kd;
   run(g, 1);
   assert.ok(a.kd < k0 - 3, `간호 ${k0} → ${a.kd}`);
   // 독: 게이지가 계속 차고 · 홍정민이 있으면 면역
