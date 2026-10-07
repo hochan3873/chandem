@@ -4147,6 +4147,8 @@ async function showPlayerCard(u) {
     <button class="pop-x" data-x>✕</button>`;
 }
 const PVP_TIPS = ['처치 10명마다 상대에게 진상 5명을 보내요', '30명 모으면 중간 보스를 보낼 수 있어요', '90초 과열: 보내기가 두 배로 가요', '150초 폭주: 보스 묶음 · 25명 잡을 때마다 중간 보스 자동', '210초 서든데스: 처치와 상관없이 큰 웨이브가 와요', '5분이 되면 입구가 더 많이 남은 쪽이 이겨요', PV.PVP_NOTE, '오른쪽 위 작은 상대 화면을 누르면 크게 볼 수 있어요', '오늘 첫 승은 코인 2배', '같은 상대와는 하루 3판까지만 보상'];
+// 매칭 대기 중 [AI와 바로 대전]: 30초 안 기다리고 비슷한 실력의 AI 와 바로
+ACTS.pvpBotNow = (b) => { if (!PVP.sock) return; b.disabled = true; PVP.sock.emit('botnow', {}, (r) => { if (!r || !r.ok) { b.disabled = false; toast((r && r.message) || '지금은 안 돼요'); } }); };
 function pvpWaiting(text, code, botIn) {
   closeInfoCard();
   const m = document.createElement('div');
@@ -4154,6 +4156,7 @@ function pvpWaiting(text, code, botIn) {
   m.innerHTML = `<div class="ps-radar"><i></i><i></i><i></i>${tierEmb((P().pvp || {}).rating || 1000, 'mid')}</div>
     <b class="ps-t">${esc(text)}</b><span class="ps-time">0:00</span>
     <small class="ps-note">사람 상대를 먼저 찾아요 · 30초 동안 없으면 비슷한 실력의 AI와 대전해요</small>${botIn ? `<small class="ps-ai" data-until="${Date.now() + botIn}">AI 대전까지 ${Math.ceil(botIn / 1000)}초</small>` : ''}
+    ${botIn ? `<button class="btn primary ps-bot" data-act="pvpBotNow">${ic('bolt', '', 'sm')}AI와 바로 대전</button>` : ''}
     ${code ? `<div class="pvp-code">${code}</div><button class="btn primary big-share" data-act="pvpShare" data-code="${code}">${ic('share', '', 'sm')}초대 링크 보내기</button>` : ''}
     <p class="ps-tip">${ic('bulb', '', 'sm')}<span>${esc(PVP_TIPS[0])}</span></p>
     <p class="sub pv-norm">${esc(PV.PVP_NOTE)}</p>
