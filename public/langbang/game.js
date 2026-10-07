@@ -1791,7 +1791,7 @@ function renderSkillbar() {
     { const lv = b.querySelector('.sk-lv'); if (lv && lv.textContent !== String(h.lv)) lv.textContent = h.lv; }
     { const need = h.def.skill && h.def.skill.id === 'forlangbang' ? 200 : 100, has = g.mom === null || g.mom === undefined || g.mom >= need; b.classList.toggle('nomom', !has); b.classList.toggle('mompip', has && g.mom !== null && g.mom !== undefined); }
     b.classList.toggle('tired', h.tiredT > 0);
-    { const cn = b.querySelector('.cdn'); const v = r ? '' : String(Math.ceil(h.skillCd)); if (cn.textContent !== v) cn.textContent = v; }
+    { const cn = b.querySelector('.cdn'); const v = r || h.skillCd <= 0 ? '' : String(Math.ceil(h.skillCd)); if (cn.textContent !== v) cn.textContent = v; }
     if (r) ready = true;
   }
   // 튜토리얼: 1-1 에서 처음 스킬이 준비되면 알려 준다 · 1-2 에서는 지목

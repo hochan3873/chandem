@@ -1040,6 +1040,7 @@ export class Renderer {
     this.drawEnemies(g, t, true); // 때리는 진상은 바리케이드 앞
     if (g.twa && this.twaDraw) this.twaDraw(g, t, 'back'); // 진상의 탑: 바닥 예고 · 독 웅덩이 · 기 모으기 (tower-arena-ui.js · 바리케이드 바닥 위 · 멤버 아래)
     this.drawPools(g, t);
+    if (this.efx) this.efx.draw('feet', g); // 진상 기술 표적 (멤버 발밑 · 입구 경고) — 바리케이드 위 · 멤버 아래
     this.drawHeroes(g, t, ui);
     this.drawBeams(g, t);
     this.drawProjs(g);

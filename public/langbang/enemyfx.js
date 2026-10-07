@@ -87,7 +87,7 @@ export class EnemyFx {
   draw(layer, g) {
     this.reset(g);
     const now = this.now(), cx = this.cx, R = this.R;
-    if (layer === 'ground') {
+    if (layer === 'feet') {
       for (const [key, m] of this.marks) {
         const k = (now - m.t0) / m.dur;
         if (k > 1.05) { this.marks.delete(key); continue; }
@@ -102,7 +102,7 @@ export class EnemyFx {
       if (f && f.layer === layer) f.call(this, o, k);
     }
     if (layer === 'top') {
-      for (const m of this.marks.values()) if (m.kind === 'aim' && m.big) this.drawArc(g, m, c01((now - m.t0) / m.dur)); // 노리는 선 (중요한 것만)
+      for (const m of this.marks.values()) if (m.kind === 'aim') this.drawArc(g, m, c01((now - m.t0) / m.dur)); // 노리는 선 (졸개 것은 옅게)
       this.list = this.list.filter((o) => now - o.t0 <= o.dur);
     }
     R.world(); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; cx.setLineDash([]);
@@ -112,13 +112,15 @@ export class EnemyFx {
   drawAim(g, m, k, now) {
     const cx = this.cx, R = this.R, [x, y] = this.heroPos(g, m), c = colOf(m.st), s = m.big ? 1 : 0.7;
     R.tf(x, y + 14, 0, 1, 0.42);
-    cx.globalAlpha = (m.big ? 0.85 : 0.55) * (k > 0.95 ? (1.05 - k) * 10 : 1);
-    cx.strokeStyle = c; cx.lineWidth = m.big ? 4 : 2.5;
-    const r0 = 46 * s, r1 = 22 * s, r = r0 - (r0 - r1) * eOut(k);
+    const fade = k > 0.95 ? (1.05 - k) * 10 : 1;
+    cx.globalAlpha = (m.big ? 1 : 0.8) * fade;
+    cx.strokeStyle = '#1a0a14'; cx.lineWidth = m.big ? 7 : 5; cx.beginPath(); cx.arc(0, 0, 58 * s - 28 * s * eOut(k), 0, TAU); cx.stroke(); // 테두리 (어두운 바닥에서도 보이게)
+    cx.strokeStyle = c; cx.lineWidth = m.big ? 4 : 3;
+    const r0 = 58 * s, r1 = 30 * s, r = r0 - (r0 - r1) * eOut(k);
     cx.setLineDash([8, 6]); cx.lineDashOffset = -now * 40; cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.stroke(); cx.setLineDash([]);
     cx.globalAlpha *= 0.45; cx.fillStyle = c; cx.beginPath(); cx.arc(0, 0, r1 * (0.3 + 0.7 * k), 0, TAU); cx.fill();
-    if (m.big) { // 머리 위 상태이상 표시 (깜빡)
-      R.tf(x, y - 104 - Math.sin(now * 8) * 2, 0, 1, 1);
+    { // 머리 위 상태이상 표시 (깜빡 · 졸개 것은 작게)
+      R.tf(x, y - 104 - Math.sin(now * 8) * 2, 0, s, s);
       cx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(now * 10));
       cx.fillStyle = 'rgba(20,8,24,0.8)'; cx.beginPath(); cx.arc(0, 0, 10, 0, TAU); cx.fill();
       cx.strokeStyle = c; cx.lineWidth = 2; cx.stroke();
@@ -127,7 +129,7 @@ export class EnemyFx {
   }
   drawArc(g, m, k) {
     const cx = this.cx, [x, y] = this.heroPos(g, m), c = colOf(m.st);
-    this.R.world(); cx.globalAlpha = 0.35 * (1 - k * 0.5); cx.strokeStyle = c; cx.lineWidth = 2; cx.setLineDash([4, 6]);
+    this.R.world(); cx.globalAlpha = (m.big ? 0.45 : 0.25) * (1 - k * 0.5); cx.strokeStyle = c; cx.lineWidth = m.big ? 2.5 : 1.5; cx.setLineDash([4, 6]);
     cx.beginPath(); cx.moveTo(m.ex, m.ey); cx.quadraticCurveTo((m.ex + x) / 2, Math.min(m.ey, y) - 60, x, y - 30); cx.stroke(); cx.setLineDash([]);
   }
   // 입구 큰 한 방 예고: 입구 줄에 빨간 띠가 깜빡이며 차오른다
