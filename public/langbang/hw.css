@@ -115,6 +115,11 @@
 .hw-chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px 3px 3px; border-radius: 99px; border: 1.5px solid #4fcf5a; background: rgba(79, 207, 90, 0.18); color: #fff; font-weight: 900; font-size: 11px; }
 .hw-chip.rent { border-color: #b58cff; background: rgba(181, 140, 255, 0.2); }
 .hw-chip .av, .hw-chip .av.xs { width: 20px; height: 20px; }
+.hp-keys { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; padding: 7px 9px; border-radius: 10px; background: rgba(125, 255, 122, 0.08); border: 1px solid rgba(125, 255, 122, 0.35); }
+.hp-keys small { font-size: 10.5px; color: #c9f5c4; display: flex; align-items: center; gap: 3px; line-height: 1.35; }
+.hp-keys span { display: flex; flex-wrap: wrap; gap: 4px; }
+.hw-chip.key.in { border-color: #ffd27a; background: rgba(255, 210, 122, 0.2); }
+.hw-chip.key.off { opacity: 0.45; border-color: #777; background: none; }
 .hp-foes { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .hp-foe { flex: none; width: 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; padding: 4px 2px; color: #fff; }
 .hp-foe img { width: 52px; height: 52px; object-fit: contain; }
@@ -277,7 +282,7 @@
 @keyframes hiPump { from { transform: translateY(60px) scale(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
 .hi-css .hi-fog { position: absolute; left: -10%; right: -10%; bottom: 0; height: 40%; background: radial-gradient(ellipse at 50% 100%, rgba(170, 120, 255, 0.45), transparent 70%); animation: hwFog 6s ease-in-out infinite alternate; }
 .hw-intro .hi-title { position: relative; z-index: 2; text-align: center; opacity: 0; animation: hiTitle 1s ease-out 2.4s both; }
-.hw-intro.vid .hi-title { animation-delay: 4.6s; }
+.hw-intro.vid .hi-title { animation-delay: 5.2s; }
 .hi-title small { display: block; font-size: 13px; color: #ffcf9a; font-weight: 800; letter-spacing: 0.1em; }
 .hi-title b { display: block; font-family: var(--heavy); font-weight: 400; font-size: 40px; color: #ffb35a; text-shadow: 0 4px 0 #3a0b2a, 0 0 30px rgba(255, 120, 40, 0.9); }
 .hi-title em { font-style: normal; color: #eadcff; font-weight: 800; }

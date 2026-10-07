@@ -83,21 +83,21 @@ test('전투력 맞춤: 강화 +12 · ★3 · 영웅 장비 — 더 키운 멤�
   assert.ok(lo.gear.gunman[k] <= epic[k] + 1e-9 && lo.gear.gunman[k] < legend[k], '전설 장비 → 영웅 값');
 });
 
-test('저주: 점수 · 순서 (+60% 는 +30% 다음) · 배율 · 랭킹 점수', () => {
-  assert.deepEqual(H.cleanCurses(['hp60']), [], '+60% 혼자는 안 됨');
+test('저주: 점수 · 순서 (+40% 는 +20% 다음) · 배율 · 랭킹 점수', () => {
+  assert.deepEqual(H.cleanCurses(['hp60']), [], '+40% 혼자는 안 됨');
   assert.deepEqual(H.cleanCurses(['hp30', 'hp60', 'bogus', 'hp30']), ['hp30', 'hp60']);
-  assert.equal(H.curseScore(['hp30', 'hp60', 'stun2']), 3 + 6 + 4);
+  assert.equal(H.curseScore(['hp30', 'hp60', 'stun2']), 3 + 5 + 2);
   const m = H.curseMul(['hp30', 'hp60', 'norepair', 'stun2', 'short', 'puddle', 'twin', 'dark', 'door']);
-  assert.ok(Math.abs(m.hp - 1.3 * 1.6) < 1e-9); assert.equal(m.repair, 0); assert.equal(m.cc, 2); assert.equal(m.wind, 0.6); assert.equal(m.puddle, 1); assert.equal(m.twin, 1); assert.equal(m.door, 0.7);
+  assert.ok(Math.abs(m.hp - 1.4) < 1e-9); assert.equal(m.repair, 0); assert.equal(m.cc, 2); assert.equal(m.wind, 0.6); assert.equal(m.puddle, 1); assert.equal(m.twin, 1); assert.equal(m.door, 0.7);
   assert.equal(H.stageScore(0, 100), 1300); assert.equal(H.stageScore(10, 50), 1000 + 2500 + 150);
-  assert.ok(H.CURSE_MAX >= 30);
+  assert.ok(H.CURSE_MAX >= 25);
   // 보스 둘: 마지막 웨이브에 저승사자
   assert.equal(H.waveDef(10, 5, ['twin']).boss2, 'hw_reaper');
   assert.equal(H.waveDef(4, 5, ['twin']).mid, 'hw_reaper');
   // 저주가 전투에 들어간다
   const def = H.eventDef(1, ['hp30', 'norepair', 'stun2', 'short', 'door'], ['gunman']);
   const g = S.createGame({ H: 760, rng: seeded(3), mode: 'stage', tempo: true, stage: def.stage, event: def, deck: [null, null, 'gunman', null, null, null] });
-  assert.ok(Math.abs(g.mods.enemyHp - 1.3) < 1e-9); assert.equal(g.mods.healMul, 0); assert.equal(g.ccMul, 2); assert.equal(g.windMul, 0.6);
+  assert.ok(Math.abs(g.mods.enemyHp - 1.2) < 1e-9); assert.equal(g.mods.healMul, 0); assert.equal(g.ccMul, 2); assert.equal(g.windMul, 0.6);
   assert.equal(g.base.max, Math.round(D.RULES.baseHp * 0.7));
   assert.equal(g.totalWaves, 5); assert.ok(g.hw && g.ev);
 });

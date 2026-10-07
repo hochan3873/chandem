@@ -11,7 +11,7 @@ const ev = (g, type, o) => { o.type = type; g.events.push(o); return o; };
 export const HWX = {
   puddle: { every: 8, wind: 1.1, sec: 3, r: 34 }, // 저주 '독 웅덩이': 8초마다 멤버 발밑 예고 1.1초 → 독 3초
   phaseReveal: 1, // 유령화한 귀신을 찾는 거리 (사거리 비율 · 운영진 · 건전남 · 배현경)
-  phaseUntil: 0.7, // 길의 70% 까지만 유령화 (입구 앞에선 안 사라진다)
+  phaseUntil: 0.85, // 길의 70% 까지만 유령화 (입구 앞에선 안 사라진다)
 };
 const heroesUp = (g) => g.heroes.filter((h) => !h.def.summon && !h.gone);
 

@@ -2597,8 +2597,8 @@ const HW_IMG = (id) => `/img/lb/hw/e_${id}.webp`;
 Object.assign(ENEMIES, {
   hw_zombie: { id: 'hw_zombie', cls: 'jerk', name: '좀비 회식러', gender: 'm', emoji: '🧟', color: '#8fbf7a', eventOnly: true, lazy: true,
     img: HW_IMG('hw_zombie'), hp: 70, speed: 26, atk: 8, atkInterval: 1.3, exp: 5, coin: 2, r: 17, size: 78, zigzag: 14,
-    spit: { name: '트림 독가스', every: [10, 13], first: 5, reach: 260, kind: 'puke', st: 'poison', sec: 2.5, fly: 0.6 },
-    hw: { revive: { sec: 2.2, hp: 0.45 } }, // 쓰러지면 2.2초 뒤 체력 45% 로 다시 일어난다 (한 번) — 화상 · 검열 · 장미 표식이 붙은 채로 쓰러지거나 · 일어나는 동안 때리면 끝
+    spit: { name: '트림 독가스', every: [12, 15], first: 6, reach: 260, kind: 'puke', st: 'poison', sec: 2, fly: 0.6 },
+    hw: { revive: { sec: 2, hp: 0.6 } }, // 쓰러지면 2.2초 뒤 체력 45% 로 다시 일어난다 (한 번) — 화상 · 검열 · 장미 표식이 붙은 채로 쓰러지거나 · 일어나는 동안 때리면 끝
     shouts: ['한 자안… 더어…', '3차… 가자아…', '부장님… 건배애…', '고기… 타요오…'] },
   hw_pumpkin: { id: 'hw_pumpkin', cls: 'violent', name: '호박머리 진상', gender: 'm', emoji: '🎃', color: '#ff8a1f', eventOnly: true, lazy: true,
     img: HW_IMG('hw_pumpkin'), hp: 90, speed: 36, atk: 9, atkInterval: 1.2, exp: 5, coin: 2, r: 17, size: 78,
@@ -2615,12 +2615,12 @@ Object.assign(ENEMIES, {
   hw_ghost: { id: 'hw_ghost', cls: 'politic', name: '처녀귀신 단톡방장', gender: 'f', emoji: '👻', color: '#cfe8ff', eventOnly: true, lazy: true,
     img: HW_IMG('hw_ghost'), hp: 60, speed: 40, atk: 5, atkInterval: 1.1, exp: 4, coin: 2, r: 15, size: 80,
     spit: { name: '단톡 초대', every: [11, 14], first: 5, reach: 300, kind: 'rumor', st: 'silence', sec: 2.2, fly: 0.6, hit: 6 }, // 예고 뒤 단톡 초대 → 스킬 침묵 (정소영 · 강병화 · 강성구 곁)
-    hw: { phase: { every: 9, sec: 1.8, spd: 1.35 } }, // 7초마다 2.2초 유령화: 안 보이고 · 안 맞고 · 빨리 미끄러진다 (운영진 · 건전남 · 배현경이 찾아낸다)
+    hw: { phase: { every: 7, sec: 2.6, spd: 1.45 } }, // 7초마다 2.2초 유령화: 안 보이고 · 안 맞고 · 빨리 미끄러진다 (운영진 · 건전남 · 배현경이 찾아낸다)
     shouts: ['왜 읽고 답이 없어…', '단톡방 나가지 마…', '1 안 없어져…', '초대했어…'] },
   hw_witch: { id: 'hw_witch', cls: 'seduce', name: '마녀 다단계', gender: 'f', emoji: '🧙', color: '#a05cff', eventOnly: true, lazy: true,
     img: HW_IMG('hw_witch'), hp: 62, speed: 32, atk: 6, atkInterval: 1.2, exp: 5, coin: 3, r: 16, size: 82, standoff: 150,
     spit: { name: '다단계 영입 윙크', every: [9, 12], first: 4, reach: 330, kind: 'glow', st: 'charm', sec: 2.2, fly: 0.6 }, // 예고 뒤 홀림 (정소영이 있으면 면역)
-    hw: { brew: { every: 9, r: 170, frac: 0.12 } }, // 9초마다 건강 물약: 곁 진상 체력 12% 회복 (방깎 · 화상 · 고아라가 회복을 막는다)
+    hw: { brew: { every: 8, r: 190, frac: 0.2 } }, // 9초마다 건강 물약: 곁 진상 체력 12% 회복 (방깎 · 화상 · 고아라가 회복을 막는다)
     shouts: ['한 병이면 인생 역전!', '하부만 세 명 데려와~', '언니만 믿어', '부업 관심 있어요?'] },
   hw_jiangshi: { id: 'hw_jiangshi', cls: 'violent', name: '강시 꼰대', gender: 'm', emoji: '🧧', color: '#3a4a8a', eventOnly: true, lazy: true,
     img: HW_IMG('hw_jiangshi'), hp: 120, speed: 28, atk: 7, atkInterval: 1.3, armor: 4, exp: 6, coin: 3, r: 18, size: 84,
@@ -2630,7 +2630,7 @@ Object.assign(ENEMIES, {
   hw_mummy: { id: 'hw_mummy', cls: 'politic', name: '미라 부장님', gender: 'm', emoji: '🩹', color: '#d8c89a', eventOnly: true, lazy: true,
     img: HW_IMG('hw_mummy'), hp: 150, speed: 22, atk: 10, atkInterval: 1.4, armor: 8, exp: 8, coin: 4, r: 20, size: 88,
     spit: { name: '붕대 결재', every: [11, 14], first: 5, reach: 260, kind: 'paper', st: 'stun', sec: 1.3, fly: 0.6 }, // 예고 뒤 붕대 → 기절
-    hw: { rewrap: { at: 0.5, frac: 0.25 } }, // 체력 절반에서 붕대를 다시 감는다 (보호막 25% · 한 번)
+    hw: { rewrap: { at: 0.5, frac: 0.35 } }, // 체력 절반에서 붕대를 다시 감는다 (보호막 25% · 한 번)
     shouts: ['결재 반려야', '이거 다시 해 와', '나 때는 붕대도 직접 감았어', '퇴근? 누가?'] },
   hw_reaper: { id: 'hw_reaper', cls: 'politic', name: '저승사자 팀장', gender: 'm', emoji: '📜', color: '#2a2438', eventOnly: true, lazy: true, mid: true,
     img: HW_IMG('hw_reaper'), hp: 1100, speed: 16, atk: 24, atkInterval: 1.6, armor: 4, exp: 45, coin: 10, r: 40, size: 142,

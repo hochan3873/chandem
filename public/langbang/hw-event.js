@@ -60,19 +60,19 @@ export const RULE_IDS = Object.keys(RULES);
 export const HW_ENEMY_IDS = ['hw_zombie', 'hw_pumpkin', 'hw_seed', 'hw_bat', 'hw_ghost', 'hw_witch', 'hw_jiangshi', 'hw_mummy', 'hw_reaper', 'hw_dracula'];
 
 // ─── 스테이지 10개 ───
-//  base: 레벨 · 체력 · 웨이브 성격을 빌려 올 일반 스테이지 · add: 레벨 보정 (scripts/lb-hw-balance.js 로 맞춘 값)
+//  base: 레벨 · 체력 · 웨이브 성격을 빌려 올 일반 스테이지 (4장 = 강화 +12 권장 장 · 쓰러짐 · 방어율도 4장 기준) · add: 레벨 보정 (scripts/lb-hw-balance.js calib 로 맞춘 값)
 //  mix: [진상, 비중] · mid: 3웨이브 중간 보스 · boss: 마지막 웨이브 보스
 export const STAGES = [
-  { n: 1, name: '골목 입구의 좀비 회식러', map: 'alley', rules: ['noLegend'], base: 41, add: -8, mix: [['hw_zombie', 5], ['hw_pumpkin', 2], ['hw_bat', 2]], story: '회식 3차에서 좀비가 된 직장인들이 골목을 메웠다. "한 잔만 더어…"' },
-  { n: 2, name: '호박등 골목', map: 'alley', rules: ['ranged'], base: 42, add: -10, mix: [['hw_pumpkin', 5], ['hw_bat', 3], ['hw_zombie', 2]], story: '호박머리 진상이 입구 앞에서 펑! — 붙어 싸우면 같이 터진다.' },
-  { n: 3, name: '단톡방의 원한', map: 'bar', rules: ['sup2'], base: 43, add: -8, mix: [['hw_ghost', 5], ['hw_zombie', 3], ['hw_bat', 2]], story: '읽씹당한 처녀귀신 단톡방장이 술집을 점령했다. 단톡 초대 = 침묵의 저주.' },
-  { n: 4, name: '마녀 다단계 설명회', map: 'bar', rules: ['charmImm'], base: 44, add: 1.75, mix: [['hw_witch', 4], ['hw_ghost', 3], ['hw_pumpkin', 2]], story: '"건강 물약 한 병이면 인생 역전!" 마녀의 영입 윙크에 홀리면 끝장.' },
-  { n: 5, name: '저승사자 팀장의 야근 명부', map: 'bar', rules: ['cleanse'], base: 45, add: -4, mix: [['hw_ghost', 3], ['hw_zombie', 3], ['hw_witch', 2]], mid: 'hw_reaper', story: '명부에 이름이 적히면 3초 뒤 강제 퇴근(쓰러짐). 건전녀의 방패만이 명부를 지운다.' },
-  { n: 6, name: '공동묘지 회식', map: 'grave', rules: ['booze'], base: 46, add: -10, mix: [['hw_jiangshi', 4], ['hw_ghost', 3], ['hw_zombie', 2]], story: '묘지 한가운데서 고기 굽는 강시 꼰대. 술 못 마시는 사람은 입장 불가!' },
-  { n: 7, name: '강시 꼰대의 라떼 부적', map: 'grave', rules: ['breaker', 'notank'], base: 47, add: -13.75, mix: [['hw_jiangshi', 4], ['hw_mummy', 3], ['hw_witch', 2]], story: '"라떼는 말이야~" 부적이 붙으면 꽁꽁. 붕대 철갑 미라 부장님까지 합류했다.' },
-  { n: 8, name: '미라 부장님 결재 라인', map: 'grave', rules: ['max4', 'sup2'], base: 48, add: 0, mix: [['hw_mummy', 4], ['hw_ghost', 3], ['hw_bat', 3]], mid: 'hw_reaper', story: '결재가 안 끝나는 밤. 4명이서 버텨야 한다 — 그중 둘은 서포터로.' },
-  { n: 9, name: '호박 축제의 마녀들', map: 'fest', rules: ['female'], base: 49, add: -1, mix: [['hw_witch', 4], ['hw_pumpkin', 4], ['hw_bat', 2], ['hw_ghost', 2]], story: '마녀들이 연 호박 축제. 여자 멤버만 입장 가능 — 호박은 여전히 터진다!' },
-  { n: 10, name: '드라큘라 사장의 강제 회식', map: 'fest', rules: ['poison', 'noLegend'], base: 50, add: -12.25, mix: [['hw_bat', 4], ['hw_zombie', 2], ['hw_ghost', 2], ['hw_mummy', 2], ['hw_witch', 2]], mid: 'hw_reaper', boss: 'hw_dracula', story: '"오늘 회식은 우리 성에서 한다. 빠지면 해고야!" 피의 와인은 독 — 홍정민이 꼭 필요하다.' },
+  { n: 1, name: '골목 입구의 좀비 회식러', map: 'alley', rules: ['noLegend'], base: 31, add: -3.5, keys: ['jiwon', 'sanghwa', 'dragon', 'eunok'], keyWhy: '부활 막기(검열 · 장미 · 화상) · 범위', mix: [['hw_zombie', 5], ['hw_pumpkin', 2], ['hw_bat', 2]], story: '회식 3차에서 좀비가 된 직장인들이 골목을 메웠다. "한 잔만 더어…"' },
+  { n: 2, name: '호박등 골목', map: 'alley', rules: ['ranged'], base: 32, add: -9.25, keys: ['staff', 'jieun', 'gunman', 'eunok', 'sunggu'], keyWhy: '폭탄 끊기(레드카드 · 시간 정지) · 멀리서 빨리', mix: [['hw_pumpkin', 5], ['hw_bat', 3], ['hw_zombie', 2]], story: '호박머리 진상이 입구 앞에서 펑! — 붙어 싸우면 같이 터진다.' },
+  { n: 3, name: '단톡방의 원한', map: 'bar', rules: ['sup2'], base: 33, add: 2, keys: ['staff', 'gunman', 'hyungyeong', 'soyoung'], keyWhy: '유령 찾기(운영진 · 건전남 · 배현경) · 침묵 막기', mix: [['hw_ghost', 5], ['hw_zombie', 3], ['hw_bat', 2]], story: '읽씹당한 처녀귀신 단톡방장이 술집을 점령했다. 단톡 초대 = 침묵의 저주.' },
+  { n: 4, name: '마녀 다단계 설명회', map: 'bar', rules: ['charmImm'], base: 34, add: 0, keys: ['soyoung', 'jiwon', 'ara', 'dragon'], keyWhy: '홀림 면역 · 물약 회복 막기(방깎 · 화상 · 고아라)', mix: [['hw_witch', 4], ['hw_ghost', 3], ['hw_pumpkin', 2]], story: '"건강 물약 한 병이면 인생 역전!" 마녀의 영입 윙크에 홀리면 끝장.' },
+  { n: 5, name: '저승사자 팀장의 야근 명부', map: 'bar', rules: ['cleanse'], base: 35, add: -9.25, keys: ['gunnyeo', 'staff', 'jieun', 'dohoon'], keyWhy: '명부 지우기(응급 방패) · 팀장 끊기(기절 · 시간 정지)', mix: [['hw_ghost', 3], ['hw_zombie', 3], ['hw_witch', 2]], mid: 'hw_reaper', story: '명부에 이름이 적히면 3초 뒤 강제 퇴근(쓰러짐). 건전녀의 방패만이 명부를 지운다.' },
+  { n: 6, name: '공동묘지 회식', map: 'grave', rules: ['booze'], base: 36, add: -4.75, keys: ['dragon', 'dohoon', 'ara', 'eunok'], keyWhy: '빙결 막기(박나영) · 기절 저항(김도훈) · 강시 철갑', mix: [['hw_jiangshi', 4], ['hw_ghost', 3], ['hw_zombie', 2]], story: '묘지 한가운데서 고기 굽는 강시 꼰대. 술 못 마시는 사람은 입장 불가!' },
+  { n: 7, name: '강시 꼰대의 라떼 부적', map: 'grave', rules: ['breaker', 'notank'], base: 37, add: -13.75, keys: ['jiwon', 'gunman', 'ara', 'sunggu', 'gunnyeo'], keyWhy: '붕대 철갑 깨기(방깎 · 방관) · 기절 · 빙결 풀기', mix: [['hw_jiangshi', 4], ['hw_mummy', 3], ['hw_witch', 2]], story: '"라떼는 말이야~" 부적이 붙으면 꽁꽁. 붕대 철갑 미라 부장님까지 합류했다.' },
+  { n: 8, name: '미라 부장님 결재 라인', map: 'grave', rules: ['max4', 'sup2'], base: 38, add: -7.5, keys: ['gunnyeo', 'soyoung', 'jiwon', 'gunman', 'staff'], keyWhy: '명부 지우기 · 철갑 깨기 · 유령 찾기', mix: [['hw_mummy', 4], ['hw_ghost', 3], ['hw_bat', 3]], mid: 'hw_reaper', story: '결재가 안 끝나는 밤. 4명이서 버텨야 한다 — 그중 둘은 서포터로.' },
+  { n: 9, name: '호박 축제의 마녀들', map: 'fest', rules: ['female'], base: 39, add: -9, keys: ['staff', 'jiwon', 'ara', 'soyoung', 'eunok', 'jieun'], keyWhy: '폭탄 끊기 · 물약 막기 · 유령 찾기', mix: [['hw_witch', 4], ['hw_pumpkin', 4], ['hw_bat', 2], ['hw_ghost', 2]], story: '마녀들이 연 호박 축제. 여자 멤버만 입장 가능 — 호박은 여전히 터진다!' },
+  { n: 10, name: '드라큘라 사장의 강제 회식', map: 'fest', rules: ['poison', 'noLegend'], base: 40, add: -0.25, keys: ['jungmin', 'gunnyeo', 'soyoung', 'jiwon', 'ara'], keyWhy: '피의 와인(독) · 홀림 · 명부 · 흡혈 회복 막기', mix: [['hw_bat', 4], ['hw_zombie', 2], ['hw_ghost', 2], ['hw_mummy', 2], ['hw_witch', 2]], mid: 'hw_reaper', boss: 'hw_dracula', story: '"오늘 회식은 우리 성에서 한다. 빠지면 해고야!" 피의 와인은 독 — 홍정민이 꼭 필요하다.' },
 ];
 export const STAGE_COUNT = STAGES.length;
 export const stageOf = (n) => STAGES[int(n, 1, STAGE_COUNT) - 1];
@@ -118,16 +118,16 @@ export function eventDef(n, curses = [], deck = []) {
 // ─── 저주 (스테이지를 한 번 깬 뒤부터) — 점수(pt)가 곧 랭킹 점수 · 사탕 ───
 //  sim 이 쓰는 숫자: hp(진상 체력 ×) · spd(진상 이동 ×) · repair(수리 ×) · cc(멤버 상태이상 시간 ×) · wind(예고 시간 ×) · door(입구 내구도 ×) · mom(기세 충전 ×) · puddle · twin · dark
 export const CURSES = {
-  hp30: { name: '진상 체력 +30%', icon: '💪', pt: 3, fx: { hp: 1.3 } },
-  hp60: { name: '진상 체력 +60%', icon: '💀', pt: 6, fx: { hp: 1.6 }, need: 'hp30', group: 'hp' },
-  norepair: { name: '수리 금지', icon: '🔧', pt: 3, fx: { repair: 0 }, desc: '입구 수리 · 회복이 안 돼요' },
-  stun2: { name: '상태이상 2배', icon: '⭐', pt: 4, fx: { cc: 2 }, desc: '멤버가 걸리는 기절 · 홀림 · 빙결 · 독이 두 배로 길게' },
+  hp30: { name: '진상 체력 +20%', icon: '💪', pt: 3, fx: { hp: 1.2 } },
+  hp60: { name: '진상 체력 +40%', icon: '💀', pt: 5, fx: { hp: 1.4 }, need: 'hp30', group: 'hp' },
+  norepair: { name: '수리 금지', icon: '🔧', pt: 1, fx: { repair: 0 }, desc: '입구 수리 · 회복이 안 돼요' },
+  stun2: { name: '상태이상 2배', icon: '⭐', pt: 2, fx: { cc: 2 }, desc: '멤버가 걸리는 기절 · 홀림 · 빙결 · 독이 두 배로 길게' },
   puddle: { name: '독 웅덩이', icon: '☠', pt: 3, fx: { puddle: 1 }, desc: '8초마다 멤버 발밑에 독 웅덩이 (홍정민이 있으면 막아요)' },
   short: { name: '예고 짧게', icon: '⏱', pt: 3, fx: { wind: 0.6 }, desc: '진상 기술 예고가 40% 짧아요 — 끊기 어려워요' },
   fast: { name: '진상 이동 +20%', icon: '💨', pt: 2, fx: { spd: 1.2 } },
   door: { name: '입구 내구도 −30%', icon: '🚪', pt: 2, fx: { door: 0.7 } },
   dark: { name: '보름달 어둠', icon: '🌕', pt: 2, fx: { dark: 1 }, desc: '안개가 짙어 멤버 사거리 −15%' },
-  slowmom: { name: '기세 충전 −40%', icon: '📣', pt: 2, fx: { mom: 0.6 } },
+  slowmom: { name: '기세 충전 −40%', icon: '📣', pt: 1, fx: { mom: 0.6 } },
   twin: { name: '보스 둘', icon: '👥', pt: 5, fx: { twin: 1 }, desc: '마지막 웨이브에 저승사자 팀장이 한 명 더' },
 };
 export const CURSE_IDS = Object.keys(CURSES);
@@ -139,7 +139,7 @@ export function cleanCurses(list) {
 export const curseScore = (list) => cleanCurses(list).reduce((a, k) => a + CURSES[k].pt, 0);
 export function curseMul(list) {
   const m = { hp: 1, spd: 1, repair: 1, cc: 1, wind: 1, door: 1, mom: 1, puddle: 0, twin: 0, dark: 0 };
-  for (const k of cleanCurses(list)) for (const [a, v] of Object.entries(CURSES[k].fx)) m[a] = ['puddle', 'twin', 'dark'].includes(a) ? 1 : a === 'repair' ? Math.min(m[a], v) : m[a] * v;
+  for (const k of cleanCurses(list)) for (const [a, v] of Object.entries(CURSES[k].fx)) m[a] = ['puddle', 'twin', 'dark'].includes(a) ? 1 : a === 'repair' ? Math.min(m[a], v) : a === 'hp' ? Math.max(m[a], v) : m[a] * v; // 체력 +20% → +40% 는 바꿔 끼우기 (곱하지 않음)
   return m;
 }
 // 랭킹 점수 (스테이지 하나): 클리어 1000 + 저주 1점마다 250 + 남은 입구 % × 3

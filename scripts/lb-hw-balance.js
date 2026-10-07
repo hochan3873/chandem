@@ -39,11 +39,18 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
   }
   // 설계한 풀이 덱 (스테이지마다 이 판 진상 기술 · 출전 제한에 맞춘 조합 — 5장쯤 온 사람이 가진 멤버로)
   const PLAN = {
-    1: ['gunman', 'eunok', 'jiwon', 'dohoon', 'staff'], 2: ['gunman', 'eunok', 'sunggu', 'staff', 'jiwon'], 3: ['soyoung', 'gunnyeo', 'gunman', 'eunok', 'staff'],
-    4: ['soyoung', 'jiwon', 'eunok', 'gunman', 'staff'], 5: ['gunnyeo', 'soyoung', 'gunman', 'jiwon', 'eunok'], 6: ['eunok', 'ara', 'youngjun', 'dohoon', 'jungmin'],
-    7: ['jiwon', 'gunman', 'ara', 'sunggu', 'gunnyeo'], 8: ['gunnyeo', 'soyoung', 'gunman', 'jiwon'], 9: ['eunok', 'soyoung', 'jiwon', 'staff', 'ara'], 10: ['jungmin', 'gunnyeo', 'soyoung', 'gunman', 'jiwon'],
+    1: ['jiwon', 'eunok', 'ara', 'jieun', 'youngjun'], 2: ['staff', 'gunman', 'eunok', 'sanghwa', 'jieun'], 3: ['soyoung', 'gunnyeo', 'staff', 'gunman', 'sanghwa'],
+    4: ['soyoung', 'jiwon', 'ara', 'staff', 'jieun'], 5: ['gunnyeo', 'soyoung', 'staff', 'jiwon', 'ara'], 6: ['eunok', 'ara', 'youngjun', 'dohoon', 'jungmin'],
+    7: ['jiwon', 'gunman', 'ara', 'sunggu', 'gunnyeo'], 8: ['gunnyeo', 'soyoung', 'gunman', 'ara'], 9: ['staff', 'jiwon', 'ara', 'soyoung', 'jieun'], 10: ['jungmin', 'gunnyeo', 'soyoung', 'ara', 'jiwon'],
   };
   const planDeck = (n) => ({ deck: PLAN[n].slice(), rent: null });
+  // 상성 없는 덱: 조건은 맞추되 이 판 핵심 멤버(STAGES.keys)는 빼고 센 멤버로 (같은 전투력에서 '맞는 멤버'의 몫)
+  function badDeck(n) {
+    const keys = new Set(HW.stageOf(n).keys || []);
+    const { out, rent } = needs(n, (l) => l.slice().sort((a, b) => dps(b) - dps(a)));
+    for (const h of Object.keys(D.HEROES).filter((x) => own(x) && !banned(n, x) && !out.includes(x) && !keys.has(x)).sort((a, b) => dps(b) - dps(a))) { if (out.length >= maxOf(n)) break; out.push(h); }
+    return { deck: out, rent };
+  }
   // 맞는 덱: 조건 + 이 판 진상 기술을 막는 멤버 · 방깎(철갑) · 탱커/서포터 하나 · 나머지 딜러
   function fitDeck(n) {
     const foes = HW.stageEnemies(n);
@@ -95,7 +102,7 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
     return { win: g.victory, hp: g.base.hp / g.base.max, t: g.t, wave: g.wave, kd: g.stats.kd | 0, breaks: g.stats.castBreak | 0 };
   }
   function meas(n, kind, curses = [], seeds = SEEDS, off = 0) {
-    const d = kind === 'naive' ? naiveDeck(n) : kind === 'auto' ? fitDeck(n) : planDeck(n); // fit = 설계한 풀이 덱 · auto = 기술 상성 자동 · naive = 조건만 + 센 멤버
+    const d = kind === 'naive' ? naiveDeck(n) : kind === 'auto' ? fitDeck(n) : kind === 'bad' ? badDeck(n) : planDeck(n); // fit = 설계한 풀이 덱 · auto = 기술 상성 자동 · naive = 조건만 + 센 멤버
     let w = 0, hp = 0, kd = 0, wv = 0, t = 0;
     for (let s = 1; s <= seeds; s++) { const r = play(n, d, 1000 * n + s * 17 + off, curses); w += r.win ? 1 : 0; hp += r.win ? r.hp : 0; kd += r.kd; wv += r.wave; t += r.t; }
     return { n, kind, deck: d.deck, rent: d.rent, rate: w / seeds, hp: w ? hp / w : 0, kd: kd / seeds, wave: wv / seeds, t: t / seeds };
@@ -129,7 +136,7 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
     console.log('add:', JSON.stringify(out));
   } else if (what === 'diag') {
     for (const n of list) {
-      const kind = opt('deck', 'fit'); const d = kind === 'naive' ? naiveDeck(n) : kind === 'auto' ? fitDeck(n) : planDeck(n);
+      const kind = opt('deck', 'fit'); const d = kind === 'naive' ? naiveDeck(n) : kind === 'auto' ? fitDeck(n) : kind === 'bad' ? badDeck(n) : planDeck(n);
       if (opt('add', '') !== '') HW.stageOf(n).add = Number(opt('add'));
       const dg = { door: {}, kd: {}, kdBy: {}, lost: {}, lvl: 0 }; let w = 0;
       for (let s = 1; s <= SEEDS; s++) w += play(n, d, 1000 * n + s * 17, [], dg).win ? 1 : 0;
