@@ -5914,6 +5914,8 @@ function faceImgStyle(id, f = 0.24, cy = 0.36) {
 }
 // 변신 그림 (그림을 누르면 바뀜)
 const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on', 'donghan_ssj'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
+// 변신 모습 중 전신 그림(dexhq/<변신>.webp · thumb 포함)이 있는 것 — 그림을 넣으면 여기 이름만 추가
+const ALT_HQ_ART = new Set(['jieun_demon', 'eunok_rage', 'hyungyeong_slim', 'ara_old', 'donghan_on', 'youngjun_dash']);
 const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 빔', donghan_ssj: '초사이언', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
 const DEX_ANIM = { dragon: 'flame', subin: 'sway', baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
@@ -5945,8 +5947,8 @@ function dexImg(id, fb, cls = '') {
   return `<img class="dx-art ${cls}" src="${src}" alt="" draggable="false" onerror="this.onerror=null;this.src='${fb}'">`;
 }
 function dexArt(d, id, form) {
-  if (d.fuse && FUSE_ART.has(id)) return dexImg(id, `/img/lb/e_${id}.webp`);
-  if (d.fuse) return `<span class="dx-fuse">${d.fuse.map((f) => dexImg(f, ENEMIES[f].img)).join('')}</span>`;
+  if (Array.isArray(d.fuse) && FUSE_ART.has(id)) return dexImg(id, `/img/lb/e_${id}.webp`);
+  if (Array.isArray(d.fuse)) return `<span class="dx-fuse">${d.fuse.map((f) => dexImg(f, ENEMIES[f].img)).join('')}</span>`;
   const base = d.base || id;
   return dexImg(form || base, d.img);
 }
@@ -6134,7 +6136,7 @@ function dexPageHtml(kind, id, form, duo) {
   const col = dexColor(kind, d), ch = dexChapter(kind, id);
   const anim = ok ? dexAnim(kind, d, id) : '';
   const fxKey = anim.split(' ')[0];
-  const alts = ok && DEX_ALT[d.base || id] && !d.fuse ? [d.base || id, ...DEX_ALT[d.base || id]] : null;
+  const alts = ok && DEX_ALT[d.base || id] && !Array.isArray(d.fuse) ? [d.base || id, ...DEX_ALT[d.base || id]] : null;
   const cur = form || (alts ? alts[0] : null);
   const rage = cur === 'eunok_rage' ? ' rage' : '';
   let plate, body;
@@ -6173,8 +6175,12 @@ function dexPageHtml(kind, id, form, duo) {
   }
   // 뽑기 캐릭터 카드 느낌: NO. 번호 · 대각선 두 색 배경 · 큰 전신 그림 · 세로 영문 이름 · 오른쪽 아래 큰 이름
   const hero = kind === 'hero';
-  const hqForm = hero && (!cur || cur === id) && !NO_HQ_ART.has(id);
-  const art = hero && (hqForm || (duo && hasDuo(id) && ok))
+  // 변신 모습도 전신 그림(dexhq/<변신>.webp)이 있으면 그걸로 — 없거나 못 받으면 예전 도감 그림
+  const altHq = hero && ok && !duo && cur && cur !== id && ALT_HQ_ART.has(cur);
+  const hqForm = hero && (altHq || ((!cur || cur === id) && !NO_HQ_ART.has(id)));
+  const art = altHq
+    ? `<img class="dx-art hq" src="${artV(`/img/lb/dexhq/${cur}.webp`)}" alt="" draggable="false" onerror="this.onerror=null;this.src='${dexSrc(cur, d.img)}';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`
+    : hero && (hqForm || (duo && hasDuo(id) && ok))
     ? (duo
       // 두 모습 그림(가로, dexhq/<id>_duo) — 없으면 한 장으로
       ? `<img class="dx-art hq duo" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false" onerror="this.onerror=null;this.classList.remove('duo');this.src='/img/lb/dexhq/${id}.webp'">`
