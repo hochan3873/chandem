@@ -3873,6 +3873,8 @@ Object.assign(ACTS, {
   doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
   notice: () => showNotice(),
   mail: async () => { await Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {}); showMail(); },
+  // 도감 첫 발견 보상: 하나 또는 모두 받기
+  dexRwGet: async (b) => { const r = await liveAct(API.dexClaim(b.dataset.k || 'all', app.guest)); if (r) { A.sfx.levelUp(); const g = r.got || {}, sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); toast(`도감 보상 ${r.n}개 · ${[g.coins ? `코인 +${fmt(g.coins)}` : '', g.stones ? `강화석 +${g.stones}` : '', g.tickets ? `모집권 +${g.tickets}` : '', sh ? `멤버 조각 +${sh}` : ''].filter(Boolean).join(' · ')}`, 2600); showDex(); } },
   mailGet: async (b) => { const r = await liveAct(API.mailClaim(b.dataset.id === 'all' ? 'all' : Number(b.dataset.id), app.guest)); if (r) { A.sfx.levelUp(); toast(`${r.n}개 받았어요 · ${gotText(r.got)}`, 2400); showMail(); refreshBehind(); } },
   stamina: () => showStamina(),
   staBuy: async () => { const r = await liveAct(API.staminaBuy(app.guest)); if (r) { toast(`체력 +${L.STAMINA.buy.n}!`, 1400); showStamina(); refreshBehind(); } },
@@ -5794,6 +5796,7 @@ function seenEnemies() {
 function dexKnown(kind, id) { return kind === 'hero' ? API.heroUnlocked(P(), id) : seenEnemies().has(id); }
 function dexViewed() { try { return new Set(JSON.parse(localStorage.getItem('langbang:dexViewed') || '[]')); } catch { return new Set(); } }
 function dexHasNew() {
+  if (L.dexRwList(P()).length) return true; // 받을 도감 보상이 있으면 점
   const v = dexViewed();
   return DEX_HEROES().some((id) => dexKnown('hero', id) && !v.has('h:' + id)) || DEX_ENEMIES().some((id) => dexKnown('enemy', id) && !v.has('e:' + id));
 }
@@ -5991,6 +5994,7 @@ function showItemDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${nGear}</button></div>
+    ${dexRwBar()}
     ${collBar('item')}
     ${chips}
     <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${cat === 'sig' ? `멤버마다 하나뿐인 전용 신화 · 모은 것 ${sigN}/${SIG_IDS.length} · 모집 ${SIG_RATE.hero}% · 장비 뽑기 ${SIG_RATE.gear}% · 신화 조각 ${SIG_PITY}개로 교환` : `한 번이라도 얻은 장비가 기록돼요 · 테두리는 얻어 본 가장 높은 등급${next ? ` · ${next}종이면 수집 보상 (업적)` : ' · 전부 모았어요!'}`} <button class="chip mini" data-act="dropTable">드롭 표</button></span></p>
@@ -6069,6 +6073,15 @@ function showCollPop() {
     <div class="cp-sec cp-tot"><h4>지금 받는 효과</h4>${tot}</div>${L.COLLECT.map(sec).join('')}
     <p class="ip dimtxt">스테이지 · 헬 · 무한 · 주간 도전 · 레이드 · 진상의 탑에 적용 · 1:1 대전은 공정하게 빠져요 · 코인은 스테이지 보상에만</p>`, 'coll-pop');
 }
+// 도감 첫 발견 보상 띠: 받을 게 있으면 합계와 [모두 받기]
+function dexRwBar() {
+  const list = L.dexRwList(P());
+  if (!list.length) return '';
+  const t = { coins: 0, stones: 0, tickets: 0, shards: 0 };
+  for (const x of list) { t.coins += x.rw.coins || 0; t.stones += x.rw.stones || 0; t.tickets += x.rw.tickets || 0; t.shards += Object.values(x.rw.shards || {}).reduce((a, v) => a + v, 0); }
+  const parts = [t.coins ? `코인 ${fmt(t.coins)}` : '', t.shards ? `멤버 조각 ${t.shards}` : '', t.stones ? `강화석 ${t.stones}` : '', t.tickets ? `모집권 ${t.tickets}` : ''].filter(Boolean).join(' · ');
+  return `<div class="dex-rw"><span class="dr-ic">🎁</span><div><b>새로 만난 기록 보상 ${list.length}개</b><small>${parts}</small></div><button class="btn primary sm" data-act="dexRwGet" data-k="all">모두 받기</button></div>`;
+}
 function showDex() {
   app.screen = 'dex';
   hud.hidden = true;
@@ -6078,6 +6091,7 @@ function showDex() {
   const ids = dexFiltered(kind);
   const nH = DEX_HEROES().filter((id) => dexKnown('hero', id)).length, nE = DEX_ENEMIES().filter((id) => dexKnown('enemy', id)).length;
   const v = dexViewed();
+  const rwKeys = new Set(L.dexRwList(P()).map((x) => x.k));
   const card = (id) => {
     const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
     const ok = dexKnown(kind, id);
@@ -6087,7 +6101,7 @@ function showDex() {
     const badge = grdChip(gr, 'dx-g') + (kind === 'hero' ? `${roleChip(id, 'dx-role')}${sigHave(P(), id) ? '<i class="dx-sig">전용</i>' : ''}` : '');
     return `<button class="dexc2 gr g-${gr} ${ok ? '' : 'lock'}" data-act="dexCard" data-kind="${kind}" data-id="${id}" style="--c:${dexColor(kind, d)};--g:${GRADE[gr][1]}">
       <span class="dx-pic">${kind === 'hero' && thumbSrc(id) ? `<img class="dx-art hq fz" data-face="${id}" style="${faceImgStyle(id, 0.22, 0.36)}" src="${thumbSrc(id)}" alt="" loading="lazy" decoding="async" draggable="false" onerror="this.onerror=null;this.src='${dexSrc(id, d.img) || d.img}'">` : dexArt(d, id)}${ok ? `<img class="dx-mini" src="${inGameSprites(kind, id, d)[0]}" alt="" loading="lazy" draggable="false" onerror="this.remove()">` : ''}</span>${badge}<span class="dt">${tag}</span>
-      <b>${ok ? esc(d.name) : '???'}</b>${isNew ? '<span class="newdot">N</span>' : ''}${!ok && kind === 'hero' && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? (() => { const pr = L.cardProgress(P(), id); return pr ? `<span class="dx-cards"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i><em>${pr[0]}/${pr[1]}</em></span>` : ''; })() : ''}</button>`;
+      <b>${ok ? esc(d.name) : '???'}</b>${isNew ? '<span class="newdot">N</span>' : ''}${ok && rwKeys.has((kind === 'hero' ? 'h:' : 'e:') + id) ? '<span class="dx-rw">🎁</span>' : ''}${!ok && kind === 'hero' && (GACHA_HEROES.includes(id) || LEGEND_HEROES.includes(id)) ? (() => { const pr = L.cardProgress(P(), id); return pr ? `<span class="dx-cards"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i><em>${pr[0]}/${pr[1]}</em></span>` : ''; })() : ''}</button>`;
   };
   // 등급별로 묶어서: 분류 칩으로 거른 것 안에서 높은 등급부터
   const cards = gradeGroups(GRADE_ORDER[kind], ids, (id) => dexGrade(kind, id)).map(([gr, l]) => `${gradeHead(gr, `${l.length}${kind === 'hero' ? '명' : '종'}`, `${l.filter((id) => dexKnown(kind, id)).length}/${l.length}`)}<div class="dex-grid v2 dex-g">${l.map(card).join('')}</div>`).join('');
@@ -6095,6 +6109,7 @@ function showDex() {
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
     <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
+    ${dexRwBar()}
     ${collBar(kind)}
     ${dexCatChips(kind)}
     <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${tab === 'hero' ? (app.dexRole && app.dexRole !== 'all' && HERO_ROLES[app.dexRole] ? esc(HERO_ROLES[app.dexRole].desc) : '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버') : '만나 본 진상만 기록돼요 · 정예 = 방어가 있거나 체력이 높은 진상 · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</span></p>

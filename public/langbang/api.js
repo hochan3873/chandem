@@ -122,7 +122,7 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed', 'tower'];
+const LIVE_KEYS = ['dexRw', 'gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed', 'tower'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
@@ -525,6 +525,7 @@ export function mailSync(guest) { return guest ? guestLive((p) => { L.giftTake(p
 export function consStart(ids, guest) { return guest ? guestLive((p) => L.consStart(p, ids, Date.now())) : liveCall('cons/start', { ids }); }
 export function consBuy(id, guest) { return guest ? guestLive((p) => L.consBuy(p, id, Date.now())) : liveCall('cons/buy', { id }); }
 export function consEnd(used, guest) { return guest ? guestLive((p) => L.consEnd(p, used)) : liveCall('cons/end', { used }); }
+export function dexClaim(key, guest) { return guest ? guestLive((p) => L.dexClaim(p, key, GUEST_UID, Date.now())) : liveCall('dex/claim', { key }); }
 export function mailClaim(id, guest) { return guest ? guestLive((p) => L.mailClaim(p, id, GUEST_UID, Date.now())) : liveCall('mail/claim', { id }); }
 export async function pvpRanking() { const r = await call('/api/langbang/pvp/ranking'); return r.ok ? r : null; }
 export function authToken() { return token(); }
