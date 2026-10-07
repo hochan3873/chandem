@@ -1,5 +1,6 @@
 'use strict';
 // 랑방 대전 — 할로윈 이벤트 밸런스 (전투력 맞춤 · 출전 제한 덱 · 저주)
+//   (10/08) 기본은 합류 모드(실제 게임: 대장 = 덱 1번 혼자 시작) · --nojoin 이면 예전처럼 5명 다 · --plan=3:a,b,c,d,e 로 풀이 덱 바꿔 보기
 //   node scripts/lb-hw-balance.js meas [--list=1,2,...] [--seeds=16] [--curses=hp30,stun2] [--decks=fit,naive,auto]
 //        스테이지마다 '맞는 덱'(조건 + 그 판 진상 기술을 막는 멤버) vs '대충 덱'(조건만 겨우 + 센 멤버) 첫 도전 클리어율 · 입구 · 쓰러짐
 //   node scripts/lb-hw-balance.js calib [--list=...] [--seeds=16] [--target=0.7]   맞는 덱 클리어율이 목표가 되게 STAGES[n].add 이분 탐색 (결과만 출력 → hw-event.js 에 손으로)
@@ -12,7 +13,7 @@ const load = (f) => import(pathToFileURL(path.join(LIB, f)).href);
 const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : d; };
 const what = args.find((x) => !x.startsWith('--')) || 'meas';
-const JOIN = args.includes('--join'); // --join: 실제 게임처럼 대장 1명으로 시작 → 레벨업 '합류' 카드로 (덱 1번이 대장)
+const JOIN = !args.includes('--nojoin'); // 기본 = 실제 게임처럼 합류 모드 (대장 = 덱 1번 한 명으로 시작 → 레벨업 '합류' 카드로) · --nojoin: 예전처럼 5명 다 데리고 시작
 function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
 
@@ -39,11 +40,12 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
     return { deck: out, rent };
   }
   // 설계한 풀이 덱 (스테이지마다 이 판 진상 기술 · 출전 제한에 맞춘 조합 — 5장쯤 온 사람이 가진 멤버로)
-  const PLAN = {
-    1: ['eunok', 'jiwon', 'sanghwa', 'ara', 'jieun'], 2: ['gunman', 'staff', 'jieun', 'sunggu', 'eunok'], 3: ['soyoung', 'gunnyeo', 'staff', 'gunman', 'sanghwa'],
-    4: ['soyoung', 'jiwon', 'ara', 'staff', 'jieun'], 5: ['gunnyeo', 'soyoung', 'staff', 'jiwon', 'ara'], 6: ['eunok', 'ara', 'youngjun', 'dohoon', 'jungmin'],
-    7: ['jiwon', 'gunman', 'ara', 'sunggu', 'gunnyeo'], 8: ['gunnyeo', 'soyoung', 'gunman', 'ara'], 9: ['staff', 'jiwon', 'ara', 'soyoung', 'jieun'], 10: ['jungmin', 'gunnyeo', 'soyoung', 'ara', 'jiwon'],
+  const PLAN = { // 1번 = 대장 (합류 모드: 딜러가 대장 · 10/08)
+    1: ['eunok', 'jiwon', 'sanghwa', 'ara', 'jieun'], 2: ['gunman', 'staff', 'jieun', 'sunggu', 'eunok'], 3: ['jiwon', 'soyoung', 'gunnyeo', 'staff', 'gunman'],
+    4: ['ara', 'soyoung', 'jiwon', 'staff', 'jieun'], 5: ['ara', 'gunnyeo', 'staff', 'jieun', 'jiwon'], 6: ['ara', 'eunok', 'youngjun', 'dohoon', 'jungmin'],
+    7: ['gunman', 'jiwon', 'ara', 'sunggu', 'gunnyeo'], 8: ['ara', 'gunnyeo', 'soyoung', 'gunman'], 9: ['jieun', 'staff', 'hanna', 'ara', 'jiwon'], 10: ['ara', 'jungmin', 'gunnyeo', 'soyoung', 'jiwon'],
   };
+  for (const kv of String(opt('plan', '')).split(';').filter(Boolean)) { const [k, v] = kv.split(':'); PLAN[+k] = v.split(','); } // --plan=3:gunman,soyoung,... : 풀이 덱 바꿔 보기 (1번 = 대장)
   const planDeck = (n) => ({ deck: PLAN[n].slice(), rent: null });
   // 상성 없는 덱: 조건은 맞추되 이 판 핵심 멤버(STAGES.keys)는 빼고 센 멤버로 (같은 전투력에서 '맞는 멤버'의 몫)
   function badDeck(n) {
@@ -91,6 +93,7 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
   }
   function play(n, d, seed, curses = [], diag = null) {
     const rng = seeded(seed);
+    d = Object.assign({}, d, { deck: HW.leaderFix(d.deck, dps) }); // 화면처럼: 1번(대장)이 서포터면 딜러를 대장으로 (출전 준비 경고 · 추천 덱)
     const def = HW.eventDef(n, curses, d.deck);
     const p = { heroes: Object.fromEntries(d.deck.map((h) => [h, HW.HW.sync.meta])), hstars: Object.fromEntries(d.deck.map((h) => [h, 3])), equip: {}, gear: [] };
     const lo = HW.syncLoadout(p, d.deck, d.rent);

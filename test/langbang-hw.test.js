@@ -289,3 +289,20 @@ test('H1 해장 · H2 호박등: 특수 규칙 멤버가 있어야 풀린다', (
   for (let t = 0; t < 30 && !q.dead; t += 1 / 60) { S.step(g4, 1 / 60); g4.events.length = 0; }
   assert.ok(q.dead && g4.base.hp < door - g4.base.max * 0.05, '입구에 닿으면 펑');
 });
+
+test('대장: 서포터가 1번이면 딜러를 대장으로 (합류 모드) · 판 추천 대장', () => {
+  assert.equal(H.weakLeader('gunnyeo'), true); assert.equal(H.weakLeader('jungmin'), true); assert.equal(H.weakLeader('gunman'), false);
+  const pw = { ara: 9, gunman: 7, soyoung: 5, gunnyeo: 3 };
+  assert.deepEqual(H.leaderFix(['gunnyeo', 'soyoung', 'gunman', 'ara'], (h) => pw[h] || 0), ['ara', 'gunnyeo', 'soyoung', 'gunman']);
+  assert.deepEqual(H.leaderFix(['soyoung', 'gunnyeo'], (h) => pw[h] || 0), ['soyoung', 'gunnyeo'], '딜러가 대장이면 그대로');
+  assert.deepEqual(H.leaderFix(['gunnyeo', 'jungmin']), ['gunnyeo', 'jungmin'], '딜러가 없으면 그대로');
+  assert.deepEqual(H.leaderFix(['jiwon', 'ara', 'gunman'], (h) => pw[h] || 0, H.stageOf(7).lead), ['ara', 'jiwon', 'gunman'], 'H7 추천 대장 (철갑 뚫는 딜러)');
+});
+
+test('H5 무한 야근 · H9 축제 등불: 특수 규칙이 판 정보에', () => {
+  assert.equal(H.eventDef(5).sig.id, 'overtime');
+  assert.equal(H.waveDef(5, 3).mid, 'hw_reaper'); assert.equal(H.waveDef(5, 5).mid, 'hw_reaper', 'H5 는 마지막 웨이브에도 팀장');
+  assert.equal(H.waveDef(8, 5).mid, undefined);
+  assert.equal(H.eventDef(9).sig.id, 'lantern'); assert.deepEqual(H.eventDef(9).sig.heroes, ['staff', 'jieun', 'hanna']);
+  for (const s of H.STAGES) for (const h of s.lead || []) assert.ok(!H.weakLeader(h), `H${s.n} 추천 대장 ${h}`);
+});

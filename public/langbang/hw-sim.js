@@ -44,6 +44,11 @@ function onHit(g, e, dmg, src) {
     if (src && sigHero(g, src) && !((src.hwCutT || 0) > g.t)) { src.hwCutT = g.t + S0.cd; snuff(g, e, 'cut'); ev(g, 'hwCut', { hero: src.id, x: src.x, y: src.y - 60, cd: S0.cd }); return dmg * S0.crack; }
     return dmg * S0.shell;
   }
+  if (S0 && S0.id === 'overtime' && src && g.hw.marks.length && sigHero(g, src) && !((src.hwCutT || 0) > g.t)) { // H5: 팀장 끊는 멤버가 팀장을 맞히면 그 팀장의 명부를 지운다
+    let hit = false; for (const k of g.hw.marks) if (k.e === e && !k.cut) { k.cut = true; hit = true; }
+    if (hit) { src.hwCutT = g.t + (S0.cd || 3); e.stunT = Math.max(e.stunT, 0.6); ev(g, 'hwCut', { hero: src.id, x: src.x, y: src.y - 60, cd: S0.cd || 3 }); }
+  }
+  if (S0 && S0.id === 'overtime' && e.type === 'hw_reaper' && S0.shell && !(src && sigHero(g, src))) return dmg * S0.shell; // H5: 팀장은 결재판으로 막는다 (끊는 멤버 공격만 제대로)
   if (e.hwCracked) return dmg * (S0 ? S0.crack : 1);
   return dmg;
 }
@@ -99,12 +104,14 @@ function tick(g, dt) {
     k.t -= dt;
     const h = k.h, e = k.e;
     if (h.ccImmT > 0 || h.gone) { k.done = true; ev(g, 'hwListClear', { x: h.x, y: h.y - 70, hero: h.id, by: 'shield' }); continue; } // 건전녀 응급 방패: 명부에서 지운다
-    if (!e || e.dead || e.stunT > 0 || e.frozenT > 0 || e.tieT > 0 || (e.kbv || 0) < -40 || g.timeStopT > 0) { k.done = true; if (e && !e.dead) { e.weakT = Math.max(e.weakT || 0, ECAST.breakWeak); g.stats.castBreak = (g.stats.castBreak | 0) + 1; } ev(g, 'hwListClear', { x: h.x, y: h.y - 70, hero: h.id, by: 'break', ex: e ? e.x : 0, ey: e ? e.y - 60 : 0 }); continue; }
+    const otOnly = H.sig && H.sig.id === 'overtime'; // H5: 팀장 끊는 멤버가 맞혀야만 (onHit) — 다른 기절 · 밀치기로는 안 끊긴다
+    if (!e || e.dead || (!otOnly && (e.stunT > 0 || e.frozenT > 0 || e.tieT > 0 || (e.kbv || 0) < -40)) || g.timeStopT > 0 || k.cut) { k.done = true; if (e && !e.dead) { e.weakT = Math.max(e.weakT || 0, ECAST.breakWeak); g.stats.castBreak = (g.stats.castBreak | 0) + 1; } ev(g, 'hwListClear', { x: h.x, y: h.y - 70, hero: h.id, by: 'break', ex: e ? e.x : 0, ey: e ? e.y - 60 : 0 }); continue; }
     if (k.t <= 0) {
       k.done = true;
       const L0 = e.def.hw.list;
-      S.kdAdd(g, h, L0.kd * (g.ccMul || 1), { direct: true, src: 'hit', by: e.type });
+      S.kdAdd(g, h, ((H.sig && H.sig.id === 'overtime' && H.sig.kd) || L0.kd) * (g.ccMul || 1), { direct: true, src: 'hit', by: e.type }); // H5 무한 야근: 못 지우면 바로 쓰러짐
       const sec = S.hitHero(g, h, { st: 'stun', sec: L0.stun, hit: 0 }, e);
+      if (H.sig && H.sig.id === 'overtime' && H.sig.door && !g.god) S.damageBase(g, g.base.max * H.sig.door, e); // H5: 야근 수당 청구 — 입구도 깎인다
       ev(g, 'hwListHit', { x: h.x, y: h.y, hero: h.id, sec, ex: e.x, ey: e.y - 60 });
     }
   }
@@ -186,9 +193,10 @@ function tick(g, dt) {
     }
     // 저승사자 팀장: 야근 명부 (멤버 이름 → 카운트다운)
     if (X.list && e.y > 50) {
-      if (e.hwListT === undefined) e.hwListT = X.list.first;
+      const OT = H.sig && H.sig.id === 'overtime' ? H.sig : null; // H5 무한 야근 명부: 더 자주
+      if (e.hwListT === undefined) e.hwListT = OT ? OT.first : X.list.first;
       if (e.stunT <= 0 && !e.cast && (e.hwListT -= dt) <= 0) {
-        e.hwListT = X.list.every;
+        e.hwListT = OT ? OT.every : X.list.every;
         const hs = heroesUp(g).filter((h) => !(h.kdT > 0) && !H.marks.some((k) => k.h === h));
         if (hs.length) {
           const h = hs.sort((a, b) => (b.dmgDone || 0) - (a.dmgDone || 0))[0]; // 제일 열심히 일한 멤버 이름부터

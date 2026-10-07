@@ -130,7 +130,7 @@ export function autoDeck(n) {
   for (const r of s.rules) { const R = HW.RULES[r]; if (!R.need) continue; const mine = R.need.filter((h) => own(h) && !banned(h) && !out.includes(h)).sort((a, b) => power(b) - power(a)); for (const h of mine.slice(0, R.n || 1)) if (out.length < max) out.push(h); }
   const rest = Object.keys(HEROES).filter((h) => !HEROES[h].summon && own(h) && !banned(h) && !out.includes(h)).sort((a, b) => power(b) - power(a));
   for (const h of rest) { if (out.length >= max) break; out.push(h); }
-  return out;
+  return HW.leaderFix(out, power, s.lead || []); // 1번(대장)은 딜러로 (그 판 추천 대장이 있으면 그 멤버)
 }
 function curCurses(n) { if (!st.curses[n]) { try { st.curses[n] = JSON.parse(lsGet('langbang:hwCurse:' + n) || '[]'); } catch { st.curses[n] = []; } } st.curses[n] = HW.cleanCurses(st.curses[n]); return st.curses[n]; }
 function showPrep(n) {
@@ -171,7 +171,8 @@ function renderPrep() {
       ${s.sig && HW.SIGS[s.sig] ? `<div class="hp-sig"><i>${esc(HW.SIGS[s.sig].icon)}</i><span><b>이 판 특수 규칙 · ${esc(HW.SIGS[s.sig].name)}</b><small>${esc(HW.SIGS[s.sig].desc)}</small><em>내 덱: ${deck.filter((hh) => HW.SIGS[s.sig].heroes.includes(hh)).length}명</em></span></div>` : ''}<div class="hp-sec rules"><h4>${C.ic('target', '', 'sm')}출전 제한</h4><div class="hp-rules">${s.rules.map((r) => `<div class="hp-rule ${ruleOk(r) ? 'ok' : 'no'}"><i>${esc(HW.RULES[r].icon)}</i><span><b>${esc(HW.RULES[r].name)}</b><small>${esc(HW.RULES[r].desc)}</small></span><em>${ruleOk(r) ? '✓' : '!'}</em></div>`).join('')}</div>${fix ? `<div class="hp-fixes">${fix}</div>` : ''}${(s.keys || []).length ? `<div class="hp-keys"><small>${C.ic('bulb', '', 'sm')}이 판 핵심 멤버 — ${esc(s.keyWhy || '')}</small><span>${s.keys.filter((hh) => HEROES[hh]).map((hh) => { const bn = banned(hh), ow = own(hh), inD = deck.includes(hh); return `<button class="hw-chip key ${inD ? 'in' : ''} ${!ow || bn ? 'off' : ''}" data-act="${ow && !bn && !inD ? 'hwAdd' : 'hwFoe0'}" data-h="${hh}" ${!ow || bn ? 'disabled' : ''}>${C.av(HEROES[hh], 'xs')}${esc(HEROES[hh].name)}${inD ? ' ✓' : !ow ? ' (없음)' : bn ? ' (금지)' : ''}</button>`; }).join('')}</span></div>` : ''}</div>
       <div class="hp-sec foes"><h4>${C.ic('ic_bosscrown', '', 'sm')}나오는 할로윈 진상 <small>탭하면 기술</small></h4><div class="hp-foes">${foes.map((t) => `<button class="hp-foe ${ENEMIES[t].boss ? 'boss' : ENEMIES[t].mid ? 'mid' : ''}" data-act="hwFoe" data-t="${t}"><img src="${ENEMIES[t].img}" alt="" draggable="false"><small>${esc(ENEMIES[t].name)}</small></button>`).join('')}</div></div>
       <div class="hp-sec deck"><h4>${C.ic('party', '', 'sm')}출전 멤버 <small>${deck.length}/${chk.max} · 이벤트에선 강화가 +${HW.HW.sync.meta} ★${HW.HW.sync.star} 로 맞춰져요 (줄 그은 숫자 = 내 원래 강화 · 많이 키운 멤버는 +2 까지 더)</small><button class="hw-mini" data-act="hwAuto">추천 덱</button></h4>
-        <div class="hp-slots">${slots.map((hh) => (hh ? `<button class="hp-slot on ${hh === rent ? 'rent' : ''}" data-act="hwPick" data-h="${hh}">${C.av(HEROES[hh])}<b>${esc(HEROES[hh].name)}</b>${hh === rent ? '<em>대여</em>' : HW.wornMap(P())[hh] ? '<em class="cos">🎃 의상</em>' : ''}</button>` : '<span class="hp-slot empty">+</span>')).join('')}</div>
+        ${deck[0] && HW.weakLeader(deck[0]) ? `<div class="hp-leadwarn"><span>👑 <b>대장이 서포터면 처음엔 혼자 싸워야 해요 — 딜러를 대장으로</b><small>${esc(HEROES[deck[0]].name)}은(는) 혼자선 진상을 거의 못 잡아요. 동료는 진상을 잡아 레벨이 올라야 합류해요.</small></span>${deck.some((x) => !HW.weakLeader(x)) ? `<button class="hw-mini" data-act="hwLead">딜러를 대장으로</button>` : ''}</div>` : ''}
+        <div class="hp-slots">${slots.map((hh, si) => (hh ? `<button class="hp-slot on ${hh === rent ? 'rent' : ''} ${si === 0 ? 'lead' : ''}" data-act="hwPick" data-h="${hh}">${si === 0 ? '<i class="hp-crown">👑 대장</i>' : ''}${C.av(HEROES[hh])}<b>${esc(HEROES[hh].name)}</b>${hh === rent ? '<em>대여</em>' : HW.wornMap(P())[hh] ? '<em class="cos">🎃 의상</em>' : ''}</button>` : '<span class="hp-slot empty">+</span>')).join('')}</div>
         ${errs ? `<ul class="hp-errs">${errs}</ul>` : ''}
         <div class="hp-grid">${ownList.map(card).join('')}</div>
       </div>
@@ -200,13 +201,13 @@ function gameOpt(run, p) {
   const lo = HW.syncLoadout(p, run.deck, run.rent);
   const deck = C.placeDeck(run.deck);
   ensureArt(def);
-  return { mode: 'stage', stage: def.stage, event: def, deck, meta: lo.meta, stars: lo.stars, gear: lo.gear, items: {}, coll: null, awake: {}, wtrait: undefined, slots: 6, hell: false, weekly: null };
+  return { mode: 'stage', stage: def.stage, event: def, deck, leader: run.deck[0], meta: lo.meta, stars: lo.stars, gear: lo.gear, items: {}, coll: null, awake: {}, wtrait: undefined, slots: 6, hell: false, weekly: null };
 }
 function afterCreate(g) {
   resetHwFx();
   const s = HW.stageOf(g.ev.n);
   const sg = s.sig && HW.SIGS[s.sig];
-  if (sg) setTimeout(() => { if (C.app.g === g) C.fx.banner(`${sg.icon} ${sg.name}`, s.n === 1 ? `해장 멤버가 마무리해야 좀비가 안 일어나요 (내 덱 ${(g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length}명)` : `도화선 끊는 멤버가 맞혀야 껍질이 깨져요 (내 덱 ${(g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length}명)`, '#6a2a00', 2.6, 'big'); }, 2900);
+  if (sg) setTimeout(() => { if (C.app.g === g) C.fx.banner(`${sg.icon} ${sg.name}`, `${sg.tip} (내 덱 ${(g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length}명)`, '#6a2a00', 2.6, 'big'); }, 2900);
   setTimeout(() => { if (C.app.g === g) C.fx.banner(`🎃 ${s.name}`, g.ev.curses.length ? `저주 🔥${HW.curseScore(g.ev.curses)} · ${g.ev.curses.map((k) => HW.CURSES[k].name).join(' · ')}` : HW.HW_MAPS[s.map].name, '#4a1466', 2.4, 'big'); }, 350);
 }
 // 이벤트 그림: 이번 판 진상(처음엔 안 받는다) · 맵
@@ -267,7 +268,7 @@ function result(g, victory, quit) {
 }
 function failTip(g) {
   const sg = g.ev && g.ev.sig, have = sg ? (g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length : 0; // 특수 규칙 판: 맞는 멤버가 모자라면 그것부터 알려 준다
-  if (sg && have < 3) return `${sg.icon} ${sg.name} — ${sg.heroes.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join(' · ')} 중 ${have}명뿐이었어요. ${sg.id === 'hangover' ? '해장 멤버가 많을수록 좀비가 덜 일어나요' : '도화선 끊는 멤버가 많을수록 호박등을 빨리 꺼요'}`;
+  if (sg && have < 3) return `${sg.icon} ${sg.name} — ${sg.heroes.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join(' · ')} 중 ${have}명뿐이었어요. ${sg.id === 'hangover' ? '해장 멤버가 많을수록 좀비가 덜 일어나요' : sg.id === 'overtime' ? '팀장을 끊는 멤버가 많을수록 명부를 빨리 지워요' : '도화선 끊는 멤버가 많을수록 호박등을 빨리 꺼요'}`;
   const src = g.stats.kdBy || {}, top = Object.keys(src).sort((a, b) => src[b] - src[a])[0];
   if (top && ENEMIES[top]) { const sk = enemySkills(top)[0]; const ctr = sk && sk.counter && sk.counter.length ? sk.counter.slice(0, 3).map((h) => HEROES[h].name).join(' · ') : ''; return `${ENEMIES[top].name}에게 많이 당했어요${sk ? ` (${sk.name})` : ''}${ctr ? ` — ${ctr}이(가) 막아 줘요` : ''}`; }
   return '예고가 뜨면 기절 · 밀치기 스킬로 끊어 보세요 — 끊으면 빈틈이 생겨요';
@@ -382,6 +383,7 @@ const ACTS = {
   },
   hwAdd: (b) => { const n = st.n, h = b.dataset.h, d = curDeck(n).slice(), s = HW.stageOf(n), max = Math.min(HW.HW.slots, ...s.rules.map((r) => HW.RULES[r].max || 99)); if (!d.includes(h)) { if (d.length >= max) { const out = d.slice().reverse().find((x) => !s.rules.some((r) => HW.RULES[r].need && HW.RULES[r].need.includes(x))); if (out) d.splice(d.indexOf(out), 1); } d.push(h); } st.decks[n] = d; saveDeck(n); C.A.sfx.card(); renderPrep(); },
   hwRent: (b) => { const n = st.n, h = b.dataset.h, d = curDeck(n).filter((x) => x !== st.rent[n]), s = HW.stageOf(n), max = Math.min(HW.HW.slots, ...s.rules.map((r) => HW.RULES[r].max || 99)); st.rent[n] = h; if (d.length >= max) { const out = d.slice().reverse().find((x) => !s.rules.some((r) => HW.RULES[r].need && HW.RULES[r].need.includes(x))); if (out) d.splice(d.indexOf(out), 1); } d.push(h); st.decks[n] = d; saveDeck(n); C.toast(`${HEROES[h].name}을(를) 빌렸어요 (강화 +${HW.HW.sync.meta} · ★${HW.HW.sync.star})`, 1800); renderPrep(); },
+  hwLead: () => { const n = st.n; st.decks[n] = HW.leaderFix(curDeck(n), power, HW.stageOf(n).lead || []); saveDeck(n); C.A.sfx.card(); renderPrep(); },
   hwAuto: () => { const n = st.n; st.rent[n] = null; st.decks[n] = autoDeck(n); saveDeck(n); C.A.sfx.card(); renderPrep(); },
   hwCurse: (b) => {
     const n = st.n, k = b.dataset.k, c = HW.CURSES[k], b0 = hwOf().best[n];
