@@ -31,6 +31,7 @@ import { initTransit } from './transit.js';
 import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
 import { initPush } from './push.js'; // 알림 받기 (웹 푸시)
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
+import { createTutor } from './tutorial.js'; // 처음 하는 사람 튜토리얼 (방장 말풍선 · 손가락)
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -423,9 +424,9 @@ async function startRun(opt = {}) {
   saveSnap();
   if ((mode === 'stage' || mode === 'endless' || weekly) && !DEBUG.stage && !Q.has('autostart')) showBattleLoading(g);
   if (app.firstRunTip) {
-    showTip('적을 탭하면 집중 공격! 경험치는 저절로 모여요', 4500);
+    if (!TUT.learning()) showTip('적을 탭하면 집중 공격! 경험치는 저절로 모여요', 4500); // 튜토리얼 중엔 방장이 알려 준다
     app.firstRunTip = false;
-  } else if (g.joinMode && !tutDone('join')) { setTut('join'); showTip('대장 혼자 시작! 레벨업 카드로 멤버를 합류시켜요', 5000); }
+  } else if (g.joinMode && !tutDone('join') && !TUT.learning()) { setTut('join'); showTip('대장 혼자 시작! 레벨업 카드로 멤버를 합류시켜요', 5000); }
 }
 // 출격 전 로딩 (1.2~2초): 진짜로 이번 판 그림을 미리 불러오고 · 이번 판 공략 · 덱 상성 · 꿀팁 — 0.8초 뒤부터 누르면 넘김
 // 스테이지 상성 한 줄: 가장 많은 진상 종류 → 강한 속성
@@ -1457,8 +1458,8 @@ function updateHud() {
     H$.ult.classList.toggle('noring', !on);
     const rd = up >= RULES.ultMax && full >= 2;
     if (H$.ult.classList.contains('ready') !== rd) { H$.ult.classList.toggle('ready', rd); if (rd) { const b = document.createElement('span'); b.className = 'ult-bub'; b.textContent = '총공지 준비!'; H$.ult.appendChild(b); setTimeout(() => b.remove(), 1800); } }
-    if (rd && !app.ultTipShown) { app.ultTipShown = true; showTip('총공지 준비 완료! 오른쪽 아래 메달을 눌러요', 3500); }
-    if (on && !tutDone('mom') && g.mode === 'stage' && g.t > 6) { setTut('mom'); showTip('기세: 스킬을 쓸 때마다 1칸씩 써요 · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이면 총공지!', 6000); H$.ult.classList.add('tut'); setTimeout(() => H$.ult.classList.remove('tut'), 6000); }
+    if (rd && !app.ultTipShown && !TUT.learning()) { app.ultTipShown = true; showTip('총공지 준비 완료! 오른쪽 아래 메달을 눌러요', 3500); }
+    if (on && !tutDone('mom') && g.mode === 'stage' && g.t > 6 && !TUT.learning()) { setTut('mom'); showTip('기세: 스킬을 쓸 때마다 1칸씩 써요 · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이면 총공지!', 6000); H$.ult.classList.add('tut'); setTimeout(() => H$.ult.classList.remove('tut'), 6000); }
   }
   // 보스 체력바
   let hp = 0, max = 0, name = '';
@@ -1505,9 +1506,9 @@ function frame(now) {
   if (live) tickCards((now - (frame.prev || now)) / 1000 > 0.1 ? 0.1 : (now - (frame.prev || now)) / 1000);
   frame.prev = now;
   if (g && !app.paused && !app.confirmOpen) {
-    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
+    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1) * (live ? TUT.scale() : 1); // 튜토리얼 설명 중: 멈춤 · 느리게
     const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
-    if (live && live.augOffer && !app.paused) { live.augOffer.t -= dt * 0.8; if (DEBUG.autopick) { S.applyAug(live, live.augOffer.opts[0]); handleEvents(live, true); } } // 증강 제한 시간은 실제 시간으로 (고르는 동안 느려져도)
+    if (live && live.augOffer && !app.paused && !TUT.hold()) { live.augOffer.t -= dt * 0.8; if (DEBUG.autopick) { S.applyAug(live, live.augOffer.opts[0]); handleEvents(live, true); } } // 증강 제한 시간은 실제 시간으로 (고르는 동안 느려져도)
     if (live && live.mode === 'endless' && !live.over && !app.paused) {
       const idle = performance.now() - (app.lastInput || performance.now());
       if (idle > 60000) { live.afkSec = (live.afkSec || 0) + dt; if (!app.afkShown) { app.afkShown = true; fx.banner('자리 비움 — 보상 멈춤', '화면을 누르면 다시 보상이 쌓여요', '#333a55', 2.2, 'big'); } }
@@ -1604,7 +1605,8 @@ canvas.addEventListener('pointerdown', (ev) => {
   const bh = S.setBoardAim(g, x, y);
   fx.ring(x, y, 4, 40, 0.3, f ? '#ff3b5c' : bh ? '#7ad0ff' : '#ffffff', 2);
   if (bh && !f && !g._boardTip) { g._boardTip = true; fx.text(x, y - 24, '송바울 보드 여기로!', '#7ad0ff', 12, 0.9); }
-  if (f) { fx.text(f.x, f.y - f.def.size * 0.8, '지목!', '#ff6b80', 13, 0.7); A.sfx.tap(); vibrate(8); }
+  if (f) { fx.text(f.x, f.y - f.def.size * 0.8, '지목!', '#ff6b80', 13, 0.7); A.sfx.tap(); vibrate(8); TUT.emit('focus'); }
+  if (bh) TUT.emit('board');
   hideBubble();
 });
 canvas.addEventListener('pointermove', (ev) => {
@@ -1628,7 +1630,7 @@ function endPress(ev) {
     a.hold = false;
     if (ev.type !== 'pointerup') return;
     if (!aimValid(g, a)) { toast('방어선 위 필드에만 쓸 수 있어요', 1100); return; }
-    if (g.heroes.includes(a.h)) { S.castSkill(g, a.h, a.x, a.y); handleEvents(g, true); }
+    if (g.heroes.includes(a.h)) { if (S.castSkill(g, a.h, a.x, a.y)) TUT.emit('cast'); handleEvents(g, true); }
     cancelAim();
     return;
   }
@@ -1693,6 +1695,7 @@ function useSkillBtn(slot) {
   if (!S.skillReady(h)) { toast(`${h.def.skill.name} 충전 중… ${Math.ceil(h.skillCd)}초`, 900); return; }
   const sk = h.def.skill;
   vibrate(15);
+  TUT.emit('skillBtn');
   if (sk.target) {
     if (app.aim && app.aim.h === h) { cancelAim(); return; }
     app.aim = { h, r: sk.r[h.lv - 1], color: h.def.color, x: 180, y: g.ropeY - 150 };
@@ -1701,7 +1704,7 @@ function useSkillBtn(slot) {
     hideBubble();
     return;
   }
-  if (S.castSkill(g, h)) { const bt = skillbar.querySelector(`[data-slot="${slot}"]`); if (bt) { bt.classList.remove('cast'); void bt.offsetWidth; bt.classList.add('cast'); } }
+  if (S.castSkill(g, h)) { TUT.emit('cast'); const bt = skillbar.querySelector(`[data-slot="${slot}"]`); if (bt) { bt.classList.remove('cast'); void bt.offsetWidth; bt.classList.add('cast'); } }
   handleEvents(g, true);
 }
 function cancelAim() { app.aim = null; aimbar.hidden = true; }
@@ -1786,8 +1789,8 @@ function renderSkillbar() {
     if (r) ready = true;
   }
   // 튜토리얼: 1-1 에서 처음 스킬이 준비되면 알려 준다 · 1-2 에서는 지목
-  if (ready && !tutDone('skill') && g.mode === 'stage' && g.stage <= 2) { setTut('skill'); showTip('스킬 버튼이 반짝! 눌러서 필살기를 써 봐요', 5000); skillbar.classList.add('tut'); setTimeout(() => skillbar.classList.remove('tut'), 5000); }
-  if (!tutDone('focus') && g.mode === 'stage' && g.stage === 2 && g.wave >= 1 && g.enemies.length > 3) { setTut('focus'); showTip('진상을 탭하면 "지목"! 모두가 그 진상부터 때려요', 5000); }
+  if (ready && !tutDone('skill') && g.mode === 'stage' && g.stage <= 2 && !TUT.learning()) { setTut('skill'); showTip('스킬 버튼이 반짝! 눌러서 필살기를 써 봐요', 5000); skillbar.classList.add('tut'); setTimeout(() => skillbar.classList.remove('tut'), 5000); }
+  if (!tutDone('focus') && !TUT.learning() && g.mode === 'stage' && g.stage === 2 && g.wave >= 1 && g.enemies.length > 3) { setTut('focus'); showTip('진상을 탭하면 "지목"! 모두가 그 진상부터 때려요', 5000); }
 }
 function tutDone(k) { try { return !!localStorage.getItem('langbang:tut:' + k); } catch { return true; } }
 function setTut(k) { try { localStorage.setItem('langbang:tut:' + k, '1'); } catch { /* 무시 */ } }
@@ -1838,6 +1841,7 @@ ${d.skill ? ` <p class="hi-row">${ic('sparkle', '', 'sm')} ${esc(d.skill.name)}:
 function showHeroBubble(h) {
   const g = app.g;
   if (!g) return;
+  TUT.emit('hero');
   app.infoHero = h;
   app.infoRange = S.heroRange(g, h);
   bubble.className = 'bubble hero hero-info';
@@ -1923,6 +1927,7 @@ $('#btn-speed').addEventListener('click', () => {
   hud.classList.toggle('fast', app.runSpeed > 1);
   syncSpeedPill();
   A.sfx.tap();
+  TUT.emit('speed');
 });
 try { app.speed2 = localStorage.getItem('langbang:speed2') === '1'; } catch { app.speed2 = false; }
 try { app.hellMode = localStorage.getItem('langbang:hell') === '1'; } catch { app.hellMode = false; }
@@ -1932,6 +1937,7 @@ $('#btn-ult').addEventListener('click', () => {
   if (!g || app.paused || app.cardsOpen) return;
   if (!S.useUlt(g)) { if (g.ult >= RULES.ultMax) handleEvents(g, true); else toast(`총공지 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
   if (g.pvp) PVP.myUlts = (PVP.myUlts | 0) + 1;
+  TUT.emit('ult');
   handleEvents(g, true);
 });
 // 길게 누르면 뜨는 사진 저장/공유 메뉴 막기 (결과 공유 카드 그림만 예외)
@@ -2261,6 +2267,54 @@ function upCounts() { const u = upgradeList(), deck = new Set(u.filter((x) => x.
 // ─── 길 안내 시작: 할 일 → 단계 → 코치 (못 짜면 예전처럼 바로 그 화면으로) ───
 const COACH = createCoach({ stage, toast: (m) => toast(m, 2600) });
 const coachState = { get screen() { return app.screen; }, hasSel: (q) => !!document.querySelector(q) };
+// ─── 튜토리얼 (tutorial.js): 지금 상황을 넘기고 · 필드 위 진상 · 멤버 자리를 화면 좌표로 ───
+//  자동 테스트(webdriver) · 디버그 시작에선 끈다 (?tut 로 켬 · ?notut 로 끔)
+const TUT_ON = !(Q.has('notut') || Q.has('autostart') || DEBUG.stage || (navigator.webdriver && !Q.has('tut')));
+const TUT_SUP = ['gunnyeo', 'jungmin', 'dohoon', 'soyoung'];
+function tutCtx() {
+  if (!app.profileLoaded) return null;
+  const g = app.g, p = P(), scr = app.screen, has = (q) => !!stage.querySelector(q);
+  const c = { where: scr, maxStage: p.maxStage | 0, lobby: scr === 'menu' ? lobbyStage() : 0, prepStage: scr === 'prep' && app.mode === 'stage' ? app.stage : 0,
+    blocked: !!app.confirmOpen || COACH.active() || has('.bload, .confirm-modal, .reveal, .gacha-res, .gate, #bootld') || (scr === 'play' && app.paused),
+    modal: has('.info-modal') };
+  if (scr === 'menu') Object.assign(c, { upg: has('.lb-upg'), mail: L.mailCount(p) | 0, checkin: !L.checkinState(p, Date.now()).done });
+  if (scr === 'prep') c.lack = has('.pp-lack');
+  if (scr === 'play' && g) {
+    let kdHi = 0;
+    for (const h of g.heroes) if (h.kd > 0 && !h.gone) kdHi = Math.max(kdHi, h.kd / (h.kdMax || S.kdMax(h)));
+    const sup = g.kdOn ? TUT_SUP.find((id) => g.heroes.some((h) => h.id === id && !h.gone)) : null;
+    Object.assign(c, { stage: g.stage | 0, mode: g.weekly || g.raid || g.tower ? 'other' : g.mode, hell: !!g.hell, pvp: !!g.pvp, t: g.t || 0,
+      enemies: g.enemies.filter((e) => !e.dead && e.y > 45 && e.y < g.ropeY).length, cards: !!app.cardsOpen, aug: !!(g.augOffer && augBox.isConnected), aim: !!app.aim,
+      speedOk: speedOk() && !$('#btn-speed').hidden, skillReady: !!skillbar.querySelector('.sk.ready:not(.nomom):not(.tired)'), ultReady: H$.ult.classList.contains('ready'),
+      kdHi, sup, baul: g.heroes.some((h) => h.id === 'baul' && !h.gone) });
+  }
+  return c;
+}
+function tutField(spec) {
+  const g = app.g; if (!g) return null;
+  const cr = canvas.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = sr.width / (stage.offsetWidth || sr.width) || 1;
+  const X = (x) => (cr.left - sr.left + (x / FIELD.W) * cr.width) / k, Y = (y) => (cr.top - sr.top + (y / g.H) * cr.height) / k;
+  const box = (x0, y0, x1, y1, px, py) => { const top = Math.max(Y(y0), 62); return { x: X(x0), y: top, w: X(x1) - X(x0), h: Math.max(40, Y(y1) - top), px: X(px), py: Math.max(Y(py), top + 18) }; }; // 위 HUD 밑으로
+  const foes = g.enemies.filter((e) => !e.dead && e.y > 45 && e.y < g.ropeY);
+  if (spec.f === 'enemy') { const e = foes.sort((a, b) => b.y - a.y)[0]; if (!e) return null; const z = Math.max(24, ((e.def && e.def.size) || 40) * 0.55); return box(e.x - z, e.y - z * 1.7, e.x + z, e.y + z * 0.3, e.x, e.y - z * 0.7); }
+  if (spec.f === 'hero') {
+    const hs = g.heroes.filter((h) => !h.gone && !h.summon && HEROES[h.id]);
+    const h = spec.kd ? hs.slice().sort((a, b) => (b.kd || 0) / (b.kdMax || 1) - (a.kd || 0) / (a.kdMax || 1))[0] : spec.sup ? hs.find((o) => TUT_SUP.includes(o.id)) : hs.find((o) => o.id === g.leader) || hs[0];
+    return h ? box(h.x - 30, h.y - 80, h.x + 30, h.y + 6, h.x, h.y - 36) : null;
+  }
+  if (spec.f === 'field') {
+    let best = null, bn = -1;
+    for (const e of foes) { let n = 0; for (const o of foes) if (Math.hypot(o.x - e.x, o.y - e.y) < 75) n++; if (n > bn) { bn = n; best = e; } }
+    return box(8, 56, FIELD.W - 8, g.ropeY, best ? best.x : FIELD.W / 2, best ? best.y - 20 : g.ropeY - 150);
+  }
+  return null;
+}
+const TUT = createTutor({
+  stage, ctx: () => (TUT_ON ? tutCtx() : null), fieldRect: (sp) => tutField(sp), toast: (m) => toast(m, 2400),
+  face: () => `<img class="fz" style="${faceCircStyle('bangjang', 0.62, 0.5)}" src="${thumbSrc('bangjang')}" alt="" draggable="false" onerror="this.onerror=null;this.className='';this.removeAttribute('style');this.src='${HEROES.bangjang.img}'">`,
+  save: (list) => { if (app.guest || !app.profileLoaded) return; clearTimeout(tutSaveT); tutSaveT = setTimeout(() => { API.tutSave(list).catch(() => {}); }, 800); },
+});
+let tutSaveT = 0;
 function guideTodo(t) {
   const plan = t && planFor(t, coachState);
   if (!plan) { if (t) todoGo(t); return; }
@@ -2408,7 +2462,7 @@ const REWARD_INFO = {
 // 증강: 셋 중 하나 (15초면 첫 번째) · 등급 빛 · 뒤집히며 등장
 const augBox = document.createElement('div');
 augBox.className = 'aug-box';
-augBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-aug]'); if (b && app.g && S.applyAug(app.g, b.dataset.aug)) { handleEvents(app.g, true); A.sfx.pick(); } });
+augBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-aug]'); if (b && app.g && S.applyAug(app.g, b.dataset.aug)) { handleEvents(app.g, true); A.sfx.pick(); TUT.emit('aug'); } });
 const AUG_FX_IC = { dmg: 'swords', spd: 'bolt', hp: 'shield', exp: 'book', crit: 'path_crit', cd: 'speed', swarm: 'path_boom', splash: 'path_boom', boss: 'target', slow: 'path_cc', ctrl: 'path_cc', path: 'path_chain', ult: 'megaphone', echo: 'retry' };
 function augIcon(a) {
   if (a.hero && HEROES[a.hero]) return pimg(HEROES[a.hero].img, 'face');
@@ -2625,7 +2679,7 @@ const NUDGE_KEY = 'langbang:upNudge';
 function nudgeLoad() { try { return JSON.parse(localStorage.getItem(NUDGE_KEY) || '{}') || {}; } catch { return {}; } }
 function nudgeSave(no) { const v = nudgeLoad(); v.at = Date.now(); v.no = no ? (v.no | 0) + 1 : 0; try { localStorage.setItem(NUDGE_KEY, JSON.stringify(v)); } catch { /* 무시 */ } }
 function upNudge() {
-  if (app.screen !== 'menu' || app._nudged || COACH.active() || stage.querySelector('.info-modal, .gacha-res, .reveal, .confirm')) return;
+  if (app.screen !== 'menu' || app._nudged || COACH.active() || TUT.active() || stage.querySelector('.info-modal, .gacha-res, .reveal, .confirm')) return;
   const p = P(), lvSum = Object.values(p.heroes || {}).reduce((a, v) => a + (v | 0), 0);
   if (!((p.maxStage | 0) <= 15 || lvSum === 0)) return;
   const t = upgradeList()[0]; if (!t) return;
@@ -3760,6 +3814,7 @@ function showSettings() {
     <section class="st-sec"><h4>지원</h4>
       ${row('megaphone', '공지', '', '<button class="st-go" data-act="notice" aria-label="공지 열기"></button>')}
       ${row('book', '게임 방법', '', '<button class="st-go" data-act="howto" aria-label="게임 방법"></button>')}
+      ${row('bulb', '튜토리얼 다시 보기', '1-1 부터 방장이 다시 알려 줘요', '<button class="st-go" data-act="tutReplay" aria-label="튜토리얼 다시 보기"></button>')}
       ${row('home', '게임월드로', '', '<button class="st-go" data-act="toHub" aria-label="게임월드로"></button>')}
     </section>
         ${p.master ? `<div class="master-panel"><h4>${ic('tools', '', 'sm')} 마스터 테스트 도구 <small>(서버 확인 · 랭킹 제외)</small></h4>
@@ -3855,6 +3910,7 @@ Object.assign(ACTS, {
     });
   },
   settings: () => showSettings(),
+  tutReplay: () => { TUT.replay(); closeInfoCard(); app.lobbyStage = 1; showMenu(); toast('튜토리얼을 처음부터 다시 보여 드려요', 2200); },
   setTitle: async (b) => { if (await liveAct(API.setCosmetic(b.dataset.v, undefined, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
   cosmetics: () => { if (app.guest) { location.href = '/?login=1&next=langbang'; return; } showCosmetics(); }, // 손님이 프로필을 누르면 바로 로그인 (앱 안에서 로그인 → 랑방으로 돌아옴)
   cosmTab: (b) => { app.cosmTab = b.dataset.v; showCosmetics(); },
@@ -5382,7 +5438,7 @@ function tickCards(dt) {
   if (!g || !app.cardsOpen || !app.cards) return;
   const behind = !!g.augOffer;
   if (cardStrip.classList.contains('behind') !== behind) cardStrip.classList.toggle('behind', behind);
-  if (app.paused || app.confirmOpen || behind) return;
+  if (app.paused || app.confirmOpen || behind || TUT.hold()) return;
   app.cardAutoT -= dt;
   const bar = cardStrip.querySelector('.cs-timer b');
   if (bar) bar.style.transform = `scaleX(${Math.max(0, app.cardAutoT / (app.cardAutoMax || 15)).toFixed(3)})`;
@@ -5413,6 +5469,7 @@ function pickCard(i) {
   g.pendingLevels = Math.max(0, g.pendingLevels - 1);
   if (g.welcomePicks > 0) g.welcomePicks--;
   A.sfx.pick();
+  TUT.emit('card');
   handleEvents(g, true);
   if (c.kind === 'global') fx.text(180, g.rowY - 90, c.title + '!', RARITY[c.rarity].color, 18, 1.2, -20);
   if (cardAttr(c)) { const a = cardAttr(c); for (const h of g.heroes) if (h.def.attr === a) { fx.ring(h.x, h.y - 30, 10, 46, 0.9, ATTRS[a].color, 5); fx.text(h.x, h.y - 78, ATTRS[a].icon, ATTRS[a].color, 20, 1.1, -26); } }
@@ -7041,6 +7098,7 @@ async function boot() {
   app.nickname = r.nickname || ''; // (마지막 출격 스테이지 키에 쓴다)
   app.profileLoaded = true;
   app.lobbyStage = 0; // 프로필이 온 뒤 이 계정의 마지막 출격 스테이지로 다시 고른다
+  if (TUT_ON) TUT.load(API.accountKey(), app.profile.tut, app.profile); // 튜토리얼: 이 계정 진행 (클리어 0 이면 처음부터)
   Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {}).then(() => BKX.boot()).catch(() => {}); // 다음: 본캐 출연료 정산 · 알림
   saveCrowd();
   if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크
@@ -7096,6 +7154,7 @@ window.__lb = {
   R,
   pvpUi: { shift: (sec) => { PVP.t0 -= sec * 1000; }, waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: (seed) => startRun({ mode: 'pvp', force: true, pvpSeed: seed === undefined ? 7 : seed }), end: (r) => pvpEnded(r) },
   get g() { return app.g; },
+  tut: TUT, // 튜토리얼 (scripts/lb-tutorial-shot.js)
   get app() { return app; },
   perf,
   openCards: () => openCards(),
