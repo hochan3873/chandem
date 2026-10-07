@@ -169,7 +169,7 @@
 .hp-pay { display: flex; justify-content: space-around; margin-top: 10px; font-size: 12px; font-weight: 800; color: #e8dcff; }
 .hp-pay b { color: #ffd27a; font-size: 14px; }
 .hp-pay .wb { font-style: normal; color: #ff8a1f; font-size: 10.5px; }
-.hw-go { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); width: min(320px, calc(100% - 28px)); display: flex; align-items: center; justify-content: center; padding: 10px 14px; border-radius: 18px; border: 3px solid #ffd27a; background: linear-gradient(180deg, #ff9a3a 0%, #e8481c 50%, #8a1a3a 100%); color: #fff; box-shadow: 0 0 0 2px #2a0612, 0 5px 0 #2a0612, 0 0 24px rgba(255, 120, 40, 0.55); overflow: hidden; }
+.hw-go { position: sticky; z-index: 6; left: 0; right: 0; margin: 12px auto 0; bottom: calc(14px + env(safe-area-inset-bottom)); width: min(320px, calc(100% - 28px)); display: flex; align-items: center; justify-content: center; padding: 10px 14px; border-radius: 18px; border: 3px solid #ffd27a; background: linear-gradient(180deg, #ff9a3a 0%, #e8481c 50%, #8a1a3a 100%); color: #fff; box-shadow: 0 0 0 2px #2a0612, 0 5px 0 #2a0612, 0 0 24px rgba(255, 120, 40, 0.55); overflow: hidden; }
 .hw-go span { display: flex; flex-direction: column; align-items: center; }
 .hw-go b { font-family: var(--heavy); font-weight: 400; font-size: 21px; text-shadow: 0 2px 0 #4a0a14; }
 .hw-go small { font-size: 11px; font-weight: 800; opacity: 0.95; }
@@ -202,7 +202,7 @@
 .hr-tip { font-size: 12.5px; color: #ffd6dc; background: rgba(255, 74, 90, 0.15); border: 1px solid rgba(255, 74, 90, 0.4); border-radius: 12px; padding: 8px 12px; }
 @keyframes hwPop { from { transform: scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
 .hw-resbtns { position: relative; z-index: 3; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 30px; }
-.hw-resbtns .hw-go { position: relative; left: auto; transform: none; bottom: auto; width: 100%; }
+.hw-resbtns .hw-go { position: relative; left: auto; right: auto; transform: none; bottom: auto; width: 100%; }
 .hw-confetti i { position: absolute; top: -20px; left: var(--x); width: 10px; height: 14px; border-radius: 3px; background: #ff8a1f; animation: hwFall 3.4s linear infinite; animation-delay: var(--d); }
 .hw-confetti i:nth-child(3n) { background: #8a3cff; }
 .hw-confetti i:nth-child(4n) { background: #7dff7a; }
@@ -296,3 +296,14 @@
 body.rm .hw-banner, body.rm .hw-banner .hb-pump, body.rm .hw-entry .he-bats, body.rm .hw-scene .hw-fog, body.rm .hw-batfly, body.rm .hw-go .hg-glow, body.rm .hw-confetti, body.rm .hn-best.new b { animation: none !important; }
 body.rm .hw-batfly { display: none; }
 body.rm .hw-intro .hi-css *, body.rm .hw-intro .hi-title { animation: none !important; opacity: 1; }
+
+/* 출전 준비 멤버 칸: 이벤트 강화 (맞춤) 크게 · 내 강화는 작게 괄호 */
+.hw-hc small .mine { font-style: normal; opacity: 0.7; font-weight: 700; margin-left: 2px; }
+
+/* 안내 팝업: 기간 · 받는 것 · 랭킹 · 사탕 */
+.hw-helppop .hw-help em { font-style: normal; color: #ffb547; font-weight: 900; }
+.hw-helppop .hh-why small span { display: block; margin-top: 3px; }
+.hw-helppop .hh-rank ul { margin: 4px 0 0; padding: 0; list-style: none; font-size: 12px; }
+.hw-helppop .hh-rank li { display: flex; gap: 6px; padding: 2px 0; }
+.hw-helppop .hh-rank li b { min-width: 52px; color: #ffd27a; }
+.hw-helppop .hh-when, .hw-helppop .hh-why { background: rgba(255, 140, 40, 0.12); border-radius: 10px; padding: 6px 8px; }
