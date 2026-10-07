@@ -50,8 +50,9 @@ const TRACKS = {
   tower: '/sounds/bgm_lb_tower.mp3', // 진상의 탑 (로비 · 전투)
   raid2: '/sounds/bgm_lb_raid2.mp3', // 건물주 레이드 (없으면 레이드 곡)
   halloween: '/sounds/bgm_lb_halloween.mp3', // 시즌 로비 곡 (season.js · 없으면 챕터 곡)
+  hwbattle: '/sounds/bgm_lb_hwbattle.mp3', // 할로윈 이벤트 전투 곡 (없으면 할로윈 로비 곡 → 챕터 곡)
 };
-const OPTIONAL = new Set(['raid', 'pvp', 'tower', 'raid2', 'halloween']); // 서버 파일 목록에 없으면 요청도 안 한다
+const OPTIONAL = new Set(['raid', 'pvp', 'tower', 'raid2', 'halloween', 'hwbattle']); // 서버 파일 목록에 없으면 요청도 안 한다
 const VOL = 0.4;
 const players = {};
 const bad = {};
@@ -91,7 +92,7 @@ function switchTo(key) {
 }
 // 레이드 · 대전 곡이 있으면 보스 웨이브에도 그 곡 그대로 (모드 곡이 우선)
 const modeOk = (k) => !!k && !bad[k] && !(avail && !avail.has(TRACKS[k]));
-const target = () => (modeOk(modeKey) ? modeKey : modeKey === 'raid2' && modeOk('raid') ? 'raid' : bossOn && !bad.boss ? 'boss' : want); // 건물주 레이드 곡이 없으면 레이드 곡
+const target = () => (modeOk(modeKey) ? modeKey : modeKey === 'raid2' && modeOk('raid') ? 'raid' : modeKey === 'hwbattle' && modeOk('halloween') ? 'halloween' : bossOn && !bad.boss ? 'boss' : want); // 건물주 레이드 곡이 없으면 레이드 곡
 export function setChapter(ch) { want = TRACKS[ch] ? ch : 1; if (playing && !muted) switchTo(target()); }
 // 레이드 · 1:1 대전: 전용 곡 (null 이면 챕터 곡으로)
 export function setMode(m) { const k = m && TRACKS[m] ? m : null; if (modeKey === k) return; modeKey = k; if (playing && !muted) switchTo(target()); }

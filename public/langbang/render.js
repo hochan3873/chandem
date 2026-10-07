@@ -292,6 +292,7 @@ export class Renderer {
     }
     this.formDefs = {};
     for (const id in ENEMIES) {
+      if (ENEMIES[id].lazy) continue; // 할로윈 이벤트 진상: 이벤트 판에 들어갈 때 loadLazy 로
       list['e_' + id] = ENEMIES[id].img;
       const forms = ENEMIES[id].forms || {};
       for (const f in forms) {
@@ -322,7 +323,7 @@ export class Renderer {
     for (const n of ['hitspark', 'smoke', 'slap', 'grab', 'phone', 'shock', 'shock2', 'crack', 'summon', 'silence', 'stun', 'dash', 'aura_red', 'aura_blue', 'warn', 'barrage_card', 'arm']) list['vfx_' + n] = `/img/lb/fx/vfx_${n}.webp`; // 이펙트 그림
     for (const id in ENEMY_ANIM) for (const k in ENEMY_ANIM[id]) list[`anim_${id}_${k}`] = ENEMY_ANIM[id][k].src; // 프레임 띠 (없으면 요청 실패 → 코드 움직임)
     for (const id of FUSE_ART) if (ENEMIES[id]) { const key = `e_${id}_one`; list[key] = `/img/lb/e_${id}.webp`; this.formDefs[key] = ENEMIES[id]; } // 합체 한 장 그림
-    for (const id in ENEMIES) if (ENEMIES[id].boss) for (const f of ['skill', 'rage']) { const key = `e_${id}_${f}`; list[key] = `/img/lb/e_${id}_${f}.webp`; this.formDefs[key] = Object.assign({}, ENEMIES[id], { id: `${id}_${f}` }); } // 보스 기술 · 분노 모습 (없으면 기본 그림)
+    for (const id in ENEMIES) if (ENEMIES[id].boss && !ENEMIES[id].lazy) for (const f of ['skill', 'rage']) { const key = `e_${id}_${f}`; list[key] = `/img/lb/e_${id}_${f}.webp`; this.formDefs[key] = Object.assign({}, ENEMIES[id], { id: `${id}_${f}` }); } // 보스 기술 · 분노 모습 (없으면 기본 그림)
     list.moto = '/img/lb/p_motorcycle.webp';
     list.ingyuBike = '/img/lb/h_ingyu_bike.webp'; // 백인규 할리 돌진
     list.gf = '/img/lb/p_girlfriend.webp';
@@ -366,6 +367,18 @@ export class Renderer {
     const pump = () => { while (on < 16 && q.length) { const [im, src] = q.shift(); on++; const done = () => { on--; pump(); }; im.addEventListener('load', done, { once: true }); im.addEventListener('error', done, { once: true }); im.src = src; } };
     this.imgQ = q; this.imgPump = pump;
     pump();
+  }
+  // 이벤트 진상 그림 (lazy): 필요할 때 한 번만 — 기본 · 보스 기술/분노 · 걷기/쓰러짐/공격 띠 (hw/ 폴더)
+  loadLazy(ids) {
+    for (const id of ids || []) {
+      const d = ENEMIES[id];
+      if (!d || !d.lazy || this.images['e_' + id]) continue;
+      const add = (key, src, cb) => { const im = new Image(); im.decoding = 'async'; im.onload = cb || (() => this.bakeSprite(key)); im.onerror = () => {}; im.src = src; this.images[key] = im; };
+      add('e_' + id, d.img);
+      if (d.boss) for (const f of ['skill', 'rage']) { const key = `e_${id}_${f}`; this.formDefs[key] = Object.assign({}, d, { id: `${id}_${f}` }); add(key, d.img.replace('.webp', `_${f}.webp`)); }
+      const cur = ENEMY_ANIM[id] || (ENEMY_ANIM[id] = {});
+      for (const kd of d.anims || []) { if (cur[kd]) continue; cur[kd] = kd === 'walk' ? { src: d.img.replace('.webp', '_walk.webp'), frames: 12, fps: 10 } : kd === 'die' ? { src: d.img.replace('.webp', '_die.webp'), frames: 8, fps: 14, hold: d.boss ? 0.3 : 0.15 } : { src: d.img.replace('.webp', '_attack.webp'), frames: 8, release: 3 }; add(`anim_${id}_${kd}`, cur[kd].src, () => {}); }
+    }
   }
   // 서버가 알려준 "있는 파일" 목록으로 미뤄 둔 그림을 불러온다 (files 가 없으면 = 목록을 못 받음 → 예전처럼 전부 시도)
   loadOptional(files) {
@@ -1027,6 +1040,7 @@ export class Renderer {
     const demo = !!(this.fx && this.fx.noBanner); // 로비 뒤 구경 판: 입구(바리케이드·간판)는 안 그린다
     if (!demo) this.drawRopeShadow(g);
     this.drawMapFxUnder(g, t);
+    if (g.hw && this.hwDraw) this.hwDraw(g, t, 'back'); // 할로윈 이벤트: 맵 분위기 (낙엽 · 안개 · 깜빡임 · 도깨비불) · 독 웅덩이 예고
     this.drawGems(g, t);
     if (this.skfx) this.skfx.draw('ground', g); // 스킬 전용 연출 (skillfx.js) — 바닥
     if (this.kit) this.kit.draw('ground', g); // 대개편 장판 · 음파 고리 (kitfx.js)
@@ -1046,6 +1060,7 @@ export class Renderer {
     this.drawProjs(g);
     if (this.kit) this.kit.draw('mid', g); // 대개편: 화염 · 휘두르기 · 진상 상태 (kitfx.js)
     if (this.efx) this.efx.draw('mid', g);
+    if (g.hw && this.hwDraw) this.hwDraw(g, t, 'mid'); // 할로윈: 유령 잔상 · 부활 · 명부 · 박쥐 떼
     if (g.buses && g.buses.length) this.drawBuses(g);
     this.drawSlashes();
     this.drawDoorHits();
@@ -1061,6 +1076,7 @@ export class Renderer {
     if (this.skfx) this.skfx.draw('top', g); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
     if (this.kit) this.kit.draw('top', g); // 대개편 스킬 연출 (kitfx.js)
     if (this.efx) this.efx.draw('top', g);
+    if (g.hw && this.hwDraw) this.hwDraw(g, t, 'top'); // 할로윈: 보름달 · 호박 폭발 빛
     this.drawTexts();
     this.drawBubbles();
     this.drawUiWorld(g, t, ui);
@@ -1633,6 +1649,10 @@ export class Renderer {
       const runA = e.fleeing && e.env && !(e.flash > 0) && !(e.tieT > 0) && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].run, runS = runA && this.images[`anim_${e.type}_run`]; // 8장 축의금 도둑: 뒤돌아 달아나는 뒷모습 띠
       if (e.fleeing) { if (!(runS && imgOk(runS))) sx = -sx; bob = e.tieT > 0 ? 0 : -Math.abs(Math.sin(e.age * 18)) * 5; }
       if (e.tieT > 0) rot = Math.sin(t * 14 + e.phase) * 0.06; // 묶여서 버둥버둥
+      if (e.def.hw) { // 할로윈 진상 몸짓 (hw-sim): 강시 콩콩 (뻣뻣 · 착지 찌그러짐) · 좀비 다시 일어나기 (누웠다가 벌떡)
+        if (e.def.hw.hop && !e.atRope && e.stunT <= 0) { rot = 0; bob = -(e.hwHopY || 0); sy = e.hwAir ? 1.05 : 0.93; sx = 1 / sy; }
+        if (e.hwRiseT > 0) { const k = Math.min(1, (e.hwRiseT / e.def.hw.revive.sec) * 1.35); rot = 1.45 * k * (e.phase > 3 ? 1 : -1); bob = box * 0.2 * k; sx = 1; sy = 1 - 0.05 * Math.sin(t * 20) * (1 - k); }
+      }
       // 보스 발밑 오라
       if (e.warnN > 0) {
         this.world();
@@ -1720,6 +1740,8 @@ export class Renderer {
         const img = e.flash > 0 ? sp.f : g.hell || g.tower ? this.hellSprite(sp) : sp.c; // 헬 · 진상의 탑: 붉은 빛을 미리 구운 그림 (그리기 1번)
         const hid = e.def.traits && e.def.traits.stealth && !e.unveiled;
         if (hid) cx.globalAlpha = 0.22 + Math.sin(t * 5 + e.phase) * 0.06; // 은신: 흐릿하게
+        if (e.hwGhost) cx.globalAlpha = 0.16 + Math.abs(Math.sin(t * 7 + e.phase)) * 0.14; // 할로윈 귀신 유령화: 거의 투명 · 깜빡
+        if (e.hwBat > 0) cx.globalAlpha = 0; // 드라큘라 박쥐 변신: 몸은 안 보이고 박쥐 떼(hw-fx)만
         const pk = def.puke && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].puke, pstrip = pk && this.images[`anim_${e.type}_puke`]; // 토하는 인간: 웩 동작 띠 (구부림 → 쏟음 → 입 닦기)
         let pfi = -1;
         if (pstrip && imgOk(pstrip)) {

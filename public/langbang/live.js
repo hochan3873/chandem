@@ -171,7 +171,7 @@ export const COLLECT = [
   { k: 'item', name: '아이템', unit: '종', steps: [5, 10, 15, 20, 25, 'all'], fx: { exp: 0.01, coin: 0.02 } },
 ];
 export const COLL_FX = { atk: '멤버 전원 공격력', hp: '입구 내구도', exp: '전투 경험치', coin: '스테이지 코인' };
-const DEX_ENEMY_IDS = () => Object.keys(ENEMIES).filter((id) => !ENEMIES[id].dot && !ENEMIES[id].towerOnly); // 도감과 같은 목록 (탑 전용 보스 · 장판 빼고)
+const DEX_ENEMY_IDS = () => Object.keys(ENEMIES).filter((id) => !ENEMIES[id].dot && !ENEMIES[id].towerOnly && !ENEMIES[id].eventOnly); // 도감과 같은 목록 (탑 전용 보스 · 장판 빼고)
 // 탭마다 [모은 수, 전체]
 export function collectCounts(lb) {
   const seen = new Set(Array.isArray(lb.seen) ? lb.seen : []);
@@ -212,6 +212,7 @@ export const FRAMES = {
   towerflame: { id: 'towerflame', name: '지옥 불꽃 프레임', color: '#ff5a1f', rarity: 'epic', how: '진상의 탑 30층', anim: 'flame' }, // 진상의 탑 (움직이는 불꽃)
   towergold: { id: 'towergold', name: '황금 지옥 프레임', color: '#ffcf3f', rarity: 'legend', how: '진상의 탑 60층', anim: 'hellgold' },
   r2frame: { id: 'r2frame', name: '건물주 퇴치 프레임', color: '#ff7a3d', rarity: 'epic', how: '건물주 레이드 토벌 성공 (참가)' }, // 건물주 레이드
+  hwframe: { id: 'hwframe', name: '호박등 프레임', color: '#ff8a1f', rarity: 'epic', how: '할로윈 이벤트 사탕 상점 (2026 할로윈)', anim: 'flame' }, // 할로윈 이벤트
 };
 // 칭호 카탈로그 (얻는 법 · 등급) — 시즌 칭호는 titleName 으로 따로
 export const TITLE_INFO = {
@@ -222,8 +223,9 @@ export const TITLE_INFO = {
   heroes12: { rarity: 'rare', how: '멤버 12명 모으기' }, heroes20: { rarity: 'legend', how: '멤버 20명 모으기' },
   tower15: { rarity: 'rare', how: '진상의 탑 15층' }, tower60: { rarity: 'legend', how: '진상의 탑 60층' }, towerking: { rarity: 'legend', how: '주간 탑 랭킹 1위 (다음 한 주 동안)' }, popstar: { rarity: 'legend', how: '주간 인기 멤버 1위의 본캐 주인 (다음 한 주 동안)' },
   r2slayer: { rarity: 'epic', how: '건물주 레이드 토벌 성공 (참가)' }, r2king: { rarity: 'legend', how: '건물주 대마왕 본체 막타' }, r2mvp: { rarity: 'legend', how: '건물주 레이드 주간 기여 1위' }, // 건물주 레이드
+  hwsurvivor: { rarity: 'epic', how: '할로윈 이벤트 사탕 상점 (2026 할로윈)' }, hwking: { rarity: 'legend', how: '할로윈 이벤트 랭킹 TOP 3 (2026 할로윈)' }, // 할로윈 이벤트
 };
-const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', ch7: '설산의 정복자', ch8: '축의금 수호자', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인', popstar: '이번 주 인기 스타', r2slayer: '건물주 퇴치단', r2king: '막타왕', r2mvp: '건물주 저승사자' };
+const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', ch7: '설산의 정복자', ch8: '축의금 수호자', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인', popstar: '이번 주 인기 스타', r2slayer: '건물주 퇴치단', r2king: '막타왕', r2mvp: '건물주 저승사자', hwsurvivor: '저주의 밤 생존자', hwking: '할로윈 저주왕' };
 // 조건을 채우면 저절로 들어오는 칭호 · 프레임 (서버 normLb · 손님 둘 다 같은 함수)
 // 우편 보상은 정해진 칸만 (숫자 · 등급 · 칭호/프레임 이름)
 function cleanRw(rw) {

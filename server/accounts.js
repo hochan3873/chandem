@@ -47,6 +47,7 @@ const liveReady = import(require('url').pathToFileURL(path.join(__dirname, '..',
   .then((m) => { LIVE = m; }).catch((e) => console.error('[langbang] live.js 불러오기 실패:', e.message));
 const TOWER_MOD = require('./langbang-tower'); // 진상의 탑 (공식은 public/langbang/tower.js)
 const BK_MOD = require('./langbang-bonkae'); // 본캐 · 출연료 · 주간 인기 멤버 (공식은 public/langbang/bonkae.js)
+const HW_MOD = require('./langbang-hw'); // 할로윈 이벤트 「할로윈 저주의 밤」 (공식은 public/langbang/hw-event.js)
 const R2_MOD = require('./langbang-raid2'); // 건물주 레이드 (주간 서버 레이드 · 공식은 public/langbang/raid2.js)
 const LB_HEROES = LBR.LB_HEROES;
 const LB_MAX_META = LBR.META_MAX;
@@ -111,6 +112,7 @@ function normLb(raw, master = false) {
   if (TOWER_MOD.getTower()) TOWER_MOD.getTower().normTower(raw, lb); // 진상의 탑
   if (BK_MOD.getBk()) BK_MOD.getBk().normBonkae(raw, lb); // 본캐 · 출연료 · 주간 출전 기록
   if (R2_MOD.getR2()) R2_MOD.getR2().normRaid2(raw, lb); // 건물주 레이드 (입장 · 부르기 · 세트)
+  if (HW_MOD.getHw()) { HW_MOD.getHw().normHw(raw, lb); HW_MOD.getHw().normSkins(raw, lb); } // 할로윈 이벤트 기록 · 의상 (의상은 기간이 지나도 남는다)
   return lb;
 }
 const lbExpToNext = (level) => 100 + (level - 1) * 60; // 다음 계정 레벨까지 필요한 경험치
@@ -315,7 +317,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       for (const x of r.rows) noteMeta(x.id, x.meta);
     } else for (const u of Object.values(store.data.users)) if (u.meta) noteMeta(u.id, u.meta);
   }
-  const ready = Promise.all([store.init().then(warmMeta), liveReady, TOWER_MOD.towerReady, BK_MOD.bkReady, R2_MOD.r2Ready]).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
+  const ready = Promise.all([store.init().then(warmMeta), liveReady, TOWER_MOD.towerReady, BK_MOD.bkReady, R2_MOD.r2Ready, HW_MOD.hwReady]).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
 
   // 토큰: 아이디.만료.토큰버전.서명 (옛 토큰 아이디.만료.서명 은 버전 0 으로 본다)
   const sign = (id, exp, tv) => crypto.createHmac('sha256', key).update(tv === undefined ? `${id}.${exp}` : `${id}.${exp}.${tv}`).digest('base64url');
@@ -1229,6 +1231,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       return animCache.v;
     }));
     TOWER_MOD(r, { store, lbLive, verifyToken, freeMaster, isMasterName, masterList, wrap, tok, normLb, onRun: BKS.afterRun }); // 진상의 탑 (깬 층 → 본캐 출연료)
+    HW_MOD(r, { store, lbLive, verifyToken, isMasterName, masterList, wrap, tok, normLb, live: () => LIVE }); // 할로윈 이벤트 (스테이지 · 저주 · 사탕 상점 · 의상 · 랭킹)
     return r;
   }
 
