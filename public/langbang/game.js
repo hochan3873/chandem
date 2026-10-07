@@ -2059,6 +2059,7 @@ const ACTS = {
   prepEdit: () => showDeckEditor(),
   edPick: (b) => edPick(b.dataset.id),
   edSlot: (b) => edSlot(b.dataset.id),
+  edRm: (b) => edRemove(b.dataset.id), // 덱 칸 ✕: 바로 빼기
   edHole: () => { app.edHole = true; showDeckEditor(); },
   edLead: (b) => { const id = b.dataset.id; setDeckOrder([id, ...deckList().filter((x) => x !== id)]); A.sfx.card(); toast(`${HEROES[id].name} 대장!`, 900); if (stage.querySelector('.pp-editor')) showDeckEditor(); else if (app.screen === 'deck') showDeckTab(); },
   edF: (b) => { app.edF = b.dataset.f; showDeckEditor(); },
@@ -2619,7 +2620,7 @@ function showMenu0() {
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) cosmNewCheck(); }, 600);
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) PUSHX.maybePrompt(); }, 1500); // 알림 받기 카드 (두 번째 방문부터 · 미루면 3일)
   // 스테이지 넘기기 안내 (한 번만): 깬 판이 몇 개 생기면
-  if (app.profileLoaded && nextStage() > 3) { let seen = true; try { seen = !!localStorage.getItem('langbang:navHint'); if (!seen) localStorage.setItem('langbang:navHint', '1'); } catch { /* 무시 */ } if (!seen) setTimeout(() => { if (app.screen === 'menu') toast('◂ ▸ 를 꾹 누르면 빠르게 넘어가요 · 스테이지 이름을 누르면 지도에서 골라 볼 수 있어요', 4200); }, 1400); }
+  if (app.profileLoaded && nextStage() > 3) { let seen = true; try { seen = !!localStorage.getItem('langbang:navHint'); if (!seen) localStorage.setItem('langbang:navHint', '1'); } catch { /* 무시 */ } if (!seen) setTimeout(() => { if (app.screen === 'menu') toast('◂ ▸ 를 꾹 누르면 빠르게 넘어가요', 2600); }, 1400); }
   layout();
   const s = lobbyStage();
   const ch = chapterOf(s);
@@ -2662,7 +2663,7 @@ function showMenu0() {
     <button class="lb-stage" data-act="stages">
       <h2>${stageLabel(s)} ${esc(stageName(s))}</h2>
       <span class="lb-chip" style="--cc:${c.color}">${ch}장 ${esc(c.name)} · ${esc(fxd.name)}${boss ? ` · ${ic('ic_bosscrown', '', 'sm')}보스` : ''}</span>
-      <span class="lb-st">${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}</span>
+      <span class="lb-st">${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}<i class="lb-mapbtn">🗺 전체 지도</i></span>
     </button>
     ${wtrChip(s, 'lb-wtr')}
     <div class="lb-dio">
@@ -4913,7 +4914,7 @@ function showPrep(mode, s) {
   // 2) 난이도
   const diffLine = hellOn ? `헬 · 체력 ×${HELL.hp} · 공격 ×${HELL.atk} · 보상 ×${HELL.coin}` : mode === 'stage' ? `보통 · ${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 보스' : stageMid(s) ? ' · 중간 보스' : ''}` : wk ? L.WEEKLY_MODS[wk.mod].desc : '';
   const diffHtml = mode === 'stage'
-    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0">보통</button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1">${hellOk ? '' : ic('lock', '', 'sm')}헬</button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
+    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0"><span class="sg-t">😊 보통</span><small>기본 난이도</small></button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1"><span class="sg-t">${hellOk ? '😈' : ic('lock', '', 'sm')} 헬</span><small>${hellOk ? '진상 강함 · 코인 ×3' : '보통 ★★★ 로 열림'}</small></button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
     : diffLine ? `<p class="pp-line solo">${esc(diffLine)}</p>` : '';
   // 2-1) 이 스테이지 조건: 맵 효과 · 진상 기믹(보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격) · ★★★ 미션 · 강화 권장
   const conds = mode === 'stage' ? stageConds(s, hellOn) : [];
@@ -5089,12 +5090,12 @@ function showDeckEditor() {
   for (let i = 0; i < 6; i++) {
     const id = dl[i];
     if (i >= max) { slots.push(`<span class="pp-slot lock">${ic('lock', '')}</span>`); continue; }
-    slots.push(id ? `<span class="ed-s ${id === app.edSel ? 'picked' : ''}" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}</span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
+    slots.push(id ? `<span class="ed-s ${id === app.edSel ? 'picked' : ''}" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}<button class="ed-rm ${id === app.edSel ? 'big' : ''}" data-act="edRm" data-id="${id}" aria-label="덱에서 빼기">✕${id === app.edSel ? ' 빼기' : ''}</button></span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
   }
   const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
   popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '', 'sm')}자동 편성</button></div>
     <div class="pp-slots g6 ed">${slots.join('')}</div>
-    <p class="ed-hint">${app.edSel && HEROES[app.edSel] ? `<b>${esc(HEROES[app.edSel].name)}</b> 고름 → 위 멤버를 누르면 자리 바꾸기 · 아래 멤버를 누르면 교체 · 한 번 더 누르면 빼기` : lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 눌러서 고른 뒤 다른 멤버를 누르면 자리 바꾸기 · 1번 칸이 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
+    <p class="ed-hint">${app.edSel && HEROES[app.edSel] ? `<b>${esc(HEROES[app.edSel].name)}</b> 고름 → 위 멤버를 누르면 자리 바꾸기 · 아래 멤버를 누르면 교체 · <b>✕ 빼기</b> 로 덱에서 빼기` : lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 눌러서 고른 뒤 다른 멤버를 누르면 자리 바꾸기 · 1번 칸이 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
     <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="edF" data-f="${k}">${t}</button>`).join('')}<span class="ed-sort">${[['pw', '전투력'], ['tier', '등급'], ['lv', '레벨']].map(([k, t]) => `<button class="${k === so ? 'on' : ''}" data-act="edSort" data-v="${k}">${t}</button>`).join('')}</span></div></div>
     <div class="pp-sg">${list.map((id) => artCard(id, { act: 'edPick', on: dl.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
     <div class="ed-done"><button class="btn primary" data-x>완료</button></div>`, 'pp-sheet pp-editor');
@@ -5200,6 +5201,15 @@ function edSlot(id) {
   app.edLeadNext = wasLead; app.edHole = true; // 빈 자리를 채우는 멤버가 대장을 이어받는다
   A.sfx.tap();
   edApply(ids.filter((x) => x !== id), wasLead ? null : null);
+}
+// 덱 칸 ✕ → 그 멤버를 덱에서 바로 뺀다 (대장이면 다음 멤버가 대장 · 마지막 한 명은 못 뺌)
+function edRemove(id) {
+  const ids = deckList();
+  if (!ids.includes(id)) return;
+  if (ids.length <= 1) { toast('덱에 한 명은 있어야 해요', 1400); A.sfx.tap(); return; }
+  app.edSel = null; app.edHole = true; app.edLeadNext = false;
+  A.sfx.tap();
+  edApply(ids.filter((x) => x !== id), id === ids[0] ? ids.find((x) => x !== id) : null);
 }
 function deckTapSlot(i) {
   if (lockedPos().includes(i)) { const it = ITEMS[deckSlotsNow() < 5 ? 'slot5' : 'slot6']; toast(`상점에서 열 수 있어요 — ${it.name} ${fmt(it.costs[0])}코인`, 2000); return; }
