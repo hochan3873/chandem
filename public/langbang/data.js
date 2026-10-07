@@ -2599,6 +2599,64 @@ Object.assign(SHORT_NAME, { envthief: '축의금 도둑', buffet: '뷔페 아줌
 FEW.push('buffet', 'badsinger');
 BOSS_KITS.mid_hallmgr = { name: '예식장 실장님', rageSub: '클립보드 내려치기(2명 기절) · 문 쾅이 더 세게', skills: [['door', '"다음 예식 들어와요!" 문 쾅', { frac: 0.045, rage: { frac: 0.06 } }], ['volley', '"사진 찍으시면 안 돼요!"', { n: 2, st: 'blind', sec: 2.5, art: 'flash' }], ['summon', '하객 몰아넣기', { types: ['drunkfriend', 'envthief'], n: 3 }]], p2: ['stun', '클립보드 내려치기', { n: 2, sec: 1.3 }] };
 BOSS_KITS.boss_bestman = { name: '신랑 친구 대표', rageSub: '친구들 무대로! · 건배가 2명에게', skills: [['stun', '건배 제의', { n: 1, sec: 1.3, rage: { n: 2 } }], ['volley', '폭탄주 원샷 강요', { n: 2, st: 'poison', sec: 3, art: 'bottle' }], ['slow', '"한 말씀만 더…"', { cut: 0.25, sec: 4 }]], p2: ['summon', '친구들 무대로!', { carpet: true, len: 260, types: ['drunkfriend', 'showoff'], n: 3 }] };
+// ─── 할로윈 이벤트 「할로윈 저주의 밤」 진상 (hw-event.js · hw-sim.js) ───
+//  eventOnly: 도감 · 수집 보너스 · 테스트 목록에서 빠진다 (이벤트 판에서만) · lazy: 처음엔 그림을 안 받는다 (이벤트에 들어갈 때 R.loadLazy)
+//  hw: 이벤트 전용 기술 (hw-sim.js) — revive(쓰러졌다 다시 일어남) · split(쪼개짐) · drain(입구 흡혈) · phase(유령화) · brew(회복 물약) · hop(콩콩) · rewrap(붕대 재감기) · list(야근 명부) · batform(박쥐 변신) · moon(보름달)
+const HW_IMG = (id) => `/img/lb/hw/e_${id}.webp`;
+Object.assign(ENEMIES, {
+  hw_zombie: { id: 'hw_zombie', cls: 'jerk', name: '좀비 회식러', gender: 'm', emoji: '🧟', color: '#8fbf7a', eventOnly: true, lazy: true,
+    img: HW_IMG('hw_zombie'), hp: 70, speed: 26, atk: 8, atkInterval: 1.3, exp: 5, coin: 2, r: 17, size: 78, zigzag: 14,
+    spit: { name: '트림 독가스', every: [12, 15], first: 6, reach: 260, kind: 'puke', st: 'poison', sec: 2, fly: 0.6 },
+    hw: { revive: { sec: 2, hp: 0.6 } }, // 쓰러지면 2.2초 뒤 체력 45% 로 다시 일어난다 (한 번) — 화상 · 검열 · 장미 표식이 붙은 채로 쓰러지거나 · 일어나는 동안 때리면 끝
+    shouts: ['한 자안… 더어…', '3차… 가자아…', '부장님… 건배애…', '고기… 타요오…'] },
+  hw_pumpkin: { id: 'hw_pumpkin', cls: 'violent', name: '호박머리 진상', gender: 'm', emoji: '🎃', color: '#ff8a1f', eventOnly: true, lazy: true,
+    img: HW_IMG('hw_pumpkin'), hp: 90, speed: 36, atk: 9, atkInterval: 1.2, exp: 5, coin: 2, r: 17, size: 78,
+    kick: { name: '호박 폭탄', every: 9, first: 1.2, wind: 1.4, mul: 2.2, hit: 10, from: 0 }, selfBoom: true, // 입구 앞에서 1.4초 도화선 → 펑! (입구 ×2.2 · 곁 멤버 게이지 · 터지면 자기도 쓰러짐 → 호박씨) — 도화선 동안 기절 · 밀치기로 끊긴다
+    hw: { split: { type: 'hw_seed', n: 2 } }, splitInto: { type: 'hw_seed', n: 2 }, // 쓰러지면 호박씨 둘 (sim killEnemy splitInto)
+    shouts: ['트릭 오어 트릿!', '펑 하고 싶다~', '호박 아님, 패션임', '불 좀 빌려 줘'] },
+  hw_seed: { id: 'hw_seed', cls: 'violent', name: '호박씨', gender: 'm', emoji: '🌰', color: '#ffb35a', eventOnly: true, lazy: true,
+    img: HW_IMG('hw_seed'), hp: 10, speed: 100, atk: 2, atkInterval: 1, exp: 1, coin: 0, r: 10, size: 44,
+    shouts: ['씨!', '퉤!'] },
+  hw_bat: { id: 'hw_bat', cls: 'jerk', name: '박쥐 알바', gender: 'm', emoji: '🦇', color: '#7a4fb0', eventOnly: true, lazy: true,
+    img: HW_IMG('hw_bat'), hp: 16, speed: 76, atk: 2, atkInterval: 0.9, exp: 1, coin: 1, r: 12, size: 60, zigzag: 26,
+    pack: { min: 3, max: 5 }, hw: { drain: { per: 0.0025, heal: 0.6 } }, // 입구에 붙으면 피를 빤다 (입구 초당 0.25% · 그만큼 자기 회복)
+    shouts: ['찍찍!', '시급 올려 주세요', '사장님 지켜!'] },
+  hw_ghost: { id: 'hw_ghost', cls: 'politic', name: '처녀귀신 단톡방장', gender: 'f', emoji: '👻', color: '#cfe8ff', eventOnly: true, lazy: true,
+    img: HW_IMG('hw_ghost'), hp: 60, speed: 40, atk: 5, atkInterval: 1.1, exp: 4, coin: 2, r: 15, size: 80,
+    spit: { name: '단톡 초대', every: [11, 14], first: 5, reach: 300, kind: 'rumor', st: 'silence', sec: 2.2, fly: 0.6, hit: 6 }, // 예고 뒤 단톡 초대 → 스킬 침묵 (정소영 · 강병화 · 강성구 곁)
+    hw: { phase: { every: 7, sec: 2.6, spd: 1.45 } }, // 7초마다 2.2초 유령화: 안 보이고 · 안 맞고 · 빨리 미끄러진다 (운영진 · 건전남 · 배현경이 찾아낸다)
+    shouts: ['왜 읽고 답이 없어…', '단톡방 나가지 마…', '1 안 없어져…', '초대했어…'] },
+  hw_witch: { id: 'hw_witch', cls: 'seduce', name: '마녀 다단계', gender: 'f', emoji: '🧙', color: '#a05cff', eventOnly: true, lazy: true,
+    img: HW_IMG('hw_witch'), hp: 62, speed: 32, atk: 6, atkInterval: 1.2, exp: 5, coin: 3, r: 16, size: 82, standoff: 150,
+    spit: { name: '다단계 영입 윙크', every: [9, 12], first: 4, reach: 330, kind: 'glow', st: 'charm', sec: 2.2, fly: 0.6 }, // 예고 뒤 홀림 (정소영이 있으면 면역)
+    hw: { brew: { every: 8, r: 190, frac: 0.2 } }, // 9초마다 건강 물약: 곁 진상 체력 12% 회복 (방깎 · 화상 · 고아라가 회복을 막는다)
+    shouts: ['한 병이면 인생 역전!', '하부만 세 명 데려와~', '언니만 믿어', '부업 관심 있어요?'] },
+  hw_jiangshi: { id: 'hw_jiangshi', cls: 'violent', name: '강시 꼰대', gender: 'm', emoji: '🧧', color: '#3a4a8a', eventOnly: true, lazy: true,
+    img: HW_IMG('hw_jiangshi'), hp: 120, speed: 28, atk: 7, atkInterval: 1.3, armor: 4, exp: 6, coin: 3, r: 18, size: 84,
+    spit: { name: '라떼 부적', every: [10, 13], first: 5, reach: 280, kind: 'paper', st: 'freeze', sec: 1.4, fly: 0.6 }, // 예고 뒤 부적 → 빙결 (박나영 · 건전녀 · 강성구)
+    hw: { hop: { gap: 0.95, air: 0.38 } }, // 콩콩 뛰어온다 — 공중에선 밀치기 · 끌어당기기가 안 먹힌다
+    shouts: ['라떼는 말이야~', '요즘 애들은 쯧쯧', '부적 붙이기 전에 와라', '회식은 업무의 연장이야'] },
+  hw_mummy: { id: 'hw_mummy', cls: 'politic', name: '미라 부장님', gender: 'm', emoji: '🩹', color: '#d8c89a', eventOnly: true, lazy: true,
+    img: HW_IMG('hw_mummy'), hp: 150, speed: 22, atk: 10, atkInterval: 1.4, armor: 8, exp: 8, coin: 4, r: 20, size: 88,
+    spit: { name: '붕대 결재', every: [11, 14], first: 5, reach: 260, kind: 'paper', st: 'stun', sec: 1.3, fly: 0.6 }, // 예고 뒤 붕대 → 기절
+    hw: { rewrap: { at: 0.5, frac: 0.35 } }, // 체력 절반에서 붕대를 다시 감는다 (보호막 25% · 한 번)
+    shouts: ['결재 반려야', '이거 다시 해 와', '나 때는 붕대도 직접 감았어', '퇴근? 누가?'] },
+  hw_reaper: { id: 'hw_reaper', cls: 'politic', name: '저승사자 팀장', gender: 'm', emoji: '📜', color: '#2a2438', eventOnly: true, lazy: true, mid: true,
+    img: HW_IMG('hw_reaper'), hp: 1100, speed: 16, atk: 24, atkInterval: 1.6, armor: 4, exp: 45, coin: 10, r: 40, size: 142,
+    hw: { list: { every: 11, first: 6, sec: 3, gnSec: 4, kd: 70, stun: 2 } }, // 야근 명부: 멤버 한 명 이름을 적고 3초 (건전녀가 있으면 4초) 뒤 강제 퇴근 — 그 사이 팀장을 기절 · 빙결 · 밀치기 하거나 건전녀 응급 방패로 지운다
+    title: '저승사자 팀장 등장!', subtitle: '"야근 명부에 이름 적히고 싶은 사람?"',
+    shouts: ['명부에 이름 적었다', '오늘 야근 확정', '퇴근은 저승에서', '다음 사람~'] },
+  hw_dracula: { id: 'hw_dracula', cls: 'seduce', name: '드라큘라 사장', gender: 'm', emoji: '🧛', color: '#b0142a', eventOnly: true, lazy: true, boss: true,
+    img: HW_IMG('hw_dracula'), anims: ['attack'], hp: 5200, speed: 13, atk: 40, atkInterval: 1.8, armor: 5, exp: 90, coin: 60, r: 46, size: 162,
+    hw: { batform: { every: 13, first: 9, sec: 1.6 }, moon: { at: 0.25, spd: 1.15, heal: 0.004 } }, // 분노(50%)부터 박쥐로 흩어져 1.6초 무적 → 다른 자리에 나타남 · 25% 보름달: 진상 전부 빨라지고 박쥐가 살아 있으면 사장이 피를 받는다
+    title: '드라큘라 사장 등장!', subtitle: '"오늘 회식 빠지는 사람, 내일부터 안 나와도 돼."',
+    shouts: ['회식은 의무다', '피 같은 내 법카!', '다 같이 원샷!', '해 뜨기 전엔 못 가'] },
+});
+MID_KITS.hw_reaper = [['volley', '명부 낭독', { n: 2, st: 'slow', sec: 3, cut: 0.3, art: 'paper', rage: { n: 3 } }], ['summon', '원귀 호출', { types: ['hw_ghost'], n: 2 }]];
+BOSS_KITS.hw_dracula = { name: '드라큘라 사장', rageSub: '박쥐 변신 · 흡혈 회식 · 피의 와인이 세 명에게', skills: [['charm', '"회식 빠지면 해고야!"', { n: 2, sec: 2.2, rage: { n: 3 } }], ['volley', '피의 와인 건배', { n: 2, st: 'poison', sec: 3.5, art: 'bottle', rage: { n: 3 } }], ['summon', '박쥐 비서단', { types: ['hw_bat'], n: 4 }], ['door', '관 뚜껑 내려찍기', { frac: 0.035, rage: { frac: 0.05 } }]], p2: ['heal', '흡혈 회식', { r: 260, frac: 0.1 }] };
+ECAST.bump.hw_seed = 4;
+Object.assign(ENEMY_ATK, { hw_zombie: 'bottle', hw_pumpkin: 'headbutt', hw_seed: 'headbutt', hw_bat: 'slap', hw_ghost: 'slap', hw_witch: 'bag', hw_jiangshi: 'punch', hw_mummy: 'bag', hw_reaper: 'phone', hw_dracula: 'punch' });
+Object.assign(SHORT_NAME, { hw_zombie: '좀비 회식러', hw_pumpkin: '호박머리', hw_ghost: '단톡 귀신', hw_witch: '마녀 다단계', hw_jiangshi: '강시 꼰대', hw_mummy: '미라 부장', hw_reaper: '저승 팀장', hw_dracula: '드라큘라' });
 // ─── 진상 기술 설명 (10/08 진상 리메이크): 정보 카드 · 도감 · 등장 진상 · 상성 경고가 같은 데이터로 ───
 //  [{ name, st(EST 키), text, counter: [멤버] }] — 예고(표적)가 있는 기술은 "예고" 를 붙인다 (그때 기절 · 밀치기로 끊긴다)
 const KIND_ST = { stun: 'stun', silence: 'silence', slow: 'slow', shock: 'stun', drain: 'slow', flyer: 'blind', lure: 'door', vip: 'heal', summon: '', charm: 'charm', door: 'door', heal: 'heal' };
@@ -2609,7 +2667,7 @@ export function enemySkills(id) {
   const d = ENEMIES[id];
   if (!d) return [];
   const out = [], add = (name, st, text) => { if (!out.some((x) => x.name === name)) out.push({ name, st, text, counter: (EST[st] && EST[st].counter) || [] }); };
-  if (d.kick) add(d.kick.name, 'door', `입구 앞에서 ${d.kick.wind}초 다리를 젖혔다가 쾅 (입구 ×${d.kick.mul}) — 젖힐 때 기절 · 밀치기로 끊긴다`);
+  if (d.kick) add(d.kick.name, 'door', d.selfBoom ? `입구 앞에서 ${d.kick.wind}초 도화선 → 펑! (입구 ×${d.kick.mul} · 자기도 터진다) — 도화선 동안 기절 · 밀치기로 끊긴다` : `입구 앞에서 ${d.kick.wind}초 다리를 젖혔다가 쾅 (입구 ×${d.kick.mul}) — 젖힐 때 기절 · 밀치기로 끊긴다`);
   if (d.spit) add(d.spit.name, d.spit.st, `예고 뒤 멤버에게 던짐 → ${EST[d.spit.st].name} ${d.spit.sec}초 + 쓰러짐 게이지`);
   if (d.puke) add(d.cry ? '눈물 웅덩이' : '우웩!', d.cry ? 'slow' : 'poison', d.cry ? '예고 뒤 멤버 발밑에 눈물 웅덩이 (공속↓)' : `예고(꿀렁) 뒤 멤버에게 토 → 독 ${d.puke.poison || 0}초 + 웅덩이 (공속↓)`);
   if (d.bottle) add('소주병 투척', 'slow', '예고 뒤 멤버 공속 −25%');
@@ -2633,6 +2691,18 @@ export function enemySkills(id) {
   if (d.speech) add('끝없는 축사', 'door', '무적 축사 — 게이지를 채워 끊지 못하면 입구 피해 + 졸음');
   if (d.quiet) add('소음 금지!', 'silence', '예고 뒤 넓은 범위 멤버 스킬 침묵 — 예고 중 기절로 끊긴다');
   if (d.eat || d.feast || d.praise || d.cuddle) add(d.eat ? '냠냠' : d.feast ? '오리고기 회식' : d.praise ? '칭찬' : '꽁냥꽁냥', 'heal', '진상 체력 회복 — 방깎 · 화상으로 회복을 막자');
+  if (d.hw) { const h = d.hw; // 할로윈 이벤트 진상 기술 (hw-sim.js)
+    if (h.revive) add('한 잔 더! (부활)', 'heal', `쓰러지면 ${h.revive.sec}초 뒤 체력 ${Math.round(h.revive.hp * 100)}% 로 일어난다 — 화상 · 검열 · 장미 표식이 붙어 있거나 일어나는 동안 때리면 못 일어남`);
+    if (h.split) add('호박씨 분열', '', '쓰러지면 빠른 호박씨 둘로 쪼개진다 — 범위 공격으로 한 번에');
+    if (h.drain) add('입구 흡혈', 'door', '입구에 붙으면 입구를 빨아먹고 그만큼 회복 — 범위 공격 · 홍정민 수리');
+    if (h.phase) add('유령화', '', `${h.phase.every}초마다 ${h.phase.sec}초 동안 안 보이고 안 맞는다 — 운영진 · 건전남 · 배현경이 찾아낸다`);
+    if (h.brew) add('건강 물약', 'heal', `곁 진상 체력 ${Math.round(h.brew.frac * 100)}% 회복 — 여지원 방깎 · 박나영 화상 · 고아라가 막는다`);
+    if (h.hop) add('콩콩 뛰기', '', '뛰는 동안엔 밀치기 · 끌어당기기가 안 먹힌다');
+    if (h.rewrap) add('붕대 재감기', '', `체력 절반에서 보호막 ${Math.round(h.rewrap.frac * 100)}% (한 번) — 운영진 레드카드 · 여지원이 깬다`);
+    if (h.list) add('야근 명부', 'stun', `멤버 한 명 이름을 적고 ${h.list.sec}초 뒤 강제 퇴근 (쓰러짐) — 팀장을 기절 · 빙결 · 밀치거나 건전녀 응급 방패로 지운다`);
+    if (h.batform) add('박쥐 변신', '', '분노하면 박쥐 떼로 흩어져 잠깐 무적 → 다른 자리에 나타난다');
+    if (h.moon) add('보름달', '', `체력 ${Math.round(h.moon.at * 100)}% 아래: 진상 전부 빨라지고 박쥐가 살아 있으면 사장이 회복`);
+  }
   if (ECAST.bump[id]) add('들이받기', 'door', '입구에 처음 닿을 때 앞 멤버를 들이받는다 (쓰러짐 게이지) — 감속 · 기절로 늦추면 안 받힘');
   const kit = BOSS_KITS[id] || (MID_KITS[id] ? { skills: MID_KITS[id] } : null);
   if (kit) for (const [kind, name, o] of [...kit.skills, ...(kit.p2 ? [kit.p2] : [])]) { const st = kind === 'volley' ? o.st : KIND_ST[kind]; add(name, st, (kit.p2 && kit.p2[1] === name ? '[분노] ' : '') + (KIND_TEXT[kind] ? KIND_TEXT[kind](o) : '')); }

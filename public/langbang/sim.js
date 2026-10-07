@@ -11,6 +11,7 @@ import {
   SKILL_AUG, SKILL_AUG_W, SLOW_RUN, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
+import * as HWS from './hw-sim.js'; // 할로윈 이벤트 전투 규칙 (진상 기술 · 저주)
 import { PVP_END, pvpStepN, pvpWaveHp, pvpMatchHp, pvpMeta, pvpStar, pvpCapMap, PVP_ESC, pvpPhase, pvpSdCount, pvpBunchCount, PVP_DOTS, pvpDot } from './pvp.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -32,6 +33,7 @@ export function createGame(opt = {}) {
   const trial = opt.trialAll ? LOCKED_HEROES.filter((id) => !unlocked.includes(id)) : [];
   if (opt.trialAll) unlocked = LOCKED_HEROES.slice();
   const wk = opt.weekly || null; // 주간 도전: 정해진 판 (스테이지처럼 진행)
+  const evd = opt.event || null; // 할로윈 이벤트 판 (hw-event.js eventDef): 정해진 웨이브 · 이벤트 진상 · 저주
   const wmod = wk ? WEEKLY_MODS[wk.mod] || {} : {};
   const g = {
     W: FIELD.W, H, rowY, ropeY: rowY - FIELD.ropeGap,
@@ -43,8 +45,8 @@ export function createGame(opt = {}) {
     rng: opt.rng || Math.random,
     meta: opt.meta || {}, // { heroId: 영구 강화 레벨 }
     items,
-    mode, stage: mode === 'stage' ? (wk ? wk.stage : opt.stage || 1) : 0,
-    totalWaves: mode === 'stage' && !opt.pvp && !opt.raid ? (wk ? wk.waves.length : STAGE_WAVES) : Infinity,
+    mode, stage: mode === 'stage' ? (wk ? wk.stage : evd ? evd.stage : opt.stage || 1) : 0, ev: evd,
+    totalWaves: mode === 'stage' && !opt.pvp && !opt.raid ? (wk ? wk.waves.length : evd ? evd.waves.length : STAGE_WAVES) : Infinity,
     unlocked, trial, hiddenUnlocked: unlocked.filter((id) => HIDDEN_HEROES.includes(id)),
     god: !!opt.god,
     t: 0, wave: opt.startWave ? opt.startWave - 1 : 0, diff: 1,
@@ -54,7 +56,7 @@ export function createGame(opt = {}) {
     rallyT: 0, rallySpd: 0, swapCd: 0, effT: -9,
     slotX: (opt.positions || 6) >= 7 ? SLOT_X7.slice() : SLOT_X.slice(), nPos: (opt.positions || 6) >= 7 ? 7 : 6,
     gear: opt.gear || {}, baseHit: false, // 장비 · 퍼펙트(입구 무피해) 판정
-    mapFx: opt.mapFx ? MAP_FX[opt.mapFx] || MAP_FX.none : wk ? MAP_FX[wk.fx] || MAP_FX.none : mode === 'stage' ? stageFx(opt.stage || 1) : MAP_FX.none, // 맵 효과
+    mapFx: opt.mapFx ? MAP_FX[opt.mapFx] || MAP_FX.none : evd ? MAP_FX.none : wk ? MAP_FX[wk.fx] || MAP_FX.none : mode === 'stage' ? stageFx(opt.stage || 1) : MAP_FX.none, // 맵 효과
     fxT: 0, darkT: 0, megaT: 0, windX: 0, strobeT: 0, fireT: 0,
     base: { hp: baseMax, max: baseMax },
     level: 1, exp: 0, need: 0, pendingLevels: welcome, welcomePicks: welcome,
@@ -77,7 +79,7 @@ export function createGame(opt = {}) {
     uid: 1, victory: false, endless: mode === 'endless', over: false, stars: 0, lastSnap: null,
     awakeMap: opt.pvp ? {} : opt.awake || {}, // 진상의 탑 멤버별 지옥 각성 (0~3) · 1:1 대전은 전투력 보정이라 빼요
     // 스테이지 조건 (보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격) · 스테이지 미션 · 장별 강화 권장(넘는 만큼 절반)
-    conds: [], cond: {}, mission: null, metaSoft: mode === 'stage' && !opt.pvp && !wk && !opt.raid && !opt.tower && !opt.noSoft,
+    conds: [], cond: {}, mission: null, metaSoft: mode === 'stage' && !opt.pvp && !wk && !evd && !opt.raid && !opt.tower && !opt.noSoft,
     cstat: { leak: 0, shieldLeak: 0, armorLeak: 0, hidden: 0, found: 0, ccSec: 0, multi: 0, combo: 0, breaks: 0, minDoor: 1, endDoor: 0 }, ccT: 0, ccE: null,
     // 오브젝트 풀
     _enemyPool: [], _projPool: [], _gemPool: [], _boom: [],
@@ -92,7 +94,7 @@ export function createGame(opt = {}) {
     g.ccT = COND.cc.every[0] * 0.8;
   }
   // 주간 진상 특성 (opt.wtrait: live.js weekTrait 의 id) — 일반 스테이지 · 헬에서만
-  g.wtr = mode === 'stage' && !wk && !opt.pvp && !opt.raid && !opt.tower && opt.wtrait && g.stage >= WEEK_TRAIT_FROM ? WEEK_TRAIT[opt.wtrait] || null : null;
+  g.wtr = mode === 'stage' && !wk && !evd && !opt.pvp && !opt.raid && !opt.tower && opt.wtrait && g.stage >= WEEK_TRAIT_FROM ? WEEK_TRAIT[opt.wtrait] || null : null;
   if (g.wtr) { if (g.wtr.crit) g.mods.crit += g.wtr.crit; if (g.wtr.ctrl) g.mods.ctrlMul *= g.wtr.ctrl; }
   g.stats.team = { repair: 0, prevent: 0, buff: 0 }; g.stats.teamBy = {}; // 팀 기여: 입구 수리 · 막은 피해 · 버프로 늘어난 피해 (멤버별)
   if (g.mapFx.exp) g.mods.expMul += g.mapFx.exp;
@@ -118,6 +120,7 @@ export function createGame(opt = {}) {
   if (g.coll && g.coll.hp) { g.base.max = Math.round(g.base.max * (1 + g.coll.hp)); g.base.hp = g.base.max; }
   if (g.coll && g.coll.exp) g.mods.expMul *= 1 + g.coll.exp;
   if (opt.tower) towerSetup(g, opt); // 진상의 탑: 한 명 · 층 규칙
+  if (evd) HWS.attach(g, evd); // 할로윈 이벤트: 저주 · 진상 기술 (hw-sim.js)
   if (opt.deck && opt.join && !opt.raid) {
     // 합류 모드: 대장(덱 1번) 한 명으로 시작 → 나머지는 레벨업 "합류" 카드로 (자리는 덱에서 정한 자리)
     const list = [];
@@ -1395,6 +1398,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.censorT = 0; e.censorBy = null; e.burnT = 0; e.burnN = 0; e.burnDps = 0; e.burnTick = 0; e.burnBy = null; e.iceN = 0; e.iceT = 0; e.frozenT = 0; e.glareT = 0; e.roseN = 0; e.roseT = 0; e.danceT = 0; e.tapeT = 0; // 대개편: 화상 · 얼음 · 위압 · 장미 · 춤 · 붕대 벽
   e.tieT = 0; e.tieAgain = 0; e.tieAmpT = 0; e.tieAmp = 0; e.env = false; e.rushT = 0; e.speechT = 0; e.speechG = 0; e.hurryW = 0; e.singW = 0; // 8장: 부케 묶기 · 봉투 · 재촉 · 축사 (풀에서 꺼낸 진상도 지운다)
   if (def.ch8) ch8Init(g, e); // 8장 결혼식 뒤풀이 진상 상태
+  if (g.hw) HWS.resetEnemy(e); // 할로윈 이벤트 진상 상태 (풀에서 꺼낸 진상도 지운다)
   e.cLay = 0; e.cLayMax = 0; e.cArmor = false; e.cHid = false; e.cDone = false; e.cLeak = false; e.cRush = false; e.cOff = false; e.cCrashed = false;
   if (g.conds.length && g.wave >= DOOR_PRESSURE.from) condEnemy(g, e); // 스테이지 조건 (보호막 · 철갑 · 은신 · 돌격 · 문 압박)
   if (g.wtr) wtrEnemy(g, e); // 주간 진상 특성
@@ -1567,11 +1571,11 @@ function bossBrain(g, e, dt) {
     b.cur = list[b.i++ % list.length];
     if (b.p2 && b.cur[2] && b.cur[2].rage) b.cur = [b.cur[0], b.cur[1], Object.assign({}, b.cur[2], b.cur[2].rage)]; // 분노: 더 많이 · 더 세게
     if (b.cur[0] === 'stun' && e.def.slam) b.cur = ['shock', b.cur[1], {}]; // 원래 땅 내려치기가 있는 보스는 기절을 겹치지 않게
-    b.st = 'windup'; b.t = BOSS_AI.windup; e.bwind = BOSS_AI.windup;
+    b.st = 'windup'; b.t = BOSS_AI.windup * (g.windMul || 1); e.bwind = b.t; // (할로윈 저주: 예고 짧게)
     // 예고: 기절이면 노릴 멤버를 먼저 정한다 (빨간 원)
     const [kind, , o] = b.cur;
     b.targets = kind === 'stun' || kind === 'flyer' || kind === 'volley' || kind === 'charm' ? pickTargets(g, o.n) : [];
-    ev(g, 'bossWind', { x: e.x, y: e.y - e.def.size * 0.6, kind, name: b.cur[1], targets: b.targets.map((h) => ({ x: h.x, y: h.y, id: h.id })), st: kind === 'volley' ? o.st : kind, art: o.art, mid: !!b.mid, uid: e.uid, ropeY: g.ropeY, ex: e.x, sec: BOSS_AI.windup, r: o.r });
+    ev(g, 'bossWind', { x: e.x, y: e.y - e.def.size * 0.6, kind, name: b.cur[1], targets: b.targets.map((h) => ({ x: h.x, y: h.y, id: h.id })), st: kind === 'volley' ? o.st : kind, art: o.art, mid: !!b.mid, uid: e.uid, ropeY: g.ropeY, ex: e.x, sec: b.t, r: o.r });
   } else if (b.st === 'windup') {
     e.bwind = b.t;
     if ((b.t -= dt) > 0) return;
@@ -1649,6 +1653,7 @@ function bossSkill(g, e, [kind, name, o]) {
 }
 export const isHidden = (e) => !e.unveiled && !!((e.def.traits && e.def.traits.stealth) || e.cloak);
 function killEnemy(g, e, src) {
+  if (g.hw && g.hw.preKill(g, e, src)) return; // 할로윈 좀비 "한 잔 더!": 이번엔 안 쓰러진다
   e.dead = true;
   if (e.censorT > 0 && e.censorBy && g.heroes.includes(e.censorBy)) censorPop(g, e); // 여지원: 검열 완료된 진상이 쓰러지면 픽셀 폭발
   const def = e.def;
@@ -1733,7 +1738,7 @@ export function damageBase(g, dmg, e) {
   if (g.pvp) { dmg *= g.pvp.doorMul; g.pvp.hurt += dmg; } // 1:1 서든데스: 입구 받는 피해 단계마다 +20%
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
-  ev(g, 'baseHit', { x: e ? e.x : g.W / 2, y: g.ropeY, v: Math.round(dmg), boss: !!(e && e.boss) }); // (던진 진상이 이미 죽었으면 e 가 없다)
+  ev(g, 'baseHit', { x: e ? e.x : g.W / 2, y: g.ropeY, v: Math.round(dmg), boss: !!(e && e.boss), by: e ? e.type : '' }); // (by: 밸런스 측정 — 누가 입구를 쳤나) // (던진 진상이 이미 죽었으면 e 가 없다)
   if (g.base.hp <= 0 && !g.sigRevived) { // 홍정민 전용 신화: 한 판에 한 번 붕대로 다시 붙인다
     const jm = g.heroes.find((o) => o.sig && o.sig.revive && !o.gone);
     if (jm) { g.sigRevived = true; g.base.hp = Math.round(g.base.max * jm.sig.revive); ev(g, 'bandage', { x: g.W / 2, y: g.ropeY + 8, v: Math.round(g.base.hp), big: true, hero: jm.id }); ev(g, 'sigFx', { hero: jm.id, x: jm.x, y: jm.y, revive: true }); return; }
@@ -2151,6 +2156,7 @@ function throwAt(g, kind, e, h, dur, stun, fx, wind) {
 //  castTick: 예고 중 기절 · 빙결 · 묶기 · 밀치기 · 시간 정지 · 도망이면 끊김 (castBreak · 잠깐 빈틈)
 function startCast(g, e, h, spec) {
   if (e.cast || e.dead) return false;
+  if (g.windMul && spec.wind) spec = Object.assign({}, spec, { wind: spec.wind * g.windMul }); // 할로윈 저주: 예고 짧게
   e.cast = { h, spec, t: spec.wind, max: spec.wind };
   e.castW = spec.wind;
   if (spec.door) ev(g, 'doorWind', { x: e.x, y: g.ropeY, ex: e.x, ey: e.y - e.def.size * 0.6, sec: spec.wind, uid: e.uid, name: spec.name || '' });
@@ -2175,6 +2181,7 @@ function castTick(g, e, dt) {
     damageBase(g, e.atk * (sp.mul || 3), e);
     if (g.kdOn) { const h = nearHero(g, e.x); if (h) kdAdd(g, h, hitKd(sp, e), { src: 'hit' }); }
     ev(g, 'doorKick', { x: e.x, y: g.ropeY, ex: e.x, ey: e.y - e.def.size * 0.5, name: sp.name || '' });
+    if (e.def.selfBoom && !e.dead) { e.hp = 0; killEnemy(g, e, null); } // 할로윈 호박 폭탄: 터지면 자기도 (→ 호박씨)
     return;
   }
   const h = c.h;
@@ -2899,6 +2906,7 @@ export function debuffSec(h, sec, kind = 'hard') {
   if (g && byungNear(g, h)) sec *= HEROES.byunghwa.aura.cc; // 강병화 곁: 상태이상 절반
   let out = (h.def.taunt ? sec * h.def.taunt : sec) * (h.debuffMul || 1) * (1 - resOf(h.meta, h.gear && h.gear.res)) * (g && g.gnRes ? 1 - g.gnRes : 1) * (h.gear && h.gear.hellSet >= 2 ? 1 - HELL_SET_FX.cc : 1);
   if (kind !== 'hard' && kind !== 'none') { const r = resPct(h, kind); if (r >= 100) { if (g && g.t - (h.immT || -9) > 0.8) { h.immT = g.t; ev(g, 'immune', { kind, hero: h.id, x: h.x, y: h.y - 60 }); } return 0; } out *= 1 - r / 100; } // 멤버 저항 (HERO_RES) + 서포터 면역 (KD_SUP)
+  if (g && g.ccMul) out *= g.ccMul; // 할로윈 저주: 상태이상 2배
   if (g && g.kdOn && out > 0 && kind !== 'poison' && kind !== 'none') { const ex = h.kdExp || (h.kdExp = {}), p0 = Math.max(g.t, ex[kind] || 0), add = Math.max(0, g.t + out - p0); ex[kind] = Math.max(p0, g.t + out); if (add > 0) kdAdd(g, h, add * (kind === 'slow' ? KD.slow : KD.status * (KD.kind[kind] || 1)), { src: kind }); } // 늘어난 시간만큼만 (매 프레임 다시 거는 것도 한 번으로)
   return out;
 }
@@ -3304,6 +3312,7 @@ export function gainExp(g, v) {
 // ─── 웨이브 진행 ──────────────────────────────────────
 export function waveDefFor(g, n) {
   if (g.tower) return g.tower.def.waves[Math.min(n, g.tower.def.waves.length) - 1];
+  if (g.ev) return g.ev.waves[Math.min(n, g.ev.waves.length) - 1]; // 할로윈 이벤트
   if (g.pvp) return pvpWave(g.pvp.seed, n);
   if (g.weekly) { const d = g.weekly.waves[n - 1] || g.weekly.waves[g.weekly.waves.length - 1]; return g.raid && n > 1 && d.boss ? Object.assign({}, d, { boss: undefined }) : d; }
   return g.mode === 'stage' ? stageWave(g.stage, n) : waveDef(n);
@@ -3476,7 +3485,7 @@ export function startWave(g, n) {
   if (g.slow) for (const o of q) o.at *= SLOW_RUN.gap; // 느린 판: 진상이 띄엄띄엄
   if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true, bossHp: def.bossHp });
   if (def.boss && g.twinBoss) q.push({ type: def.boss, at: 3.5, boss: true }); // 저주 계약 '보스 둘'
-  if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true });
+  if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true, bossHp: def.midHp }); // (midHp: 할로윈 이벤트 — 머릿수를 줄인 체력 보정을 중간 보스는 빼고)
   if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? (g.slow ? 22 : 14) : 26, boss: true, bossHp: def.boss2Hp });
   q.sort((a, b) => a.at - b.at);
   g.spawnQ = q;
@@ -4213,6 +4222,7 @@ export function step(g, dt) {
   updateEnemies(g, dt);
   if (g.r2) g.r2.tick(g, dt); // 건물주 레이드: 거대 보스 패턴 · 화 쌓기 (raid2-sim.js)
   if (g.twa) g.twa.tick(g, dt); // 진상의 탑: 바닥 예고 · 멤버 체력 · 끌어서 옮기기 (tower-arena.js)
+  if (g.hw) g.hw.tick(g, dt); // 할로윈 이벤트: 진상 기술 · 저주 (hw-sim.js)
   if (g.conds.length || (g.wtr && g.wtr.shield)) condTick(g, dt);
   updateEprojs(g, dt);
   updateProjs(g, dt);
@@ -4604,7 +4614,7 @@ export function summary(g, durationSec) {
     victory: g.victory,
     heroesUsed: Object.keys(g.heroesUsed),
     stolen: g.stats.envStolen | 0, // 8장 축의금 도둑을 놓친 수 (코인 −8% 씩)
-    seen: Object.keys(g.seen || {}).filter((t) => !ENEMIES[t].dot),
+    seen: Object.keys(g.seen || {}).filter((t) => !ENEMIES[t].dot && !ENEMIES[t].eventOnly), // (할로윈 이벤트 진상은 도감 밖)
   };
 }
 
@@ -4620,7 +4630,7 @@ export function snapshot(g) {
     base: { hp: g.base.hp, max: g.base.max }, ult: g.ult, stats: JSON.parse(JSON.stringify(g.stats)), cstat: Object.assign({}, g.cstat),
     meta: Object.assign({}, g.meta), items: Object.assign({}, g.items), unlocked: g.unlocked.slice(), trial: (g.trial || []).slice(),
     curses: g.curses || [], scoreMul: g.scoreMul || 1, coinMul: g.coinMul || 1, streak: g.streak || 1, twinBoss: !!g.twinBoss,
-    gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, hell: g.hell, wtrait: g.wtr ? g.wtr.id : null, maxHeroes: g.maxHeroes, awake: g.awakeMap || {}, coll: g.coll || null, markBonus: g.markBonus || 0, saJy: g.saJy || 0, sigRevived: !!g.sigRevived,
+    gear: g.gear, nPos: g.nPos, baseHit: g.baseHit, hstars: g.hstars, weekly: g.weekly, event: g.ev || null, hell: g.hell, wtrait: g.wtr ? g.wtr.id : null, maxHeroes: g.maxHeroes, awake: g.awakeMap || {}, coll: g.coll || null, markBonus: g.markBonus || 0, saJy: g.saJy || 0, sigRevived: !!g.sigRevived,
     joinMode: !!g.joinMode, joinPool: (g.joinPool || []).map((x) => ({ id: x.id, slot: x.slot })), joinTotal: g.joinTotal | 0, leader: g.leader, pickN: g.pickN | 0, rollN: g.rollN | 0, picks: Object.fromEntries(g.heroes.map((h) => [h.id, h.picks || 0])),
   };
 }
@@ -4628,7 +4638,7 @@ export function snapshot(g) {
 export function restoreGame(snap, opt = {}) {
   const g = createGame({
     H: opt.H, rng: opt.rng, god: opt.god, mode: snap.mode, stage: snap.stage,
-    meta: snap.meta, items: snap.items, unlocked: snap.unlocked || snap.hiddenUnlocked || [], heroes: [], gear: snap.gear, positions: snap.nPos, stars: snap.hstars, weekly: snap.weekly || undefined, hell: !!snap.hell, wtrait: snap.wtrait || undefined, awake: snap.awake || {}, coll: snap.coll || null,
+    meta: snap.meta, items: snap.items, unlocked: snap.unlocked || snap.hiddenUnlocked || [], heroes: [], gear: snap.gear, positions: snap.nPos, stars: snap.hstars, weekly: snap.weekly || undefined, event: snap.event || undefined, hell: !!snap.hell, wtrait: snap.wtrait || undefined, awake: snap.awake || {}, coll: snap.coll || null,
     tempo: snap.tempo !== false, // (예전 저장엔 없음 — 화면은 늘 템포라 켠다)
   });
   g.markBonus = snap.markBonus || 0; g.saJy = snap.saJy || 0; g.sigRevived = !!snap.sigRevived;

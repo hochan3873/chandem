@@ -855,7 +855,7 @@ test('무한 도전: 아직 해금 안 한 멤버도 카드로 "체험 합류"',
 
 test('도감: 판에서 만난 진상이 결과에 들어가고, 서버 진상 목록이 화면 목록과 같다', () => {
   const R = require('../server/langbang-rules');
-  assert.deepEqual(R.ENEMY_IDS.slice().sort(), Object.keys(D.ENEMIES).filter((id) => !D.ENEMIES[id].dot).sort());
+  assert.deepEqual(R.ENEMY_IDS.slice().sort(), Object.keys(D.ENEMIES).filter((id) => !D.ENEMIES[id].dot && !D.ENEMIES[id].eventOnly).sort());
   const g = S.createGame({ rng: seeded(503), noWaves: true, heroes: [] });
   S.spawnEnemy(g, 'gao', 100, 100); S.spawnEnemy(g, 'spam_dot', 100, 100);
   assert.deepEqual(S.summary(g, 1).seen, ['gao']);

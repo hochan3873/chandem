@@ -11,6 +11,7 @@ import * as L from './live.js';
 import { pvpLoadout } from './pvp.js';
 import * as TW from './tower.js';
 import * as R2 from './raid2.js';
+import * as HW from './hw-event.js'; // 할로윈 이벤트
 
 const GUEST_KEY = 'langbang:guest';
 const OLD_GUEST_KEY = 'langbang:guestBest'; // 예전(20웨이브 시절) 손님 최고 기록
@@ -87,6 +88,7 @@ function normalize(p, guest) {
   out.guest = !!guest;
   L.normLive(p || {}, out); // 모집권 · 조각 · 성급 · 미션 · 시즌 · 주간 기록
   TW.normTower(p || {}, out); // 진상의 탑 (층 · 각성 · 염화석 · 지옥 세트)
+  HW.normHw(p || {}, out); HW.normSkins(p || {}, out); // 할로윈 이벤트 · 의상
   out.master = !guest && !!(p && p.master); // 서버가 정한 값 (손님은 절대 아님)
   out.autoSell = !!(p && p.autoSell);
   out.stones = Math.max(0, (p && p.stones) | 0);
@@ -122,7 +124,7 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['dexRw', 'gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed', 'tower'];
+const LIVE_KEYS = ['dexRw', 'gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed', 'tower', 'hw', 'skins'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
@@ -538,6 +540,13 @@ export async function friendsLoad() { return call('/api/langbang/friends'); }
 export function friendAct(kind, body) { return liveCall('friends/' + kind, body || {}); }
 
 // ─── 진상의 탑 (손님은 같은 함수로 이 기기에 · 로그인은 서버가 계산하고 확인) ───
+// ─── 할로윈 이벤트 「할로윈 저주의 밤」 (공식은 hw-event.js · 손님은 같은 함수로 이 기기에) ───
+export function hwStart(n, deck, rent, curses, guest) { const body = { n, deck, rent: rent || null, curses: curses || [] }; return guest ? guestLive((p) => HW.hwStart(p, body, 'g' + Date.now().toString(36), Date.now())) : liveCall('hw/start', body); }
+export function hwFinish(body, guest) { return guest ? guestLive((p) => HW.hwFinish(p, body, GUEST_UID, Date.now())) : liveCall('hw/finish', body); }
+export function hwShop(id, guest) { return guest ? guestLive((p) => HW.shopBuy(p, id, GUEST_UID, Date.now())) : liveCall('hw/shop', { id }); }
+export function hwWear(hero, id, guest) { return guest ? guestLive((p) => HW.wearSkin(p, hero, id || null)) : liveCall('hw/wear', { hero, id: id || null }); }
+export async function hwBoard() { const r = await call('/api/langbang/hw'); return r.ok ? r : null; }
+export function hwClaim() { return liveCall('hw/claim', {}); }
 export function towerStart(f, hero, guest, squad = []) { return guest ? guestLive((p) => TW.towerStart(p, f, hero, 'g' + Date.now().toString(36), Date.now(), false, squad)) : liveCall('tower/start', { f, hero, squad }); } // squad: 같이 갈 멤버 (리메이크)
 export function towerFinish(body, guest) { return guest ? guestLive((p) => TW.towerFinish(p, body, GUEST_UID, Date.now())) : liveCall('tower/finish', body); }
 export async function towerBoard() { const r = await call('/api/langbang/tower'); return r.ok ? r : null; }

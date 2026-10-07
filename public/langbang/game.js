@@ -28,6 +28,8 @@ import * as FRX from './friends.js';
 import * as BKX from './bonkae-ui.js'; // 본캐 · 출연료 · 주간 인기 멤버
 import * as PV from './pvp.js';
 import { initTower } from './tower-ui.js';
+import { initHw } from './hw-ui.js'; // 할로윈 이벤트 「할로윈 저주의 밤」
+import { pumpkinPop } from './hw-fx.js';
 import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버 레이드)
 import { initTransit } from './transit.js';
 import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
@@ -73,6 +75,7 @@ const EFX = (R.efx = new EnemyFx(R)); // 진상 기술 예고 · 끊김 · 입�
 const KIT = (R.kit = new KitFx(R)); // 대개편 연출: 멤버마다 다른 비행 · 장판 · 시전 동작 (kitfx.js)
 let TWUI = null; // 진상의 탑 화면 (tower-ui.js · 맨 아래에서 연결)
 let R2UI = null; // 건물주 레이드 화면 (raid2-ui.js · 맨 아래에서 연결)
+let HWUI = null; // 할로윈 이벤트 화면 (hw-ui.js · 맨 아래에서 연결)
 // 화면 넘김 연출: 탑 · 레이드 · 1:1 대전 · 상점은 전용 전환, 그 밖은 깊이감 있는 밀기 (transit.js)
 const TR = initTransit({
   stage, ui, A, tips: TIPS,
@@ -218,7 +221,7 @@ function closeConfirm(result) {
 // ─── 이어하기 저장본 (웨이브 시작 때마다 · 페이지를 떠날 때) ─────
 function saveSnap() {
   const g = app.g;
-  if (!g || app.debugRun || g.over || g.victory || app.ending || !g.lastSnap || g.weekly || g.pvp || g.raid || g.tower) return;
+  if (!g || app.debugRun || g.over || g.victory || app.ending || !g.lastSnap || g.weekly || g.pvp || g.raid || g.tower || g.ev) return;
   try {
     localStorage.setItem(SNAP_KEY, JSON.stringify({ v: 1, acct: API.accountKey(), partner: app.partner, partners: app.partners, at: Date.now(), snap: g.lastSnap }));
   } catch { /* 저장소 가득 참 */ }
@@ -280,7 +283,7 @@ function leaveToHub() {
   setTimeout(() => { location.replace('/'); }, 180);
 }
 function guardOff() { /* 기록은 계속 한 칸만 유지 (예전 history.back 은 다른 페이지로 새는 일이 있어서 안 쓴다) */ }
-const SCREEN_OPEN = () => ({ shop: showShop, bag: showBag, members: showMembers, deck: showDeckTab, pvp: showPvp, missions: showMissions, season: showSeason, weekly: showWeekly, dex: showDex, stages: showStages, ranking: showRanking, prep: () => showPrep(app.mode, app.stage), tower: () => TWUI.show() });
+const SCREEN_OPEN = () => ({ shop: showShop, bag: showBag, members: showMembers, deck: showDeckTab, pvp: showPvp, missions: showMissions, season: showSeason, weekly: showWeekly, dex: showDex, stages: showStages, ranking: showRanking, prep: () => showPrep(app.mode, app.stage), tower: () => TWUI.show(), hw: () => HWUI.show(true), hwprep: () => HWUI.prep() });
 function noteScreen() { // show() 가 부른다
   const h = app.screenHist || (app.screenHist = []);
   if (app.navBack) { app.navBack = false; return; }
@@ -352,6 +355,7 @@ function partnerList() { return ['staff', 'gunman', 'gunnyeo', ...UNLOCK_HEROES,
 // ─── 게임 시작/끝 ─────────────────────────────────────
 async function startRun(opt = {}) {
   const mode = opt.mode || app.mode;
+  if (mode === 'hw' && !opt.hw) { if (HWUI) HWUI.prep(); return; } // 할로윈 이벤트: 다시 하기는 출전 준비에서 (판 번호를 서버에서 새로 받는다)
   const st = mode === 'stage' ? opt.stage || app.stage : 0;
   const hell = mode === 'stage' && (opt.hell !== undefined ? opt.hell : app.hellMode) && hellOpen(P().stages, st);
   if (mode === 'stage' && st) { app.lobbyStage = st; try { localStorage.setItem(lastStageKey(), String(st)); } catch { /* 무시 */ } } // 판이 끝나거나 나오면 로비도 방금 하던 스테이지로 (앱을 껐다 켜도)
@@ -366,6 +370,7 @@ async function startRun(opt = {}) {
   if (raid) weekly = opt.r2 ? R2UI.waveDef(opt.r2) : L.raidDef(opt.raidWi !== undefined ? opt.raidWi : L.raidState().wi); // 건물주 레이드: 진상 없는 빈 웨이브 (거대 보스는 raid2-sim 이 붙인다)
   const pvp = mode === 'pvp' ? { seed: Number(opt.pvpSeed) >>> 0, hp: opt.pvpHp || 1 } : null; // hp: 서버가 두 덱 전투력으로 정한 진상 체력
   const tw = mode === 'tower' ? opt.tower : null; // 진상의 탑: { f, hero, runId } (시작은 탑 화면이 서버에 먼저 알린다)
+  const hwr = mode === 'hw' ? opt.hw : null; // 할로윈 이벤트: { n, runId, deck, rent, curses } (시작은 이벤트 화면이 서버에 먼저 알린다)
   const dbg = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || (mode === 'stage' && !stageUnlocked(st));
   if (mode === 'stage' && !dbg && !opt.resume) {
     const r = await API.stageStart(st, !!hell, app.guest);
@@ -384,7 +389,7 @@ async function startRun(opt = {}) {
     app.weeklyRun = r.runId;
   }
   let consIds = [];
-  if (['stage', 'endless', 'weekly', 'raid', 'tower'].includes(mode) && !dbg && !opt.resume) {
+  if (['stage', 'endless', 'weekly', 'raid', 'tower'].includes(mode) && !dbg && !opt.resume) { // (할로윈 이벤트는 소모품 없이 — 전투력 맞춤)
     const lo = consLoadout().filter((id) => id && consHave(id) > 0);
     if (lo.length) { const r = await API.consStart(lo, app.guest); if (r && r.ok) { consIds = r.cons || []; if (r.profile) app.profile = r.profile; } }
   }
@@ -398,12 +403,14 @@ async function startRun(opt = {}) {
   const unlocked = DEBUG.hidden ? LOCKED_HEROES.slice() : p.unlocked || [];
   R.maxDpr = R.baseDpr = hell ? 1.75 : 2; // 판마다 새로 (지난 판에 낮춘 화질이 남지 않게) · 헬은 진상이 많아 조금 낮게 시작
   layoutForNewRun();
-  const deck = tw ? [null, null, tw.hero, null, null, null] : curDeck();
+  const hwo = hwr && HWUI ? HWUI.gameOpt(hwr, p) : null; // 할로윈: 판 정보 · 맞춘 전투력(강화 · ★ · 장비) · 자리
+  const deck = tw ? [null, null, tw.hero, null, null, null] : hwo ? hwo.deck : curDeck();
   const g = S.createGame({
     H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), slots: deckSlotsNow(), gear: API.gearFor(p, deck.filter(Boolean), pvp ? 'pvp' : 1), stars: p.hstars || {},
     guestPool: [...UNLOCK_HEROES, ...HIDDEN_HEROES].filter((id) => !API.heroUnlocked(p, id)),
     god: DEBUG.god || DEBUG.stress > 0, join: DEBUG.join, tempo: DEBUG.tempo, leader: deckLeader(), mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
     awake: TWUI ? TWUI.awake(p) : {}, ...(tw ? TWUI.gameOpt(tw, p) : {}), // 지옥 각성 (모든 모드) · 탑 한 명
+    ...(hwo || {}), // 할로윈 이벤트 (전투력 맞춤 · 각성 · 도감 보너스 · 아이템 없이)
     coll: p.coll || null, // 도감 수집 보너스 (서버가 계산 · 1:1 대전은 sim 이 뺀다)
     wtrait: mode === 'stage' && !weekly && !pvp ? L.weekTrait(L.weekIndex()).id : undefined, // 주간 진상 특성 (일반 스테이지 · 헬 · 1-4 부터 — sim 이 한 번 더 거른다)
   });
@@ -418,6 +425,7 @@ async function startRun(opt = {}) {
   }
   g.cons = consIds; g.consUsed = {};
   if (tw && TWUI) TWUI.afterCreate(g, tw); // 진상의 탑 (리메이크): 같이 간 멤버 · 바닥 예고 · 멤버 체력
+  if (hwo && HWUI) HWUI.afterCreate(g); // 할로윈 이벤트 시작 배너
   if (pvp) g.pvpMid = (PVP.match && PVP.match.id) || ''; // 이 화면이 돌리는 대전 판 (다시 붙을 때 맞춰 보기)
   if (mode === 'raid' && opt.help) { const sh = S.addSupport(g, { ...opt.help, gear: gearStats(opt.help.gear || []) }); if (sh) toast(`도우미 합류! ${opt.help.nick}님의 ${HEROES[opt.help.hero].name}`, 2600); }
   if (opt.r2 && R2UI) R2UI.attach(g, opt.r2); // 건물주 대마왕 (거대 보스 혼자 · 패턴)
@@ -426,7 +434,7 @@ async function startRun(opt = {}) {
   app.debugRun = DEBUG.wave > 1 || DEBUG.god || DEBUG.stress > 0 || Q.has('nosave') || locked;
   beginPlay(g);
   saveSnap();
-  if ((mode === 'stage' || mode === 'endless' || weekly) && !DEBUG.stage && !Q.has('autostart')) showBattleLoading(g);
+  if ((mode === 'stage' || mode === 'endless' || weekly || hwo) && !DEBUG.stage && !Q.has('autostart')) showBattleLoading(g);
   if (app.firstRunTip) {
     if (!TUT.learning()) showTip('적을 탭하면 집중 공격! 경험치는 저절로 모여요', 4500); // 튜토리얼 중엔 방장이 알려 준다
     app.firstRunTip = false;
@@ -442,16 +450,16 @@ function stageHint(st) {
 }
 function showBattleLoading(g) {
   const old = stage.querySelector('.bload'); if (old) old.remove();
-  const st = g.stage || 0, ch = st ? chapterOf(st) : 0;
-  const foes = st ? prepFoes(st).slice(0, 4) : [];
+  const st = g.ev ? 0 : g.stage || 0, ch = st ? chapterOf(st) : 0;
+  const foes = g.ev ? [...new Set(g.ev.waves.flatMap((w) => [...w.g.map((x) => x[0]), w.mid, w.boss].filter(Boolean)))].filter((t) => t !== 'hw_seed').slice(0, 4) : st ? prepFoes(st).slice(0, 4) : [];
   const ids = g.heroes.map((h) => h.id).concat((g.joinPool || []).map((x) => x.id)).filter((id) => HEROES[id]);
   const good = st ? ids.filter((id) => attrMatch(HEROES[id].attr, st).cls === 'good').length : 0, bad = st ? ids.filter((id) => attrMatch(HEROES[id].attr, st).cls === 'bad').length : 0;
   const tip = TIPS[(Math.random() * TIPS.length) | 0];
   const d = document.createElement('div');
   d.className = 'bload';
-  d.innerHTML = `<div class="bl-art" style="background-image:${chArtCss('dio', Math.max(1, ch || 1))}"></div>
+  d.innerHTML = `<div class="bl-art" style="background-image:${g.ev ? `url('${g.ev.mapImg}')` : chArtCss('dio', Math.max(1, ch || 1))}"></div>
     <div class="bl-box">
-      <em class="bl-no">${st ? stageLabel(st) : g.mode === 'endless' ? '무한 도전' : '주간 도전'}</em><b class="bl-name">${st ? esc(stageName(st)) : ''}</b>
+      <em class="bl-no">${g.ev ? `🎃 할로윈 ${g.ev.n}` : st ? stageLabel(st) : g.mode === 'endless' ? '무한 도전' : '주간 도전'}</em><b class="bl-name">${g.ev ? esc(g.ev.name) : st ? esc(stageName(st)) : ''}</b>
       ${foes.length ? `<div class="bl-sec"><small>이번 판 공략</small>${foes.map((t) => { const T = foeTrait(t); const good2 = Object.keys(ATTRS).filter((a) => typeMul(a, ENEMIES[t].cls) > 1); return `<div class="bl-foe">${foeFace(t)}<span><b>${esc(ENEMIES[t].name)}</b><small>${T ? esc(T.tip) : `${good2.map((a) => ATTRS[a].name).join(' · ')} 멤버에게 약해요`}</small></span></div>`; }).join('')}</div>` : ''}
       ${st ? `<div class="bl-match"><span class="ok">${ic('check', '', 'sm')} 유리 ${good}명</span><span class="no">${ic('scale', '', 'sm')} 불리 ${bad}명</span></div>` : ''}
       ${g.conds && g.conds.length ? `<div class="bl-cond">${g.conds.map((c) => `<span>${ic(COND[c].icon, '', 'sm')}${esc(COND[c].name)}</span>`).join('')}</div>` : ''}${g.mission ? `<div class="bl-mis">★★★ 미션 · ${esc(g.mission.text)}</div>` : ''}
@@ -505,11 +513,11 @@ function beginPlay(g) {
   app.ultTipShown = false;
   fx.reset();
   // 레이드 · 1:1 대전은 전용 맵 · 전용 곡 (파일이 없으면 지금까지처럼 그 판 챕터 배경 · 챕터 곡)
-  const modeArt = g.r2 ? 'raid2' : g.raid ? 'raid' : g.pvp ? 'pvp' : g.tower ? 'tower' + g.tower.zone : null; // 진상의 탑: 구역 맵
+  const modeArt = g.r2 ? 'raid2' : g.raid ? 'raid' : g.pvp ? 'pvp' : g.tower ? 'tower' + g.tower.zone : g.ev ? 'hw_' + g.ev.map : null; // 진상의 탑: 구역 맵 · 할로윈: 이벤트 맵
   if (g.tower && TWUI) TWUI.ensureMap(g.tower.zone);
   R.setTheme(g.mode === 'stage' ? chapterOf(g.stage) : 'endless', modeArt);
   if (A.setChapter) A.setChapter(g.mode === 'stage' ? chapterOf(g.stage) : 3);
-  if (A.setMode) A.setMode(g.tower ? 'tower' : modeArt);
+  if (A.setMode) A.setMode(g.tower ? 'tower' : g.ev ? 'hwbattle' : modeArt); // (할로윈 전투 곡이 없으면 할로윈 로비 곡 → 챕터 곡)
   app.screen = 'play';
   skillbar.dataset.key = '';
   cancelAim(); hideBubble(); app.drag = null;
@@ -590,6 +598,8 @@ function handleEvents(g, loud) {
   for (let i = 0; i < ev.length; i++) {
     const e = ev[i];
     if (TWUI && TWUI.isTowerEvent(e.type)) { TWUI.onEvent(g, e, loud); continue; }
+    if (HWUI && g.hw && HWUI.isEvent(e.type)) { HWUI.onEvent(g, e, loud); continue; } // 할로윈 이벤트 연출 (hw-fx.js)
+    if (g.hw && e.type === 'doorKick' && live) pumpkinPop({ fx }, e.x, e.y - 10); // 할로윈 호박 폭탄: 펑!
     if (R2UI && e.type.startsWith('r2')) { R2UI.onEvent(g, e, loud); continue; } // 건물주 레이드 연출
     if (live || g === app.demo) { KIT.onEvent(g, e, busy); EFX.onEvent(g, e, busy); } // 대개편 연출 (kitfx.js) — 아래 원래 연출도 그대로
     switch (e.type) {
@@ -811,7 +821,7 @@ function handleEvents(g, loud) {
       }
       case 'immune': if (!busy) fx.text(e.x, e.y, '안 들림!', '#9fd4ff', 12, 0.6); break;
       case 'blocked': if (!busy) fx.text(e.x, e.y, `막음! ${e.n}`, '#9feaff', 12, 0.6); break;
-      case 'split': fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
+      case 'split': if (g.hw) { fx.burst(e.x, e.y - 20, 10, '#ff8a1f', 140, 'flame', 4, 0.5); if (!busy) fx.text(e.x, e.y - 50, '호박씨 퉤퉤!', '#ffb35a', 12, 0.8); break; } fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
       case 'praise': if (!busy) { fx.text(e.x, e.y, e.text || '언니 너무 이뻐요~', '#ffb3d9', 11, 0.9); fx.ring(e.x, e.y + 20, 10, 90, 0.5, '#ffb3d9', 3); } break;
       case 'praiseRage': fx.text(e.x, e.y, '(표정 싹 바뀜)', '#ff4f6a', 13, 1.0); break;
       case 'haste': if (!busy) fx.text(e.x, e.y, '빨라짐!', '#ffd23f', 12, 0.7); break;
@@ -1275,7 +1285,8 @@ function handleEvents(g, loud) {
           fx.banner('PERFECT!!', '입구가 한 번도 안 맞았다!', '#1a6aa0', 2.6, 'big');
           fx.flash('#bff4ff', 0.9);
           for (let k = 0; k < 20; k++) fx.part('star', 40 + Math.random() * 280, g.H * 0.2 + Math.random() * 200, (Math.random() - 0.5) * 80, -60, 1.4, 12, null, { grav: 60 });
-        } else if (g.mode === 'stage') fx.banner(`${stageLabel(g.stage)} 클리어!!`, starStr(e.stars), '#c77a00', 2.4, 'big');
+        } else if (g.ev) fx.banner('🎃 저주 돌파!!', `할로윈 ${g.ev.n} 클리어`, '#8a2a00', 2.4, 'big');
+        else if (g.mode === 'stage') fx.banner(`${stageLabel(g.stage)} 클리어!!`, starStr(e.stars), '#c77a00', 2.4, 'big');
         else fx.banner('랑방 수호 성공!!', '20웨이브 전부 막아냈다', '#c77a00', 2.6, 'big');
         if (loud) A.sfx.win();
         if (live) endRun(true);
@@ -1411,7 +1422,7 @@ function updateHud() {
   const bossWave = !!(def && def.boss);
   if (TWUI) TWUI.hudTick(g);
   if (R2UI && g.r2) R2UI.hudTick(g);
-  setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.phase ? ` · ${PV.PVP_ESC.name[g.pvp.phase]}` : ''}` : g.r2 ? `철거까지 ${Math.max(0, Math.ceil(R2UI.sec - g.t))}초` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
+  setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.phase ? ` · ${PV.PVP_ESC.name[g.pvp.phase]}` : ''}` : g.r2 ? `철거까지 ${Math.max(0, Math.ceil(R2UI.sec - g.t))}초` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : g.ev ? `🎃 할로윈 ${g.ev.n} · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
   setText(H$.time, 'time', `${Math.floor(g.t / 60)}:${String(Math.floor(g.t % 60)).padStart(2, '0')}`);
   if (g.pvp) setText(H$.time, 'time', `남은 ${PV.pvpLeftText(S.pvpTime(g))}`); // 1:1 대전: 5분 판정까지 남은 시간
   // 방어선 위험 경고
@@ -2588,7 +2599,7 @@ function showModes() {
     card('pvp', uiIco('pvp', ''), '1:1 대전', '실시간으로 겨루기', `${pvpN}점`),
     card('season', uiIco('season', ''), '시즌', '단계마다 시즌 보상', `${L.seasonTier(p)}/${L.SEASON_TIERS}단계`, { dot: d.season }),
   ].join('');
-  const m = popup(`<h3>${lbArt('lobby_mode', 'swords').replace('class="uic"', 'class="uic h3i"')}도전</h3><div class="md-feat">${TWUI ? TWUI.lobbyButton(p) : ''}</div><div class="md-grid">${cards}</div>`, 'lb-sheet md-sheet');
+  const m = popup(`<h3>${lbArt('lobby_mode', 'swords').replace('class="uic"', 'class="uic h3i"')}도전</h3><div class="md-feat">${HWUI ? HWUI.modeCard(p) : ''}${TWUI ? TWUI.lobbyButton(p) : ''}</div><div class="md-grid">${cards}</div>`, 'lb-sheet md-sheet');
   lobbySheetClose(m);
 }
 // 메뉴 창: 출석 · 랭킹 · 도감 · 친구 · 모집 · 공유 · 공지 · 설정
@@ -2597,7 +2608,8 @@ function showLobbyMenu() {
   const IC2 = { notice: 'megaphone', friends: 'ic_friends' };
   const cells = [['checkin', '출석', 'checkin', d.checkin], ['ranking', '랭킹', 'ranking', BKX.dot(p)], ['dex', '도감', 'dex', dexHasNew()], ['friends', '친구', 'friends', FRX.badge(p) > 0], ['recruit', '모집', 'recruit', d.recruit], ['share', '공유', 'share', false], ['notice', '공지', 'notice', false], ['settings', '설정', 'settings', false]]
     .map(([k, n, act, on]) => `<button class="mg-cell" data-act="${act}">${IC2[k] ? lbArt(IC2[k], IC2[k]) : uiIco(k, '')}<b>${n}</b>${rdot(on)}</button>`).join('');
-  const m = popup(`<h3>${lbArt('lobby_menu', 'tools').replace('class="uic"', 'class="uic h3i"')}메뉴</h3><div class="mg-grid">${cells}</div>`, 'lb-sheet mg-sheet');
+  const hwCell = HWUI && HWUI.season() ? `<button class="mg-cell hw-cell" data-act="hw"><span class="uic"><img src="/img/lb/season/hw_pumpkin.webp" alt="" draggable="false"></span><b>할로윈</b>${rdot(HWUI.open() && !(P().hw && Object.keys(P().hw.best || {}).length))}</button>` : ''; // 할로윈 이벤트 (시즌 동안)
+  const m = popup(`<h3>${lbArt('lobby_menu', 'tools').replace('class="uic"', 'class="uic h3i"')}메뉴</h3><div class="mg-grid">${hwCell}${cells}</div>`, 'lb-sheet mg-sheet');
   lobbySheetClose(m);
 }
 // 창 안에서 고르면 창을 닫고 그 화면으로 (잠긴 칸은 창을 남겨 둔다 → 안내만)
@@ -2667,6 +2679,7 @@ function showMenu0() {
       <span class="lb-st">${starStr(p.stages[s] || 0)}${p.perfects && p.perfects[s] ? ic('gem', '', 'sm') : ''}<i class="lb-mapbtn">🗺 전체 지도</i></span>
     </button>
     ${wtrChip(s, 'lb-wtr')}
+    ${HWUI ? HWUI.lobbyBanner(p) : ''}
     <div class="lb-dio">
       <button class="chev l" data-act="lbStep" data-d="-1" ${s <= 1 ? 'disabled' : ''} aria-label="이전 스테이지"><i></i>${s > 1 ? `<small>◂ ${stageLabel(s - 1)}</small>` : ''}</button>
       <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio/s${s2}.webp" alt="" draggable="false" onerror="this.onerror=function(){this.onerror=null;this.src='/img/lb/dio6.webp'};this.src='/img/lb/dio${c2}.webp'">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>`}</div></div>`; }).join('')}</div>
@@ -3365,7 +3378,7 @@ function showMembers() {
   `, 'dim withnav');
 }
 // ─── 그림 카드: 멤버 목록 · 가방 · 덱에서 공용 (dexhq 썸네일, 상반신 · 티어 테두리 · 두 모습이면 번갈아) ───
-const thumbSrc = (id, duo) => (NO_HQ_ART.has(id) ? (HEROES[id] || SUMMONS[id] || {}).img || '' : artV(`/img/lb/dexhq/thumb/${id}${duo ? '_duo' : ''}.webp`));
+const thumbSrc = (id, duo) => (!duo && HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'thumb') : NO_HQ_ART.has(id) ? (HEROES[id] || SUMMONS[id] || {}).img || '' : artV(`/img/lb/dexhq/thumb/${id}${duo ? '_duo' : ''}.webp`));
 function artCard(id, o = {}) {
   const d = HEROES[id];
   const p = P();
@@ -3558,7 +3571,7 @@ function showHeroModal(id, ctx = '') {
       <div class="hs-match"><span class="no">${ic('scale', '', 'sm')}약한 상대</span>${weak.map((c0) => `<button class="gl-chip" data-gl="cls:${c0}:${d.attr}">${clsTag(c0)}</button>`).join('') || '<small>없음</small>'}</div>
       <button class="hm-match ${m.cls}" data-gl="mul:${(m.v || 1).toFixed(2)}"><b>${m.arrow} 이번 스테이지 상성 ${m.text}</b><small>눌러서 설명</small></button>
       ${perks ? `<div class="hm-sec"><h4>${ic('chart', '', 'sm')}레벨 효과</h4><ul>${perks}</ul></div>` : ''}
-      ${ok && TWUI ? TWUI.heroInfoHtml(id) : ''}`;
+      ${ok && HWUI ? HWUI.heroSkinHtml(id) : ''}${ok && TWUI ? TWUI.heroInfoHtml(id) : ''}`;
   const body = tab === 'up' ? upBody() : tab === 'gear' ? gearBody() : infoBody();
   closeInfoCard();
   const box = document.createElement('div');
@@ -3836,7 +3849,7 @@ function showSettings() {
  <div class="set-row"><span>강화 Lv</span><input id="mstLv"type="number"min="0"max="20"value="20"><label><input id="mstStar"type="checkbox"checked> ★5</label></div>
  <button class="btn primary mini" data-act="mst" data-a="allclear">${ic('bolt', '', 'sm')} 올클리어 (전 스테이지 ★★★ · 전 멤버 · 장비 · 코인)</button>
  <div class="set-row"><span>진행</span><input id="mstStage"type="number"min="0"max="${STAGE_COUNT}" value="10"><button class="btn mini" data-act="mst" data-a="stage">여기까지 클리어</button></div>
-      <div class="set-row"><span>테스트 판</span><select id="mstEnemy">${Object.keys(ENEMIES).filter((k) => !ENEMIES[k].dot).map((k) => `<option value="${k}">${esc(ENEMIES[k].name)}</option>`).join('')}</select><button class="btn mini" data-act="mstWave">소환</button></div>
+      <div class="set-row"><span>테스트 판</span><select id="mstEnemy">${Object.keys(ENEMIES).filter((k) => !ENEMIES[k].dot && !ENEMIES[k].eventOnly).map((k) => `<option value="${k}">${esc(ENEMIES[k].name)}</option>`).join('')}</select><button class="btn mini" data-act="mstWave">소환</button></div>
       <div class="mst-gift"><h4>${ic('gift', '', 'sm')} 선물 보내기 <small>최근 24시간 접속자 + 앞으로 24시간 안에 들어오는 사람 · 계정마다 한 번 · 우편 14일</small></h4>
         <div class="set-row"><span>소모품</span><select id="mstGiftItem">${L.CONS_IDS.map((k) => `<option value="${k}">${esc(L.CONS[k].name)}</option>`).join('')}</select><input id="mstGiftQty" type="number" min="1" max="99" value="10"></div>
         <div class="set-row"><span>제목</span><input id="mstGiftTitle" maxlength="40" value="이호찬님의 선물"></div>
@@ -5535,7 +5548,7 @@ function pauseGame() {
  <div class="topbar"><button class="back" data-act="toLobby">‹ 메인 메뉴</button><div class="tb-right"><button class="share-btn" data-act="share">${ic('share', '', 'sm')} 공유하기</button><button class="icon-btn" data-act="mute">${A.isMuted() ? '' : ''}</button></div></div>
     <div class="pause-box">
       <h2>일시정지</h2>
-      <p class="sub">${g.tower ? `진상의 탑 ${g.tower.f}F · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}` : g.mode === 'stage' ? `스테이지 ${stageLabel(g.stage)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}` : `무한 도전 · 웨이브 ${Math.max(1, g.wave)}`}</p>
+      <p class="sub">${g.tower ? `진상의 탑 ${g.tower.f}F · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}` : g.ev ? `할로윈 ${g.ev.n} · ${esc(g.ev.name)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}` : g.mode === 'stage' ? `스테이지 ${stageLabel(g.stage)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}` : `무한 도전 · 웨이브 ${Math.max(1, g.wave)}`}</p>
  <button class="btn primary" data-act="resume">계속하기</button>
  <button class="btn" data-act="toLobby">${ic('home', '', 'sm')} 메인 메뉴로 <small>이어하기 저장 · 웨이브 ${w} 처음부터 이어서</small></button>
       ${g.pvp || g.weekly || g.raid || g.tower ? '' : '<button class="btn" data-act="restart">다시 하기 <small>이 스테이지 처음부터</small></button>'}
@@ -5561,6 +5574,7 @@ function showResult(victory, quit) {
   consBar.hidden = true;
   guardOff();
   if (g.tower && TWUI) { TWUI.result(g, victory, quit); return; } // 진상의 탑: 돌파 · 보상 상자 / 추락
+  if (g.ev && HWUI) { HWUI.result(g, victory, quit); return; } // 할로윈 이벤트: 점수 · 사탕
   if (g.r2 && R2UI) R2UI.leave(); // 건물주 레이드 전투 HUD 닫기
   app.screen = 'result';
   hud.hidden = true;
@@ -5797,7 +5811,7 @@ function inGameSprites(kind, id, d) {
   return d.boss ? [base, artV(`/img/lb/e_${id}_skill.webp`), artV(`/img/lb/e_${id}_rage.webp`)] : [base];
 }
 const igChip = (list, cls = '') => `<span class="ig-chip ${cls}"><small>인게임</small><span class="ig-row">${list.map((src, i) => `<img src="${src}" alt="" draggable="false" style="--d:${i * 0.35}s" onerror="this.remove()">`).join('')}</span></span>`;
-const DEX_ENEMIES = () => Object.keys(ENEMIES).filter((id) => !ENEMIES[id].dot && !ENEMIES[id].towerOnly); // (탑 전용 보스는 도감 밖)
+const DEX_ENEMIES = () => Object.keys(ENEMIES).filter((id) => !ENEMIES[id].dot && !ENEMIES[id].towerOnly && !ENEMIES[id].eventOnly); // (탑 전용 보스는 도감 밖)
 const DEX_HEROES = () => Object.keys(HEROES);
 function seenEnemies() {
   const set = new Set(P().seen || []);
@@ -5903,7 +5917,7 @@ const DEX_FACE = { subin: [0.53, 0.115, 0.13], baul: [0.49, 0.085, 0.12], byungh
 const FACE_BOX = { subin: [0.53, 0.12, 0.095], byunghwa: [0.42, 0.1, 0.075], hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.565, 0.145, 0.13], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
 // 동그라미 안에 얼굴: 얼굴(이마~턱)이 지름의 70% · 가운데
 function faceCircStyle(id, f = 0.7, cy = 0.5) {
-  const fb = FACE_BOX[id] || DEX_FACE[id] || [0.48, 0.12, 0.1];
+  const fb = (HWUI && HWUI.costumeFace(id)) || FACE_BOX[id] || DEX_FACE[id] || [0.48, 0.12, 0.1]; // (할로윈 의상 썸네일은 의상 얼굴 자리)
   const h = (f / fb[2]) * 100;
   return `--fzh:${h.toFixed(1)}%;--fzy:${(cy * 100).toFixed(1)}%;--fzx:-${(fb[0] * 100).toFixed(1)}%;--fzt:-${(fb[1] * 100).toFixed(1)}%`;
 }
@@ -5935,8 +5949,8 @@ const DEX_FX = {
 // 도감 그림: 큰 그림(dex/) → 없으면 원래 그림
 const DUO_HEROES = ['ara', 'eunok', 'donghan', 'hyungyeong', 'youngjun', 'soyoung', 'jieun', 'junseo'];
 const hasDuo = (id) => DUO_HEROES.includes(id) && !NO_DUO_ART.has(id);
-const hqSrc = (id) => artV(NO_HQ_ART.has(id) ? (NO_DEX_ART.has(id) ? (HEROES[id] || {}).img || '' : `/img/lb/dex/${id}.webp`) : `/img/lb/dexhq/${id}.webp`);
-const dexSrc = (id, fb) => (NO_DEX_ART.has(id) ? fb || '' : artV(`/img/lb/dex/${id}.webp`));
+const hqSrc = (id) => (HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'hq') : artV(NO_HQ_ART.has(id) ? (NO_DEX_ART.has(id) ? (HEROES[id] || {}).img || '' : `/img/lb/dex/${id}.webp`) : `/img/lb/dexhq/${id}.webp`));
+const dexSrc = (id, fb) => (HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'dex') : NO_DEX_ART.has(id) ? fb || '' : artV(`/img/lb/dex/${id}.webp`));
 function dexImg(id, fb, cls = '') {
   const src = dexSrc(id, fb);
   if (!src) return `<span class="dx-art dx-emo ${cls}">${esc((HEROES[id] || ENEMIES[id] || {}).emoji || '')}</span>`;
@@ -7195,6 +7209,15 @@ R2UI = initRaid2({
   thumbSrc: (id) => thumbSrc(id), faceCircStyle: (id, f, cy) => faceCircStyle(id, f, cy), gotText: (g) => gotText(g), liveAct: (pr, ok) => liveAct(pr, ok), closeInfoCard: () => closeInfoCard(),
 });
 Object.assign(ACTS, R2UI.acts);
+// 할로윈 이벤트 연결 (로비 배너 · 이벤트 지도 · 출전 준비 · 전투 · 결과 · 상점 · 의상)
+HWUI = initHw({
+  app, P, stage, hud, R, fx, A, API, L, S,
+  show: (h, c) => show(h, c), popup: (h, c) => popup(h, c), toast: (m, ms) => toast(m, ms), ic: (...a) => ic(...a), av: (d, x) => av(d, x),
+  thumbSrc: (id) => thumbSrc(id), faceCircStyle: (id, f, cy) => faceCircStyle(id, f, cy), heroPower: (p, id) => heroPower(p, id), gotText: (g) => gotText(g), whoHtml: (n, t, x) => whoHtml(n, t, x),
+  liveAct: (pr, ok) => liveAct(pr, ok), closeInfoCard: () => closeInfoCard(), startRun: (o) => startRun(o), placeDeck: (ids) => placeDeck(ids),
+  reopenHero: (id) => { if (stage.querySelector('.hero-full')) showHeroModal(id); },
+});
+Object.assign(ACTS, HWUI.acts);
 // 테스트/디버그용 핸들
 window.__lb = {
   tower: () => TWUI.show(),
