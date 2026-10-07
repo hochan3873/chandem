@@ -206,7 +206,7 @@ const SIG = {
   baul: { name: '팬클럽 응원 썰매 2호', stats: { skill: 0.15, atk: 0.08 } },
   byunghwa: { name: '앵콜 원맨쇼 핀 조명', stats: { cd: 0.12, atk: 0.08 } },
   jeongseob: { name: '쌍둥이 정섭 가면', stats: { res: 0.3, hp: 0.1 } },
-  dragon: { name: '뭉치의 황금 안장', stats: { atk: 0.12, skill: 0.1 } },
+  dragon: { name: '박나뇽의 황금 안장', stats: { atk: 0.12, skill: 0.1 } },
   subin: { name: '20년 우정 부케', stats: { skill: 0.12, cd: 0.1 } },
 };
 const SIG_IDS = Object.keys(SIG).map((h) => 'sig_' + h);

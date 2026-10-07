@@ -124,11 +124,11 @@ export const CURSES = {
   stun2: { name: '상태이상 2배', icon: '⭐', pt: 2, fx: { cc: 2 }, desc: '멤버가 걸리는 기절 · 홀림 · 빙결 · 독이 두 배로 길게' },
   puddle: { name: '독 웅덩이', icon: '☠', pt: 3, fx: { puddle: 1 }, desc: '8초마다 멤버 발밑에 독 웅덩이 (홍정민이 있으면 막아요)' },
   short: { name: '예고 짧게', icon: '⏱', pt: 3, fx: { wind: 0.6 }, desc: '진상 기술 예고가 40% 짧아요 — 끊기 어려워요' },
-  fast: { name: '진상 이동 +20%', icon: '💨', pt: 2, fx: { spd: 1.2 } },
+  fast: { name: '진상 이동 +20%', icon: '💨', pt: 3, fx: { spd: 1.2 } },
   door: { name: '입구 내구도 −30%', icon: '🚪', pt: 2, fx: { door: 0.7 } },
   dark: { name: '보름달 어둠', icon: '🌕', pt: 2, fx: { dark: 1 }, desc: '안개가 짙어 멤버 사거리 −15%' },
-  slowmom: { name: '기세 충전 −40%', icon: '📣', pt: 1, fx: { mom: 0.6 } },
-  twin: { name: '보스 둘', icon: '👥', pt: 5, fx: { twin: 1 }, desc: '마지막 웨이브에 저승사자 팀장이 한 명 더' },
+  slowmom: { name: '기세 충전 −40%', icon: '📣', pt: 2, fx: { mom: 0.6 } },
+  twin: { name: '보스 둘', icon: '👥', pt: 3, fx: { twin: 1 }, desc: '마지막 웨이브에 저승사자 팀장이 한 명 더' },
 };
 export const CURSE_IDS = Object.keys(CURSES);
 export const CURSE_MAX = CURSE_IDS.reduce((a, k) => a + CURSES[k].pt, 0);

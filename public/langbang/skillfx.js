@@ -125,7 +125,7 @@ export class SkillFx {
   rmOn() { return typeof document !== 'undefined' && !!document.body && document.body.classList.contains('rm'); } // 연출 줄이기
   hqArt(id) {
     const m = this._hq || (this._hq = {});
-    if (!m[id] && typeof Image !== 'undefined') { const im = new Image(); im.src = `/img/lb/dexhq/${id}.webp`; m[id] = im; }
+    if (!m[id] && typeof Image !== 'undefined') { const im = new Image(); im.src = `/img/lb/dexhq/${id}.webp${id === 'subin' ? '?v=2' : ''}`; m[id] = im; }
     return m[id] && imgOk(m[id]) ? m[id] : null;
   }
 

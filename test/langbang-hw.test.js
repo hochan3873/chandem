@@ -157,9 +157,9 @@ test('사탕 · 기록: 첫 클리어 · 저주 기록 · 하루 한도 · 의�
   assert.equal(H.hwFinish(lb, { runId: 'run3', clear: true, durationSec: 200, kills: 200, door: 80 }, 'u', IN + 300e3).error !== undefined, true, '같은 판 두 번 안 됨');
   // 저주 걸고 다시 → 새 기록 보너스 · 점수 오름
   r = H.hwStart(lb, { n: 1, deck: ['gunman', 'staff'], curses: ['hp30', 'stun2'] }, 'run4', IN);
-  assert.equal(r.heat, 7);
+  assert.equal(r.heat, 5);
   const f2 = H.hwFinish(lb, { runId: 'run4', clear: true, durationSec: 220, kills: 200, door: 50 }, 'u', IN + 600e3);
-  assert.equal(f2.parts.heat, H.heatCandy(7)); assert.ok(f2.best); assert.equal(lb.hw.best[1].heat, 7);
+  assert.equal(f2.parts.heat, H.heatCandy(5)); assert.ok(f2.best); assert.equal(lb.hw.best[1].heat, 5);
   // 하루 한도
   let got = 0;
   for (let i = 0; i < 40; i++) { H.hwStart(lb, { n: 1, deck: ['gunman', 'staff'] }, 'x' + i, IN); const q = H.hwFinish(lb, { runId: 'x' + i, clear: true, durationSec: 200, kills: 100, door: 10 }, 'u', IN + 900e3); got += q.parts.clear; }

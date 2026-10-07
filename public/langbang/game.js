@@ -12,6 +12,7 @@ import {
   COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
+  artV,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -3293,7 +3294,7 @@ const DEX_CATCH = {
   eunok: '"한 잔만… 딱 한 잔만 할게."', hanna: '"윙크 받을 준비 됐어?"', sunggu: '"요즘 것들은… 내가 보여 주마."', junseo: '"잠깐, 내 친구 소개해 줄게!"', hyungyeong: '"다이어트는 내일부터! 오늘은 박치기!"',
   ara: '"공주님 등장~ 아이고 허리야…"', hochan: '"랑방을 위하여!!"',
   soyoung: '"그러니까 내가 뭐랬어!"', jieun: '"…시간아 멈춰라."', sanghwa: '"좋은남자 박상화!"', jungmin: '"가만있어 봐, 붙여 줄게."',
-  dragon: '"뭉치야, 불!"', subin: '"음악 틀어 줘! 같이 춰요~"',
+  dragon: '"박나뇽, 내 말 좀 들어 봐~" (화르륵)', subin: '"음악 틀어 줘! 같이 춰요~"',
 };
 function showJoinReveal(id, kind = 'new') {
   return new Promise((resolve) => {
@@ -3377,7 +3378,7 @@ function showMembers() {
   `, 'dim withnav');
 }
 // ─── 그림 카드: 멤버 목록 · 가방 · 덱에서 공용 (dexhq 썸네일, 상반신 · 티어 테두리 · 두 모습이면 번갈아) ───
-const thumbSrc = (id, duo) => (!duo && HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'thumb') : NO_HQ_ART.has(id) ? (HEROES[id] || SUMMONS[id] || {}).img || '' : `/img/lb/dexhq/thumb/${id}${duo ? '_duo' : ''}.webp`);
+const thumbSrc = (id, duo) => (!duo && HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'thumb') : NO_HQ_ART.has(id) ? (HEROES[id] || SUMMONS[id] || {}).img || '' : artV(`/img/lb/dexhq/thumb/${id}${duo ? '_duo' : ''}.webp`));
 function artCard(id, o = {}) {
   const d = HEROES[id];
   const p = P();
@@ -5807,7 +5808,7 @@ const FORM_SPRITES = { ara: ['h_ara_old'], donghan: ['h_donghan_on', 'h_donghan_
 function inGameSprites(kind, id, d) {
   if (kind === 'hero') return [d.img, ...(FORM_SPRITES[id] || []).map((n) => `/img/lb/${n}.webp`)];
   const base = d.img || `/img/lb/e_${id}.webp`;
-  return d.boss ? [base, `/img/lb/e_${id}_skill.webp`, `/img/lb/e_${id}_rage.webp`] : [base];
+  return d.boss ? [base, artV(`/img/lb/e_${id}_skill.webp`), artV(`/img/lb/e_${id}_rage.webp`)] : [base];
 }
 const igChip = (list, cls = '') => `<span class="ig-chip ${cls}"><small>인게임</small><span class="ig-row">${list.map((src, i) => `<img src="${src}" alt="" draggable="false" style="--d:${i * 0.35}s" onerror="this.remove()">`).join('')}</span></span>`;
 const DEX_ENEMIES = () => Object.keys(ENEMIES).filter((id) => !ENEMIES[id].dot && !ENEMIES[id].towerOnly && !ENEMIES[id].eventOnly); // (탑 전용 보스는 도감 밖)
@@ -5845,7 +5846,7 @@ const DEX_FLAVOR = {
   eunok: '처음엔 얌전히 홀짝홀짝. 14초쯤 뒤엔… 소주병이 날아다니기 시작한다.',
   hanna: '랑방 공식 윙크 담당. 남자 진상은 윙크 한 방에 정신 못 차리고 날아간다.',
   sunggu: '"요즘 것들은…"이 입버릇인 최고참. 지팡이를 던지면 커다란 원을 그리며 한 무리를 두 번 훑고 손에 쏙 돌아온다.',
-  dragon: '아기 용 뭉치와 한 몸처럼 다니는 히든 멤버. 뭉치가 "화르륵" 하면 진상들이 불붙은 채 뛰어다닌다.',
+  dragon: '어느 날 찾아온 자기 닮은 용 박나뇽과 다니는 히든 멤버. 나영이 헛소리를 할 때마다 박나뇽이 "화르륵" — 진상들이 불붙은 채 뛰어다닌다.',
   subin: '춤 좋아하는 신부 베프. 리본 턴 한 번이면 진상들도 같이 춤추고, 댄스 플로어가 깔리면 골목이 무대가 된다.',
   junseo: '여사친이 유난히 많은 남자. "잠깐, 내 친구 소개해 줄게!" 하면 여사친이 굴러간다.',
   hyungyeong: '"다이어트는 내일부터!" 통통할 땐 벽, 주사 한 방이면 복서. 그리고… 요요.',
@@ -5948,8 +5949,8 @@ const DEX_FX = {
 // 도감 그림: 큰 그림(dex/) → 없으면 원래 그림
 const DUO_HEROES = ['ara', 'eunok', 'donghan', 'hyungyeong', 'youngjun', 'soyoung', 'jieun', 'junseo'];
 const hasDuo = (id) => DUO_HEROES.includes(id) && !NO_DUO_ART.has(id);
-const hqSrc = (id) => (HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'hq') : NO_HQ_ART.has(id) ? (NO_DEX_ART.has(id) ? (HEROES[id] || {}).img || '' : `/img/lb/dex/${id}.webp`) : `/img/lb/dexhq/${id}.webp`);
-const dexSrc = (id, fb) => (HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'dex') : NO_DEX_ART.has(id) ? fb || '' : `/img/lb/dex/${id}.webp`);
+const hqSrc = (id) => (HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'hq') : artV(NO_HQ_ART.has(id) ? (NO_DEX_ART.has(id) ? (HEROES[id] || {}).img || '' : `/img/lb/dex/${id}.webp`) : `/img/lb/dexhq/${id}.webp`));
+const dexSrc = (id, fb) => (HWUI && HWUI.costumeOf(id) ? HWUI.dexSrc(id, 'dex') : NO_DEX_ART.has(id) ? fb || '' : artV(`/img/lb/dex/${id}.webp`));
 function dexImg(id, fb, cls = '') {
   const src = dexSrc(id, fb);
   if (!src) return `<span class="dx-art dx-emo ${cls}">${esc((HEROES[id] || ENEMIES[id] || {}).emoji || '')}</span>`;
@@ -6193,7 +6194,7 @@ function dexPageHtml(kind, id, form, duo) {
       ? `<img class="dx-art hq duo" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false" onerror="this.onerror=null;this.classList.remove('duo');this.src='/img/lb/dexhq/${id}.webp'">`
       : hasDuo(id) && ok && (!cur || cur === id)
         ? `<span class="dx-swap"><img class="dx-art hq half ha" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false" onerror="this.parentNode.outerHTML='<img class=&quot;dx-art hq&quot; src=&quot;/img/lb/dexhq/${id}.webp&quot; alt=&quot;&quot;>'"><img class="dx-art hq half hb" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false"></span>`
-        : `<img class="dx-art hq" src="/img/lb/dexhq/${id}.webp" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/dex/${id}.webp';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`)
+        : `<img class="dx-art hq" src="${artV(`/img/lb/dexhq/${id}.webp`)}" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/dex/${id}.webp';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`)
     : dexArt(d, id, cur);
   const fb = DEX_FACE[id] || [0.48, 0.09, 0.15];
   const faces = ''; // 얼굴 확대 칸은 없앴다 (멤버마다 들쭉날쭉 · 주먹·병이 잘려 '컵 두 개'처럼 보였다) — 큰 그림이 그 자리까지 채운다
