@@ -27,6 +27,8 @@ const TAU = Math.PI * 2;
 export const HERO_BOX = 82; // 영웅 그림 상자 크기(논리 px) — 실제 캐릭터는 약 85%
 const FEET = 0.92; // 그림 안에서 발 위치 (위에서부터 비율)
 const FEET_OFF = 0.3; // 몸 중심(y) → 발까지 거리 (상자 대비)
+// 박나뇽 입 위치 (그림 256칸 안 좌표): 공격 띠 8칸마다 · 가만히 있는 그림 — 불 뿜기가 입에서 나오게 (kitfx.js breath)
+const DRAGON_MOUTH = [[58, 140], [60, 140], [64, 138], [66, 149], [76, 139], [70, 138], [60, 140], [60, 140]], DRAGON_MOUTH_IDLE = [60, 142];
 
 const PROJ_COLOR = {
   notice: '#ffd23f', warn: '#ff6b5a', bullet: '#6dffb0', flower: '#ff9fd0', bottle: '#7be38f', wink: '#ff5fcf', cane: '#e0b27a', swear: '#ff9a3c',
@@ -331,6 +333,7 @@ export class Renderer {
     for (let i = 0; i < 4; i++) list['bar' + i] = `/img/lb/ui/barricade_${i}.webp`;
     for (const k of ['heart', 'fire', 'electric', 'gold', 'shock', 'spark']) list['fx_' + k] = `/img/lb/fx/${k === 'shock' ? 'shock_ring' : k === 'spark' ? 'hit_spark' : 'explo_' + k}.webp`;
     for (const n of PAINTED_MORE) list['p_' + n] = `/img/lb/fx/p_${n}.webp`;
+    for (const n of ['breath', 'flame', 'burst']) list['dr_' + n] = `/img/lb/fx/dragon_${n}.webp`; // 박나뇽 불 (불 뿜기 줄기 · 불꽃 혀 · 쾅 불덩이 — 8·8·6칸 띠, kitfx.js)
     list.pCrown = '/img/lb/fx/p_crown.webp'; list.pBottle = '/img/lb/fx/p_bottle.webp'; list.pBottleRage = '/img/lb/fx/p_bottle_rage.webp'; // 그린 투사체 (없으면 코드로 그린 것)
     for (const k of ['talk', 'power', 'charm', 'booze']) list['attr_' + k] = `/img/lb/attr/${k}.webp`; // 속성 배지 그림
     list.bg = '/img/lb/bg.webp';
@@ -899,6 +902,8 @@ export class Renderer {
     make('glowGold', 120, 120, (x, w, h) => glow(x, w / 2, h / 2, 60, 'rgba(255,200,60,0.5)'));
     make('glowPink', 120, 120, (x, w, h) => glow(x, w / 2, h / 2, 60, 'rgba(255,90,200,0.5)'));
     make('glowCyan', 120, 120, (x, w, h) => glow(x, w / 2, h / 2, 60, 'rgba(90,220,255,0.45)'));
+    make('glowFire', 120, 120, (x, w, h) => { const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,236,170,0.95)'); g.addColorStop(0.22, 'rgba(255,160,50,0.6)'); g.addColorStop(0.55, 'rgba(255,80,15,0.22)'); g.addColorStop(1, 'rgba(255,40,0,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); }); // 박나뇽 불빛 (더하기 합성용)
+    make('smokeSoft', 64, 64, (x, w, h) => { const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(62,50,46,0.8)'); g.addColorStop(0.6, 'rgba(52,42,40,0.35)'); g.addColorStop(1, 'rgba(40,34,34,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); }); // 불 뒤 검은 연기
     make('shadow', 60, 20, (x, w, h) => {
       const g = x.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
       g.addColorStop(0, 'rgba(0,0,0,0.5)'); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -2162,6 +2167,7 @@ export class Renderer {
       const hx = h.out || h.restT > 0 ? h.px : h.rx;
       const hy = h.out || h.restT > 0 ? h.py : h.y;
       if (ui && ui.drag && ui.drag.h === h) continue; // 끌고 있는 영웅은 손가락 위치에 따로 그린다
+      if (h.id === 'dragon' && this.kit && this.kit.diveHidden(g, h)) continue; // 박나영 급강하: 하늘로 날아간 동안은 자리에 없다 (kitfx.js 가 날아가는 모습을 그린다)
       const feet = hy + box * FEET_OFF;
       // 발판 빛
       const gl = g.rallyT > 0 ? this.projSprites.glowGold : h.rage ? this.projSprites.glowRed : h.charmT > 0 ? this.projSprites.glowPink : this.projSprites.glowGold;
@@ -2274,6 +2280,7 @@ export class Renderer {
           const bw = box * fit.k;
           this.tf(hx, feet + (h.tiredT > 0 ? 3 : 0), 0, 1, 1);
           cx.drawImage(hstrip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, bw, bw);
+          if (h.id === 'dragon') { const m = DRAGON_MOUTH[fi] || DRAGON_MOUTH_IDLE; h._mouth = { x: hx - box / 2 + fit.dx * box + (m[0] / 256) * bw, y: feet + (h.tiredT > 0 ? 3 : 0) - box * FEET + fit.dy * box + (m[1] / 256) * bw }; } // 불 뿜기가 나오는 입 (kitfx.js)
           usedStrip = true;
         }
       }
@@ -2348,6 +2355,7 @@ export class Renderer {
         { const ck = h._castAt && !cp ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); } // (시전 동작이 없는 멤버만 톡 커지기)
         cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
         cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
+        if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE, lx = -box / 2 + (m[0] / 256) * box, ly = -box * FEET + (m[1] / 256) * box, c = Math.cos(rot), s = Math.sin(rot); h._mouth = { x: hx + dx + lx * sx * c - ly * sy * s, y: feet + bob + lx * sx * s + ly * sy * c }; }
         if (h.freezeT > 0 && h.stunT > 0 && sp.f) { cx.globalAlpha = 0.5; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); } // 7장 빙결: 하얗게 언 모습
         const hk2 = h._hitAt ? (performance.now() - h._hitAt) / 160 : 9;
         if (hk2 < 1 && sp.f) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * (1 - hk2); cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalCompositeOperation = 'source-over'; }
@@ -2940,6 +2948,28 @@ export class Renderer {
           this.tf(p.x, p.y, p.type === 'star' ? p.rot : 0, p.size / 10, p.size / 10);
           cx.globalAlpha = Math.min(1, a * 2);
           cx.drawImage(s.c, -8, -8, 16, 16);
+          break;
+        }
+        case 'ember': { // 불티: 빛 번짐 + 진행 방향 꼬리 (더하기)
+          const g0 = P.glowFire, r = p.size * (1.2 + a);
+          cx.globalCompositeOperation = 'lighter';
+          this.tf(p.x, p.y, 0, 1, 1); cx.globalAlpha = a * 0.55; cx.drawImage(g0.c, -r * 2, -r * 2, r * 4, r * 4);
+          this.tf(p.x, p.y, Math.atan2(p.vy, p.vx), 1, 1); cx.globalAlpha = Math.min(1, a * 1.6); cx.fillStyle = a > 0.5 ? '#fff6c8' : '#ffb347';
+          cx.fillRect(-p.size * 2.2, -p.size * 0.35, p.size * 2.6, p.size * 0.7);
+          cx.globalCompositeOperation = 'source-over';
+          break;
+        }
+        case 'smoke': { // 연기: 부풀며 옅어짐
+          const sm = P.smokeSoft, r = p.size * (1 + (1 - a) * 1.6);
+          this.tf(p.x, p.y, p.rot, 1, 1); cx.globalAlpha = Math.min(1, a * 1.4) * 0.6; cx.drawImage(sm.c, -r, -r, r * 2, r * 2);
+          break;
+        }
+        case 'fire': { // 불꽃 혀 한 개 (띠 dr_flame) — 위로 솟으며 작아짐
+          const im = this.images.dr_flame;
+          if (!imgOk(im)) break;
+          const fw = im.naturalWidth / 8, h0 = p.size * (0.5 + 0.6 * a), fi = Math.floor((p.max - p.life) * 16 + p.rot * 3) % 8;
+          this.tf(p.x, p.y, 0, 1, 1); cx.globalAlpha = Math.min(1, a * 2);
+          cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -h0 * 0.33, -h0, h0 * 0.67, h0);
           break;
         }
         case 'flame': {

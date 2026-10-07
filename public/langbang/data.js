@@ -872,7 +872,7 @@ const ART_READY = new Set(['h_jungmin', 'h_junyoung', 'h_soyoung', 'h_jieun', 'h
 //  바뀐 파일만 적는다 (전부 붙이면 배포마다 모두 다시 받아서 전송량이 폭증) · 다시 바꾸면 숫자를 올린다
 export const ART_VER = {
   h_subin: 2, h_subin_attack: 2, 'dex/subin': 2, 'dexhq/subin': 2, 'dexhq/thumb/subin': 2,
-  h_donghan_attack: 2, h_eunok_attack: 2, e_boss_bestman_attack: 2, e_boss_bestman_skill: 2, e_boss_bestman_rage: 2,
+  h_donghan_attack: 2, h_eunok_attack: 2, h_dragon_attack: 2, e_boss_bestman_attack: 2, e_boss_bestman_skill: 2, e_boss_bestman_rage: 2,
 };
 export const artV = (u) => { const m = typeof u === 'string' && /^\/img\/lb\/([^?]+)\.webp$/.exec(u); return m && ART_VER[m[1]] ? `${u}?v=${ART_VER[m[1]]}` : u; };
 const ART = (n) => (ART_READY.has(n) ? artV(`/img/lb/${n}.webp`) : '');
