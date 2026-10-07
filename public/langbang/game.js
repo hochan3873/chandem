@@ -2970,8 +2970,8 @@ function showShop() {
     const own = (id) => API.heroUnlocked(p, id);
     const art = (id, cls) => `<img class="${cls}${own(id) ? '' : ' sil'}" src="${thumbSrc(id) || HEROES[id].img}" alt="" loading="lazy" decoding="async" draggable="false" style="object-position:${face(id)}" onerror="this.onerror=null;this.src='${HEROES[id].img}'">`;
     body = `<div class="gacha-banner v2" style="--c:${ATTRS[HEROES[pick].attr].color}">
-        <div class="gb-art">${others.map((id, i) => art(id, `gb-back b${i}`)).join('')}${art(pick, 'gb-main')}</div>
-        <div class="gb-text"><div class="gb-title"><small class="gb-pick">이번 주 픽업 · T4</small><b>${own(pick) ? esc(HEROES[pick].name) : '???'}</b><small>${own(pick) ? esc(HEROES[pick].role) : `<span class="gb-attr">${attrIco(HEROES[pick].attr)}</span>정체는 모집해서 확인`} · 코인·모집권만 (현금 결제 없음)</small></div>
+        <div class="gb-art">${others.map((id, i) => art(id, `gb-back b${i}`)).join('')}${art(pick, 'gb-main').replace(' sil"', '"')}</div>
+        <div class="gb-text"><div class="gb-title"><small class="gb-pick">이번 주 픽업 · T4</small><b>${esc(HEROES[pick].name)}</b><small class="gb-rule">T4 멤버가 나오면 <em>50%는 ${esc(HEROES[pick].name)}</em> · 다음 주 픽업 ${esc(HEROES[L.pickupHero(Date.now() + 7 * 864e5)].name)}</small><small>${esc(HEROES[pick].role)} · 코인·모집권만 (현금 결제 없음)</small></div>
         <div class="gb-pity"><span>T4 멤버 확정까지 <b>${pity}</b>회</span><span>${lopen ? `LEGEND 확정까지 <b>${L.PITY_LEGEND - (p.pity.legend | 0)}</b>회${(p.pity.legend | 0) >= L.PITY_SOFT - 1 ? ` · 지금 확률 ${L.legendRate(p.pity.legend | 0).toFixed(1)}%` : ''}` : `LEGEND ${own('hochan') ? '이호찬' : '멤버'}은 ${stageLabel(L.HOCHAN_GATE)} 클리어 후 등장`}</span></div>
       </div></div>
       <div class="grid2 gacha-btns">

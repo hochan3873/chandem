@@ -4392,3 +4392,6 @@ body.rm .card-sheet .cs2-box { animation: none; }
 .aug-box.v4 .ab-card b::before { content: '「'; }
 .aug-box.v4 .ab-card b::after { content: '」'; }
 .card.v5:not(.k-join) .c5-rec { top: calc(var(--u) * -20); left: calc(var(--u) * -8); } /* 추천 표시가 쉬운 한 줄 첫 글자를 가리지 않게 (그림 쪽으로) */
+/* 모집 배너: 픽업 규칙 한 줄 (T4 가 나오면 50% 는 픽업 멤버 · 다음 주 픽업) */
+.gacha-banner .gb-rule { display: block; margin: calc(var(--u) * 2) 0; padding: calc(var(--u) * 2) calc(var(--u) * 8); border-radius: 99px; background: rgba(0, 0, 0, 0.45); color: #fff; font-size: calc(var(--u) * 10.5); font-weight: 800; width: fit-content; }
+.gacha-banner .gb-rule em { font-style: normal; color: #ffd23f; }
