@@ -384,7 +384,7 @@ async function startRun(opt = {}) {
     app.weeklyRun = r.runId;
   }
   let consIds = [];
-  if (['stage', 'endless', 'weekly', 'raid', 'tower'].includes(mode) && !dbg && !opt.resume) {
+  if (['stage', 'endless', 'weekly', 'raid', 'tower'].includes(mode) && !dbg && !opt.resume && !(tw && tw.practice)) { // (탑 연습 층은 소모품을 안 쓴다)
     const lo = consLoadout().filter((id) => id && consHave(id) > 0);
     if (lo.length) { const r = await API.consStart(lo, app.guest); if (r && r.ok) { consIds = r.cons || []; if (r.profile) app.profile = r.profile; } }
   }
@@ -1512,7 +1512,7 @@ function frame(now) {
   if (live) tickCards((now - (frame.prev || now)) / 1000 > 0.1 ? 0.1 : (now - (frame.prev || now)) / 1000);
   frame.prev = now;
   if (g && !app.paused && !app.confirmOpen) {
-    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1) * (live ? TUT.scale() : 1); // 튜토리얼 설명 중: 멈춤 · 느리게
+    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1) * (live ? TUT.scale() * (TWUI && TWUI.tutScale ? TWUI.tutScale() : 1) : 1); // 튜토리얼 설명 중 (탑 튜토리얼 · 연습 층도): 멈춤 · 느리게
     const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
     if (live && live.augOffer && !app.paused && !TUT.hold()) { live.augOffer.t -= dt * 0.8; if (DEBUG.autopick) { S.applyAug(live, live.augOffer.opts[0]); handleEvents(live, true); } } // 증강 제한 시간은 실제 시간으로 (고르는 동안 느려져도)
     if (live && live.mode === 'endless' && !live.over && !app.paused) {
@@ -3925,7 +3925,7 @@ Object.assign(ACTS, {
     });
   },
   settings: () => showSettings(),
-  tutReplay: () => { TUT.replay(); closeInfoCard(); app.lobbyStage = 1; showMenu(); toast('튜토리얼을 처음부터 다시 보여 드려요', 2200); },
+  tutReplay: () => { TUT.replay(); if (TWUI && TWUI.tutReplay) TWUI.tutReplay(); closeInfoCard(); app.lobbyStage = 1; showMenu(); toast('튜토리얼을 처음부터 다시 보여 드려요', 2200); },
   setTitle: async (b) => { if (await liveAct(API.setCosmetic(b.dataset.v, undefined, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
   cosmetics: () => { if (app.guest) { location.href = '/?login=1&next=langbang'; return; } showCosmetics(); }, // 손님이 프로필을 누르면 바로 로그인 (앱 안에서 로그인 → 랑방으로 돌아옴)
   cosmTab: (b) => { app.cosmTab = b.dataset.v; showCosmetics(); },

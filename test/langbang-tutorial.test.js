@@ -52,11 +52,11 @@ test('레슨 고르기: 로비 1-1 → 출전 준비 → 1-1 전투 · 고참에
   // 고참도 처음 보는 것(송바울 · 1:1 · 탑)은 한 번
   assert.equal(T.pickLesson(vet, play({ baul: true, t: 3 })).id, 'baul');
   assert.equal(T.pickLesson(vet, play({ pvp: true, t: 3 })).id, 'pvp');
-  assert.equal(T.pickLesson(vet, { where: 'tower' }).id, 'tower');
+  assert.equal(T.pickLesson(vet, { where: 'tower' }), null, '탑은 탑 화면이 따로 (tower-guide.js TOWER_LESSONS)');
   assert.equal(T.pickLesson(vet, { where: 'raid' }).id, 'raid');
   // 끄면 아무것도
   assert.equal(T.pickLesson(T.tutFromList(['@on', '@off']), play()), null);
-  assert.equal(T.pickLesson(T.tutFromList(['@off']), { where: 'tower' }), null);
+  assert.equal(T.pickLesson(T.tutFromList(['@off']), { where: 'raid' }), null);
 });
 
 test('레슨 고르기: 막혀 있으면(로딩 · 창) 안 띄움 · 헬 · 주간 · 1:1 은 스테이지 레슨 아님', () => {
