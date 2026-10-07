@@ -1798,7 +1798,7 @@ const MID_DEFS = {
 // 합체 중간 보스 한 장 그림 (둘이 한 몸) — e_<id>.webp (전투) · dex/<id>.webp (도감). 그림이 오면 여기에 추가
 // 진상 프레임 애니메이션 (선택): 가로 띠 그림 · 칸은 정사각형 (frames 를 안 적으면 너비 ÷ 높이) — 그림이 없으면 코드 움직임 그대로
 //   walk: 걸을 때 반복 · die: 쓰러질 때 한 번 (쓰러짐 연출이 들어가면 사용)
-export const BOSS_RAGE_ATK = []; // 분노 공격 띠가 있는 보스 (그림이 준비된 것만)
+export const BOSS_RAGE_ATK = ['boss_thug', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty', 'boss_union']; // 분노 공격 띠가 있는 보스 (그림이 준비된 것만)
 export const ENEMY_ANIM = {
   drunk: { walk: { src: '/img/lb/e_drunk_walk.webp', frames: 12, fps: 10 }, die: { src: '/img/lb/e_drunk_die.webp', frames: 8, fps: 14, hold: 0.15 } },
   boss_gapjil: { walk: { src: '/img/lb/e_boss_gapjil_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_gapjil_die.webp', frames: 8, fps: 12, hold: 0.3 } },
