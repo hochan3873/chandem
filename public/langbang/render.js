@@ -1669,7 +1669,7 @@ export class Renderer {
       if (e.tieT > 0) rot = Math.sin(t * 14 + e.phase) * 0.06; // 묶여서 버둥버둥
       if (e.def.hw) { // 할로윈 진상 몸짓 (hw-sim): 강시 콩콩 (뻣뻣 · 착지 찌그러짐) · 좀비 다시 일어나기 (누웠다가 벌떡)
         if (e.def.hw.hop && !e.atRope && e.stunT <= 0) { rot = 0; bob = -(e.hwHopY || 0); sy = e.hwAir ? 1.05 : 0.93; sx = 1 / sy; }
-        if (e.hwRiseT > 0) { const k = Math.min(1, (e.hwRiseT / e.def.hw.revive.sec) * 1.35); rot = 1.45 * k * (e.phase > 3 ? 1 : -1); bob = box * 0.2 * k; sx = 1; sy = 1 - 0.05 * Math.sin(t * 20) * (1 - k); }
+        if (e.hwRiseT > 0) { const k = Math.min(1, (e.hwRiseT / (e.hwRiseMax || e.def.hw.revive.sec)) * 1.35); rot = 1.45 * k * (e.phase > 3 ? 1 : -1); bob = box * 0.2 * k; sx = 1; sy = 1 - 0.05 * Math.sin(t * 20) * (1 - k); }
       }
       // 보스 발밑 오라
       if (e.warnN > 0) {
@@ -1769,8 +1769,9 @@ export class Renderer {
           if (e.pukeT < lead && e.y > g.ropeY - def.puke.reach && g.heroes.length) pfi = Math.min(rel - 1, Math.floor((1 - e.pukeT / lead) * rel)); // 토하기 직전: 몸을 숙이고 꿀렁
           else if (after >= 0 && after < (pk.frames || 8) - rel) pfi = rel + Math.floor(after); // 쏟은 뒤: 웩 → 입 닦기
         }
-        const aa = e.atRope && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack; // 입구 공격 프레임 띠 (있으면)
-        const astrip = aa && this.images[`anim_${e.type}_attack`];
+        const rgA = e.atRope && key === 'e_' + e.type + '_rage' && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].rattack; // 분노 보스: 분노 공격 띠 (있으면 분노 그림 대신)
+        const aa = rgA && imgOk(this.images[`anim_${e.type}_rattack`]) ? rgA : e.atRope && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack; // 입구 공격 프레임 띠 (있으면)
+        const astrip = aa && this.images[aa === rgA ? `anim_${e.type}_rattack` : `anim_${e.type}_attack`];
         const an = moving && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].walk; // 보스 기술·분노 그림이 뜨는 동안은 그 그림
         const strip = an && this.images[`anim_${e.type}_walk`];
         const spA = e.speechT > 0 && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack, spS = spA && this.images[`anim_${e.type}_attack`]; // 8장 축사: 공격 띠(금빛 테두리 축사 루프)를 계속
@@ -1795,7 +1796,7 @@ export class Renderer {
         } else if (astrip && imgOk(astrip)) {
           const fh = astrip.naturalHeight, n = aa.frames || Math.max(1, Math.round(astrip.naturalWidth / fh)), fw = astrip.naturalWidth / n, rel = Math.min(n - 1, aa.release || 3);
           const fi = e.hitT > 0 ? Math.min(n - 1, rel + Math.floor((1 - e.hitT / 0.25) * (n - rel))) : e.atkCd > 0 && e.atkCd < 0.3 ? Math.floor((1 - e.atkCd / 0.3) * rel) : 0;
-          const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ea_' + e.type, astrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
+          const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit((aa === rgA ? 'ear_' : 'ea_') + e.type, astrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet, 0, 1, 1);
           drawFr(astrip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (strip && imgOk(strip)) { // 프레임 띠 걷기: 코드 들썩임 대신 그림 칸을 넘긴다

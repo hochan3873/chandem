@@ -816,14 +816,14 @@ export function findTarget(g, h, skip) {
   if (f && !f.dead && f.uid === g.focusUid && inRange(h, f, heroRange(g, h, true)) && !(skip && skip.includes(f)) && !(h.def.lane && Math.abs(f.x - h.x) > h.def.lane + f.r)) return f;
   if (h.def.pistol) { // 건전남: 마무리 사수 — 사거리 안에서 체력이 가장 적게 남은 진상 (입구에 가까울수록 조금 먼저)
     let bt = null, bv = 1e9;
-    for (const e of g.enemies) { if (e.dead || e.y < -20 || (skip && skip.includes(e)) || (isHidden(e) && !REVEAL_HEROES.includes(h.id)) || !inRange(h, e, range)) continue; const v = e.hp / Math.max(1, e.maxHp) - (e.y / g.rowY) * 0.35 - (e.atRope ? 0.3 : 0); if (v < bv) { bv = v; bt = e; } }
+    for (const e of g.enemies) { if (e.dead || e.y < -20 || (skip && skip.includes(e)) || (e.hwLie || (isHidden(e) && !REVEAL_HEROES.includes(h.id))) || !inRange(h, e, range)) continue; const v = e.hp / Math.max(1, e.maxHp) - (e.y / g.rowY) * 0.35 - (e.atRope ? 0.3 : 0); if (v < bv) { bv = v; bt = e; } }
     return bt;
   }
   let best = null, by = -1e9;
   const lane = h.def.lane;
   for (const e of g.enemies) {
     if (e.dead || (skip && skip.includes(e))) continue;
-    if (isHidden(e) && !REVEAL_HEROES.includes(h.id)) continue; // 은신: 운영진 · 건전남만 먼저 본다
+    if (e.hwLie || (isHidden(e) && !REVEAL_HEROES.includes(h.id))) continue; // 은신: 운영진 · 건전남만 먼저 본다
     if (lane && Math.abs(e.x - h.x) > lane + e.r) continue; // 자기 줄만
     // 입구에 가까운(아래쪽) 적 우선, 도망가는 먹튀는 약간 가산
     const y = e.y + (e.fleeing ? 60 : 0);
@@ -1421,6 +1421,7 @@ export const BOSS_GUARD = { hit: 0.05, perSec: 0.07, over: 0.2, from: 30 }; // 4
 export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.dead) return 0;
   if (e.speechT > 0) return ch8SpeechHit(g, e, src); // 8장 신랑 친구 대표: 축사 중엔 무적 — 대신 축사 게이지가 찬다
+  if (g.hw && g.hw.onHit) { dmg = g.hw.onHit(g, e, dmg, src, aoe); if (!(dmg > 0)) return 0; } // 할로윈 H1 엎어진 좀비(무적) · H2 불 붙은 호박등 껍질
   if (e.r2 && g.r2) { dmg = g.r2.hitMul(g, e, dmg, src, aoe); if (!(dmg > 0)) return 0; } // 건물주 레이드 거대 보스: 응원 버프 · 피해 배율 (raid2-sim.js)
   if (e.tLay > 0 && src && layerHit(g, e, src)) return 0; // 탑 보호막: 한 방에 한 겹
   if (e.cLay > 0 && src && condLayer(g, e, src)) dmg *= 1 - COND.shield.cut; // 스테이지 보호막 진상: 겹이 남아 있으면 −90% (한 방에 한 겹)
@@ -1664,7 +1665,8 @@ function bossSkill(g, e, [kind, name, o]) {
   }
   ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, boss: e.type, hits: kind === 'stun' ? e.bai.targets.filter((h) => !h.gone).map((h) => ({ x: h.x, y: h.y, id: h.id })) : undefined, sec: o.sec }); // (boss · hits: 보스마다 다른 기술 연출 — kitfx.js)
 }
-export const isHidden = (e) => !e.unveiled && !!((e.def.traits && e.def.traits.stealth) || e.cloak);
+export const isHidden = (e) => !!e.hwLie || !e.unveiled && !!((e.def.traits && e.def.traits.stealth) || e.cloak);
+export const killEnemyX = (g, e, src) => killEnemy(g, e, src || null); // 할로윈 H2 호박등 펑 (hw-sim.js)
 function killEnemy(g, e, src) {
   if (g.hw && g.hw.preKill(g, e, src)) return; // 할로윈 좀비 "한 잔 더!": 이번엔 안 쓰러진다
   e.dead = true;

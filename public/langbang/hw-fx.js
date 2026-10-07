@@ -97,13 +97,27 @@ export function drawHw(R, g, t, layer) {
         wisp(cx, e.x, e.y - e.def.size * 0.4, e.def.size * 0.45, 0.35, 'rgba(160,210,255,A)');
       }
       if (e.hwRiseT > 0) { // 좀비: 묘비가 솟고 흙이 튄다 (일어나는 동안 때리면 끝)
-        const k = 1 - e.hwRiseT / e.def.hw.revive.sec;
+        const k = 1 - e.hwRiseT / (e.hwRiseMax || e.def.hw.revive.sec);
         cx.fillStyle = '#5a5c66'; cx.strokeStyle = '#26262e'; cx.lineWidth = 1.5;
         const hx = e.x + 18, hy = e.y + e.def.size * 0.05, hh = 26 * Math.min(1, k * 2);
         cx.beginPath(); cx.moveTo(hx - 9, hy); cx.lineTo(hx - 9, hy - hh + 8); cx.quadraticCurveTo(hx, hy - hh - 3, hx + 9, hy - hh + 8); cx.lineTo(hx + 9, hy); cx.closePath(); cx.fill(); cx.stroke();
         cx.fillStyle = '#26262e'; cx.font = 'bold 9px sans-serif'; cx.textAlign = 'center'; if (hh > 16) cx.fillText('RIP', hx, hy - hh + 14);
         cx.strokeStyle = `rgba(143,232,90,${0.5 + 0.4 * Math.sin(t * 12)})`; cx.lineWidth = 3;
         cx.beginPath(); cx.arc(e.x, e.y - e.def.size * 0.25, e.def.size * 0.42, -Math.PI / 2, -Math.PI / 2 + TAU * k); cx.stroke();
+      }
+      if (e.hwLie && g.hw && g.hw.sig) { // H1: 엎어진 좀비 위 남은 부활 (맥주잔 n개)
+        const left = Math.max(0, g.hw.sig.max - (g.hw.sigN | 0) - (e.hwRevN | 0)), y = e.y - e.def.size * 0.75;
+        cx.font = 'bold 11px sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(20,10,0,0.85)';
+        const txt = left > 0 ? '🍺'.repeat(Math.min(4, left)) : '마지막!'; cx.strokeText(txt, e.x, y); cx.fillStyle = left > 0 ? '#ffd23f' : '#ff7a5a'; cx.fillText(txt, e.x, y);
+      }
+      if (e.hwLit) { // H2: 불 붙은 호박등 — 도화선 불꽃 + 단단한 껍질 테
+        const fy = e.y - e.def.size * 0.95, fl = rm ? 1 : 0.75 + 0.25 * Math.sin(t * 30 + e.uid);
+        wisp(cx, e.x + 4, fy, 10 * fl, 0.95, 'rgba(255,190,60,A)');
+        cx.strokeStyle = 'rgba(255,140,30,0.75)'; cx.lineWidth = 2.5; cx.setLineDash([4, 4]);
+        cx.beginPath(); cx.arc(e.x, e.y - e.def.size * 0.35, e.def.size * 0.42, 0, TAU); cx.stroke(); cx.setLineDash([]);
+      } else if (e.hwCracked && !e.dead && e.type === 'hw_pumpkin') { // 꺼진 호박등: 금 간 껍질
+        cx.strokeStyle = 'rgba(60,20,0,0.85)'; cx.lineWidth = 2; const cy = e.y - e.def.size * 0.4;
+        cx.beginPath(); cx.moveTo(e.x - 8, cy - 10); cx.lineTo(e.x - 2, cy - 2); cx.lineTo(e.x - 7, cy + 4); cx.lineTo(e.x + 1, cy + 10); cx.stroke();
       }
       if (e.hwBat > 0) { // 드라큘라 박쥐 변신: 박쥐 떼가 소용돌이
         const n = 14;
@@ -154,9 +168,11 @@ export function drawHw(R, g, t, layer) {
 export function hwEvent(C, g, e, loud) {
   const fx = C.fx, rm = rmOn();
   switch (e.type) {
-    case 'hwDown': fx.text(e.x, e.y - 40, '한 잔 더…!', '#9fe870', 13, 1.1); fx.burst(e.x, e.y, 8, '#6a5a40', 90, 'dot', 3, 0.5, 200); break;
+    case 'hwDown': fx.text(e.x, e.y - 40, e.hang ? (e.n >= e.max ? '마지막 한 잔…!' : `한 잔 더…! (${e.n}/${e.max})`) : '한 잔 더…!', '#9fe870', 13, 1.1); fx.burst(e.x, e.y, 8, '#6a5a40', 90, 'dot', 3, 0.5, 200); break;
     case 'hwRise': fx.text(e.x, e.y - 20, '부활!', '#8fe85a', 15, 1); fx.burst(e.x, e.y, 10, '#8fe85a', 110, 'spark', 4, 0.5); if (loud && C.A.sfx.hit) C.A.sfx.hit(); break;
-    case 'hwNoRise': fx.text(e.x, e.y, e.by === 'burn' ? '활활! 못 일어남' : e.by === 'censor' ? '검열! 못 일어남' : '장미! 못 일어남', '#ffd23f', 11, 0.9); break;
+    case 'hwNoRise': fx.text(e.x, e.y, e.by === 'burn' ? '활활! 못 일어남' : e.by === 'censor' ? '검열! 못 일어남' : e.by === 'hang' ? '해장 완료!' : e.by === 'tired' ? '뻗었다!' : '장미! 못 일어남', '#ffd23f', 11, 0.9); break;
+    case 'hwSnuff': fx.text(e.x, e.y - 10, e.by === 'cut' ? '도화선 끊김!' : '불 꺼짐!', '#ffd23f', 13, 0.9); fx.burst(e.x, e.y, 12, '#5a3a20', 110, 'puff', 5, 0.5); fx.burst(e.x, e.y + 14, 8, '#ff8a1f', 130, 'shard', 4, 0.5); break;
+    case 'hwBoom': fx.text(e.x, e.y - 40, '호박등 펑!', '#ff7a2a', 16, 1); fx.flash && fx.flash('#ff6a00', 0.18); fx.addShake && fx.addShake(4); break;
     case 'hwDrain': if (!rm) fx.part('heart', e.x, e.y, 0, -40, 0.5, 6, '#c01030'); break;
     case 'hwPhaseIn': fx.burst(e.x, e.y, 10, '#bfe0ff', 70, 'puff', 6, 0.6); fx.text(e.x, e.y - 20, '사라졌다…', '#cfe8ff', 11, 0.8); break;
     case 'hwPhaseOut': fx.burst(e.x, e.y, 8, '#bfe0ff', 60, 'puff', 5, 0.5); if (e.seen) fx.text(e.x, e.y - 20, '들켰다!', '#ffd23f', 12, 0.8); break;

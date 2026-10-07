@@ -7,11 +7,12 @@
 //  기준 플레이어 = 사람처럼 (스킬 1.5초 늦게 · 카드 40% 아무거나) · 전투력 맞춤 +12 ★3 · 장비 없음 · 이벤트 기간 5장쯤 온 사람 (LEGEND · 박나영 없음)
 const path = require('path');
 const { pathToFileURL } = require('url');
-const LIB = path.join(__dirname, '..', 'public', 'langbang');
+const LIB = process.env.LB_LIB || path.join(__dirname, '..', 'public', 'langbang');
 const load = (f) => import(pathToFileURL(path.join(LIB, f)).href);
 const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : d; };
 const what = args.find((x) => !x.startsWith('--')) || 'meas';
+const JOIN = args.includes('--join'); // --join: 실제 게임처럼 대장 1명으로 시작 → 레벨업 '합류' 카드로 (덱 1번이 대장)
 function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
 
@@ -39,7 +40,7 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
   }
   // 설계한 풀이 덱 (스테이지마다 이 판 진상 기술 · 출전 제한에 맞춘 조합 — 5장쯤 온 사람이 가진 멤버로)
   const PLAN = {
-    1: ['jiwon', 'eunok', 'ara', 'jieun', 'youngjun'], 2: ['staff', 'gunman', 'eunok', 'sanghwa', 'jieun'], 3: ['soyoung', 'gunnyeo', 'staff', 'gunman', 'sanghwa'],
+    1: ['eunok', 'jiwon', 'sanghwa', 'ara', 'jieun'], 2: ['gunman', 'staff', 'jieun', 'sunggu', 'eunok'], 3: ['soyoung', 'gunnyeo', 'staff', 'gunman', 'sanghwa'],
     4: ['soyoung', 'jiwon', 'ara', 'staff', 'jieun'], 5: ['gunnyeo', 'soyoung', 'staff', 'jiwon', 'ara'], 6: ['eunok', 'ara', 'youngjun', 'dohoon', 'jungmin'],
     7: ['jiwon', 'gunman', 'ara', 'sunggu', 'gunnyeo'], 8: ['gunnyeo', 'soyoung', 'gunman', 'ara'], 9: ['staff', 'jiwon', 'ara', 'soyoung', 'jieun'], 10: ['jungmin', 'gunnyeo', 'soyoung', 'ara', 'jiwon'],
   };
@@ -62,11 +63,19 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
     for (const h of Object.keys(D.HEROES).filter((x) => own(x) && !banned(n, x) && !out.includes(x)).sort((a, b) => score(b) - score(a))) { if (out.length >= maxOf(n)) break; out.push(h); }
     return { deck: out, rent };
   }
+  // 아무 덱: 조건만 맞춘 무작위 멤버 (판마다 다른 덱 — '조건만 맞추면 아무나 깬다' 를 잰다)
+  function randDeck(n, seed) {
+    const r = seeded(seed * 131 + n);
+    const shuf = (l) => l.map((h) => [r(), h]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+    const { out, rent } = needs(n, shuf);
+    for (const h of shuf(Object.keys(D.HEROES).filter((x) => own(x) && !banned(n, x) && !out.includes(x)))) { if (out.length >= maxOf(n)) break; out.push(h); }
+    return { deck: out, rent };
+  }
   const placeDeck = (ids) => { const order = D.openSlots(6), o = new Array(6).fill(null); ids.forEach((h, i) => { o[order[i]] = h; }); return o; };
   function pickCard(g, cards, rng) {
     if (rng() < 0.4) return (rng() * cards.length) | 0;
     let best = 0, bv = -1;
-    cards.forEach((c, i) => { let v = c.kind === 'evo' ? 9.5 : c.kind === 'heroLv' ? 6 + (S.hasHero(g, c.hero) && [2, 4].includes(S.hasHero(g, c.hero).lv) ? 2.5 : 0) : c.kind === 'heroMod' ? 6.5 : c.kind === 'skillEvo' ? 8 : c.kind === 'global' ? 5 : 2; v += rng() * 1.5; if (v > bv) { bv = v; best = i; } });
+    cards.forEach((c, i) => { let v = c.kind === 'join' ? 9 : c.kind === 'evo' ? 9.5 : c.kind === 'heroLv' ? 6 + (S.hasHero(g, c.hero) && [2, 4].includes(S.hasHero(g, c.hero).lv) ? 2.5 : 0) : c.kind === 'heroMod' ? 6.5 : c.kind === 'skillEvo' ? 8 : c.kind === 'global' ? 5 : 2; v += rng() * 1.5; if (v > bv) { bv = v; best = i; } });
     return best;
   }
   function densest(g, r) { let best = null, bn = 0; for (const e of g.enemies) { if (e.dead || e.y < 0) continue; let k = 0; for (const o of g.enemies) if (!o.dead && Math.abs(o.x - e.x) < r && Math.abs(o.y - e.y) < r) k += o.boss ? 3 : 1; if (k > bn) { bn = k; best = e; } } return best ? { x: best.x, y: best.y, n: bn } : null; }
@@ -85,7 +94,7 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
     const def = HW.eventDef(n, curses, d.deck);
     const p = { heroes: Object.fromEntries(d.deck.map((h) => [h, HW.HW.sync.meta])), hstars: Object.fromEntries(d.deck.map((h) => [h, 3])), equip: {}, gear: [] };
     const lo = HW.syncLoadout(p, d.deck, d.rent);
-    const g = S.createGame({ H: 760, rng, mode: 'stage', tempo: true, stage: def.stage, event: def, deck: placeDeck(d.deck), meta: lo.meta, stars: lo.stars, gear: lo.gear, items: {}, slots: 6 });
+    const g = S.createGame({ H: 760, rng, mode: 'stage', tempo: true, stage: def.stage, event: def, deck: placeDeck(d.deck), join: JOIN, leader: d.deck[0], meta: lo.meta, stars: lo.stars, gear: lo.gear, items: {}, slots: 6 });
     const pr = seeded(seed * 7 + 3);
     let steps = 0;
     while (!g.over && g.phase !== 'victory' && g.t < 900) {
@@ -102,9 +111,9 @@ const pct = (v) => (v * 100).toFixed(0).padStart(3) + '%';
     return { win: g.victory, hp: g.base.hp / g.base.max, t: g.t, wave: g.wave, kd: g.stats.kd | 0, breaks: g.stats.castBreak | 0 };
   }
   function meas(n, kind, curses = [], seeds = SEEDS, off = 0) {
-    const d = kind === 'naive' ? naiveDeck(n) : kind === 'auto' ? fitDeck(n) : kind === 'bad' ? badDeck(n) : planDeck(n); // fit = 설계한 풀이 덱 · auto = 기술 상성 자동 · naive = 조건만 + 센 멤버
+    let d = kind === 'naive' ? naiveDeck(n) : kind === 'auto' ? fitDeck(n) : kind === 'bad' ? badDeck(n) : kind === 'rand' ? randDeck(n, 1) : planDeck(n); // fit = 설계한 풀이 덱 · auto = 기술 상성 자동 · naive = 조건만 + 센 멤버 · bad = 핵심 멤버 빼고 · rand = 판마다 아무 덱
     let w = 0, hp = 0, kd = 0, wv = 0, t = 0;
-    for (let s = 1; s <= seeds; s++) { const r = play(n, d, 1000 * n + s * 17 + off, curses); w += r.win ? 1 : 0; hp += r.win ? r.hp : 0; kd += r.kd; wv += r.wave; t += r.t; }
+    for (let s = 1; s <= seeds; s++) { if (kind === 'rand') d = randDeck(n, s + off); const r = play(n, d, 1000 * n + s * 17 + off, curses); if (kind === 'rand' && opt('v', '')) console.log(`    ${r.win ? 'O' : 'x'} w${r.wave} 입구 ${pct(r.hp)} ${d.deck.map((h) => ((HW.stageOf(n).sig && HW.SIGS[HW.stageOf(n).sig].heroes.includes(h)) ? '*' : '') + NM(h)).join(' ')}`); w += r.win ? 1 : 0; hp += r.win ? r.hp : 0; kd += r.kd; wv += r.wave; t += r.t; }
     return { n, kind, deck: d.deck, rent: d.rent, rate: w / seeds, hp: w ? hp / w : 0, kd: kd / seeds, wave: wv / seeds, t: t / seeds };
   }
   const list = String(opt('list', HW.STAGES.map((s) => s.n).join(','))).split(',').map(Number);

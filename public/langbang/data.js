@@ -1798,6 +1798,7 @@ const MID_DEFS = {
 // 합체 중간 보스 한 장 그림 (둘이 한 몸) — e_<id>.webp (전투) · dex/<id>.webp (도감). 그림이 오면 여기에 추가
 // 진상 프레임 애니메이션 (선택): 가로 띠 그림 · 칸은 정사각형 (frames 를 안 적으면 너비 ÷ 높이) — 그림이 없으면 코드 움직임 그대로
 //   walk: 걸을 때 반복 · die: 쓰러질 때 한 번 (쓰러짐 연출이 들어가면 사용)
+export const BOSS_RAGE_ATK = ['boss_thug', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty', 'boss_union']; // 분노 공격 띠가 있는 보스 (그림이 준비된 것만)
 export const ENEMY_ANIM = {
   drunk: { walk: { src: '/img/lb/e_drunk_walk.webp', frames: 12, fps: 10 }, die: { src: '/img/lb/e_drunk_die.webp', frames: 8, fps: 14, hold: 0.15 } },
   boss_gapjil: { walk: { src: '/img/lb/e_boss_gapjil_walk.webp', frames: 12, fps: 9 }, die: { src: '/img/lb/e_boss_gapjil_die.webp', frames: 8, fps: 12, hold: 0.3 } },
@@ -1809,6 +1810,12 @@ export const ENEMY_ANIM = {
   envthief: { run: { src: '/img/lb/e_envthief_run.webp', frames: 12, fps: 14 } }, // 8장 축의금 도둑: 봉투 들고 위로 달아나는 뒷모습 (걷기 · 쓰러짐은 서버 목록으로)
   vomit: { puke: { src: '/img/lb/e_vomit_puke.webp', frames: 8, release: 3, lead: 0.45, fps: 9 } }, // 토하는 인간 "우웩!": 0~2 숙이고 꿀렁(토 직전) · 3~5 쏟기 · 6~7 입 닦기
 };
+// (10/08) 보스 입구 공격 띠 (8칸 · 3번 칸에 때림) — 그림이 없던 보스 11명 · rattack = 분노(2페이즈) 때 공격 띠 (분노 그림 대신)
+for (const id of ['boss_thug', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'boss_kkondol', 'boss_queenmom', 'boss_sales', 'boss_otaku', 'boss_jusa', 'boss_soloparty', 'boss_union']) {
+  const cur = ENEMY_ANIM[id] || (ENEMY_ANIM[id] = {});
+  cur.attack = { src: `/img/lb/e_${id}_attack.webp`, frames: 8, release: 3 };
+  if (BOSS_RAGE_ATK.includes(id)) cur.rattack = { src: `/img/lb/e_${id}_rage_attack.webp`, frames: 8, release: 3 };
+}
 // 입구 공격 동작 (진상마다 컨셉대로): 준비(뒤로 젖힘) → 때림(입구 쪽으로 · 불꽃) → 반동
 //   punch 주먹 · kick 발차기 · headbutt 박치기 · shove 밀치기 · phone 폰 내리치기 · bottle 병 내리치기 · bag 가방 휘두르기 · slap 따귀
 export const ENEMY_ATK = {

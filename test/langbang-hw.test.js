@@ -107,8 +107,9 @@ test('이벤트 전투: 할로윈 진상만 · 좀비 부활 · 화상이면 못
   const g = S.createGame({ H: 760, rng: seeded(5), mode: 'stage', tempo: true, stage: def.stage, event: def, deck: [null, null, 'gunman', null, null, null] });
   for (let t = 0; t < 40; t += 1 / 60) { S.step(g, 1 / 60); g.events.length = 0; }
   assert.ok(g.enemies.length > 0 && g.enemies.every((e) => e.type.startsWith('hw_')), '할로윈 진상만');
-  // 좀비: 쓰러지면 한 번 일어난다 (멤버 없는 판에서)
-  const gz = S.createGame({ H: 760, rng: seeded(7), mode: 'stage', tempo: true, stage: def.stage, event: def, deck: [null, null, null, null, null, null], noWaves: true });
+  // 좀비: 쓰러지면 한 번 일어난다 (멤버 없는 판에서 · 특수 규칙이 없는 H3)
+  const def3 = H.eventDef(3, [], []);
+  const gz = S.createGame({ H: 760, rng: seeded(7), mode: 'stage', tempo: true, stage: def3.stage, event: def3, deck: [null, null, null, null, null, null], noWaves: true });
   gz.phase = 'wave'; gz.spawnQ = []; gz.spawnI = 0;
   const z = S.spawnEnemy(gz, 'hw_zombie', 180, 300); z.speed = 0;
   S.spawnEnemy(gz, 'hw_bat', 10, 10).speed = 0; // (웨이브가 끝나지 않게)
@@ -246,3 +247,45 @@ test('이벤트 서버: 시즌 · 출전 제한 확인 · 판 번호 · 점수 �
   } finally { Date.now = realNow; }
 });
 void KST;
+
+test('H1 해장 · H2 호박등: 특수 규칙 멤버가 있어야 풀린다', () => {
+  // H1: 해장 멤버가 없으면 6번까지 엎어졌다 일어난다 (엎어진 동안은 안 맞음) · 해장 멤버가 마무리하면 바로 끝
+  const def = H.eventDef(1, [], ['gunman']);
+  assert.equal(def.sig.id, 'hangover');
+  const mk = (deck) => { const g = S.createGame({ H: 760, rng: seeded(9), mode: 'stage', tempo: true, stage: def.stage, event: def, deck, noWaves: true }); g.phase = 'wave'; g.spawnQ = []; g.spawnI = 0; S.spawnEnemy(g, 'hw_bat', 10, 10).speed = 0; return g; };
+  const g = mk([null, null, null, null, null, null]);
+  const z = S.spawnEnemy(g, 'hw_zombie', 180, 300); z.speed = 0;
+  const gm = { id: 'gunman' }; // (해장 멤버가 아닌 멤버의 한 방 — 멤버 없는 판이라 저절로 맞지 않게)
+  for (let i = 0; i < 6; i++) {
+    S.damageEnemy(g, z, 1e7, false, gm);
+    assert.equal(z.dead, false, `${i + 1}번째도 일어남`); assert.ok(z.hwLie);
+    assert.equal(S.damageEnemy(g, z, 1e7, false, gm), 0, '엎어진 동안은 안 맞음');
+    for (let t = 0; t < 2.5; t += 1 / 60) { S.step(g, 1 / 60); g.events.length = 0; }
+    assert.ok(!z.hwLie && !z.dead);
+  }
+  S.damageEnemy(g, z, 1e7, false, gm);
+  assert.equal(z.dead, true, '일곱 번째는 뻗음');
+  const g2 = mk([null, null, 'eunok', 'jiwon', null, null]);
+  const z2 = S.spawnEnemy(g2, 'hw_zombie', 180, 300); z2.speed = 0;
+  S.damageEnemy(g2, z2, 1e7, false, g2.heroes.find((h) => h.id === 'eunok'));
+  assert.equal(z2.dead, true, '해장 멤버가 마무리하면 끝');
+  // H2: 불 붙은 호박등은 껍질 (피해 −85%) · 끊는 멤버가 맞히면 꺼지고 깨진다 · 입구에 닿으면 펑
+  const d2 = H.eventDef(2, [], ['staff']);
+  assert.equal(d2.sig.id, 'lantern');
+  const g3 = S.createGame({ H: 760, rng: seeded(11), mode: 'stage', tempo: true, stage: d2.stage, event: d2, deck: [null, null, 'staff', 'ara', null, null], noWaves: true });
+  g3.phase = 'wave'; g3.spawnQ = []; g3.spawnI = 0; S.spawnEnemy(g3, 'hw_bat', 10, 10).speed = 0;
+  const p = S.spawnEnemy(g3, 'hw_pumpkin', 180, 200); p.speed = 0;
+  S.step(g3, 1 / 60); g3.events.length = 0;
+  assert.ok(p.hwLit, '불 붙음');
+  const ara = g3.heroes.find((h) => h.id === 'ara'), st = g3.heroes.find((h) => h.id === 'staff');
+  const hp0 = p.hp; S.damageEnemy(g3, p, 10, false, ara);
+  assert.ok(hp0 - p.hp < 3, '껍질');
+  S.damageEnemy(g3, p, 1, false, st);
+  assert.ok(!p.hwLit && p.hwCracked, '끊는 멤버가 끔');
+  const g4 = S.createGame({ H: 760, rng: seeded(13), mode: 'stage', tempo: true, stage: d2.stage, event: d2, deck: [null, null, null, null, null, null], noWaves: true });
+  g4.phase = 'wave'; g4.spawnQ = []; g4.spawnI = 0; S.spawnEnemy(g4, 'hw_bat', 10, 10).speed = 0;
+  const q = S.spawnEnemy(g4, 'hw_pumpkin', 220, 200);
+  const door = g4.base.hp;
+  for (let t = 0; t < 30 && !q.dead; t += 1 / 60) { S.step(g4, 1 / 60); g4.events.length = 0; }
+  assert.ok(q.dead && g4.base.hp < door - g4.base.max * 0.05, '입구에 닿으면 펑');
+});
