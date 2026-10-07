@@ -72,7 +72,7 @@ function modeCard(p) {
 // ─── 이벤트 지도 ───
 function showHub(noIntro) {
   const p = P();
-  if (!HW.hwSeason()) { C.toast('할로윈 이벤트 기간이 아니에요 (10/10 ~ 11/2)', 2400); return; }
+  if (!HW.hwSeason()) { C.toast('할로윈 이벤트 기간이 아니에요 (10/7 ~ 11/2)', 2400); return; }
   if (!HW.hwOpen(p)) { C.toast(`할로윈 이벤트는 ${Math.ceil(HW.HW.unlock / 10)}-10 을 깨면 열려요`, 2400); return; }
   if (!noIntro && !lsGet(INTRO.key)) { playIntro(() => showHub(true)); return; }
   const app = C.app;
@@ -100,7 +100,7 @@ function renderHub() {
   C.show(`
     <div class="hw-scene"><div class="hw-sky" style="background-image:url('${KEYART}'), url('/img/lb/season/halloween_key.webp')"></div><i class="hw-moon"></i><div class="hw-fog"></div><div class="hw-batfly">${Array.from({ length: 6 }, (_, i) => `<i style="--i:${i};--y:${8 + ((i * 17) % 30)}%;--d:${(i * 1.7).toFixed(1)}s"></i>`).join('')}</div></div>
     <div class="hw-top"><button class="back" data-act="menu">‹ 로비</button><div class="hw-cur"><button class="hw-pill" data-act="hwShop">${candyIc()}<b>${fmt(h.candy | 0)}</b></button><span class="hw-pill d">${daysLeft()}일 남음</span></div></div>
-    <div class="hw-title"><small>할로윈 이벤트 · 10/10 ~ 11/2</small><h2>할로윈 저주의 밤</h2><em>${esc(HW.HW.sub)}</em></div>
+    <div class="hw-title"><small>할로윈 이벤트 · 10/7 ~ 11/2</small><h2>할로윈 저주의 밤</h2><em>${esc(HW.HW.sub)}</em></div>
     <div class="hw-sync">${C.ic('scale', '', 'sm')}<span>이벤트에서는 전투력이 <b>강화 +${HW.HW.sync.meta} · ★${HW.HW.sync.star} · 영웅 장비</b>로 맞춰져요 · 더 키운 멤버는 강화 ${HW.HW.sync.per}마다 +1 (최대 +${HW.HW.sync.edge}) — <b>힘보다 조합 · 조작!</b></span></div>
     <div class="hw-score"><span><small>내 점수</small><b>${fmt(h.score | 0)}</b></span><span><small>클리어</small><b>${Object.keys(h.best).length}/${HW.STAGE_COUNT}</b></span><span><small>저주 합</small><b>🔥${Object.values(h.best).reduce((a, x) => a + (x.heat | 0), 0)}</b></span><button class="hw-mini" data-act="hwRank">${C.ic('trophy', '', 'sm')}랭킹${st.board && st.board.me && st.board.me.rank ? ` <b>${st.board.me.rank}위</b>` : ''}</button></div>
     <div class="hw-path">${nodes}</div>
@@ -336,7 +336,7 @@ function playIntro(done) {
   d.className = 'hw-intro';
   d.innerHTML = `<video class="hi-vid" playsinline muted preload="auto" poster="${INTRO.poster}"></video>
     <div class="hi-css"><i class="hi-moon"></i><i class="hi-alley"></i>${Array.from({ length: 7 }, (_, i) => `<i class="hi-bat" style="--i:${i}"></i>`).join('')}${Array.from({ length: 5 }, (_, i) => `<i class="hi-pump" style="--i:${i}"></i>`).join('')}<i class="hi-fog"></i></div>
-    <div class="hi-title"><small>랑방대전 할로윈 이벤트</small><b>할로윈 저주의 밤</b><em>10/10 ~ 11/2</em></div>
+    <div class="hi-title"><small>랑방대전 할로윈 이벤트</small><b>할로윈 저주의 밤</b><em>10/7 ~ 11/2</em></div>
     <button class="hi-snd" aria-label="소리 켜기">🔇 탭해서 소리</button><button class="hi-skip">건너뛰기 ›</button>`;
   C.stage.appendChild(d);
   const v = d.querySelector('video');

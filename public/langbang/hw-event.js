@@ -1,4 +1,4 @@
-// 랑방 대전 — 할로윈 이벤트 「할로윈 저주의 밤」 (2026 할로윈 시즌 · 10/10 ~ 11/2 한국 시간)
+// 랑방 대전 — 할로윈 이벤트 「할로윈 저주의 밤」 (2026 할로윈 시즌 · 10/7 ~ 11/2 한국 시간)
 // 순수 함수만 (DOM 없음). 서버(server/langbang-hw.js)가 이 파일을 그대로 불러 쓰고, 손님은 같은 함수로 이 기기에 저장한다.
 //  - 이벤트 스테이지 10개 (맵 4종 · 할로윈 진상 · 중간 보스 저승사자 팀장 · 최종 보스 드라큘라 사장)
 //  - 전투력 맞추기: 강화 · ★ · 장비를 정해진 값으로 (더 키운 만큼은 아주 조금만) → 센 계정이 힘으로 밀 수 없다
@@ -25,7 +25,7 @@ export const HW = {
   dayCap: 360, // 다시 깨서 받는 사탕 하루 한도 (첫 클리어 · 새 저주 기록 보너스는 따로)
   wear: 0.1, wearMax: 0.3, // 할로윈 의상을 입은 멤버 한 명당 사탕 +10% (최대 +30%)
 };
-// 시즌 안인지 (한국 시간 10/10 ~ 11/2) — 화면 · 서버 같은 함수
+// 시즌 안인지 (한국 시간 10/7 ~ 11/2) — 화면 · 서버 같은 함수
 export const hwSeason = (now = Date.now()) => { const s = seasonAt(now); return !!(s && s.id === HW.season); };
 export const hwOpen = (lb, now = Date.now()) => hwSeason(now) && !!lb && (lb.master || (lb.maxStage | 0) >= HW.unlock);
 
@@ -293,7 +293,7 @@ export const maxOpen = (lb) => { const b = ((lb && lb.hw) || {}).best || {}; let
 
 // ─── 시작 · 끝 (서버가 판 번호 · 시간 · 처치 수 · 덱 · 저주를 확인하고 보상은 서버가 계산) ───
 export function hwStart(lb, body, runId, now = Date.now()) {
-  if (!hwSeason(now)) return { error: '할로윈 이벤트 기간이 아니에요 (10/10 ~ 11/2)' };
+  if (!hwSeason(now)) return { error: '할로윈 이벤트 기간이 아니에요 (10/7 ~ 11/2)' };
   if (!hwOpen(lb, now)) return { error: `할로윈 이벤트는 ${Math.ceil(HW.unlock / 10)}-10 을 깨면 열려요` };
   lb.hw = lb.hw && lb.hw.id === HW.id ? lb.hw : emptyHw();
   const n = int(body.n, 0, 99);

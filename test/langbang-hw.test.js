@@ -28,9 +28,9 @@ function lbOf(extra = {}) {
   return out;
 }
 
-test('시즌 잠금: 10/10 ~ 11/2 한국 시간만 · 3-10 을 깨야 열림', () => {
-  assert.equal(H.hwSeason(Date.UTC(2026, 9, 9, 14, 59)), false, '10/9 23:59 KST');
-  assert.equal(H.hwSeason(Date.UTC(2026, 9, 9, 15, 0)), true, '10/10 00:00 KST');
+test('시즌 잠금: 10/7 ~ 11/2 한국 시간만 · 3-10 을 깨야 열림', () => {
+  assert.equal(H.hwSeason(Date.UTC(2026, 9, 6, 14, 59)), false, '10/6 23:59 KST');
+  assert.equal(H.hwSeason(Date.UTC(2026, 9, 6, 15, 0)), true, '10/7 00:00 KST');
   assert.equal(H.hwSeason(Date.UTC(2026, 10, 2, 14, 59)), true, '11/2 23:59 KST');
   assert.equal(H.hwSeason(Date.UTC(2026, 10, 2, 15, 0)), false, '11/3 00:00 KST');
   assert.equal(H.hwOpen(lbOf(), IN), true);

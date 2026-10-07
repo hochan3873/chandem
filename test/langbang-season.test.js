@@ -9,9 +9,9 @@ let SS;
 test.before(async () => { SS = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'season.js')).href); });
 const kst = (y, m, d, h = 12) => Date.UTC(y, m - 1, d, h) - 9 * 3600e3; // 한국 시간 y-m-d h시
 
-test('할로윈: 10/10 0시 ~ 11/2 24시 (한국 시간)', () => {
-  assert.equal(SS.seasonAt(kst(2026, 10, 9, 23)), null);
-  assert.equal(SS.seasonAt(kst(2026, 10, 10, 0)).id, 'halloween');
+test('할로윈: 10/7 0시 ~ 11/2 24시 (한국 시간)', () => {
+  assert.equal(SS.seasonAt(kst(2026, 10, 6, 23)), null);
+  assert.equal(SS.seasonAt(kst(2026, 10, 7, 0)).id, 'halloween');
   assert.equal(SS.seasonAt(kst(2026, 10, 31)).id, 'halloween');
   assert.equal(SS.seasonAt(kst(2026, 11, 2, 23)).id, 'halloween');
   assert.equal(SS.seasonAt(kst(2026, 11, 3, 0)), null);

@@ -4,7 +4,7 @@
 //   keyart: 로비 위쪽 키 아트 (게임월드 허브 카드에도) · bgm: audio.js TRACKS 키 (곡이 없으면 챕터 곡 그대로)
 //   fx: 로비 장식 종류 (style.css .ssn-<fx>)
 export const SEASONS = [
-  { id: 'halloween', name: '할로윈', from: [10, 10], to: [11, 2], keyart: '/img/lb/season/halloween_key.webp', bgm: 'halloween', fx: 'halloween' },
+  { id: 'halloween', name: '할로윈', from: [10, 7], to: [11, 2], keyart: '/img/lb/season/halloween_key.webp', bgm: 'halloween', fx: 'halloween' },
 ];
 
 const KST = 9 * 3600e3;
