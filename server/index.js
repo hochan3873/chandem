@@ -261,10 +261,10 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     let tag = etags.get(file);
     if (tag === undefined) { try { tag = '"' + require('crypto').createHash('sha1').update(fs.readFileSync(file)).digest('base64url').slice(0, 20) + '"'; } catch { tag = null; } etags.set(file, tag); }
     if (!tag) return next();
-    res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    res.set('Cache-Control', 'public, max-age=21600, stale-while-revalidate=86400');
     res.set('ETag', tag);
     if (req.headers['if-none-match'] === tag) return res.status(304).end();
-    res.sendFile(file, { etag: false, lastModified: false, headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800', ETag: tag } });
+    res.sendFile(file, { etag: false, lastModified: false, headers: { 'Cache-Control': 'public, max-age=21600, stale-while-revalidate=86400', ETag: tag } });
   });
   app.use(express.static(pub, { extensions: ['html'] }));
   // 웹 푸시 알림 (server/push.js) — VAPID 열쇠가 환경 변수에 있을 때만 켜진다
