@@ -48,7 +48,8 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
   //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
-  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait'].includes(what) && !args.includes('--pro');
+  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes'].includes(what) && !args.includes('--pro');
+  const FOES = what === 'foes';
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
   function pickCard(g, cards, rng) {
@@ -136,6 +137,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       steps++;
       for (const h of g.heroes) if (h.def.summon) summons.add(h);
       if (o.onStep) o.onStep(g); // (focus: 판 중 사건 · 상태 세기)
+      if (FOES) for (const e of g.events) if (e.type === 'baseHit' && e.by) { const m = g._doorBy || (g._doorBy = {}); m[e.by] = (m[e.by] || 0) + (e.v || 0); } // (foes: 누가 입구를 쳤나)
       g.events.length = 0;
       // 레벨업 카드는 게임이 안 멈춘다 → 사람처럼 1.5~3초 뒤에 고른다
       if (g.pendingLevels > 0 && g.pickAt === undefined) g.pickAt = g.t + (g.welcomePicks > 0 ? 0 : PICK_DELAY * (0.75 + pr() * 0.5));
@@ -996,6 +998,29 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   if (what === 'runlen') runlen();
   if (what === 'stagecalib') stagecalib();
   if (what === 'stagemeas') stagemeas();
+  // 진상 감사 (node scripts/lb-balance.js foes --list=1,...,80 [--seeds=8]) — 기준 플레이어 판에서 진상 종류마다 입구 피해 몫 · 쓰러짐 게이지 몫 (진 판 · 전체) — 한 진상이 패배를 혼자 만드는지
+  if (what === 'foes') {
+    const N = opt('seeds', 8), byCh = {};
+    for (const s of listArg('list', '1,5,10').map(Number)) {
+      const c = D.chapterOf(s), o = byCh[c] || (byCh[c] = { n: 0, lost: 0, door: {}, doorL: {}, kd: {}, kdL: {} });
+      const ids = c <= 6 ? balFor(c, s, false) : C78, meta = Object.fromEntries(ids.map((id) => [id, c <= 6 ? REC[c - 1] + REF_PLUS : 15]));
+      for (let i = 1; i <= N; i++) {
+        const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, ...refOf(s, ids) });
+        const dm = r.g._doorBy || {}, km = r.g.stats.kdBy || {}, dT = Object.values(dm).reduce((a, b) => a + b, 0) || 1, kT = Object.values(km).reduce((a, b) => a + b, 0) || 1;
+        o.n++; if (!r.win) o.lost++;
+        for (const [k, v] of Object.entries(dm)) { o.door[k] = (o.door[k] || 0) + v / dT; if (!r.win) o.doorL[k] = (o.doorL[k] || 0) + v / dT; }
+        for (const [k, v] of Object.entries(km)) { o.kd[k] = (o.kd[k] || 0) + v / kT; if (!r.win) o.kdL[k] = (o.kdL[k] || 0) + v / kT; }
+      }
+    }
+    const top = (m, n) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${D.shortName(k)} ${Math.round((v / Math.max(1, n)) * 100)}`).join(' · ');
+    for (const [c, o] of Object.entries(byCh)) {
+      console.log(`${c}장 (${o.n}판 · 짐 ${o.lost})`);
+      console.log(`  입구 피해 몫 전체: ${top(o.door, o.n)}`);
+      if (o.lost) console.log(`  입구 피해 몫 진 판: ${top(o.doorL, o.lost)}`);
+      console.log(`  쓰러짐 게이지 몫 전체: ${top(o.kd, o.n)}`);
+      if (o.lost) console.log(`  쓰러짐 게이지 몫 진 판: ${top(o.kdL, o.lost)}`);
+    }
+  }
   if (what === 'custom') custom();
   if (what === 'deck') deck();
   if (what === 'attr') attrDecks();

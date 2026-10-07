@@ -792,7 +792,7 @@ function handleEvents(g, loud) {
       // falls through
       case 'bossSkillFx': fx.ring(e.x, e.y - 30, 20, 140, 0.5, e.kind === 'silence' ? '#b48cff' : e.kind === 'slow' ? '#6fb3ff' : e.kind === 'summon' ? '#ffd23f' : '#ff5a5a', 5); fx.addShake(e.kind === 'stun' || e.kind === 'shock' ? 6 : 3); if (e.kind === 'silence') toast('스킬 게이지가 잠깐 멈췄어요', 1500); if (e.kind === 'slow') toast('멤버 공격 속도 ↓ (4초)', 1500); if (e.kind === 'flyer' && e.hits && e.hits.length) toast(`전단지에 가려 ${e.hits.length}명 사거리 −${Math.round(e.cut * 100)}% (${e.sec}초)`, 1500); if (e.kind === 'lure') toast('진상들이 한 줄로 우르르! 범위 공격 기회', 1500); if (e.kind === 'vip') toast('앞줄 진상 보호막 — 운영진으로 깨자', 1500); break;
       case 'bossGap': fx.text(e.x, e.y, '틈! 지금 때려!', '#ffe066', 15, 1.1); break;
-      case 'bossRage': fx.banner(`${e.name} 분노!`, e.sub || '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
+      case 'bossRage': fx.banner(e.title || `${e.name} 분노!`, e.sub || '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
       case 'midRage': fx.text(e.x, e.y, `${e.name} 흥분!`, '#ff7a4f', 14, 1.0); break;
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
       case 'heroStun': { if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 300, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.x) < 2 && Math.abs(x.y - e.y) < 2) || g.heroes.find((x) => x.id === e.hero); if (hh) hh._hitAt = performance.now(); fx.addShake(4); app.hitStop = Math.max(app.hitStop || 0, 0.04); break; }
@@ -823,7 +823,7 @@ function handleEvents(g, loud) {
       }
       case 'immune': if (!busy) fx.text(e.x, e.y, '안 들림!', '#9fd4ff', 12, 0.6); break;
       case 'blocked': if (!busy) fx.text(e.x, e.y, `막음! ${e.n}`, '#9feaff', 12, 0.6); break;
-      case 'split': if (g.hw) { fx.burst(e.x, e.y - 20, 10, '#ff8a1f', 140, 'flame', 4, 0.5); if (!busy) fx.text(e.x, e.y - 50, '호박씨 퉤퉤!', '#ffb35a', 12, 0.8); break; } fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
+      case 'split': if (g.hw || e.into === 'hw_seed') { fx.burst(e.x, e.y - 20, 10, '#ff8a1f', 140, 'flame', 4, 0.5); if (!busy) fx.text(e.x, e.y - 50, '호박씨 퉤퉤!', '#ffb35a', 12, 0.8); break; } fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
       case 'praise': if (!busy) { fx.text(e.x, e.y, e.text || '언니 너무 이뻐요~', '#ffb3d9', 11, 0.9); fx.ring(e.x, e.y + 20, 10, 90, 0.5, '#ffb3d9', 3); } break;
       case 'praiseRage': fx.text(e.x, e.y, '(표정 싹 바뀜)', '#ff4f6a', 13, 1.0); break;
       case 'haste': if (!busy) fx.text(e.x, e.y, '빨라짐!', '#ffd23f', 12, 0.7); break;
@@ -907,6 +907,7 @@ function handleEvents(g, loud) {
         fx.flash('#ff4040', 0.35); fx.addShake(8);
         if (loud) A.sfx.rage();
         break;
+      case 'discoWind': fx.text(e.x, e.y - 10, '미러볼 돌린다… 🪩', '#ff8af0', 15, (e.sec || 1) + 0.2, -12); fx.ring(e.x, e.y + 20, 20, 110, 0.9, '#ff6fe0', 4); for (let k = 0; k < 8; k++) fx.part('star', e.x + Math.cos(k * 0.785) * 40, e.y + Math.sin(k * 0.785) * 20, Math.cos(k * 0.785) * 60, Math.sin(k * 0.785) * 30 - 30, 0.9, 7, ['#ff4fd8', '#6ff0ff'][k % 2]); if (loud) A.sfx.charm(); break;
       case 'disco':
         fx.banner('파티 타임!', e.block ? '건전녀의 철벽! 홀림 막음' : '멤버 전원 잠깐 홀림!', '#8a2a8a', 1.4, 'wave');
         for (let k = 0; k < 20; k++) fx.part('confetti', 40 + Math.random() * 280, 60 + Math.random() * 120, (Math.random() - 0.5) * 120, 120, 1.6, 6, ['#ff4fd8', '#6ff0ff', '#ffd23f', '#7dff9a'][k % 4], { grav: 80 });
@@ -6999,19 +7000,19 @@ const ENEMY_TIPS = {
   drunk_sleep: '길 한가운데 드러누워 총알을 막는다 (피해 -65%). 4번 맞으면 벌떡',
   drunk_home: '중간쯤 오면 경험치를 들고 집으로 도망. 잡으면 되찾는다',
   kkondae2: '"라떼는~" 공속↓ + "나이스 샷!" 골프공으로 멤버 기절',
-  boss_kkondol: '4장 보스. 라떼 + 골프공, 체력 절반이면 "사실 돌싱!" 분노',
+  boss_kkondol: '4장 보스. 라떼 + 골프공 · 체력 절반이면 "사실 돌싱!" 분노 (훨씬 빨라지고 훈계 침묵)',
   boss_queenmom: '4장 끝 보스. 보호막 · 싱글맘 소환 · 명품 가방 투척',
   boss_sales: '5장 보스. 보험 보호막 폭탄 · 영업쟁이 소환 · 계약 도장 기절',
   boss_otaku: '5장 끝 보스. 피규어 부대 + 굿즈 보호막 · 응원봉 빔',
   boss_jusa: '6장 보스. 울고(웅덩이) → 뛰고 → 자고(회복, 빈틈!) → 집에 간다(경험치↓)',
-  boss_soloparty: '6장 끝 보스. 디스코볼로 전원 홀림 · 꽃가루 눈부심 · 체력 30%면 분노',
+  boss_soloparty: '6장 끝 보스. 디스코볼(번쩍 예고 뒤 전원 홀림) · 꽃가루 눈부심 · 체력 절반이면 미러볼 섬광 · 30%면 "파티는 이제부터야!" 폭주 — 건전녀 Lv5 가 디스코를 막는다',
   snowboard: '빠르고, 가끔 옆 줄로 휙 넘어간다(줄 바꾸기 · 그 순간 40% 회피). 감속 · 기절이면 못 바꾼다 — 범위 공격으로',
   liftcut: '두세 명이 한 줄로 우르르(떼로 등장) · 입구 앞에서 한 번 새치기 점프 — 관통 · 줄 공격 · 범위로 한 번에',
   fakecoach: '"제가 알려 드릴게요~" 곁의 진상 4명에게 보호막(최대 체력 40%) · 보호막 동안 안 밀림 — 운영진 레드카드 · 버프 벗기기로 먼저',
   sledgirl: '아주 빠른 썰매 돌진, 입구에 처음 부딪히면 크게 아프다. 몸은 약함 — 감속 · 기절에 걸리면 썰매에서 떨어져 느려진다',
   hotpack: '길 절반부터 옆을 지나간 멤버의 공격 속도 -35% (약화) — 멀리서 먼저 잡자',
   snowball: '멀찍이 서서 눈덩이 → 맞은 멤버 1.5초 빙결 (제일 잘 치는 멤버를 노림) — 건전녀 응급 방패 · 강성구 곁 · 도발 탱커로 막는다',
-  mid_pension: '7장 보스 (7-5 · 7-10). 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기 · 퇴실 독촉(공속↓) · 단체 손님 소환',
+  mid_pension: '7장 보스 (7-5 · 7-10). 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기. 얼음물 바가지(빙결) · "퇴실 시간이에요!" 문 쾅쾅(입구 강타) · 단체 손님 소환 · 분노하면 바비큐 집게(2명 기절)',
   envthief: '입구를 안 때리고 접수대 봉투를 들고 위로 달아난다 — 화면 위로 빠지면 이번 판 코인 −8% (최대 −40%). 임수빈 부케로 묶고 · 기절 · 감속으로 잡자',
   buffet: '단단함(방어). 5초마다 냠냠 — 곁의 진상 체력 8% 회복 · 예고 뒤 상한 잡채 → 멤버 독 · 기절시키면 못 먹고, 여지원 방깎이면 회복이 막힌다',
   badsinger: '멀찍이 서서 숨 들이쉬고(0.9초) → 음 이탈! 곁 멤버 공격 속도 −35% 3초 — 숨 들이쉴 때 기절시키면 끊긴다',
@@ -7019,15 +7020,15 @@ const ENEMY_TIPS = {
   drunkfriend: '두세 명이 어깨동무하고 갈지자로 우르르 — 범위 · 관통 공격으로 한 번에',
   mid_hallmgr: '8장 보스 (8-5 · 8-10). "시간 없어요!" 예고 뒤 곁 진상 5초 재촉(이동 ×1.3 · 입구 공격 ×1.4) — 예고 중 기절시키면 끊긴다 · 입구 앞 클립보드로 멤버 기절',
   boss_bestman: '8장 끝 보스. 끝없는 축사 — 금빛 테두리 동안 무적 + 곁 진상 재촉 · 회복. 마구 때려 축사 게이지(한 대 1 · 스킬 5 · 부케 4)를 채우거나 총공지로 끊어라. 다 들으면 입구 피해 + 졸음',
-  boss_resort: '7장 보스. "눈사태 경고!" 3초 예고 뒤 멤버 전원 빙결 + 입구 피해 + 보드남 — 예고 중에 스킬 · 총공지 · 알디콤을 쓰면 끊긴다',
+  boss_resort: '7장 보스. "눈사태 경고!" 3초 예고 뒤 멤버 전원 빙결 + 입구 피해 + 보드남 — 예고 중에 스킬 · 총공지 · 알디콤을 쓰면 끊긴다. VIP 눈덩이 포격(빙결) · 회장님 훈화(침묵) · 분노하면 스키 강사단 소환',
   mid_snowboard: '각성한 보드남. 줄을 더 자주 바꾼다',
   mid_sledgirl: '각성한 썰매 폭주녀. 입구에 부딪히면 크게 아프다',
   yeokko: '빠름. 가까이 오면 여자 멤버를 홀린다',
   namkko: '빠름. 가까이 오면 남자 멤버를 홀린다',
-  drunk: '갈지자 걸음. 가끔 멈춰 소주병을 던진다(공속↓). 죽으면 술병이 터져 주변 진상에게 피해',
+  drunk: '갈지자 걸음. 가끔 멈춰 소주병을 던진다(공속↓). 죽으면 술병이 터져 주변 진상에게 피해 · 1-6 부터는 입구 앞에서 쓰러지면 곁 멤버 0.8초 기절 — 입구에 닿기 전에 잡자',
   thug: '느리지만 단단함(방어). 입구 앞에서 다리를 젖혔다가 "문짝 걷어차기" — 젖힐 때 기절 · 밀치기로 끊자 · 수리 · 탱커가 버틴다',
   mukti: '엄청 빠름 · 잘 피함 (MISS). 입구에 붙으면 세게 친다 — 감속 · 기절 · 범위 · 따라가는 공격으로 잡자',
-  queen: '졸개 소환 + 주변에 보호막',
+  queen: '1장 보스. 윙크 폭격(멤버 홀림) · 꼬충 호출 · 하이힐 찍기(입구 강타) · 곁 진상에게 보호막 — 분노하면 여왕의 꿀로 부하 회복',
   boss_thug: '땅 내려치기로 멤버 전원 기절',
   inpi_gossip: '멀찍이 서서 "수군수군" 뒷담화 — 맞은 멤버 공격 속도↓',
   inpi_dictator: '곁의 진상들이 덜 아프고 안 밀리고 빨라진다 · 예고 뒤 "강퇴 통보" 도장 → 멤버 스킬 침묵. 먼저 잡자!',
