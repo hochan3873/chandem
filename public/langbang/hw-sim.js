@@ -32,10 +32,10 @@ export function attach(g, def) {
 
 // 판 특수 규칙에 걸린 멤버인지 (소환수는 부른 멤버로)
 const sigHero = (g, src) => { const S0 = g.hw.sig; if (!S0 || !src) return false; const id = src.id || ''; return S0.heroes.includes(id) || (src.def && src.def.summon && src.owner && S0.heroes.includes(src.owner.id || src.owner)); };
-// 덱에 든 특수 규칙 멤버 수 (처음 한 번 센다)
-const sigCount = (g) => (g.hw.sigN !== undefined ? g.hw.sigN : (g.hw.sigN = g.heroes.filter((h) => !h.def.summon && g.hw.sig.heroes.includes(h.id)).length));
-// H1: 좀비가 다시 일어나는 횟수 = max − 해장 멤버 수 (0 이면 바로 끝)
-const sigMax = (g) => Math.max(0, g.hw.sig.max - sigCount(g));
+// 덱에 든 특수 규칙 멤버 수 (처음 한 번 센다 · 판 정보의 덱)
+const sigCount = (g) => (g.hw.sigN !== undefined ? g.hw.sigN : (g.hw.sigN = (g.hw.def.deck && g.hw.def.deck.length ? [...new Set(g.hw.def.deck)] : g.heroes.filter((h) => !h.def.summon).map((h) => h.id)).filter((id) => g.hw.sig.heroes.includes(id)).length)); // 덱에 데려간 수 (합류 모드면 아직 안 나온 멤버도)
+// H1: 좀비가 다시 일어나는 횟수 = max − 해장 멤버 수 × per (0 이면 바로 끝)
+const sigMax = (g) => Math.max(0, g.hw.sig.max - sigCount(g) * (g.hw.sig.per || 1));
 // 피해 직전 (sim damageEnemy): H1 엎어진 좀비는 안 맞는다 · H2 불 붙은 호박등은 껍질 (끊는 멤버가 맞히면 불이 꺼진다)
 function onHit(g, e, dmg, src) {
   if (e.hwLie) return 0;

@@ -57,11 +57,11 @@ export const RULES = {
 export const RULE_IDS = Object.keys(RULES);
 
 // ─── 판마다 특수 규칙 (sig) — 출전 제한만 맞추면 아무 덱이나 깨던 H1 · H2 를 '맞는 멤버'가 꼭 필요하게 (10/08 재설계) ───
-//  hangover (H1): 좀비 회식러는 쓰러져도 엎어져 있다가(무적) 다시 일어난다 (max − 덱의 해장 멤버 수 번) — 해장 멤버가 마지막 한 방을 넣거나 화상이 붙어 있으면 끝
+//  hangover (H1): 좀비 회식러는 쓰러져도 엎어져 있다가(무적) 다시 일어난다 (max − 덱의 해장 멤버 수 × per 번) — 해장 멤버가 마지막 한 방을 넣거나 화상이 붙어 있으면 끝
 //  lantern (H2): 호박등은 불 붙은 채 굴러온다 (껍질: 받는 피해 −85%) — 도화선 끊는 멤버가 맞히면 꺼지고 껍질이 깨진다 (멤버마다 cd 초에 하나) · 입구에 닿으면 펑!
 export const SIGS = {
-  hangover: { id: 'hangover', icon: '🍺', name: '"한 잔 더!" 무한 부활', heroes: ['eunok', 'jiwon', 'sanghwa', 'jungmin', 'dragon'], max: 4, lie: 2.2, hp: 0.6,
-    desc: '좀비는 쓰러져도 엎어져 있다가(안 맞음) 최대 4번 다시 일어나요. 해장 멤버(최은옥 · 여지원 · 박상화 · 홍정민 · 박나영)를 한 명 데려갈 때마다 한 번씩 덜 일어나고, 해장 멤버가 마지막 한 방을 넣거나 화상이 붙어 있으면 바로 끝!' },
+  hangover: { id: 'hangover', icon: '🍺', name: '"한 잔 더!" 무한 부활', heroes: ['eunok', 'jiwon', 'sanghwa', 'jungmin', 'dragon'], max: 6, per: 2, lie: 2.2, hp: 0.85,
+    desc: '좀비는 쓰러져도 엎어져 있다가(안 맞음) 최대 6번 다시 일어나요. 해장 멤버(최은옥 · 여지원 · 박상화 · 홍정민 · 박나영)를 한 명 데려갈 때마다 두 번씩 덜 일어나고 (3명이면 바로 끝), 해장 멤버가 마지막 한 방을 넣거나 화상이 붙어 있으면 바로 끝!' },
   lantern: { id: 'lantern', icon: '🎃', name: '불 붙은 호박등', heroes: ['staff', 'jieun', 'gunman', 'myunghoon', 'sunggu'], shell: 0.15, roll: 1.35, door: 0.1, cd: 2.5, crack: 1.6, stun: 1.6,
     desc: '호박등은 불 붙은 채 굴러와요 — 껍질이 단단해 받는 피해 −85%, 입구에 닿으면 펑! (입구 −10%). 도화선 끊는 멤버(운영진 · 오지은 · 건전남 · 서명훈 · 강성구)가 맞히면 불이 꺼지고 껍질이 깨져요 (한 명이 2.5초마다 하나씩 — 많이 데려갈수록 안전).' },
 };
@@ -75,14 +75,14 @@ export const HW_ENEMY_IDS = ['hw_zombie', 'hw_pumpkin', 'hw_seed', 'hw_bat', 'hw
 //  base: 레벨 · 체력 · 웨이브 성격을 빌려 올 일반 스테이지 (4장 = 강화 +12 권장 장 · 쓰러짐 · 방어율도 4장 기준) · add: 레벨 보정 (scripts/lb-hw-balance.js calib 로 맞춘 값)
 //  mix: [진상, 비중] · mid: 3웨이브 중간 보스 · boss: 마지막 웨이브 보스
 export const STAGES = [
-  { n: 1, name: '골목 입구의 좀비 회식러', map: 'alley', rules: ['noLegend'], base: 31, add: 1, keys: ['eunok', 'jiwon', 'sanghwa', 'jungmin', 'dragon'], keyWhy: '해장 멤버 — 한 명마다 좀비가 한 번 덜 일어나고 · 마무리하면 바로 끝', mix: [['hw_zombie', 5], ['hw_pumpkin', 2], ['hw_bat', 2]], sig: 'hangover', story: '회식 3차에서 좀비가 된 직장인들이 골목을 메웠다. "한 잔만 더어…" 쓰러뜨려도 엎어졌다가 또 일어난다 — 해장을 시켜야 끝난다.' },
+  { n: 1, name: '골목 입구의 좀비 회식러', map: 'alley', rules: ['noLegend'], base: 31, add: -1.75, keys: ['eunok', 'jiwon', 'sanghwa', 'jungmin', 'dragon'], keyWhy: '해장 멤버 — 한 명마다 좀비가 두 번 덜 일어나고 · 마무리하면 바로 끝', mix: [['hw_zombie', 5], ['hw_pumpkin', 2], ['hw_bat', 2]], sig: 'hangover', story: '회식 3차에서 좀비가 된 직장인들이 골목을 메웠다. "한 잔만 더어…" 쓰러뜨려도 엎어졌다가 또 일어난다 — 해장을 시켜야 끝난다.' },
   { n: 2, name: '호박등 골목', map: 'alley', rules: ['ranged'], base: 32, add: -2.75, keys: ['staff', 'jieun', 'gunman', 'myunghoon', 'sunggu'], keyWhy: '도화선 끊기 — 한 명이 2.5초마다 하나씩 · 많을수록 안전', mix: [['hw_pumpkin', 5], ['hw_bat', 3], ['hw_zombie', 2]], sig: 'lantern', story: '불 붙은 호박등이 데굴데굴 굴러온다. 껍질은 단단하고 입구에 닿으면 펑! — 멀리서 도화선부터 끊어라.' },
   { n: 3, name: '단톡방의 원한', map: 'bar', rules: ['sup2'], base: 33, add: 5, keys: ['staff', 'gunman', 'hyungyeong', 'soyoung'], keyWhy: '유령 찾기(운영진 · 건전남 · 배현경) · 침묵 막기', mix: [['hw_ghost', 5], ['hw_zombie', 3], ['hw_bat', 2]], story: '읽씹당한 처녀귀신 단톡방장이 술집을 점령했다. 단톡 초대 = 침묵의 저주.' },
   { n: 4, name: '마녀 다단계 설명회', map: 'bar', rules: ['charmImm'], base: 34, add: 0, keys: ['soyoung', 'jiwon', 'ara', 'dragon'], keyWhy: '홀림 면역 · 물약 회복 막기(방깎 · 화상 · 고아라)', mix: [['hw_witch', 4], ['hw_ghost', 3], ['hw_pumpkin', 2]], story: '"건강 물약 한 병이면 인생 역전!" 마녀의 영입 윙크에 홀리면 끝장.' },
   { n: 5, name: '저승사자 팀장의 야근 명부', map: 'bar', rules: ['cleanse'], base: 35, add: -9.25, keys: ['gunnyeo', 'staff', 'jieun', 'dohoon'], keyWhy: '명부 지우기(응급 방패) · 팀장 끊기(기절 · 시간 정지)', mix: [['hw_ghost', 3], ['hw_zombie', 3], ['hw_witch', 2]], mid: 'hw_reaper', story: '명부에 이름이 적히면 3초 뒤 강제 퇴근(쓰러짐). 건전녀의 방패만이 명부를 지운다.' },
   { n: 6, name: '공동묘지 회식', map: 'grave', rules: ['booze'], base: 36, add: -5.1, keys: ['dragon', 'dohoon', 'ara', 'eunok'], keyWhy: '빙결 막기(박나영) · 기절 저항(김도훈) · 강시 철갑', mix: [['hw_jiangshi', 4], ['hw_ghost', 3], ['hw_zombie', 2]], story: '묘지 한가운데서 고기 굽는 강시 꼰대. 술 못 마시는 사람은 입장 불가!' },
   { n: 7, name: '강시 꼰대의 라떼 부적', map: 'grave', rules: ['breaker', 'notank'], base: 37, add: -13.75, keys: ['jiwon', 'gunman', 'ara', 'sunggu', 'gunnyeo'], keyWhy: '붕대 철갑 깨기(방깎 · 방관) · 기절 · 빙결 풀기', mix: [['hw_jiangshi', 4], ['hw_mummy', 3], ['hw_witch', 2]], story: '"라떼는 말이야~" 부적이 붙으면 꽁꽁. 붕대 철갑 미라 부장님까지 합류했다.' },
-  { n: 8, name: '미라 부장님 결재 라인', map: 'grave', rules: ['max4', 'sup2'], base: 38, add: -7.5, keys: ['gunnyeo', 'soyoung', 'jiwon', 'gunman', 'staff'], keyWhy: '명부 지우기 · 철갑 깨기 · 유령 찾기', mix: [['hw_mummy', 4], ['hw_ghost', 3], ['hw_bat', 3]], mid: 'hw_reaper', story: '결재가 안 끝나는 밤. 4명이서 버텨야 한다 — 그중 둘은 서포터로.' },
+  { n: 8, name: '미라 부장님 결재 라인', map: 'grave', rules: ['max4', 'sup2'], base: 38, add: -9, keys: ['gunnyeo', 'soyoung', 'jiwon', 'gunman', 'staff'], keyWhy: '명부 지우기 · 철갑 깨기 · 유령 찾기', mix: [['hw_mummy', 4], ['hw_ghost', 3], ['hw_bat', 3]], mid: 'hw_reaper', story: '결재가 안 끝나는 밤. 4명이서 버텨야 한다 — 그중 둘은 서포터로.' },
   { n: 9, name: '호박 축제의 마녀들', map: 'fest', rules: ['female'], base: 39, add: -7.75, keys: ['staff', 'jiwon', 'ara', 'soyoung', 'eunok', 'jieun'], keyWhy: '폭탄 끊기 · 물약 막기 · 유령 찾기', mix: [['hw_witch', 4], ['hw_pumpkin', 4], ['hw_bat', 2], ['hw_ghost', 2]], story: '마녀들이 연 호박 축제. 여자 멤버만 입장 가능 — 호박은 여전히 터진다!' },
   { n: 10, name: '드라큘라 사장의 강제 회식', map: 'fest', rules: ['poison', 'noLegend'], base: 40, add: -0.4, keys: ['jungmin', 'gunnyeo', 'soyoung', 'jiwon', 'ara'], keyWhy: '피의 와인(독) · 홀림 · 명부 · 흡혈 회복 막기', mix: [['hw_bat', 4], ['hw_zombie', 2], ['hw_ghost', 2], ['hw_mummy', 2], ['hw_witch', 2]], mid: 'hw_reaper', boss: 'hw_dracula', story: '"오늘 회식은 우리 성에서 한다. 빠지면 해고야!" 피의 와인은 독 — 홍정민이 꼭 필요하다.' },
 ];

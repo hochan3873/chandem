@@ -249,14 +249,14 @@ test('이벤트 서버: 시즌 · 출전 제한 확인 · 판 번호 · 점수 �
 void KST;
 
 test('H1 해장 · H2 호박등: 특수 규칙 멤버가 있어야 풀린다', () => {
-  // H1: 해장 멤버가 없으면 4번까지 엎어졌다 일어난다 (엎어진 동안은 안 맞음) · 해장 멤버가 마무리하면 바로 끝
+  // H1: 해장 멤버가 없으면 6번까지 엎어졌다 일어난다 (엎어진 동안은 안 맞음) · 해장 멤버가 마무리하면 바로 끝
   const def = H.eventDef(1, [], ['gunman']);
   assert.equal(def.sig.id, 'hangover');
   const mk = (deck) => { const g = S.createGame({ H: 760, rng: seeded(9), mode: 'stage', tempo: true, stage: def.stage, event: def, deck, noWaves: true }); g.phase = 'wave'; g.spawnQ = []; g.spawnI = 0; S.spawnEnemy(g, 'hw_bat', 10, 10).speed = 0; return g; };
   const g = mk([null, null, null, null, null, null]);
   const z = S.spawnEnemy(g, 'hw_zombie', 180, 300); z.speed = 0;
   const gm = { id: 'gunman' }; // (해장 멤버가 아닌 멤버의 한 방 — 멤버 없는 판이라 저절로 맞지 않게)
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     S.damageEnemy(g, z, 1e7, false, gm);
     assert.equal(z.dead, false, `${i + 1}번째도 일어남`); assert.ok(z.hwLie);
     assert.equal(S.damageEnemy(g, z, 1e7, false, gm), 0, '엎어진 동안은 안 맞음');
@@ -264,7 +264,7 @@ test('H1 해장 · H2 호박등: 특수 규칙 멤버가 있어야 풀린다', (
     assert.ok(!z.hwLie && !z.dead);
   }
   S.damageEnemy(g, z, 1e7, false, gm);
-  assert.equal(z.dead, true, '다섯 번째는 뻗음');
+  assert.equal(z.dead, true, '일곱 번째는 뻗음');
   const g2 = mk([null, null, 'eunok', 'jiwon', null, null]);
   const z2 = S.spawnEnemy(g2, 'hw_zombie', 180, 300); z2.speed = 0;
   S.damageEnemy(g2, z2, 1e7, false, g2.heroes.find((h) => h.id === 'eunok'));

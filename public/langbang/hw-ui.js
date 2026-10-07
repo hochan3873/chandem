@@ -206,7 +206,7 @@ function afterCreate(g) {
   resetHwFx();
   const s = HW.stageOf(g.ev.n);
   const sg = s.sig && HW.SIGS[s.sig];
-  if (sg) setTimeout(() => { if (C.app.g === g) C.fx.banner(`${sg.icon} ${sg.name}`, s.n === 1 ? `해장 멤버가 마무리해야 좀비가 안 일어나요 (내 덱 ${g.hw ? g.heroes.filter((h) => sg.heroes.includes(h.id)).length : 0}명)` : `도화선 끊는 멤버가 맞혀야 껍질이 깨져요 (내 덱 ${g.heroes.filter((h) => sg.heroes.includes(h.id)).length}명)`, '#6a2a00', 2.6, 'big'); }, 2900);
+  if (sg) setTimeout(() => { if (C.app.g === g) C.fx.banner(`${sg.icon} ${sg.name}`, s.n === 1 ? `해장 멤버가 마무리해야 좀비가 안 일어나요 (내 덱 ${(g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length}명)` : `도화선 끊는 멤버가 맞혀야 껍질이 깨져요 (내 덱 ${(g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length}명)`, '#6a2a00', 2.6, 'big'); }, 2900);
   setTimeout(() => { if (C.app.g === g) C.fx.banner(`🎃 ${s.name}`, g.ev.curses.length ? `저주 🔥${HW.curseScore(g.ev.curses)} · ${g.ev.curses.map((k) => HW.CURSES[k].name).join(' · ')}` : HW.HW_MAPS[s.map].name, '#4a1466', 2.4, 'big'); }, 350);
 }
 // 이벤트 그림: 이번 판 진상(처음엔 안 받는다) · 맵
@@ -266,6 +266,8 @@ function result(g, victory, quit) {
   });
 }
 function failTip(g) {
+  const sg = g.ev && g.ev.sig, have = sg ? (g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length : 0; // 특수 규칙 판: 맞는 멤버가 모자라면 그것부터 알려 준다
+  if (sg && have < 3) return `${sg.icon} ${sg.name} — ${sg.heroes.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join(' · ')} 중 ${have}명뿐이었어요. ${sg.id === 'hangover' ? '해장 멤버가 많을수록 좀비가 덜 일어나요' : '도화선 끊는 멤버가 많을수록 호박등을 빨리 꺼요'}`;
   const src = g.stats.kdBy || {}, top = Object.keys(src).sort((a, b) => src[b] - src[a])[0];
   if (top && ENEMIES[top]) { const sk = enemySkills(top)[0]; const ctr = sk && sk.counter && sk.counter.length ? sk.counter.slice(0, 3).map((h) => HEROES[h].name).join(' · ') : ''; return `${ENEMIES[top].name}에게 많이 당했어요${sk ? ` (${sk.name})` : ''}${ctr ? ` — ${ctr}이(가) 막아 줘요` : ''}`; }
   return '예고가 뜨면 기절 · 밀치기 스킬로 끊어 보세요 — 끊으면 빈틈이 생겨요';
