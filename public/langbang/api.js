@@ -93,6 +93,7 @@ function normalize(p, guest) {
   out.wild = Math.max(0, (p && p.wild) | 0);
   out.cardPick = (p && p.cardPick) || { wi: 0, n: 0 };
   out.testNormal = !!(p && p.testNormal);
+  out.tut = Array.isArray(p && p.tut) ? p.tut.filter((k) => typeof k === 'string').slice(0, 48) : []; // 튜토리얼 진행 (로그인은 서버 · 손님은 기기)
   out.owned = out.owned || {};
   out.unlocked = LOCKED_HEROES.filter((h) => heroUnlocked(out, h));
   if (guest) L.ensureLive(out, 'guest', Date.now()); // 로그인은 서버가 이미 맞춰서 준다
@@ -425,6 +426,8 @@ function guestLive(fn) {
   writeGuest(p);
   return Object.assign({ ok: true }, r, { profile: guestProfile() });
 }
+// 튜토리얼 진행 저장 (로그인만 · 손님은 tutorial.js 가 기기에)
+export function tutSave(list) { return call('/api/langbang/tut', { list }); }
 async function liveCall(path, body) {
   const r = await call('/api/langbang/' + path, body);
   if (r.ok && r.profile) r.profile = normalize(r.profile, false);
@@ -534,7 +537,7 @@ export async function friendsLoad() { return call('/api/langbang/friends'); }
 export function friendAct(kind, body) { return liveCall('friends/' + kind, body || {}); }
 
 // ─── 진상의 탑 (손님은 같은 함수로 이 기기에 · 로그인은 서버가 계산하고 확인) ───
-export function towerStart(f, hero, guest) { return guest ? guestLive((p) => TW.towerStart(p, f, hero, 'g' + Date.now().toString(36), Date.now())) : liveCall('tower/start', { f, hero }); }
+export function towerStart(f, hero, guest, squad = []) { return guest ? guestLive((p) => TW.towerStart(p, f, hero, 'g' + Date.now().toString(36), Date.now(), false, squad)) : liveCall('tower/start', { f, hero, squad }); } // squad: 같이 갈 멤버 (리메이크)
 export function towerFinish(body, guest) { return guest ? guestLive((p) => TW.towerFinish(p, body, GUEST_UID, Date.now())) : liveCall('tower/finish', body); }
 export async function towerBoard() { const r = await call('/api/langbang/tower'); return r.ok ? r : null; }
 export function towerClaim() { return liveCall('tower/claim', {}); }

@@ -48,14 +48,14 @@ module.exports = function towerRoutes(r, ctx) {
   const freeCtx = async (u) => ({ free: freeMaster(u) });
 
   // 시작: 층 · 멤버 확인 · 도전 1번 · 판 번호
-  r.post('/tower/start', wrap(async (req) => { await ready(); return lbLive(tok(req), (lb, id, now, c) => T.towerStart(lb, Math.floor(Number(b(req).f) || 0), String(b(req).hero || ''), c.rid, now, c.free), rid); }));
+  r.post('/tower/start', wrap(async (req) => { await ready(); return lbLive(tok(req), (lb, id, now, c) => T.towerStart(lb, Math.floor(Number(b(req).f) || 0), String(b(req).hero || ''), c.rid, now, c.free, Array.isArray(b(req).squad) ? b(req).squad.slice(0, 4).map(String) : []), rid); })); // squad: 같이 갈 멤버 (리메이크 · 최대 2명 더)
   // 끝: 판 번호 · 시간 · 처치 수 확인 → 처음 깬 층만 보상 (서버 계산)
   r.post('/tower/finish', wrap(async (req) => {
     await ready();
     const body = { runId: String(b(req).runId || '').slice(0, 32), clear: b(req).clear === true, durationSec: Number(b(req).durationSec) || 0, kills: Number(b(req).kills) || 0, bossKills: Number(b(req).bossKills) || 0, skills: Number(b(req).skills) || 0 };
     let who = null;
     const out = await lbLive(tok(req), (lb, id, now, c) => { who = id; return T.towerFinish(lb, body, id, now, c.free); }, freeCtx);
-    if (out && out.clear && who && ctx.onRun) out.bonkae = await ctx.onRun(who, [out.hero], 'tower', { f: out.f }); // 본캐 출연료 (데려간 멤버 = 시작할 때 서버가 확인한 한 명)
+    if (out && out.clear && who && ctx.onRun) out.bonkae = await ctx.onRun(who, out.squad && out.squad.length ? out.squad : [out.hero], 'tower', { f: out.f }); // 본캐 출연료 (데려간 멤버 = 시작할 때 서버가 확인한 멤버들)
     return out;
   }));
   // 주간 랭킹 · 지난주 내 순위 · 명예의 전당

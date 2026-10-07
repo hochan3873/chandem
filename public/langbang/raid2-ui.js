@@ -16,6 +16,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
 const P = () => C.P();
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const bossName = (day) => (day && R2.DAYS[day] ? R2.DAYS[day].name : R2.BOSS.name);
 const big = (n) => (n >= 1e8 ? `${(n / 1e8).toFixed(n >= 1e9 ? 0 : 1)}억` : n >= 1e4 ? `${fmt(Math.round(n / 1e4))}만` : fmt(n));
 
 export function initRaid2(ctx) {
@@ -31,15 +32,19 @@ const listReady = () => have ? Promise.resolve(have) : fetch('/api/langbang/anim
 const hasFile = (src) => !!(have && have.has(src));
 const src = (real, fb) => (hasFile(real) ? real : fb);
 const POSES = ['idle', 'wind', 'slam', 'throw', 'rage'];
-const poseSrc = (k) => src(R2.R2_ART[k], k === 'rage' ? src(R2.R2_ART.idle, R2.R2_ART.rageFb) : src(R2.R2_ART.idle, R2.R2_ART.bodyFb));
-const lobbySrc = (rage) => (rage ? poseSrc('rage') : src(R2.R2_ART.throne, poseSrc('idle')));
+// 지금 보여 줄 요일 건물주 (판 중이면 그 판 · 로비면 서버가 알려 준 오늘 · 없으면 이 기기 시계)
+const curDay = () => st.day || (st.board && st.board.day) || R2.dayOf();
+const basePose = (k) => src(R2.R2_ART[k], k === 'rage' ? src(R2.R2_ART.idle, R2.R2_ART.rageFb) : src(R2.R2_ART.idle, R2.R2_ART.bodyFb));
+const poseSrc = (k, day = curDay()) => { const d = day ? R2.dayArt(day, k) : ''; return d && hasFile(d) ? d : day && k !== 'idle' && hasFile(R2.dayArt(day, 'idle')) && k !== 'throne' ? src(R2.dayArt(day, 'idle'), basePose(k)) : basePose(k); };
+const lobbySrc = (rage, day = curDay()) => (rage ? poseSrc('rage', day) : hasFile(R2.dayArt(day, 'throne')) ? R2.dayArt(day, 'throne') : hasFile(R2.dayArt(day, 'idle')) ? R2.dayArt(day, 'idle') : src(R2.R2_ART.throne, basePose('idle')));
 
-async function loadArt() {
-  if (st.artTried) return;
-  st.artTried = true;
+async function loadArt(day) {
   await listReady();
+  const d = day || curDay();
+  if (st.artDay === d && st.artTried) return;
+  st.artTried = true; st.artDay = d;
   const one = (key, url) => { const im = new Image(); im.decoding = 'async'; const o = st.art[key] = { img: im, ok: false }; im.onload = () => { o.ok = true; }; im.src = url; };
-  for (const k of POSES) one(k, poseSrc(k));
+  for (const k of POSES) one(k, poseSrc(k, d));
   // 전투 맵 (없으면 예전 레이드 맵)
   const R = C.R;
   if (!R.images.map_raid2) {
@@ -62,6 +67,75 @@ function poseOf(r) {
   }
   return r.phase >= 3 || r.angry >= 4 ? 'rage' : 'idle';
 }
+const DAYCOL = () => (st.run && st.run.day ? R2.dayDef(st.run.day).color : '#ff2d45');
+// 예고 모양 (raid2-sim act.zone): lane 세로 줄 · half 한쪽 절반 · full 전체 · door 입구 띠 · circle 원 · line 갈고리 줄 · boss 몸 둘레 · top 위에서 몰려옴
+function drawZone(cx, g, a, t) {
+  const z = a.zone;
+  if (!z) return;
+  const blink = 0.5 + 0.5 * Math.sin(t * 18);
+  const k = clamp(1 - a.t / (a.t0 || 1), 0, 1); // 예고가 얼마나 찼나 (0 → 1)
+  const col = z.col || '#ff2a1a';
+  const e = g.r2.parts.body;
+  if (z.shape === 'lane') zone(cx, z.x - z.w, g.ropeY - 40, z.w * 2, g.rowY - g.ropeY + 90, 0.16 + 0.2 * blink + 0.3 * k, col);
+  else if (z.shape === 'half') {
+    const x0 = z.side < 0 ? 0 : g.W / 2;
+    zone(cx, x0, g.ropeY - 30, g.W / 2, g.rowY - g.ropeY + 100, 0.12 + 0.16 * blink + 0.2 * k, col);
+    // 확성기 · 빗자루: 쓸고 지나갈 방향 화살표 / 소리 물결
+    cx.save(); cx.globalAlpha = 0.75; cx.strokeStyle = '#fff'; cx.lineWidth = 3;
+    const cxm = x0 + g.W / 4, cy = (g.ropeY + g.rowY) / 2;
+    if (a.k === 'noise') for (let i = 0; i < 3; i++) { const rr = 20 + ((t * 60 + i * 26) % 80); cx.globalAlpha = 0.7 * (1 - rr / 100); cx.beginPath(); cx.arc(cxm, cy, rr, -0.9, 0.9); cx.stroke(); cx.beginPath(); cx.arc(cxm, cy, rr, Math.PI - 0.9, Math.PI + 0.9); cx.stroke(); }
+    else { const dir = z.side < 0 ? -1 : 1; for (let i = 0; i < 3; i++) { const ax = cxm - dir * 40 + dir * ((t * 90 + i * 30) % 90); cx.beginPath(); cx.moveTo(ax, cy - 12); cx.lineTo(ax + dir * 14, cy); cx.lineTo(ax, cy + 12); cx.stroke(); } }
+    cx.restore();
+  } else if (z.shape === 'full') {
+    zone(cx, 6, g.ropeY - 40, g.W - 12, g.rowY - g.ropeY + 90, 0.12 + 0.16 * blink + 0.25 * k, col);
+    // 계약서 · 퇴거 명령서 그림자가 내려온다
+    cx.save(); cx.globalAlpha = 0.25 + 0.4 * k; cx.fillStyle = '#0b0b1a';
+    const w = 90 + 120 * k, h = w * 1.3;
+    cx.fillRect(g.W / 2 - w / 2, (g.ropeY + g.rowY) / 2 - h / 2, w, h);
+    cx.restore();
+  } else if (z.shape === 'door') {
+    zone(cx, 14, g.ropeY - 26, g.W - 28, 44, a.st === 'hold' ? 0.3 + 0.2 * blink : 0.18 + 0.2 * blink, col);
+  } else if (z.shape === 'circle') {
+    cx.save();
+    cx.globalAlpha = 0.18 + 0.22 * blink; cx.fillStyle = col;
+    cx.beginPath(); cx.ellipse(z.x, z.y, z.r, z.r * 0.5, 0, 0, Math.PI * 2); cx.fill();
+    cx.globalAlpha = 0.5; cx.beginPath(); cx.ellipse(z.x, z.y, z.r * k, z.r * 0.5 * k, 0, 0, Math.PI * 2); cx.fill();
+    cx.globalAlpha = 0.95; cx.strokeStyle = '#ffd23f'; cx.lineWidth = 2.5; cx.setLineDash([7, 5]);
+    cx.beginPath(); cx.ellipse(z.x, z.y, z.r, z.r * 0.5, 0, 0, Math.PI * 2); cx.stroke();
+    cx.restore();
+  } else if (z.shape === 'line') {
+    // 견인 갈고리: 건물주 손 → 표적 멤버 (점선 · 끝에 과녁)
+    cx.save();
+    cx.strokeStyle = col; cx.lineWidth = 3 + 2 * k; cx.setLineDash([10, 7]); cx.lineDashOffset = -t * 60; cx.globalAlpha = 0.6 + 0.4 * blink;
+    cx.beginPath(); cx.moveTo(e.x + 50, e.y - 40); cx.lineTo(z.x, z.y - 20); cx.stroke();
+    cx.setLineDash([]); cx.lineWidth = 3;
+    cx.beginPath(); cx.arc(z.x, z.y - 20, 30 - 10 * k, 0, Math.PI * 2); cx.stroke();
+    cx.beginPath(); cx.moveTo(z.x - 40, z.y - 20); cx.lineTo(z.x + 40, z.y - 20); cx.moveTo(z.x, z.y - 60); cx.lineTo(z.x, z.y + 20); cx.stroke();
+    cx.restore();
+  } else if (z.shape === 'boss') {
+    // 월세 인상: 몸 둘레에 금빛 위 화살표가 솟는다
+    cx.save(); cx.strokeStyle = col; cx.fillStyle = col; cx.lineWidth = 4;
+    for (let i = 0; i < 5; i++) {
+      const ax = e.x - 110 + i * 55, ay = e.y + 60 - ((t * 120 + i * 40) % 160);
+      cx.globalAlpha = 0.85 * (0.4 + 0.6 * k);
+      cx.beginPath(); cx.moveTo(ax, ay); cx.lineTo(ax - 12, ay + 16); cx.lineTo(ax + 12, ay + 16); cx.closePath(); cx.fill();
+      cx.fillRect(ax - 4, ay + 16, 8, 22);
+    }
+    cx.globalAlpha = 0.3 + 0.3 * blink; cx.beginPath(); cx.ellipse(e.x, e.y + 100, 150, 40, 0, 0, Math.PI * 2); cx.stroke();
+    cx.restore();
+  } else if (z.shape === 'top') {
+    // 철거 용역: 위쪽 가장자리에서 내려올 자리 (아래 화살표)
+    cx.save(); cx.strokeStyle = col; cx.fillStyle = col; cx.lineWidth = 3;
+    const n = z.n || 5;
+    for (let i = 0; i < n; i++) {
+      const ax = 40 + ((i + 0.5) / n) * (g.W - 80), ay = 40 + ((t * 80 + i * 17) % 60);
+      cx.globalAlpha = 0.55 + 0.4 * blink;
+      cx.beginPath(); cx.moveTo(ax - 12, ay); cx.lineTo(ax, ay + 16); cx.lineTo(ax + 12, ay); cx.stroke();
+      cx.beginPath(); cx.moveTo(ax - 12, ay + 12); cx.lineTo(ax, ay + 28); cx.lineTo(ax + 12, ay + 12); cx.stroke();
+    }
+    cx.restore();
+  }
+}
 function draw(g, t, layer) {
   const r = g.r2;
   if (!r) return;
@@ -71,27 +145,27 @@ function draw(g, t, layer) {
     // 예고 구역 (먼저 — 보스 뒤 바닥에)
     const a = r.act;
     const blink = 0.5 + 0.5 * Math.sin(t * 18);
-    if (a && a.st === 'wind' && (a.k === 'slam' || a.k === 'combo')) {
-      const z = RS.PAT.slam.zone, k = 1 - a.t / (a.t0 || RS.PAT.slam.wind);
-      zone(cx, a.x - z, g.ropeY - 40, z * 2, g.rowY - g.ropeY + 90, 0.16 + 0.2 * blink + 0.3 * clamp(k, 0, 1));
-    } else if (a && a.st === 'wind' && a.k === 'sweep') {
-      const x0 = a.side < 0 ? 0 : g.W / 2;
-      zone(cx, x0, g.rowY - 70, g.W / 2, 130, 0.14 + 0.18 * blink);
-    } else if (a && a.st === 'wind' && a.k === 'evict') {
-      zone(cx, 6, g.ropeY - 40, g.W - 12, g.rowY - g.ropeY + 90, 0.12 + 0.16 * blink + 0.25 * clamp(1 - a.t / (a.t0 || 1), 0, 1), '#b04dff');
-    } else if (a && a.k === 'grab') {
-      zone(cx, 20, g.ropeY - 26, g.W - 40, 40, a.st === 'hold' ? 0.3 + 0.2 * blink : 0.18 + 0.2 * blink);
-    }
-    // 돈다발 · 고지서 떨어질 자리
+    if (a && (a.st === 'wind' || (a.k === 'grab' && a.st === 'hold'))) drawZone(cx, g, a, t);
+    // 관리비 계량기 (입구에 붙어 돈다) · 오수 웅덩이
+    if (r.meterT > 0) meterDraw(cx, g, t, r.meterT);
+    for (const p of r.pools) { cx.save(); cx.globalAlpha = 0.45 * clamp(p.t / p.t0 * 2, 0, 1); cx.fillStyle = '#5a8a3a'; cx.beginPath(); cx.ellipse(p.x, p.y + 16, 44, 16, 0, 0, Math.PI * 2); cx.fill(); cx.globalAlpha *= 0.8; cx.fillStyle = '#9adf6a'; for (let i = 0; i < 3; i++) { const bx = p.x - 20 + i * 20, by = p.y + 12 - ((t * 20 + i * 7) % 10); cx.beginPath(); cx.arc(bx, by, 3, 0, Math.PI * 2); cx.fill(); } cx.restore(); }
+    // 표시물이 떨어질 자리 (돈다발 · 고지서 · 도장 · 오수 · 외제차)
     for (const m of r.marks) {
-      const k = 1 - m.t / m.t0;
+      const k = clamp(1 - m.t / m.t0, 0, 1);
+      const S = MARK[m.k] || MARK.bill;
       cx.save();
+      if (m.k === 'rush') { // 외제차: 위에서 내려올 줄 화살표
+        cx.globalAlpha = 0.35 + 0.4 * blink; cx.fillStyle = S.fill;
+        cx.fillRect(m.x - 14, 0, 28, g.ropeY * k);
+        cx.strokeStyle = S.line; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(m.x - 14, g.ropeY * k - 16); cx.lineTo(m.x, g.ropeY * k); cx.lineTo(m.x + 14, g.ropeY * k - 16); cx.stroke();
+        cx.restore(); continue;
+      }
+      const rad = m.r || S.r, oy = S.oy || 0;
       cx.globalAlpha = 0.35 + 0.35 * blink;
-      cx.strokeStyle = m.k === 'cash' ? '#7dff9a' : '#ffcf3f'; cx.lineWidth = 2.5; cx.setLineDash([5, 4]);
-      const rad = m.k === 'cash' ? RS.PAT.cash.r : 18;
-      cx.beginPath(); cx.ellipse(m.x, m.y + (m.k === 'cash' ? 14 : 0), rad, rad * 0.45, 0, 0, Math.PI * 2); cx.stroke();
-      cx.globalAlpha = 0.25 + 0.3 * k; cx.fillStyle = m.k === 'cash' ? '#2fbf5a' : '#ff9a2a';
-      cx.beginPath(); cx.ellipse(m.x, m.y + (m.k === 'cash' ? 14 : 0), rad * k, rad * 0.45 * k, 0, 0, Math.PI * 2); cx.fill();
+      cx.strokeStyle = S.line; cx.lineWidth = 2.5; cx.setLineDash([5, 4]);
+      cx.beginPath(); cx.ellipse(m.x, m.y + oy, rad, rad * 0.45, 0, 0, Math.PI * 2); cx.stroke();
+      cx.globalAlpha = 0.25 + 0.3 * k; cx.fillStyle = S.fill;
+      cx.beginPath(); cx.ellipse(m.x, m.y + oy, rad * k, rad * 0.45 * k, 0, 0, Math.PI * 2); cx.fill();
       cx.restore();
     }
     if (!e) return;
@@ -102,8 +176,9 @@ function draw(g, t, layer) {
     const BOSS_H = clamp(feet - e.lift - 112, 220, 320); // 위 HUD 아래로 머리가 들어오게 (화면 높이에 맞춰)
     const breath = Math.sin(t * 1.6);
     let sx = 1 + breath * 0.012, sy = 1 - breath * 0.012;
-    if (pose === 'wind') { sx = 0.96; sy = 1.05 + Math.sin(t * 40) * 0.004; }
+    if (pose === 'wind') { const k = a && a.t0 ? clamp(1 - a.t / a.t0, 0, 1) : 0.5; sx = 0.97 - 0.03 * k; sy = 1.02 + 0.05 * k + Math.sin(t * 40) * 0.004 * (1 + 2 * k); } // 예고가 찰수록 몸을 더 젖혀 힘을 모은다
     if (a && a.st === 'down') { sx = 1.1; sy = 0.9; }
+    if (pose === 'throw' && a && a.t0 === undefined) { const k = clamp(1 - a.t / 0.9, 0, 1); sx = 1 + 0.06 * Math.sin(k * Math.PI); sy = 1 - 0.04 * Math.sin(k * Math.PI); }
     if (a && a.k === 'grab' && a.st === 'hold') { const w = Math.sin(t * 22); sx = 1.04 + w * 0.02; sy = 0.97 - w * 0.02; }
     const shake = pose === 'rage' || (a && a.st === 'wind') ? Math.sin(t * 47) * 1.6 : 0;
     const lean = (e.lean || 0) * 0.0035;
@@ -113,33 +188,51 @@ function draw(g, t, layer) {
       cx.translate(e.x + shake, feet);
       cx.rotate(lean);
       cx.scale(sx, sy);
-      if (e.weakT > 0) { cx.shadowColor = '#ffd23f'; cx.shadowBlur = 26; }
+      if (e.weakT > 0) { cx.shadowColor = r.punishT > 0 ? '#7dffb0' : '#ffd23f'; cx.shadowBlur = 26; }
+      else if (r.armor > 0) { cx.shadowColor = '#ffcf3f'; cx.shadowBlur = 10 + 40 * r.armor; }
       else if (pose === 'rage') { cx.shadowColor = 'rgba(255,40,30,0.85)'; cx.shadowBlur = 24; }
       if (st.hit > 0) cx.filter = 'brightness(1.6)';
       const ph = key === 'wind' ? BOSS_H * 0.84 : BOSS_H; // 팔을 든 자세는 작게 (머리 위 주먹이 위 HUD 체력 줄에 안 겹치게)
       cx.drawImage(im, -ph / 2, -ph, ph, ph);
       cx.restore();
+      // 황금 갑옷 (월세 인상): 몸 위에 금빛 막 · 겹마다 진해짐
+      if (r.armor > 0) { cx.save(); cx.globalAlpha = 0.12 + 0.35 * r.armor + 0.06 * Math.sin(t * 6); cx.fillStyle = '#ffcf3f'; cx.globalCompositeOperation = 'lighter'; cx.beginPath(); cx.ellipse(e.x, feet - BOSS_H * 0.45, BOSS_H * 0.36, BOSS_H * 0.48, 0, 0, Math.PI * 2); cx.fill(); cx.restore(); tag(cx, e.x, feet - BOSS_H - 6, `황금 갑옷 방어율 ${Math.round(r.armor * 100)}%`, '#ffcf3f'); }
+      // 보증금 금고: 보호막 막대
+      if (r.vault) { const v = r.vault; cx.save(); cx.globalAlpha = 0.35 + 0.15 * Math.sin(t * 8); cx.strokeStyle = '#7dffb0'; cx.lineWidth = 6; cx.beginPath(); cx.ellipse(e.x, feet - BOSS_H * 0.45, BOSS_H * 0.42, BOSS_H * 0.52, 0, 0, Math.PI * 2); cx.stroke(); cx.restore(); bar(cx, e.x, feet - BOSS_H - 10, 120, v.hp / v.max, '#7dffb0', `금고 ${Math.ceil(v.t)}초`); }
     }
     // 빈틈 표시
     if (e.weakT > 0) {
-      cx.save(); cx.globalAlpha = 0.85 + 0.15 * blink; cx.fillStyle = '#ffd23f'; cx.font = '900 13px sans-serif'; cx.textAlign = 'center';
-      cx.strokeStyle = '#2a1200'; cx.lineWidth = 3; cx.strokeText('빈틈! 피해 ×1.5', e.x, feet - BOSS_H * 0.62); cx.fillText('빈틈! 피해 ×1.5', e.x, feet - BOSS_H * 0.62); cx.restore();
+      const txt = r.punishT > 0 ? '역공 찬스! 피해 ×1.95' : '빈틈! 피해 ×1.5';
+      cx.save(); cx.globalAlpha = 0.85 + 0.15 * blink; cx.fillStyle = r.punishT > 0 ? '#7dffb0' : '#ffd23f'; cx.font = '900 13px sans-serif'; cx.textAlign = 'center';
+      cx.strokeStyle = '#2a1200'; cx.lineWidth = 3; cx.strokeText(txt, e.x, feet - BOSS_H * 0.62); cx.fillText(txt, e.x, feet - BOSS_H * 0.62); cx.restore();
     }
-    // 끊기 게이지: 예고 중 (내려찍기 · 휩쓸기 · 연타 · 퇴거) / 붙잡는 중 — 스킬을 몇 번 더 맞혀야 하는지
+    // 끊기 게이지: 예고 중 / 붙잡는 중 — 스킬을 몇 번 더 맞혀야 하는지
     if (a && ((a.st === 'wind' && a.k !== 'grab') || (a.k === 'grab' && a.st === 'hold'))) pips(cx, a, g, t);
   } else if (layer === 'top') {
-    // 날아가는 고지서 · 돈다발 (보스 손 → 떨어질 자리)
+    // 날아가는 고지서 · 돈다발 · 도장 · 오수 (보스 손 / 천장 → 떨어질 자리)
     if (e) {
       for (const m of r.marks) {
+        if (m.k === 'rush') continue;
         const k = clamp(1 - m.t / m.t0, 0, 1);
-        const x0 = e.x + (m.k === 'cash' ? 60 : -60), y0 = e.y - 40; // 고지서는 던지는 손(왼쪽) · 돈다발은 오른손
-        const x = x0 + (m.x - x0) * k, y = y0 + (m.y - y0) * k - Math.sin(k * Math.PI) * 90;
-        cx.save(); cx.translate(x, y); cx.rotate(m.k === 'cash' ? Math.sin(k * 12) * 0.5 : k * 9 + m.x);
+        if (m.k === 'leak') { // 천장에서 똑 떨어지는 오수 방울
+          const y = -20 + (m.y + 10) * k * k;
+          cx.save(); cx.fillStyle = '#7fbf4a'; cx.strokeStyle = '#2a4a1a'; cx.lineWidth = 2;
+          cx.beginPath(); cx.moveTo(m.x, y - 16); cx.quadraticCurveTo(m.x + 11, y, m.x, y + 8); cx.quadraticCurveTo(m.x - 11, y, m.x, y - 16); cx.fill(); cx.stroke(); cx.restore();
+          continue;
+        }
+        const left = m.k === 'bill';
+        const x0 = e.x + (left ? -60 : 60), y0 = e.y - 40;
+        const x = x0 + (m.x - x0) * k, y = y0 + (m.y - y0) * k - Math.sin(k * Math.PI) * (m.k === 'stamp' ? 140 : 90);
+        cx.save(); cx.translate(x, y); cx.rotate(m.k === 'cash' ? Math.sin(k * 12) * 0.5 : m.k === 'stamp' ? Math.sin(k * 6) * 0.3 : k * 9 + m.x);
         cx.strokeStyle = '#2a1a14'; cx.lineWidth = 1.5;
         if (m.k === 'cash') { // 돈다발: 초록 지폐 뭉치 + 띠
           cx.fillStyle = '#3f9a52'; cx.fillRect(-15, -9, 30, 18); cx.strokeRect(-15, -9, 30, 18);
           cx.fillStyle = '#7fd08a'; cx.fillRect(-13, -7, 26, 5);
           cx.fillStyle = '#f2e3b0'; cx.fillRect(-4, -9, 8, 18); cx.strokeRect(-4, -9, 8, 18);
+        } else if (m.k === 'stamp') { // 도장: 나무 손잡이 + 빨간 인주 바닥
+          cx.fillStyle = '#8a5a2a'; cx.fillRect(-6, -22, 12, 18); cx.strokeRect(-6, -22, 12, 18);
+          cx.beginPath(); cx.arc(0, -24, 8, 0, Math.PI * 2); cx.fill(); cx.stroke();
+          cx.fillStyle = '#d02020'; cx.fillRect(-14, -4, 28, 10); cx.strokeRect(-14, -4, 28, 10);
         } else { // 고지서: 흰 종이 + 빨간 도장 줄
           cx.fillStyle = '#fbf6e8'; cx.fillRect(-9, -12, 18, 24); cx.strokeRect(-9, -12, 18, 24);
           cx.fillStyle = '#9a8f80'; for (let l = 0; l < 4; l++) cx.fillRect(-6, -8 + l * 4, 12, 1.5);
@@ -148,16 +241,106 @@ function draw(g, t, layer) {
         cx.restore();
       }
     }
-    // 끊기 · 붙잡기 떼기 때 튀는 별 (짧게)
-    const now = performance.now() / 1000;
-    st.fx = st.fx.filter((f) => now - f.t0 < 1);
+    fxDraw(cx, g);
   }
+}
+// 표시물 모양 (예고 원 색)
+const MARK = {
+  bill: { r: 18, line: '#ffcf3f', fill: '#ff9a2a' },
+  cash: { r: 46, oy: 14, line: '#7dff9a', fill: '#2fbf5a' },
+  stamp: { r: 36, oy: 14, line: '#ff5a5a', fill: '#d02020' },
+  leak: { r: 40, oy: 14, line: '#b0ff7a', fill: '#5a8a3a' },
+  rush: { r: 20, line: '#ff9a3a', fill: 'rgba(255,140,40,0.35)' },
+};
+// 관리비 계량기: 입구 가운데 붙은 둥근 계기판 · 바늘이 돌고 ₩ 숫자가 올라간다
+function meterDraw(cx, g, t, left) {
+  const x = g.W / 2, y = g.ropeY - 4;
+  cx.save();
+  cx.fillStyle = '#2a2a33'; cx.strokeStyle = '#ffcf3f'; cx.lineWidth = 3;
+  cx.beginPath(); cx.arc(x, y, 24, 0, Math.PI * 2); cx.fill(); cx.stroke();
+  cx.fillStyle = '#fff8e0'; cx.beginPath(); cx.arc(x, y, 18, 0, Math.PI * 2); cx.fill();
+  const ang = t * 7;
+  cx.strokeStyle = '#d02020'; cx.lineWidth = 2.5; cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x + Math.cos(ang) * 15, y + Math.sin(ang) * 15); cx.stroke();
+  cx.font = '900 11px sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = '#1a0606'; cx.fillStyle = '#ffcf3f';
+  const won = `₩${fmt(Math.floor((7 - left) * 13700 + (t * 997) % 1000))}`;
+  cx.strokeText(won, x, y - 30); cx.fillText(won, x, y - 30);
+  // 입구에서 빨려 나가는 에너지 (작은 노란 점이 계량기로)
+  cx.fillStyle = '#ffe27a';
+  for (let i = 0; i < 6; i++) { const k = (t * 1.6 + i / 6) % 1, sxp = (i % 2 ? 30 : g.W - 30) + (x - (i % 2 ? 30 : g.W - 30)) * k; cx.globalAlpha = 1 - k; cx.beginPath(); cx.arc(sxp, y + Math.sin(k * 9 + i) * 6, 3, 0, Math.PI * 2); cx.fill(); }
+  cx.restore();
+}
+function tag(cx, x, y, txt, col) {
+  cx.save(); cx.font = '900 11px sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = '#1a0606'; cx.fillStyle = col;
+  cx.strokeText(txt, x, y); cx.fillText(txt, x, y); cx.restore();
+}
+function bar(cx, x, y, w, f, col, txt) {
+  cx.save(); cx.fillStyle = 'rgba(10,10,20,0.75)'; cx.fillRect(x - w / 2 - 2, y - 2, w + 4, 10);
+  cx.fillStyle = col; cx.fillRect(x - w / 2, y, w * clamp(f, 0, 1), 6); cx.restore();
+  if (txt) tag(cx, x, y - 4, txt, col);
 }
 function zone(cx, x, y, w, h, alpha, col = '#ff2a1a') {
   cx.save();
   cx.globalAlpha = alpha; cx.fillStyle = col; cx.fillRect(x, y, w, h);
   cx.globalAlpha = 0.9; cx.strokeStyle = '#ffd23f'; cx.lineWidth = 2; cx.setLineDash([6, 5]); cx.strokeRect(x, y, w, h);
   cx.restore();
+}
+// ─── 요일 기술 연출 (코드 그림 · 짧게) — st.fx: { k, x, y, t0, life, ... } ───
+function fxAdd(k, x, y, life, o = {}) { st.fx.push({ k, x, y, t0: performance.now() / 1000, life, ...o }); if (st.fx.length > 40) st.fx.shift(); }
+function fxDraw(cx, g) {
+  const now = performance.now() / 1000;
+  st.fx = st.fx.filter((f) => now - f.t0 < f.life);
+  for (const f of st.fx) {
+    const k = clamp((now - f.t0) / f.life, 0, 1), fade = 1 - k;
+    cx.save();
+    if (f.k === 'stamp') { // 빨간 도장 자국 "갑" (찍히며 커졌다 줄어듦)
+      const s = k < 0.15 ? 1.6 - 4 * k : 1;
+      cx.translate(f.x, f.y + 10); cx.rotate(-0.2); cx.scale(s, s * 0.6);
+      cx.globalAlpha = fade; cx.strokeStyle = '#d02020'; cx.lineWidth = 5; cx.beginPath(); cx.arc(0, 0, 30, 0, Math.PI * 2); cx.stroke();
+      cx.fillStyle = '#d02020'; cx.font = '900 30px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('갑', 0, 2);
+    } else if (f.k === 'contract') { // 계약서가 쾅 내려앉음
+      const s = k < 0.2 ? 2 - 5 * k : 1;
+      cx.translate(g.W / 2, (g.ropeY + g.rowY) / 2); cx.scale(s, s); cx.globalAlpha = fade;
+      cx.fillStyle = '#fbf6e8'; cx.strokeStyle = '#3a6dff'; cx.lineWidth = 3; cx.fillRect(-60, -80, 120, 160); cx.strokeRect(-60, -80, 120, 160);
+      cx.fillStyle = '#3a3a4a'; cx.font = '900 16px sans-serif'; cx.textAlign = 'center'; cx.fillText('재계약서', 0, -52);
+      cx.fillStyle = '#9a9aaa'; for (let l = 0; l < 6; l++) cx.fillRect(-44, -36 + l * 14, 88, 3);
+      cx.strokeStyle = '#d02020'; cx.lineWidth = 4; cx.beginPath(); cx.arc(30, 56, 16, 0, Math.PI * 2); cx.stroke();
+    } else if (f.k === 'splash') { // 오수 튐
+      cx.globalAlpha = fade; cx.fillStyle = '#7fbf4a';
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2, d = 10 + 40 * k; cx.beginPath(); cx.arc(f.x + Math.cos(a) * d, f.y + 10 + Math.sin(a) * d * 0.4 - 20 * Math.sin(k * Math.PI), 4 * fade + 1, 0, Math.PI * 2); cx.fill(); }
+    } else if (f.k === 'coins') { // 금빛 동전 분수 (월세 인상 · 금고)
+      cx.globalAlpha = fade; cx.fillStyle = '#ffcf3f'; cx.strokeStyle = '#8a5a00'; cx.lineWidth = 1.5;
+      for (let i = 0; i < 12; i++) { const a = -Math.PI / 2 + (i - 5.5) * 0.18, v = 160 + (i % 3) * 40, tt = k * 1.2; const px = f.x + Math.cos(a) * v * tt, py = f.y + Math.sin(a) * v * tt + 260 * tt * tt; cx.beginPath(); cx.ellipse(px, py, 6, 4, 0, 0, Math.PI * 2); cx.fill(); cx.stroke(); }
+    } else if (f.k === 'shard') { // 갑옷 깨짐 파편
+      cx.globalAlpha = fade; cx.fillStyle = '#ffe27a';
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2, d = 20 + 120 * k; cx.save(); cx.translate(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d); cx.rotate(a + k * 6); cx.fillRect(-6, -3, 12, 6); cx.restore(); }
+    } else if (f.k === 'hook') { // 견인 갈고리: 건물주 → 멤버 쇠사슬이 쭉 뻗었다 돌아감
+      const reach = k < 0.4 ? k / 0.4 : 1 - (k - 0.4) / 0.6;
+      const hx = f.bx + (f.x - f.bx) * reach, hy = f.by + (f.y - f.by) * reach;
+      cx.globalAlpha = 1; cx.strokeStyle = '#9aa0aa'; cx.lineWidth = 4; cx.setLineDash([6, 4]);
+      cx.beginPath(); cx.moveTo(f.bx, f.by); cx.lineTo(hx, hy); cx.stroke(); cx.setLineDash([]);
+      cx.strokeStyle = '#ff9a3a'; cx.lineWidth = 5; cx.beginPath(); cx.arc(hx, hy + 6, 12, 0, Math.PI); cx.stroke();
+    } else if (f.k === 'wave') { // 확성기 음파 (한쪽으로 퍼지는 보라 고리)
+      cx.globalAlpha = fade * 0.8; cx.strokeStyle = '#d9a0ff'; cx.lineWidth = 6 * fade + 1;
+      for (let i = 0; i < 3; i++) { const rr = 30 + (k * 200 + i * 40) % 220; cx.beginPath(); cx.arc(f.x, f.y, rr, f.side < 0 ? Math.PI * 0.55 : -Math.PI * 0.45, f.side < 0 ? Math.PI * 1.45 : Math.PI * 0.45); cx.stroke(); }
+    } else if (f.k === 'broom') { // 빗자루 쓸기 (부채꼴 먼지)
+      cx.globalAlpha = fade * 0.9; cx.fillStyle = '#c98a3a';
+      const a0 = f.side < 0 ? Math.PI : 0, sweep = (f.side < 0 ? 1 : -1) * k * 1.6;
+      cx.translate(g.W / 2, f.y); cx.rotate(a0 + sweep); cx.fillRect(0, -6, g.W / 2, 12);
+      cx.fillStyle = '#e8c890'; for (let i = 0; i < 12; i++) cx.fillRect(g.W / 2 - 30, -16 + i * 3, 30, 2);
+    } else if (f.k === 'crash') { // 외제차 충돌: 파편 + "쾅"
+      cx.globalAlpha = fade; cx.fillStyle = '#ff9a3a'; cx.font = '900 22px sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#2a1200';
+      cx.strokeText('쾅!', f.x, f.y - 30 - 20 * k); cx.fillText('쾅!', f.x, f.y - 30 - 20 * k);
+      cx.fillStyle = '#5a6070'; for (let i = 0; i < 8; i++) { const a = -Math.PI * (i / 7), d = 50 * k; cx.fillRect(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, 5, 5); }
+    } else if (f.k === 'vault') { // 금고 문 (열림 · 꿀꺽 · 깨짐)
+      cx.translate(f.x, f.y - 120); cx.globalAlpha = fade;
+      const s = f.broke ? 1 + k : 1;
+      cx.scale(s, s);
+      cx.fillStyle = '#5a6070'; cx.strokeStyle = '#1a1a20'; cx.lineWidth = 3; cx.fillRect(-36, -36, 72, 72); cx.strokeRect(-36, -36, 72, 72);
+      cx.strokeStyle = '#ffcf3f'; cx.beginPath(); cx.arc(0, 0, 20, 0, Math.PI * 2); cx.stroke();
+      cx.rotate(k * (f.broke ? 12 : 4)); cx.beginPath(); cx.moveTo(-20, 0); cx.lineTo(20, 0); cx.moveTo(0, -20); cx.lineTo(0, 20); cx.stroke();
+    }
+    cx.restore();
+  }
 }
 // 끊기 게이지 (빨간 구역 위): 맞힌 수 / 남은 수
 function pips(cx, a, g, t) {
@@ -179,22 +362,23 @@ st.dmgAtPoll = 0;
 
 // ─── 판에 붙이기 (game.js startRun · createGame 바로 뒤) ───
 function attach(g, o) {
-  loadArt();
+  st.day = o.day && R2.DAYS[o.day] ? o.day : null; // 요일 건물주 (서버가 판을 열 때 정함)
+  loadArt(st.day);
   st.run = o; st.live = { hp: { ...o.hp }, max: { ...o.max }, hitting: 0, feed: [] };
   st.dmgAtPoll = 0; st.feedT = Date.now(); st.fx = []; st.pollT = 0; st.hit = 0;
-  RS.attach(g, { tier: o.tier, diff: o.diff, rally: !!o.rally, hp: o.hp, max: o.max });
+  RS.attach(g, { tier: o.tier, diff: o.diff, day: st.day, rally: !!o.rally, hp: o.hp, max: o.max });
   mountHud(g);
   if (o.rally) setTimeout(() => C.toast(`${o.rally.n}님의 부름에 응답! 피해 +${Math.round(R2.R2.rallyBuff * 100)}% · 둘 다 협동 기여`, 3000), 800);
   return g.r2;
 }
-function leave() { if (st.hud) { st.hud.remove(); st.hud = null; } const ck = document.getElementById('h-hp-crack'); if (ck) ck.remove(); st.run = null; }
+function leave() { st.day = null; if (st.hud) { st.hud.remove(); st.hud = null; } const ck = document.getElementById('h-hp-crack'); if (ck) ck.remove(); st.run = null; }
 
 // ─── 전투 HUD: 서버 체력 · 페이즈 · 지금 때리는 사람 · 소식 ───
 function mountHud(g) {
   if (st.hud) st.hud.remove();
   const d = document.createElement('div');
   d.className = 'r2-hud';
-  d.innerHTML = `<div class="r2h-top"><b class="r2h-name">${esc(R2.BOSS.name)} <i class="r2h-df" style="--c:${D(g.r2.diff).color}">${esc(D(g.r2.diff).name)}</i> <em>${st.run.tier}단계 · <span class="r2h-ph">${g.r2.phase}페이즈</span></em></b><span class="r2h-live"></span></div><div class="r2h-bar"><b></b><i></i><s style="left:${(R2.R2.phaseAt[1] * 100).toFixed(1)}%"></s><s style="left:${(R2.R2.phaseAt[0] * 100).toFixed(1)}%"></s></div><div class="r2h-feed"></div>`;
+  d.innerHTML = `<div class="r2h-top"><b class="r2h-name">${esc(bossName(g.r2.day))} <i class="r2h-df" style="--c:${D(g.r2.diff).color}">${esc(D(g.r2.diff).name)}</i> <em>${st.run.tier}단계 · <span class="r2h-ph">${g.r2.phase}페이즈</span></em></b><span class="r2h-live"></span></div><div class="r2h-bar"><b></b><i></i><s style="left:${(R2.R2.phaseAt[1] * 100).toFixed(1)}%"></s><s style="left:${(R2.R2.phaseAt[0] * 100).toFixed(1)}%"></s></div><div class="r2h-feed"></div>`;
   C.stage.appendChild(d);
   st.hud = d;
 }
@@ -258,12 +442,12 @@ function feedLine(text, k) {
 }
 
 // ─── 전투 이벤트 → 연출 ───
-const PATN = Object.fromEntries(R2.PATTERNS.map((p) => [p.id, p.name]));
+const PATN = Object.fromEntries([...R2.PATTERNS, ...R2.DAY_PATTERNS].map((p) => [p.id, p.name]));
 function onEvent(g, e, loud) {
   const fx = C.fx, A = C.A;
   switch (e.type) {
     case 'r2Start':
-      fx.banner(`${R2.BOSS.name} · ${D(e.diff).name}`, `${R2.BOSS.sub} · 입구가 부서질 때까지!`, '#7a1020', 2.8, 'boss');
+      { const dd = e.day && R2.DAYS[e.day]; fx.banner(`${dd ? `${dd.short}요일 · ${dd.name}` : R2.BOSS.name} · ${D(e.diff).name}`, dd ? `${dd.sub} · 카운터: ${dd.counter}` : `${R2.BOSS.sub} · 입구가 부서질 때까지!`, '#7a1020', 3, 'boss'); if (dd) setTimeout(() => C.showTip(`${dd.name}: ${dd.gimmick}`, 4200), 1800); }
       fx.addShake(10);
       if (loud) A.sfx.rumble();
       break;
@@ -302,6 +486,8 @@ function onEvent(g, e, loud) {
       if (loud) A.sfx.whoosh();
       break;
     case 'r2Cut':
+      if (e.cc) { fx.text(e.x, e.y - 84, '역공 찬스! 6초 피해 ×1.95', '#7dffb0', 17, 2); fx.ring(e.x, e.y, 10, 150, 0.7, '#7dffb0', 6); fx.flash('#7dffb0', 0.18); if (!st.ccTip) { st.ccTip = true; C.showTip('제어 · 기절로 예고를 끊으면 역공 찬스! 빈틈이 더 길고 피해 +30% · 총공지도 더 차요', 4200); } }
+      if (e.k === 'crew') fx.text(e.x, e.y - 36, '용역 절반만 투입!', '#5ad0ff', 14, 1.4);
       fx.text(e.x, e.y - 60, `${e.text} 빈틈!`, '#ffd23f', 19, 1.6);
       fx.ring(e.x, e.y, 10, 90, 0.5, '#ffd23f', 4);
       fx.burst(e.x, e.y, 18, '#ffe27a', 200, 'star', 5, 0.6);
@@ -326,6 +512,70 @@ function onEvent(g, e, loud) {
       if (loud) { A.sfx.explode(); A.sfx.coin(); }
       break;
     case 'r2Pat': patFx(g, e, loud); break;
+    // ── 요일 기술 ──
+    case 'r2Meter':
+      fx.text(g.W / 2, g.ropeY - 60, '관리비 계량기 부착! 입구 에너지가 빠져요', '#ffcf3f', 15, 1.8);
+      fx.ring(g.W / 2, g.ropeY, 8, 80, 0.5, '#ffcf3f', 4);
+      if (!st.meterTip) { st.meterTip = true; C.showTip('계량기가 붙은 동안 입구가 계속 닳아요 — 홍정민 수리 · 붕대 벽 · 정원식이 버텨 줘요', 4200); }
+      if (loud) A.sfx.coin();
+      break;
+    case 'r2Bomb':
+      fx.addShake(16); fx.flash('#ff3a6a', 0.28);
+      fx.blast(e.x, e.y, RS.PAT.bomb.r, 'fire', 0.55); fx.burst(e.x, e.y, 30, '#fff3c0', 260, 'dot', 4, 0.8, 300);
+      fx.text(e.x, e.y - 70, '고지서 폭탄!', '#ff7ab0', 18, 1.3);
+      if (loud) A.sfx.explode();
+      break;
+    case 'r2Stamp':
+      fxAdd('stamp', e.x, e.y, 1.2); fx.addShake(6);
+      for (const h of e.hits || []) fx.text(h.x, h.y - 70, '기절!', '#ff5a5a', 14, 1);
+      if (loud) A.sfx.mzSlam ? A.sfx.mzSlam() : A.sfx.hit();
+      break;
+    case 'r2Contract':
+      fxAdd('contract', g.W / 2, g.ropeY, 1.3); fx.addShake(14); fx.flash('#3a6dff', 0.3);
+      fx.text(g.W / 2, g.ropeY - 120, '재계약 강요! 모두 봉인', '#9ab8ff', 18, 1.6);
+      for (const h of e.hits || []) fx.text(h.x, h.y - 70, h.stun ? '기절!' : '봉인!', h.stun ? '#ff5a5a' : '#9ab8ff', 13, 1.2);
+      if (loud) A.sfx.slam();
+      break;
+    case 'r2Armor':
+      if (e.broke) { fxAdd('shard', e.x, e.y + 40, 0.9); fx.text(e.x, e.y - 40, `인상 철회! 갑옷 ${Math.round(e.armor * 100)}%`, '#7dffb0', 16, 1.4); }
+      else { fxAdd('coins', e.x, e.y + 20, 1.2); fx.text(e.x, e.y - 40, `월세 인상! 방어율 ${Math.round(e.armor * 100)}%`, '#ffcf3f', 17, 1.6); if (!st.armorTip) { st.armorTip = true; C.showTip('황금 갑옷이 두꺼워져요 — 여지원 방깎 · 건전남 · 고아라 · 강성구 관통으로 뚫어요', 4200); } }
+      if (loud) A.sfx.coin();
+      break;
+    case 'r2Leak':
+      fxAdd('splash', e.x, e.y, 0.7);
+      for (const h of e.hits || []) fx.text(h.x, h.y - 70, '중독!', '#9adf6a', 13, 1.1);
+      if (loud) A.sfx.hit();
+      break;
+    case 'r2Crew':
+      fx.text(g.W / 2, 70, e.cut ? '용역 일부 투입!' : '철거 용역 투입!', '#5ad0ff', 18, 1.6);
+      for (const x of e.xs || []) fx.burst(x, 0, 6, '#5ad0ff', 120, 'dot', 3, 0.5);
+      if (!st.crewTip) { st.crewTip = true; C.showTip('용역 떼는 범위 공격으로 한꺼번에! 김도훈 · 백인규 · 박나영 · 최은옥', 4000); }
+      if (loud) A.sfx.rumble();
+      break;
+    case 'r2Rush': fx.burst(e.x, 10, 8, '#ff9a3a', 140, 'dot', 3, 0.4); if (loud) A.sfx.whoosh(); break;
+    case 'r2Crash':
+      fxAdd('crash', e.x, e.y, 0.8); fx.addShake(8);
+      if (!st.crashTip) { st.crashTip = true; C.showTip('외제차가 입구에 박으면 크게 깎여요 — 오지은 · 서명훈 · 운영진으로 늦추고 홍정민 붕대 벽으로 막아요', 4200); }
+      if (loud) A.sfx.explode();
+      break;
+    case 'r2Tow':
+      fxAdd('hook', e.x, e.y - 20, 0.8, { bx: e.bx + 50, by: e.by - 40 }); fx.addShake(10);
+      for (const h of e.hits || []) fx.text(h.x, h.y - 70, '견인! 기절', '#ff9a3a', 14, 1.2);
+      if (loud) A.sfx.whoosh();
+      break;
+    case 'r2Side':
+      fxAdd(e.k === 'noise' ? 'wave' : 'broom', e.k === 'noise' ? g.W / 2 + e.side * 30 : g.W / 2, e.y - 40, 0.9, { side: e.side });
+      fx.addShake(8);
+      for (const h of e.hits || []) fx.text(h.x, h.y - 70, e.k === 'noise' ? '홀림!' : '겁먹음!', e.k === 'noise' ? '#ff8fc0' : '#c98a3a', 13, 1.1);
+      fx.text(e.x, e.y - 100, e.k === 'noise' ? '"조용히 해!"' : '빗자루 쓸기!', e.k === 'noise' ? '#d9a0ff' : '#e8c890', 17, 1.2);
+      if (loud) A.sfx.whoosh();
+      break;
+    case 'r2Vault':
+      fxAdd('vault', e.x, e.y, 1, { broke: !!e.broke });
+      if (e.broke) { fxAdd('coins', e.x, e.y, 1.2); fx.text(e.x, e.y - 80, '금고 박살! 빈틈', '#7dffb0', 18, 1.5); fx.flash('#7dffb0', 0.2); }
+      else { fx.addShake(14); fx.text(e.x, e.y - 80, '보증금 꿀꺽!', '#ff2d45', 18, 1.5); }
+      if (loud) e.broke ? A.sfx.levelUp() : A.sfx.slam();
+      break
     case 'r2Angry':
       fx.banner('건물주가 더 화났다!', `화 ${e.n} · 공격이 더 세고 빨라져요`, '#9a1a1a', 1.8, 'wave');
       fx.addShake(8);
@@ -348,6 +598,9 @@ function patFx(g, e, loud) {
   if (e.k === 'seal') { for (const h of e.hits || []) { fx.text(h.x, h.y - 70, '봉인!', '#c77dff', 14, 1.3); fx.ring(h.x, h.y - 20, 6, 34, 0.5, '#c77dff', 3); } if (loud) A.sfx.mzSlam ? A.sfx.mzSlam() : A.sfx.hit(); }
   else if (e.k === 'bills') { if (loud) A.sfx.whoosh(); }
   else if (e.k === 'cash') { if (loud) A.sfx.coin(); }
+  else if (e.k === 'ticket') { for (const h of e.hits || []) { fx.text(h.x, h.y - 70, '딱지! 느려짐', '#ff9a3a', 13, 1.2); fx.ring(h.x, h.y - 20, 6, 30, 0.4, '#ff9a3a', 3); } if (loud) A.sfx.hit(); }
+  else if (e.k === 'vault') { fxAdd('vault', e.x, e.y, 0.9); if (!st.vaultTip) { st.vaultTip = true; C.showTip(`보증금 금고! ${e.sec | 0}초 안에 보호막을 깨면 빈틈 · 못 깨면 꿀꺽 (큰 입구 피해)`, 4200); } if (loud) A.sfx.coin(); }
+  else if (e.k === 'rush') { fx.text(g.W / 2, 60, '외제차 폭주!', '#ff9a3a', 18, 1.3); if (loud) A.sfx.rumble(); }
 }
 
 // ─── 결과 ───
@@ -411,7 +664,7 @@ function recFace(id) {
 function bossStage(b) {
   const ph = b ? b.phase : 1;
   const rage = ph === 3;
-  return `<div class="r2-boss ph${ph} ${rage ? 'rage' : ''} ${b && b.killed ? 'dead' : ''}"><i class="r2-glow"></i><div class="r2-bb"><img class="r2-body" src="${lobbySrc(rage)}" alt="" draggable="false"></div></div>`;
+  return `<div class="r2-boss ph${ph} ${rage ? 'rage' : ''} ${b && b.killed ? 'dead' : ''}"><i class="r2-glow"></i><div class="r2-bb"><img class="r2-body" src="${lobbySrc(rage, lobbyDay())}" alt="" draggable="false"></div></div>`;
 }
 // 페이즈 줄: 1 여유만만 → 2 짜증 (66%) → 3 분노 (33%) · 누가 넘겼는지
 function phaseHtml(b) {
@@ -426,12 +679,29 @@ function phaseHtml(b) {
 // 패턴 안내: 지금 페이즈에 나오는 것 · 다음 페이즈부터 나오는 것 · 버티는 법
 //  (고른 난이도 기준 — 어려움 · 지옥은 패턴이 더 일찍 나온다)
 function patHtml(b) {
-  const ph = b ? Math.min(3, b.phase) : 1, df = st.diff;
-  return R2.PATTERNS.map((p) => {
-    const from = RS.patFrom(p.id, df), later = !from || from > ph;
-    const tag = !from ? (RS.patFrom(p.id, 'hard') ? '어려움부터' : '지옥부터') : from > ph ? `${from}페이즈부터` : '';
+  const ph = b ? Math.min(3, b.phase) : 1, df = st.diff, day = lobbyDay();
+  const list = RS.dayPats(day).map(R2.anyPattern).filter(Boolean).filter((p) => RS.patFrom(p.id, 'hell', day));
+  return list.map((p) => {
+    const from = RS.patFrom(p.id, df, day), later = !from || from > ph;
+    const tag = !from ? (RS.patFrom(p.id, 'hard', day) ? '어려움부터' : '지옥부터') : from > ph ? `${from}페이즈부터` : '';
     return `<div class="r2-pat ${later ? 'later' : ''}"><img src="${p.img}" alt="" draggable="false"><span><b>${esc(p.name)}${tag ? ` <em>${tag}</em>` : ''}</b><small>${esc(p.text)}</small><i>${esc(p.tip)}</i></span></div>`;
   }).join('');
+}
+// 오늘의 건물주 (로비에 보여 줄 요일 — 마스터는 일정표를 눌러 다른 요일을 시험)
+const lobbyDay = () => st.pickDay || curDay();
+function dayHtml() {
+  const day = lobbyDay(), d = R2.DAYS[day];
+  const mine = d.rec.filter((id) => HEROES[id] && owned(id));
+  const tip = mine.length ? `내 멤버 중 <b>${mine.map((id) => esc(HEROES[id].name)).join(' · ')}</b> 를 꼭 데려가요!` : '추천 멤버가 아직 없어요 — 지원 멤버를 모아 보거나 다른 요일을 노려요';
+  return `<div class="panel r2-day" style="--c:${d.color}"><h4>${C.ic('calendar', '', 'sm')}${st.pickDay && st.pickDay !== curDay() ? '시험 · ' : '오늘의 건물주 · '}${d.short}요일 <small>요일마다 다른 건물주</small></h4>
+    <p class="r2-dg"><b>${esc(d.name)}</b>${esc(d.gimmick)}</p>
+    <p class="r2-dneed"><i>${d.st.map(esc).join('</i><i>')}</i><span>필요한 것 · <b>${esc(d.counter)}</b></span></p>
+    <div class="r2-rec">${d.rec.filter((id) => HEROES[id]).map(recFace).join('')}</div><p class="ip">${tip}</p></div>`;
+}
+// 이번 주 일정 (월 → 일 · 오늘 표시 · 지난 요일은 흐리게)
+function weekHtml() {
+  const today = curDay(), ti = R2.DAY_IDS.indexOf(today), pick = lobbyDay(), ms = !!P().master;
+  return `<div class="r2-week">${R2.DAY_IDS.map((id, i) => { const d = R2.DAYS[id]; return `<button class="r2-wd ${id === today ? 'today' : ''} ${id === pick ? 'on' : ''} ${i < ti ? 'past' : ''}" data-act="r2Day" data-id="${id}" style="--c:${d.color}" ${ms ? '' : 'tabindex="-1"'}><img src="${poseSrc('idle', id)}" alt="" draggable="false"><b>${d.short}</b><small>${esc(d.counter.split(' ')[0])}</small></button>`; }).join('')}</div>`;
 }
 // 난이도 고르기: 보통 · 어려움 · 지옥 (배율 · 판 보상 · 잠금)
 function diffOk(me, id) { return me && me.diffs ? !!me.diffs[id] : R2.diffOpen(P(), id, !!P().master).ok; }
@@ -479,9 +749,11 @@ async function show() {
     C.show(`
       <div class="r2-scene"><i class="r2-bg" style="background-image:url('${src(R2.R2_ART.lobby, R2.R2_ART.lobbyFb)}')"></i><i class="r2-vig"></i></div>
       <div class="r2-top"><button class="back" data-act="menu">‹ 로비</button><span class="r2-pill">${C.ic('crown', '', 'sm')}<b>${b ? b.tier : 1}단계</b></span><span class="r2-pill">${C.ic('clock', '', 'sm')}<b>${esc(R2.weekLeftText())}</b></span></div>
-      <h2 class="r2-title">${esc(R2.BOSS.name)}</h2>
-      <p class="r2-sub">${esc(R2.BOSS.sub)} · 서버 모두가 같은 보스를 때려요</p>
+      <h2 class="r2-title" style="--c:${R2.DAYS[lobbyDay()].color}">${esc(bossName(lobbyDay()))}</h2>
+      <p class="r2-sub">${esc(R2.DAYS[lobbyDay()].sub)} · 서버 모두가 같은 체력을 깎아요</p>
       ${bossStage(b)}
+      ${weekHtml()}
+      ${dayHtml()}
       <div class="r2-hp"><div class="r2-hpbar"><b style="width:${pct.toFixed(2)}%"></b><s style="left:${(R2.R2.phaseAt[1] * 100).toFixed(1)}%"></s><s style="left:${(R2.R2.phaseAt[0] * 100).toFixed(1)}%"></s></div><em>${b ? `${big(left)} / ${big(max)}` : ''}</em><small>${phaseTxt}</small></div>
       ${phaseHtml(b)}
       <div class="r2-live">${C.ic('party', '', 'sm')}<b>지금 ${b ? b.hitting : 0}명이 때리는 중</b><small>이번 주 ${b ? b.players : 0}명 참가 · 활동 ${b ? Math.max(b.active, R2.R2.floor) : 0}명 기준 체력</small></div>
@@ -491,7 +763,7 @@ async function show() {
       ${b && !b.killed && !C.app.guest ? diffHtml(me) : ''}
       <div class="r2-cta"><button class="btn primary" data-act="raidGo" ${canGo ? '' : 'disabled'}>${b && b.killed ? '이번 주는 쓰러뜨렸어요!' : `${esc(D(st.diff).name)} 도전!`} <small>${b && b.killed ? '다음 주 월요일 더 세져서 등장' : `입구가 부서질 때까지 · 한 판 최대 ${big(b ? b.runCap * D(st.diff).mul : 0)}`}</small></button>
         <button class="btn r2-rally" data-act="r2Rally" ${b && !b.killed && !C.app.guest ? '' : 'disabled'}>${C.ic('megaphone', '', 'sm')}같이 때려줘 <small>친구 부르기</small></button></div>
-      <div class="panel r2-pats"><h4>${C.ic('target', '', 'sm')}건물주 패턴 · 버티는 법 <small>${esc(D(st.diff).name)} 기준</small></h4>${patHtml(b)}</div>
+      <div class="panel r2-pats"><h4>${C.ic('target', '', 'sm')}${esc(R2.DAYS[lobbyDay()].short)}요일 패턴 · 버티는 법 <small>${esc(D(st.diff).name)} 기준</small></h4>${patHtml(b)}</div>
       <div class="panel wboard"><h4>${C.ic('trophy', '', 'sm')}이번 주 기여 순위 <small>피해 × 난이도 배율 + 협동</small></h4>${top}</div>
       ${setHtml()}
       <button class="chip rw-i" data-act="r2Info">${C.ic('book', '', 'sm')} 레이드 안내 · 보상</button>
@@ -515,12 +787,12 @@ async function go(rally) {
   if (C.app.guest) { C.toast('건물주 레이드는 로그인하면 참가해요'); return; }
   const fid = rally ? null : await C.FRX.pickHelper((C.curDeck() || []).filter(Boolean));
   if (fid === false) return;
-  const r = await C.API.r2Start({ ...(rally ? { rally } : fid ? { friend: fid } : {}), diff: st.diff });
+  const r = await C.API.r2Start({ ...(rally ? { rally } : fid ? { friend: fid } : {}), diff: st.diff, ...(P().master && st.pickDay ? { day: st.pickDay } : {}) });
   if (!r.ok) { C.toast(r.message || '건물주 레이드를 시작할 수 없어요', 2600); return; }
   if (r.profile) C.app.profile = r.profile;
   C.app.r2Run = r.runId; st.lastRunId = r.runId;
   st.board = null;
-  C.startRun({ mode: 'raid', force: true, r2: { runId: r.runId, tier: r.tier, diff: r.diff || 'normal', exposed: r.exposed, hp: r.hp, max: r.max, rally: r.rally }, help: r.help || null });
+  C.startRun({ mode: 'raid', force: true, r2: { runId: r.runId, tier: r.tier, diff: r.diff || 'normal', day: r.day || null, exposed: r.exposed, hp: r.hp, max: r.max, rally: r.rally }, help: r.help || null });
 }
 // 친구 부르기 (같이 때려줘): 친구 목록 + 링크 공유
 function rallyPop() {
@@ -547,6 +819,8 @@ function info() {
   C.popup(`<h3>${C.ic('book', '', 'sm')}건물주 레이드</h3><div class="ilist">
     <p class="ip">${C.ic('clock', '', 'sm')}월요일 0시 등장 → 일요일 밤까지. 서버 모두가 같은 체력을 깎아요</p>
     <p class="ip">${C.ic('energy', '', 'sm')}입장 주마다 ${R2.R2.entries}번 (체력 안 씀) · 친구 부름에 응답하면 +1 (주 ${R2.R2.bonusMax}번까지)</p>
+    <p class="ip">${C.ic('calendar', '', 'sm')}요일마다 다른 건물주가 올라와요: ${R2.DAY_IDS.map((id) => `${R2.DAYS[id].short} ${esc(R2.DAYS[id].name)} (${esc(R2.DAYS[id].counter)})`).join(' · ')}. 체력 · 기여 · 보상은 한 주 내내 같은 건물주 몫으로 쌓여요</p>
+    <p class="ip">${C.ic('bolt', '', 'sm')}제어 멤버(운영진 · 서명훈 · 오지은 · 임수빈 · 이호찬 …) 스킬은 끊기 두 칸! 기절 · 제어로 예고를 끊으면 「역공 찬스」 6초 피해 +30% · 건물주에게 맞으면 쓰러짐 게이지가 차요</p>
     <p class="ip">${C.ic('target', '', 'sm')}진상은 안 나와요. 거대한 건물주 혼자 입구와 멤버를 직접 때려요 — 입구가 부서지면 그 판 끝, 그동안 준 피해가 기록돼요</p>
     <p class="ip">${C.ic('fire', '', 'sm')}시간이 갈수록 화가 쌓여 공격이 세지고 빨라져요 (${R2.R2.sec}초가 되면 "철거"로 입구가 무너져요) · 이 레이드에선 입구 수리 효과가 줄어요</p>
     <p class="ip">${C.ic('shield', '', 'sm')}빨간 구역 = 공격 예고. 예고 중에 스킬을 여러 번 맞히거나(보통 2 · 어려움 3 · 지옥 4번) 기절 · 총공지로 끊으면 빈틈 (피해 ×1.5)</p>
@@ -576,6 +850,10 @@ const ACTS = {
     if (C.app.screen === 'raid' && st.render) { const sc = document.querySelector('.r2-screen'), y = sc ? sc.scrollTop : 0; st.render(st.board); const s2 = document.querySelector('.r2-screen'); if (s2) s2.scrollTop = y; }
   },
   r2SetPick: (b) => setPick(b.dataset.id),
+  r2Day: (b) => { // 마스터만: 다른 요일 건물주 미리 보기 · 시험
+    if (!P().master) { const d = R2.DAYS[b.dataset.id]; if (d) C.toast(`${d.short}요일 · ${d.name} — ${d.counter}`, 2400); return; }
+    st.pickDay = b.dataset.id; loadArt(st.pickDay).then(() => { if (C.app.screen === 'raid' && st.render) st.render(st.board); });
+  },
   r2SetOn: async (b) => { const r = await C.liveAct(C.API.r2Set(b.dataset.id, b.dataset.hero || null)); if (r) { C.closeInfoCard(); C.toast(b.dataset.hero ? `${HEROES[b.dataset.hero].name}에게 끼웠어요` : '뺐어요'); show(); } },
 };
 

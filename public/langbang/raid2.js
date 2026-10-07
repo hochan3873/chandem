@@ -79,6 +79,65 @@ export const R2_ART = {
   bodyFb: '/img/lb/raid2/boss_body.webp', rageFb: '/img/lb/raid2/boss_body_rage.webp', mapFb: '/img/lb/map_raid.webp', lobbyFb: '/img/lb/map_raid.webp',
 };
 
+// ─── 요일 건물주 (2026-10 · 요일마다 다른 건물주가 옥상에 올라온다) ───
+//  서버 체력 · 기여 · 보상은 주간 하나 그대로 (요일은 "그날 판의 패턴"만 바꾼다) · 판의 요일은 서버가 시작할 때 정해 판 기록(run.dy)에 적는다
+//  dw: KST 요일 (0 일 ~ 6 토) · pats: 그날 쓰는 패턴과 페이즈별 확률 (보통 기준 · 어려움 · 지옥은 raid2-sim DFX 가 더한다)
+//  rec: 그날 잘 맞는 멤버 (카운터 · 화면 추천 · 시뮬 덱) · need: 카운터 종류 · st: 그날 주로 거는 상태이상
+export const DAY_IDS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+export const DAYS = {
+  mon: { id: 'mon', dw: 1, short: '월', name: '관리비 폭탄 사모님', color: '#ff7ab0', sub: '"이번 달 관리비 고지서 나왔어요~ 호호"',
+    gimmick: '관리비 계량기를 입구에 붙여 에너지를 계속 빨아먹고, 고지서 폭탄을 입구에 던져요', counter: '입구 수리 · 입구 지키기', need: 'repair', st: ['느림'],
+    rec: ['jungmin', 'wonsik', 'dohoon', 'gunnyeo'],
+    pats: { meter: [5, 5, 5], bomb: [3, 4, 4], bills: [4, 4, 4], slam: [3, 3, 3], grab: [0, 3, 3], combo: [0, 0, 3] } },
+  tue: { id: 'tue', dw: 2, short: '화', name: '재계약 협박 실장', color: '#7aa8ff', sub: '"재계약? 도장 안 찍으면 방 빼세요."',
+    gimmick: '도장 폭격 · 재계약서로 멤버를 자꾸 기절 · 봉인시켜요', counter: '상태이상 해제 · 기절 저항 · 쓰러짐 회복', need: 'cleanse', st: ['기절', '봉인', '쓰러짐'],
+    rec: ['gunnyeo', 'dohoon', 'sunggu', 'byunghwa'],
+    pats: { stamp: [5, 5, 5], contract: [3, 4, 4], seal: [3, 3, 3], slam: [3, 3, 3], sweep: [2, 2, 3], combo: [0, 0, 3] } },
+  wed: { id: 'wed', dw: 3, short: '수', name: '월세 인상 회장님', color: '#ffcf3f', sub: '"물가가 올랐으니 월세도 올라야지?"',
+    gimmick: '월세를 올릴 때마다 황금 갑옷이 두꺼워져요 (방어율 최대 60%)', counter: '방어 깎기 · 방어 관통', need: 'armor', st: ['봉인'],
+    rec: ['jiwon', 'gunman', 'ara', 'sunggu'],
+    pats: { raise: [5, 5, 5], slam: [4, 4, 4], bills: [3, 3, 3], cash: [0, 3, 3], grab: [0, 2, 3], combo: [0, 0, 3] } },
+  thu: { id: 'thu', dw: 4, short: '목', name: '누수 공사 영감님', color: '#5ad0ff', sub: '"공사 중이니까 좀 참아! 용역 불렀어!"',
+    gimmick: '천장 오수가 새 멤버가 중독되고, 철거 용역이 떼로 몰려와요', counter: '범위 공격 · 해독 (홍정민)', need: 'aoe', st: ['독', '느림'],
+    rec: ['dohoon', 'jungmin', 'ingyu', 'dragon', 'eunok', 'myunghoon'],
+    pats: { crew: [5, 5, 5], leak: [4, 4, 4], slam: [5, 5, 5], sweep: [3, 3, 3], grab: [0, 2, 3], combo: [0, 0, 3] } },
+  fri: { id: 'fri', dw: 5, short: '금', name: '주차 갑질 2세', color: '#ff9a3a', sub: '"내 차 긁으면 다 물어내!"',
+    gimmick: '외제차 폭주족이 입구로 빠르게 돌진하고, 견인 갈고리가 멤버를 끌어가 쓰러뜨려요', counter: '감속 · 기절 · 막기', need: 'control', st: ['기절', '쓰러짐'],
+    rec: ['jieun', 'myunghoon', 'staff', 'jungmin', 'subin', 'jeongseob'],
+    pats: { rush: [6, 6, 6], tow: [4, 4, 4], ticket: [3, 3, 3], slam: [3, 3, 3], combo: [0, 0, 3] } },
+  sat: { id: 'sat', dw: 6, short: '토', name: '소음 민원 할머니', color: '#c77dff', sub: '"쿵쿵대지 마! 경비실에 다 말할 거야!"',
+    gimmick: '민원 확성기로 멤버를 홀리고 (공격 멈춤) 빗자루로 쓸어 겁줘요', counter: '홀림 면역 (정소영) · 해제', need: 'charm', st: ['홀림', '공포'],
+    rec: ['soyoung', 'gunnyeo', 'hanna', 'hyungyeong', 'dohoon'],
+    pats: { noise: [9, 9, 10], broom: [4, 4, 4], seal: [2, 2, 2], slam: [3, 3, 3], bills: [3, 3, 3], combo: [0, 0, 3] } },
+  sun: { id: 'sun', dw: 0, short: '일', name: '보증금 꿀꺽 대마왕', color: '#ff2d45', sub: '"보증금? 그런 거 원래 없었어~"',
+    gimmick: '보증금 금고로 피해를 빨아들이고, 요일 패턴을 전부 섞어 써요', counter: '골고루 (해제 · 수리 · 방깎)', need: 'mixed', st: ['기절', '홀림', '독'],
+    rec: ['gunnyeo', 'jungmin', 'jiwon', 'dohoon'],
+    pats: { vault: [4, 4, 4], meter: [2, 2, 2], stamp: [2, 2, 3], crew: [2, 2, 2], noise: [2, 2, 2], slam: [3, 3, 3], evict: [0, 2, 3], combo: [0, 0, 3] } },
+};
+// KST 요일 → 건물주
+export function dayOf(now = Date.now()) { const dw = new Date(now + KST).getUTCDay(); return DAY_IDS.find((k) => DAYS[k].dw === dw) || 'mon'; }
+export const dayDef = (id) => DAYS[typeof id === 'string' && DAYS[id] ? id : 'mon'];
+export const dayIdOf = (id) => (typeof id === 'string' && DAYS[id] ? id : null);
+// 요일 건물주 그림 (자세 6개 · 768×768 · 발 아래 가운데) — 없으면 대마왕 그림
+export const dayArt = (id, pose) => `/img/lb/raid2/d_${dayDef(id).id}_${pose}.webp`;
+// 요일 패턴 안내 (화면 · 전투 이벤트 이름) — 공통 패턴(PATTERNS)과 같은 모양
+export const DAY_PATTERNS = [
+  { id: 'meter', name: '관리비 계량기', img: '/img/lb/ui2/clock.webp', text: '입구에 계량기를 붙여 몇 초 동안 에너지를 계속 빨아먹어요', tip: '예고 중에 끊거나 · 홍정민 수리 · 붕대 벽으로 버텨요' },
+  { id: 'bomb', name: '고지서 폭탄', img: '/img/lb/ui2/boom.webp', text: '거대한 고지서 폭탄을 입구 한가운데에 던져요 (큰 입구 피해)', tip: '정원식이 막아서면 대신 맞아요 · 끊으면 불발' },
+  { id: 'stamp', name: '도장 폭격', img: '/img/lb/ui2/cc_stun.webp', text: '멤버 여럿 발밑에 도장이 쾅! 기절 + 쓰러짐 게이지', tip: '건전녀 방패 · 강성구 곁이면 안 먹혀요' },
+  { id: 'contract', name: '재계약 강요', img: '/img/lb/ui2/scroll.webp', text: '계약서를 들이밀어 모두 봉인 · 둘은 기절', tip: '예고 중에 끊어요 · 건전녀 · 김도훈이 풀어 줘요' },
+  { id: 'raise', name: '월세 인상', img: '/img/lb/ui2/chart.webp', text: '월세 그래프를 올리면 황금 갑옷 한 겹 (방어율 +12%)', tip: '끊으면 갑옷 대신 빈틈 · 여지원 방깎 · 건전남 · 고아라 · 강성구 관통' },
+  { id: 'leak', name: '천장 누수', img: '/img/lb/ui2/flask2.webp', text: '멤버 머리 위로 오수가 떨어져 중독 · 느려져요', tip: '홍정민 곁은 독 면역 · 건전녀 · 김도훈이 풀어 줘요' },
+  { id: 'crew', name: '철거 용역 투입', img: '/img/lb/ui2/tw_swarm.webp', text: '철거 용역 떼가 입구로 몰려와요', tip: '범위 공격으로 한꺼번에! 끊으면 덜 와요' },
+  { id: 'rush', name: '외제차 폭주', img: '/img/lb/ui2/tw_rush.webp', text: '빠른 외제차 진상이 줄지어 입구로 돌진해요', tip: '오지은 · 서명훈 · 운영진 감속 · 기절 · 홍정민 붕대 벽' },
+  { id: 'tow', name: '견인 갈고리', img: '/img/lb/ui2/cc_pull.webp', text: '갈고리로 멤버 하나를 끌어가 쓰러뜨리고 입구를 긁어요', tip: '예고 중에 끊으면 갈고리가 빗나가요' },
+  { id: 'ticket', name: '주차 딱지', img: '/img/lb/ui2/cc_slow.webp', text: '멤버에게 딱지를 붙여 공격이 느려져요', tip: '건전녀 · 김도훈이 떼어 줘요' },
+  { id: 'noise', name: '민원 확성기', img: '/img/lb/ui2/megaphone.webp', text: '확성기로 한쪽 줄 멤버를 홀려요 (공격 멈춤)', tip: '정소영이 있으면 팀 전체 홀림 면역 · 건전녀 5레벨 · 이한나 · 배현경은 잘 안 홀려요' },
+  { id: 'broom', name: '빗자루 쓸기', img: '/img/lb/ui2/broom.webp', text: '빗자루로 한쪽을 쓸어 멤버가 겁먹어 느려지고 쓰러짐 게이지', tip: '예고 중에 끊어요' },
+  { id: 'vault', name: '보증금 금고', img: '/img/lb/ui2/key.webp', text: '금고를 열어 보호막 · 그동안 입구 에너지를 빨아먹어요', tip: '보호막을 빨리 깨면 금고가 터지며 빈틈' },
+];
+export const anyPattern = (id) => PATTERNS.find((p) => p.id === id) || DAY_PATTERNS.find((p) => p.id === id) || null;
+
 // ─── 예전 기록 (팔 8개 + 본체로 저장된 서버 상태) → 체력 하나로 ───
 export const OLD_PARTS = ['mega', 'bill', 'bottle', 'golf', 'contract', 'keys', 'bag', 'phone'];
 // { 부위: 피해 } — 옛 팔 이름이 섞여 와도 (배포 도중 끝난 판) 전부 몸통 피해로 합친다
@@ -207,7 +266,7 @@ export function normRaid2(raw, out) {
   o.wi = Number.isInteger(r.wi) ? r.wi : -1;
   o.used = int(r.used, 0, 99); o.bonus = int(r.bonus, 0, R2.bonusMax);
   o.best = int(r.best, 0, 1e13); o.total = int(r.total, 0, 1e15); o.hardSec = int(r.hardSec, 0, R2.sec + 30);
-  o.run = r.run && typeof r.run.id === 'string' && r.run.id.length <= 32 ? { id: r.run.id, wi: int(r.run.wi, -1e6, 1e6), at: int(r.run.at, 0, 9e15), rally: typeof r.run.rally === 'string' ? r.run.rally.slice(0, 40) : null, rn: String(r.run.rn || '').slice(0, 12), help: !!r.run.help, df: diffOf(r.run.df), ex: (Array.isArray(r.run.ex) ? r.run.ex : []).filter((p) => PARTS.includes(p)) } : null;
+  o.run = r.run && typeof r.run.id === 'string' && r.run.id.length <= 32 ? { id: r.run.id, wi: int(r.run.wi, -1e6, 1e6), at: int(r.run.at, 0, 9e15), rally: typeof r.run.rally === 'string' ? r.run.rally.slice(0, 40) : null, rn: String(r.run.rn || '').slice(0, 12), help: !!r.run.help, df: diffOf(r.run.df), dy: dayIdOf(r.run.dy) || undefined, ex: (Array.isArray(r.run.ex) ? r.run.ex : []).filter((p) => PARTS.includes(p)) } : null;
   o.rin = (Array.isArray(r.rin) ? r.rin : []).filter((x) => x && typeof x.id === 'string' && x.id.length <= 40 && Number.isFinite(x.at)).slice(-20).map((x) => ({ id: x.id, n: String(x.n || '').slice(0, 12), at: int(x.at, 0, 9e15) }));
   o.rout = r.rout && Number.isInteger(r.rout.day) ? { day: r.rout.day, ids: [...new Set((Array.isArray(r.rout.ids) ? r.rout.ids : []).filter((x) => typeof x === 'string' && x.length <= 40))].slice(0, 30) } : null;
   o.paid = (Array.isArray(r.paid) ? r.paid : []).filter((x) => x && Number.isInteger(x.wi)).slice(-12).map((x) => ({ wi: x.wi, f: int(x.f, 0, 7) }));
@@ -245,8 +304,9 @@ export function r2Start(lb, state, rid, now = Date.now(), o = {}) {
   }
   if (!o.free && R2.entries + r.bonus - r.used <= 0) return { error: `이번 주 입장을 다 썼어요 (주마다 ${R2.entries}번 · 친구가 부르면 +1)` };
   if (!o.free) r.used++;
-  r.run = { id: rid, wi: state.wi, at: now, rally: rally ? rally.id : null, rn: rally ? rally.n : '', help: !!o.help, df: diff, ex: exposed(state) };
-  return { runId: rid, wi: state.wi, tier: state.tier, diff, mul: diffMul(diff), exposed: exposed(state), hp: { ...state.hp }, max: { ...state.max }, rally: rally ? { id: rally.id, n: rally.n } : null, left: entriesLeft(lb, now) };
+  const day = dayIdOf(o.day) || dayOf(now); // 요일 건물주 (서버 시계 · 테스트만 o.day)
+  r.run = { id: rid, wi: state.wi, at: now, rally: rally ? rally.id : null, rn: rally ? rally.n : '', help: !!o.help, df: diff, dy: day, ex: exposed(state) };
+  return { runId: rid, wi: state.wi, tier: state.tier, diff, day, mul: diffMul(diff), exposed: exposed(state), hp: { ...state.hp }, max: { ...state.max }, rally: rally ? { id: rally.id, n: rally.n } : null, left: entriesLeft(lb, now) };
 }
 // 부르기 보내기 (보내는 사람 · 받는 사람 기록을 같이 고친다 — 서버가 둘을 함께 저장)
 export function rallySend(me, them, meId, themId, meNick, now = Date.now()) {

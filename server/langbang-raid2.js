@@ -103,7 +103,7 @@ function createRaid2(d) {
     return {
       wi: s.wi, tier: s.tier, hpMax: s.hpMax, hp: { ...s.hp }, max: { ...s.max }, left: R2.hpLeft(s), by: partNames(), phase: R2.phaseOf(s), exposed: R2.exposed(s),
       killed: R2.killed(s), killedAt: s.killedAt || 0, killer: s.killer ? s.killer.n : '', endsAt: R2.weekEndMs(s.wi), active: s.active, runCap: Math.round(s.hpMax * R2.R2.runCapPct),
-      feed: (s.feed || []).slice(0, 15), hitting: R2.nowHitting(s, now), players: R2.participants(s),
+      day: R2.dayOf(now), feed: (s.feed || []).slice(0, 15), hitting: R2.nowHitting(s, now), players: R2.participants(s),
       prev: s.hist && s.hist[0] ? { wi: s.hist[0].wi, tier: s.hist[0].tier, killed: s.hist[0].killed, killer: s.hist[0].killer ? s.hist[0].killer.n : '', top: s.hist[0].rank.slice(0, 3).map((x) => x[3]) } : null,
     };
   }
@@ -178,7 +178,7 @@ function createRaid2(d) {
           const e = L().borrowCheck(lb, fid, now);
           if (e) return { error: e };
         }
-        const r = R2.r2Start(lb, S, rid, now, { rally, free: freeMaster(u), help: !!fid, diff, master: ms });
+        const r = R2.r2Start(lb, S, rid, now, { rally, free: freeMaster(u), help: !!fid, diff, master: ms, day: ms && typeof body.day === 'string' ? body.day : undefined }); // 요일 건물주: 서버 시계 (마스터만 골라 시험)
         if (r.error) return r;
         if (fid) { const help = { nick: f.nickname, ...L().friendSnapshot(fl) }; L().borrowMark(lb, fid, help, rid, now); r.help = help; }
         return r;

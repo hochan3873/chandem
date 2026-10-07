@@ -1,6 +1,6 @@
 // 찬덤 서비스 워커: 앱 설치(홈 화면)용. 항상 새 버전을 먼저 받고, 인터넷이 끊겼을 때만 저장본을 쓴다.
 // 랑방 대전 알림(웹 푸시)도 여기서 받는다: push → 알림 띄우기 · 알림 누르기 → 열린 창으로 가거나 새로 연다.
-const CACHE = 'gameworld-v9';
+const CACHE = 'gameworld-v10';
 const SHELL = ['/', '/css/style.css', '/js/app.js', '/js/splash.js', '/js/platform.js', '/js/settings.js', '/js/cards.js', '/js/sound.js', '/js/seotda.js', '/js/evaluator.js', '/js/handchart.js', '/img/emblem.webp', '/img/splash2.webp', '/img/gw2-icon-192.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

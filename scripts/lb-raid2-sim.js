@@ -1,6 +1,7 @@
 'use strict';
 // 건물주 레이드 한 판 피해 재기 (밸런스용) — 서버 체력 공식 · 피해 상한을 정할 때 쓴다
-//   node scripts/lb-raid2-sim.js [--seeds=4] [--phase=1|2|3] [--diff=normal|hard|hell] [--quiet]
+//   node scripts/lb-raid2-sim.js [--seeds=4] [--phase=1|2|3] [--diff=normal|hard|hell] [--day=mon..sun|all] [--quiet]
+//   --day: 요일 건물주 판 · 덱 = counter(그날 추천 멤버 3명 + 센 멤버) / nocounter(추천 멤버 없이) / basic
 //   계정 수준 3가지(맨 위 · 중간 · 가볍게) × 덱 × 시작 페이즈 → 한 판 피해 · 버틴 시간(입구가 부서질 때까지) · 끊은 수 / 내려찍기 수
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -27,20 +28,35 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
     p2weak: ['gunman', 'myunghoon', 'youngjun', 'junseo', 'soyoung', 'jieun'],
     basic: ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'ingyu'],
   };
+  const DAY = opt('day', '');
+  if (DAY) {
+    // 요일 판: 카운터 덱 vs 카운터 없는 덱 (요일마다 다름)
+    // no: 센 딜러만 (그날 추천 멤버 빼고) · ct: 추천 멤버 3명 + no 의 앞 3명 → 같은 딜러 3명에 지원 3명 vs 딜러 3명
+    const POOL = ['hochan', 'ara', 'gunman', 'eunok', 'youngjun', 'junseo', 'donghan', 'sanghwa', 'hanna', 'soyoung'];
+    const days = DAY === 'all' ? R.DAY_IDS : [DAY];
+    for (const k of Object.keys(DECKS)) delete DECKS[k];
+    for (const d of days) {
+      const rec = R.DAYS[d].rec.filter((h) => D.HEROES[h]);
+      const no = POOL.filter((h) => !rec.includes(h)).slice(0, 6);
+      DECKS[d + ':ct'] = [...no.slice(0, 3), ...rec.slice(0, 3)];
+      DECKS[d + ':no'] = no;
+    }
+    if (DAY === 'all') { DECKS['old:no'] = POOL.slice(0, 6); DECKS['old:ct'] = ['hochan', 'ara', 'gunman', 'gunnyeo', 'jungmin', 'dohoon']; } // 예전 대마왕 판 (기준)
+  }
   const phases = { 1: 1, 2: 0.5, 3: 0.2 }; // 서버 체력 남은 비율 → 시작 페이즈
   const N = Number(opt('seeds', 3));
   const onlyPh = opt('phase', '');
   const DIFF = opt('diff', 'normal');
   const quiet = args.includes('--quiet');
   const runs = []; // 판마다 { prof, t, broke(입구가 부서짐) · finale(철거) · dmg }
-  function play(prof, deck, ex, seed) {
+  function play(prof, deck, ex, seed, dk = '') {
     const P = PROFILES[prof];
     const meta = Object.fromEntries(ALL.map((h) => [h, P.meta]));
     const stars = Object.fromEntries(ALL.map((h) => [h, P.star]));
     const gear = Object.fromEntries(deck.map((h) => [h, { ...P.gear }]));
     const rng = seeded(seed);
     const g = S.createGame({ H: 760, rng, mode: 'stage', deck, join: true, tempo: true, leader: deck[0], meta, stars, gear, weekly: RS.waveDef(1), raid: { sec: R.R2.sec }, items: { door: 8, charm: 6, battery: 6 }, slots: 6 });
-    RS.attach(g, { tier: 1, diff: DIFF, hp: { body: ex }, max: { body: 1 } });
+    RS.attach(g, { tier: 1, diff: DIFF, day: dk.includes(':') ? dk.split(':')[0] : null, hp: { body: ex }, max: { body: 1 } });
     const pr = seeded(seed * 7 + 3);
     let steps = 0;
     while (!g.over && g.phase !== 'victory' && g.t < 240) {
@@ -64,7 +80,7 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
   }
   const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
-  console.log(pad('수준', 8) + pad('덱', 8) + pad('페이즈', 8) + pad('한 판 피해', 14) + pad('입구', 8) + pad('끊기/찍기', 10) + '상한(r2Cap)');
+  console.log(pad('수준', 8) + pad('덱', 10) + pad('페이즈', 8) + pad('한 판 피해', 14) + pad('입구', 8) + pad('끊기/찍기', 10) + '상한(r2Cap)');
   const best = {};
   for (const prof of Object.keys(PROFILES)) {
     const P = PROFILES[prof];
@@ -73,10 +89,10 @@ function seeded(seed = 1) { let s = seed >>> 0 || 1; return () => { s = (s * 166
       for (const ph of ['1', '2', '3']) {
         if (onlyPh && onlyPh !== ph) continue;
         let d = 0, door = 0, cuts = 0, slams = 0, overN = 0, gs = 0, gb = 0, tt = 0, lv = 0, hn = 0;
-        for (let s = 1; s <= N; s++) { const r = play(prof, deck, phases[ph], s * 97 + Number(ph)); runs.push({ prof, dk, ph, t: r.t, finale: r.finale, dmg: r.dmg }); d += r.dmg; door += r.door; cuts += r.cuts; slams += r.slams; if (r.over) overN++; gs += r.gs; gb += r.gb; tt += r.t; lv += r.lv; hn += r.heroes; }
+        for (let s = 1; s <= N; s++) { const r = play(prof, deck, phases[ph], s * 97 + Number(ph), dk); runs.push({ prof, dk, ph, t: r.t, finale: r.finale, dmg: r.dmg }); d += r.dmg; door += r.door; cuts += r.cuts; slams += r.slams; if (r.over) overN++; gs += r.gs; gb += r.gb; tt += r.t; lv += r.lv; hn += r.heroes; }
         d /= N; door /= N;
         best[prof] = Math.max(best[prof] || 0, d);
-        if (!quiet) console.log(pad(prof, 8) + pad(dk, 8) + pad(ph, 8) + pad(fmt(d), 14) + pad((door * 100).toFixed(0) + '%' + (overN ? `(${overN}뚫림)` : ''), 8) + pad(`${(cuts / N).toFixed(1)}/${(slams / N).toFixed(1)}`, 10) + pad(fmt(R.r2Cap(lb, R.R2.sec)), 14) + `찍기 ${(gs / N * 100).toFixed(0)}% 기타 ${(gb / N * 100).toFixed(0)}% · ${(tt / N).toFixed(0)}초 · Lv${(lv / N).toFixed(0)} 멤버${(hn / N).toFixed(1)}`);
+        if (!quiet) console.log(pad(prof, 8) + pad(dk, 10) + pad(ph, 8) + pad(fmt(d), 14) + pad((door * 100).toFixed(0) + '%' + (overN ? `(${overN}뚫림)` : ''), 8) + pad(`${(cuts / N).toFixed(1)}/${(slams / N).toFixed(1)}`, 10) + pad(fmt(R.r2Cap(lb, R.R2.sec)), 14) + `찍기 ${(gs / N * 100).toFixed(0)}% 기타 ${(gb / N * 100).toFixed(0)}% · ${(tt / N).toFixed(0)}초 · Lv${(lv / N).toFixed(0)} 멤버${(hn / N).toFixed(1)}`);
       }
     }
   }

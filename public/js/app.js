@@ -1105,11 +1105,13 @@ const GAME_RULES = {
 };
 // ── 게임 그림: 랑방 대전은 내 진행 챕터(langbang:chapter, 랑방 화면이 저장)에 맞는 키 아트 ──
 const lbChapter = () => { const n = Math.trunc(Number(LS.get('langbang:chapter', 1))); return n >= 1 && n <= 8 ? n : 1; }; // (8장까지 · 키 아트가 없으면 뒤의 기본 그림)
-const gameArt = (g) => (g === 'langbang' ? `/img/lb/keyart${lbChapter()}.webp` : `/img/games/${g}.webp`);
+// 시즌 테마 (할로윈 등): 랑방 화면이 적어 둔 시즌 키 아트 — 끝나는 시각이 지나면 원래 챕터 그림
+const lbSeasonArt = () => { const v = LS.get('langbang:seasonArt', null); return v && typeof v.art === 'string' && /^\/img\/lb\/season\/[a-z0-9_]+\.webp$/.test(v.art) && Date.now() < Number(v.until) ? v.art : ''; };
+const gameArt = (g) => (g === 'langbang' ? lbSeasonArt() || `/img/lb/keyart${lbChapter()}.webp` : `/img/games/${g}.webp`);
 // 키 아트가 없으면 뒤에 깔린 기본 그림이 보인다
 const gameArtCSS = (g) => (g === 'langbang' ? `url('${gameArt(g)}'), url('/img/games/langbang.webp')` : `url('${gameArt(g)}')`);
 function gameCardArtHTML(k) {
-  if (k !== 'langbang') return `<span class="gc-art" style="background-image:${gameArtCSS(k)}"></span>`;
+  if (k !== 'langbang' || lbSeasonArt()) return `<span class="gc-art" style="background-image:${gameArtCSS(k)}"></span>`;
   // 챕터가 바뀌었으면 예전 그림에서 새 그림으로 부드럽게 바뀌게
   const cur = lbChapter();
   const prev = Number(LS.get('gw:lbArtShown', 0));
@@ -1119,7 +1121,7 @@ function gameCardArtHTML(k) {
     + `<span class="gc-art gc-art-next" style="background-image:${gameArtCSS(k)}"></span>`;
 }
 // 다른 탭·뒤로 오기로 챕터가 바뀐 채 메인이 보이면 카드 그림만 다시
-window.addEventListener('storage', (e) => { if (e.key === 'langbang:chapter' && S.view === 'home') render(); });
+window.addEventListener('storage', (e) => { if ((e.key === 'langbang:chapter' || e.key === 'langbang:seasonArt') && S.view === 'home') render(); });
 
 // ── 게임 들어가기: 메인이 살짝 작아지며 사라지고 → 게임 그림 로딩 화면 → 게임 화면 ──
 const GAME_ASSETS = { holdem: ['/img/felt.webp'], seotda: ['/img/bg-seotda.webp', '/img/felt-seotda.webp'], omok: ['/img/bg-omok.webp'], langbang: [] };

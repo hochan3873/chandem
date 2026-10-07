@@ -63,6 +63,8 @@ function emptyLangbang() {
     lastResultAt: 0,
   };
 }
+// 튜토리얼 진행 목록: 짧은 id 문자열만 · 최대 48개
+function lbTutList(v) { return Array.isArray(v) ? [...new Set(v.filter((k) => typeof k === 'string' && /^@?[a-z0-9_-]{1,16}$/.test(k)))].slice(0, 48) : []; }
 // 옛 프로필(코인·영웅 강화·최고 웨이브만 있던 시절)도 그대로 읽어서 새 구조로 맞춘다
 function normLb(raw, master = false) {
   const e = emptyLangbang();
@@ -89,6 +91,7 @@ function normLb(raw, master = false) {
   lb.wild = Math.max(0, Math.min(99999, (raw && raw.wild) | 0)); // 범용 멤버 카드 (다 키운 멤버의 남는 카드)
   lb.cardPick = raw && raw.cardPick && typeof raw.cardPick === 'object' ? { wi: raw.cardPick.wi | 0, n: raw.cardPick.n | 0 } : { wi: 0, n: 0 };
   lb.testNormal = !!(raw && raw.testNormal); // 마스터: 일반 유저처럼 테스트
+  lb.tut = lbTutList(raw && raw.tut); // 튜토리얼 진행 (본 레슨 id · '@on' 배우는 중 · '@off' 끔)
   const eq = {};
   const used = new Set();
   for (const [h, sl] of Object.entries((raw && raw.equip) || {})) {
@@ -1174,6 +1177,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/gear/sell', wrap((req) => lbSell(tok(req), gidOf((req.body || {}).id))));
     r.post('/gear/sellMany', wrap((req) => lbSellMany(tok(req), (req.body || {}).ids)));
     r.post('/gear/autoSell', wrap((req) => lbAutoSell(tok(req), !!(req.body || {}).on)));
+    r.post('/tut', wrap((req) => { const list = lbTutList((req.body || {}).list); return lbGear(tok(req), () => ({ apply: (x) => { x.tut = list; }, extra: { tut: list } })); })); // 튜토리얼 진행 저장
     r.post('/cards/pick', wrap((req) => lbCardPick(tok(req), String((req.body || {}).hero || ''))));
     r.post('/cards/convert', wrap((req) => lbCardConvert(tok(req))));
     r.post('/gear/dismantle', wrap((req) => lbDismantle(tok(req), (req.body || {}).ids)));

@@ -11,12 +11,15 @@ import {
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
+  armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
 import * as S from './sim.js';
 import { Renderer } from './render.js';
 import { SkillFx } from './skillfx.js';
+import { KitFx } from './kitfx.js';
+import { EnemyFx } from './enemyfx.js';
 import * as A from './audio.js';
 import * as API from './api.js';
 import * as SH from './share.js';
@@ -28,7 +31,9 @@ import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버
 import { initTransit } from './transit.js';
 import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
 import { initPush } from './push.js'; // 알림 받기 (웹 푸시)
+import * as SSN from './season.js'; // 시즌 테마 (할로윈 등): 로비 그림 · 장식 · 로비 음악
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
+import { createTutor } from './tutorial.js'; // 처음 하는 사람 튜토리얼 (방장 말풍선 · 손가락)
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -63,6 +68,8 @@ const R = new Renderer(canvas);
 R.onStep = (h, x, y) => { fx.burst(x + (Math.random() - 0.5) * 20, y - 2, 4, '#cdbfa8', 60, 'dot', 2, 0.4); try { A.sfx.thud(); } catch (e) {} }; // 윤정섭 발걸음: 먼지 + 쿵
 const fx = R.fx;
 const SKFX = (R.skfx = new SkillFx(R)); // 스킬 전용 연출 (다이어트 주사 · 진심 모드 · 시간 정지 · 붕대 대공사 · 좋은남자)
+const EFX = (R.efx = new EnemyFx(R)); // 진상 기술 예고 · 끊김 · 입구 강타 (enemyfx.js)
+const KIT = (R.kit = new KitFx(R)); // 대개편 연출: 멤버마다 다른 비행 · 장판 · 시전 동작 (kitfx.js)
 let TWUI = null; // 진상의 탑 화면 (tower-ui.js · 맨 아래에서 연결)
 let R2UI = null; // 건물주 레이드 화면 (raid2-ui.js · 맨 아래에서 연결)
 // 화면 넘김 연출: 탑 · 레이드 · 1:1 대전 · 상점은 전용 전환, 그 밖은 깊이감 있는 밀기 (transit.js)
@@ -385,8 +392,8 @@ async function startRun(opt = {}) {
   app.stage = st;
   fixDeck();
   const p = P();
-  // 2배속: 이미 깬 스테이지만
-  app.runSpeed = mode === 'stage' && app.speed2 && (p.stages[st] | 0) > 0 ? 2 : 1;
+  // 배속: 기본 ×1 · 전투 중 ×1 / ×2 버튼 (고른 걸 기억 · 1:1 대전만 빼고 어느 판이든)
+  app.runSpeed = !pvp && app.speed2 ? 2 : 1;
   const unlocked = DEBUG.hidden ? LOCKED_HEROES.slice() : p.unlocked || [];
   R.maxDpr = R.baseDpr = hell ? 1.75 : 2; // 판마다 새로 (지난 판에 낮춘 화질이 남지 않게) · 헬은 진상이 많아 조금 낮게 시작
   layoutForNewRun();
@@ -409,6 +416,7 @@ async function startRun(opt = {}) {
     g.events.length = 0;
   }
   g.cons = consIds; g.consUsed = {};
+  if (tw && TWUI) TWUI.afterCreate(g, tw); // 진상의 탑 (리메이크): 같이 간 멤버 · 바닥 예고 · 멤버 체력
   if (pvp) g.pvpMid = (PVP.match && PVP.match.id) || ''; // 이 화면이 돌리는 대전 판 (다시 붙을 때 맞춰 보기)
   if (mode === 'raid' && opt.help) { const sh = S.addSupport(g, { ...opt.help, gear: gearStats(opt.help.gear || []) }); if (sh) toast(`도우미 합류! ${opt.help.nick}님의 ${HEROES[opt.help.hero].name}`, 2600); }
   if (opt.r2 && R2UI) R2UI.attach(g, opt.r2); // 건물주 대마왕 (거대 보스 혼자 · 패턴)
@@ -419,9 +427,9 @@ async function startRun(opt = {}) {
   saveSnap();
   if ((mode === 'stage' || mode === 'endless' || weekly) && !DEBUG.stage && !Q.has('autostart')) showBattleLoading(g);
   if (app.firstRunTip) {
-    showTip('적을 탭하면 집중 공격! 경험치는 저절로 모여요', 4500);
+    if (!TUT.learning()) showTip('적을 탭하면 집중 공격! 경험치는 저절로 모여요', 4500); // 튜토리얼 중엔 방장이 알려 준다
     app.firstRunTip = false;
-  } else if (g.joinMode && !tutDone('join')) { setTut('join'); showTip('대장 혼자 시작! 레벨업 카드로 멤버를 합류시켜요', 5000); }
+  } else if (g.joinMode && !tutDone('join') && !TUT.learning()) { setTut('join'); showTip('대장 혼자 시작! 레벨업 카드로 멤버를 합류시켜요', 5000); }
 }
 // 출격 전 로딩 (1.2~2초): 진짜로 이번 판 그림을 미리 불러오고 · 이번 판 공략 · 덱 상성 · 꿀팁 — 0.8초 뒤부터 누르면 넘김
 // 스테이지 상성 한 줄: 가장 많은 진상 종류 → 강한 속성
@@ -475,7 +483,7 @@ function resumeRun() {
   app.mode = d.snap.mode;
   app.stage = d.snap.stage || 0;
   if (app.mode === 'stage' && app.stage) app.lobbyStage = app.stage; // 이어하던 판도 로비가 따라오게
-  app.runSpeed = 1;
+  app.runSpeed = app.speed2 && !(d.snap && d.snap.pvp) ? 2 : 1;
   if (Array.isArray(d.partners)) app.partners = d.partners;
   app.partner = app.partners[0];
   app.debugRun = false;
@@ -582,6 +590,7 @@ function handleEvents(g, loud) {
     const e = ev[i];
     if (TWUI && TWUI.isTowerEvent(e.type)) { TWUI.onEvent(g, e, loud); continue; }
     if (R2UI && e.type.startsWith('r2')) { R2UI.onEvent(g, e, loud); continue; } // 건물주 레이드 연출
+    if (live || g === app.demo) { KIT.onEvent(g, e, busy); EFX.onEvent(g, e, busy); } // 대개편 연출 (kitfx.js) — 아래 원래 연출도 그대로
     switch (e.type) {
       case 'sudden': case 'suddenUp': case 'pvpDrain': case 'pvpTimeUp': case 'pvpPhase': case 'pvpBunch': case 'pvpWave': if (live) pvpTimelineEv(g, e); break;
       case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } if (e.hero === 'jungmin' && !busy) SKFX.jmSwing(e.x, e.y - 34, e.x < 180 ? 1 : -1); break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝 · 홍정민: 소주병 휘두름 자국
@@ -1001,7 +1010,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.levelUp();
         break;
       case 'bhShout': for (let k = 0; k < 2; k++) setTimeout(() => R.vfx('soundring', e.x, e.y, { anim: 'ring', dur: 480, sz: 56 + e.r * 0.45, tx: e.x + Math.cos(e.a) * e.r * 0.85, ty: e.y + Math.sin(e.a) * e.r * 0.85, rot: e.a + Math.PI / 2, blend: 'lighter', norot: true }), k * 120); if (!busy && Math.random() < 0.3) fx.part('heart', e.x, e.y - 20, (Math.random() - 0.5) * 60, -60, 0.8, 9, null); break;
-      case 'sled': { fx.banner('팬클럽 썰매 활강!', '세 줄 통째로 쓸고 · 팬클럽 함성 (공속 +60%)', '#2f8ac8', 1.1, 'wave', 'h_baul'); R.vfx('dash', e.x, e.y - 30, { anim: 'line', dur: 520, sz: 120, tx: e.x, ty: 30, rot: -Math.PI / 2, blend: 'lighter' }); for (let k = 0; k < 14; k++) setTimeout(() => fx.part('heart', e.x + (Math.random() - 0.5) * 50, e.y - 60 - k * 30, (Math.random() - 0.5) * 80, -30, 0.8, 10, null), k * 30); fx.addShake(6); if (loud) A.sfx.whoosh(); break; }
+      case 'sled': { fx.banner('팬클럽 썰매 활강!', '줄 통째로 쓸고 · 팬클럽 함성', '#2f8ac8', 1.1, 'wave', 'h_baul'); R.vfx('dash', e.x, e.y - 30, { anim: 'line', dur: 520, sz: 120, tx: e.x, ty: 30, rot: -Math.PI / 2, blend: 'lighter' }); for (let k = 0; k < 14; k++) setTimeout(() => fx.part('heart', e.x + (Math.random() - 0.5) * 50, e.y - 60 - k * 30, (Math.random() - 0.5) * 80, -30, 0.8, 10, null), k * 30); fx.addShake(6); if (loud) A.sfx.whoosh(); break; }
       case 'oneman': { // 강병화 원맨쇼: 컷인 → 붉은 막이 닫혔다 촤악 열림 → 무대 조명 · 스포트라이트 · 진상 춤 (skillfx.js oneman · 춤은 render.js)
         fx.flash('#ff7ab8', 0.2); SKFX.add('oneman', g, e, busy);
         const hh = g.heroes.find((o) => o.id === 'byunghwa'); if (hh) { hh._castAt = performance.now(); }
@@ -1028,14 +1037,22 @@ function handleEvents(g, loud) {
           setTimeout(() => { R.vfx('crack', e.x, e.y + 10, { anim: 'fade', dur: 1200, sz: e.r * 2, flat: true }); R.vfx('w_card_r', e.x, e.y - 10, { anim: 'fade', dur: 900, sz: 120, blend: 'source-over' }); fx.burst(e.x, e.y, 22, '#ff4b3a', 300, 'shard', 5, 0.6, 300); fx.addShake(9); if (loud) A.sfx.slam(); }, 260);
         }
         if (e.skill === 'frenzy') { // 건전남 난사: 부채꼴로 12발 폭풍 + 총구 불빛 고리
-          const hh = g.heroes.find((o) => o.id === 'gunman'); fx.banner('난사!!', '3초 동안 폭풍 연사', '#2f6d2f', 0.9, 'wave');
+          const hh = g.heroes.find((o) => o.id === 'gunman'); fx.banner('퀵드로우!!', '찍은 쪽으로 3초 연사', '#2f6d2f', 0.9, 'wave');
           if (hh) for (let k = 0; k < 12; k++) setTimeout(() => { fx.ring(hh.x, hh.y - 50, 4, 26, 0.18, '#fff3b0', 3); if (k % 3 === 0) R.vfx('hitspark', hh.x, hh.y - 52, { anim: 'pop', dur: 160, sz: 40 }); }, k * 240);
         }
         if (e.skill === 'blinddate') { fx.banner('소개팅 주선!', '여사친 3명 출동', '#c0407a', 0.9, 'wave'); for (let k = 0; k < 16; k++) fx.part('heart', e.x + (Math.random() - 0.5) * 60, e.y - 60, (Math.random() - 0.5) * 240, -80 - Math.random() * 140, 1, 11, null, { grav: 160 }); fx.ring(e.x, e.y - 50, 10, 120, 0.5, '#ff8ac8', 5); }
         if (e.skill === 'goodman') { if (loud) A.sfx.coin(); } // 금빛 띠 · 금화 비는 skillfx.js · 꽃다발은 'bouquet'
-        if (e.skill === 'bandage') fx.banner('붕대 대공사!', '입구 크게 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
+        if (e.skill === 'bandage') fx.banner('붕대 바리케이드!', '붕대 벽 · 입구 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
         break;
       case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 15, 1.1); break;
+      case 'ultLocked': if (live) toast('큰 한 방 스킬은 1웨이브가 끝나야 써요', 1100); break;
+      case 'ultOpen': if (live) fx.text(180, g.H * 0.3, '큰 한 방 스킬 사용 가능!', '#ffe27a', 15, 1.2, -10); break;
+      case 'knockdown': fx.text(e.x, e.y - 80, '쓰러짐!', '#ff6a5a', 16, 1.2); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 360, sz: 90 }); fx.addShake(5); break; // 쓰러짐 게이지 가득
+      case 'getUp': fx.text(e.x, e.y - 80, '일어남!', '#ffe27a', 13, 0.9); break;
+      case 'kdHeal': fx.text(e.x, e.y - 72, '+간호', '#9dffb0', 12, 0.8); break; // 건전녀: 쓰러짐 게이지 회복
+      case 'poisonHit': fx.text(e.x, e.y - 76, '독!', '#9dff6a', 14, 0.9); break;
+      case 'immune': fx.text(e.x, e.y, ({ stun: '기절', charm: '홀림', silence: '침묵', freeze: '빙결', poison: '독', slow: '감속' }[e.kind] || '') + ' 면역!', '#8fd8ff', 13, 0.9); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
+      case 'kdNoSkill': fx.text(e.x, e.y - 70, '쓰러져서 못 써요', '#ff9a8a', 11, 0.8); break;
       case 'care': if (!busy) { fx.text(e.x, e.y - 84, e.cheer ? '힘내요!' : '물 한 잔! 기운 회복', '#9dd8ff', 12, 0.9); fx.part('heart', e.x, e.y - 60, 0, -60, 0.8, 9, '#ff8fc0'); } break; // 건전녀 간호: 지친(기진맥진) 멤버
       case 'heartShield': { // 건전녀 응급 방패: 멤버 전원에게 하트 방패
         fx.banner('응급 방패!', `멤버 전원 상태이상 해제 · ${Math.round(e.sec)}초 면역 · 스킬 쿨 −2초`, '#c0407a', 1, 'wave', 'h_gunnyeo');
@@ -1062,10 +1079,10 @@ function handleEvents(g, loud) {
         SKFX.add('encore', g, e, busy); // 무대 조명 · 떼창 음표 (skillfx.js)
         if (!document.body.classList.contains('rm')) fx.flash('#c77dff', 0.25);
         fx.pillar(e.x, 120, g.rowY + 30, 1.2); // 무대 조명
-        for (const [c, k] of [['#ff4f7a', 0], ['#ffd23f', 0.12], ['#5de07a', 0.24], ['#6ff0ff', 0.36], ['#c77dff', 0.48]]) setTimeout(() => fx.ring(e.x, e.y - 60, 20, e.r * (0.7 + k), 0.9, c, 7), k * 400);
+        for (const [c, k] of [['#ff4f7a', 0], ['#ffd23f', 0.12], ['#5de07a', 0.24], ['#6ff0ff', 0.36], ['#c77dff', 0.48]]) setTimeout(() => fx.ring(e.x, e.y, 20, e.r * (0.7 + k), 0.9, c, 7), k * 400);
         for (let k = 0; k < 18; k++) fx.part('note', e.x + (Math.random() - 0.5) * 300, e.y - 260 - Math.random() * 120, (Math.random() - 0.5) * 40, 90 + Math.random() * 60, 2.2, 13, k % 3 ? '#ffe14d' : '#ff9fe6');
-        fx.ring(e.x, e.y - 60, 20, e.r, 0.8, '#c9a8ff', 8);
-        fx.banner('무한 앵콜!!', '다 같이 떼창~ 진상들 춤추느라 멈춤 · 멤버 공속 · 피해 업', '#5a2aa0', 1.6, 'big');
+        fx.ring(e.x, e.y, 20, e.r, 0.8, '#c9a8ff', 8);
+        fx.banner('무한 앵콜!!', '미러볼 무대! 무대 위 진상 춤추느라 멈춤 · 멤버 공속 · 피해 업', '#5a2aa0', 1.6, 'big');
         for (let k = 0; k < (busy ? 6 : 14); k++) fx.part('star', e.x + (Math.random() - 0.5) * 300, e.y - 100 - Math.random() * 200, 0, -30, 1, 9, null);
         if (loud) A.sfx.win();
         break;
@@ -1152,7 +1169,7 @@ function handleEvents(g, loud) {
       case 'c8escape': fx.text(clamp(e.x, 70, 290), 88, `축의금 도난! −${e.pct}%`, '#ff6b6b', 17, 1.6, 14); fx.flash('#ff2040', 0.16); fx.addShake(3); if (e.n === 1) toast('축의금 도둑을 놓쳤어요 — 이번 판 코인 −8% (최대 −40%) · 묶기 · 기절 · 감속으로 잡아요', 2200); if (loud) A.sfx.explode && A.sfx.explode(); break;
       case 'c8recover': fx.text(e.x, e.y, '축의금 되찾음!', '#ffe27a', 14, 1.0, -22); for (let k = 0; k < 6; k++) fx.part('dot', e.x, e.y, (Math.random() - 0.5) * 160, -60 - Math.random() * 120, 0.8, 5, '#ffffff'); if (loud) A.sfx.crit && A.sfx.crit(); break;
       case 'c8tie': if (!busy || e.env) fx.text(e.x, e.y - 6, e.env ? '도둑 꽁꽁! 묶었다' : '리본 묶기!', '#ffb3d9', e.env ? 13 : 11, 0.8, -14); fx.ring(e.x, e.y + 26, 6, 26, 0.4, '#ff9fd0', 3); break;
-      case 'c8toss': fx.text(e.x, e.y - 40, '부케 토스!', '#ffd0ec', 18, 1.0, -20); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ff9fd0', 6); fx.burst(e.x, e.y, busy ? 10 : 24, '#ffc0dc', 220, 'dot', 4, 0.8, 200); fx.burst(e.x, e.y, 8, '#ffffff', 160, 'star', 4, 0.6); fx.addShake(3); if (loud) A.sfx.heal && A.sfx.heal(); break;
+      case 'c8toss': fx.text(e.x, e.y - 40, '리본 회오리!', '#ffd0ec', 18, 1.0, -20); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ff9fd0', 6); fx.burst(e.x, e.y, busy ? 10 : 24, '#ffc0dc', 220, 'dot', 4, 0.8, 200); fx.burst(e.x, e.y, 8, '#ffffff', 160, 'star', 4, 0.6); fx.addShake(3); if (loud) A.sfx.heal && A.sfx.heal(); break;
       case 'c8eat': if (e.n && !busy) { fx.text(e.x, e.y, '냠냠~ 회복', '#c8f0a0', 11, 0.8); fx.ring(e.x, e.y + 30, 10, e.r * 0.6, 0.5, '#9dffb0', 3); } break;
       case 'c8singWind': fx.text(e.x, e.y - 6, '아아~ (숨 들이쉬기)', '#ffe08a', 11, 0.8); R.vfx('warn', e.x, e.y + 30, { anim: 'grow', dur: 900, sz: 120, flat: true }); break;
       case 'c8sing': fx.text(e.x, e.y - 10, '삑사리!! 공속↓', '#ffb070', 14, 1.0, -16); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ffb070', 5); if (loud) A.sfx.horn && A.sfx.horn(); break;
@@ -1186,10 +1203,10 @@ function handleEvents(g, loud) {
       case 'condCcStop': fx.text(e.x, e.y - 10, '끊었다!', '#7dff9a', 14, 0.9); break;
       case 'gunnyeoReact': fx.text(e.x, e.y - 70, '응급처치!', '#7dff9a', 13, 0.9); break;
       case 'condCc': {
-        const h = HD(e.hero), nm = { stun: '기절', charm: '홀림', silence: '침묵' }[e.kind] || '';
-        for (let k = 0; k < 5; k++) { const q = k / 5; fx.part('dot', e.ex + (e.x - e.ex) * q, e.ey + (e.y - 40 - e.ey) * q, 0, -10, 0.5 + q * 0.4, 5, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'silence' ? '#b9a8ff' : '#ffd23f'); }
+        const h = HD(e.hero), nm = { stun: '기절', charm: '홀림', silence: '침묵', poison: '독' }[e.kind] || '';
+        for (let k = 0; k < 5; k++) { const q = k / 5; fx.part('dot', e.ex + (e.x - e.ex) * q, e.ey + (e.y - 40 - e.ey) * q, 0, -10, 0.5 + q * 0.4, 5, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'poison' ? '#9dff6a' : e.kind === 'silence' ? '#b9a8ff' : '#ffd23f'); }
         if (e.block) { fx.text(e.x, e.y - 62, '막음!', '#8fd8ff', 14, 0.9); break; }
-        fx.text(e.x, e.y - 62, `${h.name} ${nm}!`, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'silence' ? '#c9b8ff' : '#ffd23f', 14, 1.1);
+        fx.text(e.x, e.y - 62, `${h.name} ${nm}!`, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'poison' ? '#9dff6a' : e.kind === 'silence' ? '#c9b8ff' : '#ffd23f', 14, 1.1);
         const fh = g.heroes.find((x) => x.id === e.hero);
         if (fh && e.kind === 'stun') R.vfx('stun', 0, 0, { follow: fh, dy: -78, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 52 });
         else if (fh && e.kind === 'silence') R.vfx('silence', 0, 0, { follow: fh, dy: -86, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 44 });
@@ -1437,17 +1454,17 @@ function updateHud() {
     app.hudCache.ult = up;
     H$.ult.style.setProperty('--p', up);
   }
-  // 기세 고리: 3칸이 부드럽게 차고 · 한 칸 꽉 차면 딸깍 · 총공지 = 충전 100% + 기세 2칸
-  { const on = g.mom !== null && g.mom !== undefined, m = on ? g.mom : 300;
+  // 기세 고리: 2칸이 부드럽게 차고 · 한 칸 꽉 차면 딸깍 · 총공지 = 충전 100% + 기세 2칸 (10/08: 3칸 → 2칸)
+  { const on = g.mom !== null && g.mom !== undefined, m = on ? g.mom : MOMENTUM.max;
     for (let i = 0; i < 3; i++) { const el = document.getElementById('ur' + i); if (!el) continue; const f = Math.max(0, Math.min(1, (m - i * 100) / 100)); const v = (f * 100).toFixed(1); if (el.dataset.v !== v) { el.dataset.v = v; el.style.strokeDasharray = `${v} 100`; el.classList.toggle('full', f >= 1); } }
-    const full = on ? Math.floor(m / 100) : 3;
+    const full = on ? Math.floor(m / 100) : MOMENTUM.max / 100;
     if (app.hudCache.momN !== undefined && full > app.hudCache.momN && on) { try { A.sfx.tap(); } catch { /* 무시 */ } }
     app.hudCache.momN = full;
     H$.ult.classList.toggle('noring', !on);
     const rd = up >= RULES.ultMax && full >= 2;
     if (H$.ult.classList.contains('ready') !== rd) { H$.ult.classList.toggle('ready', rd); if (rd) { const b = document.createElement('span'); b.className = 'ult-bub'; b.textContent = '총공지 준비!'; H$.ult.appendChild(b); setTimeout(() => b.remove(), 1800); } }
-    if (rd && !app.ultTipShown) { app.ultTipShown = true; showTip('총공지 준비 완료! 오른쪽 아래 메달을 눌러요', 3500); }
-    if (on && !tutDone('mom') && g.mode === 'stage' && g.t > 6) { setTut('mom'); showTip('기세: 스킬을 쓸 때마다 1칸씩 써요 · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이면 총공지!', 6000); H$.ult.classList.add('tut'); setTimeout(() => H$.ult.classList.remove('tut'), 6000); }
+    if (rd && !app.ultTipShown && !TUT.learning()) { app.ultTipShown = true; showTip('총공지 준비 완료! 오른쪽 아래 메달을 눌러요', 3500); }
+    if (on && !tutDone('mom') && g.mode === 'stage' && g.t > 6 && !TUT.learning()) { setTut('mom'); showTip('기세: 스킬을 쓸 때마다 1칸씩 써요 · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이면 총공지!', 6000); H$.ult.classList.add('tut'); setTimeout(() => H$.ult.classList.remove('tut'), 6000); }
   }
   // 보스 체력바
   let hp = 0, max = 0, name = '';
@@ -1494,9 +1511,9 @@ function frame(now) {
   if (live) tickCards((now - (frame.prev || now)) / 1000 > 0.1 ? 0.1 : (now - (frame.prev || now)) / 1000);
   frame.prev = now;
   if (g && !app.paused && !app.confirmOpen) {
-    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1);
+    const ts = (fx.slowmo > 0 ? 0.22 : 1) * (app.aim ? 0.3 : 1) * (live && (app.cardsOpen || live.augOffer) ? (live.pvp ? 0.85 : 0.2) : 1) * (live && app.infoHero && !bubble.hidden ? 0.5 : 1) * (live ? TUT.scale() : 1); // 튜토리얼 설명 중: 멈춤 · 느리게
     const speed = live ? DEBUG.speed * (app.runSpeed || 1) : 1;
-    if (live && live.augOffer && !app.paused) { live.augOffer.t -= dt * 0.8; if (DEBUG.autopick) { S.applyAug(live, live.augOffer.opts[0]); handleEvents(live, true); } } // 증강 제한 시간은 실제 시간으로 (고르는 동안 느려져도)
+    if (live && live.augOffer && !app.paused && !TUT.hold()) { live.augOffer.t -= dt * 0.8; if (DEBUG.autopick) { S.applyAug(live, live.augOffer.opts[0]); handleEvents(live, true); } } // 증강 제한 시간은 실제 시간으로 (고르는 동안 느려져도)
     if (live && live.mode === 'endless' && !live.over && !app.paused) {
       const idle = performance.now() - (app.lastInput || performance.now());
       if (idle > 60000) { live.afkSec = (live.afkSec || 0) + dt; if (!app.afkShown) { app.afkShown = true; fx.banner('자리 비움 — 보상 멈춤', '화면을 누르면 다시 보상이 쌓여요', '#333a55', 2.2, 'big'); } }
@@ -1593,7 +1610,8 @@ canvas.addEventListener('pointerdown', (ev) => {
   const bh = S.setBoardAim(g, x, y);
   fx.ring(x, y, 4, 40, 0.3, f ? '#ff3b5c' : bh ? '#7ad0ff' : '#ffffff', 2);
   if (bh && !f && !g._boardTip) { g._boardTip = true; fx.text(x, y - 24, '송바울 보드 여기로!', '#7ad0ff', 12, 0.9); }
-  if (f) { fx.text(f.x, f.y - f.def.size * 0.8, '지목!', '#ff6b80', 13, 0.7); A.sfx.tap(); vibrate(8); }
+  if (f) { fx.text(f.x, f.y - f.def.size * 0.8, '지목!', '#ff6b80', 13, 0.7); A.sfx.tap(); vibrate(8); TUT.emit('focus'); }
+  if (bh) TUT.emit('board');
   hideBubble();
 });
 canvas.addEventListener('pointermove', (ev) => {
@@ -1602,7 +1620,8 @@ canvas.addEventListener('pointermove', (ev) => {
   const { x, y } = fieldPos(ev);
   if (app.aim) { app.aim.x = x; app.aim.y = y; return; }
   if (!press) return;
-  if (!app.drag && Math.hypot(x - press.x0, y - press.y0) > 14) { app.drag = { h: press.h }; hideBubble(); }
+  if (!app.drag && !(g.twa && g.twa.drag) && Math.hypot(x - press.x0, y - press.y0) > 14) { if (g.twa) g.twa.drag = { h: press.h, x, y }; else app.drag = { h: press.h }; hideBubble(); } // 진상의 탑: 끌면 그 자리로 걸어간다
+  if (g.twa && g.twa.drag) { g.twa.drag.x = x; g.twa.drag.y = y; return; }
   if (app.drag) {
     const slot = S.nearestSlot(x, g);
     app.drag.x = x; app.drag.y = Math.min(y, g.rowY + 30); app.drag.slot = slot; app.drag.slotX = g.slotX[slot];
@@ -1616,13 +1635,18 @@ function endPress(ev) {
     a.hold = false;
     if (ev.type !== 'pointerup') return;
     if (!aimValid(g, a)) { toast('방어선 위 필드에만 쓸 수 있어요', 1100); return; }
-    if (g.heroes.includes(a.h)) { S.castSkill(g, a.h, a.x, a.y); handleEvents(g, true); }
+    if (g.heroes.includes(a.h)) { if (S.castSkill(g, a.h, a.x, a.y)) TUT.emit('cast'); handleEvents(g, true); }
     cancelAim();
     return;
   }
   if (!press || !g) { press = null; return; }
   const p0 = press;
   press = null;
+  if (g.twa && g.twa.drag) { // 진상의 탑: 손을 뗀 곳으로 걸어간다
+    const d = g.twa.drag; g.twa.drag = null;
+    if (ev.type === 'pointerup' && TWUI && TWUI.moveTo(g, d.h, d.x, d.y)) { A.sfx.tap(); vibrate(8); }
+    return;
+  }
   if (app.drag) {
     const d = app.drag;
     app.drag = null;
@@ -1673,9 +1697,11 @@ function useSkillBtn(slot) {
   if (!g || app.paused || g.over) return;
   const h = g.heroes.find((o) => o.slot === slot);
   if (!h || !h.def.skill) return;
+  if (S.ultLocked(app.g, h)) { toast(`${h.def.skill.name}: 큰 한 방 — 1웨이브가 끝나야 써요`, 1100); return; }
   if (!S.skillReady(h)) { toast(`${h.def.skill.name} 충전 중… ${Math.ceil(h.skillCd)}초`, 900); return; }
   const sk = h.def.skill;
   vibrate(15);
+  TUT.emit('skillBtn');
   if (sk.target) {
     if (app.aim && app.aim.h === h) { cancelAim(); return; }
     app.aim = { h, r: sk.r[h.lv - 1], color: h.def.color, x: 180, y: g.ropeY - 150 };
@@ -1684,7 +1710,7 @@ function useSkillBtn(slot) {
     hideBubble();
     return;
   }
-  if (S.castSkill(g, h)) { const bt = skillbar.querySelector(`[data-slot="${slot}"]`); if (bt) { bt.classList.remove('cast'); void bt.offsetWidth; bt.classList.add('cast'); } }
+  if (S.castSkill(g, h)) { TUT.emit('cast'); const bt = skillbar.querySelector(`[data-slot="${slot}"]`); if (bt) { bt.classList.remove('cast'); void bt.offsetWidth; bt.classList.add('cast'); } }
   handleEvents(g, true);
 }
 function cancelAim() { app.aim = null; aimbar.hidden = true; }
@@ -1723,7 +1749,7 @@ function skillFx(h) {
   A.sfx.join();
   app.tutSkillDone = true;
 }
-const SKILL_SHORT = { subin: '부케', baul: '썰매', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '난사', gunnyeo: '방패', myunghoon: '저격', dohoon: '앵콜', ingyu: '할리', donghan: '포격', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '붕대', jiwon: '폭격', wonsik: '결정사' };
+const SKILL_SHORT = { dragon: '급강하', subin: '스핀', baul: '점프대', byunghwa: '원맨쇼', jeongseob: '벽', bangjang: '집합', staff: '레드카드', gunman: '퀵드로우', gunnyeo: '방패', myunghoon: '실눈', dohoon: '앵콜', ingyu: '드리프트', donghan: '포격', youngjun: '블랙러시', eunok: '원샷', hanna: '윙크', sunggu: '블랙홀', junseo: '소개팅', hyungyeong: '주사', ara: '일격', hochan: '위하여', soyoung: '올인콜', jieun: '시간정지', sanghwa: '좋은남자', jungmin: '바리케이드', jiwon: '폭격', wonsik: '결정사' };
 const skShort = (h) => SKILL_SHORT[h.id] || h.def.skill.name.replace(/[!\s]/g, '').slice(0, 5);
 const momBar = document.createElement('div');
 momBar.id = 'mombar'; momBar.hidden = true;
@@ -1757,7 +1783,8 @@ function renderSkillbar() {
     const sk = h.def.skill;
     const pct = Math.round((1 - Math.max(0, h.skillCd) / sk.cd) * 100);
     b.style.setProperty('--p', pct);
-    const r = h.skillCd <= 0;
+    const lk = S.ultLocked(g, h), r = h.skillCd <= 0 && !lk; // 큰 한 방: 1웨이브 뒤
+    if (b.classList.contains('ulock') !== lk) { b.classList.toggle('ulock', lk); const q = b.querySelector('.sk-wlock'); if (lk && !q) { const t = document.createElement('i'); t.className = 'sk-wlock'; t.textContent = '1웨이브 뒤'; b.appendChild(t); } else if (!lk && q) q.remove(); }
     if (r && !b.classList.contains('ready')) { vibrate(12); if (app.hudCache.skRd && app.hudCache.skRd[h.slot] === false) { const f = document.createElement('span'); f.className = 'sk-rdname'; f.textContent = sk.name; b.appendChild(f); setTimeout(() => f.remove(), 1400); } }
     (app.hudCache.skRd = app.hudCache.skRd || {})[h.slot] = r;
     b.classList.toggle('ready', r);
@@ -1765,12 +1792,12 @@ function renderSkillbar() {
     { const lv = b.querySelector('.sk-lv'); if (lv && lv.textContent !== String(h.lv)) lv.textContent = h.lv; }
     { const need = h.def.skill && h.def.skill.id === 'forlangbang' ? 200 : 100, has = g.mom === null || g.mom === undefined || g.mom >= need; b.classList.toggle('nomom', !has); b.classList.toggle('mompip', has && g.mom !== null && g.mom !== undefined); }
     b.classList.toggle('tired', h.tiredT > 0);
-    { const cn = b.querySelector('.cdn'); const v = r ? '' : String(Math.ceil(h.skillCd)); if (cn.textContent !== v) cn.textContent = v; }
+    { const cn = b.querySelector('.cdn'); const v = r || h.skillCd <= 0 ? '' : String(Math.ceil(h.skillCd)); if (cn.textContent !== v) cn.textContent = v; }
     if (r) ready = true;
   }
   // 튜토리얼: 1-1 에서 처음 스킬이 준비되면 알려 준다 · 1-2 에서는 지목
-  if (ready && !tutDone('skill') && g.mode === 'stage' && g.stage <= 2) { setTut('skill'); showTip('스킬 버튼이 반짝! 눌러서 필살기를 써 봐요', 5000); skillbar.classList.add('tut'); setTimeout(() => skillbar.classList.remove('tut'), 5000); }
-  if (!tutDone('focus') && g.mode === 'stage' && g.stage === 2 && g.wave >= 1 && g.enemies.length > 3) { setTut('focus'); showTip('진상을 탭하면 "지목"! 모두가 그 진상부터 때려요', 5000); }
+  if (ready && !tutDone('skill') && g.mode === 'stage' && g.stage <= 2 && !TUT.learning()) { setTut('skill'); showTip('스킬 버튼이 반짝! 눌러서 필살기를 써 봐요', 5000); skillbar.classList.add('tut'); setTimeout(() => skillbar.classList.remove('tut'), 5000); }
+  if (!tutDone('focus') && !TUT.learning() && g.mode === 'stage' && g.stage === 2 && g.wave >= 1 && g.enemies.length > 3) { setTut('focus'); showTip('진상을 탭하면 "지목"! 모두가 그 진상부터 때려요', 5000); }
 }
 function tutDone(k) { try { return !!localStorage.getItem('langbang:tut:' + k); } catch { return true; } }
 function setTut(k) { try { localStorage.setItem('langbang:tut:' + k, '1'); } catch { /* 무시 */ } }
@@ -1785,9 +1812,9 @@ function placeBubble(x, y) {
 }
 // 필드 멤버 정보 카드: 지금 능력치 · 공격 방식 · 레벨 효과 · 버프/디버프 (열려 있는 동안 게임 50% 속도)
 const PROJ_TXT = {
-  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', board: '보드 돌진 (탭한 곳으로 · 길 위 전부 · 몇 번 타면 정비)', nag: '잔소리 (피해 없음 · 성준영 체력 · 부르기 게이지)', sweep: '칩 긁어모으기 (주변 진상 끌어모아 붙잡기 · 피해 조금)', warn: '유도탄 (감속 · 경고 누적)', bullet: '직선 저격 (자기 줄만)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
-  wave: '둥근 음파 (주변 전부 · 맞은 진상은 입구를 덜 세게)', dumbbell: '포물선 덤벨 (범위) + 오토바이 돌진', snack: '유도 과자 + 한 줄 빔', dash: '뛰어들어 연속 베기', bottle: '포물선 소주병 (범위 · 분노 중 불바다)',
-  beam: '레이저 (계속 쏘면 세짐)', cane: '관통 지팡이 (자기 줄 전부)', gf: '핀볼 여사친 (3~4명 튕김 · 밀어내기)', slam: '몸통 박치기 충격파 / 날씬 모드 연타', hammer: '무거운 유도 망치 (보스 우선)', crown: '황금 파동 (자기 줄 전부 관통)',
+  order: '콕 집는 지시 (맞은 진상 「지목」: 모두에게 더 아프게)', glow: '응원봉 부메랑 (관통 · 돌아오며 한 번 더)', board: '수동 보드 (탭한 곳으로만 · 길 위 전부 · 충전 칸 · 콤보 · 퍼펙트)', nag: '잔소리 (피해 없음 · 성준영 체력 · 부르기 게이지)', sweep: '칩 긁어모으기 (주변 진상 끌어모아 붙잡기 · 피해 조금)', warn: '하늘에서 떨어지는 경고 딱지 (작은 원 · 감속 · 경고 누적)', bullet: '직선 저격', pistol: '권총 (한 명씩 · 레벨마다 연발 · 체력 적은 진상부터)', breath: '용의 불 뿜기 (짧은 부채꼴 · 화상)', tick: '발밑 시계 (째깍 · 감속 장판)', rose: '휘는 장미 (장미 표식 → 꽃다발)', tap: '소주병 휘두르기 (입구 앞 반원 · 흉터 눈빛)', mosaic: '점멸 모자이크 손 (방깎 · 번짐 · 검열)', jab: '짧은 주먹 충격파 (+ 반격)', bouquet: '나선 리본 (묶어 춤추게)', shout: '핀 조명 (끌어모아 홀림)', heart: '포물선 폭탄 (떨어진 곳 범위)', swear: '연쇄 번개 (3~5명 튕김)',
+  wave: '퍼지는 음파 고리 (떼창 · 떼창 게이지)', dumbbell: '굴러가는 덤벨 (줄 위 전부 · 근육 펌프) + 오토바이 돌진', snack: '흐느적 과자 + 한 줄 빔', dash: '뛰어들어 연속 베기', bottle: '소주병 시한폭탄 (0.5초 뒤 펑 · 분노 중 술 웅덩이)',
+  beam: '레이저 (계속 쏘면 세짐)', cane: '고리 지팡이 (몰린 곳까지 크게 돌아 나갔다 돌아옴 · 관통)', gf: '핀볼 여사친 (3~4명 튕김 · 밀어내기)', slam: '땅이 갈라지는 직선 충격파 / 날씬 모드 직선 잽', hammer: '무거운 유도 망치 (보스 우선)', crown: '황금 파동 (자기 줄 전부 관통)',
 };
 function heroStatsHtml(g, h) {
   const d = h.def;
@@ -1821,6 +1848,7 @@ ${d.skill ? ` <p class="hi-row">${ic('sparkle', '', 'sm')} ${esc(d.skill.name)}:
 function showHeroBubble(h) {
   const g = app.g;
   if (!g) return;
+  TUT.emit('hero');
   app.infoHero = h;
   app.infoRange = S.heroRange(g, h);
   bubble.className = 'bubble hero hero-info';
@@ -1890,8 +1918,8 @@ document.addEventListener('pointerdown', () => { app.touched = true; A.unlock();
 
 $('#btn-pause').addEventListener('click', () => pauseGame());
 $('#btn-send').addEventListener('click', () => { A.unlock(); pvpSend(); });
-// 2배속 (이미 깬 스테이지만) — 선택은 기억한다
-function speedOk() { const g = app.g; return !!(g && g.mode === 'stage' && !g.weekly && (P().stages[g.stage] | 0) > 0); }
+// ×1 / ×2 배속 (1:1 대전만 빼고 어느 판이든) — 선택은 기억한다 (langbang:speed2)
+function speedOk() { const g = app.g; return !!(g && !g.pvp); }
 function syncSpeedPill() {
   const b = $('#btn-speed');
   b.hidden = !speedOk();
@@ -1903,8 +1931,10 @@ $('#btn-speed').addEventListener('click', () => {
   app.runSpeed = (app.runSpeed || 1) > 1 ? 1 : 2;
   app.speed2 = app.runSpeed > 1;
   try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ }
+  hud.classList.toggle('fast', app.runSpeed > 1);
   syncSpeedPill();
   A.sfx.tap();
+  TUT.emit('speed');
 });
 try { app.speed2 = localStorage.getItem('langbang:speed2') === '1'; } catch { app.speed2 = false; }
 try { app.hellMode = localStorage.getItem('langbang:hell') === '1'; } catch { app.hellMode = false; }
@@ -1914,6 +1944,7 @@ $('#btn-ult').addEventListener('click', () => {
   if (!g || app.paused || app.cardsOpen) return;
   if (!S.useUlt(g)) { if (g.ult >= RULES.ultMax) handleEvents(g, true); else toast(`총공지 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
   if (g.pvp) PVP.myUlts = (PVP.myUlts | 0) + 1;
+  TUT.emit('ult');
   handleEvents(g, true);
 });
 // 길게 누르면 뜨는 사진 저장/공유 메뉴 막기 (결과 공유 카드 그림만 예외)
@@ -2043,8 +2074,10 @@ const ACTS = {
     const T = foeTrait(id), c = CLASSES[d.cls];
     const good = Object.keys(ATTRS).filter((a) => typeMul(a, d.cls) > 1);
     const cnt = T ? T.counter.filter((h) => HEROES[h]).map((h) => esc(heroNm(h))).join(' · ') : '';
+    const ap = armorPctStage(app.stage || 1, d, false), apEl = armorPctStage(app.stage || 1, d, true);
+    const apLine = apEl > 0 ? `<p class="pp-tip">${ic('shield', '', 'sm')}방어율 <b>${Math.round(ap * 100)}%</b>${apEl > ap ? ` (정예 ${Math.round(apEl * 100)}%)` : ''} — 한 방마다 깎여요 → <b>${ARMOR_BREAKERS.filter((h) => HEROES[h]).map((h) => esc(heroNm(h))).join(' · ')}</b> 가 뚫어요</p>` : '';
     popup(`<div class="pp-fp">${foeFace(id, 'big')}<div><b>${esc(d.name)}</b><small>${c ? `${c.icon} ${c.name}` : ''}${T ? ` · ${T.icon} ${esc(T.name)}` : ''}</small></div></div>
-      <p class="pp-tip">${T ? `${esc(T.tip)}${cnt ? ` → <b>${cnt}</b>` : ''}` : `${good.map((a) => `${attrIco(a)}${ATTRS[a].name}`).join(' · ')} 멤버에게 약해요`}</p>
+      <p class="pp-tip">${T ? `${esc(T.tip)}${cnt ? ` → <b>${cnt}</b>` : ''}` : `${good.map((a) => `${attrIco(a)}${ATTRS[a].name}`).join(' · ')} 멤버에게 약해요`}</p>${skillLinesHtml(id, 'pp-tip', 4)}${apLine}
       <button class="chip mini" data-act="info" data-kind="enemy" data-id="${id}">자세히</button>`, 'pp-mini');
   },
   prepRw: () => { const p = P(), s = app.stage, hell = app.hellMode && hellOpen(p.stages, s), r = stageReward(s, 3, hell ? 3 : p.stages[s] | 0); popup(`<h3>${ic('gift', '')} 보상</h3><div class="ilist"><p class="ip">클리어 코인 최대 <b>${fmt(Math.round(r.clear * (hell ? HELL.coin : 1)))}</b>${hell ? ` (헬 ×${HELL.coin})` : ''} · ★ 많을수록 ↑</p>${r.first ? `<p class="ip">첫 클리어 <b>+${fmt(r.first)}</b></p>` : ''}${r.star ? `<p class="ip">새 ★마다 코인 · ★★★까지 <b>+${fmt(r.star)}</b></p>` : ''}${r.mid ? `<p class="ip">중간 보스 처치 <b>+${fmt(r.mid)}</b></p>` : ''}<p class="ip">장비 1개 (★★★면 35%로 1개 더 · 퍼펙트 +1${hell ? ' · 헬 +1 · 희귀 이상' : ''})</p><p class="ip">데려간 멤버 카드 가끔${hell ? ' (헬 ×2)' : ''}</p><p class="ip">기력 ${ic('bolt', '', 'sm')}${L.stageStaminaCost(p, s, hell)} — 실패하면 일부 돌려받아요</p></div>`, 'pp-mini'); },
@@ -2241,6 +2274,54 @@ function upCounts() { const u = upgradeList(), deck = new Set(u.filter((x) => x.
 // ─── 길 안내 시작: 할 일 → 단계 → 코치 (못 짜면 예전처럼 바로 그 화면으로) ───
 const COACH = createCoach({ stage, toast: (m) => toast(m, 2600) });
 const coachState = { get screen() { return app.screen; }, hasSel: (q) => !!document.querySelector(q) };
+// ─── 튜토리얼 (tutorial.js): 지금 상황을 넘기고 · 필드 위 진상 · 멤버 자리를 화면 좌표로 ───
+//  자동 테스트(webdriver) · 디버그 시작에선 끈다 (?tut 로 켬 · ?notut 로 끔)
+const TUT_ON = !(Q.has('notut') || Q.has('autostart') || DEBUG.stage || (navigator.webdriver && !Q.has('tut')));
+const TUT_SUP = ['gunnyeo', 'jungmin', 'dohoon', 'soyoung'];
+function tutCtx() {
+  if (!app.profileLoaded) return null;
+  const g = app.g, p = P(), scr = app.screen, has = (q) => !!stage.querySelector(q);
+  const c = { where: scr, maxStage: p.maxStage | 0, lobby: scr === 'menu' ? lobbyStage() : 0, prepStage: scr === 'prep' && app.mode === 'stage' ? app.stage : 0,
+    blocked: !!app.confirmOpen || COACH.active() || has('.bload, .confirm-modal, .reveal, .gacha-res, .gate, #bootld') || (scr === 'play' && app.paused),
+    modal: has('.info-modal') };
+  if (scr === 'menu') Object.assign(c, { upg: has('.lb-upg'), mail: L.mailCount(p) | 0, checkin: !L.checkinState(p, Date.now()).done });
+  if (scr === 'prep') c.lack = has('.pp-lack');
+  if (scr === 'play' && g) {
+    let kdHi = 0;
+    for (const h of g.heroes) if (h.kd > 0 && !h.gone) kdHi = Math.max(kdHi, h.kd / (h.kdMax || S.kdMax(h)));
+    const sup = g.kdOn ? TUT_SUP.find((id) => g.heroes.some((h) => h.id === id && !h.gone)) : null;
+    Object.assign(c, { stage: g.stage | 0, mode: g.weekly || g.raid || g.tower ? 'other' : g.mode, hell: !!g.hell, pvp: !!g.pvp, t: g.t || 0,
+      enemies: g.enemies.filter((e) => !e.dead && e.y > 12 && e.y < g.ropeY).length, cards: !!app.cardsOpen, aug: !!(g.augOffer && augBox.isConnected), aim: !!app.aim,
+      speedOk: speedOk() && !$('#btn-speed').hidden, skillReady: !!skillbar.querySelector('.sk.ready:not(.nomom):not(.tired)'), ultReady: H$.ult.classList.contains('ready'),
+      kdHi, sup, baul: g.heroes.some((h) => h.id === 'baul' && !h.gone) });
+  }
+  return c;
+}
+function tutField(spec) {
+  const g = app.g; if (!g) return null;
+  const cr = canvas.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = sr.width / (stage.offsetWidth || sr.width) || 1;
+  const X = (x) => (cr.left - sr.left + (x / FIELD.W) * cr.width) / k, Y = (y) => (cr.top - sr.top + (y / g.H) * cr.height) / k;
+  const box = (x0, y0, x1, y1, px, py) => { const top = Math.max(Y(y0), 62); return { x: X(x0), y: top, w: X(x1) - X(x0), h: Math.max(40, Y(y1) - top), px: X(px), py: Math.max(Y(py), top + 18) }; }; // 위 HUD 밑으로
+  const foes = g.enemies.filter((e) => !e.dead && e.y > 12 && e.y < g.ropeY);
+  if (spec.f === 'enemy') { const e = foes.sort((a, b) => b.y - a.y)[0]; if (!e) return null; const z = Math.max(24, ((e.def && e.def.size) || 40) * 0.55); return box(e.x - z, e.y - z * 1.7, e.x + z, e.y + z * 0.3, e.x, e.y - z * 0.7); }
+  if (spec.f === 'hero') {
+    const hs = g.heroes.filter((h) => !h.gone && !h.summon && HEROES[h.id]);
+    const h = spec.kd ? hs.slice().sort((a, b) => (b.kd || 0) / (b.kdMax || 1) - (a.kd || 0) / (a.kdMax || 1))[0] : spec.sup ? hs.find((o) => TUT_SUP.includes(o.id)) : hs.find((o) => o.id === g.leader) || hs[0];
+    return h ? box(h.x - 30, h.y - 80, h.x + 30, h.y + 6, h.x, h.y - 36) : null;
+  }
+  if (spec.f === 'field') {
+    let best = null, bn = -1;
+    for (const e of foes) { let n = 0; for (const o of foes) if (Math.hypot(o.x - e.x, o.y - e.y) < 75) n++; if (n > bn) { bn = n; best = e; } }
+    return box(8, 56, FIELD.W - 8, g.ropeY, best ? best.x : FIELD.W / 2, best ? best.y - 20 : g.ropeY - 150);
+  }
+  return null;
+}
+const TUT = createTutor({
+  stage, ctx: () => (TUT_ON ? tutCtx() : null), fieldRect: (sp) => tutField(sp), toast: (m) => toast(m, 2400),
+  face: () => `<img class="fz" style="${faceCircStyle('bangjang', 0.62, 0.5)}" src="${thumbSrc('bangjang')}" alt="" draggable="false" onerror="this.onerror=null;this.className='';this.removeAttribute('style');this.src='${HEROES.bangjang.img}'">`,
+  save: (list) => { if (app.guest || !app.profileLoaded) return; clearTimeout(tutSaveT); tutSaveT = setTimeout(() => { API.tutSave(list).catch(() => {}); }, 800); },
+});
+let tutSaveT = 0;
 function guideTodo(t) {
   const plan = t && planFor(t, coachState);
   if (!plan) { if (t) todoGo(t); return; }
@@ -2388,7 +2469,7 @@ const REWARD_INFO = {
 // 증강: 셋 중 하나 (15초면 첫 번째) · 등급 빛 · 뒤집히며 등장
 const augBox = document.createElement('div');
 augBox.className = 'aug-box';
-augBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-aug]'); if (b && app.g && S.applyAug(app.g, b.dataset.aug)) { handleEvents(app.g, true); A.sfx.pick(); } });
+augBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-aug]'); if (b && app.g && S.applyAug(app.g, b.dataset.aug)) { handleEvents(app.g, true); A.sfx.pick(); TUT.emit('aug'); } });
 const AUG_FX_IC = { dmg: 'swords', spd: 'bolt', hp: 'shield', exp: 'book', crit: 'path_crit', cd: 'speed', swarm: 'path_boom', splash: 'path_boom', boss: 'target', slow: 'path_cc', ctrl: 'path_cc', path: 'path_chain', ult: 'megaphone', echo: 'retry' };
 function augIcon(a) {
   if (a.hero && HEROES[a.hero]) return pimg(HEROES[a.hero].img, 'face');
@@ -2544,7 +2625,9 @@ function showMenu0() {
   const ch = chapterOf(s);
   R.setTheme(ch);
   A.setBoss(false);
-  if (A.setMode) A.setMode(null);
+  const ssn = SSN.activeSeason(); // 시즌 테마: 로비 곡 · 키 아트 · 장식 (설정에서 끌 수 있음)
+  SSN.syncHub();
+  if (A.setMode) A.setMode(ssn && ssn.bgm ? ssn.bgm : null);
   A.setChapter(ch);
   if (app.touched) A.playBgm(); // 전투 · 대전 · 레이드에서 돌아오면 로비 음악 다시 (같은 곡이면 그대로)
   setTimeout(() => { loadRankTicker().then(() => tickRank(0)).catch(() => {}); }, 0);
@@ -2568,8 +2651,9 @@ function showMenu0() {
   try { localStorage.setItem('langbang:chapter', String(chapterOf(nextStage()))); } catch { /* 무시 */ } // 허브 카드용 (진행 챕터 1~7)
   const sparks = Array.from({ length: 10 }, (_, i) => `<i style="--i:${i};--x:${(i * 37) % 100}%;--d:${(i % 5) * 0.7}s"></i>`).join('');
   show(`
-    <div class="lb-key" style="background-image:${chArtCss('keyart', ch)}"></div>
+    <div class="lb-key${ssn ? ' ssn' : ''}" style="background-image:${ssn && ssn.keyart ? `url('${ssn.keyart}'), ` : ''}${chArtCss('keyart', ch)}"></div>
     <div class="lb-dim"></div>
+    ${SSN.seasonFxHtml(ssn)}
     ${topPills()}
     ${p.master ? '<button class="lb-master" data-act="settings">MASTER</button>' : ''}
     <div class="lb-bar2">${newsFirst() || '<button class="lb-news" data-act="ranking" id="lbRank" aria-label="소식" hidden></button>'}
@@ -2605,7 +2689,7 @@ const NUDGE_KEY = 'langbang:upNudge';
 function nudgeLoad() { try { return JSON.parse(localStorage.getItem(NUDGE_KEY) || '{}') || {}; } catch { return {}; } }
 function nudgeSave(no) { const v = nudgeLoad(); v.at = Date.now(); v.no = no ? (v.no | 0) + 1 : 0; try { localStorage.setItem(NUDGE_KEY, JSON.stringify(v)); } catch { /* 무시 */ } }
 function upNudge() {
-  if (app.screen !== 'menu' || app._nudged || COACH.active() || stage.querySelector('.info-modal, .gacha-res, .reveal, .confirm')) return;
+  if (app.screen !== 'menu' || app._nudged || COACH.active() || TUT.active() || stage.querySelector('.info-modal, .gacha-res, .reveal, .confirm')) return;
   const p = P(), lvSum = Object.values(p.heroes || {}).reduce((a, v) => a + (v | 0), 0);
   if (!((p.maxStage | 0) <= 15 || lvSum === 0)) return;
   const t = upgradeList()[0]; if (!t) return;
@@ -3195,6 +3279,7 @@ const DEX_CATCH = {
   eunok: '"한 잔만… 딱 한 잔만 할게."', hanna: '"윙크 받을 준비 됐어?"', sunggu: '"요즘 것들은… 내가 보여 주마."', junseo: '"잠깐, 내 친구 소개해 줄게!"', hyungyeong: '"다이어트는 내일부터! 오늘은 박치기!"',
   ara: '"공주님 등장~ 아이고 허리야…"', hochan: '"랑방을 위하여!!"',
   soyoung: '"그러니까 내가 뭐랬어!"', jieun: '"…시간아 멈춰라."', sanghwa: '"좋은남자 박상화!"', jungmin: '"가만있어 봐, 붙여 줄게."',
+  dragon: '"뭉치야, 불!"', subin: '"음악 틀어 줘! 같이 춰요~"',
 };
 function showJoinReveal(id, kind = 'new') {
   return new Promise((resolve) => {
@@ -3345,7 +3430,7 @@ function showGlossary() {
   const attrRows = at.map((a) => { const l = glossLine('attr:' + a); return `<div class="gl-row">${attrIco(a)}<span><b>${esc(l[0])}</b><small>${esc(l[1])}</small></span></div>`; }).join('');
   const roleRows = Object.keys(ROLE_IC).map((k) => `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/${ROLE_IC[k]}.webp" alt=""><span><b>${ROLE_TXT[k][0]}</b><small>${ROLE_TXT[k][1]}</small></span></div>`).join('');
   const tierRows = [1, 2, 3, 4, 5].map((t) => `<div class="gl-row"><i class="tier t${t}">${TIER_NAME[t]}</i><span><b>${TIER_TXT[t][0]}</b><small>${TIER_TXT[t][1]} · 최대 +${metaMaxOfTier(t)}</small></span></div>`).join('');
-  const momRow = `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/megaphone.webp" alt=""><span><b>기세 (총공지 둘레 3칸)</b><small>멤버 스킬을 쓸 때마다 1칸씩 써요 (LEGEND 멤버는 2칸) · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이 차고 총공지 충전이 끝나면 총공지!</small></span></div>`;
+  const momRow = `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/megaphone.webp" alt=""><span><b>기세 (총공지 둘레 2칸)</b><small>멤버 스킬을 쓸 때마다 1칸씩 써요 (LEGEND 멤버는 2칸) · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이 차고 총공지 충전이 끝나면 총공지! · 쿨 35초 넘는 큰 한 방 스킬은 1웨이브가 끝나야 써요</small></span></div>`;
   popup(`<h3>한눈에 보기</h3><h4 class="gl-h">기세</h4>${momRow}<h4 class="gl-h">속성</h4>${attrRows}<h4 class="gl-h">역할</h4>${roleRows}<h4 class="gl-h">등급</h4>${tierRows}<p class="ip">배지나 칩을 꾹 누르면 설명이 떠요</p>`, 'pp-gloss');
   void wheel;
 }
@@ -3463,7 +3548,7 @@ function showHeroModal(id, ctx = '') {
   const strong = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) > 1), weak = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) < 1);
   const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>${ok ? BKX.heroHtml(id) : ''}
       <div class="hs-skill">${ic('swords', '', '')}<span><small>기본 공격</small><b>${esc((w && w.item) || '기본 공격')}</b><p>${esc(d.attack)}</p></span></div>
-      <div class="hs-skill sk-ult"><img class="ic hs-skic" src="/img/lb/ui2/sk_${id}.webp" alt="" draggable="false"><span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
+      ${d.supTip ? `<p class="ip">${ic('sparkle', '', 'sm')}<b>서포터 전문</b> ${esc(d.supTip)}</p>` : ''}<div class="hs-skill sk-ult"><img class="ic hs-skic" src="/img/lb/ui2/sk_${id}.webp" alt="" draggable="false"><span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
       ${sigRowHtml(id)}
       ${w || ev ? `<div class="hs-tree"><span class="t0">${esc((w && w.item) || '기본')}</span><i></i><span class="t1">${ev ? esc(ev.name) : '진화'}</span></div>` : ''}
       ${(HERO_TAGS[id] || []).filter((t) => ROLE_IC[t]).length ? `<div class="hs-match hs-roles"><span>${ic('target', '', 'sm')}역할</span>${(HERO_TAGS[id] || []).filter((t) => ROLE_IC[t]).map((t) => `<button class="gl-chip role-chip" data-gl="role:${t}"><img class="role-ic" src="/img/lb/ui2/${ROLE_IC[t]}.webp" alt="">${ROLE_TXT[t][0]}</button>`).join('')}</div>` : ''}
@@ -3728,7 +3813,8 @@ function showSettings() {
     <section class="st-sec"><h4>화면 · 연출</h4>
       ${row('sparkle', '연출 줄이기', '화면 흔들림 · 반짝임 줄이기', tog('rmT', gwPref('reduceMotion')))}
       ${row('bolt', '진동', '', tog('vibT', gwPref('vibrate')))}
-      ${row('speed', '기본 2배속', '다시 깬 스테이지에서', tog('speedDefT', !!app.speed2))}
+      ${row('speed', '기본 2배속', '전투를 ×2 로 시작 (전투 중 ×1 / ×2 버튼으로도)', tog('speedDefT', !!app.speed2))}
+      ${(() => { const s = SSN.seasonAt(); return s ? row('sparkle', `${s.name} 테마`, `로비 그림 · 장식 · 음악 (${s.to[0]}/${s.to[1]}까지)`, tog('ssnT', SSN.seasonPref(s))) : ''; })()}
     </section>
     ${PUSHX.available() ? `<section class="st-sec"><h4>알림</h4>${row('megaphone', '알림 받기', PUSHX.settingHint(), tog('pushT', PUSHX.isOn()))}</section>` : ''}
     <section class="st-sec"><h4>게임</h4>
@@ -3739,6 +3825,7 @@ function showSettings() {
     <section class="st-sec"><h4>지원</h4>
       ${row('megaphone', '공지', '', '<button class="st-go" data-act="notice" aria-label="공지 열기"></button>')}
       ${row('book', '게임 방법', '', '<button class="st-go" data-act="howto" aria-label="게임 방법"></button>')}
+      ${row('bulb', '튜토리얼 다시 보기', '1-1 부터 방장이 다시 알려 줘요', '<button class="st-go" data-act="tutReplay" aria-label="튜토리얼 다시 보기"></button>')}
       ${row('home', '게임월드로', '', '<button class="st-go" data-act="toHub" aria-label="게임월드로"></button>')}
     </section>
         ${p.master ? `<div class="master-panel"><h4>${ic('tools', '', 'sm')} 마스터 테스트 도구 <small>(서버 확인 · 랭킹 제외)</small></h4>
@@ -3834,6 +3921,7 @@ Object.assign(ACTS, {
     });
   },
   settings: () => showSettings(),
+  tutReplay: () => { TUT.replay(); closeInfoCard(); app.lobbyStage = 1; showMenu(); toast('튜토리얼을 처음부터 다시 보여 드려요', 2200); },
   setTitle: async (b) => { if (await liveAct(API.setCosmetic(b.dataset.v, undefined, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
   cosmetics: () => { if (app.guest) { location.href = '/?login=1&next=langbang'; return; } showCosmetics(); }, // 손님이 프로필을 누르면 바로 로그인 (앱 안에서 로그인 → 랑방으로 돌아옴)
   cosmTab: (b) => { app.cosmTab = b.dataset.v; showCosmetics(); },
@@ -3930,6 +4018,7 @@ Object.assign(ACTS, {
     if (r) { A.sfx.coin && A.sfx.coin(); toast(`${r.n}개 팔았어요 · +${fmt(r.sold)} 코인`); }
     app.bulk = null; showBag();
   },
+  ssnT: () => { const s = SSN.seasonAt(); if (!s) return; const v = !SSN.seasonPref(s); SSN.setSeasonPref(s, v); if (app.screen === 'menu') showMenu0(); /* 뒤 로비 그림 · 음악도 바로 */ toast(v ? `${s.name} 테마를 켰어요` : `${s.name} 테마를 껐어요`, 1400); showSettings(); },
   rmT: () => { const v = !gwPref('reduceMotion'); setGwPref('reduceMotion', v); document.body.classList.toggle('rm', v); showSettings(); },
   vibT: () => { const v = !gwPref('vibrate'); setGwPref('vibrate', v); if (v) vibrate(20); showSettings(); },
   speedDefT: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } showSettings(); },
@@ -4587,12 +4676,16 @@ function heroInfoHtml(d, full) {
     ${sk ? `<p class="is">${ic('sparkle', '', 'sm')}<b>${esc(sk.name)}</b> ${esc(sk.desc)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></p>` : ''}
     ${full ? `<p class="ip">Lv3 ${esc(d.perks[3])} · Lv5 ${esc(d.perks[5])}</p><p class="ip">${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p>` : ''}`;
 }
+// (10/08) 진상 기술 줄: 이름 · 상태이상 색 · 설명 · 막는 멤버
+function skillLinesHtml(id, cls = 'ip', max = 9) {
+  return enemySkills(id).slice(0, max).map((k) => { const E = EST[k.st]; const cn = k.counter.filter((h) => HEROES[h]).slice(0, 3).map((h) => esc(heroNm(h))).join('·'); return `<p class="${cls} esk">${E ? `<i class="esk-ic" style="--c:${E.color}">${E.icon}</i>` : ''}<b>${esc(k.name)}</b> ${esc(k.text)}${cn ? ` <small>→ ${cn}</small>` : ''}</p>`; }).join('');
+}
 function enemyInfoHtml(e) {
   const good = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) > 1).map((a) => attrIco(a) + ATTRS[a].name);
   const bad = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) < 1).map((a) => attrIco(a) + ATTRS[a].name);
   return `<div class="ih"><b>${e.name}</b>${clsTag(e.cls)}${e.boss ? '<em class="bs">보스</em>' : ''}</div>
-    <p class="ia">${esc(ENEMY_TIPS[e.id] || '')}</p>
-    <p class="ip">잘 먹힘 ${good.join(' ')} · 안 먹힘 ${bad.join(' ')}</p>`;
+    <p class="ia">${esc(ENEMY_TIPS[e.id] || '')}</p>${skillLinesHtml(e.id, 'ip', 5)}
+    <p class="ip">잘 먹힘 ${good.join(' ')} · 안 먹힘 ${bad.join(' ')}</p>${(() => { const st = app.mode === 'stage' ? app.stage || 0 : 0, ap = st ? armorPctStage(st, e, false) : 0; return ap > 0 ? `<p class="ip">방어율 ${Math.round(ap * 100)}% (${chapterOf(st)}장) — 방깎 · 방관: ${ARMOR_BREAKERS.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join(' · ')}</p>` : ''; })()}`;
 }
 // 아이콘을 누르면 뜨는 설명 카드
 function showInfoCard(kind, id) {
@@ -4799,7 +4892,6 @@ function showPrep(mode, s) {
   const ch = st ? chapterOf(st) : 0;
   R.setTheme(st ? ch : 'endless');
   const fxd = wk ? MAP_FX[wk.fx] || MAP_FX.none : mode === 'stage' ? stageFx(s) : MAP_FX.none;
-  const cleared = mode === 'stage' && (p.stages[s] | 0) > 0;
   const hellOk = mode === 'stage' && hellOpen(p.stages, s);
   const hellOn = hellOk && app.hellMode;
   const free = p.master && !p.testNormal;
@@ -4831,7 +4923,17 @@ function showPrep(mode, s) {
   // 상성 경고: 이 판의 진상 기믹에 대처할 멤버가 덱에 없으면 짚어 준다 (가진 멤버 중 추천 2명)
   const lack = mode === 'stage' ? conds.filter((c) => COND[c] && !ids.some((id) => COND[c].counter.includes(id))) : [];
   const own = new Set(owned());
-  const lackHtml = lack.length ? `<div class="pp-lack">${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}</div>` : '';
+  // 방어율 경고 (장이 깊을수록 정예 · 보스가 단단): 방깎 · 방관 멤버가 없으면 짚어 준다
+  const apE = mode === 'stage' ? armorPctStage(s, { hp: 999 }, true) : 0, apB = mode === 'stage' ? armorPctStage(s, { boss: true, hp: 999 }) : 0;
+  const armorLack = apE >= 0.15 && !ids.some((id) => ARMOR_BREAKERS.includes(id));
+  const armorRec = armorLack ? ARMOR_BREAKERS.filter((id) => HEROES[id] && own.has(id)).slice(0, 2) : [];
+  const armorHtml = armorLack ? `<p>${ic('bolt', '', 'sm')}<b>방어율 ${Math.round(apE * 100)}%</b> (정예 · 보스 ${Math.round(apB * 100)}%) — 방깎 · 방관 멤버가 덱에 없어요${armorRec.length ? ` → <em>${armorRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
+  // (10/08) 진상 기술 경고: 이 판 진상 · 보스가 멤버에게 거는 독 · 홀림 · 빙결 · 기절 · 입구 강타 — 막는 멤버가 덱에 없으면 (기절 예고 조건 경고와 겹치면 생략)
+  const thr = {};
+  if (mode === 'stage') for (const t of [...prepFoes(s), ...stageBosses(s), ...(stageMid(s) ? [stageMid(s)] : [])]) for (const k of enemySkills(t)) if (['poison', 'charm', 'freeze', 'stun', 'door'].includes(k.st)) (thr[k.st] = thr[k.st] || []).push(k.name);
+  const ccLack = lack.includes('cc');
+  const thrHtml = Object.keys(thr).filter((st) => !(ccLack && ['stun', 'charm', 'poison'].includes(st)) && !ids.some((id) => EST[st].counter.includes(id))).slice(0, 2).map((st) => { const rec = EST[st].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${EST[st].name} 기술</b> (${esc([...new Set(thr[st])].slice(0, 2).join(' · '))}) — 막을 멤버가 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('');
+  const lackHtml = lack.length || armorHtml || thrHtml ? `<div class="pp-lack">${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}${thrHtml}</div>` : '';
   const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
   // 4) 등장 진상
   const foes = prepFoes(st);
@@ -4863,7 +4965,7 @@ function showPrep(mode, s) {
   // 7) 출격
   const cost = mode === 'stage' && !free ? L.stageStaminaCost(p, s, hellOn) : 0;
   const goHtml = `<div class="pp-go">
-      ${cleared ? `<button class="pp-spd ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-pressed="${app.speed2 ? 'true' : 'false'}" aria-label="2배속">${ic('speed', '')}<b>×2</b><small>${app.speed2 ? 'ON' : 'OFF'}</small></button>` : ''}
+      ${mode !== 'pvp' ? `<button class="pp-spd ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-pressed="${app.speed2 ? 'true' : 'false'}" aria-label="2배속">${ic('speed', '')}<b>×2</b><small>${app.speed2 ? 'ON' : 'OFF'}</small></button>` : ''}
       <button class="pp-gobtn2 ${ids.length ? '' : 'dim'} ${hellOn ? 'hell' : ''}" data-act="go"><i class="gb-shine"></i><b>출격!</b>${cost ? `<span class="gb-cost">${ic('energy', '', 'sm')}<em>${cost}</em></span>` : ''}</button>
     </div>`;
   show(`
@@ -5360,7 +5462,7 @@ function tickCards(dt) {
   if (!g || !app.cardsOpen || !app.cards) return;
   const behind = !!g.augOffer;
   if (cardStrip.classList.contains('behind') !== behind) cardStrip.classList.toggle('behind', behind);
-  if (app.paused || app.confirmOpen || behind) return;
+  if (app.paused || app.confirmOpen || behind || TUT.hold()) return;
   app.cardAutoT -= dt;
   const bar = cardStrip.querySelector('.cs-timer b');
   if (bar) bar.style.transform = `scaleX(${Math.max(0, app.cardAutoT / (app.cardAutoMax || 15)).toFixed(3)})`;
@@ -5391,6 +5493,7 @@ function pickCard(i) {
   g.pendingLevels = Math.max(0, g.pendingLevels - 1);
   if (g.welcomePicks > 0) g.welcomePicks--;
   A.sfx.pick();
+  TUT.emit('card');
   handleEvents(g, true);
   if (c.kind === 'global') fx.text(180, g.rowY - 90, c.title + '!', RARITY[c.rarity].color, 18, 1.2, -20);
   if (cardAttr(c)) { const a = cardAttr(c); for (const h of g.heroes) if (h.def.attr === a) { fx.ring(h.x, h.y - 30, 10, 46, 0.9, ATTRS[a].color, 5); fx.text(h.x, h.y - 78, ATTRS[a].icon, ATTRS[a].color, 20, 1.1, -26); } }
@@ -5705,7 +5808,7 @@ function bar(label, v) { return `<div class="sbar"><span>${label}</span><i><b st
 const DEX_FLAVOR = {
   bangjang: '랑방 단톡방 공지 담당. 확성기로 "저 사람!" 콕 집으면 멤버들이 한꺼번에 몰려간다.',
   staff: '랑방 규칙집을 통째로 외운 운영진. 경고 세 번이면 누구든 강퇴, 예외는 없다.',
-  gunman: '모임 내내 바른 자세로 앉아 있는 건전남. 새총도 옆으로 안 새고 딱 자기 줄로만 쏜다.',
+  gunman: '모임 내내 바른 자세로 앉아 있는 건전남. 권총도 한 발 한 발 또박또박, 레벨이 오르면 탕탕탕.',
   gunnyeo: '다친 멤버를 제일 먼저 챙기는 간호사 건전녀. 기절한 멤버는 깨우고, 지친 멤버에겐 물 한 잔 건넨다.',
   myunghoon: '실눈 뜬 티벳여우. 평소엔 조용한데 입을 열면 진상 셋이 한꺼번에 얼어붙는다.',
   dohoon: '노래방에서 마이크를 절대 안 놓는 남자. 앵콜이 끝나지 않는 한 랑방도 무너지지 않는다.',
@@ -5714,7 +5817,9 @@ const DEX_FLAVOR = {
   youngjun: '검은 고양이 후드를 쓰고 파티장에 뛰어드는 전사. 뛰어든 동안엔 아무것도 안 통한다.',
   eunok: '처음엔 얌전히 홀짝홀짝. 14초쯤 뒤엔… 소주병이 날아다니기 시작한다.',
   hanna: '랑방 공식 윙크 담당. 남자 진상은 윙크 한 방에 정신 못 차리고 날아간다.',
-  sunggu: '"요즘 것들은…"이 입버릇인 최고참. 지팡이 하나로 한 줄을 통째로 정리한다.',
+  sunggu: '"요즘 것들은…"이 입버릇인 최고참. 지팡이를 던지면 커다란 원을 그리며 한 무리를 두 번 훑고 손에 쏙 돌아온다.',
+  dragon: '아기 용 뭉치와 한 몸처럼 다니는 히든 멤버. 뭉치가 "화르륵" 하면 진상들이 불붙은 채 뛰어다닌다.',
+  subin: '춤 좋아하는 신부 베프. 리본 턴 한 번이면 진상들도 같이 춤추고, 댄스 플로어가 깔리면 골목이 무대가 된다.',
   junseo: '여사친이 유난히 많은 남자. "잠깐, 내 친구 소개해 줄게!" 하면 여사친이 굴러간다.',
   hyungyeong: '"다이어트는 내일부터!" 통통할 땐 벽, 주사 한 방이면 복서. 그리고… 요요.',
   ara: '목소리 맑은 랑방 공주님. 가끔 폭삭 늙어서 "아이고 허리야"를 외치지만 망치는 여전히 무겁다.',
@@ -5777,7 +5882,7 @@ const DEX_FLAVOR = {
   boss_resort: '스키장을 통째로 가진 리조트 갑부 회장. 손짓 한 번에 산 위에서 눈사태가 쏟아진다.',
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
-const DEX_EN = { subin: 'CHA SUBIN', baul: 'SONG BAUL', byunghwa: 'KANG BYUNGHWA', jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
+const DEX_EN = { dragon: 'PARK NAYOUNG', subin: 'LIM SUBIN', baul: 'SONG BAUL', byunghwa: 'KANG BYUNGHWA', jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
 const DEX_FACE = { subin: [0.53, 0.115, 0.13], baul: [0.49, 0.085, 0.12], byunghwa: [0.42, 0.085, 0.11], jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
 // 얼굴 맞춤 자르기: 얼굴 높이 = 칸 높이의 f · 얼굴 가운데 = (50%, cy) — 그림 비율과 상관없이 (자기 크기 기준 translate)
 // 동그란 얼굴용 얼굴 상자 (썸네일 기준 · 이마~턱 · 가운데 x, 가운데 y, 높이) — 그림을 재서 맞춘 값
@@ -5797,7 +5902,7 @@ function faceImgStyle(id, f = 0.24, cy = 0.36) {
 const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on', 'donghan_ssj'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
 const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 빔', donghan_ssj: '초사이언', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
-const DEX_ANIM = { subin: 'sway', baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
+const DEX_ANIM = { dragon: 'flame', subin: 'sway', baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
 function dexAnim(kind, d, id) {
   if (DEX_ANIM[id]) return DEX_ANIM[id];
   if (kind === 'hero') return 'breathe';
@@ -6036,6 +6141,7 @@ function dexPageHtml(kind, id, form, duo) {
       <div class="sbars">${bar('체력', Math.log10(d.hp) / Math.log10(4000))}${bar('속도', d.speed / 95)}${bar('입구 피해', d.atk / 36)}</div>
       ${d.traits ? `<div class="dp-sec"><b>${ic('target', '', 'sm')}특성</b>${Object.keys(d.traits).filter((k) => TRAITS[k]).map((k) => `<p>${TRAITS[k].icon} <b>${esc(TRAITS[k].name)}</b> — ${esc(TRAITS[k].tip)} <small>추천: ${TRAITS[k].counter.filter((h) => HEROES[h]).map((h) => esc(heroNm(h))).join('·')}</small></p>`).join('')}</div>` : ''}
  <section><h4> 특징</h4>${(d.fuse ? d.fuse : [tipId]).map((t) => `<p>${d.fuse ? `<b>${esc(ENEMIES[t].name)}</b> · ` : ''}${esc(ENEMY_TIPS[t] || '')}</p>`).join('')}</section>
+      ${enemySkills(id).length ? `<section><h4>${ic('bolt', '', 'sm')} 기술 <span class="rg">예고 중 기절 · 밀치기로 끊겨요</span></h4>${skillLinesHtml(id, '')}</section>` : ''}
  <section><h4>${ic('scale', '', 'sm')} 상성</h4><p>잘 먹힘 ${good.join(' ')} <span class="rg">×${TYPE_STRONG}</span></p><p>안 먹힘 ${bad.join(' ')} <span class="rg">×${TYPE_WEAK}</span></p></section>
  <section><h4>${ic('pin', '', 'sm')} 등장</h4><p>${fs ? `${stageLabel(fs)} 부터` : '무한 도전'}${d.boss ? ' · 보스' : d.mid ? ' · 3웨이브 중간 보스' : ''}</p></section>`;
   }
@@ -6787,7 +6893,7 @@ const ENEMY_TIPS = {
   snowball: '멀찍이 서서 눈덩이 → 맞은 멤버 1.5초 빙결 (제일 잘 치는 멤버를 노림) — 건전녀 응급 방패 · 강성구 곁 · 도발 탱커로 막는다',
   mid_pension: '7장 보스 (7-5 · 7-10). 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기 · 퇴실 독촉(공속↓) · 단체 손님 소환',
   envthief: '입구를 안 때리고 접수대 봉투를 들고 위로 달아난다 — 화면 위로 빠지면 이번 판 코인 −8% (최대 −40%). 임수빈 부케로 묶고 · 기절 · 감속으로 잡자',
-  buffet: '단단함(방어). 5초마다 냠냠 — 곁의 진상 체력 8% 회복 · 기절시키면 못 먹고, 여지원 방깎이면 회복이 막힌다',
+  buffet: '단단함(방어). 5초마다 냠냠 — 곁의 진상 체력 8% 회복 · 예고 뒤 상한 잡채 → 멤버 독 · 기절시키면 못 먹고, 여지원 방깎이면 회복이 막힌다',
   badsinger: '멀찍이 서서 숨 들이쉬고(0.9초) → 음 이탈! 곁 멤버 공격 속도 −35% 3초 — 숨 들이쉴 때 기절시키면 끊긴다',
   showoff: '셀카로 남자 멤버를 홀린다 — 여자 멤버 · 건전녀 Lv5 로 막기',
   drunkfriend: '두세 명이 어깨동무하고 갈지자로 우르르 — 범위 · 관통 공격으로 한 번에',
@@ -6798,13 +6904,13 @@ const ENEMY_TIPS = {
   mid_sledgirl: '각성한 썰매 폭주녀. 입구에 부딪히면 크게 아프다',
   yeokko: '빠름. 가까이 오면 여자 멤버를 홀린다',
   namkko: '빠름. 가까이 오면 남자 멤버를 홀린다',
-  drunk: '갈지자 걸음. 죽으면 술병이 터져 주변 진상에게 피해',
-  thug: '느리지만 단단함. 약한 공격은 덜 아프다',
+  drunk: '갈지자 걸음. 가끔 멈춰 소주병을 던진다(공속↓). 죽으면 술병이 터져 주변 진상에게 피해',
+  thug: '느리지만 단단함(방어). 입구 앞에서 다리를 젖혔다가 "문짝 걷어차기" — 젖힐 때 기절 · 밀치기로 끊자 · 수리 · 탱커가 버틴다',
   mukti: '엄청 빠름 · 잘 피함 (MISS). 입구에 붙으면 세게 친다 — 감속 · 기절 · 범위 · 따라가는 공격으로 잡자',
   queen: '졸개 소환 + 주변에 보호막',
   boss_thug: '땅 내려치기로 멤버 전원 기절',
   inpi_gossip: '멀찍이 서서 "수군수군" 뒷담화 — 맞은 멤버 공격 속도↓',
-  inpi_dictator: '곁의 진상들이 덜 아프고 안 밀리고 빨라진다. 먼저 잡자!',
+  inpi_dictator: '곁의 진상들이 덜 아프고 안 밀리고 빨라진다 · 예고 뒤 "강퇴 통보" 도장 → 멤버 스킬 침묵. 먼저 잡자!',
   inpi_clique: '3~5명씩 뭉쳐 다니며 서로 지켜 준다. 범위·관통 공격에 약함',
   scammer: '예쁜 프사(회피·남자 멤버 공격력↓) → 실물(공포/뚱뚱). "들켰다!" 할 때 약점',
   boss_gapjil: '"무릎 꿇어!" 멤버 기절 · 패거리 소환',
@@ -6813,13 +6919,13 @@ const ENEMY_TIPS = {
   inpi_treasurer: '뒤에 숨어 "회비 지원!" 보호막을 뿌린다. 체력이 낮으니 먼저!',
   boss_union: '3장 보스 (3-5 · 3-10) · 무한 도전 25웨이브부터. 갑질·회식·독재·이자·회비를 번갈아 쓴다',
   boss_bbikki: '2장 끝 보스. 전단지 폭탄(맞은 멤버 사거리 -30%, 4초) · 호객 행위(진상을 한 줄로 모아 우르르 + 손님 호객) · VIP 줄 세우기(앞줄 보호막) · 체력 40%면 분노 — 앞줄 보호막은 운영진으로, 모인 줄은 범위 공격으로',
-  vomit: '"우웩!" 멤버 발밑에 토 → 공속↓. 죽으면 토 웅덩이가 진상을 빠르게 — 멀리서 잡자',
+  vomit: '꿀렁(예고 · 멤버 발밑 표적) → "우웩!" 맞은 멤버 독 + 토 웅덩이(공속↓) — 꿀렁할 때 기절시키면 끊긴다 · 홍정민이 있으면 독 면역 · 죽으면 토 웅덩이가 진상을 빠르게',
   couple: '안 맞으면 "꽁냥꽁냥" 회복, 윙크 안 통함. 반쯤 때리면 "헤어져!" 둘로',
   handsy: '로프에 닿으면 멤버를 붙잡아 못 쏘게 한다. 잡으면 풀려요 — 먼저 지목!',
   gao: '가오 중엔 피해 -60%. 말빨 공격이나 치명타로 "가오 깨짐!" → 더 아프다',
-  selfie: '5초마다 "찰칵!" 플래시 — 가장 가까운 멤버 1초 기절. 체력 낮음',
-  cutter: '엄청 빠르고, 앞줄 근처에서 한 번 훌쩍 새치기',
-  kkondae: '느리고 튼튼. "라떼는 말이야~" 근처 멤버 공속↓. 기절시키면 조용',
+  selfie: '5초마다 "찰칵 준비…"(멤버 발밑 표적) → 플래시로 1초 기절 — 준비할 때 기절 · 밀치기로 끊긴다. 체력 낮음',
+  cutter: '엄청 빠르고, 앞줄 근처에서 한 번 훌쩍 새치기 → 착지하며 앞 멤버를 들이받는다 (쓰러짐 게이지) — 감속 · 기절로 늦추자',
+  kkondae: '느리고 튼튼. 가까이 오면 "라떼는 말이야~" 예고 뒤 라떼 잔 → 멤버 스킬 침묵 · 곁 멤버 공속↓. 기절시키면 조용',
   spam: '가끔 "카톡!" 알림을 풀고, 죽으면 알림 3개가 돌진',
   spam_dot: '작은 알림. 빠르게 돌진',
 };
@@ -7017,6 +7123,7 @@ async function boot() {
   app.nickname = r.nickname || ''; // (마지막 출격 스테이지 키에 쓴다)
   app.profileLoaded = true;
   app.lobbyStage = 0; // 프로필이 온 뒤 이 계정의 마지막 출격 스테이지로 다시 고른다
+  if (TUT_ON) TUT.load(API.accountKey(), app.profile.tut, app.profile); // 튜토리얼: 이 계정 진행 (클리어 0 이면 처음부터)
   Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {}).then(() => BKX.boot()).catch(() => {}); // 다음: 본캐 출연료 정산 · 알림
   saveCrowd();
   if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크
@@ -7072,6 +7179,7 @@ window.__lb = {
   R,
   pvpUi: { shift: (sec) => { PVP.t0 -= sec * 1000; }, waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: (seed) => startRun({ mode: 'pvp', force: true, pvpSeed: seed === undefined ? 7 : seed }), end: (r) => pvpEnded(r) },
   get g() { return app.g; },
+  tut: TUT, // 튜토리얼 (scripts/lb-tutorial-shot.js)
   get app() { return app; },
   perf,
   openCards: () => openCards(),

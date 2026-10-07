@@ -49,8 +49,9 @@ const TRACKS = {
   raid: '/sounds/bgm_lb_raid.mp3', pvp: '/sounds/bgm_lb_pvp.mp3', // 레이드 · 1:1 대전 전용 곡 (없으면 챕터 곡 그대로)
   tower: '/sounds/bgm_lb_tower.mp3', // 진상의 탑 (로비 · 전투)
   raid2: '/sounds/bgm_lb_raid2.mp3', // 건물주 레이드 (없으면 레이드 곡)
+  halloween: '/sounds/bgm_lb_halloween.mp3', // 시즌 로비 곡 (season.js · 없으면 챕터 곡)
 };
-const OPTIONAL = new Set(['raid', 'pvp', 'tower', 'raid2']); // 서버 파일 목록에 없으면 요청도 안 한다
+const OPTIONAL = new Set(['raid', 'pvp', 'tower', 'raid2', 'halloween']); // 서버 파일 목록에 없으면 요청도 안 한다
 const VOL = 0.4;
 const players = {};
 const bad = {};

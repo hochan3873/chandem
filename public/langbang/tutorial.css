@@ -1,0 +1,60 @@
+/* 처음 하는 사람 튜토리얼 (tutorial.js): 방장 말풍선 + 꼬리 · 따라 할 손가락 · 밝힌 곳만 누를 수 있게 */
+.tutor { position: absolute; inset: 0; z-index: 49; pointer-events: none; }
+.tutor.tu-hid { display: none; }
+.tutor .tu-ring { position: absolute; border-radius: calc(var(--u) * 16); outline: 3px solid #ffd23f; outline-offset: 0; transition: left 0.18s, top 0.18s, width 0.18s, height 0.18s; }
+.tutor.tu-dim .tu-ring { box-shadow: 0 0 0 9999px rgba(6, 3, 16, 0.62); }
+.tutor.tu-nodim .tu-ring { box-shadow: 0 0 calc(var(--u) * 14) rgba(255, 210, 63, 0.75); }
+.tutor .tu-ring::after { content: ''; position: absolute; inset: calc(var(--u) * -4); border-radius: inherit; border: 3px solid #ffd23f; animation: tuPulse 1.3s ease-out infinite; }
+.tutor .tu-blk { position: absolute; pointer-events: auto; }
+.tutor.tu-nodim .tu-blk { display: none; }
+.tutor.tu-dim.center .tu-blk { background: rgba(6, 3, 16, 0.62); }
+/* 손가락: 탭 = 꾹 누르기 + 물결 · 밀기 = 오른쪽 → 왼쪽 · 아래 = 위 → 아래 */
+.tutor .tu-hand { position: absolute; width: calc(var(--u) * 40); height: calc(var(--u) * 44); transition: left 0.18s, top 0.18s; }
+.tutor .tu-hand.off { display: none; }
+.tutor .tu-fin { position: absolute; left: 0; top: 0; font-style: normal; font-size: calc(var(--u) * 34); line-height: 1; filter: drop-shadow(0 2px 0 #000) drop-shadow(0 0 4px rgba(0, 0, 0, 0.6)); transform-origin: 30% 10%; }
+.tutor .tu-fin::before { content: '👆'; }
+.tutor .tu-tapfx { position: absolute; left: calc(var(--u) * -8); top: calc(var(--u) * -14); width: calc(var(--u) * 30); height: calc(var(--u) * 30); border-radius: 50%; border: 3px solid #fff; opacity: 0; }
+.tutor .h-tap .tu-fin { animation: tuTap 1.1s ease-in-out infinite; }
+.tutor .h-tap .tu-tapfx { animation: tuRip 1.1s ease-out infinite; }
+.tutor .h-swipe .tu-fin { animation: tuSwipe 1.6s ease-in-out infinite; }
+.tutor .h-swipe .tu-tapfx { display: none; }
+.tutor .h-down .tu-fin { animation: tuDown 1.6s ease-in-out infinite; }
+.tutor .h-down .tu-tapfx { display: none; }
+/* 말풍선: 방장 얼굴 + 글 + 대상 쪽 꼬리 */
+.tutor .tu-say { position: absolute; box-sizing: border-box; min-height: calc(var(--u) * 58); padding: calc(var(--u) * 10) calc(var(--u) * 12) calc(var(--u) * 10) calc(var(--u) * 66); border-radius: calc(var(--u) * 16); border: 3px solid #1a0b2f; background: #fffaf0; color: #2a1200; font-size: calc(var(--u) * 14); font-weight: 800; line-height: 1.42; word-break: keep-all; box-shadow: 0 calc(var(--u) * 4) 0 #1a0b2f, 0 0 0 3px #ffd23f; pointer-events: auto; }
+.tutor .tu-say b { color: #c2410c; }
+.tutor .tu-say small { font-size: calc(var(--u) * 11.5); font-weight: 700; color: #7a5a3a; }
+.tutor .tu-say.pop { animation: tuPop 0.32s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.tutor .tu-say.up { transform-origin: 50% 0; } .tutor .tu-say.dn { transform-origin: 50% 100%; }
+.tutor .tu-say.nudge { animation: tuNudge 0.4s; }
+.tutor .tu-face { position: absolute; left: calc(var(--u) * -8); top: calc(var(--u) * -16); width: calc(var(--u) * 64); height: calc(var(--u) * 64); border-radius: 50%; overflow: hidden; border: 3px solid #1a0b2f; background: radial-gradient(circle at 50% 35%, #ffe7a8, #f3a64a); box-shadow: 0 0 0 2px #ffd23f, 0 calc(var(--u) * 3) 0 #1a0b2f; }
+.tutor .tu-face img { position: absolute; }
+.tutor .tu-face img:not(.fz) { left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; }
+.tutor .tu-txt { position: relative; }
+.tutor .tu-n { display: inline-block; margin-right: calc(var(--u) * 5); padding: 0 calc(var(--u) * 6); border-radius: 99px; background: #e8283c; color: #fff; font-style: normal; font-size: calc(var(--u) * 10); font-weight: 900; vertical-align: 2px; }
+.tutor .tu-go { display: block; margin-top: calc(var(--u) * 3); text-align: right; color: #b45309 !important; font-weight: 900 !important; animation: tuBlink 1.2s ease-in-out infinite; }
+.tutor .tu-tail { position: absolute; width: calc(var(--u) * 16); height: calc(var(--u) * 16); background: #fffaf0; border: 3px solid #1a0b2f; transform: rotate(45deg); }
+.tutor .tu-say.up .tu-tail { top: calc(var(--u) * -11); border-right: 0; border-bottom: 0; }
+.tutor .tu-say.dn .tu-tail { bottom: calc(var(--u) * -11); border-left: 0; border-top: 0; }
+.tutor.tu-center .tu-tail, .tutor .tu-say:not(.up):not(.dn) .tu-tail { display: none; }
+.tutor.tu-center .tu-say { padding-top: calc(var(--u) * 16); padding-bottom: calc(var(--u) * 14); font-size: calc(var(--u) * 15); }
+.tutor .tu-skip { position: absolute; right: calc(var(--u) * 6); bottom: calc(var(--u) * -14); padding: calc(var(--u) * 2) calc(var(--u) * 9); border-radius: 99px; border: 2px solid #1a0b2f; background: #2a1d4a; color: #fff; font-size: calc(var(--u) * 10.5); font-weight: 900; pointer-events: auto; }
+.tutor .tu-ask { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); width: calc(var(--u) * 250); display: flex; flex-direction: column; gap: calc(var(--u) * 7); padding: calc(var(--u) * 16); border-radius: calc(var(--u) * 18); border: 3px solid #000; background: linear-gradient(180deg, #3a2a66, #1c1236); box-shadow: 0 0 0 3px #ffd23f; color: #fff; text-align: center; pointer-events: auto; }
+.tutor .tu-ask[hidden] { display: none; }
+.tutor .tu-ask b { font-size: calc(var(--u) * 15); color: #ffe46b; }
+.tutor .tu-ask button { padding: calc(var(--u) * 10) 0; border-radius: 99px; border: 2px solid #000; background: rgba(255, 255, 255, 0.12); color: #fff; font-weight: 900; font-size: calc(var(--u) * 13); }
+.tutor .tu-ask button[data-k="no"] { background: linear-gradient(180deg, #ffe46b, #ffb21f); color: #3a1500; box-shadow: 0 calc(var(--u) * 3) 0 #000; }
+.tutor .tu-ask small { font-size: calc(var(--u) * 10.5); opacity: 0.75; }
+.tutor.tu-asking::before { content: ''; position: absolute; inset: 0; background: rgba(6, 3, 16, 0.55); pointer-events: auto; }
+@keyframes tuPulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(1.16); opacity: 0; } }
+@keyframes tuPop { from { transform: scale(0.6); opacity: 0; } }
+@keyframes tuNudge { 20% { translate: -6px 0; } 40% { translate: 6px 0; } 60% { translate: -4px 0; } 80% { translate: 3px 0; } }
+@keyframes tuTap { 0%, 100% { transform: translate(calc(var(--u) * 6), calc(var(--u) * 10)) scale(1); } 45% { transform: translate(0, 0) scale(0.92); } 60% { transform: translate(0, 0) scale(0.92); } }
+@keyframes tuRip { 0%, 40% { opacity: 0; transform: scale(0.3); } 50% { opacity: 0.95; transform: scale(0.5); } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes tuSwipe { 0% { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } 75% { transform: translateX(calc(var(--u) * -100)); opacity: 1; } 100% { transform: translateX(calc(var(--u) * -100)); opacity: 0; } }
+@keyframes tuDown { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 75% { transform: translateY(calc(var(--u) * 70)); opacity: 1; } 100% { transform: translateY(calc(var(--u) * 70)); opacity: 0; } }
+@keyframes tuBlink { 50% { opacity: 0.45; } }
+/* 움직임 줄이기: 손가락 · 고리 · 말풍선 다 멈춤 (손가락은 대상 위에 가만히) */
+body.rm .tutor *, body.rm .tutor *::before, body.rm .tutor *::after { animation: none !important; transition: none !important; }
+body.rm .tutor .tu-tapfx { display: none; }
+body.rm .tutor .h-swipe .tu-fin::after { content: '◀'; position: absolute; left: calc(var(--u) * -24); top: calc(var(--u) * 6); font-size: calc(var(--u) * 18); color: #ffd23f; text-shadow: 0 1px 0 #000; }
