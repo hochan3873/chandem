@@ -1,5 +1,5 @@
 // 랑방 대전 — 스킬 전용 연출 (캔버스 코드 그림 · 빛은 더하기 합성 · 바닥 효과는 발밑에 납작하게)
-//  배현경 다이어트 주사 · 요요 · 몸통 박치기 · 문동한 진심 모드 · 오지은 시간 정지 · 홍정민 붕대 대공사 · 붕대 탁 · 박상화 좋은남자 · 강병화 원맨쇼
+//  배현경 다이어트 주사 · 요요 · 몸통 박치기 · 문동한 진심 모드 · 카페인 풀충전 · 오지은 시간 정지 · 홍정민 붕대 대공사 · 붕대 탁 · 박상화 좋은남자 · 강병화 원맨쇼
 //  가벼운 평타 연출(lt): 서명훈 저주 번개 · 저주 딱지 · 홍정민 소주병 휘두름
 //  game.js handleEvents 가 add() 로 시작하고, render.js draw() 가 층마다 draw(layer, g) 를 부른다
 //   ground: 바닥(진상·멤버 아래) · gate: 입구(바리케이드 위 · 문 때리는 진상 아래) · mid: 캐릭터 위 · top: 입자 위 · 글자 아래 · screen: 화면 전체(카메라 없이)
@@ -15,6 +15,7 @@ const eIn = (k) => k * k;
 const eBack = (k) => { const s = 1.7; k -= 1; return 1 + k * k * ((s + 1) * k + s); };
 const imgOk = (im) => !!(im && im.complete && im.naturalWidth > 0);
 const HERO_TOP = 50, HERO_FEET = 24; // 멤버 몸 중심(y) 기준 머리 위 · 발 (HERO_BOX 82 기준)
+const CAN_COL = [['#2b1a10', '#6b4024', '#e9d3b0'], ['#1d2a44', '#3d5a8a', '#f2e6cf'], ['#5a1f14', '#9a3a24', '#f4e2c4']]; // 문동한 캔커피 색 (블랙 · 블루 · 레드)
 
 export class SkillFx {
   constructor(R) {
@@ -47,13 +48,13 @@ export class SkillFx {
       if (!h) return;
       o.h = h; o.imp = false; o.impT = 0;
       for (const q of this.list) if (q.kind === 'serious') q.done = true;
-    } else if (kind === 'ssj') { // 문동한 초사이언 변신 (포격이 끝날 때까지 금빛 오라)
+    } else if (kind === 'cafe') { // 문동한 카페인 풀충전 (캔커피가 다 떨어질 때까지 커피 김 오라)
       const h = this.heroOf(g, 'donghan');
       if (!h) return;
-      for (const q of this.list) if (q.kind === 'ssj' || q.kind === 'serious') q.done = true;
-      o.h = h; o.wind = e.wind || 0.9; o.yell = false; o.rm = this.rmOn();
-    } else if (kind === 'ssjMark') { // 포격 예고 동그라미 → 하늘에서 금빛 번개 기둥 쾅 (게임 시간 기준)
-      if (this.list.filter((q) => q.kind === 'ssjMark').length > 14) return;
+      for (const q of this.list) if (q.kind === 'cafe' || q.kind === 'serious') q.done = true;
+      o.h = h; o.wind = e.wind || 0.9; o.rm = this.rmOn();
+    } else if (kind === 'cafeMark') { // 캔커피 예고 얼룩 → 하늘에서 캔커피 쾅 (게임 시간 기준)
+      if (this.list.filter((q) => q.kind === 'cafeMark').length > 14) return;
       o.x = e.x; o.y = e.y; o.r = e.r || 56; o.delay = e.t || 0.55; o.rm = this.rmOn();
     } else if (kind === 'encore') { // 김도훈 앵콜: 무대 조명 세 줄기가 훑고 · 멈춘 진상 머리 위로 떼창 음표
       for (const q of this.list) if (q.kind === 'encore') q.done = true;
@@ -466,105 +467,148 @@ export class SkillFx {
     }
   }
 
-  // ── 문동한: 초사이언 포격 ──────────────────────
-  //  변신(wind): 화면 어둡게 · 금빛 기운이 빨려 들어감 → 기합 순간 "하아아앗!!" 번쩍 · 집중선 · 충격파 → 포격 동안 금빛 불꽃 오라 + 머리 주변 파지직
-  //  (연출 줄이기: 번쩍 · 흔들림 · 집중선 · 번개 없이 · 오라는 잔잔하게)
-  flames(hx, by, big, A, T, n) { // 위로 타오르는 금빛 불꽃 혀 (몸 뒤)
-    const cx = this.R.cx;
-    cx.save(); cx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < n; i++) {
-      const u = (i / (n - 1)) * 2 - 1, ph = T * (6 + (i % 3)) + i * 1.7;
-      const bx = hx + u * 28 * big, tall = (60 + (1 - Math.abs(u)) * 54 + Math.sin(ph) * 14) * big;
-      const gr = cx.createLinearGradient(bx, by, bx, by - tall);
-      gr.addColorStop(0, 'rgba(255,170,40,0)'); gr.addColorStop(0.2, 'rgba(255,196,60,0.6)'); gr.addColorStop(0.7, 'rgba(255,240,160,0.4)'); gr.addColorStop(1, 'rgba(255,255,230,0)');
-      cx.globalAlpha = c01(A); cx.fillStyle = gr;
-      const sw = Math.sin(ph * 0.8) * 8 * big;
-      cx.beginPath(); cx.moveTo(bx - 10 * big, by); cx.quadraticCurveTo(bx - 12 * big + sw, by - tall * 0.55, bx + sw * 1.4, by - tall); cx.quadraticCurveTo(bx + 12 * big + sw, by - tall * 0.55, bx + 10 * big, by); cx.closePath(); cx.fill();
-    }
-    cx.restore();
-  }
-  zap(x0, y0, x1, y1, seg, jit, col, w, a) { // 지그재그 번개 줄
+  // ── 문동한: 카페인 풀충전 ──────────────────────
+  //  변신(wind): 화면 어둡게 · 커피 원샷 "꿀꺽 꿀꺽" + 머리 위 카페인 배터리가 0 → 100% → 눈 번쩍 "카페인 풀충전!!" · 크림색 번쩍 · 커피색 충격파 · 원두가 튄다
+  //  캔커피 부르는 동안: 발밑 따뜻한 커피빛 · 몸을 감는 커피 김 · 머리 위로 피어오르는 김 · 머리 옆 카페인 떨림 표시(///) · 원두 두 알이 둥둥
+  //  (연출 줄이기: 번쩍 · 흔들림 · 떨림 표시 없이 · 김과 빛은 잔잔하게)
+  bean(x, y, s, rot, a, col = '#5b3418') { // 원두 한 알 (가운데 홈)
     if (a <= 0.01) return;
     const cx = this.R.cx;
-    cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = c01(a); cx.strokeStyle = col; cx.lineWidth = w; cx.lineCap = 'round'; cx.lineJoin = 'round';
-    cx.beginPath(); cx.moveTo(x0, y0);
-    for (let i = 1; i < seg; i++) { const k = i / seg; cx.lineTo(x0 + (x1 - x0) * k + (Math.random() - 0.5) * jit, y0 + (y1 - y0) * k + (Math.random() - 0.5) * jit * 0.3); }
-    cx.lineTo(x1, y1); cx.stroke(); cx.restore();
+    cx.save(); cx.translate(x, y); cx.rotate(rot); cx.globalAlpha = c01(a);
+    cx.fillStyle = col; cx.beginPath(); cx.ellipse(0, 0, s, s * 0.72, 0, 0, TAU); cx.fill();
+    cx.strokeStyle = 'rgba(255,226,180,0.55)'; cx.lineWidth = Math.max(1, s * 0.18); cx.beginPath(); cx.moveTo(-s * 0.7, -s * 0.1); cx.quadraticCurveTo(0, s * 0.25, s * 0.7, -s * 0.1); cx.stroke();
+    cx.restore();
   }
-  ssj(layer, o, T, g) {
+  battery(x, y, k, a, blink) { // 카페인 배터리 (머리 위) — k: 0~1 충전량
+    if (a <= 0.01) return;
+    const cx = this.R.cx, w = 46, h = 18, full = k >= 1;
+    cx.save(); cx.translate(x, y); cx.globalAlpha = c01(a);
+    cx.fillStyle = 'rgba(30,18,10,0.82)'; cx.strokeStyle = full ? '#ffe2a8' : '#f3e2c8'; cx.lineWidth = 2.2;
+    cx.beginPath(); cx.roundRect(-w / 2, -h / 2, w, h, 4); cx.fill(); cx.stroke();
+    cx.fillStyle = cx.strokeStyle; cx.fillRect(w / 2 + 1, -h / 4, 3.5, h / 2);
+    const fw = (w - 6) * c01(k), gr = cx.createLinearGradient(0, -h / 2, 0, h / 2);
+    gr.addColorStop(0, full ? '#ffd27a' : '#c98a4a'); gr.addColorStop(1, full ? '#c8742c' : '#7a4520');
+    cx.fillStyle = gr; cx.globalAlpha = c01(a) * (full && blink ? 0.75 + 0.25 * Math.sin(blink * 22) : 1);
+    if (fw > 0.5) { cx.beginPath(); cx.roundRect(-w / 2 + 3, -h / 2 + 3, fw, h - 6, 2); cx.fill(); }
+    cx.globalAlpha = c01(a); cx.fillStyle = '#fff8ec'; cx.font = `900 11px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(`${Math.round(c01(k) * 100)}%`, 0, 0.5);
+    cx.restore();
+  }
+  jitter(x, y, side, a) { // 카페인 떨림 표시 (머리 옆 짧은 빗금 세 개)
+    if (a <= 0.01) return;
+    const cx = this.R.cx;
+    cx.save(); cx.globalAlpha = c01(a); cx.strokeStyle = '#fff3dc'; cx.lineWidth = 2.4; cx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) { const yy = y - 8 + i * 8, xx = x + side * (i % 2 ? 3 : 0); cx.beginPath(); cx.moveTo(xx, yy); cx.lineTo(xx + side * 9, yy - 4); cx.stroke(); }
+    cx.restore();
+  }
+  cafe(layer, o, T, g) {
     const fx = this.fx, cx = this.R.cx, h = o.h;
     if (!h || h.gone || !g.heroes.includes(h)) { o.done = true; return; }
-    const on = h.ssjT > 0, hx = h.rx || h.x, hy = h.y, wind = o.wind;
+    const on = h.cafeT > 0, hx = h.rx || h.x, hy = h.y, wind = o.wind;
     if (!on && T > wind) { o.endT = o.endT || T; if (T - o.endT > 0.5) { o.done = true; return; } }
     const fade = o.endT ? 1 - c01((T - o.endT) / 0.5) : 1;
-    const pre = c01(T / wind); // 기 모으기
-    const yellAt = wind * 0.45, it = T - yellAt; // 기합 순간
-    if (!o.yell && T >= yellAt && layer === 'ground') {
-      o.yell = true;
-      if (!o.rm) { fx.flash('#fff3c0', 0.5); fx.addShake(12); if (!g.pvp && !(fx.slowmo > 0)) { fx.slowmo = 0.18; fx.zoomTarget = 1.06; fx.zx = hx; fx.zy = hy - 40; } }
-      fx.burst(hx, hy - 30, o.busy ? 10 : 24, '#ffd84a', 280, 'spark', 4, 0.55);
-      fx.text(hx, hy - 104, '하아아앗!!', '#fff1a8', 21, 1.1, -18);
+    const fullAt = wind * 0.45, it = T - fullAt; // 풀충전 순간 (변신 띠: 마시기 → 눈 번쩍)
+    const charge = c01(T / fullAt);
+    if (layer === 'ground') {
+      if (!o.gulp && T > 0.04) { o.gulp = 1; fx.text(hx + 26, hy - 70, '꿀꺽', '#e9d3b0', 13, 0.5, -26); }
+      if (o.gulp === 1 && T > fullAt * 0.55) { o.gulp = 2; fx.text(hx - 24, hy - 78, '꿀꺽!', '#e9d3b0', 14, 0.5, -26); }
+      if (!o.full && T >= fullAt) {
+        o.full = true;
+        if (!o.rm) { fx.flash('#fff1dc', 0.4); fx.addShake(9); if (!g.pvp && !(fx.slowmo > 0)) { fx.slowmo = 0.16; fx.zoomTarget = 1.05; fx.zx = hx; fx.zy = hy - 40; } }
+        fx.burst(hx, hy - 34, o.busy ? 6 : 14, '#fff4e2', 200, 'dot', 3.5, 0.6, -40);
+        o.beans = Array.from({ length: o.busy ? 4 : 9 }, (_, i) => ({ an: (i / 9) * TAU + Math.random() * 0.4, sp: 120 + Math.random() * 90, rot: Math.random() * TAU }));
+        fx.text(hx, hy - 108, '번쩍!', '#ffd9a0', 20, 0.9, -18); // (이름은 띠에 크게)
+      }
     }
     if (layer === 'screen') {
-      if (T < wind + 0.3) { const [sx, sy] = this.scr(hx, hy - 20); this.dim(sx, sy, 0.5 * (T < wind ? c01(T / 0.2) : 1 - c01((T - wind) / 0.3)), 60, 300); }
-      if (!o.rm && it > 0 && it < 0.45) { // 집중선
-        const [sx, sy] = this.scr(hx, hy - 30), a = (1 - it / 0.45) * 0.7, W = this.R.W, H = this.R.H, n = o.busy ? 24 : 44;
-        cx.save(); cx.globalAlpha = a; cx.fillStyle = '#fffbe8';
-        for (let i = 0; i < n; i++) { const an = (i / n) * TAU + Math.random() * 0.1, w = 0.012 + Math.random() * 0.02, r0 = 90 + Math.random() * 70, r1 = Math.max(W, H) * 1.2; cx.beginPath(); cx.moveTo(sx + Math.cos(an) * r0, sy + Math.sin(an) * r0); cx.lineTo(sx + Math.cos(an - w) * r1, sy + Math.sin(an - w) * r1); cx.lineTo(sx + Math.cos(an + w) * r1, sy + Math.sin(an + w) * r1); cx.closePath(); cx.fill(); }
-        cx.restore();
-      }
+      if (T < wind + 0.3) { const [sx, sy] = this.scr(hx, hy - 20); this.dim(sx, sy, 0.45 * (T < wind ? c01(T / 0.2) : 1 - c01((T - wind) / 0.3)), 60, 300, '20,10,4'); }
       return;
     }
-    const big = it < 0 ? pre * 0.55 : it < 0.15 ? 0.6 + (it / 0.15) * 0.65 : 1.25 - c01((it - 0.15) / 0.4) * 0.2;
-    const pulse = o.rm ? 1 : 1 + Math.sin(T * 11) * 0.06;
+    const big = it < 0 ? charge * 0.45 : it < 0.15 ? 0.55 + (it / 0.15) * 0.55 : 1.1 - c01((it - 0.15) / 0.4) * 0.2;
+    const pulse = o.rm ? 1 : 1 + Math.sin(T * 9) * 0.05;
+    const stT = o.rm ? 0.8 : T, stA = fade * (it > 0 ? 1 : 0.5);
     if (layer === 'ground') {
-      this.glow(hx, hy + HERO_FEET, (50 + big * 34) * pulse, 'rgba(255,196,60,1)', (0.4 + big * 0.35) * fade, 0.36);
-      if (it > 0 && it < 0.7) { const k = it / 0.7; this.flatRing(hx, hy + HERO_FEET, 18 + eOut(k) * 180, 14, 'rgba(255,214,90,1)', 1 - k); this.flatRing(hx, hy + HERO_FEET, 10 + eOut(c01(k * 1.3)) * 120, 8, 'rgba(255,255,230,1)', (1 - k) * 0.85); }
-      if (big > 0.02) { this.glow(hx, hy - 24, 70 * big * pulse, 'rgba(255,190,50,1)', 0.55 * fade, 1.35); this.flames(hx, hy + HERO_FEET - 4, big, fade * (it > 0 ? 1 : 0.6), o.rm ? 0.6 : T, o.busy ? 7 : 11); }
+      this.glow(hx, hy + HERO_FEET, (46 + big * 30) * pulse, 'rgba(200,120,60,1)', (0.35 + big * 0.3) * fade, 0.36); // 따뜻한 커피빛 (발밑)
+      if (it > 0 && it < 0.7) { const k = it / 0.7; this.flatRing(hx, hy + HERO_FEET, 18 + eOut(k) * 170, 13, 'rgba(190,120,60,1)', 1 - k); this.flatRing(hx, hy + HERO_FEET, 10 + eOut(c01(k * 1.3)) * 110, 7, 'rgba(255,236,206,1)', (1 - k) * 0.8); }
+      if (T > 0.08 && fade > 0) this.steam(hx, hy, stT, stA, true); // 김 뒤쪽 반
       return;
     }
     if (layer === 'mid') {
-      if (it < 0) { // 금빛 기운이 몸으로 빨려 들어감
-        cx.save(); cx.globalCompositeOperation = 'lighter';
-        for (let i = 0; i < (o.busy ? 8 : 16); i++) { const ph = (T * 1.8 + i / 16) % 1, an = i * 2.4, rr = 96 * (1 - ph); cx.globalAlpha = ph * 0.9; cx.fillStyle = i % 2 ? '#ffe07a' : '#fff4c8'; cx.beginPath(); cx.arc(hx + Math.cos(an) * rr, hy - 24 + Math.sin(an) * rr * 0.8, 2 + ph * 2.5, 0, TAU); cx.fill(); }
-        cx.restore();
-      }
-      if (it > 0 && it < 0.5) { const k = it / 0.5, w = 32 * (1 - k * 0.7); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - k; const gr = cx.createLinearGradient(hx - w, 0, hx + w, 0); gr.addColorStop(0, 'rgba(255,200,60,0)'); gr.addColorStop(0.5, 'rgba(255,248,210,1)'); gr.addColorStop(1, 'rgba(255,200,60,0)'); cx.fillStyle = gr; cx.fillRect(hx - w, -40, w * 2, hy - 56 + 40); cx.restore(); } // 위로 솟는 빛 기둥
+      if (T > 0.08 && fade > 0) this.steam(hx, hy, stT, stA, false); // 김 앞쪽 반
+      if (it > 0 && big > 0.02) this.glow(hx, hy - 30, 54 * big * pulse, 'rgba(255,200,140,1)', 0.32 * fade, 1.2); // 몸에 도는 카페인 기운
       return;
     }
     if (layer === 'top') {
-      if (it > 0 && !o.rm && !o.busy && on && Math.random() < 0.18) { const a0 = Math.random() * TAU, r0 = 26 + Math.random() * 12; this.zap(hx + Math.cos(a0) * r0, hy - 46 + Math.sin(a0) * r0, hx + Math.cos(a0) * (r0 + 22), hy - 46 + Math.sin(a0) * (r0 + 22), 4, 10, 'rgba(180,255,255,0.95)', 1.6, fade); } // 머리 주변 파지직
-      if (it > 0 && it < 0.35) { const k = it / 0.35; cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - k; cx.strokeStyle = '#fff1b0'; cx.lineWidth = 6 * (1 - k) + 1; cx.beginPath(); cx.arc(hx, hy - 26, 22 + eOut(k) * 86, 0, TAU); cx.stroke(); cx.restore(); }
+      // 머리 위 카페인 배터리 (충전 → 100% 깜빡 → 사라짐)
+      const ba = it < 0 ? c01(T / 0.12) : 1 - c01((it - 0.55) / 0.3);
+      this.battery(hx, hy - HERO_TOP - 30, charge, ba * fade, o.rm ? 0 : it > 0 ? it : 0);
+      // 풀충전 순간 튀어 오르는 원두
+      if (o.beans && it < 0.9) for (const b of o.beans) { const k = it / 0.9, d = b.sp * eOut(k) * 0.55; this.bean(hx + Math.cos(b.an) * d, hy - 30 + Math.sin(b.an) * d * 0.7 + k * k * 60, 4.2, b.rot + (o.rm ? 0 : it * 9), 1 - k); }
+      if (it > 0 && on) {
+        // 머리 위로 피어오르는 김 세 가닥 (머리가 뜨겁다)
+        const n = o.busy ? 2 : 3;
+        for (let i = 0; i < n; i++) { const ph = ((o.rm ? 0.5 : T * 0.9) + i / n) % 1, px = hx - 10 + i * 10 + Math.sin(ph * 6 + i) * 5, py = hy - HERO_TOP - 4 - ph * 34; this.glow(px, py, 7 + ph * 9, 'rgba(255,246,232,1)', (1 - ph) * 0.45 * fade, 1); }
+        // 카페인 떨림 (///) — 머리 양옆에서 번갈아
+        if (!o.rm && !o.busy) { const s = Math.floor(T * 7) % 2 ? 1 : -1; this.jitter(hx + s * 24, hy - HERO_TOP + 6, s, 0.85 * fade); }
+        // 둥둥 떠도는 원두 두 알
+        if (!o.busy) for (let i = 0; i < 2; i++) { const an = (o.rm ? 1 : T * 1.6) + i * Math.PI; this.bean(hx + Math.cos(an) * 30, hy - 26 + Math.sin(an) * 9, 3.6, an, 0.85 * fade); }
+      }
+      if (it > 0 && it < 0.35) { const k = it / 0.35; cx.save(); cx.globalAlpha = 1 - k; cx.strokeStyle = '#ffe9c8'; cx.lineWidth = 5 * (1 - k) + 1; cx.beginPath(); cx.arc(hx, hy - 26, 22 + eOut(k) * 80, 0, TAU); cx.stroke(); cx.restore(); }
     }
   }
-  ssjMark(layer, o, T0, g) {
+  can(x, y, s, rot, a, col) { // 캔커피 한 캔 (기울기 rot · col = [옆 그늘, 가운데, 띠])
+    if (a <= 0.01) return;
+    const cx = this.R.cx, w = s * 0.62, h = s;
+    cx.save(); cx.translate(x, y); cx.rotate(rot); cx.globalAlpha = c01(a);
+    const gr = cx.createLinearGradient(-w / 2, 0, w / 2, 0); gr.addColorStop(0, col[0]); gr.addColorStop(0.45, col[1]); gr.addColorStop(1, col[0]);
+    cx.fillStyle = gr; cx.beginPath(); cx.roundRect(-w / 2, -h / 2, w, h, w * 0.18); cx.fill();
+    cx.fillStyle = '#d9d4cc'; cx.fillRect(-w / 2, -h / 2, w, h * 0.1); cx.fillRect(-w / 2, h / 2 - h * 0.08, w, h * 0.08); // 위아래 알루미늄 테
+    cx.fillStyle = col[2]; cx.fillRect(-w / 2, -h * 0.12, w, h * 0.26); // 가운데 띠
+    cx.fillStyle = '#5a3214'; cx.beginPath(); cx.ellipse(0, h * 0.01, w * 0.17, w * 0.12, 0, 0, TAU); cx.fill(); // 원두 마크
+    cx.fillStyle = 'rgba(255,255,255,0.35)'; cx.fillRect(-w * 0.3, -h * 0.38, w * 0.1, h * 0.7); // 반사광
+    cx.restore();
+  }
+  cafeMark(layer, o, T0, g) {
     const T = g.t - o.st0, d = o.delay, cx = this.R.cx, x = o.x, y = o.y, r = o.r;
-    if (T > d + 0.6 || T < -0.1) { o.done = true; return; }
+    if (T > d + 0.7 || T < -0.1) { o.done = true; return; }
+    if (!o.col) o.col = CAN_COL[Math.floor(Math.random() * CAN_COL.length)];
     if (layer === 'ground') {
-      if (T < d) { // 예고: 금빛 테두리 + 안쪽이 점점 차오름 + 도는 조준 표시
-        const k = c01(T / d), bl = o.rm ? 1 : 0.75 + 0.25 * Math.sin(T * 30);
-        cx.save(); cx.translate(x, y); cx.scale(1, 0.42); cx.globalCompositeOperation = 'lighter';
-        cx.globalAlpha = 0.18 + 0.25 * k; cx.fillStyle = 'rgba(255,190,60,1)'; cx.beginPath(); cx.arc(0, 0, r * k, 0, TAU); cx.fill();
-        cx.globalAlpha = 0.85 * bl; cx.strokeStyle = 'rgba(255,220,110,1)'; cx.lineWidth = 3.5; cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.stroke();
-        cx.globalAlpha = 0.6 * bl; cx.lineWidth = 2; cx.beginPath(); for (let i = 0; i < 4; i++) { const an = i * Math.PI / 2 + (o.rm ? 0 : T * 1.5); cx.moveTo(Math.cos(an) * r * 0.55, Math.sin(an) * r * 0.55); cx.lineTo(Math.cos(an) * r * 1.15, Math.sin(an) * r * 1.15); } cx.stroke();
+      if (T < d) { // 예고: 커피 얼룩 고리 (진한 테두리 + 안쪽 크림 선) · 안쪽이 차오름 · 떨어지는 캔 그림자
+        const k = c01(T / d), bl = o.rm ? 1 : 0.8 + 0.2 * Math.sin(T * 26);
+        cx.save(); cx.translate(x, y); cx.scale(1, 0.42);
+        cx.globalAlpha = 0.16 + 0.22 * k; cx.fillStyle = 'rgba(110,62,26,1)'; cx.beginPath(); cx.arc(0, 0, r * k, 0, TAU); cx.fill();
+        cx.globalAlpha = 0.9 * bl; cx.strokeStyle = 'rgba(120,70,30,1)'; cx.lineWidth = 4; cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.stroke();
+        cx.globalAlpha = 0.55 * bl; cx.strokeStyle = 'rgba(255,226,180,1)'; cx.lineWidth = 1.6; cx.beginPath(); cx.arc(0, 0, r * 0.9, 0.3, TAU - 0.6); cx.stroke();
+        cx.globalAlpha = 0.25 + 0.35 * k; cx.fillStyle = '#140a04'; cx.beginPath(); cx.arc(0, 0, 6 + 12 * k, 0, TAU); cx.fill(); // 캔 그림자 (가까워질수록 커짐)
         cx.restore();
-      } else { // 맞은 자리: 납작한 충격 고리 · 그을음
-        const k = c01((T - d) / 0.6);
-        this.flatRing(x, y, r * (0.5 + eOut(k) * 0.9), 12, 'rgba(255,214,90,1)', 1 - k, 0.42);
-        cx.save(); cx.translate(x, y); cx.scale(1, 0.42); cx.globalAlpha = 0.35 * (1 - k); cx.fillStyle = '#2a1a08'; cx.beginPath(); cx.arc(0, 0, r * 0.55, 0, TAU); cx.fill(); cx.restore();
+      } else { // 쏟아진 자리: 커피 웅덩이 + 크림 고리
+        const k = c01((T - d) / 0.7);
+        this.flatRing(x, y, r * (0.5 + eOut(k) * 0.85), 11, 'rgba(230,180,120,1)', (1 - k) * 0.9, 0.42);
+        cx.save(); cx.translate(x, y); cx.scale(1, 0.42); cx.globalAlpha = 0.5 * (1 - k); cx.fillStyle = '#3a1e0c';
+        cx.beginPath(); for (let i = 0; i <= 12; i++) { const an = (i / 12) * TAU, rr = r * (0.5 + 0.08 * Math.sin(i * 2.7 + x)); if (i) cx.lineTo(Math.cos(an) * rr, Math.sin(an) * rr); else cx.moveTo(Math.cos(an) * rr, Math.sin(an) * rr); } cx.closePath(); cx.fill();
+        cx.restore();
       }
       return;
     }
     if (layer === 'top') {
-      const a = T < d - 0.07 ? 0 : T < d ? (T - d + 0.07) / 0.07 : 1 - c01((T - d) / 0.28);
-      if (a <= 0.01) return;
-      const top = -60, w = r * 0.42 * (T < d ? 0.6 : 1 + (T - d) * 1.5); // 하늘에서 내리꽂는 금빛 기둥 (가운데 흰 줄) + 지그재그 번개
-      cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = c01(a);
-      const gr = cx.createLinearGradient(x - w, 0, x + w, 0); gr.addColorStop(0, 'rgba(255,170,40,0)'); gr.addColorStop(0.35, 'rgba(255,200,70,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,235,1)'); gr.addColorStop(0.65, 'rgba(255,200,70,0.55)'); gr.addColorStop(1, 'rgba(255,170,40,0)');
-      cx.fillStyle = gr; cx.fillRect(x - w, top, w * 2, y - top);
-      cx.restore();
-      if (!o.rm) { this.zap(x + (Math.random() - 0.5) * 8, top, x, y, 9, 26, 'rgba(255,250,210,1)', 3, a); if (!o.busy) this.zap(x, top + 40, x + (Math.random() - 0.5) * 30, y - 10, 7, 30, 'rgba(160,240,255,0.9)', 1.6, a * 0.8); }
-      if (T >= d) { const k = c01((T - d) / 0.35); this.glow(x, y - 6, r * (0.9 + k * 0.5), 'rgba(255,224,120,1)', (1 - k) * 0.9, 0.7); this.spark(x, y - 8, r * 0.75, 'rgba(255,236,150,1)', k); }
+      const FALL = 0.32;
+      if (T < d && T > d - FALL) { // 하늘에서 떨어지는 캔 + 잔상 줄
+        const k = eIn(c01((T - (d - FALL)) / FALL)), top = -50, cyy = top + (y - 14 - top) * k, s = 26 + 6 * k;
+        cx.save(); cx.globalAlpha = 0.45 * k; cx.strokeStyle = 'rgba(255,240,220,1)'; cx.lineWidth = 2; cx.lineCap = 'round';
+        for (let i = -1; i <= 1; i++) { cx.beginPath(); cx.moveTo(x + i * 7, cyy - s * 0.6); cx.lineTo(x + i * 7, cyy - s * 0.6 - 30 - 20 * k); cx.stroke(); }
+        cx.restore();
+        this.can(x, cyy, s, o.rm ? 0.2 : 0.25 + T * 6, 1, o.col);
+      }
+      if (T >= d) { // 쾅 — 캔이 터지며 커피가 왕관 모양으로 튄다 · 크림 거품 · 김
+        const k = c01((T - d) / 0.45);
+        this.glow(x, y - 8, r * (0.7 + k * 0.4), 'rgba(255,214,170,1)', (1 - k) * 0.7, 0.7);
+        if (!o.drops) { const n = o.busy ? 6 : 11; o.drops = Array.from({ length: n }, (_, i) => ({ an: Math.PI + (i / (n - 1)) * Math.PI + (Math.random() - 0.5) * 0.25, sp: 0.6 + Math.random() * 0.5, s: 2.5 + Math.random() * 3 })); }
+        cx.save();
+        for (const p of o.drops) { const dd = r * 0.95 * p.sp * eOut(k), px = x + Math.cos(p.an) * dd, py = y - 6 + Math.sin(p.an) * dd * 0.9 + k * k * 40; cx.globalAlpha = 1 - k; cx.fillStyle = p.s > 4 ? '#e9d3b0' : '#6b3a17'; cx.beginPath(); cx.ellipse(px, py, p.s, p.s * 1.3, p.an + Math.PI / 2, 0, TAU); cx.fill(); }
+        cx.restore();
+        if (T - d < 0.12) this.can(x, y - 12, 30 * (1 + (T - d) * 3), 0, 1 - (T - d) / 0.12, o.col); // 찌그러지며 사라지는 캔
+        const sk = c01((T - d - 0.1) / 0.6); if (sk > 0 && sk < 1) for (let i = 0; i < 2; i++) this.glow(x - 10 + i * 20, y - 20 - sk * 36, 10 + sk * 12, 'rgba(255,248,236,1)', (1 - sk) * 0.4, 1); // 김
+      }
     }
   }
   // ── 김도훈: 무한 앵콜 ── 무대 조명 세 줄기가 바닥을 훑고(연출 줄이기면 가만히) · 멈춘 진상 머리 위로 떼창 음표 · "앵콜!" 함성

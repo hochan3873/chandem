@@ -1088,25 +1088,25 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.win();
         break;
       }
-      // 문동한 초사이언 포격: 변신 (기합 · 금빛 오라) → 예고 동그라미 → 하늘 번개 기둥 쾅 (skillfx.js ssj · ssjMark)
-      case 'ssjUp': {
-        SKFX.add('ssj', g, e, busy);
-        const hh = g.heroes.find((o) => o.id === 'donghan'), n = hh && hh.ssj ? hh.ssj.left : 0;
-        fx.banner('초사이언 포격!!', `금빛 머리로 변신 → 하늘에서 포격 ${n}발`, '#a8740a', 1.4, 'big', 'h_donghan_ssj');
+      // 문동한 카페인 풀충전: 커피 원샷 (눈 번쩍 · 커피 김 오라) → 예고 커피 얼룩 → 하늘에서 캔커피 쾅 (skillfx.js cafe · cafeMark)
+      case 'cafeUp': {
+        SKFX.add('cafe', g, e, busy);
+        const hh = g.heroes.find((o) => o.id === 'donghan'), n = hh && hh.cafe ? hh.cafe.left : 0;
+        fx.banner('카페인 풀충전!!', `커피 원샷 → 하늘에서 캔커피 ${n}발`, '#6b3f1f', 1.4, 'big', 'h_donghan_cafe');
         if (loud) { A.sfx.rise(); setTimeout(() => A.sfx.ult(), (e.wind || 0.9) * 450); }
         break;
       }
-      case 'ssjMark': SKFX.add('ssjMark', g, e, busy); if (loud && !busy) A.sfx.whoosh(); break;
-      case 'ssjBolt': {
+      case 'cafeMark': SKFX.add('cafeMark', g, e, busy); if (loud && !busy) A.sfx.whoosh(); break;
+      case 'cafeDrop': {
         const rm = document.body.classList.contains('rm');
         if (!rm) fx.addShake(e.n >= 3 ? 6 : 4);
-        fx.burst(e.x, e.y - 8, busy ? 5 : 12, '#ffe07a', 220, 'spark', 3.5, 0.45);
-        if (!busy) for (let k = 0; k < 6; k++) fx.part('dot', e.x + (Math.random() - 0.5) * e.r, e.y, (Math.random() - 0.5) * 160, -80 - Math.random() * 120, 0.6, 4, k % 2 ? '#fff4c8' : '#c9a24a', { grav: 420, drag: 1 });
-        if (e.n >= 3 && !busy) fx.text(e.x, e.y - 40, '쾅!', '#fff1a8', 16, 0.6, -20);
+        fx.burst(e.x, e.y - 8, busy ? 4 : 9, '#fff1dc', 200, 'spark', 3.2, 0.4); // 캔이 터지며 커피가 사방으로 (크림 거품 · 갈색 방울)
+        if (!busy) for (let k = 0; k < 9; k++) fx.part('dot', e.x + (Math.random() - 0.5) * e.r * 0.6, e.y - 6, (Math.random() - 0.5) * 220, -110 - Math.random() * 150, 0.7, 3 + (k % 3), ['#5a3214', '#8a5528', '#e9d3b0'][k % 3], { grav: 520, drag: 1 });
+        if (e.n >= 3 && !busy) fx.text(e.x, e.y - 40, '콸콸!', '#ffe2b8', 16, 0.6, -20);
         if (loud) A.sfx.explode();
         break;
       }
-      case 'ssjEnd': fx.text(e.x, e.y - 90, '후… 이제 좀 쉬자', '#c8ffe0', 13, 1.2, -16); break;
+      case 'cafeEnd': fx.text(e.x, e.y - 90, '카페인 방전… 다시 눕자', '#e8d2b0', 13, 1.2, -16); break;
       case 'moto': fx.text(e.x, e.y - 80, e.n > 1 ? '3대 500!!' : '부릉부릉!', '#ff8a4f', e.n > 1 ? 22 : 15, 1, -24); fx.addShake(e.n > 1 ? 8 : 4); if (loud) A.sfx.slam(); break;
       case 'dash': if (e.hero !== 'ara') SKFX.add('ydash', g, e, busy); else fx.part('star', e.x, e.y - 30, 0, -60, 0.4, 10, null); break; // 김영준: 박차고 나가는 흙먼지 · 잔상 줄 (skillfx.js)
       case 'slash': // 김영준 다섯 번째 베기마다: 발톱 자국 + 아주 짧은 멈칫(타격감)
@@ -1326,7 +1326,7 @@ function handleEvents(g, loud) {
       }
       case 'bus': for (const k of [0, 1]) fx.ring(e.x, e.y - 10, 10 + k * 16, 90 + k * 40, 0.45 + k * 0.15, '#ffd84a', 4 - k); fx.banner(e.big ? '2층 막차 버스!' : '막차 버스!', '이호찬: "다들 타! 집에 가자!"', '#8a6a00', 0.9, 'wave'); fx.addShake(e.big ? 8 : 5); break;
       case 'slash': R.addSlash(e.x, e.y); break;
-      case 'skillCast': { const h = g.heroes.find((x) => x.id === e.hero); if (h) skillFx(h); break; } // (문동한 초사이언 포격 연출은 'ssjUp')
+      case 'skillCast': { const h = g.heroes.find((x) => x.id === e.hero); if (h) skillFx(h); break; } // (문동한 카페인 풀충전 연출은 'cafeUp')
       case 'noMomentum': if (live) toast(e.ult ? '총공지는 기세 2칸이 필요해요' : '기세가 모자라요 — 조금 기다려요', 900); break;
       case 'skillQueued': break;
       case 'weaponEvo': fx.text(e.x, e.y - 96, '무기 진화!', '#ffd23f', 16, 1.3, -30); fx.ring(e.x, e.y - 30, 12, 60, 0.6, '#ffd23f', 4); break;
@@ -5790,7 +5790,7 @@ async function buyItemAct(id, btn) {
 
 // ─── 도감 (아군 · 악당) ──────────────────────────────
 // 인게임 캐릭터(작은 그림) — 모습이 바뀌는 멤버는 둘 다 · 정소영은 성준영까지 · 보스는 공격/분노 모습까지(있으면)
-const FORM_SPRITES = { ara: ['h_ara_old'], donghan: ['h_donghan_on', 'h_donghan_ssj'], eunok: ['h_eunok_rage'], hyungyeong: ['h_hyungyeong_slim'], jieun: ['h_jieun_demon'], youngjun: ['h_youngjun_dash'], soyoung: ['h_junyoung'], ingyu: ['h_ingyu_bike'] };
+const FORM_SPRITES = { ara: ['h_ara_old'], donghan: ['h_donghan_on', 'h_donghan_cafe'], eunok: ['h_eunok_rage'], hyungyeong: ['h_hyungyeong_slim'], jieun: ['h_jieun_demon'], youngjun: ['h_youngjun_dash'], soyoung: ['h_junyoung'], ingyu: ['h_ingyu_bike'] };
 function inGameSprites(kind, id, d) {
   if (kind === 'hero') return [d.img, ...(FORM_SPRITES[id] || []).map((n) => `/img/lb/${n}.webp`)];
   const base = d.img || `/img/lb/e_${id}.webp`;
@@ -5827,7 +5827,7 @@ const DEX_FLAVOR = {
   myunghoon: '실눈 뜬 티벳여우. 평소엔 조용한데 입을 열면 진상 셋이 한꺼번에 얼어붙는다.',
   dohoon: '노래방에서 마이크를 절대 안 놓는 남자. 앵콜이 끝나지 않는 한 랑방도 무너지지 않는다.',
   ingyu: '3대 500 헬창. 진상이 뭘 던지든 "오 근육 자극 좋다"로 받아친다.',
-  donghan: '모임 내내 소파에 누워 간만 보는 사람. 근데 "이제 좀 해볼까?" 하는 순간 한 줄이 사라진다. 진짜 진심이 되면 머리가 금빛으로 서고 하늘에서 포격이 쏟아진다.',
+  donghan: '모임 내내 소파에 누워 간만 보는 사람. 근데 "이제 좀 해볼까?" 하는 순간 한 줄이 사라진다. 커피 한 잔 원샷하면 눈이 번쩍 — 머리에서 김이 나고 하늘에서 캔커피가 쏟아진다.',
   youngjun: '검은 고양이 후드를 쓰고 파티장에 뛰어드는 전사. 뛰어든 동안엔 아무것도 안 통한다.',
   eunok: '처음엔 얌전히 홀짝홀짝. 14초쯤 뒤엔… 소주병이 날아다니기 시작한다.',
   hanna: '랑방 공식 윙크 담당. 남자 진상은 윙크 한 방에 정신 못 차리고 날아간다.',
@@ -5913,10 +5913,10 @@ function faceImgStyle(id, f = 0.24, cy = 0.36) {
   return `--fzh:${h.toFixed(1)}%;--fzy:${(cy * 100).toFixed(1)}%;--fzx:-${(fb[0] * 100).toFixed(1)}%;--fzt:-${(fb[1] * 100).toFixed(1)}%`; // 실제 배치는 CSS img.fz (다른 규칙보다 우선)
 }
 // 변신 그림 (그림을 누르면 바뀜)
-const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on', 'donghan_ssj'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
+const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on', 'donghan_cafe'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
 // 변신 모습 중 전신 그림(dexhq/<변신>.webp · thumb 포함)이 있는 것 — 그림을 넣으면 여기 이름만 추가
-const ALT_HQ_ART = new Set(['jieun_demon', 'eunok_rage', 'hyungyeong_slim', 'ara_old', 'donghan_on', 'youngjun_dash']);
-const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 빔', donghan_ssj: '초사이언', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
+const ALT_HQ_ART = new Set(['jieun_demon', 'eunok_rage', 'hyungyeong_slim', 'ara_old', 'donghan_on', 'donghan_cafe', 'youngjun_dash']);
+const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 빔', donghan_cafe: '카페인 풀충전', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
 const DEX_ANIM = { dragon: 'flame', subin: 'sway', baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
 function dexAnim(kind, d, id) {
