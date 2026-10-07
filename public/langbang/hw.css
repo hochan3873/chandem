@@ -314,3 +314,11 @@ body.rm .hw-intro .hi-css *, body.rm .hw-intro .hi-title { animation: none !impo
 .hp-sig b { font-size: 13px; font-weight: 900; color: #ffd27a; }
 .hp-sig small { font-size: 11px; color: #f2e6ff; line-height: 1.4; }
 .hp-sig em { align-self: flex-start; font-style: normal; font-weight: 900; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 210, 122, 0.2); color: #ffd27a; }
+/* (10/08) 대장 = 덱 1번 (합류 모드: 대장 혼자 시작) · 서포터 대장 경고 */
+.hp-slot.lead { border-color: #ffd23f; box-shadow: 0 0 10px rgba(255, 210, 63, 0.45); }
+.hp-slot .hp-crown { position: absolute; bottom: -8px; font-style: normal; font-size: 8.5px; font-weight: 900; padding: 1px 5px; border-radius: 99px; background: #ffd23f; color: #3a2400; white-space: nowrap; }
+.hp-leadwarn { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 10px; border-radius: 12px; border: 2px solid #ff6a5a; background: rgba(255, 74, 90, 0.16); }
+.hp-leadwarn span { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hp-leadwarn b { font-size: 12px; font-weight: 900; color: #ffd27a; line-height: 1.3; }
+.hp-leadwarn small { font-size: 10.5px; color: #f2e6ff; line-height: 1.35; }
+.hp-leadwarn .hw-mini { flex: none; }
