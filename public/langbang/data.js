@@ -868,7 +868,15 @@ export function recommendAttrs(s) {
 // attr: 속성, attack: 기본 공격 한 줄 설명, skill: 액티브 스킬 (스킬 바에서 누른다)
 // 그림 준비 상태: 아직 없는 그림은 요청하지 않는다 (404 없게) — 그림이 들어오면 여기 이름만 추가
 const ART_READY = new Set(['h_jungmin', 'h_junyoung', 'h_soyoung', 'h_jieun', 'h_jieun_demon', 'h_sanghwa', 'h_dragon']);
-const ART = (n) => (ART_READY.has(n) ? `/img/lb/${n}.webp` : '');
+// 그림을 새로 바꾼 파일: 주소 끝에 ?v= 를 붙여 폰에 저장(캐시)된 옛 그림 대신 새로 받게 한다
+//  바뀐 파일만 적는다 (전부 붙이면 배포마다 모두 다시 받아서 전송량이 폭증) · 다시 바꾸면 숫자를 올린다
+export const ART_VER = {
+  h_subin: 2, h_subin_attack: 2, 'dex/subin': 2, 'dexhq/subin': 2, 'dexhq/thumb/subin': 2,
+  h_donghan_attack: 2, h_eunok_attack: 2, e_boss_bestman_attack: 2, e_boss_bestman_skill: 2, e_boss_bestman_rage: 2,
+};
+export const artV = (u) => { const m = typeof u === 'string' && /^\/img\/lb\/([^?]+)\.webp$/.exec(u); return m && ART_VER[m[1]] ? `${u}?v=${ART_VER[m[1]]}` : u; };
+const ART = (n) => (ART_READY.has(n) ? artV(`/img/lb/${n}.webp`) : '');
+for (const a of [HERO_ANIM, HERO_ANIM_FORM]) for (const k of Object.keys(a)) if (a[k] && a[k].src) a[k].src = artV(a[k].src); // 공격 띠도 바뀐 것만 ?v=
 // 새 히든 멤버 이름 (바꾸려면 여기 한 곳만)
 export const DRAGON_NAME = '박나영';
 export const NO_DEX_ART = new Set([]); // dex/<id>.webp 없음
@@ -1187,6 +1195,7 @@ export const HEROES = {
   },
 };
 // 소환 멤버 (덱 · 모집 · 도감 목록에는 없다): 정소영이 부르는 성준영
+for (const h of Object.values(HEROES)) for (const k of ['img', 'imgAlt', 'imgOn', 'imgRage']) if (h[k]) h[k] = artV(h[k]); // 새로 그린 그림은 ?v= (ART_VER)
 for (const [id, s] of Object.entries(KD_SUP)) if (HEROES[id]) HEROES[id].supTip = s.tip; // 서포터 전문 (멤버 정보에 보여 준다)
 export const SUMMONS = {
   junyoung: {

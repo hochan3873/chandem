@@ -1,7 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, WEAPON } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, WEAPON, artV } from './data.js';
 // 효과 종류: 빛(더하기 섞기) · 물건(보통) · 층 · 색 · 맞은 자리 표시
 const VFX_KIND = {
   soundring: { blend: 'lighter', layer: 'front' },
@@ -363,7 +363,7 @@ export class Renderer {
     }
     // 한꺼번에 수백 장을 요청하면 브라우저가 거절한다 (ERR_INSUFFICIENT_RESOURCES) → 16장씩 차례로
     let on = 0;
-    const pump = () => { while (on < 16 && q.length) { const [im, src] = q.shift(); on++; const done = () => { on--; pump(); }; im.addEventListener('load', done, { once: true }); im.addEventListener('error', done, { once: true }); im.src = src; } };
+    const pump = () => { while (on < 16 && q.length) { const [im, src] = q.shift(); on++; const done = () => { on--; pump(); }; im.addEventListener('load', done, { once: true }); im.addEventListener('error', done, { once: true }); im.src = artV(src); } };
     this.imgQ = q; this.imgPump = pump;
     pump();
   }
@@ -386,7 +386,7 @@ export class Renderer {
         cur[kd] = kd === 'walk' ? { src: `/img/lb/e_${id}_walk.webp`, frames: 12, fps: 10 } : kd === 'die' ? { src: `/img/lb/e_${id}_die.webp`, frames: 8, fps: 14, hold: ENEMIES[id].boss ? 0.3 : 0.15 } : { src: `/img/lb/e_${id}_attack.webp`, frames: 8, release: 3 };
         const key = `anim_${id}_${kd}`;
         if (this.images[key]) continue;
-        const img = new Image(); img.decoding = 'async'; img.src = cur[kd].src; this.images[key] = img;
+        const img = new Image(); img.decoding = 'async'; img.src = artV(cur[kd].src); this.images[key] = img;
       }
     }
     // 각성 · 합체 진상은 일반 진상 그림을 빌려 쓴다 → 걷기 · 쓰러짐 · 공격 띠도 같이 빌린다 (예전엔 각성 꼰대만 미끄러지듯 움직였다)

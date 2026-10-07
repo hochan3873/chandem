@@ -12,6 +12,7 @@ import {
   COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
+  artV,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -3364,7 +3365,7 @@ function showMembers() {
   `, 'dim withnav');
 }
 // ─── 그림 카드: 멤버 목록 · 가방 · 덱에서 공용 (dexhq 썸네일, 상반신 · 티어 테두리 · 두 모습이면 번갈아) ───
-const thumbSrc = (id, duo) => (NO_HQ_ART.has(id) ? (HEROES[id] || SUMMONS[id] || {}).img || '' : `/img/lb/dexhq/thumb/${id}${duo ? '_duo' : ''}.webp`);
+const thumbSrc = (id, duo) => (NO_HQ_ART.has(id) ? (HEROES[id] || SUMMONS[id] || {}).img || '' : artV(`/img/lb/dexhq/thumb/${id}${duo ? '_duo' : ''}.webp`));
 function artCard(id, o = {}) {
   const d = HEROES[id];
   const p = P();
@@ -5793,7 +5794,7 @@ const FORM_SPRITES = { ara: ['h_ara_old'], donghan: ['h_donghan_on', 'h_donghan_
 function inGameSprites(kind, id, d) {
   if (kind === 'hero') return [d.img, ...(FORM_SPRITES[id] || []).map((n) => `/img/lb/${n}.webp`)];
   const base = d.img || `/img/lb/e_${id}.webp`;
-  return d.boss ? [base, `/img/lb/e_${id}_skill.webp`, `/img/lb/e_${id}_rage.webp`] : [base];
+  return d.boss ? [base, artV(`/img/lb/e_${id}_skill.webp`), artV(`/img/lb/e_${id}_rage.webp`)] : [base];
 }
 const igChip = (list, cls = '') => `<span class="ig-chip ${cls}"><small>인게임</small><span class="ig-row">${list.map((src, i) => `<img src="${src}" alt="" draggable="false" style="--d:${i * 0.35}s" onerror="this.remove()">`).join('')}</span></span>`;
 const DEX_ENEMIES = () => Object.keys(ENEMIES).filter((id) => !ENEMIES[id].dot && !ENEMIES[id].towerOnly); // (탑 전용 보스는 도감 밖)
@@ -5934,8 +5935,8 @@ const DEX_FX = {
 // 도감 그림: 큰 그림(dex/) → 없으면 원래 그림
 const DUO_HEROES = ['ara', 'eunok', 'donghan', 'hyungyeong', 'youngjun', 'soyoung', 'jieun', 'junseo'];
 const hasDuo = (id) => DUO_HEROES.includes(id) && !NO_DUO_ART.has(id);
-const hqSrc = (id) => (NO_HQ_ART.has(id) ? (NO_DEX_ART.has(id) ? (HEROES[id] || {}).img || '' : `/img/lb/dex/${id}.webp`) : `/img/lb/dexhq/${id}.webp`);
-const dexSrc = (id, fb) => (NO_DEX_ART.has(id) ? fb || '' : `/img/lb/dex/${id}.webp`);
+const hqSrc = (id) => artV(NO_HQ_ART.has(id) ? (NO_DEX_ART.has(id) ? (HEROES[id] || {}).img || '' : `/img/lb/dex/${id}.webp`) : `/img/lb/dexhq/${id}.webp`);
+const dexSrc = (id, fb) => (NO_DEX_ART.has(id) ? fb || '' : artV(`/img/lb/dex/${id}.webp`));
 function dexImg(id, fb, cls = '') {
   const src = dexSrc(id, fb);
   if (!src) return `<span class="dx-art dx-emo ${cls}">${esc((HEROES[id] || ENEMIES[id] || {}).emoji || '')}</span>`;
@@ -6179,7 +6180,7 @@ function dexPageHtml(kind, id, form, duo) {
       ? `<img class="dx-art hq duo" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false" onerror="this.onerror=null;this.classList.remove('duo');this.src='/img/lb/dexhq/${id}.webp'">`
       : hasDuo(id) && ok && (!cur || cur === id)
         ? `<span class="dx-swap"><img class="dx-art hq half ha" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false" onerror="this.parentNode.outerHTML='<img class=&quot;dx-art hq&quot; src=&quot;/img/lb/dexhq/${id}.webp&quot; alt=&quot;&quot;>'"><img class="dx-art hq half hb" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false"></span>`
-        : `<img class="dx-art hq" src="/img/lb/dexhq/${id}.webp" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/dex/${id}.webp';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`)
+        : `<img class="dx-art hq" src="${artV(`/img/lb/dexhq/${id}.webp`)}" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/dex/${id}.webp';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`)
     : dexArt(d, id, cur);
   const fb = DEX_FACE[id] || [0.48, 0.09, 0.15];
   const faces = ''; // 얼굴 확대 칸은 없앴다 (멤버마다 들쭉날쭉 · 주먹·병이 잘려 '컵 두 개'처럼 보였다) — 큰 그림이 그 자리까지 채운다
