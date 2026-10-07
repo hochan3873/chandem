@@ -1392,7 +1392,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.goodsOn = false; e.goodsT = 0; e.owner = 0; e.sleeping = false; e.slept = false; e.sleepHits = 0; e.homed = false; e.enraged = false; e.clingTo = null;
   e.gaoOn = !!def.gao; e.flashT = def.flash ? 2 + g.rng() * 2 : 0; e.vaulted = false; e.jumpT = 0; e.latteOffT = 0;
   e.spamT = def.spam ? 3 + g.rng() * 3 : 0; e.flexT = 0; e.puddleT = 0;
-  e.kneelT = def.kneel ? def.kneel.every * 0.5 : 0; e.duckT = def.duck ? 2 : 0; e.feastT = def.feast ? def.feast.every * 0.6 : 0;
+  e.kneelT = def.kneel ? def.kneel.every * 0.5 : 0; e.kneelW = 0; e.kneelH = null; e.duckT = def.duck ? 2 : 0; e.feastT = def.feast ? def.feast.every * 0.6 : 0;
   e.rumorT = def.rumor ? 1 + g.rng() * 1.5 : 0;
   e.dictT = 0; e.dictCut = 0; e.dictKb = 1; e.dictSpd = 1; e.packN = 0; e.kbAge = 99; e.kbMul = 1; e.kbMinY = -1e9;
   e.form = def.scam ? 'pretty' : null; e.formT = def.scam ? def.scam.prettySec * (0.8 + g.rng() * 0.4) : 0; e.nextForm = null;
@@ -1565,7 +1565,13 @@ function bossBrain(g, e, dt) {
     return;
   }
   if (e.y < 60 || e.stunT > 0 || e.avaW > 0 || e.quietW > 0 || e.speechT > 0 || e.hurryW > 0) return; // (7장 회장 눈사태 · 펜션 사장님 소음 금지 예고 중엔 다른 기술 안 씀)
-  if (!b.p2 && e.hp < e.maxHp * (kit.rageAt || 0.5)) { b.p2 = true; e.spdMul *= 1.25; e.atk *= 1.2; if (b.st === 'walk' && kit.everyP2) b.next = Math.min(b.next, kit.everyP2[1]); ev(g, b.mid ? 'midRage' : 'bossRage', { x: e.x, y: e.y - e.def.size * 0.7, name: kit.name, sub: kit.rageSub, type: e.type }); }
+  if (!b.p2 && e.hp < e.maxHp * (kit.rageAt || 0.5)) {
+    b.p2 = true; e.spdMul *= 1.25; e.atk *= 1.2; if (b.st === 'walk' && kit.everyP2) b.next = Math.min(b.next, kit.everyP2[1]);
+    // (10/08 진상 감사) 옛 분노(enrage · 헬 보스 분노)가 같은 체력에서 겹치면 한 번에 — 예전엔 배너 두 장이 같은 순간에 겹쳐 떴다
+    const en = e.def.enrage || (g.hell && e.boss ? HELL.bossEnrage : null), both = !!(en && !e.enraged && e.hp < e.maxHp * en.at);
+    if (both) { e.enraged = true; e.spdMul *= en.speed; e.atk *= en.atk; }
+    ev(g, b.mid ? 'midRage' : 'bossRage', { x: e.x, y: e.y - e.def.size * 0.7, name: kit.name, sub: kit.rageSub, type: e.type, title: both ? en.text : '' });
+  }
   if ((b.roar -= dt) <= 0) { // 포효: 날아가던 공격을 지우고 곁의 부하에게 보호막
     b.roar = BOSS_AI.roar;
     g.projs = g.projs.filter((p) => Math.hypot(p.x - e.x, p.y - e.y) > 220);
@@ -1711,7 +1717,7 @@ function killEnemy(g, e, src) {
     g.base.hp += back;
     ev(g, 'debtFree', { x: e.x, y: e.y, v: Math.round(back) });
   }
-  if (def.splitInto) for (let k = 0; k < def.splitInto.n; k++) { const c = spawnEnemy(g, def.splitInto.type, clamp(e.x + (k - (def.splitInto.n - 1) / 2) * 24, 16, g.W - 16), e.y - 6); c.stopY = e.stopY; ev(g, 'split', { x: e.x, y: e.y, type: def.splitInto.type }); }
+  if (def.splitInto) for (let k = 0; k < def.splitInto.n; k++) { const c = spawnEnemy(g, def.splitInto.type, clamp(e.x + (k - (def.splitInto.n - 1) / 2) * 24, 16, g.W - 16), e.y - 6); c.stopY = e.stopY; ev(g, 'split', { x: e.x, y: e.y, into: def.splitInto.type }); }
   if (def.praise) { const mate = g.enemies.find((o) => !o.dead && o.type === def.praise.pair && Math.abs(o.x - e.x) < 200 && !o.praiseRage); if (mate) { mate.praiseRage = true; mate.atk *= def.praise.rageAtk; mate.spdMul *= def.praise.rageSpd; ev(g, 'praiseRage', { x: mate.x, y: mate.y - 40 }); } }
   extraKill(g, e, src);
   ev(g, 'kill', { x: e.x, y: e.y, enemy: e.type, boss: e.boss });
@@ -1924,16 +1930,24 @@ function updateEnemies(g, dt) {
       }
     }
     // 인피 행동대장: "무릎 꿇어!" 멤버 1명 기절
+    //  (10/08 진상 감사) 예고 없이 바로 기절 → 0.8초 예고(노린 멤버 발밑 표적 · 몸 젖히기) 뒤 기절 · 예고 중 기절 · 밀치기로 끊긴다
     if (on(e, 'kneel') && e.y > 60) {
-      e.kneelT -= dt;
-      if (e.kneelT <= 0) {
-        e.kneelT = def.kneel.every;
-        const hs = g.heroes.filter((h) => h.stunT <= 0);
-        if (hs.length) {
-          const h = victim(g, hs);
-          h.stunT = Math.max(h.stunT, debuffSec(h, def.kneel.stun, 'stun'));
-          ev(g, 'kneel', { hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y });
-          bossWeak(g, e);
+      if (e.kneelW > 0) {
+        e.kneelW -= dt; e.castW = Math.max(0, e.kneelW);
+        if (e.stunT > 0 || e.frozenT > 0 || (e.kbv || 0) < -40) { e.kneelW = 0; e.kneelH = null; e.castW = 0; e.weakT = Math.max(e.weakT || 0, ECAST.breakWeak); ev(g, 'castBreak', { x: e.x, y: e.y - def.size * 0.6, uid: e.uid, boss: true, name: '무릎 꿇어!' }); }
+        else if (e.kneelW <= 0) {
+          const h = e.kneelH && !e.kneelH.gone ? e.kneelH : null; e.kneelH = null; e.castW = 0;
+          if (h) { h.stunT = Math.max(h.stunT, debuffSec(h, def.kneel.stun, 'stun')); ev(g, 'kneel', { hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y }); bossWeak(g, e); }
+        }
+      } else {
+        e.kneelT -= dt;
+        if (e.kneelT <= 0) {
+          e.kneelT = def.kneel.every;
+          const hs = g.heroes.filter((h) => h.stunT <= 0 && !h.gone);
+          if (hs.length) {
+            const h = victim(g, hs); e.kneelH = h; e.kneelW = 0.8; e.castW = 0.8;
+            ev(g, 'castWind', { x: e.x, y: e.y - def.size * 0.6, hx: h.x, hy: h.y, hero: h.id, sec: 0.8, kind: 'kneel', st: 'stun', uid: e.uid, big: true, name: '"무릎 꿇어!"' });
+          }
         }
       }
     }
@@ -2328,7 +2342,9 @@ function updateNewEnemy(g, e, dt) {
   // 솔로파티: 디스코볼(모두 홀림) · 꽃가루(눈부심)
   if (d.disco && e.y > 40) {
     e.discoT -= dt;
+    if (e.discoT <= 1 && !e.discoWarn && e.discoT > 0) { e.discoWarn = true; ev(g, 'discoWind', { x: e.x, y: e.y - d.size * 0.7, sec: e.discoT }); } // (10/08 진상 감사) 예고 없이 전원 홀림 → 1초 전 미러볼 예고
     if (e.discoT <= 0) {
+      e.discoWarn = false;
       e.discoT = d.disco.every * (e.enraged ? 0.75 : 1);
       const g5 = g.heroes.find((x) => x.id === 'gunnyeo' && x.lv >= 5);
       if (!g5) for (const h of g.heroes) { const sc = debuffSec(h, d.disco.charm * g.mods.charmMul, 'charm'); if (sc > 0) h.charmT = Math.max(h.charmT, sc); }

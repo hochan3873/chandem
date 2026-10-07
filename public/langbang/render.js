@@ -1564,7 +1564,7 @@ export class Renderer {
         const ease = 1 - (1 - f) * (1 - f);
         const rot = c.dir * ease * 1.4, sq = 1 - ease * 0.12;
         this.tf(c.x + c.dir * ease * box * 0.12, feet - slide, rot, 1 + ease * 0.05, sq);
-        cx.drawImage(c.boss && a < 0.2 ? sp.f : sp.c, -box / 2, -box * FEET, box, box);
+        cx.drawImage(sp.c, -box / 2, -box * FEET, box, box); if (c.boss && a < 0.2 && sp.f) { const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - a / 0.2) * 0.8; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalAlpha = a0; } // (10/08) 보스 쓰러짐 번쩍: 흰 실루엣 대신 원래 그림 위로 옅어지게 (느린 화면에서 흰 덩어리로 오래 남던 것)
       }
       if (alpha < 1 && Math.random() < 0.15) this.fx.part('puff', c.x + (Math.random() - 0.5) * box * 0.5, feet - 8, 0, -30, 0.5, 6, 'rgba(230,220,255,0.5)');
     }
@@ -1664,7 +1664,7 @@ export class Renderer {
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
       const dancing = e.danceT > 0 && e.stunT > 0 && g.onemanT > 0;
       if (dancing) { const b = t * 4.4 + e.phase * 0.7, beat = Math.abs(Math.sin(b)); bob = -beat * box * 0.1; rot = Math.sin(b) * 0.22; sy = 1 - (1 - beat) * 0.08; sx = (1 / sy) * (Math.sin(b * 0.25 + e.phase) > 0 ? 1 : -1); } // 강병화 원맨쇼: 박자 맞춰 좌우로 흔들 · 통통 · 가끔 뒤돌기
-      const runA = e.fleeing && e.env && !(e.flash > 0) && !(e.tieT > 0) && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].run, runS = runA && this.images[`anim_${e.type}_run`]; // 8장 축의금 도둑: 뒤돌아 달아나는 뒷모습 띠
+      const runA = e.fleeing && e.env && !(e.tieT > 0) && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].run, runS = runA && this.images[`anim_${e.type}_run`]; // 8장 축의금 도둑: 뒤돌아 달아나는 뒷모습 띠
       if (e.fleeing) { if (!(runS && imgOk(runS))) sx = -sx; bob = e.tieT > 0 ? 0 : -Math.abs(Math.sin(e.age * 18)) * 5; }
       if (e.tieT > 0) rot = Math.sin(t * 14 + e.phase) * 0.06; // 묶여서 버둥버둥
       if (e.def.hw) { // 할로윈 진상 몸짓 (hw-sim): 강시 콩콩 (뻣뻣 · 착지 찌그러짐) · 좀비 다시 일어나기 (누웠다가 벌떡)
@@ -1751,63 +1751,66 @@ export class Renderer {
       if (fz) {
         const a = this.sprites['e_' + fz[0]], b = this.sprites['e_' + fz[1]];
         const bw = box * 0.8;
-        if (b) { this.tf(e.x + box * 0.2, feet + bob, rot, sx, sy); cx.drawImage(e.flash > 0 ? b.f : b.c, -bw / 2, -bw * FEET, bw, bw); }
-        if (a) { this.tf(e.x - box * 0.2, feet + bob, -rot, sx, sy); cx.drawImage(e.flash > 0 ? a.f : a.c, -bw / 2, -bw * FEET, bw, bw); }
+        if (b) { this.tf(e.x + box * 0.2, feet + bob, rot, sx, sy); cx.drawImage(b.c, -bw / 2, -bw * FEET, bw, bw); if (e.flash > 0) { cx.globalAlpha = 0.6; cx.drawImage(b.f, -bw / 2, -bw * FEET, bw, bw); cx.globalAlpha = 1; } }
+        if (a) { this.tf(e.x - box * 0.2, feet + bob, -rot, sx, sy); cx.drawImage(a.c, -bw / 2, -bw * FEET, bw, bw); if (e.flash > 0) { cx.globalAlpha = 0.6; cx.drawImage(a.f, -bw / 2, -bw * FEET, bw, bw); cx.globalAlpha = 1; } }
       } else {
         this.tf(e.x, feet + bob, rot, sx, sy);
-        const img = e.flash > 0 ? sp.f : g.hell || g.tower ? this.hellSprite(sp) : sp.c; // 헬 · 진상의 탑: 붉은 빛을 미리 구운 그림 (그리기 1번)
+        const img = g.hell || g.tower ? this.hellSprite(sp) : sp.c; // 헬 · 진상의 탑: 붉은 빛을 미리 구운 그림 (그리기 1번)
+        // (10/08 진상 감사) 맞을 때 번쩍: 예전엔 0.09초 동안 몸 전체를 흰 실루엣으로 바꾸고 걷기 · 공격 띠도 끊겨서, 계속 맞는 진상이 하얗게 깜빡이며 미끄러졌다 → 띠는 그대로 · 같은 칸을 더하기로 한 번 더 (밝게 번쩍)
+        const drawFr = (im, sx0, sy0, sw, sh, dx, dy, dw, dh) => { cx.drawImage(im, sx0, sy0, sw, sh, dx, dy, dw, dh); if (e.flash > 0) { const a0 = cx.globalAlpha; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a0 * 0.6; cx.drawImage(im, sx0, sy0, sw, sh, dx, dy, dw, dh); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = a0; } };
         const hid = e.def.traits && e.def.traits.stealth && !e.unveiled;
         if (hid) cx.globalAlpha = 0.22 + Math.sin(t * 5 + e.phase) * 0.06; // 은신: 흐릿하게
         if (e.hwGhost) cx.globalAlpha = 0.16 + Math.abs(Math.sin(t * 7 + e.phase)) * 0.14; // 할로윈 귀신 유령화: 거의 투명 · 깜빡
         if (e.hwBat > 0) cx.globalAlpha = 0; // 드라큘라 박쥐 변신: 몸은 안 보이고 박쥐 떼(hw-fx)만
-        const pk = def.puke && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].puke, pstrip = pk && this.images[`anim_${e.type}_puke`]; // 토하는 인간: 웩 동작 띠 (구부림 → 쏟음 → 입 닦기)
+        const pk = def.puke && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].puke, pstrip = pk && this.images[`anim_${e.type}_puke`]; // 토하는 인간: 웩 동작 띠 (구부림 → 쏟음 → 입 닦기)
         let pfi = -1;
         if (pstrip && imgOk(pstrip)) {
           const lead = pk.lead || 0.4, rel = pk.release || 3, after = (def.puke.every - e.pukeT) * (pk.fps || 10);
           if (e.pukeT < lead && e.y > g.ropeY - def.puke.reach && g.heroes.length) pfi = Math.min(rel - 1, Math.floor((1 - e.pukeT / lead) * rel)); // 토하기 직전: 몸을 숙이고 꿀렁
           else if (after >= 0 && after < (pk.frames || 8) - rel) pfi = rel + Math.floor(after); // 쏟은 뒤: 웩 → 입 닦기
         }
-        const aa = e.atRope && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack; // 입구 공격 프레임 띠 (있으면)
+        const aa = e.atRope && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack; // 입구 공격 프레임 띠 (있으면)
         const astrip = aa && this.images[`anim_${e.type}_attack`];
-        const an = moving && !e.flash && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].walk; // 보스 기술·분노 그림이 뜨는 동안은 그 그림
+        const an = moving && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].walk; // 보스 기술·분노 그림이 뜨는 동안은 그 그림
         const strip = an && this.images[`anim_${e.type}_walk`];
-        const spA = e.speechT > 0 && !e.flash && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack, spS = spA && this.images[`anim_${e.type}_attack`]; // 8장 축사: 공격 띠(금빛 테두리 축사 루프)를 계속
+        const spA = e.speechT > 0 && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack, spS = spA && this.images[`anim_${e.type}_attack`]; // 8장 축사: 공격 띠(금빛 테두리 축사 루프)를 계속
         if (runS && imgOk(runS) && key === 'e_' + e.type) {
           const fh = runS.naturalHeight, n = runA.frames || 12, fw = runS.naturalWidth / n;
           const fi = Math.floor(e.age * (runA.fps || 14) + e.phase * 3) % n;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('er_' + e.type, runS, n, idle.c) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet + bob, 0, 1, 1);
-          cx.drawImage(runS, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+          drawFr(runS, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (spS && imgOk(spS)) {
           const fh = spS.naturalHeight, n = spA.frames || 8, fw = spS.naturalWidth / n;
           const fi = Math.floor(t * 7) % n;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ea_' + e.type, spS, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet, 0, 1, 1);
-          cx.drawImage(spS, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+          drawFr(spS, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (e.brkT > 0 && !(e.flash > 0)) cx.drawImage(this.mosaicSprite(sp), -box / 2, -box * FEET, box, box); // 여지원 「모자이크」: 몸 전체를 큰 네모로 깨뜨린 그림 (한 번 구워 두고 재사용 · 띠 대신)
         else if (pfi >= 0) {
           const fh = pstrip.naturalHeight, n = pk.frames || 8, fw = pstrip.naturalWidth / n;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ep_' + e.type, pstrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet, 0, 1, 1);
-          cx.drawImage(pstrip, pfi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+          drawFr(pstrip, pfi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (astrip && imgOk(astrip)) {
           const fh = astrip.naturalHeight, n = aa.frames || Math.max(1, Math.round(astrip.naturalWidth / fh)), fw = astrip.naturalWidth / n, rel = Math.min(n - 1, aa.release || 3);
           const fi = e.hitT > 0 ? Math.min(n - 1, rel + Math.floor((1 - e.hitT / 0.25) * (n - rel))) : e.atkCd > 0 && e.atkCd < 0.3 ? Math.floor((1 - e.atkCd / 0.3) * rel) : 0;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ea_' + e.type, astrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet, 0, 1, 1);
-          cx.drawImage(astrip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+          drawFr(astrip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (strip && imgOk(strip)) { // 프레임 띠 걷기: 코드 들썩임 대신 그림 칸을 넘긴다
           const fh = strip.naturalHeight, n = an.frames || Math.max(1, Math.round(strip.naturalWidth / fh)), fw = strip.naturalWidth / n;
           const fi = Math.floor(e.age * (an.fps || 10) * Math.max(0.6, e.speed / 50) + e.phase * 3) % n;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit('ew_' + e.type, strip, n, idle.c) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet, 0, 1, 1);
-          cx.drawImage(strip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
+          drawFr(strip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (e.bai && e._skb > 0.02 && e._skb < 0.98 && this.sprites[baseKey] && this.sprites[e._lvk]) {
           const b0 = e._skb, s0 = this.sprites[baseKey], s1 = this.sprites[e._lvk];
-          cx.globalAlpha = 1 - b0; cx.drawImage(e.flash > 0 ? s0.f : s0.c, -box / 2, -box * FEET, box, box);
-          cx.globalAlpha = b0; cx.drawImage(e.flash > 0 ? s1.f : s1.c, -box / 2, -box * FEET, box, box);
+          cx.globalAlpha = 1 - b0; cx.drawImage(s0.c, -box / 2, -box * FEET, box, box);
+          cx.globalAlpha = b0; cx.drawImage(s1.c, -box / 2, -box * FEET, box, box);
           cx.globalAlpha = 1;
-        } else cx.drawImage(img, -box / 2, -box * FEET, box, box);
+          if (e.flash > 0 && s0.f) { cx.globalAlpha = 0.6; cx.drawImage(s0.f, -box / 2, -box * FEET, box, box); cx.globalAlpha = 1; }
+        } else { cx.drawImage(img, -box / 2, -box * FEET, box, box); if (e.flash > 0 && sp.f) { const a0 = cx.globalAlpha; cx.globalAlpha = a0 * 0.62; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalAlpha = a0; } } // 정지 그림: 원래 그림 위에 흰 실루엣을 반투명으로 (얼굴 · 옷이 비친다)
         // 기술 준비: 몸에 보스 색 빛 (더하기 섞기로 한 겹 더 — 스티커처럼 얹지 않게)
         if ((e.bwind > 0 || e.windup > 0) && sp.f) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.14 + Math.sin(t * 18) * 0.1; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; }
         if (hid) cx.globalAlpha = 1;

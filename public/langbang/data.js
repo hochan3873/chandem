@@ -378,7 +378,7 @@ export const STAGE = {
   hpTune: [1.0, 1.4, 1.9, 1.15, 0.62, 0.45], // (5·6장: 강화 12~16 덱 기준으로 다시 맞춤 — 전엔 5-1부터 벽) // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
   // (11~60: 2026-10 덱 구성 개편 뒤 'node scripts/lb-balance.js stagecalib' 로 균형 덱(조건 맞춤) 기준 다시 맞춤)
-  stageAdd: {3: 2.5, 4: 6.5, 5: 2.5, 6: 2.06, 7: 1, 8: 3.6, 9: 2.7, 10: 2.25, 11: 4.21, 12: 4.76, 13: 6.08, 14: 8.37, 15: -8.25, 16: 3.99, 17: 1.8, 18: 1.75, 19: 2.34, 20: 1.89, 21: 3.25, 22: -0.19, 23: 7.05, 24: 2.29, 25: -1.94, 26: 1.22, 27: 3.86, 28: -0.96, 29: -4.78, 30: -3.81, 31: -2.38, 32: -0.57, 33: -1.22, 34: -4.19, 35: 5.88, 36: -3.39, 37: 6.25, 38: -0.81, 39: -2.25, 40: -7.47, 41: -1.19, 42: 6.69, 43: 4.06, 44: -5.31, 45: 4.63, 46: 4.19, 47: 9.56, 48: -3.69, 49: -5.69, 50: 2.63, 51: -3.5, 52: 8.04, 53: 1.31, 54: -10.69, 55: 3.46, 56: -9.85, 57: -2.31, 58: 2.5, 59: -1.5, 60: 0.39}, // 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  stageAdd: {3: 2.5, 4: 6.5, 5: 2.5, 6: 2.06, 7: 1, 8: 3.6, 9: -0.11, 10: 3.97, 11: 4.21, 12: 4.76, 13: 6.08, 14: 8.37, 15: -8.25, 16: 3.99, 17: 1.8, 18: 1.75, 19: 2.34, 20: 2.51, 21: 3.25, 22: -1.28, 23: 7.05, 24: 2.29, 25: -1.94, 26: 1.22, 27: 3.86, 28: -3.62, 29: -4.78, 30: -3.81, 31: -5.19, 32: -0.57, 33: -1.22, 34: -4.19, 35: 5.88, 36: -3.39, 37: 6.25, 38: -0.81, 39: -2.25, 40: -7.47, 41: -1.19, 42: 3.57, 43: 4.06, 44: -5.31, 45: 4.63, 46: 4.19, 47: 7.06, 48: -3.69, 49: -5.69, 50: 2.63, 51: -3.5, 52: 8.04, 53: -1.97, 54: -10.69, 55: 3.46, 56: -8.29, 57: -3.25, 58: 2.5, 59: -1.5, 60: 0.39}, // (10/08 진상 감사 재보정: 1-9 · 1-10 · 2-10 · 3-2 · 3-8 · 4-1 · 5-2 · 5-7 · 6-3 · 6-6 · 6-7) 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   augAdd: 2, // 증강(1·3·4웨이브)이 생겨서 진상도 그만큼 조금 세게
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
@@ -394,13 +394,13 @@ BAL.chHp[7] = CH7.chHp; JOIN.hp[6] = CH7.joinHp; TEMPO.hellCh[6] = CH7.hellCh;
 // ── 8장 결혼식 뒤풀이: 난이도 숫자 (이 블록만 8장 · 7장과 같은 틀) — scripts/lb-balance.js ch8 로 대충 맞춘 값 (전체 재계산은 stagecalib 로) ──
 //   thief: 축의금 도둑이 위로 달아나면 이번 판 스테이지 코인 −per (최대 −cap) — 서버 server/langbang-rules.js THIEF 와 같아야 한다 (테스트가 검사)
 export const CH8 = { chapterAdd: 4, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 1.0, /* (0.8 → 1.0: 8장 앞쪽은 레벨 가드레일에 닿아서 체력으로) */ joinHp: 2.6, hellCh: 0.43, /* (0.49 → 0.43: 10/07 대개편 뒤 헬 8장 28% → 50%대) */
-  stageAdd: { 71: 1.42, 72: 1.32, 73: -7.06, 74: 1.05, 75: -6.5, 76: 0.63, 77: -6.19, 78: -1.57, 79: -0.63, 80: -7.88 }, waveAdd: [-4, -2, 0, -1.5, 1],
+  stageAdd: { 71: 1.42, 72: 1.32, 73: -10.18, 74: 1.05, 75: -6.5, 76: 0.63, 77: -7.44, 78: -1.57, 79: -0.63, 80: -7.88 }, waveAdd: [-4, -2, 0, -1.5, 1],
   thief: { per: 0.08, cap: 0.4 }, rushSpd: 1.3, rushAtk: 1.4 };
 STAGE.chapterAdd[7] = CH8.chapterAdd; STAGE.bossStage[8] = CH8.boss; STAGE.deckHp[7] = CH8.deckHp; STAGE.hpTune[7] = CH8.hpTune; STAGE.swarm[7] = CH8.swarm;
 Object.assign(STAGE.stageAdd, CH8.stageAdd);
 STAGE.waveAdd[8] = CH8.waveAdd;
 // 스테이지별 진상 체력 배율 — 레벨 가드레일에 걸려 레벨로 더 못 올리는 판만 (8-9: 약 90% 로 너무 쉬웠음)
-export const STAGE_HPX = { 6: 1.35, 14: 1.3, 15: 6.5, 23: 1.3, 47: 1.1, 71: 1.27, 74: 1.15, 79: 2.2 }; // 진상 체력 배수 (스테이지별): 1-6 · 2-5 는 너무 쉬워서 (2-5 는 보스까지 순식간이라 크게) · 8-9 상향 · (10/07 대개편 맞춤: 2-4 · 5-7 · 8-1 · 8-9 는 가드레일에 닿아 체력으로)
+export const STAGE_HPX = { 6: 1.35, 14: 1.3, 15: 6.5, 23: 1.3, 47: 1.1, 71: 1.27, 74: 1.15, 76: 1.15, 79: 2.2 }; // (10/08 8-6 1.15: 가드레일에 닿아 체력으로) 진상 체력 배수 (스테이지별): 1-6 · 2-5 는 너무 쉬워서 (2-5 는 보스까지 순식간이라 크게) · 8-9 상향 · (10/07 대개편 맞춤: 2-4 · 5-7 · 8-1 · 8-9 는 가드레일에 닿아 체력으로)
 BAL.chHp[8] = CH8.chHp; JOIN.hp[7] = CH8.joinHp; TEMPO.hellCh[7] = CH8.hellCh;
 // 축의금 도둑: 도망간 수 → 코인 깎이는 비율 (8% 씩 · 최대 40%)
 export const thiefCut = (n) => Math.min(CH8.thief.cap, CH8.thief.per * Math.max(0, Math.floor(Number(n) || 0)));
@@ -1515,7 +1515,7 @@ export const ENEMIES = {
   fakesingle: {
     id: 'fakesingle', cls: 'seduce', name: '미혼인 척 돌싱남', gender: 'm', emoji: '🕶️', color: '#8fb3ff',
     img: '/img/lb/e_fakesingle.webp', hp: 60, speed: 46, atk: 6, atkInterval: 1.2, exp: 4, r: 17, size: 76, charm: 'f',
-    fake: { at: 0.45, evade: 0.3, speed: 1.6 }, // "저 싱글이에요~" 잘 피하다가, 중간쯤 "사실 돌싱!" 들키면 막 뛴다
+    fake: { at: 0.45, evade: 0.3, speed: 1.4 }, // (10/08 진상 감사: 4장 진 판 입구 피해 40% — 들킨 뒤 속도 1.6→1.4) // "저 싱글이에요~" 잘 피하다가, 중간쯤 "사실 돌싱!" 들키면 막 뛴다
     shouts: ['저 싱글이에요~', '연락처 교환?', '반지 자국은… 그냥 점', '사실은…'],
   },
   secretmom: {
@@ -1567,7 +1567,7 @@ export const ENEMIES = {
   },
   drunk_run: {
     id: 'drunk_run', cls: 'violent', name: '주사: 뛰는 진상', gender: 'f', emoji: '🏃‍♀️', color: '#ff7a4f',
-    img: '/img/lb/e_drunk_run.webp', hp: 45, speed: 86, atk: 6, atkInterval: 1.1, exp: 4, r: 16, size: 72, zigzag: 90, erratic: true,
+    img: '/img/lb/e_drunk_run.webp', hp: 45, speed: 82, atk: 5, atkInterval: 1.1, exp: 4, r: 16, size: 72, zigzag: 70, erratic: true, // (10/08 진상 감사: 6장 진 판 입구 피해의 62% · 쓰러짐 36% 를 혼자 — 공격 6→5 · 속도 86→82 · 갈지자 폭 90→70 으로 덜 빠지게)
     shouts: ['꺄아아~!', '2차 가자!!', '나 잡아 봐라~', '신난다!'],
   },
   drunk_sleep: {
@@ -2607,12 +2607,12 @@ BOSS_KITS.boss_bestman = { name: '신랑 친구 대표', rageSub: '친구들 무
 const HW_IMG = (id) => `/img/lb/hw/e_${id}.webp`;
 Object.assign(ENEMIES, {
   hw_zombie: { id: 'hw_zombie', cls: 'jerk', name: '좀비 회식러', gender: 'm', emoji: '🧟', color: '#8fbf7a', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_zombie'), hp: 70, speed: 26, atk: 8, atkInterval: 1.3, exp: 5, coin: 2, r: 17, size: 78, zigzag: 14,
+    img: HW_IMG('hw_zombie'), anims: ['walk', 'die'], hp: 70, speed: 26, atk: 8, atkInterval: 1.3, exp: 5, coin: 2, r: 17, size: 78, zigzag: 14,
     spit: { name: '트림 독가스', every: [12, 15], first: 6, reach: 260, kind: 'puke', st: 'poison', sec: 2, fly: 0.6 },
     hw: { revive: { sec: 2, hp: 0.6 } }, // 쓰러지면 2.2초 뒤 체력 45% 로 다시 일어난다 (한 번) — 화상 · 검열 · 장미 표식이 붙은 채로 쓰러지거나 · 일어나는 동안 때리면 끝
     shouts: ['한 자안… 더어…', '3차… 가자아…', '부장님… 건배애…', '고기… 타요오…'] },
   hw_pumpkin: { id: 'hw_pumpkin', cls: 'violent', name: '호박머리 진상', gender: 'm', emoji: '🎃', color: '#ff8a1f', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_pumpkin'), hp: 90, speed: 36, atk: 9, atkInterval: 1.2, exp: 5, coin: 2, r: 17, size: 78,
+    img: HW_IMG('hw_pumpkin'), anims: ['walk', 'die'], hp: 90, speed: 36, atk: 9, atkInterval: 1.2, exp: 5, coin: 2, r: 17, size: 78,
     kick: { name: '호박 폭탄', every: 9, first: 1.2, wind: 1.4, mul: 2.2, hit: 10, from: 0 }, selfBoom: true, // 입구 앞에서 1.4초 도화선 → 펑! (입구 ×2.2 · 곁 멤버 게이지 · 터지면 자기도 쓰러짐 → 호박씨) — 도화선 동안 기절 · 밀치기로 끊긴다
     hw: { split: { type: 'hw_seed', n: 2 } }, splitInto: { type: 'hw_seed', n: 2 }, // 쓰러지면 호박씨 둘 (sim killEnemy splitInto)
     shouts: ['트릭 오어 트릿!', '펑 하고 싶다~', '호박 아님, 패션임', '불 좀 빌려 줘'] },
@@ -2620,16 +2620,16 @@ Object.assign(ENEMIES, {
     img: HW_IMG('hw_seed'), hp: 10, speed: 100, atk: 2, atkInterval: 1, exp: 1, coin: 0, r: 10, size: 44,
     shouts: ['씨!', '퉤!'] },
   hw_bat: { id: 'hw_bat', cls: 'jerk', name: '박쥐 알바', gender: 'm', emoji: '🦇', color: '#7a4fb0', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_bat'), hp: 16, speed: 76, atk: 2, atkInterval: 0.9, exp: 1, coin: 1, r: 12, size: 60, zigzag: 26,
+    img: HW_IMG('hw_bat'), anims: ['walk', 'die'], hp: 16, speed: 76, atk: 2, atkInterval: 0.9, exp: 1, coin: 1, r: 12, size: 60, zigzag: 26,
     pack: { min: 3, max: 5 }, hw: { drain: { per: 0.0025, heal: 0.6 } }, // 입구에 붙으면 피를 빤다 (입구 초당 0.25% · 그만큼 자기 회복)
     shouts: ['찍찍!', '시급 올려 주세요', '사장님 지켜!'] },
   hw_ghost: { id: 'hw_ghost', cls: 'politic', name: '처녀귀신 단톡방장', gender: 'f', emoji: '👻', color: '#cfe8ff', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_ghost'), hp: 60, speed: 40, atk: 5, atkInterval: 1.1, exp: 4, coin: 2, r: 15, size: 80,
+    img: HW_IMG('hw_ghost'), anims: ['walk', 'die'], hp: 60, speed: 40, atk: 5, atkInterval: 1.1, exp: 4, coin: 2, r: 15, size: 80,
     spit: { name: '단톡 초대', every: [11, 14], first: 5, reach: 300, kind: 'rumor', st: 'silence', sec: 2.2, fly: 0.6, hit: 6 }, // 예고 뒤 단톡 초대 → 스킬 침묵 (정소영 · 강병화 · 강성구 곁)
     hw: { phase: { every: 7, sec: 2.6, spd: 1.45 } }, // 7초마다 2.2초 유령화: 안 보이고 · 안 맞고 · 빨리 미끄러진다 (운영진 · 건전남 · 배현경이 찾아낸다)
     shouts: ['왜 읽고 답이 없어…', '단톡방 나가지 마…', '1 안 없어져…', '초대했어…'] },
   hw_witch: { id: 'hw_witch', cls: 'seduce', name: '마녀 다단계', gender: 'f', emoji: '🧙', color: '#a05cff', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_witch'), hp: 62, speed: 32, atk: 6, atkInterval: 1.2, exp: 5, coin: 3, r: 16, size: 82, standoff: 150,
+    img: HW_IMG('hw_witch'), anims: ['walk', 'die'], hp: 62, speed: 32, atk: 6, atkInterval: 1.2, exp: 5, coin: 3, r: 16, size: 82, standoff: 150,
     spit: { name: '다단계 영입 윙크', every: [9, 12], first: 4, reach: 330, kind: 'glow', st: 'charm', sec: 2.2, fly: 0.6 }, // 예고 뒤 홀림 (정소영이 있으면 면역)
     hw: { brew: { every: 8, r: 190, frac: 0.2 } }, // 9초마다 건강 물약: 곁 진상 체력 12% 회복 (방깎 · 화상 · 고아라가 회복을 막는다)
     shouts: ['한 병이면 인생 역전!', '하부만 세 명 데려와~', '언니만 믿어', '부업 관심 있어요?'] },
