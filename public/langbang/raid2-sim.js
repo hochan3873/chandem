@@ -30,7 +30,7 @@ export const PAT = {
   // ── 요일 패턴 ──
   meter: { wind: 1.7, sec: 7, dps: 0.014, gap: 1.6 }, // 월: 관리비 계량기 — 입구에 붙어 sec 동안 초당 dps (수리로 메울 수 있게 금은 적게)
   bomb: { wind: 2.3, pct: 0.11, r: 95, knock: 45, gap: 2.4 }, // 월: 고지서 폭탄 — 입구 가운데 큰 원
-  stamp: { n: [3, 4, 4], fuse: 1.3, r: 36, stun: 2.8, knock: 30, step: 0.18 }, // 화: 도장 폭격 — 멤버 발밑
+  stamp: { n: [3, 4, 4], fuse: 1.3, r: 36, stun: 2.8, knock: 40, step: 0.18 }, // 화: 도장 폭격 — 멤버 발밑
   contract: { wind: 2.4, seal: 4.0, stunN: 2, stun: 2.6, pct: 0.03, gap: 2.2 }, // 화: 재계약 강요 — 모두 봉인 + 둘 기절
   raise: { wind: 2.0, add: 0.12, max: 0.6, cutDrop: 0.12, gap: 1.8 }, // 수: 월세 인상 — 황금 갑옷 (방어율) 한 겹
   leak: { n: [2, 3, 3], fuse: 1.4, r: 40, poison: 6, slow: 0.3, step: 0.25, pool: 4 }, // 목: 천장 누수 — 오수 (독 · 느림)
@@ -38,7 +38,7 @@ export const PAT = {
   rush: { n: [5, 6, 7], warn: 1.1, hp: 1.1, speed: 1.5, atk: 2.5, crash: 0.045 }, // crash: 입구에 처음 닿으면 쾅 (입구 최대의 %) — 감속 · 기절 · 밀침으로 늦추면 덜 닿는다, // 금: 외제차 폭주 — 화살표 예고 뒤 빠른 진상
   tow: { wind: 1.9, stun: 3.0, knock: 60, pct: 0.04, gap: 2.0 }, // 금: 견인 갈고리 — 멤버 하나
   ticket: { n: [2, 3, 3], sec: 6, cut: 0.35 }, // 금: 주차 딱지 — 공격 속도 −35%
-  noise: { wind: 1.8, charm: 7.5, fear: 3.0, gap: 1.6 }, // 토: 민원 확성기 — 한쪽 홀림
+  noise: { wind: 1.8, charm: 9, fear: 3.0, knock: 0, gap: 1.6 }, // 토: 민원 확성기 — 한쪽 홀림 (10/08: 7.5 → 9초 · 더 자주 — 정소영 면역 차이 키움 · knock: 홀린 멤버 게이지, 쓰러지면 오히려 홀림이 풀려서 0)
   broom: { wind: 1.7, fear: 4.0, knock: 30, pct: 0.03, gap: 2.2 }, // 토: 빗자루 쓸기 — 한쪽 공포 (공속 ↓)
   vault: { sec: 9, frac: 7, dps: 0.012, pct: 0.07, gap: 1.6 }, // 일: 보증금 금고 — 보호막 (팀 피해 frac 초어치) · 열린 동안 입구 흡수 · 못 깨면 꿀꺽
 };
@@ -387,7 +387,7 @@ function land(g, a) {
       let ok = false;
       if (a.k === 'sweep') { knock(g, h, P.knock); ok = stunHero(g, h, P.stun); }
       else if (a.k === 'broom') { knock(g, h, P.knock); ok = afflict(g, h, 'fear', P.fear) > 0; }
-      else { ok = afflict(g, h, 'charm', P.charm) > 0; afflict(g, h, 'fear', P.fear); }
+      else { ok = afflict(g, h, 'charm', P.charm) > 0; afflict(g, h, 'fear', P.fear); if (ok) knock(g, h, P.knock); }
       if (ok) hit.push({ x: h.x, y: h.y });
     }
     g.events.push({ type: a.k === 'sweep' ? 'r2Sweep' : 'r2Side', k: a.k, side: a.side, x: a.x, y: g.rowY, hits: hit });

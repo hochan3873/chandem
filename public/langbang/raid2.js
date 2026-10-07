@@ -108,7 +108,7 @@ export const DAYS = {
   sat: { id: 'sat', dw: 6, short: '토', name: '소음 민원 할머니', color: '#c77dff', sub: '"쿵쿵대지 마! 경비실에 다 말할 거야!"',
     gimmick: '민원 확성기로 멤버를 홀리고 (공격 멈춤) 빗자루로 쓸어 겁줘요', counter: '홀림 면역 (정소영) · 해제', need: 'charm', st: ['홀림', '공포'],
     rec: ['soyoung', 'gunnyeo', 'hanna', 'hyungyeong', 'dohoon'],
-    pats: { noise: [7, 7, 8], broom: [4, 4, 4], seal: [2, 2, 2], slam: [3, 3, 3], bills: [3, 3, 3], combo: [0, 0, 3] } },
+    pats: { noise: [9, 9, 10], broom: [4, 4, 4], seal: [2, 2, 2], slam: [3, 3, 3], bills: [3, 3, 3], combo: [0, 0, 3] } },
   sun: { id: 'sun', dw: 0, short: '일', name: '보증금 꿀꺽 대마왕', color: '#ff2d45', sub: '"보증금? 그런 거 원래 없었어~"',
     gimmick: '보증금 금고로 피해를 빨아들이고, 요일 패턴을 전부 섞어 써요', counter: '골고루 (해제 · 수리 · 방깎)', need: 'mixed', st: ['기절', '홀림', '독'],
     rec: ['gunnyeo', 'jungmin', 'jiwon', 'dohoon'],
