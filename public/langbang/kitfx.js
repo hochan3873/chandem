@@ -10,6 +10,8 @@ const c01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const eOut = (k) => 1 - (1 - k) * (1 - k);
 const imgOk = (im) => !!(im && im.complete && im.naturalWidth > 0);
 const CAST_MS = 700;
+const rmOn = () => typeof document !== 'undefined' && !!document.body && document.body.classList.contains('rm'); // 연출 줄이기
+const rnd = (a, b) => a + Math.random() * (b - a);
 
 // 스킬 시전 동작: 멤버마다 다른 몸짓 (k = 0→1 · 0.7초) — dx · dy · 기울기 · 가로 · 세로 배율
 const POSE = {
@@ -59,6 +61,8 @@ export class KitFx {
     return { dx: o.dx || 0, dy: o.dy || 0, rot: o.rot || 0, sx: o.sx === undefined ? 1 : o.sx, sy: o.sy === undefined ? 1 : o.sy };
   }
 
+  // 박나영: 급강하로 하늘에 있는 동안 · 돌아오는 동안은 자리 그림을 숨긴다 (render.js drawHeroes)
+  diveHidden(g, h) { return (g.zones || []).some((z) => z.kind === 'dive' && z.hero === h && z.t > 0) || (!!h._diveHomeT && this.now() < h._diveHomeT && h._diveHomeT - this.now() < 1); }
   onEvent(g, e, busy) {
     if (g !== this.g) { this.list.length = 0; this.g = g; }
     const fx = this.fx;
@@ -68,7 +72,11 @@ export class KitFx {
       case 'ringOut': this.add('ring', { x: e.x, y: e.y, R: e.R, dur: e.T + 0.15 }); break;
       case 'chant': fx.text(e.x, e.y - 96, '떼창!', '#c9a3ff', 18, 1.1); for (const h of g.heroes) this.add('chant', { h, dur: 1.2 }); if (e.fixed) fx.text(e.fx, e.fy - 80, '해제!', '#9dffb0', 13, 0.9); break;
       case 'clockTick': if (!busy) fx.ring(e.x, e.y, e.r * 0.3, e.r, 0.3, '#d6c2ff', 3); break;
-      case 'breath': this.add('breath', { x: e.x, y: e.y, a: e.a, half: e.half, r: e.r, dur: 0.42 }); if (!busy) for (let i = 0; i < 10; i++) { const a = e.a + (Math.random() - 0.5) * e.half * 2, s = e.r * (1.2 + Math.random()); fx.part('flame', e.x, e.y, Math.cos(a) * s, Math.sin(a) * s, 0.4, 9 + Math.random() * 6, Math.random() < 0.5 ? '#ff8a2a' : '#ffd23f', { drag: 2 }); } break;
+      case 'breath': { // 박나영 불 뿜기: 박나뇽 입에서 실제 부채꼴 끝까지 (그림은 d_breath · 불티 · 끝 연기)
+        const h = g.heroes.find((q) => q.id === e.hero && !q.gone) || null;
+        this.add('breath', { h, x: e.x, y: e.y, a: e.a, half: e.half, r: e.r, dur: 0.45, seed: Math.random() * 8, rm: rmOn(), busy, smoked: false });
+        break;
+      }
       case 'quake': this.add('quake', { x: e.x, y: e.y, x2: e.x2, y2: e.y2, w: e.w, dur: 0.7 }); fx.addShake(3); if (!busy) for (let i = 0; i < 8; i++) { const k = Math.random(); fx.part('dot', e.x + (e.x2 - e.x) * k, e.y + (e.y2 - e.y) * k, (Math.random() - 0.5) * 80, -80 - Math.random() * 80, 0.5, 4, '#b98a5a', { grav: 400 }); } break;
       case 'spotlight': this.add('spot', { x: e.x, y: e.y, r: e.r, hx: e.hx, hy: e.hy, dur: 0.6 }); break;
       case 'jmSwing': this.add('swing', { x: e.x, y: e.y, r: e.r, arc: e.arc, dur: 0.28 }); break;
@@ -94,8 +102,27 @@ export class KitFx {
       case 'tapeBreak': fx.burst(e.x, e.y, 14, '#ffffff', 160, 'shard', 4, 0.5, 300); fx.text(e.x, e.y - 20, '붕대 끊어짐!', '#ffd0d0', 12, 0.8); break;
       case 'danceFloor': fx.banner('스핀 스포트라이트!', '박자마다 리본으로 휘감기 · 마지막에 피루엣', '#8a3ac0', 1.0, 'wave'); break;
       case 'beat': if (e.kind === 'floor') { fx.ring(e.x, e.y, e.r * 0.2, e.r, 0.35, e.last ? '#ffffff' : '#e3b8ff', e.last ? 6 : 3); if (e.last) { fx.addShake(5); fx.text(e.x, e.y - e.r * 0.6, '피루엣!', '#ffe6ff', 18, 0.9); } } break;
-      case 'diveUp': this.add('diveup', { x: e.x, y: e.y, tx: e.tx, ty: e.ty, r: e.r, dur: e.air || 0.75 }); break;
-      case 'diveLand': fx.blast(e.x, e.y, e.r * 1.3, 'fire'); fx.ring(e.x, e.y, 10, e.r * 1.4, 0.5, '#ff8a2a', 7); fx.addShake(9); fx.text(e.x, e.y - 30, '쾅!!', '#ffd23f', 20, 0.9); for (let i = 0; i < (busy ? 6 : 16); i++) { const a = Math.random() * TAU, s = 120 + Math.random() * 160; fx.part('flame', e.x, e.y, Math.cos(a) * s, Math.sin(a) * s * 0.5, 0.6, 12, i % 2 ? '#ff8a2a' : '#ffd23f', { drag: 3 }); } break;
+      case 'diveUp': { // 박나영 급강하: 박나뇽이 하늘로 솟구친다 → (그림자 예고) → 표적으로 내리꽂힘 — 시간은 sim 장판(z.t)에 맞춘다 (×2 배속에서도 딱 맞게)
+        const z = (g.zones || []).filter((q) => q.kind === 'dive' && Math.abs(q.x - e.tx) < 0.5 && Math.abs(q.y - e.ty) < 0.5).pop() || null;
+        const h = z && z.hero ? z.hero : g.heroes.find((q) => q.id === 'dragon');
+        this.add('dive', { h, z, x: e.x, y: e.y + 24, tx: e.tx, ty: e.ty, r: e.r, dur: 4, rm: rmOn() });
+        if (!busy) for (let i = 0; i < 6; i++) { const a = Math.PI + (i / 5) * Math.PI; fx.part('puff', e.x + Math.cos(a) * 14, e.y + 26, Math.cos(a) * 70, -10 - Math.random() * 20, 0.5, 7, 'rgba(225,210,190,0.75)', { drag: 3 }); } // 날갯짓 흙먼지
+        fx.ring(e.x, e.y + 26, 6, 40, 0.35, '#ffd9a0', 3);
+        break;
+      }
+      case 'diveLand': { // 쾅: 섬광 · 충격파 · 불덩이 · 바깥으로 튀는 불꽃 혀 · 파편 · 불티 · 연기 (불꽃 고리는 장판 fire ring)
+        const rm = rmOn(), few = busy || rm;
+        this.add('boomg', { x: e.x, y: e.y, r: e.r, dur: 0.75, rm });
+        this.add('boom', { x: e.x, y: e.y, r: e.r, dur: 0.7, rm, seed: Math.random() * TAU });
+        fx.flash('#ffd9a0', rm ? 0.08 : 0.18); if (!rm) fx.addShake(7);
+        fx.text(e.x, e.y - 30, '쾅!!', '#ffd23f', 20, 0.9);
+        for (let i = 0; i < (few ? 5 : 11); i++) { const a = -Math.PI * Math.random(), s = rnd(140, 300); fx.part('shard', e.x + rnd(-10, 10), e.y, Math.cos(a) * s, Math.sin(a) * s * 1.1 - 60, rnd(0.5, 0.8), rnd(4, 7), i % 3 ? '#5a3a24' : '#8a6a4a', { grav: 820, drag: 0.6 }); } // 땅 파편
+        for (let i = 0; i < (few ? 6 : 16); i++) { const a = Math.random() * TAU, s = rnd(120, 280); fx.part('ember', e.x + Math.cos(a) * 10, e.y + Math.sin(a) * 5, Math.cos(a) * s, Math.sin(a) * s * 0.55 - 80, rnd(0.45, 0.9), rnd(1.6, 2.6), null, { grav: -60, drag: 2.2 }); } // 불티
+        if (!few) for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU; fx.part('smoke', e.x + Math.cos(a) * e.r * 0.5, e.y + Math.sin(a) * e.r * 0.22 - 10, Math.cos(a) * 30, -28 - Math.random() * 20, rnd(0.9, 1.3), rnd(14, 20), null, { drag: 1.2 }); }
+        const h = g.heroes.find((q) => q.id === 'dragon' && !q.gone);
+        if (h && !(g.zones || []).some((q) => q.kind === 'dive' && q.hero === h && q.t > 0)) { h._diveHomeT = this.now() + 0.42; this.add('divehome', { h, x: e.x, y: e.y, dur: 0.42 }); } // 쌍둥이 급강하가 남았으면 아직 안 돌아간다
+        break;
+      }
       case 'jumpUp': this.add('ramp', { x: e.x, y: e.y, tx: e.tx, ty: e.ty, r: e.r, dur: e.air || 0.7 }); break;
       case 'jumpLand': fx.ring(e.x, e.y, 10, e.r * 1.3, 0.45, '#bfe8ff', 6); fx.burst(e.x, e.y, busy ? 6 : 16, '#ffffff', 220, 'puff', 8, 0.55); fx.addShake(7); fx.text(e.x, e.y - 34, '팬클럽 총출동!', '#7ad0ff', 16, 0.9); fx.banner('총출동 5초!', '마음껏 탭해서 타세요 · 지나간 길은 빙판', '#2f8ac8', 0.9, 'wave'); break;
       case 'boardChain': fx.text(e.x, e.y, `콤보 ${e.n}!`, '#7ad0ff', 13 + Math.min(6, e.n), 0.8); break;
@@ -145,13 +172,8 @@ export class KitFx {
         cx.strokeStyle = '#d6c2ff'; cx.lineWidth = 3; cx.stroke();
         for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; cx.beginPath(); cx.moveTo(Math.cos(a) * z.r * 0.78 * up, Math.sin(a) * z.r * 0.78 * up); cx.lineTo(Math.cos(a) * z.r * 0.92 * up, Math.sin(a) * z.r * 0.92 * up); cx.stroke(); }
         const ha = -Math.PI / 2 + Math.floor(now * 2) * (TAU / 12); cx.lineWidth = 4; cx.strokeStyle = '#fff'; cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(Math.cos(ha) * z.r * 0.7 * up, Math.sin(ha) * z.r * 0.7 * up); cx.stroke();
-      } else if (z.kind === 'fire') { // 박나영: 불 바닥 (급강하 자리는 불꽃 고리)
-        R.tf(z.x, z.y + 6, 0, 1, 0.5); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.7 * fade;
-        const gr = cx.createRadialGradient(0, 0, z.ring ? z.r * 0.6 : 0, 0, 0, z.r);
-        gr.addColorStop(0, z.ring ? 'rgba(255,120,30,0)' : 'rgba(255,200,60,0.9)'); gr.addColorStop(0.7, 'rgba(255,110,20,0.65)'); gr.addColorStop(1, 'rgba(255,60,0,0)');
-        cx.fillStyle = gr; cx.beginPath(); cx.arc(0, 0, z.r * (1 + Math.sin(now * 14 + z.x) * 0.04), 0, TAU); cx.fill();
-        cx.globalCompositeOperation = 'source-over';
-        if (Math.random() < 0.35) { const a = Math.random() * TAU, rr = z.r * (z.ring ? 0.8 + Math.random() * 0.2 : Math.random()); this.fx.part('flame', z.x + Math.cos(a) * rr, z.y + Math.sin(a) * rr * 0.5, 0, -50, 0.45, 8 + Math.random() * 6, Math.random() < 0.5 ? '#ff8a2a' : '#ffd23f'); }
+      } else if (z.kind === 'fire') { // 박나영: 불 바닥 · 급강하 불꽃 고리 (그을린 자국 + 일렁이는 불빛 + 불꽃 혀)
+        this.drawFireZone(z, now, fade, age);
       } else if (z.kind === 'iceline') { // 송바울 총출동: 지나간 길이 빙판
         R.world(); cx.globalAlpha = 0.7 * fade; cx.lineCap = 'round';
         cx.strokeStyle = 'rgba(190,235,255,0.55)'; cx.lineWidth = z.w * 2; cx.beginPath(); cx.moveTo(z.x, z.y + 8); cx.lineTo(z.x2, z.y2 + 8); cx.stroke();
@@ -178,10 +200,8 @@ export class KitFx {
         cx.fillStyle = z.p && z.p.fire ? '#ff6a3a' : '#5fd27a'; cx.fillRect(-4, -16, 8, 18); cx.fillRect(-2, -22, 4, 6);
         R.tf(z.x, z.y + 4, 0, 1, 0.45); cx.strokeStyle = '#ffd23f'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, 18, -Math.PI / 2, -Math.PI / 2 + TAU * c01(z.t / z.max)); cx.stroke();
         if (Math.random() < 0.6) this.fx.part('spark', z.x + 6, z.y - 22, (Math.random() - 0.5) * 60, -40 - Math.random() * 40, 0.25, 3, '#ffd23f');
-      } else if (z.kind === 'dive') { // 박나영 급강하: 떨어질 자리 그림자 · 경고 고리
-        R.tf(z.x, z.y + 6, 0, 1, 0.45); cx.globalAlpha = 0.35 + 0.45 * k;
-        cx.fillStyle = 'rgba(40,10,0,0.5)'; cx.beginPath(); cx.arc(0, 0, z.r * (0.3 + 0.7 * k), 0, TAU); cx.fill();
-        cx.strokeStyle = '#ff8a2a'; cx.lineWidth = 3; cx.setLineDash([8, 6]); cx.beginPath(); cx.arc(0, 0, z.r, 0, TAU); cx.stroke(); cx.setLineDash([]);
+      } else if (z.kind === 'dive') { // 박나영 급강하 예고: 커지는 그림자 · 빨라지는 경고 고리 · 도는 점선 · 모여드는 화살표
+        this.drawDiveMark(z, now, k);
       } else if (z.kind === 'drift') { // 백인규 할리 드리프트: 원을 그리며 도는 할리 + 연기 고리
         const el = z.max - z.t; if (el < z.go) continue;
         const a = (el - z.go) * 9;
@@ -192,6 +212,65 @@ export class KitFx {
         if (Math.random() < 0.5) this.fx.part('puff', bx, by + 8, (Math.random() - 0.5) * 40, -20, 0.5, 9, 'rgba(220,220,230,0.7)');
       }
     }
+  }
+  // 박나영 불 바닥 (z.ring = 급강하 불꽃 고리): 그을린 자국 · 일렁이는 불빛 · 깊이 순서로 세운 불꽃 혀
+  drawFireZone(z, now, fade, age) {
+    const cx = this.cx, R = this.R, im = R.images.dr_flame, gf = R.projSprites.glowFire, rm = rmOn();
+    const seed = z._seed || (z._seed = Math.random() * 100), up = eOut(c01(age / 0.3)), fl = rm ? 1 : 0.85 + 0.15 * Math.sin(now * 13 + seed) * Math.sin(now * 7.3 + seed * 2);
+    R.tf(z.x, z.y + 6, 0, 1, 0.45); cx.globalAlpha = 0.55 * fade;
+    const sc = cx.createRadialGradient(0, 0, z.ring ? z.r * 0.55 : 0, 0, 0, z.r * 1.08);
+    sc.addColorStop(0, z.ring ? 'rgba(45,14,6,0)' : 'rgba(45,14,6,0.75)'); sc.addColorStop(0.7, 'rgba(35,12,6,0.45)'); sc.addColorStop(1, 'rgba(30,10,5,0)');
+    cx.fillStyle = sc; cx.beginPath(); cx.arc(0, 0, z.r * 1.08, 0, TAU); cx.fill(); // 그을린 자국
+    if (gf) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = (z.ring ? 0.42 : 0.6) * fade * fl * up; const rr = z.r * 1.35; cx.drawImage(gf.c, -rr, -rr, rr * 2, rr * 2); cx.globalCompositeOperation = 'source-over'; } // 일렁이는 불빛
+    if (z.ring) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * fade * fl; cx.strokeStyle = 'rgba(255,140,40,0.9)'; cx.lineWidth = 6; cx.beginPath(); cx.arc(0, 0, z.r * 0.92, 0, TAU); cx.stroke(); cx.strokeStyle = 'rgba(255,230,160,0.9)'; cx.lineWidth = 2; cx.stroke(); cx.globalCompositeOperation = 'source-over'; } // 달아오른 고리 선
+    if (!imgOk(im)) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.6 * fade; cx.fillStyle = 'rgba(255,120,30,0.5)'; cx.beginPath(); cx.arc(0, 0, z.r, 0, TAU); cx.fill(); cx.globalCompositeOperation = 'source-over'; return; }
+    if (!z._pts) { // 불꽃 혀 자리 (한 번 정해 두고 다시 쓴다) — 뒤(위)부터 그리게 정렬
+      const n = z.ring ? (rm ? 9 : 16) : (rm ? 4 : 7), pts = [];
+      for (let i = 0; i < n; i++) {
+        let a, d; if (z.ring) { a = (i / n) * TAU + rnd(-0.12, 0.12); d = z.r * rnd(0.86, 0.98); } else { a = Math.random() * TAU; d = z.r * Math.sqrt(Math.random()) * 0.78; }
+        pts.push({ dx: Math.cos(a) * d, dy: Math.sin(a) * d * 0.45, s: rnd(0.75, 1.2), ph: Math.random() * 8, sp: rnd(12, 17) });
+      }
+      z._pts = pts.sort((p, q) => p.dy - q.dy);
+    }
+    const fw = im.naturalWidth / 8, fh = im.naturalHeight, H0 = z.ring ? Math.min(40, z.r * 0.42) : Math.min(40, z.r * 0.9);
+    for (const p of z._pts) {
+      const hgt = H0 * p.s * up * (0.82 + 0.18 * Math.sin(now * 6 + p.ph * 3)) * (0.6 + 0.4 * fade), fi = Math.floor(now * p.sp + p.ph) % 8;
+      R.tf(z.x + p.dx, z.y + 6 + p.dy, 0, 1, 1); cx.globalAlpha = Math.min(1, fade * 1.4);
+      cx.drawImage(im, fi * fw, 0, fw, fh, -hgt * 0.33, -hgt * 0.96, hgt * 0.67, hgt);
+    }
+    if (!rm && Math.random() < (z.ring ? 0.45 : 0.22) * fade) { const p = z._pts[(Math.random() * z._pts.length) | 0]; this.fx.part('ember', z.x + p.dx, z.y + p.dy - 10, rnd(-20, 20), rnd(-120, -60), rnd(0.5, 0.9), rnd(1.4, 2.2), null, { drag: 1.5 }); }
+    if (!rm && Math.random() < 0.05 * fade) this.fx.part('smoke', z.x + rnd(-z.r, z.r) * 0.6, z.y - 20, rnd(-8, 8), -30, 1.1, 10, null, { drag: 0.8 });
+  }
+  // 박나영 급강하 예고 (바닥): 떨어질수록 진해지는 그림자 · 빨라지는 경고 고리 · 모여드는 화살표 · 끝에 달아오르는 바닥
+  drawDiveMark(z, now, k) {
+    const cx = this.cx, R = this.R, r = z.r, rm = rmOn(), sh = 0.2 + 0.8 * k * k;
+    R.tf(z.x, z.y + 6, 0, 1, 0.45);
+    const gr = cx.createRadialGradient(0, 0, 0, 0, 0, r * 0.8 * sh + 1); gr.addColorStop(0, 'rgba(20,6,0,0.7)'); gr.addColorStop(1, 'rgba(20,6,0,0)');
+    cx.globalAlpha = 0.35 + 0.55 * k; cx.fillStyle = gr; cx.beginPath(); cx.arc(0, 0, r * 0.8 * sh + 1, 0, TAU); cx.fill();
+    cx.globalCompositeOperation = 'lighter';
+    const hot = cx.createRadialGradient(0, 0, 0, 0, 0, r); hot.addColorStop(0, 'rgba(255,90,20,0)'); hot.addColorStop(0.75, `rgba(255,90,20,${0.08 + 0.3 * k * k})`); hot.addColorStop(1, 'rgba(255,60,10,0)');
+    cx.globalAlpha = 1; cx.fillStyle = hot; cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.fill();
+    const pulse = rm ? 0.6 : 0.5 + 0.5 * Math.sin(now * (9 + 22 * k));
+    cx.globalAlpha = 0.55 + 0.45 * pulse; cx.strokeStyle = '#ff4a1e'; cx.lineWidth = 3 + 3 * pulse; cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.stroke();
+    cx.strokeStyle = '#ffe2a0'; cx.lineWidth = 1.5; cx.stroke();
+    cx.globalAlpha = 0.75; cx.strokeStyle = '#ffb05a'; cx.lineWidth = 3; cx.setLineDash([12, 10]); cx.lineDashOffset = rm ? 0 : -now * 70; cx.beginPath(); cx.arc(0, 0, r * 0.8, 0, TAU); cx.stroke(); cx.setLineDash([]); cx.lineDashOffset = 0;
+    const d = r * (1.32 - 0.36 * eOut(k)); cx.fillStyle = '#ff6a2a'; cx.globalAlpha = 0.9;
+    for (let i = 0; i < 4; i++) { const a = (i / 4) * TAU + Math.PI / 4, c = Math.cos(a), sn = Math.sin(a); cx.beginPath(); cx.moveTo(c * d - sn * 9, sn * d + c * 9); cx.lineTo(c * (d - 14), sn * (d - 14)); cx.lineTo(c * d + sn * 9, sn * d - c * 9); cx.lineTo(c * (d - 5), sn * (d - 5)); cx.closePath(); cx.fill(); }
+    cx.globalCompositeOperation = 'source-over';
+  }
+  // 화상: 몸에 붙은 불꽃 혀 (겹 수 = 불꽃 수 · 3겹부터 더 크고 밝게) · 가끔 불티
+  drawBurn(e, sz, now, many) {
+    const cx = this.cx, R = this.R, im = R.images.dr_flame, gf = R.projSprites.glowFire, stk = e.burnN || 1, fade = c01(e.burnT / 0.35);
+    if (!imgOk(im)) { if (Math.random() < (many ? 0.12 : 0.35)) this.fx.part('flame', e.x + (Math.random() - 0.5) * sz * 0.5, e.y - Math.random() * sz * 0.4, 0, -60, 0.35, 6 + stk * 2, '#ff9a3a'); return; }
+    const seed = e._bseed || (e._bseed = Math.random() * 8), n = many ? 1 : Math.min(2, stk), fw = im.naturalWidth / 8, fh = im.naturalHeight;
+    if (!many && gf) { R.tf(e.x, e.y - sz * 0.12, 0, 1, 0.9); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = (stk >= 3 ? 0.5 : 0.3) * fade * (0.85 + 0.15 * Math.sin(now * 17 + seed)); const rr = sz * (0.36 + 0.05 * Math.min(stk, 5)); cx.drawImage(gf.c, -rr, -rr, rr * 2, rr * 2); cx.globalCompositeOperation = 'source-over'; }
+    const OFF = [[-0.17, 0.08], [0.19, 0.04]]; // 얼굴을 가리지 않게 허리 양옆
+    for (let i = 0; i < n; i++) {
+      const hgt = sz * (0.27 + 0.035 * Math.min(stk, 5)) * (i ? 0.8 : 1) * (0.6 + 0.4 * fade), fi = Math.floor(now * 15 + seed + i * 2.7) % 8;
+      R.tf(e.x + OFF[i][0] * sz, e.y + OFF[i][1] * sz, 0, 1, 1); cx.globalAlpha = 0.9 * fade;
+      cx.drawImage(im, fi * fw, 0, fw, fh, -hgt * 0.33, -hgt, hgt * 0.67, hgt);
+    }
+    if (!many && Math.random() < 0.05 + 0.03 * stk) this.fx.part('ember', e.x + rnd(-0.2, 0.2) * sz, e.y - sz * 0.3, rnd(-15, 15), rnd(-90, -50), 0.6, 1.6, null, { drag: 1 });
   }
   // 김도훈 음파 고리 (도넛이 퍼진다)
   drawRings(g, now) {
@@ -212,7 +291,7 @@ export class KitFx {
     for (const e of g.enemies) {
       if (e.dead) continue;
       const sz = e.def.size || 50, top = e.y - sz * 0.55;
-      if (e.burnT > 0 && Math.random() < (many ? 0.12 : 0.35)) this.fx.part('flame', e.x + (Math.random() - 0.5) * sz * 0.5, e.y - Math.random() * sz * 0.4, 0, -60, 0.35, 6 + (e.burnN || 1) * 2, (e.burnN || 1) >= 3 ? '#ff4f2a' : '#ff9a3a');
+      if (e.burnT > 0) this.drawBurn(e, sz, now, many);
       if (e.frozenT > 0 && e.stunT > 0) { R.tf(e.x, e.y - sz * 0.15, 0, 1, 1); cx.globalAlpha = 0.45; cx.fillStyle = '#bff2ff'; cx.fillRect(-sz * 0.38, -sz * 0.45, sz * 0.76, sz * 0.8); cx.globalAlpha = 0.9; cx.strokeStyle = '#ffffff'; cx.lineWidth = 2; cx.strokeRect(-sz * 0.38, -sz * 0.45, sz * 0.76, sz * 0.8); cx.beginPath(); cx.moveTo(-sz * 0.3, -sz * 0.35); cx.lineTo(-sz * 0.1, -sz * 0.4); cx.stroke(); }
       else if (e.iceT > 0 && e.iceN > 0) { for (let i = 0; i < Math.min(3, e.iceN); i++) { R.tf(e.x - 10 + i * 10, top - 6, now * 2, 1, 1); cx.globalAlpha = 0.95; cx.strokeStyle = '#9ff0ff'; cx.lineWidth = 1.6; cx.beginPath(); for (let j = 0; j < 3; j++) { const a = (j / 3) * Math.PI; cx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4); cx.lineTo(-Math.cos(a) * 4, -Math.sin(a) * 4); } cx.stroke(); } }
       if (e.roseT > 0 && e.roseN > 0) for (let i = 0; i < e.roseN; i++) { R.tf(e.x - 7 * (e.roseN - 1) / 2 + i * 7, top - 14, 0, 1, 1); cx.globalAlpha = 1; cx.fillStyle = '#ff3d6e'; cx.beginPath(); cx.arc(0, 0, 3.4, 0, TAU); cx.fill(); cx.fillStyle = '#2e9e4a'; cx.fillRect(-0.7, 3, 1.4, 4); }
@@ -290,12 +369,35 @@ def('stamp', 'ground', function (o, k) { // 운영진 딱지 쾅: 바닥에 노�
 });
 def('ring', 'ground', function () {}); // (음파 고리는 g.rings 를 그대로)
 def('chant', 'mid', function (o, k) { const h = o.h; if (!h) return; const cx = this.cx; this.R.tf(h.x, h.y + 18, 0, 1, 0.4); cx.globalAlpha = (1 - k) * 0.8; cx.strokeStyle = '#c9a3ff'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, 20 + k * 30, 0, TAU); cx.stroke(); });
-def('breath', 'mid', function (o, k) { // 박나영 불 뿜기: 부채꼴 화염 (안쪽 노랑 → 바깥 주황)
-  const cx = this.cx; this.R.world(); cx.globalCompositeOperation = 'lighter';
-  const r = o.r * (0.3 + 0.7 * eOut(Math.min(1, k * 1.6))), a = 1 - k;
-  const gr = cx.createRadialGradient(o.x, o.y, 4, o.x, o.y, r); gr.addColorStop(0, `rgba(255,250,200,${0.9 * a})`); gr.addColorStop(0.45, `rgba(255,170,40,${0.75 * a})`); gr.addColorStop(1, 'rgba(255,60,0,0)');
-  cx.fillStyle = gr; cx.beginPath(); cx.moveTo(o.x, o.y); cx.arc(o.x, o.y, r, o.a - o.half, o.a + o.half); cx.closePath(); cx.fill();
+def('breath', 'mid', function (o, k, g, now) { // 박나영 불 뿜기: 박나뇽 입 → 실제 부채꼴 끝 (불빛 · 불길 띠 두 겹 · 입 섬광 · 불티 · 끝 연기)
+  const cx = this.cx, R = this.R, h = o.h, im = R.images.dr_breath, gf = R.projSprites.glowFire;
+  const m = h && h._mouth && !h.gone ? h._mouth : { x: o.x - 24, y: o.y + 38 };
+  const ex = o.x + Math.cos(o.a) * o.r, ey = o.y + Math.sin(o.a) * o.r;
+  const va = Math.atan2(ey - m.y, ex - m.x), L = Math.max(30, Math.hypot(ex - m.x, ey - m.y)), wEnd = Math.max(26, o.r * Math.tan(o.half));
+  const grow = eOut(c01(k / 0.16)), fade = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5, lead = k < 0.5 ? 0 : ((k - 0.5) / 0.5) * 0.45;
+  const len = L * (0.3 + 0.75 * grow), fl = o.rm ? 1 : 0.88 + 0.12 * Math.sin(now * 53 + o.seed) * Math.sin(now * 31);
+  const ca = Math.cos(va), sa = Math.sin(va);
+  if (gf) { // 주변을 비추는 불빛 (일렁임)
+    R.tf(m.x + ca * len * 0.55, m.y + sa * len * 0.55, va, 1, 1); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.32 * fade * fl;
+    cx.drawImage(gf.c, -len * 0.7, -wEnd * 1.1, len * 1.4, wEnd * 2.2);
+  }
+  if (imgOk(im)) {
+    const fw = im.naturalWidth / 8, fh = im.naturalHeight, fi = Math.floor(now * 22 + o.seed) % 8;
+    const H = Math.min(2.08 * L * Math.tan(o.half), 360) * (0.55 + 0.45 * grow) * (1 + lead * 0.3), x0 = len * lead, w = len * 1.05 - x0 * 0.6; // 띠에서 불길이 가장 넓은 곳(80%) = 부채꼴 폭의 65% — 진상이 가려지지 않게
+    R.tf(m.x, m.y, va, 1, 1);
+    cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 0.9 * fade; cx.drawImage(im, fi * fw, 0, fw, fh, x0, -H / 2, w, H);
+    cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.45 * fade * fl; cx.drawImage(im, ((fi + 3) % 8) * fw, 0, fw, fh, x0, -H * 0.25, w * 0.72, H * 0.5); // 뜨거운 심 (더하기)
+  } else { // (그림이 아직 없을 때) 부채꼴 그라데이션
+    R.world(); cx.globalCompositeOperation = 'lighter'; const gr = cx.createRadialGradient(m.x, m.y, 4, m.x, m.y, len); gr.addColorStop(0, `rgba(255,250,200,${0.9 * fade})`); gr.addColorStop(0.45, `rgba(255,170,40,${0.75 * fade})`); gr.addColorStop(1, 'rgba(255,60,0,0)');
+    const vh = Math.atan2(wEnd, L); cx.fillStyle = gr; cx.beginPath(); cx.moveTo(m.x, m.y); cx.arc(m.x, m.y, len, va - vh, va + vh); cx.closePath(); cx.fill();
+  }
+  if (gf && k < 0.75) { R.tf(m.x, m.y, 0, 1, 1); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = (1 - k / 0.75) * 0.95; const rr = 15 + 5 * fl; cx.drawImage(gf.c, -rr, -rr, rr * 2, rr * 2); } // 입 섬광
   cx.globalCompositeOperation = 'source-over';
+  if (!o.busy && k < 0.6 && Math.random() < (o.rm ? 0.2 : 0.75)) { // 불티: 불길 따라 날아가며 위로
+    const d = len * rnd(0.2, 0.95), off = rnd(-0.75, 0.75) * wEnd * (d / L), sp = rnd(70, 150);
+    this.fx.part('ember', m.x + ca * d - sa * off, m.y + sa * d + ca * off, ca * sp + rnd(-20, 20), sa * sp - 40, rnd(0.35, 0.65), rnd(1.4, 2.2), null, { drag: 2, grav: -40 });
+  }
+  if (!o.smoked && k > 0.55) { o.smoked = true; if (!o.busy && !o.rm) for (let i = 0; i < 3; i++) { const d = L * rnd(0.75, 1), off = rnd(-0.6, 0.6) * wEnd; this.fx.part('smoke', m.x + ca * d - sa * off, m.y + sa * d + ca * off, ca * 25, -26, rnd(0.7, 1), rnd(10, 14), null, { drag: 1 }); } } // 끝에 남는 연기
 });
 def('quake', 'ground', function (o, k) { // 배현경: 땅이 쩍 갈라지는 직선
   const cx = this.cx; this.R.world(); cx.globalAlpha = 1 - k * 0.8; const n = 8, dx = (o.x2 - o.x) / n, dy = (o.y2 - o.y) / n, nx = -dy, ny = dx, L = Math.hypot(nx, ny) || 1;
@@ -347,16 +449,67 @@ def('mirror', 'top', function (o, k, g, now) { // 김도훈 앵콜: 내려오는
 });
 def('vroom', 'mid', function (o, k) { const cx = this.cx; this.R.world(); cx.globalAlpha = 1 - k; cx.strokeStyle = '#3f8cff'; cx.lineWidth = 10; cx.lineCap = 'round'; cx.beginPath(); cx.moveTo(o.x, o.y - 20); cx.lineTo(o.x + (o.tx - o.x) * eOut(k), o.y - 20 + (o.ty - o.y + 20) * eOut(k)); cx.stroke(); });
 def('tapefly', 'top', function (o, k) { const cx = this.cx, x = o.hx + (o.x - o.hx) * k, y = o.hy + (o.y - o.hy) * k - Math.sin(k * Math.PI) * 60; this.R.tf(x, y, k * 12, 1, 1); cx.globalAlpha = 1; cx.fillStyle = '#f7f3ea'; cx.beginPath(); cx.arc(0, 0, 9, 0, TAU); cx.fill(); cx.strokeStyle = '#c9c1ae'; cx.lineWidth = 2; cx.stroke(); });
-def('diveup', 'top', function (o, k, g) { // 박나영 급강하: 용이 하늘로 솟았다가 표적으로 내리꽂힌다 (실루엣 · 불꼬리)
-  const cx = this.cx, up = k < 0.45, q = up ? k / 0.45 : (k - 0.45) / 0.55;
-  const x = up ? o.x : o.tx, y = up ? o.y - 40 - q * 260 : -60 + (o.ty - 20 + 60) * q * q, s = up ? 1 - q * 0.4 : 0.6 + q * 0.6;
-  this.R.tf(x, y, up ? -0.2 : Math.PI + 0.1, s, s); cx.globalAlpha = 1;
-  cx.fillStyle = '#ff8a2a'; cx.beginPath(); cx.ellipse(0, 0, 16, 12, 0, 0, TAU); cx.fill(); // 통통한 몸
-  cx.fillStyle = '#ffb35c'; cx.beginPath(); cx.ellipse(0, 3, 9, 7, 0, 0, TAU); cx.fill(); // 배
-  cx.fillStyle = '#ff6a1a'; cx.beginPath(); cx.moveTo(-6, -6); cx.lineTo(-28, -20 + Math.sin(k * 40) * 6); cx.lineTo(-10, 2); cx.closePath(); cx.moveTo(6, -6); cx.lineTo(28, -20 + Math.sin(k * 40) * 6); cx.lineTo(10, 2); cx.closePath(); cx.fill(); // 날개
-  cx.fillStyle = '#ff8a2a'; cx.beginPath(); cx.arc(0, -14, 8, 0, TAU); cx.fill(); cx.fillStyle = '#222'; cx.fillRect(-4, -16, 2, 2); cx.fillRect(2, -16, 2, 2); // 머리 · 눈
-  cx.fillStyle = '#6a3aa0'; cx.beginPath(); cx.arc(0, -4, 5, 0, TAU); cx.fill(); // 탄 사람 (작게)
-  if (!up && Math.random() < 0.8) this.fx.part('flame', x, y - 10, (Math.random() - 0.5) * 40, -80, 0.3, 10, '#ffd23f');
+// 박나영 급강하 (top): 진짜 박나뇽 그림이 잔상을 끌며 화면 위로 솟구침 → (예고 동안 하늘) → 불꼬리 · 속도선과 함께 내리꽂힘. 진행은 sim 장판 z 에 맞춘다
+const DIVE_UP = 0.3, DIVE_DOWN = 0.64;
+def('dive', 'top', function (o, k, g, now) {
+  const z = o.z; if (!z || !g.zones || !g.zones.includes(z) || z.t <= 0) return;
+  const cx = this.cx, R = this.R, sp = R.sprites.h_dragon, box = 82, p = c01(1 - z.t / z.max), im = R.images.dr_breath, gf = R.projSprites.glowFire;
+  if (!sp) return;
+  const body = (x, y, s, sy, rot, a) => { R.tf(x, y, rot, s, s * sy); cx.globalAlpha = a; cx.drawImage(sp.c, -box / 2, -box * 0.92, box, box); };
+  if (p < DIVE_UP) { // 솟구치기
+    const q = p / DIVE_UP, top = o.y + 170, st = Math.sin(q * Math.PI);
+    const pos = (qq) => ({ x: o.x + (o.tx - o.x) * 0.12 * qq * qq, y: o.y - qq * qq * top });
+    const P0 = pos(q);
+    if (gf) { R.tf(P0.x, P0.y + 4, 0, 1, 1); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.8 * (1 - q * 0.5); cx.drawImage(gf.c, -18, -10, 36, 50 + 60 * q); cx.globalCompositeOperation = 'source-over'; } // 아래로 내뿜는 불빛 (추진)
+    if (!o.rm) for (let j = 3; j >= 1; j--) { const P1 = pos(Math.max(0, q - j * 0.08)); body(P1.x, P1.y, 1 + 0.3 * q, 1 + 0.15 * st, -0.15 * q, 0.16 / j); } // 잔상
+    body(P0.x, P0.y, 1 + 0.3 * q, 1 + 0.18 * st, -0.15 * q, 1);
+    if (!o.rm && q > 0.15) { R.world(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1; cx.strokeStyle = 'rgba(255,240,210,0.55)'; cx.lineWidth = 2; cx.beginPath(); for (let i = -2; i <= 2; i++) { const x = P0.x + i * 13, y = P0.y + 12 + Math.abs(i) * 6; cx.moveTo(x, y); cx.lineTo(x, y + 40 + 50 * q); } cx.stroke(); cx.globalCompositeOperation = 'source-over'; } // 속도선
+  } else if (p >= DIVE_DOWN) { // 내리꽂기
+    const q = (p - DIVE_DOWN) / (1 - DIVE_DOWN), y0 = -30, y = y0 + (o.ty + 4 - y0) * Math.pow(q, 1.6), s = 1.45 - 0.3 * q;
+    if (imgOk(im)) { // 위로 길게 남는 불꼬리
+      const fw = im.naturalWidth / 8, fi = Math.floor(now * 24) % 8, len = 70 + 190 * q, H = 74 * s;
+      R.tf(o.tx, y - box * 0.45 * s, -Math.PI / 2, 1, 1);
+      cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 0.95; cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, 0, -H / 2, len, H);
+      cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.6; cx.drawImage(im, ((fi + 4) % 8) * fw, 0, fw, im.naturalHeight, 0, -H * 0.3, len * 0.8, H * 0.6);
+      cx.globalCompositeOperation = 'source-over';
+    }
+    if (!o.rm) { R.world(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1; cx.strokeStyle = 'rgba(255,245,220,0.6)'; cx.lineWidth = 2; cx.beginPath(); for (let i = -3; i <= 3; i++) { if (!i) continue; const x = o.tx + i * 15 * s, yy = y - box * s * (0.9 + (Math.abs(i) % 2) * 0.3); cx.moveTo(x, yy); cx.lineTo(x, yy - 60 - 80 * q); } cx.stroke(); cx.globalCompositeOperation = 'source-over'; } // 속도선
+    if (gf) { R.tf(o.tx, y - box * 0.4 * s, 0, 1, 1); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.25 + 0.3 * q; cx.drawImage(gf.c, -55 * s, -55 * s, 110 * s, 110 * s); cx.globalCompositeOperation = 'source-over'; } // 몸 뒤 불빛
+    body(o.tx, y, s * 0.9, 1.22, 0, 1);
+  }
+  cx.globalAlpha = 1;
+});
+def('divehome', 'top', function (o, k) { // 쾅 뒤 박나뇽이 폴짝 자리로 돌아간다
+  const h = o.h; if (!h) return; const sp = this.R.sprites.h_dragon; if (!sp) return;
+  const cx = this.cx, box = 82, tx = h.x, ty = h.y + box * 0.3, e = eOut(k), x = o.x + (tx - o.x) * e, y = o.y + (ty - o.y) * e - Math.sin(k * Math.PI) * 70, s = 1.1 - 0.1 * k;
+  this.R.tf(x, y, Math.sin(k * Math.PI) * -0.2, s, s); cx.globalAlpha = 1; cx.drawImage(sp.c, -box / 2, -box * 0.92, box, box);
+});
+def('boomg', 'ground', function (o, k) { // 쾅 바닥: 충격파 고리 (하양 → 주황) · 달아오른 자리 · 흙먼지 고리
+  const cx = this.cx, r = o.r; this.R.tf(o.x, o.y + 6, 0, 1, 0.45);
+  cx.globalCompositeOperation = 'lighter';
+  const q = eOut(c01(k / 0.55));
+  if (k < 0.55) { cx.globalAlpha = 1 - k / 0.55; cx.strokeStyle = '#fff3d0'; cx.lineWidth = 12 * (1 - q) + 2; cx.beginPath(); cx.arc(0, 0, r * (0.2 + 1.3 * q), 0, TAU); cx.stroke(); cx.strokeStyle = '#ff8a2a'; cx.lineWidth = 5; cx.beginPath(); cx.arc(0, 0, r * (0.15 + 1.2 * q), 0, TAU); cx.stroke(); }
+  const gl = cx.createRadialGradient(0, 0, 0, 0, 0, r); gl.addColorStop(0, `rgba(255,220,140,${0.8 * (1 - k)})`); gl.addColorStop(0.6, `rgba(255,110,30,${0.45 * (1 - k)})`); gl.addColorStop(1, 'rgba(255,60,0,0)');
+  cx.globalAlpha = 1; cx.fillStyle = gl; cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.fill();
+  cx.globalCompositeOperation = 'source-over';
+  if (!o.rm) { const q2 = eOut(k); cx.globalAlpha = 0.45 * (1 - k); cx.strokeStyle = 'rgba(150,120,95,0.9)'; cx.lineWidth = 16 * (1 - k) + 4; cx.beginPath(); cx.arc(0, 0, r * (0.5 + 0.9 * q2), 0, TAU); cx.stroke(); }
+});
+def('boom', 'top', function (o, k) { // 쾅 불덩이 (띠 6칸) + 바깥으로 튀는 불꽃 혀
+  const cx = this.cx, R = this.R, r = o.r, bi = R.images.dr_burst, fl = R.images.dr_flame;
+  if (imgOk(fl) && !o.rm && k < 0.45) { // 사방으로 뻗는 불꽃 혀 (길이 · 각도 제각각)
+    const fw = fl.naturalWidth / 8, q = k / 0.45, n = 9;
+    for (let i = 0; i < n; i++) {
+      const j = (i * 37 + 11) % 7 / 6, a = o.seed + (i / n) * TAU + (j - 0.5) * 0.5, d = r * (0.3 + (0.6 + 0.4 * j) * eOut(q)), hgt = r * (0.3 + 0.28 * j) * (1 - q * 0.6);
+      R.tf(o.x + Math.cos(a) * d, o.y + Math.sin(a) * d * 0.45 - 6, a + Math.PI / 2, 1, 1); cx.globalAlpha = 1 - q;
+      cx.drawImage(fl, ((i + Math.floor(k * 20)) % 8) * fw, 0, fw, fl.naturalHeight, -hgt * 0.33, -hgt, hgt * 0.67, hgt);
+    }
+  }
+  if (imgOk(bi)) {
+    const fw = bi.naturalWidth / 6, fi = Math.min(5, Math.floor(k * 6)), D = r * 2.3 * (0.75 + 0.25 * eOut(k));
+    R.tf(o.x, o.y - r * 0.28 - k * 12, 0, 1, 0.88); cx.globalAlpha = 1; cx.drawImage(bi, fi * fw, 0, fw, bi.naturalHeight, -D / 2, -D / 2, D, D);
+    if (k < 0.5) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.6 * (1 - k / 0.5); cx.drawImage(bi, fi * fw, 0, fw, bi.naturalHeight, -D * 0.4, -D * 0.4, D * 0.8, D * 0.8); cx.globalCompositeOperation = 'source-over'; }
+  } else if (!o.blasted) { o.blasted = true; this.fx.blast(o.x, o.y, r * 1.3, 'fire'); }
+  cx.globalAlpha = 1;
 });
 def('ramp', 'mid', function (o, k) { const cx = this.cx; this.R.tf(o.x, o.y + 16, 0, 1, 1); cx.globalAlpha = Math.min(1, (1 - k) * 3); cx.fillStyle = '#ff7ac8'; cx.beginPath(); cx.moveTo(-22, 6); cx.lineTo(22, 6); cx.lineTo(22, -10); cx.closePath(); cx.fill(); this.R.tf(o.tx, o.ty + 6, 0, 1, 0.45); cx.globalAlpha = 0.5 * k; cx.fillStyle = 'rgba(0,30,60,0.6)'; cx.beginPath(); cx.arc(0, 0, o.r * k, 0, TAU); cx.fill(); });
 def('wink', 'top', function (o, k) { // 이한나 윙크 폭탄: 거대한 눈이 찡긋 → 분홍 하트 충격파 세 겹 (건전녀 하트 방패와 다르게: 눈 · 겹 고리 · 진분홍)
