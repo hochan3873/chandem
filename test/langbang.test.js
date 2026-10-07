@@ -1662,7 +1662,7 @@ test('보스 패턴: 예고(1초) → 기술 → 틈(약점) → 반복 · 체�
   // 기절 기술은 도발 탱커(정원식)부터 노린다
   const g2 = bare(['wonsik', 'staff']);
   const b2 = still(g2, 'boss_gapjil', 180, 200, 5);
-  b2.bai.i = 1; b2.bai.next = 0.05; // 두 번째 기술 = 돌진 호통(기절)
+  b2.bai.i = 0; b2.bai.next = 0.05; // 첫 기술 = 결재 서류 투척 (노린 멤버)
   for (let t = 0; t < 0.3; t += 1 / 60) S.step(g2, 1 / 60);
   assert.ok(b2.bai.targets.some((h) => h.id === 'wonsik'), '원식이 대신 맞는다');
 });
@@ -1964,12 +1964,12 @@ test('아이템 도감: 한 번이라도 얻은 장비 종류가 남는다 (팔�
   assert.ok(D.DROPS.length >= 8);
 });
 
-test('기세: 3칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(공속 −30%) · 총공지 2칸 · 강한 스킬 쿨 ×2', async () => {
+test('기세: 2칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(공속 −30%) · 총공지 2칸 · 강한 스킬 쿨 ×2', async () => {
   const S = await load('sim.js');
   const g = S.createGame({ H: 760, rng: seeded(8), noWaves: true, deck: ['staff', 'gunman', 'eunok', 'sanghwa', null, null], tempo: true, meta: {} });
   g.phase = 'wave';
   for (let i = 0; i < 3; i++) S.spawnEnemy(g, 'thug', 100 + i * 80, g.rowY - 200, { hpMul: 500 }).speed = 0;
-  assert.equal(S.momCharges(g), 3);
+  assert.equal(S.momCharges(g), 2); // (10/08: 3칸 → 2칸)
   const hs = g.heroes.filter((h) => h.def.skill); // (대개편: 조준 스킬도 찍지 않으면 가장 몰린 곳에)
   for (const h of hs) h.skillCd = 0;
   assert.equal(S.castSkill(g, hs[0]), true);

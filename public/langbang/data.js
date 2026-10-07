@@ -74,9 +74,9 @@ export const MAIN = { n: 2, cap: 3 };
 export const JOIN = { free: [4, 10], freeUntil: 13, solo: 1.6, freePick: true, hp: [0.9, 0.87, 1.2, 1.25, 1.7, 2.3], hellStart: 2, exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
 // ─── 전투 템포 (느리고 묵직하게) · 무기 정체성 ─── opt.tempo 로 켠다 (합류 모드와 같이)
 // 진상 수 ×0.6 · 한 명 체력 ×1.6 / 멤버 공속 ÷1.54 · 한 방 ×1.6 / 스킬 쿨 ×1.5
-// 기세 (팀 공용 스킬 칸): 3칸 · 7초마다 1칸 · 처치 +2% · 콤보 10마다 +10% · 스킬 1칸 · 총공지 2칸 (+원래 게이지)
+// 기세 (팀 공용 스킬 칸): 2칸 (10/08 3칸 → 2칸) · 7초마다 1칸 · 처치 +2% · 콤보 10마다 +10% · 스킬 1칸 · 총공지 2칸 (+원래 게이지)
 //   스킬 두 개는 0.6초 안에 연달아 못 나간다 (두 번째는 줄 서서 0.6초 뒤) · 쓴 멤버는 쿨의 40% 동안 기진맥진 (공속 −30%)
-export const MOMENTUM = { max: 300, per: 100, refill: 7, kill: 2, combo10: 10, ult: 200, gap: 0.6, tired: 0.4, tiredSpd: 0.7, skillDmg: 1.35,
+export const MOMENTUM = { max: 200, per: 100, refill: 7, kill: 2, combo10: 10, ult: 200, gap: 0.6, tired: 0.4, tiredSpd: 0.7, skillDmg: 1.35,
   strong: ['sunggu', 'hanna', 'myunghoon', 'bangjang', 'gunman', 'dohoon', 'jieun', 'hochan'], strongCd: 1 }; // (쿨 다양화 10/07: HEROES 스킬 cd 가 곧 실제 초 — 예전 템포 ×1.5 · 강한 스킬 ×2 는 스킬마다 cd 에 녹였다 · strong 은 화면 흔들림만)
 // 멤버 공격 리듬 (코드 모션): wind = 준비 시간(초) · back = 뒤로 젖힘 · sq = 찌그러짐 · snap = 던질 때 앞으로 · lift = 들어 올리기
 export const CADENCE = {
@@ -106,6 +106,8 @@ export const HERO_ANIM_FORM = Object.fromEntries([['donghan', 'on'], ['ingyu', '
 export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'donghan', 'gunman', 'hochan', 'ingyu', 'jungmin', 'junseo', 'junyoung', 'myunghoon', 'sanghwa', 'staff', 'sunggu', 'wonsik', 'youngjun',
   'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon', 'subin', 'dragon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
 // 느린 판 (2026-10 대개편 · 스테이지 · 주간 · 헬만): 진상 나오는 간격 ×gap · 수 ×count · 한 명 체력 ×hp · 이동 ×espd · 입구 치는 힘 ×door — 한 판 3~4분 · 멤버 하나하나 조종하는 맛
+// 큰 한 방 스킬 (쿨 cd 초 이상: 방장 · 강성구 · 김도훈 · 오지은 · 강병화 · 이호찬 · 정소영) 은 첫 웨이브가 끝나야 쓸 수 있다 — 시작하자마자 몰아 쓰기 방지 (10/08 · 기세도 3칸 → 2칸)
+export const ULT_LOCK = { cd: 35 };
 export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.15, chHp: [0.86, 0.86, 0.74, 0.82, 0.92, 1.02, 0.59, 0.5] }; // chHp: 장마다 체력 다시 맞춤 (stagemeas · 대개편 뒤 1차 · 10/07 쿨 다양화 · 쓰러짐 게이지 뒤 6장 +7% · 7장 −2% · 8장 −2%)
 // 방어율 (장이 깊을수록 진상이 단단 — 한 방마다 %로 깎임): 정예 · 중간 보스 · 보스는 ch 그대로 · 졸개는 fodder 배
 //  방관(pen): 그 멤버 공격은 방어율을 그만큼 뚫는다 (건전남 전부) · 여지원 모자이크 한 겹마다 방어율 shredPer 씩 벗김 (5겹 = 0) · 모자이크 폭격은 전부
@@ -129,7 +131,8 @@ export const HERO_RES = {
 //  게이지 크기 = base × KD_HERO(멤버) × (1 + lv×(Lv−1)) × (1 + meta×강화) × (1 + star×(★−1)) × (1 + 장비 저항) — 키울수록 잘 버틴다
 //  status: 상태이상 1초당 +10 (감속은 slow) · decay: 마지막으로 맞고 wait 초 뒤부터 초당 per 씩 빠짐 · line: 입구 치는 진상 한 대 (r 안 가장 가까운 멤버 · 정예 · 보스 배) · taunt: 도발 멤버(정원식 · 배현경 · 윤정섭)가 r 안 멤버 대신 맞음
 //  poison: 독 — 초당 게이지 +dps · 공격 속도 ×spd · 기절 예고 조건(3장부터)에 독이 섞이고 오리고기 · 토 웅덩이도 독
-export const KD = { base: 100, lv: 0.06, meta: 0.025, star: 0.08, sec: 4, grace: 1.5, status: 10, slow: 3, kind: { silence: 0.4 } /* 침묵은 스킬만 막아서 덜 */, decay: { wait: 4, per: 2.5 }, ch: [1, 1.15, 1.3, 1.5, 1.7, 1.9, 2.1, 2.3], hell: 1.4, // ch: 장마다 채우는 양 배율 (멤버가 커지는 만큼) · hell: 헬 배율
+export const KD = { base: 100, lv: 0.06, meta: 0.025, star: 0.08, sec: 4, grace: 1.5, status: 8, slow: 3, kind: { silence: 0.4, charm: 0.3 } /* 침묵은 스킬만 막아서 덜 · 홀림은 꼬충 떼가 자주 걸어서 덜 */, decay: { wait: 5, per: 0.8 }, ch: [0.9, 1.3, 2.0, 2.9, 3.9, 3.7, 4.8, 5.0], hell: 1.4, // ch: 장마다 채우는 양 배율 (멤버가 커지는 만큼) · hell: 헬 배율
+  after: 0.5, // 쓰러질 때마다 그 판 게이지 +50%
   line: { r: 46, hit: 5, elite: 1.6, boss: 3 }, taunt: { r: 95 }, poison: { dps: 5, spd: 0.8, cc: 5, duck: 4, puddle: 2 } };
 // 멤버별 게이지 배율: 탱커 크게 · 딜러 작게
 export const KD_HERO = { wonsik: 2.4, jeongseob: 2.4, hyungyeong: 2.0, ingyu: 1.7, sunggu: 1.4, bangjang: 1.4, jungmin: 1.4, gunnyeo: 1.3, dohoon: 1.3, ara: 1.2, byunghwa: 1.2, donghan: 1.1, soyoung: 1.1,
@@ -142,6 +145,24 @@ export const KD_SUP = {
   soyoung: { res: { charm: 100, silence: 50 }, tip: '홀림 면역 — 잔소리로 정신 차리게 (팀 전체 · 침묵 절반)' },
   bangjang: { kdCut: 0.2, tip: '지휘 — 팀 전체 쓰러짐 게이지 20% 덜 참 ("버텨!")' },
   dragon: { res: { freeze: 50 }, tip: '빙결 저항 — 뭉치 불 곁은 따뜻해서 팀 전체 빙결 시간 절반 (7장 스키장)' },
+};
+// 진상 투척 예고 (10/08 진상 리메이크): 멤버를 노리는 기술은 바로 날아오지 않는다 — wind 초 동안 진상이 멈춰 팔을 젖히고 노리는 멤버 발밑에 표적
+//  그 사이 기절 · 빙결 · 밀치기 · 묶기 · 시간 정지면 "끊김!" (안 던지고 breakWeak 초 빈틈) — 느린 템포라 스킬로 끊는 게 의미 있게
+//  hit: 맞은 멤버 쓰러짐 게이지에 바로 더하는 양 (상태이상 시간과 별개) × elite · mid · boss · throwHit: 진상 고유 투척(뒷담화 · 골프공 · 보스 가방 …) 한 방 · kind: 던지는 물건마다 예고 시간
+export const ECAST = { wind: 0.75, windBoss: 0.95, reach: 340, hit: 9, throwHit: 6, elite: 1.3, mid: 1.8, boss: 2, breakWeak: 1.2,
+  bump: { mukti: 6, cutter: 8, drunk_run: 6, clubgirl: 5, carpoor: 10, liftcut: 6, sledgirl: 9, drunkfriend: 6, snowboard: 6, mid_mukti: 10, fuse_taxi: 12, mid_carpoor: 14, mid_sledgirl: 14, mid_drunkfriend: 10, fuse_lift: 10, rush: 8 }, // 돌진 · 새치기 진상이 입구에 처음 닿을 때 앞 멤버 들이받기 (게이지)
+  kind: { rumor: 0.7, paper: 0.75, sarcasm: 0.7, golf: 0.8, duck: 0.9, bag: 0.85, stamp: 0.85, glow: 0.8, snowball: 0.8, bottle: 0.6, latte: 0.8, puke: 0.8 } };
+// 진상 기술 상태이상 이름 · 색 · 막는 멤버 (정보 카드 · 상성 경고 · 표적 표시 공용)
+export const EST = {
+  stun: { name: '기절', color: '#ffd23f', icon: '⭐', counter: ['gunnyeo', 'dohoon', 'sunggu', 'wonsik'] },
+  charm: { name: '홀림', color: '#ff6fb5', icon: '♥', counter: ['soyoung', 'gunnyeo', 'hanna'] },
+  poison: { name: '독', color: '#8fe85a', icon: '☠', counter: ['jungmin', 'gunnyeo'] },
+  freeze: { name: '빙결', color: '#9ff0ff', icon: '❄', counter: ['dragon', 'gunnyeo', 'sunggu'] },
+  silence: { name: '침묵', color: '#b48cff', icon: '✕', counter: ['soyoung', 'byunghwa', 'sunggu'] },
+  slow: { name: '공속↓', color: '#6fb3ff', icon: '↓', counter: ['gunnyeo', 'bangjang'] },
+  blind: { name: '눈부심', color: '#fff4b0', icon: '✷', counter: ['gunnyeo', 'bangjang'] },
+  door: { name: '입구 강타', color: '#ff5a4f', icon: '!', counter: ['jungmin', 'wonsik', 'jeongseob', 'dohoon'] },
+  heal: { name: '회복', color: '#7dff9a', icon: '+', counter: ['jiwon', 'dragon', 'ara'] },
 };
 // 화상 (박나영): tick 초마다 · 겹마다 +stack · 최대 max 겹 — 방어율 무시
 export const BURN = { tick: 0.5, stack: 0.5, max: 3 };
@@ -1271,6 +1292,7 @@ export const ENEMIES = {
     id: 'thug', cls: 'violent', name: '폭력배', gender: 'm', emoji: '😠', color: '#9a6c5a',
     img: '/img/lb/e_thug.webp', hp: 150, speed: 23, atk: 16, atkInterval: 1.4,
     armor: 6, exp: 6, coin: 4, r: 21, size: 82,
+    kick: { name: '문짝 걷어차기', every: 8, first: 2.5, wind: 1.0, mul: 3.5, hit: 10, from: 4 }, // 입구 앞에서 1초 다리를 뒤로 젖혔다가 쾅 (입구 ×3.5 · 곁 멤버 게이지) — 젖힐 때 기절 · 밀치기면 끊긴다 (1-4 부터)
     shouts: ['뭘 봐?', '너 몇 살이야', '밖으로 나와', '형님 오신다'],
   },
   mukti: {
@@ -1310,7 +1332,7 @@ export const ENEMIES = {
   vomit: {
     id: 'vomit', cls: 'jerk', name: '토하는 인간', gender: 'm', emoji: '🤮', color: '#9acd32',
     img: '/img/lb/e_vomit.webp', hp: 60, speed: 32, atk: 6, atkInterval: 1.3, exp: 4, r: 17, size: 72,
-    puke: { every: 6, reach: 200, r: 52, sec: 4, cut: 0.3 }, // "우웩!" 멤버 발밑에 토 → 그 위 멤버 공격 속도 -30%
+    puke: { every: 6, reach: 200, r: 52, sec: 4, cut: 0.3, poison: 2.5 }, // "우웩!" 꿀렁(예고 · 멤버 발밑 표적) → 토가 날아가 철퍽: 맞은 멤버 독 2.5초 + 토 웅덩이(그 위 멤버 공격 속도 -30%) — 꿀렁할 때 기절시키면 끊긴다
     deathPuddle: { r: 58, sec: 5, speed: 1.4 }, // 죽으면 토 웅덩이 → 지나가는 진상 40% 빨라짐 (멀리서 잡자)
     shouts: ['우웩!', '속이 안 좋아…', '한 잔만 더… 우웩', '화장실 어디야'],
   },
@@ -1413,6 +1435,7 @@ export const ENEMIES = {
     img: '/img/lb/e_inpi_dictator.webp', hp: 120, speed: 22, atk: 10, atkInterval: 1.5,
     armor: 3, exp: 7, r: 20, size: 80,
     aura: { r: 130, cut: 0.3, kb: 0.3, speed: 1.3 }, // 주변 진상: 받는 피해 -30%, 넉백 30%만, 이동 속도 +30%
+    spit: { name: '강퇴 통보', every: [9, 11], first: 4, reach: 300, kind: 'stamp', st: 'silence', sec: 2.5, fly: 0.6 }, // 예고 뒤 "강퇴!" 도장 → 맞은 멤버 스킬 2.5초 침묵 (정소영 · 강병화 곁)
     shouts: ['앞으로 가!', '내 말이 곧 법이다', '반대하면 강퇴', '모임장은 나야!'],
   },
   inpi_clique: {
@@ -1551,13 +1574,13 @@ export const ENEMIES = {
   kkondae2: {
     id: 'kkondae2', cls: 'politic', name: '골프채 꼰대', gender: 'm', emoji: '🏌️', color: '#7a6a5a',
     img: '/img/lb/e_kkondae2.webp', hp: 360, speed: 12, atk: 16, atkInterval: 1.8, armor: 6, exp: 14, r: 23, size: 90,
-    latte: { r: 230, slow: 0.4, off: 3 }, golf: { every: 6, stun: 0.8, fly: 0.6 }, // 라떼 + "나이스 샷!" 골프공으로 멤버 기절
+    latte: { r: 230, slow: 0.4, off: 3 }, golf: { every: 8, stun: 0.8, fly: 0.6 }, // 라떼 + "나이스 샷!" 골프공으로 멤버 기절
     shouts: ['나이스 샷!', '라떼는 필드에서…', '요즘 애들은 골프도 몰라', '내가 싱글이야 (타수)'],
   },
   boss_kkondol: {
     id: 'boss_kkondol', cls: 'politic', name: '꼰대돌싱찌질남', gender: 'm', emoji: '😭', color: '#6a5a8a', boss: true,
     img: '/img/lb/e_boss_kkondol.webp', hp: 1900, speed: 11, atk: 34, atkInterval: 1.8, armor: 5, exp: 60, r: 44, size: 150,
-    latte: { r: 250, slow: 0.4, off: 3 }, golf: { every: 4.5, stun: 1, fly: 0.6 },
+    latte: { r: 250, slow: 0.4, off: 3 }, golf: { every: 6.5, stun: 1, fly: 0.6 },
     enrage: { at: 0.5, speed: 1.45, atk: 1.5, text: '사실 돌싱이었다!!' },
     title: '꼰대돌싱찌질남 등장!', subtitle: '"라떼는 말이야… 나 아직 싱글이야…"',
     shouts: ['나 때는 말이야!', '왜 나만 미워해!', '사실 싱글이야…'],
@@ -1566,7 +1589,7 @@ export const ENEMIES = {
     id: 'boss_queenmom', cls: 'seduce', name: '여왕된장싱글맘', gender: 'f', emoji: '👜', color: '#e0a0ff', boss: true,
     img: '/img/lb/e_boss_queenmom.webp', hp: 2100, speed: 10, atk: 36, atkInterval: 1.8, armor: 4, exp: 60, r: 44, size: 152,
     shieldAura: { every: 8, r: 210, frac: 0.3 }, summon: { every: 9, count: 2, types: ['secretmom'] },
-    toss: { every: 5.5, stun: 1.2, fly: 0.8, kind: 'bag', text: '명품 가방 투척!' },
+    toss: { every: 7, stun: 1.2, fly: 0.8, kind: 'bag', text: '명품 가방 투척!' },
     title: '여왕된장싱글맘 등장!', subtitle: '"아이스 아메리카노 사 와~"',
     shouts: ['이 가방 얼마게?', '유모차 탱크 출동!', '내 스타일 알지?'],
   },
@@ -1666,6 +1689,7 @@ export const ENEMIES = {
     id: 'buffet', cls: 'violent', name: '뷔페 싹쓸이 아줌마', gender: 'f', emoji: '', color: '#8a5ac8', ch8: true,
     img: '/img/lb/e_buffet.webp', hp: 190, speed: 30, atk: 9, atkInterval: 1.4, armor: 3, exp: 11, r: 19, size: 84,
     eat: { every: 5, first: 2.5, r: 110, heal: 0.08, self: 0.05 }, // 냠냠: 5초마다 곁(110) 진상 체력 8% 회복 (자기는 6%) · 기절 중엔 못 먹는다
+    spit: { name: '상한 잡채 투척', every: [10, 13], first: 4, reach: 280, kind: 'puke', st: 'poison', sec: 2.5, fly: 0.6 }, // 예고 뒤 멤버에게 상한 잡채 → 독 3초 (홍정민 해독)
     shouts: ['이거 포장되죠?', '갈비찜 아직 남았어?', '우리 애 몫까지~', '접시 하나 더!'],
   },
   badsinger: {
@@ -2284,19 +2308,19 @@ export const REVEAL_HEROES = ['staff', 'gunman']; // 은신 진상을 먼저 찾
 // ─── 보스 패턴: 걷기 → 기모으기(1초 예고) → 기술 → 틈!(1.5초 약점) → 반복 · 체력 50% 에서 2페이즈(분노 모습 · 빨라짐 · 새 기술) ───
 //  기술: stun(멤버 기절) · silence(스킬 게이지 멈춤) · slow(멤버 공격 속도 ↓) · shock(날아가던 공격 지우기) · summon(부하 부르기) · drain(경험치 빼앗기)
 //  상태이상 저항(강화 · 장비 res)만큼 짧아지고, 백인규 · 정원식 도발이 대신 맞는다
-export const BOSS_KITS = {
-  queen: { name: '꼬충 여왕벌', skills: [['summon', '꼬충 호출', { types: ['yeokko', 'namkko'], n: 3 }], ['stun', '윙크 폭격', { n: 1, sec: 1.2 }]], p2: ['slow', '여왕의 한숨', { cut: 0.25, sec: 4 }] },
-  boss_thug: { name: '폭력배 두목', skills: [['stun', '땅 내려치기', { n: 2, sec: 1.5 }], ['summon', '애들 불러', { types: ['thug'], n: 2 }]], p2: ['shock', '주먹 충격파', {}] },
-  boss_gapjil: { name: '갑질 사장', skills: [['slow', '야근 지시', { cut: 0.3, sec: 4 }], ['stun', '돌진 호통', { n: 1, sec: 1.5 }]], p2: ['silence', '회의 소집', { sec: 3 }] },
-  boss_inpi: { name: '인피 대장', skills: [['silence', '뒷담화', { sec: 3 }], ['summon', '패거리 집합', { types: ['inpi_clique'], n: 3 }]], p2: ['stun', '서열 정리', { n: 2, sec: 1.4 }] },
-  boss_loan: { name: '사채업자', skills: [['drain', '추심', { v: 0.12 }], ['stun', '빚 독촉', { n: 1, sec: 1.6 }]], p2: ['shock', '압류 딱지', {}] },
-  boss_kkondol: { name: '꼰대 돌싱', skills: [['slow', '라떼는 말이야', { cut: 0.25, sec: 4 }], ['silence', '훈계', { sec: 3 }]], p2: ['summon', '동창 호출', { types: ['kkondae', 'fakesingle'], n: 2 }] },
-  boss_queenmom: { name: '여왕된장싱글맘', skills: [['stun', '명품백 휘두르기', { n: 2, sec: 1.3 }], ['summon', '맘카페 호출', { types: ['secretmom'], n: 2 }]], p2: ['slow', '갑질 한숨', { cut: 0.3, sec: 4 }] },
-  boss_sales: { name: '영업왕', skills: [['silence', '계약서 들이밀기', { sec: 3 }], ['slow', '끝없는 설명', { cut: 0.25, sec: 4 }]], p2: ['summon', '다단계 하부', { types: ['sales'], n: 3 }] },
-  boss_otaku: { name: '오타쿠 왕', skills: [['summon', '피규어 부대', { types: ['otaku'], n: 2 }], ['shock', '굿즈 방패 충격파', {}]], p2: ['stun', '덕후 샤우팅', { n: 2, sec: 1.3 }] },
-  boss_jusa: { name: '주사왕', skills: [['stun', '술병 던지기', { n: 1, sec: 1.5 }], ['slow', '술주정', { cut: 0.25, sec: 4 }]], p2: ['summon', '술친구 호출', { types: ['drunk_cry', 'drunk_run'], n: 3 }] },
-  boss_soloparty: { name: '솔로파티 중독자', skills: [['summon', '솔로 호출', { types: ['yeokko', 'namkko'], n: 3 }], ['silence', '디스코 타임', { sec: 3 }]], p2: ['stun', '미러볼 섬광', { n: 2, sec: 1.4 }] },
-  boss_union: { name: '인피 연합 총수', skills: [['silence', '연합 공지', { sec: 3 }], ['stun', '총수 호령', { n: 2, sec: 1.5 }]], p2: ['summon', '연합 총동원', { types: ['inpi_clique', 'inpi_dictator'], n: 3 }] },
+export const BOSS_KITS = { // (10/08 진상 리메이크) 보스마다: 멤버를 노리는 기술(쓰러짐 게이지) · 입구를 노리는 기술 · 분노하면 새 기술 + rage 숫자 (더 많이 · 더 세게) — 기술 이름은 그 보스 성격대로
+  queen: { name: '꼬충 여왕벌', rageSub: '윙크가 3명 · 하이힐이 더 세게 · 꿀로 부하 회복', skills: [['charm', '윙크 폭격', { n: 2, sec: 2.2, rage: { n: 3 } }], ['summon', '꼬충 호출', { types: ['yeokko', 'namkko'], n: 3 }], ['door', '하이힐 찍기', { frac: 0.035, rage: { frac: 0.05 } }]], p2: ['heal', '여왕의 꿀', { r: 220, frac: 0.15 }] },
+  boss_thug: { name: '폭력배 두목', rageSub: '주먹 충격파로 멤버 기절 · 문짝을 더 세게', skills: [['door', '문짝 부수기', { frac: 0.045, rage: { frac: 0.065 } }], ['summon', '애들 불러', { types: ['thug'], n: 2 }]], p2: ['volley', '주먹 충격파', { n: 2, st: 'stun', sec: 1.3, art: 'star' }] },
+  boss_gapjil: { name: '인피 행동대장', rageSub: '서류가 3명에게 · 회의 소집(침묵)', skills: [['volley', '결재 서류 투척', { n: 2, st: 'slow', sec: 4, cut: 0.3, art: 'paper', rage: { n: 3 } }], ['door', '"문 열어!" 발길질', { frac: 0.045 }]], p2: ['silence', '회의 소집', { sec: 3 }] },
+  boss_inpi: { name: '인피 대장', rageSub: '패거리 총집합 · 오리 떼가 더 세게', skills: [['silence', '뒷담화', { sec: 3 }], ['door', '오리 떼 돌격', { frac: 0.045, rage: { frac: 0.06 } }]], p2: ['summon', '패거리 집합', { types: ['inpi_clique'], n: 4 }] },
+  boss_loan: { name: '사채업자', rageSub: '빚 독촉이 두 명에게 · 추심으로 경험치를 빼앗는다', skills: [['stun', '빚 독촉', { n: 1, sec: 1.6, rage: { n: 2 } }], ['door', '압류 딱지', { frac: 0.035 }]], p2: ['drain', '추심', { v: 0.12 }] },
+  boss_kkondol: { name: '꼰대 돌싱', rageSub: '골프공이 3명에게 · 훈계(침묵)', skills: [['volley', '골프공 난타', { n: 2, st: 'stun', sec: 1, art: 'golf', rage: { n: 3 } }], ['door', '골프채 풀스윙', { frac: 0.045 }]], p2: ['silence', '훈계', { sec: 3 }] },
+  boss_queenmom: { name: '여왕된장싱글맘', rageSub: '"아이스 아메리카노 사 와~" 세 명 홀림', skills: [['stun', '명품백 휘두르기', { n: 2, sec: 1.3 }], ['door', '유모차 탱크 돌격', { frac: 0.05 }], ['summon', '맘카페 호출', { types: ['secretmom'], n: 2 }]], p2: ['charm', '"아이스 아메리카노 사 와~"', { n: 3, sec: 2 }] },
+  boss_sales: { name: '영업왕', rageSub: '다단계 하부 소환 · 위약금이 더 세게', skills: [['silence', '계약서 들이밀기', { sec: 3 }], ['door', '위약금 청구', { frac: 0.045, rage: { frac: 0.06 } }]], p2: ['summon', '다단계 하부', { types: ['sales'], n: 3 }] },
+  boss_otaku: { name: '오타쿠 왕', rageSub: '덕후 샤우팅(기절) · 빔이 4명에게', skills: [['volley', '응원봉 빔 난사', { n: 3, st: 'slow', sec: 3, cut: 0.3, art: 'glow', rage: { n: 4 } }], ['door', '피규어 탑 무너뜨리기', { frac: 0.045 }], ['summon', '피규어 부대', { types: ['otaku'], n: 2 }]], p2: ['stun', '덕후 샤우팅', { n: 2, sec: 1.3 }] },
+  boss_jusa: { name: '주사왕', rageSub: '토사물 폭격(독) · 술병이 3명에게', skills: [['volley', '술병 던지기', { n: 2, st: 'stun', sec: 1.2, art: 'bottle', rage: { n: 3 } }], ['door', '술상 엎기', { frac: 0.05 }]], p2: ['volley', '토사물 폭격', { n: 3, st: 'poison', sec: 3, art: 'puke' }] },
+  boss_soloparty: { name: '솔로파티 중독자', rageSub: '미러볼 섬광(3명 기절) · 파티 트레인이 더 세게', skills: [['charm', '디스코 윙크', { n: 2, sec: 2 }], ['door', '파티 트레인 돌진', { frac: 0.05, rage: { frac: 0.065 } }], ['summon', '솔로 호출', { types: ['yeokko', 'namkko'], n: 3 }]], p2: ['stun', '미러볼 섬광', { n: 3, sec: 1.4 }] },
+  boss_union: { name: '인피 연합 총수', rageSub: '연합 총동원 · 총공격이 더 세게', skills: [['silence', '연합 공지', { sec: 3 }], ['door', '연합 총공격', { frac: 0.045, rage: { frac: 0.06 } }], ['stun', '총수 호령', { n: 2, sec: 1.5 }]], p2: ['summon', '연합 총동원', { types: ['inpi_clique', 'inpi_dictator'], n: 3 }] },
 };
 export const BOSS_AI = { every: [8, 12], everyP2: [6, 9], windup: 1.0, recover: 1.5, roar: 20 };
 
@@ -2352,7 +2376,47 @@ export const MID_KIT = {
   politic: ['silence', '말 끊기', { sec: 2 }],
   jerk: ['summon', '친구 불러', { n: 2 }],
 };
-export const MID_AI = { every: [12, 16] };
+export const MID_AI = { every: [11, 14] };
+// 중간 보스마다 제 기술 (10/08 진상 리메이크 — 계열 공용 MID_KIT 대신): 1초 예고(노리는 멤버 발밑 표적 · 입구 경고) → 기술 · 예고 중 기절시키면 끊긴다
+//  volley: 노린 멤버 n명에게 던지기 (st 상태이상 sec 초 + 쓰러짐 게이지) · charm: n명 홀림 · door: 입구 최대 내구도 frac 강타 · heal: 곁(r) 진상 frac 회복
+//  art: 날아가는 물건 그림 (enemyfx.js) · rage: 체력 절반 아래(흥분)에서 바뀌는 숫자
+export const MID_KITS = {
+  mid_mukti: [['volley', '영수증 폭탄', { n: 2, st: 'slow', sec: 3, cut: 0.3, art: 'paper', rage: { n: 3 } }], ['door', '계산대 들이받기', { frac: 0.03 }]],
+  mid_drunk: [['volley', '소주병 세례', { n: 2, st: 'stun', sec: 1, art: 'bottle', rage: { n: 3 } }]],
+  mid_thug: [['door', '문짝 걷어차기', { frac: 0.045 }], ['volley', '주먹 날리기', { n: 1, st: 'stun', sec: 1.2, art: 'star' }]],
+  mid_scammer: [['charm', '프사 윙크', { n: 2, sec: 2.2, rage: { n: 3 } }]],
+  mid_selfie: [['volley', '플래시 연사', { n: 3, st: 'blind', sec: 2.5, art: 'flash' }]],
+  mid_gao: [['door', '어깨빵 돌진', { frac: 0.04 }], ['volley', '가오 잡기', { n: 1, st: 'stun', sec: 1.2, art: 'star' }]],
+  mid_kkondae: [['volley', '라떼 설교', { n: 2, st: 'silence', sec: 3, art: 'latte' }]],
+  fuse_kko: [['charm', '커플 윙크', { n: 2, sec: 2.4, rage: { n: 3 } }]],
+  fuse_puke: [['volley', '우웩 콤보', { n: 2, st: 'poison', sec: 3, art: 'puke' }], ['door', '술병 깨기', { frac: 0.03 }]],
+  fuse_gossip: [['volley', '단톡 캡처 살포', { n: 3, st: 'slow', sec: 3, cut: 0.3, art: 'rumor' }]],
+  fuse_spam: [['volley', '알림 폭탄', { n: 3, st: 'blind', sec: 2, art: 'flash' }]],
+  fuse_inpi: [['heal', '회비 집행', { r: 220, frac: 0.15 }], ['volley', '강퇴 통보', { n: 2, st: 'silence', sec: 2.5, art: 'stamp' }]],
+  mid_fakesingle: [['charm', '반지 숨기기 윙크', { n: 2, sec: 2.2 }]],
+  mid_carpoor: [['door', '외제차 들이받기', { frac: 0.05 }]],
+  fuse_lease: [['door', '리스 차량 돌진', { frac: 0.04 }], ['volley', '계약서 투척', { n: 2, st: 'silence', sec: 2.5, art: 'paper' }]],
+  fuse_lie: [['charm', '거짓말 커플 윙크', { n: 2, sec: 2.4, rage: { n: 3 } }]],
+  mid_otaku: [['volley', '응원봉 휘두르기', { n: 2, st: 'stun', sec: 1, art: 'glow' }]],
+  mid_sarcasm: [['volley', '돌려까기 연타', { n: 3, st: 'slow', sec: 3, cut: 0.25, art: 'sarcasm' }]],
+  fuse_jusa: [['volley', '눈물 콧물 폭격', { n: 2, st: 'poison', sec: 3, art: 'puke' }]],
+  fuse_sleep: [['heal', '쿨쿨 회복', { r: 170, frac: 0.12 }], ['door', '드러누워 문 막기', { frac: 0.035 }]],
+  fuse_karaoke: [['charm', '듀엣 세레나데', { n: 3, sec: 2 }]],
+  fuse_taxi: [['door', '택시 문 쾅', { frac: 0.045 }]],
+  fuse_mt: [['volley', '피규어 던지기', { n: 2, st: 'stun', sec: 1, art: 'star' }]],
+  fuse_latte: [['volley', '나이스 샷 연타', { n: 3, st: 'stun', sec: 0.9, art: 'golf' }]],
+  fuse_adspam: [['volley', '광고 전단 살포', { n: 3, st: 'blind', sec: 2.5, art: 'paper' }]],
+  mid_snowboard: [['volley', '눈보라 뿌리기', { n: 2, st: 'freeze', sec: 1.2, art: 'snowball' }]],
+  mid_sledgirl: [['door', '썰매 돌진', { frac: 0.05 }]],
+  fuse_lift: [['door', '리프트 바 내리기', { frac: 0.045 }], ['volley', '스키 폴 던지기', { n: 1, st: 'stun', sec: 1.2, art: 'star' }]],
+  fuse_coach: [['volley', '자세 지적', { n: 2, st: 'silence', sec: 2.5, art: 'latte' }]],
+  fuse_snowfight: [['volley', '눈덩이 일제 사격', { n: 3, st: 'freeze', sec: 1.2, art: 'snowball' }]],
+  mid_envthief: [['volley', '빈 봉투 던지기', { n: 2, st: 'slow', sec: 3, cut: 0.3, art: 'paper' }]],
+  mid_buffet: [['heal', '접시 돌리기', { r: 200, frac: 0.12 }], ['volley', '상한 잡채', { n: 2, st: 'poison', sec: 3, art: 'puke' }]],
+  mid_drunkfriend: [['volley', '폭탄주 건배', { n: 2, st: 'poison', sec: 2.5, art: 'bottle', rage: { n: 3 } }]],
+  fuse_toast: [['volley', '건배사 마이크', { n: 3, st: 'silence', sec: 2.5, art: 'rumor' }]],
+  fuse_selfie8: [['charm', '인증샷 윙크', { n: 2, sec: 2.2 }], ['volley', '플래시', { n: 2, st: 'blind', sec: 2, art: 'flash' }]],
+};
 
 // 좁은 자리(얼굴 칩 · 보스 체력 줄 · 스테이지 목록)용 짧은 이름 — 상세 화면 · 길게 누르기엔 전체 이름
 export const SHORT_NAME = { noshow: '약속취소러', praise1: '칭찬빌런', praise2: '칭찬빌런', selfie: '인플루언서', scammer: '사기꾼', fakesingle: '돌싱남', secretmom: '싱글맘',
@@ -2504,9 +2568,9 @@ Object.assign(ENEMY_ATK, { snowboard: 'kick', liftcut: 'shove', fakecoach: 'slap
 Object.assign(SHORT_NAME, { snowboard: '보드남', liftcut: '리프트 새치기', fakecoach: '사칭 강사', sledgirl: '썰매녀', hotpack: '핫팩 도둑', snowball: '눈싸움러', mid_pension: '펜션 사장', boss_resort: '리조트 회장',
   mid_snowboard: '각성 보드남', mid_sledgirl: '각성 썰매녀', fuse_lift: '리프트 무법자', fuse_coach: '사칭 강사단', fuse_snowfight: '눈싸움 원정대' });
 FEW.push('fakecoach', 'snowball', 'hotpack');
-BOSS_KITS.boss_resort = { name: '리조트 갑부 회장', skills: [['silence', '회장님 훈화', { sec: 3 }], ['stun', 'VIP 갑질', { n: 2, sec: 1.4 }]], p2: ['summon', '스키 강사단', { types: ['fakecoach', 'snowboard'], n: 3 }] };
+BOSS_KITS.boss_resort = { name: '리조트 갑부 회장', rageSub: '스키 강사단 소환 · 눈덩이가 4명에게', skills: [['volley', 'VIP 눈덩이 포격', { n: 3, st: 'freeze', sec: 1.3, art: 'snowball', rage: { n: 4 } }], ['silence', '회장님 훈화', { sec: 3 }]], p2: ['summon', '스키 강사단', { types: ['fakecoach', 'snowboard'], n: 3 }] }; // (입구는 눈사태가 친다)
 // 7-5 보스로 승격한 펜션 사장님: "소음 금지!" 침묵(원래 기술)은 그대로 + 보스 패턴
-BOSS_KITS.mid_pension = { name: '펜션 사장님', skills: [['slow', '퇴실 독촉', { cut: 0.25, sec: 4 }], ['summon', '단체 손님 받기', { types: ['liftcut', 'hotpack'], n: 3 }]], p2: ['stun', '바비큐 집게', { n: 2, sec: 1.3 }] };
+BOSS_KITS.mid_pension = { name: '펜션 사장님', rageSub: '바비큐 집게(2명 기절) · 얼음물이 3명에게', skills: [['volley', '얼음물 바가지', { n: 2, st: 'freeze', sec: 1.2, art: 'snowball', rage: { n: 3 } }], ['door', '"퇴실 시간이에요!" 문 쾅쾅', { frac: 0.045 }], ['summon', '단체 손님 받기', { types: ['liftcut', 'hotpack'], n: 3 }]], p2: ['stun', '바비큐 집게', { n: 2, sec: 1.3 }] };
 // 2-10 끝 보스 번화가 삐끼왕 — 새 기술 3개 (sim.js bossSkill)
 //  flyer 전단지 폭탄: 예고된 멤버 n명 시야를 가려 사거리 -cut (sec초)
 //  lure 호객 행위: 곁(r)의 진상을 한 줄로 바짝 모아 입구로 우르르 (sec초 빨라짐) + 2장 진상 n명 호객
@@ -2515,7 +2579,7 @@ BOSS_KITS.mid_pension = { name: '펜션 사장님', skills: [['slow', '퇴실 �
 BOSS_KITS.boss_bbikki = {
   name: '번화가 삐끼왕', rageAt: 0.4, everyP2: [4, 6], rageSub: '기술을 훨씬 자주 쓴다',
   skills: [['flyer', '전단지 폭탄', { n: 3, cut: 0.3, sec: 4 }], ['lure', '호객 행위', { r: 240, pull: 0.65, sec: 3, spd: 1.45, types: ['scammer', 'handsy'], n: 3 }], ['vip', 'VIP 줄 세우기', { n: 5, frac: 0.35 }]],
-  p2: null,
+  p2: ['volley', '전단지 뭉치 난사', { n: 3, st: 'blind', sec: 2.5, art: 'paper' }], // (분노: 전단지 뭉치로 멤버 눈을 가린다 · 입구는 호객 행위로 몰아 친다)
 };
 Object.assign(ENEMY_ATK, { boss_bbikki: 'slap' });
 Object.assign(SHORT_NAME, { boss_bbikki: '삐끼왕' });
@@ -2524,5 +2588,44 @@ Object.assign(ENEMY_ATK, { envthief: 'shove', buffet: 'bag', badsinger: 'slap', 
 Object.assign(SHORT_NAME, { envthief: '축의금 도둑', buffet: '뷔페 아줌마', badsinger: '축가 삼촌', showoff: '과시녀', drunkfriend: '취한 친구', mid_hallmgr: '예식장 실장', boss_bestman: '친구 대표',
   mid_envthief: '각성 도둑', mid_buffet: '각성 뷔페', mid_drunkfriend: '각성 취객', fuse_toast: '건배사 삼촌', fuse_selfie8: '인증샷 도둑단' });
 FEW.push('buffet', 'badsinger');
-BOSS_KITS.mid_hallmgr = { name: '예식장 실장님', skills: [['slow', '"다음 예식 들어와요!"', { cut: 0.25, sec: 4 }], ['summon', '하객 몰아넣기', { types: ['drunkfriend', 'envthief'], n: 3 }]], p2: ['stun', '클립보드 내려치기', { n: 2, sec: 1.3 }] };
-BOSS_KITS.boss_bestman = { name: '신랑 친구 대표', skills: [['stun', '건배 제의', { n: 1, sec: 1.3 }], ['slow', '"한 말씀만 더…"', { cut: 0.25, sec: 4 }]], p2: ['summon', '친구들 무대로!', { carpet: true, len: 260, types: ['drunkfriend', 'showoff'], n: 3 }] };
+BOSS_KITS.mid_hallmgr = { name: '예식장 실장님', rageSub: '클립보드 내려치기(2명 기절) · 문 쾅이 더 세게', skills: [['door', '"다음 예식 들어와요!" 문 쾅', { frac: 0.045, rage: { frac: 0.06 } }], ['volley', '"사진 찍으시면 안 돼요!"', { n: 2, st: 'blind', sec: 2.5, art: 'flash' }], ['summon', '하객 몰아넣기', { types: ['drunkfriend', 'envthief'], n: 3 }]], p2: ['stun', '클립보드 내려치기', { n: 2, sec: 1.3 }] };
+BOSS_KITS.boss_bestman = { name: '신랑 친구 대표', rageSub: '친구들 무대로! · 건배가 2명에게', skills: [['stun', '건배 제의', { n: 1, sec: 1.3, rage: { n: 2 } }], ['volley', '폭탄주 원샷 강요', { n: 2, st: 'poison', sec: 3, art: 'bottle' }], ['slow', '"한 말씀만 더…"', { cut: 0.25, sec: 4 }]], p2: ['summon', '친구들 무대로!', { carpet: true, len: 260, types: ['drunkfriend', 'showoff'], n: 3 }] };
+// ─── 진상 기술 설명 (10/08 진상 리메이크): 정보 카드 · 도감 · 등장 진상 · 상성 경고가 같은 데이터로 ───
+//  [{ name, st(EST 키), text, counter: [멤버] }] — 예고(표적)가 있는 기술은 "예고" 를 붙인다 (그때 기절 · 밀치기로 끊긴다)
+const KIND_ST = { stun: 'stun', silence: 'silence', slow: 'slow', shock: 'stun', drain: 'slow', flyer: 'blind', lure: 'door', vip: 'heal', summon: '', charm: 'charm', door: 'door', heal: 'heal' };
+const KIND_TEXT = { stun: (o) => `예고 뒤 멤버 ${o.n || 1}명 기절 ${o.sec}초`, silence: (o) => `멤버 전원 스킬 침묵 ${o.sec}초`, slow: (o) => `멤버 공격 속도 −${Math.round((o.cut || 0.25) * 100)}% ${o.sec}초`, shock: () => '날아가던 공격을 지우고 부하 보호막', summon: (o) => `부하 ${o.n || 2}명 소환`, drain: () => '경험치를 빼앗는다',
+  volley: (o) => `예고 뒤 멤버 ${o.n}명에게 던짐 → ${EST[o.st] ? EST[o.st].name : ''} ${o.sec}초 + 쓰러짐 게이지`, charm: (o) => `예고 뒤 멤버 ${o.n}명 홀림 ${o.sec}초`, door: (o) => `예고 뒤 입구 강타 (최대 내구도 ${Math.round(o.frac * 100)}%)`, heal: (o) => `곁의 진상 체력 ${Math.round(o.frac * 100)}% 회복`,
+  flyer: (o) => `예고 뒤 멤버 ${o.n}명 사거리 −${Math.round(o.cut * 100)}%`, lure: () => '진상을 한 줄로 모아 입구로 우르르', vip: (o) => `앞줄 진상 ${o.n}명 보호막` };
+export function enemySkills(id) {
+  const d = ENEMIES[id];
+  if (!d) return [];
+  const out = [], add = (name, st, text) => { if (!out.some((x) => x.name === name)) out.push({ name, st, text, counter: (EST[st] && EST[st].counter) || [] }); };
+  if (d.kick) add(d.kick.name, 'door', `입구 앞에서 ${d.kick.wind}초 다리를 젖혔다가 쾅 (입구 ×${d.kick.mul}) — 젖힐 때 기절 · 밀치기로 끊긴다`);
+  if (d.spit) add(d.spit.name, d.spit.st, `예고 뒤 멤버에게 던짐 → ${EST[d.spit.st].name} ${d.spit.sec}초 + 쓰러짐 게이지`);
+  if (d.puke) add(d.cry ? '눈물 웅덩이' : '우웩!', d.cry ? 'slow' : 'poison', d.cry ? '예고 뒤 멤버 발밑에 눈물 웅덩이 (공속↓)' : `예고(꿀렁) 뒤 멤버에게 토 → 독 ${d.puke.poison || 0}초 + 웅덩이 (공속↓)`);
+  if (d.bottle) add('소주병 투척', 'slow', '예고 뒤 멤버 공속 −25%');
+  if (d.latte) add('라떼 훈계', 'silence', '가까이 오면 예고 뒤 라떼 잔 → 멤버 스킬 침묵 3초 · 곁 멤버 공속↓ — 기절시키면 조용');
+  if (d.flash) add('찰칵!', 'stun', '예고(찰칵 준비) 뒤 가까운 멤버 1초 기절');
+  if (d.golf) add('나이스 샷!', 'stun', `예고 뒤 골프공 → 멤버 기절 ${d.golf.stun}초`);
+  if (d.rumor) add('뒷담화', 'slow', '멀리 서서 예고 뒤 말풍선 → 멤버 공속↓');
+  if (d.sarcasm) add('돌려까기', 'slow', '예고 뒤 부메랑 → 멤버 피해↓ (말빨 멤버는 되받아침)');
+  if (d.paper) add('차용증 투척', 'slow', '예고 뒤 멤버 공속↓');
+  if (d.duck) add('오리고기 투척', 'poison', `예고 뒤 멤버 기절 ${d.duck.stun}초 + 독 (식중독)`);
+  if (d.toss) add(d.toss.text.replace(/!$/, ''), d.toss.slow ? 'slow' : 'stun', '예고 뒤 멤버에게 던짐');
+  if (d.snowball) add('눈덩이', 'freeze', `예고 뒤 멤버 빙결 ${d.snowball.sec}초`);
+  if (d.charm) add('홀림', 'charm', `가까이 오면 ${d.charm === 'f' ? '여자' : d.charm === 'm' ? '남자' : ''} 멤버를 홀린다 (정소영이 덱에 있으면 면역)`);
+  if (d.grab) add('붙잡기', 'stun', '입구에 닿으면 멤버를 붙잡아 못 쏘게 한다');
+  if (d.sing) add('음 이탈', 'slow', '숨 들이쉬고(예고) 곁 멤버 공속↓');
+  if (d.hotpack) add('온기 훔치기', 'slow', '옆을 지나간 멤버 공속↓');
+  if (d.interest) add('이자 붙었다!', 'door', '살아 있는 동안 입구를 % 로 떼어 간다 (잡으면 돌려받음)');
+  if (d.slam) add('땅 내려치기', 'stun', '예고 뒤 멤버 전원 기절');
+  if (d.kneel) add('무릎 꿇어!', 'stun', `멤버 1명 기절 ${d.kneel.stun}초`);
+  if (d.avalanche) add('눈사태', 'freeze', '크게 예고 뒤 멤버 전원 빙결 + 입구 피해 — 예고 중 스킬로 끊긴다');
+  if (d.speech) add('끝없는 축사', 'door', '무적 축사 — 게이지를 채워 끊지 못하면 입구 피해 + 졸음');
+  if (d.quiet) add('소음 금지!', 'silence', '예고 뒤 넓은 범위 멤버 스킬 침묵 — 예고 중 기절로 끊긴다');
+  if (d.eat || d.feast || d.praise || d.cuddle) add(d.eat ? '냠냠' : d.feast ? '오리고기 회식' : d.praise ? '칭찬' : '꽁냥꽁냥', 'heal', '진상 체력 회복 — 방깎 · 화상으로 회복을 막자');
+  if (ECAST.bump[id]) add('들이받기', 'door', '입구에 처음 닿을 때 앞 멤버를 들이받는다 (쓰러짐 게이지) — 감속 · 기절로 늦추면 안 받힘');
+  const kit = BOSS_KITS[id] || (MID_KITS[id] ? { skills: MID_KITS[id] } : null);
+  if (kit) for (const [kind, name, o] of [...kit.skills, ...(kit.p2 ? [kit.p2] : [])]) { const st = kind === 'volley' ? o.st : KIND_ST[kind]; add(name, st, (kit.p2 && kit.p2[1] === name ? '[분노] ' : '') + (KIND_TEXT[kind] ? KIND_TEXT[kind](o) : '')); }
+  return out;
+}

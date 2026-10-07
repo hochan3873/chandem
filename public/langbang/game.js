@@ -11,7 +11,7 @@ import {
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
-  armorPctStage, ARMOR_BREAKERS,
+  armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -19,6 +19,7 @@ import * as S from './sim.js';
 import { Renderer } from './render.js';
 import { SkillFx } from './skillfx.js';
 import { KitFx } from './kitfx.js';
+import { EnemyFx } from './enemyfx.js';
 import * as A from './audio.js';
 import * as API from './api.js';
 import * as SH from './share.js';
@@ -66,6 +67,7 @@ const R = new Renderer(canvas);
 R.onStep = (h, x, y) => { fx.burst(x + (Math.random() - 0.5) * 20, y - 2, 4, '#cdbfa8', 60, 'dot', 2, 0.4); try { A.sfx.thud(); } catch (e) {} }; // 윤정섭 발걸음: 먼지 + 쿵
 const fx = R.fx;
 const SKFX = (R.skfx = new SkillFx(R)); // 스킬 전용 연출 (다이어트 주사 · 진심 모드 · 시간 정지 · 붕대 대공사 · 좋은남자)
+const EFX = (R.efx = new EnemyFx(R)); // 진상 기술 예고 · 끊김 · 입구 강타 (enemyfx.js)
 const KIT = (R.kit = new KitFx(R)); // 대개편 연출: 멤버마다 다른 비행 · 장판 · 시전 동작 (kitfx.js)
 let TWUI = null; // 진상의 탑 화면 (tower-ui.js · 맨 아래에서 연결)
 let R2UI = null; // 건물주 레이드 화면 (raid2-ui.js · 맨 아래에서 연결)
@@ -587,7 +589,7 @@ function handleEvents(g, loud) {
     const e = ev[i];
     if (TWUI && TWUI.isTowerEvent(e.type)) { TWUI.onEvent(g, e, loud); continue; }
     if (R2UI && e.type.startsWith('r2')) { R2UI.onEvent(g, e, loud); continue; } // 건물주 레이드 연출
-    if (live || g === app.demo) KIT.onEvent(g, e, busy); // 대개편 연출 (kitfx.js) — 아래 원래 연출도 그대로
+    if (live || g === app.demo) { KIT.onEvent(g, e, busy); EFX.onEvent(g, e, busy); } // 대개편 연출 (kitfx.js) — 아래 원래 연출도 그대로
     switch (e.type) {
       case 'sudden': case 'suddenUp': case 'pvpDrain': case 'pvpTimeUp': case 'pvpPhase': case 'pvpBunch': case 'pvpWave': if (live) pvpTimelineEv(g, e); break;
       case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } if (e.hero === 'jungmin' && !busy) SKFX.jmSwing(e.x, e.y - 34, e.x < 180 ? 1 : -1); break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝 · 홍정민: 소주병 휘두름 자국
@@ -1042,6 +1044,8 @@ function handleEvents(g, loud) {
         if (e.skill === 'bandage') fx.banner('붕대 바리케이드!', '붕대 벽 · 입구 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
         break;
       case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 15, 1.1); break;
+      case 'ultLocked': if (live) toast('큰 한 방 스킬은 1웨이브가 끝나야 써요', 1100); break;
+      case 'ultOpen': if (live) fx.text(180, g.H * 0.3, '큰 한 방 스킬 사용 가능!', '#ffe27a', 15, 1.2, -10); break;
       case 'knockdown': fx.text(e.x, e.y - 80, '쓰러짐!', '#ff6a5a', 16, 1.2); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 360, sz: 90 }); fx.addShake(5); break; // 쓰러짐 게이지 가득
       case 'getUp': fx.text(e.x, e.y - 80, '일어남!', '#ffe27a', 13, 0.9); break;
       case 'kdHeal': fx.text(e.x, e.y - 72, '+간호', '#9dffb0', 12, 0.8); break; // 건전녀: 쓰러짐 게이지 회복
@@ -1449,10 +1453,10 @@ function updateHud() {
     app.hudCache.ult = up;
     H$.ult.style.setProperty('--p', up);
   }
-  // 기세 고리: 3칸이 부드럽게 차고 · 한 칸 꽉 차면 딸깍 · 총공지 = 충전 100% + 기세 2칸
-  { const on = g.mom !== null && g.mom !== undefined, m = on ? g.mom : 300;
+  // 기세 고리: 2칸이 부드럽게 차고 · 한 칸 꽉 차면 딸깍 · 총공지 = 충전 100% + 기세 2칸 (10/08: 3칸 → 2칸)
+  { const on = g.mom !== null && g.mom !== undefined, m = on ? g.mom : MOMENTUM.max;
     for (let i = 0; i < 3; i++) { const el = document.getElementById('ur' + i); if (!el) continue; const f = Math.max(0, Math.min(1, (m - i * 100) / 100)); const v = (f * 100).toFixed(1); if (el.dataset.v !== v) { el.dataset.v = v; el.style.strokeDasharray = `${v} 100`; el.classList.toggle('full', f >= 1); } }
-    const full = on ? Math.floor(m / 100) : 3;
+    const full = on ? Math.floor(m / 100) : MOMENTUM.max / 100;
     if (app.hudCache.momN !== undefined && full > app.hudCache.momN && on) { try { A.sfx.tap(); } catch { /* 무시 */ } }
     app.hudCache.momN = full;
     H$.ult.classList.toggle('noring', !on);
@@ -1692,6 +1696,7 @@ function useSkillBtn(slot) {
   if (!g || app.paused || g.over) return;
   const h = g.heroes.find((o) => o.slot === slot);
   if (!h || !h.def.skill) return;
+  if (S.ultLocked(app.g, h)) { toast(`${h.def.skill.name}: 큰 한 방 — 1웨이브가 끝나야 써요`, 1100); return; }
   if (!S.skillReady(h)) { toast(`${h.def.skill.name} 충전 중… ${Math.ceil(h.skillCd)}초`, 900); return; }
   const sk = h.def.skill;
   vibrate(15);
@@ -1777,7 +1782,8 @@ function renderSkillbar() {
     const sk = h.def.skill;
     const pct = Math.round((1 - Math.max(0, h.skillCd) / sk.cd) * 100);
     b.style.setProperty('--p', pct);
-    const r = h.skillCd <= 0;
+    const lk = S.ultLocked(g, h), r = h.skillCd <= 0 && !lk; // 큰 한 방: 1웨이브 뒤
+    if (b.classList.contains('ulock') !== lk) { b.classList.toggle('ulock', lk); const q = b.querySelector('.sk-wlock'); if (lk && !q) { const t = document.createElement('i'); t.className = 'sk-wlock'; t.textContent = '1웨이브 뒤'; b.appendChild(t); } else if (!lk && q) q.remove(); }
     if (r && !b.classList.contains('ready')) { vibrate(12); if (app.hudCache.skRd && app.hudCache.skRd[h.slot] === false) { const f = document.createElement('span'); f.className = 'sk-rdname'; f.textContent = sk.name; b.appendChild(f); setTimeout(() => f.remove(), 1400); } }
     (app.hudCache.skRd = app.hudCache.skRd || {})[h.slot] = r;
     b.classList.toggle('ready', r);
@@ -2070,7 +2076,7 @@ const ACTS = {
     const ap = armorPctStage(app.stage || 1, d, false), apEl = armorPctStage(app.stage || 1, d, true);
     const apLine = apEl > 0 ? `<p class="pp-tip">${ic('shield', '', 'sm')}방어율 <b>${Math.round(ap * 100)}%</b>${apEl > ap ? ` (정예 ${Math.round(apEl * 100)}%)` : ''} — 한 방마다 깎여요 → <b>${ARMOR_BREAKERS.filter((h) => HEROES[h]).map((h) => esc(heroNm(h))).join(' · ')}</b> 가 뚫어요</p>` : '';
     popup(`<div class="pp-fp">${foeFace(id, 'big')}<div><b>${esc(d.name)}</b><small>${c ? `${c.icon} ${c.name}` : ''}${T ? ` · ${T.icon} ${esc(T.name)}` : ''}</small></div></div>
-      <p class="pp-tip">${T ? `${esc(T.tip)}${cnt ? ` → <b>${cnt}</b>` : ''}` : `${good.map((a) => `${attrIco(a)}${ATTRS[a].name}`).join(' · ')} 멤버에게 약해요`}</p>${apLine}
+      <p class="pp-tip">${T ? `${esc(T.tip)}${cnt ? ` → <b>${cnt}</b>` : ''}` : `${good.map((a) => `${attrIco(a)}${ATTRS[a].name}`).join(' · ')} 멤버에게 약해요`}</p>${skillLinesHtml(id, 'pp-tip', 4)}${apLine}
       <button class="chip mini" data-act="info" data-kind="enemy" data-id="${id}">자세히</button>`, 'pp-mini');
   },
   prepRw: () => { const p = P(), s = app.stage, hell = app.hellMode && hellOpen(p.stages, s), r = stageReward(s, 3, hell ? 3 : p.stages[s] | 0); popup(`<h3>${ic('gift', '')} 보상</h3><div class="ilist"><p class="ip">클리어 코인 최대 <b>${fmt(Math.round(r.clear * (hell ? HELL.coin : 1)))}</b>${hell ? ` (헬 ×${HELL.coin})` : ''} · ★ 많을수록 ↑</p>${r.first ? `<p class="ip">첫 클리어 <b>+${fmt(r.first)}</b></p>` : ''}${r.star ? `<p class="ip">새 ★마다 코인 · ★★★까지 <b>+${fmt(r.star)}</b></p>` : ''}${r.mid ? `<p class="ip">중간 보스 처치 <b>+${fmt(r.mid)}</b></p>` : ''}<p class="ip">장비 1개 (★★★면 35%로 1개 더 · 퍼펙트 +1${hell ? ' · 헬 +1 · 희귀 이상' : ''})</p><p class="ip">데려간 멤버 카드 가끔${hell ? ' (헬 ×2)' : ''}</p><p class="ip">기력 ${ic('bolt', '', 'sm')}${L.stageStaminaCost(p, s, hell)} — 실패하면 일부 돌려받아요</p></div>`, 'pp-mini'); },
@@ -3420,7 +3426,7 @@ function showGlossary() {
   const attrRows = at.map((a) => { const l = glossLine('attr:' + a); return `<div class="gl-row">${attrIco(a)}<span><b>${esc(l[0])}</b><small>${esc(l[1])}</small></span></div>`; }).join('');
   const roleRows = Object.keys(ROLE_IC).map((k) => `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/${ROLE_IC[k]}.webp" alt=""><span><b>${ROLE_TXT[k][0]}</b><small>${ROLE_TXT[k][1]}</small></span></div>`).join('');
   const tierRows = [1, 2, 3, 4, 5].map((t) => `<div class="gl-row"><i class="tier t${t}">${TIER_NAME[t]}</i><span><b>${TIER_TXT[t][0]}</b><small>${TIER_TXT[t][1]} · 최대 +${metaMaxOfTier(t)}</small></span></div>`).join('');
-  const momRow = `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/megaphone.webp" alt=""><span><b>기세 (총공지 둘레 3칸)</b><small>멤버 스킬을 쓸 때마다 1칸씩 써요 (LEGEND 멤버는 2칸) · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이 차고 총공지 충전이 끝나면 총공지!</small></span></div>`;
+  const momRow = `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/megaphone.webp" alt=""><span><b>기세 (총공지 둘레 2칸)</b><small>멤버 스킬을 쓸 때마다 1칸씩 써요 (LEGEND 멤버는 2칸) · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이 차고 총공지 충전이 끝나면 총공지! · 쿨 35초 넘는 큰 한 방 스킬은 1웨이브가 끝나야 써요</small></span></div>`;
   popup(`<h3>한눈에 보기</h3><h4 class="gl-h">기세</h4>${momRow}<h4 class="gl-h">속성</h4>${attrRows}<h4 class="gl-h">역할</h4>${roleRows}<h4 class="gl-h">등급</h4>${tierRows}<p class="ip">배지나 칩을 꾹 누르면 설명이 떠요</p>`, 'pp-gloss');
   void wheel;
 }
@@ -4664,11 +4670,15 @@ function heroInfoHtml(d, full) {
     ${sk ? `<p class="is">${ic('sparkle', '', 'sm')}<b>${esc(sk.name)}</b> ${esc(sk.desc)} <span class="rg">쿨 ${sk.cd}초${sk.target ? ' · 찍어서 사용' : ''}</span></p>` : ''}
     ${full ? `<p class="ip">Lv3 ${esc(d.perks[3])} · Lv5 ${esc(d.perks[5])}</p><p class="ip">${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p>` : ''}`;
 }
+// (10/08) 진상 기술 줄: 이름 · 상태이상 색 · 설명 · 막는 멤버
+function skillLinesHtml(id, cls = 'ip', max = 9) {
+  return enemySkills(id).slice(0, max).map((k) => { const E = EST[k.st]; const cn = k.counter.filter((h) => HEROES[h]).slice(0, 3).map((h) => esc(heroNm(h))).join('·'); return `<p class="${cls} esk">${E ? `<i class="esk-ic" style="--c:${E.color}">${E.icon}</i>` : ''}<b>${esc(k.name)}</b> ${esc(k.text)}${cn ? ` <small>→ ${cn}</small>` : ''}</p>`; }).join('');
+}
 function enemyInfoHtml(e) {
   const good = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) > 1).map((a) => attrIco(a) + ATTRS[a].name);
   const bad = Object.keys(ATTRS).filter((a) => typeMul(a, e.cls) < 1).map((a) => attrIco(a) + ATTRS[a].name);
   return `<div class="ih"><b>${e.name}</b>${clsTag(e.cls)}${e.boss ? '<em class="bs">보스</em>' : ''}</div>
-    <p class="ia">${esc(ENEMY_TIPS[e.id] || '')}</p>
+    <p class="ia">${esc(ENEMY_TIPS[e.id] || '')}</p>${skillLinesHtml(e.id, 'ip', 5)}
     <p class="ip">잘 먹힘 ${good.join(' ')} · 안 먹힘 ${bad.join(' ')}</p>${(() => { const st = app.mode === 'stage' ? app.stage || 0 : 0, ap = st ? armorPctStage(st, e, false) : 0; return ap > 0 ? `<p class="ip">방어율 ${Math.round(ap * 100)}% (${chapterOf(st)}장) — 방깎 · 방관: ${ARMOR_BREAKERS.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join(' · ')}</p>` : ''; })()}`;
 }
 // 아이콘을 누르면 뜨는 설명 카드
@@ -4912,7 +4922,12 @@ function showPrep(mode, s) {
   const armorLack = apE >= 0.15 && !ids.some((id) => ARMOR_BREAKERS.includes(id));
   const armorRec = armorLack ? ARMOR_BREAKERS.filter((id) => HEROES[id] && own.has(id)).slice(0, 2) : [];
   const armorHtml = armorLack ? `<p>${ic('bolt', '', 'sm')}<b>방어율 ${Math.round(apE * 100)}%</b> (정예 · 보스 ${Math.round(apB * 100)}%) — 방깎 · 방관 멤버가 덱에 없어요${armorRec.length ? ` → <em>${armorRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
-  const lackHtml = lack.length || armorHtml ? `<div class="pp-lack">${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}</div>` : '';
+  // (10/08) 진상 기술 경고: 이 판 진상 · 보스가 멤버에게 거는 독 · 홀림 · 빙결 · 기절 · 입구 강타 — 막는 멤버가 덱에 없으면 (기절 예고 조건 경고와 겹치면 생략)
+  const thr = {};
+  if (mode === 'stage') for (const t of [...prepFoes(s), ...stageBosses(s), ...(stageMid(s) ? [stageMid(s)] : [])]) for (const k of enemySkills(t)) if (['poison', 'charm', 'freeze', 'stun', 'door'].includes(k.st)) (thr[k.st] = thr[k.st] || []).push(k.name);
+  const ccLack = lack.includes('cc');
+  const thrHtml = Object.keys(thr).filter((st) => !(ccLack && ['stun', 'charm', 'poison'].includes(st)) && !ids.some((id) => EST[st].counter.includes(id))).slice(0, 2).map((st) => { const rec = EST[st].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${EST[st].name} 기술</b> (${esc([...new Set(thr[st])].slice(0, 2).join(' · '))}) — 막을 멤버가 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('');
+  const lackHtml = lack.length || armorHtml || thrHtml ? `<div class="pp-lack">${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}${thrHtml}</div>` : '';
   const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
   // 4) 등장 진상
   const foes = prepFoes(st);
@@ -6120,6 +6135,7 @@ function dexPageHtml(kind, id, form, duo) {
       <div class="sbars">${bar('체력', Math.log10(d.hp) / Math.log10(4000))}${bar('속도', d.speed / 95)}${bar('입구 피해', d.atk / 36)}</div>
       ${d.traits ? `<div class="dp-sec"><b>${ic('target', '', 'sm')}특성</b>${Object.keys(d.traits).filter((k) => TRAITS[k]).map((k) => `<p>${TRAITS[k].icon} <b>${esc(TRAITS[k].name)}</b> — ${esc(TRAITS[k].tip)} <small>추천: ${TRAITS[k].counter.filter((h) => HEROES[h]).map((h) => esc(heroNm(h))).join('·')}</small></p>`).join('')}</div>` : ''}
  <section><h4> 특징</h4>${(d.fuse ? d.fuse : [tipId]).map((t) => `<p>${d.fuse ? `<b>${esc(ENEMIES[t].name)}</b> · ` : ''}${esc(ENEMY_TIPS[t] || '')}</p>`).join('')}</section>
+      ${enemySkills(id).length ? `<section><h4>${ic('bolt', '', 'sm')} 기술 <span class="rg">예고 중 기절 · 밀치기로 끊겨요</span></h4>${skillLinesHtml(id, '')}</section>` : ''}
  <section><h4>${ic('scale', '', 'sm')} 상성</h4><p>잘 먹힘 ${good.join(' ')} <span class="rg">×${TYPE_STRONG}</span></p><p>안 먹힘 ${bad.join(' ')} <span class="rg">×${TYPE_WEAK}</span></p></section>
  <section><h4>${ic('pin', '', 'sm')} 등장</h4><p>${fs ? `${stageLabel(fs)} 부터` : '무한 도전'}${d.boss ? ' · 보스' : d.mid ? ' · 3웨이브 중간 보스' : ''}</p></section>`;
   }
@@ -6871,7 +6887,7 @@ const ENEMY_TIPS = {
   snowball: '멀찍이 서서 눈덩이 → 맞은 멤버 1.5초 빙결 (제일 잘 치는 멤버를 노림) — 건전녀 응급 방패 · 강성구 곁 · 도발 탱커로 막는다',
   mid_pension: '7장 보스 (7-5 · 7-10). 예고 뒤 "소음 금지!" 넓은 범위 멤버 스킬 3초 침묵 — 예고 중에 기절시키면 끊긴다 · 응급 방패 · 알디콤으로 풀기 · 퇴실 독촉(공속↓) · 단체 손님 소환',
   envthief: '입구를 안 때리고 접수대 봉투를 들고 위로 달아난다 — 화면 위로 빠지면 이번 판 코인 −8% (최대 −40%). 임수빈 부케로 묶고 · 기절 · 감속으로 잡자',
-  buffet: '단단함(방어). 5초마다 냠냠 — 곁의 진상 체력 8% 회복 · 기절시키면 못 먹고, 여지원 방깎이면 회복이 막힌다',
+  buffet: '단단함(방어). 5초마다 냠냠 — 곁의 진상 체력 8% 회복 · 예고 뒤 상한 잡채 → 멤버 독 · 기절시키면 못 먹고, 여지원 방깎이면 회복이 막힌다',
   badsinger: '멀찍이 서서 숨 들이쉬고(0.9초) → 음 이탈! 곁 멤버 공격 속도 −35% 3초 — 숨 들이쉴 때 기절시키면 끊긴다',
   showoff: '셀카로 남자 멤버를 홀린다 — 여자 멤버 · 건전녀 Lv5 로 막기',
   drunkfriend: '두세 명이 어깨동무하고 갈지자로 우르르 — 범위 · 관통 공격으로 한 번에',
@@ -6882,13 +6898,13 @@ const ENEMY_TIPS = {
   mid_sledgirl: '각성한 썰매 폭주녀. 입구에 부딪히면 크게 아프다',
   yeokko: '빠름. 가까이 오면 여자 멤버를 홀린다',
   namkko: '빠름. 가까이 오면 남자 멤버를 홀린다',
-  drunk: '갈지자 걸음. 죽으면 술병이 터져 주변 진상에게 피해',
-  thug: '느리지만 단단함. 약한 공격은 덜 아프다',
+  drunk: '갈지자 걸음. 가끔 멈춰 소주병을 던진다(공속↓). 죽으면 술병이 터져 주변 진상에게 피해',
+  thug: '느리지만 단단함(방어). 입구 앞에서 다리를 젖혔다가 "문짝 걷어차기" — 젖힐 때 기절 · 밀치기로 끊자 · 수리 · 탱커가 버틴다',
   mukti: '엄청 빠름 · 잘 피함 (MISS). 입구에 붙으면 세게 친다 — 감속 · 기절 · 범위 · 따라가는 공격으로 잡자',
   queen: '졸개 소환 + 주변에 보호막',
   boss_thug: '땅 내려치기로 멤버 전원 기절',
   inpi_gossip: '멀찍이 서서 "수군수군" 뒷담화 — 맞은 멤버 공격 속도↓',
-  inpi_dictator: '곁의 진상들이 덜 아프고 안 밀리고 빨라진다. 먼저 잡자!',
+  inpi_dictator: '곁의 진상들이 덜 아프고 안 밀리고 빨라진다 · 예고 뒤 "강퇴 통보" 도장 → 멤버 스킬 침묵. 먼저 잡자!',
   inpi_clique: '3~5명씩 뭉쳐 다니며 서로 지켜 준다. 범위·관통 공격에 약함',
   scammer: '예쁜 프사(회피·남자 멤버 공격력↓) → 실물(공포/뚱뚱). "들켰다!" 할 때 약점',
   boss_gapjil: '"무릎 꿇어!" 멤버 기절 · 패거리 소환',
@@ -6897,13 +6913,13 @@ const ENEMY_TIPS = {
   inpi_treasurer: '뒤에 숨어 "회비 지원!" 보호막을 뿌린다. 체력이 낮으니 먼저!',
   boss_union: '3장 보스 (3-5 · 3-10) · 무한 도전 25웨이브부터. 갑질·회식·독재·이자·회비를 번갈아 쓴다',
   boss_bbikki: '2장 끝 보스. 전단지 폭탄(맞은 멤버 사거리 -30%, 4초) · 호객 행위(진상을 한 줄로 모아 우르르 + 손님 호객) · VIP 줄 세우기(앞줄 보호막) · 체력 40%면 분노 — 앞줄 보호막은 운영진으로, 모인 줄은 범위 공격으로',
-  vomit: '"우웩!" 멤버 발밑에 토 → 공속↓. 죽으면 토 웅덩이가 진상을 빠르게 — 멀리서 잡자',
+  vomit: '꿀렁(예고 · 멤버 발밑 표적) → "우웩!" 맞은 멤버 독 + 토 웅덩이(공속↓) — 꿀렁할 때 기절시키면 끊긴다 · 홍정민이 있으면 독 면역 · 죽으면 토 웅덩이가 진상을 빠르게',
   couple: '안 맞으면 "꽁냥꽁냥" 회복, 윙크 안 통함. 반쯤 때리면 "헤어져!" 둘로',
   handsy: '로프에 닿으면 멤버를 붙잡아 못 쏘게 한다. 잡으면 풀려요 — 먼저 지목!',
   gao: '가오 중엔 피해 -60%. 말빨 공격이나 치명타로 "가오 깨짐!" → 더 아프다',
-  selfie: '5초마다 "찰칵!" 플래시 — 가장 가까운 멤버 1초 기절. 체력 낮음',
-  cutter: '엄청 빠르고, 앞줄 근처에서 한 번 훌쩍 새치기',
-  kkondae: '느리고 튼튼. "라떼는 말이야~" 근처 멤버 공속↓. 기절시키면 조용',
+  selfie: '5초마다 "찰칵 준비…"(멤버 발밑 표적) → 플래시로 1초 기절 — 준비할 때 기절 · 밀치기로 끊긴다. 체력 낮음',
+  cutter: '엄청 빠르고, 앞줄 근처에서 한 번 훌쩍 새치기 → 착지하며 앞 멤버를 들이받는다 (쓰러짐 게이지) — 감속 · 기절로 늦추자',
+  kkondae: '느리고 튼튼. 가까이 오면 "라떼는 말이야~" 예고 뒤 라떼 잔 → 멤버 스킬 침묵 · 곁 멤버 공속↓. 기절시키면 조용',
   spam: '가끔 "카톡!" 알림을 풀고, 죽으면 알림 3개가 돌진',
   spam_dot: '작은 알림. 빠르게 돌진',
 };

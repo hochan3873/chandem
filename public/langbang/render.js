@@ -1030,6 +1030,7 @@ export class Renderer {
     this.drawGems(g, t);
     if (this.skfx) this.skfx.draw('ground', g); // 스킬 전용 연출 (skillfx.js) — 바닥
     if (this.kit) this.kit.draw('ground', g); // 대개편 장판 · 음파 고리 (kitfx.js)
+    if (this.efx) this.efx.draw('ground', g); // 진상 기술 예고 표적 · 입구 경고 (enemyfx.js)
     this.drawVfx('ground'); // 바닥 무늬: 금 · 경고 원 · 소환진 · 오라 (캐릭터 발밑 · 납작하게)
     if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'back'); // 건물주 레이드: 거대 보스 · 공격 예고 구역 (raid2-ui.js)
     this.drawEnemies(g, t);
@@ -1043,6 +1044,7 @@ export class Renderer {
     this.drawBeams(g, t);
     this.drawProjs(g);
     if (this.kit) this.kit.draw('mid', g); // 대개편: 화염 · 휘두르기 · 진상 상태 (kitfx.js)
+    if (this.efx) this.efx.draw('mid', g);
     if (g.buses && g.buses.length) this.drawBuses(g);
     this.drawSlashes();
     this.drawDoorHits();
@@ -1057,6 +1059,7 @@ export class Renderer {
     if (g.twa && this.twaDraw) this.twaDraw(g, t, 'top'); // 진상의 탑: 멤버 체력 · 상태 · 끌기 화살표
     if (this.skfx) this.skfx.draw('top', g); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
     if (this.kit) this.kit.draw('top', g); // 대개편 스킬 연출 (kitfx.js)
+    if (this.efx) this.efx.draw('top', g);
     this.drawTexts();
     this.drawBubbles();
     this.drawUiWorld(g, t, ui);
@@ -1602,7 +1605,7 @@ export class Renderer {
       if (def.mid && def.base) sp = this.sprites['e_' + def.base] || sp;
       if (!sp) continue;
       const feet = e.y + box * FEET_OFF;
-      const moving = !e.atRope && e.stunT <= 0 && e.windup <= 0 && !(e.bwind > 0);
+      const moving = !e.atRope && e.stunT <= 0 && e.windup <= 0 && !(e.bwind > 0) && !(e.castW > 0);
       const w = e.age * (4 + e.speed * 0.09) + e.phase;
       let bob = 0, rot = 0, sx = 1, sy = 1;
       if (moving) {
@@ -1620,6 +1623,7 @@ export class Renderer {
       } else {
         sy = 1 + Math.sin(t * 3 + e.phase) * 0.02;
       }
+      if (e.castW > 0 && !(e.bwind > 0) && !(e.windup > 0)) { const q = Math.min(1, 1 - e.castW / 0.9); bob = -4 - q * 6; rot = -0.12 - q * 0.2 + Math.sin(t * 50) * 0.02 * q; sy = 1 + q * 0.06; sx = 1 - q * 0.04; } // (10/08) 던지기 예고: 몸을 뒤로 젖히고 부들
       if (e.windup > 0 || e.bwind > 0) { sy = 0.82; sx = 1.14; bob = 0; rot = Math.sin(t * 60) * 0.03; if (e.bwind > 0 && Math.sin(t * 40) > 0.6) { this.tf(e.x, e.y - box * 0.3, 0, 1, 1); const gl = this.projSprites.glowRed; cx.drawImage(gl.c, -box * 0.6, -box * 0.6, box * 1.2, box * 1.2); } }
       if (e.kbv < -30) rot -= Math.min(0.5, -e.kbv * 0.0012) * (e.phase > 3 ? 1 : -1);
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
@@ -2858,6 +2862,7 @@ export class Renderer {
       }
     }
     for (const q of g.eprojs || []) {
+      if (this.efx && this.efx.drawEproj(q)) continue; // 진상 투척물 (enemyfx.js 코드 그림)
       const s = q.kind === 'duck' ? P.duck : q.kind === 'paper' ? P.paper : P['ep_' + q.kind] || P.rumor;
       this.tf(q.x, q.y, q.kind === 'rumor' ? Math.sin(q.t * 14) * 0.12 : q.t * 12, 1, 1);
       { const pi = s.paint && this.images[s.paint]; if (imgOk(pi)) { const hh = Math.max(s.h, s.w) * 1.3, ww = hh * pi.naturalWidth / pi.naturalHeight; cx.drawImage(pi, -ww / 2, -hh / 2, ww, hh); } else cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h); }
