@@ -309,7 +309,7 @@ export class Renderer {
     list.ws_back = '/img/lb/h_wonsik_back.webp'; list.ws_consult = '/img/lb/h_wonsik_consult.webp'; list.ws_walkb = '/img/lb/h_wonsik_walkback.webp'; list.ws_walkf = '/img/lb/h_wonsik_walkfront.webp'; // 정원식 결정사 상담
     list.vfx_soundring = '/img/lb/fx/vfx_soundring.webp'; list.vfx_banner = '/img/lb/fx/vfx_banner.webp'; // 방장 음파 · 집합 깃발
     list.dh_tf = '/img/lb/h_donghan_transform.webp'; // 문동한 진심 모드 변신 (12칸 · 한 번)
-    list.h_donghan_ssj = '/img/lb/h_donghan_ssj.webp'; list.dh_ssj_tf = '/img/lb/h_donghan_ssj_tf.webp'; list.dh_ssj_cast = '/img/lb/h_donghan_ssj_attack.webp'; // 문동한 초사이언: 금빛 모습 · 변신 8칸 · 포격 8칸
+    list.h_donghan_cafe = '/img/lb/h_donghan_cafe.webp'; list.dh_cafe_tf = '/img/lb/h_donghan_cafe_tf.webp'; list.dh_cafe_cast = '/img/lb/h_donghan_cafe_attack.webp'; // 문동한 카페인 풀충전: 풀충전 모습 · 변신 8칸 (커피 원샷 → 눈 번쩍) · 캔커피 부르기 8칸
     list.dohoon_idle = '/img/lb/h_dohoon_idle.webp'; list.dohoon_encore = '/img/lb/h_dohoon_encore.webp'; // 김도훈: 리듬 타기 8칸(평소) · 앵콜 8칸
     list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
     list.hanim_youngjun_rest = '/img/lb/h_youngjun_rest.webp'; // 김영준 숨 고르기 (크로스핏 8칸 · 있으면)
@@ -444,7 +444,7 @@ export class Renderer {
       if (HEROES[id].imgRage || HEROES[id].imgOn) this.bakeSprite('h_' + id + '_rage');
       if (HEROES[id].imgAlt) this.bakeSprite('h_' + id + '_alt');
     }
-    this.bakeSprite('h_donghan_ssj'); // 문동한 초사이언 모습
+    this.bakeSprite('h_donghan_cafe'); // 문동한 카페인 풀충전 모습
     for (const id in ENEMIES) this.bakeSprite('e_' + id);
     for (const key in this.formDefs) this.bakeSprite(key);
     this.bakeProj();
@@ -455,7 +455,7 @@ export class Renderer {
   bakeSprite(key) {
     const isHero = key[0] === 'h';
     const rage = key.endsWith('_rage');
-    const id = key.slice(2).replace('_rage', '').replace(/_(alt|ssj)$/, '');
+    const id = key.slice(2).replace('_rage', '').replace(/_(alt|cafe)$/, '');
     const def = isHero ? HEROES[id] : ENEMIES[id] || (this.formDefs && this.formDefs[key]);
     if (!def) return;
     if (def.dot) { this.bakeDot(key, def); return; }
@@ -2238,12 +2238,12 @@ export class Renderer {
       let usedStrip = false;
       if (h.id === 'baul' && h.bd && !busy) usedStrip = this.drawBaul(g, h, hx, feet, box, sp, t);
       if (h.id === 'junyoung' && h.out && !busy) usedStrip = this.drawJunyoung(g, h, hx, feet, box, sp, t);
-      if (h.id === 'donghan' && h.ssjT > 0 && this.sprites.h_donghan_ssj) { // 문동한 초사이언 포격: 변신 띠 → 한 발마다 포격 띠 (두 손 모아 기 모으기 → 가리키는 칸에 발사) · 사이엔 금빛 모습
-        const sk = h.def.skill, q = h.ssj, ssp = this.sprites.h_donghan_ssj, tfI = this.images.dh_ssj_tf, ca = this.images.dh_ssj_cast;
+      if (h.id === 'donghan' && h.cafeT > 0 && this.sprites.h_donghan_cafe) { // 문동한 카페인 풀충전: 변신 띠 (커피 원샷) → 한 발마다 캔커피 던지기 띠 (5칸째에 휙) · 사이엔 풀충전 모습
+        const sk = h.def.skill, q = h.cafe, ssp = this.sprites.h_donghan_cafe, tfI = this.images.dh_cafe_tf, ca = this.images.dh_cafe_cast;
         let im = null, key = '', fi = 0;
-        if (q && q.t < sk.wind && imgOk(tfI)) { im = tfI; key = 'dh_ssj_tf'; fi = Math.min(7, Math.floor((q.t / sk.wind) * 8)); }
-        else if (q && !busy && imgOk(ca) && (q.left > 0 || since < 0.3)) { const p = Math.max(0, since) / sk.gap; im = ca; key = 'dh_ssj_cast'; fi = q.left > 0 ? Math.floor(((p + 5 / 8) % 1) * 8) : Math.min(7, 5 + Math.floor((since / 0.3) * 3)); }
-        const shake = q && q.t >= sk.wind * 0.35 && q.t < sk.wind ? Math.sin(t * 70) * 1.6 : 0; // 기합 넣는 동안 부들부들
+        if (q && q.t < sk.wind && imgOk(tfI)) { im = tfI; key = 'dh_cafe_tf'; fi = Math.min(7, Math.floor((q.t / sk.wind) * 8)); }
+        else if (q && !busy && imgOk(ca) && (q.left > 0 || since < 0.3)) { const p = Math.max(0, since) / sk.gap; im = ca; key = 'dh_cafe_cast'; fi = q.left > 0 ? Math.floor(((p + 5 / 8) % 1) * 8) : Math.min(7, 5 + Math.floor((since / 0.3) * 3)); }
+        const shake = q && q.t >= sk.wind * 0.35 && q.t < sk.wind ? Math.sin(t * 70) * 1.6 : 0; // 카페인 들어가는 동안 부들부들
         if (im) { const fit = this.stripFit(key, im, 8, ssp.c), fw = im.naturalWidth / 8; this.tf(hx + shake, feet, 0, 1, 1); cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k); }
         else { this.tf(hx + shake, feet + Math.sin(t * 6) * 1.2, 0, 1, 1 + Math.sin(t * 9) * 0.012); cx.drawImage(ssp.c, -box / 2, -box * FEET, box, box); }
         usedStrip = true;

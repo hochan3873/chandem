@@ -216,9 +216,9 @@ export function spawnTele(g, kind, tgt) {
   g.events.push({ type: 'twaWarn', kind, shape, x: s.x, y: s.y, id: s.id });
   return s;
 }
-function startWind(g) {
+function startWind(g, pick) {
   const A = g.twa, W = A.plan.wind;
-  const es = g.enemies.filter((e) => !e.dead && e.y > 30 && e.y < g.ropeY + 10 && !(e.stunT > 0) && !(e.frozenT > 0)); // 이미 기절한 진상은 기를 못 모은다
+  const es = pick ? [pick] : g.enemies.filter((e) => !e.dead && e.y > 30 && e.y < g.ropeY + 10 && !(e.stunT > 0) && !(e.frozenT > 0)); // 이미 기절한 진상은 기를 못 모은다
   if (!es.length) return false;
   const e = es.find((x) => x.boss) || es.find((x) => x.titan || x.elite) || es.reduce((a, b) => (b.maxHp > a.maxHp ? b : a));
   const z = zoneOf(g);
@@ -227,6 +227,15 @@ function startWind(g) {
   A.stat.wind++;
   g.events.push({ type: 'twaWind', x: e.x, y: e.y - e.def.size * 0.6, sx, sy, r: W.safe, dur: W.dur, name: e.def.name });
   return true;
+}
+
+// 바로 기 모으기 (탑 연습 층 · 튜토리얼): o = { dur, cut, safe } — 층에 기 모으기가 없으면 연습용 숫자로
+export function windNow(g, o = {}, pick = null) {
+  const A = g.twa;
+  if (!A || A.wind) return !!(A && A.wind);
+  if (!A.plan.wind || o.dur) A.plan = Object.assign({}, A.plan, { wind: Object.assign({ every: 1e9, dur: 30, safe: 50, cut: 0.03, dmg: 0.3, stun: 1 }, A.plan.wind || {}, o) });
+  A.windT = 1e9;
+  return startWind(g, pick);
 }
 
 // ─── 맞히기 ───
@@ -395,7 +404,7 @@ function tick(g, dt) {
       const W = A.wind;
       W.t += dt;
       const lost = W.hp0 - (W.e.dead ? 0 : W.e.hp);
-      if (W.e.dead || W.e.stunT > 0 || W.e.frozenT > 0 || W.e.danceT > 0 || lost >= W.need) windEnd(g, false);
+      if (W.e.dead || (!W.hold && (W.e.stunT > 0 || W.e.frozenT > 0 || W.e.danceT > 0 || lost >= W.need))) windEnd(g, false); // hold: 연습 층 — 플레이어가 끊기 전엔 저절로 안 끊긴다
       else if (W.t >= W.dur) windEnd(g, true);
     } else if ((A.windT -= dt) <= 0) { A.windT = A.plan.wind.every * (0.9 + rnd(g) * 0.2); if (!startWind(g)) A.windT = 2; }
   }

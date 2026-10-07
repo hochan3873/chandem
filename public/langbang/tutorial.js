@@ -117,10 +117,7 @@ export const LESSONS = [
     { id: 'a', when: calm, say: '<b>1:1 대전!</b> 두 사람에게 같은 진상이 와요.<br>입구가 <b>먼저 무너지는 쪽</b>이 져요', hold: 1, dim: false, tap: 'bubble', wait: 6 },
     { id: 'b', when: calm, at: '#oppstrip', say: '위에 <b>상대 상황</b>이 보여요. 총공지 · 스킬 타이밍으로 이겨요!', hold: 1, dim: false, tap: 'bubble', wait: 6, maxWait: 2 },
   ] },
-  { id: 'tower', need: 'any', when: (c) => c.where === 'tower', scope: (c) => c.where === 'tower', beats: [
-    { id: 'a', say: '<b>진상의 탑</b>! 멤버 <b>3명 파티</b>로 한 층씩 올라가요', hold: 1, tap: 'bubble' },
-    { id: 'b', say: '바닥에 <b>빨간 예고</b>가 뜨면 멤버를 <b>끌어서</b> 피해요. 높이 갈수록 보상이 커져요', hand: null, hold: 1, tap: 'bubble' },
-  ] },
+  // (진상의 탑은 따로: tower-guide.js TOWER_LESSONS — 탑 화면이 자기 말풍선으로 · 연습 층까지)
   { id: 'raid', need: 'any', when: (c) => c.where === 'raid', scope: (c) => c.where === 'raid', beats: [
     { id: 'a', say: '<b>건물주 레이드</b>! 일주일 동안 모두가 함께 거대 보스 체력을 깎아요', hold: 1, tap: 'bubble' },
     { id: 'b', say: '입장 횟수가 정해져 있어요. <b>가장 센 덱</b>으로 · 보스 패턴 예고를 보고 피해요', hold: 1, tap: 'bubble' },
@@ -153,9 +150,9 @@ const BY_ID = Object.fromEntries(LESSONS.map((l) => [l.id, l]));
 export const lessonById = (id) => BY_ID[id] || null;
 
 // 지금 시작할 레슨 (없으면 null) · reactOnly: 다른 레슨이 기다리는 동안 끼어들 것만
-export function pickLesson(st, c, reactOnly = false) {
+export function pickLesson(st, c, reactOnly = false, lessons = LESSONS) {
   if (!st || st.off || !c || c.blocked || c.modal) return null;
-  for (const l of LESSONS) {
+  for (const l of lessons) {
     if (reactOnly && !l.react) continue;
     if (isDone(st, l.id)) continue;
     if (l.need === 'on' && !st.on) continue;
@@ -192,21 +189,22 @@ export const beatText = (b, c) => (typeof b.say === 'function' ? b.say(c) : b.sa
 
 // ─── 화면 ───
 //  o: { stage, ctx() → c, fieldRect(spec, c) → {x,y,w,h, px,py}(무대 좌표) | null, face() → html, save(list), onSkipAll(), toast(msg) }
+//   · lessons (기본 LESSONS) · lsKey (기기 저장 앞머리 · 기본 TUT_LS) · noEnroll (처음 온 사람 자동 시작 안 함) — 진상의 탑이 따로 하나 더 띄운다 (tower-ui.js)
 export function createTutor(o) {
-  const stage = o.stage;
+  const stage = o.stage, LS = o.lessons || LESSONS, LSK = o.lsKey || TUT_LS;
   let st = tutNew(), key = '';
   let cur = null; // { les, i, seen:Set, c0, shown, shownAt, waitAt, tapped, el, rect }
   let under = null; // 끼어든 레슨 아래서 기다리는 레슨
   let layer = null, parts = null, timer = 0, raf = 0;
   const now = () => performance.now();
-  const store = () => { try { localStorage.setItem(TUT_LS + key, JSON.stringify(tutList(st))); } catch { /* 무시 */ } try { o.save && o.save(tutList(st)); } catch { /* 무시 */ } };
+  const store = () => { try { localStorage.setItem(LSK + key, JSON.stringify(tutList(st))); } catch { /* 무시 */ } try { o.save && o.save(tutList(st)); } catch { /* 무시 */ } };
   // 계정이 정해지면 (부팅 · 로그인 · 로그아웃): 기기 기록 + 서버 기록 → 처음 온 사람이면 시작
   function load(accountKey, serverList, profile) {
     key = String(accountKey || 'guest');
-    let local = tutNew(); try { local = tutParse(localStorage.getItem(TUT_LS + key) || '[]'); } catch { /* 무시 */ }
+    let local = tutNew(); try { local = tutParse(localStorage.getItem(LSK + key) || '[]'); } catch { /* 무시 */ }
     const before = JSON.stringify(tutList(local));
     st = tutMerge(local, tutFromList(serverList || []));
-    const enrolled = tutEnroll(st, profile);
+    const enrolled = o.noEnroll ? false : tutEnroll(st, profile);
     if (enrolled || JSON.stringify(tutList(st)) !== before || (Array.isArray(serverList) && JSON.stringify(serverList.slice().sort()) !== JSON.stringify(tutList(st).slice().sort()))) store();
     stopNow();
   }
@@ -331,7 +329,7 @@ export function createTutor(o) {
     if (!key) return; // 계정 기록을 읽기 전엔 아무것도 안 띄운다
     let c; try { c = o.ctx(); } catch { return; }
     if (!c) return;
-    if (!cur) { const les = pickLesson(st, c); if (les) begin(les, c); else { if (layer) layer.classList.add('tu-hid'); return; } }
+    if (!cur) { const les = pickLesson(st, c, false, LS); if (les) begin(les, c); else { if (layer) layer.classList.add('tu-hid'); return; } }
     if (!cur) return;
     // 먼저: 방금 한 동작으로 끝났나 (버튼을 누르자마자 화면이 바뀌어도 본 걸로)
     if (cur.shown && cur.b && beatDone(cur.b, c, cur.seen, cur.c0, cur.tapped, (now() - cur.shownAt) / 1000)) { advance(c, cur.i + 1); if (!cur) return; }
@@ -360,7 +358,7 @@ export function createTutor(o) {
         return;
       }
       // 조건을 기다리는 동안: 증강 · 카드 같은 건 먼저 알려 준다
-      if (!under) { const r = pickLesson(st, c, true); if (r && r !== cur.les) { under = cur; begin(r, c); return; } }
+      if (!under) { const r = pickLesson(st, c, true, LS); if (r && r !== cur.les) { under = cur; begin(r, c); return; } }
       if (now() - cur.waitAt > (b.maxWait || 40) * 1000) return advance(c, cur.i + 1);
       return;
     }
@@ -384,6 +382,8 @@ export function createTutor(o) {
     state: () => tutList(st),
     now: () => (cur ? { les: cur.les.id, beat: cur.b && cur.b.id, shown: !!cur.shown, under: under ? under.les.id : null, seen: [...cur.seen] } : null), // (화면 찍기 스크립트 · 디버그)
     replay: () => { st = tutReplay(); store(); stopNow(); },
+    forget: (ids) => { st.off = false; for (const id of ids) delete st.done[id]; store(); stopNow(); }, // 몇 레슨만 다시 (탑 로비 ? → 튜토리얼 다시 보기)
+    done: (id) => isDone(st, id),
     stop: stopNow,
     tick,
   };

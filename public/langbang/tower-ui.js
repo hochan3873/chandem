@@ -5,10 +5,14 @@ import * as TW from './tower.js';
 import * as L from './live.js';
 import * as TWA from './tower-arena.js';
 import { initArenaUi } from './tower-arena-ui.js';
+import * as TG from './tower-guide.js';
+import { createTutor } from './tutorial.js';
 
 let C = null; // game.js 도우미 (app · P · show · popup · toast · …)
 const st = { f: 0, hero: null, squad: null, board: null, boardAt: 0, hud: null, hudT: 0, last: null };
 let AUI = null; // 리메이크 전투 화면 (tower-arena-ui.js)
+let TT = null, ttKey = ''; // 탑 튜토리얼 (tower-guide.js TOWER_LESSONS · 말풍선은 tutorial.js 그대로) — 로비 처음 + 연습 층
+const TT_ON = (() => { try { const q = new URLSearchParams(location.search); return !(q.has('notut') || q.has('autostart') || (navigator.webdriver && !q.has('tut'))); } catch { return true; } })();
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
@@ -24,7 +28,9 @@ export function initTower(ctx) {
   C = ctx;
   C.R.awakeAuraSrc = TW.TOWER_ART.aura; // 지옥 각성 오라 그림
   AUI = initArenaUi(ctx);
-  return { show: showTower, acts: ACTS, gameOpt, afterCreate, moveTo: (g, h, x, y) => TWA.moveTo(g, h, x, y), ensureMap, hudTick, onEvent, onVictory, onFail, result, lobbyButton, cardBadge, heroInfoHtml, awake: (p) => TW.awakeMap(p || P()), isTowerEvent: (t) => t === 'twCurse' || t === 'twTimeout' || t === 'skillAug' || AUI.isEvent(t) };
+  TT = createTutor({ stage: C.stage, lessons: TG.TOWER_LESSONS, lsKey: TG.TOWER_TUT_LS, noEnroll: true, ctx: () => (TT_ON ? ttCtx() : null), fieldRect: (sp) => ttField(sp), toast: (m) => C.toast(m, 2400),
+    face: () => `<img class="fz" style="${C.faceCircStyle('bangjang', 0.62, 0.5)}" src="${C.thumbSrc('bangjang')}" alt="" draggable="false" onerror="this.onerror=null;this.className='';this.removeAttribute('style');this.src='${HEROES.bangjang.img}'">` });
+  return { tutScale: () => (TT ? TT.scale() : 1), tutReplay: () => ttReplay(false), tut: () => TT, show: showTower, acts: ACTS, gameOpt, afterCreate, moveTo: (g, h, x, y) => TWA.moveTo(g, h, x, y), ensureMap, hudTick, onEvent, onVictory, onFail, result, lobbyButton, cardBadge, heroInfoHtml, awake: (p) => TW.awakeMap(p || P()), isTowerEvent: (t) => t === 'twCurse' || t === 'twTimeout' || t === 'skillAug' || AUI.isEvent(t) };
 }
 
 // ─── 멤버 · 층 고르기 ───
@@ -63,15 +69,16 @@ function fatGauge(h, cls = '') {
 
 // 전투 옵션 (game.js startRun 이 createGame 에 덧붙인다): 대장 · 층 규칙 · 지옥 각성 (같이 간 멤버는 afterCreate 에서)
 function gameOpt(t, p) {
-  const def = TW.floorDef(t.f);
+  const def = t.practice ? practiceDef() : TW.floorDef(t.f);
   const fs = t.fats ? Object.values(t.fats) : [t.fat | 0];
   const fat = Math.round(fs.reduce((a, v) => a + (v | 0), 0) / Math.max(1, fs.length)); // 피로: 파티 평균
-  return { mode: 'stage', stage: def.stage, deck: [null, null, t.hero, null, null, null], join: false, leader: t.hero, slots: 1, tower: def, towerExp: TW.TOWER.exp, towerFat: fat, towerFatPow: TW.FATIGUE.pow, awake: TW.awakeMap(p), weekly: null, hell: false, unlocked: [] };
+  return { mode: 'stage', stage: def.stage, deck: [null, null, t.hero, null, null, null], join: false, leader: t.hero, slots: 1, tower: def, towerExp: t.practice ? 1e-6 : TW.TOWER.exp, towerFat: fat, towerFatPow: TW.FATIGUE.pow, awake: TW.awakeMap(p), weekly: null, hell: false, unlocked: [] };
 }
 // createGame 다음: 같이 간 멤버 · 바닥 예고 · 체력 (tower-arena.js)
 function afterCreate(g, t) {
   const sq = (t.squad && t.squad.length ? t.squad : [t.hero]).filter((h) => HEROES[h]);
   TWA.attach(g, { squad: sq });
+  if (t.practice) { practiceSetup(g); return; }
   const pl = g.twa && g.twa.plan;
   if (pl && pl.tier <= 2) setTimeout(() => C.toast(pl.tier <= 1 ? '멤버를 끌어서 옮길 수 있어요 · 바닥 경고를 피해 보세요' : '바닥 경고가 차오르면 터져요 — 멤버를 끌어서 피하세요!', 3200), 900);
   else if (pl && pl.wind) setTimeout(() => C.toast('기 모으기: 초록 원으로 모이거나 · 기절 · 큰 피해로 끊어요', 3200), 900);
@@ -111,7 +118,7 @@ function floorCard(f, best, main) {
   const lim = Math.round(30 + 80 * TW.floorDef(f).waves.length);
   return `<div class="tw-fc main ${boss ? 'boss' : ''}" style="--zc:${z.color}">
     <div class="fc-head"><em class="fc-no">${f}<small>F</small></em><span class="fc-zone">${esc(zoneName(z))}</span>${boss ? `<span class="fc-bossart">${C.av(boss)}<b>${esc(boss.name)}</b></span>` : ''}</div>
-    ${hzHtml(f)}
+    ${guideHtml(f)}
     <ul class="fc-lines">${lines}</ul>
     <div class="fc-meta"><span>${C.ic('speed', '', 'sm')}제한 ${Math.floor(lim / 60)}분 ${lim % 60 ? `${lim % 60}초` : ''}</span><span>${C.ic('wave', '', 'sm')}웨이브 ${TW.floorDef(f).waves.length}</span></div>
     ${rewardChips(f, best)}
@@ -125,21 +132,32 @@ function resChips(h, f, max = 3) {
   for (const k of kinds) { const v = TWA.resOf(h, k), team = TWA.teamRes(k).find((x) => x.id === h); if (v || team) out.push(`<i class="tw-res" style="--hc:${TWA.HZ[k].color}">${esc(TWA.HZ[k].name)} ${team ? (team.v >= 100 ? '팀 면역' : `팀 −${team.v}%`) : `−${v}%`}</i>`); }
   return out.slice(0, max).join('');
 }
-// 이 층 바닥 위험 (리메이크): 단계 설명 · 위험 칩 · 내 멤버 중 추천
-function hzHtml(f) {
-  const pl = TWA.floorPlan(f);
-  const chips = pl.kinds.map((k) => `<span class="tw-hz" style="--hc:${TWA.HZ[k].color}"><b>${esc(TWA.HZ[k].name)}</b><small>${esc(TWA.HZ[k].desc)}</small></span>`).join('');
-  const rec = pl.kinds.some((k) => k !== 'hit') ? TWA.recommend(f, owned(), 4) : [];
-  return `<div class="fc-hzs"><em class="fc-tier t${pl.tier}">${esc(TWA.TIER_TXT[pl.tier])}${pl.tier >= 2 ? ` · 예고 ${pl.warn}초` : ''}</em>${chips ? `<div class="fc-hzl">${chips}${pl.wind ? '<span class="tw-hz wind" style="--hc:#ff3b4f"><b>기 모으기</b><small>초록 원으로 모이거나 기절 · 큰 피해로 끊기</small></span>' : ''}</div>` : ''}${rec.length ? `<div class="fc-rec"><small>추천</small>${rec.map((h) => `<button class="fc-rh" data-act="twRec" data-h="${h}" title="${esc(HEROES[h].name)}">${face(h, 'xs')}<b>${esc(HEROES[h].name)}</b></button>`).join('')}</div>` : ''}</div>`;
+// 이 층 공략 (초보 가이드 · tower-guide.js): 쉬운 말 한 줄 · 위험마다 할 일 · 내 멤버 중 추천 파티 (한 번에 넣기) · 자세히
+const guideOf = (f) => TG.floorGuide(f, owned(), (h) => C.heroPower(P(), h));
+const actChip = (a) => `<i class="tg-act" style="--ac:${TG.ACTS[a].color}">${TG.ACTS[a].name}</i>`;
+const roleChip = (k, txt) => `<i class="tg-role r-${k}">${esc(txt || (TG.ROLES[k] || {}).name || '')}</i>`;
+function guideHtml(f) {
+  const G = guideOf(f), pl = TWA.floorPlan(f);
+  const items = [...G.hazards.filter((h) => h.kind !== 'hit' || G.tier <= 1), ...(G.wind ? [G.wind] : [])];
+  const rows = items.map((h) => `<li style="--hc:${h.color}"><span class="tg-hn"><b>${esc(h.name)}</b>${h.act.map(actChip).join('')}</span><small>${esc(h.what)}</small></li>`).join('');
+  const sq = squadIds(), hint = TG.partyHint(f, sq), same = G.party.length && G.party.every((h) => sq.includes(h));
+  const picks = G.picks.map((x) => `<span class="tg-pk">${face(x.id, 'xs')}<b>${esc(HEROES[x.id].name)}</b><small>${esc(x.why)}</small></span>`).join('');
+  return `<div class="fc-guide">
+    <div class="tg-head"><b>${C.ic('bulb', '', 'sm')}이 층 공략</b><em class="fc-tier t${pl.tier}">${esc(G.easy)}${pl.tier >= 2 ? ` · 경고 ${pl.warn.toFixed(1)}초` : ''}</em></div>
+    ${rows ? `<ul class="tg-hz">${rows}</ul>` : ''}
+    ${picks ? `<div class="tg-picks"><small class="tg-lbl">추천 (내 멤버 중)</small>${picks}</div>` : ''}
+    ${hint ? `<p class="tg-warn">${esc(hint)}</p>` : ''}
+    <div class="tg-btns">${G.party.length ? `<button class="tg-b go ${same ? 'on' : ''}" data-act="twRecAll" ${same ? 'disabled' : ''}>${same ? '추천 파티 그대로예요' : '추천 파티 넣기'}</button>` : ''}<button class="tg-b" data-act="twGuide">자세히 보기</button></div>
+  </div>`;
 }
 function partyHtml() {
   const p = P(), sq = curSquad(), f = curFloor();
   const slot = (h, i) => {
     if (!h) return `<button class="tw-mem empty" data-act="twPick" data-s="${i}"><span class="tw-plus">+</span><small>${i ? '빈자리' : '대장'}</small></button>`;
     const aw = TW.awakeLv(p, h), v = fatOf(h);
-    return `<button class="tw-mem ${fatBlocked(h) ? 'tired' : ''}" data-act="twPick" data-s="${i}">${i === 0 ? '<i class="tw-lead">대장</i>' : ''}${face(h, 'big')}${aw ? `<i class="tw-awk l${aw}">${aw >= 3 ? '지옥' : 'I'.repeat(aw)}</i>` : ''}<b>${esc(HEROES[h].name)}</b><small class="tw-hp">체력 ${fmt(hpOf(h))}</small><span class="tw-rs">${resChips(h, f, 2)}</span><i class="tf-bar ${fatLv(v)}" title="피로 ${v}%"><b style="width:${v}%"></b></i></button>`;
+    return `<button class="tw-mem ${fatBlocked(h) ? 'tired' : ''}" data-act="twPick" data-s="${i}">${i === 0 ? '<i class="tw-lead">대장</i>' : ''}${roleChip(TG.roleOf(h))}${face(h, 'big')}${aw ? `<i class="tw-awk l${aw}">${aw >= 3 ? '지옥' : 'I'.repeat(aw)}</i>` : ''}<b>${esc(HEROES[h].name)}</b><small class="tw-hp">체력 ${fmt(hpOf(h))}</small><span class="tw-rs">${resChips(h, f, 2)}</span><i class="tf-bar ${fatLv(v)}" title="피로 ${v}%"><b style="width:${v}%"></b></i></button>`;
   };
-  return `<div class="tw-party sq"><div class="tw-mems">${sq.map(slot).join('')}</div></div>`;
+  return `<div class="tw-party sq"><div class="tw-phd"><b>파티</b><button class="tw-phb" data-act="twRoles">${C.ic('ic_party', '', 'sm')}역할 가이드</button><button class="tw-phb prac" data-act="twPractice">${C.ic('target', '', 'sm')}연습 층</button></div><div class="tw-mems">${sq.map(slot).join('')}</div></div>`;
 }
 function hallHtml() {
   const bd = st.board;
@@ -155,6 +173,7 @@ function showTower() {
   const app = C.app;
   app.screen = 'tower';
   app.g = null; app.demo = null; app.paused = false;
+  st.lobbyAt = performance.now();
   C.hud.hidden = true;
   if (C.A.setMode) C.A.setMode('tower');
   C.A.setBoss(false);
@@ -178,7 +197,7 @@ function renderLobby() {
       <div class="tw-embers">${embers(26)}</div>
     </div>
     <div class="tw-top"><button class="back" data-act="menu">‹ 로비</button>
-      <div class="tw-cur"><button class="tw-pill hs" data-act="twShop">${hsIc()}<b>${fmt(t.stone | 0)}</b></button><span class="tw-pill tries ${left ? '' : 'none'}">${C.ic('energy', '', 'sm')}<b>${free ? '∞' : `${left}/${TW.TOWER.tries}`}</b></span></div></div>
+      <div class="tw-cur"><button class="tw-pill hs" data-act="twShop">${hsIc()}<b>${fmt(t.stone | 0)}</b></button><span class="tw-pill tries ${left ? '' : 'none'}">${C.ic('energy', '', 'sm')}<b>${free ? '∞' : `${left}/${TW.TOWER.tries}`}</b></span><button class="tw-pill help" data-act="twHelp" aria-label="탑 도움말"><b>?</b></button></div></div>
     <div class="tw-title"><small>${esc(z.sub)}</small><h2>진상의 탑</h2><em>최고 <b>${best}F</b> · ${esc(zoneName(TW.zoneOf(Math.max(1, best || 1))))}</em></div>
     <div class="tw-main">
       ${ladderHtml(best, f)}
@@ -196,7 +215,8 @@ function renderLobby() {
   bindParallax(el);
   const cur = el.querySelector('.tl-f.cur');
   if (cur) cur.scrollIntoView({ block: 'center' });
-  if (!lsGet('langbang:twRemake')) { lsSet('langbang:twRemake', '1'); setTimeout(() => { if (C.app.screen === 'tower') rulesPop(); }, 400); } // 리메이크 첫 방문: 새 규칙 안내
+  ttLoad();
+  if (!lsGet('langbang:twRemake')) { lsSet('langbang:twRemake', '1'); if (!TT_ON || (TT && TT.done('twlobby'))) setTimeout(() => { if (C.app.screen === 'tower') rulesPop(); }, 400); } // 리메이크 첫 방문: 새 규칙 안내 (처음 온 사람은 방장 튜토리얼이 대신)
 }
 // 새 규칙 (리메이크) 안내
 function rulesPop() {
@@ -380,15 +400,16 @@ function climb(from, to) {
 function hudTick(g) {
   let el = st.hud;
   if (!g || !g.tower) { if (el) { el.remove(); st.hud = null; } return; }
+  if (g.twPrac) practiceTick(g);
   if (!el || !el.isConnected) {
     el = document.createElement('div'); el.className = 'tw-hud';
     const pl = g.twa ? g.twa.plan : null;
-    el.innerHTML = `<b class="th-f" style="--zc:${TW.zoneOf(g.tower.f).color}">지옥 <em>${g.tower.f}F</em></b><span class="th-r">${g.tower.rules.map((r) => ruleIc(r)).join('')}</span>${pl && pl.kinds.length ? `<span class="th-hz">${pl.kinds.map((k) => `<i style="--hc:${TWA.HZ[k].color}">${esc(TWA.HZ[k].name)}</i>`).join('')}</span>` : ''}<i class="th-t"></i>`;
+    el.innerHTML = `<b class="th-f" style="--zc:${TW.zoneOf(g.tower.f).color}">${g.twPrac ? '<em>연습 층</em>' : `지옥 <em>${g.tower.f}F</em>`}</b><span class="th-r">${g.tower.rules.map((r) => ruleIc(r)).join('')}</span>${pl && pl.kinds.length ? `<span class="th-hz">${pl.kinds.map((k) => `<i style="--hc:${TWA.HZ[k].color}">${esc(TWA.HZ[k].name)}</i>`).join('')}</span>` : ''}<i class="th-t"></i>`;
     C.stage.appendChild(el); st.hud = el;
   }
   const left = Math.max(0, Math.ceil(g.tower.limit - g.t));
   const tt = el.querySelector('.th-t');
-  const txt = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  const txt = g.twPrac ? '시간 제한 없음' : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
   if (tt.textContent !== txt) { tt.textContent = txt; tt.classList.toggle('warn', left <= 30); }
   el.hidden = C.app.screen !== 'play';
 }
@@ -396,7 +417,7 @@ function hudTick(g) {
 const CURSE_TXT = { stun: '저주: 기절!', silence: '저주: 침묵', charm: '저주: 홀림', slow: '저주: 손이 굳는다' };
 function onEvent(g, e, loud) {
   const fx = C.fx;
-  if (AUI.isEvent(e.type)) { AUI.onEvent(g, e, loud); return; }
+  if (AUI.isEvent(e.type)) { AUI.onEvent(g, e, loud); if (TT) TT.emit(e.type); return; }
   if (e.type === 'twCurse') {
     for (let k = 1; k <= 7; k++) fx.part('spark', e.ex + ((e.x - e.ex) * k) / 8, e.ey + ((e.y - 40 - e.ey) * k) / 8, 0, 0, 0.35, 4, '#c77dff');
     fx.text(e.x, e.y - 84, CURSE_TXT[e.kind] || '저주!', '#d9a8ff', 14, 1.0, -20);
@@ -413,12 +434,14 @@ function onEvent(g, e, loud) {
 }
 function onVictory(g) {
   const fx = C.fx;
+  if (g.twPrac) { fx.banner('연습 끝!', '이제 진짜 탑으로', '#a0200a', 2.2, 'big'); return; }
   fx.banner(`${g.tower.f}층 돌파!`, g.tower.f >= TW.TOWER.floors ? '진상 대왕을 쓰러뜨렸다!' : '다음 층이 열렸다', '#a0200a', 2.6, 'big');
   fx.flash('#ffb070', 0.5);
   for (let k = 0; k < 26; k++) fx.part('flame', 30 + Math.random() * 300, g.H * 0.55 + Math.random() * 160, (Math.random() - 0.5) * 50, -120 - Math.random() * 140, 1.4, 10 + Math.random() * 8, null);
 }
 function onFail(g) {
   const fx = C.fx;
+  if (g.twPrac) { fx.banner('연습 끝', '탑 로비로 돌아가요', '#3a0612', 2, 'big'); return; }
   fx.banner(g.tower && g.t >= g.tower.limit ? '시간 초과…' : '탑에서 떨어졌다…', '다시 올라가자', '#3a0612', 2.2, 'big');
   C.stage.classList.add('tw-falling');
   setTimeout(() => C.stage.classList.remove('tw-falling'), 2600);
@@ -427,6 +450,7 @@ function onFail(g) {
 // ─── 결과: 돌파 · 보상 상자 / 추락 ───
 function result(g, victory, quit) {
   const app = C.app;
+  if (g.twPrac) { practiceResult(g, victory, quit); return; }
   app.screen = 'result';
   C.hud.hidden = true;
   hudTick(null);
@@ -525,6 +549,180 @@ function heroInfoHtml(id) {
     ${augs ? `<h4>${C.ic('sparkle', '', 'sm')}전용 스킬 증강 <small>레벨업 카드로 나와요</small></h4><ul>${augs}</ul>` : ''}</div>`;
 }
 
+// ─── 초보 가이드: 이 층 공략 (자세히) · 역할 가이드 · 도움말 ───
+function guidePop(f = curFloor()) {
+  const G = guideOf(f), i = TW.floorInfo(f), sq = squadIds();
+  const hzBlock = (h) => `<div class="tg-blk" style="--hc:${h.color}"><div class="tg-bh"><i class="tw-hzdot"></i><b>${esc(h.name)}</b>${h.act.map(actChip).join('')}</div><p>${esc(h.what)}</p><p class="tg-how"><b>이렇게:</b> ${esc(h.how)}</p>${h.best && h.best.length ? `<div class="tg-best"><small>강한 내 멤버</small>${h.best.map((b) => `<span>${face(b.id, 'xs')}${esc(HEROES[b.id].name)} <em>${b.team ? `팀 ${b.v >= 100 ? '면역' : `−${b.v}%`}` : `−${b.v}%`}</em></span>`).join('')}</div>` : h.alt ? `<p class="tg-alt">${esc(h.alt)}</p>` : ''}</div>`;
+  const hz = [...G.hazards.filter((h) => h.kind !== 'hit' || G.tier <= 1), ...(G.wind ? [G.wind] : [])].map(hzBlock).join('');
+  const rules = i.rules.map((r) => `<div class="tg-rule" style="--rc:${TW.RULES[r].color}">${ruleIc(r)}<span><b>${esc(TW.RULES[r].name)}</b><small>${esc(TW.ruleDesc(r, f))}</small><em>${esc(TW.ruleHint(r, f))}</em></span></div>`).join('');
+  const picks = G.picks.map((x) => `<div class="tg-prow">${face(x.id)}<span><b>${esc(HEROES[x.id].name)}</b>${roleChip(x.role)}<small>${esc(x.why)}</small></span></div>`).join('');
+  const same = G.party.length && G.party.every((h) => sq.includes(h));
+  C.popup(`<h3>${C.ic('bulb', '', 'sm')}${f}층 공략</h3>
+    <p class="tg-easy">${esc(G.easy)}</p>
+    ${hz || '<p class="tg-easy">바닥 경고가 없어요 — 편하게 진상만 잡아요</p>'}
+    <h4 class="gl-h">추천 파티 (내 멤버 중)</h4><div class="tg-plist">${picks || '<p class="ip">멤버를 더 모으면 추천해 드려요</p>'}</div>
+    ${G.party.length ? `<button class="btn primary tg-apply" data-act="twRecAll" ${same ? 'disabled' : ''}>${same ? '지금 파티가 추천 파티예요' : '이 파티로 넣기'}</button>` : ''}
+    ${G.alts.length ? `<h4 class="gl-h">없으면 이렇게</h4><ul class="tg-alts">${G.alts.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+    <h4 class="gl-h">층 규칙</h4>${rules}
+    <button class="btn ghost tg-more" data-act="twRoles">역할 가이드 보기</button>`, 'tw-pop tg-pop');
+}
+function rolesPop() {
+  const own = owned(), byPow = own.slice().sort((a, b) => C.heroPower(P(), b) - C.heroPower(P(), a));
+  const ART = { tank: '앞에서 버티는 든든한 벽', healer: '쓰러지기 전에 채워 주는 구급상자', dealer: '진상을 빨리 치우는 공격수', support: '기절 · 독 · 홀림을 막는 방패막이' };
+  const card = (k) => {
+    const R = TG.ROLES[k], list = byPow.filter((h) => TG.roleOf(h) === k);
+    return `<div class="tg-rc r-${k}" style="--rc:${R.color}"><div class="tg-rh"><i class="tg-ri">${C.ic(R.icon, '', '')}</i><span><b>${R.name}</b><em>${esc(R.short)}</em></span></div><p>${esc(R.desc)}</p><small class="tg-art">${esc(ART[k])}</small>
+      <div class="tg-rm">${list.length ? list.map((h) => `<span title="${esc(TG.roleLine(h))}">${face(h, 'xs')}<b>${esc(HEROES[h].name)}</b></span>`).join('') : '<small class="tg-none">아직 없어요</small>'}</div></div>`;
+  };
+  const cut = byPow.filter((h) => TG.CUTTERS.includes(h));
+  C.popup(`<h3>${C.ic('ic_party', '', 'sm')}탑에서 꼭 필요한 역할</h3>
+    <p class="tg-easy">탑에는 <b>멤버 3명</b>이 같이 가요. 역할을 섞으면 훨씬 편해요!</p>
+    <div class="tg-combo"><span class="r-tank">탱커 1</span><i>+</i><span class="r-healer">힐러 1</span><i>+</i><span class="r-dealer">딜러 1</span></div>
+    <div class="tg-rcs">${TG.ROLE_IDS.map(card).join('')}</div>
+    <div class="tg-rc r-cut" style="--rc:#ff6a7a"><div class="tg-rh"><i class="tg-ri">${C.ic('cc_stun', '', '')}</i><span><b>끊기 멤버</b><em>51층부터</em></span></div><p>진상이 <b>기를 모을 때</b> 기절 · 묶기 스킬로 끊어요. 없으면 초록 원 안으로 모이면 돼요</p><div class="tg-rm">${cut.length ? cut.map((h) => `<span>${face(h, 'xs')}<b>${esc(HEROES[h].name)}</b></span>`).join('') : '<small class="tg-none">아직 없어요</small>'}</div></div>
+    <p class="ip">층마다 위험이 달라요 — 로비의 <b>이 층 공략</b>이 맞는 멤버를 골라 줘요</p>
+    <button class="btn primary" data-x>알겠어요</button>`, 'tw-pop tg-pop tg-roles');
+}
+function helpPop() {
+  C.popup(`<h3>${C.ic('book', '', 'sm')}진상의 탑 도움말</h3>
+    <div class="tg-help">
+      <button data-act="twTutReplay">${C.ic('bulb', '', '')}<span><b>튜토리얼 다시 보기</b><small>방장이 처음부터 · 연습 층까지</small></span></button>
+      <button data-act="twPractice">${C.ic('target', '', '')}<span><b>연습 층</b><small>도전 횟수 · 피로 안 써요</small></span></button>
+      <button data-act="twGuide">${C.ic('map', '', '')}<span><b>이 층 공략</b><small>조심할 것 · 할 일 · 추천 멤버</small></span></button>
+      <button data-act="twRoles">${C.ic('ic_party', '', '')}<span><b>역할 가이드</b><small>탱커 · 힐러 · 딜러 · 해제/면역</small></span></button>
+      <button data-act="twRules">${C.ic('help_point', '', '')}<span><b>규칙 한눈에</b><small>위험 8가지 · 저항</small></span></button>
+      <button data-act="twInfo">${C.ic('gift', '', '')}<span><b>보상 · 피로 안내</b><small>층 보상 · 랭킹 · 피로</small></span></button>
+    </div>`, 'tw-pop tg-pop');
+}
+function applyRec() {
+  const G = guideOf(curFloor()), own = owned();
+  const party = G.party.filter((h) => own.includes(h));
+  if (!party.length) { C.toast('추천할 멤버가 없어요', 1400); return; }
+  const tired = party.find((h) => fatBlocked(h));
+  const sq = party.slice(0, TW.SQUAD.max);
+  while (sq.length < TW.SQUAD.max) sq.push(null);
+  st.squad = sq; st.hero = sq[0]; saveSquad();
+  C.closeInfoCard(); try { C.A.sfx.pick ? C.A.sfx.pick() : C.A.sfx.tap(); } catch { /* 무시 */ }
+  C.toast(tired ? `추천 파티를 넣었어요 · ${HEROES[tired].name}는 지쳐서 쉬어야 해요` : `추천 파티: ${party.map((h) => HEROES[h].name).join(' · ')}`, 2000);
+  if (C.app.screen === 'tower') renderLobby();
+}
+
+// ─── 탑 튜토리얼 (말풍선 · 손가락) ───
+function ttLoad() {
+  if (!TT) return;
+  const k = String((C.API.accountKey && C.API.accountKey()) || 'guest');
+  if (k !== ttKey) { ttKey = k; TT.load(k, [], P()); }
+}
+function ttReplay(go = true) {
+  if (!TT) return;
+  ttLoad(); TT.forget(['twlobby', 'twprac']);
+  if (go) { C.closeInfoCard(); if (C.app.screen === 'tower') renderLobby(); C.toast('방장이 처음부터 다시 알려 드려요', 1800); }
+}
+function ttCtx() {
+  const app = C.app, g = app.g, has = (q) => !!C.stage.querySelector(q);
+  if (!app.profileLoaded) return null;
+  const c = { where: app.screen, blocked: !!app.confirmOpen || has('.confirm-modal, .reveal, .gacha-res, .gate, #bootld, .tw-climb') || (app.screen === 'play' && app.paused), modal: has('.info-modal') };
+  if (app.screen === 'tower') { c.hasRes = has('.tw-mem .tw-res'); c.ready = performance.now() - (st.lobbyAt || 0) > 1100 && has('.tw-party'); } // 로비가 다 나타난 뒤에
+  if (app.screen === 'play' && g && g.twPrac) { c.prac = true; c.step = g.twPrac.step; c.t = g.t; if (app.cardsOpen || g.augOffer) c.blocked = true; }
+  return c;
+}
+// 필드 위 대상 → 무대 좌표 (tutorial.js 가 링 · 손가락 · 말풍선을 그린다)
+function ttField(sp) {
+  const g = C.app.g; if (!g || !g.twa) return null;
+  const cv = C.stage.querySelector('canvas'); if (!cv) return null;
+  const cr = cv.getBoundingClientRect(), sr = C.stage.getBoundingClientRect(), k = sr.width / (C.stage.offsetWidth || sr.width) || 1;
+  const X = (x) => (cr.left - sr.left + (x / g.W) * cr.width) / k, Y = (y) => (cr.top - sr.top + (y / g.H) * cr.height) / k;
+  const box = (x0, y0, x1, y1, px, py) => ({ x: X(x0), y: Y(y0), w: X(x1) - X(x0), h: Y(y1) - Y(y0), px: X(px), py: Y(py) });
+  const P0 = g.twPrac || {}, ms = TWA.members(g);
+  const at = (h) => { const p = TWA.posOf(h); return { x: h.out || h.restT > 0 || h.rx === undefined ? p.x : h.rx, y: p.y }; };
+  if (sp.f === 'member') { const h = ms.find((o) => o.id === P0.mover) || ms[0]; if (!h) return null; const p = at(h); return box(p.x - 30, p.y - 70, p.x + 30, p.y + 30, p.x, p.y - 20); }
+  if (sp.f === 'tele') { const s = g.twa.tele[0]; if (!s) return null; const r = s.r || 44; return box(s.x - r - 4, s.y + 22 - r * 0.62 - 4, s.x + r + 4, s.y + 22 + r * 0.62 + 4, s.x, s.y + 4); }
+  if (sp.f === 'hpbar') { const h = ms.find((o) => o.id === P0.hurt) || ms[0]; if (!h) return null; const p = at(h); return box(p.x - 26, p.y + 36, p.x + 26, p.y + 50, p.x, p.y + 43); }
+  if (sp.f === 'down') { const h = ms.find((o) => o.twDown > 0); if (!h) return null; const p = at(h); return box(p.x - 32, p.y - 76, p.x + 32, p.y + 30, p.x, p.y - 30); }
+  if (sp.f === 'wind') { const W = g.twa.wind; if (!W || W.e.dead) return null; const e = W.e, z = (e.def.size || 50) * 0.6; return box(e.x - z, e.y - z * 1.9, e.x + z, e.y + z * 0.2, e.x, e.y - z * 0.8); }
+  return null;
+}
+
+// ─── 연습 층: 도전 · 피로 · 기록 없이 · 경고는 튜토리얼이 하나씩 띄운다 ───
+function practiceDef() { // 1층 구성을 길게 (튜토리얼을 다 볼 때까지 진상이 끊기지 않게)
+  const d = TW.floorDef(1);
+  d.waves = d.waves.map((w) => Object.assign({}, w, { g: w.g.map((x) => [x[0], Math.max(2, x[1] * 2), x[2] * 1.6, x[3], x[4]]) }));
+  d.practice = true;
+  return d;
+}
+function practiceSetup(g) {
+  const A = g.twa;
+  g.twPrac = { step: '', mover: null, hurt: null };
+  g.god = true; g.pendingLevels = 0; g.welcomePicks = 0;
+  if (g.tower) g.tower.limit = 1e9;
+  A.nextT = 1e9; A.windT = 1e9;
+  A.plan = Object.assign({}, A.plan, { warn: 3, dmg: 60, cc: 0 });
+  const ms = TWA.members(g); g.twPrac.mover = (ms[0] || {}).id || null;
+}
+function practiceTick(g) {
+  const P0 = g.twPrac, A = g.twa;
+  if (!A) return;
+  g.pendingLevels = 0; g.augOffer = null; g.welcomePicks = 0;
+  const ms = TWA.members(g);
+  const n = TT ? TT.now() : null, beat = n && n.les === 'twprac' ? n.beat : null;
+  // 튜토리얼이 끝났거나 꺼졌으면 → 연습 끝
+  if (!P0.ended && (!TT || !TT_ON || TT.done('twprac')) && g.phase === 'wave' && g.t > 2) { P0.ended = true; g.phase = 'victory'; g.events.push({ type: 'victory', stars: 3 }); return; }
+  if (g.phase !== 'wave') return;
+  if (beat === 'tele' && P0.step !== 'tele') { // 빨간 원: 끌어 본 멤버 발밑에 · 밖으로 나갈 때까지 안 터진다
+    const h = ms.find((o) => o.id === P0.mover) || ms[0];
+    if (h) { A.tele.length = 0; const s = TWA.spawnTele(g, 'hit', h); if (s) { s.shape = 'circle'; s.r = 46; const p = TWA.posOf(h); s.x = p.x; s.y = p.y; s.warn = 3; s.prac = true; P0.step = 'tele'; } }
+  }
+  if (P0.step === 'tele') {
+    const s = A.tele.find((q) => q.prac);
+    if (s) { const h = ms.find((o) => o.id === s.tgt); const p0 = h ? TWA.posOf(h) : null; const p1 = h && h.twTo ? h.twTo : p0; if (p0 && (TWA.inShape(s, p0.x, p0.y, g) || TWA.inShape(s, p1.x, p1.y, g))) s.t = Math.min(s.t, s.warn * 0.82); }
+  }
+  if (beat === 'hp' && P0.step !== 'hp') { const h = ms.find((o) => !o.twDown) || ms[0]; if (h) { h.twHp = Math.round(h.twMax * 0.45); h.twHitT = g.t; P0.hurt = h.id; } P0.step = 'hp'; }
+  if (beat === 'down' && P0.step !== 'down') {
+    const h = ms.length >= 2 ? ms.slice().reverse().find((o) => !TG.HEALERS.includes(o.id) && !o.twDown) || ms[ms.length - 1] : null;
+    if (h) { h.twHp = 1; h.twGrace = 0; const s = TWA.spawnTele(g, 'hit', h); if (s) { s.shape = 'circle'; s.r = 40; const p = TWA.posOf(h); s.x = p.x; s.y = p.y; s.warn = 0.15; } }
+    P0.step = 'down';
+  }
+  if (beat === 'wind' && P0.step !== 'wind') { // 화면 가운데쯤 내려온 진상 (위 HUD 버튼과 안 겹치게)
+    P0.windWait = P0.windWait || performance.now();
+    const y0 = performance.now() - P0.windWait > 2500 ? 110 : 230; // 가운데쯤 진상이 없으면 조금 위도
+    const e = g.enemies.filter((q) => !q.dead && q.y > y0 && q.y < g.ropeY - 30 && !(q.stunT > 0)).sort((a, b) => b.y - a.y)[0]; // 가장 앞에 온 진상 (잘 보이고 탭하기 쉽게)
+    if (e && TWA.windNow(g, { dur: 40, cut: 0.02, dmg: 0.2, stun: 0.6, safe: 56 }, e)) { P0.step = 'wind'; g.twa.wind.hold = true; }
+  }
+  if (P0.step === 'wind' && A.wind) { // 연습: 끊을 때까지 안 터진다 · 저절로 끊기지 않게 (탭해서 집중 공격 · 기절 스킬로 끊기)
+    const W = A.wind;
+    W.t = Math.min(W.t, W.dur * 0.8);
+    if (!W.prac) { W.prac = 1; W.e.maxHp *= 8; W.e.hp *= 8; P0.windAt = performance.now(); }
+    if (!P0.armed && (g.focus === W.e || performance.now() - P0.windAt > 9000)) { P0.armed = true; W.hp0 = W.e.hp; W.need = W.e.maxHp * 0.04; }
+    W.hold = !P0.armed;
+    if (!P0.armed) { W.hp0 = W.e.hp; W.need = Infinity; }
+  }
+  if (P0.step !== 'down') for (const h of ms) if (h.twDown > 3) h.twDown = 3; // 연습: 오래 누워 있지 않게
+}
+function practiceResult(g, victory, quit) {
+  const app = C.app;
+  app.screen = 'result'; C.hud.hidden = true; hudTick(null); app.towerRun = null;
+  const z = TW.zoneOf(1), rep = TWA.report(g) || {};
+  C.show(`
+    <div class="tw-scene z1 res win" style="--zc:${z.color}"><div class="tw-bg"><i class="tw-far"></i><i class="tw-near"></i><i class="tw-heat"></i><i class="tw-vig"></i></div><div class="tw-embers">${embers(16)}</div></div>
+    <div class="tw-res win tg-pres">
+      <h2>${quit ? '연습 그만' : '연습 끝!'}</h2>
+      <p class="sub">끌어서 옮기기 · 경고 피하기 · 체력 · 끊기 — 이제 진짜 탑으로!</p>
+      <div class="stats"><div><small>회피</small><b>${rep.dodge | 0}</b></div><div><small>끊기</small><b>${rep.cut | 0}</b></div><div><small>시간</small><b>${fmtSec(g.t)}</b></div></div>
+      <p class="tg-easy">층마다 <b>이 층 공략</b>을 보고 · <b>추천 파티 넣기</b>를 눌러 보세요</p>
+    </div>
+    <div class="tw-resbtns"><button class="tw-go" data-act="tower"><i class="tg-fire"></i><span><b>탑 로비로</b><small>도전 횟수 그대로예요</small></span></button></div>
+  `, 'tower-screen result-tw win');
+  void victory;
+}
+function startPractice() {
+  const sq = squadIds();
+  if (!sq.length) { C.toast('파티에 멤버를 넣어 주세요', 1400); return; }
+  C.closeInfoCard();
+  const t = { f: 1, hero: sq[0], squad: sq, runId: 'practice', fat: 0, fats: null, practice: true };
+  C.app.towerRun = Object.assign({}, t);
+  C.startRun({ mode: 'tower', force: true, tower: t });
+}
+
 // ─── 버튼 ───
 const ACTS = {
   tower: () => showTower(),
@@ -538,6 +736,12 @@ const ACTS = {
   },
   twRec: (b) => { const h = b.dataset.h, sq = curSquad().slice(); if (sq.includes(h)) { C.toast(`${HEROES[h].name} 이미 파티에 있어요`, 1200); return; } const i = sq.indexOf(null); sq[i >= 0 ? i : sq.length - 1] = h; st.squad = sq; saveSquad(); renderLobby(); },
   twRules: () => rulesPop(),
+  twHelp: () => helpPop(),
+  twGuide: () => guidePop(),
+  twRoles: () => rolesPop(),
+  twRecAll: () => applyRec(),
+  twPractice: () => startPractice(),
+  twTutReplay: () => ttReplay(true),
   twGo: () => go(curFloor(), squadIds()),
   twNext: (b) => go(Number(b.dataset.f), C.app.lastTowerSquad && C.app.lastTowerSquad.length ? C.app.lastTowerSquad : squadIds()),
   twShop: () => shopPop(),
