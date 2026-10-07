@@ -52,6 +52,9 @@ const TRACKS = {
   halloween: '/sounds/bgm_lb_halloween.mp3', // 시즌 로비 곡 (season.js · 없으면 챕터 곡)
   hwbattle: '/sounds/bgm_lb_hwbattle.mp3', // 할로윈 이벤트 전투 곡 (없으면 할로윈 로비 곡 → 챕터 곡)
 };
+// 같은 이름으로 곡을 바꿨으면 여기 숫자를 올린다 (폰에 남은 옛 곡 대신 새로 받게: 주소 뒤 ?v=)
+const BGM_VER = {}; // 예: { halloween: 2, hwbattle: 2 }
+const bgmUrl = (k) => TRACKS[k] + (BGM_VER[k] ? `?v=${BGM_VER[k]}` : '');
 const OPTIONAL = new Set(['raid', 'pvp', 'tower', 'raid2', 'halloween', 'hwbattle']); // 서버 파일 목록에 없으면 요청도 안 한다
 const VOL = 0.4;
 const players = {};
@@ -61,7 +64,7 @@ function player(key) {
   if (bad[key] || !TRACKS[key]) return null;
   if (OPTIONAL.has(key) && avail && !avail.has(TRACKS[key])) { bad[key] = true; return null; }
   if (!players[key]) {
-    const a = new Audio(TRACKS[key]);
+    const a = new Audio(bgmUrl(key));
     a.loop = true; a.volume = 0; a.preload = 'auto';
     a.addEventListener('error', () => { bad[key] = true; if (curKey === key) { curKey = null; if (playing && !muted) switchTo(target()); } });
     players[key] = a;

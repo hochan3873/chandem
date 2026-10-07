@@ -517,6 +517,7 @@ function beginPlay(g) {
   const modeArt = g.r2 ? 'raid2' : g.raid ? 'raid' : g.pvp ? 'pvp' : g.tower ? 'tower' + g.tower.zone : g.ev ? 'hw_' + g.ev.map : null; // 진상의 탑: 구역 맵 · 할로윈: 이벤트 맵
   if (g.tower && TWUI) TWUI.ensureMap(g.tower.zone);
   R.setTheme(g.mode === 'stage' ? chapterOf(g.stage) : 'endless', modeArt);
+  { const ss = SSN.activeSeason(); R.setSeason(ss && !modeArt ? ss.battle : null); } // 시즌 테마 장식 (일반 판만 · 레이드 · 대전 · 탑 · 이벤트는 그대로)
   if (A.setChapter) A.setChapter(g.mode === 'stage' ? chapterOf(g.stage) : 3);
   if (A.setMode) A.setMode(g.tower ? 'tower' : g.ev ? 'hwbattle' : modeArt); // (할로윈 전투 곡이 없으면 할로윈 로비 곡 → 챕터 곡)
   app.screen = 'play';
@@ -2642,6 +2643,7 @@ function showMenu0() {
   A.setBoss(false);
   const ssn = SSN.activeSeason(); // 시즌 테마: 로비 곡 · 키 아트 · 장식 (설정에서 끌 수 있음)
   SSN.syncHub();
+  R.setSeason(ssn ? ssn.battle : null);
   if (A.setMode) A.setMode(ssn && ssn.bgm ? ssn.bgm : null);
   A.setChapter(ch);
   if (app.touched) A.playBgm(); // 전투 · 대전 · 레이드에서 돌아오면 로비 음악 다시 (같은 곡이면 그대로)
@@ -2683,7 +2685,7 @@ function showMenu0() {
     ${HWUI ? HWUI.lobbyBanner(p) : ''}
     <div class="lb-dio">
       <button class="chev l" data-act="lbStep" data-d="-1" ${s <= 1 ? 'disabled' : ''} aria-label="이전 스테이지"><i></i>${s > 1 ? `<small>◂ ${stageLabel(s - 1)}</small>` : ''}</button>
-      <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio/s${s2}.webp" alt="" draggable="false" onerror="this.onerror=function(){this.onerror=null;this.src='/img/lb/dio6.webp'};this.src='/img/lb/dio${c2}.webp'">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>`}</div></div>`; }).join('')}</div>
+      <div class="dio-track">${[-1, 0, 1].map((k) => { const s2 = s + k; if (s2 < 1 || s2 > STAGE_COUNT) return `<div class="dio-pane k${k}"></div>`; const c2 = chapterOf(s2); return `<div class="dio-pane k${k}"><div class="dio-wrap ch${c2}" ${k ? '' : 'data-act="stages"'}><img class="dio" src="/img/lb/dio/s${s2}.webp" alt="" draggable="false" onerror="this.onerror=function(){this.onerror=null;this.src='/img/lb/dio6.webp'};this.src='/img/lb/dio${c2}.webp'">${k ? `<em class="dp-lab">${stageLabel(s2)}</em>` : `<span class="sparks">${sparks}</span>${SSN.seasonDioHtml(ssn)}`}</div></div>`; }).join('')}</div>
       ${(() => { const lock = s >= (p.master ? STAGE_COUNT : nextStage()); const nx = Math.min(STAGE_COUNT, s + 1); return `<button class="chev r ${lock && s < STAGE_COUNT ? 'lockd' : ''}" data-act="lbStep" data-d="1" ${lock ? 'disabled' : ''} aria-label="다음 스테이지"><i></i>${s < STAGE_COUNT ? `<small>${lock ? '' : ''}${stageLabel(nx)} ▸</small>` : ''}</button>`; })()}
     </div>
     ${navTries() < 5 ? `<div class="dio-hint"><i class="dh-hand">👆</i><span>좌우로 밀거나 ◂ ▸ 를 눌러 <b>다른 스테이지</b> 보기</span></div>` : ''}
@@ -7125,13 +7127,16 @@ function startGate(quick = false) {
   // 배경: 움직이는 키아트 영상 두 개를 겹쳐 끝 0.4초를 서로 흐리게 이어 붙인다 (끝과 처음이 딱 안 맞아서)
   //   움직임 줄이기 · 데이터 절약 · 자동 재생 막힘(iOS 저전력) → 포스터 그림
   const still = document.body.classList.contains('rm') || (navigator.connection && navigator.connection.saveData);
+  // 시즌 테마(할로윈 등): 시즌 포스터 + 로비와 같은 장식 (타이틀 영상은 평소 그림이라 끈다)
+  const ssn = SSN.activeSeason(), sposter = ssn && ssn.poster;
+  if (sposter) box.classList.add('ssn-gate');
   const vid = () => `<video class="gate-vid on" muted loop autoplay playsinline preload="metadata" poster="/img/lb/title_poster.jpg?v=3" disablepictureinpicture><source src="/img/lb/title_loop.mp4?v=3" type="video/mp4"></video>`;
-  box.innerHTML = `<div class="gate-bg"><img class="gate-poster" src="/img/lb/title_poster.jpg?v=3" alt="" fetchpriority="high" onerror="this.onerror=null;this.src='/img/lb/loading_group.webp'">${still ? '' : vid()}</div>
+  box.innerHTML = `<div class="gate-bg"><img class="gate-poster" src="${sposter || '/img/lb/title_poster.jpg?v=3'}" alt="" fetchpriority="high" onerror="this.onerror=null;this.src='/img/lb/loading_group.webp'">${still || sposter ? '' : vid()}${sposter ? SSN.seasonFxHtml(ssn) : ''}</div>
     <div class="gate-in"><div class="gate-logo"><img src="/img/lb/logo_langbang.webp" alt="랑방대전" draggable="false" onerror="this.parentNode.classList.add('noimg')"><i class="gl-shine"></i><b class="gl-sub">찬이의 게임월드</b><h1 class="gl-txt">랑방 대전</h1></div></div>
     <div class="gate-foot"><div class="gate-load"><div class="gate-bar"><i></i></div><b class="gate-pct">0%</b></div><p class="gate-txt">멤버들 모으는 중</p><p class="gate-tip">${ic('bulb', '', 'sm')}<span>${esc(GATE_TIPS[(Math.random() * GATE_TIPS.length) | 0])}</span></p><button class="gate-btn" disabled><span class="gb-spark"></span><b>터치해서 시작</b><small>TAP TO START</small></button></div>`;
   stage.appendChild(box);
   { const bl = document.getElementById('bootld'); if (bl) { bl.classList.add('out'); setTimeout(() => bl.remove(), 400); } BOOT.gate = true; }
-  if (!still) gateLoop(box);
+  if (!still && !sposter) gateLoop(box);
   const go = () => box.classList.add('enter');
   setTimeout(go, 60);
   const bar = box.querySelector('.gate-bar i'), txt = box.querySelector('.gate-txt'), btn = box.querySelector('.gate-btn');
@@ -7201,7 +7206,9 @@ async function bootWait(profileP) {
   const el = document.getElementById('bootld');
   if (!el) return;
   const tipT = setInterval(() => { const tp = document.getElementById('bl-tip'); if (tp && typeof GATE_TIPS !== 'undefined') tp.textContent = GATE_TIPS[(Math.random() * GATE_TIPS.length) | 0]; }, 2400);
-  const first = [bootImg('/img/lb/title_poster.jpg?v=3'), bootImg('/img/lb/logo_langbang.webp'), bootTrack(document.fonts ? document.fonts.ready : null), bootTrack(profileP)];
+  const bss = SSN.activeSeason(), bposter = bss && bss.poster; // 시즌 포스터 (index.html 이 지난번 값으로 먼저 바꿔 두지만, 처음 오면 여기서)
+  if (bposter) { const bg = el.querySelector('.bl-bg'); if (bg && !bg.src.includes(bposter)) bg.src = bposter; }
+  const first = [bootImg(bposter || '/img/lb/title_poster.jpg?v=3'), bootImg('/img/lb/logo_langbang.webp'), bootTrack(document.fonts ? document.fonts.ready : null), bootTrack(profileP)];
   const cap = new Promise((r) => setTimeout(r, 8000));
   const all = (async () => {
     await Promise.all(first);

@@ -874,6 +874,7 @@ export const ART_VER = {
   h_subin: 2, h_subin_attack: 2, 'dex/subin': 2, 'dexhq/subin': 2, 'dexhq/thumb/subin': 2,
   h_donghan_attack: 2, h_eunok_attack: 2, h_dragon_attack: 2, e_boss_bestman_attack: 2, e_boss_bestman_skill: 2, e_boss_bestman_rage: 2,
   h_donghan_cafe: 2, h_donghan_cafe_tf: 2, h_donghan_cafe_attack: 2, 'dex/donghan_cafe': 2, 'dexhq/donghan_cafe': 2, 'dexhq/thumb/donghan_cafe': 2, // 문동한 카페인 풀충전 새로 그림 (Gemini)
+  'season/halloween_key': 2, // (season.js 의 keyart 주소에도 ?v=2 를 직접 붙였다 — 허브 카드 · 로비 배경)
 };
 export const artV = (u) => { const m = typeof u === 'string' && /^\/img\/lb\/([^?]+)\.webp$/.exec(u); return m && ART_VER[m[1]] ? `${u}?v=${ART_VER[m[1]]}` : u; };
 const ART = (n) => (ART_READY.has(n) ? artV(`/img/lb/${n}.webp`) : '');

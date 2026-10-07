@@ -4,6 +4,7 @@
 // 조용히 풀기를 먼저 해 보고 안 될 때만 보여 준다. 전에 와 본 사람은 진행 막대 없이 바로 "터치해서 시작".
 // 로딩 화면을 건너뛰었는데도 소리가 막혀 있으면 오른쪽 아래에 "소리 켜기" 버튼을 띄운다.
 import * as sound from './sound.js';
+import { activeSeason, syncHub } from '/langbang/season.js'; // 랑방 시즌 테마(할로윈 등): 기간이면 시즌 로딩 그림 · 시즌 키 아트 (허브 카드 그림 값도 여기서 새로 적는다)
 
 const html = document.documentElement;
 const el = document.getElementById('splash');
@@ -24,7 +25,11 @@ const TIPS = [
 ];
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const lbArt = () => { let n = 1; try { n = Math.trunc(Number(JSON.parse(localStorage.getItem('langbang:chapter') || '1'))); } catch {} return n >= 1 && n <= 8 ? `/img/lb/keyart${n}.webp` : '/img/lb/keyart1.webp'; };
+const SSN = (() => { try { syncHub(); return activeSeason(); } catch { return null; } })();
+const lbArt0 = () => { let n = 1; try { n = Math.trunc(Number(JSON.parse(localStorage.getItem('langbang:chapter') || '1'))); } catch {} return n >= 1 && n <= 8 ? `/img/lb/keyart${n}.webp` : '/img/lb/keyart1.webp'; };
+const lbArt = () => (SSN && SSN.keyart) || lbArt0();
+const spArt = (SSN && SSN.splash) || '/img/splash2.webp';
+if (SSN && SSN.splash && el) { const a = el.querySelector('.sp-art'); if (a) a.style.backgroundImage = `url('${SSN.splash}')`; }
 
 // ── 소리 켜기 (소리가 막혀 있을 때만) ──
 function soundPill() {
@@ -104,7 +109,7 @@ async function start() {
   });
   setTimeout(() => el.classList.add('art-in'), 1500);
   const jobs = [
-    ['그림', img('/img/splash2.webp', () => el.classList.add('no-art', 'art-in')).then(() => el.classList.add('art-in'))],
+    ['그림', img(spArt, () => el.classList.add('no-art', 'art-in')).then(() => el.classList.add('art-in'))],
     ['글꼴', font("400 1em 'Black Han Sans'")],
     ['글꼴', font("700 1em 'Noto Sans KR'")],
     ['그림', img('/img/gw2-icon-192.png')],

@@ -1106,7 +1106,7 @@ const GAME_RULES = {
 // ── 게임 그림: 랑방 대전은 내 진행 챕터(langbang:chapter, 랑방 화면이 저장)에 맞는 키 아트 ──
 const lbChapter = () => { const n = Math.trunc(Number(LS.get('langbang:chapter', 1))); return n >= 1 && n <= 8 ? n : 1; }; // (8장까지 · 키 아트가 없으면 뒤의 기본 그림)
 // 시즌 테마 (할로윈 등): 랑방 화면이 적어 둔 시즌 키 아트 — 끝나는 시각이 지나면 원래 챕터 그림
-const lbSeasonArt = () => { const v = LS.get('langbang:seasonArt', null); return v && typeof v.art === 'string' && /^\/img\/lb\/season\/[a-z0-9_]+\.webp$/.test(v.art) && Date.now() < Number(v.until) ? v.art : ''; };
+const lbSeasonArt = () => { const v = LS.get('langbang:seasonArt', null); return v && typeof v.art === 'string' && /^\/img\/lb\/season\/[a-z0-9_]+\.webp(\?v=\d+)?$/.test(v.art) && Date.now() < Number(v.until) ? v.art : ''; };
 const gameArt = (g) => (g === 'langbang' ? lbSeasonArt() || `/img/lb/keyart${lbChapter()}.webp` : `/img/games/${g}.webp`);
 // 키 아트가 없으면 뒤에 깔린 기본 그림이 보인다
 const gameArtCSS = (g) => (g === 'langbang' ? `url('${gameArt(g)}'), url('/img/games/langbang.webp')` : `url('${gameArt(g)}')`);
@@ -1245,11 +1245,12 @@ function hubAcctHTML() {
   const t = tierOf(S.user.stats.omok.rating);
   return `<button class="hub-acct tap is-user ${S.user.isMaster ? 'is-master' : ''}" id="acct-btn" title="내 전적">${S.user.isMaster ? P.hubIcon('crown') : `<span class="acct-dot" style="--tc:${t.color}"></span>`}<b class="acct-name">${esc(S.user.nickname)}</b></button>`;
 }
+// (랑방 시즌 키 아트가 걸려 있으면 평소 타이틀 영상은 덮지 않게 뺀다)
 function hubCardHTML(k, g) {
   const hero = k === 'langbang';
   const rm = gws.reduceMotion();
   const media = hero
-    ? `${gameCardArtHTML(k)}${rm ? '' : '<video class="gc-video" muted loop playsinline preload="metadata" poster="/img/lb/title_poster.jpg?v=3" aria-hidden="true" disablepictureinpicture><source src="/img/lb/title_loop.mp4?v=3" type="video/mp4"></video>'}`
+    ? `${gameCardArtHTML(k)}${rm || lbSeasonArt() ? '' : '<video class="gc-video" muted loop playsinline preload="metadata" poster="/img/lb/title_poster.jpg?v=3" aria-hidden="true" disablepictureinpicture><source src="/img/lb/title_loop.mp4?v=3" type="video/mp4"></video>'}`
     : gameCardArtHTML(k);
   const title = hero
     ? '<img class="gc-logo" src="/img/lb/logo_langbang.webp" alt="랑방 대전" onerror="this.replaceWith(Object.assign(document.createElement(\'b\'),{className:\'gc-title\',textContent:\'랑방 대전\'}))">'

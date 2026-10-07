@@ -1,6 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
+import { prepSeason, bakeSeason, drawSeason } from './season-fx.js'; // 시즌 테마 전투 장식 (할로윈 등)
 import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, WEAPON, artV } from './data.js';
 // 효과 종류: 빛(더하기 섞기) · 물건(보통) · 층 · 색 · 맞은 자리 표시
 const VFX_KIND = {
@@ -421,6 +422,14 @@ export class Renderer {
   }
 
   // mode: 'raid' | 'pvp' 면 전용 맵(map_<mode>.webp)이 있을 때 그걸로 · 없으면 t 테마 그대로
+  // 시즌 테마 장식 (season-fx.js BATTLE 키 · null 이면 끔) — 바뀔 때만 배경을 다시 굽는다
+  setSeason(key) {
+    const k = key || null;
+    if (this.ssnKey === k) return;
+    this.ssnKey = k;
+    this.ssn = prepSeason(this, k);
+    this.bakeBg();
+  }
   setTheme(t, mode = null) {
     const key = t || 1;
     if (this.themeKey === key && this.modeKey === mode) return;
@@ -982,6 +991,7 @@ export class Renderer {
       g.addColorStop(0, 'rgba(120,0,0,0)'); g.addColorStop(1, 'rgba(140,0,10,0.5)');
       x.fillStyle = g; x.fillRect(0, 0, W, H);
     }
+    if (this.ssn) bakeSeason(this, x, W, H, rowY); // 시즌 장식 (빛 · 달 · 거미줄 · 호박등)
     this.bg = c;
   }
 
@@ -1046,6 +1056,7 @@ export class Renderer {
     const demo = !!(this.fx && this.fx.noBanner); // 로비 뒤 구경 판: 입구(바리케이드·간판)는 안 그린다
     if (!demo) this.drawRopeShadow(g);
     this.drawMapFxUnder(g, t);
+    if (this.ssn) { this.world && this.world(); drawSeason(this, g, t, 'back'); } // 시즌 장식: 유령 · 박쥐 (진상 아래)
     if (g.hw && this.hwDraw) this.hwDraw(g, t, 'back'); // 할로윈 이벤트: 맵 분위기 (낙엽 · 안개 · 깜빡임 · 도깨비불) · 독 웅덩이 예고
     this.drawGems(g, t);
     if (this.skfx) this.skfx.draw('ground', g); // 스킬 전용 연출 (skillfx.js) — 바닥
@@ -1056,6 +1067,7 @@ export class Renderer {
     this.drawEnemies(g, t);
     this.drawJoinWait(g);
     if (!demo) this.drawRope(g, t);
+    if (this.ssn && !demo) drawSeason(this, g, t, 'gate'); // 시즌 장식: 바리케이드 양 끝 호박등 · 촛불
     if (this.skfx) this.skfx.draw('gate', g); // 입구 위 (붕대)
     this.drawEnemies(g, t, true); // 때리는 진상은 바리케이드 앞
     if (g.twa && this.twaDraw) this.twaDraw(g, t, 'back'); // 진상의 탑: 바닥 예고 · 독 웅덩이 · 기 모으기 (tower-arena-ui.js · 바리케이드 바닥 위 · 멤버 아래)

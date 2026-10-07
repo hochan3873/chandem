@@ -2,9 +2,10 @@
 // 설정의 "○○ 테마" 스위치로 끌 수 있다 (기간 안에서는 기본 켜짐). 새 시즌은 SEASONS 에 한 줄 추가.
 //   from / to: [월, 일] (양 끝 포함, 한국 시간) — to 가 from 보다 앞이면 해를 넘기는 기간 (예: 12/20 ~ 1/2)
 //   keyart: 로비 위쪽 키 아트 (게임월드 허브 카드에도) · bgm: audio.js TRACKS 키 (곡이 없으면 챕터 곡 그대로)
-//   fx: 로비 장식 종류 (style.css .ssn-<fx>)
+//   fx: 로비 장식 종류 (style.css .ssn-<fx>) · battle: 전투 장식 (season-fx.js BATTLE 키 · 일반 판 배경 · 로비 뒤)
+//   poster: 랑방 로딩 · 타이틀 그림 (720x1280) · splash: 게임월드 첫 로딩 그림 (720x1280)
 export const SEASONS = [
-  { id: 'halloween', name: '할로윈', from: [10, 7], to: [11, 2], keyart: '/img/lb/season/halloween_key.webp', bgm: 'halloween', fx: 'halloween' },
+  { id: 'halloween', name: '할로윈', from: [10, 7], to: [11, 2], keyart: '/img/lb/season/halloween_key.webp?v=2', poster: '/img/lb/season/halloween_poster.webp', splash: '/img/lb/season/halloween_splash.webp', bgm: 'halloween', fx: 'halloween', battle: 'halloween' },
 ];
 
 const KST = 9 * 3600e3;
@@ -33,11 +34,16 @@ export function activeSeason(now = Date.now()) { const s = seasonAt(now); return
 // 게임월드 허브 카드용: 시즌 키 아트와 끝나는 시각을 적어 둔다 (허브는 이 값만 읽는다)
 export function syncHub(now = Date.now()) {
   const s = activeSeason(now);
-  try { if (s && s.keyart) localStorage.setItem('langbang:seasonArt', JSON.stringify({ art: s.keyart, until: seasonEnd(s, now) })); else localStorage.removeItem('langbang:seasonArt'); } catch { /* 무시 */ }
+  try { if (s && s.keyart) localStorage.setItem('langbang:seasonArt', JSON.stringify({ art: s.keyart, poster: s.poster || '', splash: s.splash || '', until: seasonEnd(s, now) })); else localStorage.removeItem('langbang:seasonArt'); } catch { /* 무시 */ }
 }
 // 로비 장식 (박쥐 · 호박등 · 안개) — 연출 줄이기면 움직이지 않는 것만 (style.css 가 body.rm 에서 멈춘다)
 export function seasonFxHtml(s) {
   if (!s || s.fx !== 'halloween') return '';
   const bats = Array.from({ length: 5 }, (_, i) => `<i class="bat" style="--i:${i};--y:${12 + ((i * 29) % 46)}%;--d:${(i * 2.3).toFixed(1)}s;--s:${(0.7 + (i % 3) * 0.18).toFixed(2)}"></i>`).join('');
-  return `<div class="ssn-fx ssn-halloween" aria-hidden="true"><span class="ssn-web l"></span><span class="ssn-web r"></span><span class="ssn-bats">${bats}</span><span class="ssn-fog"></span><span class="ssn-lant l"></span><span class="ssn-lant r"></span></div>`;
+  return `<div class="ssn-fx ssn-halloween" aria-hidden="true"><span class="ssn-web l"></span><span class="ssn-web r"></span><span class="ssn-bats">${bats}</span><span class="ssn-fog"></span><i class="ssn-ghost" style="--x:14%;--y:calc(var(--u) * 120);--d:0s"></i><i class="ssn-ghost f" style="--x:76%;--y:calc(var(--u) * 96);--d:-2.6s"></i><span class="ssn-lant l"></span><span class="ssn-lant r"></span></div>`;
+}
+// 로비 가운데 스테이지 모형 장식 (호박 · 유령 · 거미줄) — 지금 스테이지 모형에만
+export function seasonDioHtml(s) {
+  if (!s || s.fx !== 'halloween') return '';
+  return '<span class="ssn-dio" aria-hidden="true"><i class="sd-web"></i><i class="sd-pk l"></i><i class="sd-pk r"></i><i class="sd-ghost"></i></span>';
 }
