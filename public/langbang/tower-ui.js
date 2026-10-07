@@ -3,9 +3,12 @@
 import { HEROES, ATTRS, GEAR, GEAR_IDS, GEAR_RARITY, LEGEND_HEROES, SKILL_AUG, ENEMIES, CHAPTERS } from './data.js';
 import * as TW from './tower.js';
 import * as L from './live.js';
+import * as TWA from './tower-arena.js';
+import { initArenaUi } from './tower-arena-ui.js';
 
 let C = null; // game.js 도우미 (app · P · show · popup · toast · …)
-const st = { f: 0, hero: null, board: null, boardAt: 0, hud: null, hudT: 0, last: null };
+const st = { f: 0, hero: null, squad: null, board: null, boardAt: 0, hud: null, hudT: 0, last: null };
+let AUI = null; // 리메이크 전투 화면 (tower-arena-ui.js)
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
@@ -20,18 +23,29 @@ const zoneName = (z) => `${z.id}구역 · ${z.name}`;
 export function initTower(ctx) {
   C = ctx;
   C.R.awakeAuraSrc = TW.TOWER_ART.aura; // 지옥 각성 오라 그림
-  return { show: showTower, acts: ACTS, gameOpt, ensureMap, hudTick, onEvent, onVictory, onFail, result, lobbyButton, cardBadge, heroInfoHtml, awake: (p) => TW.awakeMap(p || P()), isTowerEvent: (t) => t === 'twCurse' || t === 'twTimeout' || t === 'skillAug' };
+  AUI = initArenaUi(ctx);
+  return { show: showTower, acts: ACTS, gameOpt, afterCreate, moveTo: (g, h, x, y) => TWA.moveTo(g, h, x, y), ensureMap, hudTick, onEvent, onVictory, onFail, result, lobbyButton, cardBadge, heroInfoHtml, awake: (p) => TW.awakeMap(p || P()), isTowerEvent: (t) => t === 'twCurse' || t === 'twTimeout' || t === 'skillAug' || AUI.isEvent(t) };
 }
 
 // ─── 멤버 · 층 고르기 ───
 function owned() { const p = P(); return Object.keys(HEROES).filter((h) => C.API.heroUnlocked(p, h)); }
-function curHero() {
-  const own = owned();
-  let h = st.hero || lsGet('langbang:towerHero');
-  if (!h || !own.includes(h)) h = own.slice().sort((a, b) => C.heroPower(P(), b) - C.heroPower(P(), a))[0] || 'bangjang';
-  st.hero = h;
-  return h;
+// 탑 파티 (리메이크): 최대 3명 · 첫째가 대장 (랭킹 · 명예의 전당에 남는 멤버) — 이 기기에 기억
+function curSquad() {
+  const own = owned(), byPow = own.slice().sort((a, b) => C.heroPower(P(), b) - C.heroPower(P(), a));
+  let sq = st.squad, saved = true;
+  if (!sq) { try { sq = JSON.parse(lsGet('langbang:towerSquad') || 'null'); } catch { sq = null; } }
+  if (!Array.isArray(sq)) { saved = false; sq = [st.hero || lsGet('langbang:towerHero')]; }
+  sq = sq.slice(0, TW.SQUAD.max).map((h) => (h && own.includes(h) ? h : null));
+  sq = sq.map((h, i) => (h && sq.indexOf(h) === i ? h : null));
+  if (!sq[0]) { sq[0] = sq.find(Boolean) || byPow[0] || 'bangjang'; sq = sq.map((h, i) => (i && h === sq[0] ? null : h)); }
+  while (sq.length < TW.SQUAD.max) sq.push(null);
+  if (!saved) for (let i = 1; i < sq.length; i++) if (!sq[i]) sq[i] = byPow.find((h) => !sq.includes(h)) || null; // 처음: 강한 멤버로 채워 둔다
+  st.squad = sq; st.hero = sq[0];
+  return sq;
 }
+const squadIds = () => curSquad().filter(Boolean);
+function saveSquad() { lsSet('langbang:towerSquad', JSON.stringify(st.squad || [])); if (st.squad && st.squad[0]) lsSet('langbang:towerHero', st.squad[0]); }
+function curHero() { return curSquad()[0]; }
 function curFloor() { const mx = TW.maxFloor(P()); st.f = clamp(st.f || mx, 1, mx); return st.f; }
 const tw = () => P().tower || TW.emptyTower();
 // 피로 (마스터 무료 모드는 안 쌓이고 안 막힌다)
@@ -47,10 +61,20 @@ function fatGauge(h, cls = '') {
   return `<span class="tw-fat ${fatLv(v)} ${cls}"><i class="tf-bar"><b style="width:${v}%"></b></i><small>피로 ${v}%${pow ? ` · 전투력 −${pow}%` : ''}</small><em>${tail}</em></span>`;
 }
 
-// 전투 옵션 (game.js startRun 이 createGame 에 덧붙인다): 한 명 · 층 규칙 · 지옥 각성
+// 전투 옵션 (game.js startRun 이 createGame 에 덧붙인다): 대장 · 층 규칙 · 지옥 각성 (같이 간 멤버는 afterCreate 에서)
 function gameOpt(t, p) {
   const def = TW.floorDef(t.f);
-  return { mode: 'stage', stage: def.stage, deck: [null, null, t.hero, null, null, null], join: false, leader: t.hero, slots: 1, tower: def, towerExp: TW.TOWER.exp, towerFat: t.fat | 0, towerFatPow: TW.FATIGUE.pow, awake: TW.awakeMap(p), weekly: null, hell: false, unlocked: [] };
+  const fs = t.fats ? Object.values(t.fats) : [t.fat | 0];
+  const fat = Math.round(fs.reduce((a, v) => a + (v | 0), 0) / Math.max(1, fs.length)); // 피로: 파티 평균
+  return { mode: 'stage', stage: def.stage, deck: [null, null, t.hero, null, null, null], join: false, leader: t.hero, slots: 1, tower: def, towerExp: TW.TOWER.exp, towerFat: fat, towerFatPow: TW.FATIGUE.pow, awake: TW.awakeMap(p), weekly: null, hell: false, unlocked: [] };
+}
+// createGame 다음: 같이 간 멤버 · 바닥 예고 · 체력 (tower-arena.js)
+function afterCreate(g, t) {
+  const sq = (t.squad && t.squad.length ? t.squad : [t.hero]).filter((h) => HEROES[h]);
+  TWA.attach(g, { squad: sq });
+  const pl = g.twa && g.twa.plan;
+  if (pl && pl.tier <= 2) setTimeout(() => C.toast(pl.tier <= 1 ? '멤버를 끌어서 옮길 수 있어요 · 바닥 경고를 피해 보세요' : '바닥 경고가 차오르면 터져요 — 멤버를 끌어서 피하세요!', 3200), 900);
+  else if (pl && pl.wind) setTimeout(() => C.toast('기 모으기: 초록 원으로 모이거나 · 기절 · 큰 피해로 끊어요', 3200), 900);
 }
 
 // 구역 맵 (전투 배경): 처음 들어갈 때만 불러온다 (로비에서는 안 받는다)
@@ -87,19 +111,35 @@ function floorCard(f, best, main) {
   const lim = Math.round(30 + 80 * TW.floorDef(f).waves.length);
   return `<div class="tw-fc main ${boss ? 'boss' : ''}" style="--zc:${z.color}">
     <div class="fc-head"><em class="fc-no">${f}<small>F</small></em><span class="fc-zone">${esc(zoneName(z))}</span>${boss ? `<span class="fc-bossart">${C.av(boss)}<b>${esc(boss.name)}</b></span>` : ''}</div>
+    ${hzHtml(f)}
     <ul class="fc-lines">${lines}</ul>
     <div class="fc-meta"><span>${C.ic('speed', '', 'sm')}제한 ${Math.floor(lim / 60)}분 ${lim % 60 ? `${lim % 60}초` : ''}</span><span>${C.ic('wave', '', 'sm')}웨이브 ${TW.floorDef(f).waves.length}</span></div>
     ${rewardChips(f, best)}
   </div>`;
 }
-function partyHtml(hero) {
-  const p = P(), b = (tw().hb || {})[hero] | 0, aw = TW.awakeLv(p, hero);
-  const slots = [0, 1, 2, 3, 4, 5].map((i) => (i === 2 ? `<button class="tw-slot on" data-act="twPick">${face(hero, 'big')}${aw ? `<i class="tw-awk l${aw}">${aw >= 3 ? '지옥 각성' : `각성 ${'I'.repeat(aw)}`}</i>` : ''}</button>` : `<span class="tw-slot lock">${C.ic('lock', '', 'sm')}</span>`)).join('');
-  const nextA = TW.AWAKE.find((a) => b < a.f);
-  return `<div class="tw-party">
-    <div class="tw-slots">${slots}</div>
-    <button class="tw-who" data-act="twPick"><b>${esc(HEROES[hero].name)}</b><small>이 멤버 최고 ${b}F${nextA ? ` · ${nextA.f}F 에서 ${esc(nextA.name)}` : ' · 지옥 각성 완료'}</small><i class="tw-abar"><b style="width:${Math.round((b / 60) * 100)}%"></b>${TW.AWAKE.map((a) => `<u style="left:${(a.f / 60) * 100}%" class="${b >= a.f ? 'on' : ''}"></u>`).join('')}</i>${fatGauge(hero)}<em>멤버 바꾸기</em></button>
-  </div>`;
+// 멤버 체력 (탑 전용) 미리보기 · 이 층 위험에 대한 저항 칩
+const hpOf = (h) => { const p = P(); return TWA.hpPreview(h, (p.heroes || {})[h] | 0, (p.hstars || {})[h] | 0 || 1); };
+function resChips(h, f, max = 3) {
+  const kinds = TWA.floorPlan(f).kinds.filter((k) => k !== 'hit');
+  const out = [];
+  for (const k of kinds) { const v = TWA.resOf(h, k), team = TWA.teamRes(k).find((x) => x.id === h); if (v || team) out.push(`<i class="tw-res" style="--hc:${TWA.HZ[k].color}">${esc(TWA.HZ[k].name)} ${team ? (team.v >= 100 ? '팀 면역' : `팀 −${team.v}%`) : `−${v}%`}</i>`); }
+  return out.slice(0, max).join('');
+}
+// 이 층 바닥 위험 (리메이크): 단계 설명 · 위험 칩 · 내 멤버 중 추천
+function hzHtml(f) {
+  const pl = TWA.floorPlan(f);
+  const chips = pl.kinds.map((k) => `<span class="tw-hz" style="--hc:${TWA.HZ[k].color}"><b>${esc(TWA.HZ[k].name)}</b><small>${esc(TWA.HZ[k].desc)}</small></span>`).join('');
+  const rec = pl.kinds.some((k) => k !== 'hit') ? TWA.recommend(f, owned(), 4) : [];
+  return `<div class="fc-hzs"><em class="fc-tier t${pl.tier}">${esc(TWA.TIER_TXT[pl.tier])}${pl.tier >= 2 ? ` · 예고 ${pl.warn}초` : ''}</em>${chips ? `<div class="fc-hzl">${chips}${pl.wind ? '<span class="tw-hz wind" style="--hc:#ff3b4f"><b>기 모으기</b><small>초록 원으로 모이거나 기절 · 큰 피해로 끊기</small></span>' : ''}</div>` : ''}${rec.length ? `<div class="fc-rec"><small>추천</small>${rec.map((h) => `<button class="fc-rh" data-act="twRec" data-h="${h}" title="${esc(HEROES[h].name)}">${face(h, 'xs')}<b>${esc(HEROES[h].name)}</b></button>`).join('')}</div>` : ''}</div>`;
+}
+function partyHtml() {
+  const p = P(), sq = curSquad(), f = curFloor();
+  const slot = (h, i) => {
+    if (!h) return `<button class="tw-mem empty" data-act="twPick" data-s="${i}"><span class="tw-plus">+</span><small>${i ? '빈자리' : '대장'}</small></button>`;
+    const aw = TW.awakeLv(p, h), v = fatOf(h);
+    return `<button class="tw-mem ${fatBlocked(h) ? 'tired' : ''}" data-act="twPick" data-s="${i}">${i === 0 ? '<i class="tw-lead">대장</i>' : ''}${face(h, 'big')}${aw ? `<i class="tw-awk l${aw}">${aw >= 3 ? '지옥' : 'I'.repeat(aw)}</i>` : ''}<b>${esc(HEROES[h].name)}</b><small class="tw-hp">체력 ${fmt(hpOf(h))}</small><span class="tw-rs">${resChips(h, f, 2)}</span><i class="tf-bar ${fatLv(v)}" title="피로 ${v}%"><b style="width:${v}%"></b></i></button>`;
+  };
+  return `<div class="tw-party sq"><div class="tw-mems">${sq.map(slot).join('')}</div></div>`;
 }
 function hallHtml() {
   const bd = st.board;
@@ -125,11 +165,11 @@ function showTower() {
 }
 function renderLobby() {
   const p = P(), t = tw();
-  const hero = curHero(), f = curFloor(), best = t.best | 0;
+  const hero = curHero(), f = curFloor(), best = t.best | 0, sq = squadIds();
   const z = TW.zoneOf(f);
   const left = TW.triesLeft(p);
   const free = p.master && !p.testNormal;
-  const tired = fatBlocked(hero), canGo = (left || free) && !tired;
+  const tiredH = sq.find((h) => fatBlocked(h)), tired = !!tiredH, canGo = (left || free) && !tired;
   const list = [];
   for (let k = 1; k <= 4 && f + k <= TW.TOWER.floors; k++) list.push(f + k);
   const el = C.show(`
@@ -148,14 +188,25 @@ function renderLobby() {
         <div class="tw-next"><small>위로 이어지는 층</small>${list.map((x) => floorCard(x, best, false)).join('') || '<span class="tw-top-done">꼭대기!</span>'}</div>
       </div>
     </div>
-    ${partyHtml(hero)}
-    <button class="tw-go ${canGo ? '' : 'off'}" data-act="twGo" ${canGo ? '' : 'disabled'}><i class="tg-fire"></i><span><b>${f}층 오르기</b><small>${tired ? `${esc(HEROES[hero].name)} 지쳐서 쉬어야 해요 · ${fatWait(hero)} 뒤 회복` : left || free ? `도전 1번 · 깨면 돌려받아요${free ? '' : ` · 피로 +${TW.fatigueGain(f, true, f <= best)}`}` : '오늘 도전을 다 썼어요 · 자정에 초기화'}</small></span></button>
-    <div class="tw-menu"><button data-act="twShop">${hsIc()}<small>탑 상점</small>${t.picks && (t.picks.legend || t.picks.hero) ? '<i class="rd"></i>' : ''}</button><button data-act="twRank">${C.ic('trophy', '', 'sm')}<small>주간 랭킹</small></button><button data-act="twAwake">${C.ic('fire', '', 'sm')}<small>지옥 각성</small></button><button data-act="twInfo">${C.ic('book', '', 'sm')}<small>보상 안내</small></button></div>
+    ${partyHtml()}
+    <button class="tw-go ${canGo ? '' : 'off'}" data-act="twGo" ${canGo ? '' : 'disabled'}><i class="tg-fire"></i><span><b>${f}층 오르기 · ${sq.length}명</b><small>${tired ? `${esc(HEROES[tiredH].name)} 지쳐서 쉬어야 해요 · ${fatWait(tiredH)} 뒤 회복` : left || free ? `도전 1번 · 깨면 돌려받아요${free ? '' : ` · 피로 +${TW.squadFat(sq.length, TW.fatigueGain(f, true, f <= best))}씩`}` : '오늘 도전을 다 썼어요 · 자정에 초기화'}</small></span></button>
+    <div class="tw-menu"><button data-act="twShop">${hsIc()}<small>탑 상점</small>${t.picks && (t.picks.legend || t.picks.hero) ? '<i class="rd"></i>' : ''}</button><button data-act="twRank">${C.ic('trophy', '', 'sm')}<small>주간 랭킹</small></button><button data-act="twAwake">${C.ic('fire', '', 'sm')}<small>지옥 각성</small></button><button data-act="twRules">${C.ic('target', '', 'sm')}<small>새 규칙</small></button><button data-act="twInfo">${C.ic('book', '', 'sm')}<small>보상 안내</small></button></div>
     ${hallHtml()}
   `, 'tower-screen');
   bindParallax(el);
   const cur = el.querySelector('.tl-f.cur');
   if (cur) cur.scrollIntoView({ block: 'center' });
+  if (!lsGet('langbang:twRemake')) { lsSet('langbang:twRemake', '1'); setTimeout(() => { if (C.app.screen === 'tower') rulesPop(); }, 400); } // 리메이크 첫 방문: 새 규칙 안내
+}
+// 새 규칙 (리메이크) 안내
+function rulesPop() {
+  const kinds = TWA.HZ_IDS.map((k) => { const H = TWA.HZ[k], team = TWA.teamRes(k), good = Object.keys(HEROES).filter((h) => TWA.resOf(h, k) >= 40 && !team.some((x) => x.id === h)).slice(0, 4); return `<div class="tw-ir hz" style="--hc:${H.color}"><i class="tw-hzdot"></i><span><b>${esc(H.name)}</b><small>${esc(H.desc)}</small><em>${good.length || team.length ? `강한 멤버: ${[...team.map((x) => `${HEROES[x.id].name}(팀 ${x.v >= 100 ? '면역' : `−${x.v}%`})`), ...good.map((h) => `${HEROES[h].name} ${TWA.resOf(h, k)}%`)].join(' · ')}` : ''}</em></span></div>`; }).join('');
+  C.popup(`<h3>${C.ic('target', '', 'sm')}진상의 탑 · 새 규칙</h3>
+    <div class="tw-rules"><div><b>① 멤버 3명</b><small>대장 + 두 명 · 피로는 한 명당 덜 쌓여요</small></div><div><b>② 끌어서 옮기기</b><small>멤버를 끌면 그 자리로 걸어가요 (순간이동 아님)</small></div><div><b>③ 바닥 경고</b><small>모양이 차오르면 터져요 — 맞으면 2~3초 넘게 기절 · 빙결…</small></div><div><b>④ 탑 전용 체력</b><small>탱커는 크고 딜러는 작아요 · 0이면 10초 쓰러짐 · 모두 쓰러지면 실패 · 건전녀 · 홍정민이 회복</small></div></div>
+    <p class="ip">1~10층 연습 · 11~30층 기절 예고 · 31~50층 층마다 위험 하나 · 51~80층 위험 둘 + <b>기 모으기</b>(초록 원으로 모이거나 기절 · 큰 피해로 끊기) · 81층부터 위험 셋 · 짧은 예고 (랭킹)</p>
+    <h4 class="gl-h">위험 · 저항</h4>${kinds}
+    <p class="ip">감전은 곁 멤버에게 번져요 — 흩어지기 · 강성구 곁은 기절 · 침묵 면역 — 모이기. 층에 맞는 멤버를 고르세요</p>
+    <button class="btn primary" data-x>알겠어요</button>`, 'tw-pop rw-info');
 }
 // 손가락 · 기울이기에 따라 배경 층이 따로 움직인다 (깊이감)
 function bindParallax(el) {
@@ -189,30 +240,31 @@ function gotLine(got) {
 }
 
 // ─── 멤버 고르기 · 각성 · 안내 ───
-function pickPop() {
-  const p = P(), t = tw(), cur = curHero();
-  const list = owned().sort((a, b) => C.heroPower(p, b) - C.heroPower(p, a));
-  const rows = list.map((h) => { const b = (t.hb || {})[h] | 0, aw = TW.awakeLv(p, h); return `<button class="tw-pk ${h === cur ? 'on' : ''} ${aw >= 3 ? 'aw3' : ''}" data-act="twPickHero" data-h="${h}">${face(h)}<b>${esc(HEROES[h].name)}</b><small>최고 ${b}F</small><i class="tw-pips">${[1, 2, 3].map((k) => `<u class="${aw >= k ? 'on' : ''}"></u>`).join('')}</i><em>${C.ic('swords', '', 'sm')}${fmt(C.heroPower(p, h))}</em>${fatGauge(h, 'sm')}</button>`; }).join('');
-  C.popup(`<h3>${C.ic('duo', '', 'sm')}탑에 오를 멤버</h3><p class="ip">탑에서는 <b>한 명만</b> 싸워요 · 층 규칙에 맞는 멤버를 골라요 · 각성 · 피로는 멤버마다 따로</p><div class="tw-pkgrid">${rows}</div>`, 'tw-pop tw-pick');
+function pickPop(slot = 0) {
+  const p = P(), t = tw(), sq = curSquad(), cur = sq[slot], f = curFloor();
+  const rec = TWA.recommend(f, owned(), 6);
+  const list = owned().sort((a, b) => (rec.includes(b) ? 1 : 0) - (rec.includes(a) ? 1 : 0) || C.heroPower(p, b) - C.heroPower(p, a));
+  const rows = list.map((h) => { const b = (t.hb || {})[h] | 0, aw = TW.awakeLv(p, h), at = sq.indexOf(h); return `<button class="tw-pk ${h === cur ? 'on' : ''} ${aw >= 3 ? 'aw3' : ''} ${rec.includes(h) ? 'rec' : ''}" data-act="twPickHero" data-h="${h}" data-s="${slot}">${face(h)}<b>${esc(HEROES[h].name)}${at >= 0 && h !== cur ? `<u class="tw-in">${at ? `${at + 1}번` : '대장'}</u>` : ''}</b><small>체력 ${fmt(hpOf(h))} · 최고 ${b}F</small><span class="tw-rs">${resChips(h, f, 3)}</span><em>${C.ic('swords', '', 'sm')}${fmt(C.heroPower(p, h))}</em>${fatGauge(h, 'sm')}</button>`; }).join('');
+  C.popup(`<h3>${C.ic('duo', '', 'sm')}${slot ? `${slot + 1}번 멤버` : '대장'} 고르기</h3><p class="ip">최대 <b>3명</b> · 이 층 위험에 강한 멤버가 위에 있어요 · 체력은 탑 전용 · 피로 · 각성은 멤버마다</p>${slot ? `<button class="btn sm ghost tw-clear" data-act="twPickHero" data-h="" data-s="${slot}">이 자리 비우기</button>` : ''}<div class="tw-pkgrid">${rows}</div>`, 'tw-pop tw-pick');
 }
 function awakePop() {
   const p = P(), t = tw();
   const list = owned().sort((a, b) => ((t.hb || {})[b] | 0) - ((t.hb || {})[a] | 0));
-  const rows = list.map((h) => { const b = (t.hb || {})[h] | 0, aw = TW.awakeLv(p, h); return `<div class="tw-awr ${aw >= 3 ? 'aw3' : ''}">${face(h)}<span><b>${esc(HEROES[h].name)}</b><i class="tw-abar"><b style="width:${Math.round((b / 60) * 100)}%"></b>${TW.AWAKE.map((a) => `<u style="left:${(a.f / 60) * 100}%" class="${b >= a.f ? 'on' : ''}"></u>`).join('')}</i></span><em>${b}F</em></div>`; }).join('');
+  const rows = list.map((h) => { const b = (t.hb || {})[h] | 0, aw = TW.awakeLv(p, h); return `<div class="tw-awr ${aw >= 3 ? 'aw3' : ''}">${face(h)}<span><b>${esc(HEROES[h].name)}</b><i class="tw-abar"><b style="width:${Math.min(100, Math.round((b / 60) * 100))}%"></b>${TW.AWAKE.map((a) => `<u style="left:${(a.f / 60) * 100}%" class="${b >= a.f ? 'on' : ''}"></u>`).join('')}</i></span><em>${b}F</em></div>`; }).join('');
   C.popup(`<h3>${C.ic('fire', '', 'sm')}지옥 각성</h3><div class="tw-awk-info">${TW.AWAKE.map((a, i) => `<div><b>${a.f}F · ${esc(a.name)}</b><small>${esc(a.desc)}</small></div>`).join('')}</div><p class="ip">그 멤버로 오른 최고 층으로 각성해요 · 깬 층을 다른 멤버로 다시 올라도 기록돼요</p><div class="tw-awlist">${rows}</div>`, 'tw-pop');
 }
 function infoPop() {
   const rules = Object.keys(TW.RULES).map((r) => `<div class="tw-ir">${ruleIc(r)}<span><b>${esc(TW.RULES[r].name)}</b><small>${esc(TW.RULES[r].desc)}</small><em>${esc(TW.RULES[r].hint)}</em></span></div>`).join('');
   const miles = Object.entries(TW.MILES).map(([f, m]) => `<p class="ip">${C.ic('crown', '', 'sm')}<b>${f}F</b> ${esc(m.label)}</p>`).join('');
   C.popup(`<h3>${C.ic('book', '', 'sm')}진상의 탑 안내</h3>
-    <p class="ip">60층 · 15층마다 구역 · 5층마다 보스 · 46층부터 규칙 둘 · 멤버 <b>한 명</b>만 · 위로 갈수록 진상이 단단해진다 (30층 체력 ×${Math.round(TW.floorHp(30) / TW.floorHp(1))} · 16~35층이 가장 가파르다)</p>
+    <p class="ip">${TW.TOWER.floors}층 · 15층마다 구역 (61층부터 왕좌가 이어진다) · 5층마다 보스 · 46층부터 규칙 둘 · 멤버 <b>최대 3명</b> · 바닥 경고를 피하며 오른다 (<b>새 규칙</b> 버튼)</p>
     <p class="ip">하루 도전 <b>${TW.TOWER.tries}번</b> (자정 초기화) · 깬 판은 도전을 돌려받아요 · 체력은 안 써요</p>
     <h4 class="gl-h">피로</h4><p class="ip">탑에 오를 때마다 그 멤버의 피로가 쌓여요 · 깨면 <b>+${TW.FATIGUE.clear}</b> (${TW.FATIGUE.highFrom}층부터 <b>+${TW.FATIGUE.clearHigh}</b>) · 이미 깬 층 다시 깨기 +${TW.FATIGUE.replay} · 실패 +${TW.FATIGUE.fail}</p>
     <p class="ip">피로한 멤버는 탑에서 공격력 · 입구 내구도가 줄어요 (피로 100 = <b>−${Math.round(TW.FATIGUE.max * TW.FATIGUE.pow * 100)}%</b>) · 100이 되면 지쳐서 ${TW.FATIGUE.unlock} 아래로 풀릴 때까지 (약 5시간) 못 들어가요 · 한 시간에 ${TW.FATIGUE.perHour}씩 저절로 풀려요 (다 풀리기까지 약 ${Math.round(TW.FATIGUE.max / TW.FATIGUE.perHour)}시간) · 탑 상점 피로 회복제 −${TW.FATIGUE.potion} · 여러 멤버를 번갈아 데려가요</p>
     <h4 class="gl-h">층 규칙</h4>${rules}
     <h4 class="gl-h">보상 (층을 처음 깰 때)</h4><p class="ip">코인 · 염화석 · 강화석 · 보스 층 모집권 · 구역 끝 모집권 3</p>${miles}
     <h4 class="gl-h">주간 탑 랭킹</h4><p class="ip">이번 주에 깬 가장 높은 층 (같으면 더 빨리 깬 기록) · 1위 칭호 "이번 주 탑의 주인" (다음 한 주) + 코인 5,000 · 모집권 3 · 염화석 40 · TOP 10 작은 보상</p>
-    <h4 class="gl-h">명예의 전당</h4><p class="ip">60층을 정복하면 닉네임과 함께 오른 멤버가 탑 로비에 영원히 새겨져요</p>
+    <h4 class="gl-h">명예의 전당</h4><p class="ip">${TW.TOWER.hall}층을 정복하면 닉네임과 함께 오른 멤버가 탑 로비에 영원히 새겨져요</p>
     <button class="btn primary" data-x>알겠어요</button>`, 'tw-pop rw-info');
 }
 
@@ -281,19 +333,22 @@ function pickLegendPop() {
 }
 
 // ─── 오르기: 시작 → 엘리베이터 연출 → 전투 ───
-async function go(f, hero) {
+async function go(f, squad) {
   const app = C.app;
   if (st.busy) return;
+  const sq = (squad && squad.length ? squad : squadIds()).filter(Boolean);
+  const hero = sq[0];
   st.busy = true;
   try {
-    const r = await C.API.towerStart(f, hero, app.guest);
+    const r = await C.API.towerStart(f, hero, app.guest, sq.slice(1));
     if (!r.ok) { C.toast(r.message || '오를 수 없어요', 2400); return; }
     if (r.profile) app.profile = r.profile;
-    app.towerRun = { runId: r.runId, f, hero, fat: r.fat | 0 };
-    lsSet('langbang:towerHero', hero);
+    const team = r.squad && r.squad.length ? r.squad : sq;
+    app.towerRun = { runId: r.runId, f, hero, squad: team, fat: r.fat | 0, fats: r.fats || null };
+    saveSquad();
     const from = st.last && st.last.f ? st.last.f : Math.max(0, f - 1);
     await climb(from, f);
-    C.startRun({ mode: 'tower', force: true, tower: { f, hero, runId: r.runId, fat: r.fat | 0 } });
+    C.startRun({ mode: 'tower', force: true, tower: { f, hero, squad: team, runId: r.runId, fat: r.fat | 0, fats: r.fats || null } });
   } finally { st.busy = false; }
 }
 // 엘리베이터 연출: 벽이 아래로 지나가고 · 층 숫자가 올라가고 · 붉은 빛 · 쿵 (구역이 바뀌면 큰 컷인)
@@ -327,7 +382,8 @@ function hudTick(g) {
   if (!g || !g.tower) { if (el) { el.remove(); st.hud = null; } return; }
   if (!el || !el.isConnected) {
     el = document.createElement('div'); el.className = 'tw-hud';
-    el.innerHTML = `<b class="th-f" style="--zc:${TW.zoneOf(g.tower.f).color}">지옥 <em>${g.tower.f}F</em></b><span class="th-r">${g.tower.rules.map((r) => ruleIc(r)).join('')}</span><i class="th-t"></i>`;
+    const pl = g.twa ? g.twa.plan : null;
+    el.innerHTML = `<b class="th-f" style="--zc:${TW.zoneOf(g.tower.f).color}">지옥 <em>${g.tower.f}F</em></b><span class="th-r">${g.tower.rules.map((r) => ruleIc(r)).join('')}</span>${pl && pl.kinds.length ? `<span class="th-hz">${pl.kinds.map((k) => `<i style="--hc:${TWA.HZ[k].color}">${esc(TWA.HZ[k].name)}</i>`).join('')}</span>` : ''}<i class="th-t"></i>`;
     C.stage.appendChild(el); st.hud = el;
   }
   const left = Math.max(0, Math.ceil(g.tower.limit - g.t));
@@ -340,6 +396,7 @@ function hudTick(g) {
 const CURSE_TXT = { stun: '저주: 기절!', silence: '저주: 침묵', charm: '저주: 홀림', slow: '저주: 손이 굳는다' };
 function onEvent(g, e, loud) {
   const fx = C.fx;
+  if (AUI.isEvent(e.type)) { AUI.onEvent(g, e, loud); return; }
   if (e.type === 'twCurse') {
     for (let k = 1; k <= 7; k++) fx.part('spark', e.ex + ((e.x - e.ex) * k) / 8, e.ey + ((e.y - 40 - e.ey) * k) / 8, 0, 0, 0.35, 4, '#c77dff');
     fx.text(e.x, e.y - 84, CURSE_TXT[e.kind] || '저주!', '#d9a8ff', 14, 1.0, -20);
@@ -376,6 +433,10 @@ function result(g, victory, quit) {
   const sum = C.S.summary(g, g.t);
   const f = g.tower.f, run = app.towerRun || {};
   const hero = run.hero || (g.heroes.find((h) => !h.def.summon) || {}).id || curHero();
+  const team = (run.squad && run.squad.length ? run.squad : g.heroes.filter((h) => !h.def.summon).map((h) => h.id)).filter((h) => HEROES[h]);
+  const names = team.map((h) => HEROES[h].name).join(' · ');
+  const rep = TWA.report(g);
+  const wiped = !!(g.twa && TWA.members(g).length && TWA.members(g).every((h) => h.twDown > 0)); // 멤버가 모두 쓰러짐
   const time = fmtSec(g.t);
   const z = TW.zoneOf(f);
   const win = !!victory;
@@ -383,11 +444,11 @@ function result(g, victory, quit) {
     <div class="tw-scene z${z.id} res ${win ? 'win' : 'lose'}" style="--zc:${z.color}"><div class="tw-bg"><i class="tw-far"></i><i class="tw-near"></i><i class="tw-heat"></i><i class="tw-vig"></i></div><div class="tw-embers">${embers(win ? 30 : 10)}</div></div>
     <div class="tw-res ${win ? 'win' : 'lose'}">
       <em class="tr-floor">${f}<small>F</small></em>
-      <h2>${win ? `${f}층 돌파!` : quit ? '오늘은 여기까지' : g.tower && g.t >= g.tower.limit ? '시간 초과…' : '탑에서 떨어졌다…'}</h2>
-      <p class="sub">${win ? `${esc(HEROES[hero].name)} · ${time}` : `${esc(TW.zoneOf(f).name)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}`}</p>
+      <h2>${win ? `${f}층 돌파!` : quit ? '오늘은 여기까지' : wiped ? '모두 쓰러졌다…' : g.tower && g.t >= g.tower.limit ? '시간 초과…' : '탑에서 떨어졌다…'}</h2>
+      <p class="sub">${win ? `${esc(names)} · ${time}` : `${esc(TW.zoneOf(f).name)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}`}</p>
       <div class="tr-chest ${win ? 'wait' : 'none'}" id="twChest">${win ? '<i class="tc-glow"></i><img class="tc-img tc-shut" src="/img/lb/fx/tower_chest.webp" alt="" draggable="false"><img class="tc-img tc-open" src="/img/lb/fx/tower_chest_open.webp" alt="" draggable="false">' : ''}</div>
       <div class="tr-rw" id="twRw">${win ? '<span class="spin"></span> 보상 받는 중…' : ''}</div>
-      <div class="stats"><div><small>처치</small><b>${fmt(sum.kills)}</b></div><div><small>시간</small><b>${time}</b></div><div><small>레벨</small><b>${g.level}</b></div></div>
+      <div class="stats"><div><small>처치</small><b>${fmt(sum.kills)}</b></div><div><small>시간</small><b>${time}</b></div>${rep && rep.tele ? `<div><small>회피</small><b>${rep.dodge}/${rep.tele}</b></div>${rep.wind ? `<div><small>끊기</small><b>${rep.cut}/${rep.wind}</b></div>` : ''}` : `<div><small>레벨</small><b>${g.level}</b></div>`}</div>
     </div>
     <div class="tw-resbtns" id="twBtns"></div>
   `, `tower-screen result-tw ${win ? 'win' : 'lose'}`);
@@ -396,8 +457,8 @@ function result(g, victory, quit) {
     const p = P(), left = TW.triesLeft(p), free = p.master && !p.testNormal;
     const nf = Math.min(TW.TOWER.floors, f + 1);
     const canNext = win && f < TW.TOWER.floors && nf <= TW.maxFloor(p);
-    const tired = fatBlocked(hero), ok = (left || free) && !tired;
-    const why = tired ? `${esc(HEROES[hero].name)} 지쳐서 쉬어야 해요 · ${fatWait(hero)} 뒤 회복` : '';
+    const tiredH = team.find((h) => fatBlocked(h)), tired = !!tiredH, ok = (left || free) && !tired;
+    const why = tired ? `${esc(HEROES[tiredH].name)} 지쳐서 쉬어야 해요 · ${fatWait(tiredH)} 뒤 회복` : '';
     const fz = fatOf(hero) ? ` · 피로 ${fatOf(hero)}%` : '';
     const b = [];
     if (canNext) b.push(`<button class="tw-go" data-act="twNext" data-f="${nf}" data-h="${hero}" ${ok ? '' : 'disabled'}><i class="tg-fire"></i><span><b>${nf}층으로 오르기</b><small>${why || (left || free ? `남은 도전 ${free ? '∞' : left}${fz}` : '오늘 도전을 다 썼어요')}</small></span></button>`);
@@ -408,6 +469,7 @@ function result(g, victory, quit) {
   };
   btns();
   st.last = { f, win };
+  app.lastTowerSquad = team;
   if (app.debugRun) { const rw = document.getElementById('twRw'); if (rw) rw.innerHTML = '<div class="guest-note">디버그 판은 기록을 저장하지 않아요</div>'; return; }
   Promise.resolve(C.API.towerFinish({ runId: run.runId, clear: win, durationSec: Math.round(g.t), kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills }, app.guest)).then((r) => {
     app.towerRun = null;
@@ -416,8 +478,9 @@ function result(g, victory, quit) {
     const rw = document.getElementById('twRw'), ch = document.getElementById('twChest');
     if (!rw) return;
     if (!r || !r.ok) { rw.innerHTML = `<div class="err">기록을 저장하지 못했어요: ${esc((r && r.message) || '')}</div>`; return; }
-    const fatLine = r.fatAdd ? `<span class="fat ${fatLv(r.fat)}">${esc(HEROES[r.hero].name)} 피로 +${r.fatAdd} · 지금 ${r.fat}%${r.fat >= TW.FATIGUE.max ? ' · 쉬어야 해요' : ''}</span>` : '';
-    if (!win) { rw.innerHTML = `<div class="tr-lines"><span>도전 ${r.left}/${TW.TOWER.tries} 남음</span>${fatLine}<span>층 규칙에 맞는 다른 멤버로도 도전해 봐요</span></div>`; return; }
+    const fats = r.fats && Object.keys(r.fats).length ? r.fats : { [r.hero]: r.fat };
+    const fatLine = r.fatAdd ? `<span class="fat ${fatLv(Math.max(...Object.values(fats)))}">피로 +${r.fatAdd}씩 · ${Object.entries(fats).map(([h, v]) => `${esc((HEROES[h] || {}).name || '')} ${v}%${v >= TW.FATIGUE.max ? '(휴식)' : ''}`).join(' · ')}</span>` : '';
+    if (!win) { rw.innerHTML = `<div class="tr-lines"><span>도전 ${r.left}/${TW.TOWER.tries} 남음</span>${fatLine}<span>${wiped ? '바닥 경고를 피해 끌어 옮기고 · 이 층 위험에 강한 멤버로 도전해 봐요' : '층 규칙 · 위험에 맞는 다른 멤버로도 도전해 봐요'}</span></div>`; return; }
     const lines = [];
     const got = r.reward;
     if (got) {
@@ -457,7 +520,7 @@ function heroInfoHtml(id) {
   const p = P(), b = ((p.tower || {}).hb || {})[id] | 0, aw = TW.awakeLv(p, id);
   const augs = (SKILL_AUG[id] || []).map((a) => `<li><b>${esc(a.name)}</b> ${esc(a.desc)}</li>`).join('');
   return `<div class="hm-sec tw-hm"><h4>${C.ic('fire', '', 'sm')}진상의 탑 · 지옥 각성 <small>최고 ${b}F</small></h4>
-    <i class="tw-abar"><b style="width:${Math.round((b / 60) * 100)}%"></b>${TW.AWAKE.map((a) => `<u style="left:${(a.f / 60) * 100}%" class="${b >= a.f ? 'on' : ''}"></u>`).join('')}</i>
+    <i class="tw-abar"><b style="width:${Math.min(100, Math.round((b / 60) * 100))}%"></b>${TW.AWAKE.map((a) => `<u style="left:${(a.f / 60) * 100}%" class="${b >= a.f ? 'on' : ''}"></u>`).join('')}</i>
     <ul>${TW.AWAKE.map((a, i) => `<li class="${aw > i ? 'on' : ''}"><b>${a.f}F ${esc(a.name)}</b> ${esc(a.desc)}</li>`).join('')}</ul>
     ${augs ? `<h4>${C.ic('sparkle', '', 'sm')}전용 스킬 증강 <small>레벨업 카드로 나와요</small></h4><ul>${augs}</ul>` : ''}</div>`;
 }
@@ -467,10 +530,16 @@ const ACTS = {
   tower: () => showTower(),
   twStep: (b) => { st.f = clamp(curFloor() + Number(b.dataset.d), 1, TW.maxFloor(P())); C.A.sfx.tabSw && C.A.sfx.tabSw(); renderLobby(); },
   twFloor: (b) => { const f = Number(b.dataset.f); if (f <= TW.maxFloor(P())) { st.f = f; renderLobby(); } else C.toast('아래층을 먼저 깨야 열려요', 1400); },
-  twPick: () => pickPop(),
-  twPickHero: (b) => { st.hero = b.dataset.h; lsSet('langbang:towerHero', st.hero); C.closeInfoCard(); renderLobby(); },
-  twGo: () => go(curFloor(), curHero()),
-  twNext: (b) => go(Number(b.dataset.f), b.dataset.h || curHero()),
+  twPick: (b) => pickPop(Number((b && b.dataset.s) || 0)),
+  twPickHero: (b) => { // 그 자리에 앉히기 (다른 자리에 있던 멤버면 자리 바꾸기 · 빈 값이면 비우기)
+    const sq = curSquad().slice(), s = Number(b.dataset.s || 0), h = b.dataset.h || null;
+    if (!h) { if (s) sq[s] = null; } else { const at = sq.indexOf(h); if (at >= 0) sq[at] = sq[s]; sq[s] = h; if (!sq[0]) { sq[0] = h; if (s) sq[s] = null; } }
+    st.squad = sq; st.hero = sq[0]; saveSquad(); C.closeInfoCard(); renderLobby();
+  },
+  twRec: (b) => { const h = b.dataset.h, sq = curSquad().slice(); if (sq.includes(h)) { C.toast(`${HEROES[h].name} 이미 파티에 있어요`, 1200); return; } const i = sq.indexOf(null); sq[i >= 0 ? i : sq.length - 1] = h; st.squad = sq; saveSquad(); renderLobby(); },
+  twRules: () => rulesPop(),
+  twGo: () => go(curFloor(), squadIds()),
+  twNext: (b) => go(Number(b.dataset.f), C.app.lastTowerSquad && C.app.lastTowerSquad.length ? C.app.lastTowerSquad : squadIds()),
   twShop: () => shopPop(),
   twPotion: () => potionPop(),
   twPotionDo: async (b) => { const h = b.dataset.h; const r = await C.liveAct(C.API.towerShop('potion', C.app.guest, h)); if (r) { C.A.sfx.reward ? C.A.sfx.reward() : C.A.sfx.levelUp(); const fv = r.got && r.got.fat; C.toast(`${HEROES[h].name} 피로 −${fv ? fv.cut : TW.FATIGUE.potion} · 지금 ${fv ? fv.v : TW.fatigueOf(P(), h)}%`, 1800); shopPop(); if (C.app.screen === 'tower') renderLobby(); } },

@@ -322,9 +322,9 @@ test('멤버 전용 스킬 증강: 모든 멤버 2~3개 · 판에 있는 멤버�
   S.applySkillAug(gb, 'baul', 'ice');
   hb.skillCd = 0;
   const e = S.spawnEnemy(gb, 'drunk', hb.x, 200);
-  e.hp = e.maxHp = 1e9;
-  assert.ok(S.castSkill(gb, hb));
-  S.step(gb, 1 / 60);
+  e.hp = e.maxHp = 1e9; e.speed = 0; e.boss = true; // (대개편: 점프대 착지 자리 눈길 — 밀리지 않게)
+  assert.ok(S.castSkill(gb, hb, e.x, e.y));
+  for (let k = 0; k < 60; k++) S.step(gb, 1 / 60);
   assert.ok(e.slowT > 0 && e.slowMul < 0.7, '미끄러운 길');
   // 강병화 커튼콜: 원맨쇼 중 처치하면 시간이 늘어난다
   const gw = S.createGame({ H: 760, rng: seeded(4), heroes: ['byunghwa'], noWaves: true, tempo: true });

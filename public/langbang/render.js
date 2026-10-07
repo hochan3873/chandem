@@ -259,6 +259,7 @@ export class FX {
 
 // ─── 렌더러 ───────────────────────────────────────────
 const PAINTED = { crownIco: 'pCrown', bottle: 'pBottle', bottleRage: 'pBottleRage' };
+// (대개편) 건전남 권총 · 박상화 장미 · 운영진 딱지 · 오지은 시계 · 서명훈 번개 · 홍정민 휘두르기 · 임수빈 리본 · 박나영 불은 kitfx.js 가 코드로 그린다
 const JY_CHIPS = ['#e53935', '#1e6fe0', '#2e9e4a', '#222', '#f2b01e', '#8e44ad']; // 성준영 배팅 칩 색
 const PAINTED_MORE = ['bullet', 'cane', 'wink', 'swear', 'swearBig', 'notice', 'noticeBig', 'flower', 'rose', 'chip', 'card', 'tick', 'dumbbell', 'snack', 'hammer', 'note', 'heartBomb', 'duck', 'paper', 'gem', 'mosaic'];
 for (const n of PAINTED_MORE) PAINTED[n] = 'p_' + n; // 그린 투사체: fx/p_<이름>.webp (없으면 코드로 그린 것)
@@ -1028,6 +1029,8 @@ export class Renderer {
     this.drawMapFxUnder(g, t);
     this.drawGems(g, t);
     if (this.skfx) this.skfx.draw('ground', g); // 스킬 전용 연출 (skillfx.js) — 바닥
+    if (this.kit) this.kit.draw('ground', g); // 대개편 장판 · 음파 고리 (kitfx.js)
+    if (this.efx) this.efx.draw('ground', g); // 진상 기술 예고 표적 · 입구 경고 (enemyfx.js)
     this.drawVfx('ground'); // 바닥 무늬: 금 · 경고 원 · 소환진 · 오라 (캐릭터 발밑 · 납작하게)
     if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'back'); // 건물주 레이드: 거대 보스 · 공격 예고 구역 (raid2-ui.js)
     this.drawEnemies(g, t);
@@ -1035,10 +1038,14 @@ export class Renderer {
     if (!demo) this.drawRope(g, t);
     if (this.skfx) this.skfx.draw('gate', g); // 입구 위 (붕대)
     this.drawEnemies(g, t, true); // 때리는 진상은 바리케이드 앞
+    if (g.twa && this.twaDraw) this.twaDraw(g, t, 'back'); // 진상의 탑: 바닥 예고 · 독 웅덩이 · 기 모으기 (tower-arena-ui.js · 바리케이드 바닥 위 · 멤버 아래)
     this.drawPools(g, t);
+    if (this.efx) this.efx.draw('feet', g); // 진상 기술 표적 (멤버 발밑 · 입구 경고) — 바리케이드 위 · 멤버 아래
     this.drawHeroes(g, t, ui);
     this.drawBeams(g, t);
     this.drawProjs(g);
+    if (this.kit) this.kit.draw('mid', g); // 대개편: 화염 · 휘두르기 · 진상 상태 (kitfx.js)
+    if (this.efx) this.efx.draw('mid', g);
     if (g.buses && g.buses.length) this.drawBuses(g);
     this.drawSlashes();
     this.drawDoorHits();
@@ -1050,7 +1057,10 @@ export class Renderer {
     this.drawParts();
     this.drawRings();
     if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'top'); // 건물주 레이드: 날아오는 고지서 · 돈다발
+    if (g.twa && this.twaDraw) this.twaDraw(g, t, 'top'); // 진상의 탑: 멤버 체력 · 상태 · 끌기 화살표
     if (this.skfx) this.skfx.draw('top', g); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
+    if (this.kit) this.kit.draw('top', g); // 대개편 스킬 연출 (kitfx.js)
+    if (this.efx) this.efx.draw('top', g);
     this.drawTexts();
     this.drawBubbles();
     this.drawUiWorld(g, t, ui);
@@ -1596,7 +1606,7 @@ export class Renderer {
       if (def.mid && def.base) sp = this.sprites['e_' + def.base] || sp;
       if (!sp) continue;
       const feet = e.y + box * FEET_OFF;
-      const moving = !e.atRope && e.stunT <= 0 && e.windup <= 0 && !(e.bwind > 0);
+      const moving = !e.atRope && e.stunT <= 0 && e.windup <= 0 && !(e.bwind > 0) && !(e.castW > 0);
       const w = e.age * (4 + e.speed * 0.09) + e.phase;
       let bob = 0, rot = 0, sx = 1, sy = 1;
       if (moving) {
@@ -1614,6 +1624,7 @@ export class Renderer {
       } else {
         sy = 1 + Math.sin(t * 3 + e.phase) * 0.02;
       }
+      if (e.castW > 0 && !(e.bwind > 0) && !(e.windup > 0)) { const q = Math.min(1, 1 - e.castW / 0.9); bob = -4 - q * 6; rot = -0.12 - q * 0.2 + Math.sin(t * 50) * 0.02 * q; sy = 1 + q * 0.06; sx = 1 - q * 0.04; } // (10/08) 던지기 예고: 몸을 뒤로 젖히고 부들
       if (e.windup > 0 || e.bwind > 0) { sy = 0.82; sx = 1.14; bob = 0; rot = Math.sin(t * 60) * 0.03; if (e.bwind > 0 && Math.sin(t * 40) > 0.6) { this.tf(e.x, e.y - box * 0.3, 0, 1, 1); const gl = this.projSprites.glowRed; cx.drawImage(gl.c, -box * 0.6, -box * 0.6, box * 1.2, box * 1.2); } }
       if (e.kbv < -30) rot -= Math.min(0.5, -e.kbv * 0.0012) * (e.phase > 3 ? 1 : -1);
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
@@ -2163,6 +2174,7 @@ export class Renderer {
       if (h.rage) { rot = Math.sin(t * 24) * 0.05; bob += Math.sin(t * 30) * 1.5; }
       if (h.charmT > 0) { rot = Math.sin(t * 4) * 0.14; }
       if (h.stunT > 0) { rot = Math.sin(t * 10) * 0.1; sy = 0.94; }
+      if (h.kdT > 0) { const k = Math.min(1, (h.kdSec - h.kdT) / 0.25, h.kdT / 0.35); rot = (hx < 180 ? -1 : 1) * 1.3 * k; sy = 1 - 0.1 * k; bob += 14 * k; } // 쓰러짐: 옆으로 픽 누움 (일어날 때 다시 세움)
       if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; if (g.joinMode) { bob += (1 - p) * 70; sx *= 0.6 + 0.4 * p; sy *= 0.6 + 0.4 * p * e; } else { sx *= e * p; sy *= e * p; } } // 합류: 아래에서 미끄러져 올라온다
       if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
       sy *= 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 숨쉬기
@@ -2172,7 +2184,7 @@ export class Renderer {
       // 공격 리듬: 준비(다음 공격 직전 뒤로 젖힘·들어 올리기) → 던짐(반동) — 멤버마다 다르게
       const wk = WEAPON[h.id] ? WEAPON[h.id].kind : '';
       const C = CADENCE[h.id] || CADENCE['_' + wk] || CADENCE._default;
-      const busy = h.stunT > 0 || h.charmT > 0 || h.grabT > 0;
+      const busy = h.stunT > 0 || h.charmT > 0 || h.grabT > 0 || h.kdT > 0;
       if (!busy && h.cd > 0 && h.cd < C.wind && !(h.reloadT > 0)) { const q = 1 - h.cd / C.wind; rot -= q * C.back * (hx < 180 ? 1 : -1) * 0.8; sy *= 1 - q * C.sq; sx *= 1 + q * C.sq * 0.6; bob -= q * (C.lift || 0); if (C.nod) rot += Math.sin(q * Math.PI) * 0.08; }
       const since = g.t - (h.lastShotT || -9);
       if (since < 0.22) { const q = 1 - since / 0.22; rot += q * C.snap * (hx < 180 ? 1 : -1) * 0.5; bob += q * 2; }
@@ -2196,6 +2208,8 @@ export class Renderer {
       // 기진맥진: 주저앉기 · 느린 숨 · 땀 · 어지러운 소용돌이
       if (h.tiredT > 0) { const k = Math.min(1, h.tiredT / 1.2); sy *= 1 - 0.08 * k; sx *= 1 + 0.04 * k; bob += 3 * k; rot += Math.sin(t * 1.4 + h.slot) * 0.05 * k; }
       // 프레임 띠 (있으면): 준비 = 0~release-1 칸 · 던진 뒤 0.3초 = release~끝 칸
+      const cp = this.kit && !busy ? this.kit.castPose(h) : null; // 대개편: 스킬 시전 동작 (멤버마다 다른 몸짓)
+      if (cp) { dx += cp.dx; bob += cp.dy; rot += cp.rot; sx *= cp.sx; sy *= cp.sy; }
       const formOn = !!HERO_ANIM_FORM[h.id] && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!alt);
       const HA = formOn ? HERO_ANIM_FORM[h.id] : HERO_ANIM[h.id], hstrip = HA && this.images[formOn ? 'hanim_' + h.id + '_f' : 'hanim_' + h.id];
       let usedStrip = false;
@@ -2226,7 +2240,7 @@ export class Renderer {
           usedStrip = true;
         }
       }
-      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length) && !(h.id === 'dohoon' && h._encAt && performance.now() - h._encAt < 1700)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
+      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && !cp && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length) && !(h.id === 'dohoon' && h._encAt && performance.now() - h._encAt < 1700)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
         const n = HA.frames, fw = hstrip.naturalWidth / n, fh = hstrip.naturalHeight, rel = HA.release;
         let fi = -1;
         if (since < 0.3) fi = Math.min(n - 1, rel + Math.floor((since / 0.3) * (n - rel)));
@@ -2308,7 +2322,7 @@ export class Renderer {
         usedStrip = true;
       }
       if (!usedStrip) {
-        { const ck = h._castAt ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); }
+        { const ck = h._castAt && !cp ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); } // (시전 동작이 없는 멤버만 톡 커지기)
         cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
         cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
         if (h.freezeT > 0 && h.stunT > 0 && sp.f) { cx.globalAlpha = 0.5; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); } // 7장 빙결: 하얗게 언 모습
@@ -2347,7 +2361,7 @@ export class Renderer {
           cx.drawImage(hs.c, -8, -8, 16, 16);
         }
       }
-      if (h.stunT > 0) {
+      if (h.stunT > 0 || h.kdT > 0) {
         const st = this.projSprites.star;
         for (let i = 0; i < 3; i++) {
           const a = t * 6 + i * TAU / 3;
@@ -2369,7 +2383,9 @@ export class Renderer {
       }
       { // 상태 딱지: 머리 위 가운데에 위로 쌓기 (옆 멤버와 안 겹치게)
         const tags = [];
+        if (h.kdT > 0) tags.push(['쓰러짐', '#ff8a7a']); // 쓰러짐 게이지가 가득
         if (h.stunT > 0) tags.push(h.freezeT > 0 ? ['빙결', '#bff4ff'] : ['기절', '#ffe27a']);
+        if (h.poisonT > 0) tags.push(['독', '#9dff6a']);
         if (h.muteT > 0 && h.silenceT > 0) tags.push(['침묵', '#d0c0ff']); // 7장 펜션 사장님 소음 금지
         if (h.grabT > 0) tags.push(['붙잡힘', '#ff8a8a']);
         if (h.blindT > 0) tags.push(['눈부심', '#fff2a0']);
@@ -2409,6 +2425,11 @@ export class Renderer {
         else if (at) { cx.fillStyle = at.color; cx.beginPath(); cx.arc(px + 6.5, ly, 4.2, 0, Math.PI * 2); cx.fill(); cx.font = `6px ${FONT}`; cx.fillStyle = '#000'; cx.fillText(at.icon, px + 6.5, ly + 0.5); cx.font = `800 8px ${FONT}`; }
         cx.fillStyle = h.lv >= 5 ? '#ffb347' : '#bfeaff';
         cx.fillText(lvT, px + 13 + tw / 2, ly + 0.5);
+        if (h.kdMax && (h.kd > 0.5 || h.kdT > 0)) { // 쓰러짐 게이지: 찰 때만 Lv 칩 아래 (쓰러지면 빨갛게 · 일어날 때까지 줄어듦)
+          const bw = 34, bx = hx - bw / 2, by = ly + 8, f = h.kdT > 0 ? Math.max(0, h.kdT / (h.kdSec || 1)) : Math.min(1, h.kd / h.kdMax);
+          cx.fillStyle = 'rgba(12,10,28,0.85)'; roundRect(cx, bx - 1, by - 1, bw + 2, 5, 2.5); cx.fill();
+          cx.fillStyle = h.kdT > 0 ? '#ff5a4f' : h.poisonT > 0 ? '#8fe85a' : f > 0.7 ? '#ff9a3a' : '#ffd23f'; roundRect(cx, bx, by, Math.max(2, bw * f), 3, 1.5); cx.fill();
+        }
         if (h.main) { // 주력: Lv 칩 왼쪽 위에 금별 (한 판에 2명 · Lv5 까지)
           const sx = px - 1, sy = ly - 7, R = 7;
           cx.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? R * 0.45 : R, a = -Math.PI / 2 + (k * Math.PI) / 5; cx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r); } cx.closePath();
@@ -2471,8 +2492,9 @@ export class Renderer {
     const cx = this.cx, b = h.bd, B = h.def.board;
     const ride = this.images.hanim_baul_ride, fix = this.images.hanim_baul_fix, atk = this.images.hanim_baul;
     const now = performance.now();
-    // 탭한 곳: 점선 + 보드 표시 (다음 돌진은 여기로)
-    const aim = g.boardAim && g.t - g.boardAim.t < B.aimT ? g.boardAim : null;
+    if (h.airH > 0) { this.tf(hx, feet, 0, 1, 0.4); cx.globalAlpha = 0.35; cx.fillStyle = '#000'; cx.beginPath(); cx.arc(0, 0, 18, 0, Math.PI * 2); cx.fill(); cx.globalAlpha = 1; feet -= h.airH; } // 점프대: 공중 (그림자는 바닥에)
+    // 예약한 다음 곳 (타는 중에 탭): 점선 + 보드 표시
+    const aim = b.q || null;
     if (aim) {
       this.world(); cx.save();
       cx.setLineDash([5, 6]); cx.lineDashOffset = -t * 30; cx.strokeStyle = 'rgba(122,208,255,0.85)'; cx.lineWidth = 2.2;
@@ -2498,7 +2520,7 @@ export class Renderer {
       }
       cx.restore(); cx.globalCompositeOperation = 'source-over';
     }
-    if (b.st === 'fix') {
+    if (b.st === 'fix' && B.fix) {
       if (!imgOk(fix)) return false;
       // 띠: 0~3 무릎 꿇고 렌치 · 왁스 (반복) · 4 땀 닦기 (중간) · 7 엄지 척 (끝나기 직전)
       const f = b.fixMax ? clamp01(1 - b.fixT / b.fixMax) : 0, gx = hx, gy = feet - box * 1.02;
@@ -2513,13 +2535,16 @@ export class Renderer {
       return true;
     }
     const face = b.face || 1, since = g.t - (h.lastShotT || -9);
-    if (imgOk(atk) && since < 0.42 && b.st !== 'home') this.loopStrip(atk, Math.min(7, 2 + Math.floor((since / 0.42) * 6)), hx, feet, face, box * 1.12);
+    if (b.st === 'air' && imgOk(atk)) this.loopStrip(atk, 4, hx, feet, face, box * 1.12); // 공중 트릭
+    else if (imgOk(atk) && since < 0.42 && b.st !== 'home') this.loopStrip(atk, Math.min(7, 2 + Math.floor((since / 0.42) * 6)), hx, feet, face, box * 1.12);
     else if (imgOk(ride)) this.loopStrip(ride, Math.floor(t * (b.st === 'dash' ? 14 : 7)) % 8, hx, feet + Math.sin(t * 5 + h.slot) * 1.5, face, box * 1.12);
     else return false;
-    // 남은 보드 횟수: 발밑 작은 칸 (다 쓰면 정비)
-    const maxUse = B.uses[h.lv - 1], left = Math.max(0, maxUse - b.uses), w0 = 5, gap = 2, tw = maxUse * (w0 + gap) - gap;
+    // 보드 충전 칸: 발밑 (찬 칸 하늘색 · 차는 중인 칸은 조금씩)
+    const maxCh = B.charges ? B.charges[h.lv - 1] : 0, w0 = 7, gap = 2, tw = maxCh * (w0 + gap) - gap, part = B.refill ? clamp01((b.refT || 0) / B.refill[h.lv - 1]) : 0;
     this.world();
-    for (let k = 0; k < maxUse; k++) { cx.fillStyle = k < left ? '#7ad0ff' : 'rgba(0,0,0,0.5)'; cx.fillRect(hx - tw / 2 + k * (w0 + gap), feet + 19, w0, 3); }
+    for (let k = 0; k < maxCh; k++) { const x0 = hx - tw / 2 + k * (w0 + gap); cx.fillStyle = 'rgba(0,0,0,0.55)'; cx.fillRect(x0, feet + 19, w0, 4); cx.fillStyle = '#7ad0ff'; const f = k < Math.floor(b.ch) ? 1 : k === Math.floor(b.ch) ? part : 0; if (f > 0) cx.fillRect(x0, feet + 19, w0 * f, 4); }
+    if (b.fever > 0) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.4 + 0.2 * Math.sin(t * 12); cx.fillStyle = '#7ad0ff'; cx.beginPath(); cx.ellipse(hx, feet + 4, 30, 9, 0, 0, Math.PI * 2); cx.fill(); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; } // 총출동: 발밑 빛
+    if (b.combo > 0 && g.t - (b.lastLand || -9) < B.combo.win) { cx.fillStyle = '#ffe14d'; cx.font = `900 10px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(`×${b.combo + 1}`, hx, feet + 32); }
     return true;
   }
   // 성준영: 칩 갈퀴로 바닥의 배팅 칩을 긁어모으며 돌아다닌다 — 끌어모으는 반경 고리 · 갈퀴 쪽으로 굴러 들어오는 칩
@@ -2728,7 +2753,7 @@ export class Renderer {
       const k = Math.min(1, p.lt / p.T);
       this.tf(p.tx, p.ty + 6, 0, 1, 0.4);
       cx.globalAlpha = 0.25 + k * 0.35;
-      cx.strokeStyle = p.type === 'heart' ? '#ff7fc8' : '#7be38f'; cx.lineWidth = 3;
+      cx.strokeStyle = p.type === 'heart' ? '#ff7fc8' : p.type === 'stamp' ? '#ffd23f' : '#7be38f'; cx.lineWidth = 3;
       cx.beginPath(); cx.arc(0, 0, p.splash * (0.4 + k * 0.6), 0, TAU); cx.stroke();
       cx.globalAlpha = 1;
     }
@@ -2738,6 +2763,7 @@ export class Renderer {
       const p = g.projs[pi];
       if (p.dead || pi < cap) continue;
       shown++;
+      if (this.kit && this.kit.drawProj(p)) continue; // 대개편: 멤버마다 다른 비행 그림 (kitfx.js)
       if (p.type === 'tap' && p.hero && p.hero.id === 'jungmin' && this.projSprites.jmBottle) { // 홍정민: 거꾸로 든 소주병이 빙글빙글 (잔상 2개 · 뒤로 튀는 술방울)
         const bs = this.projSprites.jmBottle, sv = Math.hypot(p.vx || 0, p.vy || 0) || 1, ux = (p.vx || 0) / sv, uy = (p.vy || -1) / sv, spin = this.fx.time * 17 + (p.uid || pi);
         cx.globalCompositeOperation = 'lighter';
@@ -2837,6 +2863,7 @@ export class Renderer {
       }
     }
     for (const q of g.eprojs || []) {
+      if (this.efx && this.efx.drawEproj(q)) continue; // 진상 투척물 (enemyfx.js 코드 그림)
       const s = q.kind === 'duck' ? P.duck : q.kind === 'paper' ? P.paper : P['ep_' + q.kind] || P.rumor;
       this.tf(q.x, q.y, q.kind === 'rumor' ? Math.sin(q.t * 14) * 0.12 : q.t * 12, 1, 1);
       { const pi = s.paint && this.images[s.paint]; if (imgOk(pi)) { const hh = Math.max(s.h, s.w) * 1.3, ww = hh * pi.naturalWidth / pi.naturalHeight; cx.drawImage(pi, -ww / 2, -hh / 2, ww, hh); } else cx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h); }

@@ -2,19 +2,19 @@
 // 랑방 대전 — 서버가 믿는 경제 규칙 (보상 · 강화 비용 · 해금).
 // 화면 표시/손님용 같은 공식이 public/langbang/data.js 에 있다. 둘이 어긋나면 test/langbang.test.js 가 잡는다.
 
-const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin'];
-const HIDDEN = ['eunok', 'hanna', 'sunggu'];
+const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin', 'dragon'];
+const HIDDEN = ['eunok', 'hanna', 'sunggu', 'dragon'];
 const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin']; // 모집(뽑기)으로 합류 (임수빈은 8-5 를 깨도 합류)
 const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN, ...GACHA]; // 해금이 필요한 영웅
 const META_MAX = 20;
 // 멤버 등급별 강화 한도 (화면 data.js HERO_TIER · TIER_MAX 와 같음)
-const HERO_TIER = { bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1, dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2, hanna: 3, donghan: 3, sunggu: 3, youngjun: 3, junseo: 4, hyungyeong: 4, ara: 4, hochan: 5, soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, jiwon: 3, wonsik: 3, jeongseob: 3, byunghwa: 5, baul: 3, subin: 3 };
+const HERO_TIER = { bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1, dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2, hanna: 3, donghan: 3, sunggu: 3, youngjun: 3, junseo: 4, hyungyeong: 4, ara: 4, hochan: 5, soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, jiwon: 3, wonsik: 3, jeongseob: 3, byunghwa: 5, baul: 3, subin: 3, dragon: 3 };
 const TIER_MAX = [20, 20, 20, 20, 20, 20];
 const metaMaxOf = (id) => TIER_MAX[HERO_TIER[id] || 1];
 const STAGE_COUNT = 80; // 8장 결혼식 뒤풀이 까지
 const STAGE_WAVES = 5;
 const STAGES_PER_CHAPTER = 10;
-const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, subin: 75 }; // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (임수빈: 모집 + 8-5 확정)
+const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, dragon: 46, subin: 75 }; // (박나영: 5-6) 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (임수빈: 모집 + 8-5 확정)
 const ENDLESS_UNLOCK = 10;
 // 도감에 올라가는 진상 (화면 data.js ENEMIES 와 같아야 한다 — 테스트가 검사)
 const ENEMY_IDS = ['earphone', 'noshow', 'clubguy', 'clubgirl', 'praise1', 'praise2', 'yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'queen', 'boss_thug', 'vomit', 'couple', 'handsy', 'gao', 'selfie', 'cutter', 'kkondae', 'spam',
@@ -206,6 +206,7 @@ const SIG = {
   baul: { name: '팬클럽 응원 썰매 2호', stats: { skill: 0.15, atk: 0.08 } },
   byunghwa: { name: '앵콜 원맨쇼 핀 조명', stats: { cd: 0.12, atk: 0.08 } },
   jeongseob: { name: '쌍둥이 정섭 가면', stats: { res: 0.3, hp: 0.1 } },
+  dragon: { name: '뭉치의 황금 안장', stats: { atk: 0.12, skill: 0.1 } },
   subin: { name: '20년 우정 부케', stats: { skill: 0.12, cd: 0.1 } },
 };
 const SIG_IDS = Object.keys(SIG).map((h) => 'sig_' + h);

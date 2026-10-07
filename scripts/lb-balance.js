@@ -34,10 +34,8 @@ const PARTNERS = ((process.argv.find((x) => x.startsWith('--partners=')) || '').
 const NAME = { bangjang: '방장', staff: '운영진', gunman: '건전남', gunnyeo: '건전녀', eunok: '최은옥', hanna: '이한나', sunggu: '강성구', myunghoon: '서명훈', dohoon: '김도훈', ingyu: '백인규', donghan: '문동한', youngjun: '김영준', ara: '고아라', jiwon: '여지원', wonsik: '정원식', jungmin: '홍정민', hochan: '이호찬', byunghwa: '강병화', hyungyeong: '배현경', jeongseob: '윤정섭', soyoung: '정소영', jieun: '오지은', sanghwa: '박상화', baul: '송바울', junseo: '윤준서', subin: '임수빈' };
 const pad = (s, n) => { s = String(s); let w = 0; for (const ch of s) w += /[가-힣]/.test(ch) ? 2 : 1; return s + ' '.repeat(Math.max(0, n - w)); };
 
-function seeded(seed = 1) {
-  let s = seed >>> 0 || 1;
-  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-}
+// mulberry32 (10/07): 예전 LCG 는 시드가 173 · 11 씩만 달라 판끼리 · 스테이지끼리 난수가 묶여서 (같은 장 스테이지가 한꺼번에 쉽거나 어렵게) 장 평균이 시드 묶음마다 ±15%p 씩 흔들렸다
+function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 (async () => {
   const D = await load('data.js');
@@ -84,6 +82,7 @@ function seeded(seed = 1) {
   // 스킬 자동 사용 (--skills=1): 준비되면 바로. 찍는 스킬은 진상이 가장 몰린 곳에
   const SKILLS = opt('skills', 0) > 0;
   const SKILL_EVERY = opt('skillevery', REF_HUMAN ? 90 : 6);
+  const BOARD_EVERY = opt('boardevery', REF_HUMAN ? 50 : 30); // 송바울 탭 간격 (스텝)
   const PICK_DELAY = opt('pickdelay', 2); // 스킬 확인 간격(스텝): 90 이면 보통 사람처럼 1.5초쯤 늦게
   function densest(g, r) {
     let best = null, bn = 0;
@@ -150,6 +149,7 @@ function seeded(seed = 1) {
       }
       if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
       if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % SKILL_EVERY) === 0) aiSkills(g, o.control);
+      if (steps % BOARD_EVERY === 0) { const bh = g.heroes.find((h) => h.def.proj === 'board'); if (bh && S.boardCharges(bh) >= 1 && !(bh.bd && bh.bd.st === 'dash')) { const tg = S.boardAutoTarget(g); if (tg) S.setBoardAim(g, tg.x, tg.y); } } // 송바울 (완전 수동): 사람처럼 진상이 많이 줄 선 쪽을 탭
       if (o.stopWave && g.wave >= o.stopWave && g.phase === 'break') break;
     }
     const heroes = {};
@@ -981,6 +981,19 @@ function seeded(seed = 1) {
     }
   }
   if (what === 'wtrait') wtrait();
+  // 판 길이 (node scripts/lb-balance.js runlen --list=3,15,25,... [--seeds=4]) — 기준 덱 한 판 시간(초) · 클리어 · 처치 수 · 스킬 횟수
+  function runlen() {
+    const N = opt('seeds', 4), all = [];
+    for (const s of listArg('list', '3,15,25,35,45,55').map(Number)) {
+      const c = D.chapterOf(s), ids = c <= 6 ? balFor(c, s, false) : C78, meta = Object.fromEntries(ids.map((id) => [id, c <= 6 ? REC[c - 1] + REF_PLUS : 15]));
+      let t = 0, w = 0, k = 0, sk = 0, kd = 0, kf = 0, kp = 0, cb = 0; const ksrc = {}, kby = {};
+      for (let i = 1; i <= N; i++) { const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11, unlocked: [], skills: true, control: true, join: true, tempo: true, ...refOf(s, ids) }); t += r.t; if (r.win) w++; k += r.g.stats.kills; sk += r.g.stats.skills || 0; kd += r.g.stats.kd || 0; kf += r.g.stats.kdFill || 0; for (const [q, v] of Object.entries(r.g.stats.kdSrc || {})) ksrc[q] = (ksrc[q] || 0) + v / N; for (const [q, v] of Object.entries(r.g.stats.kdBy || {})) kby[q] = (kby[q] || 0) + v / N; kp += r.g.stats.kdPeak || 0; cb += (r.g.stats.castBreak | 0) / N; }
+      all.push(t / N);
+      console.log(`${D.stageLabel(s)} ${(t / N).toFixed(0)}초 (${((t / N) / 60).toFixed(1)}분) · 클리어 ${Math.round((w / N) * 100)}% · 처치 ${Math.round(k / N)} · 스킬 ${Math.round(sk / N)}번 · 쓰러짐 ${(kd / N).toFixed(1)}번 (게이지 ${Math.round(kf / N)} · 최고 ${Math.round(kp / N * 100)}% · ${Object.entries(ksrc).map(([q, v]) => q + ' ' + Math.round(v)).join(' ')}) · 끊김 ${cb.toFixed(1)}${args.includes('--by') ? ' · 진상별 ' + Object.entries(kby).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([q, v]) => q + ' ' + Math.round(v)).join(' ') : ''}`);
+    }
+    console.log(`평균 ${(all.reduce((a, b) => a + b, 0) / all.length).toFixed(0)}초`);
+  }
+  if (what === 'runlen') runlen();
   if (what === 'stagecalib') stagecalib();
   if (what === 'stagemeas') stagemeas();
   if (what === 'custom') custom();

@@ -103,7 +103,8 @@ test('부케에 묶인 도둑은 못 도망간다 · 임수빈 부케가 묶는�
   const b = S.spawnEnemy(g3, 'boss_bestman', 200, 300, { hpMul: 1 });
   s3.skillCd = 0;
   assert.ok(S.castSkill(g3, s3, 185, 300));
-  assert.ok(a.tieT > 2 && a.tieAmpT > 0, '묶임 + 약점');
+  for (let k = 0; k < 20; k++) S.step(g3, 1 / 60); // (대개편: 댄스 플로어 — 첫 박자에 휘감는다)
+  assert.ok(a.tieT > 0.5 && a.tieAmpT > 0, '묶임 + 약점');
   assert.ok(!(b.tieT > 0) && b.slowT > 0, '보스는 느려짐');
   const hp = a.hp; S.damageEnemy(g3, a, 100, false, null); assert.ok(hp - a.hp > 100 * 1.2, '묶인 진상은 더 아프다');
 });

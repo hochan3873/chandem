@@ -2703,6 +2703,8 @@ body.rm .ig-chip img { animation: none; }
 #mombar i b { position: absolute; inset: 0; background: linear-gradient(0deg, #ff9a2a, #ffe46b); transform-origin: bottom; }
 #mombar i.full { box-shadow: 0 0 calc(var(--u) * 8) rgba(255, 210, 63, 0.9); }
 #skillbar.v2 .sk.nomom { filter: grayscale(0.7) brightness(0.7); }
+#skillbar.v2 .sk.ulock { filter: grayscale(0.55) brightness(0.8); }
+#skillbar .sk .sk-wlock { position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); white-space: nowrap; font: 800 9px/1.25 'Noto Sans KR', sans-serif; color: #ffe9a0; background: rgba(20,10,30,0.85); border-radius: 6px; padding: 1px 4px; pointer-events: none; z-index: 6; } /* 큰 한 방 스킬: 첫 웨이브가 끝나야 */
 #skillbar.v2 .sk .sk-sweat { display: none; position: absolute; top: calc(var(--u) * 2); right: calc(var(--u) * 4); z-index: 5; width: calc(var(--u) * 8); height: calc(var(--u) * 11); border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: linear-gradient(180deg, #d8f4ff, #6fc6ff); border: 1px solid #0a3a5a; font-style: normal; animation: skSweat 1.1s ease-in infinite; }
 #skillbar.v2 .sk.tired .sk-sweat { display: block; }
 #skillbar.v2 .sk.tired .av { filter: saturate(0.6) !important; }
@@ -4276,3 +4278,7 @@ body.rm .coach .co-burst { display: none; }
 .ssn-web.r { right: 0; transform: scaleX(-1); }
 body.rm .ssn-bats, body.rm .ssn-fog { display: none; }
 body.rm .ssn-lant::after { animation: none; opacity: 0.85; }
+/* (10/08) 진상 기술 줄: 상태이상 색 동그라미 */
+.esk { line-height: 1.5; }
+.esk .esk-ic { display: inline-grid; place-items: center; width: 1.35em; height: 1.35em; margin-right: 0.3em; border-radius: 50%; font-style: normal; font-size: 0.85em; font-weight: 900; color: #160a20; background: var(--c, #ff5a4f); vertical-align: 0.05em; }
+.esk small { color: #9dffb0; font-weight: 800; }
