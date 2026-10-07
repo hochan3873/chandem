@@ -4310,3 +4310,85 @@ body.rm .pp-editor .ed-rm.big { animation: none; }
 .lb-stage .lb-mapbtn { text-shadow: none; letter-spacing: 0; font-family: 'Pretendard Variable', Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-style: normal; display: inline-flex; align-items: center; padding: calc(var(--u) * 2) calc(var(--u) * 8); border-radius: 99px; background: linear-gradient(180deg, #ffe46b, #ffb21f); color: #3a1500; border: 1.5px solid #3a1500; font-size: calc(var(--u) * 11); font-weight: 900; line-height: 1.3; box-shadow: 0 calc(var(--u) * 2) 0 #07040f; animation: mapPulse 2.8s ease-in-out infinite; }
 @keyframes mapPulse { 0%, 80%, 100% { transform: none; } 88% { transform: scale(1.08); } }
 body.rm .lb-stage .lb-mapbtn { animation: none; }
+
+/* ─── 레벨업 카드: 쉬운 말 (cardtext.js) — 큰 글씨 = 무엇이 얼마나 바뀌나 · 부제 = 원래 이름 · 「스킬」은? · 전 → 후 · ⓘ 자세히 ─── */
+.card-list.v4.v5 .card.v4.v5:not(.k-join) { grid-template-areas: 'art' 'rib' 'name' 'q' 'chip' !important; row-gap: calc(var(--u) * 4); padding-bottom: calc(var(--u) * 10); }
+.card-list.v4 .card.v4.plain4 { grid-template-areas: 'ico' 'rib' 'name' 'q' 'chip'; row-gap: calc(var(--u) * 4); }
+.card-list.v4.n4 .card.v4.plain4, .card-list.v4.n2 .card.v4.plain4 { grid-template-columns: calc(var(--u) * 44) minmax(0, 1fr); grid-template-areas: 'ico rib' 'ico name' 'q q' 'chip chip'; }
+.card-list.v4.n4 .card.v4.plain4 .c4-ico, .card-list.v4.n2 .card.v4.plain4 .c4-ico { width: calc(var(--u) * 44); height: calc(var(--u) * 44); }
+.card-list.v4.n4 .card.v4.plain4 .c4-rib b, .card-list.v4.n4 .card.v4.plain4 .c-name { text-align: left; justify-self: start; }
+.card.v4 .c4-rib.plain { margin-top: 0; padding: calc(var(--u) * 3) calc(var(--u) * 6); }
+.card.v4 .c4-rib.plain b, .card.v4.r-legend .c4-rib.plain b, .card.v4.r-prism .c4-rib.plain b { font-family: inherit !important; font-weight: 900; font-size: calc(var(--u) * 12.5); line-height: 1.24; letter-spacing: -0.02em; -webkit-line-clamp: 3; color: #fff !important; -webkit-text-fill-color: #fff !important; background: none !important; filter: none !important; text-shadow: 0 1px 0 #000, 0 0 2px #000 !important; }
+.card.v4 .c4-rib.plain b em { font-style: normal; color: #ffd23f; -webkit-text-fill-color: #ffd23f; font-variant-numeric: tabular-nums; }
+.card-list.v4.n3 .card.v4 .c4-rib.plain b { font-size: calc(var(--u) * 11.5); }
+.card.v4 .c-name { grid-area: name; justify-self: center; max-width: 100%; min-width: 0; font-size: calc(var(--u) * 9.5); font-weight: 800; color: #b8a6ea; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card.v4 .c-name .cn-who { font-style: normal; color: #fff; font-weight: 900; }
+.card.v4 .c-q { grid-area: q; align-self: stretch; min-width: 0; margin: calc(var(--u) * 2) 0; font-size: calc(var(--u) * 9.5); font-weight: 700; color: #e4dbff; line-height: 1.3; max-height: 2.6em; text-align: center; word-break: keep-all; padding: 0 calc(var(--u) * 5); border-radius: calc(var(--u) * 7); background: rgba(0, 0, 0, 0.28); box-shadow: 0 0 0 calc(var(--u) * 3) rgba(0, 0, 0, 0.28); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-list.v4.n3 .card.v4 .c-q { -webkit-line-clamp: 3; max-height: 3.9em; }
+.card-list.v4.n3 .card.v4 .c4-chip.c-ba small { display: none; }
+.card-list.v4.n3 .card.v4 .c4-chip.c-ba { max-width: calc(100% - var(--u) * 22); padding: calc(var(--u) * 2) calc(var(--u) * 6); }
+.card-list.v4.n3 .card.v4 .c4-chip.c-ba b { font-size: calc(var(--u) * 10); }
+.card-list.v4.n3 .card.v4 .c-info { right: calc(var(--u) * 3); bottom: calc(var(--u) * 3); width: calc(var(--u) * 20); height: calc(var(--u) * 20); font-size: calc(var(--u) * 12); }
+/* 4장(2×2): 그림을 조금 줄여 글이 늘어난 만큼 높이를 맞춘다 */
+.card-list.v4.v5.n4 .card.v5:not(.k-join) .c5-art { height: calc(var(--u) * 44); }
+.card-list.v4.v5.n4 .card.v5:not(.k-join) .c5-art img.c5-gen { top: calc(var(--u) * -22); height: calc(var(--u) * 62); }
+.card-list.v4.v5.n4:not(:has(.k-join)) { row-gap: calc(var(--u) * 36); }
+.card.v4 .c4-chip { max-width: calc(100% - var(--u) * 30); }
+.card.v4 .c4-chip.c-ba { flex-direction: column; align-items: center; gap: 0; padding: calc(var(--u) * 2) calc(var(--u) * 9); border-radius: calc(var(--u) * 9); line-height: 1.12; min-width: 0; }
+.card.v4 .c4-chip.c-ba small { max-width: 100%; min-width: 0; font-size: calc(var(--u) * 8.5); font-weight: 800; color: #b8a6ea; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card.v4 .c4-chip.c-ba b { flex: none; margin: 0; font-size: calc(var(--u) * 11); color: #fff; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.card.v4 .c4-chip.c-ba b i { font-style: normal; margin: 0 calc(var(--u) * 2); color: #ffd23f; }
+.card.v4 .c-info { position: absolute; right: calc(var(--u) * 5); bottom: calc(var(--u) * 5); z-index: 4; width: calc(var(--u) * 22); height: calc(var(--u) * 22); display: grid; place-items: center; border-radius: 50%; font: italic 900 calc(var(--u) * 13) / 1 Georgia, 'Times New Roman', serif; color: #fff; background: rgba(255, 255, 255, 0.14); border: 1.5px solid rgba(255, 255, 255, 0.55); box-shadow: 0 1px 0 #000; cursor: pointer; }
+.card.v4 .c-info::before { content: ''; position: absolute; inset: calc(var(--u) * -9); border-radius: 50%; }
+.card.v4 .c-info:active { background: rgba(255, 210, 63, 0.45); }
+/* ⓘ 자세히 시트 (카드 위를 덮는다 · 열려 있는 동안 자동 선택 시계 멈춤) */
+#cardstrip .card-sheet { position: absolute; inset: 0; z-index: 30; pointer-events: auto; display: flex; align-items: center; justify-content: center; padding: calc(var(--u) * 56) calc(var(--u) * 12) calc(var(--u) * 40); background: rgba(6, 3, 16, 0.72); }
+.card-sheet .cs2-box { --rc: #9fb3c8; position: relative; width: 100%; max-width: calc(var(--u) * 360); max-height: 100%; display: flex; flex-direction: column; gap: calc(var(--u) * 8); padding: calc(var(--u) * 14) calc(var(--u) * 14) calc(var(--u) * 12); border-radius: calc(var(--u) * 16); border: 2px solid var(--rc); background: linear-gradient(180deg, #2c2050, #150e28); box-shadow: 0 0 0 1px #000, 0 0 calc(var(--u) * 18) rgba(0, 0, 0, 0.6); animation: cs2In 0.18s ease-out; text-align: left; }
+.card-sheet .cs2-box.r-rare { --rc: #4ea8ff; }
+.card-sheet .cs2-box.r-epic { --rc: #c77dff; }
+.card-sheet .cs2-box.r-legend { --rc: #ffc83a; }
+.card-sheet .cs2-box.r-prism { --rc: #9ff6ff; }
+@keyframes cs2In { from { transform: translateY(calc(var(--u) * 12)) scale(0.97); opacity: 0; } }
+.card-sheet .cs2-x { position: absolute; top: calc(var(--u) * 6); right: calc(var(--u) * 6); width: calc(var(--u) * 32); height: calc(var(--u) * 32); border-radius: 50%; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: calc(var(--u) * 15); font-weight: 900; }
+.card-sheet .cs2-top { display: flex; align-items: center; gap: calc(var(--u) * 10); padding-right: calc(var(--u) * 30); }
+.card-sheet .cs2-ico { position: relative; flex: none; width: calc(var(--u) * 54); height: calc(var(--u) * 54); border-radius: 50%; overflow: hidden; display: grid; place-items: center; border: 2px solid var(--rc); background: radial-gradient(circle at 50% 40%, #3a2a66, #140c26); }
+.card-sheet .cs2-ico > img { width: 82%; height: 82%; object-fit: contain; }
+.card-sheet .cs2-top > div { min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 3); }
+.card-sheet .cs2-top b { font-size: calc(var(--u) * 15); font-weight: 900; line-height: 1.25; color: #fff; word-break: keep-all; }
+.card-sheet .cs2-top b em, .card-sheet .cs2-more em { font-style: normal; color: #ffd23f; }
+.card-sheet .cs2-top small { font-size: calc(var(--u) * 10.5); font-weight: 800; color: #b8a6ea; }
+.card-sheet .cs2-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: calc(var(--u) * 8); padding-right: calc(var(--u) * 2); }
+.card-sheet section { display: flex; flex-direction: column; gap: calc(var(--u) * 3); padding: calc(var(--u) * 7) calc(var(--u) * 9); border-radius: calc(var(--u) * 10); background: rgba(0, 0, 0, 0.26); }
+.card-sheet h5 { margin: 0; display: flex; align-items: center; gap: calc(var(--u) * 4); font-size: calc(var(--u) * 11.5); font-weight: 900; color: #ffd23f; }
+.card-sheet h5 small { margin-left: auto; font-size: calc(var(--u) * 9.5); color: #b8a6ea; font-weight: 800; }
+.card-sheet p { margin: 0; font-size: calc(var(--u) * 11.5); line-height: 1.45; color: #efe8ff; word-break: keep-all; }
+.card-sheet p.pl { font-weight: 800; color: #fff; }
+.card-sheet p.full { font-size: calc(var(--u) * 10); color: #b9add8; }
+.card-sheet ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: calc(var(--u) * 3); }
+.card-sheet .cs2-ba li { display: flex; align-items: baseline; flex-wrap: wrap; gap: calc(var(--u) * 5); font-size: calc(var(--u) * 12); color: #efe8ff; }
+.card-sheet .cs2-ba li span { flex: 1 1 auto; min-width: 0; color: #d8ccff; font-weight: 800; }
+.card-sheet .cs2-ba li b { font-weight: 900; color: #fff; font-variant-numeric: tabular-nums; }
+.card-sheet .cs2-ba li b.up { color: #9fffb0; }
+.card-sheet .cs2-ba li i { font-style: normal; color: #ffd23f; }
+.card-sheet .cs2-more li { font-size: calc(var(--u) * 11.5); color: #efe8ff; padding-left: calc(var(--u) * 10); position: relative; }
+.card-sheet .cs2-more li::before { content: ''; position: absolute; left: 0; top: 0.6em; width: calc(var(--u) * 4); height: calc(var(--u) * 4); border-radius: 50%; background: #ffd23f; }
+.card-sheet .cs2-good { display: flex; align-items: center; flex-wrap: wrap; gap: calc(var(--u) * 5); padding: calc(var(--u) * 6) calc(var(--u) * 9); border-radius: calc(var(--u) * 10); background: rgba(157, 255, 176, 0.1); border: 1px solid rgba(157, 255, 176, 0.35); font-weight: 800; }
+.card-sheet .cs2-good b { color: #9fffb0; }
+.card-sheet .cs2-btns { display: flex; gap: calc(var(--u) * 8); }
+.card-sheet .cs2-btns .btn { flex: 1; margin: 0; min-height: calc(var(--u) * 40); }
+.card-sheet .cs2-btns .btn.primary { flex: 1.6; }
+body.rm .card-sheet .cs2-box { animation: none; }
+/* 일시정지: 이번 판에 고른 카드 · 멤버 정보의 고른 강화 · 스킬 쉬운 한 줄 */
+.pause-box .pz-picks { width: 100%; max-width: calc(var(--u) * 320); margin: 0 auto calc(var(--u) * 8); text-align: left; border-radius: calc(var(--u) * 10); background: rgba(0, 0, 0, 0.3); padding: calc(var(--u) * 6) calc(var(--u) * 10); }
+.pause-box .pz-picks summary { cursor: pointer; font-size: calc(var(--u) * 12); font-weight: 900; color: #ffd23f; }
+.pause-box .pz-picks ul { margin: calc(var(--u) * 6) 0 0; padding: 0; list-style: none; max-height: calc(var(--u) * 150); overflow-y: auto; display: flex; flex-direction: column; gap: calc(var(--u) * 4); }
+.pause-box .pz-picks li { font-size: calc(var(--u) * 11.5); line-height: 1.35; color: #efe8ff; word-break: keep-all; }
+.pause-box .pz-picks li small { font-size: calc(var(--u) * 9.5); color: #b8a6ea; font-weight: 800; }
+.bubble .hi-row.bl small { color: #b8a6ea; font-size: 0.85em; }
+.bubble .ia.pl { font-weight: 800; color: #fff; }
+/* 증강 선택 (근성 · 초과 근무 · 철벽 …): 바뀌는 것(효과)을 크게, 이름은 작은 부제로 */
+.aug-box.v4 .ab-card small { order: 1; font-size: calc(var(--u) * 12.5); font-weight: 900; color: #fff; line-height: 1.3; }
+.aug-box.v4 .ab-card b { order: 2; font-family: inherit; font-weight: 800; font-size: calc(var(--u) * 10.5); color: #c9b8f5; text-shadow: none; }
+.aug-box.v4 .ab-card b::before { content: '「'; }
+.aug-box.v4 .ab-card b::after { content: '」'; }
+.card.v5:not(.k-join) .c5-rec { top: calc(var(--u) * -20); left: calc(var(--u) * -8); } /* 추천 표시가 쉬운 한 줄 첫 글자를 가리지 않게 (그림 쪽으로) */

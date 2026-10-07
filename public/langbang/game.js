@@ -17,6 +17,7 @@ import {
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
 import * as S from './sim.js';
+import * as CT from './cardtext.js'; // 레벨업 카드를 쉬운 말로 (무엇이 얼마나 바뀌나 · 「스킬」은? · 전→후)
 import { Renderer } from './render.js';
 import { SkillFx } from './skillfx.js';
 import { KitFx } from './kitfx.js';
@@ -1841,7 +1842,7 @@ function heroStatsHtml(g, h) {
  <div class="hi-stats">${d.noHit ? `<span>${ic('sparkle', '', 'sm')} 준영 체력 <b>+${Math.round(d.nag.heal[h.lv - 1] * 100)}%</b>/번</span>` : d.sweep ? `<span>${ic('swords', '', 'sm')} 체력 <b>${Math.round(h.hp || 0)}/${Math.round(h.hpMax || 0)}</b></span>` : `<span>${ic('swords', '', 'sm')} 공격력 <b>${fmt(S.heroDamage(g, h))}</b></span>`}<span>${ic('speed', '', 'sm')}공속 <b>${(1 / iv).toFixed(2)}/초</b></span><span>사거리 <b>${Math.round(S.heroRange(g, h))}</b></span><span>${ic('target', '', 'sm')}치명타 <b>${crit.toFixed(0)}%</b></span></div>
  <p class="hi-row"> ${esc(PROJ_TXT[d.proj] || d.attack)} ${flags ? `<em>${flags}</em>` : ''}</p>
     ${gearTxt ? `<p class="hi-row">${ic('bag', '', 'sm')}${esc(gearTxt)}</p>` : ''}
-${d.skill ? ` <p class="hi-row">${ic('sparkle', '', 'sm')} ${esc(d.skill.name)}: ${esc(d.skill.desc)}</p>` : ''}
+${d.skill ? ` <p class="hi-row">${ic('sparkle', '', 'sm')} <b>${esc(d.skill.name)}</b>: ${esc((CT.skillPlain(h.id) || {}).sk || d.skill.desc)}</p>` : ''}${CT.heroBuildLines(h).map((x) => `<p class="hi-row bl">${ic('star_gold', '', 'sm')} ${esc(x.head)} <small>${esc(x.name)}</small></p>`).join('')}
     <ul class="hi-perks">${perks}</ul>
     ${st.length ? `<p class="hi-row st">${st.join(' · ')}</p>` : ''}
     <p class="hi-tip">끌어서 자리 바꾸기 · 게임은 느리게 흘러가요</p>`;
@@ -1866,7 +1867,7 @@ function skillInfoHtml(h) {
   const scal = [];
   for (const k of ['sec', 'spd', 'r', 'n', 'heal', 'stun', 'dance', 'mul', 'atk']) if (Array.isArray(sk[k])) scal.push(`${{ sec: '시간', spd: '공속', r: '범위', n: '개수', heal: '회복', stun: '기절', dance: '멈춤', mul: '배율', atk: '공격력' }[k]} ${sk[k].map((v, i) => (i === lv ? `<b>${v < 2 && k !== 'n' && k !== 'mul' ? Math.round(v * 100) + '%' : v}</b>` : v < 2 && k !== 'n' && k !== 'mul' ? Math.round(v * 100) + '%' : v)).join('→')}`);
   return `<div class="ih"><b>${ic('sparkle', '', 'sm')}${esc(sk.name)}</b><small>${h.def.name} · 쿨타임 ${Math.round(sk.cd * (1 - (h.gear.cd || 0)) * (h.evo ? 0.7 : 1))}초 · ${sk.target ? '찍는 스킬 (누른 뒤 필드 탭)' : '바로 발동'}</small></div>
-    <p class="ia">${esc(sk.desc)}</p>${scal.length ? `<p class="ip">레벨별: ${scal.join(' · ')}</p>` : ''}<p class="ip">${S.skillReady(h) ? '준비됨 — 짧게 누르면 사용' : `${Math.ceil(h.skillCd)}초 남음`}</p>`;
+    ${CT.skillPlain(h.id) ? `<p class="ia pl">${esc(CT.skillPlain(h.id).sk)}</p>` : ''}<p class="ia">${esc(sk.desc)}</p>${scal.length ? `<p class="ip">레벨별: ${scal.join(' · ')}</p>` : ''}<p class="ip">${S.skillReady(h) ? '준비됨 — 짧게 누르면 사용' : `${Math.ceil(h.skillCd)}초 남음`}</p>`;
 }
 let skPress = null;
 skillbar.addEventListener('pointerdown', (ev) => {
@@ -5407,28 +5408,81 @@ function cardHtml5(c, i) {
   const heroCard = !!(c.hero && (HEROES[c.hero] || SUMMONS[c.hero]));
   const fb = heroCard ? (DEX_FACE[c.hero] || [0.48, 0.09, 0.14]) : null;
   const art = heroCard ? `<img class="c5-face" data-face="${c.hero}" src="${thumbSrc(c.hero) || (HEROES[c.hero] || SUMMONS[c.hero]).img}" alt="" draggable="false" style="--k:${(1 / fb[2]).toFixed(3)};--fx:-${(fb[0] * 100).toFixed(1)}%;--fy:-${(fb[1] * 100).toFixed(1)}%;--fyv:${(fb[1] / fb[2]).toFixed(3)}">` : `<img class="c5-gen" src="${cardRound(c)}" alt="" draggable="false">`; void own;
+  // 합류 카드는 멤버 소개 그대로 · 나머지는 "무엇이 얼마나 바뀌나"가 먼저, 원래 이름은 작은 부제
+  const join = c.kind === 'join';
+  const pl = join ? null : CT.cardPlain(c, app.g);
+  const body = join ? `<span class="c4-rib"><b class="${t.length > 7 ? 'long' : ''}">${esc(t)}</b></span>
+    <span class="c5-desc">${lab}</span>
+    <span class="c4-chip">${pimg(`/img/lb/attr/${HEROES[c.hero].attr}.webp`)}${ATTRS[HEROES[c.hero].attr].name}</span>` : cardPlainBody(c, pl);
   return `<button class="card v4 v5 r-${cardRar(c)} k-${c.kind} ${c.onPath ? 'onpath' : ''} ${c.risk ? 'risk' : ''} ${rec ? 'rec' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
     <span class="c5-art">${art}</span>
     ${isNew ? `<i class="c5-new">${c.kind === 'join' ? 'NEW · 합류' : 'NEW'}</i>` : ''}${c.main ? `<i class="c5-main ${c.main}">★ 주력${c.main === 'new' ? ` ${S.mainCount(app.g) + 1}/${MAIN.n}` : ''}</i>` : ''}${c.kind === 'skillAug' ? '<i class="c5-excl">전용</i>' : ''}${rec ? `<i class="c5-rec">${pimg(ui2('badge_rec'))}</i>` : ''}
     <i class="c5-ico">${pimg(cardRound(c))}</i>
-    <span class="c4-rib"><b class="${t.length > 7 ? 'long' : ''}">${esc(t)}</b></span>
-    <span class="c5-desc">${lab}</span>
-    ${c.kind === 'join' ? `<span class="c4-chip">${pimg(`/img/lb/attr/${HEROES[c.hero].attr}.webp`)}${ATTRS[HEROES[c.hero].attr].name}</span>` : cardChip(c)}
+    ${body}
+    <i class="c-info" data-act="cardInfo" data-i="${i}" role="button" aria-label="자세히">i</i>
     <i class="c5-shine"></i>
   </button>`;
+}
+// 카드 본문 (쉬운 말): 큰 글씨 = 바뀌는 것 + 숫자 · 작은 부제 = 원래 이름 · 멤버 카드는 「스킬」은? · 아래 칩 = 전 → 후
+const NUM_EM = /([+\-−×]?\d+(?:\.\d+)?\s?(?:%p|%|초|배|명|칸|번|발|겹|대|개)?)/g;
+const emNums = (s) => esc(s).replace(NUM_EM, '<em>$1</em>');
+function cardPlainBody(c, pl) {
+  const ba = pl.ba[0];
+  const sub = pl.q ? CT.qText(pl.q) : pl.who.length ? `대상: ${pl.who.join('·')}` : '';
+  const chip = ba ? `<span class="c4-chip c-ba"><small>${esc(ba.k)}</small><b>${esc(ba.a)}<i>→</i>${esc(ba.b)}</b></span>` : cardChip(c);
+  const who = pl.hero && ba && pl.short !== pl.head ? `<i class="cn-who">${esc(CT.heroName(pl.hero))}</i> ` : ''; // 이름 칩 대신 전→후 칩이면 부제에 이름
+  return `<span class="c4-rib plain"><b>${emNums(pl.short)}</b></span>
+    ${pl.name || who ? `<span class="c-name">${who}${pl.name ? `「${esc(pl.name)}」` : ''}</span>` : ''}
+    ${sub ? `<span class="c-q">${esc(sub)}</span>` : ''}
+    ${chip}`;
 }
 function cardHtml4(c, i) {
   const isNew = (c.kind === 'global' && !c.stack) || c.kind === 'addHero' || c.kind === 'evo';
   const rec = app.cards && app.g && i === recIndex(app.g, app.cards);
-  const ef = cardEffect(c), t = cardTitle(c);
-  const lab = ef.hl ? esc(ef.label).replace(/([+\-−×]?\d+(?:\.\d+)?\s?(?:%p|%|초|배|명|칸|번|발)?)/g, '<em>$1</em>') : esc(ef.label);
-  return `<button class="card v4 r-${cardRar(c)} k-${c.kind} ${c.onPath ? 'onpath' : ''} ${c.risk ? 'risk' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
+  const pl = CT.cardPlain(c, app.g);
+  return `<button class="card v4 plain4 r-${cardRar(c)} k-${c.kind} ${c.onPath ? 'onpath' : ''} ${c.risk ? 'risk' : ''}" data-act="pick" data-i="${i}" style="--i:${i}">
     ${isNew ? `<i class="c4-bdg new">${pimg(ui2('badge_new'))}<b>NEW</b></i>` : ''}${rec ? `<i class="c4-bdg rec">${pimg(ui2('badge_rec'))}</i>` : ''}
     <span class="c4-ico">${cardIcon(c)}</span>
-    <span class="c4-rib"><b class="${t.length > 7 ? 'long' : ''}">${esc(t)}</b></span>
-    <span class="c4-eff"><small class="${ef.big ? '' : 'solo'}">${lab}</small>${ef.big ? `<strong>${esc(ef.big)}</strong>` : ''}</span>
-    ${cardChip(c)}
+    ${cardPlainBody(c, pl)}
+    <i class="c-info" data-act="cardInfo" data-i="${i}" role="button" aria-label="자세히">i</i>
   </button>`;
+}
+// ⓘ 자세히 (카드 위에 덮는 시트 · 열려 있는 동안 자동 선택 시계 멈춤): 멤버 얼굴 · 쉬운 설명 · 전→후 · 이럴 때 좋아요
+function cardSheetHtml(c, i) {
+  const g = app.g, pl = CT.cardPlain(c, g);
+  const hid = pl.hero;
+  const sp = hid ? CT.skillPlain(hid) : null;
+  const face = hid && (HEROES[hid] || SUMMONS[hid]) ? `<span class="face fzw"><img class="fz" data-face="${hid}" data-fc="1" style="${faceCircStyle(hid)}" src="${thumbSrc(hid) || (HEROES[hid] || SUMMONS[hid]).img}" alt="" draggable="false"></span>` : pimg(cardRound(c));
+  const ba = pl.ba.map((x) => `<li><span>${esc(x.k)}</span><b>${esc(x.a)}</b><i>→</i><b class="up">${esc(x.b)}</b></li>`).join('');
+  const more = pl.more.filter((x) => x && x !== pl.head).map((x) => `<li>${emNums(x)}</li>`).join('');
+  const skill = sp && sp.name ? `<section><h5>${ic('sparkle', '', 'sm')}「${esc(sp.name)}」${CT.josa(sp.name, '은', '는')}? <small>${esc(CT.heroName(hid))} 스킬</small></h5><p class="pl">${esc(sp.sk)}</p><p class="full">${esc(sp.skFull)}</p></section>` : '';
+  const atk = sp && sp.atkName ? `<section><h5>${ic('swords', '', 'sm')}기본 공격 · ${esc(sp.atkName)}</h5><p class="pl">${esc(sp.atk)}</p></section>` : '';
+  const term = pl.q && (!sp || (pl.q.term !== sp.name && pl.q.term !== sp.atkName)) ? `<section><h5>「${esc(pl.q.term)}」${CT.josa(pl.q.term, '은', '는')}?</h5><p class="pl">${esc(pl.q.text)}</p></section>` : '';
+  return `<div class="card-sheet" data-act="sheetBg"><div class="cs2-box r-${cardRar(c)}" role="dialog" aria-label="카드 자세히">
+    <button class="cs2-x" data-act="sheetClose" aria-label="닫기">✕</button>
+    <div class="cs2-top"><span class="cs2-ico">${face}</span><div><b>${emNums(pl.head)}</b>${pl.name ? `<small>카드 이름 · ${esc(pl.name)}</small>` : ''}</div></div>
+    <div class="cs2-scroll">
+      ${ba ? `<section><h5>${ic('chart', '', 'sm')}고르면 이렇게 바뀌어요</h5><ul class="cs2-ba">${ba}</ul></section>` : ''}
+      ${more ? `<section><h5>이 카드 효과 전부</h5><ul class="cs2-more">${more}</ul></section>` : ''}
+      ${pl.who.length ? `<section><h5>받는 멤버</h5><p class="pl">${esc(pl.who.join(' · '))}</p></section>` : ''}
+      ${term}${skill}${atk}
+      ${pl.good ? `<p class="cs2-good">${ic('star_gold', '', 'sm')}<b>이럴 때 좋아요</b> ${esc(pl.good)}</p>` : ''}
+    </div>
+    <div class="cs2-btns"><button class="btn" data-act="sheetClose">닫기</button><button class="btn primary" data-act="sheetPick" data-i="${i}">이 카드 고르기</button></div>
+  </div></div>`;
+}
+function openCardSheet(i) {
+  const c = app.cards && app.cards[i];
+  if (!c || !app.cardsOpen) return;
+  closeCardSheet();
+  app.cardSheet = i; // 자동 선택 시계 멈춤 (tickCards)
+  cardStrip.insertAdjacentHTML('beforeend', cardSheetHtml(c, i)); // 화면 전체를 덮는다 (뒤 카드는 안 눌림)
+  A.sfx.tap();
+}
+function closeCardSheet() {
+  app.cardSheet = -1;
+  const el = cardStrip.querySelector('.card-sheet');
+  if (el) el.remove();
 }
 // 레벨업 카드 띠: 게임은 계속 흘러간다 — 한 번 누르면 바로 선택 (뜬 뒤 0.4초는 무시)
 // 12초 안에 안 고르면 맨 왼쪽(추천) 카드를 자동으로 고른다 (8초부터 테두리가 깜빡이며 알림)
@@ -5440,14 +5494,20 @@ cardStrip.addEventListener('pointerdown', (ev) => {
   const b = ev.target.closest('[data-act="pick"]');
   if (!b) return;
   clearTimeout(cardPress && cardPress.t);
-  cardPress = { i: Number(b.dataset.i), long: false, t: setTimeout(() => { cardPress.long = true; const c = app.cards && app.cards[cardPress.i]; if (c) toast(`${c.title} — ${c.desc}`, 3600); }, 450) };
+  if (ev.target.closest('.card-sheet')) return;
+  cardPress = { i: Number(b.dataset.i), long: false, t: setTimeout(() => { cardPress.long = true; openCardSheet(cardPress.i); }, 450) }; // 길게 누르기 = ⓘ 자세히
 });
 for (const t of ['pointerup', 'pointercancel', 'pointerleave']) cardStrip.addEventListener(t, () => { if (cardPress) clearTimeout(cardPress.t); });
 cardStrip.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-act]');
+  if (cardPress && cardPress.long) { cardPress = null; if (!b || b.dataset.act === 'pick') return; } // 길게 누른 건 고르기 아님 (손 뗀 클릭 한 번만 버린다)
   if (!b || b.disabled) return;
-  if (cardPress && cardPress.long) { cardPress = null; return; } // 길게 누른 건 고르기 아님
   A.unlock();
+  const act = b.dataset.act;
+  if (act === 'cardInfo') { ev.stopPropagation(); openCardSheet(Number(b.dataset.i)); return; }
+  if (act === 'sheetClose' || (act === 'sheetBg' && ev.target === b)) { closeCardSheet(); A.sfx.tap(); return; }
+  if (act === 'sheetPick') { const k = Number(b.dataset.i); closeCardSheet(); tapCard(k); return; }
+  if (app.cardSheet >= 0) return; // 시트가 떠 있는 동안 뒤 카드는 안 눌린다
   if (b.dataset.act === 'pick') tapCard(Number(b.dataset.i));
   else if (b.dataset.act === 'reroll') rerollCards();
   else if (b.dataset.act === 'rerollCoupon') rerollCoupon();
@@ -5455,6 +5515,7 @@ cardStrip.addEventListener('click', (ev) => {
 function renderCards(fresh) {
   const g = app.g;
   if (fresh) { app.cardSel = -1; app.cardLockUntil = performance.now() + 400; app.cardsAt = performance.now(); app.cardAutoT = app.cardAutoMax = g.pvp ? 12 : 15; }
+  app.cardSheet = -1; // (다시 그리면 자세히 시트도 닫힌다)
   const welcome = g.welcomePicks > 0;
   const n = app.cards.length;
   cardStrip.hidden = false;
@@ -5475,7 +5536,7 @@ function tickCards(dt) {
   if (!g || !app.cardsOpen || !app.cards) return;
   const behind = !!g.augOffer;
   if (cardStrip.classList.contains('behind') !== behind) cardStrip.classList.toggle('behind', behind);
-  if (app.paused || app.confirmOpen || behind || TUT.hold()) return;
+  if (app.paused || app.confirmOpen || behind || TUT.hold() || app.cardSheet >= 0) return; // ⓘ 자세히를 읽는 동안도 멈춤
   app.cardAutoT -= dt;
   const bar = cardStrip.querySelector('.cs-timer b');
   if (bar) bar.style.transform = `scaleX(${Math.max(0, app.cardAutoT / (app.cardAutoMax || 15)).toFixed(3)})`;
@@ -5500,7 +5561,10 @@ function pickCard(i) {
   const g = app.g;
   if (!app.cardsOpen || !app.cards || !app.cards[i]) return;
   const c = app.cards[i];
+  const line = CT.pickedLine(c, g); // 고른 카드 기록 (일시정지 화면 · 쉬운 말) — 고르기 전 상태로 만든다
   S.applyCard(g, c);
+  if (app.picksG !== g) { app.picksG = g; app.picks = []; }
+  app.picks.push(line);
   if (g.pvp) (PVP.myCards = PVP.myCards || []).push(c.title);
   if (c.kind === 'addHero' && (c.rarity === 'hidden' || HEROES[c.hero].legend)) showReveal(c.hero, HEROES[c.hero].legend ? 'legend' : 'hidden');
   g.pendingLevels = Math.max(0, g.pendingLevels - 1);
@@ -5518,6 +5582,7 @@ function pickCard(i) {
   } else closeCards();
 }
 function closeCards() {
+  app.cardSheet = -1;
   app.cardsOpen = false;
   app.cards = null;
   app.cardSel = -1;
@@ -5536,6 +5601,7 @@ function pauseGame() {
     <div class="pause-box">
       <h2>일시정지</h2>
       <p class="sub">${g.tower ? `진상의 탑 ${g.tower.f}F · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}` : g.mode === 'stage' ? `스테이지 ${stageLabel(g.stage)} · 웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}` : `무한 도전 · 웨이브 ${Math.max(1, g.wave)}`}</p>
+      ${pausePicksHtml(g)}
  <button class="btn primary" data-act="resume">계속하기</button>
  <button class="btn" data-act="toLobby">${ic('home', '', 'sm')} 메인 메뉴로 <small>이어하기 저장 · 웨이브 ${w} 처음부터 이어서</small></button>
       ${g.pvp || g.weekly || g.raid || g.tower ? '' : '<button class="btn" data-act="restart">다시 하기 <small>이 스테이지 처음부터</small></button>'}
@@ -5543,6 +5609,12 @@ function pauseGame() {
       <button class="btn ghost" data-act="quit">그만두기 <small>지금까지 기록으로 끝내요</small></button>
     </div>
   `, 'dim');
+}
+// 일시정지: 이번 판에 고른 카드 (쉬운 말 · 원래 이름은 작게)
+function pausePicksHtml(g) {
+  const L = app.picksG === g ? app.picks || [] : [];
+  if (!L.length) return '';
+  return `<details class="pz-picks"><summary>이번 판에 고른 카드 <b>${L.length}</b></summary><ul>${L.slice().reverse().map((x) => `<li>${x.hero ? `<b>${esc(CT.heroName(x.hero))}</b> ` : ''}${esc(x.head.startsWith(CT.heroName(x.hero) + ' ') ? x.head.slice(CT.heroName(x.hero).length + 1) : x.head)}${x.name ? ` <small>${esc(x.name)}</small>` : ''}</li>`).join('')}</ul></details>`;
 }
 function resumeGame() {
   if (app.screen === 'play' && app.g) {
