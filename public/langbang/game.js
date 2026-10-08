@@ -9,7 +9,7 @@ import {
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, metaCost, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
-  COND, stageConds, stageMission, condFits, recMeta, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
+  COND, stageConds, stageMission, condFits, recMeta, STAR_DOOR, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
   artV,
@@ -644,6 +644,7 @@ function handleEvents(g, loud) {
         fx.blast(e.x, e.y, e.r, e.proj === 'heart' ? 'heart' : e.proj === 'bottle' ? 'fire' : e.proj === 'swear' ? 'electric' : 'gold');
         if (loud) A.sfx.explode();
         break;
+      case 'resist': if (!busy) fx.text(e.x, e.y, '저항', '#c9b8ff', 11, 0.6); break; // (10/08) 제어 저항 — 연달아 묶이면 덜 묶인다
       case 'kick':
         fx.text(e.x, e.y, e.big ? '경고 3번! 강퇴!!' : '강퇴!', '#ff6b5a', e.big ? 19 : 17, 0.9, -30);
         if (e.big) { fx.ring(e.x, e.y + 20, 6, 50, 0.35, '#ff6b5a', 5); fx.burst(e.x, e.y, 10, '#ffd23f', 200, 'spark', 4, 0.4); }
@@ -2121,7 +2122,7 @@ const ACTS = {
   prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
   prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[wkDefNow().fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepCond: () => prepCondPopup(),
-  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${hellHpMul(app.stage).toFixed(1)} (이 스테이지) · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} (적지만 단단하게) · 조건 하나 더 · 보스 분노 · 웨이브 사이 수리 절반 · 대신 경험치 ×${HELL.exp} · 멤버 공격 ×${HELL.dmg} (길게 키우며 버티는 싸움). 권장 강화는 보통 +${META_SOFT.hellAdd}. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
+  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (${Math.round(STAR_DOOR[0] * 100)}% ★★★ · ${Math.round(STAR_DOOR[1] * 100)}% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${hellHpMul(app.stage).toFixed(1)} (이 스테이지) · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} (적지만 단단하게) · 조건 하나 더 · 보스 분노 · 웨이브 사이 수리 절반 · 대신 경험치 ×${HELL.exp} · 멤버 공격 ×${HELL.dmg} (길게 키우며 버티는 싸움). 권장 강화는 보통 +${META_SOFT.hellAdd}. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
   prepFoe: (b) => {
     const id = b.dataset.id, d = ENEMIES[id]; if (!d) return;
     const T = foeTrait(id), c = CLASSES[d.cls];
@@ -4959,7 +4960,7 @@ function prepCondPopup() {
   const who = (c) => COND[c].counter.filter((id) => HEROES[id] && mine.includes(id)).map((id) => `<span class="pc-who ${deck.has(id) ? 'on' : ''}">${esc(HEROES[id].name)}</span>`).join('') || '<span class="pc-who">아직 없음</span>';
   popup(`<h3>이 스테이지 공략</h3>
     ${conds.map((c) => `<div class="pc-pop">${ic(COND[c].icon, '', 'sm')}<div><b>${esc(COND[c].name)}</b><p class="ip">${esc(COND[c].tip.replace(/^[^:]+:\s*/, ''))}</p><div class="pc-whos">${who(c)}</div></div></div>`).join('') || '<p class="ip">특별한 진상 기믹은 없어요</p>'}
-    ${mis ? `<p class="ip"><b>★★★</b> = 입구 70% 이상 + 미션 「${esc(mis.text)}」 (전에 받은 별은 그대로)</p>` : ''}
+    ${mis ? `<p class="ip"><b>★★★</b> = 입구 ${Math.round(STAR_DOOR[0] * 100)}% 이상 + 미션 「${esc(mis.text)}」 (전에 받은 별은 그대로)</p>` : ''}
     <p class="ip">강화는 이 장 권장 <b>+${rec}</b> 까지 제값 · 넘는 만큼은 절반만 들어가요 — 덱 구성이 먼저!</p>
     <p class="ip dim">초록 이름 = 지금 덱에 있는 맞는 멤버</p>`, 'pp-mini');
 }
@@ -5745,7 +5746,7 @@ function showResult(victory, quit) {
     sub = win ? `입구 내구도 ${sum.hpPct}% 로 지켜냈다!` : `웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}에서 막혔어요 · ${quit ? '다음엔 끝까지!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]}`;
     top = win
       ? `<div class="big-stars">${[1, 2, 3].map((k) => `<span class="${k <= g.stars ? 'on' : ''}" style="animation-delay:${0.25 + k * 0.28}s">★</span>`).join('')}</div>
-         <div class="star-rule">${sum.perfect ? '<b class="perfect">PERFECT! 입구가 한 번도 안 맞았다</b>' : g.stars >= 3 ? '완벽 방어! ★★★ (입구 무피해면 PERFECT)' : g.stars === 2 ? (sum.hpPct >= 70 && g.mission && !g.mission.ok ? '입구는 지켰는데 미션을 못 했어요 — ★★★ 은 미션까지!' : '★★★ 까지 입구 70% 이상 남기기') : '★★ 는 입구 35% 이상 남기면!'}</div>${missionHtml(g)}`
+         <div class="star-rule">${sum.perfect ? '<b class="perfect">PERFECT! 입구가 한 번도 안 맞았다</b>' : g.stars >= 3 ? '완벽 방어! ★★★ (입구 무피해면 PERFECT)' : g.stars === 2 ? (sum.hpPct >= STAR_DOOR[0] * 100 && g.mission && !g.mission.ok ? '입구는 지켰는데 미션을 못 했어요 — ★★★ 은 미션까지!' : `★★★ 까지 입구 ${Math.round(STAR_DOOR[0] * 100)}% 이상 남기기`) : `★★ 는 입구 ${Math.round(STAR_DOOR[1] * 100)}% 이상 남기면!`}</div>${missionHtml(g)}`
       : `<div class="fail-tip">${ic('bulb', '', 'sm')}${FAIL_TIPS[(Math.random() * FAIL_TIPS.length) | 0]}</div>`;
   } else if (g.r2 && R2UI) {
     ({ title, sub, top } = R2UI.resultTop(g, victory, quit));
@@ -7042,7 +7043,7 @@ function showHowto() {
  <div class="it"><i>${ic('wave', '', 'sm')}</i><div><b>웨이브 성격</b>: 떼거리(약한 진상이 떼로 → 범위 공격) · 정예(적지만 단단, 범위 피해 -35% → 한 방 공격) · ${ic('swords', '', 'sm')} 혼합(떼거리 + 정예 호위) · ${ic('crown', '', 'sm')} 보스. 출전 준비 화면에서 미리 보고 덱을 짜요!</div></div>
  <div class="it"><i>${ic('boom', '', 'sm')}</i><div>한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> 계속 잡으면 <b>콤보</b> — 경험치 최대 +15% (2초 못 잡으면 끊겨요)</div></div>
  <div class="it"><i>${ic('map', '', 'sm')}</i><div><b>스테이지</b>를 하나씩 깨요. 3챕터 × 10스테이지, 한 스테이지는 ${STAGE_WAVES}웨이브. x-5 · x-10 은 <b>보스</b>!</div></div>
- <div class="it"><i>${ic('star_gold', '', 'sm')}</i><div>클리어할 때 입구 내구도가 70% 이상이면 <b>★★★</b>, 35% 이상이면 ★★, 그 밖엔 ★. 처음 깰 때와 별을 새로 받을 때 코인 보너스! 입구가 <b>한 번도 안 맞고</b> 깨면 <b>${ic('gem', '', 'sm')} PERFECT</b> — 코인 더 + 첫 퍼펙트는 희귀 이상 장비 확정!</div></div>
+ <div class="it"><i>${ic('star_gold', '', 'sm')}</i><div>클리어할 때 입구 내구도가 ${Math.round(STAR_DOOR[0] * 100)}% 이상이면 <b>★★★</b>, ${Math.round(STAR_DOOR[1] * 100)}% 이상이면 ★★, 그 밖엔 ★. 처음 깰 때와 별을 새로 받을 때 코인 보너스! 입구가 <b>한 번도 안 맞고</b> 깨면 <b>${ic('gem', '', 'sm')} PERFECT</b> — 코인 더 + 첫 퍼펙트는 희귀 이상 장비 확정!</div></div>
  <div class="it"><i>${ic('card_common', '', 'sm')}</i><div>출동 전에 <b>덱</b>을 짜요. 5명(상점에서 6·7번째 칸 구매)을 원하는 <b>자리</b>에 세우고, 덱은 3개까지 저장. 스테이지 정보에 나오는 진상 유형을 보고 속성을 맞추면 유리!</div></div>
  <div class="it"><i></i><div><b>줄 공격</b> 멤버(건전남 새총 · 강성구 지팡이)는 <b>자기 앞 줄</b>만 쏴요. 진상이 많이 오는 가운데 줄에 세우면 좋아요. 끌어서 옮길 때 줄이 빛나요.</div></div>
  <div class="it"><i>${ic('bag', '', 'sm')}</i><div>스테이지를 깨면 <b>장비</b>가 떨어져요 (일반 · 희귀 · 영웅 · 전설). 멤버마다 무기 · 액세서리 한 칸씩 — 상점 <b>장비</b> 탭에서 끼우고, 강화하고, 남는 건 팔아요.</div></div>
