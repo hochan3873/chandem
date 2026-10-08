@@ -15,7 +15,14 @@ const eIn = (k) => k * k;
 const eBack = (k) => { const s = 1.7; k -= 1; return 1 + k * k * ((s + 1) * k + s); };
 const imgOk = (im) => !!(im && im.complete && im.naturalWidth > 0);
 const HERO_TOP = 50, HERO_FEET = 24; // 멤버 몸 중심(y) 기준 머리 위 · 발 (HERO_BOX 82 기준)
-const CAN_COL = [['#2b1a10', '#6b4024', '#e9d3b0'], ['#1d2a44', '#3d5a8a', '#f2e6cf'], ['#5a1f14', '#9a3a24', '#f4e2c4']]; // 문동한 캔커피 색 (블랙 · 블루 · 레드)
+let CURSE_GLOW = null; // 서명훈 저주 섬광 (미리 구운 빛 — 평타마다 그라데이션을 만들지 않게)
+const curseGlow = () => {
+  if (CURSE_GLOW || typeof document === 'undefined') return CURSE_GLOW;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,240,255,1)'); gr.addColorStop(0.22, 'rgba(255,90,230,0.85)'); gr.addColorStop(0.55, 'rgba(150,30,220,0.3)'); gr.addColorStop(1, 'rgba(60,0,120,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return (CURSE_GLOW = c);
+};
+const CAN_COL =[['#2b1a10', '#6b4024', '#e9d3b0'], ['#1d2a44', '#3d5a8a', '#f2e6cf'], ['#5a1f14', '#9a3a24', '#f4e2c4']]; // 문동한 캔커피 색 (블랙 · 블루 · 레드)
 
 export class SkillFx {
   constructor(R) {
@@ -1132,7 +1139,7 @@ export class SkillFx {
   //  홍정민: 거꾸로 든 소주병을 휘두르는 초승달 자국
   lightPush(q) { const a = this.lt || (this.lt = []); if (a.length > 40) a.shift(); q.t = this.fx.time; a.push(q); }
   bolt(x, y, x2, y2, busy) {
-    this.lightPush({ k: 'bolt', x, y, x2, y2, seed: Math.random() * 1000, life: 0.28 });
+    this.lightPush({ k: 'bolt', x, y, x2, y2, seed: Math.random() * 1000, life: 0.3, rm: busy || this.rmOn() });
     if (!busy || Math.random() < 0.4) this.curse(x2, y2);
   }
   curse(x, y) { this.lightPush({ k: 'curse', x, y, life: 0.6, rot: (Math.random() - 0.5) * 0.5 }); }
@@ -1156,28 +1163,31 @@ export class SkillFx {
     for (let i = 1; i < n; i++) { const u = i / n, j = (rnd() - 0.5) * Math.min(28, L * 0.3); pts.push(q.x + dx * u + nx * j, q.y + dy * u + ny * j); }
     pts.push(q.x2, q.y2);
     const path = () => { cx.beginPath(); cx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) cx.lineTo(pts[i], pts[i + 1]); };
-    const a = k < 0.2 ? 1 : 1 - (k - 0.2) / 0.8;
+    const a = k < 0.2 ? 1 : 1 - (k - 0.2) / 0.8, W = k < 0.12 ? 1.45 - k / 0.12 * 0.45 : 1; // 처음 한 순간 굵게 지직
     cx.save(); cx.lineJoin = 'round'; cx.lineCap = 'round';
-    cx.globalAlpha = a * 0.8; cx.strokeStyle = 'rgb(22,0,18)'; cx.lineWidth = 8.5; path(); cx.stroke(); // 검은 테 (밝은 바닥에서도 보이게)
-    cx.globalAlpha = a; cx.strokeStyle = 'rgb(140,8,52)'; cx.lineWidth = 5; path(); cx.stroke(); // 검붉은 몸통
-    cx.strokeStyle = 'rgb(122,40,214)'; cx.lineWidth = 2.6; path(); cx.stroke(); // 보라 속
-    cx.globalCompositeOperation = 'lighter'; cx.strokeStyle = 'rgb(200,140,255)'; cx.lineWidth = 0.9; path(); cx.stroke(); // 가는 빛 심
-    if (pts.length > 6) { // 곁가지
-      const i = 2 * (1 + Math.floor(rnd() * (n - 2))), bx = pts[i], by = pts[i + 1], ba = Math.atan2(dy, dx) + (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd() * 0.5), bl = 10 + rnd() * 14;
-      cx.strokeStyle = 'rgb(160,40,200)'; cx.lineWidth = 1.8; cx.beginPath(); cx.moveTo(bx, by); cx.lineTo(bx + Math.cos(ba) * bl * 0.5 + (rnd() - 0.5) * 6, by + Math.sin(ba) * bl * 0.5 + (rnd() - 0.5) * 6); cx.lineTo(bx + Math.cos(ba) * bl, by + Math.sin(ba) * bl); cx.stroke();
+    cx.globalAlpha = a * 0.8; cx.strokeStyle = 'rgb(22,0,18)'; cx.lineWidth = 9 * W; path(); cx.stroke(); // 검은 테 (밝은 바닥에서도 보이게)
+    cx.globalCompositeOperation = 'lighter';
+    if (!q.rm) { cx.globalAlpha = a * 0.3; cx.strokeStyle = 'rgb(200,50,255)'; cx.lineWidth = 18 * W; path(); cx.stroke(); } // 넓은 보라 빛 번짐
+    cx.globalAlpha = a; cx.strokeStyle = 'rgb(225,40,150)'; cx.lineWidth = 5.5 * W; path(); cx.stroke(); // 자홍 몸통 (빛)
+    cx.strokeStyle = 'rgb(170,90,255)'; cx.lineWidth = 3 * W; path(); cx.stroke(); // 보라 속
+    cx.strokeStyle = 'rgb(255,235,255)'; cx.lineWidth = 1.4 * W; path(); cx.stroke(); // 흰 빛 심
+    if (pts.length > 6) { // 곁가지 두 갈래
+      for (let b = 0; b < 2; b++) { const i = 2 * (1 + Math.floor(rnd() * (n - 2))), bx = pts[i], by = pts[i + 1], ba = Math.atan2(dy, dx) + (b ? -1 : 1) * (0.6 + rnd() * 0.5), bl = 10 + rnd() * 14;
+        cx.strokeStyle = 'rgb(210,90,255)'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(bx, by); cx.lineTo(bx + Math.cos(ba) * bl * 0.5 + (rnd() - 0.5) * 6, by + Math.sin(ba) * bl * 0.5 + (rnd() - 0.5) * 6); cx.lineTo(bx + Math.cos(ba) * bl, by + Math.sin(ba) * bl); cx.stroke(); }
     }
+    const gc = curseGlow(); // 맞은 자리 섬광 (미리 구운 빛 · 십자 반짝) · 입 쪽 빛
+    if (gc) { let r = 26 * (1.2 - k * 0.5); cx.globalAlpha = a * 0.85; cx.drawImage(gc, q.x2 - r, q.y2 - r, r * 2, r * 2); r = 14; cx.globalAlpha = a * 0.5; cx.drawImage(gc, q.x - r, q.y - r, r * 2, r * 2); }
+    if (k < 0.45) { const f = (1 - k / 0.45), L = 16 * f + 4; cx.globalAlpha = f; cx.strokeStyle = '#ffffff'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(q.x2 - L, q.y2); cx.lineTo(q.x2 + L, q.y2); cx.moveTo(q.x2, q.y2 - L * 0.8); cx.lineTo(q.x2, q.y2 + L * 0.8); cx.stroke(); }
     cx.restore();
-    this.glow(q.x2, q.y2, 22, 'rgba(150,20,120,1)', a * 0.55);
-    this.glow(q.x, q.y, 14, 'rgba(120,40,220,1)', a * 0.4);
   }
   drawCurse(q, k) { // 저주 딱지: 검은 가시 원 안에 붉은 "#@!" (톡 커졌다가 위로 흐려짐)
-    const cx = this.R.cx, sc = k < 0.18 ? Math.max(0.01, eBack(k / 0.18)) : 1, a = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4, y = q.y - 16 - eOut(k) * 16;
-    this.glow(q.x, y, 20, 'rgba(170,30,150,1)', a * 0.55);
-    cx.save(); cx.translate(q.x, y); cx.scale(sc, sc); cx.globalAlpha = c01(a);
-    cx.save(); cx.rotate(q.rot + k * 1.2); cx.fillStyle = 'rgb(28,0,22)'; cx.strokeStyle = '#b44cff'; cx.lineWidth = 1.4;
-    cx.beginPath(); for (let i = 0; i < 16; i++) { const an = i * TAU / 16, r = i % 2 ? 11.5 : 15; cx.lineTo(Math.cos(an) * r, Math.sin(an) * r); } cx.closePath(); cx.fill(); cx.stroke();
+    const cx = this.R.cx, sc = k < 0.18 ? Math.max(0.01, eBack(k / 0.18)) : 1, a = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4, y = q.y - 18 - eOut(k) * 16;
+    const gc = curseGlow(); if (gc) { cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a * 0.55; cx.drawImage(gc, q.x - 24, y - 24, 48, 48); cx.restore(); }
+    cx.save(); cx.translate(q.x, y); cx.scale(sc, sc); cx.rotate(Math.sin(k * 40) * 0.06 * (1 - k)); cx.globalAlpha = c01(a); // 만화 욕 딱지: 가시 말풍선 + 부들부들
+    cx.save(); cx.rotate(q.rot + k * 0.6); cx.fillStyle = 'rgb(28,0,22)'; cx.strokeStyle = '#ff6ae0'; cx.lineWidth = 1.8;
+    cx.beginPath(); for (let i = 0; i < 18; i++) { const an = i * TAU / 18, r = i % 2 ? 12 : 17.5; cx.lineTo(Math.cos(an) * r * 1.2, Math.sin(an) * r); } cx.closePath(); cx.fill(); cx.stroke();
     cx.restore();
-    cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = '#ff4a72'; cx.fillText('#@!', 0, 0.5);
+    cx.font = `900 11px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.lineWidth = 2.5; cx.strokeStyle = 'rgb(120,0,40)'; cx.strokeText('#@!%', 0, 0.5); cx.fillStyle = '#ffe14d'; cx.fillText('#@!%', 0, 0.5);
     cx.restore();
   }
   drawSwing(q, k) { // 소주병 휘두름: 흰·초록 초승달 (몸 옆에서 위로 쓱)

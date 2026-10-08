@@ -168,7 +168,7 @@ function renderPrep() {
     <div class="hw-top"><button class="back" data-act="hw">‹ 이벤트</button><div class="hw-cur"><span class="hw-pill">${candyIc()}<b>${fmt(h.candy | 0)}</b></span></div></div>
     <div class="hw-prep">
       <div class="hp-head"><em>STAGE ${n}${s.boss ? ' · 최종 보스' : s.mid ? ' · 중간 보스' : ''}</em><h2>${esc(s.name)}</h2><p>${esc(s.story)}</p>${b ? `<span class="hp-best">최고 🔥${b.heat} · ${fmt(b.score)}점 · 입구 ${b.door}%</span>` : ''}</div>
-      ${s.sig && HW.SIGS[s.sig] ? `<div class="hp-sig"><i>${esc(HW.SIGS[s.sig].icon)}</i><span><b>이 판 특수 규칙 · ${esc(HW.SIGS[s.sig].name)}</b><small>${esc(HW.SIGS[s.sig].desc)}</small><em>내 덱: ${deck.filter((hh) => HW.SIGS[s.sig].heroes.includes(hh)).length}명</em></span></div>` : ''}<div class="hp-sec rules"><h4>${C.ic('target', '', 'sm')}출전 제한</h4><div class="hp-rules">${s.rules.map((r) => `<div class="hp-rule ${ruleOk(r) ? 'ok' : 'no'}"><i>${esc(HW.RULES[r].icon)}</i><span><b>${esc(HW.RULES[r].name)}</b><small>${esc(HW.RULES[r].desc)}</small></span><em>${ruleOk(r) ? '✓' : '!'}</em></div>`).join('')}</div>${fix ? `<div class="hp-fixes">${fix}</div>` : ''}${(s.keys || []).length ? `<div class="hp-keys"><small>${C.ic('bulb', '', 'sm')}이 판 핵심 멤버 — ${esc(s.keyWhy || '')}</small><span>${s.keys.filter((hh) => HEROES[hh]).map((hh) => { const bn = banned(hh), ow = own(hh), inD = deck.includes(hh); return `<button class="hw-chip key ${inD ? 'in' : ''} ${!ow || bn ? 'off' : ''}" data-act="${ow && !bn && !inD ? 'hwAdd' : 'hwFoe0'}" data-h="${hh}" ${!ow || bn ? 'disabled' : ''}>${C.av(HEROES[hh], 'xs')}${esc(HEROES[hh].name)}${inD ? ' ✓' : !ow ? ' (없음)' : bn ? ' (금지)' : ''}</button>`; }).join('')}</span></div>` : ''}</div>
+      ${s.sig && HW.SIGS[s.sig] ? `<div class="hp-sig"><i>${esc(HW.SIGS[s.sig].icon)}</i><span><b>이 판 특수 규칙 · ${esc(HW.SIGS[s.sig].name)}</b><small>${esc(HW.SIGS[s.sig].desc)}</small><em>${sigCountTxt(HW.SIGS[s.sig], deck.filter((hh) => HW.SIGS[s.sig].heroes.includes(hh)).length)}</em></span></div>` : ''}<div class="hp-sec rules"><h4>${C.ic('target', '', 'sm')}출전 제한</h4><div class="hp-rules">${s.rules.map((r) => `<div class="hp-rule ${ruleOk(r) ? 'ok' : 'no'}"><i>${esc(HW.RULES[r].icon)}</i><span><b>${esc(HW.RULES[r].name)}</b><small>${esc(HW.RULES[r].desc)}</small></span><em>${ruleOk(r) ? '✓' : '!'}</em></div>`).join('')}</div>${fix ? `<div class="hp-fixes">${fix}</div>` : ''}${(s.keys || []).length ? `<div class="hp-keys"><small>${C.ic('bulb', '', 'sm')}이 판 핵심 멤버 — ${esc(s.keyWhy || '')}</small><span>${s.keys.filter((hh) => HEROES[hh]).map((hh) => { const bn = banned(hh), ow = own(hh), inD = deck.includes(hh); return `<button class="hw-chip key ${inD ? 'in' : ''} ${!ow || bn ? 'off' : ''}" data-act="${ow && !bn && !inD ? 'hwAdd' : 'hwFoe0'}" data-h="${hh}" ${!ow || bn ? 'disabled' : ''}>${C.av(HEROES[hh], 'xs')}${esc(HEROES[hh].name)}${inD ? ' ✓' : !ow ? ' (없음)' : bn ? ' (금지)' : ''}</button>`; }).join('')}</span></div>` : ''}</div>
       <div class="hp-sec foes"><h4>${C.ic('ic_bosscrown', '', 'sm')}나오는 할로윈 진상 <small>탭하면 기술</small></h4><div class="hp-foes">${foes.map((t) => `<button class="hp-foe ${ENEMIES[t].boss ? 'boss' : ENEMIES[t].mid ? 'mid' : ''}" data-act="hwFoe" data-t="${t}"><img src="${ENEMIES[t].img}" alt="" draggable="false"><small>${esc(ENEMIES[t].name)}</small></button>`).join('')}</div></div>
       <div class="hp-sec deck"><h4>${C.ic('party', '', 'sm')}출전 멤버 <small>${deck.length}/${chk.max} · 이벤트에선 강화가 +${HW.HW.sync.meta} ★${HW.HW.sync.star} 로 맞춰져요 (줄 그은 숫자 = 내 원래 강화 · 많이 키운 멤버는 +2 까지 더)</small><button class="hw-mini" data-act="hwAuto">추천 덱</button></h4>
         ${deck[0] && HW.weakLeader(deck[0]) ? `<div class="hp-leadwarn"><span>👑 <b>대장이 서포터면 처음엔 혼자 싸워야 해요 — 딜러를 대장으로</b><small>${esc(HEROES[deck[0]].name)}은(는) 혼자선 진상을 거의 못 잡아요. 동료는 진상을 잡아 레벨이 올라야 합류해요.</small></span>${deck.some((x) => !HW.weakLeader(x)) ? `<button class="hw-mini" data-act="hwLead">딜러를 대장으로</button>` : ''}</div>` : ''}
@@ -207,7 +207,7 @@ function afterCreate(g) {
   resetHwFx();
   const s = HW.stageOf(g.ev.n);
   const sg = s.sig && HW.SIGS[s.sig];
-  if (sg) setTimeout(() => { if (C.app.g === g) C.fx.banner(`${sg.icon} ${sg.name}`, `${sg.tip} (내 덱 ${(g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length}명)`, '#6a2a00', 2.6, 'big'); }, 2900);
+  if (sg) setTimeout(() => { if (C.app.g === g) C.fx.banner(`${sg.icon} ${sg.name}`, `${sg.tip} (${sigCountTxt(sg, (g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length)})`, '#6a2a00', 2.6, 'big'); }, 2900);
   setTimeout(() => { if (C.app.g === g) C.fx.banner(`🎃 ${s.name}`, g.ev.curses.length ? `저주 🔥${HW.curseScore(g.ev.curses)} · ${g.ev.curses.map((k) => HW.CURSES[k].name).join(' · ')}` : HW.HW_MAPS[s.map].name, '#4a1466', 2.4, 'big'); }, 350);
 }
 // 이벤트 그림: 이번 판 진상(처음엔 안 받는다) · 맵
@@ -266,9 +266,11 @@ function result(g, victory, quit) {
     setTimeout(() => { rw.innerHTML = `<div class="hr-lines">${lines.join('')}<span class="tot">${candyIc()}<b>+${r.candy}</b></span></div>`; try { C.A.sfx.reward ? C.A.sfx.reward() : C.A.sfx.levelUp(); } catch { /* 무시 */ } }, 500);
   });
 }
+// 특수 규칙 멤버 수 표시 (H9 겹심지는 심지 수까지)
+function sigCountTxt(sg, n) { return `내 덱 ${n}명${sg.wick ? (n > 0 ? ` → 심지 ${Math.max(1, sg.wick + 1 - n)}개` : ' → 못 꺼요!') : ''}`; }
 function failTip(g) {
   const sg = g.ev && g.ev.sig, have = sg ? (g.ev.deck || []).filter((h) => sg.heroes.includes(h)).length : 0; // 특수 규칙 판: 맞는 멤버가 모자라면 그것부터 알려 준다
-  if (sg && have < 3) return `${sg.icon} ${sg.name} — ${sg.heroes.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join(' · ')} 중 ${have}명뿐이었어요. ${sg.id === 'hangover' ? '해장 멤버가 많을수록 좀비가 덜 일어나요' : sg.id === 'overtime' ? '팀장을 끊는 멤버가 많을수록 명부를 빨리 지워요' : '도화선 끊는 멤버가 많을수록 호박등을 빨리 꺼요'}`;
+  if (sg && have < Math.min(3, sg.heroes.filter((h) => HEROES[h]).length)) return `${sg.icon} ${sg.name} — ${sg.heroes.filter((h) => HEROES[h]).map((h) => HEROES[h].name).join(' · ')} 중 ${have}명뿐이었어요. ${sg.fail || ''}`;
   const src = g.stats.kdBy || {}, top = Object.keys(src).sort((a, b) => src[b] - src[a])[0];
   if (top && ENEMIES[top]) { const sk = enemySkills(top)[0]; const ctr = sk && sk.counter && sk.counter.length ? sk.counter.slice(0, 3).map((h) => HEROES[h].name).join(' · ') : ''; return `${ENEMIES[top].name}에게 많이 당했어요${sk ? ` (${sk.name})` : ''}${ctr ? ` — ${ctr}이(가) 막아 줘요` : ''}`; }
   return '예고가 뜨면 기절 · 밀치기 스킬로 끊어 보세요 — 끊으면 빈틈이 생겨요';
@@ -341,6 +343,7 @@ function helpPop() {
       <div><b>① 전투력 맞춤</b><small>모든 멤버가 강화 +${HW.HW.sync.meta} · ★${HW.HW.sync.star} 로 맞춰져요 — 키운 양보다 <em>조합과 컨트롤</em>!</small></div>
       <div><b>② 출전 제한</b><small>판마다 규칙이 있어요 (서포터 2명 · 원거리만 · 술 속성만 …). 맞는 멤버가 없으면 한 명은 빌릴 수 있어요.</small></div>
       <div><b>③ 저주 고르기</b><small>깬 판은 저주를 걸고 다시 — 저주 점수만큼 랭킹 점수 · 사탕이 늘어요.</small></div>
+      <div class="hh-sig"><b>④ 판마다 특수 규칙</b><small>몇몇 판은 맞는 멤버가 꼭 있어야 풀려요 (출전 준비 화면 위쪽 상자) — ${HW.STAGES.filter((x) => x.sig && HW.SIGS[x.sig]).map((x) => `<span>${esc(HW.SIGS[x.sig].icon)} <em>${x.n}판 ${esc(HW.SIGS[x.sig].name)}</em> · ${esc(HW.SIGS[x.sig].tip)}</span>`).join('')}</small></div>
     </div><button class="btn primary" data-x>알겠어요</button>`, 'hw-pop hw-helppop');
 }
 

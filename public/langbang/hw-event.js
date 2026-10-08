@@ -74,17 +74,24 @@ export function leaderFix(deck, power = () => 0, prefer = []) {
 // ─── 판마다 특수 규칙 (sig) — 출전 제한만 맞추면 아무 덱이나 깨던 H1 · H2 를 '맞는 멤버'가 꼭 필요하게 (10/08 재설계) ───
 //  hangover (H1): 좀비 회식러는 쓰러져도 엎어져 있다가(무적) 다시 일어난다 (max − 덱의 해장 멤버 수 × per 번) — 해장 멤버가 마지막 한 방을 넣거나 화상이 붙어 있으면 끝
 //  lantern (H2): 호박등은 불 붙은 채 굴러온다 (껍질: 받는 피해 −85%) — 도화선 끊는 멤버가 맞히면 꺼지고 껍질이 깨진다 (멤버마다 cd 초에 하나) · 입구에 닿으면 펑!
+//  pyramid (H4): 마녀가 곁 진상을 하부로 영입 → 피라미드(마녀 + 하부) 모두 껍질 — 고발 멤버가 누구든 맞히면 와르르 (마녀 기절 · 잠깐 약해짐)
+//  lantern + wick (H9): 겹심지 — 심지 수 = wick + 1 − 덱의 도화선 멤버 수 (셋이면 한 번 · 하나면 세 번 맞혀야 꺼진다)
 export const SIGS = {
-  hangover: { id: 'hangover', icon: '🍺', name: '"한 잔 더!" 무한 부활', tip: '해장 멤버가 마무리해야 좀비가 안 일어나요', heroes: ['eunok', 'jiwon', 'sanghwa', 'jungmin', 'dragon'], max: 6, per: 2, lie: 2.2, hp: 1,
+  hangover: { id: 'hangover', icon: '🍺', name: '"한 잔 더!" 무한 부활', tip: '해장 멤버가 마무리해야 좀비가 안 일어나요', heroes: ['eunok', 'jiwon', 'sanghwa', 'jungmin', 'dragon'], fail: '해장 멤버가 많을수록 좀비가 덜 일어나요', max: 6, per: 2, lie: 2.2, hp: 1,
     desc: '좀비는 쓰러져도 엎어져 있다가(안 맞음) 최대 6번 다시 일어나요. 해장 멤버(최은옥 · 여지원 · 박상화 · 홍정민 · 박나영)를 한 명 데려갈 때마다 두 번씩 덜 일어나고 (3명이면 바로 끝), 해장 멤버가 마지막 한 방을 넣거나 화상이 붙어 있으면 바로 끝!' },
-  lantern: { id: 'lantern', icon: '🎃', name: '불 붙은 호박등', tip: '도화선 끊는 멤버가 맞혀야 껍질이 깨져요', heroes: ['staff', 'jieun', 'gunman', 'myunghoon', 'sunggu'], shell: 0.15, roll: 1.35, door: 0.1, cd: 2.5, crack: 1.6, stun: 1.6,
+  lantern: { id: 'lantern', icon: '🎃', name: '불 붙은 호박등', tip: '도화선 끊는 멤버가 맞혀야 껍질이 깨져요', heroes: ['staff', 'jieun', 'gunman', 'myunghoon', 'sunggu'], fail: '도화선 끊는 멤버가 많을수록 호박등을 빨리 꺼요', shell: 0.15, roll: 1.35, door: 0.1, cd: 2.5, crack: 1.6, stun: 1.6,
     desc: '호박등은 불 붙은 채 굴러와요 — 껍질이 단단해 받는 피해 −85%, 입구에 닿으면 펑! (입구 −10%). 도화선 끊는 멤버(운영진 · 오지은 · 건전남 · 서명훈 · 강성구)가 맞히면 불이 꺼지고 껍질이 깨져요 (한 명이 2.5초마다 하나씩 — 많이 데려갈수록 안전).' },
   // H5: 야근 명부가 자주 (건전녀 방패만으론 못 막는다 — 팀장을 기절 · 빙결 · 시간 정지로 끊는 멤버가 있어야)
-  overtime: { id: 'overtime', icon: '📜', name: '무한 야근 명부', tip: '명부가 뜨면 팀장 끊는 멤버가 팀장을 맞혀야 지워져요', heroes: ['staff', 'jieun', 'dohoon'], every: 4.5, first: 4, kd: 100, door: 0.09, shell: 0.4,
+  overtime: { id: 'overtime', icon: '📜', name: '무한 야근 명부', tip: '명부가 뜨면 팀장 끊는 멤버가 팀장을 맞혀야 지워져요', heroes: ['staff', 'jieun', 'dohoon'], fail: '팀장을 끊는 멤버가 많을수록 명부를 빨리 지워요', every: 4.5, first: 4, kd: 100, door: 0.09, shell: 0.4,
     desc: '저승사자 팀장이 4.5초마다 명부에 이름을 적어요 — 못 지우면 그 멤버는 바로 강제 퇴근(쓰러짐) · 입구 −9%. 팀장은 3 · 5웨이브에 나오고, 결재판으로 막아서 끊는 멤버가 아닌 공격은 −60%예요. 건전녀 방패 하나로는 다 못 지워요. 팀장 끊는 멤버(운영진 레드카드 · 오지은 시간 정지 · 김도훈 앵콜)가 팀장을 맞히면 명부가 지워져요 (한 명이 4초마다 한 번 · 다른 멤버의 기절 · 밀치기로는 안 끊겨요).', cd: 4 },
-  // H9: 여자 멤버만 — 호박등은 H2 처럼 불 붙어 굴러온다 (도화선 끊는 여자 멤버)
-  lanternF: { id: 'lantern', icon: '🎃', name: '호박 축제 등불', tip: '도화선 끊는 멤버가 맞혀야 껍질이 깨져요', heroes: ['staff', 'jieun', 'hanna'], shell: 0.1, roll: 1.35, door: 0.11, cd: 5, crack: 1.6, stun: 1.6,
-    desc: '축제 호박등은 불 붙은 채 굴러와요 (껍질 피해 −90% · 입구에 닿으면 펑 −11%). 도화선 끊는 멤버 — 운영진 · 오지은 · 이한나 — 가 맞히면 꺼져요 (한 명이 5초마다 하나씩 — 셋 다 데려가야 든든).' },
+  // H4: 다단계 피라미드 — 마녀가 곁 진상을 하부로 영입 (금빛 줄) · 하부가 있는 동안 마녀 · 하부 모두 껍질 → 고발 멤버(물약 회복을 막는 멤버)가 피라미드 누구든 맞히면 와르르 (10/08)
+  pyramid: { id: 'pyramid', icon: '🔺', name: '다단계 피라미드', tip: '고발 멤버(여지원 · 고아라 · 박나영)가 맞혀야 피라미드가 무너져요', heroes: ['jiwon', 'ara', 'dragon'], every: 6, first: 3, wind: 1.2, r: 230, n: 3, cap: 5, shell: 0.25, cd: 3, stun: 1.6, bust: 1.5, bustSec: 5, crack: 1.5,
+    desc: '마녀가 6초마다 곁 진상을 하부로 영입해요 (보라 원이 차오르면 영입 · 금빛 줄로 이어짐). 하부가 하나라도 있으면 마녀와 하부 모두 받는 피해 −75%! 물약 회복을 막는 고발 멤버(여지원 · 고아라 · 박나영)가 피라미드의 누구든 맞히면 "고발!" — 줄이 전부 끊기고 마녀는 기절 · 5초간 받는 피해 +50% (한 명이 3초마다 한 번 · 둘이면 든든).',
+    fail: '고발 멤버가 많을수록 피라미드를 자주 무너뜨려요 — 마녀 곁 금빛 줄이 보이면 고발 멤버 사거리 안으로' },
+  // H9: 여자 멤버만 — 축제 등불은 심지가 여러 개 (덱의 도화선 멤버가 적을수록 많다: 3명 1개 · 2명 2개 · 1명 3개 — 여자 멤버 덱엔 보통 하나쯤 끼어 있어 '한 명이면 된다' 가 안 되게 · 10/08 재설계)
+  lanternF: { id: 'lantern', icon: '🏮', name: '축제 등불 · 겹심지', tip: '도화선 멤버가 적을수록 심지가 늘어요 (3명이면 한 번에)', heroes: ['staff', 'jieun', 'hanna'], wick: 3, shell: 0.08, roll: 1.35, door: 0.16, cd: 2.5, crack: 1.6, stun: 1.6,
+    desc: '축제 등불은 심지가 여러 개 — 껍질 피해 −92% · 입구에 닿으면 펑 (입구 −16%). 도화선 멤버(운영진 · 오지은 · 이한나)가 맞힐 때마다 심지가 하나씩 끊겨요. 심지 수 = 덱의 도화선 멤버 3명이면 1개 · 2명이면 2개 · 1명이면 3개 (없으면 못 꺼요) — 셋 다 데려가야 한 방에! (한 명이 2.5초마다 한 번)',
+    fail: '축제 등불은 도화선 멤버(운영진 · 오지은 · 이한나)가 적을수록 심지가 늘어요 — 셋 다 데려가면 한 번에 꺼져요' },
 };
 
 // ─── 할로윈 진상 (ENEMIES 에 있는 id) ───
@@ -93,6 +100,7 @@ export const HW_ENEMY_IDS = ['hw_zombie', 'hw_pumpkin', 'hw_seed', 'hw_bat', 'hw
 // ─── 스테이지 10개 ───
 //  (10/08 진상 감사 재보정: H1 −3.5→−1.25 · H3 2→5 · H6 −4.75→−5.1 · H9 −9→−7.75 — 맞는 덱 목표 70%)
 //  (10/08 합류 모드(실제 게임: 대장 혼자 시작) 기준 재보정 · 대장 = 딜러: H3 5→−2 · H4 0→−2.6 · H5 −9.25→−12.5 · H6 −5.1→−3 · H7 −13.75→−13 · H8 −9→−5.25 · H9 −7.75→−12.6 · H10 −0.4→0.25 · H1 −2.1 · H5 −11.5 · H5 무한 야근 · H9 등불 특수 규칙)
+//  (10/08 H4 다단계 피라미드 · H9 겹심지 재설계: H4 add −2.6→−5.05 · H9 −12.6→−13.1 — 32판 맞는 덱 72% · 69% / 아무 덱 16% · 31%)
 //  (10/08 H1 · H2 재설계: 특수 규칙 sig — 맞는 덱 70% · 아무 덱(조건만 맞춘 무작위) 30% 이하 · scripts/lb-hw-balance.js meas --decks=fit,rand)
 //  base: 레벨 · 체력 · 웨이브 성격을 빌려 올 일반 스테이지 (4장 = 강화 +12 권장 장 · 쓰러짐 · 방어율도 4장 기준) · add: 레벨 보정 (scripts/lb-hw-balance.js calib 로 맞춘 값)
 //  mix: [진상, 비중] · mid: 3웨이브 중간 보스 · boss: 마지막 웨이브 보스
@@ -100,12 +108,12 @@ export const STAGES = [
   { n: 1, name: '골목 입구의 좀비 회식러', map: 'alley', rules: ['noLegend'], lead: ['jiwon', 'sanghwa', 'eunok'], base: 31, add: -2.1, keys: ['eunok', 'jiwon', 'sanghwa', 'jungmin', 'dragon'], keyWhy: '해장 멤버 — 한 명마다 좀비가 두 번 덜 일어나고 · 마무리하면 바로 끝', mix: [['hw_zombie', 5], ['hw_pumpkin', 2], ['hw_bat', 2]], sig: 'hangover', story: '회식 3차에서 좀비가 된 직장인들이 골목을 메웠다. "한 잔만 더어…" 쓰러뜨려도 엎어졌다가 또 일어난다 — 해장을 시켜야 끝난다.' },
   { n: 2, name: '호박등 골목', map: 'alley', rules: ['ranged'], lead: ['gunman', 'jieun', 'myunghoon'], base: 32, add: -2.75, keys: ['staff', 'jieun', 'gunman', 'myunghoon', 'sunggu'], keyWhy: '도화선 끊기 — 한 명이 2.5초마다 하나씩 · 많을수록 안전', mix: [['hw_pumpkin', 5], ['hw_bat', 3], ['hw_zombie', 2]], sig: 'lantern', story: '불 붙은 호박등이 데굴데굴 굴러온다. 껍질은 단단하고 입구에 닿으면 펑! — 멀리서 도화선부터 끊어라.' },
   { n: 3, name: '단톡방의 원한', map: 'bar', rules: ['sup2'], base: 33, add: -2, keys: ['staff', 'gunman', 'hyungyeong', 'soyoung'], keyWhy: '유령 찾기(운영진 · 건전남 · 배현경) · 침묵 막기', mix: [['hw_ghost', 5], ['hw_zombie', 3], ['hw_bat', 2]], story: '읽씹당한 처녀귀신 단톡방장이 술집을 점령했다. 단톡 초대 = 침묵의 저주.' },
-  { n: 4, name: '마녀 다단계 설명회', map: 'bar', rules: ['charmImm'], base: 34, add: -2.6, keys: ['soyoung', 'jiwon', 'ara', 'dragon'], keyWhy: '홀림 면역 · 물약 회복 막기(방깎 · 화상 · 고아라)', mix: [['hw_witch', 4], ['hw_ghost', 3], ['hw_pumpkin', 2]], story: '"건강 물약 한 병이면 인생 역전!" 마녀의 영입 윙크에 홀리면 끝장.' },
+  { n: 4, name: '마녀 다단계 설명회', map: 'bar', rules: ['charmImm'], lead: ['ara', 'jiwon'], sig: 'pyramid', base: 34, add: -5.05, keys: ['soyoung', 'jiwon', 'ara', 'dragon'], keyWhy: '홀림 면역(정소영) · 고발 멤버(여지원 · 고아라 · 박나영) — 피라미드 무너뜨리기 · 물약 막기', mix: [['hw_witch', 4], ['hw_ghost', 3], ['hw_pumpkin', 2]], story: '"건강 물약 한 병이면 인생 역전!" 마녀들이 진상을 하부로 줄 세운다. 피라미드는 고발해야 무너진다 — 영입 윙크에 홀리면 끝장.' },
   { n: 5, name: '저승사자 팀장의 야근 명부', map: 'bar', rules: ['cleanse'], sig: 'overtime', base: 35, add: -11.5, keys: ['gunnyeo', 'staff', 'jieun', 'dohoon'], keyWhy: '명부 지우기(응급 방패) + 팀장 끊기(운영진 · 오지은 · 김도훈 — 둘 이상이면 든든)', mix: [['hw_ghost', 3], ['hw_zombie', 3], ['hw_witch', 2]], mid: 'hw_reaper', story: '명부에 이름이 적히면 3초 뒤 강제 퇴근(쓰러짐). 건전녀의 방패만이 명부를 지운다.' },
   { n: 6, name: '공동묘지 회식', map: 'grave', rules: ['booze'], base: 36, add: -3, keys: ['dragon', 'dohoon', 'ara', 'eunok'], keyWhy: '빙결 막기(박나영) · 기절 저항(김도훈) · 강시 철갑', mix: [['hw_jiangshi', 4], ['hw_ghost', 3], ['hw_zombie', 2]], story: '묘지 한가운데서 고기 굽는 강시 꼰대. 술 못 마시는 사람은 입장 불가!' },
   { n: 7, name: '강시 꼰대의 라떼 부적', map: 'grave', rules: ['breaker', 'notank'], lead: ['gunman', 'ara'], base: 37, add: -13, keys: ['jiwon', 'gunman', 'ara', 'sunggu', 'gunnyeo'], keyWhy: '대장은 철갑을 뚫는 건전남 · 고아라 (혼자 시작해요) · 붕대 철갑 깨기(방깎 · 방관) · 빙결 풀기', mix: [['hw_jiangshi', 4], ['hw_mummy', 3], ['hw_witch', 2]], story: '"라떼는 말이야~" 부적이 붙으면 꽁꽁. 붕대 철갑 미라 부장님까지 합류했다.' },
   { n: 8, name: '미라 부장님 결재 라인', map: 'grave', rules: ['max4', 'sup2'], base: 38, add: -5.25, keys: ['gunnyeo', 'soyoung', 'jiwon', 'gunman', 'staff'], keyWhy: '명부 지우기 · 철갑 깨기 · 유령 찾기', mix: [['hw_mummy', 4], ['hw_ghost', 3], ['hw_bat', 3]], mid: 'hw_reaper', story: '결재가 안 끝나는 밤. 4명이서 버텨야 한다 — 그중 둘은 서포터로.' },
-  { n: 9, name: '호박 축제의 마녀들', map: 'fest', rules: ['female'], lead: ['jieun', 'hanna', 'staff'], sig: 'lanternF', base: 39, add: -12.6, keys: ['staff', 'jieun', 'hanna', 'ara', 'jiwon'], keyWhy: '도화선 끊기(운영진 · 오지은 · 이한나) · 물약 막기(고아라 · 여지원)', mix: [['hw_witch', 4], ['hw_pumpkin', 4], ['hw_bat', 2], ['hw_ghost', 2]], story: '마녀들이 연 호박 축제. 여자 멤버만 입장 가능 — 호박은 여전히 터진다!' },
+  { n: 9, name: '호박 축제의 마녀들', map: 'fest', rules: ['female'], lead: ['jieun', 'hanna', 'staff'], sig: 'lanternF', base: 39, add: -13.1, keys: ['staff', 'jieun', 'hanna', 'ara', 'jiwon'], keyWhy: '겹심지 끊기(운영진 · 오지은 · 이한나 — 셋 다 데려가면 등불이 한 번에 꺼져요) · 물약 막기(고아라 · 여지원)', mix: [['hw_witch', 4], ['hw_pumpkin', 4], ['hw_bat', 2], ['hw_ghost', 2]], story: '마녀들이 연 호박 축제. 여자 멤버만 입장 가능 — 축제 등불은 심지가 겹겹이라 도화선 멤버가 모자라면 못 끈다!' },
   { n: 10, name: '드라큘라 사장의 강제 회식', map: 'fest', rules: ['poison', 'noLegend'], base: 40, add: 0.25, keys: ['jungmin', 'gunnyeo', 'soyoung', 'jiwon', 'ara'], keyWhy: '피의 와인(독) · 홀림 · 명부 · 흡혈 회복 막기', mix: [['hw_bat', 4], ['hw_zombie', 2], ['hw_ghost', 2], ['hw_mummy', 2], ['hw_witch', 2]], mid: 'hw_reaper', boss: 'hw_dracula', story: '"오늘 회식은 우리 성에서 한다. 빠지면 해고야!" 피의 와인은 독 — 홍정민이 꼭 필요하다.' },
 ];
 export const STAGE_COUNT = STAGES.length;
