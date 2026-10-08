@@ -354,7 +354,7 @@ export function towerFinish(lb, body, uid, now = Date.now(), free = false) {
   t.run = null;
   if (clear) {
     const minSec = def.waves.length * TOWER.minSec;
-    if (dur < minSec || dur > (now - run.at) / 1000 * 1.15 + 20) return { error: '기록을 확인할 수 없어요' };
+    if (dur < minSec || dur > (now - run.at) / 1000 * 2.3 + 20) return { error: '기록을 확인할 수 없어요' };
     let cap = 0; for (const w of def.waves) for (const x of w.g) cap += x[1] * (ENEMIES[x[0]] && ENEMIES[x[0]].pack ? ENEMIES[x[0]].pack.max : 1) * 2.4; cap += 80 * def.waves.length;
     if (kills > cap) return { error: '기록을 확인할 수 없어요' };
   }
