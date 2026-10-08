@@ -106,7 +106,7 @@ export function createGame(opt = {}) {
   if (opt.tempo && !opt.raid) { g.mods.expMul /= TEMPO.count; g.mods.ultCharge /= TEMPO.count; }
   if (g.slow) { g.mods.expMul /= SLOW_RUN.count; g.mods.ultCharge /= SLOW_RUN.count; g.mods.enemySpd *= SLOW_RUN.espd; }
   if (g.tension) g.mods.enemySpd *= TENSION.espd;
-  if (g.hell) { g.mods.expMul *= HELL.exp || 1; g.mods.dmg *= (HELL.dmg || 1) * (HELL.chDmg[chapterOf(g.stage || 1) - 1] || 1); } // 헬: 진상이 단단한 대신 한 판 성장 · 멤버 힘을 조금 더 (긴 싸움) // 긴장감: 진상이 입구까지 더 잘 온다 (꾸준히 조금씩 깎이게) // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총공지 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
+  if (g.hell) { g.mods.expMul *= HELL.exp || 1; g.mods.dmg *= (HELL.dmg || 1) * (HELL.chDmg[chapterOf(g.stage || 1) - 1] || 1) * ((HELL.stageDmg || {})[g.stage] || 1); } // 헬: 진상이 단단한 대신 한 판 성장 · 멤버 힘을 조금 더 (긴 싸움) // 긴장감: 진상이 입구까지 더 잘 온다 (꾸준히 조금씩 깎이게) // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총공지 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
   if (wmod.enemySpd) g.mods.enemySpd *= wmod.enemySpd;
   if (wmod.baseHp) { g.base.max = Math.round(g.base.max * wmod.baseHp); g.base.hp = g.base.max; }
   // 장비: 입구 내구도 +%
