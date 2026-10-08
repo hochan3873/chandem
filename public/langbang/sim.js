@@ -1530,7 +1530,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
     }
   }
   if (g.tension && e.boss && !e.mid && e.phT0 !== undefined && dmg > 0) { // 보스 페이즈 잠금 (10/08 '길고 굵게'): 한 페이즈는 최소 phaseMin 초 — 그 전엔 다음 문턱 아래로 안 내려간다 ('버틴다!')
-    const BW = TENSION.bossWave, n = e.phN | 0, floor = n < BW.phases.length ? e.maxHp * (BW.phases[n] + 0.003) : 1, min = ((g.stage - 1) % 10) + 1 === 10 ? BW.phaseMin.last : BW.phaseMin.mid;
+    const BW = TENSION.bossWave, n = e.phN | 0, floor = n < BW.phases.length ? e.maxHp * (BW.phases[n] + 0.003) : 1, min = (((g.stage - 1) % 10) + 1 === 10 ? BW.phaseMin.last : BW.phaseMin.mid) * (g.hell ? BW.hellPhase : 1);
     if (g.t - e.phT0 < min && e.hp - dmg < floor) { dmg = Math.max(0, e.hp - floor); if (g.t - (e.holdT || -9) > 1.5) { e.holdT = g.t; ev(g, 'bossHold', { x: e.x, y: e.y - e.def.size * 0.7 }); } }
   }  e.hp -= dmg;
   if (e.raidBoss) g.raid.dmg += dmg;

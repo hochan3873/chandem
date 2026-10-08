@@ -6541,7 +6541,9 @@ function showGearPicker(hero, slot) {
   const p = P();
   const cur = ((p.equip || {})[hero] || {})[slot];
   const list = (p.gear || []).filter((x) => GEAR[x.t].slot === slot && gearFits(x.t, hero)).sort((a, b) => gearValue(b.t, b.r, b.lv) * GEAR_RARITY[b.r].mul - gearValue(a.t, a.r, a.lv) * GEAR_RARITY[a.r].mul);
-  const rows = list.map((it) => `<button class="gpick ${it.id === cur ? 'on' : ''}" data-g="equip:${hero}:${slot}:${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${gearName(it)}<small>${GEAR_RARITY[it.r].name} · ${esc(gearStatText(it))}${equippedBy(p, it.id) && equippedBy(p, it.id) !== hero ? ` · ${HEROES[equippedBy(p, it.id)].name}` : ''}</small></button>`).join('');
+  const curIt = cur && (p.gear || []).find((g) => g.id === cur), curSc = curIt ? gearScore(curIt) : 0; // (10/08) 지금 낀 것과 비교: 전투력 +N% (대략 · 능력치 가중치)
+  const upTag = (it) => { if (it.id === cur) return '<em class="gp-up eq">장착 중</em>'; const d = Math.round((gearScore(it) - curSc) * 100); return d ? `<em class="gp-up ${d > 0 ? 'up' : 'down'}">전투력 ${d > 0 ? '+' : ''}${d}%</em>` : ''; };
+  const rows = list.map((it) => `<button class="gpick ${it.id === cur ? 'on' : ''} r-${it.r}" data-g="equip:${hero}:${slot}:${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${upTag(it)}${gearName(it)}<small>${GEAR_RARITY[it.r].name} · ${esc(gearStatText(it))}${equippedBy(p, it.id) && equippedBy(p, it.id) !== hero ? ` · ${HEROES[equippedBy(p, it.id)].name}` : ''}</small></button>`).join('');
   gearModal(`<div class="ih"><b>${HEROES[hero].name} · ${slot === 'w' ? '무기' : '액세서리'}</b></div>
     <div class="gpick-list">${rows || '<p class="sub">이 칸에 낄 장비가 없어요</p>'}</div>
     ${cur ? `<button class="btn" data-g="equip:${hero}:${slot}:x">빼기</button>` : ''}`);
