@@ -314,6 +314,7 @@ export class Renderer {
     list.dh_tf = '/img/lb/h_donghan_transform.webp'; // 문동한 진심 모드 변신 (12칸 · 한 번)
     list.h_donghan_cafe = '/img/lb/h_donghan_cafe.webp'; list.dh_cafe_tf = '/img/lb/h_donghan_cafe_tf.webp'; list.dh_cafe_cast = '/img/lb/h_donghan_cafe_attack.webp'; // 문동한 카페인 풀충전: 풀충전 모습 · 변신 8칸 (커피 원샷 → 눈 번쩍) · 캔커피 부르기 8칸
     list.dohoon_idle = '/img/lb/h_dohoon_idle.webp'; list.dohoon_encore = '/img/lb/h_dohoon_encore.webp'; // 김도훈: 리듬 타기 8칸(평소) · 앵콜 8칸
+    for (const n of ['ice_block', 'ice_burst', 'ice_shards']) list['vfx_' + n] = `/img/lb/fx/vfx_${n}.webp`; // 서명훈 빙결: 얼음 블록 · 깨지는 폭발 · 얼음 조각 12칸 띠 (kitfx.js)
     list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
     list.hanim_youngjun_rest = '/img/lb/h_youngjun_rest.webp'; // 김영준 숨 고르기 (크로스핏 8칸 · 있으면)
     list.hanim_baul_ride = '/img/lb/h_baul_ride.webp'; list.hanim_baul_fix = '/img/lb/h_baul_fix.webp'; // 송바울 보드 타기 · 보드 정비 (8칸 반복)
@@ -1846,9 +1847,14 @@ export class Renderer {
       if (e.tauntT > 0) { this.world(); cx.font = `11px ${FONT}`; cx.textAlign = 'center'; cx.fillText('', e.x - box * 0.32, top + 2); }
       const vip = e.boss || e.mid || e.elite;
       if (e.slowT > 0 && (!heavy || vip)) { // 진상이 많을 땐 표시를 줄인다
+        // 느려짐: 발밑 차가운 빛 + 천천히 도는 점선 고리 + 아래로 처지는 꺾쇠 3개 (많이 느릴수록 진하게)
+        const sk = Math.min(1, Math.max(0.35, 1 - (e.slowMul || 0.5))), gl = this.projSprites.glowCyan, rr = box * 0.32;
         this.tf(e.x, feet, 0, 1, 0.35);
-        cx.strokeStyle = 'rgba(120,200,255,0.85)'; cx.lineWidth = 3;
-        cx.beginPath(); cx.arc(0, 0, box * 0.3, 0, TAU); cx.stroke();
+        if (gl) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * sk; cx.drawImage(gl.c, -rr * 1.3, -rr * 1.3, rr * 2.6, rr * 2.6); cx.globalCompositeOperation = 'source-over'; }
+        cx.globalAlpha = 0.9; cx.strokeStyle = 'rgba(10,40,70,0.6)'; cx.lineWidth = 4.5; cx.beginPath(); cx.arc(0, 0, rr, 0, TAU); cx.stroke();
+        cx.strokeStyle = sk > 0.8 ? '#bff4ff' : '#7fd2ff'; cx.lineWidth = 2.4; cx.setLineDash([7, 5]); cx.lineDashOffset = -t * 6; cx.beginPath(); cx.arc(0, 0, rr, 0, TAU); cx.stroke(); cx.setLineDash([]);
+        if (!heavy) for (let i = 0; i < 3; i++) { const a = t * 0.8 + i * TAU / 3, px = Math.cos(a) * rr, py = Math.sin(a) * rr; this.tf(e.x + px, feet + py * 0.35 - 6 - ((t * 0.6 + i / 3) % 1) * 4, 0, 1, 1); cx.globalAlpha = 0.9 * sk; cx.strokeStyle = '#dff6ff'; cx.lineWidth = 1.8; cx.beginPath(); cx.moveTo(-3.5, -2); cx.lineTo(0, 1.5); cx.lineTo(3.5, -2); cx.stroke(); }
+        cx.globalAlpha = 1;
       }
       if ((e.stunT > 0 || e.windup > 0) && (!heavy || vip || e.windup > 0) && !dancing) { // (춤추는 진상은 기절 별 대신 음표 · skillfx.js)
         const st = this.projSprites.star;
@@ -2964,6 +2970,14 @@ export class Renderer {
           this.tf(p.x, p.y, p.type === 'star' ? p.rot : 0, p.size / 10, p.size / 10);
           cx.globalAlpha = Math.min(1, a * 2);
           cx.drawImage(s.c, -8, -8, 16, 16);
+          break;
+        }
+        case 'iceshard': { // 얼음 조각 (vfx_ice_shards 12칸 중 p.color 번째) — 빙글 돌며 떨어짐
+          const im = this.images.vfx_ice_shards;
+          if (!imgOk(im)) { this.tf(p.x, p.y, p.rot, 1, 1); cx.globalAlpha = Math.min(1, a * 2); cx.fillStyle = '#cff6ff'; cx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); break; }
+          const fh = im.naturalHeight, fi = (p.color | 0) % 12;
+          this.tf(p.x, p.y, p.rot, 1, 1); cx.globalAlpha = Math.min(1, a * 2.2);
+          cx.drawImage(im, fi * fh, 0, fh, fh, -p.size / 2, -p.size / 2, p.size, p.size);
           break;
         }
         case 'ember': { // 불티: 빛 번짐 + 진행 방향 꼬리 (더하기)

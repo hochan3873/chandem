@@ -12,6 +12,24 @@ const imgOk = (im) => !!(im && im.complete && im.naturalWidth > 0);
 const CAST_MS = 700;
 const rmOn = () => typeof document !== 'undefined' && !!document.body && document.body.classList.contains('rm'); // 연출 줄이기
 const rnd = (a, b) => a + Math.random() * (b - a);
+const eBack = (k) => { const s = 1.7; k -= 1; return 1 + k * k * ((s + 1) * k + s); };
+// 미리 구운 빛 덩어리 (그라데이션을 매 프레임 만들지 않게) — 서명훈 얼음 · 저주
+const GLOWS = {};
+function glowSpr(name, stops) {
+  if (GLOWS[name]) return GLOWS[name];
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d');
+  const gr = x.createRadialGradient(48, 48, 0, 48, 48, 48); for (const [o, col] of stops) gr.addColorStop(o, col);
+  x.fillStyle = gr; x.fillRect(0, 0, 96, 96); return (GLOWS[name] = c);
+}
+const gIce = () => glowSpr('ice', [[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(170,240,255,0.8)'], [0.6, 'rgba(60,170,255,0.25)'], [1, 'rgba(0,80,200,0)']]);
+const gCurse = () => glowSpr('curse', [[0, 'rgba(255,240,255,1)'], [0.22, 'rgba(255,90,230,0.85)'], [0.55, 'rgba(150,30,220,0.3)'], [1, 'rgba(60,0,120,0)']]);
+const gBand = () => { // 얼음 위를 쓱 지나가는 빛 띠 (가로 그라데이션)
+  if (GLOWS.band) return GLOWS.band; if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas'); c.width = 64; c.height = 8; const x = c.getContext('2d'); const gr = x.createLinearGradient(0, 0, 64, 0);
+  gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 8); return (GLOWS.band = c);
+};
+const ICE_NEED = (HEROES.myunghoon && HEROES.myunghoon.ice && HEROES.myunghoon.ice.need) || 3;
 
 // 스킬 시전 동작: 멤버마다 다른 몸짓 (k = 0→1 · 0.7초) — dx · dy · 기울기 · 가로 · 세로 배율
 const POSE = {
@@ -88,13 +106,33 @@ export class KitFx {
       case 'censor': if (!busy) fx.text(e.x, e.y, '검열 완료', '#ff4f6a', 11, 0.7); break;
       case 'pixelPop': this.add('pix', { x: e.x, y: e.y, dur: 0.5, n: 14, r: e.r }); fx.ring(e.x, e.y, 6, e.r, 0.35, '#ff4fb0', 3); break;
       case 'shredSpread': if (!busy) this.add('line', { x: e.x, y: e.y, x2: e.x2, y2: e.y2, col: '#ff4fb0', dash: true, dur: 0.25 }); break;
-      case 'iceFreeze': fx.burst(e.x, e.y, busy ? 4 : 9, '#cff6ff', 140, 'shard', 4, 0.45, 200); if (!busy) fx.text(e.x, e.y - 14, '꽁꽁!', '#9ff0ff', 12, 0.7); break;
+      case 'iceFreeze': { // 얼음 3겹 → 꽁꽁: 서리가 확 번지며 얼음 블록이 솟는다 (블록은 drawIce) · 조각 몇 개 튐
+        const few = busy || rmOn();
+        this.add('freezein', { x: e.x, y: e.y, r: e.r || 16, dur: 0.45 });
+        this.iceShards(e.x, e.y + 6, few ? 3 : 6, 150, -120);
+        if (!busy) fx.text(e.x, e.y - 22, '꽁꽁!', '#bff6ff', 14, 0.7);
+        break;
+      }
       case 'fuseSet': break;
       case 'redcard': this.add('redcard', { x: e.x, y: e.y, r: e.r, hx: e.hx, hy: e.hy, dur: 0.75 }); break;
       case 'sendOff': this.add('sendoff', { x: e.x, y0: e.y0, y1: e.y1, dur: 0.6 }); fx.text(e.x, e.y1 - 40, '퇴장!', '#ff3b4f', 20, 1.1); fx.addShake(5); break;
       case 'squint': this.add('squint', { h: g.heroes.find((o) => o.id === e.hero), list: e.list, dur: 0.9 }); break;
-      case 'skyBolt': this.add('skybolt', { x: e.x, y: e.y, frozen: e.frozen, dur: 0.45, seed: Math.random() * 99 }); fx.flash('#d8c8ff', 0.12); break;
-      case 'shatter': fx.burst(e.x, e.y, busy ? 6 : 16, '#dff8ff', 220, 'shard', 5, 0.55, 260); fx.ring(e.x, e.y, 8, e.r, 0.4, '#9ff0ff', 4); break;
+      case 'skyBolt': { // 실눈 저격: 하늘에서 굵은 욕 벼락 (빛 세 겹 · 곁가지 · 땅 충격) — 이미 얼어 있으면 하늘색
+        const rm = rmOn();
+        this.add('skybolt', { x: e.x, y: e.y, frozen: e.frozen, dur: 0.5, seed: Math.random() * 99, rm });
+        fx.flash(e.frozen ? '#d8f6ff' : '#e0c8ff', rm ? 0.06 : 0.14); if (!rm) fx.addShake(4);
+        const n = busy || rm ? 4 : 9, col = e.frozen ? '#e8fbff' : '#f0c8ff';
+        for (let i = 0; i < n; i++) { const a = -Math.PI * rnd(0.05, 0.95), s = rnd(120, 260); fx.part('spark', e.x, e.y + 8, Math.cos(a) * s, Math.sin(a) * s, rnd(0.25, 0.45), rnd(2.5, 3.5), i % 3 ? col : '#ffffff', { drag: 2.5, grav: 300 }); }
+        break;
+      }
+      case 'shatter': { // 언 진상에 벼락 → 얼음이 산산조각: 폭발 그림 · 조각 · 서리 고리
+        const rm = rmOn(), few = busy || rm;
+        this.add('iceburst', { x: e.x, y: e.y, s: Math.max(90, e.r * 2.4), dur: 0.42, rot: Math.random() * TAU });
+        this.iceShards(e.x, e.y, few ? 5 : 11, 260, -140);
+        fx.ring(e.x, e.y, 8, e.r, 0.4, '#bff4ff', 4); if (!rm) fx.addShake(5);
+        fx.text(e.x, e.y - 34, '와장창!', '#dff8ff', 15, 0.8);
+        break;
+      }
       case 'encore': this.add('mirror', { x: e.x, y: e.y, r: e.r, hx: e.hx, hy: e.hy, dur: 3.4 }); break;
       case 'harley': if (e.drift) this.add('vroom', { x: e.x, y: e.y, tx: e.tx, ty: e.ty, dur: 0.35 }); break;
       case 'driftEnd': fx.burst(e.x, e.y, 10, 'rgba(200,200,210,0.8)', 120, 'puff', 10, 0.6); break;
@@ -285,15 +323,68 @@ export class KitFx {
       if (Math.random() < 0.3) { const a = Math.random() * TAU; this.fx.part('note', q.x + Math.cos(a) * q.r, q.y + 30 + Math.sin(a) * q.r * 0.5 - 20, 0, -40, 0.6, 10, '#d9c2ff'); }
     }
   }
+  // ── 서명훈 얼음 ──
+  //  쌓이는 서리(1~2겹): 발밑에서 얼음 조각이 겹마다 자라고 몸에 차가운 빛 · 머리 위 ◆◆◇ 표시
+  //  꽁꽁(빙결): 그린 얼음 블록이 톡 솟아 진상을 가둔다 → 빛 띠가 쓱 지나감 · 서리 반짝 → 녹기 직전 금 · 떨림 → 깨지며 조각
+  iceShards(x, y, n, sp, up) {
+    for (let i = 0; i < n; i++) { const a = rnd(0, TAU), s = rnd(0.4, 1) * sp; const p = this.fx.part('iceshard', x + rnd(-8, 8), y + rnd(-10, 6), Math.cos(a) * s, Math.sin(a) * s * 0.8 + up, rnd(0.45, 0.75), rnd(12, 20), (Math.random() * 12) | 0, { grav: 620, drag: 0.8 }); if (p) p.vr = rnd(-14, 14); }
+  }
+  iceBreak(x, y, sz, few) {
+    this.add('iceburst', { x, y, s: sz * 1.5, dur: 0.34, rot: Math.random() * TAU });
+    this.iceShards(x, y, few ? 3 : 7, 190, -150);
+  }
+  drawIce(e, sz, now, many, rm) {
+    const cx = this.cx, R = this.R, feet = e.y + sz * 0.3, frozen = e.frozenT > 0 && e.stunT > 0;
+    if (!frozen) { if (e._kfFrz) { e._kfFrz = false; this.iceBreak(e.x, feet - sz * 0.45, sz, many || rm); } } else if (!e._kfFrz) { e._kfFrz = true; e._kfFrzAt = now; }
+    const blk = R.images.vfx_ice_block, sh = R.images.vfx_ice_shards, gi = gIce();
+    if (frozen) {
+      const t = now - e._kfFrzAt, left = Math.min(e.frozenT, e.stunT), pop = t < 0.22 ? Math.max(0.05, eBack(t / 0.22)) : 1;
+      const wob = left < 0.4 && !rm ? Math.sin(now * 70) * 1.4 : 0, S = sz * 2.05;
+      if (gi) { R.tf(e.x, e.y - sz * 0.05, 0, 1, 1.25); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.35 + (t < 0.25 ? (1 - t / 0.25) * 0.6 : 0); const r = sz * 0.62; cx.drawImage(gi, -r, -r, r * 2, r * 2); cx.globalCompositeOperation = 'source-over'; } // 몸에 차가운 빛 (막 얼 때 번쩍)
+      if (imgOk(blk)) { R.tf(e.x + wob, feet + 2, 0, 0.6 + 0.4 * pop, pop); cx.globalAlpha = 0.96; cx.drawImage(blk, -S / 2, -S * 0.81, S, S); } else { R.tf(e.x + wob, feet, 0, 1, pop); cx.globalAlpha = 0.45; cx.fillStyle = '#bff2ff'; cx.fillRect(-sz * 0.38, -sz * 0.95, sz * 0.76, sz * 0.9); }
+      if (!rm && t > 0.2) { // 빛 띠가 블록 위를 비스듬히 쓱 (1.7초마다)
+        const ph = ((now + (e.phase || 0)) % 1.7) / 1.7, band = gBand();
+        if (ph < 0.3 && band) { const q = ph / 0.3, bw = S * 0.36, bh = S * 0.6; R.tf(e.x + wob, feet - S * 0.45, 0, 1, 1); cx.save(); cx.beginPath(); cx.rect(-bw / 2, -bh / 2, bw, bh); cx.clip(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * Math.sin(q * Math.PI); cx.rotate(-0.6); cx.drawImage(band, -bw * 1.2 + q * bw * 2.4 - 10, -bh, 20, bh * 2); cx.restore(); }
+      }
+      if (left < 0.45 && t > 0.2) { // 녹기 직전: 금이 쩍쩍
+        const q = c01((0.45 - left) / 0.45), L = S * 0.25 * q; R.tf(e.x + wob, feet - S * 0.42, 0, 1, 1); cx.globalAlpha = 0.9; cx.strokeStyle = '#ffffff'; cx.lineWidth = 1.6; cx.lineCap = 'round';
+        cx.beginPath(); cx.moveTo(-S * 0.1, -S * 0.12); cx.lineTo(-S * 0.1 + L * 0.3, -S * 0.12 + L * 0.45); cx.lineTo(-S * 0.1 + L * 0.1, -S * 0.12 + L * 0.8); cx.moveTo(S * 0.08, S * 0.02); cx.lineTo(S * 0.08 - L * 0.35, S * 0.02 - L * 0.3); cx.lineTo(S * 0.08 - L * 0.2, S * 0.02 - L * 0.7); cx.stroke();
+      }
+      if (!many && !rm && Math.random() < 0.05) this.fx.part('spark', e.x + rnd(-sz * 0.35, sz * 0.35), feet - rnd(sz * 0.2, sz * 1.1), 0, -18, 0.5, 2.2, '#f0fdff'); // 서리 반짝
+      cx.globalAlpha = 1;
+      return;
+    }
+    if (!(e.iceT > 0 && e.iceN > 0)) return;
+    const n = Math.min(ICE_NEED - 1, e.iceN | 0), fade = c01(e.iceT / 0.5);
+    if (e._kfIceN !== n) { if (n > (e._kfIceN | 0)) e._kfIceAt = now; e._kfIceN = n; }
+    const grow = c01((now - (e._kfIceAt || 0)) / 0.16), kk = n / Math.max(1, ICE_NEED - 1);
+    if (gi) { // 발밑 서리 · 몸에 냉기
+      cx.globalCompositeOperation = 'lighter'; R.tf(e.x, feet - 2, 0, 1, 0.32); cx.globalAlpha = (0.35 + 0.3 * kk) * fade; let r = sz * (0.45 + 0.15 * kk); cx.drawImage(gi, -r, -r, r * 2, r * 2);
+      R.tf(e.x, e.y - sz * 0.08, 0, 1, 1.2); cx.globalAlpha = 0.16 * n * fade; r = sz * 0.5; cx.drawImage(gi, -r, -r, r * 2, r * 2); cx.globalCompositeOperation = 'source-over';
+    }
+    if (imgOk(sh)) { // 발밑에서 얼음 조각이 자란다 (겹마다 2개씩 · 막 쌓인 겹은 톡)
+      const fh = sh.naturalHeight, spots = [[-0.24, -0.35, 0], [0.24, 0.35, 11], [-0.08, -0.12, 8], [0.1, 0.15, 0]];
+      for (let i = 0; i < Math.min(spots.length, n * 2); i++) {
+        const [ox, rot, fi] = spots[i], last = i >= (n - 1) * 2, gsc = last ? Math.max(0.05, eBack(grow)) : 1, s0 = sz * (0.2 + 0.06 * n) * gsc;
+        R.tf(e.x + ox * sz, feet + 3, rot, 1, 1); cx.globalAlpha = 0.95 * fade; cx.drawImage(sh, fi * fh, 0, fh, fh, -s0 / 2, -s0 * 0.92, s0, s0);
+      }
+    }
+    const top = feet - sz * 1.0, w = 9; // 머리 위 얼음 겹 표시 ◆◆◇ (꽉 차면 꽁꽁)
+    for (let i = 0; i < ICE_NEED; i++) {
+      const on = i < n, x = e.x + (i - (ICE_NEED - 1) / 2) * w, pp = on && i === n - 1 ? Math.max(0.05, eBack(grow)) : 1;
+      R.tf(x, top - 4, Math.PI / 4, pp, pp); cx.globalAlpha = fade;
+      cx.fillStyle = on ? '#bff6ff' : 'rgba(10,30,60,0.6)'; cx.strokeStyle = on ? '#ffffff' : 'rgba(170,230,255,0.8)'; cx.lineWidth = 1.2; cx.fillRect(-3, -3, 6, 6); cx.strokeRect(-3, -3, 6, 6);
+    }
+    cx.globalAlpha = 1;
+  }
   // 진상 상태: 화상 불꽃 · 얼음 · 장미 송이 · 검열 띠 · 춤
   drawStatus(g, now) {
-    const cx = this.cx, R = this.R, many = g.enemies.length > 60;
+    const cx = this.cx, R = this.R, many = g.enemies.length > 60, rm = rmOn();
     for (const e of g.enemies) {
-      if (e.dead) continue;
+      if (e.dead) { if (e._kfFrz) { e._kfFrz = false; this.iceBreak(e.x, e.y - (e.def.size || 50) * 0.1, e.def.size || 50, many || rm); } continue; } // 언 채로 쓰러짐 → 깨짐
       const sz = e.def.size || 50, top = e.y - sz * 0.55;
       if (e.burnT > 0) this.drawBurn(e, sz, now, many);
-      if (e.frozenT > 0 && e.stunT > 0) { R.tf(e.x, e.y - sz * 0.15, 0, 1, 1); cx.globalAlpha = 0.45; cx.fillStyle = '#bff2ff'; cx.fillRect(-sz * 0.38, -sz * 0.45, sz * 0.76, sz * 0.8); cx.globalAlpha = 0.9; cx.strokeStyle = '#ffffff'; cx.lineWidth = 2; cx.strokeRect(-sz * 0.38, -sz * 0.45, sz * 0.76, sz * 0.8); cx.beginPath(); cx.moveTo(-sz * 0.3, -sz * 0.35); cx.lineTo(-sz * 0.1, -sz * 0.4); cx.stroke(); }
-      else if (e.iceT > 0 && e.iceN > 0) { for (let i = 0; i < Math.min(3, e.iceN); i++) { R.tf(e.x - 10 + i * 10, top - 6, now * 2, 1, 1); cx.globalAlpha = 0.95; cx.strokeStyle = '#9ff0ff'; cx.lineWidth = 1.6; cx.beginPath(); for (let j = 0; j < 3; j++) { const a = (j / 3) * Math.PI; cx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4); cx.lineTo(-Math.cos(a) * 4, -Math.sin(a) * 4); } cx.stroke(); } }
+      if (e.frozenT > 0 || e._kfFrz || (e.iceT > 0 && e.iceN > 0)) this.drawIce(e, sz, now, many, rm);
       if (e.roseT > 0 && e.roseN > 0) for (let i = 0; i < e.roseN; i++) { R.tf(e.x - 7 * (e.roseN - 1) / 2 + i * 7, top - 14, 0, 1, 1); cx.globalAlpha = 1; cx.fillStyle = '#ff3d6e'; cx.beginPath(); cx.arc(0, 0, 3.4, 0, TAU); cx.fill(); cx.fillStyle = '#2e9e4a'; cx.fillRect(-0.7, 3, 1.4, 4); }
       if (e.censorT > 0) { R.tf(e.x, e.y - sz * 0.42, 0, 1, 1); cx.globalAlpha = 0.92; cx.fillStyle = '#111'; cx.fillRect(-sz * 0.3, -5, sz * 0.6, 10); cx.fillStyle = '#ff4fb0'; cx.font = `900 8px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('검열', 0, 0.5); }
       if (e.danceT > 0 && !many && Math.random() < 0.06) this.fx.part('note', e.x + (Math.random() - 0.5) * 20, top, (Math.random() - 0.5) * 30, -40, 0.6, 9, '#ffb3f0');
@@ -423,18 +514,66 @@ def('line', 'top', function (o, k) { const cx = this.cx; this.R.world(); cx.glob
 def('redcard', 'top', function (o, k) { // 운영진: 거대한 레드카드가 빙글 돌며 꽂힌다 → 빨간 충격 고리
   const cx = this.cx, fall = Math.min(1, k / 0.45), x = o.hx + (o.x - o.hx) * eOut(fall), y = o.hy + (o.y - o.hy) * fall - Math.sin(fall * Math.PI) * 80;
   this.R.tf(x, y, (1 - fall) * 9, 1.6 - 0.4 * fall, 1.6 - 0.4 * fall); cx.globalAlpha = k < 0.85 ? 1 : (1 - k) / 0.15;
-  cx.fillStyle = '#e8102a'; cx.strokeStyle = '#fff'; cx.lineWidth = 2; cx.fillRect(-11, -15, 22, 30); cx.strokeRect(-11, -15, 22, 30);
+  const im = this.R.images.w_card_r;
+  if (imgOk(im)) cx.drawImage(im, -26, -26, 52, 52); else { cx.fillStyle = '#e8102a'; cx.strokeStyle = '#fff'; cx.lineWidth = 2; cx.fillRect(-11, -15, 22, 30); cx.strokeRect(-11, -15, 22, 30); } // 광택 레드카드 그림 (없으면 코드 네모)
   if (k > 0.45) { this.R.tf(o.x, o.y + 6, 0, 1, 0.45); const q = (k - 0.45) / 0.55; cx.globalAlpha = 1 - q; cx.strokeStyle = '#ff2a3a'; cx.lineWidth = 6; cx.beginPath(); cx.arc(0, 0, o.r * eOut(q), 0, TAU); cx.stroke(); }
 });
 def('sendoff', 'top', function (o, k) { const cx = this.cx; this.R.world(); cx.globalAlpha = 1 - k; cx.strokeStyle = '#ff3b4f'; cx.lineWidth = 8; cx.lineCap = 'round'; cx.beginPath(); cx.moveTo(o.x, o.y0); cx.lineTo(o.x, o.y0 + (o.y1 - o.y0) * eOut(Math.min(1, k * 2))); cx.stroke(); });
 def('squint', 'top', function (o, k) { // 서명훈 실눈: 머리 위에 실눈 두 줄 번쩍 + 표적마다 조준 표시
   const h = o.h, cx = this.cx; if (h) { this.R.tf(h.x, h.y - 96, 0, 1, 1); cx.globalAlpha = Math.sin(k * Math.PI); cx.strokeStyle = '#e0c3ff'; cx.lineWidth = 3; cx.lineCap = 'round'; cx.beginPath(); cx.moveTo(-16, 0); cx.lineTo(-5, -2); cx.moveTo(5, -2); cx.lineTo(16, 0); cx.stroke(); }
-  for (const t of o.list || []) { this.R.tf(t.x, t.y - 10, k * 3, 1, 1); cx.globalAlpha = 1 - k; cx.strokeStyle = '#b48cff'; cx.lineWidth = 2; cx.beginPath(); cx.arc(0, 0, 16 - 6 * k, 0, TAU); cx.moveTo(-20, 0); cx.lineTo(20, 0); cx.moveTo(0, -20); cx.lineTo(0, 20); cx.stroke(); }
+  for (const t of o.list || []) { // 조준: 네 귀퉁이 꺾쇠가 빙글 돌며 조여 들고 · 가운데 붉은 점
+    const q = eOut(c01(k / 0.5)), r = 30 - 14 * q, a = k < 0.75 ? 1 : (1 - k) / 0.25;
+    this.R.tf(t.x, t.y - 10, (1 - q) * 1.6, 1, 1); cx.globalAlpha = a; cx.lineCap = 'round';
+    for (const [w, col] of [[4.5, 'rgba(40,0,40,0.75)'], [2.2, '#ff6ae0']]) { cx.strokeStyle = col; cx.lineWidth = w; cx.beginPath(); for (let i = 0; i < 4; i++) { const an = i * Math.PI / 2 + Math.PI / 4, sx = Math.sign(Math.cos(an)), sy = Math.sign(Math.sin(an)), px = sx * r * 0.72, py = sy * r * 0.72; cx.moveTo(px - sx * 8, py); cx.lineTo(px, py); cx.lineTo(px, py - sy * 8); } cx.stroke(); }
+    cx.fillStyle = '#ff3a8a'; cx.beginPath(); cx.arc(0, 0, 2.6 + 1.2 * Math.sin(k * 30), 0, TAU); cx.fill();
+  }
 });
-def('skybolt', 'top', function (o, k) { // 하늘에서 내리꽂는 보라 욕 벼락 (지그재그) + "#@!%"
-  const cx = this.cx; this.R.world(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - k; cx.strokeStyle = o.frozen ? '#bff6ff' : '#c08cff'; cx.lineWidth = 5 * (1 - k) + 2;
-  cx.beginPath(); let x = o.x + 10, y = -10; cx.moveTo(x, y); for (let i = 1; i <= 7; i++) { y = (o.y / 7) * i; x = o.x + (i === 7 ? 0 : Math.sin(o.seed + i * 2.3) * 18); cx.lineTo(x, y); } cx.stroke();
-  cx.globalCompositeOperation = 'source-over'; cx.fillStyle = '#fff'; cx.font = `900 12px ${FONT}`; cx.textAlign = 'center'; cx.fillText('#@!%', o.x, o.y - 26 - k * 10);
+// 실눈 저격 벼락: 하늘에서 굵게 내리꽂는 지그재그 (넓은 보라 빛 → 자홍 몸통 → 흰 심 · 곁가지 2개 · 1/30초마다 모양이 바뀜) + 땅 충격 빛 · 고리 + 만화 욕 딱지
+def('skybolt', 'top', function (o, k, g, now) {
+  const cx = this.cx, R = this.R, fz = o.frozen, gl = fz ? gIce() : gCurse();
+  const strike = c01(k / 0.12), a = k < 0.35 ? 1 : 1 - (k - 0.35) / 0.65;
+  let s = Math.floor(o.seed * 1000 + Math.floor(now * 30) * 7.31) % 233280; const rn = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const n = 9, y0 = -20, yEnd = y0 + (o.y - y0) * strike, pts = [o.x + (rn() - 0.5) * 30, y0];
+  for (let i = 1; i < n; i++) { const yy = y0 + ((o.y - y0) / n) * i; if (yy > yEnd) break; pts.push(o.x + (rn() - 0.5) * 34 * (1 - i / n * 0.6), yy); }
+  pts.push(o.x, yEnd);
+  const path = (p) => { cx.beginPath(); cx.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) cx.lineTo(p[i], p[i + 1]); };
+  R.world(); cx.lineJoin = 'round'; cx.lineCap = 'round';
+  const W = 1 + (k < 0.15 ? 0.6 : 0) * (1 - k / 0.15);
+  cx.globalAlpha = a * 0.75; cx.strokeStyle = 'rgba(30,0,40,0.85)'; cx.lineWidth = 11 * W; path(pts); cx.stroke(); // 어두운 테 (밝은 바닥에서도)
+  cx.globalCompositeOperation = 'lighter';
+  if (!o.rm) { cx.globalAlpha = a * 0.35; cx.strokeStyle = fz ? 'rgb(90,200,255)' : 'rgb(190,60,255)'; cx.lineWidth = 24 * W; path(pts); cx.stroke(); }
+  cx.globalAlpha = a; cx.strokeStyle = fz ? 'rgb(120,220,255)' : 'rgb(230,70,220)'; cx.lineWidth = 7 * W; path(pts); cx.stroke();
+  cx.strokeStyle = '#ffffff'; cx.lineWidth = 2.6 * W; path(pts); cx.stroke();
+  if (pts.length > 8) for (let b = 0; b < 2; b++) { // 곁가지
+    const i = 2 * (1 + Math.floor(rn() * (pts.length / 2 - 2))), bx = pts[i], by = pts[i + 1], sd = b ? 1 : -1, bp = [bx, by, bx + sd * (10 + rn() * 12), by + 12 + rn() * 10, bx + sd * (18 + rn() * 16), by + 28 + rn() * 14];
+    cx.globalAlpha = a * 0.8; cx.strokeStyle = fz ? 'rgb(150,230,255)' : 'rgb(220,110,255)'; cx.lineWidth = 3; path(bp); cx.stroke(); cx.strokeStyle = '#fff'; cx.lineWidth = 1; path(bp); cx.stroke();
+  }
+  if (strike >= 1 && gl) { // 땅 충격: 빛 덩어리 · 납작한 빛 · 퍼지는 고리
+    const q = c01((k - 0.12) / 0.5), r = 34 + 26 * eOut(q);
+    R.tf(o.x, o.y, 0, 1, 1); cx.globalAlpha = a * 0.9; cx.drawImage(gl, -r, -r, r * 2, r * 2);
+    R.tf(o.x, o.y + 10, 0, 1, 0.35); cx.globalAlpha = a * 0.7; cx.drawImage(gl, -r * 1.6, -r * 1.6, r * 3.2, r * 3.2);
+    cx.globalAlpha = (1 - q) * 0.9; cx.strokeStyle = fz ? '#cff6ff' : '#ff9af0'; cx.lineWidth = 4 * (1 - q) + 1; cx.beginPath(); cx.arc(0, 0, 12 + 46 * eOut(q), 0, TAU); cx.stroke();
+  }
+  cx.globalCompositeOperation = 'source-over';
+  if (k > 0.1) { // 만화 욕 딱지: 톡 커졌다가 위로
+    const q = c01((k - 0.1) / 0.2), sc = Math.max(0.05, eBack(q)), ty = o.y - 34 - eOut(c01((k - 0.1) / 0.9)) * 14;
+    R.tf(o.x + 14, ty, -0.12, sc, sc); cx.globalAlpha = c01(a * 1.4);
+    cx.fillStyle = 'rgb(28,0,30)'; cx.strokeStyle = fz ? '#bff6ff' : '#ff6ae0'; cx.lineWidth = 2; cx.beginPath(); for (let i = 0; i < 14; i++) { const an = i * TAU / 14, rr = i % 2 ? 11 : 16; cx.lineTo(Math.cos(an) * rr * 1.45, Math.sin(an) * rr); } cx.closePath(); cx.fill(); cx.stroke();
+    cx.font = `900 12px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = fz ? '#dff8ff' : '#ffe14d'; cx.fillText('#@!%', 0, 0.5);
+  }
+});
+def('freezein', 'top', function (o, k) { // 꽁꽁: 하얀 서리 섬광 + 퍼지는 서리 고리 (블록 자체는 drawIce)
+  const cx = this.cx, R = this.R, gl = gIce(); if (!gl) return;
+  cx.globalCompositeOperation = 'lighter';
+  R.tf(o.x, o.y, 0, 1, 1); cx.globalAlpha = (1 - k) * 0.95; const r = 22 + 30 * eOut(k); cx.drawImage(gl, -r, -r, r * 2, r * 2);
+  R.tf(o.x, o.y + o.r + 14, 0, 1, 0.35); cx.globalAlpha = (1 - k) * 0.9; cx.strokeStyle = '#dff8ff'; cx.lineWidth = 5 * (1 - k) + 1; cx.beginPath(); cx.arc(0, 0, 10 + 50 * eOut(k), 0, TAU); cx.stroke();
+  cx.globalCompositeOperation = 'source-over';
+});
+def('iceburst', 'top', function (o, k) { // 얼음 깨짐: 그린 폭발 그림이 확 커지며 사라짐 (처음엔 더하기 한 겹 더)
+  const cx = this.cx, R = this.R, im = R.images.vfx_ice_burst; if (!imgOk(im)) return;
+  const sc = 0.45 + 0.75 * eOut(k), S = o.s * sc, a = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
+  R.tf(o.x, o.y, o.rot || 0, 1, 1); cx.globalAlpha = a; cx.drawImage(im, -S / 2, -S / 2, S, S);
+  if (k < 0.3) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = (1 - k / 0.3) * 0.8; cx.drawImage(im, -S * 0.35, -S * 0.35, S * 0.7, S * 0.7); cx.globalCompositeOperation = 'source-over'; }
 });
 def('mirror', 'top', function (o, k, g, now) { // 김도훈 앵콜: 내려오는 미러볼 + 무지개 조명 빔이 무대를 훑는다
   const cx = this.cx, drop = eOut(Math.min(1, k * 6)), by = 20 + (o.y - o.r - 60) * drop;
