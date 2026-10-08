@@ -302,7 +302,7 @@ body.rm .hw-intro .hi-css *, body.rm .hw-intro .hi-title { animation: none !impo
 
 /* 안내 팝업: 기간 · 받는 것 · 랭킹 · 사탕 */
 .hw-helppop .hw-help em { font-style: normal; color: #ffb547; font-weight: 900; }
-.hw-helppop .hh-why small span { display: block; margin-top: 3px; }
+.hw-helppop .hh-why small span, .hw-helppop .hh-sig small span { display: block; margin-top: 3px; }
 .hw-helppop .hh-rank ul { margin: 4px 0 0; padding: 0; list-style: none; font-size: 12px; }
 .hw-helppop .hh-rank li { display: flex; gap: 6px; padding: 2px 0; }
 .hw-helppop .hh-rank li b { min-width: 52px; color: #ffd27a; }

@@ -2,6 +2,7 @@
 //  맵 분위기: 골목 낙엽 · 술집 불빛 깜빡임 · 묘지 안개 · 축제 도깨비불 + 보름달
 //  진상 기술: 귀신 잔상 · 좀비 묘비(다시 일어나기) · 저승사자 명부(멤버 머리 위 초 읽기) · 박쥐 떼 변신 · 호박 폭탄 · 마녀 물약 · 독 웅덩이 예고
 //  움직임 줄이기(body.rm): 떨어지는 · 떠다니는 것은 멈춘 그림만 (깜빡임 없음)
+import { wickOf } from './hw-sim.js';
 const TAU = Math.PI * 2;
 const S = { amb: [], ghosts: [], bats: [], tombs: [], pops: [], warns: [], moonA: 0, flick: 0, flickT: 0, seed: 1 };
 const rnd = () => { S.seed = (S.seed * 16807) % 2147483647; return S.seed / 2147483647; };
@@ -33,6 +34,7 @@ function batShape(cx, x, y, s, flap, col) {
   cx.beginPath(); cx.arc(0, 0, 3, 0, TAU); cx.fill();
   cx.restore();
 }
+function tri(cx, x, y, r, col) { cx.fillStyle = col; cx.strokeStyle = 'rgba(60,30,0,0.9)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(x, y - r); cx.lineTo(x + r * 0.95, y + r * 0.7); cx.lineTo(x - r * 0.95, y + r * 0.7); cx.closePath(); cx.fill(); cx.stroke(); }
 function pumpkinIcon(cx, x, y, r) {
   cx.fillStyle = '#ff8a1f'; cx.strokeStyle = '#7a3500'; cx.lineWidth = 1.2;
   for (const dx of [-0.45, 0, 0.45]) { cx.beginPath(); cx.ellipse(x + dx * r, y, r * 0.55, r * 0.8, 0, 0, TAU); cx.fill(); cx.stroke(); }
@@ -110,14 +112,31 @@ export function drawHw(R, g, t, layer) {
         cx.font = 'bold 11px sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(20,10,0,0.85)';
         const txt = left > 0 ? '🍺'.repeat(Math.min(4, left)) : '마지막!'; cx.strokeText(txt, e.x, y); cx.fillStyle = left > 0 ? '#ffd23f' : '#ff7a5a'; cx.fillText(txt, e.x, y);
       }
-      if (e.hwLit) { // H2: 불 붙은 호박등 — 도화선 불꽃 + 단단한 껍질 테
+      if (e.hwLit) { // H2: 불 붙은 호박등 — 도화선 불꽃 + 단단한 껍질 테 (H9 겹심지: 남은 심지만큼 불꽃)
         const fy = e.y - e.def.size * 0.95, fl = rm ? 1 : 0.75 + 0.25 * Math.sin(t * 30 + e.uid);
-        wisp(cx, e.x + 4, fy, 10 * fl, 0.95, 'rgba(255,190,60,A)');
+        const wk = g.hw && g.hw.sig && g.hw.sig.wick ? Math.max(1, wickOf(g) - (e.hwWickN | 0)) : 1;
+        for (let i = 0; i < wk; i++) wisp(cx, e.x + 4 + (i - (wk - 1) / 2) * 14, fy - (i % 2) * 4, 10 * fl, 0.95, 'rgba(255,190,60,A)');
+        if (wk > 1) { cx.font = 'bold 11px sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(30,10,0,0.9)'; cx.strokeText(`심지 ${wk}`, e.x, fy - 14); cx.fillStyle = '#ffd23f'; cx.fillText(`심지 ${wk}`, e.x, fy - 14); }
         cx.strokeStyle = 'rgba(255,140,30,0.75)'; cx.lineWidth = 2.5; cx.setLineDash([4, 4]);
         cx.beginPath(); cx.arc(e.x, e.y - e.def.size * 0.35, e.def.size * 0.42, 0, TAU); cx.stroke(); cx.setLineDash([]);
       } else if (e.hwCracked && !e.dead && e.type === 'hw_pumpkin') { // 꺼진 호박등: 금 간 껍질
         cx.strokeStyle = 'rgba(60,20,0,0.85)'; cx.lineWidth = 2; const cy = e.y - e.def.size * 0.4;
         cx.beginPath(); cx.moveTo(e.x - 8, cy - 10); cx.lineTo(e.x - 2, cy - 2); cx.lineTo(e.x - 7, cy + 4); cx.lineTo(e.x + 1, cy + 10); cx.stroke();
+      }
+      if (g.hw && g.hw.sig && g.hw.sig.id === 'pyramid') { // H4 다단계 피라미드: 영입 예고(보라 원) · 하부 금빛 줄 · 윗선 마녀 금빛 삼각형
+        const S0 = g.hw.sig, u = e.hwUp, hy = e.y - e.def.size * 0.55;
+        if (e.hwPyW > 0 && e.hwPyMax) { const k = 1 - e.hwPyW / e.hwPyMax; cx.strokeStyle = 'rgba(200,120,255,0.8)'; cx.fillStyle = `rgba(160,80,255,${0.06 + 0.12 * k})`; cx.lineWidth = 2; cx.beginPath(); cx.ellipse(e.x, e.y, S0.r, S0.r * 0.55, 0, 0, TAU); cx.fill(); cx.stroke(); cx.lineWidth = 3; cx.beginPath(); cx.ellipse(e.x, e.y, S0.r * k, S0.r * 0.55 * k, 0, 0, TAU); cx.stroke(); }
+        if (u && !u.dead && u.uid === e.hwUpUid) {
+          cx.strokeStyle = 'rgba(255,205,60,0.75)'; cx.lineWidth = 2; if (!rm) cx.lineDashOffset = -t * 30; cx.setLineDash([6, 5]);
+          cx.beginPath(); cx.moveTo(u.x, u.y - u.def.size * 0.55); cx.lineTo(e.x, hy); cx.stroke(); cx.setLineDash([]); cx.lineDashOffset = 0;
+          tri(cx, e.x, e.y - e.def.size * 0.95, 7, '#ffd23f');
+          cx.strokeStyle = 'rgba(255,205,60,0.55)'; cx.lineWidth = 2; cx.beginPath(); cx.arc(e.x, e.y - e.def.size * 0.35, e.def.size * 0.4, 0, TAU); cx.stroke();
+        }
+        if ((e.hwDownN | 0) > 0) { // 윗선: 큰 금빛 삼각형 + 하부 수
+          const ty = e.y - e.def.size * 1.02; tri(cx, e.x, ty, 12, '#ffb020');
+          cx.font = 'bold 11px sans-serif'; cx.textAlign = 'center'; cx.fillStyle = '#3a1a00'; cx.fillText(String(e.hwDownN), e.x, ty + 7);
+          cx.strokeStyle = 'rgba(255,190,40,0.7)'; cx.lineWidth = 3; cx.beginPath(); cx.arc(e.x, e.y - e.def.size * 0.35, e.def.size * 0.45, 0, TAU); cx.stroke();
+        } else if (e.hwBustT > g.t) { cx.font = 'bold 11px sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(30,0,10,0.9)'; cx.strokeText('파산', e.x, e.y - e.def.size * 0.95); cx.fillStyle = '#ff7a8a'; cx.fillText('파산', e.x, e.y - e.def.size * 0.95); }
       }
       if (e.hwBat > 0) { // 드라큘라 박쥐 변신: 박쥐 떼가 소용돌이
         const n = 14;
@@ -172,6 +191,10 @@ export function hwEvent(C, g, e, loud) {
     case 'hwRise': fx.text(e.x, e.y - 20, '부활!', '#8fe85a', 15, 1); fx.burst(e.x, e.y, 10, '#8fe85a', 110, 'spark', 4, 0.5); if (loud && C.A.sfx.hit) C.A.sfx.hit(); break;
     case 'hwNoRise': fx.text(e.x, e.y, e.by === 'burn' ? '활활! 못 일어남' : e.by === 'censor' ? '검열! 못 일어남' : e.by === 'hang' ? '해장 완료!' : e.by === 'tired' ? '뻗었다!' : '장미! 못 일어남', '#ffd23f', 11, 0.9); break;
     case 'hwSnuff': fx.text(e.x, e.y - 10, e.by === 'cut' ? '도화선 끊김!' : '불 꺼짐!', '#ffd23f', 13, 0.9); fx.burst(e.x, e.y, 12, '#5a3a20', 110, 'puff', 5, 0.5); fx.burst(e.x, e.y + 14, 8, '#ff8a1f', 130, 'shard', 4, 0.5); break;
+    case 'hwWick': fx.text(e.x, e.y - 14, e.left > 0 ? `심지 하나 끊김! (남은 ${e.left})` : '심지 끊김!', '#ffd23f', 12, 0.9); fx.burst(e.x, e.y, 8, '#ff8a1f', 110, 'spark', 4, 0.4); break;
+    case 'hwRecruitWarn': fx.text(e.x, e.y - 24, '하부 영입 중…', '#d6a0ff', 12, 0.9); break;
+    case 'hwRecruit': fx.text(e.x, e.y - 24, `하부 ${e.n}명 영입!`, '#ffd23f', 13, 1); fx.ring(e.x, e.y + 30, 10, 120, 0.5, '#ffcf40', 3); for (const o of e.to || []) fx.burst(o.x, o.y, 6, '#ffd23f', 80, 'spark', 3, 0.4); if (loud && C.A.sfx.warn) C.A.sfx.warn(); break;
+    case 'hwBust': fx.text(e.x, e.y - 20, e.n ? `고발! 피라미드 붕괴 (${e.n}명)` : '고발!', '#ff7a8a', 15, 1.2); fx.burst(e.x, e.y, 18, '#ffd23f', 160, 'shard', 5, 0.6); fx.ring(e.x, e.y + 30, 10, 90, 0.4, '#ff7a8a', 4); fx.addShake && fx.addShake(3); break;
     case 'hwBoom': fx.text(e.x, e.y - 40, '호박등 펑!', '#ff7a2a', 16, 1); fx.flash && fx.flash('#ff6a00', 0.18); fx.addShake && fx.addShake(4); break;
     case 'hwDrain': if (!rm) fx.part('heart', e.x, e.y, 0, -40, 0.5, 6, '#c01030'); break;
     case 'hwPhaseIn': fx.burst(e.x, e.y, 10, '#bfe0ff', 70, 'puff', 6, 0.6); fx.text(e.x, e.y - 20, '사라졌다…', '#cfe8ff', 11, 0.8); break;

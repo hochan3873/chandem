@@ -306,3 +306,38 @@ test('H5 무한 야근 · H9 축제 등불: 특수 규칙이 판 정보에', () 
   assert.equal(H.eventDef(9).sig.id, 'lantern'); assert.deepEqual(H.eventDef(9).sig.heroes, ['staff', 'jieun', 'hanna']);
   for (const s of H.STAGES) for (const h of s.lead || []) assert.ok(!H.weakLeader(h), `H${s.n} 추천 대장 ${h}`);
 });
+
+test('H4 다단계 피라미드: 하부가 있으면 마녀 · 하부 껍질 · 고발 멤버가 맞히면 무너진다', () => {
+  const def = H.eventDef(4, [], ['soyoung', 'staff']);
+  assert.equal(def.sig.id, 'pyramid'); assert.deepEqual(def.sig.heroes, ['jiwon', 'ara', 'dragon']);
+  const g = S.createGame({ H: 760, rng: seeded(21), mode: 'stage', tempo: true, stage: def.stage, event: def, deck: [null, null, null, null, null, null], noWaves: true });
+  g.phase = 'wave'; g.spawnQ = []; g.spawnI = 0; S.spawnEnemy(g, 'hw_bat', 10, 10).speed = 0;
+  const w = S.spawnEnemy(g, 'hw_witch', 200, 200); w.speed = 0;
+  const gh = S.spawnEnemy(g, 'hw_ghost', 260, 230); gh.speed = 0;
+  for (let t = 0; t < 7 && !gh.hwUp; t += 1 / 60) { S.step(g, 1 / 60); g.events.length = 0; }
+  assert.equal(gh.hwUp, w, '하부로 영입'); assert.ok(w.hwDownN >= 1);
+  const gm = { id: 'gunman' };
+  let hp0 = gh.hp; S.damageEnemy(g, gh, 20, false, gm); assert.ok(hp0 - gh.hp <= 20 * def.sig.shell + 0.01, '하부 껍질');
+  hp0 = w.hp; S.damageEnemy(g, w, 20, false, gm); assert.ok(hp0 - w.hp <= 20 * def.sig.shell + 0.01, '윗선 마녀도 껍질');
+  const ara = { id: 'ara' };
+  S.damageEnemy(g, gh, 1, false, ara);
+  assert.equal(gh.hwUp, null, '고발: 줄이 끊김'); assert.ok(w.stunT > 0 && w.hwBustT > g.t, '마녀 기절 · 파산');
+  hp0 = gh.hp; S.damageEnemy(g, gh, 20, false, gm); assert.ok(hp0 - gh.hp > 15, '끊긴 하부는 제대로 맞음');
+});
+
+test('H9 겹심지: 덱의 도화선 멤버가 적을수록 심지가 많다', () => {
+  const run = (deck, slots) => {
+    const def = H.eventDef(9, [], deck);
+    const g = S.createGame({ H: 760, rng: seeded(31), mode: 'stage', tempo: true, stage: def.stage, event: def, deck: slots, noWaves: true });
+    g.phase = 'wave'; g.spawnQ = []; g.spawnI = 0; S.spawnEnemy(g, 'hw_bat', 10, 10).speed = 0;
+    const p = S.spawnEnemy(g, 'hw_pumpkin', 180, 200); p.speed = 0;
+    S.step(g, 1 / 60); g.events.length = 0;
+    assert.ok(p.hwLit);
+    const st = { id: 'staff' }; let n = 0;
+    while (p.hwLit && n < 6) { st.hwCutT = 0; S.damageEnemy(g, p, 1, false, st); n++; }
+    return n;
+  };
+  assert.equal(run(['staff', 'ara'], [null, null, null, null, null, null]), 3, '도화선 멤버 1명: 심지 3개');
+  assert.equal(run(['staff', 'jieun', 'ara'], [null, null, null, null, null, null]), 2, '2명: 2개');
+  assert.equal(run(['staff', 'jieun', 'hanna'], [null, null, null, null, null, null]), 1, '3명: 한 번에');
+});
