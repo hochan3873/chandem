@@ -80,7 +80,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
         if (c.attr) v = 4.2 + 1.6 * (g.attrCount[c.attr] || 0);
         else if (c.tag && c.tag !== 'boss') v = 2.6 + 1.7 * tagN(c.tag);
         else v = { dmg: 6.5, spd: 6, boss: 8, pierce: 7.5, crit: 5, gunExtra: 7, hp: g.base.hp / g.base.max < 0.6 ? 6 : 3.5, regen: 4.5, ult: 3.5, exp: 3.5, slow: 4, charmRes: 2.5,
-          tag_boss: g.stage % 5 === 0 ? 6.5 : 3.5, swarm: 5, risk_allin: g.base.hp / g.base.max > 0.75 ? 6.5 : 2, risk_overtime: g.wave <= 2 ? 4.5 : 2, risk_glass: 4.5, econ_bonus: 6 }[c.id] || 2;
+          tag_boss: g.stage % 5 === 0 ? 6.5 : 3.5, swarm: 5, tr_heavy: 5.5, tr_rapid: 5, tr_skill: SKILLS ? 7 : 1, tr_wall: g.base.hp / g.base.max < 0.7 ? 7 : 3, tr_hunt: 2.5 + 1.5 * tagN('ctrl'), tr_boom: g.cond && g.cond.swarm ? 7 : 4.5, jp_party: 11, jp_power: 11, jp_mom: SKILLS ? 11 : 6, risk_allin: g.base.hp / g.base.max > 0.75 ? 6.5 : 2, risk_overtime: g.wave <= 2 ? 4.5 : 2, risk_glass: 4.5, econ_bonus: 6 }[c.id] || 2;
       } else if (c.kind === 'filler') v = c.id === 'fillHeal' && g.base.hp / g.base.max < 0.6 ? 5 : 1;
       v += rng() * 1.5;
       if (v > bv) { bv = v; best = i; }
@@ -850,7 +850,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  판이 어떻게 흘러가나: 1초마다 입구 % · 살아 있는 진상 · 처치 → 이긴 판 남은 입구 분포 · 진 판 무너지는 데 걸린 시간 (입구 75% → 0) · 판 중 최저 입구
   //  봇: ref = 기준 플레이어 (스킬 1.5초 늦게 · 카드 40% 아무거나) · low = 스킬 가끔 (8초마다 한 번 확인) · beg = 초보 (스킬 안 씀 · 카드는 기준과 같게 · 총공지만 누름) · rnd = 스킬 안 씀 + 카드 막 고름
   //  강화 = 장 권장 + REF_PLUS (헬: + 헬 권장 가산) · 같은 덱 · 같은 시드
-  const BOTS = { ref: { label: '기준', o: {} }, low: { label: '스킬가끔', o: { skillEvery: 480, policy: 'mid' } }, beg: { label: '초보', o: { skills: false, policy: 'mid' } }, rnd: { label: '막고름', o: { skills: false, policy: 'random' } } };
+  const BOTS = { ref: { label: '기준', o: {} }, low: { label: '스킬가끔', o: { skillEvery: 480, policy: 'mid' } }, beg: { label: '초보', o: { skills: false, policy: 'mid' } }, rnd: { label: '막고름', o: { skills: false, policy: 'random' } }, smart: { label: '잘고름', o: { policy: 'smart' } }, rsk: { label: '막고름+스킬', o: { policy: 'random' } } };
   function botRun(s, bot, N, hell) {
     const c = D.chapterOf(s);
     let ids = c <= 6 ? balFor(c, s, hell) : C78;

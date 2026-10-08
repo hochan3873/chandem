@@ -4483,3 +4483,10 @@ body.rm #hud.hell .hellvibe { animation: none; } body.rm #hud.hell .hellvibe i {
 .show-v2 .hf-foot.up.has-max .hs-up b { font-size: calc(var(--u) * 17); }
 .show-v2 .hf-foot.up.has-max .hs-up .hs-cost { font-size: calc(var(--u) * 11); white-space: nowrap; padding: 0 calc(var(--u) * 5); }
 .show-v2 .hf-foot.up.has-max .hs-up .hs-cost small { display: none; }
+
+/* (10/08 고르는 맛) 대박 카드 반짝 · 건너뛰기 버튼 */
+.card.r-jackpot { box-shadow: 0 0 calc(var(--u) * 14) #ffe066, 0 0 calc(var(--u) * 4) #fff inset; animation: jp-glow 1.2s ease-in-out infinite; }
+@keyframes jp-glow { 0%, 100% { filter: brightness(1) saturate(1); } 50% { filter: brightness(1.25) saturate(1.3); } }
+body.rm .card.r-jackpot { animation: none; }
+.cs-re2.skip { background: linear-gradient(180deg, #3a6a4a, #24432f); }
+.cs-re2.skip small { opacity: 0.8; margin-left: calc(var(--u) * 3); }

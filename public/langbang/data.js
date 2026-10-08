@@ -1971,6 +1971,7 @@ export const RARITY = {
   rare: { name: '희귀', weight: 5, color: '#4ea8ff' },
   legend: { name: '전설', weight: 1.6, color: '#ffb400' },
   hidden: { name: 'HIDDEN', weight: 0, color: '#ff4fd8' },
+  jackpot: { name: '대박', weight: 0.45, color: '#ffe066' }, // (10/08) 드물게 뜨는 대박 카드 — 반짝인다
 };
 // 전역 강화 카드 (영웅 합류/레벨업 카드는 sim.js 가 자동으로 만든다)
 export const CARDS = [
@@ -2010,6 +2011,21 @@ CARDS.push(
   { id: 'risk_glass', icon: '🍷', title: '유리 대포', desc: '치명타 피해 +120% · 입구 회복 -50%', rarity: 'rare', max: 1, risk: true },
   { id: 'econ_bonus', icon: '🎁', title: '보너스 카드', desc: '지금 바로 카드 한 번 더 고르기', rarity: 'common', max: 2 },
 );
+// (10/08 고르는 맛) 맞바꾸는 카드 · 판을 바꾸는 카드 · 대박 카드 — 일반 스테이지 · 헬 (긴장감 판) 에만
+//  얻는 만큼 잃는 게 있어서 덱 · 상황에 따라 답이 다르다 (밋밋한 +% 카드는 이 판에선 덜 뜬다)
+CARDS.push(
+  { id: 'tr_heavy', icon: '🔨', title: '묵직한 한 방', desc: '공격력 +45% · 공격 속도 −20%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_rapid', icon: '🌀', title: '속사', desc: '공격 속도 +40% · 공격력 −15%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_skill', icon: '✨', title: '스킬 몰빵', desc: '스킬 피해 +50% · 스킬 쿨 −20% · 평타 −20%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_wall', icon: '🧱', title: '농성전', desc: '입구 받는 피해 −35% · 웨이브 사이 수리 2배 · 공격력 −12%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_hunt', icon: '🪤', title: '사냥 본능', desc: '묶인 진상(기절·빙결·느려짐)에게 피해 +50%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_boom', icon: '💣', title: '연쇄 퇴장', desc: '진상을 잡으면 그 자리에서 펑 (그 진상 체력의 30%)', rarity: 'rare', max: 1, tension: true },
+  { id: 'jp_party', icon: '🎉', title: '대박! 전원 회식', desc: '모든 멤버 레벨 +1 · 입구 20% 회복', rarity: 'jackpot', max: 1, tension: true },
+  { id: 'jp_power', icon: '💎', title: '대박! 각성', desc: '공격력 +60% · 공격 속도 +20%', rarity: 'jackpot', max: 1, tension: true },
+  { id: 'jp_mom', icon: '🔥', title: '대박! 기세 폭발', desc: '기세 가득 · 모든 스킬 쿨 초기화 · 스킬 피해 +30%', rarity: 'jackpot', max: 1, tension: true },
+);
+// 건너뛰기 (긴장감 판): 카드를 안 고르면 대신 입구 skipHeal 회복 · 기세 skipMom
+export const PICK_SKIP = { heal: 0.05, mom: 50 };
 // 멤버 전용 카드 (덱에 있는 멤버만): 그 멤버 기술에 맞춘 강화 + 공격력 +20%. 멤버마다 2번까지
 export const HERO_CARDS = {
   bangjang: { title: '방장: 공지 오라 +8% · 지목 피해 +5%p', add: { aura: 0.08, order: 0.05 } },

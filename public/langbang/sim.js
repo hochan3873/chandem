@@ -8,7 +8,7 @@ import {
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI, MID_KITS, ECAST, ELITE_HP, ULT_LOCK,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
-  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, TENSION, roleCadence, mileDmg, mileSpd, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
+  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, PICK_SKIP, TENSION, roleCadence, mileDmg, mileSpd, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
 import * as HWS from './hw-sim.js'; // 할로윈 이벤트 전투 규칙 (진상 기술 · 저주)
@@ -213,7 +213,7 @@ export function heroDamage(g, h) {
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
   const hc = (1 + (g.hcT > 0 && h.id !== 'hochan' ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0)) * (g.rallyT > 0 && g.rallyDmg ? 1 + g.rallyDmg : 1) * (g.uirijuT > 0 ? 1.6 : 1) * (g.onemanT > 0 ? 1 + (g.onemanAtk || 0.3) : 1); // "랑방을 위하여!" · 집합! · 의리주 · 원맨쇼
-  return (1 + (h.pump || 0)) * buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.tension ? roleCadence(h.id).dmg * wideMul(g) * mileDmg(h.meta) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + cmAtk(h)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * (1 + (g.collAtk || 0)) * old * hc * heroExtraMul(g, h) * (g.wtr && g.wtr.near ? (NEAR_HEROES.includes(h.id) ? g.wtr.near : g.wtr.far) : 1); // (끝: 주간 진상 특성 — 근접 · 원거리)
+  return (1 + (h.pump || 0)) * buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.tension ? roleCadence(h.id).dmg * wideMul(g) * mileDmg(h.meta) * (g.mods.basicX || 1) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + cmAtk(h)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * (1 + (g.collAtk || 0)) * old * hc * heroExtraMul(g, h) * (g.wtr && g.wtr.near ? (NEAR_HEROES.includes(h.id) ? g.wtr.near : g.wtr.far) : 1); // (끝: 주간 진상 특성 — 근접 · 원거리)
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
 export function buildMul(g, h) {
@@ -1434,6 +1434,7 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (e.r2 && g.r2) { dmg = g.r2.hitMul(g, e, dmg, src, aoe); if (!(dmg > 0)) return 0; } // 건물주 레이드 거대 보스: 응원 버프 · 피해 배율 (raid2-sim.js)
   if (e.tLay > 0 && src && layerHit(g, e, src)) return 0; // 탑 보호막: 한 방에 한 겹
   if (e.cLay > 0 && src && condLayer(g, e, src)) dmg *= 1 - COND.shield.cut; // 스테이지 보호막 진상: 겹이 남아 있으면 −90% (한 방에 한 겹)
+  if (g.mods.ccAmp && src && (e.stunT > 0 || e.frozenT > 0 || e.slowT > 0)) dmg *= 1 + g.mods.ccAmp; // 사냥 본능 카드: 묶인 진상에게 더
   if (src && src.id === 'gunman' && (e.armor > 0 || (e.def.traits && (e.def.traits.aoeImmune || e.def.traits.projShield || e.def.traits.singleResist || e.def.traits.kbImmune)))) dmg *= NICHE.gunman.hard + NICHE.gunman.hardLv * (src.meta || 0); // 건전남: 단단한 진상 전문
   const tr = e.def.traits;
   if (tr && src) {
@@ -1679,6 +1680,7 @@ export const killEnemyX = (g, e, src) => killEnemy(g, e, src || null); // 할로
 function killEnemy(g, e, src) {
   if (g.hw && g.hw.preKill(g, e, src)) return; // 할로윈 좀비 "한 잔 더!": 이번엔 안 쓰러진다
   e.dead = true;
+  if (g.mods.killBoom && src && !g._inBoom) { g._inBoom = true; const v = e.maxHp * g.mods.killBoom; forEnemiesNear(g, e.x, e.y, 60, (o) => { if (o !== e && !o.dead) damageEnemy(g, o, v, false, src, true); return true; }); ev(g, 'splash', { x: e.x, y: e.y, r: 60, proj: 'boom' }); g._inBoom = false; } // 연쇄 퇴장 카드
   if (e.censorT > 0 && e.censorBy && g.heroes.includes(e.censorBy)) censorPop(g, e); // 여지원: 검열 완료된 진상이 쓰러지면 픽셀 폭발
   const def = e.def;
   const s = g.stats;
@@ -3596,7 +3598,7 @@ function waveClear(g) {
   } else {
     g.phase = 'break';
     g.phaseT = g.mode === 'stage' ? RULES.stageBreakSec : RULES.breakSec;
-    if (g.tension && TENSION.repair.frac > 0 && g.base.hp < g.base.max) { const v = Math.min((g.base.max - g.base.hp) * TENSION.repair.frac, g.base.max * TENSION.repair.cap) * (g.hell ? HELL.repair : 1) + Math.min(g.base.max - g.base.hp, g.base.max * TENSION.wide.repair * Math.max(0, g.heroes.filter((o) => !o.def.summon && !o.gone).length - TENSION.wide.from + 1)); g.base.hp = Math.min(g.base.max, g.base.hp + v); ev(g, 'heal', { x: g.W / 2, y: g.ropeY, v: Math.round(v), repair: true }); } // 긴장감: 웨이브 사이 입구 수리
+    if (g.tension && TENSION.repair.frac > 0 && g.base.hp < g.base.max) { const v = Math.min((g.base.max - g.base.hp) * TENSION.repair.frac, g.base.max * TENSION.repair.cap) * (g.hell ? HELL.repair : 1) * (g.repairX || 1) + Math.min(g.base.max - g.base.hp, g.base.max * TENSION.wide.repair * Math.max(0, g.heroes.filter((o) => !o.def.summon && !o.gone).length - TENSION.wide.from + 1)); g.base.hp = Math.min(g.base.max, g.base.hp + v); ev(g, 'heal', { x: g.W / 2, y: g.ropeY, v: Math.round(v), repair: true }); } // 긴장감: 웨이브 사이 입구 수리
   }
 }
 // 20웨이브 승리 뒤 무한 모드 계속
@@ -3755,7 +3757,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
     if (g.t - g.lastSkillT < MOMENTUM.gap && !fromQ) { g.skillQ = { h, x, y, at: g.lastSkillT + MOMENTUM.gap }; ev(g, 'skillQueued', { hero: h.id }); return false; } // 0.6초 뒤에 나간다
   }
   const lv = h.lv - 1;
-  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? 0.75 : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill / roleCadence(h.id).dmg : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
+  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? 0.75 : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill / roleCadence(h.id).dmg * (g.mods.skillX || 1) / (g.mods.basicX || 1) : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
   const sa = h.sa || {}; // 멤버 전용 스킬 증강
   if (h.skEvo && !echo && h.id !== 'hanna') h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
@@ -4411,12 +4413,15 @@ export function cardPool(g) {
     const n = g.stacks[c.id] || 0;
     if (n >= c.max) continue;
     if (CARD_CUT.includes(c.id)) continue; // 정리한 카드 (다른 카드에 합침)
+    if (c.tension && !g.tension) continue; // 맞바꾸는 · 대박 카드: 긴장감 판에만
     if (c.attr && (!topAttr || c.attr !== topAttr[0])) continue; // 속성 결속: 가장 많은 속성 한 장만
     if (c.needs && !hasHero(g, c.needs)) continue;
     let w = RARITY[c.rarity].weight;
     if (c.attr) { const k = g.attrCount[c.attr] || 0; if (!k) continue; w = 2.5 + 2.5 * k; } // 그 속성 멤버가 많을수록 잘 나온다
     if (c.tag && c.tag !== 'boss') { const k = tagN[c.tag] || 0; if (!k) continue; w = 2 + 2 * k; }
     if (c.risk) w = 2.2;
+    if (g.tension && (c.id === 'dmg' || c.id === 'spd')) w *= 0.5; // 밋밋한 +% 는 덜 (고르는 맛)
+    if (c.tension && c.rarity === 'rare') w = 3.2;
     const tags = c.tag ? [c.tag] : CARD_TAGS[c.id] || [];
     pool.push({ key: c.id, kind: 'global', id: c.id, rarity: c.rarity, icon: c.icon, title: c.title, desc: bigDesc(c.desc, cardK(g, n)), stack: n, w: w * pathW(g, tags), attr: c.attr || null, tag: c.tag || null, tags, risk: !!c.risk });
   }
@@ -4630,6 +4635,15 @@ export function applyCard(g, c) {
         case 'risk_overtime': m.enemyHp *= up(0.15); m.expMul += 0.8 * k; break;
         case 'risk_glass': m.critMul += 1.2 * k; m.healMul *= dn(0.5); break;
         case 'econ_bonus': g.pendingLevels++; break;
+        case 'tr_heavy': m.dmg += 0.45; m.spd = Math.max(0.3, m.spd - 0.2); break;
+        case 'tr_rapid': m.spd += 0.4; m.dmg = Math.max(0.3, m.dmg - 0.15); break;
+        case 'tr_skill': m.skillX = (m.skillX || 1) * 1.5; m.basicX = (m.basicX || 1) * 0.8; { const r = 0.8; g.cdMul *= r; for (const h of g.heroes) h.skillCd *= r; } break;
+        case 'tr_wall': m.baseArmor *= 0.65; g.repairX = (g.repairX || 1) * 2; m.dmg = Math.max(0.3, m.dmg - 0.12); break;
+        case 'tr_hunt': m.ccAmp = (m.ccAmp || 0) + 0.5; break;
+        case 'tr_boom': m.killBoom = (m.killBoom || 0) + 0.3; break;
+        case 'jp_party': for (const h of g.heroes) if (!h.def.summon && h.lv < 5 && canGrow(g, h)) { h.lv++; ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y }); } healDoor(g, 'card', g.base.max * 0.2); ev(g, 'jackpot', { id: c.id }); break;
+        case 'jp_power': m.dmg += 0.6; m.spd += 0.2; ev(g, 'jackpot', { id: c.id }); break;
+        case 'jp_mom': if (g.mom !== null && g.mom !== undefined) g.mom = MOMENTUM.max; for (const h of g.heroes) h.skillCd = 0; m.skillX = (m.skillX || 1) * 1.3; ev(g, 'jackpot', { id: c.id }); break;
       }
       break;
     }
@@ -5461,4 +5475,15 @@ export function boardAutoTarget(g) {
     if (n > bn) { bn = n; best = { x: ex, y: ey }; }
   }
   return best;
+}
+
+// (10/08 고르는 맛) 카드 건너뛰기 — 긴장감 판: 대신 입구 PICK_SKIP.heal 회복 · 기세 +PICK_SKIP.mom
+export function skipPick(g) {
+  if (!(g.pendingLevels > 0)) return false;
+  g.pendingLevels--; g.pickN = (g.pickN | 0) + 1;
+  if (g.welcomePicks > 0) g.welcomePicks--;
+  if (g.base && !g.over) healDoor(g, 'card', g.base.max * PICK_SKIP.heal);
+  if (g.mom !== null && g.mom !== undefined) g.mom = Math.min(MOMENTUM.max, g.mom + PICK_SKIP.mom);
+  ev(g, 'pickSkip', {});
+  return true;
 }

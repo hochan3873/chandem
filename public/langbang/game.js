@@ -9,7 +9,7 @@ import {
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, metaCost, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
-  COND, stageConds, stageMission, condFits, recMeta, STAR_DOOR, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
+  COND, stageConds, stageMission, condFits, recMeta, STAR_DOOR, PICK_SKIP, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
   artV,
@@ -644,6 +644,8 @@ function handleEvents(g, loud) {
         fx.blast(e.x, e.y, e.r, e.proj === 'heart' ? 'heart' : e.proj === 'bottle' ? 'fire' : e.proj === 'swear' ? 'electric' : 'gold');
         if (loud) A.sfx.explode();
         break;
+      case 'jackpot': if (live) { fx.flash('#ffe066', 0.45); fx.banner('대박!', '', '#8a6a00', 1.1, 'wave'); try { A.sfx.reward(); } catch (er) { /* 무시 */ } } break;
+      case 'pickSkip': if (live) fx.text(g.W / 2, g.ropeY - 30, '숨 고르기 · 입구 수리', '#9dffb0', 14, 0.9); break;
       case 'resist': if (!busy) fx.text(e.x, e.y, '저항', '#c9b8ff', 11, 0.6); break; // (10/08) 제어 저항 — 연달아 묶이면 덜 묶인다
       case 'kick':
         fx.text(e.x, e.y, e.big ? '경고 3번! 강퇴!!' : '강퇴!', '#ff6b5a', e.big ? 19 : 17, 0.9, -30);
@@ -2204,6 +2206,7 @@ const ACTS = {
   pick: (b) => tapCard(Number(b.dataset.i)),
   confirmPick: () => { if (app.cardSel >= 0 && performance.now() >= app.cardLockUntil) pickCard(app.cardSel); },
   reroll: () => rerollCards(),
+  pickSkip: () => { const g = app.g; if (!g || !app.cardsOpen || !S.skipPick(g)) return; A.sfx.tap(); if (g.pendingLevels > 0) { app.cards = rollFor(g); renderCards(true); } else closeCards(); },
   resume: () => resumeGame(),
   later: () => leaveForLater(),
   quit: () => askQuit(),
@@ -5455,6 +5458,7 @@ function cardChip(c) {
   return '';
 }
 function cardRar(c) {
+  if (c.rarity === 'jackpot') return 'jackpot';
   if (c.tier === 'prism') return 'prism';
   if (c.tier === 'gold' || c.rarity === 'hidden' || c.rarity === 'legend') return c.tier === 'gold' ? 'epic' : 'legend';
   if (c.kind === 'cc') return 'rare';
@@ -5617,7 +5621,7 @@ function renderCards(fresh) {
       <button class="cs-re" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'} aria-label="다시 뽑기">${pimg(ui2('dice'))}<b>${app.rerollsRun}</b></button></div>
     <i class="cs-timer"><b></b></i>${app.cards.some((c) => c.main === 'new') && !tutDone('main') ? `<p class="cs-main">★ <b>주력</b>은 한 판에 ${MAIN.n}명만! Lv5(진화)까지 크고, 나머지는 Lv3 까지예요</p>` : ''}
     <div class="card-list v4 n${n} ${g.tempo || app.cards.some((c) => c.kind === 'join') ? 'v5' : ''}">${app.cards.map(cardHtml).join('')}</div>
-    <div class="cs-foot"><small>이번 전투 다시 뽑기 <b>${app.rerollsRun}/${REROLLS}</b></small><button class="cs-re2" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>${pimg(ui2('dice'))}다시 뽑기</button>${app.g && app.g.cons && app.g.cons.includes('reroll') && !(app.g.consUsed || {}).reroll ? `<button class="cs-re2 coupon" data-act="rerollCoupon">${consIc('reroll')}쿠폰</button>` : ''}</div>
+    <div class="cs-foot"><small>이번 전투 다시 뽑기 <b>${app.rerollsRun}/${REROLLS}</b></small><button class="cs-re2" data-act="reroll" ${app.rerollsRun > 0 ? '' : 'disabled'}>${pimg(ui2('dice'))}다시 뽑기</button>${g.tension && !welcome ? `<button class="cs-re2 skip" data-act="pickSkip" title="카드 대신 입구 ${Math.round(PICK_SKIP.heal * 100)}% 회복 · 기세 반 칸">건너뛰기 <small>입구 +${Math.round(PICK_SKIP.heal * 100)}%</small></button>` : ''}${app.g && app.g.cons && app.g.cons.includes('reroll') && !(app.g.consUsed || {}).reroll ? `<button class="cs-re2 coupon" data-act="rerollCoupon">${consIc('reroll')}쿠폰</button>` : ''}</div>
   </div>`;
   if (fresh) A.sfx.card();
   if (fresh && app.cards.some((c) => c.rarity === 'hidden')) { fx.flash('#ff9ff0', 0.3); A.sfx.join(); }
