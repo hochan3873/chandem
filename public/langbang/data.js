@@ -124,13 +124,16 @@ export const TENSION = { crowd: { k: 2, over: 0.2, cap: 3.5 }, door: 0.9, espd: 
   // pick: 레벨업 필요 경험치 ×need (카드 덜 자주) · freeTo 명까지는 합류해도 카드 한 장 더 (예전처럼) · 5 · 6번째 합류는 카드 한 장을 쓴다 · 공짜 합류 카드는 freeWaves 웨이브에만 (예전엔 매 웨이브) · 처음 guarantee 장은 합류 보장
   //   → 좁은 덱 (4명): 카드가 남고 narrow: 빈 칸 하나마다 팀 공격 + (1~2명이 확실한 캐리) / 넓은 덱 (6명): 합류에 카드를 쓰는 대신 wide: 5번째부터 한 명마다 팀 공격 +dmg · 웨이브 사이 입구 수리 +repair (서포트 · 시너지)
   // slam: 입구에서 reach 안으로 들어온 정예 · 중간 보스 · 보스가 first 초 뒤부터 every 초마다 '입구 강타' 예고 (wind 초) → 맞으면 입구 최대의 elite/mid/boss (헬 ×hell) · 기절 · 넉백 · 빙결 스킬로 끊으면 0 (스킬 타이밍)
-  slam: { reach: 230, first: 2, every: 5, wind: 1.3, elite: 0.055, mid: 0.09, boss: 0.11, hell: 0.85 }, // (10/08 (b) 더 자주 · 더 아프게 · 헬은 단단함이 주인공이라 강타는 예전 수준)
+  slam: { reach: 230, first: 2, every: 5, bossEvery: 10, wind: 1.3, elite: 0.055, mid: 0.09, boss: 0.06, hell: 0.85 }, /* (보스는 길게 싸우니 10초마다 6%) */ // (10/08 (b) 더 자주 · 더 아프게 · 헬은 단단함이 주인공이라 강타는 예전 수준)
   // ccdr: 제어 저항 — 기절 · 빙결이 window 초 안에 또 걸리면 steps 배 (3번째 뒤 immune 초 면역) · 정예 이상은 elite 배 · 밀어내기는 push.win 초에 push.cap 까지 (정예 이상 pushElite 배) · 강퇴는 정예 · 중간 보스엔 기절 · 넉백 없이
   ccdr: { window: 4, steps: [1, 0.5, 0.25], immune: 3, elite: 0.5, pushElite: 0.4, push: { win: 6, cap: 180 } },
-  bossHp: { mid: 1.5, last: 1.9 }, // (10/08 '길고 굵게': x-5 보스 ×mid · x-10 장 보스 ×last 체력 — 보스 싸움이 판의 중심 · 졸개를 늘리지 않고)
+  bossHp: { mid: 2.5, last: 3.2 },
+  // bossWave (10/08 '길고 굵게'): x-5 · x-10 보스 웨이브는 졸개를 filler 배로 줄이고 (보스가 주인공) · 보스 체력이 phases 아래로 내려갈 때마다
+  //   2 · 3 페이즈: 잠깐 단단해지며(guard 초 동안 받는 피해 ×guardCut) 이번 웨이브 졸개를 adds + 페이즈 수 만큼 불러낸다 — 판 전체 4 ~ 5분
+  bossWave: { filler: 0.5, phases: [0.75, 0.5, 0.25], adds: 3, guard: 1.2, guardCut: 0.2, phaseMin: { mid: 16, last: 20 }, standoff: 240, kitDoor: 0.4, hellPhase: 0.6 }, // kitDoor: 보스 기술이 입구를 치는 몫 (보스전이 길어진 만큼) // phaseMin: 한 페이즈 최소 초 (그 전엔 다음 문턱 아래로 안 내려감 — 보스전이 순식간에 끝나지 않게) // (10/08 '길고 굵게': x-5 보스 ×mid · x-10 장 보스 ×last 체력 — 보스 싸움이 판의 중심 · 졸개를 늘리지 않고)
   card: 0.8, aug: 0.75, // 한 판 성장 납작하게: 레벨업 카드 % ×card · 증강 % ×aug (끝날 때 팀 공격 ×2~4 → 덜 · 뒤 웨이브가 '그냥 밀리는' 느낌 줄이기)
   pick: { need: 1.2, freeWaves: [2, 3], guarantee: 3, freeTo: 4 }, wide: { from: 5, dmg: 0.02, repair: 0.02, narrow: 0.3 },
-  chHp: [1.01, 1.05, 0.72, 0.75, 0.62, 0.69, 0.57, 0.36] }; // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
+  chHp: [1.01, 1.05, 0.72, 0.68, 0.56, 0.69, 0.57, 0.36] }; // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
 export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.15, chHp: [0.89, 0.89, 0.69, 0.82, 0.91, 0.985, 0.63, 0.525] }; // (10/08 진상 리메이크 · 쓰러짐 게이지 · 1웨이브 뒤 큰 한 방 · 기세 2칸 뒤 다시: 1 · 2장 +3% · 3장 −7% · 6장 −3.5% · 7장 +7% · 8장 +5%) chHp: 장마다 체력 다시 맞춤 (stagemeas · 대개편 뒤 1차 · 10/07 쿨 다양화 · 쓰러짐 게이지 뒤 6장 +7% · 7장 −2% · 8장 −2%)
 // 방어율 (장이 깊을수록 진상이 단단 — 한 방마다 %로 깎임): 정예 · 중간 보스 · 보스는 ch 그대로 · 졸개는 fodder 배
 //  방관(pen): 그 멤버 공격은 방어율을 그만큼 뚫는다 (건전남 전부) · 여지원 모자이크 한 겹마다 방어율 shredPer 씩 벗김 (5겹 = 0) · 모자이크 폭격은 전부
@@ -189,7 +192,7 @@ export const EST = {
 };
 // 화상 (박나영): tick 초마다 · 겹마다 +stack · 최대 max 겹 — 방어율 무시
 export const BURN = { tick: 0.5, stack: 0.5, max: 3 };
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [1, 1, 1, 1, 1, 1], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.72, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [1, 1, 1, 1, 1, 1], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.4, wonsik: 2.4, staff: 0.95, eunok: 0.72, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.45, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -402,14 +405,14 @@ export const STAGE = {
   hpTune: [1.0, 1.4, 1.9, 1.15, 0.62, 0.45], // (5·6장: 강화 12~16 덱 기준으로 다시 맞춤 — 전엔 5-1부터 벽) // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
   // (11~60: 2026-10 덱 구성 개편 뒤 'node scripts/lb-balance.js stagecalib' 로 균형 덱(조건 맞춤) 기준 다시 맞춤)
-  stageAdd: {3: 2.5, 4: 6.5, 5: 2.5, 6: 4.56, 7: 0.38, 8: 5.47, 9: -0.11, 10: 0.34, 11: 6.07, 12: 8.39, 13: 6.08, 14: 8.37, 15: -10.75, 16: 2.74, 17: -0.7, 18: -1.38, 19: 1.71, 20: -3.62, 21: 3.25, 22: -1.28, 23: 7.05, 24: 4.41, 25: -2.06, 26: 1.22, 27: 3.86, 28: -1.12, 29: -7.28, 30: -3.81, 31: -4.57, 32: -2.44, 33: -1.22, 34: -5.44, 35: 0.63, 36: -3.39, 37: 8.75, 38: 2.94, 39: -2.25, 40: -12.78, 41: -1.19, 42: 3.57, 43: 4.06, 44: -9.68, 45: 1.13, 46: 7.32, 47: 7.06, 48: -3.69, 49: -6.32, 50: 3.25, 51: -7.88, 52: 8.04, 53: -3.22, 54: -10.69, 55: -2.54, 56: -15, 57: -3.25, 58: -1.25, 59: 2.25, 60: -3.36}, // (10/08 진상 감사 재보정: 1-9 · 1-10 · 2-10 · 3-2 · 3-8 · 4-1 · 5-2 · 5-7 · 6-3 · 6-6 · 6-7) 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  stageAdd: {3: 2.5, 4: 6.5, 5: -6.75, 6: 4.56, 7: 0.38, 8: 5.47, 9: -0.11, 10: -11.91, 11: 6.07, 12: 8.39, 13: 6.08, 14: 8.37, 15: -10.75, 16: 2.74, 17: -0.7, 18: -1.38, 19: 1.71, 20: -5.87, 21: 3.25, 22: -1.28, 23: 7.05, 24: 4.41, 25: -3.56, 26: 1.22, 27: 3.86, 28: -1.12, 29: -7.28, 30: -7.31, 31: -4.57, 32: -2.44, 33: -1.22, 34: -5.44, 35: -0.62, 36: -3.39, 37: 8.75, 38: 2.94, 39: -2.25, 40: -34.03, 41: -1.19, 42: 3.57, 43: 4.06, 44: -9.68, 45: 1.13, 46: 7.32, 47: 7.06, 48: -3.69, 49: -6.32, 50: -7.25, 51: -7.88, 52: 8.04, 53: -3.22, 54: -10.69, 55: -3.29, 56: -15, 57: -3.25, 58: -1.25, 59: 2.25, 60: -11.61}, // (10/08 진상 감사 재보정: 1-9 · 1-10 · 2-10 · 3-2 · 3-8 · 4-1 · 5-2 · 5-7 · 6-3 · 6-6 · 6-7) 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   augAdd: 2, // 증강(1·3·4웨이브)이 생겨서 진상도 그만큼 조금 세게
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
 // ── 7장 스키장 MT: 난이도 숫자 (기존 1~6장 값은 그대로 · 이 블록만 7장) — scripts/lb-balance.js ch7 로 맞춘 값 ──
 //   목표: 한 명만 키운 덱 < 30% · 역할을 갖춘 T3/T4 강화 덱 50~70% · 키운 LEGEND 포함 덱은 그보다 높게 · 헬은 더 어렵게
 export const CH7 = { chapterAdd: 1, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 1,
-  stageAdd: { 61: -1.6, 62: 0.63, 63: -7.29, 64: -13.56, 65: -12.07, 66: -7.2, 67: 4.28, 68: -5.42, 69: -8.88, 70: -18.44 }, waveAdd: [-4, -2, 0, -1.5, 1],
+  stageAdd: { 61: -1.6, 62: 0.63, 63: -7.29, 64: -13.56, 65: -12.07, 66: -7.2, 67: 4.28, 68: -5.42, 69: -8.88, 70: -13.69 }, waveAdd: [-4, -2, 0, -1.5, 1],
   coldTier: [1, 1.4, 1.2, 1, 0.75, 0.45], thaw: 2 }; // thaw: 눈덩이 빙결이 풀린 뒤 2초는 다시 안 언다 // 겨울 산 적응: 등급이 높은 멤버일수록 빙결 · 침묵 · 추위(공속↓)가 짧다 (T1 ×1.3 … LEGEND ×0.55) // waveAdd: 첫 웨이브(대장 혼자)는 덜 · 뒤 웨이브와 보스는 더
 STAGE.chapterAdd[6] = CH7.chapterAdd; STAGE.bossStage[7] = CH7.boss; STAGE.deckHp[6] = CH7.deckHp; STAGE.hpTune[6] = CH7.hpTune; STAGE.swarm[6] = CH7.swarm;
 Object.assign(STAGE.stageAdd, CH7.stageAdd);
@@ -418,7 +421,7 @@ BAL.chHp[7] = CH7.chHp; JOIN.hp[6] = CH7.joinHp; TEMPO.hellCh[6] = CH7.hellCh;
 // ── 8장 결혼식 뒤풀이: 난이도 숫자 (이 블록만 8장 · 7장과 같은 틀) — scripts/lb-balance.js ch8 로 대충 맞춘 값 (전체 재계산은 stagecalib 로) ──
 //   thief: 축의금 도둑이 위로 달아나면 이번 판 스테이지 코인 −per (최대 −cap) — 서버 server/langbang-rules.js THIEF 와 같아야 한다 (테스트가 검사)
 export const CH8 = { chapterAdd: 4, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 1.0, /* (0.8 → 1.0: 8장 앞쪽은 레벨 가드레일에 닿아서 체력으로) */ joinHp: 2.6, hellCh: 1, /* (0.49 → 0.43: 10/07 대개편 뒤 헬 8장 28% → 50%대) */
-  stageAdd: { 71: 1.42, 72: 1.36, 73: -12.68, 74: 1.05, 75: -12.2, 76: -5.44, 77: -8.69, 78: -5.95, 79: -1.88, 80: -14.25 }, waveAdd: [-4, -2, 0, -1.5, 1],
+  stageAdd: { 71: 1.42, 72: 1.36, 73: -12.68, 74: 1.05, 75: -9.95, 76: -5.44, 77: -8.69, 78: -5.95, 79: -1.88, 80: -19.75 }, waveAdd: [-4, -2, 0, -1.5, 1],
   thief: { per: 0.08, cap: 0.4 }, rushSpd: 1.3, rushAtk: 1.4 };
 STAGE.chapterAdd[7] = CH8.chapterAdd; STAGE.bossStage[8] = CH8.boss; STAGE.deckHp[7] = CH8.deckHp; STAGE.hpTune[7] = CH8.hpTune; STAGE.swarm[7] = CH8.swarm;
 Object.assign(STAGE.stageAdd, CH8.stageAdd);
@@ -611,7 +614,7 @@ export function stageBosses(s) {
   return [];
 }
 // 스테이지 보스 체력 배율 [첫 보스, 둘째 보스] — 보스를 바꾼 스테이지만 예전 난이도에 맞춤 (scripts/lb-balance.js deck · ch7)
-export const STAGE_BOSS_HP = { 25: [0.5, 1], 30: [1, 0.4], 70: [1, 0.15], 80: [1, 0.15] }; // 3-5 · 3-10 진상 연합 회장(기술이 세서 체력은 낮게) · 7-10 다시 나온 펜션 사장님
+export const STAGE_BOSS_HP = { 10: [2.6, 1], 25: [0.5, 1], 30: [1, 0.4], 65: [1.8, 1], 70: [1, 0.15], 75: [2.6, 1], 80: [1, 0.15] }; // (10/08 1-10 · 7-5 · 8-5: 레벨 가드레일에 닿아 보스 체력으로) // 3-5 · 3-10 진상 연합 회장(기술이 세서 체력은 낮게) · 7-10 다시 나온 펜션 사장님
 // ─── 웨이브 성격: 떼거리(범위 공격) · 정예(한 방 공격) · 혼합 · 보스+호위 떼 ─────
 // count = 진상 수 배율, hp = 한 명 체력 배율 (떼거리·혼합 졸개), eliteHp = 정예 체력 배율
 export const WAVE_KINDS = {
@@ -821,7 +824,7 @@ export function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = fal
 // (10/08 헬 개편 — 다른 게임 조사: 디아블로4 어려움 체력 ×2 · 피해 ×1.3 / 전문가 ×3.2 · ×1.9 · 킹덤 러시 6 불가능 체력 ×1.6 · 이동 +10% · 기술 더 자주 · 명일방주 챌린지 체력 +50% · 공격 +5% + 특수 규칙)
 //  예전 헬은 장마다 체력을 깎아서 (TEMPO.hellCh 0.95 → 0.35) 뒤 장 헬이 보통보다 무른 판이었다 → 이제 '단단함'이 주인공: 보통 대비 체력 ×hp × 스테이지 보정 (어느 스테이지도 ×minHp 아래로는 안 내려감) · 다른 배율은 낮게
 //  · 입구 치는 힘 ×atk · 이동 ×speed · 수 ×count · 조건 하나 더 · 보스 분노 한 번 더 · 쓰러짐 게이지 ×KD.hell · 웨이브 사이 수리 ×repair · 권장 강화 +META_SOFT.hellAdd
-export const HELL = { hp: 2, speed: 1.1, atk: 1.3, count: 0.8, repair: 0.5, exp: 1.8, dmg: 1.15, chDmg: [1.12, 1.08, 1.03, 1.75, 1.1, 1.15, 1.3, 1.22], coin: 3, /* exp · dmg: 진상이 단단한 대신 경험치(카드) ×1.8 · 멤버 공격 ×1.15 — 길게 키우며 버티는 싸움 */ minHp: 1.6, stageHp: { 3: 2, 4: 1.94, 5: 1.75, 6: 0.93, 7: 1.26, 8: 1.44, 9: 2, 10: 1.43, 11: 0.82, 12: 1.49, 13: 0.8, 14: 1.96, 16: 1.36, 17: 1.2, 18: 1.85, 19: 1.17, 20: 1.81, 21: 1.45, 22: 1.48, 23: 1.3, 24: 0.95, 25: 1.44, 26: 1.31, 27: 0.81, 28: 1.54, 29: 1.47, 30: 0.91, 31: 0.84, 32: 1.63, 33: 1.95, 34: 0.81, 35: 1.39, 36: 1.41, 38: 1.8, 39: 0.82, 40: 0.81, 41: 1.41, 42: 1.69, 43: 0.8, 44: 0.82, 45: 1.3, 46: 1.09, 47: 0.82, 48: 1.27, 49: 0.95, 50: 0.81, 51: 1.28, 53: 1.79, 54: 0.99, 55: 1.35, 56: 1.15, 57: 0.89, 58: 0.9, 59: 1.03, 60: 1.03, 61: 1.14, 62: 1.24, 63: 1.68, 64: 1.3, 65: 0.82, 66: 1.08, 67: 1.25, 68: 0.87, 69: 1.05, 70: 1.04, 71: 1.28, 72: 0.89, 73: 1.48, 74: 1.33, 75: 0.81, 76: 1.96, 77: 1.35, 78: 1.44, 79: 1.29, 80: 0.82 }, /* stageHp: 스테이지별 헬 체력 배수 (10/08 lb-balance.js hellcalib · 헬 권장 강화 · 목표 1장 45 · 2장 42 · 3~6장 38 · 7 · 8장 33 · 보통 대비 ×minHp 아래로는 안 내려감) */ bossEnrage: { at: 0.5, speed: 1.25, atk: 1.3, text: '헬 분노!!' } };
+export const HELL = { hp: 2, speed: 1.1, atk: 1.3, count: 0.8, repair: 0.5, exp: 1.8, dmg: 1.15, chDmg: [1.12, 1.08, 1.08, 1.5, 1.15, 1.05, 1.3, 1.1], coin: 3, /* exp · dmg: 진상이 단단한 대신 경험치(카드) ×1.8 · 멤버 공격 ×1.15 — 길게 키우며 버티는 싸움 */ minHp: 1.6, stageHp: { 3: 2.0, 4: 1.94, 5: 1.93, 6: 0.93, 7: 1.26, 8: 1.44, 9: 2.0, 10: 1.99, 11: 0.82, 12: 1.49, 13: 0.8, 14: 1.96, 16: 1.36, 17: 1.2, 18: 1.85, 19: 1.17, 20: 1.79, 21: 1.45, 22: 1.48, 23: 1.3, 24: 0.95, 25: 1.44, 26: 1.31, 27: 0.81, 28: 1.54, 29: 1.47, 31: 0.84, 32: 1.63, 33: 1.95, 34: 0.81, 35: 1.17, 36: 1.41, 38: 1.8, 39: 0.82, 40: 1.59, 41: 1.41, 42: 1.69, 43: 0.8, 44: 0.82, 45: 1.15, 46: 1.09, 47: 0.82, 48: 1.27, 49: 0.95, 50: 1.6, 51: 1.28, 53: 1.79, 54: 0.99, 55: 0.91, 56: 1.15, 57: 0.89, 58: 0.9, 59: 1.03, 60: 1.03, 61: 1.14, 62: 1.24, 63: 1.68, 64: 1.3, 65: 0.81, 66: 1.08, 67: 1.25, 68: 0.87, 69: 1.05, 70: 1.28, 71: 1.28, 72: 0.89, 73: 1.48, 74: 1.33, 75: 0.81, 76: 1.96, 77: 1.35, 78: 1.44, 79: 1.29, 80: 1.28 }, /* stageHp: 스테이지별 헬 체력 배수 (10/08 lb-balance.js hellcalib · 헬 권장 강화 · 목표 1장 45 · 2장 42 · 3~6장 38 · 7 · 8장 33 · 보통 대비 ×minHp 아래로는 안 내려감) */ bossEnrage: { at: 0.5, speed: 1.25, atk: 1.3, text: '헬 분노!!' } };
 // 이 스테이지 헬 진상 체력이 보통의 몇 배인지 (화면 표시: 기본 배율 × 장 보정 × 스테이지 보정)
 export const hellHpMul = (s) => HELL.hp * (TEMPO.hellCh[chapterOf(s || 1) - 1] || 1) * (TEMPO.hellHp / TEMPO.hp) * (HELL.stageHp[s] || 1);
 export const hellOpen = (stages, s) => ((stages || {})[s] | 0) >= 3;
@@ -1971,6 +1974,7 @@ export const RARITY = {
   rare: { name: '희귀', weight: 5, color: '#4ea8ff' },
   legend: { name: '전설', weight: 1.6, color: '#ffb400' },
   hidden: { name: 'HIDDEN', weight: 0, color: '#ff4fd8' },
+  jackpot: { name: '대박', weight: 0.45, color: '#ffe066' }, // (10/08) 드물게 뜨는 대박 카드 — 반짝인다
 };
 // 전역 강화 카드 (영웅 합류/레벨업 카드는 sim.js 가 자동으로 만든다)
 export const CARDS = [
@@ -2010,6 +2014,21 @@ CARDS.push(
   { id: 'risk_glass', icon: '🍷', title: '유리 대포', desc: '치명타 피해 +120% · 입구 회복 -50%', rarity: 'rare', max: 1, risk: true },
   { id: 'econ_bonus', icon: '🎁', title: '보너스 카드', desc: '지금 바로 카드 한 번 더 고르기', rarity: 'common', max: 2 },
 );
+// (10/08 고르는 맛) 맞바꾸는 카드 · 판을 바꾸는 카드 · 대박 카드 — 일반 스테이지 · 헬 (긴장감 판) 에만
+//  얻는 만큼 잃는 게 있어서 덱 · 상황에 따라 답이 다르다 (밋밋한 +% 카드는 이 판에선 덜 뜬다)
+CARDS.push(
+  { id: 'tr_heavy', icon: '🔨', title: '묵직한 한 방', desc: '공격력 +45% · 공격 속도 −20%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_rapid', icon: '🌀', title: '속사', desc: '공격 속도 +40% · 공격력 −15%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_skill', icon: '✨', title: '스킬 몰빵', desc: '스킬 피해 +50% · 스킬 쿨 −20% · 평타 −20%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_wall', icon: '🧱', title: '농성전', desc: '입구 받는 피해 −35% · 웨이브 사이 수리 2배 · 공격력 −12%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_hunt', icon: '🪤', title: '사냥 본능', desc: '묶인 진상(기절·빙결·느려짐)에게 피해 +50%', rarity: 'rare', max: 1, tension: true },
+  { id: 'tr_boom', icon: '💣', title: '연쇄 퇴장', desc: '진상을 잡으면 그 자리에서 펑 (그 진상 체력의 30%)', rarity: 'rare', max: 1, tension: true },
+  { id: 'jp_party', icon: '🎉', title: '대박! 전원 회식', desc: '모든 멤버 레벨 +1 · 입구 20% 회복', rarity: 'jackpot', max: 1, tension: true },
+  { id: 'jp_power', icon: '💎', title: '대박! 각성', desc: '공격력 +60% · 공격 속도 +20%', rarity: 'jackpot', max: 1, tension: true },
+  { id: 'jp_mom', icon: '🔥', title: '대박! 기세 폭발', desc: '기세 가득 · 모든 스킬 쿨 초기화 · 스킬 피해 +30%', rarity: 'jackpot', max: 1, tension: true },
+);
+// 건너뛰기 (긴장감 판): 카드를 안 고르면 대신 입구 skipHeal 회복 · 기세 skipMom
+export const PICK_SKIP = { heal: 0.05, mom: 50 };
 // 멤버 전용 카드 (덱에 있는 멤버만): 그 멤버 기술에 맞춘 강화 + 공격력 +20%. 멤버마다 2번까지
 export const HERO_CARDS = {
   bangjang: { title: '방장: 공지 오라 +8% · 지목 피해 +5%p', add: { aura: 0.08, order: 0.05 } },
@@ -2082,10 +2101,10 @@ export const FILLER_CARDS = [
 // 무기(w) · 액세서리(a) 한 칸씩. 드롭은 서버가 (스테이지 · 별 · 퍼펙트 · 시드)로 계산한다.
 export const GEAR_RARITY = {
   common: { id: 'common', name: '일반', mul: 1, color: '#9fb3c8' },
-  rare: { id: 'rare', name: '희귀', mul: 1.7, color: '#4ea8ff' },
-  epic: { id: 'epic', name: '영웅', mul: 2.6, color: '#c77dff' },
-  legend: { id: 'legend', name: '전설', mul: 4, color: '#ffb400' },
-  myth: { id: 'myth', name: '신화', mul: 6, color: '#ff7ad9' }, // 드롭·합성 등급 목록(GEAR_RARITIES)에는 없음
+  rare: { id: 'rare', name: '희귀', mul: 1.7, stat: 2, color: '#4ea8ff' },
+  epic: { id: 'epic', name: '영웅', mul: 2.6, stat: 3.4, color: '#c77dff' },
+  legend: { id: 'legend', name: '전설', mul: 4, stat: 5.5, color: '#ffb400' },
+  myth: { id: 'myth', name: '신화', mul: 6, stat: 8, color: '#ff7ad9' }, // 드롭·합성 등급 목록(GEAR_RARITIES)에는 없음
 };
 export const GEAR_RARITIES = ['common', 'rare', 'epic', 'legend'];
 export const GEAR_STATS = {
@@ -2266,7 +2285,7 @@ export function gearValue(t, r, lv) {
   const g = GEAR[t], R = GEAR_RARITY[r];
   if (!g || !R) return 0;
   if (g.myth) return g.base; // 신화: 고정
-  return Math.round(g.base * R.mul * (1 + 0.12 * (lv || 0)) * 1000) / 1000;
+  return Math.round(g.base * (R.stat || R.mul) * (1 + 0.12 * (lv || 0)) * 1000) / 1000; // (10/08 stat: 등급마다 확 세지게 — 희귀 1.7→2 · 영웅 2.6→3.4 · 전설 4→5.5 · 비용 · 판매가는 mul 그대로)
 }
 export function gearEnhanceCost(r, lv) {
   if (lv >= GEAR_MAX_LV || r === 'myth') return null; // 신화는 강화 없음

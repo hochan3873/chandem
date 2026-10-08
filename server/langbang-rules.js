@@ -124,10 +124,10 @@ const endlessUnlocked = (lb) => maxCleared(lb.stages) >= ENDLESS_UNLOCK || (lb.b
 // 무기(w) · 액세서리(a) 한 칸씩. 드롭은 서버가 (스테이지 · 별 · 퍼펙트 · 시드)로 계산한다.
 const GEAR_RARITY = {
   common: { id: 'common', name: '일반', mul: 1, color: '#9fb3c8' },
-  rare: { id: 'rare', name: '희귀', mul: 1.7, color: '#4ea8ff' },
-  epic: { id: 'epic', name: '영웅', mul: 2.6, color: '#c77dff' },
-  legend: { id: 'legend', name: '전설', mul: 4, color: '#ffb400' },
-  myth: { id: 'myth', name: '신화', mul: 6, color: '#ff7ad9' }, // 드롭·합성 등급 목록(GEAR_RARITIES)에는 없음
+  rare: { id: 'rare', name: '희귀', mul: 1.7, stat: 2, color: '#4ea8ff' },
+  epic: { id: 'epic', name: '영웅', mul: 2.6, stat: 3.4, color: '#c77dff' },
+  legend: { id: 'legend', name: '전설', mul: 4, stat: 5.5, color: '#ffb400' },
+  myth: { id: 'myth', name: '신화', mul: 6, stat: 8, color: '#ff7ad9' }, // 드롭·합성 등급 목록(GEAR_RARITIES)에는 없음
 };
 const GEAR_RARITIES = ['common', 'rare', 'epic', 'legend'];
 const GEAR_STATS = {
@@ -221,7 +221,7 @@ function gearValue(t, r, lv) {
   const g = GEAR[t], R = GEAR_RARITY[r];
   if (!g || !R) return 0;
   if (g.myth) return g.base; // 신화: 고정
-  return Math.round(g.base * R.mul * (1 + 0.12 * (lv || 0)) * 1000) / 1000;
+  return Math.round(g.base * (R.stat || R.mul) * (1 + 0.12 * (lv || 0)) * 1000) / 1000; // (10/08 stat: 등급마다 확 세지게 — 희귀 1.7→2 · 영웅 2.6→3.4 · 전설 4→5.5 · 비용 · 판매가는 mul 그대로)
 }
 function gearEnhanceCost(r, lv) {
   if (lv >= GEAR_MAX_LV || r === 'myth') return null; // 신화는 강화 없음

@@ -98,6 +98,15 @@ const GLOBAL_HEAD = {
   risk_overtime: (n) => `경험치 ${n[1]} 대신 진상 체력 ${n[0]}`,
   risk_glass: (n) => `치명타 피해 ${n[0]} 대신 회복 ${n[1]}`,
   econ_bonus: () => '지금 카드 한 장 더 고르기',
+  tr_heavy: (n) => `공격력 ${n[0]} 대신 공격 속도 ${n[1]}`,
+  tr_rapid: (n) => `공격 속도 ${n[0]} 대신 공격력 ${n[1]}`,
+  tr_skill: (n) => `스킬 피해 ${n[0]} 대신 평타 ${n[2]}`,
+  tr_wall: (n) => `입구 피해 ${n[0]} · 수리 2배 대신 공격력 ${n[1]}`,
+  tr_hunt: (n) => `묶인 진상에게 피해 ${n[0]}`,
+  tr_boom: (n) => `잡으면 펑! (그 진상 체력 ${n[0]})`,
+  jp_party: () => '모든 멤버 레벨 +1 · 입구 20% 회복',
+  jp_power: (n) => `공격력 ${n[0]} · 공격 속도 ${n[1]}`,
+  jp_mom: () => '기세 가득 · 스킬 쿨 초기화 · 스킬 피해 +30%',
   fillUlt: (n) => `총공지(확성기) 게이지 ${n[0]}`,
   fillHeal: (n) => `입구 체력 ${n[0]} 회복`,
   tempSlot: () => '이번 판만 내 멤버 1명 더',
@@ -108,7 +117,7 @@ const GLOBAL_GOOD = {
   pierce: '줄지어 오는 진상', boss: '언제나 (아주 센 카드)', regen: '입구가 자꾸 맞는 판', ult: '총공지를 자주 쓸 때', charmRes: '홀리는 진상 많은 판', debuffRes: '기절·홀림 거는 진상 많은 판',
   cdCut: '스킬이 센 멤버가 있을 때', armor: '입구가 자꾸 맞는 판', attrUp: '상성이 맞는 판', swarm: '떼거리 판',
   risk_allin: '입구가 넉넉할 때만 (위험)', risk_overtime: '자신 있을 때 (진상이 세짐)', risk_glass: '치명타 빌드일 때 (회복 줄어듦)',
-  econ_bonus: '언제나 (카드 한 장 더)', fillUlt: '총공지가 곧 필요할 때', fillHeal: '입구가 위험할 때', tempSlot: '언제나 (멤버 +1)', guestCombo: '언제나 (멤버 +1)',
+  econ_bonus: '언제나 (카드 한 장 더)', tr_heavy: '한 방 멤버 · 철갑 판', tr_rapid: '연타 멤버 · 떼거리 판', tr_skill: '스킬을 잘 쓸 때', tr_wall: '입구가 자꾸 맞는 판', tr_hunt: '기절 · 빙결 멤버가 있을 때', tr_boom: '떼거리 판', jp_party: '언제나 (대박)', jp_power: '언제나 (대박)', jp_mom: '스킬이 센 덱 (대박)', fillUlt: '총공지가 곧 필요할 때', fillHeal: '입구가 위험할 때', tempSlot: '언제나 (멤버 +1)', guestCombo: '언제나 (멤버 +1)',
 };
 // TECH (관통 II · 철갑탄 …): 길마다 쉬운 한 줄 — n = 설명 속 숫자
 const TECH_HEAD = {

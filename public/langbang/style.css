@@ -4483,3 +4483,19 @@ body.rm #hud.hell .hellvibe { animation: none; } body.rm #hud.hell .hellvibe i {
 .show-v2 .hf-foot.up.has-max .hs-up b { font-size: calc(var(--u) * 17); }
 .show-v2 .hf-foot.up.has-max .hs-up .hs-cost { font-size: calc(var(--u) * 11); white-space: nowrap; padding: 0 calc(var(--u) * 5); }
 .show-v2 .hf-foot.up.has-max .hs-up .hs-cost small { display: none; }
+
+/* (10/08 고르는 맛) 대박 카드 반짝 · 건너뛰기 버튼 */
+.card.r-jackpot { box-shadow: 0 0 calc(var(--u) * 14) #ffe066, 0 0 calc(var(--u) * 4) #fff inset; animation: jp-glow 1.2s ease-in-out infinite; }
+@keyframes jp-glow { 0%, 100% { filter: brightness(1) saturate(1); } 50% { filter: brightness(1.25) saturate(1.3); } }
+body.rm .card.r-jackpot { animation: none; }
+.cs-re2.skip { background: linear-gradient(180deg, #3a6a4a, #24432f); }
+.cs-re2.skip small { opacity: 0.8; margin-left: calc(var(--u) * 3); }
+/* 장비 고르기: 지금 낀 것보다 전투력 몇 % (10/08) · 전설 · 신화는 빛나게 */
+.gpick { position: relative; }
+.gpick .gp-up { position: absolute; right: calc(var(--u) * 8); top: calc(var(--u) * 6); font-style: normal; font-family: var(--heavy, sans-serif); font-size: calc(var(--u) * 13); padding: 0 calc(var(--u) * 6); border-radius: calc(var(--u) * 8); background: rgba(0, 0, 0, 0.35); }
+.gpick .gp-up.up { color: #7dff9a; text-shadow: 0 0 calc(var(--u) * 6) rgba(80, 255, 140, 0.6); }
+.gpick .gp-up.down { color: #ff8a8a; }
+.gpick .gp-up.eq { color: #ffd23f; }
+.gpick.r-legend, .gpick.r-myth { box-shadow: 0 0 calc(var(--u) * 10) var(--rc); animation: gp-glow 2.4s ease-in-out infinite; }
+@keyframes gp-glow { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.18); } }
+body.rm .gpick.r-legend, body.rm .gpick.r-myth { animation: none; }
