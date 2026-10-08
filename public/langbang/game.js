@@ -644,6 +644,8 @@ function handleEvents(g, loud) {
         fx.blast(e.x, e.y, e.r, e.proj === 'heart' ? 'heart' : e.proj === 'bottle' ? 'fire' : e.proj === 'swear' ? 'electric' : 'gold');
         if (loud) A.sfx.explode();
         break;
+      case 'bossHold': if (!busy) fx.text(e.x, e.y, '버틴다!', '#ffb36a', 13, 0.7); break;
+      case 'bossPhase': if (live) { fx.banner(`${e.n}페이즈!`, '보스가 부하를 불렀다', '#7a1020', 1.2, 'wave'); fx.addShake(8); fx.ring(e.x, e.y, 20, 140, 0.5, '#ff6a4a', 6); try { A.sfx.rage(); } catch (er) { /* 무시 */ } } break;
       case 'jackpot': if (live) { fx.flash('#ffe066', 0.45); fx.banner('대박!', '', '#8a6a00', 1.1, 'wave'); try { A.sfx.reward(); } catch (er) { /* 무시 */ } } break;
       case 'pickSkip': if (live) fx.text(g.W / 2, g.ropeY - 30, '숨 고르기 · 입구 수리', '#9dffb0', 14, 0.9); break;
       case 'resist': if (!busy) fx.text(e.x, e.y, '저항', '#c9b8ff', 11, 0.6); break; // (10/08) 제어 저항 — 연달아 묶이면 덜 묶인다

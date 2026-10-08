@@ -1386,7 +1386,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.interestT = def.interest ? def.interest.every : 0; e.interestN = 0; e.loanTaken = 0; e.paperT = def.paper ? 1.6 : 0;
   e.phaseI = -1; e.phaseT = 0; e.auraOn = false;
   e.pukeT = def.puke ? 2 + g.rng() * 2 : 0; e.hurtT = 9; e.split = false; e.grabbing = null; e.grabCd = 0;
-  e.slamT = undefined; e.drN = 0; e.drT = 0; e.ccImmT = 0; e._lStun = 0; e._lFrz = 0; e._lY = undefined; e.pushSum = 0; e.resT = -9; e.weakT = 0; e.warnN = 0; e.lureT = 0; e.bumped = false; e.cast = null; e.castW = 0; e.pukeAim = false; e.flashH = null; // (10/08) 투척 예고
+  e.slamT = undefined; e.phN = 0; e.guardT = 0; e.phT0 = undefined; e.holdT = -9; e.stopY0 = undefined; e.drN = 0; e.drT = 0; e.ccImmT = 0; e._lStun = 0; e._lFrz = 0; e._lY = undefined; e.pushSum = 0; e.resT = -9; e.weakT = 0; e.warnN = 0; e.lureT = 0; e.bumped = false; e.cast = null; e.castW = 0; e.pukeAim = false; e.flashH = null; // (10/08) 투척 예고
   e.spitT = def.spit ? def.spit.first + g.rng() * 2 : 0; e.kickT = def.kick ? def.kick.first + g.rng() * 2 : 0;
   // 진상 특성
   const tr = def.traits || {};
@@ -1433,6 +1433,8 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
   if (g.hw && g.hw.onHit) { dmg = g.hw.onHit(g, e, dmg, src, aoe); if (!(dmg > 0)) return 0; } // 할로윈 H1 엎어진 좀비(무적) · H2 불 붙은 호박등 껍질
   if (e.r2 && g.r2) { dmg = g.r2.hitMul(g, e, dmg, src, aoe); if (!(dmg > 0)) return 0; } // 건물주 레이드 거대 보스: 응원 버프 · 피해 배율 (raid2-sim.js)
   if (e.tLay > 0 && src && layerHit(g, e, src)) return 0; // 탑 보호막: 한 방에 한 겹
+  if (e.guardT > 0) dmg *= TENSION.bossWave.guardCut; // 보스 페이즈 전환 중: 잠깐 단단
+
   if (e.cLay > 0 && src && condLayer(g, e, src)) dmg *= 1 - COND.shield.cut; // 스테이지 보호막 진상: 겹이 남아 있으면 −90% (한 방에 한 겹)
   if (g.mods.ccAmp && src && (e.stunT > 0 || e.frozenT > 0 || e.slowT > 0)) dmg *= 1 + g.mods.ccAmp; // 사냥 본능 카드: 묶인 진상에게 더
   if (src && src.id === 'gunman' && (e.armor > 0 || (e.def.traits && (e.def.traits.aoeImmune || e.def.traits.projShield || e.def.traits.singleResist || e.def.traits.kbImmune)))) dmg *= NICHE.gunman.hard + NICHE.gunman.hardLv * (src.meta || 0); // 건전남: 단단한 진상 전문
@@ -1527,7 +1529,10 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
       ev(g, 'lieBreak', { x: e.x, y: e.y - e.def.size * 0.6 });
     }
   }
-  e.hp -= dmg;
+  if (g.tension && e.boss && !e.mid && e.phT0 !== undefined && dmg > 0) { // 보스 페이즈 잠금 (10/08 '길고 굵게'): 한 페이즈는 최소 phaseMin 초 — 그 전엔 다음 문턱 아래로 안 내려간다 ('버틴다!')
+    const BW = TENSION.bossWave, n = e.phN | 0, floor = n < BW.phases.length ? e.maxHp * (BW.phases[n] + 0.003) : 1, min = ((g.stage - 1) % 10) + 1 === 10 ? BW.phaseMin.last : BW.phaseMin.mid;
+    if (g.t - e.phT0 < min && e.hp - dmg < floor) { dmg = Math.max(0, e.hp - floor); if (g.t - (e.holdT || -9) > 1.5) { e.holdT = g.t; ev(g, 'bossHold', { x: e.x, y: e.y - e.def.size * 0.7 }); } }
+  }  e.hp -= dmg;
   if (e.raidBoss) g.raid.dmg += dmg;
   if (e.r2 && g.r2) g.r2.onHit(g, e, dmg, src); // 건물주 레이드: 부위별 피해 · 내려찍기 끊기
   e.flash = 0.09;
@@ -1635,7 +1640,7 @@ function bossSkill(g, e, [kind, name, o]) {
     ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, boss: e.type, hits: hit, mid: !!e.mid });
     return;
   } else if (kind === 'door') { // (10/08) 입구 강타: 입구 최대 내구도 frac (수리 · 탱커 · 방패가 줄인다) + 입구 앞 멤버 둘 게이지
-    if (!g.god && g.base) { const hp0 = g.base.hp; damageBase(g, g.base.max * o.frac * (g.hell ? 1.07 : 1), e); if (e.def.interest) e.loanTaken += Math.max(0, hp0 - g.base.hp); } // (사채업자 압류 딱지도 빚 — 잡으면 탕감)
+    if (!g.god && g.base) { const hp0 = g.base.hp; damageBase(g, g.base.max * o.frac * (g.hell ? 1.07 : 1) * (g.tension && e.boss && !e.mid ? TENSION.bossWave.kitDoor : 1), e); if (e.def.interest) e.loanTaken += Math.max(0, hp0 - g.base.hp); } // (사채업자 압류 딱지도 빚 — 잡으면 탕감)
     if (g.kdOn) { const hs = g.heroes.filter((h) => !h.def.summon && !h.gone && !h.out).sort((a, c) => Math.abs(a.x - e.x) - Math.abs(c.x - e.x)).slice(0, 2); for (const h of hs) kdAdd(g, h, hitKd(o, e) * 0.8, { src: 'hit' }); }
     ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, boss: e.type, door: { x: clamp(e.x, 40, g.W - 40), y: g.ropeY }, mid: !!e.mid });
     return;
@@ -1781,6 +1786,19 @@ export function damageBase(g, dmg, e) {
 // 긴장감 · 제어 저항 (10/08): 같은 진상에게 기절 · 빙결이 window 초 안에 또 걸리면 steps 배씩 짧게 → 끝까지 가면 immune 초 면역 ('저항')
 //  밀어내기(넉백 · 밀치기)는 진상마다 push.win 초 동안 push.cap 만큼까지만 (그 위로는 안 밀림) · 정예 · 중간 보스 · 보스는 elite 배 (밀기는 pushElite 배)
 //  — 기절 · 넉백 · 강퇴 연쇄로 진상이 입구에 영영 못 오던 것 (제어 덱은 여전히 강하지만 길을 영원히 막지는 못한다)
+// 보스 페이즈 (10/08 '길고 굵게'): 체력이 BW.phases 아래로 내려가면 잠깐 단단해지며 졸개를 부른다 · '2페이즈!'
+function bossPhase(g, e, dt) {
+  const BW = TENSION.bossWave;
+  if (e.guardT > 0) e.guardT -= dt;
+  if (e.stopY0 === undefined) e.stopY0 = e.stopY;
+  e.stopY = (e.phN | 0) < BW.phases.length ? Math.min(e.stopY0, g.ropeY - BW.standoff) : e.stopY0; // 마지막 페이즈 전까지는 입구에서 조금 떨어져 기술로 싸운다 (입구 앞에 오래 붙어 있지 않게)
+  const n = e.phN | 0;
+  if (n >= BW.phases.length || e.hp > e.maxHp * BW.phases[n]) return;
+  e.phN = n + 1; e.guardT = BW.guard; e.phT0 = g.t;
+  const types = g.waveFodder && g.waveFodder.length ? g.waveFodder : null;
+  if (types) for (let i = 0; i < BW.adds + n; i++) { const t = types[i % types.length]; const o = spawnEnemy(g, t, clamp(e.x + (i - (BW.adds + n) / 2) * 34, 24, g.W - 24), Math.max(20, e.y - 40 - (i % 2) * 30)); if (o) o.phAdd = true; }
+  ev(g, 'bossPhase', { x: e.x, y: e.y - e.def.size * 0.6, n: n + 2, enemy: e.type });
+}
 function ccResist(g, e, dt) {
   const T = TENSION.ccdr, big = e.elite || e.mid || e.boss;
   if (e.drT > 0) { e.drT -= dt; if (e.drT <= 0) e.drN = 0; }
@@ -1816,6 +1834,7 @@ function updateEnemies(g, dt) {
   for (const e of g.enemies) {
     if (e.dead) continue;
     if (g.tension) ccResist(g, e, dt);
+    if (g.tension && e.boss && !e.mid) { if (e.phT0 === undefined && e.y > 0) e.phT0 = g.t; bossPhase(g, e, dt); }
     const def = e.def;
     e.age += dt;
     e.kbAge += dt;
@@ -2115,7 +2134,7 @@ function updateEnemies(g, dt) {
       if (e.hitT > 0) e.hitT -= dt;
       continue;
     }
-    if (g.tension && (e.elite || e.mid || e.boss) && !def.kick && !e.cast && !e.fleeing && e.stunT <= 0 && e.y > g.ropeY - TENSION.slam.reach) { const SL = TENSION.slam; if (e.slamT === undefined) e.slamT = SL.first; if ((e.slamT -= dt) <= 0) { e.slamT = SL.every * (0.85 + g.rng() * 0.3); startCast(g, e, null, { door: true, wind: SL.wind, frac: (e.boss ? SL.boss : e.mid ? SL.mid : SL.elite) * (g.hell ? SL.hell : 1), name: e.atRope ? '입구 강타' : '입구로 던지기' }); } } // 긴장감: 입구 가까이 온 정예 · 중간 보스 · 보스의 '입구 강타' 예고 → 스킬(기절 · 넉백 · 빙결)로 끊으면 안 맞는다
+    if (g.tension && (e.elite || e.mid || e.boss) && !def.kick && !e.cast && !e.fleeing && e.stunT <= 0 && e.y > g.ropeY - TENSION.slam.reach) { const SL = TENSION.slam; if (e.slamT === undefined) e.slamT = SL.first; if ((e.slamT -= dt) <= 0) { e.slamT = (e.boss ? SL.bossEvery : SL.every) * (0.85 + g.rng() * 0.3); startCast(g, e, null, { door: true, wind: SL.wind, frac: (e.boss ? SL.boss : e.mid ? SL.mid : SL.elite) * (g.hell ? SL.hell : 1), name: e.atRope ? '입구 강타' : '입구로 던지기' }); } } // 긴장감: 입구 가까이 온 정예 · 중간 보스 · 보스의 '입구 강타' 예고 → 스킬(기절 · 넉백 · 빙결)로 끊으면 안 맞는다
     if (e.atRope) {
       // 찌질남: 멤버에게 착 달라붙는다 (잡을 때까지 그 멤버 공격력 ↓)
       if (def.cling && !e.clingTo) {
@@ -2165,6 +2184,7 @@ function updateEnemies(g, dt) {
         startCast(g, e, null, { door: true, wind: def.kick.wind, mul: def.kick.mul, hit: def.kick.hit, name: def.kick.name });
         continue;
       }
+      if (g.tension && e.boss && !e.mid && (e.phN | 0) < TENSION.bossWave.phases.length) { if (e.hitT > 0) e.hitT -= dt; continue; } // 보스 페이즈 중엔 떨어져서 기술로만 (마지막 페이즈에 입구로)
       e.atkCd -= dt * (e.rushT > 0 ? CH8.rushAtk : 1); // (8장 실장님 재촉: 입구를 더 빨리)
       if (e.atkCd <= 0) {
         e.atkCd = e.fast ? BAL.fast.atkInt : def.atkInterval; // 빠른 진상: 입구에 붙으면 빠르게 세게
@@ -2434,7 +2454,7 @@ function updateEprojs(g, dt) {
     p.x = p.sx + (p.tx - p.sx) * k;
     p.y = p.sy + (p.ty - p.sy) * k - Math.sin(k * Math.PI) * 50;
     if (k < 1) { list[j++] = p; continue; }
-    if (p.gate) { const src = p.src && !p.src.dead && p.src.uid === p.srcUid ? p.src : null; damageBase(g, ((src && src.atk) || 3) * RANGED_GATE.mul, src); ev(g, 'gateThrow', { x: p.tx, y: p.ty, kind: p.kind }); continue; } // 입구로 던진 것: 쾅
+    if (p.gate) { const src = p.src && !p.src.dead && p.src.uid === p.srcUid ? p.src : null; damageBase(g, ((src && src.atk) || 3) * RANGED_GATE.mul * (g.tension && src && src.boss && !src.mid ? TENSION.bossWave.kitDoor : 1), src); ev(g, 'gateThrow', { x: p.tx, y: p.ty, kind: p.kind }); continue; } // 입구로 던진 것: 쾅
     const h = p.hero;
     if (!h || h.gone) continue;
     if (p.kind === 'puke') { const pk = (p.src && p.src.def.puke) || ENEMIES.vomit.puke; g.puddles.push({ x: h.x, y: g.rowY + 18, r: pk.r, t: pk.sec, max: pk.sec, enemy: false }); } // 토 · 눈물 웅덩이 (그 위 멤버 공속↓)
@@ -3563,6 +3583,8 @@ export function startWave(g, n) {
   if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true, bossHp: def.midHp }); // (midHp: 할로윈 이벤트 — 머릿수를 줄인 체력 보정을 중간 보스는 빼고)
   if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? (g.slow ? 22 : 14) : 26, boss: true, bossHp: def.boss2Hp });
   if (g.wk) g.wk.shapeQ(g, def, q); // 주간: 기습(옆길) · 보물 도둑 · 계약 정예
+  g.waveFodder = [...new Set(q.filter((o) => !o.boss && !o.elite && ENEMIES[o.type] && !ENEMIES[o.type].boss && !ENEMIES[o.type].mid).map((o) => o.type))];
+  if (g.tension && def.boss && [5, 10].includes(((g.stage - 1) % 10) + 1)) { let k = 0; for (let i = q.length - 1; i >= 0; i--) if (!q[i].boss && !q[i].elite && (k++ % Math.round(1 / TENSION.bossWave.filler)) !== 0) q.splice(i, 1); } // 보스 웨이브: 졸개는 덜 (보스가 주인공)
   q.sort((a, b) => a.at - b.at);
   g.spawnQ = q;
   g.spawnI = 0;

@@ -894,7 +894,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
         const runs = botRun(s, b, N, hell), A = ((byCh[c] || (byCh[c] = {}))[b] || (byCh[c][b] = []));
         A.push(...runs);
         const w = runs.filter((x) => x.win), l = runs.filter((x) => !x.win);
-        cells.push(`${BOTS[b].label} ${Math.round((w.length / N) * 100)}% 남은입구 ${w.length ? Math.round(q(w.map((x) => x.hp * 100), 0.5)) : '-'}`);
+        cells.push(`${BOTS[b].label} ${Math.round((w.length / N) * 100)}% 남은입구 ${w.length ? Math.round(q(w.map((x) => x.hp * 100), 0.5)) : '-'} 이긴 판 ${w.length ? Math.round(w.reduce((a, x) => a + x.t, 0) / w.length) + '초' : '-'}`);
         if (opt('trace', 0) === s) for (const x of runs.slice(0, 3)) console.log(`  [${BOTS[b].label} ${x.win ? '승' : '패'}] ` + x.tr.filter((_, k) => k % opt('every', 10) === 0 || (args.includes('--tail') && k > x.tr.length - 25)).map((y) => `${y[0]}s W${y[4]} 입구${y[1]} 적${y[2]}`).join(' | '));
       }
       if (!args.includes('--quiet')) console.log(`${D.stageLabel(s)} ${cells.join(' · ')}`);
