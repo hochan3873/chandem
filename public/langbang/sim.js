@@ -3465,6 +3465,7 @@ export function startWave(g, n) {
   g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
   if (g.slow) g.hpScale *= SLOW_RUN.hp * (g.mode === 'stage' && !g.weekly ? SLOW_RUN.chHp[chapterOf(g.stage || 1) - 1] || 1 : 1); // 느린 판: 적게 · 단단하게 (장마다 맞춤)
   if (g.conds.length && n >= DOOR_PRESSURE.from) g.hpScale *= COND_HP[chapterOf(g.stage) - 1] || 1; // 조건 스테이지: 기믹만큼 체력은 덜어 준다
+  if (g.tension) g.hpScale *= TENSION.chHp[chapterOf(g.stage || 1) - 1] || 1; // 긴장감: 장마다 다시 맞춘 체력 (2장부터 더 어렵게)
   if (g.tension && n >= TENSION.hpFrom) g.hpScale *= 1 + (TENSION.hp - 1) * (g.cond.swarm ? TENSION.swarmK : 1); // 긴장감: 팀이 모인 뒤 (2웨이브부터) 진상이 단단 — 평타만으로는 밀리고 스킬로 뒤집는다 · 떼거리는 수로 누르니 덜
   if (g.pvp) g.hpScale *= pvpMatchHp(g.pvp.hp, n) * pvpWaveHp(n) * hpMul(PVP_END.baseLevel, g.mode === 'stage') / hpMul(Math.max(1, g.diff), g.mode === 'stage'); // 1:1 대전: 두 덱 전투력 × 웨이브마다 ×1.22 (체력 오름은 이것 하나로 · 공격력은 웨이브대로)
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
@@ -3549,7 +3550,7 @@ function waveClear(g) {
   } else {
     g.phase = 'break';
     g.phaseT = g.mode === 'stage' ? RULES.stageBreakSec : RULES.breakSec;
-    if (g.tension && TENSION.repair.frac > 0 && g.base.hp < g.base.max) { const v = Math.min((g.base.max - g.base.hp) * TENSION.repair.frac, g.base.max * TENSION.repair.cap); g.base.hp += v; ev(g, 'heal', { x: g.W / 2, y: g.ropeY, v: Math.round(v), repair: true }); } // 긴장감: 웨이브 사이 입구 수리
+    if (g.tension && TENSION.repair.frac > 0 && g.base.hp < g.base.max) { const v = Math.min((g.base.max - g.base.hp) * TENSION.repair.frac, g.base.max * TENSION.repair.cap) * (g.hell ? HELL.repair : 1); g.base.hp += v; ev(g, 'heal', { x: g.W / 2, y: g.ropeY, v: Math.round(v), repair: true }); } // 긴장감: 웨이브 사이 입구 수리
   }
 }
 // 20웨이브 승리 뒤 무한 모드 계속

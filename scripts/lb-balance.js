@@ -781,15 +781,21 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     console.log('stageAdd: ' + JSON.stringify(out));
   }
   // 스테이지 목표 첫 도전 클리어율: 1~6장 = 장 목표 + 장 앞쪽은 쉽게 (n=1 +6 … n=10 −6 · 보스 −3) · 7 · 8장은 표 (8장이 7장보다 조금씩 낮게)
-  const TGC = { 1: 92, 2: 88, 3: 80, 4: 72, 5: 65, 6: 58 };
-  const TG78 = { 61: 72, 62: 68, 63: 64, 64: 62, 65: 55, 66: 60, 67: 58, 68: 56, 69: 54, 70: 46, 71: 70, 72: 66, 73: 62, 74: 60, 75: 52, 76: 58, 77: 56, 78: 54, 79: 52, 80: 44 };
-  function stageTarget(s) { const c = D.chapterOf(s), n = D.stageNo(s); return c >= 7 ? TG78[s] : TGC[c] + (5.5 - n) * 1.4 - (n === 10 ? 3 : 0); }
+  //  (10/08 긴장감 개편: 2장부터 더 어렵게 — 예전 1:92 2:88 3:80 4:72 5:65 6:58 · 7 · 8장 표 −4 · 스킬 안 쓰는 초보는 이보다 25~35%p 낮게)
+  const TGC = { 1: 90, 2: 78, 3: 75, 4: 72, 5: 68, 6: 64 };
+  const TG78 = { 61: 68, 62: 64, 63: 60, 64: 58, 65: 51, 66: 56, 67: 54, 68: 52, 69: 50, 70: 42, 71: 66, 72: 62, 73: 58, 74: 56, 75: 48, 76: 54, 77: 52, 78: 50, 79: 48, 80: 40 };
+  // 헬 목표 (10/08): 헬 권장 강화로 잘 짠 덱 첫 도전 — 1장 55 · 2장 50 · 3~6장 45 · 7 · 8장 40 (스테이지 안 기울기는 보통의 절반)
+  const HTG = [55, 50, 45, 45, 45, 45, 40, 40];
+  function hellTarget(s) { const c = D.chapterOf(s), n = D.stageNo(s); return HTG[c - 1] + (5.5 - n) * 0.7 - (n === 10 ? 2 : 0); }
+  function stageTarget(s) { if (args.includes('--hell')) return hellTarget(s);
+    const c = D.chapterOf(s), n = D.stageNo(s); return c >= 7 ? TG78[s] : TGC[c] + (5.5 - n) * 1.4 - (n === 10 ? 3 : 0); }
   // 기준 플레이어 한 판 묶음 클리어율 (1~6장: 균형 덱 · 강화 권장+REF_PLUS / 7 · 8장: T3·T4 역할 덱 강화 15 · 아이템 넉넉히) — 둘 다 ★ · 도감 기준 포함
   const C78 = ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], ITEMS78 = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
   function refRun(s, N, hell, plus = opt('meta', REF_PLUS)) {
     const c = D.chapterOf(s);
+    if (hell) plus += D.META_SOFT.hellAdd; // (10/08) 헬은 헬 권장 강화 기준 (예전엔 보통과 같은 강화로 쟀다)
     if (c <= 6) { const ids = balFor(c, s, hell); return deckRun(ids, s, Object.fromEntries(ids.map((id) => [id, REC[c - 1] + plus])), N, hell).w; }
-    const meta = Object.fromEntries(C78.map((id) => [id, 15 + opt('meta78', 0)]));
+    const meta = Object.fromEntries(C78.map((id) => [id, 15 + opt('meta78', 0) + (hell ? D.META_SOFT.hellAdd : 0)]));
     let w = 0;
     for (let i = 1; i <= N; i++) if (play({ stage: s, deck: placeDeck(C78), partner: C78[0], leader: C78[0], meta, gear: gearAt(s, C78), items: ITEMS78, seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...refOf(s, C78) }).win) w++;
     return w / N;
@@ -811,6 +817,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     const N = opt('seeds', 8), hell = args.includes('--hell'), byCh = {};
     for (const kv of listArg('chadd', '')) { const [c, v] = kv.split(':').map(Number); D.STAGE.chapterAdd[c - 1] += v; } // --chadd=5:2 : 장 난이도를 바꿔 보며 측정
     for (const kv of listArg('sadd', '')) { const [st, v] = kv.split(':').map(Number); D.STAGE.stageAdd[st] = v; } // --sadd=30:-1.2 : 스테이지 가산을 바꿔 보며 측정
+    for (const kv of listArg('chhp', '')) { const [c, v] = kv.split(':').map(Number); D.TENSION.chHp[c - 1] *= v; } // --chhp=3:1.2 : 장 체력 배율(긴장감)을 곱해 보며 측정
     for (const kv of listArg('hellch', '')) { const [c, v] = kv.split(':').map(Number); D.TEMPO.hellCh[c - 1] *= v; } // --hellch=1:0.7 : 헬 장별 체력 배율을 곱해 보며 측정
     const cells = [];
     for (const s of listArg('list', '1,5,10').map(Number)) {
