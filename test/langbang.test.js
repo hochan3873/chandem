@@ -988,18 +988,48 @@ test('장비 공식: 서버(langbang-rules.js)와 화면(data.js)이 같다', ()
 });
 
 // ─── 주간 도전 · 미션 · 모집 · 시즌 · 성급 (live.js) ─────────────
-test('live: 주간 도전 판은 주 번호만으로 정해지고, 점수·상한 확인이 맞다', async () => {
+test('live: 주간 도전 판은 주 번호 + 리그로만 정해지고, 점수·상한 확인이 맞다', async () => {
   const L = await load('live.js');
-  const a = L.weeklyDef(3), b = L.weeklyDef(3), c = L.weeklyDef(4);
-  assert.deepEqual(a, b, '같은 주 = 같은 판');
+  const a = L.weeklyDef(3, 2), b = L.weeklyDef(3, 2), c = L.weeklyDef(4, 2);
+  assert.deepEqual(a, b, '같은 주 · 같은 리그 = 같은 판');
   assert.notEqual(a.mod, c.mod, '주마다 규칙이 바뀐다');
   assert.equal(a.waves.length, L.WEEKLY_WAVES);
+  assert.equal(L.WEEKLY_WAVES, 8, '8웨이브 (4~5분)');
   for (const w of a.waves) for (const [t] of w.g) assert.ok(D.ENEMIES[t], t);
-  assert.equal(L.weeklyScore({ waves: 10, kills: 300, bossKills: 3, victory: true, hpPct: 80 }), 10000 + 3000 + 1500 + 5000 + 4000);
+  // 리그: 진행도로 정하고 · 리그마다 진상 구성 · 레벨이 다르다 (사건 순서 · 규칙 · 계약은 같은 주면 같다)
+  assert.deepEqual([5, 10, 11, 25, 26, 45, 46, 65, 66, 80].map(L.weeklyTier), [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
+  const t1 = L.weeklyDef(3, 1), t5 = L.weeklyDef(3, 5);
+  assert.deepEqual(t1.events, t5.events); assert.equal(t1.mod, t5.mod); assert.deepEqual(t1.offers, t5.offers);
+  assert.ok(t5.waves[7].level > t1.waves[7].level, '위 리그일수록 세다');
+  for (let t = 1; t <= 5; t++) { const d = L.weeklyDef(3, t), T = L.WEEKLY_TIERS[t - 1]; assert.ok(d.stage >= T.pool[0] && d.stage <= T.pool[1], `리그 ${t} 진상 바탕`); assert.ok(!D.STAGE_HPX[d.stage] && D.stageNo(d.stage) % 5 !== 0, '보스 · 체력 보정 판은 바탕으로 안 쓴다'); }
+  // 뒤로 갈수록 가파르게 · 마지막은 보스
+  for (let i = 1; i < 8; i++) assert.ok(a.waves[i].level >= a.waves[i - 1].level);
+  assert.ok(a.waves[7].boss && a.waves[7].phases, '마지막 웨이브 = 단계가 있는 보스');
+  assert.equal(a.events[0], 'open'); assert.equal(a.events[7], 'boss'); assert.equal(new Set(a.events.slice(1, 7)).size, 6, '가운데 여섯은 다 다른 사건');
+  // 점수: 웨이브 · 처치 · 보스 · 목표 · 무피해 · 콤보 · 스킬 · 보너스 (+ 완주 · 입구 · 빠른 완주) × 계약 × 리그
+  const r = { waves: 8, kills: 300, bossKills: 1, victory: true, hpPct: 80, durationSec: 250, goals: 5, noLeak: 6, combo: 120, skills: 40, bonus: 2, tier: 1 };
+  const base = 8 * 1500 + 300 * 4 + 600 + 5 * 700 + 6 * 500 + 120 * 8 + 40 * 25 + 2 * 250 + 5000 + 80 * 60 + 50 * 20;
+  assert.equal(L.weeklyScore(r), base);
+  assert.equal(L.weeklyScore({ ...r, pacts: ['thick', 'fast'] }), Math.round(base * 1.5), '계약 배율');
+  assert.equal(L.weeklyScore({ ...r, pacts: ['thick', 'crack'], tier: 3 }), Math.round(base * 1.5625 * 1.16), '계약 × 리그');
+  assert.equal(L.weeklyPactMul(['thick', 'crack', 'thick']), L.WEEKLY_PACT_CAP, '계약 배율 상한');
+  assert.equal(L.weeklyScore({ ...r, victory: false, waves: 5 }), 5 * 1500 + 1200 + 600 + 3500 + 3000 + 960 + 1000 + 500, '못 깨면 완주 · 입구 · 시간 점수 없음');
+  assert.equal(L.weeklyCoins(8), 300, '보상 코인은 예전과 같은 300');
+  assert.equal(L.weekName(L.weekIndex(Date.UTC(2026, 9, 7, 3))), '10월 1주차', '사람이 읽는 주 이름 (10/5 월요일 주)');
+  assert.equal(L.weeklyCoins(4), 150);
   assert.ok(L.weeklyCheck(a, { waves: 3, kills: 99999, bossKills: 0, durationSec: 100 }) !== null, '처치 수 상한');
   assert.ok(L.weeklyCheck(a, { waves: 3, kills: 50, bossKills: 0, durationSec: 10 }) !== null, '너무 짧음');
-  assert.ok(L.weeklyCheck(a, { waves: 9, kills: 50, bossKills: 0, durationSec: 200, victory: true }) !== null, '다 안 깼는데 클리어');
-  assert.equal(L.weeklyCheck(a, { waves: 4, kills: 80, bossKills: 1, durationSec: 200 }), null);
+  assert.ok(L.weeklyCheck(a, { waves: 7, kills: 50, bossKills: 0, durationSec: 200, victory: true }) !== null, '다 안 깼는데 클리어');
+  assert.ok(L.weeklyCheck(a, { waves: 9, kills: 50, bossKills: 0, durationSec: 200 }) !== null, '웨이브 넘침');
+  const okRun = { waves: 4, kills: 80, bossKills: 0, durationSec: 200, combo: 40, noLeak: 3, goals: 3, bonus: 2, pacts: [a.offers[0][1]] };
+  assert.equal(L.weeklyCheck(a, okRun), null);
+  assert.ok(L.weeklyCheck(a, { ...okRun, combo: 81 }) !== null, '콤보 > 처치');
+  assert.ok(L.weeklyCheck(a, { ...okRun, noLeak: 5 }) !== null, '무피해 > 웨이브');
+  assert.ok(L.weeklyCheck(a, { ...okRun, goals: 6 }) !== null, '목표 > 웨이브');
+  assert.ok(L.weeklyCheck(a, { ...okRun, pacts: ['nope'] }) !== null, '없는 계약');
+  assert.ok(L.weeklyCheck(a, { ...okRun, pacts: [a.offers[1][0]] }) !== null, '이 자리에 안 나온 계약');
+  assert.ok(L.weeklyCheck(a, { ...okRun, pacts: [null, a.offers[1][0]] }) !== null, '5웨이브 전에 둘째 계약');
+  assert.ok(L.weeklyCheck(a, { ...okRun, pacts: 'thick' }) !== null, '계약은 목록');
   const mon = Date.UTC(2026, 9, 4, 15, 0, 0); // 10/5(월) 00:00 KST
   assert.equal(L.weekIndex(mon) - L.weekIndex(mon - 1000), 1, '주 경계는 월요일 00:00 KST');
   const lb = {};
@@ -1168,16 +1198,94 @@ test('새 멤버: 여사친 핀볼 · 다이어트 변신 · 공주↔늙음 · 
   assert.ok(Math.abs(S.heroDamage(s3, s3.heroes[0]) / S.heroDamage(s1, s1.heroes[0]) - 1.14) < 1e-9, '★3 = +14%');
 });
 
-test('주간 도전 판: 10웨이브 · 규칙이 시뮬레이션에 들어간다', async () => {
+test('주간 도전 판: 8웨이브 · 규칙이 시뮬레이션에 들어간다', async () => {
   const L = await load('live.js');
   let wi = 0;
   while (L.weeklyDef(wi).mod !== 'glass') wi++;
   const def = L.weeklyDef(wi);
   const g = S.createGame({ rng: seeded(910), mode: 'stage', weekly: def, deck: ['staff', 'bangjang', 'gunman', null, null, null] });
-  assert.equal(g.totalWaves, 10);
+  assert.equal(g.totalWaves, L.WEEKLY_WAVES);
   assert.equal(g.base.max, Math.round(D.RULES.baseHp * 0.5), '유리 입구: 절반');
   S.startWave(g, 1);
   assert.equal(S.summary(g, 1).weekly, wi);
+});
+
+test('주간 도전 (개편): 웨이브 사건 · 계약 · 보스 단계 · 결과 숫자', async () => {
+  const L = await load('live.js');
+  const WK = await load('weekly-sim.js');
+  const def = L.weeklyDef(11, 3);
+  const g = S.createGame({ rng: seeded(77), mode: 'stage', weekly: def, tempo: true, stage: def.stage, deck: ['staff', 'bangjang', 'gunman', 'gunnyeo', null, null] });
+  assert.ok(g.wk, '주간 규칙이 붙는다');
+  assert.ok(!S.createGame({ rng: seeded(1), mode: 'stage', weekly: L.raidDef(0), raid: { sec: 150 }, deck: ['staff', null, null, null, null, null] }).wk, '레이드(weekly 칸을 쓰는)엔 안 붙는다');
+  const seen = [];
+  g.events.length = 0;
+  for (let w = 1; w <= 8; w++) {
+    S.startWave(g, w);
+    const d = def.waves[w - 1];
+    const e = g.events.find((x) => x.type === 'wkWave' && x.wave === w);
+    assert.ok(e && e.ev === d.ev, `웨이브 ${w} 사건 알림`);
+    seen.push(e.ev);
+    if (d.thief) assert.equal(g.spawnQ.filter((o) => o.wkGob && o.type === 'envthief').length, d.thief, '보물 도둑');
+    if (d.side) for (const o of g.spawnQ) if (!o.boss) { const [a, b] = WK.WKX.side[d.side]; assert.ok(o.x >= a - 0.01 && o.x <= b + 0.01, '기습: 한쪽 옆길'); }
+    if (d.boss) assert.ok(g.spawnQ.some((o) => o.boss), '보스');
+    if (d.mid) assert.ok(g.spawnQ.some((o) => o.mid), '중간 보스');
+    if (d.curse === 'dark') { assert.ok(g.rangeMul < 1, '저주: 사거리'); g.wk.onClear(g); assert.equal(g.rangeMul, 1, '저주는 그 웨이브만'); }
+    g.events.length = 0;
+  }
+  assert.deepEqual(seen, def.events);
+  // 계약: 3웨이브를 깨면 제안 → 고르면 배율 · 효과 · 고르는 동안 다음 웨이브를 기다린다
+  g.wk.wave = 3; g.wk.leak = false; g.wk.noLeak = 0;
+  g.wk.onClear(g);
+  assert.ok(g.wk.offer && g.wk.offer.opts.join() === def.offers[0].join(), '3웨이브 뒤 계약 제안');
+  assert.equal(g.wk.noLeak, 1, '무피해 웨이브');
+  g.phase = 'break'; g.phaseT = 0.01; g.wk.tick(g, 0.1);
+  assert.ok(g.phaseT >= 0.2, '고르는 동안 기다림');
+  const hp0 = g.mods.enemyHp, max0 = g.base.max;
+  g.wk.choose(g, 0);
+  const id = def.offers[0][0], P = L.WEEKLY_PACTS[id];
+  assert.equal(WK.summary(g).pacts[0], id);
+  if (P.hp) assert.ok(g.mods.enemyHp > hp0);
+  if (P.door) assert.ok(g.base.max < max0);
+  assert.ok(L.weeklyPactMul(WK.summary(g).pacts) > 1);
+  g.wk.wave = 5; g.wk.onClear(g); g.wk.choose(g, 2);
+  assert.equal(WK.summary(g).pacts[1], null, '거절');
+  // 보물 도둑 · 현상금: 잡으면 보너스 · 총공지
+  g.phase = 'wave'; g.ult = 0;
+  const gob = S.spawnEnemy(g, 'envthief', 180, 200); gob.wkGob = true;
+  S.damageEnemy(g, gob, 1e9, false, null, false);
+  assert.ok(gob.dead && g.wk.bonus === 1 && g.ult > 0, '도둑을 잡으면 보너스');
+  // 최종 보스 단계: 체력 66% 아래로 → 부하 · 빨라짐
+  g.wk.wave = 8;
+  const boss = S.spawnEnemy(g, def.waves[7].boss, 180, 100); boss.wkPh = 0;
+  const n0 = g.enemies.filter((x) => !x.dead).length, sp0 = boss.speed;
+  boss.hp = boss.maxHp * 0.5;
+  g.wk.tick(g, 1 / 60);
+  assert.equal(boss.wkPh, 1, '단계 1');
+  assert.equal(g.enemies.filter((x) => !x.dead).length - n0, WK.WKX.phaseAdd[0], '부하 호출');
+  assert.ok(boss.speed > sp0);
+  const sm = WK.summary(g);
+  assert.equal(sm.tier, 3);
+  for (const k of ['combo', 'noLeak', 'goals', 'bonus']) assert.ok(Number.isInteger(sm[k]), k);
+});
+
+test('주간 도전 (개편): 한 판이 끝까지 돌아간다 (봇 · 8웨이브 안에 끝)', async () => {
+  const L = await load('live.js');
+  const def = L.weeklyDef(5, 1);
+  const g = S.createGame({ rng: seeded(5150), mode: 'stage', weekly: def, tempo: true, join: true, stage: def.stage, deck: ['gunman', 'bangjang', 'eunok', 'staff', null, null], leader: 'gunman', meta: { gunman: 10, bangjang: 10, eunok: 10, staff: 10 }, slots: 6 });
+  let k = 0;
+  while (!g.over && g.phase !== 'victory' && g.t < 900) {
+    S.step(g, 1 / 60); g.events.length = 0;
+    if (g.pendingLevels > 0) { S.applyCard(g, S.rollCards(g)[0]); g.pendingLevels--; if (g.welcomePicks > 0) g.welcomePicks--; }
+    if (g.augOffer) S.applyAug(g, g.augOffer.opts[0]);
+    if (g.wk.offer) g.wk.choose(g, (k++) % 3);
+    if (g.ult >= D.RULES.ultMax) S.useUlt(g);
+  }
+  assert.ok(g.over || g.victory, '판이 끝난다');
+  assert.ok(g.t < 900, '오래 끌지 않는다');
+  const sum = S.summary(g, g.t);
+  const WK = await load('weekly-sim.js');
+  const r = { waves: sum.wave, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec, victory: sum.victory, hpPct: sum.hpPct, skills: sum.skills, ...WK.summary(g) };
+  assert.equal(L.weeklyCheck(def, r), null, '봇이 낸 기록은 서버 확인을 통과');
 });
 
 // ─── 레벨업 카드 · 시너지 · 진화 · 중간 보스 · 4~6장 · 헬 모드 ─────────────
