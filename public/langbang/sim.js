@@ -1366,7 +1366,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   const def = ENEMIES[type];
   if (g.seen) g.seen[type] = 1; // 도감: 이번 판에 만난 진상
   const e = g._enemyPool.pop() || {};
-  const m = (o.hpMul || hpMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hpScale || 1)) * (def.boss && g.mode === 'stage' ? RULES.stageBossHp : 1) * (def.boss ? 1 : o.hpX || 1);
+  const m = (o.hpMul || hpMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hpScale || 1)) * (def.boss && g.mode === 'stage' ? RULES.stageBossHp * (g.tension ? (((g.stage - 1) % 10) + 1 === 10 ? TENSION.bossHp.last : TENSION.bossHp.mid) : 1) : 1) * (def.boss ? 1 : o.hpX || 1);
   const chk = g.mode === 'stage' && !g.pvp ? (BAL.chHp[chapterOf(g.stage || 1)] || 1) * (STAGE_HPX[g.stage] || 1) : g.mode === 'endless' ? BAL.endHp || 1 : 1; // 밸런스 개편 뒤 장마다 체력 다시 맞춤
   e.uid = g.uid++; e.type = type; e.def = def; e.boss = !!def.boss; e.mid = !!def.mid; e.gender = def.gender; e.elite = !!o.elite;
   const lane = g.mapFx.lane;

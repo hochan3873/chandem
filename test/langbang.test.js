@@ -238,10 +238,10 @@ test('스테이지 80개: 5웨이브, x-5·x-10 보스, 난이도는 부드럽�
 
 test('별: 입구 70% 이상 ★★★, 35% 이상 ★★, 그 밖 ★', () => {
   assert.equal(D.starsFor(1), 3);
-  assert.equal(D.starsFor(0.7), 3);
-  assert.equal(D.starsFor(0.69), 2);
-  assert.equal(D.starsFor(0.35), 2);
-  assert.equal(D.starsFor(0.34), 1);
+  assert.equal(D.starsFor(0.6), 3); // (10/08 긴장감: 70 · 35 → 60 · 30)
+  assert.equal(D.starsFor(0.59), 2);
+  assert.equal(D.starsFor(0.3), 2);
+  assert.equal(D.starsFor(0.29), 1);
   assert.equal(D.starsFor(0.01), 1);
 });
 
