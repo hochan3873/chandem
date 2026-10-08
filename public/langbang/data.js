@@ -186,7 +186,7 @@ export const EST = {
 };
 // 화상 (박나영): tick 초마다 · 겹마다 +stack · 최대 max 겹 — 방어율 무시
 export const BURN = { tick: 0.5, stack: 0.5, max: 3 };
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [1, 1, 1, 1, 1, 1], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.72, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [0.6, 0.5, 0.42, 0.34, 0.45, 0.38], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.72, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -404,7 +404,7 @@ export const STAGE = {
 };
 // ── 7장 스키장 MT: 난이도 숫자 (기존 1~6장 값은 그대로 · 이 블록만 7장) — scripts/lb-balance.js ch7 로 맞춘 값 ──
 //   목표: 한 명만 키운 덱 < 30% · 역할을 갖춘 T3/T4 강화 덱 50~70% · 키운 LEGEND 포함 덱은 그보다 높게 · 헬은 더 어렵게
-export const CH7 = { chapterAdd: 1, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 1,
+export const CH7 = { chapterAdd: 1, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 0.29,
   stageAdd: { 61: -1.6, 62: 0.63, 63: -7.29, 64: -13.56, 65: -5.94, 66: -7.2, 67: 4.28, 68: -5.42, 69: -8.88, 70: -13.19 }, waveAdd: [-4, -2, 0, -1.5, 1],
   coldTier: [1, 1.4, 1.2, 1, 0.75, 0.45], thaw: 2 }; // thaw: 눈덩이 빙결이 풀린 뒤 2초는 다시 안 언다 // 겨울 산 적응: 등급이 높은 멤버일수록 빙결 · 침묵 · 추위(공속↓)가 짧다 (T1 ×1.3 … LEGEND ×0.55) // waveAdd: 첫 웨이브(대장 혼자)는 덜 · 뒤 웨이브와 보스는 더
 STAGE.chapterAdd[6] = CH7.chapterAdd; STAGE.bossStage[7] = CH7.boss; STAGE.deckHp[6] = CH7.deckHp; STAGE.hpTune[6] = CH7.hpTune; STAGE.swarm[6] = CH7.swarm;
@@ -413,7 +413,7 @@ STAGE.waveAdd = Object.assign(STAGE.waveAdd || {}, { 7: CH7.waveAdd });
 BAL.chHp[7] = CH7.chHp; JOIN.hp[6] = CH7.joinHp; TEMPO.hellCh[6] = CH7.hellCh;
 // ── 8장 결혼식 뒤풀이: 난이도 숫자 (이 블록만 8장 · 7장과 같은 틀) — scripts/lb-balance.js ch8 로 대충 맞춘 값 (전체 재계산은 stagecalib 로) ──
 //   thief: 축의금 도둑이 위로 달아나면 이번 판 스테이지 코인 −per (최대 −cap) — 서버 server/langbang-rules.js THIEF 와 같아야 한다 (테스트가 검사)
-export const CH8 = { chapterAdd: 4, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 1.0, /* (0.8 → 1.0: 8장 앞쪽은 레벨 가드레일에 닿아서 체력으로) */ joinHp: 2.6, hellCh: 1, /* (0.49 → 0.43: 10/07 대개편 뒤 헬 8장 28% → 50%대) */
+export const CH8 = { chapterAdd: 4, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 1.0, /* (0.8 → 1.0: 8장 앞쪽은 레벨 가드레일에 닿아서 체력으로) */ joinHp: 2.6, hellCh: 0.28, /* (0.49 → 0.43: 10/07 대개편 뒤 헬 8장 28% → 50%대) */
   stageAdd: { 71: 1.42, 72: 1.36, 73: -12.68, 74: 1.05, 75: -7.82, 76: -5.44, 77: -8.69, 78: -5.95, 79: -1.88, 80: -14.25 }, waveAdd: [-4, -2, 0, -1.5, 1],
   thief: { per: 0.08, cap: 0.4 }, rushSpd: 1.3, rushAtk: 1.4 };
 STAGE.chapterAdd[7] = CH8.chapterAdd; STAGE.bossStage[8] = CH8.boss; STAGE.deckHp[7] = CH8.deckHp; STAGE.hpTune[7] = CH8.hpTune; STAGE.swarm[7] = CH8.swarm;
@@ -817,7 +817,9 @@ export function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = fal
 // (10/08 헬 개편 — 다른 게임 조사: 디아블로4 어려움 체력 ×2 · 피해 ×1.3 / 전문가 ×3.2 · ×1.9 · 킹덤 러시 6 불가능 체력 ×1.6 · 이동 +10% · 기술 더 자주 · 명일방주 챌린지 체력 +50% · 공격 +5% + 특수 규칙)
 //  예전 헬은 장마다 체력을 깎아서 (TEMPO.hellCh 0.95 → 0.35) 뒤 장 헬이 보통보다 무른 판이었다 → 이제 모든 장에서 보통 대비 체력 ×hp (장 보정 hellCh 는 0.9~1.2 안에서만)
 //  · 입구 치는 힘 ×atk · 이동 ×speed · 수 ×count · 조건 하나 더 · 보스 분노 한 번 더 · 쓰러짐 게이지 ×KD.hell · 웨이브 사이 수리 ×repair · 권장 강화 +META_SOFT.hellAdd
-export const HELL = { hp: 2.4, speed: 1.15, atk: 1.7, count: 1.15, repair: 0.5, coin: 3, bossEnrage: { at: 0.5, speed: 1.25, atk: 1.3, text: '헬 분노!!' } };
+export const HELL = { hp: 2.4, speed: 1.15, atk: 1.7, count: 1.15, repair: 0.5, coin: 3, stageHp: { 3: 1.99, 4: 1.58, 5: 1.58, 6: 0.77, 9: 1.19, 10: 0.77, 11: 0.59, 12: 0.88, 13: 0.36, 15: 0.67, 18: 1.45, 20: 0.67, 21: 1.93, 22: 1.29, 24: 0.67, 25: 1.77, 26: 0.77, 28: 1.58, 30: 1.58, 31: 0.59, 32: 1.19, 33: 1.26, 34: 0.59, 37: 0.55, 38: 0.97, 39: 0.37, 40: 0.43, 41: 1.58, 42: 1.99, 43: 0.49, 44: 0.61, 45: 0.59, 46: 0.88, 47: 0.46, 49: 0.72, 50: 0.59, 51: 0.67, 52: 1.26, 54: 1.26, 56: 0.94, 58: 1.12, 60: 0.77, 61: 1.26, 62: 1.58, 65: 0.72, 67: 1.58, 73: 1.26, 74: 1.77, 76: 1.26, 77: 0.77, 78: 1.58, 80: 1.12 }, /* stageHp: 스테이지별 헬 체력 배수 (10/08 lb-balance.js hellcalib · 헬 권장 강화 · 목표 1장 55 · 2장 50 · 3~6장 45 · 7 · 8장 40) */ bossEnrage: { at: 0.5, speed: 1.25, atk: 1.3, text: '헬 분노!!' } };
+// 이 스테이지 헬 진상 체력이 보통의 몇 배인지 (화면 표시: 기본 배율 × 장 보정 × 스테이지 보정)
+export const hellHpMul = (s) => HELL.hp * (TEMPO.hellCh[chapterOf(s || 1) - 1] || 1) * (TEMPO.hellHp / TEMPO.hp) * (HELL.stageHp[s] || 1);
 export const hellOpen = (stages, s) => ((stages || {})[s] | 0) >= 3;
 export function hellReward(s, stars, prevStars = 0, couponLv = 0) {
   const r = stageReward(s, stars, prevStars, couponLv, false, false);

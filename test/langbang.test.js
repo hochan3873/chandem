@@ -1288,7 +1288,7 @@ test('헬 모드: 진상 체력·속도·공격·수 ↑ · 보상 ×3 · 희귀
   S.startWave(a, 2); S.startWave(b, 2);
   const ea = S.spawnEnemy(a, 'thug', 100, 100), eb = S.spawnEnemy(b, 'thug', 100, 100);
   const condHp = (g) => (g.conds.length ? D.COND_HP[D.chapterOf(12) - 1] : 1); // 헬은 스테이지 조건이 하나 더 (조건 스테이지 체력 보정)
-  assert.ok(Math.abs(eb.maxHp / ea.maxHp - (D.HELL.hp * condHp(b)) / condHp(a)) < 1e-6);
+  assert.ok(Math.abs(eb.maxHp / ea.maxHp - (D.HELL.hp * (D.HELL.stageHp[12] || 1) * condHp(b)) / condHp(a)) < 1e-6); // (템포 없는 판: 장 보정 hellCh 없음 · 스테이지 보정만)
   assert.ok(eb.atk / ea.atk > D.HELL.atk - 1e-6);
   assert.ok(b.spawnQ.length > a.spawnQ.length, '수도 많다');
   assert.equal(S.summary(b, 1).hell, true);

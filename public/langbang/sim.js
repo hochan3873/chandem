@@ -1373,7 +1373,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   if (lane && !def.boss) e.x = clamp(e.x, lane[0], lane[1]);
   e.y = y !== undefined ? y : FIELD.spawnY - g.rng() * 10;
   e.baseX = e.x; e.phase = g.rng() * 6.28;
-  const hm = g.hell ? HELL.hp : 1;
+  const hm = g.hell ? HELL.hp * (HELL.stageHp[g.stage] || 1) : 1; // (스테이지별 헬 체력 맞춤)
   e.maxHp = e.hp = def.hp * m * g.mods.enemyHp * hm * chk; e.shield = def.lie ? def.hp * m * g.mods.enemyHp * hm * chk * def.lie.frac : 0; // 싱글맘: 거짓말 방패
   e.speed = def.speed * (0.92 + g.rng() * 0.16) * g.mods.enemySpd * (g.mapFx.enemySpd || 1) * (g.hell ? HELL.speed : 1); e.atk = def.atk * atkMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hell ? HELL.atk : 1) * (g.slow ? SLOW_RUN.door : 1) * (g.tension ? TENSION.door : 1); // 느린 판: 입구를 더 세게 (수리 · 탱커 몫)
   e.atkCd = 0.4; e.slowT = 0; e.slowMul = 1; e.stunT = 0; e.kbv = 0; e.flash = 0;

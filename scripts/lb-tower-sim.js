@@ -10,7 +10,7 @@
 //   숫자 바꿔 보기: --grow=[[2,1.09,1.04],[16,1.17,1.05]]  --ts.solo.youngjun=0.7 (data.js TOWER_SIM)
 const path = require('path');
 const { pathToFileURL } = require('url');
-const LIB = path.join(__dirname, '..', 'public', 'langbang');
+const LIB = (process.argv.find((x) => x.startsWith('--lib=')) || '').slice(6) || path.join(__dirname, '..', 'public', 'langbang'); // --lib=폴더: 다른 버전과 비교
 const load = (f) => import(pathToFileURL(path.join(LIB, f)).href);
 const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : d; };

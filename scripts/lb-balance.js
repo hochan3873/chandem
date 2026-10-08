@@ -135,7 +135,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
-      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG, noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR, stars: o.stars, coll: o.coll,
+      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG || (args.includes('--hellnoextra') && o.hell ? D.stageConds(o.stage, false) : undefined), noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR, stars: o.stars, coll: o.coll,
     });
     g.partner = o.partner;
     if (o.policy) g._policy = o.policy;
@@ -815,6 +815,20 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     return room;
   }
   if (what === 'room') { for (let c = 1; c <= 8; c++) { const r = []; for (let n = 1; n <= 10; n++) r.push(levelRoom((c - 1) * 10 + n).toFixed(1)); console.log(c + '장 여유 ' + r.join(' ')); } }
+  // 헬 스테이지 맞춤 (node scripts/lb-balance.js hellcalib --list=1,...,80 [--seeds=8 --iters=5]) — 헬 권장 강화 기준 클리어율이 헬 목표가 되게 HELL.stageHp 를 로그 이분 탐색 (0.35 ~ 2.5)
+  if (what === 'hellcalib') {
+    const N = opt('seeds', 8), IT = opt('iters', 5), out = {};
+    for (const s of listArg('list', '12').map(Number)) {
+      const target = hellTarget(s), base = D.HELL.stageHp[s] || 1;
+      const rate = (m) => { D.HELL.stageHp[s] = base * m; return refRun(s, N, true) * 100; };
+      let lo = Math.log(0.35), hi = Math.log(2.5), best = 1, r0 = rate(1), err = Math.abs(r0 - target);
+      if (r0 > target) lo = 0; else hi = 0;
+      if (err > 100 / N) for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2, r = rate(Math.exp(mid)); if (Math.abs(r - target) < err) { err = Math.abs(r - target); best = Math.exp(mid); } if (r > target) lo = mid; else hi = mid; }
+      D.HELL.stageHp[s] = base * best; out[s] = +(base * best).toFixed(2);
+      console.log(`${D.stageLabel(s)} 헬 목표 ${target.toFixed(0)}% · 처음 ${r0.toFixed(0)}% → 체력 ×${out[s]} (오차 ${err.toFixed(0)})`);
+    }
+    console.log('hellStageHp: ' + JSON.stringify(out));
+  }
   // 측정만 (node scripts/lb-balance.js stagemeas --list=1,2,... [--seeds=N] [--hell] [--seedoff=K]) — 스테이지별 · 장 평균 (목표와 비교)
   function stagemeas() {
     const N = opt('seeds', 8), hell = args.includes('--hell'), byCh = {};
