@@ -1282,15 +1282,15 @@ test('4~6장 진상: 돌싱 들킴 · 카푸어 퍼짐 · 싱글맘 방패 · �
   assert.ok(hm.fleeing && hm.stolen > 0 && g.exp < 50, '집에 갈래 (경험치 훔침)');
 });
 
-test('헬 모드: 진상 체력·속도·공격·수 ↑ · 보상 ×3 · 희귀 이상 확정 · 일반 ★★★ 에서만', () => {
+test('헬 모드: 진상 체력 ↑↑ · 속도·공격 ↑ · 수 ↓ · 보상 ×3 · 희귀 이상 확정 · 일반 ★★★ 에서만', () => {
   const a = S.createGame({ rng: seeded(1230), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null] });
   const b = S.createGame({ rng: seeded(1230), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null], hell: true });
   S.startWave(a, 2); S.startWave(b, 2);
   const ea = S.spawnEnemy(a, 'thug', 100, 100), eb = S.spawnEnemy(b, 'thug', 100, 100);
   const condHp = (g) => (g.conds.length ? D.COND_HP[D.chapterOf(12) - 1] : 1); // 헬은 스테이지 조건이 하나 더 (조건 스테이지 체력 보정)
-  assert.ok(Math.abs(eb.maxHp / ea.maxHp - (D.HELL.hp * condHp(b)) / condHp(a)) < 1e-6);
+  assert.ok(Math.abs(eb.maxHp / ea.maxHp - (D.HELL.hp * (D.HELL.stageHp[12] || 1) * condHp(b)) / condHp(a)) < 1e-6); // (템포 없는 판: 장 보정 hellCh 없음 · 스테이지 보정만)
   assert.ok(eb.atk / ea.atk > D.HELL.atk - 1e-6);
-  assert.ok(b.spawnQ.length > a.spawnQ.length, '수도 많다');
+  assert.ok(D.HELL.count < 1 ? b.spawnQ.length < a.spawnQ.length : b.spawnQ.length > a.spawnQ.length, '수 (10/08: 헬은 적지만 단단하게)');
   assert.equal(S.summary(b, 1).hell, true);
   const r = D.hellReward(12, 3, 0, 0);
   assert.equal(r.total, Math.round(D.stageReward(12, 3, 0, 0).total * D.HELL.coin));
@@ -1923,7 +1923,7 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
   const [n0, h0] = cnt(false), [n1, h1] = cnt(true);
   const k = D.TEMPO.count * D.SLOW_RUN.count; // 스테이지 템포 = 느린 판 (적게 · 단단하게)
   assert.ok(n1 < n0 * k * 1.2 && n1 > n0 * k * 0.8, `진상 수 ${n0} → ${n1}`);
-  assert.ok(Math.abs(h1 / h0 - D.TEMPO.hp * D.SLOW_RUN.hp * D.SLOW_RUN.chHp[1]) < 1e-6); // (스테이지 12 = 2장)
+  assert.ok(Math.abs(h1 / h0 - D.TEMPO.hp * D.SLOW_RUN.hp * D.SLOW_RUN.chHp[1] * D.TENSION.hp * D.TENSION.chHp[1]) < 1e-6); // (스테이지 12 = 2장 · 2웨이브부터 긴장감 체력 · 장 체력)
 });
 
 test('템포: 이호찬 = 기본 공격 없이 게이지 → 막차 버스가 자기 줄 진상을 밀어내고 때린다 · 진화면 2층 버스', async () => {
@@ -2517,7 +2517,7 @@ test('여지원 모자이크 폭격: 0.6초 뒤 자기 줄 → 양옆 줄 차례
   assert.ok(Math.abs(noM - 50) < 1e-6 && Math.abs(withM - 70) < 1e-6, `방어 50 → 30 (${noM} → ${withM})`);
 });
 
-test('역할 정리: 건전녀 = 멤버 간호 · 응급 방패 (입구 수리 없음) · 홍정민 = 입구 수리 전담', () => {
+test('역할 정리: 건전녀 = 멤버 간호 · 응급 방패 (입구는 조금씩 · 10/08) · 홍정민 = 큰 입구 수리 전담', () => {
   let g = bare(['gunnyeo', 'gunman']);
   g.phase = 'wave'; g.spawnQ = [{ type: 'yeokko', at: 999 }];
   g.base.hp = g.base.max * 0.5;
@@ -2527,12 +2527,14 @@ test('역할 정리: 건전녀 = 멤버 간호 · 응급 방패 (입구 수리 �
   assert.ok(gm.stunT <= 0 && gm.ccImmT > 0, '간호: 기절 풀고 잠깐 면역');
   assert.ok(gm.tiredT < 6 - 1, '간호: 기진맥진 빨리 일으키기');
   run(g, 6);
-  assert.ok(g.base.hp <= g.base.max * 0.5 + 1e-6, '건전녀는 입구를 안 고친다');
+  assert.ok(g.base.hp > g.base.max * 0.5 + 1e-6 && g.base.hp < g.base.max * 0.55, '건전녀는 입구를 간호마다 조금씩 (홍정민보다 훨씬 적게)');
+  const hpS = g.base.hp;
   gm.ccImmT = 0; gm.charmT = 3; gm.skillCd = 10; gn.skillCd = 0;
   assert.ok(S.castSkill(g, gn), '응급 방패');
   assert.ok(gm.charmT <= 0 && gm.ccImmT >= D.HEROES.gunnyeo.skill.imm[0] - 1e-6 && gm.heartT > 0, '해제 · 면역 · 하트 방패');
   assert.ok(Math.abs(gm.skillCd - (10 - D.HEROES.gunnyeo.skill.cdCut)) < 1e-6, '다른 멤버 스킬 쿨 −2초');
   assert.ok(!(g.doorShield > 0), '입구 방패는 이제 없다');
+  assert.ok(g.base.hp >= hpS + g.base.max * D.HEROES.gunnyeo.skill.door[0] - 1, '응급 방패: 입구 한 뭉텅이 회복');
   assert.equal(S.debuffSec(gm, 3), 0, '면역 중엔 안 걸린다');
   g = bare(['jungmin']);
   g.phase = 'wave'; g.spawnQ = [{ type: 'yeokko', at: 999 }];

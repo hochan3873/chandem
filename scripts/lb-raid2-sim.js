@@ -5,7 +5,7 @@
 //   계정 수준 3가지(맨 위 · 중간 · 가볍게) × 덱 × 시작 페이즈 → 한 판 피해 · 버틴 시간(입구가 부서질 때까지) · 끊은 수 / 내려찍기 수
 const path = require('path');
 const { pathToFileURL } = require('url');
-const LIB = path.join(__dirname, '..', 'public', 'langbang');
+const LIB = (process.argv.find((x) => x.startsWith('--lib=')) || '').slice(6) || path.join(__dirname, '..', 'public', 'langbang'); // --lib=폴더: 다른 버전과 비교
 const load = (f) => import(pathToFileURL(path.join(LIB, f)).href);
 const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : d; };

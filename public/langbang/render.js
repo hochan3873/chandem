@@ -1714,10 +1714,14 @@ export class Renderer {
         cx.drawImage(gl.c, -r, -r, r * 2, r * 2);
         cx.globalAlpha = 1;
       }
-      if (e.cLay > 0) { // 스테이지 조건 '보호막 진상': 발밑에 옅은 고리 하나만 (겹 수는 머리 위 방패 그림 숫자로)
-        this.tf(e.x, feet - 1, 0, 1, 0.35);
-        cx.strokeStyle = '#9feaff'; cx.lineWidth = 2.5; cx.globalAlpha = 0.5;
-        cx.beginPath(); cx.arc(0, 0, box * 0.32, 0, TAU); cx.stroke();
+      if (e.cLay > 0) { // 스테이지 조건 '보호막 진상' (10/08 체감 ↑): 몸을 감싸는 방울 — 겹이 많을수록 진하고 두껍게 · 맞으면 번쩍 (겹 수는 머리 위 방패 그림 숫자로)
+        const k = Math.min(1, e.cLay / Math.max(1, e.cLayMax || 3)), hit = e.flash > 0 ? 1 : 0, rr = box * 0.5;
+        this.tf(e.x, e.y - box * 0.12, 0, 1, 1);
+        cx.globalAlpha = 0.14 + 0.16 * k + 0.2 * hit; cx.fillStyle = '#9feaff';
+        cx.beginPath(); cx.arc(0, 0, rr, 0, TAU); cx.fill();
+        cx.globalAlpha = 0.55 + 0.35 * k; cx.strokeStyle = hit ? '#ffffff' : '#9feaff'; cx.lineWidth = 2 + 2.5 * k;
+        cx.beginPath(); cx.arc(0, 0, rr, 0, TAU); cx.stroke();
+        cx.globalAlpha = 0.5; cx.strokeStyle = '#ffffff'; cx.lineWidth = 2; cx.beginPath(); cx.arc(0, 0, rr * 0.8, -2.4, -1.5); cx.stroke(); // 반짝이는 하이라이트
         cx.globalAlpha = 1;
       }
       if (e.cArmor) { // '철갑 진상': 발밑 강철 판

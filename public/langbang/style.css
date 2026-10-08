@@ -4413,3 +4413,32 @@ body.rm .card-sheet .cs2-box { animation: none; }
 /* 모집 배너: 픽업 규칙 한 줄 (T4 가 나오면 50% 는 픽업 멤버 · 다음 주 픽업) */
 .gacha-banner .gb-rule { display: block; margin: calc(var(--u) * 2) 0; padding: calc(var(--u) * 2) calc(var(--u) * 8); border-radius: 99px; background: rgba(0, 0, 0, 0.45); color: #fff; font-size: calc(var(--u) * 10.5); font-weight: 800; width: fit-content; }
 .gacha-banner .gb-rule em { font-style: normal; color: #ffd23f; }
+
+/* ── 헬 고르기 연출 (10/08) · 헬 판 분위기 ── */
+.hellsel-fx { position: fixed; inset: 0; z-index: 9000; pointer-events: none; overflow: hidden; }
+.hellsel-fx .hs-v { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 55%, rgba(255, 60, 20, 0.0) 20%, rgba(200, 10, 20, 0.55) 70%, rgba(80, 0, 0, 0.85) 100%); animation: hs-v 1.25s ease-out forwards; }
+.hellsel-fx.rm .hs-v { animation: hs-vrm 0.6s ease-out forwards; }
+@keyframes hs-v { 0% { opacity: 0; } 8% { opacity: 1; background-color: rgba(255, 30, 20, 0.35); } 30% { opacity: 0.9; background-color: rgba(255, 30, 20, 0); } 100% { opacity: 0; } }
+@keyframes hs-vrm { 0% { opacity: 0.8; } 100% { opacity: 0; } }
+.hellsel-fx .hs-crack { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: #ffcf6a; stroke-width: 0.7; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 3px #ff3a1a); stroke-dasharray: 160; stroke-dashoffset: 160; animation: hs-crack 1.2s ease-out forwards; }
+@keyframes hs-crack { 0% { stroke-dashoffset: 160; opacity: 1; } 25% { stroke-dashoffset: 0; opacity: 1; } 70% { opacity: 0.8; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+.hellsel-fx .hs-skull { position: absolute; left: 50%; top: 46%; font-size: calc(var(--u, 1px) * 92); line-height: 1; transform: translate(-50%, -50%) scale(0.2); filter: drop-shadow(0 0 14px #ff2a10); animation: hs-skull 1.2s cubic-bezier(.2, 1.6, .4, 1) forwards; font-style: normal; }
+@keyframes hs-skull { 0% { transform: translate(-50%, -50%) scale(0.2) rotate(-12deg); opacity: 0; } 22% { transform: translate(-50%, -50%) scale(1.15) rotate(4deg); opacity: 1; } 40% { transform: translate(-50%, -50%) scale(1) rotate(0); } 75% { opacity: 1; } 100% { transform: translate(-50%, -60%) scale(1.3); opacity: 0; } }
+.hellsel-fx .hs-t { position: absolute; left: 50%; top: 60%; transform: translateX(-50%); font-family: var(--heavy, sans-serif); font-weight: 900; font-size: calc(var(--u, 1px) * 44); letter-spacing: 0.18em; color: #fff3d0; text-shadow: 0 0 10px #ff3a1a, 0 0 22px #c00, 2px 2px 0 #4a0008; opacity: 0; animation: hs-t 1.2s ease-out 0.1s forwards; }
+@keyframes hs-t { 0% { opacity: 0; transform: translateX(-50%) scale(1.8); } 25% { opacity: 1; transform: translateX(-50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) translateY(-8px); } }
+.hellsel-fx em { position: absolute; bottom: -10px; width: 6px; height: 6px; border-radius: 50%; background: radial-gradient(circle, #fff1a0 0%, #ff8a20 45%, rgba(255, 40, 0, 0) 75%); animation: hs-em 1.2s ease-out forwards; }
+@keyframes hs-em { 0% { transform: translate(0, 0) scale(1); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--dx, 0), -70vh) scale(0.4); opacity: 0; } }
+.pp-seg button.on.hell, .map-tog button.on.hell { animation: hell-pulse 1.6s ease-in-out infinite; }
+.pp-seg button.on.hell.hs-pop, .map-tog button.on.hell.hs-pop { animation: hell-pop 0.45s cubic-bezier(.2, 1.8, .4, 1), hell-pulse 1.6s ease-in-out 0.45s infinite; }
+@keyframes hell-pulse { 0%, 100% { box-shadow: 0 calc(var(--u) * 2) 0 #5a0010, 0 0 calc(var(--u) * 6) rgba(255, 40, 20, 0.45); } 50% { box-shadow: 0 calc(var(--u) * 2) 0 #5a0010, 0 0 calc(var(--u) * 18) rgba(255, 40, 20, 0.95); } }
+@keyframes hell-pop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+#hud .hellvibe { display: none; position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#hud.hell .hellvibe { display: block; background: radial-gradient(ellipse at 50% 45%, rgba(0, 0, 0, 0) 50%, rgba(170, 0, 10, 0.38) 82%, rgba(120, 0, 0, 0.62) 100%); animation: hv-breathe 3.2s ease-in-out infinite; }
+@keyframes hv-breathe { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
+#hud.hell .hellvibe i { position: absolute; bottom: -8px; width: 4px; height: 4px; border-radius: 50%; background: radial-gradient(circle, #ffe08a 0%, #ff6a1a 50%, rgba(255, 40, 0, 0) 75%); opacity: 0; animation: hv-ember 6s linear infinite; will-change: transform, opacity; }
+#hud.hell .hellvibe i:nth-child(1) { left: 6%; animation-delay: 0s; } #hud.hell .hellvibe i:nth-child(2) { left: 19%; animation-delay: 2.1s; animation-duration: 7s; }
+#hud.hell .hellvibe i:nth-child(3) { left: 33%; animation-delay: 4.2s; } #hud.hell .hellvibe i:nth-child(4) { left: 47%; animation-delay: 1.3s; animation-duration: 8s; }
+#hud.hell .hellvibe i:nth-child(5) { left: 61%; animation-delay: 3.4s; } #hud.hell .hellvibe i:nth-child(6) { left: 74%; animation-delay: 0.7s; animation-duration: 6.5s; }
+#hud.hell .hellvibe i:nth-child(7) { left: 87%; animation-delay: 2.8s; } #hud.hell .hellvibe i:nth-child(8) { left: 95%; animation-delay: 5s; animation-duration: 7.5s; }
+@keyframes hv-ember { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 0.9; } 100% { transform: translate(-14px, -88vh); opacity: 0; } }
+body.rm #hud.hell .hellvibe { animation: none; } body.rm #hud.hell .hellvibe i { display: none; }

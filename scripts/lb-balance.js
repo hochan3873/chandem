@@ -43,17 +43,25 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   const CF = (process.argv.find((x) => x.startsWith('--condsfrom=')) || '').slice(12);
   const DC = CF ? await import(pathToFileURL(path.join(CF, 'data.js')).href) : D;
   const S = await load('sim.js');
+  // --tune=crowd.k:4,crowd.cap:7,repair.frac:0.3,SLOW_RUN.door:0.8,HELL.hp:2.5 … : 숫자를 바꿔 보며 측정 (TENSION 아래는 'crowd.k' 처럼 짧게)
+  for (const kv of ((process.argv.find((x) => x.startsWith('--tune=')) || '').slice(7)).split(',').filter(Boolean)) {
+    const [k, v] = kv.split(':'), path0 = k.split('.'), root = /^[A-Z]/.test(path0[0]) ? D : D.TENSION;
+    let o = root; for (const q of path0.slice(0, -1)) o = o[q];
+    const last = path0[path0.length - 1];
+    if (v.includes('-')) o[last] = v.split('-').map(Number); else if (Array.isArray(o[last])) o[last] = o[last].map((x) => x * Number(v)); else o[last] = Number(v); // (2-3-4 : 목록으로)
+  }
 
   // 카드 자동 선택: 사람이 고를 법한 단순한 우선순위 + 약간의 무작위
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
   //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
-  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes'].includes(what) && !args.includes('--pro');
+  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension'].includes(what) && !args.includes('--pro');
   const FOES = what === 'foes';
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
   function pickCard(g, cards, rng) {
-    if (POLICY === 'random' || (POLICY === 'mid' && rng() < 0.4)) return (rng() * cards.length) | 0;
+    const P = g._policy || POLICY; // (o.policy: 판마다 — 초보 봇은 random)
+    if (P === 'random' || (P === 'mid' && rng() < 0.4)) return (rng() * cards.length) | 0;
     let best = 0, bv = -1;
     cards.forEach((c, i) => {
       let v = 1;
@@ -105,6 +113,9 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       const boss = g.enemies.find((e) => !e.dead && e.def.avalanche && e.y > 0);
       if (boss && boss.avaT < 4 && g.base.hp / g.base.max > 0.35) return;
     }
+    // 입구 강타 예고(긴장감): 찍는 스킬로 끊는다 (사람도 빨간 예고를 보면 누른다)
+    const slam = g.enemies.find((e) => !e.dead && e.cast && e.cast.spec.door && e.cast.t < e.cast.max - 0.3);
+    if (slam) for (const h of g.heroes) if (S.skillReady(h) && h.def.skill.target && S.castSkill(g, h, slam.x, slam.y)) return;
     for (const h of g.heroes) {
       if (!S.skillReady(h)) continue;
       const sk = h.def.skill;
@@ -124,9 +135,10 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
       H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
-      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG, noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR, stars: o.stars, coll: o.coll,
+      deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG || (args.includes('--hellnoextra') && o.hell ? D.stageConds(o.stage, false) : undefined), noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR, stars: o.stars, coll: o.coll,
     });
     g.partner = o.partner;
+    if (o.policy) g._policy = o.policy;
     if (o.noTypes) g.noTypes = true;
     const pr = seeded(o.seed * 7 + 3);
     const maxT = o.maxT || 900;
@@ -137,6 +149,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       steps++;
       for (const h of g.heroes) if (h.def.summon) summons.add(h);
       if (o.onStep) o.onStep(g); // (focus: 판 중 사건 · 상태 세기)
+      if (o.onEvents) o.onEvents(g, g.events);
       if (FOES) for (const e of g.events) if (e.type === 'baseHit' && e.by) { const m = g._doorBy || (g._doorBy = {}); m[e.by] = (m[e.by] || 0) + (e.v || 0); } // (foes: 누가 입구를 쳤나)
       g.events.length = 0;
       // 레벨업 카드는 게임이 안 멈춘다 → 사람처럼 1.5~3초 뒤에 고른다
@@ -150,7 +163,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
         g.pickAt = undefined;
       }
       if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
-      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % SKILL_EVERY) === 0) aiSkills(g, o.control);
+      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % (o.skillEvery || SKILL_EVERY)) === 0) aiSkills(g, o.control);
       if (steps % BOARD_EVERY === 0) { const bh = g.heroes.find((h) => h.def.proj === 'board'); if (bh && S.boardCharges(bh) >= 1 && !(bh.bd && bh.bd.st === 'dash')) { const tg = S.boardAutoTarget(g); if (tg) S.setBoardAim(g, tg.x, tg.y); } } // 송바울 (완전 수동): 사람처럼 진상이 많이 줄 선 쪽을 탭
       if (o.stopWave && g.wave >= o.stopWave && g.phase === 'break') break;
     }
@@ -771,15 +784,21 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     console.log('stageAdd: ' + JSON.stringify(out));
   }
   // 스테이지 목표 첫 도전 클리어율: 1~6장 = 장 목표 + 장 앞쪽은 쉽게 (n=1 +6 … n=10 −6 · 보스 −3) · 7 · 8장은 표 (8장이 7장보다 조금씩 낮게)
-  const TGC = { 1: 92, 2: 88, 3: 80, 4: 72, 5: 65, 6: 58 };
-  const TG78 = { 61: 72, 62: 68, 63: 64, 64: 62, 65: 55, 66: 60, 67: 58, 68: 56, 69: 54, 70: 46, 71: 70, 72: 66, 73: 62, 74: 60, 75: 52, 76: 58, 77: 56, 78: 54, 79: 52, 80: 44 };
-  function stageTarget(s) { const c = D.chapterOf(s), n = D.stageNo(s); return c >= 7 ? TG78[s] : TGC[c] + (5.5 - n) * 1.4 - (n === 10 ? 3 : 0); }
+  //  (10/08 긴장감 개편: 2장부터 더 어렵게 — 예전 1:92 2:88 3:80 4:72 5:65 6:58 · 7 · 8장 표 −4 · 스킬 안 쓰는 초보는 이보다 25~35%p 낮게)
+  const TGC = { 1: 90, 2: 78, 3: 75, 4: 72, 5: 68, 6: 64 };
+  const TG78 = { 61: 68, 62: 64, 63: 60, 64: 58, 65: 51, 66: 56, 67: 54, 68: 52, 69: 50, 70: 42, 71: 66, 72: 62, 73: 58, 74: 56, 75: 48, 76: 54, 77: 52, 78: 50, 79: 48, 80: 40 };
+  // 헬 목표 (10/08): 헬 권장 강화로 잘 짠 덱 첫 도전 — 1장 45 · 2장 42 · 3~6장 38 · 7 · 8장 33 (스테이지 안 기울기는 보통의 절반)
+  const HTG = [45, 42, 38, 38, 38, 38, 33, 33]; // (10/08 헬은 단단하게 · 목표 조금 낮게)
+  function hellTarget(s) { const c = D.chapterOf(s), n = D.stageNo(s); return HTG[c - 1] + (5.5 - n) * 0.7 - (n === 10 ? 2 : 0); }
+  function stageTarget(s) { if (args.includes('--hell')) return hellTarget(s);
+    const c = D.chapterOf(s), n = D.stageNo(s); return c >= 7 ? TG78[s] : TGC[c] + (5.5 - n) * 1.4 - (n === 10 ? 3 : 0); }
   // 기준 플레이어 한 판 묶음 클리어율 (1~6장: 균형 덱 · 강화 권장+REF_PLUS / 7 · 8장: T3·T4 역할 덱 강화 15 · 아이템 넉넉히) — 둘 다 ★ · 도감 기준 포함
   const C78 = ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], ITEMS78 = { door: 12, charm: 12, battery: 12, drink: 3, coupon: 10, slot5: 1, slot6: 1 };
   function refRun(s, N, hell, plus = opt('meta', REF_PLUS)) {
     const c = D.chapterOf(s);
+    if (hell) plus += D.META_SOFT.hellAdd; // (10/08) 헬은 헬 권장 강화 기준 (예전엔 보통과 같은 강화로 쟀다)
     if (c <= 6) { const ids = balFor(c, s, hell); return deckRun(ids, s, Object.fromEntries(ids.map((id) => [id, REC[c - 1] + plus])), N, hell).w; }
-    const meta = Object.fromEntries(C78.map((id) => [id, 15 + opt('meta78', 0)]));
+    const meta = Object.fromEntries(C78.map((id) => [id, 15 + opt('meta78', 0) + (hell ? D.META_SOFT.hellAdd : 0)]));
     let w = 0;
     for (let i = 1; i <= N; i++) if (play({ stage: s, deck: placeDeck(C78), partner: C78[0], leader: C78[0], meta, gear: gearAt(s, C78), items: ITEMS78, seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...refOf(s, C78) }).win) w++;
     return w / N;
@@ -796,11 +815,28 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     return room;
   }
   if (what === 'room') { for (let c = 1; c <= 8; c++) { const r = []; for (let n = 1; n <= 10; n++) r.push(levelRoom((c - 1) * 10 + n).toFixed(1)); console.log(c + '장 여유 ' + r.join(' ')); } }
+  // 헬 스테이지 맞춤 (node scripts/lb-balance.js hellcalib --list=1,...,80 [--seeds=8 --iters=5]) — 헬 권장 강화 기준 클리어율이 헬 목표가 되게 HELL.stageHp 를 로그 이분 탐색 (보통 대비 ×minHp ~ ×hp×1.5)
+  if (what === 'hellcalib') {
+    const N = opt('seeds', 8), IT = opt('iters', 5), out = {};
+    for (const s of listArg('list', '12').map(Number)) {
+      const target = hellTarget(s), base = D.HELL.stageHp[s] || 1;
+      const rate = (m) => { D.HELL.stageHp[s] = m; return refRun(s, N, true) * 100; };
+      const mlo = D.HELL.minHp / D.HELL.hp, mhi = 2; // 헬 체력은 보통의 minHp 배 아래로는 안 내려간다 (절대값으로 찾는다)
+      let lo = Math.log(mlo), hi = Math.log(mhi), best = base, r0 = rate(base), err = Math.abs(r0 - target);
+      if (r0 > target) lo = Math.log(base); else hi = Math.log(base);
+      if (err > 100 / N) for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2, r = rate(Math.exp(mid)); if (Math.abs(r - target) < err) { err = Math.abs(r - target); best = Math.exp(mid); } if (r > target) lo = mid; else hi = mid; }
+      D.HELL.stageHp[s] = best; out[s] = +best.toFixed(2);
+      console.log(`${D.stageLabel(s)} 헬 목표 ${target.toFixed(0)}% · 처음 ${r0.toFixed(0)}% → 체력 ×${out[s]} (오차 ${err.toFixed(0)})`);
+    }
+    console.log('hellStageHp: ' + JSON.stringify(out));
+  }
   // 측정만 (node scripts/lb-balance.js stagemeas --list=1,2,... [--seeds=N] [--hell] [--seedoff=K]) — 스테이지별 · 장 평균 (목표와 비교)
   function stagemeas() {
     const N = opt('seeds', 8), hell = args.includes('--hell'), byCh = {};
     for (const kv of listArg('chadd', '')) { const [c, v] = kv.split(':').map(Number); D.STAGE.chapterAdd[c - 1] += v; } // --chadd=5:2 : 장 난이도를 바꿔 보며 측정
     for (const kv of listArg('sadd', '')) { const [st, v] = kv.split(':').map(Number); D.STAGE.stageAdd[st] = v; } // --sadd=30:-1.2 : 스테이지 가산을 바꿔 보며 측정
+    for (const kv of listArg('hpx', '')) { const [st, v] = kv.split(':').map(Number); D.STAGE_HPX[st] = v; } // --hpx=23:1.5 : 스테이지 체력 배수를 바꿔 보며 측정
+    for (const kv of listArg('chhp', '')) { const [c, v] = kv.split(':').map(Number); D.TENSION.chHp[c - 1] *= v; } // --chhp=3:1.2 : 장 체력 배율(긴장감)을 곱해 보며 측정
     for (const kv of listArg('hellch', '')) { const [c, v] = kv.split(':').map(Number); D.TEMPO.hellCh[c - 1] *= v; } // --hellch=1:0.7 : 헬 장별 체력 배율을 곱해 보며 측정
     const cells = [];
     for (const s of listArg('list', '1,5,10').map(Number)) {
@@ -810,6 +846,68 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     if (!args.includes('--quiet')) console.log(cells.join(' '));
     console.log(Object.entries(byCh).map(([c, b]) => `${c}장 ${Math.round(b[0] / b[2])}%(목표 ${Math.round(b[1] / b[2])})`).join(' · '));
   }
+  // ── 긴장감 (node scripts/lb-balance.js tension --list=11,...,20 [--seeds=8] [--hell] [--bots=ref,low,beg] [--trace=17])
+  //  판이 어떻게 흘러가나: 1초마다 입구 % · 살아 있는 진상 · 처치 → 이긴 판 남은 입구 분포 · 진 판 무너지는 데 걸린 시간 (입구 75% → 0) · 판 중 최저 입구
+  //  봇: ref = 기준 플레이어 (스킬 1.5초 늦게 · 카드 40% 아무거나) · low = 스킬 가끔 (8초마다 한 번 확인) · beg = 초보 (스킬 안 씀 · 카드는 기준과 같게 · 총공지만 누름) · rnd = 스킬 안 씀 + 카드 막 고름
+  //  강화 = 장 권장 + REF_PLUS (헬: + 헬 권장 가산) · 같은 덱 · 같은 시드
+  const BOTS = { ref: { label: '기준', o: {} }, low: { label: '스킬가끔', o: { skillEvery: 480, policy: 'mid' } }, beg: { label: '초보', o: { skills: false, policy: 'mid' } }, rnd: { label: '막고름', o: { skills: false, policy: 'random' } } };
+  function botRun(s, bot, N, hell) {
+    const c = D.chapterOf(s);
+    let ids = c <= 6 ? balFor(c, s, hell) : C78;
+    const conds = DC.stageConds(s, hell), isCounter = (id) => conds.some((cd) => (D.COND[cd] && D.COND[cd].counter || []).includes(id));
+    if (args.includes('--nocounter')) { const keep = ids.filter((id) => !isCounter(id)), fill = ['sanghwa', 'ingyu', 'youngjun', 'eunok', 'myunghoon', 'donghan', 'hanna', 'ara', 'junseo', 'wonsik', 'jiwon', 'gunman', 'staff', 'bangjang'].filter((id) => !isCounter(id) && !keep.includes(id)); while (keep.length < ids.length && fill.length) keep.push(fill.shift()); ids = keep; } // --nocounter: 조건 상성 멤버를 빼고 아무나
+    const SZ = opt('size', 0);
+    if (SZ) { const more = [...(c <= 6 ? DECKS[c][1] : C78), 'gunnyeo', 'dohoon', 'wonsik', 'jungmin', 'sanghwa'].filter((id) => !ids.includes(id)); ids = ids.slice(0, SZ); while (ids.length < SZ && more.length) ids.push(more.shift()); } // --size=4|6: 좁은 덱 · 넓은 덱
+    const hm = hell ? D.META_SOFT.hellAdd : 0;
+    const meta = Object.fromEntries(ids.map((id) => [id, (c <= 6 ? REC[c - 1] + opt('meta', REF_PLUS) : 15 + opt('meta78', 0)) + hm]));
+    const runs = [];
+    for (let i = 1; i <= N; i++) {
+      const tr = [];
+      let nextT = 0, lastK = 0, firstHit = -1, t75 = -1;
+      const hits = [];
+      const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...refOf(s, ids), ...BOTS[bot].o,
+        onEvents: (g, evs) => { for (const e of evs) if (e.type === 'baseHit' && e.v > 0) hits.push([e.v / g.base.max * 100, e.by, Math.round(g.t)]); },
+        onStep: (g) => {
+          const f = g.base.hp / g.base.max;
+          if (firstHit < 0 && f < 0.999) firstHit = g.t;
+          if (t75 < 0 && f < 0.75) t75 = g.t;
+          if (g.t >= nextT) { let alive = 0; for (const e of g.enemies) if (!e.dead && e.y > 0) alive++; tr.push([Math.round(g.t), Math.round(f * 100), alive, g.stats.kills - lastK, g.wave]); lastK = g.stats.kills; nextT += 1; }
+        } });
+      const minHp = tr.reduce((m, x) => Math.min(m, x[1]), 100);
+      const G = r.g, hs = G.heroes.filter((h) => !h.def.summon), lvF = hs.reduce((a, h) => a + D.LEVEL_DMG[h.lv - 1] / D.LEVEL_INTERVAL[h.lv - 1], 0) / Math.max(1, hs.length);
+      const grow = { dmg: G.mods.dmg, spd: G.mods.spd, lvF, n: hs.length, wave: r.wave };
+      runs.push({ grow, hits, win: r.win, hp: r.hp, t: r.t, firstHit, t75, minHp, tr, skills: r.g.stats.skills || 0, wave: r.wave });
+    }
+    return runs;
+  }
+  function tension() {
+    const N = opt('seeds', 8), hell = args.includes('--hell'), bots = listArg('bots', 'ref,beg');
+    const list = listArg('list', '5,15,25,35,45,55').map(Number);
+    const q = (arr, f) => { if (!arr.length) return NaN; const v = arr.slice().sort((x, y) => x - y); return v[Math.min(v.length - 1, Math.floor(f * v.length))]; };
+    const byCh = {};
+    for (const s of list) {
+      const c = D.chapterOf(s);
+      const cells = [];
+      for (const b of bots) {
+        const runs = botRun(s, b, N, hell), A = ((byCh[c] || (byCh[c] = {}))[b] || (byCh[c][b] = []));
+        A.push(...runs);
+        const w = runs.filter((x) => x.win), l = runs.filter((x) => !x.win);
+        cells.push(`${BOTS[b].label} ${Math.round((w.length / N) * 100)}% 남은입구 ${w.length ? Math.round(q(w.map((x) => x.hp * 100), 0.5)) : '-'}`);
+        if (opt('trace', 0) === s) for (const x of runs.slice(0, 3)) console.log(`  [${BOTS[b].label} ${x.win ? '승' : '패'}] ` + x.tr.filter((_, k) => k % opt('every', 10) === 0 || (args.includes('--tail') && k > x.tr.length - 25)).map((y) => `${y[0]}s W${y[4]} 입구${y[1]} 적${y[2]}`).join(' | '));
+      }
+      if (!args.includes('--quiet')) console.log(`${D.stageLabel(s)} ${cells.join(' · ')}`);
+    }
+    console.log(`\n■ 장별 요약${hell ? ' (헬)' : ''} — 이긴 판 남은 입구 25/50/75% · 90%+ 로 이긴 비율 · 진 판: 입구 75% → 0 걸린 초 (중앙) · 판 중 최저 입구 30~80% 인 판 비율(긴장)`);
+    for (const [c, m] of Object.entries(byCh)) for (const b of bots) {
+      const runs = m[b], w = runs.filter((x) => x.win), l = runs.filter((x) => !x.win);
+      const hp = w.map((x) => x.hp * 100), col = l.map((x) => x.t - (x.t75 >= 0 ? x.t75 : x.t));
+      const tense = runs.filter((x) => x.minHp >= 30 && x.minHp <= 80).length / runs.length;
+      if (args.includes('--hits')) { const H = runs.flatMap((x) => x.hits); const by = {}; for (const h of H) by[h[1]] = (by[h[1]] || 0) + h[0]; console.log(`   한 대 크기(입구 %) 50/90/99: ${[0.5, 0.9, 0.99].map((f) => q(H.map((h) => h[0]), f).toFixed(1)).join('/')} · 판당 ${Math.round(H.length / runs.length)}대 · 몫 ${Object.entries(by).sort((a, b2) => b2[1] - a[1]).slice(0, 6).map(([k, v]) => k + ' ' + Math.round(v / runs.length)).join(' ')}`); }
+      if (args.includes('--grow')) { const gw = runs.filter((x) => x.win).map((x) => x.grow); if (gw.length) { const av = (f) => gw.reduce((a, x) => a + f(x), 0) / gw.length; console.log(`   한 판 성장 (이긴 판 끝): 공격 ×${av((x) => x.dmg).toFixed(2)} · 공속 ×${av((x) => x.spd).toFixed(2)} · 멤버 레벨 몫 ×${av((x) => x.lvF).toFixed(2)} · 합계 ×${av((x) => x.dmg * x.spd * x.lvF).toFixed(2)} · ${av((x) => x.n).toFixed(1)}명`); } }
+      console.log(`${c}장 ${pad(BOTS[b].label, 8)} 클리어 ${pad(Math.round((w.length / runs.length) * 100) + '%', 5)} 남은입구 ${hp.length ? [0.25, 0.5, 0.75].map((f) => Math.round(q(hp, f))).join('/') : '-'} · 90%+ ${hp.length ? Math.round((hp.filter((v) => v >= 90).length / hp.length) * 100) : '-'}% · 붕괴 ${col.length ? Math.round(q(col, 0.5)) + '초' : '-'} · 긴장 ${Math.round(tense * 100)}% · 스킬 ${Math.round(runs.reduce((a, x) => a + x.skills, 0) / runs.length)}번 · 시간 ${Math.round(runs.reduce((a, x) => a + x.t, 0) / runs.length)}초`);
+    }
+  }
+  if (what === 'tension') tension();
   // ── 15) 아무 덱이나 (node scripts/lb-balance.js custom --list=61,62 --decks=donghan+ara+...|... [--m=15] [--lm=20] [--seeds=N] [--hell])
   //  덱마다 클리어율 · 피해 몫 (lm: LEGEND 강화 · 7장처럼 아이템 넉넉히)
   function custom() {

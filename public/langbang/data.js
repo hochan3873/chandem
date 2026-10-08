@@ -108,6 +108,26 @@ export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'dongh
 // 느린 판 (2026-10 대개편 · 스테이지 · 주간 · 헬만): 진상 나오는 간격 ×gap · 수 ×count · 한 명 체력 ×hp · 이동 ×espd · 입구 치는 힘 ×door — 한 판 3~4분 · 멤버 하나하나 조종하는 맛
 // 큰 한 방 스킬 (쿨 cd 초 이상: 방장 · 강성구 · 김도훈 · 오지은 · 강병화 · 이호찬 · 정소영) 은 첫 웨이브가 끝나야 쓸 수 있다 — 시작하자마자 몰아 쓰기 방지 (10/08 · 기세도 3칸 → 2칸)
 export const ULT_LOCK = { cd: 35 };
+// 긴장감 (10/08 · 일반 스테이지 · 헬만 — 주간 · 이벤트 · 대전 · 레이드 · 탑은 그대로): 입구가 '안 맞거나 → 몇 초 만에 털리거나' 둘 중 하나 · 스킬을 안 써도 깨지던 것을
+//  crowd: 입구에 붙어 치는 진상이 k 명을 넘으면 넘는 몫은 over 배만 · 합쳐서 cap 명 몫까지 (입구 앞 자리가 좁다 — 쌓이면 무너지는 속도가 끝없이 커지던 것 → 서서히 기운다)
+//  door: 진상 한 대 세기 × (대신 오래 버티면 계속 깎인다) · repair: 웨이브를 깨면 잃은 입구의 frac 만큼 (최대 cap × 최대 내구도) 고친다 (버티면 숨 돌릴 틈)
+//  hp: 2웨이브부터 (팀이 모인 뒤) 진상 체력 × (떼거리 조건은 1 + (hp−1) × swarmK) — 평타만으로는 밀리고
+//  skill: 스킬 피해 × · refill: 기세 한 칸 차는 초 (원래 7) — 스킬로 뒤집는다 (스킬 안 쓰는 판은 확실히 어렵게)
+// 역할 리듬 (10/08 · 일반 스테이지 · 헬): 화면이 덜 바쁘게 — 공격 간격 ×iv · 한 방 ×dmg (초당 피해는 거의 그대로 · 스킬 피해는 그대로) · 역할마다 리듬이 다르다
+//  도감 역할(HERO_ROLE)을 그대로 쓴다: tank 묵직한 한 방 · single 느리고 큰 한 발 · aoe 중간 박자 범위 · support 주기적인 펄스 · ctrl · special 중간
+//  CADENCE_HERO: 역할과 다른 리듬만 — rapid 빠른 연타는 계속 빠르게 (대신 한 방은 작게) · own 게이지 · 소환 · 수동 · 아주 느린 멤버는 제 리듬
+//  새 멤버는 HERO_ROLE 만 정하면 그 역할 리듬을 따른다
+export const ROLE_CADENCE = { tank: { iv: 1.6, dmg: 1.6 }, single: { iv: 1.55, dmg: 1.55 }, aoe: { iv: 1.4, dmg: 1.4 }, support: { iv: 1.45, dmg: 1.45 }, ctrl: { iv: 1.35, dmg: 1.35 }, special: { iv: 1.35, dmg: 1.35 }, rapid: { iv: 1.2, dmg: 1.2 }, own: { iv: 1, dmg: 1 } };
+export const CADENCE_HERO = { youngjun: 'rapid', hanna: 'rapid', myunghoon: 'rapid', eunok: 'rapid', staff: 'rapid', hochan: 'own', soyoung: 'own', baul: 'own', jeongseob: 'own' };
+export const roleCadence = (id) => ROLE_CADENCE[CADENCE_HERO[id] || HERO_ROLE[id] || 'special'] || ROLE_CADENCE.own;
+export const TENSION = { crowd: { k: 2, over: 0.2, cap: 3.5 }, door: 0.9, espd: 1.25, repair: { frac: 0.2, cap: 0.08 }, hp: 1.7, hpFrom: 2, swarmK: 0.3, skill: 3.5, refill: 9,
+  // pick: 레벨업 필요 경험치 ×need (카드 덜 자주) · freeTo 명까지는 합류해도 카드 한 장 더 (예전처럼) · 5 · 6번째 합류는 카드 한 장을 쓴다 · 공짜 합류 카드는 freeWaves 웨이브에만 (예전엔 매 웨이브) · 처음 guarantee 장은 합류 보장
+  //   → 좁은 덱 (4명): 카드가 남고 narrow: 빈 칸 하나마다 팀 공격 + (1~2명이 확실한 캐리) / 넓은 덱 (6명): 합류에 카드를 쓰는 대신 wide: 5번째부터 한 명마다 팀 공격 +dmg · 웨이브 사이 입구 수리 +repair (서포트 · 시너지)
+  // slam: 입구에서 reach 안으로 들어온 정예 · 중간 보스 · 보스가 first 초 뒤부터 every 초마다 '입구 강타' 예고 (wind 초) → 맞으면 입구 최대의 elite/mid/boss (헬 ×hell) · 기절 · 넉백 · 빙결 스킬로 끊으면 0 (스킬 타이밍)
+  slam: { reach: 230, first: 2, every: 6.5, wind: 1.3, elite: 0.04, mid: 0.07, boss: 0.09, hell: 1.15 },
+  card: 0.8, aug: 0.75, // 한 판 성장 납작하게: 레벨업 카드 % ×card · 증강 % ×aug (끝날 때 팀 공격 ×2~4 → 덜 · 뒤 웨이브가 '그냥 밀리는' 느낌 줄이기)
+  pick: { need: 1.2, freeWaves: [2, 3], guarantee: 3, freeTo: 4 }, wide: { from: 5, dmg: 0.02, repair: 0.02, narrow: 0.3 },
+  chHp: [1.09, 1.28, 0.92, 0.8, 0.66, 0.69, 0.78, 0.53] }; // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
 export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.15, chHp: [0.89, 0.89, 0.69, 0.82, 0.91, 0.985, 0.63, 0.525] }; // (10/08 진상 리메이크 · 쓰러짐 게이지 · 1웨이브 뒤 큰 한 방 · 기세 2칸 뒤 다시: 1 · 2장 +3% · 3장 −7% · 6장 −3.5% · 7장 +7% · 8장 +5%) chHp: 장마다 체력 다시 맞춤 (stagemeas · 대개편 뒤 1차 · 10/07 쿨 다양화 · 쓰러짐 게이지 뒤 6장 +7% · 7장 −2% · 8장 −2%)
 // 방어율 (장이 깊을수록 진상이 단단 — 한 방마다 %로 깎임): 정예 · 중간 보스 · 보스는 ch 그대로 · 졸개는 fodder 배
 //  방관(pen): 그 멤버 공격은 방어율을 그만큼 뚫는다 (건전남 전부) · 여지원 모자이크 한 겹마다 방어율 shredPer 씩 벗김 (5겹 = 0) · 모자이크 폭격은 전부
@@ -131,7 +151,7 @@ export const HERO_RES = {
 //  게이지 크기 = base × KD_HERO(멤버) × (1 + lv×(Lv−1)) × (1 + meta×강화) × (1 + star×(★−1)) × (1 + 장비 저항) — 키울수록 잘 버틴다
 //  status: 상태이상 1초당 +10 (감속은 slow) · decay: 마지막으로 맞고 wait 초 뒤부터 초당 per 씩 빠짐 · line: 입구 치는 진상 한 대 (r 안 가장 가까운 멤버 · 정예 · 보스 배) · taunt: 도발 멤버(정원식 · 배현경 · 윤정섭)가 r 안 멤버 대신 맞음
 //  poison: 독 — 초당 게이지 +dps · 공격 속도 ×spd · 기절 예고 조건(3장부터)에 독이 섞이고 오리고기 · 토 웅덩이도 독
-export const KD = { base: 100, lv: 0.06, meta: 0.025, star: 0.08, sec: 4, grace: 1.5, status: 8, slow: 3, kind: { silence: 0.4, charm: 0.3 } /* 침묵은 스킬만 막아서 덜 · 홀림은 꼬충 떼가 자주 걸어서 덜 */, decay: { wait: 5, per: 0.8 }, ch: [0.9, 1.3, 2.2, 2.9, 3.9, 4.3, 4.8, 5.6], hell: 1.4, // ch: 장마다 채우는 양 배율 (멤버가 커지는 만큼) · hell: 헬 배율
+export const KD = { base: 100, lv: 0.06, meta: 0.025, star: 0.08, sec: 4, grace: 1.5, status: 8, slow: 3, kind: { silence: 0.4, charm: 0.3 } /* 침묵은 스킬만 막아서 덜 · 홀림은 꼬충 떼가 자주 걸어서 덜 */, decay: { wait: 5, per: 0.8 }, ch: [0.9, 1.3, 2.2, 2.9, 3.9, 4.3, 4.8, 5.6], hell: 1.2, /* (10/08 헬 1.4 → 1.2: 헬은 단단함이 주인공) */ // ch: 장마다 채우는 양 배율 (멤버가 커지는 만큼) · hell: 헬 배율
   after: 0.5, // 쓰러질 때마다 그 판 게이지 +50%
   line: { r: 46, hit: 5, elite: 1.6, boss: 3 }, taunt: { r: 95 }, poison: { dps: 5, spd: 0.8, cc: 5, duck: 4, puddle: 2 } };
 // 멤버별 게이지 배율: 탱커 크게 · 딜러 작게
@@ -166,7 +186,7 @@ export const EST = {
 };
 // 화상 (박나영): tick 초마다 · 겹마다 +stack · 최대 max 겹 — 방어율 무시
 export const BURN = { tick: 0.5, stack: 0.5, max: 3 };
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.0, hellCh: [0.95, 0.7, 0.6, 0.5, 0.46, 0.35], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.72, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [1, 1, 1, 1, 1, 1], endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 1.6, wonsik: 2.4, staff: 0.95, eunok: 0.72, myunghoon: 1.65, bangjang: 0.92, soyoung: 1.9, junyoung: 2.4, ingyu: 1.85, jiwon: 2.0, jungmin: 1.7, gunman: 1.25, junseo: 3.0, ara: 1.8, jieun: 3.4, baul: 1.65, sanghwa: 2.9, hanna: 1.5, hochan: 0.7, hyungyeong: 1.15, sunggu: 1.35, subin: 1.6 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -250,8 +270,8 @@ export const SCORE = {
 // ─── 경제 (서버 server/langbang-rules.js 와 숫자가 같아야 한다 — 테스트가 검사) ───
 // 영구 강화 비용: 서버가 최종 결정. 손님은 이 값으로 기기 안에서 강화
 export const META_MAX = 20;
-export function metaCost(lv) {
-  return Math.round((40 * Math.pow(lv + 1, 1.7)) / 10) * 10;
+export function metaCost(lv) { // (10/08) +5 · +10 · +15 · +20 (각성 이정표 META_MILESTONE) 는 두 배 — 장마다 넘는 벽
+  return Math.round((40 * Math.pow(lv + 1, 1.7) * ((lv + 1) % 5 === 0 ? 2 : 1)) / 10) * 10;
 }
 // 아이템: 코인으로 사는 영구 강화 (레벨제)
 export const ITEMS = {
@@ -378,14 +398,14 @@ export const STAGE = {
   hpTune: [1.0, 1.4, 1.9, 1.15, 0.62, 0.45], // (5·6장: 강화 12~16 덱 기준으로 다시 맞춤 — 전엔 5-1부터 벽) // 챕터별 최종 난이도 조정 (밸런스 스크립트로 맞춘 값)
   swarm: [1.3, 1.6, 1.9, 2.2, 2.6, 3.0], // 챕터별 적 수 배율 (떼로 몰려온다 · 1-1 은 그대로)
   // (11~60: 2026-10 덱 구성 개편 뒤 'node scripts/lb-balance.js stagecalib' 로 균형 덱(조건 맞춤) 기준 다시 맞춤)
-  stageAdd: {3: 2.5, 4: 6.5, 5: 2.5, 6: 2.06, 7: 1, 8: 3.6, 9: -0.11, 10: 3.97, 11: 4.21, 12: 4.76, 13: 6.08, 14: 8.37, 15: -8.25, 16: 3.99, 17: 1.8, 18: 1.75, 19: 2.34, 20: 2.51, 21: 3.25, 22: -1.28, 23: 7.05, 24: 2.29, 25: -1.94, 26: 1.22, 27: 3.86, 28: -3.62, 29: -4.78, 30: -3.81, 31: -5.19, 32: -0.57, 33: -1.22, 34: -4.19, 35: 5.88, 36: -3.39, 37: 6.25, 38: -0.81, 39: -2.25, 40: -7.47, 41: -1.19, 42: 3.57, 43: 4.06, 44: -5.31, 45: 4.63, 46: 4.19, 47: 7.06, 48: -3.69, 49: -5.69, 50: 2.63, 51: -3.5, 52: 8.04, 53: -1.97, 54: -10.69, 55: 3.46, 56: -8.29, 57: -3.25, 58: 2.5, 59: -1.5, 60: 0.39}, // (10/08 진상 감사 재보정: 1-9 · 1-10 · 2-10 · 3-2 · 3-8 · 4-1 · 5-2 · 5-7 · 6-3 · 6-6 · 6-7) 챕터 끝 보스 바로 앞 스테이지는 살짝 더
+  stageAdd: {3: 2.5, 4: 6.5, 5: 2.5, 6: 4.56, 7: 0.38, 8: 5.47, 9: -0.11, 10: 6.47, 11: 6.07, 12: 8.39, 13: 6.08, 14: 8.37, 15: -10.75, 16: 2.74, 17: -0.7, 18: -1.38, 19: 1.71, 20: 2.51, 21: 3.25, 22: -1.28, 23: 7.05, 24: 4.41, 25: 0.56, 26: 1.22, 27: 3.86, 28: -1.12, 29: -7.28, 30: -3.81, 31: -4.57, 32: -2.44, 33: -1.22, 34: -5.44, 35: 1.5, 36: -3.39, 37: 8.75, 38: 2.94, 39: -2.25, 40: -11.03, 41: -1.19, 42: 3.57, 43: 4.06, 44: -9.68, 45: 4.63, 46: 7.32, 47: 7.06, 48: -3.69, 49: -6.32, 50: 3.25, 51: -7.88, 52: 8.04, 53: -3.22, 54: -10.69, 55: 0.96, 56: -15, 57: -3.25, 58: -1.25, 59: 2.25, 60: -3.36}, // (10/08 진상 감사 재보정: 1-9 · 1-10 · 2-10 · 3-2 · 3-8 · 4-1 · 5-2 · 5-7 · 6-3 · 6-6 · 6-7) 챕터 끝 보스 바로 앞 스테이지는 살짝 더
   augAdd: 2, // 증강(1·3·4웨이브)이 생겨서 진상도 그만큼 조금 세게
   themeLevel: { violent: -1.2 }, // 폭력형 스테이지는 단단한 적이 많아서 조금 낮게 // 나머지 계열 비중
 };
 // ── 7장 스키장 MT: 난이도 숫자 (기존 1~6장 값은 그대로 · 이 블록만 7장) — scripts/lb-balance.js ch7 로 맞춘 값 ──
 //   목표: 한 명만 키운 덱 < 30% · 역할을 갖춘 T3/T4 강화 덱 50~70% · 키운 LEGEND 포함 덱은 그보다 높게 · 헬은 더 어렵게
-export const CH7 = { chapterAdd: 1, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 0.5,
-  stageAdd: { 62: 0.63, 61: 2.77, 63: -4.16, 64: -6.38, 65: -1.56, 66: -2.82, 67: 2, 68: -1.05, 69: -4.5, 70: -6 }, waveAdd: [-4, -2, 0, -1.5, 1],
+export const CH7 = { chapterAdd: 1, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 1,
+  stageAdd: { 61: -1.6, 62: 0.63, 63: -7.29, 64: -13.56, 65: -5.94, 66: -7.2, 67: 4.28, 68: -5.42, 69: -8.88, 70: -13.19 }, waveAdd: [-4, -2, 0, -1.5, 1],
   coldTier: [1, 1.4, 1.2, 1, 0.75, 0.45], thaw: 2 }; // thaw: 눈덩이 빙결이 풀린 뒤 2초는 다시 안 언다 // 겨울 산 적응: 등급이 높은 멤버일수록 빙결 · 침묵 · 추위(공속↓)가 짧다 (T1 ×1.3 … LEGEND ×0.55) // waveAdd: 첫 웨이브(대장 혼자)는 덜 · 뒤 웨이브와 보스는 더
 STAGE.chapterAdd[6] = CH7.chapterAdd; STAGE.bossStage[7] = CH7.boss; STAGE.deckHp[6] = CH7.deckHp; STAGE.hpTune[6] = CH7.hpTune; STAGE.swarm[6] = CH7.swarm;
 Object.assign(STAGE.stageAdd, CH7.stageAdd);
@@ -393,14 +413,14 @@ STAGE.waveAdd = Object.assign(STAGE.waveAdd || {}, { 7: CH7.waveAdd });
 BAL.chHp[7] = CH7.chHp; JOIN.hp[6] = CH7.joinHp; TEMPO.hellCh[6] = CH7.hellCh;
 // ── 8장 결혼식 뒤풀이: 난이도 숫자 (이 블록만 8장 · 7장과 같은 틀) — scripts/lb-balance.js ch8 로 대충 맞춘 값 (전체 재계산은 stagecalib 로) ──
 //   thief: 축의금 도둑이 위로 달아나면 이번 판 스테이지 코인 −per (최대 −cap) — 서버 server/langbang-rules.js THIEF 와 같아야 한다 (테스트가 검사)
-export const CH8 = { chapterAdd: 4, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 1.0, /* (0.8 → 1.0: 8장 앞쪽은 레벨 가드레일에 닿아서 체력으로) */ joinHp: 2.6, hellCh: 0.43, /* (0.49 → 0.43: 10/07 대개편 뒤 헬 8장 28% → 50%대) */
-  stageAdd: { 71: 1.42, 72: 1.32, 73: -10.18, 74: 1.05, 75: -6.5, 76: 0.63, 77: -7.44, 78: -1.57, 79: -0.63, 80: -7.88 }, waveAdd: [-4, -2, 0, -1.5, 1],
+export const CH8 = { chapterAdd: 4, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, swarm: 3.0, chHp: 1.0, /* (0.8 → 1.0: 8장 앞쪽은 레벨 가드레일에 닿아서 체력으로) */ joinHp: 2.6, hellCh: 1, /* (0.49 → 0.43: 10/07 대개편 뒤 헬 8장 28% → 50%대) */
+  stageAdd: { 71: 1.42, 72: 1.36, 73: -12.68, 74: 1.05, 75: -7.82, 76: -5.44, 77: -8.69, 78: -5.95, 79: -1.88, 80: -14.25 }, waveAdd: [-4, -2, 0, -1.5, 1],
   thief: { per: 0.08, cap: 0.4 }, rushSpd: 1.3, rushAtk: 1.4 };
 STAGE.chapterAdd[7] = CH8.chapterAdd; STAGE.bossStage[8] = CH8.boss; STAGE.deckHp[7] = CH8.deckHp; STAGE.hpTune[7] = CH8.hpTune; STAGE.swarm[7] = CH8.swarm;
 Object.assign(STAGE.stageAdd, CH8.stageAdd);
 STAGE.waveAdd[8] = CH8.waveAdd;
 // 스테이지별 진상 체력 배율 — 레벨 가드레일에 걸려 레벨로 더 못 올리는 판만 (8-9: 약 90% 로 너무 쉬웠음)
-export const STAGE_HPX = { 6: 1.35, 14: 1.3, 15: 6.5, 23: 1.3, 47: 1.1, 71: 1.27, 74: 1.15, 76: 1.15, 79: 2.2 }; // (10/08 8-6 1.15: 가드레일에 닿아 체력으로) 진상 체력 배수 (스테이지별): 1-6 · 2-5 는 너무 쉬워서 (2-5 는 보스까지 순식간이라 크게) · 8-9 상향 · (10/07 대개편 맞춤: 2-4 · 5-7 · 8-1 · 8-9 는 가드레일에 닿아 체력으로)
+export const STAGE_HPX = { 6: 1.35, 13: 2.4, 14: 1.95, 15: 6.5, 23: 2.15, 27: 1.97, 47: 1.6, 56: 0.72, 59: 1.34, 71: 1.27, 74: 1.15, 76: 1.15, 79: 2.2 }; // (10/08 긴장감 재보정: 2-3 · 2-4 · 3-3 · 3-7 · 5-7 · 6-9 는 레벨 가드레일에 닿아 체력으로) // (10/08 8-6 1.15: 가드레일에 닿아 체력으로) 진상 체력 배수 (스테이지별): 1-6 · 2-5 는 너무 쉬워서 (2-5 는 보스까지 순식간이라 크게) · 8-9 상향 · (10/07 대개편 맞춤: 2-4 · 5-7 · 8-1 · 8-9 는 가드레일에 닿아 체력으로)
 BAL.chHp[8] = CH8.chHp; JOIN.hp[7] = CH8.joinHp; TEMPO.hellCh[7] = CH8.hellCh;
 // 축의금 도둑: 도망간 수 → 코인 깎이는 비율 (8% 씩 · 최대 40%)
 export const thiefCut = (n) => Math.min(CH8.thief.cap, CH8.thief.per * Math.max(0, Math.floor(Number(n) || 0)));
@@ -694,11 +714,11 @@ export function stageFx(s) { return MAP_FX[STAGE_FX[s - 1] || 'none']; }
 //  한 스테이지에 1~3개 → 역할 2~3개가 필요. 7장은 자기 기믹(빙결 · 침묵 · 눈사태)이 따로 있어서 여기엔 없음
 export const COND = {
   shield: { id: 'shield', icon: 'tw_shield', name: '보호막 진상', short: '보호막', tip: '보호막 진상: 겹이 남아 있으면 피해 −90% · 한 방에 한 겹씩 벗겨져요 → 연타 · 운영진 경고장 · 여지원이 잘 깨요',
-    counter: ['staff', 'jiwon', 'gunman', 'youngjun', 'soyoung', 'myunghoon', 'hanna', 'sanghwa', 'junseo'], breaker: ['staff', 'jiwon'], frac: 0.22, layers: [2, 3], cut: 0.9, regen: 4 },
+    counter: ['staff', 'jiwon', 'gunman', 'youngjun', 'soyoung', 'myunghoon', 'hanna', 'sanghwa', 'junseo'], breaker: ['staff', 'jiwon'], frac: 0.32, layers: [3, 4], cut: 0.9, regen: 3.2 }, // (10/08 체감 ↑: 0.22 · [2,3] · 4초 → 0.32 · [3,4] · 3.2초)
   stealth: { id: 'stealth', icon: 'tw_dark', name: '숨은 진상', short: '은신', tip: '숨은 진상: 길 ¾ 까지 안 보이고 입구를 두 배로 쳐요 → 운영진 · 건전남 · 배현경이 먼저 찾아내요',
     counter: ['staff', 'gunman', 'hyungyeong'], frac: 0.15 },
   cc: { id: 'cc', icon: 'tw_curse', name: '기절 예고', short: '기절', tip: '기절 예고: 진상이 기를 모았다가(1초) 제일 센 멤버를 기절 · 침묵 · 홀림 → 건전녀(간호 · 응급 방패) · 김도훈이 풀고 강성구 · 강병화 곁은 막아요 · 도발 탱커(정원식)가 대신 맞아요 · 기 모을 때 기절시키면 끊겨요',
-    counter: ['gunnyeo', 'dohoon', 'sunggu', 'byunghwa', 'wonsik', 'soyoung', 'jungmin'], every: [7, 5.5], windup: 1.0, stun: 3, silence: 4, charm: 2.6, react: 0.6, reactCd: 4, singCut: 0.6 }, // react: 건전녀가 있으면 0.6초 만에 풀어 줌 (4초에 한 번) · singCut: 김도훈 떼창 곁 40% 짧게
+    counter: ['gunnyeo', 'dohoon', 'sunggu', 'byunghwa', 'wonsik', 'soyoung', 'jungmin'], every: [5.6, 4.4], windup: 1.0, stun: 3.5, silence: 5, charm: 3, /* (10/08 체감 ↑: [7,5.5] · 3 · 4 · 2.6) */ react: 0.6, reactCd: 4, singCut: 0.6 }, // react: 건전녀가 있으면 0.6초 만에 풀어 줌 (4초에 한 번) · singCut: 김도훈 떼창 곁 40% 짧게
   armor: { id: 'armor', icon: 'tw_titan', name: '철갑 진상', short: '철갑', tip: '철갑 진상: 한 방마다 피해가 크게 깎여요 → 한 방이 큰 멤버 · 건전남(방어 무시)',
     counter: ['ara', 'sunggu', 'gunman', 'donghan', 'hyungyeong', 'wonsik', 'eunok', 'hochan', 'dragon'], frac: 0.3, armor: [0, 6, 10, 14, 18, 22, 26] },
   swarm: { id: 'swarm', icon: 'tw_swarm', name: '떼거리', short: '떼', tip: '떼거리: 약한 진상이 훨씬 많이 → 범위 공격',
@@ -751,10 +771,10 @@ export function softMeta(m, s, hell) { const r = recMeta(s, hell); return m > r 
 // 스테이지 미션 (★★★ = 입구 70% 이상 + 미션) — 조건에 맞는 역할이 있어야 깨기 쉽다. 1-1 ~ 1-3 은 미션 없음 (입구 70% 면 ★★★)
 //  stat: 판에서 세는 숫자 · max: 이하 / min: 이상 (장별 값)
 export const MISSIONS = {
-  rush: { stat: 'endDoor', min: [0.9, 0.95, 0.95, 0.95, 0.95, 0.95], text: (n) => `입구 ${Math.round(n * 100)}% 이상 남기기` },
-  shield: { stat: 'breaks', min: [4, 6, 12, 20, 25, 25], text: (n) => `보호막 한 번에 깨기 ${n}번` },
+  rush: { stat: 'endDoor', min: [0.75, 0.8, 0.8, 0.8, 0.8, 0.8], /* (10/08 긴장감: 입구가 꾸준히 깎이는 판이라 0.9~0.95 → 0.75~0.8) */ text: (n) => `입구 ${Math.round(n * 100)}% 이상 남기기` },
+  shield: { stat: 'breaks', min: [5, 8, 15, 26, 32, 32], /* (10/08 보호막 진상이 늘어난 만큼) */ text: (n) => `보호막 한 번에 깨기 ${n}번` },
   stealth: { stat: 'found', min: [0.85, 0.85, 0.85, 0.85, 0.85, 0.85], pct: true, text: (n) => `숨은 진상 ${Math.round(n * 100)}% 미리 찾기` },
-  cc: { stat: 'ccSec', max: [16, 16, 24, 32, 26, 28], text: (n) => `기절 · 홀림 합계 ${n}초 이하` },
+  cc: { stat: 'ccSec', max: [22, 22, 34, 45, 36, 40], /* (10/08 기절 예고가 잦고 길어진 만큼) */ text: (n) => `기절 · 홀림 합계 ${n}초 이하` },
   armor: { stat: 'armorLeak', max: [2, 2, 3, 3, 3, 3], text: (n) => `철갑 진상 입구 도달 ${n}명 이하` },
   swarm: { stat: 'multi', min: [8, 10, 16, 28, 30, 28], text: (n) => `4명 이상 한 번에 처치 ${n}번` },
   combo: { stat: 'combo', min: [15, 25, 35, 40, 45, 50], text: (n) => `콤보 ${n} 달성` },
@@ -778,7 +798,7 @@ export function missionOk(m, st) {
 export function condFits(id, conds) { return (conds || []).filter((c) => COND[c] && COND[c].counter.includes(id)); }
 
 // 보상 코인 (서버가 계산 — 여기는 손님 · 화면 표시용 같은 공식)
-export const REWARD = { base: 60, perStage: 18, firstMul: 2, starMul: 0.5 };
+export const REWARD = { base: 60, perStage: 18, firstMul: 1.5, starMul: 0.5 }; // (10/08 첫 클리어 ×2 → ×1.5)
 export function clearCoins(s) { return REWARD.base + REWARD.perStage * (s - 1); }
 // prevStars: 이 스테이지에서 전에 받은 최고 별(0 = 처음), couponLv: 단골 쿠폰 레벨
 export function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = false, firstPerfect = false) {
@@ -794,7 +814,12 @@ export function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = fal
   return { clear, first, star, perfect: perf, mid, newStars, bonus: total - clear - first - star - perf - mid, total };
 }
 // ─── 헬 모드: 일반 ★★★ 로 깬 스테이지의 강화판 (진상 체력·속도·공격·수 ↑, 보스 분노 한 번 더) ───
-export const HELL = { hp: 2.2, speed: 1.3, atk: 1.6, count: 1.3, coin: 3, bossEnrage: { at: 0.5, speed: 1.25, atk: 1.3, text: '헬 분노!!' } };
+// (10/08 헬 개편 — 다른 게임 조사: 디아블로4 어려움 체력 ×2 · 피해 ×1.3 / 전문가 ×3.2 · ×1.9 · 킹덤 러시 6 불가능 체력 ×1.6 · 이동 +10% · 기술 더 자주 · 명일방주 챌린지 체력 +50% · 공격 +5% + 특수 규칙)
+//  예전 헬은 장마다 체력을 깎아서 (TEMPO.hellCh 0.95 → 0.35) 뒤 장 헬이 보통보다 무른 판이었다 → 이제 '단단함'이 주인공: 보통 대비 체력 ×hp × 스테이지 보정 (어느 스테이지도 ×minHp 아래로는 안 내려감) · 다른 배율은 낮게
+//  · 입구 치는 힘 ×atk · 이동 ×speed · 수 ×count · 조건 하나 더 · 보스 분노 한 번 더 · 쓰러짐 게이지 ×KD.hell · 웨이브 사이 수리 ×repair · 권장 강화 +META_SOFT.hellAdd
+export const HELL = { hp: 2, speed: 1.1, atk: 1.3, count: 0.8, repair: 0.5, exp: 1.8, dmg: 1.15, chDmg: [1, 1.08, 0.97, 1.55, 1.1, 1.15, 1.3, 1.08], coin: 3, /* exp · dmg: 진상이 단단한 대신 경험치(카드) ×1.8 · 멤버 공격 ×1.15 — 길게 키우며 버티는 싸움 */ minHp: 1.6, stageHp: { 3: 2.0, 4: 1.94, 5: 1.75, 6: 1.46, 7: 2.0, 8: 1.44, 9: 2.0, 10: 1.28, 11: 0.82, 12: 1.11, 13: 0.8, 14: 1.85, 16: 1.36, 17: 1.38, 18: 1.85, 19: 1.33, 20: 0.89, 21: 1.66, 22: 1.09, 24: 0.85, 25: 1.03, 26: 0.86, 27: 0.82, 28: 1.19, 29: 1.41, 30: 1.19, 31: 0.89, 32: 1.33, 33: 1.35, 34: 0.81, 35: 1.05, 38: 1.3, 40: 0.81, 41: 1.41, 42: 1.88, 43: 0.82, 44: 0.82, 45: 0.85, 46: 0.89, 47: 0.82, 48: 1.09, 49: 0.95, 50: 0.81, 51: 0.82, 53: 1.61, 55: 0.82, 56: 1.3, 57: 0.89, 58: 1.28, 59: 1.33, 60: 1.32, 62: 1.43, 63: 1.41, 64: 0.85, 65: 0.82, 66: 1.08, 67: 1.07, 68: 0.87, 69: 1.05, 70: 0.89, 71: 0.82, 72: 0.89, 74: 0.89, 75: 0.81, 76: 1.41, 77: 0.91, 78: 1.04, 79: 0.83, 80: 0.82 }, /* stageHp: 스테이지별 헬 체력 배수 (10/08 lb-balance.js hellcalib · 헬 권장 강화 · 목표 1장 45 · 2장 42 · 3~6장 38 · 7 · 8장 33 · 보통 대비 ×minHp 아래로는 안 내려감) */ bossEnrage: { at: 0.5, speed: 1.25, atk: 1.3, text: '헬 분노!!' } };
+// 이 스테이지 헬 진상 체력이 보통의 몇 배인지 (화면 표시: 기본 배율 × 장 보정 × 스테이지 보정)
+export const hellHpMul = (s) => HELL.hp * (TEMPO.hellCh[chapterOf(s || 1) - 1] || 1) * (TEMPO.hellHp / TEMPO.hp) * (HELL.stageHp[s] || 1);
 export const hellOpen = (stages, s) => ((stages || {})[s] | 0) >= 3;
 export function hellReward(s, stars, prevStars = 0, couponLv = 0) {
   const r = stageReward(s, stars, prevStars, couponLv, false, false);
@@ -920,13 +945,13 @@ export const HEROES = {
   },
   gunnyeo: {
     id: 'gunnyeo', bossKit: 0.8, kit: 1.0, name: '건전녀', gender: 'f', emoji: '🙋‍♀️', color: '#ff8fc0', attr: 'charm',
-    img: '/img/lb/h_gunnyeo.webp', role: '멤버 간호 · 상태이상 해제 · 면역',
+    img: '/img/lb/h_gunnyeo.webp', role: '멤버 간호 · 상태이상 해제 · 면역 · 입구 조금씩 회복',
     dmg: 30, interval: 1.0, range: 300, proj: 'heart', projSpeed: 1, lobSec: 0.85, splash: 36, arcH: 125, // 하트 폭탄: 높이 휙 (포물선 높이 125)
-    care: { every: [4, 4, 3.6, 3.6, 3.2], tired: [3, 3, 4, 4, 5], guard: [1, 1, 1.5, 1.5, 2], cheer: { sec: 3, spd: 0.3 } }, // 간호 (입구 수리는 홍정민 몫): [주기(초)] 마다 멤버 상태이상 전부 풀기 · 기진맥진 −초 · 풀어 준 멤버는 잠깐 면역(초) · 챙겨 준 멤버는 "힘내요!" 3초 공속 +30%
-    attack: '하트 폭탄 — 가까이 온 진상에게 천천히 던지는 작은 폭탄. 진짜 가치는 간호: 틈틈이 멤버 상태이상을 전부 풀고 (풀린 멤버는 잠깐 면역) 스킬 쓰고 지친 멤버(기진맥진)를 일으킨다 · 챙겨 준 멤버는 "힘내요!" 3초 공격 속도 +30% (아픈 멤버가 없으면 제일 잘 싸우는 멤버에게)',
+    care: { every: [4, 4, 3.6, 3.6, 3.2], tired: [3, 3, 4, 4, 5], guard: [1, 1, 1.5, 1.5, 2], cheer: { sec: 3, spd: 0.3 }, door: [0.005, 0.0055, 0.006, 0.007, 0.008] }, // 간호 (10/08: 입구도 간호마다 0.5~0.8% — 초보 입구 지킴이 · 큰 수리 · 바리케이드는 홍정민 몫): [주기(초)] 마다 멤버 상태이상 전부 풀기 · 기진맥진 −초 · 풀어 준 멤버는 잠깐 면역(초) · 챙겨 준 멤버는 "힘내요!" 3초 공속 +30%
+    attack: '하트 폭탄 — 가까이 온 진상에게 천천히 던지는 작은 폭탄. 진짜 가치는 간호: 틈틈이 입구를 조금씩 고치고 멤버 상태이상을 전부 풀고 (풀린 멤버는 잠깐 면역) 스킬 쓰고 지친 멤버(기진맥진)를 일으킨다 · 챙겨 준 멤버는 "힘내요!" 3초 공격 속도 +30% (아픈 멤버가 없으면 제일 잘 싸우는 멤버에게)',
     desc: '다정한 간호사. 한 방은 약하지만 기절 · 홀림 · 침묵에 걸린 멤버를 제일 먼저 챙기고, 스킬 쓰고 지친 멤버에게 물 한 잔 건넨다.',
     perks: { 3: '간호가 더 자주 · 면역 더 길게 · 폭발 범위 +', 5: '모든 멤버 홀림 면역 ("철벽!")' },
-    skill: { id: 'firstaid', name: '응급 방패', cd: 14, desc: '멤버 전원에게 하트 방패 — 상태이상 전부 해제 · 기진맥진도 풀림 · 3초 동안 상태이상 면역 (Lv3 3.5초 · Lv5 4초) · "힘내요!" 4초 공격 속도 +30% · 다른 멤버 스킬 쿨타임 −1초', imm: [3, 3, 3.5, 3.5, 4], cdCut: 1 }, // (쿨 다양화: 24 → 14초 · 자주 푸는 해제 담당)
+    skill: { id: 'firstaid', name: '응급 방패', cd: 14, desc: '멤버 전원에게 하트 방패 — 상태이상 전부 해제 · 입구 6~10% 회복 · 기진맥진도 풀림 · 3초 동안 상태이상 면역 (Lv3 3.5초 · Lv5 4초) · "힘내요!" 4초 공격 속도 +30% · 다른 멤버 스킬 쿨타임 −1초', imm: [3, 3, 3.5, 3.5, 4], cdCut: 1, door: [0.06, 0.065, 0.07, 0.08, 0.1] }, // (10/08 입구도 6~10% 고침) // (쿨 다양화: 24 → 14초 · 자주 푸는 해제 담당)
   },
   // ── 해금 영웅 (스테이지를 깨면 합류) ──
   myunghoon: {
@@ -1084,7 +1109,7 @@ export const HEROES = {
     attack: '째깍 시계 — 날아가지 않고 진상 발밑에 시계가 스르륵 떠올라 째깍! 시계가 남아 있는 동안 그 자리를 지나는 진상은 느려진다 (덫). 공격하는 순간 순한 얼굴이 악마로…',
     desc: '보브컷의 순한 막내. 그런데 공격만 하면 눈빛이 변한다. "…시간아 멈춰라."',
     perks: { 3: '시계가 더 크고 오래 (1.6 → 2.1초)', 5: '시계 제일 크게 · 시간 정지가 더 넓고 길게' },
-    skill: { id: 'timestop', name: '시간 정지', cd: 45, desc: '넓은 범위 진상을 크게 느리게 (보스는 조금만) · 그동안 악마 모드', target: true, r: [200, 200, 220, 220, 250], sec: [4, 4, 4.5, 4.5, 5.5], slow: 0.35 },
+    skill: { id: 'timestop', name: '시간 정지', cd: 45, desc: '찍은 곳에 커다란 시계 구역 — 그 안 진상은 크게 느려진다 (들어오는 진상도 · 보스는 조금만) · 그동안 악마 모드', target: true, r: [235, 235, 255, 255, 285], sec: [4, 4, 4.5, 4.5, 5.5], slow: 0.35 }, // (10/08 범위 200~250 → 235~285 · 그 자리에 남아 들어오는 진상도 느려짐)
     shouts: ['시간아 멈춰라…', '헤헤♡', '…도망 못 가.'],
   },
   sanghwa: {
@@ -1238,7 +1263,13 @@ export const NICHE = {
 };
 export const RES_PER_META = 0.015, RES_MAX = 0.35; // 영구 강화 1레벨 = 상태이상(기절 · 홀림 · 감속 등) 시간 -1.5% (장비와 합쳐 최대 -35%)
 export const resOf = (meta, gearRes) => Math.min(RES_MAX, (meta || 0) * RES_PER_META + (gearRes || 0));
+// 강화 이정표 (10/08 · 강화 체감): +5 · +10 · +15 · +20 마다 공격 +dmg · 공격 속도 +spd 를 한 번 더 (한 칸 한 칸은 그대로 + 다섯 칸마다 '확' 세짐) — 일반 스테이지 · 헬 · 화면 전투력
+export const META_MILESTONE = { every: 5, dmg: 0.1, spd: 0.04, name: ['', '각성 I', '각성 II', '각성 III', '각성 IV'] };
+export const metaMile = (meta) => Math.floor(Math.max(0, meta || 0) / META_MILESTONE.every);
+export const mileDmg = (meta) => 1 + META_MILESTONE.dmg * metaMile(meta);
+export const mileSpd = (meta) => 1 + META_MILESTONE.spd * metaMile(meta);
 export const tierPower = (t, meta) => TIER_MUL[t] * TIER_SPD[t] * (1 + TIER_GROWTH[t] * meta);
+export const tierPowerM = (t, meta) => tierPower(t, meta) * mileDmg(meta) * mileSpd(meta); // 이정표 포함 (스테이지 · 헬 전투력 · 강화 화면) — 대전 · 레이드는 tierPower 그대로
 export const TIER_NAME = ['', 'T1', 'T2', 'T3', 'T4', 'LEGEND'];
 export const heroTier = (id) => HERO_TIER[id] || 1;
 export const metaMaxOf = (id) => TIER_MAX[heroTier(id)];
@@ -2212,14 +2243,14 @@ export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
 for (const t of Object.keys(GEAR)) GEAR[t].img = GEAR[t].hero ? (SIG_ART_TODO.has(GEAR[t].hero) ? `/img/lb/dexhq/thumb/${GEAR[t].hero}.webp` : `/img/lb/gear/myth_${GEAR[t].hero}.webp`) : `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;
 // 드롭 표 (모든 콘텐츠) — 숫자는 실제 규칙(rollDrops · rollHeroCard · live.js 보상)과 같다
 export const DROPS = [
-  ['스테이지 클리어', '장비 1개 (일반 70 · 희귀 24+0.4×스테이지 · 영웅 5+0.35× · 전설 0.6+0.08×) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%)', '강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
+  ['스테이지 클리어', '장비 1개 (일반 70 · 희귀 10+0.5×스테이지 · 영웅 (스테이지−8)×0.28 · 전설 (스테이지−25)×0.06) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%)', '강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
   ['헬', '장비 +1개 · 일반 없음 · 영웅·전설 ×2', '멤버 카드 ×2 확률', '강화석 ×2 · 코인 ×3'],
   ['무한 도전', '달성 우편 10/20/30/40/50웨이브 (주마다): 모집권 1~5 · 50웨이브 신화 장비', '주간 순위: 1위 전설 장비 · TOP3 영웅 장비 · TOP10 모집권 2', ''],
   ['레이드', '참가 코인 · 강화석 2 · 1위 전설 장비 · 2~3위 영웅 장비', 'TOP10 모집권', ''],
   ['주간 도전', '순위 보상: 1위 모집권 5 + 영웅 장비 · TOP3 모집권 3 · TOP10 2 · 참가 1', '', ''],
   ['1:1 대전', '하루 10판 코인 (승 300 · 패 80 · 첫 승 2배)', '등급 올리기 보상: 코인 · 모집권', ''],
   ['시즌 (30단계)', '5단계 희귀 · 15단계 영웅 · 25단계 전설 장비 · 30단계 신화 장비', '4단계마다 범용 카드 · 3단계마다 모집권', ''],
-  ['모집', 'LEGEND 0.6% (70번부터 ↑ · 90번 확정) · T4 5.4% (40번 확정 · 픽업 50%) · T3 카드 20%', '전용 신화 0.05% · 신화 0.3% · 전설 1.2% · 영웅 6% · 희귀 16.5%', '10회: T3 이상 1개 · 처음 10회 T4'],
+  ['모집', 'LEGEND 0.6% (70번부터 ↑ · 90번 확정) · T4 4% (50번 확정 · 픽업 50%) · T3 카드 20%', '전용 신화 0.05% · 신화 0.3% · 전설 1.2% · 영웅 6% · 희귀 16.5%', '10회: T3 이상 1개 · 처음 10회 T4'],
   ['장비 뽑기', '신화 1% (80번 확정) · 전설 5% · 영웅 24% · 희귀 69.9%', '전용 신화 0.1%', '10회: 영웅 이상 1개'],
   ['전용 신화 (멤버마다 1개)', '모집 1회 0.05% · 장비 뽑기 1회 0.1% (가진 멤버 중 · 아직 없는 멤버 것 먼저)', '신화 조각: 모집·장비 뽑기 1회마다 1개 · 600개 = 원하는 멤버 것 1개 · 겹치면 조각 300개', ''],
 ]; // 일반 드롭 · 모집 장비 (신화 제외)
@@ -2273,7 +2304,7 @@ export function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = fals
   let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
   const out = [];
   for (let i = 0; i < n; i++) {
-    const w = { common: 70, rare: 24 + stage * 0.4, epic: 5 + stage * 0.35, legend: 0.6 + stage * 0.08 };
+    const w = { common: 70, rare: 10 + stage * 0.5, epic: Math.max(0.5, (stage - 8) * 0.28), legend: Math.max(0.1, (stage - 25) * 0.06) }; // (10/08 장에 맞게: 예전 rare 24+0.4s · epic 5+0.35s · legend 0.6+0.08s — 2장에 희귀가 너무 자주)
     if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
     if (firstPerfect && i === 0) w.common = 0;
     if (hell) { w.common = 0; w.epic *= 2; w.legend *= 2; }

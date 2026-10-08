@@ -9,7 +9,7 @@ import {
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
-  COND, stageConds, stageMission, condFits, recMeta, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
+  COND, stageConds, stageMission, condFits, recMeta, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
   artV,
@@ -795,13 +795,13 @@ function handleEvents(g, loud) {
       case 'bossRage': fx.banner(e.title || `${e.name} 분노!`, e.sub || '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
       case 'midRage': fx.text(e.x, e.y, `${e.name} 흥분!`, '#ff7a4f', 14, 1.0); break;
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
-      case 'heroStun': { if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 300, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.x) < 2 && Math.abs(x.y - e.y) < 2) || g.heroes.find((x) => x.id === e.hero); if (hh) hh._hitAt = performance.now(); fx.addShake(4); app.hitStop = Math.max(app.hitStop || 0, 0.04); break; }
+      case 'heroStun': { if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 16, 1.0); if (live) fx.addShake(3); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 300, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.x) < 2 && Math.abs(x.y - e.y) < 2) || g.heroes.find((x) => x.id === e.hero); if (hh) hh._hitAt = performance.now(); fx.addShake(4); app.hitStop = Math.max(app.hitStop || 0, 0.04); break; }
       case 'curseOffer': showCurseOffer(e.opts); break;
       case 'augOffer': showAugOffer(e.opts, e.tier); break;
       case 'aug': fx.banner(`${e.title}`, `${TIER_NAMES[e.tier] || ''} 증강`, e.tier === 'prism' ? '#2a6aa0' : e.tier === 'gold' ? '#a07010' : '#4a5a70', 1.3, 'wave'); fx.flash(e.tier === 'prism' ? '#7df9ff' : '#ffd23f', 0.2); break;
       case 'tech': fx.banner(`${TAGS[e.tag].icon} ${e.title}`, `${TIER_NAMES[e.tier]} 테크`, e.tier === 'prism' ? '#2a6aa0' : '#a07010', 1.1, 'wave'); break;
       case 'setBonus': fx.text(180, 170, `${TAGS[e.tag].icon} ${TAGS[e.tag].name} ${e.n}세트! +${Math.round(SET_BONUS[e.n] * 100)}%`, '#7dff9a', 17, 1.3); break;
-      case 'ccGet': fx.text(e.x, e.y - 80, `${CC_KINDS[e.kind].icon} ${CC_KINDS[e.kind].name}!`, CC_KINDS[e.kind].color, 14, 1.0); break;
+      case 'ccGet': fx.text(e.x, e.y - 80, `${CC_KINDS[e.kind].icon} ${CC_KINDS[e.kind].name}!`, CC_KINDS[e.kind].color, 17, 1.1); if (live) fx.addShake(2); break; // (10/08 아픈 게 보이게)
       case 'cc': if (!busy) R.vfx(({ stun: 'cc_stun', pull: 'cc_pull', kb: 'cc_push', slow: 'cc_slow', freeze: 'cc_freeze' })[e.kind] || 'cc_stun', e.x, e.y, { anim: 'pop', dur: 450, sz: 26 });
         if (e.kind === 'pull') { const jy = g.heroes.find((h) => h.id === 'junyoung'); if (jy && jy.ax !== undefined) { // 성준영 자석: 끌려오는 선 · 기준점 소용돌이 · 첫 번엔 "모여라~!"
           R.vfx('pullLine', e.x, e.y, { anim: 'streak', dur: 420, tx: jy.ax, ty: jy.ay, col: '#c07bff' });
@@ -822,7 +822,7 @@ function handleEvents(g, loud) {
         break;
       }
       case 'immune': if (!busy) fx.text(e.x, e.y, '안 들림!', '#9fd4ff', 12, 0.6); break;
-      case 'blocked': if (!busy) fx.text(e.x, e.y, `막음! ${e.n}`, '#9feaff', 12, 0.6); break;
+      case 'blocked': if (!busy) { fx.text(e.x, e.y, `막음! ${e.n}`, '#9feaff', 15, 0.7); fx.ring(e.x, e.y + 10, 8, 34, 0.22, '#bff3ff'); } break; // (10/08 보호막 체감 ↑)
       case 'split': if (g.hw || e.into === 'hw_seed') { fx.burst(e.x, e.y - 20, 10, '#ff8a1f', 140, 'flame', 4, 0.5); if (!busy) fx.text(e.x, e.y - 50, '호박씨 퉤퉤!', '#ffb35a', 12, 0.8); break; } fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
       case 'praise': if (!busy) { fx.text(e.x, e.y, e.text || '언니 너무 이뻐요~', '#ffb3d9', 11, 0.9); fx.ring(e.x, e.y + 20, 10, 90, 0.5, '#ffb3d9', 3); } break;
       case 'praiseRage': fx.text(e.x, e.y, '(표정 싹 바뀜)', '#ff4f6a', 13, 1.0); break;
@@ -1064,7 +1064,7 @@ function handleEvents(g, loud) {
         if (e.skill === 'goodman') { if (loud) A.sfx.coin(); } // 금빛 띠 · 금화 비는 skillfx.js · 꽃다발은 'bouquet'
         if (e.skill === 'bandage') fx.banner('붕대 바리케이드!', '붕대 벽 · 입구 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
         break;
-      case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 15, 1.1); break;
+      case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 16, 1.1); if (!busy) { fx.ring(e.x, e.y - 30, 8, 60, 0.4, '#b6ffc8', 4); fx.burst(e.x, e.y - 30, 10, '#d8ffe0', 160, 'star', 4, 0.5); } break; // (10/08 해제 순간이 시원하게)
       case 'ultLocked': if (live) toast('큰 한 방 스킬은 1웨이브가 끝나야 써요', 1100); break;
       case 'ultOpen': if (live) fx.text(180, g.H * 0.3, '큰 한 방 스킬 사용 가능!', '#ffe27a', 15, 1.2, -10); break;
       case 'knockdown': fx.text(e.x, e.y - 80, '쓰러짐!', '#ff6a5a', 16, 1.2); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 360, sz: 90 }); fx.addShake(5); break; // 쓰러짐 게이지 가득
@@ -1233,8 +1233,8 @@ function handleEvents(g, loud) {
         if (loud && A.sfx.charm) A.sfx.charm();
         break;
       }
-      case 'ccBlock': fx.text(e.x, e.y, '막음!', '#8fd8ff', 13, 0.8); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
-      case 'shieldBreak': R.vfx('hitspark', e.x, e.y, { anim: 'pop', dur: 380, sz: 90 }); fx.burst(e.x, e.y, 12, '#cfe9ff', 220, 'dot', 3, 0.5); fx.text(e.x, e.y - 20, '보호막 깨짐!', '#ff6a6a', 13, 0.9); break;
+      case 'ccBlock': fx.text(e.x, e.y, '면역!', '#8fffc8', 16, 0.9); fx.ring(e.x, e.y + 10, 10, 46, 0.3, '#9fffd0'); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
+      case 'shieldBreak': R.vfx('hitspark', e.x, e.y, { anim: 'pop', dur: 380, sz: 90 }); fx.burst(e.x, e.y, 12, '#cfe9ff', 220, 'dot', 3, 0.5); fx.text(e.x, e.y - 20, '보호막 깨짐!', '#ff6a6a', 16, 1.0); fx.ring(e.x, e.y, 10, 70, 0.35, '#e8fbff'); if (live) app.hitStop = Math.max(app.hitStop || 0, 0.03); try { A.sfx.crit(); } catch (er) { /* 무시 */ } break;
       case 'doorShield': fx.text(e.x, e.y - 40, `방패 +${e.v}`, '#bfe6ff', 16, 1.2); R.vfx('aura_blue', e.x, e.y, { anim: 'pulse', dur: 8000, sz: 320, flat: true }); break;
       case 'doorShieldBreak': fx.text(e.x, e.y - 40, '방패 깨짐', '#bfe6ff', 13, 0.9); fx.burst(e.x, e.y, 16, '#cfe9ff', 260, 'dot', 3, 0.6); break;
       case 'buffAura': for (const h of g.heroes) R.vfx('aura_red', 0, 0, { follow: h, dy: 0, anim: 'pulse', dur: (e.sec || 6) * 1000, sz: 90, flat: true }); fx.text(180, g.rowY - 70, '집합! 공속 +50% · 공격력 +20%', '#ffd23f', 14, 1.3); break;
@@ -2097,7 +2097,7 @@ const ACTS = {
   prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
   prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[L.weeklyDef(L.weekIndex()).fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepCond: () => prepCondPopup(),
-  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${HELL.hp} · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 보스 분노. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
+  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${hellHpMul(app.stage).toFixed(1)} (이 스테이지) · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} (적지만 단단하게) · 조건 하나 더 · 보스 분노 · 웨이브 사이 수리 절반 · 대신 경험치 ×${HELL.exp} · 멤버 공격 ×${HELL.dmg} (길게 키우며 버티는 싸움). 권장 강화는 보통 +${META_SOFT.hellAdd}. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
   prepFoe: (b) => {
     const id = b.dataset.id, d = ENEMIES[id]; if (!d) return;
     const T = foeTrait(id), c = CLASSES[d.cls];
@@ -4091,8 +4091,8 @@ Object.assign(ACTS, {
   upNudgeNo: () => { closeInfoCard(); nudgeSave(1); },
   heroInfo: (b) => showDexCard('hero', b.dataset.id),
   deckReplace: (b) => deckToggleAct(b.dataset.id, Number(b.dataset.slot)),
-  hellModeS: (b) => { app.hellMode = b.dataset.v === '1'; try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showStages(); },
-  hellMode: (b) => { app.hellMode = b.dataset.v === '1'; try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showPrep(app.mode, app.stage); },
+  hellModeS: (b) => { const was = app.hellMode; app.hellMode = b.dataset.v === '1'; if (app.hellMode && !was) hellSelectFx(); try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showStages(); },
+  hellMode: (b) => { const was = app.hellMode; app.hellMode = b.dataset.v === '1'; if (app.hellMode && !was) hellSelectFx(); try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showPrep(app.mode, app.stage); },
   speedOpt: (b) => { app.speed2 = !!b.checked; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } },
 });
 
@@ -4862,6 +4862,21 @@ function matchTag(id) {
 //  × 이 스테이지 진상 체력이 그 장 평균보다 얼마나 센지 × 조건 하나마다 +8% × 이번 주 진상 특성 +5% (예전엔 고정 공식이라 조건이 까다로운 판에서 너무 낮게 나왔다)
 const REF_STAR = [1, 1, 1, 2, 2, 2, 2, 3];
 function stageFoeHp(s) { let t = 0; for (let w = 1; w <= STAGE_WAVES; w++) t += hpMul(stageLevel(s, w), true); return (t / STAGE_WAVES) * stageHpScale(s) * ((BAL.chHp || {})[chapterOf(s)] || 1) * ((STAGE_HPX || {})[s] || 1); }
+// 헬 고르는 순간 (10/08): 화면이 붉게 번쩍 · 금 · 불티 · 해골 · 쿵 소리 + 진동 — 1.3초 뒤 사라짐 (body.rm: 붉은 번쩍만)
+function hellSelectFx() {
+  const rm = document.body.classList.contains('rm');
+  const old = document.querySelector('.hellsel-fx'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.className = 'hellsel-fx' + (rm ? ' rm' : '');
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = rm ? '<i class="hs-v"></i>' : `<i class="hs-v"></i><svg class="hs-crack" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M50 52 L38 30 L41 18 L33 0 M50 52 L66 36 L63 22 L74 6 M50 52 L28 58 L14 54 L0 62 M50 52 L72 60 L88 56 L100 66 M50 52 L46 74 L54 88 L48 100"/></svg><b class="hs-skull">😈</b><span class="hs-t">HELL</span>${'<em></em>'.repeat(14)}`;
+  if (!rm) el.querySelectorAll('em').forEach((e, i) => { e.style.left = (4 + ((i * 37) % 92)) + '%'; e.style.animationDelay = ((i % 5) * 0.07) + 's'; e.style.setProperty('--dx', (((i * 53) % 41) - 20) + 'px'); });
+  document.body.appendChild(el);
+  if (!rm) setTimeout(() => { for (const b of document.querySelectorAll('.pp-seg button.on.hell, .map-tog button.on.hell')) b.classList.add('hs-pop'); }, 0); // 다시 그려진 헬 버튼이 쾅 튀어나온다
+  try { A.sfx.rumble(); setTimeout(() => { try { A.sfx.rage(); } catch (e) { /* 무시 */ } }, 120); } catch (e) { /* 소리 없음 */ }
+  try { if (navigator.vibrate) navigator.vibrate([40, 30, 90]); } catch (e) { /* 무시 */ }
+  setTimeout(() => el.remove(), 1300);
+}
 function stagePower(p, s, hell) {
   const c = chapterOf(s), base = ['bangjang', 'staff', 'gunman', 'gunnyeo'], m = recMeta(s, hell) + 1, st = REF_STAR[Math.min(7, c - 1)];
   const q = Object.assign({}, p, { heroes: Object.fromEntries(base.map((h) => [h, m])), equip: {}, hstars: Object.fromEntries(base.map((h, i) => [h, i < 2 ? st : Math.max(1, st - 1)])) });
@@ -4943,9 +4958,9 @@ function showPrep(mode, s) {
       ${bossId ? `<button class="pp-boss" data-act="prepFoe" data-id="${bossId}">${foeFace(bossId, 'big')}<i>${bossTag}</i></button>` : ''}
     </div>`;
   // 2) 난이도
-  const diffLine = hellOn ? `헬 · 체력 ×${HELL.hp} · 공격 ×${HELL.atk} · 보상 ×${HELL.coin}` : mode === 'stage' ? `보통 · ${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 보스' : stageMid(s) ? ' · 중간 보스' : ''}` : wk ? L.WEEKLY_MODS[wk.mod].desc : '';
+  const diffLine = hellOn ? `헬 · 체력 ×${hellHpMul(s).toFixed(1)} · 공격 ×${HELL.atk} · 권장 강화 +${recMeta(s, true)} · 보상 ×${HELL.coin}` : mode === 'stage' ? `보통 · ${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 보스' : stageMid(s) ? ' · 중간 보스' : ''}` : wk ? L.WEEKLY_MODS[wk.mod].desc : '';
   const diffHtml = mode === 'stage'
-    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0"><span class="sg-t">😊 보통</span><small>기본 난이도</small></button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1"><span class="sg-t">${hellOk ? '😈' : ic('lock', '', 'sm')} 헬</span><small>${hellOk ? '진상 강함 · 코인 ×3' : '보통 ★★★ 로 열림'}</small></button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
+    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0"><span class="sg-t">😊 보통</span><small>기본 난이도</small></button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1"><span class="sg-t">${hellOk ? '😈' : ic('lock', '', 'sm')} 헬</span><small>${hellOk ? '진상 훨씬 단단 · 코인 ×3' : '보통 ★★★ 로 열림'}</small></button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
     : diffLine ? `<p class="pp-line solo">${esc(diffLine)}</p>` : '';
   // 2-1) 이 스테이지 조건: 맵 효과 · 진상 기믹(보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격) · ★★★ 미션 · 강화 권장
   const conds = mode === 'stage' ? stageConds(s, hellOn) : [];
@@ -5874,7 +5889,9 @@ async function buyUpgrade(id, btn) {
     app.profile = r.profile;
     A.sfx.levelUp();
     const dp = heroPower(app.profile, id) - (btn.dataset.pw ? Number(btn.dataset.pw) : 0);
-    toast(`${HEROES[id].name} 강화 완료! (+${app.profile.heroes[id]})${dp > 0 && btn.dataset.pw ? ` · 전투력 +${fmt(dp)}` : ''}`);
+    const m1 = app.profile.heroes[id] | 0, t = heroTier(id), up = tierPowerM(t, m1) / Math.max(0.001, tierPowerM(t, m1 - 1)) - 1, mile = m1 > 0 && m1 % META_MILESTONE.every === 0; // (10/08) 강화 체감: 이번 한 칸이 몇 % 인지 크게
+    toast(`${HEROES[id].name} 강화 +${m1}! 공격력 +${Math.round(up * 100)}%${mile ? ` · ${META_MILESTONE.name[metaMile(m1)] || '각성'} 달성!` : ''}${dp > 0 && btn.dataset.pw ? ` · 전투력 +${fmt(dp)}` : ''}`);
+    if (mile && !document.body.classList.contains('rm')) { fx.flash('#ffd23f', 0.35); try { A.sfx.rise(); } catch (e) { /* 무시 */ } }
   } else toast(r.message || '강화하지 못했어요');
   if (stage.querySelector('.hero-pop')) { showHeroModal(id, app.screen === 'prep' ? 'prep' : ''); refreshBehind(); } else refresh();
 }
@@ -6462,7 +6479,7 @@ function heroPower(p, id) {
   const d = HEROES[id];
   if (!d) return 0;
   const st = heroGearStats(p, id);
-  const base = (d.dmg / d.interval) * tierPower(heroTier(id), (p.heroes || {})[id] | 0) * (1 + L.STAR_ATK * (L.heroStar(p, id) - 1));
+  const base = (d.dmg / d.interval) * tierPowerM(heroTier(id), (p.heroes || {})[id] | 0) * (1 + L.STAR_ATK * (L.heroStar(p, id) - 1));
   return Math.round(base * (1 + (st.atk || 0)) * (1 + (st.spd || 0)) * (1 + (st.skill || 0) * 0.3) * (sigOn(p, id) ? 1.25 : 1) * 10); // 전용 신화 새 효과 ≈ +25%
 }
 // 이 멤버가 자기 전용 신화를 끼고 있나

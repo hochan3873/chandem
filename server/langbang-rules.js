@@ -43,7 +43,7 @@ const ITEMS = {
 };
 const ITEM_IDS = Object.keys(ITEMS);
 
-const metaCost = (lv) => Math.round((40 * Math.pow(lv + 1, 1.7)) / 10) * 10;
+const metaCost = (lv) => Math.round((40 * Math.pow(lv + 1, 1.7) * ((lv + 1) % 5 === 0 ? 2 : 1)) / 10) * 10; // (10/08) +5 · +10 · +15 · +20 (각성 이정표) 는 두 배 — 장마다 넘는 벽
 // Lv.11~15 (5·6장에서 열리는 윗단계): 값이 가파르게 (×1.6 씩) · 효과는 한 단계에 절반 (화면 data.js 와 같음)
 const ITEM_TOP = { from: 10, costMul: 1.6, perMul: 0.5 };
 function itemCost(id, lv) {
@@ -68,7 +68,7 @@ function itemGateCh(id, lv, maxStage) {
   return null;
 }
 
-const REWARD = { base: 60, perStage: 18, firstMul: 2, starMul: 0.5 };
+const REWARD = { base: 60, perStage: 18, firstMul: 1.5, starMul: 0.5 }; // (10/08 첫 클리어 ×2 → ×1.5: 성장이 장 권장보다 앞서 나가지 않게)
 const clearCoins = (s) => REWARD.base + REWARD.perStage * (s - 1);
 function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = false, firstPerfect = false) {
   const base = clearCoins(s);
@@ -263,7 +263,7 @@ function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = false) {
   let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
   const out = [];
   for (let i = 0; i < n; i++) {
-    const w = { common: 70, rare: 24 + stage * 0.4, epic: 5 + stage * 0.35, legend: 0.6 + stage * 0.08 };
+    const w = { common: 70, rare: 10 + stage * 0.5, epic: Math.max(0.5, (stage - 8) * 0.28), legend: Math.max(0.1, (stage - 25) * 0.06) }; // (10/08 장에 맞게: 예전 rare 24+0.4s · epic 5+0.35s · legend 0.6+0.08s — 2장에 희귀가 너무 자주)
     if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
     if (firstPerfect && i === 0) w.common = 0;
     if (hell) { w.common = 0; w.epic *= 2; w.legend *= 2; }
