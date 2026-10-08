@@ -994,19 +994,25 @@ function handleEvents(g, loud) {
         if (loud) { A.sfx.whoosh(); setTimeout(() => A.sfx.levelUp(), 300); }
         break;
       case 'yoyo': fx.text(e.x, e.y - 84, '요요…!', '#ffb347', 16, 1.0, -20); SKFX.add('yoyo', g, e, busy); if (loud) A.sfx.whoosh(); break; // 배현경 날씬 → 통통: 뻥! 연기 · 땀방울 (skillfx.js)
-      case 'aged': fx.text(e.x, e.y - 80, '폭삭… 아이고 허리야', '#c8c8c8', 14, 1.2, -18); fx.burst(e.x, e.y - 30, 10, 'rgba(200,200,200,0.8)', 60, 'puff', 12, 0.6); break;
+      case 'aged': { const ah = g.heroes.find((q) => q.id === e.hero); if (ah && ah._am && ah._am.g === g) { e.x = ah._am.x; e.y = ah._am.y; } } fx.text(e.x, e.y - 80, '폭삭… 아이고 허리야', '#c8c8c8', 14, 1.2, -18); fx.burst(e.x, e.y - 30, 10, 'rgba(200,200,200,0.8)', 60, 'puff', 12, 0.6); break;
       case 'young':
+        { const ah = g.heroes.find((q) => q.id === e.hero); if (ah && ah._am && ah._am.g === g) { e.x = ah._am.x; e.y = ah._am.y; } } // 글자 · 별은 고아라가 지금 있는 곳 (밖에서 변해도)
         fx.text(e.x, e.y - 80, '다시 공주!', '#ffc4ec', 17, 1.1, -24);
         for (let k = 0; k < 10; k++) fx.part('star', e.x + (Math.random() - 0.5) * 50, e.y - 40, (Math.random() - 0.5) * 120, -80, 0.8, 9, null, { grav: 120 });
         if (loud) A.sfx.levelUp();
         break;
-      case 'bigHammer':
-        fx.ring(e.x, e.y, 10, 90, 0.4, '#ffc4ec', 8);
-        fx.text(e.x, e.y - 60, '공주의 일격!!', '#ff9fd8', 22, 1.2, -24);
-        fx.burst(e.x, e.y, 22, '#ffe14d', 260, 'star', 10, 0.6);
-        fx.addShake(10); fx.flash('#ffe6f6', 0.35);
-        if (loud) A.sfx.slam();
+      case 'bigHammer': { // 고아라가 점프해 날아가는 중이면 내려찍으며 착지하는 순간에 쾅 (render.js araMove · 0.42초 점프)
+        const boom = () => {
+          fx.ring(e.x, e.y, 10, 90, 0.4, '#ffc4ec', 8);
+          fx.text(e.x, e.y - 60, '공주의 일격!!', '#ff9fd8', 22, 1.2, -24);
+          fx.burst(e.x, e.y, 22, '#ffe14d', 260, 'star', 10, 0.6);
+          fx.addShake(10); fx.flash('#ffe6f6', 0.35);
+          if (loud) A.sfx.slam();
+        };
+        const ah = g.heroes.find((q) => q.id === 'ara'), am = ah && ah._am;
+        if (g.tempo && am && am.g === g && Math.hypot(e.x - am.x, e.y + 18 - am.y) > 34) setTimeout(() => { if (app.g === g) boom(); }, 380 / (app.runSpeed || 1)); else boom();
         break;
+      }
       case 'crown': if (Math.random() < 0.35) fx.text(e.x, e.y - 50, '랑방을 위하여!', '#ffd84a', 14, 0.9, -20); if (loud) A.sfx.wave(); break;
       case 'grandBus': { // 이호찬 막차 대행진: 컷인 → 화면 어둡게 → 황금 버스 행렬 → 쾅 (0.3초 느리게) · 금빛 꽃가루 · 경적
         grandCutIn();

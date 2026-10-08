@@ -316,6 +316,7 @@ export class Renderer {
     list.dohoon_idle = '/img/lb/h_dohoon_idle.webp'; list.dohoon_encore = '/img/lb/h_dohoon_encore.webp'; // 김도훈: 리듬 타기 8칸(평소) · 앵콜 8칸
     for (const n of ['ice_block', 'ice_burst', 'ice_shards']) list['vfx_' + n] = `/img/lb/fx/vfx_${n}.webp`; // 서명훈 빙결: 얼음 블록 · 깨지는 폭발 · 얼음 조각 12칸 띠 (kitfx.js)
     list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
+    list.ara_leap = '/img/lb/h_ara_leap.webp'; list.ara_smash = '/img/lb/h_ara_smash.webp'; list.ara_poke = '/img/lb/h_ara_old_poke.webp'; // 고아라: 망치 들고 점프 · 내려찍기 · 할머니 지팡이 찌르기 (8칸씩 · 오른쪽을 본다)
     list.hanim_youngjun_rest = '/img/lb/h_youngjun_rest.webp'; // 김영준 숨 고르기 (크로스핏 8칸 · 있으면)
     list.hanim_baul_ride = '/img/lb/h_baul_ride.webp'; list.hanim_baul_fix = '/img/lb/h_baul_fix.webp'; // 송바울 보드 타기 · 보드 정비 (8칸 반복)
     list.hanim_junyoung_sweep = '/img/lb/h_junyoung_sweep.webp'; // 성준영 칩 갈퀴로 배팅 칩 긁어모으기 (8칸 반복)
@@ -2190,8 +2191,9 @@ export class Renderer {
     for (const h of g.heroes) {
       if (h.rx === undefined) h.rx = h.x;
       h.rx += (h.x - h.rx) * 0.25;
-      const hx = h.out || h.restT > 0 ? h.px : h.rx;
-      const hy = h.out || h.restT > 0 ? h.py : h.y;
+      let hx = h.out || h.restT > 0 ? h.px : h.rx;
+      let hy = h.out || h.restT > 0 ? h.py : h.y;
+      if (h.id === 'ara' && !(ui && ui.drag && ui.drag.h === h)) { const am = this.araMove(g, h, hx, hy, g.nPos >= 7 ? HERO_BOX * 0.86 : HERO_BOX); hx = am.x; hy = am.y; } // 고아라: 점프 · 진상 옆에 서기 (그림 위치만)
       if (ui && ui.drag && ui.drag.h === h) continue; // 끌고 있는 영웅은 손가락 위치에 따로 그린다
       if (h.id === 'dragon' && this.kit && this.kit.diveHidden(g, h)) continue; // 박나영 급강하: 하늘로 날아간 동안은 자리에 없다 (kitfx.js 가 날아가는 모습을 그린다)
       const feet = hy + box * FEET_OFF;
@@ -2270,6 +2272,7 @@ export class Renderer {
       let usedStrip = false;
       if (h.id === 'baul' && h.bd && !busy) usedStrip = this.drawBaul(g, h, hx, feet, box, sp, t);
       if (h.id === 'junyoung' && h.out && !busy) usedStrip = this.drawJunyoung(g, h, hx, feet, box, sp, t);
+      if (h.id === 'ara' && !busy) usedStrip = this.drawAra(g, h, hx, feet, box, t);
       if (h.id === 'donghan' && h.cafeT > 0 && this.sprites.h_donghan_cafe) { // 문동한 카페인 풀충전: 변신 띠 (커피 원샷) → 한 발마다 캔커피 던지기 띠 (5칸째에 휙) · 사이엔 풀충전 모습
         const sk = h.def.skill, q = h.cafe, ssp = this.sprites.h_donghan_cafe, tfI = this.images.dh_cafe_tf, ca = this.images.dh_cafe_cast;
         let im = null, key = '', fi = 0;
@@ -2295,7 +2298,7 @@ export class Renderer {
           usedStrip = true;
         }
       }
-      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && !cp && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length) && !(h.id === 'dohoon' && h._encAt && performance.now() - h._encAt < 1700)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
+      if (hstrip && imgOk(hstrip) && !busy && !usedStrip && !cp && h.id !== 'ara' && (formOn || (!up && !alt)) && !(h.id === 'youngjun' && h.restT > 0) && !(h.id === 'jiwon' && h.mzQ && h.mzQ.length) && !(h.id === 'dohoon' && h._encAt && performance.now() - h._encAt < 1700)) { // (김영준 숨 고르기 · 여지원 폭격 중엔 아래 전용 모습)
         const n = HA.frames, fw = hstrip.naturalWidth / n, fh = hstrip.naturalHeight, rel = HA.release;
         let fi = -1;
         if (since < 0.3) fi = Math.min(n - 1, rel + Math.floor((since / 0.3) * (n - rel)));
@@ -2543,6 +2546,120 @@ export class Renderer {
     const fw = im.naturalWidth / 8;
     this.tf(x, feet, 0, face, 1);
     this.cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw);
+  }
+  // 고아라 움직임 (그림 쪽만 · 전투 계산은 sim.js 그대로): 멀리 가면 망치 들고 포물선 점프 → 착지 먼지 · 붙으면 진상 옆에 서서 내려찍기 · 돌아올 때도 점프
+  //  h._am = { x, y (땅 위치), air (공중 높이), mode: 'stand'|'leap', face (1 = 오른쪽), side (진상 기준 서는 쪽) ... } · 시간은 g.t (멈춤 · 배속 그대로)
+  araMove(g, h, hx, hy, box) {
+    const rm = typeof document !== 'undefined' && document.body.classList.contains('rm');
+    let m = h._am;
+    if (!m || m.g !== g) m = h._am = { g, x: hx, y: hy, air: 0, mode: 'stand', face: 1, side: -1, lt: g.t, alt: h.alt, tfT: -9, landT: -9, tg: null };
+    const dt = Math.max(0, Math.min(0.1, g.t - m.lt)); m.lt = g.t;
+    // 진상 옆에 선다 (망치 머리가 진상에 떨어지게) — 오는 쪽에 서고 · 벽에 붙으면 반대쪽
+    const tg = h.out && !h.alt && h.dashE && !h.dashE.dead ? h.dashE : null;
+    let tx = hx, ty = hy;
+    if (tg) {
+      if (m.tg !== tg) { m.tg = tg; m.side = m.x <= tg.x ? -1 : 1; }
+      if (tg.x + m.side * box * 0.3 < 18 || tg.x + m.side * box * 0.3 > 342) m.side = -m.side;
+      if (Math.hypot(tg.x - hx, tg.y + 18 - hy) < 70) { tx = tg.x + m.side * box * 0.3; ty = hy; }
+    } else m.tg = null;
+    if (h.alt) { tx = h.rx !== undefined ? h.rx : h.x; ty = h.y; } // 할머니는 늘 자리 (sim 이 미끄러뜨려 데려오는 동안도)
+    // 변신 (공주 ↔ 할머니): 펑 연기 · 밖에서 늙으면 연기 속에 사라졌다가 자리에서 나타남 (할머니는 점프하지 않는다)
+    if (m.alt !== h.alt) {
+      m.alt = h.alt; m.tfT = g.t;
+      if (!rm) this.fx.burst(m.x, m.y - box * 0.35, 9, 'rgba(255,240,250,0.9)', 70, 'puff', 13, 0.5);
+      if (h.alt && Math.hypot(tx - m.x, ty - m.y) > 40) { m.x = tx; m.y = ty; m.mode = 'stand'; m.air = 0; if (!rm) this.fx.burst(tx, ty - box * 0.35, 9, 'rgba(235,235,240,0.9)', 70, 'puff', 13, 0.5); }
+    }
+    const far = Math.hypot(tx - m.x, ty - m.y);
+    if (m.mode !== 'leap' && far > 34 && !h.alt) { // 점프 시작
+      const big = h._castAt && performance.now() - h._castAt < 300; // 공주의 일격: 더 높이 · 내려찍으며 착지
+      m.mode = 'leap'; m.t0 = g.t; m.x0 = m.x; m.y0 = m.y; m.big = big;
+      m.dur = big ? 0.42 : Math.max(0.34, Math.min(0.56, far / 760));
+      m.H = Math.max(10, Math.min((big ? 110 : Math.min(72, 20 + far * 0.16)) * (rm ? 0.4 : 1), Math.min(m.y0, ty) - box * 0.62 + 6)); // 화면 위로 나가지 않게
+      if (Math.abs(tx - m.x) > 6) m.face = tx > m.x ? 1 : -1;
+    }
+    if (m.mode === 'leap') {
+      const k = Math.min(1, (g.t - m.t0) / m.dur);
+      if (Math.abs(tx - m.x0) > 6) m.face = tx > m.x0 ? 1 : -1;
+      const e0 = Math.max(0, Math.min(1, (k - 0.12) / 0.78)), e = e0 * e0 * (3 - 2 * e0); // 0~0.12 웅크림 · 0.9~1 착지 웅크림
+      m.x = m.x0 + (tx - m.x0) * e; m.y = m.y0 + (ty - m.y0) * e; m.air = Math.sin(e0 * Math.PI) * m.H; m.k = k;
+      if (k >= 1) {
+        m.mode = 'stand'; m.air = 0; m.landT = g.t; m.x = tx; m.y = ty;
+        if (!rm) { this.fx.burst(tx, ty + box * FEET_OFF, m.big ? 14 : 7, 'rgba(225,205,185,0.75)', m.big ? 150 : 80, 'puff', m.big ? 12 : 8, 0.45); if (m.big) this.fx.ring(tx, ty + box * FEET_OFF, 10, 70, 0.35, '#ffc4ec', 5); }
+      }
+    } else { m.x += (tx - m.x) * Math.min(1, dt * 12); m.y += (ty - m.y) * Math.min(1, dt * 12); m.air = 0; }
+    if (tg && m.mode === 'stand') m.face = tg.x >= m.x ? 1 : -1; // 진상 쪽을 본다
+    return m;
+  }
+  // 고아라 그림: 점프 띠 · 내려찍기 띠 · 할머니 지팡이 띠 · 변신 연기 (없으면 false → 기본 그림)
+  drawAra(g, h, hx, feet, box, t) {
+    const cx = this.cx, m = h._am; if (!m) return false;
+    const rm = typeof document !== 'undefined' && document.body.classList.contains('rm');
+    const since = g.t - (h.lastShotT || -9);
+    let im = null, fi = 0, face = m.face, sx = 1, sy = 1, rot = 0, lift = m.air || 0;
+    const tfk = (g.t - m.tfT) / 0.4;
+    if (h.alt) { // 할머니: 지팡이 들고 부들 → 콕 찌르기 → "아이고 허리야" (오른쪽을 보는 그림 · 목표가 확실히 왼쪽이면 뒤집기)
+      const ip = this.images.ara_poke, wind = 0.55;
+      if (!imgOk(ip)) return false;
+      if (h.cd > 0 && h.cd < wind) fi = 1 + Math.min(2, Math.floor((1 - h.cd / wind) * 3));
+      else if (since < 0.14) fi = 4;
+      else if (since < 0.55) fi = 5;
+      else if (since < 0.8) fi = 6;
+      else if (since < 0.95) fi = 7;
+      else im = null, fi = -1;
+      if (fi >= 0) im = ip;
+      if (fi === 4 && since < 0.06) { sx *= 1.05; sy *= 0.96; }
+      if (fi === 5) rot += Math.sin(t * 40) * 0.015; // 허리 삐끗 부들
+      if (fi >= 0 && (fi <= 1 || h._amFaceAt !== h.lastShotT)) { // 가까운 진상 쪽 (준비 시작 · 한 발마다 한 번만 고른다)
+        let bd = 1e9, bx = hx; for (const e of g.enemies) { if (e.dead) continue; const d = (e.x - hx) ** 2 + (e.y - feet) ** 2; if (d < bd) { bd = d; bx = e.x; } }
+        h._amFace = bx < hx - 30 ? -1 : 1; if (fi > 1) h._amFaceAt = h.lastShotT;
+      }
+      face = fi >= 0 ? h._amFace || 1 : 1;
+    } else if (m.mode === 'leap') { // 점프: 웅크림 → 박차기 → 망치 번쩍 → 꼭대기 → 내려옴 → 착지
+      const k = m.k || 0, ip = this.images.ara_leap;
+      if (!imgOk(ip)) return false;
+      im = ip;
+      fi = k < 0.12 ? 0 : k < 0.22 ? 1 : k < 0.38 ? 2 : k < 0.55 ? 3 : k < 0.7 ? 4 : k < 0.9 ? 5 : 6;
+      if (k < 0.12) { const q = k / 0.12; sy = 1 - 0.1 * q; sx = 1 + 0.06 * q; } // 웅크림
+      else if (k < 0.3) { const q = (k - 0.12) / 0.18; sy = 1.08 - 0.08 * q; sx = 0.95 + 0.05 * q; } // 쭉 늘어남
+      if (m.big && k >= 0.55) { const s2 = this.images.ara_smash; if (imgOk(s2)) { im = s2; fi = k < 0.75 ? 2 : k < 0.92 ? 3 : 4; } } // 공주의 일격: 공중에서 망치 들어 → 내려찍으며 착지
+      rot = (k > 0.2 && k < 0.85 ? Math.sin(((k - 0.2) / 0.65) * Math.PI) * 0.08 : 0) * face;
+    } else if (h.out && m.tg) { // 진상 옆: 들어 올림(준비) → 휘두름(잔상) → 쾅 → 들어 올림 → 어깨에
+      const ip = this.images.ara_smash, wind = 0.42;
+      if (!imgOk(ip)) return false;
+      im = ip;
+      if (h.cd > 0 && h.cd < wind) { const q = 1 - h.cd / wind; fi = q < 0.45 ? 1 : 2; if (q > 0.45) { sy *= 1 + 0.04 * (q - 0.45) / 0.55; lift += 3 * (q - 0.45) / 0.55; } }
+      else if (since < 0.07) { fi = 3; sx *= 1.04; }
+      else if (since < 0.2) { fi = 4; const q = (since - 0.07) / 0.13; sy *= 0.93 + 0.07 * q; sx *= 1.06 - 0.06 * q; } // 쾅: 납작
+      else if (since < 0.3) fi = 5;
+      else if (since < 0.42) fi = 6;
+      else if (since < 0.55) fi = 7;
+      else { fi = 0; sy *= 1 + Math.sin(t * 2.6 + h.slot) * 0.012; }
+      if (since < 0.2 && h._amShot !== h.shots) { // 망치 닿는 순간: 먼지 · 별 (한 번)
+        h._amShot = h.shots;
+        if (!rm) { const hxh = hx + face * box * 0.3; this.fx.burst(hxh, feet - 2, 6, 'rgba(225,205,185,0.75)', 90, 'puff', 8, 0.35); this.fx.burst(hxh, feet - 8, 4, '#ffe14d', 120, 'star', 5, 0.3); }
+      }
+    } else {
+      const lk = (g.t - m.landT) / 0.22; // 자리에 착지한 직후: 착지 칸 → 기본 그림
+      if (lk < 1 && imgOk(this.images.ara_leap)) { im = this.images.ara_leap; fi = lk < 0.5 ? 6 : 7; }
+    }
+    const landK = (g.t - m.landT) / 0.18; // 착지 순간 말랑
+    if (landK >= 0 && landK < 1 && m.mode !== 'leap') { const w = Math.sin(landK * Math.PI) * (1 - landK); sy *= 1 - 0.16 * w; sx *= 1 + 0.1 * w; }
+    if (tfk >= 0 && tfk < 1) { const w = Math.sin(tfk * Math.PI); sx *= 1 + 0.18 * w; sy *= 1 - 0.22 * w; } // 변신: 펑 납작
+    if (!im) { // 기본 그림 (변신 · 착지 말랑만)
+      if (sx === 1 && sy === 1 && !lift) return false;
+      const sp = this.sprites[h.alt && this.sprites.h_ara_alt ? 'h_ara_alt' : 'h_ara']; if (!sp) return false;
+      this.tf(hx, feet - lift, rot, sx, sy); cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
+    } else {
+      const fw = im.naturalWidth / 8;
+      this.tf(hx, feet - lift, rot, face * sx, sy);
+      cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -box / 2, -box * FEET, box, box);
+    }
+    if (tfk >= 0 && tfk < 1 && !rm) { // 변신 연기 구름 (코드 · 동그라미 몇 개)
+      this.world(); const a = 1 - tfk, r = box * (0.22 + 0.25 * tfk);
+      cx.fillStyle = h.alt ? 'rgba(235,235,240,' + (0.75 * a) + ')' : 'rgba(255,215,240,' + (0.75 * a) + ')';
+      for (let i = 0; i < 6; i++) { const an = (i / 6) * TAU + tfk; cx.beginPath(); cx.arc(hx + Math.cos(an) * r, feet - box * 0.4 + Math.sin(an) * r * 0.8, box * 0.17 * (1 - tfk * 0.4), 0, TAU); cx.fill(); }
+    }
+    return true;
   }
   // 송바울: 보드 타기(반복) · 돌진 순간(박차기 띠) · 정비(무릎 꿇고 고치기) · 돌진 자국 · 탭한 목표 표시 · 남은 보드 횟수
   drawBaul(g, h, hx, feet, box, sp, t) {
@@ -2841,7 +2958,7 @@ export class Renderer {
         if (Math.random() < 0.25) this.fx.part('dot', p.x, p.y, (Math.random() - 0.5) * 40, 20, 0.4, 3, '#ffc0dc');
         continue;
       }
-      const an = p.hero && p.type !== 'moto' && p.type !== 'gf' && PROJ_ART[p.hero.id];
+      const an = p.hero && p.type !== 'moto' && p.type !== 'gf' && (p.hero.id === 'ara' && p.type === 'cane' ? 'cane' : PROJ_ART[p.hero.id]); // 할머니 고아라는 지팡이를 던진다 (망치 그림 X)
       if (an === 'card_y') { // 운영진 경고장: 그림(민무늬 노란 사각형) 대신 코드로 그린 심판 카드 · 날아가며 팔랑팔랑
         const sc = this.projSprites[p.big ? 'staffCardRed' : 'staffCard'];
         if (sc) { const ang = Math.atan2(p.vy || 0, p.vx || 1) + Math.PI / 2 + Math.sin(this.fx.time * 14 + (p.uid || pi)) * 0.35; this.tf(p.x, p.y, ang, 1, 1); cx.drawImage(sc.c, -sc.w / 2, -sc.h / 2, sc.w, sc.h); continue; }
