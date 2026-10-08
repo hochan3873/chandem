@@ -787,8 +787,8 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  (10/08 긴장감 개편: 2장부터 더 어렵게 — 예전 1:92 2:88 3:80 4:72 5:65 6:58 · 7 · 8장 표 −4 · 스킬 안 쓰는 초보는 이보다 25~35%p 낮게)
   const TGC = { 1: 90, 2: 78, 3: 75, 4: 72, 5: 68, 6: 64 };
   const TG78 = { 61: 68, 62: 64, 63: 60, 64: 58, 65: 51, 66: 56, 67: 54, 68: 52, 69: 50, 70: 42, 71: 66, 72: 62, 73: 58, 74: 56, 75: 48, 76: 54, 77: 52, 78: 50, 79: 48, 80: 40 };
-  // 헬 목표 (10/08): 헬 권장 강화로 잘 짠 덱 첫 도전 — 1장 55 · 2장 50 · 3~6장 45 · 7 · 8장 40 (스테이지 안 기울기는 보통의 절반)
-  const HTG = [55, 50, 45, 45, 45, 45, 40, 40];
+  // 헬 목표 (10/08): 헬 권장 강화로 잘 짠 덱 첫 도전 — 1장 45 · 2장 42 · 3~6장 38 · 7 · 8장 33 (스테이지 안 기울기는 보통의 절반)
+  const HTG = [45, 42, 38, 38, 38, 38, 33, 33]; // (10/08 헬은 단단하게 · 목표 조금 낮게)
   function hellTarget(s) { const c = D.chapterOf(s), n = D.stageNo(s); return HTG[c - 1] + (5.5 - n) * 0.7 - (n === 10 ? 2 : 0); }
   function stageTarget(s) { if (args.includes('--hell')) return hellTarget(s);
     const c = D.chapterOf(s), n = D.stageNo(s); return c >= 7 ? TG78[s] : TGC[c] + (5.5 - n) * 1.4 - (n === 10 ? 3 : 0); }
@@ -815,16 +815,17 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     return room;
   }
   if (what === 'room') { for (let c = 1; c <= 8; c++) { const r = []; for (let n = 1; n <= 10; n++) r.push(levelRoom((c - 1) * 10 + n).toFixed(1)); console.log(c + '장 여유 ' + r.join(' ')); } }
-  // 헬 스테이지 맞춤 (node scripts/lb-balance.js hellcalib --list=1,...,80 [--seeds=8 --iters=5]) — 헬 권장 강화 기준 클리어율이 헬 목표가 되게 HELL.stageHp 를 로그 이분 탐색 (0.35 ~ 2.5)
+  // 헬 스테이지 맞춤 (node scripts/lb-balance.js hellcalib --list=1,...,80 [--seeds=8 --iters=5]) — 헬 권장 강화 기준 클리어율이 헬 목표가 되게 HELL.stageHp 를 로그 이분 탐색 (보통 대비 ×minHp ~ ×hp×1.5)
   if (what === 'hellcalib') {
     const N = opt('seeds', 8), IT = opt('iters', 5), out = {};
     for (const s of listArg('list', '12').map(Number)) {
       const target = hellTarget(s), base = D.HELL.stageHp[s] || 1;
-      const rate = (m) => { D.HELL.stageHp[s] = base * m; return refRun(s, N, true) * 100; };
-      let lo = Math.log(0.35), hi = Math.log(2.5), best = 1, r0 = rate(1), err = Math.abs(r0 - target);
-      if (r0 > target) lo = 0; else hi = 0;
+      const rate = (m) => { D.HELL.stageHp[s] = m; return refRun(s, N, true) * 100; };
+      const mlo = D.HELL.minHp / D.HELL.hp, mhi = 2; // 헬 체력은 보통의 minHp 배 아래로는 안 내려간다 (절대값으로 찾는다)
+      let lo = Math.log(mlo), hi = Math.log(mhi), best = base, r0 = rate(base), err = Math.abs(r0 - target);
+      if (r0 > target) lo = Math.log(base); else hi = Math.log(base);
       if (err > 100 / N) for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2, r = rate(Math.exp(mid)); if (Math.abs(r - target) < err) { err = Math.abs(r - target); best = Math.exp(mid); } if (r > target) lo = mid; else hi = mid; }
-      D.HELL.stageHp[s] = base * best; out[s] = +(base * best).toFixed(2);
+      D.HELL.stageHp[s] = best; out[s] = +best.toFixed(2);
       console.log(`${D.stageLabel(s)} 헬 목표 ${target.toFixed(0)}% · 처음 ${r0.toFixed(0)}% → 체력 ×${out[s]} (오차 ${err.toFixed(0)})`);
     }
     console.log('hellStageHp: ' + JSON.stringify(out));

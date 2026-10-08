@@ -2091,7 +2091,7 @@ const ACTS = {
   prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
   prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[L.weeklyDef(L.weekIndex()).fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepCond: () => prepCondPopup(),
-  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${hellHpMul(app.stage).toFixed(1)} (이 스테이지) · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} · 조건 하나 더 · 보스 분노 · 웨이브 사이 수리 절반. 권장 강화는 보통 +${META_SOFT.hellAdd}. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
+  prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${hellHpMul(app.stage).toFixed(1)} (이 스테이지) · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} (적지만 단단하게) · 조건 하나 더 · 보스 분노 · 웨이브 사이 수리 절반 · 대신 경험치 ×${HELL.exp} · 멤버 공격 ×${HELL.dmg} (길게 키우며 버티는 싸움). 권장 강화는 보통 +${META_SOFT.hellAdd}. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
   prepFoe: (b) => {
     const id = b.dataset.id, d = ENEMIES[id]; if (!d) return;
     const T = foeTrait(id), c = CLASSES[d.cls];
@@ -4954,7 +4954,7 @@ function showPrep(mode, s) {
   // 2) 난이도
   const diffLine = hellOn ? `헬 · 체력 ×${hellHpMul(s).toFixed(1)} · 공격 ×${HELL.atk} · 권장 강화 +${recMeta(s, true)} · 보상 ×${HELL.coin}` : mode === 'stage' ? `보통 · ${STAGE_WAVES}웨이브${stageBosses(s).length ? ' · 보스' : stageMid(s) ? ' · 중간 보스' : ''}` : wk ? L.WEEKLY_MODS[wk.mod].desc : '';
   const diffHtml = mode === 'stage'
-    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0"><span class="sg-t">😊 보통</span><small>기본 난이도</small></button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1"><span class="sg-t">${hellOk ? '😈' : ic('lock', '', 'sm')} 헬</span><small>${hellOk ? '진상 강함 · 코인 ×3' : '보통 ★★★ 로 열림'}</small></button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
+    ? `<div class="pp-diff"><div class="pp-seg"><button class="${hellOn ? '' : 'on'}" data-act="hellMode" data-v="0"><span class="sg-t">😊 보통</span><small>기본 난이도</small></button><button class="${hellOn ? 'on hell' : ''} ${hellOk ? '' : 'lk'}" data-act="${hellOk ? 'hellMode' : 'prepHellLock'}" data-v="1"><span class="sg-t">${hellOk ? '😈' : ic('lock', '', 'sm')} 헬</span><small>${hellOk ? '진상 훨씬 단단 · 코인 ×3' : '보통 ★★★ 로 열림'}</small></button></div><p class="pp-line">${esc(diffLine)}<button class="pp-i" data-act="prepDiffInfo" aria-label="난이도 설명">i</button></p></div>`
     : diffLine ? `<p class="pp-line solo">${esc(diffLine)}</p>` : '';
   // 2-1) 이 스테이지 조건: 맵 효과 · 진상 기믹(보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격) · ★★★ 미션 · 강화 권장
   const conds = mode === 'stage' ? stageConds(s, hellOn) : [];

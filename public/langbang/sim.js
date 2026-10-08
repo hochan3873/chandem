@@ -103,7 +103,8 @@ export function createGame(opt = {}) {
   if (wmod.exp) g.mods.expMul += wmod.exp;
   if (opt.tempo && !opt.raid) { g.mods.expMul /= TEMPO.count; g.mods.ultCharge /= TEMPO.count; }
   if (g.slow) { g.mods.expMul /= SLOW_RUN.count; g.mods.ultCharge /= SLOW_RUN.count; g.mods.enemySpd *= SLOW_RUN.espd; }
-  if (g.tension) g.mods.enemySpd *= TENSION.espd; // 긴장감: 진상이 입구까지 더 잘 온다 (꾸준히 조금씩 깎이게) // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총공지 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
+  if (g.tension) g.mods.enemySpd *= TENSION.espd;
+  if (g.hell) { g.mods.expMul *= HELL.exp || 1; g.mods.dmg *= (HELL.dmg || 1) * (HELL.chDmg[chapterOf(g.stage || 1) - 1] || 1); } // 헬: 진상이 단단한 대신 한 판 성장 · 멤버 힘을 조금 더 (긴 싸움) // 긴장감: 진상이 입구까지 더 잘 온다 (꾸준히 조금씩 깎이게) // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총공지 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
   if (wmod.enemySpd) g.mods.enemySpd *= wmod.enemySpd;
   if (wmod.baseHp) { g.base.max = Math.round(g.base.max * wmod.baseHp); g.base.hp = g.base.max; }
   // 장비: 입구 내구도 +%
@@ -1631,7 +1632,7 @@ function bossSkill(g, e, [kind, name, o]) {
     ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, boss: e.type, hits: hit, mid: !!e.mid });
     return;
   } else if (kind === 'door') { // (10/08) 입구 강타: 입구 최대 내구도 frac (수리 · 탱커 · 방패가 줄인다) + 입구 앞 멤버 둘 게이지
-    if (!g.god && g.base) { const hp0 = g.base.hp; damageBase(g, g.base.max * o.frac * (g.hell ? 1.15 : 1), e); if (e.def.interest) e.loanTaken += Math.max(0, hp0 - g.base.hp); } // (사채업자 압류 딱지도 빚 — 잡으면 탕감)
+    if (!g.god && g.base) { const hp0 = g.base.hp; damageBase(g, g.base.max * o.frac * (g.hell ? 1.07 : 1), e); if (e.def.interest) e.loanTaken += Math.max(0, hp0 - g.base.hp); } // (사채업자 압류 딱지도 빚 — 잡으면 탕감)
     if (g.kdOn) { const hs = g.heroes.filter((h) => !h.def.summon && !h.gone && !h.out).sort((a, c) => Math.abs(a.x - e.x) - Math.abs(c.x - e.x)).slice(0, 2); for (const h of hs) kdAdd(g, h, hitKd(o, e) * 0.8, { src: 'hit' }); }
     ev(g, 'bossSkill', { x: e.x, y: e.y, kind, name, boss: e.type, door: { x: clamp(e.x, 40, g.W - 40), y: g.ropeY }, mid: !!e.mid });
     return;
@@ -2542,7 +2543,7 @@ function ch7Interrupt(g, by) {
   g.avalanche = null;
   if (!e || e.dead || !(e.avaW > 0)) return false;
   const a = e.def.avalanche;
-  e.avaW = 0; e.windup = 0; e.avaT = a.every * (g.hell ? 0.8 : 1);
+  e.avaW = 0; e.windup = 0; e.avaT = a.every * (g.hell ? 0.9 : 1);
   e.stunT = Math.max(e.stunT, a.stun); e.weakT = Math.max(e.weakT, a.weak);
   g.stats.avaStop = (g.stats.avaStop || 0) + 1;
   ev(g, 'c7avaStop', { x: e.x, y: e.y, by });
@@ -2643,7 +2644,7 @@ function ch7Tick(g, e, dt) {
       e.avaW -= dt; e.windup = Math.max(0.01, e.avaW);
       if (e.avaW <= 0) {
         e.avaW = 0; e.windup = 0; g.avalanche = null;
-        e.avaT = a.every * (g.hell ? 0.8 : 1) * (e.bai && e.bai.p2 ? 0.85 : 1);
+        e.avaT = a.every * (g.hell ? 0.9 : 1) * (e.bai && e.bai.p2 ? 0.85 : 1);
         let n = 0;
         for (const h of g.heroes) if (ch7Freeze(g, h, a.freeze, 'avalanche') > 0) n++;
         if (a.door && !g.god) damageBase(g, g.base.max * a.door, e); // 눈더미가 입구를 덮친다
@@ -2670,10 +2671,10 @@ function wtrEnemy(g, e) {
 }
 // ─── 스테이지 조건 (1~6장 중후반 · 헬): 보호막 · 은신 · 기절 예고 · 철갑 · 떼거리 · 문 돌격 — 강화만으로는 못 뚫게, 역할이 필요하게 ───
 function condEnemy(g, e) {
-  const C = g.cond, ch = chapterOf(g.stage || 1), k = g.hell ? 1.25 : 1;
+  const C = g.cond, ch = chapterOf(g.stage || 1), k = g.hell ? 1.1 : 1;
   e.atk *= (DOOR_PRESSURE.atk[ch - 1] || 1) * (g.hell ? DOOR_PRESSURE.hell : 1); e.baseAtk = e.atk; // 문 압박: 입구에 닿은 진상이 더 세게
   if (e.boss || e.mid || e.def.dot || e.def.figure) return;
-  if (C.shield && (e.elite || g.rng() < COND.shield.frac * k)) { e.cLay = e.cLayMax = COND.shield.layers[e.elite || g.hell ? 1 : 0]; e.cLayT = COND.shield.regen; }
+  if (C.shield && (e.elite || g.rng() < COND.shield.frac * k)) { e.cLay = e.cLayMax = COND.shield.layers[e.elite ? 1 : 0]; /* (10/08 헬도 졸개는 기본 겹 — 헬은 체력이 단단한 대신) */ e.cLayT = COND.shield.regen; }
   if (C.armor && (e.elite || g.rng() < COND.armor.frac * k)) { e.armor += COND.armor.armor[ch] || 0; e.cArmor = true; }
   if (C.stealth && e.unveiled && g.rng() < COND.stealth.frac * k) { e.cloak = true; e.unveiled = false; }
   if (C.rush && !e.fast && !e.elite && g.rng() < COND.rush.frac * k) { e.fast = true; e.cRush = true; e.speed *= COND.rush.spd; e.baseSpeed = e.speed; e.atk *= COND.rush.atk; e.baseAtk = e.atk; }
@@ -2700,7 +2701,7 @@ function condTick(g, dt) {
     if (e.cRush && !e.cOff && (e.slowT > 0 || e.stunT > 0)) { e.cOff = true; e.speed *= COND.rush.off; ev(g, 'c7sledOff', { x: e.x, y: e.y - e.def.size * 0.5 }); } // 돌격 진상: 감속 · 기절에 걸리면 넘어져 느려진다
     if (e.atRope && !e.cLeak && !e.def.standoff) {
       e.cLeak = true; st.leak++; if (e.cLay > 0) st.shieldLeak++; if (e.cArmor) st.armorLeak++;
-      if (e.cRush && !e.cOff && e.stunT <= 0) { damageBase(g, g.base.max * (COND.rush.crash[Math.min(6, chapterOf(g.stage || 1)) - 1] || 0.04) * (g.hell ? 1.2 : 1), e); e.cCrashed = true; ev(g, 'c7crash', { x: e.x, y: g.ropeY }); } // 쾅! 입구에 부딪힘
+      if (e.cRush && !e.cOff && e.stunT <= 0) { damageBase(g, g.base.max * (COND.rush.crash[Math.min(6, chapterOf(g.stage || 1)) - 1] || 0.04) * (g.hell ? 1.1 : 1), e); e.cCrashed = true; ev(g, 'c7crash', { x: e.x, y: g.ropeY }); } // 쾅! 입구에 부딪힘
     }
   }
   if (g.phase === 'wave') { for (const h of g.heroes) if (!h.def.summon && (h.stunT > 0 || h.charmT > 0)) st.ccSec += dt; const f = g.base.hp / g.base.max; if (f < st.minDoor) st.minDoor = f; }
@@ -2717,14 +2718,14 @@ function condCc(g, dt) {
     if (e.ccW > 0) return;
     e.windup = 0; e.ccW = 0; g.ccE = null;
     const ch = Math.min(6, chapterOf(g.stage || 1));
-    g.ccT = (C.every[0] + (C.every[1] - C.every[0]) * Math.max(0, ch - 2) / 4) * (g.hell ? 0.8 : 1);
+    g.ccT = (C.every[0] + (C.every[1] - C.every[0]) * Math.max(0, ch - 2) / 4) * (g.hell ? 0.9 : 1);
     const hs = g.heroes.filter((h) => !h.def.summon && !h.gone);
     if (!hs.length) return;
     const fresh = hs.filter((h) => h.stunT <= 0 && h.charmT <= 0), list = fresh.length ? fresh : hs;
     const top = list.reduce((a, h) => (h.dmgDone > a.dmgDone ? h : a), list[0]);
     const h = victim(g, list, top);
     let kind = CC_ORDER[(g.ccI = (g.ccI | 0) + 1) % CC_ORDER.length];
-    const hk = g.hell ? 1.2 : 1;
+    const hk = g.hell ? 1.1 : 1;
     // 해제 담당: 건전녀가 있으면 바로 응급처치 (4초에 한 번 · 0.6초 만에 풀림) · 김도훈 떼창 곁이면 40% 짧게
     const gn = g.heroes.find((o) => o.id === 'gunnyeo' && o.stunT <= 0 && o.charmT <= 0 && !o.gone);
     const react = !!gn && !(g.gnReactT > g.t);
@@ -2846,7 +2847,7 @@ function ch8SpeechStop(g, e, by) {
   if (g.speech === e) g.speech = null;
   if (!e || e.dead || !(e.speechT > 0)) return false;
   const sp = e.def.speech;
-  e.speechT = 0; e.speechG = 0; e.windup = 0; e.speechCd = sp.every * (g.hell ? 0.85 : 1);
+  e.speechT = 0; e.speechG = 0; e.windup = 0; e.speechCd = sp.every * (g.hell ? 0.92 : 1);
   e.stunT = Math.max(e.stunT, sp.stun); e.weakT = Math.max(e.weakT, sp.weak);
   g.stats.speechCut = (g.stats.speechCut | 0) + 1;
   ev(g, 'c8speechCut', { x: e.x, y: e.y, by });
@@ -2867,7 +2868,7 @@ function ch8Tick(g, e, dt) {
           forEnemiesNear(g, e.x, e.y, sp.r, (o) => { if (o === e || o.dead) return true; o.rushT = Math.max(o.rushT || 0, 1.5); if (!o.boss && !(o.healBlockT > 0)) o.hp = Math.min(o.maxHp, o.hp + o.maxHp * sp.buff); return true; });
         }
         if (e.speechT <= 0) { // 다 들었다… 하객 전원 졸음 + 입구 피해
-          e.speechT = 0; e.speechCd = sp.every * (g.hell ? 0.85 : 1); if (g.speech === e) g.speech = null;
+          e.speechT = 0; e.speechCd = sp.every * (g.hell ? 0.92 : 1); if (g.speech === e) g.speech = null;
           let n = 0;
           for (const h of g.heroes) { const sc = debuffSec(h, sp.drowse, 'slow'); if (sc > 0) { h.aspdDebCut = h.aspdDebT > 0 ? Math.max(h.aspdDebCut || 0, sp.drowseCut) : sp.drowseCut; h.aspdDebT = Math.max(h.aspdDebT || 0, sc); n++; } }
           if (sp.door && !g.god) damageBase(g, g.base.max * sp.door, e);
@@ -2877,7 +2878,7 @@ function ch8Tick(g, e, dt) {
         }
       }
     } else if (!stunned && e.y > 60 && !g.over && !(e.bai && e.bai.st === 'windup') && (e.speechCd -= dt) <= 0) {
-      e.speechT = sp.sec * (g.hell ? 1.15 : 1); e.speechG = 0; e.speechNeed = Math.round(sp.need * (g.hell ? 1.25 : 1)); e.speechTick = 0;
+      e.speechT = sp.sec * (g.hell ? 1.07 : 1); e.speechG = 0; e.speechNeed = Math.round(sp.need * (g.hell ? 1.1 : 1)); e.speechTick = 0;
       g.speech = e;
       ev(g, 'c8speech', { x: e.x, y: e.y, sec: e.speechT, need: e.speechNeed });
     }
@@ -2909,7 +2910,7 @@ function ch8Tick(g, e, dt) {
     if (e.hurryW > 0) {
       if (stunned) { e.hurryW = 0; e.windup = 0; e.hurryCd = hu.every; ev(g, 'c8hurryStop', { x: e.x, y: e.y - d.size * 0.6 }); }
       else if ((e.hurryW -= dt) <= 0) {
-        e.hurryW = 0; e.windup = 0; e.hurryCd = hu.every * (g.hell ? 0.85 : 1);
+        e.hurryW = 0; e.windup = 0; e.hurryCd = hu.every * (g.hell ? 0.92 : 1);
         let n = 0;
         forEnemiesNear(g, e.x, e.y, hu.r, (o) => { if (o.dead || o === e) return true; o.rushT = Math.max(o.rushT || 0, hu.sec); n++; return true; });
         ev(g, 'c8hurry', { x: e.x, y: e.y - d.size * 0.6, r: hu.r, n });

@@ -1282,7 +1282,7 @@ test('4~6장 진상: 돌싱 들킴 · 카푸어 퍼짐 · 싱글맘 방패 · �
   assert.ok(hm.fleeing && hm.stolen > 0 && g.exp < 50, '집에 갈래 (경험치 훔침)');
 });
 
-test('헬 모드: 진상 체력·속도·공격·수 ↑ · 보상 ×3 · 희귀 이상 확정 · 일반 ★★★ 에서만', () => {
+test('헬 모드: 진상 체력 ↑↑ · 속도·공격 ↑ · 수 ↓ · 보상 ×3 · 희귀 이상 확정 · 일반 ★★★ 에서만', () => {
   const a = S.createGame({ rng: seeded(1230), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null] });
   const b = S.createGame({ rng: seeded(1230), mode: 'stage', stage: 12, deck: ['staff', 'bangjang', null, null, null, null], hell: true });
   S.startWave(a, 2); S.startWave(b, 2);
@@ -1290,7 +1290,7 @@ test('헬 모드: 진상 체력·속도·공격·수 ↑ · 보상 ×3 · 희귀
   const condHp = (g) => (g.conds.length ? D.COND_HP[D.chapterOf(12) - 1] : 1); // 헬은 스테이지 조건이 하나 더 (조건 스테이지 체력 보정)
   assert.ok(Math.abs(eb.maxHp / ea.maxHp - (D.HELL.hp * (D.HELL.stageHp[12] || 1) * condHp(b)) / condHp(a)) < 1e-6); // (템포 없는 판: 장 보정 hellCh 없음 · 스테이지 보정만)
   assert.ok(eb.atk / ea.atk > D.HELL.atk - 1e-6);
-  assert.ok(b.spawnQ.length > a.spawnQ.length, '수도 많다');
+  assert.ok(D.HELL.count < 1 ? b.spawnQ.length < a.spawnQ.length : b.spawnQ.length > a.spawnQ.length, '수 (10/08: 헬은 적지만 단단하게)');
   assert.equal(S.summary(b, 1).hell, true);
   const r = D.hellReward(12, 3, 0, 0);
   assert.equal(r.total, Math.round(D.stageReward(12, 3, 0, 0).total * D.HELL.coin));
