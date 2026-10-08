@@ -113,8 +113,18 @@ export const ULT_LOCK = { cd: 35 };
 //  door: 진상 한 대 세기 × (대신 오래 버티면 계속 깎인다) · repair: 웨이브를 깨면 잃은 입구의 frac 만큼 (최대 cap × 최대 내구도) 고친다 (버티면 숨 돌릴 틈)
 //  hp: 2웨이브부터 (팀이 모인 뒤) 진상 체력 × (떼거리 조건은 1 + (hp−1) × swarmK) — 평타만으로는 밀리고
 //  skill: 스킬 피해 × · refill: 기세 한 칸 차는 초 (원래 7) — 스킬로 뒤집는다 (스킬 안 쓰는 판은 확실히 어렵게)
-export const TENSION = { crowd: { k: 2, over: 0.2, cap: 3.5 }, door: 0.65, repair: { frac: 0.25, cap: 0.12 }, hp: 1.7, hpFrom: 2, swarmK: 0.3, skill: 2.6, refill: 3.5,
-  chHp: [0.95, 1.22, 1.3, 1.13, 1.48, 1.37, 1.23, 1.1] }; // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
+// 역할 리듬 (10/08 · 일반 스테이지 · 헬): 화면이 덜 바쁘게 — 공격 간격 ×iv · 한 방 ×dmg (초당 피해는 거의 그대로 · 스킬 피해는 그대로) · 역할마다 리듬이 다르다
+//  도감 역할(HERO_ROLE)을 그대로 쓴다: tank 묵직한 한 방 · single 느리고 큰 한 발 · aoe 중간 박자 범위 · support 주기적인 펄스 · ctrl · special 중간
+//  CADENCE_HERO: 역할과 다른 리듬만 — rapid 빠른 연타는 계속 빠르게 (대신 한 방은 작게) · own 게이지 · 소환 · 수동 · 아주 느린 멤버는 제 리듬
+//  새 멤버는 HERO_ROLE 만 정하면 그 역할 리듬을 따른다
+export const ROLE_CADENCE = { tank: { iv: 1.6, dmg: 1.6 }, single: { iv: 1.55, dmg: 1.55 }, aoe: { iv: 1.4, dmg: 1.4 }, support: { iv: 1.45, dmg: 1.45 }, ctrl: { iv: 1.35, dmg: 1.35 }, special: { iv: 1.35, dmg: 1.35 }, rapid: { iv: 1.2, dmg: 1.2 }, own: { iv: 1, dmg: 1 } };
+export const CADENCE_HERO = { youngjun: 'rapid', hanna: 'rapid', myunghoon: 'rapid', eunok: 'rapid', staff: 'rapid', hochan: 'own', soyoung: 'own', baul: 'own', jeongseob: 'own' };
+export const roleCadence = (id) => ROLE_CADENCE[CADENCE_HERO[id] || HERO_ROLE[id] || 'special'] || ROLE_CADENCE.own;
+export const TENSION = { crowd: { k: 2, over: 0.2, cap: 3.5 }, door: 0.65, repair: { frac: 0.25, cap: 0.12 }, hp: 1.7, hpFrom: 2, swarmK: 0.3, skill: 3.5, refill: 9,
+  // pick: 레벨업 필요 경험치 ×need (카드 덜 자주) · freeTo 명까지는 합류해도 카드 한 장 더 (예전처럼) · 5 · 6번째 합류는 카드 한 장을 쓴다 · 공짜 합류 카드는 freeWaves 웨이브에만 (예전엔 매 웨이브) · 처음 guarantee 장은 합류 보장
+  //   → 좁은 덱 (4명): 카드가 남고 narrow: 빈 칸 하나마다 팀 공격 + (1~2명이 확실한 캐리) / 넓은 덱 (6명): 합류에 카드를 쓰는 대신 wide: 5번째부터 한 명마다 팀 공격 +dmg · 웨이브 사이 입구 수리 +repair (서포트 · 시너지)
+  pick: { need: 1.2, freeWaves: [2, 3], guarantee: 3, freeTo: 4 }, wide: { from: 5, dmg: 0.02, repair: 0.02, narrow: 0.22 },
+  chHp: [0.475, 0.61, 0.65, 0.565, 0.74, 0.685, 0.615, 0.55] }; // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
 export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.15, chHp: [0.89, 0.89, 0.69, 0.82, 0.91, 0.985, 0.63, 0.525] }; // (10/08 진상 리메이크 · 쓰러짐 게이지 · 1웨이브 뒤 큰 한 방 · 기세 2칸 뒤 다시: 1 · 2장 +3% · 3장 −7% · 6장 −3.5% · 7장 +7% · 8장 +5%) chHp: 장마다 체력 다시 맞춤 (stagemeas · 대개편 뒤 1차 · 10/07 쿨 다양화 · 쓰러짐 게이지 뒤 6장 +7% · 7장 −2% · 8장 −2%)
 // 방어율 (장이 깊을수록 진상이 단단 — 한 방마다 %로 깎임): 정예 · 중간 보스 · 보스는 ch 그대로 · 졸개는 fodder 배
 //  방관(pen): 그 멤버 공격은 방어율을 그만큼 뚫는다 (건전남 전부) · 여지원 모자이크 한 겹마다 방어율 shredPer 씩 벗김 (5겹 = 0) · 모자이크 폭격은 전부
@@ -701,11 +711,11 @@ export function stageFx(s) { return MAP_FX[STAGE_FX[s - 1] || 'none']; }
 //  한 스테이지에 1~3개 → 역할 2~3개가 필요. 7장은 자기 기믹(빙결 · 침묵 · 눈사태)이 따로 있어서 여기엔 없음
 export const COND = {
   shield: { id: 'shield', icon: 'tw_shield', name: '보호막 진상', short: '보호막', tip: '보호막 진상: 겹이 남아 있으면 피해 −90% · 한 방에 한 겹씩 벗겨져요 → 연타 · 운영진 경고장 · 여지원이 잘 깨요',
-    counter: ['staff', 'jiwon', 'gunman', 'youngjun', 'soyoung', 'myunghoon', 'hanna', 'sanghwa', 'junseo'], breaker: ['staff', 'jiwon'], frac: 0.22, layers: [2, 3], cut: 0.9, regen: 4 },
+    counter: ['staff', 'jiwon', 'gunman', 'youngjun', 'soyoung', 'myunghoon', 'hanna', 'sanghwa', 'junseo'], breaker: ['staff', 'jiwon'], frac: 0.32, layers: [3, 4], cut: 0.9, regen: 3.2 }, // (10/08 체감 ↑: 0.22 · [2,3] · 4초 → 0.32 · [3,4] · 3.2초)
   stealth: { id: 'stealth', icon: 'tw_dark', name: '숨은 진상', short: '은신', tip: '숨은 진상: 길 ¾ 까지 안 보이고 입구를 두 배로 쳐요 → 운영진 · 건전남 · 배현경이 먼저 찾아내요',
     counter: ['staff', 'gunman', 'hyungyeong'], frac: 0.15 },
   cc: { id: 'cc', icon: 'tw_curse', name: '기절 예고', short: '기절', tip: '기절 예고: 진상이 기를 모았다가(1초) 제일 센 멤버를 기절 · 침묵 · 홀림 → 건전녀(간호 · 응급 방패) · 김도훈이 풀고 강성구 · 강병화 곁은 막아요 · 도발 탱커(정원식)가 대신 맞아요 · 기 모을 때 기절시키면 끊겨요',
-    counter: ['gunnyeo', 'dohoon', 'sunggu', 'byunghwa', 'wonsik', 'soyoung', 'jungmin'], every: [7, 5.5], windup: 1.0, stun: 3, silence: 4, charm: 2.6, react: 0.6, reactCd: 4, singCut: 0.6 }, // react: 건전녀가 있으면 0.6초 만에 풀어 줌 (4초에 한 번) · singCut: 김도훈 떼창 곁 40% 짧게
+    counter: ['gunnyeo', 'dohoon', 'sunggu', 'byunghwa', 'wonsik', 'soyoung', 'jungmin'], every: [5.6, 4.4], windup: 1.0, stun: 3.5, silence: 5, charm: 3, /* (10/08 체감 ↑: [7,5.5] · 3 · 4 · 2.6) */ react: 0.6, reactCd: 4, singCut: 0.6 }, // react: 건전녀가 있으면 0.6초 만에 풀어 줌 (4초에 한 번) · singCut: 김도훈 떼창 곁 40% 짧게
   armor: { id: 'armor', icon: 'tw_titan', name: '철갑 진상', short: '철갑', tip: '철갑 진상: 한 방마다 피해가 크게 깎여요 → 한 방이 큰 멤버 · 건전남(방어 무시)',
     counter: ['ara', 'sunggu', 'gunman', 'donghan', 'hyungyeong', 'wonsik', 'eunok', 'hochan', 'dragon'], frac: 0.3, armor: [0, 6, 10, 14, 18, 22, 26] },
   swarm: { id: 'swarm', icon: 'tw_swarm', name: '떼거리', short: '떼', tip: '떼거리: 약한 진상이 훨씬 많이 → 범위 공격',
@@ -930,13 +940,13 @@ export const HEROES = {
   },
   gunnyeo: {
     id: 'gunnyeo', bossKit: 0.8, kit: 1.0, name: '건전녀', gender: 'f', emoji: '🙋‍♀️', color: '#ff8fc0', attr: 'charm',
-    img: '/img/lb/h_gunnyeo.webp', role: '멤버 간호 · 상태이상 해제 · 면역',
+    img: '/img/lb/h_gunnyeo.webp', role: '멤버 간호 · 상태이상 해제 · 면역 · 입구 조금씩 회복',
     dmg: 30, interval: 1.0, range: 300, proj: 'heart', projSpeed: 1, lobSec: 0.85, splash: 36, arcH: 125, // 하트 폭탄: 높이 휙 (포물선 높이 125)
-    care: { every: [4, 4, 3.6, 3.6, 3.2], tired: [3, 3, 4, 4, 5], guard: [1, 1, 1.5, 1.5, 2], cheer: { sec: 3, spd: 0.3 } }, // 간호 (입구 수리는 홍정민 몫): [주기(초)] 마다 멤버 상태이상 전부 풀기 · 기진맥진 −초 · 풀어 준 멤버는 잠깐 면역(초) · 챙겨 준 멤버는 "힘내요!" 3초 공속 +30%
-    attack: '하트 폭탄 — 가까이 온 진상에게 천천히 던지는 작은 폭탄. 진짜 가치는 간호: 틈틈이 멤버 상태이상을 전부 풀고 (풀린 멤버는 잠깐 면역) 스킬 쓰고 지친 멤버(기진맥진)를 일으킨다 · 챙겨 준 멤버는 "힘내요!" 3초 공격 속도 +30% (아픈 멤버가 없으면 제일 잘 싸우는 멤버에게)',
+    care: { every: [4, 4, 3.6, 3.6, 3.2], tired: [3, 3, 4, 4, 5], guard: [1, 1, 1.5, 1.5, 2], cheer: { sec: 3, spd: 0.3 }, door: [0.008, 0.009, 0.01, 0.011, 0.012] }, // 간호 (10/08: 입구도 간호마다 0.8~1.2% — 초보 입구 지킴이 · 큰 수리 · 바리케이드는 홍정민 몫): [주기(초)] 마다 멤버 상태이상 전부 풀기 · 기진맥진 −초 · 풀어 준 멤버는 잠깐 면역(초) · 챙겨 준 멤버는 "힘내요!" 3초 공속 +30%
+    attack: '하트 폭탄 — 가까이 온 진상에게 천천히 던지는 작은 폭탄. 진짜 가치는 간호: 틈틈이 입구를 조금씩 고치고 멤버 상태이상을 전부 풀고 (풀린 멤버는 잠깐 면역) 스킬 쓰고 지친 멤버(기진맥진)를 일으킨다 · 챙겨 준 멤버는 "힘내요!" 3초 공격 속도 +30% (아픈 멤버가 없으면 제일 잘 싸우는 멤버에게)',
     desc: '다정한 간호사. 한 방은 약하지만 기절 · 홀림 · 침묵에 걸린 멤버를 제일 먼저 챙기고, 스킬 쓰고 지친 멤버에게 물 한 잔 건넨다.',
     perks: { 3: '간호가 더 자주 · 면역 더 길게 · 폭발 범위 +', 5: '모든 멤버 홀림 면역 ("철벽!")' },
-    skill: { id: 'firstaid', name: '응급 방패', cd: 14, desc: '멤버 전원에게 하트 방패 — 상태이상 전부 해제 · 기진맥진도 풀림 · 3초 동안 상태이상 면역 (Lv3 3.5초 · Lv5 4초) · "힘내요!" 4초 공격 속도 +30% · 다른 멤버 스킬 쿨타임 −1초', imm: [3, 3, 3.5, 3.5, 4], cdCut: 1 }, // (쿨 다양화: 24 → 14초 · 자주 푸는 해제 담당)
+    skill: { id: 'firstaid', name: '응급 방패', cd: 14, desc: '멤버 전원에게 하트 방패 — 상태이상 전부 해제 · 입구 7~12% 회복 · 기진맥진도 풀림 · 3초 동안 상태이상 면역 (Lv3 3.5초 · Lv5 4초) · "힘내요!" 4초 공격 속도 +30% · 다른 멤버 스킬 쿨타임 −1초', imm: [3, 3, 3.5, 3.5, 4], cdCut: 1, door: [0.07, 0.08, 0.09, 0.1, 0.12] }, // (10/08 입구도 7~12% 고침) // (쿨 다양화: 24 → 14초 · 자주 푸는 해제 담당)
   },
   // ── 해금 영웅 (스테이지를 깨면 합류) ──
   myunghoon: {
@@ -1094,7 +1104,7 @@ export const HEROES = {
     attack: '째깍 시계 — 날아가지 않고 진상 발밑에 시계가 스르륵 떠올라 째깍! 시계가 남아 있는 동안 그 자리를 지나는 진상은 느려진다 (덫). 공격하는 순간 순한 얼굴이 악마로…',
     desc: '보브컷의 순한 막내. 그런데 공격만 하면 눈빛이 변한다. "…시간아 멈춰라."',
     perks: { 3: '시계가 더 크고 오래 (1.6 → 2.1초)', 5: '시계 제일 크게 · 시간 정지가 더 넓고 길게' },
-    skill: { id: 'timestop', name: '시간 정지', cd: 45, desc: '넓은 범위 진상을 크게 느리게 (보스는 조금만) · 그동안 악마 모드', target: true, r: [200, 200, 220, 220, 250], sec: [4, 4, 4.5, 4.5, 5.5], slow: 0.35 },
+    skill: { id: 'timestop', name: '시간 정지', cd: 45, desc: '찍은 곳에 커다란 시계 구역 — 그 안 진상은 크게 느려진다 (들어오는 진상도 · 보스는 조금만) · 그동안 악마 모드', target: true, r: [235, 235, 255, 255, 285], sec: [4, 4, 4.5, 4.5, 5.5], slow: 0.35 }, // (10/08 범위 200~250 → 235~285 · 그 자리에 남아 들어오는 진상도 느려짐)
     shouts: ['시간아 멈춰라…', '헤헤♡', '…도망 못 가.'],
   },
   sanghwa: {

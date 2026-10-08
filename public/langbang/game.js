@@ -795,13 +795,13 @@ function handleEvents(g, loud) {
       case 'bossRage': fx.banner(e.title || `${e.name} 분노!`, e.sub || '빨라지고 새 기술을 쓴다', '#a01020', 1.3, 'big'); fx.flash('#ff2a2a', 0.3); fx.addShake(8); if (loud) A.sfx.explode(); break;
       case 'midRage': fx.text(e.x, e.y, `${e.name} 흥분!`, '#ff7a4f', 14, 1.0); break;
       case 'bossRoar': fx.ring(e.x, e.y - 30, 30, 220, 0.6, '#ff8a3c', 6); fx.text(e.x, e.y - 90, '포효!', '#ff8a3c', 16, 0.8); fx.addShake(5); break;
-      case 'heroStun': { if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 12, 0.8); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 300, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.x) < 2 && Math.abs(x.y - e.y) < 2) || g.heroes.find((x) => x.id === e.hero); if (hh) hh._hitAt = performance.now(); fx.addShake(4); app.hitStop = Math.max(app.hitStop || 0, 0.04); break; }
+      case 'heroStun': { if (!busy) fx.text(e.x, e.y - 70, '기절!', '#ffd23f', 16, 1.0); if (live) fx.addShake(3); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 300, sz: 70 }); const hh = g.heroes.find((x) => Math.abs(x.x - e.x) < 2 && Math.abs(x.y - e.y) < 2) || g.heroes.find((x) => x.id === e.hero); if (hh) hh._hitAt = performance.now(); fx.addShake(4); app.hitStop = Math.max(app.hitStop || 0, 0.04); break; }
       case 'curseOffer': showCurseOffer(e.opts); break;
       case 'augOffer': showAugOffer(e.opts, e.tier); break;
       case 'aug': fx.banner(`${e.title}`, `${TIER_NAMES[e.tier] || ''} 증강`, e.tier === 'prism' ? '#2a6aa0' : e.tier === 'gold' ? '#a07010' : '#4a5a70', 1.3, 'wave'); fx.flash(e.tier === 'prism' ? '#7df9ff' : '#ffd23f', 0.2); break;
       case 'tech': fx.banner(`${TAGS[e.tag].icon} ${e.title}`, `${TIER_NAMES[e.tier]} 테크`, e.tier === 'prism' ? '#2a6aa0' : '#a07010', 1.1, 'wave'); break;
       case 'setBonus': fx.text(180, 170, `${TAGS[e.tag].icon} ${TAGS[e.tag].name} ${e.n}세트! +${Math.round(SET_BONUS[e.n] * 100)}%`, '#7dff9a', 17, 1.3); break;
-      case 'ccGet': fx.text(e.x, e.y - 80, `${CC_KINDS[e.kind].icon} ${CC_KINDS[e.kind].name}!`, CC_KINDS[e.kind].color, 14, 1.0); break;
+      case 'ccGet': fx.text(e.x, e.y - 80, `${CC_KINDS[e.kind].icon} ${CC_KINDS[e.kind].name}!`, CC_KINDS[e.kind].color, 17, 1.1); if (live) fx.addShake(2); break; // (10/08 아픈 게 보이게)
       case 'cc': if (!busy) R.vfx(({ stun: 'cc_stun', pull: 'cc_pull', kb: 'cc_push', slow: 'cc_slow', freeze: 'cc_freeze' })[e.kind] || 'cc_stun', e.x, e.y, { anim: 'pop', dur: 450, sz: 26 });
         if (e.kind === 'pull') { const jy = g.heroes.find((h) => h.id === 'junyoung'); if (jy && jy.ax !== undefined) { // 성준영 자석: 끌려오는 선 · 기준점 소용돌이 · 첫 번엔 "모여라~!"
           R.vfx('pullLine', e.x, e.y, { anim: 'streak', dur: 420, tx: jy.ax, ty: jy.ay, col: '#c07bff' });
@@ -822,7 +822,7 @@ function handleEvents(g, loud) {
         break;
       }
       case 'immune': if (!busy) fx.text(e.x, e.y, '안 들림!', '#9fd4ff', 12, 0.6); break;
-      case 'blocked': if (!busy) fx.text(e.x, e.y, `막음! ${e.n}`, '#9feaff', 12, 0.6); break;
+      case 'blocked': if (!busy) { fx.text(e.x, e.y, `막음! ${e.n}`, '#9feaff', 15, 0.7); fx.ring(e.x, e.y + 10, 8, 34, 0.22, '#bff3ff'); } break; // (10/08 보호막 체감 ↑)
       case 'split': if (g.hw || e.into === 'hw_seed') { fx.burst(e.x, e.y - 20, 10, '#ff8a1f', 140, 'flame', 4, 0.5); if (!busy) fx.text(e.x, e.y - 50, '호박씨 퉤퉤!', '#ffb35a', 12, 0.8); break; } fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
       case 'praise': if (!busy) { fx.text(e.x, e.y, e.text || '언니 너무 이뻐요~', '#ffb3d9', 11, 0.9); fx.ring(e.x, e.y + 20, 10, 90, 0.5, '#ffb3d9', 3); } break;
       case 'praiseRage': fx.text(e.x, e.y, '(표정 싹 바뀜)', '#ff4f6a', 13, 1.0); break;
@@ -1058,7 +1058,7 @@ function handleEvents(g, loud) {
         if (e.skill === 'goodman') { if (loud) A.sfx.coin(); } // 금빛 띠 · 금화 비는 skillfx.js · 꽃다발은 'bouquet'
         if (e.skill === 'bandage') fx.banner('붕대 바리케이드!', '붕대 벽 · 입구 수리 · 잠깐 피해 -35%', '#2f8a4a', 1, 'wave'); // 붕대 감기 · 초록 물결 · 큰 수리 숫자는 skillfx.js
         break;
-      case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 15, 1.1); break;
+      case 'cleanse': fx.text(e.x, e.y - 90, '상태이상 해제!', '#9dffb0', 16, 1.1); if (!busy) { fx.ring(e.x, e.y - 30, 8, 60, 0.4, '#b6ffc8', 4); fx.burst(e.x, e.y - 30, 10, '#d8ffe0', 160, 'star', 4, 0.5); } break; // (10/08 해제 순간이 시원하게)
       case 'ultLocked': if (live) toast('큰 한 방 스킬은 1웨이브가 끝나야 써요', 1100); break;
       case 'ultOpen': if (live) fx.text(180, g.H * 0.3, '큰 한 방 스킬 사용 가능!', '#ffe27a', 15, 1.2, -10); break;
       case 'knockdown': fx.text(e.x, e.y - 80, '쓰러짐!', '#ff6a5a', 16, 1.2); R.vfx('hitspark', e.x, e.y - 30, { anim: 'pop', dur: 360, sz: 90 }); fx.addShake(5); break; // 쓰러짐 게이지 가득
@@ -1227,8 +1227,8 @@ function handleEvents(g, loud) {
         if (loud && A.sfx.charm) A.sfx.charm();
         break;
       }
-      case 'ccBlock': fx.text(e.x, e.y, '막음!', '#8fd8ff', 13, 0.8); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
-      case 'shieldBreak': R.vfx('hitspark', e.x, e.y, { anim: 'pop', dur: 380, sz: 90 }); fx.burst(e.x, e.y, 12, '#cfe9ff', 220, 'dot', 3, 0.5); fx.text(e.x, e.y - 20, '보호막 깨짐!', '#ff6a6a', 13, 0.9); break;
+      case 'ccBlock': fx.text(e.x, e.y, '면역!', '#8fffc8', 16, 0.9); fx.ring(e.x, e.y + 10, 10, 46, 0.3, '#9fffd0'); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
+      case 'shieldBreak': R.vfx('hitspark', e.x, e.y, { anim: 'pop', dur: 380, sz: 90 }); fx.burst(e.x, e.y, 12, '#cfe9ff', 220, 'dot', 3, 0.5); fx.text(e.x, e.y - 20, '보호막 깨짐!', '#ff6a6a', 16, 1.0); fx.ring(e.x, e.y, 10, 70, 0.35, '#e8fbff'); if (live) app.hitStop = Math.max(app.hitStop || 0, 0.03); try { A.sfx.crit(); } catch (er) { /* 무시 */ } break;
       case 'doorShield': fx.text(e.x, e.y - 40, `방패 +${e.v}`, '#bfe6ff', 16, 1.2); R.vfx('aura_blue', e.x, e.y, { anim: 'pulse', dur: 8000, sz: 320, flat: true }); break;
       case 'doorShieldBreak': fx.text(e.x, e.y - 40, '방패 깨짐', '#bfe6ff', 13, 0.9); fx.burst(e.x, e.y, 16, '#cfe9ff', 260, 'dot', 3, 0.6); break;
       case 'buffAura': for (const h of g.heroes) R.vfx('aura_red', 0, 0, { follow: h, dy: 0, anim: 'pulse', dur: (e.sec || 6) * 1000, sz: 90, flat: true }); fx.text(180, g.rowY - 70, '집합! 공속 +50% · 공격력 +20%', '#ffd23f', 14, 1.3); break;

@@ -48,7 +48,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     const [k, v] = kv.split(':'), path0 = k.split('.'), root = /^[A-Z]/.test(path0[0]) ? D : D.TENSION;
     let o = root; for (const q of path0.slice(0, -1)) o = o[q];
     const last = path0[path0.length - 1];
-    if (Array.isArray(o[last])) o[last] = o[last].map((x) => x * Number(v)); else o[last] = Number(v);
+    if (v.includes('-')) o[last] = v.split('-').map(Number); else if (Array.isArray(o[last])) o[last] = o[last].map((x) => x * Number(v)); else o[last] = Number(v); // (2-3-4 : 목록으로)
   }
 
   // 카드 자동 선택: 사람이 고를 법한 단순한 우선순위 + 약간의 무작위
@@ -833,7 +833,12 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  강화 = 장 권장 + REF_PLUS (헬: + 헬 권장 가산) · 같은 덱 · 같은 시드
   const BOTS = { ref: { label: '기준', o: {} }, low: { label: '스킬가끔', o: { skillEvery: 480, policy: 'mid' } }, beg: { label: '초보', o: { skills: false, policy: 'mid' } }, rnd: { label: '막고름', o: { skills: false, policy: 'random' } } };
   function botRun(s, bot, N, hell) {
-    const c = D.chapterOf(s), ids = c <= 6 ? balFor(c, s, hell) : C78;
+    const c = D.chapterOf(s);
+    let ids = c <= 6 ? balFor(c, s, hell) : C78;
+    const conds = DC.stageConds(s, hell), isCounter = (id) => conds.some((cd) => (D.COND[cd] && D.COND[cd].counter || []).includes(id));
+    if (args.includes('--nocounter')) { const keep = ids.filter((id) => !isCounter(id)), fill = ['sanghwa', 'ingyu', 'youngjun', 'eunok', 'myunghoon', 'donghan', 'hanna', 'ara', 'junseo', 'wonsik', 'jiwon', 'gunman', 'staff', 'bangjang'].filter((id) => !isCounter(id) && !keep.includes(id)); while (keep.length < ids.length && fill.length) keep.push(fill.shift()); ids = keep; } // --nocounter: 조건 상성 멤버를 빼고 아무나
+    const SZ = opt('size', 0);
+    if (SZ) { const more = [...(c <= 6 ? DECKS[c][1] : C78), 'gunnyeo', 'dohoon', 'wonsik', 'jungmin', 'sanghwa'].filter((id) => !ids.includes(id)); ids = ids.slice(0, SZ); while (ids.length < SZ && more.length) ids.push(more.shift()); } // --size=4|6: 좁은 덱 · 넓은 덱
     const hm = hell ? D.META_SOFT.hellAdd : 0;
     const meta = Object.fromEntries(ids.map((id) => [id, (c <= 6 ? REC[c - 1] + opt('meta', REF_PLUS) : 15 + opt('meta78', 0)) + hm]));
     const runs = [];

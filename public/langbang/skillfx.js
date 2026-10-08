@@ -666,8 +666,8 @@ export class SkillFx {
     const T = g.t - o.st0, IN = 0.45, OUT = 0.55, end = o.dur;
     if (T > end + 0.05 || T < -0.5) { o.done = true; return; }
     const ox = h && !h.gone ? h.rx || h.x : o.ox, oy = h && !h.gone ? h.y - 20 : o.oy;
-    const far = Math.hypot(Math.max(ox, R.W - ox), Math.max(oy, R.H - oy)) + 40;
-    // 회색 영역 반지름: 퍼짐 → 꽉 → (끝) 오지은 쪽으로 줄어듦
+    // (10/08) 회색 영역 = 실제 효과 범위 (시계판 반지름 그대로) — 예전엔 화면 전체가 회색이라 어디까지 걸리는지 몰랐다
+    const c0 = o.clocks[0] || { x: ox, y: oy, r: 200 }, gx = c0.x, gy = c0.y, far = c0.r;
     let gr0 = far, edge = -1;
     if (T < IN) { gr0 = eOut(T / IN) * far; edge = gr0; } else if (T > end - OUT) { gr0 = (1 - eIn(c01((T - (end - OUT)) / OUT))) * far; edge = gr0; }
     const outK = T > end - OUT ? c01((T - (end - OUT)) / OUT) : 0;
@@ -675,8 +675,8 @@ export class SkillFx {
       // 1) 색 빼기 (채도 0 · 살짝 푸르게) — 오지은 자리는 비워 둔다
       if (gr0 > 2) {
         cx.save();
-        cx.beginPath(); cx.arc(ox, oy, gr0, 0, TAU);
-        cx.moveTo(ox + 34, oy - 6); cx.arc(ox, oy - 6, 34, 0, TAU, true); // 오지은은 색 그대로
+        cx.beginPath(); cx.arc(gx, gy, gr0, 0, TAU);
+        if (Math.hypot(ox - gx, oy - gy) < gr0 + 34) { cx.moveTo(ox + 34, oy - 6); cx.arc(ox, oy - 6, 34, 0, TAU, true); } // 오지은은 색 그대로
         cx.clip('evenodd');
         cx.globalCompositeOperation = 'saturation'; cx.globalAlpha = 0.92; cx.fillStyle = '#808080'; cx.fillRect(-40, -60, R.W + 80, R.H + 120);
         cx.globalCompositeOperation = 'multiply'; cx.globalAlpha = 0.32; cx.fillStyle = '#b9c9ff'; cx.fillRect(-40, -60, R.W + 80, R.H + 120);
@@ -685,12 +685,14 @@ export class SkillFx {
       // 2) 물결 테두리 (퍼질 때 · 돌아올 때)
       if (edge > 0) {
         cx.save(); cx.globalCompositeOperation = 'lighter';
-        for (let i = 0; i < 3; i++) { const rr = edge - i * 16; if (rr <= 2) continue; cx.globalAlpha = (0.75 - i * 0.22) * (T < IN ? 1 : 0.9); cx.strokeStyle = i ? 'rgba(170,200,255,1)' : 'rgba(235,245,255,1)'; cx.lineWidth = i ? 3 : 7; cx.beginPath(); cx.arc(ox, oy, rr, 0, TAU); cx.stroke(); }
+        for (let i = 0; i < 3; i++) { const rr = edge - i * 16; if (rr <= 2) continue; cx.globalAlpha = (0.75 - i * 0.22) * (T < IN ? 1 : 0.9); cx.strokeStyle = i ? 'rgba(170,200,255,1)' : 'rgba(235,245,255,1)'; cx.lineWidth = i ? 3 : 7; cx.beginPath(); cx.arc(gx, gy, rr, 0, TAU); cx.stroke(); }
         cx.restore();
         this.glow(ox, oy, 70, 'rgba(180,140,255,1)', 0.5);
       }
       // 3) 오지은 둘레 보라 기운 (시간 밖에 있는 사람)
       if (h && !h.gone && T < end) this.glow(ox, oy - 4, 46 + Math.sin(g.t * 6) * 4, 'rgba(190,120,255,1)', 0.45 * (1 - outK));
+      // 3-1) 범위 테두리 (지속): 효과가 걸리는 경계를 계속 보여 준다
+      if (gr0 > 2 && edge < 0) { cx.save(); cx.globalAlpha = 0.55 * (1 - outK) * (0.8 + 0.2 * Math.sin(g.t * 5)); cx.strokeStyle = 'rgba(200,180,255,1)'; cx.lineWidth = 3; cx.setLineDash([10, 8]); cx.lineDashOffset = -g.t * 30; cx.beginPath(); cx.arc(gx, gy, gr0, 0, TAU); cx.stroke(); cx.restore(); }
       // 4) 큰 시계 (범위 = 시계판)
       for (const c of o.clocks) this.clockFace(c, T - c.t, end - c.t, g);
       // 5) 멈춘 진상: 얼음빛 테두리 + 작은 시계
