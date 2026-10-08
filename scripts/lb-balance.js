@@ -871,6 +871,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
         onEvents: (g, evs) => { for (const e of evs) { if (e.type === 'baseHit' && e.v > 0) hits.push([e.v / g.base.max * 100, e.by, Math.round(g.t)]); else if (e.type === 'augOffer') nAug++; } },
         onStep: (g) => {
           const f = g.base.hp / g.base.max;
+          if (args.includes('--bosstrace') && g.wave === D.STAGE_WAVES && g.t >= (g._btT || 0)) { g._btT = g.t + 10; console.log(`    ${Math.round(g.t)}s 입구${Math.round(f * 100)} ` + g.enemies.filter((e) => !e.dead).map((e) => `${e.type}${e.boss ? (e.mid ? '(M)' : '(B)') : ''} ${Math.round(e.hp / e.maxHp * 100)}% ph${e.phN | 0} y${Math.round(e.y)}/${Math.round(e.stopY)}`).join(' | ')); } // (보스전 늘어짐 추적)
           if (firstHit < 0 && f < 0.999) firstHit = g.t;
           if (t75 < 0 && f < 0.75) t75 = g.t;
           { let a0 = 0, c0 = 0; for (const e of g.enemies) if (!e.dead && e.y > 0) { a0++; if (e.stunT > 0 || e.frozenT > 0 || (e.kbv || 0) < -20) c0++; } if (a0) { ccA += c0 / a0; ccN++; } }
