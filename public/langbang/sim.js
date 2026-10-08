@@ -8,7 +8,7 @@ import {
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI, MID_KITS, ECAST, ELITE_HP, ULT_LOCK,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
-  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
+  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, TENSION, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
 import * as HWS from './hw-sim.js'; // 할로윈 이벤트 전투 규칙 (진상 기술 · 저주)
@@ -62,6 +62,7 @@ export function createGame(opt = {}) {
     level: 1, exp: 0, need: 0, pendingLevels: welcome, welcomePicks: welcome,
     grow: mode === 'stage' && !wk && !opt.pvp && !opt.raid && !opt.tower, mainOn: mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower, // 큰 카드 · 덜 잦은 레벨업 (일반 스테이지 · 헬) · 주력 2명 (+ 주간 도전)
     slow: !!opt.tempo && mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower, // 느린 판 (SLOW_RUN): 스테이지 · 주간 · 헬
+    tension: !!opt.tempo && mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower && !wk && !evd, // 긴장감 (TENSION): 일반 스테이지 · 헬만 (주간 · 이벤트 · 대전 · 레이드 · 탑은 따로 맞춘 모드라 그대로)
     joinPool: [], joinTotal: 0, joinMode: false, leader: null, pickN: 0, rollN: 0, tempo: !!opt.tempo,
     mom: opt.tempo && !opt.raid ? MOMENTUM.max : null, lastSkillT: -9, skillQ: null, // 기세 (템포에서만)
     mods: {
@@ -1369,7 +1370,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.baseX = e.x; e.phase = g.rng() * 6.28;
   const hm = g.hell ? HELL.hp : 1;
   e.maxHp = e.hp = def.hp * m * g.mods.enemyHp * hm * chk; e.shield = def.lie ? def.hp * m * g.mods.enemyHp * hm * chk * def.lie.frac : 0; // 싱글맘: 거짓말 방패
-  e.speed = def.speed * (0.92 + g.rng() * 0.16) * g.mods.enemySpd * (g.mapFx.enemySpd || 1) * (g.hell ? HELL.speed : 1); e.atk = def.atk * atkMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hell ? HELL.atk : 1) * (g.slow ? SLOW_RUN.door : 1); // 느린 판: 입구를 더 세게 (수리 · 탱커 몫)
+  e.speed = def.speed * (0.92 + g.rng() * 0.16) * g.mods.enemySpd * (g.mapFx.enemySpd || 1) * (g.hell ? HELL.speed : 1); e.atk = def.atk * atkMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hell ? HELL.atk : 1) * (g.slow ? SLOW_RUN.door : 1) * (g.tension ? TENSION.door : 1); // 느린 판: 입구를 더 세게 (수리 · 탱커 몫)
   e.atkCd = 0.4; e.slowT = 0; e.slowMul = 1; e.stunT = 0; e.kbv = 0; e.flash = 0;
   e.dead = false; e.atRope = false; e.fleeing = false; e.stolen = 0; e.charmCd = 0;
   e.fast = BAL.fast.types.includes(type); if (e.fast && !g.fastTip && g.mode === 'stage') { g.fastTip = true; ev(g, 'tip', { text: '빠른 진상은 잘 피해요 · 감속·기절·범위 공격으로 잡아요' }); } e.bottleT = def.bottle ? 2 + g.rng() * 2 : 0; e.flashW = 0; e.latteT = def.latte ? 3 + g.rng() * 2 : 0;
@@ -1768,6 +1769,7 @@ export function damageBase(g, dmg, e) {
 
 function updateEnemies(g, dt) {
   const W = g.W;
+  if (g.tension) { let n = 0; for (const e of g.enemies) if (!e.dead && e.atRope) n++; const C = TENSION.crowd; g.ropeCrowd = n > C.k ? Math.min(C.cap || 99, C.k + (n - C.k) * C.over) / n : 1; } else g.ropeCrowd = 1; // 긴장감: 입구 앞 자리가 좁다
   for (const e of g.enemies) {
     if (e.dead) continue;
     const def = e.def;
@@ -2122,7 +2124,7 @@ function updateEnemies(g, dt) {
       if (e.atkCd <= 0) {
         e.atkCd = e.fast ? BAL.fast.atkInt : def.atkInterval; // 빠른 진상: 입구에 붙으면 빠르게 세게
         e.hitT = 0.25;
-        damageBase(g, e.atk * (e.fast ? BAL.fast.atkMul : 1) * (e.def.traits && e.def.traits.stealth ? 2 : e.cloak ? TOWER_SIM.dark.door : 1), e);
+        damageBase(g, e.atk * (e.fast ? BAL.fast.atkMul : 1) * (e.def.traits && e.def.traits.stealth ? 2 : e.cloak ? TOWER_SIM.dark.door : 1) * (g.ropeCrowd || 1), e);
       }
     }
     if (e.hitT > 0) e.hitT -= dt;
@@ -3463,6 +3465,7 @@ export function startWave(g, n) {
   g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
   if (g.slow) g.hpScale *= SLOW_RUN.hp * (g.mode === 'stage' && !g.weekly ? SLOW_RUN.chHp[chapterOf(g.stage || 1) - 1] || 1 : 1); // 느린 판: 적게 · 단단하게 (장마다 맞춤)
   if (g.conds.length && n >= DOOR_PRESSURE.from) g.hpScale *= COND_HP[chapterOf(g.stage) - 1] || 1; // 조건 스테이지: 기믹만큼 체력은 덜어 준다
+  if (g.tension && n >= TENSION.hpFrom) g.hpScale *= 1 + (TENSION.hp - 1) * (g.cond.swarm ? TENSION.swarmK : 1); // 긴장감: 팀이 모인 뒤 (2웨이브부터) 진상이 단단 — 평타만으로는 밀리고 스킬로 뒤집는다 · 떼거리는 수로 누르니 덜
   if (g.pvp) g.hpScale *= pvpMatchHp(g.pvp.hp, n) * pvpWaveHp(n) * hpMul(PVP_END.baseLevel, g.mode === 'stage') / hpMul(Math.max(1, g.diff), g.mode === 'stage'); // 1:1 대전: 두 덱 전투력 × 웨이브마다 ×1.22 (체력 오름은 이것 하나로 · 공격력은 웨이브대로)
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
@@ -3546,6 +3549,7 @@ function waveClear(g) {
   } else {
     g.phase = 'break';
     g.phaseT = g.mode === 'stage' ? RULES.stageBreakSec : RULES.breakSec;
+    if (g.tension && TENSION.repair.frac > 0 && g.base.hp < g.base.max) { const v = Math.min((g.base.max - g.base.hp) * TENSION.repair.frac, g.base.max * TENSION.repair.cap); g.base.hp += v; ev(g, 'heal', { x: g.W / 2, y: g.ropeY, v: Math.round(v), repair: true }); } // 긴장감: 웨이브 사이 입구 수리
   }
 }
 // 20웨이브 승리 뒤 무한 모드 계속
@@ -3704,7 +3708,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
     if (g.t - g.lastSkillT < MOMENTUM.gap && !fromQ) { g.skillQ = { h, x, y, at: g.lastSkillT + MOMENTUM.gap }; ev(g, 'skillQueued', { hero: h.id }); return false; } // 0.6초 뒤에 나간다
   }
   const lv = h.lv - 1;
-  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? 0.75 : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
+  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? 0.75 : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
   const sa = h.sa || {}; // 멤버 전용 스킬 증강
   if (h.skEvo && !echo && h.id !== 'hanna') h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
@@ -4236,7 +4240,7 @@ export function step(g, dt) {
     }
   }
   if (g.mom !== null && g.mom !== undefined) {
-    if ((g.phase === 'wave' || g.phase === 'intro' || g.phase === 'test') && g.mom < MOMENTUM.max) g.mom = Math.min(MOMENTUM.max, g.mom + (MOMENTUM.per / MOMENTUM.refill) * (g.momRate || 1) * dt);
+    if ((g.phase === 'wave' || g.phase === 'intro' || g.phase === 'test') && g.mom < MOMENTUM.max) g.mom = Math.min(MOMENTUM.max, g.mom + (MOMENTUM.per / (g.tension ? TENSION.refill : MOMENTUM.refill)) * (g.momRate || 1) * dt);
     if (g.skillQ && g.t >= g.skillQ.at) { const q = g.skillQ; g.skillQ = null; if (g.heroes.includes(q.h)) castSkill(g, q.h, q.x, q.y, false, true); }
   }
   for (const h of g.heroes) if (h.tiredT > 0) h.tiredT -= dt;

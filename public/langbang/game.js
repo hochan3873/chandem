@@ -4085,8 +4085,8 @@ Object.assign(ACTS, {
   upNudgeNo: () => { closeInfoCard(); nudgeSave(1); },
   heroInfo: (b) => showDexCard('hero', b.dataset.id),
   deckReplace: (b) => deckToggleAct(b.dataset.id, Number(b.dataset.slot)),
-  hellModeS: (b) => { app.hellMode = b.dataset.v === '1'; try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showStages(); },
-  hellMode: (b) => { app.hellMode = b.dataset.v === '1'; try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showPrep(app.mode, app.stage); },
+  hellModeS: (b) => { const was = app.hellMode; app.hellMode = b.dataset.v === '1'; if (app.hellMode && !was) hellSelectFx(); try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showStages(); },
+  hellMode: (b) => { const was = app.hellMode; app.hellMode = b.dataset.v === '1'; if (app.hellMode && !was) hellSelectFx(); try { localStorage.setItem('langbang:hell', app.hellMode ? '1' : '0'); } catch { /* 무시 */ } showPrep(app.mode, app.stage); },
   speedOpt: (b) => { app.speed2 = !!b.checked; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } },
 });
 
@@ -4856,6 +4856,21 @@ function matchTag(id) {
 //  × 이 스테이지 진상 체력이 그 장 평균보다 얼마나 센지 × 조건 하나마다 +8% × 이번 주 진상 특성 +5% (예전엔 고정 공식이라 조건이 까다로운 판에서 너무 낮게 나왔다)
 const REF_STAR = [1, 1, 1, 2, 2, 2, 2, 3];
 function stageFoeHp(s) { let t = 0; for (let w = 1; w <= STAGE_WAVES; w++) t += hpMul(stageLevel(s, w), true); return (t / STAGE_WAVES) * stageHpScale(s) * ((BAL.chHp || {})[chapterOf(s)] || 1) * ((STAGE_HPX || {})[s] || 1); }
+// 헬 고르는 순간 (10/08): 화면이 붉게 번쩍 · 금 · 불티 · 해골 · 쿵 소리 + 진동 — 1.3초 뒤 사라짐 (body.rm: 붉은 번쩍만)
+function hellSelectFx() {
+  const rm = document.body.classList.contains('rm');
+  const old = document.querySelector('.hellsel-fx'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.className = 'hellsel-fx' + (rm ? ' rm' : '');
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = rm ? '<i class="hs-v"></i>' : `<i class="hs-v"></i><svg class="hs-crack" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M50 52 L38 30 L41 18 L33 0 M50 52 L66 36 L63 22 L74 6 M50 52 L28 58 L14 54 L0 62 M50 52 L72 60 L88 56 L100 66 M50 52 L46 74 L54 88 L48 100"/></svg><b class="hs-skull">😈</b><span class="hs-t">HELL</span>${'<em></em>'.repeat(14)}`;
+  if (!rm) el.querySelectorAll('em').forEach((e, i) => { e.style.left = (4 + ((i * 37) % 92)) + '%'; e.style.animationDelay = ((i % 5) * 0.07) + 's'; e.style.setProperty('--dx', (((i * 53) % 41) - 20) + 'px'); });
+  document.body.appendChild(el);
+  if (!rm) setTimeout(() => { for (const b of document.querySelectorAll('.pp-seg button.on.hell, .map-tog button.on.hell')) b.classList.add('hs-pop'); }, 0); // 다시 그려진 헬 버튼이 쾅 튀어나온다
+  try { A.sfx.rumble(); setTimeout(() => { try { A.sfx.rage(); } catch (e) { /* 무시 */ } }, 120); } catch (e) { /* 소리 없음 */ }
+  try { if (navigator.vibrate) navigator.vibrate([40, 30, 90]); } catch (e) { /* 무시 */ }
+  setTimeout(() => el.remove(), 1300);
+}
 function stagePower(p, s, hell) {
   const c = chapterOf(s), base = ['bangjang', 'staff', 'gunman', 'gunnyeo'], m = recMeta(s, hell) + 1, st = REF_STAR[Math.min(7, c - 1)];
   const q = Object.assign({}, p, { heroes: Object.fromEntries(base.map((h) => [h, m])), equip: {}, hstars: Object.fromEntries(base.map((h, i) => [h, i < 2 ? st : Math.max(1, st - 1)])) });

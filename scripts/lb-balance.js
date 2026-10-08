@@ -43,17 +43,25 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   const CF = (process.argv.find((x) => x.startsWith('--condsfrom=')) || '').slice(12);
   const DC = CF ? await import(pathToFileURL(path.join(CF, 'data.js')).href) : D;
   const S = await load('sim.js');
+  // --tune=crowd.k:4,crowd.cap:7,repair.frac:0.3,SLOW_RUN.door:0.8,HELL.hp:2.5 … : 숫자를 바꿔 보며 측정 (TENSION 아래는 'crowd.k' 처럼 짧게)
+  for (const kv of ((process.argv.find((x) => x.startsWith('--tune=')) || '').slice(7)).split(',').filter(Boolean)) {
+    const [k, v] = kv.split(':'), path0 = k.split('.'), root = /^[A-Z]/.test(path0[0]) ? D : D.TENSION;
+    let o = root; for (const q of path0.slice(0, -1)) o = o[q];
+    const last = path0[path0.length - 1];
+    if (Array.isArray(o[last])) o[last] = o[last].map((x) => x * Number(v)); else o[last] = Number(v);
+  }
 
   // 카드 자동 선택: 사람이 고를 법한 단순한 우선순위 + 약간의 무작위
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
   //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
-  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes'].includes(what) && !args.includes('--pro');
+  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension'].includes(what) && !args.includes('--pro');
   const FOES = what === 'foes';
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
   function pickCard(g, cards, rng) {
-    if (POLICY === 'random' || (POLICY === 'mid' && rng() < 0.4)) return (rng() * cards.length) | 0;
+    const P = g._policy || POLICY; // (o.policy: 판마다 — 초보 봇은 random)
+    if (P === 'random' || (P === 'mid' && rng() < 0.4)) return (rng() * cards.length) | 0;
     let best = 0, bv = -1;
     cards.forEach((c, i) => {
       let v = 1;
@@ -127,6 +135,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG, noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR, stars: o.stars, coll: o.coll,
     });
     g.partner = o.partner;
+    if (o.policy) g._policy = o.policy;
     if (o.noTypes) g.noTypes = true;
     const pr = seeded(o.seed * 7 + 3);
     const maxT = o.maxT || 900;
@@ -137,6 +146,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       steps++;
       for (const h of g.heroes) if (h.def.summon) summons.add(h);
       if (o.onStep) o.onStep(g); // (focus: 판 중 사건 · 상태 세기)
+      if (o.onEvents) o.onEvents(g, g.events);
       if (FOES) for (const e of g.events) if (e.type === 'baseHit' && e.by) { const m = g._doorBy || (g._doorBy = {}); m[e.by] = (m[e.by] || 0) + (e.v || 0); } // (foes: 누가 입구를 쳤나)
       g.events.length = 0;
       // 레벨업 카드는 게임이 안 멈춘다 → 사람처럼 1.5~3초 뒤에 고른다
@@ -150,7 +160,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
         g.pickAt = undefined;
       }
       if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
-      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % SKILL_EVERY) === 0) aiSkills(g, o.control);
+      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % (o.skillEvery || SKILL_EVERY)) === 0) aiSkills(g, o.control);
       if (steps % BOARD_EVERY === 0) { const bh = g.heroes.find((h) => h.def.proj === 'board'); if (bh && S.boardCharges(bh) >= 1 && !(bh.bd && bh.bd.st === 'dash')) { const tg = S.boardAutoTarget(g); if (tg) S.setBoardAim(g, tg.x, tg.y); } } // 송바울 (완전 수동): 사람처럼 진상이 많이 줄 선 쪽을 탭
       if (o.stopWave && g.wave >= o.stopWave && g.phase === 'break') break;
     }
@@ -810,6 +820,60 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     if (!args.includes('--quiet')) console.log(cells.join(' '));
     console.log(Object.entries(byCh).map(([c, b]) => `${c}장 ${Math.round(b[0] / b[2])}%(목표 ${Math.round(b[1] / b[2])})`).join(' · '));
   }
+  // ── 긴장감 (node scripts/lb-balance.js tension --list=11,...,20 [--seeds=8] [--hell] [--bots=ref,low,beg] [--trace=17])
+  //  판이 어떻게 흘러가나: 1초마다 입구 % · 살아 있는 진상 · 처치 → 이긴 판 남은 입구 분포 · 진 판 무너지는 데 걸린 시간 (입구 75% → 0) · 판 중 최저 입구
+  //  봇: ref = 기준 플레이어 (스킬 1.5초 늦게 · 카드 40% 아무거나) · low = 스킬 가끔 (8초마다 한 번 확인) · beg = 초보 (스킬 안 씀 · 카드는 기준과 같게 · 총공지만 누름) · rnd = 스킬 안 씀 + 카드 막 고름
+  //  강화 = 장 권장 + REF_PLUS (헬: + 헬 권장 가산) · 같은 덱 · 같은 시드
+  const BOTS = { ref: { label: '기준', o: {} }, low: { label: '스킬가끔', o: { skillEvery: 480, policy: 'mid' } }, beg: { label: '초보', o: { skills: false, policy: 'mid' } }, rnd: { label: '막고름', o: { skills: false, policy: 'random' } } };
+  function botRun(s, bot, N, hell) {
+    const c = D.chapterOf(s), ids = c <= 6 ? balFor(c, s, hell) : C78;
+    const hm = hell ? D.META_SOFT.hellAdd : 0;
+    const meta = Object.fromEntries(ids.map((id) => [id, (c <= 6 ? REC[c - 1] + opt('meta', REF_PLUS) : 15 + opt('meta78', 0)) + hm]));
+    const runs = [];
+    for (let i = 1; i <= N; i++) {
+      const tr = [];
+      let nextT = 0, lastK = 0, firstHit = -1, t75 = -1;
+      const hits = [];
+      const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...refOf(s, ids), ...BOTS[bot].o,
+        onEvents: (g, evs) => { for (const e of evs) if (e.type === 'baseHit' && e.v > 0) hits.push([e.v / g.base.max * 100, e.by, Math.round(g.t)]); },
+        onStep: (g) => {
+          const f = g.base.hp / g.base.max;
+          if (firstHit < 0 && f < 0.999) firstHit = g.t;
+          if (t75 < 0 && f < 0.75) t75 = g.t;
+          if (g.t >= nextT) { let alive = 0; for (const e of g.enemies) if (!e.dead && e.y > 0) alive++; tr.push([Math.round(g.t), Math.round(f * 100), alive, g.stats.kills - lastK, g.wave]); lastK = g.stats.kills; nextT += 1; }
+        } });
+      const minHp = tr.reduce((m, x) => Math.min(m, x[1]), 100);
+      runs.push({ hits, win: r.win, hp: r.hp, t: r.t, firstHit, t75, minHp, tr, skills: r.g.stats.skills || 0, wave: r.wave });
+    }
+    return runs;
+  }
+  function tension() {
+    const N = opt('seeds', 8), hell = args.includes('--hell'), bots = listArg('bots', 'ref,beg');
+    const list = listArg('list', '5,15,25,35,45,55').map(Number);
+    const q = (arr, f) => { if (!arr.length) return NaN; const v = arr.slice().sort((x, y) => x - y); return v[Math.min(v.length - 1, Math.floor(f * v.length))]; };
+    const byCh = {};
+    for (const s of list) {
+      const c = D.chapterOf(s);
+      const cells = [];
+      for (const b of bots) {
+        const runs = botRun(s, b, N, hell), A = ((byCh[c] || (byCh[c] = {}))[b] || (byCh[c][b] = []));
+        A.push(...runs);
+        const w = runs.filter((x) => x.win), l = runs.filter((x) => !x.win);
+        cells.push(`${BOTS[b].label} ${Math.round((w.length / N) * 100)}% 남은입구 ${w.length ? Math.round(q(w.map((x) => x.hp * 100), 0.5)) : '-'}`);
+        if (opt('trace', 0) === s) for (const x of runs.slice(0, 3)) console.log(`  [${BOTS[b].label} ${x.win ? '승' : '패'}] ` + x.tr.filter((_, k) => k % opt('every', 10) === 0 || (args.includes('--tail') && k > x.tr.length - 25)).map((y) => `${y[0]}s W${y[4]} 입구${y[1]} 적${y[2]}`).join(' | '));
+      }
+      if (!args.includes('--quiet')) console.log(`${D.stageLabel(s)} ${cells.join(' · ')}`);
+    }
+    console.log(`\n■ 장별 요약${hell ? ' (헬)' : ''} — 이긴 판 남은 입구 25/50/75% · 90%+ 로 이긴 비율 · 진 판: 입구 75% → 0 걸린 초 (중앙) · 판 중 최저 입구 30~80% 인 판 비율(긴장)`);
+    for (const [c, m] of Object.entries(byCh)) for (const b of bots) {
+      const runs = m[b], w = runs.filter((x) => x.win), l = runs.filter((x) => !x.win);
+      const hp = w.map((x) => x.hp * 100), col = l.map((x) => x.t - (x.t75 >= 0 ? x.t75 : x.t));
+      const tense = runs.filter((x) => x.minHp >= 30 && x.minHp <= 80).length / runs.length;
+      if (args.includes('--hits')) { const H = runs.flatMap((x) => x.hits); const by = {}; for (const h of H) by[h[1]] = (by[h[1]] || 0) + h[0]; console.log(`   한 대 크기(입구 %) 50/90/99: ${[0.5, 0.9, 0.99].map((f) => q(H.map((h) => h[0]), f).toFixed(1)).join('/')} · 판당 ${Math.round(H.length / runs.length)}대 · 몫 ${Object.entries(by).sort((a, b2) => b2[1] - a[1]).slice(0, 6).map(([k, v]) => k + ' ' + Math.round(v / runs.length)).join(' ')}`); }
+      console.log(`${c}장 ${pad(BOTS[b].label, 8)} 클리어 ${pad(Math.round((w.length / runs.length) * 100) + '%', 5)} 남은입구 ${hp.length ? [0.25, 0.5, 0.75].map((f) => Math.round(q(hp, f))).join('/') : '-'} · 90%+ ${hp.length ? Math.round((hp.filter((v) => v >= 90).length / hp.length) * 100) : '-'}% · 붕괴 ${col.length ? Math.round(q(col, 0.5)) + '초' : '-'} · 긴장 ${Math.round(tense * 100)}% · 스킬 ${Math.round(runs.reduce((a, x) => a + x.skills, 0) / runs.length)}번 · 시간 ${Math.round(runs.reduce((a, x) => a + x.t, 0) / runs.length)}초`);
+    }
+  }
+  if (what === 'tension') tension();
   // ── 15) 아무 덱이나 (node scripts/lb-balance.js custom --list=61,62 --decks=donghan+ara+...|... [--m=15] [--lm=20] [--seeds=N] [--hell])
   //  덱마다 클리어율 · 피해 몫 (lm: LEGEND 강화 · 7장처럼 아이템 넉넉히)
   function custom() {
