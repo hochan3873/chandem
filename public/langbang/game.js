@@ -400,7 +400,7 @@ async function startRun(opt = {}) {
   fixDeck();
   const p = P();
   // 배속: 기본 ×1 · 전투 중 ×1 / ×2 버튼 (고른 걸 기억 · 1:1 대전만 빼고 어느 판이든)
-  app.runSpeed = !pvp && app.speed2 ? 2 : 1;
+  app.runSpeed = !pvp && app.speed2 && speedCleared(mode, st) ? 2 : 1; // (처음 하는 판은 ×1)
   const unlocked = DEBUG.hidden ? LOCKED_HEROES.slice() : p.unlocked || [];
   R.maxDpr = R.baseDpr = hell ? 1.75 : 2; // 판마다 새로 (지난 판에 낮춘 화질이 남지 않게) · 헬은 진상이 많아 조금 낮게 시작
   layoutForNewRun();
@@ -493,7 +493,7 @@ function resumeRun() {
   app.mode = d.snap.mode;
   app.stage = d.snap.stage || 0;
   if (app.mode === 'stage' && app.stage) app.lobbyStage = app.stage; // 이어하던 판도 로비가 따라오게
-  app.runSpeed = app.speed2 && !(d.snap && d.snap.pvp) ? 2 : 1;
+  app.runSpeed = app.speed2 && !(d.snap && d.snap.pvp) && speedCleared(d.snap && d.snap.mode, d.snap && d.snap.stage) ? 2 : 1;
   if (Array.isArray(d.partners)) app.partners = d.partners;
   app.partner = app.partners[0];
   app.debugRun = false;
@@ -1934,7 +1934,14 @@ document.addEventListener('pointerdown', () => { app.touched = true; A.unlock();
 $('#btn-pause').addEventListener('click', () => pauseGame());
 $('#btn-send').addEventListener('click', () => { A.unlock(); pvpSend(); });
 // ×1 / ×2 배속 (1:1 대전만 빼고 어느 판이든) — 선택은 기억한다 (langbang:speed2)
-function speedOk() { const g = app.g; return !!(g && !g.pvp); }
+// ×2 는 그 판을 한 번이라도 깬 뒤부터 (처음 하는 판은 ×1 로 차분히) — 스테이지 · 할로윈 판만 · 나머지(레이드 · 탑 · 무한 …)는 그대로
+function speedCleared(mode, st, g) {
+  if (mode === 'pvp' || (g && g.pvp)) return false;
+  if (g && g.ev) { const b = ((P().hw || {}).best) || {}; return !!b[g.ev.n]; }
+  if (mode === 'stage') return ((P().stages || {})[st] | 0) > 0 || !!P().master;
+  return true;
+}
+function speedOk() { const g = app.g; return !!(g && !g.pvp && speedCleared(app.mode, g.stage, g)); }
 function syncSpeedPill() {
   const b = $('#btn-speed');
   b.hidden = !speedOk();
@@ -4986,7 +4993,7 @@ function showPrep(mode, s) {
   // 7) 출격
   const cost = mode === 'stage' && !free ? L.stageStaminaCost(p, s, hellOn) : 0;
   const goHtml = `<div class="pp-go">
-      ${mode !== 'pvp' ? `<button class="pp-spd ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-pressed="${app.speed2 ? 'true' : 'false'}" aria-label="2배속">${ic('speed', '')}<b>×2</b><small>${app.speed2 ? 'ON' : 'OFF'}</small></button>` : ''}
+      ${mode !== 'pvp' ? `<button class="pp-spd ${app.speed2 ? 'on' : ''}" data-act="speedTog" aria-pressed="${app.speed2 ? 'true' : 'false'}" aria-label="2배속">${ic('speed', '')}<b>×2</b><small>${!(mode !== 'stage' || ((p.stages || {})[st] | 0) > 0 || p.master) ? '깬 뒤' : app.speed2 ? 'ON' : 'OFF'}</small></button>` : ''}
       <button class="pp-gobtn2 ${ids.length ? '' : 'dim'} ${hellOn ? 'hell' : ''}" data-act="go"><i class="gb-shine"></i><b>출격!</b>${cost ? `<span class="gb-cost">${ic('energy', '', 'sm')}<em>${cost}</em></span>` : ''}</button>
     </div>`;
   show(`
