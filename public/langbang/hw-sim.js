@@ -41,8 +41,22 @@ function onHit(g, e, dmg, src) {
   if (e.hwLie) return 0;
   const S0 = g.hw.sig;
   if (S0 && S0.id === 'lantern' && e.hwLit) {
-    if (src && sigHero(g, src) && !((src.hwCutT || 0) > g.t)) { src.hwCutT = g.t + S0.cd; snuff(g, e, 'cut'); ev(g, 'hwCut', { hero: src.id, x: src.x, y: src.y - 60, cd: S0.cd }); return dmg * S0.crack; }
+    if (src && sigHero(g, src) && !((src.hwCutT || 0) > g.t)) {
+      if (S0.wick && (e.hwWickN = (e.hwWickN | 0) + 1) < wickOf(g)) { // H9 여러 심지: 덱의 도화선 멤버가 적을수록 심지가 많다 — 하나씩 끊는다
+        src.hwCutT = g.t + S0.cd; ev(g, 'hwWick', { hero: heroIdOf(src), x: e.x, y: e.y - e.def.size * 0.6, uid: e.uid, left: wickOf(g) - e.hwWickN }); ev(g, 'hwCut', { hero: src.id, x: src.x, y: src.y - 60, cd: S0.cd }); return dmg * S0.shell;
+      }
+      src.hwCutT = g.t + S0.cd; snuff(g, e, 'cut'); ev(g, 'hwCut', { hero: src.id, x: src.x, y: src.y - 60, cd: S0.cd }); return dmg * S0.crack;
+    }
     return dmg * S0.shell;
+  }
+  if (S0 && S0.id === 'pyramid') { // H4 다단계 피라미드: 하부가 있는 마녀 · 그 하부는 껍질 — 고발 멤버가 누구든 맞히면 와르르
+    const top = upOf(e) || ((e.hwDownN | 0) > 0 ? e : null);
+    if (top) {
+      if (src && sigHero(g, src) && !((src.hwCutT || 0) > g.t)) { src.hwCutT = g.t + S0.cd; bust(g, top, src); ev(g, 'hwCut', { hero: src.id, x: src.x, y: src.y - 60, cd: S0.cd }); return dmg * (top === e ? S0.bust : S0.crack); }
+      return dmg * S0.shell;
+    }
+    if (e.hwBustT > g.t) return dmg * S0.bust;
+    return dmg;
   }
   if (S0 && S0.id === 'overtime' && src && g.hw.marks.length && sigHero(g, src) && !((src.hwCutT || 0) > g.t)) { // H5: 팀장 끊는 멤버가 팀장을 맞히면 그 팀장의 명부를 지운다
     let hit = false; for (const k of g.hw.marks) if (k.e === e && !k.cut) { k.cut = true; hit = true; }
@@ -51,6 +65,19 @@ function onHit(g, e, dmg, src) {
   if (S0 && S0.id === 'overtime' && e.type === 'hw_reaper' && S0.shell && !(src && sigHero(g, src))) return dmg * S0.shell; // H5: 팀장은 결재판으로 막는다 (끊는 멤버 공격만 제대로)
   if (e.hwCracked) return dmg * (S0 ? S0.crack : 1);
   return dmg;
+}
+// H9: 등불 하나의 심지 수 = wick + 1 − 덱의 도화선 멤버 수 (3명 1개 · 2명 2개 · 1명 3개)
+export const wickOf = (g) => Math.max(1, g.hw.sig.wick + 1 - sigCount(g));
+const heroIdOf = (src) => (src.def && src.def.summon && src.owner ? src.owner.id || src.owner : src.id || '');
+// H4: 이 진상의 윗선 마녀 (살아 있을 때만 · 풀에서 다시 꺼낸 진상이면 끊긴 것)
+const upOf = (e) => { const u = e.hwUp; return u && !u.dead && u.uid === e.hwUpUid ? u : null; };
+function bust(g, w, src) { // H4 고발: 줄이 전부 끊기고 마녀는 기절 · 잠깐 약해짐
+  const S0 = g.hw.sig;
+  let n = 0;
+  for (const o of g.enemies) if (!o.dead && o.hwUp === w) { o.hwUp = null; n++; }
+  w.hwDownN = 0; w.hwBustT = g.t + S0.bustSec; w.stunT = Math.max(w.stunT, S0.stun); w.cast = null; w.castW = 0; w.hwPyW = 0; w.hwPyT = Math.max(w.hwPyT || 0, S0.every);
+  g.stats.castBreak = (g.stats.castBreak | 0) + 1;
+  ev(g, 'hwBust', { x: w.x, y: w.y - w.def.size * 0.6, uid: w.uid, n, hero: src ? heroIdOf(src) : '' });
 }
 function snuff(g, e, by) {
   const S0 = g.hw.sig;
@@ -118,6 +145,10 @@ function tick(g, dt) {
   if (H.marks.length) H.marks = H.marks.filter((k) => !k.done);
   let bats = 0;
   for (const e of g.enemies) if (!e.dead && e.type === 'hw_bat') bats++;
+  if (H.sig && H.sig.id === 'pyramid') { // H4: 마녀마다 살아 있는 하부 수 (윗선이 쓰러지면 줄도 끊긴다)
+    for (const e of g.enemies) if (e.type === 'hw_witch') e.hwDownN = 0;
+    for (const e of g.enemies) { if (e.dead || !e.hwUp) continue; const u = upOf(e); if (u) u.hwDownN = (u.hwDownN | 0) + 1; else e.hwUp = null; }
+  }
   for (const e of g.enemies) {
     if (e.dead) continue;
     const X = e.def.hw;
@@ -164,6 +195,24 @@ function tick(g, dt) {
       } else if (e.y > 40 && e.y < g.ropeY * HWX.phaseUntil && !e.atRope && e.stunT <= 0 && (e.hwPhT -= dt) <= 0) {
         e.hwGhost = true; e.cloak = true; e.unveiled = false; e.spdMul *= X.phase.spd; e.hwPhT = X.phase.sec;
         ev(g, 'hwPhaseIn', { x: e.x, y: e.y - 30, uid: e.uid });
+      }
+    }
+    // H4 다단계 피라미드: 마녀가 곁 진상을 하부로 영입 (보라 원 예고 → 금빛 줄)
+    if (H.sig && H.sig.id === 'pyramid' && e.type === 'hw_witch' && e.y > 30) {
+      const S0 = H.sig;
+      if (e.hwPyT === undefined) e.hwPyT = S0.first + g.rng() * 1.5;
+      if (e.hwPyW > 0) {
+        if (e.stunT > 0 || e.frozenT > 0) e.hwPyW = 0; // 기절 · 빙결이면 영입 실패 (다음에 다시)
+        else if ((e.hwPyW -= dt) <= 0) {
+          e.hwPyW = 0;
+          const room = S0.cap - (e.hwDownN | 0);
+          const c = room > 0 ? g.enemies.filter((o) => !o.dead && o !== e && o.type !== 'hw_witch' && o.type !== 'hw_seed' && !o.boss && !o.mid && !upOf(o) && o.y > 0 && Math.hypot(o.x - e.x, o.y - e.y) < S0.r).sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y)).slice(0, Math.min(S0.n, room)) : [];
+          for (const o of c) { o.hwUp = e; o.hwUpUid = e.uid; }
+          if (c.length) { e.hwDownN = (e.hwDownN | 0) + c.length; ev(g, 'hwRecruit', { x: e.x, y: e.y - e.def.size * 0.6, uid: e.uid, n: c.length, to: c.map((o) => ({ x: o.x, y: o.y - o.def.size * 0.5 })) }); if (!H.pyTip) { H.pyTip = true; ev(g, 'tip', { text: '🔺 피라미드! 하부가 있으면 마녀 · 하부 모두 피해 −75% — 고발 멤버(여지원 · 고아라 · 박나영)가 맞히면 무너져요' }); } }
+        }
+      } else if (e.stunT <= 0 && !(e.hwBustT > g.t) && (e.hwPyT -= dt) <= 0) {
+        e.hwPyT = S0.every; e.hwPyW = S0.wind * (g.windMul || 1); e.hwPyMax = e.hwPyW;
+        ev(g, 'hwRecruitWarn', { x: e.x, y: e.y - e.def.size * 0.6, uid: e.uid, r: S0.r, sec: e.hwPyW });
       }
     }
     // 마녀: 건강 물약 (곁 진상 회복)
@@ -231,7 +280,7 @@ function tick(g, dt) {
   }
 }
 // 풀에서 꺼낸 진상: 지난 판 할로윈 상태를 지운다 (sim spawnEnemy)
-export function resetEnemy(e) { e.hwLie = false; e.hwRevN = 0; e.hwRiseMax = 0; e.hwLit = false; e.hwCracked = false; e.hwRollMul = 0; e.hwRiseT = 0; e.hwRevived = false; e.hwPhT = undefined; e.hwGhost = false; e.hwBrT = undefined; e.hwHopT = 0; e.hwAir = false; e.hwSpdBase = 0; e.hwHopY = 0; e.hwWrapped = false; e.hwListT = undefined; e.hwBatT = undefined; e.hwBat = 0; e.hwInv = false; e.hwDrT = 0; }
+export function resetEnemy(e) { e.hwUp = null; e.hwUpUid = 0; e.hwDownN = 0; e.hwPyT = undefined; e.hwPyW = 0; e.hwBustT = 0; e.hwWickN = 0; e.hwLie = false; e.hwRevN = 0; e.hwRiseMax = 0; e.hwLit = false; e.hwCracked = false; e.hwRollMul = 0; e.hwRiseT = 0; e.hwRevived = false; e.hwPhT = undefined; e.hwGhost = false; e.hwBrT = undefined; e.hwHopT = 0; e.hwAir = false; e.hwSpdBase = 0; e.hwHopY = 0; e.hwWrapped = false; e.hwListT = undefined; e.hwBatT = undefined; e.hwBat = 0; e.hwInv = false; e.hwDrT = 0; }
 // 전투 화면용: 지금 명부에 이름이 적힌 멤버 (render · HUD)
 export const marksOf = (g) => (g.hw ? g.hw.marks : []);
 export const isGhost = (e) => !!e.hwGhost || e.hwBat > 0;
