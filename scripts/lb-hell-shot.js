@@ -38,8 +38,11 @@ const ST = Number(process.argv[3] || 17);
     await page.goto(base + '?nogate&notut', { waitUntil: 'networkidle0' });
     await wait(2500);
     const shot = async (name) => { await page.screenshot({ path: path.join(OUT, `${name}.png`) }); console.log('shot', name); };
+    const closePop = () => page.evaluate(() => { for (const b of document.querySelectorAll('button')) if (/나중에/.test(b.textContent)) b.click(); });
+    await closePop(); await wait(400);
     await page.evaluate((s) => window.__lb.prep('stage', s), ST);
     await wait(1200);
+    await closePop(); await wait(400);
     await shot('1-prep-normal');
     await page.evaluate(() => { const b = document.querySelector('[data-act="hellMode"][data-v="1"]'); if (b) b.click(); });
     await wait(180);
@@ -49,12 +52,12 @@ const ST = Number(process.argv[3] || 17);
     await wait(1400);
     await shot('4-prep-hell');
     // 보통 판 중간
-    const fight = async (hell, name) => {
+    const fight = async (hell, name, steps = 110) => {
       await page.evaluate((h) => { const a = window.__lb.app; a.hellMode = h; }, hell);
       await page.evaluate((s) => window.__lb.startRun(null, s, 'stage'), ST);
       for (let k = 0; k < 40; k++) { await wait(250); const ok = await page.evaluate(() => { const g = window.__lb.g; return !!(g && g.phase === 'wave'); }); if (ok) break; }
       // 레벨업 카드는 바로 고르며 30초쯤 싸운다
-      for (let k = 0; k < 60; k++) { await wait(500); await page.evaluate(() => { const L = window.__lb; if (L.app.cardsOpen) L.pickCard(0); else if (L.g && L.g.pendingLevels > 0) L.openCards(); }); }
+      for (let k = 0; k < steps; k++) { await wait(500); await page.evaluate(() => { const L = window.__lb; if (L.app.cardsOpen) L.pickCard(0); else if (L.g && L.g.pendingLevels > 0) L.openCards(); }); }
       const info = await page.evaluate(() => { const g = window.__lb.g; return g ? { hell: g.hell, wave: g.wave, door: Math.round((g.base.hp / g.base.max) * 100), t: Math.round(g.t), enemies: g.enemies.filter((e) => !e.dead).length } : null; });
       console.log(name, JSON.stringify(info));
       await shot(name);
@@ -62,7 +65,7 @@ const ST = Number(process.argv[3] || 17);
     await fight(false, '5-battle-normal');
     await page.evaluate(() => window.__lb.showScreen('menu'));
     await wait(800);
-    await fight(true, '6-battle-hell');
+    await fight(true, '6-battle-hell', 62);
   } finally {
     console.log('errors:', errors.length ? errors.slice(0, 5) : 'none');
     await browser.close();

@@ -4433,7 +4433,7 @@ body.rm .card-sheet .cs2-box { animation: none; }
 @keyframes hell-pulse { 0%, 100% { box-shadow: 0 calc(var(--u) * 2) 0 #5a0010, 0 0 calc(var(--u) * 6) rgba(255, 40, 20, 0.45); } 50% { box-shadow: 0 calc(var(--u) * 2) 0 #5a0010, 0 0 calc(var(--u) * 18) rgba(255, 40, 20, 0.95); } }
 @keyframes hell-pop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
 #hud .hellvibe { display: none; position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-#hud.hell .hellvibe { display: block; background: radial-gradient(ellipse at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(150, 0, 10, 0.28) 85%, rgba(110, 0, 0, 0.5) 100%); animation: hv-breathe 3.2s ease-in-out infinite; }
+#hud.hell .hellvibe { display: block; background: radial-gradient(ellipse at 50% 45%, rgba(0, 0, 0, 0) 50%, rgba(170, 0, 10, 0.38) 82%, rgba(120, 0, 0, 0.62) 100%); animation: hv-breathe 3.2s ease-in-out infinite; }
 @keyframes hv-breathe { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
 #hud.hell .hellvibe i { position: absolute; bottom: -8px; width: 4px; height: 4px; border-radius: 50%; background: radial-gradient(circle, #ffe08a 0%, #ff6a1a 50%, rgba(255, 40, 0, 0) 75%); opacity: 0; animation: hv-ember 6s linear infinite; will-change: transform, opacity; }
 #hud.hell .hellvibe i:nth-child(1) { left: 6%; animation-delay: 0s; } #hud.hell .hellvibe i:nth-child(2) { left: 19%; animation-delay: 2.1s; animation-duration: 7s; }
