@@ -341,3 +341,14 @@ test('H9 겹심지: 덱의 도화선 멤버가 적을수록 심지가 많다', (
   assert.equal(run(['staff', 'jieun', 'ara'], [null, null, null, null, null, null]), 2, '2명: 2개');
   assert.equal(run(['staff', 'jieun', 'hanna'], [null, null, null, null, null, null]), 1, '3명: 한 번에');
 });
+
+test('할로윈 기록: ×2 배속으로 깬 판(게임 시간이 실제 시간의 2배)도 저장된다 · 저주 최대치', async () => {
+  const H = await import(require('node:url').pathToFileURL(require('node:path').join(__dirname, '..', 'public', 'langbang', 'hw-event.js')).href);
+  const now = Date.UTC(2026, 9, 20, 3);
+  const lb = { hw: H.emptyHw(), stages: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, 3])), maxStage: 40, heroes: {}, coins: 0, cnt: {}, titles: [], frames: [], mail: [] };
+  lb.hw.best = { 1: { heat: 0, score: 1000, door: 80 } };
+  const all = H.CURSE_IDS.filter((k) => !H.CURSES[k].need).concat(H.CURSE_IDS.filter((k) => H.CURSES[k].need));
+  lb.hw.run = { id: 'r1', n: 1, at: now - 150e3, curses: all };
+  const r = H.hwFinish(lb, { runId: 'r1', clear: true, durationSec: 290, kills: 400, door: 40 }, 'u1', now);
+  assert.ok(!r.error, r.error);
+});

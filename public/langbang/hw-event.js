@@ -358,8 +358,8 @@ export function hwFinish(lb, body, uid, now = Date.now()) {
   const clear = body.clear === true;
   const dur = int(body.durationSec, 0, 1e6), kills = int(body.kills, 0, 1e6), door = int(body.door, 0, 100);
   if (clear) {
-    if (dur < WAVES * HW.minSec || dur > ((now - run.at) / 1000) * 1.15 + 20) return { error: '기록을 확인할 수 없어요' };
-    let cap = 0; for (let w = 1; w <= WAVES; w++) for (const x of waveDef(run.n, w, run.curses).g) cap += x[1] * 2.6; cap += 90 * WAVES;
+    if (dur < WAVES * HW.minSec || dur > ((now - run.at) / 1000) * 2.3 + 20) return { error: '기록을 확인할 수 없어요' };
+    let cap = 0; for (let w = 1; w <= WAVES; w++) for (const x of waveDef(run.n, w, run.curses).g) cap += x[1] * 7; cap += 150 * WAVES; // (좀비 부활 · 하부 · 소환 · 저주 진상까지 넉넉히)
     if (kills > cap) return { error: '기록을 확인할 수 없어요' };
   }
   const heat = curseScore(run.curses);

@@ -560,7 +560,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           const run = before.weeklyRun;
           const wi = LIVE.weekIndex(now);
           if (!run || run.id !== String(body.runId || '') || run.wi !== wi) { out = { error: '주간 도전을 다시 시작해 주세요' }; return; }
-          if (dur > (now - run.at) / 1000 * 1.15 + 20) { out = { error: '기록을 확인할 수 없어요' }; return; } // 주간 도전은 배속 없음
+          if (dur > (now - run.at) / 1000 * 2.3 + 20) { out = { error: '기록을 확인할 수 없어요' }; return; } // 게임 시간 ≤ 실제 시간 × 2 배속 (+여유)
           const def = LIVE.weeklyDef(wi);
           const victory = body.victory === true;
           const chk = LIVE.weeklyCheck(def, { waves: wave, kills, bossKills: body.bossKills, durationSec: dur, victory });
@@ -573,7 +573,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           const run = before.raidRun;
           const st = LIVE.raidState(now);
           if (!run || run.id !== String(body.runId || '') || (run.wi !== st.wi && now - run.at > 10 * 60e3)) { out = { error: '레이드를 다시 시작해 주세요' }; return; } // 시간이 끝나도 진행 중이던 판은 인정
-          if (dur > (now - run.at) / 1000 * 1.15 + 20) { out = { error: '기록을 확인할 수 없어요' }; return; }
+          if (dur > (now - run.at) / 1000 * 2.3 + 20) { out = { error: '기록을 확인할 수 없어요' }; return; }
           const dmg = Math.floor(Number(body.raidDmg) || 0);
           const help = LIVE.helpFor(before, run.id); // 친구 멤버를 데려간 판: 피해 상한을 조금 올린다
           if (dmg < 0 || dmg > LIVE.raidCap(before, dur) * (help ? LIVE.FRIEND.capMul : 1)) { out = { error: '기록을 확인할 수 없어요' }; return; }

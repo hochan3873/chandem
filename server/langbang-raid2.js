@@ -218,7 +218,7 @@ function createRaid2(d) {
       const run = before.raid2 && before.raid2.run;
       if (!run || run.id !== String(body.runId || '')) return { error: '건물주 레이드를 다시 시작해 주세요' };
       if (now - run.at > 15 * 60e3) return { error: '너무 오래된 판이에요' };
-      if (dur > (now - run.at) / 1000 * 1.15 + 20 || dur > R2.R2.sec + 30) return { error: '기록을 확인할 수 없어요' };
+      if (dur > (now - run.at) / 1000 * 2.3 + 20 || dur > R2.R2.sec + 30) return { error: '기록을 확인할 수 없어요' };
       const help = !!L().helpFor(before, run.id);
       const diff = R2.diffOf(run.df); // 시작할 때 서버가 확인해 적어 둔 난이도만 (body.diff 는 안 믿음)
       const dRw = R2.DIFF[diff].rw;
