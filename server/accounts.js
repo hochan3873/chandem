@@ -561,11 +561,13 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           const wi = LIVE.weekIndex(now);
           if (!run || run.id !== String(body.runId || '') || run.wi !== wi) { out = { error: '주간 도전을 다시 시작해 주세요' }; return; }
           if (dur > (now - run.at) / 1000 * 2.3 + 20) { out = { error: '기록을 확인할 수 없어요' }; return; } // 게임 시간 ≤ 실제 시간 × 2 배속 (+여유)
-          const def = LIVE.weeklyDef(wi);
+          const tier = run.tier || LIVE.weeklyTier(before.maxStage); // 리그는 시작할 때 서버가 정한 것
+          const def = LIVE.weeklyDef(wi, tier);
           const victory = body.victory === true;
-          const chk = LIVE.weeklyCheck(def, { waves: wave, kills, bossKills: body.bossKills, durationSec: dur, victory });
+          const wr = { waves: wave, kills, bossKills: body.bossKills, durationSec: dur, victory, hpPct: body.hpPct, combo: body.combo, noLeak: body.noLeak, goals: body.goals, bonus: body.bonus, pacts: body.pacts, skills: LIVE.skillCap(body.skills, dur), tier };
+          const chk = LIVE.weeklyCheck(def, wr);
           if (chk) { out = { error: chk }; return; }
-          wk = { wi, victory, score: LIVE.weeklyScore({ waves: wave, kills, bossKills: body.bossKills, victory, hpPct: body.hpPct }) };
+          wk = { wi, victory, tier, score: LIVE.weeklyScore(wr) };
         }
         // 레이드: 서버가 준 판 번호 · 시간 · 피해 상한 확인
         let rd = null;
@@ -637,7 +639,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
             if (lb.fr) lb.fr.help = null;
             lb.exp += 40;
           } else if (mode === 'weekly') {
-            if (!master) weeklyBest = LIVE.weeklyRecord(lb, wk.wi, wk.score, wave, now); // 마스터 테스트 판은 순위에 안 올린다
+            if (!master) weeklyBest = LIVE.weeklyRecord(lb, wk.wi, wk.score, wave, now, wk.tier); // 마스터 테스트 판은 순위에 안 올린다
             lb.weeklyRun = null;
             lb.exp += 30 + wave * 6;
           } else {
@@ -659,7 +661,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           profile: lbView(lb, id, master), reward: { ...reward, firstClear: first, stage, stars, isPerfect: perfect, firstPerfect, drops: got, hell, stones, cardDrop },
           levelUp: lb.level > before.level, rank: mode === 'weekly' ? await store.rankWeekly(wk.wi, id) : mode === 'raid' ? await store.raidRank(rd.wi, id) : await store.rankLangbang(mode, id),
           raid: rd ? { dmg: rd.dmg, mine: lb.raid ? lb.raid.dmg : 0, total: await store.raidTotal(rd.wi), hp: LIVE.RAID.hp, master, help: rd.help } : null,
-          weekly: wk ? { score: wk.score, best: lb.weekly ? lb.weekly.best : 0, newBest: weeklyBest, master } : null,
+          weekly: wk ? { score: wk.score, tier: wk.tier, best: lb.weekly ? lb.weekly.best : 0, newBest: weeklyBest, master } : null,
           unlockedHeroes: first ? Object.keys(LBR.HERO_UNLOCK).filter((h) => LBR.HERO_UNLOCK[h] === stage && !LBR.heroUnlocked(before, h)) : [],
           endlessUnlocked: first && !LBR.endlessUnlocked(before) && LBR.endlessUnlocked(lb),
           newBestWave: mode === 'endless' && wave > before.bestWave, newBestScore: mode === 'endless' && score > before.bestScore, endless: endInfo,
@@ -841,8 +843,9 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     return lbLive(token, (lb, id, now, ctx) => {
       if ((lb.maxStage | 0) < LIVE.WEEKLY_UNLOCK) return { error: `주간 도전은 ${LBR.stageLabel(LIVE.WEEKLY_UNLOCK)}를 깨면 열려요` };
       const wi = LIVE.weekIndex(now);
-      lb.weeklyRun = { id: ctx.rid, wi, at: now };
-      return { runId: ctx.rid, wi };
+      const tier = LIVE.weeklyTier(lb.maxStage); // 리그: 가장 멀리 깬 스테이지로 (같은 리그 = 같은 판)
+      lb.weeklyRun = { id: ctx.rid, wi, at: now, tier };
+      return { runId: ctx.rid, wi, tier };
     }, async () => ({ rid: crypto.randomBytes(9).toString('base64url') }));
   }
   // 지난주 순위 보상 받기 (순위는 서버가 센다)
@@ -1019,7 +1022,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   const wkRow = (u, wi, i) => {
     const lb = u.stats.langbang || {};
     const e = lb.weekly && lb.weekly.wi === wi ? lb.weekly : lb.weeklyPrev || {};
-    return { rank: i + 1, nickname: u.nickname, username: u.username, best: weeklyBestOf(u, wi), waves: e.waves | 0, title: lb.title || '', frame: lb.frame || '' };
+    return { rank: i + 1, nickname: u.nickname, username: u.username, best: weeklyBestOf(u, wi), waves: e.waves | 0, tier: e.tier | 0, title: lb.title || '', frame: lb.frame || '' };
   };
   async function lbWeeklyBoard(token) {
     await ready;

@@ -12,6 +12,7 @@ import {
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
 import * as HWS from './hw-sim.js'; // 할로윈 이벤트 전투 규칙 (진상 기술 · 저주)
+import * as WKS from './weekly-sim.js'; // 주간 도전 전투 규칙 (웨이브 사건 · 이번 주 규칙 · 중간 계약)
 import { PVP_END, pvpStepN, pvpWaveHp, pvpMatchHp, pvpMeta, pvpStar, pvpCapMap, PVP_ESC, pvpPhase, pvpSdCount, pvpBunchCount, PVP_DOTS, pvpDot } from './pvp.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -124,6 +125,7 @@ export function createGame(opt = {}) {
   if (g.coll && g.coll.exp) g.mods.expMul *= 1 + g.coll.exp;
   if (opt.tower) towerSetup(g, opt); // 진상의 탑: 한 명 · 층 규칙
   if (evd) HWS.attach(g, evd); // 할로윈 이벤트: 저주 · 진상 기술 (hw-sim.js)
+  if (wk && wk.v === 2 && !opt.raid) WKS.attach(g, wk); // 주간 도전 (weekly-sim.js) — 레이드도 weekly 칸을 쓰니 v2 판만
   if (opt.deck && opt.join && !opt.raid) {
     // 합류 모드: 대장(덱 1번) 한 명으로 시작 → 나머지는 레벨업 "합류" 카드로 (자리는 덱에서 정한 자리)
     const list = [];
@@ -1729,6 +1731,7 @@ function killEnemy(g, e, src) {
   if (def.splitInto) for (let k = 0; k < def.splitInto.n; k++) { const c = spawnEnemy(g, def.splitInto.type, clamp(e.x + (k - (def.splitInto.n - 1) / 2) * 24, 16, g.W - 16), e.y - 6); c.stopY = e.stopY; ev(g, 'split', { x: e.x, y: e.y, into: def.splitInto.type }); }
   if (def.praise) { const mate = g.enemies.find((o) => !o.dead && o.type === def.praise.pair && Math.abs(o.x - e.x) < 200 && !o.praiseRage); if (mate) { mate.praiseRage = true; mate.atk *= def.praise.rageAtk; mate.spdMul *= def.praise.rageSpd; ev(g, 'praiseRage', { x: mate.x, y: mate.y - 40 }); } }
   extraKill(g, e, src);
+  if (g.wk) g.wk.onKill(g, e, src); // 주간: 도둑 · 현상금 · 연쇄 폭발
   ev(g, 'kill', { x: e.x, y: e.y, enemy: e.type, boss: e.boss });
   if (e.boss || g.rng() < 0.12) ev(g, 'shout', { x: e.x, y: e.y - def.size * 0.6, text: def.shouts[(g.rng() * def.shouts.length) | 0] });
   if (g.focus === e) g.focus = null;
@@ -3501,6 +3504,7 @@ export function startWave(g, n) {
   if (g.mode === 'endless' && n > 1 && (n - 1) % 5 === 0 && !g.pvp) offerCurse(g);
   if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 4].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism'); // 프리즘은 4웨이브 (5 → 4: 늦게 떠서 체감이 적었음)
   const def = waveDefFor(g, n);
+  if (g.wk) g.wk.waveStart(g, n, def); // 주간: 웨이브 사건 알림 · 저주 웨이브 규칙
   g.diff = def.level || n;
   g.hpScale = (def.hpScale || 1) * (g.tempo && !g.raid ? (g.hell ? TEMPO.hellHp * (TEMPO.hellCh[chapterOf(g.stage) - 1] || 1) : g.mode === 'endless' ? TEMPO.endHp : TEMPO.hp) : 1) * (g.joinMode && g.mode === 'stage' && !g.weekly ? JOIN.hp[chapterOf(g.stage) - 1] || 1 : 1); // 합류 모드 챕터 보정
   if (g.slow) g.hpScale *= SLOW_RUN.hp * (g.mode === 'stage' && !g.weekly ? SLOW_RUN.chHp[chapterOf(g.stage || 1) - 1] || 1 : 1); // 느린 판: 적게 · 단단하게 (장마다 맞춤)
@@ -3556,6 +3560,7 @@ export function startWave(g, n) {
   if (def.boss && g.twinBoss) q.push({ type: def.boss, at: 3.5, boss: true }); // 저주 계약 '보스 둘'
   if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true, bossHp: def.midHp }); // (midHp: 할로윈 이벤트 — 머릿수를 줄인 체력 보정을 중간 보스는 빼고)
   if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? (g.slow ? 22 : 14) : 26, boss: true, bossHp: def.boss2Hp });
+  if (g.wk) g.wk.shapeQ(g, def, q); // 주간: 기습(옆길) · 보물 도둑 · 계약 정예
   q.sort((a, b) => a.at - b.at);
   g.spawnQ = q;
   g.spawnI = 0;
@@ -3570,6 +3575,7 @@ export function startWave(g, n) {
 }
 
 function waveClear(g) {
+  if (g.wk) g.wk.onClear(g); // 주간: 웨이브 목표 · 무피해 · 계약 제안
   const s = g.stats;
   for (const h of g.heroes) if (h.pump) h.pump = 0; // 백인규 근육 펌프는 웨이브마다 처음부터
   for (const h of g.heroes) if (h.def.grow) { growBy(h, h.def.grow.perWave); ev(g, 'grow', { hero: h.id, x: h.x, y: h.y, v: Math.round(h.grow * 100) }); }
@@ -4277,6 +4283,7 @@ export function step(g, dt) {
       const e = spawnEnemy(g, s.type, s.boss ? g.W / 2 : s.x, s.boss ? -60 : undefined, s.hpX || s.elite ? { hpX: s.hpX, elite: s.elite } : undefined);
       alive++;
       if (s.bossHp) { e.maxHp *= s.bossHp; e.hp = e.maxHp; } // 보스를 바꾼 스테이지: 예전 난이도에 맞춘 체력 (data.js STAGE_BOSS_HP)
+      if (g.wk) g.wk.onSpawn(g, e, s); // 주간: 방패 부대 · 보물 도둑 · 최종 보스 단계
       if (g.raid && s.boss && !s.mid && !g.raid.boss) { g.raid.boss = e; e.raidBoss = true; e.maxHp = e.hp = 1e12; }
       if (s.mid) ev(g, 'midSpawn', { enemy: s.type, x: e.x, y: e.y });
       else if (s.boss) ev(g, 'bossSpawn', { enemy: s.type, x: e.x, y: e.y });
@@ -4295,6 +4302,7 @@ export function step(g, dt) {
   if (g.r2) g.r2.tick(g, dt); // 건물주 레이드: 거대 보스 패턴 · 화 쌓기 (raid2-sim.js)
   if (g.twa) g.twa.tick(g, dt); // 진상의 탑: 바닥 예고 · 멤버 체력 · 끌어서 옮기기 (tower-arena.js)
   if (g.hw) g.hw.tick(g, dt); // 할로윈 이벤트: 진상 기술 · 저주 (hw-sim.js)
+  if (g.wk) g.wk.tick(g, dt); // 주간 도전: 규칙 · 현상금 · 보스 단계 (weekly-sim.js)
   if (g.conds.length || (g.wtr && g.wtr.shield)) condTick(g, dt);
   updateEprojs(g, dt);
   updateProjs(g, dt);

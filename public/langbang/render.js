@@ -1606,6 +1606,19 @@ export class Renderer {
       cx.beginPath(); cx.ellipse(0, 0, w * 0.78, w * 0.22, 0, 0, TAU); cx.stroke();
     }
     cx.globalAlpha = 1;
+    // 주간 도전: 현상수배 · 보물 도둑 — 발밑에 굵은 금빛 고리 + 머리 위 금빛 표시 (멀리서도 보이게)
+    if (g.wk) for (const e of list) {
+      if (!e.wkMark && !e.wkGob) continue;
+      const w = e.def.size * 0.55, p = 0.65 + Math.sin(t * 8 + e.uid) * 0.3;
+      this.tf(e.x, e.y + e.def.size * FEET_OFF, 0, 1, 1);
+      cx.globalAlpha = p; cx.lineWidth = 4; cx.strokeStyle = '#ffd23f';
+      cx.beginPath(); cx.ellipse(0, 0, w, w * 0.32, 0, 0, TAU); cx.stroke();
+      this.tf(e.x, e.y - e.def.size * 0.95, 0, 1, 1);
+      cx.globalAlpha = 1; cx.fillStyle = e.wkGob ? '#ffe27a' : '#ffd23f'; cx.strokeStyle = '#5a3a00'; cx.lineWidth = 2;
+      cx.beginPath(); cx.moveTo(0, -9); cx.lineTo(8, 0); cx.lineTo(0, 9); cx.lineTo(-8, 0); cx.closePath(); cx.fill(); cx.stroke();
+      cx.lineWidth = 2.5;
+    }
+    cx.globalAlpha = 1;
     const focus = g.focus && !g.focus.dead ? g.focus : null;
     // 독재자 오라 (바닥에 붉은 원)
     for (const e of list) {

@@ -469,7 +469,7 @@ export async function weeklyStart(guest) {
   if (guest) {
     const p = guestProfile();
     if ((p.maxStage | 0) < L.WEEKLY_UNLOCK) return { ok: false, message: '주간 도전은 1-5를 깨면 열려요' };
-    return { ok: true, runId: 'guest', wi: L.weekIndex() };
+    return { ok: true, runId: 'guest', wi: L.weekIndex(), tier: L.weeklyTier(p.maxStage) };
   }
   return liveCall('weekly/start', {});
 }
@@ -477,18 +477,26 @@ export async function postWeekly(sum, runId, guest) {
   if (guest) {
     const p = guestProfile();
     const wi = L.weekIndex();
-    const def = L.weeklyDef(wi);
-    const chk = L.weeklyCheck(def, { waves: sum.wave, kills: sum.kills, bossKills: sum.bossKills, durationSec: sum.durationSec, victory: sum.victory });
+    const tier = L.weeklyTier(p.maxStage);
+    const def = L.weeklyDef(wi, tier);
+    const wr = weeklyBody(sum, tier);
+    const chk = L.weeklyCheck(def, wr);
     if (chk) return { ok: false, message: chk };
-    const score = L.weeklyScore({ waves: sum.wave, kills: sum.kills, bossKills: sum.bossKills, victory: sum.victory, hpPct: sum.hpPct });
+    const score = L.weeklyScore(wr);
     const coins = L.weeklyCoins(sum.wave);
     const q = Object.assign({}, p, { coins: p.coins + coins, runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
-    const newBest = L.weeklyRecord(q, wi, score, sum.wave, Date.now());
+    const newBest = L.weeklyRecord(q, wi, score, sum.wave, Date.now(), tier);
     guestTrack(q, { mode: 'weekly', kills: sum.kills, bosses: Math.min(sum.bossKills | 0, 20), skills: L.skillCap(sum.skills, sum.durationSec) });
     writeGuest(q);
     return { ok: true, profile: guestProfile(), reward: { total: coins }, weekly: { score, best: q.weekly.best, newBest } };
   }
-  return liveCall('result', { mode: 'weekly', runId, wave: sum.wave, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, victory: !!sum.victory, score: sum.score, seen: sum.seen, heroesUsed: sum.heroesUsed });
+  const w = sum.wk || {};
+  return liveCall('result', { mode: 'weekly', runId, wave: sum.wave, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, victory: !!sum.victory, score: sum.score, seen: sum.seen, heroesUsed: sum.heroesUsed, combo: w.combo | 0, noLeak: w.noLeak | 0, goals: w.goals | 0, bonus: w.bonus | 0, pacts: Array.isArray(w.pacts) ? w.pacts : [] });
+}
+// 주간 점수 계산에 넣는 숫자 (손님 · 결과 화면이 같은 식으로)
+export function weeklyBody(sum, tier) {
+  const w = sum.wk || {};
+  return { waves: sum.wave, kills: sum.kills, bossKills: sum.bossKills, victory: !!sum.victory, hpPct: sum.hpPct, durationSec: sum.durationSec, skills: L.skillCap(sum.skills, sum.durationSec), combo: w.combo, noLeak: w.noLeak, goals: w.goals, bonus: w.bonus, pacts: w.pacts || [], tier: tier || w.tier };
 }
 export async function weeklyBoard() {
   const r = await call('/api/langbang/weekly');

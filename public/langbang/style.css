@@ -1082,6 +1082,32 @@ body.rm .reveal *, body.rm .gacha-res * { animation-duration: 0.01s !important; 
 .wmod .wi { font-size: calc(var(--u) * 38); }
 .wmod b { display: block; font-family: var(--heavy); font-weight: 400; font-size: calc(var(--u) * 19); }
 .wmod small { display: block; font-size: calc(var(--u) * 11); color: var(--dim); font-weight: 700; line-height: 1.45; }
+/* 주간 도전 (10/12 개편): 이번 주 규칙 색 · 리그 · 웨이브 사건 줄 · 점수 풀이 · 계약 창 */
+.wmod { border-left: calc(var(--u) * 6) solid var(--wc, #ffd23f); }
+.wmod .wtag { display: inline-block; font-style: normal; font-size: calc(var(--u) * 10); font-weight: 900; color: #1a0e30; background: var(--wc, #ffd23f); border-radius: 99px; padding: 0 calc(var(--u) * 7); margin-bottom: calc(var(--u) * 2); }
+.wtier { margin: calc(var(--u) * 8) 0 0; padding: calc(var(--u) * 7) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: rgba(255, 210, 63, 0.12); border: 1.5px solid rgba(255, 210, 63, 0.5); }
+.wtier b { display: block; color: #ffd23f; font-weight: 900; font-size: calc(var(--u) * 14); }
+.wtier small { display: block; color: var(--dim); font-size: calc(var(--u) * 10.5); font-weight: 700; line-height: 1.4; }
+.wevs { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4); margin: calc(var(--u) * 8) 0 0; }
+.wke { display: inline-flex; align-items: center; gap: calc(var(--u) * 3); padding: calc(var(--u) * 3) calc(var(--u) * 7) calc(var(--u) * 3) calc(var(--u) * 3); border-radius: 99px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); font-size: calc(var(--u) * 10.5); font-weight: 900; color: #fff; }
+.wke i { font-style: normal; display: inline-grid; place-items: center; width: calc(var(--u) * 16); height: calc(var(--u) * 16); border-radius: 50%; background: #000; color: #ffd23f; font-size: calc(var(--u) * 9.5); }
+.wke.e-boss { background: rgba(192, 26, 42, 0.5); border-color: #ff5a5a; }
+.wke.e-mini, .wke.e-elite { background: rgba(176, 72, 255, 0.28); }
+.wke.e-thief { background: rgba(255, 210, 63, 0.25); }
+.wke.pact { background: rgba(122, 42, 154, 0.55); border-style: dashed; }
+.wpact { margin-top: calc(var(--u) * 6) !important; }
+.wpact b { color: #e8c8ff; }
+.wrow .wt { font-size: calc(var(--u) * 9.5); color: #ffd23f; border: 1px solid rgba(255, 210, 63, 0.5); border-radius: 99px; padding: 0 calc(var(--u) * 5); }
+.wrow .wt.t0 { display: none; }
+.wk-break { margin: calc(var(--u) * 8) 0; padding: calc(var(--u) * 8) calc(var(--u) * 12); text-align: left; }
+.wkb-row { display: flex; align-items: center; gap: calc(var(--u) * 6); padding: calc(var(--u) * 2) 0; font-size: calc(var(--u) * 12); font-weight: 800; }
+.wkb-row span { flex: 1; color: #fff; }
+.wkb-row em { font-style: normal; color: var(--dim); font-size: calc(var(--u) * 11); }
+.wkb-row b { min-width: calc(var(--u) * 64); text-align: right; color: #ffd23f; }
+.wkb-row.zero { opacity: 0.5; }
+.wkb-row.sum { border-top: 1px dashed rgba(255, 255, 255, 0.25); margin-top: calc(var(--u) * 3); padding-top: calc(var(--u) * 5); }
+.wkb-row.mul b { color: #e8c8ff; }
+.wk-pact .cb-card.wk-no { background: linear-gradient(180deg, #2a2a3a, #15151f); }
 .wbosses { display: flex; justify-content: center; gap: calc(var(--u) * 4); margin: calc(var(--u) * 8) 0; flex-wrap: wrap; }
 .wb { display: flex; flex-direction: column; align-items: center; width: calc(var(--u) * 60); }
 .wb .av { width: calc(var(--u) * 50); height: calc(var(--u) * 50); }

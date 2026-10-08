@@ -4,7 +4,7 @@
 // 모든 코인은 게임 안 점수일 뿐 (현금 결제 없음).
 import {
   HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK,
-  GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, STAGE_COUNT, heroTier, GEAR, CURSES,
+  GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, stageHpScale, stageMid, chapterOf, stageNo, STAGE_HPX, SLOW_RUN, STAGE_COUNT, heroTier, GEAR, CURSES,
   SIG, SIG_IDS, SIG_PITY, SIG_DUP_SHARDS, SIG_RATE, WEEK_TRAITS, enemyGrade,
 } from './data.js';
 export const stageBossN = (s) => stageBosses(s).length;
@@ -126,6 +126,11 @@ export const weekTrait = (wi = weekIndex()) => WEEK_TRAITS[((Math.floor(Number(w
 export function weekLabel(wi) {
   const a = new Date(EPOCH + wi * WEEK), b = new Date(EPOCH + wi * WEEK + 6 * DAY);
   return `${a.getUTCMonth() + 1}/${a.getUTCDate()} ~ ${b.getUTCMonth() + 1}/${b.getUTCDate()}`;
+}
+// 사람이 읽는 주 이름: 그 주 월요일 기준 'N월 M주차' (주간 도전 결과 · 로비)
+export function weekName(wi) {
+  const a = new Date(EPOCH + wi * WEEK);
+  return `${a.getUTCMonth() + 1}월 ${Math.ceil(a.getUTCDate() / 7)}주차`;
 }
 export function leftText(ms) {
   const m = Math.max(0, Math.floor(ms / 60000));
@@ -272,44 +277,165 @@ export function titleName(id) {
 const titleOk = (id) => typeof id === 'string' && id.length < 16 && !!titleName(id);
 
 // ─── 주간 도전전 ──────────────────────────────────────
+// (10/12 개편) 8웨이브 · 웨이브마다 다른 사건 · 리그(진행도별 같은 판) · 중간 계약 2번 · 마지막은 단계가 있는 보스
+//  같은 주 · 같은 리그 = 모두 같은 판 (주 번호 + 리그로만 정해진다) · 전투 규칙은 weekly-sim.js
 export const WEEKLY_UNLOCK = 5; // 1-5 를 깨면 열림
-export const WEEKLY_WAVES = 10;
+export const WEEKLY_WAVES = 8;
+// 리그: 가장 멀리 깬 스테이지로 정한다 (진상 구성 · 레벨이 리그마다 다름) · 점수 배율은 판이 어려운 만큼 조금만
+//  (리그마다 따로 순위를 매기면 참가자가 적어 쓸쓸해서 → 한 순위표 + 리그 배율 · 같은 실력이면 위 리그가 조금 앞서게)
+export const WEEKLY_TIERS = [
+  { id: 1, name: '새싹', from: 5, pool: [3, 8], mul: 1, lv: [3, 15], hp: 1.25 },
+  { id: 2, name: '단골', from: 11, pool: [9, 18], mul: 1.08, lv: [4, 19], hp: 2 },
+  { id: 3, name: '고수', from: 26, pool: [21, 30], mul: 1.16, lv: [5, 22], hp: 1.4 },
+  { id: 4, name: '달인', from: 46, pool: [41, 52], mul: 1.24, lv: [12, 36], hp: 3.6 },
+  { id: 5, name: '전설', from: 66, pool: [61, 74], mul: 1.32, lv: [10, 34], hp: 1.8 },
+];
+export const weeklyTier = (maxStage) => { let t = 1; for (const x of WEEKLY_TIERS) if ((maxStage | 0) >= x.from) t = x.id; return t; };
+export const weeklyTierDef = (t) => WEEKLY_TIERS[Math.max(1, Math.min(WEEKLY_TIERS.length, t | 0 || 1)) - 1];
+// 이번 주 규칙 (판 전체) — 위 6개는 예전 규칙 (숫자만 다시) · 아래 3개는 노는 법이 바뀌는 규칙
 export const WEEKLY_MODS = {
-  bossrush: { id: 'bossrush', icon: '', name: '보스 러시', desc: '웨이브마다 보스가 나온다! 졸개는 조금', count: 0.6 },
-  double: { id: 'double', icon: '', name: '진상 2배', desc: '진상이 두 배로 몰려온다 (한 명 한 명은 조금 약함)', count: 2, hp: 0.6 },
-  speed: { id: 'speed', icon: '', name: '광속 진상', desc: '진상 이동 속도 +35%', enemySpd: 1.35 },
-  glass: { id: 'glass', icon: '', name: '유리 입구', desc: '입구 내구도 절반 · 대신 경험치 +50%', baseHp: 0.5, exp: 0.5 },
-  giant: { id: 'giant', icon: '', name: '거인의 밤', desc: '진상 수 절반 · 체력 2.2배', count: 0.5, hp: 2.2 },
-  skill: { id: 'skill', icon: '', name: '스킬 축제', desc: '스킬 쿨타임 절반 · 진상 체력 +30%', cd: 0.5, hp: 1.3 },
+  bossrush: { id: 'bossrush', icon: 'crown', name: '보스 러시', desc: '3 · 5웨이브에도 보스가! 마지막엔 보스 둘 · 졸개는 적게', count: 0.6, color: '#ff5a3c' },
+  double: { id: 'double', icon: 'users', name: '진상 2배', desc: '진상이 두 배로 몰려온다 (한 명 한 명은 약함) — 범위 공격의 주', count: 2, hp: 0.62, color: '#ff9f1c' },
+  speed: { id: 'speed', icon: 'bolt', name: '광속 진상', desc: '진상 이동 +30% (체력은 조금 낮게) — 감속 · 기절이 귀하다', enemySpd: 1.3, hp: 0.8, color: '#ffd23f' },
+  glass: { id: 'glass', icon: 'shield', name: '유리 입구', desc: '입구 내구도 절반 · 진상 체력 +50% · 대신 경험치 +25% — 한 명도 흘리지 마', baseHp: 0.5, exp: 0.25, hp: 1.5, color: '#9feaff' },
+  giant: { id: 'giant', icon: 'target', name: '거인의 밤', desc: '진상 수 절반 · 한 명 한 명이 훨씬 단단 — 한 방 공격의 주', count: 0.5, hp: 1.25, color: '#b06cff' },
+  skill: { id: 'skill', icon: 'speed', name: '스킬 축제', desc: '스킬 쿨타임 절반 · 진상 체력 +12% — 스킬을 아끼지 마', cd: 0.5, hp: 1.12, color: '#3ad0ff' },
+  chain: { id: 'chain', icon: 'path_boom', name: '연쇄 폭발', desc: '쓰러진 진상이 터져 곁의 진상에게 큰 피해! 대신 진상 체력 +45% — 몰아서 터뜨려라', hp: 1.45, chain: { r: 62, frac: 0.38 }, color: '#ff6b3a' },
+  bounty: { id: 'bounty', icon: 'target', name: '현상수배', desc: '9초마다 진상 하나에 현상금 (금빛 · 3배 단단) — 입구에 닿기 전에 잡으면 총공지 충전 + 점수', bounty: { every: 9, hp: 3 }, color: '#ffc83a' },
+  tide: { id: 'tide', icon: 'speed', name: '밀물 썰물', desc: '11초마다 밀물! 3.5초 동안 진상 +50% 빠르게 몰려온다 — 밀물에 맞춰 스킬을', tide: { every: 11, sec: 3.5, spd: 1.5, from: 2 }, hp: 0.9, color: '#3a9bff' },
 };
+// 웨이브 사건 (1 = 개점 · 8 = 최종 보스 · 2~7 = 아래 일곱 중 여섯을 섞어서) — goal: 그 웨이브 목표 (달성하면 점수)
+export const WEEKLY_EVENTS = {
+  open: { id: 'open', name: '개점', desc: '몸풀기 — 평범한 진상 행렬', count: 0.8 },
+  rush: { id: 'rush', name: '러시', desc: '약한 진상이 우르르 몰려온다 — 범위 공격!', count: 1.7, fodderHp: 0.5, clump: true, goal: 'fast', goalText: '빨리 정리하기' },
+  elite: { id: 'elite', name: '정예 부대', desc: '수는 적지만 단단한 정예만 — 한 방 공격으로', count: 0.26, elite: true, eliteHp: 2.4, goal: 'fast', goalText: '빨리 정리하기' },
+  mini: { id: 'mini', name: '중간 보스', desc: '각성한 진상이 나타났다!', count: 0.8, fodderHp: 0.6, clump: true, goal: 'mid', goalText: '중간 보스 25초 안에 잡기' },
+  ambush: { id: 'ambush', name: '기습', desc: '한쪽 옆길로 한꺼번에 몰려온다!', count: 1.1, burst: 0.55, goal: 'noleak', goalText: '입구 안 맞기' },
+  shield: { id: 'shield', name: '방패 부대', desc: '보호막 3겹 진상 — 연타 · 운영진 · 여지원이 잘 깬다', count: 0.75, shield: 3, goal: 'noleak', goalText: '입구 안 맞기' },
+  thief: { id: 'thief', name: '보물 도둑', desc: '금고를 든 도둑 셋이 입구를 훔쳐 달아난다 — 놓치지 마', count: 0.85, thief: 3, goal: 'thief', goalText: '도둑 셋 다 잡기' },
+  curse: { id: 'curse', name: '저주 웨이브', desc: '이번 웨이브만 규칙이 바뀐다', count: 1, goal: 'noleak', goalText: '입구 안 맞기' },
+  boss: { id: 'boss', name: '최종 보스', desc: '체력이 줄 때마다 부하를 부르고 사나워진다!', count: 0.7, fodderHp: 0.5, clump: true, goal: 'door', goalText: '입구 50% 넘게 지키기' },
+};
+// 저주 웨이브 규칙 (주마다 하나)
+export const WEEKLY_CURSES = {
+  dark: { id: 'dark', name: '정전', desc: '멤버 사거리 −25%', range: 0.75 },
+  haste: { id: 'haste', name: '급한 진상', desc: '진상 이동 +35%', spd: 1.35 },
+  skillonly: { id: 'skillonly', name: '스킬만 믿어', desc: '멤버 공격력 −35% · 스킬 쿨타임 절반', dmg: 0.65, cd: 0.5 },
+  norepair: { id: 'norepair', name: '공사 중단', desc: '입구 수리 금지 (진상 체력 −15%)', heal: 0, hp: 0.85 },
+};
+// 중간 계약 (3 · 5웨이브 뒤): 둘 중 하나를 받거나 거절 — 받으면 남은 판이 어려워지는 대신 점수 배율
+export const WEEKLY_PACTS = {
+  thick: { id: 'thick', name: '단단한 진상', desc: '진상 체력 +25%', mul: 1.25, hp: 1.25 },
+  fast: { id: 'fast', name: '급한 손님', desc: '진상 이동 +20%', mul: 1.2, spd: 1.2 },
+  crack: { id: 'crack', name: '금 간 입구', desc: '입구 최대 내구도 −30%', mul: 1.25, door: 0.7 },
+  norepair: { id: 'norepair', name: '수리 금지', desc: '입구 수리 · 회복 없음', mul: 1.15, heal: 0 },
+  elite: { id: 'elite', name: '정예 호위', desc: '남은 웨이브마다 정예 3명 추가', mul: 1.2, elite: 3 },
+  blind: { id: 'blind', name: '흐린 눈', desc: '멤버 사거리 −15%', mul: 1.2, range: 0.85 },
+};
+export const WEEKLY_OFFER_AFTER = [3, 5]; // 이 웨이브를 깨면 계약 제안
+export const WEEKLY_PACT_CAP = 1.6;
+export const WEEKLY_PAR = 300; // 빠른 완주 기준 (게임 시간 초) — 이보다 빠르면 1초에 20점 (최대 150초)
+export const WEEKLY_SCORE = { wave: 1500, kill: 4, killCap: 900, boss: 600, goal: 700, noLeak: 500, combo: 8, comboCap: 400, skill: 25, skillCap: 60, bonus: 250, clear: 5000, hp: 60, speed: 20, speedCap: 150 };
 const WEEKLY_FX = ['none', 'rain', 'fog', 'blackout', 'happy', 'karaoke', 'icy', 'feast', 'construction', 'megaphone'];
-const WEEKLY_BOSSES = ['boss_loan', 'boss_thug', 'queen', 'boss_gapjil', 'boss_inpi'];
-// 이번 주 도전: 주 번호만으로 정해진다 (모두 같은 판)
-export function weeklyDef(wi) {
-  const rng = seedRng(hashSeed('lbweekly:' + wi));
+const WEEKLY_BOSS_BY_CH = [null, ['boss_loan', 'queen'], ['boss_gapjil', 'boss_bbikki'], ['boss_thug', 'boss_inpi'], ['boss_kkondol', 'boss_queenmom'], ['boss_sales', 'boss_otaku'], ['boss_jusa', 'boss_soloparty'], ['boss_resort'], ['boss_bestman']];
+export const WK_CURVE = [0, 0.12, 0.26, 0.42, 0.59, 0.76, 0.92, 1]; // 웨이브마다 레벨 (리그 시작 → 끝 · 뒤로 갈수록 가파르게)
+const WK_SEC = [10, 11, 11, 12, 12, 13, 13, 12]; // 진상이 나오는 시간 (느린 판 간격 ×1.75 전)
+const WK_BOSS_HP = 0.7; // 최종 보스 체력 (스테이지 보스 대비 · 단계마다 부하가 나오니)
+const WK_N = 20; // 한 웨이브 기본 진상 수 (주간 ×2 · 템포 · 느린 판 배율 전)
+// 이번 주 도전: 주 번호 + 리그만으로 정해진다 (같은 리그 = 모두 같은 판) · 사건 순서 · 규칙 · 계약 제안은 리그와 상관없이 같은 주면 같다
+export function weeklyDef(wi, tier = 2) {
+  const T = weeklyTierDef(tier);
+  const rng = seedRng(hashSeed('lbweekly2:' + wi));
   const ids = Object.keys(WEEKLY_MODS);
   const mod = WEEKLY_MODS[ids[((wi % ids.length) + ids.length) % ids.length]];
-  const stage = 11 + Math.floor(rng() * 17); // 적 구성 바탕: 2-1 ~ 3-7
-  const fx = WEEKLY_FX[(rng() * WEEKLY_FX.length) | 0];
-  const bossA = WEEKLY_BOSSES[(rng() * WEEKLY_BOSSES.length) | 0];
-  const bossB = WEEKLY_BOSSES[(rng() * WEEKLY_BOSSES.length) | 0];
-  const waves = [];
-  for (let w = 1; w <= WEEKLY_WAVES; w++) {
-    const b = stageWave(stage, 1 + ((w - 1) % 4));
-    const cm = mod.count || 1;
-    const g = b.g.map(([t, c, every, delay]) => [t, Math.max(1, Math.round(c * cm * (1 + 0.06 * (w - 1)))), +(every / Math.max(0.5, cm)).toFixed(2), delay]);
-    const def = { g, level: 5 + 2.5 * (w - 1), hpScale: 2.1 * (mod.hp || 1) };
-    if (mod.id === 'bossrush') def.boss = WEEKLY_BOSSES[(w + (rng() * 5 | 0)) % WEEKLY_BOSSES.length];
-    else if (w === 5) def.boss = bossA;
-    else if (w === 10) { def.boss = bossA; def.boss2 = bossB; }
-    waves.push(def);
+  let fx = WEEKLY_FX[(rng() * WEEKLY_FX.length) | 0];
+  if (mod.tide && fx === 'megaphone') fx = 'none'; // (밀물은 확성기와 같은 속도 장치를 쓴다)
+  // 사건 순서: 2~7 웨이브에 일곱 중 여섯 (중간 보스는 2웨이브에 안 나온다)
+  const pool = ['rush', 'elite', 'mini', 'ambush', 'shield', 'thief', 'curse'];
+  for (let i = pool.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const mid6 = pool.slice(0, 6);
+  if (mid6[0] === 'mini') [mid6[0], mid6[1]] = [mid6[1], mid6[0]];
+  const events = ['open', ...mid6, 'boss'];
+  const side = rng() < 0.5 ? 'L' : 'R';
+  const cks = Object.keys(WEEKLY_CURSES);
+  const curse = cks[(rng() * cks.length) | 0];
+  const pk = Object.keys(WEEKLY_PACTS);
+  for (let i = pk.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; [pk[i], pk[j]] = [pk[j], pk[i]]; }
+  const offers = [[pk[0], pk[1]], [pk[2], pk[3]]];
+  // 리그별: 진상 구성 바탕 스테이지 · 중간 보스 · 보스
+  const trng = seedRng(hashSeed(`lbweekly2:${wi}:${T.id}`));
+  const cand = []; // 바탕 스테이지: 보스 판 · 체력을 따로 올린 판(STAGE_HPX)은 빼고 (리그 안에서 주마다 난이도가 튀지 않게)
+  for (let s = T.pool[0]; s <= T.pool[1]; s++) if (!STAGE_HPX[s] && stageNo(s) !== 5 && stageNo(s) !== 10) cand.push(s);
+  const stage = cand[(trng() * cand.length) | 0];
+  const ch0 = chapterOf(T.pool[0]), ch1 = chapterOf(T.pool[1]);
+  const mids = [];
+  for (let s = T.pool[0]; s <= T.pool[1]; s++) { const m = stageMid(s); if (m && ENEMIES[m]) mids.push(m); }
+  const mid = mids.length ? mids[(trng() * mids.length) | 0] : null;
+  const bossList = [];
+  for (let c = ch0; c <= ch1; c++) for (const b of WEEKLY_BOSS_BY_CH[c] || []) if (ENEMIES[b] && !bossList.includes(b)) bossList.push(b);
+  const boss = bossList[(trng() * bossList.length) | 0];
+  const others = bossList.filter((b) => b !== boss);
+  const boss2 = others.length ? others[(trng() * others.length) | 0] : boss;
+  const tpl = stageWave(stage, 2).g.filter(([t]) => ENEMIES[t] && !ENEMIES[t].boss && !ENEMIES[t].mid);
+  const tough = tpl.filter(([t]) => !ENEMIES[t].pack && !ENEMIES[t].group).sort((a, b) => ENEMIES[b[0]].hp - ENEMIES[a[0]].hp)[0] || tpl[0];
+  const hp0 = stageHpScale(stage) * T.hp * (mod.hp || 1);
+  const cm = mod.count || 1;
+  const unit = (t) => { const p = ENEMIES[t].pack || ENEMIES[t].group; return p ? (p.min + p.max) / 2 : 1; };
+  const wsum = tpl.reduce((a, x) => a + x[1] * unit(x[0]), 0) || 1;
+  const waves = events.map((id, i) => {
+    const E = WEEKLY_EVENTS[id], w = i + 1, sec = WK_SEC[i];
+    const n = WK_N * (E.count || 1) * cm * (1 + 0.09 * i); // 머릿수 (무리는 한 무리를 여럿으로 센다)
+    let g = [];
+    for (const [t, c] of tpl) {
+      const k = Math.max(1, Math.round((n * c) / wsum));
+      g.push([t, k, +((sec * (E.burst || 1)) / k).toFixed(2), +(g.length * 0.6).toFixed(1), E.elite ? 'E' : '']);
+    }
+    if (E.elite && tough) { const k = Math.max(4, Math.round(n)); g = [[tough[0], k, +(sec / k).toFixed(2), 0.5, 'E']]; }
+    const def = { kind: E.elite ? 'E' : E.clump ? 'S' : 'N', ev: id, g, level: +(T.lv[0] + (T.lv[1] - T.lv[0]) * WK_CURVE[i]).toFixed(2), hpScale: +hp0.toFixed(3), fodderHp: E.fodderHp || 1, eliteHp: E.eliteHp || 2.4, clump: !!E.clump, sec };
+    if (E.goal === 'fast') def.goalT = Math.round(sec * (E.burst || 1) * SLOW_RUN.gap + 12);
+    if (id === 'mini' && mid) { def.mid = mid; def.midHp = +(WK_BOSS_HP / (mod.hp || 1)).toFixed(3); }
+    if (id === 'ambush') def.side = side;
+    if (id === 'shield') def.shield = E.shield;
+    if (id === 'thief') def.thief = E.thief;
+    if (id === 'curse') def.curse = curse;
+    if (id === 'boss') { def.boss = boss; def.phases = 2; if (mod.id === 'bossrush' && boss2 !== boss) def.boss2 = boss2; }
+    if (mod.id === 'bossrush' && (w === 3 || w === 5) && !def.mid) def.boss = w === 3 ? boss2 : boss;
+    if (def.boss) def.bossHp = +((def.boss2 ? 0.6 : 1) * (id === 'boss' ? WK_BOSS_HP : 0.5) / (mod.hp || 1)).toFixed(3); // (규칙 체력 배율은 보스엔 빼고)
+    if (def.boss2) def.boss2Hp = def.bossHp;
+    return def;
+  });
+  return { v: 2, wi, tier: T.id, stage, mod: mod.id, fx, events, side, curse, offers, eliteType: tough ? tough[0] : tpl[0][0], waves, bosses: [...new Set(waves.flatMap((d) => [d.boss, d.boss2].filter(Boolean)))], mid };
+}
+// 계약 점수 배율 (곱 · 상한)
+export function weeklyPactMul(pacts) {
+  let m = 1;
+  for (const id of Array.isArray(pacts) ? pacts : []) if (WEEKLY_PACTS[id]) m *= WEEKLY_PACTS[id].mul;
+  return Math.min(WEEKLY_PACT_CAP, m);
+}
+// 점수 풀이 (서버 · 화면이 같은 식) — r: { waves, kills, bossKills, victory, hpPct, durationSec, combo, noLeak, goals, bonus, skills, pacts, tier }
+export function weeklyBreakdown(r) {
+  const K = WEEKLY_SCORE, waves = int(r.waves, 0, WEEKLY_WAVES), vic = !!r.victory && waves === WEEKLY_WAVES;
+  const kills = int(r.kills, 0, 1e5), combo = int(r.combo, 0, 1e5), skills = int(r.skills, 0, 999);
+  const rows = [
+    ['wave', '막은 웨이브', waves, waves * K.wave],
+    ['kill', '처치', kills, Math.min(kills, K.killCap) * K.kill],
+    ['boss', '보스', int(r.bossKills, 0, 20), int(r.bossKills, 0, 20) * K.boss],
+    ['goal', '웨이브 목표', int(r.goals, 0, WEEKLY_WAVES), int(r.goals, 0, WEEKLY_WAVES) * K.goal],
+    ['noLeak', '무피해 웨이브', int(r.noLeak, 0, WEEKLY_WAVES), int(r.noLeak, 0, WEEKLY_WAVES) * K.noLeak],
+    ['combo', '최대 콤보', combo, Math.min(combo, K.comboCap) * K.combo],
+    ['skill', '스킬 사용', skills, Math.min(skills, K.skillCap) * K.skill],
+    ['bonus', '도둑 · 현상금', int(r.bonus, 0, 99), int(r.bonus, 0, 99) * K.bonus],
+  ];
+  if (vic) {
+    const sp = Math.min(K.speedCap, Math.max(0, WEEKLY_PAR - int(r.durationSec, 0, 1e6)));
+    rows.push(['clear', '완주', 1, K.clear], ['hp', '남은 입구 %', int(r.hpPct, 0, 100), int(r.hpPct, 0, 100) * K.hp], ['speed', '빠른 완주 (초)', sp, sp * K.speed]);
   }
-  return { wi, stage, mod: mod.id, fx, waves, bosses: [...new Set(waves.flatMap((d) => [d.boss, d.boss2].filter(Boolean)))] };
+  const sum = rows.reduce((a, x) => a + x[3], 0);
+  const pact = weeklyPactMul(r.pacts), tier = weeklyTierDef(r.tier || 1).mul;
+  return { rows, sum, pact, tier, total: Math.round(sum * pact * tier) };
 }
-// 서버가 계산하는 점수 (웨이브 · 처치 · 보스 · 클리어 + 남은 입구)
-export function weeklyScore(r) {
-  return int(r.waves, 0, WEEKLY_WAVES) * 1000 + int(r.kills, 0, 1e5) * 10 + int(r.bossKills, 0, 99) * 500 + (r.victory ? 5000 + int(r.hpPct, 0, 100) * 50 : 0);
-}
+// 서버가 계산하는 점수
+export function weeklyScore(r) { return weeklyBreakdown(r).total; }
 // 말이 되는 기록인지 (주간 판 구성으로 상한 계산)
 export function weeklyCheck(def, r) {
   const waves = int(r.waves, 0, 99), kills = int(r.kills, 0, 1e6), boss = int(r.bossKills, 0, 999), dur = int(r.durationSec, 0, 1e6);
@@ -319,12 +445,20 @@ export function weeklyCheck(def, r) {
   let maxKill = 0, maxBoss = 0;
   for (let i = 0; i < upto; i++) {
     const d = def.waves[i];
-    for (const [t, c] of d.g) maxKill += c * (ENEMIES[t] && ENEMIES[t].pack ? ENEMIES[t].pack.max : 1) * 1.6;
-    maxKill += 60; // 소환 · 분열 · 알림 여유
+    for (const [t, c] of d.g) { const p = ENEMIES[t] && (ENEMIES[t].pack || ENEMIES[t].group); maxKill += c * (p ? p.max : 1) * 1.6; }
+    maxKill += 60 + (d.thief || 0) + (d.phases ? 30 : 0) + 4; // 소환 · 분열 · 보스 부하 · 계약 정예 여유
     maxBoss += (d.boss ? 1 : 0) + (d.boss2 ? 1 : 0);
   }
   if (kills > maxKill || boss > maxBoss) return '기록을 확인할 수 없어요';
   if (dur < waves * 8) return '기록을 확인할 수 없어요';
+  if (int(r.combo, 0, 1e6) > kills || int(r.noLeak, 0, 99) > waves || int(r.goals, 0, 99) > upto) return '기록을 확인할 수 없어요';
+  if (int(r.bonus, 0, 999) > upto * 3 + Math.floor(dur / 8)) return '기록을 확인할 수 없어요';
+  const pacts = r.pacts === undefined || r.pacts === null ? [] : r.pacts;
+  if (!Array.isArray(pacts) || pacts.length > WEEKLY_OFFER_AFTER.length) return '기록을 확인할 수 없어요';
+  for (let i = 0; i < pacts.length; i++) {
+    if (!pacts[i]) continue;
+    if (!def.offers || !def.offers[i] || !def.offers[i].includes(pacts[i]) || waves < WEEKLY_OFFER_AFTER[i]) return '기록을 확인할 수 없어요';
+  }
   return null;
 }
 // 지난주 순위 보상
@@ -335,9 +469,9 @@ export function weeklyRankReward(rank) {
   if (rank <= 10) return { coins: 1500, tickets: 2, label: `${rank}위 (TOP 10)` };
   return { coins: 600, tickets: 1, label: `${rank}위 (참가 보상)` };
 }
-export const weeklyCoins = (waves) => 30 * int(waves, 0, WEEKLY_WAVES);
+export const weeklyCoins = (waves) => Math.round((300 * int(waves, 0, WEEKLY_WAVES)) / WEEKLY_WAVES); // 끝까지 300 (예전 10웨이브 × 30 과 같은 경제)
 // 주간 기록 넣기 (새 주면 지난 기록을 weeklyPrev 로)
-export function weeklyRecord(lb, wi, score, waves, now) {
+export function weeklyRecord(lb, wi, score, waves, now, tier) {
   if (!lb.weekly || lb.weekly.wi !== wi) {
     if (lb.weekly && lb.weekly.wi === wi - 1) lb.weeklyPrev = lb.weekly;
     lb.weekly = { wi, best: 0, runs: 0, waves: 0, at: 0 };
@@ -345,7 +479,7 @@ export function weeklyRecord(lb, wi, score, waves, now) {
   const w = lb.weekly;
   w.runs++;
   const better = score > w.best;
-  if (better) { w.best = score; w.waves = waves; w.at = now; }
+  if (better) { w.best = score; w.waves = waves; w.at = now; if (tier) w.tier = tier | 0; }
   return better;
 }
 // 지난주(wi) 내 기록
@@ -1116,10 +1250,10 @@ export function normLive(raw, out) {
   out.frames = [...new Set([...(raw.frames || []), ...auto.f].filter((f) => FRAMES[f]))];
   out.title = out.titles.includes(raw.title) ? raw.title : '';
   out.frame = out.frames.includes(raw.frame) ? raw.frame : '';
-  const wk = (x) => (x && Number.isInteger(x.wi) ? { wi: x.wi, best: int(x.best, 0, 1e9), runs: int(x.runs, 0, 1e6), waves: int(x.waves, 0, WEEKLY_WAVES), at: int(x.at, 0, 9e15) } : null);
+  const wk = (x) => (x && Number.isInteger(x.wi) ? { wi: x.wi, best: int(x.best, 0, 1e9), runs: int(x.runs, 0, 1e6), waves: int(x.waves, 0, 10), at: int(x.at, 0, 9e15), ...(x.tier ? { tier: int(x.tier, 1, WEEKLY_TIERS.length) } : {}) } : null);
   out.weekly = wk(raw.weekly);
   out.weeklyPrev = wk(raw.weeklyPrev);
-  out.weeklyRun = raw.weeklyRun && typeof raw.weeklyRun.id === 'string' && raw.weeklyRun.id.length <= 32 && Number.isInteger(raw.weeklyRun.wi) ? { id: raw.weeklyRun.id, wi: raw.weeklyRun.wi, at: int(raw.weeklyRun.at, 0, 9e15) } : null;
+  out.weeklyRun = raw.weeklyRun && typeof raw.weeklyRun.id === 'string' && raw.weeklyRun.id.length <= 32 && Number.isInteger(raw.weeklyRun.wi) ? { id: raw.weeklyRun.id, wi: raw.weeklyRun.wi, at: int(raw.weeklyRun.at, 0, 9e15), tier: int(raw.weeklyRun.tier, 1, WEEKLY_TIERS.length) } : null;
   out.weeklyClaimed = Number.isInteger(raw.weeklyClaimed) ? raw.weeklyClaimed : -1e6;
   out.chests = {};
   for (const [k, v] of Object.entries(raw.chests || {})) { const ch = int(k, 0, 99); if (ch >= 1 && Array.isArray(v)) { const l = [...new Set(v.map((x) => int(x, 0, 99)).filter((x) => CHEST_STARS.includes(x)))]; if (l.length) out.chests[ch] = l; } }
