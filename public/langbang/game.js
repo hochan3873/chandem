@@ -9,7 +9,7 @@ import {
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
-  COND, stageConds, stageMission, condFits, recMeta, META_SOFT, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
+  COND, stageConds, stageMission, condFits, recMeta, META_SOFT, META_MILESTONE, metaMile, tierPowerM, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
   artV,
@@ -5883,7 +5883,9 @@ async function buyUpgrade(id, btn) {
     app.profile = r.profile;
     A.sfx.levelUp();
     const dp = heroPower(app.profile, id) - (btn.dataset.pw ? Number(btn.dataset.pw) : 0);
-    toast(`${HEROES[id].name} 강화 완료! (+${app.profile.heroes[id]})${dp > 0 && btn.dataset.pw ? ` · 전투력 +${fmt(dp)}` : ''}`);
+    const m1 = app.profile.heroes[id] | 0, t = heroTier(id), up = tierPowerM(t, m1) / Math.max(0.001, tierPowerM(t, m1 - 1)) - 1, mile = m1 > 0 && m1 % META_MILESTONE.every === 0; // (10/08) 강화 체감: 이번 한 칸이 몇 % 인지 크게
+    toast(`${HEROES[id].name} 강화 +${m1}! 공격력 +${Math.round(up * 100)}%${mile ? ` · ${META_MILESTONE.name[metaMile(m1)] || '각성'} 달성!` : ''}${dp > 0 && btn.dataset.pw ? ` · 전투력 +${fmt(dp)}` : ''}`);
+    if (mile && !document.body.classList.contains('rm')) { fx.flash('#ffd23f', 0.35); try { A.sfx.rise(); } catch (e) { /* 무시 */ } }
   } else toast(r.message || '강화하지 못했어요');
   if (stage.querySelector('.hero-pop')) { showHeroModal(id, app.screen === 'prep' ? 'prep' : ''); refreshBehind(); } else refresh();
 }
@@ -6471,7 +6473,7 @@ function heroPower(p, id) {
   const d = HEROES[id];
   if (!d) return 0;
   const st = heroGearStats(p, id);
-  const base = (d.dmg / d.interval) * tierPower(heroTier(id), (p.heroes || {})[id] | 0) * (1 + L.STAR_ATK * (L.heroStar(p, id) - 1));
+  const base = (d.dmg / d.interval) * tierPowerM(heroTier(id), (p.heroes || {})[id] | 0) * (1 + L.STAR_ATK * (L.heroStar(p, id) - 1));
   return Math.round(base * (1 + (st.atk || 0)) * (1 + (st.spd || 0)) * (1 + (st.skill || 0) * 0.3) * (sigOn(p, id) ? 1.25 : 1) * 10); // 전용 신화 새 효과 ≈ +25%
 }
 // 이 멤버가 자기 전용 신화를 끼고 있나

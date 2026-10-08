@@ -12,7 +12,8 @@ const { pathToFileURL } = require('url');
 const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? Number(a.split('=')[1]) : d; };
 (async () => {
-  const D = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'data.js')).href);
+  const LIB = (process.argv.find((x) => x.startsWith('--lib=')) || '').slice(6) || path.join(__dirname, '..', 'public', 'langbang');
+  const D = await import(pathToFileURL(path.join(LIB, 'data.js')).href);
   const RUNS = opt('runs', 12), FAIL = opt('fail', 0.3), STARS = opt('stars', 3), SIDE = opt('side', 1);
   const slotsFor = (c) => (c <= 2 ? 4 : c <= 4 ? 5 : 6); // 기준 봇 덱 칸 (밸런스 스크립트 DECKS 와 같게)
   const ENEMY_DEX = 4300; // 장마다 새 진상 첫 발견 보상 (일반 8 × 150 · 정예 1 × 300 · 중간 보스 2 × 600 · 보스 1.3 × 1200 쯤)

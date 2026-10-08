@@ -8,7 +8,7 @@ import {
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI, MID_KITS, ECAST, ELITE_HP, ULT_LOCK,
   CURSES, ENDLESS_TUNE,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
-  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, TENSION, roleCadence, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
+  SKILL_AUG, SKILL_AUG_W, SLOW_RUN, TENSION, roleCadence, mileDmg, mileSpd, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
 import * as HWS from './hw-sim.js'; // 할로윈 이벤트 전투 규칙 (진상 기술 · 저주)
@@ -102,7 +102,8 @@ export function createGame(opt = {}) {
   if (mode === 'stage') g.mods.expMul *= wk ? 0.34 : stageExpMul(opt.stage || 1); // 뒤 스테이지는 진상이 많은 만큼 경험치를 줄여 레벨업 횟수를 비슷하게
   if (wmod.exp) g.mods.expMul += wmod.exp;
   if (opt.tempo && !opt.raid) { g.mods.expMul /= TEMPO.count; g.mods.ultCharge /= TEMPO.count; }
-  if (g.slow) { g.mods.expMul /= SLOW_RUN.count; g.mods.ultCharge /= SLOW_RUN.count; g.mods.enemySpd *= SLOW_RUN.espd; } // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총공지 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
+  if (g.slow) { g.mods.expMul /= SLOW_RUN.count; g.mods.ultCharge /= SLOW_RUN.count; g.mods.enemySpd *= SLOW_RUN.espd; }
+  if (g.tension) g.mods.enemySpd *= TENSION.espd; // 긴장감: 진상이 입구까지 더 잘 온다 (꾸준히 조금씩 깎이게) // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총공지 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
   if (wmod.enemySpd) g.mods.enemySpd *= wmod.enemySpd;
   if (wmod.baseHp) { g.base.max = Math.round(g.base.max * wmod.baseHp); g.base.hp = g.base.max; }
   // 장비: 입구 내구도 +%
@@ -209,7 +210,7 @@ export function heroDamage(g, h) {
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
   const hc = (1 + (g.hcT > 0 && h.id !== 'hochan' ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0)) * (g.rallyT > 0 && g.rallyDmg ? 1 + g.rallyDmg : 1) * (g.uirijuT > 0 ? 1.6 : 1) * (g.onemanT > 0 ? 1 + (g.onemanAtk || 0.3) : 1); // "랑방을 위하여!" · 집합! · 의리주 · 원맨쇼
-  return (1 + (h.pump || 0)) * buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.tension ? roleCadence(h.id).dmg * wideMul(g) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + cmAtk(h)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * (1 + (g.collAtk || 0)) * old * hc * heroExtraMul(g, h) * (g.wtr && g.wtr.near ? (NEAR_HEROES.includes(h.id) ? g.wtr.near : g.wtr.far) : 1); // (끝: 주간 진상 특성 — 근접 · 원거리)
+  return (1 + (h.pump || 0)) * buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.tension ? roleCadence(h.id).dmg * wideMul(g) * mileDmg(h.meta) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + cmAtk(h)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * (1 + (g.collAtk || 0)) * old * hc * heroExtraMul(g, h) * (g.wtr && g.wtr.near ? (NEAR_HEROES.includes(h.id) ? g.wtr.near : g.wtr.far) : 1); // (끝: 주간 진상 특성 — 근접 · 원거리)
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
 export function buildMul(g, h) {
@@ -233,7 +234,7 @@ export function heroSpeedMul(h) {
 // 공격 속도 배율: 전투 계산과 화면 표시가 같은 식을 쓴다 (강화·장비·카드·증강·오라·기진맥진·템포 모두)
 export function heroRate(g, h, aura = auraBonus(g, h), sing = 0) {
   const d = h.def;
-  return (h.poisonT > 0 ? KD.poison.spd : 1) * (h.tiredT > 0 ? MOMENTUM.tiredSpd : 1) * (g.tempo ? TEMPO.rate : 1) * (g.tension ? 1 / roleCadence(h.id).iv : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * g.mods.spd * (1 + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) * (h.fanT > 0 ? 1 + (h.fanSpd || 0) : 1) * (h.cheerT > 0 ? 1 + HEROES.gunnyeo.care.cheer.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
+  return (h.poisonT > 0 ? KD.poison.spd : 1) * (h.tiredT > 0 ? MOMENTUM.tiredSpd : 1) * (g.tempo ? TEMPO.rate : 1) * (g.tension ? mileSpd(h.meta) / roleCadence(h.id).iv : 1) * (g.bossSlowT > 0 ? 1 - (g.bossSlowCut || 0.25) : 1) * g.mods.spd * (1 + aura) * heroSpeedMul(h) * TIER_SPD[HERO_TIER[h.id] || 1] * (g.mapFx.heroSpd || 1) * (1 + (g.rallyT > 0 ? g.rallySpd : 0)) * (1 + sing) * (1 + (h.gear.spd || 0)) * (h.evo ? 1 + EVO_MUL.spd : 1) * (h.fanT > 0 ? 1 + (h.fanSpd || 0) : 1) * (h.cheerT > 0 ? 1 + HEROES.gunnyeo.care.cheer.spd : 1) / (h.rage ? d.rageInterval : 1) / (h.alt && d.age ? d.age.slow : 1);
 }
 // 실제 공격 간격 (초): 기본 간격 ÷ 공격 속도 배율 (탄창 무기는 평균)
 export function heroInterval(g, h) {
@@ -1382,7 +1383,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.interestT = def.interest ? def.interest.every : 0; e.interestN = 0; e.loanTaken = 0; e.paperT = def.paper ? 1.6 : 0;
   e.phaseI = -1; e.phaseT = 0; e.auraOn = false;
   e.pukeT = def.puke ? 2 + g.rng() * 2 : 0; e.hurtT = 9; e.split = false; e.grabbing = null; e.grabCd = 0;
-  e.weakT = 0; e.warnN = 0; e.lureT = 0; e.bumped = false; e.cast = null; e.castW = 0; e.pukeAim = false; e.flashH = null; // (10/08) 투척 예고
+  e.slamT = undefined; e.weakT = 0; e.warnN = 0; e.lureT = 0; e.bumped = false; e.cast = null; e.castW = 0; e.pukeAim = false; e.flashH = null; // (10/08) 투척 예고
   e.spitT = def.spit ? def.spit.first + g.rng() * 2 : 0; e.kickT = def.kick ? def.kick.first + g.rng() * 2 : 0;
   // 진상 특성
   const tr = def.traits || {};
@@ -2120,6 +2121,7 @@ function updateEnemies(g, dt) {
       }
       if (e.speechT > 0) { if (e.hitT > 0) e.hitT -= dt; continue; } // 축사 중엔 입구를 안 친다
       if (e.castW > 0) { if (e.hitT > 0) e.hitT -= dt; continue; } // (10/08) 큰 한 방 예고 중
+      if (g.tension && (e.elite || e.mid || e.boss) && !def.kick) { const SL = TENSION.slam; if (e.slamT === undefined) e.slamT = SL.first; if ((e.slamT -= dt) <= 0) { e.slamT = SL.every * (0.85 + g.rng() * 0.3); startCast(g, e, null, { door: true, wind: SL.wind, frac: (e.boss ? SL.boss : e.mid ? SL.mid : SL.elite) * (g.hell ? SL.hell : 1), name: '입구 강타' }); continue; } } // 긴장감: 입구에 붙은 정예 · 중간 보스 · 보스의 '입구 강타' 예고 → 스킬(기절 · 넉백 · 빙결)로 끊으면 안 맞는다
       if (def.kick && !g.pvp && (g.mode !== 'stage' || (g.stage | 0) >= def.kick.from) && (e.kickT -= dt) <= 0) { // 폭력배: 문짝 걷어차기 (예고 → 쾅)
         e.kickT = def.kick.every * (0.9 + g.rng() * 0.2);
         startCast(g, e, null, { door: true, wind: def.kick.wind, mul: def.kick.mul, hit: def.kick.hit, name: def.kick.name });
@@ -2208,7 +2210,7 @@ function castTick(g, e, dt) {
   e.cast = null; e.castW = 0;
   const sp = c.spec;
   if (sp.door) { // 입구 큰 한 방 + 곁 멤버 게이지
-    damageBase(g, e.atk * (sp.mul || 3), e);
+    damageBase(g, sp.frac ? g.base.max * sp.frac : e.atk * (sp.mul || 3), e);
     if (g.kdOn) { const h = nearHero(g, e.x); if (h) kdAdd(g, h, hitKd(sp, e), { src: 'hit' }); }
     ev(g, 'doorKick', { x: e.x, y: g.ropeY, ex: e.x, ey: e.y - e.def.size * 0.5, name: sp.name || '' });
     if (e.def.selfBoom && !e.dead) { e.hp = 0; killEnemy(g, e, null); } // 할로윈 호박 폭탄: 터지면 자기도 (→ 호박씨)

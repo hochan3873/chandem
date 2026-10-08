@@ -120,11 +120,13 @@ export const ULT_LOCK = { cd: 35 };
 export const ROLE_CADENCE = { tank: { iv: 1.6, dmg: 1.6 }, single: { iv: 1.55, dmg: 1.55 }, aoe: { iv: 1.4, dmg: 1.4 }, support: { iv: 1.45, dmg: 1.45 }, ctrl: { iv: 1.35, dmg: 1.35 }, special: { iv: 1.35, dmg: 1.35 }, rapid: { iv: 1.2, dmg: 1.2 }, own: { iv: 1, dmg: 1 } };
 export const CADENCE_HERO = { youngjun: 'rapid', hanna: 'rapid', myunghoon: 'rapid', eunok: 'rapid', staff: 'rapid', hochan: 'own', soyoung: 'own', baul: 'own', jeongseob: 'own' };
 export const roleCadence = (id) => ROLE_CADENCE[CADENCE_HERO[id] || HERO_ROLE[id] || 'special'] || ROLE_CADENCE.own;
-export const TENSION = { crowd: { k: 2, over: 0.2, cap: 3.5 }, door: 0.65, repair: { frac: 0.25, cap: 0.12 }, hp: 1.7, hpFrom: 2, swarmK: 0.3, skill: 3.5, refill: 9,
+export const TENSION = { crowd: { k: 2, over: 0.2, cap: 3.5 }, door: 0.9, espd: 1.25, repair: { frac: 0.2, cap: 0.08 }, hp: 1.7, hpFrom: 2, swarmK: 0.3, skill: 3.5, refill: 9,
   // pick: 레벨업 필요 경험치 ×need (카드 덜 자주) · freeTo 명까지는 합류해도 카드 한 장 더 (예전처럼) · 5 · 6번째 합류는 카드 한 장을 쓴다 · 공짜 합류 카드는 freeWaves 웨이브에만 (예전엔 매 웨이브) · 처음 guarantee 장은 합류 보장
   //   → 좁은 덱 (4명): 카드가 남고 narrow: 빈 칸 하나마다 팀 공격 + (1~2명이 확실한 캐리) / 넓은 덱 (6명): 합류에 카드를 쓰는 대신 wide: 5번째부터 한 명마다 팀 공격 +dmg · 웨이브 사이 입구 수리 +repair (서포트 · 시너지)
+  // slam: 입구에 붙은 정예 · 중간 보스 · 보스가 first 초 뒤부터 every 초마다 '입구 강타' 예고 (wind 초) → 맞으면 입구 최대의 elite/mid/boss (헬 ×hell) · 기절 · 넉백 · 빙결 스킬로 끊으면 0 (스킬 타이밍)
+  slam: { first: 2.5, every: 6, wind: 1.3, elite: 0.05, mid: 0.08, boss: 0.1, hell: 1.3 },
   pick: { need: 1.2, freeWaves: [2, 3], guarantee: 3, freeTo: 4 }, wide: { from: 5, dmg: 0.02, repair: 0.02, narrow: 0.22 },
-  chHp: [0.475, 0.61, 0.65, 0.565, 0.74, 0.685, 0.615, 0.55] }; // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
+  chHp: [1.0, 1.32, 0.975, 0.83, 0.86, 0.82, 0.96, 0.81] }; // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
 export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.15, chHp: [0.89, 0.89, 0.69, 0.82, 0.91, 0.985, 0.63, 0.525] }; // (10/08 진상 리메이크 · 쓰러짐 게이지 · 1웨이브 뒤 큰 한 방 · 기세 2칸 뒤 다시: 1 · 2장 +3% · 3장 −7% · 6장 −3.5% · 7장 +7% · 8장 +5%) chHp: 장마다 체력 다시 맞춤 (stagemeas · 대개편 뒤 1차 · 10/07 쿨 다양화 · 쓰러짐 게이지 뒤 6장 +7% · 7장 −2% · 8장 −2%)
 // 방어율 (장이 깊을수록 진상이 단단 — 한 방마다 %로 깎임): 정예 · 중간 보스 · 보스는 ch 그대로 · 졸개는 fodder 배
 //  방관(pen): 그 멤버 공격은 방어율을 그만큼 뚫는다 (건전남 전부) · 여지원 모자이크 한 겹마다 방어율 shredPer 씩 벗김 (5겹 = 0) · 모자이크 폭격은 전부
@@ -267,8 +269,8 @@ export const SCORE = {
 // ─── 경제 (서버 server/langbang-rules.js 와 숫자가 같아야 한다 — 테스트가 검사) ───
 // 영구 강화 비용: 서버가 최종 결정. 손님은 이 값으로 기기 안에서 강화
 export const META_MAX = 20;
-export function metaCost(lv) {
-  return Math.round((40 * Math.pow(lv + 1, 1.7)) / 10) * 10;
+export function metaCost(lv) { // (10/08) +5 · +10 · +15 · +20 (각성 이정표 META_MILESTONE) 는 두 배 — 장마다 넘는 벽
+  return Math.round((40 * Math.pow(lv + 1, 1.7) * ((lv + 1) % 5 === 0 ? 2 : 1)) / 10) * 10;
 }
 // 아이템: 코인으로 사는 영구 강화 (레벨제)
 export const ITEMS = {
@@ -795,7 +797,7 @@ export function missionOk(m, st) {
 export function condFits(id, conds) { return (conds || []).filter((c) => COND[c] && COND[c].counter.includes(id)); }
 
 // 보상 코인 (서버가 계산 — 여기는 손님 · 화면 표시용 같은 공식)
-export const REWARD = { base: 60, perStage: 18, firstMul: 2, starMul: 0.5 };
+export const REWARD = { base: 60, perStage: 18, firstMul: 1.5, starMul: 0.5 }; // (10/08 첫 클리어 ×2 → ×1.5)
 export function clearCoins(s) { return REWARD.base + REWARD.perStage * (s - 1); }
 // prevStars: 이 스테이지에서 전에 받은 최고 별(0 = 처음), couponLv: 단골 쿠폰 레벨
 export function stageReward(s, stars, prevStars = 0, couponLv = 0, perfect = false, firstPerfect = false) {
@@ -942,11 +944,11 @@ export const HEROES = {
     id: 'gunnyeo', bossKit: 0.8, kit: 1.0, name: '건전녀', gender: 'f', emoji: '🙋‍♀️', color: '#ff8fc0', attr: 'charm',
     img: '/img/lb/h_gunnyeo.webp', role: '멤버 간호 · 상태이상 해제 · 면역 · 입구 조금씩 회복',
     dmg: 30, interval: 1.0, range: 300, proj: 'heart', projSpeed: 1, lobSec: 0.85, splash: 36, arcH: 125, // 하트 폭탄: 높이 휙 (포물선 높이 125)
-    care: { every: [4, 4, 3.6, 3.6, 3.2], tired: [3, 3, 4, 4, 5], guard: [1, 1, 1.5, 1.5, 2], cheer: { sec: 3, spd: 0.3 }, door: [0.008, 0.009, 0.01, 0.011, 0.012] }, // 간호 (10/08: 입구도 간호마다 0.8~1.2% — 초보 입구 지킴이 · 큰 수리 · 바리케이드는 홍정민 몫): [주기(초)] 마다 멤버 상태이상 전부 풀기 · 기진맥진 −초 · 풀어 준 멤버는 잠깐 면역(초) · 챙겨 준 멤버는 "힘내요!" 3초 공속 +30%
+    care: { every: [4, 4, 3.6, 3.6, 3.2], tired: [3, 3, 4, 4, 5], guard: [1, 1, 1.5, 1.5, 2], cheer: { sec: 3, spd: 0.3 }, door: [0.005, 0.0055, 0.006, 0.007, 0.008] }, // 간호 (10/08: 입구도 간호마다 0.5~0.8% — 초보 입구 지킴이 · 큰 수리 · 바리케이드는 홍정민 몫): [주기(초)] 마다 멤버 상태이상 전부 풀기 · 기진맥진 −초 · 풀어 준 멤버는 잠깐 면역(초) · 챙겨 준 멤버는 "힘내요!" 3초 공속 +30%
     attack: '하트 폭탄 — 가까이 온 진상에게 천천히 던지는 작은 폭탄. 진짜 가치는 간호: 틈틈이 입구를 조금씩 고치고 멤버 상태이상을 전부 풀고 (풀린 멤버는 잠깐 면역) 스킬 쓰고 지친 멤버(기진맥진)를 일으킨다 · 챙겨 준 멤버는 "힘내요!" 3초 공격 속도 +30% (아픈 멤버가 없으면 제일 잘 싸우는 멤버에게)',
     desc: '다정한 간호사. 한 방은 약하지만 기절 · 홀림 · 침묵에 걸린 멤버를 제일 먼저 챙기고, 스킬 쓰고 지친 멤버에게 물 한 잔 건넨다.',
     perks: { 3: '간호가 더 자주 · 면역 더 길게 · 폭발 범위 +', 5: '모든 멤버 홀림 면역 ("철벽!")' },
-    skill: { id: 'firstaid', name: '응급 방패', cd: 14, desc: '멤버 전원에게 하트 방패 — 상태이상 전부 해제 · 입구 7~12% 회복 · 기진맥진도 풀림 · 3초 동안 상태이상 면역 (Lv3 3.5초 · Lv5 4초) · "힘내요!" 4초 공격 속도 +30% · 다른 멤버 스킬 쿨타임 −1초', imm: [3, 3, 3.5, 3.5, 4], cdCut: 1, door: [0.07, 0.08, 0.09, 0.1, 0.12] }, // (10/08 입구도 7~12% 고침) // (쿨 다양화: 24 → 14초 · 자주 푸는 해제 담당)
+    skill: { id: 'firstaid', name: '응급 방패', cd: 14, desc: '멤버 전원에게 하트 방패 — 상태이상 전부 해제 · 입구 6~10% 회복 · 기진맥진도 풀림 · 3초 동안 상태이상 면역 (Lv3 3.5초 · Lv5 4초) · "힘내요!" 4초 공격 속도 +30% · 다른 멤버 스킬 쿨타임 −1초', imm: [3, 3, 3.5, 3.5, 4], cdCut: 1, door: [0.06, 0.065, 0.07, 0.08, 0.1] }, // (10/08 입구도 6~10% 고침) // (쿨 다양화: 24 → 14초 · 자주 푸는 해제 담당)
   },
   // ── 해금 영웅 (스테이지를 깨면 합류) ──
   myunghoon: {
@@ -1258,7 +1260,13 @@ export const NICHE = {
 };
 export const RES_PER_META = 0.015, RES_MAX = 0.35; // 영구 강화 1레벨 = 상태이상(기절 · 홀림 · 감속 등) 시간 -1.5% (장비와 합쳐 최대 -35%)
 export const resOf = (meta, gearRes) => Math.min(RES_MAX, (meta || 0) * RES_PER_META + (gearRes || 0));
+// 강화 이정표 (10/08 · 강화 체감): +5 · +10 · +15 · +20 마다 공격 +dmg · 공격 속도 +spd 를 한 번 더 (한 칸 한 칸은 그대로 + 다섯 칸마다 '확' 세짐) — 일반 스테이지 · 헬 · 화면 전투력
+export const META_MILESTONE = { every: 5, dmg: 0.1, spd: 0.04, name: ['', '각성 I', '각성 II', '각성 III', '각성 IV'] };
+export const metaMile = (meta) => Math.floor(Math.max(0, meta || 0) / META_MILESTONE.every);
+export const mileDmg = (meta) => 1 + META_MILESTONE.dmg * metaMile(meta);
+export const mileSpd = (meta) => 1 + META_MILESTONE.spd * metaMile(meta);
 export const tierPower = (t, meta) => TIER_MUL[t] * TIER_SPD[t] * (1 + TIER_GROWTH[t] * meta);
+export const tierPowerM = (t, meta) => tierPower(t, meta) * mileDmg(meta) * mileSpd(meta); // 이정표 포함 (스테이지 · 헬 전투력 · 강화 화면) — 대전 · 레이드는 tierPower 그대로
 export const TIER_NAME = ['', 'T1', 'T2', 'T3', 'T4', 'LEGEND'];
 export const heroTier = (id) => HERO_TIER[id] || 1;
 export const metaMaxOf = (id) => TIER_MAX[heroTier(id)];
@@ -2232,7 +2240,7 @@ export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
 for (const t of Object.keys(GEAR)) GEAR[t].img = GEAR[t].hero ? (SIG_ART_TODO.has(GEAR[t].hero) ? `/img/lb/dexhq/thumb/${GEAR[t].hero}.webp` : `/img/lb/gear/myth_${GEAR[t].hero}.webp`) : `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;
 // 드롭 표 (모든 콘텐츠) — 숫자는 실제 규칙(rollDrops · rollHeroCard · live.js 보상)과 같다
 export const DROPS = [
-  ['스테이지 클리어', '장비 1개 (일반 70 · 희귀 24+0.4×스테이지 · 영웅 5+0.35× · 전설 0.6+0.08×) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%)', '강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
+  ['스테이지 클리어', '장비 1개 (일반 70 · 희귀 10+0.5×스테이지 · 영웅 (스테이지−8)×0.28 · 전설 (스테이지−25)×0.06) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%)', '강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
   ['헬', '장비 +1개 · 일반 없음 · 영웅·전설 ×2', '멤버 카드 ×2 확률', '강화석 ×2 · 코인 ×3'],
   ['무한 도전', '달성 우편 10/20/30/40/50웨이브 (주마다): 모집권 1~5 · 50웨이브 신화 장비', '주간 순위: 1위 전설 장비 · TOP3 영웅 장비 · TOP10 모집권 2', ''],
   ['레이드', '참가 코인 · 강화석 2 · 1위 전설 장비 · 2~3위 영웅 장비', 'TOP10 모집권', ''],
@@ -2293,7 +2301,7 @@ export function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = fals
   let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
   const out = [];
   for (let i = 0; i < n; i++) {
-    const w = { common: 70, rare: 24 + stage * 0.4, epic: 5 + stage * 0.35, legend: 0.6 + stage * 0.08 };
+    const w = { common: 70, rare: 10 + stage * 0.5, epic: Math.max(0.5, (stage - 8) * 0.28), legend: Math.max(0.1, (stage - 25) * 0.06) }; // (10/08 장에 맞게: 예전 rare 24+0.4s · epic 5+0.35s · legend 0.6+0.08s — 2장에 희귀가 너무 자주)
     if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
     if (firstPerfect && i === 0) w.common = 0;
     if (hell) { w.common = 0; w.epic *= 2; w.legend *= 2; }

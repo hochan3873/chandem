@@ -113,6 +113,9 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       const boss = g.enemies.find((e) => !e.dead && e.def.avalanche && e.y > 0);
       if (boss && boss.avaT < 4 && g.base.hp / g.base.max > 0.35) return;
     }
+    // 입구 강타 예고(긴장감): 찍는 스킬로 끊는다 (사람도 빨간 예고를 보면 누른다)
+    const slam = g.enemies.find((e) => !e.dead && e.cast && e.cast.spec.door && e.cast.t < e.cast.max - 0.3);
+    if (slam) for (const h of g.heroes) if (S.skillReady(h) && h.def.skill.target && S.castSkill(g, h, slam.x, slam.y)) return;
     for (const h of g.heroes) {
       if (!S.skillReady(h)) continue;
       const sk = h.def.skill;
