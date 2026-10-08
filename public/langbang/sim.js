@@ -63,6 +63,7 @@ export function createGame(opt = {}) {
     level: 1, exp: 0, need: 0, pendingLevels: welcome, welcomePicks: welcome,
     grow: mode === 'stage' && !wk && !opt.pvp && !opt.raid && !opt.tower, mainOn: mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower, // 큰 카드 · 덜 잦은 레벨업 (일반 스테이지 · 헬) · 주력 2명 (+ 주간 도전)
     slow: !!opt.tempo && mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower, // 느린 판 (SLOW_RUN): 스테이지 · 주간 · 헬
+    fewPick: !!opt.tempo && mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower && !evd && (!wk || wk.v === 2), wkPick: !!(wk && wk.v === 2 && opt.tempo && !opt.raid && !opt.pvp), // (10/09) 고르기 줄이기: 일반 스테이지 · 헬 · 주간 도전 — 합류 자동 · 증강 두 번 · 카드 크게
     tension: !!opt.tempo && mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower && !wk && !evd, // 긴장감 (TENSION): 일반 스테이지 · 헬만 (주간 · 이벤트 · 대전 · 레이드 · 탑은 따로 맞춘 모드라 그대로)
     joinPool: [], joinTotal: 0, joinMode: false, leader: null, pickN: 0, rollN: 0, tempo: !!opt.tempo,
     mom: opt.tempo && !opt.raid ? MOMENTUM.max : null, lastSkillT: -9, skillQ: null, // 기세 (템포에서만)
@@ -1529,8 +1530,8 @@ export function damageEnemy(g, e, dmg, crit, src, aoe, flank) {
       ev(g, 'lieBreak', { x: e.x, y: e.y - e.def.size * 0.6 });
     }
   }
-  if (g.tension && e.boss && !e.mid && e.phT0 !== undefined && dmg > 0) { // 보스 페이즈 잠금 (10/08 '길고 굵게'): 한 페이즈는 최소 phaseMin 초 — 그 전엔 다음 문턱 아래로 안 내려간다 ('버틴다!')
-    const BW = TENSION.bossWave, n = e.phN | 0, floor = n < BW.phases.length ? e.maxHp * (BW.phases[n] + 0.003) : 1, min = (((g.stage - 1) % 10) + 1 === 10 ? BW.phaseMin.last : BW.phaseMin.mid) * (g.hell ? BW.hellPhase : 1);
+  if (g.tension && e.boss && !e.mid && !e.second && e.phT0 !== undefined && dmg > 0) { // 보스 페이즈 잠금 (10/08 '길고 굵게'): 한 페이즈는 최소 phaseMin 초 — 그 전엔 다음 문턱 아래로 안 내려간다 ('버틴다!')
+    const BW = TENSION.bossWave, n = e.phN | 0, floor = n < BW.phases.length ? e.maxHp * (BW.phases[n] + 0.003) : 1, min = (((g.stage - 1) % 10) + 1 === 10 ? BW.phaseMin.last : BW.phaseMin.mid) * (g.hell ? BW.hellPhase : 1) * ((BW.phaseMinCh || [])[chapterOf(g.stage || 1) - 1] || 1);
     if (g.t - e.phT0 < min && e.hp - dmg < floor) { dmg = Math.max(0, e.hp - floor); if (g.t - (e.holdT || -9) > 1.5) { e.holdT = g.t; ev(g, 'bossHold', { x: e.x, y: e.y - e.def.size * 0.7 }); } }
   }  e.hp -= dmg;
   if (e.raidBoss) g.raid.dmg += dmg;
@@ -1834,7 +1835,7 @@ function updateEnemies(g, dt) {
   for (const e of g.enemies) {
     if (e.dead) continue;
     if (g.tension) ccResist(g, e, dt);
-    if (g.tension && e.boss && !e.mid) { if (e.phT0 === undefined && e.y > 0) e.phT0 = g.t; bossPhase(g, e, dt); }
+    if (g.tension && e.boss && !e.mid && !e.second) { if (e.phT0 === undefined && e.y > 0) e.phT0 = g.t; bossPhase(g, e, dt); }
     const def = e.def;
     e.age += dt;
     e.kbAge += dt;
@@ -2184,7 +2185,7 @@ function updateEnemies(g, dt) {
         startCast(g, e, null, { door: true, wind: def.kick.wind, mul: def.kick.mul, hit: def.kick.hit, name: def.kick.name });
         continue;
       }
-      if (g.tension && e.boss && !e.mid && (e.phN | 0) < TENSION.bossWave.phases.length) { if (e.hitT > 0) e.hitT -= dt; continue; } // 보스 페이즈 중엔 떨어져서 기술로만 (마지막 페이즈에 입구로)
+      if (g.tension && e.boss && !e.mid && !e.second && (e.phN | 0) < TENSION.bossWave.phases.length) { if (e.hitT > 0) e.hitT -= dt; continue; } // 보스 페이즈 중엔 떨어져서 기술로만 (마지막 페이즈에 입구로)
       e.atkCd -= dt * (e.rushT > 0 ? CH8.rushAtk : 1); // (8장 실장님 재촉: 입구를 더 빨리)
       if (e.atkCd <= 0) {
         e.atkCd = e.fast ? BAL.fast.atkInt : def.atkInterval; // 빠른 진상: 입구에 붙으면 빠르게 세게
@@ -3388,7 +3389,7 @@ function updateGems(g, dt) {
 }
 // 자동 합류 (10/09 긴장감 · 일반 스테이지 · 헬): 합류는 카드가 아니라 정해진 때 덱 순서대로 저절로 — 고르는 횟수를 줄이고 레벨업 카드는 전부 '세지는' 카드로
 //  1웨이브 TENSION.pick.auto 초마다 한 명 · 2웨이브부터 웨이브가 시작될 때 한 명씩 (넓은 덱의 5 · 6번째 멤버는 늦게 온다 = 넓은 덱의 값)
-export const autoJoinOn = (g) => !!(g && g.joinMode && g.tension && TENSION.pick.auto);
+export const autoJoinOn = (g) => !!(g && g.joinMode && (g.tension || g.fewPick) && TENSION.pick.auto);
 export function autoJoinNext(g) {
   if (!g.joinPool || !g.joinPool.length) return null;
   let at = 0; for (let i = 1; i < g.joinPool.length; i++) if (SLOT_ORDER.indexOf(g.joinPool[i].slot) < SLOT_ORDER.indexOf(g.joinPool[at].slot)) at = i; // 가운데 자리부터 (가운데 = 덱의 핵심 자리)
@@ -3399,7 +3400,7 @@ export function autoJoinNext(g) {
 }
 // 다음 레벨업까지 필요한 경험치 (합류 모드는 앞 레벨업이 빠르게 · 2장부터 ×1.6 · 일반 스테이지는 레벨업이 덜 잦은 대신 카드가 크게)
 export function expNeedFor(g, lv, join) {
-  return Math.round(expNeed(lv) * EXP_NEED_MUL * (join && !(g.tension && TENSION.pick.auto) ? JOIN.exp[lv - 1] || JOIN.expLate : 1) * (g.mode === 'stage' && chapterOf(g.stage || 1) >= 2 ? BAL.expCh2 : 1) * (g.grow ? GROW.need : 1) * (g.tension ? TENSION.pick.need * ((TENSION.pick.chNeed || [])[chapterOf(g.stage || 1) - 1] || 1) : 1));
+  return Math.round(expNeed(lv) * EXP_NEED_MUL * (join && !((g.tension || g.fewPick) && TENSION.pick.auto) ? JOIN.exp[lv - 1] || JOIN.expLate : 1) * (g.mode === 'stage' && chapterOf(g.stage || 1) >= 2 ? BAL.expCh2 : 1) * (g.grow ? GROW.need : 1) * (g.tension ? TENSION.pick.need * ((TENSION.pick.chNeed || [])[chapterOf(g.stage || 1) - 1] || 1) : 1) * (g.wkPick ? TENSION.pick.wk.need * ((TENSION.pick.wk.ch || [])[chapterOf(g.stage || 1) - 1] || 1) : 1));
 }
 export function gainExp(g, v) {
   g.exp += v;
@@ -3408,6 +3409,7 @@ export function gainExp(g, v) {
     g.level++;
     g.need = expNeedFor(g, g.level, g.joinMode);
     g.pendingLevels++;
+    if (g.wkPick && TENSION.pick.wk.lvAll) for (const h of g.heroes) if (!h.def.summon && h.lv < 5 && canGrow(g, h)) { h.lv++; ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y }); } // (10/09 주간: 고르기를 줄인 대신 레벨업마다 멤버 전원 Lv+1 — 작은 레벨업 여러 번을 하나로)
     ev(g, 'levelup', { level: g.level });
   }
 }
@@ -3536,7 +3538,7 @@ export function startWave(g, n) {
   if (autoJoinOn(g) && n >= 2) for (let k = 0; k < (TENSION.pick.perWave || 1); k++) autoJoinNext(g);
   else if (g.joinMode && g.mode === 'stage' && n >= 2 && g.joinPool.length && (!g.tension || TENSION.pick.freeWaves.includes(n))) { g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); }
   if (g.mode === 'endless' && n > 1 && (n - 1) % 5 === 0 && !g.pvp) offerCurse(g);
-  if (g.tension && TENSION.pick.augW) { if (TENSION.pick.augW[n]) offerAug(g, TENSION.pick.augW[n]); } // (긴장감: 증강은 TENSION.pick.augW 웨이브에만 — 고르는 횟수 줄이기)
+  if ((g.tension || g.wkPick) && TENSION.pick.augW) { const AW = g.wkPick ? TENSION.pick.wk.augW : TENSION.pick.augW; if (AW[n]) offerAug(g, AW[n]); } // (긴장감: 증강은 TENSION.pick.augW 웨이브에만 — 고르는 횟수 줄이기)
   else if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 4].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism'); // 프리즘은 4웨이브 (5 → 4: 늦게 떠서 체감이 적었음)
   const def = waveDefFor(g, n);
   if (g.wk) g.wk.waveStart(g, n, def); // 주간: 웨이브 사건 알림 · 저주 웨이브 규칙
@@ -3594,7 +3596,7 @@ export function startWave(g, n) {
   if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true, bossHp: def.bossHp });
   if (def.boss && g.twinBoss) q.push({ type: def.boss, at: 3.5, boss: true }); // 저주 계약 '보스 둘'
   if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true, bossHp: def.midHp }); // (midHp: 할로윈 이벤트 — 머릿수를 줄인 체력 보정을 중간 보스는 빼고)
-  if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? (g.slow ? 22 : 14) : 26, boss: true, bossHp: def.boss2Hp });
+  if (def.boss2) q.push({ type: def.boss2, at: g.mode === 'stage' ? (g.slow ? 22 : 14) : 26, boss: true, bossHp: def.boss2Hp, second: true });
   if (g.wk) g.wk.shapeQ(g, def, q); // 주간: 기습(옆길) · 보물 도둑 · 계약 정예
   g.waveFodder = [...new Set(q.filter((o) => !o.boss && !o.elite && ENEMIES[o.type] && !ENEMIES[o.type].boss && !ENEMIES[o.type].mid).map((o) => o.type))];
   if (g.tension && def.boss && [5, 10].includes(((g.stage - 1) % 10) + 1)) { let k = 0; for (let i = q.length - 1; i >= 0; i--) if (!q[i].boss && !q[i].elite && (k++ % Math.round(1 / TENSION.bossWave.filler)) !== 0) q.splice(i, 1); } // 보스 웨이브: 졸개는 덜 (보스가 주인공)
@@ -4320,6 +4322,7 @@ export function step(g, dt) {
       const s = q[g.spawnI++];
       const e = spawnEnemy(g, s.type, s.boss ? g.W / 2 : s.x, s.boss ? -60 : undefined, s.hpX || s.elite ? { hpX: s.hpX, elite: s.elite } : undefined);
       alive++;
+      if (s.second) e.second = true; // (10/09) 두 번째 보스: 페이즈 · 떨어져 싸우기 없이 (보스 둘이 각각 페이즈를 돌며 150초+ 늘어지던 것)
       if (s.bossHp) { e.maxHp *= s.bossHp; e.hp = e.maxHp; } // 보스를 바꾼 스테이지: 예전 난이도에 맞춘 체력 (data.js STAGE_BOSS_HP)
       if (g.wk) g.wk.onSpawn(g, e, s); // 주간: 방패 부대 · 보물 도둑 · 최종 보스 단계
       if (g.raid && s.boss && !s.mid && !g.raid.boss) { g.raid.boss = e; e.raidBoss = true; e.maxHp = e.hp = 1e12; }
@@ -4401,7 +4404,7 @@ function heroCardDesc(def, next, add = 0) { // add: 큰 카드 (일반 스테이
 // ─── 큰 카드 · 주력 ───
 // 큰 카드: 일반 카드의 % 효과 × GROW.card (설명 숫자도 같이)
 // n: 이미 고른 같은 카드 수 → 큰 카드 모드(일반 스테이지 · 헬)에선 겹칠수록 덜 (GROW.rep)
-export const cardK = (g, n = 0) => (g && g.grow ? GROW.card * GROW.rep[Math.min(n, GROW.rep.length - 1)] * (g.tension ? TENSION.card : 1) : 1); // (긴장감: 한 판 눈덩이를 덜 — 카드 % ×TENSION.card)
+export const cardK = (g, n = 0) => (g && g.grow ? GROW.card * GROW.rep[Math.min(n, GROW.rep.length - 1)] * (g.tension ? TENSION.card : 1) : g && g.wkPick ? TENSION.pick.wk.card * GROW.rep[Math.min(n, GROW.rep.length - 1)] : 1); // (주간: 고르기를 줄인 만큼 카드 ×wk.card) // (긴장감: 한 판 눈덩이를 덜 — 카드 % ×TENSION.card)
 export const bigDesc = (desc, k) => (k === 1 ? desc : desc.replace(/(\d+(?:\.\d+)?)%/g, (_, n) => `${Math.round(Number(n) * k)}%`));
 // 주력: 한 판에 Lv3 을 넘길 수 있는 멤버는 MAIN.n 명 (먼저 Lv3 을 넘긴 순서)
 export const mainCount = (g) => g.heroes.filter((h) => h.main).length;

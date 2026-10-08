@@ -284,11 +284,11 @@ export const WEEKLY_WAVES = 8;
 // 리그: 가장 멀리 깬 스테이지로 정한다 (진상 구성 · 레벨이 리그마다 다름) · 점수 배율은 판이 어려운 만큼 조금만
 //  (리그마다 따로 순위를 매기면 참가자가 적어 쓸쓸해서 → 한 순위표 + 리그 배율 · 같은 실력이면 위 리그가 조금 앞서게)
 export const WEEKLY_TIERS = [
-  { id: 1, name: '새싹', from: 5, pool: [3, 8], mul: 1, lv: [3, 15], hp: 1.35 },
-  { id: 2, name: '단골', from: 11, pool: [9, 18], mul: 1.08, lv: [4, 19], hp: 2.1 },
-  { id: 3, name: '고수', from: 26, pool: [21, 30], mul: 1.16, lv: [5, 22], hp: 1.35 },
-  { id: 4, name: '달인', from: 46, pool: [41, 52], mul: 1.24, lv: [12, 36], hp: 2.9 }, // (10/09 3.6 → 2.9: 고아라 템포 하향만큼 · lb-weekly-sim --calib=t4)
-  { id: 5, name: '전설', from: 66, pool: [61, 74], mul: 1.32, lv: [10, 34], hp: 1.9 }, // (10/09 2 → 1.9 · --calib=t5)
+  { id: 1, name: '새싹', from: 5, pool: [3, 8], mul: 1, lv: [3, 15], hp: 1.6 }, // (10/09 주간 고르기 줄이기 뒤 재맞춤 · --calib)
+  { id: 2, name: '단골', from: 11, pool: [9, 18], mul: 1.08, lv: [4, 19], hp: 2.2 },
+  { id: 3, name: '고수', from: 26, pool: [21, 30], mul: 1.16, lv: [5, 22], hp: 1.65 },
+  { id: 4, name: '달인', from: 46, pool: [41, 52], mul: 1.24, lv: [12, 36], hp: 3.3 }, // (10/09 고아라 하향 · 주간 고르기 줄이기 뒤 --calib)
+  { id: 5, name: '전설', from: 66, pool: [61, 74], mul: 1.32, lv: [10, 34], hp: 2.6 },
 ];
 export const weeklyTier = (maxStage) => { let t = 1; for (const x of WEEKLY_TIERS) if ((maxStage | 0) >= x.from) t = x.id; return t; };
 export const weeklyTierDef = (t) => WEEKLY_TIERS[Math.max(1, Math.min(WEEKLY_TIERS.length, t | 0 || 1)) - 1];
