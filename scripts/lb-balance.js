@@ -55,7 +55,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
   //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
-  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension'].includes(what) && !args.includes('--pro');
+  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat'].includes(what) && !args.includes('--pro');
   const FOES = what === 'foes';
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
@@ -156,7 +156,8 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       if (g.pendingLevels > 0 && g.pickAt === undefined) g.pickAt = g.t + (g.welcomePicks > 0 ? 0 : PICK_DELAY * (0.75 + pr() * 0.5));
       if (g.pendingLevels > 0 && g.t >= g.pickAt) {
         const cards = S.rollCards(g), c = cards[pickCard(g, cards, pr)];
-        g._pk = g._pk || {}; g._pk[c.kind] = (g._pk[c.kind] || 0) + 1; // 고른 카드 종류 (growth 측정용)
+        g._pk = g._pk || {}; { const kk = g.welcomePicks > 0 ? 'welcome' : c.kind; g._pk[kk] = (g._pk[kk] || 0) + 1; } // 고른 카드 종류 (growth 측정용)
+        { const key = (x) => x.kind === 'global' || x.kind === 'filler' ? x.id : x.kind; g._off = g._off || []; g._got = g._got || []; for (const x of cards) g._off.push(key(x)); g._got.push(key(c)); } // (카드 고른 비율 · 고르면 이기나: --cardstat)
         S.applyCard(g, c);
         g.pendingLevels--;
         if (g.welcomePicks > 0) g.welcomePicks--;
@@ -864,10 +865,10 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     const runs = [];
     for (let i = 1; i <= N; i++) {
       const tr = [];
-      let nextT = 0, lastK = 0, firstHit = -1, t75 = -1, ccA = 0, ccN = 0;
+      let nextT = 0, lastK = 0, firstHit = -1, t75 = -1, ccA = 0, ccN = 0, nAug = 0;
       const hits = [];
       const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...refOf(s, ids), ...BOTS[bot].o,
-        onEvents: (g, evs) => { for (const e of evs) if (e.type === 'baseHit' && e.v > 0) hits.push([e.v / g.base.max * 100, e.by, Math.round(g.t)]); },
+        onEvents: (g, evs) => { for (const e of evs) { if (e.type === 'baseHit' && e.v > 0) hits.push([e.v / g.base.max * 100, e.by, Math.round(g.t)]); else if (e.type === 'augOffer') nAug++; } },
         onStep: (g) => {
           const f = g.base.hp / g.base.max;
           if (firstHit < 0 && f < 0.999) firstHit = g.t;
@@ -878,7 +879,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       const minHp = tr.reduce((m, x) => Math.min(m, x[1]), 100);
       const G = r.g, hs = G.heroes.filter((h) => !h.def.summon), lvF = hs.reduce((a, h) => a + D.LEVEL_DMG[h.lv - 1] / D.LEVEL_INTERVAL[h.lv - 1], 0) / Math.max(1, hs.length);
       const grow = { dmg: G.mods.dmg, spd: G.mods.spd, lvF, n: hs.length, wave: r.wave };
-      runs.push({ cc: ccN ? ccA / ccN : 0, grow, hits, win: r.win, hp: r.hp, t: r.t, firstHit, t75, minHp, tr, skills: r.g.stats.skills || 0, wave: r.wave });
+      runs.push({ off: r.g._off || [], got: r.g._got || [], pk: Object.assign({ aug: nAug }, r.g._pk || {}), cc: ccN ? ccA / ccN : 0, grow, hits, win: r.win, hp: r.hp, t: r.t, firstHit, t75, minHp, tr, skills: r.g.stats.skills || 0, wave: r.wave });
     }
     return runs;
   }
@@ -905,11 +906,26 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       const hp = w.map((x) => x.hp * 100), col = l.map((x) => x.t - (x.t75 >= 0 ? x.t75 : x.t));
       const tense = runs.filter((x) => x.minHp >= 30 && x.minHp <= 80).length / runs.length;
       if (args.includes('--hits')) { const H = runs.flatMap((x) => x.hits); const by = {}; for (const h of H) by[h[1]] = (by[h[1]] || 0) + h[0]; console.log(`   한 대 크기(입구 %) 50/90/99: ${[0.5, 0.9, 0.99].map((f) => q(H.map((h) => h[0]), f).toFixed(1)).join('/')} · 판당 ${Math.round(H.length / runs.length)}대 · 몫 ${Object.entries(by).sort((a, b2) => b2[1] - a[1]).slice(0, 6).map(([k, v]) => k + ' ' + Math.round(v / runs.length)).join(' ')}`); }
+      if (args.includes('--picks')) { const K = {}; for (const x of runs) for (const [k, v] of Object.entries(x.pk)) K[k] = (K[k] || 0) + v / runs.length; const tot = Object.entries(K).reduce((a, [k, v]) => a + (k === 'welcome' ? 0 : v), 0), card = tot - (K.aug || 0), mins = runs.reduce((a, x) => a + x.t, 0) / runs.length / 60; console.log(`   판 중 고르기 ${tot.toFixed(1)}번/판 (카드 ${card.toFixed(1)} · 증강 ${(K.aug || 0).toFixed(1)} · 시작 전 웰컴 ${(K.welcome || 0).toFixed(1)} 따로) · 분당 ${(tot / mins).toFixed(2)} · 카드 간격 ${Math.round(mins * 60 / Math.max(0.1, tot))}초 · ` + Object.entries(K).filter(([k]) => k !== 'aug').sort((a, b2) => b2[1] - a[1]).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' ')); }
       if (args.includes('--grow')) { const gw = runs.filter((x) => x.win).map((x) => x.grow); if (gw.length) { const av = (f) => gw.reduce((a, x) => a + f(x), 0) / gw.length; console.log(`   한 판 성장 (이긴 판 끝): 공격 ×${av((x) => x.dmg).toFixed(2)} · 공속 ×${av((x) => x.spd).toFixed(2)} · 멤버 레벨 몫 ×${av((x) => x.lvF).toFixed(2)} · 합계 ×${av((x) => x.dmg * x.spd * x.lvF).toFixed(2)} · ${av((x) => x.n).toFixed(1)}명`); } }
       console.log(`${c}장 ${pad(BOTS[b].label, 8)} 클리어 ${pad(Math.round((w.length / runs.length) * 100) + '%', 5)} 남은입구 ${hp.length ? [0.25, 0.5, 0.75].map((f) => Math.round(q(hp, f))).join('/') : '-'} · 90%+ ${hp.length ? Math.round((hp.filter((v) => v >= 90).length / hp.length) * 100) : '-'}% · 붕괴 ${col.length ? Math.round(q(col, 0.5)) + '초' : '-'} · 긴장 ${Math.round(tense * 100)}% · 스킬 ${Math.round(runs.reduce((a, x) => a + x.skills, 0) / runs.length)}번 · 제어 ${Math.round(runs.reduce((a, x) => a + x.cc, 0) / runs.length * 100)}% · 시간 ${Math.round(runs.reduce((a, x) => a + x.t, 0) / runs.length)}초`);
     }
   }
   if (what === 'tension') tension();
+  // 카드 고른 비율 · 고른 판 vs 안 고른 판 클리어율 (node scripts/lb-balance.js cardstat --list=... --bots=smart [--seeds=N])
+  if (what === 'cardstat') {
+    const N = opt('seeds', 6), bot = listArg('bots', 'smart')[0], st = {};
+    let all = 0, allW = 0;
+    for (const s of listArg('list', '3,5,13,15,23,25,33,35,43,45,53,55').map(Number)) for (const x of botRun(s, bot, N, args.includes('--hell'))) {
+      all++; if (x.win) allW++;
+      const offered = new Set(x.off), got = new Set(x.got);
+      for (const k of x.off) (st[k] || (st[k] = { off: 0, got: 0, runsOff: 0, runsGot: 0, wGot: 0, wNot: 0, runsNot: 0 })).off++;
+      for (const k of x.got) st[k].got++;
+      for (const k of offered) { const o = st[k]; o.runsOff++; if (got.has(k)) { o.runsGot++; if (x.win) o.wGot++; } else { o.runsNot++; if (x.win) o.wNot++; } }
+    }
+    console.log(`카드 통계 (${bot} · 판 ${all} · 클리어 ${Math.round(allW / all * 100)}%) — 뜬 횟수 · 고른 비율 · 고른 판 클리어 vs 떴는데 안 고른 판 클리어`);
+    for (const [k, o] of Object.entries(st).sort((a, b) => b[1].got / b[1].off - a[1].got / a[1].off)) console.log(`${pad(k, 16)} 뜸 ${pad(o.off, 5)} 고름 ${pad(Math.round(o.got / o.off * 100) + '%', 5)} 고른 판 ${o.runsGot ? Math.round(o.wGot / o.runsGot * 100) + '%' : '-'}(${o.runsGot}) · 안 고른 판 ${o.runsNot ? Math.round(o.wNot / o.runsNot * 100) + '%' : '-'}(${o.runsNot})`);
+  }
   // ── 15) 아무 덱이나 (node scripts/lb-balance.js custom --list=61,62 --decks=donghan+ara+...|... [--m=15] [--lm=20] [--seeds=N] [--hell])
   //  덱마다 클리어율 · 피해 몫 (lm: LEGEND 강화 · 7장처럼 아이템 넉넉히)
   function custom() {

@@ -82,7 +82,7 @@ export const LESSONS = [
     { id: 'pick', at: '.aug-box .ab-list', point: '.aug-box [data-aug]', hand: 'tap', say: '<b>증강</b>이에요! 셋 중 <b>하나</b>를 골라요.<br>이번 판 내내 세져요', hold: 0, ok: (c) => !c.aug },
   ] },
   { id: 'cards', need: 'on', react: true, when: (c) => play(c) && c.cards && !c.aug, scope: play, beats: [
-    { id: 'pick', at: '#cardstrip .card-list', point: '#cardstrip [data-act="pick"]', hand: 'tap', say: '<b>레벨업!</b> 카드 <b>한 장</b>을 골라요.<br>새 멤버가 합류하거나 멤버가 세져요', hold: 0, ok: (c) => !c.cards, on: 'card' },
+    { id: 'pick', at: '#cardstrip .card-list', point: '#cardstrip [data-act="pick"]', hand: 'tap', say: '<b>레벨업!</b> 카드 <b>한 장</b>을 골라요.<br>멤버나 팀 전체가 크게 세져요 (한 판에 몇 장 안 와요)', hold: 0, ok: (c) => !c.cards, on: 'card' },
   ] },
   { id: 'speed', need: 'on', after: ['b1'], when: (c) => stageRun(c) && c.speedOk && c.t > 25 && calm(c), scope: play, beats: [
     { id: 'tap', at: '#btn-speed', hand: 'tap', say: '답답하면 <b>×2</b>! 누르면 두 배로 빨라져요<br><small>한 번 더 누르면 다시 ×1</small>', hold: 0, on: 'speed', tap: 'target' },

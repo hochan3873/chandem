@@ -3386,9 +3386,20 @@ function updateGems(g, dt) {
   }
   list.length = j;
 }
+// 자동 합류 (10/09 긴장감 · 일반 스테이지 · 헬): 합류는 카드가 아니라 정해진 때 덱 순서대로 저절로 — 고르는 횟수를 줄이고 레벨업 카드는 전부 '세지는' 카드로
+//  1웨이브 TENSION.pick.auto 초마다 한 명 · 2웨이브부터 웨이브가 시작될 때 한 명씩 (넓은 덱의 5 · 6번째 멤버는 늦게 온다 = 넓은 덱의 값)
+export const autoJoinOn = (g) => !!(g && g.joinMode && g.tension && TENSION.pick.auto);
+export function autoJoinNext(g) {
+  if (!g.joinPool || !g.joinPool.length) return null;
+  let at = 0; for (let i = 1; i < g.joinPool.length; i++) if (SLOT_ORDER.indexOf(g.joinPool[i].slot) < SLOT_ORDER.indexOf(g.joinPool[at].slot)) at = i; // 가운데 자리부터 (가운데 = 덱의 핵심 자리)
+  const j = g.joinPool.splice(at, 1)[0];
+  const h = addHero(g, j.id, j.slot);
+  if (h) { h.joinT = 0; ev(g, 'join', { hero: h.id, x: h.x, y: h.y, left: g.joinPool.length, auto: true }); }
+  return h;
+}
 // 다음 레벨업까지 필요한 경험치 (합류 모드는 앞 레벨업이 빠르게 · 2장부터 ×1.6 · 일반 스테이지는 레벨업이 덜 잦은 대신 카드가 크게)
 export function expNeedFor(g, lv, join) {
-  return Math.round(expNeed(lv) * EXP_NEED_MUL * (join ? JOIN.exp[lv - 1] || JOIN.expLate : 1) * (g.mode === 'stage' && chapterOf(g.stage || 1) >= 2 ? BAL.expCh2 : 1) * (g.grow ? GROW.need : 1) * (g.tension ? TENSION.pick.need : 1));
+  return Math.round(expNeed(lv) * EXP_NEED_MUL * (join && !(g.tension && TENSION.pick.auto) ? JOIN.exp[lv - 1] || JOIN.expLate : 1) * (g.mode === 'stage' && chapterOf(g.stage || 1) >= 2 ? BAL.expCh2 : 1) * (g.grow ? GROW.need : 1) * (g.tension ? TENSION.pick.need * ((TENSION.pick.chNeed || [])[chapterOf(g.stage || 1) - 1] || 1) : 1));
 }
 export function gainExp(g, v) {
   g.exp += v;
@@ -3522,9 +3533,11 @@ export function tapBag(g, x, y) {
 export function startWave(g, n) {
   g.wave = n;
   // 합류 보장: 2웨이브부터 웨이브마다 공짜 합류 카드 1장 (레벨업이 줄어 6명 덱인데 4~5명만 들어오던 문제)
-  if (g.joinMode && g.mode === 'stage' && n >= 2 && g.joinPool.length && (!g.tension || TENSION.pick.freeWaves.includes(n))) { g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); }
+  if (autoJoinOn(g) && n >= 2) for (let k = 0; k < (TENSION.pick.perWave || 1); k++) autoJoinNext(g);
+  else if (g.joinMode && g.mode === 'stage' && n >= 2 && g.joinPool.length && (!g.tension || TENSION.pick.freeWaves.includes(n))) { g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); }
   if (g.mode === 'endless' && n > 1 && (n - 1) % 5 === 0 && !g.pvp) offerCurse(g);
-  if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 4].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism'); // 프리즘은 4웨이브 (5 → 4: 늦게 떠서 체감이 적었음)
+  if (g.tension && TENSION.pick.augW) { if (TENSION.pick.augW[n]) offerAug(g, TENSION.pick.augW[n]); } // (긴장감: 증강은 TENSION.pick.augW 웨이브에만 — 고르는 횟수 줄이기)
+  else if (g.mode === 'endless' ? n % 5 === 3 : [1, 3, 4].includes(n)) offerAug(g, g.mode === 'endless' ? (n >= 13 ? 'prism' : n >= 8 ? 'gold' : 'silver') : n === 1 ? 'silver' : n === 3 ? 'gold' : 'prism'); // 프리즘은 4웨이브 (5 → 4: 늦게 떠서 체감이 적었음)
   const def = waveDefFor(g, n);
   if (g.wk) g.wk.waveStart(g, n, def); // 주간: 웨이브 사건 알림 · 저주 웨이브 규칙
   g.diff = def.level || n;
@@ -4296,7 +4309,8 @@ export function step(g, dt) {
   }
   if (g.phase === 'wave') {
     g.waveT += dt;
-    if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.stage | 0) <= (JOIN.freeUntil || 99)) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
+    if (autoJoinOn(g) && g.wave === 1 && g.joinPool.length) { const A = TENSION.pick.auto; for (let k = 0; k < A.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= A[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); autoJoinNext(g); } }
+    else if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.stage | 0) <= (JOIN.freeUntil || 99)) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
     const q = g.spawnQ;
     // 동시에 화면에 있는 진상은 최대 ENEMY_CAP (폰 성능) — 넘치면 조금 기다렸다 나온다
     let alive = 0;
@@ -4396,7 +4410,7 @@ const mainKind = (g, h, next) => (!g.mainOn ? '' : h.main ? 'is' : next > MAIN.c
 export function cardPool(g) {
   const pool = [];
   const free = g.heroes.length < Math.min(g.nPos, g.maxHeroes || 99) && g.mode !== 'stage' && !(g.joinMode && g.joinPool.length);
-  if (g.joinMode) for (const j of g.joinPool) {
+  if (g.joinMode && !autoJoinOn(g)) for (const j of g.joinPool) {
     const d = HEROES[j.id];
     pool.push({ key: 'join:' + j.id, kind: 'join', hero: j.id, slot: j.slot, rarity: d.legend ? 'legend' : d.hidden ? 'hidden' : 'rare', icon: d.emoji, title: d.name, desc: d.desc, sub: d.role, w: JOIN.w });
   }
@@ -4414,7 +4428,7 @@ export function cardPool(g) {
       const mk = mainKind(g, h, next); // 주력: 'is' 이미 주력 · 'new' 고르면 주력이 된다
       pool.push({
         key: 'lv:' + h.id, kind: 'heroLv', hero: h.id, rarity: d.perks[next] || d.perks[h.lv + 1] ? 'rare' : 'common',
-        icon: d.emoji, title: `${d.name} Lv.${h.lv}→${next}`, desc: heroCardDesc(d, next, g.grow ? GROW.lv : 0) + (d.perks[h.lv + 1] && h.lv + 1 !== next ? ` · ★ ${d.perks[h.lv + 1]}` : ''), lvAtk: g.grow ? GROW.lv : 0, sub: mk === 'new' ? `주력 지정 (${mainCount(g) + 1}/${MAIN.n}) · Lv5까지` : d.role, w: d.perks[next] ? 9 : 11, main: mk,
+        icon: d.emoji, title: `${d.name} Lv.${h.lv}→${next}`, desc: heroCardDesc(d, next, g.grow ? GROW.lv * (g.tension ? TENSION.pick.lv || 1 : 1) : 0) + (d.perks[h.lv + 1] && h.lv + 1 !== next ? ` · ★ ${d.perks[h.lv + 1]}` : ''), lvAtk: g.grow ? GROW.lv * (g.tension ? TENSION.pick.lv || 1 : 1) : 0, sub: mk === 'new' ? `주력 지정 (${mainCount(g) + 1}/${MAIN.n}) · Lv5까지` : d.role, w: d.perks[next] ? 9 : 11, main: mk,
       });
     }
     if (SKILL_EVO[h.id] && !h.skEvo && h.lv >= 3) pool.push({ key: 'se:' + h.id, kind: 'skillEvo', hero: h.id, rarity: 'legend', icon: '✨', title: SKILL_EVO[h.id], desc: `${d.skill.name}이(가) 0.5초 뒤 한 번 더 터진다 (75% 위력)`, sub: '스킬 진화 · 한 번', w: 6 });
@@ -4510,7 +4524,7 @@ export function rollCards(g, n = RULES.cardChoices, opt = {}) {
     const on = pool.filter((c) => (c.tags || []).includes(top[0])).sort((a, b) => b.w - a.w)[0];
     if (on) { on.onPath = true; picks[0] = on; }
   }
-  if (g.joinMode && g.joinPool.length) {
+  if (g.joinMode && g.joinPool.length && !autoJoinOn(g)) {
     const isJ = (c) => c.kind === 'join';
     const cap = g.joinPool.length <= g.joinTotal / 2 ? 1 : 2; // 후보를 절반 넘게 쓰면 한 번에 1장까지
     let nj = picks.filter(isJ).length;
@@ -4615,7 +4629,7 @@ export function applyCard(g, c) {
       if (h && h.lv < 5 && canGrow(g, h)) {
         const st0 = weaponStep(h);
         h.lv = Math.min(5, h.lv + 2);
-        if (g.grow) h.lvAtk = (h.lvAtk || 0) + GROW.lv; // 큰 카드: 키운 멤버는 레벨 카드마다 공격력 +
+        if (g.grow) h.lvAtk = (h.lvAtk || 0) + GROW.lv * (g.tension ? TENSION.pick.lv || 1 : 1); // 큰 카드: 키운 멤버는 레벨 카드마다 공격력 +
         if (g.mainOn && !h.main && h.lv > MAIN.cap) { h.main = true; ev(g, 'mainPick', { hero: h.id, n: mainCount(g), max: MAIN.n, x: h.x, y: h.y }); } // Lv3 을 넘기면 주력
         ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y });
         if (g.tempo && WEAPON[h.id] && weaponStep(h) > st0) ev(g, 'weaponEvo', { hero: h.id, x: h.x, y: h.y, item: WEAPON[h.id].item, step: weaponStep(h), mag: weaponMag(h) });
@@ -4635,7 +4649,7 @@ export function applyCard(g, c) {
         case 'exp': m.expMul += 0.35 * k; break;
         case 'slow': m.enemySpd *= dn(0.13); for (const e of g.enemies) e.speed *= dn(0.13); break;
         case 'pierce': m.pierce++; break;
-        case 'boss': m.dmg += 0.5 * k; m.spd += 0.25 * k; break;
+        case 'boss': m.dmg += 0.4 * k; m.spd += 0.2 * k; break;
         case 'regen': m.regen += 2.5; break;
         case 'ult': m.ultCharge += 0.8 * k; m.ultDmg += 0.6 * k; break;
         case 'charmRes': m.charmMul *= dn(0.6); break;
@@ -4646,26 +4660,26 @@ export function applyCard(g, c) {
         case 'attrUp': m.attrUp += 0.25 * k; break;
         case 'syn_talk': case 'syn_power': case 'syn_charm': case 'syn_booze': { const a = c.id.slice(4); m.attrDmg[a] = (m.attrDmg[a] || 0) + 0.42 * k; break; }
         case 'tag_pierce': m.tagDmg.pierce = (m.tagDmg.pierce || 0) + 0.4 * k; m.pierce++; break;
-        case 'tag_splash': m.tagDmg.splash = (m.tagDmg.splash || 0) + 0.34 * k; m.splashMul *= up(0.45); m.swarmDmg += 0.2 * k; break; // (청소부 합침)
+        case 'tag_splash': m.tagDmg.splash = (m.tagDmg.splash || 0) + 0.34 * k; m.splashMul *= up(0.35); m.swarmDmg += 0.2 * k; break; // (청소부 합침)
         case 'tag_chain': m.tagDmg.chain = (m.tagDmg.chain || 0) + 0.34 * k; m.chainExtra++; break;
         case 'tag_kb': m.tagDmg.kb = (m.tagDmg.kb || 0) + 0.34 * k; m.kbMul *= up(0.6); break;
         case 'tag_heal': m.tagDmg.heal = (m.tagDmg.heal || 0) + 0.25 * k; m.healMul *= up(0.8); break;
         case 'tag_ctrl': m.tagDmg.ctrl = (m.tagDmg.ctrl || 0) + 0.25 * k; m.ctrlMul *= up(0.5); m.enemySpd *= dn(0.1); for (const e of g.enemies) e.speed *= dn(0.1); break; // (새치기 금지 합침)
         case 'tag_boss': m.bossDmg += 0.65 * k; break;
         case 'swarm': m.swarmDmg += 0.38 * k; break;
-        case 'risk_allin': g.base.max = Math.round(g.base.max * dn(0.2)); g.base.hp = Math.min(g.base.hp, g.base.max); m.dmg += 0.55 * k; break;
-        case 'risk_overtime': m.enemyHp *= up(0.15); m.expMul += 0.8 * k; break;
+        case 'risk_allin': g.base.max = Math.round(g.base.max * dn(0.2)); g.base.hp = Math.min(g.base.hp, g.base.max); m.dmg += 0.45 * k; break;
+        case 'risk_overtime': m.enemyHp *= up(0.15); m.expMul += 0.35 * k; break;
         case 'risk_glass': m.critMul += 1.2 * k; m.healMul *= dn(0.5); break;
         case 'econ_bonus': g.pendingLevels++; break;
-        case 'tr_heavy': m.dmg += 0.45; m.spd = Math.max(0.3, m.spd - 0.2); break;
-        case 'tr_rapid': m.spd += 0.4; m.dmg = Math.max(0.3, m.dmg - 0.15); break;
-        case 'tr_skill': m.skillX = (m.skillX || 1) * 1.5; m.basicX = (m.basicX || 1) * 0.8; { const r = 0.8; g.cdMul *= r; for (const h of g.heroes) h.skillCd *= r; } break;
-        case 'tr_wall': m.baseArmor *= 0.65; g.repairX = (g.repairX || 1) * 2; m.dmg = Math.max(0.3, m.dmg - 0.12); break;
-        case 'tr_hunt': m.ccAmp = (m.ccAmp || 0) + 0.5; break;
-        case 'tr_boom': m.killBoom = (m.killBoom || 0) + 0.3; break;
-        case 'jp_party': for (const h of g.heroes) if (!h.def.summon && h.lv < 5 && canGrow(g, h)) { h.lv++; ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y }); } healDoor(g, 'card', g.base.max * 0.2); ev(g, 'jackpot', { id: c.id }); break;
-        case 'jp_power': m.dmg += 0.6; m.spd += 0.2; ev(g, 'jackpot', { id: c.id }); break;
-        case 'jp_mom': if (g.mom !== null && g.mom !== undefined) g.mom = MOMENTUM.max; for (const h of g.heroes) h.skillCd = 0; m.skillX = (m.skillX || 1) * 1.3; ev(g, 'jackpot', { id: c.id }); break;
+        case 'tr_heavy': m.dmg += 0.45 * k; m.spd = Math.max(0.3, m.spd - 0.2 * k); break; // (맞바꿈 · 대박 카드도 설명 숫자처럼 ×k)
+        case 'tr_rapid': m.spd += 0.4 * k; m.dmg = Math.max(0.3, m.dmg - 0.15 * k); break;
+        case 'tr_skill': m.skillX = (m.skillX || 1) * up(0.5); m.basicX = (m.basicX || 1) * dn(0.12); { const r = dn(0.2); g.cdMul *= r; for (const h of g.heroes) h.skillCd *= r; } break;
+        case 'tr_wall': m.baseArmor *= dn(0.35); g.repairX = (g.repairX || 1) * 2; m.dmg = Math.max(0.3, m.dmg - 0.12 * k); break;
+        case 'tr_hunt': m.ccAmp = (m.ccAmp || 0) + 0.5 * k; break;
+        case 'tr_boom': m.killBoom = (m.killBoom || 0) + 0.3 * k; break;
+        case 'jp_party': for (const h of g.heroes) if (!h.def.summon && h.lv < 5 && canGrow(g, h)) { h.lv++; ev(g, 'heroLv', { hero: h.id, lv: h.lv, x: h.x, y: h.y }); } healDoor(g, 'card', g.base.max * 0.2 * k); ev(g, 'jackpot', { id: c.id }); break;
+        case 'jp_power': m.dmg += 0.6 * k; m.spd += 0.2 * k; ev(g, 'jackpot', { id: c.id }); break;
+        case 'jp_mom': if (g.mom !== null && g.mom !== undefined) g.mom = MOMENTUM.max; for (const h of g.heroes) h.skillCd = 0; m.skillX = (m.skillX || 1) * up(0.3); ev(g, 'jackpot', { id: c.id }); break;
       }
       break;
     }
