@@ -1312,11 +1312,11 @@ test('카드: 4장 · 속성 결속은 그 속성 멤버가 있어야 · 진화�
   S.applyCard(g, evo);
   assert.ok(gm.evo && Math.abs(S.heroDamage(g, gm) / d0 - D.EVO_MUL.dmg) < 1e-9);
   assert.ok(!S.cardPool(g).some((c) => c.kind === 'evo' && c.hero === 'gunman'), '진화는 한 번');
-  // 올인: 입구 -20% · 공격력 +55% (일반 스테이지는 큰 카드: × GROW.card)
+  // 올인: 입구 -20% · 공격력 +45% (일반 스테이지는 큰 카드: × GROW.card)
   const max0 = g.base.max, dmg0 = g.mods.dmg, k = D.GROW.card;
   S.applyCard(g, { kind: 'global', id: 'risk_allin', key: 'risk_allin' });
   assert.equal(g.base.max, Math.round(max0 * (1 - 0.2 * k)));
-  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.55 * k) < 1e-9);
+  assert.ok(Math.abs(g.mods.dmg - dmg0 - 0.45 * k) < 1e-9);
 });
 
 test('중간 보스: 3웨이브에 나오고(1-1·1-2 제외) · 합체는 두 진상 기술을 모두 · 넉백 안 됨 · 보너스 코인', () => {

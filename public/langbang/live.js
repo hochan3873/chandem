@@ -287,8 +287,8 @@ export const WEEKLY_TIERS = [
   { id: 1, name: '새싹', from: 5, pool: [3, 8], mul: 1, lv: [3, 15], hp: 1.35 },
   { id: 2, name: '단골', from: 11, pool: [9, 18], mul: 1.08, lv: [4, 19], hp: 2.1 },
   { id: 3, name: '고수', from: 26, pool: [21, 30], mul: 1.16, lv: [5, 22], hp: 1.35 },
-  { id: 4, name: '달인', from: 46, pool: [41, 52], mul: 1.24, lv: [12, 36], hp: 3.6 },
-  { id: 5, name: '전설', from: 66, pool: [61, 74], mul: 1.32, lv: [10, 34], hp: 2 },
+  { id: 4, name: '달인', from: 46, pool: [41, 52], mul: 1.24, lv: [12, 36], hp: 2.9 }, // (10/09 3.6 → 2.9: 고아라 템포 하향만큼 · lb-weekly-sim --calib=t4)
+  { id: 5, name: '전설', from: 66, pool: [61, 74], mul: 1.32, lv: [10, 34], hp: 1.9 }, // (10/09 2 → 1.9 · --calib=t5)
 ];
 export const weeklyTier = (maxStage) => { let t = 1; for (const x of WEEKLY_TIERS) if ((maxStage | 0) >= x.from) t = x.id; return t; };
 export const weeklyTierDef = (t) => WEEKLY_TIERS[Math.max(1, Math.min(WEEKLY_TIERS.length, t | 0 || 1)) - 1];
