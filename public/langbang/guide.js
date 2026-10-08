@@ -12,14 +12,16 @@ export function planFor(t, s = {}) {
   const onMenu = () => s.screen === 'menu';
   const toLobby = { sel: '.lb-nav .nv[data-tab="battle"]', txt: '먼저 로비(전투)로 가요', skip: onMenu };
   if (t.go === 'hero' || t.go === 'star') {
+    const hf = `.hero-full[data-id="${t.id}"]`; // 다른 멤버 창이 열려 있으면 그 창 버튼을 가리키지 않게
     return { title: t.go === 'star' ? `${nm} ★승급` : `${nm} 강화`, steps: [
-      { sel: '.lb-nav .nv[data-tab="deck"]', txt: '아래 <b>강화</b> 탭을 눌러요', skip: () => s.screen === 'deck' || s.hasSel('.hero-full') },
+      { sel: '.lb-nav .nv[data-tab="deck"]', txt: '아래 <b>강화</b> 탭을 눌러요', skip: () => s.screen === 'deck' || s.hasSel(hf) },
       // 위쪽 덱 칸(누르면 덱에서 빠짐)이 아니라 아래 모음 카드
-      { sel: `.deck-screen .acard[data-act="deckColl"][data-id="${t.id}"]`, txt: `<b>${nm}</b> 카드를 눌러요`, skip: () => s.hasSel('.hero-full') },
-      { sel: '.hero-full .hf-tabs [data-k="up"]', txt: '<b>강화</b> 탭을 눌러요', skip: () => s.hasSel('.hero-full .hs-up, .hero-full .hs-star') },
+      { sel: `.deck-screen .acard[data-act="deckColl"][data-id="${t.id}"]`, txt: `<b>${nm}</b> 카드를 눌러요`, skip: () => s.hasSel(hf) },
+      { sel: `${hf} .hf-tabs [data-k="up"]`, txt: '<b>강화</b> 탭을 눌러요', skip: () => s.hasSel(`${hf} .hs-up, ${hf} .hs-star`) },
       t.go === 'star'
-        ? { sel: '.hero-full .hs-star:not([disabled])', txt: '<b>승급</b> 버튼을 눌러요! 별이 하나 늘어요', last: true }
-        : { sel: '.hero-full .hs-up:not([disabled])', txt: '<b>강화</b> 버튼을 눌러요! 꾹 누르면 계속 올라가요', last: true },
+        ? { sel: `${hf} .hs-star:not([disabled])`, txt: '<b>승급</b> 버튼을 눌러요! 별이 하나 늘어요', last: true }
+        // 한 번에 강화 버튼이 있으면 그것부터 (한 칸씩 여러 번 누르지 않게)
+        : { sel: [`${hf} .hs-max:not([disabled])`, `${hf} .hs-up:not([disabled])`], txt: '<b>강화</b> 버튼을 눌러요! <b>한 번에</b>를 누르면 되는 만큼 쭉 올라가요', last: true, wait: 1400 },
     ], done: t.go === 'star' ? ['★승급 완료!', `${nm} 공격력이 쑥 올랐어요`] : ['강화 완료!', `${nm} 전투력이 올랐어요`] };
   }
   if (t.go === 'gear' || t.go === 'enh') {
@@ -122,8 +124,7 @@ export function createCoach(o) {
       if (!el) {
         if (performance.now() - t0 < (st.timeout || 3200)) { c.poll = setTimeout(look, 120); return; }
         if (st.optional) { c.skipped++; return step(i + 1); }
-        o.toast && o.toast('안내할 곳이 안 보여서 멈췄어요 — 다시 눌러 주세요');
-        return stop();
+        return stop(); // 누를 곳이 없으면 (화면이 바뀌었거나 이미 끝남) 조용히 멈춘다 — "다시 눌러" 라고 하지 않는다
       }
       c.el = el;
       const sr = stage.getBoundingClientRect(), r = el.getBoundingClientRect();

@@ -14,12 +14,14 @@ test('멤버 강화: 강화 탭 → 그 멤버 카드 → 강화 탭 → 강화 
   assert.equal(p.steps.length, 4);
   assert.match(p.steps[0].sel, /data-tab="deck"/);
   assert.match(p.steps[1].sel, /data-id="staff"/);
-  assert.ok(p.steps[3].last && /hs-up/.test(p.steps[3].sel));
+  assert.ok(p.steps[3].last && /hs-up/.test([].concat(p.steps[3].sel).join(' ')) && /hs-max/.test([].concat(p.steps[3].sel).join(' '))); // 한 번에 강화 먼저
   assert.match(p.title, /운영진/);
   assert.equal(p.steps[0].skip(), false);
   // 이미 강화 탭이면 첫 단계 건너뜀 · 강화 화면이 떠 있으면 강화 탭 단계도 건너뜀
   assert.equal(G.planFor({ go: 'hero', id: 'staff' }, st('deck')).steps[0].skip(), true);
-  assert.equal(G.planFor({ go: 'hero', id: 'staff' }, st('deck', ['.hero-full .hs-up'])).steps[2].skip(), true);
+  assert.equal(G.planFor({ go: 'hero', id: 'staff' }, st('deck', ['.hero-full[data-id="staff"] .hs-up'])).steps[2].skip(), true);
+  // 다른 멤버 창이 열려 있으면 건너뛰지 않는다 (그 창 버튼을 가리키지 않게)
+  assert.equal(G.planFor({ go: 'hero', id: 'staff' }, st('deck', ['.hero-full[data-id="ara"] .hs-up'])).steps[2].skip(), false);
 });
 
 test('★승급은 승급 버튼으로 끝난다', () => {

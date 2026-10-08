@@ -6,7 +6,7 @@ import {
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
-  attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
+  attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, metaCost, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
@@ -2185,6 +2185,7 @@ const ACTS = {
   again: () => showPrep(app.mode, app.stage),
   nextStage: () => showPrep('stage', Math.min(STAGE_COUNT, app.stage + 1)),
   buy: (b) => buyUpgrade(b.dataset.id, b),
+  buyMax: (b) => buyUpgradeMax(b.dataset.id, b, Number(b.dataset.n) || 1),
   buyItem: (b) => buyItemAct(b.dataset.id, b),
 };
 
@@ -3554,7 +3555,10 @@ function showHeroModal(id, ctx = '') {
     const mx = metaMaxOf(id), free = p.master && !p.testNormal, cn = free || cost === null ? 0 : heroCardNeed(lv), have = (p.shards[id] | 0) + (p.wild | 0);
     const can = cost !== null && (free || (p.coins >= cost && have >= cn));
     const notch = Array.from({ length: mx }, (_, k) => `<i class="${k < lv ? 'on' : ''} ${k === lv ? 'next' : ''}"></i>`).join('');
-    app._hsUp = { id, can, cost, free, have, cn, lv, pw };
+    // 한 번에 강화: 지금 코인 · 카드로 몇 칸까지 올릴 수 있나 (모집 카드 먼저, 모자라면 만능 카드)
+    let nMax = 0, costMax = 0;
+    if (can && !free) { let c = p.coins | 0, sh = p.shards[id] | 0, w = p.wild | 0; for (let L = lv; L < mx; L++) { const k = L === lv ? cost : metaCost(L), need = heroCardNeed(L); if (c < k || sh + w < need) break; c -= k; const own = Math.min(sh, need); sh -= own; w -= need - own; costMax += k; nMax++; } }
+    app._hsUp = { id, can, cost, free, have, cn, lv, pw, nMax, costMax };
     return `<div class="hs-pow"><small>전투력</small><b class="hs-pw" data-to="${pw}">${fmt(pw)}</b>${pwNext > pw ? `<em class="hs-d">+${fmt(pwNext - pw)}</em>` : ''}</div>
       <div class="hs-bar"><div class="hs-notch">${notch}</div><span>강화 <b>+${lv}</b> / ${mx}</span></div>
       <div class="hs-grid">
@@ -3593,6 +3597,7 @@ function showHeroModal(id, ctx = '') {
   closeInfoCard();
   const box = document.createElement('div');
   box.className = `info-modal pop hero-pop hero-full ${d.legend ? 'lg' : ''}`;
+  box.dataset.id = id; // 길 안내가 '지금 연 멤버' 를 알아보게
   box.style.setProperty('--c', ATTRS[d.attr].color);
   const BG = { power: 'str', talk: 'talk', booze: 'drink', charm: 'charm' };
   box.classList.add('show-v2');
@@ -3603,7 +3608,7 @@ function showHeroModal(id, ctx = '') {
     <div class="hf-head v2"><i class="tier t${t}">${TIER_NAME[t]}</i><span class="hn-attr" data-gl="attr:${d.attr}" style="--ac:${ATTRS[d.attr].color}">${attrIco(d.attr)}</span><b>${ok ? esc(d.name) : '???'}</b>${roleChip(id, 'hn-cat')}<small class="hn-role">${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small><span class="hn-stars">${Array.from({ length: L.STAR_MAX }, (_, k) => `<i class="${k < st ? 'on' : ''}">★</i>`).join('')}</span></div>
     <div class="hf-tabs v2">${[['info', '정보'], ['up', '강화'], ['gear', '장비']].map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-hf="tab" data-k="${k}">${n}</button>`).join('')}</div>
     <div class="hf-body">${ok ? body : `<p class="ip">${ic('lock', '', 'sm')} ${esc(heroHow(id))}</p>${body}`}</div>
-    <div class="hf-foot ${tab === 'up' && ok ? 'up' : ''}">${tab === 'up' && ok && app._hsUp && app._hsUp.id === id ? (() => { const u = app._hsUp; return `<button class="btn ghost hf-deck" data-act="${inDeck && deckList()[0] !== id ? 'edLead' : 'deckToggle'}" data-id="${id}">${inDeck ? (deckList()[0] === id ? '덱에서 빼기' : '대장으로') : '덱에 넣기'}</button><button class="hs-up ${u.can ? '' : 'dim'}" data-act="buy" data-id="${id}" data-pw="${u.pw}" ${u.can ? '' : 'disabled'}><i class="gb-shine"></i><b>${u.cost === null ? 'MAX' : `강화 +${u.lv + 1}`}</b>${u.cost === null ? '' : `<span class="hs-cost">${u.free ? '공짜' : `<i class="ci"></i>${fmt(u.cost)} · ${ic('aug_card', '', 'sm')}카드 ${u.cn}장 <small>(보유 ${u.have})</small>`}</span>`}</button>`; })() : `${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">${ic('ic_dex', '', 'sm')}도감</button>`}</div>`;
+    <div class="hf-foot ${tab === 'up' && ok ? 'up' : ''} ${tab === 'up' && ok && app._hsUp && app._hsUp.id === id && app._hsUp.nMax >= 2 ? 'has-max' : ''}">${tab === 'up' && ok && app._hsUp && app._hsUp.id === id ? (() => { const u = app._hsUp; return `<button class="btn ghost hf-deck" data-act="${inDeck && deckList()[0] !== id ? 'edLead' : 'deckToggle'}" data-id="${id}">${inDeck ? (deckList()[0] === id ? '덱에서 빼기' : '대장으로') : '덱에 넣기'}</button>${u.nMax >= 2 ? `<button class="hs-max" data-act="buyMax" data-id="${id}" data-n="${u.nMax}" data-pw="${u.pw}"><b>한 번에</b><small>+${u.lv + u.nMax}까지</small><small><i class="ci"></i>${fmt(u.costMax)}</small></button>` : ''}<button class="hs-up ${u.can ? '' : 'dim'}" data-act="buy" data-id="${id}" data-pw="${u.pw}" ${u.can ? '' : 'disabled'}><i class="gb-shine"></i><b>${u.cost === null ? 'MAX' : `강화 +${u.lv + 1}`}</b>${u.cost === null ? '' : `<span class="hs-cost">${u.free ? '공짜' : `<i class="ci"></i>${fmt(u.cost)} · ${ic('aug_card', '', 'sm')}카드 ${u.cn}장 <small>(보유 ${u.have})</small>`}</span>`}</button>`; })() : `${ok && P().heroes && (P().heroes[id] !== undefined || owned().includes(id)) ? (() => { const pl = bestGearPlan(P(), id, false); return `<button class="btn hf-auto ${pl.length ? '' : 'dim'}" data-hf="auto" ${pl.length ? '' : 'aria-disabled="true"'}>${ic('sparkle', '', 'sm')}${pl.length ? '최적 장비' : '이미 최적'}${pl.length ? '<i class="rd"></i>' : ''}</button>`; })() : ''}${ok ? `<button class="btn ${inDeck ? 'ghost' : 'primary'}" data-act="deckToggle" data-id="${id}">${inDeck ? `덱 ${app.deckI + 1}에서 빼기` : `덱 ${app.deckI + 1}에 넣기`}</button>` : ''}<button class="btn ghost" data-act="heroInfo" data-id="${id}">${ic('ic_dex', '', 'sm')}도감</button>`}</div>`;
   stage.appendChild(box);
   // 최적 장비: 길게 누르면 "다른 멤버 것 포함"
   const ab = box.querySelector('[data-hf="auto"]');
@@ -5893,6 +5898,22 @@ async function buyUpgrade(id, btn) {
     toast(`${HEROES[id].name} 강화 +${m1}! 공격력 +${Math.round(up * 100)}%${mile ? ` · ${META_MILESTONE.name[metaMile(m1)] || '각성'} 달성!` : ''}${dp > 0 && btn.dataset.pw ? ` · 전투력 +${fmt(dp)}` : ''}`);
     if (mile && !document.body.classList.contains('rm')) { fx.flash('#ffd23f', 0.35); try { A.sfx.rise(); } catch (e) { /* 무시 */ } }
   } else toast(r.message || '강화하지 못했어요');
+  if (stage.querySelector('.hero-pop')) { showHeroModal(id, app.screen === 'prep' ? 'prep' : ''); refreshBehind(); } else refresh();
+}
+// 한 번에 강화: 살 수 있는 만큼 연달아 (서버에는 한 칸씩 · 끝나고 한 번만 알림)
+async function buyUpgradeMax(id, btn, n) {
+  for (const b of stage.querySelectorAll('.hero-full .hs-up, .hero-full .hs-max')) b.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>';
+  const pw0 = btn.dataset.pw ? Number(btn.dataset.pw) : 0, lv0 = P().heroes[id] | 0;
+  let done = 0, msg = '';
+  for (let k = 0; k < n; k++) { const r = await API.upgradeHero(id, app.guest); if (!(r.ok && r.profile)) { msg = r.message || ''; break; } app.profile = r.profile; done++; }
+  if (done) {
+    A.sfx.levelUp();
+    const m1 = app.profile.heroes[id] | 0, t = heroTier(id), up = tierPowerM(t, m1) / Math.max(0.001, tierPowerM(t, lv0)) - 1, dp = heroPower(app.profile, id) - pw0;
+    const miles = []; for (let L = lv0 + 1; L <= m1; L++) if (L % META_MILESTONE.every === 0) miles.push(META_MILESTONE.name[metaMile(L)] || '각성');
+    toast(`${HEROES[id].name} +${lv0} → +${m1}! 공격력 +${Math.round(up * 100)}%${miles.length ? ` · ${miles.join(' · ')} 달성!` : ''}${dp > 0 && pw0 ? ` · 전투력 +${fmt(dp)}` : ''}`, 2600);
+    if (miles.length && !document.body.classList.contains('rm')) { fx.flash('#ffd23f', 0.35); try { A.sfx.rise(); } catch (e) { /* 무시 */ } }
+  } else toast(msg || '강화하지 못했어요');
   if (stage.querySelector('.hero-pop')) { showHeroModal(id, app.screen === 'prep' ? 'prep' : ''); refreshBehind(); } else refresh();
 }
 async function buyItemAct(id, btn) {

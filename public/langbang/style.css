@@ -4442,3 +4442,18 @@ body.rm .card-sheet .cs2-box { animation: none; }
 #hud.hell .hellvibe i:nth-child(7) { left: 87%; animation-delay: 2.8s; } #hud.hell .hellvibe i:nth-child(8) { left: 95%; animation-delay: 5s; animation-duration: 7.5s; }
 @keyframes hv-ember { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 0.9; } 100% { transform: translate(-14px, -88vh); opacity: 0; } }
 body.rm #hud.hell .hellvibe { animation: none; } body.rm #hud.hell .hellvibe i { display: none; }
+
+/* 한 번에 강화 (10/08) */
+.show-v2 .hf-foot.up.has-max { grid-template-columns: 0.9fr 1fr 1.7fr; gap: calc(var(--u) * 6); }
+.hero-full .hs-max { min-height: calc(var(--u) * 54); border-radius: 99px; border: 1.5px solid #ffd23f; background: linear-gradient(180deg, #3b2f0e, #241b06); color: #ffe27a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0 calc(var(--u) * 4); font-family: var(--heavy); line-height: 1.05; }
+.hero-full .hs-max b { font-size: calc(var(--u) * 14); font-weight: 400; }
+.hero-full .hs-max small { font-size: calc(var(--u) * 10); color: #fff3c4; display: inline-flex; align-items: center; gap: 2px; }
+.hero-full .hs-max small .ci { width: calc(var(--u) * 10); height: calc(var(--u) * 10); }
+.hero-full .hs-max:active { transform: scale(0.96); }
+.hero-full .hs-max:disabled { opacity: 0.6; }
+.show-v2 .hf-foot.up.has-max .hf-deck { font-size: calc(var(--u) * 12); padding-left: calc(var(--u) * 4); padding-right: calc(var(--u) * 4); }
+.show-v2 .hf-foot.up.has-max { grid-template-columns: 0.75fr 1fr 1.55fr; }
+.hero-full .hs-max { border-radius: calc(var(--u) * 16); min-height: calc(var(--u) * 60); }
+.show-v2 .hf-foot.up.has-max .hs-up b { font-size: calc(var(--u) * 17); }
+.show-v2 .hf-foot.up.has-max .hs-up .hs-cost { font-size: calc(var(--u) * 11); white-space: nowrap; padding: 0 calc(var(--u) * 5); }
+.show-v2 .hf-foot.up.has-max .hs-up .hs-cost small { display: none; }
