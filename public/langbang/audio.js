@@ -53,7 +53,7 @@ const TRACKS = {
   hwbattle: '/sounds/bgm_lb_hwbattle.mp3', // 할로윈 이벤트 전투 곡 (없으면 할로윈 로비 곡 → 챕터 곡)
 };
 // 같은 이름으로 곡을 바꿨으면 여기 숫자를 올린다 (폰에 남은 옛 곡 대신 새로 받게: 주소 뒤 ?v=)
-const BGM_VER = { halloween: 2, hwbattle: 2 }; // 같은 이름으로 곡을 바꾸면 숫자를 올린다
+const BGM_VER = { halloween: 3, hwbattle: 2 }; // 같은 이름으로 곡을 바꾸면 숫자를 올린다
 const bgmUrl = (k) => TRACKS[k] + (BGM_VER[k] ? `?v=${BGM_VER[k]}` : '');
 const OPTIONAL = new Set(['raid', 'pvp', 'tower', 'raid2', 'halloween', 'hwbattle']); // 서버 파일 목록에 없으면 요청도 안 한다
 const VOL = 0.4;
