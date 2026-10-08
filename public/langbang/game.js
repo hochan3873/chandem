@@ -17,6 +17,7 @@ import {
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
 import * as S from './sim.js';
+import { summary as wkSummary } from './weekly-sim.js'; // 주간 도전: 결과 숫자 (목표 · 무피해 · 계약)
 import * as CT from './cardtext.js'; // 레벨업 카드를 쉬운 말로 (무엇이 얼마나 바뀌나 · 「스킬」은? · 전→후)
 import { Renderer } from './render.js';
 import { SkillFx } from './skillfx.js';
@@ -386,7 +387,7 @@ async function startRun(opt = {}) {
   if (mode === 'weekly') {
     const r = await API.weeklyStart(app.guest);
     if (!r.ok) { toast(r.message || '주간 도전을 시작할 수 없어요'); return; }
-    weekly = L.weeklyDef(r.wi);
+    weekly = L.weeklyDef(r.wi, r.tier || L.weeklyTier(P().maxStage)); // 리그: 서버가 정한 것 (같은 리그 = 같은 판)
     app.weeklyRun = r.runId;
   }
   let consIds = [];
@@ -523,7 +524,7 @@ function beginPlay(g) {
   app.screen = 'play';
   skillbar.dataset.key = '';
   cancelAim(); hideBubble(); app.drag = null;
-  if (g.mapFx.id !== 'none') setTimeout(() => { if (app.g === g) fx.banner(`${g.mapFx.icon} ${g.mapFx.name}`, g.mapFx.desc, '#23336a', 2.2, 'big'); }, 300);
+  if (g.mapFx.id !== 'none' && !g.wk) setTimeout(() => { if (app.g === g) fx.banner(`${g.mapFx.icon} ${g.mapFx.name}`, g.mapFx.desc, '#23336a', 2.2, 'big'); }, 300); // (주간은 판이 실제로 시작될 때 규칙 → 맵 효과 순서로: hud)
   TR.leave(); // 출전 화면은 잠깐 흐려지며 사라진다 (뚝 끊기지 않게)
   hud.hidden = false;
   hud.classList.toggle('endless', g.mode !== 'stage' || !!g.weekly);
@@ -632,6 +633,7 @@ function handleEvents(g, loud) {
       }
       case 'shout': fx.bubble(e.x, e.y, e.text); break;
       case 'explode':
+        if (e.wk) { fx.blast(e.x, e.y, e.r, 'fire', 0.35); fx.ring(e.x, e.y, 6, e.r, 0.3, '#ffb070', 3); if (loud && Math.random() < 0.3) A.sfx.explode(); break; } // 주간 '연쇄 폭발'
         fx.blast(e.x, e.y, e.r, 'fire', 0.5);
         fx.burst(e.x, e.y, 14, '#5fd07a', 200, 'shard', 6, 0.6, 300);
         fx.burst(e.x, e.y, 6, 'rgba(255,200,120,0.8)', 60, 'puff', 12, 0.4);
@@ -856,6 +858,22 @@ function handleEvents(g, loud) {
         break;
       }
       case 'skillHold': if (loud && performance.now() - (app.holdAt || 0) > 1500) { app.holdAt = performance.now(); fx.text(e.x, e.y - 60, '사거리에 진상이 없어요 — 아껴 둘게요', '#cfe3ff', 11, 0.9); } break;
+      case 'wkWave': { // 주간 도전: 웨이브 사건 (이름 · 목표 · 기습 방향)
+        const col = { rush: '#ff9f1c', elite: '#ff5a3c', mini: '#b06cff', ambush: '#ff6b3a', shield: '#3ad0ff', thief: '#ffd23f', curse: '#a050ff', boss: '#c01a2a' }[e.ev] || '#ffd23f';
+        if (!e.boss) fx.banner(`${e.last ? '마지막 웨이브' : `WAVE ${e.wave}/${g.totalWaves}`} · ${e.name}`, `${e.desc}${e.goal ? ` · 목표: ${e.goal}` : ''}`, col, 2.3, 'wave');
+        if (e.goal && e.boss) setTimeout(() => { if (app.g === g) fx.text(180, g.H * 0.3, `목표: ${e.goal}`, '#ffe27a', 14, 1.6, -10); }, RULES.bossIntroSec * 1000);
+        if (e.side) { fx.text(e.side === 'L' ? 90 : 270, g.H * 0.16, e.side === 'L' ? '← 왼쪽 기습!' : '오른쪽 기습! →', '#ff6b3a', 18, 1.8, -8); fx.flash('#ff6b3a', 0.12); }
+        if (loud) A.sfx.wave();
+        break;
+      }
+      case 'wkGoal': fx.text(180, g.H * 0.34, e.ok ? `목표 달성! +${L.WEEKLY_SCORE.goal}` : '목표 실패…', e.ok ? '#7dff9a' : '#c8c8d8', e.ok ? 18 : 13, 1.4, -18); if (e.ok && loud) A.sfx.pick(); break;
+      case 'wkOffer': showWkOffer(g, e.opts); break;
+      case 'wkPact': closeWkOffer(); if (e.id) { fx.banner(`계약 · ${e.name}`, `이제 점수 ×${e.mul.toFixed(2)}`, '#7a2a9a', 1.6, 'wave'); fx.flash('#b048ff', 0.25); } else toast('계약 거절 — 이대로 간다'); break;
+      case 'wkPhase': fx.banner(e.rage ? '보스 분노!!' : '부하 호출!', e.rage ? '마지막 단계 — 더 빠르고 더 세게 친다' : `단계 ${e.n}/${e.of} · 부하가 몰려온다`, '#a01020', 1.4, 'big'); fx.flash('#ff2a2a', 0.25); fx.addShake(7); if (loud) A.sfx.boss(); break;
+      case 'wkTide': fx.flash('#3a9bff', 0.22); fx.text(180, g.H * 0.18, '밀물! 진상이 몰려온다', '#8fd0ff', 17, 1.1, -10); if (loud) A.sfx.rumble(); break;
+      case 'wkBounty': if (e.got) { fx.text(e.x, e.y - 20, `현상금! +${L.WEEKLY_SCORE.bonus}`, '#ffd23f', 16, 1.1, -22); fx.ring(e.x, e.y, 8, 50, 0.45, '#ffd23f', 4); } else fx.text(e.x, e.y - 30, '현상수배!', '#ffd23f', 14, 1.2, -12); break;
+      case 'wkBountyLost': fx.text(e.x, e.y - 30, '현상금 놓침', '#c8c8d8', 12, 0.9, -12); break;
+      case 'wkGob': fx.text(e.x, e.y - 20, `보물 회수! (${e.n}/${e.of})`, '#ffe27a', 16, 1.2, -24); fx.ring(e.x, e.y, 8, 44, 0.4, '#ffd23f', 4); if (loud) A.sfx.pick(); break;
       case 'waveStart': {
         if (g.r2) break; // 건물주 레이드: 진상 웨이브가 없다 (숫자만 넘어감 · 증강 선택용)
         const n = S.enemiesLeft(g);
@@ -863,7 +881,7 @@ function handleEvents(g, loud) {
         const last = stageMode && e.wave >= g.totalWaves;
         const wk = WAVE_KINDS[e.kind] || WAVE_KINDS.N;
         const wsub = e.kind === 'S' ? `${wk.icon} 진상 떼가 몰려온다! (${n}명)` : e.kind === 'E' ? `${wk.icon} 정예 진상 ${n}명 — 한 방 공격으로!` : e.kind === 'M' ? `${wk.icon} 떼거리 + 정예 호위 (${n}명)` : `진상 ${n}명 접근 중!`;
-        if (!e.boss) fx.banner(last ? '마지막 웨이브!' : `WAVE ${e.wave}${stageMode ? '/' + g.totalWaves : ''}`, wsub, e.kind === 'E' ? '#ff6b5a' : '#ffd23f', 1.7, 'wave');
+        if (!e.boss && !g.wk) fx.banner(last ? '마지막 웨이브!' : `WAVE ${e.wave}${stageMode ? '/' + g.totalWaves : ''}`, wsub, e.kind === 'E' ? '#ff6b5a' : '#ffd23f', 1.7, 'wave'); // (주간은 wkWave 가 사건 이름으로)
         if (loud) { A.sfx.wave(); if (e.kind === 'S' || e.kind === 'B') A.sfx.rumble(); }
         if (live) saveSnap();
         break;
@@ -1186,7 +1204,7 @@ function handleEvents(g, loud) {
       case 'c7ava': fx.flash('#ffffff', 0.55); fx.banner('눈사태!!', '멤버 전원 꽁꽁 · 입구가 눈에 묻혔다', '#2a4a7a', 1.6, 'wave'); for (let k = 0; k < 40; k++) fx.part('dot', Math.random() * g.W, Math.random() * g.rowY, (Math.random() - 0.5) * 60, 220 + Math.random() * 200, 1.2, 4 + Math.random() * 5, '#f2fbff'); fx.addShake(12); if (loud) A.sfx.explode(); break;
       // ── 8장 결혼식 뒤풀이 ──
       case 'c8grab': fx.text(e.x, e.y - 10, '봉투 슬쩍!', '#ffd0d0', 13, 0.9, -16); fx.burst(e.x, e.y, 5, '#ffffff', 90, 'dot', 3, 0.4); if (loud) A.sfx.charm && A.sfx.charm(); break;
-      case 'c8escape': fx.text(clamp(e.x, 70, 290), 88, `축의금 도난! −${e.pct}%`, '#ff6b6b', 17, 1.6, 14); fx.flash('#ff2040', 0.16); fx.addShake(3); if (e.n === 1) toast('축의금 도둑을 놓쳤어요 — 이번 판 코인 −8% (최대 −40%) · 묶기 · 기절 · 감속으로 잡아요', 2200); if (loud) A.sfx.explode && A.sfx.explode(); break;
+      case 'c8escape': if (g.wk) { fx.text(clamp(e.x, 70, 290), 88, '보물 도둑이 달아났다!', '#ff9f9f', 16, 1.4, 14); fx.flash('#ff2040', 0.12); break; } fx.text(clamp(e.x, 70, 290), 88, `축의금 도난! −${e.pct}%`, '#ff6b6b', 17, 1.6, 14); fx.flash('#ff2040', 0.16); fx.addShake(3); if (e.n === 1) toast('축의금 도둑을 놓쳤어요 — 이번 판 코인 −8% (최대 −40%) · 묶기 · 기절 · 감속으로 잡아요', 2200); if (loud) A.sfx.explode && A.sfx.explode(); break;
       case 'c8recover': fx.text(e.x, e.y, '축의금 되찾음!', '#ffe27a', 14, 1.0, -22); for (let k = 0; k < 6; k++) fx.part('dot', e.x, e.y, (Math.random() - 0.5) * 160, -60 - Math.random() * 120, 0.8, 5, '#ffffff'); if (loud) A.sfx.crit && A.sfx.crit(); break;
       case 'c8tie': if (!busy || e.env) fx.text(e.x, e.y - 6, e.env ? '도둑 꽁꽁! 묶었다' : '리본 묶기!', '#ffb3d9', e.env ? 13 : 11, 0.8, -14); fx.ring(e.x, e.y + 26, 6, 26, 0.4, '#ff9fd0', 3); break;
       case 'c8toss': fx.text(e.x, e.y - 40, '리본 회오리!', '#ffd0ec', 18, 1.0, -20); fx.ring(e.x, e.y, 10, e.r, 0.6, '#ff9fd0', 6); fx.burst(e.x, e.y, busy ? 10 : 24, '#ffc0dc', 220, 'dot', 4, 0.8, 200); fx.burst(e.x, e.y, 8, '#ffffff', 160, 'star', 4, 0.6); fx.addShake(3); if (loud) A.sfx.heal && A.sfx.heal(); break;
@@ -1430,8 +1448,14 @@ function updateHud() {
   const def = g.wave > 0 ? S.waveDefFor(g, w) : null;
   const bossWave = !!(def && def.boss);
   if (TWUI) TWUI.hudTick(g);
+  if (g.wk && !g.wk.intro && g.t > 0.15) { // 주간 도전: 판이 실제로 돌기 시작하면 이번 주 규칙을 크게 (로딩 화면에 묻히지 않게)
+    g.wk.intro = true;
+    const m = g.wk.mod, T = L.weeklyTierDef(g.weekly.tier);
+    fx.banner(`이번 주 규칙 · ${m.name}`, `${m.desc} (${T.name} 리그)`, m.color || '#c77a00', 3.2, 'big'); fx.flash(m.color || '#ffd23f', 0.3);
+    if (g.mapFx.id !== 'none') fx.banner(`${g.mapFx.icon} ${g.mapFx.name}`, g.mapFx.desc, '#23336a', 1.8, 'big');
+  }
   if (R2UI && g.r2) R2UI.hudTick(g);
-  setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.phase ? ` · ${PV.PVP_ESC.name[g.pvp.phase]}` : ''}` : g.r2 ? `철거까지 ${Math.max(0, Math.ceil(R2UI.sec - g.t))}초` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : g.ev ? `🎃 할로윈 ${g.ev.n} · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
+  setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.phase ? ` · ${PV.PVP_ESC.name[g.pvp.phase]}` : ''}` : g.r2 ? `철거까지 ${Math.max(0, Math.ceil(R2UI.sec - g.t))}초` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.wk ? `${g.wk.mod.name} · W${w}/${g.totalWaves}` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : g.ev ? `🎃 할로윈 ${g.ev.n} · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
   setText(H$.time, 'time', `${Math.floor(g.t / 60)}:${String(Math.floor(g.t % 60)).padStart(2, '0')}`);
   if (g.pvp) setText(H$.time, 'time', `남은 ${PV.pvpLeftText(S.pvpTime(g))}`); // 1:1 대전: 5분 판정까지 남은 시간
   // 방어선 위험 경고
@@ -1927,7 +1951,7 @@ try { seen = JSON.parse(localStorage.getItem('langbang:seen') || '{}') || {}; } 
 function checkNewEnemies(g) {
   if (!bubble.hidden && bubble.classList.contains('hero')) return;
   for (const e of g.enemies) {
-    if (e.dead || e.y < 40 || seen[e.type] || e.def.dot) continue;
+    if (e.dead || e.y < 40 || seen[e.type] || e.def.dot || e.wkGob) continue; // (주간 보물 도둑은 8장 축의금 설명과 달라서 건너뛴다)
     seen[e.type] = 1;
     try { localStorage.setItem('langbang:seen', JSON.stringify(seen)); } catch { /* 무시 */ }
     if (['yeokko', 'namkko'].includes(e.type)) continue; // 첫 진상은 설명 생략
@@ -2095,7 +2119,7 @@ const ACTS = {
   edPreset: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckEditor(); },
   edAuto: () => { autoDeck(); A.sfx.levelUp(); showDeckEditor(); },
   prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
-  prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[L.weeklyDef(L.weekIndex()).fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
+  prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[wkDefNow().fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepCond: () => prepCondPopup(),
   prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (70% ★★★ · 35% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${hellHpMul(app.stage).toFixed(1)} (이 스테이지) · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} (적지만 단단하게) · 조건 하나 더 · 보스 분노 · 웨이브 사이 수리 절반 · 대신 경험치 ×${HELL.exp} · 멤버 공격 ×${HELL.dmg} (길게 키우며 버티는 싸움). 권장 강화는 보통 +${META_SOFT.hellAdd}. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
   prepFoe: (b) => {
@@ -2492,6 +2516,7 @@ function showMail() {
 }
 // 모드별 보상 안내
 const REWARD_INFO = {
+  weekly: () => `<h3>${ic('calendar', '', 'sm')}주간 도전 보상</h3><div class="ilist"><p class="ip">${ic('check', '', 'sm')}막은 웨이브만큼 코인 (끝까지 ${L.weeklyCoins(L.WEEKLY_WAVES)})</p><p class="ip">${ic('check', '', 'sm')}다음 주 순위 보상: 1위 5,000 · 2~3위 3,000 · 4~10위 1,500 · 참가 600 (+ 모집권)</p><p class="ip">${ic('check', '', 'sm')}점수는 몇 번이든 도전해서 가장 높은 것 하나</p></div>`,
   pvpTiers: () => `<h3>1:1 대전 등급 보상</h3><p class="ip">처음 오른 등급마다 한 번씩 우편으로 와요</p><div class="tier-rw">${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<div class="trw">${tierEmb(min, 'sm')}<span><b>${esc(name)}</b><small>${min}점</small></span><em>${gotText({ coins: rw.coins, tickets: rw.tickets })}${rw.gear ? ' · 장비' : ''}</em></div>`).join('')}</div>`,
   endless: () => { const p = P(), left = L.endlessLeft(p); return `<h3>${ic('infinity', '', 'sm')}무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><div class="ilist">${L.ENDLESS.miles.map((w) => `<p class="ip">${ic('check', '', 'sm')}${w}웨이브 첫 달성(주마다) — ${esc(gotText(L.milestoneReward(w)))}${p.ew && p.ew.wi === L.weekIndex() && p.ew.miles.includes(w) ? '' : ''}</p>`).join('')}</div><p class="ip">웨이브 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 ${L.endlessWeekReward(4).tickets} · 참가 보상 (우편함)</p>`; },
   pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>${ic('swords', '', 'sm')}1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">${ic('trophy', '', 'sm')}${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? '' : ''}</p>`).join('')}</div>`; },
@@ -2531,6 +2556,17 @@ function showCurseOffer(opts) {
 }
 function closeCurseOffer() { if (curseBox.isConnected) curseBox.remove(); }
 setInterval(() => { const g = app.g, t = document.getElementById('cbT'); if (g && g.curseOffer && t) t.textContent = Math.ceil(g.curseOffer.t); if ((!g || !g.curseOffer) && curseBox.isConnected) closeCurseOffer(); }, 250);
+// 주간 도전 계약: 둘 중 하나 받기 · 또는 거절 (시간이 지나면 거절)
+const wkBox = document.createElement('div');
+wkBox.className = 'curse-box wk-pact';
+wkBox.addEventListener('click', (ev) => { const b = ev.target.closest('[data-wkpact]'); if (b && app.g && app.g.wk && app.g.wk.choose(app.g, +b.dataset.wkpact)) { handleEvents(app.g, true); A.sfx.pick(); } });
+function showWkOffer(g, opts) {
+  const cur = L.weeklyPactMul(g.wk.pacts);
+  wkBox.innerHTML = `<div class="cb-head"><b>${ic('scroll', '', 'sm')}계약 제안</b><small>받으면 어려워지고 점수 ↑ · <em id="wkT">${Math.ceil(g.wk.offer ? g.wk.offer.t : 14)}</em>초 뒤 거절</small></div><div class="cb-list">${opts.map((id, i) => { const c = L.WEEKLY_PACTS[id]; return `<button class="cb-card" data-wkpact="${i}"><b>${esc(c.name)}</b><small class="bad">${esc(c.desc)}</small><small class="good">점수 ×${Math.min(L.WEEKLY_PACT_CAP, cur * c.mul).toFixed(2)}</small></button>`; }).join('')}<button class="cb-card wk-no" data-wkpact="2"><b>거절</b><small>지금 그대로</small><small class="good">점수 ×${cur.toFixed(2)}</small></button></div>`;
+  if (!wkBox.isConnected) stage.appendChild(wkBox);
+}
+function closeWkOffer() { if (wkBox.isConnected) wkBox.remove(); }
+setInterval(() => { const g = app.g, t = document.getElementById('wkT'); if (g && g.wk && g.wk.offer && t) t.textContent = Math.ceil(g.wk.offer.t); if ((!g || !g.wk || !g.wk.offer) && wkBox.isConnected) closeWkOffer(); }, 250);
 function topPills() {
   const p = P();
   const expPct = p.expToNext ? Math.round((p.exp / p.expToNext) * 100) : 0;
@@ -3524,7 +3560,7 @@ function showHeroModal(id, ctx = '') {
   const lv = p.heroes[id] | 0;
   const cost = ok ? API.costOf(p, id) : null;
   const needS = st < L.STAR_MAX ? L.STAR_SHARDS[st] : 0;
-  const s = app.mode === 'weekly' ? L.weeklyDef(L.weekIndex()).stage : app.screen === 'prep' && app.mode === 'stage' ? app.stage : lobbyStage();
+  const s = app.mode === 'weekly' ? wkDefNow().stage : app.screen === 'prep' && app.mode === 'stage' ? app.stage : lobbyStage();
   const m = attrMatch(d.attr, s);
   const sw = strongWeak(d.attr);
   const eq = (p.equip || {})[id] || {};
@@ -3733,19 +3769,22 @@ function showSeason() {
 }
 
 // ─── 주간 도전 ───────────────────────────────────────
+function wkDefNow() { return L.weeklyDef(L.weekIndex(), L.weeklyTier(P().maxStage)); } // 이번 주 · 내 리그 판
 async function showWeekly() {
   const p = P();
   if ((p.maxStage | 0) < L.WEEKLY_UNLOCK) { toast(`주간 도전은 ${stageLabel(L.WEEKLY_UNLOCK)}를 깨면 열려요`); return; }
   app.screen = 'weekly';
   hud.hidden = true;
   const wi = L.weekIndex();
-  const def = L.weeklyDef(wi);
+  const tier = L.weeklyTier(p.maxStage), T = L.weeklyTierDef(tier);
+  const def = L.weeklyDef(wi, tier);
   const mod = L.WEEKLY_MODS[def.mod];
+  const evs = def.events.map((id, i) => { const E = L.WEEKLY_EVENTS[id]; const nm = id === 'curse' ? L.WEEKLY_CURSES[def.curse].name : id === 'ambush' ? `기습(${def.side === 'L' ? '왼쪽' : '오른쪽'})` : E.name; return `<span class="wke e-${id}"><i>${i + 1}</i>${esc(nm)}</span>${L.WEEKLY_OFFER_AFTER.includes(i + 1) ? '<span class="wke pact"><i>?</i>계약</span>' : ''}`; }).join('');
   const fxd = MAP_FX[def.fx] || MAP_FX.none;
   const bosses = def.bosses.map((b) => `<span class="wb" title="${esc(ENEMIES[b].name)}">${av(ENEMIES[b])}<small>${esc(shortName(b))}</small></span>`).join('');
   const my = p.weekly && p.weekly.wi === wi ? p.weekly : null;
   const render = (bd) => {
-    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['', '', ''][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin"></span> 순위 불러오는 중…'}</div>`;
+    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['', '', ''][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wt t${r.tier | 0}">${r.tier ? esc(L.weeklyTierDef(r.tier).name) : ''}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin"></span> 순위 불러오는 중…'}</div>`;
     const prev = bd && bd.prev;
     const prevBox = prev ? `<div class="panel wprev"><b>지난주 결과: ${prev.rank ? `${prev.rank}위` : '-'} · ${fmt(prev.best)}점</b><small>${prev.reward ? esc(prev.reward.label) + ' · ' + gotText(prev.reward) : ''}</small>
       <button class="btn ${prev.claimed ? '' : 'primary'}" data-act="weeklyClaim" ${prev.claimed ? 'disabled' : ''}>${prev.claimed ? '받았어요' : '보상 받기'}</button></div>` : '';
@@ -3754,11 +3793,14 @@ async function showWeekly() {
  <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
  <h2 class="title">${ic('calendar', '', 'sm')} 주간 도전전</h2>
  <p class="sub">${L.weekLabel(wi)} · 끝까지 ${L.leftText(L.msToWeekEnd())} · 몇 번이든 도전, 최고 점수가 남아요</p>
-      <div class="wmod"><span class="wi">${mod.icon}</span><div><b>${esc(mod.name)}</b><small>${esc(mod.desc)}</small><small>${fxd.icon} ${esc(fxd.name)} · ${L.WEEKLY_WAVES}웨이브 · 뒤로 갈수록 확 세져요</small></div></div>
+      <div class="wmod" style="--wc:${mod.color || '#ffd23f'}"><div><em class="wtag">이번 주 규칙</em><b>${esc(mod.name)}</b><small>${esc(mod.desc)}</small><small>${fxd.icon} ${esc(fxd.name)} · ${L.WEEKLY_WAVES}웨이브 · 한 판 4~5분 · 뒤로 갈수록 확 세져요</small></div></div>
+      <div class="wtier"><b>${esc(T.name)} 리그</b><small>가장 멀리 깬 ${stageLabel(Math.max(1, p.maxStage | 0))} 기준 · 같은 리그는 모두 같은 판 · 점수 ×${T.mul}</small></div>
+      <div class="wevs">${evs}</div>
+      <p class="sub wpact">3 · 5웨이브 뒤 <b>계약</b>: 받으면 더 어려워지는 대신 점수 배율 ↑ (최대 ×${L.WEEKLY_PACT_CAP})</p>
       <div class="wbosses">${bosses}</div>
       <div class="wmy"><div><small>내 최고</small><b>${fmt(my ? my.best : 0)}</b></div><div><small>순위</small><b>${bd && bd.me && bd.me.rank ? `${bd.me.rank}위` : '-'}</b></div><div><small>도전</small><b>${my ? my.runs : 0}회</b></div></div>
       ${prevBox}
- <button class="btn primary" data-act="weeklyGo">도전! <small>점수 = 웨이브×1000 + 처치×10 + 보스×500 + 클리어 보너스</small></button>
+ <button class="btn primary" data-act="weeklyGo">도전! <small>점수 = 웨이브 · 목표 · 무피해 · 콤보 · 스킬 · 빠른 완주 × 계약 × 리그</small></button>
  <div class="gap"></div>
  <div class="panel wboard"><h4>${ic('trophy', '', 'sm')} 이번 주 순위 ${bd ? `<small>${bd.total}명 참가</small>` : ''}</h4>${board}</div>
  <p class="sub" style="margin-top:8px">순위 보상 (다음 주에 받기): 1위 5,000코인·${ic('ticket', '', 'sm')}5·영웅 장비·칭호 / 2~3위 3,000코인·${ic('ticket', '', 'sm')}3 / 4~10위 1,500코인·${ic('ticket', '', 'sm')}2 / 참가 600코인·${ic('ticket', '', 'sm')}1</p>
@@ -4855,7 +4897,7 @@ function waveRowHtml(s) {
   const tip = nS > nE + 1 ? '범위 공격 멤버를 챙겨요' : nE > nS ? '한 방 센 멤버를 챙겨요' : '범위 + 한 방 골고루';
   return `<div class="wave-row" data-act="waveHelp">${ks.map((k, i) => `<span class="wk k${k}"><small>${i + 1}</small>${WAVE_KINDS[k].icon}</span>`).join('')}<em>${tip}</em></div>`;
 }
-function prepStage() { return app.mode === 'weekly' ? L.weeklyDef(L.weekIndex()).stage : app.mode === 'stage' ? app.stage : 0; }
+function prepStage() { return app.mode === 'weekly' ? wkDefNow().stage : app.mode === 'stage' ? app.stage : 0; }
 function matchTag(id) {
   const s = prepStage();
   if (!s) return '';
@@ -4941,7 +4983,7 @@ function showPrep(mode, s) {
   const p = P();
   const max = deckSlotsNow();
   const ids = curDeck().filter(Boolean);
-  const wk = mode === 'weekly' ? L.weeklyDef(L.weekIndex()) : null;
+  const wk = mode === 'weekly' ? wkDefNow() : null;
   const st = prepStage();
   const ch = st ? chapterOf(st) : 0;
   R.setTheme(st ? ch : 'endless');
@@ -5687,6 +5729,7 @@ function showResult(victory, quit) {
   app.screen = 'result';
   hud.hidden = true;
   const sum = S.summary(g, g.t);
+  if (g.wk) sum.wk = wkSummary(g); // 주간: 목표 · 무피해 · 콤보 · 계약 (서버가 다시 계산)
   const mins = Math.floor(g.t / 60), secs = Math.floor(g.t % 60);
   const time = `${mins}:${String(secs).padStart(2, '0')}`;
   const totalDmg = g.heroes.reduce((a, h) => a + h.dmgDone, 0) || 1;
@@ -5722,8 +5765,10 @@ function showResult(victory, quit) {
       ${pr.win && (pr.streak | 0) >= 2 ? `<div class="pr-streak">${ic('fire', '', 'sm')}${pr.streak}연승 중</div>` : ''}</div>`;
   } else if (wk) {
     title = victory ? '주간 도전 완주!' : `주간 도전 W${sum.wave}`;
-    sub = victory ? `${g.totalWaves}웨이브 전부 막았다!` : quit ? '다음엔 더 멀리!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
-    top = `<div class="score-big"><small>주간 점수</small><b id="wkscore">${fmt(L.weeklyScore({ waves: sum.wave, kills: sum.kills, bossKills: sum.bossKills, victory, hpPct: sum.hpPct }))}</b></div>`;
+    const T = L.weeklyTierDef(g.weekly.tier), M = L.WEEKLY_MODS[g.weekly.mod] || {};
+    sub = `${T.name} 리그 · ${M.name || ''} · ${victory ? `${g.totalWaves}웨이브 전부 막았다!` : quit ? '다음엔 더 멀리!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]}`;
+    const bd = L.weeklyBreakdown(API.weeklyBody(sum, g.weekly.tier));
+    top = `<div class="score-big"><small>주간 점수</small><b id="wkscore">${fmt(bd.total)}</b></div>${wkBreakHtml(bd, sum, T)}`;
   } else {
     title = `무한 도전 W${sum.wave}`;
     sub = quit ? '다음엔 더 멀리!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
@@ -5821,6 +5866,12 @@ const FAIL_TIPS = [
   '총공지는 적이 몰려올 때 아껴 뒀다가 쓰세요',
 ];
 
+// 주간 점수 풀이 (서버와 같은 식 · 웨이브 목표 ●○)
+function wkBreakHtml(bd, sum, T) {
+  const log = (sum.wk && sum.wk.goalLog) || [];
+  const rows = bd.rows.map(([k, name, n, v]) => `<div class="wkb-row ${v > 0 ? '' : 'zero'}"><span>${esc(name)}</span><em>${k === 'goal' && log.length ? log.map((x) => (x ? '●' : '○')).join('') : fmt(n)}</em><b>+${fmt(v)}</b></div>`).join('');
+  return `<div class="panel wk-break">${rows}<div class="wkb-row sum"><span>합계</span><em></em><b>${fmt(bd.sum)}</b></div><div class="wkb-row mul"><span>계약 배율</span><em>${(sum.wk && sum.wk.pacts ? sum.wk.pacts.filter(Boolean).map((id) => (L.WEEKLY_PACTS[id] || {}).name).join(' · ') : '') || '없음'}</em><b>×${bd.pact.toFixed(2)}</b></div><div class="wkb-row mul"><span>${esc(T.name)} 리그</span><em></em><b>×${bd.tier.toFixed(2)}</b></div></div>`;
+}
 async function saveWeekly(sum, g, box) {
   const r = await API.postWeekly(sum, app.weeklyRun, app.guest);
   app.weeklyRun = null;
