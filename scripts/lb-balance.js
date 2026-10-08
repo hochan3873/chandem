@@ -820,6 +820,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     const N = opt('seeds', 8), hell = args.includes('--hell'), byCh = {};
     for (const kv of listArg('chadd', '')) { const [c, v] = kv.split(':').map(Number); D.STAGE.chapterAdd[c - 1] += v; } // --chadd=5:2 : 장 난이도를 바꿔 보며 측정
     for (const kv of listArg('sadd', '')) { const [st, v] = kv.split(':').map(Number); D.STAGE.stageAdd[st] = v; } // --sadd=30:-1.2 : 스테이지 가산을 바꿔 보며 측정
+    for (const kv of listArg('hpx', '')) { const [st, v] = kv.split(':').map(Number); D.STAGE_HPX[st] = v; } // --hpx=23:1.5 : 스테이지 체력 배수를 바꿔 보며 측정
     for (const kv of listArg('chhp', '')) { const [c, v] = kv.split(':').map(Number); D.TENSION.chHp[c - 1] *= v; } // --chhp=3:1.2 : 장 체력 배율(긴장감)을 곱해 보며 측정
     for (const kv of listArg('hellch', '')) { const [c, v] = kv.split(':').map(Number); D.TEMPO.hellCh[c - 1] *= v; } // --hellch=1:0.7 : 헬 장별 체력 배율을 곱해 보며 측정
     const cells = [];
@@ -858,7 +859,9 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
           if (g.t >= nextT) { let alive = 0; for (const e of g.enemies) if (!e.dead && e.y > 0) alive++; tr.push([Math.round(g.t), Math.round(f * 100), alive, g.stats.kills - lastK, g.wave]); lastK = g.stats.kills; nextT += 1; }
         } });
       const minHp = tr.reduce((m, x) => Math.min(m, x[1]), 100);
-      runs.push({ hits, win: r.win, hp: r.hp, t: r.t, firstHit, t75, minHp, tr, skills: r.g.stats.skills || 0, wave: r.wave });
+      const G = r.g, hs = G.heroes.filter((h) => !h.def.summon), lvF = hs.reduce((a, h) => a + D.LEVEL_DMG[h.lv - 1] / D.LEVEL_INTERVAL[h.lv - 1], 0) / Math.max(1, hs.length);
+      const grow = { dmg: G.mods.dmg, spd: G.mods.spd, lvF, n: hs.length, wave: r.wave };
+      runs.push({ grow, hits, win: r.win, hp: r.hp, t: r.t, firstHit, t75, minHp, tr, skills: r.g.stats.skills || 0, wave: r.wave });
     }
     return runs;
   }
@@ -885,6 +888,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       const hp = w.map((x) => x.hp * 100), col = l.map((x) => x.t - (x.t75 >= 0 ? x.t75 : x.t));
       const tense = runs.filter((x) => x.minHp >= 30 && x.minHp <= 80).length / runs.length;
       if (args.includes('--hits')) { const H = runs.flatMap((x) => x.hits); const by = {}; for (const h of H) by[h[1]] = (by[h[1]] || 0) + h[0]; console.log(`   한 대 크기(입구 %) 50/90/99: ${[0.5, 0.9, 0.99].map((f) => q(H.map((h) => h[0]), f).toFixed(1)).join('/')} · 판당 ${Math.round(H.length / runs.length)}대 · 몫 ${Object.entries(by).sort((a, b2) => b2[1] - a[1]).slice(0, 6).map(([k, v]) => k + ' ' + Math.round(v / runs.length)).join(' ')}`); }
+      if (args.includes('--grow')) { const gw = runs.filter((x) => x.win).map((x) => x.grow); if (gw.length) { const av = (f) => gw.reduce((a, x) => a + f(x), 0) / gw.length; console.log(`   한 판 성장 (이긴 판 끝): 공격 ×${av((x) => x.dmg).toFixed(2)} · 공속 ×${av((x) => x.spd).toFixed(2)} · 멤버 레벨 몫 ×${av((x) => x.lvF).toFixed(2)} · 합계 ×${av((x) => x.dmg * x.spd * x.lvF).toFixed(2)} · ${av((x) => x.n).toFixed(1)}명`); } }
       console.log(`${c}장 ${pad(BOTS[b].label, 8)} 클리어 ${pad(Math.round((w.length / runs.length) * 100) + '%', 5)} 남은입구 ${hp.length ? [0.25, 0.5, 0.75].map((f) => Math.round(q(hp, f))).join('/') : '-'} · 90%+ ${hp.length ? Math.round((hp.filter((v) => v >= 90).length / hp.length) * 100) : '-'}% · 붕괴 ${col.length ? Math.round(q(col, 0.5)) + '초' : '-'} · 긴장 ${Math.round(tense * 100)}% · 스킬 ${Math.round(runs.reduce((a, x) => a + x.skills, 0) / runs.length)}번 · 시간 ${Math.round(runs.reduce((a, x) => a + x.t, 0) / runs.length)}초`);
     }
   }

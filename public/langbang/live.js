@@ -590,8 +590,8 @@ export const GACHA_COST = { one: 500, ten: 4500 }; // (300/2700 → 500/4500: �
 export const GACHA_COIN_DAILY = 30;
 export function gachaCoinLeft(lb, now = Date.now()) { const d = lb.gachaDay; return Math.max(0, GACHA_COIN_DAILY - (d && d.day === dayIndex(now) ? d.n | 0 : 0)); }
 export const HOCHAN_GATE = 40; // 4-10 클리어 후 LEGEND 이호찬이 모집에 나온다 (6-10 → 4-10 로 당김)
-// 천장: T4 멤버 40번 안에 확정 · LEGEND 는 70번부터 확률이 가파르게 올라 90번째에 확정 (소프트 천장)
-export const PITY_HERO = 40, PITY_LEGEND = 90, PITY_SOFT = 70;
+// 천장: T4 멤버 50번 안에 확정 · LEGEND 는 70번부터 확률이 가파르게 올라 90번째에 확정 (소프트 천장)
+export const PITY_HERO = 50, PITY_LEGEND = 90, PITY_SOFT = 70; // (10/08 T4 천장 40 → 50 · 확률 5.4 → 4%: 일주일에 T4 셋을 다 모아 '떴다!' 가 금방 사라지던 것)
 // 모집 멤버는 "카드"를 모아서 합류: 영웅 10장 · LEGEND(이호찬) 30장. 합류한 뒤 카드는 ★승급 조각으로
 export const UNLOCK_CARDS = { epic: 10, legend: 30 };
 export const CARD_BUNDLE = { epicHero: 10, legendHero: 30, t3Card: 3, t2Card: 3 }; // LEGEND · T4 는 한 번에 합류 (겹치면 그만큼 멤버 카드) · T3·T2 는 카드 3장
@@ -600,14 +600,14 @@ export const GACHA_RATES = [ // 확률 공개 (%) — 등급별 (다른 모집 �
   { k: 'sigGear', w: SIG_RATE.hero, name: '전용 신화 장비 (멤버마다 1개 · 가진 멤버 중)', color: '#ff4fd8' },
   { k: 'mythGear', w: 0.3, name: '신화 장비 (만능 6종)', color: '#ff7ad9' },
   { k: 'legendHero', w: 0.6, name: 'LEGEND 멤버 합류 (이호찬 · 강병화 · 70번부터 확률 ↑ · 90번 확정)', color: '#ffcf3f' },
-  { k: 'epicHero', w: 5.4, name: 'T4 멤버 합류 (윤준서 · 배현경 · 고아라) · 픽업 50%', color: '#c77dff' },
+  { k: 'epicHero', w: 4, name: 'T4 멤버 합류 (윤준서 · 배현경 · 고아라) · 픽업 50%', color: '#c77dff' },
   { k: 't3Card', w: 20, name: 'T3 멤버 카드 ×3 (정소영 · 오지은 · 여지원 · 정원식)', color: '#4ea8ff' },
   { k: 'legendGear', w: 1.2, name: '전설 장비', color: '#ffb400' },
   { k: 'epicGear', w: 6, name: '영웅 장비', color: '#d9a8ff' },
   { k: 'rareGear', w: 16.5, name: '희귀 장비', color: '#7ec4ff' },
   { k: 't2Card', w: 15, name: 'T2 멤버 카드 ×3 (박상화 · 홍정민)', color: '#5de07a' },
   { k: 'shard10', w: 10, name: '멤버 조각 ×10', color: '#ff9f5a' },
-  { k: 'shard4', w: 25 - SIG_RATE.hero, name: '멤버 조각 ×4', color: '#9fb3c8' },
+  { k: 'shard4', w: 26.4 - SIG_RATE.hero, name: '멤버 조각 ×4', color: '#9fb3c8' },
 ];
 const T3_PLUS = ['legendHero', 'epicHero', 't3Card', 'mythGear'];
 const tierPool = (t) => GACHA_HEROES.filter((h) => heroTier(h) === t);
@@ -650,7 +650,7 @@ export function gachaPull(lb, n, pay, uid, now = Date.now(), seed) {
     if (legendOpen(lb)) lb.pity.legend++;
     let k;
     if (legendOpen(lb) && lb.pity.legend >= PITY_LEGEND) k = 'legendHero'; // 90번째: 확정
-    else if (lb.pity.hero >= PITY_HERO) k = 'epicHero'; // T4 40번 안에 확정
+    else if (lb.pity.hero >= PITY_HERO) k = 'epicHero'; // T4 50번 안에 확정
     else k = rollKind(rng, lb);
     if (first10 && i === 9 && !out.some((x) => x.k === 'epicHero' || x.k === 'legendHero') && k !== 'legendHero') k = 'epicHero';
     else if (n === 10 && i === 9 && !t3 && !T3_PLUS.includes(k)) k = rollKind(rng, lb, T3_PLUS); // 10회: T3 이상 1개 확정

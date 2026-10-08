@@ -343,7 +343,7 @@ function updateHeroes(g, dt) {
         const C = d.care, k = h.lv - 1;
         h.healT = C.every[k];
         let n = 0;
-        if (C.door && g.phase === 'wave' && g.base.hp < g.base.max) { const v = healDoor(g, h.id, g.base.max * C.door[k] * (g.mods.healMul || 1)); if (v > 0) ev(g, 'heal', { x: g.W / 2 + (g.rng() - 0.5) * 80, y: g.ropeY, v: Math.round(v), hero: h.id, care: true }); } // (10/08) 입구도 조금씩 — 초보도 고를 수 있는 입구 지킴이
+        if (C.door && !g.pvp && g.phase === 'wave' && g.base.hp < g.base.max) { const v = healDoor(g, h.id, g.base.max * C.door[k] * (g.mods.healMul || 1)); if (v > 0) ev(g, 'heal', { x: g.W / 2 + (g.rng() - 0.5) * 80, y: g.ropeY, v: Math.round(v), hero: h.id, care: true }); } // (10/08) 입구도 조금씩 — 초보도 고를 수 있는 입구 지킴이
         for (const o of g.heroes) {
           if (cleanseHero(o, 0.3)) { o.ccImmT = Math.max(o.ccImmT || 0, C.guard[k]); o.cheerT = C.cheer.sec; n++; ev(g, 'cleanse', { x: o.x, y: o.y }); }
           if (o.tiredT > 0.3) { o.tiredT = Math.max(0, o.tiredT - C.tired[k]); o.cheerT = C.cheer.sec; n++; ev(g, 'care', { x: o.x, y: o.y, hero: o.id }); }
@@ -2077,6 +2077,7 @@ function updateEnemies(g, dt) {
       if (e.hitT > 0) e.hitT -= dt;
       continue;
     }
+    if (g.tension && (e.elite || e.mid || e.boss) && !def.kick && !e.cast && !e.fleeing && e.stunT <= 0 && e.y > g.ropeY - TENSION.slam.reach) { const SL = TENSION.slam; if (e.slamT === undefined) e.slamT = SL.first; if ((e.slamT -= dt) <= 0) { e.slamT = SL.every * (0.85 + g.rng() * 0.3); startCast(g, e, null, { door: true, wind: SL.wind, frac: (e.boss ? SL.boss : e.mid ? SL.mid : SL.elite) * (g.hell ? SL.hell : 1), name: e.atRope ? '입구 강타' : '입구로 던지기' }); } } // 긴장감: 입구 가까이 온 정예 · 중간 보스 · 보스의 '입구 강타' 예고 → 스킬(기절 · 넉백 · 빙결)로 끊으면 안 맞는다
     if (e.atRope) {
       // 찌질남: 멤버에게 착 달라붙는다 (잡을 때까지 그 멤버 공격력 ↓)
       if (def.cling && !e.clingTo) {
@@ -2121,7 +2122,6 @@ function updateEnemies(g, dt) {
       }
       if (e.speechT > 0) { if (e.hitT > 0) e.hitT -= dt; continue; } // 축사 중엔 입구를 안 친다
       if (e.castW > 0) { if (e.hitT > 0) e.hitT -= dt; continue; } // (10/08) 큰 한 방 예고 중
-      if (g.tension && (e.elite || e.mid || e.boss) && !def.kick) { const SL = TENSION.slam; if (e.slamT === undefined) e.slamT = SL.first; if ((e.slamT -= dt) <= 0) { e.slamT = SL.every * (0.85 + g.rng() * 0.3); startCast(g, e, null, { door: true, wind: SL.wind, frac: (e.boss ? SL.boss : e.mid ? SL.mid : SL.elite) * (g.hell ? SL.hell : 1), name: '입구 강타' }); continue; } } // 긴장감: 입구에 붙은 정예 · 중간 보스 · 보스의 '입구 강타' 예고 → 스킬(기절 · 넉백 · 빙결)로 끊으면 안 맞는다
       if (def.kick && !g.pvp && (g.mode !== 'stage' || (g.stage | 0) >= def.kick.from) && (e.kickT -= dt) <= 0) { // 폭력배: 문짝 걷어차기 (예고 → 쾅)
         e.kickT = def.kick.every * (0.9 + g.rng() * 0.2);
         startCast(g, e, null, { door: true, wind: def.kick.wind, mul: def.kick.mul, hit: def.kick.hit, name: def.kick.name });
@@ -3375,7 +3375,7 @@ export function augDef(id) {
   return AUGMENTS.find((a) => a.id === id);
 }
 // 증강이 실제로 얼마나 먹히나 (강화 평균 · 무한/스테이지) — 화면도 이 값으로 보여 준다
-export function augScale(g) { const hs = g.heroes.filter((h) => !h.def.summon); return (0.7 + (hs.reduce((x, h) => x + (h.meta || 0), 0) / Math.max(1, hs.length)) / 20) * (g.mode === 'endless' ? 1 : AUG_STAGE); }
+export function augScale(g) { const hs = g.heroes.filter((h) => !h.def.summon); return (0.7 + (hs.reduce((x, h) => x + (h.meta || 0), 0) / Math.max(1, hs.length)) / 20) * (g.mode === 'endless' ? 1 : AUG_STAGE) * (g.tension ? TENSION.aug : 1); } // (긴장감: 증강 % ×TENSION.aug)
 export function applyAug(g, id) {
   if (!g.augOffer || !g.augOffer.opts.includes(id)) return false;
   const a = augDef(id);
@@ -3766,7 +3766,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
     }
     case 'firstaid': { // 건전녀 응급 방패: 멤버 전원에게 하트 방패 — 상태이상 해제 · 기진맥진 풀기 · 잠깐 면역 · 다른 멤버 스킬 쿨 −2초 (입구 방패는 이제 없음: 입구는 홍정민)
       const imm = sk.imm[lv] + (sa.aegis ? 1.5 : 0), cdCut = sk.cdCut + (sa.aegis ? 1 : 0);
-      if (sk.door) { const v = healDoor(g, h.id, g.base.max * sk.door[lv] * (g.mods.healMul || 1)); if (v > 0) ev(g, 'heal', { x: g.W / 2, y: g.ropeY, v: Math.round(v), hero: h.id, big: true }); } // (10/08) 응급 방패: 입구도 한 뭉텅이
+      if (sk.door && !g.pvp) { const v = healDoor(g, h.id, g.base.max * sk.door[lv] * (g.mods.healMul || 1)); if (v > 0) ev(g, 'heal', { x: g.W / 2, y: g.ropeY, v: Math.round(v), hero: h.id, big: true }); } // (10/08) 응급 방패: 입구도 한 뭉텅이
       for (const o of g.heroes) {
         cleanseHero(o); o.ccImmT = Math.max(o.ccImmT || 0, imm); o.heartT = imm; o.cheerT = Math.max(o.cheerT || 0, 4); // heartT: 하트 방패 표시 · "힘내요!" 4초
         if (o.tiredT > 0) o.tiredT = 0;
@@ -4322,7 +4322,7 @@ function heroCardDesc(def, next, add = 0) { // add: 큰 카드 (일반 스테이
 // ─── 큰 카드 · 주력 ───
 // 큰 카드: 일반 카드의 % 효과 × GROW.card (설명 숫자도 같이)
 // n: 이미 고른 같은 카드 수 → 큰 카드 모드(일반 스테이지 · 헬)에선 겹칠수록 덜 (GROW.rep)
-export const cardK = (g, n = 0) => (g && g.grow ? GROW.card * GROW.rep[Math.min(n, GROW.rep.length - 1)] : 1);
+export const cardK = (g, n = 0) => (g && g.grow ? GROW.card * GROW.rep[Math.min(n, GROW.rep.length - 1)] * (g.tension ? TENSION.card : 1) : 1); // (긴장감: 한 판 눈덩이를 덜 — 카드 % ×TENSION.card)
 export const bigDesc = (desc, k) => (k === 1 ? desc : desc.replace(/(\d+(?:\.\d+)?)%/g, (_, n) => `${Math.round(Number(n) * k)}%`));
 // 주력: 한 판에 Lv3 을 넘길 수 있는 멤버는 MAIN.n 명 (먼저 Lv3 을 넘긴 순서)
 export const mainCount = (g) => g.heroes.filter((h) => h.main).length;
