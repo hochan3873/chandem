@@ -1015,6 +1015,7 @@ test('live: 주간 도전 판은 주 번호 + 리그로만 정해지고, 점수�
   assert.equal(L.weeklyPactMul(['thick', 'crack', 'thick']), L.WEEKLY_PACT_CAP, '계약 배율 상한');
   assert.equal(L.weeklyScore({ ...r, victory: false, waves: 5 }), 5 * 1500 + 1200 + 600 + 3500 + 3000 + 960 + 1000 + 500, '못 깨면 완주 · 입구 · 시간 점수 없음');
   assert.equal(L.weeklyCoins(8), 300, '보상 코인은 예전과 같은 300');
+  assert.equal(L.weekName(L.weekIndex(Date.UTC(2026, 9, 7, 3))), '10월 1주차', '사람이 읽는 주 이름 (10/5 월요일 주)');
   assert.equal(L.weeklyCoins(4), 150);
   assert.ok(L.weeklyCheck(a, { waves: 3, kills: 99999, bossKills: 0, durationSec: 100 }) !== null, '처치 수 상한');
   assert.ok(L.weeklyCheck(a, { waves: 3, kills: 50, bossKills: 0, durationSec: 10 }) !== null, '너무 짧음');

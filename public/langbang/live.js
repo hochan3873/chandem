@@ -127,6 +127,11 @@ export function weekLabel(wi) {
   const a = new Date(EPOCH + wi * WEEK), b = new Date(EPOCH + wi * WEEK + 6 * DAY);
   return `${a.getUTCMonth() + 1}/${a.getUTCDate()} ~ ${b.getUTCMonth() + 1}/${b.getUTCDate()}`;
 }
+// 사람이 읽는 주 이름: 그 주 월요일 기준 'N월 M주차' (주간 도전 결과 · 로비)
+export function weekName(wi) {
+  const a = new Date(EPOCH + wi * WEEK);
+  return `${a.getUTCMonth() + 1}월 ${Math.ceil(a.getUTCDate() / 7)}주차`;
+}
 export function leftText(ms) {
   const m = Math.max(0, Math.floor(ms / 60000));
   const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;

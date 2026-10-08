@@ -2566,7 +2566,7 @@ function showWkOffer(g, opts) {
   if (!wkBox.isConnected) stage.appendChild(wkBox);
 }
 function closeWkOffer() { if (wkBox.isConnected) wkBox.remove(); }
-setInterval(() => { const g = app.g, t = document.getElementById('wkT'); if (g && g.wk && g.wk.offer && t) t.textContent = Math.ceil(g.wk.offer.t); if ((!g || !g.wk || !g.wk.offer) && wkBox.isConnected) closeWkOffer(); }, 250);
+setInterval(() => { const g = app.g, t = document.getElementById('wkT'); if (g && g.wk && g.wk.offer && t) t.textContent = Math.ceil(g.wk.offer.t); if (g && g.wk && g.wk.offer && (g.over || app.screen !== 'play')) g.wk.offer = null; if ((!g || !g.wk || !g.wk.offer) && wkBox.isConnected) closeWkOffer(); }, 250);
 function topPills() {
   const p = P();
   const expPct = p.expToNext ? Math.round((p.exp / p.expToNext) * 100) : 0;
@@ -3784,7 +3784,7 @@ async function showWeekly() {
   const bosses = def.bosses.map((b) => `<span class="wb" title="${esc(ENEMIES[b].name)}">${av(ENEMIES[b])}<small>${esc(shortName(b))}</small></span>`).join('');
   const my = p.weekly && p.weekly.wi === wi ? p.weekly : null;
   const render = (bd) => {
-    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['', '', ''][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wt t${r.tier | 0}">${r.tier ? esc(L.weeklyTierDef(r.tier).name) : ''}</span><span class="wv">W${r.waves}</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin"></span> 순위 불러오는 중…'}</div>`;
+    const board = bd ? bd.board.map((r) => `<div class="wrow ${r.rank <= 3 ? 'top' + r.rank : ''}"><span class="rk">${r.rank <= 3 ? ['', '', ''][r.rank - 1] : r.rank}</span><span class="nm ${frameCls(r.frame)}" style="${frameStyle(r.frame)}">${whoHtml(r.nickname, r.title)}</span><span class="wt t${r.tier | 0}">${r.tier ? esc(L.weeklyTierDef(r.tier).name) : ''}</span><span class="wv">${r.waves}웨이브</span><b>${fmt(r.best)}</b></div>`).join('') || '<div class="empty-msg">아직 기록이 없어요 — 1등 할 기회!</div>' : `<div class="empty-msg">${app.guest ? '로그인하면 친구들과 순위 경쟁!' : '<span class="spin"></span> 순위 불러오는 중…'}</div>`;
     const prev = bd && bd.prev;
     const prevBox = prev ? `<div class="panel wprev"><b>지난주 결과: ${prev.rank ? `${prev.rank}위` : '-'} · ${fmt(prev.best)}점</b><small>${prev.reward ? esc(prev.reward.label) + ' · ' + gotText(prev.reward) : ''}</small>
       <button class="btn ${prev.claimed ? '' : 'primary'}" data-act="weeklyClaim" ${prev.claimed ? 'disabled' : ''}>${prev.claimed ? '받았어요' : '보상 받기'}</button></div>` : '';
@@ -3792,7 +3792,7 @@ async function showWeekly() {
       ${topPills()}
  <div class="topbar"><button class="back" data-act="menu">‹ 로비</button></div>
  <h2 class="title">${ic('calendar', '', 'sm')} 주간 도전전</h2>
- <p class="sub">${L.weekLabel(wi)} · 끝까지 ${L.leftText(L.msToWeekEnd())} · 몇 번이든 도전, 최고 점수가 남아요</p>
+ <p class="sub">${L.weekName(wi)} (${L.weekLabel(wi)}) · 끝까지 ${L.leftText(L.msToWeekEnd())} · 몇 번이든 도전, 최고 점수가 남아요</p>
       <div class="wmod" style="--wc:${mod.color || '#ffd23f'}"><div><em class="wtag">이번 주 규칙</em><b>${esc(mod.name)}</b><small>${esc(mod.desc)}</small><small>${fxd.icon} ${esc(fxd.name)} · ${L.WEEKLY_WAVES}웨이브 · 한 판 4~5분 · 뒤로 갈수록 확 세져요</small></div></div>
       <div class="wtier"><b>${esc(T.name)} 리그</b><small>가장 멀리 깬 ${stageLabel(Math.max(1, p.maxStage | 0))} 기준 · 같은 리그는 모두 같은 판 · 점수 ×${T.mul}</small></div>
       <div class="wevs">${evs}</div>
@@ -5739,7 +5739,7 @@ function showResult(victory, quit) {
   const wk = !!g.weekly && !g.raid;
   const stageMode = g.mode === 'stage' && !wk && !g.pvp && !g.raid;
   const win = victory && stageMode;
-  let title, sub, top;
+  let title, sub, top, wkTotal = null; // (wkTotal: 주간 도전 점수 — 큰 점수 · 작은 칸 · 공유 카드가 같은 값)
   if (stageMode) {
     title = win ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} 클리어!` : quit ? '오늘은 여기까지' : `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} 실패…`;
     sub = win ? `입구 내구도 ${sum.hpPct}% 로 지켜냈다!` : `웨이브 ${Math.max(1, g.wave)}/${g.totalWaves}에서 막혔어요 · ${quit ? '다음엔 끝까지!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]}`;
@@ -5764,10 +5764,12 @@ function showResult(victory, quit) {
       ${t0[1] !== t1[1] ? `<div class="pr-tier ${t1[0] > t0[0] ? 'up' : 'down'}">${t1[0] > t0[0] ? '등급 올라감!' : '등급 내려감'} <b>${esc(t1[1])}</b></div>` : ''}
       ${pr.win && (pr.streak | 0) >= 2 ? `<div class="pr-streak">${ic('fire', '', 'sm')}${pr.streak}연승 중</div>` : ''}</div>`;
   } else if (wk) {
-    title = victory ? '주간 도전 완주!' : `주간 도전 W${sum.wave}`;
+    title = victory ? '주간 도전 완주!' : `${L.weekName(g.weekly.wi)} 주간 도전`;
     const T = L.weeklyTierDef(g.weekly.tier), M = L.WEEKLY_MODS[g.weekly.mod] || {};
-    sub = `${T.name} 리그 · ${M.name || ''} · ${victory ? `${g.totalWaves}웨이브 전부 막았다!` : quit ? '다음엔 더 멀리!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]}`;
+    sub = `${victory ? L.weekName(g.weekly.wi) : `${sum.wave}/${g.totalWaves}웨이브`} · ${T.name} 리그 · ${M.name || ''} · ${victory ? `${g.totalWaves}웨이브 전부 막았다!` : quit ? '다음엔 더 멀리!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]}`;
     const bd = L.weeklyBreakdown(API.weeklyBody(sum, g.weekly.tier));
+    wkTotal = bd.total;
+    closeWkOffer(); if (g.wk) g.wk.offer = null; // 계약 창이 결과 위에 남지 않게
     top = `<div class="score-big"><small>주간 점수</small><b id="wkscore">${fmt(bd.total)}</b></div>${wkBreakHtml(bd, sum, T)}`;
   } else {
     title = `무한 도전 W${sum.wave}`;
@@ -5794,7 +5796,7 @@ function showResult(victory, quit) {
       <div><small>보스 처치</small><b>${sum.bossKills}</b></div>
       <div><small>최대 콤보</small><b>${g.stats.maxCombo}</b></div>
       <div><small>플레이 시간</small><b>${time}</b></div>
-      <div><small>점수</small><b>${fmt(sum.score)}</b></div>
+      <div><small>${wkTotal !== null ? '주간 점수' : '점수'}</small><b ${wkTotal !== null ? 'id="wkscore2"' : ''}>${fmt(wkTotal !== null ? wkTotal : sum.score)}</b></div>
     </div>`}
     <div class="panel mvp">${mvp}</div>${teamHtml(g)}
     <div class="server" id="srv">${win || !stageMode ? '<span class="spin"></span> 보상 받는 중…' : ''}</div>
@@ -5805,7 +5807,7 @@ function showResult(victory, quit) {
   `, `result ${stageMode ? 'compact' : ''} ${win || (!stageMode && sum.wave >= 10) ? 'win' : 'lose'}`);
   app.shareData = {
     title, win, mode: g.mode, stageLabel: stageMode ? stageLabel(g.stage) : '', stars: win ? g.stars : 0,
-    score: sum.score, wave: sum.wave, waves: g.totalWaves, kills: sum.kills, bossKills: sum.bossKills,
+    score: wkTotal !== null ? wkTotal : sum.score, wave: sum.wave, waves: g.totalWaves, kills: sum.kills, bossKills: sum.bossKills,
     time, nickname: app.guest ? '' : app.nickname, chapter: g.mode === 'stage' ? chapterOf(g.stage) : 3,
     heroes: heroes.slice(0, 6).map((h) => ({ id: h.id, img: h.def.img, thumb: HEROES[h.id] ? thumbSrc(h.id) : '', face: DEX_FACE[h.id], name: h.def.name, color: h.def.color, tier: HEROES[h.id] ? heroTier(h.id) : 1 })),
   };
@@ -5880,7 +5882,7 @@ async function saveWeekly(sum, g, box) {
   if (!r.ok) { box.innerHTML = `<div class="err">기록을 저장하지 못했어요: ${esc(r.message || '알 수 없는 오류')}</div>`; return; }
   const w = r.weekly || {};
   const sc = $('#wkscore');
-  if (sc && w.score !== undefined) sc.textContent = fmt(w.score);
+  if (w.score !== undefined) { if (sc) sc.textContent = fmt(w.score); const s2 = $('#wkscore2'); if (s2) s2.textContent = fmt(w.score); if (app.shareData) app.shareData.score = w.score; } // 서버 점수로 맞춤
   box.innerHTML = `<div class="rewards"><div class="rw hl"><span>${ic('calendar', '', 'sm')}이번 주 최고</span><b>${fmt(w.best || 0)}${w.newBest ? '' : ''}</b></div>
     <div class="rw total"><span><i class="ci"></i>받은 코인</span><b>+${fmt((r.reward || {}).total || 0)}</b></div></div>
     <div class="own">${r.rank ? `<span class="badge">이번 주 ${r.rank}위</span>` : ''}<span>보유 <i class="ci"></i>${fmt(P().coins)}</span>${app.guest ? ' · <span class="dimtxt">손님은 순위에 안 올라가요</span>' : ''}</div>`;

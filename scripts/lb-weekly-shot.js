@@ -73,7 +73,9 @@ const MAX = Number(process.argv[4] || 30);
     // 마지막 웨이브 보스 (새 주간) — 바로 마지막 웨이브로
     const boss = await page.evaluate(() => { const g = window.__lb.g; if (!g || !g.wk || !g.wk.jumpLast) return false; g.wk.jumpLast(g); return true; });
     if (boss) { await wait(1200); await shot('5-boss-intro'); await tickPlay(10); await page.evaluate(() => { const g = window.__lb.g; const b = g && g.enemies.find((e) => e.boss && !e.dead); if (b) b.hp = b.maxHp * 0.6; }); await wait(700); await shot('5b-boss-phase'); }
-    // 결과 화면: 입구를 무너뜨려 끝낸다
+    // 결과 화면: 입구를 무너뜨려 끝낸다 (계약 창이 떠 있는 채로 끝나도 결과 위에 안 남는지)
+    await page.evaluate(() => { const g = window.__lb.g; if (g && g.wk && g.wk.forceOffer) g.wk.forceOffer(g); });
+    await wait(500);
     await page.evaluate(() => { const g = window.__lb.g; if (g && !g.over) { g.base.hp = 1; g.base.max = Math.max(1, g.base.max); for (let i = 0; i < 4; i++) window.__lb.S.spawnEnemy(g, 'drunk', 180, g.ropeY - 4); } });
     for (let k = 0; k < 40; k++) { await wait(500); const o = await page.evaluate(() => !!document.querySelector('#wkscore, .wk-break')); if (o) break; }
     await wait(2500);
