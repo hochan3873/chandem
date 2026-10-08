@@ -642,6 +642,7 @@ function handleEvents(g, loud) {
         fx.blast(e.x, e.y, e.r, e.proj === 'heart' ? 'heart' : e.proj === 'bottle' ? 'fire' : e.proj === 'swear' ? 'electric' : 'gold');
         if (loud) A.sfx.explode();
         break;
+      case 'resist': if (!busy) fx.text(e.x, e.y, '저항', '#c9b8ff', 11, 0.6); break; // (10/08) 제어 저항 — 연달아 묶이면 덜 묶인다
       case 'kick':
         fx.text(e.x, e.y, e.big ? '경고 3번! 강퇴!!' : '강퇴!', '#ff6b5a', e.big ? 19 : 17, 0.9, -30);
         if (e.big) { fx.ring(e.x, e.y + 20, 6, 50, 0.35, '#ff6b5a', 5); fx.burst(e.x, e.y, 10, '#ffd23f', 200, 'spark', 4, 0.4); }

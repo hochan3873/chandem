@@ -1384,7 +1384,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.interestT = def.interest ? def.interest.every : 0; e.interestN = 0; e.loanTaken = 0; e.paperT = def.paper ? 1.6 : 0;
   e.phaseI = -1; e.phaseT = 0; e.auraOn = false;
   e.pukeT = def.puke ? 2 + g.rng() * 2 : 0; e.hurtT = 9; e.split = false; e.grabbing = null; e.grabCd = 0;
-  e.slamT = undefined; e.weakT = 0; e.warnN = 0; e.lureT = 0; e.bumped = false; e.cast = null; e.castW = 0; e.pukeAim = false; e.flashH = null; // (10/08) 투척 예고
+  e.slamT = undefined; e.drN = 0; e.drT = 0; e.ccImmT = 0; e._lStun = 0; e._lFrz = 0; e._lY = undefined; e.pushSum = 0; e.resT = -9; e.weakT = 0; e.warnN = 0; e.lureT = 0; e.bumped = false; e.cast = null; e.castW = 0; e.pukeAim = false; e.flashH = null; // (10/08) 투척 예고
   e.spitT = def.spit ? def.spit.first + g.rng() * 2 : 0; e.kickT = def.kick ? def.kick.first + g.rng() * 2 : 0;
   // 진상 특성
   const tr = def.traits || {};
@@ -1773,12 +1773,44 @@ export function damageBase(g, dmg, e) {
   }
 }
 
+// 긴장감 · 제어 저항 (10/08): 같은 진상에게 기절 · 빙결이 window 초 안에 또 걸리면 steps 배씩 짧게 → 끝까지 가면 immune 초 면역 ('저항')
+//  밀어내기(넉백 · 밀치기)는 진상마다 push.win 초 동안 push.cap 만큼까지만 (그 위로는 안 밀림) · 정예 · 중간 보스 · 보스는 elite 배 (밀기는 pushElite 배)
+//  — 기절 · 넉백 · 강퇴 연쇄로 진상이 입구에 영영 못 오던 것 (제어 덱은 여전히 강하지만 길을 영원히 막지는 못한다)
+function ccResist(g, e, dt) {
+  const T = TENSION.ccdr, big = e.elite || e.mid || e.boss;
+  if (e.drT > 0) { e.drT -= dt; if (e.drT <= 0) e.drN = 0; }
+  if (e.ccImmT > 0) e.ccImmT -= dt;
+  let resisted = false;
+  for (const k of ['stunT', 'frozenT']) {
+    const lk = k === 'stunT' ? '_lStun' : '_lFrz', prev = Math.max(0, (e[lk] || 0) - dt), cur = e[k] || 0;
+    if (cur > prev + 0.05 && !e.sleeping) {
+      let f = e.ccImmT > 0 ? 0 : T.steps[Math.min(e.drN | 0, T.steps.length - 1)];
+      if (big) f *= T.elite;
+      e[k] = prev + (cur - prev) * f;
+      if (f < 1) resisted = true;
+      e.drN = (e.drN | 0) + 1; e.drT = T.window;
+      if (e.drN >= T.steps.length && !(e.ccImmT > 0)) { e.ccImmT = T.immune; e.drN = 0; }
+    }
+    e[lk] = e[k];
+  }
+  const ly = e._lY;
+  if (ly !== undefined && e.y < ly - 1 && !e.fleeing && !e.walkIn && !(e.jumpT > 0) && !e.env && e.y > 0) {
+    const C = T.push;
+    e.pushSum = Math.max(0, (e.pushSum || 0) - (C.cap / C.win) * dt);
+    const up = ly - e.y, room = Math.max(0, C.cap - e.pushSum), eff = Math.min(up * (big ? T.pushElite : 1), room);
+    if (eff < up - 0.5) { e.y = ly - eff; if ((e.kbv || 0) < 0) e.kbv = 0; resisted = true; }
+    e.pushSum += eff;
+  } else if (e.pushSum > 0) e.pushSum = Math.max(0, e.pushSum - (T.push.cap / T.push.win) * dt);
+  e._lY = e.y;
+  if (resisted && g.t - (e.resT || -9) > 1.2) { e.resT = g.t; ev(g, 'resist', { x: e.x, y: e.y - e.def.size * 0.7 }); }
+}
 function updateEnemies(g, dt) {
   const W = g.W;
   if (g.tZones && g.tZones.length) { for (const z of g.tZones) { z.t -= dt; if (z.t <= 0) continue; for (const e of g.enemies) if (!e.dead && Math.hypot(e.x - z.x, e.y - z.y) <= z.r) { const m = e.boss ? z.bossSlow : z.slow; if (!(e.slowT > 0) || e.slowMul >= m) { e.slowMul = m; } e.slowT = Math.max(e.slowT, 0.25); } } g.tZones = g.tZones.filter((z) => z.t > 0); } // 오지은 시간 정지 구역
   if (g.tension) { let n = 0; for (const e of g.enemies) if (!e.dead && e.atRope) n++; const C = TENSION.crowd; g.ropeCrowd = n > C.k ? Math.min(C.cap || 99, C.k + (n - C.k) * C.over) / n : 1; } else g.ropeCrowd = 1; // 긴장감: 입구 앞 자리가 좁다
   for (const e of g.enemies) {
     if (e.dead) continue;
+    if (g.tension) ccResist(g, e, dt);
     const def = e.def;
     e.age += dt;
     e.kbAge += dt;
@@ -3138,7 +3170,7 @@ export function hitEnemy(g, p, e) {
   damageEnemy(g, e, dmg, crit, h, p.pierce > 0 || p.type === 'cane' || p.type === 'gf');
   if (kick && !e.dead) {
     const w = h.def.warn;
-    if (!e.boss) { e.stunT = Math.max(e.stunT, w.stun[h.lv - 1] * stunMul(e) * g.mods.ctrlMul * (1 + NICHE.staff.stun * (h.meta || 0)) * ((h.sig && h.sig.kickStun) || 1)); applyKnockback(e, w.kb, g); }
+    if (!e.boss && !(g.tension && (e.elite || e.mid))) { e.stunT = Math.max(e.stunT, w.stun[h.lv - 1] * stunMul(e) * g.mods.ctrlMul * (1 + NICHE.staff.stun * (h.meta || 0)) * ((h.sig && h.sig.kickStun) || 1)); applyKnockback(e, w.kb, g); }
     else { e.slowT = Math.max(e.slowT, 2); e.slowMul = Math.min(e.slowMul || 1, 0.6); }
     ev(g, 'kick', { x: e.x, y: e.y - 20, big: true });
   }
