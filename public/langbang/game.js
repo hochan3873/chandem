@@ -13,6 +13,7 @@ import {
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
   artV,
+  HIDDEN_COND, STORY_JOIN, JOIN_PICKS, JOIN_PICK_DUP, ACQ_ROUTES, heroRoute,
 } from './data.js';
 import * as L from './live.js';
 import { FLAVOR, TIPS } from './flavor.js';
@@ -348,11 +349,8 @@ function fixPartners() {
   app.partner = list[0];
   try { localStorage.setItem('langbang:partners', JSON.stringify(list)); } catch { /* 무시 */ }
 }
-function unlockText(id) {
-  const s = HERO_UNLOCK[id];
-  return s ? `${stageLabel(s)} 클리어하면 합류${GACHA_HEROES.includes(id) ? ' · 모집 카드로도' : ''}` : '';
-}
-function partnerList() { return ['staff', 'gunman', 'gunnyeo', ...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; }
+function unlockText(id) { return LOCKED_HEROES.includes(id) ? heroHow(id) : ''; }
+function partnerList() { return ['staff', 'gunman', 'gunnyeo', ...LOCKED_HEROES]; }
 
 // ─── 게임 시작/끝 ─────────────────────────────────────
 async function startRun(opt = {}) {
@@ -2690,6 +2688,7 @@ function showMenu0() {
   hud.hidden = true;
   guardOn();
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) cosmNewCheck(); }, 600);
+  if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) acqNewCheck(); }, 450); // 획득 규정 옮기기로 합류한 멤버: 로비에서 '합류!' 한 번
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) PUSHX.maybePrompt(); }, 1500); // 알림 받기 카드 (두 번째 방문부터 · 미루면 3일)
   // 스테이지 넘기기 안내 (한 번만): 깬 판이 몇 개 생기면
   if (app.profileLoaded && nextStage() > 3) { let seen = true; try { seen = !!localStorage.getItem('langbang:navHint'); if (!seen) localStorage.setItem('langbang:navHint', '1'); } catch { /* 무시 */ } if (!seen) setTimeout(() => { if (app.screen === 'menu') toast('◂ ▸ 를 꾹 누르면 빠르게 넘어가요', 2600); }, 1400); }
@@ -3038,9 +3037,11 @@ function showShop() {
         <button class="btn primary" data-act="pull" data-n="10"><b>10회 모집</b><small>${cost10} · ${(p.pulls | 0) === 0 ? '처음 10회는 T4 확정' : 'T3 이상 1개 확정'}</small></button>
  </div>
  <button class="btn ghost rates-btn" data-act="rates">${ic('chart', '', 'sm')} 확률 공개 · 보유 모집권 ${ic('ticket', '', 'sm')}${p.unlimited ? '∞' : p.tickets | 0}</button>
+      ${(() => { const jp = L.joinPicksOpen(p); return jp.length ? `<button class="btn primary jp-btn" data-act="joinPickOpen">${ic('ticket', '', 'sm')}<b>합류 선택권 ${jp.length}장</b><small>T${jp[0].tier} 모집 멤버 한 명 골라 바로 합류</small></button>` : ''; })()}
+      <button class="btn ghost acq-btn" data-act="acqRules">${ic('book', '', 'sm')} 멤버 획득 규정 — 누가 어디서 합류하나</button>
       ${sigBarHtml(p)}
       <div class="card-prog">${[...GACHA_HEROES, ...LEGEND_HEROES].map((h) => { const pr = L.cardProgress(p, h); const d = HEROES[h]; const lock = LEGEND_HEROES.includes(h) && !L.legendOpen(p); const ok = own(h); return `<div class="cp ${pr ? '' : 'done'} ${lock ? 'lock' : ''}" style="--c:${d.color}">${av(d, ok ? '' : 'sil')}<b>${ok ? esc(d.name) : `<span class="cp-attr">${attrIco(d.attr)}</span>???`}</b>${pr ? `<i><b style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></b></i><small>${lock ? `${stageLabel(L.HOCHAN_GATE)} 뒤` : `${pr[0]}/${pr[1]}장`}</small>` : '<small>합류 </small>'}</div>`; }).join('')}</div>
-      <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>모집 멤버는 <b>카드</b>를 모아 합류 (영웅 ${L.UNLOCK_CARDS.epic}장 · LEGEND ${L.UNLOCK_CARDS.legend}장) · 합류한 뒤 카드와 조각으로 <b>★ 승급</b> (공격력 +${Math.round(L.STAR_ATK * 100)}% / ★)</span></p>`;
+      <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>모집 T3 는 <b>카드 ${L.UNLOCK_CARDS.epic}장</b>을 모아 합류 · T4 · LEGEND 는 나오면 바로 합류 (T2 는 스토리로만) · 합류한 뒤 카드와 조각으로 <b>★ 승급</b> (공격력 +${Math.round(L.STAR_ATK * 100)}% / ★)</span></p>`;
   } else {
     body = `<div class="up-list">${ITEM_IDS.map((id) => {
       const it = ITEMS[id];
@@ -3356,7 +3357,7 @@ const DEX_CATCH = {
   soyoung: '"그러니까 내가 뭐랬어!"', jieun: '"…시간아 멈춰라."', sanghwa: '"좋은남자 박상화!"', jungmin: '"가만있어 봐, 붙여 줄게."',
   dragon: '"박나뇽, 내 말 좀 들어 봐~" (화르륵)', subin: '"음악 틀어 줘! 같이 춰요~"',
 };
-function showJoinReveal(id, kind = 'new') {
+function showJoinReveal(id, kind = 'new', how = '') { // how: 어떻게 합류했나 한 줄 (스토리 장면 · 선택권 · 규정 옮기기)
   return new Promise((resolve) => {
     const d = HEROES[id];
     if (!d) { resolve(); return; }
@@ -3371,7 +3372,7 @@ function showJoinReveal(id, kind = 'new') {
     m.innerHTML = `<div class="jr-shards">${shards}</div><img class="jr-flash" src="/img/lb/fx/explo_gold.webp" alt="" onerror="this.remove()"><img class="jr-ring" src="/img/lb/fx/shock_ring.webp" alt="" onerror="this.remove()">
       <div class="jr-pillar"></div>${storm ? `<div class="jr-storm">${storm}</div>` : ''}
       <div class="jr-art ${hasDuo(id) ? 'duo' : ''}">${hqSrc(id) ? `<img src="${hasDuo(id) ? `/img/lb/dexhq/${id}_duo.webp` : hqSrc(id)}" alt="" draggable="false" onerror="this.onerror=null;this.src='${dexSrc(id, d.img)}'">` : `<span class="dx-emo big">${d.emoji}</span>`}${lg ? '<span class="jr-crown"></span>' : ''}</div>
-      <div class="jr-text"><div class="jr-tag">NEW MEMBER 합류!</div><div class="jr-name">${esc(d.name)}</div><div class="jr-title">${lg ? 'LEGEND · ' : kind === 'hidden' ? 'HIDDEN · ' : ''}${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</div><p class="jr-catch">${esc(FLAVOR[id] || DEX_CATCH[id] || '')}</p></div>
+      <div class="jr-text${how ? ' has-how' : ''}"><div class="jr-tag">${kind === 'story' ? 'STORY 합류!' : 'NEW MEMBER 합류!'}</div><div class="jr-name">${esc(d.name)}</div><div class="jr-title">${lg ? 'LEGEND · ' : kind === 'hidden' ? 'HIDDEN · ' : ''}${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</div>${how ? `<p class="jr-how">${esc(how)}</p>` : ''}<p class="jr-catch">${esc(FLAVOR[id] || DEX_CATCH[id] || '')}</p></div>
       <p class="rv-skip">탭해서 계속</p>`;
     stage.appendChild(m);
     A.sfx.reveal && A.sfx.reveal(lg ? 'legend' : kind === 'hidden' ? 'hidden' : 'epic');
@@ -3425,10 +3426,10 @@ function showMembers() {
     const ok = API.heroUnlocked(p, id);
     const st = L.heroStar(p, id);
     const can = ok && st < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[st];
-    const tag = d.legend ? 'LEGEND' : d.hidden ? 'HIDDEN' : d.gacha ? '모집' : '';
-    return `<button class="mcard ${ok ? '' : 'locked'} ${d.legend ? 'lg' : d.hidden ? 'hid' : d.gacha ? 'ep' : ''}" data-act="heroCard" data-id="${id}" style="--c:${d.color}">
+    const rt = heroRoute(id), tag = rt === 'legend' ? 'LEGEND' : rt === 'hidden' ? 'HIDDEN' : rt === 'gacha' ? '모집' : '';
+    return `<button class="mcard ${ok ? '' : 'locked'} ${rt === 'legend' ? 'lg' : rt === 'hidden' ? 'hid' : rt === 'gacha' ? 'ep' : ''}" data-act="heroCard" data-id="${id}" style="--c:${d.color}">
       ${av(d, ok ? '' : 'sil')}<span class="chips">${tag ? `<em class="tg">${tag}</em>` : ''}${d.legend ? '' : `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>`}<span class="pa">${ATTRS[d.attr].icon}</span></span>
-      <b>${ok ? d.name : '???'}</b><small>${ok ? `<span class="st">${'★'.repeat(st)}</span> +${p.heroes[id] | 0}` : esc(HERO_UNLOCK[id] ? `${stageLabel(HERO_UNLOCK[id])} 클리어` : d.gacha ? '모집에서' : '')}</small>${rdot(can)}</button>`;
+      <b>${ok ? d.name : '???'}</b><small>${ok ? `<span class="st">${'★'.repeat(st)}</span> +${p.heroes[id] | 0}` : esc(HERO_UNLOCK[id] ? `${stageLabel(HERO_UNLOCK[id])} 클리어` : rt === 'gacha' ? '모집에서' : '')}</small>${rdot(can)}</button>`;
   }).join('');
   show(`
     ${subTop('멤버')}
@@ -3624,7 +3625,7 @@ function showHeroModal(id, ctx = '') {
   // ─── 정보 탭: 한 줄 소개 인용 · 스킬 카드 · 무기 진화 · 상성 칩 ───
   const w = WEAPON[id], ev = EVO[id];
   const strong = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) > 1), weak = Object.keys(CLASSES).filter((c0) => typeMul(d.attr, c0) < 1);
-  const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>${ok ? BKX.heroHtml(id) : ''}
+  const infoBody = () => `<blockquote class="hs-quote">${esc(FLAVOR[id] || d.desc)}</blockquote>${ok ? `<p class="ip hs-acq">${routeChip(id)} ${esc(heroHow(id))}</p>` : ''}${ok ? BKX.heroHtml(id) : ''}
       <div class="hs-skill">${ic('swords', '', '')}<span><small>기본 공격</small><b>${esc((w && w.item) || '기본 공격')}</b><p>${esc(d.attack)}</p></span></div>
       ${d.supTip ? `<p class="ip">${ic('sparkle', '', 'sm')}<b>서포터 전문</b> ${esc(d.supTip)}</p>` : ''}<div class="hs-skill sk-ult"><img class="ic hs-skic" src="/img/lb/ui2/sk_${id}.webp" alt="" draggable="false"><span><small>스킬 · 쿨 ${d.skill.cd}초</small><b>${esc(d.skill.name)}</b><p>${esc(d.skill.desc)}</p>${SKILL_EVO[id] ? `<p class="evo">${ic('star_gold', '', 'sm')}진화: ${esc(SKILL_EVO[id])}</p>` : ''}</span></div>
       ${sigRowHtml(id)}
@@ -3866,6 +3867,17 @@ function showCosmetics() {
  <div class="cosm-list">${rows}</div>`, 'cosm');
 }
 // 새로 얻은 칭호 · 프레임 알림 (한 번) → 바로 장착
+// 새 획득 규정으로 지난 스테이지 기록 덕에 합류한 멤버 (서버 acqNew) — 이 기기에서 한 번만 '합류!' 연출
+async function acqNewCheck() {
+  const todo0 = (P().acqNew || []).filter((h) => HEROES[h] && HERO_UNLOCK[h]);
+  if (!todo0.length) return;
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem('langbang:acqSeen') || '[]') || []; } catch { seen = []; }
+  const todo = todo0.filter((h) => !seen.includes(h));
+  if (!todo.length) return;
+  try { localStorage.setItem('langbang:acqSeen', JSON.stringify([...seen, ...todo])); } catch { /* 무시 */ }
+  for (const h of todo) await showJoinReveal(h, 'story', `새 획득 규정 — ${stageLabel(HERO_UNLOCK[h])} 기록으로 지금 합류! (우편함에 알림 · 모집권 1장)`);
+}
 function cosmNewCheck() {
   const p = P(); if (app.guest && !(p.titles || []).length) return;
   let seen; try { seen = JSON.parse(localStorage.getItem('langbang:cosmSeen') || 'null'); } catch { seen = null; }
@@ -4025,6 +4037,9 @@ Object.assign(ACTS, {
     claimChestAct(ch, n);
   },
   pull: (b) => doPull(Number(b.dataset.n)),
+  joinPickOpen: () => showJoinPick(),
+  joinPickDo: (b) => joinPickDo(b),
+  acqRules: () => showAcqRules(),
   gpull: (b) => doGearPull(Number(b.dataset.n)),
   grates: () => showGearRates(),
   rates: () => showRates(),
@@ -5935,15 +5950,45 @@ async function saveResult(sum, g) {
   if (r.newBestScore) badges.push('<span class="badge">최고 점수 갱신!</span>');
   if (r.rank) badges.push(`<span class="badge">랭킹 ${r.rank}위</span>`);
   const unlocks = (r.unlockedHeroes || []).map((id) => {
-    const d = HEROES[id];
-    return `<div class="unlock ${d.hidden ? 'hid' : ''}">${av(d)}<div><small>${d.hidden ? 'HIDDEN 멤버 합류!' : '새 멤버 합류!'}</small><b>${d.name}</b><span>${esc(d.role.replace('HIDDEN · ', ''))} — 이제 출전 동료로 고를 수 있어요</span></div></div>`;
-  }).join('');
+    const d = HEROES[id], hid = heroRoute(id) === 'hidden';
+    return `<div class="unlock ${hid ? 'hid' : ''}">${av(d)}<div><small>${hid ? 'HIDDEN 멤버 합류!' : '스토리 합류!'}</small><b>${d.name}</b><span>${esc(d.role.replace('HIDDEN · ', ''))} — 이제 출전 동료로 고를 수 있어요</span></div></div>`;
+  }).join('') + (r.joinPick ? `<div class="unlock jpick">${ic('ticket', '', '')}<div><small>장 끝 보상!</small><b>T${r.joinPick.tier} 합류 선택권</b><span>모집 T${r.joinPick.tier} 멤버 중 한 명을 골라 바로 합류</span></div></div>` : '');
   const endless = r.endlessUnlocked ? '<div class="unlock"><span class="big-ico"></span><div><small>새 모드 열림!</small><b>무한 도전</b><span>어디까지 버티나 랭킹 경쟁!</span></div></div>' : '';
   const drops = (rw.drops || []).map((it) => `<span class="drop r-${it.r}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}<b>${esc(GEAR[it.t].name)}</b><small>${GEAR_RARITY[it.r].name}${it.sold ? ` · 가방 꽉 참 → +${it.sold}` : ''}</small></span>`).join('');
   box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">${ic('gem', '', 'sm')}강화석 <b>+${rw.stones}</b></div>` : ''}${rw.cons ? Object.entries(rw.cons).map(([k, n]) => (L.CONS[k] ? `<div class="rw-stones">${consIc(k)}${esc(L.CONS[k].name)} <b>+${n}</b></div>` : '')).join('') : ''}${rw.cardDrop && HEROES[rw.cardDrop] ? `<div class="rw-stones">${ic('card_common', '', 'sm')}${esc(HEROES[rw.cardDrop].name)} 카드 <b>+1</b></div>` : ''}</div>${drops ? `<div class="drops"><small>${ic('gift', '', 'sm')}장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
     <div class="own">${badges.join('')}<span>보유 <i class="ci"></i>${fmt(p.coins)}</span>${app.guest ? ' · <span class="dimtxt">손님 기록은 이 기기에만</span>' : ''}</div>`;
   if (unlocks) { fx.flash('#ff9ff0', 0.4); A.sfx.join(); }
-  for (const id of r.unlockedHeroes || []) await showJoinReveal(id, HEROES[id].legend ? 'legend' : HEROES[id].hidden ? 'hidden' : 'new');
+  for (const id of r.unlockedHeroes || []) await showJoinReveal(id, heroRoute(id) === 'hidden' ? 'hidden' : 'story', heroRoute(id) === 'hidden' ? HIDDEN_COND[id].text : `${stageLabel(HERO_UNLOCK[id])} 클리어 — ${STORY_JOIN[id] || ''}`);
+  if (r.joinPick) showJoinPick(); // 장 끝: 합류 선택권 바로 고르기 (나중에 모집 화면에서도)
+}
+// ─── 획득 규정 한 장 (모집 화면 · 도감): 길마다 등급 · 방법 · 멤버 ───
+function showAcqRules() {
+  const p = P(), by = {};
+  for (const id of ['bangjang', ...partnerList()]) (by[heroRoute(id)] = by[heroRoute(id)] || []).push(id);
+  const nm = (id) => (API.heroUnlocked(p, id) || heroRoute(id) !== 'hidden' ? esc(HEROES[id].name) : '???');
+  const story = (by.story || []).slice().sort((a, b) => HERO_UNLOCK[a] - HERO_UNLOCK[b]).map((id) => `<span class="ar-m">${stageLabel(HERO_UNLOCK[id])} ${nm(id)}<i>T${heroTier(id)}</i></span>`).join('');
+  const list = (k) => (by[k] || []).map((id) => `<span class="ar-m">${nm(id)}<i>${TIER_NAME[heroTier(id)]}</i></span>`).join('');
+  const row = (k, extra) => { const r = ACQ_ROUTES[k]; return `<div class="ar-row" style="--g:${r.color}"><div class="ar-h"><b>${esc(r.name)}</b><small>${esc(r.tiers)}</small></div><p>${esc(r.rule)}</p><div class="ar-ms">${extra}</div></div>`; };
+  popup(`<h3>${ic('book', '', 'sm')}멤버 획득 규정</h3><p class="ip">멤버마다 얻는 길은 <b>하나</b> — 등급이 높을수록 귀해요</p>
+    <div class="ar-list">${row('start', list('start'))}${row('story', story)}${row('gacha', list('gacha'))}${row('legend', list('legend'))}${row('hidden', list('hidden'))}</div>
+    <p class="ip">${ic('ticket', '', 'sm')}<b>합류 선택권</b> — ${JOIN_PICKS.map((j) => `${stageLabel(j.stage)} T${j.tier}`).join(' · ')} 클리어하면 모집 멤버 한 명을 골라 바로 합류</p>
+    <p class="ip">${ic('sparkle', '', 'sm')}처음 10회 모집은 T4 확정 · 겹친 멤버는 카드(★ 승급)로 · 이벤트 의상은 멤버가 아니라 옷이에요</p><button class="btn primary" data-x>알겠어요</button>`, 'acq-pop');
+}
+// ─── 합류 선택권 (획득 규정): 장 끝 보스를 깨면 모집 멤버 한 명을 골라 바로 합류 ───
+function showJoinPick() {
+  const p = P(), open = L.joinPicksOpen(p);
+  if (!open.length) { toast('쓸 수 있는 합류 선택권이 없어요'); return; }
+  const j = open[0], pool = L.joinPickPool(j.tier), left = pool.filter((h) => !API.heroUnlocked(p, h));
+  const rows = (left.length ? left : pool).map((h) => { const d = HEROES[h]; return `<button class="jp-h" data-act="joinPickDo" data-s="${j.stage}" data-h="${h}" style="--c:${ATTRS[d.attr].color}">${av(d)}<b>${esc(d.name)}</b><small>${roleChip(h)} ${esc(d.role.replace(/^(HIDDEN|LEGEND) · /, ''))}</small>${left.length ? '' : `<em>카드 +${JOIN_PICK_DUP}</em>`}</button>`; }).join('');
+  popup(`<h3>${ic('ticket', '', 'sm')}T${j.tier} 합류 선택권 <small class="jp-src">${stageLabel(j.stage)} 클리어 보상${open.length > 1 ? ` · ${open.length}장` : ''}</small></h3><p class="ip">${left.length ? '한 명을 골라 바로 합류해요 — 모집에서 기다릴 필요 없어요' : '모집 멤버를 다 모았어요 — 고른 멤버 카드(★ 승급)로 받아요'}</p><div class="jp-grid">${rows}</div><button class="btn ghost" data-x>나중에 (모집 화면에서)</button>`, 'jp-pop');
+}
+async function joinPickDo(b) {
+  const r = await liveAct(API.joinPick(Number(b.dataset.s), b.dataset.h, app.guest));
+  if (!r) return;
+  closeInfoCard();
+  if (r.new) await showJoinReveal(r.hero, heroTier(r.hero) >= 4 ? 'epic' : 'new', `${stageLabel(Number(b.dataset.s))} 합류 선택권으로 골랐어요`);
+  else toast(`${HEROES[r.hero].name} 카드 +${r.shards}`, 2000);
+  refresh();
 }
 
 async function buyUpgrade(id, btn) {
@@ -6153,15 +6198,20 @@ function dexArt(d, id, form) {
   return dexImg(form || base, d.img);
 }
 function dexColor(kind, d) { return kind === 'hero' ? ATTRS[d.attr].color : d.boss ? '#ff5a5a' : d.mid ? '#ff9d3f' : CLASSES[d.cls].color; }
-function dexChapter(kind, id) { const s = kind === 'hero' ? HERO_UNLOCK[id] || 1 : firstStageOf(id) || STAGE_COUNT; return clamp(chapterOf(s), 1, CHAPTERS.length); }
+function dexChapter(kind, id) { const s = kind === 'hero' ? HERO_UNLOCK[id] || (HIDDEN_COND[id] && HIDDEN_COND[id].stage) || 1 : firstStageOf(id) || STAGE_COUNT; return clamp(chapterOf(s), 1, CHAPTERS.length); }
+// 획득 방법 한 줄 (획득 규정 · 도감 · 잠긴 멤버 안내 · 멤버 카드) — 멤버마다 길은 하나 (data.js heroRoute)
 function heroHow(id) {
-  if (!LOCKED_HEROES.includes(id)) return '처음부터 함께하는 멤버';
-  if (HERO_UNLOCK[id] && GACHA_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `${stageLabel(HERO_UNLOCK[id])} 클리어하면 확정 합류 · 모집 카드로도${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; } // 8장 임수빈
-  if (HERO_UNLOCK[id]) return `${stageLabel(HERO_UNLOCK[id])} 클리어하면 합류`;
-  if (LEGEND_HEROES.includes(id)) { const pr = L.cardProgress(P(), id); return `${stageLabel(L.HOCHAN_GATE)} 클리어 후 모집에서 카드 ${L.UNLOCK_CARDS.legend}장을 모으면 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`; }
-  const pr = L.cardProgress(P(), id);
-  return `모집에서 카드를 모아 합류${pr ? ` — 지금 ${pr[0]}/${pr[1]}장` : ''}`;
+  const rt = heroRoute(id), t = heroTier(id), p = P();
+  if (rt === 'start') return '시작 멤버 — 처음부터 함께 (T1)';
+  if (rt === 'story') return `스토리 합류 — ${stageLabel(HERO_UNLOCK[id])} '${stageName(HERO_UNLOCK[id])}' 을 처음 깨면 확정 합류`;
+  if (rt === 'hidden') { const c = HIDDEN_COND[id]; return `HIDDEN — ${API.heroUnlocked(p, id) ? c.text : c.hint}`; }
+  const pr = L.cardProgress(p, id);
+  if (rt === 'legend') return `LEGEND — ${stageLabel(L.HOCHAN_GATE)} 클리어 뒤 모집 (${L.PITY_LEGEND}번 안에 확정) · 진상의 탑 60층 선택${pr && pr[0] ? ` — 카드 ${pr[0]}/${pr[1]}장` : ''}`;
+  const picks = JOIN_PICKS.filter((j) => j.tier === t).map((j) => stageLabel(j.stage)).join(' · ');
+  if (t >= 4) return `모집 T4 — 나오면 바로 합류 (${L.PITY_HERO}번 안에 확정 · 주간 픽업)${picks ? ` · ${picks} 합류 선택권으로 골라도` : ''}`;
+  return `모집 T3 — 카드 ${L.UNLOCK_CARDS.epic}장 모으면 합류${pr ? ` (지금 ${pr[0]}/${pr[1]}장)` : ''}${picks ? ` · ${picks} 합류 선택권으로 골라도` : ''}`;
 }
+const routeChip = (id) => { const r = ACQ_ROUTES[heroRoute(id)]; return `<i class="grd acq" style="--g:${r.color}">${esc(r.name)}</i>`; };
 // ─── 도감 등급: 세 탭이 같은 색 사다리 (회색 < 초록 < 파랑 < 보라 < 금색 · 특별 등급은 분홍 · 무지개 · 빨강) ───
 //  카드 테두리 · 등급 칩 · 묶음 제목이 모두 이 표 하나를 쓴다
 const GRADE = {
@@ -6171,7 +6221,7 @@ const GRADE = {
 };
 const GRADE_ORDER = { hero: ['t5', 't4', 't3', 't2', 't1', 'hidden'], enemy: ['boss', 'mid', 'elite', 'normal'], item: ['myth', 'sig', 'legend', 'epic', 'rare', 'common', 'unk'] };
 const grdChip = (g, cls = '') => `<i class="grd g-${g} ${cls}" style="--g:${GRADE[g][1]}">${GRADE[g][0]}</i>`;
-const heroGrade = (id) => (HIDDEN_HEROES.includes(id) ? 'hidden' : 't' + heroTier(id));
+const heroGrade = (id) => (heroRoute(id) === 'hidden' ? 'hidden' : 't' + heroTier(id)); // HIDDEN = 숨은 조건 멤버만 (획득 규정)
 const dexGrade = (kind, id) => (kind === 'hero' ? heroGrade(id) : enemyGrade(ENEMIES[id]));
 // 등급별로 묶기: [[등급, [id…]], …] — 높은 등급 먼저 · 같은 등급 안은 원래 순서
 function gradeGroups(order, ids, gradeOf) { const m = {}; for (const id of ids) { const g = gradeOf(id); (m[g] = m[g] || []).push(id); } return order.filter((g) => m[g]).map((g) => [g, m[g]]); }
@@ -6343,7 +6393,7 @@ function dexPageHtml(kind, id, form, duo) {
   if (!ok) {
     plate = `<div class="dp-plate"><small>${ic('lock', '', 'sm')}${kind === 'hero' ? '아직 합류하지 않은 멤버' : '아직 만나지 못한 진상'}</small></div>`;
     body = `<p class="dp-flavor">${kind === 'hero' ? '아직 합류하지 않은 멤버예요' : '아직 만나지 못한 진상이에요'}</p>
- <section><h4>${ic('unlock', '', 'sm')} 만나는 법</h4><p>${esc(kind === 'hero' ? heroHow(id) : (firstStageOf(id) ? `${stageLabel(firstStageOf(id))} 부터 나와요` : '무한 도전에서 나와요'))}</p></section>`;
+ <section><h4>${ic('unlock', '', 'sm')} ${kind === 'hero' ? `획득 방법 ${routeChip(id)}` : '만나는 법'}</h4><p>${esc(kind === 'hero' ? heroHow(id) : (firstStageOf(id) ? `${stageLabel(firstStageOf(id))} 부터 나와요` : '무한 도전에서 나와요'))}</p></section>`;
   } else if (kind === 'hero') {
     const t = heroTier(id), sk = d.skill, rg = Array.isArray(d.range) ? d.range[0] : d.range;
     const meta = (P().heroes || {})[id] || 0, st = L.heroStar(P(), id);
@@ -6356,7 +6406,7 @@ function dexPageHtml(kind, id, form, duo) {
       ${d.perks ? `<section><h4>${ic('chart', '', 'sm')}성장</h4><p>Lv3 ${esc(d.perks[3])}</p><p>Lv5 ${esc(d.perks[5])}</p></section>` : ''}
  <section><h4>${ic('scale', '', 'sm')} 상성</h4><p>${attrTag(d.attr)} ${esc(strongWeak(d.attr))}</p></section>
  <section><h4>${ic('prism', '', 'sm')} 신화장비</h4>${sigRowHtml(id)}</section>
- <section><h4>${ic('pin', '', 'sm')} 합류</h4><p>${esc(heroHow(id))}</p></section>`;
+ <section><h4>${ic('pin', '', 'sm')} 획득 방법 ${routeChip(id)}</h4><p>${esc(heroHow(id))}${STORY_JOIN[id] ? `</p><p class="dp-story">“${esc(STORY_JOIN[id])}”` : ''}</p></section>`;
   } else {
     const fs = firstStageOf(id);
     const tipId = ENEMY_TIPS[id] ? id : d.base || (d.fuse && d.fuse[0]) || id;
@@ -6390,7 +6440,7 @@ function dexPageHtml(kind, id, form, duo) {
     : dexArt(d, id, cur);
   const fb = DEX_FACE[id] || [0.48, 0.09, 0.15];
   const faces = ''; // 얼굴 확대 칸은 없앴다 (멤버마다 들쭉날쭉 · 주먹·병이 잘려 '컵 두 개'처럼 보였다) — 큰 그림이 그 자리까지 채운다
-  const badges = hero ? `${grdChip('t' + heroTier(id))}${HIDDEN_HEROES.includes(id) ? grdChip('hidden') : ''}${roleChip(id)}${attrTag(d.attr)}` : `${grdChip(enemyGrade(d))}${clsTag(d.cls)}`;
+  const badges = hero ? `${grdChip('t' + heroTier(id))}${heroRoute(id) === 'hidden' ? grdChip('hidden') : ''}${roleChip(id)}${attrTag(d.attr)}` : `${grdChip(enemyGrade(d))}${clsTag(d.cls)}`;
   const en = ok ? (hero ? DEX_EN[id] || id.toUpperCase() : id.replace(/^(boss|mid|fuse)_/, '').replace(/_/g, ' ').toUpperCase()) : '? ? ?';
   return `<div class="dp-bg" style="background-image:url('/img/lb/${ch === 1 ? 'bg' : 'bg' + ch}.webp')"></div><div class="dp-grad"></div>
     <div class="dp-top"><button class="dp-x" data-dp="x">✕</button><span>${i + 1} / ${list.length}</span></div>
@@ -7433,7 +7483,8 @@ window.__lb = {
   openCards: () => openCards(),
   renderCards: (f) => renderCards(f),
   reveal: (id, kind) => showReveal(id, kind),
-  join: (id, kind) => showJoinReveal(id, kind),
+  join: (id, kind, how) => showJoinReveal(id, kind, how),
+  acqRules: () => showAcqRules(), joinPick: () => showJoinPick(), dex: (kind, id) => showDexCard(kind, id),
   multi: (n) => multiKillFx(app.g, { n, x: 180, y: 300 }),
   S,
   fx,

@@ -299,7 +299,7 @@ test('멤버 모음 목록(방장 + 동료 목록)에 LB_HEROES 20명이 빠짐�
   const LBR = require('../server/langbang-rules');
   const D = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'data.js')).href);
   const L = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'langbang', 'live.js')).href);
-  const list = ['bangjang', 'staff', 'gunman', 'gunnyeo', ...D.UNLOCK_HEROES, ...D.HIDDEN_HEROES, ...D.GACHA_HEROES, ...D.LEGEND_HEROES]; // game.js partnerList() 와 같은 순서
+  const list = ['bangjang', 'staff', 'gunman', 'gunnyeo', ...D.LOCKED_HEROES]; // game.js partnerList() 와 같은 순서
   assert.deepEqual([...new Set(list)].sort(), [...LBR.LB_HEROES].sort());
   for (const h of LBR.LB_HEROES) assert.equal(L.heroUnlocked({ master: true }, h), true, '마스터 ' + h);
   const fresh = { stages: {}, heroes: {}, owned: {} };
@@ -477,7 +477,7 @@ test('체력 · 무한 입장 · 우편함: 스테이지는 체력(실패 절반
   // 서버
   const u = await user('stauser');
   const st = await srv.accounts.store.byId(u.user.id);
-  st.stats.langbang = Object.assign(st.stats.langbang || {}, { coins: 5000, maxStage: 12, stages: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, 3])), sta: { v: 4, t: Date.now() } });
+  st.stats.langbang = Object.assign(st.stats.langbang || {}, { acqV: L.ACQ_VER, coins: 5000, maxStage: 12, stages: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, 3])), sta: { v: 4, t: Date.now() } });
   await srv.accounts.store.saveStats(u.user.id, st.stats);
   const s1 = await post('/api/langbang/stage/start', u.token, { stage: 13 });
   assert.equal(s1.ok, false, '체력 4 < 6'); assert.match(s1.message, /체력/);

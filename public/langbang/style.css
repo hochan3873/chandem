@@ -4499,3 +4499,32 @@ body.rm .card.r-jackpot { animation: none; }
 .gpick.r-legend, .gpick.r-myth { box-shadow: 0 0 calc(var(--u) * 10) var(--rc); animation: gp-glow 2.4s ease-in-out infinite; }
 @keyframes gp-glow { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.18); } }
 body.rm .gpick.r-legend, body.rm .gpick.r-myth { animation: none; }
+
+/* ─── 멤버 획득 규정 (10/09): 획득 방법 칩 · 규정 한 장 · 합류 선택권 · 스토리 합류 한 줄 ─── */
+i.grd.acq { vertical-align: middle; margin-left: calc(var(--u) * 4); }
+.dp-story { font-size: calc(var(--u) * 12); color: #c9f5d2; font-style: italic; }
+.hs-acq { display: flex; align-items: center; gap: calc(var(--u) * 6); flex-wrap: wrap; }
+.hs-acq i.grd.acq { margin-left: 0; }
+.jr-how { margin: calc(var(--u) * 6) auto 0; max-width: 88%; font-size: calc(var(--u) * 12.5); font-weight: 800; color: #10081e; background: var(--c, #5de07a); border-radius: calc(var(--u) * 10); padding: calc(var(--u) * 4) calc(var(--u) * 10); opacity: 0; animation: jrIn 0.4s ease-out 1.6s forwards; }
+.reveal.join.still .jr-how { opacity: 1; animation: none; }
+.jr-text.has-how { top: 60%; }
+.jr-text.has-how .jr-catch { font-size: calc(var(--u) * 12); }
+.jp-btn, .acq-btn { display: flex; width: 100%; align-items: center; justify-content: center; gap: calc(var(--u) * 6); margin-top: calc(var(--u) * 8); flex-wrap: wrap; }
+.jp-btn small { width: 100%; font-size: calc(var(--u) * 11); opacity: 0.9; }
+.acq-btn { font-size: calc(var(--u) * 12); padding: calc(var(--u) * 8); }
+.unlock.jpick { border-color: #ffd23f; }
+.jp-pop h3 .jp-src { display: block; font-size: calc(var(--u) * 11); opacity: 0.75; font-weight: 700; }
+.jp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--u) * 8); margin: calc(var(--u) * 8) 0; max-height: 52vh; overflow-y: auto; }
+.jp-h { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 3); padding: calc(var(--u) * 8) calc(var(--u) * 4); border-radius: calc(var(--u) * 12); border: 2px solid var(--c); background: rgba(255, 255, 255, 0.06); color: #fff; font: inherit; cursor: pointer; }
+.jp-h b { font-size: calc(var(--u) * 14); }
+.jp-h small { font-size: calc(var(--u) * 10); opacity: 0.85; text-align: center; line-height: 1.3; }
+.jp-h em { font-style: normal; font-size: calc(var(--u) * 10); color: #ffd23f; }
+.acq-pop .ar-list { display: flex; flex-direction: column; gap: calc(var(--u) * 8); margin: calc(var(--u) * 8) 0; max-height: 56vh; overflow-y: auto; }
+.ar-row { border-left: calc(var(--u) * 4) solid var(--g); background: rgba(255, 255, 255, 0.05); border-radius: calc(var(--u) * 8); padding: calc(var(--u) * 6) calc(var(--u) * 10); text-align: left; }
+.ar-h { display: flex; align-items: baseline; gap: calc(var(--u) * 8); }
+.ar-h b { color: var(--g); font-size: calc(var(--u) * 14); }
+.ar-h small { font-size: calc(var(--u) * 11); opacity: 0.8; }
+.ar-row p { margin: calc(var(--u) * 2) 0 calc(var(--u) * 4); font-size: calc(var(--u) * 11.5); opacity: 0.9; }
+.ar-ms { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4); }
+.ar-m { font-size: calc(var(--u) * 11); background: rgba(0, 0, 0, 0.35); border-radius: 99px; padding: calc(var(--u) * 1) calc(var(--u) * 7); white-space: nowrap; }
+.ar-m i { font-style: normal; opacity: 0.6; margin-left: calc(var(--u) * 3); font-size: calc(var(--u) * 9); }

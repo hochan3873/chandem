@@ -162,16 +162,16 @@ test('8장 진상 기술: 뷔페 회복 · 축가 공속↓(기절로 끊김) ·
   assert.ok(x.rushT > 0, '"시간 없어요!" 재촉');
 });
 
-test('임수빈: 모집 멤버 + 8-5 클리어 확정 합류 · 도감 · 전용 신화 · 서버와 같은 목록', () => {
+test('임수빈: 모집 T3 멤버 (획득 규정 10/09 — 8-5 확정 합류는 없어지고 예전 기록만 지킴) · 도감 · 전용 신화 · 서버와 같은 목록', () => {
   const h = D.HEROES.subin;
   assert.ok(h && h.gacha && h.skill.id === 'bouqtoss' && h.proj === 'bouquet');
   assert.equal(D.heroTier('subin'), 3); assert.equal(R.HERO_TIER.subin, 3);
   assert.ok(D.GACHA_HEROES.includes('subin') && R.GACHA.includes('subin') && R.LB_HEROES.includes('subin'));
-  assert.equal(D.HERO_UNLOCK.subin, 75); assert.equal(R.HERO_UNLOCK.subin, 75);
-  assert.equal(L.heroUnlocked({ stages: { 74: 3 } }, 'subin'), false, '8-4 까지는 아직');
-  assert.equal(L.heroUnlocked({ stages: { 75: 1 } }, 'subin'), true, '8-5 클리어 → 합류');
+  assert.equal(D.HERO_UNLOCK.subin, undefined); assert.equal(R.HERO_UNLOCK.subin, undefined); assert.equal(D.heroRoute('subin'), 'gacha');
+  assert.equal(L.heroUnlocked({ stages: { 75: 1 } }, 'subin'), false, '8-5 클리어로는 이제 합류 안 함 (모집 · 선택권)');
+  assert.equal(L.normLive({}, { stages: { 75: 1 }, heroes: {} }).owned.subin, true, '예전에 8-5 를 깬 기록 → 그대로 가짐');
   assert.equal(L.heroUnlocked({ owned: { subin: true } }, 'subin'), true, '모집 카드로도');
-  assert.equal(R.heroUnlocked({ stages: { 75: 1 } }, 'subin'), true);
+  assert.equal(R.heroUnlocked({ stages: { 75: 1 } }, 'subin'), false); assert.equal(R.heroUnlocked({ owned: { subin: true } }, 'subin'), true);
   assert.equal(R.heroUnlocked({ stages: {} }, 'subin'), false);
   assert.ok(D.SIG.subin && R.SIG.subin && D.SIG.subin.name === R.SIG.subin.name);
   assert.equal(D.HERO_ANIM.subin.release, 3);

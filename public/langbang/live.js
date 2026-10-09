@@ -3,7 +3,7 @@
 // → 공식이 한 곳에만 있어서 서버와 화면이 어긋날 일이 없다.
 // 모든 코인은 게임 안 점수일 뿐 (현금 결제 없음).
 import {
-  HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK,
+  HEROES, ENEMIES, MAP_FX, GACHA_HEROES, LEGEND_HEROES, LOCKED_HEROES, HERO_UNLOCK, HIDDEN_COND, JOIN_PICKS, JOIN_PICK_DUP, ACQ_OLD_UNLOCK, ACQ_V,
   GEAR_IDS, MYTH_IDS, GEAR_RARITIES, GEAR_BAG, gearSellValue, seedRng, hashSeed, stageWave, stageBosses, stageHpScale, stageMid, chapterOf, stageNo, STAGE_HPX, SLOW_RUN, STAGE_COUNT, heroTier, GEAR, CURSES,
   SIG, SIG_IDS, SIG_PITY, SIG_DUP_SHARDS, SIG_RATE, WEEK_TRAITS, enemyGrade,
 } from './data.js';
@@ -144,8 +144,10 @@ export function heroUnlocked(lb, id) {
   if (lb.master) return true; // 마스터(운영자) 테스트 계정: 전부 (서버가 정한다)
   if (!LOCKED_HEROES.includes(id)) return true;
   if (lb.owned && lb.owned[id]) return true;
-  if (!HERO_UNLOCK[id]) return false; // 모집 멤버는 모집으로만
-  return ((lb.stages || {})[HERO_UNLOCK[id]] | 0) > 0 || ((lb.heroes || {})[id] | 0) > 0;
+  const hc = HIDDEN_COND[id];
+  if (hc) return ((lb.stages || {})[hc.stage] | 0) >= hc.stars; // HIDDEN: 숨은 조건
+  if (!HERO_UNLOCK[id]) return false; // 모집 · LEGEND 멤버는 모집(· 선택권 · 탑)으로만
+  return ((lb.stages || {})[HERO_UNLOCK[id]] | 0) > 0 || ((lb.heroes || {})[id] | 0) > 0; // 스토리 합류
 }
 export const STAR_MAX = 5;
 export const STAR_SHARDS = [0, 20, 40, 70, 110]; // ★n → ★n+1 에 드는 조각
@@ -730,21 +732,22 @@ export const PITY_HERO = 50, PITY_LEGEND = 90, PITY_SOFT = 70; // (10/08 T4 천�
 export const UNLOCK_CARDS = { epic: 10, legend: 30 };
 export const CARD_BUNDLE = { epicHero: 10, legendHero: 30, t3Card: 3, t2Card: 3 }; // LEGEND · T4 는 한 번에 합류 (겹치면 그만큼 멤버 카드) · T3·T2 는 카드 3장
 export const cardsNeed = (h) => (LEGEND_HEROES.includes(h) ? UNLOCK_CARDS.legend : UNLOCK_CARDS.epic);
-export const GACHA_RATES = [ // 확률 공개 (%) — 등급별 (다른 모집 게임처럼): LEGEND 0.6 · T4 5.4 · T3 20 · 나머지
+const tierPool = (t) => GACHA_HEROES.filter((h) => heroTier(h) === t);
+const namesOf = (l) => l.map((h) => HEROES[h].name).join(' · ');
+export const GACHA_RATES = [ // 확률 공개 (%) — 등급별 (다른 모집 게임처럼): LEGEND 0.6 · T4 4 · T3 20 · 나머지 (멤버 이름은 획득 규정 목록에서 바로 만든다)
   { k: 'sigGear', w: SIG_RATE.hero, name: '전용 신화 장비 (멤버마다 1개 · 가진 멤버 중)', color: '#ff4fd8' },
   { k: 'mythGear', w: 0.3, name: '신화 장비 (만능 6종)', color: '#ff7ad9' },
-  { k: 'legendHero', w: 0.6, name: 'LEGEND 멤버 합류 (이호찬 · 강병화 · 70번부터 확률 ↑ · 90번 확정)', color: '#ffcf3f' },
-  { k: 'epicHero', w: 4, name: 'T4 멤버 합류 (윤준서 · 배현경 · 고아라) · 픽업 50%', color: '#c77dff' },
-  { k: 't3Card', w: 20, name: 'T3 멤버 카드 ×3 (정소영 · 오지은 · 여지원 · 정원식)', color: '#4ea8ff' },
+  { k: 'legendHero', w: 0.6, name: `LEGEND 멤버 합류 (${namesOf(LEGEND_HEROES)}) · 70번부터 확률 ↑ · 90번 확정`, color: '#ffcf3f' },
+  { k: 'epicHero', w: 4, name: `T4 멤버 합류 (${namesOf(tierPool(4))}) · 픽업 50%`, color: '#c77dff' },
+  { k: 't3Card', w: 20, name: `T3 멤버 카드 ×3 (${namesOf(tierPool(3))})`, color: '#4ea8ff' },
   { k: 'legendGear', w: 1.2, name: '전설 장비', color: '#ffb400' },
   { k: 'epicGear', w: 6, name: '영웅 장비', color: '#d9a8ff' },
   { k: 'rareGear', w: 16.5, name: '희귀 장비', color: '#7ec4ff' },
-  { k: 't2Card', w: 15, name: 'T2 멤버 카드 ×3 (박상화 · 홍정민)', color: '#5de07a' },
+  { k: 't2Card', w: 15, name: 'T2 멤버 카드 ×3 — 합류한 스토리 T2 멤버 ★ 승급용 (T2 는 스토리로만 합류)', color: '#5de07a' },
   { k: 'shard10', w: 10, name: '멤버 조각 ×10', color: '#ff9f5a' },
   { k: 'shard4', w: 26.4 - SIG_RATE.hero, name: '멤버 조각 ×4', color: '#9fb3c8' },
 ];
 const T3_PLUS = ['legendHero', 'epicHero', 't3Card', 'mythGear'];
-const tierPool = (t) => GACHA_HEROES.filter((h) => heroTier(h) === t);
 // 이번 주 픽업 T4 (주마다 돌아가며) — T4 가 나오면 50% 로 이 멤버
 export const pickupHero = (now = Date.now()) => { const l = tierPool(4); return l[weekIndex(now) % l.length]; };
 // LEGEND 확률 (%): 70번째까지 0.6 → 그 뒤 번마다 +6.2 → 90번째 100
@@ -797,7 +800,14 @@ export function gachaPull(lb, n, pay, uid, now = Date.now(), seed) {
   return { results: out };
 }
 function resolvePull(lb, k, rng, now) {
-  if (k === 'legendHero' || k === 'epicHero' || k === 't3Card' || k === 't2Card') {
+  if (k === 't2Card') { // T2 는 스토리 멤버: 합류한 T2 의 ★ 승급 카드 (아직 없으면 가진 멤버 아무에게나)
+    const mine = Object.keys(HEROES).filter((h) => heroTier(h) === 2 && heroUnlocked(lb, h));
+    const list = mine.length ? mine : Object.keys(HEROES).filter((h) => heroUnlocked(lb, h));
+    const h = list[(rng() * list.length) | 0], v = CARD_BUNDLE.t2Card;
+    lb.shards[h] = (lb.shards[h] | 0) + v;
+    return { k, hero: h, card: true, dup: true, shards: v };
+  }
+  if (k === 'legendHero' || k === 'epicHero' || k === 't3Card') {
     if (k === 'legendHero' || k === 'epicHero') lb.pity.hero = 0;
     if (k === 'legendHero') lb.pity.legend = 0;
     const pool = k === 'legendHero' ? LEGEND_HEROES : tierPool(k === 'epicHero' ? 4 : k === 't3Card' ? 3 : 2);
@@ -1226,7 +1236,7 @@ export function normLive(raw, out) {
     const v = int((raw.shards || {})[h], 0, 1e6); if (v) out.shards[h] = v;
     const st = int((raw.hstars || {})[h], 1, STAR_MAX); if (st > 1) out.hstars[h] = st;
   }
-  for (const h of [...GACHA_HEROES, ...LEGEND_HEROES]) if ((raw.owned || {})[h]) out.owned[h] = true;
+  for (const h of LOCKED_HEROES) if ((raw.owned || {})[h]) out.owned[h] = true; // (모집 · 선택권 · 탑 · 규정 옮기기로 지킨 멤버 전부)
   { const rp0 = raw.pity || {}; const v2 = rp0.v === 2; // 예전 천장(50/200)에서 넘어오면 진행 비율대로 옮긴다
     out.gearDex = [...new Set([...(Array.isArray(raw.gearDex) ? raw.gearDex : []), ...(Array.isArray(raw.gear) ? raw.gear.map((g) => g && g.t) : [])])].filter((t) => typeof t === 'string' && GEAR[t]); // 장비 도감: 한 번이라도 얻은 종류
   out.pity = { v: 2, hero: int(v2 ? rp0.hero : Math.floor((rp0.hero | 0) * 40 / 50), 0, PITY_HERO - 1), legend: int(v2 ? rp0.legend : Math.floor((rp0.legend | 0) * 90 / 200), 0, PITY_LEGEND - 1), gear: int(rp0.gear, 0, GEAR_PITY - 1), sig: int(rp0.sig, 0, 1e6) }; } // sig: 신화 조각 (전용 신화 교환)
@@ -1288,7 +1298,52 @@ export function normLive(raw, out) {
   out.pvpDay = raw.pvpDay && Number.isInteger(raw.pvpDay.day) ? { day: raw.pvpDay.day, n: int(raw.pvpDay.n, 0, 999), won: !!raw.pvpDay.won, opp: Object.fromEntries(Object.entries(raw.pvpDay.opp || {}).slice(0, 50).map(([k, v]) => [String(k).slice(0, 40), int(v, 0, 999)])) } : null;
   out.pvpTiers = (Array.isArray(raw.pvpTiers) ? raw.pvpTiers : []).map((x) => int(x, 0, 5000)).filter((x) => PVP_TIER_LADDER.some((t) => t[0] === x));
   normFriends(raw, out); // 친구 · 체력 선물 · 레이드 도움 (아래 친구 블록)
+  out.jpick = [...new Set((Array.isArray(raw.jpick) ? raw.jpick : []).map((x) => int(x, 0, 999)))].filter((s) => JOIN_PICKS.some((j) => j.stage === s)); // 쓴 합류 선택권 (스테이지 번호)
+  out.acqV = int(raw.acqV, 0, 99);
+  out.acqNew = (Array.isArray(raw.acqNew) ? raw.acqNew : []).filter((h) => LOCKED_HEROES.includes(h)).slice(0, 30);
+  if (!out.master) acqMigrate(out, raw);
   return out;
+}
+// ─── 획득 규정 옮기기 (10/09): 예전 규정으로 가진 멤버는 절대 안 뺏는다 · 새 규정으로 이미 지난 스테이지 멤버는 지금 합류 + 우편 알림 ───
+//  (프로필을 읽을 때마다 부르지만 acqV 가 최신이면 아무것도 안 한다 · 서버가 저장하면 끝)
+export const ACQ_VER = ACQ_V;
+export function acqMigrate(out, raw = out, now = Date.now()) {
+  if ((out.acqV | 0) >= ACQ_V) return [];
+  const stg = out.stages || {}, rawOwned = (raw && raw.owned) || {};
+  const had = (h) => !!rawOwned[h] || (!!ACQ_OLD_UNLOCK[h] && (((stg[ACQ_OLD_UNLOCK[h]] | 0) > 0) || ((out.heroes || {})[h] | 0) > 0));
+  const fresh = Object.keys(stg).length === 0 && !Object.keys(rawOwned).length; // 새 계정: 옮길 것 없음
+  const added = [];
+  out.owned = out.owned || {};
+  if (!fresh) for (const h of LOCKED_HEROES) {
+    if (had(h)) { out.owned[h] = true; continue; } // 예전 길(스테이지 · 모집)로 가진 멤버 → 그대로 (임수빈 8-5 · 박나영 5-6 · 김도훈 1-6 포함)
+    if (heroUnlocked(out, h)) added.push(h); // 새 규정으로 이미 지난 스테이지 (홍정민 1-3 · 백인규 1-6 · 박상화 2-1)
+  }
+  if (added.length) {
+    out.acqNew = [...new Set([...(out.acqNew || []), ...added])];
+    mailAdd(out, { title: '멤버 획득 규정이 바뀌었어요', text: `${added.map((h) => HEROES[h].name).join(' · ')} 합류! 지난 스테이지 기록으로 바로 들어왔어요`, rw: { tickets: added.length } }, now);
+  }
+  out.acqV = ACQ_V;
+  return added;
+}
+// ─── 합류 선택권: 장 끝 보스(3-10 · 5-10 · 7-10 · 8-10)를 깨면 모집 멤버 중 한 명을 골라 바로 합류 ───
+export const JOIN_PICKS_AT = (s) => JOIN_PICKS.find((j) => j.stage === s) || null;
+export const joinPickPool = (tier) => GACHA_HEROES.filter((h) => heroTier(h) === tier);
+export function joinPicksOpen(lb) {
+  const used = Array.isArray(lb.jpick) ? lb.jpick : [];
+  return JOIN_PICKS.filter((j) => (((lb.stages || {})[j.stage]) | 0) > 0 && !used.includes(j.stage));
+}
+export function joinPick(lb, stage, hero) {
+  const j = joinPicksOpen(lb).find((x) => x.stage === (stage | 0));
+  if (!j) return { error: '쓸 수 있는 합류 선택권이 없어요' };
+  const pool = joinPickPool(j.tier);
+  if (!pool.includes(hero)) return { error: `T${j.tier} 모집 멤버 중에서 골라요` };
+  const left = pool.filter((h) => !heroUnlocked(lb, h));
+  if (left.length && !left.includes(hero)) return { error: '아직 합류하지 않은 멤버 중에서 골라요' };
+  lb.jpick = [...(lb.jpick || []), j.stage];
+  lb.owned = lb.owned || {}; lb.shards = lb.shards || {};
+  if (heroUnlocked(lb, hero)) { lb.shards[hero] = (lb.shards[hero] | 0) + JOIN_PICK_DUP; return { hero, dup: true, shards: JOIN_PICK_DUP }; }
+  lb.owned[hero] = true;
+  return { hero, new: true, tier: j.tier };
 }
 export const MAPFX = MAP_FX; // (화면 표시용)
 

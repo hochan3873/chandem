@@ -3,9 +3,10 @@
 // 화면 표시/손님용 같은 공식이 public/langbang/data.js 에 있다. 둘이 어긋나면 test/langbang.test.js 가 잡는다.
 
 const LB_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin', 'dragon'];
-const HIDDEN = ['eunok', 'hanna', 'sunggu', 'dragon'];
-const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin']; // 모집(뽑기)으로 합류 (임수빈은 8-5 를 깨도 합류)
-const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', ...HIDDEN, ...GACHA]; // 해금이 필요한 영웅
+const HIDDEN = ['eunok', 'hanna', 'sunggu', 'dragon']; // (한 판 안 깜짝 등장 카드 목록 — 영구 합류 길은 data.js heroRoute)
+const GACHA = ['junseo', 'hyungyeong', 'ara', 'hochan', 'soyoung', 'jieun', 'jiwon', 'wonsik', 'jeongseob', 'byunghwa', 'baul', 'subin']; // 모집 (T3 · T4 · LEGEND) — 획득 규정: 모집에는 T3 이상만
+// 해금이 필요한 멤버 전부 (획득 규정 10/09: 스토리 · 모집 · LEGEND · HIDDEN — data.js LOCKED_HEROES 와 같음)
+const LOCKED = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'dragon', 'junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'baul', 'subin', 'hochan', 'byunghwa'];
 const META_MAX = 20;
 // 멤버 등급별 강화 한도 (화면 data.js HERO_TIER · TIER_MAX 와 같음)
 const HERO_TIER = { bangjang: 1, staff: 1, gunman: 1, gunnyeo: 1, dohoon: 2, myunghoon: 2, eunok: 2, ingyu: 2, hanna: 3, donghan: 3, sunggu: 3, youngjun: 3, junseo: 4, hyungyeong: 4, ara: 4, hochan: 5, soyoung: 3, jieun: 3, sanghwa: 2, jungmin: 2, jiwon: 3, wonsik: 3, jeongseob: 3, byunghwa: 5, baul: 3, subin: 3, dragon: 3 };
@@ -14,7 +15,8 @@ const metaMaxOf = (id) => TIER_MAX[HERO_TIER[id] || 1];
 const STAGE_COUNT = 80; // 8장 결혼식 뒤풀이 까지
 const STAGE_WAVES = 5;
 const STAGES_PER_CHAPTER = 10;
-const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, dragon: 46, subin: 75 }; // (박나영: 5-6) 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (임수빈: 모집 + 8-5 확정)
+const HERO_UNLOCK = { jungmin: 3, ingyu: 6, eunok: 10, sanghwa: 11, myunghoon: 13, hanna: 15, dohoon: 17, sunggu: 20, donghan: 22, youngjun: 23 }; // 스토리 합류 (data.js 와 같음) 1-3 · 1-6 · 1-10 · 2-1 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3
+const HIDDEN_COND = { dragon: { stage: 46, stars: 3 } }; // HIDDEN: 5-6 캠프파이어 ★★★ (data.js HIDDEN_COND 와 같음)
 const ENDLESS_UNLOCK = 10;
 // 도감에 올라가는 진상 (화면 data.js ENEMIES 와 같아야 한다 — 테스트가 검사)
 const ENEMY_IDS = ['earphone', 'noshow', 'clubguy', 'clubgirl', 'praise1', 'praise2', 'yeokko', 'namkko', 'drunk', 'thug', 'mukti', 'queen', 'boss_thug', 'vomit', 'couple', 'handsy', 'gao', 'selfie', 'cutter', 'kkondae', 'spam',
@@ -114,7 +116,8 @@ function maxCleared(stages) {
 }
 // 해금: 정해진 스테이지를 깼거나, 예전(스테이지 이전)에 이미 강화해 둔 영웅
 const heroUnlocked = (lb, hero) => !!lb.master || !LOCKED.includes(hero) || !!(lb.owned && lb.owned[hero])
-  || (!!HERO_UNLOCK[hero] && ((lb.stages && (lb.stages[HERO_UNLOCK[hero]] | 0) > 0) || ((lb.heroes && lb.heroes[hero]) | 0) > 0));
+  || (!!HIDDEN_COND[hero] && ((lb.stages && lb.stages[HIDDEN_COND[hero].stage]) | 0) >= HIDDEN_COND[hero].stars)
+  || (!HIDDEN_COND[hero] && !!HERO_UNLOCK[hero] && ((lb.stages && (lb.stages[HERO_UNLOCK[hero]] | 0) > 0) || ((lb.heroes && lb.heroes[hero]) | 0) > 0));
 // 무한 도전: 1-10 클리어, 또는 예전(20웨이브 시절) 기록이 있는 사람
 const endlessUnlocked = (lb) => maxCleared(lb.stages) >= ENDLESS_UNLOCK || (lb.bestWave | 0) > 0;
 
@@ -301,6 +304,6 @@ module.exports = {
   hellOpen, hellReward, HELL_COIN,
   heroCardNeed, rollHeroCard, CARD_PICK,
   GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
-  LB_HEROES, HIDDEN, GACHA, LOCKED, HERO_TIER, TIER_MAX, metaMaxOf, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
+  LB_HEROES, HIDDEN, GACHA, LOCKED, HERO_TIER, TIER_MAX, metaMaxOf, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, HIDDEN_COND, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   metaCost, itemCost, itemValue, itemLvCap, itemGateCh, ITEM_LV_CAP, ITEM_TOP, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };
