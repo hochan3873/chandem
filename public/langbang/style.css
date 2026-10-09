@@ -4530,3 +4530,4 @@ i.grd.acq { vertical-align: middle; margin-left: calc(var(--u) * 4); }
 .ar-m i { font-style: normal; opacity: 0.6; margin-left: calc(var(--u) * 3); font-size: calc(var(--u) * 9); }
 .hero-full .hs-up.busy { filter: brightness(0.92); }
 .tabs button .tab-new { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ff3b5c; margin-left: 4px; vertical-align: top; box-shadow: 0 0 6px #ff3b5c; }
+.cmp-tip { text-align: center; font-size: calc(var(--u) * 12); color: #c9bde6; margin: calc(var(--u) * 4) 0; }
