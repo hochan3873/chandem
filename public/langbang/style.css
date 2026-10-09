@@ -4528,3 +4528,5 @@ i.grd.acq { vertical-align: middle; margin-left: calc(var(--u) * 4); }
 .ar-ms { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4); }
 .ar-m { font-size: calc(var(--u) * 11); background: rgba(0, 0, 0, 0.35); border-radius: 99px; padding: calc(var(--u) * 1) calc(var(--u) * 7); white-space: nowrap; }
 .ar-m i { font-style: normal; opacity: 0.6; margin-left: calc(var(--u) * 3); font-size: calc(var(--u) * 9); }
+.hero-full .hs-up.busy { filter: brightness(0.92); }
+.tabs button .tab-new { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ff3b5c; margin-left: 4px; vertical-align: top; box-shadow: 0 0 6px #ff3b5c; }

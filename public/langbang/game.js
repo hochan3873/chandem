@@ -2380,7 +2380,14 @@ const TUT = createTutor({
   save: (list) => { if (app.guest || !app.profileLoaded) return; clearTimeout(tutSaveT); tutSaveT = setTimeout(() => { API.tutSave(list).catch(() => {}); }, 800); },
 });
 let tutSaveT = 0;
+// 길 안내는 종류마다 처음 한 번만 (배운 뒤엔 그 화면으로 바로 · 매번 손가락이 따라다니면 귀찮다)
+const COACH_SEEN_KEY = 'langbang:coachSeen';
+const coachKind = (t) => (t.go === 'star' ? 'hero' : t.go === 'enh' ? 'gear' : t.go);
+function coachSeen() { try { return JSON.parse(localStorage.getItem(COACH_SEEN_KEY) || '{}') || {}; } catch { return {}; } }
+function coachLearned(t) { return !!coachSeen()[coachKind(t)]; }
+function coachMarkLearned(t) { const v = coachSeen(); v[coachKind(t)] = 1; try { localStorage.setItem(COACH_SEEN_KEY, JSON.stringify(v)); } catch { /* 무시 */ } }
 function guideTodo(t) {
+  if (t && coachLearned(t)) { todoGo(t); return; }
   const plan = t && planFor(t, coachState);
   if (!plan) { if (t) todoGo(t); return; }
   if (t.go === 'hero' || t.go === 'star') app.deckFilter = 'all';
@@ -2390,8 +2397,8 @@ function guideTodo(t) {
   // 지금 떠 있는 창이 안내와 상관없으면 닫는다 (우편 · 메뉴 창 위에서 시작하면 그대로)
   const keep = { mail: '.mail-pop', checkin: '.mg-sheet' }[t.go];
   for (const m of stage.querySelectorAll('.info-modal')) if (!keep || !m.matches(keep)) m.remove();
-  plan.more = () => { if (!t.up) return null; const n = upgradeList()[0]; return n ? { txt: '다음 강화도', t: n } : null; };
-  plan.onEnd = (ok, more) => { if (more) setTimeout(() => guideTodo(more.t), 120); else if (ok) { closeInfoCard(); showMenu(); } };
+  // 한 번 끝까지 따라 하면 배운 것으로 친다 · 다음 강화로 줄줄이 이어 가지 않는다 (끝나면 그 화면에 그대로 둔다)
+  plan.onEnd = (ok) => { if (ok) coachMarkLearned(t); };
   A.sfx.tap();
   COACH.start(plan);
 }
@@ -2755,7 +2762,7 @@ function showMenu0() {
     ${app.profileLoaded ? '' : '<div class="lb-loading"><span class="spin"></span></div>'}
   `, 'lobby');
   lobbySwipe();
-  if (app._fromRun) { app._fromRun = false; setTimeout(upNudge, 1500); }
+  if (app._fromRun) { app._fromRun = false; autoEquipDeck().finally(() => setTimeout(upNudge, 1500)); }
 }
 // ─── 초보 안내: 판을 끝내고 로비로 오면 (세션에 한 번 · 기기에 쉬는 시간) "같이 강화해 볼까요?" ───
 //  스테이지 15 이하 · 아직 강화를 한 번도 안 했으면 · 지금 할 수 있는 강화가 있을 때만
@@ -2763,6 +2770,7 @@ const NUDGE_KEY = 'langbang:upNudge';
 function nudgeLoad() { try { return JSON.parse(localStorage.getItem(NUDGE_KEY) || '{}') || {}; } catch { return {}; } }
 function nudgeSave(no) { const v = nudgeLoad(); v.at = Date.now(); v.no = no ? (v.no | 0) + 1 : 0; try { localStorage.setItem(NUDGE_KEY, JSON.stringify(v)); } catch { /* 무시 */ } }
 function upNudge() {
+  if (coachSeen().hero) return; // 강화를 한 번 배웠으면 더 안 조른다
   if (app.screen !== 'menu' || app._nudged || COACH.active() || TUT.active() || stage.querySelector('.info-modal, .gacha-res, .reveal, .confirm')) return;
   const p = P(), lvSum = Object.values(p.heroes || {}).reduce((a, v) => a + (v | 0), 0);
   if (!((p.maxStage | 0) <= 15 || lvSum === 0)) return;
@@ -3909,6 +3917,7 @@ function showSettings() {
     </section>
     <section class="st-sec"><h4>화면 · 연출</h4>
       ${row('sparkle', '연출 줄이기', '화면 흔들림 · 반짝임 줄이기', tog('rmT', gwPref('reduceMotion')))}
+      ${row('sparkle', '장비 자동 장착', '판이 끝나면 덱 멤버에게 안 낀 장비 중 더 좋은 것을 끼워요', tog('autoEqT', (() => { try { return localStorage.getItem('langbang:autoEquip') !== '0'; } catch { return true; } })()))}
       ${row('bolt', '진동', '', tog('vibT', gwPref('vibrate')))}
       ${row('speed', '기본 2배속', '전투를 ×2 로 시작 (전투 중 ×1 / ×2 버튼으로도)', tog('speedDefT', !!app.speed2))}
       ${(() => { const s = SSN.seasonAt(); return s ? row('sparkle', `${s.name} 테마`, `로비 그림 · 장식 · 음악 (${s.to[0]}/${s.to[1]}까지)`, tog('ssnT', SSN.seasonPref(s))) : ''; })()}
@@ -4121,6 +4130,7 @@ Object.assign(ACTS, {
     app.bulk = null; showBag();
   },
   ssnT: () => { const s = SSN.seasonAt(); if (!s) return; const v = !SSN.seasonPref(s); SSN.setSeasonPref(s, v); if (app.screen === 'menu') showMenu0(); /* 뒤 로비 그림 · 음악도 바로 */ toast(v ? `${s.name} 테마를 켰어요` : `${s.name} 테마를 껐어요`, 1400); showSettings(); },
+  autoEqT: () => { let on = true; try { on = localStorage.getItem('langbang:autoEquip') !== '0'; localStorage.setItem('langbang:autoEquip', on ? '0' : '1'); } catch { /* 무시 */ } toast(on ? '장비 자동 장착 끔' : '장비 자동 장착 켬'); if (!on) autoEquipDeck(); showSettings(); },
   rmT: () => { const v = !gwPref('reduceMotion'); setGwPref('reduceMotion', v); document.body.classList.toggle('rm', v); showSettings(); },
   vibT: () => { const v = !gwPref('vibrate'); setGwPref('vibrate', v); if (v) vibrate(20); showSettings(); },
   speedDefT: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } showSettings(); },
@@ -5991,9 +6001,16 @@ async function joinPickDo(b) {
   refresh();
 }
 
+// 강화 버튼을 빠르게 여러 번 눌러도 누른 만큼 올라가게 (처리 중에 누른 건 모아 뒀다가 이어서)
+let upBusy = false, upQueue = 0;
 async function buyUpgrade(id, btn) {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>';
+  if (upBusy) { upQueue++; return; }
+  upBusy = true;
+  try { await buyUpgradeOne(id, btn); } finally { upBusy = false; }
+  if (upQueue > 0) { upQueue--; const nb = stage.querySelector(`.hero-full[data-id="${id}"] .hs-up:not([disabled])`); if (nb) buyUpgrade(id, nb); else upQueue = 0; }
+}
+async function buyUpgradeOne(id, btn) {
+  btn.classList.add('busy'); // 막지 않는다 — 처리 중에 또 누르면 줄 세워 이어서 강화
   const r = await API.upgradeHero(id, app.guest);
   if (r.ok && r.profile) {
     app.profile = r.profile;
@@ -6354,6 +6371,9 @@ function showDex() {
   const ids = dexFiltered(kind);
   const nH = DEX_HEROES().filter((id) => dexKnown('hero', id)).length, nE = DEX_ENEMIES().filter((id) => dexKnown('enemy', id)).length;
   const v = dexViewed();
+  // 안 본 것이 어느 탭에 있는지 탭에 점으로 (도감 버튼의 빨간 점이 어디서 왔는지 바로 보이게)
+  const unseen = (k) => (k === 'hero' ? DEX_HEROES() : DEX_ENEMIES()).filter((id) => dexKnown(k, id) && !v.has((k === 'hero' ? 'h:' : 'e:') + id));
+  const newH = unseen('hero'), newE = unseen('enemy');
   const rwKeys = new Set(L.dexRwList(P()).map((x) => x.k));
   const card = (id) => {
     const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
@@ -6371,13 +6391,16 @@ function showDex() {
   show(`
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
-    <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
+    <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}${newH.length ? '<i class="tab-new"></i>' : ''}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}${newE.length ? '<i class="tab-new"></i>' : ''}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
     ${dexRwBar()}
     ${collBar(kind)}
     ${dexCatChips(kind)}
     <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>${tab === 'hero' ? (app.dexRole && app.dexRole !== 'all' && HERO_ROLES[app.dexRole] ? esc(HERO_ROLES[app.dexRole].desc) : '눌러서 멤버 소개 보기 · 옆으로 밀면 다음 멤버') : '만나 본 진상만 기록돼요 · 정예 = 방어가 있거나 체력이 높은 진상 · 떼거리엔 범위 공격 · 정예엔 한 방 공격'}</span></p>
     ${cards || '<p class="sub">이 분류엔 아직 없어요</p>'}
   `, 'dim');
+  // 이 탭을 열어 본 것으로 친다 (N 표시는 이번 화면엔 남기고, 다음부터는 빨간 점이 안 뜬다)
+  const seenNow = (kind === 'hero' ? newH : newE).map((id) => (kind === 'hero' ? 'h:' : 'e:') + id);
+  if (seenNow.length) markViewed(seenNow);
 }
 function dexPageHtml(kind, id, form, duo) {
   const d = kind === 'hero' ? HEROES[id] : ENEMIES[id];
@@ -6906,6 +6929,25 @@ function bestGearPlan(p, id, steal) {
     if (best && (!curIt || gearScore(best) > gearScore(curIt) + 1e-9)) { taken.add(best.id); plan.push({ k, it: best, from: equippedBy(p, best.id), prev: curIt || null }); }
   }
   return plan;
+}
+// 판이 끝나고 로비로 오면: 덱 멤버에게 '아무도 안 낀' 장비 중 더 좋은 것을 알아서 끼운다 (다른 멤버 것은 안 뺏음 · 전용 장비는 그 멤버만)
+//  설정에서 끌 수 있다 (langbang:autoEquip = '0')
+let autoEqBusy = false;
+async function autoEquipDeck() {
+  try { if (localStorage.getItem('langbang:autoEquip') === '0') return; } catch { /* 무시 */ }
+  if (autoEqBusy || !app.profileLoaded) return;
+  autoEqBusy = true;
+  try {
+    const d0 = [...new Set((curDeck() || []).filter(Boolean))].filter((h) => API.heroUnlocked(P(), h)), ids = d0.length ? d0 : owned().slice(0, 4); // 덱이 비었으면 앞 4명
+    const lines = [];
+    for (const id of ids) {
+      const plan = bestGearPlan(P(), id, false);
+      const done = [];
+      for (const x of plan) { const r = await API.equipGear(id, x.k, x.it.id, app.guest); if (r && r.ok && r.profile) { app.profile = r.profile; done.push(GEAR[x.it.t].name); } }
+      if (done.length) lines.push(`${HEROES[id].name} ${done.join('·')}`);
+    }
+    if (lines.length) { toast(`새 장비 자동 장착 — ${lines.slice(0, 3).join(' / ')}${lines.length > 3 ? ` 외 ${lines.length - 3}명` : ''}`, 2600); if (app.screen === 'menu') refresh(); }
+  } finally { autoEqBusy = false; }
 }
 async function heroAutoEquip(id, steal) {
   const p = P();
