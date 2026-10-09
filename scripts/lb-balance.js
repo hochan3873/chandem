@@ -1159,6 +1159,68 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       if (o.lost) console.log(`  쓰러짐 게이지 몫 진 판: ${top(o.kdL, o.lost)}`);
     }
   }
+  // ── 전투력 보정 (node scripts/lb-balance.js powercalib [--seeds=3] [--list=21,...] [--fm=8] [--only=a,b])
+  //  화면 전투력(POWER_BASE)을 정하는 측정: 정해 둔 동료 3명(강화 fm) + 시험 멤버 1명(+0 · ★1 · 장비 없음)으로 여러 스테이지
+  //  점수 = 이기면 1 + 남은 입구, 지면 깬 웨이브 비율 · 같은 판을 '건전남 + 공격 장비 k' 로도 돌려
+  //  "건전남 +0 의 몇 배 공격력과 같은 도움인가"(= 환산 배수)로 바꾼다 — 딜러 · 탱커 · 힐러를 한 잣대로
+  function powercalib() {
+    const N = opt('seeds', 3), plus = opt('meta', 2);
+    const list = listArg('list', '12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50').map(Number);
+    const mOf = (s) => REC[D.chapterOf(s) - 1] + plus; // 모두 같은 강화 (장 권장 + plus) — 시험 멤버도 같이
+    const TEAMS = [['eunok', 'myunghoon', 'sanghwa'], ['donghan', 'youngjun', 'gunnyeo']];
+    const SUB = { eunok: 'sunggu', myunghoon: 'hanna', sanghwa: 'hanna', donghan: 'sunggu', youngjun: 'hanna', gunnyeo: 'dohoon' };
+    const REFK = [0, 0.6, 1.3, 2.2, 3.5];
+    const score = (r) => (r.win ? 1 + r.hp : (r.g.stats.wavesCleared || 0) / Math.max(1, r.g.totalWaves));
+    function run(x, gearX) {
+      let tot = 0, n = 0;
+      for (const team0 of TEAMS) {
+        const team = team0.map((y) => (y === x ? SUB[y] : y));
+        const ids = [...team, x];
+        const gear = Object.fromEntries(team.map((y) => [y, {}])); gear[x] = gearX || {};
+        for (const s of list) for (let i = 1; i <= N; i++) {
+          const meta = Object.fromEntries(ids.map((y) => [y, mOf(s)]));
+          const r = play({ stage: s, deck: placeDeck(ids), partner: team[0], leader: team[0], meta, gear, items: itemsAt(s), seed: i * 173 + s * 11, unlocked: [], skills: true, control: true, join: true, tempo: true, stars: {} });
+          tot += score(r); n++;
+        }
+      }
+      return tot / n;
+    }
+    // --ref=빈자리,k0,k1,... : 기준 곡선을 이미 쟀으면 다시 안 돌린다
+    const refArg = listArg('ref', '').map(Number), haveRef = refArg.length === REFK.length + 1;
+    const ref = haveRef ? REFK.map((k, i) => [k, refArg[i + 1]]) : REFK.map((k) => [k, run('gunman', { atk: k })]);
+    const zz = haveRef ? refArg[0] : run('zz');
+    console.log(`\n■ 전투력 보정 — 모두 강화 장 권장+${plus} · 스테이지 ${list.join(',')} · ${N}판 × 팀 ${TEAMS.length}`);
+    console.log('빈자리 ' + zz.toFixed(3) + ' · 기준(건전남 공격 +k): ' + ref.map(([k, v]) => `+${k} ${v.toFixed(3)}`).join(' · '));
+    // 점수 → 환산 배수: 기준 곡선(건전남 공격 ×(1+k))은 갈수록 완만해서 (판을 이기는 데 피해는 점점 덜 중요) 로그로 맞춘다
+    //  점수 = c + s·ln(배수) (최소제곱) → 배수 = exp((점수 − c) / s) · 그보다 낮으면 빈자리(0) ~ 1 사이 직선
+    const X = ref.map(([k]) => Math.log(1 + k)), Y = ref.map(([, v]) => v), mx = X.reduce((a, b) => a + b, 0) / X.length, my = Y.reduce((a, b) => a + b, 0) / Y.length;
+    const sl = Math.max(1e-3, X.reduce((a, x, i) => a + (x - mx) * (Y[i] - my), 0) / X.reduce((a, x) => a + (x - mx) ** 2, 0)), c0 = my - sl * mx;
+    console.log(`기준 곡선: 점수 = ${c0.toFixed(3)} + ${sl.toFixed(3)}·ln(배수)`);
+    const equiv = (v) => (v >= c0 ? Math.exp((v - c0) / sl) : Math.max(0, (v - zz) / Math.max(1e-3, c0 - zz)));
+    const only = listArg('only', '');
+    const ids = (only.length ? only : Object.keys(D.HEROES)).filter((id) => id !== 'zz');
+    // --vars=atk:0.5,cd:0.35 : 장비 가치 — 멤버마다 맨몸 · 그 능력치 하나만 끼고 같은 판들 → 능력치 1.0 당 전투력(환산 배수)이 몇 % 오르나
+    const vars = listArg('vars', '').map((kv) => { const [k, v] = kv.split(':'); return [k, Number(v)]; });
+    if (vars.length) {
+      const gv = {};
+      for (const id of ids) {
+        const e0 = equiv(run(id)), row = { base: +e0.toFixed(3) };
+        for (const [k, v] of vars) row[k] = +((equiv(run(id, { [k]: v })) / Math.max(0.05, e0) - 1) / v).toFixed(3);
+        gv[id] = row;
+        console.log(pad(NAME[id] || id, 10) + pad(D.heroRole(id), 9) + `맨몸 ×${e0.toFixed(2)} · ` + vars.map(([k]) => `${k} ${row[k]}`).join(' · '));
+      }
+      console.log('GEARJSON ' + JSON.stringify(gv));
+      return;
+    }
+    const out = {};
+    for (const id of ids) {
+      const v = id === 'gunman' ? ref[0][1] : run(id);
+      out[id] = +equiv(v).toFixed(3);
+      console.log(pad(NAME[id] || id, 10) + pad('T' + D.heroTier(id), 4) + pad(D.heroRole(id), 9) + pad(v.toFixed(3), 8) + '× ' + out[id].toFixed(2));
+    }
+    console.log('JSON ' + JSON.stringify(out));
+  }
+  if (what === 'powercalib') powercalib();
   if (what === 'custom') custom();
   if (what === 'deck') deck();
   if (what === 'attr') attrDecks();
