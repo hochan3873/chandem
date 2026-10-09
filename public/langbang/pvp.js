@@ -4,8 +4,7 @@
 //  2) 진상 체력: 두 사람 덱 전투력으로 정한다 (판 시작 때 서버가 계산해서 시드와 같이 보낸다 → 두 사람 똑같이)
 //  3) 웨이브마다 진상 체력 ×1.22 (복리)
 //  4) 끝내기: 90초 과열(보내기 ×2) · 150초 폭주(15초마다 진상 ↑ · 자동 중간 보스 · 보스 묶음) · 210초 서든데스(정해진 큰 웨이브 · 입구 무너짐) · 300초면 판정
-import { HEROES, GEAR, GEAR_RARITY, gearStats, tierPower, heroTier, gearFits } from './data.js';
-import { STAR_ATK } from './live.js';
+import { HEROES, GEAR, GEAR_RARITY, gearStats, heroPowerOf, gearFits } from './data.js';
 
 export const PVP_NORM = { meta: 10, star: 3, rarity: 'epic' };
 export const PVP_NOTE = '대전에서는 강화 +10 · 영웅 장비까지만 적용돼요';
@@ -39,8 +38,7 @@ export function pvpLoadout(p, ids) {
 export function pvpHeroPower(id, meta, star, st) {
   const d = HEROES[id];
   if (!d || d.summon) return 0;
-  const g = st || {};
-  return (d.dmg / d.interval) * tierPower(heroTier(id), pvpMeta(meta)) * (1 + STAR_ATK * (pvpStar(star) - 1)) * (1 + (g.atk || 0)) * (1 + (g.spd || 0)) * (1 + (g.skill || 0) * 0.3) * 10;
+  return heroPowerOf(id, pvpMeta(meta), pvpStar(star), st, { mile: false }); // 대전은 각성(이정표) 없이
 }
 export function pvpFirepower(lo) {
   if (!lo || !Array.isArray(lo.deck)) return 0;

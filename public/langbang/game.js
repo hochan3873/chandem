@@ -8,7 +8,7 @@ import {
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, metaCost, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
-  FUSE_ART, MYTH, gearStats, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
+  FUSE_ART, MYTH, gearStats, heroPowerOf, gearPowerMul, POWER_BASE, POWER_STAR, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta, STAR_DOOR, PICK_SKIP, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
@@ -3484,6 +3484,7 @@ function glossLine(key) {
   if (kind === 'role' && ROLE_TXT[v]) return [ROLE_TXT[v][0], ROLE_TXT[v][1]];
   if (kind === 'cls' && CLASSES[v]) { const at = key.split(':')[2]; const mul = at && ATTRS[at] ? typeMul(at, v) : 1; const who = Object.keys(ENEMIES).filter((e) => ENEMIES[e].cls === v && !ENEMIES[e].boss && !ENEMIES[e].mid && !ENEMIES[e].dot && dexKnown('enemy', e)).slice(0, 5); return [`${CLASSES[v].name} 진상`, CLASS_TXT[v] || '', at && ATTRS[at] ? `${ATTRS[at].name} 멤버는 이 진상에게 피해 ×${mul.toFixed(2)} (${mul > 1 ? `${Math.round((mul - 1) * 100)}% 더` : mul < 1 ? `${Math.round((1 - mul) * 100)}% 덜` : '보통'})` : '', who]; }
   if (kind === 'mul') { const x = Number(v) || 1; return ['이번 스테이지 상성', x > 1.001 ? `이 멤버는 이번 스테이지에서 피해 ${Math.round((x - 1) * 100)}% 더` : x < 0.999 ? `이 멤버는 이번 스테이지에서 피해 ${Math.round((1 - x) * 100)}% 덜` : '이번 스테이지와는 보통이에요', '나오는 진상 종류 비율로 계산해요']; }
+  if (kind === 'pow' && HEROES[v]) { const q = powerParts(P(), v); return ['전투력이란?', '이 멤버가 판을 이기는 데 얼마나 도움이 되는지 한 숫자로 보여 줘요. 딜러는 주는 피해, 탱커는 막아 주는 피해, 힐러 · 서포터는 입구 수리 · 상태이상 풀기까지 — 시뮬레이션으로 여러 판을 돌려 같은 잣대로 쟀어요. 강화 · ★ · 장비(모든 능력치)를 바꾸면 바로 바뀌어요.', `기본 ${fmt(q.base)} (${TIER_NAME[heroTier(v)]}) × 강화 ×${q.grow.toFixed(2)} × ★ ×${q.star.toFixed(2)} × 장비 ×${q.gear.toFixed(2)}${q.sig ? ' × 전용 ×1.25' : ''} = ${fmt(q.pw)}`]; }
   if (kind === 'tier' && TIER_TXT[v]) return [TIER_TXT[v][0], TIER_TXT[v][1], `최대 강화 +${metaMaxOf ? metaMaxOfTier(+v) : 20}`];
   return null;
 }
@@ -3501,7 +3502,8 @@ function glossTip(el, key) {
   t.style.left = Math.max(8, Math.min(sr.width - w - 8, r.left - sr.left + r.width / 2 - w / 2)) + 'px';
   const top = r.top - sr.top - t.offsetHeight - 8;
   t.style.top = (top < 8 ? r.bottom - sr.top + 8 : top) + 'px';
-  clearTimeout(glossTip.t); glossTip.t = setTimeout(() => t.remove(), 2600);
+  if (key.startsWith('pow:')) t.classList.add('wide');
+  clearTimeout(glossTip.t); glossTip.t = setTimeout(() => t.remove(), key.startsWith('pow:') ? 7000 : 2600);
   return true;
 }
 // 길게 누르면(0.4초) 말풍선 · 짧게 누르면 원래 동작 — 배지·칩 어디서나
@@ -3610,7 +3612,7 @@ function showHeroModal(id, ctx = '') {
     let nMax = 0, costMax = 0;
     if (can && !free) { let c = p.coins | 0, sh = p.shards[id] | 0, w = p.wild | 0; for (let L = lv; L < mx; L++) { const k = L === lv ? cost : metaCost(L), need = heroCardNeed(L); if (c < k || sh + w < need) break; c -= k; const own = Math.min(sh, need); sh -= own; w -= need - own; costMax += k; nMax++; } }
     app._hsUp = { id, can, cost, free, have, cn, lv, pw, nMax, costMax };
-    return `<div class="hs-pow"><small>전투력</small><b class="hs-pw" data-to="${pw}">${fmt(pw)}</b>${pwNext > pw ? `<em class="hs-d">+${fmt(pwNext - pw)}</em>` : ''}</div>
+    return `<div class="hs-pow"><small>전투력</small><b class="hs-pw" data-to="${pw}">${fmt(pw)}</b>${pwNext > pw ? `<em class="hs-d">+${fmt(pwNext - pw)}</em>` : ''}${powInfoBtn(id)}</div>
       <div class="hs-bar"><div class="hs-notch">${notch}</div><span>강화 <b>+${lv}</b> / ${mx}</span></div>
       <div class="hs-grid">
         ${statCard('swords', '공격력', fmt(Math.round(a.dmg)), cost !== null ? fmt(Math.round(b.dmg)) : null)}
@@ -3626,7 +3628,7 @@ function showHeroModal(id, ctx = '') {
       <p class="hs-hint">꾹 누르면 계속 강화해요 · ★마다 공격력 +${Math.round(L.STAR_ATK * 100)}%</p>`;
   };
   // ─── 장비 탭: 캐릭터 둘레에 칸 (종이 인형) ───
-  const gearBody = () => `<div class="hs-doll"><div class="hs-sil">${artSrc ? `<img src="${thumbSrc(id) || artSrc}" alt="" draggable="false">` : ''}</div>
+  const gearBody = () => `<div class="hs-pow sm"><small>전투력</small><b class="hs-pw" data-to="${pw}">${fmt(pw)}</b>${powInfoBtn(id)}</div><div class="hs-doll"><div class="hs-sil">${artSrc ? `<img src="${thumbSrc(id) || artSrc}" alt="" draggable="false">` : ''}</div>
       <div class="hs-gs w">${slot('w')}</div><div class="hs-gs a">${slot('a')}</div><div class="hs-gs m">${slot('m')}</div></div>
       ${sugg ? `<h4 class="hs-h">${ic('sparkle', '', 'sm')}더 좋은 장비</h4>${sugg}` : '<p class="ip">지금 제일 좋은 장비를 끼고 있어요</p>'}
       <button class="hs-pill wide" data-act="nav" data-tab="bag">${ic('ic_bag', '', 'sm')}장비 화면으로</button>`;
@@ -6623,26 +6625,27 @@ function showGearPicker(hero, slot) {
 }
 
 // ─── 가방 (장비 화면): 위 = 멤버 + 무기/액세서리 칸 + 능력치, 아래 = 가방 격자 ─────
-const GEAR_W = { atk: 1, spd: 1, crit: 1.3, skill: 0.6, cd: 0.7, attr: 0.8, strip: 0.4, hp: 0.6, range: 0.7 };
-// 멤버 전투력: 기본 초당 피해 × 티어·강화 × ★ × 장비 — 화면에 보여 주는 숫자 (대략적인 세기)
+// 멤버 전투력: 시뮬로 잰 기본(역할 상관없이 '이기는 데 도움') × 강화 × ★ × 장비 (모든 능력치) — data.js heroPowerOf
 // 전투에서 실제로 쓰는 값 (sim 그대로): 한 방 피해 · 초당 공격 — 강화 화면 "지금 → 다음" 표시용
 function heroLive(p, id, metaLv) {
   const g = S.createGame({ H: 760, noWaves: true, heroes: [id], tempo: true, meta: { [id]: metaLv }, stars: p.hstars || {}, gear: API.gearFor(p, [id]), rng: () => 0.5, awake: TWUI ? TWUI.awake(p) : {} });
   const h = g.heroes[0];
   return { dmg: S.heroDamage(g, h), aps: 1 / S.heroInterval(g, h) };
 }
-function heroPower(p, id) {
-  const d = HEROES[id];
-  if (!d) return 0;
-  const st = heroGearStats(p, id);
-  const base = (d.dmg / d.interval) * tierPowerM(heroTier(id), (p.heroes || {})[id] | 0) * (1 + L.STAR_ATK * (L.heroStar(p, id) - 1));
-  return Math.round(base * (1 + (st.atk || 0)) * (1 + (st.spd || 0)) * (1 + (st.skill || 0) * 0.3) * (sigOn(p, id) ? 1.25 : 1) * 10); // 전용 신화 새 효과 ≈ +25%
+function heroPower(p, id) { // 전투력 한 잣대 (data.js heroPowerOf) — 장비는 모든 능력치가 들어가서 빼면 바로 내려간다
+  return heroPowerOf(id, (p.heroes || {})[id] | 0, L.heroStar(p, id), heroGearStats(p, id), { sig: sigOn(p, id) });
 }
+// 전투력 나눠 보기 (ⓘ 말풍선): 기본 × 강화 × ★ × 장비
+function powerParts(p, id) {
+  const t = heroTier(id), m = Math.min(metaMaxOf(id), (p.heroes || {})[id] | 0), sig = sigOn(p, id);
+  return { base: POWER_BASE[id] || 0, grow: tierPowerM(t, m) / tierPower(t, 0), star: 1 + POWER_STAR * (L.heroStar(p, id) - 1), gear: gearPowerMul(heroGearStats(p, id), heroRole(id)), sig, pw: heroPower(p, id) };
+}
+const powInfoBtn = (id) => `<button class="hs-pi" data-gl="pow:${id}" aria-label="전투력이란?">i</button>`;
 // 이 멤버가 자기 전용 신화를 끼고 있나
 function sigOn(p, id) { const gid = ((p.equip || {})[id] || {}).m; const it = gid && (p.gear || []).find((g) => g.id === gid); return !!(it && GEAR[it.t] && GEAR[it.t].hero === id); }
 const sigHave = (p, id) => (p.gear || []).some((g) => g.t === 'sig_' + id);
 const deckPower = (p, ids) => ids.reduce((a, id) => a + heroPower(p, id), 0);
-const gearScore = (it) => (isSig(it.t) ? 1 : gearValue(it.t, it.r, it.lv) * (GEAR_W[GEAR[it.t].stat] || 0.5)); // 전용 신화: 그 멤버에겐 늘 제일 좋은 것
+const gearScore = (it) => (isSig(it.t) ? 9 : gearPowerMul(gearStats([it])) - 1); // 전투력과 같은 잣대 (장비끼리 비교 · 전용 신화는 그 멤버에게 늘 제일)
 function lsSet(key) { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); } }
 function lsSave(key, set) { try { localStorage.setItem(key, JSON.stringify([...set].slice(-400))); } catch { /* 무시 */ } }
 const gearLocked = () => lsSet('langbang:gearLock');

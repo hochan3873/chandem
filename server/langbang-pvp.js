@@ -127,7 +127,7 @@ function createLbPvp(opts) {
 
   // ─── AI 상대 (30초 동안 사람이 없으면) : 같은 실력 · 같은 규칙 · 진짜로 판을 돌린다 ───
   const AI_NICK = ['야식왕', '골목대장', '랑방단골', '막차탑승', '노래방VIP', '새벽두시', '편의점요정', '치킨은반반', '라떼는말야', '오늘도출근', '월요병환자', '소주한잔'];
-  function aiPower(D, id, m) { const h = D.HEROES[id]; return (h.dmg / h.interval) * D.tierPower(D.heroTier(id), m) * 10; }
+  function aiPower(D, id, m) { return D.heroPowerOf(id, m, 1, null, { mile: false }); } // 화면 · 대전과 같은 전투력 (data.js heroPowerOf)
   // 덱: 비슷한 전투력 (±5%) · 절반은 상대 속성을 노린 구성
   function aiDeck(D, pl, rng) {
     const mmax = (id) => Math.min(AI.PV ? AI.PV.PVP_NORM.meta : 10, D.metaMaxOf(id)); // 대전: 강화 +10 까지만

@@ -2394,6 +2394,40 @@ export function gearStats(items, mythMul = 1) { // mythMul: 1:1 대전은 신화
   return st;
 }
 
+// ─── 전투력 (화면 숫자 · 대전 매칭 · 순위) — 한 잣대: "이 멤버가 판을 이기는 데 얼마나 도움이 되나" ───
+//  전투력 = 기본(POWER_BASE · 강화 0 · ★1 · 장비 없음) × 강화 성장 × ★ × 장비
+//  기본 = 시뮬 측정 (node scripts/lb-balance.js powercalib): 같은 동료 3명 + 이 멤버로 여러 스테이지를 돌려
+//         "건전남(+0)의 몇 배 공격력과 같은 도움인가"를 잰 값 → 딜러는 피해, 탱커는 막아 준 피해, 힐러는 수리 · 해제가 모두 '이긴 판'으로 같이 잡힌다
+//         (같은 강화에서 잰 값을 그 등급 성장으로 나눠 +0 으로 돌림 · 공격 멤버 +5% / 서포터 −5% · 등급 안 순서는 측정대로)
+//  강화 성장 = 실제 전투와 같은 식 (tierPowerM: 레벨당 공격력 + 5강마다 각성) · ★ = 공격력 +7% / ★
+export const POWER_BASE = {};
+export const POWER_STAR = 0.07; // (live.js STAR_ATK 와 같아야 한다 — 테스트가 확인)
+// 역할마다 '피해에서 나오는 몫' — 공격 장비(공격력 · 공속 · 치명 · 스킬 피해)가 그 멤버 도움을 얼마나 키우나
+export const POWER_DMG_SHARE = { aoe: 1, single: 1, special: 0.85, ctrl: 0.7, tank: 0.6, support: 0.5 };
+// 장비 능력치 1.0 당 전투력 % (피해 쪽은 위 몫을 곱하고 · 팀 쪽은 그대로) — 모든 장비 능력치가 들어간다
+export const POWER_GEAR_W = {
+  dmg: { crit: 1, critDmg: 0.15, skill: 0.3, attr: 0.3, boss: 0.35, swarm: 0.5, exec: 0.25 }, // 공격력 · 공속은 곱으로 따로
+  team: { cd: 0.6, strip: 0.25, hp: 0.5, range: 0.4, res: 0.25, ult: 0.4, exp: 0.6, guard: 1, regen: 5 },
+};
+// 장비 배율 (1 = 장비 없음). role 이 없으면 딜러 기준 (장비끼리 비교용)
+export function gearPowerMul(st, role) {
+  st = st || {};
+  const share = role ? (POWER_DMG_SHARE[role] !== undefined ? POWER_DMG_SHARE[role] : 0.85) : 1;
+  let dmg = (1 + (st.atk || 0)) * (1 + (st.spd || 0)) - 1, team = 0;
+  for (const [k, w] of Object.entries(POWER_GEAR_W.dmg)) dmg += (st[k] || 0) * w;
+  for (const [k, w] of Object.entries(POWER_GEAR_W.team)) team += (st[k] || 0) * w;
+  return 1 + share * dmg + team;
+}
+// 멤버 한 명 전투력. o: { mile: 각성 포함(스테이지 · 화면) / 빼기(대전), sig: 전용 신화 새 효과 켜짐 }
+export function heroPowerOf(id, meta, star, gearSt, o = {}) {
+  const b = POWER_BASE[id];
+  if (!b || !HEROES[id] || HEROES[id].summon) return 0;
+  const t = heroTier(id), m = Math.max(0, Math.min(TIER_MAX[t], meta | 0));
+  const grow = (o.mile === false ? tierPower(t, m) : tierPowerM(t, m)) / tierPower(t, 0);
+  const s = Math.max(1, Math.min(5, star | 0 || 1));
+  return Math.round(b * grow * (1 + POWER_STAR * (s - 1)) * gearPowerMul(gearSt, heroRole(id)) * (o.sig ? 1.25 : 1));
+}
+
 // 멤버 강화에 드는 그 멤버 카드 (+1~5 1장 · +6~10 2장 · +11~15 3장 · +16~20 5장) — ★승급과 같은 카드(조각)를 같이 쓴다
 export function heroCardNeed(lv) { const L = lv + 1; return L <= 5 ? 1 : L <= 10 ? 2 : L <= 15 ? 3 : 5; }
 // 스테이지 카드 드롭: 이번 판에 데려간(가진) 멤버 중 하나 · 별 많을수록 · 헬 ×2
