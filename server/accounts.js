@@ -486,7 +486,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   function masterFill(lb) {
     for (let st = 1; st <= LBR.STAGE_COUNT; st++) lb.stages[st] = 3;
     for (const h of LBR.LB_HEROES) lb.heroes[h] = LBR.metaMaxOf(h);
-    lb.owned = Object.fromEntries(LBR.GACHA.map((h) => [h, true]));
+    lb.owned = Object.fromEntries(LBR.LOCKED.map((h) => [h, true]));
     lb.hstars = Object.fromEntries(LBR.LB_HEROES.map((h) => [h, 5]));
     for (const it of Object.keys(LBR.ITEMS)) lb.items[it] = LBR.ITEMS[it].max;
     lb.stones = 99999;
@@ -515,6 +515,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     let u = await store.byId(id);
     if (!u) throw new AuthError('다시 로그인해 주세요');
     if (freeMaster(u) && ((u.stats.langbang || {}).masterFull | 0) < MASTER_FULL_V) { await serial(async () => { await update(id, (st) => { masterFill(st.langbang = normLb(st.langbang, true)); }); }); u = await store.byId(id); }
+    // 획득 규정 옮기기 (10/09): 들어올 때 한 번 저장 — 예전에 가진 멤버는 지키고, 새 규정으로 이미 지난 스테이지 멤버는 합류 + 우편 (normLive → acqMigrate)
+    if (LIVE && u.stats.langbang && ((u.stats.langbang.acqV | 0) < LIVE.ACQ_VER)) { await serial(async () => { await update(id, (st) => { st.langbang = normLb(st.langbang); }); }); u = await store.byId(id); }
     return { profile: lbView(u.stats.langbang, id, isMasterName(u.username)), nickname: u.nickname };
   }
   // 코인은 클라이언트가 보낸 값을 믿지 않는다: 스테이지·별·첫 클리어 여부(서버 기록)로 서버가 계산
@@ -662,7 +664,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           levelUp: lb.level > before.level, rank: mode === 'weekly' ? await store.rankWeekly(wk.wi, id) : mode === 'raid' ? await store.raidRank(rd.wi, id) : await store.rankLangbang(mode, id),
           raid: rd ? { dmg: rd.dmg, mine: lb.raid ? lb.raid.dmg : 0, total: await store.raidTotal(rd.wi), hp: LIVE.RAID.hp, master, help: rd.help } : null,
           weekly: wk ? { score: wk.score, tier: wk.tier, best: lb.weekly ? lb.weekly.best : 0, newBest: weeklyBest, master } : null,
-          unlockedHeroes: first ? Object.keys(LBR.HERO_UNLOCK).filter((h) => LBR.HERO_UNLOCK[h] === stage && !LBR.heroUnlocked(before, h)) : [],
+          unlockedHeroes: mode === 'stage' && !hell ? LBR.LOCKED.filter((h) => !LBR.heroUnlocked(before, h) && LBR.heroUnlocked(lb, h)) : [], // 스토리 합류 · HIDDEN 조건 (★★★) 이 이번 판으로 채워진 멤버
+          joinPick: first && LIVE.JOIN_PICKS_AT ? LIVE.JOIN_PICKS_AT(stage) : null, // 장 끝: 합류 선택권
           endlessUnlocked: first && !LBR.endlessUnlocked(before) && LBR.endlessUnlocked(lb),
           newBestWave: mode === 'endless' && wave > before.bestWave, newBestScore: mode === 'endless' && score > before.bestScore, endless: endInfo,
         };
@@ -996,7 +999,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
             for (let s = 1; s <= LBR.STAGE_COUNT; s++) lb.stages[s] = 3;
             const lv = Math.max(0, Math.min(LBR.META_MAX, body.level === undefined ? LBR.META_MAX : Math.floor(Number(body.level) || 0)));
             for (const h of LBR.LB_HEROES) lb.heroes[h] = Math.min(lv, LBR.metaMaxOf(h));
-            lb.owned = Object.fromEntries(LBR.GACHA.map((h) => [h, true])); // (스테이지 해금 멤버는 기록으로 열림 · 마스터는 전부)
+            lb.owned = Object.fromEntries(LBR.LOCKED.map((h) => [h, true])); // (스테이지 해금 멤버는 기록으로 열림 · 마스터는 전부)
             lb.hstars = body.star5 ? Object.fromEntries(LBR.LB_HEROES.map((h) => [h, 5])) : {};
             for (const it of Object.keys(LBR.ITEMS)) lb.items[it] = LBR.ITEMS[it].max;
             // 견본 장비: 무기·액세서리 × 등급마다 하나
@@ -1192,6 +1195,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     r.post('/gacha', wrap((req) => lbGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1, String(b(req).pay || ''))));
     r.post('/gear-gacha', wrap((req) => lbGearGacha(tok(req), Number(b(req).n) === 10 ? 10 : 1)));
     r.post('/sig/exchange', wrap((req) => lbLive(tok(req), (lb) => LIVE.sigExchange(lb, String(b(req).hero || ''))))); // 신화 조각 600 → 전용 신화
+    r.post('/join/pick', wrap((req) => lbLive(tok(req), (lb) => LIVE.joinPick(lb, Math.floor(Number(b(req).stage) || 0), String(b(req).hero || ''))))); // 합류 선택권 (장 끝 보스 클리어)
     r.post('/mission/claim', wrap((req) => lbMission(tok(req), String(b(req).kind || ''), String(b(req).id || ''))));
     r.post('/mission/claimAll', wrap((req) => lbLive(tok(req), (lb, id, now) => { const t = ['daily', 'weekly', 'ach'].includes(b(req).tab) ? b(req).tab : 'all'; const r = LIVE.claimAllMissions(lb, t, id, now); return r.n ? r : { error: '받을 보상이 없어요' }; })));
     r.post('/season/claim', wrap((req) => lbSeason(tok(req), b(req).tier === 'all' ? 'all' : Math.floor(Number(b(req).tier) || 0))));

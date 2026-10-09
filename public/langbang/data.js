@@ -367,8 +367,38 @@ export const CHAPTERS = [
     names: ['뒤풀이 입구', '축의금 접수대', '뷔페 홀', '축가 무대', '예식장 실장님', '포토존', '부케 던지기', '신랑 친구들 테이블', '뒷문 탈출', '끝없는 축사'],
   },
 ];
-// 이 스테이지를 처음 깨면 히든 영웅이 영구 합류 (출전 동료로 고를 수 있고, 카드로도 나온다)
-export const HERO_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, dragon: 46, subin: 75 }; // (박나영: 5-6 캠프파이어) // 1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 · 8-5 (임수빈: 모집으로도 · 8-5 를 깨면 확정 합류)
+// ─── 멤버 획득 규정 (10/09 · '자동 합류 · 뽑기 · 등급이 중구난방' 정리) ───
+//  등급 ↔ 길이 하나로 맞는다:
+//   T1 = 시작 멤버 (처음부터 4명)
+//   T2 = 스토리 합류 (1~2장 정해진 스테이지를 처음 깨면 확정) — 모집에는 안 나온다
+//   T3 = 스토리 합류 (2~3장) 또는 모집 카드 10장 — 두 길이 만나는 등급 (모집 T3 는 장 끝 '합류 선택권'으로 골라서도)
+//   T4 = 모집만 (나오면 바로 합류 · 50번 천장 · 주간 픽업 50%) — 8-10 클리어 'T4 합류 선택권' 하나
+//   LEGEND = 4-10 클리어 뒤 모집 (90번 확정) · 진상의 탑 60층 선택
+//   HIDDEN = 숨은 조건 (조건은 도감에 힌트만) — 박나영
+//  이벤트 의상은 멤버가 아니다 (이미 있는 멤버의 옷) · 겹치면 카드(★ 승급 조각)로
+// 스토리 합류: 이 스테이지를 처음 깨면 영구 합류 (출전 동료로 고를 수 있다) — 1장 안에 탱커 · 범위 공격까지 손에 들어오게
+export const HERO_UNLOCK = { jungmin: 3, ingyu: 6, eunok: 10, sanghwa: 11, myunghoon: 13, hanna: 15, dohoon: 17, sunggu: 20, donghan: 22, youngjun: 23 }; // 1-3 · 1-6 · 1-10 · 2-1 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3
+// 스토리 합류 장면 한 줄 (스테이지 클리어 '합류!' 연출 · 도감 획득 방법)
+export const STORY_JOIN = {
+  jungmin: '먹튀가 걷어찬 입구 문짝 — 지나가던 홍정민이 공구함을 열었다',
+  ingyu: '꼬충 떼가 몰려오자 오토바이 소리와 함께 백인규가 앞을 막아섰다',
+  eunok: '여왕벌을 쫓아낸 밤, 술잔을 든 최은옥이 "나도 끼워 줘" 하고 앉았다',
+  sanghwa: '불금 첫 손님 — 좋은남자 박상화가 지갑을 열며 합류했다',
+  myunghoon: '뒷담화 골목에서 실눈 뜬 서명훈이 "다 들었어" 하고 나타났다',
+  hanna: '인피 행동대장을 윙크 한 번으로 돌려보낸 이한나',
+  dohoon: '독재자의 연설을 앵콜 떼창으로 덮어 버린 김도훈',
+  sunggu: '삐끼왕을 지팡이로 혼낸 동네 어르신 강성구가 모임에 들어왔다',
+  donghan: '아지트 복도에서 졸다 깬 문동한 — "어, 여기 인피야?"',
+  youngjun: '끼리끼리 방을 번개처럼 뚫고 들어온 김영준',
+};
+// 숨은 조건 (HIDDEN): 이 스테이지를 별 stars 개로 깨면 합류 — 조건은 합류 전엔 힌트만 보인다
+export const HIDDEN_COND = { dragon: { stage: 46, stars: 3, hint: '5장 캠프파이어 불씨 속에서 무언가가 꿈틀거린다… (입구를 완벽하게 지켜 내면?)', text: '5-6 캠프파이어를 ★★★로 깨면 합류' } };
+// 합류 선택권: 장 끝 보스를 처음 깨면 모집 멤버 중 한 명을 골라 바로 합류 (이미 다 있으면 고른 멤버 카드 30장)
+export const JOIN_PICKS = [{ stage: 30, tier: 3 }, { stage: 50, tier: 3 }, { stage: 70, tier: 3 }, { stage: 80, tier: 4 }]; // 3-10 · 5-10 · 7-10 = T3 · 8-10 = T4
+export const JOIN_PICK_DUP = 30;
+// 예전 규정 (10/09 전): 이 스테이지 기록이 있으면 이미 가진 멤버 — 옮길 때 지키는 용도 (live.js acqMigrate)
+export const ACQ_OLD_UNLOCK = { dohoon: 6, eunok: 10, myunghoon: 13, hanna: 15, ingyu: 17, sunggu: 20, donghan: 22, youngjun: 23, dragon: 46, subin: 75 };
+export const ACQ_V = 1; // 획득 규정 버전 (올리면 acqMigrate 가 다시 돈다)
 export const HIDDEN_UNLOCK = HERO_UNLOCK; // (옛 이름)
 export const ENDLESS_UNLOCK = 10; // 1-10 클리어 → 무한 도전
 export const chapterOf = (s) => Math.ceil(s / STAGES_PER_CHAPTER);
@@ -1020,10 +1050,10 @@ export const HEROES = {
     perks: { 3: '돌격 2.9초 · 크로스핏 2.1초', 5: '돌격 3.2초 · 크로스핏 1.8초' },
     skill: { id: 'rush', name: '블랙 러시', cd: 10, desc: '지목한 적부터 최대 3명을 번개처럼 연속 돌파 · 큰 피해 (쿨 짧은 잔기술 · Lv5 4명)', n: [3, 3, 3, 3, 4], mul: 4 }, // (쿨 다양화: 20 → 10초 · 6~8명 ×5 → 3~4명 ×4)
   },
-  // ── HIDDEN ──
+  // ── 스토리 합류 (1-10 · 2-5 · 2-10) — 한 판 안에선 깜짝 등장 카드로도 ──
   eunok: {
     id: 'eunok', bossKit: 1.0, kit: 1.1, name: '최은옥', gender: 'f', emoji: '🍶', color: '#ff5a4f', hidden: true, attr: 'booze',
-    img: '/img/lb/h_eunok.webp', imgRage: '/img/lb/h_eunok_rage.webp', role: 'HIDDEN · 술 마시면 분노 모드',
+    img: '/img/lb/h_eunok.webp', imgRage: '/img/lb/h_eunok_rage.webp', role: '술 마시면 분노 모드',
     dmg: 21, interval: 0.9, range: 390, proj: 'bottle', projSpeed: 1, lobSec: 0.55, splash: 55,
     soberSec: [14, 14, 13, 13, 11], rageSec: [8, 9, 10, 11, 12],
     rageDmg: 1.4, rageInterval: 0.45, fire: { sec: 2.2, r: 50, dps: 0.6, kind: 'booze', slow: 0.3 }, arcH: 40, fuse: 0.5, // 분노 중 술 웅덩이 (1발 피해 × 0.6 / 초 · 비틀비틀 30% 느리게 — 불은 박나영 몫) · 낮고 빠른 포물선 · 떨어진 병은 0.5초 뒤 펑 (시한폭탄)
@@ -1034,7 +1064,7 @@ export const HEROES = {
   },
   hanna: {
     id: 'hanna', bossKit: 1.15, kit: 1.05, name: '이한나', gender: 'f', emoji: '😉', color: '#ff6fd8', hidden: true, attr: 'charm',
-    img: '/img/lb/h_hanna.webp', role: 'HIDDEN · 하트 레이저 · 윙크 넉백',
+    img: '/img/lb/h_hanna.webp', role: '하트 레이저 · 윙크 넉백',
     dmg: 33, interval: 0.7, range: 370, proj: 'beam', beamTick: 0.12, ramp: [0.5, 0.5, 0.7, 0.7, 0.9], rampMax: 2.1, kbEvery: 2.0,
     knockback: [52, 60, 68, 76, 90],
     attack: '하트 레이저 — 한 명에게 계속 쏘면 점점 세진다, 남자는 가끔 뒤로 밀림',
@@ -1044,7 +1074,7 @@ export const HEROES = {
   },
   sunggu: {
     id: 'sunggu', bossKit: 1.1, kit: 1.0, name: '강성구', gender: 'm', emoji: '👴', color: '#c9a36b', hidden: true, attr: 'power',
-    img: '/img/lb/h_sunggu.webp', role: 'HIDDEN · 크게 돌아오는 지팡이 · 기절 면역 오라',
+    img: '/img/lb/h_sunggu.webp', role: '크게 돌아오는 지팡이 · 기절 면역 오라',
     dmg: 48, interval: 2.1, range: 620, proj: 'cane', projSpeed: 430, lv5Interval: 0.85, loop: { amp: 70, speed: 300, r: 15 }, // 지팡이 고리: 진상이 가장 몰린 곳까지 크게 원을 그리며 나갔다가 반대쪽으로 돌아온다 (갈 때 · 올 때 한 번씩)
     attack: '지팡이 부메랑 — 진상이 가장 몰린 곳으로 지팡이를 휙 던지면 커다란 고리를 그리며 나갔다가 반대쪽으로 돌아온다 (가는 길 · 오는 길 전부 관통)',
     desc: '"요즘 것들은…" 지팡이 하나를 던지면 큰 원을 그리며 한 무리를 두 번 훑고 손에 쏙 돌아온다.',
@@ -1122,7 +1152,7 @@ export const HEROES = {
     shouts: ['시간아 멈춰라…', '헤헤♡', '…도망 못 가.'],
   },
   sanghwa: {
-    id: 'sanghwa', bossKit: 1.05, kit: 1.0, name: '박상화', gender: 'm', emoji: '😊', color: '#ffc36b', gacha: true, attr: 'power',
+    id: 'sanghwa', bossKit: 1.05, kit: 1.0, name: '박상화', gender: 'm', emoji: '😊', color: '#ffc36b', unlock: true, attr: 'power',
     img: ART('h_sanghwa'), role: '성장 · 경제 · 판이 길수록 강해진다',
     dmg: 38, interval: 1.08, range: 415, proj: 'rose', projSpeed: 620,
     grow: { perWave: 0.05, perKill: 0.002, max: 0.45, exp: 0.5, coin: 0.12 }, // 웨이브마다 +5% · 처치마다 +0.2% (최대 +45%) · 잡은 진상 경험치 +50% · 클리어 코인 +12%
@@ -1135,7 +1165,7 @@ export const HEROES = {
     shouts: ['좋은남자 박상화!', '끝내주는남자 박상화!'],
   },
   jungmin: {
-    id: 'jungmin', bossKit: 0.8, kit: 0.9, name: '홍정민', gender: 'm', emoji: '🩹', color: '#7fd88f', gacha: true, attr: 'booze',
+    id: 'jungmin', bossKit: 0.8, kit: 0.9, name: '홍정민', gender: 'm', emoji: '🩹', color: '#7fd88f', unlock: true, attr: 'booze',
     img: ART('h_jungmin'), role: '입구 수리 전담 · 꽉 차면 방패',
     dmg: 34, interval: 1.2, range: 165, proj: 'tap', projSpeed: 480, // (24 → 30: 술 멤버 기본 화력)
     swing: { arc: 1.15, max: 4, side: 0.6, kb: 22, glare: 3, glareCut: 0.2 }, // 휘두르기: 앞 반원(±66°) 최대 4명 (둘째부터 60%) · 살짝 밀침 · 흉터 눈빛 3초 (그동안 입구 치는 힘 −20%)
@@ -1216,7 +1246,7 @@ export const HEROES = {
       desc: '찍은 곳에 조명이 쏟아지며 빙글빙글 도는 댄스 플로어가 깔린다 — 박자마다 (3박) 플로어 위 진상을 리본으로 휘감아 피해 + 1초 묶기 · 마지막 박자에 피루엣 쾅! · 묶인 진상은 4초 동안 모든 멤버에게 받는 피해 +25%' },
     shouts: ['음악 틀어 줘!', '다음 차례는 너야~', '같이 춰요~', '스텝 밟아!'],
   },
-  // ── HIDDEN (5-6 캠프파이어를 깨면 합류) ── 통통한 주황 아기 용을 타고 다니는 여자 (그림: h_dragon.webp · h_dragon_attack.webp 8칸 · 던지는 칸 4)
+  // ── HIDDEN (숨은 조건: 5-6 캠프파이어 ★★★) ── 통통한 주황 아기 용을 타고 다니는 여자 (그림: h_dragon.webp · h_dragon_attack.webp 8칸 · 던지는 칸 4)
   //  (그림 왔음: ART_READY 'h_dragon' · HERO_ANIM 'dragon' · 스킬 아이콘 ui2/sk_dragon.webp)
   dragon: {
     id: 'dragon', bossKit: 0.95, kit: 1.05, name: DRAGON_NAME, gender: 'f', emoji: '🐉', color: '#ff8a2a', hidden: true, attr: 'booze', // (술: 캠프파이어 · 회식 열기와 어울리게 · 속성 인원 7·7·7·7)
@@ -1283,11 +1313,22 @@ export const TIER_NAME = ['', 'T1', 'T2', 'T3', 'T4', 'LEGEND'];
 export const heroTier = (id) => HERO_TIER[id] || 1;
 export const metaMaxOf = (id) => TIER_MAX[heroTier(id)];
 export const BASE_HEROES = ['bangjang', 'staff', 'gunman', 'gunnyeo'];
-export const UNLOCK_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun']; // 스테이지를 깨면 합류하는 일반 영웅
-export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu', 'dragon'];
-export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'baul', 'subin']; // 모집(뽑기) 영웅 등급
-export const LEGEND_HEROES = ['hochan', 'byunghwa']; // 모집 전설 (마지막 스테이지를 깨야 모집에 나온다)
-export const LOCKED_HEROES = [...UNLOCK_HEROES, ...HIDDEN_HEROES, ...GACHA_HEROES, ...LEGEND_HEROES]; // 해금이 필요한 영웅 전부
+// (아래 두 목록은 한 판 안 카드용 — 무한 도전 '체험 합류' · 깜짝 등장 카드. 영구 합류 길은 heroRoute 가 정한다)
+export const UNLOCK_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun']; // 무한 도전에서 체험 합류 카드로 나오는 스토리 멤버
+export const HIDDEN_HEROES = ['eunok', 'hanna', 'sunggu', 'dragon']; // 한 판 안 깜짝 등장 카드 (합류한 멤버만)
+export const GACHA_HEROES = ['junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'jiwon', 'wonsik', 'jeongseob', 'baul', 'subin']; // 모집 멤버 (T3 · T4) — 획득 규정: 모집에는 T3 이상만 (박상화 · 홍정민은 스토리로)
+export const LEGEND_HEROES = ['hochan', 'byunghwa']; // 모집 전설 (4-10 을 깨야 모집에 나온다)
+// 해금이 필요한 멤버 전부 (순서 고정 — 동료 목록 · 선수 카드 순서)
+export const LOCKED_HEROES = ['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'dragon', 'junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'baul', 'subin', 'hochan', 'byunghwa'];
+// 획득 경로 (멤버마다 정확히 하나): start · story · gacha · legend · hidden
+export const ACQ_ROUTES = {
+  start: { name: '시작 멤버', color: '#9fb3c8', tiers: 'T1', rule: '처음부터 함께 (4명)' },
+  story: { name: '스토리 합류', color: '#5de07a', tiers: 'T2 · T3', rule: '정해진 스테이지를 처음 깨면 확정 합류 (1~3장)' },
+  gacha: { name: '모집', color: '#4ea8ff', tiers: 'T3 · T4', rule: 'T3 = 카드 10장 · T4 = 나오면 바로 (50번 천장 · 주간 픽업) · 장 끝 합류 선택권' },
+  legend: { name: 'LEGEND', color: '#ffd23f', tiers: 'LEGEND', rule: '4-10 클리어 뒤 모집 (90번 확정) · 진상의 탑 60층 선택' },
+  hidden: { name: 'HIDDEN', color: '#ff4fd8', tiers: '—', rule: '숨은 조건을 채우면 (도감에 힌트)' },
+};
+export const heroRoute = (id) => (!LOCKED_HEROES.includes(id) ? 'start' : HIDDEN_COND[id] ? 'hidden' : LEGEND_HEROES.includes(id) ? 'legend' : HERO_UNLOCK[id] ? 'story' : 'gacha');
 // 도감 · 멤버 카드 역할 분류 (실제 기술 기준 · 멤버마다 정확히 하나)
 export const HERO_ROLES = {
   tank: { name: '탱커', desc: '앞에 나가서 막거나 밀어내고, 진상 공격을 대신 맞는다' },

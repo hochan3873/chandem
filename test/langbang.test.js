@@ -1622,7 +1622,7 @@ test('새 멤버 4명: 정소영 잔소리 → 성준영 소환(올인!) · 오�
   for (let i = 0; i < 60 * 4; i++) S.step(g, 1 / 60);
   assert.ok(g.base.hp > g.base.max * 0.5, '입구 수리');
   // 모집 · 서버 목록
-  for (const id of ['soyoung', 'jieun', 'sanghwa', 'jungmin']) { assert.ok(D.GACHA_HEROES.includes(id)); assert.ok(require('../server/langbang-rules').LB_HEROES.includes(id), id); }
+  for (const id of ['soyoung', 'jieun', 'sanghwa', 'jungmin']) { assert.ok(D.LOCKED_HEROES.includes(id)); assert.equal(D.heroRoute(id), D.heroTier(id) === 2 ? 'story' : 'gacha', id + ' 획득 규정'); assert.ok(require('../server/langbang-rules').LB_HEROES.includes(id), id); }
   assert.ok(!D.HEROES.junyoung && D.SUMMONS.junyoung, '성준영은 소환 전용');
 });
 
