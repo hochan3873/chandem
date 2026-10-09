@@ -2318,7 +2318,7 @@ function upgradeList() {
     const nm = HEROES[h].name, sl = (p.equip || {})[h] || {};
     for (const k of ['w', 'a']) {
       const cur = (p.gear || []).find((x) => x.id === sl[k]);
-      const best = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)).sort((a, b) => gearScore(b) - gearScore(a))[0];
+      const best = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) + 1e-9)).sort((a, b) => gearScore(b, h) - gearScore(a, h))[0];
       if (best) { out.push({ go: 'gear', id: h, slot: k, gid: best.id, name: nm, txt: `${nm}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', pri: 200, up: true }); continue; }
       if (!cur || gMaxed(cur)) continue;
       const cost = gearEnhanceCost(cur.r, cur.lv);
@@ -2488,7 +2488,7 @@ function dots() {
   const wk = (p.maxStage | 0) >= L.WEEKLY_UNLOCK && !(p.weekly && p.weekly.wi === L.weekIndex(now) && p.weekly.runs > 0);
   const members = Object.keys(HEROES).some((h) => API.heroUnlocked(p, h) && L.heroStar(p, h) < L.STAR_MAX && (p.shards[h] | 0) >= L.STAR_SHARDS[L.heroStar(p, h)]);
   const upg = owned().some((h) => { const c = API.costOf(p, h); const lv = p.heroes[h] | 0; return c !== null && c !== undefined && (p.coins | 0) >= c && lv < 5 && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv); });
-  const gearBetter = (() => { const ids = [...new Set((curDeck() || []).filter(Boolean))]; return ids.some((h) => ['w', 'a'].some((k) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)); })); })();
+  const gearBetter = (() => { const ids = [...new Set((curDeck() || []).filter(Boolean))]; return ids.some((h) => ['w', 'a'].some((k) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) + 1e-9)); })); })();
   return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: members || upg, bag: gearBetter };
 }
 function navHtml(on) {
@@ -3597,7 +3597,7 @@ function showHeroModal(id, ctx = '') {
   // 이 멤버에게 더 좋은 장비 (칸마다 두 개까지) — 누르면 바로 끼기
   const sugg = ['w', 'a'].map((k) => {
     const cur = (p.gear || []).find((g) => g.id === eq[k]);
-    const list = (p.gear || []).filter((it) => GEAR[it.t].slot === k && it.id !== eq[k] && (!cur || gearScore(it) > gearScore(cur) + 1e-9)).sort((a, b) => gearScore(b) - gearScore(a)).slice(0, 2);
+    const list = (p.gear || []).filter((it) => GEAR[it.t].slot === k && it.id !== eq[k] && (!cur || gearScore(it, id) > gearScore(cur, id) + 1e-9)).sort((a, b) => gearScore(b, id) - gearScore(a, id)).slice(0, 2);
     return list.map((it) => `<button class="hf-sug" data-act="hfEquip" data-hero="${id}" data-slot="${k}" data-gid="${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}<span>${esc(GEAR[it.t].name)}${it.lv ? ` +${it.lv}` : ''}<small>${esc(gearStatText(it))}${equippedBy(p, it.id) ? ` · ${HEROES[equippedBy(p, it.id)].name} 것` : ''}</small></span><em>끼기</em></button>`).join('');
   }).join('');
   // ─── 강화 탭: 능력치 카드 · 큰 전투력 · 강화 막대 · 카드 칩 · 큰 강화 버튼 (꾹 누르면 연속) ───
@@ -6584,7 +6584,8 @@ function gearModal(html) {
   box.innerHTML = `<div class="info-card gear-card">${html}<button class="btn ghost" data-ic="x">닫기</button></div>`;
   stage.appendChild(box);
   box.addEventListener('click', async (ev) => {
-    if (ev.target === box || ev.target.closest('[data-ic]')) { closeInfoCard(); return; }
+    const backTo = () => { const h = app._gpBack; app._gpBack = null; if (h && HEROES[h]) showHeroModal(h); };
+    if (ev.target === box || ev.target.closest('[data-ic]')) { closeInfoCard(); backTo(); return; }
     const b = ev.target.closest('[data-g]');
     if (!b || b.disabled) return;
     b.disabled = true;
@@ -6609,17 +6610,19 @@ function gearModal(html) {
     closeInfoCard();
     refresh();
     if (act === 'enh' && r && r.ok) showGearCard(Number(a1));
+    else if (act === 'equip') backTo();
   });
   A.sfx.tap();
 }
 function showGearPicker(hero, slot) {
   const p = P();
   const cur = ((p.equip || {})[hero] || {})[slot];
-  const list = (p.gear || []).filter((x) => GEAR[x.t].slot === slot && gearFits(x.t, hero)).sort((a, b) => gearValue(b.t, b.r, b.lv) * GEAR_RARITY[b.r].mul - gearValue(a.t, a.r, a.lv) * GEAR_RARITY[a.r].mul);
-  const curIt = cur && (p.gear || []).find((g) => g.id === cur), curSc = curIt ? gearScore(curIt) : 0; // (10/08) 지금 낀 것과 비교: 전투력 +N% (대략 · 능력치 가중치)
-  const upTag = (it) => { if (it.id === cur) return '<em class="gp-up eq">장착 중</em>'; const d = Math.round((gearScore(it) - curSc) * 100); return d ? `<em class="gp-up ${d > 0 ? 'up' : 'down'}">전투력 ${d > 0 ? '+' : ''}${d}%</em>` : ''; };
+  const pw0 = heroPower(p, hero), pct = (it) => (powerWith(p, hero, slot, it.id) / Math.max(1, pw0) - 1) * 100; // 지금과 비교: 이 멤버 전투력이 몇 % 바뀌나 (전투력과 같은 식)
+  const list = (p.gear || []).filter((x) => GEAR[x.t].slot === slot && gearFits(x.t, hero)).sort((a, b) => pct(b) - pct(a));
+  const upTag = (it) => { if (it.id === cur) return '<em class="gp-up eq">장착 중</em>'; const d = Math.round(pct(it)); return d ? `<em class="gp-up ${d > 0 ? 'up' : 'down'}">전투력 ${d > 0 ? '+' : ''}${d}%</em>` : ''; };
   const rows = list.map((it) => `<button class="gpick ${it.id === cur ? 'on' : ''} r-${it.r}" data-g="equip:${hero}:${slot}:${it.id}" style="--rc:${GEAR_RARITY[it.r].color}">${upTag(it)}${gearName(it)}<small>${GEAR_RARITY[it.r].name} · ${esc(gearStatText(it))}${equippedBy(p, it.id) && equippedBy(p, it.id) !== hero ? ` · ${HEROES[equippedBy(p, it.id)].name}` : ''}</small></button>`).join('');
-  gearModal(`<div class="ih"><b>${HEROES[hero].name} · ${slot === 'w' ? '무기' : '액세서리'}</b></div>
+  const back = document.querySelector('.hero-full'); app._gpBack = back ? back.dataset.id : null; // 멤버 창에서 열었으면: 끼기 · 빼기 · 닫기 뒤 그 창으로 돌아가 전투력이 바뀌는 걸 보여 준다
+  gearModal(`<div class="ih"><b>${HEROES[hero].name} · ${slot === 'w' ? '무기' : slot === 'm' ? '신화' : '액세서리'}</b></div>
     <div class="gpick-list">${rows || '<p class="sub">이 칸에 낄 장비가 없어요</p>'}</div>
     ${cur ? `<button class="btn" data-g="equip:${hero}:${slot}:x">빼기</button>` : ''}`);
 }
@@ -6638,14 +6641,14 @@ function heroPower(p, id) { // 전투력 한 잣대 (data.js heroPowerOf) — �
 // 전투력 나눠 보기 (ⓘ 말풍선): 기본 × 강화 × ★ × 장비
 function powerParts(p, id) {
   const t = heroTier(id), m = Math.min(metaMaxOf(id), (p.heroes || {})[id] | 0), sig = sigOn(p, id);
-  return { base: POWER_BASE[id] || 0, grow: tierPowerM(t, m) / tierPower(t, 0), star: 1 + POWER_STAR * (L.heroStar(p, id) - 1), gear: gearPowerMul(heroGearStats(p, id), heroRole(id)), sig, pw: heroPower(p, id) };
+  return { base: POWER_BASE[id] || 0, grow: tierPowerM(t, m) / tierPower(t, 0), star: 1 + POWER_STAR * (L.heroStar(p, id) - 1), gear: gearPowerMul(heroGearStats(p, id), id), sig, pw: heroPower(p, id) };
 }
 const powInfoBtn = (id) => `<button class="hs-pi" data-gl="pow:${id}" aria-label="전투력이란?">i</button>`;
 // 이 멤버가 자기 전용 신화를 끼고 있나
 function sigOn(p, id) { const gid = ((p.equip || {})[id] || {}).m; const it = gid && (p.gear || []).find((g) => g.id === gid); return !!(it && GEAR[it.t] && GEAR[it.t].hero === id); }
 const sigHave = (p, id) => (p.gear || []).some((g) => g.t === 'sig_' + id);
 const deckPower = (p, ids) => ids.reduce((a, id) => a + heroPower(p, id), 0);
-const gearScore = (it) => (isSig(it.t) ? 9 : gearPowerMul(gearStats([it])) - 1); // 전투력과 같은 잣대 (장비끼리 비교 · 전용 신화는 그 멤버에게 늘 제일)
+const gearScore = (it, h) => (isSig(it.t) ? 9 : gearPowerMul(gearStats([it]), h) - 1); // 전투력과 같은 잣대 (장비끼리 비교 · 전용 신화는 그 멤버에게 늘 제일)
 function lsSet(key) { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); } }
 function lsSave(key, set) { try { localStorage.setItem(key, JSON.stringify([...set].slice(-400))); } catch { /* 무시 */ } }
 const gearLocked = () => lsSet('langbang:gearLock');
@@ -6753,7 +6756,7 @@ function eqRowHtml(p, h) {
   const d = HEROES[h];
   const sl = (p.equip || {})[h] || {};
   const find = (gid) => (p.gear || []).find((x) => x.id === gid);
-  const better = (k) => { const cur = find(sl[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it) > gearScore(cur) + 1e-9)); };
+  const better = (k) => { const cur = find(sl[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) + 1e-9)); };
   const slotB = (k) => { const it = find(sl[k]); return `<button class="eq-slot v2 ${it ? 'r-' + it.r : 'empty'}" data-act="eqSlot" data-hero="${h}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">${it ? `<span class="es-ico">${gearIco(it)}</span><span class="es-t"><b>${esc(GEAR[it.t].name)}</b><small>${it.lv ? `+${it.lv} · ` : ''}${GEAR_RARITY[it.r].name}</small></span>` : `<span class="es-ico ph">${k === 'w' ? '' : ''}</span><span class="es-t"><b>${k === 'w' ? '무기' : '장신구'}</b><small>비어 있음</small></span>`}${better(k) ? '<i class="rd"></i>' : ''}</button>`; };
   return `<div class="eq-row" data-hero="${h}" style="--c:${ATTRS[d.attr].color}">
     ${artCard(h, { act: 'bagHeroPick', cls: 'mini' })}
@@ -6929,9 +6932,9 @@ function bestGearPlan(p, id, steal) {
     const cur = ((p.equip || {})[id] || {})[k];
     const curIt = (p.gear || []).find((x) => x.id === cur);
     const cands = (p.gear || []).filter((it) => GEAR[it.t] && GEAR[it.t].slot === k && gearFits(it.t, id) && !taken.has(it.id) && it.id !== cur && (steal || !equippedBy(p, it.id)));
-    cands.sort((a, b) => gearScore(b) - gearScore(a));
+    cands.sort((a, b) => gearScore(b, id) - gearScore(a, id));
     const best = cands[0];
-    if (best && (!curIt || gearScore(best) > gearScore(curIt) + 1e-9)) { taken.add(best.id); plan.push({ k, it: best, from: equippedBy(p, best.id), prev: curIt || null }); }
+    if (best && (!curIt || gearScore(best, id) > gearScore(curIt, id) + 1e-9)) { taken.add(best.id); plan.push({ k, it: best, from: equippedBy(p, best.id), prev: curIt || null }); }
   }
   return plan;
 }
@@ -6948,10 +6951,10 @@ function deckGearPlan(p, ids) {
       const c0 = (p.gear || []).find((x) => x.id === cur);
       const curIt = c0 && !taken.has(c0.id) ? c0 : null; // 앞 멤버가 가져간 건 내 것이 아니다
       const cands = (p.gear || []).filter((it) => GEAR[it.t] && GEAR[it.t].slot === k && gearFits(it.t, id) && !taken.has(it.id));
-      cands.sort((x, y) => gearScore(y) - gearScore(x));
+      cands.sort((x, y) => gearScore(y, id) - gearScore(x, id));
       const best = cands[0];
       if (!best) continue;
-      if (best.id !== (curIt && curIt.id) && (!curIt || gearScore(best) > gearScore(curIt) + 1e-9)) { taken.add(best.id); out.push({ id, k, it: best }); }
+      if (best.id !== (curIt && curIt.id) && (!curIt || gearScore(best, id) > gearScore(curIt, id) + 1e-9)) { taken.add(best.id); out.push({ id, k, it: best }); }
       else if (curIt) taken.add(curIt.id);
     }
   }
@@ -7012,7 +7015,7 @@ async function autoEquipAll() {
   const used = new Set();
   let n = 0;
   for (const h of ids) for (const k of ['w', 'a', 'm']) {
-    const best = (P().gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !used.has(it.id)).sort((a, b) => gearScore(b) - gearScore(a))[0];
+    const best = (P().gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !used.has(it.id)).sort((a, b) => gearScore(b, h) - gearScore(a, h))[0];
     if (!best) continue;
     used.add(best.id);
     if (((P().equip || {})[h] || {})[k] === best.id) continue;
@@ -7101,9 +7104,9 @@ async function autoEquip() {
     const cur = ((p.equip || {})[id] || {})[k];
     const curIt = (p.gear || []).find((x) => x.id === cur);
     const cands = (P().gear || []).filter((it) => GEAR[it.t].slot === k && (!equippedBy(P(), it.id) || equippedBy(P(), it.id) === id));
-    cands.sort((a, b) => gearScore(b) - gearScore(a));
+    cands.sort((a, b) => gearScore(b, id) - gearScore(a, id));
     const best = cands[0];
-    if (best && (!curIt || gearScore(best) > gearScore(curIt) + 1e-9) && best.id !== cur) {
+    if (best && (!curIt || gearScore(best, id) > gearScore(curIt, id) + 1e-9) && best.id !== cur) {
       const r = await API.equipGear(id, k, best.id, app.guest);
       if (r.ok && r.profile) { app.profile = r.profile; n++; }
     }

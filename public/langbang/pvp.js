@@ -47,7 +47,7 @@ export function pvpFirepower(lo) {
   return Math.round(s);
 }
 // 진상 체력 배율: 두 사람 전투력 평균으로 (같은 두 덱 → 같은 값 · 순서 상관없음)
-export const PVP_HP = { ref: 2400, exp: 0.9, min: 0.6, max: 6 };
+export const PVP_HP = { ref: 3080, exp: 0.9, min: 0.6, max: 6 }; // (10/14 전투력 새 잣대: 같은 멤버 합이 평균 ×1.285 → 2400 × 1.285 · 평균 덱의 진상 체력은 그대로)
 export function pvpHpScale(fpA, fpB) {
   const a = Math.max(0, Number(fpA) || 0), b = Math.max(0, Number(fpB) || 0);
   const avg = (a + b) / 2;

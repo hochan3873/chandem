@@ -541,13 +541,13 @@ test('1:1 AI 상대: 덱 전투력이 내 전투력 ±5% · 두 번 연속 지�
   const k = createLbPvp({ accounts: {}, normLb: (x) => x, eloDelta: () => 10, live: {}, countdownMs: 10, botTickMs: 1000 });
   await k.simReady;
   let seed = 5; const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  for (const power of [600, 1500, 3000, 6000, 9000]) {
+  for (const power of [1000, 2000, 3500, 5000, 6000]) { // (10/14 전투력 새 잣대: 두 명 +0 이 900 쯤부터)
     const d = k.aiDeck({ power, deck: ['staff', 'gunman', 'gunnyeo', 'bangjang', 'dohoon'] }, rng);
     assert.ok(d.deck.length >= 2 && d.deck.length <= 5);
     assert.ok(Math.abs(d.power - power) <= power * 0.05 + 30, `전투력 ${power} → ${d.power}`);
     assert.ok(Object.values(d.meta).every((m) => m <= 10), '대전 AI 도 강화 +10 까지');
   }
-  { const d = k.aiDeck({ power: 50000, deck: ['staff', 'gunman', 'gunnyeo', 'bangjang', 'dohoon'] }, rng); assert.ok(Object.values(d.meta).every((m) => m <= 10) && d.power > 9000, '한도보다 센 목표: 강화 +10 으로 할 수 있는 만큼'); }
+  { const d = k.aiDeck({ power: 50000, deck: ['staff', 'gunman', 'gunnyeo', 'bangjang', 'dohoon'] }, rng); assert.ok(Object.values(d.meta).every((m) => m <= 10) && d.power > 6000, '한도보다 센 목표: 강화 +10 으로 할 수 있는 만큼'); }
   const human = { key: 'g:x', nickname: '나', rating: 1000, deck: ['staff'], power: 2000, aiAdj: 0 };
   const play = async (humanWins) => { const bot = k.makeBot(human); const m = { id: 'm' + Math.random(), a: human, b: bot, bot: true, over: false }; k.matches.set(m.id, m); await k.finish(m, humanWins ? bot : human, 'dead'); return m; };
   await play(false); assert.equal(human.aiAdj, 0, '한 번은 그대로');
