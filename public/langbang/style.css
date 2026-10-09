@@ -4535,3 +4535,4 @@ i.grd.acq { vertical-align: middle; margin-left: calc(var(--u) * 4); }
 .hs-pow.sm { margin: 0 0 calc(var(--u) * 4); }
 .hs-pow.sm .hs-pw { font-size: calc(var(--u) * 24); }
 .gl-tip.wide { max-width: calc(var(--u) * 300); }
+.cmp-tip { text-align: center; font-size: calc(var(--u) * 12); color: #c9bde6; margin: calc(var(--u) * 4) 0; }

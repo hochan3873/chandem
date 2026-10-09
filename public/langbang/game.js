@@ -6795,7 +6795,7 @@ function equipTabHtml(p) {
   const find = (gid) => (p.gear || []).find((x) => x.id === gid);
   const slot = (k) => {
     const it = find(sl[k]);
-    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && powerWith(p, sel, k, g.id) > pw);
+    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && !equippedBy(p, g.id) && powerWith(p, sel, k, g.id) > pw); // 빨간 점은 '아무도 안 낀' 더 좋은 장비가 있을 때만 (남의 것은 점 안 띄움)
     return `<button class="eq-big ${it ? 'r-' + it.r : 'empty'}" data-act="eqOpen" data-hero="${sel}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">
       <small class="eqb-k">${k === 'w' ? '무기' : k === 'a' ? '장신구' : '신화'}</small>${better ? '<i class="rd"></i>' : ''}
       ${it ? `${gIco(it)}<b>${esc(GEAR[it.t].name)}${it.lv ? ` <em>+${it.lv}</em>` : ''}</b><small>${esc(gearStatText(it))}</small>` : `<span class="eqb-plus">+</span><b>비어 있음</b><small>${k === 'm' ? '신화 장비 전용' : '눌러서 끼기'}</small>`}</button>`;
@@ -6821,8 +6821,9 @@ function showEquipSheet(hero, slot, selId) {
   const cur = (p.gear || []).find((x) => x.id === curId);
   const base = heroPower(p, hero);
   const rows = (p.gear || []).filter((it) => GEAR[it.t].slot === slot && gearFits(it.t, hero)).map((it) => ({ it, d: it.id === curId ? 0 : powerWith(p, hero, slot, it.id) - base, own: equippedBy(p, it.id) }))
-    .sort((a, b) => (a.it.id === curId) - (b.it.id === curId) || b.d - a.d);
-  const pick = rows.find((r) => r.it.id === selId) || rows.find((r) => r.it.id !== curId) || rows[0];
+    .sort((a, b) => (b.it.id === curId) - (a.it.id === curId) || b.d - a.d);
+  // 칸을 누르면 먼저 '지금 낀 장비' (강화하려고 누르는 경우가 많다) · 바꾸려면 아래 목록에서 고른다
+  const pick = rows.find((r) => r.it.id === selId) || rows.find((r) => r.it.id === curId) || rows.find((r) => r.it.id !== curId) || rows[0];
   app.eqSheet = { hero, slot, sel: pick ? pick.it.id : null };
   const locks = gearLocked();
   const diff = (d) => (d > 0 ? `<em class="up">▲ +${fmt(d)}</em>` : d < 0 ? `<em class="dn">▼ ${fmt(d)}</em>` : '<em class="eq0">—</em>');
@@ -6835,7 +6836,8 @@ function showEquipSheet(hero, slot, selId) {
   const cost = tgt ? gearEnhanceCost(tgt.r, tgt.lv) : null;
   const canEnh = tgt && cost !== null && (free || (p.coins >= cost && (p.stones | 0) >= gearStoneNeed(tgt.lv)));
   popup(`<h3>${esc(HEROES[hero].name)} · ${slot === 'w' ? '무기' : slot === 'a' ? '장신구' : '신화'}</h3>
-    <div class="cmp">${side(cur, '지금')}<div class="cmp-mid"><i>→</i><b>${fmt(base)}</b><b class="${after > base ? 'up' : after < base ? 'dn' : ''}">${fmt(after)}</b><small>전투력</small></div>${side(s2 || cur, s2 ? '고른 것' : '지금')}</div>
+    <div class="cmp">${side(cur, '지금')}<div class="cmp-mid"><i>→</i><b>${fmt(base)}</b>${s2 ? `<b class="${after > base ? 'up' : after < base ? 'dn' : ''}">${fmt(after)}</b>` : ''}<small>전투력</small></div>${s2 ? side(s2, '고른 것') : cur && cost !== null ? side({ ...cur, lv: cur.lv + 1 }, '강화하면') : side(cur, '지금')}</div>
+    ${!s2 && cur ? '<p class="cmp-tip">아래 목록에서 다른 장비를 누르면 바꿔 낄 수 있어요</p>' : ''}
     <div class="cmp-btn">${s2 ? `<button class="btn primary" data-act="eqDo" data-id="${s2.id}">${owner ? '빼서 끼기' : '장착'}</button>` : ''}${cur ? '<button class="btn" data-act="eqOff">해제</button>' : ''}
       ${tgt ? `<button class="btn ${canEnh ? 'pink' : ''}" data-act="eqEnh" data-id="${tgt.id}" ${canEnh ? '' : 'disabled'}>${ic('hammer', '', 'sm')} ${cost === null ? 'MAX' : `+${tgt.lv + 1}`}${cost !== null && !free ? ` <small>${fmt(cost)}</small>` : ''}</button><button class="btn ghost" data-act="eqLock" data-id="${tgt.id}">${locks.has(tgt.id) ? '잠금 풀기' : '잠금'}</button>` : ''}</div>
     <div class="eqs-list">${rows.map((r) => `<button class="eqs ${pick && r.it.id === pick.it.id ? 'sel' : ''} ${r.it.id === curId ? 'cur' : ''}" data-act="eqSel" data-id="${r.it.id}" style="--rc:${GEAR_RARITY[r.it.r].color}">
