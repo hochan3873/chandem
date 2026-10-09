@@ -3400,7 +3400,7 @@ export function autoJoinNext(g) {
 }
 // 다음 레벨업까지 필요한 경험치 (합류 모드는 앞 레벨업이 빠르게 · 2장부터 ×1.6 · 일반 스테이지는 레벨업이 덜 잦은 대신 카드가 크게)
 export function expNeedFor(g, lv, join) {
-  return Math.round(expNeed(lv) * EXP_NEED_MUL * (join && !((g.tension || g.fewPick) && TENSION.pick.auto) ? JOIN.exp[lv - 1] || JOIN.expLate : 1) * (g.mode === 'stage' && chapterOf(g.stage || 1) >= 2 ? BAL.expCh2 : 1) * (g.grow ? GROW.need : 1) * (g.tension ? TENSION.pick.need * ((TENSION.pick.chNeed || [])[chapterOf(g.stage || 1) - 1] || 1) : 1) * (g.wkPick ? TENSION.pick.wk.need * ((TENSION.pick.wk.ch || [])[chapterOf(g.stage || 1) - 1] || 1) : 1));
+  return Math.round(expNeed(lv) * EXP_NEED_MUL * (join && !((g.tension || g.fewPick) && (TENSION.pick.auto || TENSION.pick.noFast)) ? JOIN.exp[lv - 1] || JOIN.expLate : 1) * (g.mode === 'stage' && chapterOf(g.stage || 1) >= 2 ? BAL.expCh2 : 1) * (g.grow ? GROW.need : 1) * (g.tension ? TENSION.pick.need * ((TENSION.pick.chNeed || [])[chapterOf(g.stage || 1) - 1] || 1) : 1) * (g.wkPick ? TENSION.pick.wk.need * ((TENSION.pick.wk.ch || [])[chapterOf(g.stage || 1) - 1] || 1) : 1));
 }
 export function gainExp(g, v) {
   g.exp += v;
@@ -4312,7 +4312,7 @@ export function step(g, dt) {
   if (g.phase === 'wave') {
     g.waveT += dt;
     if (autoJoinOn(g) && g.wave === 1 && g.joinPool.length) { const A = TENSION.pick.auto; for (let k = 0; k < A.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= A[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); autoJoinNext(g); } }
-    else if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.stage | 0) <= (JOIN.freeUntil || 99)) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
+    else if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.tension || g.wkPick || (g.stage | 0) <= (JOIN.freeUntil || 99))) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
     const q = g.spawnQ;
     // 동시에 화면에 있는 진상은 최대 ENEMY_CAP (폰 성능) — 넘치면 조금 기다렸다 나온다
     let alive = 0;
@@ -4583,7 +4583,7 @@ export function applyCard(g, c) {
     if (at < 0 || hasHero(g, c.hero)) return;
     const j = g.joinPool.splice(at, 1)[0];
     const h = addHero(g, j.id, j.slot);
-    if (h) { h.joinT = 0; ev(g, 'join', { hero: h.id, x: h.x, y: h.y, left: g.joinPool.length }); if (JOIN.freePick && (!g.tension || g.heroes.filter((o) => !o.def.summon).length <= TENSION.pick.freeTo)) g.pendingLevels++; } // (긴장감: 4명까지는 합류가 공짜 · 5 · 6번째 합류는 카드 한 장을 쓴다 — 넓은 덱의 값) // 합류는 공짜: 곧바로 카드 한 장 더 (강화 몫을 안 뺏는다)
+    if (h) { h.joinT = 0; ev(g, 'join', { hero: h.id, x: h.x, y: h.y, left: g.joinPool.length }); if (JOIN.freePick && (!(g.tension || g.wkPick) || g.heroes.filter((o) => !o.def.summon).length <= TENSION.pick.freeTo)) g.pendingLevels++; } // (긴장감: 4명까지는 합류가 공짜 · 5 · 6번째 합류는 카드 한 장을 쓴다 — 넓은 덱의 값) // 합류는 공짜: 곧바로 카드 한 장 더 (강화 몫을 안 뺏는다)
     return;
   }
   notePath(g, c.tags || (c.hero ? HERO_TAGS[c.hero] : null));
