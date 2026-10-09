@@ -3917,7 +3917,7 @@ function showSettings() {
     </section>
     <section class="st-sec"><h4>화면 · 연출</h4>
       ${row('sparkle', '연출 줄이기', '화면 흔들림 · 반짝임 줄이기', tog('rmT', gwPref('reduceMotion')))}
-      ${row('sparkle', '장비 자동 장착', '판이 끝나면 덱 멤버에게 안 낀 장비 중 더 좋은 것을 끼워요', tog('autoEqT', (() => { try { return localStorage.getItem('langbang:autoEquip') !== '0'; } catch { return true; } })()))}
+      ${row('sparkle', '장비 자동 장착', '판이 끝나면 출전 멤버에게 전투력 센 순서로 가장 좋은 장비를 끼워요 (덱 밖 멤버 것도 가져와요)', tog('autoEqT', (() => { try { return localStorage.getItem('langbang:autoEquip') !== '0'; } catch { return true; } })()))}
       ${row('bolt', '진동', '', tog('vibT', gwPref('vibrate')))}
       ${row('speed', '기본 2배속', '전투를 ×2 로 시작 (전투 중 ×1 / ×2 버튼으로도)', tog('speedDefT', !!app.speed2))}
       ${(() => { const s = SSN.seasonAt(); return s ? row('sparkle', `${s.name} 테마`, `로비 그림 · 장식 · 음악 (${s.to[0]}/${s.to[1]}까지)`, tog('ssnT', SSN.seasonPref(s))) : ''; })()}
@@ -6930,23 +6930,39 @@ function bestGearPlan(p, id, steal) {
   }
   return plan;
 }
-// 판이 끝나고 로비로 오면: 덱 멤버에게 '아무도 안 낀' 장비 중 더 좋은 것을 알아서 끼운다 (다른 멤버 것은 안 뺏음 · 전용 장비는 그 멤버만)
+// 판이 끝나고 로비로 오면: 출전 덱 멤버를 전투력 센 순서로, 가진 장비 중 가장 좋은 것을 차례로 끼운다
+//  덱 밖 멤버가 끼고 있던 것도 가져온다 (출전 멤버 우선) · 앞 멤버가 가져간 건 뒤 멤버가 못 가져감 · 전용 장비는 그 멤버만
 //  설정에서 끌 수 있다 (langbang:autoEquip = '0')
 let autoEqBusy = false;
+function deckGearPlan(p, ids) {
+  const order = [...ids].sort((a, b) => heroPower(p, b) - heroPower(p, a));
+  const taken = new Set(), out = [];
+  for (const id of order) {
+    for (const k of ['w', 'a', 'm']) {
+      const cur = ((p.equip || {})[id] || {})[k];
+      const c0 = (p.gear || []).find((x) => x.id === cur);
+      const curIt = c0 && !taken.has(c0.id) ? c0 : null; // 앞 멤버가 가져간 건 내 것이 아니다
+      const cands = (p.gear || []).filter((it) => GEAR[it.t] && GEAR[it.t].slot === k && gearFits(it.t, id) && !taken.has(it.id));
+      cands.sort((x, y) => gearScore(y) - gearScore(x));
+      const best = cands[0];
+      if (!best) continue;
+      if (best.id !== (curIt && curIt.id) && (!curIt || gearScore(best) > gearScore(curIt) + 1e-9)) { taken.add(best.id); out.push({ id, k, it: best }); }
+      else if (curIt) taken.add(curIt.id);
+    }
+  }
+  return { order, plan: out };
+}
 async function autoEquipDeck() {
   try { if (localStorage.getItem('langbang:autoEquip') === '0') return; } catch { /* 무시 */ }
   if (autoEqBusy || !app.profileLoaded) return;
   autoEqBusy = true;
   try {
     const d0 = [...new Set((curDeck() || []).filter(Boolean))].filter((h) => API.heroUnlocked(P(), h)), ids = d0.length ? d0 : owned().slice(0, 4); // 덱이 비었으면 앞 4명
-    const lines = [];
-    for (const id of ids) {
-      const plan = bestGearPlan(P(), id, false);
-      const done = [];
-      for (const x of plan) { const r = await API.equipGear(id, x.k, x.it.id, app.guest); if (r && r.ok && r.profile) { app.profile = r.profile; done.push(GEAR[x.it.t].name); } }
-      if (done.length) lines.push(`${HEROES[id].name} ${done.join('·')}`);
-    }
-    if (lines.length) { toast(`새 장비 자동 장착 — ${lines.slice(0, 3).join(' / ')}${lines.length > 3 ? ` 외 ${lines.length - 3}명` : ''}`, 2600); if (app.screen === 'menu') refresh(); }
+    const { plan } = deckGearPlan(P(), ids);
+    const by = {};
+    for (const x of plan) { const r = await API.equipGear(x.id, x.k, x.it.id, app.guest); if (r && r.ok && r.profile) { app.profile = r.profile; (by[x.id] = by[x.id] || []).push(GEAR[x.it.t].name); } }
+    const lines = Object.entries(by).map(([id, l]) => `${HEROES[id].name} ${l.join('·')}`);
+    if (lines.length) { toast(`출전 멤버 장비 자동 장착 — ${lines.slice(0, 3).join(' / ')}${lines.length > 3 ? ` 외 ${lines.length - 3}명` : ''}`, 2600); if (app.screen === 'menu') refresh(); }
   } finally { autoEqBusy = false; }
 }
 async function heroAutoEquip(id, steal) {
