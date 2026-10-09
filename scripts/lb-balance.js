@@ -55,7 +55,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
   //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
-  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat'].includes(what) && !args.includes('--pro');
+  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat', 'chcalib'].includes(what) && !args.includes('--pro');
   const FOES = what === 'foes';
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
@@ -913,6 +913,21 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     }
   }
   if (what === 'tension') tension();
+  // 장 체력 맞춤 (node scripts/lb-balance.js chcalib [--ch=1,..,8] [--seeds=6] [--iters=5] [--hell]) — 장 평균 클리어율이 목표가 되게 TENSION.chHp(헬: TEMPO.hellCh) 를 로그 이분 탐색
+  if (what === 'chcalib') {
+    const N = opt('seeds', 6), IT = opt('iters', 5), hell = args.includes('--hell'), out = {};
+    for (const c of listArg('ch', '1,2,3,4,5,6,7,8').map(Number)) {
+      const arr = hell ? D.TEMPO.hellCh : D.TENSION.chHp, base = arr[c - 1] || 1, list = [];
+      for (let n = 1; n <= 10; n++) list.push((c - 1) * 10 + n);
+      const tg = list.reduce((a, s) => a + stageTarget(s), 0) / list.length;
+      const rate = (m) => { arr[c - 1] = base * m; return list.reduce((a, s) => a + refRun(s, N, hell), 0) / list.length * 100; };
+      let lo = Math.log(0.4), hi = Math.log(1.6), best = 1, err = 1e9;
+      for (let k = 0; k < IT; k++) { const mid = (lo + hi) / 2, r = rate(Math.exp(mid)); if (Math.abs(r - tg) < err) { err = Math.abs(r - tg); best = Math.exp(mid); } console.log(`  ${c}장 ×${Math.exp(mid).toFixed(3)} → ${r.toFixed(0)}% (목표 ${tg.toFixed(0)})`); if (r > tg) lo = mid; else hi = mid; }
+      arr[c - 1] = base * best; out[c] = +(base * best).toFixed(3);
+      console.log(`${c}장 → ${out[c]} (오차 ${err.toFixed(0)})`);
+    }
+    console.log((hell ? 'hellCh: ' : 'chHp: ') + JSON.stringify(out));
+  }
   // 카드 고른 비율 · 고른 판 vs 안 고른 판 클리어율 (node scripts/lb-balance.js cardstat --list=... --bots=smart [--seeds=N])
   if (what === 'cardstat') {
     const N = opt('seeds', 6), bot = listArg('bots', 'smart')[0], st = {};
