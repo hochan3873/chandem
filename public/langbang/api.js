@@ -124,14 +124,14 @@ function writeGuest(p) {
   for (const k of LIVE_KEYS) if (p[k] !== undefined) keep[k] = p[k];
   try { localStorage.setItem(GUEST_KEY, JSON.stringify(keep)); return true; } catch { return false; }
 }
-const LIVE_KEYS = ['dexRw', 'gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed', 'tower', 'hw', 'skins'];
+const LIVE_KEYS = ['dexRw', 'gachaDay', 'cons', 'consRun', 'consBuy', 'consDex', 'gifts', 'lastSeenAt', 'gearDex', 'sta', 'staBuy', 'staRun', 'endDay', 'endRun', 'endCoins', 'ew', 'ewPrev', 'ewPaid', 'mail', 'mailSeq', 'pvpDay', 'pvpTiers', 'stones', 'wild', 'cardPick', 'autoSell', 'decks', 'chests', 'checkin', 'tickets', 'shards', 'hstars', 'owned', 'pity', 'pulls', 'gpulls', 'cnt', 'daily', 'wm', 'ach', 'season', 'titles', 'frames', 'title', 'frame', 'weekly', 'weeklyPrev', 'weeklyClaimed', 'tower', 'hw', 'skins', 'jpick', 'acqV', 'acqNew'];
 export function guestProfile() { return normalize(readGuest(), true); }
 const GUEST_UID = 'guest';
 // 손님 기록에 미션 진행 올리기 (서버와 같은 함수)
 function guestTrack(q, r) { L.trackRun(q, r, GUEST_UID, Date.now()); }
 
 export async function loadProfile() {
-  if (!token()) return { profile: guestProfile(), guest: true };
+  if (!token()) { const gp = guestProfile(); if ((readGuest().acqV | 0) < gp.acqV) writeGuest(gp); return { profile: gp, guest: true }; } // (획득 규정 옮기기 결과는 한 번 저장)
   const r = await call('/api/langbang/me');
   if (r.ok && r.profile) return { profile: normalize(r.profile, false), guest: false, nickname: r.nickname || '' };
   return { profile: guestProfile(), guest: true, error: r.status === 401 ? null : r.message };
@@ -178,7 +178,8 @@ export async function postStage(sum, guest) {
     const after = guestProfile();
     return {
       ok: true, profile: after, reward: Object.assign({}, reward, { firstClear: !prev && !hell, stage: sum.stage, stars: sum.stars, isPerfect: perfect, firstPerfect, drops: got, hell, stones: stonesGot, cardDrop }),
-      unlockedHeroes: !prev && !hell ? LOCKED_HEROES.filter((h) => HERO_UNLOCK[h] === sum.stage && !heroUnlocked(p, h)) : [],
+      unlockedHeroes: !hell ? LOCKED_HEROES.filter((h) => !heroUnlocked(p, h) && heroUnlocked(after, h)) : [], // 스토리 합류 · HIDDEN 조건 (서버와 같은 방식)
+      joinPick: !prev && !hell ? L.JOIN_PICKS_AT(sum.stage) : null,
       endlessUnlocked: !endlessUnlocked(p) && endlessUnlocked(after),
     };
   }
@@ -443,6 +444,11 @@ export function gacha(n, pay, guest) {
 export function sigExchange(hero, guest) {
   if (guest) return guestLive((p) => L.sigExchange(p, hero, GUEST_UID));
   return liveCall('sig/exchange', { hero });
+}
+// 합류 선택권 (장 끝 보스 클리어) → 고른 모집 멤버 바로 합류
+export function joinPick(stage, hero, guest) {
+  if (guest) return guestLive((p) => L.joinPick(p, stage, hero));
+  return liveCall('join/pick', { stage, hero });
 }
 export function gearGacha(n, guest) {
   if (guest) return guestLive((p) => L.gearGachaPull(p, n, GUEST_UID, Date.now(), (Math.random() * 4294967296) >>> 0));
