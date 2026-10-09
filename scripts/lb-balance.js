@@ -652,7 +652,12 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     const core = dps.slice(0, n - 2), add = [];
     for (const cd of (COND_ARG || DC.stageConds(s, hell))) { const id = COUNTER_PICK[cd]; if (id && !add.includes(id) && !core.includes(id) && add.length < 2) add.push(id); }
     for (const id of ['gunnyeo', 'dohoon', 'wonsik']) if (add.length < 2 && !add.includes(id)) add.push(id);
-    return [...core, ...add];
+    // (10/09 멤버 획득 규정) 스토리 합류 멤버는 그 스테이지를 깨야 쓸 수 있다 → 아직 없는 멤버는 그때 있는 멤버로 바꿔서
+    const ok = (id) => !D.HERO_UNLOCK || !D.HERO_UNLOCK[id] || D.HERO_UNLOCK[id] < s, deck = [...core, ...add];
+    const alt = ['jungmin', 'ingyu', 'gunnyeo', 'staff', 'bangjang', 'gunman', 'eunok', 'sanghwa', 'myunghoon', 'hanna', 'wonsik'];
+    const out = [];
+    for (const id of deck) { if (ok(id) && !out.includes(id)) out.push(id); else out.push(alt.find((x) => ok(x) && !out.includes(x) && !deck.includes(x)) || id); }
+    return out;
   }
   function deck() {
     const N = opt('seeds', 6);
@@ -913,6 +918,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     }
   }
   if (what === 'tension') tension();
+  if (what === 'decks') for (let s = 1; s <= 60; s++) console.log(D.stageLabel(s), balFor(D.chapterOf(s), s, false).join(','));
   // 장 체력 맞춤 (node scripts/lb-balance.js chcalib [--ch=1,..,8] [--seeds=6] [--iters=5] [--hell]) — 장 평균 클리어율이 목표가 되게 TENSION.chHp(헬: TEMPO.hellCh) 를 로그 이분 탐색
   if (what === 'chcalib') {
     const N = opt('seeds', 6), IT = opt('iters', 5), hell = args.includes('--hell'), out = {};

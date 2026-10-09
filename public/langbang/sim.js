@@ -4312,7 +4312,7 @@ export function step(g, dt) {
   if (g.phase === 'wave') {
     g.waveT += dt;
     if (autoJoinOn(g) && g.wave === 1 && g.joinPool.length) { const A = TENSION.pick.auto; for (let k = 0; k < A.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= A[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); autoJoinNext(g); } }
-    else if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.tension || (g.stage | 0) <= (JOIN.freeUntil || 99))) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
+    else if (g.joinMode && g.wave === 1 && g.joinPool.length && g.mode === 'stage' && (g.tension || g.wkPick || (g.stage | 0) <= (JOIN.freeUntil || 99))) for (let k = 0; k < JOIN.free.length; k++) if (!(g.freeJoin & (1 << k)) && g.waveT >= JOIN.free[k]) { g.freeJoin = (g.freeJoin | 0) | (1 << k); g.pendingLevels++; g.joinDue = (g.joinDue | 0) + 1; ev(g, 'freeJoin', {}); } // 첫 웨이브: 공짜 합류 카드 두 장
     const q = g.spawnQ;
     // 동시에 화면에 있는 진상은 최대 ENEMY_CAP (폰 성능) — 넘치면 조금 기다렸다 나온다
     let alive = 0;
