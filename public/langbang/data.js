@@ -163,7 +163,7 @@ export const KD = { base: 100, lv: 0.06, meta: 0.025, star: 0.08, sec: 4, grace:
   after: 0.5, // 쓰러질 때마다 그 판 게이지 +50%
   line: { r: 46, hit: 5, elite: 1.6, boss: 3 }, taunt: { r: 95 }, poison: { dps: 5, spd: 0.8, cc: 5, duck: 4, puddle: 2 } };
 // 멤버별 게이지 배율: 탱커 크게 · 딜러 작게
-export const KD_HERO = { wonsik: 2.4, jeongseob: 2.4, hyungyeong: 2.0, ingyu: 1.7, sunggu: 1.4, bangjang: 1.4, jungmin: 1.4, gunnyeo: 1.3, dohoon: 1.3, ara: 1.2, byunghwa: 1.2, donghan: 1.1, soyoung: 1.1,
+export const KD_HERO = { wonsik: 2.4, jeongseob: 2.4, hyungyeong: 2.0, ingyu: 1.9, sunggu: 1.4, bangjang: 1.4, jungmin: 1.4, gunnyeo: 1.3, dohoon: 1.3, ara: 1.2, byunghwa: 1.2, donghan: 1.1, soyoung: 1.1,
   eunok: 1, hochan: 1, baul: 1, dragon: 1, junseo: 0.9, jieun: 0.9, subin: 0.9, youngjun: 0.9, staff: 0.85, hanna: 0.85, jiwon: 0.85, myunghoon: 0.8, sanghwa: 0.8, gunman: 0.75 };
 // 서포터 전문 (덱에 있으면 팀 전체 · 상황마다 맞는 서포터를 고르게): res = 상태이상 저항 % (HERO_RES 와 더함 · 100 = 면역) · kdCut = 쓰러짐 게이지 덜 참 · heal = 초당 가장 찬 멤버 게이지 회복 · getUp = 쓰러진 멤버 일어나는 속도 ×
 export const KD_SUP = {
@@ -171,7 +171,7 @@ export const KD_SUP = {
   jungmin: { res: { poison: 100 }, tip: '독 면역 — 붕대 해독 (팀 전체) · 입구 수리' },
   dohoon: { res: { stun: 50 }, tip: '기절 저항 — 떼창으로 정신 번쩍 (팀 전체 기절 시간 절반)' },
   soyoung: { res: { charm: 100, silence: 50 }, tip: '홀림 면역 — 잔소리로 정신 차리게 (팀 전체 · 침묵 절반)' },
-  bangjang: { kdCut: 0.2, tip: '지휘 — 팀 전체 쓰러짐 게이지 20% 덜 참 ("버텨!")' },
+  bangjang: { kdCut: 0.2, tip: '지휘 — 팀 전체 쓰러짐 게이지 20% 덜 참 · "버텨!" 풀 때까지 묶인 멤버를 7초마다 하나 풀어 줌' },
   dragon: { res: { freeze: 50 }, tip: '빙결 저항 — 박나뇽 불 곁은 따뜻해서 팀 전체 빙결 시간 절반 (7장 스키장)' },
 };
 // 진상 투척 예고 (10/08 진상 리메이크): 멤버를 노리는 기술은 바로 날아오지 않는다 — wind 초 동안 진상이 멈춰 팔을 젖히고 노리는 멤버 발밑에 표적
@@ -194,7 +194,7 @@ export const EST = {
 };
 // 화상 (박나영): tick 초마다 · 겹마다 +stack · 최대 max 겹 — 방어율 무시
 export const BURN = { tick: 0.5, stack: 0.5, max: 3 };
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [2.353, 0.977, 1.2, 1.66, 1.731, 1.5], /* (10/10 등급 맞춤 · 스킬 비중 뒤 chcalib --hell) (10/09 카드 개편 뒤 헬 1장 68% · 3장 57% → 목표 45 · 38 쪽으로) */ endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 4.8, wonsik: 2.4, staff: 2.0, eunok: 0.6, myunghoon: 1.95, bangjang: 1.9, soyoung: 1.9, junyoung: 2.4, ingyu: 3.0, jiwon: 1.75, jungmin: 1.7, gunman: 3.6, junseo: 5.4, ara: 2.6, youngjun: 0.95, jieun: 2.4, baul: 1.1, sanghwa: 4.3, hanna: 1.5, hochan: 3.8, hyungyeong: 1.4, sunggu: 2.1, subin: 2.6, dragon: 1.7, byunghwa: 2.1 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [2.353, 0.977, 1.2, 1.66, 1.731, 1.5], /* (10/10 등급 맞춤 · 스킬 비중 뒤 chcalib --hell) (10/09 카드 개편 뒤 헬 1장 68% · 3장 57% → 목표 45 · 38 쪽으로) */ endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 4.8, wonsik: 2.4, staff: 2.0, eunok: 0.6, myunghoon: 1.95, bangjang: 2.05, soyoung: 1.9, junyoung: 2.4, ingyu: 3.2, jiwon: 1.75, jungmin: 1.7, gunman: 3.6, junseo: 5.4, ara: 2.6, youngjun: 0.95, jieun: 2.4, baul: 1.1, sanghwa: 4.3, hanna: 1.5, hochan: 3.8, hyungyeong: 1.4, sunggu: 2.1, subin: 2.6, dragon: 1.7, byunghwa: 2.1 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -802,6 +802,23 @@ export const COND = {
     counter: ['jungmin', 'dohoon', 'wonsik', 'ingyu', 'jeongseob', 'staff', 'jieun', 'subin'], frac: 0.28, spd: 1.4, atk: 1, crash: [0.025, 0.03, 0.035, 0.04, 0.045, 0.05], off: 0.5 }, // 빠른 진상은 원래 입구를 세게 · 빨리 친다 · crash: 처음 부딪힐 때 입구 최대의 % (감속 · 기절에 걸리면 넘어져서 안 부딪힘)
 };
 export const COND_IDS = Object.keys(COND);
+// (10/11) 상태이상 깊이: 뒤 장 · 헬 · 무한 단계일수록 진상이 멤버에게 거는 상태이상(기절 · 홀림 · 침묵 · 빙결 · 독 …)이 길고 잦다
+//  dur: 장별 시간 × (보통) · every: 장별 기절 예고 간격 × (작을수록 잦게) · hell: 헬은 한 번 더 곱함 · curse78: 헬 7 · 8장에도 기절 예고
+//  endless: 무한 단계별 시간 · 간격 × · curse 단계부터 기절 예고가 붙는다
+//  lock: '풀 때까지' (헬 hellFrom 장부터 · 무한 endlessFrom 단계부터) — 기절 예고 · 정예 · 보스 투척에 맞으면 저절로 안 풀린다 (사슬 자물쇠 · 깜빡이는 테두리 · 숫자 없음)
+//        풀리는 때: 건전녀 간호 · 응급 방패 · 총공지 · 웨이브 끝 · 방장 "버텨!" (bang 초마다 한 명) · 면역 멤버가 합류
+//        저항이 res% 이상이면 (김도훈 기절 · 정소영 홀림 · 침묵 · 홍정민 독 · 박나뇽 빙결 · 강성구 곁 …) 안 묶이고 시간만 짧게 · 한 번에 max 명까지 · gap 초에 한 번
+export const CC_DEPTH = {
+  dur: [1, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
+  every: [1, 1, 1, 0.95, 0.9, 0.85, 0.8, 0.75],
+  hell: { dur: 1.25, every: 0.85, curse78: true },
+  endless: { dur: [1, 1.15, 1.3, 1.5, 1.7, 1.9], every: [1, 1, 0.9, 0.8, 0.7, 0.6], curse: 2 },
+  lock: { kinds: ['stun', 'charm', 'silence', 'freeze', 'poison'], res: 50, max: 2, gap: 6, bang: 7, hellFrom: 7, endlessFrom: 4, sec: 9999 },
+};
+// 이 판(스테이지 · 헬)이 '풀 때까지' 인가 · 무한은 단계로
+export const ccLockStage = (s, hell) => !!hell && chapterOf(s || 1) >= CC_DEPTH.lock.hellFrom;
+export const ccLockTier = (t) => (t | 0) >= CC_DEPTH.lock.endlessFrom;
+export const LOCK_NAME = { stun: '기절', charm: '홀림', silence: '침묵', freeze: '빙결', poison: '독' };
 // 주간 진상 특성: 매주 (월요일 · 한국 시간) 진상에게 규칙 하나 — 일반 스테이지 · 헬에서만 (주간 도전 · 1:1 대전 · 레이드 · 탑 · 무한은 그대로)
 //   주는 live.js weekTrait(weekIndex) — 서버와 화면이 같은 공식 · 이번 주 추천 멤버(rec)가 빛나게, 대신 다른 쪽을 조금 깎아 난이도는 비슷하게
 //   hp: 진상 체력 × · bossHp: 보스 · 중간 보스 · 정예 체력 × · spd: 이동 × · count: 수 × · armor: 철갑 조건 방어의 몇 배를 모두에게 · shield: 보호막 진상 비율
