@@ -193,7 +193,7 @@ export async function postEndless(sum, guest) {
     const ef = L.endlessFinish(p, sum.wave, sum.score, endlessReward(sum.wave, p.items.coupon), GUEST_UID, Date.now());
     const coins = ef.coins;
     const q = Object.assign({}, p, { coins: p.coins + coins, bestWave: Math.max(p.bestWave, sum.wave), bestScore: Math.max(p.bestScore, sum.score), runs: (p.runs | 0) + 1, seen: [...new Set([...(p.seen || []), ...(sum.seen || [])])] });
-    guestTrack(q, { mode: 'endless', kills: sum.kills, bosses: Math.min(sum.bossKills | 0, Math.floor(sum.wave / 5) + 1), skills: L.skillCap(sum.skills, sum.durationSec) });
+    guestTrack(q, { mode: 'endless', kills: sum.kills, bosses: Math.min(sum.bossKills | 0, L.endlessBossCap(sum.wave)), skills: L.skillCap(sum.skills, sum.durationSec) });
     writeGuest(q);
     return { ok: true, profile: guestProfile(), reward: { total: coins }, newBestWave: sum.wave > p.bestWave, newBestScore: sum.score > p.bestScore, endless: ef };
   }

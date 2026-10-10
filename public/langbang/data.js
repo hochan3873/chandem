@@ -248,16 +248,52 @@ export const EXP_NEED_MUL = 2.4; // (2.2 → 2.4: 카드가 너무 자주 떠서
 export const stageExpMul = (s) => 1 / (1 + 0.1 * Math.max(0, (s || 1) - 1));
 
 // 웨이브별 적 체력 배율
-export const ENDLESS_TUNE = { hp: 1.15, atk: 0.14, from: 20, xp: 0.84 }; // xp: 뒤 웨이브일수록 카드가 덜 나온다 (진상이 늘어도 힘이 같이 폭주하지 않게) // 무한 압박 (밸런스 스크립트로 맞춤)
 export function hpMul(wave, stage) {
   const w = wave - 1;
-  let m = 1 + 0.2 * w + 0.03 * w * w;
-  if (wave > ENDLESS_TUNE.from && !stage) m *= Math.pow(ENDLESS_TUNE.hp, wave - ENDLESS_TUNE.from); // 무한 모드: 웨이브마다 체력 ×1.12 — 어떤 덱도 결국 무너진다
-  return m;
+  return 1 + 0.2 * w + 0.03 * w * w;
 }
 // 웨이브별 적 공격력 배율
 export function atkMul(wave, stage) {
-  return 1 + 0.05 * (wave - 1) + (wave > ENDLESS_TUNE.from && !stage ? ENDLESS_TUNE.atk * (wave - ENDLESS_TUNE.from) : 0);
+  return 1 + 0.05 * (wave - 1);
+}
+
+// ─── 무한 도전 (10/10 개편): 10웨이브 = 한 단계 · 단계 마지막 웨이브(10 · 20 · 30 …)는 단계 보스 ───
+//  예전: 21웨이브부터 진상 수가 계속 늘고(한 웨이브 600+ 명) 체력은 천천히 → 보통 계정도 50웨이브 · 30분 넘게 버티는 노가다 + 폰이 버거움
+//  지금: 15웨이브부터 진상 수는 늘지 않고(오히려 줄고) 한 명 한 명이 웨이브마다 확 세진다 (체력 ×hp · 공격 ×atk · 속도 조금)
+//        → 보통 계정 2~3단계 (10~15분) · 최상위 계정도 20~25분 안에 끝난다 (scripts/lb-endless-sim.js 로 측정)
+//  단계 보상: 단계 안 웨이브마다 perWave · 단계 보스를 깨면 clear (한 판 코인) — 분 단위가 아니라 단계 단위
+export const ENDLESS_TIERS = [
+  { n: 1, name: '몸풀기', desc: '익숙한 진상 행렬', perWave: 25, clear: 150 },
+  { n: 2, name: '본격 진상', desc: '정예 호위대 · 15웨이브부터 진상이 웨이브마다 단단해진다', perWave: 40, clear: 300 },
+  { n: 3, name: '정예 부대', desc: '25웨이브부터 정예만 (범위 공격 덜 먹힘)', perWave: 50, clear: 400 },
+  { n: 4, name: '보스 러시', desc: '매 웨이브 보스 + 정예 호위', perWave: 80, clear: 700 },
+  { n: 5, name: '광폭', desc: '보스 둘 · 진상이 더 빠르다', perWave: 110, clear: 900 },
+  { n: 6, name: '지옥', desc: '보스 둘 + 정예 · 끝까지', perWave: 140, clear: 1200 },
+];
+export const ENDLESS_TUNE = {
+  from: 15, hp: 1.15, atk: 1.05, // 15웨이브부터 웨이브마다 체력 ×1.15 (5웨이브쯤마다 2배) · 공격 ×1.05 (14웨이브쯤마다 2배)
+  spdFrom: 21, spd: 0.02, spdCap: 1.4, // 21웨이브부터 웨이브마다 속도 +2% (최대 +40%)
+  cap: [[15, 90], [25, 48], [31, 26], [41, 14]], // 한 웨이브 진상 수 상한 (보스 빼고 · 웨이브 사이는 직선) — 줄인 만큼 체력을 일부(√) 돌려준다
+  alive: 70, // 화면에 동시에 있는 진상 최대 (예전 140 — 폰 성능)
+  xpFrom: 20, xp: 0.88, // 20웨이브부터 경험치가 줄어든다 (뒤 웨이브일수록 카드가 덜 — 진상이 단단해져도 힘이 같이 폭주하지 않게)
+};
+export const endlessTier = (w) => Math.max(1, Math.ceil((w | 0) / 10));
+export const endlessTierDef = (t) => Object.assign({}, ENDLESS_TIERS[Math.min(Math.max(1, t), ENDLESS_TIERS.length) - 1], { n: Math.max(1, t) });
+// n웨이브 진상 강화 배율 (체력 · 공격 · 속도)
+export function endlessScale(n) {
+  const k = Math.max(0, n - ENDLESS_TUNE.from + 1);
+  return { hp: Math.pow(ENDLESS_TUNE.hp, k), atk: Math.pow(ENDLESS_TUNE.atk, k), spd: Math.min(ENDLESS_TUNE.spdCap, 1 + ENDLESS_TUNE.spd * Math.max(0, n - ENDLESS_TUNE.spdFrom + 1)) };
+}
+// n웨이브 진상 수 상한 (보스 빼고) — 15웨이브 전엔 없음
+export function endlessCap(n) {
+  const C = ENDLESS_TUNE.cap;
+  if (n < C[0][0]) return Infinity;
+  for (let i = C.length - 1; i >= 0; i--) {
+    if (n < C[i][0]) continue;
+    const nx = C[i + 1];
+    return nx ? Math.round(C[i][1] + ((C[i + 1][1] - C[i][1]) * (n - C[i][0])) / (nx[0] - C[i][0])) : C[i][1];
+  }
+  return Infinity;
 }
 
 // ─── 점수 공식 ─────────────────────────────────────────
@@ -865,9 +901,15 @@ export function hellReward(s, stars, prevStars = 0, couponLv = 0) {
   const total = Math.round(r.total * HELL.coin);
   return Object.assign({}, r, { hell: true, total, bonus: r.bonus + (total - r.total) });
 }
+// 무한 도전 한 판 코인: 깬 웨이브(도달 웨이브 − 1)까지 — 단계 안 웨이브마다 perWave + 깬 단계 보스마다 clear (서버 langbang-rules.js 와 같음)
+export function endlessCoinParts(wave) {
+  const c = Math.max(0, Math.floor(wave) - 1);
+  let waves = 0, tiers = 0;
+  for (let n = 1; n <= c; n++) { const T = endlessTierDef(endlessTier(n)); waves += T.perWave; if (n % 10 === 0) tiers += T.clear; }
+  return { cleared: c, waves, tiers, total: waves + tiers };
+}
 export function endlessReward(wave, couponLv = 0) {
-  const w = Math.max(0, Math.floor(wave));
-  return Math.round((12 * w + w * w) * (1 + itemValue('coupon', couponLv)));
+  return Math.round(endlessCoinParts(wave).total * (1 + itemValue('coupon', couponLv)));
 }
 
 // ─── 속성 상성 (포켓몬처럼) ───────────────────────────────
@@ -1989,25 +2031,43 @@ export const CURSES = {
   lockone: { id: 'lockone', icon: '🔒', name: '멤버 잠김', desc: '무작위 멤버 1명이 쉰다', up: '점수 ×1.3', score: 1.3 },
   thick: { id: 'thick', icon: '🧱', name: '두꺼운 진상', desc: '진상 체력 +25%', up: '점수 ×1.35 · 코인 +15%', score: 1.35, coin: 1.15 },
 };
+// 무한 도전 웨이브 (단계별 · data.js ENDLESS_TIERS)
+//  1단계(1~10) · 2단계(11~20): 원래 20웨이브 (2단계는 보스 아닌 웨이브에 정예 호위 2명)
+//  3단계(21~30): 골목 빌런 섞인 행렬 · 21~24 정예 호위 · 25~29 정예만 (25: 진상 연합 회장) · 30 단계 보스
+//  4단계(31~40): 매 웨이브 보스 + 정예 호위 (35: 연합 회장) · 40 보스 둘
+//  5단계~(41~): 보스 둘 + 정예 몇 명 (6단계부터 정예 더)
+//  진상 수 상한(endlessCap) · 웨이브마다 강화(endlessScale)는 sim.js startWave 가 건다
 export function endlessWave(wave) {
-  const k = wave - 20;
-  const n = (base) => Math.round(base * (1 + 0.12 * k));
-  const w = {
-    g: [
-      ['yeokko', n(40), 0.28, 0], ['namkko', n(40), 0.28, 0.1], ['drunk', n(24), 0.5, 1],
-      ['thug', n(20), 0.8, 2], ['mukti', n(10), 1.0, 4],
-    ],
-  };
-  // 21웨이브부터 골목 빌런 · 인피도 섞인다
+  const T = endlessTier(wave), last = wave % 10 === 0;
+  const bossAt = (i) => ENDLESS_BOSSES[i % ENDLESS_BOSSES.length];
   const extra = [['vomit', 3], ['cutter', 3], ['couple', 2], ['selfie', 2], ['handsy', 2], ['gao', 2], ['kkondae', 1], ['spam', 2], ['scammer', 2], ['inpi_gossip', 2], ['inpi_dictator', 1], ['inpi_treasurer', 1]];
   if (wave >= 30) extra.push(['fakesingle', 3], ['carpoor', 2], ['sales', 2], ['jjijil', 2], ['drunk_run', 3], ['drunk_home', 2]);
-  extra.forEach(([t, c], i) => { w.g.push([t, n(c), 3.2, 1 + (i % 4)]); });
-  if (k % 5 === 0) w.boss = k % 10 === 0 ? ENDLESS_BOSSES[Math.floor(wave / 10) % ENDLESS_BOSSES.length] : 'boss_thug'; // 10웨이브마다 보스 러시 (챕터 보스 돌아가며 · 패턴 그대로)
-  if (wave >= 25 && (wave - 25) % 10 === 0) w.boss = 'boss_union'; // 진상 연합 회장: 25 · 35 · 45 …
+  const w = { g: [], kind: 'N', eliteHp: 2.4, tier: T };
+  if (T <= 3) {
+    w.g.push(['yeokko', 40, 0.28, 0], ['namkko', 40, 0.28, 0.1], ['drunk', 24, 0.5, 1], ['thug', 20, 0.8, 2], ['mukti', 10, 1.0, 4]);
+    extra.forEach(([t, c], i) => { w.g.push([t, c, 3.2, 1 + (i % 4)]); });
+    if (last) { w.kind = 'B'; w.boss = bossAt(Math.floor(wave / 10)); }
+    else if (wave >= 25) { w.kind = 'E'; for (const r of w.g) r[4] = 'E'; if (wave === 25) w.boss = 'boss_union'; } // 정예만 (25: 연합 회장이 이끈다)
+    else { w.kind = 'M'; w.g.push(['thug', 3, 5, 3, 'E'], ['mukti', 2, 6, 5, 'E']); }
+  } else if (T === 4) {
+    w.kind = 'B';
+    w.boss = wave === 35 ? 'boss_union' : bossAt(wave);
+    w.g.push(['thug', 6, 3, 2, 'E'], ['drunk', 6, 2.5, 1, 'E'], ['mukti', 4, 3, 4, 'E']);
+    extra.slice(0, 6).forEach(([t, c], i) => { w.g.push([t, c, 3.2, 1 + (i % 4), 'E']); });
+    if (last) w.boss2 = bossAt(wave + 3);
+  } else {
+    w.kind = 'B';
+    w.boss = bossAt(wave); w.boss2 = bossAt(wave + 5);
+    w.g.push(['thug', 4, 4, 2, 'E'], ['mukti', 3, 4, 4, 'E']);
+    if (T >= 6) w.g.push(['drunk', 4, 3, 1, 'E'], ['inpi_dictator', 2, 5, 3, 'E']);
+  }
   return w;
 }
 export function waveDef(wave) {
-  return wave <= WAVES.length ? WAVES[wave - 1] : endlessWave(wave);
+  if (wave > WAVES.length) return endlessWave(wave);
+  const d = WAVES[wave - 1];
+  if (wave <= 10 || d.boss) return d;
+  return Object.assign({}, d, { kind: 'M', eliteHp: 2.4, g: [...d.g, ['thug', 2, 6, 3, 'E']] }); // 2단계: 정예 호위 2명
 }
 
 // ─── 업그레이드 카드 ─────────────────────────────────────

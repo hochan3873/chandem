@@ -25,6 +25,7 @@ const curseGlow = () => {
 const CAN_COL =[['#2b1a10', '#6b4024', '#e9d3b0'], ['#1d2a44', '#3d5a8a', '#f2e6cf'], ['#5a1f14', '#9a3a24', '#f4e2c4']]; // 문동한 캔커피 색 (블랙 · 블루 · 레드)
 
 export class SkillFx {
+  resetCache() { CURSE_GLOW = null; this._hgGhost = null; this._mzc = null; } // 폰 메모리 부족으로 구운 그림이 지워졌을 때 (render.js rebuild)
   constructor(R) {
     this.R = R;
     this.list = [];

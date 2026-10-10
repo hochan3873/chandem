@@ -53,13 +53,34 @@ const THEMES = {
 };
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+// 미리 구운 그림(배경 · 캐릭터)이 폰 메모리 부족으로 지워졌을 때 (2D 캔버스 contextlost / contextrestored → 내용이 비어 버림)
+//  렌더러가 다음 프레임에 전부 다시 굽는다 (예전엔 배경이 까맣고 캐릭터가 안 보인 채로 남았다)
+let onCacheLost = null;
+const cacheLostEv = () => { if (onCacheLost) onCacheLost(); };
 function mkCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.ceil(w));
   c.height = Math.max(1, Math.ceil(h));
+  c.addEventListener('contextlost', cacheLostEv);
+  c.addEventListener('contextrestored', cacheLostEv);
   return c;
 }
 const imgOk = (img) => !!(img && img.complete && img.naturalWidth > 0);
+// 캐릭터 그림: 처음 그릴 때 굽는다 (예전엔 진상 200여 종 × 2장을 전부 미리 구워 폰 메모리를 크게 먹었다 — 판에 나온 것만)
+//  .f (맞을 때 흰 번쩍)도 처음 쓸 때 만든다
+class LazySprite {
+  constructor(R, key, box) { this.R = R; this.key = key; this.box = box; this._s = null; this._f = null; }
+  get s() { return this._s || (this._s = this.R.bakeSpriteNow(this.key) || { c: mkCanvas(1, 1), real: false }); }
+  get c() { return this.s.c; }
+  get real() { return this.s.real; }
+  get f() {
+    if (this._f) return this._f;
+    const c = this.c, f = mkCanvas(c.width, c.height), x = f.getContext('2d');
+    x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(255,255,255,0.88)'; x.fillRect(0, 0, f.width, f.height);
+    return (this._f = f);
+  }
+  lost() { const x = this._s && this._s.x; return !!(x && x.isContextLost && x.isContextLost()); }
+}
 
 // ─── 연출 풀 ──────────────────────────────────────────
 class Pool {
@@ -114,7 +135,7 @@ export class FX {
     this.shake = 0; this.flashA = 0; this.slowmo = 0; this.zoom = 1; this.zoomTarget = 1; this.combo = 0; this.baseHitA = 0;
   }
   part(type, x, y, vx, vy, life, size, color, o) {
-    if (this.lite && this.parts.items.length > 320) return null; // 진상이 많을 땐 입자 수 제한
+    if (this.lite && this.parts.items.length > 240) return null; // 진상이 많을 땐 입자 수 제한 (320 → 240: 폰에서 늦은 웨이브 프레임)
     const p = this.parts.get();
     if (!p) return null;
     p.type = type; p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.life = life; p.max = life; p.size = size; p.color = color;
@@ -178,16 +199,22 @@ export class FX {
   }
   text(x, y, text, color = '#fff', size = 16, life = 1.1, vy = -36) {
     text = noEmo(text);
+    // 같은 글자가 이미 떠 있으면 새로 띄우지 않고 그 글자를 다시 살린다 ("문짝 걷어차기" 가 수십 개 겹치던 것)
+    //  · 진상이 많을 땐(lite) 화면에 14개까지 · 같은 글자는 2개까지
+    let same = 0;
+    for (const o of this.texts.items) if (o.text === text && o.life > 0.12) { if (Math.abs(o.x - x) < 90 && Math.abs(o.y - (y - 16)) < 70) { o.life = Math.max(o.life, Math.min(o.max, 0.6)); return; } if (++same >= 2) return; }
+    if (this.lite && this.texts.items.length >= 14) return;
     const t = this.texts.get();
     if (!t) return;
     life = Math.min(life, 0.9); // 외침 글자는 짧게 · 피해 숫자보다 조금 위에 (겹치지 않게)
-    y -= 16;
+    y = Math.max(96, y - 16); // 윗줄 HUD(점수 · 웨이브 · 입구) 띠는 비워 둔다
     { const hw = Math.max(50, String(text).length * size * 0.48 + 6); x = Math.max(hw, Math.min(360 - hw, x)); } // 화면 끝에서 잘리지 않게 ("이어트 주사!" · 긴 글자는 글자 폭만큼)
     // 이미 떠 있는 글자와 겹치면 한 줄씩 위로 비켜서 ("빈틈! 지금이야!" 위에 "꼬충 호출!" 겹침 방지)
     for (let k = 0; k < 4; k++) {
       let hit = false;
       for (const o of this.texts.items) if (o !== t && o.life > 0.15 && Math.abs(o.x - x) < 80 && Math.abs(o.y - y) < (o.size + size) * 0.62) { hit = true; break; }
       if (!hit) break;
+      if (y - size * 1.3 < 96) { y += size * 1.3 * (k + 1); break; } // 위로 비킬 자리가 없으면 아래로
       y -= size * 1.3;
     }
     t.x = x; t.y = y; t.text = text; t.color = color; t.size = size; t.life = life; t.max = life; t.vy = vy;
@@ -282,7 +309,57 @@ export class Renderer {
     this.bg = null;
     this.sorted = [];
     this.opts = {};
+    this.guardCtx();
     this.loadImages();
+  }
+
+  // ─── 화면이 깨지지 않게 (폰 메모리 부족 · 그리기 도중 오류) ───
+  //  · 메인 캔버스를 잃으면 그리기를 쉬었다가 돌아오면 전부 다시 굽기
+  //  · 구워 둔 그림(배경 · 캐릭터)을 잃으면 다음 프레임에 다시 굽기
+  //  · save/restore 짝이 안 맞거나 한 층이 오류를 내도 다음 프레임은 깨끗한 상태에서 (예전엔 잘린 영역 · 투명도가 남아 화면 대부분이 까맣게 남을 수 있었다)
+  guardCtx() {
+    const cx = this.cx, cv = this.cv;
+    this.lost = false; this.needRebuild = false; this.errs = {}; this.chkT = 0;
+    onCacheLost = () => { this.needRebuild = true; };
+    if (cv && cv.addEventListener) {
+      cv.addEventListener('contextlost', () => { this.lost = true; this.note('ctx', '화면 캔버스를 잃음 (메모리 부족)'); });
+      cv.addEventListener('contextrestored', () => { this.lost = false; this.needRebuild = true; });
+    }
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) this.chkT = 0; }); // 다른 앱 다녀오면 바로 확인
+    let depth = 0;
+    const save0 = cx.save.bind(cx), restore0 = cx.restore.bind(cx);
+    cx.save = () => { depth++; save0(); };
+    cx.restore = () => { if (depth > 0) depth--; restore0(); };
+    this.unwind = (hard) => {
+      if (depth > 0) { if (!hard) this.note('save', `save/restore 짝 안 맞음 ×${depth}`); while (depth > 0) cx.restore(); }
+      cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
+      if (hard) { cx.shadowBlur = 0; cx.shadowColor = 'rgba(0,0,0,0)'; if ('filter' in cx) cx.filter = 'none'; if (cx.setLineDash) cx.setLineDash([]); }
+    };
+  }
+  // 오류는 종류마다 한 번만 알린다 (콘솔 · window.__lbRenderErr — 개발용 확인)
+  note(key, msg, e) {
+    const o = this.errs[key] || (this.errs[key] = { n: 0 });
+    o.n++;
+    if (o.n === 1) { try { console.warn('[랑방 화면]', key, msg, e || ''); } catch { /* 무시 */ } }
+    if (typeof window !== 'undefined') window.__lbRenderErr = this.errs;
+    o.msg = String(msg).slice(0, 160);
+  }
+  // 구워 둔 그림이 살아 있나 (2초마다 · 다른 앱 다녀온 직후) — isContextLost 가 있는 브라우저만
+  checkCaches(dt) {
+    if ((this.chkT -= dt) > 0) return;
+    this.chkT = 2;
+    const lost = (x) => !!(x && x.isContextLost && x.isContextLost());
+    if (lost(this.bgx)) { this.needRebuild = true; return; }
+    let n = 0;
+    for (const k in this.sprites) { const s = this.sprites[k]; if (s && s._s && s.lost()) { this.needRebuild = true; return; } if (++n > 400) break; }
+  }
+  rebuild(why) {
+    this.needRebuild = false;
+    this.note('rebuild', `그림 다시 굽기 (${why})`);
+    this._mkc = {}; this._gly = {}; this.sils = {}; this._gfGlow = null;
+    if (this.skfx && this.skfx.resetCache) this.skfx.resetCache();
+    if (this.kit && this.kit.resetCache) this.kit.resetCache();
+    this.bakeAll();
   }
 
   loadImages() {
@@ -465,14 +542,21 @@ export class Renderer {
     this.bakeBg();
   }
 
-  // 캐릭터 스프라이트 굽기: 일반 + 흰색 번쩍 버전
+  // 캐릭터 스프라이트 굽기: 일반 + 흰색 번쩍 버전 — 자리만 만들어 두고 처음 그릴 때 굽는다 (LazySprite)
   bakeSprite(key) {
+    const isHero = key[0] === 'h';
+    const id = key.slice(2).replace('_rage', '').replace(/_(alt|cafe)$/, '');
+    const def = isHero ? HEROES[id] : ENEMIES[id] || (this.formDefs && this.formDefs[key]);
+    if (!def) return;
+    this.sprites[key] = new LazySprite(this, key, isHero ? HERO_BOX : def.size);
+  }
+  bakeSpriteNow(key) {
     const isHero = key[0] === 'h';
     const rage = key.endsWith('_rage');
     const id = key.slice(2).replace('_rage', '').replace(/_(alt|cafe)$/, '');
     const def = isHero ? HEROES[id] : ENEMIES[id] || (this.formDefs && this.formDefs[key]);
-    if (!def) return;
-    if (def.dot) { this.bakeDot(key, def); return; }
+    if (!def) return null;
+    if (def.dot) return this.bakeDot(key, def);
     const box = isHero ? HERO_BOX : def.size;
     const px = Math.ceil(box * this.k * 1.1);
     const c = mkCanvas(px, px);
@@ -516,13 +600,7 @@ export class Renderer {
     } else {
       this.placeholder(x, px, def, isHero, rage);
     }
-    const f = mkCanvas(px, px);
-    const fx = f.getContext('2d');
-    fx.drawImage(c, 0, 0);
-    fx.globalCompositeOperation = 'source-atop';
-    fx.fillStyle = 'rgba(255,255,255,0.88)';
-    fx.fillRect(0, 0, px, px);
-    this.sprites[key] = { c, f, box, real };
+    return { c, x, box, real };
   }
 
   // 진상의 탑 지옥 각성 (60층): 발밑 불꽃 고리 + 붉은 오라 + 올라가는 불티 — 그림(fx/awake_aura.webp)이 오면 그걸로, 없으면 불꽃 고리 그림
@@ -581,20 +659,14 @@ export class Renderer {
     if (def.figure) {
       glow(x, cxp, cyp, r * 1.6, 'rgba(255,180,220,0.6)');
       x.font = `${Math.round(px * 0.62)}px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(def.emoji, cxp, cyp);
-      const f0 = mkCanvas(px, px); const fx0 = f0.getContext('2d'); fx0.drawImage(c, 0, 0); fx0.globalCompositeOperation = 'source-atop'; fx0.fillStyle = 'rgba(255,255,255,0.88)'; fx0.fillRect(0, 0, px, px);
-      this.sprites[key] = { c, f: f0, box, real: true };
-      return;
+      return { c, x, box, real: true };
     }
     glow(x, cxp, cyp, r * 1.9, 'rgba(255,40,70,0.55)');
     x.fillStyle = '#ff2d45'; x.strokeStyle = '#fff'; x.lineWidth = px * 0.05;
     x.beginPath(); x.arc(cxp, cyp, r, 0, TAU); x.fill(); x.stroke();
     x.fillStyle = '#fff'; x.font = `900 ${Math.round(r * 1.2)}px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
     x.fillText('1', cxp, cyp + r * 0.05);
-    const f = mkCanvas(px, px);
-    const fx = f.getContext('2d');
-    fx.drawImage(c, 0, 0);
-    fx.globalCompositeOperation = 'source-atop'; fx.fillStyle = 'rgba(255,255,255,0.88)'; fx.fillRect(0, 0, px, px);
-    this.sprites[key] = { c, f, box, real: true };
+    return { c, x, box, real: true };
   }
 
   placeholder(x, px, def, isHero, rage) {
@@ -994,7 +1066,7 @@ export class Renderer {
       x.fillStyle = g; x.fillRect(0, 0, W, H);
     }
     if (this.ssn) bakeSeason(this, x, W, H, rowY); // 시즌 장식 (빛 · 달 · 거미줄 · 호박등)
-    this.bg = c;
+    this.bg = c; this.bgx = x;
   }
 
   proceduralBg(x, W, H, rowY) {
@@ -1038,7 +1110,18 @@ export class Renderer {
   }
 
   // ─── 매 프레임 그리기 ──────────────────────────────
-  draw(g, ui) {
+  draw(g, ui, dt = 1 / 60) {
+    if (this.lost) return; // 화면 캔버스를 잃은 동안은 쉬기 (돌아오면 다시 굽고 그린다)
+    if (this.cx.isContextLost && this.cx.isContextLost()) { if (!this.lost) this.note('ctx', '화면 캔버스를 잃음'); return; }
+    this.checkCaches(dt);
+    if (this.needRebuild) this.rebuild('lost');
+    this.layer = 0;
+    try { this.drawFrame(g, ui); } catch (e) { this.note('frame', e && e.message, e); }
+    this.unwind(false);
+  }
+  drawFrame(g, ui) {
+    // 한 층이 오류를 내도 나머지는 그린다 (층 번호로 한 번만 알림 · 그리기 상태는 그 자리에서 되돌림)
+    const L = (fn) => { this.layer++; try { fn(); } catch (e) { this.note('L' + this.layer, e && e.message, e); this.unwind(true); this.world && this.world(); } };
     const cx = this.cx, k = this.k, fx = this.fx, W = this.W, H = this.H;
     const t = fx.time;
     // 카메라: 흔들림 + (보스 처치 때) 확대
@@ -1056,51 +1139,51 @@ export class Renderer {
     if (!g) { this.drawScreenFx(null); return; }
 
     const demo = !!(this.fx && this.fx.noBanner); // 로비 뒤 구경 판: 입구(바리케이드·간판)는 안 그린다
-    if (!demo) this.drawRopeShadow(g);
-    this.drawMapFxUnder(g, t);
-    if (this.ssn) { this.world && this.world(); drawSeason(this, g, t, 'back'); } // 시즌 장식: 유령 · 박쥐 (진상 아래)
-    if (g.hw && this.hwDraw) this.hwDraw(g, t, 'back'); // 할로윈 이벤트: 맵 분위기 (낙엽 · 안개 · 깜빡임 · 도깨비불) · 독 웅덩이 예고
-    this.drawGems(g, t);
-    if (this.skfx) this.skfx.draw('ground', g); // 스킬 전용 연출 (skillfx.js) — 바닥
-    if (this.kit) this.kit.draw('ground', g); // 대개편 장판 · 음파 고리 (kitfx.js)
-    if (this.efx) this.efx.draw('ground', g); // 진상 기술 예고 표적 · 입구 경고 (enemyfx.js)
-    this.drawVfx('ground'); // 바닥 무늬: 금 · 경고 원 · 소환진 · 오라 (캐릭터 발밑 · 납작하게)
-    if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'back'); // 건물주 레이드: 거대 보스 · 공격 예고 구역 (raid2-ui.js)
-    this.drawEnemies(g, t);
-    this.drawJoinWait(g);
-    if (!demo) this.drawRope(g, t);
-    if (this.ssn && !demo) drawSeason(this, g, t, 'gate'); // 시즌 장식: 바리케이드 양 끝 호박등 · 촛불
-    if (this.skfx) this.skfx.draw('gate', g); // 입구 위 (붕대)
-    this.drawEnemies(g, t, true); // 때리는 진상은 바리케이드 앞
-    if (g.twa && this.twaDraw) this.twaDraw(g, t, 'back'); // 진상의 탑: 바닥 예고 · 독 웅덩이 · 기 모으기 (tower-arena-ui.js · 바리케이드 바닥 위 · 멤버 아래)
-    this.drawPools(g, t);
-    if (this.efx) this.efx.draw('feet', g); // 진상 기술 표적 (멤버 발밑 · 입구 경고) — 바리케이드 위 · 멤버 아래
-    this.drawHeroes(g, t, ui);
-    this.drawBeams(g, t);
-    this.drawProjs(g);
-    if (this.kit) this.kit.draw('mid', g); // 대개편: 화염 · 휘두르기 · 진상 상태 (kitfx.js)
-    if (this.efx) this.efx.draw('mid', g);
-    if (g.hw && this.hwDraw) this.hwDraw(g, t, 'mid'); // 할로윈: 유령 잔상 · 부활 · 명부 · 박쥐 떼
-    if (g.buses && g.buses.length) this.drawBuses(g);
-    this.drawSlashes();
-    this.drawDoorHits();
-    this.drawVfx('front');
-    if (this.skfx) this.skfx.draw('mid', g); // 캐릭터 위 (오라 · 시간 정지 회색)
-    if (!demo && this._skOverlay) this._skOverlay();
-    this.drawArcs();
-    this.drawBlasts();
-    this.drawParts();
-    this.drawRings();
-    if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'top'); // 건물주 레이드: 날아오는 고지서 · 돈다발
-    if (g.twa && this.twaDraw) this.twaDraw(g, t, 'top'); // 진상의 탑: 멤버 체력 · 상태 · 끌기 화살표
-    if (this.skfx) this.skfx.draw('top', g); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
-    if (this.kit) this.kit.draw('top', g); // 대개편 스킬 연출 (kitfx.js)
-    if (this.efx) this.efx.draw('top', g);
-    if (g.hw && this.hwDraw) this.hwDraw(g, t, 'top'); // 할로윈: 보름달 · 호박 폭발 빛
-    this.drawTexts();
-    this.drawBubbles();
-    this.drawUiWorld(g, t, ui);
-    this.drawScreenFx(g, ui);
+    L(() => { if (!demo) this.drawRopeShadow(g); });
+    L(() => { this.drawMapFxUnder(g, t); });
+    L(() => { if (this.ssn) { this.world && this.world(); drawSeason(this, g, t, 'back'); } }); // 시즌 장식: 유령 · 박쥐 (진상 아래)
+    L(() => { if (g.hw && this.hwDraw) this.hwDraw(g, t, 'back'); }); // 할로윈 이벤트: 맵 분위기 (낙엽 · 안개 · 깜빡임 · 도깨비불) · 독 웅덩이 예고
+    L(() => { this.drawGems(g, t); });
+    L(() => { if (this.skfx) this.skfx.draw('ground', g); }); // 스킬 전용 연출 (skillfx.js) — 바닥
+    L(() => { if (this.kit) this.kit.draw('ground', g); }); // 대개편 장판 · 음파 고리 (kitfx.js)
+    L(() => { if (this.efx) this.efx.draw('ground', g); }); // 진상 기술 예고 표적 · 입구 경고 (enemyfx.js)
+    L(() => { this.drawVfx('ground'); }); // 바닥 무늬: 금 · 경고 원 · 소환진 · 오라 (캐릭터 발밑 · 납작하게)
+    L(() => { if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'back'); }); // 건물주 레이드: 거대 보스 · 공격 예고 구역 (raid2-ui.js)
+    L(() => { this.drawEnemies(g, t); });
+    L(() => { this.drawJoinWait(g); });
+    L(() => { if (!demo) this.drawRope(g, t); });
+    L(() => { if (this.ssn && !demo) drawSeason(this, g, t, 'gate'); }); // 시즌 장식: 바리케이드 양 끝 호박등 · 촛불
+    L(() => { if (this.skfx) this.skfx.draw('gate', g); }); // 입구 위 (붕대)
+    L(() => { this.drawEnemies(g, t, true); }); // 때리는 진상은 바리케이드 앞
+    L(() => { if (g.twa && this.twaDraw) this.twaDraw(g, t, 'back'); }); // 진상의 탑: 바닥 예고 · 독 웅덩이 · 기 모으기 (tower-arena-ui.js · 바리케이드 바닥 위 · 멤버 아래)
+    L(() => { this.drawPools(g, t); });
+    L(() => { if (this.efx) this.efx.draw('feet', g); }); // 진상 기술 표적 (멤버 발밑 · 입구 경고) — 바리케이드 위 · 멤버 아래
+    L(() => { this.drawHeroes(g, t, ui); });
+    L(() => { this.drawBeams(g, t); });
+    L(() => { this.drawProjs(g); });
+    L(() => { if (this.kit) this.kit.draw('mid', g); }); // 대개편: 화염 · 휘두르기 · 진상 상태 (kitfx.js)
+    L(() => { if (this.efx) this.efx.draw('mid', g); });
+    L(() => { if (g.hw && this.hwDraw) this.hwDraw(g, t, 'mid'); }); // 할로윈: 유령 잔상 · 부활 · 명부 · 박쥐 떼
+    L(() => { if (g.buses && g.buses.length) this.drawBuses(g); });
+    L(() => { this.drawSlashes(); });
+    L(() => { this.drawDoorHits(); });
+    L(() => { this.drawVfx('front'); });
+    L(() => { if (this.skfx) this.skfx.draw('mid', g); }); // 캐릭터 위 (오라 · 시간 정지 회색)
+    L(() => { if (!demo && this._skOverlay) this._skOverlay(); });
+    L(() => { this.drawArcs(); });
+    L(() => { this.drawBlasts(); });
+    L(() => { this.drawParts(); });
+    L(() => { this.drawRings(); });
+    L(() => { if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'top'); }); // 건물주 레이드: 날아오는 고지서 · 돈다발
+    L(() => { if (g.twa && this.twaDraw) this.twaDraw(g, t, 'top'); }); // 진상의 탑: 멤버 체력 · 상태 · 끌기 화살표
+    L(() => { if (this.skfx) this.skfx.draw('top', g); }); // 입자 위 · 글자 아래 (주사기 · 금화 · 띠)
+    L(() => { if (this.kit) this.kit.draw('top', g); }); // 대개편 스킬 연출 (kitfx.js)
+    L(() => { if (this.efx) this.efx.draw('top', g); });
+    L(() => { if (g.hw && this.hwDraw) this.hwDraw(g, t, 'top'); }); // 할로윈: 보름달 · 호박 폭발 빛
+    L(() => { this.drawTexts(); });
+    L(() => { this.drawBubbles(); });
+    L(() => { this.drawUiWorld(g, t, ui); });
+    L(() => { this.drawScreenFx(g, ui); });
   }
 
   // 불바다 (최은옥 분노 소주병) · 토 웅덩이
@@ -1328,6 +1411,14 @@ export class Renderer {
     }
   }
 
+  // 화면 가운데 위쪽 작은 알림 칩 (화면 좌표 · 새 진상 소개 카드 아래)
+  fxChip(text, fg, bg, y = 232) {
+    const cx = this.cx, W = this.W;
+    cx.font = `900 12px ${FONT}`;
+    const w = Math.min(W - 24, cx.measureText(text).width + 22);
+    cx.fillStyle = bg; roundRect(cx, (W - w) / 2, y - 11, w, 22, 11); cx.fill();
+    cx.fillStyle = fg; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(text, W / 2, y + 0.5);
+  }
   drawMapFxOver(g) {
     const cx = this.cx, W = this.W, H = this.H, t = this.fx.time, id = g.mapFx.id;
     if (g.hell) {
@@ -1357,14 +1448,19 @@ export class Renderer {
       const gl = this.projSprites.glowCyan;
       for (let i = 0; i < 4; i++) { const x = ((i * 120 + t * 12) % (W + 200)) - 100; cx.drawImage(gl.c, x - 90, H * 0.15 + i * 40, 180, 110); }
       cx.globalAlpha = 1;
-    } else if (id === 'blackout' && g.darkT > 0) {
-      const f = Math.min(1, g.darkT / 0.3, (g.mapFx.dark - g.darkT) / 0.2 + 0.4);
-      const flick = Math.random() < 0.04 ? 0.5 : 1;
-      const gr = cx.createLinearGradient(0, 0, 0, H);
-      const edge = (g.rowY - (g.mapFx.seeR || 190)) / H;
-      gr.addColorStop(0, `rgba(2,2,8,${0.93 * f * flick})`); gr.addColorStop(Math.max(0, edge - 0.05), `rgba(2,2,8,${0.9 * f * flick})`);
-      gr.addColorStop(Math.min(1, edge + 0.08), 'rgba(2,2,8,0.15)'); gr.addColorStop(1, 'rgba(2,2,8,0.1)');
-      cx.fillStyle = gr; cx.fillRect(0, 0, W, H);
+    } else if (id === 'blackout') {
+      // 정전: 기믹으로 읽히게 — 2.5초 전 "곧 정전!" 예고 칩 · 꺼진 동안 남은 시간 칩 · 맵은 희미하게 보이게 (예전 0.93 → 0.82: 화면이 통째로 까매 고장으로 오해)
+      const left = g.phase === 'wave' && g.darkT <= 0 && g.mapFx.every ? g.mapFx.every - g.fxT : 99;
+      if (g.darkT > 0) {
+        const f = Math.min(1, g.darkT / 0.3, (g.mapFx.dark - g.darkT) / 0.2 + 0.4);
+        const flick = Math.random() < 0.04 ? 0.7 : 1;
+        const gr = cx.createLinearGradient(0, 0, 0, H);
+        const edge = (g.rowY - (g.mapFx.seeR || 190)) / H;
+        gr.addColorStop(0, `rgba(4,4,14,${0.82 * f * flick})`); gr.addColorStop(Math.max(0, edge - 0.05), `rgba(4,4,14,${0.78 * f * flick})`);
+        gr.addColorStop(Math.min(1, edge + 0.08), 'rgba(4,4,14,0.12)'); gr.addColorStop(1, 'rgba(4,4,14,0.08)');
+        cx.fillStyle = gr; cx.fillRect(0, 0, W, H);
+        this.fxChip(`정전 ${g.darkT.toFixed(1)}초 · 가까운 진상만 보여요`, '#ffe9a0', 'rgba(20,16,40,0.85)');
+      } else if (left < 2.5) this.fxChip(`곧 정전! ${Math.ceil(left)}`, '#1a1205', Math.sin(t * 14) > 0 ? '#ffd23f' : '#ffb020');
     } else if (id === 'snow') {
       cx.fillStyle = 'rgba(255,255,255,0.85)';
       for (let i = 0; i < 40; i++) {
@@ -3212,7 +3308,7 @@ export class Renderer {
       if (n.pop > 0) { s *= 1 + n.pop * 2.5; n.pop = Math.max(0, n.pop - 1 / 60); }
       if (n.crit && n.eff > 0) s = 1.45;
       if (age < 0.1) s *= 1 + (1 - age / 0.1) * (n.crit || n.eff > 0 ? 1 : 0.4);
-      this.tf(n.x, n.y, 0, s, s);
+      this.tf(n.x < 30 ? 30 : n.x > this.W - 30 ? this.W - 30 : n.x, n.y < 100 ? 100 : n.y, 0, s, s); // 윗줄 HUD 띠는 비워 둔다 (맨 위 진상 피해 숫자가 점수 · 웨이브를 덮던 것) · 화면 끝에서 안 잘리게
       cx.globalAlpha = Math.min(1, n.life / (n.max * 0.35)) * (n.eff < 0 ? 0.75 : n.crit || n.eff > 0 ? 1 : 0.85);
       {
         cx.lineWidth = n.crit || n.eff > 0 ? 5 : this.fx.lite ? 3 : 4;
@@ -3311,9 +3407,11 @@ export class Renderer {
     cx.lineJoin = 'round';
     // 콤보
     if (fx.combo >= 5) {
-      const s = (1 + fx.comboPop * 0.35) * (1 + Math.min(0.5, fx.combo / 200));
+      // 크기 상한 (예전: 콤보 300+ 에서 1.5배 + 튀는 효과로 화면 오른쪽 위 HUD 를 덮고 글자가 잘렸다) · 오른쪽 끝에 맞춰 안 잘리게
+      const s = (1 + fx.comboPop * 0.18) * (1 + Math.min(0.15, fx.combo / 600));
       const col = fx.combo >= 100 ? '#ff4fd8' : fx.combo >= 50 ? '#ff7b2e' : fx.combo >= 20 ? '#ffd23f' : '#ffffff';
-      cx.setTransform(k * s, 0, 0, k * s, k * (W - 50), k * 118);
+      cx.textAlign = 'right';
+      cx.setTransform(k * s, 0, 0, k * s, k * (W - 10), k * 122);
       cx.font = `900 italic 26px ${FONT}`;
       cx.lineWidth = 6; cx.strokeStyle = 'rgba(20,5,30,0.9)';
       cx.strokeText(fx.combo, 0, 0);
@@ -3323,6 +3421,7 @@ export class Renderer {
       const cl = fx.combo >= 10 ? `콤보 · EXP +${Math.round(Math.min(0.15, fx.combo * 0.003) * 100)}%` : '콤보';
       cx.strokeText(cl, 0, 19); cx.fillText(cl, 0, 19);
       cx.setTransform(k, 0, 0, k, 0, 0);
+      cx.textAlign = 'center';
     }
     // 웨이브 사이 카운트다운
     if (g.phase === 'break' && !ui.paused) {
