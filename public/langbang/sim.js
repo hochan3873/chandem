@@ -171,7 +171,7 @@ export function addHero(g, id, want) {
   const h = {
     id, def, slot, x: g.slotX[slot], y: g.rowY, lv: 1, meta: g.metaSoft ? softMeta(Math.min(g.meta[id] || 0, TIER_MAX[HERO_TIER[id] || 1]), g.stage, g.hell) : Math.min(g.meta[id] || 0, TIER_MAX[HERO_TIER[id] || 1]), gear: g.pvp && g.gear[id] && g.gear[id].hellSet ? Object.assign({}, g.gear[id], { hellSet: 0 }) : g.gear[id] || {},
     cd: 0.3 + g.rng() * 0.4, charmT: 0, stunT: 0, rumorT: 0, fearT: 0, paperT: 0, vomitT: 0, blindT: 0, drowsyT: 0, grabT: 0, grabBy: 0, recoil: 0, shots: 0, joinT: 0,
-    rage: false, rageT: def.soberSec ? def.soberSec[0] : 0, healT: def.care ? def.care.every[0] : 0,
+    rage: false, rageT: 0, healT: def.care ? def.care.every[0] : 0,
     kills: 0, dmgDone: 0,
     skillCd: def.skill ? def.skill.cd * 0.5 * (1 - ((g.gear[id] && g.gear[id].cd) || 0)) * g.cdMul : 0, frenzyT: 0, frenzyCd: 0, // 스킬은 판 시작하고 절반쯤 지나야 첫 사용
     star: Math.max(1, Math.min(5, (g.hstars[id] | 0) || 1)), // 성급 (★1 = 기본)
@@ -214,7 +214,7 @@ export function heroDamage(g, h) {
   const flirt = g.flirt && d.gender === 'm' ? 1 - ENEMIES.scammer.scam.flirt : 1; // 예쁜 프사에 넋 나간 남자 멤버
   const old = (h.alt && d.age ? d.age.dmg : 1) * (h.sarcT > 0 ? 1 - ENEMIES.sarcasm.sarcasm.cut : 1) * (h.clingBy ? 1 - ENEMIES.jjijil.cling.cut : 1); // 늙음 · 돌려까기 · 찌질남
   const hc = (1 + (g.hcT > 0 && h.id !== 'hochan' ? g.hcBuff : 0) + (g.hcSkT > 0 ? g.hcSkAtk : 0)) * (g.rallyT > 0 && g.rallyDmg ? 1 + g.rallyDmg : 1) * (g.uirijuT > 0 ? 1.6 : 1) * (g.onemanT > 0 ? 1 + (g.onemanAtk || 0.3) : 1); // "랑방을 위하여!" · 집합! · 의리주 · 원맨쇼
-  return (1 + (h.pump || 0)) * buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.tension ? roleCadence(h.id).dmg * wideMul(g) * mileDmg(h.meta) * (g.mods.basicX || 1) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + cmAtk(h)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * (1 + (g.collAtk || 0)) * old * hc * heroExtraMul(g, h) * (g.wtr && g.wtr.near ? (NEAR_HEROES.includes(h.id) ? g.wtr.near : g.wtr.far) : 1); // (끝: 주간 진상 특성 — 근접 · 원거리)
+  return (1 + (h.pump || 0)) * buildMul(g, h) * (g.tempo ? TEMPO.dmg * (TEMPO.fix[h.id] || 1) : 1) * (g.tension ? roleCadence(h.id).dmg * wideMul(g) * mileDmg(h.meta) * (g.mods.basicX || 1) * (TENSION.basic || 1) : 1) * (g.joinMode && g.heroes.length === 1 ? JOIN.solo : 1) * (g.pvp && h.def.legend ? 0.9 : 1) * (1 + (h.grow || 0)) * TIER_MUL[HERO_TIER[h.id] || 1] * (1 + cmAtk(h)) * d.dmg * LEVEL_DMG[h.lv - 1] * (1 + TIER_GROWTH[HERO_TIER[h.id] || 1] * (h.id === 'hochan' && h.meta > BAL.hochan.metaSoft ? BAL.hochan.metaSoft + (h.meta - BAL.hochan.metaSoft) * BAL.hochan.metaAbove : h.meta)) * g.mods.dmg * (h.rage ? d.rageDmg : 1) * flirt * fxm * (1 + (h.gear.atk || 0)) * (1 + starBonus(h.star || 1)) * (1 + (g.collAtk || 0)) * old * hc * heroExtraMul(g, h) * (g.wtr && g.wtr.near ? (NEAR_HEROES.includes(h.id) ? g.wtr.near : g.wtr.far) : 1); // (끝: 주간 진상 특성 — 근접 · 원거리)
 }
 // 빌드 배율: 같은 속성 인원(자동) · 속성 결속 카드 · 특성 카드 · 진화
 export function buildMul(g, h) {
@@ -286,20 +286,10 @@ function updateHeroes(g, dt) {
     if (h.muteT > 0) h.muteT -= dt; if (h.freezeT > 0) h.freezeT -= dt; if (h.thawT > 0) h.thawT -= dt; // 7장: 침묵(스킬 막힘) · 빙결 표시 · 녹은 뒤 잠깐 면역
     if (h.skillCd > 0 && !(h.silenceT > 0)) h.skillCd -= dt;
     if (g.kdOn) { kdTick(g, h, dt); if (h.kdT > 0) { h.beamE = null; h.beam2E = null; continue; } } // 쓰러짐: 아무것도 못 함
-    // 최은옥: 술 → 분노 → 술 깸 반복
-    if (d.soberSec) {
+    // 최은옥: 분노는 원샷(스킬)으로만 켜진다 (10/10) — 시간이 다 되면 술 깸
+    if (d.rageSec && h.rage) {
       h.rageT -= dt;
-      if (h.rageT <= 0) {
-        if (h.rage) {
-          h.rage = false;
-          h.rageT = d.soberSec[h.lv - 1];
-          ev(g, 'sober', { hero: h.id, x: h.x, y: h.y });
-        } else {
-          h.rage = true;
-          h.rageT = (d.rageSec[h.lv - 1] + (h.cm.rage || 0)) * (g.mapFx.rage || 1) * ((h.sig && h.sig.rageMul) || 1);
-          ev(g, 'rage', { hero: h.id, x: h.x, y: h.y });
-        }
-      }
+      if (h.rageT <= 0) { h.rage = false; h.rageT = 0; ev(g, 'sober', { hero: h.id, x: h.x, y: h.y }); }
     }
     // 배현경: 다이어트 게이지 → 날씬 모드 (10초 뒤 요요)
     if (d.diet) {
@@ -3794,7 +3784,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
     if (g.t - g.lastSkillT < MOMENTUM.gap && !fromQ) { g.skillQ = { h, x, y, at: g.lastSkillT + MOMENTUM.gap }; ev(g, 'skillQueued', { hero: h.id }); return false; } // 0.6초 뒤에 나간다
   }
   const lv = h.lv - 1;
-  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? 0.75 : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill / roleCadence(h.id).dmg * (g.mods.skillX || 1) / (g.mods.basicX || 1) : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
+  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? 0.75 : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill / roleCadence(h.id).dmg * (g.mods.skillX || 1) / (g.mods.basicX || 1) / (TENSION.basic || 1) : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
   const sa = h.sa || {}; // 멤버 전용 스킬 증강
   if (h.skEvo && !echo && h.id !== 'hanna') h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
@@ -3856,8 +3846,9 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       break;
     }
     case 'oneshot':
-      if (h.rage) h.rageT += 5;
-      else { h.rage = true; h.rageT = h.def.rageSec[lv] * (g.mapFx.rage || 1) * ((h.sig && h.sig.rageMul) || 1); ev(g, 'rage', { hero: h.id, x: h.x, y: h.y }); }
+      if (h.rage) { h.rageT += 5; h.rageMax = Math.max(h.rageMax || 0, h.rageT); }
+      else { h.rage = true; h.rageT = h.rageMax = (h.def.rageSec[lv] + (h.cm.rage || 0)) * (g.mapFx.rage || 1) * ((h.sig && h.sig.rageMul) || 1); ev(g, 'rage', { hero: h.id, x: h.x, y: h.y }); }
+      { const B = h.def.rageBurst; if (B && !echo) { const big = strongest(g), P = big && (big.boss || big.mid || big.elite) ? { x: big.x, y: big.y } : densestPoint(g, h.x, h.y, heroRange(g, h) * 1.2, B.r); if (P) { forEnemiesNear(g, P.x, P.y, B.r, (e) => { damageEnemy(g, e, base * B.mul, false, h, true); if (!e.dead) applyKnockback(e, e.boss ? B.kb * 0.3 : B.kb, g); return true; }); ev(g, 'splash', { x: P.x, y: P.y, r: B.r, proj: 'bottle' }); } } } // 원샷 소주병: 분노가 터지는 순간 정예 · 보스(없으면 가장 몰린 곳)에 소주병 한 방
       break;
     case 'mosaicbomb': { // 여지원 모자이크 폭격: 0.6초 두 손 번쩍(검은 검열 띠 · 삐—) → 찍은 줄 · 양옆 줄에 거대 모자이크 손이 차례로 쾅 (updateHeroes 의 mzQ)
       r = 0;

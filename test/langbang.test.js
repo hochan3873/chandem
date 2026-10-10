@@ -110,16 +110,18 @@ test('강성구 지팡이는 몰린 무리까지 고리를 그리며 나갔다 �
   assert.ok(max >= 1 && g.projs.filter((p) => !p.dead && p.type === 'cane').length === 0, '돌아와서 손에 쏙');
 });
 
-test('최은옥은 타이머가 지나면 분노 모드에 들어간다', () => {
+test('최은옥은 원샷(스킬)으로만 분노 모드에 들어간다 (저절로는 안 켜짐) · 분노가 터지는 순간 소주병 한 방', () => {
   const g = S.createGame({ rng: seeded(2), noWaves: true, heroes: ['eunok'] });
   const h = g.heroes[0];
-  const sober = D.HEROES.eunok.soberSec[0];
-  run(g, sober - 1);
-  assert.equal(h.rage, false);
+  run(g, 30);
+  assert.equal(h.rage, false, '30초가 지나도 저절로 분노하지 않는다');
   const normal = S.heroDamage(g, h);
-  run(g, 1.5);
+  const pack = [0, 1, 2].map((i) => S.spawnEnemy(g, 'drunk', 170 + i * 20, g.ropeY - 160, { hpMul: 50 }));
+  h.skillCd = 0;
+  assert.ok(S.castSkill(g, h));
   assert.equal(h.rage, true, '분노 모드 진입');
   assert.ok(g.events.some((e) => e.type === 'rage'));
+  assert.ok(pack.some((e) => e.hp < e.maxHp), '소주병이 몰린 진상을 친다');
   assert.ok(S.heroDamage(g, h) > normal * (D.HEROES.eunok.rageDmg - 0.05));
   run(g, D.HEROES.eunok.rageSec[0] + 0.5);
   assert.equal(h.rage, false, '술 깸');

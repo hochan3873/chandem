@@ -55,7 +55,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
   //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
-  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat', 'chcalib'].includes(what) && !args.includes('--pro');
+  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat', 'chcalib', 'skshare'].includes(what) && !args.includes('--pro');
   const FOES = what === 'foes';
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
@@ -90,8 +90,9 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
 
   // 스킬 자동 사용 (--skills=1): 준비되면 바로. 찍는 스킬은 진상이 가장 몰린 곳에
   const SKILLS = opt('skills', 0) > 0;
-  const SKILL_EVERY = opt('skillevery', REF_HUMAN ? 90 : 6);
-  const BOARD_EVERY = opt('boardevery', REF_HUMAN ? 50 : 30); // 송바울 탭 간격 (스텝)
+  const HUMAN_T = REF_HUMAN || (what === 'powercalib' && !args.includes('--pro')); // 전투력 측정도 기준 플레이어처럼 (스킬 · 보드 탭을 사람 손 빠르기로 — 카드는 smart 그대로: 판마다 흔들림 줄이기)
+  const SKILL_EVERY = opt('skillevery', HUMAN_T ? 90 : 6);
+  const BOARD_EVERY = opt('boardevery', HUMAN_T ? 50 : 30); // 송바울 탭 간격 (스텝)
   const PICK_DELAY = opt('pickdelay', 2); // 스킬 확인 간격(스텝): 90 이면 보통 사람처럼 1.5초쯤 늦게
   function densest(g, r) {
     let best = null, bn = 0;
@@ -104,30 +105,50 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     return best ? { x: best.x, y: best.y, n: bn } : null;
   }
   function aiSkills(g, control) {
+    const ready = (h) => h.id !== g._noSk && S.skillReady(h); // (skshare --member: 그 멤버 스킬만 끄기)
     // 컨트롤(7장): 눈사태 예고가 뜨면 0.6초쯤 뒤 아무 스킬로 끊고 · 예고가 곧 올 땐 스킬 하나를 아껴 둔다
     if (control) {
       const ava = g.avalanche && !g.avalanche.dead && g.avalanche.avaW > 0 ? g.avalanche : null;
-      if (ava) { if (ava.def.avalanche.windup - ava.avaW > 0.6) for (const h of g.heroes) if (S.skillReady(h) && S.castSkill(g, h, ava.x, ava.y)) break; return; }
+      if (ava) { if (ava.def.avalanche.windup - ava.avaW > 0.6) for (const h of g.heroes) if (ready(h) && S.castSkill(g, h, ava.x, ava.y)) break; return; }
       const sp = g.speech && !g.speech.dead && g.speech.speechT > 0 ? g.speech : null; // 8장 축사: 스킬을 대표에게 몰아 게이지 채우기
-      if (sp) { for (const h of g.heroes) if (S.skillReady(h)) S.castSkill(g, h, sp.x, sp.y); return; }
+      if (sp) { for (const h of g.heroes) if (ready(h)) S.castSkill(g, h, sp.x, sp.y); return; }
       const boss = g.enemies.find((e) => !e.dead && e.def.avalanche && e.y > 0);
       if (boss && boss.avaT < 4 && g.base.hp / g.base.max > 0.35) return;
     }
     // 입구 강타 예고(긴장감): 찍는 스킬로 끊는다 (사람도 빨간 예고를 보면 누른다)
     const slam = g.enemies.find((e) => !e.dead && e.cast && e.cast.spec.door && e.cast.t < e.cast.max - 0.3);
-    if (slam) for (const h of g.heroes) if (S.skillReady(h) && h.def.skill.target && S.castSkill(g, h, slam.x, slam.y)) return;
+    if (slam) for (const h of g.heroes) if (ready(h) && h.def.skill.target && S.castSkill(g, h, slam.x, slam.y)) return;
+    // (10/10 봇 손보기) 사람처럼:
+    //  · 기세는 팀이 같이 쓰니 준비된 스킬 중 '가장 오래 안 쓴 멤버' 부터 (예전: 슬롯 순서대로 → 뒤에 합류한 멤버는 기세가 늘 모자라 스킬을 거의 못 씀)
+    //  · 이호찬 막차 대행진(기세 2칸)은 아껴 둔다 — 쿨이 곧 돌면 다른 스킬은 기세를 안 쓰고 기다림 (예전: 한 판에 한 번도 못 씀)
+    //  · 고아라 공주의 일격은 할머니일 때 · 보스에게 · 윤정섭 벽은 쉬거나 돌아올 때 입구 쪽에 진상이 몰리면
+    let alive = 0, nearDoor = 0;
+    for (const e of g.enemies) if (!e.dead && e.y > 0) { alive++; if (e.y > g.ropeY - 260) nearDoor++; }
+    const hpF = g.base.hp / g.base.max, momOn = g.mom !== null && g.mom !== undefined;
+    const hc = g.heroes.find((h) => h.def.skill && h.def.skill.id === 'forlangbang' && h.id !== g._noSk && !h.gone && !(h.kdT > 0) && !S.ultLocked(g, h));
+    if (hc && hc.skillCd <= 3 && !args.includes('--noreserve')) {
+      if (ready(hc) && (!momOn || g.mom >= D.MOMENTUM.per * 2) && (alive >= 5 || g.bossAlive)) { if (S.castSkill(g, hc)) hc._lastSk = g.t; return; }
+      if (momOn && g.mom < D.MOMENTUM.max - 1 && hpF > 0.35) return; // 기세 모으는 중 (입구가 위험하면 다른 스킬도 쓴다)
+    }
+    const want = [];
     for (const h of g.heroes) {
-      if (!S.skillReady(h)) continue;
+      if (h === hc || !ready(h)) continue;
       const sk = h.def.skill;
-      let alive = 0;
-      for (const e of g.enemies) if (!e.dead && e.y > 0) alive++;
       if (sk.target) {
         const c = densest(g, sk.r[h.lv - 1] * 0.8);
-        if (c && (c.n >= 4 || g.bossAlive)) S.castSkill(g, h, c.x, c.y);
+        if (c && (c.n >= 4 || g.bossAlive)) want.push([h, c.x, c.y]);
       } else if (sk.id === 'firstaid') {
-        if (g.base.hp / g.base.max < 0.8 || g.heroes.some((o) => o.stunT > 0.6 || o.rumorT > 0.5 || o.paperT > 0.5)) S.castSkill(g, h);
-      } else if (alive >= 6 || g.bossAlive) S.castSkill(g, h);
+        if (hpF < 0.8 || g.heroes.some((o) => o.stunT > 0.6 || o.rumorT > 0.5 || o.paperT > 0.5)) want.push([h]);
+      } else if (sk.id === 'princess') {
+        if ((h.alt && alive >= 1) || g.bossAlive || (alive >= 10 && h.skillCd <= 0 && !(h.ageT > 4))) want.push([h]);
+      } else if (sk.id === 'oneshot') { // 최은옥 원샷: 분노는 스킬로만 → 정예 · 보스 · 떼로 몰릴 때 아껴서
+        if (!h.rage && (g.bossAlive || alive >= 8 || g.enemies.some((e) => !e.dead && e.y > 0 && (e.elite || e.mid)))) want.push([h]);
+      } else if (sk.id === 'wallwalk') {
+        if (h.wallSt !== 'out' && (nearDoor >= 4 || g.bossAlive || hpF < 0.6)) want.push([h]);
+      } else if (alive >= 6 || g.bossAlive) want.push([h]);
     }
+    want.sort((a, b) => (a[0]._lastSk || -99) - (b[0]._lastSk || -99));
+    for (const [h, x, y] of want) if (S.castSkill(g, h, x, y)) { h._lastSk = g.t; break; } else if (g.skillQ && g.skillQ.h === h) { h._lastSk = g.t; break; }
   }
   // 한 판 (사람처럼: 카드는 바로 고르고, 총공지는 적이 많거나 보스가 있을 때 쓴다)
   function play(o) {
@@ -139,6 +160,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     });
     g.partner = o.partner;
     if (o.policy) g._policy = o.policy;
+    if (o.noSkFor) g._noSk = o.noSkFor;
     if (o.noTypes) g.noTypes = true;
     const pr = seeded(o.seed * 7 + 3);
     const maxT = o.maxT || 900;
@@ -918,6 +940,37 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     }
   }
   if (what === 'tension') tension();
+  // ── 스킬 몫 (node scripts/lb-balance.js skshare [--ch=1,..,8] [--nos=3,6,9] [--seeds=4] [--win=100] [--member])
+  //  기준 플레이어(스킬 씀) vs 같은 사람이 스킬만 안 씀 — 같은 덱 · 같은 시드
+  //   · 클리어 차이 (%p) · 팀 피해 몫 = 1 − (스킬 안 쓴 판 앞 win 초 팀 피해 / 스킬 쓴 판 앞 win 초 팀 피해) — 바로 맞힌 피해 + 버프 · 늦게 터지는 것까지 다
+  //   · --member: 멤버마다 자기 스킬만 끈 판 → 그 멤버 피해 중 스킬 몫
+  function skshare() {
+    const N = opt('seeds', 4), WIN = opt('win', 100), nos = listArg('nos', '3,6,9').map(Number), member = args.includes('--member');
+    const deckOf = (c, s) => (c <= 6 ? balFor(c, s, false) : C78);
+    const one = (s, o) => {
+      const c = D.chapterOf(s), ids = deckOf(c, s), meta = Object.fromEntries(ids.map((id) => [id, c <= 6 ? REC[c - 1] + REF_PLUS : 15]));
+      let d0 = null, by = null;
+      const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: o.seed, unlocked: [], skills: o.skills, control: true, join: true, tempo: true, noSkFor: o.noSkFor, ...refOf(s, ids),
+        onStep: (g) => { if (d0 === null && g.t >= WIN) { d0 = g.stats.damage; by = Object.fromEntries(g.heroes.map((h) => [h.id, h.dmgDone])); } } });
+      if (d0 === null) { d0 = r.g.stats.damage * WIN / Math.max(1, r.t); by = Object.fromEntries(r.g.heroes.map((h) => [h.id, h.dmgDone * WIN / Math.max(1, r.t)])); }
+      return { win: r.win, d: d0, by, ids };
+    };
+    const tot = {};
+    for (const c of listArg('ch', '1,2,3,4,5,6,7,8').map(Number)) {
+      let wOn = 0, wOff = 0, dOn = 0, dOff = 0, n = 0; const mOn = {}, mOff = {};
+      for (const k of nos) {
+        const s = (c - 1) * 10 + k;
+        for (let i = 1; i <= N; i++) {
+          const seed = i * 173 + s * 11, a = one(s, { seed, skills: true }), b = one(s, { seed, skills: false });
+          wOn += a.win ? 1 : 0; wOff += b.win ? 1 : 0; dOn += a.d; dOff += b.d; n++;
+          if (member) for (const id of a.ids) { const m = one(s, { seed, skills: true, noSkFor: id }); mOn[id] = (mOn[id] || 0) + (a.by[id] || 0); mOff[id] = (mOff[id] || 0) + (m.by[id] || 0); const T = tot[id] || (tot[id] = [0, 0]); T[0] += a.by[id] || 0; T[1] += m.by[id] || 0; }
+        }
+      }
+      console.log(`${c}장  클리어 스킬 씀 ${Math.round((wOn / n) * 100)}% · 안 씀 ${Math.round((wOff / n) * 100)}% (차이 ${Math.round(((wOn - wOff) / n) * 100)}%p) · 앞 ${WIN}초 팀 피해 중 스킬 몫 ${Math.round((1 - dOff / Math.max(1, dOn)) * 100)}%` + (member ? '  · 멤버 ' + Object.keys(mOn).map((id) => `${NAME[id] || id} ${Math.round((1 - mOff[id] / Math.max(1, mOn[id])) * 100)}%`).join(' ') : ''));
+    }
+    if (member) console.log('멤버 전체: ' + Object.entries(tot).map(([id, [a, b]]) => `${NAME[id] || id} ${Math.round((1 - b / Math.max(1, a)) * 100)}%`).join(' · '));
+  }
+  if (what === 'skshare') skshare();
   if (what === 'decks') for (let s = 1; s <= 60; s++) console.log(D.stageLabel(s), balFor(D.chapterOf(s), s, false).join(','));
   // 장 체력 맞춤 (node scripts/lb-balance.js chcalib [--ch=1,..,8] [--seeds=6] [--iters=5] [--hell]) — 장 평균 클리어율이 목표가 되게 TENSION.chHp(헬: TEMPO.hellCh) 를 로그 이분 탐색
   if (what === 'chcalib') {
@@ -1163,6 +1216,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  화면 전투력(POWER_BASE)을 정하는 측정: 정해 둔 동료 3명(강화 fm) + 시험 멤버 1명(+0 · ★1 · 장비 없음)으로 여러 스테이지
   //  점수 = 이기면 1 + 남은 입구, 지면 깬 웨이브 비율 · 같은 판을 '건전남 + 공격 장비 k' 로도 돌려
   //  "건전남 +0 의 몇 배 공격력과 같은 도움인가"(= 환산 배수)로 바꾼다 — 딜러 · 탱커 · 힐러를 한 잣대로
+  let SKSTAT = null; // --skstat: 시험 멤버 스킬 횟수 · 기세 부족 · 피해 몫
   function powercalib() {
     const N = opt('seeds', 3), plus = opt('meta', 2);
     const list = listArg('list', '12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50').map(Number);
@@ -1179,7 +1233,8 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
         const gear = Object.fromEntries(team.map((y) => [y, {}])); gear[x] = gearX || {};
         for (const s of list) for (let i = 1; i <= N; i++) {
           const meta = Object.fromEntries(ids.map((y) => [y, mOf(s)]));
-          const r = play({ stage: s, deck: placeDeck(ids), partner: team[0], leader: team[0], meta, gear, items: itemsAt(s), seed: i * 173 + s * 11, unlocked: [], skills: true, control: true, join: true, tempo: true, stars: {} });
+          const r = play({ stage: s, deck: placeDeck(ids), partner: team[0], leader: team[0], meta, gear, items: itemsAt(s), seed: i * 173 + s * 11, unlocked: [], skills: true, control: true, join: true, tempo: true, stars: {}, onEvents: SKSTAT ? (g, evs) => { for (const e of evs) if (e.hero === x && (e.type === 'skill' || e.type === 'noMomentum')) SKSTAT[e.type] = (SKSTAT[e.type] || 0) + 1; } : undefined });
+          if (SKSTAT) { SKSTAT.n = (SKSTAT.n || 0) + 1; SKSTAT.t = (SKSTAT.t || 0) + r.t; const hh = r.heroes[x]; if (hh) SKSTAT.dmg = (SKSTAT.dmg || 0) + hh.dmg / Math.max(1, r.dmg); SKSTAT.win = (SKSTAT.win || 0) + (r.win ? 1 : 0); SKSTAT.hp = (SKSTAT.hp || 0) + (r.win ? r.hp : 0); }
           tot += score(r); n++;
         }
       }
@@ -1214,9 +1269,12 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     }
     const out = {};
     for (const id of ids) {
-      const v = id === 'gunman' ? ref[0][1] : run(id);
+      if (args.includes('--skstat')) SKSTAT = {};
+      const v = id === 'gunman' && !SKSTAT ? ref[0][1] : run(id);
       out[id] = +equiv(v).toFixed(3);
-      console.log(pad(NAME[id] || id, 10) + pad('T' + D.heroTier(id), 4) + pad(D.heroRole(id), 9) + pad(v.toFixed(3), 8) + '× ' + out[id].toFixed(2));
+      const k = SKSTAT, st = k ? `  · 스킬 ${((k.skill || 0) / k.n).toFixed(1)}번/판 (${((k.skill || 0) / (k.t / 60)).toFixed(2)}/분) · 기세 부족 ${((k.noMomentum || 0) / k.n).toFixed(1)} · 피해 몫 ${Math.round((k.dmg / k.n) * 100)}% · 클리어 ${Math.round((k.win / k.n) * 100)}% · 남은 입구 ${Math.round((k.hp / Math.max(1, k.win)) * 100)}%` : '';
+      SKSTAT = null;
+      console.log(pad(NAME[id] || id, 10) + pad('T' + D.heroTier(id), 4) + pad(D.heroRole(id), 9) + pad(v.toFixed(3), 8) + '× ' + out[id].toFixed(2) + st);
     }
     console.log('JSON ' + JSON.stringify(out));
   }
