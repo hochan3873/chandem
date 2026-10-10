@@ -1351,9 +1351,9 @@ function handleEvents(g, loud) {
         fx.addShake(8);
         fx.ring(e.x, e.y, 10, 160, 0.6, '#ff3b30', 8);
         for (let k = 0; k < 16; k++) fx.part('flame', e.x + (Math.random() - 0.5) * 40, e.y + 10, (Math.random() - 0.5) * 60, -80 - Math.random() * 80, 0.8, 14, null);
-        { // 울다가 버럭! 큰 소주병을 진상 쪽으로 휙 (그림 연출만 — 피해는 sim 이 정한다)
-          let tg = null;
-          for (const o of g.enemies || []) if (!o.dead && o.y > 0 && (!tg || o.y > tg.y)) tg = o;
+        { // 울다가 버럭! 큰 소주병을 진상 쪽으로 휙 (피해는 sim rageBomb 이 같은 순간에)
+          let tg = e.tx !== undefined ? { x: e.tx, y: e.ty } : null; // (sim 이 고른 곳 — 실제 피해도 0.46초 뒤 여기에)
+          if (!tg) for (const o of g.enemies || []) if (!o.dead && o.y > 0 && (!tg || o.y > tg.y)) tg = o;
           if (tg) {
             const tx = tg.x, ty = tg.y;
             R.vfx('w_sojubottle', e.x, e.y - 34, { anim: 'fly', dur: 460, sz: 54, tx, ty, blend: 'source-over' });

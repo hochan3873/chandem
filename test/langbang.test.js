@@ -110,16 +110,20 @@ test('강성구 지팡이는 몰린 무리까지 고리를 그리며 나갔다 �
   assert.ok(max >= 1 && g.projs.filter((p) => !p.dead && p.type === 'cane').length === 0, '돌아와서 손에 쏙');
 });
 
-test('최은옥은 타이머가 지나면 분노 모드에 들어간다', () => {
+test('최은옥은 원샷(스킬)으로만 분노 모드에 들어간다 (저절로는 안 켜짐) · 분노가 터지는 순간 소주병 한 방', () => {
   const g = S.createGame({ rng: seeded(2), noWaves: true, heroes: ['eunok'] });
   const h = g.heroes[0];
-  const sober = D.HEROES.eunok.soberSec[0];
-  run(g, sober - 1);
-  assert.equal(h.rage, false);
+  run(g, 30);
+  assert.equal(h.rage, false, '30초가 지나도 저절로 분노하지 않는다');
   const normal = S.heroDamage(g, h);
-  run(g, 1.5);
+  const pack = [0, 1, 2].map((i) => S.spawnEnemy(g, 'drunk', 170 + i * 20, g.ropeY - 160, { hpMul: 50 }));
+  h.skillCd = 0;
+  assert.ok(S.castSkill(g, h));
   assert.equal(h.rage, true, '분노 모드 진입');
   assert.ok(g.events.some((e) => e.type === 'rage'));
+  assert.ok(h.rageBomb, '소주병이 날아가는 중');
+  run(g, 0.6);
+  assert.ok(!h.rageBomb && g.events.some((e) => e.type === 'splash' && e.proj === 'bottle') && pack.some((e) => e.hp < e.maxHp), '소주병이 0.46초 뒤 몰린 진상을 친다');
   assert.ok(S.heroDamage(g, h) > normal * (D.HEROES.eunok.rageDmg - 0.05));
   run(g, D.HEROES.eunok.rageSec[0] + 0.5);
   assert.equal(h.rage, false, '술 깸');
@@ -2040,7 +2044,7 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
   for (const id of ['staff', 'eunok']) { // (대개편: 건전남 권총 · 박상화 장미는 탄창 대신 한 발씩) · 예전 메모: 상화는 일부러 상향 (TEMPO.fix 1.38 → 1.7 → 2.9) → 3.1배 쯤
     const a = run(false, id), b = run(true, id);
     const r = b.dmg / a.dmg;
-    assert.ok(r > 0.7 && r < (id === 'sanghwa' ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
+    assert.ok(r > (id === 'eunok' ? 0.5 : 0.7) && r < (['sanghwa', 'staff'].includes(id) ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`); // (10/10 최은옥: 분노는 원샷으로만 — 기본 공격 DPS 는 낮고 스킬 분노에 몰림)
     const gaps = b.shots.slice(1).map((t, i) => t - b.shots[i]);
     const mn = Math.min(...gaps), mx = Math.max(...gaps);
     assert.ok(mx > mn * 2.5, `${id} 장전 리듬 (간격 ${mn.toFixed(2)} ~ ${mx.toFixed(2)})`);
@@ -2670,8 +2674,8 @@ test('역할 정리: 건전녀 = 멤버 간호 · 응급 방패 (입구는 조�
   g = bare(['jungmin']);
   g.phase = 'wave'; g.spawnQ = [{ type: 'yeokko', at: 999 }];
   g.base.hp = g.base.max * 0.5;
-  run(g, 3.2);
-  assert.ok(g.base.hp > g.base.max * 0.53, '홍정민 붕대 수리');
+  run(g, 3.7); // (10/10 수리 3.5초마다 · 2%)
+  assert.ok(g.base.hp > g.base.max * 0.515, '홍정민 붕대 수리');
 });
 
 test('겹침 정리: 김도훈 떼창(입구 덜 침) · 문동한 과자(간보기 +) · 박상화 꽃다발(자란 만큼) · 송바울 응원봉 부메랑 · 팬클럽 함성', () => {

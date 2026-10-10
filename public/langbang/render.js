@@ -2639,13 +2639,13 @@ export class Renderer {
         cx.fillStyle = 'rgba(0,0,0,0.6)'; cx.fillRect(hx - bw / 2, ly + 8, bw, 4);
         cx.fillStyle = '#ff8fb1'; cx.fillRect(hx - bw / 2, ly + 8, bw * f, 4);
       }
-      // 최은옥 술 게이지
-      if (h.def.soberSec) {
-        const max = h.rage ? h.def.rageSec[h.lv - 1] : h.def.soberSec[h.lv - 1];
-        const f = h.rage ? h.rageT / max : 1 - h.rageT / max;
+      // 최은옥 분노 남은 시간 (원샷으로만 켜진다)
+      if (h.def.rageSec && h.rage) {
+        const max = h.rageMax || h.def.rageSec[h.lv - 1];
+        const f = clamp01(h.rageT / max);
         const bw = 34;
         cx.fillStyle = 'rgba(0,0,0,0.6)'; cx.fillRect(hx - bw / 2, ly + 8, bw, 4);
-        cx.fillStyle = h.rage ? '#ff3b30' : '#ffb347'; cx.fillRect(hx - bw / 2, ly + 8, bw * f, 4);
+        cx.fillStyle = '#ff3b30'; cx.fillRect(hx - bw / 2, ly + 8, bw * f, 4);
       }
     }
     this.drawNag(g);
