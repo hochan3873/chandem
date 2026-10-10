@@ -2465,12 +2465,12 @@ export function gearStats(items, mythMul = 1) { // mythMul: 1:1 대전은 신화
 //               등급 평균 대비 비율의 제곱근 (판마다 ±20% 흔들려서 절반만) · 0.82 ~ 1.22 사이로 (등급 체급이 보이게)
 //   · 역할 = 공격 멤버(범위 · 단일) ×1.08 · 탱커 · 서포터 ×0.92 (주인 요청: 같은 등급이면 공격 멤버가 조금 위 — 측정만으로는 수리 · 해제 멤버가 오히려 위라서)
 //  강화 성장 = 실제 전투와 같은 식 (tierPowerM: 레벨당 공격력 + 5강마다 각성) · ★ = 공격력 +7% / ★
-export const POWER_BASE = {
-  gunman: 560, gunnyeo: 560, bangjang: 465, staff: 410, // T1 (체급 500)
-  jungmin: 675, eunok: 640, sanghwa: 585, myunghoon: 565, dohoon: 535, ingyu: 495, // T2 (체급 600)
-  baul: 920, hanna: 875, soyoung: 855, jieun: 855, jiwon: 790, wonsik: 785, youngjun: 780, sunggu: 655, donghan: 620, dragon: 620, subin: 575, jeongseob: 530, // T3 (체급 700)
-  hyungyeong: 890, ara: 830, junseo: 810, // T4 (체급 800)
-  byunghwa: 1000, hochan: 925, // 전설 (체급 925)
+export const POWER_BASE = { // (10/10 다시 잼: 봇 손보기 · 등급 맞춤 · 스킬 비중 뒤 — 멤버 몫 = 전체 중앙 대비 제곱근 · 0.8~1.25)
+  gunman: 585, staff: 475, gunnyeo: 470, bangjang: 370, // T1 (체급 500)
+  eunok: 715, myunghoon: 640, jungmin: 630, sanghwa: 625, dohoon: 525, ingyu: 465, // T2 (체급 600)
+  hanna: 785, donghan: 760, jieun: 760, dragon: 755, baul: 740, youngjun: 735, sunggu: 730, jiwon: 725, soyoung: 700, subin: 700, jeongseob: 655, wonsik: 645, // T3 (체급 700)
+  hyungyeong: 860, junseo: 800, ara: 795, // T4 (체급 800)
+  byunghwa: 960, hochan: 915, // 전설 (체급 925)
 };
 export const POWER_STAR = 0.07; // (live.js STAR_ATK 와 같아야 한다 — 테스트가 확인)
 // 장비 가치 (10/14 측정: powercalib --vars=atk:0.5,cd:0.35 — 멤버마다 맨몸 · 공격력 +50% · 쿨타임 −35% 를 같은 판들로 비교)
