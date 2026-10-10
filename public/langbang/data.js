@@ -978,10 +978,10 @@ const ART_READY = new Set(['h_jungmin', 'h_junyoung', 'h_soyoung', 'h_jieun', 'h
 //  바뀐 파일만 적는다 (전부 붙이면 배포마다 모두 다시 받아서 전송량이 폭증) · 다시 바꾸면 숫자를 올린다
 export const ART_VER = {
   h_subin: 2, h_subin_attack: 2, 'dex/subin': 2, 'dexhq/subin': 2, 'dexhq/thumb/subin': 2,
-  h_donghan_attack: 2, h_eunok_attack: 3, h_dragon_attack: 2, e_boss_bestman_attack: 2, e_boss_bestman_skill: 2, e_boss_bestman_rage: 2,
+  h_donghan_attack: 2, h_eunok_attack: 4, h_dragon_attack: 2, e_boss_bestman_attack: 2, e_boss_bestman_skill: 2, e_boss_bestman_rage: 2,
   h_donghan_cafe: 2, h_donghan_cafe_tf: 2, h_donghan_cafe_attack: 2, 'dex/donghan_cafe': 2, 'dexhq/donghan_cafe': 2, 'dexhq/thumb/donghan_cafe': 2, // 문동한 카페인 풀충전 새로 그림 (Gemini)
   'fx/w_card_r': 2, 'fx/w_card_y': 2, // 운영진 레드·옐로카드 광택 카드로 새로 그림 (Gemini)
-  h_eunok: 3, h_eunok_rage: 3, h_eunok_rage_attack: 3, 'dex/eunok': 3, 'dex/eunok_rage': 3, 'dexhq/eunok': 3, 'dexhq/eunok_rage': 3, 'dexhq/eunok_duo': 3, 'dexhq/thumb/eunok': 3, 'dexhq/thumb/eunok_rage': 3, 'dexhq/thumb/eunok_duo': 3, 'fx/w_cup': 3, // 최은옥 술버릇 컨셉으로 새로 그림 (울면서 소주잔 · 분노 소주병 · Gemini)
+  h_eunok: 4, h_eunok_rage: 4, h_eunok_rage_attack: 4, 'dex/eunok': 4, 'dex/eunok_rage': 4, 'dexhq/eunok': 4, 'dexhq/eunok_rage': 4, 'dexhq/eunok_duo': 4, 'dexhq/thumb/eunok': 4, 'dexhq/thumb/eunok_rage': 4, 'dexhq/thumb/eunok_duo': 4, 'fx/w_cup': 3, // 최은옥 술버릇 컨셉 (울면서 소주잔 · 분노 소주병) — 다른 멤버 그림체에 맞춰 다시 그림 (Gemini · 4)
   'season/halloween_key': 2, // (season.js 의 keyart 주소에도 ?v=2 를 직접 붙였다 — 허브 카드 · 로비 배경)
 };
 export const artV = (u) => { const m = typeof u === 'string' && /^\/img\/lb\/([^?]+)\.webp$/.exec(u); return m && ART_VER[m[1]] ? `${u}?v=${ART_VER[m[1]]}` : u; };
