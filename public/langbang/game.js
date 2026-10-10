@@ -2,7 +2,7 @@
 import {
   shortName,
   HEROES, ENEMIES, RULES, FIELD, BASE_HEROES, UNLOCK_HEROES, HIDDEN_HEROES, LOCKED_HEROES, RARITY, SCORE,
-  CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ITEMS, ITEM_IDS, itemCost,
+  CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ENDLESS_TIERS, endlessTier, endlessTierDef, endlessCoinParts, ITEMS, ITEM_IDS, itemCost,
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
@@ -626,7 +626,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.kill();
         fx.combo = g.combo;
         fx.comboPop = 1;
-        if (g.combo > 0 && g.combo % 25 === 0) fx.text(180, g.H * 0.22, `${g.combo} COMBO!!`, '#ffd23f', 24, 1.1, -20);
+        if (g.combo > 0 && (g.combo < 100 ? g.combo % 25 === 0 : g.combo % 100 === 0) && fx.time - (fx.comboTxtT || -9) > 3) { fx.comboTxtT = fx.time; fx.text(180, g.H * 0.24, `${g.combo} COMBO!!`, '#ffd23f', g.combo >= 100 ? 20 : 22, 1.1, -20); } // (100 넘으면 100마다 · 3초에 한 번 — 늦은 웨이브에 큰 글자가 계속 겹치던 것)
         break;
       }
       case 'shout': fx.bubble(e.x, e.y, e.text); break;
@@ -889,6 +889,7 @@ function handleEvents(g, loud) {
         const last = stageMode && e.wave >= g.totalWaves;
         const wk = WAVE_KINDS[e.kind] || WAVE_KINDS.N;
         const wsub = e.kind === 'S' ? `${wk.icon} 진상 떼가 몰려온다! (${n}명)` : e.kind === 'E' ? `${wk.icon} 정예 진상 ${n}명 — 한 방 공격으로!` : e.kind === 'M' ? `${wk.icon} 떼거리 + 정예 호위 (${n}명)` : `진상 ${n}명 접근 중!`;
+        if (g.mode === 'endless' && !g.pvp && (e.wave - 1) % 10 === 0) { const T = endlessTierDef(endlessTier(e.wave)); fx.banner(`${T.n}단계 · ${T.name}`, `${T.desc} · 돌파하면 +${fmt(T.clear)}코인`, T.n >= 4 ? '#a3121e' : T.n >= 3 ? '#c4471a' : '#2a6a3a', 2.4, 'big'); } // 무한: 새 단계 알림
         if (!e.boss && !g.wk) fx.banner(last ? '마지막 웨이브!' : `WAVE ${e.wave}${stageMode ? '/' + g.totalWaves : ''}`, wsub, e.kind === 'E' ? '#ff6b5a' : '#ffd23f', 1.7, 'wave'); // (주간은 wkWave 가 사건 이름으로)
         if (loud) { A.sfx.wave(); if (e.kind === 'S' || e.kind === 'B') A.sfx.rumble(); }
         if (live) saveSnap();
@@ -1176,7 +1177,7 @@ function handleEvents(g, loud) {
         if (loud) A.sfx.ult();
         break;
       case 'swap': fx.ring(e.x, e.y, 6, 50, 0.35, '#6ff0ff', 4); break;
-      case 'blackout': fx.text(180, g.H * 0.3, '정전!', '#ffe9a0', 22, 1.2, -10); fx.flash('#000000', 0.6); break;
+      case 'blackout': fx.text(180, g.H * 0.4, '정전!', '#ffe9a0', 22, 1.2, -10); fx.flash('#000000', 0.35); break; // (검은 번쩍 0.6 → 0.35: 고장으로 오해하지 않게)
       case 'lightsOn': fx.flash('#fff8d0', 0.25); break;
       case 'megaphone': fx.text(180, g.H * 0.26, '인피 확성기! 진상 가속', '#ff8a8a', 17, 1.2, -10); break;
       case 'puke':
@@ -1305,7 +1306,8 @@ function handleEvents(g, loud) {
         break;
       case 'waveClear':
         if (live) A.setBoss(false);
-        if (!e.last) fx.text(180, g.H * 0.36, `WAVE ${e.wave} 클리어!`, '#7dff9a', 24, 1.5, -12);
+        if (g.mode === 'endless' && !g.pvp && e.wave % 10 === 0) { const T = endlessTierDef(endlessTier(e.wave)), N = endlessTierDef(T.n + 1); fx.banner(`${T.n}단계 돌파!`, `+${fmt(T.clear)}코인 · 다음 ${N.n}단계 ${N.name}`, '#c77a00', 2.2, 'big'); fx.flash('#ffe27a', 0.3); } // 무한: 단계 보스를 깼다
+        else if (!e.last) fx.text(180, g.H * 0.36, `WAVE ${e.wave} 클리어!`, '#7dff9a', 24, 1.5, -12);
         if (loud) A.sfx.clear();
         break;
       case 'victory':
@@ -1472,7 +1474,7 @@ function updateHud() {
     if (g.mapFx.id !== 'none') fx.banner(`${g.mapFx.icon} ${g.mapFx.name}`, g.mapFx.desc, '#23336a', 1.8, 'big');
   }
   if (R2UI && g.r2) R2UI.hudTick(g);
-  setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.phase ? ` · ${PV.PVP_ESC.name[g.pvp.phase]}` : ''}` : g.r2 ? `철거까지 ${Math.max(0, Math.ceil(R2UI.sec - g.t))}초` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.wk ? `${g.wk.mod.name} · W${w}/${g.totalWaves}` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : g.ev ? `🎃 할로윈 ${g.ev.n} · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `WAVE ${w} ∞`);
+  setText(H$.wave, 'wave', g.tower ? `지옥 ${g.tower.f}F · WAVE ${w}/${g.totalWaves}` : g.pvp ? `대전 · WAVE ${w}${g.pvp.phase ? ` · ${PV.PVP_ESC.name[g.pvp.phase]}` : ''}` : g.r2 ? `철거까지 ${Math.max(0, Math.ceil(R2UI.sec - g.t))}초` : g.raid ? `레이드 · ${Math.max(0, Math.ceil(g.raid.sec - g.t))}초` : g.wk ? `${g.wk.mod.name} · W${w}/${g.totalWaves}` : g.weekly ? `주간 · WAVE ${w}/${g.totalWaves}` : g.ev ? `🎃 할로윈 ${g.ev.n} · WAVE ${w}/${g.totalWaves}` : stageMode ? `${g.hell ? 'HELL ' : ''}${stageLabel(g.stage)} · WAVE ${w}/${g.totalWaves}` : `${endlessTier(Math.max(1, w))}단계 · W${w}`);
   setText(H$.time, 'time', `${Math.floor(g.t / 60)}:${String(Math.floor(g.t % 60)).padStart(2, '0')}`);
   if (g.pvp) setText(H$.time, 'time', `남은 ${PV.pvpLeftText(S.pvpTime(g))}`); // 1:1 대전: 5분 판정까지 남은 시간
   // 방어선 위험 경고
@@ -1481,7 +1483,7 @@ function updateHud() {
   app.hudCache.lowWarn = low;
   hud.classList.toggle('danger', low);
   H$.wave.classList.toggle('boss', bossWave && g.phase !== 'break');
-  setText(H$.left, 'left', (g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : g.r2 ? `입구가 버티는 동안 때려라!${g.r2.angry ? ` · 화 ${g.r2.angry}` : ''}` : `남은 진상 ${S.enemiesLeft(g)}`) + (g.stats.envStolen ? ` · 축의금 도난 ${g.stats.envStolen} (−${Math.round(thiefCut(g.stats.envStolen) * 100)}%)` : '')); // 8장: 놓친 축의금 도둑
+  setText(H$.left, 'left', (g.phase === 'break' ? (g.wave === 0 ? '준비!' : '잠깐 숨 돌리기') : g.r2 ? `입구가 버티는 동안 때려라!${g.r2.angry ? ` · 화 ${g.r2.angry}` : ''}` : `남은 진상 ${S.enemiesLeft(g)}`) + (g.mode === 'endless' && !g.pvp ? endlessNextText(g) : '') + (g.stats.envStolen ?` · 축의금 도난 ${g.stats.envStolen} (−${Math.round(thiefCut(g.stats.envStolen) * 100)}%)` : '')); // 8장: 놓친 축의금 도둑
   setText(H$.fx, 'fx', g.mapFx.id === 'none' ? '' : g.mapFx.icon);
   setText(H$.kills, 'kills', fmt(g.stats.kills));
   setText(H$.score, 'score', g.mode === 'endless' && ((g.scoreMul || 1) * (g.streak || 1)) > 1.001 ? `${fmt(g.stats.score)} ×${((g.scoreMul || 1) * (g.streak || 1)).toFixed(2)}` : fmt(g.stats.score));
@@ -1587,7 +1589,7 @@ function frame(now) {
     let n = 0;
     while (acc >= STEP && n < maxSteps) {
       if (live && DEBUG.stress) stressFill(g);
-      S.step(g, STEP);
+      try { S.step(g, STEP); } catch (e) { stepErr(e); acc = 0; break; } // 한 스텝이 오류를 내도 화면 · 판은 계속 (한 번만 알림)
       acc -= STEP;
       n++;
       if (!live) { g.pendingLevels = 0; if (g.base.hp < g.base.max) g.base.hp = g.base.max; }
@@ -1602,7 +1604,7 @@ function frame(now) {
   }
   fx.update(dt);
   if (app.skLink && app.skLink.el && app.g) { const cr = canvas.getBoundingClientRect(), br = app.skLink.el.getBoundingClientRect(); app.skLink.x = ((br.left + br.width / 2 - cr.left) / cr.width) * FIELD.W; app.skLink.y = ((br.top + br.height * 0.3 - cr.top) / cr.height) * app.g.H; app.skLink.h = app.g.heroes.find((o) => o.slot === app.skLink.slot); }
-  R.draw(g, app);
+  R.draw(g, app, dt);
   hudT -= dt;
   if (live && hudT <= 0) { hudT = 1 / 15; updateHud(); renderSkillbar(); checkNewEnemies(live); if (app.infoHero && !bubble.hidden && (app.infoTick = (app.infoTick || 0) + 1) % 4 === 0) bubble.innerHTML = heroStatsHtml(live, app.infoHero); }
   const work = performance.now() - t0;
@@ -1628,6 +1630,12 @@ function frame(now) {
   }
 }
 
+// 무한: 다음 단계 돌파 보상 미리보기 (HUD 둘째 줄) — "W30 +400" (짧게: 한 줄에)
+function endlessNextText(g) {
+  const w = Math.max(1, g.phase === 'break' ? g.wave + 1 : g.wave), T = endlessTierDef(endlessTier(w));
+  return ` · W${T.n * 10} +${fmt(T.clear)}`;
+}
+function stepErr(e) { const n = (stepErr.n = (stepErr.n || 0) + 1); if (n === 1) { try { console.warn('[랑방 판] step 오류', e); } catch { /* 무시 */ } } window.__lbStepErr = { n, msg: String((e && e.message) || e).slice(0, 160) }; }
 // 성능 측정용: 적 N마리 유지
 function stressFill(g) {
   let alive = 0;
@@ -2543,7 +2551,7 @@ function showMail() {
 const REWARD_INFO = {
   weekly: () => `<h3>${ic('calendar', '', 'sm')}주간 도전 보상</h3><div class="ilist"><p class="ip">${ic('check', '', 'sm')}막은 웨이브만큼 코인 (끝까지 ${L.weeklyCoins(L.WEEKLY_WAVES)})</p><p class="ip">${ic('check', '', 'sm')}다음 주 순위 보상: 1위 5,000 · 2~3위 3,000 · 4~10위 1,500 · 참가 600 (+ 모집권)</p><p class="ip">${ic('check', '', 'sm')}점수는 몇 번이든 도전해서 가장 높은 것 하나</p></div>`,
   pvpTiers: () => `<h3>1:1 대전 등급 보상</h3><p class="ip">처음 오른 등급마다 한 번씩 우편으로 와요</p><div class="tier-rw">${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<div class="trw">${tierEmb(min, 'sm')}<span><b>${esc(name)}</b><small>${min}점</small></span><em>${gotText({ coins: rw.coins, tickets: rw.tickets })}${rw.gear ? ' · 장비' : ''}</em></div>`).join('')}</div>`,
-  endless: () => { const p = P(), left = L.endlessLeft(p); return `<h3>${ic('infinity', '', 'sm')}무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><div class="ilist">${L.ENDLESS.miles.map((w) => `<p class="ip">${ic('check', '', 'sm')}${w}웨이브 첫 달성(주마다) — ${esc(gotText(L.milestoneReward(w)))}${p.ew && p.ew.wi === L.weekIndex() && p.ew.miles.includes(w) ? '' : ''}</p>`).join('')}</div><p class="ip">웨이브 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 ${L.endlessWeekReward(4).tickets} · 참가 보상 (우편함)</p>`; },
+  endless: () => { const p = P(), left = L.endlessLeft(p), wk = p.ew && p.ew.wi === L.weekIndex() ? p.ew.miles : []; return `<h3>${ic('infinity', '', 'sm')}무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><p class="ip">10웨이브 = 한 단계 · 10 · 20 · 30 … 웨이브는 <b>단계 보스</b> · 갈수록 진상이 확 세져서 오래 버티는 판이 아니에요 (보통 10~20분)</p><div class="ilist">${L.ENDLESS.miles.map((w) => { const T = endlessTierDef(w / 10); return `<p class="ip">${ic(wk.includes(w) ? 'check' : 'gift', '', 'sm')}<b>${T.n}단계 ${esc(T.name)}</b> — ${esc(T.desc)} · 판 코인 웨이브마다 ${T.perWave} · 돌파 +${fmt(T.clear)} · 주간 첫 돌파 ${esc(gotText(L.milestoneReward(w)))}</p>`; }).join('')}</div><p class="ip">판 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 ${L.endlessWeekReward(4).tickets} · 참가 보상 (우편함)</p>`; },
   pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>${ic('swords', '', 'sm')}1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">${ic('trophy', '', 'sm')}${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? '' : ''}</p>`).join('')}</div>`; },
 };
 // 증강: 셋 중 하나 (15초면 첫 번째) · 등급 빛 · 뒤집히며 등장
@@ -2672,7 +2680,7 @@ function showModes() {
   const card = (act, art, name, desc, info, { locked = false, hot = false, dot = false } = {}) => `<button class="md-card ${locked ? 'locked' : ''} ${hot ? 'hot' : ''}" data-act="${act}">${art}<span class="md-t"><b>${name}</b><small>${desc}</small></span><em class="md-i">${info}</em>${locked ? `<i class="md-lock">${ic('lock', '', 'sm')}</i>` : ''}${rdot(dot)}</button>`;
   const cards = [
     card('weekly', uiIco('weekly', ''), '주간 도전', '한 주 최고 점수 겨루기', wkOpen ? `${ic('clock', '', 'sm')}${L.leftText(L.msToWeekEnd(now))} 남음` : `${stageLabel(L.WEEKLY_UNLOCK)} 클리어`, { locked: !wkOpen, dot: d.weekly }),
-    card('endless', lbArt('infinity', 'infinity'), '무한 도전', '끝없는 웨이브 버티기', p.endlessUnlocked ? `최고 W${p.bestWave || 0} · 오늘 ${p.master && !p.testNormal ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}` : `${stageLabel(ENDLESS_UNLOCK)} 클리어`, { locked: !p.endlessUnlocked }),
+    card('endless', lbArt('infinity', 'infinity'), '무한 도전', '10웨이브마다 단계 · 갈수록 확 세진다', p.endlessUnlocked ? `최고 W${p.bestWave || 0} · 오늘 ${p.master && !p.testNormal ? '∞' : L.endlessLeft(p)}/${L.ENDLESS.perDay}` : `${stageLabel(ENDLESS_UNLOCK)} 클리어`, { locked: !p.endlessUnlocked }),
     R2UI.modeCard(p, card, uiIco('raid', '')), // 건물주 레이드 (예전 모임 레이드 자리)
     card('pvp', uiIco('pvp', ''), '1:1 대전', '실시간으로 겨루기', `${pvpN}점`),
     card('season', uiIco('season', ''), '시즌', '단계마다 시즌 보상', `${L.seasonTier(p)}/${L.SEASON_TIERS}단계`, { dot: d.season }),
@@ -5967,9 +5975,15 @@ async function saveResult(sum, g) {
     if (rw.stolen) lines.push(`<div class="rw"><span>축의금 도난 (도둑 ${rw.stolenN || 0}명 놓침)</span><b style="color:#ff8a8a">−${fmt(rw.stolen)}</b></div>`);
     if (rw.hell) lines.push(`<div class="rw hl hellrw"><span>${ic('fire', '', 'sm')}헬 모드 보상 ×${HELL.coin}</span><b>포함</b></div>`);
     if (rw.bonus) lines.push(`<div class="rw"><span>${ic('ticket', '', 'sm')}단골 쿠폰</span><b>+${fmt(rw.bonus)}</b></div>`);
+  } else if (!sum.weekly) {
+    // 무한: 단계별 보상 내역 (깬 웨이브 코인 · 돌파한 단계 보너스) · 다음 단계까지
+    const cp = endlessCoinParts(sum.wave), tierN = Math.floor(cp.cleared / 10), nxt = endlessTierDef(tierN + 1);
+    lines.push(`<div class="rw"><span>${ic('wave', '', 'sm')}깬 웨이브 ${cp.cleared}개 (${endlessTier(Math.max(1, sum.wave))}단계까지)</span><b>+${fmt(cp.waves)}</b></div>`);
+    if (cp.tiers) lines.push(`<div class="rw hl"><span>${ic('crown', '', 'sm')}단계 돌파 ${tierN}번</span><b>+${fmt(cp.tiers)}</b></div>`);
+    lines.push(`<div class="rw"><span>다음 목표: W${nxt.n * 10} ${nxt.n}단계 돌파</span><b>+${fmt(nxt.clear)} · 주간 첫 돌파 보상</b></div>`);
   }
   lines.push(`<div class="rw total"><span><i class="ci"></i>${stageMode ? '받은 코인' : `웨이브 ${sum.wave} 보상`}</span><b>+${fmt(rw.total || 0)}</b></div>`);
-  if (!stageMode && r.endless) { if (r.endless.capped) lines.push('<div class="rw"><span>오늘 무한 코인 상한 도달</span><b>' + fmt(L.ENDLESS.coinCap) + '</b></div>'); if (r.endless.weekBest) lines.push('<div class="rw hl"><span>이번 주 최고 점수!</span><b>주간 순위 ↑</b></div>'); if (L.mailCount(P()) > 0) lines.push('<div class="rw"><span>달성 보상이 우편함에 왔어요</span><b>' + L.mailCount(P()) + '</b></div>'); }
+  if (!stageMode && r.endless) { if (r.endless.capped) lines.push('<div class="rw"><span>오늘 무한 코인 상한 도달</span><b>' + fmt(L.ENDLESS.coinCap) + '</b></div>'); if (r.endless.weekBest) lines.push('<div class="rw hl"><span>이번 주 최고 점수!</span><b>주간 순위 ↑</b></div>'); if (L.mailCount(P()) > 0) lines.push('<div class="rw"><span>단계 돌파 보상이 우편함에 왔어요</span><b>' + L.mailCount(P()) + '</b></div>'); }
   const badges = [];
   if (r.levelUp) badges.push(`<span class="badge pink">계정 레벨 업! Lv.${p.level}</span>`);
   if (r.newBestWave) badges.push('<span class="badge">최고 웨이브 갱신!</span>');

@@ -2047,6 +2047,7 @@ img.ic.lg { width: 1.6em; height: 1.6em; vertical-align: -0.4em; }
 .card-list.v2.strip.n2 { grid-template-columns: repeat(2, 1fr); padding: 0 16%; }
 .card-list.v2.strip.n5, .card-list.v2.strip.n6 { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; } .card-list.v2.strip.n5 .card, .card-list.v2.strip.n6 .card { flex: 0 0 23%; scroll-snap-align: start; }
 /* HUD 제목 한 줄 · 넘치면 작게 */
+#h-left { white-space: nowrap; } /* 무한 단계 미리보기가 붙어도 한 줄 */
 #h-wave { white-space: nowrap; display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: min(calc(var(--u) * 17), 4.6vw); }
 .wave-box { min-width: 0; flex: 1 1 auto; }
 /* 스킬 이름: 두 줄까지 · 작게 (잘리지 않게) */

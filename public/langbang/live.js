@@ -1102,8 +1102,9 @@ export function staminaBuy(lb, now = Date.now()) {
   staminaAdd(lb, STAMINA.buy.n, now);
   return { cost, sta: staminaNow(lb, now).v, left: STAMINA.buy.perDay - b.n - 1 };
 }
-// ─── 무한 도전: 하루 3번 (05:00 KST 초기화) · 웨이브 달성 보상(주마다 처음 한 번) · 웨이브 코인 하루 상한 ───
-export const ENDLESS = { perDay: 3, coinCap: 6000, miles: [10, 20, 30, 40, 50], resetH: 5 };
+// ─── 무한 도전: 하루 3번 (05:00 KST 초기화) · 단계 돌파 보상(주마다 처음 한 번) · 판 코인 하루 상한 ───
+//  (10/10 단계 개편) 10웨이브 = 한 단계 · 10 · 20 · 30 … 웨이브 단계 보스를 깨면(다음 웨이브 도달) 그 단계 돌파 · 하루 상한 6000 → 6500
+export const ENDLESS = { perDay: 3, coinCap: 6500, miles: [10, 20, 30, 40, 50, 60], resetH: 5 };
 export const endlessDay = (now = Date.now()) => Math.floor((now + KST - ENDLESS.resetH * 3600e3 - EPOCH) / DAY);
 export const endlessLeft = (lb, now = Date.now()) => ENDLESS.perDay - (lb.endDay && lb.endDay.day === endlessDay(now) ? lb.endDay.n : 0);
 export function endlessStart(lb, free, now = Date.now()) {
@@ -1115,7 +1116,8 @@ export function endlessStart(lb, free, now = Date.now()) {
 }
 export function milestoneReward(w) {
   const i = ENDLESS.miles.indexOf(w);
-  return [{ coins: 800, tickets: 1 }, { coins: 1600, tickets: 2, gear: 'rare' }, { coins: 3000, tickets: 3, gear: 'epic' }, { coins: 5000, tickets: 4, gear: 'epic' }, { coins: 8000, tickets: 5, gear: 'myth' }][i] || null;
+  // 단계 돌파 (예전 10~50웨이브 '도달' 보상보다 앞 단계를 두껍게: 보통 계정이 닿는 1~3단계에 몰아서 · 주간 합계는 비슷)
+  return [{ coins: 1500, tickets: 2 }, { coins: 3000, tickets: 3, gear: 'rare' }, { coins: 5000, tickets: 4, gear: 'epic' }, { coins: 7000, tickets: 5, gear: 'epic' }, { coins: 9000, tickets: 6, gear: 'myth' }, { coins: 12000, tickets: 8, gear: 'myth' }][i] || null;
 }
 // 끝난 무한 판 정리: 주간 최고 · 달성 보상(우편함) · 코인 상한
 export function endlessFinish(lb, wave, score, coins, uid, now = Date.now()) {
@@ -1123,7 +1125,7 @@ export function endlessFinish(lb, wave, score, coins, uid, now = Date.now()) {
   if (!lb.ew || lb.ew.wi !== wi) { if (lb.ew && lb.ew.wi === wi - 1) lb.ewPrev = lb.ew; lb.ew = { wi, best: 0, miles: [] }; }
   const newBest = score > lb.ew.best;
   if (newBest) lb.ew.best = score;
-  for (const m of ENDLESS.miles) if (wave >= m && !lb.ew.miles.includes(m)) { lb.ew.miles.push(m); mailAdd(lb, { title: `무한 ${m}웨이브 달성`, text: '이번 주 처음 달성 보상', rw: milestoneReward(m) }, now); }
+  for (const m of ENDLESS.miles) if (wave > m && !lb.ew.miles.includes(m)) { lb.ew.miles.push(m); mailAdd(lb, { title: `무한 ${m / 10}단계 돌파`, text: `${m}웨이브 단계 보스를 깼어요 · 이번 주 처음 돌파 보상`, rw: milestoneReward(m) }, now); } // (도달 웨이브 > m = m웨이브를 깸)
   const ec = lb.endCoins && lb.endCoins.day === day ? lb.endCoins : { day, v: 0 };
   const give = Math.max(0, Math.min(coins, ENDLESS.coinCap - ec.v));
   lb.endCoins = { day, v: ec.v + give };
@@ -1132,6 +1134,9 @@ export function endlessFinish(lb, wave, score, coins, uid, now = Date.now()) {
 }
 // 무한 계약(저주) 코인 배율: 화면이 보낸 배율은 믿지 않고, 받은 계약 이름으로 서버가 다시 계산한다
 //  계약은 6 · 11 · 16 … 웨이브 시작에 하나씩 → 도달 웨이브로 개수 상한 · 종류마다 한 번
+// 서버 기록 확인: 무한 처치 · 보스 처치 상한 (단계 개편 — 15웨이브부터 진상 수 상한 · 31웨이브부터 매 웨이브 보스 · 40웨이브부터 둘)
+export const endlessKillCap = (wave) => 300 * (int(wave, 0, 9999) + 1) + 500;
+export const endlessBossCap = (wave) => { const w = int(wave, 0, 9999); return Math.floor(w / 5) + 1 + 2 * Math.max(0, w - 30); };
 export function endlessCoinMul(curses, wave) {
   const ids = [...new Set((Array.isArray(curses) ? curses : []).map(String))].filter((k) => CURSES[k]).slice(0, Math.max(0, Math.floor((int(wave, 0, 9999) + 1) / 5)));
   return ids.reduce((m, k) => m * (CURSES[k].coin || 1), 1);

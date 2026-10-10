@@ -542,8 +542,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         wave = int(body.wave, 99);
       } else {
         wave = int(body.wave, 999);
-        // 무한: 웨이브마다 진상이 늘어서 처치·점수가 웨이브²으로 는다 (40웨이브 ≈ 처치 2.3만 · 점수 160만) — 예전 상한(웨이브×400)은 30웨이브 넘으면 기록을 버렸다
-        if (score > 10 * (1000 * Math.pow(wave + 1, 2.3) + 50000 * (wave + 1)) || kills > 40 * (wave + 1) * (wave + 1) + 400 * (wave + 1)) throw bad(); // (계약 ×5 · 스킬 연속 ×2 배율까지)
+        // 무한 (10/10 단계 개편): 15웨이브부터 한 웨이브 진상 수 상한(90 → 14) — 처치는 웨이브에 비례 (실측 33웨이브 ≈ 처치 1,700 · 점수 200만)
+        if (score > 10 * (1000 * Math.pow(wave + 1, 2.3) + 50000 * (wave + 1)) || kills > LIVE.endlessKillCap(wave)) throw bad(); // (계약 ×5 · 스킬 연속 ×2 배율까지)
         if (wave >= 3 && dur < wave * 8) throw bad();
       }
       let out = null, bkRun = null;
@@ -556,6 +556,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (mode === 'stage' && stage > before.maxStage + 1 && !master) { out = { error: '아직 열리지 않은 스테이지예요' }; return; }
         if (mode === 'endless' && !LBR.endlessUnlocked(before)) { out = { error: '무한 도전은 1-10을 깨면 열려요' }; return; }
         const now = Date.now();
+        if (mode === 'endless' && before.endRun && !master && dur > ((now - before.endRun.at) / 1000) * 2.3 + 20) { out = { error: '기록을 확인할 수 없어요' }; return; } // 게임 시간 ≤ 실제 시간 × 2 배속 (+여유) — 시작을 서버에 알린 판만
         // 주간 도전: 서버가 준 판 번호 · 시간이 맞아야 한다. 점수는 서버가 계산
         let wk = null;
         if (mode === 'weekly') {
@@ -584,7 +585,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           rd = { wi: run.wi, dmg, help: help ? { nick: help.nick, hero: help.hero } : null };
         }
         // 미션용 숫자도 서버가 상한을 건다
-        const bosses = Math.min(int(body.bossKills, 99), mode === 'stage' ? LIVE.stageBossN(stage) : mode === 'weekly' ? 20 : mode === 'raid' ? 0 : Math.floor(wave / 5) + 1);
+        const bosses = Math.min(int(body.bossKills, 99), mode === 'stage' ? LIVE.stageBossN(stage) : mode === 'weekly' ? 20 : mode === 'raid' ? 0 : LIVE.endlessBossCap(wave));
         const skills = LIVE.skillCap(body.skills, dur);
         const hell = mode === 'stage' && body.hell === true;
         if (hell && !LBR.hellOpen(before.stages, stage, master)) { out = { error: '헬 모드는 일반 ★★★ 로 깬 스테이지만 열려요' }; return; }

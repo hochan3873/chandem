@@ -102,9 +102,13 @@ function migrateDeckItems(items) {
   delete items.slot7;
   return items;
 }
+// 무한 도전 단계 (화면 data.js ENDLESS_TIERS 와 같음 — 테스트가 검사): 깬 웨이브마다 perWave · 깬 단계 보스마다 clear
+const ENDLESS_TIERS = [{ perWave: 25, clear: 150 }, { perWave: 40, clear: 300 }, { perWave: 50, clear: 400 }, { perWave: 80, clear: 700 }, { perWave: 110, clear: 900 }, { perWave: 140, clear: 1200 }];
 function endlessReward(wave, couponLv = 0) {
-  const w = Math.max(0, Math.floor(wave));
-  return Math.round((12 * w + w * w) * (1 + itemValue('coupon', couponLv)));
+  const c = Math.max(0, Math.floor(wave) - 1);
+  let sum = 0;
+  for (let n = 1; n <= c; n++) { const T = ENDLESS_TIERS[Math.min(Math.ceil(n / 10), ENDLESS_TIERS.length) - 1]; sum += T.perWave + (n % 10 === 0 ? T.clear : 0); }
+  return Math.round(sum * (1 + itemValue('coupon', couponLv)));
 }
 const stageLabel = (s) => `${Math.ceil(s / STAGES_PER_CHAPTER)}-${((s - 1) % STAGES_PER_CHAPTER) + 1}`;
 
@@ -305,5 +309,5 @@ module.exports = {
   heroCardNeed, rollHeroCard, CARD_PICK,
   GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
   LB_HEROES, HIDDEN, GACHA, LOCKED, HERO_TIER, TIER_MAX, metaMaxOf, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, HIDDEN_COND, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
-  metaCost, itemCost, itemValue, itemLvCap, itemGateCh, ITEM_LV_CAP, ITEM_TOP, clearCoins, stageReward, endlessReward, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
+  metaCost, itemCost, itemValue, itemLvCap, itemGateCh, ITEM_LV_CAP, ITEM_TOP, clearCoins, stageReward, endlessReward, ENDLESS_TIERS, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };
