@@ -121,7 +121,9 @@ test('최은옥은 원샷(스킬)으로만 분노 모드에 들어간다 (저절
   assert.ok(S.castSkill(g, h));
   assert.equal(h.rage, true, '분노 모드 진입');
   assert.ok(g.events.some((e) => e.type === 'rage'));
-  assert.ok(pack.some((e) => e.hp < e.maxHp), '소주병이 몰린 진상을 친다');
+  assert.ok(h.rageBomb, '소주병이 날아가는 중');
+  run(g, 0.6);
+  assert.ok(!h.rageBomb && g.events.some((e) => e.type === 'splash' && e.proj === 'bottle') && pack.some((e) => e.hp < e.maxHp), '소주병이 0.46초 뒤 몰린 진상을 친다');
   assert.ok(S.heroDamage(g, h) > normal * (D.HEROES.eunok.rageDmg - 0.05));
   run(g, D.HEROES.eunok.rageSec[0] + 0.5);
   assert.equal(h.rage, false, '술 깸');

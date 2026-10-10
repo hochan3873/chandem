@@ -234,8 +234,10 @@ export class KitFx {
         cx.strokeStyle = '#fff'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, z.r, 0, TAU); cx.stroke();
         cx.globalCompositeOperation = 'lighter'; cx.fillStyle = 'rgba(255,255,255,0.25)'; cx.beginPath(); cx.arc(0, 0, z.r * (0.3 + 0.2 * Math.sin(now * 12)), 0, TAU); cx.fill(); cx.globalCompositeOperation = 'source-over';
       } else if (z.kind === 'fuse') { // 최은옥 시한폭탄: 바닥에 꽂힌 병 · 지글지글 심지 · 남은 시간 고리
-        R.tf(z.x, z.y, 0.3, 1, 1); cx.globalAlpha = 1;
-        cx.fillStyle = z.p && z.p.fire ? '#ff6a3a' : '#5fd27a'; cx.fillRect(-4, -16, 8, 18); cx.fillRect(-2, -22, 4, 6);
+        const fz = z.p && z.p.fire, fim = R.images[fz ? 'w_sojubottle' : 'w_cup'], wob = Math.sin(now * 30) * 0.08; // 꽂힌 소주잔 (분노 땐 소주병) · 부들부들
+        R.tf(z.x, z.y, (fz ? 0.5 : 0.15) + wob, 1, 1); cx.globalAlpha = 1;
+        if (imgOk(fim)) { const sz = fz ? 30 : 20; cx.drawImage(fim, -sz / 2, -sz * 0.85, sz, sz); }
+        else { cx.fillStyle = fz ? '#ff6a3a' : '#5fd27a'; cx.fillRect(-4, -16, 8, 18); cx.fillRect(-2, -22, 4, 6); }
         R.tf(z.x, z.y + 4, 0, 1, 0.45); cx.strokeStyle = '#ffd23f'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, 18, -Math.PI / 2, -Math.PI / 2 + TAU * c01(z.t / z.max)); cx.stroke();
         if (Math.random() < 0.6) this.fx.part('spark', z.x + 6, z.y - 22, (Math.random() - 0.5) * 60, -40 - Math.random() * 40, 0.25, 3, '#ffd23f');
       } else if (z.kind === 'dive') { // 박나영 급강하 예고: 커지는 그림자 · 빨라지는 경고 고리 · 도는 점선 · 모여드는 화살표

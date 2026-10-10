@@ -287,6 +287,11 @@ function updateHeroes(g, dt) {
     if (h.skillCd > 0 && !(h.silenceT > 0)) h.skillCd -= dt;
     if (g.kdOn) { kdTick(g, h, dt); if (h.kdT > 0) { h.beamE = null; h.beam2E = null; continue; } } // 쓰러짐: 아무것도 못 함
     // 최은옥: 분노는 원샷(스킬)으로만 켜진다 (10/10) — 시간이 다 되면 술 깸
+    if (h.rageBomb && (h.rageBomb.t -= dt) <= 0) { // 원샷 소주병이 떨어지는 순간 (스킬 피해)
+      const q = h.rageBomb; h.rageBomb = null; g._inSkill = true;
+      try { forEnemiesNear(g, q.x, q.y, q.r, (e) => { damageEnemy(g, e, q.dmg, false, h, true); if (!e.dead) applyKnockback(e, e.boss ? q.kb * 0.3 : q.kb, g); return true; }); } finally { g._inSkill = false; }
+      ev(g, 'splash', { x: q.x, y: q.y, r: q.r, proj: 'bottle' });
+    }
     if (d.rageSec && h.rage) {
       h.rageT -= dt;
       if (h.rageT <= 0) { h.rage = false; h.rageT = 0; ev(g, 'sober', { hero: h.id, x: h.x, y: h.y }); }
@@ -1291,7 +1296,7 @@ function landLob(g, p) {
   }
   const inc = !BAL.aoeMain.includes(h.id);
   const R0 = p.splash * (inc ? BAL.incSplashR : 1);
-  ev(g, 'splash', { x: p.tx, y: p.ty, r: R0, proj: p.type });
+  ev(g, 'splash', { x: p.tx, y: p.ty, r: R0, proj: p.type, rage: !!p.fire });
   let main = null, md = 1e9; // 맞은 한 명은 제 피해 · 곁다리는 (범위 멤버가 아니면) 40%
   forEnemiesNear(g, p.tx, p.ty, R0, (e) => { const dd = Math.hypot(e.x - p.tx, e.y - p.ty); if (dd < md) { md = dd; main = e; } return true; });
   forEnemiesNear(g, p.tx, p.ty, R0, (e) => {
@@ -3845,11 +3850,14 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       ev(g, 'cleanse', { x: h.x, y: h.y });
       break;
     }
-    case 'oneshot':
+    case 'oneshot': { // 최은옥 원샷 (10/10): 울음 뚝 → 분노 폭발 · 소주병을 정예 · 보스(없으면 가장 몰린 곳)에 휙 → 0.46초 뒤 와장창 (game.js 'rage' 연출과 같은 순간) · 그 뒤 분노 모드
+      const B = h.def.rageBurst, big = strongest(g), P = B && !echo ? (big && (big.boss || big.mid || big.elite) ? { x: big.x, y: big.y } : densestPoint(g, h.x, h.y, heroRange(g, h) * 1.2, B.r)) : null;
+      if (P) h.rageBomb = { t: B.fly || 0.46, x: P.x, y: P.y, dmg: base * B.mul, r: B.r, kb: B.kb };
       if (h.rage) { h.rageT += 5; h.rageMax = Math.max(h.rageMax || 0, h.rageT); }
-      else { h.rage = true; h.rageT = h.rageMax = (h.def.rageSec[lv] + (h.cm.rage || 0)) * (g.mapFx.rage || 1) * ((h.sig && h.sig.rageMul) || 1); ev(g, 'rage', { hero: h.id, x: h.x, y: h.y }); }
-      { const B = h.def.rageBurst; if (B && !echo) { const big = strongest(g), P = big && (big.boss || big.mid || big.elite) ? { x: big.x, y: big.y } : densestPoint(g, h.x, h.y, heroRange(g, h) * 1.2, B.r); if (P) { forEnemiesNear(g, P.x, P.y, B.r, (e) => { damageEnemy(g, e, base * B.mul, false, h, true); if (!e.dead) applyKnockback(e, e.boss ? B.kb * 0.3 : B.kb, g); return true; }); ev(g, 'splash', { x: P.x, y: P.y, r: B.r, proj: 'bottle' }); } } } // 원샷 소주병: 분노가 터지는 순간 정예 · 보스(없으면 가장 몰린 곳)에 소주병 한 방
+      else { h.rage = true; h.rageT = h.rageMax = (h.def.rageSec[lv] + (h.cm.rage || 0)) * (g.mapFx.rage || 1) * ((h.sig && h.sig.rageMul) || 1); }
+      ev(g, 'rage', { hero: h.id, x: h.x, y: h.y, tx: P ? P.x : undefined, ty: P ? P.y : undefined });
       break;
+    }
     case 'mosaicbomb': { // 여지원 모자이크 폭격: 0.6초 두 손 번쩍(검은 검열 띠 · 삐—) → 찍은 줄 · 양옆 줄에 거대 모자이크 손이 차례로 쾅 (updateHeroes 의 mzQ)
       r = 0;
       const lanes = mosaicLanes(g, x !== undefined ? { x } : h);
