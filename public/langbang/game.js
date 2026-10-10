@@ -640,6 +640,11 @@ function handleEvents(g, loud) {
         break;
       case 'splash':
         fx.blast(e.x, e.y, e.r, e.proj === 'heart' ? 'heart' : e.proj === 'bottle' ? 'fire' : e.proj === 'swear' ? 'electric' : 'gold');
+        if (e.proj === 'bottle') { // 최은옥: 깨지는 소주잔(투명 유리) · 분노 땐 초록 소주병 와장창 + 튀는 술
+          fx.burst(e.x, e.y - 4, e.rage ? 14 : 9, e.rage ? '#4fcf72' : '#e8f8ff', e.rage ? 230 : 170, 'shard', e.rage ? 6 : 4, 0.55, 420);
+          fx.burst(e.x, e.y - 4, e.rage ? 8 : 5, 'rgba(200,240,255,0.85)', 110, 'dot', 3, 0.5, 300);
+          if (Math.random() < (e.rage ? 0.4 : 0.15)) fx.text(e.x, e.y - 14, e.rage ? '와장창!!' : '쨍그랑', e.rage ? '#b6ffb0' : '#dff4ff', e.rage ? 15 : 12, 0.6);
+        }
         if (loud) A.sfx.explode();
         break;
       case 'bossHold': if (!busy) fx.text(e.x, e.y, '버틴다!', '#ffb36a', 13, 0.7); break;
@@ -1339,10 +1344,19 @@ function handleEvents(g, loud) {
         if (live) endRun(false);
         break;
       case 'rage':
-        fx.banner('최은옥 분노 모드!!', '"다 덤벼!!!"', '#c01010', 1.8, 'rage', 'h_eunok_rage');
+        fx.banner('최은옥 분노 모드!!', '"울 만큼 울었어!! 다 덤벼!!!"', '#c01010', 1.8, 'rage', 'h_eunok_rage');
         fx.addShake(8);
         fx.ring(e.x, e.y, 10, 160, 0.6, '#ff3b30', 8);
         for (let k = 0; k < 16; k++) fx.part('flame', e.x + (Math.random() - 0.5) * 40, e.y + 10, (Math.random() - 0.5) * 60, -80 - Math.random() * 80, 0.8, 14, null);
+        { // 울다가 버럭! 큰 소주병을 진상 쪽으로 휙 (그림 연출만 — 피해는 sim 이 정한다)
+          let tg = null;
+          for (const o of g.enemies || []) if (!o.dead && o.y > 0 && (!tg || o.y > tg.y)) tg = o;
+          if (tg) {
+            const tx = tg.x, ty = tg.y;
+            R.vfx('w_sojubottle', e.x, e.y - 34, { anim: 'fly', dur: 460, sz: 54, tx, ty, blend: 'source-over' });
+            setTimeout(() => { fx.burst(tx, ty - 4, 18, '#4fcf72', 260, 'shard', 7, 0.6, 420); fx.burst(tx, ty - 4, 10, 'rgba(200,240,255,0.85)', 140, 'dot', 3.4, 0.5, 300); fx.ring(tx, ty, 8, 90, 0.4, '#b6ffb0', 5); fx.text(tx, ty - 26, '와장창!!', '#b6ffb0', 18, 0.9); fx.addShake(6); }, 460);
+          }
+        }
         if (loud) A.sfx.rage();
         break;
       case 'sober': fx.text(e.x, e.y - 60, '술 깼다… 한 잔 더?', '#ffd6a8', 12, 1.3); break;
@@ -3360,7 +3374,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const DEX_CATCH = {
   bangjang: '"공지! 오늘도 랑방은 내가 지킨다!"', staff: '"경고 한 번, 두 번… 세 번이면 아웃이에요."', gunman: '"건전하게, 정확하게."', gunnyeo: '"다친 사람 먼저! 다들 괜찮아요?"',
   myunghoon: '"#@!% … 아, 미안. 조용히 해 줄래?"', dohoon: '"앵콜! 앵콜! 마이크는 안 놔!"', ingyu: '"오 그거 근육 자극 좋다."', donghan: '"…이제 좀 해볼까?"', youngjun: '"들어간다. 따라오지 마."',
-  eunok: '"한 잔만… 딱 한 잔만 할게."', hanna: '"윙크 받을 준비 됐어?"', sunggu: '"요즘 것들은… 내가 보여 주마."', junseo: '"잠깐, 내 친구 소개해 줄게!"', hyungyeong: '"다이어트는 내일부터! 오늘은 박치기!"',
+  eunok: '"흐엉… 나 하나도 안 취했어… (휙)"', hanna: '"윙크 받을 준비 됐어?"', sunggu: '"요즘 것들은… 내가 보여 주마."', junseo: '"잠깐, 내 친구 소개해 줄게!"', hyungyeong: '"다이어트는 내일부터! 오늘은 박치기!"',
   ara: '"공주님 등장~ 아이고 허리야…"', hochan: '"랑방을 위하여!!"',
   soyoung: '"그러니까 내가 뭐랬어!"', jieun: '"…시간아 멈춰라."', sanghwa: '"좋은남자 박상화!"', jungmin: '"가만있어 봐, 붙여 줄게."',
   dragon: '"박나뇽, 내 말 좀 들어 봐~" (화르륵)', subin: '"음악 틀어 줘! 같이 춰요~"',
@@ -6093,7 +6107,7 @@ const DEX_FLAVOR = {
   ingyu: '3대 500 헬창. 진상이 뭘 던지든 "오 근육 자극 좋다"로 받아친다.',
   donghan: '모임 내내 소파에 누워 간만 보는 사람. 근데 "이제 좀 해볼까?" 하는 순간 한 줄이 사라진다. 커피 한 잔 원샷하면 눈이 번쩍 — 머리에서 김이 나고 하늘에서 캔커피가 쏟아진다.',
   youngjun: '크로스핏으로 단련한 몸에 검은 고양이 후드 — 어둠 속에서 진상들을 처리하는 전사. 뛰어든 동안엔 아무것도 안 통한다.',
-  eunok: '처음엔 얌전히 홀짝홀짝. 14초쯤 뒤엔… 소주병이 날아다니기 시작한다.',
+  eunok: '키는 작아도 술버릇은 크다. 의자에 앉아 훌쩍이며 소주잔을 휙휙 — "원샷!" 한 마디에 눈물 뚝, 소주병 투척 시작.',
   hanna: '랑방 공식 윙크 담당. 남자 진상은 윙크 한 방에 정신 못 차리고 날아간다.',
   sunggu: '"요즘 것들은…"이 입버릇인 최고참. 지팡이를 던지면 커다란 원을 그리며 한 무리를 두 번 훑고 손에 쏙 돌아온다.',
   dragon: '어느 날 찾아온 자기 닮은 용 박나뇽과 다니는 히든 멤버. 나영이 헛소리를 할 때마다 박나뇽이 "화르륵" — 진상들이 불붙은 채 뛰어다닌다.',
@@ -6161,10 +6175,10 @@ const DEX_FLAVOR = {
 };
 // 도감 카드 세로 영문 이름 · 얼굴 위치 (dexhq 전신 그림 기준: 가운데 x, y, 얼굴 폭 — 그림 폭 대비)
 const DEX_EN = { dragon: 'PARK NAYOUNG', subin: 'LIM SUBIN', baul: 'SONG BAUL', byunghwa: 'KANG BYUNGHWA', jeongseob: 'YOON JEONGSEOB', jiwon: 'YEO JIWON', wonsik: 'JUNG WONSIK', bangjang: 'BANGJANG', staff: 'STAFF', gunman: 'MR. CLEAN', gunnyeo: 'MS. CLEAN', myunghoon: 'SEO MYUNGHOON', dohoon: 'KIM DOHOON', ingyu: 'BAEK INGYU', donghan: 'MOON DONGHAN', youngjun: 'KIM YOUNGJUN', eunok: 'CHOI EUNOK', hanna: 'LEE HANNA', sunggu: 'KANG SUNGGU', junseo: 'YOON JUNSEO', hyungyeong: 'BAE HYUNGYEONG', ara: 'KO ARA', hochan: 'LEE HOCHAN', soyoung: 'JEONG SOYOUNG', jieun: 'OH JIEUN', sanghwa: 'PARK SANGHWA', jungmin: 'HONG JUNGMIN' };
-const DEX_FACE = { subin: [0.53, 0.115, 0.13], baul: [0.49, 0.085, 0.12], byunghwa: [0.42, 0.085, 0.11], jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.44, 0.078, 0.12], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
+const DEX_FACE = { subin: [0.53, 0.115, 0.13], baul: [0.49, 0.085, 0.12], byunghwa: [0.42, 0.085, 0.11], jeongseob: [0.5, 0.1, 0.13], hochan: [0.49, 0.125, 0.17], bangjang: [0.45, 0.1, 0.15], staff: [0.47, 0.085, 0.13], gunnyeo: [0.47, 0.09, 0.13], eunok: [0.52, 0.19, 0.13], hanna: [0.47, 0.083, 0.13], sunggu: [0.49, 0.09, 0.14], gunman: [0.58, 0.085, 0.13], dohoon: [0.55, 0.09, 0.13], myunghoon: [0.56, 0.1, 0.15], youngjun: [0.49, 0.085, 0.13], donghan: [0.62, 0.11, 0.17], ingyu: [0.48, 0.1, 0.13], junseo: [0.55, 0.11, 0.14], ara: [0.37, 0.32, 0.12], hyungyeong: [0.55, 0.19, 0.2], jungmin: [0.44, 0.11, 0.12], soyoung: [0.47, 0.11, 0.13], jieun: [0.52, 0.12, 0.13], sanghwa: [0.45, 0.07, 0.12], jiwon: [0.48, 0.075, 0.12], wonsik: [0.47, 0.08, 0.12], baul: [0.49, 0.085, 0.12], junyoung: [0.5, 0.2, 0.3] }; // [가로 가운데, 세로 가운데, 얼굴 높이] (그림 대비)
 // 얼굴 맞춤 자르기: 얼굴 높이 = 칸 높이의 f · 얼굴 가운데 = (50%, cy) — 그림 비율과 상관없이 (자기 크기 기준 translate)
 // 동그란 얼굴용 얼굴 상자 (썸네일 기준 · 이마~턱 · 가운데 x, 가운데 y, 높이) — 그림을 재서 맞춘 값
-const FACE_BOX = { subin: [0.53, 0.12, 0.095], byunghwa: [0.42, 0.1, 0.075], hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.47, 0.115, 0.1], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.565, 0.145, 0.13], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
+const FACE_BOX = { subin: [0.53, 0.12, 0.095], byunghwa: [0.42, 0.1, 0.075], hochan: [0.44, 0.115, 0.085], bangjang: [0.47, 0.1, 0.085], staff: [0.47, 0.115, 0.09], gunnyeo: [0.39, 0.135, 0.11], eunok: [0.52, 0.2, 0.11], hanna: [0.49, 0.11, 0.11], sunggu: [0.52, 0.165, 0.1], gunman: [0.55, 0.115, 0.09], dohoon: [0.57, 0.165, 0.095], myunghoon: [0.565, 0.145, 0.13], youngjun: [0.575, 0.18, 0.1], donghan: [0.63, 0.19, 0.12], ingyu: [0.45, 0.105, 0.095], junseo: [0.56, 0.115, 0.095], ara: [0.42, 0.32, 0.1], hyungyeong: [0.55, 0.24, 0.12], jungmin: [0.42, 0.155, 0.09], soyoung: [0.45, 0.145, 0.09], jieun: [0.55, 0.145, 0.11], sanghwa: [0.48, 0.11, 0.085], jiwon: [0.47, 0.095, 0.075], wonsik: [0.6, 0.095, 0.09], baul: [0.49, 0.09, 0.085], jeongseob: [0.52, 0.08, 0.075] };
 // 동그라미 안에 얼굴: 얼굴(이마~턱)이 지름의 70% · 가운데
 function faceCircStyle(id, f = 0.7, cy = 0.5) {
   const fb = (HWUI && HWUI.costumeFace(id)) || FACE_BOX[id] || DEX_FACE[id] || [0.48, 0.12, 0.1]; // (할로윈 의상 썸네일은 의상 얼굴 자리)
