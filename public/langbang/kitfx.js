@@ -64,6 +64,7 @@ const POSE = {
 
 export class KitFx {
   constructor(R) { this.R = R; this.list = []; this.g = null; }
+  resetCache() { for (const k in GLOWS) delete GLOWS[k]; } // 폰 메모리 부족으로 구운 빛이 지워졌을 때 (render.js rebuild)
   get cx() { return this.R.cx; }
   get fx() { return this.R.fx; }
   now() { return this.fx.time; }

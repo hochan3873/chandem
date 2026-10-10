@@ -6,7 +6,7 @@ import {
   STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
   TRAITS, REVEAL_HEROES, CH7, CH8, thiefCut, COND, COND_HP, stageConds, DOOR_PRESSURE, softMeta, stageMission, missionOk,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI, MID_KITS, ECAST, ELITE_HP, ULT_LOCK,
-  CURSES, ENDLESS_TUNE,
+  CURSES, ENDLESS_TUNE, endlessScale, endlessCap, endlessTier, endlessTierDef,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
   SKILL_AUG, SKILL_AUG_W, SLOW_RUN, PICK_SKIP, TENSION, roleCadence, mileDmg, mileSpd, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
 } from './data.js';
@@ -1374,7 +1374,7 @@ export function spawnEnemy(g, type, x, y, o = {}) {
   e.baseX = e.x; e.phase = g.rng() * 6.28;
   const hm = g.hell ? HELL.hp * (HELL.stageHp[g.stage] || 1) : 1; // (스테이지별 헬 체력 맞춤)
   e.maxHp = e.hp = def.hp * m * g.mods.enemyHp * hm * chk; e.shield = def.lie ? def.hp * m * g.mods.enemyHp * hm * chk * def.lie.frac : 0; // 싱글맘: 거짓말 방패
-  e.speed = def.speed * (0.92 + g.rng() * 0.16) * g.mods.enemySpd * (g.mapFx.enemySpd || 1) * (g.hell ? HELL.speed : 1); e.atk = def.atk * atkMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hell ? HELL.atk : 1) * (g.slow ? SLOW_RUN.door : 1) * (g.tension ? TENSION.door : 1); // 느린 판: 입구를 더 세게 (수리 · 탱커 몫)
+  e.speed = def.speed * (0.92 + g.rng() * 0.16) * g.mods.enemySpd * (g.mapFx.enemySpd || 1) * (g.hell ? HELL.speed : 1) * (g.spdScale || 1); e.atk = def.atk * atkMul(Math.max(1, g.diff), g.mode === 'stage') * (g.hell ? HELL.atk : 1) * (g.atkScale || 1) * (g.slow ? SLOW_RUN.door : 1) * (g.tension ? TENSION.door : 1); // 느린 판: 입구를 더 세게 (수리 · 탱커 몫)
   e.atkCd = 0.4; e.slowT = 0; e.slowMul = 1; e.stunT = 0; e.kbv = 0; e.flash = 0;
   e.dead = false; e.atRope = false; e.fleeing = false; e.stolen = 0; e.charmCd = 0;
   e.fast = BAL.fast.types.includes(type); if (e.fast && !g.fastTip && g.mode === 'stage') { g.fastTip = true; ev(g, 'tip', { text: '빠른 진상은 잘 피해요 · 감속·기절·범위 공격으로 잡아요' }); } e.bottleT = def.bottle ? 2 + g.rng() * 2 : 0; e.flashW = 0; e.latteT = def.latte ? 3 + g.rng() * 2 : 0;
@@ -1695,7 +1695,7 @@ function killEnemy(g, e, src) {
   // 경험치 보석 (떨어진 뒤 잠깐 튀었다가 저절로 경험치 바로 날아간다)
   const gm = src && src.def && src.def.grow;
   if (gm) growBy(src, gm.perKill);
-  const xp = (g.mode === 'endless' && g.wave > ENDLESS_TUNE.from ? Math.pow(ENDLESS_TUNE.xp, g.wave - ENDLESS_TUNE.from) : 1) * def.exp * g.mods.expMul * (1 + Math.min(0.15, g.combo * 0.003)) * (gm ? 1 + gm.exp + (src.lv >= 5 ? 0.25 : 0) : 1); // 연속 처치 보너스 (최대 +15%) · 박상화가 잡으면 경험치 더
+  const xp = (g.mode === 'endless' && g.wave > ENDLESS_TUNE.xpFrom ? Math.pow(ENDLESS_TUNE.xp, g.wave - ENDLESS_TUNE.xpFrom) : 1) * def.exp * g.mods.expMul * (1 + Math.min(0.15, g.combo * 0.003)) * (gm ? 1 + gm.exp + (src.lv >= 5 ? 0.25 : 0) : 1); // 연속 처치 보너스 (최대 +15%) · 박상화가 잡으면 경험치 더
   // 멀티킬: 0.35초 안에 쓰러진 진상을 한 묶음으로
   const mk = g.mk || (g.mk = { n: 0, t0: 0, x: 0, y: 0 });
   if (mk.n && g.t - mk.t0 > MK_WIN) flushMultiKill(g);
@@ -3543,12 +3543,13 @@ export function startWave(g, n) {
   if (g.conds.length && n >= DOOR_PRESSURE.from) g.hpScale *= COND_HP[chapterOf(g.stage) - 1] || 1; // 조건 스테이지: 기믹만큼 체력은 덜어 준다
   if (g.tension) g.hpScale *= TENSION.chHp[chapterOf(g.stage || 1) - 1] || 1; // 긴장감: 장마다 다시 맞춘 체력 (2장부터 더 어렵게)
   if (g.tension && n >= TENSION.hpFrom) g.hpScale *= 1 + (TENSION.hp - 1) * (g.cond.swarm ? TENSION.swarmK : 1); // 긴장감: 팀이 모인 뒤 (2웨이브부터) 진상이 단단 — 평타만으로는 밀리고 스킬로 뒤집는다 · 떼거리는 수로 누르니 덜
+  if (g.mode === 'endless' && !g.pvp) { const es = endlessScale(n); g.hpScale *= es.hp; g.atkScale = es.atk; g.spdScale = es.spd; } // 무한: 15웨이브부터 웨이브마다 확 세진다 (data.js ENDLESS_TUNE)
   if (g.pvp) g.hpScale *= pvpMatchHp(g.pvp.hp, n) * pvpWaveHp(n) * hpMul(PVP_END.baseLevel, g.mode === 'stage') / hpMul(Math.max(1, g.diff), g.mode === 'stage'); // 1:1 대전: 두 덱 전투력 × 웨이브마다 ×1.22 (체력 오름은 이것 하나로 · 공격력은 웨이브대로)
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
   const more = g.mapFx.spawn || 1;
-  // 무한 도전: 웨이브가 갈수록 떼로 (×1.3 → 30웨이브 ×3.0) · 주간 도전 ×2
-  const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (n - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1) * (g.tempo && !g.raid ? TEMPO.count : 1) * (g.slow ? SLOW_RUN.count : 1) * (g.cond.swarm ? COND.swarm.count : 1); // 떼거리 조건: 약한 진상이 훨씬 많이
+  // 무한 도전: 웨이브가 갈수록 떼로 (×1.3 → 15웨이브 ×2.1 에서 멈춤 — 그 뒤로는 수 대신 힘) · 주간 도전 ×2
+  const swarm = (g.mode === 'endless' ? 1.3 + 1.7 * Math.min(1, (Math.min(n, ENDLESS_TUNE.from) - 1) / 29) : g.weekly ? 2 : 1) * (g.hell ? HELL.count : 1) * (g.tempo && !g.raid ? TEMPO.count : 1) * (g.slow ? SLOW_RUN.count : 1) * (g.cond.swarm ? COND.swarm.count : 1); // 떼거리 조건: 약한 진상이 훨씬 많이
   for (const [type, count0, every0, delay, tag] of def.g) {
     const wc = g.wtr && g.wtr.count && !ENEMIES[type].boss && !ENEMIES[type].mid ? g.wtr.count : 1; // 주간 떼거리: 보스는 그대로
     const count = Math.round(count0 * more * swarm * wc), every = every0 / (more * swarm * wc);
@@ -3588,6 +3589,7 @@ export function startWave(g, n) {
     }
   }
   if (g.slow) for (const o of q) o.at *= SLOW_RUN.gap; // 느린 판: 진상이 띄엄띄엄
+  if (g.mode === 'endless' && !g.pvp) endlessThin(g, q, n);
   if (def.boss) q.push({ type: def.boss, at: 1.2, boss: true, bossHp: def.bossHp });
   if (def.boss && g.twinBoss) q.push({ type: def.boss, at: 3.5, boss: true }); // 저주 계약 '보스 둘'
   if (def.mid) q.push({ type: def.mid, at: 4, boss: true, mid: true, bossHp: def.midHp }); // (midHp: 할로윈 이벤트 — 머릿수를 줄인 체력 보정을 중간 보스는 빼고)
@@ -3606,6 +3608,18 @@ export function startWave(g, n) {
   } else g.phase = 'wave';
   g.waveKind = def.kind || 'N';
   ev(g, 'waveStart', { wave: n, boss: !!def.boss, count: q.length, kind: g.waveKind });
+}
+
+// 무한: 한 웨이브 진상 수 상한 (보스 빼고 · endlessCap) — 고르게 솎아 내고 줄인 만큼 체력을 일부(√) 돌려준다 · 시간도 그만큼 촘촘히
+function endlessThin(g, q, n) {
+  const cap = endlessCap(n);
+  if (q.length <= cap) return;
+  const r = q.length / cap, hpX = Math.sqrt(r);
+  q.sort((a, b) => a.at - b.at);
+  const keep = [];
+  for (let i = 0; i < cap; i++) keep.push(q[Math.min(q.length - 1, Math.floor(i * r))]);
+  for (const o of keep) { o.hpX = (o.hpX || 1) * hpX; o.at /= Math.max(1, Math.sqrt(r)); }
+  q.length = 0; q.push(...keep);
 }
 
 function waveClear(g) {
@@ -4316,7 +4330,7 @@ export function step(g, dt) {
     // 동시에 화면에 있는 진상은 최대 ENEMY_CAP (폰 성능) — 넘치면 조금 기다렸다 나온다
     let alive = 0;
     if (g.spawnI < q.length && q[g.spawnI].at <= g.waveT) for (const e of g.enemies) if (!e.dead) alive++;
-    const cap = g.hell ? 90 : ENEMY_CAP; // 헬 모드는 진상이 단단한 대신 동시에 조금 적게 (폰 성능)
+    const cap = g.hell ? 90 : g.mode === 'endless' ? ENDLESS_TUNE.alive : ENEMY_CAP; // 헬 모드는 진상이 단단한 대신 동시에 조금 적게 (폰 성능) · 무한은 70 (늦은 웨이브 폰 화면 깨짐)
     while (g.spawnI < q.length && q[g.spawnI].at <= g.waveT && alive < cap) {
       const s = q[g.spawnI++];
       const e = spawnEnemy(g, s.type, s.boss ? g.W / 2 : s.x, s.boss ? -60 : undefined, s.hpX || s.elite ? { hpX: s.hpX, elite: s.elite } : undefined);

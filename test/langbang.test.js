@@ -484,7 +484,28 @@ test('보상 · 강화 비용 · 아이템 · 해금: 서버(langbang-rules.js)�
     for (let st = 1; st <= 3; st++) for (let prev = 0; prev <= 3; prev++) for (const c of [0, 5, 10]) assert.deepEqual(R.stageReward(s, st, prev, c), D.stageReward(s, st, prev, c));
     assert.equal(R.stageLabel(s), D.stageLabel(s));
   }
-  for (const w of [0, 5, 20, 37]) assert.equal(R.endlessReward(w, 3), D.endlessReward(w, 3));
+  for (const w of [0, 5, 20, 37, 75]) assert.equal(R.endlessReward(w, 3), D.endlessReward(w, 3));
+  assert.deepEqual(R.ENDLESS_TIERS, D.ENDLESS_TIERS.map((t) => ({ perWave: t.perWave, clear: t.clear })), '무한 단계 보상표 (서버 = 화면)');
+});
+
+test('무한 단계 개편: 10웨이브 = 한 단계 · 단계 보스 · 진상 수 상한 · 단계 보상은 단계 보스를 깨야', () => {
+  assert.equal(D.endlessTier(1), 1); assert.equal(D.endlessTier(10), 1); assert.equal(D.endlessTier(11), 2); assert.equal(D.endlessTier(41), 5);
+  for (const w of [10, 20, 30, 40, 50, 60]) assert.ok(D.waveDef(w).boss, `${w}웨이브 단계 보스`);
+  assert.equal(D.waveDef(13).kind, 'M', '2단계: 정예 호위');
+  assert.ok(D.waveDef(27).g.every((r) => r[4] === 'E'), '25~29 정예만');
+  for (const w of [31, 34, 38]) assert.ok(D.waveDef(w).boss, `${w}: 4단계 매 웨이브 보스`);
+  assert.ok(D.waveDef(40).boss2 && D.waveDef(45).boss2, '40 · 5단계: 보스 둘');
+  assert.equal(D.endlessCap(14), Infinity); assert.equal(D.endlessCap(15), 90); assert.ok(D.endlessCap(30) < 40 && D.endlessCap(60) === 14);
+  // 시뮬: 25웨이브 진상 수가 상한 안 (보스 빼고) · 줄인 만큼 체력이 오른다
+  const g = S.createGame({ H: 760, rng: seeded(5), mode: 'endless', deck: ['bangjang', 'staff', 'gunman'], meta: {}, god: true, tempo: true });
+  S.startWave(g, 22);
+  assert.ok(g.spawnQ.filter((o) => !o.boss).length <= D.endlessCap(22));
+  assert.ok(g.spawnQ.some((o) => o.hpX > 1), '솎아 낸 만큼 단단');
+  assert.ok(g.atkScale > 1 && g.spdScale > 1, '15웨이브부터 공격 · 21웨이브부터 속도');
+  // 단계 보상: 20웨이브에서 지면(도달 20) 2단계 돌파 보너스 없음 · 21웨이브 도달이면 있음
+  const a = D.endlessCoinParts(20), b = D.endlessCoinParts(21);
+  assert.equal(b.tiers - a.tiers, D.ENDLESS_TIERS[1].clear);
+  assert.ok(D.endlessReward(31) > D.endlessReward(21) * 1.6, '단계가 오를수록 크게');
 });
 
 test('보상 계산: 첫 클리어 보너스가 크고, 새 별마다 보너스, 다시 깨면 기본 보상만', () => {
@@ -1821,8 +1842,10 @@ test('무한 개편: 5웨이브마다 저주 계약(10초면 자동) · 배율 �
   // 요약 점수에 배율이 들어간다
   const sm = S.summary(g, 100);
   assert.ok(sm.mult > 1 && sm.score >= g.stats.score);
-  // 압박: 40웨이브 체력 배율이 20웨이브의 수십 배
-  assert.ok(D.hpMul(40, false) / D.hpMul(20, false) > 8);
+  // 압박 (단계 개편): 15웨이브부터 웨이브마다 체력 · 공격이 곱으로 — 40웨이브 진상 한 명이 20웨이브의 수십 배
+  const sc = (n) => D.hpMul(n, false) * D.endlessScale(n).hp;
+  assert.ok(sc(40) / sc(20) > 20, '40웨이브 체력 ≫ 20웨이브');
+  assert.ok(D.endlessScale(40).atk > 2 && D.endlessScale(80).spd <= D.ENDLESS_TUNE.spdCap + 1e-9, '공격 · 속도 (상한)');
 });
 
 test('증강 · 테크 트리 · 제어 분기: 1·3·5웨이브 증강(실버→골드→프리즘) · 테크는 앞 단계를 가져야 · 세트 보너스 · 맞히면 제어', () => {
