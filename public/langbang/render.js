@@ -2247,6 +2247,7 @@ export class Renderer {
       if (h.kdT > 0) { const k = Math.min(1, (h.kdSec - h.kdT) / 0.25, h.kdT / 0.35); rot = (hx < 180 ? -1 : 1) * 1.3 * k; sy = 1 - 0.1 * k; bob += 14 * k; } // 쓰러짐: 옆으로 픽 누움 (일어날 때 다시 세움)
       if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; if (g.joinMode) { bob += (1 - p) * 70; sx *= 0.6 + 0.4 * p; sy *= 0.6 + 0.4 * p * e; } else { sx *= e * p; sy *= e * p; } } // 합류: 아래에서 미끄러져 올라온다
       if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
+      if (h.id === 'eunok' && !up) { const sn = Math.max(0, Math.sin(t * 2.6 + h.slot)); sy *= 1 - 0.03 * sn * sn * sn; bob += 0.8 * sn * sn * sn; rot += Math.sin(t * 1.1) * 0.025; if (Math.random() < 0.012 && this.fx) this.fx.part('dot', hx + 6, feet - box * 0.62, 10 + Math.random() * 20, 20, 0.7, 2.6, '#bfe8ff', { grav: 260 }); } // 최은옥 평소: 의자에 앉아 훌쩍훌쩍 (어깨 들썩 · 눈물 똑)
       sy *= 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 숨쉬기
       if (h.reloadT > 0 && h.reloadMax > 0.25) { const q = 1 - h.reloadT / h.reloadMax; rot += Math.sin(q * Math.PI) * -0.13; bob += Math.sin(q * Math.PI) * 1.5; } // 장전: 살짝 기울여 챙기기
       if (h.id === 'hyungyeong' && alt) bob += Math.sin(t * 22) * 1.6; // 날씬 복서 스텝
@@ -2971,7 +2972,7 @@ export class Renderer {
         if (Math.random() < 0.25) this.fx.part('dot', p.x, p.y, (Math.random() - 0.5) * 40, 20, 0.4, 3, '#ffc0dc');
         continue;
       }
-      const an = p.hero && p.type !== 'moto' && p.type !== 'gf' && (p.hero.id === 'ara' && p.type === 'cane' ? 'cane' : PROJ_ART[p.hero.id]); // 할머니 고아라는 지팡이를 던진다 (망치 그림 X)
+      const an = p.hero && p.type !== 'moto' && p.type !== 'gf' && (p.hero.id === 'ara' && p.type === 'cane' ? 'cane' : (p.hero.id === 'eunok' && p.rage ? 'sojubottle' : PROJ_ART[p.hero.id])); // 최은옥: 평소엔 소주잔 · 분노 땐 소주병 · 할머니 고아라는 지팡이를 던진다 (망치 그림 X)
       if (an === 'card_y') { // 운영진 경고장: 그림(민무늬 노란 사각형) 대신 코드로 그린 심판 카드 · 날아가며 팔랑팔랑
         const sc = this.projSprites[p.big ? 'staffCardRed' : 'staffCard'];
         if (sc) { const ang = Math.atan2(p.vy || 0, p.vx || 1) + Math.PI / 2 + Math.sin(this.fx.time * 14 + (p.uid || pi)) * 0.35; this.tf(p.x, p.y, ang, 1, 1); cx.drawImage(sc.c, -sc.w / 2, -sc.h / 2, sc.w, sc.h); continue; }

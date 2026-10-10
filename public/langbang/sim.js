@@ -1301,7 +1301,7 @@ function landLob(g, p) {
   }
   const inc = !BAL.aoeMain.includes(h.id);
   const R0 = p.splash * (inc ? BAL.incSplashR : 1);
-  ev(g, 'splash', { x: p.tx, y: p.ty, r: R0, proj: p.type });
+  ev(g, 'splash', { x: p.tx, y: p.ty, r: R0, proj: p.type, rage: !!p.fire });
   let main = null, md = 1e9; // 맞은 한 명은 제 피해 · 곁다리는 (범위 멤버가 아니면) 40%
   forEnemiesNear(g, p.tx, p.ty, R0, (e) => { const dd = Math.hypot(e.x - p.tx, e.y - p.ty); if (dd < md) { md = dd; main = e; } return true; });
   forEnemiesNear(g, p.tx, p.ty, R0, (e) => {

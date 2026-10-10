@@ -199,7 +199,7 @@ export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [1.
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
 export const PROJ_ART = { staff: 'card_y', eunok: 'cup', ingyu: 'dumbbell', soyoung: 'bubble', donghan: 'coffee', sunggu: 'cane', gunnyeo: 'heart', junyoung: 'chip', ara: 'hammer' }; // (대개편: 건전남 권총 · 박상화 장미 · 정원식 주먹 · 여지원 점멸 손 · 오지은 · 서명훈 · 홍정민은 kitfx.js 코드 그림)
-export const PROJ_ART_NAMES = ['bottle', 'cup', 'coin', 'dumbbell', 'bubble', 'card_y', 'card_r', 'bb', 'coffee', 'cane', 'mosaic', 'heart', 'chip', 'hammer', 'claw', 'clock', 'swear'];
+export const PROJ_ART_NAMES = ['bottle', 'cup', 'sojubottle', 'coin', 'dumbbell', 'bubble', 'card_y', 'card_r', 'bb', 'coffee', 'cane', 'mosaic', 'heart', 'chip', 'hammer', 'claw', 'clock', 'swear'];
 // 무기: 멤버마다 컨셉 물건 하나 (총 없음) · kind = 방식 · mag = 한 번에 몇 발 (연발·속사) · gap = 탄창 안 간격 (공격 간격 비율)
 //   장전 시간 = 탄창 × 간격 − (탄창−1) × gap 간격 → 평균 DPS 는 그대로, 리듬만 "몇 발 → 장전"
 //   진화: Lv3 탄창 +1 · Lv5 관통 +1 (연발·속사) 또는 범위 +25% · 진화 카드 = 큰 투사체
@@ -936,9 +936,10 @@ const ART_READY = new Set(['h_jungmin', 'h_junyoung', 'h_soyoung', 'h_jieun', 'h
 //  바뀐 파일만 적는다 (전부 붙이면 배포마다 모두 다시 받아서 전송량이 폭증) · 다시 바꾸면 숫자를 올린다
 export const ART_VER = {
   h_subin: 2, h_subin_attack: 2, 'dex/subin': 2, 'dexhq/subin': 2, 'dexhq/thumb/subin': 2,
-  h_donghan_attack: 2, h_eunok_attack: 2, h_dragon_attack: 2, e_boss_bestman_attack: 2, e_boss_bestman_skill: 2, e_boss_bestman_rage: 2,
+  h_donghan_attack: 2, h_eunok_attack: 3, h_dragon_attack: 2, e_boss_bestman_attack: 2, e_boss_bestman_skill: 2, e_boss_bestman_rage: 2,
   h_donghan_cafe: 2, h_donghan_cafe_tf: 2, h_donghan_cafe_attack: 2, 'dex/donghan_cafe': 2, 'dexhq/donghan_cafe': 2, 'dexhq/thumb/donghan_cafe': 2, // 문동한 카페인 풀충전 새로 그림 (Gemini)
   'fx/w_card_r': 2, 'fx/w_card_y': 2, // 운영진 레드·옐로카드 광택 카드로 새로 그림 (Gemini)
+  h_eunok: 3, h_eunok_rage: 3, h_eunok_rage_attack: 3, 'dex/eunok': 3, 'dex/eunok_rage': 3, 'dexhq/eunok': 3, 'dexhq/eunok_rage': 3, 'dexhq/eunok_duo': 3, 'dexhq/thumb/eunok': 3, 'dexhq/thumb/eunok_rage': 3, 'dexhq/thumb/eunok_duo': 3, 'fx/w_cup': 3, // 최은옥 술버릇 컨셉으로 새로 그림 (울면서 소주잔 · 분노 소주병 · Gemini)
   'season/halloween_key': 2, // (season.js 의 keyart 주소에도 ?v=2 를 직접 붙였다 — 허브 카드 · 로비 배경)
 };
 export const artV = (u) => { const m = typeof u === 'string' && /^\/img\/lb\/([^?]+)\.webp$/.exec(u); return m && ART_VER[m[1]] ? `${u}?v=${ART_VER[m[1]]}` : u; };
@@ -1058,7 +1059,7 @@ export const HEROES = {
     soberSec: [14, 14, 13, 13, 11], rageSec: [8, 9, 10, 11, 12],
     rageDmg: 1.4, rageInterval: 0.45, fire: { sec: 2.2, r: 50, dps: 0.6, kind: 'booze', slow: 0.3 }, arcH: 40, fuse: 0.5, // 분노 중 술 웅덩이 (1발 피해 × 0.6 / 초 · 비틀비틀 30% 느리게 — 불은 박나영 몫) · 낮고 빠른 포물선 · 떨어진 병은 0.5초 뒤 펑 (시한폭탄)
     attack: '소주병 시한폭탄 — 낮고 빠르게 휙휙 두 병, 바닥에 꽂혀 지글지글 0.5초 뒤 펑! (범위) · 분노 중엔 깨진 자리에 술 웅덩이 (밟은 진상 비틀비틀 느려짐)',
-    desc: '홀짝홀짝… 14초쯤 지나면 취해서 "분노 모드"가 된다.',
+    desc: '술만 들어가면 훌쩍훌쩍… 의자에 앉아 울면서 소주잔을 던진다. 원샷 한 번이면 눈물이 분노로 바뀌어 소주병이 날아온다!',
     perks: { 3: '분노 중 술 웅덩이가 더 넓고 오래', 5: '더 빨리 취하고 더 오래 분노' },
     skill: { id: 'oneshot', name: '원샷', cd: 18, desc: '바로 분노 모드! (분노 중이면 +5초)' },
   },
