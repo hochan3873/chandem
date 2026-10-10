@@ -4049,7 +4049,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       const n = (h.evo ? 5 : 4) + (sa.extra ? 2 : 0), W = g.W || 360;
       for (let i = 0; i < n; i++) {
         const bx = (W / n) * (i + 0.5);
-        (g.buses || (g.buses = [])).push({ hero: h, x: bx, y: g.rowY + 30 + i * 26 * (i % 2 ? 1 : -0.3), w: W / n + 8, big: i === ((n / 2) | 0), gold: true, dmg: base * BUS.dmg * 0.2, stun: (sk.stun || 0.8) + (sa.extra ? 0.5 : 0), hit: new Set() });
+        (g.buses || (g.buses = [])).push({ hero: h, x: bx, y: g.rowY + 30 + i * 26 * (i % 2 ? 1 : -0.3), w: W / n + 8, big: i === ((n / 2) | 0), gold: true, dmg: base * BUS.dmg * (sk.busMul || 0.2), /* (10/10 버스 피해 0.2 → 0.8: 레전드 큰 스킬다운 한 방) */ stun: (sk.stun || 0.8) + (sa.extra ? 0.5 : 0), hit: new Set() });
       }
       g.hcSkT = sk.sec[lv]; g.hcSkAtk = sk.atk[lv];
       ev(g, 'grandBus', { x: h.x, y: h.y, n });
