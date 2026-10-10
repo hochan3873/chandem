@@ -2044,7 +2044,7 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
   for (const id of ['staff', 'eunok']) { // (대개편: 건전남 권총 · 박상화 장미는 탄창 대신 한 발씩) · 예전 메모: 상화는 일부러 상향 (TEMPO.fix 1.38 → 1.7 → 2.9) → 3.1배 쯤
     const a = run(false, id), b = run(true, id);
     const r = b.dmg / a.dmg;
-    assert.ok(r > 0.7 && r < (['sanghwa', 'staff'].includes(id) ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
+    assert.ok(r > (id === 'eunok' ? 0.5 : 0.7) && r < (['sanghwa', 'staff'].includes(id) ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`); // (10/10 최은옥: 분노는 원샷으로만 — 기본 공격 DPS 는 낮고 스킬 분노에 몰림)
     const gaps = b.shots.slice(1).map((t, i) => t - b.shots[i]);
     const mn = Math.min(...gaps), mx = Math.max(...gaps);
     assert.ok(mx > mn * 2.5, `${id} 장전 리듬 (간격 ${mn.toFixed(2)} ~ ${mx.toFixed(2)})`);
