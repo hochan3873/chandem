@@ -36,6 +36,7 @@ import { pumpkinPop } from './hw-fx.js';
 import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버 레이드)
 import { initTransit } from './transit.js';
 import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
+import { PATCH_NOTES, PATCH_LATEST } from './patchnotes.js'; // 패치 노트 (업데이트 뒤 처음 들어오면 한 번)
 import { initPush } from './push.js'; // 알림 받기 (웹 푸시)
 import * as SSN from './season.js'; // 시즌 테마 (할로윈 등): 로비 그림 · 장식 · 로비 음악
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
@@ -2717,6 +2718,7 @@ function showMenu0() {
   hud.hidden = true;
   guardOn();
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) cosmNewCheck(); }, 600);
+  if (app.profileLoaded) { let n = 0; const tryPatch = () => { if (app.screen !== 'menu' || ++n > 40) return; if (stage.querySelector('.info-modal, .gacha-res, .reveal, .coach, .acq-rv, .story-rv')) { setTimeout(tryPatch, 1500); return; } patchCheck(); }; setTimeout(tryPatch, 1100); } // 패치 노트 (안 본 업데이트가 있으면 한 번 · 다른 창이 떠 있으면 닫힐 때까지 기다림)
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) acqNewCheck(); }, 450); // 획득 규정 옮기기로 합류한 멤버: 로비에서 '합류!' 한 번
   if (app.profileLoaded) setTimeout(() => { if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal')) PUSHX.maybePrompt(); }, 1500); // 알림 받기 카드 (두 번째 방문부터 · 미루면 3일)
   // 스테이지 넘기기 안내 (한 번만): 깬 판이 몇 개 생기면
@@ -3871,8 +3873,23 @@ const NOTICES = [
   ['', '덱 칸 변경', `기본 덱 ${DECK_BASE}칸 · 5·6번째 칸은 상점 아이템에서 (예전에 산 칸은 한 칸씩 남아요)`],
   ['', '상성 강화', `유리한 속성 ×${TYPE_STRONG} · 불리한 속성 ×${TYPE_WEAK} — 덱 짤 때 ▲▼ 를 보세요`],
 ];
+// 패치 노트: 안 본 것이 있으면 로비에서 한 번 (처음 하는 사람은 건너뛴다 — 바뀐 걸 알 필요가 없으니)
+const PATCH_KEY = 'langbang:patchSeen';
+function patchHtml(list) {
+  return list.map((n) => `<div class="pn-blk"><div class="pn-h"><b>${esc(n.title)}</b><small>${esc(n.date)}</small></div><ul class="pn-list">${n.items.map(([i, t]) => `<li><span>${i}</span><p>${esc(t)}</p></li>`).join('')}</ul></div>`).join('');
+}
+function patchCheck() {
+  if (!PATCH_LATEST) return;
+  let seen = ''; try { seen = localStorage.getItem(PATCH_KEY) || ''; } catch { return; }
+  if (seen === PATCH_LATEST) return;
+  const mark = () => { try { localStorage.setItem(PATCH_KEY, PATCH_LATEST); } catch { /* 무시 */ } };
+  if ((P().maxStage | 0) <= 2) { mark(); return; } // 새로 온 사람
+  const i = PATCH_NOTES.findIndex((n) => n.id === seen), list = PATCH_NOTES.slice(0, i < 0 ? 2 : Math.min(i, 3));
+  mark();
+  popup(`<h3>${ic('megaphone', '', 'sm')}업데이트 소식</h3><div class="pn-body">${patchHtml(list)}</div><button class="btn primary" data-act="closePop">확인</button>`, 'pp-mini pn-pop');
+}
 function showNotice() {
-  popup(`<h3>${ic('mail', '', 'sm')}공지</h3><div class="nlist">${NOTICES.map(([i, t, d]) => `<div class="nrow"><span>${i}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></div>`).join('')}</div>`);
+  popup(`<h3>${ic('mail', '', 'sm')}공지</h3><div class="pn-body">${patchHtml(PATCH_NOTES.slice(0, 5))}</div><div class="nlist">${NOTICES.map(([i, t, d]) => `<div class="nrow"><span>${i}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></div>`).join('')}</div>`);
 }
 // 꾸미기: 칭호 · 프레임 전부 (가진 것 · 잠긴 것 · 얻는 법) + 내 카드 미리 보기
 function cosmList() {
@@ -3905,6 +3922,7 @@ async function acqNewCheck() {
   if (!todo0.length) return;
   let seen = [];
   try { seen = JSON.parse(localStorage.getItem('langbang:acqSeen') || '[]') || []; } catch { seen = []; }
+  if (!Array.isArray(seen)) seen = [];
   const todo = todo0.filter((h) => !seen.includes(h));
   if (!todo.length) return;
   try { localStorage.setItem('langbang:acqSeen', JSON.stringify([...seen, ...todo])); } catch { /* 무시 */ }
@@ -4002,6 +4020,7 @@ Object.assign(ACTS, {
   checkin: () => showCheckin(),
   doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
   notice: () => showNotice(),
+  closePop: () => closeInfoCard(),
   mail: async () => { await Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {}); showMail(); },
   // 도감 첫 발견 보상: 하나 또는 모두 받기
   dexRwGet: async (b) => { const r = await liveAct(API.dexClaim(b.dataset.k || 'all', app.guest)); if (r) { A.sfx.levelUp(); const g = r.got || {}, sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); toast(`도감 보상 ${r.n}개 · ${[g.coins ? `코인 +${fmt(g.coins)}` : '', g.stones ? `강화석 +${g.stones}` : '', g.tickets ? `모집권 +${g.tickets}` : '', sh ? `멤버 조각 +${sh}` : ''].filter(Boolean).join(' · ')}`, 2600); showDex(); } },

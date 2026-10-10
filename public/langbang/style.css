@@ -4537,3 +4537,13 @@ i.grd.acq { vertical-align: middle; margin-left: calc(var(--u) * 4); }
 .hs-pow.sm .hs-pw { font-size: calc(var(--u) * 24); }
 .gl-tip.wide { max-width: calc(var(--u) * 300); }
 .cmp-tip { text-align: center; font-size: calc(var(--u) * 12); color: #c9bde6; margin: calc(var(--u) * 4) 0; }
+/* 패치 노트 (10/10) */
+.pn-body { max-height: 62vh; overflow-y: auto; text-align: left; margin: calc(var(--u) * 6) 0 calc(var(--u) * 10); }
+.pn-blk { margin-bottom: calc(var(--u) * 12); }
+.pn-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 4px; margin-bottom: 6px; }
+.pn-h b { color: #ffd23f; font-size: calc(var(--u) * 15); }
+.pn-h small { color: #b9add6; font-size: calc(var(--u) * 11); white-space: nowrap; }
+.pn-list { list-style: none; margin: 0; padding: 0; }
+.pn-list li { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
+.pn-list li span { flex: 0 0 auto; font-size: calc(var(--u) * 15); line-height: 1.3; }
+.pn-list li p { margin: 0; font-size: calc(var(--u) * 13); line-height: 1.45; color: #f1ecff; }
