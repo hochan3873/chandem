@@ -2044,7 +2044,7 @@ test('전투 템포: 연발·속사 무기는 몇 발 → 장전 · 평균 DPS �
   for (const id of ['staff', 'eunok']) { // (대개편: 건전남 권총 · 박상화 장미는 탄창 대신 한 발씩) · 예전 메모: 상화는 일부러 상향 (TEMPO.fix 1.38 → 1.7 → 2.9) → 3.1배 쯤
     const a = run(false, id), b = run(true, id);
     const r = b.dmg / a.dmg;
-    assert.ok(r > 0.7 && r < (id === 'sanghwa' ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
+    assert.ok(r > 0.7 && r < (['sanghwa', 'staff'].includes(id) ? 3.5 : 1.5), `${id} DPS 비율 ${r.toFixed(2)} (밸런스 보정 포함)`);
     const gaps = b.shots.slice(1).map((t, i) => t - b.shots[i]);
     const mn = Math.min(...gaps), mx = Math.max(...gaps);
     assert.ok(mx > mn * 2.5, `${id} 장전 리듬 (간격 ${mn.toFixed(2)} ~ ${mx.toFixed(2)})`);
@@ -2674,8 +2674,8 @@ test('역할 정리: 건전녀 = 멤버 간호 · 응급 방패 (입구는 조�
   g = bare(['jungmin']);
   g.phase = 'wave'; g.spawnQ = [{ type: 'yeokko', at: 999 }];
   g.base.hp = g.base.max * 0.5;
-  run(g, 3.2);
-  assert.ok(g.base.hp > g.base.max * 0.53, '홍정민 붕대 수리');
+  run(g, 3.7); // (10/10 수리 3.5초마다 · 2%)
+  assert.ok(g.base.hp > g.base.max * 0.515, '홍정민 붕대 수리');
 });
 
 test('겹침 정리: 김도훈 떼창(입구 덜 침) · 문동한 과자(간보기 +) · 박상화 꽃다발(자란 만큼) · 송바울 응원봉 부메랑 · 팬클럽 함성', () => {

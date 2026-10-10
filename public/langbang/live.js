@@ -285,12 +285,12 @@ export const WEEKLY_UNLOCK = 5; // 1-5 를 깨면 열림
 export const WEEKLY_WAVES = 8;
 // 리그: 가장 멀리 깬 스테이지로 정한다 (진상 구성 · 레벨이 리그마다 다름) · 점수 배율은 판이 어려운 만큼 조금만
 //  (리그마다 따로 순위를 매기면 참가자가 적어 쓸쓸해서 → 한 순위표 + 리그 배율 · 같은 실력이면 위 리그가 조금 앞서게)
-export const WEEKLY_TIERS = [ // (10/09 3차: 합류 카드 · 덜 잦은 레벨업 뒤 lb-weekly-sim --calib 다시)
-  { id: 1, name: '새싹', from: 5, pool: [3, 8], mul: 1, lv: [3, 15], hp: 1.0 }, // (10/09 주간 고르기 줄이기 뒤 재맞춤 · --calib)
-  { id: 2, name: '단골', from: 11, pool: [9, 18], mul: 1.08, lv: [4, 19], hp: 1.5 },
-  { id: 3, name: '고수', from: 26, pool: [21, 30], mul: 1.16, lv: [5, 22], hp: 1.3 },
-  { id: 4, name: '달인', from: 46, pool: [41, 52], mul: 1.24, lv: [12, 36], hp: 1.75 }, // (10/09 고아라 하향 · 주간 고르기 줄이기 뒤 --calib)
-  { id: 5, name: '전설', from: 66, pool: [61, 74], mul: 1.32, lv: [10, 34], hp: 1.15 },
+export const WEEKLY_TIERS = [ // (10/10 등급 맞춤 · 스킬 비중 뒤 --calib: 완주율을 바꾸기 전과 같게 78 · 67 · 50 · 78 · 72%) (10/09 3차: 합류 카드 · 덜 잦은 레벨업 뒤 lb-weekly-sim --calib 다시)
+  { id: 1, name: '새싹', from: 5, pool: [3, 8], mul: 1, lv: [3, 15], hp: 1.686 }, // (10/09 주간 고르기 줄이기 뒤 재맞춤 · --calib)
+  { id: 2, name: '단골', from: 11, pool: [9, 18], mul: 1.08, lv: [4, 19], hp: 2.083 },
+  { id: 3, name: '고수', from: 26, pool: [21, 30], mul: 1.16, lv: [5, 22], hp: 1.45 },
+  { id: 4, name: '달인', from: 46, pool: [41, 52], mul: 1.24, lv: [12, 36], hp: 2.173 }, // (10/09 고아라 하향 · 주간 고르기 줄이기 뒤 --calib)
+  { id: 5, name: '전설', from: 66, pool: [61, 74], mul: 1.32, lv: [10, 34], hp: 2.173 },
 ];
 export const weeklyTier = (maxStage) => { let t = 1; for (const x of WEEKLY_TIERS) if ((maxStage | 0) >= x.from) t = x.id; return t; };
 export const weeklyTierDef = (t) => WEEKLY_TIERS[Math.max(1, Math.min(WEEKLY_TIERS.length, t | 0 || 1)) - 1];

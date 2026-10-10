@@ -135,7 +135,7 @@ export const TENSION = { crowd: { k: 2, over: 0.2, cap: 3.5 }, door: 0.9, espd: 
   // (10/09 '카드를 너무 많이 고른다' → 한 판 고르기 5~7번): auto = 1웨이브 합류 시각(초) — 합류는 카드 없이 덱 순서대로 저절로 (2웨이브부터 웨이브마다 perWave 명) · augW: 증강이 뜨는 웨이브 · need 는 레벨업 필요 경험치 배율
   // (10/09 3차 · HOTD 식 합류 · 키우기 카드는 그대로, 덜 잦게): freeTo 0 = 합류해도 카드 한 장 더 안 줌 · noFast = 앞 레벨업 빠르게(JOIN.exp) 끔 — 대신 1웨이브 공짜 합류 카드 두 장은 모든 스테이지 (파티가 빨리 모이게)
   pick: { need: 1.4, noFast: true, freeWaves: [2, 3], guarantee: 3, freeTo: 0, auto: null, perWave: 1, augW: { 2: 'gold', 4: 'prism' }, lv: 3, chNeed: [1.1, 0.38, 0.55, 0.95, 1.1, 1.0, 0.85, 0.7], wk: { need: 3.2, ch: [1, 1, 1.25, 1.25, 1.35, 1.35, 1.7, 1.7], augW: { 3: 'gold', 6: 'prism' }, card: 2.2, lvAll: true } }, /* wk: 주간 도전 (8웨이브) — 레벨업 필요 경험치 × · 증강 웨이브 · 카드 % × */ /* lv: 멤버 레벨 카드 공격력 + 배율 (GROW.lv ×) · chNeed: 장마다 레벨업 필요 경험치 (장마다 한 판 카드 4~5장이 되게) */ wide: { from: 5, dmg: 0.02, repair: 0.02, narrow: 0.3 },
-  chHp: [0.667, 0.995, 1.001, 0.767, 0.541, 0.634, 0.645, 0.808] }; // (10/10 등급 맞춤 · 스킬 비중 뒤 chcalib — 팀이 세진 만큼) // (10/09 3차 chcalib: 덤 카드 · 빠른 앞 레벨업을 뺀 만큼) // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
+  chHp: [0.667, 0.995, 1.001, 0.767, 0.541, 0.634, 0.69, 0.86] }; // (10/10 등급 맞춤 · 스킬 비중 뒤 chcalib — 팀이 세진 만큼) // (10/09 3차 chcalib: 덤 카드 · 빠른 앞 레벨업을 뺀 만큼) // chHp: 장마다 체력 (stagemeas · 새 목표 1장 90 · 2장 78 · 3장 75 · 4장 72 · 5장 68 · 6장 64 · 7 · 8장 표)
 export const SLOW_RUN = { gap: 1.75, count: 0.72, hp: 2.1, espd: 0.85, door: 1.15, chHp: [0.89, 0.89, 0.69, 0.82, 0.91, 0.985, 0.63, 0.525] }; // (10/08 진상 리메이크 · 쓰러짐 게이지 · 1웨이브 뒤 큰 한 방 · 기세 2칸 뒤 다시: 1 · 2장 +3% · 3장 −7% · 6장 −3.5% · 7장 +7% · 8장 +5%) chHp: 장마다 체력 다시 맞춤 (stagemeas · 대개편 뒤 1차 · 10/07 쿨 다양화 · 쓰러짐 게이지 뒤 6장 +7% · 7장 −2% · 8장 −2%)
 // 방어율 (장이 깊을수록 진상이 단단 — 한 방마다 %로 깎임): 정예 · 중간 보스 · 보스는 ch 그대로 · 졸개는 fodder 배
 //  방관(pen): 그 멤버 공격은 방어율을 그만큼 뚫는다 (건전남 전부) · 여지원 모자이크 한 겹마다 방어율 shredPer 씩 벗김 (5겹 = 0) · 모자이크 폭격은 전부
@@ -194,7 +194,7 @@ export const EST = {
 };
 // 화상 (박나영): tick 초마다 · 겹마다 +stack · 최대 max 겹 — 방어율 무시
 export const BURN = { tick: 0.5, stack: 0.5, max: 3 };
-export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [2.353, 0.977, 1.334, 1.66, 1.731, 1.396], /* (10/10 등급 맞춤 · 스킬 비중 뒤 chcalib --hell) (10/09 카드 개편 뒤 헬 1장 68% · 3장 57% → 목표 45 · 38 쪽으로) */ endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 4.8, wonsik: 2.4, staff: 2.0, eunok: 0.6, myunghoon: 1.95, bangjang: 1.9, soyoung: 1.9, junyoung: 2.4, ingyu: 3.0, jiwon: 1.75, jungmin: 1.7, gunman: 3.6, junseo: 5.4, ara: 2.6, youngjun: 0.95, jieun: 2.4, baul: 1.1, sanghwa: 4.3, hanna: 1.5, hochan: 3.8, hyungyeong: 1.4, sunggu: 2.1, subin: 2.6, dragon: 1.7, byunghwa: 2.1 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
+export const TEMPO = { proj: 0.32, count: 0.6, hp: 1.5, hellHp: 1.5, hellCh: [2.353, 0.977, 1.2, 1.66, 1.731, 1.5], /* (10/10 등급 맞춤 · 스킬 비중 뒤 chcalib --hell) (10/09 카드 개편 뒤 헬 1장 68% · 3장 57% → 목표 45 · 38 쪽으로) */ endHp: 1.1, fix: { gunnyeo: 1.25, donghan: 4.8, wonsik: 2.4, staff: 2.0, eunok: 0.6, myunghoon: 1.95, bangjang: 1.9, soyoung: 1.9, junyoung: 2.4, ingyu: 3.0, jiwon: 1.75, jungmin: 1.7, gunman: 3.6, junseo: 5.4, ara: 2.6, youngjun: 0.95, jieun: 2.4, baul: 1.1, sanghwa: 4.3, hanna: 1.5, hochan: 3.8, hyungyeong: 1.4, sunggu: 2.1, subin: 2.6, dragon: 1.7, byunghwa: 2.1 }, rate: 1 / 1.3, dmg: 1.35, cd: 1 }; // cd 1: 쿨 다양화 (스킬마다 실제 초)
 // 이호찬 (템포): 기본 공격 없이 게이지 → 막차 버스가 자기 줄을 달려 올라가며 진상을 밀어낸다 · Lv5 기절 · 진화 = 2층 버스 (두 줄 폭)
 export const BUS = { sec: [6.4, 6, 5.6, 5.2, 4.8], w: 110, w2: 200, speed: 560, kb: 90, dmg: 7, stun: 0.9 }; // (dmg 9 → 7: 헬 7-10 에서 혼자 피해 89% — 버스 한 대로 판을 끝내지 않게) // (템포에선 버스가 '랑방을 위하여' 팀 버프도 건다: LEGEND 가 혼자 캐리보다 팀을 키우게)
 // 투사체 그림 (fx/w_<이름>.webp · 오른쪽을 보는 그림 → 날아가는 방향으로 돌림) — 없으면 코드로 그린 모양
@@ -479,7 +479,7 @@ export const STAGE = {
 };
 // ── 7장 스키장 MT: 난이도 숫자 (기존 1~6장 값은 그대로 · 이 블록만 7장) — scripts/lb-balance.js ch7 로 맞춘 값 ──
 //   목표: 한 명만 키운 덱 < 30% · 역할을 갖춘 T3/T4 강화 덱 50~70% · 키운 LEGEND 포함 덱은 그보다 높게 · 헬은 더 어렵게
-export const CH7 = { chapterAdd: 1, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 1.522,
+export const CH7 = { chapterAdd: 1, boss: [-3.5, -4.5], deckHp: 1.8, hpTune: 0.76, /* (0.84 → 0.76: 문동한 한 방 하향만큼 역할 덱이 비슷하게) */ swarm: 3.0, chHp: 0.8, joinHp: 2.6, hellCh: 1.62,
   stageAdd: { 61: -1.97, 62: -3.49, 63: -3.63, 64: -6.06, 65: -3.08, 66: -9, 67: 6.28, 68: -6.17, 69: -8.88, 70: -13}, waveAdd: [-4, -2, 0, -1.5, 1],
   coldTier: [1, 1.4, 1.2, 1, 0.75, 0.45], thaw: 2 }; // thaw: 눈덩이 빙결이 풀린 뒤 2초는 다시 안 언다 // 겨울 산 적응: 등급이 높은 멤버일수록 빙결 · 침묵 · 추위(공속↓)가 짧다 (T1 ×1.3 … LEGEND ×0.55) // waveAdd: 첫 웨이브(대장 혼자)는 덜 · 뒤 웨이브와 보스는 더
 STAGE.chapterAdd[6] = CH7.chapterAdd; STAGE.bossStage[7] = CH7.boss; STAGE.deckHp[6] = CH7.deckHp; STAGE.hpTune[6] = CH7.hpTune; STAGE.swarm[6] = CH7.swarm;
@@ -998,11 +998,11 @@ export const HEROES = {
     img: '/img/lb/h_bangjang.webp', role: '리더 · 확성기 지시(지목) · 대장이면 모두 공속 +',
     dmg: 30, interval: 0.8, range: 340, proj: 'order', projSpeed: 900, // (부채꼴 음파 → 한 명 콕 집는 지시: 부채꼴은 강병화 고함만)
     order: { sec: 3, mul: [0.2, 0.2, 0.25, 0.25, 0.3], every: 4, n: 3, r: 120 }, // 지목: 모든 멤버에게 받는 피해 +% (3초) · Lv5 4번마다 근처 3명 한꺼번에
-    aura: [0.08, 0.1, 0.15, 0.19, 0.25], // 모든 아군 공격 속도 +% (10/10 등급 맞춤 6~20% → 8~25% · 집합! 쿨 40 → 30초) (8~26% → 6~20%: T1 인데 대장일 때 너무 셌다)
+    aura: [0.08, 0.1, 0.15, 0.19, 0.25], // 모든 아군 공격 속도 +% (10/10 등급 맞춤 6~20% → 8~25% · 집합! 쿨 40 → 35초) (8~26% → 6~20%: T1 인데 대장일 때 너무 셌다)
     attack: '확성기 지시 — 입구에 제일 가까운 진상을 콕 집어 "저 사람!" · 맞은 진상은 3초 동안 「지목」 (모든 멤버에게 받는 피해 +20%) · 대장(1번 칸)이면 모두 공속 +, 아니면 곁 멤버만 절반',
     desc: '확성기로 "저 사람!" 하고 콕 집어 준다. 방장이 찍은 진상은 모두가 더 세게 때리고, 곁에 있는 것만으로 모두의 손이 빨라진다.',
     perks: { 3: '지목 피해 +5%p · 오라 강화', 5: '4번마다 "전체 지시" — 근처 진상 3명을 한꺼번에 지목 · 지목 +5%p' },
-    skill: { id: 'rally', name: '집합!', cd: 30, desc: '깃발을 꽂고 필드 전체 충격파 (보스 빼고 한 칸 밀기) · 8초 동안 모두 공격 속도 +60% (Lv4 +70% · Lv5 10초 +80%)', sec: [8, 8, 9, 9, 10], spd: [0.6, 0.6, 0.6, 0.7, 0.8] }, // (10/10 등급 맞춤: 쿨 40 → 30초 · +50~70% → +60~80%)
+    skill: { id: 'rally', name: '집합!', cd: 35, desc: '깃발을 꽂고 필드 전체 충격파 (보스 빼고 한 칸 밀기) · 8초 동안 모두 공격 속도 +60% (Lv4 +70% · Lv5 10초 +80%)', sec: [8, 8, 9, 9, 10], spd: [0.6, 0.6, 0.6, 0.7, 0.8] }, // (10/10 등급 맞춤: 쿨 40 → 35초 (큰 스킬 첫 웨이브 잠금은 그대로) · +50~70% → +60~80%)
   },
   staff: {
     id: 'staff', bossKit: 0.9, kit: 1.0, name: '운영진', gender: 'f', emoji: '📋', color: '#5ab0ff', attr: 'talk',
