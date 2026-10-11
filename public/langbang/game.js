@@ -42,6 +42,8 @@ import { initPush } from './push.js'; // 알림 받기 (웹 푸시)
 import * as SSN from './season.js'; // 시즌 테마 (할로윈 등): 로비 그림 · 장식 · 로비 음악
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
 import { createTutor } from './tutorial.js'; // 처음 하는 사람 튜토리얼 (방장 말풍선 · 손가락)
+import * as CU from './currency.js'; // 재화 목록 · 얻는 곳 · 쓰는 곳 · 성장 길잡이 계산
+import { initCurrency, currencyFly, flyGains } from './currency-ui.js'; // 재화 안내 창 · 성장 길잡이 · 날아가는 아이콘
 
 const $ = (s) => document.querySelector(s);
 const TAU_ = Math.PI * 2;
@@ -2256,7 +2258,7 @@ function heroParade() {
 function topbar(back = true, extra = '') {
   return `<div class="topbar">${back ? '<button class="back" data-act="menu">‹ 메뉴</button>' : '<a class="back" href="/">‹ 게임월드</a>'}${extra}</div>`;
 }
-const coinsPill = () => `<span class="coins-pill"><i class="ci"></i>${P().unlimited ? '∞' : fmt(P().coins || 0)}</span>`;
+const coinsPill = () => `<button class="coins-pill" data-act="curInfo" data-cur="coins" style="${CU.curVars('coins')}">${CU.curIcon('coins')}<b>${P().unlimited ? '∞' : fmt(P().coins || 0)}</b></button>`;
 
 // ─── 로비 (메인 화면) ─────────────────────────────────
 // 뒤에는 데모 전투가 계속 돌고(어둡게), 가운데 챕터 디오라마, 아래 출격 버튼 · 왼쪽 이벤트 · 오른쪽 메뉴 · 맨 아래 탭
@@ -2553,7 +2555,7 @@ function showMail() {
   const p = P(), now = Date.now();
   const list = (p.mail || []).filter((m) => m.exp > now).slice().reverse();
   const safe = (rw) => { try { return gotText(rw) || ''; } catch { return ''; } }; // 보상 글자가 깨져도 우편함은 열린다
-  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b>${m.from ? `<i class="mail-from">보낸 사람 ${esc(m.from)}</i>` : ''}<small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${esc(safe(m.rw))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
+  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b>${m.from ? `<i class="mail-from">보낸 사람 ${esc(m.from)}</i>` : ''}<small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${CU.rwTags(m.rw)}${esc(safe(CU.rwRest(m.rw)))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
   popup(`<h3>${ic('mail', '', 'sm')}우편함</h3>${list.length > 1 ? `<button class="btn primary" data-act="mailGet" data-id="all">${ic('gift', '', 'sm')}모두 받기 (${list.length})</button>` : ''}
     <div class="mail-list">${rows || '<div class="empty-msg">받을 우편이 없어요</div>'}</div><p class="ip">보상 우편은 ${L.MAIL_DAYS}일 뒤 사라져요</p>`, 'mail-pop');
 }
@@ -2618,7 +2620,7 @@ function topPills() {
   return `<div class="lb-top">
     <button class="pill me" data-act="cosmetics" style="${fr ? `--fr:${fr}` : ''}"><span class="ava ${fr ? 'framed ' + frameCls(p.frame) : ''}">${av(HEROES.bangjang)}</span>
       <span class="who"><b>${app.guest ? '손님' : `Lv.${p.level}`}</b><em>${esc(app.guest ? '로그인하면 랭킹 등록' : app.nickname || '랑방 멤버')}</em>${titleChip(p.title)}<i class="xp"><b style="width:${app.guest ? 0 : expPct}%"></b></i></span></button>
-    <div class="curs">${p.master && !p.testNormal ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="stamina">${ic('energy', '', 'sm')}<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pill cur tk" data-act="nav" data-tab="shop">${ic('ticket', '', 'sm')}<b>${p.unlimited ? '∞' : fmt(p.tickets || 0)}</b><em class="plus" aria-label="모집권 사러 가기"></em></button></div>
+    <div class="curs">${p.master && !p.testNormal ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="curInfo" data-cur="sta" style="${CU.curVars('sta')}">${CU.curIcon('sta')}<b id="staV">${staText(p)}</b></button>`}<button class="pill cur" data-act="curInfo" data-cur="coins" style="${CU.curVars('coins')}">${CU.curIcon('coins')}<b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></button><button class="pill cur tk" data-act="curInfo" data-cur="tickets" style="${CU.curVars('tickets')}">${CU.curIcon('tickets')}<b>${p.unlimited ? '∞' : fmt(p.tickets || 0)}</b><em class="plus" aria-label="모집권 안내"></em></button></div>
   </div>`;
 }
 // 로비 랭킹 띠: 스테이지 · 1:1 대전 · 주간 도전 순위를 4초마다 돌아가며 (누르면 전체 랭킹)
@@ -2705,7 +2707,8 @@ function showLobbyMenu() {
   const cells = [['checkin', '출석', 'checkin', d.checkin], ['ranking', '랭킹', 'ranking', BKX.dot(p)], ['dex', '도감', 'dex', dexHasNew()], ['friends', '친구', 'friends', FRX.badge(p) > 0], ['recruit', '모집', 'recruit', d.recruit], ['share', '공유', 'share', false], ['notice', '공지', 'notice', false], ['settings', '설정', 'settings', false]]
     .map(([k, n, act, on]) => `<button class="mg-cell" data-act="${act}">${IC2[k] ? lbArt(IC2[k], IC2[k]) : uiIco(k, '')}<b>${n}</b>${rdot(on)}</button>`).join('');
   const hwCell = HWUI && HWUI.season() ? `<button class="mg-cell hw-cell" data-act="hw"><span class="uic"><img src="/img/lb/season/hw_pumpkin.webp" alt="" draggable="false"></span><b>할로윈</b>${rdot(HWUI.open() && !(P().hw && Object.keys(P().hw.best || {}).length))}</button>` : ''; // 할로윈 이벤트 (시즌 동안)
-  const m = popup(`<h3>${lbArt('lobby_menu', 'tools').replace('class="uic"', 'class="uic h3i"')}메뉴</h3><div class="mg-grid">${hwCell}${cells}</div>`, 'lb-sheet mg-sheet');
+  const grCell = `<button class="mg-cell gr-cell" data-act="growth"><span class="uic"><img src="/img/lb/ui2/hammer.webp" alt="" draggable="false"></span><b>성장 길잡이</b>${rdot(upCounts().all > 0)}</button>`; // 지금 가진 재화로 뭘 하면 좋은지 (currency-ui.js)
+  const m = popup(`<h3>${lbArt('lobby_menu', 'tools').replace('class="uic"', 'class="uic h3i"')}메뉴</h3><div class="mg-grid">${grCell}${hwCell}${cells}</div>`, 'lb-sheet mg-sheet');
   lobbySheetClose(m);
 }
 // 창 안에서 고르면 창을 닫고 그 화면으로 (잠긴 칸은 창을 남겨 둔다 → 안내만)
@@ -3041,8 +3044,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) verC
 setInterval(verCheck, 10 * 60e3);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && app.profileLoaded && !app.guest && app.screen !== 'play') resyncProfile().then((ok) => { if (ok && app.screen !== 'play') { refresh(); BKX.notify(); } }); });
 async function liveAct(promise, okMsg) {
+  const before = CU.snap(app.profile || {}); // 늘어난 재화는 눌렀던 자리에서 위 칩으로 날아간다 (currency-ui.js)
   const r = await promise;
-  if (r.ok && r.profile) app.profile = r.profile;
+  if (r.ok && r.profile) { app.profile = r.profile; try { flyGains(before); } catch { /* 연출 실패는 무시 */ } }
   if (!r.ok) {
     toast(r.message || '못 했어요');
     // 부족하다고 하면 서버 값으로 다시 맞추고 화면도 새로 (진짜 개수를 보여 준다)
@@ -3071,10 +3075,10 @@ function showShop() {
         <div class="gb-text"><div class="gb-title"><small class="gb-pick">장비 뽑기 · 강화석</small><b>보물 상자</b><small>무기 · 장신구 · 신화 장비</small></div>
         <div class="gb-pity"><span>신화 장비 확정까지 <b>${gp}</b>회</span><span>10회 뽑기: 영웅 이상 1개 보장</span></div></div></div>
       <div class="grid2 gacha-btns">
-        <button class="btn" data-act="gpull" data-n="1"><b>1회 뽑기</b><small>${ic('gem', '', 'sm')}${L.GEAR_GACHA_COST.one}</small></button>
-        <button class="btn primary" data-act="gpull" data-n="10"><b>10회 뽑기</b><small>${ic('gem', '', 'sm')}${L.GEAR_GACHA_COST.ten} · 영웅 이상 1개</small></button>
+        <button class="btn" data-act="gpull" data-n="1"><b>1회 뽑기</b><small>${CU.curIcon('stones')}${L.GEAR_GACHA_COST.one}</small></button>
+        <button class="btn primary" data-act="gpull" data-n="10"><b>10회 뽑기</b><small>${CU.curIcon('stones')}${L.GEAR_GACHA_COST.ten} · 영웅 이상 1개</small></button>
       </div>
-      <button class="btn ghost rates-btn" data-act="grates">${ic('chart', '', 'sm')} 확률 공개 · 보유 강화석 ${ic('gem', '', 'sm')}${p.unlimited ? "∞" : p.stones | 0}</button>
+      <button class="btn ghost rates-btn" data-act="grates">${ic('chart', '', 'sm')} 확률 공개 · 보유 강화석 <span data-cur="stones">${CU.curIcon('stones')}</span>${p.unlimited ? "∞" : p.stones | 0}</button>
       ${sigBarHtml(p)}
       <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>강화석은 스테이지 보상 · 장비 분해로 모여요</span></p>`;
   } else if (tab === 'recruit') {
@@ -3098,7 +3102,7 @@ function showShop() {
         <button class="btn" data-act="pull" data-n="1"><b>1회 모집</b><small>${cost1}</small></button>
         <button class="btn primary" data-act="pull" data-n="10"><b>10회 모집</b><small>${cost10} · ${(p.pulls | 0) === 0 ? '처음 10회는 T4 확정' : 'T3 이상 1개 확정'}</small></button>
  </div>
- <button class="btn ghost rates-btn" data-act="rates">${ic('chart', '', 'sm')} 확률 공개 · 보유 모집권 ${ic('ticket', '', 'sm')}${p.unlimited ? '∞' : p.tickets | 0}</button>
+ <button class="btn ghost rates-btn" data-act="rates">${ic('chart', '', 'sm')} 확률 공개 · 보유 모집권 ${CU.curIcon('tickets')}${p.unlimited ? '∞' : p.tickets | 0}</button>
       ${(() => { const jp = L.joinPicksOpen(p); return jp.length ? `<button class="btn primary jp-btn" data-act="joinPickOpen">${ic('ticket', '', 'sm')}<b>합류 선택권 ${jp.length}장</b><small>T${jp[0].tier} 모집 멤버 한 명 골라 바로 합류</small></button>` : ''; })()}
       <button class="btn ghost acq-btn" data-act="acqRules">${ic('book', '', 'sm')} 멤버 획득 규정 — 누가 어디서 합류하나</button>
       ${sigBarHtml(p)}
@@ -4237,7 +4241,7 @@ Object.assign(ACTS, {
   todo: () => showTodo(),
   todoGo: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) guideTodo(t); },
   todoNews: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) guideTodo(t); else showTodo(); }, // 소식 띠의 할 일 → 바로 길 안내
-  upGuide: () => { const t = upgradeList()[0]; if (t) guideTodo(t); else toast('지금은 강화할 게 없어요 — 출격해서 코인 · 카드를 모아요', 2200); },
+  upGuide: () => ACTS.growth(), // 「추천 강화」 → 성장 길잡이 (currency-ui.js)
   upNudgeGo: () => { closeInfoCard(); nudgeSave(0); const t = upgradeList()[0]; if (t) guideTodo(t); },
   upNudgeNo: () => { closeInfoCard(); nudgeSave(1); },
   heroInfo: (b) => showDexCard('hero', b.dataset.id),
@@ -4843,7 +4847,7 @@ function showPrep(mode, s) {
       <button class="pp-gobtn2 ${ids.length ? '' : 'dim'} ${hellOn ? 'hell' : ''}" data-act="go"><i class="gb-shine"></i><b>출격!</b>${cost ? `<span class="gb-cost">${ic('energy', '', 'sm')}<em>${cost}</em></span>` : ''}</button>
     </div>`;
   show(`
-    <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="stamina">${ic('energy', '', 'sm')}<b id="staV">${staText(p)}</b></button>`}<span class="pill cur"><i class="ci"></i><b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></span><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
+    <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="curInfo" data-cur="sta" style="${CU.curVars('sta')}">${CU.curIcon('sta')}<b id="staV">${staText(p)}</b></button>`}<button class="pill cur" data-act="curInfo" data-cur="coins" style="${CU.curVars('coins')}">${CU.curIcon('coins')}<b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></button><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
     ${headHtml}${diffHtml}${condHtml}${powHtml}${lackHtml}${foeHtml}${deckHtml}${consPrepHtml()}${rw}
     <div class="spacer"></div>
     ${goHtml}
@@ -5667,6 +5671,7 @@ async function saveResult(sum, g) {
   const body = stageMode
     ? { stage: sum.stage, stars: sum.stars, perfect: sum.perfect, hell: sum.hell, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, hpPct: sum.hpPct, seen: sum.seen, speed: app.runSpeed || 1, stolen: sum.stolen | 0 }
     : { wave: sum.wave, score: sum.score, kills: sum.kills, bossKills: sum.bossKills, skills: sum.skills, durationSec: sum.durationSec, seen: sum.seen, afkSec: sum.afkSec, coinMul: sum.coinMul, curses: sum.curses };
+  const curBefore = CU.snap(app.profile || {});
   const r = stageMode ? await API.postStage(body, app.guest) : await API.postEndless(body, app.guest);
   if (r.ok && r.profile) app.profile = r.profile;
   if (!box || !box.isConnected) return;
@@ -5705,8 +5710,9 @@ async function saveResult(sum, g) {
   }).join('') + (r.joinPick ? `<div class="unlock jpick">${ic('ticket', '', '')}<div><small>장 끝 보상!</small><b>T${r.joinPick.tier} 합류 선택권</b><span>모집 T${r.joinPick.tier} 멤버 중 한 명을 골라 바로 합류</span></div></div>` : '');
   const endless = r.endlessUnlocked ? '<div class="unlock"><span class="big-ico"></span><div><small>새 모드 열림!</small><b>무한 도전</b><span>어디까지 버티나 랭킹 경쟁!</span></div></div>' : '';
   const drops = (rw.drops || []).map((it) => `<span class="drop r-${it.r}" style="--rc:${GEAR_RARITY[it.r].color}">${gearIco(it)}<b>${esc(GEAR[it.t].name)}</b><small>${GEAR_RARITY[it.r].name}${it.sold ? ` · 가방 꽉 참 → +${it.sold}` : ''}</small></span>`).join('');
-  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">${ic('gem', '', 'sm')}강화석 <b>+${rw.stones}</b></div>` : ''}${rw.cons ? Object.entries(rw.cons).map(([k, n]) => (L.CONS[k] ? `<div class="rw-stones">${consIc(k)}${esc(L.CONS[k].name)} <b>+${n}</b></div>` : '')).join('') : ''}${rw.cardDrop && HEROES[rw.cardDrop] ? `<div class="rw-stones">${ic('card_common', '', 'sm')}${esc(HEROES[rw.cardDrop].name)} 카드 <b>+1</b></div>` : ''}</div>${drops ? `<div class="drops"><small>${ic('gift', '', 'sm')}장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
-    <div class="own">${badges.join('')}<span>보유 <i class="ci"></i>${fmt(p.coins)}</span>${app.guest ? ' · <span class="dimtxt">손님 기록은 이 기기에만</span>' : ''}</div>`;
+  box.innerHTML = `<div class="rewards">${lines.join('')}${rw.stones ? `<div class="rw-stones">${CU.curIcon('stones')}강화석 <b style="color:${CU.CUR.stones.color}">+${rw.stones}</b></div>` : ''}${rw.cons ? Object.entries(rw.cons).map(([k, n]) => (L.CONS[k] ? `<div class="rw-stones">${consIc(k)}${esc(L.CONS[k].name)} <b>+${n}</b></div>` : '')).join('') : ''}${rw.cardDrop && HEROES[rw.cardDrop] ? `<div class="rw-stones">${CU.curIcon('cards')}${esc(HEROES[rw.cardDrop].name)} 카드 <b style="color:${CU.CUR.cards.color}">+1</b></div>` : ''}</div>${drops ? `<div class="drops"><small>${ic('gift', '', 'sm')}장비 획득</small>${drops}</div>` : ''}${unlocks}${endless}
+    <div class="own">${badges.join('')}<span data-cur="coins">보유 ${CU.curIcon('coins')}<b>${fmt(p.coins)}</b></span>${app.guest ? ' · <span class="dimtxt">손님 기록은 이 기기에만</span>' : ''}</div>`;
+  try { flyGains(curBefore, box.querySelector('.rw.total')); } catch { /* 연출 실패는 무시 */ }
   if (unlocks) { fx.flash('#ff9ff0', 0.4); A.sfx.join(); }
   for (const id of r.unlockedHeroes || []) await showJoinReveal(id, heroRoute(id) === 'hidden' ? 'hidden' : 'story', heroRoute(id) === 'hidden' ? HIDDEN_COND[id].text : `${stageLabel(HERO_UNLOCK[id])} 클리어 — ${STORY_JOIN[id] || ''}`);
   if (r.joinPick) showJoinPick(); // 장 끝: 합류 선택권 바로 고르기 (나중에 모집 화면에서도)
@@ -7235,6 +7241,25 @@ async function boot() {
   else if (Q.has('autostart')) startRun(Q.has('endless') ? { mode: 'endless', force: true } : { mode: 'stage', stage: nextStage(), force: true });
 }
 
+// 재화 안내 창 · 성장 길잡이 (public/langbang/currency-ui.js) — "바로 가기" 는 아래 키로 실제 화면을 연다
+function curGo(key) {
+  closeInfoCard();
+  const shop = (tab) => { app.shopTab = tab; showShop(); };
+  const F = {
+    stages: () => ACTS.stages(), weekly: () => ACTS.weekly(), endless: () => ACTS.endless(), missions: () => showMissions(), checkin: () => showCheckin(), season: () => showSeason(),
+    mail: () => ACTS.mail(), tower: () => ACTS.tower(), towershop: () => { ACTS.tower(); setTimeout(() => ACTS.twShop && ACTS.twShop(), 120); }, raid: () => (R2UI ? R2UI.show() : toast('지금은 열려 있지 않아요')),
+    pvp: () => showPvp(), hw: () => (HWUI ? HWUI.show(true) : toast('지금은 열려 있지 않아요')), hwshop: () => { if (!HWUI) return toast('지금은 열려 있지 않아요'); HWUI.show(true); setTimeout(() => ACTS.hwShop && ACTS.hwShop(), 120); },
+    bag: () => { app.bagTab = 'over'; showBag(); }, deck: () => showDeckTab(), recruit: () => shop('recruit'), gachagear: () => shop('gear'), itemshop: () => shop('items'),
+    cardpick: () => { shop('items'); setTimeout(() => ACTS.cardPickOpen(), 120); }, friends: () => FRX.showFriends(L.giftInbox(P()).length ? 'gifts' : 'req'), bonkae: () => BKX.showFees(),
+    dex: () => showDex(), sta: () => showStamina(), sigEx: () => showSigExchange(), convert: () => { app.shopTab = 'recruit'; showShop(); toast('모집 화면 아래 「남는 카드 → 범용 카드」 버튼이에요', 2600); },
+  };
+  const f = F[key]; if (f) f();
+}
+Object.assign(ACTS, initCurrency({
+  P, popup, toast: (m, ms) => toast(m, ms), ic: (...a) => ic(...a), closeInfoCard: () => closeInfoCard(), guideTodo: (t) => guideTodo(t), go: curGo,
+  uid: () => uid(), owned: () => owned(), curDeck: () => curDeck(), heroPower: (p, id) => heroPower(p, id), metaMaxOf, costOf: (p, id) => API.costOf(p, id), upgradeList: () => upgradeList(),
+}));
+
 // 친구 화면 (public/langbang/friends.js): 화면 도구를 넘기고 버튼 동작을 합친다
 Object.assign(ACTS, FRX.initFriends({
   app, P, setProfile: (p) => { app.profile = p; }, show, popup, toast, confirmBox, topbar, esc, fmt, ic, av, frameCls, frameStyle, whoHtml, titleChip,
@@ -7280,6 +7305,7 @@ HWUI = initHw({
 Object.assign(ACTS, HWUI.acts);
 // 테스트/디버그용 핸들
 window.__lb = {
+  currencyFly, CU, // 재화 날리기: __lb.currencyFly('coins', 누른 자리 rect, 개수) — 다른 보상 연출에서도 쓴다
   tower: () => TWUI.show(),
   face: () => DEX_FACE,
   faceC: () => FACE_BOX,
