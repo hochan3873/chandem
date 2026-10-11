@@ -3961,13 +3961,6 @@ function showCheckin() {
   popup(`<h3>${ic('calendar', '', 'sm')}출석 체크</h3><p class="ip">매일 들어오면 보상! 하루 빠지면 1일부터 다시 (연속 ${st.streak}일)</p><div class="cdays">${days}</div>
     <button class="btn primary" data-act="doCheckin" ${st.done ? 'disabled' : ''}>${st.done ? '내일 또 만나요' : '출석하기'}</button>`);
 }
-const NOTICES = [
-  ['', '새 멤버 4명!', 'T4 멤버 3명, 그리고 LEGEND 멤버 1명 — 누군지는 상점 → 모집에서 직접 만나요'],
-  ['', '주간 도전전', '매주 월요일 새 판! 모두 같은 판으로 점수 경쟁, 순위 보상은 다음 주에'],
-  ['', '미션 · 업적 · 시즌', '일일/주간 미션과 무료 시즌(30단계)으로 모집권·장비·칭호를 받아요'],
-  ['', '덱 칸 변경', `기본 덱 ${DECK_BASE}칸 · 5·6번째 칸은 상점 아이템에서 (예전에 산 칸은 한 칸씩 남아요)`],
-  ['', '상성 강화', `유리한 속성 ×${TYPE_STRONG} · 불리한 속성 ×${TYPE_WEAK} — 덱 짤 때 ▲▼ 를 보세요`],
-];
 // 패치 노트: 안 본 것이 있으면 로비에서 한 번 (처음 하는 사람은 건너뛴다 — 바뀐 걸 알 필요가 없으니)
 const PATCH_KEY = 'langbang:patchSeen';
 function patchHtml(list) {
@@ -3984,7 +3977,8 @@ function patchCheck() {
   popup(`<h3>${ic('megaphone', '', 'sm')}업데이트 소식</h3><div class="pn-body">${patchHtml(list)}</div><button class="btn primary" data-act="closePop">확인</button>`, 'pp-mini pn-pop');
 }
 function showNotice() {
-  popup(`<h3>${ic('mail', '', 'sm')}공지</h3><div class="pn-body">${patchHtml(PATCH_NOTES.slice(0, 5))}</div><div class="nlist">${NOTICES.map(([i, t, d]) => `<div class="nrow"><span>${i}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></div>`).join('')}</div>`);
+  // 공지 = 최근 업데이트 소식 (패치 노트) 만 — 옛날 고정 공지(새 멤버 4명 · 덱 칸 변경 …)는 지금과 안 맞아 뺐다
+  popup(`<h3>${ic('mail', '', 'sm')}공지 · 업데이트 소식</h3><div class="pn-body">${patchHtml(PATCH_NOTES.slice(0, 8))}</div><p class="ip">더 많은 규칙은 도감의 「규칙」 탭에서 볼 수 있어요</p>`);
 }
 // 꾸미기: 칭호 · 프레임 전부 (가진 것 · 잠긴 것 · 얻는 법) + 내 카드 미리 보기
 function cosmList() {
