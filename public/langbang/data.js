@@ -2916,12 +2916,12 @@ Object.assign(ENEMIES, {
     hw: { brew: { every: 8, r: 190, frac: 0.2 } }, // 9초마다 건강 물약: 곁 진상 체력 12% 회복 (방깎 · 화상 · 고아라가 회복을 막는다)
     shouts: ['한 병이면 인생 역전!', '하부만 세 명 데려와~', '언니만 믿어', '부업 관심 있어요?'] },
   hw_jiangshi: { id: 'hw_jiangshi', cls: 'violent', name: '강시 꼰대', gender: 'm', emoji: '🧧', color: '#3a4a8a', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_jiangshi'), hp: 120, speed: 28, atk: 7, atkInterval: 1.3, armor: 4, exp: 6, coin: 3, r: 18, size: 84,
+    img: HW_IMG('hw_jiangshi'), anims: ['attack'], hp: 120, speed: 28, atk: 7, atkInterval: 1.3, armor: 4, exp: 6, coin: 3, r: 18, size: 84,
     spit: { name: '라떼 부적', every: [10, 13], first: 5, reach: 280, kind: 'paper', st: 'freeze', sec: 1.4, fly: 0.6 }, // 예고 뒤 부적 → 빙결 (박나영 · 건전녀 · 강성구)
     hw: { hop: { gap: 0.95, air: 0.38 } }, // 콩콩 뛰어온다 — 공중에선 밀치기 · 끌어당기기가 안 먹힌다
     shouts: ['라떼는 말이야~', '요즘 애들은 쯧쯧', '부적 붙이기 전에 와라', '회식은 업무의 연장이야'] },
   hw_mummy: { id: 'hw_mummy', cls: 'politic', name: '미라 부장님', gender: 'm', emoji: '🩹', color: '#d8c89a', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_mummy'), hp: 150, speed: 22, atk: 10, atkInterval: 1.4, armor: 8, exp: 8, coin: 4, r: 20, size: 88,
+    img: HW_IMG('hw_mummy'), anims: ['attack'], hp: 150, speed: 22, atk: 10, atkInterval: 1.4, armor: 8, exp: 8, coin: 4, r: 20, size: 88,
     spit: { name: '붕대 결재', every: [11, 14], first: 5, reach: 260, kind: 'paper', st: 'stun', sec: 1.3, fly: 0.6 }, // 예고 뒤 붕대 → 기절
     hw: { rewrap: { at: 0.5, frac: 0.35 } }, // 체력 절반에서 붕대를 다시 감는다 (보호막 25% · 한 번)
     shouts: ['결재 반려야', '이거 다시 해 와', '나 때는 붕대도 직접 감았어', '퇴근? 누가?'] },
