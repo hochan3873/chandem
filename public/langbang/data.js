@@ -189,6 +189,8 @@ export const KD_SUP = {
 // 진상 투척 예고 (10/08 진상 리메이크): 멤버를 노리는 기술은 바로 날아오지 않는다 — wind 초 동안 진상이 멈춰 팔을 젖히고 노리는 멤버 발밑에 표적
 //  그 사이 기절 · 빙결 · 밀치기 · 묶기 · 시간 정지면 "끊김!" (안 던지고 breakWeak 초 빈틈) — 느린 템포라 스킬로 끊는 게 의미 있게
 //  hit: 맞은 멤버 쓰러짐 게이지에 바로 더하는 양 (상태이상 시간과 별개) × elite · mid · boss · throwHit: 진상 고유 투척(뒷담화 · 골프공 · 보스 가방 …) 한 방 · kind: 던지는 물건마다 예고 시간
+// 멀리 서는 진상 · 지원형 진상의 '위협 읽힘' (10/12): standoffK = 서는 거리 배율 (가까이 와서 위협적으로) · taunt = 가만히 있을 때 도발 간격(초) · act = 던진 뒤 동작 길이(초) · tether = 보호막 줄 길이(초) · danger = 입구선 위험 표시가 켜지는 멀리 선 진상 수
+export const THREAT = { standoffK: 0.7, taunt: [3.2, 5.5], act: 0.32, tether: 0.8, danger: 3 };
 export const ECAST = { wind: 0.75, windBoss: 0.95, reach: 340, hit: 9, throwHit: 6, elite: 1.3, mid: 1.8, boss: 2, breakWeak: 1.2,
   bump: { mukti: 6, cutter: 8, drunk_run: 6, clubgirl: 5, carpoor: 10, liftcut: 6, sledgirl: 9, drunkfriend: 6, snowboard: 6, mid_mukti: 10, fuse_taxi: 12, mid_carpoor: 14, mid_sledgirl: 14, mid_drunkfriend: 10, fuse_lift: 10, rush: 8 }, // 돌진 · 새치기 진상이 입구에 처음 닿을 때 앞 멤버 들이받기 (게이지)
   kind: { rumor: 0.7, paper: 0.75, sarcasm: 0.7, golf: 0.8, duck: 0.9, bag: 0.85, stamp: 0.85, glow: 0.8, snowball: 0.8, bottle: 0.6, latte: 0.8, puke: 0.8 } };

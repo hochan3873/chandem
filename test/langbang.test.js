@@ -401,7 +401,7 @@ test('인피 뒷담러는 멀리서 뒷담화를 던져 멤버 공격 속도를 
   run(g, 5);
   S.RANGED_GATE.chance = ch0;
   assert.ok(e.atRope, '멀찍이 멈춤');
-  assert.ok(e.y < g.ropeY - 120, '로프까지 오지 않는다');
+  assert.ok(e.y < g.ropeY - 90, '로프까지 오지 않는다');
   const h = g.heroes[0];
   assert.ok(h.rumorT > 0, '뒷담화에 맞음');
   h.stunT = 0;
@@ -563,7 +563,7 @@ test('인피 총무: 뒤에 멀찍이 서서 주변 진상에게 "회비 지원!
   assert.ok(o.shield > 0, '보호막');
   assert.ok(t.shield === 0, '자기는 안 씌움');
   run(g, 8);
-  assert.ok(t.atRope && t.y < g.ropeY - 200, '뒤에 멈춰 선다');
+  assert.ok(t.atRope && t.y < g.ropeY - 140, '뒤에 멈춰 선다');
   assert.ok(t.maxHp < ENEMIES_HP_THUG(), '체력은 낮다');
 });
 function ENEMIES_HP_THUG() { return D.ENEMIES.thug.hp * 100; }
@@ -2440,7 +2440,7 @@ test('7장 진상 기술: 떼 등장 · 보호막 · 썰매 · 핫팩 · 눈덩�
   // 눈덩이: 멀찍이 서서 → 멤버 빙결 (제일 잘 치는 멤버를 노린다) · 응급 방패 면역이면 안 언다
   const g2 = S.createGame({ H: 760, rng: seeded(72), noWaves: true, heroes: ['bangjang', 'gunman', 'staff'] });
   const ch0 = S.RANGED_GATE.chance; S.RANGED_GATE.chance = 0;
-  const sb = still(g2, 'snowball', 180, g2.ropeY - 200); sb.atRope = true; sb.snowT = 0.1;
+  const sb = still(g2, 'snowball', 180, g2.ropeY - 120); sb.atRope = true; sb.snowT = 0.1;
   g2.heroes[1].dmgDone = 1e6;
   let froze = null;
   for (let t = 0; t < 3 && !froze; t += 1 / 60) { S.step(g2, 1 / 60); const f = g2.events.find((x) => x.type === 'c7freeze'); if (f) froze = f; g2.events.length = 0; }
