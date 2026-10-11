@@ -393,7 +393,7 @@ export class Renderer {
     list.dohoon_idle = '/img/lb/h_dohoon_idle.webp'; list.dohoon_encore = '/img/lb/h_dohoon_encore.webp'; // 김도훈: 리듬 타기 8칸(평소) · 앵콜 8칸
     for (const n of ['ice_block', 'ice_burst', 'ice_shards']) list['vfx_' + n] = `/img/lb/fx/vfx_${n}.webp`; // 서명훈 빙결: 얼음 블록 · 깨지는 폭발 · 얼음 조각 12칸 띠 (kitfx.js)
     list.vfx_winkring = '/img/lb/fx/vfx_winkring.webp'; list.hanna_back = '/img/lb/h_hanna_back.webp'; // 이한나 데스 윙크
-    list.ara_leap = '/img/lb/h_ara_leap.webp'; list.ara_smash = '/img/lb/h_ara_smash.webp'; list.ara_poke = '/img/lb/h_ara_old_poke.webp'; // 고아라: 망치 들고 점프 · 내려찍기 · 할머니 지팡이 찌르기 (8칸씩 · 오른쪽을 본다)
+    list.ara_leap = '/img/lb/h_ara_leap.webp'; list.ara_smash = '/img/lb/h_ara_smash.webp'; list.ara_walk = '/img/lb/h_ara_old_walk.webp'; list.ara_throw = '/img/lb/h_ara_old_throw.webp'; list.ara_idle = '/img/lb/h_ara_idle.webp'; list.ara_old_idle = '/img/lb/h_ara_old_idle.webp'; // 고아라: 망치 들고 점프 · 내려찍기 · 할머니 종종걸음 · 지팡이 던지기 (8칸씩 · 오른쪽을 본다)
     list.hanim_youngjun_rest = '/img/lb/h_youngjun_rest.webp'; // 김영준 숨 고르기 (크로스핏 8칸 · 있으면)
     list.hanim_baul_ride = '/img/lb/h_baul_ride.webp'; list.hanim_baul_fix = '/img/lb/h_baul_fix.webp'; // 송바울 보드 타기 · 보드 정비 (8칸 반복)
     list.hanim_junyoung_sweep = '/img/lb/h_junyoung_sweep.webp'; // 성준영 칩 갈퀴로 배팅 칩 긁어모으기 (8칸 반복)
@@ -2701,13 +2701,16 @@ export class Renderer {
     this.tf(x, feet, 0, face, 1);
     this.cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw);
   }
-  // 고아라 움직임 (그림 쪽만 · 전투 계산은 sim.js 그대로): 멀리 가면 망치 들고 포물선 점프 → 착지 먼지 · 붙으면 진상 옆에 서서 내려찍기 · 돌아올 때도 점프
-  //  h._am = { x, y (땅 위치), air (공중 높이), mode: 'stand'|'leap', face (1 = 오른쪽), side (진상 기준 서는 쪽) ... } · 시간은 g.t (멈춤 · 배속 그대로)
+  // 고아라 움직임 (그림 쪽만 · 전투 계산은 sim.js 그대로) — 평소 할머니(자리에서 지팡이 던지기) · 「공주의 일격」으로 공주 (변신 펑 → 높이 점프 → 내려찍으며 착지 쾅)
+  //  공주: 멀리 가면 망치 들고 포물선 점프 · 붙으면 진상 옆에 서서 내려찍기 · 공주 시간이 끝나면 그 자리에서 펑 → 할머니가 종종걸음으로 자리까지 걸어온다
+  //  h._am = { x, y (땅 위치), air (공중 높이), mode: 'stand'|'leap'|'walk'|'tf'|'slam', alt (그림 모습: true = 할머니), face (1 = 오른쪽) ... } · 시간은 g.t (멈춤 · 배속 그대로)
+  //  큰 쾅 연출 (game.js bigHammer) 은 h._amBoom 에 담겨 있다가 망치가 닿는 순간 araBoom() 으로 터진다
   araMove(g, h, hx, hy, box) {
     const rm = typeof document !== 'undefined' && document.body.classList.contains('rm');
     let m = h._am;
-    if (!m || m.g !== g) m = h._am = { g, x: hx, y: hy, air: 0, mode: 'stand', face: 1, side: -1, lt: g.t, alt: h.alt, tfT: -9, landT: -9, tg: null };
+    if (!m || m.g !== g) m = h._am = { g, x: hx, y: hy, air: 0, mode: 'stand', face: 1, side: -1, lt: g.t, alt: !!h.alt, tfT: -9, tfDur: 0.3, landT: -9, tg: null, castSeen: h._castAt || 0, k: 0 };
     const dt = Math.max(0, Math.min(0.1, g.t - m.lt)); m.lt = g.t;
+    const home = { x: h.rx !== undefined ? h.rx : h.x, y: h.y };
     // 진상 옆에 선다 (망치 머리가 진상에 떨어지게) — 오는 쪽에 서고 · 벽에 붙으면 반대쪽
     const tg = h.out && !h.alt && h.dashE && !h.dashE.dead ? h.dashE : null;
     let tx = hx, ty = hy;
@@ -2716,21 +2719,44 @@ export class Renderer {
       if (tg.x + m.side * box * 0.3 < 18 || tg.x + m.side * box * 0.3 > 342) m.side = -m.side;
       if (Math.hypot(tg.x - hx, tg.y + 18 - hy) < 70) { tx = tg.x + m.side * box * 0.3; ty = hy; }
     } else m.tg = null;
-    if (h.alt) { tx = h.rx !== undefined ? h.rx : h.x; ty = h.y; } // 할머니는 늘 자리 (sim 이 미끄러뜨려 데려오는 동안도)
-    // 변신 (공주 ↔ 할머니): 펑 연기 · 밖에서 늙으면 연기 속에 사라졌다가 자리에서 나타남 (할머니는 점프하지 않는다)
-    if (m.alt !== h.alt) {
-      m.alt = h.alt; m.tfT = g.t;
-      if (!rm) this.fx.burst(m.x, m.y - box * 0.35, 9, 'rgba(255,240,250,0.9)', 70, 'puff', 13, 0.5);
-      if (h.alt && Math.hypot(tx - m.x, ty - m.y) > 40) { m.x = tx; m.y = ty; m.mode = 'stand'; m.air = 0; if (!rm) this.fx.burst(tx, ty - box * 0.35, 9, 'rgba(235,235,240,0.9)', 70, 'puff', 13, 0.5); }
+    if (h.alt) { tx = home.x; ty = home.y; } // 할머니는 자리로 (sim 이 미끄러뜨려 데려오는 건 무시 · 아래에서 걸어온다)
+    const puff = (x, y, old) => { if (!rm) this.fx.burst(x, y - box * 0.4, 5, old ? 'rgba(232,232,240,0.8)' : 'rgba(255,214,240,0.8)', 90, 'puff', 9, 0.32); };
+    const startTf = (toOld, dur) => { m.tfT = g.t; m.tfDur = dur; m.tfTo = toOld; m.mode = 'tf'; m.air = 0; puff(m.x, m.y, toOld); };
+    // 「공주의 일격」 시전: 할머니면 펑 변신(0.2초) → 점프 · 이미 공주면 바로 점프 (붙어 있으면 그 자리에서 내려찍기)
+    if (h._castAt && h._castAt !== m.castSeen) {
+      m.castSeen = h._castAt;
+      if (performance.now() - h._castAt < 500) { m.cast = true; if (m.alt) startTf(false, 0.2); else m.mode = 'go'; }
+    }
+    // 모습이 저절로 바뀜 (공주 시간 끝 → 폭삭 · 그 밖) — 시전 중엔 위에서 처리
+    if (!m.cast && m.alt !== !!h.alt && m.mode !== 'tf') startTf(!!h.alt, 0.32);
+    if (m.mode === 'tf') {
+      const k = (g.t - m.tfT) / m.tfDur;
+      if (k >= 0.5) m.alt = m.tfTo; // 연기 한가운데서 바뀐다
+      if (k >= 1) {
+        m.mode = 'stand';
+        if (m.cast) m.mode = 'go';
+        else if (m.alt && Math.hypot(home.x - m.x, home.y - m.y) > 8) { m.mode = 'walk'; m.wx0 = m.x; m.wy0 = m.y; m.wd = 0; } // 할머니: 자리로 종종걸음
+      }
+    }
+    if (m.mode === 'go') { // 시전 점프 시작 (또는 붙어 있으면 그 자리 내려찍기)
+      const far0 = Math.hypot(tx - m.x, ty - m.y);
+      if (far0 > 34) this.araLeap(m, tx, ty, box, true, rm);
+      else { m.mode = 'slam'; m.t0 = g.t; }
+    }
+    if (m.mode === 'slam') { // 제자리 내려찍기 (0.26초): 들어 올림 → 쾅
+      const k = (g.t - m.t0) / 0.26; m.k = k;
+      if (k >= 0.62 && !m.slammed) { m.slammed = true; this.araBoom(h); m.landT = g.t; if (!rm) this.fx.burst(m.x + m.face * box * 0.3, m.y + box * FEET_OFF, 10, 'rgba(225,205,185,0.75)', 120, 'puff', 10, 0.4); }
+      if (k >= 1) { m.mode = 'stand'; m.slammed = false; m.cast = false; }
+    }
+    if (m.mode === 'walk') { // 종종걸음: 1.5초 안에 · 걸음 폭만큼 띠가 돈다
+      const dx = home.x - m.x, dy = home.y - m.y, d0 = Math.hypot(dx, dy);
+      const v = Math.max(140, Math.hypot(home.x - m.wx0, home.y - m.wy0) / 1.5) * dt;
+      if (Math.abs(dx) > 4) m.face = dx > 0 ? 1 : -1;
+      if (d0 <= v || !h.alt) { m.x = home.x; m.y = home.y; m.mode = 'stand'; m.face = 1; }
+      else { m.x += (dx / d0) * v; m.y += (dy / d0) * v; m.wd += v; }
     }
     const far = Math.hypot(tx - m.x, ty - m.y);
-    if (m.mode !== 'leap' && far > 34 && !h.alt) { // 점프 시작
-      const big = h._castAt && performance.now() - h._castAt < 300; // 공주의 일격: 더 높이 · 내려찍으며 착지
-      m.mode = 'leap'; m.t0 = g.t; m.x0 = m.x; m.y0 = m.y; m.big = big;
-      m.dur = big ? 0.42 : Math.max(0.34, Math.min(0.56, far / 760));
-      m.H = Math.max(10, Math.min((big ? 110 : Math.min(72, 20 + far * 0.16)) * (rm ? 0.4 : 1), Math.min(m.y0, ty) - box * 0.62 + 6)); // 화면 위로 나가지 않게
-      if (Math.abs(tx - m.x) > 6) m.face = tx > m.x ? 1 : -1;
-    }
+    if (m.mode === 'stand' && !m.alt && far > 34) this.araLeap(m, tx, ty, box, false, rm); // 공주: 다음 진상 · 자리로 점프
     if (m.mode === 'leap') {
       const k = Math.min(1, (g.t - m.t0) / m.dur);
       if (Math.abs(tx - m.x0) > 6) m.face = tx > m.x0 ? 1 : -1;
@@ -2738,47 +2764,75 @@ export class Renderer {
       m.x = m.x0 + (tx - m.x0) * e; m.y = m.y0 + (ty - m.y0) * e; m.air = Math.sin(e0 * Math.PI) * m.H; m.k = k;
       if (k >= 1) {
         m.mode = 'stand'; m.air = 0; m.landT = g.t; m.x = tx; m.y = ty;
+        if (m.big) this.araBoom(h);
         if (!rm) { this.fx.burst(tx, ty + box * FEET_OFF, m.big ? 14 : 7, 'rgba(225,205,185,0.75)', m.big ? 150 : 80, 'puff', m.big ? 12 : 8, 0.45); if (m.big) this.fx.ring(tx, ty + box * FEET_OFF, 10, 70, 0.35, '#ffc4ec', 5); }
+        m.big = false; m.cast = false;
       }
-    } else { m.x += (tx - m.x) * Math.min(1, dt * 12); m.y += (ty - m.y) * Math.min(1, dt * 12); m.air = 0; }
+    } else if (m.mode === 'stand') { m.x += (tx - m.x) * Math.min(1, dt * 12); m.y += (ty - m.y) * Math.min(1, dt * 12); m.air = 0; if (m.cast && !m.alt) { m.cast = false; this.araBoom(h); } }
     if (tg && m.mode === 'stand') m.face = tg.x >= m.x ? 1 : -1; // 진상 쪽을 본다
+    if (h._amBoom && h._amBoom.length && !m.cast && m.mode !== 'tf' && m.mode !== 'leap') this.araBoom(h); // 남은 쾅 (시전이 아닐 때 들어온 것)
     return m;
   }
-  // 고아라 그림: 점프 띠 · 내려찍기 띠 · 할머니 지팡이 띠 · 변신 연기 (없으면 false → 기본 그림)
+  araLeap(m, tx, ty, box, big, rm) {
+    const far = Math.hypot(tx - m.x, ty - m.y);
+    m.mode = 'leap'; m.t0 = m.g.t; m.x0 = m.x; m.y0 = m.y; m.big = big; m.k = 0;
+    m.dur = big ? 0.4 : Math.max(0.34, Math.min(0.56, far / 760));
+    m.H = Math.max(10, Math.min((big ? 110 : Math.min(72, 20 + far * 0.16)) * (rm ? 0.4 : 1), Math.min(m.y0, ty) - box * 0.62 + 6)); // 화면 위로 나가지 않게
+    if (Math.abs(tx - m.x) > 6) m.face = tx > m.x ? 1 : -1;
+  }
+  araBoom(h) { const L = h._amBoom; h._amBoom = null; if (L) for (const f of L) f(); }
+  // 고아라 그림: 할머니 (서 있기 · 종종걸음 · 지팡이 던지기) · 공주 (점프 · 내려찍기) · 변신 연기 (그림이 없으면 false → 기본 그림)
   drawAra(g, h, hx, feet, box, t) {
     const cx = this.cx, m = h._am; if (!m) return false;
     const rm = typeof document !== 'undefined' && document.body.classList.contains('rm');
-    const since = g.t - (h.lastShotT || -9);
-    let im = null, fi = 0, face = m.face, sx = 1, sy = 1, rot = 0, lift = m.air || 0;
-    const tfk = (g.t - m.tfT) / 0.4;
-    if (h.alt) { // 할머니: 지팡이 들고 부들 → 콕 찌르기 → "아이고 허리야" (오른쪽을 보는 그림 · 목표가 확실히 왼쪽이면 뒤집기)
-      const ip = this.images.ara_poke, wind = 0.55;
-      if (!imgOk(ip)) return false;
-      if (h.cd > 0 && h.cd < wind) fi = 1 + Math.min(2, Math.floor((1 - h.cd / wind) * 3));
-      else if (since < 0.14) fi = 4;
-      else if (since < 0.55) fi = 5;
-      else if (since < 0.8) fi = 6;
-      else if (since < 0.95) fi = 7;
-      else im = null, fi = -1;
-      if (fi >= 0) im = ip;
-      if (fi === 4 && since < 0.06) { sx *= 1.05; sy *= 0.96; }
-      if (fi === 5) rot += Math.sin(t * 40) * 0.015; // 허리 삐끗 부들
-      if (fi >= 0 && (fi <= 1 || h._amFaceAt !== h.lastShotT)) { // 가까운 진상 쪽 (준비 시작 · 한 발마다 한 번만 고른다)
-        let bd = 1e9, bx = hx; for (const e of g.enemies) { if (e.dead) continue; const d = (e.x - hx) ** 2 + (e.y - feet) ** 2; if (d < bd) { bd = d; bx = e.x; } }
-        h._amFace = bx < hx - 30 ? -1 : 1; if (fi > 1) h._amFaceAt = h.lastShotT;
-      }
-      face = fi >= 0 ? h._amFace || 1 : 1;
-    } else if (m.mode === 'leap') { // 점프: 웅크림 → 박차기 → 망치 번쩍 → 꼭대기 → 내려옴 → 착지
-      const k = m.k || 0, ip = this.images.ara_leap;
+    const since = g.t - (h.lastShotT || -9), I = this.images;
+    let im = null, fi = 0, face = m.face, sx = 1, sy = 1, rot = 0, lift = m.air || 0, idle = null;
+    if (h._amPh === undefined) h._amPh = Math.random() * 8; // 가만히 있기 띠: 멤버마다 다른 박자
+    const loop = (key) => { const L = I[key]; return !rm && imgOk(L) ? [L, Math.floor(t * 6 + h._amPh) % 8] : null; }; // 연출 줄이기면 그림 한 장
+    const tfk = m.mode === 'tf' ? (g.t - m.tfT) / m.tfDur : 9;
+    if (tfk < 1) { // 변신: 앞 모습이 납작하게 연기 속으로 → 새 모습이 톡 튀어나옴 (크기 · 발 위치는 그대로)
+      idle = m.alt ? 'h_ara_alt' : 'h_ara';
+      if (tfk < 0.5) { const q = tfk / 0.5; sx = 1 + 0.22 * q; sy = 1 - 0.38 * q; }
+      else { const q = (tfk - 0.5) / 0.5, o = Math.sin(q * Math.PI) * 0.1; sx = 0.86 + 0.14 * q - o * 0.5; sy = 0.7 + 0.3 * q + o; }
+      face = m.alt ? (h._amFace || 1) : m.face;
+    } else if (m.alt) { // 할머니
+      const wk = I.ara_walk, th = I.ara_throw;
+      if (m.mode === 'walk' && imgOk(wk)) { im = wk; fi = Math.floor((m.wd || 0) / 7) % 8; face = m.face; } // 걸음 폭 7px 마다 한 칸 (발이 미끄러지지 않게)
+      else if (imgOk(th)) {
+        const wind = 0.5; // 지팡이 들어 → 뒤로 젖혀 (준비) → 던짐 (sim 이 지팡이를 쏘는 순간 = 3칸) → 허리 잡고 아이고 → 손 내밀어 받기
+        if (h.cd > 0 && h.cd < wind) fi = h.cd > wind * 0.45 ? 1 : 2;
+        else if (since < 0.1) fi = 3;
+        else if (since < 0.22) fi = 4;
+        else if (since < 0.5) fi = 5;
+        else if (since < 0.7) fi = 6;
+        else if (since < 0.85) fi = 7;
+        else fi = -1;
+        if (fi >= 0) {
+          im = th;
+          if (fi <= 1 || h._amFaceAt !== h.lastShotT) { // 가까운 진상 쪽 (준비 시작 · 한 발마다 한 번만 고른다)
+            let bd = 1e9, bx = hx; for (const e of g.enemies) { if (e.dead || e.y < 0) continue; const d = (e.x - hx) ** 2 + (e.y - feet) ** 2; if (d < bd) { bd = d; bx = e.x; } }
+            h._amFace = bx < hx - 30 ? -1 : 1; if (fi > 1) h._amFaceAt = h.lastShotT;
+          }
+          if (fi === 3 && since < 0.05) { sx *= 1.05; sy *= 0.96; }
+          if (fi === 5) rot += Math.sin(t * 40) * 0.015; // 허리 삐끗 부들
+        } else { const L = loop('ara_old_idle'); if (L) [im, fi] = L; else idle = 'h_ara_alt'; } // 가만히: 지팡이 톡톡 · 허리 쭉 "아이고"
+        face = h._amFace || 1;
+      } else return false;
+    } else if (m.mode === 'leap') { // 점프: 웅크림 → 박차기 → 망치 번쩍 → 꼭대기 → 내려옴 → 착지 (시전 점프는 공중에서 망치 들어 내려찍으며 착지)
+      const k = m.k || 0, ip = I.ara_leap;
       if (!imgOk(ip)) return false;
       im = ip;
       fi = k < 0.12 ? 0 : k < 0.22 ? 1 : k < 0.38 ? 2 : k < 0.55 ? 3 : k < 0.7 ? 4 : k < 0.9 ? 5 : 6;
       if (k < 0.12) { const q = k / 0.12; sy = 1 - 0.1 * q; sx = 1 + 0.06 * q; } // 웅크림
       else if (k < 0.3) { const q = (k - 0.12) / 0.18; sy = 1.08 - 0.08 * q; sx = 0.95 + 0.05 * q; } // 쭉 늘어남
-      if (m.big && k >= 0.55) { const s2 = this.images.ara_smash; if (imgOk(s2)) { im = s2; fi = k < 0.75 ? 2 : k < 0.92 ? 3 : 4; } } // 공주의 일격: 공중에서 망치 들어 → 내려찍으며 착지
+      if (m.big && k >= 0.5) { const s2 = I.ara_smash; if (imgOk(s2)) { im = s2; fi = k < 0.72 ? 2 : k < 0.9 ? 3 : 4; } }
       rot = (k > 0.2 && k < 0.85 ? Math.sin(((k - 0.2) / 0.65) * Math.PI) * 0.08 : 0) * face;
+    } else if (m.mode === 'slam') { // 제자리 시전: 들어 올림 → 휘두름 → 쾅
+      const ip = I.ara_smash; if (!imgOk(ip)) return false;
+      im = ip; const k = m.k || 0; fi = k < 0.3 ? 1 : k < 0.5 ? 2 : k < 0.62 ? 3 : 4;
+      if (fi === 4) { sy *= 0.93; sx *= 1.06; }
     } else if (h.out && m.tg) { // 진상 옆: 들어 올림(준비) → 휘두름(잔상) → 쾅 → 들어 올림 → 어깨에
-      const ip = this.images.ara_smash, wind = 0.42;
+      const ip = I.ara_smash, wind = 0.42;
       if (!imgOk(ip)) return false;
       im = ip;
       if (h.cd > 0 && h.cd < wind) { const q = 1 - h.cd / wind; fi = q < 0.45 ? 1 : 2; if (q > 0.45) { sy *= 1 + 0.04 * (q - 0.45) / 0.55; lift += 3 * (q - 0.45) / 0.55; } }
@@ -2787,31 +2841,31 @@ export class Renderer {
       else if (since < 0.3) fi = 5;
       else if (since < 0.42) fi = 6;
       else if (since < 0.55) fi = 7;
-      else { fi = 0; sy *= 1 + Math.sin(t * 2.6 + h.slot) * 0.012; }
+      else { const L = loop('ara_idle'); if (L) [im, fi] = L; else { fi = 0; sy *= 1 + Math.sin(t * 2.6 + h.slot) * 0.012; } } // 사이: 망치 어깨에 메고 까딱
       if (since < 0.2 && h._amShot !== h.shots) { // 망치 닿는 순간: 먼지 · 별 (한 번)
         h._amShot = h.shots;
         if (!rm) { const hxh = hx + face * box * 0.3; this.fx.burst(hxh, feet - 2, 6, 'rgba(225,205,185,0.75)', 90, 'puff', 8, 0.35); this.fx.burst(hxh, feet - 8, 4, '#ffe14d', 120, 'star', 5, 0.3); }
       }
     } else {
       const lk = (g.t - m.landT) / 0.22; // 자리에 착지한 직후: 착지 칸 → 기본 그림
-      if (lk < 1 && imgOk(this.images.ara_leap)) { im = this.images.ara_leap; fi = lk < 0.5 ? 6 : 7; }
+      if (lk < 1 && imgOk(I.ara_leap)) { im = I.ara_leap; fi = lk < 0.5 ? 6 : 7; }
+      else { const L = loop('ara_idle'); if (L) [im, fi] = L; }
     }
     const landK = (g.t - m.landT) / 0.18; // 착지 순간 말랑
     if (landK >= 0 && landK < 1 && m.mode !== 'leap') { const w = Math.sin(landK * Math.PI) * (1 - landK); sy *= 1 - 0.16 * w; sx *= 1 + 0.1 * w; }
-    if (tfk >= 0 && tfk < 1) { const w = Math.sin(tfk * Math.PI); sx *= 1 + 0.18 * w; sy *= 1 - 0.22 * w; } // 변신: 펑 납작
-    if (!im) { // 기본 그림 (변신 · 착지 말랑만)
-      if (sx === 1 && sy === 1 && !lift) return false;
-      const sp = this.sprites[h.alt && this.sprites.h_ara_alt ? 'h_ara_alt' : 'h_ara']; if (!sp) return false;
-      this.tf(hx, feet - lift, rot, sx, sy); cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
+    if (!im) { // 기본 그림 (할머니는 마지막으로 본 쪽을 그대로 · 변신 · 착지 말랑)
+      if (!idle && sx === 1 && sy === 1 && !lift) return false;
+      const sp = this.sprites[idle || (m.alt ? 'h_ara_alt' : 'h_ara')] || this.sprites.h_ara; if (!sp) return false;
+      this.tf(hx, feet - lift, rot, (idle === 'h_ara_alt' ? face : 1) * sx, sy * (1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012)); cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
     } else {
       const fw = im.naturalWidth / 8;
       this.tf(hx, feet - lift, rot, face * sx, sy);
       cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -box / 2, -box * FEET, box, box);
     }
-    if (tfk >= 0 && tfk < 1 && !rm) { // 변신 연기 구름 (코드 · 동그라미 몇 개)
-      this.world(); const a = 1 - tfk, r = box * (0.22 + 0.25 * tfk);
-      cx.fillStyle = h.alt ? 'rgba(235,235,240,' + (0.75 * a) + ')' : 'rgba(255,215,240,' + (0.75 * a) + ')';
-      for (let i = 0; i < 6; i++) { const an = (i / 6) * TAU + tfk; cx.beginPath(); cx.arc(hx + Math.cos(an) * r, feet - box * 0.4 + Math.sin(an) * r * 0.8, box * 0.17 * (1 - tfk * 0.4), 0, TAU); cx.fill(); }
+    if (tfk < 1 && !rm) { // 변신 연기 구름 (코드 · 동그라미 몇 개): 가운데서 부풀었다 흩어짐
+      this.world(); const a = tfk < 0.5 ? 0.7 : 0.7 * (1 - (tfk - 0.5) / 0.5), r = box * (0.12 + 0.3 * tfk);
+      cx.fillStyle = (m.tfTo ? 'rgba(236,236,242,' : 'rgba(255,214,240,') + a.toFixed(3) + ')';
+      for (let i = 0; i < 7; i++) { const an = (i / 7) * TAU + tfk * 1.5; cx.beginPath(); cx.arc(hx + Math.cos(an) * r, feet - box * 0.42 + Math.sin(an) * r * 0.75, box * (0.13 + 0.08 * Math.sin(tfk * Math.PI)), 0, TAU); cx.fill(); }
     }
     return true;
   }
@@ -3182,7 +3236,7 @@ export class Renderer {
       const art = an && this.images['w_' + (an === 'card_y' && p.big ? 'card_r' : an)];
       if (art && imgOk(art)) {
         const sz = Math.max(18, (p.r || 8) * 3.1) * (p.big ? 1.45 : 1);
-        const ang = p.lob || an === 'coin' || an === 'chip' ? (p.rot || 0) : Math.atan2(p.vy || 0, p.vx || 1);
+        const ang = p.type === 'cane' && p.hero.id === 'ara' ? this.fx.time * 16 * (p.vx < 0 ? -1 : 1) : p.lob || an === 'coin' || an === 'chip' ? (p.rot || 0) : Math.atan2(p.vy || 0, p.vx || 1); // 할머니 고아라: 지팡이가 부메랑처럼 빙글빙글
         this.tf(p.x, p.y, ang, 1, 1);
         cx.drawImage(art, -sz / 2, -sz / 2, sz, sz);
         continue;
