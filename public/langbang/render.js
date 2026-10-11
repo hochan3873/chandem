@@ -2484,6 +2484,7 @@ export class Renderer {
         if (h.wallSt === 'out' && imgOk(wb)) { const fi = strip(wb, 5); if ((fi === 0 || fi === 4) && h._lastStep !== fi) { h._lastStep = fi; this.onStep && this.onStep(h, hx, feet); } else if (fi !== 0 && fi !== 4) h._lastStep = -1; usedStrip = true; }
         else if (h.wallSt === 'out' && imgOk(bk)) { this.tf(hx, feet, 0, 1, 1); cx.drawImage(bk, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; }
         else if (h.wallSt === 'back' && imgOk(wk)) { strip(wk, 5); usedStrip = true; }
+        else if (!rmH && !kp && this.idleSheet('jeongseob')) { const im = this.idleSheet('jeongseob'), n = 8, fw = im.naturalWidth / n; if (h._idPh === undefined) h._idPh = Math.random() * n; const fi = Math.floor(t * 4 + h._idPh) % n; this.tf(hx, feet, 0, 1, 1); cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; } // 쉬는 동안 대기 띠 (물 마시기 · 땀 닦기 — 쉬는 그림과 같은 칸)
         else if (imgOk(rs0)) { this.tf(hx, feet, 0, 1, 1 + Math.sin(t * 1.6) * 0.01); cx.drawImage(rs0, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; }
       }
       if (h.id === 'jiwon' && !busy && !usedStrip && h.mzQ && h.mzQ.length && imgOk(this.images.hanim_jiwon)) { // 여지원 모자이크 폭격: 손 번쩍 든 칸(0)으로 버티며 몸을 끌어올렸다가 → 내려칠 때마다 내지르는 칸(5~6)

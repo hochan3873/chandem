@@ -107,8 +107,9 @@ export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'dongh
   'gunnyeo', 'soyoung', 'eunok', 'hyungyeong', 'jieun', 'jiwon', 'subin', 'dragon'].map((id) => [id, { src: `/img/lb/h_${id}_attack.webp`, frames: 8, release: ATTACK_RELEASE[id] || 4 }])); // 모든 멤버 띠 있음 (코드 모션은 띠가 못 올 때 대신)
 // 대기 모션 띠 (10/11 · 2048×256 8칸 · 공격 띠와 같은 크기 · 발 줄): 싸우지 않을 때 반복 · 멤버마다 시작 칸을 달리 (줄이 똑같이 움직이지 않게)
 //  판에 나온 멤버만 처음 그릴 때 불러온다 (render.js idleSheet) · 없는 멤버는 예전처럼 숨쉬기(꿀렁) · 연출 줄이기면 가만히
-export const HERO_IDLE_IDS = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'myunghoon', 'eunok', 'jungmin', 'ingyu', 'sanghwa', 'hochan', 'sunggu', 'youngjun', 'junseo', 'wonsik', 'soyoung', 'junyoung', 'hyungyeong', 'jieun', 'jiwon', 'subin', 'dragon'];
+export const HERO_IDLE_IDS = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'myunghoon', 'eunok', 'jungmin', 'ingyu', 'sanghwa', 'hochan', 'sunggu', 'youngjun', 'junseo', 'wonsik', 'soyoung', 'junyoung', 'hyungyeong', 'jieun', 'jiwon', 'subin', 'dragon', 'hanna', 'baul', 'byunghwa', 'donghan', 'jeongseob'];
 export const HERO_IDLE = Object.fromEntries(HERO_IDLE_IDS.map((id) => [id, { src: `/img/lb/h_${id}_idle.webp`, frames: 8, fps: 6 }]));
+HERO_IDLE.donghan.fps = 4; // 누워서 느릿느릿
 HERO_IDLE.hyungyeong_alt = { src: '/img/lb/h_hyungyeong_slim_idle.webp', frames: 8, fps: 7 }; // 배현경 날씬 (복서 스텝) · 변신 모습 대기 띠는 <id>_alt
 // 느린 판 (2026-10 대개편 · 스테이지 · 주간 · 헬만): 진상 나오는 간격 ×gap · 수 ×count · 한 명 체력 ×hp · 이동 ×espd · 입구 치는 힘 ×door — 한 판 3~4분 · 멤버 하나하나 조종하는 맛
 // 큰 한 방 스킬 (쿨 cd 초 이상: 방장 · 강성구 · 김도훈 · 오지은 · 강병화 · 이호찬 · 정소영) 은 첫 웨이브가 끝나야 쓸 수 있다 — 시작하자마자 몰아 쓰기 방지 (10/08 · 기세도 3칸 → 2칸)
