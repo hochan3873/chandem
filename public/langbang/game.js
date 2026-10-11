@@ -6964,14 +6964,14 @@ function rvLevel(g) {
   return 0;
 }
 function rvItems(g) {
-  const out = [], add = (icon, n, label, c = '#ffd23f') => out.push({ icon, n, label, c });
-  if (g.coins) add('<i class="ci"></i>', `+${fmt(g.coins)}`, '코인');
-  if (g.tickets) add(ic('ticket', '', ''), `×${g.tickets}`, '모집권', '#ff9fd8');
-  if (g.stones) add(ic('gem', '', ''), `×${g.stones}`, '강화석', '#7ec4ff');
-  if (g.wild) add(ic('card_common', '', ''), `×${g.wild}`, '범용 카드', '#c77dff');
-  if (g.sp) add(ic('star_gold', '', ''), `+${g.sp}`, '시즌 포인트');
-  if (g.sta) add(ic('bolt', '', ''), `+${g.sta}`, '체력', '#ffe066');
-  const sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); if (sh) add(ic('card_common', '', ''), `×${sh}`, '멤버 조각', '#ff9f5a');
+  const out = [], add = (icon, n, label, c = '#ffd23f', cur = '', amt = 0) => out.push({ icon, n, label, c, cur, amt });
+  if (g.coins) add(CU.curIcon('coins', 'md'), `+${fmt(g.coins)}`, '코인', CU.CUR.coins.color, 'coins', g.coins);
+  if (g.tickets) add(CU.curIcon('tickets', 'md'), `×${g.tickets}`, '모집권', CU.CUR.tickets.color, 'tickets', g.tickets);
+  if (g.stones) add(CU.curIcon('stones', 'md'), `×${g.stones}`, '강화석', CU.CUR.stones.color, 'stones', g.stones);
+  if (g.wild) add(CU.curIcon('wild', 'md'), `×${g.wild}`, '범용 카드', CU.CUR.wild.color, 'wild', g.wild);
+  if (g.sp) add(CU.curIcon('sp', 'md'), `+${g.sp}`, '시즌 포인트', CU.CUR.sp.color, 'sp', g.sp);
+  if (g.sta) add(CU.curIcon('sta', 'md'), `+${g.sta}`, '체력', CU.CUR.sta.color, 'sta', g.sta);
+  const sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); if (sh) add(CU.curIcon('cards', 'md'), `×${sh}`, '멤버 카드', CU.CUR.cards.color, 'cards', sh);
   for (const it of g.gears || []) { const r = typeof it === 'string' ? it : it && it.r, R0 = GEAR_RARITY[r] || GEAR_RARITY.common; add(ic('gear_set', '', ''), R0.name, it && it.t && GEAR[it.t] ? GEAR[it.t].name : '장비', R0.color); }
   for (const [k, n] of Object.entries(g.cons || {})) if (L.CONS[k]) add(ic('gift', '', ''), `×${n}`, L.CONS[k].name, '#5de07a');
   return out;
@@ -6985,7 +6985,7 @@ function rewardReveal(o) {
   ov.className = `rv-ov lv${lv}`; ov.style.setProperty('--rc', color);
   const conf = rm || lv < 1 ? '' : `<span class="rv-cf-box">${Array.from({ length: lv >= 2 ? 46 : 22 }, (_, i) => `<i class="rv-cf" style="--x:${(Math.random() * 100).toFixed(1)}%;--dx:${(Math.random() * 120 - 60).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;--d:${(0.9 + Math.random() * 0.9).toFixed(2)}s;--w:${(0.6 + Math.random() * 1.4).toFixed(2)}s;--c:${['#ffd23f', '#ff6fd8', '#6fd3ff', '#5de07a', '#fff', '#c77dff'][i % 6]}"></i>`).join('')}</span>`;
   const pre = lv >= 1 ? 1.0 : 0.1; // 상자가 열린 뒤에 나온다
-  const its = items.map((x, i) => `<span class="rv-it" style="--d:${(pre + 0.1 + i * 0.09).toFixed(2)}s;--ic:${x.c}"><i>${x.icon}</i><b>${esc(x.n)}</b><small>${esc(x.label)}</small></span>`).join('');
+  const its = items.map((x, i) => `<span class="rv-it" data-cur="${x.cur}" data-amt="${x.amt}" style="--d:${(pre + 0.1 + i * 0.09).toFixed(2)}s;--ic:${x.c}"><i>${x.icon}</i><b>${esc(x.n)}</b><small>${esc(x.label)}</small></span>`).join('');
   const cos = skins.map((k, i) => { const c = HW_COSTUMES[k]; return `<span class="rv-cos" style="--d:${(pre + 0.15 + i * 0.35).toFixed(2)}s"><span class="rv-cos-card"><img src="${cosArt(k).hq}" alt="" onerror="this.onerror=null;this.src='${cosArt(k).thumb}'"><i class="sr-rib">SEASON ${c.season} 한정</i></span><b>${esc(c.name)}</b></span>`; }).join('');
   const nt = titles[titles.length - 1] || '', nf = frames[frames.length - 1] || '';
   const card = nt || nf ? `<div class="rv-card" style="--d:${(pre + 0.3 + skins.length * 0.35).toFixed(2)}s"><span class="ava framed ${frameCls(nf || p.frame)}" style="${frameStyle(nf || p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', nt || p.title)}<small>${[nt ? '새 칭호' : '', nf ? esc(L.FRAMES[nf].name) : ''].filter(Boolean).join(' · ')} — 이렇게 보여요</small></div></div>` : '';
@@ -6999,7 +6999,7 @@ function rewardReveal(o) {
       ${lv >= 1 ? `<div class="rv-btns" style="--d:${(pre + 0.6 + skins.length * 0.35).toFixed(2)}s">${canWear ? `<button class="btn primary rv-wear">${ic('sparkle', '', 'sm')}바로 착용</button>` : ''}<button class="btn ${canWear ? '' : 'primary'} rv-ok">좋아요!</button></div>` : '<small class="rv-tap">눌러서 닫기</small>'}
     </div>`;
   (document.querySelector('#stage') || document.body).appendChild(ov);
-  const close = () => { ov.classList.add('out'); setTimeout(() => ov.remove(), 260); };
+  const close = () => { if (ov.classList.contains('out')) return; try { for (const x of ov.querySelectorAll('.rv-it[data-cur]')) currencyFly(x.dataset.cur, x.querySelector('i') || x, Number(x.dataset.amt)); } catch { /* 연출 실패는 무시 */ } ov.classList.add('out'); setTimeout(() => ov.remove(), 260); }; // 닫을 때 받은 재화가 위 칩으로 날아간다
   ov.addEventListener('click', async (ev) => {
     const w = ev.target.closest('.rv-wear');
     if (w) {

@@ -84,7 +84,8 @@ export function flyGains(before, fromEl) {
   if (!ids.length) return;
   let r = fromEl && fromEl.isConnected && fromEl.getBoundingClientRect ? fromEl.getBoundingClientRect() : null;
   if (!r || r.width === 0) { const fresh = performance.now() - tapAt.t < 5000; r = fresh ? { left: tapAt.x, top: tapAt.y, width: 0, height: 0 } : null; }
-  ids.forEach((id, i) => setTimeout(() => currencyFly(id, r, g[id]), i * 220));
+  // 보상 연출(.rv-ov)이 떠 있으면 거기서 닫을 때 날리니 여기선 건너뛴다 (두 번 날지 않게)
+  ids.forEach((id, i) => { if (id !== 'sig') setTimeout(() => { if (!document.querySelector('.rv-ov')) currencyFly(id, r, g[id]); }, 80 + i * 220); });
 }
 export { snapNow };
 function snapNow() { return D ? C.snap(D.P()) : {}; }
