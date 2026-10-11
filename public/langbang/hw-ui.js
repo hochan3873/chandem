@@ -3,6 +3,7 @@
 //  game.js 가 initHw(도우미) 로 부르고 돌려받은 함수들을 화면 곳곳에 끼운다 (진상의 탑과 같은 틀)
 import { HEROES, ENEMIES, ATTRS, KD_SUP, HERO_ROLE, HERO_ROLES, enemySkills, EST, heroTier, TIER_NAME } from './data.js';
 import * as HW from './hw-event.js';
+import * as DR from './deckrec.js';
 import * as HWS from './hw-sim.js';
 import { drawHw, hwEvent, resetHwFx } from './hw-fx.js';
 
@@ -123,15 +124,14 @@ function curDeck(n) {
   return d;
 }
 function saveDeck(n) { lsSet(keyDeck(n), JSON.stringify(st.decks[n] || [])); }
-// 추천 덱: 꼭 필요한 멤버(가진 것) → 금지 아닌 센 멤버로 채움
-export function autoDeck(n) {
+// 추천 덱: 다른 「추천 덱」과 같은 기준(deckrec.js) — 꼭 필요한 멤버(규칙) → 이 판 열쇠 멤버 → 대장 딜러 → 센 멤버 (금지 멤버는 뺀다)
+export function autoDeck(n) { return recommend(n).deck; }
+export function recommend(n) {
   const s = HW.stageOf(n), max = Math.min(HW.HW.slots, ...s.rules.map((r) => HW.RULES[r].max || 99));
-  const banned = (h) => s.rules.some((r) => HW.RULES[r].ban && HW.RULES[r].ban(h));
-  const out = [];
-  for (const r of s.rules) { const R = HW.RULES[r]; if (!R.need) continue; const mine = R.need.filter((h) => own(h) && !banned(h) && !out.includes(h)).sort((a, b) => power(b) - power(a)); for (const h of mine.slice(0, R.n || 1)) if (out.length < max) out.push(h); }
-  const rest = Object.keys(HEROES).filter((h) => !HEROES[h].summon && own(h) && !banned(h) && !out.includes(h)).sort((a, b) => power(b) - power(a));
-  for (const h of rest) { if (out.length >= max) break; out.push(h); }
-  return HW.leaderFix(out, power, s.lead || []); // 1번(대장)은 딜러로 (그 판 추천 대장이 있으면 그 멤버)
+  const extraNeeds = [];
+  for (const r of s.rules) { const R = HW.RULES[r]; if (R.need) extraNeeds.push({ key: 'rule:' + r, tag: R.name.replace(/ 필수$/, '') + ' 맞춤', name: R.name, counter: R.need, n: R.n || 1, w: 100 }); }
+  if (s.keys && s.keys.length) extraNeeds.push({ key: 'keys', tag: '이 판 열쇠', name: '열쇠 멤버', counter: s.keys, w: 40 });
+  return DR.recommendDeck({ mode: 'event', owned: Object.keys(HEROES).filter((h) => own(h)), slots: max, power, extraNeeds, prefer: s.lead || [], ban: (h) => s.rules.some((r) => HW.RULES[r].ban && HW.RULES[r].ban(h)) });
 }
 function curCurses(n) { if (!st.curses[n]) { try { st.curses[n] = JSON.parse(lsGet('langbang:hwCurse:' + n) || '[]'); } catch { st.curses[n] = []; } } st.curses[n] = HW.cleanCurses(st.curses[n]); return st.curses[n]; }
 function showPrep(n) {
@@ -400,7 +400,7 @@ const ACTS = {
   hwAdd: (b) => { const n = st.n, h = b.dataset.h, d = curDeck(n).slice(), s = HW.stageOf(n), max = Math.min(HW.HW.slots, ...s.rules.map((r) => HW.RULES[r].max || 99)); if (!d.includes(h)) { if (d.length >= max) { const out = d.slice().reverse().find((x) => !s.rules.some((r) => HW.RULES[r].need && HW.RULES[r].need.includes(x))); if (out) d.splice(d.indexOf(out), 1); } d.push(h); } st.decks[n] = d; saveDeck(n); C.A.sfx.card(); renderPrep(); },
   hwRent: (b) => { const n = st.n, h = b.dataset.h, d = curDeck(n).filter((x) => x !== st.rent[n]), s = HW.stageOf(n), max = Math.min(HW.HW.slots, ...s.rules.map((r) => HW.RULES[r].max || 99)); st.rent[n] = h; if (d.length >= max) { const out = d.slice().reverse().find((x) => !s.rules.some((r) => HW.RULES[r].need && HW.RULES[r].need.includes(x))); if (out) d.splice(d.indexOf(out), 1); } d.push(h); st.decks[n] = d; saveDeck(n); C.toast(`${HEROES[h].name}을(를) 빌렸어요 (강화 +${HW.HW.sync.meta} · ★${HW.HW.sync.star})`, 1800); renderPrep(); },
   hwLead: () => { const n = st.n; st.decks[n] = HW.leaderFix(curDeck(n), power, HW.stageOf(n).lead || []); saveDeck(n); C.A.sfx.card(); renderPrep(); },
-  hwAuto: () => { const n = st.n; st.rent[n] = null; st.decks[n] = autoDeck(n); saveDeck(n); C.A.sfx.card(); renderPrep(); },
+  hwAuto: () => { const n = st.n; st.rent[n] = null; st.decks[n] = autoDeck(n); saveDeck(n); C.A.sfx.card(); C.toast('추천 덱을 짰어요 — 규칙 멤버 → 열쇠 멤버 → 센 멤버 순', 1800); renderPrep(); },
   hwCurse: (b) => {
     const n = st.n, k = b.dataset.k, c = HW.CURSES[k], b0 = hwOf().best[n];
     if (!b0) { C.toast('한 번 깬 스테이지에만 저주를 걸 수 있어요', 1600); return; }

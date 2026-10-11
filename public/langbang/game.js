@@ -43,6 +43,7 @@ import * as SSN from './season.js'; // 시즌 테마 (할로윈 등): 로비 그
 import * as SR from './srank.js'; // 시즌 랭킹 보상 (1~3위 한정 의상 · Top 10 움직이는 칭호 · 프레임)
 import { COSTUMES as HW_COSTUMES, costumeArt as cosArt } from './hw-event.js'; // 의상 (시즌 한정 의상 그림)
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
+import * as DR from './deckrec.js'; // 추천 덱 — 모든 「추천 덱」 버튼이 쓰는 한 가지 기준 (막을 것 → 대장 딜러 → 상성 → 전투력 → 자리)
 import * as FG from './failguide.js'; // 실패 공략 카드 (진 뒤 결과 화면 · 진 적 있는 스테이지 준비 화면)
 import * as RU from './rules.js'; // 규칙 안내 체계 (첫 만남 카드 · 전투 중 칩 · 규칙 도감)
 import { createTutor } from './tutorial.js'; // 처음 하는 사람 튜토리얼 (방장 말풍선 · 손가락)
@@ -1282,7 +1283,7 @@ function handleEvents(g, loud) {
       }
       case 'ccBlock': fx.text(e.x, e.y, '면역!', '#8fffc8', 16, 0.9); fx.ring(e.x, e.y + 10, 10, 46, 0.3, '#9fffd0'); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
       case 'shieldBreak': R.vfx('hitspark', e.x, e.y, { anim: 'pop', dur: 380, sz: 90 }); fx.burst(e.x, e.y, 12, '#cfe9ff', 220, 'dot', 3, 0.5); fx.text(e.x, e.y - 20, '보호막 깨짐!', '#ff6a6a', 16, 1.0); fx.ring(e.x, e.y, 10, 70, 0.35, '#e8fbff'); if (live) app.hitStop = Math.max(app.hitStop || 0, 0.03); try { A.sfx.crit(); } catch (er) { /* 무시 */ } break;
-      case 'doorShield': fx.text(e.x, e.y - 40, `방패 +${e.v}`, '#bfe6ff', 16, 1.2); R.vfx('aura_blue', e.x, e.y, { anim: 'pulse', dur: 8000, sz: 320, flat: true }); break;
+      case 'doorShield': fx.text(e.x, e.y - 40, `방패 +${e.v}`, '#bfe6ff', 16, 1.2); R.vfx('aura_blue', e.x, e.y, { anim: 'pulse', dur: 8000, sz: 320, flat: true, kind: 'shield' }); break;
       case 'doorShieldBreak': fx.text(e.x, e.y - 40, '방패 깨짐', '#bfe6ff', 13, 0.9); fx.burst(e.x, e.y, 16, '#cfe9ff', 260, 'dot', 3, 0.6); break;
       case 'buffAura': for (const h of g.heroes) R.vfx('aura_red', 0, 0, { follow: h, dy: 0, anim: 'pulse', dur: (e.sec || 6) * 1000, sz: 90, flat: true }); fx.text(180, g.rowY - 70, '집합! 공속 +50% · 공격력 +20%', '#ffd23f', 14, 1.3); break;
       case 'hammer': R.vfx('crack', e.x, e.y + 22, { anim: 'fade', dur: 600, sz: 80, flat: true }); fx.addShake(3); break;
@@ -2164,7 +2165,8 @@ const ACTS = {
   edF: (b) => { app.edF = b.dataset.f; showDeckEditor(); },
   edSort: (b) => { app.edSort = b.dataset.v; showDeckEditor(); },
   edPreset: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckEditor(); },
-  edAuto: () => { autoDeck(); A.sfx.levelUp(); showDeckEditor(); },
+  edAuto: () => { const r = autoDeck(); A.sfx.levelUp(); toast(recToast(r), 2200); showDeckEditor(); },
+  recInfo: () => recInfoPopup(),
   prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
   prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[wkDefNow().fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; const rid = RU.ruleIdForFx(g.id); if (rid) { ruSheet(rid, {}); return; } popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepCond: () => prepCondPopup(),
@@ -2194,7 +2196,7 @@ const ACTS = {
   speedTog: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } showPrep(app.mode, app.stage); },
   waveHelp: () => popup(`<h3>${ic('wave', '', 'sm')}웨이브 성격</h3>${['S', 'E', 'M', 'B'].map((k) => `<p class="ip"><b>${WAVE_KINDS[k].icon} ${WAVE_KINDS[k].name}</b> — ${esc(WAVE_KINDS[k].desc)}</p>`).join('')}<p class="ip">한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> · 계속 잡으면 콤보 경험치 보너스</p>`),
   deckPreset: (b) => { app.deckI = Number(b.dataset.k); app.deckSel = -1; saveDecks(); showPrep(app.mode, app.stage); },
-  autoDeck: () => { autoDeck(); A.sfx.levelUp(); toast('상성에 맞춰 덱을 짰어요!', 1400); showPrep(app.mode, app.stage); },
+  autoDeck: () => { const r = autoDeck(); A.sfx.levelUp(); toast(recToast(r), 2200); showPrep(app.mode, app.stage); },
   gearItem: (b) => showGearCard(Number(b.dataset.id)),
   bagPick: (b) => { A.sfx.tap(); showGearCard(Number(b.dataset.id)); }, // 누르면 바로 자세히 (끼기 · 강화 · 합성 · 분해 · 팔기)
   bagTab: (b) => { app.bagTab = b.dataset.v; showBag(); },
@@ -2260,7 +2262,8 @@ const ACTS = {
   again: () => showPrep(app.mode, app.stage),
   fgDeck: () => { // 공략 카드 '추천 덱으로': 가진 멤버로 짠 추천 덱을 지금 덱 자리에 (다시 도전은 그대로 누르면 됨)
     const gd = app.fg; if (!gd || !gd.recDeck || !gd.recDeck.length) return;
-    app.decks[app.deckI] = placeDeck(gd.recDeck); saveDecks(); A.sfx.card();
+    setDeckOrder(gd.recDeck); A.sfx.card();
+    app.recWhy = { deckI: app.deckI, ids: gd.recDeck.slice(), reasons: gd.recReasons || {}, gaps: gd.recGaps || [] };
     if (app.screen === 'prep') { toast('추천 덱으로 바꿨어요', 1400); showPrep(app.mode, app.stage); return; }
     toast('추천 덱으로 바꿨어요 — 다시 도전을 눌러요', 1800);
     const b = document.querySelector('[data-act="fgDeck"]'); if (b) { b.disabled = true; b.classList.add('done'); b.textContent = '바꿨어요 ✓'; }
@@ -2357,29 +2360,63 @@ function todoList() {
 function chestReady(p) { for (let c = 1; c <= chapterOf(nextStage()); c++) { const o = (p.chests || {})[c] || [], cs = L.chapterStars(p, c); const n = L.CHEST_STARS.find((k) => cs >= k && !o.includes(k)); if (n) return [c, n]; } return null; }
 // 지금 할 수 있는 강화 (좋은 순): ★승급 > 출전 멤버 강화 > 더 좋은 장비 > 장비 강화 > 덱 밖 멤버
 //  장비 강화는 코인이 넉넉할 때만 (늘 떠 있으면 무뎌진다)
+let upgCache = null; // 같은 화면을 그리는 동안 여러 번 불려도 한 번만 계산 (가진 것이 바뀌면 다시)
 function upgradeList() {
-  const p = P(), out = [];
+  const p = P();
+  const key = app.profileLoaded ? [p.coins | 0, p.wild | 0, p.stones | 0, (p.gear || []).length, (p.gear || []).reduce((n, g) => n + (g.lv | 0) * 7 + String(g.id).length, 0), JSON.stringify(p.equip || {}), JSON.stringify(p.shards || {}), JSON.stringify(p.heroes || {}), JSON.stringify(p.hstars || {}), (curDeck() || []).join(',')].join('|') : '';
+  if (upgCache && upgCache.p === p && upgCache.key === key) return upgCache.v.slice();
+  const v = upgradeList0(p);
+  upgCache = { p, key, v };
+  return v.slice();
+}
+function upgradeList0(p) {
+  const out = [];
   if (!app.profileLoaded || (p.master && !p.testNormal)) return out; // 마스터는 다 공짜라 안내 안 함
   const d0 = [...new Set((curDeck() || []).filter(Boolean))].filter((h) => API.heroUnlocked(p, h)), deck = d0.length ? d0 : owned().slice(0, 4); // 덱이 아직 비었으면 (장비 화면처럼) 앞 4명
   const pool = [...deck, ...owned().filter((h) => !deck.includes(h))];
+  const sh0 = (h) => (p.shards || {})[h] | 0;
   for (const h of pool) {
     const inD = deck.includes(h), nm = HEROES[h].name, st = L.heroStar(p, h), lv = p.heroes[h] | 0;
-    if (st < L.STAR_MAX && ((p.shards || {})[h] | 0) >= L.STAR_SHARDS[st]) out.push({ go: 'star', id: h, name: nm, txt: `${nm} ★승급할 수 있어요`, ic: 'star_gold', pri: inD ? 300 : 140, up: true });
+    if (canStar(p, h)) out.push({ go: 'star', id: h, name: nm, txt: `${nm} ★승급할 수 있어요`, ic: 'star_gold', pri: inD ? 300 : 140, up: true, coins: L.STAR_COINS[st], shards: L.STAR_SHARDS[st] });
     const c = API.costOf(p, h);
-    if (c !== null && c !== undefined && (p.coins | 0) >= c && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv)) out.push({ go: 'hero', id: h, name: nm, txt: `${nm} 강화할 수 있어요`, ic: 'hammer', pri: (inD ? 250 : 100) - Math.min(40, lv), up: true });
+    if (c !== null && c !== undefined && (p.coins | 0) >= c && sh0(h) + (p.wild | 0) >= heroCardNeed(lv) && lvGain(p, h, lv) >= UP_MIN) out.push({ go: 'hero', id: h, name: nm, txt: `${nm} 강화할 수 있어요`, ic: 'hammer', pri: (inD ? 250 : 100) - Math.min(40, lv), up: true, coins: c, cards: heroCardNeed(lv) });
   }
+  const taken = new Set(); // 같은 장비를 두 멤버에게 권하지 않게
   for (const h of deck) {
     const nm = HEROES[h].name, sl = (p.equip || {})[h] || {};
     for (const k of ['w', 'a']) {
+      const best = betterGear(p, h, k, taken);
+      if (best) { taken.add(best.id); out.push({ go: 'gear', id: h, slot: k, gid: best.id, name: nm, txt: `${nm}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', pri: 200, up: true }); continue; }
       const cur = (p.gear || []).find((x) => x.id === sl[k]);
-      const best = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) * 1.02)).sort((a, b) => gearScore(b, h) - gearScore(a, h))[0];
-      if (best) { out.push({ go: 'gear', id: h, slot: k, gid: best.id, name: nm, txt: `${nm}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', pri: 200, up: true }); continue; }
-      if (!cur || gMaxed(cur)) continue;
+      if (!cur || gMaxed(cur)) continue; // 장비 강화: 출전 멤버가 낀 장비만
       const cost = gearEnhanceCost(cur.r, cur.lv);
-      if (cost !== null && cost !== undefined && cur.lv < 10 && (p.coins | 0) >= cost * 2 && (p.stones | 0) >= gearStoneNeed(cur.lv)) out.push({ go: 'enh', id: h, slot: k, gid: cur.id, name: nm, txt: `${nm} ${GEAR[cur.t].name} +${cur.lv + 1} 강화`, ic: 'hammer', pri: 90 - cur.lv, up: true });
+      if (cost !== null && cost !== undefined && cur.lv < 10 && (p.coins | 0) >= cost * 2 && (p.stones | 0) >= gearStoneNeed(cur.lv)) out.push({ go: 'enh', id: h, slot: k, gid: cur.id, name: nm, txt: `${nm} ${GEAR[cur.t].name} +${cur.lv + 1} 강화`, ic: 'hammer', pri: 90 - cur.lv, up: true, coins: cost * 2, stones: gearStoneNeed(cur.lv) });
     }
   }
-  return out.sort((a, b) => b.pri - a.pri);
+  out.sort((a, b) => b.pri - a.pri);
+  // (10/11) 지금 가진 코인 · 카드 · 강화석으로 '같이' 할 수 있는 것만 남긴다 (470코인에 강화 7개처럼 하나 하면 끝나는 걸 다 세지 않게)
+  const bud = { c: p.coins | 0, w: p.wild | 0, st: p.stones | 0, sh: Object.assign({}, p.shards || {}) };
+  return out.filter((u) => {
+    if (u.go === 'gear') return true; // 바꿔 끼기는 공짜
+    if ((u.coins | 0) > bud.c || (u.stones | 0) > bud.st) return false;
+    if (u.go === 'star') { if ((bud.sh[u.id] | 0) < u.shards) return false; bud.sh[u.id] -= u.shards; }
+    if (u.go === 'hero') { const own = Math.min(bud.sh[u.id] | 0, u.cards), wl = u.cards - own; if (wl > bud.w) return false; bud.sh[u.id] = (bud.sh[u.id] | 0) - own; bud.w -= wl; }
+    bud.c -= u.coins | 0; bud.st -= u.stones | 0;
+    return true;
+  });
+}
+const UP_MIN = 0.02; // 빨간 점 · 숫자는 전투력이 2% 넘게 오를 때만 (티끌 차이로 계속 뜨지 않게)
+// ★승급: 조각과 코인이 둘 다 있을 때만
+function canStar(p, h) { const st = L.heroStar(p, h); return API.heroUnlocked(p, h) && st < L.STAR_MAX && ((p.shards || {})[h] | 0) >= L.STAR_SHARDS[st] && (p.coins | 0) >= L.STAR_COINS[st]; }
+// 강화 한 번에 전투력이 얼마나 오르나 (비율)
+function lvGain(p, h, lv) { const st = L.heroStar(p, h), gs = heroGearStats(p, h), o = { sig: sigOn(p, h) }, a = heroPowerOf(h, lv, st, gs, o); return a > 0 ? heroPowerOf(h, lv + 1, st, gs, o) / a - 1 : 1; }
+// 이 멤버 이 칸에 '아무도 안 낀' 장비 중 전투력이 2% 넘게 오르는 제일 좋은 것 (장비 탭 칸의 빨간 점과 같은 잣대)
+function betterGear(p, h, k, skip) {
+  const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]), gc = cur ? gearScore(cur, h) : -1;
+  const cand = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && !(skip && skip.has(it.id)) && gearScore(it, h) > gc + 1e-9).sort((a, b) => gearScore(b, h) - gearScore(a, h));
+  if (!cand.length) return null;
+  const pw = heroPower(p, h);
+  return powerWith(p, h, k, cand[0].id) > pw * (1 + UP_MIN) ? cand[0] : null;
 }
 // 아래 탭 · 로비 버튼 숫자: 강화할 수 있는 멤버 수 / 장비 수
 function upCounts() { const u = upgradeList(), deck = new Set(u.filter((x) => x.go === 'hero' || x.go === 'star').map((x) => x.id)).size, bag = new Set(u.filter((x) => x.go === 'gear' || x.go === 'enh').map((x) => x.gid)).size; return { deck, bag, all: deck + bag }; } // 장비는 같은 장비를 여러 멤버에게 세지 않게
@@ -2540,10 +2577,8 @@ function dots() {
   const tier = L.seasonTier(p);
   const season = p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t));
   const wk = (p.maxStage | 0) >= L.WEEKLY_UNLOCK && !(p.weekly && p.weekly.wi === L.weekIndex(now) && p.weekly.runs > 0);
-  const members = Object.keys(HEROES).some((h) => API.heroUnlocked(p, h) && L.heroStar(p, h) < L.STAR_MAX && (p.shards[h] | 0) >= L.STAR_SHARDS[L.heroStar(p, h)]);
-  const upg = owned().some((h) => { const c = API.costOf(p, h); const lv = p.heroes[h] | 0; return c !== null && c !== undefined && (p.coins | 0) >= c && lv < 5 && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv); });
-  const gearBetter = (() => { const ids = [...new Set((curDeck() || []).filter(Boolean))]; return ids.some((h) => ['w', 'a'].some((k) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) * 1.02)); })); })(); // 2% 넘게 좋아질 때만 점 (티끌 차이로 계속 뜨지 않게)
-  return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: members || upg, bag: gearBetter };
+  const u = upCounts(), members = Object.keys(HEROES).some((h) => canStar(p, h)); // (10/11) 강화 · 장비 점은 숫자와 같은 잣대 (지금 할 수 있고 2% 넘게 좋아질 때만)
+  return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: u.deck > 0, bag: u.bag > 0 };
 }
 function navHtml(on) {
   const d = dots(), u = upCounts(), p = P();
@@ -2571,12 +2606,17 @@ function showStamina(msg) {
     <button class="btn ${left > 0 && p.coins >= cost ? 'primary' : ''}" data-act="staBuy" ${left > 0 ? '' : 'disabled'}>${ic('bolt', '', 'sm')}+${L.STAMINA.buy.n} 사기 · ${left > 0 ? `<i class="ci"></i>${fmt(cost)}` : '오늘 끝'} <small>(오늘 ${left}/${L.STAMINA.buy.perDay})</small></button>`, 'sta-pop');
 }
 // 우편함
+// 우편 종류별 봉인 색 (시즌 금 · 무한/탑 보라 · 대전 파랑 · 선물 분홍 · 그 밖엔 빨강)
+const mailSeal = (m) => { const t = `${m.title || ''} ${m.from || ''}`; return /시즌|랭킹|순위|주간/.test(t) ? ['#ffcf3f', '38deg'] : /무한|탑|돌파|레이드/.test(t) ? ['#b86bff', '250deg'] : /대전|PVP|등급/i.test(t) ? ['#5aa9ff', '190deg'] : /선물|친구|출석|환영|gift/i.test(t) ? ['#ff8fc0', '320deg'] : ['#ff5a5a', '0deg']; };
 function showMail() {
   const p = P(), now = Date.now();
   const list = (p.mail || []).filter((m) => m.exp > now).slice().reverse();
   const safe = (rw) => { try { return gotText(rw) || ''; } catch { return ''; } }; // 보상 글자가 깨져도 우편함은 열린다
-  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b>${m.from ? `<i class="mail-from">보낸 사람 ${esc(m.from)}</i>` : ''}<small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${CU.rwTags(m.rw)}${esc(safe(CU.rwRest(m.rw)))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
-  popup(`<h3>${ic('mail', '', 'sm')}우편함</h3>${list.length > 1 ? `<button class="btn primary" data-act="mailGet" data-id="all">${ic('gift', '', 'sm')}모두 받기 (${list.length})</button>` : ''}
+  const rows = list.map((m) => {
+    const [sl, hr] = mailSeal(m), left = Math.max(1, Math.ceil((m.exp - now) / 86400e3)), fresh = !m.at || now - m.at < 864e5;
+    return `<div class="mail-row ${fresh ? 'new' : ''}" style="--sl:${sl};--hr:${hr}"><span class="mail-env"><img src="${CU.ART.mail}" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/ui2/mail.webp'">${fresh ? '<i></i>' : ''}</span><div><b>${esc(m.title)}</b>${m.from ? `<i class="mail-from">보낸 사람 ${esc(m.from)}</i>` : ''}<small>${esc(m.text)}</small><div class="mail-chips"><span class="mail-chip ${left <= 1 ? 'hot' : ''}">${ic('hourglass', '', 'sm')}${left}일 남음</span></div><em>${CU.rwTags(m.rw)}${esc(safe(CU.rwRest(m.rw)))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`;
+  }).join('');
+  popup(`<h3>${ic('mail', '', 'sm')}우편함</h3>${list.length > 1 ? `<button class="btn primary mail-all" data-act="mailGet" data-id="all">${ic('gift', '', 'sm')}모두 받기<b>${list.length}</b></button>` : ''}
     <div class="mail-list">${rows || '<div class="empty-msg">받을 우편이 없어요</div>'}</div><p class="ip">보상 우편은 ${L.MAIL_DAYS}일 뒤 사라져요</p>`, 'mail-pop');
 }
 // 모드별 보상 안내
@@ -3505,14 +3545,14 @@ function showMembers() {
     const d = HEROES[id];
     const ok = API.heroUnlocked(p, id);
     const st = L.heroStar(p, id);
-    const can = ok && st < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[st];
+    const can = ok && canStar(p, id);
     return artCard(id, { ok, dot: can });
   }).join('');
   const cardsOld = list.map((id) => {
     const d = HEROES[id];
     const ok = API.heroUnlocked(p, id);
     const st = L.heroStar(p, id);
-    const can = ok && st < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[st];
+    const can = ok && canStar(p, id);
     const rt = heroRoute(id), tag = rt === 'legend' ? 'LEGEND' : rt === 'hidden' ? 'HIDDEN' : rt === 'gacha' ? '모집' : '';
     return `<button class="mcard ${ok ? '' : 'locked'} ${rt === 'legend' ? 'lg' : rt === 'hidden' ? 'hid' : rt === 'gacha' ? 'ep' : ''}" data-act="heroCard" data-id="${id}" style="--c:${d.color}">
       ${av(d, ok ? '' : 'sil')}<span class="chips">${tag ? `<em class="tg">${tag}</em>` : ''}${d.legend ? '' : `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>`}<span class="pa">${ATTRS[d.attr].icon}</span></span>
@@ -3626,12 +3666,12 @@ function showDeckTab() {
   const all = ['bangjang', ...partnerList()].filter(pass);
   const mine = all.filter((id) => API.heroUnlocked(p, id)).sort((a, b) => heroPower(p, b) - heroPower(p, a));
   const locked = all.filter((id) => !API.heroUnlocked(p, id));
-  const coll = [...mine, ...locked].map((id) => artCard(id, { act: 'deckColl', on: ids.includes(id), dot: API.heroUnlocked(p, id) && L.heroStar(p, id) < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[L.heroStar(p, id)] })).join('');
+  const coll = [...mine, ...locked].map((id) => artCard(id, { act: 'deckColl', on: ids.includes(id), dot: canStar(p, id) })).join('');
   show(`
     ${subTop('멤버 강화')}
     <div class="dk-top">
       <div class="deck-tabs">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPresetT" data-k="${k}">덱 ${k + 1}</button>`).join('')}</div>
- <button class="btn ghost auto" data-act="autoDeckT">${ic('sparkle', '', 'sm')} 추천 덱</button>${upCounts().deck ? `<button class="btn auto up-rec" data-act="upGuide">${ic('hammer', '', 'sm')} 추천 강화<i class="rd cnt">${upCounts().deck}</i></button>` : ''}
+ <button class="btn ghost auto" data-act="autoDeckT">${ic('sparkle', '', 'sm')} 추천 덱</button><button class="pp-i" data-act="recInfo" aria-label="추천 덱 설명">i</button>${upCounts().deck ? `<button class="btn auto up-rec" data-act="upGuide">${ic('hammer', '', 'sm')} 추천 강화<i class="rd cnt">${upCounts().deck}</i></button>` : ''}
  </div>
  <div class="dk-power"><small>덱 전투력</small><b id="dkPow" data-from="${app.lastDeckPow || pw}" data-to="${pw}">${fmt(pw)}</b><em class="${diff >= 0 ? 'up' : 'down'}">다음 스테이지 추천보다 ${diff >= 0 ? '+' : ''}${diff}%</em></div>
     <div class="dk-slots n${max}">${slots.join('')}</div>
@@ -3921,13 +3961,6 @@ function showCheckin() {
   popup(`<h3>${ic('calendar', '', 'sm')}출석 체크</h3><p class="ip">매일 들어오면 보상! 하루 빠지면 1일부터 다시 (연속 ${st.streak}일)</p><div class="cdays">${days}</div>
     <button class="btn primary" data-act="doCheckin" ${st.done ? 'disabled' : ''}>${st.done ? '내일 또 만나요' : '출석하기'}</button>`);
 }
-const NOTICES = [
-  ['', '새 멤버 4명!', 'T4 멤버 3명, 그리고 LEGEND 멤버 1명 — 누군지는 상점 → 모집에서 직접 만나요'],
-  ['', '주간 도전전', '매주 월요일 새 판! 모두 같은 판으로 점수 경쟁, 순위 보상은 다음 주에'],
-  ['', '미션 · 업적 · 시즌', '일일/주간 미션과 무료 시즌(30단계)으로 모집권·장비·칭호를 받아요'],
-  ['', '덱 칸 변경', `기본 덱 ${DECK_BASE}칸 · 5·6번째 칸은 상점 아이템에서 (예전에 산 칸은 한 칸씩 남아요)`],
-  ['', '상성 강화', `유리한 속성 ×${TYPE_STRONG} · 불리한 속성 ×${TYPE_WEAK} — 덱 짤 때 ▲▼ 를 보세요`],
-];
 // 패치 노트: 안 본 것이 있으면 로비에서 한 번 (처음 하는 사람은 건너뛴다 — 바뀐 걸 알 필요가 없으니)
 const PATCH_KEY = 'langbang:patchSeen';
 function patchHtml(list) {
@@ -3944,7 +3977,8 @@ function patchCheck() {
   popup(`<h3>${ic('megaphone', '', 'sm')}업데이트 소식</h3><div class="pn-body">${patchHtml(list)}</div><button class="btn primary" data-act="closePop">확인</button>`, 'pp-mini pn-pop');
 }
 function showNotice() {
-  popup(`<h3>${ic('mail', '', 'sm')}공지</h3><div class="pn-body">${patchHtml(PATCH_NOTES.slice(0, 5))}</div><div class="nlist">${NOTICES.map(([i, t, d]) => `<div class="nrow"><span>${i}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></div>`).join('')}</div>`);
+  // 공지 = 최근 업데이트 소식 (패치 노트) 만 — 옛날 고정 공지(새 멤버 4명 · 덱 칸 변경 …)는 지금과 안 맞아 뺐다
+  popup(`<h3>${ic('mail', '', 'sm')}공지 · 업데이트 소식</h3><div class="pn-body">${patchHtml(PATCH_NOTES.slice(0, 8))}</div><p class="ip">더 많은 규칙은 도감의 「규칙」 탭에서 볼 수 있어요</p>`);
 }
 // 꾸미기: 칭호 · 프레임 전부 (가진 것 · 잠긴 것 · 얻는 법) + 내 카드 미리 보기
 function cosmList() {
@@ -4066,7 +4100,7 @@ async function claimChestAct(ch, n) {
   const r = await liveAct(API.claimChest(ch, n, app.guest));
   if (!r) return;
   A.sfx.levelUp(); fx.flash('#ffd23f', 0.35);
-  toast(`${ch}장 ★${n} 상자! ${gotText(r.got)}`, 3000);
+  rewardReveal({ title: `${ch}장 ★${n} 상자!`, sub: '스테이지 별 보상', min: 1, got: mergeGot([r.got]) });
   if (app.screen === 'stages') showStages(); else showMenu();
 }
 
@@ -4085,7 +4119,7 @@ Object.assign(ACTS, {
   season: () => showSeason(),
   recruit: () => { app.shopTab = 'recruit'; showShop(); },
   checkin: () => showCheckin(),
-  doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
+  doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); rewardReveal({ title: `출석 ${r.day}일째!`, sub: '오늘의 출석 선물', min: r.day % 7 === 0 ? 1 : 0, go: null, got: mergeGot([r.got]) }); refresh(); } },
   notice: () => showNotice(),
   closePop: () => closeInfoCard(),
   mail: async () => { await Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {}); showMail(); },
@@ -4099,7 +4133,7 @@ Object.assign(ACTS, {
     // 제목: 시즌 랭킹 (가장 높은 순위) · 무한 단계 돌파 · 그 밖엔 우편 보상
     const sr = ms.map((m) => /시즌 (\d+) (.+?) (\d+)위/.exec(m.title)).filter(Boolean).sort((x, y) => x[3] - y[3])[0], en = ms.map((m) => /무한 (\d+)단계 돌파/.exec(m.title)).filter(Boolean).pop();
     const head = sr ? { title: `시즌 ${sr[1]} · ${sr[3]}위!`, sub: `${sr[2]} 랭킹 보상${ms.length > 1 ? ` 외 우편 ${ms.length - 1}개` : ''}`, min: 2 } : en ? { title: `무한 ${en[1]}단계 돌파!`, sub: ms.length > 1 ? `우편 ${ms.length}개 받았어요` : '처음 돌파 보상', min: 1 } : { title: r.n > 1 ? `우편 ${r.n}개 받았어요!` : '보상 획득!', sub: ms.length === 1 ? ms[0].title : '' };
-    rewardReveal({ ...head, got: mergeGot([r.got]) });
+    rewardReveal({ ...head, min: Math.max(1, head.min | 0), env: true, count: r.n, flavor: ms.length === 1 ? ms[0].text : '', from: ms.length === 1 ? ms[0].from : '', got: mergeGot([r.got]) });
   },
   stamina: () => showStamina(),
   staBuy: async () => { const r = await liveAct(API.staminaBuy(app.guest)); if (r) { toast(`체력 +${L.STAMINA.buy.n}!`, 1400); showStamina(); refreshBehind(); } },
@@ -4263,10 +4297,10 @@ Object.assign(ACTS, {
   claimAllMis: async (b) => {
     b.disabled = true;
     const r = await liveAct(API.claimAllMissions(b.dataset.tab, app.guest));
-    if (r) { A.sfx.levelUp(); fx.flash('#ffd23f', 0.2); popup(`<h3>${ic('gift', '', 'sm')}모두 받았어요! (${r.n}개)</h3><p class="ip big-got">${esc(gotText(r.got))}</p><button class="btn primary" data-x>확인</button>`, 'claim-pop'); }
+    if (r) { A.sfx.levelUp(); fx.flash('#ffd23f', 0.2); rewardReveal({ title: `모두 받았어요! (${r.n}개)`, sub: '미션 보상', min: r.n >= 4 ? 1 : 0, got: mergeGot([r.got]) }); }
     showMissions();
   },
-  claimMis: async (b) => { const r = await liveAct(API.claimMission(b.dataset.kind, b.dataset.id, app.guest)); if (r) { A.sfx.levelUp(); toast(`보상! ${gotText(r.got)}`, 2400); showMissions(); } },
+  claimMis: async (b) => { const r = await liveAct(API.claimMission(b.dataset.kind, b.dataset.id, app.guest)); if (r) { A.sfx.levelUp(); showMissions(); rewardReveal({ title: '미션 보상!', min: 0, got: mergeGot([r.got]) }); } },
   claimSeason: async (b) => {
     const t = b.dataset.t === 'all' ? 'all' : Number(b.dataset.t);
     const r = await liveAct(API.claimSeason(t, app.guest));
@@ -4280,7 +4314,7 @@ Object.assign(ACTS, {
   deckColl: (b) => { app.hmTab = API.heroUnlocked(P(), b.dataset.id) ? 'up' : 'info'; showHeroModal(b.dataset.id); }, // 강화 허브: 누르면 그 멤버 강화 화면 (덱은 출격 화면에서)
   deckFilter: (b) => { app.deckFilter = b.dataset.v; showDeckTab(); },
   deckPresetT: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckTab(); },
-  autoDeckT: () => { const ids = recommendTeam(nextStage(), owned(), deckSlotsNow()); app.decks[app.deckI] = placeDeck(ids); saveDecks(); A.sfx.card(); toast('다음 스테이지 추천 덱으로 바꿨어요', 1400); showDeckTab(); },
+  autoDeckT: () => { const r = applyRec(recCtx({ mode: 'stage', stage: nextStage(), hell: false })); A.sfx.card(); toast(recToast(r, '다음 스테이지'), 2200); showDeckTab(); },
   missionsNav: () => showMissions(),
   todo: () => showTodo(),
   todoGo: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) guideTodo(t); },
@@ -4609,7 +4643,7 @@ function teamLine() {
   const rec = app.mode === 'stage' ? recommendAttrs(app.stage) : [];
   const hit = ids.filter((id) => rec.includes(HEROES[id].attr)).length;
   const avail = partnerList().filter(heroOk);
-  const best = app.mode === 'stage' ? recommendTeam(app.stage, avail, slotsNow()) : [];
+  const best = app.mode === 'stage' ? DR.recommendDeck(Object.assign(recCtx({ stage: app.stage }), { owned: avail, slots: slotsNow() })).deck : [];
   return `팀: ${ids.map((id) => `${HEROES[id].name}${ATTRS[HEROES[id].attr].icon}`).join(' + ')}${rec.length ? ` · 추천 속성 ${rec.map((a) => ATTRS[a].icon).join('')} ${hit ? `<b class="ok">${hit}명 맞음</b>` : '<b class="no">0명</b>'}` : ''}${best.length ? `<br><small>${ic('bulb', '', 'sm')}추천 팀: 방장 + ${best.map((id) => HEROES[id].name).join(' + ')}</small>` : ''}`;
 }
 // ─── 덱: 자리(줄)마다 멤버. 프리셋 3개 (이 기기에 저장) ───
@@ -4684,11 +4718,45 @@ function fixDeck() {
   }
   saveDecks();
 }
-function autoDeck() {
-  const s = prepStage() || 20;
-  const ids = recommendTeam(s, owned(), deckSlotsNow());
-  app.decks[app.deckI] = placeDeck(ids);
-  saveDecks();
+// ─── 추천 덱 (한 가지 기준: deckrec.js) ───
+//  지금 화면(스테이지 · 주간 · 무한) 이나 o 로 준 스테이지 기준으로 ctx 를 만든다
+function recCtx(o = {}) {
+  const p = P(), mode = o.mode || app.mode;
+  const base = { owned: owned(), slots: deckSlotsNow(), power: (id) => heroPower(p, id) };
+  if (mode === 'weekly') { const w = wkDefNow(); return Object.assign(base, { mode: 'weekly', stage: w.stage, mod: w.mod, fx: w.fx }); }
+  if (mode === 'endless') return Object.assign(base, { mode: 'endless' });
+  const s = o.stage || (app.screen === 'prep' ? app.stage : 0) || nextStage();
+  const hell = o.hell !== undefined ? o.hell : !!(app.screen === 'prep' && app.hellMode && hellOpen(p.stages, s));
+  const wt = wtrNow(s);
+  return Object.assign(base, { mode: 'stage', stage: s, hell, fx: stageFx(s).id, trait: wt ? wt.id : undefined });
+}
+function applyRec(ctx) {
+  const r = DR.recommendDeck(ctx);
+  if (r.deck.length) setDeckOrder(r.deck);
+  app.recWhy = { deckI: app.deckI, ids: r.deck.slice(), reasons: r.reasons, gaps: r.gaps.filter((g) => g.warn) };
+  return r;
+}
+function autoDeck() { return applyRec(recCtx({ stage: prepStage() || undefined })); }
+// 짠 뒤 한 줄 안내: 못 막는 것이 있으면 어떻게 얻는지까지 (획득 규정 문구)
+function recMissText(g) {
+  if (g.ownedLeft && g.ownedLeft.length) return `${g.tag}: 자리가 모자라요 (${g.ownedLeft.slice(0, 2).map((id) => heroNm(id)).join(' · ')}도 막아요)`;
+  const miss = FG.counterChips({ counter: g.counter }, owned(), P(), []).miss;
+  return `${g.tag} 멤버가 없어요${miss.length ? ` — ${miss.map((m) => `${heroNm(m.id)}: ${m.how}`).join(' · ')}` : ''}`;
+}
+function recToast(r, where) {
+  const g = (r.gaps || []).find((x) => x.warn);
+  return g ? recMissText(g) : `${where || '이 판'} 추천 덱을 짰어요 — 막을 것 → 대장 딜러 → 상성 → 전투력 순`;
+}
+// 덱 밑 "왜 이 멤버" 칩 (덱이 방금 추천한 그대로일 때만)
+function recWhyHtml(ids) {
+  const w = app.recWhy;
+  if (!w || w.deckI !== app.deckI || !ids.length || ids.length !== w.ids.length || !ids.every((id) => w.ids.includes(id))) return '';
+  const chips = w.ids.filter((id) => HEROES[id]).map((id) => `<span class="rw-c"><b>${esc(heroNm(id))}</b>${(w.reasons[id] || []).map((t) => `<i>${esc(t)}</i>`).join('')}</span>`).join('');
+  const gaps = (w.gaps || []).slice(0, 2).map((g) => `<p class="rw-gap">${ic('bolt', '', 'sm')}${esc(recMissText(g))}</p>`).join('');
+  return `<div class="rec-why"><div class="rw-h"><span>추천 이유</span><button class="pp-i" data-act="recInfo" aria-label="추천 덱 설명">i</button></div><div class="rw-l">${chips}</div>${gaps}</div>`;
+}
+function recInfoPopup() {
+  popup(`<h3>${ic('sparkle', '', 'sm')}추천 덱, 이렇게 짜요</h3><ol class="rec-steps">${DR.RECOMMEND_STEPS.map(([t, d]) => `<li><b>${esc(t)}</b><span>${esc(d)}</span></li>`).join('')}</ol><p class="ip dim">스테이지 · 주간 도전 · 무한 도전 · 실패 공략의 「추천 덱」이 모두 같은 기준이에요. 덱 아래 칩에 멤버마다 고른 이유가 나와요.</p>`, 'pp-mini');
 }
 function deckLine() {
   const ids = curDeck().filter(Boolean);
@@ -4786,7 +4854,7 @@ function prepRecSet(st) {
   const r = new Set();
   if (!st) return r;
   const mine = owned();
-  for (const id of recommendTeam(st, mine, deckSlotsNow())) r.add(id);
+  for (const id of DR.recommendDeck(recCtx({ stage: st })).deck) r.add(id);
   for (const t of prepFoes(st)) { const T = foeTrait(t); if (T) for (const h of T.counter) if (mine.includes(h)) r.add(h); }
   return r;
 }
@@ -4876,7 +4944,7 @@ function ruBattleOpen(g) {
 const failKeyLs = () => `lbfail1:${app.guest ? 'g' : app.nickname || 'g'}`;
 function failLoad() { try { return JSON.parse(localStorage.getItem(failKeyLs()) || '{}') || {}; } catch (e) { return {}; } }
 function failSave(o) { try { localStorage.setItem(failKeyLs(), JSON.stringify(o)); } catch (e) { /* 저장 못 해도 괜찮음 */ } }
-function fgInput(s, hell, run) { const p = P(); return { stage: s, hell: !!hell, run, ownedIds: owned(), deckIds: curDeck().filter(Boolean), slots: deckSlotsNow(), p: { heroes: p.heroes, equip: p.equip, gear: p.gear } }; }
+function fgInput(s, hell, run) { const p = P(); return { stage: s, hell: !!hell, run, ownedIds: owned(), deckIds: curDeck().filter(Boolean), slots: deckSlotsNow(), power: (id) => heroPower(p, id), fx: stageFx(s).id, p: { heroes: p.heroes, equip: p.equip, gear: p.gear } }; }
 function fgChipsHtml(n) {
   const mine = n.mine.map((c) => `<span class="fg-c own ${c.inDeck ? 'in' : ''}" style="--c:${HEROES[c.id].color}">${c.inDeck ? '✓ ' : ''}${esc(heroNm(c.id))}</span>`).join('');
   const miss = n.mine.length ? '' : n.miss.map((c) => `<span class="fg-c no">${esc(heroNm(c.id))}<small>${esc(c.how)}</small></span>`).join('');
@@ -4985,8 +5053,8 @@ function showPrep(mode, s) {
   }
   app.deckPop = null;
   const deckHtml = `<div class="pp-deck">
-      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="prepEdit">${ic('duo', '', 'sm')}덱 편집</button></div>
-      <div class="pp-slots g6">${cells.join('')}</div>
+      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="autoDeck">${ic('sparkle', '', 'sm')}추천 덱</button><button class="pp-i" data-act="recInfo" aria-label="추천 덱 설명">i</button><button class="pp-auto edit" data-act="prepEdit">${ic('duo', '', 'sm')}덱 편집</button></div>
+      <div class="pp-slots g6">${cells.join('')}</div>${recWhyHtml(ids)}
     </div>`;
   // 6) 보상
   let rw = '';
@@ -5128,8 +5196,8 @@ function showDeckEditor() {
     slots.push(id ? `<span class="ed-s ${id === app.edSel ? 'picked' : ''}" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}<button class="ed-rm ${id === app.edSel ? 'big' : ''}" data-act="edRm" data-id="${id}" aria-label="덱에서 빼기">✕${id === app.edSel ? ' 빼기' : ''}</button></span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
   }
   const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
-  popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '', 'sm')}자동 편성</button></div>
-    <div class="pp-slots g6 ed">${slots.join('')}</div>
+  popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '', 'sm')}추천 덱</button><button class="pp-i" data-act="recInfo" aria-label="추천 덱 설명">i</button></div>
+    <div class="pp-slots g6 ed">${slots.join('')}</div>${recWhyHtml(dl.slice(0, max))}
     <p class="ed-hint">${app.edSel && HEROES[app.edSel] ? `<b>${esc(HEROES[app.edSel].name)}</b> 고름 → 위 멤버를 누르면 자리 바꾸기 · 아래 멤버를 누르면 교체 · <b>✕ 빼기</b> 로 덱에서 빼기` : lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 눌러서 고른 뒤 다른 멤버를 누르면 자리 바꾸기 · 1번 칸이 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
     <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="edF" data-f="${k}">${t}</button>`).join('')}<span class="ed-sort">${[['pw', '전투력'], ['tier', '등급'], ['lv', '레벨']].map(([k, t]) => `<button class="${k === so ? 'on' : ''}" data-act="edSort" data-v="${k}">${t}</button>`).join('')}</span></div></div>
     <div class="pp-sg">${list.map((id) => artCard(id, { act: 'edPick', on: dl.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
@@ -6714,7 +6782,7 @@ function equipTabHtml(p) {
   const find = (gid) => (p.gear || []).find((x) => x.id === gid);
   const slot = (k) => {
     const it = find(sl[k]);
-    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && !equippedBy(p, g.id) && powerWith(p, sel, k, g.id) > pw * 1.02); // 빨간 점은 '아무도 안 낀' 더 좋은 장비가 있을 때만 (남의 것은 점 안 띄움)
+    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && !equippedBy(p, g.id) && powerWith(p, sel, k, g.id) > pw * (1 + UP_MIN)); // 빨간 점은 '아무도 안 낀' 더 좋은 장비가 있을 때만 (남의 것은 점 안 띄움)
     return `<button class="eq-big ${it ? 'r-' + it.r : 'empty'}" data-act="eqOpen" data-hero="${sel}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">
       <small class="eqb-k">${k === 'w' ? '무기' : k === 'a' ? '장신구' : '신화'}</small>${better ? '<i class="rd"></i>' : ''}
       ${it ? `${gIco(it)}<b>${esc(GEAR[it.t].name)}${it.lv ? ` <em>+${it.lv}</em>` : ''}</b><small>${esc(gearStatText(it))}</small>` : `<span class="eqb-plus">+</span><b>비어 있음</b><small>${k === 'm' ? '신화 장비 전용' : '눌러서 끼기'}</small>`}</button>`;
@@ -7109,17 +7177,27 @@ function rvLevel(g) {
   if ((g.tickets | 0) >= 3 || (g.coins | 0) >= 5000 || gears.length || (g.wild | 0) || (g.stones | 0) >= 5) return 1;
   return 0;
 }
+// 보상 한 칸: rank 0 회색 · 1 파랑 · 2 보라 · 3 금 · 4 신화(분홍) — 값어치로 정한다. 그림은 currency.js 한 곳(CU.curArt)에서
 function rvItems(g) {
-  const out = [], add = (icon, n, label, c = '#ffd23f', cur = '', amt = 0) => out.push({ icon, n, label, c, cur, amt });
-  if (g.coins) add(CU.curIcon('coins', 'md'), `+${fmt(g.coins)}`, '코인', CU.CUR.coins.color, 'coins', g.coins);
-  if (g.tickets) add(CU.curIcon('tickets', 'md'), `×${g.tickets}`, '모집권', CU.CUR.tickets.color, 'tickets', g.tickets);
-  if (g.stones) add(CU.curIcon('stones', 'md'), `×${g.stones}`, '강화석', CU.CUR.stones.color, 'stones', g.stones);
-  if (g.wild) add(CU.curIcon('wild', 'md'), `×${g.wild}`, '범용 카드', CU.CUR.wild.color, 'wild', g.wild);
-  if (g.sp) add(CU.curIcon('sp', 'md'), `+${g.sp}`, '시즌 포인트', CU.CUR.sp.color, 'sp', g.sp);
-  if (g.sta) add(CU.curIcon('sta', 'md'), `+${g.sta}`, '체력', CU.CUR.sta.color, 'sta', g.sta);
-  const sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); if (sh) add(CU.curIcon('cards', 'md'), `×${sh}`, '멤버 카드', CU.CUR.cards.color, 'cards', sh);
-  for (const it of g.gears || []) { const r = typeof it === 'string' ? it : it && it.r, R0 = GEAR_RARITY[r] || GEAR_RARITY.common; add(ic('gear_set', '', ''), R0.name, it && it.t && GEAR[it.t] ? GEAR[it.t].name : '장비', R0.color); }
-  for (const [k, n] of Object.entries(g.cons || {})) if (L.CONS[k]) add(ic('gift', '', ''), `×${n}`, L.CONS[k].name, '#5de07a');
+  const out = [], add = (o) => out.push(Object.assign({ rank: 0, c: '#ffd23f', cur: '', amt: 0, to: 0, pre: '+', label: '' }, o));
+  const cur = (id, n, pre, rank, label) => add({ icon: CU.curArt(id, 'rv', n), to: n, pre, label: label || CU.CUR[id].name, c: CU.CUR[id].color, cur: id, amt: n, rank });
+  if (g.coins) cur('coins', g.coins, '+', g.coins >= 8000 ? 2 : g.coins >= 2000 ? 1 : 0);
+  if (g.tickets) cur('tickets', g.tickets, '×', g.tickets >= 10 ? 3 : g.tickets >= 3 ? 2 : 1);
+  if (g.stones) cur('stones', g.stones, '×', g.stones >= 20 ? 2 : g.stones >= 5 ? 1 : 0);
+  if (g.wild) cur('wild', g.wild, '×', 2, '만능 카드');
+  if (g.sig) cur('sig', g.sig, '×', 3);
+  if (g.sp) cur('sp', g.sp, '+', 0);
+  if (g.sta) cur('sta', g.sta, '+', 0, '체력');
+  if (g.hell) cur('tstone', g.hell, '+', 1);
+  if (g.candy) cur('candy', g.candy, '+', 0);
+  const sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); if (sh) cur('cards', sh, '×', 1, '멤버 카드');
+  for (const it of g.gears || []) {
+    const r = typeof it === 'string' ? it : it && it.r, R0 = GEAR_RARITY[r] || GEAR_RARITY.common, gd = it && it.t && GEAR[it.t] ? GEAR[it.t] : null;
+    if (it && it.sold) { add({ icon: CU.curArt('coins', 'rv', it.sold), to: it.sold, pre: '+', label: '가방이 꽉 차서 팔았어요', c: '#ffd23f', rank: 0 }); continue; }
+    const stat = gd && gd.stat && GEAR_STATS[gd.stat] ? `${GEAR_STATS[gd.stat].name} +${(gearValue(it.t, r, 0) * 100).toFixed(1)}%` : gd && gd.desc ? gd.desc : '';
+    add({ icon: gd ? gearIco({ t: it.t, r }) : ic('gear_set', '', ''), gear: true, nm: gd ? gd.name : '장비', n: R0.name, label: stat, c: R0.color, rank: RV_RANK[r] | 0 });
+  }
+  for (const [k, n] of Object.entries(g.cons || {})) if (L.CONS[k]) add({ icon: ic(L.CONS[k].icon || 'gift', '', 'rv'), to: n, pre: '×', label: L.CONS[k].name, c: '#5de07a', rank: RV_RANK[L.CONS[k].rarity] | 0 });
   return out;
 }
 // ─── 새 장비! (영웅 이상 드롭 연출): 희귀도 색 폭죽 + 이 장비로 가장 전투력이 오르는 멤버 + 「바로 장착」 ───
@@ -7187,24 +7265,45 @@ function rewardReveal(o) {
   const color = lv >= 3 ? '#ffcf3f' : lv >= 2 ? '#ff6fd8' : lv >= 1 ? '#7ec4ff' : '#ffd23f';
   const old = document.querySelector('.rv-ov'); if (old) old.remove();
   const ov = document.createElement('div');
-  ov.className = `rv-ov lv${lv}`; ov.style.setProperty('--rc', color);
+  const env = !!o.env && lv >= 1; // 우편: 봉투가 날아와 봉인이 깨진다
+  ov.className = `rv-ov lv${lv}${env ? ' env' : ''}`; ov.style.setProperty('--rc', color);
   const conf = rm || lv < 1 ? '' : `<span class="rv-cf-box">${Array.from({ length: lv >= 2 ? 46 : 22 }, (_, i) => `<i class="rv-cf" style="--x:${(Math.random() * 100).toFixed(1)}%;--dx:${(Math.random() * 120 - 60).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;--d:${(0.9 + Math.random() * 0.9).toFixed(2)}s;--w:${(0.6 + Math.random() * 1.4).toFixed(2)}s;--c:${['#ffd23f', '#ff6fd8', '#6fd3ff', '#5de07a', '#fff', '#c77dff'][i % 6]}"></i>`).join('')}</span>`;
-  const pre = lv >= 1 ? 1.0 : 0.1; // 상자가 열린 뒤에 나온다
-  const its = items.map((x, i) => `<span class="rv-it" data-cur="${x.cur}" data-amt="${x.amt}" style="--d:${(pre + 0.1 + i * 0.09).toFixed(2)}s;--ic:${x.c}"><i>${x.icon}</i><b>${esc(x.n)}</b><small>${esc(x.label)}</small></span>`).join('');
+  const pre = env ? 0.95 : lv >= 1 ? 1.0 : 0.1; // 봉투/상자가 열린 뒤에 나온다
+  const gap = items.length > 6 ? 0.06 : 0.1;
+  let hi = -1; items.forEach((x, i) => { if (hi < 0 || x.rank > items[hi].rank) hi = i; });
+  const hero = items.length > 1 && hi >= 0 && items[hi].rank >= 1 ? hi : items.length === 1 ? 0 : -1;
+  const its = items.map((x, i) => {
+    const num = x.gear ? '' : `<b class="rv-n" data-to="${x.to}" data-pre="${x.pre}">${x.pre}0</b>`;
+    return `<span class="rv-it rk${x.rank}${i === hero ? ' hero' : ''}" data-cur="${x.cur}" data-amt="${x.amt}" style="--d:${(pre + 0.1 + i * gap).toFixed(2)}s;--ic:${x.c}"><i class="rv-ic">${x.icon}</i>${x.gear ? `<b class="rv-gn">${esc(x.nm)}</b><em class="rv-rar">${esc(x.n)}</em>` : num}<small>${esc(x.label)}</small><u class="rv-shine"></u></span>`;
+  }).join('');
+  const itEnd = pre + 0.1 + items.length * gap + 0.45;
   const cos = skins.map((k, i) => { const c = HW_COSTUMES[k]; return `<span class="rv-cos" style="--d:${(pre + 0.15 + i * 0.35).toFixed(2)}s"><span class="rv-cos-card"><img src="${cosArt(k).hq}" alt="" onerror="this.onerror=null;this.src='${cosArt(k).thumb}'"><i class="sr-rib">SEASON ${c.season} 한정</i></span><b>${esc(c.name)}</b></span>`; }).join('');
   const nt = titles[titles.length - 1] || '', nf = frames[frames.length - 1] || '';
   const card = nt || nf ? `<div class="rv-card" style="--d:${(pre + 0.3 + skins.length * 0.35).toFixed(2)}s"><span class="ava framed ${frameCls(nf || p.frame)}" style="${frameStyle(nf || p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', nt || p.title)}<small>${[nt ? '새 칭호' : '', nf ? esc(L.FRAMES[nf].name) : ''].filter(Boolean).join(' · ')} — 이렇게 보여요</small></div></div>` : '';
   const canWear = !app.guest && (nt || nf || skins.length);
+  // 바로 쓰러 가기: 받은 것으로 할 수 있는 가장 알맞은 곳 (성장 길잡이와 같은 열쇠)
+  const go = o.go !== undefined ? o.go : g.gears && g.gears.some((x) => x && !x.sold) ? { k: 'bag', t: '장비 끼러 가기' } : g.tickets ? { k: 'recruit', t: '모집하러 가기' } : g.stones ? { k: 'bag', t: '강화하러 가기' } : g.wild || Object.keys(g.shards || {}).length ? { k: 'deck', t: '멤버 키우러 가기' } : null;
+  const showGo = go && !canWear && lv >= 1;
+  const btnD = (itEnd + skins.length * 0.35).toFixed(2);
+  const hdr = `<h2 class="rv-title">${esc(o.title || '보상 획득!')}</h2>${o.count > 1 ? `<span class="rv-cnt">${ic('mail', '', 'sm')}우편 ${o.count}통</span>` : ''}${o.sub ? `<p class="rv-sub">${esc(o.sub)}</p>` : ''}${o.flavor ? `<p class="rv-flav">“${esc(o.flavor)}”${o.from ? `<i>- ${esc(o.from)}</i>` : ''}</p>` : ''}`;
   ov.innerHTML = `<span class="rv-dim"></span>${lv >= 2 && !rm ? '<span class="rv-rays"></span>' : ''}${conf}
     <div class="rv-stage">
-      ${lv >= 1 ? `<span class="rv-box"><i class="rv-lid"></i><i class="rv-body"></i><i class="rv-burst"></i></span>` : ''}
-      <h2 class="rv-title">${esc(o.title || '보상 획득!')}</h2>${o.sub ? `<p class="rv-sub">${esc(o.sub)}</p>` : ''}
+      ${env ? `<span class="rv-env"><img class="rv-l" src="${CU.ART.mail}" alt=""><img class="rv-r" src="${CU.ART.mail}" alt=""><i class="rv-flash"></i></span>` : lv >= 1 ? `<span class="rv-box"><i class="rv-lid"></i><i class="rv-body"></i><i class="rv-burst"></i></span>` : ''}
+      ${hdr}
       ${cos ? `<div class="rv-coses">${cos}</div>` : ''}${card}
-      ${its ? `<div class="rv-items">${its}</div>` : ''}
-      ${lv >= 1 ? `<div class="rv-btns" style="--d:${(pre + 0.6 + skins.length * 0.35).toFixed(2)}s">${canWear ? `<button class="btn primary rv-wear">${ic('sparkle', '', 'sm')}바로 착용</button>` : ''}<button class="btn ${canWear ? '' : 'primary'} rv-ok">좋아요!</button></div>` : '<small class="rv-tap">눌러서 닫기</small>'}
+      ${its ? `<div class="rv-items n${Math.min(items.length, 9)}">${its}</div>` : ''}
+      ${lv >= 1 ? `<div class="rv-btns" style="--d:${btnD}s">${canWear ? `<button class="btn primary rv-wear">${ic('sparkle', '', 'sm')}바로 착용</button>` : ''}${showGo ? `<button class="btn rv-go" data-go="${go.k}">${esc(go.t)}</button>` : ''}<button class="btn ${canWear || showGo ? '' : 'primary'} rv-ok">좋아요!</button></div>` : '<small class="rv-tap">눌러서 닫기</small>'}
     </div>`;
   (document.querySelector('#stage') || document.body).appendChild(ov);
-  const close = () => { if (ov.classList.contains('out')) return; try { for (const x of ov.querySelectorAll('.rv-it[data-cur]')) currencyFly(x.dataset.cur, x.querySelector('i') || x, Number(x.dataset.amt)); } catch { /* 연출 실패는 무시 */ } ov.classList.add('out'); setTimeout(() => ov.remove(), 260); }; // 닫을 때 받은 재화가 위 칩으로 날아간다
+  // 숫자가 올라간다 (눌러서 건너뛰면 바로 끝값)
+  const nums = [...ov.querySelectorAll('.rv-n')];
+  const fin = () => { for (const n of nums) n.textContent = n.dataset.pre + fmt(Number(n.dataset.to)); };
+  let raf = 0, done = false;
+  const tick = (t0) => { const t = performance.now(); let all = true; nums.forEach((n, i) => { const st = t0 + (pre + 0.2 + i * gap) * 1000, k = Math.max(0, Math.min(1, (t - st) / 650)), e = 1 - (1 - k) * (1 - k); n.textContent = n.dataset.pre + fmt(Math.round(Number(n.dataset.to) * e)); if (k < 1) all = false; }); if (!all && !done) raf = requestAnimationFrame(() => tick(t0)); };
+  if (rm || lv < 1) fin(); else tick(performance.now());
+  const skip = () => { if (done) return; done = true; cancelAnimationFrame(raf); ov.classList.add('skip'); fin(); };
+  setTimeout(() => { done = true; }, itEnd * 1000);
+  const close = () => { if (ov.classList.contains('out')) return; cancelAnimationFrame(raf); fin(); try { for (const x of ov.querySelectorAll('.rv-it[data-cur]')) if (x.dataset.cur) currencyFly(x.dataset.cur, x.querySelector('.rv-ic') || x, Number(x.dataset.amt)); } catch { /* 연출 실패는 무시 */ } ov.classList.add('out'); setTimeout(() => ov.remove(), 260); }; // 닫을 때 받은 재화가 위 칩으로 날아간다
   ov.addEventListener('click', async (ev) => {
     const w = ev.target.closest('.rv-wear');
     if (w) {
@@ -7215,11 +7314,14 @@ function rewardReveal(o) {
       if (ok) { try { if (HWUI) HWUI.applySkins(); } catch { /* 무시 */ } A.sfx.reward(); w.innerHTML = '착용 완료 ✓'; refreshBehind(); } else w.disabled = false;
       return;
     }
-    if (ev.target.closest('.rv-ok') || lv < 1) close();
+    const gb = ev.target.closest('.rv-go');
+    if (gb) { close(); setTimeout(() => curGo(gb.dataset.go), 280); return; }
+    if (ev.target.closest('.rv-ok') || lv < 1) { close(); return; }
+    if (!ov.classList.contains('skip') && !done && !rm) skip(); // 연출 중에 누르면 바로 끝까지
   });
   if (lv < 1) setTimeout(() => { if (ov.isConnected) close(); }, 1700);
   try { A.sfx.fanfare(lv); } catch { /* 무시 */ }
-  if (lv >= 1) setTimeout(() => { try { if (navigator.vibrate) navigator.vibrate(lv >= 2 ? [25, 60, 40, 60, 90] : [20, 40, 50]); } catch { /* 무시 */ } }, rm ? 0 : 900);
+  if (lv >= 1) setTimeout(() => { try { if (navigator.vibrate) navigator.vibrate(lv >= 2 ? [25, 60, 40, 60, 90] : [20, 40, 50]); } catch { /* 무시 */ } }, rm ? 0 : env ? 700 : 900);
   return ov;
 }
 

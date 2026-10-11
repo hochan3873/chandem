@@ -3,24 +3,17 @@
 //  재료: 준비 화면 경고와 같은 데이터 (stageConds · COND.counter · EST.counter · ARMOR_BREAKERS · enemySkills · recMeta) + 그 판에서 센 숫자 (입구를 친 진상 · 걸린 상태이상 · 무너진 시각 · 웨이브)
 import {
   HEROES, ENEMIES, COND, EST, ARMOR_BREAKERS, armorPctStage, stageConds, enemySkills, recMeta, stageBosses, stageMid, stageMix, stageLabel,
-  recommendTeam, heroRoute, heroTier, HERO_UNLOCK, HIDDEN_COND, JOIN_PICKS, SHORT_NAME, ccLockStage,
+  heroRoute, heroTier, HERO_UNLOCK, HIDDEN_COND, JOIN_PICKS, SHORT_NAME, ccLockStage,
 } from './data.js';
+import { recommendDeck, stageFoes, stageThreats } from './deckrec.js';
 
 const foeName = (t) => (SHORT_NAME && SHORT_NAME[t]) || (ENEMIES[t] ? ENEMIES[t].name : t);
 const PREP_ST = ['poison', 'charm', 'freeze', 'stun', 'door']; // 준비 화면 '진상 기술 경고' 와 같은 종류
 const RUN_ST = ['stun', 'charm', 'poison', 'freeze', 'silence', 'slow', 'blind']; // 판에서 센 상태이상 중 공략에 쓰는 것
 
-// 이 스테이지 주요 진상 (준비 화면 '등장 진상' 과 같은 기준)
-export function stageFoes(s) {
-  const mix = stageMix(s).filter(([t]) => ENEMIES[t] && !ENEMIES[t].dot).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t);
-  return [...new Set([...mix, ...stageBosses(s), ...(stageMid(s) ? [stageMid(s)] : [])])].filter((t) => ENEMIES[t]);
-}
-// 이 스테이지 진상 기술이 거는 상태이상 → { stun: ['기술 이름', ...] }
-export function stageThreats(s) {
-  const thr = {};
-  for (const t of stageFoes(s)) for (const k of enemySkills(t)) if (PREP_ST.includes(k.st)) (thr[k.st] = thr[k.st] || []).push(k.name);
-  return thr;
-}
+// 이 스테이지 주요 진상 · 진상 기술이 거는 상태이상 — 추천 덱(deckrec.js)과 같은 계산을 쓴다
+export { stageFoes, stageThreats };
+
 // 멤버를 어떻게 얻나 — 획득 규정 (data.js heroRoute · HERO_UNLOCK · JOIN_PICKS) 에서 한 줄
 export function howToGet(id) {
   const r = heroRoute(id), t = heroTier(id);
@@ -67,25 +60,13 @@ export function counterChips(need, ownedIds, p, deckIds) {
   return { mine, miss };
 }
 
-// 추천 덱: 속성 상성 추천(recommendTeam) 위에, 덱이 못 막는 '필요' 마다 가진 멤버 한 명씩 끼워 넣는다 (대장 자리는 그대로)
-export function recommendFixDeck(s, hell, ownedIds, slots, curDeck, p, run) {
+// 추천 덱: 다른 「추천 덱」 버튼과 같은 기준(deckrec.js recommendDeck) + 이번 판에서 실제로 걸린 것(guideNeeds)을 먼저 막는다 · 대장은 그대로
+export const recommendFixDeck = (...a) => recommendFixPlan(...a).deck;
+export function recommendFixPlan(s, hell, ownedIds, slots, curDeck, p, run, power, fx) {
   p = p || {};
-  const needs = guideNeeds(s, hell, run);
-  const deck = recommendTeam(s, ownedIds, slots).slice();
   const lead = (curDeck || []).filter(Boolean)[0];
-  if (lead && ownedIds.includes(lead) && !deck.includes(lead) && deck.length) deck[deck.length - 1] = lead;
-  const covers = (id) => needs.filter((n) => n.counter.includes(id)).length;
-  for (const n of needs) {
-    if (deck.some((id) => n.counter.includes(id))) continue;
-    const cand = n.counter.filter((h) => ownedIds.includes(h) && !deck.includes(h)).sort((a, b) => covers(b) - covers(a) || worth(p, b) - worth(p, a))[0];
-    if (!cand) continue;
-    // 바꿔 빼는 자리: 대장 아님 · 다른 필요를 혼자 막는 멤버 아님 · 약한 순
-    const lone = (id) => needs.some((m) => m !== n && m.counter.includes(id) && deck.filter((d) => m.counter.includes(d)).length === 1);
-    const slot = deck.map((id, i) => ({ id, i })).filter((x) => x.id !== lead && !lone(x.id)).sort((a, b) => worth(p, a.id) - worth(p, b.id))[0];
-    if (!slot) continue;
-    deck[slot.i] = cand;
-  }
-  return [...new Set(deck)];
+  const extraNeeds = guideNeeds(s, hell, run).map((n) => ({ key: n.key, kind: 'extra', tag: n.key.startsWith('st:') ? n.label.replace(/ 걸림.*/, '') + ' 대비' : n.key === 'armor' ? '철갑 대응' : n.label, name: n.label, counter: n.counter, w: n.key.startsWith('st:') ? 95 : 70, warn: false }));
+  return recommendDeck({ mode: 'stage', stage: s, hell, fx, owned: ownedIds, slots, power: power || ((id) => worth(p, id)), lead: lead && ownedIds.includes(lead) ? lead : undefined, extraNeeds });
 }
 
 const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
@@ -144,9 +125,10 @@ export function buildFailGuide(inp) {
   }
   if (ccLockStage(s, hell)) tips.push('이 판은 "풀 때까지" 상태이상 — 풀어 주는 멤버가 꼭 필요해요');
   if (!tips.length) tips.push('스킬은 쿨타임이 돌 때마다 바로 쓰세요 — 아껴 두기만 하면 입구가 먼저 무너져요');
-  const recDeck = recommendFixDeck(s, hell, ownedIds, inp.slots || 6, deck, p, run);
+  const rd = recommendFixPlan(s, hell, ownedIds, inp.slots || 6, deck, p, run, inp.power, inp.fx);
+  const recDeck = rd.deck;
   const same = recDeck.length === deck.length && recDeck.every((id) => deck.includes(id));
-  return { stage: s, hell, cause: causeLine(run), causeShort: causeLine(run, true), needs: shown, up, gear, tips: tips.slice(0, 2), recDeck, recDiffers: !same };
+  return { stage: s, hell, cause: causeLine(run), causeShort: causeLine(run, true), needs: shown, up, gear, tips: tips.slice(0, 2), recDeck, recReasons: rd.reasons, recGaps: rd.gaps.filter((g) => g.warn), recDiffers: !same };
 }
 
 // 저장된 실패 기록 (localStorage) — 키: 스테이지(+헬)

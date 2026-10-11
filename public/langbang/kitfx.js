@@ -3,6 +3,7 @@
 //  game.js handleEvents 가 onEvent() 로 넘기고, render.js draw() 가 층마다 draw(layer, g) · drawProjs 가 drawProj(p) · drawHeroes 가 castPose(h) 를 부른다
 //  게임 숫자는 건드리지 않는다 — 그림만. 진상이 많으면(busy) 입자를 줄인다.
 import { HEROES } from './data.js';
+import { fireRing as fx2Fire } from './fx2.js'; // 진짜 불꽃 고리 그림
 
 const TAU = Math.PI * 2;
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
@@ -263,6 +264,7 @@ export class KitFx {
     sc.addColorStop(0, z.ring ? 'rgba(45,14,6,0)' : 'rgba(45,14,6,0.75)'); sc.addColorStop(0.7, 'rgba(35,12,6,0.45)'); sc.addColorStop(1, 'rgba(30,10,5,0)');
     cx.fillStyle = sc; cx.beginPath(); cx.arc(0, 0, z.r * 1.08, 0, TAU); cx.fill(); // 그을린 자국
     if (gf) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = (z.ring ? 0.42 : 0.6) * fade * fl * up; const rr = z.r * 1.35; cx.drawImage(gf.c, -rr, -rr, rr * 2, rr * 2); cx.globalCompositeOperation = 'source-over'; } // 일렁이는 불빛
+    if (fx2Fire(R, z.x, z.y + 6, z.r * (z.ring ? 0.95 : 0.72), { a: fade * up, ph: seed, fx: this.fx })) return; // 새 그림이 있으면 이걸로 끝 (없으면 아래 예전 불꽃)
     if (z.ring) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * fade * fl; cx.strokeStyle = 'rgba(255,140,40,0.9)'; cx.lineWidth = 6; cx.beginPath(); cx.arc(0, 0, z.r * 0.92, 0, TAU); cx.stroke(); cx.strokeStyle = 'rgba(255,230,160,0.9)'; cx.lineWidth = 2; cx.stroke(); cx.globalCompositeOperation = 'source-over'; } // 달아오른 고리 선
     if (!imgOk(im)) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.6 * fade; cx.fillStyle = 'rgba(255,120,30,0.5)'; cx.beginPath(); cx.arc(0, 0, z.r, 0, TAU); cx.fill(); cx.globalCompositeOperation = 'source-over'; return; }
     if (!z._pts) { // 불꽃 혀 자리 (한 번 정해 두고 다시 쓴다) — 뒤(위)부터 그리게 정렬
