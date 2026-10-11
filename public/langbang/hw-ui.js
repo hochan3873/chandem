@@ -33,6 +33,7 @@ const SKIN_IMG = {}; // id → { img, attack } Image
 function applySkins() {
   const R = C.R, worn = HW.wornMap(P() || {});
   R.skinMap = worn;
+  R.skinIdle = Object.fromEntries(Object.values(worn).map((cid) => [cid, HW.costumeArt(cid).idle]).filter((x) => x[1])); // 의상 대기 띠 (시즌 한정 의상)
   for (const id of Object.keys(HEROES)) {
     const cid = worn[id];
     const keyH = 'h_' + id, keyA = 'hanim_' + id;
@@ -300,7 +301,19 @@ function closetPop() {
   C.popup(`<h3>🎃 할로윈 의상실</h3><p class="ip">의상은 능력치가 같아요 · 전투 · 로비 · 도감 그림과 투사체 색이 바뀌어요 · 의상 입은 멤버를 이벤트에 데려가면 사탕 +${Math.round(HW.HW.wear * 100)}%</p><div class="hc-grid">${cards}</div><button class="btn" data-x>닫기</button>`, 'hw-pop hw-closet');
 }
 // 멤버 상세 창에 끼우는 의상 칸 (가진 의상이 있을 때만 · 기간이 지나도)
-function heroSkinHtml(id) {
+function heroSkinHtml(id) { return hwSkinHtml(id) + seasonSkinHtml(id); }
+// 시즌 랭킹 한정 의상 칸: 가지면 입기 · 없으면 얻는 법 (안 판다)
+function seasonSkinHtml(id) {
+  const list = HW.costumesOf(id).filter((k) => HW.COSTUMES[k].season);
+  if (!list.length) return '';
+  const p = P(), ownS = p.skins.own || [], worn = HW.wornMap(p);
+  const rows = list.map((cid) => {
+    const c = HW.COSTUMES[cid], have = ownS.includes(cid), on = worn[id] === cid;
+    return `<div class="hw-hmrow sr-hmrow ${have ? '' : 'lock'}"><span class="sr-thumb"><img src="${HW.costumeArt(cid).thumb}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${HEROES[id].img}'"><i class="sr-rib">SEASON ${c.season} 한정</i></span><span><b>${esc(c.name)}</b><small>${have ? esc(c.sub) : `시즌 ${c.season} 랭킹 Top 3 보상 · 상점에서 안 팔아요`}</small></span>${have ? `<button class="hc-btn ${on ? 'on' : ''}" data-act="hwWear" data-h="${id}" data-id="${on ? '' : cid}">${on ? '벗기' : '입기'}</button>` : '<button class="hc-btn lock" data-act="srankInfo">얻는 법</button>'}</div>`;
+  }).join('');
+  return `<div class="hm-sec hw-hm sr-hm"><h4>🏆 시즌 한정 의상 <small>능력치 같음 · 겉모습만</small></h4>${rows}</div>`;
+}
+function hwSkinHtml(id) {
   const cid = HW.costumeOf(id); if (!cid) return '';
   const p = P(), have = (p.skins.own || []).includes(cid);
   if (!have && !HW.hwSeason()) return '';

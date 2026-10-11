@@ -40,6 +40,8 @@ import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
 import { PATCH_NOTES, PATCH_LATEST } from './patchnotes.js'; // 패치 노트 (업데이트 뒤 처음 들어오면 한 번)
 import { initPush } from './push.js'; // 알림 받기 (웹 푸시)
 import * as SSN from './season.js'; // 시즌 테마 (할로윈 등): 로비 그림 · 장식 · 로비 음악
+import * as SR from './srank.js'; // 시즌 랭킹 보상 (1~3위 한정 의상 · Top 10 움직이는 칭호 · 프레임)
+import { COSTUMES as HW_COSTUMES, costumeArt as cosArt } from './hw-event.js'; // 의상 (시즌 한정 의상 그림)
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
 import { createTutor } from './tutorial.js'; // 처음 하는 사람 튜토리얼 (방장 말풍선 · 손가락)
 import * as CU from './currency.js'; // 재화 목록 · 얻는 곳 · 쓰는 곳 · 성장 길잡이 계산
@@ -2352,7 +2354,7 @@ function upgradeList() {
     const nm = HEROES[h].name, sl = (p.equip || {})[h] || {};
     for (const k of ['w', 'a']) {
       const cur = (p.gear || []).find((x) => x.id === sl[k]);
-      const best = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) + 1e-9)).sort((a, b) => gearScore(b, h) - gearScore(a, h))[0];
+      const best = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) * 1.02)).sort((a, b) => gearScore(b, h) - gearScore(a, h))[0];
       if (best) { out.push({ go: 'gear', id: h, slot: k, gid: best.id, name: nm, txt: `${nm}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', pri: 200, up: true }); continue; }
       if (!cur || gMaxed(cur)) continue;
       const cost = gearEnhanceCost(cur.r, cur.lv);
@@ -2522,7 +2524,7 @@ function dots() {
   const wk = (p.maxStage | 0) >= L.WEEKLY_UNLOCK && !(p.weekly && p.weekly.wi === L.weekIndex(now) && p.weekly.runs > 0);
   const members = Object.keys(HEROES).some((h) => API.heroUnlocked(p, h) && L.heroStar(p, h) < L.STAR_MAX && (p.shards[h] | 0) >= L.STAR_SHARDS[L.heroStar(p, h)]);
   const upg = owned().some((h) => { const c = API.costOf(p, h); const lv = p.heroes[h] | 0; return c !== null && c !== undefined && (p.coins | 0) >= c && lv < 5 && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv); });
-  const gearBetter = (() => { const ids = [...new Set((curDeck() || []).filter(Boolean))]; return ids.some((h) => ['w', 'a'].some((k) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) + 1e-9)); })); })();
+  const gearBetter = (() => { const ids = [...new Set((curDeck() || []).filter(Boolean))]; return ids.some((h) => ['w', 'a'].some((k) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) * 1.02)); })); })(); // 2% 넘게 좋아질 때만 점 (티끌 차이로 계속 뜨지 않게)
   return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: members || upg, bag: gearBetter };
 }
 function navHtml(on) {
@@ -2532,7 +2534,7 @@ function navHtml(on) {
   return `<nav class="lb-nav">${tabs.map(([k, n, e]) => `<button class="nv ${k === on ? 'on' : ''} ${k === 'battle' ? 'mid' : ''} ${cnt[k] ? 'has-up' : ''}" data-act="nav" data-tab="${k}">${uiIco(k === 'deck' ? 'members' : k, e)}<b>${n}</b>${rbadge(cnt[k], d[k])}</button>`).join('')}</nav>`;
 }
 // ─── 칭호 · 프레임 (보이기만 · 능력치 없음) ─────
-const titleChip = (id) => { const n = id ? L.titleName(id) : ''; return n ? `<u class="tchip r-${L.cosmeticRarity('title', id)}">${esc(n)}</u>` : ''; };
+const titleChip = (id) => { const n = id ? L.titleName(id) : ''; const an = n ? L.titleAnim(id) : ''; return n ? `<u class="tchip r-${L.cosmeticRarity('title', id)}${an ? ' ta-' + an : ''}">${esc(n)}</u>` : ''; }; // ta-: 움직이는 칭호 (시즌 랭킹 · 무지개 · 금빛)
 const frameCls = (id) => (id && L.FRAMES[id] ? `fr r-${L.FRAMES[id].rarity} fr-${id} ` : ''); // fr-<id>: 움직이는 프레임 (진상의 탑 불꽃 · 황금 지옥)
 const frameStyle = (id) => (id && L.FRAMES[id] ? `--fr:${L.FRAMES[id].color}` : '');
 // 이름 + 칭호 (랭킹 · 방 목록 · 대전 · 선수 카드에서 같이 쓴다)
@@ -2983,6 +2985,7 @@ function gotText(got) {
   if (got.tickets) a.push(`모집권 ${got.tickets}`);
   if (got.sp) a.push(`시즌 +${got.sp}`);
   if (got.gear) { const gr = typeof got.gear === 'string' ? { r: got.gear } : got.gear; const R0 = GEAR_RARITY[gr.r] || GEAR_RARITY.common; a.push(`${gr.t && GEAR[gr.t] ? GEAR[gr.t].name + ' · ' : ''}${R0.name} 장비${gr.sold ? ' (가방 꽉 참 → 코인)' : ''}`); } // 우편 보상은 등급 글자("myth")만 · 받은 뒤엔 {t, r}
+  if (got.skins) a.push(`한정 의상 ${got.skins.length}벌`);
   if (got.title) a.push(`칭호 "${L.titleName(got.title)}"`);
   if (got.frame) a.push(`${L.FRAMES[got.frame].name}`);
   if (got.gears) a.push(`장비 ${got.gears.length}개`);
@@ -3927,26 +3930,38 @@ function showNotice() {
 }
 // 꾸미기: 칭호 · 프레임 전부 (가진 것 · 잠긴 것 · 얻는 법) + 내 카드 미리 보기
 function cosmList() {
-  const seasonIds = Array.from({ length: 2 }, (_, i) => `s${L.seasonOf(L.weekIndex()) - i}_t30`).filter((x) => /^s\d+_t30$/.test(x));
-  const titles = [...new Set([...Object.keys(L.TITLE_INFO), ...(P().titles || []), ...seasonIds])].filter((t) => L.titleName(t));
-  return { titles, frames: Object.keys(L.FRAMES) };
+  const sid = L.seasonOf(L.weekIndex());
+  const seasonIds = Array.from({ length: 2 }, (_, i) => `s${sid - i}_t30`).filter((x) => /^s\d+_t30$/.test(x));
+  const srIds = ['r1', 'r3', 'r10', 'r30'].map((k) => `s${sid}_${k}`); // 이번 시즌 랭킹 칭호 (잠겨 있어도 보여서 목표가 되게)
+  const titles = [...new Set([...srIds, ...Object.keys(L.TITLE_INFO), ...(P().titles || []), ...seasonIds])].filter((t) => L.titleName(t));
+  const skins = Object.keys(HW_COSTUMES).filter((k) => HW_COSTUMES[k].season && (HW_COSTUMES[k].season === sid || ((P().skins || {}).own || []).includes(k))); // 이번 시즌 · 가진 시즌 의상
+  return { titles, frames: Object.keys(L.FRAMES), skins };
 }
+const isSrTitle = (id) => /^s\d+_r(1|3|10|30)$/.test(id);
 function showCosmetics() {
-  const p = P(), tab = app.cosmTab || 'title', { titles, frames } = cosmList();
-  const own = new Set(tab === 'title' ? p.titles || [] : p.frames || []);
-  const list = tab === 'title' ? titles : frames;
-  const how = (id) => (tab === 'title' ? (L.TITLE_INFO[id] || {}).how || (/_t30$/.test(id) ? '시즌 30단계' : '시즌 10단계') : L.FRAMES[id].how);
-  const rows = list.sort((a, b) => (own.has(b) - own.has(a))).map((id) => {
-    const on = tab === 'title' ? p.title === id : p.frame === id, have = own.has(id);
-    const r = L.cosmeticRarity(tab, id);
-    const face = tab === 'title' ? `<u class="tchip r-${r}">${esc(L.titleName(id))}</u>` : `<span class="ava framed ${frameCls(id)}" style="${frameStyle(id)}">${av(HEROES.bangjang)}</span><b>${esc(L.FRAMES[id].name)}</b>`;
-    return `<div class="cosm-row ${have ? '' : 'lock'} ${on ? 'on' : ''}">${face}<small>${have ? (on ? '장착 중' : '보유') : '' + esc(how(id))}</small>${have ? `<button class="btn mini ${on ? '' : 'primary'}" data-act="${tab === 'title' ? 'setTitle' : 'setFrame'}" data-v="${on ? '' : id}">${on ? '빼기' : '장착'}</button>` : ''}</div>`;
+  const p = P(), tab = ['title', 'frame', 'skin'].includes(app.cosmTab) ? app.cosmTab : 'title', { titles, frames, skins } = cosmList();
+  const own = new Set(tab === 'title' ? p.titles || [] : tab === 'frame' ? p.frames || [] : (p.skins || {}).own || []);
+  const list = tab === 'title' ? titles : tab === 'frame' ? frames : skins;
+  const how = (id) => (tab === 'title' ? L.titleHow(id) : L.FRAMES[id].how);
+  const seasonal = (id) => (tab === 'title' ? isSrTitle(id) : tab === 'frame' ? !!L.FRAMES[id].season : true);
+  const ribbon = (id) => (seasonal(id) ? `<i class="sr-tag">${tab === 'skin' ? `SEASON ${HW_COSTUMES[id].season} 한정` : '시즌 랭킹'}</i>` : '');
+  const worn = (id) => ((p.skins || {}).on || {})[HW_COSTUMES[id].hero] === id;
+  const rows = list.sort((a, b) => (own.has(b) - own.has(a)) || (seasonal(b) - seasonal(a))).map((id) => {
+    const have = own.has(id);
+    if (tab === 'skin') { // 시즌 한정 의상: 가지면 입기 · 없으면 얻는 법 (안 판다)
+      const c = HW_COSTUMES[id], on = worn(id);
+      return `<div class="cosm-row sr-skin ${have ? '' : 'lock'} ${on ? 'on' : ''}"><span class="sr-thumb"><img src="${cosArt(id).thumb}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${HEROES[c.hero].img}'"><i class="sr-rib">SEASON ${c.season}</i></span><span class="cs-t"><b>${esc(c.name)}</b>${ribbon(id)}<small>${have ? esc(c.sub) : `시즌 ${c.season} 랭킹 Top 3 보상 · 상점에서 안 팔아요`}</small></span>${have ? `<button class="btn mini ${on ? '' : 'primary'}" data-act="srWear" data-h="${c.hero}" data-id="${on ? '' : id}">${on ? '벗기' : '입기'}</button>` : `<button class="btn mini" data-act="srankInfo">얻는 법</button>`}</div>`;
+    }
+    const on = tab === 'title' ? p.title === id : p.frame === id;
+    const face = tab === 'title' ? titleChip(id) : `<span class="ava framed ${frameCls(id)}" style="${frameStyle(id)}">${av(HEROES.bangjang)}</span><b>${esc(L.FRAMES[id].name)}</b>`;
+    return `<div class="cosm-row ${have ? '' : 'lock'} ${on ? 'on' : ''} ${seasonal(id) ? 'sr' : ''}">${face}${ribbon(id)}<small>${have ? (on ? '장착 중' : '보유') : esc(how(id))}</small>${have ? `<button class="btn mini ${on ? '' : 'primary'}" data-act="${tab === 'title' ? 'setTitle' : 'setFrame'}" data-v="${on ? '' : id}">${on ? '빼기' : '장착'}</button>` : seasonal(id) ? '<button class="btn mini" data-act="srankInfo">얻는 법</button>' : ''}</div>`;
   }).join('');
-  const nT = (p.titles || []).length, nF = (p.frames || []).length;
+  const nT = (p.titles || []).length, nF = (p.frames || []).length, nS = ((p.skins || {}).own || []).filter((k) => HW_COSTUMES[k] && HW_COSTUMES[k].season).length;
   popup(`<h3>${ic('frame', '', 'sm')} 꾸미기</h3>
  <div class="cosm-preview"><span class="ava framed ${frameCls(p.frame)}" style="${frameStyle(p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', p.title)}<small>랭킹 · 대전 · 방 목록에서 이렇게 보여요</small></div></div>
-    <p class="ip">모은 칭호 <b>${nT}</b> · 프레임 <b>${nF}</b> — 치장은 능력치가 없어요 (대전은 공정하게)</p>
-    <div class="tabs"><button class="${tab === 'title' ? 'on' : ''}" data-act="cosmTab" data-v="title">${ic('tag', '', 'sm')}칭호</button><button class="${tab === 'frame' ? 'on' : ''}" data-act="cosmTab" data-v="frame">${ic('frame', '', 'sm')} 프레임</button></div>
+    <p class="ip">모은 칭호 <b>${nT}</b> · 프레임 <b>${nF}</b> · 한정 의상 <b>${nS}</b> — 치장은 능력치가 없어요 (대전은 공정하게)</p>
+    <div class="tabs"><button class="${tab === 'title' ? 'on' : ''}" data-act="cosmTab" data-v="title">${ic('tag', '', 'sm')}칭호</button><button class="${tab === 'frame' ? 'on' : ''}" data-act="cosmTab" data-v="frame">${ic('frame', '', 'sm')} 프레임</button><button class="${tab === 'skin' ? 'on' : ''}" data-act="cosmTab" data-v="skin">${ic('crown', '', 'sm')}한정 의상</button></div>
+    <button class="sr-cosm-cta" data-act="srankInfo">${ic('trophy', '', 'sm')}<span><b>시즌 ${L.seasonOf(L.weekIndex())} 랭킹 보상 ›</b><small>1~3위 한정 의상 · Top 10 움직이는 칭호 · 프레임</small></span><em class="sr-cd" data-end="${SR.srNow().end}">${SR.srLeftText(SR.srNow().left)}</em></button>
  <div class="cosm-list">${rows}</div>`, 'cosm');
 }
 // 새로 얻은 칭호 · 프레임 알림 (한 번) → 바로 장착
@@ -4048,7 +4063,7 @@ Object.assign(ACTS, {
   wtrInfo: () => wtrPopup(),
   weekly: () => showWeekly(),
   weeklyGo: () => showPrep('weekly', 0),
-  weeklyClaim: async () => { const r = await liveAct(API.weeklyClaim()); if (r) { A.sfx.levelUp(); toast(`지난주 ${r.label || ''} 보상! ${gotText(r.got)}`, 3200); showWeekly(); } },
+  weeklyClaim: async () => { const r = await liveAct(API.weeklyClaim()); if (r) { showWeekly(); rewardReveal({ title: r.rank ? `지난주 ${r.rank}위!` : '주간 보상!', sub: `주간 도전 순위 보상${r.label ? ' · ' + r.label : ''}`, got: mergeGot([r.got]), min: r.rank && r.rank <= 3 ? 2 : 1 }); } },
   season: () => showSeason(),
   recruit: () => { app.shopTab = 'recruit'; showShop(); },
   checkin: () => showCheckin(),
@@ -4057,8 +4072,17 @@ Object.assign(ACTS, {
   closePop: () => closeInfoCard(),
   mail: async () => { await Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {}); showMail(); },
   // 도감 첫 발견 보상: 하나 또는 모두 받기
-  dexRwGet: async (b) => { const r = await liveAct(API.dexClaim(b.dataset.k || 'all', app.guest)); if (r) { A.sfx.levelUp(); const g = r.got || {}, sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); toast(`도감 보상 ${r.n}개 · ${[g.coins ? `코인 +${fmt(g.coins)}` : '', g.stones ? `강화석 +${g.stones}` : '', g.tickets ? `모집권 +${g.tickets}` : '', sh ? `멤버 조각 +${sh}` : ''].filter(Boolean).join(' · ')}`, 2600); showDex(); } },
-  mailGet: async (b) => { const r = await liveAct(API.mailClaim(b.dataset.id === 'all' ? 'all' : Number(b.dataset.id), app.guest)); if (r) { A.sfx.levelUp(); toast(`${r.n}개 받았어요 · ${gotText(r.got)}`, 2400); showMail(); refreshBehind(); } },
+  dexRwGet: async (b) => { const r = await liveAct(API.dexClaim(b.dataset.k || 'all', app.guest)); if (r) { showDex(); rewardReveal({ title: r.n > 1 ? `도감 보상 ${r.n}개!` : '도감 첫 발견 보상!', sub: '처음 만난 멤버 · 진상 · 장비', got: mergeGot([r.got]) }); } },
+  mailGet: async (b) => {
+    const id = b.dataset.id === 'all' ? 'all' : Number(b.dataset.id), ms = (P().mail || []).filter((m) => id === 'all' || m.id === id);
+    const r = await liveAct(API.mailClaim(id, app.guest));
+    if (!r) return;
+    showMail(); refreshBehind();
+    // 제목: 시즌 랭킹 (가장 높은 순위) · 무한 단계 돌파 · 그 밖엔 우편 보상
+    const sr = ms.map((m) => /시즌 (\d+) (.+?) (\d+)위/.exec(m.title)).filter(Boolean).sort((x, y) => x[3] - y[3])[0], en = ms.map((m) => /무한 (\d+)단계 돌파/.exec(m.title)).filter(Boolean).pop();
+    const head = sr ? { title: `시즌 ${sr[1]} · ${sr[3]}위!`, sub: `${sr[2]} 랭킹 보상${ms.length > 1 ? ` 외 우편 ${ms.length - 1}개` : ''}`, min: 2 } : en ? { title: `무한 ${en[1]}단계 돌파!`, sub: ms.length > 1 ? `우편 ${ms.length}개 받았어요` : '처음 돌파 보상', min: 1 } : { title: r.n > 1 ? `우편 ${r.n}개 받았어요!` : '보상 획득!', sub: ms.length === 1 ? ms[0].title : '' };
+    rewardReveal({ ...head, got: mergeGot([r.got]) });
+  },
   stamina: () => showStamina(),
   staBuy: async () => { const r = await liveAct(API.staminaBuy(app.guest)); if (r) { toast(`체력 +${L.STAMINA.buy.n}!`, 1400); showStamina(); refreshBehind(); } },
   rwInfo: (b) => { const f = REWARD_INFO[b.dataset.v]; if (f) popup(f() + '<button class="btn primary" data-x>알겠어요</button>', 'rw-info'); },
@@ -4110,6 +4134,8 @@ Object.assign(ACTS, {
   setTitle: async (b) => { if (await liveAct(API.setCosmetic(b.dataset.v, undefined, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
   cosmetics: () => { if (app.guest) { location.href = '/?login=1&next=langbang'; return; } showCosmetics(); }, // 손님이 프로필을 누르면 바로 로그인 (앱 안에서 로그인 → 랑방으로 돌아옴)
   cosmTab: (b) => { app.cosmTab = b.dataset.v; showCosmetics(); },
+  srWear: async (b) => { const r = await liveAct(API.hwWear(b.dataset.h, b.dataset.id || null, app.guest)); if (r) { if (HWUI) HWUI.applySkins(); A.sfx.tap(); toast(b.dataset.id ? `${HW_COSTUMES[b.dataset.id].name} 입었어요!` : '원래 옷으로 갈아입었어요', 1600); showCosmetics(); refreshBehind(); } }, // 시즌 한정 의상 입기 · 벗기
+  srankInfo: () => showSrank(), // 시즌 랭킹 보상 안내
   setFrame: async (b) => { if (await liveAct(API.setCosmetic(undefined, b.dataset.v, app.guest))) { if (stage.querySelector('.info-modal.cosm')) showCosmetics(); else showSettings(); refreshBehind(); } },
   bagTabGo: (b) => { app.bagTab = b.dataset.v; showBag(); },
   consBuy: async (b) => { const r = await liveAct(API.consBuy(b.dataset.id, app.guest)); if (r) { A.sfx.coin(); toast(`${L.CONS[b.dataset.id].name} 1개 샀어요`, 1400); showShop(); } },
@@ -4227,9 +4253,9 @@ Object.assign(ACTS, {
     const t = b.dataset.t === 'all' ? 'all' : Number(b.dataset.t);
     const r = await liveAct(API.claimSeason(t, app.guest));
     if (!r) return;
-    A.sfx.levelUp();
-    toast(`시즌 보상! ${(r.got || []).map((x) => gotText(x)).join(' · ')}`, 3200);
     showSeason();
+    const tiers = (r.got || []).map((x) => x.tier).filter(Boolean), top = Math.max(0, ...tiers); // 시즌 단계 보상: 높은 단계일수록 크게 (30단계는 큰 무대)
+    rewardReveal({ title: tiers.length > 1 ? `시즌 ${tiers.length}단계 보상!` : `시즌 ${top}단계 달성!`, sub: tiers.length > 1 ? `${Math.min(...tiers)} ~ ${top}단계` : '무료 시즌 단계 보상', got: mergeGot((r.got || []).map(({ tier, ...g }) => g)), min: top >= 30 ? 2 : top >= 10 ? 1 : 0 });
   },
   deckToggle: (b) => deckToggleAct(b.dataset.id),
   deckRemove: (b) => deckQuick(b.dataset.id),
@@ -5800,7 +5826,7 @@ async function buyItemAct(id, btn) {
 // 인게임 캐릭터(작은 그림) — 모습이 바뀌는 멤버는 둘 다 · 정소영은 성준영까지 · 보스는 공격/분노 모습까지(있으면)
 const FORM_SPRITES = { ara: ['h_ara_old'], donghan: ['h_donghan_on', 'h_donghan_cafe'], eunok: ['h_eunok_rage'], hyungyeong: ['h_hyungyeong_slim'], jieun: ['h_jieun_demon'], youngjun: ['h_youngjun_dash'], soyoung: ['h_junyoung'], ingyu: ['h_ingyu_bike'] };
 function inGameSprites(kind, id, d) {
-  if (kind === 'hero') return [d.img, ...(FORM_SPRITES[id] || []).map((n) => `/img/lb/${n}.webp`)];
+  if (kind === 'hero') return [(HWUI && HWUI.costumeOf(id) && HWUI.dexSrc(id, 'img')) || d.img, ...(FORM_SPRITES[id] || []).map((n) => `/img/lb/${n}.webp`)];
   const base = d.img || `/img/lb/e_${id}.webp`;
   return d.boss ? [base, artV(`/img/lb/e_${id}_skill.webp`), artV(`/img/lb/e_${id}_rage.webp`)] : [base];
 }
@@ -6203,9 +6229,9 @@ function dexPageHtml(kind, id, form, duo) {
     ? (duo
       // 두 모습 그림(가로, dexhq/<id>_duo) — 없으면 한 장으로
       ? `<img class="dx-art hq duo" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false" onerror="this.onerror=null;this.classList.remove('duo');this.src='/img/lb/dexhq/${id}.webp'">`
-      : hasDuo(id) && ok && (!cur || cur === id)
+      : hasDuo(id) && ok && (!cur || cur === id) && !(HWUI && HWUI.costumeOf(id))
         ? `<span class="dx-swap"><img class="dx-art hq half ha" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false" onerror="this.parentNode.outerHTML='<img class=&quot;dx-art hq&quot; src=&quot;/img/lb/dexhq/${id}.webp&quot; alt=&quot;&quot;>'"><img class="dx-art hq half hb" src="/img/lb/dexhq/${id}_duo.webp" alt="" draggable="false"></span>`
-        : `<img class="dx-art hq" src="${artV(`/img/lb/dexhq/${id}.webp`)}" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/dex/${id}.webp';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`)
+        : `<img class="dx-art hq" src="${hqSrc(id)}" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/dex/${id}.webp';var c=this.closest('.gc');if(c)c.classList.add('nohq')">`)
     : dexArt(d, id, cur);
   const fb = DEX_FACE[id] || [0.48, 0.09, 0.15];
   const faces = ''; // 얼굴 확대 칸은 없앴다 (멤버마다 들쭉날쭉 · 주먹·병이 잘려 '컵 두 개'처럼 보였다) — 큰 그림이 그 자리까지 채운다
@@ -6542,7 +6568,7 @@ function equipTabHtml(p) {
   const find = (gid) => (p.gear || []).find((x) => x.id === gid);
   const slot = (k) => {
     const it = find(sl[k]);
-    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && !equippedBy(p, g.id) && powerWith(p, sel, k, g.id) > pw); // 빨간 점은 '아무도 안 낀' 더 좋은 장비가 있을 때만 (남의 것은 점 안 띄움)
+    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && !equippedBy(p, g.id) && powerWith(p, sel, k, g.id) > pw * 1.02); // 빨간 점은 '아무도 안 낀' 더 좋은 장비가 있을 때만 (남의 것은 점 안 띄움)
     return `<button class="eq-big ${it ? 'r-' + it.r : 'empty'}" data-act="eqOpen" data-hero="${sel}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">
       <small class="eqb-k">${k === 'w' ? '무기' : k === 'a' ? '장신구' : '신화'}</small>${better ? '<i class="rd"></i>' : ''}
       ${it ? `${gIco(it)}<b>${esc(GEAR[it.t].name)}${it.lv ? ` <em>+${it.lv}</em>` : ''}</b><small>${esc(gearStatText(it))}</small>` : `<span class="eqb-plus">+</span><b>비어 있음</b><small>${k === 'm' ? '신화 장비 전용' : '눌러서 끼기'}</small>`}</button>`;
@@ -6866,6 +6892,132 @@ Object.assign(ACTS, {
   autoEquip: () => autoEquip(),
 });
 
+// ─── 시즌 랭킹 보상 (srank.js · 서버 /srank) ───────────
+//  랭킹 화면 위 카드: 이번 시즌 남은 시간 · 한정 의상 3벌 · 내 지금 순위 → 받을 보상 · 누르면 보상표 전체
+async function srankData(force) {
+  if (app.guest) return null;
+  if (!force && app.srank && Date.now() - app.srankAt < 60e3) return app.srank;
+  const r = await API.srankBoard().catch(() => null);
+  if (r) { app.srank = r; app.srankAt = Date.now(); }
+  return r || app.srank || null;
+}
+const srSkinsHtml = (sid, big) => SR.srCostumes(sid).map((k) => { const c = HW_COSTUMES[k]; return c ? `<span class="sr-thumb ${big ? 'big' : ''}"><img src="${cosArt(k).thumb}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${HEROES[c.hero].img}'"><i class="sr-rib">${big ? `SEASON ${sid} 한정` : `S${sid} 한정`}</i>${big ? `<b>${esc(c.name)}</b>` : ''}</span>` : ''; }).join('');
+function srRwText(rw) {
+  if (!rw) return '';
+  const a = [];
+  if (rw.skins && rw.skins.length) a.push(`<em class="sr-skinw">한정 의상 ${rw.skins.length}벌</em>`);
+  if (rw.title) a.push(titleChip(rw.title));
+  if (rw.frame) a.push(`<span class="sr-fr"><span class="ava framed ${frameCls(rw.frame)}" style="${frameStyle(rw.frame)}">${av(HEROES.bangjang)}</span>${esc(L.FRAMES[rw.frame].name)}</span>`);
+  const n = [rw.tickets ? `모집권 ${rw.tickets}` : '', rw.coins ? `${fmt(rw.coins)} 코인` : '', rw.stones ? `강화석 ${rw.stones}` : ''].filter(Boolean).join(' · ');
+  if (n) a.push(`<small>${n}</small>`);
+  return a.join('');
+}
+function srMineText(x) {
+  if (!x) return '아직 순위 없음';
+  const t = SR.srTier(x.rank, x.n);
+  return `<b>${x.rank}위</b> / ${x.n}명 → ${t === 'r1' || t === 'r3' ? '한정 의상!' : SR.srTierName(t) + ' 보상'}`;
+}
+function srCardHtml(tab, d) {
+  const now = SR.srNow(), me = d && d.me ? d.me[tab] : null, t = me ? SR.srTier(me.rank, me.n) : null;
+  return `<button class="sr-card ${t === 'r1' || t === 'r3' ? 'hot' : ''}" data-act="srankInfo" id="srCard">
+    <span class="sr-hd"><b>${ic('trophy', '', 'sm')}시즌 ${now.sid} 랭킹 보상</b><em class="sr-cd" data-end="${now.end}">${SR.srLeftText(now.left)}</em></span>
+    <span class="sr-body"><span class="sr-skins">${srSkinsHtml(now.sid)}</span><span class="sr-mine">${app.guest ? '로그인하면 순위 보상을 받아요' : `지금 내 ${SR.SR_BOARDS[tab].name} 순위<br>${srMineText(me)}`}<small>1~3위 한정 의상 · Top 10 움직이는 칭호 › </small></span></span>
+  </button>`;
+}
+async function showSrank() {
+  const now = SR.srNow(), d = await srankData();
+  const tiers = SR.SR_TIERS.map((t) => `<div class="sr-tr t-${t.id}"><span class="sr-tn">${t.id === 'r1' ? ic('medal1', '', 'sm') : t.id === 'r3' ? ic('medal2', '', 'sm') : t.id === 'r10' ? ic('medal3', '', 'sm') : ''}<b>${t.name}</b></span><span class="sr-tw">${srRwText(SR.srReward(now.sid, t.id))}</span></div>`).join('');
+  const mine = SR.SR_BOARD_IDS.map((b) => `<div class="sr-mrow">${ic(SR.SR_BOARDS[b].icon, '', 'sm')}<span>${SR.SR_BOARDS[b].name}<small>${SR.SR_BOARDS[b].sub}</small></span><em>${app.guest ? '-' : d && d.me ? srMineText(d.me[b]) : '불러오는 중'}</em></div>`).join('');
+  const last = d && d.last && Object.values(d.last.ranks || {}).some(Boolean) ? `<p class="ip">지난 시즌 ${d.last.sid}: ${SR.SR_BOARD_IDS.filter((b) => d.last.ranks[b]).map((b) => `${SR.SR_BOARDS[b].name} ${d.last.ranks[b].rank}위`).join(' · ')} ${d.last.paid ? '· 우편함으로 보냈어요' : '· 우편함을 열면 받아요'}</p>` : '';
+  popup(`<h3>${ic('trophy', '', 'sm')}시즌 ${now.sid} 랭킹 보상</h3>
+    <p class="sr-left">끝나기까지 <em class="sr-cd" data-end="${now.end}">${SR.srLeftText(now.left)}</em></p>
+    <div class="sr-skins big">${srSkinsHtml(now.sid, true)}</div>
+    <p class="ip">한정 의상은 <b>이번 시즌 1~3위만</b> 받아요 · 상점에서 절대 안 팔아요 · 능력치는 같고 전투 · 도감 그림이 바뀌어요</p>
+    <div class="sr-table">${tiers}</div>
+    <h4 class="sr-h4">내 지금 순위 <small>순위표마다 따로 받아요</small></h4>
+    <div class="sr-mine-list">${mine}</div>${last}
+    <p class="ip small">시즌(4주)이 끝나면 순위대로 우편함에 와요 · 이번 시즌에 한 번이라도 들어온 사람만 · 같은 기록은 같은 순위 · 칭호에는 시즌 번호가 박혀요</p>
+    <button class="btn" data-x>닫기</button>`, 'sr-pop');
+  if (!d && !app.guest) { const r = await srankData(true); if (r && stage.querySelector('.info-modal.sr-pop')) showSrank(); }
+}
+setInterval(() => { for (const el of document.querySelectorAll('.sr-cd[data-end]')) el.textContent = SR.srLeftText(Number(el.dataset.end) - Date.now()); }, 1000); // 시즌 남은 시간 (1초마다)
+
+// ─── 보상 공개 연출 (받는 순간이 기쁘게): 값어치만큼 크게 ───
+//  0 작은 보상 = 가운데 톡 (1.6초 · 눌러 닫기) · 1 중간 = 상자 열기 + 색종이 · 2 큰 보상(칭호 · 프레임 · 전설 장비) = 어두운 무대 + 조명 + 내 카드 미리 보기 · 3 한정 의상 = 멤버가 빙글 돌며 등장 + 바로 입기
+//  연출 줄이기(body.rm)면 상자 · 색종이 · 조명 없이 조용히
+function mergeGot(list) {
+  const o = {};
+  for (const g of list || []) for (const [k, v] of Object.entries(g || {})) {
+    if (typeof v === 'number') o[k] = (o[k] || 0) + v;
+    else if (Array.isArray(v)) o[k] = [...(o[k] || []), ...v];
+    else if (k === 'cons' || k === 'shards') { o[k] = o[k] || {}; for (const [c, n] of Object.entries(v)) o[k][c] = (o[k][c] || 0) + n; }
+    else if (k === 'gear' || k === 'title' || k === 'frame') (o[k + 's'] = o[k + 's'] || []).push(v);
+  }
+  return o;
+}
+const RV_RANK = { common: 0, rare: 1, epic: 2, legend: 3, myth: 4 };
+function rvLevel(g) {
+  const gears = g.gears || [], top = Math.max(-1, ...gears.map((x) => RV_RANK[typeof x === 'string' ? x : x && x.r] | 0));
+  if (g.skins && g.skins.length) return 3;
+  if ((g.titles || []).length || (g.frames || []).length || top >= 3) return 2;
+  if ((g.tickets | 0) >= 3 || (g.coins | 0) >= 5000 || gears.length || (g.wild | 0) || (g.stones | 0) >= 5) return 1;
+  return 0;
+}
+function rvItems(g) {
+  const out = [], add = (icon, n, label, c = '#ffd23f') => out.push({ icon, n, label, c });
+  if (g.coins) add('<i class="ci"></i>', `+${fmt(g.coins)}`, '코인');
+  if (g.tickets) add(ic('ticket', '', ''), `×${g.tickets}`, '모집권', '#ff9fd8');
+  if (g.stones) add(ic('gem', '', ''), `×${g.stones}`, '강화석', '#7ec4ff');
+  if (g.wild) add(ic('card_common', '', ''), `×${g.wild}`, '범용 카드', '#c77dff');
+  if (g.sp) add(ic('star_gold', '', ''), `+${g.sp}`, '시즌 포인트');
+  if (g.sta) add(ic('bolt', '', ''), `+${g.sta}`, '체력', '#ffe066');
+  const sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); if (sh) add(ic('card_common', '', ''), `×${sh}`, '멤버 조각', '#ff9f5a');
+  for (const it of g.gears || []) { const r = typeof it === 'string' ? it : it && it.r, R0 = GEAR_RARITY[r] || GEAR_RARITY.common; add(ic('gear_set', '', ''), R0.name, it && it.t && GEAR[it.t] ? GEAR[it.t].name : '장비', R0.color); }
+  for (const [k, n] of Object.entries(g.cons || {})) if (L.CONS[k]) add(ic('gift', '', ''), `×${n}`, L.CONS[k].name, '#5de07a');
+  return out;
+}
+function rewardReveal(o) {
+  const g = o.got || {}, lv = Math.max(o.min | 0, rvLevel(g)), p = P(), rm = document.body.classList.contains('rm');
+  const items = rvItems(g), titles = g.titles || [], frames = g.frames || [], skins = (g.skins || []).filter((k) => HW_COSTUMES[k]);
+  const color = lv >= 3 ? '#ffcf3f' : lv >= 2 ? '#ff6fd8' : lv >= 1 ? '#7ec4ff' : '#ffd23f';
+  const old = document.querySelector('.rv-ov'); if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.className = `rv-ov lv${lv}`; ov.style.setProperty('--rc', color);
+  const conf = rm || lv < 1 ? '' : `<span class="rv-cf-box">${Array.from({ length: lv >= 2 ? 46 : 22 }, (_, i) => `<i class="rv-cf" style="--x:${(Math.random() * 100).toFixed(1)}%;--dx:${(Math.random() * 120 - 60).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;--d:${(0.9 + Math.random() * 0.9).toFixed(2)}s;--w:${(0.6 + Math.random() * 1.4).toFixed(2)}s;--c:${['#ffd23f', '#ff6fd8', '#6fd3ff', '#5de07a', '#fff', '#c77dff'][i % 6]}"></i>`).join('')}</span>`;
+  const pre = lv >= 1 ? 1.0 : 0.1; // 상자가 열린 뒤에 나온다
+  const its = items.map((x, i) => `<span class="rv-it" style="--d:${(pre + 0.1 + i * 0.09).toFixed(2)}s;--ic:${x.c}"><i>${x.icon}</i><b>${esc(x.n)}</b><small>${esc(x.label)}</small></span>`).join('');
+  const cos = skins.map((k, i) => { const c = HW_COSTUMES[k]; return `<span class="rv-cos" style="--d:${(pre + 0.15 + i * 0.35).toFixed(2)}s"><span class="rv-cos-card"><img src="${cosArt(k).hq}" alt="" onerror="this.onerror=null;this.src='${cosArt(k).thumb}'"><i class="sr-rib">SEASON ${c.season} 한정</i></span><b>${esc(c.name)}</b></span>`; }).join('');
+  const nt = titles[titles.length - 1] || '', nf = frames[frames.length - 1] || '';
+  const card = nt || nf ? `<div class="rv-card" style="--d:${(pre + 0.3 + skins.length * 0.35).toFixed(2)}s"><span class="ava framed ${frameCls(nf || p.frame)}" style="${frameStyle(nf || p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', nt || p.title)}<small>${[nt ? '새 칭호' : '', nf ? esc(L.FRAMES[nf].name) : ''].filter(Boolean).join(' · ')} — 이렇게 보여요</small></div></div>` : '';
+  const canWear = !app.guest && (nt || nf || skins.length);
+  ov.innerHTML = `<span class="rv-dim"></span>${lv >= 2 && !rm ? '<span class="rv-rays"></span>' : ''}${conf}
+    <div class="rv-stage">
+      ${lv >= 1 ? `<span class="rv-box"><i class="rv-lid"></i><i class="rv-body"></i><i class="rv-burst"></i></span>` : ''}
+      <h2 class="rv-title">${esc(o.title || '보상 획득!')}</h2>${o.sub ? `<p class="rv-sub">${esc(o.sub)}</p>` : ''}
+      ${cos ? `<div class="rv-coses">${cos}</div>` : ''}${card}
+      ${its ? `<div class="rv-items">${its}</div>` : ''}
+      ${lv >= 1 ? `<div class="rv-btns" style="--d:${(pre + 0.6 + skins.length * 0.35).toFixed(2)}s">${canWear ? `<button class="btn primary rv-wear">${ic('sparkle', '', 'sm')}바로 착용</button>` : ''}<button class="btn ${canWear ? '' : 'primary'} rv-ok">좋아요!</button></div>` : '<small class="rv-tap">눌러서 닫기</small>'}
+    </div>`;
+  (document.querySelector('#stage') || document.body).appendChild(ov);
+  const close = () => { ov.classList.add('out'); setTimeout(() => ov.remove(), 260); };
+  ov.addEventListener('click', async (ev) => {
+    const w = ev.target.closest('.rv-wear');
+    if (w) {
+      if (w.disabled) return; w.disabled = true;
+      let ok = true;
+      if (nt || nf) ok = !!(await liveAct(API.setCosmetic(nt || undefined, nf || undefined, app.guest)));
+      for (const k of skins) if (ok) ok = !!(await liveAct(API.hwWear(HW_COSTUMES[k].hero, k, app.guest)));
+      if (ok) { try { if (HWUI) HWUI.applySkins(); } catch { /* 무시 */ } A.sfx.reward(); w.innerHTML = '착용 완료 ✓'; refreshBehind(); } else w.disabled = false;
+      return;
+    }
+    if (ev.target.closest('.rv-ok') || lv < 1) close();
+  });
+  if (lv < 1) setTimeout(() => { if (ov.isConnected) close(); }, 1700);
+  try { A.sfx.fanfare(lv); } catch { /* 무시 */ }
+  if (lv >= 1) setTimeout(() => { try { if (navigator.vibrate) navigator.vibrate(lv >= 2 ? [25, 60, 40, 60, 90] : [20, 40, 50]); } catch { /* 무시 */ } }, rm ? 0 : 900);
+  return ov;
+}
+
 // ─── 랭킹 ────────────────────────────────────────────
 async function showRanking() {
   app.screen = 'ranking';
@@ -6875,11 +7027,13 @@ async function showRanking() {
  <h2 class="title">${ic('trophy', '', 'sm')} 랑방 명예의 전당</h2>
  <div class="tabs"><button class="${tab === 'stage' ? 'on' : ''}" data-act="rankTab" data-tab="stage">${ic('map', '', 'sm')}스테이지</button><button class="${tab === 'endless' ? 'on' : ''}" data-act="rankTab" data-tab="endless">${ic('infinity', '', 'sm')}무한 도전</button><button class="${tab === 'endlessWeek' ? 'on' : ''}" data-act="rankTab" data-tab="endlessWeek">${ic('calendar', '', 'sm')} 무한 주간</button><button class="${tab === 'popular' ? 'on' : ''}" data-act="rankTab" data-tab="popular">${ic('party', '', 'sm')}인기 멤버${BKX.dot(P()) ? '<i class="rd"></i>' : ''}</button></div>
  <p class="sub">${tab === 'popular' ? BKX.rankSub() : tab === 'stage' ? '최고 스테이지 → 총 별 → 먼저 도달한 순' : tab === 'endlessWeek' ? '이번 주 무한 도전 최고 점수 · 주가 끝나면 순위 보상이 우편함으로' : '최고 웨이브 → 최고 점수 순'}</p>
+ ${tab === 'stage' || tab === 'endless' ? srCardHtml(tab, app.srank) : ''}
  <div class="rank-list" id="rk"><div class="empty-msg"><span class="spin">${ic('hourglass', '', 'sm')}</span> 불러오는 중…</div></div>
  <div class="spacer"></div>
  <div class="my-rank" id="myrk"></div>
  `, 'dim');
   if (tab === 'popular') { await BKX.renderRanking($('#rk'), $('#myrk')); return; } // 주간 인기 멤버 (bonkae-ui.js)
+  if (tab === 'stage' || tab === 'endless') srankData().then((d) => { const el = $('#srCard'); if (d && el && app.screen === 'ranking' && app.rankTab === tab) el.outerHTML = srCardHtml(tab, d); }); // 시즌 랭킹 보상 카드 (내 순위)
   const res = await API.loadRanking(tab);
   const box = $('#rk');
   if (!box || app.screen !== 'ranking' || app.rankTab !== tab) return;
@@ -7221,6 +7375,7 @@ async function boot() {
   app.guest = r.guest;
   app.nickname = r.nickname || ''; // (마지막 출격 스테이지 키에 쓴다)
   app.profileLoaded = true;
+  try { if (HWUI) HWUI.applySkins(); } catch { /* 무시 */ } // 입은 의상 (할로윈 · 시즌 한정) — 프로필이 온 뒤에야 알 수 있다 (예전엔 다시 들어오면 의상이 풀려 보였다)
   app.lobbyStage = 0; // 프로필이 온 뒤 이 계정의 마지막 출격 스테이지로 다시 고른다
   if (TUT_ON) TUT.load(API.accountKey(), app.profile.tut, app.profile); // 튜토리얼: 이 계정 진행 (클리어 0 이면 처음부터)
   Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {}).then(() => BKX.boot()).catch(() => {}); // 다음: 본캐 출연료 정산 · 알림
