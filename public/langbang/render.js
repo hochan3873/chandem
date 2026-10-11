@@ -1,6 +1,7 @@
 // 랑방 대전 — 캔버스 렌더러 + 연출(FX)
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
+import { drawAura as fx2Aura, drawBanner as fx2Banner, ringBurst as fx2Ring, drawShock as fx2Shock, fireRing as fx2Fire, floorRing as fx2Floor, art as fx2Art } from './fx2.js'; // 바닥 이펙트 그림 (불 고리 · 룬 · 얼음 · 보호막 …)
 import { prepSeason, bakeSeason, drawSeason } from './season-fx.js'; // 시즌 테마 전투 장식 (할로윈 등)
 import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, HERO_IDLE, WEAPON, artV, EST, LOCK_NAME } from './data.js';
 // 효과 종류: 빛(더하기 섞기) · 물건(보통) · 층 · 색 · 맞은 자리 표시
@@ -624,7 +625,8 @@ export class Renderer {
     if (gl) cx.drawImage(gl.c, -pr, -pr * 1.25, pr * 2, pr * 2.5);
     cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
     const ring = this.images.awakeAura;
-    if (imgOk(ring)) { this.tf(hx, feet - 4, 0, 1, 0.36); cx.globalAlpha = 0.85; const rw = box * (0.95 + Math.sin(t * 6) * 0.03); cx.drawImage(ring, -rw / 2, -rw * 0.72, rw, rw); cx.globalAlpha = 1; }
+    if (fx2Floor(this, 'fire', hx, feet - 4, box * 1.7, { a: 0.9, spin: 0.6, ph: h.slot, two: true })) { this.tf(hx, feet, 0, 1, 1); } // 진짜 불 고리 (없으면 아래 예전 그림)
+    else if (imgOk(ring)) { this.tf(hx, feet - 4, 0, 1, 0.36); cx.globalAlpha = 0.85; const rw = box * (0.95 + Math.sin(t * 6) * 0.03); cx.drawImage(ring, -rw / 2, -rw * 0.72, rw, rw); cx.globalAlpha = 1; }
     if (Math.random() < 0.35) this.fx.part('flame', hx + (Math.random() - 0.5) * box * 0.5, feet - Math.random() * box * 0.5, (Math.random() - 0.5) * 20, -60 - Math.random() * 50, 0.7, 6 + Math.random() * 5, null);
   }
   drawAwakeEyes(h, hx, feet, box, t) {
@@ -3186,6 +3188,9 @@ export class Renderer {
         if (img && imgOk(img)) { for (let gi = 3; gi >= 1; gi--) { const kk = Math.max(0, k - gi * 0.05); this.tf(q.x + (q.tx - q.x) * kk, q.y + (q.ty - q.y) * kk, rot, 1, 1); cx.globalAlpha = 0.18 * (4 - gi) * a; const w = q.sz, hh = q.sz * (img.naturalHeight / img.naturalWidth); cx.drawImage(img, -w / 2, -hh / 2, w, hh); } } }
       else if (q.anim === 'ring') { const ek = 1 - (1 - k) * (1 - k); x = q.x + (q.tx - q.x) * ek; y = q.y + (q.ty - q.y) * ek; s = 0.3 + k * 0.9; rot = q.norot ? q.rot : q.rot + k * 4; a = k < 0.15 ? k / 0.15 : (1 - k) / 0.85; }
       if (q.name === 'pullLine') { this.world(); cx.globalAlpha = 1 - k; cx.strokeStyle = q.col; cx.lineWidth = 2.5; cx.setLineDash([6, 5]); cx.lineDashOffset = -now / 20; cx.beginPath(); cx.moveTo(q.x, q.y); cx.quadraticCurveTo((q.x + q.tx) / 2 + 30, (q.y + q.ty) / 2 - 30, q.tx, q.ty); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1; continue; }
+      if ((q.name === 'aura_red' || q.name === 'aura_blue') && q.flat && fx2Aura(this, q, x, y, s, a, this.fx)) { cx.globalAlpha = 1; continue; } // 새 바닥 그림 (없으면 아래 예전 그림)
+      if ((q.name === 'shock' || q.name === 'shock2') && !q.follow && fx2Shock(this, q, x, y, s, a)) continue; // 먼지 · 파편 충격파 그림
+      if (q.name === 'banner' && img && imgOk(img) && fx2Banner(this, img, x, y, q.sz, a, s)) continue; // 천이 일렁이는 깃발
       if (q.spin) rot += now / 250;
       const fsz = q.follow && q.follow.def && q.follow.def.size && !q.fixed ? Math.max(0.7, Math.min(1.6, q.follow.def.size / 70)) : 1;
       this.tf(x, y, rot, s * fsz, (q.flat ? s * 0.45 : s) * fsz);
@@ -3484,11 +3489,12 @@ export class Renderer {
     for (const r of this.fx.rings.items) {
       const p = 1 - r.life / r.max;
       const e = 1 - (1 - p) * (1 - p);
-      cx.globalAlpha = (1 - p) * 0.9;
+      const rad = r.r0 + (r.r1 - r.r0) * e, spr = fx2Ring(this, r.x, r.y, rad, p, r.color, r.width); // 큰 고리는 그림 한 겹 더 (충격파 · 치유 · 하트 …)
+      cx.globalAlpha = (1 - p) * (spr ? 0.5 : 0.9);
       cx.strokeStyle = r.color;
-      cx.lineWidth = r.width * (1 - p * 0.6);
+      cx.lineWidth = r.width * (1 - p * 0.6) * (spr ? 0.5 : 1);
       cx.beginPath();
-      cx.arc(r.x, r.y, r.r0 + (r.r1 - r.r0) * e, 0, TAU);
+      cx.arc(r.x, r.y, rad, 0, TAU);
       cx.stroke();
     }
     cx.globalAlpha = 1;

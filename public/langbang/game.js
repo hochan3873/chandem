@@ -1282,7 +1282,7 @@ function handleEvents(g, loud) {
       }
       case 'ccBlock': fx.text(e.x, e.y, '면역!', '#8fffc8', 16, 0.9); fx.ring(e.x, e.y + 10, 10, 46, 0.3, '#9fffd0'); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
       case 'shieldBreak': R.vfx('hitspark', e.x, e.y, { anim: 'pop', dur: 380, sz: 90 }); fx.burst(e.x, e.y, 12, '#cfe9ff', 220, 'dot', 3, 0.5); fx.text(e.x, e.y - 20, '보호막 깨짐!', '#ff6a6a', 16, 1.0); fx.ring(e.x, e.y, 10, 70, 0.35, '#e8fbff'); if (live) app.hitStop = Math.max(app.hitStop || 0, 0.03); try { A.sfx.crit(); } catch (er) { /* 무시 */ } break;
-      case 'doorShield': fx.text(e.x, e.y - 40, `방패 +${e.v}`, '#bfe6ff', 16, 1.2); R.vfx('aura_blue', e.x, e.y, { anim: 'pulse', dur: 8000, sz: 320, flat: true }); break;
+      case 'doorShield': fx.text(e.x, e.y - 40, `방패 +${e.v}`, '#bfe6ff', 16, 1.2); R.vfx('aura_blue', e.x, e.y, { anim: 'pulse', dur: 8000, sz: 320, flat: true, kind: 'shield' }); break;
       case 'doorShieldBreak': fx.text(e.x, e.y - 40, '방패 깨짐', '#bfe6ff', 13, 0.9); fx.burst(e.x, e.y, 16, '#cfe9ff', 260, 'dot', 3, 0.6); break;
       case 'buffAura': for (const h of g.heroes) R.vfx('aura_red', 0, 0, { follow: h, dy: 0, anim: 'pulse', dur: (e.sec || 6) * 1000, sz: 90, flat: true }); fx.text(180, g.rowY - 70, '집합! 공속 +50% · 공격력 +20%', '#ffd23f', 14, 1.3); break;
       case 'hammer': R.vfx('crack', e.x, e.y + 22, { anim: 'fade', dur: 600, sz: 80, flat: true }); fx.addShake(3); break;
