@@ -217,6 +217,15 @@ export const sfx = {
   tabSw() { if (ok('ui', 0.06)) { tone(880, 0.025, 'square', 0.025); tone(1320, 0.03, 'sine', 0.03, 0, 0.02); } },
   deny() { if (ok('ui', 0.1)) { tone(220, 0.07, 'square', 0.05); tone(180, 0.08, 'square', 0.04, 0, 0.06); } },
   reward() { if (ok('ui', 0.1)) [1175, 1568, 2093].forEach((f, i) => tone(f, 0.07, 'square', 0.04, 0, i * 0.05)); },
+  // 보상 공개 팡파르 (lv 0 작은 보상 · 1 중간 · 2 큰 보상 · 3 한정 의상): 상자 펑 → 올라가는 음 → 반짝
+  fanfare(lv = 1) {
+    if (!ok('fanfare', 0.6)) return;
+    noise(0.16, 0.1 + lv * 0.04, 900, 0.7, 0, 'lowpass'); tone(130 + lv * 20, 0.16, 'sine', 0.12 + lv * 0.03, 60);
+    const notes = lv >= 2 ? [523, 659, 784, 1046, 1318, 1568] : lv >= 1 ? [659, 784, 1046, 1318] : [1046, 1318];
+    notes.forEach((f, i) => tone(f, 0.13, 'square', 0.055, 0, 0.12 + i * 0.065));
+    if (lv >= 1) tone(notes[notes.length - 1], 0.5 + lv * 0.15, 'triangle', 0.05, notes[notes.length - 1] * 1.5, 0.14 + notes.length * 0.065);
+    if (lv >= 2) for (let i = 0; i < 7; i++) tone(2093 + i * 190, 0.05, 'sine', 0.03, 0, 0.6 + i * 0.055);
+  },
   join() { if (ok('join', 0.3)) [659, 880, 1175].forEach((f, i) => tone(f, 0.14, 'sine', 0.08, 0, i * 0.06)); },
   // 멀티킬 스팅어: 단계가 오를수록 더 높고 길게 (펑 + 올라가는 음 + 반짝)
   multi(tier) {

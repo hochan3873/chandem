@@ -256,11 +256,21 @@ export const COSTUMES = {
   jieun_hw: { hero: 'jieun', name: '시간의 마녀 오지은', sub: '모래시계 지팡이로 할로윈 밤을 멈춘다', tint: '#b46cff', fx: 'witch' },
   sunggu_hw: { hero: 'sunggu', name: '미라 할아버지 강성구', sub: '붕대 사이로 지팡이는 여전히 번쩍', tint: '#e8d9a8', fx: 'bandage' },
   ara_hw: { hero: 'ara', name: '호박 공주 고아라', sub: '호박 망치 한 방이면 보스도 잭오랜턴', tint: '#ff8a1f', fx: 'pumpkin' },
+  // 시즌 랭킹 한정 의상 (srank.js · 그 시즌 랭킹 1~3위만 · 절대 안 판다) — 그림: /img/lb/season/h_<hero>_s<N>(_attack · _idle).webp · dex_ · hq_ · thumb_
+  bangjang_s1: { hero: 'bangjang', season: 1, name: '챔피언 방장', sub: '황금 왕관 · 붉은 망토 — 시즌 1 랭킹의 주인', tint: '#ffcf3f', fx: 'gold' },
+  eunok_s1: { hero: 'eunok', season: 1, name: '샴페인 여왕 최은옥', sub: '티아라 쓰고 샴페인 한 병 — 오늘은 축배다', tint: '#ff4f7a', fx: 'gold' },
+  gunman_s1: { hero: 'gunman', season: 1, name: '백기사 건전남', sub: '흰 정장에 금 견장 — 진상 앞에선 언제나 기사도', tint: '#7fd8ff', fx: 'gold' },
 };
-export const COSTUME_IDS = Object.keys(COSTUMES);
-export const costumeOf = (hero) => COSTUME_IDS.find((k) => COSTUMES[k].hero === hero) || null;
-const ART = '/img/lb/hw/';
-export const costumeArt = (id) => { const c = COSTUMES[id]; if (!c) return null; const h = c.hero; return { img: `${ART}h_${h}_hw.webp`, attack: `${ART}h_${h}_hw_attack.webp`, dex: `${ART}dex_${h}_hw.webp`, hq: `${ART}hq_${h}_hw.webp`, thumb: `${ART}thumb_${h}_hw.webp` }; };
+export const COSTUME_IDS = Object.keys(COSTUMES).filter((k) => !COSTUMES[k].season); // 할로윈 의상 (사탕 상점 · 의상실)
+export const SEASON_COSTUME_IDS = Object.keys(COSTUMES).filter((k) => COSTUMES[k].season); // 시즌 랭킹 한정 (안 판다)
+export const costumeOf = (hero) => COSTUME_IDS.find((k) => COSTUMES[k].hero === hero) || null; // 할로윈 의상
+export const costumesOf = (hero) => Object.keys(COSTUMES).filter((k) => COSTUMES[k].hero === hero); // 그 멤버의 모든 의상
+const ART = '/img/lb/hw/', S_ART = '/img/lb/season/';
+export const costumeArt = (id) => {
+  const c = COSTUMES[id]; if (!c) return null; const h = c.hero;
+  if (c.season) { const k = `${h}_s${c.season}`; return { img: `${S_ART}h_${k}.webp`, attack: `${S_ART}h_${k}_attack.webp`, idle: `${S_ART}h_${k}_idle.webp`, dex: `${S_ART}dex_${k}.webp`, hq: `${S_ART}hq_${k}.webp`, thumb: `${S_ART}thumb_${k}.webp` }; }
+  return { img: `${ART}h_${h}_hw.webp`, attack: `${ART}h_${h}_hw_attack.webp`, dex: `${ART}dex_${h}_hw.webp`, hq: `${ART}hq_${h}_hw.webp`, thumb: `${ART}thumb_${h}_hw.webp` };
+};
 // 지금 입은 의상: { 멤버: 의상 id } (가진 의상만)
 export function wornMap(lb) {
   const s = (lb && lb.skins) || {};
@@ -273,7 +283,7 @@ export function wearSkin(lb, hero, id) {
   if (!HEROES[hero]) return { error: '없는 멤버예요' };
   if (id) {
     if (!COSTUMES[id] || COSTUMES[id].hero !== hero) return { error: '이 멤버 의상이 아니에요' };
-    if (!lb.skins.own.includes(id)) return { error: '아직 없는 의상이에요 (할로윈 사탕 상점)' };
+    if (!lb.skins.own.includes(id)) return { error: COSTUMES[id].season ? `시즌 ${COSTUMES[id].season} 랭킹 Top 3 보상 의상이에요` : '아직 없는 의상이에요 (할로윈 사탕 상점)' };
     lb.skins.on[hero] = id;
   } else delete lb.skins.on[hero];
   return { on: wornMap(lb) };
@@ -287,7 +297,7 @@ export function normSkins(raw, out) {
   return out;
 }
 // 덱에서 할로윈 의상을 입은 멤버 수 → 사탕 보너스
-export const wearBonus = (lb, ids) => Math.min(HW.wearMax, HW.wear * (ids || []).filter((h) => wornMap(lb)[h]).length);
+export const wearBonus = (lb, ids) => Math.min(HW.wearMax, HW.wear * (ids || []).filter((h) => wornMap(lb)[h] && !COSTUMES[wornMap(lb)[h]].season).length); // (할로윈 의상만)
 
 // ─── 사탕 · 상점 ───
 export const CANDY_ART = '/img/lb/hw/candy.webp';

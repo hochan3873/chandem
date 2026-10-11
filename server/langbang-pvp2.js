@@ -247,6 +247,7 @@ function createLbPvp2(opts) {
         try {
           await accounts.exclusive(async () => accounts.updateStats(p.uid, (s) => {
             const lb = s.langbang = normLb(s.langbang);
+            if (opts.live && opts.live.srSync) opts.live.srSync(lb, now()); // 시즌 랭킹: 시즌이 바뀐 첫 판이면 점수가 바뀌기 전에 지난 시즌 기록을 얼린다 (srank.js)
             const pv = lb.pvp = lb.pvp || { rating: START_RATING, games: 0, wins: 0 };
             if (ranked) { pv.rating = Math.max(0, (pv.rating | 0 || START_RATING) + delta); pv.games++; if (win) pv.wins++; pv.streak = win ? (pv.streak | 0) + 1 : 0; pv.best = Math.max(pv.best | 0, pv.streak); }
             pv.last = now();

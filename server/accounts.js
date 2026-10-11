@@ -49,6 +49,7 @@ const TOWER_MOD = require('./langbang-tower'); // 진상의 탑 (공식은 publi
 const BK_MOD = require('./langbang-bonkae'); // 본캐 · 출연료 · 주간 인기 멤버 (공식은 public/langbang/bonkae.js)
 const HW_MOD = require('./langbang-hw'); // 할로윈 이벤트 「할로윈 저주의 밤」 (공식은 public/langbang/hw-event.js)
 const R2_MOD = require('./langbang-raid2'); // 건물주 레이드 (주간 서버 레이드 · 공식은 public/langbang/raid2.js)
+const SR_MOD = require('./langbang-season'); // 시즌 랭킹 보상 (공식은 public/langbang/srank.js)
 const LB_HEROES = LBR.LB_HEROES;
 const LB_MAX_META = LBR.META_MAX;
 function emptyLangbang() {
@@ -195,6 +196,8 @@ class FileStore {
   async raidCount(wi) { return this.raidList(wi).length; }
   // 1:1 대전 순위
   async pvpTop(n) { return Object.values(this.data.users).filter((u) => pvpOf(u).games > 0 && !isMasterName(u.username)).sort((a, b) => pvpOf(b).rating - pvpOf(a).rating).slice(0, n); }
+  // 시즌 랭킹 (srank.js): 그 시즌에 들어온 사람 (sr · srPrev 시즌 번호)
+  async seasonRows(sid) { return Object.values(this.data.users).filter((u) => { const lb = (u.stats && u.stats.langbang) || {}; return (lb.sr && lb.sr.sid === sid) || (lb.srPrev && lb.srPrev.sid === sid); }); }
   async rankLangbang(mode, id) {
     const i = this.sortedLangbang(mode).findIndex((u) => u.id === id);
     return i < 0 ? null : i + 1;
@@ -274,6 +277,10 @@ class PgStore {
     return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_EW} > $2 AND NOT (username = ANY($3::text[]))`, [wi, b, [...masterList()]])).rows[0].n + 1;
   }
   async raidCount(wi) { return (await this.pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE ${PG_RD} > 0 AND NOT (username = ANY($2::text[]))`, [wi, [...masterList()]])).rows[0].n; }
+  async seasonRows(sid) {
+    const r = await this.pool.query(`SELECT * FROM users WHERE (stats->'langbang'->'sr'->>'sid') = $1 OR (stats->'langbang'->'srPrev'->>'sid') = $1`, [String(sid)]);
+    return r.rows.map((x) => this.row(x));
+  }
   async pvpTop(n) {
     const r = await this.pool.query(`SELECT * FROM users WHERE COALESCE((stats->'langbang'->'pvp'->>'games')::int, 0) > 0 AND NOT (username = ANY($2::text[])) ORDER BY COALESCE((stats->'langbang'->'pvp'->>'rating')::int, 1000) DESC LIMIT $1`, [n, [...masterList()]]);
     return r.rows.map((x) => this.row(x));
@@ -317,7 +324,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
       for (const x of r.rows) noteMeta(x.id, x.meta);
     } else for (const u of Object.values(store.data.users)) if (u.meta) noteMeta(u.id, u.meta);
   }
-  const ready = Promise.all([store.init().then(warmMeta), liveReady, TOWER_MOD.towerReady, BK_MOD.bkReady, R2_MOD.r2Ready, HW_MOD.hwReady]).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
+  const ready = Promise.all([store.init().then(warmMeta), liveReady, TOWER_MOD.towerReady, BK_MOD.bkReady, R2_MOD.r2Ready, HW_MOD.hwReady, SR_MOD.srReady]).catch((e) => { console.error('[accounts] 저장소 준비 실패:', e.message); });
 
   // 토큰: 아이디.만료.토큰버전.서명 (옛 토큰 아이디.만료.서명 은 버전 0 으로 본다)
   const sign = (id, exp, tv) => crypto.createHmac('sha256', key).update(tv === undefined ? `${id}.${exp}` : `${id}.${exp}.${tv}`).digest('base64url');
@@ -615,6 +622,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         const stones = mode === 'stage' ? LBR.rollStones(LBR.hashSeed(`st:${id}:${before.clears}:${stage}`), stage, stars, !prevStars, hell) : mode === 'raid' ? 2 : 0; // 레이드 한 판마다 강화석 2개
         const stats = await update(id, (s) => {
           const lb = s.langbang = normLb(s.langbang);
+          LIVE.srSync(lb, now); // 시즌이 바뀐 첫 판이면 지난 시즌 기록을 먼저 얼려 둔다 (시즌 랭킹)
           if (mode === 'stage') { if (lb.staRun && lb.staRun.stage === stage) lb.staRun = null; else if (!freeMaster(u)) LIVE.staminaAdd(lb, -LIVE.stageStaminaCost(lb, stage, hell), now); }
           if (mode === 'endless') { const ef = LIVE.endlessFinish(lb, wave, master ? 0 : Math.round(score * (1 - afkF)), (lb.endRun || master || LIVE.endlessLeft(lb, now) > 0) ? reward.total : 0, id, now); if (!lb.endRun && !master && LIVE.endlessLeft(lb, now) > 0) LIVE.endlessStart(lb, false, now); lb.endRun = null; endInfo = ef; reward.total = ef.coins; }
           if (mode === 'stage') { const cg = LIVE.rollCons(LBR.hashSeed(`cs:${id}:${before.clears}:${stage}`), stage, stars, hell, usedOk); if (Object.keys(cg).length) { LIVE.consAdd(lb, cg); reward.cons = cg; } }
@@ -868,6 +876,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     return lbLive(token, (lb, id, now, ctx) => {
       LIVE.giftTake(lb, LIVE.WELCOME_GIFT, now); // 소모품 첫 선물 (계정마다 한 번)
       R2S.mailSettle(lb, id, now, ctx); // 건물주 레이드 보상 (참가 · 토벌 · 지난주 순위) · 옛 모임 레이드 남은 보상
+      SRS.mailSettle(lb, id, now, ctx); // 시즌 랭킹 보상 (지난 시즌 순위 · 한 번)
       for (const c of ctx.gifts || []) if (LIVE.giftEligible(lb, c, now)) LIVE.giftTake(lb, c, now);
       lb.lastSeenAt = now;
       const prev = LIVE.weekIndex(now) - 1;
@@ -878,7 +887,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         lb.ewPaid = prev;
       }
       return { mail: LIVE.mailCount(lb, now) };
-    }, async (u, id, now) => ({ rank: await store.rankEndlessWeek(LIVE.weekIndex(now) - 1, id), gifts: await giftCampaigns(now), ...(await R2S.mailPrep(u, id, now)) }));
+    }, async (u, id, now) => ({ rank: await store.rankEndlessWeek(LIVE.weekIndex(now) - 1, id), gifts: await giftCampaigns(now), ...(await R2S.mailPrep(u, id, now)), ...(await SRS.mailPrep(u, id, now)) }));
   }
   function lbWeeklyClaim(token) {
     return lbLive(token, (lb, id, now, ctx) => {
@@ -1161,6 +1170,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   // 본캐 · 출연료 · 주간 인기 멤버 (server/langbang-bonkae.js)
   const BKS = BK_MOD.createBonkae({ store, update, exclusive, lbLive, verifyToken, userFromToken, lbView, normLb, isMasterName, freeMaster, AuthError, LIVE: () => LIVE });
   // 건물주 레이드 (server/langbang-raid2.js) — 예전 모임 레이드를 대신한다
+  const SRS = SR_MOD.createSeasonRank({ store, isMasterName, normLb, verifyToken, LIVE: () => LIVE });
   const R2S = R2_MOD.createRaid2({ store, update, serial, userFromToken, verifyToken, lbView, normLb, isMasterName, freeMaster, masterList, AuthError, LIVE: () => LIVE, lbLive, ENEMY_IDS: LBR.ENEMY_IDS, onRun: BKS.afterRun });
   function langbangRouter(express) {
     const r = express.Router();
@@ -1176,6 +1186,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     FR.mount(r, wrap, tok); // 친구 (/friends/* · 친구 멤버를 데려가는 /raid/start)
     BKS.mount(r, wrap, tok); // 본캐 (/bonkae*)
     R2S.mount(r, wrap, tok); // 건물주 레이드 (/raid2*)
+    SRS.mount(r, wrap, tok); // 시즌 랭킹 보상 (/srank)
     r.get('/me', wrap((req) => lbMe(tok(req))));
     r.post('/result', wrap((req) => lbResult(tok(req), req.body || {})));
     r.post('/upgrade', wrap((req) => lbUpgrade(tok(req), String((req.body || {}).hero || ''))));
@@ -1308,7 +1319,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   return { signup, login, me, verifyToken, recordHand, recordOmok, recordTourney, profile, ranking, router, langbangRouter, lbResult, lbUpgrade, lbBuy, lbMe, lbRanking, ready, tierOf, store,
     // 플랫폼(site.js · admin.js)용
     makeToken, publicUser, noteMeta, exclusive, updateStats: update, addLangbangCoins, adminAdjustLangbangCoins,
-    bonkae: BKS, bonkaeRun: BKS.afterRun, raid2: R2S }; // 본캐 출연료 (1:1 대전 승리에서 부름)
+    bonkae: BKS, bonkaeRun: BKS.afterRun, raid2: R2S, srank: SRS }; // 본캐 출연료 (1:1 대전 승리에서 부름)
 }
 
 module.exports = { createAccounts, tierOf, eloDelta, TIERS, AI_RATING, START_RATING, AuthError, normLb, lbCompare, hashPassword, checkPassword, emptyStats };
