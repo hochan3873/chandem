@@ -561,6 +561,8 @@ export function hwShop(id, guest) { return guest ? guestLive((p) => HW.shopBuy(p
 export function hwWear(hero, id, guest) { return guest ? guestLive((p) => HW.wearSkin(p, hero, id || null)) : liveCall('hw/wear', { hero, id: id || null }); }
 export async function hwBoard() { const r = await call('/api/langbang/hw'); return r.ok ? r : null; }
 export function hwClaim() { return liveCall('hw/claim', {}); }
+// 시즌 랭킹 보상: 이번 시즌 남은 시간 · 내 지금 순위 · 지난 시즌 순위 (보상은 시즌이 끝나면 우편함으로 · srank.js)
+export async function srankBoard() { const r = await call('/api/langbang/srank'); return r.ok ? r : null; }
 export function towerStart(f, hero, guest, squad = []) { return guest ? guestLive((p) => TW.towerStart(p, f, hero, 'g' + Date.now().toString(36), Date.now(), false, squad)) : liveCall('tower/start', { f, hero, squad }); } // squad: 같이 갈 멤버 (리메이크)
 export function towerFinish(body, guest) { return guest ? guestLive((p) => TW.towerFinish(p, body, GUEST_UID, Date.now())) : liveCall('tower/finish', body); }
 export async function towerBoard() { const r = await call('/api/langbang/tower'); return r.ok ? r : null; }
