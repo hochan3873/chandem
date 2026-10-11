@@ -22,18 +22,24 @@ export const eu = (n) => (/[036]$/.test(String(Math.abs(Math.round(Number(n) || 
 //  ico: ui2 그림 이름 · img: 직접 주소 · 코인은 CSS 동전(.ci) 이라 둘 다 없다
 export const CUR = {
   coins: { id: 'coins', name: '코인', color: '#ffcc33', short: '멤버·장비 강화와 모집에 쓰는 기본 돈' },
-  tickets: { id: 'tickets', name: '모집권', ico: 'ticket', color: '#ff8fc0', short: '모집(뽑기) 1회에 1장 — 코인 모집보다 우선' },
+  tickets: { id: 'tickets', name: '모집권', ico: 'ticket', art: 'rv_ticket', color: '#ff8fc0', short: '모집(뽑기) 1회에 1장 — 코인 모집보다 우선' },
   sta: { id: 'sta', name: '체력', alias: '기력', ico: 'energy', color: '#5fd17a', short: `스테이지에 나갈 때 쓰는 힘 (${Math.round(L.STAMINA.regenMs / 60000)}분에 1씩 · 최대 ${L.STAMINA.max})` },
-  stones: { id: 'stones', name: '강화석', ico: 'gem', color: '#4fc3ff', short: '+6 이상 장비 강화 · 장비 뽑기에 쓰는 보석' },
-  cards: { id: 'cards', name: '멤버 카드', ico: 'aug_card', color: '#9ab4ff', short: '멤버 강화 · ★승급에 드는 멤버별 카드' },
-  wild: { id: 'wild', name: '범용 멤버 카드', alias: '만능 카드', ico: 'prism', color: '#6ff0d8', short: '누구 강화에나 카드 대신 쓰는 만능 카드' },
-  sig: { id: 'sig', name: '신화 조각', ico: 'orb', color: '#ff4fd8', short: `${SIG_PITY}개 모으면 원하는 멤버 전용 신화 장비로 교환` },
-  sp: { id: 'sp', name: '시즌 포인트', ico: 'crest', color: '#e8a860', short: `${L.SP_PER_TIER}점마다 시즌 단계가 1씩 올라가요` },
-  tstone: { id: 'tstone', name: '염화석', ico: 'hellstone', color: '#ff5a4f', short: '진상의 탑 상점 · 지옥 세트에 쓰는 돌' },
+  stones: { id: 'stones', name: '강화석', ico: 'gem', art: 'rv_gem', color: '#4fc3ff', short: '+6 이상 장비 강화 · 장비 뽑기에 쓰는 보석' },
+  cards: { id: 'cards', name: '멤버 카드', ico: 'aug_card', art: 'rv_cardback', color: '#9ab4ff', short: '멤버 강화 · ★승급에 드는 멤버별 카드' },
+  wild: { id: 'wild', name: '범용 멤버 카드', alias: '만능 카드', ico: 'prism', art: 'rv_prism', color: '#6ff0d8', short: '누구 강화에나 카드 대신 쓰는 만능 카드' },
+  sig: { id: 'sig', name: '신화 조각', ico: 'orb', art: 'rv_orb', color: '#ff4fd8', short: `${SIG_PITY}개 모으면 원하는 멤버 전용 신화 장비로 교환` },
+  sp: { id: 'sp', name: '시즌 포인트', ico: 'crest', art: 'rv_crest', color: '#e8a860', short: `${L.SP_PER_TIER}점마다 시즌 단계가 1씩 올라가요` },
+  tstone: { id: 'tstone', name: '염화석', ico: 'hellstone', art: 'rv_hell', color: '#ff5a4f', short: '진상의 탑 상점 · 지옥 세트에 쓰는 돌' },
   candy: { id: 'candy', name: '할로윈 사탕', img: '/img/lb/hw/candy.webp', color: '#ff8a1f', short: '할로윈 상점에서 의상 · 장비 · 모집권으로 바꿔요' },
 };
 export const CUR_IDS = Object.keys(CUR);
-export const curImgSrc = (id) => (CUR[id].img || (CUR[id].ico ? `/img/lb/ui2/${CUR[id].ico}.webp` : ''));
+// 새 반짝 그림(art · 그림 시트 하나를 잘라 쓴다)이 있으면 그걸, 없으면 예전 그림
+export const ART = { mail: '/img/lb/ui2/rv_mail.webp', cardFront: '/img/lb/ui2/rv_cardfront.webp', coin: ['/img/lb/ui2/rv_coin1.webp', '/img/lb/ui2/rv_coin2.webp', '/img/lb/ui2/rv_coin3.webp'] };
+export const coinArt = (n) => ART.coin[n >= 5000 ? 2 : n >= 1000 ? 1 : 0]; // 코인 더미: 작게 · 중간 · 수북이
+const oldSrc = (id) => (CUR[id].img || (CUR[id].ico ? `/img/lb/ui2/${CUR[id].ico}.webp` : ''));
+export const curImgSrc = (id) => (CUR[id].art ? `/img/lb/ui2/${CUR[id].art}.webp` : oldSrc(id));
+// 보상 · 우편 · 결과 창에서 쓰는 큰 그림 (코인은 양에 따라 더미가 커진다)
+export const curArt = (id, size = 'rv', n = 0) => { const src = id === 'coins' ? coinArt(n) : curImgSrc(id), fb = id === 'coins' ? '' : oldSrc(id); return `<img class="ic cur-ic ${size}" src="${src}" alt="${CUR[id].name}" draggable="false"${fb && fb !== src ? ` onerror="this.onerror=null;this.src='${fb}'"` : ''}>`; };
 const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 export const curVars = (id) => { const [r, g, b] = hexRgb(CUR[id].color); return `--cc:${CUR[id].color};--cca:rgba(${r},${g},${b},.38);--ccb:rgba(${r},${g},${b},.14)`; };
 // 그림 한 칸 (코인은 CSS 동전 · 나머지는 그림 파일)

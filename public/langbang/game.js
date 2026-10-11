@@ -2606,12 +2606,17 @@ function showStamina(msg) {
     <button class="btn ${left > 0 && p.coins >= cost ? 'primary' : ''}" data-act="staBuy" ${left > 0 ? '' : 'disabled'}>${ic('bolt', '', 'sm')}+${L.STAMINA.buy.n} 사기 · ${left > 0 ? `<i class="ci"></i>${fmt(cost)}` : '오늘 끝'} <small>(오늘 ${left}/${L.STAMINA.buy.perDay})</small></button>`, 'sta-pop');
 }
 // 우편함
+// 우편 종류별 봉인 색 (시즌 금 · 무한/탑 보라 · 대전 파랑 · 선물 분홍 · 그 밖엔 빨강)
+const mailSeal = (m) => { const t = `${m.title || ''} ${m.from || ''}`; return /시즌|랭킹|순위|주간/.test(t) ? ['#ffcf3f', '38deg'] : /무한|탑|돌파|레이드/.test(t) ? ['#b86bff', '250deg'] : /대전|PVP|등급/i.test(t) ? ['#5aa9ff', '190deg'] : /선물|친구|출석|환영|gift/i.test(t) ? ['#ff8fc0', '320deg'] : ['#ff5a5a', '0deg']; };
 function showMail() {
   const p = P(), now = Date.now();
   const list = (p.mail || []).filter((m) => m.exp > now).slice().reverse();
   const safe = (rw) => { try { return gotText(rw) || ''; } catch { return ''; } }; // 보상 글자가 깨져도 우편함은 열린다
-  const rows = list.map((m) => `<div class="mail-row"><div><b>${esc(m.title)}</b>${m.from ? `<i class="mail-from">보낸 사람 ${esc(m.from)}</i>` : ''}<small>${esc(m.text)} · ${Math.max(1, Math.ceil((m.exp - now) / 86400e3))}일 남음</small><em>${CU.rwTags(m.rw)}${esc(safe(CU.rwRest(m.rw)))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`).join('');
-  popup(`<h3>${ic('mail', '', 'sm')}우편함</h3>${list.length > 1 ? `<button class="btn primary" data-act="mailGet" data-id="all">${ic('gift', '', 'sm')}모두 받기 (${list.length})</button>` : ''}
+  const rows = list.map((m) => {
+    const [sl, hr] = mailSeal(m), left = Math.max(1, Math.ceil((m.exp - now) / 86400e3)), fresh = !m.at || now - m.at < 864e5;
+    return `<div class="mail-row ${fresh ? 'new' : ''}" style="--sl:${sl};--hr:${hr}"><span class="mail-env"><img src="${CU.ART.mail}" alt="" draggable="false" onerror="this.onerror=null;this.src='/img/lb/ui2/mail.webp'">${fresh ? '<i></i>' : ''}</span><div><b>${esc(m.title)}</b>${m.from ? `<i class="mail-from">보낸 사람 ${esc(m.from)}</i>` : ''}<small>${esc(m.text)}</small><div class="mail-chips"><span class="mail-chip ${left <= 1 ? 'hot' : ''}">${ic('hourglass', '', 'sm')}${left}일 남음</span></div><em>${CU.rwTags(m.rw)}${esc(safe(CU.rwRest(m.rw)))}</em></div><button class="btn mini primary" data-act="mailGet" data-id="${m.id}">받기</button></div>`;
+  }).join('');
+  popup(`<h3>${ic('mail', '', 'sm')}우편함</h3>${list.length > 1 ? `<button class="btn primary mail-all" data-act="mailGet" data-id="all">${ic('gift', '', 'sm')}모두 받기<b>${list.length}</b></button>` : ''}
     <div class="mail-list">${rows || '<div class="empty-msg">받을 우편이 없어요</div>'}</div><p class="ip">보상 우편은 ${L.MAIL_DAYS}일 뒤 사라져요</p>`, 'mail-pop');
 }
 // 모드별 보상 안내
@@ -4101,7 +4106,7 @@ async function claimChestAct(ch, n) {
   const r = await liveAct(API.claimChest(ch, n, app.guest));
   if (!r) return;
   A.sfx.levelUp(); fx.flash('#ffd23f', 0.35);
-  toast(`${ch}장 ★${n} 상자! ${gotText(r.got)}`, 3000);
+  rewardReveal({ title: `${ch}장 ★${n} 상자!`, sub: '스테이지 별 보상', min: 1, got: mergeGot([r.got]) });
   if (app.screen === 'stages') showStages(); else showMenu();
 }
 
@@ -4120,7 +4125,7 @@ Object.assign(ACTS, {
   season: () => showSeason(),
   recruit: () => { app.shopTab = 'recruit'; showShop(); },
   checkin: () => showCheckin(),
-  doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); toast(`출석 ${r.day}일째! ${gotText(r.got)}`, 2600); refresh(); } },
+  doCheckin: async () => { const r = await liveAct(API.checkin(app.guest)); if (r) { closeInfoCard(); A.sfx.levelUp(); rewardReveal({ title: `출석 ${r.day}일째!`, sub: '오늘의 출석 선물', min: r.day % 7 === 0 ? 1 : 0, go: null, got: mergeGot([r.got]) }); refresh(); } },
   notice: () => showNotice(),
   closePop: () => closeInfoCard(),
   mail: async () => { await Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) app.profile = r.profile; }).catch(() => {}); showMail(); },
@@ -4134,7 +4139,7 @@ Object.assign(ACTS, {
     // 제목: 시즌 랭킹 (가장 높은 순위) · 무한 단계 돌파 · 그 밖엔 우편 보상
     const sr = ms.map((m) => /시즌 (\d+) (.+?) (\d+)위/.exec(m.title)).filter(Boolean).sort((x, y) => x[3] - y[3])[0], en = ms.map((m) => /무한 (\d+)단계 돌파/.exec(m.title)).filter(Boolean).pop();
     const head = sr ? { title: `시즌 ${sr[1]} · ${sr[3]}위!`, sub: `${sr[2]} 랭킹 보상${ms.length > 1 ? ` 외 우편 ${ms.length - 1}개` : ''}`, min: 2 } : en ? { title: `무한 ${en[1]}단계 돌파!`, sub: ms.length > 1 ? `우편 ${ms.length}개 받았어요` : '처음 돌파 보상', min: 1 } : { title: r.n > 1 ? `우편 ${r.n}개 받았어요!` : '보상 획득!', sub: ms.length === 1 ? ms[0].title : '' };
-    rewardReveal({ ...head, got: mergeGot([r.got]) });
+    rewardReveal({ ...head, min: Math.max(1, head.min | 0), env: true, count: r.n, flavor: ms.length === 1 ? ms[0].text : '', from: ms.length === 1 ? ms[0].from : '', got: mergeGot([r.got]) });
   },
   stamina: () => showStamina(),
   staBuy: async () => { const r = await liveAct(API.staminaBuy(app.guest)); if (r) { toast(`체력 +${L.STAMINA.buy.n}!`, 1400); showStamina(); refreshBehind(); } },
@@ -4298,10 +4303,10 @@ Object.assign(ACTS, {
   claimAllMis: async (b) => {
     b.disabled = true;
     const r = await liveAct(API.claimAllMissions(b.dataset.tab, app.guest));
-    if (r) { A.sfx.levelUp(); fx.flash('#ffd23f', 0.2); popup(`<h3>${ic('gift', '', 'sm')}모두 받았어요! (${r.n}개)</h3><p class="ip big-got">${esc(gotText(r.got))}</p><button class="btn primary" data-x>확인</button>`, 'claim-pop'); }
+    if (r) { A.sfx.levelUp(); fx.flash('#ffd23f', 0.2); rewardReveal({ title: `모두 받았어요! (${r.n}개)`, sub: '미션 보상', min: r.n >= 4 ? 1 : 0, got: mergeGot([r.got]) }); }
     showMissions();
   },
-  claimMis: async (b) => { const r = await liveAct(API.claimMission(b.dataset.kind, b.dataset.id, app.guest)); if (r) { A.sfx.levelUp(); toast(`보상! ${gotText(r.got)}`, 2400); showMissions(); } },
+  claimMis: async (b) => { const r = await liveAct(API.claimMission(b.dataset.kind, b.dataset.id, app.guest)); if (r) { A.sfx.levelUp(); showMissions(); rewardReveal({ title: '미션 보상!', min: 0, got: mergeGot([r.got]) }); } },
   claimSeason: async (b) => {
     const t = b.dataset.t === 'all' ? 'all' : Number(b.dataset.t);
     const r = await liveAct(API.claimSeason(t, app.guest));
@@ -7181,17 +7186,27 @@ function rvLevel(g) {
   if ((g.tickets | 0) >= 3 || (g.coins | 0) >= 5000 || gears.length || (g.wild | 0) || (g.stones | 0) >= 5) return 1;
   return 0;
 }
+// 보상 한 칸: rank 0 회색 · 1 파랑 · 2 보라 · 3 금 · 4 신화(분홍) — 값어치로 정한다. 그림은 currency.js 한 곳(CU.curArt)에서
 function rvItems(g) {
-  const out = [], add = (icon, n, label, c = '#ffd23f', cur = '', amt = 0) => out.push({ icon, n, label, c, cur, amt });
-  if (g.coins) add(CU.curIcon('coins', 'md'), `+${fmt(g.coins)}`, '코인', CU.CUR.coins.color, 'coins', g.coins);
-  if (g.tickets) add(CU.curIcon('tickets', 'md'), `×${g.tickets}`, '모집권', CU.CUR.tickets.color, 'tickets', g.tickets);
-  if (g.stones) add(CU.curIcon('stones', 'md'), `×${g.stones}`, '강화석', CU.CUR.stones.color, 'stones', g.stones);
-  if (g.wild) add(CU.curIcon('wild', 'md'), `×${g.wild}`, '범용 카드', CU.CUR.wild.color, 'wild', g.wild);
-  if (g.sp) add(CU.curIcon('sp', 'md'), `+${g.sp}`, '시즌 포인트', CU.CUR.sp.color, 'sp', g.sp);
-  if (g.sta) add(CU.curIcon('sta', 'md'), `+${g.sta}`, '체력', CU.CUR.sta.color, 'sta', g.sta);
-  const sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); if (sh) add(CU.curIcon('cards', 'md'), `×${sh}`, '멤버 카드', CU.CUR.cards.color, 'cards', sh);
-  for (const it of g.gears || []) { const r = typeof it === 'string' ? it : it && it.r, R0 = GEAR_RARITY[r] || GEAR_RARITY.common; add(ic('gear_set', '', ''), R0.name, it && it.t && GEAR[it.t] ? GEAR[it.t].name : '장비', R0.color); }
-  for (const [k, n] of Object.entries(g.cons || {})) if (L.CONS[k]) add(ic('gift', '', ''), `×${n}`, L.CONS[k].name, '#5de07a');
+  const out = [], add = (o) => out.push(Object.assign({ rank: 0, c: '#ffd23f', cur: '', amt: 0, to: 0, pre: '+', label: '' }, o));
+  const cur = (id, n, pre, rank, label) => add({ icon: CU.curArt(id, 'rv', n), to: n, pre, label: label || CU.CUR[id].name, c: CU.CUR[id].color, cur: id, amt: n, rank });
+  if (g.coins) cur('coins', g.coins, '+', g.coins >= 8000 ? 2 : g.coins >= 2000 ? 1 : 0);
+  if (g.tickets) cur('tickets', g.tickets, '×', g.tickets >= 10 ? 3 : g.tickets >= 3 ? 2 : 1);
+  if (g.stones) cur('stones', g.stones, '×', g.stones >= 20 ? 2 : g.stones >= 5 ? 1 : 0);
+  if (g.wild) cur('wild', g.wild, '×', 2, '만능 카드');
+  if (g.sig) cur('sig', g.sig, '×', 3);
+  if (g.sp) cur('sp', g.sp, '+', 0);
+  if (g.sta) cur('sta', g.sta, '+', 0, '체력');
+  if (g.hell) cur('tstone', g.hell, '+', 1);
+  if (g.candy) cur('candy', g.candy, '+', 0);
+  const sh = Object.values(g.shards || {}).reduce((a, v) => a + v, 0); if (sh) cur('cards', sh, '×', 1, '멤버 카드');
+  for (const it of g.gears || []) {
+    const r = typeof it === 'string' ? it : it && it.r, R0 = GEAR_RARITY[r] || GEAR_RARITY.common, gd = it && it.t && GEAR[it.t] ? GEAR[it.t] : null;
+    if (it && it.sold) { add({ icon: CU.curArt('coins', 'rv', it.sold), to: it.sold, pre: '+', label: '가방이 꽉 차서 팔았어요', c: '#ffd23f', rank: 0 }); continue; }
+    const stat = gd && gd.stat && GEAR_STATS[gd.stat] ? `${GEAR_STATS[gd.stat].name} +${(gearValue(it.t, r, 0) * 100).toFixed(1)}%` : gd && gd.desc ? gd.desc : '';
+    add({ icon: gd ? gearIco({ t: it.t, r }) : ic('gear_set', '', ''), gear: true, nm: gd ? gd.name : '장비', n: R0.name, label: stat, c: R0.color, rank: RV_RANK[r] | 0 });
+  }
+  for (const [k, n] of Object.entries(g.cons || {})) if (L.CONS[k]) add({ icon: ic(L.CONS[k].icon || 'gift', '', 'rv'), to: n, pre: '×', label: L.CONS[k].name, c: '#5de07a', rank: RV_RANK[L.CONS[k].rarity] | 0 });
   return out;
 }
 // ─── 새 장비! (영웅 이상 드롭 연출): 희귀도 색 폭죽 + 이 장비로 가장 전투력이 오르는 멤버 + 「바로 장착」 ───
@@ -7259,24 +7274,45 @@ function rewardReveal(o) {
   const color = lv >= 3 ? '#ffcf3f' : lv >= 2 ? '#ff6fd8' : lv >= 1 ? '#7ec4ff' : '#ffd23f';
   const old = document.querySelector('.rv-ov'); if (old) old.remove();
   const ov = document.createElement('div');
-  ov.className = `rv-ov lv${lv}`; ov.style.setProperty('--rc', color);
+  const env = !!o.env && lv >= 1; // 우편: 봉투가 날아와 봉인이 깨진다
+  ov.className = `rv-ov lv${lv}${env ? ' env' : ''}`; ov.style.setProperty('--rc', color);
   const conf = rm || lv < 1 ? '' : `<span class="rv-cf-box">${Array.from({ length: lv >= 2 ? 46 : 22 }, (_, i) => `<i class="rv-cf" style="--x:${(Math.random() * 100).toFixed(1)}%;--dx:${(Math.random() * 120 - 60).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;--d:${(0.9 + Math.random() * 0.9).toFixed(2)}s;--w:${(0.6 + Math.random() * 1.4).toFixed(2)}s;--c:${['#ffd23f', '#ff6fd8', '#6fd3ff', '#5de07a', '#fff', '#c77dff'][i % 6]}"></i>`).join('')}</span>`;
-  const pre = lv >= 1 ? 1.0 : 0.1; // 상자가 열린 뒤에 나온다
-  const its = items.map((x, i) => `<span class="rv-it" data-cur="${x.cur}" data-amt="${x.amt}" style="--d:${(pre + 0.1 + i * 0.09).toFixed(2)}s;--ic:${x.c}"><i>${x.icon}</i><b>${esc(x.n)}</b><small>${esc(x.label)}</small></span>`).join('');
+  const pre = env ? 0.95 : lv >= 1 ? 1.0 : 0.1; // 봉투/상자가 열린 뒤에 나온다
+  const gap = items.length > 6 ? 0.06 : 0.1;
+  let hi = -1; items.forEach((x, i) => { if (hi < 0 || x.rank > items[hi].rank) hi = i; });
+  const hero = items.length > 1 && hi >= 0 && items[hi].rank >= 1 ? hi : items.length === 1 ? 0 : -1;
+  const its = items.map((x, i) => {
+    const num = x.gear ? '' : `<b class="rv-n" data-to="${x.to}" data-pre="${x.pre}">${x.pre}0</b>`;
+    return `<span class="rv-it rk${x.rank}${i === hero ? ' hero' : ''}" data-cur="${x.cur}" data-amt="${x.amt}" style="--d:${(pre + 0.1 + i * gap).toFixed(2)}s;--ic:${x.c}"><i class="rv-ic">${x.icon}</i>${x.gear ? `<b class="rv-gn">${esc(x.nm)}</b><em class="rv-rar">${esc(x.n)}</em>` : num}<small>${esc(x.label)}</small><u class="rv-shine"></u></span>`;
+  }).join('');
+  const itEnd = pre + 0.1 + items.length * gap + 0.45;
   const cos = skins.map((k, i) => { const c = HW_COSTUMES[k]; return `<span class="rv-cos" style="--d:${(pre + 0.15 + i * 0.35).toFixed(2)}s"><span class="rv-cos-card"><img src="${cosArt(k).hq}" alt="" onerror="this.onerror=null;this.src='${cosArt(k).thumb}'"><i class="sr-rib">SEASON ${c.season} 한정</i></span><b>${esc(c.name)}</b></span>`; }).join('');
   const nt = titles[titles.length - 1] || '', nf = frames[frames.length - 1] || '';
   const card = nt || nf ? `<div class="rv-card" style="--d:${(pre + 0.3 + skins.length * 0.35).toFixed(2)}s"><span class="ava framed ${frameCls(nf || p.frame)}" style="${frameStyle(nf || p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', nt || p.title)}<small>${[nt ? '새 칭호' : '', nf ? esc(L.FRAMES[nf].name) : ''].filter(Boolean).join(' · ')} — 이렇게 보여요</small></div></div>` : '';
   const canWear = !app.guest && (nt || nf || skins.length);
+  // 바로 쓰러 가기: 받은 것으로 할 수 있는 가장 알맞은 곳 (성장 길잡이와 같은 열쇠)
+  const go = o.go !== undefined ? o.go : g.gears && g.gears.some((x) => x && !x.sold) ? { k: 'bag', t: '장비 끼러 가기' } : g.tickets ? { k: 'recruit', t: '모집하러 가기' } : g.stones ? { k: 'bag', t: '강화하러 가기' } : g.wild || Object.keys(g.shards || {}).length ? { k: 'deck', t: '멤버 키우러 가기' } : null;
+  const showGo = go && !canWear && lv >= 1;
+  const btnD = (itEnd + skins.length * 0.35).toFixed(2);
+  const hdr = `<h2 class="rv-title">${esc(o.title || '보상 획득!')}</h2>${o.count > 1 ? `<span class="rv-cnt">${ic('mail', '', 'sm')}우편 ${o.count}통</span>` : ''}${o.sub ? `<p class="rv-sub">${esc(o.sub)}</p>` : ''}${o.flavor ? `<p class="rv-flav">“${esc(o.flavor)}”${o.from ? `<i>- ${esc(o.from)}</i>` : ''}</p>` : ''}`;
   ov.innerHTML = `<span class="rv-dim"></span>${lv >= 2 && !rm ? '<span class="rv-rays"></span>' : ''}${conf}
     <div class="rv-stage">
-      ${lv >= 1 ? `<span class="rv-box"><i class="rv-lid"></i><i class="rv-body"></i><i class="rv-burst"></i></span>` : ''}
-      <h2 class="rv-title">${esc(o.title || '보상 획득!')}</h2>${o.sub ? `<p class="rv-sub">${esc(o.sub)}</p>` : ''}
+      ${env ? `<span class="rv-env"><img class="rv-l" src="${CU.ART.mail}" alt=""><img class="rv-r" src="${CU.ART.mail}" alt=""><i class="rv-flash"></i></span>` : lv >= 1 ? `<span class="rv-box"><i class="rv-lid"></i><i class="rv-body"></i><i class="rv-burst"></i></span>` : ''}
+      ${hdr}
       ${cos ? `<div class="rv-coses">${cos}</div>` : ''}${card}
-      ${its ? `<div class="rv-items">${its}</div>` : ''}
-      ${lv >= 1 ? `<div class="rv-btns" style="--d:${(pre + 0.6 + skins.length * 0.35).toFixed(2)}s">${canWear ? `<button class="btn primary rv-wear">${ic('sparkle', '', 'sm')}바로 착용</button>` : ''}<button class="btn ${canWear ? '' : 'primary'} rv-ok">좋아요!</button></div>` : '<small class="rv-tap">눌러서 닫기</small>'}
+      ${its ? `<div class="rv-items n${Math.min(items.length, 9)}">${its}</div>` : ''}
+      ${lv >= 1 ? `<div class="rv-btns" style="--d:${btnD}s">${canWear ? `<button class="btn primary rv-wear">${ic('sparkle', '', 'sm')}바로 착용</button>` : ''}${showGo ? `<button class="btn rv-go" data-go="${go.k}">${esc(go.t)}</button>` : ''}<button class="btn ${canWear || showGo ? '' : 'primary'} rv-ok">좋아요!</button></div>` : '<small class="rv-tap">눌러서 닫기</small>'}
     </div>`;
   (document.querySelector('#stage') || document.body).appendChild(ov);
-  const close = () => { if (ov.classList.contains('out')) return; try { for (const x of ov.querySelectorAll('.rv-it[data-cur]')) currencyFly(x.dataset.cur, x.querySelector('i') || x, Number(x.dataset.amt)); } catch { /* 연출 실패는 무시 */ } ov.classList.add('out'); setTimeout(() => ov.remove(), 260); }; // 닫을 때 받은 재화가 위 칩으로 날아간다
+  // 숫자가 올라간다 (눌러서 건너뛰면 바로 끝값)
+  const nums = [...ov.querySelectorAll('.rv-n')];
+  const fin = () => { for (const n of nums) n.textContent = n.dataset.pre + fmt(Number(n.dataset.to)); };
+  let raf = 0, done = false;
+  const tick = (t0) => { const t = performance.now(); let all = true; nums.forEach((n, i) => { const st = t0 + (pre + 0.2 + i * gap) * 1000, k = Math.max(0, Math.min(1, (t - st) / 650)), e = 1 - (1 - k) * (1 - k); n.textContent = n.dataset.pre + fmt(Math.round(Number(n.dataset.to) * e)); if (k < 1) all = false; }); if (!all && !done) raf = requestAnimationFrame(() => tick(t0)); };
+  if (rm || lv < 1) fin(); else tick(performance.now());
+  const skip = () => { if (done) return; done = true; cancelAnimationFrame(raf); ov.classList.add('skip'); fin(); };
+  setTimeout(() => { done = true; }, itEnd * 1000);
+  const close = () => { if (ov.classList.contains('out')) return; cancelAnimationFrame(raf); fin(); try { for (const x of ov.querySelectorAll('.rv-it[data-cur]')) if (x.dataset.cur) currencyFly(x.dataset.cur, x.querySelector('.rv-ic') || x, Number(x.dataset.amt)); } catch { /* 연출 실패는 무시 */ } ov.classList.add('out'); setTimeout(() => ov.remove(), 260); }; // 닫을 때 받은 재화가 위 칩으로 날아간다
   ov.addEventListener('click', async (ev) => {
     const w = ev.target.closest('.rv-wear');
     if (w) {
@@ -7287,11 +7323,14 @@ function rewardReveal(o) {
       if (ok) { try { if (HWUI) HWUI.applySkins(); } catch { /* 무시 */ } A.sfx.reward(); w.innerHTML = '착용 완료 ✓'; refreshBehind(); } else w.disabled = false;
       return;
     }
-    if (ev.target.closest('.rv-ok') || lv < 1) close();
+    const gb = ev.target.closest('.rv-go');
+    if (gb) { close(); setTimeout(() => curGo(gb.dataset.go), 280); return; }
+    if (ev.target.closest('.rv-ok') || lv < 1) { close(); return; }
+    if (!ov.classList.contains('skip') && !done && !rm) skip(); // 연출 중에 누르면 바로 끝까지
   });
   if (lv < 1) setTimeout(() => { if (ov.isConnected) close(); }, 1700);
   try { A.sfx.fanfare(lv); } catch { /* 무시 */ }
-  if (lv >= 1) setTimeout(() => { try { if (navigator.vibrate) navigator.vibrate(lv >= 2 ? [25, 60, 40, 60, 90] : [20, 40, 50]); } catch { /* 무시 */ } }, rm ? 0 : 900);
+  if (lv >= 1) setTimeout(() => { try { if (navigator.vibrate) navigator.vibrate(lv >= 2 ? [25, 60, 40, 60, 90] : [20, 40, 50]); } catch { /* 무시 */ } }, rm ? 0 : env ? 700 : 900);
   return ov;
 }
 
