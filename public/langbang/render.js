@@ -1392,9 +1392,9 @@ export class Renderer {
           let k = side < 0 ? 0 : 3, y = 78;
           while (y < g.ropeY - 40) {
             const im = pcs[(k * 5 + 2) % pcs.length]; k++;
-            const w = Math.min(x1 - x0 - 2, 74 + ((k * 7) % 3) * 8), h = w * im.naturalHeight / im.naturalWidth;
+            const w = Math.min(x1 - x0 + 4, 52 + ((k * 7) % 3) * 6), h = w * im.naturalHeight / im.naturalWidth; if (y + h > g.ropeY - 34) break;
             cx.drawImage(im, side < 0 ? x1 - w + 6 : x0 - 6, y, w, h);
-            y += h * 0.82 + 6;
+            y += h * 0.9 + 8;
           }
           continue;
         }
