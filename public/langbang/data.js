@@ -1977,6 +1977,10 @@ for (const id of ['boss_thug', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'boss_kk
   cur.attack = { src: `/img/lb/e_${id}_attack.webp`, frames: 8, release: 3 };
   if (BOSS_RAGE_ATK.includes(id)) cur.rattack = { src: `/img/lb/e_${id}_rage_attack.webp`, frames: 8, release: 3 };
 }
+// (10/27) 분노 공격 띠가 새로 생긴 보스 · 각성 중간 보스 6명 — 입구 공격 띠(attack)는 서버 목록이 붙이고 여기선 분노 띠(rattack)만
+for (const id of ['queen', 'boss_bbikki', 'mid_pension', 'boss_resort', 'mid_hallmgr', 'boss_bestman']) {
+  (ENEMY_ANIM[id] || (ENEMY_ANIM[id] = {})).rattack = { src: `/img/lb/e_${id}_rage_attack.webp`, frames: 8, release: 3, lazyImg: true };
+}
 // 입구 공격 동작 (진상마다 컨셉대로): 준비(뒤로 젖힘) → 때림(입구 쪽으로 · 불꽃) → 반동
 //   punch 주먹 · kick 발차기 · headbutt 박치기 · shove 밀치기 · phone 폰 내리치기 · bottle 병 내리치기 · bag 가방 휘두르기 · slap 따귀
 export const ENEMY_ATK = {
@@ -2970,12 +2974,12 @@ Object.assign(ENEMIES, {
     hw: { rewrap: { at: 0.5, frac: 0.35 } }, // 체력 절반에서 붕대를 다시 감는다 (보호막 25% · 한 번)
     shouts: ['결재 반려야', '이거 다시 해 와', '나 때는 붕대도 직접 감았어', '퇴근? 누가?'] },
   hw_reaper: { id: 'hw_reaper', cls: 'politic', name: '저승사자 팀장', gender: 'm', emoji: '📜', color: '#2a2438', eventOnly: true, lazy: true, mid: true,
-    img: HW_IMG('hw_reaper'), hp: 1100, speed: 16, atk: 24, atkInterval: 1.6, armor: 4, exp: 45, coin: 10, r: 40, size: 142,
+    img: HW_IMG('hw_reaper'), anims: ['attack'], hp: 1100, speed: 16, atk: 24, atkInterval: 1.6, armor: 4, exp: 45, coin: 10, r: 40, size: 142,
     hw: { list: { every: 11, first: 6, sec: 3, gnSec: 4, kd: 70, stun: 2 } }, // 야근 명부: 멤버 한 명 이름을 적고 3초 (건전녀가 있으면 4초) 뒤 강제 퇴근 — 그 사이 팀장을 기절 · 빙결 · 밀치기 하거나 건전녀 응급 방패로 지운다
     title: '저승사자 팀장 등장!', subtitle: '"야근 명부에 이름 적히고 싶은 사람?"',
     shouts: ['명부에 이름 적었다', '오늘 야근 확정', '퇴근은 저승에서', '다음 사람~'] },
   hw_dracula: { id: 'hw_dracula', cls: 'seduce', name: '드라큘라 사장', gender: 'm', emoji: '🧛', color: '#b0142a', eventOnly: true, lazy: true, boss: true,
-    img: HW_IMG('hw_dracula'), anims: ['attack'], hp: 5200, speed: 13, atk: 40, atkInterval: 1.8, armor: 5, exp: 90, coin: 60, r: 46, size: 162,
+    img: HW_IMG('hw_dracula'), anims: ['attack', 'walk', 'die'], hp: 5200, speed: 13, atk: 40, atkInterval: 1.8, armor: 5, exp: 90, coin: 60, r: 46, size: 162,
     hw: { batform: { every: 13, first: 9, sec: 1.6 }, moon: { at: 0.25, spd: 1.15, heal: 0.004 } }, // 분노(50%)부터 박쥐로 흩어져 1.6초 무적 → 다른 자리에 나타남 · 25% 보름달: 진상 전부 빨라지고 박쥐가 살아 있으면 사장이 피를 받는다
     title: '드라큘라 사장 등장!', subtitle: '"오늘 회식 빠지는 사람, 내일부터 안 나와도 돼."',
     shouts: ['회식은 의무다', '피 같은 내 법카!', '다 같이 원샷!', '해 뜨기 전엔 못 가'] },
