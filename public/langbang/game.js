@@ -1261,6 +1261,7 @@ function handleEvents(g, loud) {
         if (big) { fx.ring(e.x, e.y - 30, 8, 70, 0.45, '#b6ffc8', 5); fx.burst(e.x, e.y - 30, busy ? 6 : 14, '#e0ffe8', 190, 'star', 5, 0.55); fx.flash('#c8ffd8', 0.18); if (loud && A.sfx.levelUp) A.sfx.levelUp(); }
         break;
       }
+      case 'lockBlock': fx.text(e.x, e.y - 112, '풀 때까지 면역!', '#8fffc8', 13, 1.0, -16); fx.ring(e.x, e.y - 30, 10, 50, 0.3, '#9fffd0', 3); break; // (10/11) 저항 · 면역 멤버 덕에 안 묶임
       case 'bangHold': fx.text(e.x, e.y - 84, '버텨!', '#ffd23f', 16, 1.0, -20); fx.ring(e.x, e.y - 30, 10, 60, 0.35, '#ffe27a', 4); break; // 방장: 묶인 멤버 하나 풀기
       case 'gunnyeoReact': fx.text(e.x, e.y - 70, '응급처치!', '#7dff9a', 13, 0.9); break;
       case 'condCc': {
@@ -5119,7 +5120,7 @@ function showPrep(mode, s) {
   // (10/11) '풀 때까지' 스테이지 (헬 7 · 8장): 늘 크게 알려 준다 — 무엇으로 풀고 · 누가 막는지 · 덱에 없으면 추천
   const lockOn = (mode === 'stage' && ccLockStage(s, hellOn)) || mode === 'endless', LOCK_CNT = ['gunnyeo', 'dohoon', 'soyoung', 'jungmin', 'dragon', 'bangjang'];
   const lockHas = lockOn ? ids.filter((id) => LOCK_CNT.includes(id)) : [], lockRec = lockOn && !ids.includes('gunnyeo') ? LOCK_CNT.filter((id) => HEROES[id] && own.has(id) && !ids.includes(id)).slice(0, 2) : [];
-  const lockHtml = lockOn ? `<p class="pp-lock">${ic('lock', '', 'sm')}<b>${mode === 'endless' ? `${CC_DEPTH.lock.endlessFrom}단계부터 풀 때까지` : '풀 때까지 상태이상'}</b> — 기절 · 홀림 · 침묵 · 빙결 · 독이 <b>저절로 안 풀려요</b> (기절 예고 · 정예 · 보스 투척 · 자물쇠 표시). 건전녀 간호 · 응급 방패 · 총공지 · 방장 "버텨!" · 웨이브 끝에 풀리고, 김도훈(기절) · 정소영(홀림 · 침묵) · 홍정민(독) · 박나뇽(빙결)이 있으면 안 묶여요${lockHas.length ? ` · 내 덱: <em>${lockHas.map((id) => esc(HEROES[id].name)).join(' · ')}</em>` : ' · <b>덱에 푸는 멤버가 없어요!</b>'}${lockRec.length ? ` → <em>${lockRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
+  const lockHtml = lockOn ? `<p class="pp-lock">${ic('lock', '', 'sm')}<b>${mode === 'endless' ? `${CC_DEPTH.lock.endlessFrom}단계부터 풀 때까지` : '풀 때까지 상태이상'}</b> — 기절 · 홀림 · 침묵 · 빙결 · 독이 <b>저절로 안 풀려요</b> (기절 예고 · 정예 · 보스 투척 · 자물쇠 표시). 건전녀 간호 · 응급 방패 · 총공지 · 방장 "버텨!" · 웨이브 끝에 풀리고, 김도훈(기절) · 정소영(홀림 · 침묵) · 홍정민(독) · 박나영(빙결)이 있으면 안 묶여요${lockHas.length ? ` · 내 덱: <em>${lockHas.map((id) => esc(HEROES[id].name)).join(' · ')}</em>` : ' · <b>덱에 푸는 멤버가 없어요!</b>'}${lockRec.length ? ` → <em>${lockRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
   const lackHtml = lack.length || armorHtml || thrHtml || lockHtml ? `<div class="pp-lack">${lockHtml}${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}${thrHtml}</div>` : '';
   const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
   // 4) 등장 진상

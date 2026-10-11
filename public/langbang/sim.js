@@ -3009,7 +3009,7 @@ export function debuffSec(h, sec, kind = 'hard') {
 //  ccDepthSet: 판 시작(스테이지 · 헬) · 무한 웨이브마다 — g.ccDur 시간 × · g.ccEvery 기절 예고 간격 × · g.ccCurse 기절 예고 덧붙임 · g.ccLock 풀 때까지
 export function ccDepthSet(g) {
   g.ccDur = 1; g.ccEvery = 1; g.ccCurse = false; g.ccLock = false;
-  if (g.pvp || g.raid || g.tower || g.weekly || g.hw || g.r2) return;
+  if (g.pvp || g.raid || g.tower || g.weekly || g.ev || g.hw || g.r2) return; // (이벤트 · 주간 · 레이드 · 탑 · 1:1 은 그대로)
   const D = CC_DEPTH;
   if (g.mode === 'stage' && g.stage) {
     const c = Math.min(D.dur.length, chapterOf(g.stage));
@@ -3029,7 +3029,7 @@ const LOCK_F = { stun: ['stunT'], charm: ['charmT'], silence: ['silenceT', 'mute
 export function ccLockTry(g, h, kind) {
   const L = CC_DEPTH.lock;
   if (!g.ccLock || !h || h.gone || h.def.summon || h.lockK || !L.kinds.includes(kind)) return false;
-  if (resPct(h, kind) >= L.res || h.ccImmT > 0) return false; // 저항 · 면역 멤버가 있으면 안 묶인다 (시간만 짧게)
+  if (resPct(h, kind) >= L.res || h.ccImmT > 0) { if (g.t - (h.lockBlkT || -9) > 1.5) { h.lockBlkT = g.t; ev(g, 'lockBlock', { hero: h.id, kind, x: h.x, y: h.y }); } return false; } // 저항 · 면역 멤버가 있으면 안 묶인다 (시간만 짧게 · '면역!')
   if (g.t - (g.lockAt || -99) < L.gap) return false;
   let n = 0; for (const o of g.heroes) if (o.lockK) n++;
   if (n >= L.max) return false;

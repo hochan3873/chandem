@@ -2581,7 +2581,7 @@ export class Renderer {
       }
       { // 상태 딱지: 머리 위 가운데에 위로 쌓기 (옆 멤버와 안 겹치게)
         const tags = [];
-        if (h.lockK) tags.push([`${LOCK_NAME[h.lockK] || ''} 풀 때까지`, (EST[h.lockK] && EST[h.lockK].color) || '#ff9ad0']); // (10/11) 숫자 없이
+        if (h.lockK) tags.push(['풀 때까지', (EST[h.lockK] && EST[h.lockK].color) || '#ff9ad0']); // (10/11) 숫자 없이
         if (h.kdT > 0) tags.push(['쓰러짐', '#ff8a7a']); // 쓰러짐 게이지가 가득
         if (h.stunT > 0) tags.push(h.freezeT > 0 ? ['빙결', '#bff4ff'] : ['기절', '#ffe27a']);
         if (h.poisonT > 0) tags.push(['독', '#9dff6a']);
