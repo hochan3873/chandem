@@ -2002,7 +2002,7 @@ export const ATK_MOVES = {
   bag: { back: 4, rot: -0.34, hitRot: 0.34, lunge: 6, sq: 0.03 },
   slap: { back: 3, rot: -0.18, hitRot: 0.24, lunge: 7, sq: 0.03 },
 };
-export const FUSE_ART = new Set(['fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi', 'fuse_lease', 'fuse_lie', 'fuse_jusa', 'fuse_sleep', 'fuse_karaoke', 'fuse_mt', 'fuse_adspam', 'fuse_taxi', 'fuse_latte']);
+export const FUSE_ART = new Set(['fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi', 'fuse_lease', 'fuse_lie', 'fuse_jusa', 'fuse_sleep', 'fuse_karaoke', 'fuse_mt', 'fuse_adspam', 'fuse_taxi', 'fuse_latte', 'fuse_lift', 'fuse_coach', 'fuse_toast', 'fuse_selfie8']);
 const MECH_SKIP = new Set(['id', 'name', 'img', 'hp', 'speed', 'size', 'color', 'r', 'emoji', 'gender', 'cls', 'exp', 'coin', 'atk', 'atkInterval', 'shouts', 'armor', 'forms', 'pack', 'standoff', 'zigzag']);
 for (const [id, m] of Object.entries(MID_DEFS)) {
   const a = ENEMIES[m.base || m.fuse[0]], b = m.fuse ? ENEMIES[m.fuse[1]] : null;
