@@ -4683,3 +4683,17 @@ body.rm u.tchip.ta-rainbow, body.rm u.tchip.ta-gold, body.rm .fr.fr-srking, body
 body.rm .rv-ov *, body.rm .rv-ov { animation-duration: 0.01s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
 body.rm .rv-box, body.rm .rv-rays, body.rm .rv-cf-box { display: none; }
 @keyframes rvGone { to { opacity: 0; height: 0; margin-top: 0; transform: scale(0.5); } }
+
+/* 새 장비! 연출 (영웅 이상 드롭) + 천장 표시 + 드롭 표 */
+.gd-card { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 4); padding: calc(var(--u) * 14) calc(var(--u) * 10); border-radius: calc(var(--u) * 16); border: 2px solid var(--rc); background: linear-gradient(160deg, color-mix(in srgb, var(--rc) 28%, #1c1036), #120a24); box-shadow: 0 0 calc(var(--u) * 26) color-mix(in srgb, var(--rc) 65%, transparent); animation: rvPop 0.5s cubic-bezier(0.2, 1.7, 0.4, 1) 0.5s both; }
+.gd-card.r-legend { box-shadow: 0 0 calc(var(--u) * 40) var(--rc), inset 0 0 calc(var(--u) * 20) color-mix(in srgb, var(--rc) 35%, transparent); }
+.gd-ico .gico { width: calc(var(--u) * 78); height: calc(var(--u) * 78); }
+.gd-card > b { font-size: calc(var(--u) * 17); color: #fff; }
+.gd-card > small { font-size: calc(var(--u) * 11); font-weight: 900; color: var(--rc); }
+.gd-pw { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: calc(var(--u) * 5); margin-top: calc(var(--u) * 4); padding: calc(var(--u) * 6) calc(var(--u) * 8); border-radius: calc(var(--u) * 10); background: rgba(0, 0, 0, 0.35); font-size: calc(var(--u) * 11); }
+.gd-pw span { width: 100%; color: #cdd; font-weight: 700; }
+.gd-pw i { font-style: normal; color: #aab; } .gd-pw em { font-style: normal; color: #aab; }
+.gd-pw b { font-size: calc(var(--u) * 19); color: #fff; }
+.gd-pw u { text-decoration: none; font-weight: 900; } .gd-pw u.up { color: #7dff9a; } .gd-pw u.dn { color: #ff8a8a; }
+.drop-pity { width: 100%; font-weight: 700; color: #cfd6ee !important; font-size: calc(var(--u) * 10) !important; } .drop-pity b { color: #ffe9b0; }
+.drop-tab { width: 100%; border-collapse: collapse; font-size: calc(var(--u) * 11); text-align: center; margin-bottom: calc(var(--u) * 6); } .drop-tab th, .drop-tab td { padding: calc(var(--u) * 3); border-bottom: 1px solid rgba(255, 255, 255, 0.12); font-weight: 900; }

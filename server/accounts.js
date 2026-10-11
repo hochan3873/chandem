@@ -612,7 +612,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
         if (mode === 'stage') { const cut = LBR.thiefCut(body.stolen); if (cut > 0) { const x = Math.round(reward.total * cut); reward.total -= x; reward.stolen = x; reward.stolenN = Math.min(99, Math.floor(Number(body.stolen) || 0)); } }
         let weeklyBest = false;
         // 장비 드롭: 서버 시드로 계산 (클라이언트가 만들 수 없음)
-        const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell) : [];
+        const dropPity = { ep: (before.pity || {}).dropEp | 0, lg: (before.pity || {}).dropLg | 0 }; // 영웅·전설 장비 천장 (남은 횟수는 화면이 이 값으로 계산)
+        const drops = mode === 'stage' ? LBR.rollDrops(LBR.hashSeed(`${id}:${before.clears}:${stage}:${before.gearSeq}${hell ? ':h' : ''}`), stage, stars, perfect, firstPerfect, hell, dropPity) : [];
         const got = [];
         let endInfo = null;
         const afkF = mode === 'endless' ? Math.max(0, Math.min(1, (Number(body.afkSec) || 0) / Math.max(1, dur))) : 0;
@@ -631,6 +632,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
           if (Array.isArray(body.seen)) lb.seen = [...new Set([...lb.seen, ...body.seen.slice(0, 40).map(String).filter((t) => LBR.ENEMY_IDS.includes(t))])];
           if (mode === 'stage') {
             lb.clears++;
+            lb.pity = lb.pity || {}; lb.pity.dropEp = Math.min(99, dropPity.ep | 0); lb.pity.dropLg = Math.min(99, dropPity.lg | 0);
             if (hell) lb.hell[stage] = Math.max(prevStars, stars);
             else lb.stages[stage] = Math.max(prevStars, stars);
             if (perfect) lb.perfects[stage] = true;

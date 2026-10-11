@@ -152,9 +152,10 @@ export function heroUnlocked(lb, id) {
 export const STAR_MAX = 5;
 export const STAR_SHARDS = [0, 20, 40, 70, 110]; // ★n → ★n+1 에 드는 조각
 export const STAR_COINS = [0, 500, 1500, 3000, 6000];
-export const STAR_ATK = 0.07; // ★ 하나마다 공격력 +7% (★1 = 기본)
+export const STAR_ATK = 0.10; // ★ 하나마다 공격력 +10% (★1 = 기본 · 10/15: 7% → 10%)
+export const STAR_MILE = { 3: 0.04, 5: 0.04 }; // ★3 · ★5 에 이르면 공격력 +4% 씩 더 (★3 = +24% · ★5 = +48%)
 export const heroStar = (lb, id) => Math.max(1, Math.min(STAR_MAX, ((lb.hstars || {})[id]) | 0 || 1));
-export const starBonus = (star) => STAR_ATK * (Math.max(1, star) - 1);
+export const starBonus = (star) => { const s = Math.max(1, star); return STAR_ATK * (s - 1) + Object.entries(STAR_MILE).reduce((a, [k, v]) => a + (s >= +k ? v : 0), 0); };
 export function starUp(lb, id) {
   if (!heroUnlocked(lb, id)) return { error: '아직 합류하지 않은 멤버예요' };
   const s = heroStar(lb, id);
@@ -1272,7 +1273,7 @@ export function normLive(raw, out) {
   for (const h of LOCKED_HEROES) if ((raw.owned || {})[h]) out.owned[h] = true; // (모집 · 선택권 · 탑 · 규정 옮기기로 지킨 멤버 전부)
   { const rp0 = raw.pity || {}; const v2 = rp0.v === 2; // 예전 천장(50/200)에서 넘어오면 진행 비율대로 옮긴다
     out.gearDex = [...new Set([...(Array.isArray(raw.gearDex) ? raw.gearDex : []), ...(Array.isArray(raw.gear) ? raw.gear.map((g) => g && g.t) : [])])].filter((t) => typeof t === 'string' && GEAR[t]); // 장비 도감: 한 번이라도 얻은 종류
-  out.pity = { v: 2, hero: int(v2 ? rp0.hero : Math.floor((rp0.hero | 0) * 40 / 50), 0, PITY_HERO - 1), legend: int(v2 ? rp0.legend : Math.floor((rp0.legend | 0) * 90 / 200), 0, PITY_LEGEND - 1), gear: int(rp0.gear, 0, GEAR_PITY - 1), sig: int(rp0.sig, 0, 1e6) }; } // sig: 신화 조각 (전용 신화 교환)
+  out.pity = { v: 2, hero: int(v2 ? rp0.hero : Math.floor((rp0.hero | 0) * 40 / 50), 0, PITY_HERO - 1), legend: int(v2 ? rp0.legend : Math.floor((rp0.legend | 0) * 90 / 200), 0, PITY_LEGEND - 1), gear: int(rp0.gear, 0, GEAR_PITY - 1), sig: int(rp0.sig, 0, 1e6), dropEp: int(rp0.dropEp, 0, 99), dropLg: int(rp0.dropLg, 0, 99) }; } // sig: 신화 조각 (전용 신화 교환)
   out.pulls = int(raw.pulls, 0, 1e7);
   out.gpulls = int(raw.gpulls, 0, 1e7);
   out.cnt = {};

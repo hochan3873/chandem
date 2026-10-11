@@ -165,7 +165,10 @@ export async function postStage(sum, guest) {
     const consGot = L.rollCons((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, hell, sum.heroesUsed || []);
     if (Object.keys(consGot).length) { q.cons = Object.assign({}, p.cons); q.consDex = (p.consDex || []).slice(); L.consAdd(q, consGot); reward.cons = consGot; }
     q.stones = (p.stones | 0) + stonesGot;
-    for (const d of rollDrops((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, perfect, firstPerfect, hell)) {
+    const dropPity = { ep: (p.pity || {}).dropEp | 0, lg: (p.pity || {}).dropLg | 0 };
+    const dropList = rollDrops((Math.random() * 4294967296) >>> 0, sum.stage, sum.stars, perfect, firstPerfect, hell, dropPity);
+    q.pity = Object.assign({}, p.pity, { dropEp: Math.min(99, dropPity.ep), dropLg: Math.min(99, dropPity.lg) });
+    for (const d of dropList) {
       if (q.gear.length >= GEAR_BAG || (q.autoSell && d.r === 'common')) { const v = gearSellValue(d.r, 0); q.coins += v; got.push(Object.assign({ sold: v, auto: !!q.autoSell && d.r === 'common' }, d)); continue; }
       q.gearSeq = (q.gearSeq | 0) + 1;
       const it = { id: q.gearSeq, t: d.t, r: d.r, lv: 0 };
