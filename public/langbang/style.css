@@ -4697,3 +4697,19 @@ body.rm .rv-box, body.rm .rv-rays, body.rm .rv-cf-box { display: none; }
 .gd-pw u { text-decoration: none; font-weight: 900; } .gd-pw u.up { color: #7dff9a; } .gd-pw u.dn { color: #ff8a8a; }
 .drop-pity { width: 100%; font-weight: 700; color: #cfd6ee !important; font-size: calc(var(--u) * 10) !important; } .drop-pity b { color: #ffe9b0; }
 .drop-tab { width: 100%; border-collapse: collapse; font-size: calc(var(--u) * 11); text-align: center; margin-bottom: calc(var(--u) * 6); } .drop-tab th, .drop-tab td { padding: calc(var(--u) * 3); border-bottom: 1px solid rgba(255, 255, 255, 0.12); font-weight: 900; }
+
+/* 추천 덱: 고른 이유 칩 · 설명 시트 */
+.pp-auto.edit { margin-left: calc(var(--u) * 4); }
+.pp-dh .pp-i { margin-left: calc(var(--u) * 4); }
+.rec-why { margin-top: calc(var(--u) * 6); padding: calc(var(--u) * 6) calc(var(--u) * 8); border-radius: calc(var(--u) * 10); background: rgba(255, 210, 63, 0.1); border: 1px solid rgba(255, 210, 63, 0.3); text-align: left; }
+.rec-why .rw-h { display: flex; align-items: center; gap: calc(var(--u) * 6); font-size: calc(var(--u) * 11); font-weight: 900; color: #ffe27a; margin-bottom: calc(var(--u) * 4); }
+.rec-why .rw-l { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4); }
+.rec-why .rw-c { display: inline-flex; align-items: center; gap: calc(var(--u) * 3); background: rgba(0, 0, 0, 0.3); border-radius: 99px; padding: calc(var(--u) * 2) calc(var(--u) * 7); font-size: calc(var(--u) * 10.5); color: #fff; }
+.rec-why .rw-c b { font-weight: 900; }
+.rec-why .rw-c i { font-style: normal; color: #ffd98a; font-weight: 800; }
+.rec-why .rw-c i::before { content: '\00b7'; margin-right: calc(var(--u) * 3); color: #aab; }
+.rec-why .rw-gap { margin: calc(var(--u) * 5) 0 0; font-size: calc(var(--u) * 10.5); color: #ffb3a8; font-weight: 800; }
+.rec-steps { margin: calc(var(--u) * 8) 0; padding-left: calc(var(--u) * 20); text-align: left; }
+.rec-steps li { margin-bottom: calc(var(--u) * 7); font-size: calc(var(--u) * 12); line-height: 1.4; }
+.rec-steps li b { display: block; color: #ffe27a; font-weight: 900; }
+.rec-steps li span { color: #e3e6f2; }

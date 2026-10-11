@@ -128,7 +128,7 @@ export const LESSONS = [
   ] },
   { id: 'prep', need: 'on', after: ['b1'], when: (c) => c.where === 'prep' && c.maxStage >= 1, scope: (c) => c.where === 'prep', beats: [
     { id: 'pow', at: '.pp-pow', say: '<b>내 전투력</b>과 <b>권장 전투력</b>을 비교해요.<br>모자라면 강화하고 오기!', hold: 0, tap: 'bubble' },
-    { id: 'lack', when: (c) => c.lack, skip: (c) => !c.lack, at: '.pp-lack', say: '<b>상성 경고</b>: 이 판 진상을 상대할 멤버가 없을 때 추천 멤버를 알려 줘요', hold: 0, tap: 'bubble' },
+    { id: 'lack', when: (c) => c.lack, skip: (c) => !c.lack, at: '.pp-lack', say: '<b>막을 것 경고</b>: 이 판 진상 기술을 막을 멤버가 덱에 없을 때 알려 줘요 — 덱 위의 <b>추천 덱</b>을 누르면 막는 멤버부터 넣어 줘요', hold: 0, tap: 'bubble' },
     { id: 'deck', at: '.pp-auto', say: '<b>덱 편집</b>에서 멤버를 바꿀 수 있어요', hold: 0, tap: 'bubble' },
     { id: 'go', at: '.pp-gobtn2', hand: 'tap', say: '준비됐으면 <b>출격!</b>', hold: 0, tap: 'target' },
   ] },

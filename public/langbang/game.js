@@ -43,6 +43,7 @@ import * as SSN from './season.js'; // 시즌 테마 (할로윈 등): 로비 그
 import * as SR from './srank.js'; // 시즌 랭킹 보상 (1~3위 한정 의상 · Top 10 움직이는 칭호 · 프레임)
 import { COSTUMES as HW_COSTUMES, costumeArt as cosArt } from './hw-event.js'; // 의상 (시즌 한정 의상 그림)
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
+import * as DR from './deckrec.js'; // 추천 덱 — 모든 「추천 덱」 버튼이 쓰는 한 가지 기준 (막을 것 → 대장 딜러 → 상성 → 전투력 → 자리)
 import * as FG from './failguide.js'; // 실패 공략 카드 (진 뒤 결과 화면 · 진 적 있는 스테이지 준비 화면)
 import * as RU from './rules.js'; // 규칙 안내 체계 (첫 만남 카드 · 전투 중 칩 · 규칙 도감)
 import { createTutor } from './tutorial.js'; // 처음 하는 사람 튜토리얼 (방장 말풍선 · 손가락)
@@ -2164,7 +2165,8 @@ const ACTS = {
   edF: (b) => { app.edF = b.dataset.f; showDeckEditor(); },
   edSort: (b) => { app.edSort = b.dataset.v; showDeckEditor(); },
   edPreset: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckEditor(); },
-  edAuto: () => { autoDeck(); A.sfx.levelUp(); showDeckEditor(); },
+  edAuto: () => { const r = autoDeck(); A.sfx.levelUp(); toast(recToast(r), 2200); showDeckEditor(); },
+  recInfo: () => recInfoPopup(),
   prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
   prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[wkDefNow().fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; const rid = RU.ruleIdForFx(g.id); if (rid) { ruSheet(rid, {}); return; } popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepCond: () => prepCondPopup(),
@@ -2194,7 +2196,7 @@ const ACTS = {
   speedTog: () => { app.speed2 = !app.speed2; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } showPrep(app.mode, app.stage); },
   waveHelp: () => popup(`<h3>${ic('wave', '', 'sm')}웨이브 성격</h3>${['S', 'E', 'M', 'B'].map((k) => `<p class="ip"><b>${WAVE_KINDS[k].icon} ${WAVE_KINDS[k].name}</b> — ${esc(WAVE_KINDS[k].desc)}</p>`).join('')}<p class="ip">한꺼번에 3명 이상 잡으면 <b>트리플! · 5킬! · 싹쓸이!! · 대학살!!!</b> · 계속 잡으면 콤보 경험치 보너스</p>`),
   deckPreset: (b) => { app.deckI = Number(b.dataset.k); app.deckSel = -1; saveDecks(); showPrep(app.mode, app.stage); },
-  autoDeck: () => { autoDeck(); A.sfx.levelUp(); toast('상성에 맞춰 덱을 짰어요!', 1400); showPrep(app.mode, app.stage); },
+  autoDeck: () => { const r = autoDeck(); A.sfx.levelUp(); toast(recToast(r), 2200); showPrep(app.mode, app.stage); },
   gearItem: (b) => showGearCard(Number(b.dataset.id)),
   bagPick: (b) => { A.sfx.tap(); showGearCard(Number(b.dataset.id)); }, // 누르면 바로 자세히 (끼기 · 강화 · 합성 · 분해 · 팔기)
   bagTab: (b) => { app.bagTab = b.dataset.v; showBag(); },
@@ -2260,7 +2262,8 @@ const ACTS = {
   again: () => showPrep(app.mode, app.stage),
   fgDeck: () => { // 공략 카드 '추천 덱으로': 가진 멤버로 짠 추천 덱을 지금 덱 자리에 (다시 도전은 그대로 누르면 됨)
     const gd = app.fg; if (!gd || !gd.recDeck || !gd.recDeck.length) return;
-    app.decks[app.deckI] = placeDeck(gd.recDeck); saveDecks(); A.sfx.card();
+    setDeckOrder(gd.recDeck); A.sfx.card();
+    app.recWhy = { deckI: app.deckI, ids: gd.recDeck.slice(), reasons: gd.recReasons || {}, gaps: gd.recGaps || [] };
     if (app.screen === 'prep') { toast('추천 덱으로 바꿨어요', 1400); showPrep(app.mode, app.stage); return; }
     toast('추천 덱으로 바꿨어요 — 다시 도전을 눌러요', 1800);
     const b = document.querySelector('[data-act="fgDeck"]'); if (b) { b.disabled = true; b.classList.add('done'); b.textContent = '바꿨어요 ✓'; }
@@ -3631,7 +3634,7 @@ function showDeckTab() {
     ${subTop('멤버 강화')}
     <div class="dk-top">
       <div class="deck-tabs">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPresetT" data-k="${k}">덱 ${k + 1}</button>`).join('')}</div>
- <button class="btn ghost auto" data-act="autoDeckT">${ic('sparkle', '', 'sm')} 추천 덱</button>${upCounts().deck ? `<button class="btn auto up-rec" data-act="upGuide">${ic('hammer', '', 'sm')} 추천 강화<i class="rd cnt">${upCounts().deck}</i></button>` : ''}
+ <button class="btn ghost auto" data-act="autoDeckT">${ic('sparkle', '', 'sm')} 추천 덱</button><button class="pp-i" data-act="recInfo" aria-label="추천 덱 설명">i</button>${upCounts().deck ? `<button class="btn auto up-rec" data-act="upGuide">${ic('hammer', '', 'sm')} 추천 강화<i class="rd cnt">${upCounts().deck}</i></button>` : ''}
  </div>
  <div class="dk-power"><small>덱 전투력</small><b id="dkPow" data-from="${app.lastDeckPow || pw}" data-to="${pw}">${fmt(pw)}</b><em class="${diff >= 0 ? 'up' : 'down'}">다음 스테이지 추천보다 ${diff >= 0 ? '+' : ''}${diff}%</em></div>
     <div class="dk-slots n${max}">${slots.join('')}</div>
@@ -4280,7 +4283,7 @@ Object.assign(ACTS, {
   deckColl: (b) => { app.hmTab = API.heroUnlocked(P(), b.dataset.id) ? 'up' : 'info'; showHeroModal(b.dataset.id); }, // 강화 허브: 누르면 그 멤버 강화 화면 (덱은 출격 화면에서)
   deckFilter: (b) => { app.deckFilter = b.dataset.v; showDeckTab(); },
   deckPresetT: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckTab(); },
-  autoDeckT: () => { const ids = recommendTeam(nextStage(), owned(), deckSlotsNow()); app.decks[app.deckI] = placeDeck(ids); saveDecks(); A.sfx.card(); toast('다음 스테이지 추천 덱으로 바꿨어요', 1400); showDeckTab(); },
+  autoDeckT: () => { const r = applyRec(recCtx({ mode: 'stage', stage: nextStage(), hell: false })); A.sfx.card(); toast(recToast(r, '다음 스테이지'), 2200); showDeckTab(); },
   missionsNav: () => showMissions(),
   todo: () => showTodo(),
   todoGo: (b) => { const t = todoList()[Number(b.dataset.i)]; if (t) guideTodo(t); },
@@ -4609,7 +4612,7 @@ function teamLine() {
   const rec = app.mode === 'stage' ? recommendAttrs(app.stage) : [];
   const hit = ids.filter((id) => rec.includes(HEROES[id].attr)).length;
   const avail = partnerList().filter(heroOk);
-  const best = app.mode === 'stage' ? recommendTeam(app.stage, avail, slotsNow()) : [];
+  const best = app.mode === 'stage' ? DR.recommendDeck(Object.assign(recCtx({ stage: app.stage }), { owned: avail, slots: slotsNow() })).deck : [];
   return `팀: ${ids.map((id) => `${HEROES[id].name}${ATTRS[HEROES[id].attr].icon}`).join(' + ')}${rec.length ? ` · 추천 속성 ${rec.map((a) => ATTRS[a].icon).join('')} ${hit ? `<b class="ok">${hit}명 맞음</b>` : '<b class="no">0명</b>'}` : ''}${best.length ? `<br><small>${ic('bulb', '', 'sm')}추천 팀: 방장 + ${best.map((id) => HEROES[id].name).join(' + ')}</small>` : ''}`;
 }
 // ─── 덱: 자리(줄)마다 멤버. 프리셋 3개 (이 기기에 저장) ───
@@ -4684,11 +4687,45 @@ function fixDeck() {
   }
   saveDecks();
 }
-function autoDeck() {
-  const s = prepStage() || 20;
-  const ids = recommendTeam(s, owned(), deckSlotsNow());
-  app.decks[app.deckI] = placeDeck(ids);
-  saveDecks();
+// ─── 추천 덱 (한 가지 기준: deckrec.js) ───
+//  지금 화면(스테이지 · 주간 · 무한) 이나 o 로 준 스테이지 기준으로 ctx 를 만든다
+function recCtx(o = {}) {
+  const p = P(), mode = o.mode || app.mode;
+  const base = { owned: owned(), slots: deckSlotsNow(), power: (id) => heroPower(p, id) };
+  if (mode === 'weekly') { const w = wkDefNow(); return Object.assign(base, { mode: 'weekly', stage: w.stage, mod: w.mod, fx: w.fx }); }
+  if (mode === 'endless') return Object.assign(base, { mode: 'endless' });
+  const s = o.stage || (app.screen === 'prep' ? app.stage : 0) || nextStage();
+  const hell = o.hell !== undefined ? o.hell : !!(app.screen === 'prep' && app.hellMode && hellOpen(p.stages, s));
+  const wt = wtrNow(s);
+  return Object.assign(base, { mode: 'stage', stage: s, hell, fx: stageFx(s).id, trait: wt ? wt.id : undefined });
+}
+function applyRec(ctx) {
+  const r = DR.recommendDeck(ctx);
+  if (r.deck.length) setDeckOrder(r.deck);
+  app.recWhy = { deckI: app.deckI, ids: r.deck.slice(), reasons: r.reasons, gaps: r.gaps.filter((g) => g.warn) };
+  return r;
+}
+function autoDeck() { return applyRec(recCtx({ stage: prepStage() || undefined })); }
+// 짠 뒤 한 줄 안내: 못 막는 것이 있으면 어떻게 얻는지까지 (획득 규정 문구)
+function recMissText(g) {
+  if (g.ownedLeft && g.ownedLeft.length) return `${g.tag}: 자리가 모자라요 (${g.ownedLeft.slice(0, 2).map((id) => heroNm(id)).join(' · ')}도 막아요)`;
+  const miss = FG.counterChips({ counter: g.counter }, owned(), P(), []).miss;
+  return `${g.tag} 멤버가 없어요${miss.length ? ` — ${miss.map((m) => `${heroNm(m.id)}: ${m.how}`).join(' · ')}` : ''}`;
+}
+function recToast(r, where) {
+  const g = (r.gaps || []).find((x) => x.warn);
+  return g ? recMissText(g) : `${where || '이 판'} 추천 덱을 짰어요 — 막을 것 → 대장 딜러 → 상성 → 전투력 순`;
+}
+// 덱 밑 "왜 이 멤버" 칩 (덱이 방금 추천한 그대로일 때만)
+function recWhyHtml(ids) {
+  const w = app.recWhy;
+  if (!w || w.deckI !== app.deckI || !ids.length || ids.length !== w.ids.length || !ids.every((id) => w.ids.includes(id))) return '';
+  const chips = w.ids.filter((id) => HEROES[id]).map((id) => `<span class="rw-c"><b>${esc(heroNm(id))}</b>${(w.reasons[id] || []).map((t) => `<i>${esc(t)}</i>`).join('')}</span>`).join('');
+  const gaps = (w.gaps || []).slice(0, 2).map((g) => `<p class="rw-gap">${ic('bolt', '', 'sm')}${esc(recMissText(g))}</p>`).join('');
+  return `<div class="rec-why"><div class="rw-h"><span>추천 이유</span><button class="pp-i" data-act="recInfo" aria-label="추천 덱 설명">i</button></div><div class="rw-l">${chips}</div>${gaps}</div>`;
+}
+function recInfoPopup() {
+  popup(`<h3>${ic('sparkle', '', 'sm')}추천 덱, 이렇게 짜요</h3><ol class="rec-steps">${DR.RECOMMEND_STEPS.map(([t, d]) => `<li><b>${esc(t)}</b><span>${esc(d)}</span></li>`).join('')}</ol><p class="ip dim">스테이지 · 주간 도전 · 무한 도전 · 실패 공략의 「추천 덱」이 모두 같은 기준이에요. 덱 아래 칩에 멤버마다 고른 이유가 나와요.</p>`, 'pp-mini');
 }
 function deckLine() {
   const ids = curDeck().filter(Boolean);
@@ -4791,7 +4828,7 @@ function prepRecSet(st) {
   const r = new Set();
   if (!st) return r;
   const mine = owned();
-  for (const id of recommendTeam(st, mine, deckSlotsNow())) r.add(id);
+  for (const id of DR.recommendDeck(recCtx({ stage: st })).deck) r.add(id);
   for (const t of prepFoes(st)) { const T = foeTrait(t); if (T) for (const h of T.counter) if (mine.includes(h)) r.add(h); }
   return r;
 }
@@ -4881,7 +4918,7 @@ function ruBattleOpen(g) {
 const failKeyLs = () => `lbfail1:${app.guest ? 'g' : app.nickname || 'g'}`;
 function failLoad() { try { return JSON.parse(localStorage.getItem(failKeyLs()) || '{}') || {}; } catch (e) { return {}; } }
 function failSave(o) { try { localStorage.setItem(failKeyLs(), JSON.stringify(o)); } catch (e) { /* 저장 못 해도 괜찮음 */ } }
-function fgInput(s, hell, run) { const p = P(); return { stage: s, hell: !!hell, run, ownedIds: owned(), deckIds: curDeck().filter(Boolean), slots: deckSlotsNow(), p: { heroes: p.heroes, equip: p.equip, gear: p.gear } }; }
+function fgInput(s, hell, run) { const p = P(); return { stage: s, hell: !!hell, run, ownedIds: owned(), deckIds: curDeck().filter(Boolean), slots: deckSlotsNow(), power: (id) => heroPower(p, id), fx: stageFx(s).id, p: { heroes: p.heroes, equip: p.equip, gear: p.gear } }; }
 function fgChipsHtml(n) {
   const mine = n.mine.map((c) => `<span class="fg-c own ${c.inDeck ? 'in' : ''}" style="--c:${HEROES[c.id].color}">${c.inDeck ? '✓ ' : ''}${esc(heroNm(c.id))}</span>`).join('');
   const miss = n.mine.length ? '' : n.miss.map((c) => `<span class="fg-c no">${esc(heroNm(c.id))}<small>${esc(c.how)}</small></span>`).join('');
@@ -4988,8 +5025,8 @@ function showPrep(mode, s) {
   }
   app.deckPop = null;
   const deckHtml = `<div class="pp-deck">
-      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="prepEdit">${ic('duo', '', 'sm')}덱 편집</button></div>
-      <div class="pp-slots g6">${cells.join('')}</div>
+      <div class="pp-dh"><span class="pp-lab">내 덱 <b>${ids.length}/${max}</b></span><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="deckPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="autoDeck">${ic('sparkle', '', 'sm')}추천 덱</button><button class="pp-i" data-act="recInfo" aria-label="추천 덱 설명">i</button><button class="pp-auto edit" data-act="prepEdit">${ic('duo', '', 'sm')}덱 편집</button></div>
+      <div class="pp-slots g6">${cells.join('')}</div>${recWhyHtml(ids)}
     </div>`;
   // 6) 보상
   let rw = '';
@@ -5131,8 +5168,8 @@ function showDeckEditor() {
     slots.push(id ? `<span class="ed-s ${id === app.edSel ? 'picked' : ''}" data-dslot="${i}">${deckCard(id, i === 0, 'edSlot')}${i ? `<button class="ed-lead" data-act="edLead" data-id="${id}" aria-label="대장으로">${pimg(ui2('crown'))}</button>` : ''}<button class="ed-rm ${id === app.edSel ? 'big' : ''}" data-act="edRm" data-id="${id}" aria-label="덱에서 빼기">✕${id === app.edSel ? ' 빼기' : ''}</button></span>` : `<button class="pp-slot empty ${app.edHole ? 'sel' : ''}" data-act="edHole"><i>+</i></button>`);
   }
   const chips = [['all', '전체'], ...(rec.size ? [['rec', '추천']] : []), ...Object.keys(ATTRS).map((a) => ['a:' + a, attrIco(a)]), ['t1', 'T1'], ['t2', 'T2'], ['t3', 'T3'], ['t4', 'T4'], ['t5', 'LG']];
-  popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '', 'sm')}자동 편성</button></div>
-    <div class="pp-slots g6 ed">${slots.join('')}</div>
+  popup(`<div class="ed-head"><div class="ed-top"><h3>덱 편집</h3><div class="pp-pre">${[0, 1, 2].map((k) => `<button class="${k === app.deckI ? 'on' : ''}" data-act="edPreset" data-k="${k}">${k + 1}</button>`).join('')}</div><button class="pp-auto" data-act="edAuto">${ic('sparkle', '', 'sm')}추천 덱</button><button class="pp-i" data-act="recInfo" aria-label="추천 덱 설명">i</button></div>
+    <div class="pp-slots g6 ed">${slots.join('')}</div>${recWhyHtml(dl.slice(0, max))}
     <p class="ed-hint">${app.edSel && HEROES[app.edSel] ? `<b>${esc(HEROES[app.edSel].name)}</b> 고름 → 위 멤버를 누르면 자리 바꾸기 · 아래 멤버를 누르면 교체 · <b>✕ 빼기</b> 로 덱에서 빼기` : lead ? `대장 <b>${esc(HEROES[lead].name)}</b> · 눌러서 고른 뒤 다른 멤버를 누르면 자리 바꾸기 · 1번 칸이 대장` : '아래에서 멤버를 골라요 · 끌어다 놓아도 돼요'}</p>
     <div class="pp-sf">${chips.map(([k, t]) => `<button class="${k === f ? 'on' : ''}" data-act="edF" data-f="${k}">${t}</button>`).join('')}<span class="ed-sort">${[['pw', '전투력'], ['tier', '등급'], ['lv', '레벨']].map(([k, t]) => `<button class="${k === so ? 'on' : ''}" data-act="edSort" data-v="${k}">${t}</button>`).join('')}</span></div></div>
     <div class="pp-sg">${list.map((id) => artCard(id, { act: 'edPick', on: dl.includes(id), cls: 'mini2', extra: `${rec.has(id) ? '<i class="pp-rec">추천</i>' : ''}` })).join('') || '<p class="ip">조건에 맞는 멤버가 없어요</p>'}</div>
