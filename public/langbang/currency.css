@@ -81,3 +81,4 @@ body.rm .cur-plus { animation: none; opacity: 1; margin-top: -8px; }
 .gr-chip b { font-weight: 800; }
 @media (prefers-reduced-motion: reduce) { .cur-pop, .cur-tray { animation: none; } }
 .coins-pill { font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.cs-head .cs-amt { margin-right: calc(var(--u, 1px) * 30); }

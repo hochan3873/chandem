@@ -114,7 +114,7 @@ export function showCurrency(id) {
 // ─── 성장 길잡이 ───
 export function envNow() {
   const p = D.P();
-  return { owned: D.owned(), deck: [...new Set((D.curDeck() || []).filter(Boolean))], power: (pp, id) => D.heroPower(pp, id), metaMax: D.metaMaxOf, costOf: (pp, id) => D.costOf(pp, id), uid: D.uid(), gearUp: D.upgradeList().filter((u) => u.go === 'gear' || u.go === 'enh'), p };
+  return { owned: D.owned(), deck: (() => { const d = [...new Set((D.curDeck() || []).filter(Boolean))]; return d.length ? d : D.owned().slice(0, 4); })(), power: (pp, id) => D.heroPower(pp, id), metaMax: D.metaMaxOf, costOf: (pp, id) => D.costOf(pp, id), uid: D.uid(), gearUp: D.upgradeList().filter((u) => u.go === 'gear' || u.go === 'enh'), p };
 }
 let lastPlan = null;
 export function growthHtml() {
