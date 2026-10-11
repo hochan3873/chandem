@@ -2,7 +2,7 @@
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
 import { prepSeason, bakeSeason, drawSeason } from './season-fx.js'; // 시즌 테마 전투 장식 (할로윈 등)
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, WEAPON, artV, EST, LOCK_NAME } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, HERO_IDLE, WEAPON, artV, EST, LOCK_NAME } from './data.js';
 // 효과 종류: 빛(더하기 섞기) · 물건(보통) · 층 · 색 · 맞은 자리 표시
 const VFX_KIND = {
   soundring: { blend: 'lighter', layer: 'front' },
@@ -2313,6 +2313,7 @@ export class Renderer {
       if (imgOk(im)) { const n = 8, fw = im.naturalWidth / n, fi = Math.floor(t * 5 + 3) % n; this.tf(tw.px, feet, 0, 1, 1); cx.globalAlpha = 0.72; cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw); }
       cx.globalAlpha = 1;
     }
+    const rmH = typeof document !== 'undefined' && document.body.classList.contains('rm'); // 연출 줄이기
     for (const h of g.heroes) {
       if (h.rx === undefined) h.rx = h.x;
       h.rx += (h.x - h.rx) * 0.25;
@@ -2337,7 +2338,8 @@ export class Renderer {
         cx.globalAlpha = 1;
       }
       if (h.awake >= 3) this.drawAwake(h, hx, feet, box, t); // 진상의 탑 60층 지옥 각성: 붉은 오라
-      this.tf(hx, feet, 0, 1, 1);
+      const kp = this.kdPose(h, hx, feet, box, t, rmH); // 쓰러짐 · 일어나기 자세 (없으면 null)
+      if (kp) { const lie = Math.min(1, Math.abs(kp.rot) / 1.48); this.tf(hx + kp.dx + box * 0.42 * Math.sin(kp.rot), feet, 0, 1 + 0.75 * lie, 1); } else this.tf(hx, feet, 0, 1, 1);
       cx.drawImage(sh.c, -26, -7, 52, 14);
       const up = h.rage || h.upT > 0;
       // 배현경 변신: 주사기가 꽂히는 순간(0.33초 뒤 · 연기 속)에 날씬으로 바뀐다 · 요요는 바로 (skillfx.js diet · yoyo)
@@ -2350,28 +2352,29 @@ export class Renderer {
       const key = alt && this.sprites['h_' + h.id + '_alt'] ? 'h_' + h.id + '_alt' : up && this.sprites['h_' + h.id + '_rage'] ? 'h_' + h.id + '_rage' : 'h_' + h.id;
       const sp = this.sprites[key];
       if (!sp) continue;
-      let bob = Math.sin(t * 3 + h.slot) * 1.2, rot = 0, sx = 1, sy = 1;
+      const bob0 = Math.sin(t * 3 + h.slot) * 1.2, br0 = 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 예전 대기: 둥실 · 숨쉬기 (대기 띠가 있으면 뺀다)
+      let bob = bob0, rot = 0, sx = 1, sy = 1;
       if (h.id === 'donghan' && !up) bob -= 12; // 누운 문동한: 스킬 버튼 줄에 가리지 않게
       if (h.recoil > 0) { const p = h.recoil / 0.14; sy = 1 + p * 0.07; sx = 1 - p * 0.05; bob -= p * 3; }
       if (h.rage) { rot = Math.sin(t * 24) * 0.05; bob += Math.sin(t * 30) * 1.5; }
       if (h.charmT > 0) { rot = Math.sin(t * 4) * 0.14; }
       if (h.stunT > 0) { rot = Math.sin(t * 10) * 0.1; sy = 0.94; }
-      if (h.kdT > 0) { const k = Math.min(1, (h.kdSec - h.kdT) / 0.25, h.kdT / 0.35); rot = (hx < 180 ? -1 : 1) * 1.3 * k; sy = 1 - 0.1 * k; bob += 14 * k; } // 쓰러짐: 옆으로 픽 누움 (일어날 때 다시 세움)
+      if (kp) { rot = kp.rot; bob = kp.bob + (kp.shake ? 0 : Math.sin(t * 3 + h.slot) * 0.4); sx = kp.sx; sy = kp.sy; } // 쓰러짐 · 일어나기 (kdPose)
       if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; if (g.joinMode) { bob += (1 - p) * 70; sx *= 0.6 + 0.4 * p; sy *= 0.6 + 0.4 * p * e; } else { sx *= e * p; sy *= e * p; } } // 합류: 아래에서 미끄러져 올라온다
       if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
       if (h.id === 'eunok' && !up) { const sn = Math.max(0, Math.sin(t * 2.6 + h.slot)); sy *= 1 - 0.03 * sn * sn * sn; bob += 0.8 * sn * sn * sn; rot += Math.sin(t * 1.1) * 0.025; if (Math.random() < 0.012 && this.fx) this.fx.part('dot', hx + 6, feet - box * 0.62, 10 + Math.random() * 20, 20, 0.7, 2.6, '#bfe8ff', { grav: 260 }); } // 최은옥 평소: 의자에 앉아 훌쩍훌쩍 (어깨 들썩 · 눈물 똑)
-      sy *= 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 숨쉬기
+      sy *= br0; // 숨쉬기
       if (h.reloadT > 0 && h.reloadMax > 0.25) { const q = 1 - h.reloadT / h.reloadMax; rot += Math.sin(q * Math.PI) * -0.13; bob += Math.sin(q * Math.PI) * 1.5; } // 장전: 살짝 기울여 챙기기
       if (h.id === 'hyungyeong' && alt) bob += Math.sin(t * 22) * 1.6; // 날씬 복서 스텝
       if (hgK < 1) { const w = Math.sin(hgK * Math.PI * 3) * (1 - hgK) * (1 - hgK); if (alt) { sx *= 1 - 0.3 * w; sy *= 1 + 0.32 * w; } else { sx *= 1 + 0.34 * w; sy *= 1 - 0.24 * w; } } // 변신 순간 말랑: 날씬 = 쭉 늘었다 출렁 · 통통 = 옆으로 빵빵 부풀었다 출렁
       // 공격 리듬: 준비(다음 공격 직전 뒤로 젖힘·들어 올리기) → 던짐(반동) — 멤버마다 다르게
       const wk = WEAPON[h.id] ? WEAPON[h.id].kind : '';
       const C = CADENCE[h.id] || CADENCE['_' + wk] || CADENCE._default;
-      const busy = h.stunT > 0 || h.charmT > 0 || h.grabT > 0 || h.kdT > 0;
+      const busy = h.stunT > 0 || h.charmT > 0 || h.grabT > 0 || h.kdT > 0 || !!kp;
       if (!busy && h.cd > 0 && h.cd < C.wind && !(h.reloadT > 0)) { const q = 1 - h.cd / C.wind; rot -= q * C.back * (hx < 180 ? 1 : -1) * 0.8; sy *= 1 - q * C.sq; sx *= 1 + q * C.sq * 0.6; bob -= q * (C.lift || 0); if (C.nod) rot += Math.sin(q * Math.PI) * 0.08; }
       const since = g.t - (h.lastShotT || -9);
       if (since < 0.22) { const q = 1 - since / 0.22; rot += q * C.snap * (hx < 180 ? 1 : -1) * 0.5; bob += q * 2; }
-      let dx = 0;
+      let dx = kp ? kp.dx : 0;
       if (h._hitAt) { const hk = (performance.now() - h._hitAt) / 260; if (hk < 1) { const sp0 = Math.cos(hk * Math.PI * 2.5) * (1 - hk); sy *= 1 - 0.1 * sp0; sx *= 1 + 0.06 * sp0; bob += 8 * (1 - hk) * (1 - hk); } }
       if (C.move && !busy) { // 코드 모션 (프레임 띠가 없는 멤버)
         const side = hx < 180 ? 1 : -1;
@@ -2399,7 +2402,7 @@ export class Renderer {
       if (h.id === 'baul' && h.bd && !busy) usedStrip = this.drawBaul(g, h, hx, feet, box, sp, t);
       if (h.id === 'junyoung' && h.out && !busy) usedStrip = this.drawJunyoung(g, h, hx, feet, box, sp, t);
       if (h.id === 'ara' && !busy) usedStrip = this.drawAra(g, h, hx, feet, box, t);
-      if (h.id === 'donghan' && h.cafeT > 0 && this.sprites.h_donghan_cafe) { // 문동한 카페인 풀충전: 변신 띠 (커피 원샷) → 한 발마다 캔커피 던지기 띠 (5칸째에 휙) · 사이엔 풀충전 모습
+      if (h.id === 'donghan' && h.cafeT > 0 && this.sprites.h_donghan_cafe && !kp) { // 문동한 카페인 풀충전: 변신 띠 (커피 원샷) → 한 발마다 캔커피 던지기 띠 (5칸째에 휙) · 사이엔 풀충전 모습
         const sk = h.def.skill, q = h.cafe, ssp = this.sprites.h_donghan_cafe, tfI = this.images.dh_cafe_tf, ca = this.images.dh_cafe_cast;
         let im = null, key = '', fi = 0;
         if (q && q.t < sk.wind && imgOk(tfI)) { im = tfI; key = 'dh_cafe_tf'; fi = Math.min(7, Math.floor((q.t / sk.wind) * 8)); }
@@ -2474,7 +2477,7 @@ export class Renderer {
         if (ph < 0.12) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - ph / 0.12; const gr = cx.createRadialGradient(bw * 0.08, -bw * 0.72, 0, bw * 0.08, -bw * 0.72, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.4, 'rgba(255,140,220,0.8)'); gr.addColorStop(1, 'rgba(255,90,200,0)'); cx.fillStyle = gr; cx.fillRect(bw * 0.08 - 16, -bw * 0.72 - 16, 32, 32); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; } // 눈에서 반짝 (윙크)
         usedStrip = true;
       }
-      if (h.id === 'jeongseob' && !usedStrip) { // 윤정섭: 키 1.25배 · 나갈 땐 뒷모습 뚜벅뚜벅(6프레임/초) · 돌아올 땐 앞모습 · 쉴 땐 앉아서 물 마시기
+      if (h.id === 'jeongseob' && !usedStrip && !kp) { // 윤정섭: 키 1.25배 · 나갈 땐 뒷모습 뚜벅뚜벅(6프레임/초) · 돌아올 땐 앞모습 · 쉴 땐 앉아서 물 마시기
         const S0 = (h.def.scale || 1) * (h.growT > 0 ? h.def.skill.grow : 1), bw = box * S0;
         const wb = this.images.js_walkb, wk = this.images.js_walk, rs0 = this.images.js_rest, bk = this.images.js_back;
         const strip = (im, fps) => { const n = 8, fw = im.naturalWidth / n, fi = Math.floor(t * fps) % n; const step = (t * fps) % 1; this.tf(hx, feet - (step < 0.5 ? step * 4 : (1 - step) * 4), 0, 1, 1); cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw); return fi; };
@@ -2506,12 +2509,24 @@ export class Renderer {
         }
         usedStrip = true;
       }
+      if (!usedStrip && !busy && !cp && !up && !alt && !rmH && HERO_IDLE[h.id] && h.id !== 'ara' && !(this.skinMap && this.skinMap[h.id]) && !(h._hitAt && performance.now() - h._hitAt < 160) && !(h._castAt && performance.now() - h._castAt < 250)) { // 대기 띠 (멤버마다 다른 몸짓 · 시작 칸은 멤버마다 무작위)
+        const im = this.idleSheet(h.id);
+        if (im) {
+          const d = HERO_IDLE[h.id], n = d.frames, fw = im.naturalWidth / n, fh = im.naturalHeight;
+          if (h._idPh === undefined) h._idPh = Math.random() * n;
+          const fi = Math.floor(t * d.fps + h._idPh) % n, fit = this.stripFit('hidle_' + h.id, im, n, sp.c, 1), bw = box * fit.k;
+          this.tf(hx + dx, feet + bob - bob0, rot, sx, sy / br0);
+          cx.drawImage(im, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, bw, bw);
+          usedStrip = true;
+        }
+      }
       if (!usedStrip) {
         { const ck = h._castAt && !cp ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); } // (시전 동작이 없는 멤버만 톡 커지기)
         cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
         cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
         if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE, lx = -box / 2 + (m[0] / 256) * box, ly = -box * FEET + (m[1] / 256) * box, c = Math.cos(rot), s = Math.sin(rot); h._mouth = { x: hx + dx + lx * sx * c - ly * sy * s, y: feet + bob + lx * sx * s + ly * sy * c }; }
         if (h.freezeT > 0 && h.stunT > 0 && sp.f) { cx.globalAlpha = 0.5; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); } // 7장 빙결: 하얗게 언 모습
+        if (kp && kp.flash > 0 && sp.f) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.7 * kp.flash; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; } // 쓰러지는 순간 번쩍
         const hk2 = h._hitAt ? (performance.now() - h._hitAt) / 160 : 9;
         if (hk2 < 1 && sp.f) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.55 * (1 - hk2); cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalCompositeOperation = 'source-over'; }
         cx.globalAlpha = 1;
@@ -2547,7 +2562,8 @@ export class Renderer {
           cx.drawImage(hs.c, -8, -8, 16, 16);
         }
       }
-      if (h.stunT > 0 || h.kdT > 0) {
+      if (kp && h.kdT > 0.3 && (h.kdSec || 4) - h.kdT > 0.3) this.kdDizzy(h, hx, feet, box, kp, t, rmH); // 쓰러짐: 누운 머리 위 별 · 새
+      else if (h.stunT > 0) {
         const st = this.projSprites.star;
         for (let i = 0; i < 3; i++) {
           const a = t * 6 + i * TAU / 3;
@@ -3027,6 +3043,68 @@ export class Renderer {
       for (let yy = 0; yy < S; yy++) for (let xx = 0; xx < S; xx++) if (d[(yy * S + xx) * 4 + 3] > 60) { if (xx < l * S) l = xx / S; if (xx > r2 * S) r2 = (xx + 1) / S; if (yy < t * S) t = yy / S; if (yy > b * S) b = (yy + 1) / S; }
     }
     return { l, r: r2, t, b };
+  }
+  // 쓰러짐 모션 (10/11): 맞고 휘청 → 발을 축으로 픽 넘어짐 (쿵 · 먼지) → 누워서 숨 쉬기 (머리 위 별 · 새) → 팔 짚고 일어나 머리 털기
+  //  h.kdT / h.kdSec (게임 시간) 로 단계를 정하고 · 일찍 일으켜진 때(건전녀 · 총공지)는 마지막 자세에서 0.42초 동안 벌떡 · 연출 줄이기(rm)면 흔들림 · 먼지 없이
+  kdPose(h, hx, feet, box, t, rm) {
+    const s = hx < 180 ? 1 : -1, LIE = 1.48, LIFT = -box * 0.1, SLIDE = -s * box * 0.36, UP = 0.6;
+    const now = performance.now();
+    const ease = (x) => x * x * (3 - 2 * x), back = (x) => 1 + 2.2 * (x - 1) ** 3 + 1.2 * (x - 1) ** 2;
+    let p = null;
+    if (h.kdT > 0) {
+      const e = (h.kdSec || 4) - h.kdT;
+      h._kdUpAt = 0;
+      if (e < 0.3) h._kdDust = false;
+      if (e < 0.16) { const q = e / 0.16; p = { rot: -s * 0.2 * q, dx: -s * 3 * q, bob: 0, sx: 1 + 0.08 * q, sy: 1 - 0.1 * q, flash: 1 - q * 0.6 }; }
+      else if (e < 0.46) { const q = (e - 0.16) / 0.3, k = q * q; p = { rot: -s * 0.2 + (s * LIE + s * 0.2) * k, dx: -s * 3 + (SLIDE + s * 3) * k, bob: LIFT * k, sx: 1, sy: 1 + 0.04 * k, flash: 0.4 * (1 - q) }; }
+      else if (h.kdT > UP) {
+        const q = Math.min(1, (e - 0.46) / 0.3), bn = rm ? 0 : Math.sin(q * Math.PI) * (1 - q);
+        p = { rot: s * (LIE - 0.18 * bn) + (rm ? 0 : Math.sin(t * 1.3 + h.slot) * 0.015), dx: SLIDE, bob: LIFT - 8 * bn, sx: (1 - 0.14 * (1 - q) * (1 - q)) * (1 + (rm ? 0 : 0.045 * Math.sin(t * 2.4 + h.slot))), sy: 1 + 0.05 * (1 - q), flash: 0 };
+        if (!h._kdDust) { h._kdDust = true; if (!rm && this.fx) { const bx = hx + SLIDE + s * box * 0.4; for (let i = 0; i < 5; i++) this.fx.part('puff', bx + (i - 2) * box * 0.16, feet - 3, (i - 2) * 22 + (Math.random() - 0.5) * 10, -14 - Math.random() * 16, 0.38 + Math.random() * 0.2, 3.5 + Math.random() * 2.5, 'rgba(225,212,190,0.55)', { drag: 3 }); } }
+      } else {
+        const u = 1 - h.kdT / UP;
+        if (u < 0.45) { const v = ease(u / 0.45); p = { rot: s * (LIE - 0.62 * v) + (rm ? 0 : Math.sin(u * 40) * 0.03 * v), dx: SLIDE * (1 - 0.3 * v), bob: LIFT * (1 - 0.35 * v), sx: 1, sy: 1 - 0.05 * v, flash: 0 }; }
+        else { const v = (u - 0.45) / 0.55, b = rm ? ease(v) : back(v); p = { rot: s * (LIE - 0.62) * (1 - b), dx: SLIDE * 0.7 * (1 - b), bob: LIFT * 0.65 * (1 - v), sx: 1 + 0.06 * Math.sin(v * Math.PI), sy: 1 - 0.1 * Math.sin(v * Math.PI), flash: 0 }; }
+      }
+      h._kdLast = p; h._kdEnd = h.kdT;
+      return p;
+    }
+    if (h._kdLast) { h._kdUpAt = now; h._kdFrom = h._kdEnd > 0.1 ? h._kdLast : null; h._kdLast = null; } // 막 일어났다
+    if (h._kdUpAt) {
+      const ms = now - h._kdUpAt, f = h._kdFrom;
+      if (f && ms < 420) { const v = ms / 420, b = rm ? ease(v) : back(v); return { rot: f.rot * (1 - b), dx: f.dx * (1 - b), bob: f.bob * (1 - v) - (rm ? 0 : Math.sin(v * Math.PI) * 6), sx: 1, sy: 1 - 0.08 * Math.sin(v * Math.PI), flash: 0 }; }
+      const k = (ms - (f ? 420 : 0)) / 520;
+      if (k < 1 && !rm) return { rot: Math.sin(k * Math.PI * 6) * 0.11 * (1 - k), dx: 0, bob: 0, sx: 1, sy: 1 - 0.03 * Math.sin(k * Math.PI), flash: 0, shake: 1 }; // 머리 털기
+      h._kdUpAt = 0; h._kdFrom = null;
+    }
+    return null;
+  }
+  // 쓰러진 멤버 머리 위: 빙글빙글 별 + 노란 새 두 마리 (누운 머리 자리를 따라간다)
+  kdDizzy(h, hx, feet, box, p, t, rm) {
+    const cx = this.cx, hl = box * 0.74 * (p.sy || 1), x0 = hx + p.dx + hl * Math.sin(p.rot), y0 = feet + p.bob - hl * Math.cos(p.rot) - 12;
+    const st = this.projSprites.star;
+    for (let i = 0; i < 5; i++) {
+      const a = (rm ? 0.6 : t * 4.2) + i * TAU / 5, x = x0 + Math.cos(a) * 19, y = y0 + Math.sin(a) * 6, front = Math.sin(a) > 0;
+      if (i % 2 === 0) { this.tf(x, y, rm ? 0 : a, front ? 0.8 : 0.6, front ? 0.8 : 0.6); cx.globalAlpha = front ? 1 : 0.7; cx.drawImage(st.c, -8, -8, 16, 16); cx.globalAlpha = 1; }
+      else { // 작은 새 (동그란 몸 · 부리 · 퍼덕이는 날개)
+        const fl = rm ? 0 : Math.sin(t * 22 + i) * 3, d = Math.cos(a) > 0 ? 1 : -1;
+        this.world(); cx.save(); cx.translate(x, y); cx.scale(d * (front ? 1 : 0.8), front ? 1 : 0.8);
+        cx.fillStyle = '#ffd84a'; cx.strokeStyle = '#4a3410'; cx.lineWidth = 1.2;
+        cx.beginPath(); cx.ellipse(0, 0, 5, 4, 0, 0, TAU); cx.fill(); cx.stroke();
+        cx.beginPath(); cx.moveTo(-1, -1); cx.lineTo(-5, -4 - fl); cx.lineTo(1, -2); cx.closePath(); cx.fill(); cx.stroke();
+        cx.fillStyle = '#ff8a2a'; cx.beginPath(); cx.moveTo(4.5, -0.5); cx.lineTo(8, 0.5); cx.lineTo(4.5, 1.5); cx.closePath(); cx.fill();
+        cx.fillStyle = '#222'; cx.beginPath(); cx.arc(2.2, -1, 0.9, 0, TAU); cx.fill();
+        cx.restore();
+      }
+    }
+  }
+  // 대기 띠: 판에 나온 멤버만 처음 그릴 때 한 번 불러온다 (못 불러오면 null → 예전 숨쉬기)
+  idleSheet(id) {
+    const d = HERO_IDLE[id]; if (!d) return null;
+    const m = this.idleIms || (this.idleIms = {});
+    let im = m[id];
+    if (!im) { im = m[id] = new Image(); im.decoding = 'async'; im.src = artV(d.src); }
+    return imgOk(im) ? im : null;
   }
   stripFit(key, strip, n, idle, only = 0) {
     const m = this._fit || (this._fit = {});
