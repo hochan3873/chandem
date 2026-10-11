@@ -116,6 +116,10 @@ export const HERO_ANIM = Object.fromEntries(['ara', 'bangjang', 'dohoon', 'dongh
 export const HERO_IDLE_IDS = ['bangjang', 'staff', 'gunman', 'gunnyeo', 'myunghoon', 'eunok', 'jungmin', 'ingyu', 'sanghwa', 'hochan', 'sunggu', 'youngjun', 'junseo', 'wonsik', 'soyoung', 'junyoung', 'hyungyeong', 'jieun', 'jiwon', 'subin', 'dragon', 'hanna', 'baul', 'byunghwa', 'donghan', 'jeongseob'];
 export const HERO_IDLE = Object.fromEntries(HERO_IDLE_IDS.map((id) => [id, { src: `/img/lb/h_${id}_idle.webp`, frames: 8, fps: 6 }]));
 HERO_IDLE.donghan.fps = 4; // 누워서 느릿느릿
+// 쓰러짐 띠 (10/11 · 2048×256 8칸 · 기본 그림과 같은 크기 · 발 줄 237): 0 맞음 · 1 넘어짐 · 2 쿵 · 3~5 누워 어질어질 · 6 짚고 일어남 · 7 머리 털기
+//  오른쪽으로 넘어지게 그림 (왼쪽 자리는 render.js 가 뒤집는다) · 쓰러질 때 처음 불러온다 · 없는 멤버는 예전 코드 자세 (그림을 눕히기)
+export const HERO_DOWN_IDS = ['staff', 'bangjang', 'gunman', 'gunnyeo', 'myunghoon', 'eunok', 'jungmin', 'ingyu', 'sanghwa', 'hochan', 'sunggu', 'youngjun', 'junseo', 'wonsik', 'soyoung', 'junyoung', 'hyungyeong', 'jieun', 'jiwon', 'subin', 'hanna', 'baul'];
+export const HERO_DOWN = Object.fromEntries(HERO_DOWN_IDS.map((id) => [id, { src: `/img/lb/h_${id}_down.webp`, frames: 8 }]));
 HERO_IDLE.hyungyeong_alt = { src: '/img/lb/h_hyungyeong_slim_idle.webp', frames: 8, fps: 7 }; // 배현경 날씬 (복서 스텝) · 변신 모습 대기 띠는 <id>_alt
 // 느린 판 (2026-10 대개편 · 스테이지 · 주간 · 헬만): 진상 나오는 간격 ×gap · 수 ×count · 한 명 체력 ×hp · 이동 ×espd · 입구 치는 힘 ×door — 한 판 3~4분 · 멤버 하나하나 조종하는 맛
 // 큰 한 방 스킬 (쿨 cd 초 이상: 방장 · 강성구 · 김도훈 · 오지은 · 강병화 · 이호찬 · 정소영) 은 첫 웨이브가 끝나야 쓸 수 있다 — 시작하자마자 몰아 쓰기 방지 (10/08 · 기세도 3칸 → 2칸)
@@ -1013,6 +1017,7 @@ export const ART_VER = {
   h_donghan_cafe: 2, h_donghan_cafe_tf: 2, h_donghan_cafe_attack: 2, 'dex/donghan_cafe': 2, 'dexhq/donghan_cafe': 2, 'dexhq/thumb/donghan_cafe': 2, // 문동한 카페인 풀충전 새로 그림 (Gemini)
   'fx/w_card_r': 2, 'fx/w_card_y': 2, // 운영진 레드·옐로카드 광택 카드로 새로 그림 (Gemini)
   h_eunok: 5, h_eunok_rage: 5, h_eunok_rage_attack: 5, 'dex/eunok': 5, 'dex/eunok_rage': 5, 'dexhq/eunok': 5, 'dexhq/eunok_rage': 5, 'dexhq/eunok_duo': 5, 'dexhq/thumb/eunok': 5, 'dexhq/thumb/eunok_rage': 5, 'dexhq/thumb/eunok_duo': 5, 'fx/w_cup': 3, // 최은옥 술버릇 컨셉 (울면서 소주잔 · 분노 소주병) — 다른 멤버 그림체에 맞춰 다시 그림 · 얼굴 성숙하게 · 머리 크기 맞춤 (Gemini · 5)
+  h_ara_idle: 2, h_byunghwa_idle: 2, h_dohoon_idle: 2, h_dragon_idle: 2, h_gunnyeo_idle: 2, h_hanna_idle: 2, h_hyungyeong_idle: 2, h_hyungyeong_slim_idle: 2, h_soyoung_idle: 2, h_subin_idle: 2, h_sunggu_idle: 2, // (10/11) 대기 띠 칸마다 좌우로 밀리던 것 맞춤 (몸 · 발 기준)
   'season/halloween_key': 2, // (season.js 의 keyart 주소에도 ?v=2 를 직접 붙였다 — 허브 카드 · 로비 배경)
 };
 export const artV = (u) => { const m = typeof u === 'string' && /^\/img\/lb\/([^?]+)\.webp$/.exec(u); return m && ART_VER[m[1]] ? `${u}?v=${ART_VER[m[1]]}` : u; };

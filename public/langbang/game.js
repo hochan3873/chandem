@@ -2360,29 +2360,63 @@ function todoList() {
 function chestReady(p) { for (let c = 1; c <= chapterOf(nextStage()); c++) { const o = (p.chests || {})[c] || [], cs = L.chapterStars(p, c); const n = L.CHEST_STARS.find((k) => cs >= k && !o.includes(k)); if (n) return [c, n]; } return null; }
 // 지금 할 수 있는 강화 (좋은 순): ★승급 > 출전 멤버 강화 > 더 좋은 장비 > 장비 강화 > 덱 밖 멤버
 //  장비 강화는 코인이 넉넉할 때만 (늘 떠 있으면 무뎌진다)
+let upgCache = null; // 같은 화면을 그리는 동안 여러 번 불려도 한 번만 계산 (가진 것이 바뀌면 다시)
 function upgradeList() {
-  const p = P(), out = [];
+  const p = P();
+  const key = app.profileLoaded ? [p.coins | 0, p.wild | 0, p.stones | 0, (p.gear || []).length, (p.gear || []).reduce((n, g) => n + (g.lv | 0) * 7 + String(g.id).length, 0), JSON.stringify(p.equip || {}), JSON.stringify(p.shards || {}), JSON.stringify(p.heroes || {}), JSON.stringify(p.hstars || {}), (curDeck() || []).join(',')].join('|') : '';
+  if (upgCache && upgCache.p === p && upgCache.key === key) return upgCache.v.slice();
+  const v = upgradeList0(p);
+  upgCache = { p, key, v };
+  return v.slice();
+}
+function upgradeList0(p) {
+  const out = [];
   if (!app.profileLoaded || (p.master && !p.testNormal)) return out; // 마스터는 다 공짜라 안내 안 함
   const d0 = [...new Set((curDeck() || []).filter(Boolean))].filter((h) => API.heroUnlocked(p, h)), deck = d0.length ? d0 : owned().slice(0, 4); // 덱이 아직 비었으면 (장비 화면처럼) 앞 4명
   const pool = [...deck, ...owned().filter((h) => !deck.includes(h))];
+  const sh0 = (h) => (p.shards || {})[h] | 0;
   for (const h of pool) {
     const inD = deck.includes(h), nm = HEROES[h].name, st = L.heroStar(p, h), lv = p.heroes[h] | 0;
-    if (st < L.STAR_MAX && ((p.shards || {})[h] | 0) >= L.STAR_SHARDS[st]) out.push({ go: 'star', id: h, name: nm, txt: `${nm} ★승급할 수 있어요`, ic: 'star_gold', pri: inD ? 300 : 140, up: true });
+    if (canStar(p, h)) out.push({ go: 'star', id: h, name: nm, txt: `${nm} ★승급할 수 있어요`, ic: 'star_gold', pri: inD ? 300 : 140, up: true, coins: L.STAR_COINS[st], shards: L.STAR_SHARDS[st] });
     const c = API.costOf(p, h);
-    if (c !== null && c !== undefined && (p.coins | 0) >= c && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv)) out.push({ go: 'hero', id: h, name: nm, txt: `${nm} 강화할 수 있어요`, ic: 'hammer', pri: (inD ? 250 : 100) - Math.min(40, lv), up: true });
+    if (c !== null && c !== undefined && (p.coins | 0) >= c && sh0(h) + (p.wild | 0) >= heroCardNeed(lv) && lvGain(p, h, lv) >= UP_MIN) out.push({ go: 'hero', id: h, name: nm, txt: `${nm} 강화할 수 있어요`, ic: 'hammer', pri: (inD ? 250 : 100) - Math.min(40, lv), up: true, coins: c, cards: heroCardNeed(lv) });
   }
+  const taken = new Set(); // 같은 장비를 두 멤버에게 권하지 않게
   for (const h of deck) {
     const nm = HEROES[h].name, sl = (p.equip || {})[h] || {};
     for (const k of ['w', 'a']) {
+      const best = betterGear(p, h, k, taken);
+      if (best) { taken.add(best.id); out.push({ go: 'gear', id: h, slot: k, gid: best.id, name: nm, txt: `${nm}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', pri: 200, up: true }); continue; }
       const cur = (p.gear || []).find((x) => x.id === sl[k]);
-      const best = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) * 1.02)).sort((a, b) => gearScore(b, h) - gearScore(a, h))[0];
-      if (best) { out.push({ go: 'gear', id: h, slot: k, gid: best.id, name: nm, txt: `${nm}에게 더 좋은 ${k === 'w' ? '무기' : '장신구'}`, ic: 'swords', pri: 200, up: true }); continue; }
-      if (!cur || gMaxed(cur)) continue;
+      if (!cur || gMaxed(cur)) continue; // 장비 강화: 출전 멤버가 낀 장비만
       const cost = gearEnhanceCost(cur.r, cur.lv);
-      if (cost !== null && cost !== undefined && cur.lv < 10 && (p.coins | 0) >= cost * 2 && (p.stones | 0) >= gearStoneNeed(cur.lv)) out.push({ go: 'enh', id: h, slot: k, gid: cur.id, name: nm, txt: `${nm} ${GEAR[cur.t].name} +${cur.lv + 1} 강화`, ic: 'hammer', pri: 90 - cur.lv, up: true });
+      if (cost !== null && cost !== undefined && cur.lv < 10 && (p.coins | 0) >= cost * 2 && (p.stones | 0) >= gearStoneNeed(cur.lv)) out.push({ go: 'enh', id: h, slot: k, gid: cur.id, name: nm, txt: `${nm} ${GEAR[cur.t].name} +${cur.lv + 1} 강화`, ic: 'hammer', pri: 90 - cur.lv, up: true, coins: cost * 2, stones: gearStoneNeed(cur.lv) });
     }
   }
-  return out.sort((a, b) => b.pri - a.pri);
+  out.sort((a, b) => b.pri - a.pri);
+  // (10/11) 지금 가진 코인 · 카드 · 강화석으로 '같이' 할 수 있는 것만 남긴다 (470코인에 강화 7개처럼 하나 하면 끝나는 걸 다 세지 않게)
+  const bud = { c: p.coins | 0, w: p.wild | 0, st: p.stones | 0, sh: Object.assign({}, p.shards || {}) };
+  return out.filter((u) => {
+    if (u.go === 'gear') return true; // 바꿔 끼기는 공짜
+    if ((u.coins | 0) > bud.c || (u.stones | 0) > bud.st) return false;
+    if (u.go === 'star') { if ((bud.sh[u.id] | 0) < u.shards) return false; bud.sh[u.id] -= u.shards; }
+    if (u.go === 'hero') { const own = Math.min(bud.sh[u.id] | 0, u.cards), wl = u.cards - own; if (wl > bud.w) return false; bud.sh[u.id] = (bud.sh[u.id] | 0) - own; bud.w -= wl; }
+    bud.c -= u.coins | 0; bud.st -= u.stones | 0;
+    return true;
+  });
+}
+const UP_MIN = 0.02; // 빨간 점 · 숫자는 전투력이 2% 넘게 오를 때만 (티끌 차이로 계속 뜨지 않게)
+// ★승급: 조각과 코인이 둘 다 있을 때만
+function canStar(p, h) { const st = L.heroStar(p, h); return API.heroUnlocked(p, h) && st < L.STAR_MAX && ((p.shards || {})[h] | 0) >= L.STAR_SHARDS[st] && (p.coins | 0) >= L.STAR_COINS[st]; }
+// 강화 한 번에 전투력이 얼마나 오르나 (비율)
+function lvGain(p, h, lv) { const st = L.heroStar(p, h), gs = heroGearStats(p, h), o = { sig: sigOn(p, h) }, a = heroPowerOf(h, lv, st, gs, o); return a > 0 ? heroPowerOf(h, lv + 1, st, gs, o) / a - 1 : 1; }
+// 이 멤버 이 칸에 '아무도 안 낀' 장비 중 전투력이 2% 넘게 오르는 제일 좋은 것 (장비 탭 칸의 빨간 점과 같은 잣대)
+function betterGear(p, h, k, skip) {
+  const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]), gc = cur ? gearScore(cur, h) : -1;
+  const cand = (p.gear || []).filter((it) => GEAR[it.t].slot === k && gearFits(it.t, h) && !equippedBy(p, it.id) && !(skip && skip.has(it.id)) && gearScore(it, h) > gc + 1e-9).sort((a, b) => gearScore(b, h) - gearScore(a, h));
+  if (!cand.length) return null;
+  const pw = heroPower(p, h);
+  return powerWith(p, h, k, cand[0].id) > pw * (1 + UP_MIN) ? cand[0] : null;
 }
 // 아래 탭 · 로비 버튼 숫자: 강화할 수 있는 멤버 수 / 장비 수
 function upCounts() { const u = upgradeList(), deck = new Set(u.filter((x) => x.go === 'hero' || x.go === 'star').map((x) => x.id)).size, bag = new Set(u.filter((x) => x.go === 'gear' || x.go === 'enh').map((x) => x.gid)).size; return { deck, bag, all: deck + bag }; } // 장비는 같은 장비를 여러 멤버에게 세지 않게
@@ -2543,10 +2577,8 @@ function dots() {
   const tier = L.seasonTier(p);
   const season = p.season && Array.from({ length: tier }, (_, i) => i + 1).some((t) => !p.season.claimed.includes(t));
   const wk = (p.maxStage | 0) >= L.WEEKLY_UNLOCK && !(p.weekly && p.weekly.wi === L.weekIndex(now) && p.weekly.runs > 0);
-  const members = Object.keys(HEROES).some((h) => API.heroUnlocked(p, h) && L.heroStar(p, h) < L.STAR_MAX && (p.shards[h] | 0) >= L.STAR_SHARDS[L.heroStar(p, h)]);
-  const upg = owned().some((h) => { const c = API.costOf(p, h); const lv = p.heroes[h] | 0; return c !== null && c !== undefined && (p.coins | 0) >= c && lv < 5 && ((p.shards || {})[h] | 0) + (p.wild | 0) >= heroCardNeed(lv); });
-  const gearBetter = (() => { const ids = [...new Set((curDeck() || []).filter(Boolean))]; return ids.some((h) => ['w', 'a'].some((k) => { const cur = (p.gear || []).find((x) => x.id === ((p.equip || {})[h] || {})[k]); return (p.gear || []).some((it) => GEAR[it.t].slot === k && !equippedBy(p, it.id) && (!cur || gearScore(it, h) > gearScore(cur, h) * 1.02)); })); })(); // 2% 넘게 좋아질 때만 점 (티끌 차이로 계속 뜨지 않게)
-  return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: members || upg, bag: gearBetter };
+  const u = upCounts(), members = Object.keys(HEROES).some((h) => canStar(p, h)); // (10/11) 강화 · 장비 점은 숫자와 같은 잣대 (지금 할 수 있고 2% 넘게 좋아질 때만)
+  return { missions: mis > 0, season, weekly: wk, checkin: !L.checkinState(p, now).done, recruit: (p.tickets | 0) > 0, members, shop: (p.tickets | 0) > 0, deck: u.deck > 0, bag: u.bag > 0 };
 }
 function navHtml(on) {
   const d = dots(), u = upCounts(), p = P();
@@ -3508,14 +3540,14 @@ function showMembers() {
     const d = HEROES[id];
     const ok = API.heroUnlocked(p, id);
     const st = L.heroStar(p, id);
-    const can = ok && st < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[st];
+    const can = ok && canStar(p, id);
     return artCard(id, { ok, dot: can });
   }).join('');
   const cardsOld = list.map((id) => {
     const d = HEROES[id];
     const ok = API.heroUnlocked(p, id);
     const st = L.heroStar(p, id);
-    const can = ok && st < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[st];
+    const can = ok && canStar(p, id);
     const rt = heroRoute(id), tag = rt === 'legend' ? 'LEGEND' : rt === 'hidden' ? 'HIDDEN' : rt === 'gacha' ? '모집' : '';
     return `<button class="mcard ${ok ? '' : 'locked'} ${rt === 'legend' ? 'lg' : rt === 'hidden' ? 'hid' : rt === 'gacha' ? 'ep' : ''}" data-act="heroCard" data-id="${id}" style="--c:${d.color}">
       ${av(d, ok ? '' : 'sil')}<span class="chips">${tag ? `<em class="tg">${tag}</em>` : ''}${d.legend ? '' : `<i class="tier t${heroTier(id)}">${TIER_NAME[heroTier(id)]}</i>`}<span class="pa">${ATTRS[d.attr].icon}</span></span>
@@ -3629,7 +3661,7 @@ function showDeckTab() {
   const all = ['bangjang', ...partnerList()].filter(pass);
   const mine = all.filter((id) => API.heroUnlocked(p, id)).sort((a, b) => heroPower(p, b) - heroPower(p, a));
   const locked = all.filter((id) => !API.heroUnlocked(p, id));
-  const coll = [...mine, ...locked].map((id) => artCard(id, { act: 'deckColl', on: ids.includes(id), dot: API.heroUnlocked(p, id) && L.heroStar(p, id) < L.STAR_MAX && (p.shards[id] | 0) >= L.STAR_SHARDS[L.heroStar(p, id)] })).join('');
+  const coll = [...mine, ...locked].map((id) => artCard(id, { act: 'deckColl', on: ids.includes(id), dot: canStar(p, id) })).join('');
   show(`
     ${subTop('멤버 강화')}
     <div class="dk-top">
@@ -6754,7 +6786,7 @@ function equipTabHtml(p) {
   const find = (gid) => (p.gear || []).find((x) => x.id === gid);
   const slot = (k) => {
     const it = find(sl[k]);
-    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && !equippedBy(p, g.id) && powerWith(p, sel, k, g.id) > pw * 1.02); // 빨간 점은 '아무도 안 낀' 더 좋은 장비가 있을 때만 (남의 것은 점 안 띄움)
+    const better = (p.gear || []).some((g) => GEAR[g.t].slot === k && gearFits(g.t, sel) && g.id !== sl[k] && !equippedBy(p, g.id) && powerWith(p, sel, k, g.id) > pw * (1 + UP_MIN)); // 빨간 점은 '아무도 안 낀' 더 좋은 장비가 있을 때만 (남의 것은 점 안 띄움)
     return `<button class="eq-big ${it ? 'r-' + it.r : 'empty'}" data-act="eqOpen" data-hero="${sel}" data-slot="${k}" style="--rc:${it ? GEAR_RARITY[it.r].color : '#4a4060'}">
       <small class="eqb-k">${k === 'w' ? '무기' : k === 'a' ? '장신구' : '신화'}</small>${better ? '<i class="rd"></i>' : ''}
       ${it ? `${gIco(it)}<b>${esc(GEAR[it.t].name)}${it.lv ? ` <em>+${it.lv}</em>` : ''}</b><small>${esc(gearStatText(it))}</small>` : `<span class="eqb-plus">+</span><b>비어 있음</b><small>${k === 'm' ? '신화 장비 전용' : '눌러서 끼기'}</small>`}</button>`;
