@@ -60,12 +60,12 @@ export const PHASES = [
 ];
 // 패턴 (화면 안내 · 전투 이벤트 이름) — from: 이 페이즈부터 · 버티는 법
 export const PATTERNS = [
-  { id: 'slam', name: '내려찍기', from: 1, img: '/img/lb/ui2/hammer.webp', text: '빨간 줄에 주먹을 내려찍어 입구에 큰 피해 · 그 줄 멤버 오래 기절', tip: '예고 중에 스킬을 여러 번 맞히거나 기절 · 총공지로 끊으면 빈틈!' },
+  { id: 'slam', name: '내려찍기', from: 1, img: '/img/lb/ui2/hammer.webp', text: '빨간 줄에 주먹을 내려찍어 입구에 큰 피해 · 그 줄 멤버 오래 기절', tip: '예고 중에 스킬을 여러 번 맞히거나 기절 · 총력전으로 끊으면 빈틈!' },
   { id: 'bills', name: '고지서 뿌리기', from: 1, img: '/img/lb/raid2/pi_bills.webp', text: '고지서 여러 장이 입구로 날아와요', tip: '탱커 · 건전녀 방패가 막아 줘요' },
   { id: 'seal', name: '도장 쾅', from: 1, img: '/img/lb/gear/stamp.webp', text: '멤버 둘(어려움부터 셋)의 스킬을 한참 봉인', tip: '건전녀 응급 방패 · 강성구 곁은 안 먹혀요' },
   { id: 'sweep', name: '휩쓸기', from: 1, img: '/img/lb/ui2/cc_push.webp', text: '한쪽 절반을 팔로 쓸어 멤버 기절', tip: '예고 중에 스킬을 여러 번 맞히면 끊겨요' },
   { id: 'cash', name: '돈다발 폭탄', from: 2, img: '/img/lb/raid2/pi_cash.webp', text: '멤버 발밑에 돈다발이 떨어져 터져요', tip: '홍정민 붕대로 입구를 메워요' },
-  { id: 'grab', name: '입구 붙잡기', from: 2, img: '/img/lb/ui2/door.webp', text: '입구를 붙잡고 흔들어 계속 피해 · 대신 맞기 쉬워요 (피해 ×1.5)', tip: '스킬 여러 번 · 기절 · 총공지면 손을 놓아요' },
+  { id: 'grab', name: '입구 붙잡기', from: 2, img: '/img/lb/ui2/door.webp', text: '입구를 붙잡고 흔들어 계속 피해 · 대신 맞기 쉬워요 (피해 ×1.5)', tip: '스킬 여러 번 · 기절 · 총력전이면 손을 놓아요' },
   { id: 'combo', name: '분노 연타', from: 3, img: '/img/lb/raid2/pi_rage.webp', text: '내려찍기를 여러 번 연달아 (지옥은 4번)', tip: '예고 하나를 끊으면 연타가 멈춰요' },
   { id: 'evict', name: '퇴거 명령', from: 0, img: '/img/lb/ui2/lock.webp', text: '퇴거 명령서를 들이밀어 멤버 모두 스킬 봉인 · 입구 피해', tip: '예고 중에 꼭 끊어요! 못 끊으면 다 같이 봉인' },
 ];
@@ -369,7 +369,7 @@ export const SET = {
 };
 export const SET_IDS = Object.keys(SET);
 export const SET_BONUS2 = { boss: 0.12, label: '2세트: 보스 · 중간 보스 피해 +12%' };
-export const SET_BONUS4 = { atk: 0.1, ult: 0.1, label: '4세트: 공격력 +10% · 총공지 충전 +10%' };
+export const SET_BONUS4 = { atk: 0.1, ult: 0.1, label: '4세트: 공격력 +10% · 총력전 충전 +10%' };
 export const setImg = (id) => `/img/lb/gear/${id}.webp`;
 export const setValue = (id, lv) => { const s = SET[id]; return s ? Math.round((s.base + s.per * (lv || 0)) * 1000) / 1000 : 0; };
 export function setStats(lb, hero) {

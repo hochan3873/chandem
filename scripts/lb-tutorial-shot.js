@@ -143,7 +143,7 @@ const OUT = process.argv[2] || '.';
   await run('upg', async () => !(await beat()) && !(await page.$('.coach')), 90); // 추천 강화 → 길 안내(코치)를 끝까지
   await page.evaluate(() => { for (const m of document.querySelectorAll('.info-modal')) m.remove(); window.__lb.showScreen('menu'); }); await wait(1200);
   await shot('lobby1-after');
-  // ── 4) 1-2: 출전 준비 안내 → 전투 (스킬 · 찍기 · 총공지) ──
+  // ── 4) 1-2: 출전 준비 안내 → 전투 (스킬 · 찍기 · 총력전) ──
   await clearModals('s2'); await page.evaluate(() => { window.__lb.app.lobbyStage = 2; }); await click('.lb-start'); await wait(1500);
   if ((await scr()) === 'menu') { await click('.lb-start'); await wait(1500); }
   await run('prep2', async () => (await scr()) === 'play', 40);

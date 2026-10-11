@@ -108,14 +108,14 @@ export function createGame(opt = {}) {
   if (opt.tempo && !opt.raid) { g.mods.expMul /= TEMPO.count; g.mods.ultCharge /= TEMPO.count; }
   if (g.slow) { g.mods.expMul /= SLOW_RUN.count; g.mods.ultCharge /= SLOW_RUN.count; g.mods.enemySpd *= SLOW_RUN.espd; }
   if (g.tension) g.mods.enemySpd *= TENSION.espd;
-  if (g.hell) { g.mods.expMul *= HELL.exp || 1; g.mods.dmg *= (HELL.dmg || 1) * (HELL.chDmg[chapterOf(g.stage || 1) - 1] || 1) * ((HELL.stageDmg || {})[g.stage] || 1); } // 헬: 진상이 단단한 대신 한 판 성장 · 멤버 힘을 조금 더 (긴 싸움) // 긴장감: 진상이 입구까지 더 잘 온다 (꾸준히 조금씩 깎이게) // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총공지 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총공지 충전을 더
+  if (g.hell) { g.mods.expMul *= HELL.exp || 1; g.mods.dmg *= (HELL.dmg || 1) * (HELL.chDmg[chapterOf(g.stage || 1) - 1] || 1) * ((HELL.stageDmg || {})[g.stage] || 1); } // 헬: 진상이 단단한 대신 한 판 성장 · 멤버 힘을 조금 더 (긴 싸움) // 긴장감: 진상이 입구까지 더 잘 온다 (꾸준히 조금씩 깎이게) // 느린 판: 진상이 적은 만큼 한 명당 경험치 · 총력전 더 · 천천히 걸어온다 // 진상이 적은 만큼 한 명당 경험치·총력전 충전을 더
   if (wmod.enemySpd) g.mods.enemySpd *= wmod.enemySpd;
   if (wmod.baseHp) { g.base.max = Math.round(g.base.max * wmod.baseHp); g.base.hp = g.base.max; }
   // 장비: 입구 내구도 +%
   let hpUp = 0;
   for (const k in g.gear) hpUp += (g.gear[k] && g.gear[k].hp) || 0;
-  // 신화: 입구 초당 회복 (최대 내구도 비율) · 총공지 충전
-  // 팀 장비: 총공지 충전 · 경험치(법인카드) · 입구 보호(경호원 무전기) — 멤버 것을 더하되 상한
+  // 신화: 입구 초당 회복 (최대 내구도 비율) · 총력전 충전
+  // 팀 장비: 총력전 충전 · 경험치(법인카드) · 입구 보호(경호원 무전기) — 멤버 것을 더하되 상한
   const team = { ult: 0, exp: 0, guard: 0 };
   for (const k in g.gear) { const q = g.gear[k] || {}; if (q.regen) g.mods.regen += q.regen * RULES.baseHp; for (const t in team) team[t] += q[t] || 0; }
   g.mods.ultCharge += Math.min(GEAR_TEAM_CAP.ult, team.ult);
@@ -188,7 +188,7 @@ export function addHero(g, id, want) {
   Object.defineProperty(h, '_g', { value: g, enumerable: false, writable: true }); // 상태이상 면역 확인용 (저장에는 안 들어감)
   g.heroes.push(h);
   if (h.sig && h.sig.mark) g.sigMark = h.sig.mark; // 배현경 전용 신화: 표시 피해 +25%p
-  if (id === 'bangjang') g.mods.ultCharge += NICHE.bangjang.ult * h.meta; // 방장: 강화할수록 총공지가 빨리 찬다
+  if (id === 'bangjang') g.mods.ultCharge += NICHE.bangjang.ult * h.meta; // 방장: 강화할수록 총력전이 빨리 찬다
   if (id === 'gunnyeo') g.gnRes = Math.min(0.3, NICHE.gunnyeo.res * h.meta); // 건전녀: 강화할수록 멤버 전원 상태이상이 짧아진다 (입구 보호는 홍정민 몫)
   g.attrCount[def.attr] = (g.attrCount[def.attr] || 0) + 1;
   g.heroesUsed[id] = true;
@@ -2582,7 +2582,7 @@ function ch7Dodge(g, e, src) {
   if (g.t - (e.missT || -9) > 0.35) { e.missT = g.t; ev(g, 'dodge', { x: e.x, y: e.y - e.def.size * 0.6 }); }
   return true;
 }
-// 눈사태 끊기: 예고 중에 스킬 · 총공지 · 알디콤 → 회장이 비틀 (기절 + 빈틈)
+// 눈사태 끊기: 예고 중에 스킬 · 총력전 · 알디콤 → 회장이 비틀 (기절 + 빈틈)
 function ch7Interrupt(g, by) {
   const e = g.avalanche;
   g.avalanche = null;
@@ -2903,7 +2903,7 @@ function ch8SpeechStop(g, e, by) {
 function ch8Tick(g, e, dt) {
   const d = e.def;
   const stunned = e.stunT > 0;
-  // 신랑 친구 대표: 끝없는 축사 (무적 · 곁 진상 재촉 + 회복) — 기절 · 게이지 · 총공지로 끊는다
+  // 신랑 친구 대표: 끝없는 축사 (무적 · 곁 진상 재촉 + 회복) — 기절 · 게이지 · 총력전으로 끊는다
   if (d.speech) {
     const sp = d.speech;
     if (e.speechT > 0) {
@@ -3028,7 +3028,7 @@ export function ccLockTry(g, h, kind) {
   h.lockK = kind; h.lockT0 = g.t; g.lockAt = g.t; g.lockN = n + 1;
   g.stats.ccLock = (g.stats.ccLock || 0) + 1;
   ev(g, 'ccLock', { hero: h.id, kind, x: h.x, y: h.y });
-  if (!g.lockTip) { g.lockTip = true; ev(g, 'tip', { text: '풀 때까지! 저절로 안 풀려요 — 건전녀 간호 · 응급 방패 · 총공지 · 방장 "버텨!" 로 풀고, 웨이브가 끝나면 풀려요' }); }
+  if (!g.lockTip) { g.lockTip = true; ev(g, 'tip', { text: '풀 때까지! 저절로 안 풀려요 — 건전녀 간호 · 응급 방패 · 총력전 · 방장 "버텨!" 로 풀고, 웨이브가 끝나면 풀려요' }); }
   return true;
 }
 // '풀 때까지' 해제 (by: cleanse · ult · wave · bangjang · res)
@@ -3728,18 +3728,38 @@ export function useUlt(g) {
   if (g.ult < RULES.ultMax || g.over) return false;
   if (g.mom !== null && g.mom !== undefined) { if (g.mom < MOMENTUM.ult) { ev(g, 'noMomentum', { ult: true }); return false; } g.mom -= MOMENTUM.ult; }
   g.ult = 0;
-  const dmg = RULES.ultDamage * (1 + 0.22 * g.diff) * g.mods.ultDmg;
+  // 총력전 (10/12 총력전 → 총력전): ① 전원 함성 충격파(예전 총력전의 절반) ② 멤버가 차례로 자기 스킬을 한 번 더 ③ 6초 동안 스킬 쿨 0 · 스킬 피해 ×1.5
+  const dmg = RULES.ultDamage * RULES.teamShock * (1 + 0.22 * g.diff) * g.mods.ultDmg;
   buildGrid(g);
   for (const e of g.enemies.slice()) {
     if (e.dead) continue;
     damageEnemy(g, e, e.boss ? dmg * 1.5 : dmg, false, null, true);
     if (!e.dead && !e.boss) { applyKnockback(e, 40, g); e.stunT = Math.max(e.stunT, 0.7); }
   }
-  ev(g, 'ult', {});
-  for (const h of g.heroes) if (h.lockK) ccFree(g, h, 'ult'); // (10/11) 총공지: '풀 때까지' 상태이상 전부 해제
-  if (g.speech) ch8SpeechStop(g, g.speech, 'ult'); // 8장: 총공지로 축사 끊기
+  g.teamT = RULES.teamSec;
+  g.teamQ = [];
+  let i = 0;
+  for (const h of g.heroes) {
+    if (!h.def.skill || h.kdT > 0) continue;
+    h.skillCd = 0; // 쿨타임 비우기 (곧바로 또 쓸 수 있다)
+    g.teamQ.push({ h, at: g.t + 0.25 + (i++) * RULES.teamGap });
+  }
+  ev(g, 'ult', { n: g.teamQ.length, heroes: g.teamQ.map((q) => q.h.id) });
+  for (const h of g.heroes) if (h.lockK) ccFree(g, h, 'ult'); // (10/11) 총력전: '풀 때까지' 상태이상 전부 해제
+  if (g.speech) ch8SpeechStop(g, g.speech, 'ult'); // 8장: 총력전으로 축사 끊기
   if (g.avalanche) ch7Interrupt(g, 'ult');
   return true;
+}
+// 총력전 진행: 시간이 줄고 · 줄 선 멤버가 차례로 자기 스킬을 낸다 (조준은 자동 · 기세를 쓰지 않는다)
+function updateTeamUlt(g, dt) {
+  if (g.teamT > 0) g.teamT -= dt;
+  if (!g.teamQ || !g.teamQ.length) return;
+  while (g.teamQ.length && g.t >= g.teamQ[0].at) {
+    const q = g.teamQ.shift();
+    if (!g.heroes.includes(q.h) || g.over) continue;
+    castSkill(g, q.h, undefined, undefined, 'team');
+    ev(g, 'teamCast', { hero: q.h.id, x: q.h.x, y: q.h.y });
+  }
 }
 
 // 맵 효과 시계: 정전(가끔 불 꺼짐) · 인피 확성기(가끔 진상 가속)
@@ -3864,7 +3884,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
     if (g.t - g.lastSkillT < MOMENTUM.gap && !fromQ) { g.skillQ = { h, x, y, at: g.lastSkillT + MOMENTUM.gap }; ev(g, 'skillQueued', { hero: h.id }); return false; } // 0.6초 뒤에 나간다
   }
   const lv = h.lv - 1;
-  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? 0.75 : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill / roleCadence(h.id).dmg * (g.mods.skillX || 1) / (g.mods.basicX || 1) / (TENSION.basic || 1) : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
+  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? (echo === 'team' ? 1 : 0.75) : 1) * (g.teamT > 0 ? RULES.teamSkill : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill / roleCadence(h.id).dmg * (g.mods.skillX || 1) / (g.mods.basicX || 1) / (TENSION.basic || 1) : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
   const sa = h.sa || {}; // 멤버 전용 스킬 증강
   if (h.skEvo && !echo && h.id !== 'hanna') h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
@@ -4406,6 +4426,7 @@ export function step(g, dt) {
       else if (s.boss) ev(g, 'bossSpawn', { enemy: s.type, x: e.x, y: e.y });
     }
   }
+  updateTeamUlt(g, dt);
   if (g.mom !== null && g.mom !== undefined) {
     if ((g.phase === 'wave' || g.phase === 'intro' || g.phase === 'test') && g.mom < MOMENTUM.max) g.mom = Math.min(MOMENTUM.max, g.mom + (MOMENTUM.per / (g.tension ? TENSION.refill : MOMENTUM.refill)) * (g.momRate || 1) * dt);
     if (g.skillQ && g.t >= g.skillQ.at) { const q = g.skillQ; g.skillQ = null; if (g.heroes.includes(q.h)) castSkill(g, q.h, q.x, q.y, false, true); }

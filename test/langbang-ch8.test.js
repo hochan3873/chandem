@@ -109,7 +109,7 @@ test('부케에 묶인 도둑은 못 도망간다 · 임수빈 부케가 묶는�
   const hp = a.hp; S.damageEnemy(g3, a, 100, false, null); assert.ok(hp - a.hp > 100 * 1.2, '묶인 진상은 더 아프다');
 });
 
-test('신랑 친구 대표: 끝없는 축사 — 무적 · 게이지를 채우거나 총공지로 끊으면 기절 + 빈틈 · 다 들으면 입구 피해 + 졸음', () => {
+test('신랑 친구 대표: 끝없는 축사 — 무적 · 게이지를 채우거나 총력전으로 끊으면 기절 + 빈틈 · 다 들으면 입구 피해 + 졸음', () => {
   const sp = D.ENEMIES.boss_bestman.speech;
   const g = bare(['gunman']);
   const e = S.spawnEnemy(g, 'boss_bestman', 180, 260, {}); e.speed = 0; e.speechCd = 0.05;
@@ -124,12 +124,12 @@ test('신랑 친구 대표: 끝없는 축사 — 무적 · 게이지를 채우�
   assert.ok(e.stunT > 0 && e.weakT > 0, '기절 + 빈틈');
   assert.ok(g.events.some((v) => v.type === 'c8speechCut'));
   S.damageEnemy(g, e, 100, false, g.heroes[0]); assert.ok(e.hp < hp, '끊긴 뒤엔 맞는다');
-  // 총공지로 바로 끊기
+  // 총력전으로 바로 끊기
   const g2 = bare([]);
   const e2 = S.spawnEnemy(g2, 'boss_bestman', 180, 260, {}); e2.speed = 0; e2.speechCd = 0.05;
   run(g2, 0.2); assert.ok(e2.speechT > 0);
   g2.ult = D.RULES.ultMax; g2.mom = null;
-  assert.ok(S.useUlt(g2)); assert.equal(e2.speechT, 0, '총공지로 끊김');
+  assert.ok(S.useUlt(g2)); assert.equal(e2.speechT, 0, '총력전으로 끊김');
   // 끝까지 들으면: 입구 피해 + 멤버 졸음
   const g3 = bare(['gunman']);
   g3.heroes[0].dmg = 0;

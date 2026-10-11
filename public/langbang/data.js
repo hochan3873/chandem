@@ -35,10 +35,12 @@ export const RULES = {
   critMul: 2.0,
   gemDelay: 0.32, // 보석이 떨어진 뒤 이만큼 통통 튀다가 경험치 바로 날아간다 (자동 수집)
   comboWindow: 2.0, // 이 시간 안에 계속 잡으면 콤보 유지 (2초 동안 못 잡으면 끊김)
-  ultMax: 100, // 궁극기 '총공지' 게이지
+  ultMax: 100, // 궁극기 '총력전' 게이지 (10/12 총력전 → 총력전: 멤버 모두가 자기 스킬을 한꺼번에)
   ultPerKill: 1.4,
   ultPerBoss: 25,
-  ultDamage: 90, // × (1 + 0.22 × 웨이브)
+  ultDamage: 90, // × (1 + 0.22 × 웨이브) — 총력전 첫 함성(전원 충격파) 세기는 아래 teamShock 배
+  teamShock: 0.5, // 총력전: 시작 충격파 = ultDamage × 이 값 (예전 총력전의 절반) — 나머지는 멤버 스킬이 해 준다
+  teamSec: 6, teamSkill: 1.5, teamGap: 0.16, // 총력전: 6초 동안 스킬 피해 ×1.5 · 멤버가 0.16초 간격으로 자기 스킬을 한 번 더
   metaDmgPerLevel: 0.08, // 영구 강화 1레벨당 공격력 +8%
   hiddenChance: 0.07, // 카드 한 칸당 히든 영웅 등장 확률 (해금한 히든만)
   hiddenFromWave: 4, // 무한 도전: 웨이브 4부터 (= 웨이브 3 이후)
@@ -74,7 +76,7 @@ export const MAIN = { n: 2, cap: 3 };
 export const JOIN = { free: [4, 10], freeUntil: 13, solo: 1.6, freePick: true, hp: [0.9, 0.87, 1.2, 1.25, 1.7, 2.3], hellStart: 2, exp: [0.12, 0.2, 0.3, 0.42, 0.65], expLate: 1.04, w: 12, guarantee: 3, invest: 0.5, investMax: 3 };
 // ─── 전투 템포 (느리고 묵직하게) · 무기 정체성 ─── opt.tempo 로 켠다 (합류 모드와 같이)
 // 진상 수 ×0.6 · 한 명 체력 ×1.6 / 멤버 공속 ÷1.54 · 한 방 ×1.6 / 스킬 쿨 ×1.5
-// 기세 (팀 공용 스킬 칸): 2칸 (10/08 3칸 → 2칸) · 7초마다 1칸 · 처치 +2% · 콤보 10마다 +10% · 스킬 1칸 · 총공지 2칸 (+원래 게이지)
+// 기세 (팀 공용 스킬 칸): 2칸 (10/08 3칸 → 2칸) · 7초마다 1칸 · 처치 +2% · 콤보 10마다 +10% · 스킬 1칸 · 총력전 2칸 (+원래 게이지)
 //   스킬 두 개는 0.6초 안에 연달아 못 나간다 (두 번째는 줄 서서 0.6초 뒤) · 쓴 멤버는 쿨의 40% 동안 기진맥진 (공속 −30%)
 export const MOMENTUM = { max: 200, per: 100, refill: 7, kill: 2, combo10: 10, ult: 200, gap: 0.6, tired: 0.3, tiredSpd: 0.7, /* (10/10 tired 0.4 → 0.3: 스킬 쓴 대가를 조금 덜 — 스킬 비중을 키우면서) */ skillDmg: 1.35,
   strong: ['sunggu', 'hanna', 'myunghoon', 'bangjang', 'gunman', 'dohoon', 'jieun', 'hochan'], strongCd: 1 }; // (쿨 다양화 10/07: HEROES 스킬 cd 가 곧 실제 초 — 예전 템포 ×1.5 · 강한 스킬 ×2 는 스킬마다 cd 에 녹였다 · strong 은 화면 흔들림만)
@@ -327,7 +329,7 @@ export function metaCost(lv) { // (10/08) +5 · +10 · +15 · +20 (각성 이정
 export const ITEMS = {
   door: { id: 'door', icon: '🚪', name: '튼튼한 문', max: 15, per: 0.1, base: 150, desc: (v) => `입구 내구도 +${pct(v)}` },
   coupon: { id: 'coupon', icon: '🎟️', name: '단골 쿠폰', max: 15, per: 0.04, base: 250, desc: (v) => `스테이지 코인 보상 +${pct(v)}` },
-  battery: { id: 'battery', icon: '🔋', name: '확성기 배터리', max: 15, per: 0.08, base: 120, desc: (v) => `총공지 충전 +${pct(v)}` },
+  battery: { id: 'battery', icon: '🔋', name: '총력 배터리', max: 15, per: 0.08, base: 120, desc: (v) => `총력전 충전 +${pct(v)}` },
   charm: { id: 'charm', icon: '🍀', name: '행운 부적', max: 15, per: 0.015, base: 165, desc: (v) => `치명타 확률 +${pct(v, 1)}` },
   drink: { id: 'drink', icon: '🍹', name: '웰컴 드링크', max: 3, per: 1, costs: [600, 2400, 6000], desc: (v) => (v ? `시작 전 카드 ${v}장 고르기` : '아직 없음') },
   slot5: { id: 'slot5', icon: '💺', name: '덱 5번째 칸', max: 1, per: 1, costs: [25000], desc: (v) => (v ? '덱 5칸!' : '덱에 멤버 한 명 더') },
@@ -812,7 +814,7 @@ export const COND_IDS = Object.keys(COND);
 //  dur: 장별 시간 × (보통) · every: 장별 기절 예고 간격 × (작을수록 잦게) · hell: 헬은 한 번 더 곱함 · curse78: 헬 7 · 8장에도 기절 예고
 //  endless: 무한 단계별 시간 · 간격 × · curse 단계부터 기절 예고가 붙는다
 //  lock: '풀 때까지' (헬 hellFrom 장부터 · 무한 endlessFrom 단계부터) — 기절 예고 · 정예 · 보스 투척에 맞으면 저절로 안 풀린다 (사슬 자물쇠 · 깜빡이는 테두리 · 숫자 없음)
-//        풀리는 때: 건전녀 간호 · 응급 방패 · 총공지 · 웨이브 끝 · 방장 "버텨!" (bang 초마다 한 명) · 면역 멤버가 합류
+//        풀리는 때: 건전녀 간호 · 응급 방패 · 총력전 · 웨이브 끝 · 방장 "버텨!" (bang 초마다 한 명) · 면역 멤버가 합류
 //        저항이 res% 이상이면 (김도훈 기절 · 정소영 홀림 · 침묵 · 홍정민 독 · 박나뇽 빙결 · 강성구 곁 …) 안 묶이고 시간만 짧게 · 한 번에 max 명까지 · gap 초에 한 번
 export const CC_DEPTH = {
   dur: [1, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
@@ -1361,7 +1363,7 @@ export const TIER_GROWTH = [0.08, 0.086, 0.07, 0.059, 0.05, 0.045]; // 강화 1�
 export const TIER_MAX = [20, 20, 20, 20, 20, 20]; // 영구 강화 한도
 // 기본 멤버(T1)는 역할이 뚜렷하고, 강화할수록 그 역할이 커진다 (강화 1레벨마다) — +20 이면 그 역할에서 T3 급
 export const NICHE = {
-  bangjang: { aura: 0.005, ult: 0.015, text: '팀 공속 오라 +0.5% · 총공지 충전 +1.5%' }, // +20: 오라 +10% · 충전 +30%
+  bangjang: { aura: 0.005, ult: 0.015, text: '팀 공속 오라 +0.5% · 총력전 충전 +1.5%' }, // +20: 오라 +10% · 충전 +30%
   gunman: { hard: 1.3, hardLv: 0.02, text: '단단한 진상(방어·범위 면역·방패·단일 저항)에게 ×1.3 + 레벨당 +2% · 방어 무시' }, // +20: ×1.7
   gunnyeo: { res: 0.012, care: 0.012, text: '멤버 전원 상태이상 시간 −1.2% · 간호 주기 −1.2%' }, // +20: 상태이상 −24% · 간호 24% 빨리 (입구 보호 · 수리는 홍정민 몫)
   staff: { kick: 0.03, stun: 0.02, text: '강퇴 피해 +3% · 강퇴 기절 +2%' }, // +20: 강퇴 피해 +60% · 기절 +40%
@@ -1833,7 +1835,7 @@ export const ENEMIES = {
     id: 'boss_resort', cls: 'politic', name: '리조트 갑부 회장', gender: 'm', emoji: '', color: '#3a8ad8', boss: true, ch7: true, fb: '/img/lb/e_boss_sales.webp',
     img: '/img/lb/e_boss_resort.webp', hp: 7600, speed: 15, atk: 42, atkInterval: 1.8, armor: 5, exp: 90, r: 46, size: 158,
     summon: { every: 11, count: 3, types: ['snowboard'] },
-    avalanche: { every: 12, first: 5, windup: 3.2, freeze: 3, door: 0.15, riders: 3, stun: 2.5, weak: 4 }, // 눈사태: 크게 예고 → 멤버 전원 3초 빙결 + 입구 최대 내구도 15% 피해 + 보드남 3명이 눈사태를 타고 내려온다. 예고 중에 스킬 · 총공지 · 알디콤을 쓰면 끊기고 회장이 비틀 (빈틈)
+    avalanche: { every: 12, first: 5, windup: 3.2, freeze: 3, door: 0.15, riders: 3, stun: 2.5, weak: 4 }, // 눈사태: 크게 예고 → 멤버 전원 3초 빙결 + 입구 최대 내구도 15% 피해 + 보드남 3명이 눈사태를 타고 내려온다. 예고 중에 스킬 · 총력전 · 알디콤을 쓰면 끊기고 회장이 비틀 (빈틈)
     title: '리조트 갑부 회장 등장!', subtitle: '"이 산 전부 내 거야!"',
     shouts: ['이 산 전부 내 거야!', 'VIP 전용 슬로프다!', '눈사태 한 번 보여 줘?', '리프트 멈춰!'],
   },
@@ -1881,7 +1883,7 @@ export const ENEMIES = {
     id: 'boss_bestman', cls: 'jerk', name: '신랑 친구 대표', gender: 'm', emoji: '', color: '#d8b040', boss: true, ch8: true,
     img: '/img/lb/e_boss_bestman.webp', hp: 7400, speed: 15, atk: 40, atkInterval: 1.8, armor: 5, exp: 90, r: 46, size: 158,
     summon: { every: 12, count: 3, types: ['drunkfriend'] },
-    speech: { every: 13, first: 5, sec: 9, need: 24, skillHit: 5, r: 280, buff: 0.03, stun: 2.5, weak: 4, door: 0.12, drowse: 4, drowseCut: 0.35 }, // 끝없는 축사: 하는 동안 무적(금빛 테두리) · 곁(280) 진상 재촉 + 초당 체력 3% 회복 · 축사 게이지 24 (한 대 1 · 스킬 5) 를 채우거나 기절 · 총공지로 끊으면 2.5초 기절 + 빈틈 · 9초를 다 하면 입구 12% 피해 + 멤버 4초 졸음(공속 -35%)
+    speech: { every: 13, first: 5, sec: 9, need: 24, skillHit: 5, r: 280, buff: 0.03, stun: 2.5, weak: 4, door: 0.12, drowse: 4, drowseCut: 0.35 }, // 끝없는 축사: 하는 동안 무적(금빛 테두리) · 곁(280) 진상 재촉 + 초당 체력 3% 회복 · 축사 게이지 24 (한 대 1 · 스킬 5) 를 채우거나 기절 · 총력전로 끊으면 2.5초 기절 + 빈틈 · 9초를 다 하면 입구 12% 피해 + 멤버 4초 졸음(공속 -35%)
     title: '신랑 친구 대표 등장!', subtitle: '"에… 신랑과 저는 초등학교 때부터…"',
     shouts: ['에… 마지막으로 한 말씀만…', '신랑과 저는 초등학교 때부터…', '두루마리 2장 째입니다', '울지 마 신랑아!'],
   },
@@ -2115,7 +2117,7 @@ export const CARDS = [
   { id: 'pierce', icon: '🗡️', title: '관통 공지', desc: '모든 투사체 관통 +1', rarity: 'legend', max: 2 },
   { id: 'boss', icon: '🍻', title: '랑방 단골의 힘', desc: '공격력 +40% · 공격 속도 +20%', rarity: 'legend', max: 2 }, // (10/09 50/25 → 40/20: 카드가 커진 뒤 무작위로 골라도 이 카드만 있으면 클리어 +29%p)
   { id: 'regen', icon: '🛠️', title: '건물주 인맥', desc: '랑방이 초당 내구도 2.5 자동 회복', rarity: 'legend', max: 2 },
-  { id: 'ult', icon: '📣', title: '총공지 확성기', desc: '궁극기 충전 +80% · 피해 +60%', rarity: 'rare', max: 2 },
+  { id: 'ult', icon: '🔥', title: '총력전 응원봉', desc: '총력전 충전 +80% · 충격파 피해 +60%', rarity: 'rare', max: 2 },
   { id: 'charmRes', icon: '🛡️', title: '연애 금지 서약', desc: '홀림 시간 -60%', rarity: 'rare', max: 1 },
   { id: 'debuffRes', icon: '🧘', title: '멘탈 관리', desc: '멤버 상태이상 시간 −40% · 홀림 −50%', rarity: 'rare', max: 2 },
   { id: 'cdCut', icon: '⏱️', title: '스킬 연습', desc: '모든 스킬 쿨타임 −25%', rarity: 'rare', max: 2 },
@@ -2220,7 +2222,7 @@ export const EVO_MUL = { dmg: 1.45, spd: 0.18, cd: 0.7 };
 export const CARD_CUT = ['charmRes', 'armor', 'slow', 'swarm', 'attrUp', 'exp', 'risk_glass', 'regen'];
 export const AUG_CUT = ['a_xp', 'a_prism_path']; // 증강 정리
 export const FILLER_CARDS = [
-  { id: 'fillUlt', icon: '📣', title: '확성기 예열', desc: '총공지 게이지 +40', rarity: 'common' },
+  { id: 'fillUlt', icon: '🔥', title: '총력 예열', desc: '총력전 게이지 +40', rarity: 'common' },
   { id: 'fillHeal', icon: '💊', title: '방어선 수리', desc: '랑방 내구도 50% 회복', rarity: 'common' },
 ];
 
@@ -2240,7 +2242,7 @@ export const GEAR_STATS = {
   strip: { name: '버프 벗기기 확률', pct: true }, hp: { name: '입구 내구도', pct: true },
   range: { name: '사거리 (최대 +35%)', pct: true },
   res: { name: '상태이상 시간 감소', pct: true },
-  regen: { name: '입구 초당 회복', pct: true }, coin: { name: '코인 획득', pct: true }, ult: { name: '총공지 충전 (팀 합 최대 +100%)', pct: true },
+  regen: { name: '입구 초당 회복', pct: true }, coin: { name: '코인 획득', pct: true }, ult: { name: '총력전 충전 (팀 합 최대 +100%)', pct: true },
   boss: { name: '보스·중간 보스 피해', pct: true }, swarm: { name: '졸개 피해', pct: true }, critDmg: { name: '치명타 피해', pct: true },
   exp: { name: '경험치 (팀 합 최대 +40%)', pct: true }, exec: { name: '체력 30% 이하 진상 피해', pct: true }, guard: { name: '입구 받는 피해 감소 (팀 합 최대 30%)', pct: true },
 };
@@ -2307,7 +2309,7 @@ export const GEAR_INFO = {
   gymcard: ['1년 치 끊어 놓고 세 번 갔다. 그래도 큰 놈 앞에선 힘이 난다.', ['ara', 'gunman']],
   speaker: ['쿵쿵 울리는 우퍼. 떼로 몰려온 졸개들이 귀를 막는다.', ['bangjang', 'eunok']],
   goldchain: ['목에 건 18K. 한 번 번쩍이면 치명타가 더 아프다.', ['gunman', 'junseo']],
-  rolex: ['"이거 얼마짜리게?" 시간 맞춰 총공지가 빨리 찬다. 팀 전체 (합 최대 +100%).', ['bangjang', 'hochan']],
+  rolex: ['"이거 얼마짜리게?" 시간 맞춰 총력전이 빨리 찬다. 팀 전체 (합 최대 +100%).', ['bangjang', 'hochan']],
   corpcard: ['"오늘은 회사가 쏜다!" 다 같이 경험치를 더 받는다. 팀 전체 (합 최대 +40%).', ['dohoon', 'sanghwa']],
   lastorder: ['"라스트오더 받습니다~" 다 쓰러져 가는 진상을 마무리.', ['youngjun', 'hanna']],
   radio: ['"입구 지원 바랍니다." 입구가 덜 아프다. 팀 전체 (합 최대 30%).', ['wonsik', 'jungmin']],
@@ -2327,7 +2329,7 @@ export const STAT_HELP = {
   boss: ['보스 피해', '보스 · 중간 보스에게 주는 피해만 세진다'],
   swarm: ['졸개 피해', '보스 · 중간 보스 · 정예가 아닌 보통 진상에게 주는 피해가 세진다'],
   critDmg: ['치명타 피해', '치명타가 터졌을 때 더 아프다 (기본 2배에 더해짐)'],
-  ult: ['총공지 충전', '총공지 게이지가 더 빨리 찬다 (팀 전체 · 합 최대 +100%)'],
+  ult: ['총력전 충전', '총력전 게이지가 더 빨리 찬다 (팀 전체 · 합 최대 +100%)'],
   exp: ['경험치', '레벨업 카드가 더 자주 뜬다 (팀 전체 · 합 최대 +40%)'],
   exec: ['마무리', '체력이 30% 이하로 남은 진상에게 피해가 세진다'],
   guard: ['입구 보호', '입구가 받는 피해가 줄어든다 (팀 전체 · 합 최대 30%)'],
@@ -2340,7 +2342,7 @@ export const MYTH = {
   myth_soup: { name: '전설의 해장국', stats: { res: 0.4, regen: 0.02 }, desc: '상태이상 시간 −40% · 입구 초당 2% 회복' },
   myth_stick: { name: '무지개 응원봉', stats: { spd: 0.15 }, desc: '공격 속도 +15%' },
   myth_lotto: { name: '1등 복권', stats: { crit: 0.12, coin: 0.2 }, desc: '치명타 +12% · 코인 +20%' },
-  myth_crown: { name: '랑방 VIP 왕관', stats: { ult: 0.25 }, desc: '총공지(궁극기) 충전 +25%' },
+  myth_crown: { name: '랑방 VIP 왕관', stats: { ult: 0.25 }, desc: '총력전(궁극기) 충전 +25%' },
 };
 export const MYTH_IDS = Object.keys(MYTH);
 for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true, desc: m.desc }; }
@@ -2603,7 +2605,7 @@ export const AUGMENTS = [
   { id: 'a_frost', tier: 'gold', icon: '🧊', title: '냉기 오라', desc: '모든 진상 이동 -18% · 제어 +30%', fx: { slow: 0.82, ctrl: 1.3 } },
   { id: 'a_prism_all', tier: 'prism', icon: '🌈', title: '프리즘: 전원 각성', desc: '공격력 +45% · 공격 속도 +20%', fx: { dmg: 0.45, spd: 0.2 } },
   { id: 'a_prism_path', tier: 'prism', icon: '🔷', title: '프리즘: 외길 인생', desc: '가장 많이 고른 길 세트 보너스 한 단계 더 + 그 길 멤버 공격력 +50%', fx: { path: 0.5 } },
-  { id: 'a_prism_ult', tier: 'prism', icon: '📣', title: '프리즘: 무한 총공지', desc: '총공지 충전 +120% · 피해 +100%', fx: { ult: 1.2, ultDmg: 1 } },
+  { id: 'a_prism_ult', tier: 'prism', icon: '🔥', title: '프리즘: 무한 총력전', desc: '총력전 충전 +120% · 충격파 피해 +100%', fx: { ult: 1.2, ultDmg: 1 } },
   { id: 'a_prism_mirror', tier: 'prism', icon: '🪞', title: '프리즘: 쌍둥이 스킬', desc: '모든 스킬이 0.5초 뒤 한 번 더', fx: { echo: 1 } },
 ];
 // 멤버 전용 증강 (그 멤버 전용 카드 효과 두 번 + 공격력 +40%)

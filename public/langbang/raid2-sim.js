@@ -4,11 +4,11 @@
 //  - 요일마다 다른 건물주 (raid2.js DAYS): 월 관리비 폭탄(입구 에너지 흡수) · 화 재계약 협박(기절 · 봉인) · 수 월세 인상(황금 갑옷)
 //    · 목 누수 공사(독 · 용역 떼) · 금 주차 갑질(폭주 외제차 · 견인) · 토 소음 민원(홀림 · 공포) · 일 보증금 꿀꺽(금고 + 전부 섞어서)
 //  - 패턴은 전부 예고가 있다 (act.zone: 바닥 경고 모양 · 표시) · 예고(wind) 중에 스킬을 "여러 번" 맞히거나(난이도마다 2 · 3 · 4번)
-//    기절시키거나 총공지를 쓰면 끊기고 빈틈 (피해 ×1.5) — 기절 · 제어 멤버(ctrl)로 끊으면 「역공 찬스」 (빈틈 더 길게 · 피해 +30% · 총공지 더)
+//    기절시키거나 총력전을 쓰면 끊기고 빈틈 (피해 ×1.5) — 기절 · 제어 멤버(ctrl)로 끊으면 「역공 찬스」 (빈틈 더 길게 · 피해 +30% · 총력전 더)
 //  - 입구 붙잡기: 붙잡고 흔드는 동안 계속 피해 · 대신 빈틈 · 스킬 여러 번이나 기절이면 손을 놓는다
 //  - 입구에 금이 간다: 건물주에게 맞은 피해의 일부는 "금"으로 남아 수리로 못 메운다 → 힐러 덱도 결국 입구가 부서진다
 //  - 시간이 갈수록 화가 쌓여 세지고 빨라진다 → 입구가 부서지면 판 끝 (그동안 준 피해가 기록) · R2.sec 까지 버티면 "철거"로 끝
-//  - 진상을 안 잡으니 경험치 · 총공지 게이지는 시간 + 끊기로 채운다 (멤버 합류 · 카드는 그대로)
+//  - 진상을 안 잡으니 경험치 · 총력전 게이지는 시간 + 끊기로 채운다 (멤버 합류 · 카드는 그대로)
 //  - 난이도 (보통 · 어려움 · 지옥): 예고가 빨라지고 · 패턴이 일찍 · 연계 공격 · 기절이 길고 · 입구 피해가 세진다 (DFX)
 //  - 상태이상 · 쓰러짐 게이지 · 독은 sim.js 것을 그대로 쓴다 (아래 어댑터 afflict · knock — sim 에 없으면 비슷한 것으로)
 import { RULES, HERO_TAGS } from './data.js';
@@ -82,12 +82,12 @@ export const TEMPO_R2 = {
   angryEvery: 30, angryPow: 0.4, angryFast: 0.12, // 30초마다 화 +1: 패턴 피해 +40% · 간격 −12%
   first: 4, // 첫 패턴
   exp: 7, expLv: 0.55, // 레벨업 간격 (초) = 7 + 레벨×0.55 → 대략 웨이브 판과 비슷하게 합류 · 카드
-  ult: 2.6, // 총공지 게이지 초당
+  ult: 2.6, // 총력전 게이지 초당
   heal: 0.6, // 입구 수리 효과 (대마왕 한 방이 워낙 세서 수리로 끝없이 버티지 않게)
   dmgK: 1.3, // 대마왕이 받는 피해 배율 (진상 없이 혼자 다 맞으니까 — 한 판 피해를 예전 레이드와 비슷하게)
   crackMin: 0.65, // 막아 낸 공격도 원래 피해의 이만큼은 금으로 친다
   cutGap: 0.12, // 같은 멤버 스킬이 이 시간 안에 여러 번 맞으면 한 번으로 센다
-  cc: { weak: 6, amp: 0.3, ult: 14 }, // 역공 찬스 (기절 · 제어로 끊음): 빈틈 6초 · 그동안 피해 +30% · 총공지 +14 (스킬로 끊으면 빈틈 4초 · +8)
+  cc: { weak: 6, amp: 0.3, ult: 14 }, // 역공 찬스 (기절 · 제어로 끊음): 빈틈 6초 · 그동안 피해 +30% · 총력전 +14 (스킬로 끊으면 빈틈 4초 · +8)
   addExp: 0.35, // 소환 진상을 잡으면 받는 경험치 (보통 진상 대비)
 };
 const VIS = 'boss_gapjil'; // 체력 · 상태만 빌린다 (그림은 raid2-ui 가 따로)
@@ -452,8 +452,8 @@ function tick(g, dt) {
   const r = g.r2, e = boss(g);
   if (g.over || g.phase === 'victory' || !e) return;
   g.waveT = Math.min(g.waveT, 17.9 + (g.wave < 4 ? 1 : 0)); // 4웨이브(증강 3번)까지만 숫자를 넘긴다
-  // 경험치 · 총공지 (진상이 없으니 시간으로)
-  const ultUsed = r.ult0 >= RULES.ultMax * 0.95 && g.ult < r.ult0 * 0.5; // 방금 총공지를 썼다
+  // 경험치 · 총력전 (진상이 없으니 시간으로)
+  const ultUsed = r.ult0 >= RULES.ultMax * 0.95 && g.ult < r.ult0 * 0.5; // 방금 총력전을 썼다
   if (g.phase === 'wave' || g.phase === 'break') {
     gainExp(g, (g.need / (TEMPO_R2.exp + TEMPO_R2.expLv * g.level)) * dt);
     g.ult = Math.min(RULES.ultMax, g.ult + TEMPO_R2.ult * (g.mods.ultCharge || 1) * dt);
@@ -516,11 +516,11 @@ function tick(g, dt) {
   } else if (a.st === 'wind') {
     if (a.k === 'tow' && a.hero && !a.hero.gone && a.zone) { a.x = a.hero.x; a.zone.x = a.hero.x; a.zone.y = a.hero.y; }
     if (a.k !== 'grab' && e.stunT > 0) cut(g, '기절시켜 끊었다!', true);
-    else if (a.k !== 'grab' && ultUsed) cut(g, '총공지로 끊었다!', false);
+    else if (a.k !== 'grab' && ultUsed) cut(g, '총력전으로 끊었다!', false);
     else if ((a.t -= dt) <= 0) { if (a.k === 'grab') land(g, a); else { a.st = 'down'; a.t = 0.3; land(g, a); } }
   } else if (a.st === 'hold') {
     if (e.stunT > 0) release(g, '기절시켜 떼어냈다!');
-    else if (ultUsed) release(g, '총공지로 떼어냈다!');
+    else if (ultUsed) release(g, '총력전으로 떼어냈다!');
     else { gateHit(g, PAT.grab.dps * dt, 'other'); if ((a.t -= dt) <= 0) { r.act = null; e.weakT = 0; } }
   } else if ((a.t -= dt) <= 0) r.act = null;
   if (!r.act && a) r.nextT = Math.max(r.nextT, TEMPO_R2.gap[r.phase - 1] * r.fx.gap * r.dfx.gap / (1 + TEMPO_R2.angryFast * r.angry) * (0.85 + g.rng() * 0.3));

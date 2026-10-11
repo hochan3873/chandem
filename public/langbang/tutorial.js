@@ -87,14 +87,14 @@ export const LESSONS = [
   { id: 'speed', need: 'on', after: ['b1'], when: (c) => stageRun(c) && c.speedOk && c.t > 25 && calm(c), scope: play, beats: [
     { id: 'tap', at: '#btn-speed', hand: 'tap', say: '답답하면 <b>×2</b>! 누르면 두 배로 빨라져요<br><small>한 번 더 누르면 다시 ×1</small>', hold: 0, on: 'speed', tap: 'target' },
   ] },
-  // ── 1-2: 스킬 (쿨타임 고리) · 찍는 스킬 · 총공지 ──
+  // ── 1-2: 스킬 (쿨타임 고리) · 찍는 스킬 · 총력전 ──
   { id: 'skill', need: 'on', after: ['b1'], when: (c) => stageRun(c) && c.stage >= 2 && c.skillReady && calm(c), scope: play, beats: [
     { id: 'btn', at: '#skillbar .sk.ready', hand: 'tap', say: '<b>스킬</b> 준비 완료! 반짝이는 버튼을 눌러요', hold: 0, on: 'skillBtn', tap: 'target' },
     { id: 'aim', when: (c) => c.aim, skip: (c, seen) => seen.has('cast'), at: { f: 'field' }, hand: 'tap', say: '이 스킬은 <b>직접 찍어서</b> 써요.<br>진상이 <b>몰린 곳</b>을 탭!', hold: 0.3, dim: false, on: 'cast', maxWait: 6 },
-    { id: 'cd', at: '#skillbar .sk:not(.ready)', say: '버튼 둘레 <b>고리</b>가 다시 차면 또 쓸 수 있어요 (쿨타임)<br><small>스킬마다 총공지 둘레 <b>기세</b> 1칸을 써요</small>', hold: 1, dim: false, tap: 'bubble', wait: 5, maxWait: 3 },
+    { id: 'cd', at: '#skillbar .sk:not(.ready)', say: '버튼 둘레 <b>고리</b>가 다시 차면 또 쓸 수 있어요 (쿨타임)<br><small>스킬마다 총력전 엠블럼 둘레 <b>기세</b> 1칸을 써요</small>', hold: 1, dim: false, tap: 'bubble', wait: 5, maxWait: 3 },
   ] },
   { id: 'ult', need: 'on', after: ['b1'], when: (c) => stageRun(c) && c.stage >= 2 && c.ultReady && calm(c), scope: play, beats: [
-    { id: 'tap', at: '#btn-ult', hand: 'tap', say: '<b>총공지</b> 준비 완료!<br>누르면 멤버 모두가 한꺼번에 필살 공격!', hold: 0, on: 'ult', tap: 'target' },
+    { id: 'tap', at: '#btn-ult', hand: 'tap', say: '<b>총력전</b> 준비 완료!<br>누르면 멤버 모두가 <b>자기 스킬을 한꺼번에</b>!<br><small>내가 데려온 멤버가 곧 총력전이에요</small>', hold: 0, on: 'ult', tap: 'target' },
   ] },
   // ── 1-3: 별 · 쓰러짐 게이지 ──
   { id: 'b3', need: 'on', after: ['b1'], also: ['kd'], when: (c) => stageRun(c) && c.stage === 3 && c.t > 1, scope: play, beats: [

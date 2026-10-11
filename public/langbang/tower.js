@@ -165,7 +165,7 @@ for (const [id, base, name, sub, hp] of TB) {
 }
 
 // ─── 층 구성: 웨이브 정의 (sim 이 스테이지 웨이브처럼 읽는다) ───
-//  g: [진상, 수, 간격(초), 시작(초), 'E'=정예] · level = 총공지 · 폭발 세기용 (체력은 hpScale 로 맞춘다)
+//  g: [진상, 수, 간격(초), 시작(초), 'E'=정예] · level = 총력전 · 폭발 세기용 (체력은 hpScale 로 맞춘다)
 function pickW(rng, list) {
   const sum = list.reduce((a, x) => a + x[1], 0);
   let r = rng() * sum;

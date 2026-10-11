@@ -303,7 +303,7 @@ export const WEEKLY_MODS = {
   giant: { id: 'giant', icon: 'target', name: '거인의 밤', desc: '진상 수 절반 · 한 명 한 명이 훨씬 단단 — 한 방 공격의 주', count: 0.5, hp: 1.25, color: '#b06cff' },
   skill: { id: 'skill', icon: 'speed', name: '스킬 축제', desc: '스킬 쿨타임 절반 · 진상 체력 +12% — 스킬을 아끼지 마', cd: 0.5, hp: 1.12, color: '#3ad0ff' },
   chain: { id: 'chain', icon: 'path_boom', name: '연쇄 폭발', desc: '쓰러진 진상이 터져 곁의 진상에게 큰 피해! 대신 진상 체력 +45% — 몰아서 터뜨려라', hp: 1.45, chain: { r: 62, frac: 0.38 }, color: '#ff6b3a' },
-  bounty: { id: 'bounty', icon: 'target', name: '현상수배', desc: '9초마다 진상 하나에 현상금 (금빛 · 3배 단단) — 입구에 닿기 전에 잡으면 총공지 충전 + 점수', bounty: { every: 9, hp: 3 }, color: '#ffc83a' },
+  bounty: { id: 'bounty', icon: 'target', name: '현상수배', desc: '9초마다 진상 하나에 현상금 (금빛 · 3배 단단) — 입구에 닿기 전에 잡으면 총력전 충전 + 점수', bounty: { every: 9, hp: 3 }, color: '#ffc83a' },
   tide: { id: 'tide', icon: 'speed', name: '밀물 썰물', desc: '11초마다 밀물! 3.5초 동안 진상 +50% 빠르게 몰려온다 — 밀물에 맞춰 스킬을', tide: { every: 11, sec: 3.5, spd: 1.5, from: 2 }, hp: 0.9, color: '#3a9bff' },
 };
 // 웨이브 사건 (1 = 개점 · 8 = 최종 보스 · 2~7 = 아래 일곱 중 여섯을 섞어서) — goal: 그 웨이브 목표 (달성하면 점수)
