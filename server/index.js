@@ -11,7 +11,6 @@ const { createAccounts, hashPassword } = require('./accounts');
 const { createSite } = require('./site');
 const { createAdmin } = require('./admin');
 const { createRankings } = require('./rankings');
-const { createLbPvp } = require('./langbang-pvp');
 const { createLbPvp2 } = require('./langbang-pvp2');
 const { createPush, createPushStore } = require('./push');
 
@@ -32,7 +31,7 @@ function lanUrls(port) {
   return out.sort((a, b) => score(a) - score(b));
 }
 
-function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null, now = Date.now, lbpvp = {}, lbpvp2 = {}, push: pushOpt = {} } = {}) {
+function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PUBLIC_URL || '', pace = 1, limits = {}, accounts = null, now = Date.now, lbpvp2 = {}, push: pushOpt = {} } = {}) {
   const LIM = { ...LIMITS, ...limits };
   const acct = accounts || createAccounts({ file: dataFile ? path.join(path.dirname(dataFile), 'accounts.json') : null });
   // 공지 · 출석 · 계정 관리 · 건의함 · 점검 모드 (server/site.js)
@@ -374,11 +373,8 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     try { return await acct.me(payload.auth); } catch { return null; }
   }
 
-  // 랑방 대전 1:1 대전 (/lbpvp 네임스페이스 — 방 게임 소켓과 따로)
-  const lbPvp = createLbPvp({ accounts: acct, normLb: require('./accounts').normLb, eloDelta: require('./accounts').eloDelta, isMaster: require('./masters').isMasterName, ...lbpvp });
-  lbPvp.attach(io.of('/lbpvp'));
-  // 1:1 맞대결 v2 (/lbpvp2 — 서버가 두 판을 같이 돌린다 · docs/langbang-pvp-v2.md) · 옛 /lbpvp 는 캐시된 옛 화면용으로 남겨 둔다
-  const lbPvp2 = createLbPvp2({ accounts: acct, normLb: require('./accounts').normLb, eloDelta: require('./accounts').eloDelta, isMaster: require('./masters').isMasterName, v1: lbPvp, ...lbpvp2 });
+  // 랑방 대전 1:1 맞대결 (/lbpvp2 — 서버가 두 판을 같이 돌린다 · docs/langbang-pvp-v2.md)
+  const lbPvp2 = createLbPvp2({ accounts: acct, normLb: require('./accounts').normLb, eloDelta: require('./accounts').eloDelta, isMaster: require('./masters').isMasterName, ...lbpvp2 });
   lbPvp2.attach(io.of('/lbpvp2'));
 
   io.on('connection', (socket) => {
@@ -556,7 +552,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   });
 
   return {
-    app, server, io, rooms, accounts: acct, site, lbPvp, lbPvp2, push, get rankings() { return rankings; },
+    app, server, io, rooms, accounts: acct, site, lbPvp2, push, get rankings() { return rankings; },
     saveNow, shutdown, roomsReady: () => roomsReady,
     listen: () => new Promise((resolve) => server.listen(port, '0.0.0.0', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => {
@@ -564,7 +560,6 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       if (pushTimer) clearInterval(pushTimer);
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
       for (const r of rooms.values()) r.clearAllTimers();
-      lbPvp.close();
       lbPvp2.close();
       io.close(() => resolve());
     }),

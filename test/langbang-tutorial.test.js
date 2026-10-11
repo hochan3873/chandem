@@ -51,7 +51,6 @@ test('레슨 고르기: 로비 1-1 → 출전 준비 → 1-1 전투 · 고참에
   assert.equal(T.pickLesson(vet, play()), null);
   // 고참도 처음 보는 것(송바울 · 1:1 · 탑)은 한 번
   assert.equal(T.pickLesson(vet, play({ baul: true, t: 3 })).id, 'baul');
-  assert.equal(T.pickLesson(vet, play({ pvp: true, t: 3 })).id, 'pvp');
   assert.equal(T.pickLesson(vet, { where: 'tower' }), null, '탑은 탑 화면이 따로 (tower-guide.js TOWER_LESSONS)');
   assert.equal(T.pickLesson(vet, { where: 'raid' }).id, 'raid');
   // 끄면 아무것도

@@ -301,7 +301,7 @@ function closeTopLayer() {
   if (app.confirmOpen) { closeConfirm(false); return true; }
   const top = [...stage.querySelectorAll('.reveal, .gacha-res, .info-modal')].pop();
   if (top && top.classList.contains('input-pop') && top._cancel) { top._cancel(); return true; }
-  if (top && top.classList.contains('pvp-wait')) { confirmBox({ title: '방에서 나갈까요?', sub: '기다리던 방이 닫혀요', ok: '나가기', cancel: '더 기다리기' }).then((ok) => { if (ok) { if (PVP.sock) PVP.sock.emit('cancel'); top.remove(); } }); return true; }
+  if (top && top.classList.contains('pvp-wait')) { confirmBox({ title: '방에서 나갈까요?', sub: '기다리던 방이 닫혀요', ok: '나가기', cancel: '더 기다리기' }).then((ok) => { if (ok) { PV2UI.cancel(); top.remove(); } }); return true; }
   if (top) { if (top.classList.contains('reveal')) top.click(); else if (top.classList.contains('gacha-res')) { const ok = top.querySelector('.gr-ok'); if (ok && !ok.hidden) ok.click(); } else { top.remove(); if (top.classList.contains('dexpage') && app.screen === 'dex') showDex(); } return true; }
   return false;
 }
@@ -429,7 +429,6 @@ async function startRun(opt = {}) {
   g.cons = consIds; g.consUsed = {};
   if (tw && TWUI) TWUI.afterCreate(g, tw); // 진상의 탑 (리메이크): 같이 간 멤버 · 바닥 예고 · 멤버 체력
   if (hwo && HWUI) HWUI.afterCreate(g); // 할로윈 이벤트 시작 배너
-  if (pvp) g.pvpMid = (PVP.match && PVP.match.id) || ''; // 이 화면이 돌리는 대전 판 (다시 붙을 때 맞춰 보기)
   if (mode === 'raid' && opt.help) { const sh = S.addSupport(g, { ...opt.help, gear: gearStats(opt.help.gear || []) }); if (sh) toast(`도우미 합류! ${opt.help.nick}님의 ${HEROES[opt.help.hero].name}`, 2600); }
   if (opt.r2 && R2UI) R2UI.attach(g, opt.r2); // 건물주 대마왕 (거대 보스 혼자 · 패턴)
   g.lastSnap = S.snapshot(g); // 첫 웨이브 전에 나가도 이어할 수 있게
@@ -533,7 +532,6 @@ function beginPlay(g) {
   hud.classList.toggle('hell', !!g.hell);
   hud.classList.toggle('pvp', !!g.pvp);
   hud.classList.toggle('tower', !!g.tower);
-  if (g.pvp) { renderOppStrip(); renderOppCard(); } else { const o = $('#oppstrip'); if (o) o.hidden = true; const oc = $('#oppcard'); if (oc) oc.hidden = true; const sb = $('#btn-send'); if (sb) sb.hidden = true; }
   syncSpeedPill();
   A.playBgm();
   guardOn();
@@ -574,7 +572,6 @@ function quitRun() {
   // 그만두기 = 현재까지 기록으로 패배 처리
   const g = app.g;
   if (!g) return;
-  if (g.pvp && PVP.sock) PVP.sock.emit('quit');
   g.over = true;
   g.phase = 'over';
   app.paused = false;
@@ -607,7 +604,6 @@ function handleEvents(g, loud) {
     if (R2UI && e.type.startsWith('r2')) { R2UI.onEvent(g, e, loud); continue; } // 건물주 레이드 연출
     if (live || g === app.demo) { KIT.onEvent(g, e, busy); EFX.onEvent(g, e, busy); } // 대개편 연출 (kitfx.js) — 아래 원래 연출도 그대로
     switch (e.type) {
-      case 'sudden': case 'suddenUp': case 'pvpDrain': case 'pvpTimeUp': case 'pvpPhase': case 'pvpBunch': case 'pvpWave': if (live) pvpTimelineEv(g, e); break;
       case 'shot': if (loud) A.sfx.shot(HD(e.hero).proj); if (e.hero === 'hochan' && !busy) { fx.burst(e.x, e.y - 40, 5, '#ffd23f', 90, 'star', 5, 0.5); fx.ring(e.x, e.y - 30, 6, 30, 0.3, '#ffe27a', 2); } if (e.hero === 'jungmin' && !busy) SKFX.jmSwing(e.x, e.y - 34, e.x < 180 ? 1 : -1); break; // 이호찬: 쏠 때마다 금빛 오라 · 왕관 반짝 · 홍정민: 소주병 휘두름 자국
       case 'dmg':
         if (!busy || ((e.crit || e.eff > 0) && fx.nums.items.length < (crowd ? 14 : 60))) fx.num(e.x, e.y, e.v, e.crit, e.shield ? '#9feaff' : e.sk ? '#ffd23f' : null, e.eff, e.uid);
@@ -1352,7 +1348,6 @@ function handleEvents(g, loud) {
         break;
       case 'gameover':
         if (live) A.setBoss(false);
-        if (live && g.pvp && PVP.sock) PVP.sock.emit('dead');
         fx.slowmo = 1.4;
         fx.zoomTarget = 1.12;
         fx.zx = 180; fx.zy = g.ropeY;
@@ -1601,7 +1596,6 @@ function frame(now) {
       if (idle > 60000) { live.afkSec = (live.afkSec || 0) + dt; if (!app.afkShown) { app.afkShown = true; fx.banner('자리 비움 — 보상 멈춤', '화면을 누르면 다시 보상이 쌓여요', '#333a55', 2.2, 'big'); } }
       else app.afkShown = false;
     }
-    if (live && live.pvp && PVP.t0) live.pvp.clock = (Date.now() - PVP.t0) / 1000; // 1:1 대전: 서든데스 · 판정 시간은 두 사람 똑같이 (실제 시간)
     acc += dt * ts * speed;
     const maxSteps = Math.ceil(10 * Math.max(1, speed));
     let n = 0;
@@ -2005,7 +1999,6 @@ function checkNewEnemies(g) {
 document.addEventListener('pointerdown', () => { app.touched = true; A.unlock(); if (app.screen !== 'result') A.playBgm(); }, { passive: true });
 
 $('#btn-pause').addEventListener('click', () => pauseGame());
-$('#btn-send').addEventListener('click', () => { A.unlock(); pvpSend(); });
 // ×1 / ×2 배속 (1:1 대전만 빼고 어느 판이든) — 선택은 기억한다 (langbang:speed2)
 // ×2 는 그 판을 한 번이라도 깬 뒤부터 (처음 하는 판은 ×1 로 차분히) — 스테이지 · 할로윈 판만 · 나머지(레이드 · 탑 · 무한 …)는 그대로
 function speedCleared(mode, st, g) {
@@ -2038,7 +2031,6 @@ $('#btn-ult').addEventListener('click', () => {
   const g = app.g;
   if (!g || app.paused || app.cardsOpen) return;
   if (!S.useUlt(g)) { if (g.ult >= RULES.ultMax) handleEvents(g, true); else toast(`총공지 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
-  if (g.pvp) PVP.myUlts = (PVP.myUlts | 0) + 1;
   TUT.emit('ult');
   handleEvents(g, true);
 });
@@ -4255,32 +4247,8 @@ Object.assign(ACTS, {
   speedOpt: (b) => { app.speed2 = !!b.checked; try { localStorage.setItem('langbang:speed2', app.speed2 ? '1' : '0'); } catch { /* 무시 */ } },
 });
 
-// ─── 실시간 1:1 대전 ──────────────────────────────────
-const PVP = { sock: null, match: null, opp: null, kills: 0, spent: 0, lastHp: 0 };
-function loadSocketIo() {
-  if (window.io) return Promise.resolve(window.io);
-  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/socket.io/socket.io.js'; s.onload = () => res(window.io); s.onerror = rej; document.head.appendChild(s); });
-}
-async function pvpSocket() {
-  if (PVP.sock && PVP.sock.connected) { pvpSendLo(PVP.sock); return PVP.sock; }
-  const io = await loadSocketIo();
-  // auth 는 다시 붙을 때마다 새로: 손님 고정 id (끊겼다 붙어도 같은 선수) · 지금 하던 판 id (끊긴 사이에 끝났으면 결과를 받게)
-  const sock = io('/lbpvp', { transports: ['websocket', 'polling'], auth: (cb) => cb({ token: API.authToken() || '', gid: pvpGid(), mid: (PVP.match && PVP.match.id) || '' }) });
-  PVP.sock = sock;
-  pvpSendLo(sock);
-  let first = true;
-  sock.on('connect', () => { if (first) { first = false; return; } pvpReconnected(); });
-  sock.on('match', (m) => pvpMatched(m));
-  sock.on('rejoin', (m) => pvpRejoin(m));
-  sock.on('opp', (o) => { const prev = PVP.opp || {}; PVP.opp = Object.assign({}, prev, o); renderOppStrip(); renderOppCard(prev); oppPeekCheck(prev, PVP.opp); if (oppView.isConnected) renderOppView(oppView.classList.contains('peek')); });
-  sock.on('incoming', (x) => { if (app.g && app.g.pvp) { S.pvpIncoming(app.g, x.kind, x.n, x); handleEvents(app.g, true); pvpBanner('in', sendText(x, 'in'), x.auto ? `${oppName()}이(가) 25명 잡아서 자동으로` : `${oppName()}이(가) 보냈어요${(x.n | 0) > 1 ? ` · ${PV.PVP_ESC.name[PV.pvpPhase(S.pvpTime(app.g))] || ''} ×${x.n}` : ''}`); } });
-  sock.on('sent', (x) => { if (x.auto) { oppCardToast('자동 중간 보스 출발!', 'out'); return; } pvpBanner('out', sendText(x, 'out'), `${oppName()} 쪽으로 출발`); });
-  sock.on('landed', (x) => oppCardToast(x.kind === 'big' ? `상대에게 중간 보스${(x.n | 0) > 1 ? ` ${x.n}명` : ''} 도착!` : `상대에게 진상 ${S.pvpSendCount(app.g) * Math.max(1, x.n | 0)}명 도착!`, 'out'));
-  sock.on('end', (r) => pvpEnded(r));
-  sock.on('rooms', (list) => { PVP.rooms = list; if (app.screen === 'pvp') renderRooms(); });
-  sock.on('roomClosed', () => { closeInfoCard(); toast('방이 10분 동안 비어서 닫혔어요', 1800); });
-  return sock;
-}
+// ─── 1:1 대전 로비 (판은 pvp2-ui.js 맞대결 v2) ──────────────────
+const PVP = { rooms: null }; // 방 목록 (맞대결 v2 · pvp2-ui.js 가 채운다)
 const PVP_STEPS = [[1050, '실버'], [1200, '골드'], [1350, '플래티넘'], [1500, '다이아'], [1800, '랑방킹']];
 async function showPvp() {
   app.screen = 'pvp';
@@ -4351,39 +4319,6 @@ async function showPlayerCard(u) {
     ${pl.bestWave ? `<p class="ip">${ic('infinity', '', 'sm')}무한 도전 최고 W${pl.bestWave}</p>` : ''}
     <button class="pop-x" data-x>✕</button>`;
 }
-const PVP_TIPS = ['처치 10명마다 상대에게 진상 5명을 보내요', '30명 모으면 중간 보스를 보낼 수 있어요', '90초 과열: 보내기가 두 배로 가요', '150초 폭주: 보스 묶음 · 25명 잡을 때마다 중간 보스 자동', '210초 서든데스: 처치와 상관없이 큰 웨이브가 와요', '5분이 되면 입구가 더 많이 남은 쪽이 이겨요', PV.PVP_NOTE, '오른쪽 위 작은 상대 화면을 누르면 크게 볼 수 있어요', '오늘 첫 승은 코인 2배', '같은 상대와는 하루 3판까지만 보상'];
-// 매칭 대기 중 [AI와 바로 대전]: 30초 안 기다리고 비슷한 실력의 AI 와 바로
-ACTS.pvpBotNow = (b) => { if (!PVP.sock) return; b.disabled = true; PVP.sock.emit('botnow', {}, (r) => { if (!r || !r.ok) { b.disabled = false; toast((r && r.message) || '지금은 안 돼요'); } }); };
-function pvpWaiting(text, code, botIn) {
-  closeInfoCard();
-  const m = document.createElement('div');
-  m.className = 'info-modal pvp-wait pv-search';
-  m.innerHTML = `<div class="ps-radar"><i></i><i></i><i></i>${tierEmb((P().pvp || {}).rating || 1000, 'mid')}</div>
-    <b class="ps-t">${esc(text)}</b><span class="ps-time">0:00</span>
-    <small class="ps-note">사람 상대를 먼저 찾아요 · 30초 동안 없으면 비슷한 실력의 AI와 대전해요</small>${botIn ? `<small class="ps-ai" data-until="${Date.now() + botIn}">AI 대전까지 ${Math.ceil(botIn / 1000)}초</small>` : ''}
-    ${botIn ? `<button class="btn primary ps-bot" data-act="pvpBotNow">${ic('bolt', '', 'sm')}AI와 바로 대전</button>` : ''}
-    ${code ? `<div class="pvp-code">${code}</div><button class="btn primary big-share" data-act="pvpShare" data-code="${code}">${ic('share', '', 'sm')}초대 링크 보내기</button>` : ''}
-    <p class="ps-tip">${ic('bulb', '', 'sm')}<span>${esc(PVP_TIPS[0])}</span></p>
-    <p class="sub pv-norm">${esc(PV.PVP_NOTE)}</p>
-    <button class="btn ghost ps-x" data-act="pvpCancel">취소</button>`;
-  m.addEventListener('click', (ev) => { const b = ev.target.closest('[data-act]'); if (!b) return; A.unlock(); uiSound(b.dataset.act); if (ACTS[b.dataset.act]) ACTS[b.dataset.act](b); });
-  stage.appendChild(m);
-  const t0 = Date.now(); let k = 0;
-  const iv = setInterval(() => {
-    if (!m.isConnected) { clearInterval(iv); return; }
-    const s = Math.floor((Date.now() - t0) / 1000);
-    m.querySelector('.ps-time').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-    { const ai = m.querySelector('.ps-ai'); if (ai) { const left = Math.max(0, Math.ceil((Number(ai.dataset.until) - Date.now()) / 1000)); ai.textContent = left ? `AI 대전까지 ${left}초` : 'AI 상대 준비 중…'; } }
-    if (s && s % 3 === 0 && s !== k) { k = s; const tp = m.querySelector('.ps-tip span'); tp.textContent = PVP_TIPS[(s / 3) % PVP_TIPS.length]; }
-  }, 250);
-}
-async function pvpQueue() {
-  const sock = await pvpSocket().catch(() => null);
-  if (!sock) { toast('서버에 연결할 수 없어요'); return; }
-  fixDeck();
-  PVP.want = { f: pvpQueue };
-  sock.emit('queue', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중', null, r.botIn); });
-}
 function renderRooms() {
   const el = $('#roomList');
   if (!el) return;
@@ -4399,16 +4334,6 @@ async function sharePvpRoom(code) {
   const text = `랑방 대전 1:1 한판! 방 코드 ${code}`;
   try { if (navigator.share) { await navigator.share({ title: '랑방 대전 1:1', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(`${text} ${url}`); toast('초대 링크를 복사했어요! 카톡방에 붙여 넣어 주세요', 2200); } catch { toast(`이 주소를 보내 주세요: ${url}`, 3000); }
-}
-function pvpEnter(code) {
-  pvpSocket().then((sock) => { fixDeck(); sock.emit('room:join', { code, deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '들어갈 수 없어요'); }); }).catch(() => toast('서버에 연결할 수 없어요'));
-}
-async function pvpQuick() {
-  const sock = await pvpSocket().catch(() => null);
-  if (!sock) { toast('서버에 연결할 수 없어요'); return; }
-  fixDeck();
-  PVP.want = { f: pvpQuick };
-  sock.emit('quick', { deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '매칭할 수 없어요'); else if (r.waiting) pvpWaiting('상대 찾는 중', r.code, r.botIn); });
 }
 // 게임 안 입력창 (카톡 인앱 브라우저 · 일부 웹뷰는 prompt() 를 막는다)
 const ROOM_TITLES = ['한 판 붙자!', '랑방 최강 가린다', '진상 막기 대결', '초보 환영~', '지는 사람 커피', '딱 한 판만!'];
@@ -4431,73 +4356,8 @@ function inputBox({ title, sub = '', placeholder = '', max = 20, ok = '확인', 
     setTimeout(() => inp.focus(), 60);
   });
 }
-async function pvpRoom(join) {
-  const sock = await pvpSocket().catch(() => null);
-  if (!sock) { toast('서버에 연결할 수 없어요'); return; }
-  fixDeck();
-  if (join) {
-    const code = await inputBox({ title: '방 코드로 참가', placeholder: '4자리 숫자', max: 4, numeric: true, ok: '참가' });
-    if (!code) return;
-    sock.emit('room:join', { code: code.trim(), deck: curDeck().filter(Boolean), power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (!r || !r.ok) toast((r && r.message) || '참가할 수 없어요'); });
-  } else {
-    const title = await inputBox({ title: '방 만들기', placeholder: ROOM_TITLES[(Math.random() * ROOM_TITLES.length) | 0], max: 20, ok: '만들기', sub: '방 제목 (안 써도 돼요)', useHint: true });
-    if (title === null) return;
-    pvpRoomCreate(sock, title);
-  }
-}
-function pvpRoomCreate(sock, title) {
-  PVP.want = { f: () => pvpRoomCreate(PVP.sock, title) };
-  sock.emit('room:create', { deck: curDeck().filter(Boolean), title, power: deckPower(P(), curDeck().filter(Boolean)) }, (r) => { if (r && r.ok) pvpWaiting('방을 만들었어요', r.code); });
-}
-// 손님 고정 id: 연결이 끊겼다 다시 붙어도 서버가 같은 선수로 알아본다 (대전 이어하기 · 끝난 판 결과)
-function pvpGid() {
-  try { let id = localStorage.getItem('langbang:pvpGid'); if (!id || !/^[A-Za-z0-9_-]{8,40}$/.test(id)) { id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join(''); localStorage.setItem('langbang:pvpGid', id); } return id; } catch { return ''; }
-}
-// 다시 붙음 (앱 전환 · 화면 꺼짐 · 신호 끊김): 서버는 끊긴 연결의 대기를 지우므로, 아직 찾는 중이면 다시 찾는다
-//  (대전 중이었으면 서버가 'rejoin' 을 보내고, 끊긴 사이에 끝났으면 'end' 를 보낸다)
-function pvpReconnected() {
-  if (PVP.match || !PVP.want || !stage.querySelector('.pvp-wait.pv-search')) return;
-  PVP.want.f();
-}
-// 서버: "너는 아직 이 판 중이야" — 이 화면에서 그 판이 돌고 있으면 이어서, 아니면 (새로고침 · 'match' 를 못 받음) 그 판으로 들어간다
-function pvpRejoin(m) {
-  const g = app.g;
-  if (PVP.match && PVP.match.id === m.id) {
-    if (g && g.pvp && g.pvpMid === m.id) { if (!g.over) { toast('대전에 다시 연결됐어요', 1400); pvpTick(); } else if (PVP.sock) PVP.sock.emit('quit'); } // 끊긴 사이에 그만둔 판
-    return; // 아직 VS 화면: 곧 시작한다
-  }
-  if (app.screen === 'play' && g && !g.over) { if (PVP.sock) PVP.sock.emit('quit'); return; } // 다른 판을 하는 중: 두고 간 대전은 그만둔 것으로
-  const left = (Number(m.startAt) || 0) - (Number(m.now) || 0); // 시작까지 남은 ms (지났으면 음수)
-  if (left > 900) { pvpMatched(Object.assign({}, m, { startIn: left, aiNotice: 0 })); return; }
-  closeInfoCard();
-  PVP.t0 = Date.now() + left;
-  PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.myCards = []; PVP.myUlts = 0;
-  PVP.koff = m.kills | 0; PVP.spent = m.spent | 0; // 서버에 쌓인 처치 · 보내기는 그대로 (새 판에서 이어서)
-  toast('하던 대전으로 다시 들어왔어요', 1600);
-  startRun({ mode: 'pvp', force: true, pvpSeed: m.seed, pvpHp: m.hp });
-}
-function pvpMatched(m) {
-  closeInfoCard();
-  PVP.t0 = Date.now() + (m.startIn || 3000); // 서버 시작 시각 (서든데스 · 5분 판정 기준)
-  PVP.match = m; PVP.opp = Object.assign({ hp: 1, max: 1, kills: 0, wave: 0 }, m.opp); PVP.kills = 0; PVP.spent = 0; PVP.koff = 0; PVP.myCards = []; PVP.myUlts = 0;
-  if (m.opp && m.opp.ai && m.aiNotice) { // 사람 상대가 없어 AI 로: 1.5초 안내 ("다시 찾기" 누르면 취소하고 계속 찾기)
-    const n = document.createElement('div');
-    n.className = 'info-modal pvp-wait pv-ainote';
-    n.innerHTML = `<div class="pa-box"><b>사람 상대가 없어 AI와 대전해요</b><small>비슷한 실력 · 점수는 60%만 오르내려요</small><button class="btn ghost" data-re>다시 찾기</button></div>`;
-    stage.appendChild(n);
-    let gone = false;
-    const tStart = setTimeout(() => { if (gone) return; n.remove(); showVsSplash(Object.assign({}, m, { startIn: (m.startIn || 3000) - m.aiNotice })); setTimeout(() => { if (PVP.match === m) startRun({ mode: 'pvp', force: true, pvpSeed: m.seed, pvpHp: m.hp }); }, Math.max(0, (m.startIn || 3000) - m.aiNotice - 800)); }, m.aiNotice);
-    n.querySelector('[data-re]').addEventListener('click', () => { gone = true; clearTimeout(tStart); n.remove(); PVP.match = null; if (PVP.sock) PVP.sock.emit('requeue', {}, (r) => { if (r && r.ok) pvpWaiting('상대 찾는 중', null, r.botIn); else toast((r && r.message) || '다시 찾을 수 없어요'); }); });
-    return;
-  }
-  showVsSplash(m);
-  setTimeout(() => startRun({ mode: 'pvp', force: true, pvpSeed: m.seed, pvpHp: m.hp }), Math.max(0, (m.startIn || 3000) - 800));
-}
-document.getElementById('oppstrip').addEventListener('click', () => openOppView());
-document.getElementById('oppcard').addEventListener('click', () => { if (oppView.isConnected && !oppView.classList.contains('peek')) oppView.remove(); else openOppView(); });
 // ─── 1:1 상대 보기: 맞대결 화면 · 위쪽 VS 줄 · 미니 화면 · 자동 엿보기 ─────
 const pvpTier = (r) => PVP_TIERS.find((t) => (r | 0) >= t[0]) || PVP_TIERS[PVP_TIERS.length - 1];
-const oppName = () => (PVP.opp && PVP.opp.nickname) || '상대';
 function vsSide(o, me) {
   const t = pvpTier(o.rating);
   const deck = (o.deck || []).filter((id) => HEROES[id]).slice(0, 5).map((id, k) => `<span class="vs-h ${k === 0 ? 'lead' : ''}" style="--k:${k}">${av(HEROES[id])}${k === 0 ? '<i>대장</i>' : ''}</span>`).join('');
@@ -4523,149 +4383,8 @@ function showVsSplash(m) {
   for (let k = 0; k < n0; k++) setTimeout(() => { cnt.textContent = String(n0 - k); cnt.classList.remove('pop'); void cnt.offsetWidth; cnt.classList.add('pop'); A.sfx.tabSw(); }, total - 700 - (n0 - k) * 1000 + 200);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, total - 600);
 }
-const oppView = document.createElement('div');
-oppView.className = 'opp-view';
-oppView.addEventListener('click', (ev) => { if (ev.target.closest('[data-pc]')) { const u = PVP.opp && PVP.opp.username; if (u) showPlayerCard(u); return; } oppView.remove(); });
-function openOppView() { if (!PVP.opp) return; renderOppView(); if (!oppView.isConnected) stage.appendChild(oppView); }
 // 상대 미니 화면 (점: 진상 · 보낸 진상 · 중간 보스 · 보스) — 서버가 넘겨준 점을 그대로 그린다 (보여 주기만)
-const DOT_COL = ['#ff6b6b', '#c77dff', '#ffd23f', '#ff9f43'];
-function drawOppMap(cv, o) {
-  if (!cv) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1), w = cv.clientWidth, h = cv.clientHeight;
-  if (!w || !h) return;
-  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
-  const c = cv.getContext('2d');
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  c.clearRect(0, 0, w, h);
-  const door = h - Math.max(4, h * 0.06), hp = Math.max(0, Math.min(1, (o.hp || 0) / Math.max(1, o.max || 1)));
-  // 줄 (영웅 자리 6칸) · 입구 선 (남은 입구만큼 밝게)
-  c.fillStyle = 'rgba(255,255,255,0.05)';
-  for (let i = 0; i < 6; i++) if (i % 2) c.fillRect((i * w) / 6, 0, w / 6, door);
-  c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(0, door, w, 2);
-  c.fillStyle = hp < 0.3 ? '#ff3b4e' : '#5be37a'; c.fillRect((w * (1 - hp)) / 2, door, w * hp, 2);
-  const s = Math.max(1.6, Math.min(3.6, w / 30));
-  const dots = Array.isArray(o.ep) ? o.ep : [];
-  for (let i = dots.length - 1; i >= 0; i--) {
-    const d = PV.pvpUndot(dots[i]);
-    const x = ((d.x + 0.5) / 64) * w, y = Math.min(door - 1, ((d.y + 0.5) / 64) * door);
-    const r = d.k === 2 ? s * 2.3 : d.k === 1 ? s * 1.7 : s;
-    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2);
-    c.fillStyle = DOT_COL[d.k]; c.fill();
-    if (d.k === 2 || d.k === 1) { c.lineWidth = 1; c.strokeStyle = '#fff'; c.stroke(); }
-  }
-}
-// 오른쪽 위 작은 상대 카드: 대장 얼굴 · 처치 · 진상 수 · 미니 화면 · 입구 줄 (누르면 크게)
-function renderOppCard(prev) {
-  const el = $('#oppcard');
-  const g = app.g;
-  if (!el || !PVP.opp || !g || !g.pvp) { if (el) el.hidden = true; return; }
-  const o = PVP.opp;
-  const lead = (o.deck || []).find((id) => HEROES[id]) || ((o.heroes || [])[0] || {}).id;
-  if (el.hidden || el.dataset.lead !== String(lead || '')) {
-    el.hidden = false; el.dataset.lead = String(lead || '');
-    el.innerHTML = `<div class="oc-top">${lead && HEROES[lead] ? av(HEROES[lead]) : tierEmb(o.rating, 'xs')}<span class="oc-n"><b class="oc-k">0</b><small>처치</small></span></div><canvas class="oc-map"></canvas><div class="oc-hp"><i></i></div><span class="oc-e">진상 <b>0</b></span><span class="oc-toast" hidden></span>`;
-  }
-  const hp = Math.max(0, Math.min(1, (o.hp || 0) / Math.max(1, o.max || 1)));
-  el.querySelector('.oc-k').textContent = String(o.kills | 0);
-  el.querySelector('.oc-e b').textContent = String(o.enemies | 0);
-  el.querySelector('.oc-hp i').style.width = Math.round(hp * 100) + '%';
-  el.classList.toggle('danger', hp < 0.3);
-  drawOppMap(el.querySelector('.oc-map'), o);
-  // 상대 위기: 입구 30% 아래로 떨어진 순간 한 번
-  if (prev && hp < 0.3 && (prev.hp || 1) / Math.max(1, prev.max || 1) >= 0.3) oppCardToast('상대 위기!', 'out');
-}
-function oppCardToast(text, kind) {
-  const el = $('#oppcard');
-  if (!el || el.hidden) return;
-  const t = el.querySelector('.oc-toast');
-  if (!t) return;
-  t.hidden = false; t.textContent = text; t.className = `oc-toast ${kind || ''}`; void t.offsetWidth; t.classList.add('on');
-  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
-  clearTimeout(oppCardToast.t); oppCardToast.t = setTimeout(() => { t.hidden = true; el.classList.remove('flash'); }, 1800);
-}
-// 보내기 글: n = 단계 배수 (과열 ×2 · 서든데스 ×3)
-function sendText(x, dir) {
-  const n = Math.max(1, x.n | 0);
-  if (x.kind === 'big') return `${x.auto ? '자동 ' : ''}중간 보스${n > 1 ? ` ${n}명` : ''}${dir === 'in' ? (n > 1 ? '이 온다!' : '가 온다!') : ' 보냈다!'}`;
-  return `진상 ${S.pvpSendCount(app.g) * n}명${dir === 'in' ? '이 온다!' : ' 보냈다!'}`;
-}
-function renderOppView(peek) {
-  const o = PVP.opp || {};
-  const hp = Math.round(((o.hp || 0) / Math.max(1, o.max || 1)) * 100);
-  const heroes = (o.heroes && o.heroes.length ? o.heroes : (o.deck || []).map((id) => ({ id, r: false, lv: 1 }))).filter((h) => HEROES[h.id]);
-  oppView.classList.toggle('peek', !!peek);
-  oppView.innerHTML = `<div class="ov-box"><div class="ov-head"><b>${esc(oppName())}</b>${titleChip(o.title)}<span class="vs-tier" style="--tc:${pvpTier(o.rating)[3]}">${tierEmb(o.rating, 'xs')} ${o.rating | 0}</span>${o.username ? '<button class="chip mini" data-pc="1">선수 카드</button>' : ''}</div>
- <div class="ov-hp"><span>${ic('door', '', 'sm')} 입구</span><div class="ohp"><div style="width:${hp}%"></div></div><b>${hp}%</b></div>
- <div class="ov-stats"><span>${ic('wave', '', 'sm')} 웨이브 <b>${o.wave | 0}</b></span><span>진상 <b>${o.enemies | 0}</b></span><span>처치 <b>${o.kills | 0}</b></span><span>${ic('megaphone', '', 'sm')}총공지 <b>${o.ults | 0}</b></span></div>
-    <canvas class="ov-map"></canvas>
-    <div class="ov-heroes">${heroes.map((h) => `<span class="ov-h ${h.r ? 'ready' : ''}">${av(HEROES[h.id])}<small>Lv${h.lv || 1}</small></span>`).join('')}</div>
-    ${o.cards && o.cards.length ? `<div class="ov-cards"><small>최근 카드</small>${o.cards.map((c) => `<span>${esc(c)}</span>`).join('')}</div>` : ''}
-    ${peek ? '' : '<p class="ov-close">아무 데나 누르면 닫혀요</p>'}</div>`;
-  requestAnimationFrame(() => drawOppMap(oppView.querySelector('.ov-map'), PVP.opp || {}));
-}
-// 자동 엿보기: 상대 입구 30% 아래로 떨어질 때 · 총공지를 쓸 때 (1.5초)
-function oppPeekCheck(prev, o) {
-  if (!app.g || !app.g.pvp || oppView.isConnected) return;
-  const low = (o.hp || 0) / Math.max(1, o.max || 1) < 0.3 && (prev.hp || 1) / Math.max(1, prev.max || 1) >= 0.3;
-  const ult = (o.ults | 0) > (prev.ults | 0);
-  if (!low && !ult) return;
-  renderOppView(true); stage.appendChild(oppView);
-  pvpBanner(low ? 'out' : 'in', low ? '상대 위기!' : `${oppName()} 총공지!`, low ? `${oppName()} 입구 30% 아래 · 지금 몰아붙여요` : '조심!');
-  clearTimeout(oppPeekCheck.t); oppPeekCheck.t = setTimeout(() => { if (oppView.classList.contains('peek')) oppView.remove(); }, 1500);
-}
-function renderOppStrip() {
-  const el = $('#oppstrip');
-  if (!el || !PVP.opp) return;
-  const o = PVP.opp;
-  el.hidden = false;
-  el.dataset.u = o.username || '';
-  const g = app.g, my = g ? Math.round((g.base.hp / Math.max(1, g.base.max)) * 100) : 100;
-  const oh = Math.round((o.hp / Math.max(1, o.max)) * 100);
-  el.classList.add('v2');
-  const tl = g && g.pvp ? PV.pvpLeftText(S.pvpTime(g)) : 'VS';
-  const t = g && g.pvp ? S.pvpTime(g) : 0, ph = PV.pvpPhase(t), E = PV.PVP_ESC, end = PV.PVP_END.end;
-  const marks = E.at.slice(1).map((a, i) => `<i class="m ${ph > i ? 'on' : ''}" style="left:${((a / end) * 100).toFixed(1)}%"></i>`).join('');
-  el.dataset.ph = String(ph);
-  el.innerHTML = `<span class="os-me"><small>나</small><div class="ohp me"><div style="width:${my}%"></div></div><b>${my}%</b></span><em class="${ph ? 'os-sd ph' + ph : ''}">${ph ? `<small>${E.name[ph]}</small>` : ''}${tl}</em><span class="os-op">${tierEmb(o.rating, 'xs')}<span class="os-nm"><b>${esc(o.nickname || '상대')}</b><small>W${o.wave || 0}</small></span><div class="ohp ${oh < 30 ? 'low' : ''}"><div style="width:${oh}%"></div></div><b>${oh}%</b></span><span class="os-tl"><span class="f" style="width:${Math.min(100, (t / end) * 100).toFixed(1)}%"></span>${marks}</span>`;
-}
-function pvpTick() {
-  const g = app.g;
-  if (!g || !g.pvp || !PVP.sock) return;
-  PVP.sock.emit('hp', { hp: Math.round(g.base.hp), max: g.base.max, kills: pvpKills(g), wave: g.wave, enemies: g.enemies.filter((e) => !e.dead).length, heroes: g.heroes.filter((h) => !h.def.summon).map((h) => ({ id: h.id, r: S.skillReady(h), lv: h.lv })), cards: (PVP.myCards || []).slice(-3), ults: PVP.myUlts | 0, ep: S.pvpView(g) });
-  renderOppStrip();
-  const gauge = pvpKills(g) - PVP.spent;
-  const b = $('#btn-send');
-  if (b) { b.hidden = false; b.innerHTML = `${ic('share', '', 'sm')}보내기 <small>${Math.min(gauge, L.PVP.sendBig)}/${gauge >= L.PVP.sendBig ? L.PVP.sendBig : L.PVP.sendSmall}</small>`; b.classList.toggle('ready', gauge >= L.PVP.sendSmall); b.classList.toggle('big', gauge >= L.PVP.sendBig); }
-}
-// 보내기 · 받기 띠 (이모지 없이 · 파랑 = 내가 · 빨강 = 나에게)
-function pvpBanner(kind, title, sub, snd) {
-  for (const o of stage.querySelectorAll('.pv-ban')) o.remove();
-  const d = document.createElement('div');
-  d.className = `pv-ban ${kind}`;
-  const ph = kind.startsWith('ph');
-  d.innerHTML = `${ic(ph ? (/ph3/.test(kind) ? 'fire' : /ph2/.test(kind) ? 'ic_bosscrown' : 'speed') : kind === 'in' ? 'bolt' : 'share', '', '')}<span><b>${esc(title)}</b><small>${esc(sub)}</small></span>`;
-  stage.appendChild(d);
-  if (snd && A.sfx[snd]) { fx.addShake(8); A.sfx[snd](); } else if (kind === 'in') { fx.addShake(6); A.sfx.deny(); } else A.sfx.confirm();
-  setTimeout(() => d.classList.add('gone'), 1500); setTimeout(() => d.remove(), 1800);
-}
-// 결과 연출: 점수 숫자 올라가기 · 등급 바뀌면 옛 엠블럼 깨지고 새 엠블럼 · 코인이 위 코인 칸으로 날아감
-function pvpResultFx(tries = 0) {
-  const box = ui.querySelector('.pv-res');
-  if (tries < 50) setTimeout(() => pvpResultFx(tries + 1), 100);
-  if (!box || box.dataset.done) return; box.dataset.done = '1';
-  const first = !pvpResultFx.at || performance.now() - pvpResultFx.at > 6000; pvpResultFx.at = first ? performance.now() : pvpResultFx.at;
-  const win = box.classList.contains('win');
-  if (first) { if (win) { if (A.sfx.win) A.sfx.win(); fx.flash('#fff1a8', 0.35); } else if (A.sfx.lose) A.sfx.lose(); }
-  const n = box.querySelector('.pr-rt b[data-from]');
-  if (n) {
-    const a = +n.dataset.from, b = +n.dataset.to, t0 = performance.now() + 500;
-    const step = () => { const k = Math.max(0, Math.min(1, (performance.now() - t0) / 900)); n.textContent = String(Math.round(a + (b - a) * (1 - (1 - k) ** 3))); if (k < 1) requestAnimationFrame(step); else if (a !== b) n.classList.add('done'); };
-    requestAnimationFrame(step);
-  }
-  if (box.querySelector('.temb.new')) setTimeout(() => { box.classList.add('tierchg'); if (first) { A.sfx.levelUp(); fx.addShake(8); } }, first ? 1500 : 0);
-  const pr = app.pvpResult || {};
-  if (first && pr.coins > 0) setTimeout(() => coinFly(box, Math.min(10, 3 + Math.round(pr.coins / 100))), 1100);
-}
+// 코인이 위 코인 칸으로 날아감 (보상 받기)
 function coinFly(from, n) {
   const pill = ui.querySelector('.pill.cur .ci') || ui.querySelector('.pill.cur');
   if (!pill || !from.isConnected) return;
@@ -4681,66 +4400,9 @@ function coinFly(from, n) {
     setTimeout(() => { c.remove(); if (i === n - 1) { A.sfx.coin(); const pl = pill.closest('.pill'); if (pl) pl.classList.add('bump'); } }, 800 + i * 60);
   }
 }
-function pvpSend() {
-  const g = app.g;
-  if (!g || !g.pvp) return;
-  const gauge = pvpKills(g) - PVP.spent;
-  const kind = gauge >= L.PVP.sendBig ? 'big' : gauge >= L.PVP.sendSmall ? 'small' : null;
-  if (!kind) { toast(`처치 ${L.PVP.sendSmall}명이 모이면 보낼 수 있어요`, 1000); return; }
-  PVP.sock.emit('send', { kind }, (r) => { if (r && r.ok) { PVP.spent += kind === 'big' ? L.PVP.sendBig : L.PVP.sendSmall; A.sfx.levelUp(); } else if (r && r.message) toast(r.message, 900); });
-}
-const pvpKills = (g) => g.stats.kills + (PVP.koff | 0); // 다시 들어온 판: 서버에 쌓인 처치 수부터
-function pvpEnded(r) {
-  const g = app.g;
-  if (r && r.id && (!PVP.match || PVP.match.id !== r.id)) { resyncProfile(); return; } // 지난 판 결과 (이미 끝냈거나 다른 판)
-  PVP.match = null;
-  const el = $('#oppstrip'); if (el) el.hidden = true; if (oppView.isConnected) oppView.remove();
-  const oc = $('#oppcard'); if (oc) oc.hidden = true;
-  const sb = $('#btn-send'); if (sb) sb.hidden = true;
-  if (g && g.pvp && !g.over) { g.over = true; g.phase = 'over'; }
-  if (g && g.pvp) g.augOffer = null; // 증강 창이 결과 위에 남지 않게
-  app.pvpResult = r;
-  if (g && g.pvp) { app.ending = false; endRun(r.win); pvpResultFx(); }
-  resyncProfile();
-}
-setInterval(pvpTick, 500);
-// ─── 1:1 대전 끝내기 (pvp.js 타임라인) ───
-// 손님: 서버에 강화 · 장비 기록이 없어서 덱 멤버 것만 보낸다 (서버가 대전 한도로 잘라서 진상 체력을 정한다)
-function pvpSendLo(sock) {
-  if (!sock || !app.guest) return;
-  const p = P(), ids = curDeck().filter(Boolean), eq = {}, gids = new Set();
-  for (const id of ids) { const sl = (p.equip || {})[id]; if (sl) { eq[id] = { w: sl.w, a: sl.a, m: sl.m }; for (const k of ['w', 'a', 'm']) if (sl[k] !== undefined) gids.add(sl[k]); } }
-  const pick = (o) => Object.fromEntries(ids.map((id) => [id, (o || {})[id] | 0]));
-  sock.emit('loadout', { heroes: pick(p.heroes), hstars: pick(p.hstars), equip: eq, gear: (p.gear || []).filter((it) => gids.has(it.id)).map((it) => ({ id: it.id, t: it.t, r: it.r, lv: it.lv | 0 })) });
-}
-const PHASE_BAN = [null, ['과열!', '이제 보내기가 두 배로 가요', 'horn'], ['폭주! 보스 묶음 출동', '25명 잡을 때마다 중간 보스 자동 · 15초마다 진상이 세져요', 'rage'], ['서든데스', '8초마다 큰 웨이브 · 입구 피해 ×1.5 · 입구가 무너져요', 'heartbeat']];
-function pvpTimelineEv(g, e) {
-  if (e.type === 'pvpPhase') { const b = PHASE_BAN[e.p]; if (b) { pvpBanner('ph ph' + e.p, b[0], b[1], b[2]); if (e.p >= 2) A.sfx.rumble(); fx.flash(e.p >= 3 ? '#ff3040' : '#ffb02e', 0.3); } renderOppStrip(); }
-  else if (e.type === 'pvpBunch') { if (S.pvpTime(g) >= PV.PVP_ESC.at[2] + 1) pvpBanner('ph ph2', '보스 묶음 출동!', `보스 ${e.n}명이 한꺼번에 와요 · 상대도 똑같이`, 'rage'); }
-  else if (e.type === 'pvpWave') { A.sfx.wave(); fx.addShake(4); }
-  else if (e.type === 'suddenUp') { if (e.n % 2 === 0 && PV.pvpPhase(S.pvpTime(g)) < 3) pvpBanner('in', `폭주 ${e.n}단계`, `진상 체력 · 속도 +${Math.round(PV.PVP_END.hpStep * e.n * 100)}%`); }
-  // (sudden · pvpDrain: 폭주 · 서든데스 띠가 같이 나온다)
-  else if (e.type === 'pvpTimeUp') {
-    pvpTick(); pvpBanner('out', '시간 종료!', '입구가 더 많이 남은 쪽이 이겨요 · 판정 중');
-    // 판정이 안 오면 (연결이 끊긴 채로 서버가 판을 끝냄) 멈춘 화면에 갇히지 않게: 결과 없이 끝낸다
-    const m = PVP.match;
-    setTimeout(() => { if (app.g === g && !g.over && PVP.match === m) pvpEnded({ id: m && m.id, win: false, lost: true, reason: 'lost', coins: 0, delta: 0, ranked: false }); }, 15000);
-  }
-}
-function pvpTimeSub(pr) {
-  const a = pr.hp | 0, b = pr.oppHp | 0;
-  if (pr.draw) return `시간 종료 · 입구 ${a}% 대 ${b}% · 처치 수도 같았어요`;
-  return pr.win ? (a !== b ? `시간 종료 · 입구 ${a}% 대 ${b}% 로 이겼다!` : '시간 종료 · 처치 수로 이겼다!') : (a !== b ? `시간 종료 · 입구 ${a}% 대 ${b}%` : '시간 종료 · 처치 수에서 졌어요');
-}
 Object.assign(ACTS, {
   pvp: () => showPvp(),
-  pvpQueue: () => pvpQuick(),
-  pvpQuick: () => pvpQuick(),
-  pvpEnter: (b) => pvpEnter(b.dataset.code),
   pvpShare: (b) => sharePvpRoom(b.dataset.code),
-  pvpRoom: () => pvpRoom(false),
-  pvpJoin: () => pvpRoom(true),
-  pvpCancel: () => { if (PVP.sock) PVP.sock.emit('cancel'); closeInfoCard(); },
 });
 
 // ─── 스테이지 선택 ───────────────────────────────────
@@ -5773,7 +5435,6 @@ function pickCard(i) {
   S.applyCard(g, c);
   if (app.picksG !== g) { app.picksG = g; app.picks = []; }
   app.picks.push(line);
-  if (g.pvp) (PVP.myCards = PVP.myCards || []).push(c.title);
   if (c.kind === 'addHero' && (c.rarity === 'hidden' || HEROES[c.hero].legend)) showReveal(c.hero, HEROES[c.hero].legend ? 'legend' : 'hidden');
   g.pendingLevels = Math.max(0, g.pendingLevels - 1);
   if (g.welcomePicks > 0) g.welcomePicks--;
@@ -5870,16 +5531,6 @@ function showResult(victory, quit) {
     title = '레이드 끝!';
     sub = `${Math.round(Math.min(g.t, g.raid.sec))}초 동안 보스에게 준 피해`;
     top = `<div class="score-big"><small>보스 피해</small><b>${fmt(g.raid.dmg)}</b></div>`;
-  } else if (g.pvp) {
-    const pr = app.pvpResult || {};
-    title = pr.draw ? '무승부' : pr.win ? '승리!' : '패배';
-    sub = pr.reason === 'lost' ? '연결이 끊겨 판정 결과를 받지 못했어요' : pr.reason === 'forfeit' ? '상대가 나가서 기권승' : pr.reason === 'time' ? pvpTimeSub(pr) : pr.win ? '상대 방어선이 먼저 뚫렸다!' : '방어선이 먼저 뚫렸어요';
-    const b0 = pr.before || (pr.rating - (pr.delta || 0)) || 1000, t0 = pvpTier(b0), t1 = pvpTier(pr.rating || b0);
-    top = `<div class="pv-res ${pr.win ? 'win' : pr.draw ? 'lose draw' : 'lose'}"><i class="pr-burst"></i><b class="pr-word">${pr.win ? 'VICTORY' : pr.draw ? 'DRAW' : 'DEFEAT'}</b>
-      <div class="pr-emb">${tierEmb(b0, 'xl old')}${t0[1] !== t1[1] ? tierEmb(pr.rating, 'xl new') : ''}</div>
-      ${pr.ranked ? `<div class="pr-rt"><b data-from="${b0}" data-to="${pr.rating}">${b0}</b><em class="${pr.delta >= 0 ? 'up' : 'down'}">${pr.delta >= 0 ? '▲' : '▼'}${Math.abs(pr.delta)}</em></div>` : `<div class="pr-rt"><small>${pr.draw ? '무승부 · 점수 변동 없음' : pr.bot ? '연습 상대 · 점수 변동 없음' : '친선전 · 점수 변동 없음'}</small></div>`}
-      ${t0[1] !== t1[1] ? `<div class="pr-tier ${t1[0] > t0[0] ? 'up' : 'down'}">${t1[0] > t0[0] ? '등급 올라감!' : '등급 내려감'} <b>${esc(t1[1])}</b></div>` : ''}
-      ${pr.win && (pr.streak | 0) >= 2 ? `<div class="pr-streak">${ic('fire', '', 'sm')}${pr.streak}연승 중</div>` : ''}</div>`;
   } else if (wk) {
     title = victory ? '주간 도전 완주!' : `${L.weekName(g.weekly.wi)} 주간 도전`;
     const T = L.weeklyTierDef(g.weekly.tier), M = L.WEEKLY_MODS[g.weekly.mod] || {};
@@ -5897,7 +5548,6 @@ function showResult(victory, quit) {
   if (win && g.hell) buttons.push('<button class="btn primary" data-act="again">헬 다시 하기</button>');
   else if (win && g.stage < STAGE_COUNT) buttons.push(`<button class="btn primary" data-act="nextStage">다음 스테이지 ${stageLabel(g.stage + 1)} </button>`);
   if (g.raid) buttons.push('<button class="btn primary" data-act="raid">레이드 현황</button>', '<div class="gap"></div><button class="btn ghost" data-act="menu">로비로</button>');
-  else if (g.pvp) buttons.push('<button class="btn primary pv-again" data-act="pvpQueue">한 판 더</button>', '<div class="gap"></div><button class="btn ghost" data-act="pvp">대전 화면</button>');
   else if (wk) buttons.push('<button class="btn primary" data-act="weeklyGo">다시 도전</button>', '<div class="gap"></div><button class="btn ghost" data-act="weekly">주간 순위 보기</button>');
   else if (stageMode && !win) buttons.push('<button class="btn primary" data-act="again">다시 도전</button>', '<div class="gap"></div><div class="grid2"><button class="btn" data-act="shop"><i></i>강화하러 가기</button><button class="btn" data-act="stages"><i></i>스테이지 선택</button></div>');
   else if (stageMode) buttons.push('<div class="gap"></div><div class="grid2"><button class="btn" data-act="again"><i></i>다시 하기</button><button class="btn" data-act="stages"><i></i>스테이지 선택</button></div>');
@@ -6012,7 +5662,6 @@ async function saveResult(sum, g) {
     return;
   }
   if (g.r2 && R2UI) { R2UI.save(sum, g, box); return; }
-  if (g.pvp) { const pr = app.pvpResult || {}; if (box) box.innerHTML = `<div class="rewards"><div class="rw total"><span><i class="ci"></i>받은 코인</span><b>+${fmt(pr.coins || 0)}</b></div></div>`; return; }
   if (g.weekly) { saveWeekly(sum, g, box); return; }
   const stageMode = g.mode === 'stage';
   const body = stageMode
@@ -7616,7 +7265,7 @@ Object.assign(ACTS, R2UI.acts);
 // 1:1 맞대결 v2 연결 (랭크 매칭 · 친구 방 · 코드 참가 → v2 · 옛 대전 소켓은 캐시된 옛 화면용으로만 남김)
 PV2UI = initPvp2({
   app, P, stage, A, API, toast: (m, ms) => toast(m, ms), tierEmb: (r, c) => tierEmb(r, c), closeInfoCard: () => closeInfoCard(), confirmBox: (o) => confirmBox(o), inputBox: (o) => inputBox(o),
-  curDeck: () => curDeck(), fixDeck: () => fixDeck(), resync: () => resyncProfile(), showLobby: () => showPvp(), act: (b) => { if (ACTS[b.dataset.act]) ACTS[b.dataset.act](b); },
+  curDeck: () => curDeck(), fixDeck: () => fixDeck(), owned: () => owned(), heroPower: (id) => heroPower(P(), id), resync: () => resyncProfile(), showLobby: () => showPvp(), act: (b) => { if (ACTS[b.dataset.act]) ACTS[b.dataset.act](b); },
   vs: (m) => showVsSplash(m), onRooms: (list) => { PVP.rooms = list; if (app.screen === 'pvp') renderRooms(); }, setOn: (on) => { app.pv2On = !!on; },
 });
 Object.assign(ACTS, PV2UI.acts, { pvpQueue: () => PV2UI.queue(), pvpQuick: () => PV2UI.queue(), pvpRoom: () => PV2UI.room(false), pvpJoin: () => PV2UI.room(true), pvpEnter: (b) => PV2UI.enter(b.dataset.code) });
@@ -7638,7 +7287,6 @@ window.__lb = {
   gachaVideo: (k, b) => gachaVideo(k, b),
   R,
   pv2: () => PV2UI, // 1:1 맞대결 v2 (scripts · 스크린샷)
-  pvpUi: { shift: (sec) => { PVP.t0 -= sec * 1000; }, waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: (seed) => startRun({ mode: 'pvp', force: true, pvpSeed: seed === undefined ? 7 : seed }), end: (r) => pvpEnded(r) },
   get g() { return app.g; },
   tut: TUT, // 튜토리얼 (scripts/lb-tutorial-shot.js)
   get app() { return app; },

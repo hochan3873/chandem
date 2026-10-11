@@ -4,7 +4,7 @@
 import * as S from './sim.js';
 import { HEROES, LOCKED_HEROES, RULES, MOMENTUM, heroRole } from './data.js';
 import { pvpSendMul, pvpAutoBig } from './pvp.js';
-import { PV2, ST, splitDeck, judge2, packEnemies, hashOf } from './pvp2.js';
+import { PV2, ST, splitDeck, judge2, hashOf } from './pvp2.js';
 
 const STEPS = Math.round(PV2.tickMs / 1000 / PV2.dt); // 한 틱 = 3스텝
 export function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -258,10 +258,8 @@ export function sideSnap(d, i, full) {
     for (const e of g.enemies) if (!e.dead && e.y > -60) list.push(e);
     list.sort((p, q) => (q.boss | 0) - (p.boss | 0) || (q.mid | 0) - (p.mid | 0) || q.y - p.y);
     const cap = full === 'op' ? PV2.eCapOp : PV2.eCap;
-    const types = [];
     const fu = g.focus && !g.focus.dead ? g.focus.uid : 0;
-    out.eb = packEnemies(list.slice(0, cap).map((e) => ({ uid: e.uid, t: e.type || (e.def && e.def.id) || '', x: e.x, y: e.y, hp: Math.max(0, e.hp) / Math.max(1, e.maxHp), f: (e.boss ? 1 : 0) | (e.mid ? 2 : 0) | (e.sent ? 4 : 0) | (e.uid === fu ? 8 : 0) | (e.stunT > 0 || e.frozenT > 0 ? 16 : 0) })), types);
-    out.ty = types;
+    out.es = list.slice(0, cap).map((e) => ({ uid: e.uid, t: e.type || (e.def && e.def.id) || '', x: e.x, y: e.y, hp: Math.max(0, e.hp) / Math.max(1, e.maxHp), f: (e.boss ? 1 : 0) | (e.mid ? 2 : 0) | (e.sent ? 4 : 0) | (e.uid === fu ? 8 : 0) | (e.stunT > 0 || e.frozenT > 0 ? 16 : 0) })); // (pvp2.js packSnap 이 바이너리로 묶는다)
     out.ne = list.length;
   }
   return out;

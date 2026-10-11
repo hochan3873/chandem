@@ -166,19 +166,26 @@ async function user(name) { return srv.accounts.signup({ username: name, passwor
 test('v2 소켓: 매칭 → 장면 → 입력 확인 → 입구 무너짐 → 점수 변동', async () => {
   await srv.lbPvp2.ready;
   const ua = await user('pv2a'), ub = await user('pv2b');
+  const uidA = srv.accounts.verifyToken(ua.token);
+  const own = (st) => { const lb = st.langbang = st.langbang || {}; lb.owned = Object.assign(lb.owned || {}, { sunggu: 1, jieun: 1, ingyu: 1 }); };
+  await srv.accounts.updateStats(uidA, own); await srv.accounts.updateStats(srv.accounts.verifyToken(ub.token), own);
   const a = player(ua.token), b = player(ub.token);
   await until(() => a.connected && b.connected);
   assert.equal((await a.call('queue', { deck: DA })).waiting, true);
-  await b.call('queue', { deck: ['gunman', 'staff', 'sunggu', 'gunnyeo', 'jieun'] });
+  await b.call('queue', { deck: DA });
   await until(() => a.got.match && b.got.match);
   assert.equal(a.got.match[0].id, b.got.match[0].id);
   assert.equal(a.got.match[0].side + b.got.match[0].side, 1, '0번 · 1번');
   assert.equal(a.got.match[0].opp.nickname, 'pv2b');
   await until(() => a.got.snap > 3 && b.got.snap > 3);
-  const s = a.last;
+  const P2 = await lb('pvp2.js');
+  assert.ok(a.last.b && a.last.b.byteLength > 20, '장면은 바이너리 한 통');
+  const types = []; for (const [i, t] of a.last.ty || []) types[i] = t;
+  const s = P2.unpackSnap(a.last.b, a.got.match[0].roster, types);
   assert.ok(Array.isArray(s.me.h) && s.me.h.length === 4, '필드 4명');
   assert.equal(s.me.bench.length, 2, '벤치 2명');
-  assert.ok(s.me.eb !== undefined, '진상 묶음');
+  assert.deepEqual(s.me.h.map((h) => h[1]).sort(), DA.slice(0, 4).sort());
+
   assert.equal((await a.call('in', { k: 'hack' })).ok, false, '이상한 입력');
   assert.equal((await a.call('in', { k: 'sk', s: 0 })).ok, false, '빈 자리');
   assert.equal((await a.call('in', { k: 'send', kind: 'big' })).ok, false, '게이지 없음');
@@ -194,6 +201,14 @@ test('v2 소켓: 매칭 → 장면 → 입력 확인 → 입구 무너짐 → �
   const pa = (await srv.accounts.store.byId(ua.user ? ua.user.id : srv.accounts.verifyToken(ua.token))).stats.langbang.pvp;
   assert.equal(pa.wins, 1); assert.equal(pa.rating, 1000 + ra.delta);
   a.close(); b.close();
+  // 안 가진 멤버는 서버가 뺀다 (대전 덱 6칸이어도)
+  const uc = await user('pv2c');
+  const c = player(uc.token);
+  await until(() => c.connected);
+  assert.equal((await c.call('botnow', { deck: ['soyoung', 'gunman', 'staff', 'sunggu', 'gunnyeo', 'jieun'] })).matched, true);
+  await until(() => c.got.match);
+  assert.deepEqual(c.got.match[0].deck, ['gunman', 'staff', 'gunnyeo'], '소영 · 성구 · 지은은 안 가짐');
+  c.emit('quit'); await until(() => c.got.end); c.close();
 });
 
 test('v2 소켓: AI 와 바로 대전 · 끊기면 AI 가 대신 · 시간 지나면 기권', async () => {
@@ -236,4 +251,35 @@ test('v2 소켓: 방 코드로 친구 대전', async () => {
 test('v2 화면 파일: 문법 (game.js · pvp2-ui.js — 줄 끝 주석이 코드를 먹지 않았나)', () => {
   const { execFileSync } = require('node:child_process');
   for (const f of ['game.js', 'pvp2-ui.js', 'pvp2.js', 'pvp2-sim.js', 'patchnotes.js']) execFileSync(process.execPath, ['--check', path.join(__dirname, '..', 'public', 'langbang', f)]);
+});
+
+test('v2 전송량: 한 사람당 1초 3KB 아래 (바이너리 · 0.2초마다 · 상대 판 진상 3번에 2번) · 풀면 그대로', async () => {
+  const D2 = await lb('pvp2-sim.js');
+  const P2 = await lb('pvp2.js');
+  const d = D2.createDuel({ seed: 11, hp: 1.6, sides: [lo(DA, 10), lo(DB, 10)] });
+  D2.setBot(d, 0); D2.setBot(d, 1);
+  const roster = [...new Set([...d.sides[0].deck, ...d.sides[1].deck])];
+  const tt = P2.newTypeTable(), types = [];
+  let n = 0, bytes = 0, evq = [], checked = false;
+  while (!d.over) {
+    D2.tick(d); n++; for (const e of D2.drainEv(d)) evq.push(e);
+    if (n % P2.PV2.snapEvery) continue;
+    const opFull = (n / P2.PV2.snapEvery) % P2.PV2.opSkip !== P2.PV2.opSkip - 1;
+    const raw = D2.snap(d, 0, opFull), pk = P2.packSnap(raw, roster, tt);
+    for (const [i, t] of pk.ty) types[i] = t;
+    bytes += pk.b.length + 60 + (evq.length ? JSON.stringify(evq).length : 0) + (pk.ty.length ? JSON.stringify(pk.ty).length : 0); // (소켓 머리 60바이트로 넉넉히)
+    evq = [];
+    if (!checked && raw.me.es.length > 3 && raw.op.es) {
+      checked = true;
+      const back = P2.unpackSnap(pk.b, roster, types);
+      assert.equal(back.me.hp, raw.me.hp); assert.equal(back.op.k, raw.op.k);
+      assert.deepEqual(back.me.h.map((h) => [h[0], h[1], h[2], h[4]]), raw.me.h.map((h) => [h[0], h[1], h[2], h[4]]));
+      assert.deepEqual(back.me.bench, raw.me.bench);
+      assert.equal(back.me.es.length, raw.me.es.length); assert.equal(back.me.es[0].t, raw.me.es[0].t); assert.ok(Math.abs(back.me.es[0].y - raw.me.es[0].y) < 3);
+      assert.equal(back.op.es.length, raw.op.es.length);
+    }
+  }
+  assert.ok(checked);
+  const perSec = bytes / d.t;
+  assert.ok(perSec < 3000, `1초 ${Math.round(perSec)}바이트`);
 });

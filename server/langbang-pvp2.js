@@ -17,7 +17,7 @@ const lbMod = (f) => import(pathToFileURL(path.join(__dirname, '..', 'public', '
 function createLbPvp2(opts) {
   const { accounts, normLb, eloDelta } = opts;
   const M = {};
-  const ready = Promise.all([lbMod('pvp2-sim.js'), lbMod('pvp2.js'), lbMod('pvp.js'), lbMod('live.js')]).then(([D2, P2, PV, live]) => { M.D2 = D2; M.P2 = P2; M.PV = PV; if (!opts.live) opts.live = live; }).catch((e) => console.error('[lbpvp2] 불러오기 실패', e.message));
+  const ready = Promise.all([lbMod('pvp2-sim.js'), lbMod('pvp2.js'), lbMod('pvp.js'), lbMod('live.js'), lbMod('data.js')]).then(([D2, P2, PV, live, D]) => { M.D2 = D2; M.P2 = P2; M.PV = PV; M.D = D; if (!opts.live) opts.live = live; }).catch((e) => console.error('[lbpvp2] 불러오기 실패', e.message));
   const now = opts.now || Date.now;
   const T = {
     tick: opts.tickMs !== undefined ? opts.tickMs : 100, // 판 0.1초 = 실제 몇 ms (테스트는 짧게)
@@ -59,6 +59,7 @@ function createLbPvp2(opts) {
   const pub = (p) => ({ nickname: p.nickname, username: p.username || '', rating: p.rating, deck: p.deck, bot: !!p.bot, ai: !!p.ai, power: p.fp | 0, games: p.games | 0, wins: p.wins | 0, title: p.title || '', frame: p.frame || '' });
 
   // 덱 · 대전 한도(강화 +10 · ★3 · 영웅 장비) → 판에 넣을 것 · 전투력
+  async function freshLb(pl) { if (!pl.uid) return; try { const u = await accounts.store.byId(pl.uid); if (u && u.stats) pl.lb = u.stats.langbang || pl.lb; } catch (e) { /* 그대로 */ } } // 기다리는 동안 강화 · 새 멤버
   function setDeck(pl, b) {
     pl.deck = Array.isArray(b && b.deck) ? b.deck.slice(0, 6).map((x) => String(x).slice(0, 16)) : [];
     const lo = b && b.lo;
@@ -75,6 +76,7 @@ function createLbPvp2(opts) {
   function refreshLo(pl) {
     if (!M.PV) return;
     const src = pl.uid ? pl.lb : pl.guestLo;
+    if (pl.uid && pl.lb && opts.live && opts.live.heroUnlocked) pl.deck = pl.deck.filter((id) => opts.live.heroUnlocked(pl.lb, id)); // 로그인: 가진 멤버만 (대전 덱은 누구나 6칸)
     pl.lo = M.PV.pvpLoadout(src || {}, pl.deck);
     pl.deck = pl.lo.deck.slice(0, 6);
     pl.fp = M.PV.pvpFirepower(pl.lo);
@@ -123,13 +125,46 @@ function createLbPvp2(opts) {
     return code;
   }
 
-  // ─── AI 상대 (지금 대전 AI 덱 고르기를 그대로: 비슷한 전투력 ±5%) ───
+  // ─── AI 상대: 비슷한 전투력 ±5% 덱 (절반은 내 속성을 노린 구성) ───
+  function aiPower(D, id, m) { return D.heroPowerOf(id, m, 1, null, { mile: false }); } // 화면 · 대전과 같은 전투력 (data.js heroPowerOf)
+  // 덱: 비슷한 전투력 (±5%) · 절반은 상대 속성을 노린 구성
+  function aiDeck(D, pl, rng) {
+    const mmax = (id) => Math.min(M.PV ? M.PV.PVP_NORM.meta : 10, D.metaMaxOf(id)); // 대전: 강화 +10 까지만
+    const pool = Object.keys(D.HEROES).filter((id) => !D.HEROES[id].summon && id !== 'hochan' && id !== 'jeongseob');
+    const pick = [];
+    const pAttrs = (pl.deck || []).map((id) => D.HEROES[id] && D.HEROES[id].attr).filter(Boolean);
+    if (rng() < 0.5 && pAttrs.length) { const want = pAttrs[Math.floor(rng() * pAttrs.length)]; const same = pool.filter((id) => D.HEROES[id].attr === want); while (pick.length < 2 && same.length) pick.push(same.splice(Math.floor(rng() * same.length), 1)[0]); }
+    const rest = pool.filter((id) => !pick.includes(id));
+    const n = Math.max(2, Math.min(5, (pl.deck || []).length || 5));
+    while (pick.length < n && rest.length) pick.push(rest.splice(Math.floor(rng() * rest.length), 1)[0]);
+    const target = Math.max(1, pl.power | 0);
+    // 강화 0 으로도 너무 세면: 높은 등급부터 낮은 등급 멤버로 바꾸고 · 그래도 세면 한 명씩 뺀다
+    const p0 = () => pick.reduce((a, id) => a + aiPower(D, id, 0), 0);
+    const low = pool.filter((id) => !pick.includes(id)).sort((x, y) => aiPower(D, x, 0) - aiPower(D, y, 0));
+    for (let k = 0; k < 10 && p0() > target * 1.05 && low.length; k++) { let hi = 0; pick.forEach((id, i) => { if (aiPower(D, id, 0) > aiPower(D, pick[hi], 0)) hi = i; }); const c = low.shift(); if (aiPower(D, c, 0) < aiPower(D, pick[hi], 0)) pick[hi] = c; }
+    while (pick.length > 2 && p0() > target * 1.05) { let hi = 0; pick.forEach((id, i) => { if (aiPower(D, id, 0) > aiPower(D, pick[hi], 0)) hi = i; }); pick.splice(hi, 1); }
+    // 강화를 끝까지 해도 모자라면: 약한 멤버를 높은 등급 멤버로 바꾼다
+    const pMax = () => pick.reduce((a, id) => a + aiPower(D, id, mmax(id)), 0);
+    const high = pool.filter((id) => !pick.includes(id)).sort((x, y) => aiPower(D, y, mmax(y)) - aiPower(D, x, mmax(x)));
+    for (let k = 0; k < 10 && pMax() < target * 0.95 && high.length; k++) { let lo = 0; pick.forEach((id, i) => { if (aiPower(D, id, mmax(id)) < aiPower(D, pick[lo], mmax(pick[lo]))) lo = i; }); const pw = (id) => aiPower(D, id, mmax(id)), rest = pMax() - pw(pick[lo]), rest0 = p0() - aiPower(D, pick[lo], 0); let ci = -1, cd = Infinity; high.forEach((c, i) => { if (pw(c) <= pw(pick[lo]) || rest0 + aiPower(D, c, 0) > target * 1.05) return; const dd = Math.abs(rest + pw(c) - target); if (dd < cd) { cd = dd; ci = i; } }); if (ci < 0) break; pick[lo] = high.splice(ci, 1)[0]; } // 강화 한도(+10) 안에서 목표에 가장 가까운 멤버로 (넘치지 않게)
+    let best = 0, bd = Infinity;
+    for (let m = 0; m <= 20; m++) { const p = pick.reduce((a, id) => a + aiPower(D, id, Math.min(m, mmax(id))), 0); if (Math.abs(p - target) < bd) { bd = Math.abs(p - target); best = m; } }
+    const meta = Object.fromEntries(pick.map((id) => [id, Math.min(best, mmax(id))]));
+    // 남은 차이는 한 명씩 ±1 로 맞춘다 (±5% 안으로)
+    for (let k = 0; k < 60; k++) {
+      const p = pick.reduce((a, id) => a + aiPower(D, id, meta[id]), 0);
+      if (Math.abs(p - target) <= target * 0.05) break;
+      const id = pick[k % pick.length]; meta[id] = Math.max(0, Math.min(mmax(id), meta[id] + (p < target ? 1 : -1)));
+    }
+    const power = Math.round(pick.reduce((a, id) => a + aiPower(D, id, meta[id]), 0));
+    return { deck: pick, meta, power };
+  }
   const AI_NICK = ['야식왕', '골목대장', '랑방단골', '막차탑승', '노래방VIP', '새벽두시', '편의점요정', '치킨은반반', '라떼는말야', '오늘도출근', '월요병환자', '소주한잔'];
   function makeBot(pl) {
     const seed = crypto.randomBytes(4).readUInt32LE(0);
     const rng = M.D2.seeded(seed);
     let dk = null;
-    try { if (opts.v1 && opts.v1.aiDeck && opts.v1.AI && opts.v1.AI.D) dk = opts.v1.aiDeck({ deck: pl.deck, power: pl.fp }, rng); } catch (e) { dk = null; }
+    try { dk = aiDeck(M.D, { deck: pl.deck, power: pl.fp }, rng); } catch (e) { dk = null; }
     if (!dk || !dk.deck || !dk.deck.length) dk = { deck: ['bangjang', 'staff', 'gunman', 'gunnyeo'], meta: {}, power: pl.fp };
     // v2 는 벤치가 있으니 6명까지 (모자라면 같은 강화로 채운다)
     const pool = ['gunman', 'staff', 'gunnyeo', 'bangjang', 'sunggu', 'jieun', 'ingyu', 'subin', 'dohoon', 'soyoung'];
@@ -149,7 +184,8 @@ function createLbPvp2(opts) {
     const hp = M.PV.pvpHpScale(a.fp, b.fp);
     const d = M.D2.createDuel({ seed, hp, len: T.len, sides: [a.lo, b.lo] });
     const aiNote = b.ai ? T.aiNotice : 0;
-    const m = { id, seed, hp, d, a, b, p: [a, b], startAt: now() + T.countdown + aiNote, over: false, ai: !!b.ai, n: 0 };
+    const m = { id, seed, hp, d, a, b, p: [a, b], startAt: now() + T.countdown + aiNote, over: false, ai: !!b.ai, n: 0, evq: [], roster: [...new Set([...d.sides[0].deck, ...d.sides[1].deck])] };
+    for (const p of [a, b]) { p.tt = M.P2.newTypeTable(); p.net = 0; }
     for (const [i, p] of [[0, a], [1, b]]) { p.match = m; p.side = i; if (p.bot) { M.D2.setBot(d, i, { skill: 1 + p.adj * 3 }); d.sides[i].g.mods.dmg *= 1 + p.adj; } else byUser.set(p.key, p); }
     matches.set(id, m);
     for (const i of [0, 1]) { const me = m.p[i], op = m.p[1 - i]; if (me.socket) me.socket.emit('match', info(m, i, { startIn: m.startAt - now(), aiNotice: aiNote })); void op; }
@@ -158,7 +194,7 @@ function createLbPvp2(opts) {
   }
   function info(m, i, x) {
     const me = m.p[i], op = m.p[1 - i];
-    return Object.assign({ id: m.id, seed: m.seed, side: i, len: m.d.len || 240, you: pub(me), opp: pub(op), deck: m.d.sides[i].deck, oppDeck: m.d.sides[1 - i].deck }, x || {});
+    return Object.assign({ id: m.id, seed: m.seed, side: i, len: m.d.len || 240, you: pub(me), opp: pub(op), deck: m.d.sides[i].deck, oppDeck: m.d.sides[1 - i].deck, roster: m.roster, snapMs: T.tick * M.P2.PV2.snapEvery }, x || {});
   }
   // 0.1초(판 시간)마다: 3스텝 → 사건 · 장면 보내기
   function loop(m) {
@@ -166,9 +202,21 @@ function createLbPvp2(opts) {
     try {
       M.D2.tick(m.d);
       m.n++;
-      const ev = M.D2.drainEv(m.d);
-      const opFull = m.n % 2 === 0;
-      for (const i of [0, 1]) { const p = m.p[i]; if (p.socket) { const s = M.D2.snap(m.d, i, opFull); s.ev = ev; p.socket.emit('snap', s); } }
+      for (const e of M.D2.drainEv(m.d)) m.evq.push(e);
+      const P2 = M.P2.PV2;
+      if (m.n % P2.snapEvery === 0 || m.d.over) { // 장면: 0.2초마다 바이너리 한 통 (상대 판 진상은 3번에 2번)
+        const k = Math.floor(m.n / P2.snapEvery), opFull = k % P2.opSkip !== P2.opSkip - 1;
+        for (const i of [0, 1]) {
+          const p = m.p[i]; if (!p.socket) continue;
+          const pk = M.P2.packSnap(M.D2.snap(m.d, i, opFull), m.roster, p.tt);
+          const msg = { b: Buffer.from(pk.b) };
+          if (m.evq.length) msg.ev = m.evq;
+          if (pk.ty.length) msg.ty = pk.ty;
+          p.net += pk.b.length + 30 + (msg.ev ? JSON.stringify(msg.ev).length : 0) + (msg.ty ? JSON.stringify(msg.ty).length : 0); // (대략 · 소켓 머리 포함)
+          p.socket.emit('snap', msg);
+        }
+        m.evq = [];
+      }
       if (m.d.over) { finish(m, m.d.win < 0 ? null : m.p[1 - m.d.win], m.d.reason); return; }
     } catch (e) { console.error('[lbpvp2] 판 오류', e && e.stack); finish(m, null, 'error'); return; }
     m.loopT = later(T.tick, () => loop(m));
@@ -212,7 +260,7 @@ function createLbPvp2(opts) {
       }
       p.rating = rating;
       if (m.ai && !p.uid && !draw) { const k = p.key, s = guestAdj.get(k + ':s') || { w: 0, l: 0 }; let adj = guestAdj.get(k) || 0; if (win) { s.w++; s.l = 0; if (s.w >= 2) { adj = Math.min(0.15, adj + 0.05); s.w = 0; } } else { s.l++; s.w = 0; if (s.l >= 2) { adj = Math.max(-0.15, adj - 0.05); s.l = 0; } } guestAdj.set(k, adj); guestAdj.set(k + ':s', s); p.aiAdj = adj; }
-      const r = { id: m.id, v: 2, win, draw, delta, coins, rating, before, streak, reason, ranked, ai: m.ai, note, left, hp: st[i].hp, oppHp: st[1 - i].hp, kills: st[i].kills, oppKills: st[1 - i].kills, sec: Math.round(m.d.t) };
+      const r = { id: m.id, v: 2, win, draw, delta, coins, rating, before, streak, reason, ranked, ai: m.ai, note, left, hp: st[i].hp, oppHp: st[1 - i].hp, kills: st[i].kills, oppKills: st[1 - i].kills, sec: Math.round(m.d.t), kb: Math.round((p.net || 0) / 102.4) / 10 };
       if (p.socket) p.socket.emit('end', r);
       ended.set(p.key, { r, at: now() });
     }
@@ -233,6 +281,7 @@ function createLbPvp2(opts) {
         if (prev && prev !== socket) prev.disconnect(true);
         const m = old.match;
         M.D2.clearBot(m.d, old.side);
+        old.tt = M.P2.newTypeTable(); // 새 연결: 진상 종류 표를 처음부터 다시
         socket.emit('rejoin', info(m, old.side, { startIn: m.startAt - now(), t: m.d.t }));
       } else {
         socket.data.pl = p;
@@ -242,7 +291,8 @@ function createLbPvp2(opts) {
       const me = () => socket.data.pl;
       const ack = (fn, v) => { if (typeof fn === 'function') fn(v); };
       const busy = (fn) => { if (me().match) { ack(fn, { ok: false, message: '이미 대전 중이에요' }); return true; } return false; };
-      socket.on('queue', (b, fn) => {
+      socket.on('queue', async (b, fn) => {
+        await freshLb(me());
         if (busy(fn)) return;
         const pl = me(); unqueue(pl); setDeck(pl, b);
         if (!deckOk(pl)) return ack(fn, { ok: false, message: '덱에 멤버를 넣어 주세요' });
@@ -251,21 +301,24 @@ function createLbPvp2(opts) {
         ack(fn, pl.match ? { ok: true, matched: true } : { ok: true, waiting: true, botIn: T.botAfter });
       });
       socket.on('cancel', (b, fn) => { unqueue(me()); ack(fn, { ok: true }); });
-      socket.on('botnow', (b, fn) => {
+      socket.on('botnow', async (b, fn) => {
+        await freshLb(me());
         const pl = me();
         if (pl.match) return ack(fn, { ok: false, message: '이미 대전 중이에요' });
         if (b && b.deck) setDeck(pl, b);
         if (!deckOk(pl)) return ack(fn, { ok: false, message: '덱에 멤버를 넣어 주세요' });
         unqueue(pl); makeMatch(pl, makeBot(pl)); ack(fn, { ok: true, matched: true });
       });
-      socket.on('room:create', (b, fn) => {
+      socket.on('room:create', async (b, fn) => {
+        await freshLb(me());
         if (busy(fn)) return;
         const pl = me(); unqueue(pl); setDeck(pl, b);
         ack(fn, { ok: true, code: openRoom(pl, b) });
       });
       socket.on('rooms:list', (b, fn) => ack(fn, { ok: true, rooms: roomList() }));
       socket.on('room:leave', (b, fn) => { unqueue(me()); ack(fn, { ok: true }); });
-      socket.on('room:join', (b, fn) => {
+      socket.on('room:join', async (b, fn) => {
+        await freshLb(me());
         const pl = me();
         const host = codes.get(String((b && b.code) || ''));
         if (!host || host === pl || host.match) return ack(fn, { ok: false, message: '없어진 방이에요' });
@@ -302,7 +355,7 @@ function createLbPvp2(opts) {
     });
   }
   function close() { for (const t of timers) { clearTimeout(t); clearInterval(t); } timers.clear(); }
-  return { attach, close, queue, matches, codes, finish, makeBot, roomList, ready, T };
+  return { attach, close, queue, matches, codes, finish, makeBot, roomList, ready, T, aiDeck: (pl, rng) => aiDeck(M.D, pl, rng || Math.random), aiPower: (id, m) => aiPower(M.D, id, m), fpOf: (pl) => { pl.deck = pl.deck || []; refreshLo(pl); return pl.fp; } };
 }
 
 module.exports = { createLbPvp2, REWARD };

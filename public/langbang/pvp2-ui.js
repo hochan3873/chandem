@@ -2,7 +2,7 @@
 //  서버(/lbpvp2)가 판을 돌리고 0.1초마다 장면을 보낸다 → 이 화면은 두 장면 사이를 부드럽게 이어 그린다 (0.1초 늦게)
 //  game.js 는 initPvp2(도우미) 로 부르고 돌려받은 함수 몇 개만 쓴다
 import { HEROES, ENEMIES } from './data.js';
-import { PV2, ST, HEX_NAME, unpackEnemies, pvp2Phase, pvp2LeftText } from './pvp2.js';
+import { PV2, ST, HEX_NAME, unpackSnap, pvp2Phase, pvp2LeftText } from './pvp2.js';
 
 let C = null;
 const st = { sock: null, match: null, side: 0, wait: null, el: null, cv: null, cx: null, raf: 0, buf: [], opBuf: [], fx: [], texts: [], img: {}, bg: null, swapPick: -1, last: null, lay: null, shake: 0, hurt: 0, ended: null, want: null, rooms: null, prevMe: null, prevOp: null };
@@ -41,10 +41,18 @@ async function sock() {
   s.on('roomClosed', () => { closeWait(); C.toast('방이 10분 동안 비어서 닫혔어요', 1800); });
   return s;
 }
+// 대전 덱: 산 덱 칸과 상관없이 모두 6명 (필드 4 + 벤치 2) — 덱이 모자라면 가진 멤버 중 센 순서로 벤치를 채운다 (대전에서만)
+export function fillDeck(deck, owned, power, max = PV2.deckMax) {
+  const ids = (deck || []).filter((id) => id && HEROES[id] && !HEROES[id].summon).slice(0, max);
+  const rest = (owned || []).filter((id) => HEROES[id] && !HEROES[id].summon && !ids.includes(id)).sort((a, b) => power(b) - power(a));
+  while (ids.length < max && rest.length) ids.push(rest.shift());
+  return ids;
+}
+function pvpDeck() { return fillDeck(C.curDeck(), C.owned ? C.owned() : [], (id) => (C.heroPower ? C.heroPower(id) : 0) || 0); }
 // 손님: 덱 멤버의 강화 · 성급 · 장비 (서버가 대전 한도로 잘라서 쓴다)
 function payload(extra) {
   C.fixDeck();
-  const p = C.P(), ids = C.curDeck().filter(Boolean).slice(0, PV2.deckMax), o = Object.assign({ deck: ids }, extra || {});
+  const p = C.P(), ids = pvpDeck(), o = Object.assign({ deck: ids }, extra || {});
   if (C.app.guest) {
     const eq = {}, gids = new Set();
     for (const id of ids) { const sl = (p.equip || {})[id]; if (sl) { eq[id] = { w: sl.w, a: sl.a, m: sl.m }; for (const k of ['w', 'a', 'm']) if (sl[k] !== undefined) gids.add(sl[k]); } }
@@ -116,7 +124,7 @@ const TIPS = ['내 멤버가 스킬을 쓰면 상대 멤버에게 견제가 날�
 // ─── 판 시작 ───
 function matched(m) {
   closeWait(); C.closeInfoCard();
-  st.match = m; st.side = m.side; st.buf = []; st.opBuf = []; st.fx = []; st.texts = []; st.ended = null; st.swapPick = -1; st.prevMe = null; st.prevOp = null;
+  st.match = m; st.side = m.side; st.roster = m.roster || []; st.types = []; st.buf = []; st.opBuf = []; st.fx = []; st.texts = []; st.ended = null; st.swapPick = -1; st.prevMe = null; st.prevOp = null;
   const startIn = Math.max(800, m.startIn || 3000);
   C.vs({ you: m.you, opp: m.opp, startIn, aiNotice: m.aiNotice || 0 });
   setTimeout(() => { if (st.match === m) openScreen(); }, Math.max(0, startIn - 650));
@@ -124,7 +132,7 @@ function matched(m) {
 function rejoined(m) {
   if (st.match && st.match.id === m.id && st.el) { C.toast('대전에 다시 연결됐어요', 1400); return; }
   closeWait(); C.closeInfoCard();
-  st.match = m; st.side = m.side; st.buf = []; st.opBuf = []; st.fx = []; st.texts = []; st.ended = null;
+  st.match = m; st.side = m.side; st.roster = m.roster || []; st.types = []; st.buf = []; st.opBuf = []; st.fx = []; st.texts = []; st.ended = null;
   C.toast('하던 대전으로 다시 들어왔어요', 1600);
   openScreen();
 }
@@ -157,6 +165,8 @@ function openScreen() {
   st.el = el; st.cv = el.querySelector('.pv2-cv'); st.cx = st.cv.getContext('2d', { alpha: false });
   C.setOn(true);
   el.addEventListener('click', onClick);
+  const skEl = el.querySelector('.pv2-sk');
+  skEl.addEventListener('pointerdown', skDown); skEl.addEventListener('pointermove', skMove); skEl.addEventListener('pointerup', skUp); skEl.addEventListener('pointercancel', skUp);
   st.cv.addEventListener('pointerdown', onTap);
   layout();
   if (!st.onResize) { st.onResize = () => { clearTimeout(st.rzT); st.rzT = setTimeout(() => { if (st.el) layout(); }, 140); }; window.addEventListener('resize', st.onResize); } // (game.js 가 무대 크기를 먼저 바꾼 뒤)
@@ -245,12 +255,15 @@ function bakeBg() {
 }
 
 // ─── 장면 받기 ───
-function onSnap(x) {
-  if (!st.match) return;
+function onSnap(msg) {
+  if (!st.match || !msg) return;
+  for (const [i, t] of msg.ty || []) st.types[i] = t; // 새로 나온 진상 종류
+  const x = unpackSnap(msg.b, st.roster || [], st.types || []);
+  x.ev = msg.ev || [];
   const now = performance.now();
   x.at = now;
-  x.meE = unpackEnemies(x.me.eb, x.me.ty);
-  if (x.op.eb) { x.opE = unpackEnemies(x.op.eb, x.op.ty); st.opBuf.push({ at: now, e: x.opE }); if (st.opBuf.length > 3) st.opBuf.shift(); }
+  x.meE = x.me.es || [];
+  if (x.op.es) { x.opE = x.op.es; st.opBuf.push({ at: now, e: x.opE }); if (st.opBuf.length > 3) st.opBuf.shift(); }
   // 입구가 깎이면 화면 흔들기 · 공격 표시 (쏜 수가 늘면)
   const pm = st.last;
   if (pm) {
@@ -402,14 +415,58 @@ function onClick(ev) {
   if (k === 'quit') { quitAsk(); return; }
   if (!x) return;
   if (k === 'bn') { const i = Number(b.dataset.b); if (x.me.sw > 0) { tip(b, '교체 쿨'); return; } st.swapPick = st.swapPick === i ? -1 : i; sfx('tap'); hud(x); return; }
-  if (k === 'sk') {
-    const s = Number(b.dataset.s);
-    if (st.swapPick >= 0) { const bi = st.swapPick; st.swapPick = -1; send({ k: 'sw', b: bi, s }, b); hud(x); return; }
-    send({ k: 'sk', s }, b); return;
-  }
+  if (k === 'sk') return; // 스킬 버튼은 누르기 · 끌기(skDown/skMove/skUp)에서
   if (k === 'cl') { send({ k: 'cl' }, b); return; }
   if (k === 'ult') { send({ k: 'ult' }, b); return; }
   if (k === 'send') { const big = x.me.ga >= Math.round(PV2.send.big.cost * (x.me.bh ? PV2.comeback.send : 1)); send({ k: 'send', kind: big ? 'big' : 'small' }, b); }
+}
+// 스킬 버튼: 누르면 자동 조준 · 끌어서 내 판에 놓으면 그곳에 (끌다가 판 밖에서 놓으면 취소)
+function skTap(b) {
+  const x = st.last; if (!x) return;
+  const s = Number(b.dataset.s);
+  if (st.swapPick >= 0) { const bi = st.swapPick; st.swapPick = -1; send({ k: 'sw', b: bi, s }, b); hud(x); return; }
+  send({ k: 'sk', s }, b);
+}
+function aimAt(ev) {
+  const L = st.lay, r = st.cv.getBoundingClientRect();
+  const lx = ((ev.clientX - r.left) / r.width) * 360, ly = ((ev.clientY - r.top) / r.height) * L.Hc;
+  const inside = lx >= 0 && lx <= 360 && ly >= L.myTop && ly < L.myBot;
+  return { lx, ly, inside, x: clamp(lx, 0, 360), y: Y0 + ((ly - L.myTop) / L.fieldH) * (Y1 - Y0) };
+}
+function skDown(ev) {
+  const b = ev.target.closest('.pv2-s'); if (!b || !st.last) return;
+  if (C.A && C.A.unlock) C.A.unlock();
+  st.drag = { b, s: Number(b.dataset.s), x0: ev.clientX, y0: ev.clientY, on: false, aim: null, id: ev.pointerId };
+  try { b.setPointerCapture(ev.pointerId); } catch { /* 없어도 됨 */ }
+}
+function skMove(ev) {
+  const d = st.drag; if (!d || ev.pointerId !== d.id || !st.lay) return;
+  if (!d.on && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) > 14 && st.swapPick < 0) { d.on = true; d.b.classList.add('aiming'); }
+  if (d.on) d.aim = aimAt(ev);
+}
+function skUp(ev) {
+  const d = st.drag; if (!d || ev.pointerId !== d.id) return;
+  st.drag = null; d.b.classList.remove('aiming');
+  if (ev.type === 'pointercancel') return;
+  if (!d.on) { skTap(d.b); return; }
+  const a = aimAt(ev);
+  if (!a.inside) { tip(d.b, '조준 취소'); return; }
+  send({ k: 'sk', s: d.s, x: Math.round(a.x), y: Math.round(a.y) }, d.b);
+  st.fx.push({ k: 'ring', x: a.lx, y: a.ly, r0: 6, r1: 30, t: 0, dur: 0.35, c: '#ffe066' });
+}
+// 끄는 동안: 놓을 곳에 범위 표시 (그 멤버 스킬 범위 · 판 밖이면 빨간 X)
+function drawAim(now) {
+  const d = st.drag; if (!d || !d.on || !d.aim) return;
+  const cx = st.cx, L = st.lay, a = d.aim;
+  const h = st.last && st.last.me.h.find((q) => q[0] === d.s);
+  const sk = h && HEROES[h[1]] && HEROES[h[1]].skill;
+  const r = sk && sk.r ? sk.r[Math.max(0, Math.min(sk.r.length - 1, h[2] - 1))] : 60;
+  if (!a.inside) { cx.strokeStyle = '#ff4d6d'; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(a.lx - 10, a.ly - 10); cx.lineTo(a.lx + 10, a.ly + 10); cx.moveTo(a.lx + 10, a.ly - 10); cx.lineTo(a.lx - 10, a.ly + 10); cx.stroke(); return; }
+  const ry = r * (L.fieldH / (Y1 - Y0));
+  if (h) { const p = toScr('me', h[6], h[7] - 20); cx.strokeStyle = 'rgba(255,224,102,0.45)'; cx.setLineDash([5, 5]); cx.lineWidth = 2; cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(a.lx, a.ly); cx.stroke(); cx.setLineDash([]); }
+  cx.fillStyle = 'rgba(255,224,102,0.16)'; cx.strokeStyle = '#ffe066'; cx.lineWidth = 2;
+  cx.beginPath(); cx.ellipse(a.lx, a.ly, r, Math.max(10, ry), 0, 0, Math.PI * 2); cx.fill(); cx.stroke();
+  cx.beginPath(); cx.arc(a.lx, a.ly, 4 + Math.sin(now / 120), 0, Math.PI * 2); cx.fillStyle = '#ffe066'; cx.fill();
 }
 // 화면 누르기: 상대 멤버 → 견제 표적 (다시 누르면 자동) · 내 판 → 집중 공격
 function onTap(ev) {
@@ -461,6 +518,7 @@ function draw(now, dt) {
   drawEnemies('op', opE); drawHeroes('op', last.op, prev && prev.op, a, now);
   drawEnemies('me', meE); drawHeroes('me', last.me, prev && prev.me, a, now);
   drawTarget(last, now);
+  drawAim(now);
   drawFx(dt);
   if (st.hurt > 0) { st.hurt -= dt; cx.fillStyle = `rgba(255,40,60,${(st.hurt * 0.5).toFixed(3)})`; cx.fillRect(0, L.myTop, 360, L.fieldH); }
 }

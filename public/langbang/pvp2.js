@@ -21,7 +21,8 @@ export const PV2 = {
   comeback: { gap: 0.2, ult: 1.3, send: 0.8, hexCut: 0.75 }, // 입구가 20%p 이상 뒤지면: 총공지 +30% · 보내기 −20% · 받는 견제 −25%
   send: { small: { cost: 10, gap: 3 }, big: { cost: 30, gap: 3 }, delay: 1 },
   dt: 1 / 30, tickMs: 100, // 서버: 0.1초마다 3스텝
-  eCap: 48, eCapOp: 32, // 장면에 담는 진상 최대 (내 판 · 상대 판)
+  eCap: 40, eCapOp: 28, // 장면에 담는 진상 최대 (내 판 · 상대 판)
+  snapEvery: 2, opSkip: 3, // 전송량: 장면은 0.2초마다(5번/초) · 상대 판 진상은 그중 3번에 2번(약 3.3번/초) — 화면이 사이를 이어 그린다
   rate: { perSec: 8, burst: 12 }, // 입력: 1초 8번 (순간 12번)
   grace: 15, // 끊김: 15초 동안 AI 가 대신 · 그 뒤 기권
   botAfter: 20, // 20초 동안 사람이 없으면 AI
@@ -115,4 +116,59 @@ export function hashOf(nums) {
   let h = 2166136261 >>> 0;
   for (const v of nums) { const n = Math.round(Number(v) * 100) | 0; h ^= n & 0xffff; h = Math.imul(h, 16777619) >>> 0; h ^= n >>> 16; h = Math.imul(h, 16777619) >>> 0; }
   return h >>> 0;
+}
+
+// ─── 장면 한 통을 바이너리로 (전송량 · Render 무료 전송량) ───
+//  roster: 이 판 멤버 id 목록 (판 시작 때 한 번 보냄) · tt: { map: 진상 종류 → 번호, list } 받는 사람마다 (새 종류만 'ty' 로 따로)
+//  [t×10 u16] + 나 · 상대: [입구 u16 · 최대 u16 · 웨이브 u8 · 처치 u16 · 게이지 u16 · 총공지 u8 · 기세 u8 · 교체쿨 u8 · 정신쿨 u8 · 표적 u8 · 표시 u8 · 진상 수 u16]
+//   + 멤버 n × 9 [자리 · 번호 · Lv · 준비 · 상태 · 상태초 · x · y · 쏜 수] + 벤치 n × 2 [번호 · Lv] + (진상이 있으면) n × 7
+function sideBytes(s, roster, tt, newTy) {
+  const es = s.es || null;
+  const n = 18 + 1 + s.h.length * 9 + 1 + s.bench.length * 2 + (es ? 1 + es.length * EB : 0);
+  const b = new Uint8Array(n); let o = 0;
+  const u8 = (v) => { b[o++] = Math.max(0, Math.min(255, Math.round(v) || 0)); };
+  const u16 = (v) => { const x = Math.max(0, Math.min(65535, Math.round(v) || 0)); b[o++] = x & 255; b[o++] = x >> 8; };
+  const rid = (id) => { const i = roster.indexOf(id); return i < 0 ? 255 : i; };
+  u16(s.hp); u16(s.max); u8(s.w); u16(s.k); u16(s.ga); u8(s.u); u8(s.m < 0 ? 255 : Math.min(254, s.m)); u8(s.sw); u8(s.cl); u8(s.tg + 1); u8((s.bh ? 1 : 0) | (s.gu ? 2 : 0) | (es ? 4 : 0)); u16(s.ne || 0);
+  u8(s.h.length);
+  for (const h of s.h) { u8(h[0]); u8(rid(h[1])); u8(h[2]); u8(h[3]); u8(h[4]); u8(h[5]); u8(encX(h[6])); u8(encY(h[7])); u8(h[8]); }
+  u8(s.bench.length);
+  s.bench.forEach((id, i) => { u8(rid(id)); u8((s.blv || [])[i] || 1); });
+  if (es) {
+    u8(es.length);
+    for (const e of es) {
+      let ti = tt.map.get(e.t); if (ti === undefined) { ti = tt.list.length; tt.list.push(e.t); tt.map.set(e.t, ti); newTy.push([ti, e.t]); }
+      b[o++] = e.uid & 255; b[o++] = (e.uid >> 8) & 255; b[o++] = ti & 255; b[o++] = encX(e.x); b[o++] = encY(e.y); b[o++] = Math.max(0, Math.min(100, Math.round(e.hp * 100))); b[o++] = e.f & 255;
+    }
+  }
+  return b.subarray(0, o);
+}
+export const newTypeTable = () => ({ map: new Map(), list: [] });
+// → { b: Uint8Array, ty: [[번호, 종류]] (새로 나온 진상 종류만) }
+export function packSnap(x, roster, tt) {
+  const newTy = [];
+  const a = sideBytes(x.me, roster, tt, newTy), c = sideBytes(x.op, roster, tt, newTy);
+  const out = new Uint8Array(2 + a.length + c.length);
+  const t = Math.max(0, Math.min(65535, Math.round(x.t * 10)));
+  out[0] = t & 255; out[1] = t >> 8; out.set(a, 2); out.set(c, 2 + a.length);
+  return { b: out, ty: newTy };
+}
+// 화면: 바이너리 → 장면 (types: 화면이 모아 둔 진상 종류 목록)
+export function unpackSnap(buf, roster, types) {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf && buf.byteLength !== undefined ? buf : []);
+  let o = 0;
+  const u8 = () => b[o++];
+  const u16 = () => { const v = b[o] | (b[o + 1] << 8); o += 2; return v; };
+  const side = () => {
+    const s = { hp: u16(), max: u16(), w: u8(), k: u16(), ga: u16(), u: u8() };
+    const m = u8(); s.m = m === 255 ? -1 : m; s.sw = u8(); s.cl = u8(); s.tg = u8() - 1;
+    const f = u8(); s.bh = f & 1; s.gu = f & 2 ? 1 : 0; s.ne = u16();
+    s.h = []; for (let n = u8(), i = 0; i < n; i++) { const slot = u8(), id = roster[u8()] || '', lv = u8(), cd = u8(), bits = u8(), stt = u8(), x = decX(u8()), y = decY(u8()), sh = u8(); s.h.push([slot, id, lv, cd, bits, stt, x, y, sh]); }
+    s.bench = []; s.blv = []; for (let n = u8(), i = 0; i < n; i++) { s.bench.push(roster[u8()] || ''); s.blv.push(u8()); }
+    if (f & 4) { s.es = []; for (let n = u8(), i = 0; i < n; i++) { s.es.push({ uid: b[o] | (b[o + 1] << 8), t: types[b[o + 2]] || '', x: decX(b[o + 3]), y: decY(b[o + 4]), hp: b[o + 5] / 100, f: b[o + 6] }); o += EB; } }
+    return s;
+  };
+  const t = u16() / 10;
+  const me = side(), op = side();
+  return { t, me, op };
 }
