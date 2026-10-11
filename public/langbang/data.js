@@ -112,7 +112,7 @@ export const HERO_IDLE = Object.fromEntries(HERO_IDLE_IDS.map((id) => [id, { src
 HERO_IDLE.donghan.fps = 4; // 누워서 느릿느릿
 // 쓰러짐 띠 (10/11 · 2048×256 8칸 · 기본 그림과 같은 크기 · 발 줄 237): 0 맞음 · 1 넘어짐 · 2 쿵 · 3~5 누워 어질어질 · 6 짚고 일어남 · 7 머리 털기
 //  오른쪽으로 넘어지게 그림 (왼쪽 자리는 render.js 가 뒤집는다) · 쓰러질 때 처음 불러온다 · 없는 멤버는 예전 코드 자세 (그림을 눕히기)
-export const HERO_DOWN_IDS = ['staff', 'bangjang', 'gunman', 'gunnyeo', 'myunghoon', 'eunok', 'jungmin', 'ingyu'];
+export const HERO_DOWN_IDS = ['staff', 'bangjang', 'gunman', 'gunnyeo', 'myunghoon', 'eunok', 'jungmin', 'ingyu', 'sanghwa', 'hochan', 'sunggu', 'youngjun', 'junseo', 'wonsik'];
 export const HERO_DOWN = Object.fromEntries(HERO_DOWN_IDS.map((id) => [id, { src: `/img/lb/h_${id}_down.webp`, frames: 8 }]));
 HERO_IDLE.hyungyeong_alt = { src: '/img/lb/h_hyungyeong_slim_idle.webp', frames: 8, fps: 7 }; // 배현경 날씬 (복서 스텝) · 변신 모습 대기 띠는 <id>_alt
 // 느린 판 (2026-10 대개편 · 스테이지 · 주간 · 헬만): 진상 나오는 간격 ×gap · 수 ×count · 한 명 체력 ×hp · 이동 ×espd · 입구 치는 힘 ×door — 한 판 3~4분 · 멤버 하나하나 조종하는 맛
