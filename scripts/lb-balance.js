@@ -155,8 +155,8 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   // 한 판 (사람처럼: 카드는 바로 고르고, 총력전은 적이 많거나 보스가 있을 때 쓴다)
   function play(o) {
     const rng = seeded(o.seed);
-    const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
-      H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
+    const g = o.snap ? S.restoreGame(o.snap, { rng, H: opt("H", 760) }) : S.createGame({
+      H: opt("H", 760), rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
       deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG || (args.includes('--hellnoextra') && o.hell ? D.stageConds(o.stage, false) : undefined), noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR, stars: o.stars, coll: o.coll,
     });

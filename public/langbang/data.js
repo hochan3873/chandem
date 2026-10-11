@@ -14,6 +14,10 @@ export const FIELD = {
 };
 // 방어선(영웅 줄) 높이: 화면 아래쪽 ~79% (스킬 바 · 입구 게이지와 안 겹치게 아래 166 은 비워 둔다)
 export const rowYFor = (H) => Math.round(Math.min(H * 0.79, H - 166));
+// 진상이 입구까지 걷는 거리 (스폰 → 입구 줄). 기준 높이 720 폰의 거리로 걷는 속도를 나눠, 폰이 달라도 도착 시간이 같게 한다
+export const walkDistFor = (H) => rowYFor(H) - FIELD.ropeGap - FIELD.spawnY;
+export const WALK_REF_H = 720;
+export const walkDistMul = (H) => walkDistFor(H) / walkDistFor(WALK_REF_H);
 export const HERO_SLOTS = 6;
 // 슬롯 x 좌표 (가로 360 기준) 와 채우는 순서(가운데부터)
 export const SLOT_X = [34, 92, 150, 210, 268, 326];
