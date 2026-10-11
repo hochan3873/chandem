@@ -2640,13 +2640,12 @@ export class Renderer {
         }
       }
       const ly = feet + 9;
-      // 배현경 다이어트 게이지 · 고아라 나이 게이지
-      if (h.def.diet || h.def.age) {
-        const f = h.def.diet ? (h.alt ? h.altT / h.def.diet.sec[h.lv - 1] : h.meter / 100)
-          : h.alt ? 1 - h.ageT / h.def.age.old[h.lv - 1] : h.ageT / h.def.age.princess[h.lv - 1];
+      // 배현경 날씬 남은 시간 · 고아라 공주 남은 시간 (스킬로 바뀐 동안만 · 10/12)
+      if ((h.def.diet && h.alt) || (h.def.age && !h.alt)) {
+        const f = h.def.diet ? h.altT / (h.altMax || h.def.diet.sec[h.lv - 1]) : h.ageT / (h.ageMax || h.def.age.princess[h.lv - 1]);
         const bw = 34;
         cx.fillStyle = 'rgba(0,0,0,0.6)'; cx.fillRect(hx - bw / 2, ly + 8, bw, 4);
-        cx.fillStyle = h.def.diet ? (h.alt ? '#ff5fa2' : '#ffb347') : h.alt ? '#a8a8a8' : '#ffc4ec';
+        cx.fillStyle = h.def.diet ? '#ff5fa2' : '#ffc4ec';
         cx.fillRect(hx - bw / 2, ly + 8, bw * clamp01(f), 4);
       }
       // 장전: 발밑 작은 막대 (연발·속사 무기)

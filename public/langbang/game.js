@@ -1025,7 +1025,7 @@ function handleEvents(g, loud) {
       case 'aged': { const ah = g.heroes.find((q) => q.id === e.hero); if (ah && ah._am && ah._am.g === g) { e.x = ah._am.x; e.y = ah._am.y; } } fx.text(e.x, e.y - 80, '폭삭… 아이고 허리야', '#c8c8c8', 14, 1.2, -18); fx.burst(e.x, e.y - 30, 10, 'rgba(200,200,200,0.8)', 60, 'puff', 12, 0.6); break;
       case 'young':
         { const ah = g.heroes.find((q) => q.id === e.hero); if (ah && ah._am && ah._am.g === g) { e.x = ah._am.x; e.y = ah._am.y; } } // 글자 · 별은 고아라가 지금 있는 곳 (밖에서 변해도)
-        fx.text(e.x, e.y - 80, '다시 공주!', '#ffc4ec', 17, 1.1, -24);
+        fx.text(e.x, e.y - 80, '아라야~ 공주 변신!', '#ffc4ec', 17, 1.1, -24);
         for (let k = 0; k < 10; k++) fx.part('star', e.x + (Math.random() - 0.5) * 50, e.y - 40, (Math.random() - 0.5) * 120, -80, 0.8, 9, null, { grav: 120 });
         if (loud) A.sfx.levelUp();
         break;
@@ -1917,8 +1917,8 @@ function heroStatsHtml(g, h) {
   if (g.hcSkT > 0) st.push(`공격력 +${Math.round(g.hcSkAtk * 100)}%`);
   if (h.evo) st.push(`진화: ${EVO[h.id].name}`);
   if (h.rage) st.push('분노');
-  if (h.alt && d.diet) st.push('날씬 모드');
-  if (h.alt && d.age) st.push('폭삭 늙음 (힘 반토막)');
+  if (h.alt && d.diet) st.push(`날씬 모드 ${Math.ceil(h.altT)}초`);
+  if (d.age) st.push(h.alt ? '할머니 (공주의 일격으로 변신)' : `공주 ${Math.ceil(h.ageT)}초`);
   for (const [k, t] of [['stunT', '기절'], ['charmT', '홀림'], ['rumorT', '뒷담 공속↓'], ['paperT', '차용증 공속↓'], ['fearT', '공포'], ['vomitT', '토 공속↓'], ['blindT', '눈부심'], ['drowsyT', '라떼 공속↓'], ['grabT', '붙잡힘']]) if (h[k] > 0) st.push(t);
   const perks = Object.entries(d.perks || {}).map(([k, v]) => `<li class="${h.lv >= +k ? 'on' : ''}"><b>Lv${k}</b> ${esc(v)}</li>`).join('');
   return `<div class="hi-head">${av(d)}<div><b>${d.name} <small>Lv.${h.lv}${h.evo ? '' : ''} · ${'★'.repeat(h.star || 1)}</small></b>${attrTag(d.attr)}${(HERO_TAGS[h.id] || []).map((t) => `<span class="tg">${TAGS[t].icon}${TAGS[t].name}</span>`).join('')}</div><button class="hi-x"data-hix>✕</button></div>
@@ -6245,7 +6245,7 @@ function faceImgStyle(id, f = 0.24, cy = 0.36) {
 const DEX_ALT = { jieun: ['jieun_demon'], eunok: ['eunok_rage'], hyungyeong: ['hyungyeong_slim'], ara: ['ara_old'], donghan: ['donghan_on', 'donghan_cafe'], youngjun: ['youngjun_dash'], scammer: ['scammer_ugly', 'scammer_fat'] };
 // 변신 모습 중 전신 그림(dexhq/<변신>.webp · thumb 포함)이 있는 것 — 그림을 넣으면 여기 이름만 추가
 const ALT_HQ_ART = new Set(['jieun_demon', 'eunok_rage', 'hyungyeong_slim', 'ara_old', 'donghan_on', 'donghan_cafe', 'youngjun_dash']);
-const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드', ara: '공주', ara_old: '폭삭 늙음', donghan: '누워서 간보기', donghan_on: '진심 빔', donghan_cafe: '카페인 풀충전', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
+const DEX_FORM = { jieun: '순한 막내', jieun_demon: '악마 모드', eunok: '평소', eunok_rage: '분노 모드', hyungyeong: '통통 모드', hyungyeong_slim: '날씬 모드 (주사)', ara: '공주 (스킬)', ara_old: '할머니 (평소)', donghan: '누워서 간보기', donghan_on: '진심 빔', donghan_cafe: '카페인 풀충전', youngjun: '대기', youngjun_dash: '돌격!', scammer: '프사', scammer_ugly: '실물 (공포)', scammer_fat: '실물 (뚱뚱)' };
 // 캐릭터별 가만히 있을 때 움직임
 const DEX_ANIM = { dragon: 'flame', subin: 'sway', baul: 'bouncy', byunghwa: 'gold', jeongseob: 'breathe', jiwon: 'breathe', wonsik: 'flex', sanghwa: 'gold', jieun: 'breathe', soyoung: 'bouncy', jungmin: 'sway', dohoon: 'notes', eunok: 'flame', donghan: 'sleepy', hochan: 'gold', hanna: 'hearts', junseo: 'hearts', youngjun: 'bouncy', ingyu: 'flex', hyungyeong: 'bouncy', sunggu: 'sway', ara: 'breathe', drunk_sleep: 'sleepy', boss_soloparty: 'party' };
 function dexAnim(kind, d, id) {

@@ -1187,7 +1187,7 @@ test('live: 성급 · 시즌 30단계 · 칭호/프레임 · 챕터 별 상자 �
   assert.deepEqual(bad.season.claimed, [1]);
 });
 
-test('새 멤버: 여사친 핀볼 · 다이어트 변신 · 공주↔늙음 · 황금 파동 버프 · 성급 공격력', () => {
+test('새 멤버: 여사친 핀볼 · 다이어트 변신 · 공주↔늙음 (스킬로만) · 황금 파동 버프 · 성급 공격력', () => {
   const g = S.createGame({ rng: seeded(901), noWaves: true, heroes: ['junseo'] });
   const h = g.heroes[0];
   const es = [0, 1, 2, 3].map((i) => { const e = S.spawnEnemy(g, 'thug', h.x - 60 + i * 40, g.rowY - 200 - i * 10, { hpMul: 50 }); e.speed = 0; return e; });
@@ -1195,22 +1195,43 @@ test('새 멤버: 여사친 핀볼 · 다이어트 변신 · 공주↔늙음 · 
   assert.ok(es.filter((e) => e.hp < e.maxHp).length >= 3, '여사친이 3명 이상 맞힘');
   const g2 = S.createGame({ rng: seeded(902), noWaves: true, heroes: ['hyungyeong'] });
   const hy = g2.heroes[0];
-  hy.meter = 99.99; g2.phase = 'wave'; g2.spawnQ = []; g2.spawnI = 0;
+  g2.phase = 'wave'; g2.spawnQ = []; g2.spawnI = 0;
   const dummy = S.spawnEnemy(g2, 'thug', hy.x, g2.rowY - 120, { hpMul: 500 }); dummy.speed = 0;
-  S.step(g2, 1 / 60); S.step(g2, 1 / 60);
-  assert.equal(hy.alt, true, '날씬 모드');
-  for (let t = 0; t < 12; t += 1 / 60) S.step(g2, 1 / 60);
+  for (let t = 0; t < 30; t += 1 / 60) S.step(g2, 1 / 60);
+  assert.equal(hy.alt, false, '박치기를 아무리 해도 저절로 날씬해지지 않는다 (10/12)');
+  hy.skillCd = 0;
+  assert.ok(S.castSkill(g2, hy));
+  assert.equal(hy.alt, true, '다이어트 주사 → 날씬 모드');
+  const sec = D.HEROES.hyungyeong.diet.sec[0];
+  assert.ok(Math.abs(hy.altT - sec) < 1e-9, '날씬 시간');
+  hy.skillCd = 0; S.castSkill(g2, hy, undefined, undefined, true);
+  assert.ok(Math.abs(hy.altT - sec - D.HEROES.hyungyeong.diet.more) < 1e-9, '날씬 중 또 맞으면 +4초');
+  for (let t = 0; t < sec + 5; t += 1 / 60) S.step(g2, 1 / 60);
   assert.equal(hy.alt, false, '요요');
   const g3 = S.createGame({ rng: seeded(903), noWaves: true, heroes: ['ara'] });
   const a = g3.heroes[0];
-  const d0 = S.heroDamage(g3, a);
+  assert.equal(a.alt, true, '고아라는 평소 할머니 (공주는 스킬로만 · 10/12)');
+  const dOld = S.heroDamage(g3, a);
+  for (let t = 0; t < 40; t += 1 / 60) S.step(g3, 1 / 60);
+  assert.equal(a.alt, true, '시간이 지나도 저절로 공주가 되지 않는다');
+  a.alt = false;
+  assert.ok(Math.abs(dOld / S.heroDamage(g3, a) - D.HEROES.ara.age.dmg) < 1e-9, '늙으면 힘이 반');
   a.alt = true;
-  assert.ok(Math.abs(S.heroDamage(g3, a) / d0 - D.HEROES.ara.age.dmg) < 1e-9, '늙으면 힘이 반');
   const boss = S.spawnEnemy(g3, 'boss_thug', 180, 200, { hpMul: 100 }); boss.speed = 0;
   a.skillCd = 0;
   assert.ok(S.castSkill(g3, a, 0, 0));
   assert.equal(a.alt, false, '공주의 일격 → 바로 공주');
   assert.ok(boss.hp < boss.maxHp);
+  const win = D.HEROES.ara.age.princess[0];
+  assert.ok(Math.abs(a.ageT - win) < 1e-9, '공주 시간');
+  a.skillCd = 0; S.castSkill(g3, a, 0, 0);
+  assert.ok(Math.abs(a.ageT - win - D.HEROES.ara.age.more) < 1e-9, '공주 중 또 쓰면 +4초');
+  const left = a.ageT;
+  for (let t = 0; t < 3; t += 1 / 60) S.step(g3, 1 / 60);
+  assert.ok(Math.abs(a.ageT - left) < 1e-9 && !a.alt, '웨이브가 아닐 땐 공주 시간이 안 줄어든다');
+  g3.phase = 'wave'; g3.spawnQ = []; g3.spawnI = 0; boss.hp = boss.maxHp = 1e12;
+  for (let t = 0; t < left + 2; t += 1 / 60) S.step(g3, 1 / 60);
+  assert.equal(a.alt, true, '공주 시간이 끝나면 폭삭 할머니');
   const g4 = S.createGame({ rng: seeded(904), noWaves: true, heroes: ['hochan', 'staff'] });
   const hc = g4.heroes[0], st = g4.heroes[1];
   const base = S.heroDamage(g4, st);

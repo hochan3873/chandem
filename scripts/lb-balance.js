@@ -121,9 +121,9 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     // (10/10 봇 손보기) 사람처럼:
     //  · 기세는 팀이 같이 쓰니 준비된 스킬 중 '가장 오래 안 쓴 멤버' 부터 (예전: 슬롯 순서대로 → 뒤에 합류한 멤버는 기세가 늘 모자라 스킬을 거의 못 씀)
     //  · 이호찬 막차 대행진(기세 2칸)은 아껴 둔다 — 쿨이 곧 돌면 다른 스킬은 기세를 안 쓰고 기다림 (예전: 한 판에 한 번도 못 씀)
-    //  · 고아라 공주의 일격은 할머니일 때 · 보스에게 · 윤정섭 벽은 쉬거나 돌아올 때 입구 쪽에 진상이 몰리면
-    let alive = 0, nearDoor = 0;
-    for (const e of g.enemies) if (!e.dead && e.y > 0) { alive++; if (e.y > g.ropeY - 260) nearDoor++; }
+    //  · 고아라 공주의 일격 (공주는 스킬로만 · 10/12)은 할머니일 때 보스 · 정예가 있거나 진상이 좀 모이면 · 배현경 다이어트 주사도 통통일 때만 · 윤정섭 벽은 쉬거나 돌아올 때 입구 쪽에 진상이 몰리면
+    let alive = 0, nearDoor = 0, strong = false;
+    for (const e of g.enemies) if (!e.dead && e.y > 0) { alive++; if (e.y > g.ropeY - 260) nearDoor++; if (e.elite || e.mid) strong = true; }
     const hpF = g.base.hp / g.base.max, momOn = g.mom !== null && g.mom !== undefined;
     const hc = g.heroes.find((h) => h.def.skill && h.def.skill.id === 'forlangbang' && h.id !== g._noSk && !h.gone && !(h.kdT > 0) && !S.ultLocked(g, h));
     if (hc && hc.skillCd <= 3 && !args.includes('--noreserve')) {
@@ -140,7 +140,9 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       } else if (sk.id === 'firstaid') {
         if (hpF < 0.8 || g.heroes.some((o) => o.stunT > 0.6 || o.rumorT > 0.5 || o.paperT > 0.5)) want.push([h]);
       } else if (sk.id === 'princess') {
-        if ((h.alt && alive >= 1) || g.bossAlive || (alive >= 10 && h.skillCd <= 0 && !(h.ageT > 4))) want.push([h]);
+        if (h.alt ? g.bossAlive || strong || alive >= 3 : (g.bossAlive && h.ageT < 3)) want.push([h]); // 할머니면 변신 · 공주 끝날 무렵 보스면 +4초
+      } else if (sk.id === 'dietshot') {
+        if (!h.alt && (g.bossAlive || strong || alive >= 5 || g.enemies.some((e) => !e.dead && e.y > 0 && e.def.traits && e.def.traits.stealth && !e.unveiled))) want.push([h]);
       } else if (sk.id === 'oneshot') { // 최은옥 원샷: 분노는 스킬로만 → 정예 · 보스 · 떼로 몰릴 때 아껴서
         if (!h.rage && (g.bossAlive || alive >= 8 || g.enemies.some((e) => !e.dead && e.y > 0 && (e.elite || e.mid)))) want.push([h]);
       } else if (sk.id === 'wallwalk') {

@@ -177,7 +177,7 @@ export function addHero(g, id, want) {
     kills: 0, dmgDone: 0,
     skillCd: def.skill ? def.skill.cd * 0.5 * (1 - ((g.gear[id] && g.gear[id].cd) || 0)) * g.cdMul : 0, frenzyT: 0, frenzyCd: 0, // 스킬은 판 시작하고 절반쯤 지나야 첫 사용
     star: Math.max(1, Math.min(5, (g.hstars[id] | 0) || 1)), // 성급 (★1 = 기본)
-    alt: false, altT: 0, ageT: def.age ? def.age.princess[0] : 0, echoT: 0, // 배현경 날씬 · 고아라 늙음 · 이호찬 메아리
+    alt: !!def.age, altT: 0, ageT: 0, echoT: 0, // 배현경 날씬 · 고아라 할머니 (평소 · 공주는 스킬로만) · 이호찬 메아리
     sarcT: 0, clingBy: 0, cm: {}, // cm: 멤버 전용 카드 효과
     beamE: null, beamUid: 0, beamT: 0, beamTick: 0, beam2E: null, kbT: 0, rx: g.slotX[slot],
     motoN: 0, meter: 0, upT: 0, burstT: 0, serious: 1, cafe: null, cafeT: 0, // 백인규 오토바이 게이지 · 문동한 간보기 · 카페인 풀충전
@@ -298,21 +298,10 @@ function updateHeroes(g, dt) {
       h.rageT -= dt;
       if (h.rageT <= 0) { h.rage = false; h.rageT = 0; ev(g, 'sober', { hero: h.id, x: h.x, y: h.y }); }
     }
-    // 배현경: 다이어트 게이지 → 날씬 모드 (10초 뒤 요요)
-    if (d.diet) {
-      if (h.alt) { h.altT -= dt; if (h.altT <= 0) { h.alt = false; h.meter = 0; ev(g, 'yoyo', { hero: h.id, x: h.x, y: h.y }); } }
-      else if (g.phase === 'wave' || g.phase === 'intro') { h.meter += d.diet.perSec * dt; if (h.meter >= 100) dietOn(g, h, 0); }
-    }
-    // 고아라: 공주 ↔ 폭삭 늙음
-    if (d.age) {
-      h.ageT -= dt;
-      if (h.ageT <= 0 && h.sig && h.sig.ageless && !h.alt) h.ageT = d.age.princess[h.lv - 1]; // 고아라 전용 신화: 늙지 않는다
-      if (h.ageT <= 0) {
-        h.alt = !h.alt;
-        h.ageT = h.alt ? d.age.old[h.lv - 1] * (h.sa && h.sa.forever ? 0.6 : 1) : d.age.princess[h.lv - 1] + (h.cm.young || 0);
-        ev(g, h.alt ? 'aged' : 'young', { hero: h.id, x: h.x, y: h.y });
-      }
-    }
+    // 배현경: 날씬 모드는 다이어트 주사(스킬)로만 (10/12) — 시간이 다 되면 요요
+    if (d.diet && h.alt) { h.altT -= dt; if (h.altT <= 0) { h.alt = false; h.altT = 0; ev(g, 'yoyo', { hero: h.id, x: h.x, y: h.y }); } }
+    // 고아라: 평소엔 할머니 · 공주는 공주의 일격(스킬)으로만 (10/12) — 공주 시간은 진상이 있을 때만 줄고 · 다 되면 폭삭
+    if (d.age && !h.alt && (g.phase === 'wave' || g.phase === 'intro') && g.enemies.some((e) => !e.dead && e.y > 0)) { h.ageT -= dt; if (h.ageT <= 0) { h.alt = true; h.ageT = 0; ev(g, 'aged', { hero: h.id, x: h.x, y: h.y }); } }
     // 오지은: 공격 · 스킬 때만 악마 모습
     if (d.demon && h.alt) { h.altT -= dt; if (h.altT <= 0) h.alt = false; }
     // 정소영: 잔소리 게이지 → 성준영 소환
@@ -1025,7 +1014,6 @@ export function fire(g, h, t) {
       // 통통 모드: 한 명에게 묵직한 한 방 + 밀치기 (범위 없음)
       const cx0 = t.x, cy0 = t.y, R = 0;
       { const crit = g.rng() < critOf(g, h); damageEnemy(g, t, dmg * 1.7 * (crit ? g.mods.critMul : 1), crit, h, false); if (!t.dead && !t.boss) applyKnockback(t, d.kb * 1.2, g); }
-      h.meter = Math.min(100, h.meter + d.diet.perSlam[lv - 1]);
       h.slamAt = g.t;
       ev(g, 'slam', { x: cx0, y: cy0, r: R, hx: h.x, hy: h.y });
       break;
@@ -1218,7 +1206,7 @@ function spawnGf(g, h, t, dmg, rico, spread) {
 // 배현경 다이어트 주사 → 날씬 모드
 function dietOn(g, h, extra) {
   const d = h.def;
-  h.alt = true; h.altT = (d.diet.sec[h.lv - 1] + (extra || 0) + (h.cm.diet || 0)) * ((h.sig && h.sig.dietMul) || 1); h.meter = 100; h.cd = 0;
+  h.alt = true; h.altT = h.altMax = (d.diet.sec[h.lv - 1] + (extra || 0) + (h.cm.diet || 0)) * ((h.sig && h.sig.dietMul) || 1); h.cd = 0;
   ev(g, 'diet', { hero: h.id, x: h.x, y: h.y });
 }
 // 이호찬: 자기 줄을 휩쓰는 황금 파동
@@ -4067,7 +4055,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       break;
     }
     case 'dietshot':
-      if (h.alt) h.altT += 4; else dietOn(g, h, 0);
+      if (h.alt) { h.altT += h.def.diet.more; h.altMax = Math.max(h.altMax || 0, h.altT); } else dietOn(g, h, 0); // 날씬 중이면 +4초
       break;
     case 'wallwalk': { // 윤정섭: 벽이 걸어온다 — 크게 · 빠르게 · 끝에서 기절
       h.growT = sk.sec[lv];
@@ -4124,8 +4112,10 @@ function castSkill0(g, h, x, y, echo, fromQ) {
           for (const o of more) { damageEnemy(g, o, base * sk.mul[lv] * 0.6 / (h.alt ? h.def.age.dmg : 1), true, h); ev(g, 'bigHammer', { x: o.x, y: o.y }); }
         }
       }
-      if (h.alt) ev(g, 'young', { hero: h.id, x: h.x, y: h.y });
-      h.alt = false; h.ageT = h.def.age.princess[lv];
+      if (!echo || h.alt) { // 할머니면 공주로 (공주 시간) · 이미 공주면 +4초 (메아리 일격은 시간을 늘리지 않는다)
+        const A = h.def.age, win = (A.princess[lv] + (h.cm.young || 0)) * ((h.sig && h.sig.ageMul) || 1);
+        if (h.alt) { ev(g, 'young', { hero: h.id, x: h.x, y: h.y }); h.alt = false; h.ageT = h.ageMax = win; } else { h.ageT += A.more; h.ageMax = Math.max(h.ageMax || 0, h.ageT); }
+      }
       if (g.tempo && t && !t.dead) { h.dashE = t; h.out = true; h.px = t.x; h.py = t.y + 18; ev(g, 'crack', { x: t.x, y: t.y + 20 }); } // 돌진해서 쾅 · 바닥 금
       break;
     }
@@ -5442,7 +5432,7 @@ function aimAt(g, h, x, y, r) {
   const c = densestPoint(g, h.x, h.y, 2000, Math.max(40, r || 60));
   return c ? { x: c.x, y: c.y } : { x: h.x, y: g.ropeY - 160 };
 }
-// 배현경 통통: 땅을 쿵 → 진상 쪽으로 땅이 갈라지는 직선 충격파 (줄 위 전부 · 밀침 · 다이어트 게이지)
+// 배현경 통통: 땅을 쿵 → 진상 쪽으로 땅이 갈라지는 직선 충격파 (줄 위 전부 · 밀침)
 function quakeLine(g, h, t, dmg) {
   const Q = h.def.quake, lv = h.lv - 1, R = heroRange(g, h, true) * (lv >= 2 ? 1.15 : 1), w = Q.w * (lv >= 4 ? 1.4 : lv >= 2 ? 1.2 : 1);
   const ox = h.x, oy = h.y - 10, a = Math.atan2(t.y - oy, t.x - ox), ex = ox + Math.cos(a) * R, ey = oy + Math.sin(a) * R;
@@ -5454,7 +5444,6 @@ function quakeLine(g, h, t, dmg) {
     damageEnemy(g, e, dmg * Q.mul * (crit ? g.mods.critMul : 1), crit, h, n > 1);
     if (!e.dead && !e.boss) applyKnockback(e, Q.kb, g);
   }
-  h.meter = Math.min(100, h.meter + h.def.diet.perSlam[lv]);
   h.slamAt = g.t;
   ev(g, 'quake', { x: ox, y: oy, x2: ex, y2: ey, w, n, hero: h.id });
 }

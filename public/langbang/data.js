@@ -1154,26 +1154,26 @@ export const HEROES = {
   },
   hyungyeong: {
     id: 'hyungyeong', bossKit: 1.0, kit: 1.0, name: '배현경', gender: 'f', emoji: '🐻', color: '#ff9f5a', gacha: true, attr: 'power',
-    img: '/img/lb/h_hyungyeong.webp', imgAlt: '/img/lb/h_hyungyeong_slim.webp', role: '은신 탐지 · 표시한 적 +25% · 통통 한 방 ↔ 날씬 잽',
+    img: '/img/lb/h_hyungyeong.webp', imgAlt: '/img/lb/h_hyungyeong_slim.webp', role: '은신 탐지 · 표시한 적 +25% · 통통 한 방 → 주사 맞으면 날씬 잽',
     dmg: 60, interval: 1.95, range: 245, proj: 'slam', slamR: [80, 80, 92, 92, 104], kb: 36, // 통통: 묵직한 박치기 (피해 +35% · 넉백 ↑)
     taunt: 0.6, guard: { r: 55, cut: 0.12 }, // 몸집으로 막는다: 멤버 노리는 기술 대신 맞기(60% 시간) · 자기 줄 입구 피해 -12%
-    diet: { perSlam: [21, 21, 23, 23, 26], perSec: 4, sec: [10, 10, 11, 11, 12], dmg: 0.4, interval: 0.2, range: 330, speed: 820, charmRes: 0.3 }, // 통통할 땐 홀림 70% 짧게 · 박치기 직후엔 면역
+    diet: { sec: [8, 8, 9, 9, 10], more: 4, dmg: 0.4, interval: 0.2, range: 330, speed: 820, charmRes: 0.3 }, // (10/12 주인 요청) 날씬은 스킬(다이어트 주사)로만 — 게이지로 저절로 바뀌지 않는다 · 날씬 중 또 맞으면 +4초 (예전: 박치기 · 시간으로 게이지가 차면 저절로 10~12초) · 통통할 땐 홀림 70% 짧게 · 박치기 직후엔 면역
     quake: { w: 22, kb: 40, mul: 1.5 }, // 통통 박치기: 땅을 쿵 → 진상 쪽으로 땅이 갈라지는 직선 충격파 (폭 22 · 줄 위 전부 · 밀침)
-    attack: '지진 박치기 — 통통할 땐 땅을 쿵! 진상 쪽으로 땅이 쩍 갈라지는 직선 충격파 (줄 위 전부 · 밀어냄) · 게이지가 차면 다이어트 주사 → 날씬 모드 초고속 직선 잽',
-    desc: '"오늘까지만 먹고 내일부터 다이어트!" 통통할 땐 홀림도 잘 안 먹히는 벽, 주사 한 방이면 복서로 변신. 10초 뒤엔… 요요!',
+    attack: '지진 박치기 — 통통할 땐 땅을 쿵! 진상 쪽으로 땅이 쩍 갈라지는 직선 충격파 (줄 위 전부 · 밀어냄) · 다이어트 주사(스킬)를 맞으면 날씬 모드 — 초고속 직선 잽 (저절로는 안 바뀜)',
+    desc: '"오늘까지만 먹고 내일부터 다이어트!" 통통할 땐 홀림도 잘 안 먹히는 벽, 주사 한 방이면 복서로 변신. 몇 초 뒤엔… 요요!',
     perks: { 3: '충격파가 길고 굵게 · 날씬 모드 +1초', 5: '날씬 모드 제일 길고 충격파 제일 굵게' },
-    skill: { id: 'dietshot', name: '다이어트 주사', cd: 12, desc: '바로 날씬 모드! 화면의 숨은 진상을 모두 드러내고 표시 (+25% 피해) · 이미 날씬하면 +4초' },
+    skill: { id: 'dietshot', name: '다이어트 주사', cd: 14, desc: '날씬 모드 8초 (Lv3 9초 · Lv5 10초) — 초고속 잽 · 화면의 숨은 진상을 모두 드러내고 표시 (+25% 피해) · 이미 날씬하면 +4초 · 저절로는 날씬해지지 않는다 (언제 맞을지가 실력) · 끝나면 요요' },
     shouts: ['내일부터 다이어트!', '요요 왔다…', '한 입만!'],
   },
   ara: {
     id: 'ara', bossKit: 1.45, kit: 0.9, name: '고아라', gender: 'f', emoji: '👸', color: '#ffc4ec', gacha: true, attr: 'booze',
-    img: '/img/lb/h_ara.webp', imgAlt: '/img/lb/h_ara_old.webp', role: '보스 킬러 · 할머니일 땐 지팡이, 공주 변신 후 돌진해 한 방씩',
+    img: '/img/lb/h_ara.webp', imgAlt: '/img/lb/h_ara_old.webp', role: '보스 킬러 · 평소엔 할머니 지팡이, 스킬로 공주 변신 → 돌진해 한 방씩',
     dmg: 175, interval: 1.85, range: 470, proj: 'hammer', projSpeed: 640,
-    age: { princess: [13, 13, 14, 14, 16], old: [8, 8, 7, 7, 6], dmg: 0.65, slow: 1.4 },
-    attack: '공주 망치 — 아주 무거운 한 방. 보스·체력 많은 진상부터 노린다 (가끔 폭삭 늙으면 힘이 반토막)',
-    desc: '맑은 목소리의 공주님… 이지만 실상 나이는 꽤 많다. 그래도 모임원들이 "아라야~" 부르는 한마디면 오늘도 망치를 들고 진상들을 해치우러 나가 아침까지 싸운다. 가끔 폭삭 늙어 "아이고 허리야…" 하지만, 조금 쉬면 다시 공주!',
-    perks: { 3: '공주로 더 오래 · 빨리 돌아온다', 5: '망치가 떨어진 곳 주변도 쿵' },
-    skill: { id: 'princess', name: '공주의 일격', cd: 18, desc: '가장 센 적에게 거대한 망치 (보스에게 특히 아픔) + 바로 공주로 돌아온다', mul: [3.6, 3.6, 4.2, 4.2, 4.8] },
+    age: { princess: [10, 10, 11, 11, 13], more: 4, dmg: 0.65, slow: 1.4 }, // (10/12 주인 요청) 공주는 스킬(공주의 일격)로만 — 평소엔 할머니 · 일격 → 공주 10초 (Lv3 11 · Lv5 13 · 진상이 있을 때만 줄어든다) · 공주 중 또 쓰면 +4초 · 끝나면 폭삭 (예전: 13~16초 공주 ↔ 6~8초 할머니가 시간으로 저절로)
+    attack: '평소엔 할머니 — 뒤에서 지팡이로 톡톡 (약함). 「공주의 일격」을 쓰면 공주로 변신해 보스 · 체력 많은 진상에게 돌진, 아주 무거운 망치 한 방씩 (공주 시간이 끝나면 다시 폭삭)',
+    desc: '맑은 목소리의 공주님… 이지만 실상 나이는 꽤 많다. 그래도 모임원들이 "아라야~" 부르는 한마디면 오늘도 망치를 들고 진상들을 해치우러 나가 아침까지 싸운다. 평소엔 "아이고 허리야…" 할머니지만, "아라야~" 한마디(스킬)면 다시 공주!',
+    perks: { 3: '공주 시간 11초', 5: '공주 시간 13초 · 망치가 떨어진 곳 주변도 쿵' },
+    skill: { id: 'princess', name: '공주의 일격', cd: 18, desc: '"아라야~" → 가장 센 적에게 거대한 망치 (보스에게 특히 아픔) + 공주로 변신 10초 (Lv3 11초 · Lv5 13초 · 진상이 있을 때만 줄어든다) — 돌진해 망치 한 방씩 · 공주 중이면 +4초 · 저절로는 공주가 되지 않는다 (보스 · 정예 때 아껴 쓰기)', mul: [3.6, 3.6, 4.2, 4.2, 4.8] },
     shouts: ['공주님 나가신다~', '아이고 허리야…', '다시 공주!'],
   },
   hochan: {
@@ -2166,7 +2166,7 @@ export const HERO_CARDS = {
   sunggu: { title: '강성구: 지팡이 +1개', add: { cane: 1 } },
   junseo: { title: '윤준서: 여사친 튕김 +1', add: { bounce: 1 } },
   hyungyeong: { title: '배현경: 날씬 모드 +3초', add: { diet: 3 } },
-  ara: { title: '고아라: 공주로 +5초 더', add: { young: 5 } },
+  ara: { title: '고아라: 공주 시간 +5초', add: { young: 5 } },
   hochan: { title: '이호찬: 랑방 버프 최대 +12%', add: { buff: 0.12 } },
   soyoung: { title: '정소영: 성준영 체력 +30%', add: { nag: 0.3 } },
   jieun: { title: '오지은: 감속 +15%p · 1초 더', add: { slowX: 0.15, slowSec: 1 } },
@@ -2357,7 +2357,7 @@ export const SIG = {
   sunggu: { name: '쌍지팡이', stats: { skill: 0.15, cd: 0.08 }, fx: { echo: 1.2 }, desc: '블랙홀을 꽂고 1.2초 뒤, 그때 가장 몰린 곳에 블랙홀 하나 더' },
   junseo: { name: '여사친 단톡방 초대권', stats: { atk: 0.1, spd: 0.08 }, fx: { gfN: 1 }, desc: '여사친이 늘 한 명 더 나간다 (다른 진상에게)' },
   hyungyeong: { name: '요요 없는 다이어트 주사', stats: { atk: 0.1, spd: 0.1 }, fx: { dietMul: 2, mark: 0.25 }, desc: '날씬 모드가 2배 오래 · 표시한 진상이 받는 피해 +25% → +50%' },
-  ara: { name: '영원한 공주 티아라', stats: { boss: 0.15, atk: 0.08 }, fx: { ageless: 1, echo: 0.8 }, desc: '다시는 늙지 않는다 (늘 공주) · 공주의 일격이 0.8초 뒤 한 번 더' },
+  ara: { name: '영원한 공주 티아라', stats: { boss: 0.15, atk: 0.08 }, fx: { ageMul: 1.5, echo: 0.8 }, desc: '공주 시간 1.5배 · 공주의 일격이 0.8초 뒤 한 번 더' },
   hochan: { name: '랑방 초대 방장의 왕관', stats: { atk: 0.1, ult: 0.15 }, fx: { echo: 2 }, desc: '막차 대행진이 2초 뒤 한 번 더 지나간다 (기세는 한 번만)' },
   soyoung: { name: '성준영 평생 출석부', stats: { skill: 0.12, cd: 0.1 }, fx: { summonMul: 2, multi: 1, multiK: 1 }, desc: '성준영 체력 2배 · 잔소리 한 번에 두 배로 채운다' },
   jieun: { name: '멈춰 버린 금시계', stats: { cd: 0.12, skill: 0.1 }, fx: { freeze: 2.5 }, desc: '시간 정지가 진짜 멈춤 — 범위 안 진상 2.5초 꼼짝 못 함 (보스는 더 크게 느려짐)' },
@@ -2733,7 +2733,7 @@ export const SKILL_AUG = {
     { id: 'target', name: '표적 표시', desc: '표시한 진상이 받는 피해 +25% → +45%' },
   ],
   ara: [
-    { id: 'forever', name: '영원한 공주', desc: '공주로 +6초 · 늙는 시간 −40%', cm: { add: { young: 6 } } },
+    { id: 'forever', name: '영원한 공주', desc: '공주 시간 +6초', cm: { add: { young: 6 } } },
     { id: 'combo', name: '공주의 연타', desc: '공주의 일격이 다음 센 적 둘에게도 (60%)' },
   ],
   hochan: [
