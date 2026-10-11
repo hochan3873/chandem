@@ -3,7 +3,7 @@
 import {
   FIELD, RULES, STAGE_HPX, HEROES, SUMMONS, ENEMIES, HERO_SLOTS, SLOT_X, SLOT_X7, SLOT_ORDER, LEVEL_DMG, LEVEL_INTERVAL,
   BASE_HEROES, HIDDEN_HEROES, UNLOCK_HEROES, LOCKED_HEROES, CARDS, FILLER_CARDS, RARITY, SCORE, expNeed, hpMul, atkMul, waveDef,
-  STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
+  STAGE_WAVES, stageWave, starsFor, itemValue, typeMul, MAP_FX, stageFx, rowYFor, walkDistMul, EXP_NEED_MUL, stageExpMul, HERO_CARDS, SKILL_EVO, HERO_TAGS, ATTR_SET, EVO, EVO_MUL, HELL, TIER_MUL, TIER_SPD, TIER_GROWTH, TIER_MAX, HERO_TIER, resOf, openSlots, SECRET,
   TRAITS, REVEAL_HEROES, CH7, CH8, thiefCut, COND, COND_HP, stageConds, DOOR_PRESSURE, softMeta, stageMission, missionOk,
   BOSS_KITS, BOSS_AI, MID_KIT, MID_AI, MID_KITS, ECAST, ELITE_HP, ULT_LOCK,
   CURSES, ENDLESS_TUNE, endlessScale, endlessCap, endlessTier, endlessTierDef,
@@ -38,7 +38,7 @@ export function createGame(opt = {}) {
   const evd = opt.event || null; // 할로윈 이벤트 판 (hw-event.js eventDef): 정해진 웨이브 · 이벤트 진상 · 저주
   const wmod = wk ? WEEKLY_MODS[wk.mod] || {} : {};
   const g = {
-    W: FIELD.W, H, rowY, ropeY: rowY - FIELD.ropeGap,
+    W: FIELD.W, H, rowY, ropeY: rowY - FIELD.ropeGap, distMul: walkDistMul(H),
     kdOn: opt.kd !== undefined ? !!opt.kd : !!opt.tempo && mode === 'stage' && !opt.pvp && !opt.raid && !opt.tower, // 쓰러짐 게이지 (KD · 일반 스테이지 · 헬 · 주간)
     weekly: wk, wmod, cdMul: (wmod.cd || 1) * (opt.tempo ? TEMPO.cd : 1), hstars: opt.stars || {}, hell: !!opt.hell && mode === 'stage' && !wk,
     hcT: 0, hcBuff: 0, hcSkT: 0, hcSkAtk: 0, // 이호찬 "랑방을 위하여" 버프
@@ -2096,7 +2096,7 @@ function updateEnemies(g, dt) {
         * e.spdMul * (e.hasteT > 0 ? 1.15 : 1) * (e.sleeping ? 0 : 1) * (e.lureT > 0 ? e.lureSpd : 1) // (삐끼왕 호객: 우르르)
         * (g.mapFx.belt && e.x > g.mapFx.belt[0] && e.x < g.mapFx.belt[1] ? g.mapFx.beltMul : 1)
         * (e.tieT > 0 || e.speechT > 0 || e.castW > 0 ? 0 : 1) * (e.rushT > 0 ? CH8.rushSpd : 1); // 8장: 묶이면 · 축사 중엔 제자리 · 실장님 재촉엔 빨리 · (10/08) 던지기 예고 중엔 멈춤
-      e.y += sp * dt;
+      e.y += sp * dt * g.distMul; // 폰 높이가 달라도 입구까지 걸리는 시간은 같게 (distMul)
       if (def.zigzag) e.x = clamp(e.baseX + Math.sin(e.age * (def.erratic ? 3.1 + Math.sin(e.age * 0.7 + e.phase) * 1.5 : 2.3) + e.phase) * def.zigzag, g.mapFx.lane ? g.mapFx.lane[0] : 16, g.mapFx.lane ? g.mapFx.lane[1] : W - 16);
       if (e.y >= e.stopY) { e.y = e.stopY; e.atRope = true; e.atkCd = 0.25; bumpHero(g, e); } // (10/08) 돌진 진상: 처음 닿을 때 앞 멤버를 들이받는다
     }
