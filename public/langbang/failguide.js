@@ -27,7 +27,7 @@ export function howToGet(id) {
   if (r === 'start') return '처음부터 있어요';
   if (r === 'story') return `${stageLabel(HERO_UNLOCK[id])} 처음 깨면 합류`;
   if (r === 'hidden') return HIDDEN_COND[id] ? HIDDEN_COND[id].text : '숨은 조건을 채우면 합류';
-  if (r === 'legend') return '4-10 클리어 뒤 모집 (90번 확정)';
+  if (r === 'legend') return '6-10 클리어 뒤 모집 (110번 확정)';
   const picks = JOIN_PICKS.filter((j) => j.tier === t).map((j) => stageLabel(j.stage));
   return t >= 4 ? `모집 (T4 · 50번 확정)${picks.length ? ` · ${picks.join(' · ')} 선택권` : ''}` : `모집 카드 10장${picks.length ? ` · ${picks.join(' · ')} 선택권` : ''}`;
 }

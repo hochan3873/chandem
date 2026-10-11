@@ -752,9 +752,9 @@ export const GACHA_COST = { one: 500, ten: 4500 }; // (300/2700 → 500/4500: �
 // 코인 모집은 하루 30번까지 (한국 시간 자정 초기화) — 모집권은 제한 없음
 export const GACHA_COIN_DAILY = 30;
 export function gachaCoinLeft(lb, now = Date.now()) { const d = lb.gachaDay; return Math.max(0, GACHA_COIN_DAILY - (d && d.day === dayIndex(now) ? d.n | 0 : 0)); }
-export const HOCHAN_GATE = 40; // 4-10 클리어 후 LEGEND 이호찬이 모집에 나온다 (6-10 → 4-10 로 당김)
-// 천장: T4 멤버 50번 안에 확정 · LEGEND 는 70번부터 확률이 가파르게 올라 90번째에 확정 (소프트 천장)
-export const PITY_HERO = 50, PITY_LEGEND = 90, PITY_SOFT = 70; // (10/08 T4 천장 40 → 50 · 확률 5.4 → 4%: 일주일에 T4 셋을 다 모아 '떴다!' 가 금방 사라지던 것)
+export const HOCHAN_GATE = 60; // 6-10 클리어 후 LEGEND 가 모집에 나온다 (10/16: 4-10 → 6-10 환원 · 첫 달이 너무 후해서) — 이미 열려서 모으던 사람은 계속 열려 있다 (legendOpen)
+// 천장: T4 멤버 50번 안에 확정 · LEGEND 는 90번부터 확률이 가파르게 올라 110번째에 확정 (소프트 천장)
+export const PITY_HERO = 50, PITY_LEGEND = 110, PITY_SOFT = 90; // (10/08 T4 천장 40 → 50 · 확률 5.4 → 4%: 일주일에 T4 셋을 다 모아 '떴다!' 가 금방 사라지던 것)
 // 모집 멤버는 "카드"를 모아서 합류: 영웅 10장 · LEGEND(이호찬) 30장. 합류한 뒤 카드는 ★승급 조각으로
 export const UNLOCK_CARDS = { epic: 10, legend: 30 };
 export const CARD_BUNDLE = { epicHero: 10, legendHero: 30, t3Card: 3, t2Card: 3 }; // LEGEND · T4 는 한 번에 합류 (겹치면 그만큼 멤버 카드) · T3·T2 는 카드 3장
@@ -764,7 +764,7 @@ const namesOf = (l) => l.map((h) => HEROES[h].name).join(' · ');
 export const GACHA_RATES = [ // 확률 공개 (%) — 등급별 (다른 모집 게임처럼): LEGEND 0.6 · T4 4 · T3 20 · 나머지 (멤버 이름은 획득 규정 목록에서 바로 만든다)
   { k: 'sigGear', w: SIG_RATE.hero, name: '전용 신화 장비 (멤버마다 1개 · 가진 멤버 중)', color: '#ff4fd8' },
   { k: 'mythGear', w: 0.3, name: '신화 장비 (만능 6종)', color: '#ff7ad9' },
-  { k: 'legendHero', w: 0.6, name: `LEGEND 멤버 합류 (${namesOf(LEGEND_HEROES)}) · 70번부터 확률 ↑ · 90번 확정`, color: '#ffcf3f' },
+  { k: 'legendHero', w: 0.6, name: `LEGEND 멤버 합류 (${namesOf(LEGEND_HEROES)}) · ${PITY_SOFT}번부터 확률 ↑ · ${PITY_LEGEND}번 확정`, color: '#ffcf3f' },
   { k: 'epicHero', w: 4, name: `T4 멤버 합류 (${namesOf(tierPool(4))}) · 픽업 50%`, color: '#c77dff' },
   { k: 't3Card', w: 20, name: `T3 멤버 카드 ×3 (${namesOf(tierPool(3))})`, color: '#4ea8ff' },
   { k: 'legendGear', w: 1.2, name: '전설 장비', color: '#ffb400' },
@@ -783,7 +783,8 @@ export function legendRate(pity) { return pity < PITY_SOFT - 1 ? 0.6 : Math.min(
 // 합류 전 카드 진행: { 윤준서: [7, 10] … }
 export function cardProgress(lb, h) { return lb.owned && lb.owned[h] ? null : [Math.min(cardsNeed(h), (lb.shards || {})[h] | 0), cardsNeed(h)]; }
 export const DUP_SHARDS = { epicHero: 30, legendHero: 80 };
-export const legendOpen = (lb) => (lb.maxStage | 0) >= HOCHAN_GATE;
+// 열림: 6-10 클리어 · 또는 이미 4-10 으로 열려서 모으던 사람 (천장 진행이 있거나 LEGEND 를 가짐) — 가진 것 · 진행을 뺏지 않는다
+export const legendOpen = (lb) => (lb.maxStage | 0) >= HOCHAN_GATE || ((lb.pity && (lb.pity.legend | 0) > 0)) || LEGEND_HEROES.some((h) => lb.owned && lb.owned[h]);
 function rollKind(rng, lb, only) {
   const open = legendOpen(lb);
   const list = GACHA_RATES.filter((r) => (!only || only.includes(r.k)) && (open || r.k !== 'legendHero')).map((r) => (r.k === 'legendHero' ? { k: r.k, w: legendRate((lb.pity && lb.pity.legend) | 0) } : r));
@@ -813,7 +814,7 @@ export function gachaPull(lb, n, pay, uid, now = Date.now(), seed) {
     lb.pity.hero++;
     if (legendOpen(lb)) lb.pity.legend++;
     let k;
-    if (legendOpen(lb) && lb.pity.legend >= PITY_LEGEND) k = 'legendHero'; // 90번째: 확정
+    if (legendOpen(lb) && lb.pity.legend >= PITY_LEGEND) k = 'legendHero'; // 110번째: 확정
     else if (lb.pity.hero >= PITY_HERO) k = 'epicHero'; // T4 50번 안에 확정
     else k = rollKind(rng, lb);
     if (first10 && i === 9 && !out.some((x) => x.k === 'epicHero' || x.k === 'legendHero') && k !== 'legendHero') k = 'epicHero';

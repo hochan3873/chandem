@@ -1093,7 +1093,7 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   const mk = (maxStage) => L.normLive({}, { coins: 1e9, gear: [], gearSeq: 0, maxStage, stages: {}, heroes: {} });
   const sum = L.GACHA_RATES.reduce((a, r) => a + r.w, 0);
   assert.ok(Math.abs(sum - 100) < 1e-9, '확률 합 100%');
-  assert.equal(L.HOCHAN_GATE, 40);
+  assert.equal(L.HOCHAN_GATE, 60);
   let lb = mk(12);
   let first = L.gachaPull(lb, 10, 'coin', 'u0', 0).results;
   assert.ok(first.some((x) => x.k === 'epicHero'), '처음 10회 T4 확정');
@@ -1110,13 +1110,15 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   // LEGEND 확정 90 · 합류 · 겹치면 카드
   lb = mk(60); lb.pulls = 5; lb.pity.legend = L.PITY_LEGEND - 1;
   let x = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
-  assert.ok(D.LEGEND_HEROES.includes(x.hero)); assert.ok(x.new && L.heroUnlocked(lb, x.hero), '90회 확정 → 합류');
+  assert.ok(D.LEGEND_HEROES.includes(x.hero)); assert.ok(x.new && L.heroUnlocked(lb, x.hero), '110회 확정 → 합류');
   for (const h of D.LEGEND_HEROES) lb.owned[h] = true; // LEGEND 둘 다 있으면 → 겹침
   lb.pity.legend = L.PITY_LEGEND - 1;
   x = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
   assert.ok(x.dup && (lb.shards[x.hero] | 0) >= L.DUP_SHARDS.legendHero, '겹치면 멤버 카드(강화·★)');
-  // 소프트 천장: 70번째까지 0.6% → 가파르게 → 90번째 100%
-  assert.equal(L.legendRate(0), 0.6); assert.equal(L.legendRate(68), 0.6); assert.ok(L.legendRate(75) > 30); assert.equal(L.legendRate(89), 100);
+  // 소프트 천장: 88번째까지 0.6% → 가파르게 → 105번째쯤 100% · 110번째 확정
+  assert.equal(L.legendRate(0), 0.6); assert.equal(L.legendRate(88), 0.6); assert.ok(L.legendRate(95) > 30); assert.equal(L.legendRate(109), 100);
+  // 이미 열려서 모으던 사람은 계속 열려 있다 (천장 진행이 있거나 LEGEND 를 가짐) · 처음인 사람은 6-10 뒤
+  { const a = mk(45); assert.ok(!L.legendOpen(a), '4-10 만 깬 새 사람은 닫힘'); a.pity.legend = 7; assert.ok(L.legendOpen(a), '진행이 있으면 열려 있다'); const b = mk(45); b.owned.hochan = true; assert.ok(L.legendOpen(b), 'LEGEND 가진 사람은 열려 있다'); }
   // 100만 번 (천장 없이) 확률이 표와 맞는다
   lb = mk(60); lb.pulls = 5;
   const cnt = {}, N = 1e6;
@@ -1127,7 +1129,7 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   for (let i = 0; i < 40000; i++) { n++; lb.gachaDay = null; const k = L.gachaPull(lb, 1, 'coin', 'q', 0, i * 40503 + 7).results[0].k; lb.coins = 1e9; lb.gear.length = 0; if (k === 'legendHero') { got.push(n); max = Math.max(max, n); n = 0; } }
   assert.ok(max <= L.PITY_LEGEND, `최대 ${max}`);
   const avg = got.reduce((a, b) => a + b, 0) / got.length;
-  assert.ok(avg > 50 && avg < 75, `평균 ${avg.toFixed(1)}회`);
+  assert.ok(avg > 60 && avg < 100, `평균 ${avg.toFixed(1)}회`);
   // 천장은 저장·불러오기에 그대로 (서버 프로필)
   const saved = L.normLive(JSON.parse(JSON.stringify({ pity: { v: 2, hero: 12, legend: 55 } })), {});
   assert.deepEqual([saved.pity.hero, saved.pity.legend], [12, 55]);

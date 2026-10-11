@@ -35,7 +35,7 @@ test('내 멤버가 먼저 · 못 가진 멤버는 얻는 법(획득 규정)이 
   assert.ok(c.miss.every((x) => !x.own && x.how.length > 0));
   assert.match(F.howToGet('hanna'), /2-5/);
   assert.match(F.howToGet('wonsik'), /모집/);
-  assert.match(F.howToGet('hochan'), /4-10/);
+  assert.match(F.howToGet('hochan'), /6-10/);
   assert.match(F.howToGet('gunman'), /처음부터/);
 });
 
