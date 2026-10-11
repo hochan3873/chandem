@@ -2935,7 +2935,7 @@ Object.assign(ENEMIES, {
     title: '저승사자 팀장 등장!', subtitle: '"야근 명부에 이름 적히고 싶은 사람?"',
     shouts: ['명부에 이름 적었다', '오늘 야근 확정', '퇴근은 저승에서', '다음 사람~'] },
   hw_dracula: { id: 'hw_dracula', cls: 'seduce', name: '드라큘라 사장', gender: 'm', emoji: '🧛', color: '#b0142a', eventOnly: true, lazy: true, boss: true,
-    img: HW_IMG('hw_dracula'), anims: ['attack'], hp: 5200, speed: 13, atk: 40, atkInterval: 1.8, armor: 5, exp: 90, coin: 60, r: 46, size: 162,
+    img: HW_IMG('hw_dracula'), anims: ['attack', 'walk', 'die'], hp: 5200, speed: 13, atk: 40, atkInterval: 1.8, armor: 5, exp: 90, coin: 60, r: 46, size: 162,
     hw: { batform: { every: 13, first: 9, sec: 1.6 }, moon: { at: 0.25, spd: 1.15, heal: 0.004 } }, // 분노(50%)부터 박쥐로 흩어져 1.6초 무적 → 다른 자리에 나타남 · 25% 보름달: 진상 전부 빨라지고 박쥐가 살아 있으면 사장이 피를 받는다
     title: '드라큘라 사장 등장!', subtitle: '"오늘 회식 빠지는 사람, 내일부터 안 나와도 돼."',
     shouts: ['회식은 의무다', '피 같은 내 법카!', '다 같이 원샷!', '해 뜨기 전엔 못 가'] },
