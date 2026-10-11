@@ -2,7 +2,7 @@
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
 import { prepSeason, bakeSeason, drawSeason } from './season-fx.js'; // 시즌 테마 전투 장식 (할로윈 등)
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, HERO_IDLE, WEAPON, artV, EST, LOCK_NAME } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, HERO_IDLE, HERO_DOWN, WEAPON, artV, EST, LOCK_NAME } from './data.js';
 // 효과 종류: 빛(더하기 섞기) · 물건(보통) · 층 · 색 · 맞은 자리 표시
 const VFX_KIND = {
   soundring: { blend: 'lighter', layer: 'front' },
@@ -1150,7 +1150,6 @@ export class Renderer {
     L(() => { this.drawVfx('ground'); }); // 바닥 무늬: 금 · 경고 원 · 소환진 · 오라 (캐릭터 발밑 · 납작하게)
     L(() => { if (g.r2 && this.r2Draw) this.r2Draw(g, t, 'back'); }); // 건물주 레이드: 거대 보스 · 공격 예고 구역 (raid2-ui.js)
     L(() => { this.drawEnemies(g, t); });
-    L(() => { this.drawJoinWait(g); });
     L(() => { if (!demo) this.drawRope(g, t); });
     L(() => { if (this.ssn && !demo) drawSeason(this, g, t, 'gate'); }); // 시즌 장식: 바리케이드 양 끝 호박등 · 촛불
     L(() => { if (this.skfx) this.skfx.draw('gate', g); }); // 입구 위 (붕대)
@@ -2352,18 +2351,17 @@ export class Renderer {
       const key = alt && this.sprites['h_' + h.id + '_alt'] ? 'h_' + h.id + '_alt' : up && this.sprites['h_' + h.id + '_rage'] ? 'h_' + h.id + '_rage' : 'h_' + h.id;
       const sp = this.sprites[key];
       if (!sp) continue;
-      const bob0 = Math.sin(t * 3 + h.slot) * 1.2, br0 = 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 예전 대기: 둥실 · 숨쉬기 (대기 띠가 있으면 뺀다)
-      let bob = bob0, rot = 0, sx = 1, sy = 1;
+      let bob = 0, rot = 0, sx = 1, sy = 1; // (10/11) 평소 둥실 · 숨쉬기 코드 흔들림은 뺐다 (왔다 갔다 이질감) — 대기 띠 그림만
       if (h.id === 'donghan' && !up) bob -= 12; // 누운 문동한: 스킬 버튼 줄에 가리지 않게
       if (h.recoil > 0) { const p = h.recoil / 0.14; sy = 1 + p * 0.07; sx = 1 - p * 0.05; bob -= p * 3; }
       if (h.rage) { rot = Math.sin(t * 24) * 0.05; bob += Math.sin(t * 30) * 1.5; }
       if (h.charmT > 0) { rot = Math.sin(t * 4) * 0.14; }
       if (h.stunT > 0) { rot = Math.sin(t * 10) * 0.1; sy = 0.94; }
-      if (kp) { rot = kp.rot; bob = kp.bob + (kp.shake ? 0 : Math.sin(t * 3 + h.slot) * 0.4); sx = kp.sx; sy = kp.sy; } // 쓰러짐 · 일어나기 (kdPose)
-      if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; if (g.joinMode) { bob += (1 - p) * 70; sx *= 0.6 + 0.4 * p; sy *= 0.6 + 0.4 * p * e; } else { sx *= e * p; sy *= e * p; } } // 합류: 아래에서 미끄러져 올라온다
-      if (h.id === 'sunggu' || (h.id === 'ara' && h.alt)) rot += Math.sin(t * 1.5) * 0.04; // 할아버지 · 늙은 공주 휘청
-      if (h.id === 'eunok' && !up) { const sn = Math.max(0, Math.sin(t * 2.6 + h.slot)); sy *= 1 - 0.03 * sn * sn * sn; bob += 0.8 * sn * sn * sn; rot += Math.sin(t * 1.1) * 0.025; if (Math.random() < 0.012 && this.fx) this.fx.part('dot', hx + 6, feet - box * 0.62, 10 + Math.random() * 20, 20, 0.7, 2.6, '#bfe8ff', { grav: 260 }); } // 최은옥 평소: 의자에 앉아 훌쩍훌쩍 (어깨 들썩 · 눈물 똑)
-      sy *= br0; // 숨쉬기
+      if (kp) { rot = kp.rot; bob = kp.bob; sx = kp.sx; sy = kp.sy; } // 쓰러짐 · 일어나기 (kdPose · 쓰러짐 띠가 없을 때만 쓰는 코드 자세)
+      let jb = 0, jsx = 1, jsy = 1; // 합류: 아래에서 미끄러져 올라온다 (대기 띠에도 그대로)
+      if (h.joinT < 0.4) { const p = h.joinT / 0.4; const e = 1 + Math.sin(p * Math.PI) * 0.3; if (g.joinMode) { jb = (1 - p) * 70; jsx = 0.6 + 0.4 * p; jsy = 0.6 + 0.4 * p * e; } else { jsx = e * p; jsy = e * p; } }
+      bob += jb; sx *= jsx; sy *= jsy;
+      if (h.id === 'eunok' && !up && !rmH && Math.random() < 0.012 && this.fx) this.fx.part('dot', hx + 6, feet - box * 0.62, 10 + Math.random() * 20, 20, 0.7, 2.6, '#bfe8ff', { grav: 260 }); // 최은옥 평소: 눈물 똑 (몸 흔들기는 뺐다)
       if (h.reloadT > 0 && h.reloadMax > 0.25) { const q = 1 - h.reloadT / h.reloadMax; rot += Math.sin(q * Math.PI) * -0.13; bob += Math.sin(q * Math.PI) * 1.5; } // 장전: 살짝 기울여 챙기기
       if (h.id === 'hyungyeong' && alt) bob += Math.sin(t * 22) * 1.6; // 날씬 복서 스텝
       if (hgK < 1) { const w = Math.sin(hgK * Math.PI * 3) * (1 - hgK) * (1 - hgK); if (alt) { sx *= 1 - 0.3 * w; sy *= 1 + 0.32 * w; } else { sx *= 1 + 0.34 * w; sy *= 1 - 0.24 * w; } } // 변신 순간 말랑: 날씬 = 쭉 늘었다 출렁 · 통통 = 옆으로 빵빵 부풀었다 출렁
@@ -2510,6 +2508,16 @@ export class Renderer {
         }
         usedStrip = true;
       }
+      if (kp && !usedStrip && kp.fi !== undefined) { // (10/11) 쓰러짐 띠: 맞음 → 넘어짐 → 누워 어질어질(3칸 반복) → 짚고 일어남 · 띠는 오른쪽으로 넘어지게 그려서 왼쪽 자리는 뒤집는다
+        const dk = alt ? (HERO_DOWN[h.id + '_alt'] ? h.id + '_alt' : '') : up && this.sprites['h_' + h.id + '_rage'] ? (HERO_DOWN[h.id + '_rage'] ? h.id + '_rage' : '') : h.id, dn = dk ? this.downSheet(dk) : null;
+        if (dn) {
+          const n = 8, fw = dn.naturalWidth / n, fh = dn.naturalHeight, fi = Math.max(0, Math.min(n - 1, kp.fi)), side = hx < 180 ? 1 : -1, bw = box * (h.id === 'jeongseob' ? h.def.scale || 1 : 1);
+          this.tf(hx, feet, 0, side, 1); cx.drawImage(dn, fi * fw, 0, fw, fh, -bw / 2, -bw * FEET, bw, bw);
+          if (kp.flash > 0) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.5 * kp.flash; cx.drawImage(dn, fi * fw, 0, fw, fh, -bw / 2, -bw * FEET, bw, bw); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; } // 쓰러지는 순간 번쩍
+          const hb = this.downHead(dk, dn); kp.head = { x: hx + side * (hb.x - 0.5) * bw, y: feet + (hb.y - FEET) * bw - 8 }; // 별 · 새는 누운 머리 위
+          usedStrip = true;
+        }
+      }
       const idK = alt ? (hgK >= 1 && HERO_IDLE[h.id + '_alt'] ? h.id + '_alt' : '') : h.id; // 변신 모습 대기 띠 (배현경 날씬 · 있으면)
       if (!usedStrip && !busy && !cp && !up && idK && !rmH && HERO_IDLE[idK] && h.id !== 'ara' && !(this.skinMap && this.skinMap[h.id]) && !(h._hitAt && performance.now() - h._hitAt < 160) && !(h._castAt && performance.now() - h._castAt < 250)) { // 대기 띠 (멤버마다 다른 몸짓 · 시작 칸은 멤버마다 무작위)
         const im = this.idleSheet(idK);
@@ -2517,9 +2525,9 @@ export class Renderer {
           const d = HERO_IDLE[idK], n = d.frames, fw = im.naturalWidth / n, fh = im.naturalHeight;
           if (h._idPh === undefined) h._idPh = Math.random() * n;
           const fi = Math.floor(t * d.fps + h._idPh) % n, fit = this.stripFit('hidle_' + idK, im, n, sp.c, 1), bw = box * fit.k;
-          this.tf(hx + dx, feet + bob - bob0, rot, sx, sy / br0);
+          this.tf(hx, feet + jb + (h.tiredT > 0 ? 3 : 0), 0, jsx, jsy); // (10/11) 대기 띠는 그림만 — 코드로 기울이기 · 늘이기 · 흔들기 없음
           cx.drawImage(im, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, bw, bw);
-          if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE; h._mouth = { x: hx + dx - box / 2 + (m[0] / 256) * box, y: feet + bob - bob0 - box * FEET + (m[1] / 256) * box }; } // 불 뿜는 입 (가만히 있는 그림 기준)
+          if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE; h._mouth = { x: hx - box / 2 + (m[0] / 256) * box, y: feet + jb - box * FEET + (m[1] / 256) * box }; } // 불 뿜는 입 (가만히 있는 그림 기준)
           usedStrip = true;
         }
       }
@@ -2981,26 +2989,6 @@ export class Renderer {
   }
 
   // 이호찬 막차 버스: 그림(fx/bus · bus2) 이 있으면 그 그림 · 없으면 노란 버스 모양
-  // 합류 대기: 빈 자리에 흐린 실루엣 + 글자
-  drawJoinWait(g) {
-    if (!g.joinMode || !g.joinPool || !g.joinPool.length) return;
-    const cx = this.cx, box = HERO_BOX;
-    for (const j of g.joinPool) {
-      const sp = this.sprites['h_' + j.id];
-      const x = g.slotX[j.slot], feet = g.rowY + box * FEET_OFF;
-      if (x === undefined) continue;
-      if (sp && sp.real) { // (자리표시자 그림엔 이름이 그려져 있어서 실루엣으로 안 씀)
-        const sil = (this.sils || (this.sils = {}))[j.id] || (this.sils[j.id] = (() => { const c = mkCanvas(sp.c.width, sp.c.height), x2 = c.getContext('2d'); x2.drawImage(sp.c, 0, 0); x2.globalCompositeOperation = 'source-in'; x2.fillStyle = '#c9b8ff'; x2.fillRect(0, 0, c.width, c.height); return c; })());
-        this.tf(x, feet, 0, 1, 1); cx.globalAlpha = 0.28 + Math.sin(performance.now() / 500 + j.slot) * 0.06; cx.drawImage(sil, -box / 2, -box * FEET, box, box); cx.globalAlpha = 1;
-      }
-      this.world();
-      cx.font = `900 9px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-      cx.fillStyle = 'rgba(8,4,20,0.7)'; roundRect(cx, x - 22, g.rowY + 16, 44, 14, 7); cx.fill();
-      const ai = this.images['attr_' + ((HEROES[j.id] || {}).attr || '')]; if (imgOk(ai)) cx.drawImage(ai, x - 19, g.rowY + 17.5, 11, 11); // 이름은 숨기고 속성 아이콘만 (합류할 때 공개)
-      cx.fillStyle = '#d8ccff'; cx.fillText('???', x + 5, g.rowY + 23);
-    }
-    this.world();
-  }
   // 입구 불꽃: vfx_hitspark (폰·병은 조각 그림) — 없으면 코드 불꽃
   addDoorHit(x, y, kind) {
     const s = this.doorHits || (this.doorHits = []);
@@ -3058,16 +3046,16 @@ export class Renderer {
       const e = (h.kdSec || 4) - h.kdT;
       h._kdUpAt = 0;
       if (e < 0.3) h._kdDust = false;
-      if (e < 0.16) { const q = e / 0.16; p = { rot: -s * 0.2 * q, dx: -s * 3 * q, bob: 0, sx: 1 + 0.08 * q, sy: 1 - 0.1 * q, flash: 1 - q * 0.6 }; }
-      else if (e < 0.46) { const q = (e - 0.16) / 0.3, k = q * q; p = { rot: -s * 0.2 + (s * LIE + s * 0.2) * k, dx: -s * 3 + (SLIDE + s * 3) * k, bob: LIFT * k, sx: 1, sy: 1 + 0.04 * k, flash: 0.4 * (1 - q) }; }
+      if (e < 0.16) { const q = e / 0.16; p = { rot: -s * 0.2 * q, dx: -s * 3 * q, bob: 0, sx: 1 + 0.08 * q, sy: 1 - 0.1 * q, flash: 1 - q * 0.6, fi: 0 }; }
+      else if (e < 0.46) { const q = (e - 0.16) / 0.3, k = q * q; p = { rot: -s * 0.2 + (s * LIE + s * 0.2) * k, dx: -s * 3 + (SLIDE + s * 3) * k, bob: LIFT * k, sx: 1, sy: 1 + 0.04 * k, flash: 0.4 * (1 - q), fi: q < 0.55 ? 1 : 2 }; }
       else if (h.kdT > UP) {
         const q = Math.min(1, (e - 0.46) / 0.3), bn = rm ? 0 : Math.sin(q * Math.PI) * (1 - q);
-        p = { rot: s * (LIE - 0.18 * bn) + (rm ? 0 : Math.sin(t * 1.3 + h.slot) * 0.015), dx: SLIDE, bob: LIFT - 8 * bn, sx: (1 - 0.14 * (1 - q) * (1 - q)) * (1 + (rm ? 0 : 0.045 * Math.sin(t * 2.4 + h.slot))), sy: 1 + 0.05 * (1 - q), flash: 0 };
+        p = { rot: s * (LIE - 0.18 * bn), dx: SLIDE, bob: LIFT - 8 * bn, sx: 1 - 0.14 * (1 - q) * (1 - q), sy: 1 + 0.05 * (1 - q), flash: 0, fi: q < 0.5 ? 2 : rm ? 3 : 3 + (Math.floor(t * 3 + h.slot) % 3) }; // 누워서 어질어질 (띠 3~5칸 반복)
         if (!h._kdDust) { h._kdDust = true; if (!rm && this.fx) { const bx = hx + SLIDE + s * box * 0.4; for (let i = 0; i < 5; i++) this.fx.part('puff', bx + (i - 2) * box * 0.16, feet - 3, (i - 2) * 22 + (Math.random() - 0.5) * 10, -14 - Math.random() * 16, 0.38 + Math.random() * 0.2, 3.5 + Math.random() * 2.5, 'rgba(225,212,190,0.55)', { drag: 3 }); } }
       } else {
         const u = 1 - h.kdT / UP;
-        if (u < 0.45) { const v = ease(u / 0.45); p = { rot: s * (LIE - 0.62 * v) + (rm ? 0 : Math.sin(u * 40) * 0.03 * v), dx: SLIDE * (1 - 0.3 * v), bob: LIFT * (1 - 0.35 * v), sx: 1, sy: 1 - 0.05 * v, flash: 0 }; }
-        else { const v = (u - 0.45) / 0.55, b = rm ? ease(v) : back(v); p = { rot: s * (LIE - 0.62) * (1 - b), dx: SLIDE * 0.7 * (1 - b), bob: LIFT * 0.65 * (1 - v), sx: 1 + 0.06 * Math.sin(v * Math.PI), sy: 1 - 0.1 * Math.sin(v * Math.PI), flash: 0 }; }
+        if (u < 0.45) { const v = ease(u / 0.45); p = { rot: s * (LIE - 0.62 * v) + (rm ? 0 : Math.sin(u * 40) * 0.03 * v), dx: SLIDE * (1 - 0.3 * v), bob: LIFT * (1 - 0.35 * v), sx: 1, sy: 1 - 0.05 * v, flash: 0, fi: 6 }; }
+        else { const v = (u - 0.45) / 0.55, b = rm ? ease(v) : back(v); p = { rot: s * (LIE - 0.62) * (1 - b), dx: SLIDE * 0.7 * (1 - b), bob: LIFT * 0.65 * (1 - v), sx: 1 + 0.06 * Math.sin(v * Math.PI), sy: 1 - 0.1 * Math.sin(v * Math.PI), flash: 0, fi: 7 }; }
       }
       h._kdLast = p; h._kdEnd = h.kdT;
       return p;
@@ -3075,16 +3063,16 @@ export class Renderer {
     if (h._kdLast) { h._kdUpAt = now; h._kdFrom = h._kdEnd > 0.1 ? h._kdLast : null; h._kdLast = null; } // 막 일어났다
     if (h._kdUpAt) {
       const ms = now - h._kdUpAt, f = h._kdFrom;
-      if (f && ms < 420) { const v = ms / 420, b = rm ? ease(v) : back(v); return { rot: f.rot * (1 - b), dx: f.dx * (1 - b), bob: f.bob * (1 - v) - (rm ? 0 : Math.sin(v * Math.PI) * 6), sx: 1, sy: 1 - 0.08 * Math.sin(v * Math.PI), flash: 0 }; }
+      if (f && ms < 420) { const v = ms / 420, b = rm ? ease(v) : back(v); return { rot: f.rot * (1 - b), dx: f.dx * (1 - b), bob: f.bob * (1 - v) - (rm ? 0 : Math.sin(v * Math.PI) * 6), sx: 1, sy: 1 - 0.08 * Math.sin(v * Math.PI), flash: 0, fi: v < 0.45 ? 6 : 7 }; }
       const k = (ms - (f ? 420 : 0)) / 520;
-      if (k < 1 && !rm) return { rot: Math.sin(k * Math.PI * 6) * 0.11 * (1 - k), dx: 0, bob: 0, sx: 1, sy: 1 - 0.03 * Math.sin(k * Math.PI), flash: 0, shake: 1 }; // 머리 털기
+      if (k < 1 && !rm) return { rot: Math.sin(k * Math.PI * 6) * 0.11 * (1 - k), dx: 0, bob: 0, sx: 1, sy: 1 - 0.03 * Math.sin(k * Math.PI), flash: 0, shake: 1, fi: 7 }; // 머리 털기
       h._kdUpAt = 0; h._kdFrom = null;
     }
     return null;
   }
   // 쓰러진 멤버 머리 위: 빙글빙글 별 + 노란 새 두 마리 (누운 머리 자리를 따라간다)
   kdDizzy(h, hx, feet, box, p, t, rm) {
-    const cx = this.cx, hl = box * 0.74 * (p.sy || 1), x0 = hx + p.dx + hl * Math.sin(p.rot), y0 = feet + p.bob - hl * Math.cos(p.rot) - 12;
+    const cx = this.cx, hl = box * 0.74 * (p.sy || 1), x0 = p.head ? p.head.x : hx + p.dx + hl * Math.sin(p.rot), y0 = p.head ? p.head.y : feet + p.bob - hl * Math.cos(p.rot) - 12;
     const st = this.projSprites.star;
     for (let i = 0; i < 5; i++) {
       const a = (rm ? 0.6 : t * 4.2) + i * TAU / 5, x = x0 + Math.cos(a) * 19, y = y0 + Math.sin(a) * 6, front = Math.sin(a) > 0;
@@ -3108,6 +3096,22 @@ export class Renderer {
     let im = m[id];
     if (!im) { im = m[id] = new Image(); im.decoding = 'async'; im.src = artV(d.src); }
     return imgOk(im) ? im : null;
+  }
+  // 쓰러짐 띠 (h_<id>_down.webp · 8칸): 처음 쓰러질 때 한 번 불러온다 (없으면 null → 예전 코드 자세)
+  downSheet(id) {
+    const d = HERO_DOWN[id]; if (!d) return null;
+    const m = this.downIms || (this.downIms = {});
+    let im = m[id];
+    if (!im) { im = m[id] = new Image(); im.decoding = 'async'; im.src = artV(d.src); }
+    return imgOk(im) ? im : null;
+  }
+  // 누운 칸(4칸째)의 머리 자리 (칸 대비 비율) — 오른쪽 끝 · 위
+  downHead(id, im) {
+    const m = this._dnHead || (this._dnHead = {});
+    if (m[id]) return m[id];
+    let r = { x: 0.8, y: 0.72 };
+    try { const fw = im.naturalWidth / 8, b = this.alphaBox(im, fw * 4, fw, im.naturalHeight, 1); if (b.r > b.l) r = { x: b.l + (b.r - b.l) * 0.84, y: b.t + 0.02 }; } catch { /* 기본값 */ }
+    return (m[id] = r);
   }
   stripFit(key, strip, n, idle, only = 0) {
     const m = this._fit || (this._fit = {});
