@@ -44,6 +44,7 @@ import * as SR from './srank.js'; // 시즌 랭킹 보상 (1~3위 한정 의상 
 import { COSTUMES as HW_COSTUMES, costumeArt as cosArt } from './hw-event.js'; // 의상 (시즌 한정 의상 그림)
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
 import * as FG from './failguide.js'; // 실패 공략 카드 (진 뒤 결과 화면 · 진 적 있는 스테이지 준비 화면)
+import * as RU from './rules.js'; // 규칙 안내 체계 (첫 만남 카드 · 전투 중 칩 · 규칙 도감)
 import { createTutor } from './tutorial.js'; // 처음 하는 사람 튜토리얼 (방장 말풍선 · 손가락)
 import * as CU from './currency.js'; // 재화 목록 · 얻는 곳 · 쓰는 곳 · 성장 길잡이 계산
 import { initCurrency, currencyFly, flyGains } from './currency-ui.js'; // 재화 안내 창 · 성장 길잡이 · 날아가는 아이콘
@@ -532,6 +533,7 @@ function beginPlay(g) {
   if (g.mapFx.id !== 'none' && !g.wk) setTimeout(() => { if (app.g === g) fx.banner(`${g.mapFx.icon} ${g.mapFx.name}`, g.mapFx.desc, '#23336a', 2.2, 'big'); }, 300); // (주간은 판이 실제로 시작될 때 규칙 → 맵 효과 순서로: hud)
   TR.leave(); // 출전 화면은 잠깐 흐려지며 사라진다 (뚝 끊기지 않게)
   hud.hidden = false;
+  ruChipSync(g);
   hud.classList.toggle('endless', g.mode !== 'stage' || !!g.weekly);
   hud.classList.toggle('fast', app.runSpeed > 1);
   hud.classList.toggle('hell', !!g.hell);
@@ -2164,7 +2166,7 @@ const ACTS = {
   edPreset: (b) => { app.deckI = Number(b.dataset.k); saveDecks(); showDeckEditor(); },
   edAuto: () => { autoDeck(); A.sfx.levelUp(); showDeckEditor(); },
   prepHellLock: (b) => lockTip(b, '헬 모드', '이 스테이지를 ★★★로 깨면 열려요'),
-  prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[wkDefNow().fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
+  prepFx: () => { const g = app.mode === 'weekly' ? MAP_FX[wkDefNow().fx] || MAP_FX.none : app.mode === 'stage' ? stageFx(app.stage) : MAP_FX.none; const rid = RU.ruleIdForFx(g.id); if (rid) { ruSheet(rid, {}); return; } popup(`<h3>${IC_MAP[g.icon] ? ic(IC_MAP[g.icon], '', 'sm') : ''}${esc(g.name)}</h3><p class="ip">${esc(g.desc || '특별한 효과 없음')}</p>`, 'pp-mini'); },
   prepCond: () => prepCondPopup(),
   prepDiffInfo: () => popup(`<h3>난이도</h3><p class="ip"><b>보통</b> — ${STAGE_WAVES}웨이브. ★은 입구 체력이 많이 남을수록 (${Math.round(STAR_DOOR[0] * 100)}% ★★★ · ${Math.round(STAR_DOOR[1] * 100)}% ★★) · 1-4 부터 ★★★ 은 스테이지 미션도 해야 해요</p><p class="ip"><b>헬</b> — ★★★로 깬 스테이지만. 진상 체력 ×${hellHpMul(app.stage).toFixed(1)} (이 스테이지) · 속도 ×${HELL.speed} · 공격 ×${HELL.atk} · 수 ×${HELL.count} (적지만 단단하게) · 조건 하나 더 · 보스 분노 · 웨이브 사이 수리 절반 · 대신 경험치 ×${HELL.exp} · 멤버 공격 ×${HELL.dmg} (길게 키우며 버티는 싸움). 권장 강화는 보통 +${META_SOFT.hellAdd}. 보상 코인 ×${HELL.coin} · 희귀 이상 장비 확정</p>`, 'pp-mini'),
   prepFoe: (b) => {
@@ -2230,6 +2232,9 @@ const ACTS = {
   info: (b) => showInfoCard(b.dataset.kind, b.dataset.id),
   dex: () => showDex(),
   dexTab: (b) => { app.dexTab = b.dataset.tab; showDex(); },
+  ruOpen: (b) => { ruSheet(b.dataset.id, { from: b.dataset.from || '' }); },
+  ruOk: () => { const q = app.ruQ || []; if (q.length) { ruSheet(q[0], { queue: q.slice(1), first: true }); } else closeInfoCard(); },
+  ruDex: () => ruListSheet(),
   dexRole: (b) => { app.dexRole = b.dataset.v; showDex(); },
   dexKind: (b) => { app.dexKind = b.dataset.v; showDex(); },
   dexCh: (b) => { app.dexCh = Number(b.dataset.v) || 0; showDex(); },
@@ -2242,7 +2247,7 @@ const ACTS = {
   dexCard: (b) => showDexCard(b.dataset.kind, b.dataset.id),
   skill: (b) => useSkillBtn(Number(b.dataset.slot)),
   aimCancel: () => cancelAim(),
-  fxInfo: () => { const g = app.g; if (g) toast(`${g.mapFx.icon} ${g.mapFx.name} — ${g.mapFx.desc}${fxWho(g.mapFx, g)}`, 3200); },
+  fxInfo: () => { const g = app.g; if (g && RU.ruleIdForFx(g.mapFx.id)) ruBattleOpen(g); else if (g) toast(`${g.mapFx.icon} ${g.mapFx.name} — ${g.mapFx.desc}${fxWho(g.mapFx, g)}`, 3200); },
   go: () => { if (app.screen === 'prep' && !curDeck().some(Boolean)) { toast('최소 1명은 데려가야 해요', 1600); A.sfx.tap(); return; } startRun({ mode: app.mode, stage: app.stage }); },
   resumeSnap: () => resumeRun(),
   pick: (b) => tapCard(Number(b.dataset.i)),
@@ -4764,10 +4769,11 @@ function wtrPopup() {
 }
 function prepCondHtml(fxd, conds, mis, rec, wt) {
   const chips = [];
-  if (fxd && fxd.id !== 'none') chips.push(`<button class="pc-chip fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.short || fxd.name)}</button>`);
+  const fxRow = ruFxRow(fxd);
+  if (!fxRow && fxd && fxd.id !== 'none') chips.push(`<button class="pc-chip fx" data-act="prepFx">${IC_MAP[fxd.icon] ? ic(IC_MAP[fxd.icon], '', 'sm') : ''}${esc(fxd.short || fxd.name)}</button>`);
   for (const c of conds) chips.push(`<button class="pc-chip" data-act="prepCond">${ic(COND[c].icon, '', 'sm')}${esc(COND[c].name)}</button>`);
-  if (!chips.length && !mis && !wt) return '';
-  return `<div class="pp-cond">${chips.length ? `<div class="pc-row"><span class="pp-lab">이 스테이지</span>${chips.join('')}</div>` : ''}${wt ? `<div class="pc-row"><span class="pp-lab">이번 주</span>${wt}</div>` : ''}${mis ? `<button class="pc-mis" data-act="prepCond"><span class="pc-st">★★★</span>입구 70% + <b>${esc(mis.text)}</b>${rec ? `<small>권장 +${rec}</small>` : ''}</button>` : ''}</div>`;
+  if (!fxRow && !chips.length && !mis && !wt) return '';
+  return `<div class="pp-cond">${fxRow}${chips.length ? `<div class="pc-row"><span class="pp-lab">이 스테이지</span>${chips.join('')}</div>` : ''}${wt ? `<div class="pc-row"><span class="pp-lab">이번 주</span>${wt}</div>` : ''}${mis ? `<button class="pc-mis" data-act="prepCond"><span class="pc-st">★★★</span>입구 70% + <b>${esc(mis.text)}</b>${rec ? `<small>권장 +${rec}</small>` : ''}</button>` : ''}</div>`;
 }
 function prepCondPopup() {
   const s = app.stage, hellOn = hellOpen(P().stages, s) && app.hellMode;
@@ -4788,6 +4794,88 @@ function prepRecSet(st) {
   for (const id of recommendTeam(st, mine, deckSlotsNow())) r.add(id);
   for (const t of prepFoes(st)) { const T = foeTrait(t); if (T) for (const h of T.counter) if (mine.includes(h)) r.add(h); }
   return r;
+}
+// ─── 규칙 안내 (rules.js): 첫 만남 카드 · 전투 중 칩 · 규칙 도감 ───
+const ruAcct = () => (app.guest ? 'g' : app.nickname || 'g');
+const ruCtx = () => ({ owned: owned(), deck: app.g && app.screen === 'play' ? app.g.heroes.map((h) => h.id) : curDeck().filter(Boolean), nameOf: (id) => (HEROES[id] ? HEROES[id].name : id) });
+function ruMet(id) { if (RU.seenSet(ruAcct())[id]) return true; const st = (P() && P().stages) || {}; return RU.stagesOf(id).some((s) => (st[s] | 0) > 0); }
+function ruResume() { if (app.ruPaused) { app.ruPaused = false; if (app.g && app.screen === 'play' && !stage.querySelector('.pause-box')) { app.paused = false; last = performance.now(); } } }
+// 설명 카드 (바텀 시트): opt.queue 다음 규칙들 · opt.first 처음 만남 · opt.battle 전투 중 · opt.from 'list' | 'dex'
+function ruSheet(id, opt = {}) {
+  const rule = RU.RULE[id];
+  if (!rule) return null;
+  RU.markSeen(ruAcct(), id);
+  const q = opt.queue || [];
+  app.ruQ = q;
+  const more = q.length ? `확인 (다음 ${q.length}개)` : '확인';
+  const second = opt.battle || opt.from === 'dex' ? '' : opt.from === 'list' ? '<button class="btn ghost" data-act="ruDex">‹ 목록</button>' : '<button class="btn ghost" data-act="ruDex">규칙 도감 ›</button>';
+  return popup(`<h3 class="ru-h">${opt.first ? '처음 만난 규칙!' : '규칙 안내'}</h3>${RU.cardHtml(rule, ruCtx())}<div class="ru-btns"><button class="btn primary" data-act="ruOk">${more}</button>${second}</div>`, 'pp-sheet rule-sheet');
+}
+function ruListHtml(from) {
+  const sec = RU.KIND_ORDER.map((k) => {
+    const rows = RU.RULES.filter((r) => r.kind === k).map((r) => {
+      const met = ruMet(r.id);
+      return `<button class="ru-row ${met ? '' : 'new'}" data-act="ruOpen" data-id="${r.id}" data-from="${from}">${RU.iconHtml(r, 'md')}<span class="rr-t"><b>${esc(r.name)}</b><small>${esc(r.rule)}</small><em>${met ? esc(RU.stagesText(r.id, 3)) : '아직 못 만남'}</em></span></button>`;
+    }).join('');
+    return `<h4 class="ru-sh">${esc(RU.KIND_NAME[k])}</h4><div class="ru-rows">${rows}</div>`;
+  }).join('');
+  return `<div class="ru-list">${sec}</div>`;
+}
+function ruListSheet() {
+  const n = RU.RULES.filter((r) => ruMet(r.id)).length;
+  popup(`<h3>규칙 도감</h3><p class="ip">만난 규칙 ${n}/${RU.RULES.length} · 눌러서 자세히 보기</p>${ruListHtml('list')}<div class="ru-btns"><button class="btn primary" data-x>닫기</button></div>`, 'pp-sheet rule-sheet rule-list');
+}
+function showRuleDex() {
+  app.screen = 'dex';
+  hud.hidden = true;
+  const n = RU.RULES.filter((r) => ruMet(r.id)).length;
+  show(`
+    ${topbar(true)}
+    <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
+    <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템</button><button class="on" data-act="dexTab" data-tab="rule">${ic('book', '')} 규칙</button></div>
+    <p class="sub tipbar">${ic('bulb', '', 'sm')}<span>맵 효과 · 진상 기믹이 왜 중요한지, 어떤 멤버가 좋은지 모아 놨어요 · 만난 규칙 ${n}/${RU.RULES.length}</span></p>
+    ${ruListHtml('dex')}
+  `, 'dim');
+}
+// 출전 준비: 아직 안 본 규칙이 있으면 한 번만 카드로 (닫으면 다시 안 나옴 · 도감에서 다시 볼 수 있음)
+function ruPrepCheck(mode, s, hellOn, fxd) {
+  clearTimeout(app.ruT);
+  let ids = [];
+  if (mode === 'stage' && s >= 3) ids = RU.ruleIdsForStage(s, hellOn);
+  else if (mode === 'weekly') ids = [RU.ruleIdForFx(fxd && fxd.id)].filter(Boolean);
+  const un = RU.unseenIds(ruAcct(), ids);
+  if (!un.length) return;
+  app.ruT = setTimeout(() => {
+    if (app.screen !== 'prep' || stage.querySelector('.info-modal, .reveal, .gacha-res, .confirm-modal') || COACH.active() || TUT.hold()) return;
+    const left = RU.unseenIds(ruAcct(), ids);
+    if (left.length) ruSheet(left[0], { queue: left.slice(1), first: true });
+  }, 550);
+}
+function ruFxRow(fxd) {
+  const id = RU.ruleIdForFx(fxd && fxd.id);
+  if (!id) return '';
+  const r = RU.RULE[id], fit = RU.fitOf(r, owned(), curDeck().filter(Boolean));
+  return `<button class="pc-fxrow ${fit.ok ? 'ok' : 'no'}" data-act="ruOpen" data-id="${id}">${RU.iconHtml(r, 'md')}<span class="pf-tx"><b>${esc(r.name)}</b><small>${esc(fxd.short || '')}</small><span class="pf-rec">${RU.fitLine(r, fit)}</span></span><i>›</i></button>`;
+}
+// 전투 중 칩 (맵 효과 아이콘 + 이름) — 누르면 카드 (대전이 아니면 판이 멈춰요)
+const ruChip = document.createElement('button');
+ruChip.id = 'rule-chip'; ruChip.hidden = true; ruChip.setAttribute('aria-label', '맵 효과 설명');
+document.getElementById('bossbar').after(ruChip);
+ruChip.addEventListener('click', () => { A.unlock(); ruBattleOpen(app.g); });
+function ruChipSync(g) {
+  const id = RU.ruleIdForFx(g && g.mapFx && g.mapFx.id);
+  ruChip.hidden = !id;
+  hud.classList.toggle('hasrule', !!id);
+  if (id) { const r = RU.RULE[id]; ruChip.innerHTML = `${RU.iconHtml(r, 'sm')}<b>${esc(r.name)}</b>`; }
+}
+function ruBattleOpen(g) {
+  const id = RU.ruleIdForFx(g && g.mapFx && g.mapFx.id);
+  if (!id || g.over || app.cardsOpen || stage.querySelector('.rule-sheet')) return;
+  if (!g.pvp && !app.paused) { app.paused = true; app.ruPaused = true; cancelAim(); hideBubble(); }
+  const m = ruSheet(id, { battle: true });
+  if (!m) return;
+  const mo = new MutationObserver(() => { if (!m.isConnected) { mo.disconnect(); ruResume(); } });
+  mo.observe(stage, { childList: true });
 }
 // ─── 실패 공략 카드 (failguide.js): 진 뒤 결과 화면 + 진 적 있는 스테이지의 준비 화면 ───
 const failKeyLs = () => `lbfail1:${app.guest ? 'g' : app.nickname || 'g'}`;
@@ -4926,6 +5014,7 @@ function showPrep(mode, s) {
     <div class="spacer"></div>
     ${goHtml}
   `, 'dim prep-screen pp');
+  ruPrepCheck(mode, s, hellOn, fxd);
 }
 // ─── 전투 소모품: 출전 칸 (덱마다 저장) · 전투 버튼 · 끝나면 안 쓴 것 돌려받기 ───
 const CONS_KEY = 'langbang:cons';
@@ -6101,7 +6190,7 @@ function showItemDex() {
   show(`
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
-    <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${nGear}</button></div>
+    <div class="tabs"><button data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임</button><button data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상</button><button class="on" data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${n}/${nGear}</button><button data-act="dexTab" data-tab="rule">${ic('book', '')} 규칙</button></div>
     ${dexRwBar()}
     ${collBar('item')}
     ${chips}
@@ -6195,6 +6284,7 @@ function showDex() {
   hud.hidden = true;
   const tab = app.dexTab || 'hero';
   if (tab === 'item') { showItemDex(); return; }
+  if (tab === 'rule') { showRuleDex(); return; }
   const kind = tab === 'hero' ? 'hero' : 'enemy';
   const ids = dexFiltered(kind);
   const nH = DEX_HEROES().filter((id) => dexKnown('hero', id)).length, nE = DEX_ENEMIES().filter((id) => dexKnown('enemy', id)).length;
@@ -6219,7 +6309,7 @@ function showDex() {
   show(`
     ${topbar(true)}
     <h2 class="title dex-title">${ic('ic_dex', '')}랑방 도감</h2>
-    <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}${newH.length ? '<i class="tab-new"></i>' : ''}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}${newE.length ? '<i class="tab-new"></i>' : ''}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button></div>
+    <div class="tabs"><button class="${tab === 'hero' ? 'on' : ''}" data-act="dexTab" data-tab="hero">${ic('ic_party', '')} 모임 ${nH}/${DEX_HEROES().length}${newH.length ? '<i class="tab-new"></i>' : ''}</button><button class="${tab === 'enemy' ? 'on' : ''}" data-act="dexTab" data-tab="enemy">${ic('ic_jinsang', '')} 진상 ${nE}/${DEX_ENEMIES().length}${newE.length ? '<i class="tab-new"></i>' : ''}</button><button data-act="dexTab" data-tab="item">${ic('ic_bag', '')} 아이템 ${gearDexN()}/${GEAR_IDS.length + MYTH_IDS.length}</button><button data-act="dexTab" data-tab="rule">${ic('book', '')} 규칙</button></div>
     ${dexRwBar()}
     ${collBar(kind)}
     ${dexCatChips(kind)}
