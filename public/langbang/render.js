@@ -36,7 +36,7 @@ const PROJ_COLOR = {
 };
 // 챕터 전용 배경에서 랑방 지붕(영웅 줄 뒤) 위치 — 그림 높이 대비
 const BG_ROOF = { 2: 0.735, 3: 0.735, 4: 0.735, 5: 0.66, 6: 0.73, 7: 0.73, 8: 0.8 }; // (8장: 축의금 접수대 윗면이 멤버 줄 바로 뒤) // (7장: bg7 그림이 오면 이 값을 그림에 맞게)
-const SKIN_GLOW = { gunnyeo_hw: 'rgba(120,255,140,0.75)', hochan_hw: 'rgba(255,40,80,0.75)', jieun_hw: 'rgba(180,100,255,0.8)', sunggu_hw: 'rgba(255,235,180,0.7)', ara_hw: 'rgba(255,140,30,0.85)' }; // 할로윈 의상 투사체 빛 (hw-event.js COSTUMES tint)
+const SKIN_GLOW = { gunnyeo_hw: 'rgba(120,255,140,0.75)', hochan_hw: 'rgba(255,40,80,0.75)', jieun_hw: 'rgba(180,100,255,0.8)', sunggu_hw: 'rgba(255,235,180,0.7)', ara_hw: 'rgba(255,140,30,0.85)', bangjang_s1: 'rgba(255,210,70,0.85)', eunok_s1: 'rgba(255,90,140,0.8)', gunman_s1: 'rgba(140,220,255,0.8)' }; // 할로윈 의상 투사체 빛 (hw-event.js COSTUMES tint)
 const MAP_ROOF = 0.735; // 레이드 · 대전 맵: 랑방 지붕 높이 (그림 높이의 비율 · bg2~4 와 같게)
 const BG_BRIGHT = { 4: 0.42, 6: 0.36, 7: 0.4, 8: 0.34 }; // (8장: 흰 버진로드) // 밝은 길(제주 · 눈길) — 진상이 잘 보이게 길을 어둡게
 // 챕터별 분위기 (같은 배경 그림에 색만 덧씌운다)
@@ -66,6 +66,7 @@ function mkCanvas(w, h) {
   return c;
 }
 const imgOk = (img) => !!(img && img.complete && img.naturalWidth > 0);
+const COS_IDLE = { frames: 8, fps: 6 }; // 의상 대기 띠 (시즌 한정 의상 · hw-ui.js applySkins 가 skinIdle 을 채운다)
 // 캐릭터 그림: 처음 그릴 때 굽는다 (예전엔 진상 200여 종 × 2장을 전부 미리 구워 폰 메모리를 크게 먹었다 — 판에 나온 것만)
 //  .f (맞을 때 흰 번쩍)도 처음 쓸 때 만든다
 class LazySprite {
@@ -2349,7 +2350,7 @@ export class Renderer {
         const ms = h._hgTfAt ? performance.now() - h._hgTfAt - (h.alt ? 330 : 0) : 1e9;
         if (ms < 0) alt = false; else hgK = Math.min(1, ms / 560);
       }
-      const key = alt && this.sprites['h_' + h.id + '_alt'] ? 'h_' + h.id + '_alt' : up && this.sprites['h_' + h.id + '_rage'] ? 'h_' + h.id + '_rage' : 'h_' + h.id;
+      const key = alt && this.sprites['h_' + h.id + '_alt'] ? 'h_' + h.id + '_alt' : up && this.sprites['h_' + h.id + '_rage'] && !(this.skinMap && /_s\d+$/.test(this.skinMap[h.id] || '')) ? 'h_' + h.id + '_rage' : 'h_' + h.id; // (시즌 의상은 분노해도 의상 그대로)
       const sp = this.sprites[key];
       if (!sp) continue;
       const bob0 = Math.sin(t * 3 + h.slot) * 1.2, br0 = 1 + Math.sin(t * 2.2 + h.slot * 1.7) * 0.012; // 예전 대기: 둥실 · 숨쉬기 (대기 띠가 있으면 뺀다)
@@ -2396,7 +2397,7 @@ export class Renderer {
       // 프레임 띠 (있으면): 준비 = 0~release-1 칸 · 던진 뒤 0.3초 = release~끝 칸
       const cp = this.kit && !busy ? this.kit.castPose(h) : null; // 대개편: 스킬 시전 동작 (멤버마다 다른 몸짓)
       if (cp) { dx += cp.dx; bob += cp.dy; rot += cp.rot; sx *= cp.sx; sy *= cp.sy; }
-      const formOn = !!HERO_ANIM_FORM[h.id] && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!alt);
+      const formOn = !!HERO_ANIM_FORM[h.id] && !(this.skinMap && /_s\d+$/.test(this.skinMap[h.id] || '')) && (h.id === 'ingyu' ? (g.harleys || []).some((q) => q.hero === h) : (h.id === 'eunok' || h.id === 'donghan') ? !!up : h.id === 'youngjun' ? !!h.out : !!alt);
       const HA = formOn ? HERO_ANIM_FORM[h.id] : HERO_ANIM[h.id], hstrip = HA && this.images[formOn ? 'hanim_' + h.id + '_f' : 'hanim_' + h.id];
       let usedStrip = false;
       if (h.id === 'baul' && h.bd && !busy) usedStrip = this.drawBaul(g, h, hx, feet, box, sp, t);
@@ -2510,11 +2511,12 @@ export class Renderer {
         }
         usedStrip = true;
       }
-      const idK = alt ? (hgK >= 1 && HERO_IDLE[h.id + '_alt'] ? h.id + '_alt' : '') : h.id; // 변신 모습 대기 띠 (배현경 날씬 · 있으면)
-      if (!usedStrip && !busy && !cp && !up && idK && !rmH && HERO_IDLE[idK] && h.id !== 'ara' && !(this.skinMap && this.skinMap[h.id]) && !(h._hitAt && performance.now() - h._hitAt < 160) && !(h._castAt && performance.now() - h._castAt < 250)) { // 대기 띠 (멤버마다 다른 몸짓 · 시작 칸은 멤버마다 무작위)
+      const cosW = this.skinMap && this.skinMap[h.id]; // 의상: 의상 대기 띠가 있으면 그것 (시즌 한정 의상) · 없으면 대기 띠 없이
+      const idK = cosW ? (this.skinIdle && this.skinIdle[cosW] ? 'cos:' + cosW : '') : alt ? (hgK >= 1 && HERO_IDLE[h.id + '_alt'] ? h.id + '_alt' : '') : h.id; // 변신 모습 대기 띠 (배현경 날씬 · 있으면)
+      if (!usedStrip && !busy && !cp && !up && idK && !rmH && (HERO_IDLE[idK] || cosW) && h.id !== 'ara' && !(h._hitAt && performance.now() - h._hitAt < 160) && !(h._castAt && performance.now() - h._castAt < 250)) { // 대기 띠 (멤버마다 다른 몸짓 · 시작 칸은 멤버마다 무작위)
         const im = this.idleSheet(idK);
         if (im) {
-          const d = HERO_IDLE[idK], n = d.frames, fw = im.naturalWidth / n, fh = im.naturalHeight;
+          const d = HERO_IDLE[idK] || COS_IDLE, n = d.frames, fw = im.naturalWidth / n, fh = im.naturalHeight;
           if (h._idPh === undefined) h._idPh = Math.random() * n;
           const fi = Math.floor(t * d.fps + h._idPh) % n, fit = this.stripFit('hidle_' + idK, im, n, sp.c, 1), bw = box * fit.k;
           this.tf(hx + dx, feet + bob - bob0, rot, sx, sy / br0);
@@ -3103,7 +3105,7 @@ export class Renderer {
   }
   // 대기 띠: 판에 나온 멤버만 처음 그릴 때 한 번 불러온다 (못 불러오면 null → 예전 숨쉬기)
   idleSheet(id) {
-    const d = HERO_IDLE[id]; if (!d) return null;
+    const d = id.startsWith('cos:') ? (this.skinIdle && this.skinIdle[id.slice(4)] ? { src: this.skinIdle[id.slice(4)] } : null) : HERO_IDLE[id]; if (!d) return null;
     const m = this.idleIms || (this.idleIms = {});
     let im = m[id];
     if (!im) { im = m[id] = new Image(); im.decoding = 'async'; im.src = artV(d.src); }

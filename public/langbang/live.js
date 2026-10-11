@@ -220,6 +220,9 @@ export const FRAMES = {
   towergold: { id: 'towergold', name: '황금 지옥 프레임', color: '#ffcf3f', rarity: 'legend', how: '진상의 탑 60층', anim: 'hellgold' },
   r2frame: { id: 'r2frame', name: '건물주 퇴치 프레임', color: '#ff7a3d', rarity: 'epic', how: '건물주 레이드 토벌 성공 (참가)' }, // 건물주 레이드
   hwframe: { id: 'hwframe', name: '호박등 프레임', color: '#ff8a1f', rarity: 'epic', how: '할로윈 이벤트 사탕 상점 (2026 할로윈)', anim: 'flame' }, // 할로윈 이벤트
+  srking: { id: 'srking', name: '무지개 왕관 프레임', color: '#ff6fd8', rarity: 'legend', how: '시즌 랭킹 1위 (스테이지 · 무한 · 1:1 대전 중 하나)', anim: 'rainbow', season: true }, // 시즌 랭킹 보상 (srank.js)
+  srlaurel: { id: 'srlaurel', name: '황금 월계관 프레임', color: '#ffcf3f', rarity: 'legend', how: '시즌 랭킹 Top 10', anim: 'laurel', season: true },
+  srsilver: { id: 'srsilver', name: '은빛 정예 프레임', color: '#cfe3ff', rarity: 'rare', how: '시즌 랭킹 상위 30%', season: true },
 };
 // 칭호 카탈로그 (얻는 법 · 등급) — 시즌 칭호는 titleName 으로 따로
 export const TITLE_INFO = {
@@ -235,6 +238,7 @@ export const TITLE_INFO = {
 const TITLE_NAMES = { ch1: '골목 신입', ch3: '인피 격파자', ch6: '랑방의 전설', ch7: '설산의 정복자', ch8: '축의금 수호자', allstar1: '별 수집가', pvpsilver: '투기장 도전자', pvpgold: '투기장 강자', heroes12: '인맥왕', heroes20: '랑방 대가족', tower15: '탑 등반가', tower60: '진상 대왕 정복자', towerking: '이번 주 탑의 주인', popstar: '이번 주 인기 스타', r2slayer: '건물주 퇴치단', r2king: '막타왕', r2mvp: '건물주 저승사자', hwsurvivor: '저주의 밤 생존자', hwking: '할로윈 저주왕' };
 // 조건을 채우면 저절로 들어오는 칭호 · 프레임 (서버 normLb · 손님 둘 다 같은 함수)
 // 우편 보상은 정해진 칸만 (숫자 · 등급 · 칭호/프레임 이름)
+const SKIN_ID = /^[a-z]{2,16}_(hw|s\d{1,3})$/;
 function cleanRw(rw) {
   rw = rw || {};
   const o = {};
@@ -242,6 +246,7 @@ function cleanRw(rw) {
   if (GEAR_RARITIES.includes(rw.gear) || rw.gear === 'myth') o.gear = rw.gear;
   if (typeof rw.title === 'string' && rw.title.length < 16) o.title = rw.title;
   if (typeof rw.frame === 'string' && FRAMES[rw.frame]) o.frame = rw.frame;
+  if (Array.isArray(rw.skins)) { const s = [...new Set(rw.skins.filter((k) => typeof k === 'string' && SKIN_ID.test(k)))].slice(0, 6); if (s.length) o.skins = s; } // 시즌 한정 의상 (hw-event.js COSTUMES · normSkins 가 한 번 더 거른다)
   if (rw.cons && typeof rw.cons === 'object') { const c = {}; for (const [k, v] of Object.entries(rw.cons)) { const n = int(v, 0, CONS_CAP); if (CONS[k] && n) c[k] = n; } if (Object.keys(c).length) o.cons = c; }
   return o;
 }
@@ -268,8 +273,15 @@ function autoCosmetics(raw) {
   if (heroes >= 20) t.push('heroes20');
   return { t, f };
 }
-export const cosmeticRarity = (kind, id) => (kind === 'frame' ? (FRAMES[id] || {}).rarity : (TITLE_INFO[id] || (/^s\d+_t30$/.test(id) ? { rarity: 'legend' } : /^s\d+_t10$/.test(id) ? { rarity: 'rare' } : {})).rarity) || 'common';
+// 시즌 랭킹 칭호 (srank.js): s<시즌>_r1 · r3 · r10 · r30 — 시즌 번호가 박혀서 그 시즌에만 얻는다
+const SR_TITLE = { r1: { name: '랑방의 왕', rarity: 'legend', anim: 'rainbow', how: '랭킹 1위' }, r3: { name: '정상의 3인', rarity: 'legend', anim: 'gold', how: '랭킹 Top 3' }, r10: { name: '진상 사냥꾼', rarity: 'epic', anim: 'gold', how: '랭킹 Top 10' }, r30: { name: '랑방 정예', rarity: 'rare', how: '랭킹 상위 30%' } };
+const srTitleOf = (id) => { const m = /^s(\d{1,3})_(r1|r3|r10|r30)$/.exec(String(id || '')); return m ? { sid: +m[1], ...SR_TITLE[m[2]] } : null; };
+export const titleAnim = (id) => { const x = srTitleOf(id); return (x && x.anim) || ''; }; // 움직이는 칭호 (무지개 · 금빛)
+export const titleHow = (id) => { const x = srTitleOf(id); return x ? `시즌 ${x.sid} ${x.how} 보상` : (TITLE_INFO[id] || {}).how || (/_t30$/.test(id) ? '시즌 30단계' : '시즌 10단계'); };
+export const cosmeticRarity = (kind, id) => (kind === 'frame' ? (FRAMES[id] || {}).rarity : (TITLE_INFO[id] || srTitleOf(id) || (/^s\d+_t30$/.test(id) ? { rarity: 'legend' } : /^s\d+_t10$/.test(id) ? { rarity: 'rare' } : {})).rarity) || 'common';
 export function titleName(id) {
+  const sr = srTitleOf(id);
+  if (sr) return `시즌${sr.sid} ${sr.name}`;
   let m = /^s(\d{1,3})_t10$/.exec(id);
   if (m) return `시즌${m[1]} 단골`;
   m = /^s(\d{1,3})_t30$/.exec(id);
@@ -563,7 +575,17 @@ export function ensureLive(lb, uid, now = Date.now()) {
   if (!lb.wm || lb.wm.wi !== wi) lb.wm = { wi, p: {}, done: [] };
   const sid = seasonOf(wi);
   if (!lb.season || lb.season.id !== sid) lb.season = { id: sid, sp: 0, claimed: [] };
+  srSync(lb, now);
   return lb;
+}
+// 시즌 랭킹 기록 (srank.js): 이번 시즌에 들어온 표시 · 시즌이 바뀌는 첫 순간에 지난 시즌 기록을 얼려 둔다 (lb.srPrev)
+//  (그 뒤로 기록이 올라도 지난 시즌 순위는 그대로 · 서버는 결과를 저장하기 전에 먼저 부른다)
+export const srSnap = (lb) => ({ ms: lb.maxStage | 0, ts: lb.totalStars | 0, sa: Math.max(0, Math.floor(Number(lb.stageAt) || 0)), bw: lb.bestWave | 0, bs: Math.max(0, Math.floor(Number(lb.bestScore) || 0)), pr: ((lb.pvp || {}).rating | 0) || 1000, pg: (lb.pvp || {}).games | 0 });
+export function srSync(lb, now = Date.now()) {
+  const sid = seasonOf(weekIndex(now)), s = lb.sr;
+  if (s && s.sid === sid) return;
+  if (s && Number.isInteger(s.sid) && s.sid < sid) lb.srPrev = { sid: s.sid, ...srSnap(lb) };
+  lb.sr = { sid };
 }
 // 진행 올리기 (하루 · 주 · 평생)
 export function bump(lb, key, v, uid, now) {
@@ -604,6 +626,11 @@ export function grant(lb, rw, uid, now) {
   if (rw.gear) { const ids = rw.gear === 'myth' ? MYTH_IDS : GEAR_IDS; got.gear = addGear(lb, ids[hashSeed(`rw:${lb.gearSeq}:${rw.gear}:${uid}`) % ids.length], rw.gear); }
   if (rw.title && !lb.titles.includes(rw.title)) { lb.titles.push(rw.title); got.title = rw.title; }
   if (rw.frame && !lb.frames.includes(rw.frame)) { lb.frames.push(rw.frame); got.frame = rw.frame; }
+  if (Array.isArray(rw.skins)) { // 의상 (시즌 랭킹 한정): 가진 의상 목록에만 넣는다 · 입기는 의상실에서
+    lb.skins = lb.skins && typeof lb.skins === 'object' ? lb.skins : { own: [], on: {} };
+    lb.skins.own = Array.isArray(lb.skins.own) ? lb.skins.own : []; lb.skins.on = lb.skins.on || {};
+    for (const k of rw.skins) if (typeof k === 'string' && SKIN_ID.test(k) && !lb.skins.own.includes(k)) { lb.skins.own.push(k); (got.skins = got.skins || []).push(k); }
+  }
   return got;
 }
 export function addGear(lb, t, r) {
@@ -1183,7 +1210,7 @@ export function mailClaim(lb, id, uid, now = Date.now()) {
   const list = id === 'all' ? lb.mail.slice() : lb.mail.filter((m) => m.id === id);
   if (!list.length) return { error: id === 'all' ? '받을 우편이 없어요' : '없는 우편이에요' };
   const got = {};
-  for (const m of list) { const g = grant(lb, m.rw || {}, uid, now); for (const [k, v] of Object.entries(g)) { if (typeof v === 'number') got[k] = (got[k] || 0) + v; else if (k === 'cons') { got.cons = got.cons || {}; for (const [c, n] of Object.entries(v)) got.cons[c] = (got.cons[c] || 0) + n; } else (got[k + 's'] = got[k + 's'] || []).push(v); } }
+  for (const m of list) { const g = grant(lb, m.rw || {}, uid, now); for (const [k, v] of Object.entries(g)) { if (typeof v === 'number') got[k] = (got[k] || 0) + v; else if (Array.isArray(v)) got[k] = [...(got[k] || []), ...v]; else if (k === 'cons') { got.cons = got.cons || {}; for (const [c, n] of Object.entries(v)) got.cons[c] = (got.cons[c] || 0) + n; } else (got[k + 's'] = got[k + 's'] || []).push(v); } }
   const ids = new Set(list.map((m) => m.id));
   lb.mail = lb.mail.filter((m) => !ids.has(m.id));
   return { n: list.length, got };
@@ -1304,6 +1331,9 @@ export function normLive(raw, out) {
   out.pvpTiers = (Array.isArray(raw.pvpTiers) ? raw.pvpTiers : []).map((x) => int(x, 0, 5000)).filter((x) => PVP_TIER_LADDER.some((t) => t[0] === x));
   normFriends(raw, out); // 친구 · 체력 선물 · 레이드 도움 (아래 친구 블록)
   out.jpick = [...new Set((Array.isArray(raw.jpick) ? raw.jpick : []).map((x) => int(x, 0, 999)))].filter((s) => JOIN_PICKS.some((j) => j.stage === s)); // 쓴 합류 선택권 (스테이지 번호)
+  out.sr = raw.sr && Number.isInteger(raw.sr.sid) ? { sid: int(raw.sr.sid, 0, 9999) } : null; // 시즌 랭킹 (srank.js)
+  { const q = raw.srPrev; out.srPrev = q && Number.isInteger(q.sid) ? { sid: int(q.sid, 0, 9999), ms: int(q.ms, 0, 999), ts: int(q.ts, 0, 9999), sa: int(q.sa, 0, 9e15), bw: int(q.bw, 0, 9999), bs: int(q.bs, 0, 1e12), pr: int(q.pr, 0, 9999), pg: int(q.pg, 0, 1e7) } : null; }
+  out.srPaid = int(raw.srPaid, 0, 9999);
   out.acqV = int(raw.acqV, 0, 99);
   out.acqNew = (Array.isArray(raw.acqNew) ? raw.acqNew : []).filter((h) => LOCKED_HEROES.includes(h)).slice(0, 30);
   if (!out.master) acqMigrate(out, raw);
