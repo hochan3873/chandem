@@ -2484,6 +2484,7 @@ export class Renderer {
         if (h.wallSt === 'out' && imgOk(wb)) { const fi = strip(wb, 5); if ((fi === 0 || fi === 4) && h._lastStep !== fi) { h._lastStep = fi; this.onStep && this.onStep(h, hx, feet); } else if (fi !== 0 && fi !== 4) h._lastStep = -1; usedStrip = true; }
         else if (h.wallSt === 'out' && imgOk(bk)) { this.tf(hx, feet, 0, 1, 1); cx.drawImage(bk, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; }
         else if (h.wallSt === 'back' && imgOk(wk)) { strip(wk, 5); usedStrip = true; }
+        else if (!rmH && !kp && this.idleSheet('jeongseob')) { const im = this.idleSheet('jeongseob'), n = 8, fw = im.naturalWidth / n; if (h._idPh === undefined) h._idPh = Math.random() * n; const fi = Math.floor(t * 4 + h._idPh) % n; this.tf(hx, feet, 0, 1, 1); cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; } // 쉬는 동안 대기 띠 (물 마시기 · 땀 닦기 — 쉬는 그림과 같은 칸)
         else if (imgOk(rs0)) { this.tf(hx, feet, 0, 1, 1 + Math.sin(t * 1.6) * 0.01); cx.drawImage(rs0, -bw / 2, -bw * FEET, bw, bw); usedStrip = true; }
       }
       if (h.id === 'jiwon' && !busy && !usedStrip && h.mzQ && h.mzQ.length && imgOk(this.images.hanim_jiwon)) { // 여지원 모자이크 폭격: 손 번쩍 든 칸(0)으로 버티며 몸을 끌어올렸다가 → 내려칠 때마다 내지르는 칸(5~6)
@@ -2509,14 +2510,16 @@ export class Renderer {
         }
         usedStrip = true;
       }
-      if (!usedStrip && !busy && !cp && !up && !alt && !rmH && HERO_IDLE[h.id] && h.id !== 'ara' && !(this.skinMap && this.skinMap[h.id]) && !(h._hitAt && performance.now() - h._hitAt < 160) && !(h._castAt && performance.now() - h._castAt < 250)) { // 대기 띠 (멤버마다 다른 몸짓 · 시작 칸은 멤버마다 무작위)
-        const im = this.idleSheet(h.id);
+      const idK = alt ? (hgK >= 1 && HERO_IDLE[h.id + '_alt'] ? h.id + '_alt' : '') : h.id; // 변신 모습 대기 띠 (배현경 날씬 · 있으면)
+      if (!usedStrip && !busy && !cp && !up && idK && !rmH && HERO_IDLE[idK] && h.id !== 'ara' && !(this.skinMap && this.skinMap[h.id]) && !(h._hitAt && performance.now() - h._hitAt < 160) && !(h._castAt && performance.now() - h._castAt < 250)) { // 대기 띠 (멤버마다 다른 몸짓 · 시작 칸은 멤버마다 무작위)
+        const im = this.idleSheet(idK);
         if (im) {
-          const d = HERO_IDLE[h.id], n = d.frames, fw = im.naturalWidth / n, fh = im.naturalHeight;
+          const d = HERO_IDLE[idK], n = d.frames, fw = im.naturalWidth / n, fh = im.naturalHeight;
           if (h._idPh === undefined) h._idPh = Math.random() * n;
-          const fi = Math.floor(t * d.fps + h._idPh) % n, fit = this.stripFit('hidle_' + h.id, im, n, sp.c, 1), bw = box * fit.k;
+          const fi = Math.floor(t * d.fps + h._idPh) % n, fit = this.stripFit('hidle_' + idK, im, n, sp.c, 1), bw = box * fit.k;
           this.tf(hx + dx, feet + bob - bob0, rot, sx, sy / br0);
           cx.drawImage(im, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, bw, bw);
+          if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE; h._mouth = { x: hx + dx - box / 2 + (m[0] / 256) * box, y: feet + bob - bob0 - box * FEET + (m[1] / 256) * box }; } // 불 뿜는 입 (가만히 있는 그림 기준)
           usedStrip = true;
         }
       }
