@@ -1,4 +1,4 @@
-// 랑방 대전 — 밸런스 데이터 모음
+﻿// 랑방 대전 — 밸런스 데이터 모음
 // 숫자만 바꿔도 게임 전체 밸런스가 바뀌도록 모든 수치를 여기에 모아 둔다.
 // (DOM 없이 Node 에서도 import 되는 순수 데이터 모듈)
 
@@ -2926,7 +2926,7 @@ Object.assign(ENEMIES, {
     hw: { rewrap: { at: 0.5, frac: 0.35 } }, // 체력 절반에서 붕대를 다시 감는다 (보호막 25% · 한 번)
     shouts: ['결재 반려야', '이거 다시 해 와', '나 때는 붕대도 직접 감았어', '퇴근? 누가?'] },
   hw_reaper: { id: 'hw_reaper', cls: 'politic', name: '저승사자 팀장', gender: 'm', emoji: '📜', color: '#2a2438', eventOnly: true, lazy: true, mid: true,
-    img: HW_IMG('hw_reaper'), hp: 1100, speed: 16, atk: 24, atkInterval: 1.6, armor: 4, exp: 45, coin: 10, r: 40, size: 142,
+    img: HW_IMG('hw_reaper'), anims: ['attack'], hp: 1100, speed: 16, atk: 24, atkInterval: 1.6, armor: 4, exp: 45, coin: 10, r: 40, size: 142,
     hw: { list: { every: 11, first: 6, sec: 3, gnSec: 4, kd: 70, stun: 2 } }, // 야근 명부: 멤버 한 명 이름을 적고 3초 (건전녀가 있으면 4초) 뒤 강제 퇴근 — 그 사이 팀장을 기절 · 빙결 · 밀치기 하거나 건전녀 응급 방패로 지운다
     title: '저승사자 팀장 등장!', subtitle: '"야근 명부에 이름 적히고 싶은 사람?"',
     shouts: ['명부에 이름 적었다', '오늘 야근 확정', '퇴근은 저승에서', '다음 사람~'] },
