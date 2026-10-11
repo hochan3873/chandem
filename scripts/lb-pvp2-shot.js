@@ -1,7 +1,7 @@
 'use strict';
 // 1:1 맞대결 v2 — 두 화면(손님 두 명)으로 친구 방 대전을 실제로 돌려 보고 화면을 찍는다
 //  node scripts/lb-pvp2-shot.js <저장 폴더> [초]
-//  · 두 사람 모두 자동으로 누른다 (스킬 · 조준 · 교체 · 정신 차려 · 보내기 · 총공지) · 마지막에 한쪽 입구를 무너뜨려 결과 화면까지
+//  · 두 사람 모두 자동으로 누른다 (스킬 · 조준 · 교체 · 정신 차려 · 보내기 · 총력전) · 마지막에 한쪽 입구를 무너뜨려 결과 화면까지
 //  · 프레임 묶음(frames-a.png · frames-b.png): 1.5초마다 찍은 화면을 한 장에
 const fs = require('fs');
 const path = require('path');
@@ -56,7 +56,7 @@ const prof = (deck, slots = 6) => ({ items: slots >= 6 ? { slot5: 1, slot6: 1 } 
   await wait(1200);
   await B.screenshot({ path: path.join(OUT, '02-vs.png') });
   for (const p of [A, B]) for (let k = 0; k < 60; k++) { if (await p.evaluate(() => !!document.querySelector('.pv2') && !!window.__lb.pv2().debug.last)) break; await wait(150); }
-  // 자동으로 누르기 (사람처럼): 준비된 스킬 · 정신 차려 · 보내기 · 총공지 · 가끔 교체 · 상대 멤버 조준
+  // 자동으로 누르기 (사람처럼): 준비된 스킬 · 정신 차려 · 보내기 · 총력전 · 가끔 교체 · 상대 멤버 조준
   const play = (p, seed) => p.evaluate((seed) => {
     const st = window.__lb.pv2().debug, x = st.last; if (!x) return '';
     const el = document.querySelector('.pv2'); if (!el) return '';

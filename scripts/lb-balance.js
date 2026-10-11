@@ -152,11 +152,11 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     want.sort((a, b) => (a[0]._lastSk || -99) - (b[0]._lastSk || -99));
     for (const [h, x, y] of want) if (S.castSkill(g, h, x, y)) { h._lastSk = g.t; break; } else if (g.skillQ && g.skillQ.h === h) { h._lastSk = g.t; break; }
   }
-  // 한 판 (사람처럼: 카드는 바로 고르고, 총공지는 적이 많거나 보스가 있을 때 쓴다)
+  // 한 판 (사람처럼: 카드는 바로 고르고, 총력전은 적이 많거나 보스가 있을 때 쓴다)
   function play(o) {
     const rng = seeded(o.seed);
-    const g = o.snap ? S.restoreGame(o.snap, { rng, H: 760 }) : S.createGame({
-      H: 760, rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
+    const g = o.snap ? S.restoreGame(o.snap, { rng, H: opt("H", 760) }) : S.createGame({
+      H: opt("H", 760), rng, mode: o.mode || 'stage', stage: o.stage, meta: o.meta || {}, items: o.items || {},
       partner: o.partner, hiddenUnlocked: o.unlocked || [], heroes: o.heroes || (o.team ? ['bangjang', ...o.team] : undefined),
       deck: o.deck, gear: o.gear, join: o.join !== undefined ? o.join : JOIN_MODE, tempo: o.tempo !== undefined ? o.tempo : TEMPO_MODE, hell: !!o.hell, leader: o.leader, conds: o.conds || COND_ARG || (args.includes('--hellnoextra') && o.hell ? D.stageConds(o.stage, false) : undefined), noSoft: o.noSoft || NOSOFT, wtrait: o.wtrait || WTR, stars: o.stars, coll: o.coll,
     });
@@ -878,7 +878,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   }
   // ── 긴장감 (node scripts/lb-balance.js tension --list=11,...,20 [--seeds=8] [--hell] [--bots=ref,low,beg] [--trace=17])
   //  판이 어떻게 흘러가나: 1초마다 입구 % · 살아 있는 진상 · 처치 → 이긴 판 남은 입구 분포 · 진 판 무너지는 데 걸린 시간 (입구 75% → 0) · 판 중 최저 입구
-  //  봇: ref = 기준 플레이어 (스킬 1.5초 늦게 · 카드 40% 아무거나) · low = 스킬 가끔 (8초마다 한 번 확인) · beg = 초보 (스킬 안 씀 · 카드는 기준과 같게 · 총공지만 누름) · rnd = 스킬 안 씀 + 카드 막 고름
+  //  봇: ref = 기준 플레이어 (스킬 1.5초 늦게 · 카드 40% 아무거나) · low = 스킬 가끔 (8초마다 한 번 확인) · beg = 초보 (스킬 안 씀 · 카드는 기준과 같게 · 총력전만 누름) · rnd = 스킬 안 씀 + 카드 막 고름
   //  강화 = 장 권장 + REF_PLUS (헬: + 헬 권장 가산) · 같은 덱 · 같은 시드
   const BOTS = { ref: { label: '기준', o: {} }, low: { label: '스킬가끔', o: { skillEvery: 480, policy: 'mid' } }, beg: { label: '초보', o: { skills: false, policy: 'mid' } }, rnd: { label: '막고름', o: { skills: false, policy: 'random' } }, smart: { label: '잘고름', o: { policy: 'smart' } }, rsk: { label: '막고름+스킬', o: { policy: 'random' } } };
   function botRun(s, bot, N, hell) {
@@ -1216,6 +1216,59 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   }
   if (what === 'runlen') runlen();
   if (what === 'stagecalib') stagecalib();
+  // ── 업그레이드 체감 (node scripts/lb-balance.js upgrade [--ch=1,..,8] [--nos=4,8] [--seeds=8])
+  //  같은 기준 덱으로 강화 · ★ · 장비를 바꿔 가며 클리어율 · 클리어 시간 · 남은 입구를 잰다 (맨몸 +0 · 권장 · 권장 + 전형 장비 · 권장 + 최고 장비 · +5~+20 · ★1 대 ★3)
+  //  전형 장비 = 그 스테이지까지 실제 드롭표(rollDrops · ★3 · 퍼펙트 30%)로 모은 장비를 멤버 순서대로 무기 · 액세서리 한 칸씩 (강화 +0)
+  //  최고 장비 = 그 장에서 현실적인 최고 등급(1·2장 희귀 · 3·4장 영웅 · 5장~ 전설) 확성기 · 리프팅 벨트 +5강 (공격력)
+  function upgrade() {
+    const N = opt('seeds', 8), chs = listArg('ch', '1,2,3,4,5,6,7,8').map(Number), nos = listArg('nos', '4,8').map(Number);
+    const deckFor = (c, s) => (c <= 6 ? balFor(c, s, false) : C78.slice());
+    const itemsFor = (c, s) => (c <= 6 ? itemsAt(Math.round(s * 1.3)) : ITEMS78);
+    const typical = (s, ids) => {
+      const w = [], a = [], pity = { ep: 0, lg: 0 }; // 천장도 실제처럼 센다
+      for (let k = 1; k <= s; k++) for (const d of D.rollDrops(k * 7919 + 13, k, 3, (k * 37) % 10 < 3, false, false, pity)) if (d.t !== undefined && D.GEAR[d.t] && !D.GEAR[d.t].myth) (D.GEAR[d.t].slot === 'w' ? w : a).push(d);
+      const rank = (d) => D.gearValue(d.t, d.r, 0) * (['atk', 'spd', 'skill', 'cd', 'crit'].includes(D.GEAR[d.t].stat) ? 1 : 0.6);
+      w.sort((x, y) => rank(y) - rank(x)); a.sort((x, y) => rank(y) - rank(x));
+      const out = {}; ids.forEach((id, i) => { out[id] = D.gearStats([w[i], a[i]].filter(Boolean)); });
+      return out;
+    };
+    const best = (c, ids) => { const r = c <= 2 ? 'rare' : c <= 4 ? 'epic' : 'legend'; const st = D.gearStats([{ t: 'megaphone', r, lv: 5 }, { t: 'belt', r, lv: 5 }]); return Object.fromEntries(ids.map((id) => [id, st])); };
+    const one = (c, s, v) => {
+      const ids = deckFor(c, s), ref = refOf(s, ids);
+      const stars = v.star ? Object.fromEntries(ids.map((id) => [id, v.star])) : ref.stars;
+      let w = 0, hp = 0, tw = 0, tl = 0, nl = 0, door = 0;
+      for (let i = 1; i <= N; i++) {
+        const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta: Object.fromEntries(ids.map((id) => [id, v.meta])), gear: v.gear ? v.gear(s, ids, c) : {}, items: itemsFor(c, s), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell: false, stars, coll: ref.coll });
+        if (r.win) { w++; hp += r.hp; tw += r.t; } else { tl += r.t; nl++; door += 0; }
+      }
+      return { w: w / N, hp: w ? hp / w : 0, tw: w ? tw / w : 0, tl: nl ? tl / nl : 0 };
+    };
+    const VARS = [
+      ['+0 ★1 맨몸', (c) => ({ meta: 0, star: 1 })],
+      ['권장 맨몸', (c) => ({ meta: REC[c - 1] })],
+      ['권장+전형 장비', (c) => ({ meta: REC[c - 1], gear: typical })],
+      ['권장+최고 장비', (c) => ({ meta: REC[c - 1], gear: (s, ids, cc) => best(cc, ids) })],
+      ['+5', () => ({ meta: 5 })], ['+10', () => ({ meta: 10 })], ['+15', () => ({ meta: 15 })], ['+20', () => ({ meta: 20 })],
+      ['권장 ★1', (c) => ({ meta: REC[c - 1], star: 1 })], ['권장 ★3', (c) => ({ meta: REC[c - 1], star: 3 })],
+    ];
+    const only = listArg('vars', '').map(Number);
+    console.log(`■ 업그레이드 체감 — 기준 덱(1~6장 균형 · 7·8장 T3·T4 역할) · 스테이지 ${nos.join(',')}번 · ${N}판씩 · 도감 보너스 · 입구 아이템은 모두 같게`);
+    console.log('장  덱  변형            클리어  시간(승/패 s)  남은 입구');
+    const sumJson = {};
+    for (const c of chs) {
+      const res = {};
+      VARS.forEach(([name, mk], vi) => {
+        if (only.length && !only.includes(vi)) return;
+        let w = 0, hp = 0, tw = 0, tl = 0;
+        for (const n of nos) { const s = (c - 1) * 10 + n, r = one(c, s, mk(c)); w += r.w / nos.length; hp += r.hp / nos.length; tw += r.tw / nos.length; tl += r.tl / nos.length; }
+        res[name] = { w, hp, tw, tl };
+        console.log(`${c}장 ${pad(name, 16)} ${pad(Math.round(w * 100) + '%', 6)} ${pad(Math.round(tw) + '/' + Math.round(tl), 12)} ${Math.round(hp * 100)}%`);
+      });
+      sumJson[c] = Object.fromEntries(Object.entries(res).map(([k, v]) => [k, +(v.w * 100).toFixed(0)]));
+    }
+    console.log('UPJSON ' + JSON.stringify(sumJson));
+  }
+  if (what === 'upgrade') upgrade();
   if (what === 'stagemeas') stagemeas();
   // 진상 감사 (node scripts/lb-balance.js foes --list=1,...,80 [--seeds=8]) — 기준 플레이어 판에서 진상 종류마다 입구 피해 몫 · 쓰러짐 게이지 몫 (진 판 · 전체) — 한 진상이 패배를 혼자 만드는지
   if (what === 'foes') {

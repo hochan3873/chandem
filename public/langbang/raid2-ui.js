@@ -455,8 +455,8 @@ function onEvent(g, e, loud) {
       const col = e.k === 'grab' ? '#ff9a3a' : '#ff5a3a';
       fx.text(e.x, g.ropeY - 70, e.chain ? '한 번 더!' : `${e.name}!`, col, e.chain ? 16 : 18, 1.3);
       if (loud) { if (!e.chain) A.sfx.heartbeat(); else A.sfx.warn(); }
-      if (!st.windTip && e.k !== 'grab') { st.windTip = true; C.showTip(`빨간 구역 = 대마왕 공격 예고! 예고 중에 스킬을 ${g.r2.fx.cut}번 맞히거나 기절 · 총공지로 끊어요`, 4200); }
-      if (e.k === 'grab' && !st.grabTip) { st.grabTip = true; C.showTip(`입구를 붙잡으면 계속 피해! 스킬 ${g.r2.fx.grab}번 · 기절 · 총공지면 손을 놓아요`, 4200); }
+      if (!st.windTip && e.k !== 'grab') { st.windTip = true; C.showTip(`빨간 구역 = 대마왕 공격 예고! 예고 중에 스킬을 ${g.r2.fx.cut}번 맞히거나 기절 · 총력전으로 끊어요`, 4200); }
+      if (e.k === 'grab' && !st.grabTip) { st.grabTip = true; C.showTip(`입구를 붙잡으면 계속 피해! 스킬 ${g.r2.fx.grab}번 · 기절 · 총력전이면 손을 놓아요`, 4200); }
       if (e.k === 'evict' && !st.evictTip) { st.evictTip = true; C.showTip('퇴거 명령! 못 끊으면 멤버 모두 스킬이 봉인돼요 — 지금 스킬을 몰아 쓰세요', 4200); }
       break;
     }
@@ -486,7 +486,7 @@ function onEvent(g, e, loud) {
       if (loud) A.sfx.whoosh();
       break;
     case 'r2Cut':
-      if (e.cc) { fx.text(e.x, e.y - 84, '역공 찬스! 6초 피해 ×1.95', '#7dffb0', 17, 2); fx.ring(e.x, e.y, 10, 150, 0.7, '#7dffb0', 6); fx.flash('#7dffb0', 0.18); if (!st.ccTip) { st.ccTip = true; C.showTip('제어 · 기절로 예고를 끊으면 역공 찬스! 빈틈이 더 길고 피해 +30% · 총공지도 더 차요', 4200); } }
+      if (e.cc) { fx.text(e.x, e.y - 84, '역공 찬스! 6초 피해 ×1.95', '#7dffb0', 17, 2); fx.ring(e.x, e.y, 10, 150, 0.7, '#7dffb0', 6); fx.flash('#7dffb0', 0.18); if (!st.ccTip) { st.ccTip = true; C.showTip('제어 · 기절로 예고를 끊으면 역공 찬스! 빈틈이 더 길고 피해 +30% · 총력전도 더 차요', 4200); } }
       if (e.k === 'crew') fx.text(e.x, e.y - 36, '용역 절반만 투입!', '#5ad0ff', 14, 1.4);
       fx.text(e.x, e.y - 60, `${e.text} 빈틈!`, '#ffd23f', 19, 1.6);
       fx.ring(e.x, e.y, 10, 90, 0.5, '#ffd23f', 4);
@@ -823,7 +823,7 @@ function info() {
     <p class="ip">${C.ic('bolt', '', 'sm')}제어 멤버(운영진 · 서명훈 · 오지은 · 임수빈 · 이호찬 …) 스킬은 끊기 두 칸! 기절 · 제어로 예고를 끊으면 「역공 찬스」 6초 피해 +30% · 건물주에게 맞으면 쓰러짐 게이지가 차요</p>
     <p class="ip">${C.ic('target', '', 'sm')}진상은 안 나와요. 거대한 건물주 혼자 입구와 멤버를 직접 때려요 — 입구가 부서지면 그 판 끝, 그동안 준 피해가 기록돼요</p>
     <p class="ip">${C.ic('fire', '', 'sm')}시간이 갈수록 화가 쌓여 공격이 세지고 빨라져요 (${R2.R2.sec}초가 되면 "철거"로 입구가 무너져요) · 이 레이드에선 입구 수리 효과가 줄어요</p>
-    <p class="ip">${C.ic('shield', '', 'sm')}빨간 구역 = 공격 예고. 예고 중에 스킬을 여러 번 맞히거나(보통 2 · 어려움 3 · 지옥 4번) 기절 · 총공지로 끊으면 빈틈 (피해 ×1.5)</p>
+    <p class="ip">${C.ic('shield', '', 'sm')}빨간 구역 = 공격 예고. 예고 중에 스킬을 여러 번 맞히거나(보통 2 · 어려움 3 · 지옥 4번) 기절 · 총력전으로 끊으면 빈틈 (피해 ×1.5)</p>
     <p class="ip">${C.ic('door', '', 'sm')}대마왕에게 맞으면 입구에 금이 가요. 금 간 만큼은 수리로 못 메워서, 힐러가 있어도 결국 입구는 부서져요</p>
     <p class="ip">${C.ic('crown', '', 'sm')}난이도: ${R2.DIFF_IDS.map((id) => `${R2.DIFF[id].name} 기여 ${mulTxt(R2.DIFF[id].mul)} · 판 보상 코인 ${fmt(R2.DIFF[id].rw.coins)} · 강화석 ${R2.DIFF[id].rw.stones}`).join(' / ')}</p>
     <p class="ip">${C.ic('lock', '', 'sm')}어려움: ${R2.DIFF.hard.open} · 지옥: ${R2.DIFF.hell.open}. 어려울수록 예고가 빠르고, 패턴이 일찍 나오고, 기절이 길고, 입구 피해가 세요. 준 피해에 배율을 곱해 서버 체력 · 기여 순위에 들어가요 (한 판 최대도 배율만큼)</p>

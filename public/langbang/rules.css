@@ -1,0 +1,69 @@
+/* 규칙 안내 (rules.js · game.js ruSheet) — 첫 만남 카드 · 전투 중 칩 · 출전 준비 맵 효과 줄 · 규칙 도감 */
+.ru-emo { display: inline-grid; place-items: center; width: calc(var(--u) * 20); height: calc(var(--u) * 20); font-size: calc(var(--u) * 15); line-height: 1; flex: none; }
+.ru-emo.sm { width: calc(var(--u) * 16); height: calc(var(--u) * 16); font-size: calc(var(--u) * 13); }
+.ru-emo.md { width: calc(var(--u) * 32); height: calc(var(--u) * 32); font-size: calc(var(--u) * 24); }
+.ru-emo.big { width: calc(var(--u) * 58); height: calc(var(--u) * 58); font-size: calc(var(--u) * 44); }
+.ic.ru-img.md { width: calc(var(--u) * 32); height: calc(var(--u) * 32); }
+.ic.ru-img.big { width: calc(var(--u) * 58); height: calc(var(--u) * 58); }
+
+/* 카드 (시트 안) */
+.rule-sheet .pop-box { text-align: left; }
+.rule-sheet .ru-h { margin-bottom: calc(var(--u) * 6); }
+.ru-card { display: flex; flex-direction: column; gap: calc(var(--u) * 8); }
+.ru-top { display: flex; align-items: center; gap: calc(var(--u) * 10); padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 14); background: rgba(120, 150, 255, 0.14); border: 1.5px solid rgba(160, 190, 255, 0.45); }
+.ru-card.k-cond .ru-top, .ru-card.k-mech .ru-top { background: rgba(255, 110, 90, 0.14); border-color: rgba(255, 140, 120, 0.5); }
+.ru-card.k-week .ru-top { background: rgba(200, 160, 255, 0.16); border-color: rgba(200, 160, 255, 0.55); }
+.ru-card.k-wave .ru-top { background: rgba(255, 210, 63, 0.12); border-color: rgba(255, 210, 63, 0.5); }
+.ru-top small { display: block; font-size: calc(var(--u) * 10); font-weight: 800; color: var(--dim); }
+.ru-top b { display: block; font-size: calc(var(--u) * 19); font-weight: 900; color: #fff; line-height: 1.2; }
+.ru-rule { margin: 0; font-size: calc(var(--u) * 13.5); font-weight: 800; line-height: 1.5; color: #fff; }
+.ru-sec { padding: calc(var(--u) * 7) calc(var(--u) * 10); border-radius: calc(var(--u) * 10); background: rgba(255, 255, 255, 0.06); }
+.ru-sec small, .ru-stg small { font-size: calc(var(--u) * 10); font-weight: 900; color: var(--gold); }
+.ru-sec p { margin: calc(var(--u) * 2) 0 0; font-size: calc(var(--u) * 12); font-weight: 700; line-height: 1.5; color: #e9e1ff; }
+.ru-pick > b { display: block; margin-bottom: calc(var(--u) * 4); font-size: calc(var(--u) * 11.5); font-weight: 900; color: #fff; }
+.ru-whos { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4); }
+.ru-who { padding: calc(var(--u) * 2) calc(var(--u) * 8); border-radius: 99px; font-size: calc(var(--u) * 11); font-weight: 900; line-height: 1.35; background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.35); color: var(--dim); }
+.ru-who.own { background: rgba(93, 224, 122, 0.18); border: 1px solid rgba(93, 224, 122, 0.75); color: #c9ffd6; }
+.ru-who.deck { background: rgba(93, 224, 122, 0.38); border: 1px solid #5de07a; color: #fff; }
+.ru-state { margin: 0; font-size: calc(var(--u) * 11.5); font-weight: 900; }
+.ru-state.ok { color: #7dff9a; }
+.ru-state.no { color: #ffb36b; }
+.ru-stg { margin: 0; font-size: calc(var(--u) * 11); font-weight: 700; color: #cfc4e6; line-height: 1.45; }
+.ru-btns { display: flex; gap: calc(var(--u) * 8); margin-top: calc(var(--u) * 10); }
+.ru-btns .btn { flex: 1 1 0; width: auto; min-width: 0; margin: 0; white-space: nowrap; padding-left: calc(var(--u) * 8); padding-right: calc(var(--u) * 8); }
+.ru-btns .btn.ghost { flex: 0 0 auto; }
+
+/* 출전 준비: 맵 효과 줄 */
+.pc-fxrow { display: flex; align-items: center; gap: calc(var(--u) * 8); width: 100%; text-align: left; padding: calc(var(--u) * 7) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: linear-gradient(180deg, rgba(40, 56, 120, 0.7), rgba(26, 36, 84, 0.7)); border: 2px solid rgba(160, 190, 255, 0.65); color: #e4ecff; }
+.pc-fxrow.no { border-color: rgba(255, 190, 90, 0.85); }
+.pf-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 1); }
+.pf-tx b { font-size: calc(var(--u) * 13.5); font-weight: 900; color: #fff; }
+.pf-tx small { font-size: calc(var(--u) * 10.5); font-weight: 700; color: #b9c8ee; }
+.pf-rec { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 6); align-items: center; font-size: calc(var(--u) * 10.5); font-weight: 900; }
+.ru-rec { color: #ffe9a8; }
+.ru-fit.ok { color: #7dff9a; }
+.ru-fit.no { color: #ffb36b; }
+.pc-fxrow > i { font-style: normal; font-size: calc(var(--u) * 18); font-weight: 900; color: #b9c8ee; }
+
+/* 전투 중 칩 */
+#rule-chip { position: absolute; left: calc(var(--u) * 8); top: calc(var(--u) * 66); pointer-events: auto; display: inline-flex; align-items: center; gap: calc(var(--u) * 4); max-width: calc(var(--u) * 150); height: calc(var(--u) * 22); padding: 0 calc(var(--u) * 9) 0 calc(var(--u) * 5); border-radius: 99px; background: rgba(18, 28, 70, 0.8); border: 1.5px solid rgba(160, 190, 255, 0.65); color: #e4ecff; font-size: calc(var(--u) * 10.5); font-weight: 900; white-space: nowrap; box-shadow: 0 calc(var(--u) * 2) 0 rgba(0, 0, 0, 0.4); }
+#rule-chip[hidden] { display: none; }
+#rule-chip b { overflow: hidden; text-overflow: ellipsis; }
+#rule-chip::after { content: '?'; display: inline-grid; place-items: center; width: calc(var(--u) * 12); height: calc(var(--u) * 12); border-radius: 50%; background: rgba(160, 190, 255, 0.35); font-size: calc(var(--u) * 9); }
+#bossbar:not([hidden]) ~ #rule-chip { padding: 0 calc(var(--u) * 3); max-width: calc(var(--u) * 22); }
+#bossbar:not([hidden]) ~ #rule-chip b, #bossbar:not([hidden]) ~ #rule-chip::after { display: none; }
+#hud.hasrule .hfx { display: none; }
+body.rm #rule-chip { box-shadow: none; }
+
+/* 규칙 도감 목록 */
+.ru-list { display: flex; flex-direction: column; gap: calc(var(--u) * 4); padding-bottom: calc(var(--u) * 12); }
+.ru-sh { margin: calc(var(--u) * 8) 0 calc(var(--u) * 2); font-size: calc(var(--u) * 12); font-weight: 900; color: var(--gold); }
+.ru-rows { display: flex; flex-direction: column; gap: calc(var(--u) * 5); }
+.ru-row { display: flex; align-items: center; gap: calc(var(--u) * 9); width: 100%; text-align: left; padding: calc(var(--u) * 7) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: rgba(255, 255, 255, 0.07); border: 1.5px solid rgba(255, 255, 255, 0.16); }
+.ru-row.new { opacity: 0.72; border-style: dashed; }
+.rr-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 1); }
+.rr-t b { font-size: calc(var(--u) * 12.5); font-weight: 900; color: #fff; }
+.rr-t small { font-size: calc(var(--u) * 10.5); font-weight: 700; color: #cfc4e6; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rr-t em { font-style: normal; font-size: calc(var(--u) * 10); font-weight: 900; color: #9fd0ff; }
+.ru-row.new .rr-t em { color: #ffb36b; }
+.rule-list .pop-box { max-height: 86%; }

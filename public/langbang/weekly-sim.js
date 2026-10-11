@@ -12,7 +12,7 @@ const ev = (g, type, o) => { o.type = type; g.events.push(o); return o; };
 export const WKX = {
   offerSec: 14, // 계약 고르는 시간 (안 고르면 거절)
   midGoal: 25, // 중간 보스를 이 초 안에 잡으면 목표 달성
-  gobHp: 1.8, gobUlt: 0.25, bountyUlt: 0.15, // 보물 도둑 체력 배 · 잡으면 총공지 충전
+  gobHp: 1.8, gobUlt: 0.25, bountyUlt: 0.15, // 보물 도둑 체력 배 · 잡으면 총력전 충전
   phase: [0.66, 0.33], phaseAdd: [6, 9], phaseSpd: 1.15, phaseAtk: 1.3, // 최종 보스 단계: 체력 66% · 33% 에 부하 · 분노
   side: { L: [22, 120], R: [240, 338] }, // 기습 옆길
 };

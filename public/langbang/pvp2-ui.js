@@ -119,7 +119,7 @@ function waitModal(text, code, botIn) {
     if (s && s % 4 === 0) m.querySelector('.ps-tip span').textContent = TIPS[(s / 4) % TIPS.length];
   }, 250);
 }
-const TIPS = ['내 멤버가 스킬을 쓰면 상대 멤버에게 견제가 날아가요', '군중 제어 = 기절 · 저격 = 홀림 · 특수 = 침묵 · 범위 = 둔화', '탱커 스킬은 우리 팀 방패 · 지원 스킬은 우리 팀 해제', '묶인 멤버는 [정신 차려!] 로 바로 풀어요 (10초 쿨)', '견제가 날아오는 동안 벤치와 바꾸면 빗나가요', '상대 멤버를 누르면 그 멤버를 노려요', '입구가 20% 넘게 밀리면 추격: 총공지 · 보내기가 쉬워져요', '처치 10명 = 진상 5명 · 30명 = 중간 보스 보내기'];
+const TIPS = ['내 멤버가 스킬을 쓰면 상대 멤버에게 견제가 날아가요', '군중 제어 = 기절 · 저격 = 홀림 · 특수 = 침묵 · 범위 = 둔화', '탱커 스킬은 우리 팀 방패 · 지원 스킬은 우리 팀 해제', '묶인 멤버는 [정신 차려!] 로 바로 풀어요 (10초 쿨)', '견제가 날아오는 동안 벤치와 바꾸면 빗나가요', '상대 멤버를 누르면 그 멤버를 노려요', '입구가 20% 넘게 밀리면 추격: 총력전 · 보내기가 쉬워져요', '처치 10명 = 진상 5명 · 30명 = 중간 보스 보내기'];
 
 // ─── 판 시작 ───
 function matched(m) {
@@ -158,7 +158,7 @@ function openScreen() {
         <div class="pv2-bench"></div>
         <button class="pv2-b cl" data-p2="cl"><span>정신<br>차려!</span><em></em></button>
         <button class="pv2-b send" data-p2="send"><span>보내기</span><small>0/10</small></button>
-        <button class="pv2-b ult" data-p2="ult"><span>총공지</span><i></i></button>
+        <button class="pv2-b ult" data-p2="ult"><span>총력전</span><i></i></button>
       </div>
     </div>`;
   C.stage.appendChild(el);
@@ -316,7 +316,7 @@ function onEv(e) {
   } else if (e.k === 'guard') { text(side, -1, '우리 팀 방패!', HCOL.guard, true); st.fx.push({ k: 'dome', side, t: 0, dur: PV2.hex.tank.sec, c: HCOL.guard }); if (side === 'me') sfx('rise'); }
   else if (e.k === 'heal') { text(side, -1, '상태이상 해제!', HCOL.cleanse, true); st.fx.push({ k: 'wash', side, t: 0, dur: 0.6, c: HCOL.cleanse }); if (side === 'me') sfx('heal'); }
   else if (e.k === 'cl') { text(side, e.slot, '정신 차려!', HCOL.cleanse); const p = heroPos(side, e.slot); if (p) st.fx.push({ k: 'ring', x: p[0], y: p[1], r0: 6, r1: 34, t: 0, dur: 0.4, c: HCOL.cleanse }); if (side === 'me') sfx('heal'); }
-  else if (e.k === 'ult') { st.fx.push({ k: 'flash', side, t: 0, dur: 0.5, c: '#fff1a8' }); text(side, -1, '총공지!', '#ffe066', true); sfx(side === 'me' ? 'ult' : 'horn'); if (side === 'me') st.shake = 8; }
+  else if (e.k === 'ult') { st.fx.push({ k: 'flash', side, t: 0, dur: 0.5, c: '#fff1a8' }); text(side, -1, '총력전!', '#ffe066', true); sfx(side === 'me' ? 'ult' : 'horn'); if (side === 'me') st.shake = 8; }
   else if (e.k === 'sw') { const p = heroPos(side, e.slot); if (p) st.fx.push({ k: 'burst', x: p[0], y: p[1], t: 0, dur: 0.5, c: '#ffffff' }); text(side, e.slot, `${(HEROES[e.id] || {}).name || ''} 투입!`, '#fff'); if (side === 'me') sfx('join'); }
   else if (e.k === 'send') {
     const n = e.kind === 'big' ? 1 : 3;
@@ -326,7 +326,7 @@ function onEv(e) {
     if (side === 'me') { if (!e.sched) { banner(e.kind === 'big' ? '중간 보스가 온다!' : `진상 ${5 * (e.n || 1)}명이 온다!`, 'in'); sfx('deny'); st.shake = Math.max(st.shake, 5); } }
   } else if (e.k === 'ph') { banner(PH_NAME[e.p] || '', 'ph', PH_SUB[e.p]); sfx(e.p >= 3 ? 'heartbeat' : 'horn'); }
   else if (e.k === 'bunch') banner('보스 묶음 출동!', 'ph', '두 사람에게 똑같이');
-  else if (e.k === 'behind') { if (e.on) { text(side, -1, '추격!', '#7dffb0', true); if (side === 'me') banner('추격 모드!', 'out', '총공지 +30% · 보내기 −20% · 받는 견제 −25%'); } }
+  else if (e.k === 'behind') { if (e.on) { text(side, -1, '추격!', '#7dffb0', true); if (side === 'me') banner('추격 모드!', 'out', '총력전 +30% · 보내기 −20% · 받는 견제 −25%'); } }
 }
 function banner(t, kind, sub) {
   if (!st.el) return;

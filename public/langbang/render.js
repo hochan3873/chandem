@@ -25,6 +25,14 @@ const HEROES = { ...HEROES0, ...SUMMONS }; // 소환 멤버(성준영)도 그린
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
 const TAU = Math.PI * 2;
+// 공사 중 맵 소품 (10/12): 차단 바리케이드 · 경고등 · 모래주머니 · 팔레트 · 표지판 · 물 방벽 — 필요할 때 한 번만 받는다 (없으면 예전 꼬깔)
+const CONS_IMGS = {};
+function consPieces(hw) {
+  const key = hw ? 'hw' : 'n';
+  if (!CONS_IMGS[key]) { CONS_IMGS[key] = []; for (let i = 1; i <= 8; i++) { const im = new Image(); im.decoding = 'async'; im.onload = () => { CONS_IMGS[key].ok = (CONS_IMGS[key].ok || 0) + 1; }; im.src = `/img/lb/fx/cons${hw ? '_hw' : ''}_${i}.webp`; CONS_IMGS[key].push(im); } }
+  const a = CONS_IMGS[key];
+  return a.ok === 8 ? a : null;
+}
 export const HERO_BOX = 82; // 영웅 그림 상자 크기(논리 px) — 실제 캐릭터는 약 85%
 const FEET = 0.92; // 그림 안에서 발 위치 (위에서부터 비율)
 const FEET_OFF = 0.3; // 몸 중심(y) → 발까지 거리 (상자 대비)
@@ -1376,8 +1384,19 @@ export class Renderer {
       cx.globalAlpha = 1;
     } else if (fx.id === 'construction') {
       const [l, r] = fx.lane;
-      for (const [x0, x1] of [[0, l - 8], [r + 8, W]]) {
+      const pcs = consPieces(!!this.ssn); // 그린 공사장 소품 (시즌이면 할로윈 판) · 아직 안 왔으면 예전 꼬깔
+      for (const [x0, x1, side] of [[0, l - 8, -1], [r + 8, W, 1]]) {
         cx.fillStyle = 'rgba(20,14,6,0.55)'; cx.fillRect(x0, 60, x1 - x0, g.ropeY - 70);
+        if (pcs) {
+          let k = side < 0 ? 0 : 3, y = 78;
+          while (y < g.ropeY - 40) {
+            const im = pcs[(k * 5 + 2) % pcs.length]; k++;
+            const w = Math.min(x1 - x0 + 4, 52 + ((k * 7) % 3) * 6), h = w * im.naturalHeight / im.naturalWidth; if (y + h > g.ropeY - 34) break;
+            cx.drawImage(im, side < 0 ? x1 - w + 6 : x0 - 6, y, w, h);
+            y += h * 0.9 + 8;
+          }
+          continue;
+        }
         for (let y = 80; y < g.ropeY - 20; y += 70) {
           const mx = (x0 + x1) / 2;
           cx.fillStyle = '#ff8a1c'; cx.beginPath(); cx.moveTo(mx, y); cx.lineTo(mx - 11, y + 26); cx.lineTo(mx + 11, y + 26); cx.closePath(); cx.fill();
@@ -1788,6 +1807,11 @@ export class Renderer {
         sy = 1 + Math.sin(t * 3 + e.phase) * 0.02;
       }
       if (e.castW > 0 && !(e.bwind > 0) && !(e.windup > 0)) { const q = Math.min(1, 1 - e.castW / 0.9); bob = -4 - q * 6; rot = -0.12 - q * 0.2 + Math.sin(t * 50) * 0.02 * q; sy = 1 + q * 0.06; sx = 1 - q * 0.04; } // (10/08) 던지기 예고: 몸을 뒤로 젖히고 부들
+      if (def.standoff && e.atRope && e.stunT <= 0 && !(e.castW > 0) && !(e.actT > 0) && !document.body.classList.contains('rm')) { // (10/12) 멀리 선 진상: 가만히 안 있고 몸을 흔들며 노려보고 · 가끔 펄쩍 도발
+        bob = -Math.abs(Math.sin(t * 3.2 + e.phase)) * 2.5; rot = Math.sin(t * 2.1 + e.phase) * 0.05;
+        if (e.tauntA > 0) { const q = 1 - e.tauntA / 0.55; bob -= Math.sin(q * Math.PI) * 11; sy = 1 + Math.sin(q * Math.PI) * 0.06; sx = 1 / sy; }
+      }
+      if (e.actT > 0 && !(e.castW > 0)) { const q = e.actT / 0.32; bob = -q * 3; rot = q * 0.14 * (e.phase > 3 ? -1 : 1); sy = 1 - q * 0.05; sx = 1 + q * 0.05; } // 던진 직후 반동
       if (e.windup > 0 || e.bwind > 0) { sy = 0.82; sx = 1.14; bob = 0; rot = Math.sin(t * 60) * 0.03; if (e.bwind > 0 && Math.sin(t * 40) > 0.6) { this.tf(e.x, e.y - box * 0.3, 0, 1, 1); const gl = this.projSprites.glowRed; cx.drawImage(gl.c, -box * 0.6, -box * 0.6, box * 1.2, box * 1.2); } }
       if (e.kbv < -30) rot -= Math.min(0.5, -e.kbv * 0.0012) * (e.phase > 3 ? 1 : -1);
       if (e.stunT > 0) rot = Math.sin(t * 9 + e.phase) * 0.15;
@@ -1808,6 +1832,10 @@ export class Renderer {
           cx.strokeStyle = '#1a0b1f'; cx.lineWidth = 1.2;
           cx.beginPath(); cx.rect(e.x - 10 + i * 7, e.y - box * 0.78 - 8, 5, 7); cx.fill(); cx.stroke();
         }
+      }
+      if (e.glowT > 0) { // (10/12) 보호막을 받은 진상: 금빛으로 한 번 반짝
+        const gl = this.projSprites.glowGold, r = box * (0.7 + Math.sin(t * 14) * 0.08);
+        this.tf(e.x, e.y - box * 0.3, 0, 1, 1); cx.globalAlpha = Math.min(0.85, e.glowT * 1.2); cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1;
       }
       if (e.speechT > 0) { // 8장 신랑 친구 대표 축사: 금빛 무적 기운
         const gl = this.projSprites.glowGold, r = box * (0.85 + Math.sin(t * 9) * 0.06);
@@ -1903,7 +1931,7 @@ export class Renderer {
           else if (after >= 0 && after < (pk.frames || 8) - rel) pfi = rel + Math.floor(after); // 쏟은 뒤: 웩 → 입 닦기
         }
         const rgA = e.atRope && key === 'e_' + e.type + '_rage' && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].rattack; // 분노 보스: 분노 공격 띠 (있으면 분노 그림 대신)
-        const aa = rgA && imgOk(this.images[`anim_${e.type}_rattack`]) ? rgA : e.atRope && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack; // 입구 공격 프레임 띠 (있으면)
+        const aa = rgA && imgOk(this.images[`anim_${e.type}_rattack`]) ? rgA : (e.atRope || e.castW > 0 || e.actT > 0) && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].attack; // 입구 공격 프레임 띠 (있으면)
         const astrip = aa && this.images[aa === rgA ? `anim_${e.type}_rattack` : `anim_${e.type}_attack`];
         const an = moving && key === 'e_' + e.type && ENEMY_ANIM[e.type] && ENEMY_ANIM[e.type].walk; // 보스 기술·분노 그림이 뜨는 동안은 그 그림
         const strip = an && this.images[`anim_${e.type}_walk`];
@@ -1928,7 +1956,10 @@ export class Renderer {
           drawFr(pstrip, pfi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
         } else if (astrip && imgOk(astrip)) {
           const fh = astrip.naturalHeight, n = aa.frames || Math.max(1, Math.round(astrip.naturalWidth / fh)), fw = astrip.naturalWidth / n, rel = Math.min(n - 1, aa.release || 3);
-          const fi = e.hitT > 0 ? Math.min(n - 1, rel + Math.floor((1 - e.hitT / 0.25) * (n - rel))) : e.atkCd > 0 && e.atkCd < 0.3 ? Math.floor((1 - e.atkCd / 0.3) * rel) : 0;
+          let fi = e.hitT > 0 ? Math.min(n - 1, rel + Math.floor((1 - e.hitT / 0.25) * (n - rel))) : e.atkCd > 0 && e.atkCd < 0.3 ? Math.floor((1 - e.atkCd / 0.3) * rel) : 0;
+          if (e.castW > 0) fi = Math.min(rel - 1, Math.floor((1 - Math.min(1, e.castW / (e.cast ? e.cast.max : e.shW ? 0.5 : 0.8))) * rel)); // (10/12) 던지기 · 시전 예고: 앞 칸(젖힘)을 천천히 넘긴다
+          else if (e.actT > 0) fi = Math.min(n - 1, rel + Math.floor((1 - e.actT / 0.32) * (n - rel))); // 던진 직후: 뒤 칸(휘두름 · 마무리)
+          else if (def.standoff && e.atRope && !(e.hitT > 0)) fi = 0;
           const idle = this.sprites['e_' + e.type], fit = idle && idle.c ? this.stripFit((aa === rgA ? 'ear_' : 'ea_') + e.type, astrip, n, idle.c, 1) : { k: 1, dx: 0, dy: 0 };
           this.tf(e.x, feet, 0, 1, 1);
           drawFr(astrip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, box * fit.k, box * fit.k);
@@ -2124,7 +2155,11 @@ export class Renderer {
     cx.rotate(st >= 3 ? 0.08 + (calm ? 0 : Math.sin(t * 4) * 0.03) : st >= 2 && !calm ? Math.sin(t * 3) * 0.03 : 0);
     if (imgOk(sImg)) {
       const sw = 136, sh = sw * sImg.naturalHeight / sImg.naturalWidth;
-      cx.globalAlpha = calm ? 1 : flick;
+      // 간판 뒤로 지나가는 진상 · 입구 앞 진상 머리가 가려지지 않게: 겹치면 간판을 반투명하게 (부드럽게 · 기본 1 → 0.42)
+      let hide = 0;
+      for (const e of g.enemies) { if (e.dead || e.r2) continue; const hw = (e.def.size || 60) * 0.31; if (Math.abs(e.x - sx) < sw / 2 + hw && e.y - (e.def.size || 60) * 0.65 < sy + sh / 2 && e.y + (e.def.size || 60) * 0.1 > sy - sh / 2) { hide = 1; break; } }
+      this.signHide = (this.signHide || 0) + (hide - (this.signHide || 0)) * 0.15;
+      cx.globalAlpha = (calm ? 1 : flick) * (1 - 0.58 * this.signHide);
       cx.drawImage(sImg, -sw / 2, -sh / 2 - 3, sw, sh); // 그림 간판 (발이 개찰구 위에 오게)
     } else {
     cx.font = `900 13px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
@@ -2594,7 +2629,7 @@ export class Renderer {
           cx.drawImage(st.c, -8, -8, 16, 16);
         }
       }
-      if (h.lockK) { // (10/11) '풀 때까지': 깜빡이는 테두리 + 사슬 자물쇠 (숫자 없음 — 건전녀 · 총공지 · 방장 · 웨이브 끝에만 풀림)
+      if (h.lockK) { // (10/11) '풀 때까지': 깜빡이는 테두리 + 사슬 자물쇠 (숫자 없음 — 건전녀 · 총력전 · 방장 · 웨이브 끝에만 풀림)
         const col = (EST[h.lockK] && EST[h.lockK].color) || '#ff6fb5', pk = 0.5 + 0.5 * Math.abs(Math.sin(t * 5));
         this.world();
         cx.save();
@@ -3048,7 +3083,7 @@ export class Renderer {
     return { l, r: r2, t, b };
   }
   // 쓰러짐 모션 (10/11): 맞고 휘청 → 발을 축으로 픽 넘어짐 (쿵 · 먼지) → 누워서 숨 쉬기 (머리 위 별 · 새) → 팔 짚고 일어나 머리 털기
-  //  h.kdT / h.kdSec (게임 시간) 로 단계를 정하고 · 일찍 일으켜진 때(건전녀 · 총공지)는 마지막 자세에서 0.42초 동안 벌떡 · 연출 줄이기(rm)면 흔들림 · 먼지 없이
+  //  h.kdT / h.kdSec (게임 시간) 로 단계를 정하고 · 일찍 일으켜진 때(건전녀 · 총력전)는 마지막 자세에서 0.42초 동안 벌떡 · 연출 줄이기(rm)면 흔들림 · 먼지 없이
   kdPose(h, hx, feet, box, t, rm) {
     const s = hx < 180 ? 1 : -1, LIE = 1.48, LIFT = -box * 0.1, SLIDE = -s * box * 0.36, UP = 0.6;
     const now = performance.now();

@@ -166,7 +166,7 @@ test('결과 요약은 서버 허용 범위 안 (점수·처치 상한)', () => 
 });
 
 // ─── 스테이지 모드 ───────────────────────────────────
-// 한 판을 끝까지 (카드는 첫 장, 총공지는 바로)
+// 한 판을 끝까지 (카드는 첫 장, 총력전은 바로)
 function playOut(g, maxSec = 900) {
   while (!g.over && g.phase !== 'victory' && g.t < maxSec) {
     S.step(g, 1 / 60);
@@ -401,7 +401,7 @@ test('인피 뒷담러는 멀리서 뒷담화를 던져 멤버 공격 속도를 
   run(g, 5);
   S.RANGED_GATE.chance = ch0;
   assert.ok(e.atRope, '멀찍이 멈춤');
-  assert.ok(e.y < g.ropeY - 120, '로프까지 오지 않는다');
+  assert.ok(e.y < g.ropeY - 90, '로프까지 오지 않는다');
   const h = g.heroes[0];
   assert.ok(h.rumorT > 0, '뒷담화에 맞음');
   h.stunT = 0;
@@ -563,7 +563,7 @@ test('인피 총무: 뒤에 멀찍이 서서 주변 진상에게 "회비 지원!
   assert.ok(o.shield > 0, '보호막');
   assert.ok(t.shield === 0, '자기는 안 씌움');
   run(g, 8);
-  assert.ok(t.atRope && t.y < g.ropeY - 200, '뒤에 멈춰 선다');
+  assert.ok(t.atRope && t.y < g.ropeY - 140, '뒤에 멈춰 선다');
   assert.ok(t.maxHp < ENEMIES_HP_THUG(), '체력은 낮다');
 });
 function ENEMIES_HP_THUG() { return D.ENEMIES.thug.hp * 100; }
@@ -1093,7 +1093,7 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   const mk = (maxStage) => L.normLive({}, { coins: 1e9, gear: [], gearSeq: 0, maxStage, stages: {}, heroes: {} });
   const sum = L.GACHA_RATES.reduce((a, r) => a + r.w, 0);
   assert.ok(Math.abs(sum - 100) < 1e-9, '확률 합 100%');
-  assert.equal(L.HOCHAN_GATE, 40);
+  assert.equal(L.HOCHAN_GATE, 60);
   let lb = mk(12);
   let first = L.gachaPull(lb, 10, 'coin', 'u0', 0).results;
   assert.ok(first.some((x) => x.k === 'epicHero'), '처음 10회 T4 확정');
@@ -1110,13 +1110,15 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   // LEGEND 확정 90 · 합류 · 겹치면 카드
   lb = mk(60); lb.pulls = 5; lb.pity.legend = L.PITY_LEGEND - 1;
   let x = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
-  assert.ok(D.LEGEND_HEROES.includes(x.hero)); assert.ok(x.new && L.heroUnlocked(lb, x.hero), '90회 확정 → 합류');
+  assert.ok(D.LEGEND_HEROES.includes(x.hero)); assert.ok(x.new && L.heroUnlocked(lb, x.hero), '110회 확정 → 합류');
   for (const h of D.LEGEND_HEROES) lb.owned[h] = true; // LEGEND 둘 다 있으면 → 겹침
   lb.pity.legend = L.PITY_LEGEND - 1;
   x = L.gachaPull(lb, 1, 'coin', 'u3', 0).results[0];
   assert.ok(x.dup && (lb.shards[x.hero] | 0) >= L.DUP_SHARDS.legendHero, '겹치면 멤버 카드(강화·★)');
-  // 소프트 천장: 70번째까지 0.6% → 가파르게 → 90번째 100%
-  assert.equal(L.legendRate(0), 0.6); assert.equal(L.legendRate(68), 0.6); assert.ok(L.legendRate(75) > 30); assert.equal(L.legendRate(89), 100);
+  // 소프트 천장: 88번째까지 0.6% → 가파르게 → 105번째쯤 100% · 110번째 확정
+  assert.equal(L.legendRate(0), 0.6); assert.equal(L.legendRate(88), 0.6); assert.ok(L.legendRate(95) > 30); assert.equal(L.legendRate(109), 100);
+  // 이미 열려서 모으던 사람은 계속 열려 있다 (천장 진행이 있거나 LEGEND 를 가짐) · 처음인 사람은 6-10 뒤
+  { const a = mk(45); assert.ok(!L.legendOpen(a), '4-10 만 깬 새 사람은 닫힘'); a.pity.legend = 7; assert.ok(L.legendOpen(a), '진행이 있으면 열려 있다'); const b = mk(45); b.owned.hochan = true; assert.ok(L.legendOpen(b), 'LEGEND 가진 사람은 열려 있다'); }
   // 100만 번 (천장 없이) 확률이 표와 맞는다
   lb = mk(60); lb.pulls = 5;
   const cnt = {}, N = 1e6;
@@ -1127,7 +1129,7 @@ test('live: 모집 확률(등급별) · 10회 T3 이상 확정 · 처음 10회 T
   for (let i = 0; i < 40000; i++) { n++; lb.gachaDay = null; const k = L.gachaPull(lb, 1, 'coin', 'q', 0, i * 40503 + 7).results[0].k; lb.coins = 1e9; lb.gear.length = 0; if (k === 'legendHero') { got.push(n); max = Math.max(max, n); n = 0; } }
   assert.ok(max <= L.PITY_LEGEND, `최대 ${max}`);
   const avg = got.reduce((a, b) => a + b, 0) / got.length;
-  assert.ok(avg > 50 && avg < 75, `평균 ${avg.toFixed(1)}회`);
+  assert.ok(avg > 60 && avg < 100, `평균 ${avg.toFixed(1)}회`);
   // 천장은 저장·불러오기에 그대로 (서버 프로필)
   const saved = L.normLive(JSON.parse(JSON.stringify({ pity: { v: 2, hero: 12, legend: 55 } })), {});
   assert.deepEqual([saved.pity.hero, saved.pity.legend], [12, 55]);
@@ -1241,7 +1243,7 @@ test('새 멤버: 여사친 핀볼 · 다이어트 변신 · 공주↔늙음 (�
   assert.ok(S.heroDamage(g4, st) > base, '랑방을 위하여! 아군 공격력 ↑');
   const s1 = S.createGame({ rng: seeded(905), noWaves: true, heroes: ['staff'] });
   const s3 = S.createGame({ rng: seeded(905), noWaves: true, heroes: ['staff'], stars: { staff: 3 } });
-  assert.ok(Math.abs(S.heroDamage(s3, s3.heroes[0]) / S.heroDamage(s1, s1.heroes[0]) - 1.14) < 1e-9, '★3 = +14%');
+  assert.ok(Math.abs(S.heroDamage(s3, s3.heroes[0]) / S.heroDamage(s1, s1.heroes[0]) - 1.24) < 1e-9, '★3 = +24%');
 });
 
 test('주간 도전 판: 8웨이브 · 규칙이 시뮬레이션에 들어간다', async () => {
@@ -1295,7 +1297,7 @@ test('주간 도전 (개편): 웨이브 사건 · 계약 · 보스 단계 · 결
   assert.ok(L.weeklyPactMul(WK.summary(g).pacts) > 1);
   g.wk.wave = 5; g.wk.onClear(g); g.wk.choose(g, 2);
   assert.equal(WK.summary(g).pacts[1], null, '거절');
-  // 보물 도둑 · 현상금: 잡으면 보너스 · 총공지
+  // 보물 도둑 · 현상금: 잡으면 보너스 · 총력전
   g.phase = 'wave'; g.ult = 0;
   const gob = S.spawnEnemy(g, 'envthief', 180, 200); gob.wkGob = true;
   S.damageEnemy(g, gob, 1e9, false, null, false);
@@ -2002,7 +2004,7 @@ test('신화 장비: 6종 · 신화 칸(m) 하나 · 강화 없음 · 드롭/모
   const got = L.grant(lb, { gear: 'myth' }, 'u1');
   assert.ok(D.MYTH_IDS.includes(got.gear.t) && got.gear.r === 'myth');
   assert.equal(L.GACHA_RATES.find((r) => r.k === 'mythGear').w, 0.3);
-  // 전투: 신화 해장국 = 입구 회복 · 왕관 = 총공지 충전
+  // 전투: 신화 해장국 = 입구 회복 · 왕관 = 총력전 충전
   const S = await load('sim.js');
   const g = S.createGame({ noWaves: true, heroes: ['staff'], gear: { staff: D.gearStats([{ t: 'myth_soup', r: 'myth' }, { t: 'myth_crown', r: 'myth' }]) } });
   assert.ok(g.mods.regen >= 6 - 1e-9 && g.mods.ultCharge >= 1.25 - 1e-9);
@@ -2120,7 +2122,7 @@ test('아이템 도감: 한 번이라도 얻은 장비 종류가 남는다 (팔�
   assert.ok(D.DROPS.length >= 8);
 });
 
-test('기세: 2칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(공속 −30%) · 총공지 2칸 · 강한 스킬 쿨 ×2', async () => {
+test('기세: 2칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(공속 −30%) · 총력전 2칸 · 강한 스킬 쿨 ×2', async () => {
   const S = await load('sim.js');
   const g = S.createGame({ H: 760, rng: seeded(8), noWaves: true, deck: ['staff', 'gunman', 'eunok', 'sanghwa', null, null], tempo: true, meta: {} });
   g.phase = 'wave';
@@ -2142,7 +2144,7 @@ test('기세: 2칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(
   for (let i = 0; i < 60 * 4; i++) S.step(g, 1 / 60);
   assert.ok(g.mom >= 100, '7초에 1칸');
   g.ult = D.RULES.ultMax; g.mom = 150;
-  assert.equal(S.useUlt(g), false, '총공지는 2칸');
+  assert.equal(S.useUlt(g), false, '총력전은 2칸');
   g.mom = 220; assert.equal(S.useUlt(g), true);
   // 쿨 다양화: 스킬 cd 가 곧 실제 초 (템포 · 강한 스킬 배율 없음)
   const q = S.createGame({ H: 760, rng: seeded(9), noWaves: true, heroes: ['gunman'], tempo: true, meta: {} });
@@ -2162,7 +2164,7 @@ test('강화가 진짜로 먹힌다: 강화 · ★ · 장비 +N · 등급 · 신
   assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + D.TIER_GROWTH[1] * 10)) < 1e-6, '강화 +10');
   // ★3: +2 × 7%
   [g, h] = mk({ stars: { gunman: 3 } });
-  assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + 2 * L.STAR_ATK)) < 0.02, `★3 ${(S.heroDamage(g, h) / d0).toFixed(3)}`);
+  assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + L.starBonus(3))) < 0.02, `★3 ${(S.heroDamage(g, h) / d0).toFixed(3)}`);
   // 장비: 공격력 장비 · 공속 장비 · 등급 · +N
   const gearOf = (items) => ({ gunman: D.gearStats(items) });
   [g, h] = mk({ gear: gearOf([{ t: 'megaphone', r: 'legend', lv: 10 }]) });
@@ -2308,7 +2310,7 @@ test('경제 조정: 무한 계약 코인 배율은 서버 계산 · 주간 보�
   assert.deepEqual(['door', 'coupon', 'battery', 'charm'].map((k) => [D.ITEMS[k].base, D.ITEMS[k].per]), [[150, 0.1], [250, 0.04], [120, 0.08], [165, 0.015]]);
 });
 
-test('새 장비 7종: 보스 · 졸개 · 치명타 피해 · 마무리 · 팀 경험치 · 입구 보호 · 총공지 (상한) · 서버와 같음 · 그림 대신', async () => {
+test('새 장비 7종: 보스 · 졸개 · 치명타 피해 · 마무리 · 팀 경험치 · 입구 보호 · 총력전 (상한) · 서버와 같음 · 그림 대신', async () => {
   const R = require('../server/langbang-rules');
   const NEW = ['gymcard', 'speaker', 'goldchain', 'rolex', 'corpcard', 'lastorder', 'radio'];
   for (const t of NEW) {
@@ -2343,7 +2345,7 @@ test('새 장비 7종: 보스 · 졸개 · 치명타 피해 · 마무리 · 팀 
   assert.ok(Math.abs(team({ exp: 0.5 }).mods.expMul / g0.mods.expMul - 1 - D.GEAR_TEAM_CAP.exp) < 1e-9, '경험치 상한');
   assert.ok(Math.abs(team({ guard: 0.5 }).mods.baseArmor / g0.mods.baseArmor - (1 - D.GEAR_TEAM_CAP.guard)) < 1e-9, '입구 보호 상한');
   assert.ok(Math.abs(team({ ult: 0.1 }).mods.ultCharge - g0.mods.ultCharge - 0.2) < 1e-9, '명품 시계');
-  assert.ok(Math.abs(team({ ult: 0.9 }).mods.ultCharge - g0.mods.ultCharge - D.GEAR_TEAM_CAP.ult) < 1e-9, '총공지 상한');
+  assert.ok(Math.abs(team({ ult: 0.9 }).mods.ultCharge - g0.mods.ultCharge - D.GEAR_TEAM_CAP.ult) < 1e-9, '총력전 상한');
   // 무전기: 입구 피해가 실제로 준다
   const gg = team({ guard: 0.1 }), e = S.spawnEnemy(gg, 'thug', 180, gg.ropeY);
   const hp0 = gg.base.hp; S.damageBase(gg, 100, e); assert.ok(Math.abs(hp0 - gg.base.hp - 80) < 1e-6, '무전기 둘: −20%');
@@ -2438,7 +2440,7 @@ test('7장 진상 기술: 떼 등장 · 보호막 · 썰매 · 핫팩 · 눈덩�
   // 눈덩이: 멀찍이 서서 → 멤버 빙결 (제일 잘 치는 멤버를 노린다) · 응급 방패 면역이면 안 언다
   const g2 = S.createGame({ H: 760, rng: seeded(72), noWaves: true, heroes: ['bangjang', 'gunman', 'staff'] });
   const ch0 = S.RANGED_GATE.chance; S.RANGED_GATE.chance = 0;
-  const sb = still(g2, 'snowball', 180, g2.ropeY - 200); sb.atRope = true; sb.snowT = 0.1;
+  const sb = still(g2, 'snowball', 180, g2.ropeY - 120); sb.atRope = true; sb.snowT = 0.1;
   g2.heroes[1].dmgDone = 1e6;
   let froze = null;
   for (let t = 0; t < 3 && !froze; t += 1 / 60) { S.step(g2, 1 / 60); const f = g2.events.find((x) => x.type === 'c7freeze'); if (f) froze = f; g2.events.length = 0; }
@@ -2832,4 +2834,28 @@ test('쓰러짐 게이지: 실제 판(기절 예고 · 독 순서 포함)이 오
   t.phase = 'wave'; const h = t.heroes[0];
   for (let i = 0; i < 60; i++) { h.silenceT = Math.max(h.silenceT || 0, S.debuffSec(h, 1, 'silence')); S.step(t, 1 / 60); }
   assert.ok(h.kd < 25, `1초 침묵을 계속 걸어도 조금만 (${h.kd.toFixed(1)})`);
+});
+
+test('총력전: 멤버 모두가 자기 스킬을 차례로 한 번 더 · 쿨 비움 · 6초 스킬 피해 ×1.5 · 이름 · 문구 (총공지는 없음)', async () => {
+  const S = await load('sim.js');
+  const g = S.createGame({ H: 760, rng: seeded(11), noWaves: true, deck: ['staff', 'gunman', 'eunok', 'sanghwa', null, null], tempo: true, meta: {} });
+  g.phase = 'wave';
+  for (let i = 0; i < 4; i++) S.spawnEnemy(g, 'thug', 100 + i * 60, g.rowY - 220, { hpMul: 800 }).speed = 0;
+  const hs = g.heroes.filter((h) => h.def.skill);
+  for (const h of hs) h.skillCd = 99;
+  g.ult = D.RULES.ultMax; g.mom = 220;
+  assert.equal(S.useUlt(g), true);
+  assert.equal(g.ult, 0);
+  assert.ok(g.teamT > 5.5, '6초 동안');
+  assert.equal(g.teamQ.length, hs.length, '스킬 있는 멤버 전원이 줄을 선다');
+  assert.ok(hs.every((h) => h.skillCd === 0), '쿨타임 비움');
+  const casts = [];
+  for (let i = 0; i < 120; i++) { S.step(g, 1 / 60); for (const e of g.events) if (e.type === 'teamCast') casts.push(e.hero); g.events.length = 0; }
+  assert.equal(casts.length, hs.length, '모두가 한 번씩 스킬을 낸다');
+  assert.equal(g.teamQ.length, 0);
+  for (let i = 0; i < 60 * 6; i++) S.step(g, 1 / 60);
+  assert.ok(!(g.teamT > 0), '6초 뒤 끝');
+  assert.equal(D.RULES.teamSkill, 1.5);
+  const nfs = await import('node:fs'), npath = await import('node:path');
+  for (const f of ['data.js', 'cardtext.js', 'game.js', 'tutorial.js', 'index.html', 'pvp2-ui.js', 'raid2-ui.js']) assert.ok(!/총공지/.test(nfs.readFileSync(npath.join(__dirname, '..', 'public', 'langbang', f), 'utf8')), f + ' 에 총공지가 남음');
 });

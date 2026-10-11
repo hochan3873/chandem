@@ -18,7 +18,7 @@ const heroesUp = (g) => g.heroes.filter((h) => !h.def.summon && !h.gone);
 export function attach(g, def) {
   const m = def.mul || {};
   g.hw = { def, n: def.n, sig: def.sig || null, puddleT: HWX.puddle.every, moon: false, marks: [], wisps: 0, tick, preKill, onHit };
-  if (def.crowd && def.crowd < 1) { g.mods.expMul /= def.crowd; g.mods.ultCharge /= def.crowd; } // 진상 수를 줄인 만큼 한 명당 경험치 · 총공지 충전을 더
+  if (def.crowd && def.crowd < 1) { g.mods.expMul /= def.crowd; g.mods.ultCharge /= def.crowd; } // 진상 수를 줄인 만큼 한 명당 경험치 · 총력전 충전을 더
   if (m.hp && m.hp !== 1) g.mods.enemyHp *= m.hp;
   if (m.spd && m.spd !== 1) g.mods.enemySpd *= m.spd;
   if (m.repair !== undefined && m.repair < 1) g.mods.healMul *= m.repair;

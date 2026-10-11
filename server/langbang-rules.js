@@ -182,7 +182,7 @@ const MYTH = {
   myth_soup: { name: '전설의 해장국', stats: { res: 0.4, regen: 0.02 }, desc: '상태이상 시간 −40% · 입구 초당 2% 회복' },
   myth_stick: { name: '무지개 응원봉', stats: { spd: 0.15 }, desc: '공격 속도 +15%' },
   myth_lotto: { name: '1등 복권', stats: { crit: 0.12, coin: 0.2 }, desc: '치명타 +12% · 코인 +20%' },
-  myth_crown: { name: '랑방 VIP 왕관', stats: { ult: 0.25 }, desc: '총공지(궁극기) 충전 +25%' },
+  myth_crown: { name: '랑방 VIP 왕관', stats: { ult: 0.25 }, desc: '총력전(궁극기) 충전 +25%' },
 };
 const MYTH_IDS = Object.keys(MYTH);
 for (const [id, m] of Object.entries(MYTH)) { const k = Object.keys(m.stats)[0]; GEAR[id] = { id, slot: 'm', icon: '🌈', name: m.name, stat: k, base: m.stats[k], stats: m.stats, myth: true }; }
@@ -264,21 +264,48 @@ function hashSeed(str) {
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   return h >>> 0;
 }
-// 드롭: 클리어 1개 (+★★★ 이면 35% 로 1개 더, 퍼펙트면 1개 더). 첫 퍼펙트는 첫 장비가 희귀 이상 확정
-function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = false) {
+// ─── 장비 드롭 사다리 (10/15): 챕터가 오를수록 낮은 등급이 사라지고 높은 등급이 정기적으로 ───
+//  장(챕터)별 기본 가중치 [일반, 희귀, 영웅, 전설] (1~2장은 예전 식 그대로 · 3장부터 사다리)
+//  보스(x-5 · x-10): 첫 장비는 등급 하한 · 영웅 이상이 DROP_PITY 개 안 나오면 확정 (화면에 남은 횟수 표시)
+const DROP_CH = [null, null, null, [45, 38, 10, 0.5], [28, 46, 18, 1.2], [8, 54, 28, 2.5], [4, 48, 34, 3.5], [3, 42, 38, 5], [2, 36, 42, 7]];
+const DROP_PITY = { epic: 10, legend: 40, epicFrom: 21, legendFrom: 41 }; // 영웅 이상 10개째 확정 (3장~) · 전설 40개째 확정 (5장~)
+const DROP_BOSS_MIN = (stage) => { // 보스 스테이지 첫 장비 등급 하한
+  const ch = Math.ceil(stage / 10), r = stage % 10;
+  if (r !== 5 && r !== 0) return null;
+  if (ch >= 5) return 'epic';
+  if (ch >= 3) return r === 0 ? 'epic' : 'rare';
+  return r === 0 ? 'rare' : null;
+};
+function dropWeights(stage) {
+  const ch = Math.min(8, Math.ceil(stage / 10));
+  if (ch >= 3) { const r = DROP_CH[ch]; return { common: r[0], rare: r[1], epic: r[2], legend: r[3] }; }
+  return { common: 70, rare: 10 + stage * 0.5, epic: Math.max(0.5, (stage - 8) * 0.28), legend: Math.max(0.1, (stage - 25) * 0.06) };
+}
+// 드롭: 클리어 1개 (+★★★ 이면 35% 로 1개 더, 퍼펙트면 1개 더). 첫 퍼펙트는 첫 장비가 희귀 이상 확정. pity {ep, lg} 를 주면 센 값을 갱신한다
+function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = false, pity = null) {
   const rng = seedRng(seed);
-  let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
-  const out = [];
+  const n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
+  const out = [], pool = gearPoolFor(stage), bossMin = DROP_BOSS_MIN(stage);
+  const rank = (r) => GEAR_RARITIES.indexOf(r);
   for (let i = 0; i < n; i++) {
-    const w = { common: 70, rare: 10 + stage * 0.5, epic: Math.max(0.5, (stage - 8) * 0.28), legend: Math.max(0.1, (stage - 25) * 0.06) }; // (10/08 장에 맞게: 예전 rare 24+0.4s · epic 5+0.35s · legend 0.6+0.08s — 2장에 희귀가 너무 자주)
+    const w = dropWeights(stage);
     if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
-    if (firstPerfect && i === 0) w.common = 0;
     if (hell) { w.common = 0; w.epic *= 2; w.legend *= 2; }
+    let min = firstPerfect && i === 0 ? 'rare' : null;
+    const up = (r) => { if (r && (!min || rank(r) > rank(min))) min = r; };
+    if (i === 0) { up(bossMin); if (bossMin === 'epic' && stage % 10 === 0 && Math.ceil(stage / 10) >= 7) w.legend *= 3; }
+    if (pity) {
+      if (stage >= DROP_PITY.epicFrom) pity.ep = (pity.ep | 0) + 1;
+      if (stage >= DROP_PITY.legendFrom) pity.lg = (pity.lg | 0) + 1;
+      if (stage >= DROP_PITY.epicFrom && pity.ep >= DROP_PITY.epic) up('epic');
+      if (stage >= DROP_PITY.legendFrom && pity.lg >= DROP_PITY.legend) up('legend');
+    }
+    if (min) for (const k of GEAR_RARITIES) if (rank(k) < rank(min)) w[k] = 0;
     const sum = w.common + w.rare + w.epic + w.legend;
-    let x = rng() * sum, r = 'common';
-    for (const k of GEAR_RARITIES) { x -= w[k]; if (x <= 0) { r = k; break; } }
-    const pool = gearPoolFor(stage);
+    let x = rng() * sum, r = 'legend';
+    for (const k of GEAR_RARITIES) { if (w[k] <= 0) continue; x -= w[k]; if (x <= 0) { r = k; break; } }
     const t = pool[(rng() * pool.length) | 0];
+    if (pity) { if (r === 'epic' || r === 'legend') pity.ep = 0; if (r === 'legend') pity.lg = 0; }
     out.push({ t, r });
   }
   return out;
@@ -307,7 +334,7 @@ module.exports = {
   MYTH, MYTH_IDS, SIG, SIG_IDS, gearFits, THIEF, thiefCut,
   hellOpen, hellReward, HELL_COIN,
   heroCardNeed, rollHeroCard, CARD_PICK,
-  GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
+  GEAR, GEAR_IDS, GEAR_RARITY, GEAR_RARITIES, GEAR_MAX_LV, GEAR_BAG, gearValue, gearEnhanceCost, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, rollStones, gearEnhanceChance, GEAR_SUCCESS, gearSellValue, seedRng, hashSeed, rollDrops, dropWeights, DROP_PITY, DROP_CH, DROP_BOSS_MIN, gearStats, deckSlots, DECK_BASE, migrateDeckItems,
   LB_HEROES, HIDDEN, GACHA, LOCKED, HERO_TIER, TIER_MAX, metaMaxOf, ENEMY_IDS, META_MAX, STAGE_COUNT, STAGE_WAVES, HERO_UNLOCK, HIDDEN_COND, ENDLESS_UNLOCK, ITEMS, ITEM_IDS,
   metaCost, itemCost, itemValue, itemLvCap, itemGateCh, ITEM_LV_CAP, ITEM_TOP, clearCoins, stageReward, endlessReward, ENDLESS_TIERS, stageLabel, maxCleared, heroUnlocked, endlessUnlocked,
 };
