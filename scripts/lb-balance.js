@@ -55,13 +55,13 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
   //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
-  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat', 'chcalib', 'skshare', 'ccup'].includes(what) && !args.includes('--pro');
+  const REF_HUMAN = ['ratio', 'stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat', 'chcalib', 'skshare', 'ccup'].includes(what) && !args.includes('--pro');
   const FOES = what === 'foes';
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
   function pickCard(g, cards, rng) {
     const P = g._policy || POLICY; // (o.policy: 판마다 — 초보 봇은 random)
-    if (P === 'random' || (P === 'mid' && rng() < 0.4)) return (rng() * cards.length) | 0;
+    if (P === 'random' || (P === 'mid' && rng() < 0.4) || (P === 'casual' && rng() < 0.6)) return (rng() * cards.length) | 0;
     let best = 0, bv = -1;
     cards.forEach((c, i) => {
       let v = 1;
@@ -152,6 +152,19 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     want.sort((a, b) => (a[0]._lastSk || -99) - (b[0]._lastSk || -99));
     for (const [h, x, y] of want) if (S.castSkill(g, h, x, y)) { h._lastSk = g.t; break; } else if (g.skillQ && g.skillQ.h === h) { h._lastSk = g.t; break; }
   }
+  // 대충 하는 사람 (casual 봇, 10/23): 스킬은 준비돼도 절반쯤은 그냥 두고, 쓸 때도 아무 때나 · 아무 데나 (진상 한 명 위치) — 예고(눈사태 · 입구 강타 · 축사)는 못 본 척, 총력전도 가끔만
+  function casualSkills(g, pr) {
+    for (const h of g.heroes) {
+      if (h.gone || h.def.summon || !h.def.skill || !S.skillReady(h)) { if (h._cz) h._cz = null; continue; }
+      if (!h._cz) h._cz = { at: g.t + pr() * 10, use: pr() < 0.45 }; // 준비될 때마다: 쓸지 말지(45%) · 얼마 뒤에(0~10초)
+      const z = h._cz;
+      if (g.t < z.at) continue;
+      if (!z.use) { z.at = g.t + 20; z.use = pr() < 0.45; continue; }
+      const alive = g.enemies.filter((e) => !e.dead && e.y > 0);
+      if (h.def.skill.target) { if (!alive.length) continue; const e = alive[(pr() * alive.length) | 0]; if (S.castSkill(g, h, e.x, e.y)) h._cz = null; }
+      else if (alive.length && S.castSkill(g, h)) h._cz = null;
+    }
+  }
   // 한 판 (사람처럼: 카드는 바로 고르고, 총력전은 적이 많거나 보스가 있을 때 쓴다)
   function play(o) {
     const rng = seeded(o.seed);
@@ -187,8 +200,10 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
         if (g.welcomePicks > 0) g.welcomePicks--;
         g.pickAt = undefined;
       }
-      if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
-      if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % (o.skillEvery || SKILL_EVERY)) === 0) aiSkills(g, o.control);
+      if (o.casual) { if (g.ult >= D.RULES.ultMax) { if (g._uz === undefined) g._uz = g.t + pr() * 12; if (g.t >= g._uz) { g._uz = undefined; if (pr() < 0.6) S.useUlt(g); else g._uz = g.t + 25; } } }
+      else if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
+      if (o.casual) { if (steps % 20 === 0) casualSkills(g, pr); }
+      else if ((o.skills !== undefined ? o.skills : SKILLS) && (steps % (o.skillEvery || SKILL_EVERY)) === 0) aiSkills(g, o.control);
       if (steps % BOARD_EVERY === 0) { const bh = g.heroes.find((h) => h.def.proj === 'board'); if (bh && S.boardCharges(bh) >= 1 && !(bh.bd && bh.bd.st === 'dash')) { const tg = S.boardAutoTarget(g); if (tg) S.setBoardAim(g, tg.x, tg.y); } } // 송바울 (완전 수동): 사람처럼 진상이 많이 줄 선 쪽을 탭
       if (o.stopWave && g.wave >= o.stopWave && g.phase === 'break') break;
     }
@@ -880,7 +895,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  판이 어떻게 흘러가나: 1초마다 입구 % · 살아 있는 진상 · 처치 → 이긴 판 남은 입구 분포 · 진 판 무너지는 데 걸린 시간 (입구 75% → 0) · 판 중 최저 입구
   //  봇: ref = 기준 플레이어 (스킬 1.5초 늦게 · 카드 40% 아무거나) · low = 스킬 가끔 (8초마다 한 번 확인) · beg = 초보 (스킬 안 씀 · 카드는 기준과 같게 · 총력전만 누름) · rnd = 스킬 안 씀 + 카드 막 고름
   //  강화 = 장 권장 + REF_PLUS (헬: + 헬 권장 가산) · 같은 덱 · 같은 시드
-  const BOTS = { ref: { label: '기준', o: {} }, low: { label: '스킬가끔', o: { skillEvery: 480, policy: 'mid' } }, beg: { label: '초보', o: { skills: false, policy: 'mid' } }, rnd: { label: '막고름', o: { skills: false, policy: 'random' } }, smart: { label: '잘고름', o: { policy: 'smart' } }, rsk: { label: '막고름+스킬', o: { policy: 'random' } } };
+  const BOTS = { ref: { label: '기준', o: {} }, low: { label: '스킬가끔', o: { skillEvery: 480, policy: 'mid' } }, beg: { label: '초보', o: { skills: false, policy: 'mid' } }, rnd: { label: '막고름', o: { skills: false, policy: 'random' } }, smart: { label: '잘고름', o: { policy: 'smart' } }, casual: { label: '대충', o: { casual: true, policy: 'casual', skills: false, control: false } }, rsk: { label: '막고름+스킬', o: { policy: 'random' } } };
   function botRun(s, bot, N, hell) {
     const c = D.chapterOf(s);
     let ids = c <= 6 ? balFor(c, s, hell) : C78;
@@ -1268,6 +1283,77 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     }
     console.log('UPJSON ' + JSON.stringify(sumJson));
   }
+  // ── 권장 전투력 정직한지 (node scripts/lb-balance.js ratio --list=14,18,... [--hell] [--bots=casual,smart] [--ratios=0.5,0.65,0.8,1,1.2,1.5] [--seeds=16] [--rec=new|old] [--json=파일])
+  //  같은 기준 덱(그 장의 균형 덱 · 조건 맞춤) · ★ · 도감 · 전형 장비(그 스테이지까지 실제 드롭표)로 강화 단계만 바꿔서 내 덱 전투력 / 화면 권장 전투력 = r 이 되게 맞추고 (진짜 강화 단계 · 멤버 순서대로 한 단계씩)
+  //  봇: casual = 대충 하는 사람 (스킬 절반쯤 · 아무 때나 · 예고 못 봄 · 카드 60% 아무거나) · smart = 잘하는 사람
+  //  --rec=old : 예전 권장 공식 (4명 고정 · 방장 · 운영진 · 건전남 · 건전녀 · 권장+1 · ★ 장별) 로 r 을 계산 · 내 전투력은 강화 그대로(예전 화면)
+  function typicalGear(s, ids) {
+    const w = [], a = [], pity = { ep: 0, lg: 0 };
+    for (let k = 1; k <= s; k++) for (const d of D.rollDrops(k * 7919 + 13, k, 3, (k * 37) % 10 < 3, false, false, pity)) if (d.t !== undefined && D.GEAR[d.t] && !D.GEAR[d.t].myth) (D.GEAR[d.t].slot === 'w' ? w : a).push(d);
+    const rank = (d) => D.gearValue(d.t, d.r, 0) * (['atk', 'spd', 'skill', 'cd', 'crit'].includes(D.GEAR[d.t].stat) ? 1 : 0.6);
+    w.sort((x, y) => rank(y) - rank(x)); a.sort((x, y) => rank(y) - rank(x));
+    const out = {}; ids.forEach((id, i) => { out[id] = D.gearStats([w[i], a[i]].filter(Boolean)); });
+    return out;
+  }
+  function recOf(s, hell, mode) {
+    if (mode !== 'old') return D.recPower(s, hell);
+    const c = D.chapterOf(s), base = ['bangjang', 'staff', 'gunman', 'gunnyeo'], m = D.recMeta(s, hell) + 1, st = D.REF_STAR[Math.min(7, c - 1)];
+    let tot = 0; base.forEach((h, i) => { tot += D.heroPowerOf(h, m, i < 2 ? st : Math.max(1, st - 1), {}); });
+    let avg = 0; for (let k = 1; k <= 10; k++) avg += D.stageFoeHp((c - 1) * 10 + k) / 10;
+    return Math.round(tot * (D.stageFoeHp(s) / avg) * (1 + 0.08 * D.stageConds(s, hell).length) * (s >= D.WEEK_TRAIT_FROM ? 1.05 : 1) * (hell ? 1.4 : 1));
+  }
+  // 목표 전투력에 가장 가까운 육성 단계: 모두 0 · 기준 ★ 에서 시작해 "다음에 할 일" 순서대로 한 칸씩 — 강화(원래 값 기준 강화까지) → ★ 승급 → 더 강화 → ★ ... (진짜 강화 단계 · ★ 만 쓴다)
+  function metasFor(ids, stars0, gear, T, s, hell, soft) {
+    const c = D.chapterOf(s), refM = D.REF_META[c - 1] + (hell ? D.META_SOFT.hellAdd : 0);
+    const st = ids.map((id) => stars0[id]), meta = ids.map(() => 0);
+    const pw = (i) => D.heroPowerOf(ids[i], soft ? D.softMeta(meta[i], s, hell) : meta[i], st[i], gear[ids[i]] || {});
+    let cur = ids.reduce((a, id, i) => a + pw(i), 0);
+    const lo = Math.min(...st);
+    for (let it = 0; it < 600; it++) {
+      let best = null;
+      ids.forEach((id, i) => {
+        if (meta[i] < D.TIER_MAX[D.heroTier(id)]) { const pr = meta[i] <= refM ? meta[i] : meta[i] + 3; if (!best || pr < best.pr) best = { pr, i, k: 'm' }; }
+        if (st[i] < 5) { const pr = (st[i] - lo) * 5 + 9 + (i >= 2 ? 1 : 0); if (!best || pr < best.pr) best = { pr, i, k: 's' }; }
+      });
+      if (!best) break;
+      const i = best.i, old = pw(i);
+      if (best.k === 'm') meta[i]++; else st[i]++;
+      const np = cur - old + pw(i);
+      if (Math.abs(np - T) < Math.abs(cur - T)) cur = np; else { if (best.k === 'm') meta[i]--; else st[i]--; break; }
+    }
+    return { meta: Object.fromEntries(ids.map((id, i) => [id, meta[i]])), stars: Object.fromEntries(ids.map((id, i) => [id, st[i]])), power: cur, mavg: meta.reduce((a, b) => a + b, 0) / ids.length, savg: st.reduce((a, b) => a + b, 0) / ids.length };
+  }
+  function ratioSweep() {
+    const N = opt('seeds', 16), hell = args.includes('--hell'), recMode = (process.argv.find((x) => x.startsWith('--rec=')) || '').slice(6) || 'new', soft = recMode !== 'old';
+    const bots = listArg('bots', 'casual,smart'), ratios = listArg('ratios', '0.5,0.65,0.8,1,1.2,1.5').map(Number);
+    const list = listArg('list', '14,18').map(Number), agg = {}, rows = [];
+    console.log(`■ 비율 → 클리어 (${hell ? '헬' : '보통'} · 권장 ${recMode} · ${N}판)  ` + ratios.map((r) => pad('r=' + r, 7)).join(''));
+    for (const s of list) {
+      const c = D.chapterOf(s), ids = c <= 6 ? balFor(c, s, hell) : C78.slice(), ref = refOf(s, ids), gear = typicalGear(s, ids), rec = recOf(s, hell, recMode);
+      for (const b of bots) {
+        const cells = [];
+        for (const r of ratios) {
+          const mt = metasFor(ids, ref.stars, gear, rec * r, s, hell, soft);
+          let w = 0;
+          for (let i = 1; i <= N; i++) if (play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta: mt.meta, gear, items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, stars: mt.stars, coll: ref.coll, ...BOTS[b].o }).win) w++;
+          const pc = Math.round((w / N) * 100); cells.push(pc);
+          const A = ((agg[c] = agg[c] || {})[b] = agg[c][b] || {}); (A[r] = A[r] || []).push(pc);
+          rows.push({ s, b, r, actual: +(mt.power / rec).toFixed(3), pc, meta: +mt.mavg.toFixed(1), star: +mt.savg.toFixed(1) });
+        }
+        console.log(`${pad(D.stageLabel(s), 6)} ${pad(BOTS[b].label, 6)} rec ${pad(rec, 6)} ` + cells.map((v) => pad(v + '%', 7)).join(''));
+      }
+    }
+    const tot = {};
+    console.log('\n■ 장 평균');
+    for (const [c, m] of Object.entries(agg)) for (const b of bots) {
+      const cells = ratios.map((r) => { const v = m[b][r]; const a = v.reduce((x, y) => x + y, 0) / v.length; ((tot[b] = tot[b] || {})[r] = tot[b][r] || []).push(a); return Math.round(a); });
+      console.log(`${c}장 ${pad(BOTS[b].label, 6)} ` + cells.map((v) => pad(v + '%', 7)).join(''));
+    }
+    for (const b of bots) console.log(`전체 ${pad(BOTS[b].label, 6)} ` + ratios.map((r) => pad(Math.round(tot[b][r].reduce((x, y) => x + y, 0) / tot[b][r].length) + '%', 7)).join(''));
+    const jf = (process.argv.find((x) => x.startsWith('--json=')) || '').slice(7);
+    if (jf) require('fs').writeFileSync(jf, JSON.stringify(rows));
+  }
+  if (what === 'ratio') ratioSweep();
   if (what === 'upgrade') upgrade();
   if (what === 'stagemeas') stagemeas();
   // 진상 감사 (node scripts/lb-balance.js foes --list=1,...,80 [--seeds=8]) — 기준 플레이어 판에서 진상 종류마다 입구 피해 몫 · 쓰러짐 게이지 몫 (진 판 · 전체) — 한 진상이 패배를 혼자 만드는지

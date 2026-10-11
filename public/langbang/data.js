@@ -2554,10 +2554,50 @@ export function gearPowerMul(st, id) {
 export function heroPowerOf(id, meta, star, gearSt, o = {}) {
   const b = POWER_BASE[id];
   if (!b || !HEROES[id] || HEROES[id].summon) return 0;
-  const t = heroTier(id), m = Math.max(0, Math.min(TIER_MAX[t], meta | 0));
-  const grow = (o.mile === false ? tierPower(t, m) : tierPowerM(t, m)) / tierPower(t, 0);
+  const t = heroTier(id), mf = Math.max(0, Math.min(TIER_MAX[t], +meta || 0)), m = Math.floor(mf); // (소수 강화 = 권장 넘는 만큼 절반만 들어간 값 — 사이를 직선으로)
+  const gw = (x) => (o.mile === false ? tierPower(t, x) : tierPowerM(t, x)) / tierPower(t, 0);
+  const grow = mf > m ? gw(m) + (gw(m + 1) - gw(m)) * (mf - m) : gw(m);
   const s = Math.max(1, Math.min(5, star | 0 || 1));
   return Math.round(b * grow * starPowerMul(s) * gearPowerMul(gearSt, id) * (o.sig ? 1.25 : 1));
+}
+
+// ─── 권장 전투력 (출전 준비 화면) — 10/23 정직하게 다시: "그 장을 처음 도전하는 보통 사람이 실제로 가진 덱" 의 전투력 ───
+//  기준 덱(그 장에서 흔한 균형 덱 · 칸 수 그대로) × 장 권장 강화 + 2(넘는 만큼 절반이라 실제 +1) × 장별 ★(앞 두 명) × 그때까지 드롭표로 모은 전형 장비
+//  × 이 스테이지 진상 체력이 그 장 평균보다 얼마나 센지 × 조건 하나마다 +8% × 주간 진상 특성 +5% (헬은 따로 배수)
+//  예전엔 4명 고정(방장 · 운영진 · 건전남 · 건전녀) · ★ 보너스 +7% 시절 기준이라, ★ · 장비 · 6칸 덱이 늘어난 지금은 숫자가 덱보다 한참 높게 나왔다
+//  화면의 '내 전투력' 도 같은 잣대로: 강화가 장 권장을 넘으면 넘는 만큼 절반만 들어간다 (softMeta — 전투와 같은 규칙)
+export const REF_STAR = [1, 1, 1, 2, 2, 2, 2, 3];
+export const REF_META = [6, 9, 12, 14, 16, 18, 15, 15]; // 기준 강화(원래 값): 장 권장 + 2 (7 · 8장은 역할 덱 기준 15)
+export const REF_DECK = [
+  ['gunman', 'dohoon', 'gunnyeo', 'staff'], ['gunman', 'hanna', 'dohoon', 'staff'],
+  ['donghan', 'hanna', 'youngjun', 'gunnyeo', 'wonsik'], ['ara', 'donghan', 'youngjun', 'jungmin', 'staff'],
+  ['ara', 'donghan', 'youngjun', 'hanna', 'gunnyeo', 'wonsik'], ['ara', 'donghan', 'youngjun', 'hanna', 'dohoon', 'wonsik'],
+  ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'], ['donghan', 'ara', 'gunnyeo', 'sunggu', 'staff', 'hyungyeong'],
+];
+export const REF_GEAR_MUL = [1.05, 1.09, 1.1, 1.12, 1.13, 1.18, 1.2, 1.22]; // 그 장에서 흔한 전형 장비의 전투력 배율 (lb-balance.js ratio --gearmul 로 잼)
+export const REC_ADJ = { n: {}, hell: {} }; // 스테이지별 보정(1 = 기준 덱 그대로): 그 판에서 '대충 하는 사람' 이 약 2/3 이기는 전투력 ÷ 기준 덱 전투력 — lb-balance.js recfit 으로 맞춤 (보스 · 조건 · 체력 가드레일 스테이지가 기준 덱보다 얼마나 센지)
+export function stageFoeHp(s) { let t = 0; for (let w = 1; w <= STAGE_WAVES; w++) t += hpMul(stageLevel(s, w), true); return (t / STAGE_WAVES) * stageHpScale(s) * ((BAL.chHp || {})[chapterOf(s)] || 1) * ((STAGE_HPX || {})[s] || 1); }
+export function refDeckPower(c, hell, s) {
+  const ids = REF_DECK[c - 1], st = REF_STAR[c - 1], m = REF_META[c - 1] + (hell ? META_SOFT.hellAdd : 0);
+  const mm = s ? softMeta(m, s, hell) : m;
+  return Math.round(ids.reduce((a, id, i) => a + heroPowerOf(id, mm, i < 2 ? st : Math.max(1, st - 1), {}), 0) * REF_GEAR_MUL[c - 1]);
+}
+export function recPower(s, hell) { return Math.round(refDeckPower(chapterOf(s), hell, s) * ((hell ? REC_ADJ.hell : REC_ADJ.n)[s] || 1)); }
+// 내 덱 전투력 비율 → 판정 · 예상 클리어율 (출전 준비 · lb-balance.js ratio 로 잰 표: '대충 하는 보통 사람' 기준 · 잘하는 사람은 이보다 위)
+export const POWER_VERDICT = [
+  { min: 1.15, id: 'easy', name: '여유', color: '#7dff9a' }, { min: 0.95, id: 'ok', name: '적당', color: '#b8f06a' },
+  { min: 0.8, id: 'try', name: '도전', color: '#ffd24a' }, { min: 0.6, id: 'risk', name: '위험', color: '#ff9a4a' }, { min: 0, id: 'no', name: '무리', color: '#ff5a5a' },
+];
+export const powerVerdict = (r) => POWER_VERDICT.find((v) => r >= v.min) || POWER_VERDICT[POWER_VERDICT.length - 1];
+export const CLEAR_MAP = { // [비율, 대충 하는 사람 클리어%] — 사이는 직선
+  normal: [[0.5, 3], [0.65, 15], [0.8, 40], [1, 67], [1.2, 87], [1.5, 97]],
+  hell: [[0.5, 1], [0.65, 5], [0.8, 14], [1, 35], [1.2, 60], [1.5, 85]],
+};
+export function clearHint(r, hell) {
+  const t = CLEAR_MAP[hell ? 'hell' : 'normal'];
+  let v = r <= t[0][0] ? t[0][1] * Math.max(0, r) / t[0][0] : r >= t[t.length - 1][0] ? t[t.length - 1][1] : 0;
+  for (let i = 1; i < t.length && !v && r > t[0][0] && r < t[t.length - 1][0]; i++) if (r <= t[i][0]) v = t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (r - t[i - 1][0]) / (t[i][0] - t[i - 1][0]);
+  return Math.max(0, Math.min(99, Math.round(v / 10) * 10));
 }
 
 // 멤버 강화에 드는 그 멤버 카드 (+1~5 1장 · +6~10 2장 · +11~15 3장 · +16~20 5장) — ★승급과 같은 카드(조각)를 같이 쓴다

@@ -2266,6 +2266,13 @@ body.rm .ig-chip img { animation: none; }
 .pp-bar { display: block; height: calc(var(--u) * 6); margin-top: calc(var(--u) * 6); border-radius: 99px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .pp-bar b { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #3ecf6a, #9dff7a); }
 .pp-pow.low .pp-bar b { background: linear-gradient(90deg, #c8283a, #ff7a5a); }
+.pp-vd { font-style: normal; font-weight: 900; font-size: calc(var(--u) * 11); color: #1a1a1a; background: var(--vc, #9dff7a); border-radius: 99px; padding: calc(var(--u) * 1) calc(var(--u) * 7); align-self: center; }
+.pp-pow[style*="--vc"] { border-color: var(--vc); }
+.pp-pow[style*="--vc"] .pp-pow-t b { color: var(--vc); }
+.pp-pow[style*="--vc"] .pp-bar b { background: var(--vc); }
+.pp-hint { margin: calc(var(--u) * 4) 0 0; font-size: calc(var(--u) * 11); font-weight: 800; color: #e8dfff; display: flex; align-items: baseline; gap: calc(var(--u) * 4); flex-wrap: wrap; }
+.pp-hint span { color: var(--vc, #fff); font-weight: 900; }
+.pp-hint small { margin-left: auto; font-size: calc(var(--u) * 9.5); color: var(--dim); font-weight: 700; }
 .pp-lab { font-size: calc(var(--u) * 11.5); font-weight: 900; color: var(--dim); white-space: nowrap; }
 .pp-lab b { color: #fff; }
 .pp-foes { display: flex; align-items: center; gap: calc(var(--u) * 8); flex-shrink: 0; }

@@ -9,7 +9,7 @@ import {
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, metaCost, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
   TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
   FUSE_ART, MYTH, DROP_PITY, dropWeights, DROP_BOSS_MIN, gearStats, heroPowerOf, gearPowerMul, POWER_BASE, POWER_STAR, starPowerMul, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
-  COND, stageConds, stageMission, condFits, recMeta, STAR_DOOR, PICK_SKIP, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
+  COND, stageConds, stageMission, condFits, recMeta, recPower, powerVerdict, clearHint, softMeta, STAR_DOOR, PICK_SKIP, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
   armorPctStage, ARMOR_BREAKERS, enemySkills, EST, ccLockStage, CC_DEPTH,
   artV,
@@ -4727,10 +4727,8 @@ function matchTag(id) {
   return `<span class="mt ${m.cls}">${m.arrow}</span>`;
 }
 // ─── 출격 준비: 한 화면에 (스테이지 카드 · 난이도 · 전투력 · 등장 진상 · 덱 · 보상 · 출격) — 긴 설명은 ⋯ / ℹ️ 뒤로 ───
-// 권장 전투력: '그 장을 처음 도전하는 보통 유저'(난이도 맞출 때 쓴 기준 — 장 권장 강화 +1 · 앞 두 명 ★ 장마다) 의 기본 4명 전투력
-//  × 이 스테이지 진상 체력이 그 장 평균보다 얼마나 센지 × 조건 하나마다 +8% × 이번 주 진상 특성 +5% (예전엔 고정 공식이라 조건이 까다로운 판에서 너무 낮게 나왔다)
-const REF_STAR = [1, 1, 1, 2, 2, 2, 2, 3];
-function stageFoeHp(s) { let t = 0; for (let w = 1; w <= STAGE_WAVES; w++) t += hpMul(stageLevel(s, w), true); return (t / STAGE_WAVES) * stageHpScale(s) * ((BAL.chHp || {})[chapterOf(s)] || 1) * ((STAGE_HPX || {})[s] || 1); }
+// 권장 전투력 (10/23 정직하게): data.js recPower — 그 장 보통 사람의 기준 덱(칸 수 · 강화 · ★ · 전형 장비) 을 시뮬로 '대충 하는 사람이 약 2/3 이기는 값' 에 맞춘 것
+//  내 전투력도 같은 잣대: 강화가 장 권장을 넘으면 넘는 만큼 절반만 (전투와 같은 규칙) → 비율 = 내 / 권장 → 판정(여유 · 적당 · 도전 · 위험 · 무리) + 예상 클리어
 // 헬 고르는 순간 (10/08): 화면이 붉게 번쩍 · 금 · 불티 · 해골 · 쿵 소리 + 진동 — 1.3초 뒤 사라짐 (body.rm: 붉은 번쩍만)
 function hellSelectFx() {
   const rm = document.body.classList.contains('rm');
@@ -4746,12 +4744,9 @@ function hellSelectFx() {
   try { if (navigator.vibrate) navigator.vibrate([40, 30, 90]); } catch (e) { /* 무시 */ }
   setTimeout(() => el.remove(), 1300);
 }
-function stagePower(p, s, hell) {
-  const c = chapterOf(s), base = ['bangjang', 'staff', 'gunman', 'gunnyeo'], m = recMeta(s, hell) + 1, st = REF_STAR[Math.min(7, c - 1)];
-  const q = Object.assign({}, p, { heroes: Object.fromEntries(base.map((h) => [h, m])), equip: {}, hstars: Object.fromEntries(base.map((h, i) => [h, i < 2 ? st : Math.max(1, st - 1)])) });
-  let avg = 0; for (let k = 1; k <= 10; k++) avg += stageFoeHp((c - 1) * 10 + k) / 10;
-  const conds = stageConds(s, hell).length, wk = s >= WEEK_TRAIT_FROM ? 1.05 : 1;
-  return Math.round(deckPower(q, base) * (stageFoeHp(s) / avg) * (1 + 0.08 * conds) * wk * (hell ? 1.4 : 1));
+const stagePower = (p, s, hell) => recPower(s, hell);
+function deckPowerAt(p, ids, s, hell) { // 이 스테이지 기준 내 덱 전투력 (강화가 권장을 넘으면 절반만)
+  return ids.reduce((a, id) => a + heroPowerOf(id, softMeta((p.heroes || {})[id] | 0, s, hell), L.heroStar(p, id), heroGearStats(p, id), { sig: sigOn(p, id) }), 0);
 }
 const foeFace = (id, cls = '') => { const d = ENEMIES[id]; return `<span class="pp-face ${cls}" style="--fc:${d.color || '#8a7ab0'}"><img src="${d.img}" alt="" draggable="false" onerror="${d.fb ? `this.onerror=null;this.src='${d.fb}';this.style.filter='hue-rotate(160deg) saturate(1.3)'` : 'this.remove()'}"></span>`; };
 const foeTrait = (id) => { const t = ENEMIES[id].traits || {}; const k = Object.keys(t).find((x) => TRAITS[x]); return k ? TRAITS[k] : null; };
@@ -4954,8 +4949,9 @@ function showPrep(mode, s) {
   const mis = mode === 'stage' ? stageMission(s, hellOn) : null;
   const condHtml = prepCondHtml(fxd, conds, mis, mode === 'stage' ? recMeta(s, hellOn) : 0, mode === 'stage' ? wtrChip(s, 'pc-chip wtr') : '');
   // 3) 전투력
-  const pw = deckPower(p, ids), need = st ? stagePower(p, st, hellOn) : 0;
-  const ok = !need || pw >= need;
+  const need = st ? stagePower(p, st, hellOn) : 0, pw = st ? Math.round(deckPowerAt(p, ids, st, hellOn)) : deckPower(p, ids);
+  const ratio = need ? pw / need : 0, vd = need ? powerVerdict(ratio) : null, hint = need ? clearHint(ratio, hellOn) : 0;
+  const ok = !need || ratio >= 0.95;
   // 상성 경고: 이 판의 진상 기믹에 대처할 멤버가 덱에 없으면 짚어 준다 (가진 멤버 중 추천 2명)
   const lack = mode === 'stage' ? conds.filter((c) => COND[c] && !ids.some((id) => COND[c].counter.includes(id))) : [];
   const own = new Set(owned());
@@ -4974,7 +4970,8 @@ function showPrep(mode, s) {
   const lockHas = lockOn ? ids.filter((id) => LOCK_CNT.includes(id)) : [], lockRec = lockOn && !ids.includes('gunnyeo') ? LOCK_CNT.filter((id) => HEROES[id] && own.has(id) && !ids.includes(id)).slice(0, 2) : [];
   const lockHtml = lockOn ? `<p class="pp-lock">${ic('lock', '', 'sm')}<b>${mode === 'endless' ? `${CC_DEPTH.lock.endlessFrom}단계부터 풀 때까지` : '풀 때까지 상태이상'}</b> — 기절 · 홀림 · 침묵 · 빙결 · 독이 <b>저절로 안 풀려요</b> (기절 예고 · 정예 · 보스 투척 · 자물쇠 표시). 건전녀 간호 · 응급 방패 · 총력전 · 방장 "버텨!" · 웨이브 끝에 풀리고, 김도훈(기절) · 정소영(홀림 · 침묵) · 홍정민(독) · 박나영(빙결)이 있으면 안 묶여요${lockHas.length ? ` · 내 덱: <em>${lockHas.map((id) => esc(HEROES[id].name)).join(' · ')}</em>` : ' · <b>덱에 푸는 멤버가 없어요!</b>'}${lockRec.length ? ` → <em>${lockRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
   const lackHtml = lack.length || armorHtml || thrHtml || lockHtml ? `<div class="pp-lack">${lockHtml}${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}${thrHtml}</div>` : '';
-  const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
+  const hintTxt = hint < 10 ? '예상 클리어 10% 미만' : `예상 클리어 ${hint}%`;
+  const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'} v-${vd ? vd.id : 'none'}"${vd ? ` style="--vc:${vd.color}"` : ''}><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${vd ? `<em class="pp-vd">${vd.name}</em>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round(ratio * 100))}%"></b></i><p class="pp-hint"><span>${Math.round(ratio * 100)}%</span> · ${hintTxt}<small>대충 해도 이 정도 · 잘하면 더 높아요</small></p>` : ''}</div>`;
   // 4) 등장 진상
   const foes = prepFoes(st);
   const foeHtml = foes.length ? `<div class="pp-foes"><span class="pp-lab">등장 진상</span><div class="pp-chips">${foes.map((t) => { const T = foeTrait(t); return `<button class="pp-foe" data-act="prepFoe" data-id="${t}">${foeFace(t)}${T ? `<i class="pp-tb">${T.icon}</i>` : ''}</button>`; }).join('')}</div></div>` : '';
