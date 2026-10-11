@@ -4713,3 +4713,6 @@ body.rm .rv-box, body.rm .rv-rays, body.rm .rv-cf-box { display: none; }
 .rec-steps li { margin-bottom: calc(var(--u) * 7); font-size: calc(var(--u) * 12); line-height: 1.4; }
 .rec-steps li b { display: block; color: #ffe27a; font-weight: 900; }
 .rec-steps li span { color: #e3e6f2; }
+
+.pp-dh .pp-auto { white-space: nowrap; }
+.pp-dh .pp-auto { font-size: calc(var(--u) * 10.5); padding: calc(var(--u) * 3) calc(var(--u) * 7); } .pp-dh .pp-i { margin-left: calc(var(--u) * 2); }
