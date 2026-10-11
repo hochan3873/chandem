@@ -1755,6 +1755,7 @@ export function damageBase(g, dmg, e) {
   dmg *= g.mods.baseArmor * (g.bandT > 0 ? 1 - g.bandArmor : 1) * (g.bouncerT > 0 ? 1 - CONS_FX.bouncer.cut : 1); // 경호원 호출: 입구 피해 −80%
   if (g.doorShield > 0 && g.doorShieldT > 0) { const a = Math.min(g.doorShield, dmg); g.doorShield -= a; dmg -= a; prevented(g, g.doorShieldBy || 'gunnyeo', a); if (g.doorShield <= 0) { g.doorShield = 0; ev(g, 'doorShieldBreak', { x: g.W / 2, y: g.ropeY }); } } // 건전녀 방패가 먼저 막는다
   if (g.pvp) { dmg *= g.pvp.doorMul; g.pvp.hurt += dmg; } // 1:1 서든데스: 입구 받는 피해 단계마다 +20%
+  if (dmg > 0 && g.stats && g.mode === 'stage') { const by = g.stats.doorBy || (g.stats.doorBy = {}), k = e && e.type ? e.type : 'etc'; by[k] = (by[k] || 0) + Math.min(dmg, Math.max(0, g.base.hp)); } // 공략 카드: 누가 입구를 얼마나 쳤나
   g.base.hp -= dmg;
   if (dmg > 0) g.baseHit = true;
   ev(g, 'baseHit', { x: e ? e.x : g.W / 2, y: g.ropeY, v: Math.round(dmg), boss: !!(e && e.boss), by: e ? e.type : '' }); // (by: 밸런스 측정 — 누가 입구를 쳤나) // (던진 진상이 이미 죽었으면 e 가 없다)
@@ -2298,6 +2299,7 @@ export function hitHero(g, h, fx, src) {
   else if (st === 'blind') { sec = debuffSec(h, fx.sec); if (sec > 0) h.blindT = Math.max(h.blindT, sec); }
   else if (st === 'slow') { sec = debuffSec(h, fx.sec, 'slow'); if (sec > 0) { h.aspdDebCut = h.aspdDebT > 0 ? Math.max(h.aspdDebCut || 0, fx.cut || 0.3) : fx.cut || 0.3; h.aspdDebT = Math.max(h.aspdDebT || 0, sec); } }
   else sec = 1; // (상태이상 없이 맞기만)
+  if (sec > 0 && st && g.stats && g.mode === 'stage') { const hb = g.stats.hitBy || (g.stats.hitBy = {}); hb[st] = (hb[st] || 0) + 1; } // 공략 카드: 어떤 상태이상이 몇 번 걸렸나
   if (sec > 0 && g.kdOn) kdAdd(g, h, hitKd(fx, src), { src: 'hit', by: src && src.type });
   const locked = sec > 0 && !!src && !!(src.boss || src.mid || src.elite) && ccLockTry(g, h, st); // (10/11) 정예 · 보스 투척: 맨 끝에서는 '풀 때까지'
   if (st !== 'freeze') ev(g, 'heroHit', { hero: h.id, x: h.x, y: h.y, st: st || '', sec, block: sec <= 0, lock: locked });
@@ -2785,6 +2787,7 @@ function condCc(g, dt) {
       else { sec = cut(debuffSec(h, C.charm * hk, 'charm')); if (sec > 0) h.charmT = Math.max(h.charmT, sec); }
     } else if (kind === 'silence') { sec = cut(debuffSec(h, C.silence * hk, 'silence')); if (sec > 0) { h.silenceT = Math.max(h.silenceT || 0, sec); h.muteT = Math.max(h.muteT || 0, sec); } }
     if (react && sec > 0) { g.gnReactT = g.t + C.reactCd; ev(g, 'cleanse', { x: h.x, y: h.y }); ev(g, 'gunnyeoReact', { x: gn.x, y: gn.y, hero: h.id }); }
+    if (sec > 0 && g.stats && g.mode === 'stage') { const hb = g.stats.hitBy || (g.stats.hitBy = {}); hb[kind] = (hb[kind] || 0) + 1; } // 공략 카드: 기절 예고로 걸린 상태이상도
     const locked = sec > 0 && !react && ccLockTry(g, h, kind); // (10/11) 맨 끝(헬 7 · 8장 · 무한 4단계+): '풀 때까지'
     ev(g, 'condCc', { kind, hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y - e.def.size * 0.5, sec, block: sec <= 0, lock: locked });
     return;

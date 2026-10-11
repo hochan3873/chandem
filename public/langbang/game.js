@@ -43,6 +43,7 @@ import * as SSN from './season.js'; // 시즌 테마 (할로윈 등): 로비 그
 import * as SR from './srank.js'; // 시즌 랭킹 보상 (1~3위 한정 의상 · Top 10 움직이는 칭호 · 프레임)
 import { COSTUMES as HW_COSTUMES, costumeArt as cosArt } from './hw-event.js'; // 의상 (시즌 한정 의상 그림)
 import { planFor, createCoach } from './guide.js'; // 길 안내: 강화 · 우편 · 미션을 한 단계씩 따라가기
+import * as FG from './failguide.js'; // 실패 공략 카드 (진 뒤 결과 화면 · 진 적 있는 스테이지 준비 화면)
 import { createTutor } from './tutorial.js'; // 처음 하는 사람 튜토리얼 (방장 말풍선 · 손가락)
 import * as CU from './currency.js'; // 재화 목록 · 얻는 곳 · 쓰는 곳 · 성장 길잡이 계산
 import { initCurrency, currencyFly, flyGains } from './currency-ui.js'; // 재화 안내 창 · 성장 길잡이 · 날아가는 아이콘
@@ -2252,6 +2253,13 @@ const ACTS = {
   later: () => leaveForLater(),
   quit: () => askQuit(),
   again: () => showPrep(app.mode, app.stage),
+  fgDeck: () => { // 공략 카드 '추천 덱으로': 가진 멤버로 짠 추천 덱을 지금 덱 자리에 (다시 도전은 그대로 누르면 됨)
+    const gd = app.fg; if (!gd || !gd.recDeck || !gd.recDeck.length) return;
+    app.decks[app.deckI] = placeDeck(gd.recDeck); saveDecks(); A.sfx.card();
+    if (app.screen === 'prep') { toast('추천 덱으로 바꿨어요', 1400); showPrep(app.mode, app.stage); return; }
+    toast('추천 덱으로 바꿨어요 — 다시 도전을 눌러요', 1800);
+    const b = document.querySelector('[data-act="fgDeck"]'); if (b) { b.disabled = true; b.classList.add('done'); b.textContent = '바꿨어요 ✓'; }
+  },
   nextStage: () => showPrep('stage', Math.min(STAGE_COUNT, app.stage + 1)),
   buy: (b) => buyUpgrade(b.dataset.id, b),
   buyMax: (b) => buyUpgradeMax(b.dataset.id, b, Number(b.dataset.n) || 1),
@@ -4781,6 +4789,41 @@ function prepRecSet(st) {
   for (const t of prepFoes(st)) { const T = foeTrait(t); if (T) for (const h of T.counter) if (mine.includes(h)) r.add(h); }
   return r;
 }
+// ─── 실패 공략 카드 (failguide.js): 진 뒤 결과 화면 + 진 적 있는 스테이지의 준비 화면 ───
+const failKeyLs = () => `lbfail1:${app.guest ? 'g' : app.nickname || 'g'}`;
+function failLoad() { try { return JSON.parse(localStorage.getItem(failKeyLs()) || '{}') || {}; } catch (e) { return {}; } }
+function failSave(o) { try { localStorage.setItem(failKeyLs(), JSON.stringify(o)); } catch (e) { /* 저장 못 해도 괜찮음 */ } }
+function fgInput(s, hell, run) { const p = P(); return { stage: s, hell: !!hell, run, ownedIds: owned(), deckIds: curDeck().filter(Boolean), slots: deckSlotsNow(), p: { heroes: p.heroes, equip: p.equip, gear: p.gear } }; }
+function fgChipsHtml(n) {
+  const mine = n.mine.map((c) => `<span class="fg-c own ${c.inDeck ? 'in' : ''}" style="--c:${HEROES[c.id].color}">${c.inDeck ? '✓ ' : ''}${esc(heroNm(c.id))}</span>`).join('');
+  const miss = n.mine.length ? '' : n.miss.map((c) => `<span class="fg-c no">${esc(heroNm(c.id))}<small>${esc(c.how)}</small></span>`).join('');
+  return mine || miss ? `${mine}${miss}` : '<span class="fg-c no">맞는 멤버 없음</span>';
+}
+function fgCardHtml(gd, compact) {
+  if (!gd) return '';
+  const needs = gd.needs.slice(0, compact ? 1 : 2);
+  const nHtml = needs.map((n) => `<div class="fg-need"><span class="fg-lab">${esc(n.label)}${n.why ? ` <small>${esc(n.why)}</small>` : ''}</span><div class="fg-chips">${fgChipsHtml(n)}</div></div>`).join('');
+  const upTxt = gd.up.low ? `강화 <b>+${gd.up.rec}</b> 권장 · 내 덱 평균 <b>+${gd.up.avg}</b>` : '';
+  const gearTxt = gd.gear.hint ? `안 낀 장비 ${gd.gear.free}개 있어요` : '';
+  const upLine = upTxt || gearTxt ? `<p class="fg-up">${ic('hammer', '', 'sm')}${[upTxt, gearTxt].filter(Boolean).join(' · ')}</p>` : '';
+  const tip = !compact && needs.length < 2 && gd.tips[0] ? `<p class="fg-tip">${ic('bulb', '', 'sm')}${esc(gd.tips[0])}</p>` : '';
+  const cause = gd.cause ? `<p class="fg-cause">${esc(compact ? gd.causeShort : gd.cause)}</p>` : '';
+  const btn = gd.recDiffers ? `<button class="btn fg-deck" data-act="fgDeck">${ic('sparkle', '', 'sm')} 추천 덱으로</button>` : '';
+  if (compact && !nHtml && !cause && !upLine) return '';
+  return `<div class="fg ${compact ? 'compact' : ''}"><div class="fg-h">${ic('bulb', '', 'sm')}<b>${compact ? '지난번엔 졌어요' : '공략'}</b>${btn}</div>${cause}${nHtml}${upLine}${tip}</div>`;
+}
+function fgNoteFail(g) { // 진 판 기록 (다음에 준비 화면에서 다시 보여 준다)
+  const run = FG.slimRun(g, g.stage);
+  failSave(FG.failStore(failLoad(), g.stage, !!g.hell, run));
+  return run;
+}
+function fgPrepHtml(s, hell) {
+  const rec = failLoad()[FG.failKey(s, hell)];
+  if (!rec) return '';
+  const gd = FG.buildFailGuide(fgInput(s, hell, rec.run));
+  app.fg = gd;
+  return fgCardHtml(gd, true);
+}
 function showPrep(mode, s) {
   app.edSel = null; // 덱 편집에서 고르던 것 풀기
   if (mode === 'stage' && !stageUnlocked(s)) s = nextStage();
@@ -4879,7 +4922,7 @@ function showPrep(mode, s) {
     </div>`;
   show(`
     <div class="topbar pp-top"><button class="back" data-act="${mode === 'weekly' ? 'weekly' : 'menu'}">‹ 뒤로</button><div class="pp-curs">${free ? '' : `<button class="pill cur sta ${L.staminaNow(p, Date.now()).v > L.STAMINA.max ? 'over' : ''}" data-act="curInfo" data-cur="sta" style="${CU.curVars('sta')}">${CU.curIcon('sta')}<b id="staV">${staText(p)}</b></button>`}<button class="pill cur" data-act="curInfo" data-cur="coins" style="${CU.curVars('coins')}">${CU.curIcon('coins')}<b>${p.unlimited ? '∞' : fmt(p.coins || 0)}</b></button><button class="pp-more" data-act="prepMore" aria-label="더 보기">⋯</button></div></div>
-    ${headHtml}${diffHtml}${condHtml}${powHtml}${lackHtml}${foeHtml}${deckHtml}${consPrepHtml()}${rw}
+    ${headHtml}${diffHtml}${condHtml}${powHtml}${lackHtml}${mode === 'stage' ? fgPrepHtml(s, hellOn) : ''}${foeHtml}${deckHtml}${consPrepHtml()}${rw}
     <div class="spacer"></div>
     ${goHtml}
   `, 'dim prep-screen pp');
@@ -5579,6 +5622,13 @@ function showResult(victory, quit) {
     sub = quit ? '다음엔 더 멀리!' : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
     top = `<div class="score-big"><small>점수</small><b>${fmt(sum.score)}</b></div>`;
   }
+  let fgHtml = ''; // 실패 공략 카드: 진 판이면 왜 졌고 누구를 데려가면 좋은지 · 이겼으면 지난 실패 기록 지움
+  try {
+    if (stageMode && !app.debugRun) {
+      if (win) failSave(FG.failClear(failLoad(), g.stage, !!g.hell));
+      else if (!quit) { const run = fgNoteFail(g); app.fg = FG.buildFailGuide(fgInput(g.stage, g.hell, run)); fgHtml = fgCardHtml(app.fg, false); }
+    }
+  } catch (e) { fgHtml = ''; }
   const buttons = [];
   if (win && g.hell) buttons.push('<button class="btn primary" data-act="again">헬 다시 하기</button>');
   else if (win && g.stage < STAGE_COUNT) buttons.push(`<button class="btn primary" data-act="nextStage">다음 스테이지 ${stageLabel(g.stage + 1)} </button>`);
@@ -5600,6 +5650,7 @@ function showResult(victory, quit) {
       <div><small>플레이 시간</small><b>${time}</b></div>
       <div><small>${wkTotal !== null ? '주간 점수' : '점수'}</small><b ${wkTotal !== null ? 'id="wkscore2"' : ''}>${fmt(wkTotal !== null ? wkTotal : sum.score)}</b></div>
     </div>`}
+    ${fgHtml}
     <div class="panel mvp">${mvp}</div>${teamHtml(g)}
     <div class="server" id="srv">${win || !stageMode ? '<span class="spin"></span> 보상 받는 중…' : ''}</div>
  <div class="spacer"></div>

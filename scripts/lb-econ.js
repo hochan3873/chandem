@@ -12,6 +12,7 @@ const { pathToFileURL } = require('url');
 const args = process.argv.slice(2);
 const opt = (k, d) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? Number(a.split('=')[1]) : d; };
 (async () => {
+  if (args.includes('acq')) return require('./lb-acq.js')(); // 멤버 획득 속도 모형 (node scripts/lb-econ.js acq)
   const LIB = (process.argv.find((x) => x.startsWith('--lib=')) || '').slice(6) || path.join(__dirname, '..', 'public', 'langbang');
   const D = await import(pathToFileURL(path.join(LIB, 'data.js')).href);
   const RUNS = opt('runs', 12), FAIL = opt('fail', 0.3), STARS = opt('stars', 3), SIDE = opt('side', 1);
