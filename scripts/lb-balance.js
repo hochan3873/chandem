@@ -1225,8 +1225,8 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     const deckFor = (c, s) => (c <= 6 ? balFor(c, s, false) : C78.slice());
     const itemsFor = (c, s) => (c <= 6 ? itemsAt(Math.round(s * 1.3)) : ITEMS78);
     const typical = (s, ids) => {
-      const w = [], a = [];
-      for (let k = 1; k <= s; k++) for (const d of D.rollDrops(k * 7919 + 13, k, 3, (k * 37) % 10 < 3, false)) if (d.t !== undefined && D.GEAR[d.t] && !D.GEAR[d.t].myth) (D.GEAR[d.t].slot === 'w' ? w : a).push(d);
+      const w = [], a = [], pity = { ep: 0, lg: 0 }; // 천장도 실제처럼 센다
+      for (let k = 1; k <= s; k++) for (const d of D.rollDrops(k * 7919 + 13, k, 3, (k * 37) % 10 < 3, false, false, pity)) if (d.t !== undefined && D.GEAR[d.t] && !D.GEAR[d.t].myth) (D.GEAR[d.t].slot === 'w' ? w : a).push(d);
       const rank = (d) => D.gearValue(d.t, d.r, 0) * (['atk', 'spd', 'skill', 'cd', 'crit'].includes(D.GEAR[d.t].stat) ? 1 : 0.6);
       w.sort((x, y) => rank(y) - rank(x)); a.sort((x, y) => rank(y) - rank(x));
       const out = {}; ids.forEach((id, i) => { out[id] = D.gearStats([w[i], a[i]].filter(Boolean)); });

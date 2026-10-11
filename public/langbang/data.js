@@ -2395,7 +2395,7 @@ export const GEAR_IDS = Object.keys(GEAR).filter((t) => !GEAR[t].myth);
 for (const t of Object.keys(GEAR)) GEAR[t].img = GEAR[t].hero ? (SIG_ART_TODO.has(GEAR[t].hero) ? `/img/lb/dexhq/thumb/${GEAR[t].hero}.webp` : `/img/lb/gear/myth_${GEAR[t].hero}.webp`) : `/img/lb/gear/${GEAR_ART_TODO[t] || t}.webp`;
 // 드롭 표 (모든 콘텐츠) — 숫자는 실제 규칙(rollDrops · rollHeroCard · live.js 보상)과 같다
 export const DROPS = [
-  ['스테이지 클리어', '장비 1개 (일반 70 · 희귀 10+0.5×스테이지 · 영웅 (스테이지−8)×0.28 · 전설 (스테이지−25)×0.06) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%)', '강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
+  ['스테이지 클리어', '장비 1개 — 장이 오를수록 낮은 등급은 줄고 높은 등급이 늘어요 (아래 장별 확률표) · ★★★면 35%로 1개 더 · 퍼펙트 +1 · 첫 퍼펙트는 희귀 이상', '보스 스테이지(x-5 · x-10)는 첫 장비 등급이 보장돼요 (3장 영웅 이상 · 5장부터 x-5 도 영웅) · 3장부터 영웅 이상이 10개 안 나오면 확정 · 5장부터 전설 40개 확정', '멤버 카드: 데려간 멤버 중 1명 (7% + 별마다 2%) · 강화석: 1-6부터 (25%+12%×별) · 보스 +2 · 첫 클리어 +1'],
   ['헬', '장비 +1개 · 일반 없음 · 영웅·전설 ×2', '멤버 카드 ×2 확률', '강화석 ×2 · 코인 ×3'],
   ['무한 도전', '달성 우편 10/20/30/40/50웨이브 (주마다): 모집권 1~5 · 50웨이브 신화 장비', '주간 순위: 1위 전설 장비 · TOP3 영웅 장비 · TOP10 모집권 2', ''],
   ['레이드', '참가 코인 · 강화석 2 · 1위 전설 장비 · 2~3위 영웅 장비', 'TOP10 모집권', ''],
@@ -2450,21 +2450,48 @@ export function hashSeed(str) {
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   return h >>> 0;
 }
-// 드롭: 클리어 1개 (+★★★ 이면 35% 로 1개 더, 퍼펙트면 1개 더). 첫 퍼펙트는 첫 장비가 희귀 이상 확정
-export function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = false) {
+// ─── 장비 드롭 사다리 (10/15): 챕터가 오를수록 낮은 등급이 사라지고 높은 등급이 정기적으로 ───
+//  장(챕터)별 기본 가중치 [일반, 희귀, 영웅, 전설] (1~2장은 예전 식 그대로 · 3장부터 사다리)
+//  보스(x-5 · x-10): 첫 장비는 등급 하한 · 영웅 이상이 DROP_PITY 개 안 나오면 확정 (화면에 남은 횟수 표시)
+export const DROP_CH = [null, null, null, [45, 38, 10, 0.5], [28, 46, 18, 1.2], [8, 54, 28, 2.5], [4, 48, 34, 3.5], [3, 42, 38, 5], [2, 36, 42, 7]];
+export const DROP_PITY = { epic: 10, legend: 40, epicFrom: 21, legendFrom: 41 }; // 영웅 이상 10개째 확정 (3장~) · 전설 40개째 확정 (5장~)
+export const DROP_BOSS_MIN = (stage) => { // 보스 스테이지 첫 장비 등급 하한
+  const ch = Math.ceil(stage / 10), r = stage % 10;
+  if (r !== 5 && r !== 0) return null;
+  if (ch >= 5) return 'epic';
+  if (ch >= 3) return r === 0 ? 'epic' : 'rare';
+  return r === 0 ? 'rare' : null;
+};
+export function dropWeights(stage) {
+  const ch = Math.min(8, Math.ceil(stage / 10));
+  if (ch >= 3) { const r = DROP_CH[ch]; return { common: r[0], rare: r[1], epic: r[2], legend: r[3] }; }
+  return { common: 70, rare: 10 + stage * 0.5, epic: Math.max(0.5, (stage - 8) * 0.28), legend: Math.max(0.1, (stage - 25) * 0.06) };
+}
+// 드롭: 클리어 1개 (+★★★ 이면 35% 로 1개 더, 퍼펙트면 1개 더). 첫 퍼펙트는 첫 장비가 희귀 이상 확정. pity {ep, lg} 를 주면 센 값을 갱신한다
+export function rollDrops(seed, stage, stars, perfect, firstPerfect, hell = false, pity = null) {
   const rng = seedRng(seed);
-  let n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
-  const out = [];
+  const n = 1 + (stars >= 3 && rng() < 0.35 ? 1 : 0) + (perfect ? 1 : 0) + (hell ? 1 : 0);
+  const out = [], pool = gearPoolFor(stage), bossMin = DROP_BOSS_MIN(stage);
+  const rank = (r) => GEAR_RARITIES.indexOf(r);
   for (let i = 0; i < n; i++) {
-    const w = { common: 70, rare: 10 + stage * 0.5, epic: Math.max(0.5, (stage - 8) * 0.28), legend: Math.max(0.1, (stage - 25) * 0.06) }; // (10/08 장에 맞게: 예전 rare 24+0.4s · epic 5+0.35s · legend 0.6+0.08s — 2장에 희귀가 너무 자주)
+    const w = dropWeights(stage);
     if (perfect) { w.rare *= 1.5; w.epic *= 1.5; w.legend *= 1.5; }
-    if (firstPerfect && i === 0) w.common = 0;
     if (hell) { w.common = 0; w.epic *= 2; w.legend *= 2; }
+    let min = firstPerfect && i === 0 ? 'rare' : null;
+    const up = (r) => { if (r && (!min || rank(r) > rank(min))) min = r; };
+    if (i === 0) { up(bossMin); if (bossMin === 'epic' && stage % 10 === 0 && Math.ceil(stage / 10) >= 7) w.legend *= 3; }
+    if (pity) {
+      if (stage >= DROP_PITY.epicFrom) pity.ep = (pity.ep | 0) + 1;
+      if (stage >= DROP_PITY.legendFrom) pity.lg = (pity.lg | 0) + 1;
+      if (stage >= DROP_PITY.epicFrom && pity.ep >= DROP_PITY.epic) up('epic');
+      if (stage >= DROP_PITY.legendFrom && pity.lg >= DROP_PITY.legend) up('legend');
+    }
+    if (min) for (const k of GEAR_RARITIES) if (rank(k) < rank(min)) w[k] = 0;
     const sum = w.common + w.rare + w.epic + w.legend;
-    let x = rng() * sum, r = 'common';
-    for (const k of GEAR_RARITIES) { x -= w[k]; if (x <= 0) { r = k; break; } }
-    const pool = gearPoolFor(stage);
+    let x = rng() * sum, r = 'legend';
+    for (const k of GEAR_RARITIES) { if (w[k] <= 0) continue; x -= w[k]; if (x <= 0) { r = k; break; } }
     const t = pool[(rng() * pool.length) | 0];
+    if (pity) { if (r === 'epic' || r === 'legend') pity.ep = 0; if (r === 'legend') pity.lg = 0; }
     out.push({ t, r });
   }
   return out;
@@ -2489,7 +2516,7 @@ export function gearStats(items, mythMul = 1) { // mythMul: 1:1 대전은 신화
 //               (딜러는 피해, 탱커는 막아 준 피해, 힐러 · 서포터는 입구 수리 · 상태이상 풀기가 모두 '이긴 판 · 남은 입구'로 같이 잡힌다)
 //               등급 평균 대비 비율의 제곱근 (판마다 ±20% 흔들려서 절반만) · 0.82 ~ 1.22 사이로 (등급 체급이 보이게)
 //   · 역할 = 공격 멤버(범위 · 단일) ×1.08 · 탱커 · 서포터 ×0.92 (주인 요청: 같은 등급이면 공격 멤버가 조금 위 — 측정만으로는 수리 · 해제 멤버가 오히려 위라서)
-//  강화 성장 = 실제 전투와 같은 식 (tierPowerM: 레벨당 공격력 + 5강마다 각성) · ★ = 공격력 +7% / ★
+//  강화 성장 = 실제 전투와 같은 식 (tierPowerM: 레벨당 공격력 + 5강마다 각성) · ★ = 공격력 +10% / ★ (★3 · ★5 에서 +4% 씩 더)
 export const POWER_BASE = { // (10/10 다시 잼: 봇 손보기 · 등급 맞춤 · 스킬 비중 뒤 — 멤버 몫 = 전체 중앙 대비 제곱근 · 0.8~1.25)
   gunman: 585, staff: 475, gunnyeo: 470, bangjang: 370, // T1 (체급 500)
   eunok: 715, myunghoon: 640, jungmin: 630, sanghwa: 625, dohoon: 525, ingyu: 465, // T2 (체급 600)
@@ -2497,7 +2524,9 @@ export const POWER_BASE = { // (10/10 다시 잼: 봇 손보기 · 등급 맞춤
   hyungyeong: 860, junseo: 800, ara: 795, // T4 (체급 800)
   byunghwa: 960, hochan: 915, // 전설 (체급 925)
 };
-export const POWER_STAR = 0.07; // (live.js STAR_ATK 와 같아야 한다 — 테스트가 확인)
+export const POWER_STAR = 0.10; // (live.js STAR_ATK 와 같아야 한다 — 테스트가 확인)
+export const POWER_STAR_MILE = { 3: 0.04, 5: 0.04 }; // (live.js STAR_MILE 와 같음)
+export const starPowerMul = (s) => 1 + POWER_STAR * (s - 1) + Object.entries(POWER_STAR_MILE).reduce((a, [k, v]) => a + (s >= +k ? v : 0), 0);
 // 장비 가치 (10/14 측정: powercalib --vars=atk:0.5,cd:0.35 — 멤버마다 맨몸 · 공격력 +50% · 쿨타임 −35% 를 같은 판들로 비교)
 //  a = 공격 쪽 능력치(공격력 · 공속 · 치명 · 스킬 피해 · 보스/졸개 피해 …) 1.0 이 이 멤버 도움을 키우는 몫 (건전남 공격력 = 1 기준)
 //  c = 스킬 횟수가 늘어나는 만큼(쿨타임 −x → 스킬 ×1/(1−x))의 몫 — 스킬로 일하는 제어 · 서포터가 크다
@@ -2528,7 +2557,7 @@ export function heroPowerOf(id, meta, star, gearSt, o = {}) {
   const t = heroTier(id), m = Math.max(0, Math.min(TIER_MAX[t], meta | 0));
   const grow = (o.mile === false ? tierPower(t, m) : tierPowerM(t, m)) / tierPower(t, 0);
   const s = Math.max(1, Math.min(5, star | 0 || 1));
-  return Math.round(b * grow * (1 + POWER_STAR * (s - 1)) * gearPowerMul(gearSt, id) * (o.sig ? 1.25 : 1));
+  return Math.round(b * grow * starPowerMul(s) * gearPowerMul(gearSt, id) * (o.sig ? 1.25 : 1));
 }
 
 // 멤버 강화에 드는 그 멤버 카드 (+1~5 1장 · +6~10 2장 · +11~15 3장 · +16~20 5장) — ★승급과 같은 카드(조각)를 같이 쓴다

@@ -1241,7 +1241,7 @@ test('새 멤버: 여사친 핀볼 · 다이어트 변신 · 공주↔늙음 (�
   assert.ok(S.heroDamage(g4, st) > base, '랑방을 위하여! 아군 공격력 ↑');
   const s1 = S.createGame({ rng: seeded(905), noWaves: true, heroes: ['staff'] });
   const s3 = S.createGame({ rng: seeded(905), noWaves: true, heroes: ['staff'], stars: { staff: 3 } });
-  assert.ok(Math.abs(S.heroDamage(s3, s3.heroes[0]) / S.heroDamage(s1, s1.heroes[0]) - 1.14) < 1e-9, '★3 = +14%');
+  assert.ok(Math.abs(S.heroDamage(s3, s3.heroes[0]) / S.heroDamage(s1, s1.heroes[0]) - 1.24) < 1e-9, '★3 = +24%');
 });
 
 test('주간 도전 판: 8웨이브 · 규칙이 시뮬레이션에 들어간다', async () => {
@@ -2162,7 +2162,7 @@ test('강화가 진짜로 먹힌다: 강화 · ★ · 장비 +N · 등급 · 신
   assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + D.TIER_GROWTH[1] * 10)) < 1e-6, '강화 +10');
   // ★3: +2 × 7%
   [g, h] = mk({ stars: { gunman: 3 } });
-  assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + 2 * L.STAR_ATK)) < 0.02, `★3 ${(S.heroDamage(g, h) / d0).toFixed(3)}`);
+  assert.ok(Math.abs(S.heroDamage(g, h) / d0 - (1 + L.starBonus(3))) < 0.02, `★3 ${(S.heroDamage(g, h) / d0).toFixed(3)}`);
   // 장비: 공격력 장비 · 공속 장비 · 등급 · +N
   const gearOf = (items) => ({ gunman: D.gearStats(items) });
   [g, h] = mk({ gear: gearOf([{ t: 'megaphone', r: 'legend', lv: 10 }]) });
