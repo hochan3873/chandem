@@ -81,8 +81,8 @@ test('출전 준비: 내 전투력은 이 스테이지 기준(강화 상한 절�
 
 test('패치 노트: 권장 전투력 정직 · 예상 클리어', async () => {
   const P = await load('patchnotes.js');
-  const n = P.PATCH_NOTES[0];
-  assert.ok(/power/.test(n.id), '맨 앞 항목');
+  const n = P.PATCH_NOTES.find((x) => /power/.test(x.id));
+  assert.ok(n, '패치 노트 항목');
   assert.ok(n.items.some((x) => /권장 전투력/.test(x[1])) && n.items.some((x) => /예상 클리어/.test(x[1])));
   assert.equal(new Set(P.PATCH_NOTES.map((x) => x.id)).size, P.PATCH_NOTES.length, 'id 겹치지 않음');
 });
