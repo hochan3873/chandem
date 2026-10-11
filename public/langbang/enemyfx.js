@@ -3,7 +3,7 @@
 //  · bossWind/bossSkill 의 새 기술 (volley 던지기 · charm 홀림 · door 입구 강타 · heal 회복)
 //  표적은 중요한 것만 크게 (정예 · 중간 보스 · 보스) — 졸개는 작고 옅게 (화면이 어지럽지 않게)
 //  game.js 가 onEvent() 로 넘기고 · render.js 가 층마다 draw(layer, g) · 진상 투척물은 drawEproj(q)
-import { EST } from './data.js';
+import { EST, THREAT } from './data.js';
 
 const TAU = Math.PI * 2;
 const c01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -34,6 +34,16 @@ export class EnemyFx {
       case 'doorWind':
         this.mark(e.uid, { kind: 'door', x: e.x, y: e.y, ex: e.ex, ey: e.ey, dur: e.sec, big: true });
         fx.text(e.ex, e.ey - 14, e.name ? `${e.name}…` : '쾅 준비…', '#ff8a7a', 12, e.sec + 0.2, -10);
+        break;
+      case 'shieldWind': // 총무: 팔을 들어 올리는 동안 금빛 기운이 모인다
+        this.add('aura', { x: e.x, y: e.y + 36, r: Math.min(70, e.r * 0.5), col: '#ffd86a', dur: e.sec });
+        if (!busy) fx.text(e.x, e.y - 8, '회비 걷는 중…', '#ffe9a0', 11, e.sec + 0.2, -8);
+        break;
+      case 'shield': // 보호막이 걸린 진상마다 줄이 이어지고 반짝
+        if (e.ts && e.ts.length) this.add('tether', { x: e.x, y: e.fy || e.y - 40, ts: e.ts, col: e.enemy === 'inpi_treasurer' ? '255,224,122' : '127,231,255', dur: THREAT.tether });
+        break;
+      case 'taunt': // 가만히 서 있는 진상의 한마디 (바쁠 땐 생략)
+        if (!busy) fx.text(e.x, e.y, e.text, '#ffd0c0', 10, 1.1, -14);
         break;
       case 'castBreak':
         this.marks.delete(e.uid);
@@ -89,6 +99,12 @@ export class EnemyFx {
     this.reset(g);
     const now = this.now(), cx = this.cx, R = this.R;
     if (layer === 'feet') {
+      let far = 0; for (const q of g.enemies) if (!q.dead && q.def.standoff && q.atRope && !q.walkIn) far++;
+      if (far >= THREAT.danger && g.ropeY) { // 멀리서 던지는 진상이 여럿 서 있으면 입구선에 옅은 위험 표시
+        R.world(); cx.save(); cx.globalAlpha = 0.16 + 0.1 * Math.sin(now * 5) + Math.min(0.12, (far - THREAT.danger) * 0.03);
+        cx.strokeStyle = '#ff4b3a'; cx.lineWidth = 3; cx.setLineDash([14, 10]); cx.lineDashOffset = -now * 30;
+        cx.beginPath(); cx.moveTo(16, g.ropeY + 10); cx.lineTo(g.W - 16, g.ropeY + 10); cx.stroke(); cx.restore();
+      }
       for (const [key, m] of this.marks) {
         const k = (now - m.t0) / m.dur;
         if (k > 1.05) { this.marks.delete(key); continue; }
@@ -203,4 +219,15 @@ def('heartfly', 'top', function (o, k) { // 홀림: 보스에게서 멤버로 �
   const cx = this.cx, q = eOut(k), x = o.x + (o.tx - o.x) * q, y = o.y + (o.ty - o.y) * q - Math.sin(q * Math.PI) * 50;
   this.R.tf(x, y, 0, 1 + 0.3 * Math.sin(k * 20), 1 + 0.3 * Math.sin(k * 20)); cx.globalAlpha = 1;
   cx.fillStyle = '#ff4f9a'; cx.beginPath(); cx.moveTo(0, 6); cx.bezierCurveTo(-12, -4, -6, -12, 0, -5); cx.bezierCurveTo(6, -12, 12, -4, 0, 6); cx.fill();
+});
+def('tether', 'top', function (o, k) { // 총무 → 보호막 받은 진상: 줄이 팽팽하다 풀리고 받은 쪽이 반짝
+  const cx = this.cx, R = this.R, a = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4, pulse = 0.5 + 0.5 * Math.sin(k * 24);
+  R.world(); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.lineCap = 'round';
+  for (const [tx, ty] of o.ts) {
+    const q = eOut(Math.min(1, k * 3)), x = o.x + (tx - o.x) * q, y = o.y + (ty - o.y) * q - Math.sin(q * Math.PI) * 16;
+    cx.globalAlpha = 0.55 * a; cx.strokeStyle = `rgb(${o.col})`; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(o.x, o.y); cx.quadraticCurveTo((o.x + x) / 2, Math.min(o.y, y) - 14, x, y); cx.stroke();
+    cx.globalAlpha = 0.9 * a; cx.lineWidth = 1; cx.strokeStyle = '#fff'; cx.stroke();
+    if (k > 0.2) { const r = 12 + 10 * pulse; const gr = cx.createRadialGradient(tx, ty, 0, tx, ty, r); gr.addColorStop(0, `rgba(${o.col},${0.7 * a})`); gr.addColorStop(1, `rgba(${o.col},0)`); cx.globalAlpha = 1; cx.fillStyle = gr; cx.beginPath(); cx.arc(tx, ty, r, 0, TAU); cx.fill(); }
+  }
+  cx.restore();
 });
