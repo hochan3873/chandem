@@ -411,6 +411,7 @@ export class Renderer {
     list.ingyuBike = '/img/lb/h_ingyu_bike.webp'; // 백인규 할리 돌진
     list.gf = '/img/lb/p_girlfriend.webp';
     for (let i = 0; i < 4; i++) list['bar' + i] = `/img/lb/ui/barricade_${i}.webp`;
+    for (const n of ['0', '2', '3', 'hw']) list['sign_' + n] = `/img/lb/ui/sign_${n}.webp`; // 정회원 통과 간판 그림 (없으면 글씨로 그림)
     for (const k of ['heart', 'fire', 'electric', 'gold', 'shock', 'spark']) list['fx_' + k] = `/img/lb/fx/${k === 'shock' ? 'shock_ring' : k === 'spark' ? 'hit_spark' : 'explo_' + k}.webp`;
     for (const n of PAINTED_MORE) list['p_' + n] = `/img/lb/fx/p_${n}.webp`;
     for (const n of ['breath', 'flame', 'burst']) list['dr_' + n] = `/img/lb/fx/dragon_${n}.webp`; // 박나뇽 불 (불 뿜기 줄기 · 불꽃 혀 · 쾅 불덩이 — 8·8·6칸 띠, kitfx.js)
@@ -437,6 +438,7 @@ export class Renderer {
         if (key.startsWith('sk_')) return;
         if (key === 'moto' || key === 'gf' || key === 'ingyuBike' || key.startsWith('anim_') || key.startsWith('w_') || key.startsWith('vfx_') || key.startsWith('hanim_') || key.startsWith('cc_') || key === 'bus' || key === 'bus2') return;
         if (key.startsWith('bar')) { this.bakeBar(key); return; }
+        if (key.startsWith('sign_')) return;
         if (key.startsWith('fx_')) return;
         if (key.startsWith('fb:')) { for (const id in ENEMIES) if (ENEMIES[id].fb === list[key]) this.bakeSprite('e_' + id); return; }
         if (key === 'bg' || key === 'base' || /^bg\d$/.test(key) || key.startsWith('map_')) this.bakeBg();
@@ -2115,9 +2117,16 @@ export class Renderer {
     if (!(this.fx && this.fx.noBanner)) {
     const sx = W * 0.5 + shake, sy = y0 + bh * 0.307;
     const flick = st >= 2 && Math.sin(t * (st >= 3 ? 23 : 9)) > 0.6 ? 0.35 : 1;
+    const calm = document.body.classList.contains('rm'); // 연출 줄이기: 깜빡임 · 흔들림 없음
+    const sImg = this.images[st >= 3 ? 'sign_3' : st >= 2 ? 'sign_2' : this.ssnKey === 'halloween' ? 'sign_hw' : 'sign_0'];
     cx.save();
     cx.translate(sx, sy);
-    cx.rotate(st >= 3 ? 0.08 + Math.sin(t * 4) * 0.03 : st >= 2 ? Math.sin(t * 3) * 0.03 : 0);
+    cx.rotate(st >= 3 ? 0.08 + (calm ? 0 : Math.sin(t * 4) * 0.03) : st >= 2 && !calm ? Math.sin(t * 3) * 0.03 : 0);
+    if (imgOk(sImg)) {
+      const sw = 136, sh = sw * sImg.naturalHeight / sImg.naturalWidth;
+      cx.globalAlpha = calm ? 1 : flick;
+      cx.drawImage(sImg, -sw / 2, -sh / 2 - 3, sw, sh); // 그림 간판 (발이 개찰구 위에 오게)
+    } else {
     cx.font = `900 13px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
     cx.globalAlpha = flick;
     cx.lineJoin = 'round'; cx.lineWidth = 4; cx.strokeStyle = '#1a0b1f'; cx.strokeText('정회원 통과', 0, 0);
@@ -2125,6 +2134,7 @@ export class Renderer {
     cx.shadowColor = st >= 3 ? 'rgba(255,80,40,0.9)' : 'rgba(255,79,216,0.9)'; cx.shadowBlur = 10;
     cx.fillText('정회원 통과', 0, 0);
     cx.shadowBlur = 0;
+    }
     cx.restore();
     }
     cx.globalAlpha = 1;
