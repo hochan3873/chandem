@@ -34,6 +34,7 @@ import { initTower } from './tower-ui.js';
 import { initHw } from './hw-ui.js'; // 할로윈 이벤트 「할로윈 저주의 밤」
 import { pumpkinPop } from './hw-fx.js';
 import { initRaid2 } from './raid2-ui.js'; // 건물주 레이드 (주간 서버 레이드)
+import { initPvp2 } from './pvp2-ui.js'; // 1:1 맞대결 v2 (서버가 두 판을 같이 돌린다 · docs/langbang-pvp-v2.md)
 import { initTransit } from './transit.js';
 import { initInstall } from './install.js'; // 앱 설치 (홈 화면에 추가)
 import { PATCH_NOTES, PATCH_LATEST } from './patchnotes.js'; // 패치 노트 (업데이트 뒤 처음 들어오면 한 번)
@@ -79,6 +80,7 @@ const EFX = (R.efx = new EnemyFx(R)); // 진상 기술 예고 · 끊김 · 입�
 const KIT = (R.kit = new KitFx(R)); // 대개편 연출: 멤버마다 다른 비행 · 장판 · 시전 동작 (kitfx.js)
 let TWUI = null; // 진상의 탑 화면 (tower-ui.js · 맨 아래에서 연결)
 let R2UI = null; // 건물주 레이드 화면 (raid2-ui.js · 맨 아래에서 연결)
+let PV2UI = null; // 1:1 맞대결 v2 화면 (pvp2-ui.js · 맨 아래에서 연결)
 let HWUI = null; // 할로윈 이벤트 화면 (hw-ui.js · 맨 아래에서 연결)
 // 화면 넘김 연출: 탑 · 레이드 · 1:1 대전 · 상점은 전용 전환, 그 밖은 깊이감 있는 밀기 (transit.js)
 const TR = initTransit({
@@ -1576,6 +1578,7 @@ let hudT = 0;
 const perf = { frames: 0, workSum: 0, work: 0, frameSum: 0, frame: 0, maxWork: 0, steps: 0, window: [] };
 function frame(now) {
   requestAnimationFrame(frame);
+  if (app.pv2On) { last = now; return; } // 1:1 맞대결 화면이 열려 있으면 그 화면이 그린다 (뒤 로비 전투는 쉼)
   let dt = (now - last) / 1000;
   last = now;
   if (dt > 0.1) dt = 0.1;
@@ -4287,16 +4290,16 @@ async function showPvp() {
       </div>
     </div>
     <div class="pv-day"><small>오늘 보상 <b>${Math.min(d.n, L.PVP_REWARD.perDay)}/${L.PVP_REWARD.perDay}</b>판 ${d.won ? '' : '· 첫 승은 2배!'}</small><div class="pv-track">${track}</div></div>
-    <button class="pv-cta" data-act="pvpQuick"><i class="pv-ring"></i><b>랭크 매칭</b><small>사람 상대를 먼저 찾아요 · 30초 동안 없으면 비슷한 실력의 AI와 대전해요</small></button>
+    <button class="pv-cta" data-act="pvpQuick"><i class="pv-ring"></i><b>랭크 매칭</b><small>사람 상대를 먼저 찾아요 · 20초 동안 없으면 비슷한 실력의 AI와 맞대결</small></button>
     <div class="pv-sub"><button class="pv-s" data-act="pvpRoom">${ic('duo', '', '')}<b>친구와 대전</b><small>방 만들기 · 초대 링크</small></button><button class="pv-s" data-act="pvpJoin">${ic('key', '', '')}<b>코드로 참가</b><small>4자리 방 코드</small></button></div>
     <div class="pv-top" id="pvpTop"><div class="empty-msg">순위 불러오는 중</div></div>
     <div class="panel pvp-rooms"><h4>${ic('door', '', 'sm')}열린 방 <small id="roomN"></small></h4><div id="roomList"><div class="empty-msg">방 목록 불러오는 중</div></div></div>
     <div class="panel wboard" id="pvpRank"><h4>${ic('trophy', '', 'sm')}대전 순위</h4><div class="empty-msg">불러오는 중</div></div>
-    <p class="sub pv-rule">처치 ${L.PVP.sendSmall}명마다 진상 5명 보내기 · ${L.PVP.sendBig}명이면 중간 보스 · ${PV.PVP_ESC.at[1]}초 과열 · ${PV.PVP_ESC.at[2]}초 폭주 · ${PV.PVP_ESC.at[3]}초 서든데스 · 5분이면 판정</p>
+    <p class="sub pv-rule">맞대결: 위는 상대 판 · 아래는 내 판 · 내 스킬이 상대 멤버를 묶어요 (기절 · 홀림 · 침묵 · 둔화) · 필드 4명 + 벤치 2명 교체 · 4분이면 판정</p>
     <p class="sub pv-rule pv-norm">${PV.PVP_NOTE}</p>
     ${navHtml('pvp')}
   `, 'dim withnav pvp-v2');
-  pvpSocket().then((sock) => sock.emit('rooms:list', {}, (r) => { if (r && r.ok) { PVP.rooms = r.rooms; renderRooms(); } })).catch(() => { const el = $('#roomList'); if (el) el.innerHTML = '<div class="empty-msg">서버에 연결할 수 없어요</div>'; });
+  PV2UI.listRooms().then((list) => { PVP.rooms = list; renderRooms(); }).catch(() => { const el = $('#roomList'); if (el) el.innerHTML = '<div class="empty-msg">서버에 연결할 수 없어요</div>'; }); // 맞대결 v2 방 목록
   const rk = await API.pvpRanking();
   if (app.screen !== 'pvp') return;
   const box = $('#pvpRank'), top = $('#pvpTop');
@@ -7546,7 +7549,7 @@ async function boot() {
   if (TUT_ON) TUT.load(API.accountKey(), app.profile.tut, app.profile); // 튜토리얼: 이 계정 진행 (클리어 0 이면 처음부터)
   Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {}).then(() => BKX.boot()).catch(() => {}); // 다음: 본캐 출연료 정산 · 알림
   saveCrowd();
-  if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); pvpEnter(Q.get('room')); }, 400); // 초대 링크
+  if (/^\d{4}$/.test(Q.get('room') || '')) setTimeout(() => { showPvp(); PV2UI.enter(Q.get('room')); }, 400); // 초대 링크 (맞대결 v2 방)
   else if (Q.has('raid') && R2UI) setTimeout(() => R2UI.show(), 400); // "같이 때려줘" 링크 → 건물주 레이드
   // 로그인: 서버에 저장된 덱이 있고 이 기기에 덱이 없으면 서버 덱으로
   try { if (app.profile.decks && !localStorage.getItem(DECK_KEY)) { app.decks = app.profile.decks.decks.map((d) => d.slice()); app.deckI = app.profile.decks.i; } } catch { /* 무시 */ }
@@ -7589,6 +7592,13 @@ R2UI = initRaid2({
   thumbSrc: (id) => thumbSrc(id), faceCircStyle: (id, f, cy) => faceCircStyle(id, f, cy), gotText: (g) => gotText(g), liveAct: (pr, ok) => liveAct(pr, ok), closeInfoCard: () => closeInfoCard(),
 });
 Object.assign(ACTS, R2UI.acts);
+// 1:1 맞대결 v2 연결 (랭크 매칭 · 친구 방 · 코드 참가 → v2 · 옛 대전 소켓은 캐시된 옛 화면용으로만 남김)
+PV2UI = initPvp2({
+  app, P, stage, A, API, toast: (m, ms) => toast(m, ms), tierEmb: (r, c) => tierEmb(r, c), closeInfoCard: () => closeInfoCard(), confirmBox: (o) => confirmBox(o), inputBox: (o) => inputBox(o),
+  curDeck: () => curDeck(), fixDeck: () => fixDeck(), resync: () => resyncProfile(), showLobby: () => showPvp(), act: (b) => { if (ACTS[b.dataset.act]) ACTS[b.dataset.act](b); },
+  vs: (m) => showVsSplash(m), onRooms: (list) => { PVP.rooms = list; if (app.screen === 'pvp') renderRooms(); }, setOn: (on) => { app.pv2On = !!on; },
+});
+Object.assign(ACTS, PV2UI.acts, { pvpQueue: () => PV2UI.queue(), pvpQuick: () => PV2UI.queue(), pvpRoom: () => PV2UI.room(false), pvpJoin: () => PV2UI.room(true), pvpEnter: (b) => PV2UI.enter(b.dataset.code) });
 // 할로윈 이벤트 연결 (로비 배너 · 이벤트 지도 · 출전 준비 · 전투 · 결과 · 상점 · 의상)
 HWUI = initHw({
   app, P, stage, hud, R, fx, A, API, L, S,
@@ -7606,6 +7616,7 @@ window.__lb = {
   gachaShow: (l, o) => gachaShow(l, o),
   gachaVideo: (k, b) => gachaVideo(k, b),
   R,
+  pv2: () => PV2UI, // 1:1 맞대결 v2 (scripts · 스크린샷)
   pvpUi: { shift: (sec) => { PVP.t0 -= sec * 1000; }, waiting: (t, c) => pvpWaiting(t, c), vs: (m) => showVsSplash(m), banner: (k, t, s) => pvpBanner(k, t, s), strip: (o) => { PVP.opp = o; renderOppStrip(); }, result: (r) => { app.pvpResult = r; }, start: (seed) => startRun({ mode: 'pvp', force: true, pvpSeed: seed === undefined ? 7 : seed }), end: (r) => pvpEnded(r) },
   get g() { return app.g; },
   tut: TUT, // 튜토리얼 (scripts/lb-tutorial-shot.js)
