@@ -2509,14 +2509,16 @@ export class Renderer {
         }
         usedStrip = true;
       }
-      if (!usedStrip && !busy && !cp && !up && !alt && !rmH && HERO_IDLE[h.id] && h.id !== 'ara' && !(this.skinMap && this.skinMap[h.id]) && !(h._hitAt && performance.now() - h._hitAt < 160) && !(h._castAt && performance.now() - h._castAt < 250)) { // 대기 띠 (멤버마다 다른 몸짓 · 시작 칸은 멤버마다 무작위)
-        const im = this.idleSheet(h.id);
+      const idK = alt ? (hgK >= 1 && HERO_IDLE[h.id + '_alt'] ? h.id + '_alt' : '') : h.id; // 변신 모습 대기 띠 (배현경 날씬 · 있으면)
+      if (!usedStrip && !busy && !cp && !up && idK && !rmH && HERO_IDLE[idK] && h.id !== 'ara' && !(this.skinMap && this.skinMap[h.id]) && !(h._hitAt && performance.now() - h._hitAt < 160) && !(h._castAt && performance.now() - h._castAt < 250)) { // 대기 띠 (멤버마다 다른 몸짓 · 시작 칸은 멤버마다 무작위)
+        const im = this.idleSheet(idK);
         if (im) {
-          const d = HERO_IDLE[h.id], n = d.frames, fw = im.naturalWidth / n, fh = im.naturalHeight;
+          const d = HERO_IDLE[idK], n = d.frames, fw = im.naturalWidth / n, fh = im.naturalHeight;
           if (h._idPh === undefined) h._idPh = Math.random() * n;
-          const fi = Math.floor(t * d.fps + h._idPh) % n, fit = this.stripFit('hidle_' + h.id, im, n, sp.c, 1), bw = box * fit.k;
+          const fi = Math.floor(t * d.fps + h._idPh) % n, fit = this.stripFit('hidle_' + idK, im, n, sp.c, 1), bw = box * fit.k;
           this.tf(hx + dx, feet + bob - bob0, rot, sx, sy / br0);
           cx.drawImage(im, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, bw, bw);
+          if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE; h._mouth = { x: hx + dx - box / 2 + (m[0] / 256) * box, y: feet + bob - bob0 - box * FEET + (m[1] / 256) * box }; } // 불 뿜는 입 (가만히 있는 그림 기준)
           usedStrip = true;
         }
       }
