@@ -15,6 +15,9 @@
 //   node scripts/lb-balance.js room   스테이지마다 가드레일(첫 웨이브 · 최고 레벨 · 체력 배율)까지 남은 난이도
 //   node scripts/lb-balance.js stagemeas --list=1,...,80 [--hell] [--seedoff=K] [--quiet]   측정만 · 장 평균 vs 목표
 //   node scripts/lb-balance.js wtrait --list=8,15,25 [--seeds=4] [--traits=near,swarm]   주간 진상 특성마다 균형 덱 클리어율 · 입구 (특성 없음과 비교)
+//   node scripts/lb-balance.js ratio --list=14,18,... [--hell] [--bots=casual,smart] [--ratios=0.5,0.65,0.8,1,1.2,1.5] [--seeds=16] [--rec=new|old] [--why] [--sk]
+//        권장 전투력 정직한지: 같은 기준 덱을 진짜 강화 단계 · ★ 로 '내 전투력 ÷ 화면 권장 = r' 이 되게 맞춰 클리어율을 잰다. casual = 대충 하는 사람 (스킬 절반쯤 · 아무 때나 · 예고 못 봄 · 카드 40% 아무거나 · 합류는 늘 고름) · smart = 잘하는 사람 · --rec=old : 예전 공식
+//   node scripts/lb-balance.js recfit --list=1,...,80 [--hell] [--bot=ref] [--seeds=8] [--fresh]   스테이지마다 대충 하는 사람이 보통 67% (헬 35%) 이기는 전투력 → data.js REC_ADJ (7 · 8장은 --bot=ref : 대충 하는 사람은 예고 없이 못 깸) · 표는 장 평균 쪽으로 30%(헬 50%) 당겨 넣었다 (판 8번의 흔들림)
 //   node scripts/lb-par.js deck --ch=2,3,4,5,6 ...   장마다 따로 띄워 병렬로
 const path = require('path');
 const { pathToFileURL } = require('url');
