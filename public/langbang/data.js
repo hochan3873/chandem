@@ -2593,16 +2593,20 @@ export function refDeckPower(c, hell, s) {
   const mm = s ? softMeta(m, s, hell) : m;
   return Math.round(ids.reduce((a, id, i) => a + heroPowerOf(id, mm, i < 2 ? st : Math.max(1, st - 1), {}), 0) * REF_GEAR_MUL[c - 1]);
 }
-export function recPower(s, hell) { return Math.round(refDeckPower(chapterOf(s), hell, s) * ((hell ? REC_ADJ.hell : REC_ADJ.n)[s] || 1)); }
+export const REC_SCALE = { n: 0.94, hell: 1, hellMin: 1.1 }; // 전체 맞춤 (r=1 에서 대충 하는 사람 약 2/3 가 되게 — 표를 다시 안 재고 한 번에 올리고 내릴 때)
+export function recPower(s, hell) {
+  const v = Math.round(refDeckPower(chapterOf(s), hell, s) * ((hell ? REC_ADJ.hell : REC_ADJ.n)[s] || 1) * (hell ? REC_SCALE.hell : REC_SCALE.n));
+  return hell ? Math.max(v, Math.round(recPower(s, false) * REC_SCALE.hellMin)) : v; // 헬 권장은 보통보다 늘 높게 (7 · 8장 헬은 전투력을 더해도 잘 안 변해서 측정이 흐림)
+}
 // 내 덱 전투력 비율 → 판정 · 예상 클리어율 (출전 준비 · lb-balance.js ratio 로 잰 표: '대충 하는 보통 사람' 기준 · 잘하는 사람은 이보다 위)
 export const POWER_VERDICT = [
   { min: 1.15, id: 'easy', name: '여유', color: '#7dff9a' }, { min: 0.95, id: 'ok', name: '적당', color: '#b8f06a' },
   { min: 0.8, id: 'try', name: '도전', color: '#ffd24a' }, { min: 0.6, id: 'risk', name: '위험', color: '#ff9a4a' }, { min: 0, id: 'no', name: '무리', color: '#ff5a5a' },
 ];
 export const powerVerdict = (r) => POWER_VERDICT.find((v) => r >= v.min) || POWER_VERDICT[POWER_VERDICT.length - 1];
-export const CLEAR_MAP = { // [비율, 대충 하는 사람 클리어%] — 사이는 직선
-  normal: [[0.5, 3], [0.65, 15], [0.8, 40], [1, 67], [1.2, 87], [1.5, 97]],
-  hell: [[0.5, 1], [0.65, 5], [0.8, 14], [1, 35], [1.2, 60], [1.5, 85]],
+export const CLEAR_MAP = { // [비율, 대충 하는 사람 클리어%] — 사이는 직선 (10/23 lb-balance.js ratio 로 잰 값 · 강화 단계 · ★ 를 진짜로 맞춰 스테이지 x-4 · x-8 × 2~6장 · 잘하는 사람은 이보다 15~20%p 위)
+  normal: [[0.5, 12], [0.65, 25], [0.8, 43], [1, 63], [1.2, 80], [1.5, 90]],
+  hell: [[0.5, 0], [0.65, 3], [0.8, 15], [1, 38], [1.2, 45], [1.5, 52]], // 헬은 권장대로 맞춰도 3판에 1판쯤 (넘치는 전투력은 상한이 있어 완만)
 };
 export function clearHint(r, hell) {
   const t = CLEAR_MAP[hell ? 'hell' : 'normal'];

@@ -1370,6 +1370,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  목표 클리어(보통 67% · 헬 35%)가 되는 r = r50 × exp(logit(목표)/k) → REC_ADJ (권장 = 기준 덱 × 이 값). 이미 REC_ADJ 가 있으면 그 위에 곱해서 다시 맞춘다 (--fresh : 처음부터)
   function recfit() {
     applyOverrides();
+    D.REC_SCALE.n = D.REC_SCALE.hell = 1; D.REC_SCALE.hellMin = 0; // 표(REC_ADJ)는 늘 날것으로 — 전체 맞춤은 REC_SCALE
     const N = opt('seeds', 8), hell = args.includes('--hell'), K = opt('k', 5), probes = listArg('probes', '0.6,0.85,1.1,1.5').map(Number), bot = (process.argv.find((x) => x.startsWith('--bot=')) || '').slice(6) || 'casual';
     const tgt = opt('target', hell ? 35 : 67) / 100, tbl = hell ? D.REC_ADJ.hell : D.REC_ADJ.n, out = {};
     const logit = (p) => Math.log(p / (1 - p));
