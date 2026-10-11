@@ -136,5 +136,5 @@ test('연결: 모든 추천 버튼이 recommendDeck 하나를 쓰고 · 화면�
   assert.match(g, /RECOMMEND_STEPS/);
   assert.match(html, /"\/langbang\/deckrec\.js":/);
   const pn = fs.readFileSync(path.join(dir, 'patchnotes.js'), 'utf8');
-  assert.match(pn.split('PATCH_NOTES = [')[1], /^\s*\{\s*id: '2026-10-24deckrec'/);
+  assert.match(pn, /id: '2026-10-24deckrec'/); // 패치 노트에 있다 (맨 앞일 필요는 없다 — 다른 노트가 앞에 붙는다)
 });
