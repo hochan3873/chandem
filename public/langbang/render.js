@@ -2,7 +2,7 @@
 // 스프라이트는 화면 해상도에 맞춰 미리 구워(bake) 두고 drawImage 만 한다.
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
 import { prepSeason, bakeSeason, drawSeason } from './season-fx.js'; // 시즌 테마 전투 장식 (할로윈 등)
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, WEAPON, artV } from './data.js';
+import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, WEAPON, artV, EST, LOCK_NAME } from './data.js';
 // 효과 종류: 빛(더하기 섞기) · 물건(보통) · 층 · 색 · 맞은 자리 표시
 const VFX_KIND = {
   soundring: { blend: 'lighter', layer: 'front' },
@@ -1567,6 +1567,22 @@ export class Renderer {
   }
 
   // 멤버 머리 위 상태 딱지 (작은 글씨 · 어두운 바탕)
+  // (10/11) '풀 때까지' 사슬 자물쇠 (코드 그림): 고리 + 몸통 + 열쇠 구멍 · 옆에 사슬 두 고리
+  lockIcon(x, y, s, col) {
+    const cx = this.cx;
+    cx.save(); this.tf(x, y, 0, s, s);
+    cx.lineCap = 'round';
+    cx.strokeStyle = '#140818'; cx.lineWidth = 5; cx.beginPath(); cx.arc(0, -4, 5, Math.PI, 0); cx.stroke();
+    cx.strokeStyle = '#e8e8f4'; cx.lineWidth = 2.6; cx.beginPath(); cx.arc(0, -4, 5, Math.PI, 0); cx.stroke();
+    cx.fillStyle = '#140818'; roundRect(cx, -8.5, -5, 17, 13, 3); cx.fill();
+    cx.fillStyle = col; roundRect(cx, -7, -3.6, 14, 10.4, 2.4); cx.fill();
+    cx.fillStyle = '#140818'; cx.beginPath(); cx.arc(0, 0.6, 1.8, 0, Math.PI * 2); cx.fill(); cx.fillRect(-0.8, 0.6, 1.6, 3.6);
+    cx.strokeStyle = '#140818'; cx.lineWidth = 3.6;
+    for (const dx of [11.5, 18.5]) { cx.beginPath(); cx.ellipse(dx, 1, 3.6, 2.4, 0, 0, Math.PI * 2); cx.stroke(); }
+    cx.strokeStyle = '#d0d0e0'; cx.lineWidth = 1.6;
+    for (const dx of [11.5, 18.5]) { cx.beginPath(); cx.ellipse(dx, 1, 3.6, 2.4, 0, 0, Math.PI * 2); cx.stroke(); }
+    cx.restore();
+  }
   stTag(x, y, txt, col) {
     const cx = this.cx;
     cx.save(); this.tf(x, y, 0, 1, 1);
@@ -2539,6 +2555,18 @@ export class Renderer {
           cx.drawImage(st.c, -8, -8, 16, 16);
         }
       }
+      if (h.lockK) { // (10/11) '풀 때까지': 깜빡이는 테두리 + 사슬 자물쇠 (숫자 없음 — 건전녀 · 총공지 · 방장 · 웨이브 끝에만 풀림)
+        const col = (EST[h.lockK] && EST[h.lockK].color) || '#ff6fb5', pk = 0.5 + 0.5 * Math.abs(Math.sin(t * 5));
+        this.world();
+        cx.save();
+        cx.globalAlpha = 0.35 + 0.65 * pk; cx.strokeStyle = '#140818'; cx.lineWidth = 6;
+        cx.beginPath(); cx.ellipse(hx, feet - box * 0.42, box * 0.34 + pk * 3, box * 0.5 + pk * 3, 0, 0, TAU); cx.stroke();
+        cx.strokeStyle = col; cx.lineWidth = 3; cx.setLineDash([7, 5]); cx.lineDashOffset = -t * 24;
+        cx.beginPath(); cx.ellipse(hx, feet - box * 0.42, box * 0.34 + pk * 3, box * 0.5 + pk * 3, 0, 0, TAU); cx.stroke();
+        cx.setLineDash([]);
+        cx.restore();
+        this.lockIcon(hx - 30, top + 16, 1 + pk * 0.12, col);
+      }
       // 뒷담화(수군수군) · 공포 · 유혹 표시
       if (h.rumorT > 0) {
         const rs = this.projSprites.rumor;
@@ -2553,6 +2581,7 @@ export class Renderer {
       }
       { // 상태 딱지: 머리 위 가운데에 위로 쌓기 (옆 멤버와 안 겹치게)
         const tags = [];
+        if (h.lockK) tags.push(['풀 때까지', (EST[h.lockK] && EST[h.lockK].color) || '#ff9ad0']); // (10/11) 숫자 없이
         if (h.kdT > 0) tags.push(['쓰러짐', '#ff8a7a']); // 쓰러짐 게이지가 가득
         if (h.stunT > 0) tags.push(h.freezeT > 0 ? ['빙결', '#bff4ff'] : ['기절', '#ffe27a']);
         if (h.poisonT > 0) tags.push(['독', '#9dff6a']);
@@ -2563,7 +2592,7 @@ export class Renderer {
         if (h.drowsyT > 0) tags.push(['졸림', '#b8d0ff']);
         if (h.vomitT > 0) tags.push(['토 밟음', '#c8f08a']);
         if (h.fanT > 0) tags.push(['함성!', '#9fe6ff']); // 송바울 팬클럽 함성
-        tags.slice(0, 2).forEach(([txt, col], i) => this.stTag(hx, top - 14 - i * 16, txt, col));
+        (h.lockK ? tags.filter(([txt]) => txt !== LOCK_NAME[h.lockK]) : tags).slice(0, 2).forEach(([txt, col], i) => this.stTag(hx, top - 14 - i * 16, txt, col));
       }
       if (h.heartT > 0) { // 건전녀 응급 방패: 머리 위 하트 방패 (끝날 때쯤 깜빡)
         const hs = this.projSprites.heart, k = h.heartT < 1 ? 0.5 + 0.5 * Math.sin(t * 20) : 1;

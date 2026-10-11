@@ -11,7 +11,7 @@ import {
   FUSE_ART, MYTH, gearStats, heroPowerOf, gearPowerMul, POWER_BASE, POWER_STAR, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta, STAR_DOOR, PICK_SKIP, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
-  armorPctStage, ARMOR_BREAKERS, enemySkills, EST,
+  armorPctStage, ARMOR_BREAKERS, enemySkills, EST, ccLockStage, CC_DEPTH,
   artV,
   HIDDEN_COND, STORY_JOIN, JOIN_PICKS, JOIN_PICK_DUP, ACQ_ROUTES, heroRoute,
 } from './data.js';
@@ -832,7 +832,7 @@ function handleEvents(g, loud) {
         if (k) { const T = TRAITS[k]; toast(`${T.icon} ${d.name} — ${T.tip} (추천: ${T.counter.filter((h) => HEROES[h]).map(heroNm).join('·')})`, 4200); }
         break;
       }
-      case 'immune': if (!busy) fx.text(e.x, e.y, '안 들림!', '#9fd4ff', 12, 0.6); break;
+      case 'immune': if (e.hero) { fx.text(e.x, e.y, ({ stun: '기절', charm: '홀림', silence: '침묵', freeze: '빙결', poison: '독', slow: '감속' }[e.kind] || '') + ' 면역!', '#8fffc8', 15, 1.0); fx.ring(e.x, e.y + 10, 10, 46, 0.3, '#9fffd0'); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break; } if (!busy) fx.text(e.x, e.y, '안 들림!', '#9fd4ff', 12, 0.6); break; // (10/11) 멤버 면역은 크게 (예전엔 아래 case 가 안 닿아서 '안 들림!' 만 작게 떴다)
       case 'blocked': if (!busy) { fx.text(e.x, e.y, `막음! ${e.n}`, '#9feaff', 15, 0.7); fx.ring(e.x, e.y + 10, 8, 34, 0.22, '#bff3ff'); } break; // (10/08 보호막 체감 ↑)
       case 'split': if (g.hw || e.into === 'hw_seed') { fx.burst(e.x, e.y - 20, 10, '#ff8a1f', 140, 'flame', 4, 0.5); if (!busy) fx.text(e.x, e.y - 50, '호박씨 퉤퉤!', '#ffb35a', 12, 0.8); break; } fx.burst(e.x, e.y - 20, 8, '#ff9fe6', 120, 'spark', 4, 0.4); if (!busy) fx.text(e.x, e.y - 50, '클럽녀 등장!', '#ff9fe6', 12, 0.8); break;
       case 'praise': if (!busy) { fx.text(e.x, e.y, e.text || '언니 너무 이뻐요~', '#ffb3d9', 11, 0.9); fx.ring(e.x, e.y + 20, 10, 90, 0.5, '#ffb3d9', 3); } break;
@@ -1099,7 +1099,6 @@ function handleEvents(g, loud) {
       case 'getUp': fx.text(e.x, e.y - 80, '일어남!', '#ffe27a', 13, 0.9); break;
       case 'kdHeal': fx.text(e.x, e.y - 72, '+간호', '#9dffb0', 12, 0.8); break; // 건전녀: 쓰러짐 게이지 회복
       case 'poisonHit': fx.text(e.x, e.y - 76, '독!', '#9dff6a', 14, 0.9); break;
-      case 'immune': fx.text(e.x, e.y, ({ stun: '기절', charm: '홀림', silence: '침묵', freeze: '빙결', poison: '독', slow: '감속' }[e.kind] || '') + ' 면역!', '#8fd8ff', 13, 0.9); R.vfx('hitspark', e.x, e.y + 20, { anim: 'pop', dur: 280, sz: 50 }); break;
       case 'kdNoSkill': fx.text(e.x, e.y - 70, '쓰러져서 못 써요', '#ff9a8a', 11, 0.8); break;
       case 'care': if (!busy) { fx.text(e.x, e.y - 84, e.cheer ? '힘내요!' : '물 한 잔! 기운 회복', '#9dd8ff', 12, 0.9); fx.part('heart', e.x, e.y - 60, 0, -60, 0.8, 9, '#ff8fc0'); } break; // 건전녀 간호: 지친(기진맥진) 멤버
       case 'heartShield': { // 건전녀 응급 방패: 멤버 전원에게 하트 방패
@@ -1247,14 +1246,29 @@ function handleEvents(g, loud) {
       case 'consultSit': fx.text(e.x, e.y - 90, '결정사 상담 시작!', '#ffb0d0', 15, 1.1); for (let k = 0; k < 8; k++) fx.part('heart', e.x + (Math.random() - 0.5) * 60, e.y - 40, (Math.random() - 0.5) * 60, -60, 0.9, 9, null); break;
       case 'consultEnd': fx.text(e.x, e.y - 90, e.broke ? '상담 끝… 너무 맞았다' : '상담 끝! 돌아갈게요', '#ffd0e0', 13, 1); break;
       case 'dodge': fx.text(e.x + (Math.random() - 0.5) * 16, e.y, 'MISS', '#b8b8c8', 12, 0.6, -30); break;
-      case 'condCcWarn': fx.text(e.x, e.y - 18, '!!', '#ff4b4b', 22, 1.0, -10); R.vfx('warn', e.x, e.y + 34, { anim: 'grow', dur: 1000, sz: 90, flat: true }); break; // 스테이지 조건: 기절 예고 (기 모으는 중 — 기절시키면 끊긴다)
+      case 'condCcWarn': fx.text(e.x, e.y - 18, '!!', '#ff4b4b', 22, 1.0, -10); if (e.lock) fx.text(e.x, e.y - 40, '풀 때까지 저주', '#ff9ad0', 12, 1.1, -10); R.vfx('warn', e.x, e.y + 34, { anim: 'grow', dur: 1000, sz: 90, flat: true }); break; // 스테이지 조건: 기절 예고 (기 모으는 중 — 기절시키면 끊긴다)
       case 'condCcStop': fx.text(e.x, e.y - 10, '끊었다!', '#7dff9a', 14, 0.9); break;
+      case 'ccLock': { // (10/11) '풀 때까지' 걸림: 사슬 · 자물쇠 표시는 render.js (멤버 테두리가 깜빡)
+        const nm = { stun: '기절', charm: '홀림', silence: '침묵', freeze: '빙결', poison: '독' }[e.kind] || '';
+        fx.text(e.x, e.y - 96, `${nm} — 풀 때까지!`, '#ff9ad0', 15, 1.4, -18);
+        fx.ring(e.x, e.y - 30, 30, 8, 0.35, '#ff9ad0', 4); fx.burst(e.x, e.y - 30, busy ? 4 : 10, '#c8c8d8', 120, 'shard', 4, 0.45, 200);
+        fx.addShake(2); if (loud && A.sfx.slam) A.sfx.slam();
+        break;
+      }
+      case 'ccFree': { // (10/11) 해제! — 시원하게 (번쩍 + 크게)
+        const big = e.by !== 'wave';
+        fx.text(e.x, e.y - (e.by === 'cleanse' ? 120 : 96), e.by === 'ult' ? '총공지 해제!' : e.by === 'bangjang' ? '버텨! 해제!' : e.by === 'res' ? '면역! 해제!' : e.by === 'cleanse' ? '사슬 풀림!' : '해제!', '#9dffb0', big ? 18 : 13, 1.2, -22); // (건전녀 간호는 '상태이상 해제!' 위에)
+        if (big) { fx.ring(e.x, e.y - 30, 8, 70, 0.45, '#b6ffc8', 5); fx.burst(e.x, e.y - 30, busy ? 6 : 14, '#e0ffe8', 190, 'star', 5, 0.55); fx.flash('#c8ffd8', 0.18); if (loud && A.sfx.levelUp) A.sfx.levelUp(); }
+        break;
+      }
+      case 'lockBlock': fx.text(e.x, e.y - 112, '풀 때까지 면역!', '#8fffc8', 13, 1.0, -16); fx.ring(e.x, e.y - 30, 10, 50, 0.3, '#9fffd0', 3); break; // (10/11) 저항 · 면역 멤버 덕에 안 묶임
+      case 'bangHold': fx.text(e.x, e.y - 84, '버텨!', '#ffd23f', 16, 1.0, -20); fx.ring(e.x, e.y - 30, 10, 60, 0.35, '#ffe27a', 4); break; // 방장: 묶인 멤버 하나 풀기
       case 'gunnyeoReact': fx.text(e.x, e.y - 70, '응급처치!', '#7dff9a', 13, 0.9); break;
       case 'condCc': {
         const h = HD(e.hero), nm = { stun: '기절', charm: '홀림', silence: '침묵', poison: '독' }[e.kind] || '';
         for (let k = 0; k < 5; k++) { const q = k / 5; fx.part('dot', e.ex + (e.x - e.ex) * q, e.ey + (e.y - 40 - e.ey) * q, 0, -10, 0.5 + q * 0.4, 5, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'poison' ? '#9dff6a' : e.kind === 'silence' ? '#b9a8ff' : '#ffd23f'); }
         if (e.block) { fx.text(e.x, e.y - 62, '막음!', '#8fd8ff', 14, 0.9); break; }
-        fx.text(e.x, e.y - 62, `${h.name} ${nm}!`, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'poison' ? '#9dff6a' : e.kind === 'silence' ? '#c9b8ff' : '#ffd23f', 14, 1.1);
+        if (!e.lock) fx.text(e.x, e.y - 62, `${h.name} ${nm}!`, e.kind === 'charm' ? '#ff8ad8' : e.kind === 'poison' ? '#9dff6a' : e.kind === 'silence' ? '#c9b8ff' : '#ffd23f', 14, 1.1); // (풀 때까지면 ccLock 이 크게)
         const fh = g.heroes.find((x) => x.id === e.hero);
         if (fh && e.kind === 'stun') R.vfx('stun', 0, 0, { follow: fh, dy: -78, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 52 });
         else if (fh && e.kind === 'silence') R.vfx('silence', 0, 0, { follow: fh, dy: -86, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 44 });
@@ -5103,7 +5117,11 @@ function showPrep(mode, s) {
   if (mode === 'stage') for (const t of [...prepFoes(s), ...stageBosses(s), ...(stageMid(s) ? [stageMid(s)] : [])]) for (const k of enemySkills(t)) if (['poison', 'charm', 'freeze', 'stun', 'door'].includes(k.st)) (thr[k.st] = thr[k.st] || []).push(k.name);
   const ccLack = lack.includes('cc');
   const thrHtml = Object.keys(thr).filter((st) => !(ccLack && ['stun', 'charm', 'poison'].includes(st)) && !ids.some((id) => EST[st].counter.includes(id))).slice(0, 2).map((st) => { const rec = EST[st].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${EST[st].name} 기술</b> (${esc([...new Set(thr[st])].slice(0, 2).join(' · '))}) — 막을 멤버가 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('');
-  const lackHtml = lack.length || armorHtml || thrHtml ? `<div class="pp-lack">${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}${thrHtml}</div>` : '';
+  // (10/11) '풀 때까지' 스테이지 (헬 7 · 8장): 늘 크게 알려 준다 — 무엇으로 풀고 · 누가 막는지 · 덱에 없으면 추천
+  const lockOn = (mode === 'stage' && ccLockStage(s, hellOn)) || mode === 'endless', LOCK_CNT = ['gunnyeo', 'dohoon', 'soyoung', 'jungmin', 'dragon', 'bangjang'];
+  const lockHas = lockOn ? ids.filter((id) => LOCK_CNT.includes(id)) : [], lockRec = lockOn && !ids.includes('gunnyeo') ? LOCK_CNT.filter((id) => HEROES[id] && own.has(id) && !ids.includes(id)).slice(0, 2) : [];
+  const lockHtml = lockOn ? `<p class="pp-lock">${ic('lock', '', 'sm')}<b>${mode === 'endless' ? `${CC_DEPTH.lock.endlessFrom}단계부터 풀 때까지` : '풀 때까지 상태이상'}</b> — 기절 · 홀림 · 침묵 · 빙결 · 독이 <b>저절로 안 풀려요</b> (기절 예고 · 정예 · 보스 투척 · 자물쇠 표시). 건전녀 간호 · 응급 방패 · 총공지 · 방장 "버텨!" · 웨이브 끝에 풀리고, 김도훈(기절) · 정소영(홀림 · 침묵) · 홍정민(독) · 박나영(빙결)이 있으면 안 묶여요${lockHas.length ? ` · 내 덱: <em>${lockHas.map((id) => esc(HEROES[id].name)).join(' · ')}</em>` : ' · <b>덱에 푸는 멤버가 없어요!</b>'}${lockRec.length ? ` → <em>${lockRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
+  const lackHtml = lack.length || armorHtml || thrHtml || lockHtml ? `<div class="pp-lack">${lockHtml}${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}${thrHtml}</div>` : '';
   const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
   // 4) 등장 진상
   const foes = prepFoes(st);

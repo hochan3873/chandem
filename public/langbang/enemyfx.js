@@ -27,8 +27,9 @@ export class EnemyFx {
     switch (e.type) {
       case 'castWind':
         if (busy && !e.big) break; // 바쁠 땐 졸개 표적은 생략
-        this.mark(e.uid, { kind: 'aim', hero: e.hero, hx: e.hx, hy: e.hy, ex: e.x, ey: e.y, st: e.st, dur: e.sec, big: e.big });
+        this.mark(e.uid, { kind: 'aim', hero: e.hero, hx: e.hx, hy: e.hy, ex: e.x, ey: e.y, st: e.st, dur: e.sec, big: e.big, lock: e.lock });
         if (e.big && e.name) fx.text(e.x, e.y - 14, e.name, colOf(e.st), 12, Math.min(1.2, e.sec + 0.3), -10);
+        if (e.lock) fx.text(e.hx, e.hy - 126, '풀 때까지!', '#ff9ad0', 12, Math.min(1.3, e.sec + 0.4), -6); // (10/11) 맞으면 저절로 안 풀림 — 끊거나 피하기
         break;
       case 'doorWind':
         this.mark(e.uid, { kind: 'door', x: e.x, y: e.y, ex: e.ex, ey: e.ey, dur: e.sec, big: true });
@@ -49,7 +50,7 @@ export class EnemyFx {
         const c = colOf(e.st);
         if (e.block) { if (!busy) fx.text(e.x, e.y - 64, '막음!', '#9fd8ff', 12, 0.7); break; }
         fx.burst(e.x, e.y - 34, busy ? 4 : 10, c, 140, e.st === 'poison' ? 'dot' : 'star', 5, 0.5);
-        if (e.st && EST[e.st]) fx.text(e.x, e.y - 70, `${EST[e.st].name}!`, c, 13, 0.9);
+        if (e.st && EST[e.st]) fx.text(e.x, e.y - 70, e.lock ? `${EST[e.st].name} — 풀 때까지!` : `${EST[e.st].name}!`, c, e.lock ? 15 : 13, e.lock ? 1.3 : 0.9);
         this.add('hitring', { x: e.x, y: e.y + 14, col: c, dur: 0.45 });
         const hh = g.heroes.find((x) => x.id === e.hero); if (hh) hh._hitAt = performance.now();
         break;
@@ -125,6 +126,7 @@ export class EnemyFx {
       cx.fillStyle = 'rgba(20,8,24,0.8)'; cx.beginPath(); cx.arc(0, 0, 10, 0, TAU); cx.fill();
       cx.strokeStyle = c; cx.lineWidth = 2; cx.stroke();
       cx.font = `900 12px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = c; cx.fillText(iconOf(m.st), 0, 1);
+      if (m.lock && R.lockIcon) { cx.globalAlpha = 1; R.lockIcon(x - 22, y - 104, 0.85, c); } // (10/11) '풀 때까지' 예고: 자물쇠
     }
   }
   drawArc(g, m, k) {

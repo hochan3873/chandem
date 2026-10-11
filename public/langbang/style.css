@@ -4276,6 +4276,8 @@ body.rm .coach .co-burst { display: none; }
 .pp-lack { margin: calc(var(--u) * -2) 0 calc(var(--u) * 8); padding: calc(var(--u) * 6) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: rgba(255, 90, 60, 0.12); border: 1px solid rgba(255, 120, 90, 0.55); }
 .pp-lack p { margin: calc(var(--u) * 2) 0; font-size: calc(var(--u) * 11.5); font-weight: 700; line-height: 1.4; color: #ffd9cf; }
 .pp-lack b { color: #fff; } .pp-lack em { font-style: normal; color: #ffd23f; font-weight: 900; }
+.pp-lack .pp-lock { color: #ffd0ea; } .pp-lack .pp-lock:not(:last-child) { padding-bottom: calc(var(--u) * 3); border-bottom: 1px dashed rgba(255, 154, 208, 0.5); } /* (10/11) 풀 때까지 */
+.pp-lack .pp-lock b { color: #ff9ad0; }
 /* 1:1 매칭 대기: [AI와 바로 대전] */
 .pv-search .ps-bot { margin: calc(var(--u) * 8) auto 0; display: flex; align-items: center; gap: calc(var(--u) * 4); }
 

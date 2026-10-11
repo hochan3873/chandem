@@ -9,6 +9,7 @@ import {
   CURSES, ENDLESS_TUNE, endlessScale, endlessCap, endlessTier, endlessTierDef,
   CARD_TAGS, TECH, SET_BONUS, AUGMENTS, HERO_AUG, HERO_CC, CC_KINDS, CC_ON_HIT, TAGS, JOIN, chapterOf, TEMPO, WEAPON, BUS, NICHE, MOMENTUM, CARD_CUT, AUG_CUT, BAL, GEAR_TEAM_CAP,
   SKILL_AUG, SKILL_AUG_W, SLOW_RUN, PICK_SKIP, TENSION, roleCadence, mileDmg, mileSpd, ARMOR, BURN, KD, KD_HERO, KD_SUP, HERO_RES, armorPctStage, TOWER_SIM, TOWER_AWAKE_FX, HELL_SET_FX, SIG, GROW, MAIN, WEEK_TRAIT, NEAR_HEROES, WEEK_TRAIT_FROM,
+  CC_DEPTH, ccLockStage, ccLockTier,
 } from './data.js';
 import { starBonus, WEEKLY_MODS, pvpWave, PVP, collectMods } from './live.js';
 import * as HWS from './hw-sim.js'; // 할로윈 이벤트 전투 규칙 (진상 기술 · 저주)
@@ -96,6 +97,7 @@ export function createGame(opt = {}) {
     g.mission = stageMission(g.stage, g.hell, opt.conds);
     g.ccT = COND.cc.every[0] * 0.8;
   }
+  ccDepthSet(g); // (10/11) 상태이상 깊이: 장 · 헬 (무한은 웨이브마다)
   // 주간 진상 특성 (opt.wtrait: live.js weekTrait 의 id) — 일반 스테이지 · 헬에서만
   g.wtr = mode === 'stage' && !wk && !evd && !opt.pvp && !opt.raid && !opt.tower && opt.wtrait && g.stage >= WEEK_TRAIT_FROM ? WEEK_TRAIT[opt.wtrait] || null : null;
   if (g.wtr) { if (g.wtr.crit) g.mods.crit += g.wtr.crit; if (g.wtr.ctrl) g.mods.ctrlMul *= g.wtr.ctrl; }
@@ -445,6 +447,7 @@ export function cleanseHero(o, min = 0) {
   if (!sick) return false;
   for (const k of SICK) if (o[k] > 0) o[k] = 0;
   o.grabBy = 0;
+  if (o.lockK) { const g = o._g; o.lockK = null; if (g) { g.stats.ccFree = (g.stats.ccFree || 0) + 1; ev(g, 'ccFree', { hero: o.id, x: o.x, y: o.y, by: 'cleanse' }); } } // (10/11) '풀 때까지' 해제!
   return true;
 }
 // 박상화 성장 (전용 신화: 한도 · 속도 2배)
@@ -2246,7 +2249,7 @@ function startCast(g, e, h, spec) {
   e.cast = { h, spec, t: spec.wind, max: spec.wind };
   e.castW = spec.wind;
   if (spec.door) ev(g, 'doorWind', { x: e.x, y: g.ropeY, ex: e.x, ey: e.y - e.def.size * 0.6, sec: spec.wind, uid: e.uid, name: spec.name || '' });
-  else ev(g, 'castWind', { x: e.x, y: e.y - e.def.size * 0.6, hx: h.x, hy: h.y, hero: h.id, sec: spec.wind, kind: spec.kind, st: (spec.fx && spec.fx.st) || STK[spec.kind] || '', uid: e.uid, big: !!(e.boss || e.mid || e.elite), name: spec.name || '' });
+  else ev(g, 'castWind', { x: e.x, y: e.y - e.def.size * 0.6, hx: h.x, hy: h.y, hero: h.id, sec: spec.wind, kind: spec.kind, st: (spec.fx && spec.fx.st) || STK[spec.kind] || '', uid: e.uid, big: !!(e.boss || e.mid || e.elite), name: spec.name || '', lock: !!(g.ccLock && (e.boss || e.mid || e.elite) && spec.fx && CC_DEPTH.lock.kinds.includes(spec.fx.st)) }); // lock: 맞으면 '풀 때까지' (표적에 자물쇠)
   return true;
 }
 const STK = { rumor: 'slow', paper: 'slow', sarcasm: 'slow', golf: 'stun', duck: 'stun', bag: 'stun', stamp: 'stun', glow: 'slow', snowball: 'freeze', bottle: 'slow', latte: 'silence', puke: 'poison' }; // 던지는 물건 → 표적 색 (상태이상)
@@ -2308,7 +2311,8 @@ export function hitHero(g, h, fx, src) {
   else if (st === 'slow') { sec = debuffSec(h, fx.sec, 'slow'); if (sec > 0) { h.aspdDebCut = h.aspdDebT > 0 ? Math.max(h.aspdDebCut || 0, fx.cut || 0.3) : fx.cut || 0.3; h.aspdDebT = Math.max(h.aspdDebT || 0, sec); } }
   else sec = 1; // (상태이상 없이 맞기만)
   if (sec > 0 && g.kdOn) kdAdd(g, h, hitKd(fx, src), { src: 'hit', by: src && src.type });
-  if (st !== 'freeze') ev(g, 'heroHit', { hero: h.id, x: h.x, y: h.y, st: st || '', sec, block: sec <= 0 });
+  const locked = sec > 0 && !!src && !!(src.boss || src.mid || src.elite) && ccLockTry(g, h, st); // (10/11) 정예 · 보스 투척: 맨 끝에서는 '풀 때까지'
+  if (st !== 'freeze') ev(g, 'heroHit', { hero: h.id, x: h.x, y: h.y, st: st || '', sec, block: sec <= 0, lock: locked });
   return sec;
 }
 // ─── 4~6장 진상 기술 ───────────────────────────────────
@@ -2758,7 +2762,8 @@ function condTick(g, dt) {
     }
   }
   if (g.phase === 'wave') { for (const h of g.heroes) if (!h.def.summon && (h.stunT > 0 || h.charmT > 0)) st.ccSec += dt; const f = g.base.hp / g.base.max; if (f < st.minDoor) st.minDoor = f; }
-  if (g.cond.cc && g.phase === 'wave') condCc(g, dt);
+  if ((g.cond.cc || g.ccCurse) && g.phase === 'wave') condCc(g, dt);
+  if (g.lockN) lockTick(g, dt);
 }
 // 기절 예고: 진상 하나가 1초 기를 모았다가 제일 센 멤버(도발 탱커가 있으면 탱커)에게 기절 → 홀림 → 침묵 차례로
 //  기 모으는 중에 기절시키면 끊긴다 · 건전녀 응급 방패/강성구 곁은 면역 · 건전녀 · 김도훈 · 홍정민(Lv5)이 풀어 준다
@@ -2771,7 +2776,7 @@ function condCc(g, dt) {
     if (e.ccW > 0) return;
     e.windup = 0; e.ccW = 0; g.ccE = null;
     const ch = Math.min(6, chapterOf(g.stage || 1));
-    g.ccT = (C.every[0] + (C.every[1] - C.every[0]) * Math.max(0, ch - 2) / 4) * (g.hell ? 0.9 : 1);
+    g.ccT = (C.every[0] + (C.every[1] - C.every[0]) * Math.max(0, ch - 2) / 4) * (g.hell ? 0.9 : 1) * (g.ccEvery || 1); // (10/11) 깊이: 뒤 장 · 헬 · 무한 단계일수록 잦게
     const hs = g.heroes.filter((h) => !h.def.summon && !h.gone);
     if (!hs.length) return;
     const fresh = hs.filter((h) => h.stunT <= 0 && h.charmT <= 0), list = fresh.length ? fresh : hs;
@@ -2792,7 +2797,8 @@ function condCc(g, dt) {
       else { sec = cut(debuffSec(h, C.charm * hk, 'charm')); if (sec > 0) h.charmT = Math.max(h.charmT, sec); }
     } else if (kind === 'silence') { sec = cut(debuffSec(h, C.silence * hk, 'silence')); if (sec > 0) { h.silenceT = Math.max(h.silenceT || 0, sec); h.muteT = Math.max(h.muteT || 0, sec); } }
     if (react && sec > 0) { g.gnReactT = g.t + C.reactCd; ev(g, 'cleanse', { x: h.x, y: h.y }); ev(g, 'gunnyeoReact', { x: gn.x, y: gn.y, hero: h.id }); }
-    ev(g, 'condCc', { kind, hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y - e.def.size * 0.5, sec, block: sec <= 0 });
+    const locked = sec > 0 && !react && ccLockTry(g, h, kind); // (10/11) 맨 끝(헬 7 · 8장 · 무한 4단계+): '풀 때까지'
+    ev(g, 'condCc', { kind, hero: h.id, x: h.x, y: h.y, ex: e.x, ey: e.y - e.def.size * 0.5, sec, block: sec <= 0, lock: locked });
     return;
   }
   if ((g.ccT -= dt) > 0) return;
@@ -2803,7 +2809,7 @@ function condCc(g, dt) {
   }
   if (!pick) { g.ccT = 1; return; }
   g.ccE = pick; pick.ccW = C.windup; pick.windup = C.windup;
-  ev(g, 'condCcWarn', { x: pick.x, y: pick.y - pick.def.size * 0.6, sec: C.windup });
+  ev(g, 'condCcWarn', { x: pick.x, y: pick.y - pick.def.size * 0.6, sec: C.windup, lock: !!g.ccLock });
 }
 // 팀 기여: 입구 수리 · 막은 피해 · 버프로 늘어난 피해 (결과 화면 MVP 옆에 보여 준다)
 function teamOf(g, id) { const m = g.stats.teamBy || (g.stats.teamBy = {}); return m[id] || (m[id] = { repair: 0, prevent: 0, buff: 0 }); }
@@ -2996,7 +3002,72 @@ export function debuffSec(h, sec, kind = 'hard') {
   if (kind !== 'hard' && kind !== 'none') { const r = resPct(h, kind); if (r >= 100) { if (g && g.t - (h.immT || -9) > 0.8) { h.immT = g.t; ev(g, 'immune', { kind, hero: h.id, x: h.x, y: h.y - 60 }); } return 0; } out *= 1 - r / 100; } // 멤버 저항 (HERO_RES) + 서포터 면역 (KD_SUP)
   if (g && g.ccMul) out *= g.ccMul; // 할로윈 저주: 상태이상 2배
   if (g && g.kdOn && out > 0 && kind !== 'poison' && kind !== 'none') { const ex = h.kdExp || (h.kdExp = {}), p0 = Math.max(g.t, ex[kind] || 0), add = Math.max(0, g.t + out - p0); ex[kind] = Math.max(p0, g.t + out); if (add > 0) kdAdd(g, h, add * (kind === 'slow' ? KD.slow : KD.status * (KD.kind[kind] || 1)), { src: kind }); } // 늘어난 시간만큼만 (매 프레임 다시 거는 것도 한 번으로)
+  if (g && g.ccDur && out > 0 && kind !== 'slow' && kind !== 'none') out *= g.ccDur; // (10/11) 깊이: 뒤 장 · 헬 · 무한 단계일수록 길게 (게이지는 원래 시간만큼)
   return out;
+}
+// ─── (10/11) 상태이상 깊이 · '풀 때까지' (data.js CC_DEPTH) ───
+//  ccDepthSet: 판 시작(스테이지 · 헬) · 무한 웨이브마다 — g.ccDur 시간 × · g.ccEvery 기절 예고 간격 × · g.ccCurse 기절 예고 덧붙임 · g.ccLock 풀 때까지
+export function ccDepthSet(g) {
+  g.ccDur = 1; g.ccEvery = 1; g.ccCurse = false; g.ccLock = false;
+  if (g.pvp || g.raid || g.tower || g.weekly || g.ev || g.hw || g.r2) return; // (이벤트 · 주간 · 레이드 · 탑 · 1:1 은 그대로)
+  const D = CC_DEPTH;
+  if (g.mode === 'stage' && g.stage) {
+    const c = Math.min(D.dur.length, chapterOf(g.stage));
+    g.ccDur = D.dur[c - 1] * (g.hell ? D.hell.dur : 1);
+    g.ccEvery = D.every[c - 1] * (g.hell ? D.hell.every : 1);
+    g.ccCurse = !!(g.hell && D.hell.curse78 && c >= 7 && g.kdOn);
+    g.ccLock = ccLockStage(g.stage, g.hell);
+  } else if (g.mode === 'endless') {
+    const t = endlessTier(Math.max(1, g.wave || 1)), k = Math.min(D.endless.dur.length, t) - 1;
+    g.ccDur = D.endless.dur[k]; g.ccEvery = D.endless.every[k];
+    g.ccCurse = t >= D.endless.curse;
+    g.ccLock = ccLockTier(t);
+  }
+}
+const LOCK_F = { stun: ['stunT'], charm: ['charmT'], silence: ['silenceT', 'muteT'], freeze: ['stunT', 'freezeT'], poison: ['poisonT'] };
+// 막 걸린 상태이상을 '풀 때까지' 로 (조건이 맞을 때만) — true 면 묶음
+export function ccLockTry(g, h, kind) {
+  const L = CC_DEPTH.lock;
+  if (!g.ccLock || !h || h.gone || h.def.summon || h.lockK || !L.kinds.includes(kind)) return false;
+  if (resPct(h, kind) >= L.res || h.ccImmT > 0) { if (g.t - (h.lockBlkT || -9) > 1.5) { h.lockBlkT = g.t; ev(g, 'lockBlock', { hero: h.id, kind, x: h.x, y: h.y }); } return false; } // 저항 · 면역 멤버가 있으면 안 묶인다 (시간만 짧게 · '면역!')
+  if (g.t - (g.lockAt || -99) < L.gap) return false;
+  let n = 0; for (const o of g.heroes) if (o.lockK) n++;
+  if (n >= L.max) return false;
+  const fs = LOCK_F[kind];
+  if (!fs.some((f) => h[f] > 0)) return false;
+  for (const f of fs) h[f] = L.sec;
+  if (kind === 'freeze') h.thawT = 0;
+  h.lockK = kind; h.lockT0 = g.t; g.lockAt = g.t; g.lockN = n + 1;
+  g.stats.ccLock = (g.stats.ccLock || 0) + 1;
+  ev(g, 'ccLock', { hero: h.id, kind, x: h.x, y: h.y });
+  if (!g.lockTip) { g.lockTip = true; ev(g, 'tip', { text: '풀 때까지! 저절로 안 풀려요 — 건전녀 간호 · 응급 방패 · 총공지 · 방장 "버텨!" 로 풀고, 웨이브가 끝나면 풀려요' }); }
+  return true;
+}
+// '풀 때까지' 해제 (by: cleanse · ult · wave · bangjang · res)
+export function ccFree(g, h, by) {
+  const k = h.lockK;
+  if (!k) return false;
+  h.lockK = null;
+  for (const f of LOCK_F[k] || []) if (h[f] > 0) h[f] = 0;
+  g.stats.ccFree = (g.stats.ccFree || 0) + 1;
+  ev(g, 'ccFree', { hero: h.id, x: h.x, y: h.y, by, kind: k });
+  return true;
+}
+// 묶인 멤버 돌보기: 방장 "버텨!" (bang 초마다 가장 오래 묶인 한 명) · 면역 멤버가 들어오면 풀림 · 다른 이유로 이미 풀렸으면 표시만 지움
+function lockTick(g, dt) {
+  let n = 0, old = null;
+  for (const h of g.heroes) {
+    if (!h.lockK) continue;
+    const fs = LOCK_F[h.lockK] || [];
+    if (!fs.some((f) => h[f] > 0)) { h.lockK = null; continue; }
+    if (resPct(h, h.lockK) >= CC_DEPTH.lock.res) { ccFree(g, h, 'res'); continue; }
+    n++; if (!old || h.lockT0 < old.lockT0) old = h;
+  }
+  g.lockN = n;
+  const bj = old && g.heroes.find((o) => o.id === 'bangjang' && !o.gone && !o.lockK && !(o.stunT > 0) && !(o.kdT > 0));
+  if (!bj) { g.bangT = 0; return; }
+  g.bangT = (g.bangT || 0) + dt;
+  if (g.bangT >= CC_DEPTH.lock.bang) { g.bangT = 0; ev(g, 'bangHold', { x: bj.x, y: bj.y, hero: bj.id }); ccFree(g, old, 'bangjang'); g.lockN = n - 1; }
 }
 // ─── 쓰러짐 게이지 (KD) — 레이드 등 다른 모드도 그대로 쓰게 export ───
 //  kdMax(h) 게이지 크기 · kdAdd(g, h, v, { direct }) 채우기 (direct 가 아니면 도발 멤버가 곁에서 대신 맞음) · kdRevive(g, h) 바로 일으킴 · poisonHero(g, h, sec) 독 · resPct(h, kind) 저항 %
@@ -3543,7 +3614,7 @@ export function startWave(g, n) {
   if (g.conds.length && n >= DOOR_PRESSURE.from) g.hpScale *= COND_HP[chapterOf(g.stage) - 1] || 1; // 조건 스테이지: 기믹만큼 체력은 덜어 준다
   if (g.tension) g.hpScale *= TENSION.chHp[chapterOf(g.stage || 1) - 1] || 1; // 긴장감: 장마다 다시 맞춘 체력 (2장부터 더 어렵게)
   if (g.tension && n >= TENSION.hpFrom) g.hpScale *= 1 + (TENSION.hp - 1) * (g.cond.swarm ? TENSION.swarmK : 1); // 긴장감: 팀이 모인 뒤 (2웨이브부터) 진상이 단단 — 평타만으로는 밀리고 스킬로 뒤집는다 · 떼거리는 수로 누르니 덜
-  if (g.mode === 'endless' && !g.pvp) { const es = endlessScale(n); g.hpScale *= es.hp; g.atkScale = es.atk; g.spdScale = es.spd; } // 무한: 15웨이브부터 웨이브마다 확 세진다 (data.js ENDLESS_TUNE)
+  if (g.mode === 'endless' && !g.pvp) { const es = endlessScale(n); g.hpScale *= es.hp; g.atkScale = es.atk; g.spdScale = es.spd; ccDepthSet(g); } // 무한: 15웨이브부터 웨이브마다 확 세진다 (data.js ENDLESS_TUNE)
   if (g.pvp) g.hpScale *= pvpMatchHp(g.pvp.hp, n) * pvpWaveHp(n) * hpMul(PVP_END.baseLevel, g.mode === 'stage') / hpMul(Math.max(1, g.diff), g.mode === 'stage'); // 1:1 대전: 두 덱 전투력 × 웨이브마다 ×1.22 (체력 오름은 이것 하나로 · 공격력은 웨이브대로)
   g.lastSnap = snapshot(g); // 뒤로 가기·새로고침 뒤 '이어하기' 용 (이 웨이브 시작 상태)
   const q = [];
@@ -3626,6 +3697,7 @@ function waveClear(g) {
   if (g.wk) g.wk.onClear(g); // 주간: 웨이브 목표 · 무피해 · 계약 제안
   const s = g.stats;
   for (const h of g.heroes) if (h.pump) h.pump = 0; // 백인규 근육 펌프는 웨이브마다 처음부터
+  for (const h of g.heroes) if (h.lockK) ccFree(g, h, 'wave'); // (10/11) '풀 때까지' 상태이상은 웨이브가 끝나면 풀린다
   for (const h of g.heroes) if (h.def.grow) { growBy(h, h.def.grow.perWave); ev(g, 'grow', { hero: h.id, x: h.x, y: h.y, v: Math.round(h.grow * 100) }); }
   s.wavesCleared = Math.max(s.wavesCleared, g.wave);
   if (!g.ultOpen) { g.ultOpen = true; if (g.heroes.some((h) => h.def.skill && h.def.skill.cd >= ULT_LOCK.cd)) ev(g, 'ultOpen', {}); } // 큰 한 방 스킬 풀림
@@ -3676,6 +3748,7 @@ export function useUlt(g) {
     if (!e.dead && !e.boss) { applyKnockback(e, 40, g); e.stunT = Math.max(e.stunT, 0.7); }
   }
   ev(g, 'ult', {});
+  for (const h of g.heroes) if (h.lockK) ccFree(g, h, 'ult'); // (10/11) 총공지: '풀 때까지' 상태이상 전부 해제
   if (g.speech) ch8SpeechStop(g, g.speech, 'ult'); // 8장: 총공지로 축사 끊기
   if (g.avalanche) ch7Interrupt(g, 'ult');
   return true;
@@ -4357,7 +4430,7 @@ export function step(g, dt) {
   if (g.twa) g.twa.tick(g, dt); // 진상의 탑: 바닥 예고 · 멤버 체력 · 끌어서 옮기기 (tower-arena.js)
   if (g.hw) g.hw.tick(g, dt); // 할로윈 이벤트: 진상 기술 · 저주 (hw-sim.js)
   if (g.wk) g.wk.tick(g, dt); // 주간 도전: 규칙 · 현상금 · 보스 단계 (weekly-sim.js)
-  if (g.conds.length || (g.wtr && g.wtr.shield)) condTick(g, dt);
+  if (g.conds.length || (g.wtr && g.wtr.shield) || g.ccCurse || g.lockN) condTick(g, dt); // (10/11) 헬 7 · 8장 · 무한: 기절 예고 · 풀 때까지
   updateEprojs(g, dt);
   updateProjs(g, dt);
   if (g.zones && g.zones.length) updateZones(g, dt); // 대개편: 장판 · 고리 · 화상

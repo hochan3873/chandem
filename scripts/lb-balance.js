@@ -55,7 +55,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   //  --policy=smart (기본, 잘 고르는 사람) | mid (10번 중 4번은 아무거나 — 보통 사람) | random
   // 기준 플레이어 측정 (stagecalib · stagemeas · wtrait)은 사람처럼: 스킬은 1.5초쯤 늦게 (90스텝) · 카드는 40% 는 아무거나 (mid)
   //  (예전 기준 = 0.1초마다 스킬 · 늘 최선의 카드 — 사람보다 훨씬 잘해서 목표 클리어율이 의미가 없었다: 10/03 재보정 메모)
-  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat', 'chcalib', 'skshare'].includes(what) && !args.includes('--pro');
+  const REF_HUMAN = ['stagecalib', 'stagemeas', 'wtrait', 'foes', 'tension', 'cardstat', 'chcalib', 'skshare', 'ccup'].includes(what) && !args.includes('--pro');
   const FOES = what === 'foes';
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
@@ -940,6 +940,32 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
     }
   }
   if (what === 'tension') tension();
+  // ── 상태이상 체감 (node scripts/lb-balance.js ccup --list=5,15,... [--seeds=4] [--hell] [--nocounter])
+  //  멤버가 웨이브 중 상태이상(기절 · 홀림 · 빙결 · 침묵 · 독)에 묶여 있던 시간 % · '풀 때까지' 걸린 횟수 · 해제 횟수 · 클리어율
+  //  --nocounter : 해제 · 면역 멤버(건전녀 · 김도훈 · 정소영 · 홍정민 · 박나뇽 · 강성구 · 강병화)를 빼고 같은 덱 크기로
+  function ccup() {
+    const N = opt('seeds', 4), hell = args.includes('--hell'), byCh = {};
+    const CNT = ['gunnyeo', 'dohoon', 'soyoung', 'jungmin', 'dragon', 'sunggu', 'byunghwa'];
+    const FILL = ['youngjun', 'eunok', 'myunghoon', 'hanna', 'jiwon', 'ingyu', 'sanghwa', 'gunman', 'staff', 'junseo', 'wonsik', 'bangjang'];
+    const ST = ['stunT', 'charmT', 'freezeT', 'silenceT', 'poisonT'];
+    for (const s of listArg('list', '5,15,25,35,45,55,65,75').map(Number)) {
+      const c = D.chapterOf(s);
+      let ids = c <= 6 ? balFor(c, s, hell) : C78.slice();
+      if (args.includes('--nocounter')) { const keep = ids.filter((id) => !CNT.includes(id)), more = FILL.filter((id) => !keep.includes(id)); while (keep.length < ids.length) keep.push(more.shift()); ids = keep; }
+      const hm = hell ? D.META_SOFT.hellAdd : 0;
+      const meta = Object.fromEntries(ids.map((id) => [id, (c <= 6 ? REC[c - 1] + opt('meta', REF_PLUS) : 15 + opt('meta78', 0)) + hm]));
+      const b = byCh[c] || (byCh[c] = { up: 0, mt: 0, w: 0, n: 0, lock: 0, free: 0, kd: 0, by: {}, fb: {}, cur: 0, t: 0 });
+      for (let i = 1; i <= N; i++) {
+        const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta, gear: gearAt(s, ids), items: c >= 7 ? ITEMS78 : itemsAt(Math.round(s * 1.3)), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell, ...refOf(s, ids),
+          onEvents: (g, evs) => { for (const e of evs) { if (e.type === 'ccLock') b.lock++; else if (e.type === 'ccFree') { b.free++; b.fb[e.by] = (b.fb[e.by] || 0) + 1; } else if (e.type === 'condCc') b.cur++; } },
+          onStep: (g) => { if (g.phase !== 'wave') return; for (const h of g.heroes) { if (h.def.summon || h.gone) continue; b.mt += 1 / 60; let k = null; for (const f of ST) if (h[f] > 0) { k = f; break; } if (k) { b.up += 1 / 60; b.by[k] = (b.by[k] || 0) + 1 / 60; } } } });
+        b.n++; if (r.win) b.w++; b.kd += r.g.stats.kd || 0; b.t += r.t;
+      }
+    }
+    console.log(`■ 상태이상 체감${hell ? ' (헬)' : ''}${args.includes('--nocounter') ? ' · 해제 멤버 없이' : ''} — 묶인 시간 % (멤버 × 웨이브 시간) · 종류별 몫 · 풀 때까지 걸림/풀림 (판당) · 쓰러짐 (판당) · 클리어`);
+    for (const [c, b] of Object.entries(byCh)) console.log(`${c}장 묶임 ${(b.up / Math.max(1, b.mt) * 100).toFixed(1)}% [${Object.entries(b.by).map(([k, v]) => k.replace('T', '') + ' ' + (v / Math.max(1, b.mt) * 100).toFixed(1)).join(' ')}] · 풀때까지 ${(b.lock / b.n).toFixed(1)}/${(b.free / b.n).toFixed(1)} · 쓰러짐 ${(b.kd / b.n).toFixed(1)} · 클리어 ${Math.round(b.w / b.n * 100)}% · 판 ${Math.round(b.t / b.n)}초 · 예고 ${(b.cur / b.n).toFixed(0)} · 풀림 ${Object.entries(b.fb).map(([k, v]) => k + ' ' + (v / b.n).toFixed(1)).join(' ')}`);
+  }
+  if (what === 'ccup') ccup();
   // ── 스킬 몫 (node scripts/lb-balance.js skshare [--ch=1,..,8] [--nos=3,6,9] [--seeds=4] [--win=100] [--member])
   //  기준 플레이어(스킬 씀) vs 같은 사람이 스킬만 안 씀 — 같은 덱 · 같은 시드
   //   · 클리어 차이 (%p) · 팀 피해 몫 = 1 − (스킬 안 쓴 판 앞 win 초 팀 피해 / 스킬 쓴 판 앞 win 초 팀 피해) — 바로 맞힌 피해 + 버프 · 늦게 터지는 것까지 다

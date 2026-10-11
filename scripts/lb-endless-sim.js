@@ -42,6 +42,7 @@ const ACC = {
   };
   for (const a of accs) {
     const A = ACC[a];
+    const CCU = {}; // 단계별 상태이상 묶임 (멤버 × 웨이브 시간) · 풀 때까지 걸림/풀림
     const rows = [];
     for (let i = 1; i <= N; i++) {
       const rng = seeded(i * 911 + a.length * 17);
@@ -53,7 +54,9 @@ const ACC = {
       const waveT = {};
       while (!g.over && g.t < maxT) {
         S.step(g, 1 / 60); steps++;
+        for (const e of g.events) if (e.type === 'ccLock' || e.type === 'ccFree') { const u = CCU[D.endlessTier(g.wave)] || (CCU[D.endlessTier(g.wave)] = { mt: 0, up: 0, lock: 0, free: 0 }); u[e.type === 'ccLock' ? 'lock' : 'free']++; }
         g.events.length = 0;
+        if (g.phase === 'wave') { const u = CCU[D.endlessTier(g.wave)] || (CCU[D.endlessTier(g.wave)] = { mt: 0, up: 0, lock: 0, free: 0 }); for (const h of g.heroes) { if (h.def.summon || h.gone) continue; u.mt += 1 / 60; if (h.stunT > 0 || h.charmT > 0 || h.freezeT > 0 || h.silenceT > 0 || h.poisonT > 0) u.up += 1 / 60; } }
         if (g.pendingLevels > 0 && g.pickAt === undefined) g.pickAt = g.t + (g.welcomePicks > 0 ? 0 : 2 * (0.75 + pr() * 0.5));
         if (g.pendingLevels > 0 && g.t >= g.pickAt) { const cards = S.rollCards(g); S.applyCard(g, cards[pick(g, cards, pr)]); g.pendingLevels--; if (g.welcomePicks > 0) g.welcomePicks--; g.pickAt = undefined; }
         if (g.ult >= D.RULES.ultMax && (g.bossAlive > 0 || S.enemiesLeft(g) >= 10 || g.base.hp / g.base.max < 0.5)) S.useUlt(g);
@@ -67,5 +70,6 @@ const ACC = {
     const avg = (k) => rows.reduce((s, r) => s + (r[k] || 0), 0) / rows.length;
     const at = (k) => { const v = rows.map((r) => r[k]).filter((x) => x !== undefined); return v.length ? (v.reduce((s, x) => s + x, 0) / v.length / 60).toFixed(1) + `분(${v.length}/${rows.length})` : '-'; };
     console.log(`${a.padEnd(7)} 웨이브 ${avg('wave').toFixed(1)} [${rows.map((r) => r.wave).join(',')}] · 길이 ${avg('min').toFixed(1)}분 [${rows.map((r) => r.min.toFixed(1)).join(',')}] · 점수 ${Math.round(avg('score')).toLocaleString()} [${rows.map((r) => Math.round(r.score / 1000) + 'k').join(',')}] · 처치 ${Math.round(avg('kills'))} · 동시 최대 ${Math.round(avg('peak'))}(W${Math.round(avg('peakW'))}) · W10도달 ${at('t10')} W20 ${at('t20')} W30 ${at('t30')}${rows.some((r) => r.timeout) ? ' · 시간초과 ' + rows.filter((r) => r.timeout).length : ''}`);
+    console.log('        상태이상 묶임 ' + Object.entries(CCU).map(([t, u]) => `${t}단계 ${(u.up / Math.max(1, u.mt) * 100).toFixed(1)}%` + (u.lock ? ` (풀때까지 ${u.lock}/${u.free})` : '')).join(' · '));
   }
 })();
