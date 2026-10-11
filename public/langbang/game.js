@@ -1029,7 +1029,7 @@ function handleEvents(g, loud) {
         for (let k = 0; k < 10; k++) fx.part('star', e.x + (Math.random() - 0.5) * 50, e.y - 40, (Math.random() - 0.5) * 120, -80, 0.8, 9, null, { grav: 120 });
         if (loud) A.sfx.levelUp();
         break;
-      case 'bigHammer': { // 고아라가 점프해 날아가는 중이면 내려찍으며 착지하는 순간에 쾅 (render.js araMove · 0.42초 점프)
+      case 'bigHammer': { // 고아라: 변신 펑 → 점프 → 내려찍으며 착지하는 순간에 쾅 (render.js araMove 가 h._amBoom 을 터뜨린다)
         const boom = () => {
           fx.ring(e.x, e.y, 10, 90, 0.4, '#ffc4ec', 8);
           fx.text(e.x, e.y - 60, '공주의 일격!!', '#ff9fd8', 22, 1.2, -24);
@@ -1038,7 +1038,7 @@ function handleEvents(g, loud) {
           if (loud) A.sfx.slam();
         };
         const ah = g.heroes.find((q) => q.id === 'ara'), am = ah && ah._am;
-        if (g.tempo && am && am.g === g && Math.hypot(e.x - am.x, e.y + 18 - am.y) > 34) setTimeout(() => { if (app.g === g) boom(); }, 380 / (app.runSpeed || 1)); else boom();
+        if (g.tempo && am && am.g === g) { (ah._amBoom || (ah._amBoom = [])).push(boom); setTimeout(() => { if (app.g === g) R.araBoom(ah); }, 1200); } else boom(); // (그림이 안 그려질 때를 위해 1.2초 뒤엔 무조건)
         break;
       }
       case 'crown': if (Math.random() < 0.35) fx.text(e.x, e.y - 50, '랑방을 위하여!', '#ffd84a', 14, 0.9, -20); if (loud) A.sfx.wave(); break;
