@@ -13,7 +13,7 @@ const OUT = process.argv[2] || '.';
 const SEC = Number(process.argv[3] || 36);
 const DA = ['gunman', 'staff', 'sunggu', 'gunnyeo', 'jieun', 'ingyu'];
 const DB = ['bangjang', 'subin', 'hanna', 'donghan', 'soyoung', 'wonsik'];
-const prof = (deck) => ({ items: { slot5: 1, slot6: 1 }, stages: Object.fromEntries(Array.from({ length: 30 }, (_, i) => [i + 1, 3])), heroes: Object.fromEntries(deck.map((id) => [id, 6])), owned: Object.fromEntries(deck.map((id) => [id, 1])), deckSlots: 6, tutDone: true });
+const prof = (deck, slots = 6) => ({ items: slots >= 6 ? { slot5: 1, slot6: 1 } : {}, stages: Object.fromEntries(Array.from({ length: 30 }, (_, i) => [i + 1, 3])), heroes: Object.fromEntries(deck.map((id) => [id, 6])), owned: Object.fromEntries(deck.map((id) => [id, 1])), deckSlots: 6, tutDone: true });
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = createServer({ port: 0, lbpvp2: { botAfterMs: 120000, countdownMs: 2500 } });
@@ -22,7 +22,7 @@ const prof = (deck) => ({ items: { slot5: 1, slot6: 1 }, stages: Object.fromEntr
   const browser = await puppeteer.launch({ executablePath: BROWSERS.find((p) => fs.existsSync(p)), headless: 'new', args: ['--mute-audio'] });
   const ctxB = await browser.createBrowserContext(); // 두 번째 사람: 저장소가 따로 (손님 id 가 달라야 서로 매칭된다)
   const errors = [];
-  async function open(ctx, deck, tag) {
+  async function open(ctx, deck, tag, slots) {
     const page = await ctx.newPage();
     await page.setViewport({ width: 360, height: 640, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     page.on('pageerror', (e) => errors.push(tag + ': ' + e.message));
@@ -34,7 +34,7 @@ const prof = (deck) => ({ items: { slot5: 1, slot6: 1 }, stages: Object.fromEntr
       localStorage.setItem('langbang:decks', JSON.stringify({ decks: [slots, slots.slice(), slots.slice()], i: 0 }));
       localStorage.setItem('langbang:patchSeen', 'zzzz');
       localStorage.setItem('langbang:acqSeen', JSON.stringify(['dohoon', 'myunghoon', 'ingyu', 'donghan', 'youngjun', 'eunok', 'hanna', 'sunggu', 'dragon', 'junseo', 'hyungyeong', 'ara', 'soyoung', 'jieun', 'sanghwa', 'jungmin', 'jiwon', 'wonsik', 'jeongseob', 'baul', 'subin', 'hochan', 'byunghwa'])); // 스토리 합류 연출 건너뛰기
-    }, prof(deck), deck);
+    }, prof(deck, slots), deck);
     await page.goto(base + '?nogate', { waitUntil: 'networkidle0' });
     await wait(1200);
     await page.evaluate(() => { for (const x of document.querySelectorAll('.info-modal')) x.remove(); const n = document.querySelector('[data-act="nav"][data-tab="pvp"]'); if (n) n.click(); });
@@ -42,7 +42,7 @@ const prof = (deck) => ({ items: { slot5: 1, slot6: 1 }, stages: Object.fromEntr
     return page;
   }
   const A = await open(browser.defaultBrowserContext(), DA, 'A');
-  const B = await open(ctxB, DB, 'B');
+  const B = await open(ctxB, DB, 'B', 4); // B 는 덱 칸 4개만 산 사람 → 대전에서 벤치 2명을 자동으로 채운다
   await A.screenshot({ path: path.join(OUT, '00-lobby.png') });
   // A: 방 만들기 → 코드
   await A.evaluate(() => document.querySelector('[data-act="pvpRoom"]').click());
@@ -64,7 +64,17 @@ const prof = (deck) => ({ items: { slot5: 1, slot6: 1 }, stages: Object.fromEntr
     const click = (q) => { const b = el.querySelector(q); if (b) { b.click(); return true; } return false; };
     if (click('.pv2-b.cl.hot')) return 'cleanse';
     if (x.me.u >= 100 && x.me.m >= 200 && r < 0.6 && click('.pv2-b.ult.ready')) return 'ult';
-    if (click('.pv2-s.ready')) return 'skill';
+    const rb = el.querySelector('.pv2-s.ready');
+    if (rb && r < 0.5 && x.meE.length) { // 끌어서 조준: 버튼 → 내 판 진상 위
+      const e = x.meE[0], cv = el.querySelector('.pv2-cv').getBoundingClientRect(), q = st.toScr('me', e.x, e.y), L = st.lay, br = rb.getBoundingClientRect();
+      const o = { bubbles: true, pointerId: 7, isPrimary: true };
+      rb.dispatchEvent(new PointerEvent('pointerdown', { ...o, clientX: br.left + 10, clientY: br.top + 10 }));
+      rb.dispatchEvent(new PointerEvent('pointermove', { ...o, clientX: q[0] * L.k + cv.left, clientY: q[1] * L.k + cv.top }));
+      window.__dragShot = true;
+      setTimeout(() => rb.dispatchEvent(new PointerEvent('pointerup', { ...o, clientX: q[0] * L.k + cv.left, clientY: q[1] * L.k + cv.top })), 350);
+      return 'drag';
+    }
+    if (rb) { const br = rb.getBoundingClientRect(), o = { bubbles: true, pointerId: 8, isPrimary: true, clientX: br.left + 10, clientY: br.top + 10 }; rb.dispatchEvent(new PointerEvent('pointerdown', o)); rb.dispatchEvent(new PointerEvent('pointerup', o)); return 'skill'; }
     if (r < 0.25 && click('.pv2-b.send.ready')) return 'send';
     if (r > 0.92 && x.me.sw <= 0 && x.me.bench.length) { click('.pv2-bn'); setTimeout(() => { const s = el.querySelectorAll('.pv2-s'); if (s.length) s[(Math.random() * s.length) | 0].click(); }, 120); return 'swap'; }
     if (r > 0.95 && x.op.h.length) { const cv = el.querySelector('.pv2-cv'), rc = cv.getBoundingClientRect(), L = st.lay, h = x.op.h[(r * 97 | 0) % x.op.h.length]; const q = st.toScr('op', h[6], h[7] - 20); const sx = q[0] * L.k + rc.left, sy = q[1] * L.k + rc.top; cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: sx, clientY: sy, bubbles: true })); return 'target'; }
@@ -76,12 +86,15 @@ const prof = (deck) => ({ items: { slot5: 1, slot6: 1 }, stages: Object.fromEntr
   while (Date.now() - t0 < SEC * 1000) {
     for (const [p, s] of [[A, 1], [B, 2]]) { const a = await play(p, s + n); if (a) acts[a] = (acts[a] || 0) + 1; }
     n++;
+    if (acts.drag && !frames.drag) { frames.drag = 1; await wait(150); await A.screenshot({ path: path.join(OUT, '05-drag-aim-a.png') }); await B.screenshot({ path: path.join(OUT, '05-drag-aim-b.png') }); }
     if (n % 6 === 0) {
       for (const [p, tag] of [[A, 'A'], [B, 'B']]) { const f = path.join(OUT, `f${tag}-${String(frames[tag].length).padStart(2, '0')}.png`); await p.screenshot({ path: f }); frames[tag].push(f); }
     }
     await wait(250);
   }
   console.log('acts:', acts);
+  const kb = srv.lbPvp2.matches.size ? [...srv.lbPvp2.matches.values()][0].p.map((p) => Math.round((p.net || 0) / 1024)) : [];
+  console.log('보낸 양(KB, 두 사람):', kb, '· 초당 약', kb.map((k) => Math.round((k * 1024) / Math.max(1, SEC - 3))), 'B/s');
   const fps = await A.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); else res(Math.round(n / 2)); }; requestAnimationFrame(f); }));
   const stat = await A.evaluate(() => { const x = window.__lb.pv2().debug.last; return { t: x.t, meHp: x.me.hp, opHp: x.op.hp, meE: x.meE.length, ne: x.me.ne, kills: [x.me.k, x.op.k], h: x.me.h.map((h) => h[1] + ':' + h[2]) }; });
   console.log('fps(headless):', fps, 'state:', stat);

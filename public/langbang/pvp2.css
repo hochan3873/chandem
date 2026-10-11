@@ -52,6 +52,8 @@
 .pv2-s .stt.stun { background: #ffd23f; color: #241a00; } .pv2-s .stt.charm { background: #ff6fb5; color: #2a0016; } .pv2-s .stt.silence { background: #b48cff; color: #1a0b36; } .pv2-s .stt.slow { background: #6fb3ff; color: #06203d; } .pv2-s .stt.imm { background: #fff; color: #222; }
 .pv2-s u { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-decoration: none; background: rgba(40, 140, 255, 0.45); font-size: calc(var(--u) * 13); font-weight: 900; }
 .pv2-s.pick { border-color: #4fb3ff; }
+.pv2-s { touch-action: none; }
+.pv2-s.aiming { border-color: #ffe066; transform: scale(0.94); opacity: 0.8; }
 .pv2-row { display: flex; gap: calc(var(--u) * 6); align-items: stretch; height: calc(var(--u) * 54); }
 .pv2-bench { position: relative; display: flex; gap: calc(var(--u) * 4); flex: 1.25; --cd: 0; }
 .pv2-bench.cool::after { content: ''; position: absolute; inset: 0; border-radius: calc(var(--u) * 10); background: conic-gradient(rgba(5, 3, 14, 0.7) calc(var(--cd) * 360deg), transparent 0); pointer-events: none; }

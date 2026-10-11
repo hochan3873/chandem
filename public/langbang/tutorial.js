@@ -113,10 +113,6 @@ export const LESSONS = [
     { id: 'ride', when: (c) => c.enemies > 0 && !c.cards && !c.aug, at: { f: 'enemy' }, hand: 'tap', say: '<b>송바울</b>은 직접 조종해요!<br>진상 쪽을 <b>탭</b>하면 보드를 타고 그리로 돌진!', hold: 0, on: 'board', maxWait: 20 },
     { id: 'more', say: '보드 충전은 <b>3칸</b> · 착지할 때 맞춰 탭하면 <b>퍼펙트!</b>', hold: 1, dim: false, tap: 'bubble', wait: 6 },
   ] },
-  { id: 'pvp', need: 'any', when: (c) => play(c) && c.pvp && c.t > 2 && calm(c), scope: play, beats: [
-    { id: 'a', when: calm, say: '<b>1:1 대전!</b> 두 사람에게 같은 진상이 와요.<br>입구가 <b>먼저 무너지는 쪽</b>이 져요', hold: 1, dim: false, tap: 'bubble', wait: 6 },
-    { id: 'b', when: calm, at: '#oppstrip', say: '위에 <b>상대 상황</b>이 보여요. 총공지 · 스킬 타이밍으로 이겨요!', hold: 1, dim: false, tap: 'bubble', wait: 6, maxWait: 2 },
-  ] },
   // (진상의 탑은 따로: tower-guide.js TOWER_LESSONS — 탑 화면이 자기 말풍선으로 · 연습 층까지)
   { id: 'raid', need: 'any', when: (c) => c.where === 'raid', scope: (c) => c.where === 'raid', beats: [
     { id: 'a', say: '<b>건물주 레이드</b>! 일주일 동안 모두가 함께 거대 보스 체력을 깎아요', hold: 1, tap: 'bubble' },
