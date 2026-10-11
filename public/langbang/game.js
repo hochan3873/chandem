@@ -3043,7 +3043,7 @@ async function verCheck() {
 }
 function verApply() {
   if (!verNew) return;
-  if (app.screen === 'menu' && !app.pv2On && !(PV2UI && PV2UI.active()) && !stage.querySelector('.info-modal, .gacha-res, .reveal, .coach, .pv2')) { // (1:1 맞대결 중 · 매칭 중엔 절대 안 함) try { sessionStorage.setItem('langbang:verReload', verNew); } catch { /* 무시 */ } toast('새 버전으로 바꾸는 중…', 1200); setTimeout(() => location.reload(), 900); }
+  if (app.screen === 'menu' && !app.pv2On && !(PV2UI && PV2UI.active()) && !stage.querySelector('.info-modal, .gacha-res, .reveal, .coach, .pv2')) { try { sessionStorage.setItem('langbang:verReload', verNew); } catch { /* 무시 */ } toast('새 버전으로 바꾸는 중…', 1200); setTimeout(() => location.reload(), 900); } // (1:1 맞대결 중 · 매칭 중엔 절대 안 함)
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) verCheck(); });
 setInterval(verCheck, 10 * 60e3);

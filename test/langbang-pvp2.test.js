@@ -232,3 +232,8 @@ test('v2 소켓: 방 코드로 친구 대전', async () => {
   assert.equal(j.got.end[0].ranked, false, '손님끼리는 점수 없음');
   h.close(); j.close();
 });
+
+test('v2 화면 파일: 문법 (game.js · pvp2-ui.js — 줄 끝 주석이 코드를 먹지 않았나)', () => {
+  const { execFileSync } = require('node:child_process');
+  for (const f of ['game.js', 'pvp2-ui.js', 'pvp2.js', 'pvp2-sim.js', 'patchnotes.js']) execFileSync(process.execPath, ['--check', path.join(__dirname, '..', 'public', 'langbang', f)]);
+});
