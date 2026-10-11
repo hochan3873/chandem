@@ -137,8 +137,8 @@ export function buildFailGuide(inp) {
     const dEnemy = door && ENEMIES[door[0]];
     const boss = run.totalWaves && run.wave >= run.totalWaves;
     const ccTot = Object.entries(run.hitBy || {}).filter(([st]) => ['stun', 'charm', 'freeze', 'silence'].includes(st)).reduce((a, [, n]) => a + n, 0);
-    if (ccTot >= 4 || (run.ccSec || 0) >= 20) tips.push('상태이상이 잦아요 — 건전녀 간호 · 총공지로 풀어 주고, 스킬은 걸리기 전에 먼저 써 두세요');
-    if (boss || (dEnemy && (dEnemy.boss || dEnemy.mid))) tips.push('보스 웨이브는 스킬 · 총공지를 아껴 뒀다가 보스가 나올 때 한꺼번에 쓰세요');
+    if (ccTot >= 4 || (run.ccSec || 0) >= 20) tips.push('상태이상이 잦아요 — 건전녀 간호 · 총력전으로 풀어 주고, 스킬은 걸리기 전에 먼저 써 두세요');
+    if (boss || (dEnemy && (dEnemy.boss || dEnemy.mid))) tips.push('보스 웨이브는 스킬 · 총력전을 아껴 뒀다가 보스가 나올 때 한꺼번에 쓰세요');
     else if ((run.wave || 1) <= 2) tips.push('첫 웨이브부터 입구가 뚫렸어요 — 앞에서 막아 주는 탱커를 대장 곁에 두세요');
     else if (dEnemy && dEnemy.hp >= 100) tips.push('단단한 진상이 입구를 쳤어요 — 한 방 센 멤버가 이 진상부터 노리게 하세요');
   }

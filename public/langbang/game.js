@@ -1228,7 +1228,7 @@ function handleEvents(g, loud) {
       case 'c8hurry': fx.ring(e.x, e.y, 20, e.r, 0.7, '#ff6b6b', 6); if (e.n) fx.text(e.x, e.y - 30, '빨리빨리! 진상 재촉', '#ffd0d0', 13, 1.0); break;
       case 'c8hurryStop': fx.text(e.x, e.y - 10, '…재촉 끊김', '#c8ffd0', 13, 1); break;
       case 'c8clip': { fx.text(e.hx, e.hy - 70, '클립보드 쾅!', '#ffe27a', 13, 0.9); const hh = g.heroes.find((h) => Math.abs(h.x - e.hx) < 2); if (hh) { hh._hitAt = performance.now(); if (e.sec > 0) R.vfx('stun', 0, 0, { follow: hh, dy: -78, anim: 'pulse', dur: Math.round(e.sec * 1000), sz: 50 }); } fx.addShake(3); break; }
-      case 'c8speech': fx.banner('축사를 끊어라!', `금빛 테두리 = 무적 · 마구 때려 축사 게이지 ${e.need}칸 / 총공지로 끊기`, '#8a6a00', 2.4, 'big', 'e_boss_bestman'); fx.flash('#fff1a8', 0.2); if (!app.c8SpeechTip) { app.c8SpeechTip = true; toast('축사 중엔 무적! 한 대 = 1칸 · 스킬 = 5칸 · 부케 묶기 = 4칸 · 총공지는 바로 끊어요', 2600); } if (loud) A.sfx.horn && A.sfx.horn(); break;
+      case 'c8speech': fx.banner('축사를 끊어라!', `금빛 테두리 = 무적 · 마구 때려 축사 게이지 ${e.need}칸 / 총력전으로 끊기`, '#8a6a00', 2.4, 'big', 'e_boss_bestman'); fx.flash('#fff1a8', 0.2); if (!app.c8SpeechTip) { app.c8SpeechTip = true; toast('축사 중엔 무적! 한 대 = 1칸 · 스킬 = 5칸 · 부케 묶기 = 4칸 · 총력전은 바로 끊어요', 2600); } if (loud) A.sfx.horn && A.sfx.horn(); break;
       case 'c8speechImm': if (!busy) fx.text(e.x, e.y, '무적! (축사 중)', '#ffe27a', 11, 0.6); break;
       case 'c8speechCut': fx.banner('축사 끊었다!', '신랑 친구 대표가 비틀 — 빈틈! 지금 몰아쳐요', '#1a7a4a', 1.6, 'wave'); fx.ring(e.x, e.y, 20, 180, 0.6, '#9dffb0', 6); fx.addShake(5); if (loud) A.sfx.crit && A.sfx.crit(); break;
       case 'c8speechEnd': fx.banner('축사 끝… 다들 졸려요', '입구 피해 · 멤버 공격 속도 −35% (4초)', '#5a3a1a', 1.6, 'wave'); fx.addShake(6); break;
@@ -1260,7 +1260,7 @@ function handleEvents(g, loud) {
       }
       case 'ccFree': { // (10/11) 해제! — 시원하게 (번쩍 + 크게)
         const big = e.by !== 'wave';
-        fx.text(e.x, e.y - (e.by === 'cleanse' ? 120 : 96), e.by === 'ult' ? '총공지 해제!' : e.by === 'bangjang' ? '버텨! 해제!' : e.by === 'res' ? '면역! 해제!' : e.by === 'cleanse' ? '사슬 풀림!' : '해제!', '#9dffb0', big ? 18 : 13, 1.2, -22); // (건전녀 간호는 '상태이상 해제!' 위에)
+        fx.text(e.x, e.y - (e.by === 'cleanse' ? 120 : 96), e.by === 'ult' ? '총력전 해제!' : e.by === 'bangjang' ? '버텨! 해제!' : e.by === 'res' ? '면역! 해제!' : e.by === 'cleanse' ? '사슬 풀림!' : '해제!', '#9dffb0', big ? 18 : 13, 1.2, -22); // (건전녀 간호는 '상태이상 해제!' 위에)
         if (big) { fx.ring(e.x, e.y - 30, 8, 70, 0.45, '#b6ffc8', 5); fx.burst(e.x, e.y - 30, busy ? 6 : 14, '#e0ffe8', 190, 'star', 5, 0.55); fx.flash('#c8ffd8', 0.18); if (loud && A.sfx.levelUp) A.sfx.levelUp(); }
         break;
       }
@@ -1401,7 +1401,7 @@ function handleEvents(g, loud) {
       case 'bus': for (const k of [0, 1]) fx.ring(e.x, e.y - 10, 10 + k * 16, 90 + k * 40, 0.45 + k * 0.15, '#ffd84a', 4 - k); fx.banner(e.big ? '2층 막차 버스!' : '막차 버스!', '이호찬: "다들 타! 집에 가자!"', '#8a6a00', 0.9, 'wave'); fx.addShake(e.big ? 8 : 5); break;
       case 'slash': R.addSlash(e.x, e.y); break;
       case 'skillCast': { const h = g.heroes.find((x) => x.id === e.hero); if (h) skillFx(h); break; } // (문동한 카페인 풀충전 연출은 'cafeUp')
-      case 'noMomentum': if (live) toast(e.ult ? '총공지는 기세 2칸이 필요해요' : '기세가 모자라요 — 조금 기다려요', 900); break;
+      case 'noMomentum': if (live) toast(e.ult ? '총력전은 기세 2칸이 필요해요' : '기세가 모자라요 — 조금 기다려요', 900); break;
       case 'skillQueued': break;
       case 'weaponEvo': fx.text(e.x, e.y - 96, '무기 진화!', '#ffd23f', 16, 1.3, -30); fx.ring(e.x, e.y - 30, 12, 60, 0.6, '#ffd23f', 4); break;
       case 'reload': if (Math.random() < 0.12 && WEAPON[e.hero]) fx.text(e.x, e.y - 70, WEAPON[e.hero].reload, '#e8e0ff', 10, 0.8, -16); break;
@@ -1421,11 +1421,15 @@ function handleEvents(g, loud) {
         break;
       case 'ult':
         fx.flash('#fff6c8', 0.8);
-        fx.addShake(12);
+        fx.addShake(10);
         fx.ring(180, g.rowY, 10, 700, 0.9, '#ffd23f', 14);
         fx.ring(180, g.rowY, 10, 500, 0.7, '#fff', 6);
-        fx.banner('총공지!!', '"전원 퇴장입니다"', '#b86b00', 1.3, 'big');
+        fx.banner('총력전!!', '"다 같이 간다!" — 멤버 모두 스킬 발동', '#b86b00', 1.4, 'big');
         if (loud) A.sfx.ult();
+        break;
+      case 'teamCast': // 총력전: 멤버가 차례로 자기 스킬 — 금빛 고리 + 이름 불꽃
+        fx.ring(e.x, e.y - 30, 6, 90, 0.5, '#ffd23f', 5);
+        fx.text(e.x, e.y - 74, '총력전!', '#ffe46b', 13, 0.8);
         break;
       case 'charm': {
         const h = HD(e.hero);
@@ -1535,17 +1539,18 @@ function updateHud() {
     app.hudCache.ult = up;
     H$.ult.style.setProperty('--p', up);
   }
-  // 기세 고리: 2칸이 부드럽게 차고 · 한 칸 꽉 차면 딸깍 · 총공지 = 충전 100% + 기세 2칸 (10/08: 3칸 → 2칸)
+  // 기세 고리: 2칸이 부드럽게 차고 · 한 칸 꽉 차면 딸깍 · 총력전 = 충전 100% + 기세 2칸 (10/08: 3칸 → 2칸)
   { const on = g.mom !== null && g.mom !== undefined, m = on ? g.mom : MOMENTUM.max;
     for (let i = 0; i < 3; i++) { const el = document.getElementById('ur' + i); if (!el) continue; const f = Math.max(0, Math.min(1, (m - i * 100) / 100)); const v = (f * 100).toFixed(1); if (el.dataset.v !== v) { el.dataset.v = v; el.style.strokeDasharray = `${v} 100`; el.classList.toggle('full', f >= 1); } }
     const full = on ? Math.floor(m / 100) : MOMENTUM.max / 100;
     if (app.hudCache.momN !== undefined && full > app.hudCache.momN && on) { try { A.sfx.tap(); } catch { /* 무시 */ } }
     app.hudCache.momN = full;
     H$.ult.classList.toggle('noring', !on);
+    H$.ult.classList.toggle('teamOn', g.teamT > 0);
     const rd = up >= RULES.ultMax && full >= 2;
-    if (H$.ult.classList.contains('ready') !== rd) { H$.ult.classList.toggle('ready', rd); if (rd) { const b = document.createElement('span'); b.className = 'ult-bub'; b.textContent = '총공지 준비!'; H$.ult.appendChild(b); setTimeout(() => b.remove(), 1800); } }
-    if (rd && !app.ultTipShown && !TUT.learning()) { app.ultTipShown = true; showTip('총공지 준비 완료! 오른쪽 아래 메달을 눌러요', 3500); }
-    if (on && !tutDone('mom') && g.mode === 'stage' && g.t > 6 && !TUT.learning()) { setTut('mom'); showTip('기세: 스킬을 쓸 때마다 1칸씩 써요 · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이면 총공지!', 6000); H$.ult.classList.add('tut'); setTimeout(() => H$.ult.classList.remove('tut'), 6000); }
+    if (H$.ult.classList.contains('ready') !== rd) { H$.ult.classList.toggle('ready', rd); if (rd) { const b = document.createElement('span'); b.className = 'ult-bub'; b.textContent = '총력전 가능!'; H$.ult.appendChild(b); setTimeout(() => b.remove(), 1800); } }
+    if (rd && !app.ultTipShown && !TUT.learning()) { app.ultTipShown = true; showTip('총력전 준비 완료! 오른쪽 아래 엠블럼을 누르면 멤버 모두가 스킬을 한꺼번에 써요', 3800); }
+    if (on && !tutDone('mom') && g.mode === 'stage' && g.t > 6 && !TUT.learning()) { setTut('mom'); showTip('기세: 스킬을 쓸 때마다 1칸씩 써요 · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이면 총력전!', 6000); H$.ult.classList.add('tut'); setTimeout(() => H$.ult.classList.remove('tut'), 6000); }
   }
   // 보스 체력바
   let hp = 0, max = 0, name = '';
@@ -1843,7 +1848,7 @@ momBar.id = 'mombar'; momBar.hidden = true;
 momBar.innerHTML = '<small>기세</small><i><b></b></i><i><b></b></i><i><b></b></i>';
 stage.appendChild(momBar);
 function renderMom(g) {
-  momBar.hidden = true; // (기세는 총공지 메달 둘레 고리로 옮김)
+  momBar.hidden = true; // (기세는 총력전 엠블럼 둘레 고리로 옮김)
   const on = false;
   if (!on) return;
   const bs = momBar.querySelectorAll('b');
@@ -2035,7 +2040,7 @@ $('#btn-mute').addEventListener('click', () => { A.setMuted(!A.isMuted()); syncM
 $('#btn-ult').addEventListener('click', () => {
   const g = app.g;
   if (!g || app.paused || app.cardsOpen) return;
-  if (!S.useUlt(g)) { if (g.ult >= RULES.ultMax) handleEvents(g, true); else toast(`총공지 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
+  if (!S.useUlt(g)) { if (g.ult >= RULES.ultMax) handleEvents(g, true); else toast(`총력전 충전 중… ${Math.floor(g.ult)}%`, 1000); return; }
   TUT.emit('ult');
   handleEvents(g, true);
 });
@@ -3154,7 +3159,7 @@ const ITEM_IC = { door: 'door', coupon: 'coupon', battery: 'it_battery', charm: 
 const itemIc = (id, size = '') => ic(ITEM_IC[id] || 'bag', '', size);
 // 상점 아이템: 한 줄 효과 설명 + 자세히
 const ITEM_EFFECT = {
-  door: '랑방 입구 최대 내구도가 늘어요 (별 받기가 쉬워짐)', coupon: '스테이지를 깰 때 받는 코인이 늘어요', battery: '총공지 게이지가 더 빨리 차요',
+  door: '랑방 입구 최대 내구도가 늘어요 (별 받기가 쉬워짐)', coupon: '스테이지를 깰 때 받는 코인이 늘어요', battery: '총력전 게이지가 더 빨리 차요',
   charm: '모든 멤버 치명타(2배 피해) 확률이 올라가요', drink: '스테이지 시작 전에 레벨업 카드를 먼저 골라요', slot5: '덱에 멤버를 5명까지 넣을 수 있어요', slot6: '덱에 멤버를 6명까지 넣을 수 있어요 (5번째 칸 먼저)',
 };
 function showItemInfo(id) {
@@ -3585,7 +3590,7 @@ function showGlossary() {
   const attrRows = at.map((a) => { const l = glossLine('attr:' + a); return `<div class="gl-row">${attrIco(a)}<span><b>${esc(l[0])}</b><small>${esc(l[1])}</small></span></div>`; }).join('');
   const roleRows = Object.keys(ROLE_IC).map((k) => `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/${ROLE_IC[k]}.webp" alt=""><span><b>${ROLE_TXT[k][0]}</b><small>${ROLE_TXT[k][1]}</small></span></div>`).join('');
   const tierRows = [1, 2, 3, 4, 5].map((t) => `<div class="gl-row"><i class="tier t${t}">${TIER_NAME[t]}</i><span><b>${TIER_TXT[t][0]}</b><small>${TIER_TXT[t][1]} · 최대 +${metaMaxOfTier(t)}</small></span></div>`).join('');
-  const momRow = `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/megaphone.webp" alt=""><span><b>기세 (총공지 둘레 2칸)</b><small>멤버 스킬을 쓸 때마다 1칸씩 써요 (LEGEND 멤버는 2칸) · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이 차고 총공지 충전이 끝나면 총공지! · 쿨 35초 넘는 큰 한 방 스킬은 1웨이브가 끝나야 써요</small></span></div>`;
+  const momRow = `<div class="gl-row"><img class="role-ic" src="/img/lb/ui2/megaphone.webp" alt=""><span><b>기세 (총력전 엠블럼 둘레 2칸)</b><small>멤버 스킬을 쓸 때마다 1칸씩 써요 (LEGEND 멤버는 2칸) · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이 차고 총력전 게이지가 가득 차면 총력전 — 멤버 모두가 스킬을 한꺼번에 쓰고 6초 동안 스킬이 1.5배! · 쿨 35초 넘는 큰 한 방 스킬은 1웨이브가 끝나야 써요</small></span></div>`;
   popup(`<h3>한눈에 보기</h3><h4 class="gl-h">기세</h4>${momRow}<h4 class="gl-h">속성</h4>${attrRows}<h4 class="gl-h">역할</h4>${roleRows}<h4 class="gl-h">등급</h4>${tierRows}<p class="ip">배지나 칩을 꾹 누르면 설명이 떠요</p>`, 'pp-gloss');
   void wheel;
 }
@@ -4879,7 +4884,7 @@ function showPrep(mode, s) {
   // (10/11) '풀 때까지' 스테이지 (헬 7 · 8장): 늘 크게 알려 준다 — 무엇으로 풀고 · 누가 막는지 · 덱에 없으면 추천
   const lockOn = (mode === 'stage' && ccLockStage(s, hellOn)) || mode === 'endless', LOCK_CNT = ['gunnyeo', 'dohoon', 'soyoung', 'jungmin', 'dragon', 'bangjang'];
   const lockHas = lockOn ? ids.filter((id) => LOCK_CNT.includes(id)) : [], lockRec = lockOn && !ids.includes('gunnyeo') ? LOCK_CNT.filter((id) => HEROES[id] && own.has(id) && !ids.includes(id)).slice(0, 2) : [];
-  const lockHtml = lockOn ? `<p class="pp-lock">${ic('lock', '', 'sm')}<b>${mode === 'endless' ? `${CC_DEPTH.lock.endlessFrom}단계부터 풀 때까지` : '풀 때까지 상태이상'}</b> — 기절 · 홀림 · 침묵 · 빙결 · 독이 <b>저절로 안 풀려요</b> (기절 예고 · 정예 · 보스 투척 · 자물쇠 표시). 건전녀 간호 · 응급 방패 · 총공지 · 방장 "버텨!" · 웨이브 끝에 풀리고, 김도훈(기절) · 정소영(홀림 · 침묵) · 홍정민(독) · 박나영(빙결)이 있으면 안 묶여요${lockHas.length ? ` · 내 덱: <em>${lockHas.map((id) => esc(HEROES[id].name)).join(' · ')}</em>` : ' · <b>덱에 푸는 멤버가 없어요!</b>'}${lockRec.length ? ` → <em>${lockRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
+  const lockHtml = lockOn ? `<p class="pp-lock">${ic('lock', '', 'sm')}<b>${mode === 'endless' ? `${CC_DEPTH.lock.endlessFrom}단계부터 풀 때까지` : '풀 때까지 상태이상'}</b> — 기절 · 홀림 · 침묵 · 빙결 · 독이 <b>저절로 안 풀려요</b> (기절 예고 · 정예 · 보스 투척 · 자물쇠 표시). 건전녀 간호 · 응급 방패 · 총력전 · 방장 "버텨!" · 웨이브 끝에 풀리고, 김도훈(기절) · 정소영(홀림 · 침묵) · 홍정민(독) · 박나영(빙결)이 있으면 안 묶여요${lockHas.length ? ` · 내 덱: <em>${lockHas.map((id) => esc(HEROES[id].name)).join(' · ')}</em>` : ' · <b>덱에 푸는 멤버가 없어요!</b>'}${lockRec.length ? ` → <em>${lockRec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>` : '';
   const lackHtml = lack.length || armorHtml || thrHtml || lockHtml ? `<div class="pp-lack">${lockHtml}${lack.map((c) => { const rec = COND[c].counter.filter((id) => HEROES[id] && own.has(id)).slice(0, 2); return `<p>${ic('bolt', '', 'sm')}<b>${esc(COND[c].name)}</b> 에 대처할 멤버가 덱에 없어요${rec.length ? ` → <em>${rec.map((id) => esc(HEROES[id].name)).join(' · ')}</em> 추천` : ''}</p>`; }).join('')}${armorHtml}${thrHtml}</div>` : '';
   const powHtml = `<div class="pp-pow ${ok ? 'ok' : 'low'}"><div class="pp-pow-t">${ic('swords', '', 'sm')}<span>내 전투력</span><b>${fmt(pw)}</b>${need ? `<small>/ 권장 ${fmt(need)}</small>` : ''}${ok ? '' : '<button class="pp-link" data-act="nav" data-tab="bag">강화하러 가기 ›</button>'}</div>${need ? `<i class="pp-bar"><b style="width:${Math.min(100, Math.round((pw / need) * 100))}%"></b></i>` : ''}</div>`;
   // 4) 등장 진상
@@ -5713,7 +5718,7 @@ const FAIL_TIPS = [
   '독재자를 먼저 잡으세요 — 곁의 진상들이 덜 아파해요',
   '사기꾼이 "들켰다!" 할 때가 기회! 서명훈의 욕이 특히 잘 먹혀요',
   '뭉쳐 다니는 패거리는 범위 공격·관통 공격에 약해요',
-  '총공지는 적이 몰려올 때 아껴 뒀다가 쓰세요',
+  '총력전은 적이 몰려올 때 아껴 뒀다가 쓰세요',
 ];
 
 // 주간 점수 풀이 (서버와 같은 식 · 웨이브 목표 ●○)
@@ -7122,10 +7127,10 @@ function showHowto() {
  <div class="it"><i>${ic('bag', '', 'sm')}</i><div>스테이지를 깨면 <b>장비</b>가 떨어져요 (일반 · 희귀 · 영웅 · 전설). 멤버마다 무기 · 액세서리 한 칸씩 — 상점 <b>장비</b> 탭에서 끼우고, 강화하고, 남는 건 팔아요.</div></div>
  <div class="it"><i>${ic('sparkle', '', 'sm')}</i><div>보스가 큰 기술을 쓴 뒤엔 잠깐 <b>빈틈</b>(금빛)! 그때 스킬을 몰아 쓰면 1.5배로 들어가요.</div></div>
  <div class="it"><i>${ic('door', '', 'sm')}</i><div>진상들이 골목 위에서 몰려와요. 우리 멤버들이 <b>자동으로 공격</b>해요. 벨벳 로프까지 온 진상은 <b>랑방 입구</b>를 두드려요.</div></div>
- <div class="it"><i>${ic('tap', '', 'sm')}</i><div>진상을 <b>탭하면 집중 공격</b>. 경험치는 <b>저절로</b> 모여요. 게이지가 차면 <b>${ic('megaphone', '', 'sm')} 총공지</b>로 화면 전체 공격!</div></div>
+ <div class="it"><i>${ic('tap', '', 'sm')}</i><div>진상을 <b>탭하면 집중 공격</b>. 경험치는 <b>저절로</b> 모여요. 게이지가 차면 <b>${ic('megaphone', '', 'sm')} 총력전</b>이면 멤버 모두가 스킬을 한꺼번에!</div></div>
  <div class="it"><i>${ic('card_common', '', 'sm')}</i><div>레벨이 오르면 카드 3장! 카드를 <b>눌러 고르고 → 선택</b>. 덱 멤버 레벨업(3·5레벨에 특수 능력) · 전체 강화. 카드는 스테이지마다 새로 시작해요.</div></div>
  <div class="it"><i>${ic('star_gold', '', 'sm')}</i><div><b>★ 주력</b>: 스테이지 한 판에 <b>${MAIN.n}명만</b> Lv5(진화)까지 커요. Lv3 을 넘기는 레벨 카드를 먼저 고른 ${MAIN.n}명이 주력이 되고, 나머지 멤버는 Lv3 까지예요. 누구를 키울지 골라 보세요!</div></div>
- <div class="it"><i>${ic('cart', '', 'sm')}</i><div>코인으로 <b>강화 상점</b>에서 멤버를 영구 강화(최대 20)하고 아이템(튼튼한 문 · 단골 쿠폰 · 확성기 배터리 · 행운 부적 · 웰컴 드링크)을 사요.</div></div>
+ <div class="it"><i>${ic('cart', '', 'sm')}</i><div>코인으로 <b>강화 상점</b>에서 멤버를 영구 강화(최대 20)하고 아이템(튼튼한 문 · 단골 쿠폰 · 총력 배터리 · 행운 부적 · 웰컴 드링크)을 사요.</div></div>
  <div class="it"><i>${ic('sparkle', '', 'sm')}</i><div>1-6 · 1-10 · 2-3 · 2-5 · 2-7 · 2-10 · 3-2 · 3-3 을 처음 깨면 <b>새 멤버</b>가 합류해요 (<b>HIDDEN</b> 멤버도 있어요!). 힐러·탱커·한 방 딜러까지 — 덱에 넣어 써요.</div></div>
  <div class="it"><i>${ic('infinity', '', 'sm')}</i><div>1-10을 깨면 <b>무한 도전</b>이 열려요. 어디까지 버티나 랭킹 경쟁! 무한 도전에선 아직 못 만난 멤버도 카드로 <b>체험 합류</b>해요. 25웨이브부터는 <b>진상 연합 회장</b>이 10웨이브마다 찾아와요.</div></div>
  <div class="it"><i></i><div>사채업자는 살아 있는 동안 <b>이자</b>로 입구를 떼어 가요. 빨리 잡으면 <b>빚 탕감</b>! 뒤에 숨은 <b>인피 총무</b>는 보호막을 뿌리니 탭해서 먼저 잡아요.</div></div>
@@ -7197,8 +7202,8 @@ const ENEMY_TIPS = {
   showoff: '셀카로 남자 멤버를 홀린다 — 여자 멤버 · 건전녀 Lv5 로 막기',
   drunkfriend: '두세 명이 어깨동무하고 갈지자로 우르르 — 범위 · 관통 공격으로 한 번에',
   mid_hallmgr: '8장 보스 (8-5 · 8-10). "시간 없어요!" 예고 뒤 곁 진상 5초 재촉(이동 ×1.3 · 입구 공격 ×1.4) — 예고 중 기절시키면 끊긴다 · 입구 앞 클립보드로 멤버 기절',
-  boss_bestman: '8장 끝 보스. 끝없는 축사 — 금빛 테두리 동안 무적 + 곁 진상 재촉 · 회복. 마구 때려 축사 게이지(한 대 1 · 스킬 5 · 부케 4)를 채우거나 총공지로 끊어라. 다 들으면 입구 피해 + 졸음',
-  boss_resort: '7장 보스. "눈사태 경고!" 3초 예고 뒤 멤버 전원 빙결 + 입구 피해 + 보드남 — 예고 중에 스킬 · 총공지 · 알디콤을 쓰면 끊긴다. VIP 눈덩이 포격(빙결) · 회장님 훈화(침묵) · 분노하면 스키 강사단 소환',
+  boss_bestman: '8장 끝 보스. 끝없는 축사 — 금빛 테두리 동안 무적 + 곁 진상 재촉 · 회복. 마구 때려 축사 게이지(한 대 1 · 스킬 5 · 부케 4)를 채우거나 총력전으로 끊어라. 다 들으면 입구 피해 + 졸음',
+  boss_resort: '7장 보스. "눈사태 경고!" 3초 예고 뒤 멤버 전원 빙결 + 입구 피해 + 보드남 — 예고 중에 스킬 · 총력전 · 알디콤을 쓰면 끊긴다. VIP 눈덩이 포격(빙결) · 회장님 훈화(침묵) · 분노하면 스키 강사단 소환',
   mid_snowboard: '각성한 보드남. 줄을 더 자주 바꾼다',
   mid_sledgirl: '각성한 썰매 폭주녀. 입구에 부딪히면 크게 아프다',
   yeokko: '빠름. 가까이 오면 여자 멤버를 홀린다',

@@ -516,7 +516,7 @@ test('난이도 (서버): 잠긴 난이도 거절 · 끝낼 때 보낸 난이도
   } finally { Date.now = realNow; }
 });
 
-test('전투(sim) 난이도: 어려울수록 예고가 짧고 · 끊기에 스킬이 더 들고 · 기절이 길고 · 입구 피해가 세다 · 총공지는 바로 끊는다', () => {
+test('전투(sim) 난이도: 어려울수록 예고가 짧고 · 끊기에 스킬이 더 들고 · 기절이 길고 · 입구 피해가 세다 · 총력전은 바로 끊는다', () => {
   const mk = (diff) => {
     const g = S.createGame({ H: 760, mode: 'stage', deck: ['gunman', 'bangjang', 'staff', null, null, null], weekly: RS.waveDef(1), raid: { sec: R2.R2.sec }, slots: 3, rng: () => 0.3 });
     RS.attach(g, { tier: 1, diff, hp: { body: 100 }, max: { body: 100 } });
@@ -536,12 +536,12 @@ test('전투(sim) 난이도: 어려울수록 예고가 짧고 · 끊기에 스�
     const h = g.heroes[0]; h.stunT = 0; h.x = g.r2.act.x;
     for (let t = 0; t < wind + 0.5 && g.r2.act && g.r2.act.st === 'wind'; t += 1 / 60) S.step(g, 1 / 60);
     res[d] = { wind, need, stun: h.stunT, hit: g.r2.gate.slam };
-    // 총공지 → 예고 바로 끊김
+    // 총력전 → 예고 바로 끊김
     const g2 = mk(d);
     g2.r2.act = null; g2.r2.nextT = 0; g2.r2.last = 'x'; g2.rng = () => 0.01; S.step(g2, 1 / 60); g2.rng = () => 0.3;
     assert.ok(g2.r2.act && g2.r2.act.st === 'wind');
     g2.ult = 1e9; S.step(g2, 1 / 60); g2.ult = 0; S.step(g2, 1 / 60);
-    assert.equal(g2.r2.act, null, d + ': 총공지로 끊김'); assert.ok(g2.events.some((x) => x.type === 'r2Cut' && /총공지/.test(x.text)));
+    assert.equal(g2.r2.act, null, d + ': 총력전으로 끊김'); assert.ok(g2.events.some((x) => x.type === 'r2Cut' && /총력전/.test(x.text)));
   }
   assert.ok(res.normal.wind > res.hard.wind && res.hard.wind > res.hell.wind, '예고 시간');
   assert.ok(res.normal.need < res.hard.need && res.hard.need < res.hell.need, '끊기에 필요한 스킬 수');

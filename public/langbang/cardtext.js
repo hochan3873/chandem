@@ -80,7 +80,7 @@ const GLOBAL_HEAD = {
   pierce: () => '모든 공격이 1명 더 뚫고 감',
   boss: (n) => `모든 멤버 공격력 ${n[0]} · 공속 ${n[1]}`,
   regen: (n) => `입구 체력 초당 ${n[0]} 회복`,
-  ult: (n) => `총공지(확성기) 빨리 참 · 피해 ${n[1]}`,
+  ult: (n) => `총력전 빨리 참 · 충격파 ${n[1]}`,
   charmRes: (n) => `홀리는 시간 ${n[0]}`,
   debuffRes: (n) => `기절·홀림 덜 당함 (${n[0]})`,
   cdCut: (n) => `모든 스킬 더 자주 (쿨타임 ${n[0]})`,
@@ -107,17 +107,17 @@ const GLOBAL_HEAD = {
   jp_party: () => '모든 멤버 레벨 +1 · 입구 20% 회복',
   jp_power: (n) => `공격력 ${n[0]} · 공격 속도 ${n[1]}`,
   jp_mom: () => '기세 가득 · 스킬 쿨 초기화 · 스킬 피해 +30%',
-  fillUlt: (n) => `총공지(확성기) 게이지 ${n[0]}`,
+  fillUlt: (n) => `총력전 게이지 ${n[0]}`,
   fillHeal: (n) => `입구 체력 ${n[0]} 회복`,
   tempSlot: () => '이번 판만 내 멤버 1명 더',
   guestCombo: () => '이번 판만 게스트 1명 더',
 };
 const GLOBAL_GOOD = {
   dmg: '언제나 무난해요', spd: '언제나 무난해요', gunExtra: '건전남이 주력일 때', crit: '보스전 · 한 방 멤버', hp: '입구가 위험할 때', exp: '판 초반', slow: '빠른 진상 많은 판',
-  pierce: '줄지어 오는 진상', boss: '언제나 (아주 센 카드)', regen: '입구가 자꾸 맞는 판', ult: '총공지를 자주 쓸 때', charmRes: '홀리는 진상 많은 판', debuffRes: '기절·홀림 거는 진상 많은 판',
+  pierce: '줄지어 오는 진상', boss: '언제나 (아주 센 카드)', regen: '입구가 자꾸 맞는 판', ult: '총력전을 자주 쓸 때', charmRes: '홀리는 진상 많은 판', debuffRes: '기절·홀림 거는 진상 많은 판',
   cdCut: '스킬이 센 멤버가 있을 때', armor: '입구가 자꾸 맞는 판', attrUp: '상성이 맞는 판', swarm: '떼거리 판',
   risk_allin: '입구가 넉넉할 때만 (위험)', risk_overtime: '자신 있을 때 (진상이 세짐)', risk_glass: '치명타 빌드일 때 (회복 줄어듦)',
-  econ_bonus: '언제나 (카드 한 장 더)', tr_heavy: '한 방 멤버 · 철갑 판', tr_rapid: '연타 멤버 · 떼거리 판', tr_skill: '스킬을 잘 쓸 때', tr_wall: '입구가 자꾸 맞는 판', tr_hunt: '기절 · 빙결 멤버가 있을 때', tr_boom: '떼거리 판', jp_party: '언제나 (대박)', jp_power: '언제나 (대박)', jp_mom: '스킬이 센 덱 (대박)', fillUlt: '총공지가 곧 필요할 때', fillHeal: '입구가 위험할 때', tempSlot: '언제나 (멤버 +1)', guestCombo: '언제나 (멤버 +1)',
+  econ_bonus: '언제나 (카드 한 장 더)', tr_heavy: '한 방 멤버 · 철갑 판', tr_rapid: '연타 멤버 · 떼거리 판', tr_skill: '스킬을 잘 쓸 때', tr_wall: '입구가 자꾸 맞는 판', tr_hunt: '기절 · 빙결 멤버가 있을 때', tr_boom: '떼거리 판', jp_party: '언제나 (대박)', jp_power: '언제나 (대박)', jp_mom: '스킬이 센 덱 (대박)', fillUlt: '총력전이 곧 필요할 때', fillHeal: '입구가 위험할 때', tempSlot: '언제나 (멤버 +1)', guestCombo: '언제나 (멤버 +1)',
 };
 // TECH (관통 II · 철갑탄 …): 길마다 쉬운 한 줄 — n = 설명 속 숫자
 const TECH_HEAD = {
@@ -340,7 +340,7 @@ function globalBA(c, g, id, n) {
     case 'tag_ctrl': r.push(ba('기절·느리게 시간', `${pct(m.ctrlMul)}%`, `${pct(m.ctrlMul * (1 + p))}%`)); break;
     case 'tag_boss': r.push(ba('보스 피해', `+${pct(m.bossDmg)}%`, `+${pct(m.bossDmg + p)}%`)); break;
     case 'swarm': r.push(ba('보통 진상 피해', `+${pct(m.swarmDmg)}%`, `+${pct(m.swarmDmg + p)}%`)); break;
-    case 'ult': { const p2 = firstPct(String(c.desc).split(' · ')[1]); r.push(ba('총공지 피해', `+${pct(m.ultDmg - 1)}%`, `+${pct(m.ultDmg - 1 + p2)}%`)); break; }
+    case 'ult': { const p2 = firstPct(String(c.desc).split(' · ')[1]); r.push(ba('총력전 충격파', `+${pct(m.ultDmg - 1)}%`, `+${pct(m.ultDmg - 1 + p2)}%`)); break; }
     case 'gunExtra': {
       const gh = heroOf(g, 'gunman'), d = HEROES.gunman;
       const n0 = (d && d.pistol && gh ? d.pistol.n[Math.max(0, Math.min(4, gh.lv - 1))] : 1) + (m.gunExtra || 0);

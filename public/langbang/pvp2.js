@@ -18,7 +18,7 @@ export const PV2 = {
     tank: { k: 'guard', sec: 8, name: '방패' },
     support: { k: 'cleanse', sec: 2, name: '해제' },
   },
-  comeback: { gap: 0.2, ult: 1.3, send: 0.8, hexCut: 0.75 }, // 입구가 20%p 이상 뒤지면: 총공지 +30% · 보내기 −20% · 받는 견제 −25%
+  comeback: { gap: 0.2, ult: 1.3, send: 0.8, hexCut: 0.75 }, // 입구가 20%p 이상 뒤지면: 총력전 +30% · 보내기 −20% · 받는 견제 −25%
   send: { small: { cost: 10, gap: 3 }, big: { cost: 30, gap: 3 }, delay: 1 },
   dt: 1 / 30, tickMs: 100, // 서버: 0.1초마다 3스텝
   eCap: 40, eCapOp: 28, // 장면에 담는 진상 최대 (내 판 · 상대 판)
@@ -44,7 +44,7 @@ export function splitDeck(deck) {
 }
 
 // ─── 입력 확인 (서버 · 테스트 공용): 이상한 값은 null ───
-//  sk 스킬 { s: 필드 자리, x?, y? } · ult 총공지 · tg 견제 표적 { s: 상대 자리 | -1 자동 } · sw 교체 { b: 벤치 번호, s: 자리 }
+//  sk 스킬 { s: 필드 자리, x?, y? } · ult 총력전 · tg 견제 표적 { s: 상대 자리 | -1 자동 } · sw 교체 { b: 벤치 번호, s: 자리 }
 //  cl 정신 차려 { s?: 자리 (없으면 제일 심한 멤버) } · send 보내기 { kind } · fo 집중 공격 { x, y }
 const int = (v, a, b) => { const n = Number(v); return Number.isInteger(n) && n >= a && n <= b ? n : null; };
 const num = (v, a, b) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : null; };
@@ -120,7 +120,7 @@ export function hashOf(nums) {
 
 // ─── 장면 한 통을 바이너리로 (전송량 · Render 무료 전송량) ───
 //  roster: 이 판 멤버 id 목록 (판 시작 때 한 번 보냄) · tt: { map: 진상 종류 → 번호, list } 받는 사람마다 (새 종류만 'ty' 로 따로)
-//  [t×10 u16] + 나 · 상대: [입구 u16 · 최대 u16 · 웨이브 u8 · 처치 u16 · 게이지 u16 · 총공지 u8 · 기세 u8 · 교체쿨 u8 · 정신쿨 u8 · 표적 u8 · 표시 u8 · 진상 수 u16]
+//  [t×10 u16] + 나 · 상대: [입구 u16 · 최대 u16 · 웨이브 u8 · 처치 u16 · 게이지 u16 · 총력전 u8 · 기세 u8 · 교체쿨 u8 · 정신쿨 u8 · 표적 u8 · 표시 u8 · 진상 수 u16]
 //   + 멤버 n × 9 [자리 · 번호 · Lv · 준비 · 상태 · 상태초 · x · y · 쏜 수] + 벤치 n × 2 [번호 · Lv] + (진상이 있으면) n × 7
 function sideBytes(s, roster, tt, newTy) {
   const es = s.es || null;

@@ -66,7 +66,7 @@ test('레슨 고르기: 막혀 있으면(로딩 · 창) 안 띄움 · 헬 · 주
   assert.equal(T.pickLesson(st, play({ mode: 'other' })), null);
 });
 
-test('레슨 순서: 1-2 스킬 · 총공지는 1-1 레슨 뒤 · 1-3 은 별/쓰러짐 · 첫 클리어 뒤 로비', () => {
+test('레슨 순서: 1-2 스킬 · 총력전은 1-1 레슨 뒤 · 1-3 은 별/쓰러짐 · 첫 클리어 뒤 로비', () => {
   const st = learner();
   // 1-1 을 아직 안 끝냄 → 1-2 스킬 레슨은 안 뜬다
   assert.equal(T.pickLesson(st, play({ stage: 2, skillReady: true })), null);

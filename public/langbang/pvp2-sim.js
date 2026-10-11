@@ -52,7 +52,7 @@ export function input(d, i, q) {
     return ok || queued || h.skillCd > before ? { ok: true } : { ok: false, msg: '지금은 못 써요' };
   }
   if (q.k === 'ult') {
-    if (g.ult < RULES.ultMax) return { ok: false, msg: '총공지 덜 참' };
+    if (g.ult < RULES.ultMax) return { ok: false, msg: '총력전 덜 참' };
     if (!S.useUlt(g)) return { ok: false, msg: '기세 부족' };
     for (const h of fieldHeroes(g)) S.cleanseHero(h);
     push(d, { k: 'ult', s: i });

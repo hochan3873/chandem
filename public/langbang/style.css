@@ -3632,7 +3632,7 @@ body.rm .pp-cons.tut { animation: none; }
 .show-v2 .hf-art img { filter: drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 8) rgba(0, 0, 0, 0.5)) !important; }
 .jr-art img { filter: drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 8) rgba(0, 0, 0, 0.5)); }
 
-/* 총공지 메달 (v2): 금테 보석 + 확성기 · 둘레 기세 3칸 고리 · 준비되면 빛살 */
+/* 총력전 메달 (v2): 금테 보석 + 팀 엠블럼 · 둘레 기세 3칸 고리 · 준비되면 빛살 */
 .ult.v2 { width: calc(var(--u) * 72); height: calc(var(--u) * 72); padding: 0; background: none; filter: none; opacity: 1; border: 0; overflow: visible; }
 .ult.v2::before { display: none; }
 .ult.v2 .ult-ring { position: absolute; inset: calc(var(--u) * -4); width: calc(100% + var(--u) * 8); height: calc(100% + var(--u) * 8); overflow: visible; z-index: 3; pointer-events: none; }
@@ -3643,9 +3643,11 @@ body.rm .pp-cons.tut { animation: none; }
 .ult.v2.noring .ult-ring { display: none; }
 .ult.v2 .ult-gem { position: absolute; inset: calc(var(--u) * 6); border-radius: 50%; overflow: hidden; z-index: 2; background: radial-gradient(circle at 38% 30%, #6a3fb0, #24103f 70%); box-shadow: 0 0 0 calc(var(--u) * 3) #c9962a, 0 0 0 calc(var(--u) * 5) #5a3a0c, inset 0 calc(var(--u) * -6) calc(var(--u) * 10) rgba(0, 0, 0, 0.55), 0 calc(var(--u) * 4) 0 rgba(0, 0, 0, 0.5); }
 .ult.v2 .ult-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--p, 0) * 1%); background: linear-gradient(0deg, #c8410f, #ff9a3d 70%, #ffd27a); opacity: 0.9; transition: height 0.3s; }
-.ult.v2 .ult-ico { position: absolute; left: 50%; top: 44%; width: 62%; height: 62%; transform: translate(-50%, -50%); object-fit: contain; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6)); margin: 0; font-size: 0; }
+.ult.v2 .ult-ico { position: absolute; left: 50%; top: 48%; width: 80%; height: 80%; transform: translate(-50%, -50%); object-fit: contain; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6)); margin: 0; font-size: 0; }
 .ult.v2 .ult-txt { position: absolute; left: 50%; bottom: calc(var(--u) * -3); transform: translateX(-50%); z-index: 4; padding: 0 calc(var(--u) * 7); border-radius: 99px; background: linear-gradient(180deg, #3a1f5a, #1a0b2e); border: 1.5px solid #c9962a; color: #ffe8a0; font-size: calc(var(--u) * 10.5); font-weight: 900; white-space: nowrap; margin: 0; text-shadow: 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
 .ult.v2 .ult-rays { position: absolute; inset: calc(var(--u) * -18); z-index: 1; border-radius: 50%; opacity: 0; background: repeating-conic-gradient(rgba(255, 220, 110, 0.55) 0 8deg, transparent 8deg 24deg); -webkit-mask-image: radial-gradient(circle, #000 35%, transparent 70%); mask-image: radial-gradient(circle, #000 35%, transparent 70%); pointer-events: none; }
+.ult.v2.teamOn .ult-gem { animation: ultGem 0.5s ease-in-out infinite; }
+.ult.v2.teamOn .ult-rays { opacity: 1; animation: ultRays 2.5s linear infinite; }
 .ult.v2.ready { animation: none; }
 .ult.v2.ready .ult-gem { animation: ultGem 1s ease-in-out infinite; }
 .ult.v2.ready .ult-rays { opacity: 1; animation: ultRays 6s linear infinite; }

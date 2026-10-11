@@ -166,7 +166,7 @@ test('결과 요약은 서버 허용 범위 안 (점수·처치 상한)', () => 
 });
 
 // ─── 스테이지 모드 ───────────────────────────────────
-// 한 판을 끝까지 (카드는 첫 장, 총공지는 바로)
+// 한 판을 끝까지 (카드는 첫 장, 총력전은 바로)
 function playOut(g, maxSec = 900) {
   while (!g.over && g.phase !== 'victory' && g.t < maxSec) {
     S.step(g, 1 / 60);
@@ -1295,7 +1295,7 @@ test('주간 도전 (개편): 웨이브 사건 · 계약 · 보스 단계 · 결
   assert.ok(L.weeklyPactMul(WK.summary(g).pacts) > 1);
   g.wk.wave = 5; g.wk.onClear(g); g.wk.choose(g, 2);
   assert.equal(WK.summary(g).pacts[1], null, '거절');
-  // 보물 도둑 · 현상금: 잡으면 보너스 · 총공지
+  // 보물 도둑 · 현상금: 잡으면 보너스 · 총력전
   g.phase = 'wave'; g.ult = 0;
   const gob = S.spawnEnemy(g, 'envthief', 180, 200); gob.wkGob = true;
   S.damageEnemy(g, gob, 1e9, false, null, false);
@@ -2002,7 +2002,7 @@ test('신화 장비: 6종 · 신화 칸(m) 하나 · 강화 없음 · 드롭/모
   const got = L.grant(lb, { gear: 'myth' }, 'u1');
   assert.ok(D.MYTH_IDS.includes(got.gear.t) && got.gear.r === 'myth');
   assert.equal(L.GACHA_RATES.find((r) => r.k === 'mythGear').w, 0.3);
-  // 전투: 신화 해장국 = 입구 회복 · 왕관 = 총공지 충전
+  // 전투: 신화 해장국 = 입구 회복 · 왕관 = 총력전 충전
   const S = await load('sim.js');
   const g = S.createGame({ noWaves: true, heroes: ['staff'], gear: { staff: D.gearStats([{ t: 'myth_soup', r: 'myth' }, { t: 'myth_crown', r: 'myth' }]) } });
   assert.ok(g.mods.regen >= 6 - 1e-9 && g.mods.ultCharge >= 1.25 - 1e-9);
@@ -2120,7 +2120,7 @@ test('아이템 도감: 한 번이라도 얻은 장비 종류가 남는다 (팔�
   assert.ok(D.DROPS.length >= 8);
 });
 
-test('기세: 2칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(공속 −30%) · 총공지 2칸 · 강한 스킬 쿨 ×2', async () => {
+test('기세: 2칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(공속 −30%) · 총력전 2칸 · 강한 스킬 쿨 ×2', async () => {
   const S = await load('sim.js');
   const g = S.createGame({ H: 760, rng: seeded(8), noWaves: true, deck: ['staff', 'gunman', 'eunok', 'sanghwa', null, null], tempo: true, meta: {} });
   g.phase = 'wave';
@@ -2142,7 +2142,7 @@ test('기세: 2칸 · 스킬 1칸 · 0.6초 줄 · 7초에 1칸 · 기진맥진(
   for (let i = 0; i < 60 * 4; i++) S.step(g, 1 / 60);
   assert.ok(g.mom >= 100, '7초에 1칸');
   g.ult = D.RULES.ultMax; g.mom = 150;
-  assert.equal(S.useUlt(g), false, '총공지는 2칸');
+  assert.equal(S.useUlt(g), false, '총력전은 2칸');
   g.mom = 220; assert.equal(S.useUlt(g), true);
   // 쿨 다양화: 스킬 cd 가 곧 실제 초 (템포 · 강한 스킬 배율 없음)
   const q = S.createGame({ H: 760, rng: seeded(9), noWaves: true, heroes: ['gunman'], tempo: true, meta: {} });
@@ -2308,7 +2308,7 @@ test('경제 조정: 무한 계약 코인 배율은 서버 계산 · 주간 보�
   assert.deepEqual(['door', 'coupon', 'battery', 'charm'].map((k) => [D.ITEMS[k].base, D.ITEMS[k].per]), [[150, 0.1], [250, 0.04], [120, 0.08], [165, 0.015]]);
 });
 
-test('새 장비 7종: 보스 · 졸개 · 치명타 피해 · 마무리 · 팀 경험치 · 입구 보호 · 총공지 (상한) · 서버와 같음 · 그림 대신', async () => {
+test('새 장비 7종: 보스 · 졸개 · 치명타 피해 · 마무리 · 팀 경험치 · 입구 보호 · 총력전 (상한) · 서버와 같음 · 그림 대신', async () => {
   const R = require('../server/langbang-rules');
   const NEW = ['gymcard', 'speaker', 'goldchain', 'rolex', 'corpcard', 'lastorder', 'radio'];
   for (const t of NEW) {
@@ -2343,7 +2343,7 @@ test('새 장비 7종: 보스 · 졸개 · 치명타 피해 · 마무리 · 팀 
   assert.ok(Math.abs(team({ exp: 0.5 }).mods.expMul / g0.mods.expMul - 1 - D.GEAR_TEAM_CAP.exp) < 1e-9, '경험치 상한');
   assert.ok(Math.abs(team({ guard: 0.5 }).mods.baseArmor / g0.mods.baseArmor - (1 - D.GEAR_TEAM_CAP.guard)) < 1e-9, '입구 보호 상한');
   assert.ok(Math.abs(team({ ult: 0.1 }).mods.ultCharge - g0.mods.ultCharge - 0.2) < 1e-9, '명품 시계');
-  assert.ok(Math.abs(team({ ult: 0.9 }).mods.ultCharge - g0.mods.ultCharge - D.GEAR_TEAM_CAP.ult) < 1e-9, '총공지 상한');
+  assert.ok(Math.abs(team({ ult: 0.9 }).mods.ultCharge - g0.mods.ultCharge - D.GEAR_TEAM_CAP.ult) < 1e-9, '총력전 상한');
   // 무전기: 입구 피해가 실제로 준다
   const gg = team({ guard: 0.1 }), e = S.spawnEnemy(gg, 'thug', 180, gg.ropeY);
   const hp0 = gg.base.hp; S.damageBase(gg, 100, e); assert.ok(Math.abs(hp0 - gg.base.hp - 80) < 1e-6, '무전기 둘: −20%');
@@ -2832,4 +2832,28 @@ test('쓰러짐 게이지: 실제 판(기절 예고 · 독 순서 포함)이 오
   t.phase = 'wave'; const h = t.heroes[0];
   for (let i = 0; i < 60; i++) { h.silenceT = Math.max(h.silenceT || 0, S.debuffSec(h, 1, 'silence')); S.step(t, 1 / 60); }
   assert.ok(h.kd < 25, `1초 침묵을 계속 걸어도 조금만 (${h.kd.toFixed(1)})`);
+});
+
+test('총력전: 멤버 모두가 자기 스킬을 차례로 한 번 더 · 쿨 비움 · 6초 스킬 피해 ×1.5 · 이름 · 문구 (총공지는 없음)', async () => {
+  const S = await load('sim.js');
+  const g = S.createGame({ H: 760, rng: seeded(11), noWaves: true, deck: ['staff', 'gunman', 'eunok', 'sanghwa', null, null], tempo: true, meta: {} });
+  g.phase = 'wave';
+  for (let i = 0; i < 4; i++) S.spawnEnemy(g, 'thug', 100 + i * 60, g.rowY - 220, { hpMul: 800 }).speed = 0;
+  const hs = g.heroes.filter((h) => h.def.skill);
+  for (const h of hs) h.skillCd = 99;
+  g.ult = D.RULES.ultMax; g.mom = 220;
+  assert.equal(S.useUlt(g), true);
+  assert.equal(g.ult, 0);
+  assert.ok(g.teamT > 5.5, '6초 동안');
+  assert.equal(g.teamQ.length, hs.length, '스킬 있는 멤버 전원이 줄을 선다');
+  assert.ok(hs.every((h) => h.skillCd === 0), '쿨타임 비움');
+  const casts = [];
+  for (let i = 0; i < 120; i++) { S.step(g, 1 / 60); for (const e of g.events) if (e.type === 'teamCast') casts.push(e.hero); g.events.length = 0; }
+  assert.equal(casts.length, hs.length, '모두가 한 번씩 스킬을 낸다');
+  assert.equal(g.teamQ.length, 0);
+  for (let i = 0; i < 60 * 6; i++) S.step(g, 1 / 60);
+  assert.ok(!(g.teamT > 0), '6초 뒤 끝');
+  assert.equal(D.RULES.teamSkill, 1.5);
+  const nfs = await import('node:fs'), npath = await import('node:path');
+  for (const f of ['data.js', 'cardtext.js', 'game.js', 'tutorial.js', 'index.html', 'pvp2-ui.js', 'raid2-ui.js']) assert.ok(!/총공지/.test(nfs.readFileSync(npath.join(__dirname, '..', 'public', 'langbang', f), 'utf8')), f + ' 에 총공지가 남음');
 });

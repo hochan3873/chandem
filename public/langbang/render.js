@@ -25,6 +25,14 @@ const HEROES = { ...HEROES0, ...SUMMONS }; // 소환 멤버(성준영)도 그린
 
 const FONT = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
 const TAU = Math.PI * 2;
+// 공사 중 맵 소품 (10/12): 차단 바리케이드 · 경고등 · 모래주머니 · 팔레트 · 표지판 · 물 방벽 — 필요할 때 한 번만 받는다 (없으면 예전 꼬깔)
+const CONS_IMGS = {};
+function consPieces(hw) {
+  const key = hw ? 'hw' : 'n';
+  if (!CONS_IMGS[key]) { CONS_IMGS[key] = []; for (let i = 1; i <= 8; i++) { const im = new Image(); im.decoding = 'async'; im.onload = () => { CONS_IMGS[key].ok = (CONS_IMGS[key].ok || 0) + 1; }; im.src = `/img/lb/fx/cons${hw ? '_hw' : ''}_${i}.webp`; CONS_IMGS[key].push(im); } }
+  const a = CONS_IMGS[key];
+  return a.ok === 8 ? a : null;
+}
 export const HERO_BOX = 82; // 영웅 그림 상자 크기(논리 px) — 실제 캐릭터는 약 85%
 const FEET = 0.92; // 그림 안에서 발 위치 (위에서부터 비율)
 const FEET_OFF = 0.3; // 몸 중심(y) → 발까지 거리 (상자 대비)
@@ -1377,8 +1385,19 @@ export class Renderer {
       cx.globalAlpha = 1;
     } else if (fx.id === 'construction') {
       const [l, r] = fx.lane;
-      for (const [x0, x1] of [[0, l - 8], [r + 8, W]]) {
+      const pcs = consPieces(!!this.ssn); // 그린 공사장 소품 (시즌이면 할로윈 판) · 아직 안 왔으면 예전 꼬깔
+      for (const [x0, x1, side] of [[0, l - 8, -1], [r + 8, W, 1]]) {
         cx.fillStyle = 'rgba(20,14,6,0.55)'; cx.fillRect(x0, 60, x1 - x0, g.ropeY - 70);
+        if (pcs) {
+          let k = side < 0 ? 0 : 3, y = 78;
+          while (y < g.ropeY - 40) {
+            const im = pcs[(k * 5 + 2) % pcs.length]; k++;
+            const w = Math.min(x1 - x0 + 4, 52 + ((k * 7) % 3) * 6), h = w * im.naturalHeight / im.naturalWidth; if (y + h > g.ropeY - 34) break;
+            cx.drawImage(im, side < 0 ? x1 - w + 6 : x0 - 6, y, w, h);
+            y += h * 0.9 + 8;
+          }
+          continue;
+        }
         for (let y = 80; y < g.ropeY - 20; y += 70) {
           const mx = (x0 + x1) / 2;
           cx.fillStyle = '#ff8a1c'; cx.beginPath(); cx.moveTo(mx, y); cx.lineTo(mx - 11, y + 26); cx.lineTo(mx + 11, y + 26); cx.closePath(); cx.fill();
@@ -2586,7 +2605,7 @@ export class Renderer {
           cx.drawImage(st.c, -8, -8, 16, 16);
         }
       }
-      if (h.lockK) { // (10/11) '풀 때까지': 깜빡이는 테두리 + 사슬 자물쇠 (숫자 없음 — 건전녀 · 총공지 · 방장 · 웨이브 끝에만 풀림)
+      if (h.lockK) { // (10/11) '풀 때까지': 깜빡이는 테두리 + 사슬 자물쇠 (숫자 없음 — 건전녀 · 총력전 · 방장 · 웨이브 끝에만 풀림)
         const col = (EST[h.lockK] && EST[h.lockK].color) || '#ff6fb5', pk = 0.5 + 0.5 * Math.abs(Math.sin(t * 5));
         this.world();
         cx.save();
@@ -3060,7 +3079,7 @@ export class Renderer {
     return { l, r: r2, t, b };
   }
   // 쓰러짐 모션 (10/11): 맞고 휘청 → 발을 축으로 픽 넘어짐 (쿵 · 먼지) → 누워서 숨 쉬기 (머리 위 별 · 새) → 팔 짚고 일어나 머리 털기
-  //  h.kdT / h.kdSec (게임 시간) 로 단계를 정하고 · 일찍 일으켜진 때(건전녀 · 총공지)는 마지막 자세에서 0.42초 동안 벌떡 · 연출 줄이기(rm)면 흔들림 · 먼지 없이
+  //  h.kdT / h.kdSec (게임 시간) 로 단계를 정하고 · 일찍 일으켜진 때(건전녀 · 총력전)는 마지막 자세에서 0.42초 동안 벌떡 · 연출 줄이기(rm)면 흔들림 · 먼지 없이
   kdPose(h, hx, feet, box, t, rm) {
     const s = hx < 180 ? 1 : -1, LIE = 1.48, LIFT = -box * 0.1, SLIDE = -s * box * 0.36, UP = 0.6;
     const now = performance.now();
