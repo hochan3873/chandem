@@ -2725,6 +2725,7 @@ function showMenu() {
   showMenu0();
 }
 function showMenu0() {
+  if (verNew) setTimeout(verApply, 300); // 판 중에 새 버전이 나왔으면 로비로 돌아왔을 때 바꾼다
   // 스테이지 지도에서 고르거나 넘겨 본 스테이지로 로비도 맞춘다 (뒤로 와도 그 스테이지가 보이게)
   if (app.screen === 'stages') { const c = app.chapterTab, first = c ? (c - 1) * STAGES_PER_CHAPTER + 1 : 0; const s = app.selStage && (!c || chapterOf(app.selStage) === c) ? app.selStage : chapterOf(nextStage()) === c ? nextStage() : first; if (s && stageUnlocked(s)) app.lobbyStage = s; }
   app.screen = 'menu';
@@ -3026,6 +3027,26 @@ async function resyncProfile() {
   return true;
 }
 // 다른 기기·탭에서 쓴 뒤 돌아오면 서버 값으로 (전투 중엔 안 건드림)
+// 새 버전 확인: 앱을 끄지 않고 뒤에 두었다가 돌아오면 옛 화면 그대로라 새 그림 · 수정이 안 보인다
+//  돌아올 때 · 10분마다 /langbang/ 의 ?v= 를 보고 다르면 → 로비면 바로 새로 고침, 판 중이면 끝난 뒤 로비에서
+const MY_VER = ((import.meta.url.match(/[?&]v=([^&#]+)/) || [])[1]) || '';
+let verNew = false, verT = 0;
+async function verCheck() {
+  if (!MY_VER || verNew || Date.now() - verT < 60e3) return; verT = Date.now();
+  try {
+    const t = await (await fetch('/langbang/?vc=' + Date.now(), { cache: 'no-store' })).text();
+    const v = ((t.match(/game\.js\?v=([^"'&]+)/) || [])[1]) || '';
+    let done = ''; try { done = sessionStorage.getItem('langbang:verReload') || ''; } catch { /* 무시 */ }
+    if (v && v !== MY_VER && done !== v) { verNew = v; } // 같은 버전으로 두 번 새로 고치지 않는다 (캐시가 옛 화면을 주면 무한 반복 방지)
+  } catch { /* 무시 */ }
+  verApply();
+}
+function verApply() {
+  if (!verNew) return;
+  if (app.screen === 'menu' && !stage.querySelector('.info-modal, .gacha-res, .reveal, .coach')) { try { sessionStorage.setItem('langbang:verReload', verNew); } catch { /* 무시 */ } toast('새 버전으로 바꾸는 중…', 1200); setTimeout(() => location.reload(), 900); }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) verCheck(); });
+setInterval(verCheck, 10 * 60e3);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && app.profileLoaded && !app.guest && app.screen !== 'play') resyncProfile().then((ok) => { if (ok && app.screen !== 'play') { refresh(); BKX.notify(); } }); });
 async function liveAct(promise, okMsg) {
   const r = await promise;
