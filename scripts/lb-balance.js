@@ -1216,6 +1216,59 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   }
   if (what === 'runlen') runlen();
   if (what === 'stagecalib') stagecalib();
+  // ── 업그레이드 체감 (node scripts/lb-balance.js upgrade [--ch=1,..,8] [--nos=4,8] [--seeds=8])
+  //  같은 기준 덱으로 강화 · ★ · 장비를 바꿔 가며 클리어율 · 클리어 시간 · 남은 입구를 잰다 (맨몸 +0 · 권장 · 권장 + 전형 장비 · 권장 + 최고 장비 · +5~+20 · ★1 대 ★3)
+  //  전형 장비 = 그 스테이지까지 실제 드롭표(rollDrops · ★3 · 퍼펙트 30%)로 모은 장비를 멤버 순서대로 무기 · 액세서리 한 칸씩 (강화 +0)
+  //  최고 장비 = 그 장에서 현실적인 최고 등급(1·2장 희귀 · 3·4장 영웅 · 5장~ 전설) 확성기 · 리프팅 벨트 +5강 (공격력)
+  function upgrade() {
+    const N = opt('seeds', 8), chs = listArg('ch', '1,2,3,4,5,6,7,8').map(Number), nos = listArg('nos', '4,8').map(Number);
+    const deckFor = (c, s) => (c <= 6 ? balFor(c, s, false) : C78.slice());
+    const itemsFor = (c, s) => (c <= 6 ? itemsAt(Math.round(s * 1.3)) : ITEMS78);
+    const typical = (s, ids) => {
+      const w = [], a = [];
+      for (let k = 1; k <= s; k++) for (const d of D.rollDrops(k * 7919 + 13, k, 3, (k * 37) % 10 < 3, false)) if (d.t !== undefined && D.GEAR[d.t] && !D.GEAR[d.t].myth) (D.GEAR[d.t].slot === 'w' ? w : a).push(d);
+      const rank = (d) => D.gearValue(d.t, d.r, 0) * (['atk', 'spd', 'skill', 'cd', 'crit'].includes(D.GEAR[d.t].stat) ? 1 : 0.6);
+      w.sort((x, y) => rank(y) - rank(x)); a.sort((x, y) => rank(y) - rank(x));
+      const out = {}; ids.forEach((id, i) => { out[id] = D.gearStats([w[i], a[i]].filter(Boolean)); });
+      return out;
+    };
+    const best = (c, ids) => { const r = c <= 2 ? 'rare' : c <= 4 ? 'epic' : 'legend'; const st = D.gearStats([{ t: 'megaphone', r, lv: 5 }, { t: 'belt', r, lv: 5 }]); return Object.fromEntries(ids.map((id) => [id, st])); };
+    const one = (c, s, v) => {
+      const ids = deckFor(c, s), ref = refOf(s, ids);
+      const stars = v.star ? Object.fromEntries(ids.map((id) => [id, v.star])) : ref.stars;
+      let w = 0, hp = 0, tw = 0, tl = 0, nl = 0, door = 0;
+      for (let i = 1; i <= N; i++) {
+        const r = play({ stage: s, deck: placeDeck(ids), partner: ids[0], leader: ids[0], meta: Object.fromEntries(ids.map((id) => [id, v.meta])), gear: v.gear ? v.gear(s, ids, c) : {}, items: itemsFor(c, s), seed: i * 173 + s * 11 + opt('seedoff', 0), unlocked: [], skills: true, control: true, join: true, tempo: true, hell: false, stars, coll: ref.coll });
+        if (r.win) { w++; hp += r.hp; tw += r.t; } else { tl += r.t; nl++; door += 0; }
+      }
+      return { w: w / N, hp: w ? hp / w : 0, tw: w ? tw / w : 0, tl: nl ? tl / nl : 0 };
+    };
+    const VARS = [
+      ['+0 ★1 맨몸', (c) => ({ meta: 0, star: 1 })],
+      ['권장 맨몸', (c) => ({ meta: REC[c - 1] })],
+      ['권장+전형 장비', (c) => ({ meta: REC[c - 1], gear: typical })],
+      ['권장+최고 장비', (c) => ({ meta: REC[c - 1], gear: (s, ids, cc) => best(cc, ids) })],
+      ['+5', () => ({ meta: 5 })], ['+10', () => ({ meta: 10 })], ['+15', () => ({ meta: 15 })], ['+20', () => ({ meta: 20 })],
+      ['권장 ★1', (c) => ({ meta: REC[c - 1], star: 1 })], ['권장 ★3', (c) => ({ meta: REC[c - 1], star: 3 })],
+    ];
+    const only = listArg('vars', '').map(Number);
+    console.log(`■ 업그레이드 체감 — 기준 덱(1~6장 균형 · 7·8장 T3·T4 역할) · 스테이지 ${nos.join(',')}번 · ${N}판씩 · 도감 보너스 · 입구 아이템은 모두 같게`);
+    console.log('장  덱  변형            클리어  시간(승/패 s)  남은 입구');
+    const sumJson = {};
+    for (const c of chs) {
+      const res = {};
+      VARS.forEach(([name, mk], vi) => {
+        if (only.length && !only.includes(vi)) return;
+        let w = 0, hp = 0, tw = 0, tl = 0;
+        for (const n of nos) { const s = (c - 1) * 10 + n, r = one(c, s, mk(c)); w += r.w / nos.length; hp += r.hp / nos.length; tw += r.tw / nos.length; tl += r.tl / nos.length; }
+        res[name] = { w, hp, tw, tl };
+        console.log(`${c}장 ${pad(name, 16)} ${pad(Math.round(w * 100) + '%', 6)} ${pad(Math.round(tw) + '/' + Math.round(tl), 12)} ${Math.round(hp * 100)}%`);
+      });
+      sumJson[c] = Object.fromEntries(Object.entries(res).map(([k, v]) => [k, +(v.w * 100).toFixed(0)]));
+    }
+    console.log('UPJSON ' + JSON.stringify(sumJson));
+  }
+  if (what === 'upgrade') upgrade();
   if (what === 'stagemeas') stagemeas();
   // 진상 감사 (node scripts/lb-balance.js foes --list=1,...,80 [--seeds=8]) — 기준 플레이어 판에서 진상 종류마다 입구 피해 몫 · 쓰러짐 게이지 몫 (진 판 · 전체) — 한 진상이 패배를 혼자 만드는지
   if (what === 'foes') {

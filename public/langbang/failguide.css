@@ -1,0 +1,21 @@
+/* 실패 공략 카드 (failguide.js · game.js fgCardHtml) — 결과 화면 + 준비 화면 작은 판 */
+.fg { margin: calc(var(--u) * 6) 0; padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); background: rgba(255, 210, 63, 0.09); border: 1px solid rgba(255, 210, 63, 0.5); text-align: left; }
+.fg-h { display: flex; align-items: center; gap: calc(var(--u) * 5); margin-bottom: calc(var(--u) * 3); }
+.fg-h b { flex: 1; font-size: calc(var(--u) * 13); font-weight: 900; color: var(--gold); }
+.fg p { margin: calc(var(--u) * 3) 0; font-size: calc(var(--u) * 11.5); font-weight: 700; line-height: 1.4; color: #ffeec2; }
+.fg p b { color: #fff; }
+.fg-cause { color: #ffd9cf; }
+.fg-need { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 4); margin: calc(var(--u) * 4) 0; }
+.fg-lab { font-size: calc(var(--u) * 11.5); font-weight: 900; color: #fff; }
+.fg-lab small { font-weight: 700; color: var(--dim); }
+.fg-chips { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 4); }
+.fg-c { display: inline-flex; align-items: center; gap: calc(var(--u) * 4); padding: calc(var(--u) * 2) calc(var(--u) * 7); border-radius: 99px; font-size: calc(var(--u) * 11); font-weight: 900; line-height: 1.3; }
+.fg-c.own { background: rgba(93, 224, 122, 0.2); border: 1px solid rgba(93, 224, 122, 0.8); color: #c9ffd6; }
+.fg-c.own.in { background: rgba(93, 224, 122, 0.38); color: #fff; }
+.fg-c.no { background: rgba(255, 255, 255, 0.06); border: 1px dashed rgba(255, 255, 255, 0.35); color: var(--dim); }
+.fg-c small { font-size: calc(var(--u) * 9.5); font-weight: 700; color: #cfc4e6; }
+.fg-up, .fg-tip { display: flex; align-items: center; gap: calc(var(--u) * 4); }
+.fg .btn.fg-deck { margin: 0; padding: calc(var(--u) * 5) calc(var(--u) * 10); min-height: 0; font-size: calc(var(--u) * 11.5); border-radius: 99px; }
+.fg .btn.fg-deck.done { opacity: 0.6; }
+.fg.compact { margin: 0 0 calc(var(--u) * 8); padding: calc(var(--u) * 6) calc(var(--u) * 10); }
+.fg.compact .fg-h b { font-size: calc(var(--u) * 12); }
