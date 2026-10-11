@@ -4551,7 +4551,7 @@ i.grd.acq { vertical-align: middle; margin-left: calc(var(--u) * 4); }
 .pn-list li p { margin: 0; font-size: calc(var(--u) * 13); line-height: 1.45; color: #f1ecff; }
 
 /* ── 시즌 랭킹 보상 (srank.js): 랭킹 위 카드 · 보상표 · 한정 의상 띠 · 움직이는 칭호 · 프레임 ── */
-.sr-card { display: flex; flex-direction: column; gap: calc(var(--u) * 6); width: 100%; margin: 0 0 calc(var(--u) * 8); padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 14); border: 1.5px solid rgba(255, 207, 63, 0.7); background: linear-gradient(135deg, rgba(90, 40, 140, 0.92), rgba(40, 18, 70, 0.95) 55%, rgba(120, 60, 10, 0.9)); box-shadow: 0 0 calc(var(--u) * 12) rgba(255, 190, 60, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18); color: #fff; text-align: left; font: inherit; cursor: pointer; position: relative; overflow: hidden; }
+.sr-card { flex: none; display: flex; flex-direction: column; gap: calc(var(--u) * 6); width: 100%; margin: 0 0 calc(var(--u) * 8); padding: calc(var(--u) * 8) calc(var(--u) * 10); border-radius: calc(var(--u) * 14); border: 1.5px solid rgba(255, 207, 63, 0.7); background: linear-gradient(135deg, rgba(90, 40, 140, 0.92), rgba(40, 18, 70, 0.95) 55%, rgba(120, 60, 10, 0.9)); box-shadow: 0 0 calc(var(--u) * 12) rgba(255, 190, 60, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18); color: #fff; text-align: left; font: inherit; cursor: pointer; position: relative; overflow: hidden; }
 .sr-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 245, 200, 0.22) 50%, transparent 65%); transform: translateX(-100%); animation: srSweep 3.6s ease-in-out infinite; pointer-events: none; }
 .sr-card.hot { border-color: #fff2b0; box-shadow: 0 0 calc(var(--u) * 18) rgba(255, 210, 63, 0.75); }
 .sr-hd { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 6); }
@@ -4591,7 +4591,7 @@ i.grd.acq { vertical-align: middle; margin-left: calc(var(--u) * 4); }
 .sr-mrow small { color: var(--dim); font-size: calc(var(--u) * 8.5); }
 .sr-mrow em { font-style: normal; text-align: right; font-size: calc(var(--u) * 10); }
 .sr-mrow em b { color: #ffe46b; }
-.sr-cosm-cta { display: flex; align-items: center; gap: calc(var(--u) * 8); width: 100%; margin: 0 0 calc(var(--u) * 8); padding: calc(var(--u) * 7) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); border: 1.5px solid rgba(255, 207, 63, 0.7); background: linear-gradient(135deg, rgba(90, 40, 140, 0.9), rgba(120, 60, 10, 0.85)); color: #fff; text-align: left; font: inherit; cursor: pointer; }
+.sr-cosm-cta { flex: none; display: flex; align-items: center; gap: calc(var(--u) * 8); width: 100%; margin: 0 0 calc(var(--u) * 8); padding: calc(var(--u) * 7) calc(var(--u) * 10); border-radius: calc(var(--u) * 12); border: 1.5px solid rgba(255, 207, 63, 0.7); background: linear-gradient(135deg, rgba(90, 40, 140, 0.9), rgba(120, 60, 10, 0.85)); color: #fff; text-align: left; font: inherit; cursor: pointer; }
 .sr-cosm-cta span { flex: 1; display: flex; flex-direction: column; }
 .sr-cosm-cta b { color: #ffe46b; font-size: calc(var(--u) * 12); }
 .sr-cosm-cta small { font-size: calc(var(--u) * 9); color: #f4eaff; }
@@ -4622,3 +4622,4 @@ u.tchip.ta-gold { animation: srGlow 1.6s ease-in-out infinite !important; }
 @keyframes srFrameLaurel { 0%, 100% { box-shadow: 0 0 0 3px #ffe98a, 0 0 0 5px #8a5a10, 0 0 calc(var(--u) * 10) #ffb400; } 50% { box-shadow: 0 0 0 3px #fff6c0, 0 0 0 5px #ffcf3f, 0 0 calc(var(--u) * 20) #ffd84a; } }
 body.rm .sr-card::after, body.rm u.tchip.ta-rainbow::after, body.rm u.tchip.ta-gold::after { animation: none; display: none; }
 body.rm u.tchip.ta-rainbow, body.rm u.tchip.ta-gold, body.rm .fr.fr-srking, body.rm .fr.fr-srlaurel, body.rm .sr-skinw { animation: none !important; }
+.cosm-preview .ava .av.hq, .cosm-row .ava .av.hq, .big-got .ava .av.hq, .sr-fr .ava .av.hq { width: 100%; height: 100%; margin: 0; } /* 꾸미기 · 보상표의 프레임 미리보기 얼굴 (예전엔 0 크기라 빈 동그라미) */

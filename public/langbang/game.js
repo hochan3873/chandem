@@ -3941,7 +3941,7 @@ function showCosmetics() {
  <div class="cosm-preview"><span class="ava framed ${frameCls(p.frame)}" style="${frameStyle(p.frame)}">${av(HEROES.bangjang)}</span><div>${whoHtml(app.guest ? '손님' : app.nickname || '랑방 멤버', p.title)}<small>랭킹 · 대전 · 방 목록에서 이렇게 보여요</small></div></div>
     <p class="ip">모은 칭호 <b>${nT}</b> · 프레임 <b>${nF}</b> · 한정 의상 <b>${nS}</b> — 치장은 능력치가 없어요 (대전은 공정하게)</p>
     <div class="tabs"><button class="${tab === 'title' ? 'on' : ''}" data-act="cosmTab" data-v="title">${ic('tag', '', 'sm')}칭호</button><button class="${tab === 'frame' ? 'on' : ''}" data-act="cosmTab" data-v="frame">${ic('frame', '', 'sm')} 프레임</button><button class="${tab === 'skin' ? 'on' : ''}" data-act="cosmTab" data-v="skin">${ic('crown', '', 'sm')}한정 의상</button></div>
-    <button class="sr-cosm-cta" data-act="srankInfo">${ic('trophy', '', 'sm')}<span><b>시즌 ${L.seasonOf(L.weekIndex())} 랭킹 보상</b><small>1~3위 한정 의상 · Top 10 움직이는 칭호 · 프레임 · <em class="sr-cd" data-end="${SR.srNow().end}">${SR.srLeftText(SR.srNow().left)}</em> 남음</small></span><i>›</i></button>
+    <button class="sr-cosm-cta" data-act="srankInfo">${ic('trophy', '', 'sm')}<span><b>시즌 ${L.seasonOf(L.weekIndex())} 랭킹 보상 ›</b><small>1~3위 한정 의상 · Top 10 움직이는 칭호 · 프레임</small></span><em class="sr-cd" data-end="${SR.srNow().end}">${SR.srLeftText(SR.srNow().left)}</em></button>
  <div class="cosm-list">${rows}</div>`, 'cosm');
 }
 // 새로 얻은 칭호 · 프레임 알림 (한 번) → 바로 장착
@@ -7213,7 +7213,7 @@ async function srankData(force) {
   if (r) { app.srank = r; app.srankAt = Date.now(); }
   return r || app.srank || null;
 }
-const srSkinsHtml = (sid, big) => SR.srCostumes(sid).map((k) => { const c = HW_COSTUMES[k]; return c ? `<span class="sr-thumb ${big ? 'big' : ''}"><img src="${cosArt(k).thumb}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${HEROES[c.hero].img}'"><i class="sr-rib">SEASON ${sid} 한정</i>${big ? `<b>${esc(c.name)}</b>` : ''}</span>` : ''; }).join('');
+const srSkinsHtml = (sid, big) => SR.srCostumes(sid).map((k) => { const c = HW_COSTUMES[k]; return c ? `<span class="sr-thumb ${big ? 'big' : ''}"><img src="${cosArt(k).thumb}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${HEROES[c.hero].img}'"><i class="sr-rib">${big ? `SEASON ${sid} 한정` : `S${sid} 한정`}</i>${big ? `<b>${esc(c.name)}</b>` : ''}</span>` : ''; }).join('');
 function srRwText(rw) {
   if (!rw) return '';
   const a = [];
@@ -7611,6 +7611,7 @@ async function boot() {
   app.guest = r.guest;
   app.nickname = r.nickname || ''; // (마지막 출격 스테이지 키에 쓴다)
   app.profileLoaded = true;
+  try { if (HWUI) HWUI.applySkins(); } catch { /* 무시 */ } // 입은 의상 (할로윈 · 시즌 한정) — 프로필이 온 뒤에야 알 수 있다 (예전엔 다시 들어오면 의상이 풀려 보였다)
   app.lobbyStage = 0; // 프로필이 온 뒤 이 계정의 마지막 출격 스테이지로 다시 고른다
   if (TUT_ON) TUT.load(API.accountKey(), app.profile.tut, app.profile); // 튜토리얼: 이 계정 진행 (클리어 0 이면 처음부터)
   Promise.resolve(API.mailSync(app.guest)).then((r) => { if (r && r.ok && r.profile) { app.profile = r.profile; if (app.screen === 'menu') showMenu(); } }).catch(() => {}).then(() => BKX.boot()).catch(() => {}); // 다음: 본캐 출연료 정산 · 알림
