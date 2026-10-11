@@ -2144,7 +2144,11 @@ export class Renderer {
     cx.rotate(st >= 3 ? 0.08 + (calm ? 0 : Math.sin(t * 4) * 0.03) : st >= 2 && !calm ? Math.sin(t * 3) * 0.03 : 0);
     if (imgOk(sImg)) {
       const sw = 136, sh = sw * sImg.naturalHeight / sImg.naturalWidth;
-      cx.globalAlpha = calm ? 1 : flick;
+      // 간판 뒤로 지나가는 진상 · 입구 앞 진상 머리가 가려지지 않게: 겹치면 간판을 반투명하게 (부드럽게 · 기본 1 → 0.42)
+      let hide = 0;
+      for (const e of g.enemies) { if (e.dead || e.r2) continue; const hw = (e.def.size || 60) * 0.31; if (Math.abs(e.x - sx) < sw / 2 + hw && e.y - (e.def.size || 60) * 0.65 < sy + sh / 2 && e.y + (e.def.size || 60) * 0.1 > sy - sh / 2) { hide = 1; break; } }
+      this.signHide = (this.signHide || 0) + (hide - (this.signHide || 0)) * 0.15;
+      cx.globalAlpha = (calm ? 1 : flick) * (1 - 0.58 * this.signHide);
       cx.drawImage(sImg, -sw / 2, -sh / 2 - 3, sw, sh); // 그림 간판 (발이 개찰구 위에 오게)
     } else {
     cx.font = `900 13px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
