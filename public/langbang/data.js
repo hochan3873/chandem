@@ -1,4 +1,4 @@
-﻿// 랑방 대전 — 밸런스 데이터 모음
+// 랑방 대전 — 밸런스 데이터 모음
 // 숫자만 바꿔도 게임 전체 밸런스가 바뀌도록 모든 수치를 여기에 모아 둔다.
 // (DOM 없이 Node 에서도 import 되는 순수 데이터 모듈)
 
@@ -1976,6 +1976,10 @@ for (const id of ['boss_thug', 'boss_gapjil', 'boss_inpi', 'boss_loan', 'boss_kk
   const cur = ENEMY_ANIM[id] || (ENEMY_ANIM[id] = {});
   cur.attack = { src: `/img/lb/e_${id}_attack.webp`, frames: 8, release: 3 };
   if (BOSS_RAGE_ATK.includes(id)) cur.rattack = { src: `/img/lb/e_${id}_rage_attack.webp`, frames: 8, release: 3 };
+}
+// (10/27) 분노 공격 띠가 새로 생긴 보스 · 각성 중간 보스 6명 — 입구 공격 띠(attack)는 서버 목록이 붙이고 여기선 분노 띠(rattack)만
+for (const id of ['queen', 'boss_bbikki', 'mid_pension', 'boss_resort', 'mid_hallmgr', 'boss_bestman']) {
+  (ENEMY_ANIM[id] || (ENEMY_ANIM[id] = {})).rattack = { src: `/img/lb/e_${id}_rage_attack.webp`, frames: 8, release: 3, lazyImg: true };
 }
 // 입구 공격 동작 (진상마다 컨셉대로): 준비(뒤로 젖힘) → 때림(입구 쪽으로 · 불꽃) → 반동
 //   punch 주먹 · kick 발차기 · headbutt 박치기 · shove 밀치기 · phone 폰 내리치기 · bottle 병 내리치기 · bag 가방 휘두르기 · slap 따귀

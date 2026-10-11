@@ -414,7 +414,7 @@ export class Renderer {
     list.bus = '/img/lb/fx/bus.webp'; list.bus2 = '/img/lb/fx/bus2.webp';
     for (const n of ['cc_pull', 'cc_stun', 'cc_slow', 'cc_freeze', 'cc_push']) list[n] = `/img/lb/ui2/${n}.webp`;
     for (const n of ['hitspark', 'smoke', 'slap', 'grab', 'phone', 'shock', 'shock2', 'crack', 'summon', 'silence', 'stun', 'dash', 'aura_red', 'aura_blue', 'warn', 'barrage_card', 'arm']) list['vfx_' + n] = `/img/lb/fx/vfx_${n}.webp`; // 이펙트 그림
-    for (const id in ENEMY_ANIM) for (const k in ENEMY_ANIM[id]) list[`anim_${id}_${k}`] = ENEMY_ANIM[id][k].src; // 프레임 띠 (없으면 요청 실패 → 코드 움직임)
+    for (const id in ENEMY_ANIM) for (const k in ENEMY_ANIM[id]) if (!ENEMY_ANIM[id][k].lazyImg) list[`anim_${id}_${k}`] = ENEMY_ANIM[id][k].src; // 프레임 띠 (없으면 요청 실패 → 코드 움직임)
     for (const id of FUSE_ART) if (ENEMIES[id]) { const key = `e_${id}_one`; list[key] = `/img/lb/e_${id}.webp`; this.formDefs[key] = ENEMIES[id]; } // 합체 한 장 그림
     for (const id in ENEMIES) if (ENEMIES[id].boss && !ENEMIES[id].lazy) for (const f of ['skill', 'rage']) { const key = `e_${id}_${f}`; list[key] = `/img/lb/e_${id}_${f}.webp`; this.formDefs[key] = Object.assign({}, ENEMIES[id], { id: `${id}_${f}` }); } // 보스 기술 · 분노 모습 (없으면 기본 그림)
     list.moto = '/img/lb/p_motorcycle.webp';
@@ -485,6 +485,15 @@ export class Renderer {
     this.imgPump();
   }
 
+  // 늦게 받는 공격 띠 (lazyImg): 그 진상이 화면에 처음 나올 때 그림을 요청한다 (전송량 아끼기)
+  ensureAnim(type) {
+    const A = ENEMY_ANIM[type];
+    if (!A) return;
+    for (const k in A) {
+      const key = `anim_${type}_${k}`;
+      if (A[k].lazyImg && !this.images[key]) { const im = new Image(); im.decoding = 'async'; im.src = artV(A[k].src); this.images[key] = im; }
+    }
+  }
   // 서버 목록으로 새 진상 프레임 띠 붙이기 (걷기 12칸 · 쓰러짐 8칸 · 공격 8칸 기본)
   addEnemyAnims(map) {
     for (const [id, kinds] of Object.entries(map || {})) {
@@ -495,6 +504,7 @@ export class Renderer {
         cur[kd] = kd === 'walk' ? { src: `/img/lb/e_${id}_walk.webp`, frames: 12, fps: 10 } : kd === 'die' ? { src: `/img/lb/e_${id}_die.webp`, frames: 8, fps: 14, hold: ENEMIES[id].boss ? 0.3 : 0.15 } : { src: `/img/lb/e_${id}_attack.webp`, frames: 8, release: 3 };
         const key = `anim_${id}_${kd}`;
         if (this.images[key]) continue;
+        if (kd === 'attack' && /^(mid|fuse)_/.test(id)) { cur[kd].lazyImg = true; continue; } // 각성 · 합체 공격 띠는 그 진상이 처음 나올 때 한 번만 받는다 (ensureAnim)
         const img = new Image(); img.decoding = 'async'; img.src = artV(cur[kd].src); this.images[key] = img;
       }
     }
@@ -1767,6 +1777,7 @@ export class Renderer {
       cx.globalAlpha = 1;
     }
     for (const e of list) {
+      if (!e._la) { e._la = 1; this.ensureAnim(e.type); }
       let def = e.def;
       let key = 'e_' + e.type;
       if (e.form) {
