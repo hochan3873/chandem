@@ -2002,7 +2002,7 @@ export const ATK_MOVES = {
   bag: { back: 4, rot: -0.34, hitRot: 0.34, lunge: 6, sq: 0.03 },
   slap: { back: 3, rot: -0.18, hitRot: 0.24, lunge: 7, sq: 0.03 },
 };
-export const FUSE_ART = new Set(['fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi', 'fuse_lease', 'fuse_lie', 'fuse_jusa', 'fuse_sleep', 'fuse_karaoke', 'fuse_mt', 'fuse_adspam', 'fuse_taxi', 'fuse_latte', 'fuse_lift', 'fuse_coach', 'fuse_toast', 'fuse_selfie8']);
+export const FUSE_ART = new Set(['fuse_kko', 'fuse_puke', 'fuse_gossip', 'fuse_spam', 'fuse_inpi', 'fuse_lease', 'fuse_lie', 'fuse_jusa', 'fuse_sleep', 'fuse_karaoke', 'fuse_mt', 'fuse_adspam', 'fuse_taxi', 'fuse_latte', 'fuse_lift', 'fuse_coach', 'fuse_toast', 'fuse_selfie8', 'fuse_snowfight']);
 const MECH_SKIP = new Set(['id', 'name', 'img', 'hp', 'speed', 'size', 'color', 'r', 'emoji', 'gender', 'cls', 'exp', 'coin', 'atk', 'atkInterval', 'shouts', 'armor', 'forms', 'pack', 'standoff', 'zigzag']);
 for (const [id, m] of Object.entries(MID_DEFS)) {
   const a = ENEMIES[m.base || m.fuse[0]], b = m.fuse ? ENEMIES[m.fuse[1]] : null;
@@ -2947,10 +2947,10 @@ Object.assign(ENEMIES, {
     hw: { split: { type: 'hw_seed', n: 2 } }, splitInto: { type: 'hw_seed', n: 2 }, // 쓰러지면 호박씨 둘 (sim killEnemy splitInto)
     shouts: ['트릭 오어 트릿!', '펑 하고 싶다~', '호박 아님, 패션임', '불 좀 빌려 줘'] },
   hw_seed: { id: 'hw_seed', cls: 'violent', name: '호박씨', gender: 'm', emoji: '🌰', color: '#ffb35a', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_seed'), hp: 10, speed: 100, atk: 2, atkInterval: 1, exp: 1, coin: 0, r: 10, size: 44,
+    img: HW_IMG('hw_seed'), anims: ['attack'], hp: 10, speed: 100, atk: 2, atkInterval: 1, exp: 1, coin: 0, r: 10, size: 44,
     shouts: ['씨!', '퉤!'] },
   hw_bat: { id: 'hw_bat', cls: 'jerk', name: '박쥐 알바', gender: 'm', emoji: '🦇', color: '#7a4fb0', eventOnly: true, lazy: true,
-    img: HW_IMG('hw_bat'), anims: ['walk', 'die'], hp: 16, speed: 76, atk: 2, atkInterval: 0.9, exp: 1, coin: 1, r: 12, size: 60, zigzag: 26,
+    img: HW_IMG('hw_bat'), anims: ['walk', 'die', 'attack'], hp: 16, speed: 76, atk: 2, atkInterval: 0.9, exp: 1, coin: 1, r: 12, size: 60, zigzag: 26,
     pack: { min: 3, max: 5 }, hw: { drain: { per: 0.0025, heal: 0.6 } }, // 입구에 붙으면 피를 빤다 (입구 초당 0.25% · 그만큼 자기 회복)
     shouts: ['찍찍!', '시급 올려 주세요', '사장님 지켜!'] },
   hw_ghost: { id: 'hw_ghost', cls: 'politic', name: '처녀귀신 단톡방장', gender: 'f', emoji: '👻', color: '#cfe8ff', eventOnly: true, lazy: true,
@@ -2974,7 +2974,7 @@ Object.assign(ENEMIES, {
     hw: { rewrap: { at: 0.5, frac: 0.35 } }, // 체력 절반에서 붕대를 다시 감는다 (보호막 25% · 한 번)
     shouts: ['결재 반려야', '이거 다시 해 와', '나 때는 붕대도 직접 감았어', '퇴근? 누가?'] },
   hw_reaper: { id: 'hw_reaper', cls: 'politic', name: '저승사자 팀장', gender: 'm', emoji: '📜', color: '#2a2438', eventOnly: true, lazy: true, mid: true,
-    img: HW_IMG('hw_reaper'), anims: ['attack'], hp: 1100, speed: 16, atk: 24, atkInterval: 1.6, armor: 4, exp: 45, coin: 10, r: 40, size: 142,
+    img: HW_IMG('hw_reaper'), anims: ['attack', 'walk', 'die'], hp: 1100, speed: 16, atk: 24, atkInterval: 1.6, armor: 4, exp: 45, coin: 10, r: 40, size: 142,
     hw: { list: { every: 11, first: 6, sec: 3, gnSec: 4, kd: 70, stun: 2 } }, // 야근 명부: 멤버 한 명 이름을 적고 3초 (건전녀가 있으면 4초) 뒤 강제 퇴근 — 그 사이 팀장을 기절 · 빙결 · 밀치기 하거나 건전녀 응급 방패로 지운다
     title: '저승사자 팀장 등장!', subtitle: '"야근 명부에 이름 적히고 싶은 사람?"',
     shouts: ['명부에 이름 적었다', '오늘 야근 확정', '퇴근은 저승에서', '다음 사람~'] },
