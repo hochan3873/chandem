@@ -488,24 +488,66 @@ test('보상 · 강화 비용 · 아이템 · 해금: 서버(langbang-rules.js)�
   assert.deepEqual(R.ENDLESS_TIERS, D.ENDLESS_TIERS.map((t) => ({ perWave: t.perWave, clear: t.clear })), '무한 단계 보상표 (서버 = 화면)');
 });
 
-test('무한 단계 개편: 10웨이브 = 한 단계 · 단계 보스 · 진상 수 상한 · 단계 보상은 단계 보스를 깨야', () => {
+test('무한 단계 개편 (10/13): 10웨이브 = 한 단계 · 단계마다 다른 장 · 5웨이브 보스 · 떼는 그대로 · 정예 특성 · 팀 화력 맞춤', () => {
   assert.equal(D.endlessTier(1), 1); assert.equal(D.endlessTier(10), 1); assert.equal(D.endlessTier(11), 2); assert.equal(D.endlessTier(41), 5);
-  for (const w of [10, 20, 30, 40, 50, 60]) assert.ok(D.waveDef(w).boss, `${w}웨이브 단계 보스`);
-  assert.equal(D.waveDef(13).kind, 'M', '2단계: 정예 호위');
-  assert.ok(D.waveDef(27).g.every((r) => r[4] === 'E'), '25~29 정예만');
-  for (const w of [31, 34, 38]) assert.ok(D.waveDef(w).boss, `${w}: 4단계 매 웨이브 보스`);
-  assert.ok(D.waveDef(40).boss2 && D.waveDef(45).boss2, '40 · 5단계: 보스 둘');
-  assert.equal(D.endlessCap(14), Infinity); assert.equal(D.endlessCap(15), 90); assert.ok(D.endlessCap(30) < 40 && D.endlessCap(60) === 14);
-  // 시뮬: 25웨이브 진상 수가 상한 안 (보스 빼고) · 줄인 만큼 체력이 오른다
+  for (const rot of [0, 3, 7]) for (const w of [5, 10, 15, 20, 30, 40, 50, 60]) assert.ok(D.endlessWave(w, rot).boss, `${w}웨이브 보스 (rot ${rot})`);
+  // 단계마다 다른 장 (8장까지 돌고) · 주마다 시작 장이 바뀐다
+  const chs = [1, 2, 3, 4, 5, 6, 7, 8].map((t) => D.endlessWave(t * 10 - 5).ch);
+  assert.deepEqual(chs, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(D.endlessWave(1, 3).ch, 4, '이번 주 시작 장');
+  const types = (w, rot) => new Set(D.endlessWave(w, rot).g.map((r) => r[0]));
+  assert.ok([...types(13, 0)].some((t) => !types(3, 0).has(t)), '단계가 바뀌면 다른 진상');
+  // 떼: 단계마다 진상 수 (보스 웨이브는 조금 적게) · 나오는 시간은 짧게
+  for (const w of [2, 14, 26, 38]) {
+    const d = D.endlessWave(w), n = d.g.reduce((a, r) => a + r[1] * ((D.ENEMIES[r[0]].pack || D.ENEMIES[r[0]].group) ? 3 : 1), 0);
+    if (d.kind !== 'E') assert.ok(n >= 20, `${w}: 떼 (${n})`); // (정예 웨이브는 수가 적게)
+    for (const [, c, every, delay] of d.g) assert.ok(delay + c * every <= D.ENDLESS_TUNE.span + 1.5, `${w}: ${D.ENDLESS_TUNE.span}초 안에 다 나온다`);
+  }
+  // 3 · 7번째 웨이브는 중간 보스가 섞인다 (장에 중간 보스가 있으면)
+  assert.ok([3, 7, 13, 17, 23].some((w) => D.endlessWave(w).mid), '중간 보스');
+  // 시뮬: 정예 덧붙이기 · 특성 · 팀 화력 바닥
   const g = S.createGame({ H: 760, rng: seeded(5), mode: 'endless', deck: ['bangjang', 'staff', 'gunman'], meta: {}, god: true, tempo: true });
   S.startWave(g, 22);
   assert.ok(g.spawnQ.filter((o) => !o.boss).length <= D.endlessCap(22));
-  assert.ok(g.spawnQ.some((o) => o.hpX > 1), '솎아 낸 만큼 단단');
-  assert.ok(g.atkScale > 1 && g.spdScale > 1, '15웨이브부터 공격 · 21웨이브부터 속도');
+  assert.ok(g.spawnQ.filter((o) => o.elite).length >= D.ENDLESS_TUNE.elites[2], '3단계: 정예 덧붙이기');
+  assert.ok(g.spawnQ.filter((o) => o.elite).every((o) => o.aff && o.aff.length >= 1 && o.aff.every((a) => D.ENDLESS_AFFIX[a])), '정예마다 특성');
+  assert.ok(g.endPow && g.endPow.dps > 0, '팀 화력');
+  g.phase = 'wave';
+  const el = g.spawnQ.find((o) => o.elite);
+  const e = S.spawnEnemy(g, el.type, 180, 100, { hpX: el.hpX, elite: true, aff: ['shield'] });
+  const U = D.ENDLESS_TUNE.pow, dp = Math.pow(g.endPow.dps, U.damp) * Math.pow(U.ref, 1 - U.damp);
+  assert.ok(e.maxHp >= dp * U.elite[2] - 1, '정예 체력 ≥ 팀 화력 × 초');
+  assert.ok(e.shield >= e.maxHp * D.ENDLESS_AFFIX.shield.frac - 1, '방패 특성 = 보호막');
+  const f = S.spawnEnemy(g, 'yeokko', 180, 100, { elite: true, aff: ['fast'] });
+  const f0 = S.spawnEnemy(g, 'yeokko', 180, 100, {});
+  assert.ok(f.speed > f0.speed * 1.2, '빠름 특성');
+  const sp = S.spawnEnemy(g, 'yeokko', 180, 200, { elite: true, aff: ['split'] });
+  const n0 = g.enemies.filter((o) => !o.dead).length;
+  S.damageEnemy(g, sp, 1e12, false, null);
+  assert.equal(g.enemies.filter((o) => !o.dead).length, n0 - 1 + D.ENDLESS_AFFIX.split.n, '분열 특성: 쓰러지면 둘로');
   // 단계 보상: 20웨이브에서 지면(도달 20) 2단계 돌파 보너스 없음 · 21웨이브 도달이면 있음
   const a = D.endlessCoinParts(20), b = D.endlessCoinParts(21);
   assert.equal(b.tiers - a.tiers, D.ENDLESS_TIERS[1].clear);
   assert.ok(D.endlessReward(31) > D.endlessReward(21) * 1.6, '단계가 오를수록 크게');
+});
+
+test('무한 자동 (10/13): 켜면 스킬이 준비되는 대로 · 증강 · 계약은 금방 · 점수 연속 배율은 손으로 쓸 때만 · 러시 이벤트 없음', () => {
+  const g = S.createGame({ H: 760, rng: seeded(9), mode: 'endless', deck: ['bangjang', 'staff', 'gunman', 'donghan'], meta: {}, god: true, tempo: true, autoSk: true, trialAll: true });
+  S.startWave(g, 4); g.phase = 'wave';
+  for (const h of g.heroes) h.skillCd = 0;
+  g.ultOpen = true;
+  for (let t = 0; t < 6; t += 1 / 60) S.step(g, 1 / 60);
+  assert.ok(g.stats.skills >= 1, '자동으로 스킬');
+  assert.equal(g.streak, 1, '자동 스킬은 연속 배율 없음');
+  S.startWave(g, 6); g.phase = 'wave';
+  assert.ok(g.curseOffer, '계약');
+  for (let t = 0; t < 3; t += 1 / 60) S.step(g, 1 / 60);
+  assert.ok(!g.curseOffer && g.curses.length === 1, '자동: 2.5초면 계약');
+  g.idleT = 0; g.wave = 12;
+  S.step(g, 1 / 60);
+  assert.ok(!g.idleEv, '자동 중엔 러시 · 코인 주머니 없음');
+  const m = S.createGame({ H: 760, rng: seeded(9), mode: 'endless', deck: ['bangjang'], meta: {}, god: true });
+  assert.equal(m.autoSk, false, '기본은 끔');
 });
 
 test('보상 계산: 첫 클리어 보너스가 크고, 새 별마다 보너스, 다시 깨면 기본 보상만', () => {
@@ -568,11 +610,9 @@ test('인피 총무: 뒤에 멀찍이 서서 주변 진상에게 "회비 지원!
 });
 function ENEMIES_HP_THUG() { return D.ENEMIES.thug.hp * 100; }
 
-test('진상 연합 회장: 무한 도전 25·35·45웨이브 보스, 단계마다 다른 악당 기술', () => {
-  assert.equal(D.waveDef(25).boss, 'boss_union');
-  assert.equal(D.waveDef(35).boss, 'boss_union');
-  assert.notEqual(D.waveDef(30).boss, 'boss_union');
-  assert.notEqual(D.waveDef(20).boss, 'boss_union');
+test('진상 연합 회장: 무한 도전 3장 단계의 보스, 단계마다 다른 악당 기술', () => {
+  assert.ok([D.endlessWave(25).boss, D.endlessWave(30).boss, D.endlessWave(30).boss2].includes('boss_union'), '3장 단계 (21~30) 에 연합 회장');
+  assert.notEqual(D.endlessWave(10).boss, 'boss_union');
   for (let s = 1; s <= D.STAGE_COUNT; s++) assert.equal(D.stageEnemies(s).includes('boss_union'), s === 25 || s === 30, `${D.stageLabel(s)}: 스테이지엔 3-5 · 3-10 만`);
   const g = S.createGame({ rng: seeded(151), noWaves: true, heroes: ['gunman', 'staff'] });
   const b = S.spawnEnemy(g, 'boss_union', 180, 200, { hpMul: 100 });
@@ -832,7 +872,7 @@ test('새 빌런: 토 · 애정행각 · 손진상 · 가오충 · 셀카 · 새
   assert.ok(first('vomit') <= 10 && first('cutter') <= 10);
   for (const t of ['couple', 'selfie', 'handsy', 'gao']) assert.ok(first(t) > 10 && first(t) <= 20, t);
   for (const t of ['kkondae', 'spam']) assert.ok(first(t) > 20, t);
-  assert.ok(D.waveDef(24).g.some(([t]) => t === 'kkondae'), '무한 도전에도');
+  assert.ok([21, 22, 23, 24, 26, 27, 28, 29].some((w) => D.endlessWave(w).g.some(([t]) => t === 'kkondae')), '무한 도전에도 (3장 단계)');
 });
 
 test('새 멤버: 도발 탱커(정원식)가 기술을 대신 맞고 짧게 · 백인규 오토바이 돌진 · 김도훈 떼창 회복 · 문동한 간보다가 한 줄 빔', () => {
@@ -1865,9 +1905,9 @@ test('무한 개편: 5웨이브마다 저주 계약(10초면 자동) · 배율 �
   // 요약 점수에 배율이 들어간다
   const sm = S.summary(g, 100);
   assert.ok(sm.mult > 1 && sm.score >= g.stats.score);
-  // 압박 (단계 개편): 15웨이브부터 웨이브마다 체력 · 공격이 곱으로 — 40웨이브 진상 한 명이 20웨이브의 수십 배
+  // 압박 (10/13 개편): 웨이브 체력 곡선 위에 웨이브마다 조금씩 더 — 40웨이브 진상 한 명이 20웨이브의 몇 배 (정예 · 보스는 팀 화력 맞춤이 따로)
   const sc = (n) => D.hpMul(n, false) * D.endlessScale(n).hp;
-  assert.ok(sc(40) / sc(20) > 20, '40웨이브 체력 ≫ 20웨이브');
+  assert.ok(sc(40) / sc(20) > 5, '40웨이브 체력 ≫ 20웨이브');
   assert.ok(D.endlessScale(40).atk > 2 && D.endlessScale(80).spd <= D.ENDLESS_TUNE.spdCap + 1e-9, '공격 · 속도 (상한)');
 });
 

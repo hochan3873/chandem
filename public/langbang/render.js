@@ -3,7 +3,7 @@
 // 이미지가 아직 없거나 404 면 색 원 + 이모지 + 이름표 자리표시자로 그린다.
 import { drawAura as fx2Aura, drawBanner as fx2Banner, ringBurst as fx2Ring, drawShock as fx2Shock, fireRing as fx2Fire, floorRing as fx2Floor, art as fx2Art } from './fx2.js'; // 바닥 이펙트 그림 (불 고리 · 룬 · 얼음 · 보호막 …)
 import { prepSeason, bakeSeason, drawSeason } from './season-fx.js'; // 시즌 테마 전투 장식 (할로윈 등)
-import { HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, HERO_IDLE, HERO_DOWN, WEAPON, artV, EST, LOCK_NAME } from './data.js';
+import { ENDLESS_AFFIX, HEROES as HEROES0, SUMMONS, ENEMIES, rowYFor, ATTRS, TRAITS, FUSE_ART, ENEMY_ANIM, PROJ_ART, PROJ_ART_NAMES, BUS, ENEMY_ATK, ATK_MOVES, CADENCE, HERO_ANIM, HERO_ANIM_FORM, HERO_IDLE, HERO_DOWN, WEAPON, artV, EST, LOCK_NAME } from './data.js';
 // 효과 종류: 빛(더하기 섞기) · 물건(보통) · 층 · 색 · 맞은 자리 표시
 const VFX_KIND = {
   soundring: { blend: 'lighter', layer: 'front' },
@@ -1661,7 +1661,7 @@ export class Renderer {
     this._gly = this._gly || {};
     let o = this._gly[key];
     if (!o) {
-      const k = 2, w = size * 2 + 8, h = size + 8, c = document.createElement('canvas');
+      const k = 2, w = Math.max(size * 2, txt.length > 2 ? txt.length * size * 1.15 : 0) + 8, h = size + 8, c = document.createElement('canvas');
       c.width = w * k; c.height = h * k;
       const x = c.getContext('2d'); x.scale(k, k);
       x.font = `900 ${size}px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineJoin = 'round';
@@ -1751,6 +1751,19 @@ export class Renderer {
       cx.beginPath(); cx.ellipse(0, 0, w * 0.78, w * 0.22, 0, 0, TAU); cx.stroke();
     }
     cx.globalAlpha = 1;
+    // 무한 도전 정예 특성 (방패 · 빠름 · 치유 · 분열 · 저항): 머리 위 작은 표시 + 이름
+    for (const e of list) {
+      if (!e.aff || this.quiet) continue;
+      const n = e.aff.length, top = e.y - e.def.size * (e.boss ? 0.62 : 0.78);
+      for (let i = 0; i < n; i++) {
+        const A = ENDLESS_AFFIX[e.aff[i]];
+        if (!A) continue;
+        const gl = this.glyph(A.icon + A.name, 10, A.color);
+        this.tf(e.x + (i - (n - 1) / 2) * 40, top, 0, 1, 1);
+        cx.drawImage(gl.c, -gl.w / 2, -gl.h / 2, gl.w, gl.h);
+      }
+      if (e.aff.includes('heal')) { this.tf(e.x, e.y, 0, 1, 1); cx.globalAlpha = 0.18 + Math.sin(t * 4 + e.uid) * 0.08; cx.strokeStyle = ENDLESS_AFFIX.heal.color; cx.lineWidth = 2; cx.beginPath(); cx.arc(0, 0, ENDLESS_AFFIX.heal.r, 0, TAU); cx.stroke(); cx.globalAlpha = 1; }
+    }
     // 주간 도전: 현상수배 · 보물 도둑 — 발밑에 굵은 금빛 고리 + 머리 위 금빛 표시 (멀리서도 보이게)
     if (g.wk) for (const e of list) {
       if (!e.wkMark && !e.wkGob) continue;
