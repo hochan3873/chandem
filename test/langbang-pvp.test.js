@@ -1,22 +1,112 @@
 'use strict';
-// 랑방 대전 1:1 대전 AI 덱 (v2) · 마스터 테스트 도구 · 레이드 공식
+// 랑방 대전 1:1 대전 (Socket.IO /lbpvp) · 마스터 테스트 도구 · 레이드 공식
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { io: connect } = require('socket.io-client');
 const { createServer } = require('../server/index');
 
-let srv, base;
+let srv, base, clock = Date.now();
+const now = () => clock;
 test.before(async () => {
-  srv = createServer({ port: 0, pace: 0.05, limits: { createGapMs: 0, roomsPerIp: 1000 }, lbpvp2: { botAfterMs: 250, graceMs: 250, countdownMs: 30 } });
+  srv = createServer({ port: 0, pace: 0.05, limits: { createGapMs: 0, roomsPerIp: 1000 }, lbpvp: { now, botAfterMs: 250, graceMs: 250, sendDelayMs: 30, countdownMs: 30, botTickMs: 40 } });
   const port = await srv.listen();
   base = `http://127.0.0.1:${port}`;
 });
 test.after(async () => { await srv.close(); });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(fn, ms = 4000) { const t = Date.now(); while (Date.now() - t < ms) { const v = fn(); if (v) return v; await wait(15); } throw new Error('시간 초과'); }
+function player(token) {
+  const s = connect(base + '/lbpvp', { transports: ['websocket'], forceNew: true, auth: { token: token || '' } });
+  s.got = {};
+  for (const ev of ['match', 'opp', 'incoming', 'sent', 'end']) s.on(ev, (v) => { (s.got[ev] = s.got[ev] || []).push(v); });
+  s.call = (ev, data) => new Promise((res) => s.emit(ev, data, res));
+  return s;
+}
 async function user(name) { const r = await srv.accounts.signup({ username: name, password: 'secret12', nickname: name }); return r; }
 const post = (url, token, body) => fetch(base + url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify(body) }).then((x) => x.json());
 const get = (url, token) => fetch(base + url, { headers: token ? { authorization: 'Bearer ' + token } : {} }).then((x) => x.json());
+
+test('1:1 대전: 매칭 · 보내기 확인(게이지 · 간격) · 1초 늦게 도착 · 입구가 뚫리면 끝 · 점수(레이팅) 변동', async () => {
+  const ua = await user('pvpa'), ub = await user('pvpb');
+  const a = player(ua.token), b = player(ub.token);
+  await until(() => a.connected && b.connected);
+  assert.equal((await a.call('queue', { deck: ['staff'] })).waiting, true);
+  assert.equal((await b.call('queue', { deck: ['gunman'] })).matched, true);
+  await until(() => a.got.match && b.got.match);
+  assert.equal(a.got.match[0].id, b.got.match[0].id, '같은 판');
+  assert.equal(a.got.match[0].seed, b.got.match[0].seed, '같은 시드');
+  assert.equal(a.got.match[0].opp.nickname, 'pvpb');
+  await wait(60);
+  clock += 5000; // 시작 5초 뒤
+  assert.equal((await a.call('send', { kind: 'small' })).ok, false, '게이지 없음');
+  a.emit('hp', { hp: 300, max: 300, kills: 12, wave: 1, enemies: 7, heroes: [{ id: 'staff', r: true, lv: 3 }, { id: '<script>x'.repeat(5), r: 1 }], cards: ['a', 'b', 'c', 'd'], ults: 2 });
+  await until(() => b.got.opp && b.got.opp.some((o) => o.kills === 12));
+  { const o = b.got.opp.find((x) => x.kills === 12); assert.equal(o.enemies, 7); assert.equal(o.heroes[0].id, 'staff'); assert.equal(o.heroes[0].r, true); assert.ok(o.heroes[1].id.length <= 16, '긴 문자열 자름'); assert.deepEqual(o.cards, ['b', 'c', 'd'], '최근 카드 3장'); assert.equal(o.ults, 2); }
+  assert.ok('power' in a.got.match[0].opp && 'wins' in a.got.match[0].opp, '상대 배너: 전투력 · 전적');
+  a.emit('hp', { hp: 300, max: 300, kills: 9999, wave: 1 }); // 말이 안 되는 처치 수는 무시
+  await wait(40);
+  assert.ok(!b.got.opp.some((o) => o.kills === 9999), '처치 수가 너무 빠르면 무시');
+  assert.equal((await a.call('send', { kind: 'small' })).ok, true);
+  assert.equal((await a.call('send', { kind: 'small' })).ok, false, '게이지 다 씀');
+  await until(() => b.got.incoming);
+  assert.equal(b.got.incoming[0].kind, 'small');
+  a.emit('hp', { hp: 300, max: 300, kills: 30, wave: 2 });
+  await wait(30);
+  assert.equal((await a.call('send', { kind: 'small' })).ok, false, '3초 간격');
+  clock += 3500;
+  assert.equal((await a.call('send', { kind: 'small' })).ok, true);
+  // b 의 입구가 뚫림 → a 승리, 점수 변동
+  b.emit('hp', { hp: 0, max: 300, kills: 5, wave: 2 });
+  await until(() => a.got.end && b.got.end);
+  assert.equal(a.got.end[0].win, true);
+  assert.equal(b.got.end[0].win, false);
+  assert.ok(a.got.end[0].ranked && a.got.end[0].delta > 0 && b.got.end[0].delta < 0);
+  const sa = await srv.accounts.store.byId(ua.user.id);
+  assert.ok(sa.stats.langbang.pvp.rating > 1000 && sa.stats.langbang.pvp.wins === 1);
+  const rk = await get('/api/langbang/pvp/ranking');
+  assert.equal(rk.ranking[0].nickname, 'pvpa');
+  assert.equal(rk.ranking[0].username, 'pvpa');
+  assert.equal(a.got.match[0].opp.username, 'pvpb', '상대 띠를 누르면 선수 카드');
+  // 선수 카드: 스테이지 진행 · 대전 등급 · 승률 · 덱
+  await post('/api/langbang/decks', ua.token, { i: 0, decks: [['staff', 'gunman', 'nope'], [], []] });
+  const pc = await get('/api/langbang/player?u=pvpa');
+  assert.equal(pc.ok, true, pc.message);
+  assert.equal(pc.player.pvp.wins, 1);
+  assert.equal(pc.player.pvp.winRate, 100);
+  assert.ok(pc.player.pvp.tier && pc.player.pvp.tier.name);
+  assert.deepEqual(pc.player.deck.map((h) => h.id), ['staff', 'gunman'], '없는 멤버는 빼고 현재 덱');
+  assert.equal(pc.player.stageLabel, '-');
+  assert.equal((await get('/api/langbang/player?u=nobody_here')).ok, false);
+  a.close(); b.close();
+});
+
+test('1:1 대전: 상대가 없으면 연습 상대(봇) · 끊기면 기권 · 방 코드', async () => {
+  const s = player('');
+  await until(() => s.connected);
+  await s.call('queue', {});
+  await until(() => s.got.match, 3000);
+  assert.equal(s.got.match[0].opp.bot, true, '연습 상대');
+  s.emit('dead');
+  await until(() => s.got.end);
+  assert.equal(s.got.end[0].ranked, false, '봇 판은 점수 안 바뀜');
+  s.close();
+  // 방 코드 + 끊김 → 기권
+  const uc = await user('pvpc'), ud = await user('pvpd');
+  const c = player(uc.token), d = player(ud.token);
+  await until(() => c.connected && d.connected);
+  const room = await c.call('room:create', {});
+  assert.match(room.code, /^\d{4}$/);
+  assert.equal((await d.call('room:join', { code: '0000' })).ok, room.code === '0000');
+  if (room.code !== '0000') assert.equal((await d.call('room:join', { code: room.code })).ok, true);
+  await until(() => c.got.match && d.got.match);
+  d.close();
+  await until(() => c.got.end, 3000);
+  assert.equal(c.got.end[0].win, true);
+  assert.equal(c.got.end[0].reason, 'forfeit');
+  c.close();
+});
 
 test('마스터 테스트 도구: 서버가 아이디로 확인 · 올클리어 · 초기화 · 랭킹 제외', async () => {
   const m = await user('gun8401');
@@ -112,6 +202,35 @@ test('장비 강화 +1~+10: +3까지는 무조건 · 그 뒤로 확률 (실패�
     if (it.lv >= 10) { const s2 = await srv.accounts.store.byId(u.user.id); s2.stats.langbang.gear[0].lv = 6; await srv.accounts.store.saveStats(u.user.id, s2.stats); } // +10 이면 다시 +6 으로 (실패도 보려고)
   }
   assert.ok(ok > 0 && fail > 0, `성공 ${ok} · 실패 ${fail}`);
+});
+
+test('1:1 대전 방 목록: 방 만들기 → 목록에 보임(제목 · 방장 · 등급 · 전투력 · 기다린 시간) · 누르면 들어감 · 빠른 매칭은 제일 오래된 방으로 · 나가면 사라짐', async () => {
+  const ua = await user('roomA'), ub = await user('roomB'), uc = await user('roomC');
+  const a = player(ua.token), b = player(ub.token), c = player(uc.token);
+  const lists = [];
+  c.on('rooms', (r) => lists.push(r));
+  await until(() => a.connected && b.connected && c.connected);
+  const r1 = await a.call('room:create', { title: '한판 하실 분', power: 1234, deck: ['staff'] });
+  assert.match(r1.code, /^\d{4}$/);
+  await until(() => lists.some((l) => l.some((x) => x.code === r1.code)));
+  const row = lists[lists.length - 1].find((x) => x.code === r1.code);
+  assert.equal(row.title, '한판 하실 분');
+  assert.equal(row.host, 'roomA');
+  assert.equal(row.power, 1234);
+  assert.ok(row.tier && row.waitSec >= 0);
+  const ls = await b.call('rooms:list', {});
+  assert.ok(ls.rooms.some((x) => x.code === r1.code));
+  // 빠른 매칭: 제일 오래된 방(a)으로
+  const q = await b.call('quick', { deck: ['gunman'] });
+  assert.equal(q.matched, true);
+  await until(() => a.got.match && b.got.match);
+  await until(() => lists.length && !lists[lists.length - 1].some((x) => x.code === r1.code));
+  // 방 나가기 → 목록에서 사라짐
+  const r2 = await c.call('room:create', { title: '나갈 방' });
+  await until(() => lists[lists.length - 1].some((x) => x.code === r2.code));
+  await c.call('room:leave', {});
+  await until(() => !lists[lists.length - 1].some((x) => x.code === r2.code));
+  a.close(); b.close(); c.close();
 });
 
 test('모두 받기: 하나씩 받은 합과 같다 · 한 번 더 누르면 0 (두 번 안 받는다)', async () => {
@@ -424,19 +543,19 @@ test('미션 · 시즌 보상에 범용 멤버 카드 (누구 강화에나)', as
 });
 
 test('1:1 AI 상대: 덱 전투력이 내 전투력 ±5% · 두 번 연속 지면 AI -5% / 이기면 +5% (±15% 까지)', async () => {
-  const { createLbPvp2 } = require('../server/langbang-pvp2');
-  const k = createLbPvp2({ accounts: {}, normLb: (x) => x, eloDelta: () => 10, live: {}, countdownMs: 10 });
-  await k.ready;
+  const { createLbPvp } = require('../server/langbang-pvp');
+  const k = createLbPvp({ accounts: {}, normLb: (x) => x, eloDelta: () => 10, live: {}, countdownMs: 10, botTickMs: 1000 });
+  await k.simReady;
   let seed = 5; const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   for (const power of [1000, 2000, 3500, 5000, 6000]) { // (10/14 전투력 새 잣대: 두 명 +0 이 900 쯤부터)
     const d = k.aiDeck({ power, deck: ['staff', 'gunman', 'gunnyeo', 'bangjang', 'dohoon'] }, rng);
-    assert.ok(d.deck.length >= 2 && d.deck.length <= 6);
+    assert.ok(d.deck.length >= 2 && d.deck.length <= 5);
     assert.ok(Math.abs(d.power - power) <= power * 0.05 + 30, `전투력 ${power} → ${d.power}`);
     assert.ok(Object.values(d.meta).every((m) => m <= 10), '대전 AI 도 강화 +10 까지');
   }
   { const d = k.aiDeck({ power: 50000, deck: ['staff', 'gunman', 'gunnyeo', 'bangjang', 'dohoon'] }, rng); assert.ok(Object.values(d.meta).every((m) => m <= 10) && d.power > 6000, '한도보다 센 목표: 강화 +10 으로 할 수 있는 만큼'); }
   const human = { key: 'g:x', nickname: '나', rating: 1000, deck: ['staff'], power: 2000, aiAdj: 0 };
-  const side = { g: { base: { hp: 1, max: 1 }, stats: { kills: 0 } } }; const play = async (humanWins) => { const bot = k.makeBot(human); human.side = 0; bot.side = 1; const m = { id: 'm' + Math.random(), a: human, b: bot, p: [human, bot], ai: true, over: false, startAt: 0, d: { t: 60, sides: [side, side] } }; k.matches.set(m.id, m); await k.finish(m, humanWins ? bot : human, 'dead'); return m; };
+  const play = async (humanWins) => { const bot = k.makeBot(human); const m = { id: 'm' + Math.random(), a: human, b: bot, bot: true, over: false }; k.matches.set(m.id, m); await k.finish(m, humanWins ? bot : human, 'dead'); return m; };
   await play(false); assert.equal(human.aiAdj, 0, '한 번은 그대로');
   await play(false); assert.equal(Math.round(human.aiAdj * 100), -5, '두 번 지면 -5%');
   for (let i = 0; i < 10; i++) await play(false);
@@ -447,3 +566,30 @@ test('1:1 AI 상대: 덱 전투력이 내 전투력 ±5% · 두 번 연속 지�
   k.close();
 });
 
+test('1:1: 사람 먼저 — AI 판이 시작되기 전에 사람이 오면 AI 판을 취소하고 사람끼리 · 다시 찾기', async () => {
+  const s1 = player(''), s2 = player('');
+  await until(() => s1.connected && s2.connected);
+  await s1.call('queue', { deck: ['staff'], power: 1500 });
+  await until(() => s1.got.match, 3000);
+  const m1 = s1.got.match[0];
+  assert.equal(m1.opp.ai, true, 'AI 상대');
+  assert.ok(m1.aiNotice > 0, 'AI 안내 시간');
+  assert.equal((await s2.call('queue', { deck: ['gunman'] })).matched, true, '사람이 오면 바로 붙는다');
+  await until(() => s1.got.match.length >= 2 && s2.got.match);
+  assert.equal(s1.got.match[1].opp.ai, false, '두 번째는 사람');
+  assert.equal(s1.got.match[1].id, s2.got.match[0].id);
+  s1.emit('quit'); await until(() => s1.got.end);
+  s1.close(); s2.close();
+  // 다시 찾기: AI 판 시작 전이면 없던 일로 하고 다시 대기
+  const s3 = player('');
+  await until(() => s3.connected);
+  await s3.call('queue', { deck: ['staff'], power: 1500 });
+  await until(() => s3.got.match, 3000);
+  const rq = await s3.call('requeue', {});
+  assert.equal(rq.ok, true); assert.equal(rq.waiting, true);
+  await until(() => s3.got.match.length >= 2, 3000);
+  assert.equal(s3.got.match[1].opp.ai, true, '다시 30초(테스트 0.25초) 뒤 AI');
+  s3.emit('quit'); await until(() => s3.got.end);
+  assert.ok(!s3.got.end.slice(0, -1).length, '취소한 판은 결과 없음');
+  s3.close();
+});

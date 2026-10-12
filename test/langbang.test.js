@@ -2897,5 +2897,5 @@ test('총력전: 멤버 모두가 자기 스킬을 차례로 한 번 더 · 쿨 
   assert.ok(!(g.teamT > 0), '6초 뒤 끝');
   assert.equal(D.RULES.teamSkill, 1.5);
   const nfs = await import('node:fs'), npath = await import('node:path');
-  for (const f of ['data.js', 'cardtext.js', 'game.js', 'tutorial.js', 'index.html', 'pvp2-ui.js', 'raid2-ui.js']) assert.ok(!/총공지/.test(nfs.readFileSync(npath.join(__dirname, '..', 'public', 'langbang', f), 'utf8')), f + ' 에 총공지가 남음');
+  for (const f of ['data.js', 'cardtext.js', 'game.js', 'tutorial.js', 'index.html', 'raid2-ui.js']) assert.ok(!/총공지/.test(nfs.readFileSync(npath.join(__dirname, '..', 'public', 'langbang', f), 'utf8')), f + ' 에 총공지가 남음');
 });
