@@ -1702,7 +1702,8 @@ canvas.addEventListener('pointerdown', (ev) => {
     return;
   }
   // 3) 적: 지목 (모두가 그 적부터) · 송바울이 있으면 그 자리가 다음 보드 돌진 목표
-  const f = S.setFocus(g, x, y);
+  const pe = R.pickEnemy ? R.pickEnemy(g, x, y) : null; // 원근 크기: 그려진 몸 가운데로 고른다 (고른 진상을 그대로 지목)
+  const f = pe ? S.setFocus(g, pe.x, pe.y - pe.def.size * 0.3) : S.setFocus(g, x, y);
   const bh = S.setBoardAim(g, x, y);
   fx.ring(x, y, 4, 40, 0.3, f ? '#ff3b5c' : bh ? '#7ad0ff' : '#ffffff', 2);
   if (bh && !f && !g._boardTip) { g._boardTip = true; fx.text(x, y - 24, '송바울 보드 여기로!', '#7ad0ff', 12, 0.9); }

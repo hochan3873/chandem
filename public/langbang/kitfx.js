@@ -388,6 +388,7 @@ export class KitFx {
     for (const e of g.enemies) {
       if (e.dead) { if (e._kfFrz) { e._kfFrz = false; this.iceBreak(e.x, e.y - (e.def.size || 50) * 0.1, e.def.size || 50, many || rm); } continue; } // 언 채로 쓰러짐 → 깨짐
       const sz = e.def.size || 50, top = e.y - sz * 0.55;
+      if (R.eOn) R.eOn(e); // 원근 크기 (render.js) — 진상 그림 크기대로 상태 표시도 줄인다
       if (e.burnT > 0) this.drawBurn(e, sz, now, many);
       if (e.frozenT > 0 || e._kfFrz || (e.iceT > 0 && e.iceN > 0)) this.drawIce(e, sz, now, many, rm);
       if (e.roseT > 0 && e.roseN > 0) for (let i = 0; i < e.roseN; i++) { R.tf(e.x - 7 * (e.roseN - 1) / 2 + i * 7, top - 14, 0, 1, 1); cx.globalAlpha = 1; cx.fillStyle = '#ff3d6e'; cx.beginPath(); cx.arc(0, 0, 3.4, 0, TAU); cx.fill(); cx.fillStyle = '#2e9e4a'; cx.fillRect(-0.7, 3, 1.4, 4); }
@@ -395,6 +396,7 @@ export class KitFx {
       if (e.danceT > 0 && !many && Math.random() < 0.06) this.fx.part('note', e.x + (Math.random() - 0.5) * 20, top, (Math.random() - 0.5) * 30, -40, 0.6, 9, '#ffb3f0');
       // (리본 묶기는 render.js 가 이미 그린다)
     }
+    if (R.eOff) R.eOff();
     cx.globalAlpha = 1;
   }
 

@@ -94,8 +94,9 @@ export function drawHw(R, g, t, layer) {
     // 귀신 유령화: 푸른 잔상 꼬리
     for (const e of g.enemies) {
       if (e.dead) continue;
+      if (R.eOn) R.eOn(e); // 원근 크기 (render.js): 진상 그림 크기대로 표시도 줄인다
       if (e.hwGhost) {
-        if (!rm && (e._gtT = (e._gtT || 0) - dt) <= 0) { e._gtT = 0.07; S.ghosts.push({ x: e.x, y: e.y - e.def.size * 0.4, a: 0.5, r: e.def.size * 0.28 }); }
+        if (!rm && (e._gtT = (e._gtT || 0) - dt) <= 0) { e._gtT = 0.07; const ds = e._ds || 1, ft = e.y + e.def.size * 0.3; S.ghosts.push({ x: e.x, y: ft - e.def.size * 0.7 * ds, a: 0.5, r: e.def.size * 0.28 * ds }); }
         wisp(cx, e.x, e.y - e.def.size * 0.4, e.def.size * 0.45, 0.35, 'rgba(160,210,255,A)');
       }
       if (e.hwRiseT > 0) { // 좀비: 묘비가 솟고 흙이 튄다 (일어나는 동안 때리면 끝)
@@ -146,6 +147,7 @@ export function drawHw(R, g, t, layer) {
         for (let i = 0; i < 3; i++) wisp(cx, e.x - 14 + i * 10, e.y - e.def.size * 0.55 - ((t * 30 + i * 9) % 22), 4, 0.8, 'rgba(120,255,120,A)');
       }
     }
+    if (R.eOff) R.eOff();
     for (const q of S.ghosts) { q.a -= dt * 1.6; if (q.a > 0) wisp(cx, q.x, q.y, q.r, q.a, 'rgba(170,215,255,A)'); }
     S.ghosts = S.ghosts.filter((q) => q.a > 0);
     // 저승사자 명부: 멤버 머리 위 두루마리 + 초 읽기 + 팀장에게 이어진 사슬

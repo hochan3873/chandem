@@ -14,7 +14,7 @@ const eOut = (k) => 1 - (1 - k) * (1 - k);
 const eIn = (k) => k * k;
 const eBack = (k) => { const s = 1.7; k -= 1; return 1 + k * k * ((s + 1) * k + s); };
 const imgOk = (im) => !!(im && im.complete && im.naturalWidth > 0);
-const HERO_TOP = 50, HERO_FEET = 24; // 멤버 몸 중심(y) 기준 머리 위 · 발 (HERO_BOX 82 기준)
+const HERO_TOP = 57, HERO_FEET = 24; // 멤버 몸 중심(y) 기준 머리 위 · 발 (HERO_BOX 82 · 10/13 멤버 10% 크게 → 머리 위 50 → 57)
 let CURSE_GLOW = null; // 서명훈 저주 섬광 (미리 구운 빛 — 평타마다 그라데이션을 만들지 않게)
 const curseGlow = () => {
   if (CURSE_GLOW || typeof document === 'undefined') return CURSE_GLOW;
@@ -703,9 +703,11 @@ export class SkillFx {
         const sz = e.def ? e.def.size : 50, feet = e.y + sz * 0.3, top = feet - sz * 0.92;
         const a = c01(T / 0.3) * (1 - outK);
         if (a <= 0.01) continue;
+        if (R.eOn) R.eOn(e); // 원근 크기 (render.js)
         if (!lite) this.iceOutline(e, sz, feet, a);
         this.miniClock(e.x + sz * 0.3, top + 6, 8, a, T);
       }
+      if (R.eOff) R.eOff();
       return;
     }
     if (layer === 'top' && T < 0.25) { // 시작 번쩍

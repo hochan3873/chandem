@@ -37,6 +37,18 @@ function consPieces(hw) {
 export const HERO_BOX = 82; // 영웅 그림 상자 크기(논리 px) — 실제 캐릭터는 약 85%
 const FEET = 0.92; // 그림 안에서 발 위치 (위에서부터 비율)
 const FEET_OFF = 0.3; // 몸 중심(y) → 발까지 거리 (상자 대비)
+// (10/13) 원근 크기: 맨 위 진상은 70% → 입구 앞 100% 로 점점 커진다 (그림 크기만 · 판정 · 거리 · 속도는 그대로)
+//  보스 · 중간 보스 · 정예는 덜 작아진다 (85%) · 우리 멤버는 10% 크게 (주인공 존재감)
+export const DEPTH = { far: 0.7, farVip: 0.85, hero: 1.1, gateOff: 20 };
+const SIGN_K = 0.7; // 입구 간판 크기 (예전 대비)
+const GATE_LOW = 0.8; // 입구 양옆 모래주머니 · 줄 기둥 높이 (예전 대비 · 가운데 개찰구는 그대로)
+export function depthScale(y, gateY, vip) {
+  let q = gateY > 0 ? y / gateY : 1;
+  q = q < 0 ? 0 : q > 1 ? 1 : q;
+  q = q * 0.5 + q * q * (3 - 2 * q) * 0.5; // 부드럽게 (위 · 입구 앞에서 살짝 천천히)
+  const lo = vip ? DEPTH.farVip : DEPTH.far;
+  return lo + (1 - lo) * q;
+}
 // 박나뇽 입 위치 (그림 256칸 안 좌표): 공격 띠 8칸마다 · 가만히 있는 그림 — 불 뿜기가 입에서 나오게 (kitfx.js breath)
 const DRAGON_MOUTH = [[58, 140], [60, 140], [64, 138], [66, 149], [76, 139], [70, 138], [60, 140], [60, 140]], DRAGON_MOUTH_IDLE = [60, 142];
 
@@ -318,6 +330,7 @@ export class Renderer {
     this.misc = {};
     this.bg = null;
     this.sorted = [];
+    this.ds = 1; this.dax = 0; this.day = 0; // 원근 크기: 지금 그리는 캐릭터의 배율과 발 위치 (tf · world 가 이 점을 기준으로 줄이고 키운다)
     this.opts = {};
     this.guardCtx();
     this.loadImages();
@@ -1144,7 +1157,7 @@ export class Renderer {
   }
   drawFrame(g, ui) {
     // 한 층이 오류를 내도 나머지는 그린다 (층 번호로 한 번만 알림 · 그리기 상태는 그 자리에서 되돌림)
-    const L = (fn) => { this.layer++; try { fn(); } catch (e) { this.note('L' + this.layer, e && e.message, e); this.unwind(true); this.world && this.world(); } };
+    const L = (fn) => { this.layer++; this.ds = 1; try { fn(); } catch (e) { this.ds = 1; this.note('L' + this.layer, e && e.message, e); this.unwind(true); this.world && this.world(); } };
     const cx = this.cx, k = this.k, fx = this.fx, W = this.W, H = this.H;
     const t = fx.time;
     // 카메라: 흔들림 + (보스 처치 때) 확대
@@ -1153,7 +1166,7 @@ export class Renderer {
     const shy = fx.shake ? (Math.random() - 0.5) * fx.shake : 0;
     const K = k * z;
     const OX = k * (fx.zx - fx.zx * z + shx), OY = k * (fx.zy - fx.zy * z + shy);
-    this.K = K; this.OX = OX; this.OY = OY;
+    this.K = K; this.OX = OX; this.OY = OY; this.ds = 1;
     cx.setTransform(1, 0, 0, 1, 0, 0);
     cx.fillStyle = '#0b0a16';
     cx.fillRect(0, 0, this.cv.width, this.cv.height);
@@ -1591,7 +1604,7 @@ export class Renderer {
       }
       const sp = this.sprites['h_' + d.h.id];
       if (sp) {
-        this.tf(d.x, d.y + 20, Math.sin(t * 10) * 0.08, 1.08, 1.08);
+        this.tf(d.x, d.y + 20, Math.sin(t * 10) * 0.08, 1.08 * DEPTH.hero, 1.08 * DEPTH.hero);
         cx.globalAlpha = 0.85;
         cx.drawImage(sp.c, -HERO_BOX / 2, -HERO_BOX * FEET, HERO_BOX, HERO_BOX);
         cx.globalAlpha = 1;
@@ -1625,13 +1638,38 @@ export class Renderer {
     cx.fillStyle = col; cx.fillText(txt, 0, 0.5); cx.restore();
   }
   tf(x, y, rot, sx, sy) {
-    const K = this.K;
+    const K = this.K, s = this.ds;
+    if (s !== 1) { x = this.dax + (x - this.dax) * s; y = this.day + (y - this.day) * s; sx *= s; sy *= s; } // 원근 크기: 발을 기준으로 줄이고 키운다
     if (rot) {
       const c = Math.cos(rot), s = Math.sin(rot);
       this.cx.setTransform(K * sx * c, K * sx * s, -K * sy * s, K * sy * c, this.OX + K * x, this.OY + K * y);
     } else this.cx.setTransform(K * sx, 0, 0, K * sy, this.OX + K * x, this.OY + K * y);
   }
-  world() { this.cx.setTransform(this.K, 0, 0, this.K, this.OX, this.OY); }
+  world() {
+    const s = this.ds, K = this.K;
+    if (s !== 1) this.cx.setTransform(K * s, 0, 0, K * s, this.OX + K * this.dax * (1 - s), this.OY + K * this.day * (1 - s));
+    else this.cx.setTransform(K, 0, 0, K, this.OX, this.OY);
+  }
+  // 원근 크기 켜기 · 끄기 (발 = 기준점) — 다른 연출 파일(kitfx · skillfx · hw-fx)도 진상마다 이걸로 감싸면 그림 크기를 따라간다
+  dsOn(s, x, feet) { this.ds = s; this.dax = x; this.day = feet; }
+  dsOff() { this.ds = 1; }
+  eDs(e) { return (e && e._ds) || 1; }
+  eOn(e) { this.ds = (e && e._ds) || 1; this.dax = e.x; this.day = e.y + ((e.def && e.def.size) || 50) * FEET_OFF; this.world(); }
+  eOff() { this.ds = 1; this.world(); }
+  mapX(x) { return this.dax + (x - this.dax) * this.ds; }
+  mapY(y) { return this.day + (y - this.day) * this.ds; }
+  mapPt(p) { p.x = this.mapX(p.x); p.y = this.mapY(p.y); return p; }
+  // 탭한 진상 고르기: 그려진 크기(원근)대로 몸 가운데를 잡는다 (판정 · 시뮬은 그대로 — 고른 진상을 sim.setFocus 에 넘긴다)
+  pickEnemy(g, x, y) {
+    let best = null, bd = 44 * 44;
+    for (const e of g.enemies) {
+      if (e.dead) continue;
+      const s = e._ds || 1, sz = e.def.size, dx = e.x - x, dy = e.y + sz * FEET_OFF - sz * 0.6 * s - y, r = (e.r || 0) * s;
+      const d = dx * dx + dy * dy - r * r;
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  }
 
   drawRopeShadow(g) {
     // 로프 앞 바닥 선 (입구 경계)
@@ -1698,6 +1736,7 @@ export class Renderer {
       cs[j++] = c;
       const alpha = a < play + hold ? 1 : 1 - (a - play - hold) / fade;
       const feet = c.y + box * FEET_OFF;
+      this.dsOn(depthScale(c.y, (g.ropeY || 400) - DEPTH.gateOff, c.boss), c.x, feet); // 원근 크기 (쓰러진 자리 그대로)
       cx.globalAlpha = Math.max(0, alpha);
       if (useStrip) {
         const fw = strip.naturalWidth / n, fi = Math.min(n - 1, Math.floor(a * (an.fps || 14)));
@@ -1717,10 +1756,15 @@ export class Renderer {
     }
     cs.length = j;
     cx.globalAlpha = 1;
+    this.ds = 1;
     this.world();
   }
   drawEnemies(g, t, front) {
     const cx = this.cx;
+    if (!front) { // 원근 크기: 진상마다 이번 프레임 배율 (위 70% → 입구 앞 100% · 보스 · 정예는 85% 부터 · 건물주 레이드 거인은 그대로)
+      const gy = (g.ropeY || 400) - DEPTH.gateOff;
+      for (const e of g.enemies) e._ds = e.r2 ? 1 : depthScale(e.y, gy, e.boss || e.mid || e.elite || (e.def && e.def.mid));
+    }
     if (!front) this.drawCorpses(g);
     const list = this.sorted;
     list.length = 0;
@@ -1734,7 +1778,7 @@ export class Renderer {
     for (const e of list) {
       if (heavy && !e.boss && !e.mid && e.def.size < 80) continue;
       const box = e.def.size;
-      const w = box * 0.62;
+      const w = box * 0.62 * (e._ds || 1);
       this.tf(e.x, e.y + box * FEET_OFF, 0, 1, 1);
       cx.drawImage(sh.c, -w / 2, -w * 0.13, w, w * 0.26);
     }
@@ -1742,7 +1786,7 @@ export class Renderer {
     cx.lineWidth = 2.5;
     for (const e of list) {
       if (!e.elite) continue;
-      const w = e.def.size * 0.46, p = 0.6 + Math.sin(t * 6 + e.uid) * 0.25;
+      const w = e.def.size * 0.46 * (e._ds || 1), p = 0.6 + Math.sin(t * 6 + e.uid) * 0.25;
       this.tf(e.x, e.y + e.def.size * FEET_OFF, 0, 1, 1);
       cx.globalAlpha = p;
       cx.strokeStyle = '#ff5a3c';
@@ -1754,7 +1798,7 @@ export class Renderer {
     // 무한 도전 정예 특성 (방패 · 빠름 · 치유 · 분열 · 저항): 머리 위 작은 표시 + 이름
     for (const e of list) {
       if (!e.aff || this.quiet) continue;
-      const n = e.aff.length, top = e.y - e.def.size * (e.boss ? 0.62 : 0.78);
+      const ft = e.y + e.def.size * FEET_OFF, n = e.aff.length, top = ft - (ft - (e.y - e.def.size * (e.boss ? 0.62 : 0.78))) * (e._ds || 1); // 원근: 글씨 크기는 그대로 · 머리 위에 붙게
       for (let i = 0; i < n; i++) {
         const A = ENDLESS_AFFIX[e.aff[i]];
         if (!A) continue;
@@ -1767,6 +1811,7 @@ export class Renderer {
     // 주간 도전: 현상수배 · 보물 도둑 — 발밑에 굵은 금빛 고리 + 머리 위 금빛 표시 (멀리서도 보이게)
     if (g.wk) for (const e of list) {
       if (!e.wkMark && !e.wkGob) continue;
+      this.dsOn(e._ds || 1, e.x, e.y + e.def.size * FEET_OFF);
       const w = e.def.size * 0.55, p = 0.65 + Math.sin(t * 8 + e.uid) * 0.3;
       this.tf(e.x, e.y + e.def.size * FEET_OFF, 0, 1, 1);
       cx.globalAlpha = p; cx.lineWidth = 4; cx.strokeStyle = '#ffd23f';
@@ -1776,8 +1821,9 @@ export class Renderer {
       cx.beginPath(); cx.moveTo(0, -9); cx.lineTo(8, 0); cx.lineTo(0, 9); cx.lineTo(-8, 0); cx.closePath(); cx.fill(); cx.stroke();
       cx.lineWidth = 2.5;
     }
+    this.ds = 1;
     cx.globalAlpha = 1;
-    const focus = g.focus && !g.focus.dead ? g.focus : null;
+    const focus =g.focus && !g.focus.dead ? g.focus : null;
     // 독재자 오라 (바닥에 붉은 원)
     for (const e of list) {
       if (!e.auraOn) continue;
@@ -1814,7 +1860,8 @@ export class Renderer {
       if (def.mid && def.base) sp = this.sprites['e_' + def.base] || sp;
       if (!sp) continue;
       const feet = e.y + box * FEET_OFF;
-      const moving = !e.atRope && e.stunT <= 0 && e.windup <= 0 && !(e.bwind > 0) && !(e.castW > 0);
+      this.dsOn(e._ds || 1, e.x, feet); // 원근 크기: 이 진상의 몸 · 띠 · 그림자 · 상태 표시 · 체력 막대 · 지목 고리가 발을 기준으로 같이 줄어든다
+      const moving =!e.atRope && e.stunT <= 0 && e.windup <= 0 && !(e.bwind > 0) && !(e.castW > 0);
       const w = e.age * (4 + e.speed * 0.09) + e.phase;
       let bob = 0, rot = 0, sx = 1, sy = 1;
       if (moving) {
@@ -2088,10 +2135,11 @@ export class Renderer {
         cx.globalAlpha = 0.6; cx.drawImage(gl.c, -r, -r, r * 2, r * 2); cx.globalAlpha = 1;
       }
       if (def.latte && e.latteOffT <= 0 && !heavy) {
+        const s0 = this.ds; this.ds = 1; // 범위 표시는 원근 없이 (실제 범위 그대로)
         this.tf(e.x, feet, 0, 1, 0.4);
         cx.globalAlpha = 0.18; cx.strokeStyle = '#c8b8a0'; cx.lineWidth = 3;
         cx.setLineDash([4, 8]); cx.beginPath(); cx.arc(0, 0, def.latte.r * 0.5, 0, TAU); cx.stroke(); cx.setLineDash([]);
-        cx.globalAlpha = 1;
+        cx.globalAlpha = 1; this.ds = s0;
       }
       if (e.form === 'reveal' || e.packN >= 2 || (e.dictT > 0 && !e.auraOn)) {
         // 상태 글자: 약점 "!" · 뭉침 방패 · 독재자 버프
@@ -2123,6 +2171,7 @@ export class Renderer {
         cx.beginPath(); cx.arc(0, 0, r * 0.8, 0, TAU); cx.stroke();
       }
     }
+    this.ds = 1;
   }
 
   drawRope(g, t) {
@@ -2166,7 +2215,15 @@ export class Renderer {
     const bw = W, bh = W * (618 / 1200);
     const y0 = g.ropeY + 12 - bh * 0.82; // 차단봉 발이 방어선에 오게
     this.world();
-    const draw = (s, a) => { const c = this.misc['bar' + s] || this.misc.bar0; cx.globalAlpha = a; cx.drawImage(c, shake, y0, bw, bh); };
+    // (10/13) 입구 낮추기: 가운데 개찰구(그림 가로 0.405~0.6)는 그대로 · 양옆 모래주머니 · 줄 기둥은 발(그림 0.82 줄)을 기준으로 높이만 낮춘다
+    const BX0 = 0.405, BX1 = 0.6, FY = 0.82, LOW = GATE_LOW;
+    const draw = (s, a) => {
+      const c = this.misc['bar' + s] || this.misc.bar0, cw = c.width, ch = c.height, gy = y0 + bh * FY, dh = bh * LOW;
+      cx.globalAlpha = a;
+      cx.drawImage(c, 0, 0, cw * BX0, ch, shake, gy - dh * FY, bw * BX0, dh);
+      cx.drawImage(c, cw * BX0, 0, cw * (BX1 - BX0), ch, shake + bw * BX0, y0, bw * (BX1 - BX0), bh);
+      cx.drawImage(c, cw * BX1, 0, cw * (1 - BX1), ch, shake + bw * BX1, gy - dh * FY, bw * (1 - BX1), dh);
+    };
     if (this.barFade < 1) draw(this.barPrev, 1);
     draw(this.barSt, this.barFade);
     cx.globalAlpha = 1;
@@ -2180,13 +2237,13 @@ export class Renderer {
     cx.translate(sx, sy);
     cx.rotate(st >= 3 ? 0.08 + (calm ? 0 : Math.sin(t * 4) * 0.03) : st >= 2 && !calm ? Math.sin(t * 3) * 0.03 : 0);
     if (imgOk(sImg)) {
-      const sw = 136, sh = sw * sImg.naturalHeight / sImg.naturalWidth;
+      const sw = 136 * SIGN_K, sh = sw * sImg.naturalHeight / sImg.naturalWidth; // (10/13) 간판 70% (예전 136)
       // 간판 뒤로 지나가는 진상 · 입구 앞 진상 머리가 가려지지 않게: 겹치면 간판을 반투명하게 (부드럽게 · 기본 1 → 0.42)
       let hide = 0;
       for (const e of g.enemies) { if (e.dead || e.r2) continue; const hw = (e.def.size || 60) * 0.31; if (Math.abs(e.x - sx) < sw / 2 + hw && e.y - (e.def.size || 60) * 0.65 < sy + sh / 2 && e.y + (e.def.size || 60) * 0.1 > sy - sh / 2) { hide = 1; break; } }
       this.signHide = (this.signHide || 0) + (hide - (this.signHide || 0)) * 0.15;
       cx.globalAlpha = (calm ? 1 : flick) * (1 - 0.58 * this.signHide);
-      cx.drawImage(sImg, -sw / 2, -sh / 2 - 3, sw, sh); // 그림 간판 (발이 개찰구 위에 오게)
+      cx.drawImage(sImg, -sw / 2, -sh * 0.45, sw, sh); // 그림 간판 (바리케이드 그림 속 빈 판을 덮게 · 발이 개찰구 위에 오게)
     } else {
     cx.font = `900 13px ${FONT}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
     cx.globalAlpha = flick;
@@ -2270,6 +2327,7 @@ export class Renderer {
     cx.save();
     cx.translate(W / 2, y - 44);
     cx.rotate(swing + (st >= 3 ? 0.12 : 0));
+    cx.scale(SIGN_K, SIGN_K);
     cx.strokeStyle = '#1a0b1f'; cx.lineWidth = 2;
     cx.beginPath(); cx.moveTo(-36, -14); cx.lineTo(-30, 8); cx.moveTo(36, -14); cx.lineTo(30, 8); cx.stroke();
     const sg = cx.createLinearGradient(0, -2, 0, 20);
@@ -2378,13 +2436,15 @@ export class Renderer {
     // 윤정섭 전용 신화: 옆 줄 그림자 정섭 (반투명 · 분홍 빛) — 진짜 정섭과 같은 뒷모습 걷기 그림
     for (const tw of g.twins || []) {
       const S0 = (tw.def.scale || 1) * (tw.growT > 0 ? tw.def.skill.grow : 1), bw = box * S0, feet = tw.py + box * FEET_OFF;
+      this.dsOn(DEPTH.hero, tw.px, feet);
       const im = tw.wallSt === 'back' ? this.images.js_walk : this.images.js_walkb;
       const gl = this.projSprites.glowPink || this.projSprites.glowGold;
       this.tf(tw.px, feet - 2, 0, 1, 0.35); cx.globalAlpha = 0.6; cx.drawImage(gl.c, -40, -40, 80, 80);
       if (imgOk(im)) { const n = 8, fw = im.naturalWidth / n, fi = Math.floor(t * 5 + 3) % n; this.tf(tw.px, feet, 0, 1, 1); cx.globalAlpha = 0.72; cx.drawImage(im, fi * fw, 0, fw, im.naturalHeight, -bw / 2, -bw * FEET, bw, bw); }
       cx.globalAlpha = 1;
     }
-    const rmH = typeof document !== 'undefined' && document.body.classList.contains('rm'); // 연출 줄이기
+    this.ds = 1;
+    const rmH =typeof document !== 'undefined' && document.body.classList.contains('rm'); // 연출 줄이기
     for (const h of g.heroes) {
       if (h.rx === undefined) h.rx = h.x;
       h.rx += (h.x - h.rx) * 0.25;
@@ -2394,6 +2454,7 @@ export class Renderer {
       if (ui && ui.drag && ui.drag.h === h) continue; // 끌고 있는 영웅은 손가락 위치에 따로 그린다
       if (h.id === 'dragon' && this.kit && this.kit.diveHidden(g, h)) continue; // 박나영 급강하: 하늘로 날아간 동안은 자리에 없다 (kitfx.js 가 날아가는 모습을 그린다)
       const feet = hy + box * FEET_OFF;
+      this.dsOn(DEPTH.hero, hx, feet); // (10/13) 우리 멤버 10% 크게 (발 기준 · 그림 · 띠 · 상태 표시 같이) — 발밑 Lv 칩은 그대로
       // 발판 빛
       const gl = g.rallyT > 0 ? this.projSprites.glowGold : h.rage ? this.projSprites.glowRed : h.charmT > 0 ? this.projSprites.glowPink : this.projSprites.glowGold;
       const pr = h.rage ? 56 + Math.sin(t * 14) * 8 : 34;
@@ -2508,7 +2569,7 @@ export class Renderer {
           const bw = box * fit.k;
           this.tf(hx, feet + (h.tiredT > 0 ? 3 : 0), 0, 1, 1);
           cx.drawImage(hstrip, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, bw, bw);
-          if (h.id === 'dragon') { const m = DRAGON_MOUTH[fi] || DRAGON_MOUTH_IDLE; h._mouth = { x: hx - box / 2 + fit.dx * box + (m[0] / 256) * bw, y: feet + (h.tiredT > 0 ? 3 : 0) - box * FEET + fit.dy * box + (m[1] / 256) * bw }; } // 불 뿜기가 나오는 입 (kitfx.js)
+          if (h.id === 'dragon') { const m = DRAGON_MOUTH[fi] || DRAGON_MOUTH_IDLE; h._mouth = this.mapPt({ x: hx - box / 2 + fit.dx * box + (m[0] / 256) * bw, y: feet + (h.tiredT > 0 ? 3 : 0) - box * FEET + fit.dy * box + (m[1] / 256) * bw }); } // 불 뿜기가 나오는 입 (kitfx.js)
           usedStrip = true;
         }
       }
@@ -2600,7 +2661,7 @@ export class Renderer {
           const fi = Math.floor(t * d.fps + h._idPh) % n, fit = this.stripFit('hidle_' + idK, im, n, sp.c, 1), bw = box * fit.k;
           this.tf(hx, feet + jb + (h.tiredT > 0 ? 3 : 0), 0, jsx, jsy); // (10/11) 대기 띠는 그림만 — 코드로 기울이기 · 늘이기 · 흔들기 없음
           cx.drawImage(im, fi * fw, 0, fw, fh, -box / 2 + fit.dx * box, -box * FEET + fit.dy * box, bw, bw);
-          if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE; h._mouth = { x: hx - box / 2 + (m[0] / 256) * box, y: feet + jb - box * FEET + (m[1] / 256) * box }; } // 불 뿜는 입 (가만히 있는 그림 기준)
+          if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE; h._mouth = this.mapPt({ x: hx - box / 2 + (m[0] / 256) * box, y: feet + jb - box * FEET + (m[1] / 256) * box }); } // 불 뿜는 입 (가만히 있는 그림 기준)
           usedStrip = true;
         }
       }
@@ -2608,7 +2669,7 @@ export class Renderer {
         { const ck = h._castAt && !cp ? (performance.now() - h._castAt) / 250 : 9; if (ck < 1) { const s0 = 1 + Math.sin(ck * Math.PI) * 0.15; this.tf(hx + dx, feet + bob, rot, sx * s0, sy * s0); } else this.tf(hx + dx, feet + bob, rot, sx, sy); } // (시전 동작이 없는 멤버만 톡 커지기)
         cx.globalAlpha = h.stunT > 0 ? 0.75 : 1;
         cx.drawImage(sp.c, -box / 2, -box * FEET, box, box);
-        if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE, lx = -box / 2 + (m[0] / 256) * box, ly = -box * FEET + (m[1] / 256) * box, c = Math.cos(rot), s = Math.sin(rot); h._mouth = { x: hx + dx + lx * sx * c - ly * sy * s, y: feet + bob + lx * sx * s + ly * sy * c }; }
+        if (h.id === 'dragon') { const m = DRAGON_MOUTH_IDLE, lx = -box / 2 + (m[0] / 256) * box, ly = -box * FEET + (m[1] / 256) * box, c = Math.cos(rot), s = Math.sin(rot); h._mouth = this.mapPt({ x: hx + dx + lx * sx * c - ly * sy * s, y: feet + bob + lx * sx * s + ly * sy * c }); }
         if (h.freezeT > 0 && h.stunT > 0 && sp.f) { cx.globalAlpha = 0.5; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); } // 7장 빙결: 하얗게 언 모습
         if (kp && kp.flash > 0 && sp.f) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.7 * kp.flash; cx.drawImage(sp.f, -box / 2, -box * FEET, box, box); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; } // 쓰러지는 순간 번쩍
         const hk2 = h._hitAt ? (performance.now() - h._hitAt) / 160 : 9;
@@ -2707,6 +2768,7 @@ export class Renderer {
         cx.globalAlpha = 1;
       }
       // 발밑 배지: 이름은 안 쓴다 (눌러서 보기) — [속성] Lv칩 · 게스트는 G 리본 (다른 디펜스 게임들처럼)
+      this.ds = 1;
       this.world();
       {
         const ly = feet + 9, at = ATTRS[h.def.attr];
@@ -2776,6 +2838,7 @@ export class Renderer {
         cx.fillStyle = '#ff3b30'; cx.fillRect(hx - bw / 2, ly + 8, bw * f, 4);
       }
     }
+    this.ds = 1;
     this.drawNag(g);
   }
 
