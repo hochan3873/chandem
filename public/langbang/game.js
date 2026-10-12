@@ -7769,6 +7769,7 @@ Object.assign(ACTS, HWUI.acts);
 window.__lb = {
   currencyFly, CU, // 재화 날리기: __lb.currencyFly('coins', 누른 자리 rect, 개수) — 다른 보상 연출에서도 쓴다
   tower: () => TWUI.show(),
+  heroModal: (id, tab) => { app.hmTab = tab || 'info'; showHeroModal(id); }, // 멤버 상세 열기 (스크린샷용)
   face: () => DEX_FACE,
   faceC: () => FACE_BOX,
   gachaShow: (l, o) => gachaShow(l, o),

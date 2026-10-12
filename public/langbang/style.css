@@ -4784,3 +4784,6 @@ body.rm .rv-env, body.rm .rv-shine { display: none; }
 .mail-pop .mail-all { width: 100%; box-shadow: 0 0 calc(var(--u) * 12) rgba(255, 170, 40, 0.55), 0 calc(var(--u) * 3) 0 rgba(0, 0, 0, 0.45); animation: mailGlow 2.2s ease-in-out infinite; --sl: #ffb83a; }
 .mail-pop .mail-all b { background: #fff; color: #b34a00; border-radius: 99px; padding: 0 calc(var(--u) * 7); margin-left: calc(var(--u) * 4); font-size: calc(var(--u) * 11); }
 body.rm .mail-pop .mail-row.new, body.rm .mail-pop .mail-all { animation: none; }
+/* 멤버 상세 머리: 설명 줄이 길어도 탭(정보·강화·장비)과 안 겹치게 — 탭 바로 위에 붙여 위로 자라고, 설명은 한 줄로 줄임 */
+.hero-full .hf-head.v2 { top: auto !important; bottom: calc(48% - var(--u) * 2); }
+.hf-head.v2 .hn-role { max-width: 92%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
