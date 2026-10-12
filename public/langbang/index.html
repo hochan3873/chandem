@@ -28,18 +28,17 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <style>#bootld{position:fixed;inset:0;z-index:90;background:#0b0a16;display:grid;place-items:end center;transition:opacity .35s}#bootld .bl-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55}#bootld.out{opacity:0;pointer-events:none}</style>
   <link rel="preload" as="image" href="/img/lb/title_poster.jpg?v=3" fetchpriority="high">
-  <link rel="stylesheet" href="/langbang/style.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/friends.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/tower.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/raid2.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/bonkae.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/transit.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/tutorial.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/hw.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/pvp2.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/currency.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/failguide.css?v=20261030sta">
-  <link rel="stylesheet" href="/langbang/rules.css?v=20261030sta">
+  <link rel="stylesheet" href="/langbang/style.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/friends.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/tower.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/raid2.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/bonkae.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/transit.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/tutorial.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/hw.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/currency.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/failguide.css?v=20261031duel">
+  <link rel="stylesheet" href="/langbang/rules.css?v=20261031duel">
 </head>
 <body>
   <div id="stage">
@@ -73,10 +72,12 @@
       </div>
       <div class="xp-bar"><div id="h-xp"></div><span id="h-lv">Lv.1</span></div>
       <div id="h-syn" class="h-syn"></div>
+      <div id="oppstrip" class="oppstrip" hidden></div>
       <div id="bossbar" hidden>
         <span id="boss-name">보스</span>
         <div class="bb"><div id="boss-fill"></div></div>
       </div>
+      <div id="oppcard" class="oppcard" hidden></div>
       <div id="skillbar"></div>
       <div class="hud-bottom">
         <div class="base-hp">
@@ -86,6 +87,7 @@
             <div class="hp-bar"><div id="h-hp-lag"></div><div id="h-hp"></div></div>
           </div>
         </div>
+        <button id="btn-send" class="send-btn" hidden>📤 보내기</button>
         <button id="btn-ult" class="ult v2" aria-label="총력전 (기세 2칸)">
           <svg class="ult-ring" viewBox="0 0 100 100" aria-hidden="true"><g class="ur-bg"><path d="M55.6 4.3 A46 46 0 0 1 55.6 95.7"/><path d="M44.4 95.7 A46 46 0 0 1 44.4 4.3"/></g><g class="ur-fg"><path id="ur0" d="M55.6 4.3 A46 46 0 0 1 55.6 95.7" pathLength="100"/><path id="ur1" d="M44.4 95.7 A46 46 0 0 1 44.4 4.3" pathLength="100"/></g></svg>
           <span class="ult-rays"></span>
@@ -103,7 +105,7 @@
     <div id="toast" hidden></div>
   </div>
   <noscript>자바스크립트를 켜야 게임을 할 수 있어요.</noscript>
-  <script type="importmap">{"imports": {"/langbang/game.js": "/langbang/game.js?v=20261030sta", "/langbang/season-fx.js": "/langbang/season-fx.js?v=20261030sta", "/langbang/season.js": "/langbang/season.js?v=20261030sta", "/langbang/cardtext.js": "/langbang/cardtext.js?v=20261030sta", "/langbang/data.js": "/langbang/data.js?v=20261030sta", "/langbang/sim.js": "/langbang/sim.js?v=20261030sta", "/langbang/render.js": "/langbang/render.js?v=20261030sta", "/langbang/live.js": "/langbang/live.js?v=20261030sta", "/langbang/api.js": "/langbang/api.js?v=20261030sta", "/langbang/audio.js": "/langbang/audio.js?v=20261030sta", "/langbang/share.js": "/langbang/share.js?v=20261030sta", "/langbang/flavor.js": "/langbang/flavor.js?v=20261030sta", "/langbang/friends.js": "/langbang/friends.js?v=20261030sta", "/langbang/tower.js": "/langbang/tower.js?v=20261030sta", "/langbang/tower-ui.js": "/langbang/tower-ui.js?v=20261030sta", "/langbang/transit.js": "/langbang/transit.js?v=20261030sta", "/langbang/hw-event.js": "/langbang/hw-event.js?v=20261030sta", "/langbang/hw-sim.js": "/langbang/hw-sim.js?v=20261030sta", "/langbang/hw-ui.js": "/langbang/hw-ui.js?v=20261030sta", "/langbang/hw-fx.js": "/langbang/hw-fx.js?v=20261030sta", "/langbang/patchnotes.js": "/langbang/patchnotes.js?v=20261030sta", "/langbang/failguide.js": "/langbang/failguide.js?v=20261030sta", "/langbang/deckrec.js": "/langbang/deckrec.js?v=20261030sta", "/langbang/rules.js": "/langbang/rules.js?v=20261030sta", "/langbang/srank.js": "/langbang/srank.js?v=20261030sta", "/langbang/pvp.js": "/langbang/pvp.js?v=20261030sta", "/langbang/pvp2.js": "/langbang/pvp2.js?v=20261030sta", "/langbang/pvp2-ui.js": "/langbang/pvp2-ui.js?v=20261030sta", "/langbang/currency.js": "/langbang/currency.js?v=20261030sta", "/langbang/currency-ui.js": "/langbang/currency-ui.js?v=20261030sta"}}</script>
-  <script type="module" src="/langbang/game.js?v=20261030sta"></script>
+  <script type="importmap">{"imports": {"/langbang/game.js": "/langbang/game.js?v=20261031duel", "/langbang/season-fx.js": "/langbang/season-fx.js?v=20261031duel", "/langbang/season.js": "/langbang/season.js?v=20261031duel", "/langbang/cardtext.js": "/langbang/cardtext.js?v=20261031duel", "/langbang/data.js": "/langbang/data.js?v=20261031duel", "/langbang/sim.js": "/langbang/sim.js?v=20261031duel", "/langbang/render.js": "/langbang/render.js?v=20261031duel", "/langbang/live.js": "/langbang/live.js?v=20261031duel", "/langbang/api.js": "/langbang/api.js?v=20261031duel", "/langbang/audio.js": "/langbang/audio.js?v=20261031duel", "/langbang/share.js": "/langbang/share.js?v=20261031duel", "/langbang/flavor.js": "/langbang/flavor.js?v=20261031duel", "/langbang/friends.js": "/langbang/friends.js?v=20261031duel", "/langbang/tower.js": "/langbang/tower.js?v=20261031duel", "/langbang/tower-ui.js": "/langbang/tower-ui.js?v=20261031duel", "/langbang/transit.js": "/langbang/transit.js?v=20261031duel", "/langbang/hw-event.js": "/langbang/hw-event.js?v=20261031duel", "/langbang/hw-sim.js": "/langbang/hw-sim.js?v=20261031duel", "/langbang/hw-ui.js": "/langbang/hw-ui.js?v=20261031duel", "/langbang/hw-fx.js": "/langbang/hw-fx.js?v=20261031duel", "/langbang/patchnotes.js": "/langbang/patchnotes.js?v=20261031duel", "/langbang/failguide.js": "/langbang/failguide.js?v=20261031duel", "/langbang/deckrec.js": "/langbang/deckrec.js?v=20261031duel", "/langbang/rules.js": "/langbang/rules.js?v=20261031duel", "/langbang/srank.js": "/langbang/srank.js?v=20261031duel", "/langbang/pvp.js": "/langbang/pvp.js?v=20261031duel", "/langbang/currency.js": "/langbang/currency.js?v=20261031duel", "/langbang/currency-ui.js": "/langbang/currency-ui.js?v=20261031duel"}}</script>
+  <script type="module" src="/langbang/game.js?v=20261031duel"></script>
 </body>
 </html>

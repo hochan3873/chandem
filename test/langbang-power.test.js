@@ -47,11 +47,10 @@ test('전투력: 화면 · 1:1 대전 · 서버 AI 가 같은 식 (대전은 강
   for (const id of ['bangjang', 'hochan', 'wonsik', 'jieun']) {
     assert.equal(PV.pvpHeroPower(id, 20, 5, { atk: 0.2, crit: 0.05 }), D.heroPowerOf(id, 10, 3, { atk: 0.2, crit: 0.05 }, { mile: false }));
   }
-  const { createLbPvp2 } = require('../server/langbang-pvp2');
-  const k = createLbPvp2({ accounts: {}, normLb: (x) => x, eloDelta: () => 10, live: {} });
-  await k.ready;
+  const { createLbPvp } = require('../server/langbang-pvp');
+  const k = createLbPvp({ accounts: {}, normLb: (x) => x, eloDelta: () => 10, live: {}, countdownMs: 10, botTickMs: 1000 });
+  await k.simReady;
   assert.equal(Math.round(k.aiPower('ara', 7)), D.heroPowerOf('ara', 7, 1, null, { mile: false }));
-  k.close();
 });
 
 test('장비 비교: 스킬 위주 멤버(방장)는 쿨타임 장비를 공격력 장비보다 높게 친다', async () => {
