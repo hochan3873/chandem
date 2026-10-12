@@ -1090,7 +1090,7 @@ export function cleanDecks(raw) {
 
 // ─── 체력 (스태미나): 스테이지는 체력을 쓴다 · 무한 · 레이드 · 1:1 대전은 따로 입장 횟수 ───
 //  최대 60 · 6분에 1 · 보상으로 180 까지 넘칠 수 있다 · 마스터는 안 씀 (서버가 정한다)
-export const STAMINA = { max: 50, regenMs: 8 * 60e3, cap: 150, stage: 6, hell: 9, repeat: 4, lvUp: 5, checkin: 10, buy: { n: 30, perDay: 2, cost: [600, 1500] } }; // (60·6분·5·10·3·출석20·하루3번 → 조임) · 헬 12 → 9 · 사기 300/700 → 600/1500
+export const STAMINA = { max: 50, regenMs: 10 * 60e3, cap: 50, stage: 6, hell: 9, repeat: 4, lvUp: 5, checkin: 10, buy: { n: 30, perDay: 2, cost: [600, 1500] } }; // (60·6분·5·10·3·출석20·하루3번 → 조임) · 헬 12 → 9 · 사기 300/700 → 600/1500
 export function staminaNow(lb, now = Date.now()) {
   const s = lb.sta || { v: STAMINA.max, t: now };
   let v = s.v | 0, t = s.t || now;
@@ -1101,7 +1101,7 @@ export function staminaNow(lb, now = Date.now()) {
 }
 export function staminaAdd(lb, d, now = Date.now()) {
   const cur = staminaNow(lb, now);
-  const v = Math.max(0, Math.min(STAMINA.cap, cur.v + d));
+  const v = d < 0 ? Math.max(0, cur.v + d) : Math.min(Math.max(STAMINA.cap, cur.v), cur.v + d); // (10/29) 가득(50)을 넘겨 쌓이지 않음 · 예전에 넘게 모아 둔 건 안 깎음
   lb.sta = { v, t: cur.v >= STAMINA.max ? now : cur.t };
   return v;
 }
@@ -1126,6 +1126,7 @@ export function staminaBuy(lb, now = Date.now()) {
   const day = dayIndex(now), b = lb.staBuy && lb.staBuy.day === day ? lb.staBuy : { day, n: 0 };
   if (b.n >= STAMINA.buy.perDay) return { error: `오늘은 다 샀어요 (하루 ${STAMINA.buy.perDay}번)` };
   const cost = STAMINA.buy.cost[b.n];
+  if (staminaNow(lb, now).v + STAMINA.buy.n > STAMINA.cap) return { error: `체력이 넉넉해요 — ${STAMINA.cap - STAMINA.buy.n} 이하일 때 살 수 있어요` };
   if ((lb.coins | 0) < cost) return { error: `코인이 부족해요 (${cost.toLocaleString()} 필요)` };
   lb.coins -= cost; lb.staBuy = { day, n: b.n + 1 };
   staminaAdd(lb, STAMINA.buy.n, now);
@@ -1310,7 +1311,7 @@ export function normLive(raw, out) {
   const ci = raw.checkin;
   out.checkin = ci && Number.isInteger(ci.last) ? { last: ci.last, streak: int(ci.streak, 0, 1e5) } : null;
   // 체력 · 무한 · 우편함 · 1:1 보상 기록
-  out.sta = raw.sta && Number.isFinite(raw.sta.t) ? { v: int(raw.sta.v, 0, STAMINA.cap), t: int(raw.sta.t, 0, 9e15) } : { v: STAMINA.max, t: 0 };
+  out.sta = raw.sta && Number.isFinite(raw.sta.t) ? { v: int(raw.sta.v, 0, 150), t: int(raw.sta.t, 0, 9e15) } : { v: STAMINA.max, t: 0 };
   out.gachaDay = raw.gachaDay && Number.isInteger(raw.gachaDay.day) ? { day: raw.gachaDay.day, n: int(raw.gachaDay.n, 0, 999) } : null;
   out.staBuy = raw.staBuy && Number.isInteger(raw.staBuy.day) ? { day: raw.staBuy.day, n: int(raw.staBuy.n, 0, 9) } : null;
   out.staRun = raw.staRun && Number.isFinite(raw.staRun.at) ? { stage: int(raw.staRun.stage, 0, 999), hell: !!raw.staRun.hell, cost: int(raw.staRun.cost, 0, 99), at: int(raw.staRun.at, 0, 9e15) } : null;
@@ -1389,7 +1390,7 @@ export const MAPFX = MAP_FX; // (화면 표시용)
 // 하루 = KST 자정 기준 dayIndex. 손님은 친구 기능을 못 쓴다 (서버 기록이 없어서).
 export const FRIEND = {
   max: 30, reqMax: 30, reqPerDay: 20, // 친구 최대 · 받은/보낸 요청 보관 · 하루 요청 수
-  gift: 5, recvPerDay: 10, giftDays: 7, inboxMax: 40, // 체력 선물 +5 · 하루 받기 10개 · 7일 보관
+  gift: 5, recvPerDay: 6, giftDays: 7, inboxMax: 40, // 체력 선물 +5 · 하루 받기 10개 · 7일 보관
   lendPerDay: 10, lendRw: { coins: 200 }, lendPts: 10, // 내 멤버를 빌려준 보상 (하루 10번까지) · 도움 포인트
   capMul: 1.35, // 도와주는 멤버가 있으면 레이드 피해 상한 +35%
 };
@@ -1447,7 +1448,7 @@ export function giftSend(me, them, meId, themId, meNick, now = Date.now()) {
   them.fr.gin = them.fr.gin.slice(-FRIEND.inboxMax);
   return { sent: 1 };
 }
-// 선물 받기: 하루 10개까지 · 체력 상한(STAMINA.cap)을 넘기면 멈춘다 (못 받은 선물은 그대로 남는다)
+// 선물 받기: 하루 6개까지 · 체력 상한(STAMINA.cap)을 넘기면 멈춘다 (못 받은 선물은 그대로 남는다)
 export function giftClaim(lb, k, now = Date.now()) {
   lb.fr.gin = giftInbox(lb, now);
   const want = k === 'all' ? lb.fr.gin.slice() : lb.fr.gin.filter((g) => g.k === k);

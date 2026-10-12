@@ -125,15 +125,15 @@ test('체력 선물: 친구마다 하루 한 번 · 모두 보내기 · 받기�
   assert.equal(L.staminaNow(one.profile).v, 15, '+5');
   const all = await post('/friends/claim', me.token, { k: 'all' });
   assert.equal(all.ok, true, all.message);
-  assert.equal(all.n, L.FRIEND.recvPerDay - 1, '하루 10개까지');
-  assert.equal(all.rest, 1, '남은 선물은 그대로');
-  assert.equal(L.staminaNow(all.profile).v, 60);
+  assert.equal(all.n, L.FRIEND.recvPerDay - 1, '하루 받기 개수까지');
+  assert.equal(all.rest, 11 - L.FRIEND.recvPerDay, '남은 선물은 그대로');
+  assert.equal(L.staminaNow(all.profile).v, 15 + L.FRIEND.gift * (L.FRIEND.recvPerDay - 1));
   const more = await post('/friends/claim', me.token, { k: 'all' });
   assert.equal(more.ok, false);
-  assert.match(more.message, /하루 10개/);
+  assert.match(more.message, new RegExp(`하루 ${L.FRIEND.recvPerDay}개`));
   // 내일: 체력 상한 근처면 못 받음
   st = await me.raw();
-  st.langbang.fr.got = { day: L.dayIndex() - 1, n: 10 };
+  st.langbang.fr.got = { day: L.dayIndex() - 1, n: L.FRIEND.recvPerDay };
   st.langbang.sta = { v: L.STAMINA.cap - 2, t: Date.now() };
   await srv.accounts.store.saveStats(me.id, st);
   const full = await post('/friends/claim', me.token, { k: 'all' });

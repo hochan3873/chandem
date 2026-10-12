@@ -352,7 +352,7 @@ test('체력 · 무한 입장 · 우편함: 스테이지는 체력(실패 절반
   const lb = {}; L.normLive({}, lb);
   const t0 = 1e12;
   const M = L.STAMINA.max, C = L.STAMINA.stage, RF = Math.floor(C / 2);
-  assert.deepEqual([M, C, L.STAMINA.repeat, L.STAMINA.hell, L.STAMINA.checkin, L.STAMINA.buy.perDay, L.STAMINA.regenMs], [50, 6, 4, 9, 10, 2, 8 * 60e3], '조인 기력 숫자');
+  assert.deepEqual([M, C, L.STAMINA.repeat, L.STAMINA.hell, L.STAMINA.checkin, L.STAMINA.buy.perDay, L.STAMINA.regenMs], [50, 6, 4, 9, 10, 2, 10 * 60e3], '조인 기력 숫자');
   assert.deepEqual(L.STAMINA.buy.cost, [600, 1500], '체력 사기 값');
   assert.equal(L.staminaNow(lb, t0).v, M);
   assert.equal(L.stageStart(lb, 3, false, false, t0).cost, C);

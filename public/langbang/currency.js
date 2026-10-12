@@ -232,7 +232,7 @@ export function caps(id, p, now = Date.now()) {
   else if (id === 'sta') {
     const v = L.staminaNow(p, now).v, b = p.staBuy && p.staBuy.day === day ? p.staBuy.n | 0 : 0;
     out.push({ t: v >= L.STAMINA.max ? `가득 찼어요 (${v}/${L.STAMINA.max}) — 더 쌓이지 않고 쉬어요` : `${v} / ${L.STAMINA.max} · 가득까지 ${Math.ceil(((L.STAMINA.max - v) * L.STAMINA.regenMs) / 60000)}분`, full: v >= L.STAMINA.max });
-    out.push({ t: `오늘 체력 사기 ${b} / ${L.STAMINA.buy.perDay}번 · 선물로는 최대 ${L.STAMINA.cap}까지` });
+    out.push({ t: `오늘 체력 사기 ${b} / ${L.STAMINA.buy.perDay}번 · 가득(${L.STAMINA.max})을 넘겨 쌓이지 않아요` });
   } else if (id === 'stones') out.push({ t: '한도 없이 모여요 (최대 99,999)' });
   else if (id === 'cards') { const wi = L.weekIndex(now), n = p.cardPick && p.cardPick.wi === wi ? p.cardPick.n | 0 : 0; out.push({ t: `이번 주 카드 선택권 ${n} / ${CARD_PICK.perWeek}번`, full: n >= CARD_PICK.perWeek }); }
   else if (id === 'sig') out.push({ t: `${amount(p, 'sig')} / ${SIG_PITY} — 한 번 교환하면 ${SIG_PITY}개가 빠져요` });
