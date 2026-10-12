@@ -2,7 +2,7 @@
 import {
   shortName,
   HEROES, ENEMIES, RULES, FIELD, BASE_HEROES, UNLOCK_HEROES, HIDDEN_HEROES, LOCKED_HEROES, RARITY, SCORE,
-  CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ENDLESS_TIERS, endlessTier, endlessTierDef, endlessCoinParts, ITEMS, ITEM_IDS, itemCost,
+  CHAPTERS, STAGE_COUNT, STAGE_WAVES, STAGES_PER_CHAPTER, HERO_UNLOCK, ENDLESS_UNLOCK, ENDLESS_TIERS, endlessTier, endlessTierDef, endlessCoinParts, endlessChapter, ITEMS, ITEM_IDS, itemCost,
   chapterOf, stageNo, stageLabel, stageName, parseStage, stageEnemies, stageBosses, stageReward, clearCoins, itemValue, starsFor,
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
@@ -130,6 +130,7 @@ try { const v = JSON.parse(localStorage.getItem('langbang:partners') || 'null');
 app.partner = app.partners[0];
 app.infoHero = null; app.aim = null; app.drag = null;
 try { app.autoCards = localStorage.getItem('langbang:autoCards') === '1'; } catch { app.autoCards = false; }
+try { app.endAuto = localStorage.getItem('langbang:endAuto') === '1'; } catch { app.endAuto = false; } // 무한 도전 '자동' (스킬 · 카드 · 증강 · 계약) — 사람마다 기억
 
 // ─── 화면 크기 맞추기 (세로 화면을 가운데에, 남는 곳은 레터박스) ─────
 // 실제로 보이는 크기: visualViewport (아이폰 사파리는 innerHeight 가 떠 있는 주소창 밑까지 포함) · 가로는 절대 화면 폭을 넘지 않게
@@ -418,7 +419,7 @@ async function startRun(opt = {}) {
   const g = S.createGame({
     H: app.logicalH, meta: p.heroes || {}, items: p.items || {}, deck, positions: nPosNow(), slots: deckSlotsNow(), gear: API.gearFor(p, deck.filter(Boolean), pvp ? 'pvp' : 1), stars: p.hstars || {},
     guestPool: [...UNLOCK_HEROES, ...HIDDEN_HEROES].filter((id) => !API.heroUnlocked(p, id)),
-    god: DEBUG.god || DEBUG.stress > 0, join: DEBUG.join, tempo: DEBUG.tempo, leader: deckLeader(), mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0,
+    god: DEBUG.god || DEBUG.stress > 0, join: DEBUG.join, tempo: DEBUG.tempo, leader: deckLeader(), mode: weekly || pvp ? 'stage' : mode, stage: pvp ? 12 + (pvp.seed % 17) : st, weekly, raid, pvp, hell, unlocked, trialAll: mode === 'endless', startWave: DEBUG.wave || 0, endRot: mode === 'endless' ? L.weekIndex() % 8 : 0, autoSk: mode === 'endless' && !!app.endAuto,
     awake: TWUI ? TWUI.awake(p) : {}, ...(tw ? TWUI.gameOpt(tw, p) : {}), // 지옥 각성 (모든 모드) · 탑 한 명
     ...(hwo || {}), // 할로윈 이벤트 (전투력 맞춤 · 각성 · 도감 보너스 · 아이템 없이)
     coll: p.coll || null, // 도감 수집 보너스 (서버가 계산 · 1:1 대전은 sim 이 뺀다)
@@ -896,7 +897,7 @@ function handleEvents(g, loud) {
         const last = stageMode && e.wave >= g.totalWaves;
         const wk = WAVE_KINDS[e.kind] || WAVE_KINDS.N;
         const wsub = e.kind === 'S' ? `${wk.icon} 진상 떼가 몰려온다! (${n}명)` : e.kind === 'E' ? `${wk.icon} 정예 진상 ${n}명 — 한 방 공격으로!` : e.kind === 'M' ? `${wk.icon} 떼거리 + 정예 호위 (${n}명)` : `진상 ${n}명 접근 중!`;
-        if (g.mode === 'endless' && !g.pvp && (e.wave - 1) % 10 === 0) { const T = endlessTierDef(endlessTier(e.wave)); fx.banner(`${T.n}단계 · ${T.name}`, `${T.desc} · 돌파하면 +${fmt(T.clear)}코인`, T.n >= 4 ? '#a3121e' : T.n >= 3 ? '#c4471a' : '#2a6a3a', 2.4, 'big'); } // 무한: 새 단계 알림
+        if (g.mode === 'endless' && !g.pvp && (e.wave - 1) % 10 === 0) { const T = endlessTierDef(endlessTier(e.wave)), C = CHAPTERS[endlessChapter(T.n, g.endRot) - 1]; fx.banner(`${T.n}단계 · ${T.name}`, `${C ? C.name + ' 진상들 · ' : ''}${T.desc} · 돌파하면 +${fmt(T.clear)}코인`, T.n >= 4 ? '#a3121e' : T.n >= 3 ? '#c4471a' : '#2a6a3a', 2.4, 'big'); } // 무한: 새 단계 알림
         if (!e.boss && !g.wk) fx.banner(last ? '마지막 웨이브!' : `WAVE ${e.wave}${stageMode ? '/' + g.totalWaves : ''}`, wsub, e.kind === 'E' ? '#ff6b5a' : '#ffd23f', 1.7, 'wave'); // (주간은 wkWave 가 사건 이름으로)
         if (loud) { A.sfx.wave(); if (e.kind === 'S' || e.kind === 'B') A.sfx.rumble(); }
         if (live) saveSnap();
@@ -1620,7 +1621,7 @@ function frame(now) {
       if (!live) { g.pendingLevels = 0; if (g.base.hp < g.base.max) g.base.hp = g.base.max; }
       if (live) handleEvents(g, true); else g.events.length = 0; // 로비 배경 전투: 숫자·글자·이펙트 안 띄움
       if (live && g.pendingLevels > 0 && !g.over && !app.cardsOpen) {
-        if (app.autoCards && !g.pvp && !DEBUG.autopick) { autoPickAll(g); continue; }
+        if ((app.autoCards || (app.endAuto && g.autoSk && g.mode === 'endless')) && !g.pvp && !DEBUG.autopick) { autoPickAll(g); continue; }
         if (g.welcomePicks > 0 || g.phase !== 'wave' || g.pvp || app.cardQ || DEBUG.autopick) { app.cardQ = false; openCards(); break; }
       }
     }
@@ -2021,7 +2022,27 @@ function speedCleared(mode, st, g) {
   return true;
 }
 function speedOk() { const g = app.g; return !!(g && !g.pvp && speedCleared(app.mode, g.stage, g)); }
+function syncAutoPill() {
+  const b = $('#btn-auto'), g = app.g;
+  if (!b) return;
+  b.hidden = !(g && g.mode === 'endless' && !g.pvp);
+  const on = !!(g && g.autoSk);
+  b.classList.toggle('on', on);
+  b.innerHTML = `${ic('bot', '', 'sm')}<b>자동</b>`; // 켜지면 초록 (좁은 화면에서 웨이브 글씨를 가리지 않게 짧게)
+  b.title = on ? '자동 켜짐: 스킬 · 카드 · 증강 · 계약을 알아서' : '자동 꺼짐: 스킬은 직접';
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+$('#btn-auto').addEventListener('click', () => {
+  const g = app.g;
+  if (!g || g.mode !== 'endless' || g.pvp) return;
+  app.endAuto = !g.autoSk; g.autoSk = app.endAuto;
+  try { localStorage.setItem('langbang:endAuto', app.endAuto ? '1' : '0'); } catch { /* 무시 */ }
+  if (g.autoSk && g.pendingLevels > 0 && !app.cardsOpen) autoPickAll(g);
+  toast(g.autoSk ? '자동 켬 — 스킬 · 카드 · 증강을 알아서 (손으로 하면 더 높이 · 점수 배율도)' : '자동 끔 — 스킬은 직접 눌러요', 1800);
+  syncAutoPill(); A.sfx.tap();
+});
 function syncSpeedPill() {
+  syncAutoPill();
   const b = $('#btn-speed');
   b.hidden = !speedOk();
   b.textContent = (app.runSpeed || 1) > 1 ? '×2' : '×1';
@@ -2623,7 +2644,7 @@ function showMail() {
 const REWARD_INFO = {
   weekly: () => `<h3>${ic('calendar', '', 'sm')}주간 도전 보상</h3><div class="ilist"><p class="ip">${ic('check', '', 'sm')}막은 웨이브만큼 코인 (끝까지 ${L.weeklyCoins(L.WEEKLY_WAVES)})</p><p class="ip">${ic('check', '', 'sm')}다음 주 순위 보상: 1위 5,000 · 2~3위 3,000 · 4~10위 1,500 · 참가 600 (+ 모집권)</p><p class="ip">${ic('check', '', 'sm')}점수는 몇 번이든 도전해서 가장 높은 것 하나</p></div>`,
   pvpTiers: () => `<h3>1:1 대전 등급 보상</h3><p class="ip">처음 오른 등급마다 한 번씩 우편으로 와요</p><div class="tier-rw">${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<div class="trw">${tierEmb(min, 'sm')}<span><b>${esc(name)}</b><small>${min}점</small></span><em>${gotText({ coins: rw.coins, tickets: rw.tickets })}${rw.gear ? ' · 장비' : ''}</em></div>`).join('')}</div>`,
-  endless: () => { const p = P(), left = L.endlessLeft(p), wk = p.ew && p.ew.wi === L.weekIndex() ? p.ew.miles : []; return `<h3>${ic('infinity', '', 'sm')}무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><p class="ip">10웨이브 = 한 단계 · 10 · 20 · 30 … 웨이브는 <b>단계 보스</b> · 갈수록 진상이 확 세져서 오래 버티는 판이 아니에요 (보통 10~20분)</p><div class="ilist">${L.ENDLESS.miles.map((w) => { const T = endlessTierDef(w / 10); return `<p class="ip">${ic(wk.includes(w) ? 'check' : 'gift', '', 'sm')}<b>${T.n}단계 ${esc(T.name)}</b> — ${esc(T.desc)} · 판 코인 웨이브마다 ${T.perWave} · 돌파 +${fmt(T.clear)} · 주간 첫 돌파 ${esc(gotText(L.milestoneReward(w)))}</p>`; }).join('')}</div><p class="ip">판 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 ${L.endlessWeekReward(4).tickets} · 참가 보상 (우편함)</p>`; },
+  endless: () => { const p = P(), left = L.endlessLeft(p), wk = p.ew && p.ew.wi === L.weekIndex() ? p.ew.miles : []; return `<h3>${ic('infinity', '', 'sm')}무한 도전 보상</h3><p class="ip">오늘 남은 도전 <b>${p.master && !p.testNormal ? '∞' : left}/${L.ENDLESS.perDay}</b> (아침 5시 초기화)</p><p class="ip">10웨이브 = 한 단계 · 5웨이브마다 <b>보스</b> · 10 · 20 · 30 … 웨이브는 <b>단계 보스</b> · 단계마다 다른 장의 진상이 나와요 (첫 장은 매주 바뀜) · 정예 · 보스는 <b>우리 팀 화력만큼 단단</b>해서 짧고 굵게 (보통 8~15분)</p><p class="ip"><b>자동</b> 버튼 — 스킬 · 카드 · 증강 · 계약을 알아서 (켜 두고 놔둬도 돼요). 손으로 하면 스킬을 보스 · 정예에 아껴 쓰고 점수 연속 배율도 붙어서 더 높이 가요</p><div class="ilist">${L.ENDLESS.miles.map((w) => { const T = endlessTierDef(w / 10); return `<p class="ip">${ic(wk.includes(w) ? 'check' : 'gift', '', 'sm')}<b>${T.n}단계 ${esc(T.name)}</b> — ${esc(T.desc)} · 판 코인 웨이브마다 ${T.perWave} · 돌파 +${fmt(T.clear)} · 주간 첫 돌파 ${esc(gotText(L.milestoneReward(w)))}</p>`; }).join('')}</div><p class="ip">판 코인은 하루 ${fmt(L.ENDLESS.coinCap)}까지 · 주간 점수 순위: 1위 ${esc(gotText(L.endlessWeekReward(1)))} · 2~3위 영웅 장비 · TOP10 모집권 ${L.endlessWeekReward(4).tickets} · 참가 보상 (우편함)</p>`; },
   pvp: () => { const p = P(), day = L.dayIndex(), d = p.pvpDay && p.pvpDay.day === day ? p.pvpDay : { n: 0, won: false }; return `<h3>${ic('swords', '', 'sm')}1:1 대전 보상</h3><p class="ip">오늘 보상 판 <b>${Math.max(0, L.PVP_REWARD.perDay - d.n)}/${L.PVP_REWARD.perDay}</b> 남음 ${d.won ? '' : '· 첫 승 2배 남음'}</p><div class="ilist"><p class="ip">승리 ${L.PVP_REWARD.win}코인 · 패배 ${L.PVP_REWARD.lose}코인 (보상 판이 끝나면 점수만)</p><p class="ip">30초 안에 끝난 판 · 같은 상대 하루 ${L.PVP_REWARD.sameOpp}판 넘게는 보상 없음</p>${L.PVP_TIER_LADDER.map(([min, name, rw]) => `<p class="ip">${ic('trophy', '', 'sm')}${name} (${min}점) 첫 달성 — ${esc(gotText(rw))}${(p.pvpTiers || []).includes(min) ? '' : ''}</p>`).join('')}</div>`; },
 };
 // 증강: 셋 중 하나 (15초면 첫 번째) · 등급 빛 · 뒤집히며 등장
