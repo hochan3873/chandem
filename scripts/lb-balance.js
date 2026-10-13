@@ -46,6 +46,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   const CF = (process.argv.find((x) => x.startsWith('--condsfrom=')) || '').slice(12);
   const DC = CF ? await import(pathToFileURL(path.join(CF, 'data.js')).href) : D;
   const S = await load('sim.js');
+  for (const kv of ((process.argv.find((x) => x.startsWith('--augt=')) || '').slice(7)).split(',').filter(Boolean)) { const [k, v] = kv.split(':'); if (S.AUGT) S.AUGT[k] = Number(v); } // --augt=stage:0.7,soft:1 : 증강 세기 바꿔 재기
   // --tune=crowd.k:4,crowd.cap:7,repair.frac:0.3,SLOW_RUN.door:0.8,HELL.hp:2.5 … : 숫자를 바꿔 보며 측정 (TENSION 아래는 'crowd.k' 처럼 짧게)
   for (const kv of ((process.argv.find((x) => x.startsWith('--tune=')) || '').slice(7)).split(',').filter(Boolean)) {
     const [k, v] = kv.split(':'), path0 = k.split('.'), root = /^[A-Z]/.test(path0[0]) ? D : D.TENSION;
@@ -62,6 +63,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
   const FOES = what === 'foes' || (what === 'ratio' && args.includes('--why'));
   const POLICY = (process.argv.find((x) => x.startsWith('--policy=')) || '').slice(9) || (REF_HUMAN ? 'mid' : 'smart');
   const LV_FIRST = args.includes('--lvfirst');
+  const AUGF = (process.argv.find((x) => x.startsWith('--aug=')) || '').slice(6); // --aug=a_crit | ha : 증강이 뜨면 이걸로 (등급이 맞을 때 · ha = 멤버 전용) — 증강별 세기 비교
   function pickCard(g, cards, rng) {
     const P = g._policy || POLICY; // (o.policy: 판마다 — 초보 봇은 random)
     if (P === 'casual') { const j = cards.findIndex((c) => c.kind === 'join'); if (j >= 0) return j; } // 대충 하는 사람도 합류 카드는 늘 고른다 (덱 순서대로 · 안 고르면 대장 혼자 첫 웨이브에서 진다)
@@ -197,6 +199,7 @@ function seeded(seed = 1) { let a = seed >>> 0; return () => { a |= 0; a = (a + 
       for (const h of g.heroes) if (h.def.summon) summons.add(h);
       if (o.onStep) o.onStep(g); // (focus: 판 중 사건 · 상태 세기)
       if (o.onEvents) o.onEvents(g, g.events);
+      if (AUGF && g.augOffer) { const ao = g.augOffer.opts, d = AUGF === 'ha' ? null : S.augDef(AUGF), want = AUGF === 'ha' ? ao.find((x) => x.startsWith('ha_')) : d && d.tier === g.augOffer.tier ? AUGF : null; if (want) { if (!ao.includes(want)) ao.push(want); S.applyAug(g, want); } } // --aug=: 증강별 세기 재기
       if (FOES) for (const e of g.events) if (e.type === 'baseHit' && e.by) { const m = g._doorBy || (g._doorBy = {}); m[e.by] = (m[e.by] || 0) + (e.v || 0); } // (foes: 누가 입구를 쳤나)
       g.events.length = 0;
       // 레벨업 카드는 게임이 안 멈춘다 → 사람처럼 1.5~3초 뒤에 고른다
