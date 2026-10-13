@@ -255,7 +255,7 @@ export const BAL = {
   chHp: { 1: 1, 2: 0.72, 3: 0.8, 4: 0.8, 5: 0.8, 6: 0.8 }, endHp: 0.9, // 장마다 적 체력 (개편으로 줄어든 팀 화력 · 느려진 레벨업만큼)
   expCh2: 1.6, // 2장부터 레벨업에 경험치 1.6배 (카드가 너무 자주 떠서 · 1장은 그대로 빠르게)
   aoeMain: ['eunok', 'hyungyeong', 'donghan', 'soyoung', 'gunnyeo', 'dohoon'], // 범위가 주 역할 (범위 그대로)
-  incSplashDmg: 0.4, incSplashR: 0.75, splashCap: 1.5, // 나머지 멤버의 곁다리 범위: 피해 40% · 반경 75% · 카드 범위 배율 최대 1.5
+  incSplashDmg: 0.4, incSplashR: 0.75, splashCap: 1.5, splashMax: 1.8, // (splashCap 은 옛 값 · 지금은 sim.js splashEff: ×1.3 위로 40%씩 · 최대 splashMax) 나머지 멤버의 곁다리 범위: 피해 40% · 반경 75% · 카드 범위 배율 최대 1.5
   fast: { types: ['mukti', 'cutter', 'drunk_run', 'clubgirl', 'mid_mukti', 'fuse_taxi'], dodge: 0.3, dodgeAoe: 0.15, dodgeBig: 0.2, atkMul: 1.5, atkInt: 0.55, from: 4 },
   noMiss: ['gf', 'swear', 'tick'], // 따라가는 · 튕기는 · 시간 멈춤 공격은 못 피한다
   aura: { id: 'sunggu', r: 130 }, // 강성구: 가까운 멤버 기절·침묵·붙잡힘 면역
@@ -2186,7 +2186,7 @@ export const PICK_SKIP = { heal: 0.05, mom: 50 };
 export const HERO_CARDS = {
   bangjang: { title: '방장: 공지 오라 +8% · 지목 피해 +5%p', add: { aura: 0.08, order: 0.05 } },
   staff: { title: '운영진: 경고 2번이면 강퇴', add: { warnN: 1 } },
-  gunman: { title: '건전남: 관통 +1 · 사거리 +15%', add: { pierce: 1 }, mul: { range: 1.15 } },
+  gunman: { title: '건전남: 관통 +1 · 제 위력 거리 +15%', add: { pierce: 1 }, mul: { range: 1.15 } },
   gunnyeo: { title: '건전녀: 하트 폭탄 범위 +35% · 간호 40% 더 자주', mul: { splash: 1.35, care: 1.4 } },
   myunghoon: { title: '서명훈: 욕 튕김 +1 · 기절 +20%', add: { bounce: 1 }, mul: { ctrl: 1.2 } },
   dohoon: { title: '김도훈: 음파 반경 +30%', mul: { range: 1.3 } },
@@ -2692,17 +2692,17 @@ export const TIER_NAMES = { silver: '실버', gold: '골드', prism: '프리즘'
 // 증강: 판을 결정하는 큰 카드 (스테이지 1 · 3 · 4웨이브 / 무한 3 · 8 · 13 …) — 멤버 전용 증강은 그 멤버가 덱에 있을 때만
 export const AUGMENTS = [
   { id: 'a_power', tier: 'silver', icon: '💪', title: '근성', desc: '모든 멤버 공격력 +35%', fx: { dmg: 0.35 } },
-  { id: 'a_haste', tier: 'silver', icon: '⚡', title: '초과 근무', desc: '공격 속도 +15%', fx: { spd: 0.15 } },
+  { id: 'a_haste', tier: 'silver', icon: '⚡', title: '초과 근무', desc: '공격 속도 +25%', fx: { spd: 0.25 } }, // (10/31 +15%: 근성(공격력 +35%)보다 늘 손해였음)
   { id: 'a_wall', tier: 'silver', icon: '🧱', title: '철벽', desc: '입구 최대 내구도 +40% · 가득 회복', fx: { hp: 0.4 } },
   { id: 'a_xp', tier: 'silver', icon: '📚', title: '벼락치기', desc: '경험치 +50%', fx: { exp: 0.5 } },
   { id: 'a_crit', tier: 'gold', icon: '🎯', title: '정밀 사격', desc: '치명타 +18% · 치명타 피해 +50%', fx: { crit: 0.18, critMul: 0.5 } },
-  { id: 'a_cd', tier: 'gold', icon: '⏱️', title: '쿨타임 도둑', desc: '스킬 쿨타임 -30%', fx: { cd: 0.7 } },
+  { id: 'a_cd', tier: 'gold', icon: '⏱️', title: '쿨타임 도둑', desc: '기세 회복 +50% · 스킬 피해 +30% · 스킬 쿨타임 -20%', fx: { mom: 0.5, skill: 0.3, cd: 0.8 } }, // (10/31 예전 '쿨 −30%' 는 허수: 스킬 횟수는 기세가 정해서 쿨만 줄면 기세만 빨리 바닥 → 고르면 오히려 클리어가 떨어졌음)
   { id: 'a_swarm', tier: 'gold', icon: '🌪️', title: '대청소', desc: '일반 진상 피해 +60% · 폭발 범위 +20%', fx: { swarm: 0.6, splash: 1.2 } },
-  { id: 'a_boss', tier: 'gold', icon: '👑', title: '보스 사냥', desc: '보스·중간 보스 피해 +60%', fx: { boss: 0.6 } },
-  { id: 'a_frost', tier: 'gold', icon: '🧊', title: '냉기 오라', desc: '모든 진상 이동 -18% · 제어 +30%', fx: { slow: 0.82, ctrl: 1.3 } },
+  { id: 'a_boss', tier: 'gold', icon: '👑', title: '보스 사냥', desc: '보스·중간 보스 피해 +80%', fx: { boss: 0.8 } },
+  { id: 'a_frost', tier: 'gold', icon: '🧊', title: '냉기 오라', desc: '모든 진상 이동 -25% · 감속·기절 +50%', fx: { slow: 0.75, ctrl: 1.5 } }, // (10/31 −18% · +30%: 골드 중 약했음)
   { id: 'a_prism_all', tier: 'prism', icon: '🌈', title: '프리즘: 전원 각성', desc: '공격력 +45% · 공격 속도 +20%', fx: { dmg: 0.45, spd: 0.2 } },
   { id: 'a_prism_path', tier: 'prism', icon: '🔷', title: '프리즘: 외길 인생', desc: '가장 많이 고른 길 세트 보너스 한 단계 더 + 그 길 멤버 공격력 +50%', fx: { path: 0.5 } },
-  { id: 'a_prism_ult', tier: 'prism', icon: '🔥', title: '프리즘: 무한 총력전', desc: '총력전 충전 +120% · 충격파 피해 +100%', fx: { ult: 1.2, ultDmg: 1 } },
+  { id: 'a_prism_ult', tier: 'prism', icon: '🔥', title: '프리즘: 무한 총력전', desc: '총력전 충전 +150% · 총력전에 기세 절반만 · 총력전 동안 스킬 피해 +50% · 충격파 +100%', fx: { ult: 1.5, ultDmg: 1, ultMom: 0.5, ultTeam: 0.5 } }, // (10/31 예전 +120% 충전 · 충격파 +100% 는 허수: 총력전은 기세 가득(200)이 있어야 써져서 충전이 빨라도 못 썼고 충격파는 작은 고정 피해)
   { id: 'a_prism_mirror', tier: 'prism', icon: '🪞', title: '프리즘: 쌍둥이 스킬', desc: '모든 스킬이 0.5초 뒤 한 번 더', fx: { echo: 1 } },
 ];
 // 멤버 전용 증강 (그 멤버 전용 카드 효과 두 번 + 공격력 +40%)
@@ -2786,7 +2786,7 @@ export const SKILL_AUG = {
   ],
   staff: [
     { id: 'redchain', name: '레드카드 연쇄', desc: '레드카드가 다른 무리에 한 장 더 날아간다 (80%)' },
-    { id: 'warn2', name: '즉결 강퇴', desc: '경고 2번이면 강퇴', cm: { add: { warnN: 1 } } },
+    { id: 'warn2', name: '즉결 강퇴', desc: '경고 2번이면 강퇴 · 강퇴 피해 +40%', cm: { add: { warnN: 1 } } }, // (10/31 전용 카드와 겹치면 하한 2번에 막혀 허수 → 강퇴 피해를 같이)
     { id: 'kickboom', name: '강퇴 폭발', desc: '강퇴당한 진상 주변이 터지며 0.8초 기절' },
   ],
   gunman: [
@@ -2794,7 +2794,7 @@ export const SKILL_AUG = {
     { id: 'head', name: '헤드샷 장인', desc: '치명타 +15% · 3발마다 헤드샷 (Lv 상관없이)' },
   ],
   gunnyeo: [
-    { id: 'aegis', name: '철벽 방패', desc: '응급 방패 면역 +1.5초 · 스킬 쿨타임 −1초 더' },
+    { id: 'aegis', name: '철벽 방패', desc: '응급 방패 면역 +2초 · 다른 멤버 스킬 쿨 −1초 더' },
     { id: 'angel', name: '천사의 손길', desc: '간호 50% 더 자주 · 하트 폭탄 범위 +30%', cm: { mul: { care: 1.5, splash: 1.3 } } },
   ],
   myunghoon: [
@@ -2819,7 +2819,7 @@ export const SKILL_AUG = {
   ],
   eunok: [
     { id: 'inferno', name: '술 웅덩이 확장', desc: '분노 술 웅덩이 범위 +50% · 1초 더' },
-    { id: 'bottoms', name: '끝장 원샷', desc: '분노 +4초 · 원샷 쿨타임 −30%', cm: { add: { rage: 4 } }, skCd: 0.7 },
+    { id: 'bottoms', name: '끝장 원샷', desc: '분노 +2초 · 원샷 쿨타임 −15%', cm: { add: { rage: 2 } }, skCd: 0.85 }, // (10/31 +4초 · −30%: 분노가 안 끊겨 '스킬로만 분노'가 무너졌음)
   ],
   hanna: [
     { id: 'focus', name: '집중 레이저', desc: '레이저 세지는 속도 +60% · 최대치 +80%p', cm: { mul: { ramp: 1.6 } } },
@@ -2834,19 +2834,19 @@ export const SKILL_AUG = {
     { id: 'jackpot', name: '소개팅 대박', desc: '소개팅 주선 여사친 +1명 · 피해 +30%' },
   ],
   hyungyeong: [
-    { id: 'noyoyo', name: '요요 없음', desc: '날씬 모드 +5초', cm: { add: { diet: 5 } } },
+    { id: 'noyoyo', name: '요요 없음', desc: '날씬 모드 +3초', cm: { add: { diet: 3 } } }, // (10/31 +5초: 쿨보다 길어져 날씬이 안 끊겼음)
     { id: 'target', name: '표적 표시', desc: '표시한 진상이 받는 피해 +25% → +45%' },
   ],
   ara: [
-    { id: 'forever', name: '영원한 공주', desc: '공주 시간 +6초', cm: { add: { young: 6 } } },
+    { id: 'forever', name: '영원한 공주', desc: '공주 시간 +3초', cm: { add: { young: 3 } } }, // (10/31 +6초: 쿨보다 길어져 공주가 안 끊겼음)
     { id: 'combo', name: '공주의 연타', desc: '공주의 일격이 다음 센 적 둘에게도 (60%)' },
   ],
   hochan: [
     { id: 'bond', name: '랑방 결속', desc: '랑방 버프 최대 +12%p', cm: { add: { buff: 0.12 } } },
-    { id: 'extra', name: '막차 증차', desc: '막차 대행진 버스 +2대 · 기절 +0.5초' },
+    { id: 'extra', name: '막차 증차', desc: '막차 대행진 버스 2대가 한 번 더 쓸고 간다 · 기절 +0.5초' }, // (10/31 예전 +2대는 화면 폭을 나눠 가져 허수)
   ],
   soyoung: [
-    { id: 'nagbomb', name: '잔소리 폭격', desc: '성준영 체력 +40%', cm: { add: { nag: 0.4 } } },
+    { id: 'nagbomb', name: '잔소리 폭격', desc: '성준영 체력 +40% · 쓸어 담기 피해 +25%', cm: { add: { nag: 0.4 } } },
     { id: 'allin', name: '올인 끌어당기기', desc: '성준영 쓸어 담기 피해 +50% · 끌어모으는 범위 +20%' },
   ],
   jieun: [

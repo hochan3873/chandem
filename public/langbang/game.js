@@ -7,7 +7,7 @@ import {
   ATTRS, CLASSES, TYPE_CHART, TYPE_STRONG, TYPE_WEAK, typeMul, stageClasses, recommendAttrs, recommendTeam, stageFx, MAP_FX, partnerSlots,
   GEAR, GEAR_RARITY, GEAR_STATS, GEAR_INFO, STAT_HELP, heroCardNeed, CARD_PICK, gearStoneNeed, gearDismantle, GEAR_NEXT, GEAR_FUSE_FEE, GEAR_MAX_LV, gearValue, gearEnhanceCost, gearEnhanceChance, gearSellValue, SLOT_X, SLOT_X7,
   attrScores, DECK_BASE, GACHA_HEROES, LEGEND_HEROES, openSlots, TAGS, HERO_TAGS, ATTR_SET, EVO, HELL, hellOpen, heroTier, TIER_NAME, TIER_MUL, TIER_GROWTH, tierPower, resOf, metaMaxOf, metaCost, SKILL_EVO, stageMid, WAVE_KINDS, stageWaveKinds, stageStory, NO_DEX_ART, NO_HQ_ART, NO_DUO_ART, SUMMONS,
-  TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS,
+  TRAITS, stageMix, CURSES, TECH, SET_BONUS, TIER_NAMES, CC_KINDS, HERO_CARDS,
   FUSE_ART, MYTH, DROP_PITY, dropWeights, DROP_BOSS_MIN, gearStats, heroPowerOf, gearPowerMul, POWER_BASE, POWER_STAR, starPowerMul, WEAPON, PROJ_ART, GEAR_IDS, MYTH_IDS, DROPS, MOMENTUM,
   COND, stageConds, stageMission, condFits, recMeta, recPower, powerVerdict, clearHint, softMeta, STAR_DOOR, PICK_SKIP, META_SOFT, META_MILESTONE, metaMile, tierPowerM, hellHpMul, WEEK_TRAIT_FROM, stageLevel, stageHpScale, hpMul, STAGE_HPX, BAL,
   SIG, SIG_IDS, SIG_PITY, SIG_RATE, SIG_DUP_SHARDS, gearFits, sigOf, sigStatText, HERO_ROLES, heroRole, ENEMY_KINDS, enemyKind, enemyGrade, MAIN, thiefCut,
@@ -1554,7 +1554,7 @@ function updateHud() {
     app.hudCache.momN = full;
     H$.ult.classList.toggle('noring', !on);
     H$.ult.classList.toggle('teamOn', g.teamT > 0);
-    const rd = up >= RULES.ultMax && full >= 2;
+    const rd = up >= RULES.ultMax && (!on || m >= MOMENTUM.ult * (g.mods.ultMom || 1)); // (무한 총력전 증강: 기세 1칸이면)
     if (H$.ult.classList.contains('ready') !== rd) { H$.ult.classList.toggle('ready', rd); if (rd) { const b = document.createElement('span'); b.className = 'ult-bub'; b.textContent = '총력전 가능!'; H$.ult.appendChild(b); setTimeout(() => b.remove(), 1800); } }
     if (rd && !app.ultTipShown && !TUT.learning()) { app.ultTipShown = true; showTip('총력전 준비 완료! 오른쪽 아래 엠블럼을 누르면 멤버 모두가 스킬을 한꺼번에 써요', 3800); }
     if (on && !tutDone('mom') && g.mode === 'stage' && g.t > 6 && !TUT.learning()) { setTut('mom'); showTip('기세: 스킬을 쓸 때마다 1칸씩 써요 · 시간이 지나고 진상을 잡으면 다시 차요 · 2칸이면 총력전!', 6000); H$.ult.classList.add('tut'); setTimeout(() => H$.ult.classList.remove('tut'), 6000); }
@@ -2663,13 +2663,27 @@ function augIcon(a) {
   const k = Object.keys(a.fx || {}).find((x) => AUG_FX_IC[x]);
   return pimg(ui2(k ? AUG_FX_IC[k] : iconName(a.icon, a.desc)));
 }
-const AUG_TXT = { dmg: '공격력', spd: '공격 속도', crit: '치명타', critMul: '치명타 피해', boss: '보스 피해', swarm: '일반 진상 피해', exp: '경험치' };
-function augRealDesc(a) { // 스테이지는 강화 수준에 따라 효과가 줄어든다 → 실제 값을 보여 준다
-  const g = app.g; if (!g || a.hero) return a.desc;
-  const k = S.augScale(g), parts = [];
-  for (const [kk, v] of Object.entries(a.fx || {})) { if (AUG_TXT[kk]) parts.push(`${AUG_TXT[kk]} +${(v * k * 100).toFixed(1)}%`); }
-  const rest = a.desc.split(' · ').filter((x) => !Object.values(AUG_TXT).some((n) => x.startsWith(n) || x.startsWith('모든 멤버 ' + n)));
-  return [...parts, ...rest].join(' · ') || a.desc;
+const AUG_TXT = { dmg: '공격력', spd: '공격 속도', crit: '치명타', critMul: '치명타 피해', boss: '보스·중간 보스 피해', swarm: '일반 진상 피해', exp: '경험치', skill: '스킬 피해' };
+function augRealDesc(a) { // 증강 설명 = 이 판에서 실제로 들어가는 숫자 (sim.js augReal 과 같은 값)
+  const g = app.g; if (!g) return a.desc;
+  const r = S.augReal(g, a), pc = (v) => { const p = v * 100; return p >= 10 ? Math.round(p) : p.toFixed(1); };
+  if (a.hero) { const nm = (HEROES[a.hero] || SUMMONS[a.hero] || {}).name || a.hero, hc = HERO_CARDS[a.hero]; return `${nm} 전용 — ${hc ? hc.title.split(':').slice(1).join(':').trim() : '전용 카드 효과'}${r.times > 1 ? ` (${r.times}번)` : ''} · ${nm} 공격력 +${pc(r.atk)}%`; }
+  const parts = [];
+  for (const [kk, v] of Object.entries(r.fx)) {
+    if (AUG_TXT[kk]) parts.push(`${AUG_TXT[kk]} +${pc(v)}%`);
+    else if (kk === 'hp') parts.push(`입구 최대 내구도 +${pc(v)}% · 가득 회복`);
+    else if (kk === 'cd') parts.push(`스킬 쿨타임 −${pc(1 - v)}%`);
+    else if (kk === 'slow') parts.push(`모든 진상 이동 −${pc(1 - v)}%`);
+    else if (kk === 'ctrl') parts.push(`감속·기절 +${pc(v - 1)}%`);
+    else if (kk === 'splash') parts.push(`폭발 범위 +${pc(v - 1)}%`);
+    else if (kk === 'ult') parts.push(`총력전 충전 +${pc(v)}%`);
+    else if (kk === 'ultDmg') parts.push(`충격파 피해 +${pc(v)}%`);
+    else if (kk === 'ultMom') parts.push(`총력전에 기세 ${v <= 0.5 ? '1칸만' : `${pc(v)}%만`}`);
+    else if (kk === 'mom') { if (g.mom !== null && g.mom !== undefined) parts.push(`기세 회복 +${pc(v)}%`); }
+    else if (kk === 'ultTeam') parts.push(`총력전 동안 스킬 피해 +${pc(v)}%`);
+    else if (kk === 'echo') parts.push(`모든 멤버 스킬이 0.5초 뒤 한 번 더 (${pc(v)}% 위력)`);
+  }
+  return parts.join(' · ') || a.desc;
 }
 function showAugOffer(opts, tier) {
   augBox.className = 'aug-box v4 t-' + tier;

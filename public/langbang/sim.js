@@ -188,6 +188,7 @@ export function addHero(g, id, want) {
   };
   Object.defineProperty(h, '_g', { value: g, enumerable: false, writable: true }); // 상태이상 면역 확인용 (저장에는 안 들어감)
   g.heroes.push(h);
+  if (g.augs && g.augs.includes('a_prism_mirror') && !def.summon) { h.skEvo = true; h.echoMul = AUGT.echo; } // 쌍둥이 스킬 뒤에 합류한 멤버도 (예전엔 고를 때 있던 멤버만)
   if (h.sig && h.sig.mark) g.sigMark = h.sig.mark; // 배현경 전용 신화: 표시 피해 +25%p
   if (id === 'bangjang') g.mods.ultCharge += NICHE.bangjang.ult * h.meta; // 방장: 강화할수록 총력전이 빨리 찬다
   if (id === 'gunnyeo') g.gnRes = Math.min(0.3, NICHE.gunnyeo.res * h.meta); // 건전녀: 강화할수록 멤버 전원 상태이상이 짧아진다 (입구 보호는 홍정민 몫)
@@ -916,7 +917,7 @@ export function fire(g, h, t) {
       if (d.roll) { const R0 = d.roll, bl = bestLineAngle(g, h.x, h.y - 30, heroRange(g, h), R0.r); spawnProj(g, 'dumbbell', h, null, dmg, { angle: bl ? bl.a : aimAngle(h, t, R0.speed), speed: R0.speed, pierce: Infinity, r: R0.r * (lv >= 5 ? 1.3 : 1), push: R0.push * (h.cm.motoKb || 1), decay: R0.decay, maxDist: heroRange(g, h) + 30, spin: 9 }); } // 대개편: 바닥을 데굴데굴 구르며 길 위 진상을 전부 치고 밀친다
       else spawnLob(g, 'dumbbell', h, t, dmg, d.splash * (lv >= 5 ? 1.3 : 1) * (g.mapFx.splash || 1) * g.mods.splashMul, null);
       h.motoN += (h.sig && h.sig.moto) || 1;
-      if (h.motoN >= Math.max(2, d.moto.every[lv - 1] - (h.cm.moto || 0))) { h.motoN = 0; launchMoto(g, h, [0], 1); }
+      if (h.motoN >= Math.max(h.sa && h.sa.booster ? 1 : 2, d.moto.every[lv - 1] - (h.cm.moto || 0))) { h.motoN = 0; launchMoto(g, h, [0], 1); }
       break;
     }
     case 'snack': // 문동한 과자: 귀찮은 듯 흐느적 날아간다 (안 따라감) · 맞히면 간보기 게이지 + (hitEnemy)
@@ -945,7 +946,7 @@ export function fire(g, h, t) {
       // 건전남 새총: 먼 곳까지 빠른 단발, 치명타 잘 터짐
       const n = 1 + g.mods.gunExtra;
       const ang = d.lane ? -Math.PI / 2 : aimAngle(h, t, d.projSpeed); // 새총은 자기 줄 위로 똑바로
-      const farCut = d.far && Math.hypot(t.x - h.x, t.y - h.y) > d.far.r ? d.far.mul : 1; // 건전남: 먼 곳은 살짝 약하게
+      const farCut = d.far && Math.hypot(t.x - h.x, t.y - h.y) > d.far.r * (h.cm.range || 1) ? d.far.mul : 1; // (전용 카드 사거리 +15%: 사거리는 이미 필드 끝 → 약해지지 않는 거리를 늘린다) // 건전남: 먼 곳은 살짝 약하게
       const head = h.sa && h.sa.head ? h.shots % 3 === 0 : lv >= 5 && h.shots % 4 === 0;
       for (let i = 0; i < n; i++) {
         const a = ang + (i - (n - 1) / 2) * 0.14; // 새총알 추가 카드: 부채꼴로 넓게
@@ -3274,7 +3275,7 @@ export function hitEnemy(g, p, e) {
   if (p.type === 'warn' && h && h.id === 'staff' && (e.shield > 0 || e.dictT > 0 || e.gaoOn) && g.rng() < 0.15) { e.shield = 0; e.dictT = 0; e.gaoOn = false; e.noShieldT = Math.max(e.noShieldT || 0, 2); ev(g, 'shieldBreak', { x: e.x, y: e.y - e.def.size * 0.6 }); } // 옐로카드: 15% 로 버프 한 겹 벗기기
   if (p.type === 'warn' && h && h.def.warn) {
     e.warnN = (e.warnN | 0) + 1;
-    if (e.warnN >= Math.min(Math.max(2, h.def.warn.n - (h.cm.warnN || 0)), (h.sig && h.sig.warnN) || 9)) { e.warnN = 0; kick = true; dmg *= h.def.warn.mul * (1 + NICHE.staff.kick * (h.meta || 0)); }
+    if (e.warnN >= Math.min(Math.max(2, h.def.warn.n - (h.cm.warnN || 0)), (h.sig && h.sig.warnN) || 9)) { e.warnN = 0; kick = true; dmg *= (h.sa && h.sa.warn2 ? 1.4 : 1) * h.def.warn.mul * (1 + NICHE.staff.kick * (h.meta || 0)); }
   }
   ev(g, 'hit', { x: p.x, y: p.y, proj: p.type, crit });
   damageEnemy(g, e, dmg, crit, h, p.pierce > 0 || p.type === 'cane' || p.type === 'gf');
@@ -3363,7 +3364,7 @@ export function hitEnemy(g, p, e) {
   }
   if (p.splash) {
     const inc = !BAL.aoeMain.includes(h.id);
-    const sr = p.splash * (g.mapFx.splash || 1) * Math.min(BAL.splashCap, g.mods.splashMul) * (inc ? BAL.incSplashR : 1);
+    const sr = p.splash * (g.mapFx.splash || 1) * splashEff(g) * (inc ? BAL.incSplashR : 1);
     ev(g, 'splash', { x: e.x, y: e.y, r: sr, proj: p.type });
     const sd = dmg * 0.6 * (inc ? BAL.incSplashDmg : 1);
     forEnemiesNear(g, e.x, e.y, sr, (o) => {
@@ -3515,6 +3516,10 @@ export function augOptions(g, tier) {
   const rng = g.pvp ? seedRngLocal((g.pvp.seed | 0) * 31 + g.wave) : g.rng; // 대전: 같은 시드 → 같은 셋
   if (heroes.length && tier !== 'silver') { const h = heroes[(rng() * heroes.length) | 0]; opts.push('ha_' + h.id); }
   while (opts.length < 3 && pool.length) opts.push(pool.splice((rng() * pool.length) | 0, 1)[0].id);
+  for (const lo of tier === 'prism' ? ['gold', 'silver'] : tier === 'gold' ? ['silver'] : []) { // 무한: 그 등급을 다 고르면 아래 등급으로 채운다 (멤버 전용 하나만 뜨거나 아예 안 뜨지 않게)
+    const p2 = AUGMENTS.filter((a) => a.tier === lo && !have.has(a.id) && !AUG_CUT.includes(a.id));
+    while (opts.length < 3 && p2.length) opts.push(p2.splice((rng() * p2.length) | 0, 1)[0].id);
+  }
   return opts;
 }
 function seedRngLocal(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -3524,13 +3529,27 @@ function offerAug(g, tier) {
   g.augOffer = { opts, tier, t: 15 };
   ev(g, 'augOffer', { opts, tier });
 }
-export const AUG_STAGE = 0.35; // 스테이지 · 대전 · 주간: 증강 효과를 줄여서 (판이 짧아서 너무 쉬워지지 않게)
+// (10/31 증강 점검) 스테이지 0.35 → AUGT.stage: 골드 일반 증강이 멤버 전용 증강보다 클리어 −10~15%p 약했다 (근성 +35% 가 실제 +11% — 허수)
+//  soft: 스테이지 입구 내구도 · 쿨타임 증강 몫 (0.5 → 설명과 다르게 반만 들어갔음)
+export const AUGT = { stage: 0.7, soft: 1, haAtk: 0.4, echo: 0.75 };
+export const AUG_STAGE = AUGT.stage; // (옛 이름)
 export function augDef(id) {
-  if (id.startsWith('ha_')) { const h = id.slice(3); return { id, tier: 'gold', icon: '✨', title: HERO_AUG[h], desc: `${(HEROES[h] || SUMMONS[h] || {}).name || h} 전용 — 전용 카드 효과 두 번 + 공격력 +40%`, hero: h }; }
+  if (id.startsWith('ha_')) { const h = id.slice(3); return { id, tier: 'gold', icon: '✨', title: HERO_AUG[h], desc: `${(HEROES[h] || SUMMONS[h] || {}).name || h} 전용 — 전용 카드 효과 + 공격력 +${Math.round(AUGT.haAtk * 100)}%`, hero: h }; }
   return AUGMENTS.find((a) => a.id === id);
 }
 // 증강이 실제로 얼마나 먹히나 (강화 평균 · 무한/스테이지) — 화면도 이 값으로 보여 준다
-export function augScale(g) { const hs = g.heroes.filter((h) => !h.def.summon); return (0.7 + (hs.reduce((x, h) => x + (h.meta || 0), 0) / Math.max(1, hs.length)) / 20) * (g.mode === 'endless' ? 1 : AUG_STAGE) * (g.tension ? TENSION.aug : 1); } // (긴장감: 증강 % ×TENSION.aug)
+export function augScale(g) { const hs = g.heroes.filter((h) => !h.def.summon); return (0.7 + (hs.reduce((x, h) => x + (h.meta || 0), 0) / Math.max(1, hs.length)) / 20) * (g.mode === 'endless' ? 1 : AUGT.stage) * (g.tension ? TENSION.aug : 1); } // (긴장감: 증강 % ×TENSION.aug)
+// 폭발 범위 배율: 예전엔 ×1.5 에서 딱 막혀 폭발 카드 한 장 뒤로는 범위 카드 · 기술 · 대청소 증강이 범위를 전혀 못 늘렸다 (허수)
+//  → ×1.3 까지는 그대로 · 그 위는 40%씩만 · 최대 ×1.8 (고를 때마다 조금씩은 늘어난다)
+export function splashEff(g) { const m = g.mods.splashMul; return m <= 1.3 ? m : Math.min(BAL.splashMax || 1.8, 1.3 + (m - 1.3) * 0.4); }
+const AUG_PCT = ['dmg', 'spd', 'boss', 'swarm', 'path', 'crit', 'critMul', 'exp', 'skill'];
+// 이 판에서 실제로 들어가는 숫자 — applyAug 와 증강 카드 설명(game.js)이 같이 쓴다
+export function augReal(g, a) {
+  if (a.hero) return { times: g.mode === 'endless' ? 2 : 1, atk: AUGT.haAtk };
+  const k = augScale(g), soft = g.mode === 'endless' ? 1 : AUGT.soft, fx = {};
+  for (const [kk, v] of Object.entries(a.fx || {})) fx[kk] = AUG_PCT.includes(kk) ? v * k : kk === 'hp' ? v * soft : kk === 'cd' ? 1 - (1 - v) * soft : kk === 'echo' ? AUGT.echo : v;
+  return { fx };
+}
 export function applyAug(g, id) {
   if (!g.augOffer || !g.augOffer.opts.includes(id)) return false;
   const a = augDef(id);
@@ -3538,21 +3557,21 @@ export function applyAug(g, id) {
   (g.augs = g.augs || []).push(id);
   const m = g.mods;
   if (a.hero) {
-    const h = hasHero(g, a.hero), hc = HERO_CARDS[a.hero];
-    if (h) { for (let k = 0; k < (g.mode === 'endless' ? 2 : 1); k++) { if (hc) { for (const [kk, v] of Object.entries(hc.mul || {})) h.cm[kk] = (h.cm[kk] || 1) * v; for (const [kk, v] of Object.entries(hc.add || {})) h.cm[kk] = (h.cm[kk] || 0) + v; } } h.cmN = (h.cmN || 0) + 2; }
+    const h = hasHero(g, a.hero), hc = HERO_CARDS[a.hero], r = augReal(g, a);
+    if (h) { for (let k = 0; k < r.times; k++) { if (hc) { for (const [kk, v] of Object.entries(hc.mul || {})) h.cm[kk] = (h.cm[kk] || 1) * v; for (const [kk, v] of Object.entries(hc.add || {})) h.cm[kk] = (h.cm[kk] || 0) + v; } } h.cmAtk = cmAtk(h) - (h.lvAtk || 0) + r.atk; h.cmN = (h.cmN || 0) + 2; } // (예전: 전용 카드를 먼저 골랐으면 공격력 +40% 가 안 붙었음)
   } else {
     // 강화가 높은 덱일수록 증강이 더 세다 (평균 강화 0 → ×0.7 · 20 → ×1.7) — 무한에서 강한 덱이 더 멀리 가게
-    const k = augScale(g);
-    const f = {}; for (const [kk, v] of Object.entries(a.fx)) f[kk] = ['dmg', 'spd', 'boss', 'swarm', 'path', 'crit', 'critMul', 'exp'].includes(kk) ? v * k : v;
+    const f = augReal(g, a).fx;
     if (f.dmg) m.dmg += f.dmg; if (f.spd) m.spd += f.spd; if (f.exp) m.expMul += f.exp;
-    const soft = g.mode === 'endless' ? 1 : 0.5;
-    if (f.hp) { g.base.max = Math.round(g.base.max * (1 + f.hp * soft)); g.base.hp = g.base.max; }
+    if (f.hp) { g.base.max = Math.round(g.base.max * (1 + f.hp)); g.base.hp = g.base.max; }
     if (f.crit) m.crit += f.crit; if (f.critMul) m.critMul += f.critMul;
-    if (f.cd) { const c = 1 - (1 - f.cd) * soft; g.cdMul *= c; for (const h of g.heroes) h.skillCd *= c; }
+    if (f.cd) { g.cdMul *= f.cd; for (const h of g.heroes) h.skillCd *= f.cd; }
     if (f.swarm) m.swarmDmg += f.swarm; if (f.splash) m.splashMul *= f.splash;
     if (f.boss) m.bossDmg += f.boss; if (f.slow) { m.enemySpd *= f.slow; for (const e of g.enemies) e.speed *= f.slow; } if (f.ctrl) m.ctrlMul *= f.ctrl;
-    if (f.ult) m.ultCharge += f.ult; if (f.ultDmg) m.ultDmg += f.ultDmg;
-    if (f.echo) for (const h of g.heroes) h.skEvo = true;
+    if (f.ult) m.ultCharge += f.ult; if (f.ultDmg) m.ultDmg += f.ultDmg; if (f.ultMom) m.ultMom = (m.ultMom || 1) * f.ultMom; if (f.ultTeam) m.ultTeam = (m.ultTeam || 0) + f.ultTeam;
+    if (f.skill) m.skAug = (m.skAug || 1) * (1 + f.skill);
+    if (f.mom) g.momRate = (g.momRate || 1) * (1 + f.mom);
+    if (f.echo) for (const h of g.heroes) if (!h.skEvo) { h.skEvo = true; h.echoMul = f.echo; } // 합류가 늦은 멤버는 addHero 에서
     if (f.path) { const top = Object.entries(g.tagW || {}).sort((x, y) => y[1] - x[1])[0]; if (top) { m.tagDmg[top[0]] = (m.tagDmg[top[0]] || 0) + f.path + 0.35; } }
   }
   ev(g, 'aug', { id, title: a.title, tier: a.tier });
@@ -3839,7 +3858,7 @@ export function enemiesLeft(g) {
 // ─── 궁극기 ───────────────────────────────────────────
 export function useUlt(g) {
   if (g.ult < RULES.ultMax || g.over) return false;
-  if (g.mom !== null && g.mom !== undefined) { if (g.mom < MOMENTUM.ult) { ev(g, 'noMomentum', { ult: true }); return false; } g.mom -= MOMENTUM.ult; }
+  if (g.mom !== null && g.mom !== undefined) { const mc = MOMENTUM.ult * (g.mods.ultMom || 1); if (g.mom < mc) { ev(g, 'noMomentum', { ult: true }); return false; } g.mom -= mc; } // (무한 총력전 증강: 기세 절반)
   g.ult = 0;
   // 총력전 (10/12 총력전 → 총력전): ① 전원 함성 충격파(예전 총력전의 절반) ② 멤버가 차례로 자기 스킬을 한 번 더 ③ 6초 동안 스킬 쿨 0 · 스킬 피해 ×1.5
   const dmg = RULES.ultDamage * RULES.teamShock * (1 + 0.22 * g.diff) * g.mods.ultDmg;
@@ -3997,7 +4016,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
     if (g.t - g.lastSkillT < MOMENTUM.gap && !fromQ) { g.skillQ = { h, x, y, at: g.lastSkillT + MOMENTUM.gap, auto: !!g._autoCast }; ev(g, 'skillQueued', { hero: h.id }); return false; } // 0.6초 뒤에 나간다
   }
   const lv = h.lv - 1;
-  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? (echo === 'team' ? 1 : 0.75) : 1) * (g.teamT > 0 ? RULES.teamSkill : 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill / roleCadence(h.id).dmg * (g.mods.skillX || 1) / (g.mods.basicX || 1) / (TENSION.basic || 1) : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
+  const base = heroDamage(g, h) * (1 + (h.gear.skill || 0)) * (echo && echo !== 'sig' ? (echo === 'team' ? 1 : h.echoMul || 0.75) : 1) * (g.teamT > 0 ? RULES.teamSkill * (1 + (g.mods.ultTeam || 0)) : 1) * (g.mods.skAug || 1) * (g.mom !== null && g.mom !== undefined ? MOMENTUM.skillDmg : 1) * (g.tension ? TENSION.skill / roleCadence(h.id).dmg * (g.mods.skillX || 1) / (g.mods.basicX || 1) / (TENSION.basic || 1) : 1) * (1 + (h.skDmg || 0) + (h.awake >= 2 ? TOWER_AWAKE_FX.skill : 0));
   const sa = h.sa || {}; // 멤버 전용 스킬 증강
   if (h.skEvo && !echo && h.id !== 'hanna') h.echoSk = { t: 0.5, x: x !== undefined ? clamp(x + (x < g.W / 2 ? 95 : -95), 20, g.W - 20) : x, y };
   buildGrid(g);
@@ -4046,7 +4065,7 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       break;
     }
     case 'firstaid': { // 건전녀 응급 방패: 멤버 전원에게 하트 방패 — 상태이상 해제 · 기진맥진 풀기 · 잠깐 면역 · 다른 멤버 스킬 쿨 −2초 (입구 방패는 이제 없음: 입구는 홍정민)
-      const imm = sk.imm[lv] + (sa.aegis ? 1.5 : 0), cdCut = sk.cdCut + (sa.aegis ? 1 : 0);
+      const imm = sk.imm[lv] + (sa.aegis ? 2 : 0), cdCut = sk.cdCut + (sa.aegis ? 1 : 0);
       if (sk.door && !g.pvp) { const v = healDoor(g, h.id, g.base.max * sk.door[lv] * (g.mods.healMul || 1)); if (v > 0) ev(g, 'heal', { x: g.W / 2, y: g.ropeY, v: Math.round(v), hero: h.id, big: true }); } // (10/08) 응급 방패: 입구도 한 뭉텅이
       for (const o of g.heroes) {
         cleanseHero(o); o.ccImmT = Math.max(o.ccImmT || 0, imm); o.heartT = imm; o.cheerT = Math.max(o.cheerT || 0, 4); // heartT: 하트 방패 표시 · "힘내요!" 4초
@@ -4256,7 +4275,8 @@ function castSkill0(g, h, x, y, echo, fromQ) {
       // 랑방을 위하여!! 세 줄 황금 파동 + 모두 공격력 ↑
       // 막차 대행진: 황금 버스 행렬이 모든 줄을 쓸고 간다 — 전부 밀어내고 1.5초 기절 + 모두 공격력 ↑ (기세 2칸)
       if (g.mom !== null && g.mom !== undefined && !echo) g.mom = Math.max(0, g.mom - MOMENTUM.per); // (1칸은 아래에서 · 1칸 더)
-      const n = (h.evo ? 5 : 4) + (sa.extra ? 2 : 0), W = g.W || 360;
+      const n = h.evo ? 5 : 4, W = g.W || 360;
+      if (sa.extra) for (let i = 0; i < 2; i++) (g.buses || (g.buses = [])).push({ hero: h, x: (W / 2) * (i + 0.5), y: g.rowY + 150 + i * 20, w: W / 2 + 8, big: false, gold: true, dmg: base * BUS.dmg * (sk.busMul || 0.2) * 0.7, stun: (sk.stun || 0.8) + 0.5, hit: new Set() }); // 막차 증차: 뒤따르는 2대가 한 번 더 (70%)
       for (let i = 0; i < n; i++) {
         const bx = (W / n) * (i + 0.5);
         (g.buses || (g.buses = [])).push({ hero: h, x: bx, y: g.rowY + 30 + i * 26 * (i % 2 ? 1 : -0.3), w: W / n + 8, big: i === ((n / 2) | 0), gold: true, dmg: base * BUS.dmg * (sk.busMul || 0.2), /* (10/10 버스 피해 0.2 → 0.8: 레전드 큰 스킬다운 한 방) */ stun: (sk.stun || 0.8) + (sa.extra ? 0.5 : 0), hit: new Set() });
@@ -5236,7 +5256,8 @@ export function applySkillAug(g, heroId, augId) {
   if (a.skDmg) h.skDmg = (h.skDmg || 0) + a.skDmg;
   if (heroId === 'gunman' && augId === 'head') h.saCrit = (h.saCrit || 0) + 0.15;
   if (heroId === 'hyungyeong' && augId === 'target') g.markBonus = 0.2;
-  if (heroId === 'soyoung' && augId === 'allin') g.saJy = 1.5;
+  if (heroId === 'soyoung' && augId === 'allin') g.saJy = (g.saJy || 1) * 1.5;
+  if (heroId === 'soyoung' && augId === 'nagbomb') g.saJy = (g.saJy || 1) * 1.25; // (10/31 체력만으론 화력 0)
   ev(g, 'skillAug', { hero: h.id, aug: augId, name: a.name, x: h.x, y: h.y });
   return true;
 }
@@ -5332,7 +5353,7 @@ function pathStep(g, p, dt) {
 // 운영진 경고 딱지: 하늘에서 표적 자리로 수직 낙하 → 쾅 (작은 원 · 레벨 · ★ 마다 넓어짐)
 export function stampR(h) { const S = h.def.stamp; return (S.r[h.lv - 1] + S.star * Math.max(0, (h.star || 1) - 1)) * (h.cm.splash || 1); }
 function spawnStamp(g, h, t, dmg) {
-  const p = spawnLob(g, 'stamp', h, t, dmg, stampR(h) * (g.mapFx.splash || 1) * Math.min(BAL.splashCap, g.mods.splashMul), null);
+  const p = spawnLob(g, 'stamp', h, t, dmg, stampR(h) * (g.mapFx.splash || 1) * splashEff(g), null);
   p.drop = true; p.T = h.def.stamp.fall; p.life = p.T + 1; p.sx = p.tx; p.sy = p.ty - 260; p.x = p.sx; p.y = p.sy; p.big = h.lv >= 5;
   return p;
 }
@@ -5452,7 +5473,7 @@ function breathFire(g, h, t, dmg) {
     if (!e.dead) burnOn(g, e, h, dmg * B.burn, B.burnSec);
   }
   const tx = ox + Math.cos(ang) * R * 0.85, ty = oy + Math.sin(ang) * R * 0.85;
-  if (lv >= 2) (g.zones || (g.zones = [])).push({ kind: 'fire', x: tx, y: ty, r: B.ground.r * (lv >= 4 ? 1.25 : 1) * (g.mapFx.splash || 1), t: B.ground.sec, max: B.ground.sec, dps: dmg * B.ground.dps, hero: h, tick: 0 });
+  if (lv >= 2) (g.zones || (g.zones = [])).push({ kind: 'fire', x: tx, y: ty, r: B.ground.r * (lv >= 4 ? 1.25 : 1) * (g.mapFx.splash || 1), t: B.ground.sec + (h.sa && h.sa.blaze ? 1 : 0), max: B.ground.sec + (h.sa && h.sa.blaze ? 1 : 0), dps: dmg * B.ground.dps, hero: h, tick: 0 });
   ev(g, 'breath', { hero: h.id, x: ox, y: oy, a: ang, half, r: R, n, ground: lv >= 2, tx, ty });
 }
 // 화상: 3초 동안 0.5초마다 (겹칠 때마다 세게 · 최대 3겹) — 방어율 무시
@@ -5513,7 +5534,7 @@ function updateZones(g, dt) {
           if (!e.boss) { const a = Math.atan2(e.y - z.y, e.x - z.x); e.x = clamp(e.x + Math.cos(a) * z.kb * 0.5, 16, g.W - 16); applyKnockback(e, Math.max(8, -Math.sin(a) * z.kb), g); }
           return true;
         });
-        const ext = (h && h.sig && h.sig.burnUp) ? 1 : 0;
+        const ext = ((h && h.sig && h.sig.burnUp) ? 1 : 0) + (h && h.sa && h.sa.blaze ? 1 : 0); // (화르륵 대폭발: 불 바닥 +1초 — 예전엔 빠져 있었음)
         g.zones.push({ kind: 'fire', x: z.x, y: z.y, r: z.r * 0.95, t: z.ring.sec + ext, max: z.ring.sec + ext, dps: z.dmg * z.ring.dps / 3, hero: h, tick: 0, ring: true });
         ev(g, 'diveLand', { x: z.x, y: z.y, r: z.r });
         if (z.twin) { const c = densestPoint(g, z.x, z.y, 400, z.r); if (c) { g.zones.push({ kind: 'dive', x: c.x, y: c.y, r: z.r, t: 1, max: 1, dmg: z.dmg * 0.6, hero: h, kb: z.kb, ring: z.ring, twin: false }); ev(g, 'diveUp', { x: z.x, y: z.y, tx: c.x, ty: c.y, r: z.r, air: 1 }); } }
@@ -5559,7 +5580,7 @@ function updateZones(g, dt) {
 // 건전남 권총: 한 발씩 정확하게 · Lv2 두 발 · Lv4 세 발 (같은 표적에 탕탕) · Lv3 관통 · Lv5 도탄 · ★3 치명 +10% · 진화 = 3발째마다 헤드샷
 function pistolShot(g, h, t, i) {
   const d = h.def, P = d.pistol, lv = h.lv - 1;
-  const farCut = d.far && Math.hypot(t.x - h.x, t.y - h.y) > d.far.r ? d.far.mul : 1;
+  const farCut = d.far && Math.hypot(t.x - h.x, t.y - h.y) > d.far.r * (h.cm.range || 1) ? d.far.mul : 1; // (전용 카드 사거리 +15%: 사거리는 이미 필드 끝 → 약해지지 않는 거리를 늘린다)
   const head = (h.evo || (h.sa && h.sa.head)) && h.shots % 3 === 0 && i === 0;
   const p = spawnProj(g, 'pistol', h, null, heroDamage(g, h) * P.each[lv] * farCut, { angle: aimAngle(h, t, P.speed), speed: P.speed, r: 6, pierce: g.mods.pierce + (lv >= 2 ? 1 : 0) + (h.cm.pierce || 0), critBonus: (d.critBonus || 0) + ((h.star || 1) >= 3 ? 0.1 : 0), headshot: head, big: head });
   p.ric = lv >= 4 ? P.ric : 0; p.maxDist = 1500;

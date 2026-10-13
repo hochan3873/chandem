@@ -2222,7 +2222,7 @@ test('강화가 진짜로 먹힌다: 강화 · ★ · 장비 +N · 등급 · 신
   assert.ok((1 / S.heroInterval(g, h)) / r0 > 1.1, '공속 카드');
   [g, h] = mk();
   g.augOffer = { opts: ['a_haste'], t: 15 };
-  const want = 1 + 0.15 * S.augScale(g);
+  const want = 1 + D.AUGMENTS.find((a) => a.id === 'a_haste').fx.spd * S.augScale(g);
   S.applyAug(g, 'a_haste');
   assert.ok(Math.abs((1 / S.heroInterval(g, h)) / r0 - want) < 1e-6, `공속 증강 = 화면에 보이는 실제 값 ×${want.toFixed(3)}`);
   // 기본 멤버 역할: 방장 오라가 강화로 커진다

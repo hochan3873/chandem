@@ -108,7 +108,7 @@ test('멤버 카드: 이름 + 쉬운 말 · 「스킬」은? · 진화/증강 �
   const c0 = T.fullCd(g, eo);
   assert.ok(c0 > 0);
   assert.equal(bottoms.ba[0].k, '원샷 쿨타임');
-  assert.equal(bottoms.ba[0].b, `${(Math.round(c0 * 0.7 * 10) / 10).toString().replace(/\.0$/, '')}초`);
+  assert.equal(bottoms.ba[0].b, `${(Math.round(c0 * D.SKILL_AUG.eunok.find((a) => a.id === 'bottoms').skCd * 10) / 10).toString().replace(/\.0$/, '')}초`);
   const evo = T.cardPlain(pool.find((c) => c.kind === 'evo' && c.hero === 'gunman'), g);
   assert.match(evo.head, /^건전남 공격력 ×1\.45/);
   assert.equal(evo.name, '진화: 황금 리볼버');
