@@ -810,6 +810,7 @@ async function resume() {
   const res = await new Promise((r) => socket.timeout(8000).emit('room:resume', { code: S.code, token: S.session.token }, (err, x) => r(err ? { ok: false, retry: true } : x)));
   if (res && res.ok) {
     S.rcStart = 0; S.restartMsg = '';
+    if (res.code && res.code !== S.code) { S.code = res.code; LS.set(sessKey(res.code), S.session); nav('/r/' + res.code); } // 다른 테이블로 옮겨져 있었음
     reconnectOverlay(false);
     if (res.pending) { S.view = 'pending'; render(); }
     else S.view = 'room';
@@ -869,6 +870,16 @@ socket.on('state', (st) => {
   onChat(st, first);
   if (!first) guestHandNudge(st);
   render();
+});
+// 여러 테이블 토너먼트: 다른 테이블로 옮겨짐 → 새 방 정보로 바꾸고 주소도 새 방으로
+socket.on('room:moved', (d) => {
+  S.code = d.code;
+  S.session = { token: d.token, playerId: d.playerId };
+  LS.set(sessKey(d.code), S.session);
+  nav('/r/' + d.code);
+  S.seenCards = new Set();
+  toast(`테이블 ${d.tableNo}(으)로 자리를 옮겼어요`, 'ok');
+  sound.play('chips');
 });
 socket.on('joined', (d) => {
   S.session = { token: d.token, playerId: d.playerId };
@@ -1098,8 +1109,11 @@ function tourneyEffects(st) {
     if (!fresh) return;
     const medal = ['', '', ''];
     const meId = st.me && st.me.id;
+    const pz = st.room.settings.prizes || [];
+    const last = tn.result.ranking.length;
+    const prizeOf = (place) => (place <= 3 && pz[place - 1]) || (place === last && place > 1 && pz[3]) || ''; // 꼴찌 벌칙은 맨 마지막 순위에
     openModal('토너먼트 결과', `
-      <ol class="rank-list">${tn.result.ranking.map((r) => `<li class="${r.id === meId ? 'is-me' : ''}"><span class="rank-medal">${medal[r.place - 1] || r.place + '위'}</span><b>${esc(r.name)}</b>${r.id === meId ? ' <span class="muted small">(나)</span>' : ''}</li>`).join('')}</ol>
+      <ol class="rank-list">${tn.result.ranking.map((r) => `<li class="${r.id === meId ? 'is-me' : ''}"><span class="rank-medal">${medal[r.place - 1] || r.place + '위'}</span><b>${esc(r.name)}</b>${r.id === meId ? ' <span class="muted small">(나)</span>' : ''}${prizeOf(r.place) ? `<span class="rank-prize">${esc(prizeOf(r.place))}</span>` : ''}</li>`).join('')}</ol>
       <button class="btn btn-gold btn-lg" data-close>확인</button>`);
     sound.play('fanfare');
     if (tn.result.ranking[0] && tn.result.ranking[0].id === meId) { coinRain(70); sound.play('coins'); }
@@ -1514,8 +1528,12 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <label class="field"><span>토너먼트 블라인드 오르는 간격</span>
       <select class="input" name="levelMinutes">${[3, 5, 7, 10, 15, 20].map((m) => `<option value="${m}" ${Number(s.levelMinutes || 7) === m ? 'selected' : ''}>${m}분마다</option>`).join('')}</select></label>
     <p class="tourney-est" data-tourney-est></p>
+    <label class="field"><span>테이블당 자리 <small class="muted">(이보다 많이 모이면 시작할 때 테이블을 나눠요)</small></span>
+      <select class="input" name="tableSize">${[6, 8, 9, 10].map((v) => `<option value="${v}" ${Number(s.tableSize || 9) === v ? 'selected' : ''}>${v}명</option>`).join('')}</select></label>
     <label class="field"><span>리바이 · 늦은 참가</span>
       <select class="input" name="reentryLevels">${[[0, '없음 (처음 앉은 사람만)'], [2, '레벨 2까지'], [3, '레벨 3까지'], [4, '레벨 4까지'], [6, '레벨 6까지']].map(([v, t]) => `<option value="${v}" ${Number(s.reentryLevels || 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <div class="prize-grid"><span class="prize-head">순위별 상품 · 벌칙 <small class="muted">(선택 · 결과 화면에 나와요)</small></span>
+      ${[['1등', '예: 치킨 쏘기 면제'], ['2등', '예: 음료수'], ['3등', ''], ['꼴찌', '예: 커피 쏘기']].map(([t, ph], i) => `<label class="prize-row"><b>${t}</b><input class="input" name="prize${i}" maxlength="24" placeholder="${ph}" value="${esc((s.prizes || [])[i] || '')}" autocomplete="off"></label>`).join('')}</div>
     <label class="field"><span>블라인드 표 직접 정하기 <small class="muted">(비우면 자동)</small></span>
       <input class="input" name="blindLevels" placeholder="예: 10/20, 15/30, 25/50, 50/100" value="${esc((s.blindLevels || []).map((x) => x.join('/')).join(', '))}" autocomplete="off"></label>
     <p class="muted small">토너먼트는 정해진 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요. 마지막까지 남은 사람이 우승이에요. 리바이 시간 안에는 다 잃어도 시작 칩으로 다시 들어오고, 늦게 온 친구도 앉을 수 있어요.</p>
@@ -1532,7 +1550,7 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <label class="field holdem-only-f"><span>스몰 블라인드</span><input class="input" type="number" inputmode="numeric" name="sb" min="1" value="${s.sb}"></label>
     <label class="field"><span><span class="holdem-only-f">빅 블라인드</span><span class="seotda-only-f">기본 판돈 (삥)</span></span><input class="input" type="number" inputmode="numeric" name="bb" min="1" value="${s.bb}"></label>
     <label class="field"><span>최소 인원</span><input class="input" type="number" inputmode="numeric" name="minPlayers" min="2" max="9" value="${s.minPlayers}"></label>
-    <label class="field"><span>최대 인원</span><input class="input" type="number" inputmode="numeric" name="maxPlayers" min="2" max="9" value="${s.maxPlayers}"></label>
+    <label class="field"><span>최대 인원 <small class="muted">(토너먼트는 30명까지)</small></span><input class="input" type="number" inputmode="numeric" name="maxPlayers" min="2" max="30" value="${s.maxPlayers}"></label>
   </div>
   <fieldset class="fieldset chips-only">
     <legend>리바인</legend>
@@ -1617,6 +1635,8 @@ function readSettings(form) {
     mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 7,
     ante: fd.get('ante') === 'on' ? 'bb' : 'none', timeBank: fd.get('timeBank') === null ? 30 : num('timeBank'),
     reentryLevels: num('reentryLevels') || 0, blindLevels: String(fd.get('blindLevels') || '').trim(),
+    prizes: [0, 1, 2, 3].map((i) => String(fd.get('prize' + i) || '').trim()),
+    tableSize: num('tableSize') || 9,
     ...(fd.get('game') ? { game: fd.get('game') } : {}),
     cards: Number(fd.get('cards')) === 3 ? 3 : 2,
     sdOpen: fd.get('sdOpen') === 'none' ? 'none' : 'one',
@@ -1629,6 +1649,7 @@ function validateSettings(s) {
   if (s.sb > s.bb) return '스몰 블라인드는 빅 블라인드보다 클 수 없어요';
   if (s.bb > s.startChips) return '빅 블라인드는 시작 칩보다 클 수 없어요';
   if (s.minPlayers > s.maxPlayers) return '최소 인원이 최대 인원보다 많아요';
+  if (s.mode !== 'tournament' && s.maxPlayers > 10) return '일반 게임은 한 테이블 10명까지예요 (10명 넘게는 토너먼트로)';
   if (s.turnSeconds < 10 || s.turnSeconds > 120) return '턴 제한시간은 10~120초로 정해 주세요';
   return null;
 }
@@ -1836,6 +1857,7 @@ function settingsSummaryHTML(s) {
     <li><span>리바인</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
     <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? `세 장 · ${s.sdOpen === 'one' ? '한 장 공개' : '공개 없음'}` : '두 장'})` : ''}</b></li>
     <li><span>방식</span><b>${s.mode === 'tournament' ? `토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
+    ${s.mode === 'tournament' && (s.prizes || []).some(Boolean) ? `<li><span>상품·벌칙</span><b>${(s.prizes || []).map((t, i) => (t ? `${['1등', '2등', '3등', '꼴찌'][i]} ${esc(t)}` : '')).filter(Boolean).join(' · ')}</b></li>` : ''}
     <li><span>입장</span><b>${[s.hasPassword ? '비밀번호' : '', s.approval ? '방장 승인' : ''].filter(Boolean).join(' + ') || '링크만 있으면 누구나'}</b></li>
   </ul>`;
 }
@@ -1871,8 +1893,21 @@ function bindInvite(root, code) {
   });
 }
 
+// 여러 테이블 토너먼트에서 파이널로 합쳐져 닫힌 테이블
+async function goFinalTable(code) { await emit('room:leave'); LS.del(sessKey(S.code)); S.state = null; S.session = null; S.code = null; S.wantSpectate = true; nav('/r/' + code); boot(); }
+function renderClosedTable(st) {
+  const m = st.room.tournament.mtt;
+  $app.innerHTML = `<main class="home"><section class="panel closed-table">
+    <h2 class="sec-title">🏆 파이널 테이블로 합쳐졌어요</h2>
+    <p>이 테이블(테이블 ${m.tableNo})의 남은 사람은 모두 파이널 테이블로 옮겼어요. 토너먼트는 거기서 계속돼요.</p>
+    <button class="btn btn-gold btn-lg" id="go-final">파이널 테이블 구경하기</button>
+    <button class="btn btn-ghost" id="leave-closed">나가기</button></section></main>`;
+  $app.querySelector('#go-final').onclick = () => goFinalTable(m.mainCode);
+  $app.querySelector('#leave-closed').onclick = async () => { await emit('room:leave'); LS.del(sessKey(S.code)); S.state = null; S.code = null; nav('/'); S.view = 'gamehome'; render(); };
+}
 function renderLobby() {
   const st = S.state;
+  if (st.room.tournament && st.room.tournament.mtt && st.room.tournament.mtt.closed) { renderClosedTable(st); return; }
   const me = st.me;
   const s = st.room.settings;
   const players = st.players.filter((p) => p.role === 'player').sort((a, b) => a.seat - b.seat);
@@ -2075,6 +2110,7 @@ const LAYOUTS = {
   6: [[11, 70], [11, 24], [31, 7], [69, 7], [89, 24], [89, 70]],
   7: [[20, 89], [10, 67], [10, 24], [50, 7], [90, 24], [90, 67], [80, 89]],
   8: [[20, 89], [10, 67], [10, 25], [30, 7], [70, 7], [90, 25], [90, 67], [80, 89]],
+  9: [[20, 89], [10, 67], [10, 25], [25, 7], [50, 5], [75, 7], [90, 25], [90, 67], [80, 89]],
 };
 // 키 작은 폰(테이블 높이 470px 미만): 옆자리를 가운데 줄보다 더 위·아래로
 const LAYOUTS_COMPACT = {
@@ -2086,9 +2122,10 @@ const LAYOUTS_COMPACT = {
   6: [[10, 72], [10, 21], [31, 6], [69, 6], [90, 21], [90, 72]],
   7: [[25, 94], [9, 68], [9, 22], [50, 6], [91, 22], [91, 68], [75, 94]],
   8: [[25, 94], [9, 68], [9, 23], [30, 6], [70, 6], [91, 23], [91, 68], [75, 94]],
+  9: [[25, 94], [9, 68], [9, 23], [25, 6], [50, 4], [75, 6], [91, 23], [91, 68], [75, 94]],
 };
 function seatPositions(n, compact = false) {
-  const others = (compact ? LAYOUTS_COMPACT : LAYOUTS)[Math.max(1, Math.min(8, n - 1))];
+  const others = (compact ? LAYOUTS_COMPACT : LAYOUTS)[Math.max(1, Math.min(9, n - 1))];
   return [{ x: 50, y: 90 }, ...others.map(([x, y]) => ({ x, y }))];
 }
 
@@ -2175,9 +2212,11 @@ function renderBanner(st) {
   if (st.room.waiting) msgs.push(['info', '카드를 받을 수 있는 참가자가 2명 이상이 되면 다음 판이 시작돼요']);
   const nudge = guestNudgeHTML(st, true);
   const tn = st.room.tournament;
+  if (tn && tn.mtt && tn.mtt.closed) msgs.push(['gold', '🏆 파이널 테이블로 합쳐졌어요. 이 테이블은 끝났어요', '<button class="btn btn-sm btn-gold" id="to-final">파이널 테이블 구경</button>']);
   if (tn && tn.running) {
-    const pauseBtn = me && me.isHost ? `<button class="btn btn-sm ${tn.paused ? 'btn-gold' : 'btn-outline'}" id="pause-btn">${tn.paused ? '▶ 다시 시작' : '⏸ 멈춤'}</button>` : '';
-    msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · 남은 ${tn.alive}/${tn.entrants}명`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '<b>멈춤</b>' : `<b data-level-at="${tn.nextAt}">-</b>`}</span>${pauseBtn}`]);
+    const canPause = me && (tn.mtt ? tn.mtt.director === me.id : me.isHost);
+    const pauseBtn = canPause ? `<button class="btn btn-sm ${tn.paused ? 'btn-gold' : 'btn-outline'}" id="pause-btn">${tn.paused ? '▶ 다시 시작' : '⏸ 멈춤'}</button>` : '';
+    msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · ${tn.mtt && tn.mtt.tables > 1 ? `테이블 ${tn.mtt.tableNo}/${tn.mtt.tables} · 전체 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : tn.mtt ? `파이널 · 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : `남은 ${tn.alive}/${tn.entrants}명`}`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '<b>멈춤</b>' : `<b data-level-at="${tn.nextAt}">-</b>`}</span>${pauseBtn}`]);
     if (tn.paused) msgs.push(['gold', me && me.isHost ? '⏸ 잠깐 멈춤 중 · 블라인드 시계도 멈춰 있어요' : '⏸ 방장이 잠깐 멈췄어요 · 곧 다시 시작해요']);
   }
   // 방장: 게임 중 들어오고 싶은 사람
@@ -2192,6 +2231,8 @@ function renderBanner(st) {
   el.querySelectorAll('[data-reject]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.reject, ok: false }); });
   const rb = el.querySelector('#rebuy-btn');
   if (rb) rb.onclick = async () => { const r = await emit('game:rebuy'); if (r.ok) toast('리바인 신청 완료! 다음 판부터 적용돼요', 'ok'); };
+  const tf = el.querySelector('#to-final');
+  if (tf && tn && tn.mtt) tf.onclick = () => goFinalTable(tn.mtt.mainCode);
   const pb = el.querySelector('#pause-btn');
   if (pb) pb.onclick = () => emit('host:pause', { on: !(st.room.tournament && st.room.tournament.paused) });
   const si = el.querySelector('#sitin-btn');
@@ -2345,7 +2386,11 @@ function renderTable(st) {
     if (y < 30) cls.push('seat-top');
     if (x > 60) cls.push('seat-right'); // 오른쪽 자리는 카드를 안쪽(왼쪽)에
     let cards = '';
-    if (p.cards && !isMe) {
+    if (isMe && h && h.game !== 'seotda' && p.cards && p.cards[0] !== '??') {
+      const mine = result && result.hands && result.hands[p.id];
+      const best = mine ? new Set(mine.best) : null;
+      cards = `<div class="seat-mycards ${p.status === 'folded' ? 'folded' : ''}">${p.cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${handNo}:me:${k}`), delay: k * 120, highlight: best && best.has(c) })).join('')}</div>`;
+    } else if (p.cards && !isMe) {
       const reveal = result && result.hands && result.hands[p.id];
       const best = reveal ? new Set(reveal.best) : null;
       cards = `<div class="seat-cards">${p.cards.map((c, k) => {
@@ -2372,8 +2417,10 @@ function renderTable(st) {
     if (p.isSB) pos2.push('<span class="blind-lbl">SB</span>');
     if (p.isBB) pos2.push('<span class="blind-lbl">BB</span>');
     const bet = p.bet > 0 ? (() => {
-      const k = y < 30 ? 0.52 : 0.4; const bx = x + (50 - x) * k; const by = y + (47 - y) * k;
-      return `<div class="bet" style="left:${bx}%;top:${by}%" title="${esc(p.name)} 이번 라운드 베팅"><span class="chip-icon sm"></span><small>베팅</small><b>${fmt(p.bet)}</b></div>`;
+      const k = y < 30 ? 0.52 : x < 20 || x > 80 ? 0.5 : 0.4; const bx = x + (50 - x) * k; let by = isMe && h && h.game !== 'seotda' ? 63 : y + (47 - y) * k;
+      let bx2 = bx;
+      if (!isMe && y > 80 && h && h.game !== 'seotda') { bx2 = x + (50 - x) * 0.15; by = y - 15; } // 아래 양옆 자리: 내 카드에 안 가리게 자기 머리 위로
+      return `<div class="bet" style="left:${bx2}%;top:${by}%" title="${esc(p.name)} 이번 라운드 베팅"><span class="chip-icon sm"></span><small>베팅</small><b>${fmt(p.bet)}</b></div>`;
     })() : '';
     return `
       <div class="${cls.join(' ')}" data-id="${p.id}" style="left:${x}%;top:${y}%">
@@ -2490,9 +2537,11 @@ function renderMe(st) {
   }
   const result = h && h.result;
   const delta = result && result.deltas ? result.deltas[me.id] : undefined;
+  const onTable = h && h.game !== 'seotda' && cards; // 홀덤: 내 카드는 테이블 위 내 자리에
+  el.classList.toggle('me-slim', !!(h && h.game !== 'seotda'));
   el.innerHTML = `
-    <div class="me-cards ${mp.status === 'folded' ? 'folded' : ''} ${cards && cards.length === 3 ? 'three' : ''}">
-      ${cards ? cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${h.no}:me:${k}`), delay: k * 120, cls: h && h.myOpen === k ? 'card-opened' : '', highlight: result && result.hands && result.hands[me.id] && result.hands[me.id].best.includes(c) })).join('') : `<span class="muted">${st.room.phase === 'playing' ? '이번 판은 쉬는 중이에요' : ''}</span>`}
+    <div class="me-cards ${mp.status === 'folded' ? 'folded' : ''} ${cards && cards.length === 3 ? 'three' : ''}" ${onTable ? 'hidden' : ''}>
+      ${onTable ? '' : cards ? cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${h.no}:me:${k}`), delay: k * 120, cls: h && h.myOpen === k ? 'card-opened' : '', highlight: result && result.hands && result.hands[me.id] && result.hands[me.id].best.includes(c) })).join('') : `<span class="muted">${st.room.phase === 'playing' ? '이번 판은 쉬는 중이에요' : ''}</span>`}
     </div>
     <div class="me-info">
       <div class="me-name">${avatarHTML(mp, 'avatar-sm')}<b>${esc(me.name)}</b>${P.masterBadge(mp.master, true)}${mp.isDealer ? '<span class="dealer-btn">D</span>' : ''}</div>

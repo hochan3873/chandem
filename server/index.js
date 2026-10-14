@@ -7,6 +7,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { Room, RoomError, sanitizeSettings, makeCode } = require('./room');
+const { createMtt } = require('./mtt');
 const { createAccounts, hashPassword } = require('./accounts');
 const { createSite } = require('./site');
 const { createAdmin } = require('./admin');
@@ -75,6 +76,34 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     next();
   });
   const rooms = new Map();
+  // 여러 테이블 토너먼트 (server/mtt.js): 새 테이블 방 만들기 · 사람을 옮기면 그 사람 화면도 새 방으로
+  const mtt = createMtt({
+    rooms,
+    makeTable(main, no) {
+      let code;
+      do { code = makeCode(); } while (rooms.has(code));
+      const t = new Room({ code, settings: { ...main.settings, maxPlayers: main.settings.tableSize }, pace });
+      t.phase = 'playing';
+      t.tourney = { startedAt: main.tourney.startedAt, level: main.tourney.level, busted: [], result: null, entrants: 0, mainCode: main.code, tableNo: no };
+      t.creatorIp = main.creatorIp;
+      wire(t);
+      rooms.set(code, t);
+      return t;
+    },
+    onMoved(from, p, to) {
+      const sockets = io.sockets.adapter.rooms.get('room:' + from.code);
+      for (const sid of sockets ? [...sockets] : []) {
+        const s = io.sockets.sockets.get(sid);
+        if (!s || s.data.playerId !== p.id) continue;
+        s.leave('room:' + from.code);
+        s.join('room:' + to.code);
+        s.data.code = to.code;
+        s.emit('room:moved', { code: to.code, playerId: p.id, token: p.token, tableNo: to.tourney.tableNo });
+      }
+      setImmediate(() => { broadcast(from); broadcast(to); });
+    },
+  });
+
 
   // ── 저장/복구 ─────────────────────────────────────
   // 방은 메모리에 있다. 배포(재시작)해도 게임이 끊기지 않게 스냅숏을 남긴다:
@@ -145,6 +174,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   }
 
   function wire(room) {
+    room.mtt = mtt;
     room.onChange = () => broadcast(room);
     room.onRecord = (rec) => {
       if (rec.game === 'omok') {
@@ -462,7 +492,17 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       try {
         const room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방을 찾을 수 없어요. 코드를 확인해 주세요');
-        const { player, pending } = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar, photo: payload.photo, user });
+        const joined = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar, photo: payload.photo, user });
+        const { player, pending } = joined;
+        if (player.movedTo && rooms.get(player.movedTo)) {
+          // 여러 테이블 토너먼트 늦은 참가: 자리가 있는 다른 테이블로 배정됨
+          const t = rooms.get(player.movedTo);
+          delete player.movedTo;
+          bind(t, player.id);
+          broadcast(room); broadcast(t);
+          reply(ack, { ok: true, code: t.code, playerId: player.id, token: player.token });
+          return;
+        }
         socket.data.code = room.code;
         socket.join('room:' + room.code);
         if (pending) {
@@ -482,9 +522,14 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       payload = payload || {};
       await roomsReady;
       try {
-        const room = rooms.get(String(payload.code || '').toUpperCase());
+        let room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방이 없어졌어요');
-        const p = payload.token && room.byToken(payload.token);
+        let p = payload.token && room.byToken(payload.token);
+        if (!p && payload.token) {
+          // 여러 테이블 토너먼트: 다른 테이블로 옮겨졌으면 그 테이블로 이어 준다
+          const g = mtt.groupOf(room);
+          for (const c of g ? g.tables : []) { const t = rooms.get(c); const q = t && t.byToken(payload.token); if (q) { room = t; p = q; break; } }
+        }
         if (!p) throw new RoomError('이전 참가 정보가 만료됐어요. 다시 참가해 주세요');
         socket.data.code = room.code;
         socket.join('room:' + room.code);
@@ -495,7 +540,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         }
         bind(room, p.id);
         broadcast(room);
-        reply(ack, { ok: true, playerId: p.id });
+        reply(ack, { ok: true, playerId: p.id, code: room.code });
       } catch (e) { fail(ack, e); }
     });
 

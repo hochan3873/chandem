@@ -27,6 +27,8 @@ const DEFAULT_SETTINGS = {
   ante: 'none',          // none | bb (BB 앤티: 빅 블라인드 자리가 BB만큼 앤티)
   timeBank: 30,          // 1인 타임뱅크(초): 턴 시간이 끝나면 자동으로 이어서 씀 (0 = 없음)
   reentryLevels: 0,      // 토너먼트 리바이·늦은 참가: 이 레벨이 끝나기 전까지 (0 = 없음)
+  prizes: ['', '', '', ''], // 토너먼트 순위별 상품·벌칙 [1등, 2등, 3등, 꼴찌] (돈이 아닌 친목용 글)
+  tableSize: 9,          // 한 테이블 자리 수 (토너먼트 등록이 이보다 많으면 시작할 때 테이블을 나눔)
 };
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
@@ -55,7 +57,9 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.bb = Math.max(s.sb, int(src.bb, base.bb));
   if (s.bb > s.startChips) throw new RoomError('빅 블라인드는 시작 칩보다 클 수 없어요');
   if (s.sb > s.bb) throw new RoomError('스몰 블라인드는 빅 블라인드보다 클 수 없어요');
-  s.maxPlayers = Math.min(9, Math.max(2, int(src.maxPlayers, base.maxPlayers)));
+  // 한 테이블은 최대 10자리. 토너먼트는 30명까지 등록하고 시작할 때 테이블을 나눈다 (모드는 아래에서 정해지므로 일단 30까지 받고 뒤에서 자름)
+  s.maxPlayers = Math.min(30, Math.max(2, int(src.maxPlayers, base.maxPlayers)));
+  s.tableSize = Math.min(10, Math.max(6, int(src.tableSize, base.tableSize || 9)));
   s.minPlayers = Math.min(s.maxPlayers, Math.max(2, int(src.minPlayers, base.minPlayers)));
   s.turnSeconds = Math.min(120, Math.max(10, int(src.turnSeconds, base.turnSeconds)));
   s.rebuyEnabled = src.rebuyEnabled === undefined ? base.rebuyEnabled : !!src.rebuyEnabled;
@@ -74,6 +78,10 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.ante = src.ante === undefined ? (base.ante || 'none') : src.ante === 'bb' ? 'bb' : 'none';
   s.timeBank = Math.min(300, Math.max(0, int(src.timeBank, base.timeBank === undefined ? 30 : base.timeBank)));
   s.reentryLevels = Math.min(20, Math.max(0, int(src.reentryLevels, base.reentryLevels || 0)));
+  const pz = Array.isArray(src.prizes) ? src.prizes : (base.prizes || []);
+  s.prizes = [0, 1, 2, 3].map((i) => String(pz[i] || '').replace(/\s+/g, ' ').trim().slice(0, 24));
+  if (s.mode !== 'tournament') s.maxPlayers = Math.min(10, s.maxPlayers);
+  s.minPlayers = Math.min(s.maxPlayers, s.minPlayers);
   if (s.mode === 'tournament') {
     // 토너먼트: 칩을 다 잃으면 탈락. 리바이는 정한 레벨까지만, 금액은 시작 칩
     s.rebuyEnabled = s.reentryLevels > 0;
@@ -258,7 +266,7 @@ class Room {
       p.stack = this.settings.startChips;
       p.totalBuyIn = (p.totalBuyIn || 0) + this.settings.startChips;
       p.rebuys = p.rebuys || 0; p.pendingRebuy = 0; p.sittingOut = false; p.timeouts = 0;
-      if (!again) this.tourney.entrants += 1;
+      if (!again) { const g = this.mtt && this.mtt.groupOf(this); if (g) g.entrants += 1; else this.tourney.entrants += 1; }
       this.pushFeed(`${p.name}님 ${again ? '다시 참가' : '늦은 참가'} · 칩 ${this.settings.startChips.toLocaleString()}`);
       return true;
     }
@@ -375,8 +383,13 @@ class Room {
 
   admit(p) {
     this.players.push(p);
-    if (!p.wantSpectator) this.takeSeat(p);
+    const want = !p.wantSpectator;
+    if (want) this.takeSeat(p);
     delete p.wantSpectator;
+    if (want && p.role !== 'player' && this.reentryOpen() && this.mtt && this.mtt.groupOf(this)) {
+      const t = this.mtt.placeLate(this, p);
+      if (t) { this.pushFeed(`${p.name}님 늦은 참가 → 테이블 ${t.tourney.tableNo}`); this.touch(); return; }
+    }
     if (!this.hostId) this.hostId = p.id;
     this.pushFeed(`${p.name}님이 ${p.role === 'player' ? '참가' : '관전하러 입장'}했어요`);
     this.maybeStartWaitingHand();
@@ -481,6 +494,7 @@ class Room {
   start(hostId) {
     this.requireHost(hostId);
     if (this.phase !== 'lobby') throw new RoomError('이미 게임이 시작됐어요');
+    if (this.tourney && this.tourney.closed) throw new RoomError('파이널 테이블로 합쳐진 테이블이에요');
     const why = this.startCheck();
     if (why) throw new RoomError(why);
     this.phase = 'playing';
@@ -496,6 +510,7 @@ class Room {
     if (this.isTournament) {
       this.tourney = { startedAt: this.now(), level: 0, busted: [], result: null, entrants: this.seated.length };
       this.pushFeed(`토너먼트 시작 · ${this.settings.levelMinutes}분마다 블라인드가 올라가요`);
+      if (this.mtt && this.seated.length > this.settings.tableSize) this.mtt.split(this); // 인원이 많으면 테이블 나누기
     } else {
       this.tourney = null;
       this.pushFeed('게임을 시작합니다');
@@ -618,8 +633,20 @@ class Room {
       const newly = this.seated.filter((p) => p.stack === 0 && !this.tourney.busted.includes(p.id));
       newly.sort((a, b) => startOf(a.id) - startOf(b.id) || a.seat - b.seat);
       for (const p of newly) this.tourneyOut(p);
+      if (this.mtt && this.mtt.groupOf(this)) {
+        this.mtt.beforeHand(this); // 여러 테이블: 파이널 테이블로 합치기 · 인원 맞추기
+        if (this.tourney.closed) { this.hand = null; this.handPlayers = []; return false; }
+      }
       const alive = this.seated.filter((p) => p.stack > 0 && !p.leaving);
-      if (alive.length <= 1) { this.finishTournament(alive[0]); return false; }
+      if (alive.length <= 1) {
+        if (this.mtt && this.mtt.aliveElsewhere(this) > 0) {
+          // 다른 테이블에 아직 사람이 있으면 기다린다 (옮겨 오면 다시 시작)
+          this.hand = null; this.handPlayers = []; this.waiting = true; this.touch();
+          return false;
+        }
+        this.finishTournament(alive[0]);
+        return false;
+      }
       if (this.tourney.pausedAt) {
         // 방장이 잠깐 멈춤: 판을 돌리지 않고 기다린다 (블라인드 시계도 멈춤)
         this.hand = null; this.handPlayers = []; this.waiting = true; this.touch();
@@ -910,6 +937,7 @@ class Room {
 
   /** 연출이 끝나면 결과·칩 이동을 공개하고 다음 판 예약 */
   finishReveal() {
+    if (!this.hand) return; // (여러 테이블) 연출 중에 테이블이 닫힘
     if (this.reveal) { this.reveal.done = true; this.reveal.squeeze = false; this.reveal.board = 5; }
     this.drainHandLog();
     this.lastResult = { handNo: this.handNo, ...this.hand.result };
@@ -959,13 +987,26 @@ class Room {
     t.busted.push(p.id);
     t.names = t.names || {};
     t.names[p.id] = p.name;
+    if (this.mtt && this.mtt.out(this, p) && p.role === 'player' && p.stack + (p.pendingRebuy || 0) <= 0) {
+      p.role = 'spectator'; p.seat = null; // 여러 테이블: 탈락하면 자리를 비워 옮겨 올 사람이 앉게
+    }
   }
 
   /** 토너먼트 잠깐 멈춤 / 다시 시작 (방장) — 진행 중인 판은 끝까지 하고, 그다음 판부터 멈춘다 */
   setPause(hostId, on) {
-    this.requireHost(hostId);
     const t = this.tourney;
     if (this.phase !== 'playing' || !t) throw new RoomError('토너먼트 중에만 멈출 수 있어요');
+    if (this.mtt && this.mtt.groupOf(this)) {
+      try { this.mtt.pause(this, hostId, on); } catch (e) { throw new RoomError(e.message); }
+      return;
+    }
+    this.requireHost(hostId);
+    this.applyPause(on);
+  }
+
+  applyPause(on) {
+    const t = this.tourney;
+    if (!t || this.phase !== 'playing') return;
     if (on) {
       if (t.pausedAt) return;
       t.pausedAt = this.now();
@@ -985,6 +1026,11 @@ class Room {
     const t = this.tourney;
     const order = [];
     if (winner) order.push(winner.id);
+    if (t.group) {
+      t.names = t.names || {};
+      for (const x of t.group.out) t.names[x.id] = x.name;
+      for (const x of [...t.group.out].reverse()) if (!order.includes(x.id)) order.push(x.id);
+    }
     for (const id of [...t.busted].reverse()) if (!order.includes(id)) order.push(id);
     t.result = { at: this.now(), ranking: order.map((id, i) => ({ id, name: (this.get(id) && this.get(id).name) || (t.names && t.names[id]) || this.name(id), place: i + 1 })) };
     try { this.onRecord({ game: 'tourney', userIds: this.players.filter((p) => p.userId && order.includes(p.id)).map((p) => p.userId), winnerUserId: winner && winner.userId }); } catch {}
@@ -1353,6 +1399,7 @@ class Room {
       alive: this.seated.filter((p) => p.stack > 0).length,
       entrants: t ? t.entrants : this.seated.length,
       result: t && t.result ? t.result : null,
+      mtt: this.mtt ? this.mtt.info(this) : null,
     };
   }
 
@@ -1420,7 +1467,7 @@ class Room {
 
   // ── 저장/복구 ─────────────────────────────────────
   serialize() {
-    const { timers, onChange, onEmote, emoteAt, now, hand, ...rest } = this;
+    const { timers, onChange, onEmote, emoteAt, now, hand, mtt, ...rest } = this;
     return { ...rest, hand: hand ? hand.toJSON() : null };
   }
 
