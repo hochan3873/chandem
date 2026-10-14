@@ -560,6 +560,8 @@ async function mergeGuest(token) {
     if (r.ok && r.merged) toast(`손님으로 쌓은 칩·기록을 계정으로 옮겼어요 (${fmt(r.stats.hands)}판)`, 'ok');
   } catch { /* 다음에 다시 */ }
 }
+// 게임 아이콘 (Gemini 로 그린 그림 · /img/icons)
+const IC = (n, cls = '') => `<img class="ic3 ${cls}" src="/img/icons/${n}.webp" alt="" draggable="false">`;
 const tierBadge = (t, sm = '') => (t ? `<span class="tier-badge ${sm}" style="--tc:${t.color}"><i></i>${esc(t.name)}</span>` : `<span class="tier-badge ${sm} placing"><i></i>배치 중</span>`);
 function myAvatarSrc() {
   const a = LS.get('chandem:avatar', 0); const ph = LS.get('chandem:photo', '');
@@ -599,7 +601,7 @@ function hlMeHTML(me) {
   return `<div class="hl-me-top">
       <img class="hl-av" src="${myAvatarSrc()}" alt="">
       <div class="hl-who"><b>${name}</b>${tierBadge(ev.tier)}${ev.tier ? `<small class="hl-score">${ev.score}점</small>` : ''}
-        ${(me.titles || []).length ? `<span class="hl-title">🏆 ${esc(me.titles[me.titles.length - 1])}</span>` : ''}
+        ${(me.titles || []).length ? `<span class="hl-title">${IC('crown', 'ic-in')}${esc(me.titles[me.titles.length - 1])}</span>` : ''}
         <span class="hl-sub">${ev.placement ? `배치까지 ${ev.placement}판` : `${ev.rank ? `전체 ${fmt(ev.rank.rank)}위 · ` : ''}${fmt(ev.stats.hands)}판 · 승률 ${ev.stats.winRate}%`}${ev.style ? ` · ${esc(ev.style)}` : ''}</span>${recentDots(me.recent)}</div>
       <button class="hl-ana" id="hl-ana" type="button">실력<br>분석</button>
     </div>
@@ -663,8 +665,8 @@ async function renderDaily() {
   const open = !!d.code;
   el.innerHTML = `<div class="dl-top"><span class="dl-badge">매일 밤 9시</span><b>정기 토너먼트</b></div>
     <p class="dl-sub">${open ? (d.phase === 'playing' ? `진행 중 · ${d.players}명 참가` : `등록 중 · ${d.players}명 · ${left(d.start - now)} 뒤 시작`) : `시작까지 ${left(d.start - now)} · 10분 전에 방이 열려요`}</p>
-    <div class="dl-prize"><span>🥇 ${fmt(d.prizes[0])}</span><span>🥈 ${fmt(d.prizes[1])}</span><span>🥉 ${fmt(d.prizes[2])}</span><small>칩 · 시작 칩 ${fmt(d.startChips)} · ${d.levelMinutes}분마다 블라인드↑ · 2레벨까지 리바이 1번</small></div>
-    ${open ? `<button class="btn btn-gold" id="dl-go">${d.phase === 'playing' ? '관전하기' : '참가하기'}</button>` : '<button class="btn btn-outline" id="dl-bell">🔔 10분 전에 알림 받기</button>'}`;
+    <div class="dl-prize"><span>${IC('trophy')}1등 ${fmt(d.prizes[0])}</span><span>${IC('medal')}2등 ${fmt(d.prizes[1])}</span><span>${IC('ribbon')}3등 ${fmt(d.prizes[2])}</span><small>칩 · 시작 칩 ${fmt(d.startChips)} · ${d.levelMinutes}분마다 블라인드↑ · 2레벨까지 리바이 1번</small></div>
+    ${open ? `<button class="btn btn-gold" id="dl-go">${d.phase === 'playing' ? '관전하기' : '참가하기'}</button>` : `<button class="btn btn-outline" id="dl-bell">${IC('bell')}10분 전에 알림 받기</button>`}`;
   const go = el.querySelector('#dl-go');
   if (go) go.onclick = () => { S.wantSpectate = d.phase === 'playing'; nav('/r/' + d.code); boot(); };
   const bell = el.querySelector('#dl-bell');
@@ -683,7 +685,7 @@ async function subscribeDaily(btn) {
     const raw = atob((k.key + pad).replace(/-/g, '+').replace(/_/g, '/'));
     const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)) }));
     const r = await (await fetch('/api/push/subscribe', { method: 'POST', headers: { 'content-type': 'application/json', ...(S.auth ? { authorization: 'Bearer ' + S.auth } : {}) }, body: JSON.stringify({ subscription: sub.toJSON(), add: ['holdemTour'] }) })).json();
-    if (r.ok) { toast('매일 밤 8시 50분에 알려 드릴게요 🔔', 'ok'); if (btn) { btn.textContent = '🔔 알림 켜짐'; btn.disabled = true; } }
+    if (r.ok) { toast('매일 밤 8시 50분에 알려 드릴게요', 'ok'); if (btn) { btn.innerHTML = `${IC('bell')}알림 켜짐`; btn.disabled = true; } }
     else toast(r.message || '알림을 켜지 못했어요', 'error');
   } catch (e) { toast('알림을 켜지 못했어요', 'error'); }
 }
@@ -703,8 +705,8 @@ function openLife(kind) {
     });
   } else if (kind === 'ach') {
     const got = me.ach.filter((a) => a.at).length;
-    openModal(`업적 ${got} / ${me.ach.length}`, `<div class="ach-grid">${me.ach.map((a) => `<div class="ach ${a.at ? 'got' : ''}"><span>${a.icon}</span><b>${esc(a.name)}</b><small>${esc(a.desc)}</small>${a.reward ? `<em>+${fmt(a.reward)}</em>` : ''}</div>`).join('')}</div>
-      ${(me.titles || []).length ? `<h3 class="sub-title">칭호</h3><ul class="ana-tips">${me.titles.map((t) => `<li>🏆 ${esc(t)}</li>`).join('')}</ul>` : ''}`, null, { wide: true });
+    openModal(`업적 ${got} / ${me.ach.length}`, `<div class="ach-grid">${me.ach.map((a) => `<div class="ach ${a.at ? 'got' : ''}"><span>${IC(a.icon)}</span><b>${esc(a.name)}</b><small>${esc(a.desc)}</small>${a.reward ? `<em>+${fmt(a.reward)}</em>` : ''}</div>`).join('')}</div>
+      ${(me.titles || []).length ? `<h3 class="sub-title">칭호</h3><ul class="ana-tips">${me.titles.map((t) => `<li>${IC('crown', 'ic-in')}${esc(t)}</li>`).join('')}</ul>` : ''}`, null, { wide: true });
   } else if (kind === 'shop') {
     const it = me.items;
     const card = (x) => `<button class="shop-it ${it.owned.includes(x.id) ? 'owned' : ''} ${it[x.kind] === x.id ? 'on' : ''}" data-buy="${x.id}" type="button">
@@ -721,7 +723,7 @@ function openLife(kind) {
       }; });
     }, { wide: true });
   } else if (kind === 'replays') {
-    openModal('명장면 다시보기', me.replays.length ? `<p class="muted small">큰 팟 · 올인 승부 · 스트레이트 이상 판이 자동으로 남아요 (최근 20개)</p><div class="rp-list">${me.replays.map((r) => `<button class="rp-it ${r.won ? 'won' : ''}" data-rp="${r.id}" type="button"><span>${r.won ? '🏆' : '💥'}</span><b>${esc(r.title)}</b><small>${hhmm(r.at)} · 팟 ${fmt(r.pot)}</small></button>`).join('')}</div>`
+    openModal('명장면 다시보기', me.replays.length ? `<p class="muted small">큰 팟 · 올인 승부 · 스트레이트 이상 판이 자동으로 남아요 (최근 20개)</p><div class="rp-list">${me.replays.map((r) => `<button class="rp-it ${r.won ? 'won' : ''}" data-rp="${r.id}" type="button"><span>${IC(r.won ? 'trophy' : 'fire')}</span><b>${esc(r.title)}</b><small>${hhmm(r.at)} · 팟 ${fmt(r.pot)}</small></button>`).join('')}</div>`
       : '<p class="muted">아직 명장면이 없어요. 연습 테이블에서 큰 판을 쳐 보세요!</p>', (b) => {
       b.querySelectorAll('[data-rp]').forEach((x) => { x.onclick = () => openReplay(x.dataset.rp); });
     });
@@ -790,7 +792,7 @@ function hlRankHTML(r) {
     const s = r.season;
     const [y, m] = s.id.split('-');
     return `${tabs}<p class="season-head"><b>${y}년 ${Number(m)}월 시즌</b> · ${left(s.endsAt - Date.now())} 남음<br><small>시즌 끝 1~3등: 칭호 + ${s.prizes.map(fmt).join(' / ')}칩</small></p>
-      ${s.prev && s.prev.top && s.prev.top.length ? `<p class="muted small">지난 시즌: ${s.prev.top.map((x, i) => `${['🥇', '🥈', '🥉'][i]} ${esc(x.name)}`).join(' · ')}</p>` : ''}
+      ${s.prev && s.prev.top && s.prev.top.length ? `<p class="muted small">지난 시즌: ${s.prev.top.map((x, i) => `${i + 1}위 ${esc(x.name)}`).join(' · ')}</p>` : ''}
       ${s.top.length ? `<ol class="hl-rank">${s.top.slice(0, 15).map((x) => `<li><span class="hr-n">${x.rank}</span><b>${esc(x.name)}</b>${tierBadge(x.tier, 'sm')}<small>${x.score}점 · 승률 ${x.winRate}% · ${fmt(x.hands)}판</small></li>`).join('')}</ol>` : '<p class="muted small">이번 시즌 배치를 마친 사람이 아직 없어요 · 30판이면 순위에 올라요</p>'}`;
   }
   return tabs + hlRankAll(r);
@@ -887,10 +889,10 @@ function renderHoldemLobby() {
       <div class="gh-title"><h1>찬덤 홀덤</h1><p>친구들이랑 링크 하나로 바로 한 판</p></div>
     </div>
     <section class="panel hl-friends">
-      <div class="hf-head"><b>👥 친구들과 치기</b><small>방을 만들고 카톡으로 링크만 보내면 끝 · 최대 10명 · 토너먼트 · 정산표까지</small></div>
+      <div class="hf-head"><b>${IC('friends', 'ic-in')}친구들과 치기</b><small>방을 만들고 카톡으로 링크만 보내면 끝 · 최대 10명 · 토너먼트 · 정산표까지</small></div>
       <div class="hf-btns">
-        <button class="hf-btn hf-create" id="go-create" type="button"><span>♠</span><b>방 만들기</b><small>친구 부르기</small></button>
-        <button class="hf-btn hf-code" id="go-code" type="button"><span>🔑</span><b>코드로 참가</b><small>받은 방 코드 입력</small></button>
+        <button class="hf-btn hf-create" id="go-create" type="button"><span>${IC('chip')}</span><b>방 만들기</b><small>친구 부르기</small></button>
+        <button class="hf-btn hf-code" id="go-code" type="button"><span>${IC('key')}</span><b>코드로 참가</b><small>받은 방 코드 입력</small></button>
       </div>
       <div class="live-rooms hf-live" id="live-rooms"><div class="hf-live-head"><b>지금 열린 친구 방</b><i class="live-dot"></i></div><div class="lr-list"><p class="muted small">불러오는 중…</p></div></div>
     </section>
@@ -898,14 +900,14 @@ function renderHoldemLobby() {
     <section class="panel hl-checkin" id="hl-checkin"></section>
     <section class="panel hl-daily" id="hl-daily"></section>
     <div class="hl-icons">
-      <button class="hl-ico" data-hl="missions" type="button"><span>🎯</span>오늘의 미션<i class="dot" id="mis-dot" hidden></i></button>
-      <button class="hl-ico" data-hl="ach" type="button"><span>🏅</span>업적</button>
-      <button class="hl-ico" data-hl="shop" type="button"><span>🛍️</span>꾸미기</button>
-      <button class="hl-ico" data-hl="replays" type="button"><span>🎬</span>명장면</button>
-      <button class="hl-ico" data-hl="invite" type="button"><span>🤝</span>친구 초대</button>
+      <button class="hl-ico" data-hl="missions" type="button">${IC('target')}오늘의 미션<i class="dot" id="mis-dot" hidden></i></button>
+      <button class="hl-ico" data-hl="ach" type="button">${IC('medal')}업적</button>
+      <button class="hl-ico" data-hl="shop" type="button">${IC('bag')}꾸미기</button>
+      <button class="hl-ico" data-hl="replays" type="button">${IC('clapper')}명장면</button>
+      <button class="hl-ico" data-hl="invite" type="button">${IC('handshake')}친구 초대</button>
     </div>
     <section class="panel"><div class="sec-head"><h2 class="sec-title">혼자 연습 테이블</h2><button class="btn btn-sm btn-gold" id="hl-quick">빠른 시작</button></div><p class="muted small hl-tsub">친구가 없을 땐 귀여운 상주 플레이어들과 · 내 칩으로</p><div class="hl-tables" id="hl-tables"><p class="muted small">불러오는 중…</p></div></section>
-    <section class="panel hl-tip"><span class="tip-ico">💡</span><div><b>오늘의 홀덤 팁</b><p>${esc(todayTip())}</p></div></section>
+    <section class="panel hl-tip"><span class="tip-ico">${IC('bulb')}</span><div><b>오늘의 홀덤 팁</b><p>${esc(todayTip())}</p></div></section>
     <section class="panel"><div class="sec-head"><h2 class="sec-title">상주 플레이어</h2><small class="muted">연습 테이블에서 만나요</small></div>${residentsHTML()}</section>
     <section class="panel"><div class="sec-head"><h2 class="sec-title">티어 순위</h2><small class="muted">연습 테이블 실력 점수</small></div><div id="hl-rank-box"><p class="muted small">불러오는 중…</p></div></section>
     <div class="hl-more"><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" id="go-practice">토너먼트 연습</button></div>
@@ -1731,7 +1733,7 @@ function knockFx(id) {
   const hx = c.x + (tc.x - c.x) * 0.28; const hy = c.y + (tc.y - c.y) * 0.28 + 6;
   const fist = document.createElement('div');
   fist.className = 'fx-fist';
-  fist.textContent = '✊';
+  fist.innerHTML = IC('fist');
   fist.style.left = hx + 'px'; fist.style.top = hy + 'px';
   fxLayer().appendChild(fist);
   fist.animate([
@@ -3486,7 +3488,7 @@ function renderActions(st) {
     el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = () => { const v = b.dataset.show; emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); sound.play('flip'); }; });
     const rb = el.querySelector('#rabbit-btn');
     if (rb) rb.onclick = () => { rb.disabled = true; emit('game:rabbit'); };
-    el.querySelectorAll('[data-manner]').forEach((b) => { b.onclick = () => { b.disabled = true; emit('room:chat', { text: b.dataset.manner.replace(/^\S+\s/, '') }); sound.play('tap'); }; });
+    el.querySelectorAll('[data-manner]').forEach((b) => { b.onclick = () => { b.disabled = true; emit('room:chat', { text: b.dataset.manner }); sound.play('tap'); }; });
     return;
   }
   if (h.phase) { S.raise.open = false; renderSeotdaPhase(el, st); return; }
@@ -3608,8 +3610,8 @@ function finishedExtrasHTML(st) {
     const done = me.shownOne || [];
     out.push(`<div class="show-row"><span>내 패<br>보여주기</span>${mp.cards.map((c, i) => (done.includes(i) ? '' : `<button type="button" class="show-c" data-show="${i}">${cardHTML(c, { size: 'sm' })}<small>이 장만</small></button>`)).join('')}<button type="button" class="show-both" data-show="both">${done.length ? '나머지도' : '두 장 다'}</button></div>`);
   }
-  if (h.canRabbit) out.push('<button type="button" class="rabbit-btn" id="rabbit-btn">🐰 남은 카드 보기<small>계속했다면 나왔을 카드</small></button>');
-  out.push(`<div class="manner-row">${['👍 나이스 핸드', '🤝 GG', '🍀 굿 럭', '😅 아깝다'].map((t) => `<button type="button" class="manner" data-manner="${t}">${t}</button>`).join('')}</div>`);
+  if (h.canRabbit) out.push(`<button type="button" class="rabbit-btn" id="rabbit-btn">${IC('rabbit', 'ic-in')}남은 카드 보기<small>계속했다면 나왔을 카드</small></button>`);
+  out.push(`<div class="manner-row">${[['thumbs', '나이스 핸드'], ['handshake', 'GG'], ['clover', '굿 럭'], ['', '아깝다']].map(([ic, t]) => `<button type="button" class="manner" data-manner="${t}">${ic ? IC(ic) : emoteImg('sweat')}${t}</button>`).join('')}</div>`);
   return out.length ? `<div class="fin-row">${out.join('')}</div>` : '';
 }
 
