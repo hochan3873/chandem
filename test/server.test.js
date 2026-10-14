@@ -342,7 +342,7 @@ test('연습 봇은 타짜 인물 이름이고 캐릭터 성별이 맞다', asyn
   assert.equal(r.ok, true, r.message);
   await until(() => a.last && a.last.players.length === 6);
   const bots = Object.fromEntries(a.last.players.filter((p) => p.isBot).map((p) => [p.name, p.avatar]));
-  assert.deepEqual(bots, { 평경장: 5, 정마담: 8, 아귀: 1, 화란: 2, 고니: 7 });
+  assert.deepEqual(bots, { 냥프로: 1, 시바사장: 2, 판다형님: 3, 토순이: 4, 여우신: 5 });
   await a.call('room:leave');
   a.close();
 });

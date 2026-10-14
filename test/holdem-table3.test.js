@@ -124,3 +124,24 @@ test('손님 닉네임: "손님" 같은 빈 이름은 안 받고, 진짜 이름�
   for (const bad of ['손님', 'guest', '닉네임', 'ㅇㅇ', '???', '  ']) assert.throws(() => guestNameCheck(bad));
   for (const ok of ['호찬', '손님A', '김무성']) assert.doesNotThrow(() => guestNameCheck(ok));
 });
+
+test('정산: 정한 시간이 지나면 그 판 뒤 자동으로 끝나고, 손익·송금표(칩 합 0)와 환산값이 나온다', () => {
+  const { room, ps, tick } = cash(3, { sessionMinutes: 30, settleValue: 1000, settlePer: 1000, settleUnit: '점' });
+  room.start(ps[0].id);
+  assert.ok(room.viewFor(ps[0].id).room.endsAt);
+  // 칩을 옮겨 놓고 한 사람은 나감
+  foldOut(room); room.startHand();
+  foldOut(room);
+  ps[0].stack += 300; ps[1].stack -= 300;
+  room.leave(ps[2].id);
+  tick(31 * 60000);
+  room.startHand();
+  assert.equal(room.phase, 'lobby');
+  const st = room.viewFor(ps[0].id).room.settlement;
+  assert.ok(st && st.rows.length === 3, JSON.stringify(st));
+  assert.equal(st.rows.reduce((a, r) => a + r.net, 0), 0, '손익 합은 0');
+  const owed = {}; for (const t of st.transfers) { owed[t.from] = (owed[t.from] || 0) - t.chips; owed[t.to] = (owed[t.to] || 0) + t.chips; }
+  for (const r of st.rows) assert.equal(owed[r.name] || 0, r.net, r.name);
+  assert.deepEqual(st.value, { per: 1000, value: 1000, unit: '점' });
+  room.clearAllTimers();
+});

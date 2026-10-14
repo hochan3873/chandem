@@ -1761,3 +1761,71 @@ body[data-theme="holdem"] .game-home .gh-shade, body[data-theme="holdem"] .game-
 @media (prefers-reduced-motion: reduce) { body[data-theme="holdem"] .game-home .gh-hero::before, body[data-theme="holdem"] .game-home .gh-hero::after { animation: none; } }
 /* 테이블 위에선 "손님" 딱지를 숨김 (등급 딱지만) */
 .seat-av .rk-guest { display: none; }
+
+/* ═══ 찬덤 홀덤 로비: 내 카드(티어·지갑) · 연습 테이블 · 순위 ═══ */
+.hl-lobby .gh-title h1 { font-size: clamp(2.4rem, 12vw, 3.1rem); }
+.tier-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px 2px 6px; border-radius: 99px; background: color-mix(in srgb, var(--tc) 18%, rgba(0, 0, 0, .55)); border: 1px solid var(--tc); color: var(--tc); font-weight: 900; font-size: .78rem; white-space: nowrap; }
+.tier-badge i { width: 10px; height: 10px; border-radius: 3px; background: var(--tc); transform: rotate(45deg); box-shadow: 0 0 8px var(--tc); }
+.tier-badge.placing { --tc: #b9c0c9; }
+.tier-badge.sm { font-size: .68rem; padding: 1px 7px 1px 5px; }
+.hl-me { display: flex; flex-direction: column; gap: 10px; }
+.hl-me-top { display: flex; align-items: center; gap: 12px; }
+.hl-av { width: 62px; height: 62px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px #ffe08a, 0 6px 14px rgba(0, 0, 0, .5); flex: none; }
+.hl-who { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.hl-who > b { font-size: 1.15rem; color: #fff; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-score { color: #ffe8a8; font-weight: 800; }
+.hl-sub { flex-basis: 100%; font-size: .76rem; color: rgba(255, 230, 200, .75); }
+.hl-ana { flex: none; width: 54px; height: 54px; border-radius: 14px; border: 1px solid rgba(255, 220, 150, .4); background: linear-gradient(180deg, rgba(80, 30, 20, .9), rgba(30, 10, 8, .95)); color: #ffe8a8; font: 800 .74rem/1.15 var(--font); cursor: pointer; }
+.hl-wallet { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px; background: rgba(0, 0, 0, .38); border: 1px solid rgba(255, 220, 150, .22); }
+.hl-wallet b { font-size: 1.5rem; color: #ffe08a; font-variant-numeric: tabular-nums; }
+.hl-wallet small { color: var(--muted); }
+.hl-wallet .btn { margin-left: auto; }
+.hl-note { margin: 0; font-size: .72rem; color: rgba(255, 230, 200, .6); line-height: 1.45; }
+.hl-note a { color: #ffd36b; }
+.hl-cta { display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; }
+.hl-cta #hl-quick { background: linear-gradient(180deg, #ffe08a, #e0a63a 55%, #b9761f); color: #3a1500; font-size: 1.15rem; box-shadow: 0 6px 0 #6b3a0c, 0 10px 22px rgba(0, 0, 0, .5); }
+.hl-tables { display: flex; flex-direction: column; gap: 8px; }
+.hl-table { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px; border-radius: 16px; border: 1px solid rgba(255, 220, 150, .25); background: linear-gradient(180deg, rgba(70, 18, 24, .7), rgba(30, 8, 8, .85)); color: #fff; text-align: left; cursor: pointer; }
+.hl-table:active { transform: scale(.985); }
+.hl-table.locked { opacity: .55; }
+.ht-felt { flex: none; width: 70px; height: 52px; border-radius: 26px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 40%, #b2162c, #5a0912 75%); box-shadow: inset 0 0 0 3px #6b3a1c, inset 0 0 0 4px #d6a24a, 0 4px 10px rgba(0, 0, 0, .5); }
+.ht-felt b { font-size: .8rem; color: #ffe8a8; }
+.ht-felt small { font-size: .62rem; color: rgba(255, 230, 200, .8); }
+.ht-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ht-main b { font-size: 1rem; }
+.ht-main small { font-size: .72rem; color: rgba(255, 230, 200, .7); }
+.ht-main .ht-buy { color: #ffd36b; }
+.ht-go { flex: none; padding: 8px 12px; border-radius: 12px; background: linear-gradient(180deg, #ffe08a, #d9a03a); color: #3a1500; font-weight: 900; font-size: .84rem; }
+.hl-table.locked .ht-go { background: rgba(255, 255, 255, .1); color: var(--muted); }
+.hl-dist { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.hl-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.hl-rank li { display: grid; grid-template-columns: 28px 1fr auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 7px 8px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
+.hl-rank .hr-n { grid-row: 1 / 3; font-weight: 900; color: #ffe08a; text-align: center; }
+.hl-rank li:nth-child(1) .hr-n { color: #ffd700; font-size: 1.1rem; }
+.hl-rank b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-rank small { grid-column: 2 / 4; font-size: .7rem; color: var(--muted); }
+.hl-more .btn { font-size: .86rem; }
+/* 실력 분석 */
+.ana-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.ana-head > b { font-size: 1.4rem; color: #ffe8a8; }
+.ana-style { padding: 2px 8px; border-radius: 8px; background: rgba(255, 255, 255, .08); font-size: .78rem; font-weight: 800; }
+.ana-row { display: grid; grid-template-columns: 92px 1fr 30px; grid-template-rows: auto auto; column-gap: 8px; align-items: center; margin: 8px 0; }
+.ana-row > span { font-size: .82rem; font-weight: 800; }
+.ana-bar { height: 10px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.ana-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #e0a63a, #ffe08a); }
+.ana-row > b { text-align: right; color: #ffe8a8; }
+.ana-row > small { grid-column: 1 / -1; font-size: .7rem; color: var(--muted); }
+.ana-tips { margin: 4px 0; padding-left: 18px; font-size: .84rem; line-height: 1.5; }
+
+/* 정산 · 앱 설치 권하기 */
+.settle-rate { display: flex; align-items: center; gap: 6px; font-size: .86rem; }
+.settle-rate .input { width: 0; flex: 1; min-width: 0; }
+.settle-rate .input[name=settleUnit] { flex: .7; }
+.settle { border: 1px solid rgba(255, 215, 110, .55) !important; }
+.settle-list { list-style: none; margin: 4px 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.settle-list li { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 10px; background: rgba(255, 255, 255, .05); font-size: .88rem; }
+.settle-list li span { margin-left: auto; color: #ffe08a; font-weight: 800; }
+.inst-ask { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.inst-ask img { border-radius: 18px; box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
+.inst-ask p { margin: 0; line-height: 1.5; }
+.inst-ask .btn { width: 100%; }

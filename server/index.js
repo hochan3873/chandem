@@ -6,12 +6,13 @@ const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
-const { Room, RoomError, sanitizeSettings, makeCode, guestNameCheck } = require('./room');
+const { Room, RoomError, sanitizeSettings, makeCode, guestNameCheck, botStack } = require('./room');
 const { createMtt } = require('./mtt');
 const { createAccounts, hashPassword } = require('./accounts');
 const { createSite } = require('./site');
 const { createAdmin } = require('./admin');
 const { createRankings } = require('./rankings');
+const { createHoldemPro } = require('./holdem-pro');
 const { createLbPvp } = require('./langbang-pvp');
 const { createPush, createPushStore } = require('./push');
 
@@ -37,6 +38,8 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const acct = accounts || createAccounts({ file: dataFile ? path.join(path.dirname(dataFile), 'accounts.json') : null });
   // 공지 · 출석 · 계정 관리 · 건의함 · 점검 모드 (server/site.js)
   const site = createSite({ acct, file: dataFile ? path.join(path.dirname(dataFile), 'site.json') : null, now });
+  // 찬덤 홀덤: 지갑 · 연습 테이블 · 실력 티어 (server/holdem-pro.js)
+  const pro = createHoldemPro({ kv: { get: (k) => site.store.getKv(k), set: (k, v) => site.store.setKv(k, v) }, now });
   // 비상 비밀번호 재설정: 서버 환경 변수 RESET_USER(아이디) · RESET_PASSWORD(새 비밀번호, 6자 이상)를 넣고 배포하면
   // 켜질 때 한 번 바꾸고 그 계정의 모든 기기를 로그아웃한다. 로그인되면 두 변수를 지우고 다시 배포할 것.
   // RESET_PASSWORD 없이 RESET_USER 만 넣으면 서버가 임시 비밀번호를 만들어 로그에 한 번만 찍는다.
@@ -171,6 +174,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     try { io.emit('server:restarting', { message: '🔧 서버 업데이트 중 — 잠시 후 자동으로 돌아와요' }); } catch {}
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     await saveNow();
+    try { await pro.flush(); } catch {}
   }
 
   function wire(room) {
@@ -191,6 +195,21 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       else acct.recordHand(rec.game, rec.players.map((p) => ({ ...p, won: false, handName: null })), 0, { practice: !!rec.practice });
     };
     room.onEmote = (e) => io.to('room:' + room.code).emit('emote', e);
+    // 연습 테이블(지갑으로 들어온 방): 판마다 내 실력 지표를 쌓는다
+    room.onHand = (h) => {
+      const w = room.wallet;
+      if (!w || h.kind || !room.handPlayers.includes(w.pid)) return;
+      pro.recordHand(w.key, h, w.pid);
+    };
+  }
+  /** 연습 테이블에서 나가거나 방이 닫히면 남은 칩을 지갑으로 */
+  function walletOut(room, p) {
+    const w = room && room.wallet;
+    if (!w || w.done) return;
+    const me = p || room.players.find((x) => x.id === w.pid);
+    if (!me) return;
+    w.done = true;
+    pro.cashOut(w.key, (me.stack || 0) + (me.pendingRebuy || 0));
   }
 
   function broadcast(room) {
@@ -235,7 +254,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     for (const [code, r] of rooms) {
       // 연습 방은 사람이 떠나고 15분 지나면 정리
       const idle = r.practice && !r.players.some((p) => !p.isBot && p.connected);
-      if (t - r.touchedAt > ROOM_TTL_MS || (idle && t - r.touchedAt > PRACTICE_IDLE_MS)) { r.clearAllTimers(); rooms.delete(code); }
+      if (t - r.touchedAt > ROOM_TTL_MS || (idle && t - r.touchedAt > PRACTICE_IDLE_MS)) { walletOut(r); r.clearAllTimers(); rooms.delete(code); }
     }
   }, 2 * 60 * 1000);
   sweeper.unref();
@@ -252,6 +271,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       s.leave('room:' + code);
       s.data.playerId = null; s.data.pendingId = null;
     }
+    walletOut(room);
     room.clearAllTimers();
     rooms.delete(code);
     scheduleSave();
@@ -260,7 +280,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   // 사람이 모두 나간 방: 연습 방은 바로, 친구 방은 잠깐(5분) 기다렸다가 그래도 비어 있으면 지운다
   function closeIfEmpty(room) {
     if (!room.isEmpty) return false;
-    if (room.practice) { room.clearAllTimers(); rooms.delete(room.code); return true; }
+    if (room.practice) { walletOut(room); room.clearAllTimers(); rooms.delete(room.code); return true; }
     room.setTimer('empty', LIM.emptyRoomMs, () => {
       if (room.isEmpty && rooms.get(room.code) === room) { room.clearAllTimers(); rooms.delete(room.code); }
     });
@@ -300,6 +320,36 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   // 웹 푸시 알림 (server/push.js) — VAPID 열쇠가 환경 변수에 있을 때만 켜진다
   const push = createPush({ acct, store: createPushStore({ pool: acct.store.pool || null, file: dataFile ? path.join(path.dirname(dataFile), 'push.json') : null }), now, ...pushOpt });
   app.use('/api/push', push.router(express));
+  // 찬덤 홀덤 로비: 내 지갑 · 충전 · 티어 · 순위 · 연습 테이블 · 손님 기록 옮기기
+  {
+    const r = express.Router();
+    r.use(express.json({ limit: '4kb' }));
+    const who = async (req) => {
+      const tok = String(req.headers.authorization || '').replace(/^Bearer /, '');
+      let user = null;
+      if (tok) { try { user = await acct.me(tok); } catch { user = null; } }
+      const g = (req.body && req.body.guest) || null;
+      return { user, guest: g && typeof g === 'object' ? { id: String(g.id || ''), key: String(g.key || '') } : null };
+    };
+    const wrap = (fn) => async (req, res) => {
+      try { await pro.ready; res.set('Cache-Control', 'no-store').json({ ok: true, ...(await fn(req)) }); }
+      catch (e) { res.status(400).json({ ok: false, message: e.message || '잠시 후 다시 해 주세요' }); }
+    };
+    const live = () => [...rooms.values()].filter((x) => x.wallet && !x.wallet.done).length;
+    r.post('/me', wrap(async (req) => {
+      const id = await who(req);
+      const me = pro.me(id, req.body && req.body.name);
+      return { me, tables: pro.TABLES.map((t) => ({ ...t, playing: [...rooms.values()].filter((x) => x.wallet && !x.wallet.done && x.wallet.table === t.id).length })), practicing: live() };
+    }));
+    r.post('/refill', wrap(async (req) => ({ me: pro.refill(await who(req)) })));
+    r.post('/merge', wrap(async (req) => {
+      const id = await who(req);
+      if (!id.user) throw new Error('로그인한 다음에 옮길 수 있어요');
+      return pro.merge(id.user, id.guest);
+    }));
+    r.get('/rank', wrap(async () => pro.top(30)));
+    app.use('/api/holdem', r);
+  }
   const pushTimer = push.enabled ? setInterval(() => { push.tick().catch((e) => console.error('[push] tick 실패:', e.message)); }, 15 * 60 * 1000) : null; // 서버가 깨어 있는 동안 15분마다
   if (pushTimer && pushTimer.unref) pushTimer.unref();
   let rankings = null;
@@ -571,9 +621,17 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       const user = await userOf(payload);
       if (user) payload.name = user.nickname;
       else if (!(payload.code === undefined && payload.bots !== undefined)) { try { guestNameCheck(payload.name); } catch (e) { return fail(ack, e); } } // 손님은 진짜 닉네임 (AI 연습 제외)
+      let bought = null;
       try {
-        const settings = sanitizeSettings({ ...(payload.settings || {}), approval: false, password: '' });
+        let settings = sanitizeSettings({ ...(payload.settings || {}), approval: false, password: '' });
         const ip = checkCreate(socket, true, user);
+        // 연습 테이블(찬덤 홀덤 로비): 지갑에서 바이인을 꺼내 상주 플레이어들과
+        if (payload.table) {
+          try { bought = pro.buyIn({ user, guest: payload.guest }, payload.name, String(payload.table), payload.buyIn); } catch (e) { throw new RoomError(e.message); }
+          const t = bought.table;
+          settings = sanitizeSettings({ game: 'holdem', mode: 'cash', sb: t.sb, bb: t.bb, startChips: bought.amount, rebuyEnabled: true, rebuyAmount: bought.amount, rebuyMax: 99, maxPlayers: t.seats, turnSeconds: 25, approval: false, password: '' });
+          payload.bots = t.seats - 1;
+        }
         let code;
         do { code = makeCode(); } while (rooms.has(code));
         const room = new Room({ code, settings, pace });
@@ -586,9 +644,15 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         const n = Math.max(1, Math.min(settings.maxPlayers - 1, Number(payload.bots) || 3));
         for (let i = 0; i < n; i++) room.addBot(player.id);
         room.start(player.id);
+        if (bought) {
+          room.wallet = { key: bought.key, pid: player.id, table: bought.table.id, tableName: bought.table.name };
+          for (const b of room.seated) if (b.isBot) { b.stack = botStack(settings); b.totalBuyIn = b.stack; }
+          if (room.hand && room.hand.seats) for (const s of room.hand.seats) { const b = room.get(s.id); if (b && b.isBot) { const diff = b.stack - (s.stack + s.contributed); s.stack += diff; s.startStack += diff; } }
+          room.syncStacks && room.syncStacks();
+        }
         broadcast(room);
         reply(ack, { ok: true, code, playerId: player.id, token: player.token });
-      } catch (e) { fail(ack, e); }
+      } catch (e) { if (bought) pro.cashOut(bought.key, bought.amount); fail(ack, e); }
     });
     socket.on('host:kick', handler((d) => { const { room, pid } = ctx(); room.kick(pid, d.id); }));
     socket.on('host:transfer', handler((d) => { const { room, pid } = ctx(); room.transferHost(pid, d.id); }));
@@ -599,7 +663,18 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('room:history', handler(() => { const { room } = ctx(); return room.historyView(); }));
     socket.on('host:pause', handler((d) => { const { room, pid } = ctx(); room.setPause(pid, !!(d && d.on)); }));
     socket.on('game:act', handler((d) => { const { room, pid } = ctx(); room.act(pid, { type: d.type, amount: d.amount, x: d.x, y: d.y, index: d.index, cards: Array.isArray(d.cards) ? d.cards.slice(0, 3).map(String) : undefined }); }));
-    socket.on('game:rebuy', handler(() => { const { room, pid } = ctx(); room.rebuy(pid); }));
+    socket.on('game:rebuy', handler(() => {
+      const { room, pid } = ctx();
+      const w = room.wallet;
+      if (w && w.pid === pid && !w.done) {
+        // 연습 테이블: 리바이는 지갑에서
+        if (!room.canRebuy(room.get(pid))) return room.rebuy(pid); // 안 되는 이유를 그대로 알려 줌
+        try { pro.rebuy(w.key, room.settings.rebuyAmount); } catch (e) { throw new RoomError(e.message); }
+        try { room.rebuy(pid); } catch (e) { pro.cashOut(w.key, room.settings.rebuyAmount); throw e; }
+        return { wallet: (pro.profileOf(w.key) || {}).wallet };
+      }
+      room.rebuy(pid);
+    }));
     socket.on('game:sitin', handler(() => { const { room, pid } = ctx(); room.sitIn(pid); }));
     socket.on('game:sitout', handler(() => { const { room, pid } = ctx(); room.sitOut(pid); }));
 
@@ -609,7 +684,9 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         const room = rooms.get(socket.data.code);
         const id = socket.data.playerId || socket.data.pendingId;
         if (room && id) {
+          const leaver = room.get(id);
           room.leave(id);
+          if (room.wallet && room.wallet.pid === id) walletOut(room, leaver);
           socket.leave('room:' + room.code);
           socket.data.playerId = null;
           socket.data.pendingId = null;

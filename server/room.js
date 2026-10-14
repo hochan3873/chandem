@@ -29,6 +29,10 @@ const DEFAULT_SETTINGS = {
   reentryLevels: 0,      // 토너먼트 리바이·늦은 참가: 이 레벨이 끝나기 전까지 (0 = 없음)
   prizes: ['', '', '', ''], // 토너먼트 순위별 상품·벌칙 [1등, 2등, 3등, 꼴찌] (돈이 아닌 친목용 글)
   tableSize: 9,          // 한 테이블 자리 수 (토너먼트 등록이 이보다 많으면 시작할 때 테이블을 나눔)
+  sessionMinutes: 0,     // 일반 게임 시간(분): 지나면 그 판이 끝난 뒤 자동 정산 (0 = 정하지 않음)
+  settlePer: 1000,       // 정산 환산: 칩 settlePer 개 = settleValue settleUnit (친구끼리 약속한 값을 보여 주기만 함)
+  settleValue: 0,
+  settleUnit: '',
 };
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
@@ -63,6 +67,10 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   // 한 테이블은 최대 10자리. 토너먼트는 30명까지 등록하고 시작할 때 테이블을 나눈다 (모드는 아래에서 정해지므로 일단 30까지 받고 뒤에서 자름)
   s.maxPlayers = Math.min(30, Math.max(2, int(src.maxPlayers, base.maxPlayers)));
   s.tableSize = Math.min(10, Math.max(6, int(src.tableSize, base.tableSize || 9)));
+  s.sessionMinutes = Math.min(600, Math.max(0, int(src.sessionMinutes, base.sessionMinutes || 0)));
+  s.settlePer = Math.min(10000000, Math.max(1, int(src.settlePer, base.settlePer || 1000)));
+  s.settleValue = Math.min(100000000, Math.max(0, int(src.settleValue, base.settleValue || 0)));
+  s.settleUnit = String(src.settleUnit === undefined ? (base.settleUnit || '') : src.settleUnit).replace(/[<>&"]/g, '').trim().slice(0, 6);
   s.minPlayers = Math.min(s.maxPlayers, Math.max(2, int(src.minPlayers, base.minPlayers)));
   s.turnSeconds = Math.min(120, Math.max(10, int(src.turnSeconds, base.turnSeconds)));
   s.rebuyEnabled = src.rebuyEnabled === undefined ? base.rebuyEnabled : !!src.rebuyEnabled;
@@ -108,6 +116,11 @@ function guestNameCheck(name) {
   const n = String(name || '').replace(/\s+/g, ' ').trim();
   if (!n) throw new RoomError('닉네임을 입력해 주세요');
   if (PLACEHOLDER_NAME.test(n)) throw new RoomError('친구들이 알아볼 수 있는 닉네임을 정해 주세요');
+}
+/** 연습 테이블 상주 플레이어 칩: 바이인(시작 칩)의 0.6~2.5배, 빅 블라인드 단위 */
+function botStack(s) {
+  const k = 0.6 + Math.random() * 1.9;
+  return Math.max(s.bb * 20, Math.round((s.startChips * k) / s.bb) * s.bb);
 }
 function cleanName(name) {
   const n = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 10);
@@ -561,14 +574,47 @@ class Room {
       else if (this.settings.maxPlayers > 10) this.settings = { ...this.settings, maxPlayers: 10 }; // 한 테이블: 늦은 참가도 10자리까지
     } else {
       this.tourney = null;
-      this.pushFeed('게임을 시작합니다');
+      this.settlement = null;
+      this.departed = [];
+      this.endsAt = this.settings.sessionMinutes > 0 && this.settings.game !== 'omok' ? this.now() + this.settings.sessionMinutes * 60000 : null;
+      this.pushFeed(this.endsAt ? `게임을 시작합니다 · ${this.settings.sessionMinutes}분 뒤 자동 정산` : '게임을 시작합니다');
     }
     this.startHand();
   }
 
-  endGame(hostId) {
-    this.requireHost(hostId);
+  /** 정산: 사람마다 바이인 · 최종 칩 · 손익, 그리고 누가 누구에게 얼마 (가장 적은 횟수로) */
+  computeSettlement(reason) {
+    const s = this.settings;
+    const rows = [];
+    for (const p of this.players) {
+      if (p.isBot || !(p.totalBuyIn > 0)) continue;
+      rows.push({ id: p.id, name: p.name, buyIn: p.totalBuyIn, out: p.stack + (p.pendingRebuy || 0) });
+    }
+    for (const d of this.departed || []) if (!rows.some((r) => r.id === d.id)) rows.push({ ...d });
+    for (const r of rows) r.net = r.out - r.buyIn;
+    rows.sort((a, b) => b.net - a.net);
+    // 송금 최소화: 가장 많이 잃은 사람이 가장 많이 딴 사람에게부터
+    const cred = rows.filter((r) => r.net > 0).map((r) => ({ name: r.name, left: r.net }));
+    const debt = rows.filter((r) => r.net < 0).map((r) => ({ name: r.name, left: -r.net })).sort((a, b) => b.left - a.left);
+    const transfers = [];
+    for (const d of debt) {
+      for (const c of cred) {
+        if (d.left <= 0) break;
+        if (c.left <= 0) continue;
+        const x = Math.min(d.left, c.left);
+        transfers.push({ from: d.name, to: c.name, chips: x });
+        d.left -= x; c.left -= x;
+      }
+    }
+    const value = s.settleValue > 0 ? { per: s.settlePer, value: s.settleValue, unit: s.settleUnit || '' } : null;
+    return { at: this.now(), reason: reason || null, hands: this.handNo, rows, transfers, value, bots: this.players.some((p) => p.isBot) };
+  }
+
+  endGame(hostId, reason) {
+    if (hostId !== null) this.requireHost(hostId);
     if (this.hand && !this.hand.finished) throw new RoomError('진행 중인 판이 끝난 뒤에 끝낼 수 있어요');
+    if (this.phase === 'playing' && !this.isTournament && this.settings.game !== 'omok') this.settlement = this.computeSettlement(reason || '방장이 게임을 끝냈어요');
+    this.endsAt = null;
     this.clearTimer('next');
     this.phase = 'lobby';
     this.hand = null;
@@ -653,6 +699,15 @@ class Room {
     this.bankUse = null;
     this.clearTimer('next');
     this.clearTimer('reveal');
+    // 정한 게임 시간이 지났으면: 판을 더 돌리지 않고 정산
+    if (this.phase === 'playing' && this.endsAt && this.now() >= this.endsAt && !this.isTournament) {
+      if (this.hand && !this.hand.finished) return false;
+      this.players = this.players.filter((p) => !p.leaving);
+      this.endGame(null, `⏰ 정한 시간(${this.settings.sessionMinutes}분)이 끝났어요`);
+      this.pushFeed('⏰ 정한 시간이 끝나 게임을 마치고 정산했어요');
+      this.touch();
+      return false;
+    }
     this.reveal = null;
     this.nextHandAt = null;
     // 판과 판 사이: 나간 사람 정리, 리바인 적용
@@ -671,7 +726,8 @@ class Room {
     }
     for (const p of this.seated) {
       if (!this.isTournament && p.isBot && p.stack === 0) {
-        p.stack = this.settings.startChips;
+        // 상주 플레이어는 저마다 다른 금액으로 다시 앉는다 (연습 테이블: 바이인의 0.6~2.5배)
+        p.stack = this.wallet ? botStack(this.settings) : this.settings.startChips;
         p.totalBuyIn += this.settings.startChips;
         this.pushFeed(`${p.name} 칩 충전 +${p.stack.toLocaleString()}`);
       }
@@ -1013,6 +1069,7 @@ class Room {
   recordResult() {
     const h = this.hand;
     const r = h.result;
+    if (this.onHand) { try { this.onHand(h); } catch (e) { console.error('[onHand]', e.message); } }
     const game = h.kind || 'holdem';
     if (game === 'omok') {
       const [a, b] = h.seats.map((s) => this.get(s.id) || { id: s.id });
@@ -1242,6 +1299,11 @@ class Room {
       this.players = this.players.filter((x) => x.id !== id);
     }
     this.pushFeed(`${p.name}님이 ${reason}`);
+    // 일반 게임 중에 나간 사람도 정산에 남긴다 (가지고 나간 칩)
+    if (this.phase === 'playing' && !this.isTournament && !p.isBot && p.totalBuyIn > 0) {
+      this.departed = (this.departed || []).filter((d) => d.id !== p.id);
+      this.departed.push({ id: p.id, name: p.name, buyIn: p.totalBuyIn, out: p.stack + (p.pendingRebuy || 0), left: true });
+    }
     if (id === this.hostId) {
       const next = this.pickNextHost(id) || this.players.find((x) => x.id !== id && !x.leaving && !x.isBot);
       this.hostId = next ? next.id : null;
@@ -1356,9 +1418,12 @@ class Room {
         waiting: !!this.waiting,
         tournament: this.isTournament ? this.tourneyView() : null,
         practice: !!this.practice,
+        practiceTable: this.wallet ? this.wallet.tableName : null,
         nextHandAt: this.nextHandAt,
         settings: { ...this.settings, password: undefined, hasPassword: !!this.settings.password },
         startBlocker: this.phase === 'lobby' ? this.startCheck() : null,
+        endsAt: this.phase === 'playing' ? this.endsAt || null : null,
+        settlement: this.phase === 'lobby' ? this.settlement || null : null,
         tableSeats: this.tableSeats,
       },
       me: me && {
@@ -1610,7 +1675,7 @@ class Room {
 
   // ── 저장/복구 ─────────────────────────────────────
   serialize() {
-    const { timers, onChange, onEmote, emoteAt, now, hand, mtt, ...rest } = this;
+    const { timers, onChange, onEmote, onHand, emoteAt, now, hand, mtt, ...rest } = this;
     return { ...rest, hand: hand ? hand.toJSON() : null };
   }
 
@@ -1669,4 +1734,4 @@ class Room {
   }
 }
 
-module.exports = { guestNameCheck, levelBlinds, cleanPhoto, EMOTES, Room, RoomError, sanitizeSettings, DEFAULT_SETTINGS, makeCode, cleanName };
+module.exports = { botStack, guestNameCheck, levelBlinds, cleanPhoto, EMOTES, Room, RoomError, sanitizeSettings, DEFAULT_SETTINGS, makeCode, cleanName };

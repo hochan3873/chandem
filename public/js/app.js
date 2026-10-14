@@ -516,9 +516,204 @@ function setAuth(r, { quiet = false } = {}) {
   S.auth = r.token; S.user = r.user;
   LS.set('chandem:auth', r.token);
   LS.set('chandem:name', r.user.nickname);
+  mergeGuest(r.token);
   { let nx = null; try { nx = sessionStorage.getItem('chandem:next'); sessionStorage.removeItem('chandem:next'); } catch { /* 무시 */ } if (nx === '/langbang/') { setTimeout(() => { location.href = '/langbang/'; }, 400); return; } } // 랑방에서 로그인하러 왔으면 바로 돌아간다
   bindSeatToAccount(quiet);
 }
+// ── 찬덤 홀덤 로비: 이 기기 손님 열쇠 · 지갑 · 티어 ──
+function guestCred() {
+  let g = LS.get('chandem:guest', null);
+  if (!g || !g.id || !g.key) {
+    const rnd = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join('');
+    g = { id: 'g' + rnd(15), key: rnd(28) };
+    LS.set('chandem:guest', g);
+  }
+  return g;
+}
+async function hApi(path, body = {}) {
+  try {
+    const r = await fetch('/api/holdem' + path, { method: body === null ? 'GET' : 'POST', headers: { 'content-type': 'application/json', ...(S.auth ? { authorization: 'Bearer ' + S.auth } : {}) }, body: body === null ? undefined : JSON.stringify({ guest: guestCred(), ...body }) });
+    return await r.json();
+  } catch { return { ok: false, message: '서버와 연결할 수 없어요' }; }
+}
+// 손님으로 쌓은 지갑·기록 → 로그인한 계정으로 (한 번만)
+async function mergeGuest(token) {
+  const g = LS.get('chandem:guest', null);
+  if (!g || LS.get('chandem:guestMerged:' + g.id, false)) return;
+  try {
+    const r = await (await fetch('/api/holdem/merge', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ guest: g }) })).json();
+    LS.set('chandem:guestMerged:' + g.id, true);
+    if (r.ok && r.merged) toast(`손님으로 쌓은 칩·기록을 계정으로 옮겼어요 (${fmt(r.stats.hands)}판)`, 'ok');
+  } catch { /* 다음에 다시 */ }
+}
+const tierBadge = (t, sm = '') => (t ? `<span class="tier-badge ${sm}" style="--tc:${t.color}"><i></i>${esc(t.name)}</span>` : `<span class="tier-badge ${sm} placing"><i></i>배치 중</span>`);
+function myAvatarSrc() {
+  const a = LS.get('chandem:avatar', 0); const ph = LS.get('chandem:photo', '');
+  if (a === 'photo' && ph) return ph;
+  return `/img/avatars/a${Number(a) >= 1 && Number(a) <= AVATAR_COUNT ? Number(a) : 1}.webp?v=2`;
+}
+function hlMeHTML(me) {
+  if (!me) return '<p class="muted small">불러오는 중…</p>';
+  const ev = me;
+  const name = esc(me.name || LS.get('chandem:name', '') || '닉네임 정하기');
+  return `<div class="hl-me-top">
+      <img class="hl-av" src="${myAvatarSrc()}" alt="">
+      <div class="hl-who"><b>${name}</b>${tierBadge(ev.tier)}${ev.tier ? `<small class="hl-score">${ev.score}점</small>` : ''}
+        <span class="hl-sub">${ev.placement ? `배치까지 ${ev.placement}판` : `${ev.rank ? `전체 ${fmt(ev.rank.rank)}위 · ` : ''}${fmt(ev.stats.hands)}판 · 승률 ${ev.stats.winRate}%`}${ev.style ? ` · ${esc(ev.style)}` : ''}</span></div>
+      <button class="hl-ana" id="hl-ana" type="button">실력<br>분석</button>
+    </div>
+    <div class="hl-wallet">
+      <span class="chip-icon"></span><b>${fmt(me.wallet)}</b><small>내 칩</small>
+      <button class="btn btn-sm ${me.canRefill ? 'btn-gold' : 'btn-outline'}" id="hl-refill" ${me.canRefill ? '' : 'disabled'}>충전 ${me.refillsLeft}/3</button>
+    </div>
+    <p class="hl-note">칩이 기본금 ${fmt(me.base)} 아래로 떨어지면 하루 3번 기본금으로 충전돼요 · 매일 0시에 다시 3번${me.key === 'guest' && !S.user ? ' · <a href="#" id="hl-login">로그인하면 이 기록이 계정으로 옮겨져요</a>' : ''}</p>`;
+}
+function hlTablesHTML(tables, me) {
+  return tables.map((t) => {
+    const can = me && me.wallet >= t.buy[0];
+    return `<button class="hl-table ${can ? '' : 'locked'}" data-table="${t.id}" type="button">
+      <span class="ht-felt"><b>${fmt(t.sb)}/${fmt(t.bb)}</b><small>${t.seats}인</small></span>
+      <span class="ht-main"><b>${esc(t.name)}</b><small>${esc(t.desc)}</small><small class="ht-buy">바이인 ${fmt(t.buy[0])} ~ ${fmt(t.buy[1])}${t.playing ? ` · ${t.playing}명 치는 중` : ''}</small></span>
+      <span class="ht-go">${can ? '입장' : '칩 부족'}</span></button>`;
+  }).join('');
+}
+function openAnalysis(me) {
+  const p = me.parts || {}; const s = me.stats || {};
+  const bar = (k, label, v, tip) => `<div class="ana-row"><span>${label}</span><div class="ana-bar"><i style="width:${v}%"></i></div><b>${v}</b><small>${tip}</small></div>`;
+  openModal('내 실력 분석', `<div class="ana">
+    <div class="ana-head">${tierBadge(me.tier)}<b>${me.score}점</b>${me.style ? `<span class="ana-style">${esc(me.style)}</span>` : ''}</div>
+    <p class="muted small">연습 테이블에서 친 판으로 계산해요. ${me.placement ? `<b>${me.placement}판</b> 더 치면 티어가 정해져요.` : ''} 판이 적을 땐 점수를 중간으로 당겨서 운이 덜 섞이게 해요.</p>
+    ${bar('P', '시작 패 고르기', p.P || 0, '자리에 맞는 패로만 들어갔나 · 림프(콜로만 참여) 적게')}
+    ${bar('D', '큰 결정', p.D || 0, '리버·올인 앞에서 팟 오즈대로 콜/폴드 했나')}
+    ${bar('A', '공격성', p.A || 0, '좋은 패는 베팅·레이즈로 (AF 2~3.5)')}
+    ${bar('S', '쇼다운', p.S || 0, '끝까지 갈 때 이기는가 (WTSD·W$SD)')}
+    ${bar('R', '결과', p.R || 0, '판당 손익 (운을 고려해 천천히 반영)')}
+    <div class="stat-grid pc-grid">
+      <span>판 수</span><b>${fmt(s.hands || 0)}</b><span>승률</span><b>${s.winRate || 0}%</b>
+      <span>VPIP</span><b>${s.vpip || 0}%</b><span>PFR</span><b>${s.pfr || 0}%</b>
+      <span>AF</span><b>${s.af || 0}</b><span>WTSD / W$SD</span><b>${s.wtsd || 0}% / ${s.wsd || 0}%</b>
+      <span>100판당</span><b class="${s.bb100 > 0 ? 'plus' : s.bb100 < 0 ? 'minus' : ''}">${s.bb100 > 0 ? '+' : ''}${s.bb100 || 0} BB</b><span>큰 결정 정확도</span><b>${s.decRate == null ? '-' : s.decRate + '%'}</b>
+      <span>틸트 지수</span><b>${s.tilt || 0}</b><span>최고 족보</span><b>${s.best ? esc(s.best) : '-'}</b>
+    </div>
+    ${(me.tips || []).length ? `<h3 class="sub-title">이렇게 해 보세요</h3><ul class="ana-tips">${me.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+    <p class="muted tiny">티어: 브론즈 → 실버 → 골드 → 플래티넘 → 다이아(150판↑) → 마스터(400판↑) → 그랜드마스터(800판↑)</p>
+  </div>`, null, { wide: true });
+}
+function hlRankHTML(r) {
+  if (!r || !r.ok) return '<p class="muted small">순위를 불러오지 못했어요</p>';
+  const dist = r.dist.filter((d) => d.count).map((d) => `<span class="tier-badge sm" style="--tc:${d.color}"><i></i>${esc(d.name)} ${d.count}</span>`).join('');
+  return `${dist ? `<div class="hl-dist">${dist}</div>` : ''}
+    ${r.top.length ? `<ol class="hl-rank">${r.top.slice(0, 15).map((x) => `<li><span class="hr-n">${x.rank}</span><b>${esc(x.name)}</b>${tierBadge(x.tier, 'sm')}<small>${x.score}점 · 승률 ${x.winRate}% · ${fmt(x.hands)}판</small></li>`).join('')}</ol>` : `<p class="muted small">아직 배치를 마친 사람이 없어요. 연습 테이블 ${30}판이면 첫 티어가 나와요!</p>`}`;
+}
+async function enterTable(t, me) {
+  const max = Math.min(t.buy[1], me.wallet);
+  if (me.wallet < t.buy[0]) { toast(me.canRefill ? '칩이 모자라요 · 충전을 눌러 기본금을 채워 주세요' : `칩이 모자라요 · 이 테이블은 최소 ${fmt(t.buy[0])}`, 'error'); return; }
+  const def = Math.max(t.buy[0], Math.min(max, Math.round((t.buy[0] * 2) / t.bb) * t.bb));
+  const needName = !S.user && !LS.get('chandem:name', '');
+  openModal(`${t.name} 입장`, `<form class="form" id="buyin-form">
+    <p class="muted small">블라인드 ${fmt(t.sb)}/${fmt(t.bb)} · ${t.seats}인 테이블 · 상주 플레이어들이 저마다 다른 칩을 들고 있어요</p>
+    ${needName ? '<label class="field"><span>닉네임 <small class="req">필수</small></span><input class="input" name="name" maxlength="10" required placeholder="닉네임을 입력해 주세요"></label>' : ''}
+    <label class="field"><span>가져갈 칩 <b id="bi-val">${fmt(def)}</b> <small class="muted">(지갑 ${fmt(me.wallet)})</small></span>
+      <input type="range" name="buy" min="${t.buy[0]}" max="${max}" step="${t.bb}" value="${def}"></label>
+    <div class="row"><small class="muted">최소 ${fmt(t.buy[0])}</small><div class="spacer"></div><small class="muted">최대 ${fmt(max)}</small></div>
+    <button class="btn btn-gold btn-lg">앉기</button>
+    <p class="muted tiny">일어나면 남은 칩은 지갑으로 돌아가요. 리바이도 지갑에서 꺼내요.</p></form>`, (body) => {
+    const f = body.querySelector('#buyin-form');
+    f.buy.oninput = () => { body.querySelector('#bi-val').textContent = fmt(f.buy.value); };
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const name = needName ? String(f.name.value || '').trim() : (S.user ? S.user.nickname : LS.get('chandem:name', ''));
+      if (!name) { toast('닉네임을 입력해 주세요', 'error'); return; }
+      if (needName) LS.set('chandem:name', name);
+      f.querySelector('button').disabled = true;
+      const av = LS.get('chandem:avatar', 0);
+      const res = await emit('room:practice', { name, table: t.id, buyIn: Number(f.buy.value), guest: guestCred(), auth: S.auth, avatar: av === 'photo' ? 0 : av, photo: av === 'photo' ? LS.get('chandem:photo', '') : '' });
+      f.querySelector('button').disabled = false;
+      if (!res.ok) return;
+      closeModal();
+      S.code = res.code;
+      S.session = { token: res.token, playerId: res.playerId };
+      LS.set(sessKey(res.code), S.session);
+      nav('/r/' + res.code);
+      S.view = 'room';
+      render();
+    };
+  });
+}
+async function loadHoldemLobby() {
+  const [r, rk] = await Promise.all([hApi('/me', { name: S.user ? S.user.nickname : LS.get('chandem:name', '') }), fetch('/api/holdem/rank', { cache: 'no-store' }).then((x) => x.json()).catch(() => null)]);
+  if (S.view !== 'gamehome' || (S.game || 'holdem') !== 'holdem') return;
+  const meBox = document.getElementById('hl-me'); const tb = document.getElementById('hl-tables'); const rb = document.getElementById('hl-rank-box');
+  if (!r.ok) { if (meBox) meBox.innerHTML = `<p class="muted small">${esc(r.message || '불러오지 못했어요')}</p>`; return; }
+  S.hl = r;
+  if (meBox) meBox.innerHTML = hlMeHTML(r.me);
+  if (tb) tb.innerHTML = hlTablesHTML(r.tables, r.me);
+  if (rb) rb.innerHTML = hlRankHTML(rk);
+  const rf = document.getElementById('hl-refill');
+  if (rf) rf.onclick = async () => { rf.disabled = true; const x = await hApi('/refill'); if (x.ok) { toast(`기본금으로 충전했어요 (+${fmt(x.me.added)})`, 'ok'); sound.play('collect'); } else toast(x.message, 'error'); loadHoldemLobby(); };
+  const an = document.getElementById('hl-ana');
+  if (an) an.onclick = () => openAnalysis(r.me);
+  const lg = document.getElementById('hl-login');
+  if (lg) lg.onclick = (e) => { e.preventDefault(); openLogin(); };
+  document.querySelectorAll('[data-table]').forEach((b) => { b.onclick = () => enterTable(r.tables.find((t) => t.id === b.dataset.table), r.me); });
+}
+// 앱 설치 권하기: 홀덤 로비를 설치 안 한 브라우저로 열면 하루 한 번
+function maybeInstallPrompt() {
+  if (isStandalone() || IS_KAKAO || S.installAsked) return;
+  const day = new Date().toISOString().slice(0, 10);
+  if (LS.get('chandem:installAsk', '') === day) return;
+  S.installAsked = true;
+  setTimeout(() => {
+    if (S.view !== 'gamehome' || document.querySelector('#modal-root .modal')) return;
+    LS.set('chandem:installAsk', day);
+    openModal('찬덤 홀덤 앱 설치', `<div class="inst-ask"><img src="/img/holdem-icon-192.png" alt="" width="72" height="72">
+      <p><b>홈 화면에 앱으로 설치</b>하면 주소창 없이 전체 화면으로, 링크 없이 바로 열려요. 설치는 몇 초면 끝나요.</p>
+      <button class="btn btn-gold btn-lg" id="ia-go">지금 설치하기</button><button class="btn btn-ghost" id="ia-no">다음에</button></div>`, (b) => {
+      b.querySelector('#ia-go').onclick = () => { closeModal(); installApp(); };
+      b.querySelector('#ia-no').onclick = () => closeModal();
+    });
+  }, 1800);
+}
+function renderHoldemLobby() {
+  $app.innerHTML = `
+  <main class="home game-home hl-lobby">
+    <div class="top-bar">${HOLDEM_APP ? `${hubAcctHTML()}` : '<button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>'}${SHARE_BTN}</div>
+    <div class="gh-hero" style="background-image:url('/img/holdem/hero2.webp')"><div class="gh-shade"></div>
+      <div class="gh-title"><h1>찬덤 홀덤</h1><p>친구들과, 귀여운 상주 플레이어들과</p>
+      <div class="gh-chips"><span>실력 티어</span><span>토너먼트</span><span>최대 10명</span></div></div>
+    </div>
+    <section class="panel hl-me" id="hl-me">${hlMeHTML(null)}</section>
+    <div class="hl-cta">
+      <button class="btn btn-gold btn-lg" id="hl-quick">빠른 시작</button>
+      <button class="btn btn-outline btn-lg" id="go-create">친구와 방 만들기</button>
+    </div>
+    <section class="panel"><div class="sec-head"><h2 class="sec-title">연습 테이블</h2><small class="muted">상주 플레이어와 · 내 칩으로</small></div><div class="hl-tables" id="hl-tables"><p class="muted small">불러오는 중…</p></div></section>
+    <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">지금 열린 홀덤 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
+    <section class="panel"><div class="sec-head"><h2 class="sec-title">티어 순위</h2><small class="muted">연습 테이블 실력 점수</small></div><div id="hl-rank-box"><p class="muted small">불러오는 중…</p></div></section>
+    <div class="row hl-more"><button class="btn btn-ghost grow" id="go-rules">게임 방법</button><button class="btn btn-ghost grow" id="go-practice">토너먼트 연습 (칩 안 씀)</button></div>
+    <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
+  </main>`;
+  bindCommon();
+  startRoomList('holdem');
+  loadHoldemLobby();
+  maybeInstallPrompt();
+  const hub = $app.querySelector('#to-hub');
+  if (hub) hub.onclick = () => { S.view = 'home'; nav('/'); render(); };
+  const ab = $app.querySelector('#acct-btn');
+  if (ab) ab.onclick = () => (S.user ? openProfile() : openLogin());
+  $app.querySelector('#go-create').onclick = () => { nav('/'); S.view = 'create'; render(); };
+  $app.querySelector('#go-practice').onclick = () => { nav('/'); S.view = 'practice'; render(); };
+  $app.querySelector('#go-rules').onclick = () => openModal('텍사스 홀덤 게임 방법', `<div class="rules">${GAME_RULES.holdem}</div>`);
+  $app.querySelector('#hl-quick').onclick = () => {
+    const r = S.hl;
+    if (!r || !r.ok) return;
+    const me = r.me;
+    const ok = r.tables.filter((t) => t.seats > 2 && t.buy[0] <= me.wallet * 0.5).sort((a, b) => b.bb - a.bb)[0] || r.tables.find((t) => t.buy[0] <= me.wallet);
+    if (!ok) { toast(me.canRefill ? '칩이 모자라요 · 충전을 눌러 주세요' : '오늘 충전을 다 썼어요 · 친구 방에서 놀아 보세요', 'error'); return; }
+    enterTable(ok, me);
+  };
+}
+
 // 방 안에서 로그인하면: 손님으로 앉은 이 자리를 계정에 묶는다 (지난 판은 소급 안 함, 다음 판부터 기록)
 async function bindSeatToAccount(quiet = false) {
   if (!S.auth || !S.session || !S.state || S.view !== 'room') return;
@@ -1455,13 +1650,13 @@ async function launchGame(g) {
 function roomItemHTML(r) {
   const info = GAME_INFO[r.game] || GAME_INFO.holdem;
   const full = r.players >= r.maxPlayers;
-  const status = r.practice ? 'AI와 연습 중' : r.phase === 'playing' ? (r.tournament ? '토너먼트 중' : `게임 중${r.handNo ? ` · ${r.handNo}판째` : ''}`) : '대기 중';
+  const status = r.practice ? '연습 테이블 · 상주 플레이어와' : r.phase === 'playing' ? (r.tournament ? '토너먼트 중' : `게임 중${r.handNo ? ` · ${r.handNo}판째` : ''}`) : '대기 중';
   const sub = r.game === 'seotda' ? ` · ${r.cards === 3 ? '세 장' : '두 장'}` : '';
   const canJoin = !r.practice && !full && !(r.tournament && r.phase === 'playing');
   return `<div class="lr-item">
     <span class="lr-icon">${P.hubIcon(HUB_GAME_ICON[r.game] || 'spade')}</span>
     <div class="lr-main"><b>${esc(r.hostName || '방장')}님의 ${info.name}${sub}</b>${r.hasPassword ? P.hubIcon('lock', 'hic-xs') : ''}
-      <small>${status} · ${r.players}/${r.maxPlayers}명${r.spectators ? ` · 관전 ${r.spectators}` : ''}${r.bots ? ` · 봇 ${r.bots}` : ''}</small></div>
+      <small>${status} · ${r.players}/${r.maxPlayers}명${r.spectators ? ` · 관전 ${r.spectators}` : ''}${r.bots ? ` · ${r.game === 'holdem' ? '상주' : '봇'} ${r.bots}` : ''}</small></div>
     <div class="lr-btns">
       <button class="btn btn-sm btn-outline" data-watch="${esc(r.code)}">관전</button>
       ${canJoin ? `<button class="btn btn-sm btn-gold" data-enter="${esc(r.code)}">${r.phase === 'playing' ? '참가 신청' : '참가'}</button>` : ''}
@@ -1492,6 +1687,7 @@ function startRoomList(game) {
 
 function renderGameHome() {
   const g = S.game || 'holdem';
+  if (g === 'holdem') { renderHoldemLobby(); return; }
   const info = GAME_INFO[g];
   $app.innerHTML = `
   <main class="home game-home">
@@ -1709,6 +1905,13 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <label class="field"><span>최대 인원 <small class="muted">(토너먼트는 30명까지)</small></span><input class="input" type="number" inputmode="numeric" name="maxPlayers" min="2" max="30" value="${s.maxPlayers}"></label>
   </div>
   <fieldset class="fieldset chips-only cash-only">
+    <legend>게임 시간 · 정산</legend>
+    <label class="field"><span>게임 시간 <small class="muted">(지나면 그 판이 끝난 뒤 자동으로 정산)</small></span>
+      <select class="input" name="sessionMinutes">${[[0, '정하지 않음 (방장이 끝낼 때 정산)'], [30, '30분'], [60, '1시간'], [90, '1시간 30분'], [120, '2시간'], [180, '3시간']].map(([v, t]) => `<option value="${v}" ${Number(s.sessionMinutes || 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <div class="field"><span>정산 환산 <small class="muted">(선택 · 친구끼리 정한 값을 정산표에 같이 보여 줘요)</small></span>
+      <div class="settle-rate">칩 <input class="input" type="number" inputmode="numeric" name="settlePer" min="1" value="${s.settlePer || 1000}"> = <input class="input" type="number" inputmode="numeric" name="settleValue" min="0" value="${s.settleValue || ''}" placeholder="0"> <input class="input" name="settleUnit" maxlength="6" value="${esc(s.settleUnit || '')}" placeholder="단위"></div></div>
+  </fieldset>
+  <fieldset class="fieldset chips-only cash-only">
     <legend>리바인</legend>
     <label class="switch"><input type="checkbox" name="rebuyEnabled" ${s.rebuyEnabled ? 'checked' : ''}><span>리바인 허용</span></label>
     <div class="grid2">
@@ -1794,6 +1997,7 @@ function readSettings(form) {
     reentryLevels: num('reentryLevels') || 0, blindLevels: String(fd.get('blindLevels') || '').trim(),
     prizes: [0, 1, 2, 3].map((i) => String(fd.get('prize' + i) || '').trim()),
     tableSize: num('tableSize') || 9,
+    sessionMinutes: num('sessionMinutes') || 0, settlePer: num('settlePer') || 1000, settleValue: num('settleValue') || 0, settleUnit: String(fd.get('settleUnit') || '').trim(),
     ...(fd.get('game') ? { game: fd.get('game') } : {}),
     cards: Number(fd.get('cards')) === 3 ? 3 : 2,
     sdOpen: fd.get('sdOpen') === 'none' ? 'none' : 'one',
@@ -2086,6 +2290,7 @@ function renderLobby() {
       <button class="btn btn-sm btn-ghost" id="chart-btn">족보표</button>
     </header>
     ${guestNudgeHTML(st)}
+    ${st.room.settlement ? settlementHTML(st.room.settlement, isHost) : ''}
     <section class="panel">
       <h2 class="sec-title">친구 초대</h2>
       ${inviteHTML(st.room.code)}
@@ -2123,6 +2328,8 @@ function renderLobby() {
   </main>`;
   bindInvite($app, st.room.code);
   bindCommon();
+  const cp = $app.querySelector('#settle-copy');
+  if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(settlementText(st.room.settlement)); toast('정산표를 복사했어요 · 단톡방에 붙여 넣어 보세요', 'ok'); } catch { toast('복사하지 못했어요', 'error'); } };
   RK.fitNames($app);
   RK.refreshRoom(st);
   $app.querySelectorAll('[data-approve]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.approve, ok: true }); });
@@ -2154,6 +2361,30 @@ function seatMapHTML(st) {
     const me = p && st.me && p.id === st.me.id;
     return `<button type="button" class="sm-seat ${p ? 'taken' : ''} ${me ? 'me' : ''}" ${p ? 'disabled' : `data-sit="${seat}"`} style="left:${xy.x}%;top:${xy.y}%">${p ? `${avatarHTML(p, 'avatar-sm')}<b>${esc(p.name)}</b>` : `<span>${seat + 1}</span><small>빈자리</small>`}</button>`;
   }).join('')}</div>`;
+}
+
+// ── 정산표 ──
+const settleMoney = (chips, v) => (v ? `${Math.round((chips / v.per) * v.value).toLocaleString('ko-KR')}${esc(v.unit)}` : '');
+function settlementHTML(x, isHost) {
+  const v = x.value;
+  const cls = (n) => (n > 0 ? 'plus' : n < 0 ? 'minus' : '');
+  return `<section class="panel settle">
+    <div class="sec-head"><h2 class="sec-title">정산 결과</h2><small class="muted">${x.hands}판 · ${hhmm(x.at)}${x.reason ? ` · ${esc(x.reason)}` : ''}</small></div>
+    <table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>최종 칩</th><th>손익</th>${v ? `<th>${esc(v.unit) || '환산'}</th>` : ''}</tr></thead><tbody>
+    ${x.rows.map((r) => `<tr><td>${esc(r.name)}${r.left ? ' <small class="muted">중간에 나감</small>' : ''}</td><td>${fmt(r.buyIn)}</td><td>${fmt(r.out)}</td><td class="${cls(r.net)}">${signed(r.net)}</td>${v ? `<td class="${cls(r.net)}">${r.net > 0 ? '+' : r.net < 0 ? '−' : ''}${settleMoney(Math.abs(r.net), v)}</td>` : ''}</tr>`).join('')}
+    </tbody></table>
+    ${x.transfers.length ? `<h3 class="sub-title">누가 누구에게</h3><ul class="settle-list">${x.transfers.map((t) => `<li><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b><span>${fmt(t.chips)}칩${v ? ` · ${settleMoney(t.chips, v)}` : ''}</span></li>`).join('')}</ul>` : '<p class="muted small">모두 본전이에요!</p>'}
+    ${v ? `<p class="muted tiny">환산: 칩 ${fmt(v.per)} = ${fmt(v.value)}${esc(v.unit)} (방장이 정한 값을 보여 주기만 해요. 이 앱에는 돈을 주고받는 기능이 없어요)</p>` : ''}
+    <button class="btn btn-gold" id="settle-copy">정산표 복사하기</button>
+    ${isHost ? '<p class="muted tiny">방장: 다시 시작하면 정산표는 사라지고 새 게임이 시작돼요</p>' : ''}
+  </section>`;
+}
+function settlementText(x) {
+  const v = x.value;
+  const lines = [`[찬덤 홀덤 정산] ${x.hands}판`];
+  for (const r of x.rows) lines.push(`${r.name}: ${signed(r.net)}칩${v ? ` (${r.net >= 0 ? '+' : '−'}${settleMoney(Math.abs(r.net), v)})` : ''}`);
+  if (x.transfers.length) { lines.push('— 보내기 —'); for (const t of x.transfers) lines.push(`${t.from} → ${t.to} ${fmt(t.chips)}칩${v ? ` (${settleMoney(t.chips, v)})` : ''}`); }
+  return lines.join('\n');
 }
 
 function playerRowHTML(p, st, isHost) {
@@ -2408,7 +2639,7 @@ function renderTop(st) {
   if (holdem) {
     const tn = st.room.tournament;
     const mid = tn && tn.running ? `<b>레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)}${st.room.settings.ante === 'bb' ? ' · 앤티' : ''}</b><small>${tn.paused ? '⏸ 멈춤' : `다음 <i data-level-at="${tn.nextAt}">-</i>`}</small>`
-      : `<b>${fmt(st.room.settings.sb)}/${fmt(st.room.settings.bb)}${st.room.settings.ante === 'bb' ? ' · 앤티' : ''}</b><small>방 ${esc(st.room.code)}${st.room.handNo ? ` · ${st.room.handNo}번째 판` : ''}</small>`;
+      : `<b>${st.room.practiceTable ? esc(st.room.practiceTable) + ' · ' : ''}${fmt(st.room.settings.sb)}/${fmt(st.room.settings.bb)}${st.room.settings.ante === 'bb' ? ' · 앤티' : ''}</b><small>${st.room.endsAt ? `⏰ 정산까지 <i data-level-at="${st.room.endsAt}">-</i>` : `${st.room.practiceTable ? '연습 테이블' : `방 ${esc(st.room.code)}`}${st.room.handNo ? ` · ${st.room.handNo}번째 판` : ''}`}</small>`;
     el.innerHTML = `
       <button class="tb-ico" id="menu-btn" aria-label="메뉴">${TI.menu}${pendingCount ? `<span class="dot">${pendingCount}</span>` : ''}</button>
       <div class="tb-mid">${mid}</div>
@@ -3285,7 +3516,7 @@ async function openHistory(tab = S.histTab || 'hands') {
       const L = ((r && r.ledger) || []).slice().sort((a, b) => (b.stack - b.buyIn) - (a.stack - a.buyIn));
       body = L.length ? `<table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>지금 칩</th><th>손익</th><th>판(VPIP)</th></tr></thead><tbody>${L.map((p) => {
         const net = p.buyIn ? p.stack - p.buyIn : 0;
-        return `<tr><td>${esc(p.name)}${p.isBot ? ' <small class="muted">AI</small>' : ''}${p.leaving ? ' <small class="muted">나감</small>' : ''}${p.rebuys ? ` <small class="muted">리바인 ${p.rebuys}</small>` : ''}</td><td>${fmt(p.buyIn)}</td><td>${fmt(p.stack)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${p.buyIn ? signed(net) : '-'}</td><td>${p.rs ? `${p.rs.hands}${p.rs.hands ? ` (${Math.round((p.rs.vpip / p.rs.hands) * 100)}%)` : ''}` : '0'}</td></tr>`;
+        return `<tr><td>${esc(p.name)}${p.isBot ? ' <small class="muted">상주</small>' : ''}${p.leaving ? ' <small class="muted">나감</small>' : ''}${p.rebuys ? ` <small class="muted">리바인 ${p.rebuys}</small>` : ''}</td><td>${fmt(p.buyIn)}</td><td>${fmt(p.stack)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${p.buyIn ? signed(net) : '-'}</td><td>${p.rs ? `${p.rs.hands}${p.rs.hands ? ` (${Math.round((p.rs.vpip / p.rs.hands) * 100)}%)` : ''}` : '0'}</td></tr>`;
       }).join('')}</tbody></table><p class="muted tiny">VPIP: 프리플랍에 스스로 칩을 넣은(콜·레이즈) 판의 비율</p>` : '<p class="muted">아직 기록이 없어요</p>';
     } else {
       const feed = (S.state.feed || []).slice().reverse();
@@ -3331,7 +3562,7 @@ function openMenuModal() {
       <section><h3 class="sub-title">방 설정</h3>${settingsSummaryHTML(st.room.settings)}</section>
       <div class="stack">
         ${!inHand && !me.masterPeek ? `<button class="btn btn-outline" data-m="role">${me.role === 'player' ? '관전으로 바꾸기' : '참가자로 앉기'}</button>` : ''}
-        ${isHost ? '<button class="btn btn-outline" data-m="end">게임 끝내고 대기실로</button>' : ''}
+        ${isHost ? `<button class="btn btn-outline" data-m="end">${st.room.tournament ? '게임 끝내고 대기실로' : '게임 끝내고 정산하기'}</button>` : ''}
         <button class="btn btn-outline danger" data-m="leave">방 나가기</button>
         ${P.roomMasterHTML()}
       </div>
@@ -3352,7 +3583,7 @@ function openMenuModal() {
         if (m === 'sitin') await emit('game:sitin');
         if (m === 'sitout') await emit('game:sitout');
         if (m === 'role') await emit('lobby:role', { spectator: me.role === 'player' });
-        if (m === 'end') { if (!confirm('게임을 끝내고 대기실로 돌아갈까요?')) return; await emit('host:end'); }
+        if (m === 'end') { if (!confirm(st.room.tournament ? '게임을 끝내고 대기실로 돌아갈까요?' : '게임을 끝내고 정산할까요? (모두 대기실로 돌아가 정산표를 봐요)')) return; await emit('host:end'); }
         if (m === 'leave') { await leaveRoom(); return; }
         closeModal();
       };

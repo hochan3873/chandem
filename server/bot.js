@@ -6,15 +6,18 @@
 const { newDeck, bestHand, compareScore, rankValue } = require('./engine/cards');
 
 // 타짜 인물 · 캐릭터 그림(남 a1 a3 a5 a7, 여 a2 a4 a6 a8)과 성격을 맞춘다
+// 상주 플레이어: 귀여운 동물 친구들 (그림 a1~a10 과 같은 동물 · 성격도 저마다)
 const BOTS = [
-  { name: '평경장', avatar: 5, style: 0 },
-  { name: '정마담', avatar: 8, style: 2 },
-  { name: '아귀', avatar: 1, style: 1 },
-  { name: '화란', avatar: 2, style: 2 },
-  { name: '고니', avatar: 7, style: 1 },
-  { name: '미나', avatar: 4, style: 0 },
-  { name: '짝귀', avatar: 3, style: 0 },
-  { name: '마돈나', avatar: 6, style: 1 },
+  { name: '냥프로', avatar: 1, style: 0 },
+  { name: '시바사장', avatar: 2, style: 1 },
+  { name: '판다형님', avatar: 3, style: 2 },
+  { name: '토순이', avatar: 4, style: 0 },
+  { name: '여우신', avatar: 5, style: 1 },
+  { name: '코알라', avatar: 6, style: 2 },
+  { name: '펭펭', avatar: 7, style: 0 },
+  { name: '호돌이', avatar: 8, style: 1 },
+  { name: '햄찌', avatar: 9, style: 2 },
+  { name: '곰돌이', avatar: 10, style: 0 },
 ];
 const BOT_NAMES = BOTS.map((b) => b.name);
 // 성격: open = 먼저 레이즈하는 패 범위(상위 %), loose = 콜 여유, aggro = 베팅 빈도, bluff = 블러핑 빈도
