@@ -1829,3 +1829,28 @@ body[data-theme="holdem"] .game-home .gh-shade, body[data-theme="holdem"] .game-
 .inst-ask img { border-radius: 18px; box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
 .inst-ask p { margin: 0; line-height: 1.5; }
 .inst-ask .btn { width: 100%; }
+
+/* 찬덤 홀덤 로비 채우기: 금빛 제목 · 오늘의 팁 · 상주 플레이어 · 최근 10판 */
+.hl-lobby .gh-title h1 { font-family: 'Noto Serif KR', serif; font-weight: 900; letter-spacing: -.01em; background: linear-gradient(180deg, #fff6d5 0%, #ffd66b 45%, #c8862a 70%, #ffe7a3 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; text-shadow: none; filter: drop-shadow(0 2px 0 #5a1a08) drop-shadow(0 8px 16px rgba(0, 0, 0, .7)); }
+.hl-lobby .gh-title p { font-weight: 700; color: #fff3d6; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
+.hl-tip { display: flex; gap: 10px; align-items: flex-start; }
+.hl-tip .tip-ico { font-size: 1.6rem; line-height: 1; }
+.hl-tip b { color: #ffe8a8; font-size: .9rem; }
+.hl-tip p { margin: 3px 0 0; font-size: .86rem; line-height: 1.5; color: rgba(255, 244, 228, .9); }
+.hl-res { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.hl-res::-webkit-scrollbar { display: none; }
+.hr-card { flex: none; width: 112px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 8px; border-radius: 16px; background: linear-gradient(180deg, rgba(90, 24, 30, .75), rgba(30, 8, 8, .9)); border: 1px solid rgba(255, 220, 150, .22); text-align: center; }
+.hr-card img { width: 66px; height: 66px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px rgba(255, 224, 138, .8), 0 4px 10px rgba(0, 0, 0, .5); }
+.hr-card b { font-size: .88rem; color: #fff; }
+.hr-card small { font-size: .66rem; line-height: 1.35; color: rgba(255, 230, 200, .7); }
+.hr-style { font-size: .64rem; font-weight: 900; padding: 1px 7px; border-radius: 99px; }
+.hr-tight { background: rgba(110, 200, 255, .18); color: #9fdcff; }
+.hr-aggro { background: rgba(255, 110, 90, .2); color: #ff9c8a; }
+.hr-loose { background: rgba(140, 230, 140, .18); color: #a6f0a6; }
+.hl-recent { flex-basis: 100%; display: flex; gap: 3px; margin-top: 2px; }
+.hl-recent i { width: 9px; height: 9px; border-radius: 50%; }
+.hl-recent i.w { background: #6fe08a; box-shadow: 0 0 6px rgba(111, 224, 138, .7); }
+.hl-recent i.l { background: rgba(255, 255, 255, .2); }
+.hl-more { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.hl-more .btn { font-size: .84rem; padding-left: 4px; padding-right: 4px; }
+.hl-more .btn { border: 1px solid rgba(255, 220, 150, .35) !important; background: rgba(0, 0, 0, .25) !important; color: #ffe8a8 !important; }

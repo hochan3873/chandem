@@ -5,7 +5,7 @@ export function init(ctx) { C = ctx; }
 // 등급 아이콘: 이름(crown·trophy…) → 그린 아이콘 (이모지는 쓰지 않음)
 const ico = (name, cls = 'hic-sm') => (/^[a-z_]+$/.test(String(name || '')) ? `<i class="hic hic-${name} ${cls}" aria-hidden="true"></i>` : '');
 
-const GAME_NAME = { holdem: '♠ 텍사스 홀덤', seotda: '섯다', omok: '오목' };
+const GAME_NAME = { holdem: '♠ 찬덤 홀덤', seotda: '섯다', omok: '오목' };
 const LADDER = {
   holdem: '브론즈 칩 → 실버 → 골드 → 플래티넘 → 다이아 → 하이롤러 → 레전드',
   seotda: '초짜 → 선수 → 꾼 → 고수 → 명인 → 신의 손',

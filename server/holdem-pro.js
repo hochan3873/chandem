@@ -23,8 +23,8 @@ const SAVE_MS = 4000;
 const TABLES = [
   { id: 'starter', name: '입문 테이블', desc: '처음이라면 여기서', sb: 10, bb: 20, buy: [1000, 4000], seats: 6, style: 'easy' },
   { id: 'town', name: '동네 고수', desc: '6명 · 블라인드 50/100', sb: 50, bb: 100, buy: [5000, 20000], seats: 6 },
-  { id: 'heads', name: '1:1 헤즈업', desc: '상대 한 명과 정면 승부', sb: 25, bb: 50, buy: [2500, 10000], seats: 2 },
-  { id: 'lounge', name: '라운지', desc: '9명 풀링 · 200/400', sb: 200, bb: 400, buy: [20000, 80000], seats: 9 },
+  { id: 'heads', name: '1:1 맞대결', desc: '상대 한 명과 정면 승부', sb: 25, bb: 50, buy: [2500, 10000], seats: 2 },
+  { id: 'lounge', name: '라운지', desc: '9명 큰 테이블 · 200/400', sb: 200, bb: 400, buy: [20000, 80000], seats: 9 },
   { id: 'high', name: '하이롤러', desc: '큰손들만 · 1000/2000', sb: 1000, bb: 2000, buy: [100000, 400000], seats: 6 },
 ];
 

@@ -418,30 +418,29 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     seotda: ['섯다 · 찬이의 게임월드', '링크 누르고 바로 섯다 한 판! 두 장 · 세 장 섯다'],
     omok: ['오목 · 찬이의 게임월드', '링크 누르고 바로 오목 한 판! 친구와 1:1 대국'],
   };
+  // 홀덤 전용 앱: 설치하면 '찬덤 홀덤' 아이콘으로 홀덤 화면이 바로 열림 (앱 범위 /holdem · 방은 /holdem/r/코드)
+  const holdemHtml = (html) => html
+    .replace('href="/manifest.webmanifest"', 'href="/manifest-holdem.webmanifest"')
+    .replace('<link rel="apple-touch-icon" href="/img/gw2-icon-180.png">', '<link rel="apple-touch-icon" href="/img/holdem-icon-180.png">')
+    .replace('<link rel="icon" href="/img/gw2-icon-192.png" type="image/png">', '<link rel="icon" href="/img/holdem-icon-192.png" type="image/png">')
+    .replace('<meta name="apple-mobile-web-app-title" content="게임월드">', '<meta name="apple-mobile-web-app-title" content="찬덤 홀덤">')
+    .replace('<title>찬이의 게임월드</title>', '<title>찬덤 홀덤</title>')
+    .replace('<html lang="ko">', '<html lang="ko" data-app="holdem">');
   app.get(['/holdem', '/seotda', '/omok'], (req, res) => {
     const g = req.path.slice(1);
     const base = (publicUrl || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
     const [title, desc] = GAME_LINK[g];
     let html = indexHtml;
-    if (g === 'holdem') {
-      // 홀덤 전용 앱: 설치하면 '찬덤 홀덤' 아이콘으로 홀덤 화면이 바로 열림
-      html = html
-        .replace('href="/manifest.webmanifest"', 'href="/manifest-holdem.webmanifest"')
-        .replace('<link rel="apple-touch-icon" href="/img/gw2-icon-180.png">', '<link rel="apple-touch-icon" href="/img/holdem-icon-180.png">')
-        .replace('<link rel="icon" href="/img/gw2-icon-192.png" type="image/png">', '<link rel="icon" href="/img/holdem-icon-192.png" type="image/png">')
-        .replace('<meta name="apple-mobile-web-app-title" content="게임월드">', '<meta name="apple-mobile-web-app-title" content="찬덤 홀덤">')
-        .replace('<title>찬이의 게임월드</title>', '<title>찬덤 홀덤</title>')
-        .replace('<html lang="ko">', '<html lang="ko" data-app="holdem">');
-    }
+    if (g === 'holdem') html = holdemHtml(html);
     res.type('html').send(html
       .replace(/(<meta property="og:title" content=")[^"]*/, `$1${escHtml(title)}`)
       .replace(/(<meta property="og:description" content=")[^"]*/, `$1${escHtml(desc)}`)
       .replace(/(<meta property="og:url" content=")[^"]*/, `$1${escHtml(`${base}/${g}`)}`)
       .replace(/(<meta property="og:image" content=")[^"]*/, `$1${escHtml(`${base}/img/${OG_IMG[g]}`)}`));
   });
-  app.get('/r/:code', (req, res) => {
+  app.get(['/r/:code', '/holdem/r/:code'], (req, res) => {
     const r = rooms.get(String(req.params.code).toUpperCase());
-    let html = indexHtml;
+    let html = req.path.startsWith('/holdem/') ? holdemHtml(indexHtml) : indexHtml;
     if (r && r.host) {
       const s = r.settings;
       const title = `${r.host.name}님이 ${{ holdem: '홀덤', seotda: '섯다', omok: '오목' }[s.game] || '게임'} 방에 초대했어요 · ${s.game === 'holdem' || !s.game ? '찬덤 홀덤' : '찬이의 게임월드'}`;

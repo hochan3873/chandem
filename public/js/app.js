@@ -164,7 +164,7 @@ function shareTop() {
   else sharePick();
 }
 const GAME_SHARE = {
-  holdem: ['♠ 텍사스 홀덤', '링크 누르고 바로 홀덤 한 판!'],
+  holdem: ['♠ 찬덤 홀덤', '링크 누르고 바로 홀덤 한 판!'],
   seotda: ['섯다', '링크 누르고 바로 섯다 한 판!'],
   omok: ['오목', '링크 누르고 바로 오목 한 판!'],
 };
@@ -199,7 +199,7 @@ function sharePick() {
   box.innerHTML = `<div class="sp-card"><h3>공유하기</h3>
     <button class="sp-opt" data-sp="gw"><img src="/img/og-gw5.jpg" alt="" draggable="false"><span><b>찬이의 게임월드</b><small>랑방 대전 · 홀덤 · 섯다 · 오목 모음</small></span></button>
     <button class="sp-opt" data-sp="lb"><img src="/img/og-lb5.jpg" alt="" draggable="false"><span><b>랑방 대전</b><small>바로 게임으로 들어오는 링크</small></span></button>
-    <button class="sp-opt" data-sp="holdem"><img src="/img/og-holdem2.jpg" alt="" draggable="false"><span><b>♠ 텍사스 홀덤</b><small>홀덤 화면으로 바로 들어오는 링크</small></span></button>
+    <button class="sp-opt" data-sp="holdem"><img src="/img/og-holdem3.jpg" alt="" draggable="false"><span><b>♠ 찬덤 홀덤</b><small>홀덤 화면으로 바로 들어오는 링크</small></span></button>
     <button class="sp-x" data-sp="x">닫기</button></div>`;
   box.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-sp]');
@@ -359,7 +359,7 @@ async function installApp() {
       <ol class="install-steps">
         <li>화면 아래(또는 위)의 <b>공유 버튼</b> <span class="ios-share">⬆︎</span> 을 눌러요</li>
         <li>목록을 내려서 <b>「홈 화면에 추가」</b>를 눌러요</li>
-        <li>오른쪽 위 <b>추가</b>를 누르면 바탕화면에 찬이의 게임월드 앱이 생겨요</li>
+        <li>오른쪽 위 <b>추가</b>를 누르면 바탕화면에 ${APP_NAME} 앱이 생겨요</li>
       </ol>
       <p class="muted small">아이폰은 애플 정책상 버튼 하나로 바로 설치할 수 없어요. 사파리에서 해 주세요.</p>${ICON_NOTE}`);
     return;
@@ -368,9 +368,9 @@ async function installApp() {
     <ol class="install-steps">
       <li>크롬 오른쪽 위 <b>⋮</b> 메뉴를 눌러요</li>
       <li><b>「앱 설치」</b> 또는 <b>「홈 화면에 추가」</b>를 눌러요</li>
-      <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 찬이의 게임월드가 생겨요</li>
+      <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 ${APP_NAME}가 생겨요</li>
     </ol>
-    <p class="muted small">이미 설치했다면 바탕화면의 찬이의 게임월드 아이콘으로 열어 주세요.</p>${ICON_NOTE}`);
+    <p class="muted small">이미 설치했다면 바탕화면의 ${APP_NAME} 아이콘으로 열어 주세요.${HOLDEM_APP ? ' 찬이의 게임월드를 깔았어도 찬덤 홀덤은 따로 설치할 수 있어요.' : ''}</p>${ICON_NOTE}`);
 }
 document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); });
 
@@ -456,6 +456,8 @@ const H = { url: location.pathname + location.search, armed: false, gesture: fal
   } catch {}
 })();
 function nav(url) {
+  // 찬덤 홀덤 앱은 범위가 /holdem 이라 그 안의 주소로 (밖으로 나가면 주소창이 생김)
+  if (HOLDEM_APP) { if (url === '/') url = '/holdem'; else if (url.startsWith('/r/')) url = '/holdem' + url; }
   H.url = url;
   try { history.replaceState(history.state, '', url); } catch {}
 }
@@ -474,7 +476,7 @@ function armGuard(e) {
 // 처음부터 보호를 걸어 둔다 (한 번 누르기 전이면 브라우저가 건너뛸 수도 있어서, 누를 때 다시 확인). 종료 직후 돌아온 화면은 제외
 if (!H.exitHint) armGuard();
 function routeCode() {
-  const m = location.pathname.match(/^\/r\/([A-Za-z0-9]{4,8})/);
+  const m = location.pathname.match(/^(?:\/holdem)?\/r\/([A-Za-z0-9]{4,8})/);
   return m ? m[1].toUpperCase() : null;
 }
 
@@ -552,6 +554,32 @@ function myAvatarSrc() {
   if (a === 'photo' && ph) return ph;
   return `/img/avatars/a${Number(a) >= 1 && Number(a) <= AVATAR_COUNT ? Number(a) : 1}.webp?v=2`;
 }
+// 연습 테이블 상주 플레이어 (서버 bot.js 의 BOTS 와 같은 순서·그림)
+const RESIDENTS = [
+  ['냥프로', 1, '신중', '좋은 패가 올 때까지 기다리는 고양이 프로'], ['시바사장', 2, '공격', '레이즈부터 하고 보는 시바 사장님'], ['판다형님', 3, '콜 많음', '웬만하면 따라오는 느긋한 판다'],
+  ['토순이', 4, '신중', '조용하지만 쇼다운에선 무서운 토끼'], ['여우신', 5, '공격', '블러핑의 신, 여우'], ['코알라', 6, '콜 많음', '끝까지 따라가 보는 코알라'],
+  ['펭펭', 7, '신중', '선글라스 뒤로 패를 숨기는 펭귄'], ['호돌이', 8, '공격', '칩을 걸면 물러서지 않는 호랑이'], ['햄찌', 9, '콜 많음', '작은 팟도 놓치지 않는 햄스터'], ['곰돌이', 10, '신중', '묵직하게 기다리는 곰'],
+];
+// 오늘의 홀덤 팁 (날마다 바뀜)
+const HOLDEM_TIPS = [
+  '딜러 자리(버튼)는 가장 늦게 행동해서 제일 유리해요. 여기선 더 넓게 들어가도 돼요.',
+  '들어갈 땐 콜보다 레이즈! 먼저 레이즈하면 상대가 접어서 바로 이길 수도 있어요.',
+  '팟 오즈: 콜할 금액 ÷ (팟 + 콜할 금액). 내 승률이 이보다 높으면 콜해도 손해가 아니에요.',
+  '플랍에서 플러시 드로우(같은 무늬 4장)는 리버까지 약 35% 완성돼요.',
+  '양쪽 스트레이트 드로우(예: 5-6-7-8)는 리버까지 약 31% 완성돼요.',
+  '큰 판을 진 직후엔 한두 판 쉬어 가요. 흔들릴 때 막 치면 칩이 더 새요.',
+  '포켓 페어가 플랍에서 트리플이 될 확률은 약 12%예요.',
+  '상대가 갑자기 크게 걸면 강한 패일 때가 많아요. 내 패가 애매하면 접는 것도 실력!',
+  '같은 패라도 자리가 앞일수록(먼저 행동할수록) 더 좁게 들어가요.',
+  'A-K는 강하지만 아직 완성된 패가 아니에요. 플랍에서 못 맞으면 무리하지 마세요.',
+  '블러핑은 상대가 한두 명일 때, 보드가 무서울 때 잘 통해요.',
+  '스몰 블라인드 자리는 플랍 뒤 먼저 행동해서 불리해요. 애매한 패는 접어요.',
+];
+const todayTip = () => HOLDEM_TIPS[Math.floor((Date.now() + 9 * 3600e3) / 86400e3) % HOLDEM_TIPS.length];
+function residentsHTML() {
+  return `<div class="hl-res">${RESIDENTS.map(([n, a, st, d]) => `<div class="hr-card"><img src="/img/avatars/a${a}.webp?v=2" alt="" loading="lazy"><b>${n}</b><span class="hr-style hr-${st === '신중' ? 'tight' : st === '공격' ? 'aggro' : 'loose'}">${st}</span><small>${d}</small></div>`).join('')}</div>`;
+}
+const recentDots = (s) => (s ? `<span class="hl-recent" title="최근 10판">${[...s].map((c) => `<i class="${c === 'W' ? 'w' : 'l'}"></i>`).join('')}</span>` : '');
 function hlMeHTML(me) {
   if (!me) return '<p class="muted small">불러오는 중…</p>';
   const ev = me;
@@ -559,7 +587,7 @@ function hlMeHTML(me) {
   return `<div class="hl-me-top">
       <img class="hl-av" src="${myAvatarSrc()}" alt="">
       <div class="hl-who"><b>${name}</b>${tierBadge(ev.tier)}${ev.tier ? `<small class="hl-score">${ev.score}점</small>` : ''}
-        <span class="hl-sub">${ev.placement ? `배치까지 ${ev.placement}판` : `${ev.rank ? `전체 ${fmt(ev.rank.rank)}위 · ` : ''}${fmt(ev.stats.hands)}판 · 승률 ${ev.stats.winRate}%`}${ev.style ? ` · ${esc(ev.style)}` : ''}</span></div>
+        <span class="hl-sub">${ev.placement ? `배치까지 ${ev.placement}판` : `${ev.rank ? `전체 ${fmt(ev.rank.rank)}위 · ` : ''}${fmt(ev.stats.hands)}판 · 승률 ${ev.stats.winRate}%`}${ev.style ? ` · ${esc(ev.style)}` : ''}</span>${recentDots(me.recent)}</div>
       <button class="hl-ana" id="hl-ana" type="button">실력<br>분석</button>
     </div>
     <div class="hl-wallet">
@@ -659,7 +687,8 @@ async function loadHoldemLobby() {
 }
 // 앱 설치 권하기: 홀덤 로비를 설치 안 한 브라우저로 열면 하루 한 번
 function maybeInstallPrompt() {
-  if (isStandalone() || IS_KAKAO || S.installAsked) return;
+  if ((isStandalone() && HOLDEM_APP) || IS_KAKAO || S.installAsked) return;
+  const inGw = isStandalone() && !HOLDEM_APP; // 찬이의 게임월드 앱 안: 홀덤 앱을 따로 깔 수 있게
   const day = new Date().toISOString().slice(0, 10);
   if (LS.get('chandem:installAsk', '') === day) return;
   S.installAsked = true;
@@ -667,9 +696,9 @@ function maybeInstallPrompt() {
     if (S.view !== 'gamehome' || document.querySelector('#modal-root .modal')) return;
     LS.set('chandem:installAsk', day);
     openModal('찬덤 홀덤 앱 설치', `<div class="inst-ask"><img src="/img/holdem-icon-192.png" alt="" width="72" height="72">
-      <p><b>홈 화면에 앱으로 설치</b>하면 주소창 없이 전체 화면으로, 링크 없이 바로 열려요. 설치는 몇 초면 끝나요.</p>
+      <p>${inGw ? '찬이의 게임월드와 따로, <b>홀덤만 바로 여는 앱</b>을 하나 더 설치할 수 있어요. 바탕화면에 「찬덤 홀덤」 아이콘이 생겨요.' : '<b>홈 화면에 앱으로 설치</b>하면 주소창 없이 전체 화면으로, 링크 없이 바로 열려요. 설치는 몇 초면 끝나요.'}</p>
       <button class="btn btn-gold btn-lg" id="ia-go">지금 설치하기</button><button class="btn btn-ghost" id="ia-no">다음에</button></div>`, (b) => {
-      b.querySelector('#ia-go').onclick = () => { closeModal(); installApp(); };
+      b.querySelector('#ia-go').onclick = () => { closeModal(); if (inGw || !HOLDEM_APP) installHoldemApp(); else installApp(); };
       b.querySelector('#ia-no').onclick = () => closeModal();
     });
   }, 1800);
@@ -688,9 +717,11 @@ function renderHoldemLobby() {
       <button class="btn btn-outline btn-lg" id="go-create">친구와 방 만들기</button>
     </div>
     <section class="panel"><div class="sec-head"><h2 class="sec-title">연습 테이블</h2><small class="muted">상주 플레이어와 · 내 칩으로</small></div><div class="hl-tables" id="hl-tables"><p class="muted small">불러오는 중…</p></div></section>
+    <section class="panel hl-tip"><span class="tip-ico">💡</span><div><b>오늘의 홀덤 팁</b><p>${esc(todayTip())}</p></div></section>
+    <section class="panel"><div class="sec-head"><h2 class="sec-title">상주 플레이어</h2><small class="muted">연습 테이블에서 만나요</small></div>${residentsHTML()}</section>
     <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">지금 열린 홀덤 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
     <section class="panel"><div class="sec-head"><h2 class="sec-title">티어 순위</h2><small class="muted">연습 테이블 실력 점수</small></div><div id="hl-rank-box"><p class="muted small">불러오는 중…</p></div></section>
-    <div class="row hl-more"><button class="btn btn-ghost grow" id="go-rules">게임 방법</button><button class="btn btn-ghost grow" id="go-practice">토너먼트 연습 (칩 안 씀)</button></div>
+    <div class="hl-more"><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" id="go-practice">토너먼트 연습</button></div>
     <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
   </main>`;
   bindCommon();
@@ -703,7 +734,8 @@ function renderHoldemLobby() {
   if (ab) ab.onclick = () => (S.user ? openProfile() : openLogin());
   $app.querySelector('#go-create').onclick = () => { nav('/'); S.view = 'create'; render(); };
   $app.querySelector('#go-practice').onclick = () => { nav('/'); S.view = 'practice'; render(); };
-  $app.querySelector('#go-rules').onclick = () => openModal('텍사스 홀덤 게임 방법', `<div class="rules">${GAME_RULES.holdem}</div>`);
+  $app.querySelector('#go-rules').onclick = () => openModal('찬덤 홀덤 게임 방법', `<div class="rules">${GAME_RULES.holdem}</div>`);
+  $app.querySelector('#go-chart').onclick = () => openModal('족보표', handChartHTML(), null, { wide: true });
   $app.querySelector('#hl-quick').onclick = () => {
     const r = S.hl;
     if (!r || !r.ok) return;
@@ -918,7 +950,7 @@ async function openProfile() {
     <div class="stat-card"><h3>오목</h3>
       <div class="stat-grid"><span>대국</span><b>${fmt(o.games)}</b><span>승 / 패 / 무</span><b>${o.wins} / ${o.losses} / ${o.draws}</b>
       <span>승률</span><b>${pct(o.wins, o.games)}</b><span>연속</span><b>${o.streak > 0 ? `${o.streak}연승 ` : o.streak < 0 ? `${-o.streak}연패` : '-'}</b></div></div>
-    ${game(s.holdem, '♠ 텍사스 홀덤')}
+    ${game(s.holdem, '♠ 찬덤 홀덤')}
     ${game(s.seotda, '섯다')}
     ${s.langbang ? `<div class="stat-card"><h3>랑방 대전 · Lv.${s.langbang.level}</h3>
       <div class="stat-grid"><span>최고 스테이지</span><b>${s.langbang.maxStage ? `${Math.ceil(s.langbang.maxStage / 10)}-${((s.langbang.maxStage - 1) % 10) + 1} · ★${fmt(s.langbang.totalStars || 0)}` : '-'}</b><span>무한 도전</span><b>${s.langbang.bestWave ? `W${fmt(s.langbang.bestWave)} · ${fmt(s.langbang.bestScore)}점` : '-'}</b>
@@ -1574,7 +1606,7 @@ function logoHTML(small = false) {
 
 const GAME_INFO = {
   langbang: { name: '랑방 대전', icon: '', sub: '스테이지 디펜스 · 30스테이지 · 랭킹', tag: '우리 모임에 쳐들어오는 진상들을 때려잡자', href: '/langbang/', best: true },
-  holdem: { name: '텍사스 홀덤', icon: '♠', sub: '노리밋 홀덤 · 토너먼트', tag: '카드 2장 + 바닥 5장, 최고의 5장으로 승부' },
+  holdem: { name: '찬덤 홀덤', icon: '♠', sub: '노리밋 홀덤 · 연습 테이블 · 실력 티어', tag: '카드 2장 + 바닥 5장, 최고의 5장으로 승부' },
   seotda: { name: '섯다', icon: '', sub: '화투 두 장 · 광땡 · 땡잡이', tag: '두 장의 화투로 끗발 대결, 기세로 밀어붙여라' },
   omok: { name: '오목', icon: '', sub: '1:1 대국 · AI · 티어', tag: '다섯 알을 먼저 잇는 사람이 승리' },
 };
@@ -1699,7 +1731,7 @@ function renderGameHome() {
     </div>
     <section class="panel">
       <button class="btn btn-gold btn-lg" id="go-create">친구와 방 만들기</button>
-      <button class="btn btn-outline btn-lg" id="go-practice">${g === 'omok' ? 'AI와 대국하기' : 'AI와 연습하기'}</button>
+      <button class="btn btn-outline btn-lg" id="go-practice">${g === 'omok' ? '혼자 대국하기' : '혼자 연습하기'}</button>
       <div class="row">
         <button class="btn btn-ghost grow" id="go-rules">게임 방법</button>
         ${g === 'omok' ? '<button class="btn btn-ghost grow" id="go-rank">랭킹</button>' : ''}
@@ -1841,7 +1873,7 @@ function renderHome() {
   };
 }
 
-const GAME_NAMES = { holdem: '♠ 텍사스 홀덤', seotda: '섯다', omok: '오목' };
+const GAME_NAMES = { holdem: '♠ 찬덤 홀덤', seotda: '섯다', omok: '오목' };
 const gameOf = (st) => (st && st.room && st.room.settings && st.room.settings.game) || 'holdem';
 function gamePickHTML(cur, name = 'game') {
   return `<div class="seg game-pick">${Object.entries(GAME_NAMES).map(([k, t]) => `<label class="seg-opt"><input type="radio" name="${name}" value="${k}" ${cur === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>`;
@@ -2054,7 +2086,7 @@ function renderPractice() {
   const cnt = LS.get('chandem:bots', 3);
   $app.innerHTML = `
   <main class="page">
-    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>${S.game ? GAME_INFO[S.game].name + ' · ' : ''}AI와 연습</h1></header>
+    <header class="page-head"><button class="icon-btn" id="back" aria-label="뒤로">←</button><h1>${S.game === 'holdem' ? '토너먼트 연습' : `${S.game ? GAME_INFO[S.game].name + ' · ' : ''}혼자 연습`}</h1></header>
     <form id="practice-form" class="panel form">
       <p class="muted small">친구가 없어도 봇들과 바로 칠 수 있어요. 일반 방식에선 봇 칩이 떨어지면 알아서 다시 채워요.</p>
       <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
