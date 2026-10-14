@@ -184,7 +184,7 @@ input[type=range] { width: 100%; accent-color: var(--gold); height: 32px; }
 .card-lg { --w: 68px; }
 .suit-red { color: #c8202d; }
 .suit-d { color: #1a5fc2; }  /* 4색 덱: 다이아 파랑 */
-.suit-c { color: #16753c; }  /* 4색 덱: 클럽 초록 */
+.suit-c { color: #13873f; }  /* 4색 덱: 클럽 초록 */
 .card-corner { position: absolute; top: 6%; left: 9%; display: flex; flex-direction: column; align-items: center; line-height: .95; }
 .card-corner b { font-size: calc(var(--w) * .36); letter-spacing: -.04em; }
 .card-corner i { font-style: normal; font-size: calc(var(--w) * .28); }
@@ -194,14 +194,14 @@ input[type=range] { width: 100%; accent-color: var(--gold); height: 32px; }
 .card-xs .card-pip { font-size: 14px; }
 .card-back {
   background:
-    repeating-linear-gradient(45deg, rgba(201, 164, 92, .18) 0 2px, transparent 2px 6px),
-    repeating-linear-gradient(-45deg, rgba(201, 164, 92, .18) 0 2px, transparent 2px 6px),
-    linear-gradient(160deg, #173f63, #0b2440);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(255, 255, 255, .85), inset 0 0 0 3px #0b2440;
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, .16) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, .16) 0 2px, transparent 2px 6px),
+    linear-gradient(160deg, #e0414a, #a3162a);  /* 초록 테이블 위에서도 잘 보이게 밝은 빨강 뒷면 */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 2px #fff, inset 0 0 0 3px #a3162a;
 }
 .card-back-mark {
   position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--serif);
-  font-size: calc(var(--w) * .42); color: var(--gold-hi); text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+  font-size: calc(var(--w) * .42); color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
 }
 .card-empty { background: rgba(0, 0, 0, .18); box-shadow: inset 0 0 0 1px rgba(201, 164, 92, .25); }
 .card-hl { box-shadow: 0 0 0 2px var(--gold), 0 0 14px rgba(232, 207, 148, .8); transform: translateY(-3px); }
@@ -263,6 +263,11 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 .table-brand { font-family: var(--serif); font-size: 2rem; color: rgba(232, 207, 148, .35); letter-spacing: .2em; }
 .stage-lbl { font-size: .7rem; letter-spacing: .2em; color: rgba(232, 207, 148, .75); }
 .board { display: flex; gap: 4px; justify-content: center; }
+/* 바닥 카드(플랍·턴·리버)는 1.5배 크게: 폰에서도 한눈에 (친구 피드백) */
+.board .card-md { --w: min(58px, 14.6vw); }
+.table-center:has(.board .card-md) { top: 45.5%; }
+.board .card-md .card-corner b { font-size: calc(var(--w) * .4); }
+@media (min-width: 700px) { .board .card-md { --w: 80px; } }
 .pot { display: inline-flex; align-items: center; gap: 6px; background: rgba(0, 0, 0, .45); padding: 4px 12px; border-radius: 99px; font-size: .85rem; border: 1px solid rgba(201, 164, 92, .35); }
 .side-pots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; font-size: .7rem; color: var(--gold-hi); }
 .side-pots span { background: rgba(0, 0, 0, .35); padding: 2px 7px; border-radius: 99px; }
@@ -361,10 +366,10 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 .raise-adjust { display: flex; justify-content: space-between; }
 
 /* ── 모달 ── */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); z-index: 40; animation: fade .2s ease; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); z-index: 56; animation: fade .2s ease; }
 @keyframes fade { from { opacity: 0; } }
 .modal {
-  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(560px, 100%); max-height: 88dvh; z-index: 41;
+  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(560px, 100%); max-height: 88dvh; z-index: 57;
   background: #0d1f18; border: 1px solid var(--panel-line); border-radius: 18px 18px 0 0; display: flex; flex-direction: column;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, .6); animation: up .25s ease;
 }
@@ -1418,7 +1423,9 @@ html.gw-reduce-motion .hub-card.is-hero .gc-video { display: none; }
 .fx-emote-cry .emote-say { background: #7fb8ff; }
 .fx-emote-clap .emote-say { background: #ffb347; }
 .emote-tray .emote-txt { font: 400 .9rem/1.1 var(--display); white-space: nowrap; }
-.txt-btn { font: 400 .78rem/1 var(--display); letter-spacing: .02em; }
+.txt-btn { font: 400 .78rem/1 var(--display); letter-spacing: .02em; white-space: nowrap; }
+.icon-btn.snd-btn { width: auto; min-width: 40px; padding: 0 7px; }
+.g-top .icon-btn.snd-btn { width: auto; min-width: 36px; }
 .emote-fab { font: 400 .92rem/1 var(--display); letter-spacing: .02em; color: #3a1c00; }
 .burger { display: inline-block; width: 18px; height: 14px; position: relative; border-top: 2px solid currentColor; border-bottom: 2px solid currentColor; vertical-align: middle; }
 .burger i { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: currentColor; }

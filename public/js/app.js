@@ -1530,7 +1530,7 @@ function renderPractice() {
         <div class="seg">${[['easy', '쉬움'], ['normal', '보통'], ['hard', '어려움']].map(([k, t]) => `<label class="seg-opt"><input type="radio" name="ailevel" value="${k}" ${LS.get('chandem:ailevel', 'normal') === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
       </fieldset>
       <fieldset class="fieldset chips-only"><legend>상대 봇 수</legend>
-        <div class="seg">${[1, 2, 3, 4, 5].map((n) => `<label class="seg-opt"><input type="radio" name="bots" value="${n}" ${cnt === n ? 'checked' : ''}><span>${n}명</span></label>`).join('')}</div>
+        <div class="seg">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<label class="seg-opt"><input type="radio" name="bots" value="${n}" ${cnt === n ? 'checked' : ''}><span>${n}명</span></label>`).join('')}</div>
       </fieldset>
       <fieldset class="fieldset chips-only"><legend>시작 칩 · 블라인드</legend>
         <div class="seg">${[[1000, 10, 20], [5000, 25, 50], [10000, 50, 100]].map(([c, sb, bb], i) => `<label class="seg-opt"><input type="radio" name="level" value="${i}" ${i === 0 ? 'checked' : ''}><span>${fmt(c)}<small>${sb}/${bb}</small></span></label>`).join('')}</div>
@@ -1717,7 +1717,7 @@ function renderLobby() {
   <main class="page lobby">
     <header class="page-head">${logoHTML(true)}<div class="spacer"></div>
       ${SHARE_BTN}
-      <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '음소거' : '소리'}</button>
+      <button class="icon-btn txt-btn snd-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '음소거' : '소리'}</button>
       <button class="btn btn-sm btn-ghost" id="chart-btn">족보표</button>
     </header>
     ${guestNudgeHTML(st)}
@@ -1834,17 +1834,19 @@ function openExitMenu() {
   const g = gameOf(st);
   const inHand = st.hand && !st.hand.finished && st.players.some((p) => p.id === me?.id && ['inhand', 'allin'].includes(p.status));
   const canWatch = me && me.role === 'player' && !st.room.practice;
+  // 토너먼트 중(칩이 남은 사람): 관전 대신 '자리 비우기'(칩 그대로) · 나가면 기권
+  const inTourney = !!(st.room.tournament && st.room.tournament.running && me && me.role === 'player' && (me.stack || 0) > 0);
   openModal('게임을 나가시겠습니까?', `
-    <p class="muted small">${inHand ? '진행 중인 판은 다이(폴드) 처리돼요. ' : ''}${st.room.practice ? '연습 방은 나가면 사라져요.' : '방을 나가도 초대 링크로 다시 들어올 수 있어요.'}</p>
+    <p class="muted small">${inHand ? '진행 중인 판은 다이(폴드) 처리돼요. ' : ''}${st.room.practice ? '연습 방은 나가면 사라져요.' : inTourney ? '<b style="color:#ff8a7a">토너먼트 중에 방을 나가면 기권이에요.</b> 칩이 사라지고 지금 순위로 기록돼요. 잠깐 자리를 뜨는 거면 ‘자리 비우기’를 눌러 주세요.' : '방을 나가도 초대 링크로 다시 들어올 수 있어요.'}</p>
     <div class="stack">
-      ${canWatch ? '<button class="btn btn-outline" data-act="watch">관전으로 남기 <small class="muted">(자리만 비우고 구경)</small></button>' : ''}
+      ${canWatch ? (inTourney ? '<button class="btn btn-gold" data-act="watch">자리 비우기 <small class="muted">(칩 그대로 · 차례엔 자동 체크/다이)</small></button>' : '<button class="btn btn-outline" data-act="watch">관전으로 남기 <small class="muted">(자리만 비우고 구경)</small></button>') : ''}
       <button class="btn btn-gold" data-act="lobby">방 나가기 → ${GAME_INFO[g].name} 대기 화면</button>
       <button class="btn btn-ghost" data-act="home">메인으로</button>
       <button class="btn btn-ghost" data-act="stay">계속 있을게요</button>
     </div>`, (body) => {
     body.querySelector('[data-act="stay"]').onclick = closeModal;
     const w = body.querySelector('[data-act="watch"]');
-    if (w) w.onclick = async () => { const r = await emit('lobby:role', { spectator: true }); if (r.ok) { closeModal(); toast(r.later ? '이번 판은 다이, 다음 판부터 관전해요' : '관전으로 바꿨어요. 언제든 다시 앉을 수 있어요', 'ok'); } };
+    if (w) w.onclick = async () => { const r = await emit('lobby:role', { spectator: true }); if (r.ok) { closeModal(); toast(r.sittingOut ? '자리 비움 · 돌아오면 ‘자리로 돌아가기’를 눌러 주세요' : r.later ? '이번 판은 다이, 다음 판부터 관전해요' : '관전으로 바꿨어요. 언제든 다시 앉을 수 있어요', 'ok'); } };
     const out = async (toLobby) => {
       await emit('room:leave');
       LS.del(sessKey(S.code));
@@ -1981,7 +1983,7 @@ function renderTop(st) {
     <button class="icon-btn share-icon" id="share-top" aria-label="초대 링크 공유">${P.hubIcon('link')}</button>
     <button class="btn btn-sm btn-ghost" id="chart-btn">족보표</button>
     <button class="icon-btn txt-btn" id="log-btn" aria-label="베팅 내역">기록</button>
-    <button class="icon-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '음소거' : '소리'}</button>
+    <button class="icon-btn txt-btn snd-btn" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? '음소거' : '소리'}</button>
     <button class="icon-btn" id="menu-btn" aria-label="메뉴"><i class="burger" aria-hidden="true"><i></i></i>${pendingCount ? `<span class="dot">${pendingCount}</span>` : ''}</button>`;
   bindCommon();
   el.querySelector('#log-btn').onclick = openLogModal;
@@ -2008,7 +2010,11 @@ function renderBanner(st) {
   if (st.room.waiting) msgs.push(['info', '카드를 받을 수 있는 참가자가 2명 이상이 되면 다음 판이 시작돼요']);
   const nudge = guestNudgeHTML(st, true);
   const tn = st.room.tournament;
-  if (tn && tn.running) msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · 남은 ${tn.alive}/${tn.entrants}명`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · <b data-level-at="${tn.nextAt}">-</b></span>`]);
+  if (tn && tn.running) {
+    const pauseBtn = me && me.isHost ? `<button class="btn btn-sm ${tn.paused ? 'btn-gold' : 'btn-outline'}" id="pause-btn">${tn.paused ? '▶ 다시 시작' : '⏸ 멈춤'}</button>` : '';
+    msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · 남은 ${tn.alive}/${tn.entrants}명`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '<b>멈춤</b>' : `<b data-level-at="${tn.nextAt}">-</b>`}</span>${pauseBtn}`]);
+    if (tn.paused) msgs.push(['gold', me && me.isHost ? '⏸ 잠깐 멈춤 중 · 블라인드 시계도 멈춰 있어요' : '⏸ 방장이 잠깐 멈췄어요 · 곧 다시 시작해요']);
+  }
   // 방장: 게임 중 들어오고 싶은 사람
   if (me && me.isHost && st.pending) {
     for (const p of st.pending) msgs.push(['gold', p.seat ? `${p.name}님이 관전하다 자리에 앉고 싶어해요` : `${p.name}님이 들어오고 싶어해요`, `<button class="btn btn-sm btn-gold" data-approve="${p.id}">수락</button><button class="btn btn-sm btn-outline" data-reject="${p.id}">거절</button>`]);
@@ -2021,6 +2027,8 @@ function renderBanner(st) {
   el.querySelectorAll('[data-reject]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.reject, ok: false }); });
   const rb = el.querySelector('#rebuy-btn');
   if (rb) rb.onclick = async () => { const r = await emit('game:rebuy'); if (r.ok) toast('리바인 신청 완료! 다음 판부터 적용돼요', 'ok'); };
+  const pb = el.querySelector('#pause-btn');
+  if (pb) pb.onclick = () => emit('host:pause', { on: !(st.room.tournament && st.room.tournament.paused) });
   const si = el.querySelector('#sitin-btn');
   if (si) si.onclick = () => emit('game:sitin');
 }

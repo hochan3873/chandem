@@ -370,6 +370,12 @@ class Room {
     if (!spectator && p.masterPeek) throw new RoomError('운영자 관전으로 들어와서 자리에 앉을 수 없어요');
     if (spectator) {
       if (p.role === 'spectator') return;
+      if (this.phase === 'playing' && this.isTournament && p.role === 'player' && p.stack > 0) {
+        // 토너먼트는 다시 앉을 수 없으니 관전 대신 자리 비움: 칩·자리는 그대로, 차례가 오면 자동 체크/다이
+        this.sitOut(p.id);
+        return { sittingOut: true };
+      }
+      if (this.phase === 'playing' && this.isTournament && p.role === 'player') this.tourneyOut(p);
       if (this.handPlayers.includes(p.id) && this.hand && !this.hand.finished) {
         // 판 도중: 이번 판은 다이하고, 판이 끝나면 관전석으로
         p.pendingSpectate = true;
@@ -544,11 +550,18 @@ class Room {
     }
     if (this.isTournament && this.tourney) {
       // 탈락자 기록(칩이 0이 된 순서대로), 한 명만 남으면 끝
-      for (const p of this.seated) {
-        if (p.stack === 0 && !this.tourney.busted.includes(p.id)) this.tourney.busted.push(p.id);
-      }
+      const prev = this.hand && this.hand.seats ? this.hand.seats : [];
+      const startOf = (id) => { const x = prev.find((q) => q.id === id); return x ? x.startStack : 0; };
+      const newly = this.seated.filter((p) => p.stack === 0 && !this.tourney.busted.includes(p.id));
+      newly.sort((a, b) => startOf(a.id) - startOf(b.id) || a.seat - b.seat);
+      for (const p of newly) this.tourneyOut(p);
       const alive = this.seated.filter((p) => p.stack > 0 && !p.leaving);
       if (alive.length <= 1) { this.finishTournament(alive[0]); return false; }
+      if (this.tourney.pausedAt) {
+        // 방장이 잠깐 멈춤: 판을 돌리지 않고 기다린다 (블라인드 시계도 멈춤)
+        this.hand = null; this.handPlayers = []; this.waiting = true; this.touch();
+        return false;
+      }
       const lvl = Math.floor((this.now() - this.tourney.startedAt) / (this.settings.levelMinutes * 60000));
       if (lvl > this.tourney.level) {
         this.tourney.level = Math.min(lvl, LEVEL_MULT.length - 1);
@@ -737,6 +750,7 @@ class Room {
       case 'bet': return `${n} 베팅 ${amt(e.to)}`;
       case 'raise': return `${n} 레이즈 ${amt(e.to)}까지`;
       case 'allin': return `${n} 올인 (${amt(e.to)})`;
+      case 'return': return `${n} 받는 사람 없는 ${amt(e.amount)} 돌려받음`;
       case 'street': return e.third ? '세 번째 패를 받았어요' : { 3: '플랍', 4: '턴', 5: '리버' }[e.board.length] + ' 공개';
       case 'place': return `${n} ${e.color === 'b' ? '' : ''} ${String.fromCharCode(65 + e.x)}${e.y + 1}`;
       case 'resign': return `${n} 기권`;
@@ -847,13 +861,41 @@ class Room {
 
   get revealing() { return !!(this.reveal && !this.reveal.done && this.hand && this.hand.finished); }
 
+  /** 토너먼트에서 빠지는 사람(탈락·나감·관전): 순위에 남도록 기록 */
+  tourneyOut(p) {
+    const t = this.tourney;
+    if (!t || t.busted.includes(p.id)) return;
+    t.busted.push(p.id);
+    t.names = t.names || {};
+    t.names[p.id] = p.name;
+  }
+
+  /** 토너먼트 잠깐 멈춤 / 다시 시작 (방장) — 진행 중인 판은 끝까지 하고, 그다음 판부터 멈춘다 */
+  setPause(hostId, on) {
+    this.requireHost(hostId);
+    const t = this.tourney;
+    if (this.phase !== 'playing' || !t) throw new RoomError('토너먼트 중에만 멈출 수 있어요');
+    if (on) {
+      if (t.pausedAt) return;
+      t.pausedAt = this.now();
+      this.pushFeed(this.hand && !this.hand.finished ? '⏸ 이번 판이 끝나면 잠깐 멈춰요 (블라인드 시계도 멈춤)' : '⏸ 잠깐 멈춤 (블라인드 시계도 멈춤)');
+    } else {
+      if (!t.pausedAt) return;
+      t.startedAt += this.now() - t.pausedAt; // 멈춘 시간만큼 레벨 시계를 미룬다
+      t.pausedAt = null;
+      this.pushFeed('▶ 다시 시작!');
+      this.maybeStartWaitingHand();
+    }
+    this.touch();
+  }
+
   /** 토너먼트 끝: 순위 정리 후 대기실로 */
   finishTournament(winner) {
     const t = this.tourney;
     const order = [];
     if (winner) order.push(winner.id);
     for (const id of [...t.busted].reverse()) if (!order.includes(id)) order.push(id);
-    t.result = { at: this.now(), ranking: order.map((id, i) => ({ id, name: this.name(id), place: i + 1 })) };
+    t.result = { at: this.now(), ranking: order.map((id, i) => ({ id, name: (this.get(id) && this.get(id).name) || (t.names && t.names[id]) || this.name(id), place: i + 1 })) };
     try { this.onRecord({ game: 'tourney', userIds: this.players.filter((p) => p.userId && order.includes(p.id)).map((p) => p.userId), winnerUserId: winner && winner.userId }); } catch {}
     this.pushFeed(winner ? `${winner.name}님 토너먼트 우승!` : '토너먼트가 끝났어요');
     this.phase = 'lobby';
@@ -985,6 +1027,7 @@ class Room {
       return;
     }
     const inHand = this.hand && !this.hand.finished && this.handPlayers.includes(id);
+    if (this.phase === 'playing' && this.isTournament && p.role === 'player') this.tourneyOut(p);
     if (inHand) {
       p.leaving = true;
       this.hand.forceFold(id);
@@ -1088,7 +1131,7 @@ class Room {
         lastAction: hs ? hs.lastAction : null,
         cards,
         isDealer: p.id === dealerId,
-        isSB: n > 2 && p.id === sbId,
+        isSB: p.id === sbId,
         isBB: p.id === bbId,
         isTurn: h && !h.finished && h.currentId === p.id,
       };
@@ -1207,7 +1250,8 @@ class Room {
       level: lvl + 1,
       sb: cur.sb, bb: cur.bb,
       nextSb: next.sb, nextBb: next.bb,
-      nextAt: t && this.phase === 'playing' ? t.startedAt + (lvl + 1) * this.settings.levelMinutes * 60000 : null,
+      nextAt: t && this.phase === 'playing' ? t.startedAt + (lvl + 1) * this.settings.levelMinutes * 60000 + (t.pausedAt ? this.now() - t.pausedAt : 0) : null,
+      paused: !!(t && t.pausedAt),
       levelMinutes: this.settings.levelMinutes,
       alive: this.seated.filter((p) => p.stack > 0).length,
       entrants: t ? t.entrants : this.seated.length,

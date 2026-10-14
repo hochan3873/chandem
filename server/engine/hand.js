@@ -108,6 +108,8 @@ class Hand {
     const toCall = Math.max(0, this.currentBet - s.bet);
     const maxTo = s.bet + s.stack;
     const reopened = !s.acted || this.currentBet - s.lastActedLevel >= this.minRaise;
+    // 나 말고는 전부 폴드·올인이면 더 올려 봐야 받을 사람이 없다: 콜/폴드만
+    const othersCanAct = this.seats.some((o) => o !== s && !o.folded && !o.allIn);
     const la = {
       toCall,
       callAmount: Math.min(toCall, s.stack),
@@ -127,7 +129,7 @@ class Hand {
       la.canBet = s.stack > 0;
       la.minTo = Math.min(this.bb, maxTo);
       la.canAllIn = s.stack > 0;
-    } else if (s.stack > toCall && reopened) {
+    } else if (s.stack > toCall && reopened && othersCanAct) {
       la.canRaise = true;
       la.minTo = Math.min(this.currentBet + this.minRaise, maxTo);
       la.canAllIn = true;
@@ -264,7 +266,21 @@ class Hand {
     return out;
   }
 
+  /** 아무도 받지 않은 베팅(가장 많이 건 사람이 두 번째보다 더 낸 만큼)은 그 사람에게 돌려준다 */
+  returnUncalled() {
+    const sorted = this.seats.slice().sort((a, b) => b.contributed - a.contributed);
+    const top = sorted[0];
+    const excess = top.contributed - (sorted[1] ? sorted[1].contributed : 0);
+    if (excess <= 0) return;
+    top.contributed -= excess;
+    top.bet = Math.max(0, top.bet - excess);
+    top.stack += excess;
+    if (top.stack > 0) top.allIn = false;
+    this.pushLog({ type: 'return', id: top.id, amount: excess });
+  }
+
   finishByFold() {
+    this.returnUncalled();
     const pots = buildPots(this.seats);
     const winner = this.live[0];
     const { payouts, potResults } = distribute(pots, () => 0, () => 0, this.orderFromButton());
@@ -273,6 +289,7 @@ class Hand {
 
   showdown() {
     this.stage = 'showdown';
+    this.returnUncalled();
     const hands = {};
     for (const s of this.live) {
       const b = bestHand(s.hole.concat(this.board));
