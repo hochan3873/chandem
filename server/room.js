@@ -23,6 +23,10 @@ const DEFAULT_SETTINGS = {
   aiLevel: 'normal',     // 오목 AI: easy | normal | hard
   mode: 'cash',          // cash | tournament
   levelMinutes: 5,       // 토너먼트 블라인드가 오르는 간격(분)
+  blindLevels: [],       // 토너먼트 블라인드 표 직접 지정 [[sb, bb], ...] (비우면 자동)
+  ante: 'none',          // none | bb (BB 앤티: 빅 블라인드 자리가 BB만큼 앤티)
+  timeBank: 30,          // 1인 타임뱅크(초): 턴 시간이 끝나면 자동으로 이어서 씀 (0 = 없음)
+  reentryLevels: 0,      // 토너먼트 리바이·늦은 참가: 이 레벨이 끝나기 전까지 (0 = 없음)
 };
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
@@ -62,14 +66,26 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.game = ['holdem', 'seotda', 'omok'].includes(src.game) ? src.game : (base.game || 'holdem');
   s.mode = src.mode === undefined ? (base.mode || 'cash') : src.mode === 'tournament' ? 'tournament' : 'cash';
   s.levelMinutes = Math.min(60, Math.max(1, int(src.levelMinutes, base.levelMinutes || 5)));
-  if (s.mode === 'tournament') s.rebuyEnabled = false;   // 토너먼트는 칩을 다 잃으면 탈락
+  s.blindLevels = src.blindLevels === undefined ? (base.blindLevels || []) : parseBlindLevels(src.blindLevels);
+  if (s.blindLevels.length) {
+    [s.sb, s.bb] = s.blindLevels[0];
+    if (s.bb > s.startChips) throw new RoomError('블라인드 표 첫 레벨의 빅 블라인드가 시작 칩보다 커요');
+  }
+  s.ante = src.ante === undefined ? (base.ante || 'none') : src.ante === 'bb' ? 'bb' : 'none';
+  s.timeBank = Math.min(300, Math.max(0, int(src.timeBank, base.timeBank === undefined ? 30 : base.timeBank)));
+  s.reentryLevels = Math.min(20, Math.max(0, int(src.reentryLevels, base.reentryLevels || 0)));
+  if (s.mode === 'tournament') {
+    // 토너먼트: 칩을 다 잃으면 탈락. 리바이는 정한 레벨까지만, 금액은 시작 칩
+    s.rebuyEnabled = s.reentryLevels > 0;
+    s.rebuyAmount = s.startChips;
+  }
   s.cards = src.cards === undefined ? (base.cards || 2) : Number(src.cards) === 3 ? 3 : 2; // 섯다: 두 장 / 세 장
   // 세 장 섯다 공개 방식: 'one' 한 장 공개(새 방 기본) · 'none' 공개 없음 (예전 방은 값이 없어서 공개 없음 그대로)
   s.sdOpen = src.sdOpen === 'none' ? 'none' : src.sdOpen === 'one' ? 'one' : (base.sdOpen || 'one');
   s.aiLevel = ['easy', 'normal', 'hard'].includes(src.aiLevel) ? src.aiLevel : (base.aiLevel || 'normal');
   if (s.game === 'omok') {
     // 오목: 두 사람만 두고 나머지는 관전, 칩·토너먼트 없음
-    s.maxPlayers = 2; s.minPlayers = 2; s.mode = 'cash'; s.rebuyEnabled = false;
+    s.maxPlayers = 2; s.minPlayers = 2; s.mode = 'cash'; s.rebuyEnabled = false; s.ante = 'none';
     s.turnSeconds = Math.max(30, s.turnSeconds); // 오목은 한 수에 최소 30초
   }
   return s;
@@ -81,19 +97,45 @@ function cleanName(name) {
   return n;
 }
 
-// 토너먼트 블라인드: 레벨마다 빅 블라인드 배수
-const LEVEL_MULT = [1, 1.5, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400];
+// 토너먼트 블라인드: 레벨마다 스몰 블라인드 배수 (빅 블라인드는 처음 SB:BB 비율 그대로)
+const LEVEL_MULT = [1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400];
+const stepOf = (v) => (v < 20 ? 1 : v < 100 ? 5 : v < 1000 ? 25 : v < 10000 ? 100 : 1000);
 function niceRound(v) {
-  const step = v < 100 ? 5 : v < 1000 ? 10 : v < 10000 ? 100 : 1000;
+  const step = stepOf(v);
   return Math.max(1, Math.round(v / step) * step);
 }
+/** '10/20, 15/30, 25/50' 같은 글이나 [[10,20],...] → [[sb, bb], ...] (빈 값이면 []) */
+function parseBlindLevels(v) {
+  if (v === null || v === '' || (Array.isArray(v) && !v.length)) return [];
+  const items = Array.isArray(v) ? v : String(v).split(/[,\n;]+/).map((t) => t.trim()).filter(Boolean).map((t) => t.split(/[\/\s]+/));
+  const out = [];
+  for (const it of items.slice(0, 40)) {
+    const sb = Math.floor(Number(it[0])); const bb = Math.floor(Number(it[1]));
+    if (!(sb >= 1 && bb >= sb && bb <= 100000000)) throw new RoomError('블라인드 표는 "10/20, 15/30, 25/50" 처럼 적어 주세요');
+    if (out.length && bb < out[out.length - 1][1]) throw new RoomError('블라인드 표는 레벨마다 같거나 커져야 해요');
+    out.push([sb, bb]);
+  }
+  return out;
+}
+function autoLevels(settings) {
+  const out = [];
+  const ratio = settings.bb / settings.sb;
+  for (const m of LEVEL_MULT) {
+    const prev = out[out.length - 1];
+    let sb = m === 1 ? settings.sb : niceRound(settings.sb * m);
+    if (prev && sb <= prev.sb) sb = prev.sb + stepOf(prev.sb);
+    let bb = m === 1 ? settings.bb : Math.round(sb * ratio);
+    if (prev && bb <= prev.bb) bb = prev.bb + stepOf(prev.bb);
+    out.push({ sb, bb });
+  }
+  return out;
+}
+function levelCount(settings) { return settings.blindLevels && settings.blindLevels.length ? settings.blindLevels.length : LEVEL_MULT.length; }
 function levelBlinds(settings, level) {
-  const m = LEVEL_MULT[Math.min(level, LEVEL_MULT.length - 1)];
-  if (level === 0) return { sb: settings.sb, bb: settings.bb };
-  const bb = niceRound(settings.bb * m);
-  const half = bb * settings.sb / settings.bb;
-  const step = half < 100 ? 5 : half < 1000 ? 10 : half < 10000 ? 100 : 1000;
-  return { sb: Math.max(1, Math.floor(half / step) * step || Math.floor(half)), bb };
+  const L = settings.blindLevels;
+  const i = Math.min(level, levelCount(settings) - 1);
+  if (L && L.length) return { sb: L[i][0], bb: L[i][1] };
+  return autoLevels(settings)[i];
 }
 
 // 프로필 사진: 휴대폰에서 줄인 작은 이미지(data URL)만 받는다
@@ -202,12 +244,24 @@ class Room {
   }
 
   takeSeat(p) {
-    if (this.phase === 'playing' && this.isTournament) return false; // 토너먼트 도중엔 관전만
+    if (this.phase === 'playing' && this.isTournament && !this.reentryOpen()) return false; // 토너먼트: 늦은 참가 시간이 지나면 관전만
     const seat = this.freeSeat();
     if (seat === null) return false;
     p.role = 'player';
     p.seat = seat;
     p.ready = false;
+    if (p.bank === undefined) p.bank = this.settings.timeBank;
+    if (this.phase === 'playing' && this.isTournament) {
+      // 늦은 참가(또는 탈락 후 다시 참가): 시작 칩으로
+      const again = this.tourney.busted.includes(p.id) || (p.totalBuyIn || 0) > 0;
+      this.tourney.busted = this.tourney.busted.filter((x) => x !== p.id);
+      p.stack = this.settings.startChips;
+      p.totalBuyIn = (p.totalBuyIn || 0) + this.settings.startChips;
+      p.rebuys = p.rebuys || 0; p.pendingRebuy = 0; p.sittingOut = false; p.timeouts = 0;
+      if (!again) this.tourney.entrants += 1;
+      this.pushFeed(`${p.name}님 ${again ? '다시 참가' : '늦은 참가'} · 칩 ${this.settings.startChips.toLocaleString()}`);
+      return true;
+    }
     if (this.phase === 'playing' && p.totalBuyIn === 0) {
       p.stack = this.settings.startChips;
       p.totalBuyIn = this.settings.startChips;
@@ -307,8 +361,8 @@ class Room {
     if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; if (user.isMaster) p.isMaster = true; }
     if (masterPeek) p.masterPeek = true;
     p.wantSpectator = !!spectator;
-    // 토너먼트가 진행 중이면 관전으로만
-    if (this.phase === 'playing' && this.isTournament) p.wantSpectator = true;
+    // 토너먼트가 진행 중이면 관전으로만 (늦은 참가 시간 안이면 앉을 수 있음)
+    if (this.phase === 'playing' && this.isTournament && !this.reentryOpen()) p.wantSpectator = true;
     // '참가 승인' 방 설정이 켜져 있을 때만 방장이 받아 준다 (게임 중이면 이번 판은 관전, 다음 판부터 참여)
     if (!masterPeek && this.settings.approval && !p.wantSpectator && this.players.some((x) => !x.isBot)) {
       this.pending.push(p);
@@ -391,7 +445,7 @@ class Room {
       if (!p.isBot) p.ready = false;
     } else {
       if (p.role === 'player') return;
-      if (this.phase === 'playing' && this.isTournament) throw new RoomError('토너먼트 중에는 관전만 할 수 있어요');
+      if (this.phase === 'playing' && this.isTournament && !this.reentryOpen()) throw new RoomError('늦은 참가 시간이 지나서 관전만 할 수 있어요');
       if (this.settings.approval && this.phase === 'playing' && p.id !== this.hostId && this.players.some((x) => !x.isBot && x.id !== p.id)) {
         // '참가 승인' 방이면 게임 중에 관전하다 앉으려면 방장이 받아 줘야 한다
         if (this.freeSeat() === null) throw new RoomError('빈 자리가 없어요');
@@ -437,6 +491,7 @@ class Room {
       p.pendingRebuy = 0;
       p.sittingOut = false;
       p.timeouts = 0;
+      p.bank = this.settings.timeBank;
     }
     if (this.isTournament) {
       this.tourney = { startedAt: this.now(), level: 0, busted: [], result: null, entrants: this.seated.length };
@@ -470,6 +525,12 @@ class Room {
   }
 
   get isTournament() { return this.settings.mode === 'tournament'; }
+
+  /** 토너먼트 리바이·늦은 참가를 받는 중인지 (정한 레벨이 끝나기 전) */
+  reentryOpen() {
+    const t = this.tourney;
+    return !!(this.isTournament && t && this.phase === 'playing' && !t.result && t.level < (this.settings.reentryLevels || 0));
+  }
 
   /** 지금 적용할 블라인드 */
   blinds() {
@@ -523,6 +584,8 @@ class Room {
 
   startHand() {
     this.applyPendingAccounts(); // 방 안에서 로그인한 사람: 이 판부터 기록
+    this.showIds = [];   // 판이 끝난 뒤 '내 패 보여주기'를 누른 사람
+    this.bankUse = null;
     this.clearTimer('next');
     this.clearTimer('reveal');
     this.reveal = null;
@@ -564,7 +627,9 @@ class Room {
       }
       const lvl = Math.floor((this.now() - this.tourney.startedAt) / (this.settings.levelMinutes * 60000));
       if (lvl > this.tourney.level) {
-        this.tourney.level = Math.min(lvl, LEVEL_MULT.length - 1);
+        const wasOpen = this.reentryOpen();
+        this.tourney.level = Math.min(lvl, levelCount(this.settings) - 1);
+        if (wasOpen && !this.reentryOpen()) this.pushFeed('🔒 리바이·늦은 참가가 마감됐어요');
         const b = this.blinds();
         this.pushFeed(`⬆ 블라인드 상승! 레벨 ${this.tourney.level + 1} · ${b.sb.toLocaleString()}/${b.bb.toLocaleString()}`);
       }
@@ -614,7 +679,10 @@ class Room {
       this.hand = SeotdaHand.create({ players, dealerIndex, bb: this.blinds().bb, carry, cards: this.settings.cards, open: this.settings.cards === 3 && this.settings.sdOpen === 'one' });
       if (carry) this.pushFeed(`재경기 · 이월된 판돈 ${carry.amount.toLocaleString()}`);
     } else {
-      this.hand = new Hand({ players, dealerIndex, sb: this.blinds().sb, bb: this.blinds().bb });
+      const b = this.blinds();
+      this.hand = new Hand({ players, dealerIndex, sb: b.sb, bb: b.bb, ante: this.settings.ante === 'bb' ? b.bb : 0 });
+      // 타임뱅크: 판마다 조금씩 다시 찬다 (최대 설정값까지)
+      for (const p of eligible) p.bank = Math.min(this.settings.timeBank || 0, (p.bank === undefined ? this.settings.timeBank || 0 : p.bank) + 2);
     }
     this.lastSeenLog = 0;
     this.pushFeed(`${this.handNo}번째 판 시작 · 딜러 ${this.name(eligible[dealerIndex].id)}`);
@@ -642,6 +710,10 @@ class Room {
       throw e;
     }
     const p = this.get(id);
+    if (p && this.bankUse && this.bankUse.id === id) {
+      p.bank = Math.max(0, (p.bank || 0) - Math.ceil((this.now() - this.bankUse.at) / 1000));
+      this.bankUse = null;
+    }
     if (p) {
       p.timeouts = 0;
       // 자리 비움이었어도 직접 누르면 바로 자리로 돌아온 것으로
@@ -675,8 +747,15 @@ class Room {
     } else {
       this.drainHandLog();
       const ms = this.settings.turnSeconds * 1000;
-      this.turnDeadline = this.now() + ms;
-      this.setTimer('turn', ms, () => this.onTurnTimeout());
+      if (this.bankUse && this.bankUse.id === this.hand.currentId) {
+        // 타임뱅크를 쓰는 중이면 그 시간 그대로
+        this.turnDeadline = this.bankUse.until;
+        this.setTimer('turn', Math.max(0, this.bankUse.until - this.now()), () => this.onTurnTimeout());
+      } else {
+        this.bankUse = null;
+        this.turnDeadline = this.now() + ms;
+        this.setTimer('turn', ms, () => this.onTurnTimeout());
+      }
       const cur = this.get(this.hand.currentId);
       if (cur && this.isAway(cur)) {
         const id = cur.id;
@@ -750,6 +829,7 @@ class Room {
       case 'bet': return `${n} 베팅 ${amt(e.to)}`;
       case 'raise': return `${n} 레이즈 ${amt(e.to)}까지`;
       case 'allin': return `${n} 올인 (${amt(e.to)})`;
+      case 'ante': return `${n} BB 앤티 ${amt(e.amount)}`;
       case 'return': return `${n} 받는 사람 없는 ${amt(e.amount)} 돌려받음`;
       case 'street': return e.third ? '세 번째 패를 받았어요' : { 3: '플랍', 4: '턴', 5: '리버' }[e.board.length] + ' 공개';
       case 'place': return `${n} ${e.color === 'b' ? '' : ''} ${String.fromCharCode(65 + e.x)}${e.y + 1}`;
@@ -771,6 +851,17 @@ class Room {
     if (!this.hand || this.hand.finished) return;
     const id = this.hand.currentId;
     const p = this.get(id);
+    if (p && !this.hand.kind && !p.isBot && p.connected && !this.isAway(p) && (p.bank || 0) >= 1 && !(this.bankUse && this.bankUse.id === id)) {
+      // 턴 시간이 끝나면 타임뱅크를 자동으로 이어서 쓴다
+      const ms = p.bank * 1000;
+      this.bankUse = { id, at: this.now(), until: this.now() + ms };
+      this.turnDeadline = this.bankUse.until;
+      this.setTimer('turn', ms, () => this.onTurnTimeout());
+      this.pushFeed(`⏳ ${p.name}님 타임뱅크 사용 (+${p.bank}초)`);
+      this.touch();
+      return;
+    }
+    if (p && this.bankUse && this.bankUse.id === id) { p.bank = 0; this.bankUse = null; }
     const did = this.hand.autoAct(id);
     if (p) {
       p.timeouts += 1;
@@ -793,7 +884,7 @@ class Room {
     // 쇼다운 연출 순서 만들기
     const from = h.runoutFrom !== undefined ? h.runoutFrom : h.board.length;
     const allin = !this.hand.kind && from < 5; // 올인 런아웃 연출은 홀덤만
-    const order = h.orderFromButton().filter((id) => h.result.hands[id]);
+    const order = h.orderFromButton().filter((id) => h.result.hands[id] && this.handShown(id));
     const rv = { handNo: this.handNo, allin, board: from, shown: [], squeeze: false, done: false, stage: allin ? 'allin' : 'showdown' };
     this.reveal = rv;
     const steps = [];
@@ -923,13 +1014,14 @@ class Room {
     if (!s.rebuyEnabled || this.phase !== 'playing' || p.role !== 'player') return false;
     if (p.rebuys >= s.rebuyMax || p.pendingRebuy > 0) return false;
     if (this.revealing) return false; // 결과 공개 전에는 칩 상태를 드러내지 않는다
+    if (this.isTournament) return this.reentryOpen() && this.effectiveStack(p) === 0; // 토너먼트 리바이: 다 잃었을 때만
     return this.effectiveStack(p) < s.startChips / 2; // 시작 칩의 절반 미만(0 포함)일 때
   }
 
   /** 진행 중인 판에 걸어 둔 칩은 아직 잃은 게 아니므로 더해서 본다 */
   effectiveStack(p) {
     const hs = this.hand && !this.hand.finished ? this.hand.seatOf(p.id) : null;
-    return p.stack + (hs ? hs.contributed : 0);
+    return p.stack + (hs ? hs.contributed + (hs.ante || 0) : 0);
   }
 
   rebuy(id) {
@@ -938,8 +1030,9 @@ class Room {
     if (!this.settings.rebuyEnabled) throw new RoomError('이 방은 리바인이 꺼져 있어요');
     if (p.rebuys >= this.settings.rebuyMax) throw new RoomError(`리바인은 최대 ${this.settings.rebuyMax}번까지예요`);
     if (p.pendingRebuy > 0) throw new RoomError('이미 신청했어요. 다음 판부터 적용돼요');
-    if (!this.canRebuy(p)) throw new RoomError('칩이 시작 칩의 절반보다 적을 때만 리바인할 수 있어요');
+    if (!this.canRebuy(p)) throw new RoomError(this.isTournament ? '리바이는 칩을 다 잃었을 때, 리바이 마감 전까지만 할 수 있어요' : '칩이 시작 칩의 절반보다 적을 때만 리바인할 수 있어요');
     p.rebuys += 1;
+    if (this.tourney) this.tourney.busted = this.tourney.busted.filter((x) => x !== p.id);
     p.pendingRebuy = this.settings.rebuyAmount;
     p.sittingOut = false;
     this.pushFeed(`${p.name}님 리바인 신청 (${p.rebuys}/${this.settings.rebuyMax}) · 다음 판부터 적용`);
@@ -1102,7 +1195,8 @@ class Room {
       let cards = null;
       if (hs) {
         if (p.id === viewerId) cards = hs.hole;
-        else if (showdown && h.result.hands[p.id] && (!rv || rv.shown.includes(p.id))) cards = h.result.hands[p.id].hole;
+        else if (showdown && h.result.hands[p.id] && this.handShown(p.id) && (!rv || rv.shown.includes(p.id))) cards = h.result.hands[p.id].hole;
+        else if (h.finished && (this.showIds || []).includes(p.id) && !this.revealing) cards = hs.hole; // 판이 끝나고 스스로 보여 준 패
         else if (!hs.folded) cards = hs.hole.map((c, i) => (hs.open === i ? c : '??')); // 남의 카드는 뒷면 (세 장 섯다 공개 모드: 공개한 한 장만 앞면)
       }
       return {
@@ -1162,12 +1256,15 @@ class Room {
         rebuys: me.rebuys,
         pendingRebuy: me.pendingRebuy,
         canRebuy: this.canRebuy(me),
+        timeBank: me.bank === undefined ? this.settings.timeBank : me.bank,
+        canShow: !!(h && h.finished && !h.kind && this.handPlayers.includes(me.id) && !this.revealing && !(this.showIds || []).includes(me.id)),
         sittingOut: me.sittingOut,
         awayReason: me.sittingOut ? me.awayReason || 'timeout' : null,
         masterPeek: !!me.masterPeek, // 운영자 관전(비밀번호·승인 건너뜀) — 자리에 앉을 수 없음
       },
       players,
       feed: this.feed.slice(-40),
+      chat: (this.chat || []).slice(-30),
       hand: null,
     };
 
@@ -1259,9 +1356,50 @@ class Room {
     };
   }
 
+  /**
+   * 쇼다운에서 이 사람 패를 모두에게 보여 주는지 (홀덤).
+   * 이긴 사람 · 올인한 사람 · 스스로 보여 준 사람만 공개, 나머지 진 패는 덮는다(머크).
+   */
+  handShown(id) {
+    const h = this.hand;
+    if (!h || h.kind || !h.result || h.result.type !== 'showdown') return true;
+    if (h.result.winners.includes(id) || (this.showIds || []).includes(id)) return true;
+    const pr = (h.result.potResults || []).some((pt) => pt.winners.includes(id));
+    const hs = h.seatOf(id);
+    return pr || !!(hs && hs.allIn);
+  }
+
+  /** 판이 끝난 뒤 '내 패 보여주기' */
+  showCards(id) {
+    const h = this.hand;
+    if (!h || !h.finished || h.kind || !this.handPlayers.includes(id)) throw new RoomError('판이 끝난 뒤에 보여 줄 수 있어요');
+    this.showIds = this.showIds || [];
+    if (this.showIds.includes(id)) return;
+    this.showIds.push(id);
+    this.pushFeed(`${this.name(id)}님이 패를 보여 줬어요`);
+    this.touch();
+  }
+
+  /** 글 채팅 (최근 40개 보관) */
+  say(id, text) {
+    const p = this.get(id);
+    if (!p) throw new RoomError('방에 있는 사람만 말할 수 있어요');
+    const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!t) return;
+    const now = this.now();
+    if (p.chatAt && now - p.chatAt < 700) throw new RoomError('조금 천천히 보내 주세요');
+    p.chatAt = now;
+    this.chat = this.chat || [];
+    this.chatSeq = (this.chatSeq || 0) + 1;
+    this.chat.push({ seq: this.chatSeq, id, name: p.name, text: t, at: now });
+    if (this.chat.length > 40) this.chat.splice(0, this.chat.length - 40);
+    this.touch();
+  }
+
   publicResult(r) {
     const hands = {};
     for (const [id, v] of Object.entries(r.hands || {})) {
+      if (!this.handShown(id)) continue;
       hands[id] = { hole: v.hole, best: v.best, name: v.name, category: v.category };
     }
     return {
@@ -1275,6 +1413,8 @@ class Room {
       hands,
       pots: r.potResults.map((p) => ({ amount: p.amount, winners: p.winners, returned: p.eligible.length === 1 })),
       deltas: r.deltas,
+      rabbit: r.type === 'fold' && this.hand && Array.isArray(this.hand.rabbit) ? this.hand.rabbit : [],
+      shown: (this.showIds || []).slice(),
     };
   }
 

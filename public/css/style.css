@@ -263,6 +263,31 @@ body.offline .g-top::after { content: '연결 끊김'; color: #ff9ca1; font-size
 .table-brand { font-family: var(--serif); font-size: 2rem; color: rgba(232, 207, 148, .35); letter-spacing: .2em; }
 .stage-lbl { font-size: .7rem; letter-spacing: .2em; color: rgba(232, 207, 148, .75); }
 .board { display: flex; gap: 4px; justify-content: center; }
+/* 토끼 사냥: 모두 폴드로 끝났을 때 '나왔을' 카드 */
+.card-rabbit { opacity: .5; filter: grayscale(.35); outline: 1px dashed rgba(255, 255, 255, .55); outline-offset: -3px; }
+/* 글 채팅 */
+.install-bar { position: fixed; left: 10px; right: 10px; bottom: calc(env(safe-area-inset-bottom) + 10px); z-index: 35; max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 9px; border-radius: 16px; background: linear-gradient(180deg, rgba(60, 8, 16, .97), rgba(30, 4, 8, .97)); border: 1px solid rgba(241, 199, 106, .6); box-shadow: 0 10px 28px rgba(0, 0, 0, .55); animation: sheetUp .25s ease; }
+.install-bar img { border-radius: 10px; flex: none; }
+.install-bar span { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.install-bar b { color: #ffe39a; font-size: .95rem; }
+.install-bar small { color: rgba(255, 255, 255, .75); font-size: .74rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.has-install-bar #app { padding-bottom: 80px; }
+.chat-fab { position: fixed; left: 12px; bottom: calc(env(safe-area-inset-bottom) + 210px); z-index: 30; padding: 10px 14px; border-radius: 99px; border: 1px solid var(--gold); background: rgba(10, 20, 16, .88); color: var(--gold-hi); font: 400 .9rem/1 var(--display); box-shadow: 0 4px 14px rgba(0, 0, 0, .5); cursor: pointer; }
+.chat-fab .dot { position: absolute; top: -6px; right: -6px; min-width: 18px; padding: 2px 5px; border-radius: 99px; background: var(--red); color: #fff; font: 700 .7rem/1.1 var(--font); }
+.chat-fab .dot[hidden] { display: none; }
+.chat-list { list-style: none; margin: 0 0 10px; padding: 0; max-height: 45dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.chat-list li { align-self: flex-start; max-width: 85%; background: rgba(255, 255, 255, .07); border-radius: 12px 12px 12px 4px; padding: 7px 11px; font-size: .95rem; line-height: 1.35; word-break: break-all; }
+.chat-list li b { display: block; font-size: .72rem; color: var(--gold-hi); margin-bottom: 2px; }
+.chat-list li.mine { align-self: flex-end; background: rgba(201, 164, 92, .22); border-radius: 12px 12px 4px 12px; }
+.chat-list li.chat-empty { align-self: center; background: none; }
+.chat-form { display: flex; gap: 8px; }
+.chat-form .input { flex: 1; min-width: 0; font-size: 16px; }
+.chat-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fx-chat { position: fixed; transform: translate(-50%, -100%); max-width: 62vw; padding: 7px 11px; border-radius: 12px; background: #fff; color: #1b1b1b; font-size: .85rem; font-weight: 700; line-height: 1.3; box-shadow: 0 6px 16px rgba(0, 0, 0, .45); animation: chatIn 4.2s ease forwards; word-break: break-all; z-index: 3; }
+.fx-chat b { color: #8a5a12; margin-right: 2px; }
+.fx-chat::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
+@keyframes chatIn { 0% { opacity: 0; transform: translate(-50%, -80%) scale(.9); } 8%, 85% { opacity: 1; transform: translate(-50%, -100%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -110%); } }
+.show-btn { margin-top: 4px; }
 /* 바닥 카드(플랍·턴·리버)는 1.5배 크게: 폰에서도 한눈에 (친구 피드백) */
 .board .card-md { --w: min(58px, 14.6vw); }
 .table-center:has(.board .card-md) { top: 45.5%; }

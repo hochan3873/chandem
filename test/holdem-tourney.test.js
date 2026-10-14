@@ -80,3 +80,73 @@ test('토너먼트 멈춤: 판을 안 돌리고 블라인드 시계도 멈춘다
   assert.throws(() => room.setPause(room.players[1].id, true));
   room.clearAllTimers();
 });
+
+test('BB 앤티: 팟에 들어가고 칩 총량은 그대로', () => {
+  for (let k = 0; k < 200; k++) {
+    const h = new Hand({ players: [{ id: 'A', stack: 500 }, { id: 'B', stack: 25 }, { id: 'C', stack: 300 }], dealerIndex: k % 3, sb: 10, bb: 20, ante: 20 });
+    let g = 0;
+    while (!h.finished && g++ < 50) { const id = h.currentId; const la = h.legalActions(id); h.act(id, la.canCheck ? { type: 'check' } : k % 3 === 0 && la.canFold ? { type: 'fold' } : { type: 'call' }); }
+    assert.equal(h.seats.reduce((a, s) => a + s.stack, 0), 825);
+  }
+});
+
+test('자동 블라인드 표: SB:BB 비율 유지 · 계속 오름 · 5/10 다음이 5/15 같은 어색한 값 없음', () => {
+  const room = new Room({ code: 'BLINDS', settings: sanitizeSettings({ mode: 'tournament', sb: 5, bb: 10, startChips: 1000 }) });
+  const { levelBlinds } = require('../server/room');
+  let prev = 0;
+  for (let i = 0; i < 20; i++) {
+    const b = (levelBlinds || ((s, l) => { room.tourney = { level: l }; return room.blinds(); }))(room.settings, i);
+    assert.equal(b.bb, b.sb * 2, `레벨 ${i + 1}: ${b.sb}/${b.bb}`);
+    assert.ok(b.bb > prev);
+    prev = b.bb;
+  }
+});
+
+test('블라인드 표 직접 입력', () => {
+  const s = sanitizeSettings({ mode: 'tournament', startChips: 1000, blindLevels: '10/20, 15/30, 25/50' });
+  assert.deepEqual(s.blindLevels, [[10, 20], [15, 30], [25, 50]]);
+  assert.equal(s.bb, 20);
+  assert.throws(() => sanitizeSettings({ blindLevels: '10/20, 5/10' }));
+});
+
+test('토너먼트 리바이·늦은 참가: 정한 레벨까지만', () => {
+  let T = 1_000_000;
+  const room = new Room({ code: 'REENTR', settings: sanitizeSettings({ mode: 'tournament', levelMinutes: 1, startChips: 1000, reentryLevels: 2 }), now: () => T, pace: 0.001 });
+  const ps = ['A', 'B'].map((name) => { const { player } = room.join({ name }); room.connect(player.id); player.ready = true; return player; });
+  room.hostId = ps[0].id;
+  room.start(ps[0].id);
+  const { player: L } = room.join({ name: 'Late' }); room.connect(L.id);
+  assert.equal(L.role, 'player', '레벨 1이면 늦은 참가 가능');
+  assert.equal(L.totalBuyIn, 1000);
+  assert.equal(room.tourney.entrants, 3);
+  // 다 잃으면 리바이
+  room.hand.finished = true; ps[1].stack = 0;
+  assert.equal(room.canRebuy(ps[1]), true);
+  room.rebuy(ps[1].id);
+  room.startHand();
+  assert.equal(ps[1].stack, 1000);
+  // 레벨 3부터는 마감
+  T += 2 * 61_000; room.hand.finished = true; room.startHand();
+  const { player: L2 } = room.join({ name: 'Late2' });
+  assert.equal(L2.role, 'spectator');
+  room.clearAllTimers();
+});
+
+test('채팅 · 타임뱅크 · 진 패 덮기', () => {
+  let T = 1_000_000;
+  const room = new Room({ code: 'CHATTB', settings: sanitizeSettings({ startChips: 1000, timeBank: 30, turnSeconds: 20 }), now: () => T, pace: 0.001 });
+  const ps = ['A', 'B'].map((name) => { const { player } = room.join({ name }); room.connect(player.id); player.ready = true; return player; });
+  room.hostId = ps[0].id;
+  room.say(ps[0].id, '  안녕   하세요 ');
+  assert.equal(room.chat[0].text, '안녕 하세요');
+  assert.throws(() => room.say(ps[0].id, '또'), /천천히/);
+  room.start(ps[0].id);
+  const cur = room.get(room.hand.currentId);
+  room.onTurnTimeout(); // 턴 시간 끝 → 타임뱅크
+  assert.equal(room.hand.finished, false);
+  assert.equal(room.bankUse.id, cur.id);
+  T += 10_000;
+  room.act(cur.id, { type: 'call' });
+  assert.ok(cur.bank <= 20 && cur.bank >= 19, `남은 타임뱅크 ${cur.bank}`);
+  room.clearAllTimers();
+});

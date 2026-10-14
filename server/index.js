@@ -331,6 +331,33 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   // 초대 링크: 링크 미리보기(오픈그래프) 제목에 방장 이름·방 정보를 넣는다
   const indexHtml = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // 게임별 바로가기 링크 (/holdem · /seotda · /omok): 카톡 미리보기를 그 게임 그림·문구로
+  const GAME_LINK = {
+    holdem: ['♠ 텍사스 홀덤 · 찬이의 게임월드', '링크 누르고 바로 홀덤 한 판! 친구들끼리 토너먼트 · 최대 9명'],
+    seotda: ['섯다 · 찬이의 게임월드', '링크 누르고 바로 섯다 한 판! 두 장 · 세 장 섯다'],
+    omok: ['오목 · 찬이의 게임월드', '링크 누르고 바로 오목 한 판! 친구와 1:1 대국'],
+  };
+  app.get(['/holdem', '/seotda', '/omok'], (req, res) => {
+    const g = req.path.slice(1);
+    const base = (publicUrl || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const [title, desc] = GAME_LINK[g];
+    let html = indexHtml;
+    if (g === 'holdem') {
+      // 홀덤 전용 앱: 설치하면 '찬덤 홀덤' 아이콘으로 홀덤 화면이 바로 열림
+      html = html
+        .replace('href="/manifest.webmanifest"', 'href="/manifest-holdem.webmanifest"')
+        .replace('<link rel="apple-touch-icon" href="/img/gw2-icon-180.png">', '<link rel="apple-touch-icon" href="/img/holdem-icon-180.png">')
+        .replace('<link rel="icon" href="/img/gw2-icon-192.png" type="image/png">', '<link rel="icon" href="/img/holdem-icon-192.png" type="image/png">')
+        .replace('<meta name="apple-mobile-web-app-title" content="게임월드">', '<meta name="apple-mobile-web-app-title" content="찬덤 홀덤">')
+        .replace('<title>찬이의 게임월드</title>', '<title>찬덤 홀덤</title>')
+        .replace('<html lang="ko">', '<html lang="ko" data-app="holdem">');
+    }
+    res.type('html').send(html
+      .replace(/(<meta property="og:title" content=")[^"]*/, `$1${escHtml(title)}`)
+      .replace(/(<meta property="og:description" content=")[^"]*/, `$1${escHtml(desc)}`)
+      .replace(/(<meta property="og:url" content=")[^"]*/, `$1${escHtml(`${base}/${g}`)}`)
+      .replace(/(<meta property="og:image" content=")[^"]*/, `$1${escHtml(`${base}/img/og-${g}.jpg`)}`));
+  });
   app.get('/r/:code', (req, res) => {
     const r = rooms.get(String(req.params.code).toUpperCase());
     let html = indexHtml;
@@ -516,6 +543,8 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('host:kick', handler((d) => { const { room, pid } = ctx(); room.kick(pid, d.id); }));
     socket.on('host:transfer', handler((d) => { const { room, pid } = ctx(); room.transferHost(pid, d.id); }));
     socket.on('host:end', handler(() => { const { room, pid } = ctx(); room.endGame(pid); }));
+    socket.on('room:chat', handler((d) => { const { room, pid } = ctx(); room.say(pid, d.text); }));
+    socket.on('game:show', handler(() => { const { room, pid } = ctx(); room.showCards(pid); }));
     socket.on('host:pause', handler((d) => { const { room, pid } = ctx(); room.setPause(pid, !!(d && d.on)); }));
     socket.on('game:act', handler((d) => { const { room, pid } = ctx(); room.act(pid, { type: d.type, amount: d.amount, x: d.x, y: d.y, index: d.index, cards: Array.isArray(d.cards) ? d.cards.slice(0, 3).map(String) : undefined }); }));
     socket.on('game:rebuy', handler(() => { const { room, pid } = ctx(); room.rebuy(pid); }));

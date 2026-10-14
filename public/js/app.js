@@ -157,11 +157,39 @@ async function shareLink(url, title, text) {
   catch { prompt('이 링크를 복사해서 보내 주세요', url); }
 }
 
-// 화면 맨 위 공유 버튼: 방 안이면 초대 링크, 아니면 찬덤 주소
+// 화면 맨 위 공유 버튼: 방 안이면 참가·관전·게임 링크 중에서, 아니면 찬덤 주소
 function shareTop() {
   const code = S.state && S.state.room && S.state.room.code;
-  if (code) shareLink(inviteUrl(code), '찬이의 게임월드 초대', `찬이의 게임월드 ${GAME_NAMES[gameOf(S.state)]} 방 ${code}에 들어와!`);
+  if (code) shareRoomPick(code, gameOf(S.state));
   else sharePick();
+}
+const GAME_SHARE = {
+  holdem: ['♠ 텍사스 홀덤', '링크 누르고 바로 홀덤 한 판!'],
+  seotda: ['섯다', '링크 누르고 바로 섯다 한 판!'],
+  omok: ['오목', '링크 누르고 바로 오목 한 판!'],
+};
+const gameLink = (g) => `${siteUrl().replace(/\/$/, '')}/${g}`;
+// 방 안 공유: 이 방 참가 링크 · 관전 링크 · 이 게임 바로가기
+function shareRoomPick(code, g) {
+  document.querySelectorAll('.share-pick').forEach((m) => m.remove());
+  const box = document.createElement('div');
+  box.className = 'share-pick';
+  const gname = GAME_NAMES[g] || '게임';
+  box.innerHTML = `<div class="sp-card"><h3>공유하기</h3>
+    <button class="sp-opt" data-sp="join"><img src="/img/og-${g}.jpg" alt="" draggable="false"><span><b>이 방 참가 링크</b><small>방 ${code} · 누르면 바로 이 방으로</small></span></button>
+    ${g === 'omok' ? '' : `<button class="sp-opt" data-sp="watch"><img src="/img/og-${g}.jpg" alt="" draggable="false"><span><b>이 방 관전 링크</b><small>자리에 앉지 않고 구경만</small></span></button>`}
+    <button class="sp-opt" data-sp="game"><img src="/img/og-${g}.jpg" alt="" draggable="false"><span><b>${gname} 바로가기</b><small>방을 직접 만들거나 고르는 링크</small></span></button>
+    <button class="sp-x" data-sp="x">닫기</button></div>`;
+  box.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-sp]');
+    if (ev.target === box || (b && b.dataset.sp === 'x')) { box.remove(); return; }
+    if (!b) return;
+    box.remove();
+    if (b.dataset.sp === 'join') shareLink(inviteUrl(code), '찬이의 게임월드 초대', `찬이의 게임월드 ${gname} 방 ${code}에 들어와!`);
+    else if (b.dataset.sp === 'watch') shareLink(`${inviteUrl(code)}?watch=1`, '찬이의 게임월드 관전', `${gname} 방 ${code} 구경하러 와!`);
+    else shareLink(gameLink(g), GAME_SHARE[g][0], GAME_SHARE[g][1]);
+  });
+  document.body.appendChild(box);
 }
 // 방 밖 공유: 찬이의 게임월드 · 랑방 대전 링크 중에서 고른다 (카톡 미리보기는 각 페이지의 og:image)
 function sharePick() {
@@ -171,13 +199,15 @@ function sharePick() {
   box.innerHTML = `<div class="sp-card"><h3>공유하기</h3>
     <button class="sp-opt" data-sp="gw"><img src="/img/og-gw5.jpg" alt="" draggable="false"><span><b>찬이의 게임월드</b><small>랑방 대전 · 홀덤 · 섯다 · 오목 모음</small></span></button>
     <button class="sp-opt" data-sp="lb"><img src="/img/og-lb5.jpg" alt="" draggable="false"><span><b>랑방 대전</b><small>바로 게임으로 들어오는 링크</small></span></button>
+    <button class="sp-opt" data-sp="holdem"><img src="/img/og-holdem.jpg" alt="" draggable="false"><span><b>♠ 텍사스 홀덤</b><small>홀덤 화면으로 바로 들어오는 링크</small></span></button>
     <button class="sp-x" data-sp="x">닫기</button></div>`;
   box.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-sp]');
     if (ev.target === box || (b && b.dataset.sp === 'x')) { box.remove(); return; }
     if (!b) return;
     box.remove();
-    if (b.dataset.sp === 'lb') shareLink(siteUrl().replace(/\/?$/, '/') + 'langbang/', '랑방 대전', '랑방 대전 도전장! 진상들로부터 우리 아지트 랑방을 같이 지키자');
+    if (b.dataset.sp === 'holdem') shareLink(gameLink('holdem'), GAME_SHARE.holdem[0], GAME_SHARE.holdem[1]);
+    else if (b.dataset.sp === 'lb') shareLink(siteUrl().replace(/\/?$/, '/') + 'langbang/', '랑방 대전', '랑방 대전 도전장! 진상들로부터 우리 아지트 랑방을 같이 지키자');
     else shareLink(siteUrl(), '찬이의 게임월드', '우리 모임 친구들과 폰으로 랑방 대전 · 홀덤 · 섯다 · 오목 한 판 하자!');
   });
   document.body.appendChild(box);
@@ -197,10 +227,14 @@ const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}$
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; });
 window.addEventListener('appinstalled', () => { S.installEvt = null; installDone(); document.querySelectorAll('#install-btn').forEach((b) => b.remove()); });
+// 홀덤 전용 앱 주소(/holdem)로 열렸는지: 설치하면 '찬덤 홀덤' 앱
+const HOLDEM_APP = document.documentElement.dataset.app === 'holdem';
+const APP_NAME = HOLDEM_APP ? '찬덤 홀덤' : '찬이의 게임월드';
 function installDone() {
   S.installing = null;
   document.querySelectorAll('#install-btn').forEach((b) => b.remove());
-  openModal('설치 완료 ', `<div class="install-wait"><div class="install-ok"></div><p><b>찬이의 게임월드가 설치됐어요!</b></p>
+  document.querySelectorAll('#install-bar').forEach((b) => b.remove());
+  openModal('설치 완료 ', `<div class="install-wait"><div class="install-ok"></div><p><b>${APP_NAME}가 설치됐어요!</b></p>
     <p class="muted small">바탕화면이나 앱 목록의 아이콘으로 열면 전체 화면으로 즐길 수 있어요.</p>
     ${ICON_NOTE}<button class="btn btn-gold btn-lg" data-close>확인</button></div>`);
   sound.play('fanfare');
@@ -213,7 +247,7 @@ const IN_APP = IS_KAKAO || /NAVER|Instagram|FBAN|FBAV|FB_IAB|Line\/|DaumApps|eve
 const IOS_VER = (() => { const m = UA.match(/OS (\d+)[_.](\d+)/); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; })(); // 16.4 → 1604
 const IOS_OTHER = IS_IOS && /CriOS|FxiOS|EdgiOS|OPiOS|Whale/i.test(UA); // 아이폰 크롬·파이어폭스 등 (16.4부터 홈 화면 추가 가능)
 async function copySiteLink() {
-  const url = location.origin + '/';
+  const url = location.origin + (HOLDEM_APP ? '/holdem' : '/');
   try { await navigator.clipboard.writeText(url); toast('링크를 복사했어요. 사파리 주소창에 붙여 넣어 주세요', 'ok'); }
   catch { prompt('이 주소를 복사해서 사파리에서 열어 주세요', url); }
 }
@@ -287,7 +321,7 @@ if (window.visualViewport) { visualViewport.addEventListener('resize', fitVisibl
 
 async function installApp() {
   const ua = UA;
-  const url = location.origin + '/';
+  const url = location.origin + (HOLDEM_APP ? '/holdem' : '/');
   const ios = IS_IOS;
   const kakao = IS_KAKAO;
   const inApp = IN_APP;
@@ -707,6 +741,11 @@ async function boot() {
   loadMe().then(() => { if (S.view === 'home') render(); });
   fetch('/api/info').then((r) => r.json()).then((d) => { S.info = d; if (S.view === 'room' || S.view === 'home') render(); }).catch(() => {});
   const code = routeCode();
+  // 게임 바로가기 링크(/holdem 등): 그 게임 화면으로 바로
+  const gLink = /^\/(holdem|seotda|omok)\/?$/.exec(location.pathname);
+  if (!code && gLink) { enterGame(gLink[1]); if (HOLDEM_APP) nav('/holdem'); return; }
+  // 관전 링크(/r/코드?watch=1): 들어올 때 '관전만 할래요'를 미리 체크
+  if (code && /[?&]watch=1/.test(location.search)) S.wantSpectate = true;
   if (!code) { S.view = 'home'; render(); return; }
   S.code = code;
   // 테스트 도구(scripts/bots.js --start)가 준 링크: ?t=토큰&p=아이디 → 저장 후 주소에서 지움
@@ -827,6 +866,7 @@ socket.on('state', (st) => {
   S.clockSkew = st.serverTime - Date.now();
   if (S.view !== 'room') S.view = 'room';
   processEvents(st, first);
+  onChat(st, first);
   if (!first) guestHandNudge(st);
   render();
 });
@@ -966,6 +1006,86 @@ socket.on('emote', (e) => {
   if (e.kind === 'clap') sound.play('clap'); else { sound.play('pop'); sound.play('e_' + e.kind); }
 });
 
+// 홀덤 앱 설치 막대: 설치하기 전까지 방 밖 화면 아래에 늘 보인다
+function syncInstallBar() {
+  let bar = document.getElementById('install-bar');
+  const want = HOLDEM_APP && !isStandalone() && S.view !== 'room';
+  if (!want) { if (bar) bar.remove(); document.body.classList.remove('has-install-bar'); return; }
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'install-bar'; bar.className = 'install-bar';
+    bar.innerHTML = `<img src="/img/holdem-icon-192.png" alt="" width="40" height="40"><span><b>찬덤 홀덤 앱 설치</b><small>${IS_IOS ? '사파리 공유 → 홈 화면에 추가' : '홈 화면에서 전체 화면으로 바로'}</small></span><button class="btn btn-gold btn-sm" type="button">설치</button>`;
+    bar.querySelector('button').onclick = installApp;
+    document.body.appendChild(bar);
+  }
+  document.body.classList.add('has-install-bar');
+}
+
+// ── 글 채팅: 떠 있는 '채팅' 버튼 · 채팅 창 · 자리 위 말풍선 ──
+function syncChatFab() {
+  let b = document.getElementById('chat-fab');
+  if (S.view !== 'room' || !S.state) { if (b) b.remove(); return; }
+  if (!b) {
+    b = document.createElement('button');
+    b.id = 'chat-fab'; b.className = 'chat-fab'; b.setAttribute('aria-label', '채팅');
+    b.innerHTML = '채팅<span class="dot" hidden></span>';
+    b.onclick = openChat;
+    document.body.appendChild(b);
+  }
+  const unread = Math.max(0, ((S.state.chat || []).slice(-1)[0] || { seq: 0 }).seq - (S.chatRead || 0));
+  const d = b.querySelector('.dot');
+  d.hidden = !unread || !!document.getElementById('chat-list');
+  d.textContent = unread > 9 ? '9+' : String(unread);
+}
+function chatListHTML(st) {
+  const meId = st.me && st.me.id;
+  const list = st.chat || [];
+  if (!list.length) return '<li class="muted small chat-empty">아직 대화가 없어요. 먼저 한마디 해 보세요!</li>';
+  return list.map((m) => `<li class="${m.id === meId ? 'mine' : ''}"><b>${esc(m.name)}</b><span>${esc(m.text)}</span></li>`).join('');
+}
+function openChat() {
+  const st = S.state;
+  if (!st) return;
+  openModal('채팅', `<ol class="chat-list" id="chat-list">${chatListHTML(st)}</ol>
+    <form class="chat-form" id="chat-form" autocomplete="off"><input class="input" name="t" maxlength="80" placeholder="메시지 입력 (80자)" enterkeyhint="send"><button class="btn btn-gold">보내기</button></form>
+    <div class="chat-quick">${['나이스!', 'ㅋㅋㅋ', '올인 각?', '블러핑이지?', '잠깐만요', 'GG'].map((t) => `<button type="button" class="btn btn-sm btn-ghost" data-q="${t}">${t}</button>`).join('')}</div>`, (body) => {
+    const list = body.querySelector('#chat-list');
+    list.scrollTop = list.scrollHeight;
+    const form = body.querySelector('#chat-form');
+    const send = async (t) => { const r = await emit('room:chat', { text: t }); if (r.ok) form.t.value = ''; };
+    form.onsubmit = (e) => { e.preventDefault(); const t = form.t.value.trim(); if (t) send(t); };
+    body.querySelectorAll('[data-q]').forEach((q) => { q.onclick = () => send(q.dataset.q); });
+    S.chatRead = ((st.chat || []).slice(-1)[0] || { seq: 0 }).seq;
+    syncChatFab();
+  });
+}
+function onChat(st, first) {
+  const list = st.chat || [];
+  const last = (list.slice(-1)[0] || { seq: 0 }).seq;
+  if (first || S.chatSeen === undefined) { S.chatSeen = last; S.chatRead = Math.max(S.chatRead || 0, last); syncChatFab(); return; }
+  const fresh = list.filter((m) => m.seq > S.chatSeen);
+  S.chatSeen = last;
+  const box = document.getElementById('chat-list');
+  if (box) { box.innerHTML = chatListHTML(st); box.scrollTop = box.scrollHeight; S.chatRead = last; }
+  for (const m of fresh) chatBubble(m);
+  if (fresh.length && !box && !fresh.every((m) => st.me && m.id === st.me.id)) sound.play('pop');
+  syncChatFab();
+}
+function chatBubble(m) {
+  if (S.view !== 'room') return;
+  const seat = document.querySelector(`.seat[data-id="${m.id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === m.id ? document.querySelector('.me-name') : null);
+  const el = document.createElement('div');
+  el.className = 'fx-chat';
+  el.innerHTML = `<b>${esc(m.name)}</b> ${esc(m.text)}`;
+  if (seat) {
+    const r = seat.getBoundingClientRect();
+    el.style.left = Math.max(70, Math.min(innerWidth - 70, r.left + r.width / 2)) + 'px';
+    el.style.top = Math.max(50, r.top - 6) + 'px';
+  } else { el.style.left = '50%'; el.style.top = '22%'; }
+  fxLayer().appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
 // ── 소리·애니메이션 트리거 ─────────────────────────────
 function tourneyEffects(st) {
   const tn = st.room.tournament;
@@ -1064,6 +1184,8 @@ function render() {
   if (S.view !== 'room') S.gameMounted = false;
   document.body.dataset.theme = S.view === 'room' && S.state ? gameOf(S.state) : S.view === 'home' || S.view === 'admin' ? 'hub' : (S.game || 'holdem');
   document.body.classList.toggle('in-room', S.view === 'room');
+  syncChatFab();
+  syncInstallBar();
   // 배경음악: 메인은 메인 곡, 게임 화면·게임방은 그 게임 곡
   const th = document.body.dataset.theme;
   sound.setTrack(th === 'hub' ? 'bgm_hub' : th === 'holdem' ? 'bgm' : 'bgm_' + th);
@@ -1395,7 +1517,17 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     </div>
     <label class="field"><span>토너먼트 블라인드 오르는 간격</span>
       <select class="input" name="levelMinutes">${[3, 5, 7, 10, 15].map((m) => `<option value="${m}" ${Number(s.levelMinutes || 5) === m ? 'selected' : ''}>${m}분마다</option>`).join('')}</select></label>
-    <p class="muted small">토너먼트는 정해진 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요. 마지막까지 남은 사람이 우승이에요.</p>
+    <label class="field"><span>리바이 · 늦은 참가</span>
+      <select class="input" name="reentryLevels">${[[0, '없음 (처음 앉은 사람만)'], [2, '레벨 2까지'], [3, '레벨 3까지'], [4, '레벨 4까지'], [6, '레벨 6까지']].map(([v, t]) => `<option value="${v}" ${Number(s.reentryLevels || 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="field"><span>블라인드 표 직접 정하기 <small class="muted">(비우면 자동)</small></span>
+      <input class="input" name="blindLevels" placeholder="예: 10/20, 15/30, 25/50, 50/100" value="${esc((s.blindLevels || []).map((x) => x.join('/')).join(', '))}" autocomplete="off"></label>
+    <p class="muted small">토너먼트는 정해진 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요. 마지막까지 남은 사람이 우승이에요. 리바이 시간 안에는 다 잃어도 시작 칩으로 다시 들어오고, 늦게 온 친구도 앉을 수 있어요.</p>
+  </fieldset>
+  <fieldset class="fieldset holdem-only-f">
+    <legend>앤티 · 타임뱅크</legend>
+    <label class="switch"><input type="checkbox" name="ante" ${s.ante === 'bb' ? 'checked' : ''}><span>BB 앤티 <small class="muted">(빅 블라인드 자리가 BB만큼 더 내서 팟이 커져요)</small></span></label>
+    <label class="field"><span>타임뱅크 <small class="muted">(턴 시간이 끝나면 자동으로 더 생각할 시간)</small></span>
+      <select class="input" name="timeBank">${[[0, '없음'], [15, '15초'], [30, '30초'], [60, '60초'], [90, '90초']].map(([v, t]) => `<option value="${v}" ${Number(s.timeBank === undefined ? 30 : s.timeBank) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
   </fieldset>
   <div class="grid2 chips-only">
     <label class="field"><span>시작 칩</span><input class="input" type="number" inputmode="numeric" name="startChips" min="100" value="${s.startChips}"></label>
@@ -1452,6 +1584,8 @@ function readSettings(form) {
     rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyMax: num('rebuyMax'),
     password: String(fd.get('password') || ''), approval: fd.get('approval') === 'on',
     mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 5,
+    ante: fd.get('ante') === 'on' ? 'bb' : 'none', timeBank: fd.get('timeBank') === null ? 30 : num('timeBank'),
+    reentryLevels: num('reentryLevels') || 0, blindLevels: String(fd.get('blindLevels') || '').trim(),
     ...(fd.get('game') ? { game: fd.get('game') } : {}),
     cards: Number(fd.get('cards')) === 3 ? 3 : 2,
     sdOpen: fd.get('sdOpen') === 'none' ? 'none' : 'one',
@@ -2241,6 +2375,9 @@ function renderTable(st) {
         }));
       } else if (rv && rv.squeeze && i === h.board.length) {
         board.push(cardHTML('??', { size: compact ? 'sm' : 'md', cls: 'card-squeeze-wait' }));
+      } else if (h.result && h.result.rabbit && h.result.rabbit[i - h.board.length]) {
+        // 토끼 사냥: 계속했다면 나왔을 카드 (흐리게)
+        board.push(cardHTML(h.result.rabbit[i - h.board.length], { size: compact ? 'sm' : 'md', anim: markCard(`${handNo}:rabbit:${i}`), delay: (i - h.board.length) * 160, cls: 'card-rabbit' }));
       } else board.push(cardHTML(null, { size: compact ? 'sm' : 'md' }));
     }
     const potText = `<small>팟</small>${fmt(h.totalPot)}`;
@@ -2329,8 +2466,12 @@ function renderMe(st) {
       ${mp.status === 'folded' ? '<div class="tag tag-folded">폴드함</div>' : ''}
       ${mp.status === 'allin' ? '<div class="tag tag-allin">올인</div>' : ''}
       ${delta !== undefined ? `<div class="me-delta ${delta > 0 ? 'plus' : delta < 0 ? 'minus' : ''}">이번 판 ${signed(delta)}</div>` : ''}
+      ${me.canShow && cards ? '<button class="btn btn-sm btn-outline show-btn" id="show-btn">내 패 보여주기</button>' : ''}
+      ${h && !h.finished && h.game !== 'seotda' && st.room.settings.timeBank ? `<div class="muted tiny tb-left">⏳ 타임뱅크 ${me.timeBank || 0}초</div>` : ''}
     </div>
     <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>`;
+  const sb = el.querySelector('#show-btn');
+  if (sb) sb.onclick = () => emit('game:show');
 }
 
 function renderActions(st) {

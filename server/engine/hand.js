@@ -12,7 +12,7 @@ class IllegalAction extends Error {}
  * dealerIndex: players 배열 안에서 딜러 버튼 위치
  */
 class Hand {
-  constructor({ players, dealerIndex, sb, bb, deck }) {
+  constructor({ players, dealerIndex, sb, bb, deck, ante = 0 }) {
     if (players.length < 2) throw new Error('최소 2명이 필요합니다');
     this.sb = sb;
     this.bb = bb;
@@ -53,8 +53,19 @@ class Hand {
 
     this.currentBet = 0;
     this.minRaise = bb;
+    this.dead = 0; // 앤티처럼 팟에만 들어가는 칩 (누구의 베팅도 아님)
     this.post(this.sbIndex, sb, '스몰 블라인드');
     this.post(this.bbIndex, bb, '빅 블라인드');
+    if (ante > 0) {
+      // BB 앤티: 빅 블라인드 자리가 판 전체 몫을 한 번에 낸다 (블라인드를 먼저 내고 남은 칩에서)
+      const s = this.seats[this.bbIndex];
+      const pay = Math.min(ante, s.stack);
+      s.stack -= pay;
+      s.ante = pay;
+      this.dead += pay;
+      if (s.stack === 0) s.allIn = true;
+      if (pay > 0) this.pushLog({ type: 'ante', id: s.id, amount: pay });
+    }
     this.currentBet = bb; // 빅 블라인드가 짧게 올인했어도 콜 기준은 빅 블라인드 전액
     this.toAct = -1;
     this.moveToNext(this.bbIndex);
@@ -279,9 +290,32 @@ class Hand {
     this.pushLog({ type: 'return', id: top.id, amount: excess });
   }
 
+  /** 메인·사이드 팟 (앤티는 메인 팟에) */
+  pots() {
+    const pots = buildPots(this.seats);
+    if (this.dead) {
+      if (pots.length) pots[0].amount += this.dead;
+      else pots.push({ amount: this.dead, eligible: this.live.map((s) => s.id) });
+    }
+    return pots;
+  }
+
+  /** 모두 폴드로 끝났을 때 '계속했다면 나왔을' 남은 바닥 카드 (토끼 사냥 · 판 결과엔 영향 없음) */
+  rabbitCards() {
+    const deck = this.deck.slice();
+    const board = this.board.slice();
+    while (board.length < 5 && deck.length > 1) {
+      deck.shift(); // 번 카드
+      const n = board.length === 0 ? 3 : 1;
+      for (let i = 0; i < n; i++) board.push(deck.shift());
+    }
+    return board.slice(this.board.length);
+  }
+
   finishByFold() {
     this.returnUncalled();
-    const pots = buildPots(this.seats);
+    this.rabbit = this.rabbitCards();
+    const pots = this.pots();
     const winner = this.live[0];
     const { payouts, potResults } = distribute(pots, () => 0, () => 0, this.orderFromButton());
     this.settle(payouts, { type: 'fold', winners: [winner.id], potResults, hands: {} });
@@ -295,7 +329,7 @@ class Hand {
       const b = bestHand(s.hole.concat(this.board));
       hands[s.id] = { hole: s.hole.slice(), best: b.cards, name: b.name, category: b.score.category, score: b.score };
     }
-    const pots = buildPots(this.seats);
+    const pots = this.pots();
     const { payouts, potResults } = distribute(
       pots, (id) => hands[id].score, compareScore, this.orderFromButton(),
     );
@@ -316,9 +350,9 @@ class Hand {
     this.pushLog({ type: 'end', winners: info.winners, result: info.type });
   }
 
-  get totalPot() { return this.seats.reduce((a, s) => a + s.contributed, 0); }
-  get collectedPot() { return this.seats.reduce((a, s) => a + s.contributed - s.bet, 0); }
-  potsView() { return buildPots(this.seats).map((p) => ({ amount: p.amount, eligible: p.eligible })); }
+  get totalPot() { return this.seats.reduce((a, s) => a + s.contributed, 0) + (this.dead || 0); }
+  get collectedPot() { return this.seats.reduce((a, s) => a + s.contributed - s.bet, 0) + (this.dead || 0); }
+  potsView() { return this.pots().map((p) => ({ amount: p.amount, eligible: p.eligible })); }
 
   toJSON() {
     return { ...this };
