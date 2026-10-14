@@ -13,7 +13,7 @@ const $modal = document.getElementById('modal-root');
 const $toast = document.getElementById('toast');
 const socket = io({ transports: ['websocket', 'polling'] });
 
-const AVATAR_COUNT = 8;
+const AVATAR_COUNT = 10;
 const S = {
   view: 'boot',          // boot | home | create | join | pending | message | room
   code: null,
@@ -68,7 +68,7 @@ function avatarIndex(p) {
 }
 function avatarHTML(p, size = '') {
   const initial = esc((p.name || '?').trim().charAt(0));
-  const src = p.photo && S.code ? `/api/photo/${encodeURIComponent(S.code)}/${encodeURIComponent(p.id)}?v=${Number(p.photo)}` : `/img/avatars/a${avatarIndex(p)}.webp`;
+  const src = p.photo && S.code ? `/api/photo/${encodeURIComponent(S.code)}/${encodeURIComponent(p.id)}?v=${Number(p.photo)}` : `/img/avatars/a${avatarIndex(p)}.webp?v=2`;
   return `<span class="avatar ${size}"><span class="avatar-initial">${initial}</span>`
     + `<img src="${src}" alt="" loading="lazy" onerror="this.remove()"></span>`;
 }
@@ -87,7 +87,7 @@ function avatarPickerHTML() {
       <label class="av-opt"><input type="radio" name="avatar" value="0" ${!cur ? 'checked' : ''}><span class="avatar avatar-auto">자동</span></label>
       ${Array.from({ length: AVATAR_COUNT }, (_, i) => i + 1).map((n) => `
         <label class="av-opt"><input type="radio" name="avatar" value="${n}" ${cur === n ? 'checked' : ''}>
-          <span class="avatar"><img src="/img/avatars/a${n}.webp" alt="캐릭터 ${n}"></span></label>`).join('')}
+          <span class="avatar"><img src="/img/avatars/a${n}.webp?v=2" alt="캐릭터 ${n}"></span></label>`).join('')}
     </div></fieldset>`;
 }
 function readAvatar(form) {
@@ -901,6 +901,14 @@ socket.on('state', (st) => {
     if (nh) toast(nh.id === (st.me && st.me.id) ? '내가 새 방장이에요' : `${nh.name}님이 새 방장이에요`, 'ok');
   }
   if (!first && S.state.me && S.state.me.sittingOut && st.me && !st.me.sittingOut) toast('자리로 돌아왔어요', 'ok');
+  if (!first && S.state) {
+    const seatsOf = (x) => x.players.filter((p) => p.role === 'player' && !p.leaving).map((p) => p.id).sort().join();
+    if (seatsOf(S.state) !== seatsOf(st)) sound.play('sit');
+    const rb = (x) => ((x.hand && x.hand.result && x.hand.result.rabbit) || []).length;
+    if (rb(st) > rb(S.state)) sound.play('flip');
+    const sh = (x) => ((x.hand && x.hand.result && x.hand.result.shown) || []).length + x.players.filter((p) => p.cards && p.cards.some((c) => c !== '??') && x.hand && x.hand.finished).length;
+    if (st.hand && S.state.hand && st.hand.no === S.state.hand.no && st.hand.finished && sh(st) > sh(S.state)) sound.play('flip');
+  }
   S.state = st;
   S.wasInRoom = st.room.code;
   sound.setQuietRoom(!st.room.practice && st.players.filter((p) => !p.isBot && !p.leaving).length >= 2);
@@ -1489,7 +1497,7 @@ function renderGameHome() {
   <main class="home game-home">
     <div class="top-bar"><button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>${SHARE_BTN}</div>
     ${g === 'holdem' ? '' : S.info && S.info.accounts === false ? '' : RK.hallHTML(g)}
-    <div class="gh-hero" style="background-image:url('${g === 'holdem' ? '/img/holdem/hero.webp' : `/img/games/${g}.webp`}')"><div class="gh-shade"></div>
+    <div class="gh-hero" style="background-image:url('${g === 'holdem' ? '/img/holdem/hero2.webp' : `/img/games/${g}.webp`}')"><div class="gh-shade"></div>
       <div class="gh-title"><span class="gh-icon">${P.hubIcon(HUB_GAME_ICON[g] || 'cards', 'hic-lg')}</span><h1>${info.name}</h1><p>${info.tag}</p>
       ${g === 'holdem' ? '<div class="gh-chips"><span>토너먼트</span><span>최대 9명</span><span>채팅</span><span>AI 연습</span></div>' : ''}</div>
     </div>
@@ -1648,8 +1656,7 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
   ${forCreate ? `
   <fieldset class="fieldset ${S.game ? 'hidden-pick' : ''}"><legend>게임</legend>${gamePickHTML(S.game || s.game || 'holdem')}
     <p class="muted small" data-game-note></p></fieldset>
-  <label class="field"><span>내 닉네임</span>
-    <input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
+  ${nickFieldHTML('내 닉네임')}
   ${avatarPickerHTML()}` : ''}
   <fieldset class="fieldset seotda-only">
     <legend>섯다 방식</legend>
@@ -1822,7 +1829,7 @@ function renderCreate() {
   form.onsubmit = async (e) => {
     e.preventDefault();
     const name = String(new FormData(form).get('name') || '').trim();
-    if (!name) { toast('닉네임을 입력해 주세요', 'error'); return; }
+    if (!name || BAD_NICK.test(name)) { toast('친구들이 알아볼 수 있는 닉네임을 입력해 주세요', 'error'); return; }
     const settings = readSettings(form);
     const bad = validateSettings(settings);
     if (bad) { toast(bad, 'error'); return; }
@@ -1911,6 +1918,14 @@ function renderPractice() {
   };
 }
 
+// 닉네임 칸: 친구들과 하는 방은 손님(비회원)이 꼭 직접 입력 (지난번 이름은 한 번 눌러 채우기)
+function nickFieldHTML(label = '닉네임') {
+  if (S.user) return `<input type="hidden" name="name" value="${esc(S.user.nickname)}"><p class="nick-member">${esc(S.user.nickname)}님으로 참가해요</p>`;
+  const last = LS.get('chandem:name', '');
+  return `<label class="field"><span>${label} <small class="req">필수 · 친구들이 알아볼 이름</small></span><input class="input" name="name" maxlength="10" required value="" placeholder="닉네임을 입력해 주세요" autocomplete="nickname"></label>
+    ${last ? `<button type="button" class="nick-last" onclick="this.previousElementSibling.querySelector('input').value=this.dataset.n;this.remove()" data-n="${esc(last)}">지난번 이름 <b>${esc(last)}</b> 쓰기</button>` : ''}`;
+}
+const BAD_NICK = /^(손님|게스트|guest|player|플레이어|익명|이름|닉네임|nickname|name|[ㅇ?.\-_~!]+)$/i;
 function renderJoin() {
   const d = S.roomInfo;
   $app.innerHTML = `
@@ -1927,7 +1942,7 @@ function renderJoin() {
         <li><span>상태</span><b>${d.phase === 'lobby' ? '대기실' : '게임 중 (다음 판부터 참가)'}</b></li>
       </ul>
       <form id="join-form">
-        <label class="field"><span>닉네임</span><input class="input" name="name" maxlength="10" required value="${esc(LS.get('chandem:name', ''))}" placeholder="최대 10자"></label>
+        ${nickFieldHTML()}
         ${d.hasPassword ? `<label class="field"><span>비밀번호</span><input class="input" name="password" maxlength="20" ${S.user && S.user.isMaster ? 'placeholder="마스터는 비워 두고 관전 가능"' : 'required'} autocomplete="off"></label>` : ''}
         ${S.user && S.user.isMaster && (d.hasPassword || d.approval) ? '<p class="muted small">마스터는 비밀번호·승인 없이 <b>관전</b>으로 바로 들어갈 수 있어요</p>' : ''}
         ${avatarPickerHTML()}
@@ -1946,8 +1961,8 @@ function renderJoin() {
     e.preventDefault();
     const fd = new FormData(form);
     const name = String(fd.get('name') || '').trim();
-    if (!name) { toast('닉네임을 입력해 주세요', 'error'); return; }
-    LS.set('chandem:name', name);
+    if (!name || BAD_NICK.test(name)) { toast('친구들이 알아볼 수 있는 닉네임을 입력해 주세요', 'error'); form.name && form.name.focus(); return; }
+    if (!S.user) LS.set('chandem:name', name);
     const res = await emit('room:join', { code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on' || !!(S.user && S.user.isMaster && (d.hasPassword || d.approval) && !fd.get('password')), avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
@@ -2617,15 +2632,31 @@ function tableMotion(st, before) {
   const center = document.querySelector('#g-table .board') || table;
   const c0 = centerOf(center);
   // 카드 돌리기: 새로 받은 카드는 테이블 가운데에서 자기 자리로 (돌리는 순서대로 조금씩 늦게)
-  const fresh = [...table.querySelectorAll('.seat-cards .card-deal, .seat-mycards .card-deal')];
+  const seatEls = [...table.querySelectorAll('.seat[data-id]')]; // 화면 순서 = 시계방향
+  const dIdx = Math.max(0, seatEls.findIndex((s) => s.querySelector('.dealer-btn')));
+  const N = seatEls.length || 1;
+  const fresh = [...table.querySelectorAll('.seat-cards .card-deal, .seat-mycards .card-deal')].map((card) => {
+    const si = seatEls.indexOf(card.closest('.seat'));
+    const k = [...card.parentElement.querySelectorAll('.card')].indexOf(card);
+    return { card, key: k * N + ((si - dIdx - 1 + N) % N) };
+  }).sort((a, b) => a.key - b.key).map((x) => x.card);
   fresh.forEach((card, i) => {
     const r = card.getBoundingClientRect();
     const dx = c0.x - (r.left + r.width / 2); const dy = c0.y - (r.top + r.height / 2);
     card.style.animation = 'none';
     card.animate([{ transform: `translate(${dx}px,${dy}px) rotate(-30deg) scale(.5)`, opacity: 0 }, { opacity: 1, offset: 0.2 }, { transform: getComputedStyle(card).transform === 'none' ? 'none' : getComputedStyle(card).transform, opacity: 1 }],
-      { duration: 420, delay: 60 + (i % 20) * 70, easing: 'cubic-bezier(.2,.8,.25,1)', fill: 'both' });
+      { duration: 420, delay: 60 + (i % 20) * 75, easing: 'cubic-bezier(.2,.8,.25,1)', fill: 'both' });
   });
-  if (fresh.length) sound.play('deal');
+  // 딜러 버튼: 판이 바뀌면 이전 자리에서 다음 자리로 미끄러진다
+  const btn = table.querySelector('.dealer-btn');
+  if (btn) {
+    const at = centerOf(btn);
+    if (S.btnAt && S.btnHand !== h.no && (Math.abs(S.btnAt.x - at.x) + Math.abs(S.btnAt.y - at.y)) > 8) {
+      btn.animate([{ transform: `translate(${S.btnAt.x - at.x}px,${S.btnAt.y - at.y}px)` }, { transform: 'translate(0,0)' }], { duration: 600, easing: 'cubic-bezier(.3,.7,.3,1)' });
+      sound.play('button');
+    }
+    S.btnAt = at; S.btnHand = h.no;
+  }
   // 베팅: 금액이 늘어난 사람은 자기 자리에서 칩이 날아간다
   const now = {};
   table.querySelectorAll('.bet[data-id]').forEach((b) => { now[b.dataset.id] = { at: centerOf(b), amt: Number(b.dataset.amt) || 0 }; });
@@ -2633,7 +2664,12 @@ function tableMotion(st, before) {
     const prev = before[id];
     if (prev && prev.amt >= v.amt) continue;
     const seat = table.querySelector(`.seat[data-id="${id}"] .seat-av`);
-    if (seat) { const s0 = centerOf(seat); flyChip(s0, v.at); flyChip(s0, v.at, { delay: 70 }); }
+    if (seat) {
+      const s0 = centerOf(seat);
+      const bb = (st.room.tournament && st.room.tournament.running ? st.room.tournament.bb : st.room.settings.bb) || 1;
+      const n = Math.max(1, Math.min(6, 1 + Math.round(Math.log2(Math.max(1, (v.amt - (prev ? prev.amt : 0)) / bb)))));
+      for (let c = 0; c < n; c++) flyChip(s0, { x: v.at.x + (Math.random() - 0.5) * 8, y: v.at.y - c * 2 }, { delay: c * 55 });
+    }
   }
   // 라운드가 끝남(베팅 칩이 사라짐): 그 자리에서 팟으로 모은다
   const pot = table.querySelector('.pot');
@@ -2942,7 +2978,7 @@ function renderActions(st) {
       <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
       ${canPre ? `<div class="pre-row"><button class="pre-btn ${S.pre && S.pre.kind === 'cf' ? 'on' : ''}" data-pre="cf">체크 / 폴드</button><button class="pre-btn ${S.pre && S.pre.kind === 'cc' ? 'on' : ''}" data-pre="cc">체크 / 콜</button></div>` : ''}`;
     el.querySelectorAll('[data-pre]').forEach((b) => {
-      b.onclick = () => { const k = b.dataset.pre; S.pre = S.pre && S.pre.kind === k ? null : { kind: k, hand: h.no, bet: h.currentBet }; S.actionSig = ''; renderActions(S.state); };
+      b.onclick = () => { sound.play('tap'); const k = b.dataset.pre; S.pre = S.pre && S.pre.kind === k ? null : { kind: k, hand: h.no, bet: h.currentBet }; S.actionSig = ''; renderActions(S.state); };
     });
     return;
   }
@@ -3528,7 +3564,32 @@ function burstChips(winners, count) {
   });
 }
 
-// 내가 이기면 화면 가득 금화·칩이 쏟아진다
+// 내가 이기면 내 자리에서 돈·칩이 위로 '팡' 솟구쳐 올랐다가 흩어진다 (분수처럼)
+function coinFountain(n = 50) {
+  if (gws.reduceMotion()) return;
+  const me = document.querySelector('#g-table .seat-me .seat-av') || document.querySelector('#g-table');
+  if (!me) return;
+  const o = centerOf(me);
+  const H = window.innerHeight;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    const r = Math.random();
+    el.className = r < 0.4 ? 'fx-bill' : r < 0.7 ? 'fx-coin' : 'fx-chip fx-chip-lg';
+    el.style.left = o.x + 'px'; el.style.top = o.y + 'px';
+    fxLayer().appendChild(el);
+    // 위로 쏘아 올린 뒤 중력으로 떨어지는 포물선
+    const vx = (Math.random() - 0.5) * 360; const up = H * (0.45 + Math.random() * 0.35);
+    const T = 1300 + Math.random() * 700; const spin = (Math.random() - 0.5) * 1080;
+    const frames = [];
+    for (let k = 0; k <= 10; k++) {
+      const t = k / 10;
+      const y = -up * (4 * t - 4 * t * t) * (t < 0.5 ? 1 : 1) + (t > 0.5 ? (t - 0.5) * (t - 0.5) * H * 1.6 : 0);
+      frames.push({ transform: `translate(${vx * t}px,${y}px) rotate(${spin * t}deg) scale(${0.5 + 0.6 * Math.min(1, t * 4)})`, opacity: t > 0.85 ? (1 - t) / 0.15 : 1 });
+    }
+    el.animate(frames, { duration: T, delay: i * 22 + Math.random() * 120, easing: 'linear', fill: 'both' }).onfinish = () => el.remove();
+  }
+}
+// (예전) 화면 위에서 금화·칩이 쏟아진다
 function coinRain(n = 46) {
   const W = window.innerWidth; const H = window.innerHeight;
   for (let i = 0; i < n; i++) {
@@ -3564,6 +3625,7 @@ function celebrate(st) {
   const gain = Math.max(0, ...r.winners.map((w) => r.deltas[w] || 0));
   const huge = st.hand.totalPot >= st.room.settings.startChips; // 시작 칩 이상 걸린 큰 판
   burstChips(r.winners, big ? (huge ? 60 : 36) : 18);
+  setTimeout(() => sound.play('collect'), 380); // 칩이 이긴 사람 앞으로 와르르
   sound.play('coins');
   if (big || iWon) setTimeout(() => sound.play('fanfare'), 250);
   const names = r.winnerNames.join(', ');
@@ -3571,7 +3633,7 @@ function celebrate(st) {
   const el = banner(iWon ? '내가 이겼다!' : `${names} 승리`, `<span class="fx-hand">${handName}</span><b class="fx-amt">+0</b>`, iWon ? 'mywin' : 'win', big ? 2600 : 1800);
   countUp(el.querySelector('.fx-amt'), gain);
   if (iWon) {
-    coinRain(huge ? 70 : 44);
+    coinFountain(huge ? 80 : 50);
     const flash = document.createElement('div');
     flash.className = 'fx-flash';
     fxLayer().appendChild(flash);

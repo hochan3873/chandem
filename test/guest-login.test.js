@@ -51,7 +51,7 @@ test('방 안에서 로그인: 판 도중이면 다음 판부터, 손님으로 �
   let auto = true;
   s.on('state', (v) => { s.last = v; const la = v.hand && v.hand.legal; if (la && auto) s.emit('game:act', { type: la.canCheck ? 'check' : 'fold' }, () => {}); });
   const call = (ev, d) => new Promise((r) => s.emit(ev, d || {}, r));
-  const r = await call('room:create', { name: '손님', settings: { game: 'holdem', turnSeconds: 10 } }); // 손님으로 만듦
+  const r = await call('room:create', { name: '손님A', settings: { game: 'holdem', turnSeconds: 10 } }); // 손님으로 만듦
   assert.equal(r.ok, true, r.message);
   await call('host:bot'); await call('host:bot');
   auto = false; // 첫 판 도중에 로그인하려고 잠깐 멈춤

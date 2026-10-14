@@ -85,7 +85,7 @@ export async function openPlayerCard({ game, code, pid, username, name, extra = 
 }
 
 // ── 명예의 전당 (게임 화면 맨 위): 1~3위 시상대 · 4~10위 목록 · 내 순위 ──
-const avatarOf = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return `/img/avatars/a${(h % 8) + 1}.webp`; };
+const avatarOf = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return `/img/avatars/a${(h % 10) + 1}.webp?v=2`; };
 const tierTxt = (x) => (x.tier ? `${ico(x.tier.icon)}${C.esc(x.tier.name)}` : `${ico('trophy')}배치 중`);
 const subTxt = (game, x) => (game === 'omok' ? `${C.fmt(x.rating)}점 · ${C.fmt(x.played)}판` : `승률 ${x.winRate == null ? '-' : x.winRate + '%'} · ${C.fmt(x.played)}판`);
 export function hallHTML(game) {

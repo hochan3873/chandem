@@ -73,7 +73,7 @@ test('정지하면 로그인·기존 토큰이 막히고 사유가 보인다, �
   assert.match(l.message, /정지.*욕설/);
   // 정지된 사람은 로그인한 채로 게임 불가 → 소켓에서도 손님 취급
   const c = client();
-  const r = await c.call('room:create', { name: '손님', settings: { game: 'holdem' }, auth: u.token });
+  const r = await c.call('room:create', { name: '손님A', settings: { game: 'holdem' }, auth: u.token });
   assert.equal(r.ok, true);
   await new Promise((res) => setTimeout(res, 80));
   assert.equal(c.last.players[0].member, false);

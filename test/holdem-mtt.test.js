@@ -79,7 +79,8 @@ test('일시정지는 모든 테이블에 · 만든 사람만', () => {
   const g = setup(12);
   const ts = g.tables();
   assert.equal(ts.length, 2);
-  assert.throws(() => ts[1].setPause(ts[1].seated[0].id === g.ps[0].id ? 'x' : ts[1].seated[1].id, true));
+  const nobody = ts[1].seated.find((p) => p.id !== g.ps[0].id && p.id !== ts[1].hostId); // 만든 사람도 그 테이블 방장도 아닌 사람
+  assert.throws(() => ts[1].setPause(nobody.id, true));
   g.main.setPause(g.ps[0].id, true);
   assert.ok(ts.every((t) => t.tourney.pausedAt));
   g.main.setPause(g.ps[0].id, false);

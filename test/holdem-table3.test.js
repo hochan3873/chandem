@@ -118,3 +118,9 @@ test('토너먼트: 다시 참가(리바이)도 정한 횟수까지만', () => {
   assert.throws(() => room.setRole(B.id, false), /1번까지/);
   room.clearAllTimers();
 });
+
+test('손님 닉네임: "손님" 같은 빈 이름은 안 받고, 진짜 이름은 받는다', () => {
+  const { guestNameCheck } = require('../server/room');
+  for (const bad of ['손님', 'guest', '닉네임', 'ㅇㅇ', '???', '  ']) assert.throws(() => guestNameCheck(bad));
+  for (const ok of ['호찬', '손님A', '김무성']) assert.doesNotThrow(() => guestNameCheck(ok));
+});

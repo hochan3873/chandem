@@ -163,7 +163,7 @@ input[type=range] { width: 100%; accent-color: var(--gold); height: 32px; }
 }
 .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .avatar-sm { width: 32px; height: 32px; font-size: .85rem; }
-.av-pick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.av-pick { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .av-opt { display: grid; place-items: center; cursor: pointer; }
 .av-opt input { position: absolute; opacity: 0; pointer-events: none; }
 .av-opt .avatar { width: 52px; height: 52px; border-width: 2px; transition: transform .12s, box-shadow .12s; }
@@ -1744,3 +1744,20 @@ form[data-mode="tournament"] .cash-only { display: none; }
 .game[data-orient="land"] .pot-note { display: none; }
 .game[data-orient="land"] .g-me.me-tools { margin-bottom: 4px; }
 .cm-empty { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.field .req { color: #ffb36b; font-size: .72rem; font-weight: 700; }
+.nick-last { align-self: flex-start; margin: -4px 0 6px; border: 1px dashed rgba(255, 220, 150, .45); background: rgba(255, 255, 255, .04); color: var(--muted); border-radius: 10px; padding: 5px 10px; font-size: .78rem; cursor: pointer; }
+.nick-last b { color: #ffe8a8; }
+.nick-member { margin: 0 0 6px; font-weight: 800; color: #ffe8a8; }
+/* 이겼을 때 솟구치는 지폐 */
+.fx-bill { position: fixed; width: 34px; height: 17px; margin: -8px 0 0 -17px; border-radius: 3px; background: linear-gradient(135deg, #8fe39b, #3fa35a 55%, #2a7a40); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .35), 0 2px 4px rgba(0, 0, 0, .4); z-index: 6; pointer-events: none; }
+.fx-bill::after { content: '₩'; position: absolute; inset: 0; display: grid; place-items: center; color: rgba(20, 70, 30, .85); font: 900 11px/1 var(--font); }
+/* 홀덤 메인 그림: 천천히 다가가는 카메라 + 떠다니는 금빛 (움직이는 메인) */
+body[data-theme="holdem"] .game-home .gh-hero { background-size: 0 0; overflow: hidden; }
+body[data-theme="holdem"] .game-home .gh-hero::before { content: ''; position: absolute; inset: -4%; background: inherit; background-size: cover; background-position: 62% center; animation: heroDrift 18s ease-in-out infinite alternate; }
+body[data-theme="holdem"] .game-home .gh-hero::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 20% 30%, rgba(255, 220, 120, .9) 0 1.5px, transparent 2.5px), radial-gradient(circle at 70% 20%, rgba(255, 230, 150, .8) 0 1.2px, transparent 2.2px), radial-gradient(circle at 45% 60%, rgba(255, 210, 110, .7) 0 1px, transparent 2px), radial-gradient(circle at 85% 50%, rgba(255, 240, 180, .8) 0 1.4px, transparent 2.4px), radial-gradient(circle at 30% 80%, rgba(255, 220, 120, .7) 0 1px, transparent 2px); background-size: 180px 140px, 220px 170px, 160px 120px, 240px 200px, 200px 150px; animation: heroSparkle 9s linear infinite; mix-blend-mode: screen; opacity: .8; }
+body[data-theme="holdem"] .game-home .gh-shade, body[data-theme="holdem"] .game-home .gh-title { z-index: 1; }
+@keyframes heroDrift { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.1) translate(-2%, 1%); } }
+@keyframes heroSparkle { from { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; } to { background-position: 0 -140px, 0 -170px, 0 -120px, 0 -200px, 0 -150px; } }
+@media (prefers-reduced-motion: reduce) { body[data-theme="holdem"] .game-home .gh-hero::before, body[data-theme="holdem"] .game-home .gh-hero::after { animation: none; } }
+/* 테이블 위에선 "손님" 딱지를 숨김 (등급 딱지만) */
+.seat-av .rk-guest { display: none; }

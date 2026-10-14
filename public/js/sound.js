@@ -82,7 +82,7 @@ export function musicState() { return bgm ? { playing: !bgm.paused, src: bgm.src
 export function isUnlocked() { return unlocked; }
 
 function applyVolume() {
-  if (master) master.gain.value = prefs.muted ? 0 : prefs.volume;
+  if (master) master.gain.value = prefs.muted ? 0 : prefs.volume * 2.2;
   applyMusic();
 }
 
@@ -119,7 +119,10 @@ export function unlock() {
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.connect(ctx.destination);
+  // 폰 스피커에서도 또렷하게: 전체를 키우고 리미터로 찢어지지 않게
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = 0.002; comp.release.value = 0.12;
+  master.connect(comp).connect(ctx.destination);
   unlocked = true;
   // 소리가 실제로 풀리면 이 탭에 기억 (사이트 안에서 페이지를 옮겨도 다시 '터치해서 시작'을 안 띄우려고)
   const noteOK = () => { if (ctx.state === 'running') { try { sessionStorage.setItem('gw:audioOK', '1'); } catch {} window.dispatchEvent(new Event('gw:audio')); } };
@@ -194,40 +197,65 @@ function tone(freq, dur, { type = 'sine', gain = 0.25, at = 0 } = {}) {
   o.start(t); o.stop(t + dur + 0.05);
 }
 
+// 음높이가 뚝 떨어지는 짧은 타격음 (폰 스피커에서도 잘 들리는 300~1200Hz 대역)
+function drop(f0, f1, dur, gain, at = 0, type = 'sine') {
+  const o = ctx.createOscillator(); const g = ctx.createGain(); const t = ctx.currentTime + at;
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.03);
+}
+// 점토 칩 하나가 '딱' 부딪히는 소리
+function clack(at = 0, g = 1) {
+  const f = 2600 + Math.random() * 1600;
+  tone(f, 0.035, { type: 'triangle', gain: 0.22 * g, at });
+  tone(f * 1.48, 0.025, { type: 'sine', gain: 0.1 * g, at: at + 0.004 });
+  setTimeout(() => noise(0.025, { freq: 5200, q: 2.5, gain: 0.28 * g }), at * 1000);
+}
+
 const SYNTH = {
-  // 카드 한 장이 테이블 위로 휙 미끄러지는 소리
+  // 카드 한 장이 펠트 위로 '착' 미끄러지는 소리
   deal: () => {
-    noise(0.09, { freq: 2600 + Math.random() * 1400, q: 0.9, gain: 0.32, attack: 0.012 });
-    setTimeout(() => noise(0.03, { freq: 1200, q: 1.5, gain: 0.18 }), 70);
+    noise(0.07, { freq: 2800 + Math.random() * 900, q: 0.8, gain: 0.55, attack: 0.006 });
+    setTimeout(() => noise(0.05, { freq: 1300, q: 1.2, gain: 0.32 }), 45);
   },
-  flip: () => { for (let i = 0; i < 3; i++) setTimeout(() => { noise(0.08, { freq: 2600 + Math.random() * 1200, gain: 0.3, attack: 0.01 }); setTimeout(() => noise(0.04, { freq: 4200, gain: 0.18 }), 40); }, i * 120); },
-  chip: () => { tone(2400, 0.05, { type: 'triangle', gain: 0.18 }); tone(3100, 0.06, { type: 'triangle', gain: 0.12, at: 0.035 }); },
-  chips: () => { for (let i = 0; i < 5; i++) tone(2200 + Math.random() * 1400, 0.05, { type: 'triangle', gain: 0.12, at: i * 0.035 }); },
-  check: () => { tone(180, 0.09, { type: 'sine', gain: 0.5 }); tone(170, 0.08, { type: 'sine', gain: 0.4, at: 0.12 }); },
-  // 카드를 앞으로 휙 던져 미끄러지는 소리 (스르륵)
+  // 바닥 카드 뒤집기 (플랍·턴·리버): '착 착 착'
+  flip: () => { for (let i = 0; i < 3; i++) setTimeout(() => { noise(0.06, { freq: 3000 + Math.random() * 900, q: 0.9, gain: 0.5, attack: 0.004 }); drop(900, 500, 0.05, 0.18); }, i * 130); },
+  // 턴·리버: 번 카드를 빼고 한 장을 '착'
+  flip1: () => { noise(0.05, { freq: 2000, q: 0.8, gain: 0.25 }); setTimeout(() => { noise(0.07, { freq: 3100, q: 0.9, gain: 0.55, attack: 0.004 }); drop(900, 480, 0.06, 0.2); }, 180); },
+  // 딜러 버튼이 다음 자리로 미끄러짐
+  button: () => { noise(0.12, { freq: 1800, q: 0.8, gain: 0.18, attack: 0.03 }); drop(700, 420, 0.05, 0.25, 0.12); },
+  chip: () => { clack(0); clack(0.04, 0.7); },
+  // 베팅·콜: 칩 몇 개를 툭툭 내려놓는 소리
+  chips: () => { const n = 4 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) clack(i * (0.03 + Math.random() * 0.025), 0.8 + Math.random() * 0.3); },
+  // 팟을 가져올 때: 칩 더미가 와르르 모이는 소리 (조용한 방에서도 남김)
+  collect: () => { for (let i = 0; i < 14; i++) clack(i * 0.035 + Math.random() * 0.02, 0.55 + Math.random() * 0.4); noise(0.35, { freq: 2200, q: 0.6, gain: 0.12, attack: 0.05 }); },
+  check: () => SYNTH.knock(),
+  // 폴드: 카드 두 장을 던지면 '툭, 툭' 하고 펠트에 떨어진다
   fold: () => {
-    noise(0.16, { freq: 3200, q: 0.8, gain: 0.26, attack: 0.02 });
-    setTimeout(() => noise(0.32, { freq: 1500, q: 0.5, gain: 0.14, type: 'bandpass', attack: 0.05 }), 90);
+    noise(0.09, { freq: 2400, q: 0.7, gain: 0.32, attack: 0.02 }); // 휙
+    setTimeout(() => { drop(520, 220, 0.07, 0.55); noise(0.05, { freq: 950, q: 1.3, gain: 0.55 }); }, 110); // 툭
+    setTimeout(() => { drop(470, 210, 0.06, 0.4); noise(0.04, { freq: 900, q: 1.3, gain: 0.4 }); }, 210); // 툭
   },
-  // 홀덤 올인: 칩 더미를 앞으로 '스윽' 미는 묵직하고 짧은 소리 (외침·짤랑임 없음)
+  // 홀덤 올인: 칩 더미를 앞으로 '스윽' 밀고 내려놓는 소리 (외침·요란함 없이)
   allinPush: () => {
-    noise(0.28, { freq: 700, q: 0.6, gain: 0.16, type: 'lowpass', attack: 0.04 });
-    tone(82, 0.22, { type: 'sine', gain: 0.22, at: 0.05 });
-    for (let i = 0; i < 4; i++) tone(1900 + Math.random() * 500, 0.04, { type: 'triangle', gain: 0.035, at: 0.16 + i * 0.03 });
+    noise(0.22, { freq: 2000, q: 0.7, gain: 0.22, attack: 0.05 });
+    for (let i = 0; i < 6; i++) clack(0.16 + i * 0.03, 0.7);
   },
   // 홀덤 올인 승부 시작: 낮고 조용한 심장 박동 두 번 (북 연타 대신)
   allinTension: () => { tone(55, 0.16, { type: 'sine', gain: 0.35 }); tone(50, 0.2, { type: 'sine', gain: 0.25, at: 0.18 }); },
   // 채팅 알림: 맑은 '띠링' (메신저 느낌, 짧고 작게)
   msg: () => { tone(1568, 0.12, { type: 'sine', gain: 0.13 }); tone(2093, 0.22, { type: 'sine', gain: 0.11, at: 0.09 }); },
-  // 체크: 주먹으로 테이블을 탁탁 (나무 두 번)
+  // 체크: 주먹으로 테이블을 '탁탁' (나무 두 번 · 폰 스피커에서 잘 들리는 대역)
   knock: () => {
-    const hit = (at, g) => { tone(118, 0.11, { type: 'sine', gain: g, at }); tone(240, 0.05, { type: 'triangle', gain: g * 0.35, at }); setTimeout(() => noise(0.045, { freq: 900, q: 1.1, gain: g * 0.55, type: 'lowpass', attack: 0.002 }), at * 1000); };
-    hit(0, 0.75); hit(0.15, 0.6);
+    const hit = (at, g) => { drop(780, 330, 0.07, 0.6 * g, at); drop(1500, 900, 0.03, 0.25 * g, at, 'triangle'); setTimeout(() => noise(0.035, { freq: 1700, q: 1.6, gain: 0.6 * g, attack: 0.002 }), at * 1000); };
+    hit(0, 1); hit(0.14, 0.85);
   },
+  // 자리에 앉기 · 일어나기
+  sit: () => { drop(600, 300, 0.08, 0.3); clack(0.06, 0.5); },
   // 셔플: 카드 리플 (짧은 딸깍이 빠르게)
   shuffle: () => {
-    for (let i = 0; i < 22; i++) setTimeout(() => noise(0.025, { freq: 3500 + Math.random() * 2500, q: 1.4, gain: 0.08 + Math.random() * 0.05 }), i * 22 + Math.random() * 8);
-    setTimeout(() => noise(0.12, { freq: 1800, q: 0.6, gain: 0.16, attack: 0.01 }), 520);
+    for (let i = 0; i < 22; i++) setTimeout(() => noise(0.03, { freq: 2800 + Math.random() * 2200, q: 1.1, gain: 0.25 + Math.random() * 0.1 }), i * 22 + Math.random() * 8);
+    setTimeout(() => noise(0.12, { freq: 1800, q: 0.6, gain: 0.4, attack: 0.01 }), 520);
   },
   // 감정 표현: 짧은 '띵'
   ding: () => { tone(1320, 0.18, { type: 'sine', gain: 0.16 }); tone(1760, 0.3, { type: 'sine', gain: 0.12, at: 0.08 }); },
@@ -237,7 +265,7 @@ const SYNTH = {
   turn: () => { tone(880, 0.18, { gain: 0.18 }); tone(1320, 0.25, { gain: 0.14, at: 0.1 }); },
   win: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.35, { type: 'triangle', gain: 0.16, at: i * 0.09 })); },
   lose: () => { tone(330, 0.2, { gain: 0.1 }); tone(262, 0.3, { gain: 0.1, at: 0.15 }); },
-  tick: () => tone(1500, 0.03, { type: 'square', gain: 0.05 }),
+  tick: () => tone(1500, 0.04, { type: 'square', gain: 0.1 }),
   // 올인 도장: 쿵 + 금속성 충격
   stamp: () => {
     tone(55, 0.6, { type: 'sine', gain: 0.9 });
@@ -353,8 +381,11 @@ export function say(text) {
 }
 
 /** name: 효과음 이름 (deal, chip, check …) 또는 음성 이름 (v_call …, e_angry …) */
+// 친구 방(조용한 방)에서는 연출용 큰 소리를 내지 않는다: 홀덤에만 집중 (카드·칩·노크·차례·채팅 알림만)
+const DRAMA = new Set(['heartbeat', 'impact', 'drumroll', 'allinTension', 'boom', 'fanfare', 'coins', 'stamp', 'lose']); // 'collect'(팟 가져오기)는 남김
 export async function play(name, gain = 1) {
   if (!unlocked || prefs.muted || !ctx) return;
+  if (hush() && DRAMA.has(name)) return;
   if ((name.startsWith('v_') || name.startsWith('e_')) && !voiceOK()) return;
   if (!manifest) await loadManifest();
   const buf = await loadBuffer(name);
@@ -373,7 +404,7 @@ export function playForEvent(e, { isMe = false, iWon = false } = {}) {
     case 'bet': play('chips'); play('v_bet'); break;
     case 'raise': play('chips'); play('v_raise'); break;
     case 'allin': play('allinPush'); break; // 홀덤: 외치는 음성·요란한 소리 없이
-    case 'street': play('flip'); break;
+    case 'street': play(e.board && e.board.length > 3 ? 'flip1' : 'flip'); break; // 플랍은 착착착, 턴·리버는 한 장
     case 'end': if (iWon) play('v_win'); break; // 칩·팡파르는 승리 연출(celebrate)에서
     default: break;
   }

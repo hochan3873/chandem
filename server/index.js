@@ -6,7 +6,7 @@ const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
-const { Room, RoomError, sanitizeSettings, makeCode } = require('./room');
+const { Room, RoomError, sanitizeSettings, makeCode, guestNameCheck } = require('./room');
 const { createMtt } = require('./mtt');
 const { createAccounts, hashPassword } = require('./accounts');
 const { createSite } = require('./site');
@@ -362,9 +362,9 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const indexHtml = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // 게임별 바로가기 링크 (/holdem · /seotda · /omok): 카톡 미리보기를 그 게임 그림·문구로
-  const OG_IMG = { holdem: 'og-holdem2.jpg', seotda: 'og-seotda.jpg', omok: 'og-omok.jpg' };
+  const OG_IMG = { holdem: 'og-holdem3.jpg', seotda: 'og-seotda.jpg', omok: 'og-omok.jpg' };
   const GAME_LINK = {
-    holdem: ['♠ 텍사스 홀덤 · 찬이의 게임월드', '링크 누르고 바로 홀덤 한 판! 친구들끼리 토너먼트 · 최대 9명'],
+    holdem: ['♠ 찬덤 홀덤', '링크 누르고 친구들과 바로 홀덤 한 판! 토너먼트 · 최대 10명 · 앱 설치 가능'],
     seotda: ['섯다 · 찬이의 게임월드', '링크 누르고 바로 섯다 한 판! 두 장 · 세 장 섯다'],
     omok: ['오목 · 찬이의 게임월드', '링크 누르고 바로 오목 한 판! 친구와 1:1 대국'],
   };
@@ -394,7 +394,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     let html = indexHtml;
     if (r && r.host) {
       const s = r.settings;
-      const title = `${r.host.name}님이 ${{ holdem: '홀덤', seotda: '섯다', omok: '오목' }[s.game] || '게임'} 방에 초대했어요 · 찬이의 게임월드`;
+      const title = `${r.host.name}님이 ${{ holdem: '홀덤', seotda: '섯다', omok: '오목' }[s.game] || '게임'} 방에 초대했어요 · ${s.game === 'holdem' || !s.game ? '찬덤 홀덤' : '찬이의 게임월드'}`;
       const desc = s.game === 'omok'
         ? `방 코드 ${r.code} · 1:1 오목 대국 · 지금 ${r.seated.length}/2명`
         : `방 코드 ${r.code} · ${s.game === 'seotda' ? `${s.cards === 3 ? '세 장' : '두 장'} 섯다 · 판돈 ${s.bb}` : `블라인드 ${s.sb}/${s.bb}`} · 시작 칩 ${s.startChips.toLocaleString('ko-KR')} · 지금 ${r.seated.length}/${s.maxPlayers}명`;
@@ -468,6 +468,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       payload = payload || {};
       const user = await userOf(payload);
       if (user) payload.name = user.nickname;
+      else if (!(payload.code === undefined && payload.bots !== undefined)) { try { guestNameCheck(payload.name); } catch (e) { return fail(ack, e); } } // 손님은 진짜 닉네임 (AI 연습 제외)
       try {
         const settings = sanitizeSettings(payload.settings || {});
         const ip = checkCreate(socket, false, user);
@@ -489,6 +490,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       await roomsReady;
       const user = await userOf(payload);
       if (user) payload.name = user.nickname;
+      else if (!(payload.code === undefined && payload.bots !== undefined)) { try { guestNameCheck(payload.name); } catch (e) { return fail(ack, e); } } // 손님은 진짜 닉네임 (AI 연습 제외)
       try {
         const room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방을 찾을 수 없어요. 코드를 확인해 주세요');
@@ -568,6 +570,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       payload = payload || {};
       const user = await userOf(payload);
       if (user) payload.name = user.nickname;
+      else if (!(payload.code === undefined && payload.bots !== undefined)) { try { guestNameCheck(payload.name); } catch (e) { return fail(ack, e); } } // 손님은 진짜 닉네임 (AI 연습 제외)
       try {
         const settings = sanitizeSettings({ ...(payload.settings || {}), approval: false, password: '' });
         const ip = checkCreate(socket, true, user);

@@ -131,17 +131,17 @@ test('새로고침(재접속)하면 같은 플레이어로 돌아오고 카드�
 test('비밀번호와 참가 승인', async () => {
   const a = client(); const b = client(); const c = client();
   const ra = await a.call('room:create', { name: '방장', settings: { password: '1234', approval: true } });
-  const wrong = await b.call('room:join', { code: ra.code, name: '손님', password: '0000' });
+  const wrong = await b.call('room:join', { code: ra.code, name: '손님A', password: '0000' });
   assert.equal(wrong.ok, false);
   assert.match(wrong.message, /비밀번호/);
   let joined = null;
   b.on('joined', (d) => { joined = d; });
-  const rb = await b.call('room:join', { code: ra.code, name: '손님', password: '1234' });
+  const rb = await b.call('room:join', { code: ra.code, name: '손님A', password: '1234' });
   assert.equal(rb.pending, true);
   await until(() => a.last.pending && a.last.pending.length === 1);
   await a.call('host:approve', { id: a.last.pending[0].id, ok: true });
   await until(() => joined && b.last);
-  assert.equal(b.last.me.name, '손님');
+  assert.equal(b.last.me.name, '손님A');
 
   let rejected = null;
   c.on('rejected', (d) => { rejected = d; });

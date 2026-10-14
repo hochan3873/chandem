@@ -102,7 +102,7 @@ test('Elo: 강한 상대를 이기면 많이, 약한 상대를 이기면 조금 
 
 test('비로그인(손님)도 그대로 게임할 수 있다', async () => {
   const a = client();
-  const r = await a.call('room:create', { name: '손님', settings: {} });
+  const r = await a.call('room:create', { name: '손님A', settings: {} });
   assert.equal(r.ok, true);
   await until(() => a.last);
   assert.equal(a.last.players[0].member, false);
