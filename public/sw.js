@@ -33,8 +33,8 @@ self.addEventListener('push', (e) => {
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.title || '랑방 대전', {
     body: d.body || '',
-    icon: '/img/lb/app/icon-192.png',
-    badge: '/img/lb/app/icon-192.png',
+    icon: d.icon || '/img/lb/app/icon-192.png',
+    badge: d.icon || '/img/lb/app/icon-192.png',
     tag: d.tag || 'lb',
     data: { url: d.url || '/langbang/' },
   }));

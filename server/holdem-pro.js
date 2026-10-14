@@ -40,6 +40,59 @@ const TIERS = [
 ];
 const PLACEMENT = 30; // 이보다 적으면 '배치 중'
 
+// 출석: 7일 연속이면 큰 보상, 그 뒤로 다시 1일째부터
+const CHECKIN = [1000, 1500, 2000, 2500, 3000, 4000, 10000];
+// 오늘의 미션: 날마다 3개 (날짜로 고름) · 연습 테이블 판으로 센다
+const MISSIONS = {
+  play10: { name: '연습 테이블 10판 치기', goal: 10, reward: 2000, f: (x) => 1 },
+  play25: { name: '연습 테이블 25판 치기', goal: 25, reward: 4000, f: (x) => 1 },
+  win3: { name: '3판 이기기', goal: 3, reward: 2000, f: (x) => x.won },
+  win8: { name: '8판 이기기', goal: 8, reward: 4000, f: (x) => x.won },
+  sd2: { name: '끝까지 가서 2번 이기기', goal: 2, reward: 3000, f: (x) => x.sdWon },
+  twopair: { name: '투페어 이상으로 이기기', goal: 2, reward: 2500, f: (x) => (x.won && x.cat >= 2 ? 1 : 0) },
+  straight: { name: '스트레이트 이상으로 이기기', goal: 1, reward: 4000, f: (x) => (x.won && x.cat >= 4 ? 1 : 0) },
+  raise5: { name: '프리플랍에 레이즈로 5번 들어가기', goal: 5, reward: 1500, f: (x) => x.pfr },
+  bigpot: { name: '빅블라인드 30개 넘는 팟 이기기', goal: 1, reward: 3000, f: (x) => (x.won && x.potBB >= 30 ? 1 : 0) },
+  good5: { name: '큰 결정 맞게 하기 5번', goal: 5, reward: 3000, f: (x) => x.decOk },
+};
+const MISSION_KEYS = Object.keys(MISSIONS);
+// 업적 (한 번만 · 칩 보상)
+const ACHIEVEMENTS = {
+  first_win: { name: '첫 승리', desc: '연습 테이블에서 처음 이기기', reward: 1000, icon: '🏅' },
+  hands100: { name: '100판 돌파', desc: '연습 테이블 100판', reward: 3000, icon: '💯' },
+  hands500: { name: '500판 돌파', desc: '연습 테이블 500판', reward: 10000, icon: '🎖️' },
+  hands1000: { name: '1000판의 사나이', desc: '연습 테이블 1000판', reward: 20000, icon: '🏆' },
+  streak5: { name: '5연승', desc: '다섯 판 연속 이기기', reward: 5000, icon: '🔥' },
+  flush: { name: '플러시', desc: '플러시로 이기기', reward: 2000, icon: '♦️' },
+  fullhouse: { name: '풀하우스', desc: '풀하우스로 이기기', reward: 3000, icon: '🏠' },
+  quads: { name: '포카드', desc: '포카드로 이기기', reward: 10000, icon: '🍀' },
+  sflush: { name: '스트레이트 플러시', desc: '스트레이트 플러시로 이기기', reward: 30000, icon: '🌈' },
+  royal: { name: '로열 플러시', desc: '꿈의 족보로 이기기', reward: 100000, icon: '👑' },
+  bigpot100: { name: '대박 팟', desc: '빅블라인드 100개 넘는 팟 이기기', reward: 5000, icon: '💰' },
+  gold: { name: '골드 달성', desc: '실력 티어 골드', reward: 5000, icon: '🥇' },
+  dia: { name: '다이아 달성', desc: '실력 티어 다이아', reward: 20000, icon: '💎' },
+  master: { name: '마스터 달성', desc: '실력 티어 마스터', reward: 50000, icon: '🎓' },
+  refer1: { name: '친구 초대', desc: '초대한 친구가 첫 판 치기', reward: 0, icon: '🤝' },
+  daily1: { name: '정기전 우승', desc: '정기 토너먼트 1등', reward: 0, icon: '🏆' },
+  week7: { name: '7일 개근', desc: '7일 연속 출석', reward: 0, icon: '📅' },
+};
+// 꾸미기 상점: 카드 뒷면 · 테이블 색 (칩으로 사고 바로 적용)
+const SHOP = [
+  { id: 'back-red', kind: 'back', name: '클래식 레드', price: 0 },
+  { id: 'back-navy', kind: 'back', name: '네이비 블루', price: 15000 },
+  { id: 'back-black', kind: 'back', name: '블랙 골드', price: 30000 },
+  { id: 'back-mint', kind: 'back', name: '민트 체크', price: 20000 },
+  { id: 'back-paw', kind: 'back', name: '동물 발자국', price: 40000 },
+  { id: 'felt-red', kind: 'felt', name: '레드 벨벳', price: 0 },
+  { id: 'felt-green', kind: 'felt', name: '카지노 그린', price: 25000 },
+  { id: 'felt-blue', kind: 'felt', name: '로열 블루', price: 35000 },
+  { id: 'felt-purple', kind: 'felt', name: '퍼플 나이트', price: 50000 },
+  { id: 'felt-black', kind: 'felt', name: '블랙 다이아', price: 80000 },
+];
+const REFER_REWARD = 5000; const REFER_MAX = 20;
+// 정기 토너먼트: 매일 밤 9시(한국 시간) · 10분 전부터 등록 · 상금은 지갑으로
+const DAILY = { hour: 21, openMin: 10, startChips: 5000, prizes: [30000, 15000, 7000] };
+
 const kstDay = (t) => new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const band = (x, lo, hi, soft) => (x >= lo && x <= hi ? 100 : 100 * Math.max(0, 1 - (x < lo ? lo - x : x - hi) / soft));
@@ -257,7 +310,20 @@ function createHoldemPro({ kv = null, now = Date.now } = {}) {
   }
   async function flush() { if (timer) { clearTimeout(timer); timer = null; } if (kv && dirty) { dirty = false; await kv.set(KV_KEY, data); } }
 
-  function fresh(name) { return { name: name || '', wallet: BASE, refill: { day: '', used: 0 }, st: emptyStats(), recent: '', created: now(), updated: now() }; }
+  function fresh(name) { return { name: name || '', wallet: BASE, refill: { day: '', used: 0 }, st: emptyStats(), recent: '', created: now(), updated: now(), checkin: { last: '', streak: 0 }, mis: { day: '', prog: {}, done: [] }, ach: {}, season: { id: '', st: emptyStats() }, titles: [], items: { owned: ['back-red', 'felt-red'], back: 'back-red', felt: 'felt-red' }, replays: [], ref: null, refCount: 0, streak: 0 }; }
+  // 예전 프로필에 새 칸 채우기
+  function up(p) {
+    if (!p.checkin) p.checkin = { last: '', streak: 0 };
+    if (!p.mis) p.mis = { day: '', prog: {}, done: [] };
+    if (!p.ach) p.ach = {};
+    if (!p.season) p.season = { id: '', st: emptyStats() };
+    if (!p.titles) p.titles = [];
+    if (!p.items) p.items = { owned: ['back-red', 'felt-red'], back: 'back-red', felt: 'felt-red' };
+    if (!p.replays) p.replays = [];
+    if (p.refCount === undefined) p.refCount = 0;
+    if (p.streak === undefined) p.streak = 0;
+    return p;
+  }
   /** 신원 → 프로필 키. user = 계정, guest = { id, key } (이 기기 열쇠) */
   function keyOf({ user, guest }) {
     if (user) return 'u:' + user.id;
@@ -273,10 +339,14 @@ function createHoldemPro({ kv = null, now = Date.now } = {}) {
     const k = keyOf(ident);
     if (!k) return null;
     let p = data.profiles[k];
+    if (p) up(p);
     if (!p) {
       p = data.profiles[k] = fresh(name);
       if (k.startsWith('g:')) p.keyHash = hashKey(ident.guest.key);
       if (ident.user) p.userId = ident.user.id;
+      // 초대 링크로 처음 온 사람: 누가 초대했는지 기억 (첫 판을 치면 둘 다 보상)
+      const by = ident.ref && data.codes && data.codes[String(ident.ref).toUpperCase()];
+      if (by && by !== k && data.profiles[by]) p.ref = { by, paid: false };
       save();
     }
     if (ident.user) p.name = ident.user.nickname;
@@ -287,7 +357,23 @@ function createHoldemPro({ kv = null, now = Date.now } = {}) {
   const refillsLeft = (p) => (p.refill.day === kstDay(now()) ? REFILLS_PER_DAY - p.refill.used : REFILLS_PER_DAY);
   function summary(k, p) {
     const ev = evaluate(p.st);
-    return { key: k.startsWith('g:') ? 'guest' : 'member', name: p.name, wallet: p.wallet, base: BASE, refillsLeft: refillsLeft(p), canRefill: p.wallet < BASE && refillsLeft(p) > 0, nextReset: nextResetAt(), recent: p.recent, ...ev, rank: rankOf(k) };
+    up(p);
+    const day = kstDay(now());
+    rollMissions(p);
+    const ci = p.checkin; const ciToday = ci.last === day;
+    const ciNext = ciToday ? ci.streak : (ci.last === kstDay(now() - 86400000) ? ci.streak : 0) % 7;
+    const sev = evaluate(p.season.id === seasonId() ? p.season.st : emptyStats());
+    return {
+      key: k.startsWith('g:') ? 'guest' : 'member', name: p.name, wallet: p.wallet, base: BASE, refillsLeft: refillsLeft(p), canRefill: p.wallet < BASE && refillsLeft(p) > 0, nextReset: nextResetAt(), recent: p.recent, ...ev, rank: rankOf(k),
+      checkin: { done: ciToday, streak: ci.streak, day: ciToday ? ((ci.streak - 1) % 7) + 1 : ciNext + 1, rewards: CHECKIN },
+      missions: p.mis.list.map((id) => ({ id, name: MISSIONS[id].name, goal: MISSIONS[id].goal, reward: MISSIONS[id].reward, prog: Math.min(MISSIONS[id].goal, p.mis.prog[id] || 0), claimed: p.mis.done.includes(id) })),
+      ach: Object.entries(ACHIEVEMENTS).map(([id, a]) => ({ id, ...a, at: p.ach[id] || null })),
+      season: { id: seasonId(), endsAt: seasonEnds(), score: sev.score, tier: sev.tier, hands: p.season.id === seasonId() ? p.season.st.hands : 0, rank: seasonRankOf(k) },
+      titles: p.titles.slice(-5),
+      items: { ...p.items, shop: SHOP },
+      refCode: codeOf(k), refCount: p.refCount, referReward: REFER_REWARD,
+      replays: p.replays.slice(-12).reverse().map((id) => replaySummary(id)).filter(Boolean),
+    };
   }
   function nextResetAt() { const t = now(); const d = new Date(t + 9 * 3600 * 1000); d.setUTCHours(24, 0, 0, 0); return d.getTime() - 9 * 3600 * 1000; }
 
@@ -360,17 +446,177 @@ function createHoldemPro({ kv = null, now = Date.now } = {}) {
     save();
   }
   /** 연습 테이블 한 판 기록 */
-  function recordHand(key, hand, id) {
+  function recordHand(key, hand, id, meta = {}) {
     const p = data.profiles[key];
     if (!p) return null;
+    up(p);
     let f = null;
     try { f = handFeatures(hand, id); } catch (e) { console.error('[holdem-pro] 지표 계산 실패', e.message); }
     if (!f) return null;
     addHand(p.st, f);
+    // 이번 달 시즌 기록도 따로
+    if (p.season.id !== seasonId()) p.season = { id: seasonId(), st: emptyStats() };
+    addHand(p.season.st, f);
     p.recent = (String(p.recent || '') + (f.won ? 'W' : 'L')).slice(-10);
+    p.streak = f.won ? (p.streak || 0) + 1 : 0;
+    const hi = hand.result && hand.result.hands && hand.result.hands[id];
+    const cat = f.won && hi ? (typeof hi.category === 'number' ? hi.category : (typeof hi.rank === 'number' ? hi.rank : -1)) : -1;
+    const royal = cat === 8 && /로열/.test(hi && hi.name || '');
+    const x = { won: f.won, sdWon: f.sdWon, pfr: f.pfr, decOk: f.decOk, cat, potBB: (f.pot || 0) / (f.bb || 1) };
+    // 오늘의 미션
+    rollMissions(p);
+    for (const mid of p.mis.list) p.mis.prog[mid] = (p.mis.prog[mid] || 0) + (MISSIONS[mid].f(x) || 0);
+    // 업적
+    const got = [];
+    const give = (aid) => { if (p.ach[aid]) return; p.ach[aid] = now(); p.wallet += ACHIEVEMENTS[aid].reward; got.push(aid); };
+    if (f.won) give('first_win');
+    if (p.st.hands >= 100) give('hands100');
+    if (p.st.hands >= 500) give('hands500');
+    if (p.st.hands >= 1000) give('hands1000');
+    if (p.streak >= 5) give('streak5');
+    if (cat === 5) give('flush');
+    if (cat === 6) give('fullhouse');
+    if (cat === 7) give('quads');
+    if (cat === 8) give(royal ? 'royal' : 'sflush');
+    if (f.won && x.potBB >= 100) give('bigpot100');
+    const ev = evaluate(p.st);
+    if (ev.tier) { const tk = ev.tier.key; if (['gold', 'plat', 'dia', 'master', 'gm'].includes(tk)) give('gold'); if (['dia', 'master', 'gm'].includes(tk)) give('dia'); if (['master', 'gm'].includes(tk)) give('master'); }
+    // 초대: 초대받은 사람이 첫 판을 치면 둘 다 보상
+    if (p.ref && !p.ref.paid) {
+      p.ref.paid = true;
+      const r = data.profiles[p.ref.by];
+      if (r && (r.refCount || 0) < REFER_MAX) { up(r); r.refCount = (r.refCount || 0) + 1; r.wallet += REFER_REWARD; p.wallet += REFER_REWARD; if (!r.ach.refer1) r.ach.refer1 = now(); }
+    }
+    // 명장면: 큰 팟 · 올인 승부 · 스트레이트 이상 · 큰 손실 → 다시보기로 남김
+    const big = (f.pot || 0) / (f.bb || 1) >= 40 || cat >= 4 || f.deltaBB <= -40 || hand.seats.some((s) => s.allIn && !s.folded);
+    if (big && hand.result) { try { saveReplay(key, p, hand, id, meta, f); } catch (e) { console.error('[replay]', e.message); } }
     p.updated = now();
     save();
-    return f;
+    return { ...f, achievements: got };
+  }
+
+  // ── 출석 · 미션 ──
+  function rollMissions(p) {
+    const day = kstDay(now());
+    if (p.mis.day === day && p.mis.list) return;
+    // 날짜로 섞어서 3개 (매일 다르게, 모두 같은 미션)
+    const seed = Number(day.replace(/-/g, ''));
+    const pool = MISSION_KEYS.slice();
+    const list = [];
+    let r = seed;
+    while (list.length < 3) { r = (r * 1103515245 + 12345) % 2147483648; const i = r % pool.length; list.push(pool.splice(i, 1)[0]); }
+    p.mis = { day, list, prog: {}, done: [] };
+  }
+  function checkin(ident) {
+    const r = profile(ident); if (!r) throw new Error('다시 들어와 주세요');
+    const p = up(r.p); const day = kstDay(now());
+    if (p.checkin.last === day) throw new Error('오늘은 이미 출석했어요');
+    const yesterday = kstDay(now() - 86400000);
+    const streak = p.checkin.last === yesterday ? p.checkin.streak + 1 : 1;
+    const reward = CHECKIN[(streak - 1) % 7];
+    p.checkin = { last: day, streak };
+    p.wallet += reward;
+    if (streak >= 7) p.ach.week7 = p.ach.week7 || now();
+    save();
+    return { reward, streak, me: summary(r.key, p) };
+  }
+  function claimMission(ident, mid) {
+    const r = profile(ident); if (!r) throw new Error('다시 들어와 주세요');
+    const p = up(r.p); rollMissions(p);
+    const m = MISSIONS[mid];
+    if (!m || !p.mis.list.includes(mid)) throw new Error('오늘의 미션이 아니에요');
+    if (p.mis.done.includes(mid)) throw new Error('이미 받았어요');
+    if ((p.mis.prog[mid] || 0) < m.goal) throw new Error('아직 다 못 했어요');
+    p.mis.done.push(mid); p.wallet += m.reward; save();
+    return { reward: m.reward, me: summary(r.key, p) };
+  }
+  // ── 상점 ──
+  function buy(ident, itemId) {
+    const r = profile(ident); if (!r) throw new Error('다시 들어와 주세요');
+    const p = up(r.p); const it = SHOP.find((x) => x.id === itemId);
+    if (!it) throw new Error('없는 물건이에요');
+    if (p.items.owned.includes(it.id)) { p.items[it.kind] = it.id; save(); return { me: summary(r.key, p) }; }
+    if (p.wallet < it.price) throw new Error(`칩이 모자라요 (${it.price.toLocaleString()} 필요)`);
+    p.wallet -= it.price; p.items.owned.push(it.id); p.items[it.kind] = it.id; save();
+    return { bought: it.name, me: summary(r.key, p) };
+  }
+  // ── 초대 코드 (짧은 6자) ──
+  function codeOf(k) {
+    data.codes = data.codes || {};
+    const p = data.profiles[k]; if (!p) return null;
+    if (p.code && data.codes[p.code] === k) return p.code;
+    const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let c;
+    do { c = Array.from(crypto.randomBytes(6), (b) => abc[b % abc.length]).join(''); } while (data.codes[c]);
+    data.codes[c] = k; p.code = c; save();
+    return c;
+  }
+  // ── 시즌: 달마다 새로 · 지난 시즌 1~3등에게 칭호 ──
+  const seasonId = () => kstDay(now()).slice(0, 7);
+  function seasonEnds() { const d = new Date(now() + 9 * 3600e3); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) - 9 * 3600e3; }
+  let sCache = null; let sAt = 0;
+  function seasonRanking() {
+    if (sCache && now() - sAt < 60000) return sCache;
+    const sid = seasonId();
+    data.seasons = data.seasons || {};
+    // 지난 시즌 마감 (아직 안 했으면): 그 시즌 기록이 있는 사람으로 순위 → 칭호
+    for (const [k, p] of Object.entries(data.profiles)) {
+      up(p);
+      if (p.season.id && p.season.id !== sid && !(data.seasons[p.season.id] && data.seasons[p.season.id].closed)) {
+        const old = p.season.id;
+        const list = Object.entries(data.profiles).filter(([, q]) => q.season && q.season.id === old && q.season.st.hands >= PLACEMENT && !q.master)
+          .map(([kk, q]) => ({ kk, q, sc: evaluate(q.season.st).score })).sort((a, b) => b.sc - a.sc);
+        const [y, m] = old.split('-');
+        list.slice(0, 3).forEach((x, i) => { x.q.titles.push(`${y}년 ${Number(m)}월 시즌 ${i + 1}위`); x.q.wallet += [50000, 25000, 10000][i]; });
+        data.seasons[old] = { closed: true, top: list.slice(0, 3).map((x) => ({ name: x.q.name, score: x.sc })) };
+        save();
+      }
+      void k;
+    }
+    const list = Object.entries(data.profiles).filter(([, p]) => !p.master && p.season.id === sid && p.season.st.hands >= PLACEMENT)
+      .map(([k, p]) => ({ k, p, ev: evaluate(p.season.st) })).sort((a, b) => b.ev.score - a.ev.score);
+    sCache = { sid, list }; sAt = now();
+    return sCache;
+  }
+  function seasonRankOf(k) { const r = seasonRanking(); const i = r.list.findIndex((x) => x.k === k); return i < 0 ? null : { rank: i + 1, of: r.list.length }; }
+  function seasonTop(n = 20) {
+    const r = seasonRanking();
+    const prevId = (() => { const d = new Date(now() + 9 * 3600e3); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); })();
+    return { id: r.sid, endsAt: seasonEnds(), prizes: [50000, 25000, 10000], top: r.list.slice(0, n).map((x, i) => ({ rank: i + 1, name: x.p.name, tier: x.ev.tier, score: x.ev.score, hands: x.p.season.st.hands, winRate: x.ev.stats.winRate })), prev: (data.seasons || {})[prevId] || null };
+  }
+  // ── 명장면 다시보기 ──
+  function saveReplay(key, p, hand, id, meta, f) {
+    data.replays = data.replays || {};
+    const rid = crypto.randomBytes(5).toString('hex');
+    const r = hand.result;
+    const shown = new Set([id, ...Object.keys(r.hands || {}).filter((x) => (meta.shown ? meta.shown(x) : true))]);
+    data.replays[rid] = {
+      id: rid, at: now(), owner: p.name, table: meta.table || '연습 테이블', sb: hand.sb, bb: hand.bb,
+      seats: hand.seats.map((s) => ({ id: s.id, name: (meta.names && meta.names[s.id]) || '?', avatar: (meta.avatars && meta.avatars[s.id]) || 1, start: s.startStack, hole: shown.has(s.id) ? s.hole : null, me: s.id === id })),
+      dealer: hand.orderFromButton().slice(-1)[0],
+      log: hand.log.filter((e) => ['blind', 'ante', 'fold', 'check', 'call', 'bet', 'raise', 'allin', 'street', 'return'].includes(e.type)).map((e) => ({ t: e.type, id: e.id, a: e.amount, to: e.to, b: e.board })),
+      board: (r.board || hand.board || []).slice(),
+      winners: r.winners, deltas: r.deltas, pot: hand.totalPot,
+      title: f.won ? (f.handName ? `${f.handName}로 ${Math.round((f.pot || 0) / (f.bb || 1))}BB 팟 승리` : `${Math.round((f.pot || 0) / (f.bb || 1))}BB 팟 승리`) : `${Math.round(-f.deltaBB)}BB 아쉬운 승부`,
+    };
+    p.replays.push(rid);
+    if (p.replays.length > 20) { const old = p.replays.shift(); delete data.replays[old]; }
+    // 전체 보관은 500개까지
+    const ids = Object.keys(data.replays);
+    if (ids.length > 500) { ids.sort((a, b) => data.replays[a].at - data.replays[b].at); for (const x of ids.slice(0, ids.length - 500)) delete data.replays[x]; }
+  }
+  function replaySummary(rid) { const x = (data.replays || {})[rid]; return x ? { id: x.id, at: x.at, title: x.title, pot: x.pot, bb: x.bb, won: (x.winners || []).includes((x.seats.find((s) => s.me) || {}).id) } : null; }
+  function replay(rid) { const x = (data.replays || {})[String(rid)]; if (!x) throw new Error('다시보기를 찾을 수 없어요 (오래돼서 지워졌을 수 있어요)'); return x; }
+  // ── 정기 토너먼트 상금 ──
+  function payPrize(key, place, title) {
+    const p = data.profiles[key]; if (!p) return 0;
+    up(p);
+    const amt = DAILY.prizes[place - 1] || 0;
+    if (!amt) return 0;
+    p.wallet += amt;
+    if (place === 1) { p.ach.daily1 = p.ach.daily1 || now(); if (title) p.titles.push(title); }
+    save();
+    return amt;
   }
   /** 손님으로 쌓은 것 → 계정으로 (한 번만) */
   function merge(user, guest) {
@@ -387,13 +633,21 @@ function createHoldemPro({ kv = null, now = Date.now } = {}) {
     if ((b.bestRank || -1) > (a.bestRank || -1)) { a.bestRank = b.bestRank; a.best = b.best; }
     a.bigPot = Math.max(a.bigPot || 0, b.bigPot || 0);
     u.recent = (String(g.recent || '') + String(u.recent || '')).slice(-10);
-    g.mergedInto = r.key; g.wallet = 0; g.st = emptyStats();
+    up(u); up(g);
+    for (const [aid, at] of Object.entries(g.ach)) if (!u.ach[aid]) u.ach[aid] = at;
+    for (const it of g.items.owned) if (!u.items.owned.includes(it)) u.items.owned.push(it);
+    u.titles = u.titles.concat(g.titles);
+    u.replays = u.replays.concat(g.replays).slice(-20);
+    if (g.season.id === seasonId()) { if (u.season.id !== seasonId()) u.season = { id: seasonId(), st: emptyStats() }; for (const kk of Object.keys(emptyStats())) if (typeof u.season.st[kk] === 'number' && typeof g.season.st[kk] === 'number' && !['tiltLeft', 'bestRank', 'bigPot'].includes(kk)) u.season.st[kk] += g.season.st[kk]; }
+    u.refCount = (u.refCount || 0) + (g.refCount || 0);
+    g.mergedInto = r.key; g.wallet = 0; g.st = emptyStats(); g.season = { id: '', st: emptyStats() };
     save(); rankCache = null;
     return { merged: true, ...summary(r.key, u) };
   }
   function me(ident, name) { const r = profile(ident, name); return r ? summary(r.key, r.p) : null; }
 
-  return { ready, flush, TABLES, BASE, REFILLS_PER_DAY, me, refill, buyIn, rebuy, cashOut, recordHand, merge, top, keyOf, profileOf: (k) => data.profiles[k], _data: () => data };
+  return { ready, flush, TABLES, BASE, REFILLS_PER_DAY, DAILY, me, refill, buyIn, rebuy, cashOut, recordHand, merge, top, keyOf, profileOf: (k) => data.profiles[k], _data: () => data,
+    checkin, claimMission, buy, seasonTop, replay, payPrize, codeOf, profile };
 }
 
-module.exports = { createHoldemPro, handFeatures, evaluate, emptyStats, addHand, TABLES, TIERS, BASE };
+module.exports = { createHoldemPro, handFeatures, evaluate, emptyStats, addHand, TABLES, TIERS, BASE, MISSIONS, ACHIEVEMENTS, SHOP, CHECKIN, DAILY };

@@ -1156,6 +1156,7 @@ class Room {
     }
     for (const id of [...t.busted].reverse()) if (!order.includes(id)) order.push(id);
     t.result = { at: this.now(), ranking: order.map((id, i) => ({ id, name: (this.get(id) && this.get(id).name) || (t.names && t.names[id]) || this.name(id), place: i + 1 })) };
+    if (this.onTourneyEnd) { try { this.onTourneyEnd(t.result); } catch (e) { console.error('[tourney end]', e.message); } }
     try { this.onRecord({ game: 'tourney', userIds: this.players.filter((p) => p.userId && order.includes(p.id)).map((p) => p.userId), winnerUserId: winner && winner.userId }); } catch {}
     this.pushFeed(winner ? `${winner.name}님 토너먼트 우승!` : '토너먼트가 끝났어요');
     this.phase = 'lobby';
@@ -1675,7 +1676,7 @@ class Room {
 
   // ── 저장/복구 ─────────────────────────────────────
   serialize() {
-    const { timers, onChange, onEmote, onHand, emoteAt, now, hand, mtt, ...rest } = this;
+    const { timers, onChange, onEmote, onHand, onTourneyEnd, emoteAt, now, hand, mtt, ...rest } = this;
     return { ...rest, hand: hand ? hand.toJSON() : null };
   }
 

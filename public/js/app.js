@@ -532,9 +532,11 @@ function guestCred() {
   }
   return g;
 }
+// 초대 링크(/holdem?ref=코드)로 들어오면 기억해 두었다가 처음 프로필을 만들 때 보낸다
+try { const rf = new URLSearchParams(location.search).get('ref'); if (rf && /^[A-Z0-9]{6}$/i.test(rf)) LS.set('chandem:ref', rf.toUpperCase()); } catch { /* 무시 */ }
 async function hApi(path, body = {}) {
   try {
-    const r = await fetch('/api/holdem' + path, { method: body === null ? 'GET' : 'POST', headers: { 'content-type': 'application/json', ...(S.auth ? { authorization: 'Bearer ' + S.auth } : {}) }, body: body === null ? undefined : JSON.stringify({ guest: guestCred(), ...body }) });
+    const r = await fetch('/api/holdem' + path, { method: body === null ? 'GET' : 'POST', headers: { 'content-type': 'application/json', ...(S.auth ? { authorization: 'Bearer ' + S.auth } : {}) }, body: body === null ? undefined : JSON.stringify({ guest: guestCred(), ref: LS.get('chandem:ref', null), ...body }) });
     return await r.json();
   } catch { return { ok: false, message: '서버와 연결할 수 없어요' }; }
 }
@@ -587,6 +589,7 @@ function hlMeHTML(me) {
   return `<div class="hl-me-top">
       <img class="hl-av" src="${myAvatarSrc()}" alt="">
       <div class="hl-who"><b>${name}</b>${tierBadge(ev.tier)}${ev.tier ? `<small class="hl-score">${ev.score}점</small>` : ''}
+        ${(me.titles || []).length ? `<span class="hl-title">🏆 ${esc(me.titles[me.titles.length - 1])}</span>` : ''}
         <span class="hl-sub">${ev.placement ? `배치까지 ${ev.placement}판` : `${ev.rank ? `전체 ${fmt(ev.rank.rank)}위 · ` : ''}${fmt(ev.stats.hands)}판 · 승률 ${ev.stats.winRate}%`}${ev.style ? ` · ${esc(ev.style)}` : ''}</span>${recentDots(me.recent)}</div>
       <button class="hl-ana" id="hl-ana" type="button">실력<br>분석</button>
     </div>
@@ -627,8 +630,162 @@ function openAnalysis(me) {
     <p class="muted tiny">티어: 브론즈 → 실버 → 골드 → 플래티넘 → 다이아(150판↑) → 마스터(400판↑) → 그랜드마스터(800판↑)</p>
   </div>`, null, { wide: true });
 }
+// ── 출석 ──
+function renderCheckin(me) {
+  const el = document.getElementById('hl-checkin');
+  if (!el || !me || !me.checkin) return;
+  const c = me.checkin;
+  el.innerHTML = `<div class="sec-head"><h2 class="sec-title">출석 보상</h2><small class="muted">${c.streak ? `${c.streak}일 연속` : '오늘부터 시작'}</small></div>
+    <div class="ci-days">${c.rewards.map((v, i) => `<div class="ci-day ${i + 1 < c.day || (c.done && i + 1 === c.day) ? 'done' : ''} ${i + 1 === c.day && !c.done ? 'today' : ''} ${i === 6 ? 'big' : ''}"><small>${i + 1}일</small><b>${v >= 10000 ? v / 10000 + '만' : fmt(v)}</b></div>`).join('')}</div>
+    ${c.done ? '<p class="muted small center">오늘 출석 완료! 내일 또 와요</p>' : `<button class="btn btn-gold" id="ci-go">출석 체크 · +${fmt(c.rewards[c.day - 1])}칩</button>`}`;
+  const b = el.querySelector('#ci-go');
+  if (b) b.onclick = async () => { b.disabled = true; const r = await hApi('/checkin'); if (r.ok) { sound.play('collect'); toast(`출석 ${r.streak}일째! +${fmt(r.reward)}칩`, 'ok'); } else toast(r.message, 'error'); loadHoldemLobby(); };
+}
+// ── 정기 토너먼트 ──
+const left = (ms) => { const m = Math.max(0, Math.floor(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`; };
+async function renderDaily() {
+  const el = document.getElementById('hl-daily');
+  if (!el) return;
+  let d = null;
+  try { d = await (await fetch('/api/holdem/daily', { cache: 'no-store' })).json(); } catch { return; }
+  if (!d || !d.ok) return;
+  const now = Date.now() + (S.clockSkew || 0);
+  const open = !!d.code;
+  el.innerHTML = `<div class="dl-top"><span class="dl-badge">매일 밤 9시</span><b>정기 토너먼트</b></div>
+    <p class="dl-sub">${open ? (d.phase === 'playing' ? `진행 중 · ${d.players}명 참가` : `등록 중 · ${d.players}명 · ${left(d.start - now)} 뒤 시작`) : `시작까지 ${left(d.start - now)} · 10분 전에 방이 열려요`}</p>
+    <div class="dl-prize"><span>🥇 ${fmt(d.prizes[0])}</span><span>🥈 ${fmt(d.prizes[1])}</span><span>🥉 ${fmt(d.prizes[2])}</span><small>칩 · 시작 칩 ${fmt(d.startChips)} · ${d.levelMinutes}분마다 블라인드↑ · 2레벨까지 리바이 1번</small></div>
+    ${open ? `<button class="btn btn-gold" id="dl-go">${d.phase === 'playing' ? '관전하기' : '참가하기'}</button>` : '<button class="btn btn-outline" id="dl-bell">🔔 10분 전에 알림 받기</button>'}`;
+  const go = el.querySelector('#dl-go');
+  if (go) go.onclick = () => { S.wantSpectate = d.phase === 'playing'; nav('/r/' + d.code); boot(); };
+  const bell = el.querySelector('#dl-bell');
+  if (bell) bell.onclick = () => subscribeDaily(bell);
+}
+async function subscribeDaily(btn) {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) { toast(IS_IOS ? '아이폰은 홈 화면에 앱을 설치한 뒤에 알림을 받을 수 있어요' : '이 브라우저에서는 알림을 받을 수 없어요', 'error'); return; }
+    const k = await (await fetch('/api/push/key')).json();
+    if (!k.ok) { toast('지금은 알림 기능이 꺼져 있어요', 'error'); return; }
+    const perm = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
+    if (perm !== 'granted') { toast('알림이 막혀 있어요 · 브라우저 설정에서 허용해 주세요', 'error'); return; }
+    const reg = (await navigator.serviceWorker.getRegistration('/')) || (await navigator.serviceWorker.register('/sw.js'));
+    await navigator.serviceWorker.ready;
+    const pad = '='.repeat((4 - (k.key.length % 4)) % 4);
+    const raw = atob((k.key + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)) }));
+    const r = await (await fetch('/api/push/subscribe', { method: 'POST', headers: { 'content-type': 'application/json', ...(S.auth ? { authorization: 'Bearer ' + S.auth } : {}) }, body: JSON.stringify({ subscription: sub.toJSON(), add: ['holdemTour'] }) })).json();
+    if (r.ok) { toast('매일 밤 8시 50분에 알려 드릴게요 🔔', 'ok'); if (btn) { btn.textContent = '🔔 알림 켜짐'; btn.disabled = true; } }
+    else toast(r.message || '알림을 켜지 못했어요', 'error');
+  } catch (e) { toast('알림을 켜지 못했어요', 'error'); }
+}
+// ── 꾸미기: 카드 뒷면 · 테이블 색 (게임 화면에도) ──
+function saveCosmetic(items) { if (!items) return; LS.set('chandem:cos', { back: items.back, felt: items.felt }); applyCosmetic(); }
+function applyCosmetic() { const c = LS.get('chandem:cos', {}) || {}; document.body.dataset.back = c.back || 'back-red'; document.body.dataset.felt = c.felt || 'felt-red'; }
+applyCosmetic();
+// ── 미션 · 업적 · 상점 · 명장면 · 초대 창 ──
+function openLife(kind) {
+  const me = S.hl && S.hl.me;
+  if (!me) return;
+  if (kind === 'missions') {
+    openModal('오늘의 미션', `<p class="muted small">연습 테이블에서 친 판으로 채워져요 · 매일 0시에 새 미션</p><div class="mis-list">${me.missions.map((m) => `<div class="mis ${m.claimed ? 'claimed' : ''}"><div class="mis-top"><b>${esc(m.name)}</b><span>+${fmt(m.reward)}칩</span></div>
+      <div class="ana-bar"><i style="width:${Math.round((m.prog / m.goal) * 100)}%"></i></div>
+      <div class="mis-bot"><small>${m.prog} / ${m.goal}</small>${m.claimed ? '<small class="muted">받음</small>' : m.prog >= m.goal ? `<button class="btn btn-sm btn-gold" data-claim="${m.id}">받기</button>` : ''}</div></div>`).join('')}</div>`, (b) => {
+      b.querySelectorAll('[data-claim]').forEach((x) => { x.onclick = async () => { x.disabled = true; const r = await hApi('/mission', { id: x.dataset.claim }); if (r.ok) { sound.play('collect'); toast(`미션 완료! +${fmt(r.reward)}칩`, 'ok'); S.hl.me = r.me; openLife('missions'); loadHoldemLobby(); } else toast(r.message, 'error'); }; });
+    });
+  } else if (kind === 'ach') {
+    const got = me.ach.filter((a) => a.at).length;
+    openModal(`업적 ${got} / ${me.ach.length}`, `<div class="ach-grid">${me.ach.map((a) => `<div class="ach ${a.at ? 'got' : ''}"><span>${a.icon}</span><b>${esc(a.name)}</b><small>${esc(a.desc)}</small>${a.reward ? `<em>+${fmt(a.reward)}</em>` : ''}</div>`).join('')}</div>
+      ${(me.titles || []).length ? `<h3 class="sub-title">칭호</h3><ul class="ana-tips">${me.titles.map((t) => `<li>🏆 ${esc(t)}</li>`).join('')}</ul>` : ''}`, null, { wide: true });
+  } else if (kind === 'shop') {
+    const it = me.items;
+    const card = (x) => `<button class="shop-it ${it.owned.includes(x.id) ? 'owned' : ''} ${it[x.kind] === x.id ? 'on' : ''}" data-buy="${x.id}" type="button">
+      <span class="shop-prev k-${x.kind}" data-v="${x.id}">${x.kind === 'back' ? '<i class="card card-md card-back"><span class="card-back-mark">찬</span></i>' : '<i></i>'}</span>
+      <b>${esc(x.name)}</b><small>${it[x.kind] === x.id ? '사용 중' : it.owned.includes(x.id) ? '가지고 있음 · 끼우기' : x.price ? `${fmt(x.price)}칩` : '기본'}</small></button>`;
+    openModal('꾸미기 상점', `<p class="muted small">칩으로 사면 바로 적용돼요 · 내 칩 <b>${fmt(me.wallet)}</b></p>
+      <h3 class="sub-title">카드 뒷면</h3><div class="shop-grid">${it.shop.filter((x) => x.kind === 'back').map(card).join('')}</div>
+      <h3 class="sub-title">테이블 색</h3><div class="shop-grid">${it.shop.filter((x) => x.kind === 'felt').map(card).join('')}</div>`, (b) => {
+      b.querySelectorAll('[data-buy]').forEach((x) => { x.onclick = async () => {
+        const item = it.shop.find((y) => y.id === x.dataset.buy);
+        if (!it.owned.includes(item.id) && !confirm(`${item.name}을(를) ${fmt(item.price)}칩에 살까요?`)) return;
+        const r = await hApi('/shop', { item: item.id });
+        if (r.ok) { if (r.bought) { toast(`${r.bought} 샀어요!`, 'ok'); sound.play('collect'); } S.hl.me = r.me; saveCosmetic(r.me.items); openLife('shop'); loadHoldemLobby(); } else toast(r.message, 'error');
+      }; });
+    }, { wide: true });
+  } else if (kind === 'replays') {
+    openModal('명장면 다시보기', me.replays.length ? `<p class="muted small">큰 팟 · 올인 승부 · 스트레이트 이상 판이 자동으로 남아요 (최근 20개)</p><div class="rp-list">${me.replays.map((r) => `<button class="rp-it ${r.won ? 'won' : ''}" data-rp="${r.id}" type="button"><span>${r.won ? '🏆' : '💥'}</span><b>${esc(r.title)}</b><small>${hhmm(r.at)} · 팟 ${fmt(r.pot)}</small></button>`).join('')}</div>`
+      : '<p class="muted">아직 명장면이 없어요. 연습 테이블에서 큰 판을 쳐 보세요!</p>', (b) => {
+      b.querySelectorAll('[data-rp]').forEach((x) => { x.onclick = () => openReplay(x.dataset.rp); });
+    });
+  } else if (kind === 'invite') {
+    const url = `${location.origin}/holdem?ref=${me.refCode}`;
+    openModal('친구 초대', `<div class="inv-box"><p>이 링크로 친구가 들어와 <b>연습 테이블에서 첫 판</b>을 치면<br><b>나와 친구 모두 ${fmt(me.referReward)}칩</b>!</p>
+      <div class="inv-code">${esc(me.refCode)}</div><p class="muted small">지금까지 초대한 친구 <b>${me.refCount}명</b> (최대 20명까지 보상)</p>
+      <button class="btn btn-gold btn-lg" id="inv-share">초대 링크 보내기</button></div>`, (b) => {
+      b.querySelector('#inv-share').onclick = () => shareLink(url, '찬덤 홀덤', `찬덤 홀덤에서 같이 홀덤 치자! 이 링크로 들어오면 둘 다 ${fmt(me.referReward)}칩 🎁`);
+    });
+  }
+}
+// ── 다시보기 화면: 한 수씩 재생 ──
+async function openReplay(id) {
+  let r;
+  try { r = await (await fetch('/api/holdem/replay/' + encodeURIComponent(id), { cache: 'no-store' })).json(); } catch { r = null; }
+  if (!r || !r.ok) { toast((r && r.message) || '다시보기를 불러오지 못했어요', 'error'); return; }
+  const x = r.replay;
+  const nameOf = (pid) => (x.seats.find((s) => s.id === pid) || {}).name || '?';
+  const W = { blind: '블라인드', ante: '앤티', fold: '폴드', check: '체크', call: '콜', bet: '베팅', raise: '레이즈', allin: '올인', return: '돌려받음' };
+  let step = 0; let timer = null;
+  const frame = () => {
+    let board = []; let pot = 0; const lines = []; const folded = new Set(); const stacks = Object.fromEntries(x.seats.map((s) => [s.id, s.start]));
+    for (let i = 0; i < Math.min(step, x.log.length); i++) {
+      const e = x.log[i];
+      if (e.t === 'street') { board = e.b || board; lines.push(`— ${({ 3: '플랍', 4: '턴', 5: '리버' })[board.length] || ''} —`); continue; }
+      if (e.t === 'return') { pot -= e.a || 0; stacks[e.id] += e.a || 0; continue; }
+      if (e.t === 'fold') folded.add(e.id);
+      pot += e.a || 0; if (e.a) stacks[e.id] -= e.a;
+      lines.push(`${nameOf(e.id)} ${W[e.t] || e.t}${e.a ? ` ${fmt(e.t === 'raise' || e.t === 'bet' ? e.to : e.a)}` : ''}`);
+    }
+    const end = step >= x.log.length;
+    if (end) board = x.board;
+    return `<div class="rp-view">
+      <div class="rp-title">${esc(x.title)}<small>${esc(x.table)} · ${fmt(x.sb)}/${fmt(x.bb)} · ${esc(x.owner)}</small></div>
+      <div class="rp-felt"><div class="rp-board">${[0, 1, 2, 3, 4].map((k) => cardHTML(board[k] || null, { size: 'sm' })).join('')}</div><b class="rp-pot">팟 ${fmt(Math.max(0, pot))}</b></div>
+      <div class="rp-seats">${x.seats.map((s) => `<div class="rp-seat ${folded.has(s.id) ? 'folded' : ''} ${end && (x.winners || []).includes(s.id) ? 'win' : ''} ${s.me ? 'me' : ''}"><img src="/img/avatars/a${s.avatar || 1}.webp?v=2" alt=""><b>${esc(s.name)}</b><span>${(s.hole || ['??', '??']).map((c) => cardHTML(c || '??', { size: 'xs' })).join('')}</span><small>${end && x.deltas ? signed(x.deltas[s.id] || 0) : fmt(stacks[s.id])}</small></div>`).join('')}</div>
+      <ol class="rp-log">${lines.slice(-6).map((l) => `<li>${esc(l)}</li>`).join('')}</ol>
+      <div class="rp-ctl"><button class="btn btn-sm btn-outline" data-rc="prev">◀</button><button class="btn btn-sm btn-gold" data-rc="play">${timer ? '⏸ 멈춤' : '▶ 재생'}</button><button class="btn btn-sm btn-outline" data-rc="next">▶</button><button class="btn btn-sm btn-outline" data-rc="share">공유</button></div>
+      <div class="rp-prog"><i style="width:${Math.round((step / x.log.length) * 100)}%"></i></div></div>`;
+  };
+  const draw = () => {
+    const body = document.querySelector('#modal-root .modal-body');
+    if (!body || !body.querySelector('.rp-view')) { clearInterval(timer); timer = null; return; }
+    body.innerHTML = frame();
+    bind(body);
+  };
+  const bind = (body) => body.querySelectorAll('[data-rc]').forEach((b) => { b.onclick = () => {
+    const k = b.dataset.rc;
+    if (k === 'prev') step = Math.max(0, step - 1);
+    if (k === 'next') step = Math.min(x.log.length, step + 1);
+    if (k === 'play') { if (timer) { clearInterval(timer); timer = null; } else { if (step >= x.log.length) step = 0; timer = setInterval(() => { step++; if (step >= x.log.length) { clearInterval(timer); timer = null; sound.play('collect'); } else sound.play(x.log[step - 1].t === 'street' ? 'flip1' : x.log[step - 1].t === 'fold' ? 'fold' : x.log[step - 1].t === 'check' ? 'knock' : 'chips'); draw(); }, 700); } }
+    if (k === 'share') { shareLink(`${location.origin}/holdem?replay=${x.id}`, '찬덤 홀덤 명장면', `${x.title} · 찬덤 홀덤 명장면 다시보기`); return; }
+    draw();
+  }; });
+  openModal('명장면 다시보기', frame(), (body) => bind(body), { wide: true });
+}
+function bindRankTabs(rk) {
+  document.querySelectorAll('[data-rt]').forEach((b) => { b.onclick = () => { S.rankTab = b.dataset.rt; const box = document.getElementById('hl-rank-box'); if (box) { box.innerHTML = hlRankHTML(rk); bindRankTabs(rk); } }; });
+}
 function hlRankHTML(r) {
   if (!r || !r.ok) return '<p class="muted small">순위를 불러오지 못했어요</p>';
+  const tab = S.rankTab || 'season';
+  const tabs = `<div class="hist-tabs"><button type="button" class="${tab === 'season' ? 'on' : ''}" data-rt="season">이번 시즌</button><button type="button" class="${tab === 'all' ? 'on' : ''}" data-rt="all">전체</button></div>`;
+  if (tab === 'season' && r.season) {
+    const s = r.season;
+    const [y, m] = s.id.split('-');
+    return `${tabs}<p class="season-head"><b>${y}년 ${Number(m)}월 시즌</b> · ${left(s.endsAt - Date.now())} 남음<br><small>시즌 끝 1~3등: 칭호 + ${s.prizes.map(fmt).join(' / ')}칩</small></p>
+      ${s.prev && s.prev.top && s.prev.top.length ? `<p class="muted small">지난 시즌: ${s.prev.top.map((x, i) => `${['🥇', '🥈', '🥉'][i]} ${esc(x.name)}`).join(' · ')}</p>` : ''}
+      ${s.top.length ? `<ol class="hl-rank">${s.top.slice(0, 15).map((x) => `<li><span class="hr-n">${x.rank}</span><b>${esc(x.name)}</b>${tierBadge(x.tier, 'sm')}<small>${x.score}점 · 승률 ${x.winRate}% · ${fmt(x.hands)}판</small></li>`).join('')}</ol>` : '<p class="muted small">이번 시즌 배치를 마친 사람이 아직 없어요 · 30판이면 순위에 올라요</p>'}`;
+  }
+  return tabs + hlRankAll(r);
+}
+function hlRankAll(r) {
   const dist = r.dist.filter((d) => d.count).map((d) => `<span class="tier-badge sm" style="--tc:${d.color}"><i></i>${esc(d.name)} ${d.count}</span>`).join('');
   return `${dist ? `<div class="hl-dist">${dist}</div>` : ''}
     ${r.top.length ? `<ol class="hl-rank">${r.top.slice(0, 15).map((x) => `<li><span class="hr-n">${x.rank}</span><b>${esc(x.name)}</b>${tierBadge(x.tier, 'sm')}<small>${x.score}점 · 승률 ${x.winRate}% · ${fmt(x.hands)}판</small></li>`).join('')}</ol>` : `<p class="muted small">아직 배치를 마친 사람이 없어요. 연습 테이블 ${30}판이면 첫 티어가 나와요!</p>`}`;
@@ -677,6 +834,15 @@ async function loadHoldemLobby() {
   if (meBox) meBox.innerHTML = hlMeHTML(r.me);
   if (tb) tb.innerHTML = hlTablesHTML(r.tables, r.me);
   if (rb) rb.innerHTML = hlRankHTML(rk);
+  renderCheckin(r.me);
+  renderDaily();
+  saveCosmetic(r.me.items);
+  const md = document.getElementById('mis-dot');
+  if (md) { const n = (r.me.missions || []).filter((m) => m.prog >= m.goal && !m.claimed).length; md.hidden = !n; md.textContent = n; }
+  document.querySelectorAll('[data-hl]').forEach((b) => { b.onclick = () => openLife(b.dataset.hl); });
+  bindRankTabs(rk);
+  // 다시보기 링크로 들어왔으면 바로 열기
+  try { const rp = new URLSearchParams(location.search).get('replay'); if (rp && !S.replayOpened) { S.replayOpened = true; openReplay(rp); } } catch { /* 무시 */ }
   const rf = document.getElementById('hl-refill');
   if (rf) rf.onclick = async () => { rf.disabled = true; const x = await hApi('/refill'); if (x.ok) { toast(`기본금으로 충전했어요 (+${fmt(x.me.added)})`, 'ok'); sound.play('collect'); } else toast(x.message, 'error'); loadHoldemLobby(); };
   const an = document.getElementById('hl-ana');
@@ -712,6 +878,15 @@ function renderHoldemLobby() {
       <div class="gh-chips"><span>실력 티어</span><span>토너먼트</span><span>최대 10명</span></div></div>
     </div>
     <section class="panel hl-me" id="hl-me">${hlMeHTML(null)}</section>
+    <section class="panel hl-checkin" id="hl-checkin"></section>
+    <section class="panel hl-daily" id="hl-daily"></section>
+    <div class="hl-icons">
+      <button class="hl-ico" data-hl="missions" type="button"><span>🎯</span>오늘의 미션<i class="dot" id="mis-dot" hidden></i></button>
+      <button class="hl-ico" data-hl="ach" type="button"><span>🏅</span>업적</button>
+      <button class="hl-ico" data-hl="shop" type="button"><span>🛍️</span>꾸미기</button>
+      <button class="hl-ico" data-hl="replays" type="button"><span>🎬</span>명장면</button>
+      <button class="hl-ico" data-hl="invite" type="button"><span>🤝</span>친구 초대</button>
+    </div>
     <div class="hl-cta">
       <button class="btn btn-gold btn-lg" id="hl-quick">빠른 시작</button>
       <button class="btn btn-outline btn-lg" id="go-create">친구와 방 만들기</button>
@@ -2199,7 +2374,7 @@ function renderJoin() {
     const name = String(fd.get('name') || '').trim();
     if (!name || BAD_NICK.test(name)) { toast('친구들이 알아볼 수 있는 닉네임을 입력해 주세요', 'error'); form.name && form.name.focus(); return; }
     if (!S.user) LS.set('chandem:name', name);
-    const res = await emit('room:join', { code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on' || !!(S.user && S.user.isMaster && (d.hasPassword || d.approval) && !fd.get('password')), avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
+    const res = await emit('room:join', { guest: guestCred(), code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on' || !!(S.user && S.user.isMaster && (d.hasPassword || d.approval) && !fd.get('password')), avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };

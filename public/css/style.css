@@ -1854,3 +1854,99 @@ body[data-theme="holdem"] .game-home .gh-shade, body[data-theme="holdem"] .game-
 .hl-more { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .hl-more .btn { font-size: .84rem; padding-left: 4px; padding-right: 4px; }
 .hl-more .btn { border: 1px solid rgba(255, 220, 150, .35) !important; background: rgba(0, 0, 0, .25) !important; color: #ffe8a8 !important; }
+
+/* ═══ 찬덤 홀덤 로비 2: 출석 · 정기전 · 아이콘 줄 · 미션 · 업적 · 상점 · 명장면 · 초대 · 시즌 ═══ */
+.hl-title { flex-basis: 100%; font-size: .74rem; color: #ffd36b; font-weight: 800; }
+.ci-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 10px; }
+.ci-day { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 0; border-radius: 10px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .08); }
+.ci-day small { font-size: .6rem; color: var(--muted); }
+.ci-day b { font-size: .72rem; color: #ffe8a8; }
+.ci-day.done { background: rgba(111, 224, 138, .12); border-color: rgba(111, 224, 138, .4); }
+.ci-day.done b::after { content: ' ✓'; color: #6fe08a; }
+.ci-day.today { border-color: #ffd36b; box-shadow: 0 0 10px rgba(255, 211, 107, .5); animation: sitPulse 1.6s ease-in-out infinite; }
+.ci-day.big { background: linear-gradient(180deg, rgba(255, 211, 107, .25), rgba(120, 60, 10, .3)); }
+.hl-checkin .btn { width: 100%; }
+.hl-daily { background: linear-gradient(135deg, rgba(120, 20, 40, .9), rgba(40, 8, 30, .95)) !important; border: 1px solid rgba(255, 211, 107, .55) !important; }
+.dl-top { display: flex; align-items: center; gap: 8px; }
+.dl-top b { font-size: 1.1rem; color: #fff; }
+.dl-badge { padding: 2px 8px; border-radius: 99px; background: #ffd36b; color: #3a1500; font-size: .7rem; font-weight: 900; }
+.dl-sub { margin: 6px 0; font-size: .84rem; color: #ffe8a8; }
+.dl-prize { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-bottom: 10px; }
+.dl-prize span { font-weight: 900; color: #fff; font-size: .9rem; }
+.dl-prize small { flex-basis: 100%; font-size: .68rem; color: rgba(255, 230, 200, .7); }
+.hl-daily .btn { width: 100%; }
+.hl-icons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.hl-ico { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0 8px; border-radius: 14px; border: 1px solid rgba(255, 220, 150, .25); background: linear-gradient(180deg, rgba(70, 18, 24, .8), rgba(30, 8, 8, .9)); color: #ffe8a8; font: 800 .66rem/1.1 var(--font); cursor: pointer; }
+.hl-ico span { font-size: 1.5rem; line-height: 1; }
+.hl-ico .dot { position: absolute; top: -4px; right: -2px; min-width: 18px; padding: 1px 5px; border-radius: 99px; background: var(--red); color: #fff; font-style: normal; font-size: .66rem; }
+.hl-ico .dot[hidden] { display: none; }
+.mis-list { display: flex; flex-direction: column; gap: 10px; }
+.mis { padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .08); }
+.mis.claimed { opacity: .55; }
+.mis-top, .mis-bot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mis-top span { color: #ffd36b; font-weight: 900; font-size: .84rem; }
+.mis .ana-bar { margin: 8px 0 6px; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.ach { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 10px 6px; border-radius: 12px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .08); filter: grayscale(1); opacity: .55; }
+.ach.got { filter: none; opacity: 1; border-color: rgba(255, 211, 107, .5); background: rgba(255, 211, 107, .08); }
+.ach span { font-size: 1.8rem; }
+.ach b { font-size: .84rem; }
+.ach small { font-size: .68rem; color: var(--muted); }
+.ach em { font-style: normal; font-size: .7rem; color: #ffd36b; font-weight: 800; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.shop-it { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .04); color: #fff; cursor: pointer; }
+.shop-it.on { border-color: #ffd36b; box-shadow: 0 0 10px rgba(255, 211, 107, .45); }
+.shop-it b { font-size: .78rem; }
+.shop-it small { font-size: .66rem; color: #ffd36b; }
+.shop-prev { height: 60px; display: grid; place-items: center; }
+.shop-prev.k-felt i { display: block; width: 74px; height: 46px; border-radius: 50%; box-shadow: inset 0 0 0 3px #6b3a1c, inset 0 0 0 4px #d6a24a; }
+.shop-prev[data-v="felt-red"] i { background: radial-gradient(#b2162c, #5a0912); }
+.shop-prev[data-v="felt-green"] i { background: radial-gradient(#1e8a4c, #0b4024); }
+.shop-prev[data-v="felt-blue"] i { background: radial-gradient(#2459c4, #0d2560); }
+.shop-prev[data-v="felt-purple"] i { background: radial-gradient(#7a2fc4, #33105a); }
+.shop-prev[data-v="felt-black"] i { background: radial-gradient(#3a3a44, #0c0c10); }
+/* 카드 뒷면 무늬 */
+.shop-prev[data-v="back-navy"] .card-back, body[data-back="back-navy"] .card-back { background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .14) 0 2px, transparent 2px 6px), linear-gradient(160deg, #3561c8, #142c6e); box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 2px #fff, inset 0 0 0 3px #142c6e; }
+.shop-prev[data-v="back-black"] .card-back, body[data-back="back-black"] .card-back { background: repeating-linear-gradient(45deg, rgba(255, 211, 107, .22) 0 1px, transparent 1px 5px), linear-gradient(160deg, #2a2a2a, #0a0a0a); box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 2px #d6a24a, inset 0 0 0 3px #0a0a0a; }
+.shop-prev[data-v="back-mint"] .card-back, body[data-back="back-mint"] .card-back { background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .22) 0 3px, transparent 3px 7px), repeating-linear-gradient(90deg, rgba(255, 255, 255, .22) 0 3px, transparent 3px 7px), linear-gradient(160deg, #3fc9a8, #138a70); box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 2px #fff; }
+.shop-prev[data-v="back-paw"] .card-back, body[data-back="back-paw"] .card-back { background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, .35) 0 12%, transparent 13%), radial-gradient(circle at 70% 65%, rgba(255, 255, 255, .35) 0 12%, transparent 13%), linear-gradient(160deg, #ff9a6b, #d9583a); box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 2px #fff; }
+/* 테이블 색: 펠트 부분만 다시 칠한다 */
+body[data-felt]:not([data-felt="felt-red"]).in-room[data-theme="holdem"] .felt::before { content: ''; position: absolute; inset: 6.5% 5.5%; border-radius: 44% / 36%; mix-blend-mode: color; pointer-events: none; z-index: 0; }
+.game[data-orient="land"] .felt::before { inset: 8% 6% !important; }
+body[data-felt="felt-green"] .felt::before { background: #11a050; }
+body[data-felt="felt-blue"] .felt::before { background: #1f55d6; }
+body[data-felt="felt-purple"] .felt::before { background: #8a2be2; }
+body[data-felt="felt-black"] .felt::before { background: #2a2a30; mix-blend-mode: saturation !important; }
+.rp-list { display: flex; flex-direction: column; gap: 6px; }
+.rp-it { display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 10px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .04); color: #fff; text-align: left; cursor: pointer; }
+.rp-it span { grid-row: 1 / 3; font-size: 1.4rem; }
+.rp-it small { color: var(--muted); font-size: .72rem; }
+.rp-it.won { border-color: rgba(255, 211, 107, .45); }
+.rp-view { display: flex; flex-direction: column; gap: 8px; }
+.rp-title { font-weight: 900; color: #ffe8a8; display: flex; flex-direction: column; }
+.rp-title small { color: var(--muted); font-weight: 600; font-size: .72rem; }
+.rp-felt { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 40px; background: radial-gradient(ellipse, #b2162c, #5a0912 75%); box-shadow: inset 0 0 0 4px #6b3a1c, inset 0 0 0 5px #d6a24a; }
+.rp-board { display: flex; gap: 4px; }
+.rp-board .card-sm { --w: 38px; }
+.rp-pot { color: #ffe8a8; font-size: .9rem; }
+.rp-seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.rp-seat { display: grid; grid-template-columns: 30px 1fr auto; grid-template-rows: auto auto; column-gap: 6px; align-items: center; padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, .05); }
+.rp-seat img { grid-row: 1 / 3; width: 30px; height: 30px; border-radius: 50%; }
+.rp-seat b { font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-seat span { grid-row: 1 / 3; grid-column: 3; display: flex; gap: 2px; }
+.rp-seat span .card-xs { --w: 22px; }
+.rp-seat small { font-size: .7rem; color: #ffd36b; }
+.rp-seat.folded { opacity: .45; }
+.rp-seat.win { box-shadow: 0 0 0 1px #ffd36b, 0 0 12px rgba(255, 211, 107, .5); }
+.rp-seat.me b { color: #ffe08a; }
+.rp-log { list-style: none; margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, .3); font-size: .8rem; min-height: 110px; }
+.rp-log li:last-child { color: #ffe08a; font-weight: 800; }
+.rp-ctl { display: grid; grid-template-columns: 1fr 1.6fr 1fr 1fr; gap: 6px; }
+.rp-prog { height: 4px; border-radius: 99px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.rp-prog i { display: block; height: 100%; background: #ffd36b; }
+.inv-box { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.inv-box p { margin: 0; line-height: 1.5; }
+.inv-code { font: 900 2rem/1 var(--font); letter-spacing: .2em; color: #ffe08a; padding: 10px 18px; border-radius: 14px; border: 2px dashed rgba(255, 211, 107, .6); }
+.inv-box .btn { width: 100%; }
+.season-head { margin: 0 0 6px; font-size: .86rem; }
+.season-head small { color: var(--muted); }

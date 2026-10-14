@@ -40,6 +40,48 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const site = createSite({ acct, file: dataFile ? path.join(path.dirname(dataFile), 'site.json') : null, now });
   // 찬덤 홀덤: 지갑 · 연습 테이블 · 실력 티어 (server/holdem-pro.js)
   const pro = createHoldemPro({ kv: { get: (k) => site.store.getKv(k), set: (k, v) => site.store.setKv(k, v) }, now });
+  // ── 찬덤 홀덤 정기 토너먼트: 매일 밤 9시(한국 시간) · 10분 전에 방이 열리고 알림 · 9시에 자동 시작 ──
+  const KST = 9 * 3600e3;
+  function dailyTimes(t = now()) {
+    const d = new Date(t + KST);
+    let start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), pro.DAILY.hour) - KST;
+    if (t > start + 30 * 60e3) start += 86400e3; // 시작하고 30분 지나면 다음 날 것
+    return { start, open: start - pro.DAILY.openMin * 60e3, id: new Date(start + KST).toISOString().slice(0, 10) };
+  }
+  let dailyRoom = null;
+  function dailyInfo() {
+    const tm = dailyTimes();
+    const r = dailyRoom && rooms.get(dailyRoom) ? rooms.get(dailyRoom) : null;
+    return { start: tm.start, open: tm.open, code: r ? r.code : null, phase: r ? r.phase : null, players: r ? r.seated.length : 0, prizes: pro.DAILY.prizes, startChips: pro.DAILY.startChips, levelMinutes: 5 };
+  }
+  function dailyTick() {
+    const t = now(); const tm = dailyTimes(t);
+    let r = dailyRoom ? rooms.get(dailyRoom) : null;
+    if (r && r.dailyId !== tm.id && r.phase === 'lobby') r = null; // 지난 날 방
+    if (!r && t >= tm.open && t < tm.start) {
+      let code; do { code = makeCode(); } while (rooms.has(code));
+      const settings = sanitizeSettings({ game: 'holdem', mode: 'tournament', startChips: pro.DAILY.startChips, sb: 25, bb: 50, levelMinutes: 5, maxPlayers: 30, tableSize: 9, reentryLevels: 2, rebuyMax: 1, minPlayers: 2, turnSeconds: 25, approval: false, password: '', prizes: ['상금 30,000칩', '상금 15,000칩', '상금 7,000칩', ''] });
+      r = new Room({ code, settings, pace });
+      r.isDaily = true; r.dailyId = tm.id; r.dailyStart = tm.start;
+      wire(r); rooms.set(code, r); dailyRoom = code;
+      r.pushFeed(`🏆 ${tm.id} 정기 토너먼트 · 9시 정각에 자동으로 시작해요 · 1~3등 상금은 지갑으로`);
+      push.broadcastOpt('holdemTour', { url: '/holdem/r/' + code }).catch(() => {});
+      scheduleSave();
+    }
+    if (r && r.isDaily && r.phase === 'lobby' && !r.tourney && t >= (r.dailyStart || tm.start)) {
+      const seated = r.seated.filter((p) => !p.isBot);
+      if (seated.length >= 2) {
+        for (const p of r.seated) p.ready = true;
+        if (!r.get(r.hostId) || r.get(r.hostId).role !== 'player') r.hostId = seated[0].id;
+        try { r.start(r.hostId); broadcast(r); } catch (e) { console.error('[daily]', e.message); }
+      } else if (t >= (r.dailyStart || tm.start) + 5 * 60e3) {
+        r.pushFeed('사람이 모자라 오늘 정기 토너먼트는 쉬어요 · 내일 밤 9시에 다시 열려요');
+        r.isDaily = false; dailyRoom = null; broadcast(r);
+      }
+    }
+  }
+  const dailyTimer = setInterval(() => { try { dailyTick(); } catch (e) { console.error('[daily]', e); } }, 20 * 1000);
+  dailyTimer.unref();
   // 비상 비밀번호 재설정: 서버 환경 변수 RESET_USER(아이디) · RESET_PASSWORD(새 비밀번호, 6자 이상)를 넣고 배포하면
   // 켜질 때 한 번 바꾸고 그 계정의 모든 기기를 로그아웃한다. 로그인되면 두 변수를 지우고 다시 배포할 것.
   // RESET_PASSWORD 없이 RESET_USER 만 넣으면 서버가 임시 비밀번호를 만들어 로그에 한 번만 찍는다.
@@ -199,7 +241,21 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     room.onHand = (h) => {
       const w = room.wallet;
       if (!w || h.kind || !room.handPlayers.includes(w.pid)) return;
-      pro.recordHand(w.key, h, w.pid);
+      const names = {}; const avatars = {};
+      for (const s of h.seats) { const p = room.get(s.id); names[s.id] = p ? p.name : '?'; avatars[s.id] = p ? p.avatar : 1; }
+      pro.recordHand(w.key, h, w.pid, { names, avatars, table: w.tableName, shown: (id) => room.handShown(id) });
+    };
+    // 정기 토너먼트: 끝나면 1~3등 상금을 지갑으로
+    room.onTourneyEnd = (result) => {
+      if (!room.isDaily || room.dailyPaid) return;
+      room.dailyPaid = true;
+      const title = `${room.dailyId} 정기전 우승`;
+      for (const r of (result && result.ranking) || []) {
+        const p = room.get(r.id) || (room.allEver || {})[r.id];
+        const key = p && p.proKey;
+        if (key && r.place <= 3) { const amt = pro.payPrize(key, r.place, title); if (amt) room.pushFeed(`🏆 ${r.place}등 ${r.name}님 상금 ${amt.toLocaleString()}칩 → 지갑`); }
+      }
+      broadcast(room);
     };
   }
   /** 연습 테이블에서 나가거나 방이 닫히면 남은 칩을 지갑으로 */
@@ -329,7 +385,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       let user = null;
       if (tok) { try { user = await acct.me(tok); } catch { user = null; } }
       const g = (req.body && req.body.guest) || null;
-      return { user, guest: g && typeof g === 'object' ? { id: String(g.id || ''), key: String(g.key || '') } : null };
+      return { user, guest: g && typeof g === 'object' ? { id: String(g.id || ''), key: String(g.key || '') } : null, ref: req.body && typeof req.body.ref === 'string' ? req.body.ref.slice(0, 8) : null };
     };
     const wrap = (fn) => async (req, res) => {
       try { await pro.ready; res.set('Cache-Control', 'no-store').json({ ok: true, ...(await fn(req)) }); }
@@ -347,7 +403,12 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       if (!id.user) throw new Error('로그인한 다음에 옮길 수 있어요');
       return pro.merge(id.user, id.guest);
     }));
-    r.get('/rank', wrap(async () => pro.top(30)));
+    r.get('/rank', wrap(async () => ({ ...pro.top(30), season: pro.seasonTop(20) })));
+    r.post('/checkin', wrap(async (req) => pro.checkin(await who(req))));
+    r.post('/mission', wrap(async (req) => pro.claimMission(await who(req), String((req.body || {}).id || ''))));
+    r.post('/shop', wrap(async (req) => pro.buy(await who(req), String((req.body || {}).item || ''))));
+    r.get('/replay/:id', wrap(async (req) => ({ replay: pro.replay(req.params.id) })));
+    r.get('/daily', wrap(async () => dailyInfo()));
     app.use('/api/holdem', r);
   }
   const pushTimer = push.enabled ? setInterval(() => { push.tick().catch((e) => console.error('[push] tick 실패:', e.message)); }, 15 * 60 * 1000) : null; // 서버가 깨어 있는 동안 15분마다
@@ -545,6 +606,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         if (!room) throw new RoomError('방을 찾을 수 없어요. 코드를 확인해 주세요');
         const joined = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar, photo: payload.photo, user });
         const { player, pending } = joined;
+        if (room.isDaily) { const pr = pro.profile({ user, guest: payload.guest }, payload.name); if (pr) player.proKey = pr.key; }
         if (player.movedTo && rooms.get(player.movedTo)) {
           // 여러 테이블 토너먼트 늦은 참가: 자리가 있는 다른 테이블로 배정됨
           const t = rooms.get(player.movedTo);

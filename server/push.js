@@ -28,6 +28,8 @@ const KINDS = {
 };
 const USER_KINDS = ['raid', 'stamina', 'checkin', 'comeback']; // 먼저 볼 순서
 const ALL_KINDS = Object.keys(KINDS);
+// 직접 켜야만 받는 알림 (기본 목록에는 없음): 찬덤 홀덤 정기 토너먼트
+const OPT_IN = { holdemTour: { title: '♠ 찬덤 홀덤 정기 토너먼트', body: '10분 뒤 시작해요! 지금 들어와서 자리를 잡으세요', tag: 'holdem-daily', url: '/holdem', icon: '/img/holdem-icon-192.png' } };
 
 const kstDay = (now) => Math.floor((now + KST) / DAY);
 const kstHour = (now) => new Date(now + KST).getUTCHours();
@@ -78,6 +80,7 @@ function cleanSub(raw) {
   return { endpoint: ep, keys: { p256dh: k.p256dh, auth: k.auth } };
 }
 const cleanKinds = (k) => (Array.isArray(k) ? ALL_KINDS.filter((x) => k.includes(x)) : ALL_KINDS.slice());
+const cleanOpt = (k) => (Array.isArray(k) ? Object.keys(OPT_IN).filter((x) => k.includes(x)) : []);
 const cleanDevice = (d) => (typeof d === 'string' && /^[\w-]{6,64}$/.test(d) ? d : null);
 
 // ── 언제 무엇을 보낼까 (순수 함수 · 테스트용) ─────────
@@ -220,9 +223,13 @@ function createPush({ acct = null, store = null, env = process.env, now = Date.n
       const uid = uidOf(req), dev = cleanDevice(body.deviceId);
       const old = await st.get(sub.endpoint);
       const t = now();
-      const s = { ...(old || { createdAt: t, last: {}, day: kstDay(t), sentToday: 0, lastSentAt: 0 }), ...sub, userId: uid || null, deviceId: dev || (old && old.deviceId) || null, kinds: cleanKinds(body.kinds), enabled: body.enabled !== false, updatedAt: t };
+      // add: 기존 알림 설정은 그대로 두고 이 알림만 더한다 (홀덤 정기전 알림 켜기)
+      const add = cleanOpt(body.add);
+      const kinds = add.length && old ? old.kinds || ALL_KINDS.slice() : cleanKinds(body.kinds);
+      const opt = [...new Set([...(old && old.opt) || [], ...add, ...cleanOpt(body.kinds)])].filter((x) => !(Array.isArray(body.remove) && body.remove.includes(x)));
+      const s = { ...(old || { createdAt: t, last: {}, day: kstDay(t), sentToday: 0, lastSentAt: 0 }), ...sub, userId: uid || (old && old.userId) || null, deviceId: dev || (old && old.deviceId) || null, kinds: add.length && !old ? [] : kinds, opt, enabled: body.enabled !== false, updatedAt: t };
       await st.put(s);
-      return { ok: true, kinds: s.kinds, user: !!s.userId };
+      return { ok: true, kinds: s.kinds, opt: s.opt, user: !!s.userId };
     }));
     r.post('/unsubscribe', wrap(async (req) => {
       await ready; if (!enabled) return off;
@@ -255,7 +262,15 @@ function createPush({ acct = null, store = null, env = process.env, now = Date.n
     return r;
   }
 
-  return { get enabled() { return enabled; }, get publicKey() { return enabled ? pub : null; }, store: st, ready, tick, router, dueKind, markSent };
+  /** 직접 켠 사람에게만 한 번에 보내기 (정기 토너먼트 등) */
+  async function broadcastOpt(kind, extra = {}) {
+    await ready; if (!enabled || !OPT_IN[kind]) return { sent: 0 };
+    const subs = (await st.list()).filter((s) => s.enabled !== false && Array.isArray(s.opt) && s.opt.includes(kind));
+    let sent = 0;
+    await pool(subs, concurrency, async (s) => { if ((await deliver(s, { ...OPT_IN[kind], ...extra })) === 'sent') sent++; });
+    return { sent, subs: subs.length };
+  }
+  return { get enabled() { return enabled; }, get publicKey() { return enabled ? pub : null; }, store: st, ready, tick, router, dueKind, markSent, broadcastOpt };
 }
 
 module.exports = { createPush, createPushStore, FilePushStore, PgPushStore, dueKind, markSent, RULES, KINDS, kstDay, kstHour, quiet, cleanSub, pushReady };
