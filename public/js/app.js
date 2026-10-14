@@ -903,6 +903,7 @@ socket.on('state', (st) => {
   if (!first && S.state.me && S.state.me.sittingOut && st.me && !st.me.sittingOut) toast('자리로 돌아왔어요', 'ok');
   S.state = st;
   S.wasInRoom = st.room.code;
+  sound.setQuietRoom(!st.room.practice && st.players.filter((p) => !p.isBot && !p.leaving).length >= 2);
   S.clockSkew = st.serverTime - Date.now();
   if (S.view !== 'room') S.view = 'room';
   processEvents(st, first);
@@ -1028,32 +1029,50 @@ document.addEventListener('click', (e) => {
   if (!el) return;
   const pid = el.dataset.id || el.dataset.pid;
   const p = S.state.players.find((x) => x.id === pid);
-  RK.openPlayerCard({ game: gameOf(S.state), code: S.state.room.code, pid, name: p && p.name });
+  RK.openPlayerCard({ game: gameOf(S.state), code: S.state.room.code, pid, name: p && p.name, extra: p ? roomStatsHTML(p, S.state) : '' });
 });
+
+function roomStatsHTML(p, st) {
+  if (gameOf(st) === 'omok' || st.room.phase !== 'playing' && !p.rs) return '';
+  const rs = p.rs || { hands: 0, vpip: 0, won: 0, sd: 0, best: null, bigPot: 0 };
+  const net = p.buyIn ? p.stack - p.buyIn : null;
+  const holdem = gameOf(st) === 'holdem';
+  const rows = [['참여한 판', fmt(rs.hands)], ['이긴 판', `${fmt(rs.won)}${rs.hands ? ` <small class="muted">(${Math.round((rs.won / rs.hands) * 100)}%)</small>` : ''}`]];
+  if (holdem) rows.push(['VPIP', rs.hands ? Math.round((rs.vpip / rs.hands) * 100) + '%' : '-']);
+  rows.push(['바이인', p.buyIn ? fmt(p.buyIn) : '-'], ['손익', net === null ? '-' : `<span class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${signed(net)}</span>`]);
+  if (holdem) rows.push(['보여 준 최고 족보', rs.best ? esc(rs.best) : '-']);
+  return `<div class="pc-room"><div class="pc-room-h">이번 방 기록 <small class="muted">· 모두 볼 수 있어요</small></div><div class="stat-grid pc-grid">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div></div>`;
+}
 
 // ── 감정 표현 ───────────────────────────────────────
 // 감정 표현: 이모지 대신 짧은 말 (말풍선 색으로 구분)
-const EMOTES = [['angry', '화났어!', '화남'], ['happy', '신난다!', '신남'], ['mock', '메롱~', '조롱'], ['laugh', 'ㅋㅋㅋ', '웃음'], ['cry', '엉엉', '울음'], ['clap', '짝짝짝', '박수']];
+// [키, 말풍선, 이름, 소리] — 그림은 /img/emotes/<키>.webp
+const EMOTES = [['goodfold', '굿폴드!', '굿폴드', 'ding'], ['nice', '나이스!', '나이스', 'e_happy'], ['laugh', 'ㅋㅋㅋ', '웃음', 'e_laugh'], ['clap', '짝짝짝', '박수', 'clap'], ['think', '흠…', '고민', 'hmm'],
+  ['sweat', '쫄린다…', '쫄림', 'gulp'], ['angry', '화났어!', '화남', 'e_angry'], ['cry', '엉엉', '울음', 'e_cry'], ['mock', '메롱~', '메롱', 'e_mock'], ['gg', 'GG', 'GG', 'ding']];
+const EMOTE_ALIAS = { happy: 'nice' }; // 예전 이름
+const emoteImg = (k) => `<img class="emo-img" src="/img/emotes/${k}.webp" alt="" draggable="false" onerror="this.remove()">`;
 document.addEventListener('click', (e) => {
   const tray = document.getElementById('emote-tray');
   if (tray && !e.target.closest('#emote-tray') && !e.target.closest('#emote-btn')) tray.hidden = true;
 });
 socket.on('emote', (e) => {
-  const def = EMOTES.find((x) => x[0] === e.kind);
-  if (!def || S.view !== 'room') return;
+  const kind = EMOTE_ALIAS[e.kind] || e.kind;
+  const def = EMOTES.find((x) => x[0] === kind);
+  if (!def || S.view !== 'room' || (S.muted && S.muted.has(e.id))) return;
   // 오목: 판을 가리지 않게 그 사람 이름표 오른쪽에 작게 / 카드 게임: 자리 위에
   const chip = document.querySelector(`.omok-player[data-id="${e.id}"]`);
   const seat = chip || document.querySelector(`.seat[data-id="${e.id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === e.id ? document.querySelector('.me-name') : null);
   if (!seat) return;
   const el = document.createElement('div');
-  el.className = `fx-emote fx-emote-${e.kind} ${chip ? 'fx-emote-side' : ''}`;
-  el.innerHTML = `<span class="emote-say">${def[1]}</span>`;
+  el.className = `fx-emote fx-emote-${kind} ${chip ? 'fx-emote-side' : ''}`;
+  el.innerHTML = `${emoteImg(kind)}<span class="emote-say">${def[1]}</span>`;
   const r = seat.getBoundingClientRect();
   el.style.left = (chip ? Math.min(innerWidth - 30, r.right + 26) : r.left + r.width / 2) + 'px';
   el.style.top = (r.top + r.height / 2) + 'px';
   fxLayer().appendChild(el);
-  setTimeout(() => el.remove(), 2100);
-  if (e.kind === 'clap') sound.play('clap'); else { sound.play('pop'); sound.play('e_' + e.kind); }
+  setTimeout(() => el.remove(), 2400);
+  sound.play('pop');
+  if (def[3]) setTimeout(() => sound.play(def[3]), 120);
 });
 
 // 홀덤 앱 설치 막대: 설치하기 전까지 방 밖 화면 아래에 늘 보인다
@@ -1082,27 +1101,68 @@ function syncChatFab() {
   d.textContent = unread > 9 ? '9+' : String(unread);
 }
 document.addEventListener('click', (e) => { if (e.target.closest('#chat-btn')) openChat(); });
+// 채팅 음소거한 사람 (이 기기에서만)
+S.muted = new Set(LS.get('chandem:muted', []));
+function setMute(id, on) { if (on) S.muted.add(id); else S.muted.delete(id); LS.set('chandem:muted', [...S.muted].slice(-50)); }
+const nameHue = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 360; };
+const hhmm = (t) => { const d = new Date(t || Date.now()); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 function chatListHTML(st) {
   const meId = st.me && st.me.id;
-  const list = st.chat || [];
+  const list = (st.chat || []).filter((m) => !S.muted.has(m.id));
   if (!list.length) return '<li class="muted small chat-empty">아직 대화가 없어요. 먼저 한마디 해 보세요!</li>';
-  return list.map((m) => `<li class="${m.id === meId ? 'mine' : ''}"><b>${esc(m.name)}</b><span>${esc(m.text)}</span></li>`).join('');
+  return list.map((m) => `<li class="${m.id === meId ? 'mine' : ''}"><span class="cs-name" style="--h:${nameHue(m.name)}">${esc(m.name)}</span><span class="cs-time">${hhmm(m.at)}</span>
+    ${m.id !== meId ? `<button type="button" class="cs-mute" data-mute="${esc(m.id)}" aria-label="${esc(m.name)} 음소거">음소거</button>` : ''}<p>${esc(m.text)}</p></li>`).join('');
+}
+// 게임 화면 아래 왼쪽: 최근 채팅 두 줄 (누르면 채팅 창)
+function chatMiniHTML(st) {
+  const list = ((st && st.chat) || []).filter((m) => !S.muted.has(m.id)).slice(-2);
+  if (!list.length) return '<span class="cm-empty">채팅을 눌러 한마디 해 보세요</span>';
+  return list.map((m) => `<span class="cm-line"><b style="--h:${nameHue(m.name)}">${esc(m.name)}</b> ${esc(m.text)}</span>`).join('');
+}
+function syncChatMini() { const el = document.getElementById('chat-mini'); if (el && S.state) el.innerHTML = chatMiniHTML(S.state); }
+function closeChat() {
+  const sh = document.getElementById('chat-sheet');
+  if (!sh) return;
+  if (sh._off) sh._off();
+  sh.classList.add('out');
+  const sc = document.getElementById('chat-scrim'); if (sc) sc.remove();
+  setTimeout(() => sh.remove(), 160);
+  syncChatFab();
 }
 function openChat() {
   const st = S.state;
-  if (!st) return;
-  openModal('채팅', `<ol class="chat-list" id="chat-list">${chatListHTML(st)}</ol>
-    <form class="chat-form" id="chat-form" autocomplete="off"><input class="input" name="t" maxlength="80" placeholder="메시지 입력 (80자)" enterkeyhint="send"><button class="btn btn-gold">보내기</button></form>
-    <div class="chat-quick">${['나이스!', 'ㅋㅋㅋ', '올인 각?', '블러핑이지?', '잠깐만요', 'GG'].map((t) => `<button type="button" class="btn btn-sm btn-ghost" data-q="${t}">${t}</button>`).join('')}</div>`, (body) => {
-    const list = body.querySelector('#chat-list');
-    list.scrollTop = list.scrollHeight;
-    const form = body.querySelector('#chat-form');
-    const send = async (t) => { const r = await emit('room:chat', { text: t }); if (r.ok) form.t.value = ''; };
-    form.onsubmit = (e) => { e.preventDefault(); const t = form.t.value.trim(); if (t) send(t); };
-    body.querySelectorAll('[data-q]').forEach((q) => { q.onclick = () => send(q.dataset.q); });
-    S.chatRead = ((st.chat || []).slice(-1)[0] || { seq: 0 }).seq;
-    syncChatFab();
+  if (!st || document.getElementById('chat-sheet')) return;
+  const scrim = document.createElement('div');
+  scrim.id = 'chat-scrim'; scrim.className = 'chat-scrim';
+  scrim.onclick = closeChat;
+  const sh = document.createElement('section');
+  sh.id = 'chat-sheet'; sh.className = 'chat-sheet';
+  sh.innerHTML = `<div class="cs-head"><b>채팅</b><small class="muted">${esc(st.room.code)}</small><button type="button" class="cs-x" id="cs-x" aria-label="닫기">닫기</button></div>
+    <ol class="chat-list cs-list" id="chat-list">${chatListHTML(st)}</ol>
+    <div class="cs-quick">${['굿폴드', '나이스 핸드', 'ㅋㅋㅋ', '블러핑이지?', '잠깐만요', 'GG', '한 판만 더'].map((t) => `<button type="button" data-q="${t}">${t}</button>`).join('')}</div>
+    <form class="cs-form" id="chat-form" autocomplete="off"><input class="input" name="t" maxlength="80" placeholder="메시지 (Enter로 보내기)" enterkeyhint="send"><button class="btn btn-gold">보내기</button></form>`;
+  document.body.append(scrim, sh);
+  const list = sh.querySelector('#chat-list');
+  list.scrollTop = list.scrollHeight;
+  const form = sh.querySelector('#chat-form');
+  const send = async (t) => { const r = await emit('room:chat', { text: t }); if (r.ok) form.t.value = ''; };
+  form.onsubmit = (e) => { e.preventDefault(); const t = form.t.value.trim(); if (t) send(t); };
+  sh.querySelectorAll('[data-q]').forEach((q) => { q.onclick = () => send(q.dataset.q); });
+  sh.querySelector('#cs-x').onclick = closeChat;
+  list.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mute]');
+    if (!b) return;
+    const m = (S.state.chat || []).find((x) => x.id === b.dataset.mute);
+    setMute(b.dataset.mute, true);
+    list.innerHTML = chatListHTML(S.state); syncChatMini();
+    toast(`${m ? m.name : '그 사람'}님의 채팅·표정을 가렸어요 (메뉴 → 참가자에서 다시 보기)`, 'info');
   });
+  // 키보드가 올라오면 채팅 창도 같이 올린다
+  const vv = window.visualViewport;
+  const fit = () => { if (vv) sh.style.bottom = Math.max(0, innerHeight - vv.height - vv.offsetTop) + 'px'; };
+  if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); sh._off = () => { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); }; }
+  S.chatRead = ((st.chat || []).slice(-1)[0] || { seq: 0 }).seq;
+  syncChatFab();
 }
 function onChat(st, first) {
   const list = st.chat || [];
@@ -1112,9 +1172,11 @@ function onChat(st, first) {
   S.chatSeen = last;
   const box = document.getElementById('chat-list');
   if (box) { box.innerHTML = chatListHTML(st); box.scrollTop = box.scrollHeight; S.chatRead = last; }
-  for (const m of fresh) chatBubble(m);
-  if (fresh.length && !box && !fresh.every((m) => st.me && m.id === st.me.id)) sound.play('pop');
+  const shown = fresh.filter((m) => !S.muted.has(m.id));
+  for (const m of shown) chatBubble(m);
+  if (shown.length && !box && !shown.every((m) => st.me && m.id === st.me.id)) sound.play('pop');
   syncChatFab();
+  syncChatMini();
 }
 function chatBubble(m) {
   if (S.view !== 'room') return;
@@ -1173,11 +1235,15 @@ function processEvents(st, first) {
     if (e.type === 'info') {
       if (/번째 판 시작/.test(e.text)) {
         const n = Math.min(18, (st.hand ? st.players.filter((p) => ['inhand', 'allin'].includes(p.status)).length : 2) * 2);
-        for (let i = 0; i < n; i++) setTimeout(() => sound.play('deal'), delay + 150 + i * 85);
+        if (gameOf(st) === 'holdem') sound.play('shuffle');
+        const d0 = gameOf(st) === 'holdem' ? 650 : 150;
+        for (let i = 0; i < n; i++) setTimeout(() => sound.play('deal'), delay + d0 + i * 85);
       }
       continue;
     }
     if (e.type === 'allin') setTimeout(() => allinStamp(e.id), delay);
+    if (e.type === 'fold' && gameOf(st) === 'holdem') foldFly(e.id);
+    if (e.type === 'check' && gameOf(st) === 'holdem') setTimeout(() => knockFx(e.id), delay);
     const iWon = e.type === 'end' && e.winners && e.winners.includes(meId);
     if (e.type === 'street' || e.type === 'end') S.sdLastTo = 0;
     const sd = gameOf(st) === 'seotda';
@@ -1190,6 +1256,45 @@ function processEvents(st, first) {
     if (sound.isUnlocked()) gws.vibrate(60);
   }
   S.lastTurnId = turnId;
+}
+
+// 폴드: 카드를 테이블 가운데(머크)로 휙 던지면 돌면서 스르륵 사라진다 (다시 그리기 전 화면에서 복사)
+function foldFly(id) {
+  if (gws.reduceMotion()) return;
+  const seat = document.querySelector(`#g-table .seat[data-id="${id}"]`);
+  const src = seat && seat.querySelector('.seat-cards, .seat-mycards');
+  const board = document.querySelector('#g-table .board') || document.getElementById('g-table');
+  if (!src || !board) return;
+  const to = centerOf(board);
+  [...src.querySelectorAll('.card')].forEach((c, i) => {
+    const r = c.getBoundingClientRect();
+    if (!r.width) return;
+    const g = c.cloneNode(true);
+    g.classList.remove('card-deal', 'card-flip', 'card-hl');
+    g.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;--w:${r.width}px;margin:0;z-index:5;pointer-events:none;animation:none`;
+    fxLayer().appendChild(g);
+    const dx = to.x - (r.left + r.width / 2) + (i ? 10 : -10); const dy = to.y - (r.top + r.height / 2);
+    const spin = (i ? 1 : -1) * (150 + Math.random() * 60);
+    g.animate([
+      { transform: 'translate(0,0) rotate(0deg) scale(1)', opacity: 1 },
+      { transform: `translate(${dx * 0.8}px,${dy * 0.8}px) rotate(${spin * 0.8}deg) scale(.85)`, opacity: 0.95, offset: 0.6 },
+      { transform: `translate(${dx}px,${dy}px) rotate(${spin}deg) scale(.7)`, opacity: 0 },
+    ], { duration: 720, delay: i * 70, easing: 'cubic-bezier(.2,.75,.3,1)', fill: 'both' }).onfinish = () => g.remove();
+  });
+}
+// 체크: 주먹으로 테이블을 탁탁 (자리 아래 물결 두 번)
+function knockFx(id) {
+  if (gws.reduceMotion()) return;
+  const av = document.querySelector(`#g-table .seat[data-id="${id}"] .seat-av`);
+  if (!av) return;
+  const c = centerOf(av);
+  [0, 150].forEach((d) => setTimeout(() => {
+    const r = document.createElement('div');
+    r.className = 'fx-knock';
+    r.style.left = c.x + 'px'; r.style.top = (c.y + 30) + 'px';
+    fxLayer().appendChild(r);
+    setTimeout(() => r.remove(), 650);
+  }, d));
 }
 
 function flyPotTo(winners) {
@@ -1230,6 +1335,7 @@ function render() {
   const vkey = S.view === 'room' ? 'room:' + (S.state ? S.state.room.phase : '-') : S.view;
   if (vkey !== S.lastVKey) { const first = !S.lastVKey || S.lastVKey === 'boot'; S.lastVKey = vkey; if (!first || vkey !== 'home') animateIn(S.view === 'room'); }
   if (S.view !== 'room') S.gameMounted = false;
+  if (S.view !== 'room' && S.fsOn) { S.fsOn = false; try { screen.orientation.unlock(); } catch {} if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
   document.body.dataset.theme = S.view === 'room' && S.state ? gameOf(S.state) : S.view === 'home' || S.view === 'admin' ? 'hub' : (S.game || 'holdem');
   document.body.classList.toggle('in-room', S.view === 'room');
   syncChatFab();
@@ -1572,6 +1678,8 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <select class="input" name="tableSize">${[6, 8, 9, 10].map((v) => `<option value="${v}" ${Number(s.tableSize || 9) === v ? 'selected' : ''}>${v}명</option>`).join('')}</select></label>
     <label class="field"><span>리바이 · 늦은 참가</span>
       <select class="input" name="reentryLevels">${[[0, '없음 (처음 앉은 사람만)'], [2, '레벨 2까지'], [3, '레벨 3까지'], [4, '레벨 4까지'], [6, '레벨 6까지']].map(([v, t]) => `<option value="${v}" ${Number(s.reentryLevels || 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="field"><span>1인당 리바이 횟수 <small class="muted">(리바이를 받을 때만)</small></span>
+      <select class="input" name="rebuyMaxT">${[[1, '1번'], [2, '2번'], [3, '3번'], [5, '5번'], [99, '제한 없음']].map(([v, t]) => `<option value="${v}" ${Number(s.rebuyMax || 3) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <div class="prize-grid"><span class="prize-head">순위별 상품 · 벌칙 <small class="muted">(선택 · 결과 화면에 나와요)</small></span>
       ${[['1등', '예: 치킨 쏘기 면제'], ['2등', '예: 음료수'], ['3등', ''], ['꼴찌', '예: 커피 쏘기']].map(([t, ph], i) => `<label class="prize-row"><b>${t}</b><input class="input" name="prize${i}" maxlength="24" placeholder="${ph}" value="${esc((s.prizes || [])[i] || '')}" autocomplete="off"></label>`).join('')}</div>
     <label class="field"><span>블라인드 표 직접 정하기 <small class="muted">(비우면 자동)</small></span>
@@ -1592,7 +1700,7 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <label class="field"><span>최소 인원</span><input class="input" type="number" inputmode="numeric" name="minPlayers" min="2" max="9" value="${s.minPlayers}"></label>
     <label class="field"><span>최대 인원 <small class="muted">(토너먼트는 30명까지)</small></span><input class="input" type="number" inputmode="numeric" name="maxPlayers" min="2" max="30" value="${s.maxPlayers}"></label>
   </div>
-  <fieldset class="fieldset chips-only">
+  <fieldset class="fieldset chips-only cash-only">
     <legend>리바인</legend>
     <label class="switch"><input type="checkbox" name="rebuyEnabled" ${s.rebuyEnabled ? 'checked' : ''}><span>리바인 허용</span></label>
     <div class="grid2">
@@ -1630,6 +1738,7 @@ function bindTourneyEst(form) {
   if (!el) return;
   const upd = () => {
     const fd = new FormData(form);
+    form.dataset.mode = fd.get('mode') === 'tournament' ? 'tournament' : 'cash';
     const start = Number(fd.get('startChips')) || 1000; const sb = Number(fd.get('sb')) || 10; const bb = Number(fd.get('bb')) || 20;
     const mins = Number(fd.get('levelMinutes')) || 7;
     const L = blindLadder(sb, bb, fd.get('blindLevels'));
@@ -1670,7 +1779,7 @@ function readSettings(form) {
   return {
     startChips: num('startChips'), turnSeconds: num('turnSeconds'), sb: num('sb'), bb: num('bb'),
     minPlayers: num('minPlayers'), maxPlayers: num('maxPlayers'),
-    rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyMax: num('rebuyMax'),
+    rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyMax: fd.get('mode') === 'tournament' && fd.get('rebuyMaxT') ? num('rebuyMaxT') : num('rebuyMax'),
     password: String(fd.get('password') || ''), approval: fd.get('approval') === 'on',
     mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 7,
     ante: fd.get('ante') === 'on' ? 'bb' : 'none', timeBank: fd.get('timeBank') === null ? 30 : num('timeBank'),
@@ -1894,7 +2003,7 @@ function settingsSummaryHTML(s) {
     <li><span>블라인드</span><b>${fmt(s.sb)} / ${fmt(s.bb)}</b></li>
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
-    <li><span>리바인</span><b>${s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
+    <li><span>리바인</span><b>${s.mode === 'tournament' ? (s.reentryLevels > 0 ? `레벨 ${s.reentryLevels}까지 · 1인 ${s.rebuyMax >= 99 ? '제한 없음' : `최대 ${s.rebuyMax}번`}` : '없음') : s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
     <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? `세 장 · ${s.sdOpen === 'one' ? '한 장 공개' : '공개 없음'}` : '두 장'})` : ''}</b></li>
     <li><span>방식</span><b>${s.mode === 'tournament' ? `토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
     ${s.mode === 'tournament' && (s.prizes || []).some(Boolean) ? `<li><span>상품·벌칙</span><b>${(s.prizes || []).map((t, i) => (t ? `${['1등', '2등', '3등', '꼴찌'][i]} ${esc(t)}` : '')).filter(Boolean).join(' · ')}</b></li>` : ''}
@@ -1980,6 +2089,7 @@ function renderLobby() {
       ${isHost && players.length < s.maxPlayers ? '<button class="btn btn-sm btn-outline add-bot" id="add-bot">봇 추가</button>' : ''}
       ${specs.length ? `<h3 class="sub-title">관전자 ${specs.length}명</h3><div class="plist">${specs.map((p) => playerRowHTML(p, st, isHost)).join('')}</div>` : ''}
     </section>
+    ${gameOf(st) !== 'omok' && s.maxPlayers <= 10 ? `<section class="panel"><h2 class="sec-title">자리 고르기</h2>${seatMapHTML(st)}<p class="muted small center">${me && me.role === 'player' ? '빈자리를 누르면 그 자리로 옮겨요' : '빈자리를 누르면 그 자리에 앉아요'} · 딜러 버튼은 번호 순서(시계 방향)로 돌아요</p></section>` : ''}
     <section class="panel">
       <div class="sec-head"><h2 class="sec-title">방 설정</h2>${isHost ? '<button class="btn btn-sm btn-outline" id="edit-settings">설정 바꾸기</button>' : ''}</div>
       ${settingsSummaryHTML(s)}
@@ -2014,6 +2124,20 @@ function renderLobby() {
   P.bindRoomMaster($app, st.room.code);
   const edit = $app.querySelector('#edit-settings');
   if (edit) edit.onclick = () => openSettingsModal();
+}
+
+function seatMapHTML(st) {
+  const N = Math.max(2, Math.min(10, st.room.tableSeats || st.room.settings.maxPlayers));
+  const seated = st.players.filter((p) => p.role === 'player' && p.seat !== null);
+  const mine = st.me && seated.find((p) => p.id === st.me.id);
+  const base = mine && mine.seat < N ? mine.seat : 0;
+  const pos = landPositions(N, 40, 38, 50);
+  return `<div class="seat-map"><div class="sm-felt"></div>${pos.map((xy, r) => {
+    const seat = (base + r) % N;
+    const p = seated.find((x) => x.seat === seat);
+    const me = p && st.me && p.id === st.me.id;
+    return `<button type="button" class="sm-seat ${p ? 'taken' : ''} ${me ? 'me' : ''}" ${p ? 'disabled' : `data-sit="${seat}"`} style="left:${xy.x}%;top:${xy.y}%">${p ? `${avatarHTML(p, 'avatar-sm')}<b>${esc(p.name)}</b>` : `<span>${seat + 1}</span><small>빈자리</small>`}</button>`;
+  }).join('')}</div>`;
 }
 
 function playerRowHTML(p, st, isHost) {
@@ -2120,6 +2244,7 @@ function openSoundModal() {
       <label class="field"><span>효과음·음성 볼륨 <b id="vol-val">${Math.round(p.volume * 100)}%</b></span>
         <input type="range" id="snd-vol" min="0" max="100" value="${Math.round(p.volume * 100)}"></label>
       <label class="switch"><input type="checkbox" id="snd-music" ${p.music ? 'checked' : ''}><span>배경음악 듣기</span></label>
+      <label class="switch"><input type="checkbox" id="snd-friend" ${p.friendLoud ? 'checked' : ''}><span>친구 방에서도 음성·배경음악 <small class="muted">(기본 꺼짐 · 카드·칩·노크 소리는 그대로)</small></span></label>
       <label class="field"><span>배경음악 볼륨 <b id="mvol-val">${Math.round(p.musicVolume * 100)}%</b></span>
         <input type="range" id="snd-mvol" min="0" max="100" value="${Math.round(p.musicVolume * 100)}"></label>
       <button class="btn btn-outline" id="snd-test">소리 들어보기</button>
@@ -2129,6 +2254,7 @@ function openSoundModal() {
     body.querySelector('#snd-voice').onchange = (e) => sound.setVoice(e.target.checked);
     body.querySelector('#snd-vol').oninput = (e) => { sound.setVolume(e.target.value / 100); body.querySelector('#vol-val').textContent = e.target.value + '%'; };
     body.querySelector('#snd-music').onchange = (e) => { sound.unlock(); sound.setMusic(e.target.checked); };
+    body.querySelector('#snd-friend').onchange = (e) => { sound.unlock(); sound.setFriendLoud(e.target.checked); };
     body.querySelector('#snd-mvol').oninput = (e) => { sound.setMusicVolume(e.target.value / 100); body.querySelector('#mvol-val').textContent = e.target.value + '%'; };
     body.querySelector('#snd-test').onclick = () => { sound.unlock(); sound.play('chips'); setTimeout(() => sound.play('v_call'), 200); };
   });
@@ -2170,17 +2296,24 @@ function seatPositions(n, compact = false) {
   return [{ x: 50, y: 90 }, ...others.map(([x, y]) => ({ x, y }))];
 }
 
+// 가로 화면인가 (폰을 눕히거나 넓은 컴퓨터 화면)
+function isLand() { return innerWidth > innerHeight * 1.15; }
+function orientOf() { return S.state && gameOf(S.state) !== 'omok' && isLand() ? 'land' : 'port'; }
 function mountGame() {
   $app.innerHTML = `
-  <div class="game">
+  <div class="game" data-orient="${orientOf()}">
     <header class="g-top" id="g-top"></header>
     <div class="g-banner" id="g-banner"></div>
-    <div class="table-wrap"><div class="table" id="g-table"></div>
-      <div class="emote-tray" id="emote-tray" hidden>${EMOTES.map(([k, e, t]) => `<button data-emote="${k}" class="emote-${k}" aria-label="${t}"><span class="emote-txt">${e}</span><small>${t}</small></button>`).join('')}</div>
+    <div class="g-main">
+      <div class="table-wrap"><div class="table" id="g-table"></div>
+        <div class="emote-tray" id="emote-tray" hidden>${EMOTES.map(([k, e, t]) => `<button data-emote="${k}" class="emote-${k}" aria-label="${t}">${emoteImg(k)}<small>${t}</small></button>`).join('')}</div>
+      </div>
+      <div class="g-side">
+        <section class="g-me" id="g-me"></section>
+        <section class="g-actions" id="g-actions"></section>
+      </div>
     </div>
     <div id="fx-layer" aria-hidden="true"></div>
-    <section class="g-me" id="g-me"></section>
-    <section class="g-actions" id="g-actions"></section>
   </div>`;
   S.gameMounted = true;
   S.actionSig = '';
@@ -2191,6 +2324,30 @@ function mountGame() {
   tray.querySelectorAll('[data-emote]').forEach((b) => {
     b.onclick = () => { tray.hidden = true; emit('game:emote', { kind: b.dataset.emote }); };
   });
+}
+
+// 화면을 돌리면(가로↔세로) 테이블 모양을 다시 맞춘다
+let orientT = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(orientT);
+  orientT = setTimeout(() => {
+    const g = document.querySelector('.game');
+    if (!g || S.view !== 'room' || !S.state || S.state.room.phase === 'lobby') return;
+    const o = orientOf();
+    if (g.dataset.orient !== o) { g.dataset.orient = o; S.actionSig = ''; renderGame(); }
+    else if (gameOf(S.state) !== 'omok') renderTable(S.state);
+  }, 160);
+});
+// 가로/세로 바꾸기: 안드로이드는 전체 화면 + 방향 잠금, 안 되면 폰을 돌리라고 안내
+async function toggleOrient() {
+  const wantLand = !isLand();
+  try {
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    await screen.orientation.lock(wantLand ? 'landscape' : 'portrait');
+    S.fsOn = true;
+    return;
+  } catch {}
+  toast(wantLand ? '폰을 가로로 눕혀 주세요 (자동 회전을 켜 두면 테이블이 가로로 바뀌어요)' : '폰을 세로로 세워 주세요', 'info');
 }
 
 function renderGame() {
@@ -2224,6 +2381,8 @@ const TI = {
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h12M8 12h12M8 17h12"/><circle cx="4" cy="7" r=".8"/><circle cx="4" cy="12" r=".8"/><circle cx="4" cy="17" r=".8"/></svg>',
   sound: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
   mute: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>',
+  rotate: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 14a9 9 0 0 0 5 6.5M21 10a9 9 0 0 0-5-6.5"/><path d="M3 18v-4h4M21 6v4h-4"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v10H9l-5 4z"/><path d="M8 10h8"/></svg>',
 };
 function renderTop(st) {
   const el = document.getElementById('g-top');
@@ -2236,13 +2395,13 @@ function renderTop(st) {
       : `<b>${fmt(st.room.settings.sb)}/${fmt(st.room.settings.bb)}${st.room.settings.ante === 'bb' ? ' · 앤티' : ''}</b><small>방 ${esc(st.room.code)}${st.room.handNo ? ` · ${st.room.handNo}번째 판` : ''}</small>`;
     el.innerHTML = `
       <button class="tb-ico" id="menu-btn" aria-label="메뉴">${TI.menu}${pendingCount ? `<span class="dot">${pendingCount}</span>` : ''}</button>
-      <button class="tb-ico tb-wide" id="chart-btn" aria-label="족보표">${TI.cards}<span>족보</span></button>
       <div class="tb-mid">${mid}</div>
-      <button class="tb-ico" id="share-top" aria-label="초대 링크 공유">${TI.link}</button>
-      <button class="tb-ico" id="log-btn" aria-label="베팅 내역">${TI.list}</button>
+      <button class="tb-ico" id="log-btn" aria-label="기록 · 칩 장부">${TI.list}</button>
+      <button class="tb-ico" id="orient-btn" aria-label="가로 세로 바꾸기">${TI.rotate}</button>
       <button class="tb-ico" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? TI.mute : TI.sound}</button>`;
     bindCommon();
-    el.querySelector('#log-btn').onclick = openLogModal;
+    el.querySelector('#log-btn').onclick = () => openHistory();
+    el.querySelector('#orient-btn').onclick = toggleOrient;
     el.querySelector('#menu-btn').onclick = openMenuModal;
     tickLevel();
     return;
@@ -2489,17 +2648,69 @@ function renderTable(st) {
   const betsBefore = snapBets();
   try { renderTableInner(st, el); } finally { requestAnimationFrame(() => tableMotion(st, betsBefore)); }
 }
+// 가로 화면: 넓은 타원 둘레에 고르게 (0번 = 아래 가운데, 시계방향)
+function landPositions(n, rx = 43, ry = 38, cy = 48) {
+  const out = [];
+  for (let i = 0; i < n; i++) { const a = Math.PI / 2 + (i * 2 * Math.PI) / n; out.push({ x: 50 + rx * Math.cos(a), y: cy + ry * Math.sin(a) }); }
+  return out;
+}
+// 테이블 자리 칸: 방의 자리 수만큼 (빈자리 포함). 내가 앉아 있으면 내 자리가 아래 가운데
+function tableSlots(st, compact, land) {
+  const seated = st.players.filter((p) => (p.role === 'player' || p.leaving) && p.seat !== null && p.seat !== undefined);
+  const N = Math.max(2, Math.min(10, st.room.tableSeats || st.room.settings.maxPlayers || 9));
+  const posOf = (n) => (land ? landPositions(n) : seatPositions(n, compact));
+  if (seated.some((p) => p.seat >= N)) { // 예외(자리 번호가 테이블보다 큼): 예전처럼 앉은 순서대로
+    const seats = orderedSeats(st);
+    const pos = posOf(Math.max(seats.length, 2));
+    return seats.map((p, i) => ({ p, ...pos[i], seat: p.seat }));
+  }
+  const mine = st.me && seated.find((p) => p.id === st.me.id);
+  const base = mine ? mine.seat : 0;
+  const pos = posOf(N);
+  const slots = [];
+  for (let r = 0; r < N; r++) { const seat = (base + r) % N; slots.push({ p: seated.find((p) => p.seat === seat) || null, ...pos[r], seat }); }
+  return slots;
+}
+function canSitNow(st) {
+  const me = st.me; const tn = st.room.tournament; const s = st.room.settings;
+  if (!me || me.role === 'player' || me.masterPeek || (tn && tn.mtt && tn.mtt.closed)) return false;
+  return !tn || !tn.running || (s.reentryLevels > 0 && tn.level <= s.reentryLevels);
+}
+function emptySeatHTML(st, sl, canSit) {
+  return `<button type="button" class="seat seat-empty ${canSit ? 'can-sit' : ''}" data-sit="${sl.seat}" style="left:${sl.x}%;top:${sl.y}%" aria-label="${sl.seat + 1}번 빈자리">${canSit ? '<b>앉기</b>' : ''}<small>${sl.seat + 1}번</small></button>`;
+}
+// 빈자리 누르기: 관전 중이면 그 자리에 앉고, 대기실에서는 자리를 옮긴다
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-sit]');
+  if (!b || S.view !== 'room' || !S.state) return;
+  const st = S.state;
+  const lobby = st.room.phase === 'lobby';
+  if (!lobby && !canSitNow(st)) { toast(st.me && st.me.role === 'player' ? `${Number(b.dataset.sit) + 1}번 빈자리예요 · 자리는 대기실에서 옮길 수 있어요` : '지금은 앉을 수 없어요 (늦은 참가 시간이 끝났어요)', 'info'); return; }
+  const r = await emit('lobby:seat', { seat: Number(b.dataset.sit) });
+  if (r.ok && r.requested) toast('방장에게 자리 요청을 보냈어요. 수락되면 다음 판부터 참가해요', 'ok');
+  else if (r.ok && !lobby) toast(`${Number(b.dataset.sit) + 1}번 자리에 앉았어요 · 다음 판부터 참가해요`, 'ok');
+  if (r.ok) sound.play('chips');
+});
+function myHandName(cards, h) {
+  if (!cards || !h || h.game === 'seotda' || cards[0] === '??') return '';
+  const all = cards.concat(h.board || []);
+  if (all.length >= 5) return bestHand(all).name;
+  return cards[0][0] === cards[1][0] ? '포켓 페어' : '';
+}
 function renderTableInner(st, el) {
   const h = st.hand;
-  const seats = orderedSeats(st);
   const compact = el.clientHeight > 0 && el.clientHeight < 470;
-  const pos = seatPositions(Math.max(seats.length, 2), compact);
+  const land = orientOf() === 'land';
+  const slots = tableSlots(st, compact, land);
+  const canSit = canSitNow(st);
   const handNo = h ? h.no : 0;
   const result = h && h.result;
   const winners = new Set(result ? result.winners : []);
 
-  const seatHTML = seats.map((p, i) => {
-    const { x, y } = pos[i];
+  const seatHTML = slots.map((sl) => {
+    if (!sl.p) return emptySeatHTML(st, sl, canSit);
+    const p = sl.p;
+    const { x, y } = sl;
     const isMe = st.me && p.id === st.me.id;
     const cls = ['seat'];
     if (isMe) cls.push('seat-me');
@@ -2514,7 +2725,8 @@ function renderTableInner(st, el) {
     if (isMe && h && h.game !== 'seotda' && p.cards && p.cards[0] !== '??') {
       const mine = result && result.hands && result.hands[p.id];
       const best = mine ? new Set(mine.best) : null;
-      cards = `<div class="seat-mycards ${p.status === 'folded' ? 'folded' : ''}">${p.cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${handNo}:me:${k}`), delay: k * 120, highlight: best && best.has(c) })).join('')}</div>`;
+      const hn = p.status === 'folded' || result ? '' : myHandName(p.cards, h);
+      cards = `<div class="seat-mycards ${p.status === 'folded' ? 'folded' : ''}">${p.cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${handNo}:me:${k}`), delay: k * 120, highlight: best && best.has(c) })).join('')}${hn ? `<span class="my-hand-lbl">${esc(hn)}</span>` : ''}</div>`;
     } else if (p.cards && !isMe) {
       const reveal = result && result.hands && result.hands[p.id];
       const best = reveal ? new Set(reveal.best) : null;
@@ -2599,7 +2811,8 @@ function renderTableInner(st, el) {
         ${result ? resultHTML(st, result) : ''}
       </div>`;
   } else {
-    center = `<div class="table-center"><div class="table-brand">GAME WORLD</div><p class="muted small">${st.room.waiting ? '참가자를 기다리는 중' : '곧 시작해요'}</p></div>`;
+    const s0 = st.room.settings;
+    center = `<div class="table-center"><div class="table-blinds">${gameOf(st) === 'seotda' ? '섯다' : 'NL 홀덤'} · ${fmt(s0.sb)}/${fmt(s0.bb)}</div><p class="muted small">${st.room.waiting ? (canSit ? '빈자리를 눌러 앉아 주세요' : '참가자를 기다리는 중') : '곧 시작해요'}</p></div>`;
   }
   el.innerHTML = `<div class="felt"><div class="felt-rail"></div>${center}${seatHTML}</div>`;
   RK.fitNames(el);
@@ -2639,6 +2852,17 @@ function renderMe(st) {
   const me = st.me;
   const mp = me && st.players.find((p) => p.id === me.id);
   if (!me || !mp) { el.innerHTML = ''; return; }
+  if (gameOf(st) === 'holdem') {
+    el.className = 'g-me me-tools';
+    const spec = me.role === 'spectator' && !mp.cards;
+    el.innerHTML = `${spec ? `<div class="me-spec2">${mp.seatRequest ? '방장이 자리 요청을 확인하고 있어요' : canSitNow(st) ? '관전 중 · <b>빈자리를 누르면 앉아요</b>' : '관전 중'}</div>` : ''}
+      <button type="button" class="chat-mini" id="chat-mini" aria-label="채팅 열기">${chatMiniHTML(st)}</button>
+      <button type="button" class="tool-btn" id="emote-btn" aria-label="감정 표현 보내기">${emoteImg('goodfold')}<span>표정</span></button>
+      <button type="button" class="tool-btn" id="chat-btn" aria-label="채팅">${TI.chat}<span>채팅</span><span class="dot" hidden></span></button>`;
+    syncChatFab();
+    return;
+  }
+  el.className = 'g-me';
   if (me.role === 'spectator' && !mp.cards) {
     const waitingSeat = mp.seatRequest;
     el.innerHTML = `<div class="me-spec"><span>관전 중이에요${waitingSeat ? ' · 방장이 자리 요청을 확인하고 있어요' : ''}</span>
@@ -2689,7 +2913,7 @@ function renderActions(st) {
   const el = document.getElementById('g-actions');
   const h = st.hand;
   const la = h && h.legal;
-  const sig = JSON.stringify([la, h && h.toActId, h && h.finished, !!(h && h.result), S.raise.open, h && h.no, st.room.nextHandAt, h && h.phase && [h.phase.kind, h.phase.done, h.phase.done || h.phase.watching ? h.phase.waiting : 0], S.pickSel && S.pickSel.cards.join()]); // 고르는 중엔 남은 인원 변화로 다시 그리지 않음 (누른 게 사라지지 않게)
+  const sig = JSON.stringify([la, h && h.toActId, h && h.finished, !!(h && h.result), S.raise.open, h && h.no, st.room.nextHandAt, st.me && [st.me.canShow, (st.me.shownOne || []).join()], h && h.canRabbit, h && h.phase && [h.phase.kind, h.phase.done, h.phase.done || h.phase.watching ? h.phase.waiting : 0], S.pickSel && S.pickSel.cards.join()]); // 고르는 중엔 남은 인원 변화로 다시 그리지 않음 (누른 게 사라지지 않게)
   if (sig === S.actionSig) return;
   S.actionSig = sig;
 
@@ -2698,8 +2922,11 @@ function renderActions(st) {
     el.innerHTML = h && h.finished && !h.result
       ? `<div class="wait-line reveal-line">${h.reveal && h.reveal.allin ? '올인 승부! 카드를 한 장씩 공개하고 있어요' : '패를 공개하고 있어요'}</div>`
       : h && h.finished
-      ? `<div class="wait-line"><span data-next>다음 판을 준비하고 있어요</span></div>`
+      ? `${finishedExtrasHTML(st)}<div class="wait-line"><span data-next>다음 판을 준비하고 있어요</span></div>`
       : `<div class="wait-line">${st.room.waiting ? '참가자를 기다리는 중이에요' : '곧 카드를 나눠 드려요'}</div>`;
+    el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = () => { const v = b.dataset.show; emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); sound.play('flip'); }; });
+    const rb = el.querySelector('#rabbit-btn');
+    if (rb) rb.onclick = () => { rb.disabled = true; emit('game:rabbit'); };
     return;
   }
   if (h.phase) { S.raise.open = false; renderSeotdaPhase(el, st); return; }
@@ -2812,6 +3039,19 @@ function renderActions(st) {
   });
 }
 
+function finishedExtrasHTML(st) {
+  const h = st.hand; const me = st.me;
+  if (!h || !h.result || h.game === 'seotda' || !me) return '';
+  const mp = st.players.find((p) => p.id === me.id);
+  const out = [];
+  if (me.canShow && mp && mp.cards && mp.cards[0] !== '??') {
+    const done = me.shownOne || [];
+    out.push(`<div class="show-row"><span>내 패<br>보여주기</span>${mp.cards.map((c, i) => (done.includes(i) ? '' : `<button type="button" class="show-c" data-show="${i}">${cardHTML(c, { size: 'sm' })}<small>이 장만</small></button>`)).join('')}<button type="button" class="show-both" data-show="both">${done.length ? '나머지도' : '두 장 다'}</button></div>`);
+  }
+  if (h.canRabbit) out.push('<button type="button" class="rabbit-btn" id="rabbit-btn">🐰 남은 카드 보기<small>계속했다면 나왔을 카드</small></button>');
+  return out.length ? `<div class="fin-row">${out.join('')}</div>` : '';
+}
+
 // 홀덤 내 차례: 금액 고르기(칩 버튼·슬라이더)는 늘 펼쳐 두고, 큰 버튼 3개로 결정
 function renderHoldemActions(el, st, la, o) {
   const h = st.hand;
@@ -2828,7 +3068,7 @@ function renderHoldemActions(el, st, la, o) {
   ] : [];
   el.innerHTML = `${awayNote}
     <div class="act2">
-      <div class="act2-head"><span class="act2-turn">내 차례</span><span class="act2-left" data-deadline-text>-</span><div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div></div>
+      <div class="act2-head"><span class="act2-turn">내 차례${myHandName((st.players.find((p) => st.me && p.id === st.me.id) || {}).cards, h) ? ` · <em>${esc(myHandName(st.players.find((p) => p.id === st.me.id).cards, h))}</em>` : ''}</span><span class="act2-left" data-deadline-text>-</span><div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>${st.room.settings.timeBank ? `<span class="act2-bank">⏳${st.me.timeBank || 0}초</span>` : ''}</div>
       ${sizes.length ? `<div class="act2-sizes">${sizes.map(([t, v]) => `<button class="sz ${S.raise.to === v ? 'on' : ''} ${t === '올인' ? 'sz-allin' : ''}" data-size="${v}">${t}<small>${fmt(v)}</small></button>`).join('')}</div>
       <div class="act2-slider"><button class="sl-step" data-step="-1" aria-label="줄이기">−</button><input type="range" id="raise-range" min="${la.minTo}" max="${la.maxTo}" step="${step}" value="${S.raise.to}" aria-label="${raiseWord} 금액"><button class="sl-step" data-step="1" aria-label="늘리기">+</button></div>` : ''}
       <div class="act2-row">
@@ -2990,6 +3230,41 @@ function tickTimers() {
 }
 setInterval(tickTimers, 250);
 
+async function openHistory(tab = S.histTab || 'hands') {
+  S.histTab = tab;
+  const draw = (r) => {
+    const tabs = [['hands', '핸드 기록'], ['ledger', '칩 장부'], ['log', '진행 로그']];
+    const head = `<div class="hist-tabs">${tabs.map(([k, t]) => `<button type="button" class="${k === tab ? 'on' : ''}" data-ht="${k}">${t}</button>`).join('')}</div>`;
+    let body = '';
+    if (tab === 'hands') {
+      const hs = (r && r.hands) || [];
+      body = hs.length ? hs.map((x) => `<div class="hh">
+        <div class="hh-head"><b>#${x.no}</b><span>${x.type === 'fold' ? '모두 폴드' : '쇼다운'} · 팟 <b>${fmt(x.pot)}</b></span><span class="muted tiny">${hhmm(x.at)}</span></div>
+        <div class="hh-board">${(x.board || []).map((c) => cardHTML(c, { size: 'sm' })).join('')}${(x.rabbit || []).map((c) => cardHTML(c, { size: 'sm', cls: 'card-rabbit' })).join('')}${!(x.board || []).length && !(x.rabbit || []).length ? '<span class="muted small">바닥 카드 없이 끝남</span>' : ''}</div>
+        ${(x.hands || []).map((v) => `<div class="hh-hand ${v.won ? 'won' : ''}"><b>${esc(v.name)}</b>${v.cards.map((c) => cardHTML(c || '??', { size: 'xs' })).join('')}<span>${v.hand ? esc(v.hand) : v.self ? '보여 줌' : ''}${v.won ? ' 🏆' : ''}</span></div>`).join('')}
+        <div class="hh-deltas">${(x.deltas || []).filter((d) => d.d).map((d) => `<span class="${d.d > 0 ? 'plus' : 'minus'}">${esc(d.name)} ${signed(d.d)}</span>`).join('')}</div>
+        <details><summary>진행 보기</summary><ol>${(x.lines || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ol></details></div>`).join('') : '<p class="muted">아직 끝난 판이 없어요</p>';
+    } else if (tab === 'ledger') {
+      const L = ((r && r.ledger) || []).slice().sort((a, b) => (b.stack - b.buyIn) - (a.stack - a.buyIn));
+      body = L.length ? `<table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>지금 칩</th><th>손익</th><th>판(VPIP)</th></tr></thead><tbody>${L.map((p) => {
+        const net = p.buyIn ? p.stack - p.buyIn : 0;
+        return `<tr><td>${esc(p.name)}${p.isBot ? ' <small class="muted">AI</small>' : ''}${p.leaving ? ' <small class="muted">나감</small>' : ''}${p.rebuys ? ` <small class="muted">리바인 ${p.rebuys}</small>` : ''}</td><td>${fmt(p.buyIn)}</td><td>${fmt(p.stack)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${p.buyIn ? signed(net) : '-'}</td><td>${p.rs ? `${p.rs.hands}${p.rs.hands ? ` (${Math.round((p.rs.vpip / p.rs.hands) * 100)}%)` : ''}` : '0'}</td></tr>`;
+      }).join('')}</tbody></table><p class="muted tiny">VPIP: 프리플랍에 스스로 칩을 넣은(콜·레이즈) 판의 비율</p>` : '<p class="muted">아직 기록이 없어요</p>';
+    } else {
+      const feed = (S.state.feed || []).slice().reverse();
+      body = `<ol class="log">${feed.map((e) => `<li class="log-${e.type}">${e.hand ? `<span class="muted tiny">#${e.hand}</span> ` : ''}${esc(e.text)}</li>`).join('') || '<li class="muted">아직 기록이 없어요</li>'}</ol>`;
+    }
+    return head + `<div class="hist-body">${body}</div>`;
+  };
+  const bind = (root, r) => root.querySelectorAll('[data-ht]').forEach((b) => { b.onclick = () => { tab = S.histTab = b.dataset.ht; root.innerHTML = draw(r); bind(root, r); }; });
+  openModal('기록', '<p class="muted">불러오는 중…</p>', null, { wide: true });
+  const r = await emit('room:history');
+  const body = document.querySelector('#modal-root .modal-body');
+  if (!body) return;
+  body.innerHTML = draw(r.ok ? r : null);
+  bind(body, r.ok ? r : null);
+}
+
 function openLogModal() {
   const feed = (S.state.feed || []).slice().reverse();
   openModal('베팅 내역', `<ol class="log">${feed.map((e) => `<li class="log-${e.type}">${e.hand ? `<span class="muted tiny">#${e.hand}</span> ` : ''}${esc(e.text)}</li>`).join('') || '<li class="muted">아직 기록이 없어요</li>'}</ol>`);
@@ -3003,6 +3278,14 @@ function openMenuModal() {
   const others = st.players.filter((p) => p.id !== me.id);
   openModal('메뉴', `
     <div class="stack">
+      <div class="menu-quick">
+        <button class="btn btn-outline" data-m="chart">족보표</button>
+        <button class="btn btn-outline" data-m="hist">기록 · 칩 장부</button>
+        <button class="btn btn-outline" data-m="share">초대 링크</button>
+        ${me.role === 'player' ? `<button class="btn btn-outline" data-m="${me.sittingOut ? 'sitin' : 'sitout'}">${me.sittingOut ? '자리로 돌아가기' : '자리 비우기'}</button>` : ''}
+        <button class="btn btn-outline" data-m="sound">소리 설정</button>
+        ${S.muted.size ? `<button class="btn btn-outline" data-m="unmute">가린 채팅 ${S.muted.size}명 다시 보기</button>` : ''}
+      </div>
       <section><h3 class="sub-title">친구 초대</h3>${inviteHTML(st.room.code)}</section>
       ${isHost && st.pending && st.pending.length ? `<section class="attention"><h3 class="sub-title">참가 요청</h3>
         ${st.pending.map((p) => `<div class="list-row"><b>${esc(p.name)}</b><div class="spacer"></div>
@@ -3010,9 +3293,6 @@ function openMenuModal() {
       <section><h3 class="sub-title">참가자</h3><div class="plist">${[st.players.find((p) => p.id === me.id), ...others].filter(Boolean).map((p) => playerRowHTML(p, st, isHost)).join('')}</div></section>
       <section><h3 class="sub-title">방 설정</h3>${settingsSummaryHTML(st.room.settings)}</section>
       <div class="stack">
-        ${me.role === 'player' ? (me.sittingOut
-          ? '<button class="btn btn-outline" data-m="sitin">자리로 돌아가기</button>'
-          : '<button class="btn btn-outline" data-m="sitout">자리 비우기 (다음 판부터 빠짐)</button>') : ''}
         ${!inHand && !me.masterPeek ? `<button class="btn btn-outline" data-m="role">${me.role === 'player' ? '관전으로 바꾸기' : '참가자로 앉기'}</button>` : ''}
         ${isHost ? '<button class="btn btn-outline" data-m="end">게임 끝내고 대기실로</button>' : ''}
         <button class="btn btn-outline danger" data-m="leave">방 나가기</button>
@@ -3027,6 +3307,11 @@ function openMenuModal() {
     body.querySelectorAll('[data-m]').forEach((b) => {
       b.onclick = async () => {
         const m = b.dataset.m;
+        if (m === 'chart') { closeModal(); document.getElementById('chart-btn') ? document.getElementById('chart-btn').click() : openModal('족보표', handChartHTML(), null, { wide: true }); return; }
+        if (m === 'hist') { openHistory(); return; }
+        if (m === 'share') { closeModal(); shareTop(); return; }
+        if (m === 'sound') { openSoundModal(); return; }
+        if (m === 'unmute') { S.muted.clear(); LS.set('chandem:muted', []); syncChatMini(); toast('가린 채팅을 다시 보여 줘요', 'ok'); }
         if (m === 'sitin') await emit('game:sitin');
         if (m === 'sitout') await emit('game:sitout');
         if (m === 'role') await emit('lobby:role', { spectator: me.role === 'player' });

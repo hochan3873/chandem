@@ -7,7 +7,7 @@ const buffers = {};
 let manifest = null;
 
 const prefs = (() => {
-  const base = { muted: false, volume: 0.7, voice: true, music: true, musicVolume: 0.35 };
+  const base = { muted: false, volume: 0.7, voice: true, music: true, musicVolume: 0.35, friendLoud: false };
   try { return { ...base, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
   catch { return base; }
 })();
@@ -20,6 +20,13 @@ export function setVolume(v) { prefs.volume = Math.max(0, Math.min(1, Number(v))
 export function setVoice(v) { prefs.voice = !!v; save(); }
 export function setMusic(on) { prefs.music = !!on; save(); applyMusic(); }
 export function setMusicVolume(v) { prefs.musicVolume = Math.max(0, Math.min(1, Number(v))); save(); applyMusic(); }
+// 친구들과 하는 방(사람 2명 이상): 음성(콜!·다이!)과 배경음악은 기본으로 끈다. 카드·칩·노크 같은 효과음은 그대로
+let quiet = false;
+export function setQuietRoom(on) { on = !!on; if (on === quiet) return; quiet = on; applyMusic(); }
+export function setFriendLoud(on) { prefs.friendLoud = !!on; save(); applyMusic(); }
+export const isQuietRoom = () => quiet;
+const hush = () => quiet && !prefs.friendLoud;
+const voiceOK = () => prefs.voice && !hush();
 
 // ── 배경음악: <audio> 로 스트리밍 + 반복 재생 ───────────────
 let bgm = null;
@@ -47,7 +54,7 @@ export function setTrack(name) {
 const fading = new Set(); // 바뀌는 중인 이전 곡들 (음악을 끄면 이것도 함께 멈춤)
 function applyMusic() {
   if (!unlocked) return;
-  const want = prefs.music && !prefs.muted && !document.hidden && prefs.musicVolume > 0;
+  const want = prefs.music && !prefs.muted && !document.hidden && prefs.musicVolume > 0 && !hush();
   if (!want) for (const a of fading) { a.pause(); fading.delete(a); }
   if (!bgm) {
     if (!want) return;
@@ -137,7 +144,7 @@ export async function tryResume(ms = 350) {
 /** 아직 소리가 막혀 있나 (오디오가 멈춰 있거나, 음악을 켜 뒀는데 재생이 거절됨) */
 export function isLocked() {
   if (!ctx || ctx.state !== 'running') return true;
-  const wantMusic = prefs.music && !prefs.muted && prefs.musicVolume > 0 && !document.hidden;
+  const wantMusic = prefs.music && !prefs.muted && prefs.musicVolume > 0 && !document.hidden && !hush();
   return wantMusic && (!bgm || bgm.paused);
 }
 /** 소리를 아예 꺼 둔 사람인가 (그러면 '소리 켜기' 안내가 필요 없음) */
@@ -197,7 +204,25 @@ const SYNTH = {
   chip: () => { tone(2400, 0.05, { type: 'triangle', gain: 0.18 }); tone(3100, 0.06, { type: 'triangle', gain: 0.12, at: 0.035 }); },
   chips: () => { for (let i = 0; i < 5; i++) tone(2200 + Math.random() * 1400, 0.05, { type: 'triangle', gain: 0.12, at: i * 0.035 }); },
   check: () => { tone(180, 0.09, { type: 'sine', gain: 0.5 }); tone(170, 0.08, { type: 'sine', gain: 0.4, at: 0.12 }); },
-  fold: () => noise(0.25, { freq: 900, q: 0.5, gain: 0.25, type: 'lowpass', attack: 0.04 }),
+  // 카드를 앞으로 휙 던져 미끄러지는 소리 (스르륵)
+  fold: () => {
+    noise(0.16, { freq: 3200, q: 0.8, gain: 0.26, attack: 0.02 });
+    setTimeout(() => noise(0.32, { freq: 1500, q: 0.5, gain: 0.14, type: 'bandpass', attack: 0.05 }), 90);
+  },
+  // 체크: 주먹으로 테이블을 탁탁 (나무 두 번)
+  knock: () => {
+    const hit = (at, g) => { tone(118, 0.11, { type: 'sine', gain: g, at }); tone(240, 0.05, { type: 'triangle', gain: g * 0.35, at }); setTimeout(() => noise(0.045, { freq: 900, q: 1.1, gain: g * 0.55, type: 'lowpass', attack: 0.002 }), at * 1000); };
+    hit(0, 0.75); hit(0.15, 0.6);
+  },
+  // 셔플: 카드 리플 (짧은 딸깍이 빠르게)
+  shuffle: () => {
+    for (let i = 0; i < 22; i++) setTimeout(() => noise(0.025, { freq: 3500 + Math.random() * 2500, q: 1.4, gain: 0.08 + Math.random() * 0.05 }), i * 22 + Math.random() * 8);
+    setTimeout(() => noise(0.12, { freq: 1800, q: 0.6, gain: 0.16, attack: 0.01 }), 520);
+  },
+  // 감정 표현: 짧은 '띵'
+  ding: () => { tone(1320, 0.18, { type: 'sine', gain: 0.16 }); tone(1760, 0.3, { type: 'sine', gain: 0.12, at: 0.08 }); },
+  hmm: () => { tone(220, 0.25, { type: 'triangle', gain: 0.14 }); tone(196, 0.3, { type: 'triangle', gain: 0.12, at: 0.22 }); },
+  gulp: () => { const o = ctx.createOscillator(); const g = ctx.createGain(); const t = ctx.currentTime; o.frequency.setValueAtTime(500, t); o.frequency.exponentialRampToValueAtTime(160, t + 0.18); g.gain.setValueAtTime(0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22); o.connect(g).connect(master); o.start(t); o.stop(t + 0.25); },
   allin: () => { for (let i = 0; i < 10; i++) tone(1800 + Math.random() * 1600, 0.06, { type: 'triangle', gain: 0.12, at: i * 0.03 }); tone(110, 0.5, { type: 'sawtooth', gain: 0.08 }); },
   turn: () => { tone(880, 0.18, { gain: 0.18 }); tone(1320, 0.25, { gain: 0.14, at: 0.1 }); },
   win: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.35, { type: 'triangle', gain: 0.16, at: i * 0.09 })); },
@@ -297,7 +322,7 @@ async function hasFile(name) {
 }
 let calloutChain = Promise.resolve();
 export function callout(name, text) {
-  if (!unlocked || prefs.muted || !prefs.voice) return;
+  if (!unlocked || prefs.muted || !voiceOK()) return;
   // 여러 사람이 연달아 해도 겹치지 않게 줄 세운다 (한 마디 + 잠깐 쉼)
   calloutChain = calloutChain.then(async () => {
     if (await hasFile(name)) {
@@ -313,14 +338,14 @@ export function callout(name, text) {
 
 /** 짧은 말을 기기 음성으로 (섯다 족보 등 파일이 없는 말) */
 export function say(text) {
-  if (!unlocked || prefs.muted || !prefs.voice) return;
+  if (!unlocked || prefs.muted || !voiceOK()) return;
   speak(text);
 }
 
 /** name: 효과음 이름 (deal, chip, check …) 또는 음성 이름 (v_call …, e_angry …) */
 export async function play(name, gain = 1) {
   if (!unlocked || prefs.muted || !ctx) return;
-  if ((name.startsWith('v_') || name.startsWith('e_')) && !prefs.voice) return;
+  if ((name.startsWith('v_') || name.startsWith('e_')) && !voiceOK()) return;
   if (!manifest) await loadManifest();
   const buf = await loadBuffer(name);
   if (buf) { playBuffer(buf, gain); return; }
@@ -333,7 +358,7 @@ export function playForEvent(e, { isMe = false, iWon = false } = {}) {
   switch (e.type) {
     case 'blind': play('chip'); break;
     case 'fold': play('fold'); play('v_fold'); break;
-    case 'check': play('check'); play('v_check'); break;
+    case 'check': play('knock'); play('v_check'); break;
     case 'call': play('chips'); play('v_call'); break;
     case 'bet': play('chips'); play('v_bet'); break;
     case 'raise': play('chips'); play('v_raise'); break;

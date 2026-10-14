@@ -41,7 +41,10 @@ const REVEAL = { first: 800, perHand: 1200, allinHands: 1800, flop: 2000, turn: 
 const MAX_TIMEOUTS = 2;               // 연속 시간 초과 시 자리 비움 처리
 const AVATAR_COUNT = 8;               // public/img/avatars/a1~a8
 const BOT_THINK = [900, 2200];        // 봇이 생각하는 시간(ms) 범위
-const EMOTES = ['angry', 'happy', 'mock', 'laugh', 'cry', 'clap'];
+const EMOTES = ['goodfold', 'nice', 'laugh', 'clap', 'think', 'sweat', 'angry', 'cry', 'mock', 'gg', 'happy'];
+const HISTORY_MAX = 40;               // 핸드 기록 보관 판 수
+/** 'As' → 'A♠' (기록용 글) */
+const cardTxt = (c) => (c ? (c[0] === 'T' ? '10' : c[0]) + ({ s: '♠', h: '♥', d: '♦', c: '♣' }[c[1]] || '') : '');
 const EMOTE_GAP_MS = 1500;
 
 function int(v, def) {
@@ -210,8 +213,24 @@ class Room {
     }
   }
 
-  freeSeat() {
+  /** 테이블에 그려지는 자리 수 (한 테이블 최대 10) */
+  get tableSeats() { return Math.max(2, Math.min(10, this.settings.maxPlayers)); }
+
+  /** 빈 자리 번호. want 가 비어 있는 테이블 자리면 그 자리 */
+  freeSeat(want) {
     const used = new Set(this.seated.map((p) => p.seat));
+    const w = Math.floor(Number(want));
+    if (want !== undefined && want !== null && want !== '' && w >= 0 && w < this.tableSeats && !used.has(w)) return w;
+    // 고르지 않았으면 테이블에 고르게 퍼지도록: 이미 앉은 사람과 가장 멀리 떨어진 빈자리
+    const n = this.tableSeats;
+    let best = null; let bestD = -1;
+    for (let s = 0; s < n; s++) {
+      if (used.has(s)) continue;
+      let d = Infinity;
+      for (const u of used) if (u < n) { const k = Math.abs(s - u); d = Math.min(d, k, n - k); }
+      if (d > bestD) { bestD = d; best = s; }
+    }
+    if (best !== null) return best;
     for (let s = 0; s < this.settings.maxPlayers; s++) if (!used.has(s)) return s;
     return null;
   }
@@ -251,9 +270,9 @@ class Room {
     return p;
   }
 
-  takeSeat(p) {
+  takeSeat(p, want) {
     if (this.phase === 'playing' && this.isTournament && !this.reentryOpen()) return false; // 토너먼트: 늦은 참가 시간이 지나면 관전만
-    const seat = this.freeSeat();
+    const seat = this.freeSeat(want);
     if (seat === null) return false;
     p.role = 'player';
     p.seat = seat;
@@ -262,6 +281,8 @@ class Room {
     if (this.phase === 'playing' && this.isTournament) {
       // 늦은 참가(또는 탈락 후 다시 참가): 시작 칩으로
       const again = this.tourney.busted.includes(p.id) || (p.totalBuyIn || 0) > 0;
+      if (again && (p.rebuys || 0) >= this.settings.rebuyMax) return false;
+      if (again) p.rebuys = (p.rebuys || 0) + 1;
       this.tourney.busted = this.tourney.busted.filter((x) => x !== p.id);
       p.stack = this.settings.startChips;
       p.totalBuyIn = (p.totalBuyIn || 0) + this.settings.startChips;
@@ -335,7 +356,7 @@ class Room {
     if (result.type === 'omok') {
       for (const p of this.seated) {
         if (!p.isBot) continue;
-        const kind = result.winners.includes(p.id) ? (Math.random() < 0.6 ? ['happy', 'mock', 'laugh'][crypto.randomInt(3)] : null) : (Math.random() < 0.5 ? ['angry', 'cry'][crypto.randomInt(2)] : null);
+        const kind = result.winners.includes(p.id) ? (Math.random() < 0.6 ? ['nice', 'mock', 'laugh'][crypto.randomInt(3)] : null) : (Math.random() < 0.5 ? ['angry', 'cry'][crypto.randomInt(2)] : null);
         if (kind) this.setTimer('emote:' + p.id, 1200 * this.pace, () => { try { this.emote(p.id, kind); } catch {} });
       }
       return;
@@ -345,7 +366,7 @@ class Room {
       if (!p.isBot) continue;
       const d = (result.deltas || {})[p.id] || 0;
       let kind = null;
-      if (d >= bb * 15 && Math.random() < 0.5) kind = ['happy', 'mock', 'laugh'][crypto.randomInt(3)];
+      if (d >= bb * 15 && Math.random() < 0.5) kind = ['nice', 'mock', 'laugh', 'gg'][crypto.randomInt(4)];
       else if (d <= -bb * 15 && Math.random() < 0.4) kind = ['angry', 'cry'][crypto.randomInt(2)];
       if (kind) this.setTimer('emote:' + p.id, (1200 + crypto.randomInt(1500)) * this.pace, () => { try { this.emote(p.id, kind); } catch {} });
     }
@@ -403,7 +424,8 @@ class Room {
     if (seatReq) {
       seatReq.seatRequest = false;
       if (ok) {
-        if (!this.takeSeat(seatReq)) throw new RoomError('빈 자리가 없어요');
+        if (!this.takeSeat(seatReq, seatReq.seatWant)) throw new RoomError('빈 자리가 없어요');
+        delete seatReq.seatWant;
         this.pushFeed(`${seatReq.name}님이 자리에 앉았어요 (다음 판부터 참가)`);
         this.maybeStartWaitingHand();
       }
@@ -431,7 +453,7 @@ class Room {
     this.touch();
   }
 
-  setRole(id, spectator) {
+  setRole(id, spectator, seat) {
     const p = this.get(id);
     if (!p) throw new RoomError('참가자를 찾을 수 없어요');
     if (!spectator && p.masterPeek) throw new RoomError('운영자 관전으로 들어와서 자리에 앉을 수 없어요');
@@ -459,16 +481,34 @@ class Room {
     } else {
       if (p.role === 'player') return;
       if (this.phase === 'playing' && this.isTournament && !this.reentryOpen()) throw new RoomError('늦은 참가 시간이 지나서 관전만 할 수 있어요');
+      if (this.phase === 'playing' && this.isTournament && (this.tourney.busted.includes(p.id) || (p.totalBuyIn || 0) > 0) && (p.rebuys || 0) >= this.settings.rebuyMax) throw new RoomError(`리바이는 1인 ${this.settings.rebuyMax}번까지예요`);
       if (this.settings.approval && this.phase === 'playing' && p.id !== this.hostId && this.players.some((x) => !x.isBot && x.id !== p.id)) {
         // '참가 승인' 방이면 게임 중에 관전하다 앉으려면 방장이 받아 줘야 한다
         if (this.freeSeat() === null) throw new RoomError('빈 자리가 없어요');
         if (!p.seatRequest) { p.seatRequest = true; this.pushFeed(`${p.name}님이 자리에 앉고 싶어해요`); }
+        p.seatWant = seat;
         this.touch();
         return { requested: true };
       }
-      if (!this.takeSeat(p)) throw new RoomError('빈 자리가 없어요');
+      if (!this.takeSeat(p, seat)) throw new RoomError('빈 자리가 없어요');
       this.maybeStartWaitingHand();
     }
+    this.touch();
+  }
+
+  /** 자리 고르기: 관전자는 그 자리에 앉고, 대기실에서는 앉은 사람이 자리를 옮긴다 */
+  changeSeat(id, seat) {
+    const p = this.get(id);
+    if (!p) throw new RoomError('참가자를 찾을 수 없어요');
+    const w = Math.floor(Number(seat));
+    if (!(w >= 0 && w < this.tableSeats)) throw new RoomError('없는 자리예요');
+    const who = this.seated.find((x) => x.seat === w);
+    if (who && who !== p) throw new RoomError(`${who.name}님이 앉은 자리예요`);
+    if (who === p) return;
+    if (p.role !== 'player') return this.setRole(id, false, w);
+    if (this.phase !== 'lobby') throw new RoomError('게임 중에는 자리를 옮길 수 없어요 (대기실에서 옮길 수 있어요)');
+    p.seat = w;
+    this.pushFeed(`${p.name}님이 ${w + 1}번 자리로 옮겼어요`);
     this.touch();
   }
 
@@ -511,6 +551,7 @@ class Room {
       this.tourney = { startedAt: this.now(), level: 0, busted: [], result: null, entrants: this.seated.length };
       this.pushFeed(`토너먼트 시작 · ${this.settings.levelMinutes}분마다 블라인드가 올라가요`);
       if (this.mtt && this.seated.length > this.settings.tableSize) this.mtt.split(this); // 인원이 많으면 테이블 나누기
+      else if (this.settings.maxPlayers > 10) this.settings = { ...this.settings, maxPlayers: 10 }; // 한 테이블: 늦은 참가도 10자리까지
     } else {
       this.tourney = null;
       this.pushFeed('게임을 시작합니다');
@@ -599,7 +640,9 @@ class Room {
 
   startHand() {
     this.applyPendingAccounts(); // 방 안에서 로그인한 사람: 이 판부터 기록
-    this.showIds = [];   // 판이 끝난 뒤 '내 패 보여주기'를 누른 사람
+    this.showIds = [];   // 판이 끝난 뒤 '내 패 보여주기'(두 장 다)를 누른 사람
+    this.showOne = {};   // 한 장만 보여 준 사람: { id: [카드 번호] }
+    this.rabbitOn = false; // 누가 '남은 카드 보기'(토끼 사냥)를 눌렀나
     this.bankUse = null;
     this.clearTimer('next');
     this.clearTimer('reveal');
@@ -942,6 +985,7 @@ class Room {
     this.drainHandLog();
     this.lastResult = { handNo: this.handNo, ...this.hand.result };
     try { this.recordResult(); } catch (e) { console.error('[record]', e); }
+    try { this.pushHistory(); } catch (e) { console.error('[history]', e); }
     if (this.hand.result.redeal) {
       this.seotdaCarry = this.hand.result.carry;
       this.pushFeed(`${this.hand.result.redeal}! 판돈 ${this.seotdaCarry.amount.toLocaleString()}을 걸고 다시 쳐요`);
@@ -969,6 +1013,21 @@ class Room {
       const res = r.type === 'draw' ? 'draw' : r.winners.includes(h.seats[0].id) ? 'a' : 'b';
       this.onRecord({ game, a: side(a), b: side(b), result: res });
       return;
+    }
+    const vol = new Set((h.log || []).filter((e) => e.stage === 'preflop' && ['call', 'bet', 'raise', 'allin'].includes(e.type)).map((e) => e.id));
+    for (const id of this.handPlayers) {
+      const p = this.get(id);
+      if (!p) continue;
+      const rs = p.rs || (p.rs = { hands: 0, vpip: 0, won: 0, sd: 0, best: null, bestRank: -1, bigPot: 0 });
+      rs.hands += 1;
+      if (!h.kind && vol.has(id)) rs.vpip += 1;
+      if (r.winners.includes(id)) { rs.won += 1; rs.bigPot = Math.max(rs.bigPot, (r.deltas[id] || 0)); }
+      const hi = r.hands && r.hands[id];
+      if (hi && r.type === 'showdown' && this.handShown(id)) {
+        rs.sd += 1;
+        const rank = typeof hi.rank === 'number' ? hi.rank : hi.category;
+        if (typeof rank === 'number' && rank > rs.bestRank) { rs.bestRank = rank; rs.best = hi.name; }
+      }
     }
     const players = this.handPlayers.map((id) => {
       const p = this.get(id) || {};
@@ -1243,6 +1302,7 @@ class Room {
         if (p.id === viewerId) cards = hs.hole;
         else if (showdown && h.result.hands[p.id] && this.handShown(p.id) && (!rv || rv.shown.includes(p.id))) cards = h.result.hands[p.id].hole;
         else if (h.finished && (this.showIds || []).includes(p.id) && !this.revealing) cards = hs.hole; // 판이 끝나고 스스로 보여 준 패
+        else if (h.finished && this.showOne && this.showOne[p.id] && !this.revealing) cards = hs.hole.map((c, i) => (this.showOne[p.id].includes(i) ? c : '??')); // 한 장만 보여 줌
         else if (!hs.folded) cards = hs.hole.map((c, i) => (hs.open === i ? c : '??')); // 남의 카드는 뒷면 (세 장 섯다 공개 모드: 공개한 한 장만 앞면)
       }
       return {
@@ -1263,6 +1323,8 @@ class Room {
         master: !!p.isMaster,
         seatRequest: !!p.seatRequest,
         rating: p.userId && this.settings.game === 'omok' ? p.omokRating : null,
+        buyIn: p.totalBuyIn || 0,
+        rs: p.rs ? { hands: p.rs.hands, vpip: p.rs.vpip, won: p.rs.won, sd: p.rs.sd, best: p.rs.best, bigPot: p.rs.bigPot } : null,
         isHost: p.id === this.hostId,
         sittingOut: p.sittingOut,
         leaving: p.leaving,
@@ -1290,6 +1352,7 @@ class Room {
         nextHandAt: this.nextHandAt,
         settings: { ...this.settings, password: undefined, hasPassword: !!this.settings.password },
         startBlocker: this.phase === 'lobby' ? this.startCheck() : null,
+        tableSeats: this.tableSeats,
       },
       me: me && {
         id: me.id,
@@ -1304,6 +1367,7 @@ class Room {
         canRebuy: this.canRebuy(me),
         timeBank: me.bank === undefined ? this.settings.timeBank : me.bank,
         canShow: !!(h && h.finished && !h.kind && this.handPlayers.includes(me.id) && !this.revealing && !(this.showIds || []).includes(me.id)),
+        shownOne: (this.showOne && this.showOne[me.id]) || [],
         sittingOut: me.sittingOut,
         awayReason: me.sittingOut ? me.awayReason || 'timeout' : null,
         masterPeek: !!me.masterPeek, // 운영자 관전(비밀번호·승인 건너뜀) — 자리에 앉을 수 없음
@@ -1355,6 +1419,7 @@ class Room {
         openMode: !!h.openMode,
         myOpen: me && h.seatOf && h.seatOf(me.id) && h.seatOf(me.id).open != null ? h.seatOf(me.id).open : null, // 내가 공개한 카드 번호
         result: h.finished && !rv ? this.publicResult(h.result) : null,
+        canRabbit: !!(h.finished && !rv && !h.kind && h.result && h.result.type === 'fold' && Array.isArray(h.rabbit) && h.rabbit.length && !this.rabbitOn),
       };
     }
     return view;
@@ -1417,14 +1482,85 @@ class Room {
   }
 
   /** 판이 끝난 뒤 '내 패 보여주기' */
-  showCards(id) {
+  showCards(id, which) {
     const h = this.hand;
     if (!h || !h.finished || h.kind || !this.handPlayers.includes(id)) throw new RoomError('판이 끝난 뒤에 보여 줄 수 있어요');
+    if (this.revealing) throw new RoomError('결과가 나온 뒤에 보여 줄 수 있어요');
     this.showIds = this.showIds || [];
+    this.showOne = this.showOne || {};
     if (this.showIds.includes(id)) return;
-    this.showIds.push(id);
-    this.pushFeed(`${this.name(id)}님이 패를 보여 줬어요`);
+    const hs = h.seatOf(id);
+    if (!hs) return;
+    const idx = [0, 1, '0', '1'].includes(which) ? Number(which) : null;
+    const next = idx === null ? [0, 1] : [...new Set([...(this.showOne[id] || []), idx])];
+    if (next.length >= 2) {
+      this.showIds.push(id);
+      delete this.showOne[id];
+      this.pushFeed(`${this.name(id)}님이 패를 보여 줬어요 · ${hs.hole.map(cardTxt).join(' ')}`);
+    } else {
+      this.showOne[id] = next;
+      this.pushFeed(`${this.name(id)}님이 한 장을 보여 줬어요 · ${cardTxt(hs.hole[idx])}`);
+    }
+    const last = (this.history || []).slice(-1)[0];
+    if (last && last.no === this.handNo) {
+      const shown = hs.hole.map((c, i) => (next.includes(i) ? c : null));
+      last.hands = last.hands.filter((x) => x.id !== id).concat({ id, name: this.name(id), cards: shown, hand: null, self: true });
+    }
     this.touch();
+  }
+
+  /** 토끼 사냥: 모두 폴드로 끝난 판에서 '계속했다면 나왔을' 남은 카드를 모두에게 */
+  rabbitHunt(id) {
+    const h = this.hand;
+    const p = this.get(id);
+    if (!p) throw new RoomError('방에 있는 사람만 볼 수 있어요');
+    if (!h || !h.finished || h.kind || !h.result || h.result.type !== 'fold' || !Array.isArray(h.rabbit) || !h.rabbit.length) throw new RoomError('모두 폴드로 끝난 판에서만 볼 수 있어요');
+    if (this.rabbitOn) return;
+    this.rabbitOn = true;
+    this.pushFeed(`🐰 ${p.name}님이 남은 카드를 열었어요 · ${h.rabbit.map(cardTxt).join(' ')}`);
+    const last = (this.history || []).slice(-1)[0];
+    if (last && last.no === this.handNo) last.rabbit = h.rabbit.slice();
+    // 카드를 볼 시간: 다음 판까지 3초는 남긴다
+    if (this.phase === 'playing' && this.nextHandAt && this.nextHandAt - this.now() < 3000) {
+      this.nextHandAt = this.now() + 3000 * this.pace;
+      this.setTimer('next', 3000 * this.pace, () => this.startHand());
+    }
+    this.touch();
+  }
+
+  /** 핸드 기록: 판마다 바닥 카드 · 공개된 패 · 칩 변화 · 진행 (모두가 볼 수 있음, 공개 안 된 패는 없음) */
+  pushHistory() {
+    const h = this.hand;
+    const r = h && h.result;
+    if (!r || h.kind === 'omok') return;
+    const pr = this.publicResult(r);
+    const hands = Object.entries(pr.hands || {}).map(([id, v]) => ({ id, name: this.name(id), cards: v.hole, hand: v.name, won: r.winners.includes(id) }));
+    this.history = this.history || [];
+    this.history.push({
+      no: this.handNo,
+      at: this.now(),
+      game: h.kind || 'holdem',
+      type: r.type,
+      board: (r.board || h.board || []).slice(),
+      pot: h.totalPot,
+      winners: r.winners.map((w) => this.name(w)),
+      hands,
+      deltas: this.handPlayers.map((id) => ({ id, name: this.name(id), d: (r.deltas || {})[id] || 0 })),
+      lines: this.feed.filter((e) => e.hand === this.handNo).map((e) => e.text).filter(Boolean).slice(-40),
+      rabbit: null,
+    });
+    if (this.history.length > HISTORY_MAX) this.history.splice(0, this.history.length - HISTORY_MAX);
+  }
+
+  /** 기록 보기: 핸드 기록 + 칩 장부 (요청할 때만 보냄) */
+  historyView() {
+    return {
+      hands: (this.history || []).slice().reverse(),
+      ledger: this.players.filter((p) => (p.totalBuyIn || 0) > 0 || p.role === 'player').map((p) => ({
+        id: p.id, name: p.name, buyIn: p.totalBuyIn || 0, stack: p.stack + (p.pendingRebuy || 0), rebuys: p.rebuys || 0, role: p.role, leaving: !!p.leaving, isBot: !!p.isBot,
+        rs: p.rs ? { hands: p.rs.hands, vpip: p.rs.vpip, won: p.rs.won } : null,
+      })),
+    };
   }
 
   /** 글 채팅 (최근 40개 보관) */
@@ -1460,7 +1596,7 @@ class Room {
       hands,
       pots: r.potResults.map((p) => ({ amount: p.amount, winners: p.winners, returned: p.eligible.length === 1 })),
       deltas: r.deltas,
-      rabbit: r.type === 'fold' && this.hand && Array.isArray(this.hand.rabbit) ? this.hand.rabbit : [],
+      rabbit: r.type === 'fold' && this.rabbitOn && this.hand && Array.isArray(this.hand.rabbit) ? this.hand.rabbit : [],
       shown: (this.showIds || []).slice(),
     };
   }

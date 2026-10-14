@@ -54,17 +54,17 @@ function recentHTML(s) {
   if (!s) return '<span class="muted small">아직 기록 없음</span>';
   return `<span class="pc-recent">${[...s].map((c) => `<i class="pc-${c}">${c === 'W' ? '승' : c === 'L' ? '패' : '무'}</i>`).join('')}</span>`;
 }
-export async function openPlayerCard({ game, code, pid, username, name }) {
+export async function openPlayerCard({ game, code, pid, username, name, extra = '' }) {
   const g = game || 'holdem';
-  C.openModal('선수 카드', `<p class="muted">불러오는 중…</p>`);
+  C.openModal('선수 카드', `${extra}<p class="muted">불러오는 중…</p>`);
   const q = username ? `user=${encodeURIComponent(username)}` : `code=${encodeURIComponent(code || '')}&pid=${encodeURIComponent(pid || '')}`;
   const r = await get(`/api/rank/card/${g}?${q}`);
   const body = document.querySelector('#modal-root .modal-body');
   if (!body) return;
   const c = r.ok && r.card;
-  if (!c) { body.innerHTML = `<div class="pc"><div class="pc-head"><b class="pc-name">${C.esc(name || '?')}</b></div><p class="muted">기록을 불러오지 못했어요</p></div>`; return; }
+  if (!c) { body.innerHTML = extra + `<div class="pc"><div class="pc-head"><b class="pc-name">${C.esc(name || '?')}</b></div><p class="muted">기록을 불러오지 못했어요</p></div>`; return; }
   if (c.guest) {
-    body.innerHTML = `<div class="pc"><div class="pc-head"><b class="pc-name">${C.esc(c.nickname)}</b><span class="muted small">${c.bot ? 'AI 봇' : '손님'}</span></div>
+    body.innerHTML = `<div class="pc"><div class="pc-head"><b class="pc-name">${C.esc(c.nickname)}</b><span class="muted small">${c.bot ? 'AI 봇' : '손님'}</span></div>${extra}
       <p class="muted small">${c.bot ? '연습 상대 봇이라 기록이 없어요.' : '로그인하지 않은 손님이라 기록이 남지 않아요.'}</p></div>`;
     return;
   }
@@ -73,7 +73,7 @@ export async function openPlayerCard({ game, code, pid, username, name }) {
   if (g === 'omok') rows.push(['점수', `${C.fmt(c.rating)} <small class="muted">최고 ${C.fmt(c.peak)}</small>`], ['승 / 패 / 무', `${c.wins} / ${c.losses} / ${c.draws}`], ['최다 연승', c.bestStreak ? `${c.bestStreak}연승` : '-']);
   else rows.push(['누적 칩', `<span class="${c.net > 0 ? 'plus' : c.net < 0 ? 'minus' : ''}">${C.signed(c.net)}</span>`], ['가장 큰 팟', c.bestPot ? C.fmt(c.bestPot) : '-'], ['최고 족보', c.bestHand ? C.esc(c.bestHand) : '-']);
   body.innerHTML = `<div class="pc">
-    <div class="pc-head"><b class="pc-name">${C.esc(c.nickname)}</b>${c.master ? '<span class="mbadge mbadge-sm"></span>' : ''}<span class="muted small">${GAME_NAME[g]}</span></div>
+    <div class="pc-head"><b class="pc-name">${C.esc(c.nickname)}</b>${c.master ? '<span class="mbadge mbadge-sm"></span>' : ''}<span class="muted small">${GAME_NAME[g]}</span></div>${extra}
     <div class="pc-tier" style="--tc:${t ? t.color : '#9aa1a8'}">
       <span class="pc-ticon">${t ? ico(t.icon, 'hic-lg') : ico('trophy', 'hic-lg')}</span>
       <div><b>${t ? C.esc(t.name) : '배치 중'}</b><small>${c.master ? '운영자는 순위에서 빠져요' : t ? (c.rank ? `전체 ${c.rank}위` : '') : `데이터 부족 · ${c.need}판 더 하면 등급이 정해져요`}</small></div>
