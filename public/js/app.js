@@ -176,9 +176,9 @@ function shareRoomPick(code, g) {
   box.className = 'share-pick';
   const gname = GAME_NAMES[g] || '게임';
   box.innerHTML = `<div class="sp-card"><h3>공유하기</h3>
-    <button class="sp-opt" data-sp="join"><img src="/img/og-${g}.jpg" alt="" draggable="false"><span><b>이 방 참가 링크</b><small>방 ${code} · 누르면 바로 이 방으로</small></span></button>
-    ${g === 'omok' ? '' : `<button class="sp-opt" data-sp="watch"><img src="/img/og-${g}.jpg" alt="" draggable="false"><span><b>이 방 관전 링크</b><small>자리에 앉지 않고 구경만</small></span></button>`}
-    <button class="sp-opt" data-sp="game"><img src="/img/og-${g}.jpg" alt="" draggable="false"><span><b>${gname} 바로가기</b><small>방을 직접 만들거나 고르는 링크</small></span></button>
+    <button class="sp-opt" data-sp="join"><img src="/img/og-${g === 'holdem' ? 'holdem2' : g}.jpg" alt="" draggable="false"><span><b>이 방 참가 링크</b><small>방 ${code} · 누르면 바로 이 방으로</small></span></button>
+    ${g === 'omok' ? '' : `<button class="sp-opt" data-sp="watch"><img src="/img/og-${g === 'holdem' ? 'holdem2' : g}.jpg" alt="" draggable="false"><span><b>이 방 관전 링크</b><small>자리에 앉지 않고 구경만</small></span></button>`}
+    <button class="sp-opt" data-sp="game"><img src="/img/og-${g === 'holdem' ? 'holdem2' : g}.jpg" alt="" draggable="false"><span><b>${gname} 바로가기</b><small>방을 직접 만들거나 고르는 링크</small></span></button>
     <button class="sp-x" data-sp="x">닫기</button></div>`;
   box.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-sp]');
@@ -199,7 +199,7 @@ function sharePick() {
   box.innerHTML = `<div class="sp-card"><h3>공유하기</h3>
     <button class="sp-opt" data-sp="gw"><img src="/img/og-gw5.jpg" alt="" draggable="false"><span><b>찬이의 게임월드</b><small>랑방 대전 · 홀덤 · 섯다 · 오목 모음</small></span></button>
     <button class="sp-opt" data-sp="lb"><img src="/img/og-lb5.jpg" alt="" draggable="false"><span><b>랑방 대전</b><small>바로 게임으로 들어오는 링크</small></span></button>
-    <button class="sp-opt" data-sp="holdem"><img src="/img/og-holdem.jpg" alt="" draggable="false"><span><b>♠ 텍사스 홀덤</b><small>홀덤 화면으로 바로 들어오는 링크</small></span></button>
+    <button class="sp-opt" data-sp="holdem"><img src="/img/og-holdem2.jpg" alt="" draggable="false"><span><b>♠ 텍사스 홀덤</b><small>홀덤 화면으로 바로 들어오는 링크</small></span></button>
     <button class="sp-x" data-sp="x">닫기</button></div>`;
   box.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-sp]');
@@ -1327,9 +1327,10 @@ function renderGameHome() {
   $app.innerHTML = `
   <main class="home game-home">
     <div class="top-bar"><button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>${SHARE_BTN}</div>
-    ${S.info && S.info.accounts === false ? '' : RK.hallHTML(g)}
-    <div class="gh-hero" style="background-image:url('/img/games/${g}.webp')"><div class="gh-shade"></div>
-      <div class="gh-title"><span class="gh-icon">${P.hubIcon(HUB_GAME_ICON[g] || 'cards', 'hic-lg')}</span><h1>${info.name}</h1><p>${info.tag}</p></div>
+    ${g === 'holdem' ? '' : S.info && S.info.accounts === false ? '' : RK.hallHTML(g)}
+    <div class="gh-hero" style="background-image:url('${g === 'holdem' ? '/img/holdem/hero.webp' : `/img/games/${g}.webp`}')"><div class="gh-shade"></div>
+      <div class="gh-title"><span class="gh-icon">${P.hubIcon(HUB_GAME_ICON[g] || 'cards', 'hic-lg')}</span><h1>${info.name}</h1><p>${info.tag}</p>
+      ${g === 'holdem' ? '<div class="gh-chips"><span>토너먼트</span><span>최대 9명</span><span>채팅</span><span>AI 연습</span></div>' : ''}</div>
     </div>
     <section class="panel">
       <button class="btn btn-gold btn-lg" id="go-create">친구와 방 만들기</button>
@@ -1340,6 +1341,7 @@ function renderGameHome() {
       </div>
     </section>
     <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">지금 열린 ${info.name} 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
+    ${g === 'holdem' && !(S.info && S.info.accounts === false) ? RK.hallHTML(g) : ''}
     <p class="fine">${g === 'omok' ? '로그인하면 대국 결과로 티어가 올라가요.' : '칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.'}</p>
   </main>`;
   bindCommon();
@@ -2341,6 +2343,7 @@ function renderTable(st) {
     if (winners.has(p.id)) cls.push('seat-winner');
     if (!p.connected) cls.push('seat-offline');
     if (y < 30) cls.push('seat-top');
+    if (x > 60) cls.push('seat-right'); // 오른쪽 자리는 카드를 안쪽(왼쪽)에
     let cards = '';
     if (p.cards && !isMe) {
       const reveal = result && result.hands && result.hands[p.id];

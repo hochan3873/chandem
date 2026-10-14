@@ -210,7 +210,7 @@ function check(cond, msg) {
   const ogTitle = (og.match(/og:title" content="([^"]*)/) || [])[1];
   const ogImg = (og.match(/og:image" content="([^"]*)/) || [])[1];
   const ogUrl = (og.match(/og:url" content="([^"]*)/) || [])[1];
-  check(ogTitle && ogTitle.includes('찬님이') && /og-holdem\.jpg$/.test(ogImg), `미리보기 제목: ${ogTitle} · 사진 ${ogImg && ogImg.split('/').pop()}`);
+  check(ogTitle && ogTitle.includes('찬님이') && /og-holdem2?\.jpg$/.test(ogImg), `미리보기 제목: ${ogTitle} · 사진 ${ogImg && ogImg.split('/').pop()}`);
   check(ogUrl && ogUrl.endsWith(`/r/${code}`), `미리보기 주소가 방 주소 (카카오 캐시 분리): ${ogUrl}`);
   check((await fetch(new URL(ogImg).pathname.replace(/^/, base))).ok, '미리보기 이미지 로드');
 

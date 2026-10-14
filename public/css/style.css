@@ -600,7 +600,7 @@ body.has-install-bar #app { padding-bottom: 80px; }
 .avatar-photo small { font-size: .56rem; margin-top: -8px; color: var(--muted); }
 
 /* 게임 중 내 칸: 감정 표현 버튼 자리 */
-.g-me { position: relative; padding-right: 70px; }
+.g-me { position: relative; padding-right: 118px; }
 
 /* 팟과 각자 베팅 구분 */
 .pot { background: linear-gradient(180deg, rgba(255, 225, 150, .22), rgba(201, 164, 92, .12)); border: 1px solid var(--gold); padding: 5px 14px; box-shadow: 0 0 14px rgba(201, 164, 92, .25); flex-wrap: wrap; justify-content: center; }
@@ -1507,3 +1507,28 @@ body.in-room[data-theme="holdem"] .bet { background: rgba(20, 0, 4, .6); border-
 body.in-room[data-theme="holdem"] .stage-lbl { color: rgba(255, 220, 180, .7); }
 /* 아래 영역 */
 body.in-room[data-theme="holdem"] .g-actions { background: linear-gradient(180deg, rgba(12, 6, 3, 0), rgba(12, 6, 3, .96) 25%); }
+
+/* ═══ 홀덤 메인(게임 화면·방 만들기·연습) 리뉴얼: 테이블과 같은 빨간 펠트 · 호두나무 · 금색 ═══ */
+body[data-theme="holdem"]:not(.in-room) { background: #140906 url('/img/holdem/floor.webp') center / cover fixed; }
+body[data-theme="holdem"]:not(.in-room)::before { background: radial-gradient(ellipse at 50% 0%, rgba(150, 20, 36, .35), transparent 60%), rgba(10, 4, 2, .45); }
+body[data-theme="holdem"] .game-home .gh-hero { height: 250px; border: 2px solid #c79a4a; box-shadow: 0 0 0 4px #3a1a0c, 0 18px 40px rgba(0, 0, 0, .7); background-position: 70% center; }
+body[data-theme="holdem"] .game-home .gh-shade { background: linear-gradient(90deg, rgba(20, 2, 6, .92) 0%, rgba(20, 2, 6, .55) 48%, rgba(0, 0, 0, 0) 75%), linear-gradient(180deg, transparent 60%, rgba(0, 0, 0, .55)); }
+body[data-theme="holdem"] .game-home .gh-title { top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; }
+body[data-theme="holdem"] .game-home .gh-title h1 { font-family: 'Black Han Sans', var(--font); font-weight: 400; font-size: clamp(2.2rem, 11vw, 2.9rem); line-height: 1.05; color: #ffe8a8; -webkit-text-fill-color: #ffe8a8; text-shadow: 2px 0 0 #4a0c14, -2px 0 0 #4a0c14, 0 2px 0 #4a0c14, 0 -2px 0 #4a0c14, 2px 2px 0 #4a0c14, -2px 2px 0 #4a0c14, 0 5px 0 #2a0408, 0 8px 18px rgba(0, 0, 0, .7); }
+body[data-theme="holdem"] .game-home .gh-title p { font-size: .9rem; margin-top: 8px; }
+body[data-theme="holdem"] .game-home .gh-icon { display: none; }
+.gh-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.gh-chips span { padding: 4px 10px; border-radius: 99px; background: rgba(0, 0, 0, .5); border: 1px solid rgba(255, 220, 150, .45); color: #ffe8a8; font-size: .74rem; font-weight: 700; }
+body[data-theme="holdem"]:not(.in-room) .panel { background: linear-gradient(180deg, rgba(58, 12, 18, .82), rgba(28, 8, 6, .9)); border: 1px solid rgba(199, 154, 74, .45); box-shadow: 0 10px 28px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 220, 150, .12); }
+body[data-theme="holdem"] .game-home #go-create { background: linear-gradient(180deg, #ffe08a, #e0a63a 55%, #b9761f); color: #3a1500; font-size: 1.15rem; box-shadow: 0 6px 0 #6b3a0c, 0 10px 22px rgba(0, 0, 0, .5); }
+body[data-theme="holdem"] .game-home #go-practice { border-color: rgba(255, 220, 150, .55); color: #ffe8a8; background: rgba(0, 0, 0, .25); }
+
+body.in-room[data-theme="holdem"] .seat-right .seat-cards { left: auto; right: calc(50% + 14px); transform: rotate(-8deg); }
+/* 폰 점검: 테이블 글씨 최소 11px 안팎 */
+body.in-room[data-theme="holdem"] .seat-tags .tag { font-size: .68rem; }
+body.in-room[data-theme="holdem"] .blind-lbl { font-size: .66rem; padding: 0 4px; }
+body.in-room[data-theme="holdem"] .bet { font-size: .76rem; }
+.g-me .tb-left { font-size: .74rem; }
+.hub2 .quick-item small { font-size: .7rem; }
+body.in-room[data-theme="holdem"] .seat-av .rk-badge { font-size: .62rem; padding: 1px 4px; }
+body.in-room[data-theme="holdem"] .bet small { font-size: .66rem; }

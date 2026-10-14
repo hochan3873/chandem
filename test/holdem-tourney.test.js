@@ -124,7 +124,7 @@ test('토너먼트 리바이·늦은 참가: 정한 레벨까지만', () => {
   assert.equal(room.canRebuy(ps[1]), true);
   room.rebuy(ps[1].id);
   room.startHand();
-  assert.equal(ps[1].stack, 1000);
+  assert.equal(room.effectiveStack(ps[1]), 1000, '리바이 칩 1000 (블라인드로 낸 것 포함)');
   // 레벨 3부터는 마감
   T += 2 * 61_000; room.hand.finished = true; room.startHand();
   const { player: L2 } = room.join({ name: 'Late2' });

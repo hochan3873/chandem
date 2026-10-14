@@ -332,6 +332,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
   const indexHtml = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // 게임별 바로가기 링크 (/holdem · /seotda · /omok): 카톡 미리보기를 그 게임 그림·문구로
+  const OG_IMG = { holdem: 'og-holdem2.jpg', seotda: 'og-seotda.jpg', omok: 'og-omok.jpg' };
   const GAME_LINK = {
     holdem: ['♠ 텍사스 홀덤 · 찬이의 게임월드', '링크 누르고 바로 홀덤 한 판! 친구들끼리 토너먼트 · 최대 9명'],
     seotda: ['섯다 · 찬이의 게임월드', '링크 누르고 바로 섯다 한 판! 두 장 · 세 장 섯다'],
@@ -356,7 +357,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       .replace(/(<meta property="og:title" content=")[^"]*/, `$1${escHtml(title)}`)
       .replace(/(<meta property="og:description" content=")[^"]*/, `$1${escHtml(desc)}`)
       .replace(/(<meta property="og:url" content=")[^"]*/, `$1${escHtml(`${base}/${g}`)}`)
-      .replace(/(<meta property="og:image" content=")[^"]*/, `$1${escHtml(`${base}/img/og-${g}.jpg`)}`));
+      .replace(/(<meta property="og:image" content=")[^"]*/, `$1${escHtml(`${base}/img/${OG_IMG[g]}`)}`));
   });
   app.get('/r/:code', (req, res) => {
     const r = rooms.get(String(req.params.code).toUpperCase());
@@ -373,7 +374,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         .replace(/(<meta property="og:description" content=")[^"]*/, `$1${escHtml(desc)}`)
         // 카카오톡은 og:url 을 기준으로 미리보기를 저장하므로 방마다 자기 주소를, 사진은 그 게임 그림을
         .replace(/(<meta property="og:url" content=")[^"]*/, `$1${escHtml(`${base}/r/${r.code}`)}`)
-        .replace(/(<meta property="og:image" content=")[^"]*/, `$1${escHtml(`${base}/img/og-${s.game || 'holdem'}.jpg`)}`);
+        .replace(/(<meta property="og:image" content=")[^"]*/, `$1${escHtml(`${base}/img/${OG_IMG[s.game || 'holdem']}`)}`);
     }
     res.type('html').send(html);
   });
