@@ -174,7 +174,7 @@ input[type=range] { width: 100%; accent-color: var(--gold); height: 32px; }
 /* ── 카드 (직접 그린 카드) ── */
 .card {
   --w: 44px; position: relative; display: inline-block; width: var(--w); height: calc(var(--w) * 1.4);
-  border-radius: calc(var(--w) * .12); background: linear-gradient(160deg, #ffffff, #f1ede4);
+  border-radius: calc(var(--w) * .12); background: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(0, 0, 0, .12);
   color: #1b1b1b; font-weight: 800; flex: none; overflow: hidden; user-select: none;
 }
@@ -182,9 +182,8 @@ input[type=range] { width: 100%; accent-color: var(--gold); height: 32px; }
 .card-sm { --w: 34px; }
 .card-md { --w: 42px; }
 .card-lg { --w: 68px; }
-.suit-red { color: #c8202d; }
-.suit-d { color: #1a5fc2; }  /* 4색 덱: 다이아 파랑 */
-.suit-c { color: #13873f; }  /* 4색 덱: 클럽 초록 */
+.suit-black { color: #111; }
+.suit-red { color: #d0101f; }  /* 기본 트럼프: ♠♣ 검정 · ♥♦ 빨강 */
 .card-corner { position: absolute; top: 6%; left: 9%; display: flex; flex-direction: column; align-items: center; line-height: .95; }
 .card-corner b { font-size: calc(var(--w) * .36); letter-spacing: -.04em; }
 .card-corner i { font-style: normal; font-size: calc(var(--w) * .28); }
