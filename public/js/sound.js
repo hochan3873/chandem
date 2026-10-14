@@ -209,6 +209,16 @@ const SYNTH = {
     noise(0.16, { freq: 3200, q: 0.8, gain: 0.26, attack: 0.02 });
     setTimeout(() => noise(0.32, { freq: 1500, q: 0.5, gain: 0.14, type: 'bandpass', attack: 0.05 }), 90);
   },
+  // 홀덤 올인: 칩 더미를 앞으로 '스윽' 미는 묵직하고 짧은 소리 (외침·짤랑임 없음)
+  allinPush: () => {
+    noise(0.28, { freq: 700, q: 0.6, gain: 0.16, type: 'lowpass', attack: 0.04 });
+    tone(82, 0.22, { type: 'sine', gain: 0.22, at: 0.05 });
+    for (let i = 0; i < 4; i++) tone(1900 + Math.random() * 500, 0.04, { type: 'triangle', gain: 0.035, at: 0.16 + i * 0.03 });
+  },
+  // 홀덤 올인 승부 시작: 낮고 조용한 심장 박동 두 번 (북 연타 대신)
+  allinTension: () => { tone(55, 0.16, { type: 'sine', gain: 0.35 }); tone(50, 0.2, { type: 'sine', gain: 0.25, at: 0.18 }); },
+  // 채팅 알림: 맑은 '띠링' (메신저 느낌, 짧고 작게)
+  msg: () => { tone(1568, 0.12, { type: 'sine', gain: 0.13 }); tone(2093, 0.22, { type: 'sine', gain: 0.11, at: 0.09 }); },
   // 체크: 주먹으로 테이블을 탁탁 (나무 두 번)
   knock: () => {
     const hit = (at, g) => { tone(118, 0.11, { type: 'sine', gain: g, at }); tone(240, 0.05, { type: 'triangle', gain: g * 0.35, at }); setTimeout(() => noise(0.045, { freq: 900, q: 1.1, gain: g * 0.55, type: 'lowpass', attack: 0.002 }), at * 1000); };
@@ -362,7 +372,7 @@ export function playForEvent(e, { isMe = false, iWon = false } = {}) {
     case 'call': play('chips'); play('v_call'); break;
     case 'bet': play('chips'); play('v_bet'); break;
     case 'raise': play('chips'); play('v_raise'); break;
-    case 'allin': play('allin'); play('v_allin'); break;
+    case 'allin': play('allinPush'); break; // 홀덤: 외치는 음성·요란한 소리 없이
     case 'street': play('flip'); break;
     case 'end': if (iWon) play('v_win'); break; // 칩·팡파르는 승리 연출(celebrate)에서
     default: break;

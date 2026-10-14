@@ -1174,7 +1174,8 @@ function onChat(st, first) {
   if (box) { box.innerHTML = chatListHTML(st); box.scrollTop = box.scrollHeight; S.chatRead = last; }
   const shown = fresh.filter((m) => !S.muted.has(m.id));
   for (const m of shown) chatBubble(m);
-  if (shown.length && !box && !shown.every((m) => st.me && m.id === st.me.id)) sound.play('pop');
+  // 다른 사람이 채팅하면 '띠링' (채팅 창을 열어 둬도)
+  if (shown.some((m) => !(st.me && m.id === st.me.id))) sound.play('msg');
   syncChatFab();
   syncChatMini();
 }
@@ -1200,7 +1201,7 @@ function tourneyEffects(st) {
   if (tn.running) {
     if (S.lastLevel && tn.level > S.lastLevel) {
       banner('⬆ 블라인드 상승!', `레벨 ${tn.level} · <b>${fmt(tn.sb)}/${fmt(tn.bb)}</b>`, 'level', 2200);
-      sound.play('stamp');
+      sound.play(gameOf(st) === 'holdem' ? 'turn' : 'stamp');
     }
     S.lastLevel = tn.level;
   }
@@ -3335,7 +3336,7 @@ function runEffects(st) {
     if (h.reveal.allin && once('allin')) {
       if (gameOf(st) === 'holdem') { const pill = document.createElement('div'); pill.className = 'fx-showdown-pill'; pill.textContent = '올인 승부 · 카드 공개'; fxLayer().appendChild(pill); setTimeout(() => pill.remove(), 2600); }
       else banner('올인 승부!', '', 'allin');
-      sound.play('drumroll');
+      sound.play(gameOf(st) === 'holdem' ? 'allinTension' : 'drumroll');
       if (sound.isUnlocked()) gws.vibrate([40, 40, 40]);
     }
     if (!h.reveal.allin && h.reveal.shown > 0 && once(`shown${h.reveal.shown}`)) sound.play('flip');
@@ -3382,8 +3383,7 @@ function allinBadge(id) {
   el.innerHTML = '<b>ALL IN</b>';
   el.style.left = at.x + 'px';
   el.style.top = (at.y - 34) + 'px';
-  fxLayer().appendChild(el);
-  sound.play('allin');
+  fxLayer().appendChild(el); // 소리는 기록 소리(allinPush) 하나만
   if (sound.isUnlocked()) gws.vibrate(60);
   setTimeout(() => el.remove(), 1700);
 }
