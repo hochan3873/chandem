@@ -2135,7 +2135,8 @@ function openSoundModal() {
 }
 function updateSoundIcon() {
   const b = document.getElementById('sound-btn');
-  if (b) b.textContent = sound.getPrefs().muted ? '음소거' : '소리';
+  if (b && b.classList.contains('tb-ico')) b.innerHTML = sound.getPrefs().muted ? TI.mute : TI.sound;
+  else if (b) b.textContent = sound.getPrefs().muted ? '음소거' : '소리';
 }
 
 // ── 게임 테이블 ───────────────────────────────────────
@@ -2215,9 +2216,37 @@ function renderGame() {
   runEffects(st);
 }
 
+// 게임 화면 아이콘 (선 아이콘, 글자색 따라감)
+const TI = {
+  menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  cards: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="10" height="14" rx="2"/><path d="M10 4.5l7.6 2.2a2 2 0 0 1 1.4 2.5l-3 10.3"/></svg>',
+  link: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+  list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h12M8 12h12M8 17h12"/><circle cx="4" cy="7" r=".8"/><circle cx="4" cy="12" r=".8"/><circle cx="4" cy="17" r=".8"/></svg>',
+  sound: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>',
+};
 function renderTop(st) {
   const el = document.getElementById('g-top');
   const pendingCount = st.pending ? st.pending.length : 0;
+  const holdem = gameOf(st) === 'holdem';
+  el.classList.toggle('top2', holdem);
+  if (holdem) {
+    const tn = st.room.tournament;
+    const mid = tn && tn.running ? `<b>레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)}${st.room.settings.ante === 'bb' ? ' · 앤티' : ''}</b><small>${tn.paused ? '⏸ 멈춤' : `다음 <i data-level-at="${tn.nextAt}">-</i>`}</small>`
+      : `<b>${fmt(st.room.settings.sb)}/${fmt(st.room.settings.bb)}${st.room.settings.ante === 'bb' ? ' · 앤티' : ''}</b><small>방 ${esc(st.room.code)}${st.room.handNo ? ` · ${st.room.handNo}번째 판` : ''}</small>`;
+    el.innerHTML = `
+      <button class="tb-ico" id="menu-btn" aria-label="메뉴">${TI.menu}${pendingCount ? `<span class="dot">${pendingCount}</span>` : ''}</button>
+      <button class="tb-ico tb-wide" id="chart-btn" aria-label="족보표">${TI.cards}<span>족보</span></button>
+      <div class="tb-mid">${mid}</div>
+      <button class="tb-ico" id="share-top" aria-label="초대 링크 공유">${TI.link}</button>
+      <button class="tb-ico" id="log-btn" aria-label="베팅 내역">${TI.list}</button>
+      <button class="tb-ico" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? TI.mute : TI.sound}</button>`;
+    bindCommon();
+    el.querySelector('#log-btn').onclick = openLogModal;
+    el.querySelector('#menu-btn').onclick = openMenuModal;
+    tickLevel();
+    return;
+  }
   el.innerHTML = `
     ${logoHTML(true)}
     <div class="g-info"><span class="mono">${esc(st.room.code)}</span><span>${st.room.handNo ? `${st.room.handNo}번째 판` : ''}</span></div>
@@ -2250,13 +2279,15 @@ function renderBanner(st) {
     if (st.room.phase === 'playing' && myRow && myRow.status === 'waiting' && !me.sittingOut) msgs.push(['info', '다음 판부터 참여해요 · 이번 판은 구경 중']);
   }
   if (st.room.waiting) msgs.push(['info', '카드를 받을 수 있는 참가자가 2명 이상이 되면 다음 판이 시작돼요']);
-  const nudge = guestNudgeHTML(st, true);
+  const holdemPlaying = gameOf(st) === 'holdem' && st.room.phase === 'playing';
+  const nudge = holdemPlaying ? '' : guestNudgeHTML(st, true);
   const tn = st.room.tournament;
   if (tn && tn.mtt && tn.mtt.closed) msgs.push(['gold', '🏆 파이널 테이블로 합쳐졌어요. 이 테이블은 끝났어요', '<button class="btn btn-sm btn-gold" id="to-final">파이널 테이블 구경</button>']);
   if (tn && tn.running) {
     const canPause = me && (tn.mtt ? tn.mtt.director === me.id : me.isHost);
     const pauseBtn = canPause ? `<button class="btn btn-sm ${tn.paused ? 'btn-gold' : 'btn-outline'}" id="pause-btn">${tn.paused ? '▶ 다시 시작' : '⏸ 멈춤'}</button>` : '';
-    msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · ${tn.mtt && tn.mtt.tables > 1 ? `테이블 ${tn.mtt.tableNo}/${tn.mtt.tables} · 전체 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : tn.mtt ? `파이널 · 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : `남은 ${tn.alive}/${tn.entrants}명`}`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '<b>멈춤</b>' : `<b data-level-at="${tn.nextAt}">-</b>`}</span>${pauseBtn}`]);
+    if (gameOf(st) === 'holdem') msgs.push(['tourney tn-slim', `${tn.mtt && tn.mtt.tables > 1 ? `테이블 ${tn.mtt.tableNo}/${tn.mtt.tables} · ` : ''}남은 ${tn.mtt ? tn.mtt.alive : tn.alive}/${tn.mtt ? tn.mtt.entrants : tn.entrants}명 · 다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)}`, pauseBtn]);
+    else msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · ${tn.mtt && tn.mtt.tables > 1 ? `테이블 ${tn.mtt.tableNo}/${tn.mtt.tables} · 전체 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : tn.mtt ? `파이널 · 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : `남은 ${tn.alive}/${tn.entrants}명`}`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '<b>멈춤</b>' : `<b data-level-at="${tn.nextAt}">-</b>`}</span>${pauseBtn}`]);
     if (tn.paused) msgs.push(['gold', me && me.isHost ? '⏸ 잠깐 멈춤 중 · 블라인드 시계도 멈춰 있어요' : '⏸ 방장이 잠깐 멈췄어요 · 곧 다시 시작해요']);
   }
   // 방장: 게임 중 들어오고 싶은 사람
@@ -2403,8 +2434,62 @@ function orderedSeats(st) {
 const STATUS_TEXT = { folded: '폴드', allin: '올인', busted: '칩 소진', away: '자리 비움', waiting: '다음 판 대기' };
 const ACTION_TEXT = { check: '체크', call: '콜', bet: '베팅', raise: '레이즈', allin: '올인', fold: '폴드' };
 
+// 다시 그리기 전 베팅 칩 위치를 기억해 둔다 (라운드가 끝나면 그 자리에서 팟으로 모이게)
+function snapBets() {
+  const out = {};
+  document.querySelectorAll('#g-table .bet[data-id]').forEach((b) => { out[b.dataset.id] = { at: centerOf(b), amt: Number(b.dataset.amt) || 0 }; });
+  return out;
+}
+function flyChip(from, to, { delay = 0, dur = 420, cls = '' } = {}) {
+  if (gws.reduceMotion()) return;
+  const c = document.createElement('div');
+  c.className = 'fx-chip fx-chip-sm ' + cls;
+  c.style.left = from.x + 'px'; c.style.top = from.y + 'px';
+  fxLayer().appendChild(c);
+  c.animate([{ transform: 'translate(0,0) scale(.9)', opacity: 1 }, { transform: `translate(${to.x - from.x}px,${to.y - from.y}px) scale(.7)`, opacity: 0.95 }],
+    { duration: dur, delay, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' }).onfinish = () => c.remove();
+}
+function tableMotion(st, before) {
+  if (gws.reduceMotion()) return;
+  const h = st.hand;
+  if (!h || h.game === 'seotda') return;
+  const table = document.getElementById('g-table');
+  const center = document.querySelector('#g-table .board') || table;
+  const c0 = centerOf(center);
+  // 카드 돌리기: 새로 받은 카드는 테이블 가운데에서 자기 자리로 (돌리는 순서대로 조금씩 늦게)
+  const fresh = [...table.querySelectorAll('.seat-cards .card-deal, .seat-mycards .card-deal')];
+  fresh.forEach((card, i) => {
+    const r = card.getBoundingClientRect();
+    const dx = c0.x - (r.left + r.width / 2); const dy = c0.y - (r.top + r.height / 2);
+    card.style.animation = 'none';
+    card.animate([{ transform: `translate(${dx}px,${dy}px) rotate(-30deg) scale(.5)`, opacity: 0 }, { opacity: 1, offset: 0.2 }, { transform: getComputedStyle(card).transform === 'none' ? 'none' : getComputedStyle(card).transform, opacity: 1 }],
+      { duration: 420, delay: 60 + (i % 20) * 70, easing: 'cubic-bezier(.2,.8,.25,1)', fill: 'both' });
+  });
+  if (fresh.length) sound.play('deal');
+  // 베팅: 금액이 늘어난 사람은 자기 자리에서 칩이 날아간다
+  const now = {};
+  table.querySelectorAll('.bet[data-id]').forEach((b) => { now[b.dataset.id] = { at: centerOf(b), amt: Number(b.dataset.amt) || 0 }; });
+  for (const [id, v] of Object.entries(now)) {
+    const prev = before[id];
+    if (prev && prev.amt >= v.amt) continue;
+    const seat = table.querySelector(`.seat[data-id="${id}"] .seat-av`);
+    if (seat) { const s0 = centerOf(seat); flyChip(s0, v.at); flyChip(s0, v.at, { delay: 70 }); }
+  }
+  // 라운드가 끝남(베팅 칩이 사라짐): 그 자리에서 팟으로 모은다
+  const pot = table.querySelector('.pot');
+  const gone = Object.entries(before).filter(([id]) => !now[id]);
+  if (pot && gone.length && !h.finished) {
+    const p0 = centerOf(pot);
+    gone.forEach(([, v], i) => { flyChip(v.at, p0, { delay: i * 40, dur: 380 }); flyChip(v.at, p0, { delay: i * 40 + 60, dur: 380 }); });
+    sound.play('chips');
+  }
+}
 function renderTable(st) {
   const el = document.getElementById('g-table');
+  const betsBefore = snapBets();
+  try { renderTableInner(st, el); } finally { requestAnimationFrame(() => tableMotion(st, betsBefore)); }
+}
+function renderTableInner(st, el) {
   const h = st.hand;
   const seats = orderedSeats(st);
   const compact = el.clientHeight > 0 && el.clientHeight < 470;
@@ -2460,7 +2545,7 @@ function renderTable(st) {
       const k = y < 30 ? 0.52 : x < 20 || x > 80 ? 0.5 : 0.4; const bx = x + (50 - x) * k; let by = isMe && h && h.game !== 'seotda' ? 63 : y + (47 - y) * k;
       let bx2 = bx;
       if (!isMe && y > 80 && h && h.game !== 'seotda') { bx2 = x + (50 - x) * 0.15; by = y - 15; } // 아래 양옆 자리: 내 카드에 안 가리게 자기 머리 위로
-      return `<div class="bet" style="left:${bx2}%;top:${by}%" title="${esc(p.name)} 이번 라운드 베팅"><span class="chip-icon sm"></span><small>베팅</small><b>${fmt(p.bet)}</b></div>`;
+      return `<div class="bet" data-id="${p.id}" data-amt="${p.bet}" style="left:${bx2}%;top:${by}%" title="${esc(p.name)} 이번 라운드 베팅"><span class="chip-icon sm"></span><small>베팅</small><b>${fmt(p.bet)}</b></div>`;
     })() : '';
     return `
       <div class="${cls.join(' ')}" data-id="${p.id}" style="left:${x}%;top:${y}%">
@@ -2621,9 +2706,23 @@ function renderActions(st) {
   if (!la) {
     S.raise.open = false;
     const turnName = nameOf(h.toActId);
+    const mineP = st.me && st.players.find((p) => p.id === st.me.id);
+    const canPre = h.game !== 'seotda' && mineP && mineP.status === 'inhand';
+    // 미리 고르기 (내 차례가 오면 바로): 체크/폴드 · 콜 아무거나
+    if (!canPre || (S.pre && S.pre.hand !== h.no)) S.pre = null;
     el.innerHTML = `<div class="wait-line"><b>${esc(turnName)}</b>님 차례예요 · <span data-deadline-text>남은 시간 -</span></div>
-      <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>`;
+      <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
+      ${canPre ? `<div class="pre-row"><button class="pre-btn ${S.pre && S.pre.kind === 'cf' ? 'on' : ''}" data-pre="cf">체크 / 폴드</button><button class="pre-btn ${S.pre && S.pre.kind === 'cc' ? 'on' : ''}" data-pre="cc">체크 / 콜</button></div>` : ''}`;
+    el.querySelectorAll('[data-pre]').forEach((b) => {
+      b.onclick = () => { const k = b.dataset.pre; S.pre = S.pre && S.pre.kind === k ? null : { kind: k, hand: h.no, bet: h.currentBet }; S.actionSig = ''; renderActions(S.state); };
+    });
     return;
+  }
+  // 미리 골라 둔 행동: 내 차례가 오면 바로 (콜은 그 사이 판이 커졌으면 취소)
+  if (S.pre && S.pre.hand === h.no && h.game !== 'seotda') {
+    const pre = S.pre; S.pre = null;
+    if (pre.kind === 'cf') { doAct({ type: la.canCheck ? 'check' : 'fold' }); return; }
+    if (pre.kind === 'cc' && (la.canCheck || h.currentBet <= pre.bet)) { doAct({ type: la.canCheck ? 'check' : 'call' }); return; }
   }
 
   const potAfterCall = h.totalPot + la.toCall;
@@ -2687,6 +2786,8 @@ function renderActions(st) {
 
   const awayNote = st.me && st.me.sittingOut ? '<div class="away-turn">자리 비움 중이에요 — 아래 버튼을 누르면 <b>자리로 돌아가며 바로 행동</b>해요</div>' : '';
   if (h.game === 'seotda') { renderSeotdaActions(el, st, la, info, awayNote); return; }
+  renderHoldemActions(el, st, la, { raiseMode, raiseWord, onlyAllIn, clamp, potAfterCall, awayNote });
+  return;
   el.innerHTML = `${awayNote}
     <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
     <div class="act-info"><span class="my-turn">내 차례 · <span data-deadline-text>남은 시간 -</span></span><span>${info.join(' · ')}</span></div>
@@ -2709,6 +2810,58 @@ function renderActions(st) {
       doAct({ type: t });
     };
   });
+}
+
+// 홀덤 내 차례: 금액 고르기(칩 버튼·슬라이더)는 늘 펼쳐 두고, 큰 버튼 3개로 결정
+function renderHoldemActions(el, st, la, o) {
+  const h = st.hand;
+  const { raiseMode, raiseWord, onlyAllIn, clamp, potAfterCall, awayNote } = o;
+  if (!S.raise.to || S.raise.to < la.minTo || S.raise.to > la.maxTo || S.raise.hand !== h.no + ':' + h.currentBet) { S.raise.to = la.minTo; S.raise.hand = h.no + ':' + h.currentBet; S.raise.arm = false; }
+  const step = Math.max(1, st.room.tournament && st.room.tournament.running ? st.room.tournament.sb : st.room.settings.sb);
+  const nice = (v) => clamp(Math.round(v / step) * step); // 블라인드 단위로 반올림 (103 → 100)
+  const sizes = raiseMode && !onlyAllIn ? [
+    ['최소', la.minTo],
+    ['½ 팟', nice(la.canBet ? h.totalPot / 2 : h.currentBet + potAfterCall / 2)],
+    ['¾ 팟', nice(la.canBet ? h.totalPot * 0.75 : h.currentBet + potAfterCall * 0.75)],
+    ['팟', nice(la.canBet ? h.totalPot : h.currentBet + potAfterCall)],
+    ['올인', la.maxTo],
+  ] : [];
+  el.innerHTML = `${awayNote}
+    <div class="act2">
+      <div class="act2-head"><span class="act2-turn">내 차례</span><span class="act2-left" data-deadline-text>-</span><div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div></div>
+      ${sizes.length ? `<div class="act2-sizes">${sizes.map(([t, v]) => `<button class="sz ${S.raise.to === v ? 'on' : ''} ${t === '올인' ? 'sz-allin' : ''}" data-size="${v}">${t}<small>${fmt(v)}</small></button>`).join('')}</div>
+      <div class="act2-slider"><button class="sl-step" data-step="-1" aria-label="줄이기">−</button><input type="range" id="raise-range" min="${la.minTo}" max="${la.maxTo}" step="${step}" value="${S.raise.to}" aria-label="${raiseWord} 금액"><button class="sl-step" data-step="1" aria-label="늘리기">+</button></div>` : ''}
+      <div class="act2-row">
+        ${la.canFold ? '<button class="ab ab-fold" data-act="fold">폴드</button>' : '<button class="ab ab-fold" data-act="fold" disabled>폴드</button>'}
+        ${la.canCheck ? '<button class="ab ab-call" data-act="check">체크</button>' : `<button class="ab ab-call" data-act="call">${la.callAmount < la.toCall ? '올인 콜' : '콜'}<small>${fmt(la.callAmount)}</small></button>`}
+        ${raiseMode || la.canAllIn ? `<button class="ab ab-raise" id="raise-go"></button>` : ''}
+      </div>
+    </div>`;
+  const go = el.querySelector('#raise-go');
+  const range = el.querySelector('#raise-range');
+  const allInPick = () => !raiseMode || onlyAllIn || S.raise.to >= la.maxTo;
+  const upd = () => {
+    if (!go) return;
+    const all = allInPick();
+    go.classList.toggle('ab-allin', all);
+    go.classList.toggle('armed', all && !!S.raise.arm);
+    go.innerHTML = all ? (S.raise.arm ? `올인 확정<small>한 번 더 눌러요</small>` : `올인<small>${fmt(la.stack)}</small>`) : `${raiseWord}<small>${fmt(S.raise.to)}</small>`;
+    el.querySelectorAll('[data-size]').forEach((b) => b.classList.toggle('on', Number(b.dataset.size) === S.raise.to));
+  };
+  upd();
+  if (range) range.oninput = () => { S.raise.to = Number(range.value); S.raise.arm = false; upd(); };
+  el.querySelectorAll('[data-size]').forEach((b) => { b.onclick = () => { S.raise.to = Number(b.dataset.size); S.raise.arm = false; if (range) range.value = S.raise.to; upd(); sound.play('chip'); }; });
+  el.querySelectorAll('[data-step]').forEach((b) => { b.onclick = () => { S.raise.to = clamp(S.raise.to + Number(b.dataset.step) * Math.max(step, st.room.settings.bb)); S.raise.arm = false; if (range) range.value = S.raise.to; upd(); }; });
+  if (go) go.onclick = () => {
+    if (allInPick()) {
+      // 올인은 실수 방지로 두 번 눌러 확정 (3초 안에)
+      if (!S.raise.arm) { S.raise.arm = true; upd(); clearTimeout(S.raise.armT); S.raise.armT = setTimeout(() => { S.raise.arm = false; upd(); }, 3000); return; }
+      S.raise.arm = false; doAct({ type: 'allin' }); return;
+    }
+    doAct({ type: raiseMode, amount: S.raise.to });
+  };
+  el.querySelectorAll('[data-act]').forEach((b) => { b.onclick = () => doAct({ type: b.dataset.act }); });
+  tickTimers();
 }
 
 // 세 장 섯다(한 장 공개): 공개할 카드 고르기 · 마지막에 두 장 고르기
@@ -2895,7 +3048,8 @@ function runEffects(st) {
   const once = (name) => { const key = `${k}:${name}`; if (S.fx[key]) return false; S.fx[key] = 1; return true; };
   if (h.reveal) {
     if (h.reveal.allin && once('allin')) {
-      banner('올인 승부!', '', 'allin');
+      if (gameOf(st) === 'holdem') { const pill = document.createElement('div'); pill.className = 'fx-showdown-pill'; pill.textContent = '올인 승부 · 카드 공개'; fxLayer().appendChild(pill); setTimeout(() => pill.remove(), 2600); }
+      else banner('올인 승부!', '', 'allin');
       sound.play('drumroll');
       if (sound.isUnlocked()) gws.vibrate([40, 40, 40]);
     }
@@ -2919,6 +3073,7 @@ function runEffects(st) {
 
 // 누가 올인하면 화면에 '올~인!' 도장이 쾅
 function allinStamp(id) {
+  if (S.state && gameOf(S.state) === 'holdem') { allinBadge(id); return; }
   const p = S.state && S.state.players.find((x) => x.id === id);
   const el = document.createElement('div');
   el.className = 'fx-stamp';
@@ -2930,6 +3085,22 @@ function allinStamp(id) {
   if (seat) { seat.classList.add('seat-allin-fx'); setTimeout(() => seat.classList.remove('seat-allin-fx'), 2200); }
   if (sound.isUnlocked()) gws.vibrate([100, 50, 100]);
   setTimeout(() => el.remove(), 1900);
+}
+
+// 홀덤 올인: 그 사람 자리 옆에 작고 묵직한 'ALL IN' 판이 찍힌다 (흔들림·화면 가득 연출 없음)
+function allinBadge(id) {
+  const seat = document.querySelector(`.seat[data-id="${id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === id ? document.querySelector('.seat-me .seat-av') : null);
+  if (!seat) return;
+  const at = centerOf(seat);
+  const el = document.createElement('div');
+  el.className = 'fx-allin2';
+  el.innerHTML = '<b>ALL IN</b>';
+  el.style.left = at.x + 'px';
+  el.style.top = (at.y - 34) + 'px';
+  fxLayer().appendChild(el);
+  sound.play('allin');
+  if (sound.isUnlocked()) gws.vibrate(60);
+  setTimeout(() => el.remove(), 1700);
 }
 
 function quake() {

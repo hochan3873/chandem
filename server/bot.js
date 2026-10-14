@@ -19,9 +19,9 @@ const BOTS = [
 const BOT_NAMES = BOTS.map((b) => b.name);
 // 성격: open = 먼저 레이즈하는 패 범위(상위 %), loose = 콜 여유, aggro = 베팅 빈도, bluff = 블러핑 빈도
 const STYLES = [
-  { open: 0.16, loose: 0.00, aggro: 0.55, bluff: 0.06 },   // 신중
-  { open: 0.26, loose: 0.02, aggro: 0.75, bluff: 0.14 },   // 공격
-  { open: 0.20, loose: 0.05, aggro: 0.45, bluff: 0.08 },   // 콜 많음
+  { open: 0.16, loose: 0.00, aggro: 0.55, bluff: 0.12 },   // 신중
+  { open: 0.26, loose: 0.02, aggro: 0.75, bluff: 0.26 },   // 공격
+  { open: 0.20, loose: 0.05, aggro: 0.45, bluff: 0.15 },   // 콜 많음
 ];
 
 // ── 시작 패 순위 (Chen 공식 → 1326 조합 중 상위 몇 %) ─────────────
@@ -159,11 +159,15 @@ function decide(hand, id, style = STYLES[0], stats = {}) {
     if (myStack / bb <= 12 && pct <= 0.3 + style.aggro * 0.1 && la.canAllIn && (!facing || eq > odds)) return { type: 'allin' };
     if (!raised) {
       if (pct <= style.open && r < 0.5 + style.aggro * 0.5) return aggressive(0.75, 0.55) || callOrCheck();
+      // 스틸: 아무도 안 걸었으면 그저 그런 패로도 가끔 먼저 올린다 (좋은 패일 때만 거는 봇이 아니게)
+      if (pct <= Math.min(0.6, style.open * 2.4) && r < style.bluff * 1.6) return aggressive(0.75, 0.55) || callOrCheck();
       if (!facing) return { type: 'check' };                                     // 빅 블라인드
       return pct <= 0.45 + style.loose * 2 ? { type: 'call' } : { type: 'fold' };   // 림프
     }
     // 레이즈·올인을 받았을 때: 상대 범위 대비 승률로 판단
     if (pct <= 0.05 && eq > 0.55 && r < 0.4 + style.aggro * 0.5) return aggressive(1, 0.5) || callIfPriced(0);
+    // 3벳 블러핑: 레이즈가 크지 않으면 가끔 되받아친다 (올인 받은 상황·짧은 칩에선 안 함)
+    if (aggKind !== 'allin' && la.toCall <= myStack * 0.15 && pct <= 0.55 && r < style.bluff * 0.5) return aggressive(1, 1.01) || callIfPriced(0.04);
     return callIfPriced(aggKind === 'allin' ? 0.01 : 0.04);
   }
 
@@ -171,10 +175,15 @@ function decide(hand, id, style = STYLES[0], stats = {}) {
   const heads = others.length === 1;
   if (!facing) {
     if (eq > (heads ? 0.62 : 0.5) && r < 0.45 + style.aggro * 0.5) return aggressive(eq > 0.8 ? 0.8 : 0.6, 0.62) || { type: 'check' };
-    if (heads && eq < 0.35 && r < style.bluff) return aggressive(0.5, 1.01) || { type: 'check' };  // 가끔 블러핑(올인 블러핑은 안 함)
+    // 세미 블러핑: 아직 약하지만 좋아질 수 있는 패(드로우)로 베팅
+    if (hand.board.length < 5 && eq >= 0.3 && eq < 0.55 && r < style.aggro * 0.35) return aggressive(0.55, 1.01) || { type: 'check' };
+    // 순수 블러핑: 1:1이면 자주, 여럿이면 가끔 (올인 블러핑은 안 함)
+    if (eq < 0.35 && r < (heads ? style.bluff * 1.4 : style.bluff * 0.5)) return aggressive(heads ? 0.6 : 0.5, 1.01) || { type: 'check' };
     return { type: 'check' };
   }
   if (eq > 0.75 && r < 0.3 + style.aggro * 0.5) return aggressive(0.9, 0.68) || { type: 'call' };
+  // 체크 레이즈 블러핑: 1:1에서 작은 베팅을 받으면 가끔 되받아친다
+  if (heads && hand.board.length < 5 && eq >= 0.25 && eq < 0.5 && la.toCall <= pot * 0.4 && r < style.bluff * 0.45) return aggressive(0.9, 1.01) || callIfPriced(0.03);
   return callIfPriced(aggKind === 'allin' ? 0.01 : 0.03);
 }
 
