@@ -873,10 +873,17 @@ function renderHoldemLobby() {
   $app.innerHTML = `
   <main class="home game-home hl-lobby">
     <div class="top-bar">${HOLDEM_APP ? `${hubAcctHTML()}` : '<button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>'}${SHARE_BTN}</div>
-    <div class="gh-hero" style="background-image:url('/img/holdem/hero2.webp')"><div class="gh-shade"></div>
-      <div class="gh-title"><h1>찬덤 홀덤</h1><p>친구들과, 귀여운 상주 플레이어들과</p>
-      <div class="gh-chips"><span>실력 티어</span><span>토너먼트</span><span>최대 10명</span></div></div>
+    <div class="gh-hero hl-hero" style="background-image:url('/img/holdem/hero2.webp')"><div class="gh-shade"></div>
+      <div class="gh-title"><h1>찬덤 홀덤</h1><p>친구들이랑 링크 하나로 바로 한 판</p></div>
     </div>
+    <section class="panel hl-friends">
+      <div class="hf-head"><b>👥 친구들과 치기</b><small>방을 만들고 카톡으로 링크만 보내면 끝 · 최대 10명 · 토너먼트 · 정산표까지</small></div>
+      <div class="hf-btns">
+        <button class="hf-btn hf-create" id="go-create" type="button"><span>♠</span><b>방 만들기</b><small>친구 부르기</small></button>
+        <button class="hf-btn hf-code" id="go-code" type="button"><span>🔑</span><b>코드로 참가</b><small>받은 방 코드 입력</small></button>
+      </div>
+      <div class="live-rooms hf-live" id="live-rooms"><div class="hf-live-head"><b>지금 열린 친구 방</b><i class="live-dot"></i></div><div class="lr-list"><p class="muted small">불러오는 중…</p></div></div>
+    </section>
     <section class="panel hl-me" id="hl-me">${hlMeHTML(null)}</section>
     <section class="panel hl-checkin" id="hl-checkin"></section>
     <section class="panel hl-daily" id="hl-daily"></section>
@@ -887,14 +894,9 @@ function renderHoldemLobby() {
       <button class="hl-ico" data-hl="replays" type="button"><span>🎬</span>명장면</button>
       <button class="hl-ico" data-hl="invite" type="button"><span>🤝</span>친구 초대</button>
     </div>
-    <div class="hl-cta">
-      <button class="btn btn-gold btn-lg" id="hl-quick">빠른 시작</button>
-      <button class="btn btn-outline btn-lg" id="go-create">친구와 방 만들기</button>
-    </div>
-    <section class="panel"><div class="sec-head"><h2 class="sec-title">연습 테이블</h2><small class="muted">상주 플레이어와 · 내 칩으로</small></div><div class="hl-tables" id="hl-tables"><p class="muted small">불러오는 중…</p></div></section>
+    <section class="panel"><div class="sec-head"><h2 class="sec-title">혼자 연습 테이블</h2><button class="btn btn-sm btn-gold" id="hl-quick">빠른 시작</button></div><p class="muted small hl-tsub">친구가 없을 땐 귀여운 상주 플레이어들과 · 내 칩으로</p><div class="hl-tables" id="hl-tables"><p class="muted small">불러오는 중…</p></div></section>
     <section class="panel hl-tip"><span class="tip-ico">💡</span><div><b>오늘의 홀덤 팁</b><p>${esc(todayTip())}</p></div></section>
     <section class="panel"><div class="sec-head"><h2 class="sec-title">상주 플레이어</h2><small class="muted">연습 테이블에서 만나요</small></div>${residentsHTML()}</section>
-    <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title">지금 열린 홀덤 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
     <section class="panel"><div class="sec-head"><h2 class="sec-title">티어 순위</h2><small class="muted">연습 테이블 실력 점수</small></div><div id="hl-rank-box"><p class="muted small">불러오는 중…</p></div></section>
     <div class="hl-more"><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" id="go-practice">토너먼트 연습</button></div>
     <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
@@ -911,6 +913,19 @@ function renderHoldemLobby() {
   $app.querySelector('#go-practice').onclick = () => { nav('/'); S.view = 'practice'; render(); };
   $app.querySelector('#go-rules').onclick = () => openModal('찬덤 홀덤 게임 방법', `<div class="rules">${GAME_RULES.holdem}</div>`);
   $app.querySelector('#go-chart').onclick = () => openModal('족보표', handChartHTML(), null, { wide: true });
+  $app.querySelector('#go-code').onclick = () => openModal('방 코드로 참가', `<form class="form" id="code-form"><p class="muted small">친구가 보낸 방 코드(6자리)를 넣어 주세요</p>
+    <input class="input code-in" name="c" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="예: AB12CD" required>
+    <button class="btn btn-gold btn-lg">참가하기</button></form>`, (b) => {
+    const f = b.querySelector('#code-form'); f.c.focus();
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const c = String(f.c.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (c.length < 4) { toast('방 코드를 확인해 주세요', 'error'); return; }
+      const r = await (await fetch('/api/room/' + c)).json().catch(() => ({ ok: false }));
+      if (!r.ok) { toast(r.message || '방을 찾을 수 없어요', 'error'); return; }
+      closeModal(); nav('/r/' + c); boot();
+    };
+  });
   $app.querySelector('#hl-quick').onclick = () => {
     const r = S.hl;
     if (!r || !r.ok) return;
@@ -1875,7 +1890,8 @@ async function loadRoomList(game) {
   try {
     const r = await (await fetch('/api/rooms' + (game ? `?game=${encodeURIComponent(game)}` : ''), { cache: 'no-store' })).json();
     const list = (r.rooms || []).filter((x) => !x.practice || x.phase === 'playing');
-    box.innerHTML = list.length ? list.map(roomItemHTML).join('') : `<p class="muted small">지금 열린 방이 없어요. 방을 만들어 친구를 불러 보세요!</p>`;
+    const friends = game === 'holdem' ? list.filter((x) => !x.practice) : list;
+    box.innerHTML = friends.length ? friends.map(roomItemHTML).join('') : `<p class="muted small">${game === 'holdem' ? '지금 열린 친구 방이 없어요 · <b>방 만들기</b>를 누르고 카톡으로 링크를 보내 보세요!' : '지금 열린 방이 없어요. 방을 만들어 친구를 불러 보세요!'}</p>`;
   } catch { box.innerHTML = '<p class="muted small">목록을 불러오지 못했어요</p>'; }
   box.querySelectorAll('[data-watch],[data-enter]').forEach((b) => {
     b.onclick = () => {
@@ -2082,20 +2098,20 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <label class="seg-opt"><input type="radio" name="mode" value="cash" ${s.mode !== 'tournament' ? 'checked' : ''}><span>일반<small>리바인 가능</small></span></label>
       <label class="seg-opt"><input type="radio" name="mode" value="tournament" ${s.mode === 'tournament' ? 'checked' : ''}><span>토너먼트<small>블라인드 상승·탈락</small></span></label>
     </div>
-    <label class="field"><span>토너먼트 블라인드 오르는 간격</span>
+    <label class="field tourney-only"><span>토너먼트 블라인드 오르는 간격</span>
       <select class="input" name="levelMinutes">${[3, 5, 7, 10, 15, 20].map((m) => `<option value="${m}" ${Number(s.levelMinutes || 7) === m ? 'selected' : ''}>${m}분마다</option>`).join('')}</select></label>
-    <p class="tourney-est" data-tourney-est></p>
-    <label class="field"><span>테이블당 자리 <small class="muted">(이보다 많이 모이면 시작할 때 테이블을 나눠요)</small></span>
+    <p class="tourney-est tourney-only" data-tourney-est></p>
+    <label class="field tourney-only"><span>테이블당 자리 <small class="muted">(이보다 많이 모이면 시작할 때 테이블을 나눠요)</small></span>
       <select class="input" name="tableSize">${[6, 8, 9, 10].map((v) => `<option value="${v}" ${Number(s.tableSize || 9) === v ? 'selected' : ''}>${v}명</option>`).join('')}</select></label>
-    <label class="field"><span>리바이 · 늦은 참가</span>
+    <label class="field tourney-only"><span>리바이 · 늦은 참가</span>
       <select class="input" name="reentryLevels">${[[0, '없음 (처음 앉은 사람만)'], [2, '레벨 2까지'], [3, '레벨 3까지'], [4, '레벨 4까지'], [6, '레벨 6까지']].map(([v, t]) => `<option value="${v}" ${Number(s.reentryLevels || 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-    <label class="field"><span>1인당 리바이 횟수 <small class="muted">(리바이를 받을 때만)</small></span>
+    <label class="field tourney-only"><span>1인당 리바이 횟수 <small class="muted">(리바이를 받을 때만)</small></span>
       <select class="input" name="rebuyMaxT">${[[1, '1번'], [2, '2번'], [3, '3번'], [5, '5번'], [99, '제한 없음']].map(([v, t]) => `<option value="${v}" ${Number(s.rebuyMax || 3) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-    <div class="prize-grid"><span class="prize-head">순위별 상품 · 벌칙 <small class="muted">(선택 · 결과 화면에 나와요)</small></span>
+    <div class="prize-grid tourney-only"><span class="prize-head">순위별 상품 · 벌칙 <small class="muted">(선택 · 결과 화면에 나와요)</small></span>
       ${[['1등', '예: 치킨 쏘기 면제'], ['2등', '예: 음료수'], ['3등', ''], ['꼴찌', '예: 커피 쏘기']].map(([t, ph], i) => `<label class="prize-row"><b>${t}</b><input class="input" name="prize${i}" maxlength="24" placeholder="${ph}" value="${esc((s.prizes || [])[i] || '')}" autocomplete="off"></label>`).join('')}</div>
-    <label class="field"><span>블라인드 표 직접 정하기 <small class="muted">(비우면 자동)</small></span>
+    <label class="field tourney-only"><span>블라인드 표 직접 정하기 <small class="muted">(비우면 자동)</small></span>
       <input class="input" name="blindLevels" placeholder="예: 10/20, 15/30, 25/50, 50/100" value="${esc((s.blindLevels || []).map((x) => x.join('/')).join(', '))}" autocomplete="off"></label>
-    <p class="muted small">토너먼트는 정해진 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요. 마지막까지 남은 사람이 우승이에요. 리바이 시간 안에는 다 잃어도 시작 칩으로 다시 들어오고, 늦게 온 친구도 앉을 수 있어요.</p>
+    <p class="muted small tourney-only">토너먼트는 정해진 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요. 마지막까지 남은 사람이 우승이에요. 리바이 시간 안에는 다 잃어도 시작 칩으로 다시 들어오고, 늦게 온 친구도 앉을 수 있어요.</p>
   </fieldset>
   <fieldset class="fieldset holdem-only-f">
     <legend>앤티 · 타임뱅크</legend>
@@ -2632,6 +2648,7 @@ function openSettingsModal() {
     const form = body.querySelector('#set-form');
     form.dataset.game = s.game || 'holdem'; // 게임에 맞는 칸만 (섯다: 기본 판돈)
     bindSd3(form);
+    bindTourneyEst(form); // 일반·토너먼트에 맞는 칸만
     form.onsubmit = async (e) => {
       e.preventDefault();
       const next = readSettings(form);
