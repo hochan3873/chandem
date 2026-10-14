@@ -1672,6 +1672,7 @@ function processEvents(st, first) {
     if (e.type === 'check' && gameOf(st) === 'holdem') setTimeout(() => knockFx(e.id), delay);
     const iWon = e.type === 'end' && e.winners && e.winners.includes(meId);
     if (e.type === 'street' || e.type === 'end') S.sdLastTo = 0;
+    if (e.type === 'street' && gameOf(st) === 'holdem' && e.board) setTimeout(() => dealerBurn(e.board.length), delay);
     const sd = gameOf(st) === 'seotda';
     setTimeout(() => { if (!sd || !['fold', 'check', 'call', 'bet', 'raise', 'allin'].includes(e.type)) sound.playForEvent(e, { isMe: e.id === meId, iWon }); else sound.play(e.type === 'fold' ? 'fold' : e.type === 'check' ? 'check' : e.type === 'allin' ? 'allin' : 'chips'); actionCallout(st, e); }, delay);
     delay += 160;
@@ -1714,13 +1715,51 @@ function knockFx(id) {
   const av = document.querySelector(`#g-table .seat[data-id="${id}"] .seat-av`);
   if (!av) return;
   const c = centerOf(av);
-  [0, 150].forEach((d) => setTimeout(() => {
+  // 오프라인처럼: 주먹이 테이블을 '툭, 툭' 두 번 (자리에서 테이블 쪽으로)
+  const t = document.getElementById('g-table');
+  const tc = t ? centerOf(t) : c;
+  const hx = c.x + (tc.x - c.x) * 0.28; const hy = c.y + (tc.y - c.y) * 0.28 + 6;
+  const fist = document.createElement('div');
+  fist.className = 'fx-fist';
+  fist.textContent = '✊';
+  fist.style.left = hx + 'px'; fist.style.top = hy + 'px';
+  fxLayer().appendChild(fist);
+  fist.animate([
+    { transform: 'translate(-50%,-90%) scale(.8) rotate(-10deg)', opacity: 0 },
+    { transform: 'translate(-50%,-80%) scale(1) rotate(-10deg)', opacity: 1, offset: 0.12 },
+    { transform: 'translate(-50%,-20%) scale(1.05,.9) rotate(0deg)', opacity: 1, offset: 0.24 },
+    { transform: 'translate(-50%,-70%) scale(1) rotate(-8deg)', opacity: 1, offset: 0.4 },
+    { transform: 'translate(-50%,-20%) scale(1.05,.9) rotate(0deg)', opacity: 1, offset: 0.52 },
+    { transform: 'translate(-50%,-75%) scale(1) rotate(-8deg)', opacity: 1, offset: 0.75 },
+    { transform: 'translate(-50%,-90%) scale(.9) rotate(-10deg)', opacity: 0 },
+  ], { duration: 720, easing: 'ease-out', fill: 'both' }).onfinish = () => fist.remove();
+  [170, 375].forEach((d) => setTimeout(() => {
     const r = document.createElement('div');
     r.className = 'fx-knock';
-    r.style.left = c.x + 'px'; r.style.top = (c.y + 30) + 'px';
+    r.style.left = hx + 'px'; r.style.top = (hy + 10) + 'px';
     fxLayer().appendChild(r);
     setTimeout(() => r.remove(), 650);
   }, d));
+}
+
+// 딜러가 카드 한 장을 버리고(번) 바닥 카드를 펼치는 모습 + '플랍 · 턴 · 리버' 안내
+function dealerBurn(n) {
+  if (gws.reduceMotion()) return;
+  const board = document.querySelector('#g-table .board');
+  if (!board) return;
+  const b = board.getBoundingClientRect();
+  const card = document.createElement('div');
+  card.className = 'fx-burn card card-sm card-back';
+  card.innerHTML = '<span class="card-back-mark">찬</span>';
+  card.style.left = (b.left + b.width / 2) + 'px'; card.style.top = (b.top - 30) + 'px';
+  fxLayer().appendChild(card);
+  card.animate([{ transform: 'translate(-50%,-50%) rotate(0deg)', opacity: 0 }, { transform: 'translate(-50%,-50%) rotate(0deg)', opacity: 1, offset: 0.2 }, { transform: `translate(calc(-50% + ${b.width / 2 + 10}px), -50%) rotate(25deg) scale(.8)`, opacity: 0 }], { duration: 600, easing: 'ease-in', fill: 'both' }).onfinish = () => card.remove();
+  const tag = document.createElement('div');
+  tag.className = 'fx-street';
+  tag.textContent = { 3: '플랍', 4: '턴', 5: '리버' }[n] || '';
+  tag.style.left = (b.left + b.width / 2) + 'px'; tag.style.top = (b.top - 8) + 'px';
+  fxLayer().appendChild(tag);
+  setTimeout(() => tag.remove(), 1300);
 }
 
 function flyPotTo(winners) {
@@ -3419,6 +3458,7 @@ function renderActions(st) {
     el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = () => { const v = b.dataset.show; emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); sound.play('flip'); }; });
     const rb = el.querySelector('#rabbit-btn');
     if (rb) rb.onclick = () => { rb.disabled = true; emit('game:rabbit'); };
+    el.querySelectorAll('[data-manner]').forEach((b) => { b.onclick = () => { b.disabled = true; emit('room:chat', { text: b.dataset.manner.replace(/^\S+\s/, '') }); sound.play('tap'); }; });
     return;
   }
   if (h.phase) { S.raise.open = false; renderSeotdaPhase(el, st); return; }
@@ -3541,6 +3581,7 @@ function finishedExtrasHTML(st) {
     out.push(`<div class="show-row"><span>내 패<br>보여주기</span>${mp.cards.map((c, i) => (done.includes(i) ? '' : `<button type="button" class="show-c" data-show="${i}">${cardHTML(c, { size: 'sm' })}<small>이 장만</small></button>`)).join('')}<button type="button" class="show-both" data-show="both">${done.length ? '나머지도' : '두 장 다'}</button></div>`);
   }
   if (h.canRabbit) out.push('<button type="button" class="rabbit-btn" id="rabbit-btn">🐰 남은 카드 보기<small>계속했다면 나왔을 카드</small></button>');
+  out.push(`<div class="manner-row">${['👍 나이스 핸드', '🤝 GG', '🍀 굿 럭', '😅 아깝다'].map((t) => `<button type="button" class="manner" data-manner="${t}">${t}</button>`).join('')}</div>`);
   return out.length ? `<div class="fin-row">${out.join('')}</div>` : '';
 }
 

@@ -204,6 +204,24 @@ function drop(f0, f1, dur, gain, at = 0, type = 'sine') {
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
   o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.03);
 }
+// 나무 테이블을 손가락 마디로 '똑': 아주 짧은 충격을 나무의 울림 주파수 여러 개로 울린다 (모달 합성)
+function woodHit(at = 0, g = 1) {
+  const t = ctx.currentTime + at;
+  const len = Math.floor(ctx.sampleRate * 0.012);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const out = ctx.createGain(); out.gain.value = g;
+  // 나무 판 울림: 낮은 '둥' + 가운데 '똑' + 높은 '딱'
+  for (const [f, q, v] of [[310, 9, 1.0], [720, 10, 2.4], [1350, 12, 2.2], [2400, 14, 1.3]]) {
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * (0.96 + Math.random() * 0.08); bp.Q.value = q;
+    const gg = ctx.createGain(); gg.gain.value = v;
+    src.connect(bp).connect(gg).connect(out);
+  }
+  out.connect(master);
+  src.start(t);
+}
 // 점토 칩 하나가 '딱' 부딪히는 소리
 function clack(at = 0, g = 1) {
   const f = 2600 + Math.random() * 1600;
@@ -251,10 +269,7 @@ const SYNTH = {
   // 채팅 알림: 맑은 '띠링' (메신저 느낌, 짧고 작게)
   msg: () => { tone(1568, 0.12, { type: 'sine', gain: 0.13 }); tone(2093, 0.22, { type: 'sine', gain: 0.11, at: 0.09 }); },
   // 체크: 주먹으로 테이블을 '탁탁' (나무 두 번 · 폰 스피커에서 잘 들리는 대역)
-  knock: () => {
-    const hit = (at, g) => { drop(780, 330, 0.07, 0.6 * g, at); drop(1500, 900, 0.03, 0.25 * g, at, 'triangle'); setTimeout(() => noise(0.035, { freq: 1700, q: 1.6, gain: 0.6 * g, attack: 0.002 }), at * 1000); };
-    hit(0, 1); hit(0.14, 0.85);
-  },
+  knock: () => { woodHit(0, 3.2); woodHit(0.15, 2.6); drop(1300, 700, 0.045, 0.3, 0); drop(1250, 680, 0.045, 0.25, 0.15); },
   // 자리에 앉기 · 일어나기
   sit: () => { drop(600, 300, 0.08, 0.3); clack(0.06, 0.5); },
   // 셔플: 카드 리플 (짧은 딸깍이 빠르게)
