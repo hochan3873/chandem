@@ -1023,20 +1023,14 @@ function syncInstallBar() {
 
 // ── 글 채팅: 떠 있는 '채팅' 버튼 · 채팅 창 · 자리 위 말풍선 ──
 function syncChatFab() {
-  let b = document.getElementById('chat-fab');
-  if (S.view !== 'room' || !S.state) { if (b) b.remove(); return; }
-  if (!b) {
-    b = document.createElement('button');
-    b.id = 'chat-fab'; b.className = 'chat-fab'; b.setAttribute('aria-label', '채팅');
-    b.innerHTML = '채팅<span class="dot" hidden></span>';
-    b.onclick = openChat;
-    document.body.appendChild(b);
-  }
+  const b = document.getElementById('chat-btn');
+  if (S.view !== 'room' || !S.state || !b) return;
   const unread = Math.max(0, ((S.state.chat || []).slice(-1)[0] || { seq: 0 }).seq - (S.chatRead || 0));
   const d = b.querySelector('.dot');
   d.hidden = !unread || !!document.getElementById('chat-list');
   d.textContent = unread > 9 ? '9+' : String(unread);
 }
+document.addEventListener('click', (e) => { if (e.target.closest('#chat-btn')) openChat(); });
 function chatListHTML(st) {
   const meId = st.me && st.me.id;
   const list = st.chat || [];
@@ -2244,7 +2238,7 @@ function renderOmok(st) {
   const o = h && h.omok;
   if (!o) {
     table.innerHTML = `<div class="omok-wait"><div class="table-brand">오목</div><p class="muted">${st.room.waiting ? '상대를 기다리는 중이에요' : '곧 시작해요'}</p></div>`;
-    meEl.innerHTML = '<button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>';
+    meEl.innerHTML = '<button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button><button class="chat-fab" id="chat-btn" aria-label="채팅">채팅<span class="dot" hidden></span></button>';
     actEl.innerHTML = '';
     return;
   }
@@ -2262,7 +2256,7 @@ function renderOmok(st) {
       ${h.result ? `<div class="omok-result">${h.result.type === 'draw' ? '무승부예요' : `${esc(h.result.winnerNames.join(', '))} 승리${h.result.reason === 'resign' ? ' (기권)' : ''}`}<small>곧 흑백을 바꿔 다음 판을 시작해요</small></div>` : ''}
     </div>`;
   meEl.innerHTML = `${omokPlayerHTML(pOf(bottomId), o.colors[bottomId], st, myColor ? '(나)' : '')}
-    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>`;
+    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button><button class="chat-fab" id="chat-btn" aria-label="채팅">채팅<span class="dot" hidden></span></button>`;
   RK.fitNames(table); RK.fitNames(meEl);
   RK.refreshRoom(st);
   const la = h.legal;
@@ -2402,7 +2396,10 @@ function renderTable(st) {
       if (c) {
         const fresh = markCard(`${handNo}:board:${i}`);
         // 올인 승부에서 새로 깔리는 카드는 천천히 뒤집고, 리버는 '쪼듯이' 더 천천히
-        const slow = fresh && S.runoutHand === handNo && i >= S.runoutFrom;
+        // 1:1 승부의 리버는 베팅 중이어도 '쪼듯이' 천천히 (두 사람만 남은 판)
+        const heads = st.players.filter((p) => ['inhand', 'allin'].includes(p.status)).length === 2;
+        const slow = fresh && ((S.runoutHand === handNo && i >= S.runoutFrom) || (i === 4 && heads));
+        if (fresh && i === 4 && heads && S.runoutHand !== handNo) { sound.play('heartbeat'); const a = document.getElementById('app'); a.classList.add('tension'); setTimeout(() => { a.classList.remove('tension'); sound.play('impact'); }, 1400); }
         board.push(cardHTML(c, {
           size: compact ? 'sm' : 'md', anim: fresh && !slow, delay: (i < 3 && !slow ? i : 0) * 120,
           cls: slow ? (i === 4 ? 'card-squeeze' : 'card-flip-slow') : '',
@@ -2471,9 +2468,10 @@ function renderMe(st) {
     const waitingSeat = mp.seatRequest;
     el.innerHTML = `<div class="me-spec"><span>관전 중이에요${waitingSeat ? ' · 방장이 자리 요청을 확인하고 있어요' : ''}</span>
       ${waitingSeat ? '' : `<button class="btn btn-sm btn-outline" id="sit-btn">${st.room.phase === 'playing' ? '자리 요청하기' : '참가자로 앉기'}</button>`}</div>
-      <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>`;
+      <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button><button class="chat-fab" id="chat-btn" aria-label="채팅">채팅<span class="dot" hidden></span></button>`;
     const sit = el.querySelector('#sit-btn');
     if (sit) sit.onclick = async () => { const r = await emit('lobby:role', { spectator: false }); if (r.ok && r.requested) toast('방장에게 자리 요청을 보냈어요. 수락되면 다음 판부터 참가해요', 'ok'); };
+    syncChatFab();
     return;
   }
   const h = st.hand;
@@ -2504,9 +2502,10 @@ function renderMe(st) {
       ${me.canShow && cards ? '<button class="btn btn-sm btn-outline show-btn" id="show-btn">내 패 보여주기</button>' : ''}
       ${h && !h.finished && h.game !== 'seotda' && st.room.settings.timeBank ? `<div class="muted tiny tb-left">⏳ 타임뱅크 ${me.timeBank || 0}초</div>` : ''}
     </div>
-    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button>`;
+    <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button><button class="chat-fab" id="chat-btn" aria-label="채팅">채팅<span class="dot" hidden></span></button>`;
   const sb = el.querySelector('#show-btn');
   if (sb) sb.onclick = () => emit('game:show');
+  syncChatFab();
 }
 
 function renderActions(st) {
@@ -2850,7 +2849,8 @@ function quake() {
 
 // 쇼다운: 공개된 패마다 족보를 음성으로. 플러시 이상은 특별 연출
 const HAND_TIERS = ['하이카드', '원페어', '투페어', '트리플', '스트레이트', '플러시', '풀하우스', '포카드', '스트레이트 플러시', '로열 스트레이트 플러시'];
-const BIG_EN = { 5: 'FLUSH', 6: 'FULL HOUSE', 7: 'FOUR OF A KIND', 8: 'STRAIGHT FLUSH', 9: 'ROYAL FLUSH' };
+const BIG_EN = { 3: 'TRIPLE', 4: 'STRAIGHT', 5: 'FLUSH', 6: 'FULL HOUSE', 7: 'FOUR OF A KIND', 8: 'STRAIGHT FLUSH', 9: 'ROYAL FLUSH' };
+const BIG_MIN = 3; // 투페어보다 높은 족보부터 큰 연출
 function handTier(cards, board) {
   const sc = bestHand(cards.concat(board)).score;
   return sc.category === 8 && sc.tiebreak[0] === 14 ? 9 : sc.category;
@@ -2883,10 +2883,10 @@ function announceHands(st, once) {
     if (!once('ann:' + p.id)) continue;
     const tier = handTier(p.cards, h.board);
     const at = Math.max(Date.now() + 250, S.annAt || 0);
-    S.annAt = at + (tier >= 5 ? 2400 : 1000);
+    S.annAt = at + (tier >= BIG_MIN ? (tier >= 7 ? 3400 : tier >= 5 ? 2700 : 2000) : 1000);
     setTimeout(() => {
       handTag(p.id, HAND_TIERS[tier], tier);
-      if (tier >= 5) bigHand(tier, p);
+      if (tier >= BIG_MIN) bigHand(tier, p);
       else sound.play('v_h' + tier);
     }, at - Date.now());
   }
@@ -2914,16 +2914,25 @@ function handTag(id, text, tier) {
   setTimeout(() => el.remove(), 2800);
 }
 function bigHand(tier, p, custom = null) {
+  // 족보가 셀수록 더 크게·오래: 트리플/스트레이트 1.8초 · 플러시/풀하우스 2.4초 · 포카드 이상 3.2초 (우주 폭발)
+  const ms = tier >= 7 ? 3200 : tier >= 5 ? 2400 : 1800;
+  const burst = holdemFxArt(tier);
   const el = document.createElement('div');
-  el.className = `fx-bighand fx-tier${tier}`;
-  el.innerHTML = `<div class="fx-big-rays"></div><div class="fx-big-en">${custom ? custom.en : BIG_EN[tier]}</div><div class="fx-big-ko">${esc(custom ? custom.ko : HAND_TIERS[tier])}!</div><div class="fx-big-who">${esc(p.name)}</div>`;
+  el.className = `fx-bighand fx-tier${tier} ${tier >= 7 ? 'fx-big-max' : tier >= 5 ? 'fx-big-mid' : 'fx-big-low'}`;
+  el.innerHTML = `${burst ? `<img class="fx-big-burst" src="${burst}" alt=""><img class="fx-big-burst fx-big-burst2" src="${burst}" alt="">` : ''}<div class="fx-big-rays"></div><div class="fx-big-en">${custom ? custom.en : BIG_EN[tier]}</div><div class="fx-big-ko">${esc(custom ? custom.ko : HAND_TIERS[tier])}!</div><div class="fx-big-who">${esc(p.name)}</div>`;
   fxLayer().appendChild(el);
   sound.play('boom');
   if (!custom) setTimeout(() => sound.play('v_h' + tier, 1.3), 380);
-  setTimeout(() => { coinRain(tier >= 8 ? 70 : 36); quake(); }, 450);
-  if (sound.isUnlocked()) gws.vibrate([60, 40, 200]);
-  setTimeout(() => el.classList.add('out'), 2000);
-  setTimeout(() => el.remove(), 2500);
+  setTimeout(() => { coinRain(tier >= 8 ? 90 : tier >= 5 ? 50 : 26); quake(); }, 450);
+  if (tier >= 7) setTimeout(() => { quake(); sound.play('boom'); }, 1300);
+  if (sound.isUnlocked()) gws.vibrate(tier >= 7 ? [80, 40, 200, 60, 300] : [60, 40, 200]);
+  setTimeout(() => el.classList.add('out'), ms - 500);
+  setTimeout(() => el.remove(), ms);
+}
+// 큰 족보 연출 그림 (Gemini): 포카드 이상은 우주 폭발, 그 아래는 금빛 폭발
+function holdemFxArt(tier) {
+  if (tier >= 7 && S.cosmicOk !== false) return '/img/holdem/burst-cosmic.webp';
+  return '/img/holdem/burst-gold.webp';
 }
 
 function fxLayer() { return document.getElementById('fx-layer') || document.body; }

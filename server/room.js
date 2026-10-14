@@ -35,7 +35,7 @@ const AWAY_ACT_MS = 8 * 1000;
 const PHASE_MS = 10 * 1000;           // 세 장 섯다: 공개할 카드 · 두 장 고르기 시간         // 자리 비움인데 화면은 켜져 있으면: 차례에 8초 동안 직접 할 수 있게 기다린다
 const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // 결과를 보여준 뒤 다음 판까지
 // 쇼다운 연출(ms). 올인 승부는 패 공개 → 남은 카드를 한 장씩 → 리버는 뜸을 들여 '쪼기'
-const REVEAL = { first: 700, perHand: 1100, allinHands: 1600, flop: 1800, turn: 2200, squeeze: 1900, river: 1300, result: 900 };
+const REVEAL = { first: 800, perHand: 1200, allinHands: 1800, flop: 2000, turn: 2600, squeeze: 3000, river: 1500, result: 1000 };
 const MAX_TIMEOUTS = 2;               // 연속 시간 초과 시 자리 비움 처리
 const AVATAR_COUNT = 8;               // public/img/avatars/a1~a8
 const BOT_THINK = [900, 2200];        // 봇이 생각하는 시간(ms) 범위
