@@ -1045,6 +1045,8 @@ body.in-room #snd-pill, html.splashing #snd-pill { display: none; }
 .sp-logo { position: absolute; left: 0; right: 0; top: max(7vh, calc(env(safe-area-inset-top) + 28px)); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 16px; animation: spDrop .7s cubic-bezier(.2, 1.3, .4, 1) both .1s; }
 @keyframes spDrop { from { opacity: 0; transform: translateY(-24px) scale(.9); } }
 .sp-title { font-size: clamp(2.3rem, 11.5vw, 3.4rem); }
+/* 첫 화면 제목: 글꼴 대신 홈 로고와 같은 그림 글씨 (위쪽 잘린 자리는 살짝 흐리게) */
+.sp-title-img { width: min(92vw, 440px); height: auto; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .55)); -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 9%); mask-image: linear-gradient(to bottom, transparent 0, #000 9%); pointer-events: none; }
 .sp-en { font-size: .72rem; font-weight: 900; letter-spacing: .42em; color: #fff2cf; text-shadow: 0 1px 0 #4a1d05, 0 0 10px rgba(0, 0, 0, .7); }
 .sp-bottom {
   position: absolute; left: 12px; right: 12px; bottom: max(14px, env(safe-area-inset-bottom)); margin: 0 auto; max-width: 440px;
