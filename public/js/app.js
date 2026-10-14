@@ -217,7 +217,12 @@ const ICON_NOTE = '<p class="muted tiny install-note">이미 설치한 앱 아�
 const SHARE_BTN_ONLY = `<button class="btn btn-sm btn-gold share-top" id="share-top" aria-label="공유하기">${P.hubIcon('link', 'hic-sm')}<span class="ib-text"> 공유</span></button>`;
 // 앱 설치 버튼(이미 앱으로 열었으면 숨김) + 공유 버튼
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-const installBtnHTML = () => (isStandalone() ? '' : '<button class="btn btn-sm btn-outline install-btn" id="install-btn" aria-label="앱 설치">앱 설치</button>');
+// 앱 설치 버튼: 그 앱 안이 아니면 늘 보인다. 찬이의 게임월드 앱 안의 홀덤 화면에선 '홀덤 앱 설치' (따로 설치)
+const installBtnHTML = () => {
+  if (isStandalone() && (HOLDEM_APP || (S.game || 'holdem') !== 'holdem' || S.view !== 'gamehome')) return '';
+  if (isStandalone()) return '<button class="btn btn-sm btn-outline install-btn" id="install-holdem" aria-label="찬덤 홀덤 앱 설치">홀덤 앱 설치</button>';
+  return '<button class="btn btn-sm btn-outline install-btn" id="install-btn" aria-label="앱 설치">앱 설치</button>';
+};
 const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}${SHARE_BTN_ONLY}</span>` };
 
 // ── 아이폰 사파리 확대 막기 (두 손가락 확대 · 두 번 톡 확대는 CSS touch-action 으로) ──
@@ -226,16 +231,21 @@ const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}$
 // ── 앱 설치 (PWA) ──────────────────────────────────
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; });
-window.addEventListener('appinstalled', () => { S.installEvt = null; installDone(); document.querySelectorAll('#install-btn').forEach((b) => b.remove()); });
+window.addEventListener('appinstalled', () => { S.installEvt = null; LS.set('chandem:installed:' + (HOLDEM_APP ? 'holdem' : 'gw'), Date.now()); installDone(); });
 // 홀덤 전용 앱 주소(/holdem)로 열렸는지: 설치하면 '찬덤 홀덤' 앱
 const HOLDEM_APP = document.documentElement.dataset.app === 'holdem';
 const APP_NAME = HOLDEM_APP ? '찬덤 홀덤' : '찬이의 게임월드';
+// 설치했는데 아이콘이 안 보일 때 찾는 법 (삼성·크롬)
+const INSTALL_FIND = `<div class="inst-find"><b>바탕화면에 아이콘이 안 보이면?</b><ol>
+  <li>홈 화면을 위로 밀어 <b>앱 목록(모든 앱)</b>에서 「${APP_NAME}」를 찾아요</li>
+  <li>아이콘을 <b>길게 눌러 → 홈 화면에 추가</b></li>
+  <li>그래도 없으면 브라우저 메뉴(⋮ 또는 ≡) → <b>현재 페이지 추가 → 홈 화면</b> (삼성 인터넷) / <b>앱 설치</b> (크롬)</li></ol></div>`;
 function installDone() {
   S.installing = null;
-  document.querySelectorAll('#install-btn').forEach((b) => b.remove());
   document.querySelectorAll('#install-bar').forEach((b) => b.remove());
   openModal('설치 완료 ', `<div class="install-wait"><div class="install-ok"></div><p><b>${APP_NAME}가 설치됐어요!</b></p>
     <p class="muted small">바탕화면이나 앱 목록의 아이콘으로 열면 전체 화면으로 즐길 수 있어요.</p>
+    ${INSTALL_FIND}
     ${ICON_NOTE}<button class="btn btn-gold btn-lg" data-close>확인</button></div>`);
   sound.play('fanfare');
 }
@@ -372,7 +382,7 @@ async function installApp() {
     </ol>
     <p class="muted small">이미 설치했다면 바탕화면의 ${APP_NAME} 아이콘으로 열어 주세요.${HOLDEM_APP ? ' 찬이의 게임월드를 깔았어도 찬덤 홀덤은 따로 설치할 수 있어요.' : ''}</p>${ICON_NOTE}`);
 }
-document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); });
+document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); else if (e.target.closest('#install-holdem')) installHoldemApp(); });
 
 // 앱 설치 고르기: 찬이의 게임월드 / 찬덤 홀덤 (게임월드 앱 안에서도 홀덤 앱을 깔 수 있게)
 function installPick() {
@@ -2392,6 +2402,14 @@ function nickFieldHTML(label = '닉네임') {
     ${last ? `<button type="button" class="nick-last" onclick="this.previousElementSibling.querySelector('input').value=this.dataset.n;this.remove()" data-n="${esc(last)}">지난번 이름 <b>${esc(last)}</b> 쓰기</button>` : ''}`;
 }
 const BAD_NICK = /^(손님|게스트|guest|player|플레이어|익명|이름|닉네임|nickname|name|[ㅇ?.\-_~!]+)$/i;
+function joinSeatMapHTML(d) {
+  const N = Math.max(2, Math.min(10, d.tableSeats || 9));
+  const pos = landPositions(N, 40, 38, 50);
+  return `<div class="seat-map join-map"><div class="sm-felt"></div>${pos.map((xy, seat) => {
+    const p = d.seats.find((x) => x.seat === seat);
+    return `<button type="button" class="sm-seat ${p ? 'taken' : 'open'}" ${p ? 'disabled' : `data-jseat="${seat}"`} style="left:${xy.x}%;top:${xy.y}%">${p ? `<span class="avatar avatar-sm"><img src="/img/avatars/a${p.avatar || 1}.webp?v=2" alt=""></span><b>${esc(p.name)}</b>` : `<span>+</span><small>${seat + 1}번 빈자리</small>`}</button>`;
+  }).join('')}</div>`;
+}
 function renderJoin() {
   const d = S.roomInfo;
   $app.innerHTML = `
@@ -2409,6 +2427,7 @@ function renderJoin() {
       </ul>
       <form id="join-form">
         ${nickFieldHTML()}
+        ${d.game !== 'omok' && d.seats && d.tableSeats <= 10 ? `<div class="field"><span>자리 고르기 <small>빈자리를 누르면 그 자리로 들어가요 (안 고르면 알아서 앉혀 드려요)</small></span>${joinSeatMapHTML(d)}</div>` : ''}
         ${d.hasPassword ? `<label class="field"><span>비밀번호</span><input class="input" name="password" maxlength="20" ${S.user && S.user.isMaster ? 'placeholder="마스터는 비워 두고 관전 가능"' : 'required'} autocomplete="off"></label>` : ''}
         ${S.user && S.user.isMaster && (d.hasPassword || d.approval) ? '<p class="muted small">마스터는 비밀번호·승인 없이 <b>관전</b>으로 바로 들어갈 수 있어요</p>' : ''}
         ${avatarPickerHTML()}
@@ -2423,13 +2442,22 @@ function renderJoin() {
   const form = $app.querySelector('#join-form');
   if (!form) return;
   bindAvatarPicker(form);
+  S.joinSeat = undefined;
+  form.querySelectorAll('[data-jseat]').forEach((b) => {
+    b.onclick = () => {
+      S.joinSeat = Number(b.dataset.jseat);
+      form.querySelectorAll('[data-jseat]').forEach((x) => x.classList.toggle('picked', x === b));
+      const sp = form.querySelector('input[name=spectator]'); if (sp) sp.checked = false;
+      sound.play('tap');
+    };
+  });
   form.onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
     const name = String(fd.get('name') || '').trim();
     if (!name || BAD_NICK.test(name)) { toast('친구들이 알아볼 수 있는 닉네임을 입력해 주세요', 'error'); form.name && form.name.focus(); return; }
     if (!S.user) LS.set('chandem:name', name);
-    const res = await emit('room:join', { guest: guestCred(), code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on' || !!(S.user && S.user.isMaster && (d.hasPassword || d.approval) && !fd.get('password')), avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
+    const res = await emit('room:join', { guest: guestCred(), seat: S.joinSeat === undefined ? undefined : S.joinSeat, code: d.code, name, password: fd.get('password') || '', spectator: fd.get('spectator') === 'on' || !!(S.user && S.user.isMaster && (d.hasPassword || d.approval) && !fd.get('password')), avatar: readAvatar(form), photo: readPhoto(form), auth: S.auth });
     if (!res.ok) return;
     S.code = res.code;
     S.session = { token: res.token, playerId: res.playerId };
@@ -3208,7 +3236,7 @@ function canSitNow(st) {
   return !tn || !tn.running || (s.reentryLevels > 0 && tn.level <= s.reentryLevels);
 }
 function emptySeatHTML(st, sl, canSit) {
-  return `<button type="button" class="seat seat-empty ${canSit ? 'can-sit' : ''}" data-sit="${sl.seat}" style="left:${sl.x}%;top:${sl.y}%" aria-label="${sl.seat + 1}번 빈자리">${canSit ? '<b>앉기</b>' : ''}<small>${sl.seat + 1}번</small></button>`;
+  return `<button type="button" class="seat seat-empty ${canSit ? 'can-sit' : ''}" data-sit="${sl.seat}" style="left:${sl.x}%;top:${sl.y}%" aria-label="${sl.seat + 1}번 빈자리"><i class="se-plus">+</i><b>${canSit ? '앉기' : '빈자리'}</b><small>${sl.seat + 1}번</small></button>`;
 }
 // 빈자리 누르기: 관전 중이면 그 자리에 앉고, 대기실에서는 자리를 옮긴다
 document.addEventListener('click', async (e) => {

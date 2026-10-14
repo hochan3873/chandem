@@ -145,3 +145,19 @@ test('정산: 정한 시간이 지나면 그 판 뒤 자동으로 끝나고, 손
   assert.deepEqual(st.value, { per: 1000, value: 1000, unit: '점' });
   room.clearAllTimers();
 });
+
+test('일반 게임: 칩을 다 잃고 리바인도 다 쓰면 관전석으로 옮겨 자리가 빈다 · 리바인할 수 있으면 자리를 지켜 준다', () => {
+  const { room, ps } = cash(3, { rebuyMax: 1 });
+  room.start(ps[0].id);
+  foldOut(room);
+  const B = ps[1];
+  B.stack = 0; B.rebuys = 0; // 리바인 1번 남음 → 자리 유지
+  room.startHand();
+  assert.equal(B.role, 'player');
+  foldOut(room);
+  B.stack = 0; B.rebuys = 1; // 다 씀 → 관전
+  room.startHand();
+  assert.equal(B.role, 'spectator');
+  assert.equal(B.seat, null);
+  room.clearAllTimers();
+});

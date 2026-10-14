@@ -1998,3 +1998,17 @@ form:not([data-mode="tournament"]) .tourney-only { display: none !important; }
 .manner-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: 100%; }
 .manner { border: 1px solid rgba(255, 220, 150, .3); background: rgba(255, 255, 255, .06); color: #ffe8a8; border-radius: 99px; padding: 5px 11px; font: 700 .76rem/1.2 var(--font); cursor: pointer; }
 .manner[disabled] { opacity: .45; }
+
+/* 빈자리: 늘 또렷하게 (+ 빈자리 · 번호) · 앉을 수 있으면 금색으로 반짝 */
+.seat.seat-empty { width: 60px !important; height: 60px !important; border: 2px dashed rgba(255, 230, 190, .6) !important; background: rgba(0, 0, 0, .45) !important; color: rgba(255, 236, 200, .85) !important; gap: 0; }
+.seat.seat-empty .se-plus { font-style: normal; font-size: 1.15rem; line-height: 1; font-weight: 900; }
+.seat.seat-empty b { font-size: .66rem; line-height: 1.1; }
+.seat.seat-empty small { font-size: .56rem; opacity: .8; }
+.seat.seat-empty.can-sit { border: 2px solid #ffd36b !important; background: radial-gradient(circle, rgba(120, 60, 0, .75), rgba(40, 16, 0, .85)) !important; color: #ffe08a !important; }
+.seat.seat-empty.can-sit b { font-size: .8rem; }
+.join-map { margin-top: 4px; }
+.join-map .sm-seat.open span { background: rgba(60, 30, 0, .7); border-style: solid; font-size: 1.2rem; }
+.join-map .sm-seat.picked span { background: linear-gradient(180deg, #ffe08a, #d9a03a); color: #3a1500; border-color: #fff; box-shadow: 0 0 12px rgba(255, 211, 107, .8); }
+.join-map .sm-seat.picked small { color: #ffe08a; font-weight: 900; }
+.inst-find { text-align: left; font-size: .8rem; line-height: 1.5; padding: 10px; border-radius: 12px; background: rgba(255,255,255,.05); margin: 6px 0; }
+.inst-find ol { margin: 4px 0 0; padding-left: 18px; }

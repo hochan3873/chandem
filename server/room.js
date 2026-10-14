@@ -393,7 +393,7 @@ class Room {
   }
 
   /** 참가 요청. 반환: { player, pending } */
-  join({ name, password, spectator, avatar, photo, user }) {
+  join({ name, password, spectator, avatar, photo, user, seat }) {
     // 마스터(운영자)는 비밀번호·승인 없이 관전으로 들어올 수 있다 (관전만)
     const masterPeek = !!(user && user.isMaster && spectator) && (!!this.settings.password || !!this.settings.approval);
     if (this.settings.password && password !== this.settings.password && !masterPeek) {
@@ -410,6 +410,7 @@ class Room {
     if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; if (user.isMaster) p.isMaster = true; }
     if (masterPeek) p.masterPeek = true;
     p.wantSpectator = !!spectator;
+    if (seat !== undefined && seat !== null && seat !== '') p.wantSeat = Number(seat); // 초대 링크에서 고른 빈자리
     // 토너먼트가 진행 중이면 관전으로만 (늦은 참가 시간 안이면 앉을 수 있음)
     if (this.phase === 'playing' && this.isTournament && !this.reentryOpen()) p.wantSpectator = true;
     // '참가 승인' 방 설정이 켜져 있을 때만 방장이 받아 준다 (게임 중이면 이번 판은 관전, 다음 판부터 참여)
@@ -425,8 +426,8 @@ class Room {
   admit(p) {
     this.players.push(p);
     const want = !p.wantSpectator;
-    if (want) this.takeSeat(p);
-    delete p.wantSpectator;
+    if (want) this.takeSeat(p, p.wantSeat);
+    delete p.wantSpectator; delete p.wantSeat;
     if (want && p.role !== 'player' && this.reentryOpen() && this.mtt && this.mtt.groupOf(this)) {
       const t = this.mtt.placeLate(this, p);
       if (t) { this.pushFeed(`${p.name}님 늦은 참가 → 테이블 ${t.tourney.tableNo}`); this.touch(); return; }
@@ -722,6 +723,15 @@ class Room {
         p.totalBuyIn += p.pendingRebuy;
         this.pushFeed(`${p.name}님 리바인 적용: +${p.pendingRebuy.toLocaleString()}`);
         p.pendingRebuy = 0;
+      }
+    }
+    // 일반 게임: 칩을 다 잃었는데 더 리바인할 수 없으면(횟수를 다 썼거나 리바인이 꺼짐) 관전석으로 → 자리가 빈다
+    if (!this.isTournament && this.settings.game !== 'omok') {
+      for (const p of this.seated) {
+        if (p.isBot || p.stack > 0 || p.pendingRebuy > 0) continue;
+        if (this.canRebuy(p)) continue; // 리바인할 수 있으면 자리를 지켜 준다 (리바인 버튼)
+        p.role = 'spectator'; p.seat = null; p.ready = false; p.sittingOut = false;
+        this.pushFeed(`${p.name}님 칩을 다 잃어 관전으로 옮겼어요${this.settings.rebuyEnabled ? ` (리바인 ${this.settings.rebuyMax}번 다 씀)` : ''}`);
       }
     }
     for (const p of this.seated) {
