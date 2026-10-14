@@ -37,7 +37,7 @@ test('티어 점수: 신중한(TAG) 선수 > 콜만 하는 선수 · 스타일 �
   console.log('  점수 TAG', tag, '· 콜만', st, '· 매번 레이즈', man);
   console.log('  ', ev.tag1.tier && ev.tag1.tier.name, ev.tag1.style, JSON.stringify(ev.tag1.parts), '|', ev.st1.tier && ev.st1.tier.name, ev.st1.style, JSON.stringify(ev.st1.parts), '|', ev.man1.tier && ev.man1.tier.name, ev.man1.style);
   assert.ok(tag > st, 'TAG 가 콜만 하는 선수보다 높아야');
-  assert.equal(ev.st1.style, '콜링 스테이션');
+  assert.equal(ev.st1.style, '따라가기형');
   assert.ok(ev.tag1.stats.vpip < ev.st1.stats.vpip);
 });
 

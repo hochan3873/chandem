@@ -217,24 +217,24 @@ function evaluate(st) {
   let style = null;
   if (n >= 50) {
     const aggressive = pfr / Math.max(vpip, 1) >= 0.7 && (af >= 2 || afq >= 42);
-    if (vpip >= 40 && pfr >= 30 && af > 4) style = '매니악';
-    else if (vpip >= 30 && pfr / vpip < 0.45 && af < 1.5) style = '콜링 스테이션';
-    else if (vpip > 26 && aggressive) style = 'LAG (느슨·공격)';
-    else if (vpip > 26) style = '느슨·소극';
-    else if (vpip < 13 && aggressive) style = '닛 (아주 타이트)';
-    else if (vpip < 17 && !aggressive) style = '바위 (타이트·소극)';
-    else if (aggressive) style = 'TAG (타이트·공격)';
+    if (vpip >= 40 && pfr >= 30 && af > 4) style = '폭주형';
+    else if (vpip >= 30 && pfr / vpip < 0.45 && af < 1.5) style = '따라가기형';
+    else if (vpip > 26 && aggressive) style = '과감한 공격형';
+    else if (vpip > 26) style = '느긋한 참여형';
+    else if (vpip < 13 && aggressive) style = '철벽형';
+    else if (vpip < 17 && !aggressive) style = '바위형';
+    else if (aggressive) style = '신중한 공격형';
     else style = '소극형';
   }
   const tips = [];
   if (n >= 30) {
-    if (limpPct > 0.15) tips.push('림프(콜로만 들어가기)가 많아요 · 들어갈 땐 레이즈로');
+    if (limpPct > 0.15) tips.push('콜로만 들어가는 판이 많아요 · 들어갈 땐 레이즈로');
     if (vpip > 35) tips.push('너무 많은 패로 들어가요 · 자리별 시작 패를 좁혀 보세요');
-    if (vpip < 14) tips.push('너무 타이트해요 · 버튼·컷오프에선 더 넓게');
+    if (vpip < 14) tips.push('너무 조심스러워요 · 딜러 자리와 그 오른쪽 자리에선 더 넓게');
     if (af < 1.3 && st.aggB + st.aggC > 20) tips.push('플랍 이후 콜만 해요 · 좋은 패는 베팅으로');
-    if (wtsd > 34 && wsd < 46) tips.push('쇼다운까지 너무 자주 따라가요 (히어로 콜 주의)');
+    if (wtsd > 34 && wsd < 46) tips.push('끝까지 너무 자주 따라가요 (무리한 콜 주의)');
     if (st.decW > 0 && st.decOkW / st.decW < 0.55) tips.push('큰 베팅 앞에서 팟 오즈와 다르게 결정했어요');
-    if (tilt > 0.3) tips.push('큰 판을 진 뒤 흔들려요 (틸트 주의)');
+    if (tilt > 0.3) tips.push('큰 판을 진 뒤 흔들려요 (마음 다잡기)');
   }
   return {
     score, tier, placement: n < PLACEMENT ? PLACEMENT - n : 0, style, tips,

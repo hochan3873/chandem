@@ -583,17 +583,17 @@ function openAnalysis(me) {
   openModal('내 실력 분석', `<div class="ana">
     <div class="ana-head">${tierBadge(me.tier)}<b>${me.score}점</b>${me.style ? `<span class="ana-style">${esc(me.style)}</span>` : ''}</div>
     <p class="muted small">연습 테이블에서 친 판으로 계산해요. ${me.placement ? `<b>${me.placement}판</b> 더 치면 티어가 정해져요.` : ''} 판이 적을 땐 점수를 중간으로 당겨서 운이 덜 섞이게 해요.</p>
-    ${bar('P', '시작 패 고르기', p.P || 0, '자리에 맞는 패로만 들어갔나 · 림프(콜로만 참여) 적게')}
+    ${bar('P', '시작 패 고르기', p.P || 0, '자리에 맞는 패로만 들어갔나 · 콜로만 들어가는 판은 적게')}
     ${bar('D', '큰 결정', p.D || 0, '리버·올인 앞에서 팟 오즈대로 콜/폴드 했나')}
-    ${bar('A', '공격성', p.A || 0, '좋은 패는 베팅·레이즈로 (AF 2~3.5)')}
-    ${bar('S', '쇼다운', p.S || 0, '끝까지 갈 때 이기는가 (WTSD·W$SD)')}
+    ${bar('A', '공격성', p.A || 0, '좋은 패는 콜보다 베팅·레이즈로')}
+    ${bar('S', '끝까지 승부', p.S || 0, '끝까지 갈 때 이기는가 · 너무 자주 따라가지 않나')}
     ${bar('R', '결과', p.R || 0, '판당 손익 (운을 고려해 천천히 반영)')}
     <div class="stat-grid pc-grid">
       <span>판 수</span><b>${fmt(s.hands || 0)}</b><span>승률</span><b>${s.winRate || 0}%</b>
-      <span>VPIP</span><b>${s.vpip || 0}%</b><span>PFR</span><b>${s.pfr || 0}%</b>
-      <span>AF</span><b>${s.af || 0}</b><span>WTSD / W$SD</span><b>${s.wtsd || 0}% / ${s.wsd || 0}%</b>
-      <span>100판당</span><b class="${s.bb100 > 0 ? 'plus' : s.bb100 < 0 ? 'minus' : ''}">${s.bb100 > 0 ? '+' : ''}${s.bb100 || 0} BB</b><span>큰 결정 정확도</span><b>${s.decRate == null ? '-' : s.decRate + '%'}</b>
-      <span>틸트 지수</span><b>${s.tilt || 0}</b><span>최고 족보</span><b>${s.best ? esc(s.best) : '-'}</b>
+      <span>판 참여율</span><b>${s.vpip || 0}%</b><span>먼저 레이즈한 비율</span><b>${s.pfr || 0}%</b>
+      <span>공격 비율 (베팅÷콜)</span><b>${s.af || 0}</b><span>끝까지 간 비율 / 거기서 이김</span><b>${s.wtsd || 0}% / ${s.wsd || 0}%</b>
+      <span>100판당 손익</span><b class="${s.bb100 > 0 ? 'plus' : s.bb100 < 0 ? 'minus' : ''}">빅블라인드 ${s.bb100 > 0 ? '+' : ''}${s.bb100 || 0}개</b><span>큰 결정 정확도</span><b>${s.decRate == null ? '-' : s.decRate + '%'}</b>
+      <span>흔들림 지수</span><b>${s.tilt || 0}</b><span>최고 족보</span><b>${s.best ? esc(s.best) : '-'}</b>
     </div>
     ${(me.tips || []).length ? `<h3 class="sub-title">이렇게 해 보세요</h3><ul class="ana-tips">${me.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
     <p class="muted tiny">티어: 브론즈 → 실버 → 골드 → 플래티넘 → 다이아(150판↑) → 마스터(400판↑) → 그랜드마스터(800판↑)</p>
@@ -1241,7 +1241,7 @@ function roomStatsHTML(p, st) {
   const net = p.buyIn ? p.stack - p.buyIn : null;
   const holdem = gameOf(st) === 'holdem';
   const rows = [['참여한 판', fmt(rs.hands)], ['이긴 판', `${fmt(rs.won)}${rs.hands ? ` <small class="muted">(${Math.round((rs.won / rs.hands) * 100)}%)</small>` : ''}`]];
-  if (holdem) rows.push(['VPIP', rs.hands ? Math.round((rs.vpip / rs.hands) * 100) + '%' : '-']);
+  if (holdem) rows.push(['참여율', rs.hands ? Math.round((rs.vpip / rs.hands) * 100) + '%' : '-']);
   rows.push(['바이인', p.buyIn ? fmt(p.buyIn) : '-'], ['손익', net === null ? '-' : `<span class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${signed(net)}</span>`]);
   if (holdem) rows.push(['보여 준 최고 족보', rs.best ? esc(rs.best) : '-']);
   return `<div class="pc-room"><div class="pc-room-h">이번 방 기록 <small class="muted">· 모두 볼 수 있어요</small></div><div class="stat-grid pc-grid">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div></div>`;
@@ -3514,10 +3514,10 @@ async function openHistory(tab = S.histTab || 'hands') {
         <details><summary>진행 보기</summary><ol>${(x.lines || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ol></details></div>`).join('') : '<p class="muted">아직 끝난 판이 없어요</p>';
     } else if (tab === 'ledger') {
       const L = ((r && r.ledger) || []).slice().sort((a, b) => (b.stack - b.buyIn) - (a.stack - a.buyIn));
-      body = L.length ? `<table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>지금 칩</th><th>손익</th><th>판(VPIP)</th></tr></thead><tbody>${L.map((p) => {
+      body = L.length ? `<table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>지금 칩</th><th>손익</th><th>판(참여율)</th></tr></thead><tbody>${L.map((p) => {
         const net = p.buyIn ? p.stack - p.buyIn : 0;
         return `<tr><td>${esc(p.name)}${p.isBot ? ' <small class="muted">상주</small>' : ''}${p.leaving ? ' <small class="muted">나감</small>' : ''}${p.rebuys ? ` <small class="muted">리바인 ${p.rebuys}</small>` : ''}</td><td>${fmt(p.buyIn)}</td><td>${fmt(p.stack)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${p.buyIn ? signed(net) : '-'}</td><td>${p.rs ? `${p.rs.hands}${p.rs.hands ? ` (${Math.round((p.rs.vpip / p.rs.hands) * 100)}%)` : ''}` : '0'}</td></tr>`;
-      }).join('')}</tbody></table><p class="muted tiny">VPIP: 프리플랍에 스스로 칩을 넣은(콜·레이즈) 판의 비율</p>` : '<p class="muted">아직 기록이 없어요</p>';
+      }).join('')}</tbody></table><p class="muted tiny">참여율: 카드를 받고 스스로 칩을 넣은(콜·레이즈) 판의 비율</p>` : '<p class="muted">아직 기록이 없어요</p>';
     } else {
       const feed = (S.state.feed || []).slice().reverse();
       body = `<ol class="log">${feed.map((e) => `<li class="log-${e.type}">${e.hand ? `<span class="muted tiny">#${e.hand}</span> ` : ''}${esc(e.text)}</li>`).join('') || '<li class="muted">아직 기록이 없어요</li>'}</ol>`;
