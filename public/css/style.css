@@ -1548,3 +1548,8 @@ body.in-room[data-theme="holdem"] .bet { font-size: .76rem; }
 .hub2 .quick-item small { font-size: .7rem; }
 body.in-room[data-theme="holdem"] .seat-av .rk-badge { font-size: .62rem; padding: 1px 4px; }
 body.in-room[data-theme="holdem"] .bet small { font-size: .66rem; }
+
+/* 폰 '다크 모드 강제'가 화면을 뒤집지 않게: 이 사이트는 원래 어두운 화면이라고 알린다 */
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark only; }
+}
