@@ -372,7 +372,46 @@ async function installApp() {
     </ol>
     <p class="muted small">이미 설치했다면 바탕화면의 찬이의 게임월드 아이콘으로 열어 주세요.</p>${ICON_NOTE}`);
 }
-document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); });
+document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); });
+
+// 앱 설치 고르기: 찬이의 게임월드 / 찬덤 홀덤 (게임월드 앱 안에서도 홀덤 앱을 깔 수 있게)
+function installPick() {
+  document.querySelectorAll('.share-pick').forEach((m) => m.remove());
+  const box = document.createElement('div');
+  box.className = 'share-pick';
+  const gwDone = isStandalone() && !HOLDEM_APP;
+  box.innerHTML = `<div class="sp-card"><h3>앱 설치</h3>
+    <button class="sp-opt sp-app" data-ap="holdem"><img src="/img/holdem-icon-192.png" alt="" draggable="false"><span><b>찬덤 홀덤</b><small>홀덤만 바로 여는 앱 · 토너먼트</small></span></button>
+    <button class="sp-opt sp-app" data-ap="gw" ${gwDone ? 'disabled' : ''}><img src="/img/gw2-icon-192.png" alt="" draggable="false"><span><b>찬이의 게임월드</b><small>${gwDone ? '이미 설치됨' : '랑방 대전 · 홀덤 · 섯다 · 오목 모음'}</small></span></button>
+    <button class="sp-x" data-ap="x">닫기</button></div>`;
+  box.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-ap]');
+    if (ev.target === box || (b && b.dataset.ap === 'x')) { box.remove(); return; }
+    if (!b || b.disabled) return;
+    box.remove();
+    if (b.dataset.ap === 'gw') installApp(); else installHoldemApp();
+  });
+  document.body.appendChild(box);
+}
+// 홀덤 앱은 /holdem 주소에서 설치된다 (그 페이지가 홀덤 앱 정보를 갖고 있음)
+function installHoldemApp() {
+  const url = `${location.origin}/holdem?install=1`;
+  if (HOLDEM_APP && !isStandalone()) { installApp(); return; }
+  if (IS_KAKAO) { location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`; return; }
+  if (!isStandalone() && !IN_APP) { location.href = url; return; }
+  if (IS_IOS) {
+    // 아이폰 앱(홈 화면)에서는 사파리를 바로 못 열어서 링크 복사 + 안내
+    openModal('찬덤 홀덤 앱 설치', `<p>아이폰은 <b>사파리</b>에서 설치해요.</p>
+      <ol class="small"><li>아래 버튼으로 링크를 복사해요</li><li>사파리를 열고 주소창에 붙여 넣어요</li><li>아래 공유 버튼 → <b>홈 화면에 추가</b></li></ol>
+      <button class="btn btn-gold btn-lg" id="copy-holdem">링크 복사</button>`, (body) => {
+      body.querySelector('#copy-holdem').onclick = async () => { try { await navigator.clipboard.writeText(url); toast('복사했어요. 사파리에 붙여 넣어 주세요', 'ok'); } catch { prompt('이 주소를 사파리에서 열어 주세요', url); } };
+    });
+    return;
+  }
+  // 안드로이드 설치 앱 안: 쓰던 브라우저(삼성 인터넷/크롬)로 바깥에서 열기 → 거기서 설치 막대
+  const pkg = /SamsungBrowser/i.test(UA) ? 'com.sec.android.app.sbrowser' : 'com.android.chrome';
+  location.href = `intent://${location.host}/holdem?install=1#Intent;scheme=https;package=${pkg};S.browser_fallback_url=${encodeURIComponent(url)};end`;
+}
 
 // ── 모달 ─────────────────────────────────────────────
 let modalOnClose = null; // 이 모달이 닫힐 때 한 번 (다른 모달로 바뀌면 부르지 않음)
@@ -743,7 +782,7 @@ async function boot() {
   const code = routeCode();
   // 게임 바로가기 링크(/holdem 등): 그 게임 화면으로 바로
   const gLink = /^\/(holdem|seotda|omok)\/?$/.exec(location.pathname);
-  if (!code && gLink) { enterGame(gLink[1]); if (HOLDEM_APP) nav('/holdem'); return; }
+  if (!code && gLink) { if (/[?&]install=1\b/.test(location.search)) S.wantInstall = true; enterGame(gLink[1]); if (HOLDEM_APP) nav('/holdem'); return; }
   // 관전 링크(/r/코드?watch=1): 들어올 때 '관전만 할래요'를 미리 체크
   if (code && /[?&]watch=1/.test(location.search)) S.wantSpectate = true;
   if (!code) { S.view = 'home'; render(); return; }
@@ -1028,6 +1067,7 @@ function syncInstallBar() {
     bar.innerHTML = `<img src="/img/holdem-icon-192.png" alt="" width="40" height="40"><span><b>찬덤 홀덤 앱 설치</b><small>${IS_IOS ? '사파리 공유 → 홈 화면에 추가' : '홈 화면에서 전체 화면으로 바로'}</small></span><button class="btn btn-gold btn-sm" type="button">설치</button>`;
     bar.querySelector('button').onclick = installApp;
     document.body.appendChild(bar);
+    if (/[?&]install=1\b/.test(location.search) || S.wantInstall) { S.wantInstall = true; bar.classList.add('install-bar-hl'); }
   }
   document.body.classList.add('has-install-bar');
 }
@@ -1438,7 +1478,7 @@ function renderHome() {
   const last = LS.get('chandem:name', '');
   $app.innerHTML = `
   <main class="home hub2">
-    <div class="top-bar hub-top">${hubAcctHTML()}<span class="top-btns">${isStandalone() ? '' : '<button class="hub-pill-btn tap install-btn" id="install-btn" aria-label="앱 설치">앱 설치</button>'}<button class="hub-ico tap" id="share-top" aria-label="공유하기">${P.hubIcon('link')}</button>${P.topIconsHTML()}</span></div>
+    <div class="top-bar hub-top">${hubAcctHTML()}<span class="top-btns"><button class="hub-pill-btn tap install-btn" id="install-pick" aria-label="앱 설치">앱 설치</button><button class="hub-ico tap" id="share-top" aria-label="공유하기">${P.hubIcon('link')}</button>${P.topIconsHTML()}</span></div>
     <header class="hub-hero">
       <img class="hub-logo" src="/img/hub/logo_world.webp" width="1100" height="594" alt="찬이의 게임월드 CHAN'S GAME WORLD" onerror="this.hidden=true;this.nextElementSibling.hidden=false">
       <div class="hub-logo-text" hidden><span class="logo-pop hub-logo-ko" data-text="찬이의 게임월드">찬이의 게임월드</span><span class="hub-logo-en">CHAN'S GAME WORLD</span></div>
