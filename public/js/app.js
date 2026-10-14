@@ -1516,7 +1516,8 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <label class="seg-opt"><input type="radio" name="mode" value="tournament" ${s.mode === 'tournament' ? 'checked' : ''}><span>토너먼트<small>블라인드 상승·탈락</small></span></label>
     </div>
     <label class="field"><span>토너먼트 블라인드 오르는 간격</span>
-      <select class="input" name="levelMinutes">${[3, 5, 7, 10, 15].map((m) => `<option value="${m}" ${Number(s.levelMinutes || 5) === m ? 'selected' : ''}>${m}분마다</option>`).join('')}</select></label>
+      <select class="input" name="levelMinutes">${[3, 5, 7, 10, 15, 20].map((m) => `<option value="${m}" ${Number(s.levelMinutes || 7) === m ? 'selected' : ''}>${m}분마다</option>`).join('')}</select></label>
+    <p class="tourney-est" data-tourney-est></p>
     <label class="field"><span>리바이 · 늦은 참가</span>
       <select class="input" name="reentryLevels">${[[0, '없음 (처음 앉은 사람만)'], [2, '레벨 2까지'], [3, '레벨 3까지'], [4, '레벨 4까지'], [6, '레벨 6까지']].map(([v, t]) => `<option value="${v}" ${Number(s.reentryLevels || 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <label class="field"><span>블라인드 표 직접 정하기 <small class="muted">(비우면 자동)</small></span>
@@ -1553,8 +1554,42 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
   </fieldset>`;
 }
 
+// 토너먼트 예상 시간: 서버와 같은 블라인드 표로 '칩 합계 ÷ 25 ≥ BB'가 되는 레벨까지 (사람끼리 한 판 ≈ 1분)
+const LEVEL_MULT = [1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400];
+const stepOf = (v) => (v < 20 ? 1 : v < 100 ? 5 : v < 1000 ? 25 : v < 10000 ? 100 : 1000);
+function blindLadder(sb, bb, custom) {
+  const c = String(custom || '').split(/[,\n;]+/).map((t) => t.trim().split(/[\/\s]+/).map(Number)).filter((x) => x[0] > 0 && x[1] > 0);
+  if (c.length) return c.map(([s, b]) => ({ sb: s, bb: b }));
+  const out = [];
+  for (const m of LEVEL_MULT) {
+    const prev = out[out.length - 1];
+    let s = m === 1 ? sb : Math.max(1, Math.round((sb * m) / stepOf(sb * m)) * stepOf(sb * m));
+    if (prev && s <= prev.sb) s = prev.sb + stepOf(prev.sb);
+    let b = m === 1 ? bb : Math.round(s * (bb / sb));
+    if (prev && b <= prev.bb) b = prev.bb + stepOf(prev.bb);
+    out.push({ sb: s, bb: b });
+  }
+  return out;
+}
+function bindTourneyEst(form) {
+  const el = form.querySelector('[data-tourney-est]');
+  if (!el) return;
+  const upd = () => {
+    const fd = new FormData(form);
+    const start = Number(fd.get('startChips')) || 1000; const sb = Number(fd.get('sb')) || 10; const bb = Number(fd.get('bb')) || 20;
+    const mins = Number(fd.get('levelMinutes')) || 7;
+    const L = blindLadder(sb, bb, fd.get('blindLevels'));
+    const est = (n) => { const tot = n * start; let i = L.findIndex((x) => x.bb >= tot / 25); if (i < 0) i = L.length - 1; return (i + 1) * mins; };
+    const fmtM = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}` : `${m}분`);
+    el.innerHTML = `예상 시간 · 4명 <b>${fmtM(est(4))}</b> · 6명 <b>${fmtM(est(6))}</b> · 9명 <b>${fmtM(est(9))}</b><br><span class="muted">시작 칩 ${fmt(start)} = ${Math.round(start / bb)}BB · 블라인드 ${L.slice(0, 6).map((x) => `${fmt(x.sb)}/${fmt(x.bb)}`).join(' → ')} …</span>`;
+  };
+  form.addEventListener('input', upd); form.addEventListener('change', upd);
+  upd();
+}
+
 // 게임 고르기에 따라 설정 칸 보이기/숨기기
 function bindGamePick(form, name = 'game') {
+  bindTourneyEst(form);
   const notes = { holdem: '노리밋 텍사스 홀덤. 개인 카드 2장 + 바닥 5장.', seotda: '화투 두 장 섯다. 판돈(빅 블라인드 금액)을 걸고 한 바퀴 베팅해요.', omok: '두 사람이 오목을 둬요. 나머지는 관전해요. 흑은 삼삼 금지.' };
   const upd = () => {
     const g = (form.querySelector(`input[name=${name}]:checked`) || {}).value || 'holdem';
@@ -1583,7 +1618,7 @@ function readSettings(form) {
     minPlayers: num('minPlayers'), maxPlayers: num('maxPlayers'),
     rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyMax: num('rebuyMax'),
     password: String(fd.get('password') || ''), approval: fd.get('approval') === 'on',
-    mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 5,
+    mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 7,
     ante: fd.get('ante') === 'on' ? 'bb' : 'none', timeBank: fd.get('timeBank') === null ? 30 : num('timeBank'),
     reentryLevels: num('reentryLevels') || 0, blindLevels: String(fd.get('blindLevels') || '').trim(),
     ...(fd.get('game') ? { game: fd.get('game') } : {}),

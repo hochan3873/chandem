@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS = {
   game: 'holdem',        // holdem | seotda | omok
   aiLevel: 'normal',     // 오목 AI: easy | normal | hard
   mode: 'cash',          // cash | tournament
-  levelMinutes: 5,       // 토너먼트 블라인드가 오르는 간격(분)
+  levelMinutes: 7,       // 토너먼트 블라인드가 오르는 간격(분) — 6명 기준 약 1시간 10분
   blindLevels: [],       // 토너먼트 블라인드 표 직접 지정 [[sb, bb], ...] (비우면 자동)
   ante: 'none',          // none | bb (BB 앤티: 빅 블라인드 자리가 BB만큼 앤티)
   timeBank: 30,          // 1인 타임뱅크(초): 턴 시간이 끝나면 자동으로 이어서 씀 (0 = 없음)
@@ -65,7 +65,7 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.approval = src.approval === undefined ? base.approval : !!src.approval;
   s.game = ['holdem', 'seotda', 'omok'].includes(src.game) ? src.game : (base.game || 'holdem');
   s.mode = src.mode === undefined ? (base.mode || 'cash') : src.mode === 'tournament' ? 'tournament' : 'cash';
-  s.levelMinutes = Math.min(60, Math.max(1, int(src.levelMinutes, base.levelMinutes || 5)));
+  s.levelMinutes = Math.min(60, Math.max(1, int(src.levelMinutes, base.levelMinutes || 7)));
   s.blindLevels = src.blindLevels === undefined ? (base.blindLevels || []) : parseBlindLevels(src.blindLevels);
   if (s.blindLevels.length) {
     [s.sb, s.bb] = s.blindLevels[0];
