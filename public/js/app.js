@@ -3962,7 +3962,11 @@ function bigHand(tier, p, custom = null) {
   fxLayer().appendChild(el);
   sound.play('boom');
   if (!custom) setTimeout(() => sound.play('v_h' + tier, 1.3), 380);
-  setTimeout(() => { coinRain(tier >= 8 ? 90 : tier >= 5 ? 50 : 26); quake(); }, 450);
+  // 터지는 순간: 충격파 고리 3겹 + 카드 무늬·불꽃이 사방으로
+  const c = { x: innerWidth / 2, y: innerHeight * 0.45 };
+  setTimeout(() => { shockwave(c, tier); sparkBurst(c, tier >= 7 ? 90 : tier >= 5 ? 60 : 40, tier); }, 280);
+  if (tier >= 5) setTimeout(() => sparkBurst(c, 40, tier), 900);
+  setTimeout(() => { moneyRain(tier >= 8 ? 110 : tier >= 5 ? 70 : 40); quake(); }, 450);
   if (tier >= 7) setTimeout(() => { quake(); sound.play('boom'); }, 1300);
   if (sound.isUnlocked()) gws.vibrate(tier >= 7 ? [80, 40, 200, 60, 300] : [60, 40, 200]);
   setTimeout(() => el.classList.add('out'), ms - 500);
@@ -4045,6 +4049,60 @@ function coinFountain(n = 50) {
   }
 }
 // (예전) 화면 위에서 금화·칩이 쏟아진다
+// 충격파: 화면 가운데서 금빛 고리가 퍼진다
+function shockwave(c, tier = 5) {
+  if (gws.reduceMotion()) return;
+  for (let i = 0; i < 3; i++) {
+    const r = document.createElement('div');
+    r.className = 'fx-wave' + (tier >= 7 ? ' max' : '');
+    r.style.left = c.x + 'px'; r.style.top = c.y + 'px';
+    fxLayer().appendChild(r);
+    r.animate([{ transform: 'translate(-50%,-50%) scale(.1)', opacity: 1 }, { transform: 'translate(-50%,-50%) scale(1)', opacity: 0 }], { duration: 900, delay: i * 160, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'both' }).onfinish = () => r.remove();
+  }
+}
+// 불꽃 폭발: ♠♥♦♣ · 별 · 반짝이가 사방으로 날아가며 떨어진다
+function sparkBurst(c, n = 50, tier = 5) {
+  if (gws.reduceMotion()) return;
+  const sym = ['♠', '♥', '♦', '♣', '★', '✦', '💰', '✨'];
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    const s = sym[Math.floor(Math.random() * sym.length)];
+    el.className = 'fx-spark ' + (s === '♥' || s === '♦' ? 'red' : s === '♠' || s === '♣' ? 'blk' : 'gold');
+    el.textContent = s;
+    el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
+    el.style.fontSize = (14 + Math.random() * (tier >= 7 ? 26 : 18)) + 'px';
+    fxLayer().appendChild(el);
+    const a = Math.random() * Math.PI * 2; const d = 120 + Math.random() * Math.min(innerWidth, innerHeight) * 0.55;
+    const dx = Math.cos(a) * d; const dy = Math.sin(a) * d;
+    el.animate([
+      { transform: 'translate(-50%,-50%) scale(.2) rotate(0deg)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1.1) rotate(${(Math.random() - 0.5) * 540}deg)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(calc(-50% + ${dx * 1.1}px), calc(-50% + ${dy + 160}px)) scale(.8) rotate(${(Math.random() - 0.5) * 720}deg)`, opacity: 0 },
+    ], { duration: 1300 + Math.random() * 700, delay: Math.random() * 120, easing: 'cubic-bezier(.15,.75,.35,1)', fill: 'both' }).onfinish = () => el.remove();
+  }
+}
+// 돈 비: 지폐·금화·칩이 하늘에서 팔랑팔랑 떨어진다 (지폐는 좌우로 흔들리며)
+function moneyRain(n = 50) {
+  if (gws.reduceMotion()) return;
+  const W = innerWidth; const H = innerHeight;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    const r = Math.random();
+    const bill = r < 0.5;
+    el.className = bill ? 'fx-bill' : r < 0.8 ? 'fx-coin' : 'fx-chip fx-chip-lg';
+    el.style.left = Math.random() * W + 'px';
+    el.style.top = '-40px';
+    fxLayer().appendChild(el);
+    const T = 2200 + Math.random() * 1600; const sway = 40 + Math.random() * 60;
+    const frames = [];
+    for (let k = 0; k <= 8; k++) {
+      const t = k / 8;
+      const x = Math.sin(t * Math.PI * (bill ? 3 : 1.5) + i) * (bill ? sway : sway / 3);
+      frames.push({ transform: `translate(${x}px, ${t * (H + 80)}px) rotate(${bill ? Math.sin(t * 9 + i) * 35 : t * 720}deg) rotateY(${bill ? t * 540 : 0}deg)`, opacity: t > 0.9 ? 0 : 1 });
+    }
+    el.animate(frames, { duration: T, delay: Math.random() * 1200, easing: 'linear', fill: 'both' }).onfinish = () => el.remove();
+  }
+}
 function coinRain(n = 46) {
   const W = window.innerWidth; const H = window.innerHeight;
   for (let i = 0; i < n; i++) {
@@ -4089,6 +4147,7 @@ function celebrate(st) {
   countUp(el.querySelector('.fx-amt'), gain);
   if (iWon) {
     coinFountain(huge ? 80 : 50);
+    setTimeout(() => moneyRain(huge ? 70 : 36), 700);
     const flash = document.createElement('div');
     flash.className = 'fx-flash';
     fxLayer().appendChild(flash);
@@ -4208,4 +4267,4 @@ P.init({
 boot();
 
 // 디버그/검증용 (자동 테스트에서 상태 확인)
-window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, handTag, goHome } };
+window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, handTag, goHome, moneyRain, coinFountain, sparkBurst } };

@@ -215,8 +215,9 @@ function clack(at = 0, g = 1) {
 const SYNTH = {
   // 카드 한 장이 펠트 위로 '착' 미끄러지는 소리
   deal: () => {
-    noise(0.07, { freq: 2800 + Math.random() * 900, q: 0.8, gain: 0.55, attack: 0.006 });
-    setTimeout(() => noise(0.05, { freq: 1300, q: 1.2, gain: 0.32 }), 45);
+    noise(0.07, { freq: 2600 + Math.random() * 700, q: 0.7, gain: 0.7, attack: 0.004 });
+    drop(1800, 900, 0.035, 0.22, 0, 'triangle');
+    setTimeout(() => noise(0.05, { freq: 1400, q: 1.1, gain: 0.45 }), 40);
   },
   // 바닥 카드 뒤집기 (플랍·턴·리버): '착 착 착'
   flip: () => { for (let i = 0; i < 3; i++) setTimeout(() => { noise(0.06, { freq: 3000 + Math.random() * 900, q: 0.9, gain: 0.5, attack: 0.004 }); drop(900, 500, 0.05, 0.18); }, i * 130); },
@@ -230,11 +231,15 @@ const SYNTH = {
   // 팟을 가져올 때: 칩 더미가 와르르 모이는 소리 (조용한 방에서도 남김)
   collect: () => { for (let i = 0; i < 14; i++) clack(i * 0.035 + Math.random() * 0.02, 0.55 + Math.random() * 0.4); noise(0.35, { freq: 2200, q: 0.6, gain: 0.12, attack: 0.05 }); },
   check: () => SYNTH.knock(),
-  // 폴드: 카드 두 장을 던지면 '툭, 툭' 하고 펠트에 떨어진다
+  // 폴드: 카드를 던지며 손바닥으로 판을 '툭, 툭' (폰 스피커에서도 또렷한 800~3000Hz 대역)
   fold: () => {
-    noise(0.09, { freq: 2400, q: 0.7, gain: 0.32, attack: 0.02 }); // 휙
-    setTimeout(() => { drop(520, 220, 0.07, 0.55); noise(0.05, { freq: 950, q: 1.3, gain: 0.55 }); }, 110); // 툭
-    setTimeout(() => { drop(470, 210, 0.06, 0.4); noise(0.04, { freq: 900, q: 1.3, gain: 0.4 }); }, 210); // 툭
+    noise(0.07, { freq: 3000, q: 0.8, gain: 0.3, attack: 0.015 }); // 휙
+    const tap = (at, g) => {
+      drop(1100, 480, 0.06, 0.55 * g, at);                        // 툭 (나무 울림)
+      drop(2200, 1300, 0.025, 0.25 * g, at, 'triangle');           // 탁 (손바닥 닿는 순간)
+      setTimeout(() => noise(0.04, { freq: 1600, q: 1.2, gain: 0.75 * g, attack: 0.001 }), at * 1000);
+    };
+    tap(0.09, 1); tap(0.21, 0.8);
   },
   // 홀덤 올인: 칩 더미를 앞으로 '스윽' 밀고 내려놓는 소리 (외침·요란함 없이)
   allinPush: () => {

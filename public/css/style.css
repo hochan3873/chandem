@@ -517,7 +517,7 @@ body.has-install-bar #app { padding-bottom: 80px; }
   .card-xs { --w: 32px; }
   .seat-cards { height: 45px; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+/* (예전) 폰의 '애니메이션 제거'가 게임 연출을 전부 꺼서 없앰 · 게임 안 '화면 흔들림 줄이기'(gw-reduce-motion)만 따른다 */
 
 /* ── 연출 ───────────────────────────────────────── */
 #fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 55; overflow: hidden; perspective: 800px; }
@@ -1758,7 +1758,7 @@ body[data-theme="holdem"] .game-home .gh-hero::after { content: ''; position: ab
 body[data-theme="holdem"] .game-home .gh-shade, body[data-theme="holdem"] .game-home .gh-title { z-index: 1; }
 @keyframes heroDrift { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.1) translate(-2%, 1%); } }
 @keyframes heroSparkle { from { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; } to { background-position: 0 -140px, 0 -170px, 0 -120px, 0 -200px, 0 -150px; } }
-@media (prefers-reduced-motion: reduce) { body[data-theme="holdem"] .game-home .gh-hero::before, body[data-theme="holdem"] .game-home .gh-hero::after { animation: none; } }
+.gw-reduce-motion body[data-theme="holdem"] .game-home .gh-hero::before, .gw-reduce-motion body[data-theme="holdem"] .game-home .gh-hero::after { animation: none; }
 /* 테이블 위에선 "손님" 딱지를 숨김 (등급 딱지만) */
 .seat-av .rk-guest { display: none; }
 
@@ -1979,3 +1979,13 @@ form:not([data-mode="tournament"]) .tourney-only { display: none !important; }
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 8px #ff4d4d; animation: sitPulse 1.4s ease-in-out infinite; }
 .hl-tsub { margin: -4px 0 8px; }
 .code-in { text-align: center; font: 900 1.6rem/1.2 var(--font) !important; letter-spacing: .25em; text-transform: uppercase; }
+
+/* 큰 족보 · 돈 연출 */
+.fx-wave { position: fixed; width: 120vmin; height: 120vmin; border-radius: 50%; border: 6px solid rgba(255, 225, 140, .9); box-shadow: 0 0 30px rgba(255, 200, 80, .8), inset 0 0 30px rgba(255, 200, 80, .6); pointer-events: none; z-index: 7; }
+.fx-wave.max { border-color: rgba(190, 150, 255, .95); box-shadow: 0 0 40px rgba(160, 110, 255, .9), inset 0 0 40px rgba(255, 120, 220, .6); }
+.fx-spark { position: fixed; pointer-events: none; z-index: 8; font-weight: 900; line-height: 1; text-shadow: 0 0 10px rgba(255, 220, 120, .9), 0 2px 4px rgba(0, 0, 0, .6); }
+.fx-spark.red { color: #ff4a5a; }
+.fx-spark.blk { color: #fff; text-shadow: 0 0 10px rgba(255, 255, 255, .9), 0 0 2px #000; }
+.fx-spark.gold { color: #ffd84a; }
+.fx-big-ko { animation: slamIn .55s cubic-bezier(.2, 1.6, .4, 1) both !important; }
+@keyframes slamIn { 0% { transform: scale(3); opacity: 0; filter: blur(6px); } 60% { transform: scale(.92); opacity: 1; filter: none; } 100% { transform: scale(1); } }
