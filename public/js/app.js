@@ -946,6 +946,7 @@ function renderHoldemLobby() {
     <div class="gh-hero hl-hero" style="background-image:url('/img/holdem/hero2.webp')"><div class="gh-shade"></div>
       <div class="gh-title"><h1 class="hl-logo"><img src="${GAME_LOGO.holdem}" alt="찬덤 홀덤" draggable="false"></h1><p>친구들이랑 링크 하나로 바로 한 판</p></div>
     </div>
+    <section class="panel hl-rank-top"><div class="sec-head"><h2 class="sec-title">${IC('trophy', 'ic-in')}티어 순위</h2><small class="muted">연습 테이블 실력 점수</small></div><div id="hl-rank-box" class="hl-rank-box"><p class="muted small">불러오는 중…</p></div><button type="button" class="btn btn-ghost btn-sm hl-rank-more" id="hl-rank-more">전체 순위 보기 ▾</button></section>
     <section class="panel hl-friends">
       <div class="hf-head"><b>${IC('friends', 'ic-in')}친구들과 치기</b><small>방을 만들고 카톡으로 링크만 보내면 끝 · 최대 10명 · 토너먼트 · 정산표까지</small></div>
       <div class="hf-btns">
@@ -967,11 +968,12 @@ function renderHoldemLobby() {
     <section class="panel"><div class="sec-head"><h2 class="sec-title">혼자 연습 테이블</h2><button class="btn btn-sm btn-gold" id="hl-quick">빠른 시작</button></div><p class="muted small hl-tsub">친구가 없을 땐 귀여운 상주 플레이어들과 · 내 칩으로</p><div class="hl-tables" id="hl-tables"><p class="muted small">불러오는 중…</p></div></section>
     <section class="panel hl-tip"><span class="tip-ico">${IC('bulb')}</span><div><b>오늘의 홀덤 팁</b><p>${esc(todayTip())}</p></div></section>
     <section class="panel"><div class="sec-head"><h2 class="sec-title">상주 플레이어</h2><small class="muted">연습 테이블에서 만나요</small></div>${residentsHTML()}</section>
-    <section class="panel"><div class="sec-head"><h2 class="sec-title">티어 순위</h2><small class="muted">연습 테이블 실력 점수</small></div><div id="hl-rank-box"><p class="muted small">불러오는 중…</p></div></section>
     <div class="hl-more"><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" id="go-practice">토너먼트 연습</button></div>
     <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
   </main>`;
   bindCommon();
+  const rkMore = $app.querySelector('#hl-rank-more'); // 맨 위 순위: 위 5명만 · 눌러서 펼치기
+  if (rkMore) rkMore.onclick = () => { const box = $app.querySelector('#hl-rank-box'); const open = box.classList.toggle('open'); rkMore.textContent = open ? '접기 ▴' : '전체 순위 보기 ▾'; };
   startRoomList('holdem');
   loadHoldemLobby();
   maybeInstallPrompt();
@@ -3406,7 +3408,9 @@ function renderTableInner(st, el) {
       const mine = result && result.hands && result.hands[p.id];
       const best = mine ? new Set(mine.best) : null;
       const hn = p.status === 'folded' || result ? '' : myHandName(p.cards, h);
-      cards = `<div class="seat-mycards ${p.status === 'folded' ? 'folded' : ''}">${p.cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${handNo}:me:${k}`), delay: k * 120, highlight: best && best.has(c) })).join('')}${hn ? `<span class="my-hand-lbl">${esc(hn)}</span>` : ''}</div>`;
+      const meS = S.state && S.state.me; const pubAll = result && meS && !meS.canShow && S.shownHand === handNo; const pubSet = new Set(result && meS ? meS.shownOne || [] : []); // 판이 끝난 뒤 내가 공개한 장
+      const nPub = pubAll ? p.cards.length : pubSet.size;
+      cards = `<div class="seat-mycards ${p.status === 'folded' ? 'folded' : ''} ${nPub ? 'has-pub' : ''}">${p.cards.map((c, k) => cardHTML(c, { size: 'lg', anim: markCard(`${handNo}:me:${k}`), delay: k * 120, highlight: best && best.has(c), cls: pubAll || pubSet.has(k) ? 'card-pub' : '' })).join('')}${nPub ? `<i class="pub-tag">${EYE_SVG}${nPub < p.cards.length ? '1장 ' : ''}공개됨</i>` : ''}${hn ? `<span class="my-hand-lbl">${esc(hn)}</span>` : ''}</div>`;
     } else if (p.cards && !isMe) {
       const reveal = result && result.hands && result.hands[p.id];
       const best = reveal ? new Set(reveal.best) : null;
@@ -3500,7 +3504,7 @@ function renderTableInner(st, el) {
   }
   el.innerHTML = `<div class="felt"><div class="felt-rail"></div>${center}${seatHTML}</div>`;
   requestAnimationFrame(() => clampSeats(el));
-  if (S.showFx && S.showFx.size) { const ids = [...S.showFx]; S.showFx.clear(); setTimeout(() => ids.forEach((id) => { seatBubble(id, '패 공개!'); sound.play('flip1'); }), 120); }
+  if (S.showFx && S.showFx.size) { const ids = [...S.showFx]; S.showFx.clear(); setTimeout(() => ids.forEach((id, i) => { seatBubble(id, '패 공개!'); sound.play('flip1'); const pl = st.players.find((x) => x.id === id); if (pl && pl.cards) setTimeout(() => showcaseCards(id, pl.cards.filter((c) => c !== '??'), `${pl.name}의 패`), i * 300); }), 120); }
   if (S.riverFx && S.riverFx.hand === handNo && !S.riverFx.done) { S.riverFx.done = true; setTimeout(riverGlint, S.riverFx.slow ? 1500 : 380); }
   requestAnimationFrame(() => unstackBets(el));
   RK.fitNames(el);
@@ -3666,7 +3670,7 @@ function renderActions(st) {
       : h && h.finished
       ? `${finishedExtrasHTML(st)}<div class="wait-line"><span data-next>다음 판을 준비하고 있어요</span></div>`
       : `<div class="wait-line">${st.room.waiting ? '참가자를 기다리는 중이에요' : '곧 카드를 나눠 드려요'}</div>`;
-    el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = async () => { const v = b.dataset.show; const r = await emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); if (r.ok === false) return; sound.play('flip1'); if (st.me) seatBubble(st.me.id, '패 공개!'); toast(v === 'both' ? '내 패 두 장을 모두에게 보여줬어요' : '고른 한 장을 모두에게 보여줬어요', 'ok'); S.shownHand = st.hand && st.hand.no; }; });
+    el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = async () => { const v = b.dataset.show; const r = await emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); if (r.ok === false) return; sound.play('flip1'); if (st.me) { seatBubble(st.me.id, '패 공개!'); const mp = st.players.find((x) => x.id === st.me.id); if (mp && mp.cards) showcaseCards(st.me.id, v === 'both' ? mp.cards.filter((c) => !(st.me.shownOne || []).includes(mp.cards.indexOf(c))) : [mp.cards[Number(v)]], '모두에게 공개!', true); } toast(v === 'both' ? '내 패 두 장을 모두에게 보여줬어요' : '고른 한 장을 모두에게 보여줬어요', 'ok'); S.shownHand = st.hand && st.hand.no; }; });
     const rb = el.querySelector('#rabbit-btn');
     if (rb) rb.onclick = () => { rb.disabled = true; emit('game:rabbit'); };
     el.querySelectorAll('[data-manner]').forEach((b) => { b.onclick = () => { b.disabled = true; emit('room:chat', { text: b.dataset.manner }); sound.play('tap'); }; });
@@ -3797,6 +3801,15 @@ function finishedExtrasHTML(st) {
 }
 
 // 홀덤 내 차례: 금액 고르기(칩 버튼·슬라이더)는 늘 펼쳐 두고, 큰 버튼 3개로 결정
+// 꾹 누르고 있으면 반복 (처음 0.35초 쉬고 → 점점 빨라짐) · 짧게 누르면 한 번
+function holdRepeat(btn, fn) {
+  let t = 0, n = 0;
+  const stop = () => { clearTimeout(t); t = 0; window.removeEventListener('pointerup', stop); window.removeEventListener('pointercancel', stop); };
+  const tick = () => { n++; if (fn() === false) return stop(); if (n % 3 === 1) sound.play('tap'); t = setTimeout(tick, Math.max(45, 160 - n * 12)); };
+  btn.addEventListener('pointerdown', (e) => { if (e.button) return; e.preventDefault(); stop(); n = 0; fn(); sound.play('tap'); t = setTimeout(tick, 350); window.addEventListener('pointerup', stop); window.addEventListener('pointercancel', stop); });
+  btn.addEventListener('click', (e) => { if (e.detail === 0) fn(); }); // 키보드(엔터·스페이스)
+  btn.addEventListener('contextmenu', (e) => e.preventDefault()); // 길게 누를 때 폰 메뉴 안 뜨게
+}
 function renderHoldemActions(el, st, la, o) {
   const h = st.hand;
   const { raiseMode, raiseWord, onlyAllIn, clamp, potAfterCall, awayNote } = o;
@@ -3832,7 +3845,11 @@ function renderHoldemActions(el, st, la, o) {
   upd();
   if (range) range.oninput = () => { S.raise.to = Number(range.value); S.raise.arm = false; upd(); };
   el.querySelectorAll('[data-size]').forEach((b) => { b.onclick = () => { S.raise.to = Number(b.dataset.size); S.raise.arm = false; if (range) range.value = S.raise.to; upd(); sound.play('chip'); }; });
-  el.querySelectorAll('[data-step]').forEach((b) => { b.onclick = () => { S.raise.to = clamp(S.raise.to + Number(b.dataset.step) * Math.max(step, st.room.settings.bb)); S.raise.arm = false; if (range) range.value = S.raise.to; upd(); }; });
+  // + − : 금액이 클수록 한 번에 크게 (빅블라인드 ×1 → ×2 → ×5 → ×10) · 꾹 누르면 점점 빨라지며 계속
+  const bb = Math.max(step, st.room.settings.bb);
+  const inc = (v) => bb * (v < 10 * bb ? 1 : v < 40 * bb ? 2 : v < 100 * bb ? 5 : 10);
+  const stepOnce = (dir) => { const cur = S.raise.to; const d = dir > 0 ? inc(cur) : inc(Math.max(0, cur - 1)); const nx = clamp(dir > 0 ? Math.floor((cur + d) / d) * d : Math.ceil((cur - d) / d) * d); if (nx === cur) return false; S.raise.to = nx; S.raise.arm = false; if (range) range.value = S.raise.to; upd(); return true; };
+  el.querySelectorAll('[data-step]').forEach((b) => holdRepeat(b, () => stepOnce(Number(b.dataset.step))));
   if (go) go.onclick = () => {
     if (allInPick()) {
       // 올인은 실수 방지로 두 번 눌러 확정 (3초 안에)
@@ -4279,6 +4296,32 @@ function holdemFxArt(tier) {
 }
 
 function fxLayer() { return document.getElementById('fx-layer') || document.body; }
+// 패 공개 연출: 공개한 카드가 자리에서 테이블 가운데로 날아와 뒷면→앞면으로 뒤집히며 크게 보였다가 자리로 돌아간다 (모두에게 보였다는 걸 확실히)
+const EYE_SVG = '<svg class="eye-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C6.5 5 2.4 9.2 1 12c1.4 2.8 5.5 7 11 7s9.6-4.2 11-7c-1.4-2.8-5.5-7-11-7Zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9Zm0-2.3a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" fill="currentColor"/></svg>';
+function showcaseCards(id, cards, label, mine = false) {
+  if (!cards || !cards.length) return;
+  const seat = (mine && document.querySelector('#g-table .seat-me .seat-mycards')) || document.querySelector(`.seat[data-id="${id}"] .seat-cards`) || document.querySelector(`.seat[data-id="${id}"] .seat-av`);
+  const board = document.querySelector('#g-table .board');
+  const a = fxArea();
+  const to = board ? centerOf(board) : { x: a.cx, y: a.top + a.height * 0.45 };
+  const from = seat ? centerOf(seat) : to;
+  const el = document.createElement('div');
+  el.className = 'fx-showcase' + (mine ? ' mine' : '');
+  el.innerHTML = `<div class="sc-cards">${cards.map((c, i) => `<div class="sc-card" style="--i:${i}"><div class="sc-in"><div class="sc-face sc-back">${cardHTML('??', { size: 'lg' })}</div><div class="sc-face sc-front">${cardHTML(c, { size: 'lg' })}</div></div></div>`).join('')}</div><div class="sc-label">${EYE_SVG}<b>${esc(label)}</b></div>`;
+  el.style.left = to.x + 'px'; el.style.top = to.y + 'px';
+  document.body.appendChild(el); // 판 끝 족보 영상(맨 위 층)보다도 위에
+  const dx = from.x - to.x, dy = from.y - to.y;
+  if (gws.reduceMotion()) { el.classList.add('still'); setTimeout(() => el.remove(), 1800); return; }
+  el.animate([
+    { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.45)`, opacity: 0 },
+    { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.55)`, opacity: 1, offset: 0.06 },
+    { transform: 'translate(-50%, -50%) scale(1.12)', opacity: 1, offset: 0.26 },
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.34 },
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.8 },
+    { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.45)`, opacity: 0 },
+  ], { duration: 2900, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' }).onfinish = () => el.remove();
+  setTimeout(() => sound.play('flip'), 420);
+}
 // 큰 연출이 덮을 곳: 가로 화면이면 테이블 칸만 (오른쪽 버튼 칸까지 덮거나 글씨가 테이블 밖으로 치우치지 않게) · 세로면 화면 전체
 function fxArea() {
   const tw = document.querySelector('.game[data-orient="land"] .table-wrap');
@@ -4623,4 +4666,4 @@ P.init({
 boot();
 
 // 디버그/검증용 (자동 테스트에서 상태 확인)
-window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, bigHandVideo, riverGlint, winGlow, pushPot, handTag, goHome, openColorHelp, openRebuyPick, settlementHTML } };
+window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, bigHandVideo, riverGlint, showcaseCards, winGlow, pushPot, handTag, goHome, openColorHelp, openRebuyPick, settlementHTML } };
