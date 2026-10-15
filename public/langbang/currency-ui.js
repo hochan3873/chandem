@@ -25,7 +25,8 @@ function trayFor(id, now) {
   if (t && t.isConnected) return t;
   t = document.createElement('div'); t.className = 'cur-tray'; t.style.cssText = C.curVars(id);
   t.innerHTML = `${C.curIcon(id, 'md')}<b>${C.fmtN(now)}</b>`; t.dataset.curtray = id;
-  const n = Object.keys(trayEls).filter((k) => trayEls[k] && trayEls[k].isConnected).length; t.style.top = `calc(env(safe-area-inset-top, 0px) + ${10 + n * 36}px)`;
+  const n = Object.keys(trayEls).filter((k) => trayEls[k] && trayEls[k].isConnected).length; const sr = (document.getElementById('stage') || document.body).getBoundingClientRect(); // 무대 오른쪽 위 (가로 화면 · PC 에서 화면 구석으로 가지 않게)
+  t.style.top = `calc(env(safe-area-inset-top, 0px) + ${Math.max(0, sr.top) + 10 + n * 36}px)`; t.style.right = `${Math.max(10, innerWidth - sr.right + 10)}px`;
   document.body.appendChild(t); trayEls[id] = t;
   return t;
 }

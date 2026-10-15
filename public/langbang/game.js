@@ -5173,11 +5173,11 @@ function hellSelectFx() {
   const rm = document.body.classList.contains('rm');
   const old = document.querySelector('.hellsel-fx'); if (old) old.remove();
   const el = document.createElement('div');
-  el.className = 'hellsel-fx' + (rm ? ' rm' : '');
+  el.className = 'hellsel-fx no-ic' + (rm ? ' rm' : ''); // no-ic: 무대 안에 붙어도 해골이 그림 변환에 지워지지 않게
   el.setAttribute('aria-hidden', 'true');
   el.innerHTML = rm ? '<i class="hs-v"></i>' : `<i class="hs-v"></i><svg class="hs-crack" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M50 52 L38 30 L41 18 L33 0 M50 52 L66 36 L63 22 L74 6 M50 52 L28 58 L14 54 L0 62 M50 52 L72 60 L88 56 L100 66 M50 52 L46 74 L54 88 L48 100"/></svg><b class="hs-skull">😈</b><span class="hs-t">HELL</span>${'<em></em>'.repeat(14)}`;
   if (!rm) el.querySelectorAll('em').forEach((e, i) => { e.style.left = (4 + ((i * 37) % 92)) + '%'; e.style.animationDelay = ((i % 5) * 0.07) + 's'; e.style.setProperty('--dx', (((i * 53) % 41) - 20) + 'px'); });
-  document.body.appendChild(el);
+  (stage || document.body).appendChild(el); // 무대 안에 (가로 화면 · PC 에서 무대 밖 화면 전체로 번지지 않게)
   if (!rm) setTimeout(() => { for (const b of document.querySelectorAll('.pp-seg button.on.hell, .map-tog button.on.hell')) b.classList.add('hs-pop'); }, 0); // 다시 그려진 헬 버튼이 쾅 튀어나온다
   try { A.sfx.rumble(); setTimeout(() => { try { A.sfx.rage(); } catch (e) { /* 무시 */ } }, 120); } catch (e) { /* 소리 없음 */ }
   try { if (navigator.vibrate) navigator.vibrate([40, 30, 90]); } catch (e) { /* 무시 */ }
