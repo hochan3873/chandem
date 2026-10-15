@@ -3950,8 +3950,8 @@ function finishedExtrasHTML(st) {
   return out.length ? `<div class="fin-row">${out.join('')}</div>` : '';
 }
 
-// 홀덤 내 차례: 금액 고르기(칩 버튼·슬라이더)는 늘 펼쳐 두고, 큰 버튼 3개로 결정
-// 꾹 누르고 있으면 반복 (처음 0.35초 쉬고 → 점점 빨라짐) · 짧게 누르면 한 번
+// 홀덤 내 차례: 금액 고르기(½팟·팟·올인 버튼 + 끌어서 고르는 슬라이더 + −/+ 미세 조정)는 늘 펼쳐 두고, 큰 버튼 3개로 결정
+// −/+ 를 꾹 누르고 있으면 반복 (처음 0.35초 쉬고 → 점점 빨라짐) · 짧게 누르면 한 번
 function holdRepeat(btn, fn) {
   let t = 0, n = 0;
   const stop = () => { clearTimeout(t); t = 0; window.removeEventListener('pointerup', stop); window.removeEventListener('pointercancel', stop); };
@@ -3974,7 +3974,8 @@ function renderHoldemActions(el, st, la, o) {
   el.innerHTML = `${awayNote}
     <div class="act2">
       <div class="act2-head"><span class="act2-turn">내 차례</span><span class="act2-left" data-deadline-text>-</span><div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div></div>
-      ${sizes.length ? `<div class="act2-sizes act2-sizes-lite"><button class="sz sl-step" data-step="-1" aria-label="줄이기">−</button>${sizes.map(([t, v]) => `<button class="sz ${S.raise.to === v ? 'on' : ''} ${t === '올인' ? 'sz-allin' : ''}" data-size="${v}">${t}<small>${fmt(v)}</small></button>`).join('')}<button class="sz sl-step" data-step="1" aria-label="늘리기">+</button></div>` : ''}
+      ${sizes.length ? `<div class="act2-sizes act2-sizes-lite"><button class="sz sl-step" data-step="-1" aria-label="줄이기">−</button>${sizes.map(([t, v]) => `<button class="sz ${S.raise.to === v ? 'on' : ''} ${t === '올인' ? 'sz-allin' : ''}" data-size="${v}">${t}<small>${fmt(v)}</small></button>`).join('')}<button class="sz sl-step" data-step="1" aria-label="늘리기">+</button></div>
+      <div class="act2-slide"><span>${fmt(la.minTo)}</span><input type="range" id="raise-range" min="${la.minTo}" max="${la.maxTo}" step="1" value="${S.raise.to}" aria-label="${raiseWord} 금액"><span>올인</span></div>` : ''}
       <div class="act2-row">
         ${la.canFold ? '<button class="ab ab-fold" data-act="fold">폴드</button>' : '<button class="ab ab-fold" data-act="fold" disabled>폴드</button>'}
         ${la.canCheck ? '<button class="ab ab-call" data-act="check">체크</button>' : `<button class="ab ab-call" data-act="call">${la.callAmount < la.toCall ? '올인 콜' : '콜'}<small>${fmt(la.callAmount)}</small></button>`}
@@ -3993,7 +3994,7 @@ function renderHoldemActions(el, st, la, o) {
     el.querySelectorAll('[data-size]').forEach((b) => b.classList.toggle('on', Number(b.dataset.size) === S.raise.to));
   };
   upd();
-  if (range) range.oninput = () => { S.raise.to = Number(range.value); S.raise.arm = false; upd(); };
+  if (range) range.oninput = () => { const v = Number(range.value); S.raise.to = v >= la.maxTo ? la.maxTo : Math.max(la.minTo, nice(v)); S.raise.arm = false; upd(); };
   el.querySelectorAll('[data-size]').forEach((b) => { b.onclick = () => { S.raise.to = Number(b.dataset.size); S.raise.arm = false; if (range) range.value = S.raise.to; upd(); sound.play('chip'); }; });
   // + − : 금액이 클수록 한 번에 크게 (빅블라인드 ×1 → ×2 → ×5 → ×10) · 꾹 누르면 점점 빨라지며 계속
   const bb = Math.max(step, st.room.settings.bb);
