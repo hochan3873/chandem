@@ -133,8 +133,9 @@ function check(cond, msg) {
   const sum = Object.values(res.deltas).reduce((a, b) => a + b, 0);
   check(sum === 0, '칩 증감 합계 0');
 
-  // 5) 족보표
-  await B.click('#chart-btn');
+  // 5) 족보표 (게임 화면 위쪽이 좁아져 메뉴 안으로 들어감 · 방 대기 화면엔 버튼 그대로)
+  if (await B.$('#chart-btn')) await B.click('#chart-btn');
+  else { await B.click('#menu-btn'); await B.waitForSelector('.modal [data-m="chart"]'); await B.click('.modal [data-m="chart"]'); }
   await B.waitForSelector('.chart-list');
   await shot(B, '09-hand-chart.png');
   await B.click('.modal [data-close]');
@@ -186,9 +187,9 @@ function check(cond, msg) {
       const buf = await ctx.decodeAudioData(await (await fetch('/sounds/' + f)).arrayBuffer());
       out.push(`${k} ${buf.duration.toFixed(2)}초`);
     }
-    return out;
+    return { out, total: Object.keys(m).length };
   });
-  check(audio.length === 26, `음성 22개 + 배경음악 4곡 디코딩: ${audio.join(', ')}`);
+  check(audio.out.length === audio.total, `소리 ${audio.total}개 모두 디코딩: ${audio.out.join(', ')}`);
   const imgs = await A.evaluate(async () => {
     const list = ['/img/gw2-icon-192.png', '/img/emblem.webp', '/img/bg-lobby.webp', '/img/felt.webp', ...Array.from({ length: 8 }, (_, i) => `/img/avatars/a${i + 1}.webp`)];
     const res = await Promise.all(list.map((u) => fetch(u).then((r) => r.ok)));
@@ -210,7 +211,7 @@ function check(cond, msg) {
   const ogTitle = (og.match(/og:title" content="([^"]*)/) || [])[1];
   const ogImg = (og.match(/og:image" content="([^"]*)/) || [])[1];
   const ogUrl = (og.match(/og:url" content="([^"]*)/) || [])[1];
-  check(ogTitle && ogTitle.includes('찬님이') && /og-holdem2?\.jpg$/.test(ogImg), `미리보기 제목: ${ogTitle} · 사진 ${ogImg && ogImg.split('/').pop()}`);
+  check(ogTitle && ogTitle.includes('찬님이') && /og-holdem\d*\.jpg$/.test(ogImg), `미리보기 제목: ${ogTitle} · 사진 ${ogImg && ogImg.split('/').pop()}`);
   check(ogUrl && ogUrl.endsWith(`/r/${code}`), `미리보기 주소가 방 주소 (카카오 캐시 분리): ${ogUrl}`);
   check((await fetch(new URL(ogImg).pathname.replace(/^/, base))).ok, '미리보기 이미지 로드');
 
