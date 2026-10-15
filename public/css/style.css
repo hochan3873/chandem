@@ -2232,3 +2232,9 @@ body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-right .seat-ca
 body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-cards .card-xs { --w: 19px; }
 body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat > .dealer-chip { left: calc(50% + 20px); top: 26px; }
 body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-right > .dealer-chip { left: auto; right: calc(50% + 20px); }
+
+/* ═══ 홀덤 피드백 정리 (2026-10-15): 상대 베팅 금액을 크게 · 단계(프리플랍·플랍…)를 한눈에 ═══ */
+body.in-room[data-theme="holdem"] .bet { z-index: 4; padding: 2px 9px 2px 4px; background: rgba(0, 0, 0, .82); border: 1.5px solid #ffd36b; box-shadow: 0 2px 8px rgba(0, 0, 0, .6); font-size: .86rem; }
+body.in-room[data-theme="holdem"] .bet small { font-size: .7rem; font-weight: 800; color: #ffe08a; }
+body.in-room[data-theme="holdem"] .bet b { font-weight: 900; color: #fff; }
+.felt-info .fi-stage { font-size: .95rem; color: #ffe8a8; letter-spacing: .08em; }
