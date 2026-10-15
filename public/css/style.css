@@ -801,6 +801,7 @@ form[data-game=holdem] .ai-only, form:not([data-game]) .ai-only { display: none;
 .game-card-holdem .gc-art { background-color: #0d4a35; }
 .game-card-seotda .gc-art { background-color: #5a0f18; }
 .game-card-omok .gc-art { background-color: #7a5427; }
+.game-card-sunggu .gc-art { background-color: #1d1a3a; background-position: center 30%; }
 .gc-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .35) 55%, rgba(0, 0, 0, .05) 100%); }
 .gc-text { position: absolute; left: 18px; bottom: 16px; display: flex; flex-direction: column; gap: 3px; }
 .gc-text b { font-size: 1.45rem; font-weight: 900; text-shadow: 0 2px 8px #000; }
@@ -1412,6 +1413,7 @@ body { font-family: var(--font); letter-spacing: -.01em; }
 .hic-sm { width: 16px; height: 16px; }
 .hic-xs { width: 14px; height: 14px; margin-left: 4px; opacity: .85; }
 .hic-crown { background-image: url('/img/hub/ic_crown.webp'); }
+.hic-sunggu { background-image: url('/img/hub/ic_sunggu.webp'); border-radius: 7px; }
 .hic-link { background-image: url('/img/hub/ic_link.webp'); }
 .hic-bell { background-image: url('/img/hub/ic_bell.webp'); }
 .hic-gear { background-image: url('/img/hub/ic_gear.webp'); }
@@ -2057,6 +2059,8 @@ form:not([data-mode="tournament"]) .tourney-only { display: none !important; }
 @keyframes logoIn { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 .gw-reduce-motion .hl-logo img { animation: none; }
 .hub-card .gc-logo-holdem { height: 40px; }
+/* 강성구 키우기 카드: 소개 글이 길어서 두 줄까지 보이게 */
+.hub-card.game-card-sunggu .gc-sub { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
 /* 숫자는 또렷한 본문 글꼴로 굵게 */
 .hl-wallet b, .ht-felt b { font-family: var(--font) !important; font-weight: 900 !important; letter-spacing: -.01em; }
 .hf-head b { font-size: 1.36rem; }
