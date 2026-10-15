@@ -194,7 +194,7 @@ export function openSettings() {
   const sw = (id, on, label, sub = '') => `<label class="set-row"><span><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" class="toggle" id="${id}" ${on ? 'checked' : ''}></label>`;
   C.openModal('설정', `
     <section class="set-group"><h3>소리</h3>
-      ${sw('st-music', p.music, '배경음악')}
+      ${sw('st-music', p.music && !p.muted, '배경음악', p.muted && p.music ? '게임에서 음소거해서 꺼져 있어요 · 켜면 소리가 다시 나요' : '')}
       <label class="set-slider"><span>배경음악 크기 <b id="st-mv">${Math.round(p.musicVolume * 100)}%</b></span><input type="range" id="st-mvol" min="0" max="100" value="${Math.round(p.musicVolume * 100)}"></label>
       ${sw('st-sfx', !p.muted, '효과음 · 음성')}
       <label class="set-slider"><span>효과음 크기 <b id="st-sv">${Math.round(p.volume * 100)}%</b></span><input type="range" id="st-svol" min="0" max="100" value="${Math.round(p.volume * 100)}"></label>
@@ -215,7 +215,7 @@ export function openSettings() {
     </section>
     <p class="muted tiny center">설정은 이 기기에만 저장돼요 · 찬이의 게임월드</p>`, (body) => {
     const $ = (id) => body.querySelector('#' + id);
-    $('st-music').onchange = (e) => { C.sound.unlock(); C.sound.setMusic(e.target.checked); };
+    $('st-music').onchange = (e) => { C.sound.unlock(); if (e.target.checked && C.sound.getPrefs().muted) { C.sound.setMuted(false); $('st-sfx').checked = true; } C.sound.setMusic(e.target.checked); };
     $('st-mvol').oninput = (e) => { C.sound.setMusicVolume(e.target.value / 100); $('st-mv').textContent = e.target.value + '%'; };
     $('st-sfx').onchange = (e) => { C.sound.setMuted(!e.target.checked); if (e.target.checked) { C.sound.unlock(); C.sound.play('chips'); } };
     $('st-svol').oninput = (e) => { C.sound.setVolume(e.target.value / 100); $('st-sv').textContent = e.target.value + '%'; };
