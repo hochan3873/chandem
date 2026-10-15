@@ -219,6 +219,7 @@ const SHARE_BTN_ONLY = `<button class="btn btn-sm btn-gold share-top" id="share-
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 // 앱 설치 버튼: 그 앱 안이 아니면 늘 보인다. 찬이의 게임월드 앱 안의 홀덤 화면에선 '홀덤 앱 설치' (따로 설치)
 const installBtnHTML = () => {
+  if (!isStandalone() && !HOLDEM_APP && S.view === 'gamehome' && (S.game || 'holdem') === 'holdem') return '<button class="btn btn-sm btn-outline install-btn" id="install-holdem" aria-label="찬덤 홀덤 앱 설치">홀덤 앱 설치</button>'; // 게임월드 주소의 홀덤 화면: 홀덤 앱(/holdem)으로
   if (isStandalone() && HOLDEM_APP && S.view === 'gamehome') return '<button class="btn btn-sm btn-outline install-btn" id="install-gw" aria-label="찬이의 게임월드 앱 설치">게임월드 앱 설치</button>'; // 홀덤 앱 안: 게임월드 앱도 따로
   if (isStandalone() && (HOLDEM_APP || (S.game || 'holdem') !== 'holdem' || S.view !== 'gamehome')) return '';
   if (isStandalone()) return '<button class="btn btn-sm btn-outline install-btn" id="install-holdem" aria-label="찬덤 홀덤 앱 설치">홀덤 앱 설치</button>';
@@ -353,7 +354,7 @@ if (window.visualViewport) { visualViewport.addEventListener('resize', fitVisibl
 
 // 크롬 설치 창 띄우기 (안내를 본 뒤 버튼으로)
 async function promptInstall() {
-  if (!S.installEvt) { toast('크롬 ⋮ 메뉴 → 「앱 설치」를 눌러 주세요', 'info'); return; }
+  if (!S.installEvt) { toast('크롬 ⋮ 메뉴 → 「설치 및 바로가기 만들기」(또는 「앱 설치」)를 눌러 주세요', 'info'); return; }
   S.installEvt.prompt();
   const r = await S.installEvt.userChoice.catch(() => null);
   if (r && r.outcome === 'accepted') {
@@ -382,6 +383,7 @@ function protectHTML() {
   </div>`;
 }
 async function installApp() {
+  if (HOLDEM_APP && !S.installEvt && !IS_IOS && !IN_APP && LS.get('chandem:installed:gw', 0)) { openModal('찬덤 홀덤 앱 설치', holdemInstallHelpHTML(), (b) => { b.querySelector('#copy-holdem').onclick = copyHoldemLink; }); return; }
   const ua = UA;
   const url = location.origin + (HOLDEM_APP ? '/holdem' : '/');
   const ios = IS_IOS;
@@ -417,7 +419,7 @@ async function installApp() {
   openModal('앱 설치', `
     <ol class="install-steps">
       <li>크롬 오른쪽 위 <b>⋮</b> 메뉴를 눌러요</li>
-      <li><b>「앱 설치」</b> 또는 <b>「홈 화면에 추가」</b>를 눌러요</li>
+      <li><b>「설치 및 바로가기 만들기」</b>(또는 「앱 설치」·「홈 화면에 추가」)를 누르고 <b>설치</b>를 골라요</li>
       <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 ${APP_NAME}가 생겨요</li>
     </ol>
     ${protectHTML()}
@@ -449,8 +451,8 @@ function gwInstallHelpHTML() {
     <p class="hih-why">찬덤 홀덤 앱을 <b>예전 방식</b>으로 설치한 폰은, 크롬이 게임월드 화면도 홀덤 앱으로 열어서 설치 버튼이 나오지 않아요.</p>
     <div class="hih-way"><b class="hih-tag">이렇게 하면 돼요</b>
       <ol><li>찬덤 홀덤 아이콘을 길게 눌러 <b>삭제</b>해요 <small class="muted">(로그인한 칩·기록은 그대로예요)</small></li>
-      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>⋮ → 「앱 설치」</b>로 게임월드를 깔아요</li>
-      <li>게임월드 홈 → 찬덤 홀덤 → <b>앱 설치</b>로 홀덤 앱도 다시 깔아요 <small class="muted">(새 방식이라 둘 다 같이 있어요)</small></li></ol></div>
+      <li>크롬에서 <b>chandem.onrender.com/holdem</b> 을 열고 <b>⋮ → 「설치 및 바로가기 만들기」</b>로 홀덤 앱을 <b>먼저</b> 깔아요</li>
+      <li>그다음 아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 같은 방법으로 게임월드를 깔아요 <small class="muted">(홀덤 → 게임월드 순서여야 둘 다 깔려요)</small></li></ol></div>
     ${protectHTML()}
     <button class="btn btn-gold btn-lg" id="copy-gw" type="button">게임월드 링크 복사</button></div>`;
 }
@@ -503,7 +505,7 @@ function holdemInstallHelpHTML() {
     <p class="hih-why">찬이의 게임월드 앱이 깔린 폰은 크롬이 홀덤 화면도 <b>'이미 설치된 앱'</b>으로 봐서, 설치 버튼이 나오지 않아요.</p>
     <div class="hih-way"><b class="hih-tag">이렇게 하면 돼요</b>
       <ol><li>찬이의 게임월드 아이콘을 길게 눌러 <b>삭제</b>해요 <small class="muted">(로그인한 칩·기록은 그대로예요)</small></li>
-      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>⋮ → 「앱 설치」</b></li>
+      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>⋮ → 「설치 및 바로가기 만들기」</b></li>
       <li>홀덤 앱이 깔리면, 크롬에서 찬이의 게임월드도 다시 설치해요</li></ol></div>
     ${protectHTML()}
     <button class="btn btn-gold btn-lg" id="copy-holdem" type="button">홀덤 앱 링크 복사</button></div>`;
