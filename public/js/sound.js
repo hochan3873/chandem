@@ -94,6 +94,57 @@ async function loadManifest() {
   if (!manifest) manifest = {};
 }
 
+// ── 진짜 녹음한 테이블 소리 (카드·칩·노크) · /sounds/sfx (Kenney 카지노 효과음, 저작권 없음 CC0) ──
+// 같은 소리만 반복되면 기계 같아서, 여러 녹음 중 하나를 골라 크기·높이를 살짝씩 바꿔 낸다
+const R = (k, n) => Array.from({ length: n }, (_, i) => `sfx/${k}_${i + 1}.mp3`);
+const SFX = {
+  deal: { f: R('deal', 8), g: 0.5 },          // 카드가 펠트 위로 '슥'
+  place: { f: R('place', 4), g: 0.55 },       // 바닥 카드를 '탁' 내려놓기
+  fold: { f: R('shove', 4), g: 0.45 },        // 카드를 앞으로 밀어 버리기
+  chip: { f: R('chiplay', 3), g: 0.5 },       // 블라인드: 칩 하나 '딱'
+  chips: { f: R('stack', 6), g: 0.55 },       // 베팅: 칩 몇 개를 쌓아 내기
+  collide: { f: R('collide', 4), g: 0.45 },
+  collect: { f: R('handle', 6), g: 0.6 },     // 팟을 쓸어 오기
+  knock: { f: R('knock', 3), g: 0.42 },       // 체크: 테이블을 손가락으로 '톡, 톡' (작게)
+  shuffle: { f: ['sfx/shuffle.mp3'], g: 0.4 },
+  // 큰 족보 · 리버 · 이김 연출 영상(Gemini Veo)에 함께 만들어진 소리
+  fx_straight: { f: ['sfx/fx_straight.mp3'], g: 0.55 },
+  fx_flush: { f: ['sfx/fx_flush.mp3'], g: 0.55 },
+  fx_fullhouse: { f: ['sfx/fx_fullhouse.mp3'], g: 0.6 },
+  fx_quads: { f: ['sfx/fx_quads.mp3'], g: 0.6 },
+  fx_sf: { f: ['sfx/fx_sf.mp3'], g: 0.65 },
+  fx_royal: { f: ['sfx/fx_royal.mp3'], g: 0.7 },
+  fx_river: { f: ['sfx/fx_river.mp3'], g: 0.3 },
+  fx_potwin: { f: ['sfx/fx_potwin.mp3'], g: 0.35 },
+};
+const fileBufs = {};
+async function fileBuffer(file) {
+  if (fileBufs[file] !== undefined) return fileBufs[file];
+  fileBufs[file] = null;
+  try { const r = await fetch('/sounds/' + file); if (r.ok) fileBufs[file] = await ctx.decodeAudioData(await r.arrayBuffer()); } catch { fileBufs[file] = null; }
+  return fileBufs[file];
+}
+function playSample(buf, gain, rate = 1, at = 0) {
+  const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
+  const g = ctx.createGain(); g.gain.value = gain;
+  src.connect(g).connect(master); src.start(ctx.currentTime + at);
+}
+async function playSfx(name, gain = 1, at = 0) {
+  const s = SFX[name];
+  const buf = await fileBuffer(s.f[Math.floor(Math.random() * s.f.length)]);
+  if (!buf) return false;
+  playSample(buf, s.g * gain * (0.85 + Math.random() * 0.2), 0.96 + Math.random() * 0.08, at);
+  return true;
+}
+// 여러 소리를 엮은 것
+const COMBO = {
+  flip: () => { playSfx('place', 1, 0); playSfx('place', 0.9, 0.14); playSfx('place', 0.85, 0.28); }, // 플랍: 착 착 착
+  flip1: () => playSfx('place', 1.1),                                                                 // 턴·리버: 한 장
+  check: () => playSfx('knock'),
+  allinPush: () => { playSfx('collect', 1.2); playSfx('chips', 0.8, 0.3); },                         // 칩 더미를 '스윽' 밀고 내려놓기
+  coins: () => { playSfx('collect', 0.9); playSfx('chips', 0.7, 0.25); playSfx('collide', 0.6, 0.45); },
+};
+
 async function loadBuffer(name) {
   if (buffers[name] !== undefined) return buffers[name];
   buffers[name] = null;
@@ -132,6 +183,7 @@ export function unlock() {
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   loadManifest().then(() => {
     for (const n of Object.keys(manifest)) if (!n.startsWith('bgm')) loadBuffer(n);
+    for (const s of Object.values(SFX)) s.f.forEach(fileBuffer); // 테이블 소리 미리 받아 두기 (첫 소리가 늦지 않게)
     applyMusic();
   });
 }
@@ -407,6 +459,8 @@ export async function play(name, gain = 1) {
   if (!unlocked || prefs.muted || !ctx) return;
   if (hush() && DRAMA.has(name)) return;
   if ((name.startsWith('v_') || name.startsWith('e_')) && !voiceOK()) return;
+  if (COMBO[name]) { COMBO[name](gain); return; }
+  if (SFX[name] && await playSfx(name, gain)) return;
   if (!manifest) await loadManifest();
   const buf = await loadBuffer(name);
   if (buf) { playBuffer(buf, gain); return; }

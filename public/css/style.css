@@ -1683,7 +1683,7 @@ body:has(.game[data-orient="land"]) .chat-sheet { left: auto; right: 0; width: m
 body:has(.game[data-orient="land"]) .emote-tray { left: auto !important; width: min(440px, 50vw); border-radius: 18px 0 0 0 !important; }
 
 /* 체크 노크 물결 */
-.fx-knock { position: fixed; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 2px solid rgba(255, 238, 200, .95); box-shadow: 0 0 8px rgba(255, 230, 170, .6); animation: knockRing .6s ease-out forwards; pointer-events: none; z-index: 3; }
+.fx-knock { position: fixed; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; border: 1.5px solid rgba(255, 238, 200, .55); box-shadow: none; animation: knockRing .6s ease-out forwards; pointer-events: none; z-index: 3; }
 @keyframes knockRing { from { transform: scale(.4); opacity: 1; } to { transform: scale(3); opacity: 0; } }
 
 /* 판이 끝난 뒤: 내 패 보여주기 · 남은 카드 보기 */
@@ -2062,3 +2062,86 @@ form:not([data-mode="tournament"]) .tourney-only { display: none !important; }
 .hf-head b { font-size: 1.36rem; }
 .hf-btn b { font-size: 1.26rem; }
 .sec-title { font-size: 1.2rem; }
+
+/* ═══ 홀덤 4차 (포커나우 비교): 테이블 넓게 · 카드가 얼굴·이름을 안 가리게 · 이름 한 줄 · 승패 · 블라인드 안내 ═══ */
+body.in-room[data-theme="holdem"] .table-wrap { padding-left: 0; padding-right: 0; }
+body.in-room[data-theme="holdem"] .table { inset: 4px -2px 2px; }
+/* 남의 카드: 얼굴 옆에 (겹치지 않게), 얼굴보다 앞 */
+body.in-room[data-theme="holdem"] .seat-cards { left: calc(50% + 22px); top: -4px; z-index: 1; transform: rotate(6deg); }
+body.in-room[data-theme="holdem"] .seat-right .seat-cards { left: auto; right: calc(50% + 22px); transform: rotate(-6deg); }
+body.in-room[data-theme="holdem"] .seat-cards .card-xs { --w: 22px; }
+/* 이름은 늘 한 줄 (길면 글자를 줄여서 맞춤) */
+body.in-room[data-theme="holdem"] .seat-name, body.in-room[data-theme="holdem"] .seat-me .seat-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; -webkit-line-clamp: unset; line-height: 1.3; }
+body.in-room[data-theme="holdem"] .seat { width: 100px; }
+/* 내 카드: 내 얼굴 오른쪽에 크게 (얼굴·이름을 안 가림) */
+body.in-room[data-theme="holdem"] .game:not([data-orient="land"]) .seat-me .seat-mycards { left: calc(50% + 30px); bottom: -2px; transform: none; }
+body.in-room[data-theme="holdem"] .game:not([data-orient="land"]) .seat-mycards .card-lg { --w: min(60px, 15vw); }
+.seat-mycards .my-hand-lbl { bottom: -8px; }
+/* 몇 승 몇 패 */
+.seat-wl { display: flex; gap: 3px; justify-content: center; margin-top: 2px; }
+.seat-wl b { font: 800 .6rem/1.35 var(--font); padding: 0 5px; border-radius: 99px; color: #fff; }
+.seat-wl .w { background: #1f9d55; }
+.seat-wl .l { background: #c8323a; }
+/* 펠트 위 블라인드 안내 */
+.felt-info { display: flex; flex-direction: column; align-items: center; gap: 1px; color: rgba(255, 236, 200, .78); font-size: .72rem; letter-spacing: .02em; text-shadow: 0 1px 2px #000; margin-bottom: 2px; }
+.felt-info b { color: #ffe08a; font-weight: 900; }
+.felt-info small { font-size: .64rem; opacity: .85; }
+.felt-info .fi-next { font-size: .64rem; color: rgba(255, 180, 160, .9); }
+.felt-info .fi-next i { font-style: normal; font-weight: 800; }
+.felt-info { margin: 4px 0 0; }
+
+/* 채팅 시간 · 채팅 끄기 */
+.cm-time { font-style: normal; font-size: .62rem; color: rgba(255, 240, 220, .45); margin-left: 6px; }
+.cs-off { margin-left: auto; border: 1px solid rgba(255, 220, 150, .35); background: rgba(255, 255, 255, .06); color: #ffe8a8; border-radius: 99px; padding: 4px 10px; font: 700 .74rem/1.2 var(--font); cursor: pointer; }
+.cs-off.on { background: #c8323a; border-color: #ff8a8a; color: #fff; }
+.cs-off + .cs-x { margin-left: 6px; }
+
+/* ═══ 큰 족보 영상 연출 (스트레이트 이상) ═══ */
+.fx-hv { position: fixed; inset: 0; z-index: 30; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; animation: hvIn .25s ease-out both; }
+.fx-hv.out { animation: hvOut .6s ease-in forwards; }
+.fx-hv::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0, 0, 0, .15), rgba(0, 0, 0, .55)); }
+.fx-hv-vid { position: absolute; left: 50%; top: 46%; width: 100vw; height: 100vh; transform: translate(-50%, -50%); object-fit: cover; mix-blend-mode: screen; }
+.fx-hv-title { position: relative; width: min(86vw, 520px); max-height: 30vh; object-fit: contain; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .8)); animation: hvTitle .7s cubic-bezier(.2, 1.4, .4, 1) .15s both; }
+.fx-hv-title-txt { position: relative; font: 400 clamp(2rem, 11vw, 3.6rem)/1.1 var(--display); color: #ffe08a; text-shadow: 0 3px 0 #7a4a0c, 0 0 24px rgba(255, 200, 80, .8); animation: hvTitle .7s cubic-bezier(.2, 1.4, .4, 1) .15s both; text-align: center; }
+.fx-hv-who { position: relative; margin-top: 6px; padding: 3px 14px; border-radius: 99px; background: rgba(0, 0, 0, .6); border: 1px solid rgba(255, 220, 150, .5); color: #fff3cf; font: 800 .95rem/1.4 var(--font); animation: hvTitle .5s ease-out .45s both; }
+@keyframes hvIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hvOut { to { opacity: 0; } }
+@keyframes hvTitle { 0% { opacity: 0; transform: scale(1.6); } 100% { opacity: 1; transform: scale(1); } }
+/* 팟 칩 더미 */
+.fx-potstack { position: fixed; z-index: 6; width: 30px; height: 30px; pointer-events: none; }
+.fx-potstack i { position: absolute; left: 0; width: 30px; height: 10px; border-radius: 50%; background: radial-gradient(ellipse at 50% 40%, #e84a4a 0 45%, #fff 46% 52%, #b81f2a 53%); box-shadow: 0 2px 0 #6a0d14, 0 3px 4px rgba(0, 0, 0, .5); }
+.fx-potstack i:nth-child(1) { top: 20px; }
+.fx-potstack i:nth-child(2) { top: 15px; background: radial-gradient(ellipse at 50% 40%, #2b6fd6 0 45%, #fff 46% 52%, #1a4a9a 53%); }
+.fx-potstack i:nth-child(3) { top: 10px; }
+.fx-potstack i:nth-child(4) { top: 5px; background: radial-gradient(ellipse at 50% 40%, #222 0 45%, #f2d27a 46% 52%, #111 53%); }
+.fx-potstack i:nth-child(5) { top: 0; }
+/* 내가 이김: 은은한 빛 */
+.fx-winglow { position: fixed; z-index: 5; width: 300px; height: 300px; transform: translate(-50%, -60%); pointer-events: none; border-radius: 50%; background: radial-gradient(circle, rgba(255, 220, 130, .4), rgba(255, 200, 90, .1) 45%, transparent 70%); animation: hvIn .4s ease-out both; }
+.fx-winglow.huge { width: 420px; height: 420px; }
+.fx-winglow video { position: absolute; inset: -20%; width: 140%; height: 140%; object-fit: cover; mix-blend-mode: screen; -webkit-mask-image: radial-gradient(circle, #000 40%, transparent 68%); mask-image: radial-gradient(circle, #000 40%, transparent 68%); }
+.fx-winglow.out { animation: hvOut .6s ease-in forwards; }
+
+/* 리버 빛줄기 */
+.fx-glint { position: fixed; z-index: 4; transform: translate(-50%, -50%); pointer-events: none; }
+.fx-glint video { width: 100%; height: 100%; object-fit: cover; mix-blend-mode: screen; -webkit-mask-image: radial-gradient(ellipse, #000 45%, transparent 72%); mask-image: radial-gradient(ellipse, #000 45%, transparent 72%); }
+.fx-glint.css::after { content: ''; position: absolute; inset: 25% 35%; background: linear-gradient(115deg, transparent 35%, rgba(255, 250, 225, .85) 50%, transparent 65%); background-size: 300% 100%; animation: glintSweep .9s ease-out forwards; mix-blend-mode: screen; }
+@keyframes glintSweep { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* 카드 뒷면 (기본 '클래식 레드'): Gemini 로 그린 버건디·금색 '찬' 문양 */
+body[data-back="back-red"] .card-back, .shop-prev[data-v="back-red"] .card-back { background: url('/img/holdem/card-back.webp') center / 100% 100% no-repeat, #5a0f1a; box-shadow: 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 220, 150, .45); }
+body[data-back="back-red"] .card-back .card-back-mark, .shop-prev[data-v="back-red"] .card-back .card-back-mark { display: none; }
+/* 족보 글씨: 금빛 번짐을 CSS 로 깔끔하게 */
+.fx-hv-title { filter: drop-shadow(0 0 14px rgba(255, 200, 90, .55)) drop-shadow(0 6px 14px rgba(0, 0, 0, .85)); }
+
+/* 영상 섞기: body 바로 아래 칸이 통째로 '스크린' 섞임 → 검은 곳이 투명 */
+.fx-blend { position: fixed; pointer-events: none; mix-blend-mode: screen; }
+.fx-blend video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.fx-hv-vid { inset: 0; z-index: 57; animation: hvIn .2s ease-out both; }
+.fx-hv-vid.out, .fx-hv-dim.out { animation: hvOut .6s ease-in forwards; }
+.fx-hv-dim { position: fixed; inset: 0; z-index: 56; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0, 0, 0, .1), rgba(0, 0, 0, .5)); animation: hvIn .25s ease-out both; }
+.fx-hv { z-index: 58; }
+.fx-hv::before { display: none; }
+.fx-glint { z-index: 56; transform: translate(-50%, -50%); -webkit-mask-image: radial-gradient(ellipse, #000 45%, transparent 72%); mask-image: radial-gradient(ellipse, #000 45%, transparent 72%); }
+.fx-glint video { mix-blend-mode: normal; -webkit-mask-image: none; mask-image: none; }
+.fx-winglow { z-index: 56; mix-blend-mode: screen; overflow: hidden; }
+.fx-winglow video { position: absolute; inset: -20%; width: 140%; height: 140%; mix-blend-mode: normal; }

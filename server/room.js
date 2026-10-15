@@ -343,6 +343,24 @@ class Room {
     return p;
   }
 
+  /** 연습 테이블: 진짜 홀덤바처럼 상주 플레이어가 가끔 일어나고 새 사람이 빈자리에 앉는다 */
+  practiceChurn() {
+    const N = this.tableSeats;
+    if (N < 6) return;
+    const bots = this.seated.filter((p) => p.isBot && !p.leaving);
+    const r = Math.random();
+    // 칩을 다 잃은 상주 플레이어는 절반쯤 그냥 자리를 뜬다
+    const broke = bots.find((p) => p.stack === 0);
+    if (broke && bots.length > 2 && r < 0.5) { this.players = this.players.filter((x) => x !== broke); this.pushFeed(`${broke.name}님이 자리를 떠났어요`); return; }
+    if (bots.length > 2 && this.seated.length >= N - 1 && r < 0.06) {
+      const p = bots[crypto.randomInt(bots.length)];
+      this.players = this.players.filter((x) => x !== p);
+      this.pushFeed(`${p.name}님이 자리를 떠났어요`);
+      return;
+    }
+    if (this.seated.length < N - 1 && r < 0.3) { try { const p = this.addBot(this.hostId); p.stack = botStack(this.settings); p.totalBuyIn = p.stack; } catch {} }
+  }
+
   botTurn() {
     const h = this.hand;
     if (!h || h.finished) return;
@@ -734,6 +752,7 @@ class Room {
         this.pushFeed(`${p.name}님 칩을 다 잃어 관전으로 옮겼어요${this.settings.rebuyEnabled ? ` (리바인 ${this.settings.rebuyMax}번 다 씀)` : ''}`);
       }
     }
+    if (this.wallet && !this.isTournament) this.practiceChurn();
     for (const p of this.seated) {
       if (!this.isTournament && p.isBot && p.stack === 0) {
         // 상주 플레이어는 저마다 다른 금액으로 다시 앉는다 (연습 테이블: 바이인의 0.6~2.5배)
@@ -1096,6 +1115,7 @@ class Room {
       rs.hands += 1;
       if (!h.kind && vol.has(id)) rs.vpip += 1;
       if (r.winners.includes(id)) { rs.won += 1; rs.bigPot = Math.max(rs.bigPot, (r.deltas[id] || 0)); }
+      else if ((r.deltas[id] || 0) < 0 && (h.log || []).some((e) => e.id === id && ['call', 'bet', 'raise', 'allin'].includes(e.type))) rs.lost = (rs.lost || 0) + 1;
       const hi = r.hands && r.hands[id];
       if (hi && r.type === 'showdown' && this.handShown(id)) {
         rs.sd += 1;
@@ -1404,7 +1424,7 @@ class Room {
         seatRequest: !!p.seatRequest,
         rating: p.userId && this.settings.game === 'omok' ? p.omokRating : null,
         buyIn: p.totalBuyIn || 0,
-        rs: p.rs ? { hands: p.rs.hands, vpip: p.rs.vpip, won: p.rs.won, sd: p.rs.sd, best: p.rs.best, bigPot: p.rs.bigPot } : null,
+        rs: p.rs ? { hands: p.rs.hands, vpip: p.rs.vpip, won: p.rs.won, lost: p.rs.lost || 0, sd: p.rs.sd, best: p.rs.best, bigPot: p.rs.bigPot } : null,
         isHost: p.id === this.hostId,
         sittingOut: p.sittingOut,
         leaving: p.leaving,

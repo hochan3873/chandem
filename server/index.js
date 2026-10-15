@@ -694,7 +694,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
           try { bought = pro.buyIn({ user, guest: payload.guest }, payload.name, String(payload.table), payload.buyIn); } catch (e) { throw new RoomError(e.message); }
           const t = bought.table;
           settings = sanitizeSettings({ game: 'holdem', mode: 'cash', sb: t.sb, bb: t.bb, startChips: bought.amount, rebuyEnabled: true, rebuyAmount: bought.amount, rebuyMax: 99, maxPlayers: t.seats, turnSeconds: 25, approval: false, password: '' });
-          payload.bots = t.seats - 1;
+          payload.bots = t.seats >= 6 ? t.seats - 2 : t.seats - 1; // 실제 테이블처럼 빈자리 하나 (상주 플레이어가 들고 나감)
         }
         let code;
         do { code = makeCode(); } while (rooms.has(code));

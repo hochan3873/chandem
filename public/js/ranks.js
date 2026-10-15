@@ -151,7 +151,6 @@ export async function loadHubChamps(games = ['holdem', 'seotda', 'omok']) {
 // ── 긴 닉네임: 칸에 맞게 글자를 줄인다 (최소 9px, 그래도 넘치면 …) ──
 export function fitNames(root = document) {
   root.querySelectorAll('.seat-name, .fit-name, .omok-player b, .hall-list .hl-name, .rank-table b, .plist .list-row .grow > b').forEach((el) => {
-    if (el.closest('.seat-me') && el.classList.contains('seat-name')) return; // 내 자리는 두 줄로
     el.style.fontSize = '';
     if (el.scrollWidth <= el.clientWidth + 1) return;
     let size = parseFloat(getComputedStyle(el).fontSize) || 12;

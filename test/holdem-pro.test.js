@@ -97,7 +97,7 @@ test('연습 테이블: 지갑에서 바이인 → 상주 플레이어 칩은 �
     const r = await call('room:practice', { name: '호찬', table: 'town', buyIn: 6000, guest });
     assert.equal(r.ok, true, r.message);
     const t0 = Date.now(); while (!s.last && Date.now() - t0 < 3000) await new Promise((x) => setTimeout(x, 20));
-    assert.equal(s.last.players.length, 6);
+    assert.equal(s.last.players.length, 5); // 6인 테이블: 실제처럼 빈자리 하나
     const bots = s.last.players.filter((p) => p.isBot);
     assert.ok(new Set(bots.map((p) => p.stack + p.bet)).size > 1, '상주 플레이어 칩이 제각각');
     assert.equal((await post('/api/holdem/me', { guest })).me.wallet, BASE - 6000);

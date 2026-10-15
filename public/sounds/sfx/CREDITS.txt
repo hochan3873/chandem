@@ -1,0 +1,2 @@
+Card, chip and table-tap sounds: "Casino Audio" and "Impact Sounds" by Kenney (www.kenney.nl), CC0 1.0 (public domain).
+fx_*.mp3: audio generated together with the effect videos (Google Gemini / Veo).

@@ -1587,6 +1587,9 @@ function syncChatFab() {
 document.addEventListener('click', (e) => { if (e.target.closest('#chat-btn')) openChat(); });
 // 채팅 음소거한 사람 (이 기기에서만)
 S.muted = new Set(LS.get('chandem:muted', []));
+// 채팅 끄기(뮤트 모드): 말풍선·알림 소리·아래 채팅 줄을 모두 숨김 (이 기기에서만)
+S.chatOff = !!LS.get('chandem:chatOff', false);
+function setChatOff(on) { S.chatOff = !!on; LS.set('chandem:chatOff', S.chatOff); syncChatMini(); const b = document.getElementById('cs-off'); if (b) { b.textContent = S.chatOff ? '채팅 켜기' : '채팅 끄기'; b.classList.toggle('on', S.chatOff); } }
 function setMute(id, on) { if (on) S.muted.add(id); else S.muted.delete(id); LS.set('chandem:muted', [...S.muted].slice(-50)); }
 const nameHue = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 360; };
 const hhmm = (t) => { const d = new Date(t || Date.now()); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -1599,9 +1602,10 @@ function chatListHTML(st) {
 }
 // 게임 화면 아래 왼쪽: 최근 채팅 두 줄 (누르면 채팅 창)
 function chatMiniHTML(st) {
+  if (S.chatOff) return '<span class="cm-empty">채팅 꺼 둠 · 눌러서 다시 켤 수 있어요</span>';
   const list = ((st && st.chat) || []).filter((m) => !S.muted.has(m.id)).slice(-2);
   if (!list.length) return '<span class="cm-empty">채팅을 눌러 한마디 해 보세요</span>';
-  return list.map((m) => `<span class="cm-line"><b style="--h:${nameHue(m.name)}">${esc(m.name)}</b> ${esc(m.text)}</span>`).join('');
+  return list.map((m) => `<span class="cm-line"><b style="--h:${nameHue(m.name)}">${esc(m.name)}</b> ${esc(m.text)}<i class="cm-time">${hhmm(m.at)}</i></span>`).join('');
 }
 function syncChatMini() { const el = document.getElementById('chat-mini'); if (el && S.state) el.innerHTML = chatMiniHTML(S.state); }
 function closeChat() {
@@ -1621,7 +1625,7 @@ function openChat() {
   scrim.onclick = closeChat;
   const sh = document.createElement('section');
   sh.id = 'chat-sheet'; sh.className = 'chat-sheet';
-  sh.innerHTML = `<div class="cs-head"><b>채팅</b><small class="muted">${esc(st.room.code)}</small><button type="button" class="cs-x" id="cs-x" aria-label="닫기">닫기</button></div>
+  sh.innerHTML = `<div class="cs-head"><b>채팅</b><small class="muted">${esc(st.room.code)}</small><button type="button" class="cs-off ${S.chatOff ? 'on' : ''}" id="cs-off" aria-label="채팅 끄기 켜기">${S.chatOff ? '채팅 켜기' : '채팅 끄기'}</button><button type="button" class="cs-x" id="cs-x" aria-label="닫기">닫기</button></div>
     <ol class="chat-list cs-list" id="chat-list">${chatListHTML(st)}</ol>
     <div class="cs-quick">${['굿폴드', '나이스 핸드', 'ㅋㅋㅋ', '블러핑이지?', '잠깐만요', 'GG', '한 판만 더'].map((t) => `<button type="button" data-q="${t}">${t}</button>`).join('')}</div>
     <form class="cs-form" id="chat-form" autocomplete="off"><input class="input" name="t" maxlength="80" placeholder="메시지 (Enter로 보내기)" enterkeyhint="send"><button class="btn btn-gold">보내기</button></form>`;
@@ -1633,6 +1637,7 @@ function openChat() {
   form.onsubmit = (e) => { e.preventDefault(); const t = form.t.value.trim(); if (t) send(t); };
   sh.querySelectorAll('[data-q]').forEach((q) => { q.onclick = () => send(q.dataset.q); });
   sh.querySelector('#cs-x').onclick = closeChat;
+  sh.querySelector('#cs-off').onclick = () => { setChatOff(!S.chatOff); toast(S.chatOff ? '채팅을 껐어요 · 말풍선과 알림 소리가 안 나와요' : '채팅을 다시 켰어요', 'info'); };
   list.addEventListener('click', (e) => {
     const b = e.target.closest('[data-mute]');
     if (!b) return;
@@ -1656,7 +1661,7 @@ function onChat(st, first) {
   S.chatSeen = last;
   const box = document.getElementById('chat-list');
   if (box) { box.innerHTML = chatListHTML(st); box.scrollTop = box.scrollHeight; S.chatRead = last; }
-  const shown = fresh.filter((m) => !S.muted.has(m.id));
+  const shown = S.chatOff ? [] : fresh.filter((m) => !S.muted.has(m.id));
   for (const m of shown) chatBubble(m);
   // 다른 사람이 채팅하면 '띠링' (채팅 창을 열어 둬도)
   if (shown.some((m) => !(st.me && m.id === st.me.id))) sound.play('msg');
@@ -1774,25 +1779,11 @@ function knockFx(id) {
   const av = document.querySelector(`#g-table .seat[data-id="${id}"] .seat-av`);
   if (!av) return;
   const c = centerOf(av);
-  // 오프라인처럼: 주먹이 테이블을 '툭, 툭' 두 번 (자리에서 테이블 쪽으로)
+  // 오프라인처럼: 손가락으로 테이블을 '톡, 톡' (주먹 그림 없이, 펠트에 작은 물결만)
   const t = document.getElementById('g-table');
   const tc = t ? centerOf(t) : c;
   const hx = c.x + (tc.x - c.x) * 0.28; const hy = c.y + (tc.y - c.y) * 0.28 + 6;
-  const fist = document.createElement('div');
-  fist.className = 'fx-fist';
-  fist.innerHTML = IC('fist');
-  fist.style.left = hx + 'px'; fist.style.top = hy + 'px';
-  fxLayer().appendChild(fist);
-  fist.animate([
-    { transform: 'translate(-50%,-90%) scale(.8) rotate(-10deg)', opacity: 0 },
-    { transform: 'translate(-50%,-80%) scale(1) rotate(-10deg)', opacity: 1, offset: 0.12 },
-    { transform: 'translate(-50%,-20%) scale(1.05,.9) rotate(0deg)', opacity: 1, offset: 0.24 },
-    { transform: 'translate(-50%,-70%) scale(1) rotate(-8deg)', opacity: 1, offset: 0.4 },
-    { transform: 'translate(-50%,-20%) scale(1.05,.9) rotate(0deg)', opacity: 1, offset: 0.52 },
-    { transform: 'translate(-50%,-75%) scale(1) rotate(-8deg)', opacity: 1, offset: 0.75 },
-    { transform: 'translate(-50%,-90%) scale(.9) rotate(-10deg)', opacity: 0 },
-  ], { duration: 720, easing: 'ease-out', fill: 'both' }).onfinish = () => fist.remove();
-  [170, 375].forEach((d) => setTimeout(() => {
+  [0, 165].forEach((d) => setTimeout(() => {
     const r = document.createElement('div');
     r.className = 'fx-knock';
     r.style.left = hx + 'px'; r.style.top = (hy + 10) + 'px';
@@ -2862,9 +2853,9 @@ const LAYOUTS = {
   4: [[11, 26], [31, 8], [69, 8], [89, 26]],
   5: [[11, 70], [11, 24], [50, 8], [89, 24], [89, 70]],
   6: [[11, 70], [11, 24], [31, 7], [69, 7], [89, 24], [89, 70]],
-  7: [[20, 89], [10, 67], [10, 24], [50, 7], [90, 24], [90, 67], [80, 89]],
-  8: [[20, 89], [10, 67], [10, 25], [30, 7], [70, 7], [90, 25], [90, 67], [80, 89]],
-  9: [[20, 89], [10, 67], [10, 25], [25, 7], [50, 5], [75, 7], [90, 25], [90, 67], [80, 89]],
+  7: [[14, 87], [10, 64], [10, 24], [50, 7], [90, 24], [90, 64], [87, 85]],
+  8: [[14, 87], [10, 64], [10, 25], [30, 7], [70, 7], [90, 25], [90, 64], [87, 85]],
+  9: [[14, 87], [10, 64], [10, 25], [25, 7], [50, 5], [75, 7], [90, 25], [90, 64], [87, 85]],
 };
 // 키 작은 폰(테이블 높이 470px 미만): 옆자리를 가운데 줄보다 더 위·아래로
 const LAYOUTS_COMPACT = {
@@ -2874,13 +2865,13 @@ const LAYOUTS_COMPACT = {
   4: [[10, 22], [31, 6], [69, 6], [90, 22]],
   5: [[10, 72], [10, 21], [50, 6], [90, 21], [90, 72]],
   6: [[10, 72], [10, 21], [31, 6], [69, 6], [90, 21], [90, 72]],
-  7: [[25, 94], [9, 68], [9, 22], [50, 6], [91, 22], [91, 68], [75, 94]],
-  8: [[25, 94], [9, 68], [9, 23], [30, 6], [70, 6], [91, 23], [91, 68], [75, 94]],
-  9: [[25, 94], [9, 68], [9, 23], [25, 6], [50, 4], [75, 6], [91, 23], [91, 68], [75, 94]],
+  7: [[13, 90], [9, 66], [9, 22], [50, 6], [91, 22], [91, 66], [88, 88]],
+  8: [[13, 90], [9, 66], [9, 23], [30, 6], [70, 6], [91, 23], [91, 66], [88, 88]],
+  9: [[13, 90], [9, 66], [9, 23], [25, 6], [50, 4], [75, 6], [91, 23], [91, 66], [88, 88]],
 };
 function seatPositions(n, compact = false) {
   const others = (compact ? LAYOUTS_COMPACT : LAYOUTS)[Math.max(1, Math.min(9, n - 1))];
-  return [{ x: 50, y: 90 }, ...others.map(([x, y]) => ({ x, y }))];
+  return [{ x: S.state && gameOf(S.state) === 'holdem' ? 40 : 50, y: 90 }, ...others.map(([x, y]) => ({ x, y }))];
 }
 
 // 가로 화면인가 (폰을 눕히거나 넓은 컴퓨터 화면)
@@ -2904,6 +2895,7 @@ function mountGame() {
   </div>`;
   S.gameMounted = true;
   S.actionSig = '';
+  prefetchFx();
   const tray = document.getElementById('emote-tray');
   document.getElementById('g-me').addEventListener('click', (e) => {
     if (e.target.closest('#emote-btn')) { e.stopPropagation(); tray.hidden = !tray.hidden; }
@@ -3375,6 +3367,7 @@ function renderTableInner(st, el) {
             ${p.isTurn ? '<svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20" data-ring></circle></svg>' : ''}</div>
           <div class="seat-name">${P.masterBadge(p.master, true)}${esc(p.name)}${p.member && !p.master ? ' <span class="member-mark" title="회원">✓</span>' : ''}${p.isHost ? ' <span class="crown" title="방장">★</span>' : ''}</div>
           <div class="seat-stack"><span class="chip-icon sm"></span>${fmt(p.stack)}</div>
+          ${p.rs && p.rs.hands ? `<div class="seat-wl" title="이 방에서 이긴 판 · 진 판"><b class="w">${p.rs.won}승</b><b class="l">${p.rs.lost || 0}패</b></div>` : ''}
           <div class="seat-tags">${tags.join('')}</div>
         </div>
       </div>${bet}`;
@@ -3394,6 +3387,7 @@ function renderTableInner(st, el) {
         // 1:1 승부의 리버는 베팅 중이어도 '쪼듯이' 천천히 (두 사람만 남은 판)
         const heads = st.players.filter((p) => ['inhand', 'allin'].includes(p.status)).length === 2;
         const slow = fresh && ((S.runoutHand === handNo && i >= S.runoutFrom) || (i === 4 && heads));
+        if (fresh && i === 4) S.riverFx = { hand: handNo, slow };
         if (fresh && i === 4 && heads && S.runoutHand !== handNo) { sound.play('heartbeat'); const a = document.getElementById('app'); a.classList.add('tension'); setTimeout(() => { a.classList.remove('tension'); sound.play('impact'); }, 1400); }
         board.push(cardHTML(c, {
           size: compact ? 'sm' : 'md', anim: fresh && !slow, delay: (i < 3 && !slow ? i : 0) * 120,
@@ -3416,6 +3410,7 @@ function renderTableInner(st, el) {
         ${h.game === 'seotda' ? `<div class="sd-center">${st.room.settings.cards === 3 ? '세 장' : '두 장'} 섯다${h.stage === 'open' ? ' · 한 장 공개' : h.stage === 'pick' ? ' · 두 장 고르기' : h.stage === 'betting' ? (st.room.settings.cards === 3 ? ' · 1차 베팅' : ' · 베팅') : h.stage === 'betting2' ? ' · 2차 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
         <div class="pot"><span class="chip-icon pot-chip"></span><b>${potText}</b>${h.totalPot > h.pot ? `<span class="pot-note">이번 라운드 ${fmt(h.totalPot - h.pot)} 포함</span>` : ''}</div>
         ${sidePots}
+        ${h.game === 'seotda' || result ? '' : feltInfoHTML(st)}
         ${result ? resultHTML(st, result) : ''}
       </div>`;
   } else {
@@ -3423,8 +3418,34 @@ function renderTableInner(st, el) {
     center = `<div class="table-center"><div class="table-blinds">${gameOf(st) === 'seotda' ? '섯다' : 'NL 홀덤'} · ${fmt(s0.sb)}/${fmt(s0.bb)}</div><p class="muted small">${st.room.waiting ? (canSit ? '빈자리를 눌러 앉아 주세요' : '참가자를 기다리는 중') : '곧 시작해요'}</p></div>`;
   }
   el.innerHTML = `<div class="felt"><div class="felt-rail"></div>${center}${seatHTML}</div>`;
+  if (S.riverFx && S.riverFx.hand === handNo && !S.riverFx.done) { S.riverFx.done = true; setTimeout(riverGlint, S.riverFx.slow ? 1500 : 380); }
   RK.fitNames(el);
   RK.refreshRoom(st);
+}
+
+// 펠트 위 안내: 'NL 홀덤 · 블라인드 10/20 (앤티 20)' + 토너먼트면 '다음 20/40 · 4:31 후'
+function feltInfoHTML(st) {
+  const s = st.room.settings; const tn = st.room.tournament;
+  const run = tn && tn.running;
+  const sb = run ? tn.sb : s.sb; const bb = run ? tn.bb : s.bb;
+  const ante = s.ante === 'bb' ? ` <small>(앤티 ${fmt(bb)})</small>` : '';
+  const next = run && tn.nextAt && (tn.nextBb !== tn.bb) ? `<span class="fi-next">다음 블라인드 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '멈춤' : `<i data-level-at="${tn.nextAt}">-</i> 후`}</span>` : '';
+  return `<div class="felt-info"><span>NL 홀덤 · <b>${fmt(sb)}/${fmt(bb)}</b>${ante}</span>${next}</div>`;
+}
+
+// 리버(마지막 한 장)가 깔릴 때: 카드 위로 AI 영상 빛줄기가 '스윽' 지나간다
+function riverGlint() {
+  const cards = document.querySelectorAll('#g-table .board .card');
+  const c = cards[4];
+  if (!c || gws.reduceMotion()) return;
+  const r = c.getBoundingClientRect();
+  const el = blendVideo('/img/holdem/fx/river.mp4?v=1', 'fx-glint');
+  el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = (r.top + r.height / 2) + 'px';
+  el.style.width = (r.width * 3) + 'px'; el.style.height = (r.height * 2.2) + 'px';
+  document.body.appendChild(el);
+  sound.play('fx_river');
+  if (v.play) v.play().catch(() => {});
+  setTimeout(() => el.remove(), 2200);
 }
 
 function markCard(key) {
@@ -4042,10 +4063,11 @@ function announceHands(st, once) {
     if (!once('ann:' + p.id)) continue;
     const tier = handTier(p.cards, h.board);
     const at = Math.max(Date.now() + 250, S.annAt || 0);
-    S.annAt = at + (tier >= BIG_MIN ? (tier >= 7 ? 3400 : tier >= 5 ? 2700 : 2000) : 1000);
+    S.annAt = at + (tier >= 4 ? HV_MS[Math.min(9, tier)] - 600 : 1000);
     setTimeout(() => {
       handTag(p.id, HAND_TIERS[tier], tier);
-      if (tier >= BIG_MIN) bigHand(tier, p);
+      if (tier >= 4) bigHandVideo(tier, p);
+      else if (tier >= BIG_MIN) sound.play('v_h' + tier);
       else sound.play('v_h' + tier);
     }, at - Date.now());
   }
@@ -4092,6 +4114,51 @@ function bigHand(tier, p, custom = null) {
   setTimeout(() => el.classList.add('out'), ms - 500);
   setTimeout(() => el.remove(), ms);
 }
+// 홀덤 큰 족보 (스트레이트 이상): AI(Gemini Veo)로 만든 영상을 화면에 겹쳐 틀고, 금빛 족보 글씨를 띄운다
+// 영상은 검은 배경이라 '스크린' 섞기로 검은 부분이 투명해진다. 족보가 셀수록 더 화려한 영상.
+const HV_MS = { 4: 4000, 5: 4500, 6: 4800, 7: 4600, 8: 5000, 9: 5000 }; // 영상 길이
+const FX_VID = { 4: 'straight', 5: 'flush', 6: 'fullhouse', 7: 'quads', 8: 'sf', 9: 'royal' };
+function bigHandVideo(tier, p) {
+  const key = FX_VID[Math.min(9, tier)];
+  const ms = HV_MS[Math.min(9, tier)];
+  const el = document.createElement('div');
+  el.className = `fx-hv fx-hv${tier}`;
+  el.innerHTML = `<img class="fx-hv-title" src="/img/holdem/fx/title_${key}.webp?v=1" alt="${esc(HAND_TIERS[tier])}">
+    <div class="fx-hv-who">${esc(p.name)}</div>`;
+  const t = el.querySelector('.fx-hv-title');
+  t.onerror = () => { t.replaceWith(Object.assign(document.createElement('div'), { className: 'fx-hv-title-txt', textContent: HAND_TIERS[tier] })); };
+  // 영상은 페이지에 바로 붙여야 '스크린' 섞기가 테이블과 섞인다 (연출 층 안에 넣으면 검은 화면이 됨)
+  const dim = Object.assign(document.createElement('div'), { className: 'fx-hv-dim' });
+  const vw = blendVideo(`/img/holdem/fx/${key}.mp4?v=1`, 'fx-hv-vid');
+  document.body.append(dim, vw, el);
+  const parts = [dim, vw, el];
+  sound.play('fx_' + key);
+  setTimeout(() => sound.play('v_h' + tier, 1.2), 500);
+  if (sound.isUnlocked()) gws.vibrate(tier >= 7 ? [60, 40, 160] : [50]);
+  setTimeout(() => parts.forEach((x) => x.classList.add('out')), ms - 600);
+  setTimeout(() => parts.forEach((x) => x.remove()), ms);
+}
+// 검은 배경 영상을 화면에 '스크린'으로 섞어 붙이기 (검은 곳은 투명해짐). 감싼 칸 자체가 섞이도록 body 바로 아래에 둔다
+// 연출 영상 미리 받아 두기 (첫 큰 족보 때 영상이 늦게 뜨지 않게) · 한 번만, 천천히
+function prefetchFx() {
+  if (S.fxPrefetched || !S.state || gameOf(S.state) !== 'holdem') return;
+  S.fxPrefetched = true;
+  const list = ['river', 'potwin', 'straight', 'flush', 'fullhouse', 'quads', 'sf', 'royal'];
+  let i = 0;
+  const next = () => { if (i >= list.length) return; const k = list[i++]; fetch(`/img/holdem/fx/${k}.mp4?v=1`).then((r) => r.blob()).catch(() => {}).finally(() => setTimeout(next, 400)); };
+  setTimeout(next, 3000);
+}
+function blendVideo(src, cls) {
+  const w = document.createElement('div');
+  w.className = 'fx-blend ' + cls;
+  const v = document.createElement('video');
+  Object.assign(v, { src, muted: true, playsInline: true, autoplay: true, preload: 'auto' });
+  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  v.onerror = () => w.remove();
+  w.appendChild(v);
+  setTimeout(() => { if (v.play) v.play().catch(() => {}); }, 0);
+  return w;
+}
 // 큰 족보 연출 그림 (Gemini): 포카드 이상은 우주 폭발, 그 아래는 금빛 폭발
 function holdemFxArt(tier) {
   if (tier >= 7 && S.cosmicOk !== false) return '/img/holdem/burst-cosmic.webp';
@@ -4113,6 +4180,41 @@ function banner(title, sub, kind = '', ms = 1800) {
 function centerOf(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
 
 // 팟에서 이긴 사람 자리로 칩이 폭발하듯 날아간다
+// 팟 밀어 주기: 가운데 칩 더미 하나가 이긴 사람 자리로 미끄러져 간다 (나눠 가지면 나눠서)
+function pushPot(winners) {
+  const pot = document.querySelector('#g-table .pot-chip') || document.querySelector('#g-table .board');
+  if (!pot || gws.reduceMotion()) return;
+  const from = centerOf(pot);
+  winners.forEach((w, wi) => {
+    const seat = document.querySelector(`.seat[data-id="${w}"] .seat-av`);
+    if (!seat) return;
+    const to = centerOf(seat);
+    const el = document.createElement('div');
+    el.className = 'fx-potstack';
+    el.innerHTML = '<i></i><i></i><i></i><i></i><i></i>';
+    el.style.left = from.x + 'px'; el.style.top = from.y + 'px';
+    fxLayer().appendChild(el);
+    const dx = to.x - from.x; const dy = to.y - from.y + 18;
+    el.animate([
+      { transform: 'translate(-50%,-50%) scale(1)', opacity: 0 },
+      { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0.12 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.9)`, opacity: 1, offset: 0.8 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.85)`, opacity: 0 },
+    ], { duration: 1000, delay: 250 + wi * 150, easing: 'cubic-bezier(.3,.6,.25,1)', fill: 'both' }).onfinish = () => el.remove();
+  });
+}
+// 내가 이겼을 때: 화면을 시끄럽게 덮지 않고, 내 자리에 은은한 금빛 (AI 영상이 있으면 그걸로)
+function winGlow(huge) {
+  if (gws.reduceMotion()) return;
+  const me = document.querySelector('#g-table .seat-me .seat-av');
+  const c = me ? centerOf(me) : { x: innerWidth / 2, y: innerHeight * 0.7 };
+  const el = blendVideo('/img/holdem/fx/potwin.mp4?v=1', 'fx-winglow' + (huge ? ' huge' : ''));
+  el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
+  document.body.appendChild(el);
+  sound.play('fx_potwin');
+  setTimeout(() => el.classList.add('out'), 2200);
+  setTimeout(() => el.remove(), 2800);
+}
 function burstChips(winners, count) {
   const pot = document.querySelector('.pot-chip') || document.querySelector('.board');
   if (!pot) return;
@@ -4257,15 +4359,22 @@ function celebrate(st) {
   const big = r.type === 'showdown';
   const gain = Math.max(0, ...r.winners.map((w) => r.deltas[w] || 0));
   const huge = st.hand.totalPot >= st.room.settings.startChips; // 시작 칩 이상 걸린 큰 판
-  burstChips(r.winners, big ? (huge ? 60 : 36) : 18);
-  setTimeout(() => sound.play('collect'), 380); // 칩이 이긴 사람 앞으로 와르르
-  sound.play('coins');
-  if (big || iWon) setTimeout(() => sound.play('fanfare'), 250);
+  const holdem = !st.hand.game || st.hand.game === 'holdem';
+  if (holdem) { pushPot(r.winners); setTimeout(() => sound.play('collect'), 150); }
+  else {
+    burstChips(r.winners, big ? (huge ? 60 : 36) : 18);
+    setTimeout(() => sound.play('collect'), 380);
+    sound.play('coins');
+    if (big || iWon) setTimeout(() => sound.play('fanfare'), 250);
+  }
   const names = r.winnerNames.join(', ');
   const handName = big && r.hands[r.winners[0]] ? esc(r.hands[r.winners[0]].name) : '모두 폴드';
   const el = banner(iWon ? '내가 이겼다!' : `${names} 승리`, `<span class="fx-hand">${handName}</span><b class="fx-amt">+0</b>`, iWon ? 'mywin' : 'win', big ? 2600 : 1800);
   countUp(el.querySelector('.fx-amt'), gain);
-  if (iWon) {
+  if (iWon && holdem) {
+    winGlow(huge);
+    if (sound.isUnlocked()) gws.vibrate([60]);
+  } else if (iWon) {
     coinFountain(huge ? 80 : 50);
     setTimeout(() => moneyRain(huge ? 70 : 36), 700);
     const flash = document.createElement('div');
@@ -4387,4 +4496,4 @@ P.init({
 boot();
 
 // 디버그/검증용 (자동 테스트에서 상태 확인)
-window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, handTag, goHome, moneyRain, coinFountain, sparkBurst, openColorHelp } };
+window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, bigHandVideo, riverGlint, winGlow, pushPot, handTag, goHome, openColorHelp } };
