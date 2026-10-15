@@ -1589,15 +1589,13 @@ class Room {
 
   /**
    * 쇼다운에서 이 사람 패를 모두에게 보여 주는지 (홀덤).
-   * 이긴 사람 · 올인한 사람 · 스스로 보여 준 사람만 공개, 나머지 진 패는 덮는다(머크).
+   * 쇼다운까지 간 사람(폴드 안 한 사람)은 이기든 지든 모두 공개한다 — 친구끼리 '왜 졌는지' 보이게 (예전엔 진 패를 덮었다)
    */
   handShown(id) {
     const h = this.hand;
     if (!h || h.kind || !h.result || h.result.type !== 'showdown') return true;
-    if (h.result.winners.includes(id) || (this.showIds || []).includes(id)) return true;
-    const pr = (h.result.potResults || []).some((pt) => pt.winners.includes(id));
     const hs = h.seatOf(id);
-    return pr || !!(hs && hs.allIn);
+    return !!(h.result.hands && h.result.hands[id]) || !!(hs && !hs.folded) || (this.showIds || []).includes(id);
   }
 
   /** 쇼다운에서 이미 모두에게 공개된 패인지 (이긴 사람 · 올인한 사람): 그러면 '보여주기'를 물을 필요가 없다 */
@@ -1606,7 +1604,7 @@ class Room {
     return !!(h && !h.kind && h.result && h.result.type === 'showdown' && h.result.hands && h.result.hands[id] && this.handShown(id));
   }
 
-  /** 판이 끝난 뒤 '내 패 보여주기' (실제 홀덤처럼: 다 폴드시키고 이겼을 때 · 쇼다운에서 지고 패를 덮었을 때 · 폴드했을 때만) */
+  /** 판이 끝난 뒤 '내 패 보여주기' (쇼다운에선 이미 다 공개되니: 다 폴드시키고 이겼을 때 · 폴드했을 때만) */
   showCards(id, which) {
     const h = this.hand;
     if (!h || !h.finished || h.kind || !this.handPlayers.includes(id)) throw new RoomError('판이 끝난 뒤에 보여 줄 수 있어요');

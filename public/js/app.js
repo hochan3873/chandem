@@ -135,6 +135,24 @@ function bindAvatarPicker(root) {
   };
 }
 
+// 내 캐릭터 · 사진 바꾸기 (첫 화면 '내 정보'에서): 방에 들어갈 때 이 캐릭터·사진으로 앉는다
+function openAvatarModal() {
+  openModal('내 캐릭터 · 사진', `<form class="form" id="av-form">${avatarPickerHTML()}
+    <p class="muted small">「내 사진」을 누르면 폰 사진에서 고를 수 있어요. 사진은 이 폰에만 저장되고, 방에 있는 동안만 친구에게 보여요.</p>
+    <button class="btn btn-gold btn-lg" type="submit">저장</button></form>`, (b) => {
+    const f = b.querySelector('#av-form');
+    bindAvatarPicker(f);
+    f.onsubmit = (e) => {
+      e.preventDefault();
+      if (new FormData(f).get('avatar') === 'photo' && !LS.get('chandem:photo', '')) { toast('사진을 먼저 골라 주세요', 'error'); return; }
+      readAvatar(f);
+      closeModal(); toast('캐릭터를 바꿨어요', 'ok');
+      document.querySelectorAll('.hl-av').forEach((img) => { img.src = myAvatarSrc(); });
+    };
+  });
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-av-edit]')) openAvatarModal(); });
+
 function siteUrl() {
   const info = S.info || {};
   let base = location.origin;
@@ -707,7 +725,7 @@ function hlMeHTML(me) {
   const ev = me;
   const name = esc(me.name || LS.get('chandem:name', '') || '닉네임 정하기');
   return `<div class="hl-me-top">
-      <img class="hl-av" src="${myAvatarSrc()}" alt="">
+      <button class="hl-av-edit" type="button" data-av-edit aria-label="캐릭터 · 사진 바꾸기"><img class="hl-av" src="${myAvatarSrc()}" alt=""><i>바꾸기</i></button>
       <div class="hl-who"><b>${name}</b>${tierBadge(ev.tier)}${ev.tier ? `<small class="hl-score">${ev.score}점</small>` : ''}
         ${(me.titles || []).length ? `<span class="hl-title">${IC('crown', 'ic-in')}${esc(me.titles[me.titles.length - 1])}</span>` : ''}
         <span class="hl-sub">${ev.placement ? `배치까지 ${ev.placement}판` : `${ev.rank ? `전체 ${fmt(ev.rank.rank)}위 · ` : ''}${fmt(ev.stats.hands)}판 · 승률 ${ev.stats.winRate}%`}${ev.style ? ` · ${esc(ev.style)}` : ''}</span>${recentDots(me.recent)}</div>
@@ -1050,7 +1068,7 @@ function renderHoldemLobby() {
         <button class="hl-ico" data-hl="replays" type="button">${IC('clapper')}명장면</button>
         <button class="hl-ico" data-hl="shop" type="button">${IC('bag')}꾸미기</button>
       </div>
-      <div class="hl-more"><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" data-hl="invite" type="button">친구 초대</button></div>
+      <div class="hl-more"><button class="btn btn-ghost" data-av-edit type="button">캐릭터·사진</button><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" data-hl="invite" type="button">친구 초대</button></div>
       <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
     </div>
   </main>
@@ -1066,7 +1084,7 @@ function renderHoldemLobby() {
     sound.play('tap');
   };
   $app.querySelectorAll('#hl-tabs [data-tab]').forEach((b) => { b.onclick = () => goTab(b.dataset.tab); });
-  $app.querySelectorAll('[data-go-tab]').forEach((b) => { b.onclick = () => goTab(b.dataset.goTab); });
+  $app.querySelectorAll('[data-go-tab]').forEach((b) => { b.onclick = (e) => { if (e.target.closest('[data-av-edit]')) return; goTab(b.dataset.goTab); }; });
   $app.querySelectorAll('[data-hlx]').forEach((b) => { b.onclick = () => (b.dataset.hlx === 'checkin' ? openCheckin() : openDaily()); });
   startRoomList('holdem');
   loadHoldemLobby();
@@ -1107,7 +1125,7 @@ function openDaily() { openModal('정기 토너먼트', '<div class="hl-daily" i
 // 홈 맨 위: 내 정보 한 줄 (누르면 내 정보 탭)
 function hlMeBarHTML(me) {
   const name = esc(me.name || LS.get('chandem:name', '') || '닉네임 정하기');
-  return `<img class="hl-av" src="${myAvatarSrc()}" alt=""><span class="mb-who"><b>${name}</b>${me.tier ? tierBadge(me.tier, 'sm') : `<small class="muted">배치까지 ${me.placement || 0}판</small>`}</span><span class="mb-chip"><span class="chip-icon"></span>${fmt(me.wallet)}</span><i class="mb-go">›</i>`;
+  return `<span class="mb-av" data-av-edit role="button" aria-label="캐릭터 · 사진 바꾸기"><img class="hl-av" src="${myAvatarSrc()}" alt=""><i>✎</i></span><span class="mb-who"><b>${name}</b>${me.tier ? tierBadge(me.tier, 'sm') : `<small class="muted">배치까지 ${me.placement || 0}판</small>`}</span><span class="mb-chip"><span class="chip-icon"></span>${fmt(me.wallet)}</span><i class="mb-go">›</i>`;
 }
 // 홈 순위 시상대: 1~3등 크게 + 4·5등 한 줄 + 내 순위
 function hlPodiumHTML(rk, me) {
