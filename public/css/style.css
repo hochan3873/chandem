@@ -2468,3 +2468,7 @@ ul.tut-list { list-style: none; padding-left: 0; } .tut-list .blind-tag { margin
 .tut-rank small { font-weight: 600; color: var(--muted); margin-left: 4px; }
 .tut-dots { display: flex; justify-content: center; gap: 6px; } .tut-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .25); } .tut-dots i.on { background: #ffd35a; width: 18px; border-radius: 4px; }
 .tut-nav { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+/* 베팅 칩 글자가 세로로 꺾이지 않게 */
+.bet small, .bet b { white-space: nowrap; }
+/* 가로로 눕힌 폰(높이가 낮음): 아래 설치 띠가 '바로 한 판' 등을 덮지 않게 숨김 (위쪽 '앱 설치' 버튼은 그대로) */
+@media (max-height: 500px) { #install-bar, .install-bar { display: none !important; } }
