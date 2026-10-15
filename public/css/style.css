@@ -2439,3 +2439,32 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 .hl-av-edit i { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); padding: 1px 6px; border-radius: 99px; background: #ffd35a; color: #3a1c00; font: 800 .58rem/1.4 var(--font); font-style: normal; white-space: nowrap; box-shadow: 0 2px 5px rgba(0, 0, 0, .5); }
 .mb-av { position: relative; flex: none; line-height: 0; }
 .mb-av i { position: absolute; right: -3px; bottom: -3px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #ffd35a; color: #3a1c00; font-size: 9px; font-style: normal; box-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+/* 스몰·빅 블라인드 작은 표시 (얼굴 아래 구석 · 거슬리지 않게) */
+.blind-tag { display: inline-grid; place-items: center; min-width: 20px; height: 14px; padding: 0 3px; border-radius: 7px; background: rgba(20, 30, 60, .82); border: 1px solid rgba(160, 190, 255, .55); color: #cfe0ff; font: 800 .5rem/1 var(--font); letter-spacing: .02em; box-shadow: 0 1px 3px rgba(0, 0, 0, .5); pointer-events: none; }
+.blind-tag.is-bb { background: rgba(70, 20, 30, .85); border-color: rgba(255, 170, 150, .6); color: #ffd9cc; }
+/* 팁 한 줄: 바뀔 때 살짝 사라졌다 나타남 · 누르면 다음 팁 */
+.hl-tip1 { cursor: pointer; } .hl-tip1 span { transition: opacity .25s; }
+/* 홀덤 용어집 */
+.gloss { display: flex; flex-direction: column; gap: 12px; }
+.gloss-q { position: sticky; top: 0; z-index: 1; }
+.gloss-sec h3 { margin: 0 0 6px; font-size: .9rem; color: #ffe08a; }
+.gloss-sec dl { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.gloss-row { padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 220, 150, .12); }
+.gloss-row dt { font-weight: 900; font-size: .86rem; color: #fff3c4; }
+.gloss-row dd { margin: 2px 0 0; font-size: .8rem; line-height: 1.5; color: rgba(255, 244, 228, .85); }
+/* 처음 하는 사람 튜토리얼 */
+.tut { display: flex; flex-direction: column; gap: 10px; }
+.tut-h { margin: 0; font-size: 1.15rem; color: #ffe08a; }
+.tut p { margin: 0; line-height: 1.55; }
+.tut-cards { display: flex; gap: 4px; margin-top: 4px; }
+.tut-blank { width: 34px; height: 48px; border-radius: 5px; border: 1px dashed rgba(255, 255, 255, .3); }
+.tut-pair { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px; border-radius: 12px; background: rgba(0, 0, 0, .3); }
+.tut-pair small { color: var(--muted); font-size: .72rem; }
+.tut-ok { font-size: .92rem; } .tut-ok b { color: #7fe0a0; }
+.tut-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: .88rem; line-height: 1.5; }
+ul.tut-list { list-style: none; padding-left: 0; } .tut-list .blind-tag { margin-right: 6px; vertical-align: 1px; }
+.tut-acts b { display: inline-block; min-width: 46px; color: #ffe08a; }
+.tut-rank { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 3px; font-size: .86rem; font-weight: 800; }
+.tut-rank small { font-weight: 600; color: var(--muted); margin-left: 4px; }
+.tut-dots { display: flex; justify-content: center; gap: 6px; } .tut-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .25); } .tut-dots i.on { background: #ffd35a; width: 18px; border-radius: 4px; }
+.tut-nav { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }

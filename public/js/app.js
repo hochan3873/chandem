@@ -714,8 +714,36 @@ const HOLDEM_TIPS = [
   'A-K는 강하지만 아직 완성된 패가 아니에요. 플랍에서 못 맞으면 무리하지 마세요.',
   '블러핑은 상대가 한두 명일 때, 보드가 무서울 때 잘 통해요.',
   '스몰 블라인드 자리는 플랍 뒤 먼저 행동해서 불리해요. 애매한 패는 접어요.',
+  '같은 무늬 두 장(수딧)은 다른 무늬보다 승률이 2~3% 정도 높아요. 생각보다 크지 않아요.',
+  'A-A는 가장 강한 시작 패지만, 상대가 여럿이면 지는 일도 꽤 있어요. 일찍 키워서 사람을 줄여요.',
+  '7-2 다른 무늬는 가장 약한 시작 패로 유명해요. 대부분 접어요.',
+  '턴에서 아웃츠(나를 이기게 해 줄 카드) 수 × 2 ≈ 리버에 맞을 확률(%)이에요.',
+  '플랍에서 아웃츠 수 × 4 ≈ 리버까지 맞을 확률(%)이에요. 플러시 드로우 9장 → 약 36%.',
+  '바닥에 같은 무늬가 3장 깔리면 누군가 플러시일 수 있어요. 조심!',
+  '바닥에 페어가 깔리면 풀하우스·포카드가 나올 수 있어요.',
+  '체크는 공짜로 다음 카드를 보는 것. 아무도 안 걸었으면 체크해도 돼요.',
+  '콜만 계속하면(콜링 스테이션) 블러프에 당하기 쉬워요. 가끔은 레이즈나 폴드로!',
+  '베팅 크기는 팟의 ½~¾ 정도가 무난해요. 너무 작으면 상대가 싸게 따라와요.',
+  '칩이 빅 블라인드의 10배 아래로 줄면 올인 아니면 폴드가 더 나을 때가 많아요.',
+  '프리플랍 레이즈는 보통 빅 블라인드의 2.5~3배 정도로 해요.',
+  '내가 먼저 레이즈했으면 플랍에서 한 번 더 거는 것(C벳)이 잘 통해요.',
+  '상대가 오래 고민하다 체크하면 약한 패일 때가 많아요.',
+  '토너먼트에선 살아남는 게 먼저! 큰 승부는 확실할 때만.',
+  '좋은 패가 안 올 땐 기다리는 것도 실력이에요. 대부분의 판은 접는 게 맞아요.',
+  '킥커: 같은 페어끼리는 남은 카드가 높은 쪽이 이겨요. A-K의 K가 킥커예요.',
+  '스트레이트에서 A는 가장 높게(10-J-Q-K-A)도, 가장 낮게(A-2-3-4-5)도 쓸 수 있어요.',
+  '같은 족보면 더 높은 카드로 비교하고, 완전히 같으면 팟을 나눠 가져요(찹).',
+  '모르는 말이 나오면 내 정보 탭의 「용어집」을 열어 보세요.',
 ];
-const todayTip = () => HOLDEM_TIPS[Math.floor((Date.now() + 9 * 3600e3) / 86400e3) % HOLDEM_TIPS.length];
+const todayTip = () => HOLDEM_TIPS[Math.floor(Math.random() * HOLDEM_TIPS.length)];
+// 첫 화면 팁 한 줄: 8초마다 다른 팁으로 (화면을 떠나면 멈춤)
+function rotateTip() {
+  clearInterval(S.tipT);
+  let i = Math.floor(Math.random() * HOLDEM_TIPS.length);
+  const show = () => { const el = document.querySelector('.hl-tip1 span'); if (!el) { clearInterval(S.tipT); return; } i = (i + 1) % HOLDEM_TIPS.length; el.style.opacity = '0'; setTimeout(() => { el.textContent = HOLDEM_TIPS[i]; el.style.opacity = '1'; }, 250); };
+  S.tipT = setInterval(show, 8000);
+  const el = document.querySelector('.hl-tip1'); if (el) el.onclick = show; // 누르면 바로 다음 팁
+}
 function residentsHTML() {
   return `<div class="hl-res">${RESIDENTS.map(([n, a, st, d]) => `<div class="hr-card"><img src="/img/avatars/a${a}.webp?v=2" alt="" loading="lazy"><b>${n}</b><span class="hr-style hr-${st === '신중' ? 'tight' : st === '공격' ? 'aggro' : 'loose'}">${st}</span><small>${d}</small></div>`).join('')}</div>`;
 }
@@ -1068,7 +1096,7 @@ function renderHoldemLobby() {
         <button class="hl-ico" data-hl="replays" type="button">${IC('clapper')}명장면</button>
         <button class="hl-ico" data-hl="shop" type="button">${IC('bag')}꾸미기</button>
       </div>
-      <div class="hl-more"><button class="btn btn-ghost" data-av-edit type="button">캐릭터·사진</button><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" data-hl="invite" type="button">친구 초대</button></div>
+      <div class="hl-more"><button class="btn btn-ghost" data-learn="tut" type="button">처음이에요 (튜토리얼)</button><button class="btn btn-ghost" data-learn="gloss" type="button">홀덤 용어집</button><button class="btn btn-ghost" data-av-edit type="button">캐릭터·사진</button><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" data-hl="invite" type="button">친구 초대</button></div>
       <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
     </div>
   </main>
@@ -1088,7 +1116,9 @@ function renderHoldemLobby() {
   $app.querySelectorAll('[data-hlx]').forEach((b) => { b.onclick = () => (b.dataset.hlx === 'checkin' ? openCheckin() : openDaily()); });
   startRoomList('holdem');
   loadHoldemLobby();
-  maybeInstallPrompt();
+  rotateTip();
+  if (!LS.get('chandem:hlTut', 0)) setTimeout(() => { if (S.view === 'gamehome' && !document.querySelector('#modal-root .modal')) openHoldemTutorial(); }, 700); // 처음 온 사람: 튜토리얼 한 번
+  else maybeInstallPrompt();
   const hub = $app.querySelector('#to-hub');
   if (hub) hub.onclick = () => { S.view = 'home'; nav('/'); render(); };
   const ab = $app.querySelector('#acct-btn');
@@ -1119,6 +1149,109 @@ function renderHoldemLobby() {
     enterTable(ok, me);
   };
 }
+// ── 홀덤 용어집 (내 정보 탭 · 게임 메뉴 · 팁 줄에서) ──
+const HOLDEM_GLOSSARY = [
+  ['자리 · 블라인드', [
+    ['딜러 버튼 (D)', '이번 판의 딜러 자리 표시. 판마다 왼쪽으로 한 칸씩 옮겨 가요. 플랍부터는 가장 늦게 행동해서 제일 유리해요.'],
+    ['스몰 블라인드 (SB)', '딜러 왼쪽 자리. 카드 받기 전에 빅 블라인드의 절반을 미리 내요.'],
+    ['빅 블라인드 (BB)', '스몰 블라인드 왼쪽 자리. 정해진 기본 금액을 미리 내요. 판의 기본 단위예요.'],
+    ['앤티', '블라인드와 따로 모두(또는 BB 자리)가 조금씩 내는 돈. 팟이 커져요.'],
+    ['포지션', '행동하는 순서. 늦게 행동할수록(딜러 쪽) 상대를 보고 정할 수 있어 유리해요.'],
+    ['UTG', '프리플랍에서 가장 먼저 행동하는 자리 (빅 블라인드 왼쪽).'],
+  ]],
+  ['진행 순서', [
+    ['홀 카드', '나만 보는 내 카드 2장.'],
+    ['프리플랍', '바닥 카드가 깔리기 전, 내 카드 2장만 보고 하는 첫 베팅.'],
+    ['플랍', '바닥에 처음 깔리는 카드 3장.'],
+    ['턴', '네 번째 바닥 카드.'],
+    ['리버', '다섯 번째(마지막) 바닥 카드.'],
+    ['보드 · 커뮤니티 카드', '모두가 같이 쓰는 바닥 카드 5장.'],
+    ['쇼다운', '마지막 베팅이 끝나고 남은 사람들이 패를 보여 승부하는 것.'],
+    ['팟', '이번 판에 모인 칩 전체. 이긴 사람이 가져가요.'],
+    ['사이드 팟', '누가 올인했을 때, 그 사람이 낼 수 없는 만큼 따로 모인 팟.'],
+  ]],
+  ['행동', [
+    ['체크', '아무도 안 걸었을 때 돈을 안 내고 넘기기.'],
+    ['벳', '이번 라운드에서 처음으로 칩을 거는 것.'],
+    ['콜', '앞사람이 건 만큼 똑같이 내고 따라가기.'],
+    ['레이즈', '앞사람이 건 것보다 더 올려서 걸기.'],
+    ['리레이즈 · 3벳', '레이즈에 다시 레이즈하는 것.'],
+    ['폴드', '이번 판을 포기하고 카드 버리기. 이미 낸 칩은 돌려받지 못해요.'],
+    ['올인', '가진 칩을 전부 거는 것.'],
+    ['림프', '프리플랍에서 레이즈 없이 빅 블라인드만큼만 콜하고 들어가기.'],
+    ['C벳', '프리플랍에 레이즈한 사람이 플랍에서 또 거는 것 (컨티뉴에이션 벳).'],
+    ['블러프', '약한 패로 강한 척 크게 걸어 상대를 접게 만드는 것.'],
+    ['머크', '쇼다운에서 진 패를 보여 주지 않고 덮는 것.'],
+  ]],
+  ['패 · 족보', [
+    ['포켓 페어', '내 카드 2장이 같은 숫자 (예: 7-7).'],
+    ['수딧', '내 카드 2장이 같은 무늬. 다르면 오프수트.'],
+    ['킥커', '같은 족보끼리 비교할 때 승부를 가르는 남은 높은 카드.'],
+    ['탑 페어', '바닥에서 가장 높은 카드와 내 카드가 페어가 된 것.'],
+    ['오버 페어', '바닥의 어떤 카드보다 높은 포켓 페어.'],
+    ['셋 · 트립스', '같은 숫자 3장(트리플). 포켓 페어 + 바닥 1장이면 셋, 바닥 2장 + 내 1장이면 트립스.'],
+    ['너츠', '지금 바닥에서 나올 수 있는 가장 강한 패.'],
+    ['찹 · 스플릿', '같은 족보로 비겨서 팟을 나눠 가지는 것.'],
+  ]],
+  ['확률 · 전략', [
+    ['드로우', '한 장만 더 오면 완성되는 패 (예: 같은 무늬 4장 = 플러시 드로우).'],
+    ['아웃츠', '내 패를 이기게 만들어 줄 남은 카드 수.'],
+    ['팟 오즈', '콜할 금액 대비 팟 크기. 승률이 팟 오즈보다 높으면 콜해도 손해가 아니에요.'],
+    ['배드 빗', '거의 이긴 판을 마지막 카드 때문에 지는 것.'],
+    ['틸트', '큰 판을 진 뒤 흔들려서 막 치는 상태.'],
+    ['바이인', '테이블에 앉을 때 가져가는 칩.'],
+    ['리바이', '칩을 다 잃었을 때 다시 사서 들어오기.'],
+  ]],
+];
+function openGlossary() {
+  openModal('홀덤 용어집', `<div class="gloss">
+    <input class="input gloss-q" type="search" placeholder="찾을 말 (예: 콜, 킥커)" aria-label="용어 찾기">
+    ${HOLDEM_GLOSSARY.map(([g, list]) => `<section class="gloss-sec"><h3>${g}</h3><dl>${list.map(([t, d]) => `<div class="gloss-row"><dt>${t}</dt><dd>${d}</dd></div>`).join('')}</dl></section>`).join('')}
+    <p class="muted small gloss-none" hidden>찾는 말이 없어요</p></div>`, (b) => {
+    const q = b.querySelector('.gloss-q');
+    q.oninput = () => {
+      const v = q.value.trim().toLowerCase(); let any = false;
+      b.querySelectorAll('.gloss-sec').forEach((sec) => { let n = 0; sec.querySelectorAll('.gloss-row').forEach((r) => { const on = !v || r.textContent.toLowerCase().includes(v); r.hidden = !on; if (on) n++; }); sec.hidden = !n; if (n) any = true; });
+      b.querySelector('.gloss-none').hidden = any;
+    };
+  }, { wide: true });
+}
+// ── 처음 하는 사람 튜토리얼 (처음 홀덤에 들어오면 한 번 · 내 정보 탭에서 다시 보기) ──
+function openHoldemTutorial(i = 0) {
+  const C = (cs) => `<div class="tut-cards">${cs.map((c) => (c ? cardHTML(c, { size: 'sm' }) : '<span class="tut-blank"></span>')).join('')}</div>`;
+  const steps = [
+    ['홀덤이 뭐예요?', `<p>내 카드 <b>2장</b>과 모두가 같이 쓰는 바닥 카드 <b>5장</b>, 합쳐서 7장 중 <b>가장 좋은 5장</b>으로 족보를 겨뤄요.</p>
+      <div class="tut-pair"><div><small>내 카드</small>${C(['As', 'Kd'])}</div><div><small>바닥 카드</small>${C(['Ah', '7c', 'Kc', '2s', '9d'])}</div></div>
+      <p class="tut-ok">→ A 페어 + K 페어 = <b>투 페어</b></p>`],
+    ['칩을 미리 내요 (블라인드)', `<p>판마다 <b>D(딜러)</b> 왼쪽 두 사람이 카드 받기 전에 칩을 미리 내요.</p>
+      <ul class="tut-list"><li><span class="blind-tag">SB</span> 스몰 블라인드: 기본 금액의 절반</li><li><span class="blind-tag is-bb">BB</span> 빅 블라인드: 기본 금액</li></ul>
+      <p class="muted small">그래서 팟에 처음부터 칩이 있어요. D는 판마다 한 칸씩 옮겨 가요.</p>`],
+    ['4번 베팅해요', `<ol class="tut-list"><li><b>프리플랍</b> — 내 카드 2장만 보고${C(['Qs', 'Qh'])}</li>
+      <li><b>플랍</b> — 바닥 3장이 깔린 뒤${C(['Qd', '8c', '3h', '', ''])}</li><li><b>턴</b> — 4번째 카드 뒤</li><li><b>리버</b> — 마지막 5번째 카드 뒤</li></ol>
+      <p class="muted small">끝까지 남은 사람끼리 패를 보여 승부해요 (쇼다운).</p>`],
+    ['내 차례에 할 수 있는 것', `<ul class="tut-list tut-acts"><li><b>체크</b> 아무도 안 걸었으면 그냥 넘기기</li><li><b>콜</b> 앞사람이 건 만큼 따라가기</li>
+      <li><b>레이즈</b> 더 올려서 걸기 (½팟·팟 버튼이나 막대를 끌어서)</li><li><b>폴드</b> 이번 판 포기 (낸 칩은 못 돌려받아요)</li><li><b>올인</b> 가진 칩 전부</li></ul>
+      <p class="muted small">모두 폴드하고 나만 남으면 패를 안 보여 줘도 이겨요!</p>`],
+    ['족보 (강한 순서)', `<ol class="tut-rank"><li>로열 플러시 <small>같은 무늬 10-J-Q-K-A</small></li><li>스트레이트 플러시 <small>같은 무늬 연속 5장</small></li><li>포카드 <small>같은 숫자 4장</small></li>
+      <li>풀하우스 <small>트리플 + 페어</small></li><li>플러시 <small>같은 무늬 5장</small></li><li>스트레이트 <small>연속 숫자 5장</small></li><li>트리플 <small>같은 숫자 3장</small></li>
+      <li>투 페어</li><li>원 페어</li><li>하이 카드 <small>아무것도 없을 때 가장 높은 카드</small></li></ol>
+      <p class="muted small">게임 중에도 메뉴 → <b>족보표</b>에서 볼 수 있어요.</p>`],
+    ['이제 한 판 해 봐요!', `<p><b>「바로 한 판」</b>을 누르면 귀여운 상주 플레이어들과 바로 연습할 수 있어요. 잃어도 칩은 매일 충전돼요.</p>
+      <ul class="tut-list"><li>처음엔 <b>좋은 패만</b> 들어가 보세요 (A·K·Q 같은 높은 카드, 페어)</li><li>모르는 말은 내 정보 → <b>홀덤 용어집</b></li><li>이 설명은 내 정보 → <b>처음이에요</b>에서 다시 볼 수 있어요</li></ul>`],
+  ];
+  const [t, body] = steps[i];
+  openModal(`홀덤 배우기 ${i + 1}/${steps.length}`, `<div class="tut">
+    <h3 class="tut-h">${t}</h3>${body}
+    <div class="tut-dots">${steps.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="tut-nav">${i ? '<button class="btn btn-ghost" id="tut-prev" type="button">이전</button>' : '<button class="btn btn-ghost" id="tut-skip" type="button">건너뛰기</button>'}
+      <button class="btn btn-gold" id="tut-next" type="button">${i === steps.length - 1 ? '시작하기!' : '다음'}</button></div></div>`, (b) => {
+    const done = () => { LS.set('chandem:hlTut', 1); closeModal(); };
+    const pv = b.querySelector('#tut-prev'); if (pv) pv.onclick = () => openHoldemTutorial(i - 1);
+    const sk = b.querySelector('#tut-skip'); if (sk) sk.onclick = done;
+    b.querySelector('#tut-next').onclick = () => { if (i === steps.length - 1) { done(); const q = document.getElementById('hl-quick'); if (q) q.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 600, iterations: 2 }); } else openHoldemTutorial(i + 1); };
+  }, { onClose: () => LS.set('chandem:hlTut', 1) });
+}
+document.addEventListener('click', (e) => { const l = e.target.closest('[data-learn]'); if (!l) return; if (l.dataset.learn === 'tut') openHoldemTutorial(); else openGlossary(); });
 // 출석 · 정기 토너먼트: 홈 아이콘을 누르면 창으로 (출석은 그날 처음 들어올 때 한 번 저절로)
 function openCheckin() { if (!S.hl || !S.hl.me) return; openModal('출석 보상', '<div class="hl-checkin" id="hl-checkin"></div>', () => renderCheckin(S.hl.me)); }
 function openDaily() { openModal('정기 토너먼트', '<div class="hl-daily" id="hl-daily"><p class="muted small">불러오는 중…</p></div>', () => renderDaily()); }
@@ -3604,6 +3737,7 @@ function renderTableInner(st, el) {
     }
     const pos2 = [];
     if (p.isDealer && h && h.game === 'seotda') pos2.push('<span class="dealer-btn" title="딜러">D</span>');
+    if (h && h.game !== 'seotda' && !h.finished && (p.isSB || p.isBB)) pos2.push(`<span class="blind-tag ${p.isBB ? 'is-bb' : ''}" title="${p.isBB ? '빅 블라인드' : '스몰 블라인드'}">${p.isBB ? 'BB' : 'SB'}</span>`); // 작게 · 판 끝나면 숨김
     const bet = p.bet > 0 ? (() => {
       const k = y < 30 ? 0.52 : x < 20 || x > 80 ? 0.5 : 0.4; const bx = x + (50 - x) * k; let by = isMe && h && h.game !== 'seotda' ? 63 : y + (47 - y) * k;
       let bx2 = bx;
@@ -4207,6 +4341,7 @@ function openMenuModal() {
     <div class="stack">
       <div class="menu-quick">
         <button class="btn btn-outline" data-m="chart">족보표</button>
+        ${gameOf(st) === 'holdem' ? '<button class="btn btn-outline" data-learn="gloss">홀덤 용어집</button>' : ''}
         <button class="btn btn-outline" data-m="hist">기록 · 칩 장부</button>
         <button class="btn btn-outline" data-m="share">초대 링크</button>
         ${me.role === 'player' ? `<button class="btn btn-outline" data-m="${me.sittingOut ? 'sitin' : 'sitout'}">${me.sittingOut ? '자리로 돌아가기' : '자리 비우기'}</button>` : ''}
