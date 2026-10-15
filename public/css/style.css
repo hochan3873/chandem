@@ -2419,3 +2419,7 @@ body:has(.hl-tabs) #snd-pill { bottom: calc(env(safe-area-inset-bottom) + 82px);
 /* 게임 첫 화면 설정 톱니 */
 .gh-gear { display: inline-grid; place-items: center; min-width: 36px; padding: 0 8px; }
 .gh-gear .hic { width: 20px; height: 20px; }
+/* 설치 안내 v2: 아이폰 주소창 칸 · 첫 줄 */
+.ios-bar i.ios-addr { flex: 1; max-width: 60%; height: 18px; border-radius: 9px; background: rgba(255, 255, 255, .16); }
+.ios-lead { margin: 0 0 8px; font-size: .9rem; line-height: 1.45; }
+.hih-more[open] > summary { margin-bottom: 6px; }
