@@ -3414,8 +3414,6 @@ function renderTableInner(st, el) {
     }
     const pos2 = [];
     if (p.isDealer && h && h.game === 'seotda') pos2.push('<span class="dealer-btn" title="딜러">D</span>');
-    if (p.isSB) pos2.push('<span class="blind-lbl">SB</span>');
-    if (p.isBB) pos2.push('<span class="blind-lbl">BB</span>');
     const bet = p.bet > 0 ? (() => {
       const k = y < 30 ? 0.52 : x < 20 || x > 80 ? 0.5 : 0.4; const bx = x + (50 - x) * k; let by = isMe && h && h.game !== 'seotda' ? 63 : y + (47 - y) * k;
       let bx2 = bx;
@@ -3507,14 +3505,12 @@ function unstackBets(el) {
 
 // 펠트 위 안내: 'NL 홀덤 · 블라인드 10/20 (앤티 20)' + 토너먼트면 '다음 20/40 · 4:31 후'
 function feltInfoHTML(st) {
-  const s = st.room.settings; const tn = st.room.tournament;
+  const tn = st.room.tournament;
   const run = tn && tn.running;
-  const sb = run ? tn.sb : s.sb; const bb = run ? tn.bb : s.bb;
-  const ante = s.ante === 'bb' ? ` <small>(앤티 ${fmt(bb)})</small>` : '';
   const next = run && tn.nextAt && (tn.nextBb !== tn.bb) ? `<span class="fi-next">다음 블라인드 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '멈춤' : `<i data-level-at="${tn.nextAt}">-</i> 후`}</span>` : '';
   const h = st.hand;
   const stage = h ? { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '올인 승부' }[h.stage] || '' : '';
-  return `<div class="felt-info">${stage ? `<em class="fi-stage">${stage}</em>` : ''}<span>블라인드 <b>${fmt(sb)}/${fmt(bb)}</b>${ante}</span>${next}</div>`;
+  return `<div class="felt-info">${stage ? `<em class="fi-stage">${stage}</em>` : ''}${next}</div>`;
 }
 
 // 리버(마지막 한 장)가 깔릴 때: 카드 위로 AI 영상 빛줄기가 '스윽' 지나간다
@@ -3780,8 +3776,6 @@ function finishedExtrasHTML(st) {
     if (done.length) out.push('<div class="shown-note">✓ 한 장을 보여줬어요</div>');
     out.push(`<div class="show-row"><span>내 패<br>보여주기</span>${mp.cards.map((c, i) => (done.includes(i) ? '' : `<button type="button" class="show-c" data-show="${i}">${cardHTML(c, { size: 'sm' })}<small>이 장만</small></button>`)).join('')}<button type="button" class="show-both" data-show="both">${done.length ? '나머지도' : '두 장 다'}</button></div>`);
   }
-  if (h.canRabbit) out.push(`<button type="button" class="rabbit-btn" id="rabbit-btn">${IC('rabbit', 'ic-in')}남은 카드 보기<small>계속했다면 나왔을 카드</small></button>`);
-  out.push(`<div class="manner-row">${[['thumbs', '나이스 핸드'], ['handshake', 'GG'], ['clover', '굿 럭'], ['', '아깝다']].map(([ic, t]) => `<button type="button" class="manner" data-manner="${t}">${ic ? IC(ic) : emoteImg('sweat')}${t}</button>`).join('')}</div>`);
   return out.length ? `<div class="fin-row">${out.join('')}</div>` : '';
 }
 
@@ -3793,17 +3787,14 @@ function renderHoldemActions(el, st, la, o) {
   const step = Math.max(1, st.room.tournament && st.room.tournament.running ? st.room.tournament.sb : st.room.settings.sb);
   const nice = (v) => clamp(Math.round(v / step) * step); // 블라인드 단위로 반올림 (103 → 100)
   const sizes = raiseMode && !onlyAllIn ? [
-    ['최소', la.minTo],
     ['½ 팟', nice(la.canBet ? h.totalPot / 2 : h.currentBet + potAfterCall / 2)],
-    ['¾ 팟', nice(la.canBet ? h.totalPot * 0.75 : h.currentBet + potAfterCall * 0.75)],
     ['팟', nice(la.canBet ? h.totalPot : h.currentBet + potAfterCall)],
     ['올인', la.maxTo],
   ] : [];
   el.innerHTML = `${awayNote}
     <div class="act2">
-      <div class="act2-head"><span class="act2-turn">내 차례${myHandName((st.players.find((p) => st.me && p.id === st.me.id) || {}).cards, h) ? ` · <em>${esc(myHandName(st.players.find((p) => p.id === st.me.id).cards, h))}</em>` : ''}</span><span class="act2-left" data-deadline-text>-</span><div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>${st.room.settings.timeBank ? `<span class="act2-bank">⏳${st.me.timeBank || 0}초</span>` : ''}</div>
-      ${sizes.length ? `<div class="act2-sizes">${sizes.map(([t, v]) => `<button class="sz ${S.raise.to === v ? 'on' : ''} ${t === '올인' ? 'sz-allin' : ''}" data-size="${v}">${t}<small>${fmt(v)}</small></button>`).join('')}</div>
-      <div class="act2-slider"><button class="sl-step" data-step="-1" aria-label="줄이기">−</button><input type="range" id="raise-range" min="${la.minTo}" max="${la.maxTo}" step="${step}" value="${S.raise.to}" aria-label="${raiseWord} 금액"><button class="sl-step" data-step="1" aria-label="늘리기">+</button></div>` : ''}
+      <div class="act2-head"><span class="act2-turn">내 차례</span><span class="act2-left" data-deadline-text>-</span><div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div></div>
+      ${sizes.length ? `<div class="act2-sizes act2-sizes-lite"><button class="sz sl-step" data-step="-1" aria-label="줄이기">−</button>${sizes.map(([t, v]) => `<button class="sz ${S.raise.to === v ? 'on' : ''} ${t === '올인' ? 'sz-allin' : ''}" data-size="${v}">${t}<small>${fmt(v)}</small></button>`).join('')}<button class="sz sl-step" data-step="1" aria-label="늘리기">+</button></div>` : ''}
       <div class="act2-row">
         ${la.canFold ? '<button class="ab ab-fold" data-act="fold">폴드</button>' : '<button class="ab ab-fold" data-act="fold" disabled>폴드</button>'}
         ${la.canCheck ? '<button class="ab ab-call" data-act="check">체크</button>' : `<button class="ab ab-call" data-act="call">${la.callAmount < la.toCall ? '올인 콜' : '콜'}<small>${fmt(la.callAmount)}</small></button>`}

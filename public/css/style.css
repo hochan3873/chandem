@@ -2238,3 +2238,6 @@ body.in-room[data-theme="holdem"] .bet { z-index: 4; padding: 2px 9px 2px 4px; b
 body.in-room[data-theme="holdem"] .bet small { font-size: .7rem; font-weight: 800; color: #ffe08a; }
 body.in-room[data-theme="holdem"] .bet b { font-weight: 900; color: #fff; }
 .felt-info .fi-stage { font-size: .95rem; color: #ffe8a8; letter-spacing: .08em; }
+/* 금액 버튼 한 줄: − ½팟 팟 올인 + */
+.act2-sizes.act2-sizes-lite { grid-template-columns: 46px 1fr 1fr 1fr 46px; }
+.act2-sizes-lite .sl-step { font-size: 1.2rem; justify-content: center; }
