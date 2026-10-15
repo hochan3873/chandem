@@ -3808,7 +3808,8 @@ function renderTableInner(st, el) {
   requestAnimationFrame(() => clampSeats(el));
   if (S.showFx && S.showFx.size) { const ids = [...S.showFx]; S.showFx.clear(); setTimeout(() => ids.forEach((id, i) => { seatBubble(id, '패 공개!'); sound.play('flip1'); const pl = st.players.find((x) => x.id === id); if (pl && pl.cards) setTimeout(() => showcaseCards(id, pl.cards.filter((c) => c !== '??'), `${pl.name}의 패`), i * 300); }), 120); }
   if (S.riverFx && S.riverFx.hand === handNo && !S.riverFx.done) { S.riverFx.done = true; setTimeout(riverGlint, S.riverFx.slow ? 1500 : 380); }
-  requestAnimationFrame(() => unstackBets(el));
+  requestAnimationFrame(() => { unstackBets(el); fitBoard(el); });
+  clearTimeout(S.fitT); S.fitT = setTimeout(() => fitBoard(el), 450); // 자리·이름표가 자리 잡은 뒤 한 번 더
   RK.fitNames(el);
   RK.refreshRoom(st);
 }
@@ -3825,6 +3826,34 @@ function unstackBets(el) {
     const down = (s.top + s.bottom) / 2 < T.top + T.height / 2; // 위쪽 자리면 아래로, 아래쪽 자리면 위로
     b.style.marginTop = Math.round(down ? s.bottom + 3 - r.top : s.top - 3 - r.bottom) + 'px';
   });
+}
+
+// 세로·가로 모두: 양옆 윗자리(이름·칩·카드)나 그 베팅 칩이 바닥 카드를 덮으면 → 가운데(바닥 카드·팟)를 그만큼 아래로 내린다 (내 자리는 안 덮게)
+function fitBoard(el) {
+  const tc = el.querySelector('.table-center');
+  const bd = tc && tc.querySelector('.board');
+  if (!bd) return;
+  tc.style.marginTop = '';
+  const B = bd.getBoundingClientRect(); const C = tc.getBoundingClientRect();
+  const seats = [...el.querySelectorAll('.seat:not(.seat-empty)')];
+  if (!seats.length) return;
+  const mid = (B.top + B.bottom) / 2;
+  let need = 0; let floor = Infinity;
+  for (const s of seats) {
+    const sb = s.querySelector('.seat-body'); if (!sb) continue;
+    const r0 = sb.getBoundingClientRect();
+    if (r0.top > mid) { const cx = (r0.left + r0.right) / 2; if (cx > B.left && cx < B.right) floor = Math.min(floor, r0.top); continue; } // 가운데 아래 자리(나): 여기까지 내려갈 수 있음 (양옆 자리는 상관없음)
+    const parts = [...s.children, el.querySelector(`.bet[data-id="${s.dataset.id}"]`)].filter(Boolean);
+    for (const c of parts) {
+      const r = c.getBoundingClientRect();
+      if (!r.width || r.right <= B.left + 2 || r.left >= B.right - 2) continue;
+      if (r.bottom > B.top) need = Math.max(need, r.bottom - B.top + 6);
+    }
+  }
+  if (!need) return;
+  const room = (Number.isFinite(floor) ? floor : el.getBoundingClientRect().bottom) - 6 - C.bottom;
+  const dy = Math.max(0, Math.min(need, room));
+  if (dy) tc.style.marginTop = Math.round(dy) + 'px';
 }
 
 // 펠트 위 안내: 'NL 홀덤 · 블라인드 10/20 (앤티 20)' + 토너먼트면 '다음 20/40 · 4:31 후'
