@@ -1961,7 +1961,7 @@ form:not([data-mode="tournament"]) .tourney-only { display: none !important; }
 
 /* 메인 맨 위: 친구들과 치기 */
 .hl-hero { height: 190px !important; }
-.hl-friends { border: 1px solid rgba(255, 211, 107, .6) !important; background: linear-gradient(160deg, rgba(110, 22, 36, .95), rgba(40, 8, 12, .96)) !important; box-shadow: 0 0 0 1px rgba(255, 211, 107, .15), 0 14px 30px rgba(0, 0, 0, .55) !important; margin-top: -40px; position: relative; z-index: 2; }
+.hl-friends { border: 1px solid rgba(255, 211, 107, .6) !important; background: linear-gradient(160deg, rgba(110, 22, 36, .95), rgba(40, 8, 12, .96)) !important; box-shadow: 0 0 0 1px rgba(255, 211, 107, .15), 0 14px 30px rgba(0, 0, 0, .55) !important; margin-top: 12px; position: relative; z-index: 2; }
 .hf-head { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
 .hf-head b { font-size: 1.15rem; color: #fff; }
 .hf-head small { font-size: .76rem; color: rgba(255, 230, 200, .75); line-height: 1.4; }
@@ -2046,13 +2046,14 @@ form:not([data-mode="tournament"]) .tourney-only { display: none !important; }
 .sec-title { font-size: 1.12rem; }
 .hf-head b { font-size: 1.28rem; text-shadow: 0 2px 0 #3a0508, 0 0 14px rgba(255, 190, 90, .25); }
 .hf-btn b { font-size: 1.18rem; }
-.hl-who > b { font-size: 1.3rem; background: linear-gradient(180deg, #fff6d5, #ffd66b 55%, #e2a040); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 2px 0 #3a0508); }
-.hl-wallet b { background: linear-gradient(180deg, #fff6d5, #ffd66b 50%, #d38a2a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 2px 0 #3a0508); }
+.hl-who > b { font-size: 1.3rem; color: #ffe08a !important; -webkit-text-fill-color: #ffe08a !important; background: none !important; filter: none !important; text-shadow: 0 2px 0 #3a0508, 0 0 12px rgba(255, 190, 80, .35); }
+.hl-wallet b { color: #ffe08a !important; -webkit-text-fill-color: #ffe08a !important; background: none !important; filter: none !important; text-shadow: 0 2px 0 #3a0508, 0 0 12px rgba(255, 190, 80, .35); }
 .hl-ico { font-size: .7rem !important; }
 /* 게임 제목 로고 그림 */
 .hub-card .gc-logo { display: block; height: 52px; width: auto; max-width: 100%; object-fit: contain; object-position: left center; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .7)); }
 .hub-card .gc-logo-seotda, .hub-card .gc-logo-omok { height: 58px; }
 .hl-lobby .gh-title h1.hl-logo { margin: 0; line-height: 0; background: none; -webkit-text-fill-color: initial; filter: none; }
-.hl-logo img { display: block; width: min(62vw, 270px); height: auto; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .75)); animation: logoIn .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+.hl-logo img { display: block; width: min(54vw, 230px); height: auto; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .75)); animation: logoIn .7s cubic-bezier(.2, 1.4, .4, 1) both; }
 @keyframes logoIn { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 .gw-reduce-motion .hl-logo img { animation: none; }
+.hub-card .gc-logo-holdem { height: 40px; }

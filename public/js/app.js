@@ -584,7 +584,7 @@ async function mergeGuest(token) {
 // 게임 아이콘 (Gemini 로 그린 그림 · /img/icons)
 const IC = (n, cls = '') => `<img class="ic3 ${cls}" src="/img/icons/${n}.webp" alt="" draggable="false">`;
 // 게임 제목 로고 (Gemini 로 그린 글씨 그림)
-const GAME_LOGO = { holdem: '/img/logo/holdem.webp?v=1', seotda: '/img/logo/seotda.webp?v=1', omok: '/img/logo/omok.webp?v=1' };
+const GAME_LOGO = { holdem: '/img/logo/holdem.webp?v=2', seotda: '/img/logo/seotda.webp?v=1', omok: '/img/logo/omok.webp?v=1' };
 const tierBadge = (t, sm = '') => (t ? `<span class="tier-badge ${sm}" style="--tc:${t.color}"><i></i>${esc(t.name)}</span>` : `<span class="tier-badge ${sm} placing"><i></i>배치 중</span>`);
 function myAvatarSrc() {
   const a = LS.get('chandem:avatar', 0); const ph = LS.get('chandem:photo', '');
