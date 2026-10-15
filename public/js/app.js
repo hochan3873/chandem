@@ -841,6 +841,13 @@ async function openReplay(id) {
 function bindRankTabs(rk) {
   document.querySelectorAll('[data-rt]').forEach((b) => { b.onclick = () => { S.rankTab = b.dataset.rt; const box = document.getElementById('hl-rank-box'); if (box) { box.innerHTML = hlRankHTML(rk); bindRankTabs(rk); } }; });
 }
+// 시즌 마감 D-day: 7일 남으면 'D-7' 표시 · 3일 안이면 빨갛게 깜빡 · 마지막 날은 'D-DAY'
+function seasonDday(endsAt) {
+  const ms = endsAt - Date.now();
+  if (!(ms > 0) || ms > 7 * 864e5) return '';
+  const d = Math.ceil(ms / 864e5);
+  return `<span class="dday ${d <= 3 ? 'hot' : ''}">${ms < 864e5 ? 'D-DAY' : 'D-' + d}</span>`;
+}
 function hlRankHTML(r) {
   if (!r || !r.ok) return '<p class="muted small">순위를 불러오지 못했어요</p>';
   const tab = S.rankTab || 'season';
@@ -848,7 +855,7 @@ function hlRankHTML(r) {
   if (tab === 'season' && r.season) {
     const s = r.season;
     const [y, m] = s.id.split('-');
-    return `${tabs}<p class="season-head"><b>${y}년 ${Number(m)}월 시즌</b> · ${left(s.endsAt - Date.now())} 남음<br><small>시즌 끝 1~3등: 칭호 + ${s.prizes.map(fmt).join(' / ')}칩</small></p>
+    return `${tabs}<p class="season-head">${seasonDday(s.endsAt)}<b>${y}년 ${Number(m)}월 시즌</b> · ${left(s.endsAt - Date.now())} 남음<br><small>시즌 끝 1~3등: 칭호 + ${s.prizes.map(fmt).join(' / ')}칩</small></p>
       ${s.prev && s.prev.top && s.prev.top.length ? `<p class="muted small">지난 시즌: ${s.prev.top.map((x, i) => `${i + 1}위 ${esc(x.name)}`).join(' · ')}</p>` : ''}
       ${s.top.length ? `<ol class="hl-rank">${s.top.slice(0, 15).map((x) => `<li><span class="hr-n">${x.rank}</span><b>${esc(x.name)}</b>${tierBadge(x.tier, 'sm')}<small>${x.score}점 · 승률 ${x.winRate}% · ${fmt(x.hands)}판</small></li>`).join('')}</ol>` : '<p class="muted small">이번 시즌 배치를 마친 사람이 아직 없어요 · 30판이면 순위에 올라요</p>'}`;
   }
@@ -904,7 +911,7 @@ async function loadHoldemLobby() {
   if (tb) tb.innerHTML = hlTablesHTML(r.tables, r.me);
   if (rb) rb.innerHTML = hlRankHTML(rk);
   const pd = document.getElementById('hl-podium'); if (pd) pd.innerHTML = hlPodiumHTML(rk, r.me);
-  const pds = document.getElementById('pd-sub'); if (pds && rk && rk.ok && rk.season && rk.season.top && rk.season.top.length) { const [, mo] = rk.season.id.split('-'); pds.textContent = `${Number(mo)}월 시즌 · ${left(rk.season.endsAt - Date.now())} 남음`; }
+  const pds = document.getElementById('pd-sub'); if (pds && rk && rk.ok && rk.season && rk.season.top && rk.season.top.length) { const [, mo] = rk.season.id.split('-'); pds.innerHTML = `${seasonDday(rk.season.endsAt)}${Number(mo)}월 시즌 · ${left(rk.season.endsAt - Date.now())} 남음`; }
   const mb = document.getElementById('hl-mebar'); if (mb) mb.innerHTML = hlMeBarHTML(r.me);
   const myr = document.getElementById('hl-myrank'); if (myr) myr.innerHTML = r.me.rank ? `<p class="pd-me">내 전체 순위 <b>${fmt(r.me.rank.rank)}위</b> · ${r.me.score}점</p>` : r.me.placement ? `<p class="pd-me">나는 <b>${r.me.placement}판</b> 더 치면 순위에 올라요</p>` : '';
   const cid = document.getElementById('ci-dot'); const ciTodo = !!(r.me.checkin && !r.me.checkin.done); if (cid) cid.hidden = !ciTodo;
@@ -1058,7 +1065,7 @@ function hlPodiumHTML(rk, me) {
   const list = ss ? ss.top : rk.top || [];
   const mine = me && me.rank ? `<p class="pd-me">내 순위 <b>${fmt(me.rank.rank)}위</b>${me.score ? ` · ${me.score}점` : ''}</p>` : me && me.placement ? `<p class="pd-me">나는 <b>${me.placement}판</b> 더 치면 순위에 올라요</p>` : '';
   if (!list.length) return `<div class="pd-empty"><b>아직 순위에 오른 사람이 없어요</b><small>연습 테이블 30판이면 첫 순위! 1등 자리가 비어 있어요</small></div>${mine}`;
-  const slot = (x, n) => (x ? `<div class="pd pd${n}"><span class="pd-name"><i class="pd-medal">${n}</i><b>${esc(x.name)}</b></span>${tierBadge(x.tier, 'sm')}<small>${x.score}점 · 승률 ${x.winRate}%</small><span class="pd-step">${n}</span></div>` : `<div class="pd pd${n} pd-none"><span class="pd-name"><i class="pd-medal">${n}</i><b>비어 있음</b></span><span class="pd-step">${n}</span></div>`);
+  const slot = (x, n) => (x ? `<div class="pd pd${n}">${n === 1 ? `<span class="pd-crown">${IC('crown')}</span><i class="pd-spark s1"></i><i class="pd-spark s2"></i><i class="pd-spark s3"></i>` : ''}<span class="pd-name"><i class="pd-medal">${n}</i><b>${esc(x.name)}</b></span>${tierBadge(x.tier, 'sm')}<small>${x.score}점 · 승률 ${x.winRate}%</small><span class="pd-step">${n}</span></div>` : `<div class="pd pd${n} pd-none"><span class="pd-name"><i class="pd-medal">${n}</i><b>비어 있음</b></span><span class="pd-step">${n}</span></div>`);
   const rest = list.slice(3, 5).map((x) => `<span><i>${x.rank}</i>${esc(x.name)} <small>${x.score}점</small></span>`).join('');
   return `<div class="pd-row">${slot(list[1], 2)}${slot(list[0], 1)}${slot(list[2], 3)}</div>${rest ? `<p class="pd-rest">${rest}</p>` : ''}${mine}`;
 }
