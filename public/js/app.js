@@ -224,7 +224,9 @@ const installBtnHTML = () => {
   if (isStandalone()) return '<button class="btn btn-sm btn-outline install-btn" id="install-holdem" aria-label="찬덤 홀덤 앱 설치">홀덤 앱 설치</button>';
   return '<button class="btn btn-sm btn-outline install-btn" id="install-btn" aria-label="앱 설치">앱 설치</button>';
 };
-const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}${SHARE_BTN_ONLY}</span>` };
+// 게임 첫 화면(홀덤·섯다·오목)에도 설정 톱니: 게임 안에서 음소거한 뒤 배경음악을 다시 켤 수 있게
+const GEAR_BTN = () => (S.view === 'gamehome' ? `<button class="btn btn-sm btn-outline gh-gear" id="gh-gear" aria-label="설정 (소리·배경음악)">${P.hubIcon('gear', 'hic-sm')}</button>` : '');
+const SHARE_BTN = { toString: () => `<span class="top-btns">${installBtnHTML()}${SHARE_BTN_ONLY}${GEAR_BTN()}</span>` };
 
 // ── 아이폰 사파리 확대 막기 (두 손가락 확대 · 두 번 톡 확대는 CSS touch-action 으로) ──
 ['gesturestart', 'gesturechange'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
@@ -423,7 +425,7 @@ async function installApp() {
     ${HOLDEM_APP ? `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬이의 게임월드 앱에서 열기」</b>만 보여요</summary>${holdemInstallHelpHTML()}</details>` : `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬덤 홀덤에서 열기」</b>만 보여요</summary>${gwInstallHelpHTML()}</details>`}${ICON_NOTE}`,
   (b) => { const c = b.querySelector('#copy-holdem'); if (c) c.onclick = copyHoldemLink; const g = b.querySelector('#copy-gw'); if (g) g.onclick = copyGwLink; });
 }
-document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); else if (e.target.closest('#install-holdem')) installHoldemApp(); else if (e.target.closest('#install-gw')) installGwApp(); });
+document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); else if (e.target.closest('#install-holdem')) installHoldemApp(); else if (e.target.closest('#install-gw')) installGwApp(); else if (e.target.closest('#gh-gear')) P.openSettings(); });
 // 찬덤 홀덤 앱 안에서 '게임월드 앱 설치': 크롬(아이폰은 사파리)으로 첫 화면(/?install=gw)을 열어 거기서 설치
 function installGwApp() {
   const url = `${location.origin}/?install=gw`;
@@ -1363,7 +1365,7 @@ async function boot() {
     nav('/');
     setTimeout(() => { if (isStandalone()) openModal('찬이의 게임월드 앱 설치', gwInstallHelpHTML(), (b) => { b.querySelector('#copy-gw').onclick = copyGwLink; }); else installApp(); }, 900);
   }
-  loadMe().then(() => { if (S.view === 'home') render(); });
+  loadMe().then(() => { if (S.view === 'home') render(); else refreshAcctBtn(); });
   fetch('/api/info').then((r) => r.json()).then((d) => { S.info = d; if (S.view === 'room' || S.view === 'home') render(); }).catch(() => {});
   const code = routeCode();
   // 게임 바로가기 링크(/holdem 등): 그 게임 화면으로 바로
@@ -2166,6 +2168,15 @@ function renderGameHome() {
 
 // ── 메인(허브): 모바일 게임 런처처럼 ──
 const HUB_GAME_ICON = { holdem: 'spade', seotda: 'hwatu', omok: 'omok', langbang: 'cards', sunggu: 'sunggu' };
+// 홀덤 앱처럼 첫 화면이 로그인 확인보다 먼저 그려지면 '로그인' 버튼이 남는다 → 확인 끝나면 그 버튼만 바꾼다
+function refreshAcctBtn() {
+  const ab = document.getElementById('acct-btn');
+  if (!ab) return;
+  const t = document.createElement('div'); t.innerHTML = hubAcctHTML();
+  const nb = t.firstElementChild; if (!nb) return;
+  ab.replaceWith(nb);
+  nb.onclick = () => (S.user ? openProfile() : openLogin());
+}
 function hubAcctHTML() {
   if (S.info && S.info.accounts === false) return '<span></span>';
   if (!S.user) return `<button class="hub-acct tap" id="acct-btn">${P.hubIcon('lock')}<b>로그인</b></button>`;
