@@ -903,6 +903,15 @@ async function loadHoldemLobby() {
   if (meBox) meBox.innerHTML = hlMeHTML(r.me);
   if (tb) tb.innerHTML = hlTablesHTML(r.tables, r.me);
   if (rb) rb.innerHTML = hlRankHTML(rk);
+  const pd = document.getElementById('hl-podium'); if (pd) pd.innerHTML = hlPodiumHTML(rk, r.me);
+  const pds = document.getElementById('pd-sub'); if (pds && rk && rk.ok && rk.season && rk.season.top && rk.season.top.length) { const [, mo] = rk.season.id.split('-'); pds.textContent = `${Number(mo)}월 시즌 · ${left(rk.season.endsAt - Date.now())} 남음`; }
+  const mb = document.getElementById('hl-mebar'); if (mb) mb.innerHTML = hlMeBarHTML(r.me);
+  const myr = document.getElementById('hl-myrank'); if (myr) myr.innerHTML = r.me.rank ? `<p class="pd-me">내 전체 순위 <b>${fmt(r.me.rank.rank)}위</b> · ${r.me.score}점</p>` : r.me.placement ? `<p class="pd-me">나는 <b>${r.me.placement}판</b> 더 치면 순위에 올라요</p>` : '';
+  const cid = document.getElementById('ci-dot'); const ciTodo = !!(r.me.checkin && !r.me.checkin.done); if (cid) cid.hidden = !ciTodo;
+  if (ciTodo && document.getElementById('hl-mebar') && !document.querySelector('#modal-root .modal')) { // 그날 처음 들어오면 출석 창 한 번
+    const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+    if (LS.get('chandem:ciAuto', '') !== day) { LS.set('chandem:ciAuto', day); setTimeout(() => { if (S.view === 'gamehome' && !document.querySelector('#modal-root .modal')) openCheckin(); }, 500); }
+  }
   renderCheckin(r.me);
   renderDaily();
   saveCosmetic(r.me.items);
@@ -940,40 +949,67 @@ function maybeInstallPrompt() {
   }, 1800);
 }
 function renderHoldemLobby() {
+  // 탭 4개 (홈 · 테이블 · 순위 · 내 정보): 홈은 스크롤 없이 한 화면 — 바로 한 판 · 순위 시상대 · 아이콘 줄 / 나머지는 탭과 창으로
+  const tab = ['home', 'tables', 'rank', 'me'].includes(S.hlTab) ? S.hlTab : 'home';
   $app.innerHTML = `
-  <main class="home game-home hl-lobby">
+  <main class="home game-home hl-lobby hl-v2">
     <div class="top-bar">${HOLDEM_APP ? `${hubAcctHTML()}` : '<button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>'}${SHARE_BTN}</div>
-    <div class="gh-hero hl-hero" style="background-image:url('/img/holdem/hero2.webp')"><div class="gh-shade"></div>
-      <div class="gh-title"><h1 class="hl-logo"><img src="${GAME_LOGO.holdem}" alt="찬덤 홀덤" draggable="false"></h1><p>친구들이랑 링크 하나로 바로 한 판</p></div>
-    </div>
-    <section class="panel hl-rank-top"><div class="sec-head"><h2 class="sec-title">${IC('trophy', 'ic-in')}티어 순위</h2><small class="muted">연습 테이블 실력 점수</small></div><div id="hl-rank-box" class="hl-rank-box"><p class="muted small">불러오는 중…</p></div><button type="button" class="btn btn-ghost btn-sm hl-rank-more" id="hl-rank-more">전체 순위 보기 ▾</button></section>
-    <section class="panel hl-friends">
-      <div class="hf-head"><b>${IC('friends', 'ic-in')}친구들과 치기</b><small>방을 만들고 카톡으로 링크만 보내면 끝 · 최대 10명 · 토너먼트 · 정산표까지</small></div>
-      <div class="hf-btns">
-        <button class="hf-btn hf-create" id="go-create" type="button"><span>${IC('chip')}</span><b>방 만들기</b><small>친구 부르기</small></button>
-        <button class="hf-btn hf-code" id="go-code" type="button"><span>${IC('key')}</span><b>코드로 참가</b><small>받은 방 코드 입력</small></button>
+    <div class="hl-pane ${tab === 'home' ? 'on' : ''}" data-pane="home">
+      <div class="hl-head"><h1 class="hl-logo"><img src="${GAME_LOGO.holdem}" alt="찬덤 홀덤" draggable="false"></h1>
+        <button class="hl-mebar" id="hl-mebar" type="button" data-go-tab="me"><span class="muted small">불러오는 중…</span></button></div>
+      <section class="panel hl-podium-box" data-go-tab="rank"><div class="pd-head"><b>${IC('trophy', 'ic-in')}티어 순위</b><small id="pd-sub">연습 테이블 실력 점수</small><span class="pd-more">전체 ›</span></div><div id="hl-podium"><p class="muted small">불러오는 중…</p></div></section>
+      <div class="hl-play">
+        <button class="hl-quick" id="hl-quick" type="button"><span>${IC('cards')}</span><b>바로 한 판</b><small>상주 플레이어들과 · 내 칩으로</small></button>
+        <div class="hl-play2">
+          <button class="hf-btn hf-create" id="go-create" type="button"><span>${IC('chip')}</span><b>방 만들기</b><small>친구 부르기</small></button>
+          <button class="hf-btn hf-code" id="go-code" type="button"><span>${IC('key')}</span><b>코드로 참가</b><small>받은 방 코드</small></button>
+        </div>
+      </div>
+      <div class="hl-icons hl-icons6">
+        <button class="hl-ico" data-hlx="checkin" type="button">${IC('calendar')}출석<i class="dot" id="ci-dot" hidden>!</i></button>
+        <button class="hl-ico" data-hl="missions" type="button">${IC('target')}미션<i class="dot" id="mis-dot" hidden></i></button>
+        <button class="hl-ico" data-hlx="daily" type="button">${IC('medal')}토너먼트</button>
+        <button class="hl-ico" data-hl="shop" type="button">${IC('bag')}꾸미기</button>
+        <button class="hl-ico" data-hl="replays" type="button">${IC('clapper')}명장면</button>
+        <button class="hl-ico" data-hl="invite" type="button">${IC('handshake')}초대</button>
       </div>
       <div class="live-rooms hf-live" id="live-rooms"><div class="hf-live-head"><b>지금 열린 친구 방</b><i class="live-dot"></i></div><div class="lr-list"><p class="muted small">불러오는 중…</p></div></div>
-    </section>
-    <section class="panel hl-me" id="hl-me">${hlMeHTML(null)}</section>
-    <section class="panel hl-checkin" id="hl-checkin"></section>
-    <section class="panel hl-daily" id="hl-daily"></section>
-    <div class="hl-icons">
-      <button class="hl-ico" data-hl="missions" type="button">${IC('target')}오늘의 미션<i class="dot" id="mis-dot" hidden></i></button>
-      <button class="hl-ico" data-hl="ach" type="button">${IC('medal')}업적</button>
-      <button class="hl-ico" data-hl="shop" type="button">${IC('bag')}꾸미기</button>
-      <button class="hl-ico" data-hl="replays" type="button">${IC('clapper')}명장면</button>
-      <button class="hl-ico" data-hl="invite" type="button">${IC('handshake')}친구 초대</button>
+      <p class="hl-tip1">${IC('bulb', 'ic-in')}<span>${esc(todayTip())}</span></p>
     </div>
-    <section class="panel"><div class="sec-head"><h2 class="sec-title">혼자 연습 테이블</h2><button class="btn btn-sm btn-gold" id="hl-quick">빠른 시작</button></div><p class="muted small hl-tsub">친구가 없을 땐 귀여운 상주 플레이어들과 · 내 칩으로</p><div class="hl-tables" id="hl-tables"><p class="muted small">불러오는 중…</p></div></section>
-    <section class="panel hl-tip"><span class="tip-ico">${IC('bulb')}</span><div><b>오늘의 홀덤 팁</b><p>${esc(todayTip())}</p></div></section>
-    <section class="panel"><div class="sec-head"><h2 class="sec-title">상주 플레이어</h2><small class="muted">연습 테이블에서 만나요</small></div>${residentsHTML()}</section>
-    <div class="hl-more"><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" id="go-practice">토너먼트 연습</button></div>
-    <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
-  </main>`;
+    <div class="hl-pane ${tab === 'tables' ? 'on' : ''}" data-pane="tables">
+      <section class="panel"><div class="sec-head"><h2 class="sec-title">혼자 연습 테이블</h2></div><p class="muted small hl-tsub">친구가 없을 땐 귀여운 상주 플레이어들과 · 내 칩으로</p><div class="hl-tables" id="hl-tables"><p class="muted small">불러오는 중…</p></div></section>
+      <section class="panel"><div class="sec-head"><h2 class="sec-title">상주 플레이어</h2><small class="muted">옆으로 밀어 보기</small></div>${residentsHTML()}</section>
+      <button class="btn btn-outline hl-wide" id="go-practice" type="button">${IC('medal', 'ic-in')}토너먼트 연습 (혼자)</button>
+    </div>
+    <div class="hl-pane ${tab === 'rank' ? 'on' : ''}" data-pane="rank">
+      <section class="panel hl-rank-top"><div class="sec-head"><h2 class="sec-title">${IC('trophy', 'ic-in')}티어 순위</h2><small class="muted">연습 테이블 실력 점수</small></div><div id="hl-myrank"></div><div id="hl-rank-box" class="hl-rank-box open"><p class="muted small">불러오는 중…</p></div></section>
+    </div>
+    <div class="hl-pane ${tab === 'me' ? 'on' : ''}" data-pane="me">
+      <section class="panel hl-me" id="hl-me">${hlMeHTML(null)}</section>
+      <div class="hl-icons hl-icons4">
+        <button class="hl-ico" data-hl="ach" type="button">${IC('ribbon')}업적</button>
+        <button class="hl-ico" data-hl="missions" type="button">${IC('target')}미션</button>
+        <button class="hl-ico" data-hl="replays" type="button">${IC('clapper')}명장면</button>
+        <button class="hl-ico" data-hl="shop" type="button">${IC('bag')}꾸미기</button>
+      </div>
+      <div class="hl-more"><button class="btn btn-ghost" id="go-rules">게임 방법</button><button class="btn btn-ghost" id="go-chart">족보표</button><button class="btn btn-ghost" data-hl="invite" type="button">친구 초대</button></div>
+      <p class="fine">칩은 현금 가치가 없는 친목용 점수예요. 입금·출금·환전 기능은 없어요.</p>
+    </div>
+  </main>
+  <nav class="hl-tabs" id="hl-tabs">
+    ${[['home', 'house', '홈'], ['tables', 'cards', '테이블'], ['rank', 'trophy', '순위'], ['me', 'crown', '내 정보']].map(([k, ic, t]) => `<button type="button" data-tab="${k}" class="${tab === k ? 'on' : ''}">${IC(ic)}<span>${t}</span></button>`).join('')}
+  </nav>`;
   bindCommon();
-  const rkMore = $app.querySelector('#hl-rank-more'); // 맨 위 순위: 위 5명만 · 눌러서 펼치기
-  if (rkMore) rkMore.onclick = () => { const box = $app.querySelector('#hl-rank-box'); const open = box.classList.toggle('open'); rkMore.textContent = open ? '접기 ▴' : '전체 순위 보기 ▾'; };
+  const goTab = (k) => {
+    S.hlTab = k;
+    $app.querySelectorAll('.hl-pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === k));
+    $app.querySelectorAll('#hl-tabs [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === k));
+    window.scrollTo(0, 0); const m = $app.querySelector('main'); if (m) m.scrollTop = 0;
+    sound.play('tap');
+  };
+  $app.querySelectorAll('#hl-tabs [data-tab]').forEach((b) => { b.onclick = () => goTab(b.dataset.tab); });
+  $app.querySelectorAll('[data-go-tab]').forEach((b) => { b.onclick = () => goTab(b.dataset.goTab); });
+  $app.querySelectorAll('[data-hlx]').forEach((b) => { b.onclick = () => (b.dataset.hlx === 'checkin' ? openCheckin() : openDaily()); });
   startRoomList('holdem');
   loadHoldemLobby();
   maybeInstallPrompt();
@@ -1003,9 +1039,28 @@ function renderHoldemLobby() {
     if (!r || !r.ok) return;
     const me = r.me;
     const ok = r.tables.filter((t) => t.seats > 2 && t.buy[0] <= me.wallet * 0.5).sort((a, b) => b.bb - a.bb)[0] || r.tables.find((t) => t.buy[0] <= me.wallet);
-    if (!ok) { toast(me.canRefill ? '칩이 모자라요 · 충전을 눌러 주세요' : '오늘 충전을 다 썼어요 · 친구 방에서 놀아 보세요', 'error'); return; }
+    if (!ok) { toast(me.canRefill ? '칩이 모자라요 · 내 정보에서 충전을 눌러 주세요' : '오늘 충전을 다 썼어요 · 친구 방에서 놀아 보세요', 'error'); return; }
     enterTable(ok, me);
   };
+}
+// 출석 · 정기 토너먼트: 홈 아이콘을 누르면 창으로 (출석은 그날 처음 들어올 때 한 번 저절로)
+function openCheckin() { if (!S.hl || !S.hl.me) return; openModal('출석 보상', '<div class="hl-checkin" id="hl-checkin"></div>', () => renderCheckin(S.hl.me)); }
+function openDaily() { openModal('정기 토너먼트', '<div class="hl-daily" id="hl-daily"><p class="muted small">불러오는 중…</p></div>', () => renderDaily()); }
+// 홈 맨 위: 내 정보 한 줄 (누르면 내 정보 탭)
+function hlMeBarHTML(me) {
+  const name = esc(me.name || LS.get('chandem:name', '') || '닉네임 정하기');
+  return `<img class="hl-av" src="${myAvatarSrc()}" alt=""><span class="mb-who"><b>${name}</b>${me.tier ? tierBadge(me.tier, 'sm') : `<small class="muted">배치까지 ${me.placement || 0}판</small>`}</span><span class="mb-chip"><span class="chip-icon"></span>${fmt(me.wallet)}</span><i class="mb-go">›</i>`;
+}
+// 홈 순위 시상대: 1~3등 크게 + 4·5등 한 줄 + 내 순위
+function hlPodiumHTML(rk, me) {
+  if (!rk || !rk.ok) return '<p class="muted small">순위를 불러오지 못했어요</p>';
+  const ss = rk.season && rk.season.top && rk.season.top.length ? rk.season : null;
+  const list = ss ? ss.top : rk.top || [];
+  const mine = me && me.rank ? `<p class="pd-me">내 순위 <b>${fmt(me.rank.rank)}위</b>${me.score ? ` · ${me.score}점` : ''}</p>` : me && me.placement ? `<p class="pd-me">나는 <b>${me.placement}판</b> 더 치면 순위에 올라요</p>` : '';
+  if (!list.length) return `<div class="pd-empty"><b>아직 순위에 오른 사람이 없어요</b><small>연습 테이블 30판이면 첫 순위! 1등 자리가 비어 있어요</small></div>${mine}`;
+  const slot = (x, n) => (x ? `<div class="pd pd${n}"><span class="pd-name"><i class="pd-medal">${n}</i><b>${esc(x.name)}</b></span>${tierBadge(x.tier, 'sm')}<small>${x.score}점 · 승률 ${x.winRate}%</small><span class="pd-step">${n}</span></div>` : `<div class="pd pd${n} pd-none"><span class="pd-name"><i class="pd-medal">${n}</i><b>비어 있음</b></span><span class="pd-step">${n}</span></div>`);
+  const rest = list.slice(3, 5).map((x) => `<span><i>${x.rank}</i>${esc(x.name)} <small>${x.score}점</small></span>`).join('');
+  return `<div class="pd-row">${slot(list[1], 2)}${slot(list[0], 1)}${slot(list[2], 3)}</div>${rest ? `<p class="pd-rest">${rest}</p>` : ''}${mine}`;
 }
 
 // 방 안에서 로그인하면: 손님으로 앉은 이 자리를 계정에 묶는다 (지난 판은 소급 안 함, 다음 판부터 기록)
