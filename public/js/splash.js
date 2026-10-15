@@ -79,6 +79,8 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) { const sp = docum
 async function start() {
   try { lbReturnToast(); } catch {}
   if (!el || !html.classList.contains('splashing')) { if (el) el.remove(); soundPill(); return; }
+  // 강성구 키우기에서 로그인하러 온 사람: 로그인 창이 바로 보이게 로딩 화면 없이
+  if (/[?&]next=sunggu/.test(location.search)) { el.remove(); html.classList.remove('splashing', 'splash-quiet'); window.__gwSplash = { ready: true, quiet: true }; return; }
   // 이 탭에서 이미 소리를 풀었으면: 숨긴 채 조용히 풀어 보고, 되면 로딩 화면 없이 바로
   if (html.classList.contains('splash-quiet')) {
     if (await sound.tryResume()) { el.remove(); html.classList.remove('splashing', 'splash-quiet'); window.__gwSplash = { ready: true, quiet: true }; soundPill(); return; }

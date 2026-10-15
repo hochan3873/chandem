@@ -613,7 +613,7 @@ function setAuth(r, { quiet = false } = {}) {
   LS.set('chandem:auth', r.token);
   LS.set('chandem:name', r.user.nickname);
   mergeGuest(r.token);
-  { let nx = null; try { nx = sessionStorage.getItem('chandem:next'); sessionStorage.removeItem('chandem:next'); } catch { /* 무시 */ } if (nx === '/langbang/') { setTimeout(() => { location.href = '/langbang/'; }, 400); return; } } // 랑방에서 로그인하러 왔으면 바로 돌아간다
+  { let nx = null; try { nx = sessionStorage.getItem('chandem:next'); sessionStorage.removeItem('chandem:next'); } catch { /* 무시 */ } if (nx === '/langbang/') { setTimeout(() => { location.href = '/langbang/'; }, 400); return; } if (nx === 'sunggu') { S.sgNext = true; setTimeout(() => { if (S.sgNext && !document.getElementById('rc-code')) goSunggu(); }, 1800); } } // 랑방에서 로그인하러 왔으면 바로 돌아간다
   bindSeatToAccount(quiet);
 }
 // ── 찬덤 홀덤 로비: 이 기기 손님 열쇠 · 지갑 · 티어 ──
@@ -1205,7 +1205,7 @@ function showRecoveryCode(code, { fresh = false, renewed = false } = {}) {
     <p class="muted tiny">잃어버렸다면 로그인한 뒤 설정 → 계정 관리에서 새로 받을 수 있어요 (새로 받으면 예전 코드는 못 써요).</p>`, (b) => {
     b.querySelector('#rc-copy').onclick = async () => { try { await navigator.clipboard.writeText(code); toast('복사했어요. 메모장 같은 곳에 붙여 두세요', 'ok'); } catch { prompt('복사해 두세요', code); } };
     b.querySelectorAll('[data-close]').forEach((x) => { x.onclick = closeModal; });
-  });
+  }, { onClose: () => { if (S.sgNext) goSunggu(); } });
 }
 function openFindId() {
   openModal('아이디 찾기', `
@@ -1356,7 +1356,8 @@ socket.on('rating', (list) => {
 
 async function boot() {
   // 랑방 대전(앱)에서 [로그인] → /?login=1&next=langbang : 로그인 창을 바로 열고, 끝나면 랑방으로 돌아간다
-  { const q0 = new URLSearchParams(location.search); if (q0.get('next') === 'langbang') { try { sessionStorage.setItem('chandem:next', '/langbang/'); } catch { /* 무시 */ } } if (q0.get('login') === '1' && !S.auth) setTimeout(() => openLogin(), 300); }
+  { const q0 = new URLSearchParams(location.search); if (q0.get('next') === 'langbang') { try { sessionStorage.setItem('chandem:next', '/langbang/'); } catch { /* 무시 */ } } if (q0.get('next') === 'sunggu') { if (S.auth) S.sgNext = true; else try { sessionStorage.setItem('chandem:next', 'sunggu'); } catch { /* 무시 */ } } if (q0.get('login') === '1' && !S.auth) setTimeout(() => openLogin(), 300); }
+  if (S.sgNext) { loadMe().then(() => { if (S.user) goSunggu(); else { S.sgNext = false; try { sessionStorage.setItem('chandem:next', 'sunggu'); } catch { /* 무시 */ } openLogin(); } }); } // 강성구 키우기에서 로그인하러 왔는데 이미 로그인돼 있으면 바로 돌려보낸다
   // 홀덤 앱 안 [게임월드 앱 설치] → 크롬에서 /?install=gw : 설치 안내를 바로. 그런데 앱 화면으로 열렸다면(예전 홀덤 앱이 / 까지 맡음) 지우고 다시 까는 법
   if (new URLSearchParams(location.search).get('install') === 'gw') {
     nav('/');
@@ -2002,7 +2003,7 @@ const GAME_INFO = {
   seotda: { name: '섯다', icon: '', sub: '화투 두 장 · 광땡 · 땡잡이', tag: '두 장의 화투로 끗발 대결, 기세로 밀어붙여라' },
   omok: { name: '오목', icon: '', sub: '1:1 대국 · AI · 티어', tag: '다섯 알을 먼저 잇는 사람이 승리' },
   // 강성구 키우기: 따로 있는 사이트(Vercel)로 이동 · 같은 탭 (뒤로 가기로 게임월드에 돌아옴)
-  sunggu: { name: '강성구 키우기', icon: '', sub: '외모 65세 서울역 거지 강성구를 28세 존잘로! 육성 시뮬 · 결말 80개 · 친구 랭킹', tag: '외모 65세 서울역 거지 강성구를 28세 존잘로!', href: 'https://sunggu-game.vercel.app' },
+  sunggu: { name: '강성구 키우기', icon: '', sub: '외모 65세 서울역 거지 강성구를 28세 존잘로! 육성 시뮬 · 결말 86개 · 게임월드 계정 랭킹', tag: '외모 65세 서울역 거지 강성구를 28세 존잘로!', href: 'https://sunggu-game.vercel.app' },
 };
 const GAME_RULES = {
   holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
@@ -2034,9 +2035,25 @@ const GAME_ASSETS = { holdem: ['/img/felt.webp'], seotda: ['/img/bg-seotda.webp'
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const preloadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = i.onerror = () => res(); i.src = src; });
 function enterGame(g) { S.game = g; LS.set('chandem:game', g); nav('/'); S.view = 'gamehome'; render(); }
+// 강성구 키우기(따로 있는 사이트): 게임월드 로그인으로 만든 출입증을 주소 # 뒤에 붙여 넘긴다 (서버로는 안 감)
+async function sungguPass() {
+  if (!S.auth) return null;
+  try {
+    const r = await Promise.race([fetch('/api/sunggu/pass', { method: 'POST', headers: { authorization: 'Bearer ' + S.auth }, cache: 'no-store' }).then((x) => x.json()), wait(4000).then(() => null)]);
+    return r && r.ok ? r : null;
+  } catch { return null; }
+}
+async function goSunggu() {
+  S.sgNext = false;
+  const r = await sungguPass();
+  if (!r) { toast('강성구 키우기로 로그인을 넘기지 못했어요. 다시 해 주세요', 'error'); return; }
+  toast(`${r.nickname}님으로 강성구 키우기에 로그인해요`, 'ok');
+  setTimeout(() => { location.href = GAME_INFO.sunggu.href + '#sgt=' + encodeURIComponent(r.pass); }, 500);
+}
 async function launchGame(g) {
   const info = GAME_INFO[g];
   if (!info || S.launching) return;
+  if (g === 'sunggu' && S.auth) { S.launching = true; const r = await sungguPass(); S.launching = false; location.href = info.href + (r ? '#sgt=' + encodeURIComponent(r.pass) : ''); return; }
   if (gws.reduceMotion()) { if (info.href) location.href = info.href; else enterGame(g); return; }
   S.launching = true;
   if (info.href) {
