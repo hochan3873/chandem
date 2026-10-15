@@ -219,6 +219,7 @@ const SHARE_BTN_ONLY = `<button class="btn btn-sm btn-gold share-top" id="share-
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 // 앱 설치 버튼: 그 앱 안이 아니면 늘 보인다. 찬이의 게임월드 앱 안의 홀덤 화면에선 '홀덤 앱 설치' (따로 설치)
 const installBtnHTML = () => {
+  if (isStandalone() && HOLDEM_APP && S.view === 'gamehome') return '<button class="btn btn-sm btn-outline install-btn" id="install-gw" aria-label="찬이의 게임월드 앱 설치">게임월드 앱 설치</button>'; // 홀덤 앱 안: 게임월드 앱도 따로
   if (isStandalone() && (HOLDEM_APP || (S.game || 'holdem') !== 'holdem' || S.view !== 'gamehome')) return '';
   if (isStandalone()) return '<button class="btn btn-sm btn-outline install-btn" id="install-holdem" aria-label="찬덤 홀덤 앱 설치">홀덤 앱 설치</button>';
   return '<button class="btn btn-sm btn-outline install-btn" id="install-btn" aria-label="앱 설치">앱 설치</button>';
@@ -419,10 +420,38 @@ async function installApp() {
     </ol>
     ${protectHTML()}
     <p class="muted small">이미 설치했다면 바탕화면의 ${APP_NAME} 아이콘으로 열어 주세요.</p>
-    ${HOLDEM_APP ? `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬이의 게임월드 앱에서 열기」</b>만 보여요</summary>${holdemInstallHelpHTML()}</details>` : ''}${ICON_NOTE}`,
-  (b) => { const c = b.querySelector('#copy-holdem'); if (c) c.onclick = copyHoldemLink; });
+    ${HOLDEM_APP ? `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬이의 게임월드 앱에서 열기」</b>만 보여요</summary>${holdemInstallHelpHTML()}</details>` : `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬덤 홀덤에서 열기」</b>만 보여요</summary>${gwInstallHelpHTML()}</details>`}${ICON_NOTE}`,
+  (b) => { const c = b.querySelector('#copy-holdem'); if (c) c.onclick = copyHoldemLink; const g = b.querySelector('#copy-gw'); if (g) g.onclick = copyGwLink; });
 }
-document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); else if (e.target.closest('#install-holdem')) installHoldemApp(); });
+document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); else if (e.target.closest('#install-holdem')) installHoldemApp(); else if (e.target.closest('#install-gw')) installGwApp(); });
+// 찬덤 홀덤 앱 안에서 '게임월드 앱 설치': 크롬(아이폰은 사파리)으로 첫 화면(/?install=gw)을 열어 거기서 설치
+function installGwApp() {
+  const url = `${location.origin}/?install=gw`;
+  if (IS_KAKAO) { location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`; return; }
+  if (!isStandalone() && !IN_APP) { location.href = url; return; }
+  if (IS_IOS) {
+    openModal('찬이의 게임월드 앱 설치', `<p>아이폰은 <b>사파리</b>에서 설치해요.</p>
+      <ol class="small"><li>아래 버튼으로 링크를 복사해요</li><li>사파리를 열고 주소창에 붙여 넣어요</li><li>아래 공유 버튼 → <b>홈 화면에 추가</b></li></ol>
+      <button class="btn btn-gold btn-lg" id="copy-gw">링크 복사</button>`, (b) => { b.querySelector('#copy-gw').onclick = copyGwLink; });
+    return;
+  }
+  location.href = `intent://${location.host}/?install=gw#Intent;scheme=https;package=com.android.chrome;end`; // 안드로이드: 크롬으로 연다
+}
+async function copyGwLink() {
+  const url = `${location.origin}/?install=gw`;
+  try { await navigator.clipboard.writeText(url); toast('복사했어요. 브라우저 주소창에 붙여 넣어 주세요', 'ok'); } catch { prompt('이 주소를 브라우저에서 열어 주세요', url); }
+}
+// 안드로이드: 예전(10/15 전)에 깐 찬덤 홀덤 앱은 사이트 주소 전체(/)를 맡고 있어서, 크롬이 게임월드 첫 화면도 '홀덤 앱'으로 연다 → 홀덤 앱을 지우고 새로 깔면 된다
+function gwInstallHelpHTML() {
+  return `<div class="hih">
+    <p class="hih-why">찬덤 홀덤 앱을 <b>예전 방식</b>으로 설치한 폰은, 크롬이 게임월드 화면도 홀덤 앱으로 열어서 설치 버튼이 나오지 않아요.</p>
+    <div class="hih-way"><b class="hih-tag">이렇게 하면 돼요</b>
+      <ol><li>찬덤 홀덤 아이콘을 길게 눌러 <b>삭제</b>해요 <small class="muted">(로그인한 칩·기록은 그대로예요)</small></li>
+      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>⋮ → 「앱 설치」</b>로 게임월드를 깔아요</li>
+      <li>게임월드 홈 → 찬덤 홀덤 → <b>앱 설치</b>로 홀덤 앱도 다시 깔아요 <small class="muted">(새 방식이라 둘 다 같이 있어요)</small></li></ol></div>
+    ${protectHTML()}
+    <button class="btn btn-gold btn-lg" id="copy-gw" type="button">게임월드 링크 복사</button></div>`;
+}
 
 // 앱 설치 고르기: 찬이의 게임월드 / 찬덤 홀덤 (게임월드 앱 안에서도 홀덤 앱을 깔 수 있게)
 function installPick() {
@@ -1328,6 +1357,11 @@ socket.on('rating', (list) => {
 async function boot() {
   // 랑방 대전(앱)에서 [로그인] → /?login=1&next=langbang : 로그인 창을 바로 열고, 끝나면 랑방으로 돌아간다
   { const q0 = new URLSearchParams(location.search); if (q0.get('next') === 'langbang') { try { sessionStorage.setItem('chandem:next', '/langbang/'); } catch { /* 무시 */ } } if (q0.get('login') === '1' && !S.auth) setTimeout(() => openLogin(), 300); }
+  // 홀덤 앱 안 [게임월드 앱 설치] → 크롬에서 /?install=gw : 설치 안내를 바로. 그런데 앱 화면으로 열렸다면(예전 홀덤 앱이 / 까지 맡음) 지우고 다시 까는 법
+  if (new URLSearchParams(location.search).get('install') === 'gw') {
+    nav('/');
+    setTimeout(() => { if (isStandalone()) openModal('찬이의 게임월드 앱 설치', gwInstallHelpHTML(), (b) => { b.querySelector('#copy-gw').onclick = copyGwLink; }); else installApp(); }, 900);
+  }
   loadMe().then(() => { if (S.view === 'home') render(); });
   fetch('/api/info').then((r) => r.json()).then((d) => { S.info = d; if (S.view === 'room' || S.view === 'home') render(); }).catch(() => {});
   const code = routeCode();
@@ -2122,7 +2156,8 @@ function hubAcctHTML() {
   return `<button class="hub-acct tap is-user ${S.user.isMaster ? 'is-master' : ''}" id="acct-btn" title="내 전적">${S.user.isMaster ? P.hubIcon('crown') : `<span class="acct-dot" style="--tc:${t.color}"></span>`}<b class="acct-name">${esc(S.user.nickname)}</b></button>`;
 }
 // (랑방 시즌 키 아트가 걸려 있으면 평소 타이틀 영상은 덮지 않게 뺀다)
-function hubCardHTML(k, g) {
+// 첫 화면 게임 카드: 랑방 대전(크게) → 찬덤 홀덤 · 강성구 키우기(반반 'pair') → 섯다 · 오목(작게 'mini') — 스크롤 없이 한눈에
+function hubCardHTML(k, g, size = '') {
   const hero = k === 'langbang';
   const rm = gws.reduceMotion();
   const media = hero
@@ -2132,7 +2167,7 @@ function hubCardHTML(k, g) {
     ? '<img class="gc-logo" src="/img/lb/logo_langbang.webp" alt="랑방 대전" onerror="this.replaceWith(Object.assign(document.createElement(\'b\'),{className:\'gc-title\',textContent:\'랑방 대전\'}))">'
     : GAME_LOGO[k] ? `<img class="gc-logo gc-logo-${k}" src="${GAME_LOGO[k]}" alt="${esc(g.name)}" draggable="false">` : `<b class="gc-title">${esc(g.name)}</b>`;
   return `
-    <button class="game-card hub-card game-card-${k} ${hero ? 'is-hero' : ''} ${g.best ? 'is-best' : ''} tap" data-game="${k}">
+    <button class="game-card hub-card game-card-${k} ${hero ? 'is-hero' : ''} ${size ? 'is-' + size : ''} ${g.best ? 'is-best' : ''} tap" data-game="${k}">
       ${media}
       <span class="gc-shade"></span>
       ${g.best ? '<span class="gc-ribbon" aria-label="베스트 게임"><span>BEST</span></span>' : ''}
@@ -2189,10 +2224,12 @@ function renderHome() {
       <p class="hub-tagline">친구들과 휴대폰으로 즐기는 우리들의 게임월드</p>
     </header>
     ${iosInAppBannerHTML()}
-    <div id="hub-extras">${P.hubExtrasHTML()}</div>
-    <section class="game-cards hub-cards">
-      ${Object.entries(GAME_INFO).filter(([k]) => k !== 'langbang' || (S.info && S.info.langbang)).map(([k, g]) => hubCardHTML(k, g)).join('')}
+    <section class="game-cards hub-cards hub-top3">
+      ${S.info && S.info.langbang ? hubCardHTML('langbang', GAME_INFO.langbang) : ''}
+      <div class="hub-pair">${['holdem', 'sunggu'].map((k) => hubCardHTML(k, GAME_INFO[k], 'pair')).join('')}</div>
+      <div class="hub-minis">${['seotda', 'omok'].map((k) => hubCardHTML(k, GAME_INFO[k], 'mini')).join('')}</div>
     </section>
+    <div id="hub-extras">${P.hubExtrasHTML()}</div>
     <section class="panel live-rooms" id="live-rooms"><h2 class="sec-title hub-sec"><i class="live-dot"></i>지금 열린 방</h2><div class="lr-list"><p class="muted small">불러오는 중…</p></div></section>
     <section class="panel">
       <div class="divider"><span>초대 코드로 참가</span></div>
