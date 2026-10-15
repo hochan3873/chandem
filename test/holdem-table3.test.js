@@ -161,3 +161,24 @@ test('일반 게임: 칩을 다 잃고 리바인도 다 쓰면 관전석으로 �
   assert.equal(B.seat, null);
   room.clearAllTimers();
 });
+
+test('내 패 보여주기: 쇼다운에서 이미 공개된 사람(이긴 사람)에게는 묻지 않고, 지고 덮은 사람에게만 묻는다', () => {
+  const { room, ps } = cash(3);
+  room.start(ps[0].id);
+  const h = room.hand;
+  let g = 0;
+  while (!h.finished && g++ < 60) { const la = room.viewFor(h.currentId).hand.legal || {}; room.act(h.currentId, { type: la.canCheck === false ? 'call' : 'check' }); }
+  assert.equal(h.result.type, 'showdown');
+  if (room.reveal) room.reveal.done = true; // 공개 연출이 끝난 뒤
+  const winners = h.result.winners;
+  for (const p of ps) {
+    const v = room.viewFor(p.id).me;
+    if (winners.includes(p.id)) assert.equal(v.canShow, false, '이긴 사람은 이미 공개됨');
+    else assert.equal(v.canShow, true, '진 사람은 덮었으니 보여 줄지 고를 수 있음');
+  }
+  // 이긴 사람이 보여주기를 보내도 아무 일 없음
+  const before = room.feed.length;
+  room.showCards(winners[0], 'both');
+  assert.equal(room.feed.length, before);
+  room.clearAllTimers();
+});

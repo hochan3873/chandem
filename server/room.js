@@ -1485,7 +1485,7 @@ class Room {
         pendingRebuy: me.pendingRebuy,
         canRebuy: this.canRebuy(me),
         timeBank: me.bank === undefined ? this.settings.timeBank : me.bank,
-        canShow: !!(h && h.finished && !h.kind && this.handPlayers.includes(me.id) && !this.revealing && !(this.showIds || []).includes(me.id)),
+        canShow: !!(h && h.finished && !h.kind && this.handPlayers.includes(me.id) && !this.revealing && !(this.showIds || []).includes(me.id) && !this.shownAtShowdown(me.id)),
         shownOne: (this.showOne && this.showOne[me.id]) || [],
         sittingOut: me.sittingOut,
         awayReason: me.sittingOut ? me.awayReason || 'timeout' : null,
@@ -1600,11 +1600,18 @@ class Room {
     return pr || !!(hs && hs.allIn);
   }
 
-  /** 판이 끝난 뒤 '내 패 보여주기' */
+  /** 쇼다운에서 이미 모두에게 공개된 패인지 (이긴 사람 · 올인한 사람): 그러면 '보여주기'를 물을 필요가 없다 */
+  shownAtShowdown(id) {
+    const h = this.hand;
+    return !!(h && !h.kind && h.result && h.result.type === 'showdown' && h.result.hands && h.result.hands[id] && this.handShown(id));
+  }
+
+  /** 판이 끝난 뒤 '내 패 보여주기' (실제 홀덤처럼: 다 폴드시키고 이겼을 때 · 쇼다운에서 지고 패를 덮었을 때 · 폴드했을 때만) */
   showCards(id, which) {
     const h = this.hand;
     if (!h || !h.finished || h.kind || !this.handPlayers.includes(id)) throw new RoomError('판이 끝난 뒤에 보여 줄 수 있어요');
     if (this.revealing) throw new RoomError('결과가 나온 뒤에 보여 줄 수 있어요');
+    if (this.shownAtShowdown(id)) return; // 이미 모두에게 공개됨
     this.showIds = this.showIds || [];
     this.showOne = this.showOne || {};
     if (this.showIds.includes(id)) return;

@@ -2423,3 +2423,10 @@ body:has(.hl-tabs) #snd-pill { bottom: calc(env(safe-area-inset-bottom) + 82px);
 .ios-bar i.ios-addr { flex: 1; max-width: 60%; height: 18px; border-radius: 9px; background: rgba(255, 255, 255, .16); }
 .ios-lead { margin: 0 0 8px; font-size: .9rem; line-height: 1.45; }
 .hih-more[open] > summary { margin-bottom: 6px; }
+/* 레이즈 금액 슬라이더 (끌어서 고르기) */
+.act2-slide { display: flex; align-items: center; gap: 8px; margin: 2px 2px 6px; font-size: .68rem; font-weight: 800; color: rgba(255, 236, 200, .7); white-space: nowrap; }
+.act2-slide input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 32px; margin: 0; background: transparent; touch-action: none; cursor: pointer; }
+.act2-slide input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, #ffd35a, #e5484d); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .5); }
+.act2-slide input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -10px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8dc, #ffd35a 55%, #c8862a); border: 2px solid #3a1c00; box-shadow: 0 3px 8px rgba(0, 0, 0, .55); }
+.act2-slide input[type=range]::-moz-range-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, #ffd35a, #e5484d); }
+.act2-slide input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: #ffd35a; border: 2px solid #3a1c00; }
