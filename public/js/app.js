@@ -1967,6 +1967,8 @@ const GAME_INFO = {
   holdem: { name: '찬덤 홀덤', icon: '♠', sub: '노리밋 홀덤 · 연습 테이블 · 실력 티어', tag: '카드 2장 + 바닥 5장, 최고의 5장으로 승부' },
   seotda: { name: '섯다', icon: '', sub: '화투 두 장 · 광땡 · 땡잡이', tag: '두 장의 화투로 끗발 대결, 기세로 밀어붙여라' },
   omok: { name: '오목', icon: '', sub: '1:1 대국 · AI · 티어', tag: '다섯 알을 먼저 잇는 사람이 승리' },
+  // 강성구 키우기: 따로 있는 사이트(Vercel)로 이동 · 같은 탭 (뒤로 가기로 게임월드에 돌아옴)
+  sunggu: { name: '강성구 키우기', icon: '', sub: '외모 65세 서울역 거지 강성구를 28세 존잘로! 육성 시뮬 · 결말 80개 · 친구 랭킹', tag: '외모 65세 서울역 거지 강성구를 28세 존잘로!', href: 'https://sunggu-game.vercel.app' },
 };
 const GAME_RULES = {
   holdem: '<p>각자 카드 2장을 받고, 바닥에 5장이 차례로 깔려요. 7장 중 가장 좋은 5장으로 족보를 겨뤄요.</p><p>베팅: 체크(넘기기) · 콜(따라가기) · 레이즈(올리기) · 폴드(포기) · 올인</p><p>토너먼트는 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요.</p>',
@@ -2112,7 +2114,7 @@ function renderGameHome() {
 }
 
 // ── 메인(허브): 모바일 게임 런처처럼 ──
-const HUB_GAME_ICON = { holdem: 'spade', seotda: 'hwatu', omok: 'omok', langbang: 'cards' };
+const HUB_GAME_ICON = { holdem: 'spade', seotda: 'hwatu', omok: 'omok', langbang: 'cards', sunggu: 'sunggu' };
 function hubAcctHTML() {
   if (S.info && S.info.accounts === false) return '<span></span>';
   if (!S.user) return `<button class="hub-acct tap" id="acct-btn">${P.hubIcon('lock')}<b>로그인</b></button>`;
