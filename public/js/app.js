@@ -3361,16 +3361,19 @@ function renderTableInner(st, el) {
       tags.push(`<span class="tag ${d > 0 ? 'tag-plus' : d < 0 ? 'tag-minus' : ''}">${signed(d)}</span>`);
     }
     const pos2 = [];
-    if (p.isDealer) pos2.push('<span class="dealer-btn" title="딜러">D</span>');
+    if (p.isDealer && h && h.game === 'seotda') pos2.push('<span class="dealer-btn" title="딜러">D</span>');
     if (p.isSB) pos2.push('<span class="blind-lbl">SB</span>');
     if (p.isBB) pos2.push('<span class="blind-lbl">BB</span>');
     const bet = p.bet > 0 ? (() => {
       const k = y < 30 ? 0.52 : x < 20 || x > 80 ? 0.5 : 0.4; const bx = x + (50 - x) * k; let by = isMe && h && h.game !== 'seotda' ? 63 : y + (47 - y) * k;
       let bx2 = bx;
+      if (isMe && h && h.game !== 'seotda' && orientOf() !== 'land') { bx2 = x - 3; by = y - 17; } // 내 베팅: 내 얼굴 바로 위 (가운데 안내 줄과 안 겹치게)
+      if (y < 30 && h && h.game !== 'seotda') { bx2 = x + (x < 45 ? 10 : x > 55 ? -10 : 13); by = y + 13; } // 윗자리: 바닥 카드에 안 겹치게 자기 옆 아래로
       if (!isMe && y > 80 && h && h.game !== 'seotda') { bx2 = x + (50 - x) * 0.15; by = y - 15; } // 아래 양옆 자리: 내 카드에 안 가리게 자기 머리 위로
       return `<div class="bet" data-id="${p.id}" data-amt="${p.bet}" style="left:${bx2}%;top:${by}%" title="${esc(p.name)} 이번 라운드 베팅"><span class="chip-icon sm"></span><small>베팅</small><b>${fmt(p.bet)}</b></div>`;
     })() : '';
     return `
+      ${p.isDealer && h && h.game !== 'seotda' ? (() => { const k = 0.24; let dx = x + (50 - x) * k + (x < 50 ? 7 : x > 50 ? -7 : 9); let dy = isMe ? y - 13 : y + (47 - y) * k - 6; if (y < 20) { dx = x + (x > 60 ? 13 : -13); dy = y + 2; } return `<div class="dealer-chip" style="left:${dx}%;top:${dy}%" title="딜러 버튼 (이번 판의 선)"><b>D</b><small>딜러</small></div>`; })() : ''}
       <div class="${cls.join(' ')}" data-id="${p.id}" style="left:${x}%;top:${y}%">
         ${cards}
         <div class="seat-body">
@@ -3417,7 +3420,7 @@ function renderTableInner(st, el) {
       ? `<div class="side-pots">${h.pots.map((pt, i) => `<span>${i === 0 ? '메인' : `사이드${i}`} ${fmt(pt.amount)}</span>`).join('')}</div>` : '';
     center = `
       <div class="table-center">
-        <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}">${(h.game === 'seotda' ? '' : { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '올인 승부' }[h.stage] || '')}</div>
+        <div class="stage-lbl ${h.stage === 'allin' ? 'stage-allin' : ''}" ${h.game === 'seotda' ? '' : 'hidden'}>${(h.game === 'seotda' ? '' : { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '올인 승부' }[h.stage] || '')}</div>
         ${h.game === 'seotda' ? `<div class="sd-center">${st.room.settings.cards === 3 ? '세 장' : '두 장'} 섯다${h.stage === 'open' ? ' · 한 장 공개' : h.stage === 'pick' ? ' · 두 장 고르기' : h.stage === 'betting' ? (st.room.settings.cards === 3 ? ' · 1차 베팅' : ' · 베팅') : h.stage === 'betting2' ? ' · 2차 베팅' : ''}</div>` : `<div class="board">${board.join('')}</div>`}
         <div class="pot"><span class="chip-icon pot-chip"></span><b>${potText}</b>${h.totalPot > h.pot ? `<span class="pot-note">이번 라운드 ${fmt(h.totalPot - h.pot)} 포함</span>` : ''}</div>
         ${sidePots}
@@ -3441,7 +3444,9 @@ function feltInfoHTML(st) {
   const sb = run ? tn.sb : s.sb; const bb = run ? tn.bb : s.bb;
   const ante = s.ante === 'bb' ? ` <small>(앤티 ${fmt(bb)})</small>` : '';
   const next = run && tn.nextAt && (tn.nextBb !== tn.bb) ? `<span class="fi-next">다음 블라인드 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '멈춤' : `<i data-level-at="${tn.nextAt}">-</i> 후`}</span>` : '';
-  return `<div class="felt-info"><span>NL 홀덤 · <b>${fmt(sb)}/${fmt(bb)}</b>${ante}</span>${next}</div>`;
+  const h = st.hand;
+  const stage = h ? { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운', allin: '올인 승부' }[h.stage] || '' : '';
+  return `<div class="felt-info"><span>${stage ? `<em class="fi-stage">${stage}</em> · ` : ''}NL 홀덤 · <b>${fmt(sb)}/${fmt(bb)}</b>${ante}</span>${next}</div>`;
 }
 
 // 리버(마지막 한 장)가 깔릴 때: 카드 위로 AI 영상 빛줄기가 '스윽' 지나간다

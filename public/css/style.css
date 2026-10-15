@@ -2163,3 +2163,14 @@ html[data-app="holdem"] .sp-art::after { background: linear-gradient(180deg, rgb
 html[data-app="holdem"] .sp-title-img { width: min(78vw, 360px); -webkit-mask-image: none; mask-image: none; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .8)) drop-shadow(0 0 18px rgba(255, 200, 90, .35)); }
 html[data-app="holdem"] .sp-bar i { background: linear-gradient(90deg, #b9761f, #ffe08a); }
 html[data-app="holdem"] .sp-go { color: #ffe8a8; }
+
+/* 딜러 버튼 (선): 펠트 위 큰 흰 칩 */
+.dealer-chip { position: absolute; z-index: 3; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; transition: left .5s ease, top .5s ease; }
+.dealer-chip b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff, #e6e6e6 70%, #c9c9c9); color: #111; font: 900 .9rem/1 var(--font); border: 2px solid #d9a03a; box-shadow: 0 2px 5px rgba(0, 0, 0, .6), 0 0 10px rgba(255, 220, 140, .55); }
+.dealer-chip small { margin-top: 1px; font: 800 .56rem/1.2 var(--font); color: #ffe8a8; text-shadow: 0 1px 2px #000; }
+.fi-stage { font-style: normal; font-weight: 900; color: #fff3cf; letter-spacing: .06em; }
+/* SB·BB 표시: 카드 반대쪽 아래에 (카드에 가려지지 않게) */
+body.in-room[data-theme="holdem"] .seat-pos { right: auto; left: -12px; top: auto; bottom: -2px; z-index: 2; }
+body.in-room[data-theme="holdem"] .seat-right .seat-pos { left: auto; right: -12px; }
+body.in-room[data-theme="holdem"] .seat-me .seat-pos { left: -14px; }
+body.in-room[data-theme="holdem"] .blind-lbl { font-size: .68rem; padding: 1px 5px; border-radius: 99px; box-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
