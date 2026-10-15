@@ -253,9 +253,32 @@ function installDone() {
 const UA = navigator.userAgent;
 const IS_IOS = /iPhone|iPad|iPod/i.test(UA) || (/Macintosh|MacIntel/.test(UA + navigator.platform) && navigator.maxTouchPoints > 1);
 const IS_KAKAO = /KAKAOTALK/i.test(UA);
+const IS_SAMSUNG = /SamsungBrowser/i.test(UA);
 const IN_APP = IS_KAKAO || /NAVER|Instagram|FBAN|FBAV|FB_IAB|Line\/|DaumApps|everytimeApp/i.test(UA);
 const IOS_VER = (() => { const m = UA.match(/OS (\d+)[_.](\d+)/); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; })(); // 16.4 → 1604
 const IOS_OTHER = IS_IOS && /CriOS|FxiOS|EdgiOS|OPiOS|Whale/i.test(UA); // 아이폰 크롬·파이어폭스 등 (16.4부터 홈 화면 추가 가능)
+// 삼성 인터넷 '다크 모드'는 사이트가 막을 수 없게 화면 색을 강제로 뒤집는다 (흰 카드 → 검은 카드).
+// 사이트 쪽 표시(color-scheme)를 무시해서, 사용자가 설정을 바꾸는 수밖에 없다 → 알기 쉽게 안내
+function openColorHelp() {
+  openModal('카드가 검게 보이나요?', `<div class="hih">
+    <p class="hih-why">${IS_SAMSUNG ? '<b>삼성 인터넷의 「다크 모드」</b>가' : '폰 브라우저의 <b>「어두운 모드(웹페이지 어둡게)」</b>가'} 화면 색을 강제로 뒤집어서 그래요. 흰 카드가 검게, 금색 버튼이 어둡게 보여요. 사이트에서는 막을 수 없어서 설정을 한 번만 바꿔 주세요.</p>
+    ${IS_SAMSUNG ? `<div class="hih-way"><b class="hih-tag">방법 1 · 추천</b>
+      <ol><li><b>삼성 인터넷</b> 앱을 열어요</li><li>아래 <b>≡ 메뉴 → 설정</b></li><li><b>실험실(Labs)</b> → <b>「웹사이트 다크 테마 사용」</b>을 켜요</li></ol>
+      <p class="muted tiny">다크 모드는 그대로 쓰면서 이 게임은 원래 색으로 보여요</p></div>
+    <div class="hih-way"><b class="hih-tag">방법 2</b>
+      <ol><li>삼성 인터넷 아래 <b>≡ 메뉴</b>를 눌러요</li><li><b>「다크 모드」</b>를 꺼요 (해 모양 · 라이트 모드)</li></ol></div>`
+    : `<div class="hih-way"><b class="hih-tag">크롬</b>
+      <ol><li>크롬 오른쪽 위 <b>⋮ → 설정 → 테마</b></li><li><b>「웹사이트 어둡게」</b> 체크를 풀어요</li></ol></div>`}
+    <p class="muted tiny">바꾼 뒤 이 앱을 완전히 닫았다가 다시 열어 주세요.</p>
+    <button class="btn btn-gold btn-lg" data-close type="button">알겠어요</button></div>`);
+}
+// 삼성 인터넷이면 처음 한 번 알려 준다 (다크 모드가 켜져 있는지는 알아낼 방법이 없어서 '검게 보이면'으로 묻는다)
+function maybeColorHelp() {
+  if (!IS_SAMSUNG || LS.get('chandem:colorHelp', 0)) return false;
+  LS.set('chandem:colorHelp', Date.now());
+  setTimeout(openColorHelp, 600);
+  return true;
+}
 async function copySiteLink() {
   const url = location.origin + (HOLDEM_APP ? '/holdem' : '/');
   try { await navigator.clipboard.writeText(url); toast('링크를 복사했어요. 사파리 주소창에 붙여 넣어 주세요', 'ok'); }
@@ -888,6 +911,7 @@ async function loadHoldemLobby() {
 }
 // 앱 설치 권하기: 홀덤 로비를 설치 안 한 브라우저로 열면 하루 한 번
 function maybeInstallPrompt() {
+  if (maybeColorHelp()) return;
   if ((isStandalone() && HOLDEM_APP) || IS_KAKAO || S.installAsked) return;
   const inGw = isStandalone() && !HOLDEM_APP; // 찬이의 게임월드 앱 안: 홀덤 앱을 따로 깔 수 있게
   const day = new Date().toISOString().slice(0, 10);
@@ -3870,6 +3894,7 @@ function openMenuModal() {
         <button class="btn btn-outline" data-m="share">초대 링크</button>
         ${me.role === 'player' ? `<button class="btn btn-outline" data-m="${me.sittingOut ? 'sitin' : 'sitout'}">${me.sittingOut ? '자리로 돌아가기' : '자리 비우기'}</button>` : ''}
         <button class="btn btn-outline" data-m="sound">소리 설정</button>
+        <button class="btn btn-outline" data-m="color">카드가 검게 보여요</button>
         ${S.muted.size ? `<button class="btn btn-outline" data-m="unmute">가린 채팅 ${S.muted.size}명 다시 보기</button>` : ''}
       </div>
       <section><h3 class="sub-title">친구 초대</h3>${inviteHTML(st.room.code)}</section>
@@ -3897,6 +3922,7 @@ function openMenuModal() {
         if (m === 'hist') { openHistory(); return; }
         if (m === 'share') { closeModal(); shareTop(); return; }
         if (m === 'sound') { openSoundModal(); return; }
+        if (m === 'color') { openColorHelp(); return; }
         if (m === 'unmute') { S.muted.clear(); LS.set('chandem:muted', []); syncChatMini(); toast('가린 채팅을 다시 보여 줘요', 'ok'); }
         if (m === 'sitin') await emit('game:sitin');
         if (m === 'sitout') await emit('game:sitout');
@@ -4361,4 +4387,4 @@ P.init({
 boot();
 
 // 디버그/검증용 (자동 테스트에서 상태 확인)
-window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, handTag, goHome, moneyRain, coinFountain, sparkBurst } };
+window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, handTag, goHome, moneyRain, coinFountain, sparkBurst, openColorHelp } };
