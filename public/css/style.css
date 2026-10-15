@@ -2241,3 +2241,5 @@ body.in-room[data-theme="holdem"] .bet b { font-weight: 900; color: #fff; }
 /* 금액 버튼 한 줄: − ½팟 팟 올인 + */
 .act2-sizes.act2-sizes-lite { grid-template-columns: 46px 1fr 1fr 1fr 46px; }
 .act2-sizes-lite .sl-step { font-size: 1.2rem; justify-content: center; }
+/* 홀덤 세로 화면: 아래 버튼 영역을 처음부터 '내 차례' 높이로 (테이블·바닥 카드 크기가 차례마다 바뀌지 않게) */
+body.in-room[data-theme="holdem"] .game:not([data-orient="land"]) .g-actions { min-height: 150px; display: flex; flex-direction: column; justify-content: flex-end; box-sizing: border-box; }

@@ -3300,7 +3300,25 @@ function tableMotion(st, before) {
     sound.play('chips');
   }
 }
+// 아래 버튼 영역 높이 고정: 내 차례(버튼 3줄)·남의 차례·판 끝남마다 높이가 달라 테이블·바닥 카드가
+// 줄었다 늘었다 하던 것 → 지금까지 가장 컸던 높이를 최소 높이로 붙잡아 둔다 (화면 크기·방향이 바뀌면 새로 잼)
+function holdActionsHeight(st) {
+  const a = document.getElementById('g-actions');
+  if (!a || gameOf(st) !== 'holdem') return;
+  const key = `${innerWidth}x${innerHeight}:${orientOf()}`;
+  if (S.actH && S.actH.key !== key) { S.actH = null; a.style.minHeight = ''; }
+  if (!a._ro) {
+    a._ro = new ResizeObserver(() => {
+      const k = `${innerWidth}x${innerHeight}:${orientOf()}`;
+      const hh = a.offsetHeight;
+      if (!S.actH || S.actH.key !== k) S.actH = { key: k, h: 0 };
+      if (hh > S.actH.h) { S.actH.h = hh; a.style.minHeight = hh + 'px'; }
+    });
+    a._ro.observe(a);
+  }
+}
 function renderTable(st) {
+  holdActionsHeight(st);
   const el = document.getElementById('g-table');
   const betsBefore = snapBets();
   try { renderTableInner(st, el); } finally { requestAnimationFrame(() => tableMotion(st, betsBefore)); }
