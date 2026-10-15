@@ -1320,7 +1320,8 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
 
   return { signup, login, me, verifyToken, recordHand, recordOmok, recordTourney, profile, ranking, router, langbangRouter, lbResult, lbUpgrade, lbBuy, lbMe, lbRanking, ready, tierOf, store,
     // 플랫폼(site.js · admin.js)용
-    makeToken, publicUser, noteMeta, exclusive, updateStats: update, addLangbangCoins, adminAdjustLangbangCoins,
+    makeToken, publicUser, noteMeta, subKey: (label) => crypto.createHmac('sha256', key).update('sub:' + label).digest(), // 다른 용도 서명 키 (강성구 키우기 출입증 등)
+    exclusive, updateStats: update, addLangbangCoins, adminAdjustLangbangCoins,
     bonkae: BKS, bonkaeRun: BKS.afterRun, raid2: R2S, srank: SRS }; // 본캐 출연료 (1:1 대전 승리에서 부름)
 }
 

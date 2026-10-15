@@ -12,6 +12,7 @@ const { createAccounts, hashPassword } = require('./accounts');
 const { createSite } = require('./site');
 const { createAdmin } = require('./admin');
 const { createRankings } = require('./rankings');
+const { createSunggu } = require('./sunggu');
 const { createHoldemPro } = require('./holdem-pro');
 const { createLbPvp } = require('./langbang-pvp');
 const { createPush, createPushStore } = require('./push');
@@ -423,6 +424,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     app.use('/api/admin', createAdmin({ acct, site, rooms, api: { closeRoom, kickPlayer } }).router(express));
     rankings = createRankings({ acct, rooms, now });
     app.use('/api/rank', rankings.router(express)); // 게임별 등급·순위·선수 카드
+    app.use('/api/sunggu', createSunggu({ acct, seed: acct.subKey('sunggu') }).router(express)); // 강성구 키우기(따로 있는 사이트) 로그인 출입증
   } else {
     app.use(['/api/auth', '/api/langbang', '/api/site', '/api/admin'], (req, res) => res.status(503).json({ ok: false, message: '로그인 준비 중이에요' }));
   }
