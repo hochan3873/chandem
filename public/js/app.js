@@ -3542,7 +3542,6 @@ function riverGlint() {
   el.style.width = (r.width * 3) + 'px'; el.style.height = (r.height * 2.2) + 'px';
   document.body.appendChild(el);
   sound.play('fx_river');
-  if (v.play) v.play().catch(() => {});
   setTimeout(() => el.remove(), 2200);
 }
 
@@ -4077,7 +4076,7 @@ function runEffects(st) {
   const once = (name) => { const key = `${k}:${name}`; if (S.fx[key]) return false; S.fx[key] = 1; return true; };
   if (h.reveal) {
     if (h.reveal.allin && once('allin')) {
-      if (gameOf(st) === 'holdem') { const pill = document.createElement('div'); pill.className = 'fx-showdown-pill'; pill.textContent = '올인 승부 · 카드 공개'; fxLayer().appendChild(pill); setTimeout(() => pill.remove(), 2600); }
+      if (gameOf(st) === 'holdem') { const pill = document.createElement('div'); pill.className = 'fx-showdown-pill'; pill.textContent = '올인 승부 · 카드 공개'; centerFx(pill); fxLayer().appendChild(pill); setTimeout(() => pill.remove(), 2600); }
       else banner('올인 승부!', '', 'allin');
       sound.play(gameOf(st) === 'holdem' ? 'allinTension' : 'drumroll');
       if (sound.isUnlocked()) gws.vibrate([40, 40, 40]);
@@ -4107,6 +4106,7 @@ function allinStamp(id) {
   const el = document.createElement('div');
   el.className = 'fx-stamp';
   el.innerHTML = `<div class="fx-stamp-main">ALL-IN!</div><div class="fx-stamp-sub">${p ? esc(p.name) + ' 올~인!' : '올~인!'}</div>`;
+  centerFx(el);
   fxLayer().appendChild(el);
   sound.play('stamp');
   quake();
@@ -4212,11 +4212,12 @@ function bigHand(tier, p, custom = null) {
   const el = document.createElement('div');
   el.className = `fx-bighand fx-tier${tier} ${tier >= 7 ? 'fx-big-max' : tier >= 5 ? 'fx-big-mid' : 'fx-big-low'}`;
   el.innerHTML = `${burst ? `<img class="fx-big-burst" src="${burst}" alt=""><img class="fx-big-burst fx-big-burst2" src="${burst}" alt="">` : ''}<div class="fx-big-rays"></div><div class="fx-big-en">${custom ? custom.en : BIG_EN[tier]}</div><div class="fx-big-ko">${esc(custom ? custom.ko : HAND_TIERS[tier])}!</div><div class="fx-big-who">${esc(p.name)}</div>`;
+  fitFx(el);
   fxLayer().appendChild(el);
   sound.play('boom');
   if (!custom) setTimeout(() => sound.play('v_h' + tier, 1.3), 380);
   // 터지는 순간: 충격파 고리 3겹 + 카드 무늬·불꽃이 사방으로
-  const c = { x: innerWidth / 2, y: innerHeight * 0.45 };
+  const fa = fxArea(); const c = { x: fa.cx, y: fa.top + fa.height * 0.45 };
   setTimeout(() => { shockwave(c, tier); sparkBurst(c, tier >= 7 ? 90 : tier >= 5 ? 60 : 40, tier); }, 280);
   if (tier >= 5) setTimeout(() => sparkBurst(c, 40, tier), 900);
   setTimeout(() => { moneyRain(tier >= 8 ? 110 : tier >= 5 ? 70 : 40); quake(); }, 450);
@@ -4241,6 +4242,7 @@ function bigHandVideo(tier, p) {
   // 영상은 페이지에 바로 붙여야 '스크린' 섞기가 테이블과 섞인다 (연출 층 안에 넣으면 검은 화면이 됨)
   const dim = Object.assign(document.createElement('div'), { className: 'fx-hv-dim' });
   const vw = blendVideo(`/img/holdem/fx/${key}.mp4?v=1`, 'fx-hv-vid');
+  fitFx(dim, vw, el);
   document.body.append(dim, vw, el);
   const parts = [dim, vw, el];
   sound.play('fx_' + key);
@@ -4277,11 +4279,24 @@ function holdemFxArt(tier) {
 }
 
 function fxLayer() { return document.getElementById('fx-layer') || document.body; }
+// 큰 연출이 덮을 곳: 가로 화면이면 테이블 칸만 (오른쪽 버튼 칸까지 덮거나 글씨가 테이블 밖으로 치우치지 않게) · 세로면 화면 전체
+function fxArea() {
+  const tw = document.querySelector('.game[data-orient="land"] .table-wrap');
+  const r = tw && tw.getBoundingClientRect();
+  return r && r.width > 50 ? { left: r.left, top: r.top, width: r.width, height: r.height, cx: r.left + r.width / 2 } : { left: 0, top: 0, width: innerWidth, height: innerHeight, cx: innerWidth / 2 };
+}
+function fitFx(...els) { // 화면 전체 연출을 테이블 칸에 맞춘다 (세로 화면은 그대로)
+  if (!document.querySelector('.game[data-orient="land"]')) return;
+  const a = fxArea();
+  for (const el of els) Object.assign(el.style, { inset: 'auto', left: a.left + 'px', top: a.top + 'px', width: a.width + 'px', height: a.height + 'px' });
+}
+function centerFx(el) { if (document.querySelector('.game[data-orient="land"]')) el.style.left = fxArea().cx + 'px'; } // 가운데(left:50%) 연출을 테이블 가운데로
 
 function banner(title, sub, kind = '', ms = 1800) {
   const el = document.createElement('div');
   el.className = `fx-banner fx-${kind}`;
   el.innerHTML = `<div class="fx-title">${esc(title)}</div>${sub ? `<div class="fx-sub">${sub}</div>` : ''}`;
+  centerFx(el);
   fxLayer().appendChild(el);
   setTimeout(() => el.classList.add('out'), ms);
   setTimeout(() => el.remove(), ms + 500);
@@ -4490,6 +4505,7 @@ function celebrate(st) {
     setTimeout(() => moneyRain(huge ? 70 : 36), 700);
     const flash = document.createElement('div');
     flash.className = 'fx-flash';
+    fitFx(flash);
     fxLayer().appendChild(flash);
     setTimeout(() => flash.remove(), 900);
     if (sound.isUnlocked()) gws.vibrate([80, 60, 140]);

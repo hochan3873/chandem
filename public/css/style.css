@@ -2101,7 +2101,7 @@ body.in-room[data-theme="holdem"] .game:not([data-orient="land"]) .seat-mycards 
 .fx-hv.out { animation: hvOut .6s ease-in forwards; }
 .fx-hv::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0, 0, 0, .15), rgba(0, 0, 0, .55)); }
 .fx-hv-vid { position: absolute; left: 50%; top: 46%; width: 100vw; height: 100vh; transform: translate(-50%, -50%); object-fit: cover; mix-blend-mode: screen; }
-.fx-hv-title { position: relative; width: min(86vw, 520px); max-height: 30vh; object-fit: contain; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .8)); animation: hvTitle .7s cubic-bezier(.2, 1.4, .4, 1) .15s both; }
+.fx-hv-title { position: relative; width: min(86%, 520px); max-height: 30vh; object-fit: contain; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .8)); animation: hvTitle .7s cubic-bezier(.2, 1.4, .4, 1) .15s both; }
 .fx-hv-title-txt { position: relative; font: 400 clamp(2rem, 11vw, 3.6rem)/1.1 var(--display); color: #ffe08a; text-shadow: 0 3px 0 #7a4a0c, 0 0 24px rgba(255, 200, 80, .8); animation: hvTitle .7s cubic-bezier(.2, 1.4, .4, 1) .15s both; text-align: center; }
 .fx-hv-who { position: relative; margin-top: 6px; padding: 3px 14px; border-radius: 99px; background: rgba(0, 0, 0, .6); border: 1px solid rgba(255, 220, 150, .5); color: #fff3cf; font: 800 .95rem/1.4 var(--font); animation: hvTitle .5s ease-out .45s both; }
 @keyframes hvIn { from { opacity: 0; } to { opacity: 1; } }
@@ -2136,7 +2136,7 @@ body[data-back="back-red"] .card-back .card-back-mark, .shop-prev[data-v="back-r
 /* 영상 섞기: body 바로 아래 칸이 통째로 '스크린' 섞임 → 검은 곳이 투명 */
 .fx-blend { position: fixed; pointer-events: none; mix-blend-mode: screen; }
 .fx-blend video { display: block; width: 100%; height: 100%; object-fit: cover; }
-.fx-hv-vid { inset: 0; z-index: 57; animation: hvIn .2s ease-out both; }
+.fx-hv-vid { inset: 0; width: auto; height: auto; transform: none; z-index: 57; animation: hvIn .2s ease-out both; } /* (예전 규칙의 width:100vw · translate(-50%,-50%) 가 남아 영상이 화면 왼쪽 위 1/4 에만 나오던 것 */
 .fx-hv-vid.out, .fx-hv-dim.out { animation: hvOut .6s ease-in forwards; }
 .fx-hv-dim { position: fixed; inset: 0; z-index: 56; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0, 0, 0, .1), rgba(0, 0, 0, .5)); animation: hvIn .25s ease-out both; }
 .fx-hv { z-index: 58; }
