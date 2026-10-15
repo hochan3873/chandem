@@ -162,7 +162,7 @@ test('일반 게임: 칩을 다 잃고 리바인도 다 쓰면 관전석으로 �
   room.clearAllTimers();
 });
 
-test('내 패 보여주기: 쇼다운에서 이미 공개된 사람(이긴 사람)에게는 묻지 않고, 지고 덮은 사람에게만 묻는다', () => {
+test('쇼다운: 이긴 사람·진 사람 패가 모두 공개되고, 그래서 「내 패 보여주기」도 묻지 않는다', () => {
   const { room, ps } = cash(3);
   room.start(ps[0].id);
   const h = room.hand;
@@ -173,8 +173,9 @@ test('내 패 보여주기: 쇼다운에서 이미 공개된 사람(이긴 사�
   const winners = h.result.winners;
   for (const p of ps) {
     const v = room.viewFor(p.id).me;
-    if (winners.includes(p.id)) assert.equal(v.canShow, false, '이긴 사람은 이미 공개됨');
-    else assert.equal(v.canShow, true, '진 사람은 덮었으니 보여 줄지 고를 수 있음');
+    assert.equal(v.canShow, false, '쇼다운에선 이미 공개됨');
+    const seen = room.viewFor(ps.find((x) => x.id !== p.id).id).players.find((x) => x.id === p.id).cards;
+    assert.ok(seen.every((c) => c !== '??'), '다른 사람에게도 내 패가 보임');
   }
   // 이긴 사람이 보여주기를 보내도 아무 일 없음
   const before = room.feed.length;

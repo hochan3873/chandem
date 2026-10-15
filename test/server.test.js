@@ -77,10 +77,10 @@ test('방 만들기 → 참가(중복 닉네임) → 준비 → 시작 → 한 �
   assert.ok(res, '결과가 있어야 합니다');
   assert.equal(res.type, 'showdown');
   assert.equal(a.last.hand.board.length, 5);
-  // 쇼다운 후: 이긴 사람 패는 공개, 진 사람 패는 덮는다(머크)
+  // 쇼다운 후: 이긴 사람 · 진 사람 패 모두 공개
   const other = a.last.players.find((p) => p.id === rb.playerId);
-  if (res.winners.includes(rb.playerId)) assert.notEqual(other.cards[0], '??');
-  else assert.ok(!res.hands[rb.playerId], '진 패는 결과에도 안 나온다');
+  assert.notEqual(other.cards[0], '??');
+  assert.ok(res.hands[rb.playerId], '진 패도 결과에 나온다');
   const w = a.last.players.find((p) => p.id === res.winners[0]);
   if (w.id !== a.last.me.id) assert.notEqual(w.cards[0], '??');
   assert.equal(Object.values(res.deltas).reduce((x, y) => x + y, 0), 0);
