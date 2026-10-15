@@ -243,11 +243,11 @@ const APP_NAME = HOLDEM_APP ? '찬덤 홀덤' : '찬이의 게임월드';
 const INSTALL_FIND = `<div class="inst-find"><b>바탕화면에 아이콘이 안 보이면?</b><ol>
   <li>홈 화면을 위로 밀어 <b>앱 목록(모든 앱)</b>에서 「${APP_NAME}」를 찾아요</li>
   <li>아이콘을 <b>길게 눌러 → 홈 화면에 추가</b></li>
-  <li>그래도 없으면 브라우저 메뉴(⋮ 또는 ≡) → <b>현재 페이지 추가 → 홈 화면</b> (삼성 인터넷) / <b>앱 설치</b> (크롬)</li></ol></div>`;
+  <li>그래도 없으면 크롬 <b>⋮ → 「앱 설치」</b>로 다시 해 주세요 (「설치 및 바로가기 만들기」는 크롬 바로가기라 앱이 아니에요)</li></ol></div>`;
 function installDone() {
   S.installing = null;
   document.querySelectorAll('#install-bar').forEach((b) => b.remove());
-  openModal('설치 완료 ', `<div class="install-wait"><div class="install-ok"></div><p><b>${APP_NAME}가 설치됐어요!</b></p>
+  openModal('설치 완료 ', `<div class="install-wait"><div class="install-ok"></div><p><b>${APP_NAME}${HOLDEM_APP ? '이' : '가'} 설치됐어요!</b></p>
     <p class="muted small">바탕화면이나 앱 목록의 아이콘으로 열면 전체 화면으로 즐길 수 있어요.</p>
     ${INSTALL_FIND}
     ${ICON_NOTE}<button class="btn btn-gold btn-lg" data-close>확인</button></div>`);
@@ -261,6 +261,8 @@ const IS_SAMSUNG = /SamsungBrowser/i.test(UA);
 const IN_APP = IS_KAKAO || /NAVER|Instagram|FBAN|FBAV|FB_IAB|Line\/|DaumApps|everytimeApp/i.test(UA);
 const IOS_VER = (() => { const m = UA.match(/OS (\d+)[_.](\d+)/); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; })(); // 16.4 → 1604
 const IOS_OTHER = IS_IOS && /CriOS|FxiOS|EdgiOS|OPiOS|Whale/i.test(UA); // 아이폰 크롬·파이어폭스 등 (16.4부터 홈 화면 추가 가능)
+// 사파리 버전: iOS 26부터 사파리는 주소에 OS 18_6 을 그대로 두고 'Version/26' 만 올린다 → 이걸로 본다
+const SAFARI_VER = (() => { const m = !IOS_OTHER && UA.match(/Version\/(\d+)/); return m ? Number(m[1]) : 0; })();
 // 삼성 인터넷 '다크 모드'는 사이트가 막을 수 없게 화면 색을 강제로 뒤집는다 (흰 카드 → 검은 카드).
 // 사이트 쪽 표시(color-scheme)를 무시해서, 사용자가 설정을 바꾸는 수밖에 없다 → 알기 쉽게 안내
 function openColorHelp() {
@@ -287,17 +289,39 @@ async function copySiteLink() {
 // 아이폰 설치 안내 그림 (SVG)
 const SVG_SHARE = '<svg class="ios-ico" viewBox="0 0 40 40" aria-hidden="true"><rect x="9" y="14" width="22" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M20 4v19M13 10l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><rect x="15" y="12" width="10" height="4" fill="var(--ios-bg, #1b1f2a)"/></svg>';
 const SVG_ADD = '<svg class="ios-ico" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="6" width="28" height="28" rx="7" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M20 13v14M13 20h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
+const SVG_MORE = '<svg class="ios-ico" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="13" cy="20" r="2.2" fill="currentColor"/><circle cx="20" cy="20" r="2.2" fill="currentColor"/><circle cx="27" cy="20" r="2.2" fill="currentColor"/></svg>';
+// 아이폰: 사파리 26(iOS 26)은 공유 버튼이 ⋯ 메뉴 안으로 들어가고 '웹 앱으로 열기' 스위치가 생겼다 · 그 전 버전은 아래 막대의 공유 버튼
 function iosStepsHTML() {
-  const bar = IOS_OTHER ? '주소창 오른쪽의' : '화면 아래 막대의';
-  return `
-    <ol class="ios-steps">
+  const notFound = '<p class="muted tiny">목록에 없으면 맨 아래 <b>「동작 편집…」</b>을 눌러 「홈 화면에 추가」를 켜 주세요</p>';
+  const lastStep = (n, webApp) => `<li><div class="ios-shot ios-shot-top"><span class="ios-cancel">취소</span><span class="ios-title">홈 화면에 추가</span><b class="ios-hl ios-add">추가</b></div>
+        <p><b>${n}</b> ${webApp ? '<b>「웹 앱으로 열기」</b>가 켜져 있는지 확인하고, ' : ''}오른쪽 위 <b>「추가」</b>를 누르면 끝!</p></li>`;
+  if (IOS_OTHER) {
+    return `<ol class="ios-steps">
+      <li><div class="ios-shot ios-shot-bar"><span class="ios-bar"><i></i><i></i><b class="ios-hl">${SVG_SHARE}</b></span></div>
+        <p><b>①</b> 주소창 오른쪽의 <b>공유</b> 버튼(네모에 위쪽 화살표)을 눌러요</p></li>
+      <li><div class="ios-shot ios-shot-sheet"><span class="ios-row">복사</span><span class="ios-row ios-hl">${SVG_ADD}<b>홈 화면에 추가</b></span></div>
+        <p><b>②</b> 목록을 아래로 내려서 <b>「홈 화면에 추가」</b>를 눌러요</p>${notFound}</li>
+      ${lastStep('③', false)}
+    </ol><p class="muted tiny">안 되면 <b>사파리</b>로 열어서 해 주세요</p>`;
+  }
+  if (SAFARI_VER >= 26) {
+    return `<ol class="ios-steps">
+      <li><div class="ios-shot ios-shot-bar"><span class="ios-bar"><i></i><i class="ios-addr"></i><b class="ios-hl">${SVG_MORE}</b></span></div>
+        <p><b>①</b> 화면 아래 주소창 오른쪽의 <b>⋯</b> 버튼을 눌러요</p>
+        <p class="muted tiny">아래에 <b>공유</b> 버튼(네모에 위쪽 화살표)이 바로 보이면 그걸 눌러도 돼요</p></li>
+      <li><div class="ios-shot ios-shot-sheet"><span class="ios-row ios-hl">${SVG_SHARE}<b>공유</b></span><span class="ios-row">즐겨찾기에 추가</span></div>
+        <p><b>②</b> 메뉴에서 <b>「공유」</b>를 눌러요</p></li>
+      <li><div class="ios-shot ios-shot-sheet"><span class="ios-row">복사</span><span class="ios-row ios-hl">${SVG_ADD}<b>홈 화면에 추가</b></span></div>
+        <p><b>③</b> 목록을 아래로 내려서 <b>「홈 화면에 추가」</b>를 눌러요</p>${notFound}</li>
+      ${lastStep('④', true)}
+    </ol>`;
+  }
+  return `<ol class="ios-steps">
       <li><div class="ios-shot ios-shot-bar"><span class="ios-bar"><i></i><i></i><b class="ios-hl">${SVG_SHARE}</b><i></i><i></i></span></div>
-        <p><b>①</b> ${bar} <b>공유</b> 버튼(네모에 위쪽 화살표)을 눌러요</p></li>
+        <p><b>①</b> 화면 아래 막대 가운데의 <b>공유</b> 버튼(네모에 위쪽 화살표)을 눌러요</p></li>
       <li><div class="ios-shot ios-shot-sheet"><span class="ios-row">복사</span><span class="ios-row">즐겨찾기에 추가</span><span class="ios-row ios-hl">${SVG_ADD}<b>홈 화면에 추가</b></span></div>
-        <p><b>②</b> 목록을 아래로 내려서 <b>「홈 화면에 추가」</b>를 눌러요</p>
-        <p class="muted tiny">iOS 17 이상에서는 맨 아래 <b>「더 보기」</b>(또는 <b>「작업 편집」</b>) 안에 있을 수 있어요</p></li>
-      <li><div class="ios-shot ios-shot-top"><span class="ios-cancel">취소</span><span class="ios-title">홈 화면에 추가</span><b class="ios-hl ios-add">추가</b></div>
-        <p><b>③</b> 오른쪽 위 <b>「추가」</b>를 누르면 끝! 바탕화면 아이콘으로 열면 전체 화면이에요</p></li>
+        <p><b>②</b> 목록을 아래로 내려서 <b>「홈 화면에 추가」</b>를 눌러요</p>${notFound}</li>
+      ${lastStep('③', false)}
     </ol>`;
 }
 function openIosInstall() {
@@ -305,7 +329,7 @@ function openIosInstall() {
     openModal('아이폰에 앱 설치', `
       <p><b>${IS_KAKAO ? '카카오톡' : '앱'} 안의 브라우저</b>에서는 설치할 수 없어요. <b>사파리로 열어야 설치할 수 있어요.</b></p>
       <p class="muted small">${IS_KAKAO ? '오른쪽 아래 <b>⋯</b> → <b>「다른 브라우저로 열기」</b>를 누르거나, ' : '메뉴(⋯)에서 <b>「Safari로 열기」</b>를 누르거나, '}아래 링크를 복사해서 사파리 주소창에 붙여 넣어 주세요.</p>
-      <div class="row"><button class="btn btn-gold grow" id="ios-copy">링크 복사</button>${IS_KAKAO ? `<a class="btn btn-outline grow" href="kakaotalk://web/openExternal?url=${encodeURIComponent(location.origin + '/')}">바깥 브라우저로</a>` : ''}</div>`,
+      <div class="row"><button class="btn btn-gold grow" id="ios-copy">링크 복사</button>${IS_KAKAO ? `<a class="btn btn-outline grow" href="kakaotalk://web/openExternal?url=${encodeURIComponent(location.origin + (HOLDEM_APP ? '/holdem' : '/'))}">사파리로 열기</a>` : ''}</div>`,
     (b) => { b.querySelector('#ios-copy').onclick = copySiteLink; });
     return;
   }
@@ -314,8 +338,8 @@ function openIosInstall() {
       <button class="btn btn-gold btn-lg" id="ios-copy">링크 복사</button>`, (b) => { b.querySelector('#ios-copy').onclick = copySiteLink; });
     return;
   }
-  openModal('아이폰에 앱 설치', `${iosStepsHTML()}
-    <p class="muted small">아이폰은 애플 정책상 버튼 하나로 바로 설치할 수 없어서, 위 3단계로 홈 화면에 추가해요.</p>${ICON_NOTE}`, null, { wide: true });
+  openModal(`아이폰에 ${APP_NAME} 설치`, `<p class="ios-lead">아이폰은 <b>다운로드가 아니라 「홈 화면에 추가」</b>로 설치해요. 앱스토어에서 받는 게 아니에요.</p>${iosStepsHTML()}
+    <p class="muted small">바탕화면에 생긴 ${APP_NAME} 아이콘으로 열면 주소창 없이 전체 화면이에요. 사파리 화면 그대로 열리면, 아이콘을 지우고 「웹 앱으로 열기」를 켠 채 다시 추가해 주세요.</p>${ICON_NOTE}`, null, { wide: true });
 }
 /** 아이폰 + 카톡·네이버 등 앱 안 브라우저: 메인 위에 "사파리로 열어야 설치할 수 있어요" 띠 */
 function iosInAppBannerHTML() {
@@ -354,7 +378,7 @@ if (window.visualViewport) { visualViewport.addEventListener('resize', fitVisibl
 
 // 크롬 설치 창 띄우기 (안내를 본 뒤 버튼으로)
 async function promptInstall() {
-  if (!S.installEvt) { toast('크롬 ⋮ 메뉴 → 「설치 및 바로가기 만들기」(또는 「앱 설치」)를 눌러 주세요', 'info'); return; }
+  if (!S.installEvt) { toast('크롬 ⋮ 메뉴 → 「앱 설치」를 눌러 주세요', 'info'); return; }
   S.installEvt.prompt();
   const r = await S.installEvt.userChoice.catch(() => null);
   if (r && r.outcome === 'accepted') {
@@ -383,7 +407,6 @@ function protectHTML() {
   </div>`;
 }
 async function installApp() {
-  if (HOLDEM_APP && !S.installEvt && !IS_IOS && !IN_APP && LS.get('chandem:installed:gw', 0)) { openModal('찬덤 홀덤 앱 설치', holdemInstallHelpHTML(), (b) => { b.querySelector('#copy-holdem').onclick = copyHoldemLink; }); return; }
   const ua = UA;
   const url = location.origin + (HOLDEM_APP ? '/holdem' : '/');
   const ios = IS_IOS;
@@ -406,25 +429,20 @@ async function installApp() {
       ${outer ? `<a class="btn btn-gold btn-lg" href="${outer}">${kakao ? '바깥 브라우저로 열기' : ios ? '사파리로 열기' : '크롬으로 열기'}</a>` : `<p class="muted small">오른쪽 아래(또는 위) <b>⋯ → 다른 브라우저로 열기</b>를 눌러 주세요.</p>`}`);
     return;
   }
-  if (ios) {
-    openModal('아이폰에 앱 설치', `
-      <ol class="install-steps">
-        <li>화면 아래(또는 위)의 <b>공유 버튼</b> <span class="ios-share">⬆︎</span> 을 눌러요</li>
-        <li>목록을 내려서 <b>「홈 화면에 추가」</b>를 눌러요</li>
-        <li>오른쪽 위 <b>추가</b>를 누르면 바탕화면에 ${APP_NAME} 앱이 생겨요</li>
-      </ol>
-      <p class="muted small">아이폰은 애플 정책상 버튼 하나로 바로 설치할 수 없어요. 사파리에서 해 주세요.</p>${ICON_NOTE}`);
-    return;
-  }
-  openModal('앱 설치', `
+  // 크롬이 '설치할 수 있어요' 신호를 안 줬다: 메뉴로 직접 · 「설치 및 바로가기 만들기」만 있으면 다른 찬덤 앱이 이 주소를 맡고 있는 것
+  const otherOn = HOLDEM_APP ? LS.get('chandem:installed:gw', 0) : LS.get('chandem:installed:holdem', 0);
+  const chromeBtn = !/Chrome\//.test(ua) || IS_SAMSUNG || /EdgA|Whale|OPR/i.test(ua)
+    ? `<a class="btn btn-gold btn-lg" href="intent://${location.host}${HOLDEM_APP ? '/holdem' : '/'}#Intent;scheme=https;package=com.android.chrome;end">크롬으로 열기</a><p class="muted tiny center">설치는 <b>크롬</b>에서 하는 게 가장 잘 돼요</p>` : '';
+  openModal(`${APP_NAME} 앱 설치`, `${chromeBtn}
     <ol class="install-steps">
-      <li>크롬 오른쪽 위 <b>⋮</b> 메뉴를 눌러요</li>
-      <li><b>「설치 및 바로가기 만들기」</b>(또는 「앱 설치」·「홈 화면에 추가」)를 누르고 <b>설치</b>를 골라요</li>
-      <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 ${APP_NAME}가 생겨요</li>
+      <li>크롬 오른쪽 위 <b>⋮</b> 를 눌러요</li>
+      <li>메뉴에서 <b>「앱 설치」</b>를 눌러요</li>
+      <li>뜨는 창에서 <b>「설치」</b>를 누르면 바탕화면과 앱 목록에 ${APP_NAME}${HOLDEM_APP ? '이' : '가'} 생겨요</li>
     </ol>
-    ${protectHTML()}
-    <p class="muted small">이미 설치했다면 바탕화면의 ${APP_NAME} 아이콘으로 열어 주세요.</p>
-    ${HOLDEM_APP ? `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬이의 게임월드 앱에서 열기」</b>만 보여요</summary>${holdemInstallHelpHTML()}</details>` : `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬덤 홀덤에서 열기」</b>만 보여요</summary>${gwInstallHelpHTML()}</details>`}${ICON_NOTE}`,
+    <details class="hih-more" ${otherOn ? 'open' : ''}><summary>메뉴에 「앱 설치」가 없고 <b>「설치 및 바로가기 만들기」</b>만 있어요</summary>
+      <p class="small">크롬이 이 주소를 <b>이미 깔린 ${HOLDEM_APP ? '찬이의 게임월드' : '찬덤 홀덤(예전 방식)'} 앱</b> 것으로 봐서 그래요. 그 메뉴로 만들면 앱이 아니라 <b>크롬 바로가기</b>(주소창이 보이는 화면)만 생겨요.</p>
+      ${(HOLDEM_APP ? holdemInstallHelpHTML() : gwInstallHelpHTML()).replace(protectHTML(), '')}</details>
+    ${protectHTML()}${ICON_NOTE}`,
   (b) => { const c = b.querySelector('#copy-holdem'); if (c) c.onclick = copyHoldemLink; const g = b.querySelector('#copy-gw'); if (g) g.onclick = copyGwLink; });
 }
 document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); else if (e.target.closest('#install-holdem')) installHoldemApp(); else if (e.target.closest('#install-gw')) installGwApp(); else if (e.target.closest('#gh-gear')) P.openSettings(); });
@@ -451,7 +469,7 @@ function gwInstallHelpHTML() {
     <p class="hih-why">찬덤 홀덤 앱을 <b>예전 방식</b>으로 설치한 폰은, 크롬이 게임월드 화면도 홀덤 앱으로 열어서 설치 버튼이 나오지 않아요.</p>
     <div class="hih-way"><b class="hih-tag">이렇게 하면 돼요</b>
       <ol><li>찬덤 홀덤 아이콘을 길게 눌러 <b>삭제</b>해요 <small class="muted">(로그인한 칩·기록은 그대로예요)</small></li>
-      <li>크롬에서 <b>chandem.onrender.com/holdem</b> 을 열고 <b>⋮ → 「설치 및 바로가기 만들기」</b>로 홀덤 앱을 <b>먼저</b> 깔아요</li>
+      <li>크롬에서 <b>chandem.onrender.com/holdem</b> 을 열고 <b>⋮ → 「앱 설치」 → 설치</b>로 홀덤 앱을 <b>먼저</b> 깔아요</li>
       <li>그다음 아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 같은 방법으로 게임월드를 깔아요 <small class="muted">(홀덤 → 게임월드 순서여야 둘 다 깔려요)</small></li></ol></div>
     ${protectHTML()}
     <button class="btn btn-gold btn-lg" id="copy-gw" type="button">게임월드 링크 복사</button></div>`;
@@ -505,7 +523,7 @@ function holdemInstallHelpHTML() {
     <p class="hih-why">찬이의 게임월드 앱이 깔린 폰은 크롬이 홀덤 화면도 <b>'이미 설치된 앱'</b>으로 봐서, 설치 버튼이 나오지 않아요.</p>
     <div class="hih-way"><b class="hih-tag">이렇게 하면 돼요</b>
       <ol><li>찬이의 게임월드 아이콘을 길게 눌러 <b>삭제</b>해요 <small class="muted">(로그인한 칩·기록은 그대로예요)</small></li>
-      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>⋮ → 「설치 및 바로가기 만들기」</b></li>
+      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>⋮ → 「앱 설치」 → 설치</b></li>
       <li>홀덤 앱이 깔리면, 크롬에서 찬이의 게임월드도 다시 설치해요</li></ol></div>
     ${protectHTML()}
     <button class="btn btn-gold btn-lg" id="copy-holdem" type="button">홀덤 앱 링크 복사</button></div>`;
@@ -3103,16 +3121,17 @@ window.addEventListener('resize', () => {
     else if (gameOf(S.state) !== 'omok') renderTable(S.state);
   }, 160);
 });
-// 가로/세로 바꾸기: 안드로이드는 전체 화면 + 방향 잠금, 안 되면 폰을 돌리라고 안내
+// 가로/세로 바꾸기: 설치한 앱은 방향만 바로 잠근다 (전체 화면 없이)
+// 브라우저에선 방향 잠금이 전체 화면을 요구하는데, 그러면 크롬이 '전체 화면을 종료하려면…' 알림을 매번 띄운다(사이트가 못 끔) → 브라우저에선 전체 화면을 쓰지 않고 폰을 돌리라고 안내
 async function toggleOrient() {
   const wantLand = !isLand();
   try {
-    if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    if (!isStandalone()) throw new Error('browser');
     await screen.orientation.lock(wantLand ? 'landscape' : 'portrait');
     S.fsOn = true;
     return;
   } catch {}
-  toast(wantLand ? '폰을 가로로 눕혀 주세요 (자동 회전을 켜 두면 테이블이 가로로 바뀌어요)' : '폰을 세로로 세워 주세요', 'info');
+  toast(wantLand ? '폰을 가로로 눕혀 주세요 (자동 회전을 켜 두면 테이블이 가로로 바뀌어요 · 앱으로 설치하면 이 버튼으로 바로 돌아가요)' : '폰을 세로로 세워 주세요', 'info');
 }
 
 function renderGame() {
