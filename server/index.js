@@ -489,7 +489,14 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     .replace('<link rel="icon" href="/img/gw2-icon-192.png" type="image/png">', '<link rel="icon" href="/img/holdem-icon-192.png" type="image/png">')
     .replace('<meta name="apple-mobile-web-app-title" content="게임월드">', '<meta name="apple-mobile-web-app-title" content="찬덤 홀덤">')
     .replace('<title>찬이의 게임월드</title>', '<title>찬덤 홀덤</title>')
-    .replace('<html lang="ko">', '<html lang="ko" data-app="holdem">');
+    .replace('<html lang="ko">', '<html lang="ko" data-app="holdem">')
+    // 로딩 화면도 찬덤 홀덤 것으로 (게임월드 로고·그림이 끼어 보이지 않게)
+    .replace('<link rel="preload" as="image" href="/img/splash2.webp">', '<link rel="preload" as="image" href="/img/holdem/splash.webp?v=1">')
+    .replace('<link rel="preload" as="image" href="/img/hub/logo_title.webp">', '<link rel="preload" as="image" href="/img/logo/holdem.webp?v=2">')
+    .replace('aria-label="찬이의 게임월드 · 화면을 터치해서 시작"', 'aria-label="찬덤 홀덤 · 화면을 터치해서 시작"')
+    .replace('<img class="sp-icon" src="/img/gw2-icon-512.png" alt="">', '<img class="sp-icon" src="/img/holdem-icon-512.png" alt="">')
+    .replace(/<img class="sp-title-img"[^>]*>/, '<img class="sp-title-img" src="/img/logo/holdem.webp?v=2" width="1421" height="360" alt="찬덤 홀덤" draggable="false">')
+    .replace('팁: 친구에게 초대 링크만 보내면 가입 없이 바로 같이 놀 수 있어요</p>', '팁: 방을 만들고 카톡으로 링크만 보내면 친구들과 바로 한 판</p>');
   app.get(['/holdem', '/seotda', '/omok'], (req, res) => {
     const g = req.path.slice(1);
     const base = (publicUrl || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');

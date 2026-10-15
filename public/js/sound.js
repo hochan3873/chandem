@@ -54,7 +54,8 @@ export function setTrack(name) {
 const fading = new Set(); // 바뀌는 중인 이전 곡들 (음악을 끄면 이것도 함께 멈춤)
 function applyMusic() {
   if (!unlocked) return;
-  const want = prefs.music && !prefs.muted && !document.hidden && prefs.musicVolume > 0 && !hush();
+  // 친구 방(조용한 방)에서도 잔잔한 배경음악은 튼다 (대신 절반 크기) · 음성·큰 연출 소리만 뺀다
+  const want = prefs.music && !prefs.muted && !document.hidden && prefs.musicVolume > 0;
   if (!want) for (const a of fading) { a.pause(); fading.delete(a); }
   if (!bgm) {
     if (!want) return;
@@ -66,7 +67,7 @@ function applyMusic() {
     bgm.preload = 'auto';
     bgmTrack = track;
   }
-  try { bgm.volume = prefs.musicVolume; } catch {}
+  try { bgm.volume = prefs.musicVolume * (hush() ? 0.5 : 1); } catch {}
   if (want) {
     if (bgm.paused) {
       const a = bgm;
@@ -199,7 +200,7 @@ export async function tryResume(ms = 350) {
 /** 아직 소리가 막혀 있나 (오디오가 멈춰 있거나, 음악을 켜 뒀는데 재생이 거절됨) */
 export function isLocked() {
   if (!ctx || ctx.state !== 'running') return true;
-  const wantMusic = prefs.music && !prefs.muted && prefs.musicVolume > 0 && !document.hidden && !hush();
+  const wantMusic = prefs.music && !prefs.muted && prefs.musicVolume > 0 && !document.hidden;
   return wantMusic && (!bgm || bgm.paused);
 }
 /** 소리를 아예 꺼 둔 사람인가 (그러면 '소리 켜기' 안내가 필요 없음) */

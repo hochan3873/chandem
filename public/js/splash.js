@@ -12,7 +12,17 @@ const FAST_MS = 600;       // 이 안에 다 받으면 진행 막대를 건너�
 const MAX_MS = 6000;       // 느린 인터넷이어도 이만큼 지나면 시작할 수 있게
 const ITEM_MAX_MS = 5000;  // 파일 하나 최대 대기
 
-const TIPS = [
+const HOLDEM = html.dataset.app === 'holdem'; // 찬덤 홀덤 앱: 홀덤 로딩 화면
+const TIPS_HOLDEM = [
+  '팁: 방을 만들고 카톡으로 링크만 보내면 친구들과 바로 한 판',
+  '팁: 혼자일 땐 연습 테이블에서 동물 친구들과 실력을 키워요',
+  '팁: 매일 출석 체크하면 칩을 받아요',
+  '팁: 판이 끝나면 「남은 카드 보기」로 계속했다면 나왔을 카드를 볼 수 있어요',
+  '팁: 테이블 위 메뉴 → 기록에서 지난 판을 다시 볼 수 있어요',
+  '팁: 매일 밤 9시 정기 토너먼트! 10분 전에 알림을 받을 수 있어요',
+  '팁: 가로 버튼을 누르면 넓은 가로 테이블로 볼 수 있어요',
+];
+const TIPS = HOLDEM ? TIPS_HOLDEM : [
   '팁: 랑방 대전은 상성 맞는 팀이 유리해요',
   '팁: 매일 출석 체크하면 랑방 코인을 받아요. 7일째엔 300개!',
   '팁: 친구에게 초대 링크만 보내면 가입 없이 바로 같이 놀 수 있어요',
@@ -28,8 +38,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const SSN = (() => { try { syncHub(); return activeSeason(); } catch { return null; } })();
 const lbArt0 = () => { let n = 1; try { n = Math.trunc(Number(JSON.parse(localStorage.getItem('langbang:chapter') || '1'))); } catch {} return n >= 1 && n <= 8 ? `/img/lb/keyart${n}.webp` : '/img/lb/keyart1.webp'; };
 const lbArt = () => (SSN && SSN.keyart) || lbArt0();
-const spArt = (SSN && SSN.splash) || '/img/splash2.webp';
-if (SSN && SSN.splash && el) { const a = el.querySelector('.sp-art'); if (a) a.style.backgroundImage = `url('${SSN.splash}')`; }
+const spArt = HOLDEM ? '/img/holdem/splash.webp?v=1' : (SSN && SSN.splash) || '/img/splash2.webp';
+if (!HOLDEM && SSN && SSN.splash && el) { const a = el.querySelector('.sp-art'); if (a) a.style.backgroundImage = `url('${SSN.splash}')`; }
 
 // ── 소리 켜기 (소리가 막혀 있을 때만) ──
 function soundPill() {
@@ -108,7 +118,16 @@ async function start() {
     a.load();
   });
   setTimeout(() => el.classList.add('art-in'), 1500);
-  const jobs = [
+  const jobs = HOLDEM ? [
+    ['그림', img(spArt, () => el.classList.add('no-art', 'art-in')).then(() => el.classList.add('art-in'))],
+    ['글꼴', font("400 1em 'Jua'")],
+    ['글꼴', font("700 1em 'Noto Sans KR'")],
+    ['그림', img('/img/logo/holdem.webp?v=2')],
+    ['그림', img('/img/holdem/table.webp')],
+    ['그림', img('/img/holdem/card-back.webp')],
+    ['소리', get('/sounds/manifest.json')],
+    ['소리', audioReady('/sounds/bgm_holdem.mp3')],
+  ] : [
     ['그림', img(spArt, () => el.classList.add('no-art', 'art-in')).then(() => el.classList.add('art-in'))],
     ['글꼴', font("400 1em 'Black Han Sans'")],
     ['글꼴', font("700 1em 'Noto Sans KR'")],

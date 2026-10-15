@@ -273,12 +273,8 @@ function openColorHelp() {
     <button class="btn btn-gold btn-lg" data-close type="button">알겠어요</button></div>`);
 }
 // 삼성 인터넷이면 처음 한 번 알려 준다 (다크 모드가 켜져 있는지는 알아낼 방법이 없어서 '검게 보이면'으로 묻는다)
-function maybeColorHelp() {
-  if (!IS_SAMSUNG || LS.get('chandem:colorHelp', 0)) return false;
-  LS.set('chandem:colorHelp', Date.now());
-  setTimeout(openColorHelp, 600);
-  return true;
-}
+// (예전에는 삼성 인터넷이면 처음 한 번 띄웠지만, 모두에게 뜨면 번잡해서 없앰 · 메뉴의 '카드가 검게 보여요'로만)
+function maybeColorHelp() { return false; }
 async function copySiteLink() {
   const url = location.origin + (HOLDEM_APP ? '/holdem' : '/');
   try { await navigator.clipboard.writeText(url); toast('링크를 복사했어요. 사파리 주소창에 붙여 넣어 주세요', 'ok'); }
@@ -352,6 +348,36 @@ fitVisibleHeight();
 if (window.visualViewport) { visualViewport.addEventListener('resize', fitVisibleHeight); visualViewport.addEventListener('scroll', fitVisibleHeight); }
 ['resize', 'orientationchange', 'pageshow'].forEach((ev) => window.addEventListener(ev, () => setTimeout(fitAppHeight, 60)));
 
+// 크롬 설치 창 띄우기 (안내를 본 뒤 버튼으로)
+async function promptInstall() {
+  if (!S.installEvt) { toast('크롬 ⋮ 메뉴 → 「앱 설치」를 눌러 주세요', 'info'); return; }
+  S.installEvt.prompt();
+  const r = await S.installEvt.userChoice.catch(() => null);
+  if (r && r.outcome === 'accepted') {
+    S.installEvt = null;
+    // 크롬은 진행률을 알려 주지 않아서, 끝났다는 신호(appinstalled)가 올 때까지 '설치 중'을 보여 준다
+    S.installing = Date.now();
+    openModal('앱 설치 중', `<div class="install-wait"><div class="spinner" aria-hidden="true"></div>
+      <p><b>설치하고 있어요…</b></p><p class="small"><b>「안전하지 않은 앱 차단됨」</b>이 뜨면 <b>자세히 → 무시하고 설치</b>를 눌러 주세요</p><p class="muted small">보통 10~30초 걸려요. 끝나면 바탕화면과 앱 목록에 아이콘이 생겨요.</p>
+      <p class="muted small" data-install-sec>0초</p>${ICON_NOTE}</div>`);
+    const t = setInterval(() => {
+      const el = document.querySelector('[data-install-sec]');
+      if (!el || !S.installing) { clearInterval(t); return; }
+      const sec = Math.round((Date.now() - S.installing) / 1000);
+      el.textContent = sec < 60 ? `${sec}초` : '오래 걸리면 알림창이나 바탕화면을 확인해 주세요';
+    }, 1000);
+  }
+}
+// 안드로이드: 플레이 스토어 앱이 아니라서 '안전하지 않은 앱 차단됨'(플레이 프로텍트)이 뜰 수 있다 → '무시하고 설치'
+function protectHTML() {
+  return `<div class="protect">
+    <p>설치하다가 아래처럼 <b>「안전하지 않은 앱 차단됨」</b> 창이 뜰 수 있어요. 플레이 스토어를 거치지 않은 앱이라 휴대폰이 보여 주는 안내예요. 찬덤 앱은 안전해요.</p>
+    <div class="pt-mock" aria-hidden="true"><b>안전하지 않은 앱 차단됨</b><small>Play 프로텍트에서 이 앱을 인식하지 못했어요…</small>
+      <div class="pt-btns"><span class="pt-more">자세히 ▾</span><span>확인</span></div>
+      <div class="pt-ignore">무시하고 설치</div></div>
+    <ol class="install-steps"><li><b>「확인」은 누르지 마세요</b> (설치가 취소돼요)</li><li><b>「자세히」</b>를 눌러 펼쳐요</li><li><b>「무시하고 설치」</b>를 누르면 끝!</li></ol>
+  </div>`;
+}
 async function installApp() {
   const ua = UA;
   const url = location.origin + (HOLDEM_APP ? '/holdem' : '/');
@@ -360,22 +386,10 @@ async function installApp() {
   const inApp = IN_APP;
   if (ios) { openIosInstall(); return; }
   if (S.installEvt && !inApp && !ios) {
-    S.installEvt.prompt();
-    const r = await S.installEvt.userChoice.catch(() => null);
-    if (r && r.outcome === 'accepted') {
-      S.installEvt = null;
-      // 크롬은 진행률을 알려 주지 않아서, 끝났다는 신호(appinstalled)가 올 때까지 '설치 중'을 보여 준다
-      S.installing = Date.now();
-      openModal('앱 설치 중', `<div class="install-wait"><div class="spinner" aria-hidden="true"></div>
-        <p><b>설치하고 있어요…</b></p><p class="muted small">보통 10~30초 걸려요. 끝나면 바탕화면과 앱 목록에 아이콘이 생겨요.</p>
-        <p class="muted small" data-install-sec>0초</p>${ICON_NOTE}</div>`);
-      const t = setInterval(() => {
-        const el = document.querySelector('[data-install-sec]');
-        if (!el || !S.installing) { clearInterval(t); return; }
-        const sec = Math.round((Date.now() - S.installing) / 1000);
-        el.textContent = sec < 60 ? `${sec}초` : '오래 걸리면 알림창이나 바탕화면을 확인해 주세요';
-      }, 1000);
-    }
+    openModal('앱 설치 전에 꼭 보세요', `${protectHTML()}
+      <button class="btn btn-gold btn-lg" id="go-install" type="button">알겠어요 · 설치하기</button>`, (b) => {
+      b.querySelector('#go-install').onclick = () => { closeModal(); promptInstall(); };
+    });
     return;
   }
   if (inApp) {
@@ -403,6 +417,7 @@ async function installApp() {
       <li><b>「앱 설치」</b> 또는 <b>「홈 화면에 추가」</b>를 눌러요</li>
       <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 ${APP_NAME}가 생겨요</li>
     </ol>
+    ${protectHTML()}
     <p class="muted small">이미 설치했다면 바탕화면의 ${APP_NAME} 아이콘으로 열어 주세요.</p>
     ${HOLDEM_APP ? `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬이의 게임월드 앱에서 열기」</b>만 보여요</summary>${holdemInstallHelpHTML()}</details>` : ''}${ICON_NOTE}`,
   (b) => { const c = b.querySelector('#copy-holdem'); if (c) c.onclick = copyHoldemLink; });
@@ -455,15 +470,11 @@ async function copyHoldemLink() {
 function holdemInstallHelpHTML() {
   return `<div class="hih">
     <p class="hih-why">찬이의 게임월드 앱이 깔린 폰은 크롬이 홀덤 화면도 <b>'이미 설치된 앱'</b>으로 봐서, 설치 버튼이 나오지 않아요.</p>
-    <div class="hih-way"><b class="hih-tag">방법 1 · 간단</b>
-      <ol><li>바탕화면의 <b>찬이의 게임월드</b> 아이콘을 <b>길게</b> 눌러요</li>
-      <li>뜨는 목록의 <b>「찬덤 홀덤」</b>을 길게 눌러 바탕화면에 놓아요</li>
-      <li>바탕화면에 <b>찬덤 홀덤</b> 아이콘이 생겨요</li></ol>
-      <p class="muted tiny">목록에 아직 없으면 앱이 새 정보로 바뀌는 중이에요 (게임월드 앱을 몇 번 열면 보통 하루 안에 생겨요)</p></div>
-    <div class="hih-way"><b class="hih-tag">방법 2 · 완전히 따로 된 앱</b>
+    <div class="hih-way"><b class="hih-tag">이렇게 하면 돼요</b>
       <ol><li>찬이의 게임월드 아이콘을 길게 눌러 <b>삭제</b>해요 <small class="muted">(로그인한 칩·기록은 그대로예요)</small></li>
-      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>「앱 설치」</b></li>
-      <li>홀덤 앱이 깔리면, 다시 크롬에서 찬이의 게임월드도 설치해요</li></ol></div>
+      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>⋮ → 「앱 설치」</b></li>
+      <li>홀덤 앱이 깔리면, 크롬에서 찬이의 게임월드도 다시 설치해요</li></ol></div>
+    ${protectHTML()}
     <button class="btn btn-gold btn-lg" id="copy-holdem" type="button">홀덤 앱 링크 복사</button></div>`;
 }
 
@@ -1857,7 +1868,7 @@ function render() {
   syncInstallBar();
   // 배경음악: 메인은 메인 곡, 게임 화면·게임방은 그 게임 곡
   const th = document.body.dataset.theme;
-  sound.setTrack(th === 'hub' ? 'bgm_hub' : th === 'holdem' ? 'bgm' : 'bgm_' + th);
+  sound.setTrack(th === 'hub' ? 'bgm_hub' : th === 'holdem' ? 'bgm_holdem' : 'bgm_' + th);
   switch (S.view) {
     case 'boot': $app.innerHTML = `<div class="center-screen">${logoHTML()}<p class="muted">불러오는 중…</p></div>`; break;
     case 'home': renderHome(); break;
@@ -2822,7 +2833,7 @@ function openSoundModal() {
       <label class="field"><span>효과음·음성 볼륨 <b id="vol-val">${Math.round(p.volume * 100)}%</b></span>
         <input type="range" id="snd-vol" min="0" max="100" value="${Math.round(p.volume * 100)}"></label>
       <label class="switch"><input type="checkbox" id="snd-music" ${p.music ? 'checked' : ''}><span>배경음악 듣기</span></label>
-      <label class="switch"><input type="checkbox" id="snd-friend" ${p.friendLoud ? 'checked' : ''}><span>친구 방에서도 음성·배경음악 <small class="muted">(기본 꺼짐 · 카드·칩·노크 소리는 그대로)</small></span></label>
+      <label class="switch"><input type="checkbox" id="snd-friend" ${p.friendLoud ? 'checked' : ''}><span>친구 방에서도 음성·큰 연출 소리 <small class="muted">(기본 꺼짐 · 배경음악은 작게 나와요)</small></span></label>
       <label class="field"><span>배경음악 볼륨 <b id="mvol-val">${Math.round(p.musicVolume * 100)}%</b></span>
         <input type="range" id="snd-mvol" min="0" max="100" value="${Math.round(p.musicVolume * 100)}"></label>
       <button class="btn btn-outline" id="snd-test">소리 들어보기</button>
