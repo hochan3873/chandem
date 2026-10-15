@@ -2358,3 +2358,26 @@ body:has(.hl-tabs) .install-bar { bottom: calc(env(safe-area-inset-bottom) + 82p
 body:has(.hl-tabs) #snd-pill { bottom: calc(env(safe-area-inset-bottom) + 82px); }
 .hl-mebar .mb-who small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .66rem; }
 @media (max-width: 370px) { .hl-head .hl-logo img { width: 30vw; } .hl-mebar .hl-av { width: 30px; height: 30px; } .hl-v2.home { gap: 10px; } .hl-quick { padding: 10px 14px; } }
+
+/* 시상대 1등: 왕관 (살랑) + 반짝이 + 이름 금빛 훑기 */
+.pd1 { padding-top: 22px; }
+.pd-crown { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); line-height: 0; animation: crownBob 2.2s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(255, 210, 90, .9)); z-index: 1; }
+.pd-crown .ic3 { width: 34px; height: 34px; }
+@keyframes crownBob { 0%, 100% { transform: translateX(-50%) translateY(0) rotate(-6deg); } 50% { transform: translateX(-50%) translateY(-4px) rotate(6deg); } }
+.pd1 .pd-name b { background: linear-gradient(100deg, #fff3c4 30%, #ffffff 45%, #ffd66b 55%, #fff3c4 70%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: goldSweep 2.6s linear infinite; }
+@keyframes goldSweep { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.pd1 .pd-step { position: relative; overflow: hidden; }
+.pd1 .pd-step::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, .55) 50%, transparent 65%); background-size: 250% 100%; animation: goldSweep 2.6s linear infinite; }
+.pd-spark { position: absolute; width: 10px; height: 10px; pointer-events: none; background: radial-gradient(circle, #fff 0 18%, rgba(255, 230, 150, .9) 30%, transparent 62%); clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); animation: pdSpark 1.8s ease-in-out infinite; }
+.pd-spark.s1 { top: 4px; left: 14%; }
+.pd-spark.s2 { top: 18px; right: 12%; width: 8px; height: 8px; animation-delay: .6s; }
+.pd-spark.s3 { top: 46px; left: 6%; width: 7px; height: 7px; animation-delay: 1.2s; }
+@keyframes pdSpark { 0%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 45% { opacity: 1; transform: scale(1.15) rotate(45deg); } }
+/* 순위 목록 1등 줄도 왕관 */
+.hl-rank li:nth-child(1) .hr-n { position: relative; }
+.hl-rank li:nth-child(1) .hr-n::before { content: ''; position: absolute; left: 50%; top: -13px; width: 18px; height: 18px; transform: translateX(-50%) rotate(-10deg); background: url('/img/icons/crown.webp') center / contain no-repeat; }
+
+/* 시즌 마감 D-day */
+.dday { display: inline-block; margin-right: 6px; padding: 0 7px; border-radius: 99px; background: #e9b949; color: #2a1600; font-weight: 900; font-size: .7rem; line-height: 1.6; vertical-align: 1px; letter-spacing: .02em; }
+.dday.hot { background: #e5484d; color: #fff; box-shadow: 0 0 10px rgba(229, 72, 77, .7); animation: ddayPulse 1.2s ease-in-out infinite; }
+@keyframes ddayPulse { 50% { transform: scale(1.1); box-shadow: 0 0 16px rgba(229, 72, 77, .95); } }
