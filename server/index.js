@@ -424,7 +424,32 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     app.use('/api/admin', createAdmin({ acct, site, rooms, api: { closeRoom, kickPlayer } }).router(express));
     rankings = createRankings({ acct, rooms, now });
     app.use('/api/rank', rankings.router(express)); // 게임별 등급·순위·선수 카드
-    app.use('/api/sunggu', createSunggu({ acct, seed: acct.subKey('sunggu') }).router(express)); // 강성구 키우기(따로 있는 사이트) 로그인 출입증
+    // 강성구 키우기(다른 주소의 사이트): 출입증(sgt)으로 진행 상황 저장·불러오기 — 그 사이트만 부를 수 있게(CORS)
+    //  (출입증 라우터의 1kb 본문 제한보다 먼저 붙인다)
+    const sgPass = createSunggu({ acct, seed: acct.subKey('sunggu') });
+    {
+      const SG_ORIGINS = ['https://sunggu-game.vercel.app', 'http://localhost:8765', 'http://127.0.0.1:8765'];
+      const r = express.Router();
+      r.use((req, res, next) => {
+        const o = req.headers.origin;
+        if (o && (SG_ORIGINS.includes(o) || /^https:\/\/sunggu-game(-[a-z0-9-]+)?\.vercel\.app$/.test(o))) {
+          res.set({ 'Access-Control-Allow-Origin': o, 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS', 'Access-Control-Max-Age': '86400', Vary: 'Origin' });
+        }
+        if (req.method === 'OPTIONS') return res.status(204).end();
+        res.set('Cache-Control', 'no-store');
+        return next();
+      });
+      r.use(express.json({ limit: '500kb' }));
+      const who = (req) => { const v = sgPass.verifyPass(String(req.headers.authorization || '').replace(/^Bearer /, '')); if (!v) throw new Error('다시 로그인해 주세요'); return v.id; };
+      const wrap = (fn) => async (req, res) => {
+        try { res.json({ ok: true, ...(await fn(req)) }); }
+        catch (e) { res.status(/로그인/.test(e.message) ? 401 : 400).json({ ok: false, message: e.message || '잠시 후 다시 해 주세요' }); }
+      };
+      r.get('/', wrap((req) => acct.sgLoad(who(req))));
+      r.put('/', wrap((req) => acct.sgSave(who(req), (req.body || {}).data, (req.body || {}).at)));
+      app.use('/api/sunggu/save', r);
+    }
+    app.use('/api/sunggu', sgPass.router(express)); // 강성구 키우기(따로 있는 사이트) 로그인 출입증
   } else {
     app.use(['/api/auth', '/api/langbang', '/api/site', '/api/admin'], (req, res) => res.status(503).json({ ok: false, message: '로그인 준비 중이에요' }));
   }
