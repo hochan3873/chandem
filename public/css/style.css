@@ -1397,7 +1397,7 @@ form:not([data-sd3]) .sd3-only { display: none; }
    글꼴: 제목·버튼·숫자 = Black Han Sans / 본문 = Pretendard · 외곽선은 text-shadow 로만
    아이콘: /img/hub/ic_<이름>.webp (없으면 빈칸 — 이모지로 대신하지 않음) */
 :root {
-  --display: 'Black Han Sans', 'Pretendard Variable', Pretendard, sans-serif;
+  --display: 'Bagel Fat One', 'Black Han Sans', 'Pretendard Variable', Pretendard, sans-serif;
   --fs-xs: .68rem; --fs-sm: .78rem; --fs-md: .9rem; --fs-lg: 1.08rem; --fs-xl: 1.5rem; --fs-2xl: 2rem;
   --hub-r: 18px; --hub-r-sm: 12px;
   --hub-glass: rgba(255, 255, 255, .07); --hub-glass-line: rgba(255, 255, 255, .14);
@@ -2028,3 +2028,31 @@ form:not([data-mode="tournament"]) .tourney-only { display: none !important; }
 .manner .ic3, .manner .emo-img { width: 20px; height: 20px; }
 .fx-fist .ic3 { width: 46px; height: 46px; }
 .fx-fist { font-size: 0; }
+
+/* 게임월드 앱이 깔린 폰에서 홀덤 앱 만들기 안내 */
+.hih { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.hih-why { margin: 0; font-size: .9rem; line-height: 1.5; }
+.hih-way { border: 1px solid rgba(255, 220, 150, .3); border-radius: 12px; padding: 10px 12px; background: rgba(255, 255, 255, .04); }
+.hih-tag { display: inline-block; font-size: .78rem; color: #3a1500; background: linear-gradient(180deg, #ffe08a, #d9a03a); border-radius: 99px; padding: 2px 10px; margin-bottom: 4px; }
+.hih-way ol { margin: 4px 0 2px; padding-left: 20px; font-size: .86rem; line-height: 1.55; }
+.hih-more { margin-top: 6px; text-align: left; font-size: .84rem; }
+.hih-more summary { cursor: pointer; color: #ffe08a; margin-bottom: 8px; }
+
+/* 글꼴: 제목·버튼·숫자는 동글동글 굵은 게임 글꼴(Bagel Fat One), 본문은 Pretendard */
+.sec-title, .modal-head h2, .sub-title, .hf-head b, .hf-btn b, .hf-live-head b, .hl-who > b, .hl-wallet b, .ht-main > b, .ht-felt b,
+.hl-ico, .hl-ana, .btn-lg, .btn-gold, .hl-lobby .gh-title h1, .tier-badge, .stat-card h3, .ab, .inv-code, .code-in, .hih-tag {
+  font-family: var(--display) !important; font-weight: 400 !important; letter-spacing: 0;
+}
+.sec-title { font-size: 1.12rem; }
+.hf-head b { font-size: 1.28rem; text-shadow: 0 2px 0 #3a0508, 0 0 14px rgba(255, 190, 90, .25); }
+.hf-btn b { font-size: 1.18rem; }
+.hl-who > b { font-size: 1.3rem; background: linear-gradient(180deg, #fff6d5, #ffd66b 55%, #e2a040); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 2px 0 #3a0508); }
+.hl-wallet b { background: linear-gradient(180deg, #fff6d5, #ffd66b 50%, #d38a2a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 2px 0 #3a0508); }
+.hl-ico { font-size: .7rem !important; }
+/* 게임 제목 로고 그림 */
+.hub-card .gc-logo { display: block; height: 52px; width: auto; max-width: 100%; object-fit: contain; object-position: left center; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .7)); }
+.hub-card .gc-logo-seotda, .hub-card .gc-logo-omok { height: 58px; }
+.hl-lobby .gh-title h1.hl-logo { margin: 0; line-height: 0; background: none; -webkit-text-fill-color: initial; filter: none; }
+.hl-logo img { display: block; width: min(62vw, 270px); height: auto; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .75)); animation: logoIn .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes logoIn { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+.gw-reduce-motion .hl-logo img { animation: none; }

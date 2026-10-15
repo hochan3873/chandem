@@ -380,7 +380,9 @@ async function installApp() {
       <li><b>「앱 설치」</b> 또는 <b>「홈 화면에 추가」</b>를 눌러요</li>
       <li><b>설치</b>를 누르면 바탕화면과 앱 목록에 ${APP_NAME}가 생겨요</li>
     </ol>
-    <p class="muted small">이미 설치했다면 바탕화면의 ${APP_NAME} 아이콘으로 열어 주세요.${HOLDEM_APP ? ' 찬이의 게임월드를 깔았어도 찬덤 홀덤은 따로 설치할 수 있어요.' : ''}</p>${ICON_NOTE}`);
+    <p class="muted small">이미 설치했다면 바탕화면의 ${APP_NAME} 아이콘으로 열어 주세요.</p>
+    ${HOLDEM_APP ? `<details class="hih-more"><summary>메뉴에 「앱 설치」가 없고 <b>「찬이의 게임월드 앱에서 열기」</b>만 보여요</summary>${holdemInstallHelpHTML()}</details>` : ''}${ICON_NOTE}`,
+  (b) => { const c = b.querySelector('#copy-holdem'); if (c) c.onclick = copyHoldemLink; });
 }
 document.addEventListener('click', (e) => { if (e.target.closest('#install-btn')) installApp(); else if (e.target.closest('#install-pick')) installPick(); else if (e.target.closest('#install-holdem')) installHoldemApp(); });
 
@@ -418,9 +420,28 @@ function installHoldemApp() {
     });
     return;
   }
-  // 안드로이드 설치 앱 안: 쓰던 브라우저(삼성 인터넷/크롬)로 바깥에서 열기 → 거기서 설치 막대
-  const pkg = /SamsungBrowser/i.test(UA) ? 'com.sec.android.app.sbrowser' : 'com.android.chrome';
-  location.href = `intent://${location.host}/holdem?install=1#Intent;scheme=https;package=${pkg};S.browser_fallback_url=${encodeURIComponent(url)};end`;
+  // 안드로이드 게임월드 앱 안: 게임월드 앱이 이 사이트 주소 전체(/)를 맡고 있어서 크롬이 /holdem 도 '이미 설치됨'으로 본다
+  //  → 브라우저로 넘겨도 다시 게임월드 앱이 열리고 설치 버튼이 안 나온다. 되는 방법 두 가지를 안내
+  openModal('찬덤 홀덤 앱 설치', holdemInstallHelpHTML(), (b) => { b.querySelector('#copy-holdem').onclick = copyHoldemLink; });
+}
+async function copyHoldemLink() {
+  const url = `${location.origin}/holdem?install=1`;
+  try { await navigator.clipboard.writeText(url); toast('복사했어요. 크롬 주소창에 붙여 넣어 주세요', 'ok'); } catch { prompt('이 주소를 크롬에서 열어 주세요', url); }
+}
+// 안드로이드: 찬이의 게임월드 앱이 깔린 폰에서 홀덤 앱 만들기
+function holdemInstallHelpHTML() {
+  return `<div class="hih">
+    <p class="hih-why">찬이의 게임월드 앱이 깔린 폰은 크롬이 홀덤 화면도 <b>'이미 설치된 앱'</b>으로 봐서, 설치 버튼이 나오지 않아요.</p>
+    <div class="hih-way"><b class="hih-tag">방법 1 · 간단</b>
+      <ol><li>바탕화면의 <b>찬이의 게임월드</b> 아이콘을 <b>길게</b> 눌러요</li>
+      <li>뜨는 목록의 <b>「찬덤 홀덤」</b>을 길게 눌러 바탕화면에 놓아요</li>
+      <li>바탕화면에 <b>찬덤 홀덤</b> 아이콘이 생겨요</li></ol>
+      <p class="muted tiny">목록에 아직 없으면 앱이 새 정보로 바뀌는 중이에요 (게임월드 앱을 몇 번 열면 보통 하루 안에 생겨요)</p></div>
+    <div class="hih-way"><b class="hih-tag">방법 2 · 완전히 따로 된 앱</b>
+      <ol><li>찬이의 게임월드 아이콘을 길게 눌러 <b>삭제</b>해요 <small class="muted">(로그인한 칩·기록은 그대로예요)</small></li>
+      <li>아래 <b>링크 복사</b> → 크롬 주소창에 붙여 넣고 <b>「앱 설치」</b></li>
+      <li>홀덤 앱이 깔리면, 다시 크롬에서 찬이의 게임월드도 설치해요</li></ol></div>
+    <button class="btn btn-gold btn-lg" id="copy-holdem" type="button">홀덤 앱 링크 복사</button></div>`;
 }
 
 // ── 모달 ─────────────────────────────────────────────
@@ -562,6 +583,8 @@ async function mergeGuest(token) {
 }
 // 게임 아이콘 (Gemini 로 그린 그림 · /img/icons)
 const IC = (n, cls = '') => `<img class="ic3 ${cls}" src="/img/icons/${n}.webp" alt="" draggable="false">`;
+// 게임 제목 로고 (Gemini 로 그린 글씨 그림)
+const GAME_LOGO = { holdem: '/img/logo/holdem.webp?v=1', seotda: '/img/logo/seotda.webp?v=1', omok: '/img/logo/omok.webp?v=1' };
 const tierBadge = (t, sm = '') => (t ? `<span class="tier-badge ${sm}" style="--tc:${t.color}"><i></i>${esc(t.name)}</span>` : `<span class="tier-badge ${sm} placing"><i></i>배치 중</span>`);
 function myAvatarSrc() {
   const a = LS.get('chandem:avatar', 0); const ph = LS.get('chandem:photo', '');
@@ -874,7 +897,7 @@ function maybeInstallPrompt() {
     if (S.view !== 'gamehome' || document.querySelector('#modal-root .modal')) return;
     LS.set('chandem:installAsk', day);
     openModal('찬덤 홀덤 앱 설치', `<div class="inst-ask"><img src="/img/holdem-icon-192.png" alt="" width="72" height="72">
-      <p>${inGw ? '찬이의 게임월드와 따로, <b>홀덤만 바로 여는 앱</b>을 하나 더 설치할 수 있어요. 바탕화면에 「찬덤 홀덤」 아이콘이 생겨요.' : '<b>홈 화면에 앱으로 설치</b>하면 주소창 없이 전체 화면으로, 링크 없이 바로 열려요. 설치는 몇 초면 끝나요.'}</p>
+      <p>${inGw ? '바탕화면에 <b>홀덤만 바로 여는 「찬덤 홀덤」 아이콘</b>을 하나 더 만들 수 있어요.' : '<b>홈 화면에 앱으로 설치</b>하면 주소창 없이 전체 화면으로, 링크 없이 바로 열려요. 설치는 몇 초면 끝나요.'}</p>
       <button class="btn btn-gold btn-lg" id="ia-go">지금 설치하기</button><button class="btn btn-ghost" id="ia-no">다음에</button></div>`, (b) => {
       b.querySelector('#ia-go').onclick = () => { closeModal(); if (inGw || !HOLDEM_APP) installHoldemApp(); else installApp(); };
       b.querySelector('#ia-no').onclick = () => closeModal();
@@ -886,7 +909,7 @@ function renderHoldemLobby() {
   <main class="home game-home hl-lobby">
     <div class="top-bar">${HOLDEM_APP ? `${hubAcctHTML()}` : '<button class="btn btn-sm btn-outline" id="to-hub">‹ 게임 선택</button>'}${SHARE_BTN}</div>
     <div class="gh-hero hl-hero" style="background-image:url('/img/holdem/hero2.webp')"><div class="gh-shade"></div>
-      <div class="gh-title"><h1>찬덤 홀덤</h1><p>친구들이랑 링크 하나로 바로 한 판</p></div>
+      <div class="gh-title"><h1 class="hl-logo"><img src="${GAME_LOGO.holdem}" alt="찬덤 홀덤" draggable="false"></h1><p>친구들이랑 링크 하나로 바로 한 판</p></div>
     </div>
     <section class="panel hl-friends">
       <div class="hf-head"><b>${IC('friends', 'ic-in')}친구들과 치기</b><small>방을 만들고 카톡으로 링크만 보내면 끝 · 최대 10명 · 토너먼트 · 정산표까지</small></div>
@@ -2011,7 +2034,7 @@ function hubCardHTML(k, g) {
     : gameCardArtHTML(k);
   const title = hero
     ? '<img class="gc-logo" src="/img/lb/logo_langbang.webp" alt="랑방 대전" onerror="this.replaceWith(Object.assign(document.createElement(\'b\'),{className:\'gc-title\',textContent:\'랑방 대전\'}))">'
-    : `<b class="gc-title">${esc(g.name)}</b>`;
+    : GAME_LOGO[k] ? `<img class="gc-logo gc-logo-${k}" src="${GAME_LOGO[k]}" alt="${esc(g.name)}" draggable="false">` : `<b class="gc-title">${esc(g.name)}</b>`;
   return `
     <button class="game-card hub-card game-card-${k} ${hero ? 'is-hero' : ''} ${g.best ? 'is-best' : ''} tap" data-game="${k}">
       ${media}
