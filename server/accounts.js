@@ -21,6 +21,7 @@ const TIERS = [
 ];
 const START_RATING = 1000;
 const AI_RATING = { easy: 800, normal: 1100, hard: 1400 };
+function withoutSunggu(stats) { if (!stats || !stats.sunggu) return stats; const { sunggu, ...rest } = stats; return rest; } // 강성구 키우기 저장 묶음은 /me 응답에서 뺀다 (크다)
 function tierOf(rating) { return TIERS.find((t) => rating >= t.min); }
 function eloDelta(my, opp, score, games) {
   const k = games < 10 ? 48 : 32;            // 처음 10판은 빨리 자리 잡게
@@ -348,11 +349,39 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
   }
 
   const publicUser = (u) => u && {
-    id: u.id, username: u.username, nickname: u.nickname, createdAt: u.createdAt, stats: u.stats,
+    id: u.id, username: u.username, nickname: u.nickname, createdAt: u.createdAt, stats: withoutSunggu(u.stats),
     tier: tierOf(u.stats.omok.rating),
     isMaster: isMasterName(u.username), // 서버가 아이디로 판단 (화면이 보낸 값은 안 믿음)
   };
 
+  // 강성구 키우기(따로 있는 사이트 sunggu-game.vercel.app): 그 게임의 기기 저장 묶음(sg_ 로 시작하는 칸들)을 계정에 보관
+  //  → 다른 폰·다시 깐 앱에서도 로그인하면 이어서. 마지막에 바꾼 쪽(at)이 이긴다 (id 는 index.js 가 출입증으로 확인한 계정)
+  const SG_MAX = 400 * 1024;
+  async function sgLoad(id) {
+    await ready;
+    const u = await store.byId(id);
+    if (!u) throw new AuthError('다시 로그인해 주세요');
+    const sg = (u.stats && u.stats.sunggu) || null;
+    return { user: { nickname: u.nickname, username: u.username }, save: sg && sg.data ? { data: sg.data, at: Number(sg.at) || 0 } : null };
+  }
+  async function sgSave(id, data, at) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new AuthError('저장할 내용이 없어요');
+    const clean = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (!/^sg_[a-z0-9_]{1,24}$/.test(k)) continue;
+      if (typeof v === 'string') clean[k] = v;
+    }
+    if (JSON.stringify(clean).length > SG_MAX) throw new AuthError('저장 내용이 너무 커요');
+    const t = Math.min(Number(at) || Date.now(), Date.now() + 60e3);
+    await ready;
+    let kept = null;
+    await serial(() => update(id, (s) => {
+      const cur = s.sunggu;
+      if (cur && Number(cur.at) > t) { kept = cur; return; } // 서버 쪽이 더 새것이면 덮어쓰지 않는다
+      s.sunggu = { data: clean, at: t };
+    }));
+    return kept ? { stale: true, save: { data: kept.data, at: Number(kept.at) } } : { at: t };
+  }
   async function signup({ username, password, nickname }) {
     await ready;
     const name = String(username || '').trim().toLowerCase();
@@ -1318,7 +1347,7 @@ function createAccounts({ databaseUrl = process.env.DATABASE_URL, file = null, s
     return r;
   }
 
-  return { signup, login, me, verifyToken, recordHand, recordOmok, recordTourney, profile, ranking, router, langbangRouter, lbResult, lbUpgrade, lbBuy, lbMe, lbRanking, ready, tierOf, store,
+  return { signup, login, me, verifyToken, sgLoad, sgSave, recordHand, recordOmok, recordTourney, profile, ranking, router, langbangRouter, lbResult, lbUpgrade, lbBuy, lbMe, lbRanking, ready, tierOf, store,
     // 플랫폼(site.js · admin.js)용
     makeToken, publicUser, noteMeta, subKey: (label) => crypto.createHmac('sha256', key).update('sub:' + label).digest(), // 다른 용도 서명 키 (강성구 키우기 출입증 등)
     exclusive, updateStats: update, addLangbangCoins, adminAdjustLangbangCoins,
