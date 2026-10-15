@@ -76,6 +76,10 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.rebuyEnabled = src.rebuyEnabled === undefined ? base.rebuyEnabled : !!src.rebuyEnabled;
   s.rebuyAmount = Math.min(10000000, Math.max(1, int(src.rebuyAmount, s.startChips)));
   s.rebuyMax = Math.min(99, Math.max(1, int(src.rebuyMax, base.rebuyMax)));
+  // 리바인 금액을 각자 정하기: 방장이 정한 최소~최대 안에서 신청하는 사람이 고른다
+  s.rebuyFlex = src.rebuyFlex === undefined ? !!base.rebuyFlex : !!src.rebuyFlex;
+  s.rebuyLo = Math.min(10000000, Math.max(1, int(src.rebuyLo, base.rebuyLo || Math.max(1, Math.round(s.rebuyAmount / 2)))));
+  s.rebuyHi = Math.min(10000000, Math.max(s.rebuyLo, int(src.rebuyHi, base.rebuyHi || s.rebuyAmount * 2)));
   s.password = typeof src.password === 'string' ? src.password.trim().slice(0, 20) : base.password;
   s.approval = src.approval === undefined ? base.approval : !!src.approval;
   s.game = ['holdem', 'seotda', 'omok'].includes(src.game) ? src.game : (base.game || 'holdem');
@@ -631,7 +635,15 @@ class Room {
 
   endGame(hostId, reason) {
     if (hostId !== null) this.requireHost(hostId);
-    if (this.hand && !this.hand.finished) throw new RoomError('진행 중인 판이 끝난 뒤에 끝낼 수 있어요');
+    if (this.hand && !this.hand.finished) {
+      // 판 도중에 누르면: 이번 판이 끝나는 대로 끝내고 정산 (다음 판이 금방 시작돼 누를 틈이 없던 문제)
+      if (hostId === null) throw new RoomError('진행 중인 판이 끝난 뒤에 끝낼 수 있어요');
+      this.pendingEnd = reason || '방장이 게임을 끝냈어요';
+      this.pushFeed('방장이 게임 끝내기를 눌렀어요 · 이번 판이 끝나면 정산해요');
+      this.touch();
+      return { scheduled: true };
+    }
+    this.pendingEnd = null;
     if (this.phase === 'playing' && !this.isTournament && this.settings.game !== 'omok') this.settlement = this.computeSettlement(reason || '방장이 게임을 끝냈어요');
     this.endsAt = null;
     this.clearTimer('next');
@@ -711,6 +723,7 @@ class Room {
   }
 
   startHand() {
+    if (this.pendingEnd && this.phase === 'playing') { const why = this.pendingEnd; this.pendingEnd = null; this.endGame(null, why); return false; }
     this.applyPendingAccounts(); // 방 안에서 로그인한 사람: 이 판부터 기록
     this.showIds = [];   // 판이 끝난 뒤 '내 패 보여주기'(두 장 다)를 누른 사람
     this.showOne = {};   // 한 장만 보여 준 사람: { id: [카드 번호] }
@@ -1224,7 +1237,7 @@ class Room {
     return p.stack + (hs ? hs.contributed + (hs.ante || 0) : 0);
   }
 
-  rebuy(id) {
+  rebuy(id, amount) {
     const p = this.get(id);
     if (!p) throw new RoomError('참가자를 찾을 수 없어요');
     if (!this.settings.rebuyEnabled) throw new RoomError('이 방은 리바인이 꺼져 있어요');
@@ -1233,9 +1246,12 @@ class Room {
     if (!this.canRebuy(p)) throw new RoomError(this.isTournament ? '리바이는 칩을 다 잃었을 때, 리바이 마감 전까지만 할 수 있어요' : '칩이 시작 칩의 절반보다 적을 때만 리바인할 수 있어요');
     p.rebuys += 1;
     if (this.tourney) this.tourney.busted = this.tourney.busted.filter((x) => x !== p.id);
-    p.pendingRebuy = this.settings.rebuyAmount;
+    const s = this.settings;
+    const want = Math.round(Number(amount));
+    // 각자 정하기 방: 정한 범위 안의 금액만 (범위 밖·이상한 값이면 기본 금액)
+    p.pendingRebuy = s.rebuyFlex && !this.isTournament && Number.isFinite(want) && want >= s.rebuyLo && want <= s.rebuyHi ? want : s.rebuyAmount;
     p.sittingOut = false;
-    this.pushFeed(`${p.name}님 리바인 신청 (${p.rebuys}/${this.settings.rebuyMax}) · 다음 판부터 적용`);
+    this.pushFeed(`${p.name}님 리바인 ${p.pendingRebuy.toLocaleString()} 신청 (${p.rebuys}/${s.rebuyMax}) · 다음 판부터 적용`);
     this.maybeStartWaitingHand();
     this.touch();
   }

@@ -1614,7 +1614,7 @@ function chatListHTML(st) {
 // 게임 화면 아래 왼쪽: 최근 채팅 두 줄 (누르면 채팅 창)
 function chatMiniHTML(st) {
   if (S.chatOff) return '<span class="cm-empty">채팅 꺼 둠 · 눌러서 다시 켤 수 있어요</span>';
-  const list = ((st && st.chat) || []).filter((m) => !S.muted.has(m.id)).slice(-2);
+  const list = ((st && st.chat) || []).filter((m) => !S.muted.has(m.id)).slice(orientOf() === 'land' ? -12 : -2);
   if (!list.length) return '<span class="cm-empty">채팅을 눌러 한마디 해 보세요</span>';
   return list.map((m) => `<span class="cm-line"><b style="--h:${nameHue(m.name)}">${esc(m.name)}</b> ${esc(m.text)}<i class="cm-time">${hhmm(m.at)}</i></span>`).join('');
 }
@@ -1682,8 +1682,10 @@ function onChat(st, first) {
 function chatBubble(m) {
   if (S.view !== 'room') return;
   const seat = document.querySelector(`.seat[data-id="${m.id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === m.id ? document.querySelector('.me-name') : null);
+  document.querySelectorAll(`.fx-chat[data-from="${CSS.escape(String(m.id))}"]`).forEach((x) => x.remove()); // 같은 사람 말풍선은 새 것만
   const el = document.createElement('div');
   el.className = 'fx-chat';
+  el.dataset.from = m.id;
   el.innerHTML = `<b>${esc(m.name)}</b> ${esc(m.text)}`;
   if (seat) {
     const r = seat.getBoundingClientRect();
@@ -1888,6 +1890,8 @@ function render() {
 }
 
 function logoHTML(small = false) {
+  // 찬덤 홀덤 앱(또는 홀덤 방): 게임월드 대신 찬덤 홀덤 이름표
+  if (HOLDEM_APP || (S.state && gameOf(S.state) === 'holdem')) return `<div class="logo ${small ? 'logo-sm' : ''}"><img class="logo-icon" src="/img/holdem-icon-192.png" alt="" onerror="this.remove()"><div class="logo-text"><span class="logo-ko">찬덤 홀덤</span>${small ? '' : '<span class="logo-en">CHANDEM HOLDEM</span>'}</div></div>`;
   return `<div class="logo ${small ? 'logo-sm' : ''}">
     <img class="logo-icon" src="/img/gw2-icon-192.png" alt="" onerror="this.remove()">
     <div class="logo-text">${small ? '<span class="logo-ko">게임월드</span>' : '<span class="logo-ko logo-pop" data-text="찬이의 게임월드">찬이의 게임월드</span>'}<span class="logo-en">CHAN'S GAME WORLD</span></div>
@@ -2241,6 +2245,11 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <label class="field"><span>리바인 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyAmount" min="1" value="${s.rebuyAmount}"></label>
       <label class="field"><span>1인당 최대 횟수</span><input class="input" type="number" inputmode="numeric" name="rebuyMax" min="1" max="99" value="${s.rebuyMax}"></label>
     </div>
+    <label class="switch"><input type="checkbox" name="rebuyFlex" ${s.rebuyFlex ? 'checked' : ''}><span>리바인 금액을 각자 정하기 <small class="muted">(아래 범위 안에서 신청하는 사람이 골라요)</small></span></label>
+    <div class="grid2 rebuy-range">
+      <label class="field"><span>최소 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyLo" min="1" value="${s.rebuyLo || Math.round((s.rebuyAmount || 1000) / 2)}"></label>
+      <label class="field"><span>최대 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyHi" min="1" value="${s.rebuyHi || (s.rebuyAmount || 1000) * 2}"></label>
+    </div>
     <p class="muted small">칩이 시작 칩의 절반보다 적거나 다 떨어졌을 때 신청할 수 있어요. 진행 중인 판에는 영향이 없고 다음 판부터 적용돼요.</p>
   </fieldset>
   <fieldset class="fieldset">
@@ -2313,7 +2322,7 @@ function readSettings(form) {
   return {
     startChips: num('startChips'), turnSeconds: num('turnSeconds'), sb: num('sb'), bb: num('bb'),
     minPlayers: num('minPlayers'), maxPlayers: num('maxPlayers'),
-    rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyMax: fd.get('mode') === 'tournament' && fd.get('rebuyMaxT') ? num('rebuyMaxT') : num('rebuyMax'),
+    rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyFlex: fd.get('rebuyFlex') === 'on', rebuyLo: num('rebuyLo') || undefined, rebuyHi: num('rebuyHi') || undefined, rebuyMax: fd.get('mode') === 'tournament' && fd.get('rebuyMaxT') ? num('rebuyMaxT') : num('rebuyMax'),
     password: String(fd.get('password') || ''), approval: fd.get('approval') === 'on',
     mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 7,
     ante: fd.get('ante') === 'on' ? 'bb' : 'none', timeBank: fd.get('timeBank') === null ? 30 : num('timeBank'),
@@ -2671,6 +2680,16 @@ function renderLobby() {
   bindCommon();
   const cp = $app.querySelector('#settle-copy');
   if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(settlementText(st.room.settlement)); toast('정산표를 복사했어요 · 단톡방에 붙여 넣어 보세요', 'ok'); } catch { toast('복사하지 못했어요', 'error'); } };
+  // 게임이 끝나면: 참여했던 사람에게 정산표(딴 돈·잃은 돈)를 바로 띄운다 (한 번만)
+  const stl = st.room.settlement;
+  if (stl && S.settleSeen !== stl.at && st.me && stl.rows.some((r) => r.id === st.me.id)) {
+    S.settleSeen = stl.at;
+    openModal('게임 끝 · 정산표', settlementHTML(stl, false).replace('<section class="panel settle">', '<section class="settle settle-pop">'), (b) => {
+      const c = b.querySelector('#settle-copy');
+      if (c) c.onclick = async () => { try { await navigator.clipboard.writeText(settlementText(stl)); toast('정산표를 복사했어요 · 단톡방에 붙여 넣어 보세요', 'ok'); } catch { toast('복사하지 못했어요', 'error'); } };
+    }, { wide: true });
+    sound.play('collect');
+  }
   RK.fitNames($app);
   RK.refreshRoom(st);
   $app.querySelectorAll('[data-approve]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.approve, ok: true }); });
@@ -2706,6 +2725,29 @@ function seatMapHTML(st) {
 
 // ── 정산표 ──
 const settleMoney = (chips, v) => (v ? `${Math.round((chips / v.per) * v.value).toLocaleString('ko-KR')}${esc(v.unit)}` : '');
+async function doRebuy(amount) {
+  const r = await emit('game:rebuy', amount ? { amount } : {});
+  if (r.ok) { toast(`리바인 신청 완료${amount ? ` (+${fmt(amount)})` : ''}! 다음 판부터 적용돼요`, 'ok'); sound.play('chips'); }
+}
+// 리바인 금액 고르기 (방장이 '각자 정하기'를 켠 방)
+function openRebuyPick(st) {
+  const s = st.room.settings;
+  const lo = s.rebuyLo; const hi = s.rebuyHi;
+  const step = Math.max(1, s.bb || 1);
+  const start = Math.min(hi, Math.max(lo, s.rebuyAmount));
+  openModal('리바인 금액', `<div class="rebuy-pick">
+    <p class="muted small">${fmt(lo)} ~ ${fmt(hi)} 사이에서 골라요 · 다음 판부터 적용돼요</p>
+    <div class="rp-amt"><b id="rp-v">${fmt(start)}</b> 칩</div>
+    <input type="range" id="rp-r" min="${lo}" max="${hi}" step="${step}" value="${start}">
+    <div class="rp-quick">${[['최소', lo], ['기본', s.rebuyAmount], ['최대', hi]].filter(([, v]) => v >= lo && v <= hi).map(([t, v]) => `<button type="button" class="btn btn-sm btn-outline" data-rp="${v}">${t} ${fmt(v)}</button>`).join('')}</div>
+    <button class="btn btn-gold btn-lg" id="rp-go" type="button">리바인 신청</button></div>`, (b) => {
+    const r = b.querySelector('#rp-r'); const v = b.querySelector('#rp-v');
+    const set = (x) => { r.value = x; v.textContent = fmt(Number(r.value)); };
+    r.oninput = () => set(r.value);
+    b.querySelectorAll('[data-rp]').forEach((q) => { q.onclick = () => set(q.dataset.rp); });
+    b.querySelector('#rp-go').onclick = () => { const a = Number(r.value); closeModal(); doRebuy(a); };
+  });
+}
 function settlementHTML(x, isHost) {
   const v = x.value;
   const cls = (n) => (n > 0 ? 'plus' : n < 0 ? 'minus' : '');
@@ -2714,7 +2756,7 @@ function settlementHTML(x, isHost) {
     <table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>최종 칩</th><th>손익</th>${v ? `<th>${esc(v.unit) || '환산'}</th>` : ''}</tr></thead><tbody>
     ${x.rows.map((r) => `<tr><td>${esc(r.name)}${r.left ? ' <small class="muted">중간에 나감</small>' : ''}</td><td>${fmt(r.buyIn)}</td><td>${fmt(r.out)}</td><td class="${cls(r.net)}">${signed(r.net)}</td>${v ? `<td class="${cls(r.net)}">${r.net > 0 ? '+' : r.net < 0 ? '−' : ''}${settleMoney(Math.abs(r.net), v)}</td>` : ''}</tr>`).join('')}
     </tbody></table>
-    ${x.transfers.length ? `<h3 class="sub-title">누가 누구에게</h3><ul class="settle-list">${x.transfers.map((t) => `<li><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b><span>${fmt(t.chips)}칩${v ? ` · ${settleMoney(t.chips, v)}` : ''}</span></li>`).join('')}</ul>` : '<p class="muted small">모두 본전이에요!</p>'}
+    ${x.transfers.length ? `<h3 class="sub-title">누가 누구에게</h3><ul class="settle-list">${x.transfers.map((t) => `<li><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b><span>${fmt(t.chips)}칩${v ? ` · ${settleMoney(t.chips, v)}` : ''}</span></li>`).join('')}</ul>` : `<p class="muted small">${x.rows.some((r) => r.net) ? '사람끼리 주고받을 칩은 없어요 (봇과 오간 칩은 정산에서 빠져요)' : '모두 본전이에요!'}</p>`}
     ${v ? `<p class="muted tiny">환산: 칩 ${fmt(v.per)} = ${fmt(v.value)}${esc(v.unit)} (방장이 정한 값을 보여 주기만 해요. 이 앱에는 돈을 주고받는 기능이 없어요)</p>` : ''}
     <button class="btn btn-gold" id="settle-copy">정산표 복사하기</button>
     ${isHost ? '<p class="muted tiny">방장: 다시 시작하면 정산표는 사라지고 새 게임이 시작돼요</p>' : ''}
@@ -2983,14 +3025,18 @@ function renderTop(st) {
     const tn = st.room.tournament;
     const mid = tn && tn.running ? `<b>레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)}${st.room.settings.ante === 'bb' ? ' · 앤티' : ''}</b><small>${tn.paused ? '⏸ 멈춤' : `다음 <i data-level-at="${tn.nextAt}">-</i>`}</small>`
       : `<b>${st.room.practiceTable ? esc(st.room.practiceTable) + ' · ' : ''}${fmt(st.room.settings.sb)}/${fmt(st.room.settings.bb)}${st.room.settings.ante === 'bb' ? ' · 앤티' : ''}</b><small>${st.room.endsAt ? `⏰ 정산까지 <i data-level-at="${st.room.endsAt}">-</i>` : `${st.room.practiceTable ? '연습 테이블' : `방 ${esc(st.room.code)}`}${st.room.handNo ? ` · ${st.room.handNo}번째 판` : ''}`}</small>`;
+    // 관전 중인 사람: 위 줄에 '관전 N명' (누르면 이름 목록)
+    const specs = st.players.filter((p) => p.role === 'spectator' && !p.leaving && !p.isBot);
     el.innerHTML = `
       <button class="tb-ico" id="menu-btn" aria-label="메뉴">${TI.menu}${pendingCount ? `<span class="dot">${pendingCount}</span>` : ''}</button>
-      <div class="tb-mid">${mid}</div>
+      <div class="tb-mid">${mid}${specs.length ? `<button type="button" class="tb-spec" id="tb-spec">관전 ${specs.length}명 · ${esc(specs.slice(0, 2).map((p) => p.name).join(', '))}${specs.length > 2 ? ' 외' : ''}</button>` : ''}</div>
       <button class="tb-ico" id="log-btn" aria-label="기록 · 칩 장부">${TI.list}</button>
       <button class="tb-ico" id="orient-btn" aria-label="가로 세로 바꾸기">${TI.rotate}</button>
       <button class="tb-ico" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? TI.mute : TI.sound}</button>`;
     bindCommon();
     el.querySelector('#log-btn').onclick = () => openHistory();
+    const sp = el.querySelector('#tb-spec');
+    if (sp) sp.onclick = () => openModal(`관전 중 ${specs.length}명`, `<div class="spec-list">${specs.map((p) => `<div class="list-row">${avatarHTML(p, 'avatar-sm')}<div class="grow"><b>${esc(p.name)}</b>${p.connected ? '' : ' <small class="muted">연결 끊김</small>'}</div></div>`).join('')}</div>`);
     el.querySelector('#orient-btn').onclick = toggleOrient;
     el.querySelector('#menu-btn').onclick = openMenuModal;
     tickLevel();
@@ -3019,7 +3065,7 @@ function renderBanner(st) {
     if (me.pendingRebuy > 0) msgs.push(['info', `리바인 대기 중 · 다음 판부터 +${fmt(me.pendingRebuy)}`]);
     else if (me.canRebuy) {
       const s = st.room.settings;
-      msgs.push(['gold', `칩이 ${me.stack === 0 ? '모두 떨어졌어요' : '부족해요'} · 리바인 +${fmt(s.rebuyAmount)} (남은 횟수 ${s.rebuyMax - me.rebuys}번)`, '<button class="btn btn-sm btn-gold" id="rebuy-btn">리바인</button>']);
+      msgs.push(['gold', `칩이 ${me.stack === 0 ? '모두 떨어졌어요' : '부족해요'} · 리바인 ${s.rebuyFlex && s.mode !== 'tournament' ? `${fmt(s.rebuyLo)}~${fmt(s.rebuyHi)} 중 선택` : '+' + fmt(s.rebuyAmount)} (남은 횟수 ${s.rebuyMax - me.rebuys}번)`, '<button class="btn btn-sm btn-gold" id="rebuy-btn">리바인</button>']);
     } else if (me.stack === 0 && !(st.hand && !st.hand.result && st.players.find((p) => p.id === me.id)?.status === 'allin')) {
       msgs.push(['info', '칩이 모두 떨어졌어요. 이제 관전하며 응원해 주세요']);
     }
@@ -3050,7 +3096,7 @@ function renderBanner(st) {
   el.querySelectorAll('[data-approve]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.approve, ok: true }); });
   el.querySelectorAll('[data-reject]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.reject, ok: false }); });
   const rb = el.querySelector('#rebuy-btn');
-  if (rb) rb.onclick = async () => { const r = await emit('game:rebuy'); if (r.ok) toast('리바인 신청 완료! 다음 판부터 적용돼요', 'ok'); };
+  if (rb) rb.onclick = () => (st.room.settings.rebuyFlex && st.room.settings.mode !== 'tournament' && !st.room.practice ? openRebuyPick(st) : doRebuy());
   const tf = el.querySelector('#to-final');
   if (tf && tn && tn.mtt) tf.onclick = () => goFinalTable(tn.mtt.mainCode);
   const pb = el.querySelector('#pause-btn');
@@ -3344,7 +3390,8 @@ function renderTableInner(st, el) {
       cards = `<div class="seat-cards">${p.cards.map((c, k) => {
         const fresh = markCard(`${handNo}:${p.id}:${k}:${c === '??' ? 'b' : 'f'}`);
         const flip = fresh && c !== '??'; // 쇼다운에서 패를 까는 순간
-        return cardHTML(c, { size: 'xs', anim: fresh && !flip, cls: flip ? 'card-flip' : '', highlight: best && best.has(c), delay: k * 90 });
+        if (flip && result && !h.reveal) (S.showFx = S.showFx || new Set()).add(p.id); // 판이 끝난 뒤 '내 패 보여주기'
+        return cardHTML(c, { size: 'xs', anim: fresh && !flip, cls: flip ? (result && !h.reveal ? 'card-flip card-pop' : 'card-flip') : '', highlight: best && best.has(c), delay: k * 90 });
       }).join('')}</div>`;
     }
     const tags = [];
@@ -3353,7 +3400,7 @@ function renderTableInner(st, el) {
     else if (p.lastAction && h && !h.finished) tags.push(`<span class="tag tag-act">${ACTION_TEXT[p.lastAction] || ''}</span>`);
     if (st.room.phase === 'playing' && p.status === 'waiting' && !p.sittingOut) tags.push('<span class="tag">다음 판 대기</span>');
     if (!p.connected) tags.push('<span class="tag tag-off">연결 끊김</span>');
-    else if (p.sittingOut && st.room.phase === 'playing') tags.push('<span class="tag tag-away">자리 비움</span>');
+    else if (p.sittingOut && st.room.phase === 'playing' && !tags.some((t) => t.includes('자리 비움'))) tags.push('<span class="tag tag-away">자리 비움</span>');
     const ht = S.seatHands && S.seatHands[handNo + ':' + p.id];
     if (ht) tags.unshift(`<span class="tag tag-hand ${ht.big ? 'tag-hand-big' : ''}">${esc(ht.text)}</span>`);
     if (result && result.deltas && result.deltas[p.id] !== undefined) {
@@ -3367,15 +3414,15 @@ function renderTableInner(st, el) {
     const bet = p.bet > 0 ? (() => {
       const k = y < 30 ? 0.52 : x < 20 || x > 80 ? 0.5 : 0.4; const bx = x + (50 - x) * k; let by = isMe && h && h.game !== 'seotda' ? 63 : y + (47 - y) * k;
       let bx2 = bx;
-      if (isMe && h && h.game !== 'seotda' && orientOf() !== 'land') { bx2 = x - 3; by = y - 17; } // 내 베팅: 내 얼굴 바로 위 (가운데 안내 줄과 안 겹치게)
+      if ((isMe || (y > 80 && x > 30 && x < 70)) && h && h.game !== 'seotda') { bx2 = x - 3; by = y - (orientOf() === 'land' ? 26 : 17); } // 아래 가운데 자리: 얼굴 바로 위 // 내 베팅: 내 얼굴 바로 위 (가운데 안내 줄과 안 겹치게)
       if (y < 30 && h && h.game !== 'seotda') { bx2 = x + (x < 45 ? 10 : x > 55 ? -10 : 13); by = y + 13; } // 윗자리: 바닥 카드에 안 겹치게 자기 옆 아래로
       if (!isMe && y > 80 && h && h.game !== 'seotda') { bx2 = x + (50 - x) * 0.15; by = y - 15; } // 아래 양옆 자리: 내 카드에 안 가리게 자기 머리 위로
       return `<div class="bet" data-id="${p.id}" data-amt="${p.bet}" style="left:${bx2}%;top:${by}%" title="${esc(p.name)} 이번 라운드 베팅"><span class="chip-icon sm"></span><small>베팅</small><b>${fmt(p.bet)}</b></div>`;
     })() : '';
     return `
-      ${p.isDealer && h && h.game !== 'seotda' ? (() => { const k = 0.24; let dx = x + (50 - x) * k + (x < 50 ? 7 : x > 50 ? -7 : 9); let dy = isMe ? y - 13 : y + (47 - y) * k - 6; if (y < 20) { dx = x + (x > 60 ? 13 : -13); dy = y + 2; } return `<div class="dealer-chip" style="left:${dx}%;top:${dy}%" title="딜러 버튼 (이번 판의 선)"><b>D</b><small>딜러</small></div>`; })() : ''}
       <div class="${cls.join(' ')}" data-id="${p.id}" style="left:${x}%;top:${y}%">
         ${cards}
+        ${p.isDealer && h && h.game !== 'seotda' ? '<div class="dealer-chip" title="딜러 버튼 (이번 판의 선)"><b>D</b></div>' : ''}
         <div class="seat-body">
           <div class="seat-av">${avatarHTML(p)}${RK.badgeHTML(p.id)}<div class="seat-pos">${pos2.join('')}</div>
             ${p.isTurn ? '<svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20" data-ring></circle></svg>' : ''}</div>
@@ -3432,6 +3479,8 @@ function renderTableInner(st, el) {
     center = `<div class="table-center"><div class="table-blinds">${gameOf(st) === 'seotda' ? '섯다' : 'NL 홀덤'} · ${fmt(s0.sb)}/${fmt(s0.bb)}</div><p class="muted small">${st.room.waiting ? (canSit ? '빈자리를 눌러 앉아 주세요' : '참가자를 기다리는 중') : '곧 시작해요'}</p></div>`;
   }
   el.innerHTML = `<div class="felt"><div class="felt-rail"></div>${center}${seatHTML}</div>`;
+  requestAnimationFrame(() => clampSeats(el));
+  if (S.showFx && S.showFx.size) { const ids = [...S.showFx]; S.showFx.clear(); setTimeout(() => ids.forEach((id) => { seatBubble(id, '패 공개!'); sound.play('flip1'); }), 120); }
   if (S.riverFx && S.riverFx.hand === handNo && !S.riverFx.done) { S.riverFx.done = true; setTimeout(riverGlint, S.riverFx.slow ? 1500 : 380); }
   RK.fitNames(el);
   RK.refreshRoom(st);
@@ -3462,6 +3511,22 @@ function riverGlint() {
   sound.play('fx_river');
   if (v.play) v.play().catch(() => {});
   setTimeout(() => el.remove(), 2200);
+}
+
+// 가장자리 자리: 이름·태그·순위 배지가 화면 밖으로 잘리지 않게 안쪽으로 살짝 민다
+function clampSeats(el) {
+  const wrap = el.closest('.table-wrap') || el;
+  const W = wrap.getBoundingClientRect();
+  const lo = Math.max(W.left, 0) + 3; const hi = Math.min(W.right, innerWidth) - 3;
+  el.querySelectorAll('.seat:not(.seat-empty)').forEach((s) => {
+    s.style.marginLeft = ''; s.style.marginTop = '';
+    let L = Infinity; let Rr = -Infinity; let T = Infinity;
+    s.querySelectorAll('.seat-body, .seat-body *').forEach((c) => { const r = c.getBoundingClientRect(); if (!r.width) return; L = Math.min(L, r.left); Rr = Math.max(Rr, r.right); T = Math.min(T, r.top); });
+    if (!Number.isFinite(L)) return;
+    const dx = L < lo ? lo - L : Rr > hi ? hi - Rr : 0;
+    if (dx) s.style.marginLeft = Math.round(dx) + 'px';
+    if (T < W.top + 2) s.style.marginTop = Math.round(W.top + 2 - T) + 'px'; // 윗자리: 위 안내 줄을 덮지 않게
+  });
 }
 
 function markCard(key) {
@@ -3569,7 +3634,7 @@ function renderActions(st) {
       : h && h.finished
       ? `${finishedExtrasHTML(st)}<div class="wait-line"><span data-next>다음 판을 준비하고 있어요</span></div>`
       : `<div class="wait-line">${st.room.waiting ? '참가자를 기다리는 중이에요' : '곧 카드를 나눠 드려요'}</div>`;
-    el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = () => { const v = b.dataset.show; emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); sound.play('flip'); }; });
+    el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = async () => { const v = b.dataset.show; const r = await emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); if (r.ok === false) return; sound.play('flip1'); if (st.me) seatBubble(st.me.id, '패 공개!'); toast(v === 'both' ? '내 패 두 장을 모두에게 보여줬어요' : '고른 한 장을 모두에게 보여줬어요', 'ok'); S.shownHand = st.hand && st.hand.no; }; });
     const rb = el.querySelector('#rabbit-btn');
     if (rb) rb.onclick = () => { rb.disabled = true; emit('game:rabbit'); };
     el.querySelectorAll('[data-manner]').forEach((b) => { b.onclick = () => { b.disabled = true; emit('room:chat', { text: b.dataset.manner }); sound.play('tap'); }; });
@@ -3690,8 +3755,10 @@ function finishedExtrasHTML(st) {
   if (!h || !h.result || h.game === 'seotda' || !me) return '';
   const mp = st.players.find((p) => p.id === me.id);
   const out = [];
+  if (!me.canShow && S.shownHand === h.no) out.push('<div class="shown-note">✓ 내 패를 모두에게 보여줬어요</div>');
   if (me.canShow && mp && mp.cards && mp.cards[0] !== '??') {
     const done = me.shownOne || [];
+    if (done.length) out.push('<div class="shown-note">✓ 한 장을 보여줬어요</div>');
     out.push(`<div class="show-row"><span>내 패<br>보여주기</span>${mp.cards.map((c, i) => (done.includes(i) ? '' : `<button type="button" class="show-c" data-show="${i}">${cardHTML(c, { size: 'sm' })}<small>이 장만</small></button>`)).join('')}<button type="button" class="show-both" data-show="both">${done.length ? '나머지도' : '두 장 다'}</button></div>`);
   }
   if (h.canRabbit) out.push(`<button type="button" class="rabbit-btn" id="rabbit-btn">${IC('rabbit', 'ic-in')}남은 카드 보기<small>계속했다면 나왔을 카드</small></button>`);
@@ -3964,7 +4031,7 @@ function openMenuModal() {
         if (m === 'sitin') await emit('game:sitin');
         if (m === 'sitout') await emit('game:sitout');
         if (m === 'role') await emit('lobby:role', { spectator: me.role === 'player' });
-        if (m === 'end') { if (!confirm(st.room.tournament ? '게임을 끝내고 대기실로 돌아갈까요?' : '게임을 끝내고 정산할까요? (모두 대기실로 돌아가 정산표를 봐요)')) return; await emit('host:end'); }
+        if (m === 'end') { if (!confirm(st.room.settings.mode === 'tournament' ? '게임을 끝내고 대기실로 돌아갈까요?' : '게임을 끝내고 정산할까요? (모두 대기실로 돌아가 정산표를 봐요)')) return; const r = await emit('host:end'); if (r && r.scheduled) toast('이번 판이 끝나면 게임을 끝내고 정산할게요', 'info'); }
         if (m === 'leave') { await leaveRoom(); return; }
         closeModal();
       };
@@ -4512,4 +4579,4 @@ P.init({
 boot();
 
 // 디버그/검증용 (자동 테스트에서 상태 확인)
-window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, bigHandVideo, riverGlint, winGlow, pushPot, handTag, goHome, openColorHelp } };
+window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, bigHandVideo, riverGlint, winGlow, pushPot, handTag, goHome, openColorHelp, openRebuyPick, settlementHTML } };

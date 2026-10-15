@@ -727,14 +727,14 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     });
     socket.on('host:kick', handler((d) => { const { room, pid } = ctx(); room.kick(pid, d.id); }));
     socket.on('host:transfer', handler((d) => { const { room, pid } = ctx(); room.transferHost(pid, d.id); }));
-    socket.on('host:end', handler(() => { const { room, pid } = ctx(); room.endGame(pid); }));
+    socket.on('host:end', handler(() => { const { room, pid } = ctx(); return room.endGame(pid); }));
     socket.on('room:chat', handler((d) => { const { room, pid } = ctx(); room.say(pid, d.text); }));
     socket.on('game:show', handler((d) => { const { room, pid } = ctx(); room.showCards(pid, d && d.which); }));
     socket.on('game:rabbit', handler(() => { const { room, pid } = ctx(); room.rabbitHunt(pid); }));
     socket.on('room:history', handler(() => { const { room } = ctx(); return room.historyView(); }));
     socket.on('host:pause', handler((d) => { const { room, pid } = ctx(); room.setPause(pid, !!(d && d.on)); }));
     socket.on('game:act', handler((d) => { const { room, pid } = ctx(); room.act(pid, { type: d.type, amount: d.amount, x: d.x, y: d.y, index: d.index, cards: Array.isArray(d.cards) ? d.cards.slice(0, 3).map(String) : undefined }); }));
-    socket.on('game:rebuy', handler(() => {
+    socket.on('game:rebuy', handler((d) => {
       const { room, pid } = ctx();
       const w = room.wallet;
       if (w && w.pid === pid && !w.done) {
@@ -744,7 +744,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         try { room.rebuy(pid); } catch (e) { pro.cashOut(w.key, room.settings.rebuyAmount); throw e; }
         return { wallet: (pro.profileOf(w.key) || {}).wallet };
       }
-      room.rebuy(pid);
+      room.rebuy(pid, d && d.amount);
     }));
     socket.on('game:sitin', handler(() => { const { room, pid } = ctx(); room.sitIn(pid); }));
     socket.on('game:sitout', handler(() => { const { room, pid } = ctx(); room.sitOut(pid); }));

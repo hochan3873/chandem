@@ -2174,3 +2174,61 @@ body.in-room[data-theme="holdem"] .seat-pos { right: auto; left: -12px; top: aut
 body.in-room[data-theme="holdem"] .seat-right .seat-pos { left: auto; right: -12px; }
 body.in-room[data-theme="holdem"] .seat-me .seat-pos { left: -14px; }
 body.in-room[data-theme="holdem"] .blind-lbl { font-size: .68rem; padding: 1px 5px; border-radius: 99px; box-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+
+/* 리바인 금액 고르기 */
+.rebuy-pick { display: flex; flex-direction: column; gap: 12px; }
+.rp-amt { text-align: center; font-size: 1rem; color: #ffe8a8; }
+.rp-amt b { font: 900 2rem/1.1 var(--font); color: #ffe08a; }
+.rebuy-pick input[type=range] { width: 100%; accent-color: #e0a63a; }
+.rp-quick { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+
+/* 패 공개 */
+.card-pop { animation: flipIn .55s cubic-bezier(.3, .7, .3, 1) both, cardPop .9s ease-out .5s both !important; }
+@keyframes cardPop { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 224, 138, .9); } 40% { transform: scale(1.35); box-shadow: 0 0 0 4px rgba(255, 224, 138, .9), 0 0 18px rgba(255, 210, 110, .9); } 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(255, 224, 138, .7); } }
+.shown-note { width: 100%; text-align: center; font: 800 .82rem/1.4 var(--font); color: #7ee2a0; }
+
+/* ═══ 잘림 점검 ═══ */
+/* 족보 딱지가 붙어도 태그는 줄바꿈 (한 줄로 늘어나 화면 밖으로 잘리던 것) */
+body.in-room[data-theme="holdem"] .seat-tags, body.in-room[data-theme="holdem"] .seat-tags:has(.tag-hand) { flex-wrap: wrap; max-width: 104px; margin: 0 auto; row-gap: 2px; }
+/* 순위·배치 배지: 아바타 왼쪽 → 아바타 위 가운데 (왼쪽 끝 자리는 잘리고 오른쪽 자리는 카드를 가리던 것) */
+body.in-room[data-theme="holdem"] .seat-av .rk-badge { right: auto; left: 50%; top: -9px; transform: translateX(-50%); z-index: 3; }
+/* 가로 화면: 오른쪽 빈칸을 채팅 칸으로 */
+.game[data-orient="land"] .g-side { justify-content: flex-start; }
+.game[data-orient="land"] .g-me.me-tools { flex: 1 1 auto; min-height: 0 !important; align-content: flex-end; }
+.game[data-orient="land"] .chat-mini { flex: 1 1 100%; order: -1; min-height: 90px; max-height: none; justify-content: flex-end; overflow: hidden; padding: 6px 10px; gap: 3px; }
+.game[data-orient="land"] .chat-mini .cm-line { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+.game[data-orient="land"] .tool-btn { flex: 1; }
+/* 가로 화면 채팅 창: 오른쪽 조작 칸 너비에 맞춰서 (테이블을 가리지 않게) */
+body:has(.game[data-orient="land"]) .chat-sheet { width: clamp(280px, 33vw, 400px); }
+body:has(.game[data-orient="land"]) .chat-scrim { background: transparent; }
+/* 실력 분석 표: 한 줄에 '항목 - 값' (좁은 화면에서 글자가 세로로 쪼개지던 것) */
+.ana .stat-grid.pc-grid { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; row-gap: 0; }
+.ana .stat-grid.pc-grid > span, .ana .stat-grid.pc-grid > b { padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+.ana .stat-grid.pc-grid > b { text-align: right; white-space: nowrap; }
+
+/* 관전자 표시 */
+.tb-spec { display: block; margin: 1px auto 0; max-width: 100%; border: 1px solid rgba(255, 220, 150, .35); background: rgba(0, 0, 0, .35); color: #ffe8a8; border-radius: 99px; padding: 1px 10px; font: 700 .66rem/1.5 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.spec-list { display: flex; flex-direction: column; gap: 6px; }
+/* 홀덤 판 결과 배너: 바닥 카드를 가리지 않게 팟 자리에 작게 */
+body.in-room[data-theme="holdem"] .fx-banner.fx-win, body.in-room[data-theme="holdem"] .fx-banner.fx-mywin { top: 53%; min-width: 0; padding: 6px 18px 7px; border-width: 1.5px; background: rgba(20, 10, 4, .9); box-shadow: 0 0 18px rgba(232, 207, 148, .45), 0 8px 20px rgba(0, 0, 0, .6); }
+body.in-room[data-theme="holdem"] .fx-win .fx-title, body.in-room[data-theme="holdem"] .fx-mywin .fx-title { font-size: clamp(1rem, 5vw, 1.3rem) !important; }
+body.in-room[data-theme="holdem"] .fx-win .fx-sub, body.in-room[data-theme="holdem"] .fx-mywin .fx-sub { flex-direction: row; justify-content: center; align-items: baseline; gap: 8px; margin-top: 0; }
+body.in-room[data-theme="holdem"] .fx-win .fx-hand, body.in-room[data-theme="holdem"] .fx-mywin .fx-hand { font-size: .8rem; }
+body.in-room[data-theme="holdem"] .fx-win .fx-amt, body.in-room[data-theme="holdem"] .fx-mywin .fx-amt { font-size: 1.3rem; }
+/* 딜러 칩: 자리 안에, 카드 바로 아래 (다른 자리와 안 겹치게) */
+.seat > .dealer-chip { position: absolute; transform: none; left: calc(50% + 25px); top: 30px; z-index: 4; transition: none; }
+.seat-right > .dealer-chip { left: auto; right: calc(50% + 25px); }
+.seat-me > .dealer-chip { left: auto; right: calc(50% + 26px); top: 4px; }
+.seat > .dealer-chip b { width: 24px; height: 24px; font-size: .82rem; }
+/* 가로 화면: 높이가 낮아서 자리를 조금 작게 (위아래 자리끼리 겹치지 않게) */
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-av .avatar { width: 38px; height: 38px; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-name { font-size: .64rem; padding: 0 6px; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-stack { font-size: .64rem; padding: 0 6px 1px; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-wl { margin-top: 1px; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-wl b { font-size: .52rem; padding: 0 4px; line-height: 1.3; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-tags .tag { font-size: .56rem; padding: 0 4px; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-cards { left: calc(50% + 18px); top: -2px; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-right .seat-cards { left: auto; right: calc(50% + 18px); }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-cards .card-xs { --w: 19px; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat > .dealer-chip { left: calc(50% + 20px); top: 26px; }
+body.in-room[data-theme="holdem"] .game[data-orient="land"] .seat-right > .dealer-chip { left: auto; right: calc(50% + 20px); }
