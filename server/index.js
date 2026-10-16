@@ -627,7 +627,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         room.creatorIp = ip;
         wire(room);
         rooms.set(code, room);
-        const { player } = room.join({ name: payload.name, password: settings.password, avatar: payload.avatar, photo: payload.photo, user });
+        const { player } = room.join({ name: payload.name, password: settings.password, avatar: payload.avatar, photo: payload.photo, user, ip });
         bind(room, player.id);
         broadcast(room);
         reply(ack, { ok: true, code, playerId: player.id, token: player.token });
@@ -643,7 +643,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       try {
         const room = rooms.get(String(payload.code || '').toUpperCase());
         if (!room) throw new RoomError('방을 찾을 수 없어요. 코드를 확인해 주세요');
-        const joined = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar, photo: payload.photo, user, seat: payload.seat });
+        const joined = room.join({ name: payload.name, password: payload.password, spectator: payload.spectator, avatar: payload.avatar, photo: payload.photo, user, seat: payload.seat, ip: clientIp(socket) });
         const { player, pending } = joined;
         if (room.isDaily) { const pr = pro.profile({ user, guest: payload.guest }, payload.name); if (pr) player.proKey = pr.key; }
         if (player.movedTo && rooms.get(player.movedTo)) {

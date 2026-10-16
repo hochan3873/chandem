@@ -1824,7 +1824,39 @@ document.addEventListener('click', (e) => {
   const tray = document.getElementById('emote-tray');
   if (tray && !e.target.closest('#emote-tray') && !e.target.closest('#emote-btn')) tray.hidden = true;
 });
+// 빨리빨리(재촉): 지금 차례인 사람(봇 빼고)에게만, 내 차례가 아닐 때
+function hurryBtnHTML(st, h) {
+  const t = h && h.toActId && st.players.find((p) => p.id === h.toActId);
+  if (!t || t.bot || t.isBot || !st.me || st.me.id === t.id) return '';
+  return ` <button type="button" class="hurry-btn" data-hurry>빨리빨리!</button>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-hurry]');
+  if (!b || S.view !== 'room') return;
+  b.disabled = true;
+  const r = await emit('game:emote', { kind: 'hurry' });
+  if (!r.ok) toast(r.message, 'info');
+  setTimeout(() => { b.disabled = false; }, 8000);
+});
+function showHurry(e) {
+  if (S.view !== 'room' || (S.muted && S.muted.has(e.fromId))) return;
+  const mine = S.state && S.state.me && S.state.me.id === e.id;
+  const seat = document.querySelector(`.omok-player[data-id="${e.id}"]`) || document.querySelector(`.seat[data-id="${e.id}"] .seat-av`) || (mine ? document.querySelector('.me-name') || document.getElementById('g-actions') : null);
+  if (seat) {
+    const el = document.createElement('div');
+    el.className = 'fx-emote fx-hurry';
+    el.innerHTML = `<span class="emote-say">빨리빨리!</span><small>${esc(e.from)}님이 재촉해요</small>`;
+    const r = seat.getBoundingClientRect();
+    el.style.left = Math.max(70, Math.min(innerWidth - 70, r.left + r.width / 2)) + 'px';
+    el.style.top = (r.top + r.height / 2) + 'px';
+    fxLayer().appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+  }
+  sound.play('tick'); setTimeout(() => sound.play('tick'), 140); setTimeout(() => sound.play('tick'), 280);
+  if (mine) { gws.vibrate([90, 60, 90, 60, 90]); toast(`${e.from}님이 빨리빨리! 하고 재촉해요`, 'info'); }
+}
 socket.on('emote', (e) => {
+  if (e.kind === 'hurry') return showHurry(e);
   const kind = EMOTE_ALIAS[e.kind] || e.kind;
   const def = EMOTES.find((x) => x[0] === kind);
   if (!def || S.view !== 'room' || (S.muted && S.muted.has(e.id))) return;
@@ -3485,7 +3517,7 @@ function renderOmok(st) {
   } else if (h.finished) {
     actEl.innerHTML = '<div class="wait-line"><span data-next>다음 판을 준비하고 있어요</span></div>';
   } else {
-    actEl.innerHTML = `<div class="wait-line"><b>${esc(nameOf(h.toActId))}</b>님이 생각 중이에요 · <span data-deadline-text>남은 시간 -</span></div>
+    actEl.innerHTML = `<div class="wait-line"><b>${esc(nameOf(h.toActId))}</b>님이 생각 중이에요 · <span data-deadline-text>남은 시간 -</span>${hurryBtnHTML(st, h)}</div>
       <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>`;
   }
   const place = (x, y) => { S.omokPreview = null; doAct({ type: 'place', x, y }); };
@@ -4017,7 +4049,7 @@ function renderActions(st) {
     const canPre = h.game !== 'seotda' && mineP && mineP.status === 'inhand';
     // 미리 고르기 (내 차례가 오면 바로): 체크/폴드 · 콜 아무거나
     if (!canPre || (S.pre && S.pre.hand !== h.no)) S.pre = null;
-    el.innerHTML = `<div class="wait-line"><b>${esc(turnName)}</b>님 차례예요 · <span data-deadline-text>남은 시간 -</span></div>
+    el.innerHTML = `<div class="wait-line"><b>${esc(turnName)}</b>님 차례예요 · <span data-deadline-text>남은 시간 -</span>${hurryBtnHTML(st, h)}</div>
       <div class="timebar"><div class="timebar-fill" data-deadline-bar></div></div>
       ${canPre ? `<div class="pre-row"><button class="pre-btn ${S.pre && S.pre.kind === 'cf' ? 'on' : ''}" data-pre="cf">체크 / 폴드</button><button class="pre-btn ${S.pre && S.pre.kind === 'cc' ? 'on' : ''}" data-pre="cc">체크 / 콜</button></div>` : ''}`;
     el.querySelectorAll('[data-pre]').forEach((b) => {

@@ -231,3 +231,43 @@ test('쇼다운: 이긴 사람·진 사람 패가 모두 공개되고, 그래서
   assert.equal(room.feed.length, before);
   room.clearAllTimers();
 });
+
+test('일반 게임: 닉네임을 바꿔 다시 들어와도 같은 인터넷(IP)이면 같은 사람 → 리바인 다 썼으면 못 앉음', () => {
+  let T = 1_000_000;
+  const room = new Room({ code: 'TIPXXX', settings: sanitizeSettings({ sb: 10, bb: 20, startChips: 1000, maxPlayers: 9, rebuyMax: 1 }), now: () => T, pace: 0.001 });
+  const ps = ['1.1.1.1', '2.2.2.2', '3.3.3.3'].map((ip, i) => { const { player } = room.join({ name: 'P' + i, ip }); room.connect(player.id); player.ready = true; return player; });
+  room.hostId = ps[0].id;
+  room.start(ps[0].id);
+  foldOut(room);
+  const B = ps[1];
+  B.stack = 0; B.rebuys = 1;
+  room.leave(B.id);
+  const { player: B2 } = room.join({ name: '새이름', ip: '2.2.2.2' });
+  assert.equal(B2.rebuys, 1);
+  assert.equal(B2.role, 'spectator');
+  assert.throws(() => room.setRole(B2.id, false), /리바인도 다 써서/);
+  // 다른 IP의 새 친구는 그냥 새로 참가
+  const { player: D } = room.join({ name: '새친구', ip: '9.9.9.9' });
+  assert.equal(D.rebuys, 0);
+  assert.equal(D.role, 'player');
+  room.clearAllTimers();
+});
+
+test('빨리빨리: 지금 차례인 사람에게만 · 8초에 한 번 · 내 차례면 안 됨', () => {
+  const { room, ps, tick } = cash(3);
+  const got = [];
+  room.onEmote = (e) => got.push(e);
+  room.start(ps[0].id);
+  const cur = room.hand.currentId;
+  const other = ps.find((p) => p.id !== cur);
+  room.emote(other.id, 'hurry');
+  assert.equal(got.length, 1);
+  assert.equal(got[0].id, cur);
+  assert.equal(got[0].from, other.name);
+  assert.throws(() => room.emote(other.id, 'hurry'), /조금 있다가/);
+  assert.throws(() => room.emote(cur, 'hurry'), /내 차례/);
+  tick(9000);
+  room.emote(other.id, 'hurry');
+  assert.equal(got.length, 2);
+  room.clearAllTimers();
+});
