@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
 const AWAY_SKIP_MS = 60 * 1000;       // 이만큼 끊긴 사람은 다음 판에서 제외(자리 비움)
+const AWAY_KICK_MS = 5 * 60 * 1000;   // 친구 방: 자리 비움·연결 끊김이 이만큼 이어지면 판이 끝날 때 방에서 내보냄
 const AWAY_ACT_MS = 8 * 1000;
 const PHASE_MS = 10 * 1000;           // 세 장 섯다: 공개할 카드 · 두 장 고르기 시간         // 자리 비움인데 화면은 켜져 있으면: 차례에 8초 동안 직접 할 수 있게 기다린다
 const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // 결과를 보여준 뒤 다음 판까지
@@ -426,8 +427,10 @@ class Room {
       const ex = this.players.find((x) => x.userId === user.id && !x.leaving && !x.isBot);
       if (ex) { this.touch(); return { player: ex, pending: false, resumed: true }; }
     }
+    const back = this.departedOf(user, name);
     const uname = this.uniqueName(name);
     const p = this.createPlayer(uname, true, avatar);
+    if (back) p.backFrom = back.id; // 게임 중에 나갔다 온 사람: 들어오면(admit) 칩·리바인 횟수를 이어받는다
     this.setPhoto(p, photo);
     if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; if (user.isMaster) p.isMaster = true; }
     if (masterPeek) p.masterPeek = true;
@@ -445,8 +448,40 @@ class Room {
     return { player: p, pending: false };
   }
 
+  /** 이번 게임 중에 나간 기록 (같은 계정, 손님은 같은 닉네임) — 친구 방 일반 게임만 */
+  departedOf(user, name) {
+    if (this.phase !== 'playing' || this.isTournament || this.wallet || this.practice) return null;
+    const list = this.departed || [];
+    if (user) return list.find((d) => d.userId === user.id) || null;
+    const nm = String(name || '').trim();
+    return list.find((d) => !d.userId && d.name === nm) || null;
+  }
+
+  /** 나갔다 온 사람: 가지고 나간 칩·바이인·리바인 횟수를 그대로 (나갔다 오면 리바인이 다시 생기던 문제) */
+  restoreDeparted(p) {
+    const id = p.backFrom;
+    delete p.backFrom;
+    const d = id && (this.departed || []).find((x) => x.id === id);
+    if (!d || this.phase !== 'playing') return;
+    this.departed = this.departed.filter((x) => x !== d);
+    p.stack = d.out;
+    p.totalBuyIn = d.buyIn;
+    p.rebuys = d.rebuys || 0;
+    p.wasBack = true;
+    // 칩도 없고 리바인도 다 썼으면 이번 게임엔 앉을 수 없다
+    if (p.stack <= 0 && !(this.settings.rebuyEnabled && p.rebuys < this.settings.rebuyMax)) p.wantSpectator = true;
+  }
+
+  /** 앉을 수 없는 이유 (칩도 리바인도 다 쓴 사람) */
+  seatBlock(p) {
+    if (this.phase !== 'playing' || this.isTournament || !p.wasBack || p.stack > 0) return null;
+    if (this.settings.rebuyEnabled && (p.rebuys || 0) < this.settings.rebuyMax) return null;
+    return '칩을 다 잃고 리바인도 다 써서 이번 게임엔 앉을 수 없어요 (관전만)';
+  }
+
   admit(p) {
     this.players.push(p);
+    if (p.backFrom) this.restoreDeparted(p);
     const want = !p.wantSpectator;
     if (want) this.takeSeat(p, p.wantSeat);
     delete p.wantSpectator; delete p.wantSeat;
@@ -455,7 +490,9 @@ class Room {
       if (t) { this.pushFeed(`${p.name}님 늦은 참가 → 테이블 ${t.tourney.tableNo}`); this.touch(); return; }
     }
     if (!this.hostId) this.hostId = p.id;
-    this.pushFeed(`${p.name}님이 ${p.role === 'player' ? '참가' : '관전하러 입장'}했어요`);
+    this.pushFeed(p.wasBack
+      ? `${p.name}님이 다시 왔어요 · 칩 ${p.stack.toLocaleString()} · 리바인 ${p.rebuys}/${this.settings.rebuyMax} 그대로${p.role === 'player' ? '' : ' (관전)'}`
+      : `${p.name}님이 ${p.role === 'player' ? '참가' : '관전하러 입장'}했어요`);
     this.maybeStartWaitingHand();
     this.touch();
   }
@@ -525,6 +562,8 @@ class Room {
       if (p.role === 'player') return;
       if (this.phase === 'playing' && this.isTournament && !this.reentryOpen()) throw new RoomError('늦은 참가 시간이 지나서 관전만 할 수 있어요');
       if (this.phase === 'playing' && this.isTournament && (this.tourney.busted.includes(p.id) || (p.totalBuyIn || 0) > 0) && (p.rebuys || 0) >= this.settings.rebuyMax) throw new RoomError(`리바이는 1인 ${this.settings.rebuyMax}번까지예요`);
+      const block = this.seatBlock(p);
+      if (block) throw new RoomError(block);
       if (this.settings.approval && this.phase === 'playing' && p.id !== this.hostId && this.players.some((x) => !x.isBot && x.id !== p.id)) {
         // '참가 승인' 방이면 게임 중에 관전하다 앉으려면 방장이 받아 줘야 한다
         if (this.freeSeat() === null) throw new RoomError('빈 자리가 없어요');
@@ -744,6 +783,7 @@ class Room {
     this.nextHandAt = null;
     // 판과 판 사이: 나간 사람 정리, 리바인 적용
     this.players = this.players.filter((p) => !p.leaving);
+    this.kickAway();
     // 판 도중 '관전으로 남기'를 고른 사람: 이제 관전석으로 (칩은 그대로 보관)
     for (const p of this.players) {
       if (p.pendingSpectate) { p.pendingSpectate = false; p.role = 'spectator'; p.seat = null; if (!p.isBot) p.ready = false; }
@@ -1044,6 +1084,7 @@ class Room {
       if (p.timeouts >= MAX_TIMEOUTS && !p.sittingOut) {
         p.sittingOut = true;
         p.awayReason = 'timeout';
+        p.awaySince = this.now();
         this.pushFeed(`${p.name}님은 자리 비움으로 바뀌었어요 (차례가 오면 자동 체크/다이)`);
       }
     }
@@ -1256,6 +1297,22 @@ class Room {
     this.touch();
   }
 
+  /** 친구 방 일반 게임: 자리 비움·연결 끊김이 AWAY_KICK_MS 넘게 이어진 사람은 방에서 내보낸다 (칩·리바인 기록은 남아서 돌아오면 이어받음) */
+  kickAway() {
+    if (this.phase !== 'playing' || this.isTournament || this.wallet || this.practice || this.settings.game === 'omok') return;
+    const t = this.now();
+    for (const p of this.seated.slice()) {
+      if (p.isBot) continue;
+      if (!p.sittingOut) p.awaySince = null;
+      else if (!p.awaySince) p.awaySince = t;
+      const since = p.sittingOut ? p.awaySince : !p.connected ? p.disconnectedAt : null;
+      if (!since || t - since < AWAY_KICK_MS) continue;
+      const msg = `자리를 ${Math.round(AWAY_KICK_MS / 60000)}분 넘게 비워서 방에서 나왔어요 (다시 들어오면 칩·리바인은 그대로예요)`;
+      this.leftNote = { ...(this.leftNote || {}), [p.id]: msg };
+      this.leave(p.id, `자리를 ${Math.round(AWAY_KICK_MS / 60000)}분 넘게 비워 방에서 나갔어요`);
+    }
+  }
+
   sitIn(id) {
     const p = this.get(id);
     if (!p) return;
@@ -1273,6 +1330,7 @@ class Room {
     if (!p || p.role !== 'player') return;
     p.sittingOut = true;
     p.awayReason = 'self';
+    p.awaySince = this.now();
     this.pushFeed(`${p.name}님이 자리를 비웠어요 (차례가 오면 자동 체크/다이)`);
     // 지금 내 차례였다면 바로 자동 처리되도록 타이머를 다시 건다
     if (this.hand && !this.hand.finished && this.hand.currentId === id) this.afterHandChange();
@@ -1349,7 +1407,7 @@ class Room {
     // 일반 게임 중에 나간 사람도 정산에 남긴다 (가지고 나간 칩)
     if (this.phase === 'playing' && !this.isTournament && !p.isBot && p.totalBuyIn > 0) {
       this.departed = (this.departed || []).filter((d) => d.id !== p.id);
-      this.departed.push({ id: p.id, name: p.name, buyIn: p.totalBuyIn, out: p.stack + (p.pendingRebuy || 0), left: true });
+      this.departed.push({ id: p.id, name: p.name, userId: p.userId || null, rebuys: p.rebuys || 0, buyIn: p.totalBuyIn, out: p.stack + (p.pendingRebuy || 0), left: true });
     }
     if (id === this.hostId) {
       const next = this.pickNextHost(id) || this.players.find((x) => x.id !== id && !x.leaving && !x.isBot);
