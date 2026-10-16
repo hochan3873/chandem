@@ -61,6 +61,10 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   const s = { ...base };
   const src = input || {};
   s.startChips = Math.min(10000000, Math.max(100, int(src.startChips, base.startChips)));
+  // 돈 방식: 'chips' 게임머니(칩으로만) · 'won' 실제 금액(모두 같은 금액, 칩 1개 = 1원, 리바인도 같은 금액, 정산표에 원)
+  s.money = src.money === undefined ? (base.money || 'chips') : src.money === 'won' ? 'won' : 'chips';
+  s.buyWon = Math.min(10000000, Math.max(1000, int(src.buyWon, base.buyWon || 10000)));
+  if (s.money === 'won') s.startChips = s.buyWon;
   s.sb = Math.max(1, int(src.sb, base.sb));
   s.bb = Math.max(s.sb, int(src.bb, base.bb));
   if (s.bb > s.startChips) throw new RoomError('빅 블라인드는 시작 칩보다 클 수 없어요');
@@ -98,6 +102,11 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.prizes = [0, 1, 2, 3].map((i) => String(pz[i] || '').replace(/\s+/g, ' ').trim().slice(0, 24));
   if (s.mode !== 'tournament') s.maxPlayers = Math.min(10, s.maxPlayers);
   s.minPlayers = Math.min(s.maxPlayers, s.minPlayers);
+  if (s.money === 'won' && (s.mode === 'tournament' || s.game === 'omok')) s.money = 'chips'; // 실제 금액은 일반 게임만
+  if (s.money === 'won') {
+    s.rebuyAmount = s.buyWon; s.rebuyFlex = false;
+    s.settlePer = 1; s.settleValue = 1; s.settleUnit = '원';
+  }
   if (s.mode === 'tournament') {
     // 토너먼트: 칩을 다 잃으면 탈락. 리바이는 정한 레벨까지만, 금액은 시작 칩
     s.rebuyEnabled = s.reentryLevels > 0;
@@ -228,9 +237,9 @@ class Room {
   get host() { return this.get(this.hostId); }
   name(id) { const p = this.get(id); return p ? p.name : '(나간 사람)'; }
 
-  uniqueName(raw) {
+  uniqueName(raw, ignoreLeaving = false) {
     const base = cleanName(raw);
-    const taken = new Set([...this.players, ...this.pending].map((p) => p.name));
+    const taken = new Set([...this.players, ...this.pending].filter((p) => !(ignoreLeaving && p.leaving)).map((p) => p.name));
     if (!taken.has(base)) return base;
     for (let i = 2; ; i++) {
       const cand = `${base} (${i})`;
@@ -446,7 +455,7 @@ class Room {
       if (ex) { this.touch(); return { player: ex, pending: false, resumed: true }; }
     }
     const back = this.departedOf(user, name, ip);
-    const uname = this.uniqueName(name);
+    const uname = this.uniqueName(name, !!back); // 나갔다 온 사람: 판이 끝나기 전이라 예전 자리가 아직 남아 있어도 같은 이름 그대로 ('지훈 (2)' 안 되게)
     const p = this.createPlayer(uname, true, avatar);
     if (ip) p.ip = ip;
     if (back) p.backFrom = back.id; // 게임 중에 나갔다 온 사람: 들어오면(admit) 칩·리바인 횟수를 이어받는다

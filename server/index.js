@@ -481,7 +481,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       maxPlayers: r.settings.maxPlayers,
       hasPassword: !!r.settings.password,
       approval: r.settings.approval,
-      settings: { startChips: r.settings.startChips, sb: r.settings.sb, bb: r.settings.bb },
+      settings: { startChips: r.settings.startChips, sb: r.settings.sb, bb: r.settings.bb, money: r.settings.money || 'chips' },
       // 초대 링크 화면에서 빈자리를 고를 수 있게: 자리 수와 앉은 사람
       tableSeats: r.tableSeats, game: r.settings.game || 'holdem',
       seats: r.seated.map((p) => ({ seat: p.seat, name: p.name, avatar: p.avatar, bot: !!p.isBot })),

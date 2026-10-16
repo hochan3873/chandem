@@ -271,3 +271,16 @@ test('빨리빨리: 지금 차례인 사람에게만 · 8초에 한 번 · 내 �
   assert.equal(got.length, 2);
   room.clearAllTimers();
 });
+
+test('돈 방식 · 실제 금액: 시작 칩 = 리바인 = 1인 금액, 정산표는 원 (토너먼트는 게임머니로)', () => {
+  const s = sanitizeSettings({ money: 'won', buyWon: 20000, sb: 100, bb: 200, startChips: 1000, rebuyAmount: 500, rebuyFlex: true });
+  assert.equal(s.money, 'won');
+  assert.equal(s.startChips, 20000);
+  assert.equal(s.rebuyAmount, 20000);
+  assert.equal(s.rebuyFlex, false);
+  assert.deepEqual([s.settlePer, s.settleValue, s.settleUnit], [1, 1, '원']);
+  const t = sanitizeSettings({ money: 'won', mode: 'tournament', startChips: 1500 });
+  assert.equal(t.money, 'chips');
+  assert.equal(sanitizeSettings({}).money, 'chips');
+  assert.equal(sanitizeSettings({ sessionMinutes: 10 }).sessionMinutes, 10);
+});
