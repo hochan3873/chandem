@@ -863,12 +863,14 @@ function openLife(kind) {
       ${(me.titles || []).length ? `<h3 class="sub-title">칭호</h3><ul class="ana-tips">${me.titles.map((t) => `<li>${IC('crown', 'ic-in')}${esc(t)}</li>`).join('')}</ul>` : ''}`, null, { wide: true });
   } else if (kind === 'shop') {
     const it = me.items;
-    const card = (x) => `<button class="shop-it ${it.owned.includes(x.id) ? 'owned' : ''} ${it[x.kind] === x.id ? 'on' : ''}" data-buy="${x.id}" type="button">
+    const card = (x) => `<button class="shop-it ${it.owned.includes(x.id) ? 'owned' : ''} ${it[x.kind] === x.id ? 'on' : ''} ${x.lux ? 'lux' : ''}" data-buy="${x.id}" type="button">
       <span class="shop-prev k-${x.kind}" data-v="${x.id}">${x.kind === 'back' ? '<i class="card card-md card-back"><span class="card-back-mark">찬</span></i>' : '<i></i>'}</span>
-      <b>${esc(x.name)}</b><small>${it[x.kind] === x.id ? '사용 중' : it.owned.includes(x.id) ? '가지고 있음 · 끼우기' : x.price ? `${fmt(x.price)}칩` : '기본'}</small></button>`;
+      ${x.lux ? '<em class="shop-lux">고급</em>' : ''}<b>${esc(x.name)}</b><small>${it[x.kind] === x.id ? '사용 중' : it.owned.includes(x.id) ? '가지고 있음 · 끼우기' : x.price ? `${fmt(x.price)}칩` : '기본'}</small></button>`;
     openModal('꾸미기 상점', `<p class="muted small">칩으로 사면 바로 적용돼요 · 내 칩 <b>${fmt(me.wallet)}</b></p>
-      <h3 class="sub-title">카드 뒷면</h3><div class="shop-grid">${it.shop.filter((x) => x.kind === 'back').map(card).join('')}</div>
-      <h3 class="sub-title">테이블 색</h3><div class="shop-grid">${it.shop.filter((x) => x.kind === 'felt').map(card).join('')}</div>`, (b) => {
+      <h3 class="sub-title">고급 카드 뒷면</h3><div class="shop-grid">${it.shop.filter((x) => x.kind === 'back' && x.lux).map(card).join('')}</div>
+      <h3 class="sub-title">고급 테이블</h3><div class="shop-grid">${it.shop.filter((x) => x.kind === 'felt' && x.lux).map(card).join('')}</div>
+      <h3 class="sub-title">카드 뒷면</h3><div class="shop-grid">${it.shop.filter((x) => x.kind === 'back' && !x.lux).map(card).join('')}</div>
+      <h3 class="sub-title">테이블 색</h3><div class="shop-grid">${it.shop.filter((x) => x.kind === 'felt' && !x.lux).map(card).join('')}</div>`, (b) => {
       b.querySelectorAll('[data-buy]').forEach((x) => { x.onclick = async () => {
         const item = it.shop.find((y) => y.id === x.dataset.buy);
         if (!it.owned.includes(item.id) && !confirm(`${item.name}을(를) ${fmt(item.price)}칩에 살까요?`)) return;

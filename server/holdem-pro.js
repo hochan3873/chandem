@@ -88,6 +88,22 @@ const SHOP = [
   { id: 'felt-blue', kind: 'felt', name: '로열 블루', price: 35000 },
   { id: 'felt-purple', kind: 'felt', name: '퍼플 나이트', price: 50000 },
   { id: 'felt-black', kind: 'felt', name: '블랙 다이아', price: 80000 },
+  // 고급(그림) — Gemini 로 그린 무늬
+  { id: 'back-deco', kind: 'back', name: '아르데코 왕관', price: 120000, lux: true },
+  { id: 'back-damask', kind: 'back', name: '실버 다마스크', price: 100000, lux: true },
+  { id: 'back-emerald', kind: 'back', name: '에메랄드 대리석', price: 150000, lux: true },
+  { id: 'back-dragon', kind: 'back', name: '황금 쌍용', price: 200000, lux: true },
+  { id: 'back-rose', kind: 'back', name: '로즈골드 하트', price: 120000, lux: true },
+  { id: 'back-neon', kind: 'back', name: '네온 사이버', price: 150000, lux: true },
+  { id: 'back-dancheong', kind: 'back', name: '단청 태극', price: 180000, lux: true },
+  { id: 'back-crystal', kind: 'back', name: '크리스털 왕관', price: 250000, lux: true },
+  { id: 'felt-damask', kind: 'felt', name: '에메랄드 다마스크', price: 150000, lux: true },
+  { id: 'felt-wave', kind: 'felt', name: '청록 물결', price: 150000, lux: true },
+  { id: 'felt-fleur', kind: 'felt', name: '버건디 백합', price: 180000, lux: true },
+  { id: 'felt-leather', kind: 'felt', name: '블랙 가죽', price: 200000, lux: true },
+  { id: 'felt-cloud', kind: 'felt', name: '주홍 구름 비단', price: 220000, lux: true },
+  { id: 'felt-galaxy', kind: 'felt', name: '은하수', price: 250000, lux: true },
+  { id: 'felt-marble', kind: 'felt', name: '카라라 대리석', price: 300000, lux: true },
 ];
 const REFER_REWARD = 5000; const REFER_MAX = 20;
 // 정기 토너먼트: 매일 밤 9시(한국 시간) · 10분 전부터 등록 · 상금은 지갑으로

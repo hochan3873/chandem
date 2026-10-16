@@ -111,3 +111,20 @@ test('연습 테이블: 지갑에서 바이인 → 상주 플레이어 칩은 �
     s.close();
   } finally { await srv.close(); }
 });
+
+test('고급 꾸미기: 그림 파일과 CSS 가 모두 있고 값은 기본보다 비싸다', () => {
+  const fs = require('fs'); const path = require('path');
+  const { SHOP } = require('../server/holdem-pro');
+  const css = fs.readFileSync(path.join(__dirname, '../public/css/style.css'), 'utf8');
+  const lux = SHOP.filter((x) => x.lux);
+  assert.ok(lux.length >= 15);
+  const plain = Math.max(...SHOP.filter((x) => !x.lux).map((x) => x.price));
+  for (const it of lux) {
+    assert.ok(it.price > plain, it.id);
+    const key = it.kind === 'back' ? `body[data-back="${it.id}"] .card-back` : `body[data-felt="${it.id}"] .felt::before`;
+    const rule = css.split('\n').find((l) => l.startsWith(key) && l.includes('url('));
+    assert.ok(rule, `${it.id} CSS`);
+    const img = rule.match(/url\('\/(img\/holdem\/cos\/[^']+)'\)/)[1];
+    assert.ok(fs.existsSync(path.join(__dirname, '../public', img)), img);
+  }
+});
