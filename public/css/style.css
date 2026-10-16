@@ -2502,3 +2502,8 @@ body[data-felt="felt-marble"] .felt::before, .shop-prev[data-v="felt-marble"] i 
 .fx-hurry { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 1rem; animation-duration: 2.3s; pointer-events: none; }
 .fx-hurry .emote-say { padding: 6px 14px; border-radius: 14px; background: #ff6a3d; color: #fff; font-size: 1.15rem; font-weight: 800; white-space: nowrap; animation: shake .35s .2s 3; }
 .fx-hurry small { padding: 1px 8px; border-radius: 8px; background: rgba(0, 0, 0, .6); color: #fff; font-size: .72rem; white-space: nowrap; }
+
+/* 돈 방식: 게임머니 / 실제 금액 */
+form:not([data-money="won"]) .money-won-only { display: none !important; }
+form[data-money="won"]:not([data-mode="tournament"]) .money-chips-only { display: none !important; }
+form[data-mode="tournament"] .money-won-only { display: none !important; }

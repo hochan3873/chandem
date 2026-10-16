@@ -1988,16 +1988,16 @@ function onChat(st, first) {
 function chatBubble(m) {
   if (S.view !== 'room') return;
   const seat = document.querySelector(`.seat[data-id="${m.id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === m.id ? document.querySelector('.me-name') : null);
+  // 자리가 없는 사람(죽어서 관전으로 빠진 사람·관전자)의 말은 테이블 가운데 띄우지 않고 채팅창에만
+  if (!seat) return;
   document.querySelectorAll(`.fx-chat[data-from="${CSS.escape(String(m.id))}"]`).forEach((x) => x.remove()); // 같은 사람 말풍선은 새 것만
   const el = document.createElement('div');
   el.className = 'fx-chat';
   el.dataset.from = m.id;
   el.innerHTML = `<b>${esc(m.name)}</b> ${esc(m.text)}`;
-  if (seat) {
-    const r = seat.getBoundingClientRect();
-    el.style.left = Math.max(70, Math.min(innerWidth - 70, r.left + r.width / 2)) + 'px';
-    el.style.top = Math.max(50, r.top - 6) + 'px';
-  } else { el.style.left = '50%'; el.style.top = '22%'; }
+  const r = seat.getBoundingClientRect();
+  el.style.left = Math.max(70, Math.min(innerWidth - 70, r.left + r.width / 2)) + 'px';
+  el.style.top = Math.max(50, r.top - 6) + 'px';
   fxLayer().appendChild(el);
   setTimeout(() => el.remove(), 4200);
 }
@@ -2560,7 +2560,7 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <select class="input" name="timeBank">${[[0, '없음'], [15, '15초'], [30, '30초'], [60, '60초'], [90, '90초']].map(([v, t]) => `<option value="${v}" ${Number(s.timeBank === undefined ? 30 : s.timeBank) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
   </fieldset>
   <div class="grid2 chips-only">
-    <label class="field"><span>시작 칩</span><input class="input" type="number" inputmode="numeric" name="startChips" min="100" value="${s.startChips}"></label>
+    <label class="field money-chips-only"><span>시작 칩</span><input class="input" type="number" inputmode="numeric" name="startChips" min="100" value="${s.startChips}"></label>
     <label class="field"><span>턴 제한시간(초)</span><input class="input" type="number" inputmode="numeric" name="turnSeconds" min="10" max="120" value="${s.turnSeconds}"></label>
     <label class="field holdem-only-f"><span>스몰 블라인드</span><input class="input" type="number" inputmode="numeric" name="sb" min="1" value="${s.sb}"></label>
     <label class="field"><span><span class="holdem-only-f">빅 블라인드</span><span class="seotda-only-f">기본 판돈 (삥)</span></span><input class="input" type="number" inputmode="numeric" name="bb" min="1" value="${s.bb}"></label>
@@ -2568,21 +2568,28 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <label class="field"><span>최대 인원 <small class="muted">(토너먼트는 30명까지)</small></span><input class="input" type="number" inputmode="numeric" name="maxPlayers" min="2" max="30" value="${s.maxPlayers}"></label>
   </div>
   <fieldset class="fieldset chips-only cash-only">
-    <legend>게임 시간 · 정산</legend>
-    <label class="field"><span>게임 시간 <small class="muted">(지나면 그 판이 끝난 뒤 자동으로 정산)</small></span>
-      <select class="input" name="sessionMinutes">${[[0, '정하지 않음 (방장이 끝낼 때 정산)'], [30, '30분'], [60, '1시간'], [90, '1시간 30분'], [120, '2시간'], [180, '3시간']].map(([v, t]) => `<option value="${v}" ${Number(s.sessionMinutes || 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-    <div class="field"><span>정산 환산 <small class="muted">(선택 · 친구끼리 정한 값을 정산표에 같이 보여 줘요)</small></span>
+    <legend>돈 방식 · 게임 시간 · 정산</legend>
+    <div class="field-lbl">돈 방식</div>
+    <div class="seg">
+      <label class="seg-opt"><input type="radio" name="money" value="chips" ${s.money !== 'won' ? 'checked' : ''}><span>게임머니<small>칩으로만 · 돈 계산 없음</small></span></label>
+      <label class="seg-opt"><input type="radio" name="money" value="won" ${s.money === 'won' ? 'checked' : ''}><span>실제 금액<small>모두 같은 금액 · 정산표에 원</small></span></label>
+    </div>
+    <label class="field money-won-only"><span>1인 금액 <small class="muted">(시작 칩 = 리바인 금액 · 칩 1개 = 1원 · 블라인드는 금액에 맞춰 자동)</small></span>
+      <select class="input" name="buyWon">${[[5000, '5천 원'], [10000, '1만 원'], [20000, '2만 원'], [30000, '3만 원'], [50000, '5만 원'], [100000, '10만 원']].map(([v, t]) => `<option value="${v}" ${Number(s.buyWon || 10000) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="field"><span>게임 시간 <small class="muted">(지나면 그 판이 끝난 뒤 자동으로 끝나고 정산표가 떠요)</small></span>
+      <select class="input" name="sessionMinutes">${[[0, '무제한 (방장이 끝낼 때 정산)'], [10, '10분'], [20, '20분'], [30, '30분'], [45, '45분'], [60, '1시간'], [90, '1시간 30분'], [120, '2시간'], [180, '3시간'], [240, '4시간']].map(([v, t]) => `<option value="${v}" ${Number(s.sessionMinutes || 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <div class="field money-chips-only"><span>정산 환산 <small class="muted">(선택 · 친구끼리 정한 값을 정산표에 같이 보여 줘요)</small></span>
       <div class="settle-rate">칩 <input class="input" type="number" inputmode="numeric" name="settlePer" min="1" value="${s.settlePer || 1000}"> = <input class="input" type="number" inputmode="numeric" name="settleValue" min="0" value="${s.settleValue || ''}" placeholder="0"> <input class="input" name="settleUnit" maxlength="6" value="${esc(s.settleUnit || '')}" placeholder="단위"></div></div>
   </fieldset>
   <fieldset class="fieldset chips-only cash-only">
     <legend>리바인</legend>
     <label class="switch"><input type="checkbox" name="rebuyEnabled" ${s.rebuyEnabled ? 'checked' : ''}><span>리바인 허용</span></label>
     <div class="grid2">
-      <label class="field"><span>리바인 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyAmount" min="1" value="${s.rebuyAmount}"></label>
+      <label class="field money-chips-only"><span>리바인 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyAmount" min="1" value="${s.rebuyAmount}"></label>
       <label class="field"><span>1인당 최대 횟수</span><input class="input" type="number" inputmode="numeric" name="rebuyMax" min="1" max="99" value="${s.rebuyMax}"></label>
     </div>
-    <label class="switch"><input type="checkbox" name="rebuyFlex" ${s.rebuyFlex ? 'checked' : ''}><span>리바인 금액을 각자 정하기 <small class="muted">(아래 범위 안에서 신청하는 사람이 골라요)</small></span></label>
-    <div class="grid2 rebuy-range">
+    <label class="switch money-chips-only"><input type="checkbox" name="rebuyFlex" ${s.rebuyFlex ? 'checked' : ''}><span>리바인 금액을 각자 정하기 <small class="muted">(아래 범위 안에서 신청하는 사람이 골라요)</small></span></label>
+    <div class="grid2 rebuy-range money-chips-only">
       <label class="field"><span>최소 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyLo" min="1" value="${s.rebuyLo || Math.round((s.rebuyAmount || 1000) / 2)}"></label>
       <label class="field"><span>최대 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyHi" min="1" value="${s.rebuyHi || (s.rebuyAmount || 1000) * 2}"></label>
     </div>
@@ -2642,6 +2649,21 @@ function bindGamePick(form, name = 'game') {
   form.querySelectorAll(`input[name=${name}]`).forEach((r) => { r.onchange = upd; });
   upd();
   bindSd3(form);
+  bindMoney(form);
+}
+// 돈 방식: 실제 금액이면 1인 금액에 맞춰 블라인드를 자동으로 (1만 원 → 50/100)
+function bindMoney(form) {
+  const upd = (pick) => {
+    const won = (form.querySelector('input[name=money]:checked') || {}).value === 'won';
+    if (won) form.dataset.money = 'won'; else delete form.dataset.money;
+    if (!won || !pick) return;
+    const w = Number(form.buyWon.value) || 10000;
+    if (form.bb) form.bb.value = Math.max(2, Math.round(w / 100));
+    if (form.sb) form.sb.value = Math.max(1, Math.round(w / 200));
+  };
+  form.querySelectorAll('input[name=money]').forEach((r) => r.addEventListener('change', () => upd(true)));
+  if (form.buyWon) form.buyWon.addEventListener('change', () => upd(true));
+  upd(false);
 }
 // 세 장 섯다를 고르면 '세장섯다 공개' 칸을 보인다
 function bindSd3(form) {
@@ -2655,10 +2677,12 @@ function readSettings(form) {
   const num = (k) => Number(fd.get(k));
   // 섯다는 스몰 블라인드가 없다: 기본 판돈(삥) = 빅 블라인드 칸
   if ((fd.get('game') || form.dataset.game) === 'seotda') fd.set('sb', fd.get('bb'));
+  const won = fd.get('money') === 'won' && fd.get('mode') !== 'tournament';
   return {
-    startChips: num('startChips'), turnSeconds: num('turnSeconds'), sb: num('sb'), bb: num('bb'),
+    money: won ? 'won' : 'chips', buyWon: num('buyWon') || 10000,
+    startChips: won ? num('buyWon') || 10000 : num('startChips'), turnSeconds: num('turnSeconds'), sb: num('sb'), bb: num('bb'),
     minPlayers: num('minPlayers'), maxPlayers: num('maxPlayers'),
-    rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: num('rebuyAmount'), rebuyFlex: fd.get('rebuyFlex') === 'on', rebuyLo: num('rebuyLo') || undefined, rebuyHi: num('rebuyHi') || undefined, rebuyMax: fd.get('mode') === 'tournament' && fd.get('rebuyMaxT') ? num('rebuyMaxT') : num('rebuyMax'),
+    rebuyEnabled: fd.get('rebuyEnabled') === 'on', rebuyAmount: won ? num('buyWon') || 10000 : num('rebuyAmount'), rebuyFlex: !won && fd.get('rebuyFlex') === 'on', rebuyLo: num('rebuyLo') || undefined, rebuyHi: num('rebuyHi') || undefined, rebuyMax: fd.get('mode') === 'tournament' && fd.get('rebuyMaxT') ? num('rebuyMaxT') : num('rebuyMax'),
     password: String(fd.get('password') || ''), approval: fd.get('approval') === 'on',
     mode: fd.get('mode') === 'tournament' ? 'tournament' : 'cash', levelMinutes: num('levelMinutes') || 7,
     ante: fd.get('ante') === 'on' ? 'bb' : 'none', timeBank: fd.get('timeBank') === null ? 30 : num('timeBank'),
@@ -2817,7 +2841,7 @@ function renderJoin() {
       <ul class="facts">
         <li><span>방장</span><b>${esc(d.hostName || '-')}</b></li>
         <li><span>참가 인원</span><b>${d.players} / ${d.maxPlayers}명</b></li>
-        <li><span>시작 칩</span><b>${fmt(d.settings.startChips)}</b></li>
+        <li><span>${d.settings.money === 'won' ? '1인 금액' : '시작 칩'}</span><b>${fmt(d.settings.startChips)}${d.settings.money === 'won' ? '원' : ''}</b></li>
         <li><span>블라인드</span><b>${fmt(d.settings.sb)} / ${fmt(d.settings.bb)}</b></li>
         <li><span>상태</span><b>${d.phase === 'lobby' ? '대기실' : '게임 중 (다음 판부터 참가)'}</b></li>
       </ul>
@@ -2827,8 +2851,8 @@ function renderJoin() {
         ${d.hasPassword ? `<label class="field"><span>비밀번호</span><input class="input" name="password" maxlength="20" ${S.user && S.user.isMaster ? 'placeholder="마스터는 비워 두고 관전 가능"' : 'required'} autocomplete="off"></label>` : ''}
         ${S.user && S.user.isMaster && (d.hasPassword || d.approval) ? '<p class="muted small">마스터는 비밀번호·승인 없이 <b>관전</b>으로 바로 들어갈 수 있어요</p>' : ''}
         ${avatarPickerHTML()}
-        <label class="switch"><input type="checkbox" name="spectator" ${S.wantSpectate || d.phase === 'playing' || (S.user && S.user.isMaster && (d.hasPassword || d.approval)) ? 'checked' : ''}><span>관전만 할래요${d.phase === 'playing' ? ' (게임 중에는 바로 관전, 참가는 방장 승인)' : ''}</span></label>
-        ${d.approval || d.phase === 'playing' ? `<p class="muted small">${d.phase === 'playing' ? '게임이 진행 중이라 ' : ''}방장이 승인하면 들어갈 수 있어요.</p>` : ''}
+        <label class="switch"><input type="checkbox" name="spectator" ${S.wantSpectate || d.phase === 'playing' || (S.user && S.user.isMaster && (d.hasPassword || d.approval)) ? 'checked' : ''}><span>관전만 할래요${d.phase === 'playing' ? ' <small class="muted">(빈자리를 고르면 다음 판부터 참가)</small>' : ''}</span></label>
+        ${d.approval ? `<p class="muted small">${d.phase === 'playing' ? '게임이 진행 중이라 ' : ''}방장이 승인하면 들어갈 수 있어요.</p>` : ''}
         <button class="btn btn-gold btn-lg" type="submit">참가하기</button>
       </form>`}
       <button class="btn btn-ghost" id="home">처음 화면으로</button>
@@ -2904,14 +2928,17 @@ function statusBadges(p, st) {
 }
 
 function settingsSummaryHTML(s) {
+  const won = s.money === 'won' && s.mode !== 'tournament';
+  const sm = Number(s.sessionMinutes) || 0;
   return `<ul class="facts">
-    <li><span>시작 칩</span><b>${fmt(s.startChips)}</b></li>
+    <li><span>${won ? '돈 방식' : '시작 칩'}</span><b>${won ? `실제 금액 · 1인 ${fmt(s.startChips)}원` : fmt(s.startChips)}</b></li>
     <li><span>블라인드</span><b>${fmt(s.sb)} / ${fmt(s.bb)}</b></li>
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
     <li><span>리바인</span><b>${s.mode === 'tournament' ? (s.reentryLevels > 0 ? `레벨 ${s.reentryLevels}까지 · 1인 ${s.rebuyMax >= 99 ? '제한 없음' : `최대 ${s.rebuyMax}번`}` : '없음') : s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
     <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? `세 장 · ${s.sdOpen === 'one' ? '한 장 공개' : '공개 없음'}` : '두 장'})` : ''}</b></li>
     <li><span>방식</span><b>${s.mode === 'tournament' ? `토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
+    ${s.mode !== 'tournament' && s.game !== 'omok' ? `<li><span>게임 시간</span><b>${sm ? `${sm >= 60 ? `${Math.floor(sm / 60)}시간${sm % 60 ? ` ${sm % 60}분` : ''}` : `${sm}분`} · 끝나면 자동 정산` : '무제한'}</b></li>` : ''}
     ${s.mode === 'tournament' && (s.prizes || []).some(Boolean) ? `<li><span>상품·벌칙</span><b>${(s.prizes || []).map((t, i) => (t ? `${['1등', '2등', '3등', '꼴찌'][i]} ${esc(t)}` : '')).filter(Boolean).join(' · ')}</b></li>` : ''}
     <li><span>입장</span><b>${[s.hasPassword ? '비밀번호' : '', s.approval ? '방장 승인' : ''].filter(Boolean).join(' + ') || '링크만 있으면 누구나'}</b></li>
   </ul>`;
@@ -3092,7 +3119,7 @@ function settlementHTML(x, isHost) {
     <table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>최종 칩</th><th>손익</th>${v ? `<th>${esc(v.unit) || '환산'}</th>` : ''}</tr></thead><tbody>
     ${x.rows.map((r) => `<tr><td>${esc(r.name)}${r.left ? ' <small class="muted">중간에 나감</small>' : ''}</td><td>${fmt(r.buyIn)}</td><td>${fmt(r.out)}</td><td class="${cls(r.net)}">${signed(r.net)}</td>${v ? `<td class="${cls(r.net)}">${r.net > 0 ? '+' : r.net < 0 ? '−' : ''}${settleMoney(Math.abs(r.net), v)}</td>` : ''}</tr>`).join('')}
     </tbody></table>
-    ${x.transfers.length ? `<h3 class="sub-title">누가 누구에게</h3><ul class="settle-list">${x.transfers.map((t) => `<li><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b><span>${fmt(t.chips)}칩${v ? ` · ${settleMoney(t.chips, v)}` : ''}</span></li>`).join('')}</ul>` : `<p class="muted small">${x.rows.some((r) => r.net) ? '사람끼리 주고받을 칩은 없어요 (봇과 오간 칩은 정산에서 빠져요)' : '모두 본전이에요!'}</p>`}
+    ${x.transfers.length ? `<h3 class="sub-title">누가 누구에게</h3><ul class="settle-list">${x.transfers.map((t) => `<li><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b><span>${v && v.per === 1 && v.value === 1 ? settleMoney(t.chips, v) : `${fmt(t.chips)}칩${v ? ` · ${settleMoney(t.chips, v)}` : ''}`}</span></li>`).join('')}</ul>` : `<p class="muted small">${x.rows.some((r) => r.net) ? '사람끼리 주고받을 칩은 없어요 (봇과 오간 칩은 정산에서 빠져요)' : '모두 본전이에요!'}</p>`}
     ${v ? `<p class="muted tiny">환산: 칩 ${fmt(v.per)} = ${fmt(v.value)}${esc(v.unit)} (방장이 정한 값을 보여 주기만 해요. 이 앱에는 돈을 주고받는 기능이 없어요)</p>` : ''}
     <button class="btn btn-gold" id="settle-copy">정산표 복사하기</button>
     ${isHost ? '<p class="muted tiny">방장: 다시 시작하면 정산표는 사라지고 새 게임이 시작돼요</p>' : ''}
@@ -3102,7 +3129,7 @@ function settlementText(x) {
   const v = x.value;
   const lines = [`[찬덤 홀덤 정산] ${x.hands}판`];
   for (const r of x.rows) lines.push(`${r.name}: ${signed(r.net)}칩${v ? ` (${r.net >= 0 ? '+' : '−'}${settleMoney(Math.abs(r.net), v)})` : ''}`);
-  if (x.transfers.length) { lines.push('— 보내기 —'); for (const t of x.transfers) lines.push(`${t.from} → ${t.to} ${fmt(t.chips)}칩${v ? ` (${settleMoney(t.chips, v)})` : ''}`); }
+  if (x.transfers.length) { lines.push('— 보내기 —'); for (const t of x.transfers) lines.push(`${t.from} → ${t.to} ${v && v.per === 1 && v.value === 1 ? settleMoney(t.chips, v) : `${fmt(t.chips)}칩${v ? ` (${settleMoney(t.chips, v)})` : ''}`}`); }
   return lines.join('\n');
 }
 
@@ -3145,6 +3172,7 @@ function openSettingsModal() {
     form.dataset.game = s.game || 'holdem'; // 게임에 맞는 칸만 (섯다: 기본 판돈)
     bindSd3(form);
     bindTourneyEst(form); // 일반·토너먼트에 맞는 칸만
+    bindMoney(form);
     form.onsubmit = async (e) => {
       e.preventDefault();
       const next = readSettings(form);
