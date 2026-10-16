@@ -2494,3 +2494,11 @@ body[data-felt="felt-marble"] .felt::before, .shop-prev[data-v="felt-marble"] i 
 .shop-prev.k-felt i { background-position: center; background-size: cover; }
 .shop-it.lux { border-color: rgba(214, 162, 74, .45); background: linear-gradient(160deg, rgba(214, 162, 74, .14), rgba(255, 255, 255, .03)); }
 .shop-it .shop-lux { font-style: normal; font-size: .58rem; font-weight: 800; color: #1a1206; background: linear-gradient(90deg, #ffd36b, #d6a24a); border-radius: 6px; padding: 0 5px; }
+
+/* 빨리빨리(재촉) */
+.hurry-btn { margin-left: 6px; padding: 3px 10px; border: 1px solid rgba(255, 120, 80, .55); border-radius: 999px; background: rgba(255, 110, 60, .16); color: #ffb59a; font-size: .8rem; font-weight: 700; cursor: pointer; vertical-align: middle; }
+.hurry-btn:active { transform: scale(.94); }
+.hurry-btn:disabled { opacity: .45; cursor: default; }
+.fx-hurry { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 1rem; animation-duration: 2.3s; pointer-events: none; }
+.fx-hurry .emote-say { padding: 6px 14px; border-radius: 14px; background: #ff6a3d; color: #fff; font-size: 1.15rem; font-weight: 800; white-space: nowrap; animation: shake .35s .2s 3; }
+.fx-hurry small { padding: 1px 8px; border-radius: 8px; background: rgba(0, 0, 0, .6); color: #fff; font-size: .72rem; white-space: nowrap; }
