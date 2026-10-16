@@ -294,7 +294,9 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         if (!pid) continue;
         const p = room.get(pid);
         if (!p) {
-          s.emit('kicked', { message: '방에서 나왔어요' });
+          const note = room.leftNote && room.leftNote[pid];
+          if (note) delete room.leftNote[pid];
+          s.emit('kicked', { message: note || '방에서 나왔어요' });
           s.leave('room:' + room.code);
           s.data.playerId = null;
           continue;

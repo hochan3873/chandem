@@ -162,6 +162,54 @@ test('일반 게임: 칩을 다 잃고 리바인도 다 쓰면 관전석으로 �
   room.clearAllTimers();
 });
 
+test('일반 게임: 나갔다 다시 들어와도 칩·리바인 횟수·바이인이 그대로 (리바인 초기화 막기)', () => {
+  const { room, ps } = cash(4, { rebuyMax: 2 });
+  room.start(ps[0].id);
+  foldOut(room);
+  const B = ps[1];
+  B.stack = 300; B.rebuys = 2; B.totalBuyIn = 3000;
+  room.leave(B.id);
+  const { player: B2 } = room.join({ name: 'P1' });
+  assert.equal(B2.stack, 300);
+  assert.equal(B2.rebuys, 2);
+  assert.equal(B2.totalBuyIn, 3000);
+  assert.equal(B2.role, 'player');
+  assert.equal(room.canRebuy(B2), false); // 다 썼으니 더 못 함
+  // 정산에 한 사람으로만
+  assert.equal(room.computeSettlement().rows.filter((r) => r.name === 'P1').length, 1);
+  // 칩도 리바인도 다 쓰고 나갔다 오면 앉을 수 없다
+  const C = ps[2];
+  C.stack = 0; C.rebuys = 2;
+  room.leave(C.id);
+  const { player: C2 } = room.join({ name: 'P2' });
+  assert.equal(C2.role, 'spectator');
+  assert.throws(() => room.setRole(C2.id, false), /리바인도 다 써서/);
+  room.clearAllTimers();
+});
+
+test('일반 게임: 자리 비움이 5분 넘게 이어지면 판이 끝날 때 방에서 내보낸다', () => {
+  const { room, ps, tick } = cash(3);
+  room.start(ps[0].id);
+  const B = ps[1];
+  foldOut(room);
+  room.sitOut(B.id);
+  tick(4 * 60 * 1000);
+  room.kickAway();
+  assert.ok(room.get(B.id), '4분은 아직');
+  tick(2 * 60 * 1000);
+  room.startHand();
+  assert.ok(!room.get(B.id));
+  assert.match(room.leftNote[B.id], /5분/);
+  // 연결이 끊긴 사람도
+  const C = ps[2];
+  room.disconnect(C.id);
+  foldOut(room);
+  tick(6 * 60 * 1000);
+  room.startHand();
+  assert.ok(!room.get(C.id));
+  room.clearAllTimers();
+});
+
 test('쇼다운: 이긴 사람·진 사람 패가 모두 공개되고, 그래서 「내 패 보여주기」도 묻지 않는다', () => {
   const { room, ps } = cash(3);
   room.start(ps[0].id);
