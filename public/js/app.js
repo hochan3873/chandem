@@ -4659,20 +4659,45 @@ function announceSeotda(st, once) {
 function announceHands(st, once) {
   const h = st.hand;
   if (h && h.game === 'seotda') { announceSeotda(st, once); return; }
-  if (!h || !h.reveal || h.board.length < 5) return;
-  const shown = st.players.filter((p) => p.cards && p.cards.length === 2 && p.cards[0] !== '??' && ['inhand', 'allin'].includes(p.status));
-  for (const p of shown) {
+  if (!h || h.board.length < 5) return;
+  const r = h.result && h.result.type === 'showdown' ? h.result : null;
+  if (!h.reveal && !r) return;
+  const contest = st.players.filter((p) => p.cards && p.cards.length === 2 && ['inhand', 'allin'].includes(p.status));
+  const shown = contest.filter((p) => p.cards[0] !== '??');
+  // 공개될 때마다: 족보 이름표 + 목소리. 큰 족보(스트레이트 이상) 영상은 이긴 사람만 (아래)
+  if (h.reveal) for (const p of shown) {
     if (!once('ann:' + p.id)) continue;
     const tier = handTier(p.cards, h.board);
     const at = Math.max(Date.now() + 250, S.annAt || 0);
-    S.annAt = at + (tier >= 4 ? HV_MS[Math.min(9, tier)] - 600 : 1000);
+    S.annAt = at + 1000;
     setTimeout(() => {
       handTag(p.id, HAND_TIERS[tier], tier);
-      if (tier >= 4) bigHandVideo(tier, p);
-      else if (tier >= BIG_MIN) sound.play('v_h' + tier);
-      else sound.play('v_h' + tier);
+      if (tier < 4) sound.play('v_h' + tier);
     }, at - Date.now());
   }
+  // 이긴 사람: 모두 공개됐으면 패를 비교해서 바로, 아니면(덮은 사람이 있으면) 결과가 왔을 때
+  if (!shown.length || !(r || shown.length === contest.length) || !once('annwin')) return;
+  let winners;
+  if (r) winners = shown.filter((p) => r.winners.includes(p.id));
+  else {
+    const sc = new Map(shown.map((p) => [p.id, bestHand(p.cards.concat(h.board)).score]));
+    const best = shown.reduce((a, p) => (cmpScore(sc.get(p.id), sc.get(a.id)) > 0 ? p : a), shown[0]);
+    winners = shown.filter((p) => cmpScore(sc.get(p.id), sc.get(best.id)) === 0);
+  }
+  if (!winners.length) return;
+  const tier = handTier(winners[0].cards, h.board);
+  if (tier < 4) return;
+  const at = Math.max(Date.now() + 250, S.annAt || 0);
+  S.annAt = at + HV_MS[Math.min(9, tier)] - 600;
+  setTimeout(() => bigHandVideo(tier, { name: winners.map((p) => p.name).join(', ') }), at - Date.now());
+}
+function cmpScore(a, b) {
+  if (a.category !== b.category) return a.category - b.category;
+  for (let i = 0; i < Math.max(a.tiebreak.length, b.tiebreak.length); i++) {
+    const d = (a.tiebreak[i] || 0) - (b.tiebreak[i] || 0);
+    if (d) return d;
+  }
+  return 0;
 }
 function handTag(id, text, tier) {
   const handNo = S.state && S.state.hand ? S.state.hand.no : 0;
