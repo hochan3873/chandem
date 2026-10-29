@@ -2175,7 +2175,7 @@ function render() {
   const vkey = S.view === 'room' ? 'room:' + (S.state ? S.state.room.phase : '-') : S.view;
   if (vkey !== S.lastVKey) { const first = !S.lastVKey || S.lastVKey === 'boot'; S.lastVKey = vkey; if (!first || vkey !== 'home') animateIn(S.view === 'room'); }
   if (S.view !== 'room') S.gameMounted = false;
-  if (S.view !== 'room' && S.fsOn) { S.fsOn = false; freeRotate(); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+  if (S.view !== 'room' && S.fsOn) { S.fsOn = false; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); setTimeout(freeRotate, 400); }
   document.body.dataset.theme = S.view === 'room' && S.state ? gameOf(S.state) : S.view === 'home' || S.view === 'admin' ? 'hub' : (S.game || 'holdem');
   document.body.classList.toggle('in-room', S.view === 'room');
   syncChatFab();
@@ -3340,17 +3340,33 @@ window.addEventListener('resize', () => {
     else if (gameOf(S.state) !== 'omok') renderTable(S.state);
   }, 160);
 });
-// 가로/세로 바꾸기: 설치한 앱은 방향만 바로 잠근다 (전체 화면 없이)
-// 브라우저에선 방향 잠금이 전체 화면을 요구하는데, 그러면 크롬이 '전체 화면을 종료하려면…' 알림을 매번 띄운다(사이트가 못 끔) → 브라우저에선 전체 화면을 쓰지 않고 폰을 돌리라고 안내
+// 가로/세로 바꾸기: ① 방향만 바로 잠근다 (설치한 앱은 대개 이걸로 됨)
+// ② 폰이 그걸 막으면(예전 '세로 고정' 설치 앱 등) 전체 화면으로 바꾼 뒤 잠근다 — 크롬이 '전체 화면 종료하려면…' 알림을 띄우지만 확실히 돌아간다
+// 세로로 돌아갈 땐 전체 화면을 풀어 원래대로
 async function toggleOrient() {
   const wantLand = !isLand();
-  try {
-    if (!isStandalone()) throw new Error('browser');
-    await screen.orientation.lock(wantLand ? 'landscape' : 'portrait');
-    S.fsOn = true;
+  const so = screen.orientation;
+  if (!wantLand && document.fullscreenElement) {
+    try { so.unlock(); } catch {}
+    document.exitFullscreen().catch(() => {});
+    S.fsOn = false;
+    setTimeout(freeRotate, 400);
     return;
-  } catch {}
-  toast(wantLand ? '폰을 가로로 돌려 주세요 (자동 회전 켜기)' : '폰을 세로로 세워 주세요', 'info');
+  }
+  const dir = wantLand ? 'landscape' : 'portrait';
+  if (so && so.lock) {
+    try { await so.lock(dir); S.fsOn = true; return; } catch {}
+    const root = document.documentElement;
+    if (wantLand && root.requestFullscreen) {
+      try {
+        await root.requestFullscreen({ navigationUI: 'hide' });
+        await so.lock(dir);
+        S.fsOn = true;
+        return;
+      } catch { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+    }
+  }
+  toast(wantLand ? (IS_IOS ? '아이폰은 제어 센터에서 세로 고정을 끄고 폰을 가로로 돌려 주세요' : '폰을 가로로 돌려 주세요 (자동 회전 켜기)') : '폰을 세로로 세워 주세요', 'info');
 }
 
 function renderGame() {
