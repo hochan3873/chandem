@@ -51,6 +51,7 @@ const HISTORY_MAX = 40;               // 핸드 기록 보관 판 수
 /** 'As' → 'A♠' (기록용 글) */
 const cardTxt = (c) => (c ? (c[0] === 'T' ? '10' : c[0]) + ({ s: '♠', h: '♥', d: '♦', c: '♣' }[c[1]] || '') : '');
 const EMOTE_GAP_MS = 1500;
+const BLIND_VOTE_MS = 60 * 1000;      // 블라인드 변경 투표: 이 시간 안에 모두 동의해야 바뀜
 
 function int(v, def) {
   const n = Math.floor(Number(v));
@@ -718,6 +719,7 @@ class Room {
     if (this.phase === 'playing' && !this.isTournament && this.settings.game !== 'omok') this.settlement = this.computeSettlement(reason || '방장이 게임을 끝냈어요');
     this.endsAt = null;
     this.clearTimer('next');
+    this.blindVote = null; this.clearTimer('blindVote');
     this.phase = 'lobby';
     this.hand = null;
     this.handPlayers = [];
@@ -913,6 +915,7 @@ class Room {
       if (dealerIndex === -1) dealerIndex = 0;
     }
     this.dealerSeat = seats[dealerIndex];
+    this.checkBlindVote(); // 동의 안 한 사람이 나갔으면 남은 사람 동의로 이번 판부터
     this.handNo += 1;
     this.handPlayers = eligible.map((p) => p.id);
     bot.observeDeal(this.stats, this.handPlayers);
@@ -1260,6 +1263,69 @@ class Room {
     this.touch();
   }
 
+  // ── 일반 게임 중 블라인드 바꾸기: 방장이 제안 → 자리에 앉은 사람 모두 동의하면 다음 판부터 ──
+  proposeBlinds(hostId, sbIn, bbIn) {
+    this.requireHost(hostId);
+    if (this.phase !== 'playing') throw new RoomError('게임 중에만 블라인드를 바꿀 수 있어요');
+    if (this.isTournament) throw new RoomError('토너먼트는 블라인드가 레벨대로 자동으로 올라요');
+    if (this.settings.game === 'omok') throw new RoomError('오목은 블라인드가 없어요');
+    const sb = Math.floor(Number(sbIn)); const bb = Math.floor(Number(bbIn));
+    if (!(sb >= 1 && bb >= sb && bb <= 10000000)) throw new RoomError('블라인드 금액을 확인해 주세요 (스몰 ≤ 빅)');
+    if (sb === this.settings.sb && bb === this.settings.bb) throw new RoomError('지금 블라인드와 같아요');
+    const voters = this.seated.filter((p) => !p.isBot && !p.leaving).map((p) => p.id);
+    const host = this.get(hostId);
+    this.blindVote = { sb, bb, by: hostId, byName: host ? host.name : '', at: this.now(), until: this.now() + BLIND_VOTE_MS, voters, yes: [hostId] };
+    this.pushFeed(`🗳 ${host ? host.name : '방장'}님이 블라인드 ${sb.toLocaleString()}/${bb.toLocaleString()}로 올리자고 했어요 — 모두 동의하면 다음 판부터`);
+    this.setTimer('blindVote', BLIND_VOTE_MS, () => {
+      if (!this.blindVote) return;
+      this.blindVote = null;
+      this.pushFeed('⌛ 블라인드 변경 투표 시간이 지나 그대로 가요');
+    });
+    this.checkBlindVote();
+    this.touch();
+  }
+
+  voteBlinds(id, yes) {
+    const v = this.blindVote;
+    if (!v || this.phase !== 'playing' || this.now() > v.until) throw new RoomError('진행 중인 투표가 없어요');
+    if (!v.voters.includes(id)) throw new RoomError('자리에 앉은 사람만 투표할 수 있어요');
+    const p = this.get(id);
+    if (!yes) {
+      this.blindVote = null; this.clearTimer('blindVote');
+      this.pushFeed(`❌ ${p ? p.name : '누군가'}님이 반대해서 블라인드는 그대로예요`);
+      this.touch();
+      return;
+    }
+    if (!v.yes.includes(id)) v.yes.push(id);
+    this.checkBlindVote();
+    this.touch();
+  }
+
+  /** 방장 취소 · 모두 동의했는지 확인 (투표 중 나간 사람은 빼고 센다) */
+  cancelBlindVote(hostId) {
+    this.requireHost(hostId);
+    if (!this.blindVote) return;
+    this.blindVote = null; this.clearTimer('blindVote');
+    this.pushFeed('블라인드 변경 제안을 취소했어요');
+    this.touch();
+  }
+
+  checkBlindVote() {
+    const v = this.blindVote;
+    if (!v) return;
+    const still = v.voters.filter((id) => { const p = this.get(id); return p && p.role === 'player' && !p.leaving; });
+    if (!still.every((id) => v.yes.includes(id))) return;
+    this.settings.sb = v.sb; this.settings.bb = v.bb;
+    this.blindVote = null; this.clearTimer('blindVote');
+    this.pushFeed(`✅ 모두 동의! ${this.hand && !this.hand.finished ? '다음 판부터' : '이제부터'} 블라인드 ${v.sb.toLocaleString()}/${v.bb.toLocaleString()}`);
+  }
+
+  blindVoteView() {
+    const v = this.blindVote;
+    if (!v || this.phase !== 'playing' || this.now() > v.until) return null;
+    return { sb: v.sb, bb: v.bb, by: v.by, byName: v.byName, until: v.until, voters: v.voters, yes: v.yes };
+  }
+
   /** 토너먼트 끝: 순위 정리 후 대기실로 */
   finishTournament(winner) {
     const t = this.tourney;
@@ -1562,6 +1628,7 @@ class Room {
         endsAt: this.phase === 'playing' ? this.endsAt || null : null,
         settlement: this.phase === 'lobby' ? this.settlement || null : null,
         tableSeats: this.tableSeats,
+        blindVote: this.blindVoteView(),
       },
       me: me && {
         id: me.id,

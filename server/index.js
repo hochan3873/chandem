@@ -761,6 +761,9 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('game:show', handler((d) => { const { room, pid } = ctx(); room.showCards(pid, d && d.which); }));
     socket.on('game:rabbit', handler(() => { const { room, pid } = ctx(); room.rabbitHunt(pid); }));
     socket.on('room:history', handler(() => { const { room } = ctx(); return room.historyView(); }));
+    socket.on('host:blinds', handler((d) => { const { room, pid } = ctx(); room.proposeBlinds(pid, d && d.sb, d && d.bb); }));
+    socket.on('host:blindsCancel', handler(() => { const { room, pid } = ctx(); room.cancelBlindVote(pid); }));
+    socket.on('game:blindVote', handler((d) => { const { room, pid } = ctx(); room.voteBlinds(pid, !!(d && d.yes)); }));
     socket.on('host:pause', handler((d) => { const { room, pid } = ctx(); room.setPause(pid, !!(d && d.on)); }));
     socket.on('game:act', handler((d) => { const { room, pid } = ctx(); room.act(pid, { type: d.type, amount: d.amount, x: d.x, y: d.y, index: d.index, cards: Array.isArray(d.cards) ? d.cards.slice(0, 3).map(String) : undefined }); }));
     socket.on('game:rebuy', handler((d) => {
