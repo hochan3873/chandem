@@ -3754,9 +3754,11 @@ document.addEventListener('click', async (e) => {
   if (!b || S.view !== 'room' || !S.state) return;
   const st = S.state;
   const lobby = st.room.phase === 'lobby';
-  if (!lobby && !canSitNow(st)) { toast(st.me && st.me.role === 'player' ? `${Number(b.dataset.sit) + 1}번 빈자리예요 · 자리는 대기실에서 옮길 수 있어요` : '지금은 앉을 수 없어요 (늦은 참가 시간이 끝났어요)', 'info'); return; }
+  const move = !lobby && st.me && st.me.role === 'player' && !st.room.tournament; // 게임 중 앉은 사람: 자리 옮기기(메뉴의 자리 지도)
+  if (!lobby && !move && !canSitNow(st)) { toast(st.me && st.me.role === 'player' ? `${Number(b.dataset.sit) + 1}번 빈자리예요 · 자리는 대기실에서 옮길 수 있어요` : '지금은 앉을 수 없어요 (늦은 참가 시간이 끝났어요)', 'info'); return; }
   const r = await emit('lobby:seat', { seat: Number(b.dataset.sit) });
-  if (r.ok && r.requested) toast('방장에게 자리 요청을 보냈어요. 수락되면 다음 판부터 참가해요', 'ok');
+  if (move && r.ok) { closeModal(); toast(r.next ? `다음 판부터 ${Number(b.dataset.sit) + 1}번 자리로 옮겨요` : `${Number(b.dataset.sit) + 1}번 자리로 옮겼어요`, 'ok'); }
+  else if (r.ok && r.requested) toast('방장에게 자리 요청을 보냈어요. 수락되면 다음 판부터 참가해요', 'ok');
   else if (r.ok && !lobby) toast(`${Number(b.dataset.sit) + 1}번 자리에 앉았어요 · 다음 판부터 참가해요`, 'ok');
   if (r.ok) sound.play('chips');
 });
@@ -4488,6 +4490,7 @@ function openMenuModal() {
         ${gameOf(st) === 'holdem' ? '<button class="btn btn-outline" data-learn="gloss">홀덤 용어집</button>' : ''}
         <button class="btn btn-outline" data-m="hist">기록 · 칩 장부</button>
         <button class="btn btn-outline" data-m="share">초대 링크</button>
+        ${me.role === 'player' && st.room.phase === 'playing' && !st.room.tournament && gameOf(st) !== 'omok' ? '<button class="btn btn-outline" data-m="seat">자리 옮기기</button>' : ''}
         ${me.role === 'player' ? `<button class="btn btn-outline" data-m="${me.sittingOut ? 'sitin' : 'sitout'}">${me.sittingOut ? '자리로 돌아가기' : '자리 비우기'}</button>` : ''}
         <button class="btn btn-outline" data-m="sound">소리 설정</button>
         <button class="btn btn-outline" data-m="color">카드가 검게 보여요</button>
@@ -4527,6 +4530,11 @@ function openMenuModal() {
         if (m === 'end') { if (!confirm(st.room.settings.mode === 'tournament' ? '게임을 끝내고 대기실로 돌아갈까요?' : '게임을 끝내고 정산할까요? (모두 대기실로 돌아가 정산표를 봐요)')) return; const r = await emit('host:end'); if (r && r.scheduled) toast('이번 판이 끝나면 게임을 끝내고 정산할게요', 'info'); }
         if (m === 'leave') { await leaveRoom(); return; }
         if (m === 'blinds') { openBlindsModal(st); return; }
+        if (m === 'seat') {
+          const mine = st.players.find((p) => p.id === me.id);
+          openModal('자리 옮기기', `${seatMapHTML(st)}<p class="muted small center">빈자리를 누르면 그 자리로 옮겨요 · 지금 판에 참여 중이면 <b>다음 판부터</b> 옮겨져요${mine && mine.nextSeat != null ? ` · 지금 <b>${mine.nextSeat + 1}번</b>으로 옮길 예정` : ''}</p>`, null, { wide: true });
+          return;
+        }
         closeModal();
       };
     });
@@ -4673,8 +4681,8 @@ function handTag(id, text, tier) {
   setTimeout(() => el.remove(), 2800);
 }
 function bigHand(tier, p, custom = null) {
-  // 족보가 셀수록 더 크게·오래: 트리플/스트레이트 1.8초 · 플러시/풀하우스 2.4초 · 포카드 이상 3.2초 (우주 폭발)
-  const ms = tier >= 7 ? 3200 : tier >= 5 ? 2400 : 1800;
+  // 족보가 셀수록 더 크게·오래: 트리플/스트레이트 1.4초 · 플러시/풀하우스 1.8초 · 포카드 이상 2.3초 (우주 폭발)
+  const ms = tier >= 7 ? 2300 : tier >= 5 ? 1800 : 1400;
   const burst = holdemFxArt(tier);
   const el = document.createElement('div');
   el.className = `fx-bighand fx-tier${tier} ${tier >= 7 ? 'fx-big-max' : tier >= 5 ? 'fx-big-mid' : 'fx-big-low'}`;
@@ -4695,7 +4703,9 @@ function bigHand(tier, p, custom = null) {
 }
 // 홀덤 큰 족보 (스트레이트 이상): AI(Gemini Veo)로 만든 영상을 화면에 겹쳐 틀고, 금빛 족보 글씨를 띄운다
 // 영상은 검은 배경이라 '스크린' 섞기로 검은 부분이 투명해진다. 족보가 셀수록 더 화려한 영상.
-const HV_MS = { 4: 4000, 5: 4500, 6: 4800, 7: 4600, 8: 5000, 9: 5000 }; // 영상 길이
+// 영상 원래 길이는 4~5초인데 길다는 의견 → 1.6배속으로 틀어 2.5~3초. 화면을 누르면 바로 끝난다
+const HV_RATE = 1.6;
+const HV_MS = Object.fromEntries(Object.entries({ 4: 4000, 5: 4500, 6: 4800, 7: 4600, 8: 5000, 9: 5000 }).map(([k, v]) => [k, Math.round(v / HV_RATE)]));
 const FX_VID = { 4: 'straight', 5: 'flush', 6: 'fullhouse', 7: 'quads', 8: 'sf', 9: 'royal' };
 function bigHandVideo(tier, p) {
   const key = FX_VID[Math.min(9, tier)];
@@ -4708,15 +4718,23 @@ function bigHandVideo(tier, p) {
   t.onerror = () => { t.replaceWith(Object.assign(document.createElement('div'), { className: 'fx-hv-title-txt', textContent: HAND_TIERS[tier] })); };
   // 영상은 페이지에 바로 붙여야 '스크린' 섞기가 테이블과 섞인다 (연출 층 안에 넣으면 검은 화면이 됨)
   const dim = Object.assign(document.createElement('div'), { className: 'fx-hv-dim' });
-  const vw = blendVideo(`/img/holdem/fx/${key}.mp4?v=1`, 'fx-hv-vid');
+  const vw = blendVideo(`/img/holdem/fx/${key}.mp4?v=1`, 'fx-hv-vid', HV_RATE);
   fitFx(dim, vw, el);
   document.body.append(dim, vw, el);
   const parts = [dim, vw, el];
   sound.play('fx_' + key);
   setTimeout(() => sound.play('v_h' + tier, 1.2), 500);
   if (sound.isUnlocked()) gws.vibrate(tier >= 7 ? [60, 40, 160] : [50]);
-  setTimeout(() => parts.forEach((x) => x.classList.add('out')), ms - 600);
-  setTimeout(() => parts.forEach((x) => x.remove()), ms);
+  let done = false;
+  const end = (fade) => {
+    if (done) return; done = true;
+    document.removeEventListener('pointerdown', skip, true);
+    parts.forEach((x) => x.classList.add('out'));
+    setTimeout(() => parts.forEach((x) => x.remove()), fade);
+  };
+  const skip = () => end(250);
+  setTimeout(() => document.addEventListener('pointerdown', skip, true), 400);
+  setTimeout(() => end(500), ms - 500);
 }
 // 검은 배경 영상을 화면에 '스크린'으로 섞어 붙이기 (검은 곳은 투명해짐). 감싼 칸 자체가 섞이도록 body 바로 아래에 둔다
 // 연출 영상 미리 받아 두기 (첫 큰 족보 때 영상이 늦게 뜨지 않게) · 한 번만, 천천히
@@ -4728,12 +4746,13 @@ function prefetchFx() {
   const next = () => { if (i >= list.length) return; const k = list[i++]; fetch(`/img/holdem/fx/${k}.mp4?v=1`).then((r) => r.blob()).catch(() => {}).finally(() => setTimeout(next, 400)); };
   setTimeout(next, 3000);
 }
-function blendVideo(src, cls) {
+function blendVideo(src, cls, rate = 1) {
   const w = document.createElement('div');
   w.className = 'fx-blend ' + cls;
   const v = document.createElement('video');
   Object.assign(v, { src, muted: true, playsInline: true, autoplay: true, preload: 'auto' });
   v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  if (rate !== 1) { v.defaultPlaybackRate = rate; v.playbackRate = rate; v.addEventListener('loadedmetadata', () => { v.playbackRate = rate; }); }
   v.onerror = () => w.remove();
   w.appendChild(v);
   setTimeout(() => { if (v.play) v.play().catch(() => {}); }, 0);

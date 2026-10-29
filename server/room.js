@@ -619,12 +619,34 @@ class Room {
     if (!(w >= 0 && w < this.tableSeats)) throw new RoomError('없는 자리예요');
     const who = this.seated.find((x) => x.seat === w);
     if (who && who !== p) throw new RoomError(`${who.name}님이 앉은 자리예요`);
-    if (who === p) return;
+    if (who === p) { if (p.nextSeat != null) { p.nextSeat = null; this.touch(); } return; }
+    const booked = this.seated.find((x) => x !== p && x.nextSeat === w);
+    if (booked) throw new RoomError(`${booked.name}님이 옮기기로 한 자리예요`);
     if (p.role !== 'player') return this.setRole(id, false, w);
-    if (this.phase !== 'lobby') throw new RoomError('게임 중에는 자리를 옮길 수 없어요 (대기실에서 옮길 수 있어요)');
-    p.seat = w;
+    if (this.phase !== 'lobby') {
+      if (this.isTournament) throw new RoomError('토너먼트 중에는 자리를 옮길 수 없어요');
+      // 일반 게임: 지금 판에 카드를 받은 사람은 판이 끝난 뒤(다음 판 시작 때) 옮긴다
+      if (this.hand && !this.hand.finished && this.handPlayers.includes(p.id)) {
+        p.nextSeat = w;
+        this.pushFeed(`${p.name}님이 다음 판부터 ${w + 1}번 자리로 옮겨요`);
+        this.touch();
+        return { next: true };
+      }
+    }
+    p.seat = w; p.nextSeat = null;
     this.pushFeed(`${p.name}님이 ${w + 1}번 자리로 옮겼어요`);
     this.touch();
+  }
+
+  /** 판 시작 전: 예약해 둔 자리 옮기기를 적용 (그새 누가 앉았으면 취소) */
+  applySeatMoves() {
+    for (const p of this.seated) {
+      if (p.nextSeat == null) continue;
+      const w = p.nextSeat; p.nextSeat = null;
+      if (this.seated.some((x) => x !== p && x.seat === w)) { this.pushFeed(`${w + 1}번 자리에 다른 사람이 앉아서 ${p.name}님 자리 옮기기를 취소했어요`); continue; }
+      p.seat = w;
+      this.pushFeed(`${p.name}님이 ${w + 1}번 자리로 옮겼어요`);
+    }
   }
 
   updateSettings(hostId, input) {
@@ -798,6 +820,7 @@ class Room {
   startHand() {
     if (this.pendingEnd && this.phase === 'playing') { const why = this.pendingEnd; this.pendingEnd = null; this.endGame(null, why); return false; }
     this.applyPendingAccounts(); // 방 안에서 로그인한 사람: 이 판부터 기록
+    this.applySeatMoves();
     this.showIds = [];   // 판이 끝난 뒤 '내 패 보여주기'(두 장 다)를 누른 사람
     this.showOne = {};   // 한 장만 보여 준 사람: { id: [카드 번호] }
     this.rabbitOn = false; // 누가 '남은 카드 보기'(토끼 사냥)를 눌렀나
@@ -1594,6 +1617,7 @@ class Room {
         memberNext: !!p.pendingUserId, // 방 안에서 로그인 → 다음 판부터 기록
         master: !!p.isMaster,
         seatRequest: !!p.seatRequest,
+        nextSeat: p.nextSeat == null ? null : p.nextSeat, // 다음 판부터 옮길 자리
         rating: p.userId && this.settings.game === 'omok' ? p.omokRating : null,
         buyIn: p.totalBuyIn || 0,
         rs: p.rs ? { hands: p.rs.hands, vpip: p.rs.vpip, won: p.rs.won, lost: p.rs.lost || 0, sd: p.rs.sd, best: p.rs.best, bigPot: p.rs.bigPot } : null,
