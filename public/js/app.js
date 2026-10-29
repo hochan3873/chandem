@@ -384,6 +384,12 @@ function fitAppHeight() {
   document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
 }
 fitAppHeight();
+// 설치한 앱: 예전에 설치한 앱은 '세로 고정' 설정을 폰이 한동안 붙잡고 있다 → 켜질 때 직접 자유 회전으로 푼다
+// (unlock 은 그 예전 세로 고정으로 돌아가므로 'any' 로 잠근다)
+function freeRotate() {
+  try { if (isStandalone() && screen.orientation && screen.orientation.lock) screen.orientation.lock('any').catch(() => {}); } catch {}
+}
+freeRotate();
 // 아이폰 사파리·카카오톡 안 브라우저: 아래 도구 막대가 화면을 덮을 수 있어서 '실제로 보이는 높이'로 게임 화면을 맞춘다
 function fitVisibleHeight() {
   if (!IS_IOS || isStandalone() || !window.visualViewport) return;
@@ -2169,7 +2175,7 @@ function render() {
   const vkey = S.view === 'room' ? 'room:' + (S.state ? S.state.room.phase : '-') : S.view;
   if (vkey !== S.lastVKey) { const first = !S.lastVKey || S.lastVKey === 'boot'; S.lastVKey = vkey; if (!first || vkey !== 'home') animateIn(S.view === 'room'); }
   if (S.view !== 'room') S.gameMounted = false;
-  if (S.view !== 'room' && S.fsOn) { S.fsOn = false; try { screen.orientation.unlock(); } catch {} if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+  if (S.view !== 'room' && S.fsOn) { S.fsOn = false; freeRotate(); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
   document.body.dataset.theme = S.view === 'room' && S.state ? gameOf(S.state) : S.view === 'home' || S.view === 'admin' ? 'hub' : (S.game || 'holdem');
   document.body.classList.toggle('in-room', S.view === 'room');
   syncChatFab();
@@ -3450,6 +3456,21 @@ function renderBanner(st) {
     else msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · ${tn.mtt && tn.mtt.tables > 1 ? `테이블 ${tn.mtt.tableNo}/${tn.mtt.tables} · 전체 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : tn.mtt ? `파이널 · 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : `남은 ${tn.alive}/${tn.entrants}명`}`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '<b>멈춤</b>' : `<b data-level-at="${tn.nextAt}">-</b>`}</span>${pauseBtn}`]);
     if (tn.paused) msgs.push(['gold', me && me.isHost ? '⏸ 잠깐 멈춤 중 · 블라인드 시계도 멈춰 있어요' : '⏸ 방장이 잠깐 멈췄어요 · 곧 다시 시작해요']);
   }
+  // 블라인드 변경 투표: 자리에 앉은 사람 모두 동의해야 다음 판부터 바뀜
+  const bv = st.room.blindVote;
+  if (bv) {
+    const sd = gameOf(st) === 'seotda';
+    const now = sd ? `${fmt(st.room.settings.bb)}` : `${fmt(st.room.settings.sb)}/${fmt(st.room.settings.bb)}`;
+    const next = sd ? `${fmt(bv.bb)}` : `${fmt(bv.sb)}/${fmt(bv.bb)}`;
+    const what = sd ? '판돈' : '블라인드';
+    const count = `동의 ${bv.yes.length}/${bv.voters.length}`;
+    if (me && bv.voters.includes(me.id) && !bv.yes.includes(me.id)) {
+      msgs.push(['gold', `🗳 ${bv.byName}님 제안: ${what} ${now} → ${next} (${count} · 모두 동의하면 다음 판부터)`, '<button class="btn btn-sm btn-gold" data-bvote="1">동의</button><button class="btn btn-sm btn-outline" data-bvote="0">반대</button>']);
+      if (S.blindVoteSeen !== bv.until) { S.blindVoteSeen = bv.until; sound.play('turn'); }
+    } else {
+      msgs.push(['info', `🗳 ${what} ${next}로 올리기 투표 중 · ${count}`, me && me.isHost ? '<button class="btn btn-sm btn-outline" id="bvote-cancel">취소</button>' : '']);
+    }
+  }
   // 방장: 게임 중 들어오고 싶은 사람
   if (me && me.isHost && st.pending) {
     for (const p of st.pending) msgs.push(['gold', p.seat ? `${p.name}님이 관전하다 자리에 앉고 싶어해요` : `${p.name}님이 들어오고 싶어해요`, `<button class="btn btn-sm btn-gold" data-approve="${p.id}">수락</button><button class="btn btn-sm btn-outline" data-reject="${p.id}">거절</button>`]);
@@ -3464,6 +3485,9 @@ function renderBanner(st) {
   if (rb) rb.onclick = () => (st.room.settings.rebuyFlex && st.room.settings.mode !== 'tournament' && !st.room.practice ? openRebuyPick(st) : doRebuy());
   const tf = el.querySelector('#to-final');
   if (tf && tn && tn.mtt) tf.onclick = () => goFinalTable(tn.mtt.mainCode);
+  el.querySelectorAll('[data-bvote]').forEach((b) => { b.onclick = () => emit('game:blindVote', { yes: b.dataset.bvote === '1' }); });
+  const bc = el.querySelector('#bvote-cancel');
+  if (bc) bc.onclick = () => emit('host:blindsCancel');
   const pb = el.querySelector('#pause-btn');
   if (pb) pb.onclick = () => emit('host:pause', { on: !(st.room.tournament && st.room.tournament.paused) });
   const si = el.querySelector('#sitin-btn');
@@ -4422,6 +4446,35 @@ function openLogModal() {
   openModal('베팅 내역', `<ol class="log">${feed.map((e) => `<li class="log-${e.type}">${e.hand ? `<span class="muted tiny">#${e.hand}</span> ` : ''}${esc(e.text)}</li>`).join('') || '<li class="muted">아직 기록이 없어요</li>'}</ol>`);
 }
 
+/** 방장: 게임 중 블라인드(섯다는 판돈) 올리기 제안 → 자리에 앉은 사람 모두 동의하면 다음 판부터 */
+function openBlindsModal(st) {
+  const s = st.room.settings;
+  const sd = gameOf(st) === 'seotda';
+  const opts = [2, 3, 5].map((k) => [s.sb * k, s.bb * k, `${k}배`]);
+  openModal(sd ? '판돈 올리기' : '블라인드 올리기', `
+    <div class="stack">
+      <p class="muted">지금 ${sd ? `판돈 <b>${fmt(s.bb)}</b>` : `블라인드 <b>${fmt(s.sb)}/${fmt(s.bb)}</b>`} · 자리에 앉은 사람이 <b>모두 동의</b>하면 다음 판부터 바뀌어요 (1분 안에 동의 안 하면 그대로)</p>
+      <div class="menu-quick">${opts.map(([a, b, t]) => `<button class="btn btn-outline" data-bl="${a},${b}">${t} · ${sd ? fmt(b) : `${fmt(a)}/${fmt(b)}`}</button>`).join('')}</div>
+      <div class="list-row">
+        ${sd ? '' : `<label class="field"><span>스몰</span><input class="input" type="number" inputmode="numeric" min="1" id="bl-sb" value="${s.sb * 2}"></label>`}
+        <label class="field"><span>${sd ? '판돈' : '빅'}</span><input class="input" type="number" inputmode="numeric" min="1" id="bl-bb" value="${s.bb * 2}"></label>
+      </div>
+      <button class="btn btn-gold" id="bl-go">이 금액으로 투표 올리기</button>
+    </div>`, (body) => {
+    const send = async (sb, bb) => {
+      if (sd) sb = Math.max(1, Math.floor(bb / 2));
+      const r = await emit('host:blinds', { sb, bb });
+      if (r && r.ok !== false) { closeModal(); toast('투표를 올렸어요 · 모두 동의하면 다음 판부터 바뀌어요', 'ok'); }
+    };
+    body.querySelectorAll('[data-bl]').forEach((b) => { b.onclick = () => { const [a, c] = b.dataset.bl.split(',').map(Number); send(a, c); }; });
+    body.querySelector('#bl-go').onclick = () => {
+      const bb = Number(body.querySelector('#bl-bb').value);
+      const sbEl = body.querySelector('#bl-sb');
+      send(sbEl ? Number(sbEl.value) : 0, bb);
+    };
+  });
+}
+
 function openMenuModal() {
   const st = S.state;
   const me = st.me;
@@ -4448,6 +4501,7 @@ function openMenuModal() {
       <section><h3 class="sub-title">방 설정</h3>${settingsSummaryHTML(st.room.settings)}</section>
       <div class="stack">
         ${!inHand && !me.masterPeek ? `<button class="btn btn-outline" data-m="role">${me.role === 'player' ? '관전으로 바꾸기' : '참가자로 앉기'}</button>` : ''}
+        ${isHost && st.room.phase === 'playing' && !st.room.tournament && gameOf(st) !== 'omok' && !st.room.blindVote ? `<button class="btn btn-outline" data-m="blinds">${gameOf(st) === 'seotda' ? '판돈 올리기' : '블라인드 올리기'} (모두 동의하면)</button>` : ''}
         ${isHost ? `<button class="btn btn-outline" data-m="end">${st.room.tournament ? '게임 끝내고 대기실로' : '게임 끝내고 정산하기'}</button>` : ''}
         <button class="btn btn-outline danger" data-m="leave">방 나가기</button>
         ${P.roomMasterHTML()}
@@ -4472,6 +4526,7 @@ function openMenuModal() {
         if (m === 'role') await emit('lobby:role', { spectator: me.role === 'player' });
         if (m === 'end') { if (!confirm(st.room.settings.mode === 'tournament' ? '게임을 끝내고 대기실로 돌아갈까요?' : '게임을 끝내고 정산할까요? (모두 대기실로 돌아가 정산표를 봐요)')) return; const r = await emit('host:end'); if (r && r.scheduled) toast('이번 판이 끝나면 게임을 끝내고 정산할게요', 'info'); }
         if (m === 'leave') { await leaveRoom(); return; }
+        if (m === 'blinds') { openBlindsModal(st); return; }
         closeModal();
       };
     });
