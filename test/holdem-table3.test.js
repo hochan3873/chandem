@@ -37,10 +37,10 @@ test('자리: 고르지 않으면 고르게 퍼지고, 고르면 그 자리 · �
   room.changeSeat(S.id, free2); S.ready = true;
   assert.equal(S.role, 'player');
   assert.equal(S.seat, free2);
-  // 게임 중에는 앉은 사람이 자리를 못 옮긴다
+  // 게임 중에 앉은 사람이 자리를 고르면 다음 판부터
   room.start(ps[0].id);
   const free3 = [...Array(9).keys()].find((s) => !room.seated.some((p) => p.seat === s));
-  assert.throws(() => room.changeSeat(ps[0].id, free3), /게임 중/);
+  assert.deepEqual(room.changeSeat(ps[0].id, free3), { next: true }); // 게임 중엔 다음 판부터 옮긴다
   room.clearAllTimers();
 });
 

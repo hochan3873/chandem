@@ -65,3 +65,24 @@ test('토너먼트·대기실에선 못 하고, 이상한 금액은 막는다', 
   assert.throws(() => t.room.proposeBlinds(t.ps[0].id, 20, 40), /토너먼트/);
   t.room.clearAllTimers();
 });
+
+test('게임 중 자리 옮기기: 판에 참여 중이면 다음 판부터, 예약된 자리는 다른 사람이 못 고른다', () => {
+  const { room, ps } = cash(3);
+  room.start(ps[0].id);
+  const taken = room.seated.map((p) => p.seat);
+  const free = [...Array(9).keys()].filter((s) => !taken.includes(s));
+  const r = room.changeSeat(ps[1].id, free[0]);
+  assert.deepEqual(r, { next: true });
+  assert.notEqual(ps[1].seat, free[0], '지금 판은 그대로');
+  assert.throws(() => room.changeSeat(ps[2].id, free[0]), /옮기기로 한 자리/);
+  foldOut(room);
+  room.nextHandAt = 0; room.startHand();
+  assert.equal(ps[1].seat, free[0]);
+  assert.equal(ps[1].nextSeat, null);
+  room.clearAllTimers();
+  const t = cash(3, { mode: 'tournament' });
+  t.room.start(t.ps[0].id);
+  const f2 = [...Array(9).keys()].find((s) => !t.room.seated.some((p) => p.seat === s));
+  assert.throws(() => t.room.changeSeat(t.ps[1].id, f2), /토너먼트/);
+  t.room.clearAllTimers();
+});
