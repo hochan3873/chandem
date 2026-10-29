@@ -4688,7 +4688,7 @@ function announceHands(st, once) {
   const tier = handTier(winners[0].cards, h.board);
   if (tier < 4) return;
   const at = Math.max(Date.now() + 250, S.annAt || 0);
-  S.annAt = at + HV_MS[Math.min(9, tier)] - 600;
+  S.annAt = at + (tier < 8 ? HV_LITE_MS : HV_MS[Math.min(9, tier)]) - 400;
   setTimeout(() => bigHandVideo(tier, { name: winners.map((p) => p.name).join(', ') }), at - Date.now());
 }
 function cmpScore(a, b) {
@@ -4734,10 +4734,8 @@ function bigHand(tier, p, custom = null) {
   if (!custom) setTimeout(() => sound.play('v_h' + tier, 1.3), 380);
   // 터지는 순간: 충격파 고리 3겹 + 카드 무늬·불꽃이 사방으로
   const fa = fxArea(); const c = { x: fa.cx, y: fa.top + fa.height * 0.45 };
-  setTimeout(() => { shockwave(c, tier); sparkBurst(c, tier >= 7 ? 90 : tier >= 5 ? 60 : 40, tier); }, 280);
-  if (tier >= 5) setTimeout(() => sparkBurst(c, 40, tier), 900);
-  setTimeout(() => { moneyRain(tier >= 8 ? 110 : tier >= 5 ? 70 : 40); quake(); }, 450);
-  if (tier >= 7) setTimeout(() => { quake(); sound.play('boom'); }, 1300);
+  setTimeout(() => { shockwave(c, tier); sparkBurst(c, tier >= 7 ? 45 : 30, tier); }, 280);
+  if (tier >= 8) setTimeout(() => { moneyRain(60); quake(); }, 450);
   if (sound.isUnlocked()) gws.vibrate(tier >= 7 ? [80, 40, 200, 60, 300] : [60, 40, 200]);
   setTimeout(() => el.classList.add('out'), ms - 500);
   setTimeout(() => el.remove(), ms);
@@ -4746,25 +4744,31 @@ function bigHand(tier, p, custom = null) {
 // 영상은 검은 배경이라 '스크린' 섞기로 검은 부분이 투명해진다. 족보가 셀수록 더 화려한 영상.
 // 영상 원래 길이는 4~5초인데 길다는 의견 → 1.6배속으로 틀어 2.5~3초. 화면을 누르면 바로 끝난다
 const HV_RATE = 1.6;
+const HV_LITE_MS = 1600; // 스트레이트~포카드: 영상 없이 족보 글씨만 1.6초 ('정신없다'는 의견)
 const HV_MS = Object.fromEntries(Object.entries({ 4: 4000, 5: 4500, 6: 4800, 7: 4600, 8: 5000, 9: 5000 }).map(([k, v]) => [k, Math.round(v / HV_RATE)]));
 const FX_VID = { 4: 'straight', 5: 'flush', 6: 'fullhouse', 7: 'quads', 8: 'sf', 9: 'royal' };
 function bigHandVideo(tier, p) {
   const key = FX_VID[Math.min(9, tier)];
-  const ms = HV_MS[Math.min(9, tier)];
+  const lite = tier < 8;
+  const ms = lite ? HV_LITE_MS : HV_MS[Math.min(9, tier)];
   const el = document.createElement('div');
-  el.className = `fx-hv fx-hv${tier}`;
+  el.className = `fx-hv fx-hv${tier}${lite ? ' lite' : ''}`;
   el.innerHTML = `<img class="fx-hv-title" src="/img/holdem/fx/title_${key}.webp?v=1" alt="${esc(HAND_TIERS[tier])}">
     <div class="fx-hv-who">${esc(p.name)}</div>`;
   const t = el.querySelector('.fx-hv-title');
   t.onerror = () => { t.replaceWith(Object.assign(document.createElement('div'), { className: 'fx-hv-title-txt', textContent: HAND_TIERS[tier] })); };
   // 영상은 페이지에 바로 붙여야 '스크린' 섞기가 테이블과 섞인다 (연출 층 안에 넣으면 검은 화면이 됨)
-  const dim = Object.assign(document.createElement('div'), { className: 'fx-hv-dim' });
-  const vw = blendVideo(`/img/holdem/fx/${key}.mp4?v=1`, 'fx-hv-vid', HV_RATE);
-  fitFx(dim, vw, el);
-  document.body.append(dim, vw, el);
-  const parts = [dim, vw, el];
-  sound.play('fx_' + key);
-  setTimeout(() => sound.play('v_h' + tier, 1.2), 500);
+  let parts = [el];
+  if (lite) { fitFx(el); document.body.append(el); sound.play('v_h' + tier, 1.2); }
+  else {
+    const dim = Object.assign(document.createElement('div'), { className: 'fx-hv-dim' });
+    const vw = blendVideo(`/img/holdem/fx/${key}.mp4?v=1`, 'fx-hv-vid', HV_RATE);
+    fitFx(dim, vw, el);
+    document.body.append(dim, vw, el);
+    parts = [dim, vw, el];
+    sound.play('fx_' + key);
+    setTimeout(() => sound.play('v_h' + tier, 1.2), 500);
+  }
   if (sound.isUnlocked()) gws.vibrate(tier >= 7 ? [60, 40, 160] : [50]);
   let done = false;
   const end = (fade) => {
@@ -4891,8 +4895,8 @@ function winGlow(huge) {
   el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
   document.body.appendChild(el);
   sound.play('fx_potwin');
-  setTimeout(() => el.classList.add('out'), 2200);
-  setTimeout(() => el.remove(), 2800);
+  setTimeout(() => el.classList.add('out'), 1200);
+  setTimeout(() => el.remove(), 1800);
 }
 function burstChips(winners, count) {
   const pot = document.querySelector('.pot-chip') || document.querySelector('.board');
@@ -5048,7 +5052,7 @@ function celebrate(st) {
   }
   const names = r.winnerNames.join(', ');
   const handName = big && r.hands[r.winners[0]] ? esc(r.hands[r.winners[0]].name) : '모두 폴드';
-  const el = banner(iWon ? '내가 이겼다!' : `${names} 승리`, `<span class="fx-hand">${handName}</span><b class="fx-amt">+0</b>`, iWon ? 'mywin' : 'win', big ? 2600 : 1800);
+  const el = banner(iWon ? '내가 이겼다!' : `${names} 승리`, `<span class="fx-hand">${handName}</span><b class="fx-amt">+0</b>`, iWon ? 'mywin' : 'win', big ? 1800 : 1400);
   countUp(el.querySelector('.fx-amt'), gain);
   if (iWon && holdem) {
     winGlow(huge);
