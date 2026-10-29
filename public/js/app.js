@@ -3344,7 +3344,7 @@ async function toggleOrient() {
     S.fsOn = true;
     return;
   } catch {}
-  toast(wantLand ? '폰을 가로로 눕혀 주세요 (자동 회전을 켜 두면 테이블이 가로로 바뀌어요 · 앱으로 설치하면 이 버튼으로 바로 돌아가요)' : '폰을 세로로 세워 주세요', 'info');
+  toast(wantLand ? '폰을 가로로 돌려 주세요 (자동 회전 켜기)' : '폰을 세로로 세워 주세요', 'info');
 }
 
 function renderGame() {
