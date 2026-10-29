@@ -2106,6 +2106,10 @@ body.in-room[data-theme="holdem"] .game:not([data-orient="land"]) .seat-mycards 
 /* ═══ 큰 족보 영상 연출 (스트레이트 이상) ═══ */
 .fx-hv { position: fixed; inset: 0; z-index: 30; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; animation: hvIn .25s ease-out both; }
 .fx-hv.out { animation: hvOut .6s ease-in forwards; }
+/* 가벼운 큰 족보: 화면을 어둡게 덮지 않고 글씨만 조금 작게 */
+.fx-hv.lite::before { display: none; }
+.fx-hv.lite .fx-hv-title { width: min(64%, 360px); max-height: 20vh; }
+.fx-hv.lite .fx-hv-title-txt { font-size: clamp(1.6rem, 8vw, 2.6rem); }
 .fx-hv::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0, 0, 0, .15), rgba(0, 0, 0, .55)); }
 .fx-hv-vid { position: absolute; left: 50%; top: 46%; width: 100vw; height: 100vh; transform: translate(-50%, -50%); object-fit: cover; mix-blend-mode: screen; }
 .fx-hv-title { position: relative; width: min(86%, 520px); max-height: 30vh; object-fit: contain; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .8)); animation: hvTitle .7s cubic-bezier(.2, 1.4, .4, 1) .15s both; }
@@ -2205,6 +2209,10 @@ body.in-room[data-theme="holdem"] .seat-av .rk-badge { right: auto; left: 50%; t
 .game[data-orient="land"] .chat-mini { flex: 1 1 100%; order: -1; min-height: 90px; max-height: none; justify-content: flex-end; overflow: hidden; padding: 6px 10px; gap: 3px; }
 .game[data-orient="land"] .chat-mini .cm-line { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
 .game[data-orient="land"] .tool-btn { flex: 1; }
+/* 가로 화면: 채팅이 길어지면 오른쪽 칸 위로 넘쳐 위쪽 버튼(기록·회전·소리)을 덮던 것 → 칸 안에서 잘라 최근 줄만 보이게, 위 버튼은 항상 위에 */
+.game[data-orient="land"] .g-main { min-height: 0; }
+.game[data-orient="land"] .g-side { min-height: 0; overflow: hidden; }
+.game[data-orient="land"] .g-top { position: relative; z-index: 6; }
 /* 가로 화면 채팅 창: 오른쪽 조작 칸 너비에 맞춰서 (테이블을 가리지 않게) */
 body:has(.game[data-orient="land"]) .chat-sheet { width: clamp(280px, 33vw, 400px); }
 body:has(.game[data-orient="land"]) .chat-scrim { background: transparent; }
