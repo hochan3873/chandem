@@ -757,6 +757,8 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
     socket.on('host:kick', handler((d) => { const { room, pid } = ctx(); room.kick(pid, d.id); }));
     socket.on('host:transfer', handler((d) => { const { room, pid } = ctx(); room.transferHost(pid, d.id); }));
     socket.on('host:end', handler(() => { const { room, pid } = ctx(); return room.endGame(pid); }));
+    socket.on('host:finish', handler(() => { const { room, pid } = ctx(); return room.finishAfter(pid); }));
+    socket.on('host:finishCancel', handler(() => { const { room, pid } = ctx(); room.cancelFinish(pid); }));
     socket.on('room:chat', handler((d) => { const { room, pid } = ctx(); room.say(pid, d.text); }));
     socket.on('game:show', handler((d) => { const { room, pid } = ctx(); room.showCards(pid, d && d.which); }));
     socket.on('game:rabbit', handler(() => { const { room, pid } = ctx(); room.rabbitHunt(pid); }));

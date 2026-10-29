@@ -86,3 +86,27 @@ test('게임 중 자리 옮기기: 판에 참여 중이면 다음 판부터, 예
   assert.throws(() => t.room.changeSeat(t.ps[1].id, f2), /토너먼트/);
   t.room.clearAllTimers();
 });
+
+test('게임 끝내기: 지금 판 포함 3판 더 하고 자동으로 정산 · 취소하면 계속', () => {
+  const { room, ps } = cash(3);
+  room.start(ps[0].id);
+  const first = room.handNo;
+  assert.deepEqual(room.finishAfter(ps[0].id), { final: 3 });
+  assert.equal(room.viewFor(ps[1].id).room.finalLeft, 3);
+  assert.throws(() => room.finishAfter(ps[0].id), /이미/);
+  for (let i = 0; i < 2; i++) { foldOut(room); room.nextHandAt = 0; room.startHand(); }
+  assert.equal(room.handNo, first + 2);
+  assert.equal(room.viewFor(ps[1].id).room.finalLeft, 1);
+  foldOut(room); room.nextHandAt = 0; room.startHand();
+  assert.equal(room.phase, 'lobby');
+  assert.ok(room.settlement && room.settlement.rows.length === 3);
+  assert.equal(room.viewFor(ps[2].id).room.settlement.hands, first + 2);
+  room.clearAllTimers();
+  const b = cash(3);
+  b.room.start(b.ps[0].id);
+  b.room.finishAfter(b.ps[0].id);
+  b.room.cancelFinish(b.ps[0].id);
+  for (let i = 0; i < 4; i++) { foldOut(b.room); b.room.nextHandAt = 0; b.room.startHand(); }
+  assert.equal(b.room.phase, 'playing');
+  b.room.clearAllTimers();
+});

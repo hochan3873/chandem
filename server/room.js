@@ -51,7 +51,8 @@ const HISTORY_MAX = 40;               // 핸드 기록 보관 판 수
 /** 'As' → 'A♠' (기록용 글) */
 const cardTxt = (c) => (c ? (c[0] === 'T' ? '10' : c[0]) + ({ s: '♠', h: '♥', d: '♦', c: '♣' }[c[1]] || '') : '');
 const EMOTE_GAP_MS = 1500;
-const BLIND_VOTE_MS = 60 * 1000;      // 블라인드 변경 투표: 이 시간 안에 모두 동의해야 바뀜
+const BLIND_VOTE_MS = 60 * 1000;
+const FINAL_HANDS = 3;                // 방장이 게임 끝내기를 누르면 이만큼 더 하고 자동 정산      // 블라인드 변경 투표: 이 시간 안에 모두 동의해야 바뀜
 
 function int(v, def) {
   const n = Math.floor(Number(v));
@@ -727,6 +728,33 @@ class Room {
     return { at: this.now(), reason: reason || null, hands: this.handNo, rows, transfers, value, bots: this.players.some((p) => p.isBot) };
   }
 
+  /** 일반 게임 끝내기 예약 (방장): 지금 판을 포함해 N판 더 하고 자동으로 끝내고 정산 */
+  finishAfter(hostId, n = FINAL_HANDS) {
+    this.requireHost(hostId);
+    if (this.phase !== 'playing') throw new RoomError('게임 중에만 할 수 있어요');
+    if (this.isTournament || this.settings.game === 'omok') return this.endGame(hostId);
+    if (this.finalHands) throw new RoomError(`이미 마지막 판을 돌리는 중이에요 (남은 ${this.finalLeft()}판)`);
+    const running = this.hand && !this.hand.finished;
+    this.finalHands = { last: this.handNo + n - (running ? 1 : 0) };
+    this.pushFeed(`🏁 방장이 게임 끝내기를 눌렀어요 · ${n}판 더 하고 자동으로 끝내고 정산해요`);
+    this.touch();
+    return { final: n };
+  }
+  /** 남은 판 수 (지금 진행 중인 판 포함) */
+  finalLeft() {
+    const f = this.finalHands;
+    if (!f) return 0;
+    const running = this.hand && !this.hand.finished;
+    return Math.max(0, f.last - this.handNo + (running ? 1 : 0));
+  }
+  cancelFinish(hostId) {
+    this.requireHost(hostId);
+    if (!this.finalHands) return;
+    this.finalHands = null;
+    this.pushFeed('방장이 게임 끝내기를 취소했어요 · 계속해요');
+    this.touch();
+  }
+
   endGame(hostId, reason) {
     if (hostId !== null) this.requireHost(hostId);
     if (this.hand && !this.hand.finished) {
@@ -738,6 +766,7 @@ class Room {
       return { scheduled: true };
     }
     this.pendingEnd = null;
+    this.finalHands = null;
     if (this.phase === 'playing' && !this.isTournament && this.settings.game !== 'omok') this.settlement = this.computeSettlement(reason || '방장이 게임을 끝냈어요');
     this.endsAt = null;
     this.clearTimer('next');
@@ -819,6 +848,8 @@ class Room {
 
   startHand() {
     if (this.pendingEnd && this.phase === 'playing') { const why = this.pendingEnd; this.pendingEnd = null; this.endGame(null, why); return false; }
+    // 방장이 '끝내기'로 정한 마지막 판까지 다 돌았으면: 자동으로 끝내고 정산
+    if (this.finalHands && this.phase === 'playing' && this.handNo >= this.finalHands.last) { this.endGame(null, `방장이 정한 마지막 ${FINAL_HANDS}판까지 끝났어요`); return false; }
     this.applyPendingAccounts(); // 방 안에서 로그인한 사람: 이 판부터 기록
     this.applySeatMoves();
     this.showIds = [];   // 판이 끝난 뒤 '내 패 보여주기'(두 장 다)를 누른 사람
@@ -1653,6 +1684,7 @@ class Room {
         settlement: this.phase === 'lobby' ? this.settlement || null : null,
         tableSeats: this.tableSeats,
         blindVote: this.blindVoteView(),
+        finalLeft: this.phase === 'playing' && this.finalHands ? this.finalLeft() : 0,
       },
       me: me && {
         id: me.id,

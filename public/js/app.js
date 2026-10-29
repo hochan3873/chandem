@@ -3048,12 +3048,16 @@ function renderLobby() {
   bindInvite($app, st.room.code);
   bindCommon();
   const cp = $app.querySelector('#settle-copy');
+  const sl = $app.querySelector('#settle-log');
+  if (sl) sl.onclick = () => openHistory('hands');
   if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(settlementText(st.room.settlement)); toast('정산표를 복사했어요 · 단톡방에 붙여 넣어 보세요', 'ok'); } catch { toast('복사하지 못했어요', 'error'); } };
   // 게임이 끝나면: 참여했던 사람에게 정산표(딴 돈·잃은 돈)를 바로 띄운다 (한 번만)
   const stl = st.room.settlement;
-  if (stl && S.settleSeen !== stl.at && st.me && stl.rows.some((r) => r.id === st.me.id)) {
+  if (stl && S.settleSeen !== stl.at && st.me) {
     S.settleSeen = stl.at;
     openModal('게임 끝 · 정산표', settlementHTML(stl, false).replace('<section class="panel settle">', '<section class="settle settle-pop">'), (b) => {
+      const lg = b.querySelector('#settle-log');
+      if (lg) lg.onclick = () => openHistory('hands');
       const c = b.querySelector('#settle-copy');
       if (c) c.onclick = async () => { try { await navigator.clipboard.writeText(settlementText(stl)); toast('정산표를 복사했어요 · 단톡방에 붙여 넣어 보세요', 'ok'); } catch { toast('복사하지 못했어요', 'error'); } };
     }, { wide: true });
@@ -3127,6 +3131,7 @@ function settlementHTML(x, isHost) {
     </tbody></table>
     ${x.transfers.length ? `<h3 class="sub-title">누가 누구에게</h3><ul class="settle-list">${x.transfers.map((t) => `<li><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b><span>${v && v.per === 1 && v.value === 1 ? settleMoney(t.chips, v) : `${fmt(t.chips)}칩${v ? ` · ${settleMoney(t.chips, v)}` : ''}`}</span></li>`).join('')}</ul>` : `<p class="muted small">${x.rows.some((r) => r.net) ? '사람끼리 주고받을 칩은 없어요 (봇과 오간 칩은 정산에서 빠져요)' : '모두 본전이에요!'}</p>`}
     ${v ? `<p class="muted tiny">환산: 칩 ${fmt(v.per)} = ${fmt(v.value)}${esc(v.unit)} (방장이 정한 값을 보여 주기만 해요. 이 앱에는 돈을 주고받는 기능이 없어요)</p>` : ''}
+    <button class="btn btn-outline" id="settle-log">판 기록 · 칩 장부 · 진행 로그 보기</button>
     <button class="btn btn-gold" id="settle-copy">정산표 복사하기</button>
     ${isHost ? '<p class="muted tiny">방장: 다시 시작하면 정산표는 사라지고 새 게임이 시작돼요</p>' : ''}
   </section>`;
@@ -3472,6 +3477,7 @@ function renderBanner(st) {
     else msgs.push(['tourney', `레벨 ${tn.level} · ${fmt(tn.sb)}/${fmt(tn.bb)} · ${tn.mtt && tn.mtt.tables > 1 ? `테이블 ${tn.mtt.tableNo}/${tn.mtt.tables} · 전체 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : tn.mtt ? `파이널 · 남은 ${tn.mtt.alive}/${tn.mtt.entrants}명` : `남은 ${tn.alive}/${tn.entrants}명`}`, `<span class="lvl-next">다음 ${fmt(tn.nextSb)}/${fmt(tn.nextBb)} · ${tn.paused ? '<b>멈춤</b>' : `<b data-level-at="${tn.nextAt}">-</b>`}</span>${pauseBtn}`]);
     if (tn.paused) msgs.push(['gold', me && me.isHost ? '⏸ 잠깐 멈춤 중 · 블라인드 시계도 멈춰 있어요' : '⏸ 방장이 잠깐 멈췄어요 · 곧 다시 시작해요']);
   }
+  if (st.room.finalLeft) msgs.push(['gold', st.room.finalLeft === 1 ? '🏁 마지막 판이에요 · 이 판이 끝나면 자동으로 정산해요' : `🏁 마지막 ${st.room.finalLeft}판 남았어요 · 다 돌면 자동으로 정산해요`]);
   // 블라인드 변경 투표: 자리에 앉은 사람 모두 동의해야 다음 판부터 바뀜
   const bv = st.room.blindVote;
   if (bv) {
@@ -4521,7 +4527,11 @@ function openMenuModal() {
       <div class="stack">
         ${!inHand && !me.masterPeek ? `<button class="btn btn-outline" data-m="role">${me.role === 'player' ? '관전으로 바꾸기' : '참가자로 앉기'}</button>` : ''}
         ${isHost && st.room.phase === 'playing' && !st.room.tournament && gameOf(st) !== 'omok' && !st.room.blindVote ? `<button class="btn btn-outline" data-m="blinds">${gameOf(st) === 'seotda' ? '판돈 올리기' : '블라인드 올리기'} (모두 동의하면)</button>` : ''}
-        ${isHost ? `<button class="btn btn-outline" data-m="end">${st.room.tournament ? '게임 끝내고 대기실로' : '게임 끝내고 정산하기'}</button>` : ''}
+        ${isHost && !st.room.tournament && gameOf(st) !== 'omok' && st.room.phase === 'playing'
+    ? (st.room.finalLeft
+      ? `<button class="btn btn-outline" data-m="end">지금 바로 끝내고 정산하기</button><button class="btn btn-outline" data-m="finishCancel">끝내기 취소 (계속하기)</button>`
+      : `<button class="btn btn-outline" data-m="finish">게임 끝내기 (3판 더 하고 자동 정산)</button>`)
+    : isHost ? `<button class="btn btn-outline" data-m="end">${st.room.tournament ? '게임 끝내고 대기실로' : '게임 끝내고 정산하기'}</button>` : ''}
         <button class="btn btn-outline danger" data-m="leave">방 나가기</button>
         ${P.roomMasterHTML()}
       </div>
@@ -4546,6 +4556,8 @@ function openMenuModal() {
         if (m === 'end') { if (!confirm(st.room.settings.mode === 'tournament' ? '게임을 끝내고 대기실로 돌아갈까요?' : '게임을 끝내고 정산할까요? (모두 대기실로 돌아가 정산표를 봐요)')) return; const r = await emit('host:end'); if (r && r.scheduled) toast('이번 판이 끝나면 게임을 끝내고 정산할게요', 'info'); }
         if (m === 'leave') { await leaveRoom(); return; }
         if (m === 'blinds') { openBlindsModal(st); return; }
+        if (m === 'finish') { if (!confirm('3판 더 하고 자동으로 게임을 끝낼까요? (끝나면 모두에게 정산표가 떠요)')) return; const r = await emit('host:finish'); if (r && r.final) toast(`${r.final}판 더 하고 자동으로 정산해요`, 'ok'); }
+        if (m === 'finishCancel') await emit('host:finishCancel');
         if (m === 'seat') {
           const mine = st.players.find((p) => p.id === me.id);
           openModal('자리 옮기기', `${seatMapHTML(st)}<p class="muted small center">빈자리를 누르면 그 자리로 옮겨요 · 지금 판에 참여 중이면 <b>다음 판부터</b> 옮겨져요${mine && mine.nextSeat != null ? ` · 지금 <b>${mine.nextSeat + 1}번</b>으로 옮길 예정` : ''}</p>`, null, { wide: true });
