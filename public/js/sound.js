@@ -34,6 +34,7 @@ export const HOLDEM_SONGS = [
   ['bgm_holdem2', 'Velvet Ante · 딥하우스'],
   ['bgm_holdem3', 'Sunset High Stakes · 아프로 하우스'],
   ['bgm_holdem4', 'Aces on the Felt · 누디스코'],
+  ['bgm_holdem5', 'Green Felt Hours · 차분한 재즈 라운지'],
   ['bgm_holdem', '카지노 재즈 (원래 곡)'],
 ];
 const PLAYLIST = { bgm_holdem: HOLDEM_SONGS.map((x) => x[0]) };
