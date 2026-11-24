@@ -2615,3 +2615,11 @@ body.in-room .seat-me.seat-folded, body.in-room[data-theme="holdem"] .seat-me.se
 .chat-mini { font-size: .8rem; }
 .chat-sheet, body.in-room .chat-sheet { background: #1c110e; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .chat-scrim { background: rgba(0, 0, 0, .35); }
+/* PC(큰 화면 + 마우스): 자리·이름·내 카드가 테이블에 비해 너무 작던 것 → 키우기 · 오른쪽 빈칸은 채팅으로 채우기 */
+@media (min-width: 1100px) and (min-height: 700px) and (pointer: fine) {
+  body.in-room[data-theme="holdem"] .game .seat { transform: translate(-50%, -50%) scale(1.45); }
+  body.in-room[data-theme="holdem"] .game .seat-me { transform: translate(-50%, -50%) scale(1.6); }
+  .game[data-orient="land"] .chat-mini { min-height: 38vh; font-size: .92rem; }
+  .game[data-orient="land"] .chat-mini .cm-line { line-height: 1.45; }
+  .g-top .tb-mid b { font-size: 1.15rem; }
+}

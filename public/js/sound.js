@@ -7,7 +7,7 @@ const buffers = {};
 let manifest = null;
 
 const prefs = (() => {
-  const base = { muted: false, volume: 0.7, voice: true, music: true, musicVolume: 0.35, friendLoud: false };
+  const base = { muted: false, volume: 0.7, voice: true, music: true, musicVolume: 0.35, friendLoud: false, holdemSong: 'all' };
   try { return { ...base, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
   catch { return base; }
 })();
@@ -29,6 +29,26 @@ const hush = () => quiet && !prefs.friendLoud;
 const voiceOK = () => prefs.voice && !hush();
 
 // ── 배경음악: <audio> 로 스트리밍 + 반복 재생 ───────────────
+// 홀덤은 여러 곡을 돌려 튼다 (곡이 끝나면 다음 곡) · 소리 설정에서 한 곡만 고를 수도 있다
+export const HOLDEM_SONGS = [
+  ['bgm_holdem2', 'Velvet Ante · 딥하우스'],
+  ['bgm_holdem3', 'Sunset High Stakes · 아프로 하우스'],
+  ['bgm_holdem4', 'Aces on the Felt · 누디스코'],
+  ['bgm_holdem', '카지노 재즈 (원래 곡)'],
+];
+const PLAYLIST = { bgm_holdem: HOLDEM_SONGS.map((x) => x[0]) };
+let songIdx = Math.floor(Math.random() * 3); // 들어올 때마다 새 곡 중 하나부터
+export function setSong(k) { prefs.holdemSong = k || 'all'; save(); if (track === 'bgm_holdem') restartTrack(); }
+export function currentSong() { return bgm && bgmTrack === 'bgm_holdem' ? curSong : null; }
+let curSong = null;
+function pickSong(name) {
+  const list = PLAYLIST[name];
+  if (!list || list.length < 2) return { file: name, loop: true };
+  const want = prefs.holdemSong;
+  if (want && want !== 'all' && list.includes(want)) return { file: want, loop: true };
+  return { file: list[songIdx % list.length], loop: false };
+}
+function restartTrack() { if (bgm) { const old = bgm; bgm = null; old.pause(); } applyMusic(); }
 let bgm = null;
 let track = 'bgm';           // 화면마다 다른 곡: bgm_hub(메인) · bgm(홀덤) · bgm_seotda · bgm_omok
 let bgmTrack = null;
@@ -60,10 +80,16 @@ function applyMusic() {
   if (!bgm) {
     if (!want) return;
     // 목록(manifest)을 아직 못 받았으면 이름 규칙(곡이름.mp3)으로 바로 시작
-    const file = manifest ? (manifest[track] || manifest.bgm) : track + '.mp3';
+    const pick = pickSong(track);
+    curSong = pick.file;
+    const file = manifest ? (manifest[pick.file] || manifest[track] || manifest.bgm) : pick.file + '.mp3';
     if (!file) return;
     bgm = new Audio('/sounds/' + file);
-    bgm.loop = true;
+    bgm.loop = pick.loop;
+    if (!pick.loop) {
+      const me = bgm;
+      bgm.addEventListener('ended', () => { if (bgm !== me) return; songIdx += 1; bgm = null; applyMusic(); });
+    }
     bgm.preload = 'auto';
     bgmTrack = track;
   }
