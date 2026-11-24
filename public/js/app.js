@@ -2007,7 +2007,7 @@ function openChat() {
   scrim.onclick = closeChat;
   const sh = document.createElement('section');
   sh.id = 'chat-sheet'; sh.className = 'chat-sheet';
-  sh.innerHTML = `<div class="cs-myhand" id="cs-myhand"></div><div class="cs-head"><b>채팅</b><small class="muted">${esc(st.room.code)}</small><button type="button" class="cs-off ${S.chatOff ? 'on' : ''}" id="cs-off" aria-label="채팅 끄기 켜기">${S.chatOff ? '채팅 켜기' : '채팅 끄기'}</button><button type="button" class="cs-x" id="cs-x" aria-label="닫기">닫기</button></div>
+  sh.innerHTML = `<div class="cs-myhand" id="cs-myhand"></div><div class="cs-head"><b>채팅</b><button type="button" class="cs-off ${S.chatOff ? 'on' : ''}" id="cs-off" aria-label="채팅 끄기 켜기">${S.chatOff ? '채팅 켜기' : '채팅 끄기'}</button><button type="button" class="cs-x" id="cs-x" aria-label="닫기">닫기</button></div>
     <ol class="chat-list cs-list" id="chat-list">${chatListHTML(st)}</ol>
     <div class="cs-quick">${['굿폴드', '나이스 핸드', 'ㅋㅋㅋ', '블러핑이지?', '잠깐만요', 'GG', '한 판만 더'].map((t) => `<button type="button" data-q="${t}">${t}</button>`).join('')}</div>
     <form class="cs-form" id="chat-form" autocomplete="off"><input class="input" name="t" maxlength="80" placeholder="메시지 (Enter로 보내기)" enterkeyhint="send"><button class="btn btn-gold">보내기</button></form>`;
@@ -2090,7 +2090,7 @@ function chatBubble(m) {
   const myc = document.querySelector('.seat-me .seat-mycards');
   if (myc) { const c = myc.getBoundingClientRect(); if (Math.abs((r.left + r.width / 2) - (c.left + c.width / 2)) < c.width && r.top - 2 > c.top && r.top - 40 < c.bottom) el.style.top = Math.max(50, c.top - 6) + 'px'; }
   fxLayer().appendChild(el);
-  setTimeout(() => el.remove(), 3200);
+  setTimeout(() => el.remove(), 4200);
 }
 
 // ── 소리·애니메이션 트리거 ─────────────────────────────
