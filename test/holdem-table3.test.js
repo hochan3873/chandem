@@ -44,19 +44,16 @@ test('자리: 고르지 않으면 고르게 퍼지고, 고르면 그 자리 · �
   room.clearAllTimers();
 });
 
-test('토끼 사냥: 누르기 전엔 남은 카드가 안 보이고, 누르면 모두에게 보인다', () => {
+test('모두 폴드로 끝나면 남은 바닥 카드가 누르지 않아도 모두에게 펼쳐진다', () => {
   const { room, ps } = cash(3);
   room.start(ps[0].id);
   foldOut(room);
-  const v1 = room.viewFor(ps[0].id);
-  assert.equal(v1.hand.result.type, 'fold');
-  assert.deepEqual(v1.hand.result.rabbit, []);
-  assert.equal(v1.hand.canRabbit, true);
-  room.rabbitHunt(ps[1].id);
-  const v2 = room.viewFor(ps[2].id);
-  assert.equal(v2.hand.result.rabbit.length, 5);
-  assert.equal(v2.hand.canRabbit, false);
-  assert.match(v2.feed.slice(-1)[0].text, /남은 카드/);
+  for (const p of ps) {
+    const v = room.viewFor(p.id);
+    assert.equal(v.hand.result.type, 'fold');
+    assert.equal(v.hand.result.rabbit.length, 5);
+    assert.equal(v.hand.canRabbit, false);
+  }
   // 핸드 기록에도 남는다
   const hv = room.historyView();
   assert.equal(hv.hands[0].rabbit.length, 5);
