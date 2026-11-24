@@ -33,8 +33,7 @@ const DEFAULT_SETTINGS = {
   settlePer: 1000,       // 정산 환산: 칩 settlePer 개 = settleValue settleUnit (친구끼리 약속한 값을 보여 주기만 함)
   settleValue: 0,
   settleUnit: '',
-  addonOn: true,         // 칩 추가(애드온): 일반 게임에서 칩이 남아 있어도 언제든 칩을 더 사서 넣기 (다음 판부터, 정산에 바이인으로 들어감)
-  addonMax: 0,           // 한 번에 추가할 수 있는 최대 칩 (0 = 시작 칩만큼)
+
   resultSeconds: 10,     // 판이 끝나고 결과(카드)를 보여 주는 시간(초) — 다음 판까지
 };
 
@@ -90,8 +89,7 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.rebuyFlex = src.rebuyFlex === undefined ? !!base.rebuyFlex : !!src.rebuyFlex;
   s.rebuyLo = Math.min(10000000, Math.max(1, int(src.rebuyLo, base.rebuyLo || Math.max(1, Math.round(s.rebuyAmount / 2)))));
   s.rebuyHi = Math.min(10000000, Math.max(s.rebuyLo, int(src.rebuyHi, base.rebuyHi || s.rebuyAmount * 2)));
-  s.addonOn = src.addonOn === undefined ? (base.addonOn === undefined ? true : !!base.addonOn) : !!src.addonOn;
-  s.addonMax = Math.min(10000000, Math.max(0, int(src.addonMax, base.addonMax || 0)));
+  delete s.addonOn; delete s.addonMax; // (잠깐 있던 '리바인과 따로인 칩 추가' 설정 — 칩 추가는 리바인 횟수 안에서)
   s.resultSeconds = Math.min(30, Math.max(4, int(src.resultSeconds, base.resultSeconds || 10)));
   s.password = typeof src.password === 'string' ? src.password.trim().slice(0, 20) : base.password;
   s.approval = src.approval === undefined ? base.approval : !!src.approval;
@@ -687,7 +685,7 @@ class Room {
     const label = {
       startChips: '늦게 온 사람 시작 칩', turnSeconds: '턴 시간', timeBank: '타임뱅크', ante: '앤티', maxPlayers: '최대 인원',
       rebuyEnabled: '리바인', rebuyAmount: '리바인 금액', rebuyMax: '리바인 횟수', rebuyFlex: '리바인 각자 정하기', rebuyLo: '리바인 최소', rebuyHi: '리바인 최대',
-      addonOn: '칩 추가', addonMax: '칩 추가 한도', resultSeconds: '결과 보는 시간', sessionMinutes: '게임 시간',
+      resultSeconds: '결과 보는 시간', sessionMinutes: '게임 시간',
       settlePer: '정산 환산', settleValue: '정산 환산', settleUnit: '정산 단위', password: '비밀번호', approval: '참가 승인',
     };
     const show = (k, v) => (typeof v === 'boolean' ? (v ? '켬' : '끔') : k === 'password' ? (v ? '있음' : '없음') : k === 'ante' ? (v === 'bb' ? 'BB 앤티' : '없음') : typeof v === 'number' ? v.toLocaleString() : String(v || '-'));
@@ -1506,28 +1504,35 @@ class Room {
     this.touch();
   }
 
-  // ── 칩 추가(애드온) ─────────────────────────────────
-  addonLimit() { const s = this.settings; return s.addonMax > 0 ? s.addonMax : s.startChips; }
+  // ── 칩 추가: 리바인 횟수 안에서 (칩이 남아 있어도 언제든, 1번 = 리바인 1번) ──
+  addonLimit() { const s = this.settings; return s.rebuyFlex && s.money !== 'won' ? s.rebuyHi : s.rebuyAmount; }
   canAddon(p) {
     const s = this.settings;
-    if (!s.addonOn || this.phase !== 'playing' || this.isTournament || this.wallet || this.practice || s.game === 'omok') return false;
+    if (!s.rebuyEnabled || this.phase !== 'playing' || this.isTournament || this.wallet || this.practice || s.game === 'omok') return false;
     if (!p || p.isBot || p.role !== 'player' || p.leaving) return false;
-    if (this.effectiveStack(p) + (p.pendingRebuy || 0) <= 0) return false; // 다 잃었으면 칩 추가가 아니라 리바인 (리바인 횟수 제한을 지키려고)
-    return (p.pendingAdd || 0) < this.addonLimit();
+    if ((p.rebuys || 0) >= s.rebuyMax || p.pendingAdd > 0 || p.pendingRebuy > 0) return false;
+    if (this.revealing) return false;
+    return this.effectiveStack(p) > 0; // 다 잃었으면 리바인 버튼으로
   }
   addon(id, amount) {
     const p = this.get(id);
     if (!p) throw new RoomError('참가자를 찾을 수 없어요');
-    if (!this.settings.addonOn) throw new RoomError('이 방은 칩 추가가 꺼져 있어요 (방장이 설정에서 켤 수 있어요)');
-    if (!this.canAddon(p)) throw new RoomError(p.role !== 'player' ? '자리에 앉아 있어야 칩을 추가할 수 있어요' : this.effectiveStack(p) <= 0 ? '칩을 다 잃었을 때는 리바인으로 다시 사요' : '지금은 칩을 추가할 수 없어요');
-    const lim = this.addonLimit() - (p.pendingAdd || 0);
+    const s = this.settings;
+    if (!s.rebuyEnabled) throw new RoomError('이 방은 리바인이 꺼져 있어서 칩을 추가할 수 없어요 (방장이 설정에서 켤 수 있어요)');
+    if ((p.rebuys || 0) >= s.rebuyMax) throw new RoomError(`리바인 ${s.rebuyMax}번을 다 써서 더 추가할 수 없어요`);
+    if (p.pendingAdd > 0 || p.pendingRebuy > 0) throw new RoomError('이미 신청했어요. 다음 판부터 들어가요');
+    if (!this.canAddon(p)) throw new RoomError(p.role !== 'player' ? '자리에 앉아 있어야 칩을 추가할 수 있어요' : this.effectiveStack(p) <= 0 ? '칩을 다 잃었을 때는 리바인 버튼으로 사요' : '지금은 칩을 추가할 수 없어요');
+    const lim = this.addonLimit();
+    const lo = s.rebuyFlex && s.money !== 'won' ? Math.min(s.rebuyLo, lim) : 1;
     const want = Math.floor(Number(amount));
     if (!Number.isFinite(want) || want < 1) throw new RoomError('추가할 칩을 골라 주세요');
-    if (want > lim) throw new RoomError(`한 번에 ${this.addonLimit().toLocaleString()}까지 추가할 수 있어요`);
-    p.pendingAdd = (p.pendingAdd || 0) + want;
+    if (want > lim) throw new RoomError(`한 번에 ${lim.toLocaleString()}까지 추가할 수 있어요`);
+    if (want < lo) throw new RoomError(`${lo.toLocaleString()} 이상 추가해 주세요`);
+    p.rebuys = (p.rebuys || 0) + 1;
+    p.pendingAdd = want;
     p.sittingOut = false;
     const running = this.hand && !this.hand.finished;
-    this.pushFeed(`${p.name}님 칩 추가 ${want.toLocaleString()} 신청${running ? ' · 다음 판부터 적용' : ''}`);
+    this.pushFeed(`${p.name}님 칩 추가 ${want.toLocaleString()} 신청 (리바인 ${p.rebuys}/${s.rebuyMax})${running ? ' · 다음 판부터 적용' : ''}`);
     this.maybeStartWaitingHand();
     this.touch();
     return { pending: p.pendingAdd };
@@ -1631,7 +1636,7 @@ class Room {
     }
     const inHand = this.hand && !this.hand.finished && this.handPlayers.includes(id);
     if (p.pendingRebuy > 0) { p.rebuys = Math.max(0, (p.rebuys || 0) - 1); p.pendingRebuy = 0; } // 적용 전에 나가면 신청 취소
-    p.pendingAdd = 0;
+    if (p.pendingAdd > 0) { p.rebuys = Math.max(0, (p.rebuys || 0) - 1); p.pendingAdd = 0; }
     if (this.phase === 'playing' && this.isTournament && p.role === 'player') this.tourneyOut(p);
     if (inHand) {
       p.leaving = true;
@@ -1786,7 +1791,8 @@ class Room {
         pendingRebuy: me.pendingRebuy,
         canRebuy: this.canRebuy(me),
         canAddon: this.canAddon(me),
-        addonLeft: this.canAddon(me) ? this.addonLimit() - (me.pendingAdd || 0) : 0,
+        addonLeft: this.canAddon(me) ? this.addonLimit() : 0,
+        addonLo: this.settings.rebuyFlex && this.settings.money !== 'won' ? Math.min(this.settings.rebuyLo, this.addonLimit()) : 0,
         pendingAdd: me.pendingAdd || 0,
         buyIn: me.totalBuyIn || 0,
         addonTotal: me.addonTotal || 0,

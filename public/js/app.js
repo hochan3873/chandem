@@ -2687,13 +2687,7 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <label class="field"><span>최소 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyLo" min="1" value="${s.rebuyLo || Math.round((s.rebuyAmount || 1000) / 2)}"></label>
       <label class="field"><span>최대 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyHi" min="1" value="${s.rebuyHi || (s.rebuyAmount || 1000) * 2}"></label>
     </div>
-    <p class="muted small">칩이 시작 칩의 절반보다 적거나 다 떨어졌을 때 신청할 수 있어요. 진행 중인 판에는 영향이 없고 다음 판부터 적용돼요.</p>
-  </fieldset>
-  <fieldset class="fieldset chips-only cash-only">
-    <legend>칩 추가 (애드온)</legend>
-    <label class="switch"><input type="checkbox" name="addonOn" ${s.addonOn !== false ? 'checked' : ''}><span>칩 추가 허용 <small class="muted">(칩이 남아 있어도 언제든 더 사서 넣기 · 리바인 횟수와 따로)</small></span></label>
-    <label class="field"><span>한 번에 추가할 수 있는 최대 칩 <small class="muted">(비우면 시작 칩만큼)</small></span><input class="input" type="number" inputmode="numeric" name="addonMax" min="0" value="${s.addonMax || ''}" placeholder="시작 칩만큼"></label>
-    <p class="muted small">추가한 칩은 다음 판부터 들어가고, 정산표에서 바이인에 더해져요. 칩을 다 잃었을 때는 리바인으로 사요.</p>
+    <p class="muted small">칩이 남아 있어도 <b>남은 리바인 횟수 안에서</b> 「칩 추가」로 원하는 금액(리바인 금액까지)을 더 살 수 있어요. 칩 추가 1번 = 리바인 1번. 진행 중인 판에는 영향이 없고 다음 판부터 적용돼요.</p>
   </fieldset>
   <fieldset class="fieldset">
     <legend>입장 제한 (선택)</legend>
@@ -2789,7 +2783,7 @@ function readSettings(form) {
     reentryLevels: num('reentryLevels') || 0, blindLevels: String(fd.get('blindLevels') || '').trim(),
     prizes: [0, 1, 2, 3].map((i) => String(fd.get('prize' + i) || '').trim()),
     tableSize: num('tableSize') || 9,
-    addonOn: fd.get('addonOn') === 'on', addonMax: num('addonMax') || 0, resultSeconds: num('resultSeconds') || 10,
+    resultSeconds: num('resultSeconds') || 10,
     sessionMinutes: num('sessionMinutes') || 0, settlePer: num('settlePer') || 1000, settleValue: num('settleValue') || 0, settleUnit: String(fd.get('settleUnit') || '').trim(),
     ...(fd.get('game') ? { game: fd.get('game') } : {}),
     cards: Number(fd.get('cards')) === 3 ? 3 : 2,
@@ -3037,7 +3031,7 @@ function settingsSummaryHTML(s) {
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
     <li><span>리바인</span><b>${s.mode === 'tournament' ? (s.reentryLevels > 0 ? `레벨 ${s.reentryLevels}까지 · 1인 ${s.rebuyMax >= 99 ? '제한 없음' : `최대 ${s.rebuyMax}번`}` : '없음') : s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
-    ${s.mode !== 'tournament' && s.game !== 'omok' ? `<li><span>칩 추가</span><b>${s.addonOn !== false ? `허용 · 한 번에 ${fmt(s.addonMax || s.startChips)}까지` : '없음'}</b></li>` : ''}
+    ${s.mode !== 'tournament' && s.game !== 'omok' && s.rebuyEnabled ? `<li><span>칩 추가</span><b>리바인 횟수 안에서 언제든 · 한 번에 ${fmt(s.rebuyFlex && s.money !== 'won' ? s.rebuyHi : s.rebuyAmount)}까지</b></li>` : ''}
     ${s.game !== 'omok' ? `<li><span>결과 보는 시간</span><b>${s.resultSeconds || 10}초</b></li>` : ''}
     <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? `세 장 · ${s.sdOpen === 'one' ? '한 장 공개' : '공개 없음'}` : '두 장'})` : ''}</b></li>
     <li><span>방식</span><b>${s.mode === 'tournament' ? `토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
@@ -3203,19 +3197,20 @@ async function doRebuy(amount) {
 function openAddonModal(st) {
   const me = st.me;
   const s = st.room.settings;
-  if (!me || !me.canAddon) { toast(s.addonOn === false ? '이 방은 칩 추가가 꺼져 있어요 (방장이 설정에서 켤 수 있어요)' : me && me.stack === 0 ? '칩을 다 잃었을 때는 리바인으로 다시 사요' : '지금은 칩을 추가할 수 없어요', 'info'); return; }
+  if (!me || !me.canAddon) { toast(!s.rebuyEnabled ? '이 방은 리바인이 꺼져 있어서 칩을 추가할 수 없어요' : me && me.rebuys >= s.rebuyMax ? `리바인 ${s.rebuyMax}번을 다 썼어요` : me && me.stack === 0 ? '칩을 다 잃었을 때는 리바인 버튼으로 사요' : '지금은 칩을 추가할 수 없어요', 'info'); return; }
   const hi = me.addonLeft;
+  const lo = Math.max(me.addonLo || 0, 1);
   const step = Math.max(1, s.bb || 1);
   const unit = s.money === 'won' ? '원' : '칩';
   const nice = (v) => { const u = Math.max(step, v >= 1000 ? 100 : v >= 200 ? 50 : 10); return Math.max(step, Math.round(v / u) * u); };
-  const quick = [...new Set([nice(hi / 4), nice(hi / 2), hi].filter((v) => v >= step && v <= hi))];
+  const quick = [...new Set([nice(hi / 4), nice(hi / 2), hi].filter((v) => v >= Math.max(step, lo) && v <= hi))];
   const start = quick[Math.min(1, quick.length - 1)] || hi;
   openModal('칩 추가', `<div class="rebuy-pick">
-    <p class="muted small">지금 칩 <b>${fmt(me.stack)}</b> · 바이인 합계 <b>${fmt(me.buyIn)}</b>${me.pendingAdd ? ` · 대기 중 +${fmt(me.pendingAdd)}` : ''}</p>
+    <p class="muted small">지금 칩 <b>${fmt(me.stack)}</b> · 바이인 합계 <b>${fmt(me.buyIn)}</b> · 남은 리바인 <b>${s.rebuyMax - me.rebuys}번</b></p>
     <div class="rp-amt">+<b id="ad-v">${fmt(start)}</b> ${unit}</div>
-    <input type="range" id="ad-r" min="${Math.min(step, hi)}" max="${hi}" step="${step}" value="${start}">
+    <input type="range" id="ad-r" min="${Math.min(Math.max(step, lo), hi)}" max="${hi}" step="${step}" value="${start}">
     <div class="rp-quick">${quick.map((v) => `<button type="button" class="btn btn-sm btn-outline" data-ad="${v}">+${fmt(v)}</button>`).join('')}</div>
-    <p class="muted tiny">진행 중인 판이 끝나면 칩에 더해지고, 정산표에서 내 바이인에 더해져요 (리바인 횟수와 상관없어요)</p>
+    <p class="muted tiny">칩 추가 1번 = 리바인 1번을 써요 (${me.rebuys + 1}/${s.rebuyMax}번째). 진행 중인 판이 끝나면 칩에 더해지고, 정산표에서 내 바이인에 더해져요</p>
     <button class="btn btn-gold btn-lg" id="ad-go" type="button">칩 추가 신청</button></div>`, (b) => {
     const r = b.querySelector('#ad-r'); const v = b.querySelector('#ad-v');
     const set = (x) => { r.value = x; v.textContent = fmt(Number(r.value)); };
@@ -3253,7 +3248,7 @@ function settlementHTML(x, isHost) {
   return `<section class="panel settle">
     <div class="sec-head"><h2 class="sec-title">정산 결과</h2><small class="muted">${x.hands}판 · ${hhmm(x.at)}${x.reason ? ` · ${esc(x.reason)}` : ''}</small></div>
     <table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>최종 칩</th><th>손익</th>${v ? `<th>${esc(v.unit) || '환산'}</th>` : ''}</tr></thead><tbody>
-    ${x.rows.map((r) => `<tr class="${r.left ? 'row-left' : ''}"><td>${esc(r.name)}${r.left ? ' <small class="tag-left">중간에 나감</small>' : ''}${r.rebuys || r.addon ? `<small class="muted row-sub">${[r.rebuys ? `리바인 ${r.rebuys}번` : '', r.addon ? `추가 ${fmt(r.addon)}` : ''].filter(Boolean).join(' · ')}</small>` : ''}</td><td>${fmt(r.buyIn)}</td><td>${fmt(r.out)}</td><td class="${cls(r.net)}">${signed(r.net)}</td>${v ? `<td class="${cls(r.net)}">${r.net > 0 ? '+' : r.net < 0 ? '−' : ''}${settleMoney(Math.abs(r.net), v)}</td>` : ''}</tr>`).join('')}
+    ${x.rows.map((r) => `<tr class="${r.left ? 'row-left' : ''}"><td>${esc(r.name)}${r.left ? ' <small class="tag-left">중간에 나감</small>' : ''}${r.rebuys ? `<small class="muted row-sub">리바인 ${r.rebuys}번${r.addon ? ` (그중 칩 추가 ${fmt(r.addon)})` : ''}</small>` : ''}</td><td>${fmt(r.buyIn)}</td><td>${fmt(r.out)}</td><td class="${cls(r.net)}">${signed(r.net)}</td>${v ? `<td class="${cls(r.net)}">${r.net > 0 ? '+' : r.net < 0 ? '−' : ''}${settleMoney(Math.abs(r.net), v)}</td>` : ''}</tr>`).join('')}
     </tbody></table>
     ${x.transfers.length ? `<h3 class="sub-title">누가 누구에게</h3><ul class="settle-list">${x.transfers.map((t) => `<li><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b><span>${v && v.per === 1 && v.value === 1 ? settleMoney(t.chips, v) : `${fmt(t.chips)}칩${v ? ` · ${settleMoney(t.chips, v)}` : ''}`}</span></li>`).join('')}</ul>` : `<p class="muted small">${x.rows.some((r) => r.net) ? '사람끼리 주고받을 칩은 없어요 (봇과 오간 칩은 정산에서 빠져요)' : '모두 본전이에요!'}</p>`}
     ${x.leftCount ? `<p class="muted tiny">중간에 나간 ${x.leftCount}명도 나갈 때 가지고 있던 칩으로 정산에 들어가 있어요</p>` : ''}
@@ -4699,8 +4694,8 @@ function openMenuModal() {
   const tile = (m, icon, label, sub = '', cls = '') => `<button type="button" class="mtile ${cls}" data-m="${m}">${TI[icon] || ''}<b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</button>`;
   const mine = [];
   if (me.role === 'player' && cashGame) {
-    if (me.canAddon) mine.push(tile('addon', 'plus', '칩 추가', `한 번에 ${fmt(me.addonLeft)}까지`, 'gold'));
-    else if (s.addonOn !== false && me.pendingAdd) mine.push(tile('addon', 'plus', '칩 추가', `대기 +${fmt(me.pendingAdd)}`));
+    if (me.canAddon) mine.push(tile('addon', 'plus', '칩 추가', `리바인 ${s.rebuyMax - me.rebuys}번 남음`, 'gold'));
+    else if (me.pendingAdd) mine.push(tile('addon', 'plus', '칩 추가', `대기 +${fmt(me.pendingAdd)}`));
     if (me.canRebuy) mine.push(tile('rebuy', 'chip', '리바인', `남은 ${s.rebuyMax - me.rebuys}번`, 'gold'));
     mine.push(tile('seat', 'seat', '자리 옮기기'));
   }
