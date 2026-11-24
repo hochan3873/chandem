@@ -309,11 +309,11 @@ const SVG_SHARE = '<svg class="ios-ico" viewBox="0 0 40 40" aria-hidden="true"><
 const SVG_ADD = '<svg class="ios-ico" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="6" width="28" height="28" rx="7" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M20 13v14M13 20h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
 const SVG_MORE = '<svg class="ios-ico" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="13" cy="20" r="2.2" fill="currentColor"/><circle cx="20" cy="20" r="2.2" fill="currentColor"/><circle cx="27" cy="20" r="2.2" fill="currentColor"/></svg>';
 // 아이폰: 사파리 26(iOS 26)은 공유 버튼이 ⋯ 메뉴 안으로 들어가고 '웹 앱으로 열기' 스위치가 생겼다 · 그 전 버전은 아래 막대의 공유 버튼
-function iosStepsHTML() {
+function iosStepsHTML(ver = SAFARI_VER, forced = false) {
   const notFound = '<p class="muted tiny">목록에 없으면 맨 아래 <b>「동작 편집…」</b>을 눌러 「홈 화면에 추가」를 켜 주세요</p>';
   const lastStep = (n, webApp) => `<li><div class="ios-shot ios-shot-top"><span class="ios-cancel">취소</span><span class="ios-title">홈 화면에 추가</span><b class="ios-hl ios-add">추가</b></div>
         <p><b>${n}</b> ${webApp ? '<b>「웹 앱으로 열기」</b>가 켜져 있는지 확인하고, ' : ''}오른쪽 위 <b>「추가」</b>를 누르면 끝!</p></li>`;
-  if (IOS_OTHER) {
+  if (IOS_OTHER && !forced) {
     return `<ol class="ios-steps">
       <li><div class="ios-shot ios-shot-bar"><span class="ios-bar"><i></i><i></i><b class="ios-hl">${SVG_SHARE}</b></span></div>
         <p><b>①</b> 주소창 오른쪽의 <b>공유</b> 버튼(네모에 위쪽 화살표)을 눌러요</p></li>
@@ -322,7 +322,7 @@ function iosStepsHTML() {
       ${lastStep('③', false)}
     </ol><p class="muted tiny">안 되면 <b>사파리</b>로 열어서 해 주세요</p>`;
   }
-  if (SAFARI_VER >= 26) {
+  if (ver >= 26) {
     return `<ol class="ios-steps">
       <li><div class="ios-shot ios-shot-bar"><span class="ios-bar"><i></i><i class="ios-addr"></i><b class="ios-hl">${SVG_MORE}</b></span></div>
         <p><b>①</b> 화면 아래 주소창 오른쪽의 <b>⋯</b> 버튼을 눌러요</p>
@@ -358,6 +358,63 @@ function openIosInstall() {
   }
   openModal(`아이폰에 ${APP_NAME} 설치`, `<p class="ios-lead">아이폰은 <b>다운로드가 아니라 「홈 화면에 추가」</b>로 설치해요. 앱스토어에서 받는 게 아니에요.</p>${iosStepsHTML()}
     <p class="muted small">바탕화면에 생긴 ${APP_NAME} 아이콘으로 열면 주소창 없이 전체 화면이에요. 사파리 화면 그대로 열리면, 아이콘을 지우고 「웹 앱으로 열기」를 켠 채 다시 추가해 주세요.</p>${ICON_NOTE}`, null, { wide: true });
+}
+// ── 설치 안내 (아이폰 사파리 · 안드로이드 크롬) — 탭으로 둘 다 자세히 ──
+const IS_ANDROID = /Android/i.test(UA);
+function androidStepsHTML() {
+  return `<ol class="ios-steps and-steps">
+    <li><div class="ios-shot ios-shot-bar and-bar"><span class="ios-bar"><i class="ios-addr"></i><b class="ios-hl">⋮</b></span></div>
+      <p><b>①</b> <b>크롬</b>으로 이 페이지를 열고, 주소창 오른쪽 <b>⋮</b>(점 세 개)를 눌러요</p>
+      <p class="muted tiny">카카오톡에서 열었다면 오른쪽 아래 <b>⋮ → 「다른 브라우저로 열기」 → 크롬</b> · 삼성 인터넷은 아래 <b>≡ → 「현재 페이지 추가」 → 「홈 화면」</b></p></li>
+    <li><div class="ios-shot ios-shot-sheet"><span class="ios-row">새 탭</span><span class="ios-row ios-hl">${SVG_ADD}<b>앱 설치</b></span><span class="ios-row">홈 화면에 추가</span></div>
+      <p><b>②</b> 메뉴에서 <b>「앱 설치」</b>를 눌러요</p>
+      <p class="muted tiny">「앱 설치」가 없으면 <b>「홈 화면에 추가」 → 「설치」</b>를 골라요 (「바로가기 만들기」는 주소창이 보이는 바로가기라 고르지 마세요)</p></li>
+    <li><div class="ios-shot ios-shot-top"><span class="ios-title">${APP_NAME} 설치</span><b class="ios-hl ios-add">설치</b></div>
+      <p><b>③</b> 뜨는 창에서 <b>「설치」</b>를 누르면 끝! 10~30초 뒤 바탕화면·앱 목록에 아이콘이 생겨요</p></li>
+    <li><p><b>④</b> <b>「안전하지 않은 앱 차단됨」</b>이 뜨면 「확인」 말고 <b>「자세히」 → 「무시하고 설치」</b> (플레이 스토어 앱이 아니라서 뜨는 안내예요)</p></li>
+  </ol>`;
+}
+function iosGuideHTML() {
+  return `<p class="ios-lead">아이폰은 앱스토어가 아니라 <b>사파리의 「홈 화면에 추가」</b>로 설치해요. <b>꼭 사파리</b>에서 해 주세요.</p>
+    <div class="ios-pre"><b>⓪ 사파리로 열기</b><p class="small">카카오톡에서 열었다면 오른쪽 아래 <b>⋯ → 「다른 브라우저로 열기」</b> (또는 「Safari로 열기」). 사파리가 홈 화면에 안 보이면 화면 가운데를 아래로 쓸어 <b>검색에 「Safari」</b>를 치면 나와요. 사파리는 아이폰에 원래 깔려 있어요 (지웠다면 앱스토어에서 「Safari」 받기).</p></div>
+    ${IS_IOS ? iosStepsHTML() : `<h4 class="ios-ver">iOS 26 (사파리 26) 이상</h4>${iosStepsFor(26)}<details class="hih-more"><summary>예전 아이폰 (iOS 18 이하)</summary>${iosStepsFor(18)}</details>`}
+    <p class="muted small">끝나면 바탕화면에 생긴 <b>${APP_NAME}</b> 아이콘으로 열어요. 주소창 없이 전체 화면이에요. 사파리 화면 그대로 열리면 아이콘을 지우고 <b>「웹 앱으로 열기」</b>를 켠 채 다시 추가해 주세요.</p>`;
+}
+// 아이폰이 아닌 기기에서 아이폰 탭을 볼 때: 버전별 안내를 그대로 보여 준다
+function iosStepsFor(ver) { return iosStepsHTML(ver, true); }
+function openInstallGuide(tab) {
+  tab = tab || (IS_IOS ? 'ios' : 'and');
+  const draw = (t) => `<div class="hist-tabs inst-tabs"><button type="button" class="${t === 'ios' ? 'on' : ''}" data-it="ios">아이폰 (사파리)</button><button type="button" class="${t === 'and' ? 'on' : ''}" data-it="and">안드로이드 (크롬)</button></div>
+    <div class="inst-why"><b>왜 설치해요?</b> 주소창 없이 <b>전체 화면</b> · 아이콘 한 번에 바로 · 화면이 꺼져도 방으로 바로 돌아와요. 돈도 용량도 거의 안 들어요.</div>
+    ${t === 'ios' ? iosGuideHTML() : androidStepsHTML()}
+    ${(t === 'ios' && IS_IOS) || (t === 'and' && !IS_IOS) ? `<button class="btn btn-gold btn-lg" id="inst-go" type="button">${t === 'ios' ? (IN_APP ? '사파리로 열기 · 링크 복사' : '알겠어요 · 따라 하기') : S.installEvt ? '지금 설치하기' : '알겠어요 · 따라 하기'}</button>` : ''}
+    ${ICON_NOTE}`;
+  openModal(`${APP_NAME} 앱 설치 방법`, draw(tab), (b) => {
+    const bind = () => {
+      b.querySelectorAll('[data-it]').forEach((x) => { x.onclick = () => { b.innerHTML = draw(x.dataset.it); bind(); }; });
+      const go = b.querySelector('#inst-go');
+      if (go) go.onclick = () => { if (IS_IOS && IN_APP) { openIosInstall(); return; } if (!IS_IOS && S.installEvt) { closeModal(); installApp(); return; } closeModal(); toast(IS_IOS ? '사파리 아래 ⋯ 또는 공유 버튼 → 「홈 화면에 추가」' : '크롬 ⋮ → 「앱 설치」', 'info'); };
+    };
+    bind();
+  }, { wide: true });
+}
+// 앱이 안 깔린 휴대폰: 하루 한 번 아래에서 '앱으로 설치하면 전체 화면' 안내 (판 진행 중엔 안 띄움)
+function maybeInstallNudge() {
+  if (isStandalone() || !(IS_IOS || IS_ANDROID) || S.nudgeShown) return;
+  if (document.querySelector('.modal-backdrop') || document.getElementById('inst-nudge')) return;
+  if (S.view === 'room' && S.state && S.state.room.phase === 'playing') return; // 게임 중엔 방해하지 않음
+  const today = new Date().toISOString().slice(0, 10);
+  if (LS.get('chandem:instNudge', '') === today) return;
+  S.nudgeShown = true;
+  LS.set('chandem:instNudge', today);
+  const el = document.createElement('div');
+  el.id = 'inst-nudge'; el.className = 'inst-nudge';
+  el.innerHTML = `<img src="/img/holdem-icon-192.png" alt="" width="44" height="44"><div class="grow"><b>${APP_NAME} 앱으로 설치하세요</b><small>${IS_IOS ? (IN_APP ? '카톡 브라우저 말고 사파리에서 설치돼요' : '사파리 공유 → 「홈 화면에 추가」') : '크롬 ⋮ → 「앱 설치」'} · 주소창 없이 전체 화면</small></div>
+    <div class="in-btns"><button class="btn btn-gold btn-sm" type="button" data-n="go">설치 방법</button><button class="btn btn-ghost btn-sm" type="button" data-n="x">오늘은 그만</button></div>`;
+  document.body.appendChild(el);
+  el.querySelector('[data-n="go"]').onclick = () => { el.remove(); openInstallGuide(); };
+  el.querySelector('[data-n="x"]').onclick = () => el.remove();
+  setTimeout(() => el.remove(), 20000);
 }
 /** 아이폰 + 카톡·네이버 등 앱 안 브라우저: 메인 위에 "사파리로 열어야 설치할 수 있어요" 띠 */
 function iosInAppBannerHTML() {
@@ -1685,6 +1742,8 @@ socket.on('state', (st) => {
   onChat(st, first);
   if (!first) guestHandNudge(st);
   render();
+  syncChatHand();
+  maybeInstallNudge();
 });
 // 여러 테이블 토너먼트: 다른 테이블로 옮겨짐 → 새 방 정보로 바꾸고 주소도 새 방으로
 socket.on('room:moved', (d) => {
@@ -1948,7 +2007,7 @@ function openChat() {
   scrim.onclick = closeChat;
   const sh = document.createElement('section');
   sh.id = 'chat-sheet'; sh.className = 'chat-sheet';
-  sh.innerHTML = `<div class="cs-head"><b>채팅</b><small class="muted">${esc(st.room.code)}</small><button type="button" class="cs-off ${S.chatOff ? 'on' : ''}" id="cs-off" aria-label="채팅 끄기 켜기">${S.chatOff ? '채팅 켜기' : '채팅 끄기'}</button><button type="button" class="cs-x" id="cs-x" aria-label="닫기">닫기</button></div>
+  sh.innerHTML = `<div class="cs-myhand" id="cs-myhand"></div><div class="cs-head"><b>채팅</b><small class="muted">${esc(st.room.code)}</small><button type="button" class="cs-off ${S.chatOff ? 'on' : ''}" id="cs-off" aria-label="채팅 끄기 켜기">${S.chatOff ? '채팅 켜기' : '채팅 끄기'}</button><button type="button" class="cs-x" id="cs-x" aria-label="닫기">닫기</button></div>
     <ol class="chat-list cs-list" id="chat-list">${chatListHTML(st)}</ol>
     <div class="cs-quick">${['굿폴드', '나이스 핸드', 'ㅋㅋㅋ', '블러핑이지?', '잠깐만요', 'GG', '한 판만 더'].map((t) => `<button type="button" data-q="${t}">${t}</button>`).join('')}</div>
     <form class="cs-form" id="chat-form" autocomplete="off"><input class="input" name="t" maxlength="80" placeholder="메시지 (Enter로 보내기)" enterkeyhint="send"><button class="btn btn-gold">보내기</button></form>`;
@@ -1974,7 +2033,28 @@ function openChat() {
   const fit = () => { if (vv) sh.style.bottom = Math.max(0, innerHeight - vv.height - vv.offsetTop) + 'px'; };
   if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); sh._off = () => { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); }; }
   S.chatRead = ((st.chat || []).slice(-1)[0] || { seq: 0 }).seq;
+  syncChatHand();
   syncChatFab();
+}
+// 채팅 창을 열어도 내 패·바닥 카드·내 차례를 위에 보여 준다 (채팅하다 내 패를 못 보던 문제)
+function syncChatHand() {
+  const box = document.getElementById('cs-myhand');
+  if (!box) return;
+  const st = S.state;
+  const h = st && st.hand;
+  const mp = st && st.me && st.players.find((p) => p.id === st.me.id);
+  if (!h || !mp || !mp.cards || h.game === 'omok') { box.hidden = true; box.innerHTML = ''; return; }
+  const myTurn = h.toActId === st.me.id && !h.finished;
+  const hn = mp.status !== 'folded' && h.game !== 'seotda' && mp.cards[0] !== '??' ? myHandName(mp.cards, h) : '';
+  const sig = JSON.stringify([h.no, mp.cards, h.board, mp.status, myTurn, hn]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.hidden = false;
+  box.innerHTML = `<div class="csh-mine ${mp.status === 'folded' ? 'folded' : ''}"><span class="csh-lbl">내 패</span>${mp.cards.map((c) => cardHTML(c, { size: 'sm' })).join('')}${hn ? `<i>${esc(hn)}</i>` : mp.status === 'folded' ? '<i>폴드</i>' : ''}</div>
+    ${h.board && h.board.length ? `<div class="csh-board">${h.board.map((c) => cardHTML(c, { size: 'xs' })).join('')}</div>` : ''}
+    ${myTurn ? '<button type="button" class="btn btn-sm btn-gold csh-turn" id="csh-turn">내 차례! 닫고 하기</button>' : ''}`;
+  const t = box.querySelector('#csh-turn');
+  if (t) t.onclick = closeChat;
 }
 function onChat(st, first) {
   const list = st.chat || [];
@@ -1993,19 +2073,24 @@ function onChat(st, first) {
 }
 function chatBubble(m) {
   if (S.view !== 'room') return;
-  const seat = document.querySelector(`.seat[data-id="${m.id}"] .seat-av`) || (S.state && S.state.me && S.state.me.id === m.id ? document.querySelector('.me-name') : null);
+  // 내가 쓴 말은 말풍선을 띄우지 않는다 (내 패를 가려서) — 아래 채팅 줄에 보임
+  if (S.state && S.state.me && S.state.me.id === m.id) return;
+  const seat = document.querySelector(`.seat[data-id="${m.id}"] .seat-av`);
   // 자리가 없는 사람(죽어서 관전으로 빠진 사람·관전자)의 말은 테이블 가운데 띄우지 않고 채팅창에만
   if (!seat) return;
   document.querySelectorAll(`.fx-chat[data-from="${CSS.escape(String(m.id))}"]`).forEach((x) => x.remove()); // 같은 사람 말풍선은 새 것만
   const el = document.createElement('div');
   el.className = 'fx-chat';
   el.dataset.from = m.id;
-  el.innerHTML = `<b>${esc(m.name)}</b> ${esc(m.text)}`;
+  el.innerHTML = `${esc(m.text.length > 28 ? m.text.slice(0, 27) + '…' : m.text)}`;
   const r = seat.getBoundingClientRect();
-  el.style.left = Math.max(70, Math.min(innerWidth - 70, r.left + r.width / 2)) + 'px';
-  el.style.top = Math.max(50, r.top - 6) + 'px';
+  el.style.left = Math.max(60, Math.min(innerWidth - 60, r.left + r.width / 2)) + 'px';
+  el.style.top = Math.max(50, r.top - 2) + 'px';
+  // 내 카드 위로 올라가면 비켜서 위쪽으로
+  const myc = document.querySelector('.seat-me .seat-mycards');
+  if (myc) { const c = myc.getBoundingClientRect(); if (Math.abs((r.left + r.width / 2) - (c.left + c.width / 2)) < c.width && r.top - 2 > c.top && r.top - 40 < c.bottom) el.style.top = Math.max(50, c.top - 6) + 'px'; }
   fxLayer().appendChild(el);
-  setTimeout(() => el.remove(), 4200);
+  setTimeout(() => el.remove(), 3200);
 }
 
 // ── 소리·애니메이션 트리거 ─────────────────────────────
@@ -2180,6 +2265,7 @@ function render() {
   document.body.classList.toggle('in-room', S.view === 'room');
   syncChatFab();
   syncInstallBar();
+  if (S.view === 'home' || S.view === 'gamehome') setTimeout(maybeInstallNudge, 1500);
   // 배경음악: 메인은 메인 곡, 게임 화면·게임방은 그 게임 곡
   const th = document.body.dataset.theme;
   sound.setTrack(th === 'hub' ? 'bgm_hub' : th === 'holdem' ? 'bgm_holdem' : 'bgm_' + th);
@@ -2560,10 +2646,12 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
     <p class="muted small tourney-only">토너먼트는 정해진 시간마다 블라인드가 올라가고, 칩을 다 잃으면 탈락해요. 마지막까지 남은 사람이 우승이에요. 리바이 시간 안에는 다 잃어도 시작 칩으로 다시 들어오고, 늦게 온 친구도 앉을 수 있어요.</p>
   </fieldset>
   <fieldset class="fieldset holdem-only-f">
-    <legend>앤티 · 타임뱅크</legend>
+    <legend>앤티 · 시간</legend>
     <label class="switch"><input type="checkbox" name="ante" ${s.ante === 'bb' ? 'checked' : ''}><span>BB 앤티 <small class="muted">(빅 블라인드 자리가 BB만큼 더 내서 팟이 커져요)</small></span></label>
     <label class="field"><span>타임뱅크 <small class="muted">(턴 시간이 끝나면 자동으로 더 생각할 시간)</small></span>
       <select class="input" name="timeBank">${[[0, '없음'], [15, '15초'], [30, '30초'], [60, '60초'], [90, '90초']].map(([v, t]) => `<option value="${v}" ${Number(s.timeBank === undefined ? 30 : s.timeBank) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="field"><span>결과 보는 시간 <small class="muted">(판이 끝나고 카드를 보여 주는 시간 · 다음 판까지)</small></span>
+      <select class="input" name="resultSeconds">${[[6, '6초 (빠르게)'], [10, '10초 (보통)'], [14, '14초 (여유 있게)'], [20, '20초 (천천히)']].map(([v, t]) => `<option value="${v}" ${Number(s.resultSeconds || 10) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
   </fieldset>
   <div class="grid2 chips-only">
     <label class="field money-chips-only"><span>시작 칩</span><input class="input" type="number" inputmode="numeric" name="startChips" min="100" value="${s.startChips}"></label>
@@ -2600,6 +2688,12 @@ function settingsFormHTML(s, { forCreate = false } = {}) {
       <label class="field"><span>최대 금액</span><input class="input" type="number" inputmode="numeric" name="rebuyHi" min="1" value="${s.rebuyHi || (s.rebuyAmount || 1000) * 2}"></label>
     </div>
     <p class="muted small">칩이 시작 칩의 절반보다 적거나 다 떨어졌을 때 신청할 수 있어요. 진행 중인 판에는 영향이 없고 다음 판부터 적용돼요.</p>
+  </fieldset>
+  <fieldset class="fieldset chips-only cash-only">
+    <legend>칩 추가 (애드온)</legend>
+    <label class="switch"><input type="checkbox" name="addonOn" ${s.addonOn !== false ? 'checked' : ''}><span>칩 추가 허용 <small class="muted">(칩이 남아 있어도 언제든 더 사서 넣기 · 리바인 횟수와 따로)</small></span></label>
+    <label class="field"><span>한 번에 추가할 수 있는 최대 칩 <small class="muted">(비우면 시작 칩만큼)</small></span><input class="input" type="number" inputmode="numeric" name="addonMax" min="0" value="${s.addonMax || ''}" placeholder="시작 칩만큼"></label>
+    <p class="muted small">추가한 칩은 다음 판부터 들어가고, 정산표에서 바이인에 더해져요. 칩을 다 잃었을 때는 리바인으로 사요.</p>
   </fieldset>
   <fieldset class="fieldset">
     <legend>입장 제한 (선택)</legend>
@@ -2695,6 +2789,7 @@ function readSettings(form) {
     reentryLevels: num('reentryLevels') || 0, blindLevels: String(fd.get('blindLevels') || '').trim(),
     prizes: [0, 1, 2, 3].map((i) => String(fd.get('prize' + i) || '').trim()),
     tableSize: num('tableSize') || 9,
+    addonOn: fd.get('addonOn') === 'on', addonMax: num('addonMax') || 0, resultSeconds: num('resultSeconds') || 10,
     sessionMinutes: num('sessionMinutes') || 0, settlePer: num('settlePer') || 1000, settleValue: num('settleValue') || 0, settleUnit: String(fd.get('settleUnit') || '').trim(),
     ...(fd.get('game') ? { game: fd.get('game') } : {}),
     cards: Number(fd.get('cards')) === 3 ? 3 : 2,
@@ -2942,6 +3037,8 @@ function settingsSummaryHTML(s) {
     <li><span>인원</span><b>${s.minPlayers}~${s.maxPlayers}명</b></li>
     <li><span>턴 제한</span><b>${s.turnSeconds}초</b></li>
     <li><span>리바인</span><b>${s.mode === 'tournament' ? (s.reentryLevels > 0 ? `레벨 ${s.reentryLevels}까지 · 1인 ${s.rebuyMax >= 99 ? '제한 없음' : `최대 ${s.rebuyMax}번`}` : '없음') : s.rebuyEnabled ? `${fmt(s.rebuyAmount)} · 최대 ${s.rebuyMax}번` : '없음'}</b></li>
+    ${s.mode !== 'tournament' && s.game !== 'omok' ? `<li><span>칩 추가</span><b>${s.addonOn !== false ? `허용 · 한 번에 ${fmt(s.addonMax || s.startChips)}까지` : '없음'}</b></li>` : ''}
+    ${s.game !== 'omok' ? `<li><span>결과 보는 시간</span><b>${s.resultSeconds || 10}초</b></li>` : ''}
     <li><span>게임</span><b>${GAME_NAMES[s.game || 'holdem']}${s.game === 'seotda' ? ` (${s.cards === 3 ? `세 장 · ${s.sdOpen === 'one' ? '한 장 공개' : '공개 없음'}` : '두 장'})` : ''}</b></li>
     <li><span>방식</span><b>${s.mode === 'tournament' ? `토너먼트 · ${s.levelMinutes}분마다 블라인드 상승` : '일반'}</b></li>
     ${s.mode !== 'tournament' && s.game !== 'omok' ? `<li><span>게임 시간</span><b>${sm ? `${sm >= 60 ? `${Math.floor(sm / 60)}시간${sm % 60 ? ` ${sm % 60}분` : ''}` : `${sm}분`} · 끝나면 자동 정산` : '무제한'}</b></li>` : ''}
@@ -3102,6 +3199,35 @@ async function doRebuy(amount) {
   const r = await emit('game:rebuy', amount ? { amount } : {});
   if (r.ok) { toast(`리바인 신청 완료${amount ? ` (+${fmt(amount)})` : ''}! 다음 판부터 적용돼요`, 'ok'); sound.play('chips'); }
 }
+// 칩 추가(애드온): 칩이 남아 있어도 언제든 · 다음 판부터
+function openAddonModal(st) {
+  const me = st.me;
+  const s = st.room.settings;
+  if (!me || !me.canAddon) { toast(s.addonOn === false ? '이 방은 칩 추가가 꺼져 있어요 (방장이 설정에서 켤 수 있어요)' : me && me.stack === 0 ? '칩을 다 잃었을 때는 리바인으로 다시 사요' : '지금은 칩을 추가할 수 없어요', 'info'); return; }
+  const hi = me.addonLeft;
+  const step = Math.max(1, s.bb || 1);
+  const unit = s.money === 'won' ? '원' : '칩';
+  const nice = (v) => { const u = Math.max(step, v >= 1000 ? 100 : v >= 200 ? 50 : 10); return Math.max(step, Math.round(v / u) * u); };
+  const quick = [...new Set([nice(hi / 4), nice(hi / 2), hi].filter((v) => v >= step && v <= hi))];
+  const start = quick[Math.min(1, quick.length - 1)] || hi;
+  openModal('칩 추가', `<div class="rebuy-pick">
+    <p class="muted small">지금 칩 <b>${fmt(me.stack)}</b> · 바이인 합계 <b>${fmt(me.buyIn)}</b>${me.pendingAdd ? ` · 대기 중 +${fmt(me.pendingAdd)}` : ''}</p>
+    <div class="rp-amt">+<b id="ad-v">${fmt(start)}</b> ${unit}</div>
+    <input type="range" id="ad-r" min="${Math.min(step, hi)}" max="${hi}" step="${step}" value="${start}">
+    <div class="rp-quick">${quick.map((v) => `<button type="button" class="btn btn-sm btn-outline" data-ad="${v}">+${fmt(v)}</button>`).join('')}</div>
+    <p class="muted tiny">진행 중인 판이 끝나면 칩에 더해지고, 정산표에서 내 바이인에 더해져요 (리바인 횟수와 상관없어요)</p>
+    <button class="btn btn-gold btn-lg" id="ad-go" type="button">칩 추가 신청</button></div>`, (b) => {
+    const r = b.querySelector('#ad-r'); const v = b.querySelector('#ad-v');
+    const set = (x) => { r.value = x; v.textContent = fmt(Number(r.value)); };
+    r.oninput = () => set(r.value);
+    b.querySelectorAll('[data-ad]').forEach((q) => { q.onclick = () => set(q.dataset.ad); });
+    b.querySelector('#ad-go').onclick = async () => {
+      const a = Number(r.value); closeModal();
+      const res = await emit('game:addon', { amount: a });
+      if (res.ok) { toast(`칩 추가 +${fmt(a)} 신청 완료 · ${st.hand && !st.hand.finished ? '이번 판이 끝나면' : '곧'} 들어가요`, 'ok'); sound.play('chips'); }
+    };
+  });
+}
 // 리바인 금액 고르기 (방장이 '각자 정하기'를 켠 방)
 function openRebuyPick(st) {
   const s = st.room.settings;
@@ -3127,14 +3253,25 @@ function settlementHTML(x, isHost) {
   return `<section class="panel settle">
     <div class="sec-head"><h2 class="sec-title">정산 결과</h2><small class="muted">${x.hands}판 · ${hhmm(x.at)}${x.reason ? ` · ${esc(x.reason)}` : ''}</small></div>
     <table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>최종 칩</th><th>손익</th>${v ? `<th>${esc(v.unit) || '환산'}</th>` : ''}</tr></thead><tbody>
-    ${x.rows.map((r) => `<tr><td>${esc(r.name)}${r.left ? ' <small class="muted">중간에 나감</small>' : ''}</td><td>${fmt(r.buyIn)}</td><td>${fmt(r.out)}</td><td class="${cls(r.net)}">${signed(r.net)}</td>${v ? `<td class="${cls(r.net)}">${r.net > 0 ? '+' : r.net < 0 ? '−' : ''}${settleMoney(Math.abs(r.net), v)}</td>` : ''}</tr>`).join('')}
+    ${x.rows.map((r) => `<tr class="${r.left ? 'row-left' : ''}"><td>${esc(r.name)}${r.left ? ' <small class="tag-left">중간에 나감</small>' : ''}${r.rebuys || r.addon ? `<small class="muted row-sub">${[r.rebuys ? `리바인 ${r.rebuys}번` : '', r.addon ? `추가 ${fmt(r.addon)}` : ''].filter(Boolean).join(' · ')}</small>` : ''}</td><td>${fmt(r.buyIn)}</td><td>${fmt(r.out)}</td><td class="${cls(r.net)}">${signed(r.net)}</td>${v ? `<td class="${cls(r.net)}">${r.net > 0 ? '+' : r.net < 0 ? '−' : ''}${settleMoney(Math.abs(r.net), v)}</td>` : ''}</tr>`).join('')}
     </tbody></table>
     ${x.transfers.length ? `<h3 class="sub-title">누가 누구에게</h3><ul class="settle-list">${x.transfers.map((t) => `<li><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b><span>${v && v.per === 1 && v.value === 1 ? settleMoney(t.chips, v) : `${fmt(t.chips)}칩${v ? ` · ${settleMoney(t.chips, v)}` : ''}`}</span></li>`).join('')}</ul>` : `<p class="muted small">${x.rows.some((r) => r.net) ? '사람끼리 주고받을 칩은 없어요 (봇과 오간 칩은 정산에서 빠져요)' : '모두 본전이에요!'}</p>`}
+    ${x.leftCount ? `<p class="muted tiny">중간에 나간 ${x.leftCount}명도 나갈 때 가지고 있던 칩으로 정산에 들어가 있어요</p>` : ''}
+    ${typeof x.sumNet === 'number' && !x.bots ? `<p class="tiny ${x.sumNet ? 'warn-txt' : 'muted'}">${x.sumNet ? `칩 합계가 ${signed(x.sumNet)} 어긋나요 (판 기록에서 확인해 주세요)` : '✔ 칩 합계 확인: 딴 칩 = 잃은 칩'}</p>` : ''}
+    ${x.lastHand ? lastHandHTML(x.lastHand, S.state && S.state.room.myLastCards) : ''}
     ${v ? `<p class="muted tiny">환산: 칩 ${fmt(v.per)} = ${fmt(v.value)}${esc(v.unit)} (방장이 정한 값을 보여 주기만 해요. 이 앱에는 돈을 주고받는 기능이 없어요)</p>` : ''}
     <button class="btn btn-outline" id="settle-log">판 기록 · 칩 장부 · 진행 로그 보기</button>
     <button class="btn btn-gold" id="settle-copy">정산표 복사하기</button>
     ${isHost ? '<p class="muted tiny">방장: 다시 시작하면 정산표는 사라지고 새 게임이 시작돼요</p>' : ''}
   </section>`;
+}
+// 정산표 아래: 마지막 판 카드 (게임이 끝나도 마지막에 뭐였는지 볼 수 있게)
+function lastHandHTML(x, mine) {
+  return `<div class="last-hand"><h3 class="sub-title">마지막 판 #${x.no} · ${x.type === 'fold' ? '모두 폴드' : '쇼다운'} · 팟 ${fmt(x.pot)}</h3>
+    <div class="hh-board">${(x.board || []).map((c) => cardHTML(c, { size: 'sm' })).join('') || '<span class="muted small">바닥 카드 없이 끝남</span>'}</div>
+    ${mine && mine.length ? `<div class="hh-hand mine-last"><b>내 패</b>${mine.map((c) => cardHTML(c, { size: 'xs' })).join('')}<span>${(x.board || []).length >= 3 ? esc(bestHand(mine.concat(x.board)).name) : ''}</span></div>` : ''}
+    ${(x.hands || []).map((v) => `<div class="hh-hand ${v.won ? 'won' : ''}"><b>${esc(v.name)}</b>${(v.cards || []).map((c) => cardHTML(c || '??', { size: 'xs' })).join('')}<span>${v.hand ? esc(v.hand) : ''}${v.won ? ' 🏆' : ''}</span></div>`).join('')}
+    ${!(x.hands || []).length && (x.winners || []).length ? `<p class="muted small">${x.winners.map(esc).join(', ')} 승리</p>` : ''}</div>`;
 }
 function settlementText(x) {
   const v = x.value;
@@ -3178,19 +3315,26 @@ function bindPlayerMenus(root) {
 
 function openSettingsModal() {
   const s = S.state.room.settings;
-  openModal('방 설정 바꾸기', `<form class="form" id="set-form">${settingsFormHTML(s)}<button class="btn btn-gold btn-lg">저장</button></form>`, (body) => {
+  const live = S.state.room.phase === 'playing';
+  openModal(live ? '게임 중 설정 바꾸기' : '방 설정 바꾸기', `<form class="form" id="set-form">${live ? '<p class="live-note">게임 중이라 <b>게임 종류·방식·돈 방식·블라인드</b>는 그대로예요 (블라인드는 메뉴의 「블라인드 올리기」 투표로). 나머지는 바꾸면 <b>진행 중인 판이 끝난 뒤</b> 적용돼요.</p>' : ''}${settingsFormHTML(s)}<button class="btn btn-gold btn-lg">저장</button></form>`, (body) => {
     const form = body.querySelector('#set-form');
+    if (live) {
+      form.dataset.live = '1';
+      ['mode', 'money', 'buyWon', 'sb', 'bb', 'minPlayers', 'cards', 'sdOpen', 'levelMinutes', 'tableSize', 'reentryLevels', 'rebuyMaxT', 'blindLevels'].forEach((n) => form.querySelectorAll(`[name="${n}"]`).forEach((i) => { i.disabled = true; const w = i.closest('.seg') || i.closest('.field') || i.closest('label'); if (w) w.classList.add('locked'); }));
+    }
     form.dataset.game = s.game || 'holdem'; // 게임에 맞는 칸만 (섯다: 기본 판돈)
     bindSd3(form);
     bindTourneyEst(form); // 일반·토너먼트에 맞는 칸만
     bindMoney(form);
     form.onsubmit = async (e) => {
       e.preventDefault();
+      if (live) form.querySelectorAll('[disabled]').forEach((i) => { i.disabled = false; }); // 잠근 칸도 값은 그대로 보낸다 (서버가 어차피 무시)
       const next = readSettings(form);
+      if (live) Object.assign(next, { mode: s.mode, money: s.money, buyWon: s.buyWon, sb: s.sb, bb: s.bb, minPlayers: s.minPlayers });
       const bad = validateSettings(next);
       if (bad) { toast(bad, 'error'); return; }
       const r = await emit('lobby:settings', { settings: next });
-      if (r.ok) { toast('설정을 저장했어요', 'ok'); closeModal(); }
+      if (r.ok) { toast(live ? (r.changed ? '바꿨어요 · 이번 판이 끝나면 적용돼요' : '바뀐 게 없어요') : '설정을 저장했어요', 'ok'); closeModal(); }
     };
   });
 }
@@ -3407,7 +3551,43 @@ const TI = {
   mute: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>',
   rotate: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 14a9 9 0 0 0 5 6.5M21 10a9 9 0 0 0-5-6.5"/><path d="M3 18v-4h4M21 6v4h-4"/></svg>',
   chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v10H9l-5 4z"/><path d="M8 10h8"/></svg>',
+  full: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
+  unfull: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg>',
+  chip: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/></svg>',
+  seat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v8H7z"/><path d="M5 12h14v3H5zM7 15v5M17 15v5"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5l5.5 3.5-5.5 3.5z"/></svg>',
+  book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h9a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h9"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6M6 11l6-6 6 6"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4M6 4h11l-2 4 2 4H6"/></svg>',
+  door: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4H6v16h8"/><path d="M11 12h10M18 9l3 3-3 3"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+  palette: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.5-1.8-.4-1.2.3-2.2 1.6-2.2h1.9a3.5 3.5 0 0 0 3.5-3.5c0-5.2-3.8-9.5-8.5-9.5z"/><circle cx="8" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/></svg>',
 };
+// ── 전체 화면 ──
+// 안드로이드 크롬·삼성 인터넷·PC: 버튼 한 번으로 전체 화면 · 아이폰 사파리는 웹페이지 전체 화면을 막아 둬서 「홈 화면에 추가(앱 설치)」로만 (앱으로 열면 주소창 없이 꽉 차요)
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+const canFullscreen = () => !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen) && !(IS_IOS && /iPhone|iPod/i.test(UA));
+async function toggleFullscreen() {
+  if (fsEl()) { try { await (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch {} S.userFs = false; setTimeout(() => { if (S.state) renderTop(S.state); }, 300); return; }
+  if (isStandalone() && IS_IOS) { toast('이미 앱으로 열려 있어서 전체 화면이에요', 'info'); return; }
+  if (!canFullscreen()) { openFullscreenHelp(); return; }
+  const el = document.documentElement;
+  try { await (el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen()); S.userFs = true; }
+  catch { openFullscreenHelp(); }
+  setTimeout(() => { if (S.state && S.view === 'room') renderTop(S.state); }, 300);
+}
+document.addEventListener('fullscreenchange', () => { if (S.view === 'room' && S.state && document.getElementById('g-top')) renderTop(S.state); });
+function openFullscreenHelp() {
+  openModal('전체 화면으로 하려면', `<div class="fs-help">
+    <p>${IS_IOS ? '<b>아이폰 사파리는 웹페이지가 전체 화면을 쓰지 못하게 막아 두었어요.</b> (애플 정책이라 사이트에서 바꿀 수 없어요)' : '이 브라우저는 전체 화면 버튼을 지원하지 않아요.'}</p>
+    <p class="fs-way"><b>방법: 앱으로 설치하기</b> — ${IS_IOS ? '사파리에서 「홈 화면에 추가」' : '크롬에서 「앱 설치」'}를 하고, 생긴 아이콘으로 열면 <b>주소창 없이 화면을 꽉 채워요.</b> 1분이면 돼요.</p>
+    <button class="btn btn-gold btn-lg" id="fs-inst" type="button">설치 방법 보기</button>
+    ${IS_IOS ? '<p class="muted tiny">당장은: 폰을 가로로 돌리면 사파리 주소창이 작아져서 화면을 더 넓게 쓸 수 있어요</p>' : ''}</div>`, (b) => { b.querySelector('#fs-inst').onclick = () => openInstallGuide(); });
+}
 function renderTop(st) {
   const el = document.getElementById('g-top');
   const pendingCount = st.pending ? st.pending.length : 0;
@@ -3424,8 +3604,11 @@ function renderTop(st) {
       <div class="tb-mid">${mid}${specs.length ? `<button type="button" class="tb-spec" id="tb-spec">관전 ${specs.length}명 · ${esc(specs.slice(0, 2).map((p) => p.name).join(', '))}${specs.length > 2 ? ' 외' : ''}</button>` : ''}</div>
       <button class="tb-ico" id="log-btn" aria-label="기록 · 칩 장부">${TI.list}</button>
       <button class="tb-ico" id="orient-btn" aria-label="가로 세로 바꾸기">${TI.rotate}</button>
+      ${isStandalone() && IS_IOS ? '' : `<button class="tb-ico" id="fs-btn" aria-label="${fsEl() ? '전체 화면 끄기' : '전체 화면'}">${fsEl() ? TI.unfull : TI.full}</button>`}
       <button class="tb-ico" id="sound-btn" aria-label="소리 설정">${sound.getPrefs().muted ? TI.mute : TI.sound}</button>`;
     bindCommon();
+    const fsb = el.querySelector('#fs-btn');
+    if (fsb) fsb.onclick = toggleFullscreen;
     el.querySelector('#log-btn').onclick = () => openHistory();
     const sp = el.querySelector('#tb-spec');
     if (sp) sp.onclick = () => openModal(`관전 중 ${specs.length}명`, `<div class="spec-list">${specs.map((p) => `<div class="list-row">${avatarHTML(p, 'avatar-sm')}<div class="grow"><b>${esc(p.name)}</b>${p.connected ? '' : ' <small class="muted">연결 끊김</small>'}</div></div>`).join('')}</div>`);
@@ -3454,6 +3637,7 @@ function renderBanner(st) {
   const msgs = [];
   if (!S.connected) msgs.push(['warn', '서버와 연결이 끊겼어요. 다시 연결하는 중…']);
   if (me && me.role === 'player') {
+    if (me.pendingAdd > 0) msgs.push(['info', `칩 추가 대기 중 · 다음 판부터 +${fmt(me.pendingAdd)}`]);
     if (me.pendingRebuy > 0) msgs.push(['info', `리바인 대기 중 · 다음 판부터 +${fmt(me.pendingRebuy)}`]);
     else if (me.canRebuy) {
       const s = st.room.settings;
@@ -4081,7 +4265,7 @@ function renderMe(st) {
     </div>
     <div class="me-info">
       <div class="me-name">${avatarHTML(mp, 'avatar-sm')}<b>${esc(me.name)}</b>${P.masterBadge(mp.master, true)}${mp.isDealer ? '<span class="dealer-btn">D</span>' : ''}</div>
-      <div class="me-stack"><span class="chip-icon"></span><b>${fmt(me.stack)}</b><span class="muted small">내 칩</span></div>
+      <div class="me-stack"><span class="chip-icon"></span><b>${fmt(me.stack)}</b><span class="muted small">내 칩</span>${me.canAddon ? '<button type="button" class="addon-btn" id="addon-btn" aria-label="칩 추가">+ 칩 추가</button>' : ''}</div>
       ${mp.bet ? `<div class="muted small">이번 베팅 ${fmt(mp.bet)}</div>` : ''}
       ${handName ? `<div class="me-hand">${esc(handName)}</div>` : ''}
       ${mp.status === 'folded' ? '<div class="tag tag-folded">폴드함</div>' : ''}
@@ -4093,6 +4277,8 @@ function renderMe(st) {
     <button class="emote-fab" id="emote-btn" aria-label="감정 표현 보내기">표정</button><button class="chat-fab" id="chat-btn" aria-label="채팅">채팅<span class="dot" hidden></span></button>`;
   const sb = el.querySelector('#show-btn');
   if (sb) sb.onclick = () => emit('game:show');
+  const ab = el.querySelector('#addon-btn');
+  if (ab) ab.onclick = () => openAddonModal(S.state);
   syncChatFab();
 }
 
@@ -4448,8 +4634,8 @@ async function openHistory(tab = S.histTab || 'hands') {
       const L = ((r && r.ledger) || []).slice().sort((a, b) => (b.stack - b.buyIn) - (a.stack - a.buyIn));
       body = L.length ? `<table class="ledger"><thead><tr><th>이름</th><th>바이인</th><th>지금 칩</th><th>손익</th><th>판(참여율)</th></tr></thead><tbody>${L.map((p) => {
         const net = p.buyIn ? p.stack - p.buyIn : 0;
-        return `<tr><td>${esc(p.name)}${p.isBot ? ' <small class="muted">상주</small>' : ''}${p.leaving ? ' <small class="muted">나감</small>' : ''}${p.rebuys ? ` <small class="muted">리바인 ${p.rebuys}</small>` : ''}</td><td>${fmt(p.buyIn)}</td><td>${fmt(p.stack)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${p.buyIn ? signed(net) : '-'}</td><td>${p.rs ? `${p.rs.hands}${p.rs.hands ? ` (${Math.round((p.rs.vpip / p.rs.hands) * 100)}%)` : ''}` : '0'}</td></tr>`;
-      }).join('')}</tbody></table><p class="muted tiny">참여율: 카드를 받고 스스로 칩을 넣은(콜·레이즈) 판의 비율</p>` : '<p class="muted">아직 기록이 없어요</p>';
+        return `<tr class="${p.left ? 'row-left' : ''}"><td>${esc(p.name)}${p.isBot ? ' <small class="muted">상주</small>' : ''}${p.leaving || p.left ? ' <small class="tag-left">나감</small>' : ''}${p.rebuys ? ` <small class="muted">리바인 ${p.rebuys}</small>` : ''}${p.addon ? ` <small class="muted">추가 ${fmt(p.addon)}</small>` : ''}${p.pending ? ` <small class="muted">+${fmt(p.pending)} 대기</small>` : ''}</td><td>${fmt(p.buyIn)}</td><td>${fmt(p.stack)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${p.buyIn ? signed(net) : '-'}</td><td>${p.rs ? `${p.rs.hands}${p.rs.hands ? ` (${Math.round((p.rs.vpip / p.rs.hands) * 100)}%)` : ''}` : '0'}</td></tr>`;
+      }).join('')}</tbody></table><p class="muted tiny">참여율: 카드를 받고 스스로 칩을 넣은(콜·레이즈) 판의 비율 · 나간 사람은 나갈 때 칩으로 정산에 들어가요</p>` : '<p class="muted">아직 기록이 없어요</p>';
     } else {
       const feed = (S.state.feed || []).slice().reverse();
       body = `<ol class="log">${feed.map((e) => `<li class="log-${e.type}">${e.hand ? `<span class="muted tiny">#${e.hand}</span> ` : ''}${esc(e.text)}</li>`).join('') || '<li class="muted">아직 기록이 없어요</li>'}</ol>`;
@@ -4499,42 +4685,61 @@ function openBlindsModal(st) {
   });
 }
 
+// 메뉴: 포커 앱처럼 묶음별 큰 아이콘 버튼 (내 칩 · 게임 · 방장 · 화면) + 참가자 · 초대 · 방 설정은 접어 두기
 function openMenuModal() {
   const st = S.state;
   const me = st.me;
   const isHost = me && me.isHost;
   const inHand = st.hand && !st.hand.finished && st.players.some((p) => p.id === me.id && p.cards);
   const others = st.players.filter((p) => p.id !== me.id);
+  const g = gameOf(st);
+  const playing = st.room.phase === 'playing';
+  const cashGame = playing && !st.room.tournament && g !== 'omok';
+  const s = st.room.settings;
+  const tile = (m, icon, label, sub = '', cls = '') => `<button type="button" class="mtile ${cls}" data-m="${m}">${TI[icon] || ''}<b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</button>`;
+  const mine = [];
+  if (me.role === 'player' && cashGame) {
+    if (me.canAddon) mine.push(tile('addon', 'plus', '칩 추가', `한 번에 ${fmt(me.addonLeft)}까지`, 'gold'));
+    else if (s.addonOn !== false && me.pendingAdd) mine.push(tile('addon', 'plus', '칩 추가', `대기 +${fmt(me.pendingAdd)}`));
+    if (me.canRebuy) mine.push(tile('rebuy', 'chip', '리바인', `남은 ${s.rebuyMax - me.rebuys}번`, 'gold'));
+    mine.push(tile('seat', 'seat', '자리 옮기기'));
+  }
+  if (me.role === 'player') mine.push(tile(me.sittingOut ? 'sitin' : 'sitout', me.sittingOut ? 'play' : 'pause', me.sittingOut ? '자리로 돌아가기' : '자리 비우기'));
+  if (!inHand && !me.masterPeek) mine.push(tile('role', 'eye', me.role === 'player' ? '관전으로' : '참가자로 앉기'));
+  const game = [tile('chart', 'cards', '족보표'), tile('hist', 'list', '기록 · 장부'), g === 'holdem' ? `<button type="button" class="mtile" data-learn="gloss">${TI.book}<b>용어집</b></button>` : '', tile('share', 'link', '친구 초대')];
+  const host = [];
+  if (isHost) {
+    if (!st.room.tournament && g !== 'omok') host.push(tile('settings', 'gear', playing ? '설정 바꾸기' : '방 설정', playing ? '리바인·칩 추가·시간' : ''));
+    if (cashGame && !st.room.blindVote) host.push(tile('blinds', 'up', g === 'seotda' ? '판돈 올리기' : '블라인드 올리기', '모두 동의하면'));
+    if (cashGame) {
+      if (st.room.finalLeft) { host.push(tile('end', 'flag', '지금 끝내기', '바로 정산', 'warn')); host.push(tile('finishCancel', 'play', '끝내기 취소')); }
+      else host.push(tile('finish', 'flag', '게임 끝내기', '3판 더 하고 정산'));
+    } else if (playing || st.room.tournament) host.push(tile('end', 'flag', st.room.tournament ? '대기실로' : '끝내고 정산'));
+  }
+  const view = [
+    isStandalone() && IS_IOS ? '' : tile('fullscreen', fsEl() ? 'unfull' : 'full', fsEl() ? '전체 화면 끄기' : '전체 화면'),
+    g === 'holdem' ? tile('orient', 'rotate', '가로 · 세로') : '',
+    tile('sound', 'sound', '소리'),
+    tile('color', 'palette', '카드가 검게 보여요'),
+    isStandalone() ? '' : tile('install', 'phone', '앱 설치', '전체 화면으로'),
+    S.muted.size ? tile('unmute', 'chat', '가린 채팅', `${S.muted.size}명 다시 보기`) : '',
+  ];
+  const sec = (title, items) => (items.filter(Boolean).length ? `<section class="msec"><h3>${title}</h3><div class="mgrid">${items.join('')}</div></section>` : '');
   openModal('메뉴', `
-    <div class="stack">
-      <div class="menu-quick">
-        <button class="btn btn-outline" data-m="chart">족보표</button>
-        ${gameOf(st) === 'holdem' ? '<button class="btn btn-outline" data-learn="gloss">홀덤 용어집</button>' : ''}
-        <button class="btn btn-outline" data-m="hist">기록 · 칩 장부</button>
-        <button class="btn btn-outline" data-m="share">초대 링크</button>
-        ${me.role === 'player' && st.room.phase === 'playing' && !st.room.tournament && gameOf(st) !== 'omok' ? '<button class="btn btn-outline" data-m="seat">자리 옮기기</button>' : ''}
-        ${me.role === 'player' ? `<button class="btn btn-outline" data-m="${me.sittingOut ? 'sitin' : 'sitout'}">${me.sittingOut ? '자리로 돌아가기' : '자리 비우기'}</button>` : ''}
-        <button class="btn btn-outline" data-m="sound">소리 설정</button>
-        <button class="btn btn-outline" data-m="color">카드가 검게 보여요</button>
-        ${S.muted.size ? `<button class="btn btn-outline" data-m="unmute">가린 채팅 ${S.muted.size}명 다시 보기</button>` : ''}
-      </div>
-      <section><h3 class="sub-title">친구 초대</h3>${inviteHTML(st.room.code)}</section>
+    <div class="menu2">
       ${isHost && st.pending && st.pending.length ? `<section class="attention"><h3 class="sub-title">참가 요청</h3>
         ${st.pending.map((p) => `<div class="list-row"><b>${esc(p.name)}</b><div class="spacer"></div>
           <button class="btn btn-sm btn-gold" data-approve="${p.id}">수락</button><button class="btn btn-sm btn-outline" data-reject="${p.id}">거절</button></div>`).join('')}</section>` : ''}
-      <section><h3 class="sub-title">참가자</h3><div class="plist">${[st.players.find((p) => p.id === me.id), ...others].filter(Boolean).map((p) => playerRowHTML(p, st, isHost)).join('')}</div></section>
-      <section><h3 class="sub-title">방 설정</h3>${settingsSummaryHTML(st.room.settings)}</section>
-      <div class="stack">
-        ${!inHand && !me.masterPeek ? `<button class="btn btn-outline" data-m="role">${me.role === 'player' ? '관전으로 바꾸기' : '참가자로 앉기'}</button>` : ''}
-        ${isHost && st.room.phase === 'playing' && !st.room.tournament && gameOf(st) !== 'omok' && !st.room.blindVote ? `<button class="btn btn-outline" data-m="blinds">${gameOf(st) === 'seotda' ? '판돈 올리기' : '블라인드 올리기'} (모두 동의하면)</button>` : ''}
-        ${isHost && !st.room.tournament && gameOf(st) !== 'omok' && st.room.phase === 'playing'
-    ? (st.room.finalLeft
-      ? `<button class="btn btn-outline" data-m="end">지금 바로 끝내고 정산하기</button><button class="btn btn-outline" data-m="finishCancel">끝내기 취소 (계속하기)</button>`
-      : `<button class="btn btn-outline" data-m="finish">게임 끝내기 (3판 더 하고 자동 정산)</button>`)
-    : isHost ? `<button class="btn btn-outline" data-m="end">${st.room.tournament ? '게임 끝내고 대기실로' : '게임 끝내고 정산하기'}</button>` : ''}
-        <button class="btn btn-outline danger" data-m="leave">방 나가기</button>
-        ${P.roomMasterHTML()}
-      </div>
+      ${me.role === 'player' && playing && !st.room.tournament ? `<div class="mme">${avatarHTML(st.players.find((p) => p.id === me.id) || me, 'avatar-sm')}<div class="grow"><b>${esc(me.name)}</b><small>칩 <b>${fmt(me.stack)}</b> · 바이인 ${fmt(me.buyIn || 0)}${me.buyIn ? ` · <span class="${me.stack - me.buyIn >= 0 ? 'plus' : 'minus'}">${signed(me.stack - me.buyIn)}</span>` : ''}</small></div></div>` : ''}
+      ${sec('내 자리', mine)}
+      ${sec('방장', host)}
+      ${sec('게임', game)}
+      ${sec('화면', view)}
+      <details class="mfold"><summary>참가자 ${st.players.filter((p) => !p.leaving).length}명</summary><div class="plist">${[st.players.find((p) => p.id === me.id), ...others].filter(Boolean).map((p) => playerRowHTML(p, st, isHost)).join('')}</div></details>
+      <details class="mfold"><summary>친구 초대 · QR</summary>${inviteHTML(st.room.code)}</details>
+      <details class="mfold"><summary>방 설정 보기</summary>${settingsSummaryHTML(s)}</details>
+      <button class="btn btn-outline danger mleave" data-m="leave">${TI.door} 방 나가기</button>
+      ${P.roomMasterHTML()}
     </div>`, (body) => {
     bindInvite(body, st.room.code);
     P.bindRoomMaster(body, st.room.code);
@@ -4546,6 +4751,12 @@ function openMenuModal() {
         const m = b.dataset.m;
         if (m === 'chart') { closeModal(); document.getElementById('chart-btn') ? document.getElementById('chart-btn').click() : openModal('족보표', handChartHTML(), null, { wide: true }); return; }
         if (m === 'hist') { openHistory(); return; }
+        if (m === 'settings') { openSettingsModal(); return; }
+        if (m === 'addon') { if (me.canAddon) openAddonModal(S.state); else toast(me.pendingAdd ? `칩 추가 +${fmt(me.pendingAdd)} 대기 중 · 다음 판부터 들어가요` : '지금은 칩을 추가할 수 없어요', 'info'); return; }
+        if (m === 'rebuy') { closeModal(); const s2 = S.state.room.settings; if (s2.rebuyFlex && s2.mode !== 'tournament') openRebuyPick(S.state); else doRebuy(); return; }
+        if (m === 'fullscreen') { closeModal(); toggleFullscreen(); return; }
+        if (m === 'orient') { closeModal(); toggleOrient(); return; }
+        if (m === 'install') { openInstallGuide(); return; }
         if (m === 'share') { closeModal(); shareTop(); return; }
         if (m === 'sound') { openSoundModal(); return; }
         if (m === 'color') { openColorHelp(); return; }
