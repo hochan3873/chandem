@@ -1754,10 +1754,7 @@ socket.on('state', (st) => {
   if (!first && S.state) {
     const seatsOf = (x) => x.players.filter((p) => p.role === 'player' && !p.leaving).map((p) => p.id).sort().join();
     if (seatsOf(S.state) !== seatsOf(st)) sound.play('sit');
-    const rb = (x) => ((x.hand && x.hand.result && x.hand.result.rabbit) || []).length;
-    if (rb(st) > rb(S.state)) sound.play('flip');
-    const sh = (x) => ((x.hand && x.hand.result && x.hand.result.shown) || []).length + x.players.filter((p) => p.cards && p.cards.some((c) => c !== '??') && x.hand && x.hand.finished).length;
-    if (st.hand && S.state.hand && st.hand.no === S.state.hand.no && st.hand.finished && sh(st) > sh(S.state)) sound.play('flip');
+    // 패가 보일 때 소리: 공개 중엔 runEffects, '내 패 보여주기'는 showcaseCards 가 한 번만 낸다 (여기서 또 내면 겹친다)
   }
   S.state = st;
   S.wasInRoom = st.room.code;
@@ -4126,7 +4123,7 @@ function renderTableInner(st, el) {
   }
   el.innerHTML = `<div class="felt"><div class="felt-rail"></div>${center}${seatHTML}</div>`;
   requestAnimationFrame(() => clampSeats(el));
-  if (S.showFx && S.showFx.size) { const ids = [...S.showFx]; S.showFx.clear(); setTimeout(() => ids.forEach((id, i) => { seatBubble(id, '패 공개!'); sound.play('flip1'); const pl = st.players.find((x) => x.id === id); if (pl && pl.cards) setTimeout(() => showcaseCards(id, pl.cards.filter((c) => c !== '??'), `${pl.name}의 패`), i * 300); }), 120); }
+  if (S.showFx && S.showFx.size) { const ids = [...S.showFx]; S.showFx.clear(); setTimeout(() => ids.forEach((id, i) => { seatBubble(id, '패 공개!'); const pl = st.players.find((x) => x.id === id); if (pl && pl.cards) setTimeout(() => showcaseCards(id, pl.cards.filter((c) => c !== '??'), `${pl.name}의 패`), i * 300); }), 120); }
   if (S.riverFx && S.riverFx.hand === handNo && !S.riverFx.done) { S.riverFx.done = true; setTimeout(riverGlint, S.riverFx.slow ? 1500 : 380); }
   requestAnimationFrame(() => { unstackBets(el); fitBoard(el); });
   clearTimeout(S.fitT); S.fitT = setTimeout(() => fitBoard(el), 450); // 자리·이름표가 자리 잡은 뒤 한 번 더
@@ -4323,7 +4320,7 @@ function renderActions(st) {
       : h && h.finished
       ? `${finishedExtrasHTML(st)}<div class="wait-line"><span data-next>다음 판을 준비하고 있어요</span></div>`
       : `<div class="wait-line">${st.room.waiting ? '참가자를 기다리는 중이에요' : '곧 카드를 나눠 드려요'}</div>`;
-    el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = async () => { const v = b.dataset.show; const r = await emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); if (r.ok === false) return; sound.play('flip1'); if (st.me) { seatBubble(st.me.id, '패 공개!'); const mp = st.players.find((x) => x.id === st.me.id); if (mp && mp.cards) showcaseCards(st.me.id, v === 'both' ? mp.cards.filter((c) => !(st.me.shownOne || []).includes(mp.cards.indexOf(c))) : [mp.cards[Number(v)]], '모두에게 공개!', true); } toast(v === 'both' ? '내 패 두 장을 모두에게 보여줬어요' : '고른 한 장을 모두에게 보여줬어요', 'ok'); S.shownHand = st.hand && st.hand.no; }; });
+    el.querySelectorAll('[data-show]').forEach((b) => { b.onclick = async () => { const v = b.dataset.show; const r = await emit('game:show', { which: v === 'both' ? 'both' : Number(v) }); if (r.ok === false) return; if (st.me) { seatBubble(st.me.id, '패 공개!'); const mp = st.players.find((x) => x.id === st.me.id); if (mp && mp.cards) showcaseCards(st.me.id, v === 'both' ? mp.cards.filter((c) => !(st.me.shownOne || []).includes(mp.cards.indexOf(c))) : [mp.cards[Number(v)]], '모두에게 공개!', true); } toast(v === 'both' ? '내 패 두 장을 모두에게 보여줬어요' : '고른 한 장을 모두에게 보여줬어요', 'ok'); S.shownHand = st.hand && st.hand.no; }; });
     const rb = el.querySelector('#rabbit-btn');
     if (rb) rb.onclick = () => { rb.disabled = true; emit('game:rabbit'); };
     el.querySelectorAll('[data-manner]').forEach((b) => { b.onclick = () => { b.disabled = true; emit('room:chat', { text: b.dataset.manner }); sound.play('tap'); }; });
@@ -4821,7 +4818,7 @@ function runEffects(st) {
       sound.play(gameOf(st) === 'holdem' ? 'allinTension' : 'drumroll');
       if (sound.isUnlocked()) gws.vibrate([40, 40, 40]);
     }
-    if (!h.reveal.allin && h.reveal.shown > 0 && once(`shown${h.reveal.shown}`)) sound.play('flip');
+    if (!h.reveal.allin && h.reveal.shown > 0 && once(`shown${h.reveal.shown}`)) sound.play('reveal');
     if (h.reveal.squeeze && once('squeeze')) {
       sound.play('heartbeat');
       app.classList.add('tension');
@@ -5083,7 +5080,7 @@ function showcaseCards(id, cards, label, mine = false) {
     { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.8 },
     { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.45)`, opacity: 0 },
   ], { duration: 2900, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' }).onfinish = () => el.remove();
-  setTimeout(() => sound.play('flip'), 420);
+  setTimeout(() => sound.play('reveal'), 420);
 }
 // 큰 연출이 덮을 곳: 가로 화면이면 테이블 칸만 (오른쪽 버튼 칸까지 덮거나 글씨가 테이블 밖으로 치우치지 않게) · 세로면 화면 전체
 function fxArea() {

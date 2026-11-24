@@ -1850,7 +1850,7 @@ class Room {
         openMode: !!h.openMode,
         myOpen: me && h.seatOf && h.seatOf(me.id) && h.seatOf(me.id).open != null ? h.seatOf(me.id).open : null, // 내가 공개한 카드 번호
         result: h.finished && !rv ? this.publicResult(h.result) : null,
-        canRabbit: !!(h.finished && !rv && !h.kind && h.result && h.result.type === 'fold' && Array.isArray(h.rabbit) && h.rabbit.length && !this.rabbitOn),
+        canRabbit: false, // 남은 카드는 이제 자동으로 펼쳐진다
       };
     }
     return view;
@@ -1986,7 +1986,7 @@ class Room {
       hands,
       deltas: this.handPlayers.map((id) => ({ id, name: this.name(id), d: (r.deltas || {})[id] || 0 })),
       lines: this.feed.filter((e) => e.hand === this.handNo).map((e) => e.text).filter(Boolean).slice(-40),
-      rabbit: null,
+      rabbit: r.type === 'fold' && !h.kind && Array.isArray(h.rabbit) ? h.rabbit.slice() : null,
     });
     if (this.history.length > HISTORY_MAX) this.history.splice(0, this.history.length - HISTORY_MAX);
   }
@@ -2037,7 +2037,7 @@ class Room {
       hands,
       pots: r.potResults.map((p) => ({ amount: p.amount, winners: p.winners, returned: p.eligible.length === 1 })),
       deltas: r.deltas,
-      rabbit: r.type === 'fold' && this.rabbitOn && this.hand && Array.isArray(this.hand.rabbit) ? this.hand.rabbit : [],
+      rabbit: r.type === 'fold' && this.hand && !this.hand.kind && Array.isArray(this.hand.rabbit) ? this.hand.rabbit : [], // 모두 폴드로 끝나면 남은 카드를 흐리게 바로 펼쳐 보여 준다
       shown: (this.showIds || []).slice(),
     };
   }

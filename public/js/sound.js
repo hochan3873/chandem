@@ -167,7 +167,8 @@ async function playSfx(name, gain = 1, at = 0) {
 // 여러 소리를 엮은 것
 const COMBO = {
   flip: () => { playSfx('place', 1, 0); playSfx('place', 0.9, 0.14); playSfx('place', 0.85, 0.28); }, // 플랍: 착 착 착
-  flip1: () => playSfx('place', 1.1),                                                                 // 턴·리버: 한 장
+  flip1: () => playSfx('place', 1.1),
+  reveal: () => { playSfx('place', 1, 0); playSfx('place', 0.9, 0.11); },                            // 패 공개: 두 장 착 착                                                                 // 턴·리버: 한 장
   check: () => playSfx('knock'),
   allinPush: () => { playSfx('collect', 1.2); playSfx('chips', 0.8, 0.3); },                         // 칩 더미를 '스윽' 밀고 내려놓기
   coins: () => { playSfx('collect', 0.9); playSfx('chips', 0.7, 0.25); playSfx('collide', 0.6, 0.45); },
@@ -483,8 +484,14 @@ export function say(text) {
 /** name: 효과음 이름 (deal, chip, check …) 또는 음성 이름 (v_call …, e_angry …) */
 // 친구 방(조용한 방)에서는 연출용 큰 소리를 내지 않는다: 홀덤에만 집중 (카드·칩·노크·차례·채팅 알림만)
 const DRAMA = new Set(['heartbeat', 'impact', 'drumroll', 'allinTension', 'boom', 'fanfare', 'coins', 'stamp', 'lose']); // 'collect'(팟 가져오기)는 남김
+// 같은 순간 여러 곳에서 같은 소리를 부르면 겹쳐서 지저분하다: 카드 뒤집는 소리는 0.25초 안에 한 번만, 다른 소리도 같은 이름은 0.09초 안에 한 번만
+const CARD_SND = new Set(['flip', 'flip1', 'reveal']);
+const lastAt = {};
 export async function play(name, gain = 1) {
   if (!unlocked || prefs.muted || !ctx) return;
+  const now = performance.now(), key = CARD_SND.has(name) ? 'card' : name;
+  if (now - (lastAt[key] || -1e9) < (key === 'card' ? 250 : 90)) return;
+  lastAt[key] = now;
   if (hush() && DRAMA.has(name)) return;
   if ((name.startsWith('v_') || name.startsWith('e_')) && !voiceOK()) return;
   if (COMBO[name]) { COMBO[name](gain); return; }
