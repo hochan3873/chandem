@@ -3392,6 +3392,8 @@ function openSoundModal() {
       <label class="switch"><input type="checkbox" id="snd-friend" ${p.friendLoud ? 'checked' : ''}><span>친구 방에서도 음성·큰 연출 소리 <small class="muted">(기본 꺼짐 · 배경음악은 작게 나와요)</small></span></label>
       <label class="field"><span>배경음악 볼륨 <b id="mvol-val">${Math.round(p.musicVolume * 100)}%</b></span>
         <input type="range" id="snd-mvol" min="0" max="100" value="${Math.round(p.musicVolume * 100)}"></label>
+      ${sound.HOLDEM_SONGS.length > 1 ? `<label class="field"><span>홀덤 배경음악 <small class="muted">(돌려 듣기: 곡이 끝나면 다음 곡)</small></span>
+        <select class="input" id="snd-song"><option value="all" ${!p.holdemSong || p.holdemSong === 'all' ? 'selected' : ''}>전체 돌려 듣기</option>${sound.HOLDEM_SONGS.map(([k, t]) => `<option value="${k}" ${p.holdemSong === k ? 'selected' : ''}>${esc(t)}만</option>`).join('')}</select></label>` : ''}
       <button class="btn btn-outline" id="snd-test">소리 들어보기</button>
       <p class="muted small">휴대폰 무음 모드에서는 소리가 나지 않을 수 있어요.</p>
     </div>`, (body) => {
@@ -3401,6 +3403,8 @@ function openSoundModal() {
     body.querySelector('#snd-music').onchange = (e) => { sound.unlock(); sound.setMusic(e.target.checked); };
     body.querySelector('#snd-friend').onchange = (e) => { sound.unlock(); sound.setFriendLoud(e.target.checked); };
     body.querySelector('#snd-mvol').oninput = (e) => { sound.setMusicVolume(e.target.value / 100); body.querySelector('#mvol-val').textContent = e.target.value + '%'; };
+    const sg = body.querySelector('#snd-song');
+    if (sg) sg.onchange = (e) => { sound.unlock(); sound.setSong(e.target.value); };
     body.querySelector('#snd-test').onclick = () => { sound.unlock(); sound.play('chips'); setTimeout(() => sound.play('v_call'), 200); };
   });
 }
