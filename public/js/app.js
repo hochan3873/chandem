@@ -400,7 +400,7 @@ function openInstallGuide(tab) {
 }
 // 앱이 안 깔린 휴대폰: 하루 한 번 아래에서 '앱으로 설치하면 전체 화면' 안내 (판 진행 중엔 안 띄움)
 function maybeInstallNudge() {
-  if (isStandalone() || !(IS_IOS || IS_ANDROID) || S.nudgeShown) return;
+  if (isStandalone() || !(IS_IOS || IS_ANDROID) || S.nudgeShown || document.getElementById('open-in-app')) return;
   if (document.querySelector('.modal-backdrop') || document.getElementById('inst-nudge')) return;
   if (S.view === 'room' && S.state && S.state.room.phase === 'playing') return; // 게임 중엔 방해하지 않음
   const today = new Date().toISOString().slice(0, 10);
@@ -415,6 +415,32 @@ function maybeInstallNudge() {
   el.querySelector('[data-n="go"]').onclick = () => { el.remove(); openInstallGuide(); };
   el.querySelector('[data-n="x"]').onclick = () => el.remove();
   setTimeout(() => el.remove(), 20000);
+}
+// ── 앱이 이미 깔려 있는데 웹(크롬)으로 열었을 때: 위에 「앱으로 열기」 ──
+// 브라우저가 웹페이지에서 앱을 저절로 켜는 건 막아 두어서, 한 번 누르게 한다.
+// 확인 방법: 크롬의 getInstalledRelatedApps (안드로이드 크롬 84+, PC 크롬·엣지 140+) · 아이폰 사파리는 알 방법이 없음
+async function checkInstalledApp() {
+  if (S.appCheckDone || isStandalone() || IS_IOS || IN_APP) return;
+  S.appCheckDone = true;
+  let yes = false;
+  try { if (navigator.getInstalledRelatedApps) yes = ((await navigator.getInstalledRelatedApps()) || []).length > 0; } catch {}
+  if (yes) showOpenInApp();
+}
+function openInAppHref() {
+  const path = location.pathname + location.search;
+  // 안드로이드: 설치한 앱(WebAPK)이 이 주소를 받아서 열 수 있게 '앱으로 보내기' 주소로 · 못 받으면 크롬에 그대로
+  if (IS_ANDROID) return `intent://${location.host}${path}#Intent;scheme=https;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
+  return location.href; // PC: 새 창 링크는 크롬·엣지가 설치한 앱으로 연다 (크롬 139+)
+}
+function showOpenInApp() {
+  if (document.getElementById('open-in-app') || S.view === 'room' && S.state && S.state.room.phase === 'playing') return;
+  if (sessionStorage.getItem('chandem:openAppX')) return;
+  const el = document.createElement('div');
+  el.id = 'open-in-app'; el.className = 'open-in-app';
+  el.innerHTML = `<img src="/img/holdem-icon-192.png" alt="" width="34" height="34"><div class="grow"><b>${APP_NAME} 앱이 깔려 있어요</b><small>${IS_ANDROID ? '안 넘어가면 크롬 ⋮ → 「앱에서 열기」' : '안 넘어가면 주소창 오른쪽 「앱에서 열기」 아이콘'}</small></div>
+    <a class="btn btn-gold btn-sm" href="${esc(openInAppHref())}" ${IS_ANDROID ? '' : 'target="_blank" rel="noopener"'}>앱으로 열기</a><button type="button" class="oia-x" aria-label="닫기">✕</button>`;
+  document.body.appendChild(el);
+  el.querySelector('.oia-x').onclick = () => { try { sessionStorage.setItem('chandem:openAppX', '1'); } catch {} el.remove(); };
 }
 /** 아이폰 + 카톡·네이버 등 앱 안 브라우저: 메인 위에 "사파리로 열어야 설치할 수 있어요" 띠 */
 function iosInAppBannerHTML() {
@@ -2266,6 +2292,7 @@ function render() {
   syncChatFab();
   syncInstallBar();
   if (S.view === 'home' || S.view === 'gamehome') setTimeout(maybeInstallNudge, 1500);
+  if (S.view !== 'boot') setTimeout(checkInstalledApp, 800);
   // 배경음악: 메인은 메인 곡, 게임 화면·게임방은 그 게임 곡
   const th = document.body.dataset.theme;
   sound.setTrack(th === 'hub' ? 'bgm_hub' : th === 'holdem' ? 'bgm_holdem' : 'bgm_' + th);
