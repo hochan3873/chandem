@@ -45,14 +45,16 @@ test('게임 시간을 게임 중에 정하면 시작 시각 기준으로 정산
   room.clearAllTimers();
 });
 
-test('칩 추가: 칩이 남아 있으면 언제든 신청 → 다음 판에 칩·바이인에 더해지고 정산에 들어감', () => {
-  const { room, ps } = cash(3);
+test('칩 추가 = 리바인 1번: 칩이 남아 있어도 리바인 횟수 안에서 언제든 · 다음 판에 칩·바이인에 더해짐', () => {
+  const { room, ps } = cash(3, { rebuyMax: 2, rebuyAmount: 1000 });
   room.start(ps[0].id);
   const B = ps[1];
   assert.equal(room.viewFor(B.id).me.canAddon, true);
+  assert.throws(() => room.addon(B.id, 1200), /까지/); // 리바인 금액까지
   room.addon(B.id, 500);
   assert.equal(B.pendingAdd, 500);
-  assert.throws(() => room.addon(B.id, 600), /까지/); // 한 번에 시작 칩(1000)까지
+  assert.equal(B.rebuys, 1, '리바인 1번 씀');
+  assert.throws(() => room.addon(B.id, 100), /이미 신청/);
   // 적용 전에 게임이 끝나면 공짜 칩이 되지 않는다
   let st = room.computeSettlement();
   assert.equal(st.rows.find((x) => x.name === 'P1').out, B.stack);
@@ -63,20 +65,29 @@ test('칩 추가: 칩이 남아 있으면 언제든 신청 → 다음 판에 칩
   assert.equal(B.totalBuyIn, 1500);
   assert.ok(B.stack >= before + 500 - 20);
   foldOut(room);
+  room.addon(B.id, 300); // 2번째 (마지막)
+  assert.equal(B.rebuys, 2);
+  room.startHand();
+  foldOut(room);
+  assert.throws(() => room.addon(B.id, 100), /다 써서/);
+  assert.equal(room.canRebuy(B), false);
   st = room.computeSettlement();
-  assert.equal(st.rows.find((x) => x.name === 'P1').addon, 500);
+  assert.equal(st.rows.find((x) => x.name === 'P1').addon, 800);
   assert.equal(st.sumNet, 0, '사람끼리 손익 합계 0');
   room.clearAllTimers();
 });
 
-test('칩 추가: 꺼 두면 안 되고 · 다 잃었으면 리바인으로 · 토너먼트는 없음', () => {
-  const { room, ps } = cash(3, { addonOn: false });
+test('칩 추가: 리바인이 꺼져 있으면 안 되고 · 게임 중에 켜면 됨 · 다 잃었으면 리바인 버튼으로 · 나가면 횟수 돌려줌', () => {
+  const { room, ps } = cash(3, { rebuyEnabled: false });
   room.start(ps[0].id);
   assert.throws(() => room.addon(ps[1].id, 100), /꺼져/);
-  room.updateSettings(ps[0].id, { ...room.settings, addonOn: true });
+  room.updateSettings(ps[0].id, { ...room.settings, rebuyEnabled: true, rebuyMax: 2 });
   foldOut(room);
+  room.addon(ps[1].id, 100);
+  room.leave(ps[1].id);
+  assert.equal(room.departed.find((d) => d.name === 'P1').rebuys, 0);
   ps[2].stack = 0;
-  assert.throws(() => room.addon(ps[2].id, 100), /리바인/);
+  assert.throws(() => room.addon(ps[2].id, 100), /리바인 버튼/);
   room.clearAllTimers();
 });
 
