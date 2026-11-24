@@ -33,6 +33,9 @@ const DEFAULT_SETTINGS = {
   settlePer: 1000,       // 정산 환산: 칩 settlePer 개 = settleValue settleUnit (친구끼리 약속한 값을 보여 주기만 함)
   settleValue: 0,
   settleUnit: '',
+  addonOn: true,         // 칩 추가(애드온): 일반 게임에서 칩이 남아 있어도 언제든 칩을 더 사서 넣기 (다음 판부터, 정산에 바이인으로 들어감)
+  addonMax: 0,           // 한 번에 추가할 수 있는 최대 칩 (0 = 시작 칩만큼)
+  resultSeconds: 10,     // 판이 끝나고 결과(카드)를 보여 주는 시간(초) — 다음 판까지
 };
 
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
@@ -40,9 +43,9 @@ const AWAY_SKIP_MS = 60 * 1000;       // 이만큼 끊긴 사람은 다음 판�
 const AWAY_KICK_MS = 5 * 60 * 1000;   // 친구 방: 자리 비움·연결 끊김이 이만큼 이어지면 판이 끝날 때 방에서 내보냄
 const AWAY_ACT_MS = 8 * 1000;
 const PHASE_MS = 10 * 1000;           // 세 장 섯다: 공개할 카드 · 두 장 고르기 시간         // 자리 비움인데 화면은 켜져 있으면: 차례에 8초 동안 직접 할 수 있게 기다린다
-const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // 결과를 보여준 뒤 다음 판까지
+const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // (기본값) 결과를 보여준 뒤 다음 판까지 — 방 설정 resultSeconds 가 우선
 // 쇼다운 연출(ms). 올인 승부는 패 공개 → 남은 카드를 한 장씩 → 리버는 뜸을 들여 '쪼기'
-const REVEAL = { first: 800, perHand: 1200, allinHands: 1800, flop: 2000, turn: 2600, squeeze: 3000, river: 1500, result: 1000 };
+const REVEAL = { first: 900, perHand: 1500, allinHands: 2000, flop: 2200, turn: 2800, squeeze: 3000, river: 2500, result: 1000 };
 const MAX_TIMEOUTS = 2;               // 연속 시간 초과 시 자리 비움 처리
 const AVATAR_COUNT = 10;              // public/img/avatars/a1~a10 (귀여운 동물)
 const BOT_THINK = [900, 2200];        // 봇이 생각하는 시간(ms) 범위
@@ -87,6 +90,9 @@ function sanitizeSettings(input = {}, base = DEFAULT_SETTINGS) {
   s.rebuyFlex = src.rebuyFlex === undefined ? !!base.rebuyFlex : !!src.rebuyFlex;
   s.rebuyLo = Math.min(10000000, Math.max(1, int(src.rebuyLo, base.rebuyLo || Math.max(1, Math.round(s.rebuyAmount / 2)))));
   s.rebuyHi = Math.min(10000000, Math.max(s.rebuyLo, int(src.rebuyHi, base.rebuyHi || s.rebuyAmount * 2)));
+  s.addonOn = src.addonOn === undefined ? (base.addonOn === undefined ? true : !!base.addonOn) : !!src.addonOn;
+  s.addonMax = Math.min(10000000, Math.max(0, int(src.addonMax, base.addonMax || 0)));
+  s.resultSeconds = Math.min(30, Math.max(4, int(src.resultSeconds, base.resultSeconds || 10)));
   s.password = typeof src.password === 'string' ? src.password.trim().slice(0, 20) : base.password;
   s.approval = src.approval === undefined ? base.approval : !!src.approval;
   s.game = ['holdem', 'seotda', 'omok'].includes(src.game) ? src.game : (base.game || 'holdem');
@@ -460,7 +466,8 @@ class Room {
     const uname = this.uniqueName(name, !!back); // 나갔다 온 사람: 판이 끝나기 전이라 예전 자리가 아직 남아 있어도 같은 이름 그대로 ('지훈 (2)' 안 되게)
     const p = this.createPlayer(uname, true, avatar);
     if (ip) p.ip = ip;
-    if (back) p.backFrom = back.id; // 게임 중에 나갔다 온 사람: 들어오면(admit) 칩·리바인 횟수를 이어받는다
+    if (back) p.backFrom = back.id;
+    else if (ip && this.ipBusted(ip)) { p.ipBlocked = this.ipBusted(ip).name; spectator = true; } // 같은 인터넷에서 칩·리바인 다 쓰고 나간 사람이 있으면: 기록은 따로 두고 앉는 것만 막음 // 게임 중에 나갔다 온 사람: 들어오면(admit) 칩·리바인 횟수를 이어받는다
     this.setPhoto(p, photo);
     if (user) { p.userId = user.id; p.omokRating = user.stats.omok.rating; if (user.isMaster) p.isMaster = true; }
     if (masterPeek) p.masterPeek = true;
@@ -486,8 +493,13 @@ class Room {
     const nm = String(name || '').trim();
     return (user && list.find((d) => d.userId === user.id))
       || (!user && list.find((d) => !d.userId && d.name === nm))
-      || (ip && list.find((d) => d.ip === ip))
-      || null;
+      || null; // (예전엔 같은 IP면 이어받았지만, 같은 와이파이·통신사 공유 IP의 다른 사람이 나간 사람 기록을 가져가 정산에서 빠지던 문제로 뺌)
+  }
+
+  ipBusted(ip) {
+    if (this.phase !== 'playing' || this.isTournament || this.wallet || this.practice) return null;
+    const s = this.settings;
+    return (this.departed || []).find((d) => d.ip === ip && d.out <= 0 && !(s.rebuyEnabled && (d.rebuys || 0) < s.rebuyMax)) || null;
   }
 
   /** 나갔다 온 사람: 가지고 나간 칩·바이인·리바인 횟수를 그대로 (나갔다 오면 리바인이 다시 생기던 문제) */
@@ -500,6 +512,7 @@ class Room {
     p.stack = d.out;
     p.totalBuyIn = d.buyIn;
     p.rebuys = d.rebuys || 0;
+    p.addonTotal = d.addon || 0;
     p.wasBack = true;
     if (d.name !== p.name) p.backName = d.name; // 다른 이름으로 왔지만 같은 사람(IP)
     // 칩도 없고 리바인도 다 썼으면 이번 게임엔 앉을 수 없다
@@ -508,6 +521,7 @@ class Room {
 
   /** 앉을 수 없는 이유 (칩도 리바인도 다 쓴 사람) */
   seatBlock(p) {
+    if (p.ipBlocked && this.phase === 'playing' && !this.isTournament && (p.totalBuyIn || 0) === 0 && this.ipBusted(p.ip)) return `같은 인터넷에서 ${p.ipBlocked}님이 칩을 다 잃고 리바인도 다 써서 나갔어요. 이번 게임엔 앉을 수 없어요 (관전만)`;
     if (this.phase !== 'playing' || this.isTournament || !p.wasBack || p.stack > 0) return null;
     if (this.settings.rebuyEnabled && (p.rebuys || 0) < this.settings.rebuyMax) return null;
     return '칩을 다 잃고 리바인도 다 써서 이번 게임엔 앉을 수 없어요 (관전만)';
@@ -652,13 +666,42 @@ class Room {
 
   updateSettings(hostId, input) {
     this.requireHost(hostId);
-    if (this.phase !== 'lobby') throw new RoomError('게임 중에는 설정을 바꿀 수 없어요');
+    if (this.phase !== 'lobby') return this.updateSettingsLive(input);
     const next = sanitizeSettings(input, this.settings);
     if (this.seated.length > next.maxPlayers) throw new RoomError('이미 앉은 인원보다 최대 인원을 적게 할 수 없어요');
     this.settings = next;
     // 자리 번호가 최대 인원을 넘으면 앞자리로 당긴다
     this.seated.forEach((p, i) => { p.seat = i; });
     this.touch();
+  }
+
+  /** 게임 중 설정 바꾸기 (일반 게임 · 방장): 게임 종류·방식·돈 방식·블라인드는 그대로 두고 나머지만. 칩·리바인은 다음 판부터 */
+  updateSettingsLive(input) {
+    if (this.isTournament) throw new RoomError('토너먼트 중에는 설정을 바꿀 수 없어요');
+    const cur = this.settings;
+    const keep = ['game', 'mode', 'money', 'buyWon', 'sb', 'bb', 'blindLevels', 'cards', 'sdOpen', 'levelMinutes', 'reentryLevels', 'prizes', 'tableSize', 'minPlayers'];
+    const src = { ...(input || {}) };
+    for (const k of keep) src[k] = cur[k];
+    const next = sanitizeSettings(src, cur);
+    if (this.seated.length > next.maxPlayers) throw new RoomError(`지금 앉은 사람(${this.seated.length}명)보다 최대 인원을 적게 할 수 없어요`);
+    const label = {
+      startChips: '늦게 온 사람 시작 칩', turnSeconds: '턴 시간', timeBank: '타임뱅크', ante: '앤티', maxPlayers: '최대 인원',
+      rebuyEnabled: '리바인', rebuyAmount: '리바인 금액', rebuyMax: '리바인 횟수', rebuyFlex: '리바인 각자 정하기', rebuyLo: '리바인 최소', rebuyHi: '리바인 최대',
+      addonOn: '칩 추가', addonMax: '칩 추가 한도', resultSeconds: '결과 보는 시간', sessionMinutes: '게임 시간',
+      settlePer: '정산 환산', settleValue: '정산 환산', settleUnit: '정산 단위', password: '비밀번호', approval: '참가 승인',
+    };
+    const show = (k, v) => (typeof v === 'boolean' ? (v ? '켬' : '끔') : k === 'password' ? (v ? '있음' : '없음') : k === 'ante' ? (v === 'bb' ? 'BB 앤티' : '없음') : typeof v === 'number' ? v.toLocaleString() : String(v || '-'));
+    const changed = [];
+    for (const k of Object.keys(label)) if (JSON.stringify(cur[k]) !== JSON.stringify(next[k])) changed.push(`${label[k]} ${show(k, next[k])}`);
+    if (!changed.length) return { changed: 0 };
+    this.settings = next;
+    if (cur.sessionMinutes !== next.sessionMinutes) {
+      this.endsAt = next.sessionMinutes > 0 && next.game !== 'omok' ? (this.startedAt || this.now()) + next.sessionMinutes * 60000 : null;
+      if (this.endsAt && this.endsAt < this.now()) this.endsAt = this.now(); // 이미 지난 시간이면 이번 판 끝나고 정산
+    }
+    this.pushFeed(`⚙️ 방장이 설정을 바꿨어요 · ${[...new Set(changed)].join(' · ')} (진행 중인 판이 끝나면 적용)`);
+    this.touch();
+    return { changed: changed.length };
   }
 
   startCheck() {
@@ -694,6 +737,7 @@ class Room {
       this.tourney = null;
       this.settlement = null;
       this.departed = [];
+      this.startedAt = this.now();
       this.endsAt = this.settings.sessionMinutes > 0 && this.settings.game !== 'omok' ? this.now() + this.settings.sessionMinutes * 60000 : null;
       this.pushFeed(this.endsAt ? `게임을 시작합니다 · ${this.settings.sessionMinutes}분 뒤 자동 정산` : '게임을 시작합니다');
     }
@@ -706,10 +750,12 @@ class Room {
     const rows = [];
     for (const p of this.players) {
       if (p.isBot || !(p.totalBuyIn > 0)) continue;
-      rows.push({ id: p.id, name: p.name, buyIn: p.totalBuyIn, out: p.stack + (p.pendingRebuy || 0) });
+      rows.push({ id: p.id, name: p.name, buyIn: p.totalBuyIn, out: p.stack, rebuys: p.rebuys || 0, addon: p.addonTotal || 0, left: false, watching: p.role !== 'player' });
     }
-    for (const d of this.departed || []) if (!rows.some((r) => r.id === d.id)) rows.push({ ...d });
+    for (const d of this.departed || []) if (!rows.some((r) => r.id === d.id)) rows.push({ ...d, left: true });
     for (const r of rows) r.net = r.out - r.buyIn;
+    // 확인: 사람끼리만 놀았으면 손익 합계가 0 (봇과 오간 칩이 있으면 그만큼 어긋남)
+    const sumNet = rows.reduce((a, r) => a + r.net, 0);
     rows.sort((a, b) => b.net - a.net);
     // 송금 최소화: 가장 많이 잃은 사람이 가장 많이 딴 사람에게부터
     const cred = rows.filter((r) => r.net > 0).map((r) => ({ name: r.name, left: r.net }));
@@ -725,7 +771,9 @@ class Room {
       }
     }
     const value = s.settleValue > 0 ? { per: s.settlePer, value: s.settleValue, unit: s.settleUnit || '' } : null;
-    return { at: this.now(), reason: reason || null, hands: this.handNo, rows, transfers, value, bots: this.players.some((p) => p.isBot) };
+    const lh = (this.history || []).slice(-1)[0] || null;
+    const lastHand = lh ? { no: lh.no, board: lh.board, hands: lh.hands, winners: lh.winners, pot: lh.pot, type: lh.type } : null;
+    return { at: this.now(), reason: reason || null, hands: this.handNo, rows, transfers, value, bots: this.players.some((p) => p.isBot), sumNet, lastHand, leftCount: rows.filter((r) => r.left).length };
   }
 
   /** 일반 게임 끝내기 예약 (방장): 지금 판을 포함해 N판 더 하고 자동으로 끝내고 정산 */
@@ -767,6 +815,7 @@ class Room {
     }
     this.pendingEnd = null;
     this.finalHands = null;
+    if (this.hand && this.hand.finished && this.hand.result) { try { this.pushHistory(); } catch (e) { console.error('[history]', e); } }
     if (this.phase === 'playing' && !this.isTournament && this.settings.game !== 'omok') this.settlement = this.computeSettlement(reason || '방장이 게임을 끝냈어요');
     this.endsAt = null;
     this.clearTimer('next');
@@ -805,7 +854,7 @@ class Room {
     const t = this.now();
     return this.seated.filter((p) => {
       if (p.leaving) return false;
-      if (p.stack + p.pendingRebuy <= 0) return false;
+      if (p.stack + p.pendingRebuy + (p.pendingAdd || 0) <= 0) return false;
       void t;
       return true;
     });
@@ -883,12 +932,19 @@ class Room {
         this.pushFeed(`${p.name}님 리바인 적용: +${p.pendingRebuy.toLocaleString()}`);
         p.pendingRebuy = 0;
       }
+      if (p.pendingAdd > 0) {
+        p.stack += p.pendingAdd;
+        p.totalBuyIn += p.pendingAdd;
+        p.addonTotal = (p.addonTotal || 0) + p.pendingAdd;
+        this.pushFeed(`${p.name}님 칩 추가 적용: +${p.pendingAdd.toLocaleString()} (바이인 합계 ${p.totalBuyIn.toLocaleString()})`);
+        p.pendingAdd = 0;
+      }
     }
     // 일반 게임: 칩을 다 잃었는데 더 리바인할 수 없으면(횟수를 다 썼거나 리바인이 꺼짐) 관전석으로 → 자리가 빈다
     if (!this.isTournament && this.settings.game !== 'omok') {
       for (const p of this.seated) {
-        if (p.isBot || p.stack > 0 || p.pendingRebuy > 0) continue;
-        if (this.canRebuy(p)) continue; // 리바인할 수 있으면 자리를 지켜 준다 (리바인 버튼)
+        if (p.isBot || p.stack > 0 || p.pendingRebuy > 0 || p.pendingAdd > 0) continue;
+        if (this.canRebuy(p) || this.canAddon(p)) continue; // 리바인·칩 추가를 할 수 있으면 자리를 지켜 준다 // 리바인할 수 있으면 자리를 지켜 준다 (리바인 버튼)
         p.role = 'spectator'; p.seat = null; p.ready = false; p.sittingOut = false;
         this.pushFeed(`${p.name}님 칩을 다 잃어 관전으로 옮겼어요${this.settings.rebuyEnabled ? ` (리바인 ${this.settings.rebuyMax}번 다 씀)` : ''}`);
       }
@@ -1231,7 +1287,8 @@ class Room {
         this.pushFeed(this.canRebuy(p) ? `${p.name}님 칩 소진 · 리바인할 수 있어요` : `${p.name}님 칩 소진`);
       }
     }
-    const delay = (RESULT_DELAY[this.hand.result.type] || 5000) * this.pace;
+    const rs = (this.settings.resultSeconds || 10) * 1000;
+    const delay = (this.hand.kind === 'omok' ? (RESULT_DELAY[this.hand.result.type] || 5000) : this.hand.result.type === 'showdown' ? rs : Math.max(4000, Math.round(rs * 0.6))) * this.pace;
     this.nextHandAt = this.now() + delay;
     this.setTimer('next', delay, () => this.startHand());
     this.touch();
@@ -1449,6 +1506,33 @@ class Room {
     this.touch();
   }
 
+  // ── 칩 추가(애드온) ─────────────────────────────────
+  addonLimit() { const s = this.settings; return s.addonMax > 0 ? s.addonMax : s.startChips; }
+  canAddon(p) {
+    const s = this.settings;
+    if (!s.addonOn || this.phase !== 'playing' || this.isTournament || this.wallet || this.practice || s.game === 'omok') return false;
+    if (!p || p.isBot || p.role !== 'player' || p.leaving) return false;
+    if (this.effectiveStack(p) + (p.pendingRebuy || 0) <= 0) return false; // 다 잃었으면 칩 추가가 아니라 리바인 (리바인 횟수 제한을 지키려고)
+    return (p.pendingAdd || 0) < this.addonLimit();
+  }
+  addon(id, amount) {
+    const p = this.get(id);
+    if (!p) throw new RoomError('참가자를 찾을 수 없어요');
+    if (!this.settings.addonOn) throw new RoomError('이 방은 칩 추가가 꺼져 있어요 (방장이 설정에서 켤 수 있어요)');
+    if (!this.canAddon(p)) throw new RoomError(p.role !== 'player' ? '자리에 앉아 있어야 칩을 추가할 수 있어요' : this.effectiveStack(p) <= 0 ? '칩을 다 잃었을 때는 리바인으로 다시 사요' : '지금은 칩을 추가할 수 없어요');
+    const lim = this.addonLimit() - (p.pendingAdd || 0);
+    const want = Math.floor(Number(amount));
+    if (!Number.isFinite(want) || want < 1) throw new RoomError('추가할 칩을 골라 주세요');
+    if (want > lim) throw new RoomError(`한 번에 ${this.addonLimit().toLocaleString()}까지 추가할 수 있어요`);
+    p.pendingAdd = (p.pendingAdd || 0) + want;
+    p.sittingOut = false;
+    const running = this.hand && !this.hand.finished;
+    this.pushFeed(`${p.name}님 칩 추가 ${want.toLocaleString()} 신청${running ? ' · 다음 판부터 적용' : ''}`);
+    this.maybeStartWaitingHand();
+    this.touch();
+    return { pending: p.pendingAdd };
+  }
+
   /** 친구 방 일반 게임: 자리 비움·연결 끊김이 AWAY_KICK_MS 넘게 이어진 사람은 방에서 내보낸다 (칩·리바인 기록은 남아서 돌아오면 이어받음) */
   kickAway() {
     if (this.phase !== 'playing' || this.isTournament || this.wallet || this.practice || this.settings.game === 'omok') return;
@@ -1546,6 +1630,8 @@ class Room {
       return;
     }
     const inHand = this.hand && !this.hand.finished && this.handPlayers.includes(id);
+    if (p.pendingRebuy > 0) { p.rebuys = Math.max(0, (p.rebuys || 0) - 1); p.pendingRebuy = 0; } // 적용 전에 나가면 신청 취소
+    p.pendingAdd = 0;
     if (this.phase === 'playing' && this.isTournament && p.role === 'player') this.tourneyOut(p);
     if (inHand) {
       p.leaving = true;
@@ -1559,7 +1645,7 @@ class Room {
     // 일반 게임 중에 나간 사람도 정산에 남긴다 (가지고 나간 칩)
     if (this.phase === 'playing' && !this.isTournament && !p.isBot && p.totalBuyIn > 0) {
       this.departed = (this.departed || []).filter((d) => d.id !== p.id);
-      this.departed.push({ id: p.id, name: p.name, userId: p.userId || null, ip: p.ip || null, rebuys: p.rebuys || 0, buyIn: p.totalBuyIn, out: p.stack + (p.pendingRebuy || 0), left: true });
+      this.departed.push({ id: p.id, name: p.name, userId: p.userId || null, ip: p.ip || null, rebuys: p.rebuys || 0, buyIn: p.totalBuyIn, out: p.stack, addon: p.addonTotal || 0, left: true });
     }
     if (id === this.hostId) {
       const next = this.pickNextHost(id) || this.players.find((x) => x.id !== id && !x.leaving && !x.isBot);
@@ -1621,7 +1707,7 @@ class Room {
       let status = 'waiting';
       if (p.role === 'spectator') status = 'spectator';
       else if (hs) status = hs.folded ? 'folded' : hs.allIn ? 'allin' : 'inhand';
-      else if (this.phase === 'playing' && shownStack(p) + p.pendingRebuy === 0) status = 'busted';
+      else if (this.phase === 'playing' && shownStack(p) + p.pendingRebuy + (p.pendingAdd || 0) === 0) status = 'busted';
       else if (p.sittingOut) status = 'away';
       let cards = null;
       if (hs) {
@@ -1639,6 +1725,7 @@ class Room {
         seat: p.seat,
         stack: shownStack(p),
         pendingRebuy: p.pendingRebuy,
+        pendingAdd: p.pendingAdd || 0,
         rebuys: p.rebuys,
         ready: p.ready,
         connected: p.connected,
@@ -1682,6 +1769,7 @@ class Room {
         startBlocker: this.phase === 'lobby' ? this.startCheck() : null,
         endsAt: this.phase === 'playing' ? this.endsAt || null : null,
         settlement: this.phase === 'lobby' ? this.settlement || null : null,
+        myLastCards: this.phase === 'lobby' && this.settlement && me && this.lastHoles && this.settlement.lastHand && this.lastHoles.no === this.settlement.lastHand.no ? this.lastHoles.cards[me.id] || null : null,
         tableSeats: this.tableSeats,
         blindVote: this.blindVoteView(),
         finalLeft: this.phase === 'playing' && this.finalHands ? this.finalLeft() : 0,
@@ -1697,6 +1785,11 @@ class Room {
         rebuys: me.rebuys,
         pendingRebuy: me.pendingRebuy,
         canRebuy: this.canRebuy(me),
+        canAddon: this.canAddon(me),
+        addonLeft: this.canAddon(me) ? this.addonLimit() - (me.pendingAdd || 0) : 0,
+        pendingAdd: me.pendingAdd || 0,
+        buyIn: me.totalBuyIn || 0,
+        addonTotal: me.addonTotal || 0,
         timeBank: me.bank === undefined ? this.settings.timeBank : me.bank,
         canShow: !!(h && h.finished && !h.kind && this.handPlayers.includes(me.id) && !this.revealing && !(this.showIds || []).includes(me.id) && !this.shownAtShowdown(me.id)),
         shownOne: (this.showOne && this.showOne[me.id]) || [],
@@ -1870,6 +1963,9 @@ class Room {
     const h = this.hand;
     const r = h && h.result;
     if (!r || h.kind === 'omok') return;
+    if ((this.history || []).some((x) => x.no === this.handNo)) return; // 이미 넣음 (연출 중에 끝내기)
+    // 게임이 끝난 뒤에도 각자 자기 마지막 패를 볼 수 있게 (남에게는 안 보냄)
+    this.lastHoles = { no: this.handNo, cards: Object.fromEntries((h.seats || []).filter((s) => Array.isArray(s.hole)).map((s) => [s.id, s.hole.slice()])) };
     const pr = this.publicResult(r);
     const hands = Object.entries(pr.hands || {}).map(([id, v]) => ({ id, name: this.name(id), cards: v.hole, hand: v.name, won: r.winners.includes(id) }));
     this.history = this.history || [];
@@ -1894,9 +1990,11 @@ class Room {
     return {
       hands: (this.history || []).slice().reverse(),
       ledger: this.players.filter((p) => (p.totalBuyIn || 0) > 0 || p.role === 'player').map((p) => ({
-        id: p.id, name: p.name, buyIn: p.totalBuyIn || 0, stack: p.stack + (p.pendingRebuy || 0), rebuys: p.rebuys || 0, role: p.role, leaving: !!p.leaving, isBot: !!p.isBot,
+        id: p.id, name: p.name, buyIn: p.totalBuyIn || 0, stack: p.stack, pending: (p.pendingRebuy || 0) + (p.pendingAdd || 0), rebuys: p.rebuys || 0, addon: p.addonTotal || 0, role: p.role, leaving: !!p.leaving, isBot: !!p.isBot,
         rs: p.rs ? { hands: p.rs.hands, vpip: p.rs.vpip, won: p.rs.won } : null,
-      })),
+      })).concat(this.isTournament ? [] : (this.departed || []).filter((d) => !this.players.some((p) => p.id === d.id)).map((d) => ({
+        id: d.id, name: d.name, buyIn: d.buyIn, stack: d.out, pending: 0, rebuys: d.rebuys || 0, addon: d.addon || 0, role: 'left', left: true, isBot: false, rs: null,
+      }))),
     };
   }
 

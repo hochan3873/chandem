@@ -710,7 +710,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
         reply(ack, { ok: true, ...out });
       } catch (e) { fail(ack, e); }
     });
-    socket.on('lobby:settings', handler((d) => { const { room, pid } = ctx(); room.updateSettings(pid, d.settings); }));
+    socket.on('lobby:settings', handler((d) => { const { room, pid } = ctx(); return room.updateSettings(pid, d.settings); }));
     socket.on('lobby:start', handler(() => { const { room, pid } = ctx(); room.start(pid); }));
     socket.on('host:approve', handler((d) => { const { room, pid } = ctx(); room.approve(pid, d.id, !!d.ok); }));
     socket.on('game:emote', handler((d) => { const { room, pid } = ctx(); room.emote(pid, String(d.kind || '')); }));
@@ -780,6 +780,7 @@ function createServer({ port = 3000, dataFile = null, publicUrl = process.env.PU
       }
       room.rebuy(pid, d && d.amount);
     }));
+    socket.on('game:addon', handler((d) => { const { room, pid } = ctx(); return room.addon(pid, d && d.amount); }));
     socket.on('game:sitin', handler(() => { const { room, pid } = ctx(); room.sitIn(pid); }));
     socket.on('game:sitout', handler(() => { const { room, pid } = ctx(); room.sitOut(pid); }));
 

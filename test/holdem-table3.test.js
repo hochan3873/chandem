@@ -232,7 +232,7 @@ test('쇼다운: 이긴 사람·진 사람 패가 모두 공개되고, 그래서
   room.clearAllTimers();
 });
 
-test('일반 게임: 닉네임을 바꿔 다시 들어와도 같은 인터넷(IP)이면 같은 사람 → 리바인 다 썼으면 못 앉음', () => {
+test('일반 게임: 닉네임을 바꿔 같은 인터넷(IP)으로 다시 들어오면 → 다 잃고 나간 기록이 있으면 못 앉음 · 나간 사람 정산은 따로 남음', () => {
   let T = 1_000_000;
   const room = new Room({ code: 'TIPXXX', settings: sanitizeSettings({ sb: 10, bb: 20, startChips: 1000, maxPlayers: 9, rebuyMax: 1 }), now: () => T, pace: 0.001 });
   const ps = ['1.1.1.1', '2.2.2.2', '3.3.3.3'].map((ip, i) => { const { player } = room.join({ name: 'P' + i, ip }); room.connect(player.id); player.ready = true; return player; });
@@ -243,9 +243,10 @@ test('일반 게임: 닉네임을 바꿔 다시 들어와도 같은 인터넷(IP
   B.stack = 0; B.rebuys = 1;
   room.leave(B.id);
   const { player: B2 } = room.join({ name: '새이름', ip: '2.2.2.2' });
-  assert.equal(B2.rebuys, 1);
+  assert.equal(B2.rebuys, 0); // 기록을 가져가지 않음
   assert.equal(B2.role, 'spectator');
   assert.throws(() => room.setRole(B2.id, false), /리바인도 다 써서/);
+  assert.ok(room.computeSettlement().rows.some((r) => r.name === 'P1' && r.left), '나간 P1 은 정산에 그대로');
   // 다른 IP의 새 친구는 그냥 새로 참가
   const { player: D } = room.join({ name: '새친구', ip: '9.9.9.9' });
   assert.equal(D.rebuys, 0);
