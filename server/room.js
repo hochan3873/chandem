@@ -928,7 +928,7 @@ class Room {
         p.stack += p.pendingRebuy;
         p.totalBuyIn += p.pendingRebuy;
         this.pushFeed(`${p.name}님 리바인 적용: +${p.pendingRebuy.toLocaleString()}`);
-        p.pendingRebuy = 0;
+        p.pendingRebuy = 0; p.pendingRebuyUses = 0;
       }
       if (p.pendingAdd > 0) {
         p.stack += p.pendingAdd;
@@ -1492,14 +1492,22 @@ class Room {
     if (p.rebuys >= this.settings.rebuyMax) throw new RoomError(`리바인은 최대 ${this.settings.rebuyMax}번까지예요`);
     if (p.pendingRebuy > 0) throw new RoomError('이미 신청했어요. 다음 판부터 적용돼요');
     if (!this.canRebuy(p)) throw new RoomError(this.isTournament ? '리바이는 칩을 다 잃었을 때, 리바이 마감 전까지만 할 수 있어요' : '칩이 시작 칩의 절반보다 적을 때만 리바인할 수 있어요');
-    p.rebuys += 1;
     if (this.tourney) this.tourney.busted = this.tourney.busted.filter((x) => x !== p.id);
     const s = this.settings;
     const want = Math.round(Number(amount));
-    // 각자 정하기 방: 정한 범위 안의 금액만 (범위 밖·이상한 값이면 기본 금액)
-    p.pendingRebuy = s.rebuyFlex && !this.isTournament && Number.isFinite(want) && want >= s.rebuyLo && want <= s.rebuyHi ? want : s.rebuyAmount;
+    // 일반 친구 방: 남은 리바인 횟수만큼 한 번에 몰아서 살 수 있다 (리바인 1번 = 리바인 금액(각자 정하기 방은 최대 금액)까지)
+    //  최소는 리바인 금액(각자 정하기 방은 최소 금액) · 범위 밖·이상한 값이면 기본 금액 1번
+    const multi = !this.isTournament && !this.wallet && !this.practice;
+    const per = this.addonLimit();
+    const lo = s.rebuyFlex && s.money !== 'won' ? s.rebuyLo : s.rebuyAmount;
+    const hi = multi ? per * this.addonLeftFor(p) : s.rebuyFlex && !this.isTournament ? s.rebuyHi : s.rebuyAmount;
+    const amt = (multi || (s.rebuyFlex && !this.isTournament)) && Number.isFinite(want) && want >= lo && want <= hi ? want : s.rebuyAmount;
+    const uses = multi ? Math.max(1, Math.ceil(amt / per)) : 1;
+    p.rebuys += uses;
+    p.pendingRebuy = amt;
+    p.pendingRebuyUses = uses;
     p.sittingOut = false;
-    this.pushFeed(`${p.name}님 리바인 ${p.pendingRebuy.toLocaleString()} 신청 (${p.rebuys}/${s.rebuyMax}) · 다음 판부터 적용`);
+    this.pushFeed(`${p.name}님 리바인 ${p.pendingRebuy.toLocaleString()} 신청 (${uses > 1 ? `${uses}번 묶음 · ` : ''}${p.rebuys}/${s.rebuyMax}) · 다음 판부터 적용`);
     this.maybeStartWaitingHand();
     this.touch();
   }
@@ -1640,7 +1648,7 @@ class Room {
       return;
     }
     const inHand = this.hand && !this.hand.finished && this.handPlayers.includes(id);
-    if (p.pendingRebuy > 0) { p.rebuys = Math.max(0, (p.rebuys || 0) - 1); p.pendingRebuy = 0; } // 적용 전에 나가면 신청 취소
+    if (p.pendingRebuy > 0) { p.rebuys = Math.max(0, (p.rebuys || 0) - (p.pendingRebuyUses || 1)); p.pendingRebuy = 0; p.pendingRebuyUses = 0; } // 적용 전에 나가면 신청 취소
     if (p.pendingAdd > 0) { p.rebuys = Math.max(0, (p.rebuys || 0) - (p.pendingAddUses || 1)); p.pendingAdd = 0; p.pendingAddUses = 0; }
     if (this.phase === 'playing' && this.isTournament && p.role === 'player') this.tourneyOut(p);
     if (inHand) {
@@ -1772,7 +1780,7 @@ class Room {
         handNo: this.handNo,
         waiting: !!this.waiting,
         tournament: this.isTournament ? this.tourneyView() : null,
-        practice: !!this.practice,
+        practice: !!this.practice, wallet: !!this.wallet,
         practiceTable: this.wallet ? this.wallet.tableName : null,
         nextHandAt: this.nextHandAt,
         settings: { ...this.settings, password: undefined, hasPassword: !!this.settings.password },
