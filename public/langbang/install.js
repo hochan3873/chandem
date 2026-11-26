@@ -23,7 +23,33 @@ export function initInstall(ctx) {
   if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); evt = e; });
   window.addEventListener('appinstalled', () => { evt = null; try { localStorage.setItem('langbang:appInstalled', '1'); } catch { /* 무시 */ } for (const b of document.querySelectorAll('[data-act="lbInstall"]')) b.remove(); C.toast('랑방 대전 앱을 설치했어요! 바탕화면 아이콘으로 열어 보세요', 3200); });
+  kakaoArrival();
   return { open, standalone };
+}
+// 카톡에서 넘어온 브라우저(?from=kakao): 앱이 없으면 설치 안내를 바로 (로딩 화면 · 다른 창이 닫힌 뒤에)
+//  안드로이드는 설치 창이 '누를 때만' 열려서 [지금 설치하기] 버튼으로 · 아이폰은 홈 화면에 추가 순서를 바로
+function kakaoArrival() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('from') !== 'kakao') return;
+  q.delete('from');
+  try { history.replaceState(history.state, '', location.pathname + (q.toString() ? `?${q}` : '') + location.hash); } catch { /* 무시 */ }
+  if (standalone() || appView() || IN_APP || !(IS_IOS || /Android/i.test(UA))) return;
+  let tries = 0; let idle = 0;
+  const show = () => {
+    const ld = document.getElementById('bootld');
+    const busy = (ld && getComputedStyle(ld).display !== 'none' && getComputedStyle(ld).opacity !== '0') || document.querySelector('.info-modal, .tutor, .gate');
+    idle = busy ? 0 : idle + 1;
+    if (idle < 3 && tries++ < 60) { setTimeout(show, 1500); return; } // 로비가 자리 잡고(알림 받기 등 다른 창이 먼저 뜨고 닫힌 뒤) 4초쯤 조용할 때
+    const hello = `<p class="ins-warn"><b>카카오톡에서 ${IS_IOS ? '사파리' : '브라우저'}로 넘어왔어요.</b> ${IS_IOS ? '아이폰은 앱스토어 앱이 없어요. 대신 아래처럼 <b>「홈 화면에 추가」</b>를 한 번 해 두면 바탕화면 아이콘으로 <b>앱처럼 전체 화면</b>으로 열려요.' : '앱을 깔아 두면 바탕화면 아이콘으로 <b>전체 화면</b>에서 바로 열려요.'}</p>`;
+    if (IS_IOS) {
+      const first = IOS_OTHER ? '주소창 오른쪽 <b>공유</b> 버튼 (네모에 위 화살표)' : '화면 아래 오른쪽 <b>⋯</b> 를 눌러 <b>「공유」</b><small>예전 아이폰은 아래 막대 가운데의 공유 버튼 (네모에 위 화살표)</small>';
+      sheet(`${hello}${steps([[SVG_SHARE, first], [SVG_ADD, '목록을 내려서 <b>「홈 화면에 추가」</b><small>안 보이면 맨 아래 「작업 편집」 · 「더 보기」 안에 있어요</small>'], [null, '<b>「웹 앱으로 열기」</b>가 켜져 있으면 그대로 두고 오른쪽 위 <b>「추가」</b> → 바탕화면의 <b>랑방 대전</b> 아이콘으로 열면 끝!']])}
+        <p class="ins-note">이미 추가했다면 이 창을 닫고 바탕화면의 <b>랑방 대전</b> 아이콘으로 열어 주세요</p>`);
+    } else {
+      sheet(`${hello}<p class="ins-note">이미 설치했다면 이 창을 닫고 바탕화면이나 앱 목록의 <b>랑방 대전</b>으로 열어 주세요</p>`, '<button class="btn primary" data-ins="go">지금 설치하기</button>');
+    }
+  };
+  setTimeout(show, 2500);
 }
 async function copyLink() {
   try { await navigator.clipboard.writeText(URL0); C.toast('링크를 복사했어요 · 사파리(또는 크롬) 주소창에 붙여 넣어 주세요', 2600); }
