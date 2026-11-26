@@ -45,16 +45,17 @@ test('게임 시간을 게임 중에 정하면 시작 시각 기준으로 정산
   room.clearAllTimers();
 });
 
-test('칩 추가 = 리바인 1번: 칩이 남아 있어도 리바인 횟수 안에서 언제든 · 다음 판에 칩·바이인에 더해짐', () => {
+test('칩 추가 = 리바인 1번치: 칩이 남아 있어도 리바인 횟수 안에서 언제든 · 다음 판에 칩·바이인에 더해짐', () => {
   const { room, ps } = cash(3, { rebuyMax: 2, rebuyAmount: 1000 });
   room.start(ps[0].id);
   const B = ps[1];
   assert.equal(room.viewFor(B.id).me.canAddon, true);
-  assert.throws(() => room.addon(B.id, 1200), /까지/); // 리바인 금액까지
+  assert.equal(room.viewFor(B.id).me.addonLeft, 2000, '남은 2번치까지 한 번에');
+  assert.throws(() => room.addon(B.id, 2001), /까지/);
   room.addon(B.id, 500);
   assert.equal(B.pendingAdd, 500);
   assert.equal(B.rebuys, 1, '리바인 1번 씀');
-  assert.throws(() => room.addon(B.id, 100), /이미 신청/);
+  assert.throws(() => room.addon(B.id, 1001), /까지/, '남은 1번치를 넘으면 안 됨');
   // 적용 전에 게임이 끝나면 공짜 칩이 되지 않는다
   let st = room.computeSettlement();
   assert.equal(st.rows.find((x) => x.name === 'P1').out, B.stack);
@@ -122,5 +123,31 @@ test('정산표에 마지막 판(바닥 카드·패)이 남는다 · 결과 보�
   const lh = room.settlement.lastHand;
   assert.ok(lh && lh.board.length === 5);
   assert.ok(lh.hands.length >= 2);
+  room.clearAllTimers();
+});
+
+test('칩 추가 묶음: 남은 리바인 횟수만큼 한 번에 · 대기 중 추가 신청은 합쳐짐 · 나가면 쓴 횟수 그대로 돌려줌', () => {
+  const { room, ps } = cash(3, { rebuyMax: 3, rebuyAmount: 1000 });
+  room.start(ps[0].id);
+  const B = ps[1];
+  room.addon(B.id, 2000); // 2번치
+  assert.equal(B.rebuys, 2);
+  assert.equal(B.pendingAdd, 2000);
+  assert.equal(room.viewFor(B.id).me.canAddon, true, '대기 중이어도 남은 횟수가 있으면 더 추가 가능');
+  assert.equal(room.viewFor(B.id).me.addonLeft, 1000);
+  room.addon(B.id, 600); // 합쳐짐
+  assert.equal(B.pendingAdd, 2600);
+  assert.equal(B.rebuys, 3);
+  assert.equal(room.viewFor(B.id).me.canAddon, false, '3번 다 씀');
+  room.leave(B.id);
+  assert.equal(room.departed.find((d) => d.name === 'P1').rebuys, 0, '적용 전에 나가면 3번 모두 돌려줌');
+  const C = ps[2];
+  room.addon(C.id, 1500); // 1번치 넘으면 2번 사용
+  assert.equal(C.rebuys, 2);
+  foldOut(room);
+  room.startHand();
+  assert.equal(C.totalBuyIn, 2500);
+  assert.equal(C.pendingAdd, 0);
+  assert.equal(C.pendingAddUses, 0);
   room.clearAllTimers();
 });
