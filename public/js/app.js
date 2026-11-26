@@ -362,7 +362,7 @@ function openIosInstall() {
 // ── 설치 안내 (아이폰 사파리 · 안드로이드 크롬) — 탭으로 둘 다 자세히 ──
 const IS_ANDROID = /Android/i.test(UA);
 function androidStepsHTML() {
-  return `<ol class="ios-steps and-steps">
+  return `${S.fromKakao && IS_ANDROID ? '<div class="ios-pre ko-hello"><b>카카오톡에서 크롬으로 넘어왔어요</b><p class="small">앱을 깔아 두면 다음부터는 카톡 링크를 눌러도 <b>앱으로 전체 화면</b>에서 열려요. 아래 <b>「지금 설치하기」</b>를 누르거나 순서대로 해 주세요.</p></div>' : ''}<ol class="ios-steps and-steps">
     <li><div class="ios-shot ios-shot-bar and-bar"><span class="ios-bar"><i class="ios-addr"></i><b class="ios-hl">⋮</b></span></div>
       <p><b>①</b> <b>크롬</b>으로 이 페이지를 열고, 주소창 오른쪽 <b>⋮</b>(점 세 개)를 눌러요</p>
       <p class="muted tiny">카카오톡에서 열었다면 오른쪽 아래 <b>⋮ → 「다른 브라우저로 열기」 → 크롬</b> · 삼성 인터넷은 아래 <b>≡ → 「현재 페이지 추가」 → 「홈 화면」</b></p></li>
@@ -375,8 +375,9 @@ function androidStepsHTML() {
   </ol>`;
 }
 function iosGuideHTML() {
-  return `<p class="ios-lead">아이폰은 앱스토어가 아니라 <b>사파리의 「홈 화면에 추가」</b>로 설치해요. <b>꼭 사파리</b>에서 해 주세요.</p>
-    <div class="ios-pre"><b>⓪ 사파리로 열기</b><p class="small">카카오톡에서 열었다면 오른쪽 아래 <b>⋯ → 「다른 브라우저로 열기」</b> (또는 「Safari로 열기」). 사파리가 홈 화면에 안 보이면 화면 가운데를 아래로 쓸어 <b>검색에 「Safari」</b>를 치면 나와요. 사파리는 아이폰에 원래 깔려 있어요 (지웠다면 앱스토어에서 「Safari」 받기).</p></div>
+  const inSafari = IS_IOS && !IN_APP && !IOS_OTHER;
+  return `${S.fromKakao ? '<div class="ios-pre ko-hello"><b>카카오톡에서 넘어왔어요</b><p class="small">아이폰은 앱스토어에서 받는 앱이 없어요. 대신 <b>사파리 「홈 화면에 추가」</b>를 한 번 해 두면 바탕화면 아이콘으로 <b>앱처럼 전체 화면</b>으로 열려요. 아래 순서대로 30초면 끝나요.</p><p class="muted tiny">이미 추가했다면 이 창을 닫고 바탕화면의 아이콘으로 열어 주세요.</p></div>' : ''}<p class="ios-lead">아이폰은 앱스토어가 아니라 <b>사파리의 「홈 화면에 추가」</b>로 설치해요.${inSafari ? ' 지금 사파리라서 바로 할 수 있어요.' : ' <b>꼭 사파리</b>에서 해 주세요.'}</p>
+    ${inSafari ? '' : `<div class="ios-pre"><b>⓪ 사파리로 열기</b><p class="small">카카오톡에서 열었다면 오른쪽 아래 <b>⋯ → 「다른 브라우저로 열기」</b> (또는 「Safari로 열기」). 사파리가 홈 화면에 안 보이면 화면 가운데를 아래로 쓸어 <b>검색에 「Safari」</b>를 치면 나와요. 사파리는 아이폰에 원래 깔려 있어요 (지웠다면 앱스토어에서 「Safari」 받기).</p></div>`}
     ${IS_IOS ? iosStepsHTML() : `<h4 class="ios-ver">iOS 26 (사파리 26) 이상</h4>${iosStepsFor(26)}<details class="hih-more"><summary>예전 아이폰 (iOS 18 이하)</summary>${iosStepsFor(18)}</details>`}
     <p class="muted small">끝나면 바탕화면에 생긴 <b>${APP_NAME}</b> 아이콘으로 열어요. 주소창 없이 전체 화면이에요. 사파리 화면 그대로 열리면 아이콘을 지우고 <b>「웹 앱으로 열기」</b>를 켠 채 다시 추가해 주세요.</p>`;
 }
@@ -3223,21 +3224,30 @@ function openAddonModal(st) {
   const s = st.room.settings;
   if (!me || !me.canAddon) { toast(!s.rebuyEnabled ? '이 방은 리바인이 꺼져 있어서 칩을 추가할 수 없어요' : me && me.rebuys >= s.rebuyMax ? `리바인 ${s.rebuyMax}번을 다 썼어요` : me && me.stack === 0 ? '칩을 다 잃었을 때는 리바인 버튼으로 사요' : '지금은 칩을 추가할 수 없어요', 'info'); return; }
   const hi = me.addonLeft;
+  const per = Math.max(1, me.addonPer || hi);
+  const left = s.rebuyMax - me.rebuys;
   const lo = Math.max(me.addonLo || 0, 1);
-  const step = Math.max(1, s.bb || 1);
+  const bbStep = Math.max(1, s.bb || 1);
+  const step = per % bbStep === 0 && (lo <= bbStep || lo % bbStep === 0) ? bbStep : 1; // 슬라이더가 리바인 금액의 배수에 딱 맞게
   const unit = s.money === 'won' ? '원' : '칩';
   const nice = (v) => { const u = Math.max(step, v >= 1000 ? 100 : v >= 200 ? 50 : 10); return Math.max(step, Math.round(v / u) * u); };
-  const quick = [...new Set([nice(hi / 4), nice(hi / 2), hi].filter((v) => v >= Math.max(step, lo) && v <= hi))];
-  const start = quick[Math.min(1, quick.length - 1)] || hi;
+  // 빠른 버튼: 리바인 1번치의 절반 · 1번치 · 2번치 · … · 남은 횟수 전부 (최대 5개)
+  const mult = left >= 99 ? [1, 2, 3, 5] : [...new Set([1, 2, 3, left].filter((k) => k >= 1 && k <= left))];
+  const quick = [...new Set([nice(per / 2), ...mult.map((k) => per * k)].filter((v) => v >= Math.max(step, lo) && v <= hi))].slice(0, 5);
+  const start = Math.min(hi, per);
+  const usesOf = (v) => Math.max(1, Math.ceil(v / per));
+  const label = (v) => (v % per === 0 && v > per ? `+${fmt(v)} · ${v / per}번` : `+${fmt(v)}`);
   openModal('칩 추가', `<div class="rebuy-pick">
-    <p class="muted small">지금 칩 <b>${fmt(me.stack)}</b> · 바이인 합계 <b>${fmt(me.buyIn)}</b> · 남은 리바인 <b>${s.rebuyMax - me.rebuys}번</b></p>
+    <p class="muted small">지금 칩 <b>${fmt(me.stack)}</b> · 바이인 합계 <b>${fmt(me.buyIn)}</b> · 남은 리바인 <b>${left >= 99 ? '제한 없음' : `${left}번`}</b>${me.pendingAdd ? ` · 대기 중 <b>+${fmt(me.pendingAdd)}</b>` : ''}</p>
     <div class="rp-amt">+<b id="ad-v">${fmt(start)}</b> ${unit}</div>
+    <p class="small center" id="ad-use"></p>
     <input type="range" id="ad-r" min="${Math.min(Math.max(step, lo), hi)}" max="${hi}" step="${step}" value="${start}">
-    <div class="rp-quick">${quick.map((v) => `<button type="button" class="btn btn-sm btn-outline" data-ad="${v}">+${fmt(v)}</button>`).join('')}</div>
-    <p class="muted tiny">칩 추가 1번 = 리바인 1번을 써요 (${me.rebuys + 1}/${s.rebuyMax}번째). 진행 중인 판이 끝나면 칩에 더해지고, 정산표에서 내 바이인에 더해져요</p>
+    <div class="rp-quick">${quick.map((v) => `<button type="button" class="btn btn-sm btn-outline" data-ad="${v}">${label(v)}</button>`).join('')}</div>
+    <p class="muted tiny">리바인 1번 = 최대 ${fmt(per)}. 남은 횟수 안이면 <b>여러 번치를 한 번에</b> 추가할 수 있어요. 진행 중인 판이 끝나면 칩에 더해지고, 정산표에서 내 바이인에 더해져요${me.pendingAdd ? ' · 대기 중인 금액에 합쳐져요' : ''}</p>
     <button class="btn btn-gold btn-lg" id="ad-go" type="button">칩 추가 신청</button></div>`, (b) => {
-    const r = b.querySelector('#ad-r'); const v = b.querySelector('#ad-v');
-    const set = (x) => { r.value = x; v.textContent = fmt(Number(r.value)); };
+    const r = b.querySelector('#ad-r'); const v = b.querySelector('#ad-v'); const u = b.querySelector('#ad-use');
+    const set = (x) => { r.value = x; const n = Number(r.value); v.textContent = fmt(n); const k = usesOf(n); u.innerHTML = `리바인 <b>${k}번</b> 사용${left >= 99 ? '' : ` · 남는 리바인 ${left - k}번`}${n % per && k > 1 ? ` <span class="muted tiny">(${fmt(per * k)}까지 같은 횟수)</span>` : ''}`; };
+    set(start);
     r.oninput = () => set(r.value);
     b.querySelectorAll('[data-ad]').forEach((q) => { q.onclick = () => set(q.dataset.ad); });
     b.querySelector('#ad-go').onclick = async () => {
@@ -5423,7 +5433,66 @@ P.init({
   watchRoom: (code) => { S.wantSpectate = true; nav('/r/' + code); boot(); },
   showRecoveryCode, nav,
 });
-boot();
+// ── 카카오톡에서 열면: 크롬(안드로이드) · 사파리(아이폰, 기본 브라우저)로 바로 넘긴다 ──
+// 카톡 안 브라우저는 앱 설치가 안 되고, 화면이 꺼지면 방이 자주 끊긴다.
+// 카톡 화면에서는 방에 들어가지 않는다(넘어간 브라우저에서 또 들어가면 한 사람이 두 자리를 차지해서).
+// 넘어간 브라우저에서는 주소의 ?from=kakao 를 보고, 앱이 없으면 설치 안내를 바로 띄운다.
+function kakaoOutUrl() {
+  const u = new URL(location.href);
+  u.searchParams.set('from', 'kakao');
+  if (IS_ANDROID) return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=com.android.chrome;end`;
+  return `kakaotalk://web/openExternal?url=${encodeURIComponent(u.toString())}`;
+}
+function kakaoOut() {
+  if (!IS_KAKAO || isStandalone()) return false;
+  try { if (sessionStorage.getItem('chandem:stayKakao')) return false; } catch { /* 무시 */ }
+  const go = () => { location.href = kakaoOutUrl(); };
+  const name = IS_IOS ? '사파리' : '크롬';
+  const el = document.createElement('div');
+  el.id = 'kakao-out'; el.className = 'kakao-out';
+  el.innerHTML = `<div class="ko-card">
+    <img src="/img/${HOLDEM_APP ? 'holdem' : 'gw2'}-icon-192.png" alt="" width="64" height="64">
+    <h2>${name}로 여는 중이에요</h2>
+    <p>카카오톡 안에서는 <b>앱 설치가 안 되고</b> 화면이 꺼지면 게임이 자주 끊겨요. 그래서 <b>${name}</b>로 옮겨서 열어요.</p>
+    <button class="btn btn-gold btn-lg" type="button" data-ko="go">${name}로 열기</button>
+    <p class="muted tiny">안 넘어가면 ${IS_IOS ? '오른쪽 아래 <b>⋯</b> → <b>「다른 브라우저로 열기」</b>' : '오른쪽 아래 <b>⋮</b> → <b>「다른 브라우저로 열기」 → 크롬</b>'}${IS_ANDROID ? ' · 크롬이 없으면 위 버튼을 누르면 설치 화면(플레이 스토어)으로 가요' : ''}</p>
+    <button class="btn btn-ghost btn-sm" type="button" data-ko="copy">링크 복사</button>
+    <button class="btn btn-ghost btn-sm ko-stay" type="button" data-ko="stay">그냥 카카오톡에서 할게요</button>
+  </div>`;
+  const put = () => { document.documentElement.classList.remove('splashing'); document.documentElement.classList.add('no-splash'); document.body.appendChild(el); };
+  if (document.body) put(); else document.addEventListener('DOMContentLoaded', put);
+  el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-ko]');
+    if (!b) return;
+    if (b.dataset.ko === 'go') go();
+    else if (b.dataset.ko === 'copy') { try { await navigator.clipboard.writeText(location.href); toast(`복사했어요. ${name} 주소창에 붙여 넣어 주세요`, 'ok'); } catch { prompt(`이 주소를 ${name}에서 열어 주세요`, location.href); } }
+    else if (b.dataset.ko === 'stay') { try { sessionStorage.setItem('chandem:stayKakao', '1'); } catch { /* 무시 */ } el.remove(); boot(); }
+  });
+  setTimeout(go, 150); // 화면을 먼저 그린 뒤 넘긴다
+  return true;
+}
+// 카톡에서 넘어온 브라우저: 앱이 안 깔렸으면 설치 안내를 바로 (안드로이드 크롬은 깔린 걸 알 수 있음 · 아이폰은 알 수 없어서 '이미 했으면 아이콘으로' 안내)
+// (boot 가 주소를 /holdem 등으로 바꾸기 전에 확인해야 해서, boot 보다 먼저 부른다)
+async function kakaoArrival() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('from') !== 'kakao') return;
+  q.delete('from');
+  history.replaceState(history.state, '', location.pathname + (q.toString() ? `?${q}` : '') + location.hash);
+  await null; // 아래는 boot 가 화면을 잡은 뒤에
+  if (isStandalone() || IN_APP || !(IS_IOS || IS_ANDROID)) return;
+  let installed = false;
+  if (IS_ANDROID) { try { if (navigator.getInstalledRelatedApps) installed = ((await navigator.getInstalledRelatedApps()) || []).length > 0; } catch { /* 무시 */ } }
+  if (installed) { S.appCheckDone = true; try { sessionStorage.removeItem('chandem:openAppX'); } catch { /* 무시 */ } setTimeout(showOpenInApp, 600); return; }
+  S.nudgeShown = true; // 아래 띠 안내는 겹치니 안 띄움
+  const show = () => {
+    if (document.querySelector('.modal-backdrop')) { setTimeout(show, 1500); return; } // 방 입장 창 등이 떠 있으면 닫힌 뒤에
+    if (S.view === 'room' && S.state && S.state.room.phase === 'playing') { setTimeout(show, 5000); return; }
+    S.fromKakao = true;
+    openInstallGuide(IS_IOS ? 'ios' : 'and');
+  };
+  setTimeout(show, 1200);
+}
+if (!kakaoOut()) { kakaoArrival(); boot(); }
 
 // 디버그/검증용 (자동 테스트에서 상태 확인)
 window.__chandem = { S, cardName, sound, fx: { allinStamp, bigHand, bigHandVideo, riverGlint, showcaseCards, winGlow, pushPot, handTag, goHome, openColorHelp, openRebuyPick, settlementHTML } };
