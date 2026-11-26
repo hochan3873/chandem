@@ -151,3 +151,24 @@ test('칩 추가 묶음: 남은 리바인 횟수만큼 한 번에 · 대기 중 
   assert.equal(C.pendingAddUses, 0);
   room.clearAllTimers();
 });
+
+test('리바인 묶음: 칩이 적을 때 남은 횟수만큼 한 번에 · 범위 밖이면 1번치 · 나가면 쓴 횟수 돌려줌', () => {
+  const { room, ps } = cash(3, { rebuyMax: 3, rebuyAmount: 1000 });
+  room.start(ps[0].id);
+  foldOut(room);
+  const B = ps[1];
+  B.stack = 100;
+  room.rebuy(B.id, 3000);
+  assert.equal(B.rebuys, 3);
+  assert.equal(B.pendingRebuy, 3000);
+  room.leave(B.id);
+  assert.equal(room.departed.find((d) => d.name === 'P1').rebuys, 0);
+  const C = ps[2];
+  C.stack = 100;
+  room.rebuy(C.id, 9999); // 범위 밖 → 기본 1번
+  assert.equal(C.rebuys, 1);
+  assert.equal(C.pendingRebuy, 1000);
+  room.startHand();
+  assert.equal(C.pendingRebuyUses, 0);
+  room.clearAllTimers();
+});

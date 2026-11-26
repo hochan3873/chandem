@@ -362,7 +362,7 @@ function openIosInstall() {
 // ── 설치 안내 (아이폰 사파리 · 안드로이드 크롬) — 탭으로 둘 다 자세히 ──
 const IS_ANDROID = /Android/i.test(UA);
 function androidStepsHTML() {
-  return `${S.fromKakao && IS_ANDROID ? '<div class="ios-pre ko-hello"><b>카카오톡에서 크롬으로 넘어왔어요</b><p class="small">앱을 깔아 두면 다음부터는 카톡 링크를 눌러도 <b>앱으로 전체 화면</b>에서 열려요. 아래 <b>「지금 설치하기」</b>를 누르거나 순서대로 해 주세요.</p></div>' : ''}<ol class="ios-steps and-steps">
+  return `${S.fromKakao && IS_ANDROID ? '<div class="ios-pre ko-hello"><b>카카오톡에서 브라우저로 넘어왔어요</b><p class="small">앱을 깔아 두면 다음부터는 카톡 링크를 눌러도 <b>앱으로 전체 화면</b>에서 열려요. 아래 <b>「지금 설치하기」</b>를 누르거나 순서대로 해 주세요.</p></div>' : ''}<ol class="ios-steps and-steps">
     <li><div class="ios-shot ios-shot-bar and-bar"><span class="ios-bar"><i class="ios-addr"></i><b class="ios-hl">⋮</b></span></div>
       <p><b>①</b> <b>크롬</b>으로 이 페이지를 열고, 주소창 오른쪽 <b>⋮</b>(점 세 개)를 눌러요</p>
       <p class="muted tiny">카카오톡에서 열었다면 오른쪽 아래 <b>⋮ → 「다른 브라우저로 열기」 → 크롬</b> · 삼성 인터넷은 아래 <b>≡ → 「현재 페이지 추가」 → 「홈 화면」</b></p></li>
@@ -3257,20 +3257,38 @@ function openAddonModal(st) {
     };
   });
 }
-// 리바인 금액 고르기 (방장이 '각자 정하기'를 켠 방)
+// 리바인 금액 고르기: '각자 정하기' 방 · 또는 리바인이 2번 이상 남은 일반 방(몰아서 한 번에)
+function rebuyPickable(st) {
+  const s = st.room.settings;
+  if (s.mode === 'tournament' || st.room.practice || st.room.wallet) return false;
+  return s.rebuyFlex || (st.me && s.rebuyMax - st.me.rebuys > 1);
+}
 function openRebuyPick(st) {
   const s = st.room.settings;
-  const lo = s.rebuyLo; const hi = s.rebuyHi;
-  const step = Math.max(1, s.bb || 1);
+  const me = st.me;
+  const left = Math.max(1, s.rebuyMax - (me ? me.rebuys : 0));
+  const flex = s.rebuyFlex && s.money !== 'won';
+  const per = flex ? s.rebuyHi : s.rebuyAmount;
+  const lo = flex ? s.rebuyLo : s.rebuyAmount;
+  const hi = per * Math.min(left, 99);
+  const bbStep = Math.max(1, s.bb || 1);
+  const step = per % bbStep === 0 && lo % bbStep === 0 ? bbStep : 1;
+  const unit = s.money === 'won' ? '원' : '칩';
   const start = Math.min(hi, Math.max(lo, s.rebuyAmount));
+  const mult = left >= 99 ? [1, 2, 3, 5] : [...new Set([1, 2, 3, left].filter((k) => k >= 1 && k <= left))];
+  const quick = [...new Set([...(flex ? [lo] : []), ...mult.map((k) => per * k)].filter((v) => v >= lo && v <= hi))].slice(0, 5);
+  const usesOf = (v) => Math.max(1, Math.ceil(v / per));
   openModal('리바인 금액', `<div class="rebuy-pick">
-    <p class="muted small">${fmt(lo)} ~ ${fmt(hi)} 사이에서 골라요 · 다음 판부터 적용돼요</p>
-    <div class="rp-amt"><b id="rp-v">${fmt(start)}</b> 칩</div>
+    <p class="muted small">리바인 1번 = 최대 ${fmt(per)} · 남은 리바인 <b>${left >= 99 ? '제한 없음' : `${left}번`}</b> · 여러 번치를 <b>한 번에</b> 살 수 있어요</p>
+    <div class="rp-amt"><b id="rp-v">${fmt(start)}</b> ${unit}</div>
+    <p class="small center" id="rp-use"></p>
     <input type="range" id="rp-r" min="${lo}" max="${hi}" step="${step}" value="${start}">
-    <div class="rp-quick">${[['최소', lo], ['기본', s.rebuyAmount], ['최대', hi]].filter(([, v]) => v >= lo && v <= hi).map(([t, v]) => `<button type="button" class="btn btn-sm btn-outline" data-rp="${v}">${t} ${fmt(v)}</button>`).join('')}</div>
+    <div class="rp-quick">${quick.map((v) => `<button type="button" class="btn btn-sm btn-outline" data-rp="${v}">${fmt(v)}${v > per ? ` · ${usesOf(v)}번` : ''}</button>`).join('')}</div>
+    <p class="muted tiny">다음 판부터 적용돼요 · 정산표에서 내 바이인에 더해져요</p>
     <button class="btn btn-gold btn-lg" id="rp-go" type="button">리바인 신청</button></div>`, (b) => {
-    const r = b.querySelector('#rp-r'); const v = b.querySelector('#rp-v');
-    const set = (x) => { r.value = x; v.textContent = fmt(Number(r.value)); };
+    const r = b.querySelector('#rp-r'); const v = b.querySelector('#rp-v'); const u = b.querySelector('#rp-use');
+    const set = (x) => { r.value = x; const n = Number(r.value); v.textContent = fmt(n); const k = usesOf(n); u.innerHTML = `리바인 <b>${k}번</b> 사용${left >= 99 ? '' : ` · 남는 리바인 ${left - k}번`}`; };
+    set(start);
     r.oninput = () => set(r.value);
     b.querySelectorAll('[data-rp]').forEach((q) => { q.onclick = () => set(q.dataset.rp); });
     b.querySelector('#rp-go').onclick = () => { const a = Number(r.value); closeModal(); doRebuy(a); };
@@ -3721,7 +3739,7 @@ function renderBanner(st) {
   el.querySelectorAll('[data-approve]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.approve, ok: true }); });
   el.querySelectorAll('[data-reject]').forEach((b) => { b.onclick = () => emit('host:approve', { id: b.dataset.reject, ok: false }); });
   const rb = el.querySelector('#rebuy-btn');
-  if (rb) rb.onclick = () => (st.room.settings.rebuyFlex && st.room.settings.mode !== 'tournament' && !st.room.practice ? openRebuyPick(st) : doRebuy());
+  if (rb) rb.onclick = () => (rebuyPickable(st) ? openRebuyPick(st) : doRebuy());
   const tf = el.querySelector('#to-final');
   if (tf && tn && tn.mtt) tf.onclick = () => goFinalTable(tn.mtt.mainCode);
   el.querySelectorAll('[data-bvote]').forEach((b) => { b.onclick = () => emit('game:blindVote', { yes: b.dataset.bvote === '1' }); });
@@ -4786,7 +4804,7 @@ function openMenuModal() {
         if (m === 'hist') { openHistory(); return; }
         if (m === 'settings') { openSettingsModal(); return; }
         if (m === 'addon') { if (me.canAddon) openAddonModal(S.state); else toast(me.pendingAdd ? `칩 추가 +${fmt(me.pendingAdd)} 대기 중 · 다음 판부터 들어가요` : '지금은 칩을 추가할 수 없어요', 'info'); return; }
-        if (m === 'rebuy') { closeModal(); const s2 = S.state.room.settings; if (s2.rebuyFlex && s2.mode !== 'tournament') openRebuyPick(S.state); else doRebuy(); return; }
+        if (m === 'rebuy') { closeModal(); if (rebuyPickable(S.state)) openRebuyPick(S.state); else doRebuy(); return; }
         if (m === 'fullscreen') { closeModal(); toggleFullscreen(); return; }
         if (m === 'orient') { closeModal(); toggleOrient(); return; }
         if (m === 'install') { openInstallGuide(); return; }
@@ -5440,7 +5458,8 @@ P.init({
 function kakaoOutUrl() {
   const u = new URL(location.href);
   u.searchParams.set('from', 'kakao');
-  if (IS_ANDROID) return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=com.android.chrome;end`;
+  // 안드로이드: 브라우저를 콕 집지 않고 '이 주소를 여는 앱'으로 → 찬덤 앱이 깔려 있으면 앱이 바로 열리고, 없으면 기본 브라우저(대부분 크롬)
+  if (IS_ANDROID) return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;S.browser_fallback_url=${encodeURIComponent(u.toString())};end`;
   return `kakaotalk://web/openExternal?url=${encodeURIComponent(u.toString())}`;
 }
 function kakaoOut() {
@@ -5452,10 +5471,10 @@ function kakaoOut() {
   el.id = 'kakao-out'; el.className = 'kakao-out';
   el.innerHTML = `<div class="ko-card">
     <img src="/img/${HOLDEM_APP ? 'holdem' : 'gw2'}-icon-192.png" alt="" width="64" height="64">
-    <h2>${name}로 여는 중이에요</h2>
+    <h2>${IS_ANDROID ? '앱(없으면 크롬)으로' : `${name}로`} 여는 중이에요</h2>
     <p>카카오톡 안에서는 <b>앱 설치가 안 되고</b> 화면이 꺼지면 게임이 자주 끊겨요. 그래서 <b>${name}</b>로 옮겨서 열어요.</p>
-    <button class="btn btn-gold btn-lg" type="button" data-ko="go">${name}로 열기</button>
-    <p class="muted tiny">안 넘어가면 ${IS_IOS ? '오른쪽 아래 <b>⋯</b> → <b>「다른 브라우저로 열기」</b>' : '오른쪽 아래 <b>⋮</b> → <b>「다른 브라우저로 열기」 → 크롬</b>'}${IS_ANDROID ? ' · 크롬이 없으면 위 버튼을 누르면 설치 화면(플레이 스토어)으로 가요' : ''}</p>
+    <button class="btn btn-gold btn-lg" type="button" data-ko="go">${IS_ANDROID ? '앱 · 브라우저로 열기' : `${name}로 열기`}</button>
+    <p class="muted tiny">안 넘어가면 ${IS_IOS ? '오른쪽 아래 <b>⋯</b> → <b>「다른 브라우저로 열기」</b>' : '오른쪽 아래 <b>⋮</b> → <b>「다른 브라우저로 열기」 → 크롬</b>'}${IS_ANDROID ? ' · 찬덤 앱이 깔려 있으면 앱이 바로 열려요' : ''}</p>
     <button class="btn btn-ghost btn-sm" type="button" data-ko="copy">링크 복사</button>
     <button class="btn btn-ghost btn-sm ko-stay" type="button" data-ko="stay">그냥 카카오톡에서 할게요</button>
   </div>`;
