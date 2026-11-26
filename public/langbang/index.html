@@ -28,19 +28,51 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <style>#bootld{position:fixed;inset:0;z-index:90;background:#0b0a16;display:grid;place-items:end center;transition:opacity .35s}#bootld .bl-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55}#bootld.out{opacity:0;pointer-events:none}</style>
   <link rel="preload" as="image" href="/img/lb/title_poster.jpg?v=3" fetchpriority="high">
-  <link rel="stylesheet" href="/langbang/style.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/friends.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/tower.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/raid2.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/bonkae.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/transit.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/tutorial.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/hw.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/currency.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/failguide.css?v=20261031land">
-  <link rel="stylesheet" href="/langbang/rules.css?v=20261031land">
+  <link rel="stylesheet" href="/langbang/style.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/friends.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/tower.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/raid2.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/bonkae.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/transit.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/tutorial.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/hw.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/currency.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/failguide.css?v=20261126kk">
+  <link rel="stylesheet" href="/langbang/rules.css?v=20261126kk">
 </head>
 <body>
+  <script>
+    // 카카오톡에서 열면 크롬(안드로이드) · 사파리(아이폰 기본 브라우저)로 바로 넘긴다 — 카톡 안에서는 앱 설치가 안 되고 화면이 꺼지면 자주 끊겨서
+    // 넘어간 브라우저는 주소의 ?from=kakao 를 보고 설치 안내를 띄운다 (install.js) · 「그냥 카카오톡에서 할게요」 는 이 탭 동안 기억
+    (function () {
+      var ua = navigator.userAgent || '';
+      if (!/KAKAOTALK/i.test(ua)) return;
+      try { if (sessionStorage.getItem('chandem:stayKakao')) return; } catch (e) {}
+      var ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+      var android = /Android/i.test(ua);
+      var u = new URL(location.href); u.searchParams.set('from', 'kakao');
+      var to = android ? 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=https;S.browser_fallback_url=' + encodeURIComponent(u.toString()) + ';end' // 앱이 깔려 있으면 앱으로, 없으면 기본 브라우저
+        : 'kakaotalk://web/openExternal?url=' + encodeURIComponent(u.toString());
+      var name = ios ? '사파리' : '크롬';
+      var el = document.createElement('div');
+      el.id = 'kakao-out';
+      el.setAttribute('style', 'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(circle at 50% 30%,#2a2050,#0b0a16 70%);color:#fff4e4;font-family:Pretendard Variable,Noto Sans KR,sans-serif;text-align:center');
+      el.innerHTML = '<div style="width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;gap:12px">'
+        + '<img src="/img/lb/app/icon-192.png" alt="" width="64" height="64" style="border-radius:16px;box-shadow:0 6px 20px rgba(0,0,0,.5)">'
+        + '<h2 style="margin:4px 0 0;font-size:1.3rem;color:#ffe08a">' + (android ? '앱(없으면 크롬)으로' : name + '로') + ' 여는 중이에요</h2>'
+        + '<p style="margin:0;line-height:1.55;font-size:.92rem">카카오톡 안에서는 <b>앱 설치가 안 되고</b> 화면이 꺼지면 자주 끊겨요. 그래서 <b>' + name + '</b>로 옮겨서 열어요.</p>'
+        + '<button type="button" data-ko="go" style="width:100%;padding:14px;border:0;border-radius:14px;font:inherit;font-weight:900;font-size:1.05rem;background:linear-gradient(180deg,#ffe08a,#d9a640);color:#2a1600">' + (android ? '앱 · 브라우저로 열기' : name + '로 열기') + '</button>'
+        + '<p style="margin:0;font-size:.78rem;opacity:.75">안 넘어가면 오른쪽 아래 <b>' + (ios ? '⋯' : '⋮') + '</b> → <b>「다른 브라우저로 열기」</b>' + (android ? ' → 크롬 · 랑방 대전 앱이 깔려 있으면 앱이 바로 열려요' : '') + '</p>'
+        + '<button type="button" data-ko="stay" style="margin-top:6px;padding:8px 12px;border:0;background:none;color:#fff4e4;opacity:.65;font:inherit;font-size:.85rem">그냥 카카오톡에서 할게요</button></div>';
+      document.body.appendChild(el);
+      el.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-ko]'); if (!b) return;
+        if (b.getAttribute('data-ko') === 'go') location.href = to;
+        else { try { sessionStorage.setItem('chandem:stayKakao', '1'); } catch (x) {} el.remove(); }
+      });
+      setTimeout(function () { location.href = to; }, 150);
+    })();
+  </script>
   <div id="stage">
     <canvas id="cv"></canvas>
     <!-- 부팅 로딩: 첫 화면부터 로비가 다 준비될 때까지 (그림 · 글꼴 · 계정) -->
@@ -105,7 +137,7 @@
     <div id="toast" hidden></div>
   </div>
   <noscript>자바스크립트를 켜야 게임을 할 수 있어요.</noscript>
-  <script type="importmap">{"imports": {"/langbang/game.js": "/langbang/game.js?v=20261031land", "/langbang/season-fx.js": "/langbang/season-fx.js?v=20261031land", "/langbang/season.js": "/langbang/season.js?v=20261031land", "/langbang/cardtext.js": "/langbang/cardtext.js?v=20261031land", "/langbang/data.js": "/langbang/data.js?v=20261031land", "/langbang/sim.js": "/langbang/sim.js?v=20261031land", "/langbang/render.js": "/langbang/render.js?v=20261031land", "/langbang/live.js": "/langbang/live.js?v=20261031land", "/langbang/api.js": "/langbang/api.js?v=20261031land", "/langbang/audio.js": "/langbang/audio.js?v=20261031land", "/langbang/share.js": "/langbang/share.js?v=20261031land", "/langbang/flavor.js": "/langbang/flavor.js?v=20261031land", "/langbang/friends.js": "/langbang/friends.js?v=20261031land", "/langbang/tower.js": "/langbang/tower.js?v=20261031land", "/langbang/tower-ui.js": "/langbang/tower-ui.js?v=20261031land", "/langbang/transit.js": "/langbang/transit.js?v=20261031land", "/langbang/hw-event.js": "/langbang/hw-event.js?v=20261031land", "/langbang/hw-sim.js": "/langbang/hw-sim.js?v=20261031land", "/langbang/hw-ui.js": "/langbang/hw-ui.js?v=20261031land", "/langbang/hw-fx.js": "/langbang/hw-fx.js?v=20261031land", "/langbang/patchnotes.js": "/langbang/patchnotes.js?v=20261031land", "/langbang/failguide.js": "/langbang/failguide.js?v=20261031land", "/langbang/deckrec.js": "/langbang/deckrec.js?v=20261031land", "/langbang/rules.js": "/langbang/rules.js?v=20261031land", "/langbang/srank.js": "/langbang/srank.js?v=20261031land", "/langbang/pvp.js": "/langbang/pvp.js?v=20261031land", "/langbang/currency.js": "/langbang/currency.js?v=20261031land", "/langbang/currency-ui.js": "/langbang/currency-ui.js?v=20261031land"}}</script>
-  <script type="module" src="/langbang/game.js?v=20261031land"></script>
+  <script type="importmap">{"imports": {"/langbang/game.js": "/langbang/game.js?v=20261126kk", "/langbang/season-fx.js": "/langbang/season-fx.js?v=20261126kk", "/langbang/season.js": "/langbang/season.js?v=20261126kk", "/langbang/cardtext.js": "/langbang/cardtext.js?v=20261126kk", "/langbang/data.js": "/langbang/data.js?v=20261126kk", "/langbang/sim.js": "/langbang/sim.js?v=20261126kk", "/langbang/render.js": "/langbang/render.js?v=20261126kk", "/langbang/live.js": "/langbang/live.js?v=20261126kk", "/langbang/api.js": "/langbang/api.js?v=20261126kk", "/langbang/audio.js": "/langbang/audio.js?v=20261126kk", "/langbang/share.js": "/langbang/share.js?v=20261126kk", "/langbang/flavor.js": "/langbang/flavor.js?v=20261126kk", "/langbang/friends.js": "/langbang/friends.js?v=20261126kk", "/langbang/tower.js": "/langbang/tower.js?v=20261126kk", "/langbang/tower-ui.js": "/langbang/tower-ui.js?v=20261126kk", "/langbang/transit.js": "/langbang/transit.js?v=20261126kk", "/langbang/hw-event.js": "/langbang/hw-event.js?v=20261126kk", "/langbang/hw-sim.js": "/langbang/hw-sim.js?v=20261126kk", "/langbang/hw-ui.js": "/langbang/hw-ui.js?v=20261126kk", "/langbang/hw-fx.js": "/langbang/hw-fx.js?v=20261126kk", "/langbang/patchnotes.js": "/langbang/patchnotes.js?v=20261126kk", "/langbang/failguide.js": "/langbang/failguide.js?v=20261126kk", "/langbang/deckrec.js": "/langbang/deckrec.js?v=20261126kk", "/langbang/rules.js": "/langbang/rules.js?v=20261126kk", "/langbang/srank.js": "/langbang/srank.js?v=20261126kk", "/langbang/pvp.js": "/langbang/pvp.js?v=20261126kk", "/langbang/currency.js": "/langbang/currency.js?v=20261126kk", "/langbang/currency-ui.js": "/langbang/currency-ui.js?v=20261126kk"}}</script>
+  <script type="module" src="/langbang/game.js?v=20261126kk"></script>
 </body>
 </html>
