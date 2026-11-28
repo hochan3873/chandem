@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS = {
 const HOST_GRACE_MS = 30 * 1000;      // 방장 연결이 이만큼 끊기면 권한 이전
 const AWAY_SKIP_MS = 60 * 1000;       // 이만큼 끊긴 사람은 다음 판에서 제외(자리 비움)
 const AWAY_KICK_MS = 5 * 60 * 1000;   // 친구 방: 자리 비움·연결 끊김이 이만큼 이어지면 판이 끝날 때 방에서 내보냄
+const LOBBY_DROP_MS = 2 * 60 * 1000;  // 대기실: 연결이 이만큼 끊긴 사람은 방에서 뺀다 (다른 사람이 접속해 있을 때만 · 다시 들어오면 됨)
 const AWAY_ACT_MS = 8 * 1000;
 const PHASE_MS = 10 * 1000;           // 세 장 섯다: 공개할 카드 · 두 장 고르기 시간         // 자리 비움인데 화면은 켜져 있으면: 차례에 8초 동안 직접 할 수 있게 기다린다
 const RESULT_DELAY = { fold: 4500, showdown: 8000 };   // (기본값) 결과를 보여준 뒤 다음 판까지 — 방 설정 resultSeconds 가 우선
@@ -822,7 +823,7 @@ class Room {
     this.hand = null;
     this.handPlayers = [];
     this.nextHandAt = null;
-    for (const p of this.players) p.ready = !!p.isBot;
+    for (const p of this.players) { p.ready = !!p.isBot; if (!p.isBot && !p.connected) this.scheduleLobbyDrop(p.id); }
     this.pushFeed('방장이 게임을 끝내고 대기실로 돌아왔어요');
     this.touch();
   }
@@ -1456,7 +1457,7 @@ class Room {
     this.nextHandAt = null;
     this.waiting = false;
     this.clearTimer('next');
-    for (const p of this.players) p.ready = !!p.isBot;
+    for (const p of this.players) { p.ready = !!p.isBot; if (!p.isBot && !p.connected) this.scheduleLobbyDrop(p.id); }
     this.touch();
   }
 
@@ -1598,6 +1599,7 @@ class Room {
     const wasAway = !p.connected;
     p.connected = true;
     p.disconnectedAt = null;
+    this.clearTimer('drop:' + id);
     if (wasAway) this.maybeStartWaitingHand();
     this.touch();
   }
@@ -1607,6 +1609,7 @@ class Room {
     if (!p) return;
     p.connected = false;
     p.disconnectedAt = this.now();
+    this.scheduleLobbyDrop(id);
     if (id === this.hostId) {
       this.setTimer('host', HOST_GRACE_MS, () => {
         const h = this.host;
@@ -1614,6 +1617,24 @@ class Room {
       });
     }
     this.touch();
+  }
+
+  /** 대기실에서 연결이 끊긴 사람: LOBBY_DROP_MS 뒤에도 끊겨 있으면 방에서 뺀다 (다른 브라우저로 다시 들어와 이름이 두 개 남는 경우 등) */
+  scheduleLobbyDrop(id, ms = LOBBY_DROP_MS) {
+    const p = this.get(id);
+    if (!p || p.isBot) return;
+    this.setTimer('drop:' + id, ms, () => this.dropIfGone(id));
+  }
+
+  dropIfGone(id) {
+    const p = this.get(id);
+    if (!p || p.isBot || p.connected || this.phase !== 'lobby') return false;
+    // 모두 끊긴 상태(서버 재시작 등)에서는 아무도 빼지 않는다 — 누군가 접속해 있을 때만 정리
+    if (!this.players.some((x) => x.id !== id && !x.isBot && !x.leaving && x.connected)) return false;
+    const min = Math.round(LOBBY_DROP_MS / 60000);
+    this.leftNote = { ...(this.leftNote || {}), [id]: `연결이 ${min}분 넘게 끊겨서 대기실에서 빠졌어요 (방 코드로 다시 들어오면 돼요)` };
+    this.leave(id, `연결이 ${min}분 넘게 끊겨 대기실에서 빠졌어요`);
+    return true;
   }
 
   pickNextHost(excludeId) {
@@ -2092,7 +2113,7 @@ class Room {
     // 진행 중인 판이 앞뒤가 안 맞으면(칩 합계·자리) 그 판은 없던 일로: 판 시작 전 칩으로 돌려주고 다음 판
     if (r.hand && !r.hand.finished && !r.handConsistent()) { const h0 = r.hand; r.hand = null; r.voidHand(h0, '서버가 다시 켜지며'); }
     if (r.reveal) { r.reveal.done = true; r.reveal.board = 5; r.reveal.squeeze = false; } // 재시작하면 연출은 건너뜀
-    for (const p of r.players) { if (p.isBot) continue; p.connected = false; p.disconnectedAt = p.disconnectedAt || now(); }
+    for (const p of r.players) { if (p.isBot) continue; p.connected = false; p.disconnectedAt = p.disconnectedAt || now(); if (r.phase === 'lobby') r.scheduleLobbyDrop(p.id); }
     r.setTimer('host', HOST_GRACE_MS, () => {
       const h = r.host;
       if (h && !h.connected) r.transferHostAuto(`방장 ${h.name}님의 연결이 끊겨`);

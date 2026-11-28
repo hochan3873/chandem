@@ -1887,7 +1887,8 @@ document.addEventListener('click', (e) => {
   if (!el) return;
   const pid = el.dataset.id || el.dataset.pid;
   const p = S.state.players.find((x) => x.id === pid);
-  RK.openPlayerCard({ game: gameOf(S.state), code: S.state.room.code, pid, name: p && p.name, extra: p ? roomStatsHTML(p, S.state) : '' });
+  const canKick = p && S.state.me && S.state.room.hostId === S.state.me.id && p.id !== S.state.me.id;
+  RK.openPlayerCard({ game: gameOf(S.state), code: S.state.room.code, pid, name: p && p.name, extra: (p ? roomStatsHTML(p, S.state) : '') + (canKick ? `<div class="pc-kick"><button class="btn btn-sm btn-outline danger" type="button" data-kick="${esc(p.id)}">방에서 내보내기${p.isBot || p.connected ? '' : ' · 연결 끊김'}</button></div>` : '') });
 });
 
 function roomStatsHTML(p, st) {
@@ -3335,7 +3336,7 @@ function playerRowHTML(p, st, isHost) {
     <div class="grow"><b>${esc(p.name)}</b>${RK.badgeHTML(p.id)}${P.masterBadge(p.master)}${me ? ' <span class="muted small">(나)</span>' : ''}
       ${st.room.phase === 'playing' && p.role === 'player' ? `<div class="muted small">칩 ${fmt(p.stack)}${p.rebuys ? ` · 리바인 ${p.rebuys}회` : ''}</div>` : ''}</div>
     <div class="badges">${statusBadges(p, st)}</div>
-    ${isHost && !me ? `<button class="icon-btn" data-pmenu="${p.id}" aria-label="${esc(p.name)} 관리">⋯</button>` : ''}
+    ${isHost && !me ? `<button class="btn btn-sm btn-outline danger kick-btn" type="button" data-kick="${esc(p.id)}">내보내기</button>${p.isBot ? '' : `<button class="icon-btn" data-pmenu="${p.id}" aria-label="${esc(p.name)} 관리">⋯</button>`}` : ''}
   </div>`;
 }
 
@@ -3347,17 +3348,33 @@ function bindPlayerMenus(root) {
       openModal(`${p.name}님 관리`, `
         <div class="stack">
           ${p.isBot ? '' : '<button class="btn btn-outline" data-act="transfer">방장 넘기기</button>'}
-          <button class="btn btn-outline danger" data-act="kick">방에서 내보내기</button>
+          <button class="btn btn-outline danger" type="button" data-kick="${esc(p.id)}">방에서 내보내기</button>
         </div>`, (body) => {
         const tr = body.querySelector('[data-act="transfer"]');
         if (tr) tr.onclick = async () => { const r = await emit('host:transfer', { id: p.id }); if (r.ok) { toast('방장을 넘겼어요', 'ok'); closeModal(); } };
-        body.querySelector('[data-act="kick"]').onclick = async () => {
-          if (!confirm(`${p.name}님을 내보낼까요?`)) return;
-          const r = await emit('host:kick', { id: p.id }); if (r.ok) closeModal();
-        };
       });
     };
   });
+}
+
+// 방장: 내보내기 버튼 (참가자 줄 · 자리를 눌러 뜨는 선수 카드 · 메뉴의 「내보내기」 어디서 눌러도 같은 처리)
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-kick]');
+  if (!b || !S.state) return;
+  e.preventDefault();
+  const p = S.state.players.find((x) => x.id === b.dataset.kick);
+  if (!p) { toast('이미 나간 사람이에요', 'info'); return; }
+  if (!confirm(`${p.name}님을 방에서 내보낼까요?${p.connected || p.isBot ? '' : ' (지금 연결이 끊긴 상태예요)'}`)) return;
+  const r = await emit('host:kick', { id: p.id });
+  if (r && r.ok) { toast(`${p.name}님을 내보냈어요`, 'ok'); if (b.closest('#modal-root')) closeModal(); }
+});
+function openKickModal() {
+  const st = S.state;
+  const others = st.players.filter((p) => !p.leaving && (!st.me || p.id !== st.me.id));
+  openModal('방에서 내보내기', others.length
+    ? `<p class="muted small">잘못 들어온 사람 · 연결이 끊긴 채 남은 사람을 정리할 수 있어요. 내보낸 사람도 방 코드로 다시 들어올 수 있어요.</p>
+      <div class="plist">${others.sort((a, b) => (a.connected ? 1 : 0) - (b.connected ? 1 : 0)).map((p) => playerRowHTML(p, st, true)).join('')}</div>`
+    : '<p class="muted">나 말고 다른 참가자가 없어요</p>', (body) => bindPlayerMenus(body));
 }
 
 function openSettingsModal() {
@@ -4761,6 +4778,7 @@ function openMenuModal() {
   const host = [];
   if (isHost) {
     if (!st.room.tournament && g !== 'omok') host.push(tile('settings', 'gear', playing ? '설정 바꾸기' : '방 설정', playing ? '리바인·칩 추가·시간' : ''));
+    if (st.players.some((p) => !p.leaving && p.id !== me.id)) host.push(tile('kick', 'door', '내보내기', st.players.some((p) => !p.isBot && !p.connected && p.id !== me.id) ? '연결 끊긴 사람 있음' : '잘못 들어온 사람', st.players.some((p) => !p.isBot && !p.connected && p.id !== me.id) ? 'warn' : ''));
     if (cashGame && !st.room.blindVote) host.push(tile('blinds', 'up', g === 'seotda' ? '판돈 올리기' : '블라인드 올리기', '모두 동의하면'));
     if (cashGame) {
       if (st.room.finalLeft) { host.push(tile('end', 'flag', '지금 끝내기', '바로 정산', 'warn')); host.push(tile('finishCancel', 'play', '끝내기 취소')); }
@@ -4803,6 +4821,7 @@ function openMenuModal() {
         if (m === 'chart') { closeModal(); document.getElementById('chart-btn') ? document.getElementById('chart-btn').click() : openModal('족보표', handChartHTML(), null, { wide: true }); return; }
         if (m === 'hist') { openHistory(); return; }
         if (m === 'settings') { openSettingsModal(); return; }
+        if (m === 'kick') { openKickModal(); return; }
         if (m === 'addon') { if (me.canAddon) openAddonModal(S.state); else toast(me.pendingAdd ? `칩 추가 +${fmt(me.pendingAdd)} 대기 중 · 다음 판부터 들어가요` : '지금은 칩을 추가할 수 없어요', 'info'); return; }
         if (m === 'rebuy') { closeModal(); if (rebuyPickable(S.state)) openRebuyPick(S.state); else doRebuy(); return; }
         if (m === 'fullscreen') { closeModal(); toggleFullscreen(); return; }
